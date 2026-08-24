@@ -11461,8 +11461,56 @@ CS2VM2_RunOp(
 
     /* === CS2 opcode group: worldmap (6600..6699) ===
      * world-map and map-element commands.
-     * rev-239 dispatch: Statics.method6889 -> method629.
-     * Contiguous implemented subranges are routed from default below. */
+     * rev-239 dispatch: Statics.method6889 -> method629. */
+    case CS2_OP_WORLDMAP_INIT:
+    case CS2_OP_WORLDMAP_GETMAPNAME:
+    case CS2_OP_WORLDMAP_SETMAP:
+    case CS2_OP_WORLDMAP_GETZOOM:
+    case CS2_OP_WORLDMAP_SETZOOM:
+    case CS2_OP_WORLDMAP_ISLOADED:
+    case CS2_OP_WORLDMAP_JUMPTODISPLAYCOORD:
+    case CS2_OP_WORLDMAP_JUMPTODISPLAYCOORD_INSTANT:
+    case CS2_OP_WORLDMAP_JUMPTOSOURCECOORD:
+    case CS2_OP_WORLDMAP_JUMPTOSOURCECOORD_INSTANT:
+    case CS2_OP_WORLDMAP_GETDISPLAYPOSITION:
+    case CS2_OP_WORLDMAP_GETCONFIGORIGIN:
+    case CS2_OP_WORLDMAP_GETCONFIGSIZE:
+    case CS2_OP_WORLDMAP_GETCONFIGBOUNDS:
+    case CS2_OP_WORLDMAP_GETCONFIGZOOM:
+    case CS2_OP_WORLDMAP_GETDISPLAYCOORD_CURRENT:
+    case CS2_OP_WORLDMAP_GETCURRENTMAP:
+    case CS2_OP_WORLDMAP_GETDISPLAYCOORD:
+    case CS2_OP_WORLDMAP_GETSOURCECOORD:
+    case CS2_OP_WORLDMAP_JUMPTOMAP:
+    case CS2_OP_WORLDMAP_JUMPTOMAP_INSTANT:
+    case CS2_OP_WORLDMAP_COORDINMAP:
+    case CS2_OP_WORLDMAP_GETSIZE:
+    case CS2_OP_WORLDMAP_GETMAP:
+    case CS2_OP_WORLDMAP_SETMAXFLASHCOUNT:
+    case CS2_OP_WORLDMAP_RESETMAXFLASHCOUNT:
+    case CS2_OP_WORLDMAP_SETCYCLESPERFLASH:
+    case CS2_OP_WORLDMAP_RESETCYCLESPERFLASH:
+    case CS2_OP_WORLDMAP_PERPETUALFLASH:
+    case CS2_OP_WORLDMAP_FLASHELEMENT:
+    case CS2_OP_WORLDMAP_FLASHELEMENTCATEGORY:
+    case CS2_OP_WORLDMAP_STOPCURRENTFLASHES:
+    case CS2_OP_WORLDMAP_DISABLEELEMENTS:
+    case CS2_OP_WORLDMAP_DISABLEELEMENT:
+    case CS2_OP_WORLDMAP_DISABLEELEMENTCATEGORY:
+    case CS2_OP_WORLDMAP_GETDISABLEELEMENTS:
+    case CS2_OP_WORLDMAP_GETDISABLEELEMENT:
+    case CS2_OP_WORLDMAP_GETDISABLEELEMENTCATEGORY:
+    case CS2_OP_WORLDMAP_GETNEARESTICON:
+    case CS2_OP_WORLDMAP_LISTELEMENT_START:
+    case CS2_OP_WORLDMAP_LISTELEMENT_NEXT:
+    case CS2_OP_MEC_TEXT:
+    case CS2_OP_MEC_TEXTSIZE:
+    case CS2_OP_MEC_CATEGORY:
+    case CS2_OP_MEC_SPRITE:
+    case CS2_OP_WORLDMAP_ELEMENT:
+    case CS2_OP_WORLDMAP_ELEMENTCOORD1:
+    case CS2_OP_WORLDMAP_ELEMENTCOORD:
+        return CS2VM2_Op_WorldMapFamily(vm, opcode);
 
     /* === CS2 opcode group: clientop-npc (6700..6799) ===
      * client ops and active NPC queries.
@@ -11734,10 +11782,6 @@ CS2VM2_RunOp(
      * rev-239 dispatch: Statics.method6889 -> method6817. */
 
     default:
-        /* Contiguous families, matched by range rather than forty case labels. */
-        if( (opcode >= CS2_OP_WORLDMAP_INIT && opcode <= CS2_OP_WORLDMAP_LISTELEMENT_NEXT) ||
-            (opcode >= CS2_OP_MEC_TEXT && opcode <= CS2_OP_WORLDMAP_ELEMENTCOORD) )
-            return CS2VM2_Op_WorldMapFamily(vm, opcode);
         return CS2VM2_Op_StackMetaStub(vm, frame, opcode, operand);
     }
 }

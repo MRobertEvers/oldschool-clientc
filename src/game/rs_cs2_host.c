@@ -4670,7 +4670,7 @@ exec_cc_create(
     {
         parent_id = rs_cs2_parent_component_id(tree, request.parent_id);
         if( parent_id < 0 )
-            return CS2VM_EXECNO_OK;
+            return CS2VM_EXECNO_ERROR;
     }
 
     /* Group is mounted; a parent that still isn't there cannot be loaded in. */

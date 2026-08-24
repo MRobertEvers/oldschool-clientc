@@ -1,0 +1,592 @@
+{
+  "groups": [
+    {
+      "enum": "VM_CORE",
+      "slug": "vm-core",
+      "summary": "VM control flow, locals, vars and arrays",
+      "deob_handler": "inline",
+      "spans": [
+        {
+          "lo": 0,
+          "hi": 100
+        }
+      ]
+    },
+    {
+      "enum": "COMPONENT",
+      "slug": "component",
+      "summary": "component construction and addressing",
+      "deob_handler": "method4548",
+      "spans": [
+        {
+          "lo": 100,
+          "hi": 1000
+        }
+      ]
+    },
+    {
+      "enum": "COMPONENT_LAYOUT",
+      "slug": "component-layout",
+      "summary": "component position, size and visibility setters",
+      "deob_handler": "method5842",
+      "spans": [
+        {
+          "lo": 1000,
+          "hi": 1100
+        },
+        {
+          "lo": 2000,
+          "hi": 2100
+        }
+      ]
+    },
+    {
+      "enum": "COMPONENT_APPEARANCE",
+      "slug": "component-appearance",
+      "summary": "component graphic, model and text setters",
+      "deob_handler": "method4754",
+      "spans": [
+        {
+          "lo": 1100,
+          "hi": 1200
+        },
+        {
+          "lo": 2100,
+          "hi": 2200
+        }
+      ]
+    },
+    {
+      "enum": "COMPONENT_MODEL",
+      "slug": "component-model",
+      "summary": "component object and head-model setters",
+      "deob_handler": "method5661",
+      "spans": [
+        {
+          "lo": 1200,
+          "hi": 1300
+        },
+        {
+          "lo": 2200,
+          "hi": 2300
+        }
+      ]
+    },
+    {
+      "enum": "COMPONENT_OP",
+      "slug": "component-op",
+      "summary": "component ops, dragging and key bindings",
+      "deob_handler": "method12438",
+      "spans": [
+        {
+          "lo": 1300,
+          "hi": 1400
+        },
+        {
+          "lo": 2300,
+          "hi": 2400
+        }
+      ]
+    },
+    {
+      "enum": "COMPONENT_LISTENER",
+      "slug": "component-listener",
+      "summary": "component listener registration",
+      "deob_handler": "method4487",
+      "spans": [
+        {
+          "lo": 1400,
+          "hi": 1500
+        },
+        {
+          "lo": 2400,
+          "hi": 2500
+        }
+      ]
+    },
+    {
+      "enum": "CC_GEOMETRY",
+      "slug": "cc-geometry",
+      "summary": "active-component geometry getters",
+      "deob_handler": "method1470",
+      "spans": [
+        {
+          "lo": 1500,
+          "hi": 1600
+        }
+      ]
+    },
+    {
+      "enum": "CC_APPEARANCE",
+      "slug": "cc-appearance",
+      "summary": "active-component appearance getters",
+      "deob_handler": "method6296",
+      "spans": [
+        {
+          "lo": 1600,
+          "hi": 1700
+        }
+      ]
+    },
+    {
+      "enum": "CC_INVENTORY",
+      "slug": "cc-inventory",
+      "summary": "active-component inventory and identity getters",
+      "deob_handler": "method12337",
+      "spans": [
+        {
+          "lo": 1700,
+          "hi": 1800
+        }
+      ]
+    },
+    {
+      "enum": "CC_TARGET",
+      "slug": "cc-target",
+      "summary": "active-component target and op getters",
+      "deob_handler": "method6843",
+      "spans": [
+        {
+          "lo": 1800,
+          "hi": 1900
+        }
+      ]
+    },
+    {
+      "enum": "COMPONENT_ACTION",
+      "slug": "component-action",
+      "summary": "component resize and trigger actions",
+      "deob_handler": "method1005",
+      "spans": [
+        {
+          "lo": 1900,
+          "hi": 2000
+        },
+        {
+          "lo": 2900,
+          "hi": 3000
+        }
+      ]
+    },
+    {
+      "enum": "IF_GEOMETRY",
+      "slug": "if-geometry",
+      "summary": "explicit-component geometry getters",
+      "deob_handler": "method4787",
+      "spans": [
+        {
+          "lo": 2500,
+          "hi": 2600
+        }
+      ]
+    },
+    {
+      "enum": "IF_APPEARANCE",
+      "slug": "if-appearance",
+      "summary": "explicit-component appearance getters",
+      "deob_handler": "method8067",
+      "spans": [
+        {
+          "lo": 2600,
+          "hi": 2700
+        }
+      ]
+    },
+    {
+      "enum": "IF_INVENTORY",
+      "slug": "if-inventory",
+      "summary": "interface inventory, parent and identity getters",
+      "deob_handler": "method3056",
+      "spans": [
+        {
+          "lo": 2700,
+          "hi": 2800
+        }
+      ]
+    },
+    {
+      "enum": "IF_TARGET",
+      "slug": "if-target",
+      "summary": "explicit-component target and op getters",
+      "deob_handler": "method2",
+      "spans": [
+        {
+          "lo": 2800,
+          "hi": 2900
+        }
+      ]
+    },
+    {
+      "enum": "CLIENT",
+      "slug": "client",
+      "summary": "general client commands and preferences",
+      "deob_handler": "method6397",
+      "spans": [
+        {
+          "lo": 3000,
+          "hi": 3200
+        }
+      ]
+    },
+    {
+      "enum": "AUDIO_OPTIONS",
+      "slug": "audio-options",
+      "summary": "audio and client option commands",
+      "deob_handler": "method6695",
+      "spans": [
+        {
+          "lo": 3200,
+          "hi": 3300
+        }
+      ]
+    },
+    {
+      "enum": "CLIENT_STATE",
+      "slug": "client-state",
+      "summary": "client state, inventory, stats and coordinates",
+      "deob_handler": "method6548",
+      "spans": [
+        {
+          "lo": 3300,
+          "hi": 3400
+        }
+      ]
+    },
+    {
+      "enum": "ENUM",
+      "slug": "enum",
+      "summary": "enum lookups",
+      "deob_handler": "method6018",
+      "spans": [
+        {
+          "lo": 3400,
+          "hi": 3500
+        }
+      ]
+    },
+    {
+      "enum": "KEYBOARD",
+      "slug": "keyboard",
+      "summary": "keyboard state",
+      "deob_handler": "method6403",
+      "spans": [
+        {
+          "lo": 3500,
+          "hi": 3600
+        }
+      ]
+    },
+    {
+      "enum": "SOCIAL",
+      "slug": "social",
+      "summary": "friends, ignores and legacy clan chat",
+      "deob_handler": "method7997",
+      "spans": [
+        {
+          "lo": 3600,
+          "hi": 3700
+        }
+      ]
+    },
+    {
+      "enum": "UNUSED_3700",
+      "slug": "unused-3700",
+      "summary": "unhandled 3700-series commands",
+      "deob_handler": "method13645",
+      "spans": [
+        {
+          "lo": 3700,
+          "hi": 3800
+        }
+      ]
+    },
+    {
+      "enum": "CLAN",
+      "slug": "clan",
+      "summary": "clan settings and channels",
+      "deob_handler": "method4507",
+      "spans": [
+        {
+          "lo": 3800,
+          "hi": 3900
+        }
+      ]
+    },
+    {
+      "enum": "MARKET",
+      "slug": "market",
+      "summary": "Grand Exchange and trading-post commands",
+      "deob_handler": "method3202",
+      "spans": [
+        {
+          "lo": 3900,
+          "hi": 4000
+        }
+      ]
+    },
+    {
+      "enum": "MATH",
+      "slug": "math",
+      "summary": "integer maths and bit operations",
+      "deob_handler": "method2838",
+      "spans": [
+        {
+          "lo": 4000,
+          "hi": 4100
+        }
+      ]
+    },
+    {
+      "enum": "STRING",
+      "slug": "string",
+      "summary": "string operations",
+      "deob_handler": "method5814",
+      "spans": [
+        {
+          "lo": 4100,
+          "hi": 4200
+        }
+      ]
+    },
+    {
+      "enum": "OBJ",
+      "slug": "obj",
+      "summary": "object definitions and object search",
+      "deob_handler": "method2965",
+      "spans": [
+        {
+          "lo": 4200,
+          "hi": 4300
+        }
+      ]
+    },
+    {
+      "enum": "CHAT",
+      "slug": "chat",
+      "summary": "chat commands",
+      "deob_handler": "method11780",
+      "spans": [
+        {
+          "lo": 4300,
+          "hi": 5100
+        }
+      ]
+    },
+    {
+      "enum": "WINDOW",
+      "slug": "window",
+      "summary": "window-mode commands",
+      "deob_handler": "method9060",
+      "spans": [
+        {
+          "lo": 5100,
+          "hi": 5400
+        }
+      ]
+    },
+    {
+      "enum": "CAMERA",
+      "slug": "camera",
+      "summary": "camera commands",
+      "deob_handler": "method4488",
+      "spans": [
+        {
+          "lo": 5400,
+          "hi": 5600
+        }
+      ]
+    },
+    {
+      "enum": "LOGIN",
+      "slug": "login",
+      "summary": "logout and federated-login commands",
+      "deob_handler": "method6568",
+      "spans": [
+        {
+          "lo": 5600,
+          "hi": 5700
+        }
+      ]
+    },
+    {
+      "enum": "VIEWPORT",
+      "slug": "viewport",
+      "summary": "viewport, canvas, UI zoom and safe-area commands",
+      "deob_handler": "method6341",
+      "spans": [
+        {
+          "lo": 5700,
+          "hi": 6300
+        }
+      ]
+    },
+    {
+      "enum": "WORLD",
+      "slug": "world",
+      "summary": "world list, config params and platform commands",
+      "deob_handler": "method5150",
+      "spans": [
+        {
+          "lo": 6300,
+          "hi": 6600
+        }
+      ]
+    },
+    {
+      "enum": "WORLDMAP",
+      "slug": "worldmap",
+      "summary": "world-map and map-element commands",
+      "deob_handler": "method629",
+      "spans": [
+        {
+          "lo": 6600,
+          "hi": 6700
+        }
+      ]
+    },
+    {
+      "enum": "CLIENTOP_NPC",
+      "slug": "clientop-npc",
+      "summary": "client ops and active NPC queries",
+      "deob_handler": "method12492",
+      "spans": [
+        {
+          "lo": 6700,
+          "hi": 6800
+        }
+      ]
+    },
+    {
+      "enum": "CLIENTOP_LOC",
+      "slug": "clientop-loc",
+      "summary": "active location and object queries",
+      "deob_handler": "method3101",
+      "spans": [
+        {
+          "lo": 6800,
+          "hi": 6900
+        }
+      ]
+    },
+    {
+      "enum": "CLIENTOP_PLAYER",
+      "slug": "clientop-player",
+      "summary": "active player and login-state commands",
+      "deob_handler": "method6167",
+      "spans": [
+        {
+          "lo": 6900,
+          "hi": 7000
+        }
+      ]
+    },
+    {
+      "enum": "HIGHLIGHT",
+      "slug": "highlight",
+      "summary": "entity highlighting",
+      "deob_handler": "method8558",
+      "spans": [
+        {
+          "lo": 7000,
+          "hi": 7100
+        }
+      ]
+    },
+    {
+      "enum": "MINIMENU",
+      "slug": "minimenu",
+      "summary": "minimenu introspection",
+      "deob_handler": "method1135",
+      "spans": [
+        {
+          "lo": 7100,
+          "hi": 7200
+        }
+      ]
+    },
+    {
+      "enum": "OVERLAY",
+      "slug": "overlay",
+      "summary": "entity overlays, minimap and native extension commands",
+      "deob_handler": "method12357",
+      "spans": [
+        {
+          "lo": 7200,
+          "hi": 7500
+        }
+      ]
+    },
+    {
+      "enum": "DB",
+      "slug": "db",
+      "summary": "client database commands",
+      "deob_handler": "method870",
+      "spans": [
+        {
+          "lo": 7500,
+          "hi": 7600
+        }
+      ]
+    },
+    {
+      "enum": "LOOT",
+      "slug": "loot",
+      "summary": "loot-tracker native commands",
+      "deob_handler": "method10020",
+      "spans": [
+        {
+          "lo": 7600,
+          "hi": 7700
+        }
+      ]
+    },
+    {
+      "enum": "EXTENSION",
+      "slug": "extension",
+      "summary": "native extension and client-setting commands",
+      "deob_handler": "method11128",
+      "spans": [
+        {
+          "lo": 7700,
+          "hi": 8000
+        }
+      ]
+    },
+    {
+      "enum": "ARRAY",
+      "slug": "array",
+      "summary": "typed list and array commands",
+      "deob_handler": "method12336",
+      "spans": [
+        {
+          "lo": 8000,
+          "hi": 8100
+        }
+      ]
+    },
+    {
+      "enum": "TYPED_DATA",
+      "slug": "typed-data",
+      "summary": "typed long-keyed data commands",
+      "deob_handler": "method4514",
+      "spans": [
+        {
+          "lo": 8100,
+          "hi": 8600
+        }
+      ]
+    },
+    {
+      "enum": "OP_COUNT",
+      "slug": "op-count",
+      "summary": "interpreter operation-count introspection",
+      "deob_handler": "method6817",
+      "spans": [
+        {
+          "lo": 13000,
+          "hi": 14000
+        }
+      ]
+    }
+  ]
+}

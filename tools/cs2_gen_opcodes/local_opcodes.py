@@ -530,4 +530,10 @@ SECTION_COMMENTS: dict[int, tuple[str, ...]] = {
     7809: (
         "/* Hiscores native-extension stubs (7809/7811). */",
     ),
+    8007: (
+        "/* ARRAY_COUNT_MATCHES — count cells in [start, end) equal to a typed value.",
+        " * A negative end means \"to the end\". The array is a handle on the",
+        " * string stack; value_type selects whether the search value is popped",
+        " * from the int or string stack, so this opcode has variable arity. */",
+    ),
 }

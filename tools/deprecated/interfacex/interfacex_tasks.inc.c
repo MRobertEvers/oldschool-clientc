@@ -298,18 +298,14 @@ InterfaceX_LoadGroupIdFromHostRequest(struct CS2VM_HostRequest const* request)
     switch( request->kind )
     {
     case CS2VM_HOST_REQUEST_CC_CREATE:
-    case CS2VM_HOST_REQUEST_CC_CREATECHILD:
-    case CS2VM_HOST_REQUEST_CC_CREATESIBLING:
         return (request->u.cc_create.parent_id >> 16) & 0xffff;
     case CS2VM_HOST_REQUEST_CC_FIND:
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FINDNEXT:
         return (request->u.cc_find.parent_id >> 16) & 0xffff;
     case CS2VM_HOST_REQUEST_IF_FIND:
         return (request->u.if_find.component_id >> 16) & 0xffff;
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND_COUNT:
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND:
         return (request->u.cc_children_find.parent_id >> 16) & 0xffff;
     case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
-    case CS2VM_HOST_REQUEST_IF_CHILDREN_COLLECT:
         return (request->u.if_children_find.uid >> 16) & 0xffff;
     default:
         return -1;
@@ -496,7 +492,7 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
 
     switch( request->kind )
     {
-    case CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS:
+    case CS2VM_HOST_REQUEST_PUSHSCRIPT:
         if( !InterfaceX_HostIO_ClientScriptGet(
                 &host->host_io, request->u.push_script.script_id) )
         {
@@ -515,7 +511,6 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
         task->sub_run = InterfaceX_TaskFontLoad_Run;
         return;
     case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
-    case CS2VM_HOST_REQUEST_IF_SETTEXTFONT:
         InterfaceX_TaskFontLoad_Free(task->font_child);
         task->font_child = InterfaceX_TaskFontLoad_New(
             InterfaceX_HostIO_Cache(&host->host_io), request->u.cc_set_text_font.font_id);
@@ -530,8 +525,7 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
         task->sub_state = task->sprite_child;
         task->sub_run = InterfaceX_TaskSpriteLoad_Run;
         return;
-    case CS2VM_HOST_REQUEST_ENUM_STRING:
-    case CS2VM_HOST_REQUEST_ENUM:
+    case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
         task->thread.user = Task_CacheConfigEntryLoad_New(
             InterfaceX_HostIO_Cache(&host->host_io),
             RSCacheDat2A_ConfigKind_Enum,
@@ -546,7 +540,6 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
             1);
         return;
     case CS2VM_HOST_REQUEST_STRUCT_PARAM:
-    case CS2VM_HOST_REQUEST_CC_GETPARAM:
         task->thread.user = Task_CacheConfigEntryLoad_New(
             InterfaceX_HostIO_Cache(&host->host_io),
             RSCacheDat2A_ConfigKind_Struct,
@@ -556,11 +549,7 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
     case CS2VM_HOST_REQUEST_OC_PARAM:
     case CS2VM_HOST_REQUEST_OC_NAME:
     case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
-    case CS2VM_HOST_REQUEST_OC_COST:
-    case CS2VM_HOST_REQUEST_OC_STACKABLE:
-    case CS2VM_HOST_REQUEST_OC_CERT:
-    case CS2VM_HOST_REQUEST_OC_UNCERT:
-    case CS2VM_HOST_REQUEST_OC_MEMBERS:
+    case CS2VM_HOST_REQUEST_OC_INT_PARAM:
         task->thread.user = Task_CacheConfigEntryLoad_New(
             InterfaceX_HostIO_Cache(&host->host_io),
             RSCacheDat2A_ConfigKind_Object,
@@ -568,11 +557,7 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
             1);
         return;
     case CS2VM_HOST_REQUEST_CC_SETOBJECT:
-    case CS2VM_HOST_REQUEST_CC_SETOBJECT_NONUM:
-    case CS2VM_HOST_REQUEST_CC_SETOBJECT_ALWAYS_NUM:
     case CS2VM_HOST_REQUEST_IF_SETOBJECT:
-    case CS2VM_HOST_REQUEST_IF_SETOBJECT_NONUM:
-    case CS2VM_HOST_REQUEST_IF_SETOBJECT_ALWAYS_NUM:
     {
         int obj_id = request->u.cc_set_object.obj_id;
         int count = request->u.cc_set_object.count;
@@ -614,8 +599,7 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
         }
         return;
     }
-    case CS2VM_HOST_REQUEST_CC_SETMODEL:
-    case CS2VM_HOST_REQUEST_IF_SETMODEL:
+    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL:
         if( request->u.widget_set_model.model_id >= 0 )
         {
             InterfaceX_TaskModelLoad_Free(task->model_child);
@@ -625,13 +609,7 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
             task->sub_run = InterfaceX_TaskModelLoad_Run;
         }
         return;
-    case CS2VM_HOST_REQUEST_CC_SETNPCHEAD:
-    case CS2VM_HOST_REQUEST_CC_SETPLAYERHEAD_SELF:
-    case CS2VM_HOST_REQUEST_CC_SETPLAYERMODEL_SELF:
-    case CS2VM_HOST_REQUEST_CC_SETMODEL_PLAYERCHATHEAD:
-    case CS2VM_HOST_REQUEST_IF_SETNPCHEAD:
-    case CS2VM_HOST_REQUEST_IF_SETPLAYERHEAD_SELF:
-    case CS2VM_HOST_REQUEST_IF_SETMODEL_PLAYERCHATHEAD:
+    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND:
     {
         enum InterfaceX_ModelKind kind = request->u.widget_set_model_kind.model_kind;
         int model_id = request->u.widget_set_model_kind.model_id;
@@ -667,14 +645,10 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
         return;
     }
     case CS2VM_HOST_REQUEST_CC_CREATE:
-    case CS2VM_HOST_REQUEST_CC_CREATECHILD:
-    case CS2VM_HOST_REQUEST_CC_CREATESIBLING:
     case CS2VM_HOST_REQUEST_CC_FIND:
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FINDNEXT:
     case CS2VM_HOST_REQUEST_IF_FIND:
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND_COUNT:
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND:
     case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
-    case CS2VM_HOST_REQUEST_IF_CHILDREN_COLLECT:
         if( task->load_group.assets_child )
             InterfaceX_AwaitPendingAssets_Free(task->load_group.assets_child);
         if( task->load_group.iface_child )
@@ -759,7 +733,7 @@ Task_InterfaceXRunScript_Run(
 
     if( !InterfaceX_HostIO_ClientScriptGet(&host->host_io, task->script_id) )
     {
-        task->pending.kind = CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS;
+        task->pending.kind = CS2VM_HOST_REQUEST_PUSHSCRIPT;
         task->pending.u.push_script.script_id = task->script_id;
         Task_InterfaceXRunScript_SelectLoadChild(task);
         if( task->thread.user )
@@ -841,16 +815,13 @@ Task_InterfaceXRunScript_Run(
             InterfaceX_HostIO_FinalizeSceneFont(
                 &host->host_io, task->pending.u.para_height.font_id);
         }
-        else if(
-            task->pending.kind == CS2VM_HOST_REQUEST_CC_SETTEXTFONT ||
-            task->pending.kind == CS2VM_HOST_REQUEST_IF_SETTEXTFONT )
+        else if( task->pending.kind == CS2VM_HOST_REQUEST_CC_SETTEXTFONT )
         {
             InterfaceX_HostIO_FinalizeSceneFont(
                 &host->host_io, task->pending.u.cc_set_text_font.font_id);
         }
         else if(
-            (task->pending.kind == CS2VM_HOST_REQUEST_STRUCT_PARAM ||
-             task->pending.kind == CS2VM_HOST_REQUEST_CC_GETPARAM) &&
+            task->pending.kind == CS2VM_HOST_REQUEST_STRUCT_PARAM &&
             !InterfaceX_HostIO_ConfigEntryReady(
                 &host->host_io,
                 RSCacheDat2A_ConfigKind_Params,
@@ -883,11 +854,7 @@ Task_InterfaceXRunScript_Run(
         }
         else if(
             task->pending.kind == CS2VM_HOST_REQUEST_CC_SETOBJECT ||
-            task->pending.kind == CS2VM_HOST_REQUEST_CC_SETOBJECT_NONUM ||
-            task->pending.kind == CS2VM_HOST_REQUEST_CC_SETOBJECT_ALWAYS_NUM ||
-            task->pending.kind == CS2VM_HOST_REQUEST_IF_SETOBJECT ||
-            task->pending.kind == CS2VM_HOST_REQUEST_IF_SETOBJECT_NONUM ||
-            task->pending.kind == CS2VM_HOST_REQUEST_IF_SETOBJECT_ALWAYS_NUM )
+            task->pending.kind == CS2VM_HOST_REQUEST_IF_SETOBJECT )
         {
             task->scene_id = -1;
             if( !InterfaceX_HostIO_ObjIconSceneId(

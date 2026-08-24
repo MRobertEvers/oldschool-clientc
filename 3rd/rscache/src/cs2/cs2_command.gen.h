@@ -81,6 +81,8 @@ static const enum RSCache_CS2_ProtoId cs2_proto_pool[] = {
 };
 
 static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
+
+    /* vm-core: 0..99 — VM control flow, locals, vars and arrays. rev-239 inline. */
     [0] = { "push_constant_int", RSCACHE_CS2_CMD_ASSIGN, 0, 0, 0, 0, false, 0 },
     [1] = { "push_var", RSCACHE_CS2_CMD_ASSIGN, 0, 0, 0, 0, false, 0 },
     [2] = { "pop_var", RSCACHE_CS2_CMD_ASSIGN, 0, 0, 0, 0, false, 0 },
@@ -117,6 +119,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [74] = { "push_varclansetting", RSCACHE_CS2_CMD_ASSIGN, 0, 0, 0, 0, false, 0 },
     [76] = { "push_varclan", RSCACHE_CS2_CMD_ASSIGN, 0, 0, 0, 0, false, 0 },
     [86] = { "branch_if_one", RSCACHE_CS2_CMD_BASIC, 1, 1, 0, 0, false, 0 },
+
+    /* component: 100..999 — component construction and addressing. rev-239 method4548. */
     [100] = { "cc_create", RSCACHE_CS2_CMD_BASIC, 2, 4, 0, 0, true, 0 },
     [101] = { "cc_delete", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, true, 0 },
     [102] = { "cc_deleteall", RSCACHE_CS2_CMD_BASIC, 6, 1, 0, 0, false, 0 },
@@ -128,7 +132,7 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [200] = { "cc_find", RSCACHE_CS2_CMD_BASIC, 16, 2, 18, 1, true, 0 },
     [201] = { "if_find", RSCACHE_CS2_CMD_BASIC, 6, 1, 19, 1, true, 0 },
     [202] = { "_203", RSCACHE_CS2_CMD_BASIC, 10, 1, 20, 1, false, 0 },
-    [203] = { "_203", RSCACHE_CS2_CMD_BASIC, 14, 2, 1, 1, true, 0 },
+    [203] = { "overlay_cc_find", RSCACHE_CS2_CMD_BASIC, 14, 2, 1, 1, true, 0 },
     [204] = { "cc_children_findnextid", RSCACHE_CS2_CMD_BASIC, 0, 0, 1, 1, true, 0 },
     [205] = { "if_children_find", RSCACHE_CS2_CMD_BASIC, 14, 2, 0, 0, true, 0 },
     [206] = { "if_children_findnextid", RSCACHE_CS2_CMD_BASIC, 0, 0, 1, 1, true, 0 },
@@ -142,12 +146,16 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [215] = { "children_array", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 1, false, 0 },
     [216] = { "_216", RSCACHE_CS2_CMD_TYPED_POP, 30, 3, 20, 1, false, 0 },
     [222] = { "_222", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
+
+    /* component-layout: 1000..1099 / 2000..2099 — component position, size and visibility setters. rev-239 method5842. */
     [1000] = { "cc_setposition", RSCACHE_CS2_CMD_BASIC, 33, 4, 0, 0, true, 0 },
     [1001] = { "cc_setsize", RSCACHE_CS2_CMD_BASIC, 37, 4, 0, 0, true, 0 },
     [1003] = { "cc_sethide", RSCACHE_CS2_CMD_BASIC, 19, 1, 0, 0, true, 0 },
     [1004] = { "cc_setpinch", RSCACHE_CS2_CMD_BASIC, 1, 1, 0, 0, true, 0 },
     [1005] = { "cc_setnoclickthrough", RSCACHE_CS2_CMD_BASIC, 19, 1, 0, 0, true, 0 },
     [1006] = { "cc_setnoscrollthrough", RSCACHE_CS2_CMD_BASIC, 19, 1, 0, 0, true, 0 },
+
+    /* component-appearance: 1100..1199 / 2100..2199 — component graphic, model and text setters. rev-239 method4754. */
     [1100] = { "cc_setscrollpos", RSCACHE_CS2_CMD_BASIC, 41, 2, 0, 0, true, 0 },
     [1101] = { "cc_setcolour", RSCACHE_CS2_CMD_BASIC, 43, 1, 0, 0, true, 0 },
     [1102] = { "cc_setfill", RSCACHE_CS2_CMD_BASIC, 19, 1, 0, 0, true, 0 },
@@ -201,6 +209,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [1150] = { "_1150", RSCACHE_CS2_CMD_BASIC, 0, 1, 0, 0, true, 0 },
     [1151] = { "_1151", RSCACHE_CS2_CMD_BASIC, 60, 3, 0, 0, false, 0 },
     [1152] = { "_1152", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+
+    /* component-model: 1200..1299 / 2200..2299 — component object and head-model setters. rev-239 method5661. */
     [1200] = { "cc_setobject", RSCACHE_CS2_CMD_BASIC, 63, 2, 0, 0, true, 0 },
     [1201] = { "cc_setnpchead", RSCACHE_CS2_CMD_BASIC, 65, 1, 0, 0, true, 0 },
     [1202] = { "cc_setplayerhead_self", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, true, 0 },
@@ -213,6 +223,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [1210] = { "_1210", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, true, 0 },
     [1212] = { "cc_setobject_always_num", RSCACHE_CS2_CMD_BASIC, 63, 2, 0, 0, true, 0 },
     [1214] = { "_1214", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
+
+    /* component-op: 1300..1399 / 2300..2399 — component ops, dragging and key bindings. rev-239 method12438. */
     [1300] = { "cc_setop", RSCACHE_CS2_CMD_BASIC, 66, 2, 0, 0, true, 0 },
     [1301] = { "cc_setdraggable", RSCACHE_CS2_CMD_BASIC, 68, 2, 0, 0, true, 0 },
     [1302] = { "cc_setdraggablebehavior", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, true, 0 },
@@ -232,6 +244,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [1353] = { "cc_setoptkeyrate", RSCACHE_CS2_CMD_BASIC, 56, 2, 0, 0, true, 0 },
     [1354] = { "cc_setopkeyignoreheld", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, true, 0 },
     [1355] = { "cc_setoptkeyignoreheld", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, true, 0 },
+
+    /* component-listener: 1400..1499 / 2400..2499 — component listener registration. rev-239 method4487. */
     [1400] = { "cc_setonclick", RSCACHE_CS2_CMD_CLIENTSCRIPT, 0, 0, 0, 0, false, 0 },
     [1401] = { "cc_setonhold", RSCACHE_CS2_CMD_CLIENTSCRIPT, 0, 0, 0, 0, false, 0 },
     [1402] = { "cc_setonrelease", RSCACHE_CS2_CMD_CLIENTSCRIPT, 0, 0, 0, 0, false, 0 },
@@ -270,6 +284,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [1437] = { "cc_input_setonabort", RSCACHE_CS2_CMD_CLIENTSCRIPT, 0, 0, 0, 0, false, 0 },
     [1438] = { "cc_input_setonfocuschanged", RSCACHE_CS2_CMD_CLIENTSCRIPT, 0, 0, 0, 0, false, 0 },
     [1439] = { "cc_input_setonupdate", RSCACHE_CS2_CMD_CLIENTSCRIPT, 0, 0, 0, 0, false, 0 },
+
+    /* cc-geometry: 1500..1599 — active-component geometry getters. rev-239 method1470. */
     [1500] = { "cc_getx", RSCACHE_CS2_CMD_BASIC, 0, 0, 85, 1, true, 0 },
     [1501] = { "cc_gety", RSCACHE_CS2_CMD_BASIC, 0, 0, 86, 1, true, 0 },
     [1502] = { "cc_getwidth", RSCACHE_CS2_CMD_BASIC, 0, 0, 87, 1, true, 0 },
@@ -277,6 +293,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [1504] = { "cc_gethide", RSCACHE_CS2_CMD_BASIC, 0, 0, 19, 1, true, 0 },
     [1505] = { "cc_getlayer", RSCACHE_CS2_CMD_BASIC, 0, 0, 89, 1, true, 0 },
     [1506] = { "_1506", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, true, 0 },
+
+    /* cc-appearance: 1600..1699 — active-component appearance getters. rev-239 method6296. */
     [1600] = { "cc_getscrollx", RSCACHE_CS2_CMD_BASIC, 0, 0, 85, 1, true, 0 },
     [1601] = { "cc_getscrolly", RSCACHE_CS2_CMD_BASIC, 0, 0, 86, 1, true, 0 },
     [1602] = { "cc_gettext", RSCACHE_CS2_CMD_BASIC, 0, 0, 49, 1, true, 0 },
@@ -296,6 +314,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [1616] = { "_1616", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [1624] = { "_1624", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, true, 0 },
     [1628] = { "_1628", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+
+    /* cc-inventory: 1700..1799 — active-component inventory and identity getters. rev-239 method12337. */
     [1700] = { "cc_getinvobject", RSCACHE_CS2_CMD_BASIC, 0, 0, 90, 1, true, 0 },
     [1701] = { "cc_getinvcount", RSCACHE_CS2_CMD_BASIC, 0, 0, 91, 1, true, 0 },
     [1702] = { "cc_getid", RSCACHE_CS2_CMD_BASIC, 0, 0, 92, 1, true, 0 },
@@ -303,17 +323,25 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [1704] = { "cc_setcomponentparam", RSCACHE_CS2_CMD_TYPED_POP, 30, 3, 0, 0, true, 0 },
     [1707] = { "_1707", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, true, 0 },
     [1708] = { "_1708", RSCACHE_CS2_CMD_BASIC, 0, 1, 20, 1, true, 0 },
+
+    /* cc-target: 1800..1899 — active-component target and op getters. rev-239 method6843. */
     [1800] = { "cc_gettargetmask", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, true, 0 },
     [1801] = { "cc_getop", RSCACHE_CS2_CMD_BASIC, 20, 1, 93, 1, true, 0 },
     [1802] = { "cc_getopbase", RSCACHE_CS2_CMD_BASIC, 0, 0, 70, 1, true, 0 },
+
+    /* component-action: 1900..1999 / 2900..2999 — component resize and trigger actions. rev-239 method1005. */
     [1927] = { "cc_callonresize", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, true, 0 },
     [1928] = { "cc_triggerop", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
+
+    /* component-layout: 1000..1099 / 2000..2099 — component position, size and visibility setters. rev-239 method5842. */
     [2000] = { "if_setposition", RSCACHE_CS2_CMD_BASIC, 94, 5, 0, 0, false, 0 },
     [2001] = { "if_setsize", RSCACHE_CS2_CMD_BASIC, 99, 5, 0, 0, false, 0 },
     [2003] = { "if_sethide", RSCACHE_CS2_CMD_BASIC, 104, 2, 0, 0, false, 0 },
     [2004] = { "if_setpinch", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
     [2005] = { "if_setnoclickthrough", RSCACHE_CS2_CMD_BASIC, 104, 2, 0, 0, false, 0 },
     [2006] = { "if_setnoscrollthrough", RSCACHE_CS2_CMD_BASIC, 104, 2, 0, 0, false, 0 },
+
+    /* component-appearance: 1100..1199 / 2100..2199 — component graphic, model and text setters. rev-239 method4754. */
     [2100] = { "if_setscrollpos", RSCACHE_CS2_CMD_BASIC, 106, 3, 0, 0, false, 0 },
     [2101] = { "if_setcolour", RSCACHE_CS2_CMD_BASIC, 109, 2, 0, 0, false, 0 },
     [2102] = { "if_setfill", RSCACHE_CS2_CMD_BASIC, 104, 2, 0, 0, false, 0 },
@@ -357,6 +385,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [2144] = { "if_input_setcursoroffset", RSCACHE_CS2_CMD_BASIC, 14, 2, 0, 0, false, 0 },
     [2145] = { "if_input_setlinewidthlimit", RSCACHE_CS2_CMD_BASIC, 14, 2, 0, 0, false, 0 },
     [2146] = { "if_input_setcharfilter", RSCACHE_CS2_CMD_BASIC, 14, 2, 0, 0, false, 0 },
+
+    /* component-model: 1200..1299 / 2200..2299 — component object and head-model setters. rev-239 method5661. */
     [2200] = { "if_setobject", RSCACHE_CS2_CMD_BASIC, 144, 3, 0, 0, false, 0 },
     [2201] = { "if_setnpchead", RSCACHE_CS2_CMD_BASIC, 147, 2, 0, 0, false, 0 },
     [2202] = { "if_setplayerhead_self", RSCACHE_CS2_CMD_BASIC, 6, 1, 0, 0, false, 0 },
@@ -365,6 +395,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [2212] = { "if_setobject_always_num", RSCACHE_CS2_CMD_BASIC, 144, 3, 0, 0, false, 0 },
     [2214] = { "_2214", RSCACHE_CS2_CMD_BASIC, 56, 2, 0, 0, false, 0 },
     [2215] = { "_2215", RSCACHE_CS2_CMD_BASIC, 56, 2, 0, 0, false, 0 },
+
+    /* component-op: 1300..1399 / 2300..2399 — component ops, dragging and key bindings. rev-239 method12438. */
     [2300] = { "if_setop", RSCACHE_CS2_CMD_BASIC, 149, 3, 0, 0, false, 0 },
     [2301] = { "if_setdraggable", RSCACHE_CS2_CMD_BASIC, 152, 3, 0, 0, false, 0 },
     [2302] = { "if_setdraggablebehavior", RSCACHE_CS2_CMD_BASIC, 113, 2, 0, 0, false, 0 },
@@ -384,6 +416,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [2353] = { "if_setoptkeyrate", RSCACHE_CS2_CMD_BASIC, 141, 3, 0, 0, false, 0 },
     [2354] = { "if_setopkeyignoreheld", RSCACHE_CS2_CMD_BASIC, 113, 2, 0, 0, false, 0 },
     [2355] = { "if_setoptkeyignoreheld", RSCACHE_CS2_CMD_BASIC, 6, 1, 0, 0, false, 0 },
+
+    /* component-listener: 1400..1499 / 2400..2499 — component listener registration. rev-239 method4487. */
     [2400] = { "if_setonclick", RSCACHE_CS2_CMD_CLIENTSCRIPT, 0, 0, 0, 0, false, 0 },
     [2401] = { "if_setonhold", RSCACHE_CS2_CMD_CLIENTSCRIPT, 0, 0, 0, 0, false, 0 },
     [2402] = { "if_setonrelease", RSCACHE_CS2_CMD_CLIENTSCRIPT, 0, 0, 0, 0, false, 0 },
@@ -420,6 +454,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [2437] = { "if_input_setonabort", RSCACHE_CS2_CMD_CLIENTSCRIPT, 0, 0, 0, 0, false, 0 },
     [2438] = { "if_input_setonfocuschanged", RSCACHE_CS2_CMD_CLIENTSCRIPT, 0, 0, 0, 0, false, 0 },
     [2439] = { "if_input_setonupdate", RSCACHE_CS2_CMD_CLIENTSCRIPT, 0, 0, 0, 0, false, 0 },
+
+    /* if-geometry: 2500..2599 — explicit-component geometry getters. rev-239 method4787. */
     [2500] = { "if_getx", RSCACHE_CS2_CMD_BASIC, 6, 1, 85, 1, false, 0 },
     [2501] = { "if_gety", RSCACHE_CS2_CMD_BASIC, 6, 1, 86, 1, false, 0 },
     [2502] = { "if_getwidth", RSCACHE_CS2_CMD_BASIC, 6, 1, 87, 1, false, 0 },
@@ -427,6 +463,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [2504] = { "if_gethide", RSCACHE_CS2_CMD_BASIC, 6, 1, 19, 1, false, 0 },
     [2505] = { "if_getlayer", RSCACHE_CS2_CMD_BASIC, 6, 1, 89, 1, false, 0 },
     [2506] = { "_2506", RSCACHE_CS2_CMD_BASIC, 6, 1, 20, 1, false, 0 },
+
+    /* if-appearance: 2600..2699 — explicit-component appearance getters. rev-239 method8067. */
     [2600] = { "if_getscrollx", RSCACHE_CS2_CMD_BASIC, 6, 1, 85, 1, false, 0 },
     [2601] = { "if_getscrolly", RSCACHE_CS2_CMD_BASIC, 6, 1, 86, 1, false, 0 },
     [2602] = { "if_gettext", RSCACHE_CS2_CMD_BASIC, 6, 1, 49, 1, false, 0 },
@@ -445,6 +483,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [2615] = { "_2615", RSCACHE_CS2_CMD_BASIC, 6, 1, 20, 1, false, 0 },
     [2616] = { "_2616", RSCACHE_CS2_CMD_BASIC, 6, 1, 20, 1, false, 0 },
     [2624] = { "_2624", RSCACHE_CS2_CMD_BASIC, 6, 1, 20, 1, false, 0 },
+
+    /* if-inventory: 2700..2799 — interface inventory, parent and identity getters. rev-239 method3056. */
     [2700] = { "if_getinvobject", RSCACHE_CS2_CMD_BASIC, 6, 1, 90, 1, false, 0 },
     [2701] = { "if_getinvcount", RSCACHE_CS2_CMD_BASIC, 6, 1, 91, 1, false, 0 },
     [2702] = { "if_hassub", RSCACHE_CS2_CMD_BASIC, 6, 1, 19, 1, false, 0 },
@@ -454,12 +494,18 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [2706] = { "if_gettop", RSCACHE_CS2_CMD_BASIC, 0, 0, 179, 1, false, 0 },
     [2708] = { "_2708", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
     [2709] = { "_2709", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
+
+    /* if-target: 2800..2899 — explicit-component target and op getters. rev-239 method2. */
     [2800] = { "if_gettargetmask", RSCACHE_CS2_CMD_BASIC, 6, 1, 20, 1, false, 0 },
     [2801] = { "if_getop", RSCACHE_CS2_CMD_BASIC, 68, 2, 0, 1, false, 0 },
     [2802] = { "if_getopbase", RSCACHE_CS2_CMD_BASIC, 6, 1, 70, 1, false, 0 },
+
+    /* component-action: 1900..1999 / 2900..2999 — component resize and trigger actions. rev-239 method1005. */
     [2927] = { "if_callonresize", RSCACHE_CS2_CMD_BASIC, 6, 1, 0, 0, true, 0 },
     [2928] = { "if_triggerop", RSCACHE_CS2_CMD_BASIC, 180, 3, 0, 0, false, 0 },
     [2929] = { "if_triggeroplocal", RSCACHE_CS2_CMD_DESCRIPTOR_ARGS, 183, 5, 0, 0, false, 0 },
+
+    /* client: 3000..3199 — general client commands and preferences. rev-239 method6397. */
     [3100] = { "mes", RSCACHE_CS2_CMD_BASIC, 0, 1, 0, 0, false, 0 },
     [3101] = { "anim", RSCACHE_CS2_CMD_BASIC, 188, 2, 0, 0, false, 0 },
     [3102] = { "_3102", RSCACHE_CS2_CMD_BASIC, 66, 2, 0, 0, false, 0 },
@@ -545,6 +591,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [3185] = { "_3185", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
     [3186] = { "_3186", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [3189] = { "_3189", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
+
+    /* audio-options: 3200..3299 — audio and client option commands. rev-239 method6695. */
     [3200] = { "sound_synth", RSCACHE_CS2_CMD_BASIC, 202, 3, 0, 0, false, 0 },
     [3201] = { "sound_song", RSCACHE_CS2_CMD_BASIC, 205, 5, 0, 0, false, 0 },
     [3202] = { "sound_jingle", RSCACHE_CS2_CMD_BASIC, 56, 2, 0, 0, false, 0 },
@@ -569,6 +617,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [3223] = { "_3223", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
     [3224] = { "_3224", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
     [3225] = { "_3225", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
+
+    /* client-state: 3300..3399 — client state, inventory, stats and coordinates. rev-239 method6548. */
     [3300] = { "clientclock", RSCACHE_CS2_CMD_BASIC, 0, 0, 214, 1, false, 0 },
     [3301] = { "inv_getobj", RSCACHE_CS2_CMD_BASIC, 215, 2, 90, 1, false, 0 },
     [3302] = { "inv_getnum", RSCACHE_CS2_CMD_BASIC, 215, 2, 217, 1, false, 0 },
@@ -601,11 +651,17 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [3331] = { "_3331", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [3332] = { "_3332", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
     [3333] = { "_3333", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 1, false, 0 },
+
+    /* enum: 3400..3499 — enum lookups. rev-239 method6018. */
     [3400] = { "enum_string", RSCACHE_CS2_CMD_BASIC, 234, 2, 0, 1, false, 0 },
     [3408] = { "enum", RSCACHE_CS2_CMD_ENUM, 0, 0, 0, 0, false, 0 },
     [3411] = { "enum_getoutputcount", RSCACHE_CS2_CMD_BASIC, 236, 1, 91, 1, false, 0 },
+
+    /* keyboard: 3500..3599 — keyboard state. rev-239 method6403. */
     [3500] = { "keyheld", RSCACHE_CS2_CMD_BASIC, 1, 1, 1, 1, false, 0 },
     [3501] = { "keypressed", RSCACHE_CS2_CMD_BASIC, 1, 1, 1, 1, false, 0 },
+
+    /* social: 3600..3699 — friends, ignores and legacy clan chat. rev-239 method7997. */
     [3600] = { "friend_count", RSCACHE_CS2_CMD_BASIC, 0, 0, 91, 1, false, 0 },
     [3601] = { "friend_getname", RSCACHE_CS2_CMD_BASIC, 237, 1, 238, 2, false, 0 },
     [3602] = { "friend_getworld", RSCACHE_CS2_CMD_BASIC, 237, 1, 228, 1, false, 0 },
@@ -663,9 +719,13 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [3655] = { "_3655", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
     [3656] = { "_3656", RSCACHE_CS2_CMD_BASIC, 19, 1, 0, 0, false, 0 },
     [3657] = { "_3657", RSCACHE_CS2_CMD_BASIC, 19, 1, 0, 0, false, 0 },
+
+    /* unused-3700: 3700..3799 — unhandled 3700-series commands. rev-239 method13645. */
     [3700] = { "_3700", RSCACHE_CS2_CMD_BASIC, 244, 3, 20, 1, false, 0 },
     [3701] = { "_3701", RSCACHE_CS2_CMD_BASIC, 244, 3, 20, 1, false, 0 },
     [3702] = { "_3702", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+
+    /* clan: 3800..3899 — clan settings and channels. rev-239 method4507. */
     [3800] = { "activeclansettings_find_listened", RSCACHE_CS2_CMD_BASIC, 0, 0, 19, 1, false, 0 },
     [3801] = { "activeclansettings_find_affined", RSCACHE_CS2_CMD_BASIC, 247, 1, 19, 1, false, 0 },
     [3802] = { "activeclansettings_getclanname", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 1, false, 0 },
@@ -701,6 +761,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [3860] = { "activeclanchannel_getuserslot", RSCACHE_CS2_CMD_BASIC, 0, 1, 247, 1, false, 0 },
     [3861] = { "activeclanchannel_getsorteduserslot", RSCACHE_CS2_CMD_BASIC, 20, 1, 247, 1, false, 0 },
     [3890] = { "clanprofile_find", RSCACHE_CS2_CMD_BASIC, 0, 0, 19, 1, false, 0 },
+
+    /* market: 3900..3999 — Grand Exchange and trading-post commands. rev-239 method3202. */
     [3903] = { "stockmarket_getoffertype", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
     [3904] = { "stockmarket_getofferitem", RSCACHE_CS2_CMD_BASIC, 20, 1, 90, 1, false, 0 },
     [3905] = { "stockmarket_getofferprice", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
@@ -726,6 +788,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [3926] = { "tradingpost_getofferitem", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
     [3931] = { "_3931", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
     [3932] = { "_3932", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+
+    /* math: 4000..4099 — integer maths and bit operations. rev-239 method2838. */
     [4000] = { "add", RSCACHE_CS2_CMD_BASIC, 56, 2, 20, 1, false, 0 },
     [4001] = { "sub", RSCACHE_CS2_CMD_BASIC, 56, 2, 20, 1, false, 0 },
     [4002] = { "multiply", RSCACHE_CS2_CMD_BASIC, 56, 2, 20, 1, false, 0 },
@@ -756,6 +820,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [4034] = { "_4034", RSCACHE_CS2_CMD_BASIC, 56, 2, 20, 1, false, 0 },
     [4035] = { "abs", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
     [4036] = { "string_to_int", RSCACHE_CS2_CMD_BASIC, 0, 1, 20, 1, false, 0 },
+
+    /* string: 4100..4199 — string operations. rev-239 method5814. */
     [4100] = { "append_num", RSCACHE_CS2_CMD_BASIC, 58, 2, 0, 1, false, 0 },
     [4101] = { "append", RSCACHE_CS2_CMD_BASIC, 260, 2, 0, 1, false, 0 },
     [4102] = { "append_signnum", RSCACHE_CS2_CMD_BASIC, 58, 2, 0, 1, false, 0 },
@@ -782,6 +848,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [4123] = { "_4123", RSCACHE_CS2_CMD_BASIC, 60, 3, 0, 1, false, 0 },
     [4124] = { "_4124", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [4127] = { "_4127", RSCACHE_CS2_CMD_BASIC, 0, 1, 56, 2, false, 0 },
+
+    /* obj: 4200..4299 — object definitions and object search. rev-239 method2965. */
     [4200] = { "oc_name", RSCACHE_CS2_CMD_BASIC, 90, 1, 0, 1, false, 0 },
     [4201] = { "oc_op", RSCACHE_CS2_CMD_BASIC, 275, 2, 93, 1, false, 0 },
     [4202] = { "oc_iop", RSCACHE_CS2_CMD_BASIC, 277, 2, 0, 1, false, 0 },
@@ -804,6 +872,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [4222] = { "oc_isubop", RSCACHE_CS2_CMD_BASIC, 171, 3, 0, 1, false, 0 },
     [4223] = { "_4223", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
     [4224] = { "_4224", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
+
+    /* chat: 4300..5099 — chat commands. rev-239 method11780. */
     [5000] = { "chat_getfilter_public", RSCACHE_CS2_CMD_BASIC, 0, 0, 281, 1, false, 0 },
     [5001] = { "chat_setfilter", RSCACHE_CS2_CMD_BASIC, 282, 3, 0, 0, false, 0 },
     [5002] = { "chat_sendabusereport", RSCACHE_CS2_CMD_BASIC, 244, 3, 0, 0, false, 0 },
@@ -826,6 +896,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [5025] = { "chat_gettimestamps", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [5030] = { "chat_gethistoryex_bytypeandline", RSCACHE_CS2_CMD_BASIC, 285, 2, 306, 8, false, 0 },
     [5031] = { "chat_gethistoryex_byuid", RSCACHE_CS2_CMD_BASIC, 20, 1, 314, 8, false, 0 },
+
+    /* window: 5100..5399 — window-mode commands. rev-239 method9060. */
     [5306] = { "getwindowmode", RSCACHE_CS2_CMD_BASIC, 0, 0, 322, 1, false, 0 },
     [5307] = { "setwindowmode", RSCACHE_CS2_CMD_BASIC, 322, 1, 0, 0, false, 0 },
     [5308] = { "getdefaultwindowmode", RSCACHE_CS2_CMD_BASIC, 0, 0, 322, 1, false, 0 },
@@ -835,15 +907,21 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [5312] = { "_5312", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
     [5350] = { "_5350", RSCACHE_CS2_CMD_BASIC, 193, 3, 0, 0, false, 0 },
     [5351] = { "_5351", RSCACHE_CS2_CMD_BASIC, 0, 1, 0, 0, false, 0 },
+
+    /* camera: 5400..5599 — camera commands. rev-239 method4488. */
     [5504] = { "cam_forceangle", RSCACHE_CS2_CMD_BASIC, 56, 2, 0, 0, false, 0 },
     [5505] = { "cam_getangle_xa", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [5506] = { "cam_getangle_ya", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [5530] = { "cam_setfollowheight", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
     [5531] = { "cam_getfollowheight", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+
+    /* login: 5600..5699 — logout and federated-login commands. rev-239 method6568. */
     [5630] = { "logout", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
     [5631] = { "federated_login", RSCACHE_CS2_CMD_BASIC, 260, 2, 0, 0, false, 0 },
     [5632] = { "_5632", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [5633] = { "_5633", RSCACHE_CS2_CMD_BASIC, 260, 2, 0, 0, false, 0 },
+
+    /* viewport: 5700..6299 — viewport, canvas, UI zoom and safe-area commands. rev-239 method6341. */
     [6200] = { "viewport_setfov", RSCACHE_CS2_CMD_BASIC, 56, 2, 0, 0, false, 0 },
     [6201] = { "viewport_setzoom", RSCACHE_CS2_CMD_BASIC, 56, 2, 0, 0, false, 0 },
     [6202] = { "viewport_clampfov", RSCACHE_CS2_CMD_BASIC, 210, 4, 0, 0, false, 0 },
@@ -860,6 +938,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [6223] = { "_6223", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [6231] = { "safearea_getmaxy_alt", RSCACHE_CS2_CMD_BASIC, 56, 2, 0, 0, false, 0 },
     [6232] = { "cam_getyaw", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
+
+    /* world: 6300..6599 — world list, config params and platform commands. rev-239 method5150. */
     [6500] = { "worldlist_fetch", RSCACHE_CS2_CMD_BASIC, 0, 0, 19, 1, false, 0 },
     [6501] = { "worldlist_start", RSCACHE_CS2_CMD_BASIC, 0, 0, 323, 6, false, 0 },
     [6502] = { "worldlist_next", RSCACHE_CS2_CMD_BASIC, 0, 0, 323, 6, false, 0 },
@@ -882,6 +962,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [6526] = { "mobile_wifiavailable", RSCACHE_CS2_CMD_BASIC, 0, 0, 19, 1, false, 0 },
     [6527] = { "_6527", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [6531] = { "_6531", RSCACHE_CS2_CMD_BASIC, 0, 0, 56, 2, false, 0 },
+
+    /* worldmap: 6600..6699 — world-map and map-element commands. rev-239 method629. */
     [6600] = { "_6600", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
     [6601] = { "worldmap_getmapname", RSCACHE_CS2_CMD_BASIC, 340, 1, 0, 1, false, 0 },
     [6602] = { "worldmap_setmap", RSCACHE_CS2_CMD_BASIC, 340, 1, 0, 0, false, 0 },
@@ -930,6 +1012,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [6697] = { "worldmap_element", RSCACHE_CS2_CMD_BASIC, 0, 0, 345, 1, false, 0 },
     [6698] = { "_6698", RSCACHE_CS2_CMD_BASIC, 0, 0, 226, 1, false, 0 },
     [6699] = { "worldmap_elementcoord", RSCACHE_CS2_CMD_BASIC, 0, 0, 226, 1, false, 0 },
+
+    /* clientop-npc: 6700..6799 — client ops and active NPC queries. rev-239 method12492. */
     [6700] = { "_6700", RSCACHE_CS2_CMD_BASIC, 349, 3, 0, 0, false, 0 },
     [6701] = { "_6701", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
     [6702] = { "_6702", RSCACHE_CS2_CMD_BASIC, 349, 3, 0, 0, false, 0 },
@@ -949,10 +1033,12 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [6761] = { "_6761", RSCACHE_CS2_CMD_BASIC, 27, 3, 0, 1, false, 0 },
     [6762] = { "_6762", RSCACHE_CS2_CMD_BASIC, 27, 3, 0, 1, false, 0 },
     [6764] = { "_6764", RSCACHE_CS2_CMD_BASIC, 56, 2, 56, 2, false, 0 },
+
+    /* clientop-loc: 6800..6899 — active location and object queries. rev-239 method3101. */
     [6800] = { "_6800", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 1, false, 0 },
     [6801] = { "_6801", RSCACHE_CS2_CMD_BASIC, 0, 0, 226, 1, false, 0 },
     [6802] = { "_6802", RSCACHE_CS2_CMD_BASIC, 0, 0, 353, 1, false, 0 },
-    [6803] = { "_6803", RSCACHE_CS2_CMD_BASIC, 56, 2, 20, 1, false, 0 },
+    [6803] = { "loc_find", RSCACHE_CS2_CMD_BASIC, 56, 2, 20, 1, false, 0 },
     [6806] = { "_6806", RSCACHE_CS2_CMD_BASIC, 56, 2, 0, 1, false, 0 },
     [6807] = { "_6807", RSCACHE_CS2_CMD_BASIC, 27, 3, 0, 1, false, 0 },
     [6809] = { "_6809", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 1, false, 0 },
@@ -967,6 +1053,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [6860] = { "_6860", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [6861] = { "_6861", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [6863] = { "_6863", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+
+    /* clientop-player: 6900..6999 — active player and login-state commands. rev-239 method6167. */
     [6900] = { "_6900", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 1, false, 0 },
     [6901] = { "_6901", RSCACHE_CS2_CMD_BASIC, 0, 0, 1, 1, false, 0 },
     [6902] = { "_6902", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
@@ -975,7 +1063,9 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [6905] = { "_6905", RSCACHE_CS2_CMD_BASIC, 0, 0, 354, 1, false, 0 },
     [6910] = { "login_int24", RSCACHE_CS2_CMD_BASIC, 0, 0, 1, 1, false, 0 },
     [6950] = { "_6950", RSCACHE_CS2_CMD_BASIC, 0, 0, 226, 1, false, 0 },
-    [6951] = { "_6951", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
+    [6951] = { "coord_inscene", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
+
+    /* highlight: 7000..7099 — entity highlighting. rev-239 method8558. */
     [7000] = { "_7000", RSCACHE_CS2_CMD_BASIC, 205, 5, 0, 0, false, 0 },
     [7001] = { "highlight_npc_on", RSCACHE_CS2_CMD_BASIC, 355, 3, 0, 0, false, 0 },
     [7002] = { "highlight_npc_off", RSCACHE_CS2_CMD_BASIC, 355, 3, 0, 0, false, 0 },
@@ -1021,6 +1111,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [7042] = { "_7042", RSCACHE_CS2_CMD_BASIC, 58, 2, 0, 0, false, 0 },
     [7043] = { "_7043", RSCACHE_CS2_CMD_BASIC, 58, 2, 20, 1, false, 0 },
     [7044] = { "_7044", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
+
+    /* minimenu: 7100..7199 — minimenu introspection. rev-239 method1135. */
     [7100] = { "_7100", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [7101] = { "_7101", RSCACHE_CS2_CMD_BASIC, 0, 0, 260, 2, false, 0 },
     [7102] = { "_7102", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
@@ -1035,6 +1127,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [7120] = { "_7120", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
     [7121] = { "_7121", RSCACHE_CS2_CMD_BASIC, 56, 2, 20, 1, false, 0 },
     [7122] = { "_7122", RSCACHE_CS2_CMD_BASIC, 56, 2, 20, 1, false, 0 },
+
+    /* overlay: 7200..7499 — entity overlays, minimap and native extension commands. rev-239 method12357. */
     [7200] = { "_7200", RSCACHE_CS2_CMD_BASIC, 205, 5, 10, 1, false, 0 },
     [7201] = { "_7201", RSCACHE_CS2_CMD_BASIC, 205, 5, 20, 1, false, 0 },
     [7202] = { "_7202", RSCACHE_CS2_CMD_BASIC, 205, 5, 20, 1, false, 0 },
@@ -1054,13 +1148,13 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [7252] = { "_7252", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
     [7253] = { "minimap_getzoom", RSCACHE_CS2_CMD_BASIC, 0, 0, 1, 1, false, 0 },
     [7254] = { "minimap_seticonzoomlimit", RSCACHE_CS2_CMD_BASIC, 1, 1, 0, 0, false, 0 },
-    [7400] = { "_7400", RSCACHE_CS2_CMD_BASIC, 66, 2, 0, 0, false, 0 },
-    [7401] = { "_7401", RSCACHE_CS2_CMD_BASIC, 349, 3, 0, 0, false, 0 },
-    [7404] = { "_7404", RSCACHE_CS2_CMD_BASIC, 349, 3, 0, 0, false, 0 },
-    [7406] = { "_7406", RSCACHE_CS2_CMD_BASIC, 56, 2, 0, 1, false, 0 },
-    [7407] = { "_7407", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
-    [7408] = { "_7408", RSCACHE_CS2_CMD_BASIC, 380, 4, 20, 1, false, 0 },
-    [7409] = { "_7409", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
+    [7400] = { "loot_aux_upsert2", RSCACHE_CS2_CMD_BASIC, 66, 2, 0, 0, false, 0 },
+    [7401] = { "loot_aux_upsert", RSCACHE_CS2_CMD_BASIC, 349, 3, 0, 0, false, 0 },
+    [7404] = { "loot_aux_remove", RSCACHE_CS2_CMD_BASIC, 349, 3, 0, 0, false, 0 },
+    [7406] = { "loot_aux_get", RSCACHE_CS2_CMD_BASIC, 56, 2, 0, 1, false, 0 },
+    [7407] = { "loot_aux_count", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
+    [7408] = { "loot_aux_lookup", RSCACHE_CS2_CMD_BASIC, 380, 4, 20, 1, false, 0 },
+    [7409] = { "loot_aux_clear", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
     [7451] = { "_7451", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
     [7453] = { "_7453", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
     [7454] = { "_7454", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
@@ -1073,6 +1167,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [7466] = { "_7466", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
     [7470] = { "_7470", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
     [7471] = { "_7471", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+
+    /* db: 7500..7599 — client database commands. rev-239 method870. */
     [7500] = { "db_find_with_count", RSCACHE_CS2_CMD_DB_FIND, 14, 2, 1, 1, false, 0 },
     [7501] = { "db_findnext", RSCACHE_CS2_CMD_BASIC, 0, 0, 1, 1, false, 0 },
     [7502] = { "db_getfield", RSCACHE_CS2_CMD_DB_GETFIELD, 171, 3, 1, 1, false, 0 },
@@ -1084,33 +1180,37 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [7508] = { "db_find", RSCACHE_CS2_CMD_DB_FIND, 14, 2, 0, 0, false, 0 },
     [7509] = { "db_findall", RSCACHE_CS2_CMD_BASIC, 1, 1, 0, 0, false, 0 },
     [7510] = { "db_find_filter", RSCACHE_CS2_CMD_DB_FIND, 14, 2, 0, 0, false, 0 },
+
+    /* loot: 7600..7699 — loot-tracker native commands. rev-239 method10020. */
     [7600] = { "_7600", RSCACHE_CS2_CMD_BASIC, 384, 4, 0, 0, false, 0 },
-    [7601] = { "_7601", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
-    [7602] = { "_7602", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 1, false, 0 },
-    [7603] = { "_7603", RSCACHE_CS2_CMD_BASIC, 0, 1, 20, 1, false, 0 },
-    [7604] = { "_7604", RSCACHE_CS2_CMD_BASIC, 0, 1, 20, 1, false, 0 },
-    [7605] = { "_7605", RSCACHE_CS2_CMD_BASIC, 27, 3, 20, 1, false, 0 },
-    [7606] = { "_7606", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
-    [7608] = { "_7608", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
-    [7609] = { "_7609", RSCACHE_CS2_CMD_BASIC, 0, 1, 20, 1, false, 0 },
-    [7610] = { "_7610", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
-    [7611] = { "_7611", RSCACHE_CS2_CMD_BASIC, 58, 2, 56, 2, false, 0 },
-    [7612] = { "_7612", RSCACHE_CS2_CMD_BASIC, 56, 2, 56, 2, false, 0 },
-    [7613] = { "_7613", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
-    [7614] = { "_7614", RSCACHE_CS2_CMD_BASIC, 0, 1, 0, 0, false, 0 },
-    [7615] = { "_7615", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
-    [7616] = { "_7616", RSCACHE_CS2_CMD_BASIC, 0, 1, 0, 0, false, 0 },
-    [7617] = { "_7617", RSCACHE_CS2_CMD_BASIC, 0, 1, 0, 0, false, 0 },
-    [7619] = { "_7619", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
-    [7620] = { "_7620", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 1, false, 0 },
-    [7621] = { "_7621", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
-    [7622] = { "_7622", RSCACHE_CS2_CMD_BASIC, 0, 1, 0, 0, false, 0 },
-    [7623] = { "_7623", RSCACHE_CS2_CMD_BASIC, 0, 1, 0, 0, false, 0 },
-    [7625] = { "_7625", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
-    [7626] = { "_7626", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 1, false, 0 },
+    [7601] = { "loot_source_count", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+    [7602] = { "loot_source_name", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 1, false, 0 },
+    [7603] = { "loot_source_itemcount", RSCACHE_CS2_CMD_BASIC, 0, 1, 20, 1, false, 0 },
+    [7604] = { "loot_source_totalval", RSCACHE_CS2_CMD_BASIC, 0, 1, 20, 1, false, 0 },
+    [7605] = { "loot_begin_query", RSCACHE_CS2_CMD_BASIC, 27, 3, 20, 1, false, 0 },
+    [7606] = { "loot_query_id", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
+    [7608] = { "loot_aux_count_total", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+    [7609] = { "loot_row_count_byname", RSCACHE_CS2_CMD_BASIC, 0, 1, 20, 1, false, 0 },
+    [7610] = { "loot_row_count_byid", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
+    [7611] = { "loot_row_byname", RSCACHE_CS2_CMD_BASIC, 58, 2, 56, 2, false, 0 },
+    [7612] = { "loot_row_byid", RSCACHE_CS2_CMD_BASIC, 56, 2, 56, 2, false, 0 },
+    [7613] = { "loot_clear_all", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
+    [7614] = { "loot_clear_source", RSCACHE_CS2_CMD_BASIC, 0, 1, 0, 0, false, 0 },
+    [7615] = { "loot_remove_byid", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
+    [7616] = { "loot_ignore_add", RSCACHE_CS2_CMD_BASIC, 0, 1, 0, 0, false, 0 },
+    [7617] = { "loot_ignore_remove", RSCACHE_CS2_CMD_BASIC, 0, 1, 0, 0, false, 0 },
+    [7619] = { "loot_ground_count", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+    [7620] = { "loot_ground_name", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 1, false, 0 },
+    [7621] = { "loot_ignore_clear", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
+    [7622] = { "loot_source_ignore_add", RSCACHE_CS2_CMD_BASIC, 0, 1, 0, 0, false, 0 },
+    [7623] = { "loot_source_ignore_remove", RSCACHE_CS2_CMD_BASIC, 0, 1, 0, 0, false, 0 },
+    [7625] = { "loot_srclist_count", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+    [7626] = { "loot_srclist_name", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 1, false, 0 },
     [7627] = { "_7627", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
-    [7628] = { "_7628", RSCACHE_CS2_CMD_BASIC, 384, 4, 0, 0, false, 0 },
-    [7630] = { "_7630", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 1, false, 0 },
+    [7628] = { "loot_add", RSCACHE_CS2_CMD_BASIC, 384, 4, 0, 0, false, 0 },
+    [7630] = { "loot_source_name2", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 1, false, 0 },
+
+    /* extension: 7700..7999 — native extension and client-setting commands. rev-239 method11128. */
     [7800] = { "_7800", RSCACHE_CS2_CMD_BASIC, 58, 2, 0, 0, false, 0 },
     [7801] = { "_7801", RSCACHE_CS2_CMD_BASIC, 0, 1, 20, 1, false, 0 },
     [7802] = { "_7802", RSCACHE_CS2_CMD_BASIC, 0, 1, 20, 1, false, 0 },
@@ -1120,9 +1220,9 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [7806] = { "_7806", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
     [7807] = { "_7807", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [7808] = { "_7808", RSCACHE_CS2_CMD_BASIC, 0, 0, 56, 2, false, 0 },
-    [7809] = { "_7809", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+    [7809] = { "hiscores_status", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [7810] = { "_7810", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
-    [7811] = { "_7811", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 1, false, 0 },
+    [7811] = { "hiscores_error", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 1, false, 0 },
     [7812] = { "_7812", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
     [7813] = { "_7813", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
     [7814] = { "_7814", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
@@ -1133,13 +1233,15 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [7824] = { "_7824", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
     [7900] = { "_7900", RSCACHE_CS2_CMD_BASIC, 20, 1, 0, 0, false, 0 },
     [7901] = { "_7901", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
-    [8000] = { "_8000", RSCACHE_CS2_CMD_BASIC, 260, 2, 0, 0, false, 0 },
+
+    /* array: 8000..8099 — typed list and array commands. rev-239 method12336. */
+    [8000] = { "array_sort_all", RSCACHE_CS2_CMD_BASIC, 260, 2, 0, 0, false, 0 },
     [8001] = { "_8001", RSCACHE_CS2_CMD_BASIC, 244, 3, 0, 0, false, 0 },
     [8002] = { "_8002", RSCACHE_CS2_CMD_BASIC, 0, 1, 20, 1, false, 0 },
     [8003] = { "array_length", RSCACHE_CS2_CMD_BASIC, 0, 1, 20, 1, false, 0 },
     [8005] = { "_8005", RSCACHE_CS2_CMD_TYPED_POP, 388, 5, 20, 1, false, 0 },
     [8006] = { "_8006", RSCACHE_CS2_CMD_TYPED_POP, 388, 5, 20, 1, false, 0 },
-    [8007] = { "_8007", RSCACHE_CS2_CMD_TYPED_POP, 388, 5, 20, 1, false, 0 },
+    [8007] = { "array_count_matches", RSCACHE_CS2_CMD_TYPED_POP, 388, 5, 20, 1, false, 0 },
     [8009] = { "_8009", RSCACHE_CS2_CMD_BASIC, 0, 1, 20, 1, false, 0 },
     [8010] = { "_8010", RSCACHE_CS2_CMD_TYPED_POP, 388, 5, 0, 0, false, 0 },
     [8011] = { "_8011", RSCACHE_CS2_CMD_BASIC, 384, 4, 0, 0, false, 0 },

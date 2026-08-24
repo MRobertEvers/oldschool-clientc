@@ -147,8 +147,11 @@ def format_group_banner(group: OpcodeGroup, span: OpcodeSpan) -> list[str]:
     lines = [
         f"/* === CS2 opcode group: {group.slug} ({label}) ===",
         f" * {group.summary}.",
-        f" * rev-239 dispatch: Statics.method6889 -> {group.deob_handler}.",
     ]
+    if group.enum_name == "VM_CORE":
+        lines.append(" * rev-239 execution: inline in Statics.method4464.")
+    else:
+        lines.append(f" * rev-239 dispatch: Statics.method6889 -> {group.deob_handler}.")
     if len(group.spans) > 1:
         lines.append(" * The listed ranges deliberately share one component handler.")
     lines.append(" */")

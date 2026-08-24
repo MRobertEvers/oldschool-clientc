@@ -4,6 +4,8 @@
 static const int rscache_cs2_operand_kind_table_size = 8025;
 
 static const uint8_t rscache_cs2_operand_kind_table[] = {
+
+    /* vm-core: 0..99 — VM control flow, locals, vars and arrays. */
     [0] = 2,
     [1] = 2,
     [2] = 2,
@@ -104,6 +106,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [97] = 2,
     [98] = 2,
     [99] = 2,
+
+    /* component: 100..999 — component construction and addressing. */
     [100] = 1,
     [101] = 1,
     [102] = 1,
@@ -207,7 +211,7 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [200] = 1,
     [201] = 1,
     [202] = 1,
-    [203] = 2,
+    [203] = 1,
     [204] = 1,
     [205] = 1,
     [206] = 1,
@@ -1004,6 +1008,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [997] = 2,
     [998] = 2,
     [999] = 2,
+
+    /* component-layout: 1000..1099 / 2000..2099 — component position, size and visibility setters. */
     [1000] = 1,
     [1001] = 1,
     [1002] = 2,
@@ -1104,6 +1110,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [1097] = 2,
     [1098] = 2,
     [1099] = 2,
+
+    /* component-appearance: 1100..1199 / 2100..2199 — component graphic, model and text setters. */
     [1100] = 1,
     [1101] = 1,
     [1102] = 1,
@@ -1204,6 +1212,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [1197] = 2,
     [1198] = 2,
     [1199] = 2,
+
+    /* component-model: 1200..1299 / 2200..2299 — component object and head-model setters. */
     [1200] = 1,
     [1201] = 1,
     [1202] = 1,
@@ -1304,6 +1314,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [1297] = 2,
     [1298] = 2,
     [1299] = 2,
+
+    /* component-op: 1300..1399 / 2300..2399 — component ops, dragging and key bindings. */
     [1300] = 1,
     [1301] = 1,
     [1302] = 1,
@@ -1404,6 +1416,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [1397] = 2,
     [1398] = 2,
     [1399] = 2,
+
+    /* component-listener: 1400..1499 / 2400..2499 — component listener registration. */
     [1400] = 1,
     [1401] = 1,
     [1402] = 1,
@@ -1504,6 +1518,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [1497] = 2,
     [1498] = 2,
     [1499] = 2,
+
+    /* cc-geometry: 1500..1599 — active-component geometry getters. */
     [1500] = 1,
     [1501] = 1,
     [1502] = 1,
@@ -1604,6 +1620,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [1597] = 2,
     [1598] = 2,
     [1599] = 2,
+
+    /* cc-appearance: 1600..1699 — active-component appearance getters. */
     [1600] = 1,
     [1601] = 1,
     [1602] = 1,
@@ -1704,6 +1722,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [1697] = 2,
     [1698] = 2,
     [1699] = 2,
+
+    /* cc-inventory: 1700..1799 — active-component inventory and identity getters. */
     [1700] = 1,
     [1701] = 1,
     [1702] = 1,
@@ -1804,6 +1824,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [1797] = 2,
     [1798] = 2,
     [1799] = 2,
+
+    /* cc-target: 1800..1899 — active-component target and op getters. */
     [1800] = 1,
     [1801] = 1,
     [1802] = 1,
@@ -1904,6 +1926,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [1897] = 2,
     [1898] = 2,
     [1899] = 2,
+
+    /* component-action: 1900..1999 / 2900..2999 — component resize and trigger actions. */
     [1900] = 2,
     [1901] = 2,
     [1902] = 2,
@@ -2004,6 +2028,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [1997] = 2,
     [1998] = 2,
     [1999] = 2,
+
+    /* component-layout: 1000..1099 / 2000..2099 — component position, size and visibility setters. */
     [2000] = 1,
     [2001] = 1,
     [2002] = 2,
@@ -2104,6 +2130,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [2097] = 2,
     [2098] = 2,
     [2099] = 2,
+
+    /* component-appearance: 1100..1199 / 2100..2199 — component graphic, model and text setters. */
     [2100] = 1,
     [2101] = 1,
     [2102] = 1,
@@ -2204,6 +2232,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [2197] = 2,
     [2198] = 2,
     [2199] = 2,
+
+    /* component-model: 1200..1299 / 2200..2299 — component object and head-model setters. */
     [2200] = 1,
     [2201] = 1,
     [2202] = 1,
@@ -2304,6 +2334,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [2297] = 2,
     [2298] = 2,
     [2299] = 2,
+
+    /* component-op: 1300..1399 / 2300..2399 — component ops, dragging and key bindings. */
     [2300] = 1,
     [2301] = 1,
     [2302] = 1,
@@ -2404,6 +2436,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [2397] = 2,
     [2398] = 2,
     [2399] = 2,
+
+    /* component-listener: 1400..1499 / 2400..2499 — component listener registration. */
     [2400] = 1,
     [2401] = 1,
     [2402] = 1,
@@ -2504,6 +2538,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [2497] = 2,
     [2498] = 2,
     [2499] = 2,
+
+    /* if-geometry: 2500..2599 — explicit-component geometry getters. */
     [2500] = 1,
     [2501] = 1,
     [2502] = 1,
@@ -2604,6 +2640,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [2597] = 2,
     [2598] = 2,
     [2599] = 2,
+
+    /* if-appearance: 2600..2699 — explicit-component appearance getters. */
     [2600] = 1,
     [2601] = 1,
     [2602] = 1,
@@ -2704,10 +2742,12 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [2697] = 2,
     [2698] = 2,
     [2699] = 2,
+
+    /* if-inventory: 2700..2799 — interface inventory, parent and identity getters. */
     [2700] = 1,
     [2701] = 1,
     [2702] = 1,
-    [2703] = 2,
+    [2703] = 1,
     [2704] = 1,
     [2705] = 1,
     [2706] = 1,
@@ -2804,6 +2844,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [2797] = 2,
     [2798] = 2,
     [2799] = 2,
+
+    /* if-target: 2800..2899 — explicit-component target and op getters. */
     [2800] = 1,
     [2801] = 1,
     [2802] = 1,
@@ -2904,6 +2946,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [2897] = 2,
     [2898] = 2,
     [2899] = 2,
+
+    /* component-action: 1900..1999 / 2900..2999 — component resize and trigger actions. */
     [2900] = 2,
     [2901] = 2,
     [2902] = 2,
@@ -2933,7 +2977,7 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [2926] = 2,
     [2927] = 1,
     [2928] = 1,
-    [2929] = 2,
+    [2929] = 1,
     [2930] = 2,
     [2931] = 2,
     [2932] = 2,
@@ -3004,6 +3048,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [2997] = 2,
     [2998] = 2,
     [2999] = 2,
+
+    /* client: 3000..3199 — general client commands and preferences. */
     [3000] = 2,
     [3001] = 2,
     [3002] = 2,
@@ -3204,6 +3250,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [3197] = 2,
     [3198] = 2,
     [3199] = 2,
+
+    /* audio-options: 3200..3299 — audio and client option commands. */
     [3200] = 1,
     [3201] = 1,
     [3202] = 1,
@@ -3225,7 +3273,7 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [3218] = 2,
     [3219] = 2,
     [3220] = 2,
-    [3221] = 2,
+    [3221] = 1,
     [3222] = 2,
     [3223] = 2,
     [3224] = 2,
@@ -3304,6 +3352,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [3297] = 2,
     [3298] = 2,
     [3299] = 2,
+
+    /* client-state: 3300..3399 — client state, inventory, stats and coordinates. */
     [3300] = 1,
     [3301] = 1,
     [3302] = 1,
@@ -3404,6 +3454,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [3397] = 2,
     [3398] = 2,
     [3399] = 2,
+
+    /* enum: 3400..3499 — enum lookups. */
     [3400] = 1,
     [3401] = 2,
     [3402] = 2,
@@ -3504,6 +3556,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [3497] = 2,
     [3498] = 2,
     [3499] = 2,
+
+    /* keyboard: 3500..3599 — keyboard state. */
     [3500] = 1,
     [3501] = 1,
     [3502] = 2,
@@ -3604,6 +3658,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [3597] = 2,
     [3598] = 2,
     [3599] = 2,
+
+    /* social: 3600..3699 — friends, ignores and legacy clan chat. */
     [3600] = 1,
     [3601] = 1,
     [3602] = 1,
@@ -3704,6 +3760,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [3697] = 2,
     [3698] = 2,
     [3699] = 2,
+
+    /* unused-3700: 3700..3799 — unhandled 3700-series commands. */
     [3700] = 1,
     [3701] = 1,
     [3702] = 1,
@@ -3804,6 +3862,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [3797] = 2,
     [3798] = 2,
     [3799] = 2,
+
+    /* clan: 3800..3899 — clan settings and channels. */
     [3800] = 1,
     [3801] = 1,
     [3802] = 1,
@@ -3904,6 +3964,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [3897] = 2,
     [3898] = 2,
     [3899] = 2,
+
+    /* market: 3900..3999 — Grand Exchange and trading-post commands. */
     [3900] = 2,
     [3901] = 2,
     [3902] = 2,
@@ -4004,6 +4066,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [3997] = 2,
     [3998] = 2,
     [3999] = 2,
+
+    /* math: 4000..4099 — integer maths and bit operations. */
     [4000] = 1,
     [4001] = 1,
     [4002] = 1,
@@ -4104,6 +4168,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [4097] = 2,
     [4098] = 2,
     [4099] = 2,
+
+    /* string: 4100..4199 — string operations. */
     [4100] = 1,
     [4101] = 1,
     [4102] = 1,
@@ -4204,6 +4270,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [4197] = 2,
     [4198] = 2,
     [4199] = 2,
+
+    /* obj: 4200..4299 — object definitions and object search. */
     [4200] = 1,
     [4201] = 1,
     [4202] = 1,
@@ -4304,6 +4372,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [4297] = 2,
     [4298] = 2,
     [4299] = 2,
+
+    /* chat: 4300..5099 — chat commands. */
     [4300] = 2,
     [4301] = 2,
     [4302] = 2,
@@ -5104,6 +5174,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [5097] = 2,
     [5098] = 2,
     [5099] = 2,
+
+    /* window: 5100..5399 — window-mode commands. */
     [5100] = 2,
     [5101] = 2,
     [5102] = 2,
@@ -5404,6 +5476,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [5397] = 2,
     [5398] = 2,
     [5399] = 2,
+
+    /* camera: 5400..5599 — camera commands. */
     [5400] = 2,
     [5401] = 2,
     [5402] = 2,
@@ -5604,6 +5678,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [5597] = 2,
     [5598] = 2,
     [5599] = 2,
+
+    /* login: 5600..5699 — logout and federated-login commands. */
     [5600] = 2,
     [5601] = 2,
     [5602] = 2,
@@ -5704,6 +5780,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [5697] = 2,
     [5698] = 2,
     [5699] = 2,
+
+    /* viewport: 5700..6299 — viewport, canvas, UI zoom and safe-area commands. */
     [5700] = 2,
     [5701] = 2,
     [5702] = 2,
@@ -6304,6 +6382,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [6297] = 2,
     [6298] = 2,
     [6299] = 2,
+
+    /* world: 6300..6599 — world list, config params and platform commands. */
     [6300] = 2,
     [6301] = 2,
     [6302] = 2,
@@ -6604,6 +6684,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [6597] = 2,
     [6598] = 2,
     [6599] = 2,
+
+    /* worldmap: 6600..6699 — world-map and map-element commands. */
     [6600] = 1,
     [6601] = 1,
     [6602] = 1,
@@ -6704,6 +6786,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [6697] = 1,
     [6698] = 1,
     [6699] = 1,
+
+    /* clientop-npc: 6700..6799 — client ops and active NPC queries. */
     [6700] = 1,
     [6701] = 1,
     [6702] = 1,
@@ -6804,10 +6888,12 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [6797] = 2,
     [6798] = 2,
     [6799] = 2,
+
+    /* clientop-loc: 6800..6899 — active location and object queries. */
     [6800] = 1,
     [6801] = 1,
     [6802] = 1,
-    [6803] = 2,
+    [6803] = 1,
     [6804] = 2,
     [6805] = 2,
     [6806] = 2,
@@ -6904,8 +6990,10 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [6897] = 2,
     [6898] = 2,
     [6899] = 2,
+
+    /* clientop-player: 6900..6999 — active player and login-state commands. */
     [6900] = 1,
-    [6901] = 2,
+    [6901] = 1,
     [6902] = 1,
     [6903] = 1,
     [6904] = 1,
@@ -6955,7 +7043,7 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [6948] = 2,
     [6949] = 2,
     [6950] = 1,
-    [6951] = 2,
+    [6951] = 1,
     [6952] = 2,
     [6953] = 2,
     [6954] = 2,
@@ -7004,6 +7092,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [6997] = 2,
     [6998] = 2,
     [6999] = 2,
+
+    /* highlight: 7000..7099 — entity highlighting. */
     [7000] = 1,
     [7001] = 1,
     [7002] = 1,
@@ -7104,6 +7194,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [7097] = 2,
     [7098] = 2,
     [7099] = 2,
+
+    /* minimenu: 7100..7199 — minimenu introspection. */
     [7100] = 1,
     [7101] = 1,
     [7102] = 1,
@@ -7204,6 +7296,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [7197] = 2,
     [7198] = 2,
     [7199] = 2,
+
+    /* overlay: 7200..7499 — entity overlays, minimap and native extension commands. */
     [7200] = 1,
     [7201] = 1,
     [7202] = 1,
@@ -7404,16 +7498,16 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [7397] = 2,
     [7398] = 2,
     [7399] = 2,
-    [7400] = 2,
-    [7401] = 2,
+    [7400] = 1,
+    [7401] = 1,
     [7402] = 2,
     [7403] = 2,
-    [7404] = 2,
+    [7404] = 1,
     [7405] = 2,
-    [7406] = 2,
-    [7407] = 2,
-    [7408] = 2,
-    [7409] = 2,
+    [7406] = 1,
+    [7407] = 1,
+    [7408] = 1,
+    [7409] = 1,
     [7410] = 2,
     [7411] = 2,
     [7412] = 2,
@@ -7504,6 +7598,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [7497] = 2,
     [7498] = 2,
     [7499] = 2,
+
+    /* db: 7500..7599 — client database commands. */
     [7500] = 1,
     [7501] = 1,
     [7502] = 1,
@@ -7604,37 +7700,39 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [7597] = 2,
     [7598] = 2,
     [7599] = 2,
+
+    /* loot: 7600..7699 — loot-tracker native commands. */
     [7600] = 2,
-    [7601] = 2,
-    [7602] = 2,
-    [7603] = 2,
-    [7604] = 2,
-    [7605] = 2,
-    [7606] = 2,
+    [7601] = 1,
+    [7602] = 1,
+    [7603] = 1,
+    [7604] = 1,
+    [7605] = 1,
+    [7606] = 1,
     [7607] = 2,
-    [7608] = 2,
-    [7609] = 2,
-    [7610] = 2,
-    [7611] = 2,
-    [7612] = 2,
-    [7613] = 2,
-    [7614] = 2,
-    [7615] = 2,
-    [7616] = 2,
-    [7617] = 2,
+    [7608] = 1,
+    [7609] = 1,
+    [7610] = 1,
+    [7611] = 1,
+    [7612] = 1,
+    [7613] = 1,
+    [7614] = 1,
+    [7615] = 1,
+    [7616] = 1,
+    [7617] = 1,
     [7618] = 2,
-    [7619] = 2,
-    [7620] = 2,
-    [7621] = 2,
-    [7622] = 2,
-    [7623] = 2,
+    [7619] = 1,
+    [7620] = 1,
+    [7621] = 1,
+    [7622] = 1,
+    [7623] = 1,
     [7624] = 2,
-    [7625] = 2,
-    [7626] = 2,
+    [7625] = 1,
+    [7626] = 1,
     [7627] = 2,
-    [7628] = 2,
+    [7628] = 1,
     [7629] = 2,
-    [7630] = 2,
+    [7630] = 1,
     [7631] = 2,
     [7632] = 2,
     [7633] = 2,
@@ -7704,6 +7802,8 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [7697] = 2,
     [7698] = 2,
     [7699] = 2,
+
+    /* extension: 7700..7999 — native extension and client-setting commands. */
     [7700] = 2,
     [7701] = 2,
     [7702] = 2,
@@ -7813,9 +7913,9 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [7806] = 2,
     [7807] = 2,
     [7808] = 2,
-    [7809] = 2,
+    [7809] = 1,
     [7810] = 2,
-    [7811] = 2,
+    [7811] = 1,
     [7812] = 2,
     [7813] = 2,
     [7814] = 2,
@@ -8004,14 +8104,16 @@ static const uint8_t rscache_cs2_operand_kind_table[] = {
     [7997] = 2,
     [7998] = 2,
     [7999] = 2,
-    [8000] = 2,
+
+    /* array: 8000..8099 — typed list and array commands. */
+    [8000] = 1,
     [8001] = 2,
     [8002] = 2,
     [8003] = 1,
     [8004] = 2,
     [8005] = 2,
     [8006] = 2,
-    [8007] = 2,
+    [8007] = 1,
     [8008] = 2,
     [8009] = 2,
     [8010] = 2,

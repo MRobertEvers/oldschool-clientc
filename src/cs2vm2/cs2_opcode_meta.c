@@ -4,6 +4,8 @@
 const int cs2_opcode_meta_table_size = 8025;
 
 const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
+
+    /* vm-core: 0..99 — VM control flow, locals, vars and arrays. */
     [0] = { "PUSH_CONSTANT_INT", CS2_OPERAND_INT32, CS2_HANDLER_VM },
     [1] = { "PUSH_VAR", CS2_OPERAND_INT32, CS2_HANDLER_VM },
     [2] = { "POP_VAR", CS2_OPERAND_INT32, CS2_HANDLER_VM },
@@ -104,11 +106,13 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [97] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [98] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [99] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* component: 100..999 — component construction and addressing. */
     [100] = { "CC_CREATE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [101] = { "CC_DELETE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [102] = { "CC_DELETEALL", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [103] = { "_103", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [104] = { "_104", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [103] = { "OVERLAY_CC_CREATE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [104] = { "OVERLAY_CC_DELETEALL", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [105] = { "CC_COPY", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [106] = { "CC_CREATECHILD", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [107] = { "CC_CREATESIBLING", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -206,8 +210,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [199] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [200] = { "CC_FIND", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [201] = { "IF_FIND", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [202] = { "_203", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [203] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [202] = { "OVERLAY_FIND", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [203] = { "OVERLAY_CC_FIND", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [204] = { "CC_CHILDREN_FINDNEXTID", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [205] = { "IF_CHILDREN_FIND", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [206] = { "IF_CHILDREN_FINDNEXTID", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -1004,6 +1008,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [997] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [998] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [999] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* component-layout: 1000..1099 / 2000..2099 — component position, size and visibility setters. */
     [1000] = { "CC_SETPOSITION", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1001] = { "CC_SETSIZE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1002] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -1104,6 +1110,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [1097] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1098] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1099] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* component-appearance: 1100..1199 / 2100..2199 — component graphic, model and text setters. */
     [1100] = { "CC_SETSCROLLPOS", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1101] = { "CC_SETCOLOUR", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1102] = { "CC_SETFILL", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -1204,6 +1212,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [1197] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1198] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1199] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* component-model: 1200..1299 / 2200..2299 — component object and head-model setters. */
     [1200] = { "CC_SETOBJECT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1201] = { "CC_SETNPCHEAD", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1202] = { "CC_SETPLAYERHEAD_SELF", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -1304,6 +1314,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [1297] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1298] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1299] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* component-op: 1300..1399 / 2300..2399 — component ops, dragging and key bindings. */
     [1300] = { "CC_SETOP", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1301] = { "CC_SETDRAGGABLE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1302] = { "CC_SETDRAGGABLEBEHAVIOR", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -1404,6 +1416,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [1397] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1398] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1399] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* component-listener: 1400..1499 / 2400..2499 — component listener registration. */
     [1400] = { "CC_SETONCLICK", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1401] = { "CC_SETONHOLD", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1402] = { "CC_SETONRELEASE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -1504,6 +1518,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [1497] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1498] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1499] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* cc-geometry: 1500..1599 — active-component geometry getters. */
     [1500] = { "CC_GETX", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1501] = { "CC_GETY", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1502] = { "CC_GETWIDTH", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -1604,6 +1620,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [1597] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1598] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1599] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* cc-appearance: 1600..1699 — active-component appearance getters. */
     [1600] = { "CC_GETSCROLLX", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1601] = { "CC_GETSCROLLY", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1602] = { "CC_GETTEXT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -1704,6 +1722,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [1697] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1698] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1699] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* cc-inventory: 1700..1799 — active-component inventory and identity getters. */
     [1700] = { "CC_GETINVOBJECT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1701] = { "CC_GETINVCOUNT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1702] = { "CC_GETID", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -1804,6 +1824,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [1797] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1798] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1799] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* cc-target: 1800..1899 — active-component target and op getters. */
     [1800] = { "CC_GETTARGETMASK", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1801] = { "CC_GETOP", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1802] = { "CC_GETOPBASE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -1904,6 +1926,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [1897] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1898] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1899] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* component-action: 1900..1999 / 2900..2999 — component resize and trigger actions. */
     [1900] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1901] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1902] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -2004,6 +2028,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [1997] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1998] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1999] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* component-layout: 1000..1099 / 2000..2099 — component position, size and visibility setters. */
     [2000] = { "IF_SETPOSITION", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2001] = { "IF_SETSIZE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2002] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -2104,6 +2130,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [2097] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2098] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2099] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* component-appearance: 1100..1199 / 2100..2199 — component graphic, model and text setters. */
     [2100] = { "IF_SETSCROLLPOS", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2101] = { "IF_SETCOLOUR", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2102] = { "IF_SETFILL", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -2204,6 +2232,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [2197] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2198] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2199] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* component-model: 1200..1299 / 2200..2299 — component object and head-model setters. */
     [2200] = { "IF_SETOBJECT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2201] = { "IF_SETNPCHEAD", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2202] = { "IF_SETPLAYERHEAD_SELF", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -2304,6 +2334,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [2297] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2298] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2299] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* component-op: 1300..1399 / 2300..2399 — component ops, dragging and key bindings. */
     [2300] = { "IF_SETOP", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2301] = { "IF_SETDRAGGABLE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2302] = { "IF_SETDRAGGABLEBEHAVIOR", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -2404,6 +2436,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [2397] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2398] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2399] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* component-listener: 1400..1499 / 2400..2499 — component listener registration. */
     [2400] = { "IF_SETONCLICK", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2401] = { "IF_SETONHOLD", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2402] = { "IF_SETONRELEASE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -2504,6 +2538,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [2497] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2498] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2499] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* if-geometry: 2500..2599 — explicit-component geometry getters. */
     [2500] = { "IF_GETX", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2501] = { "IF_GETY", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2502] = { "IF_GETWIDTH", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -2604,6 +2640,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [2597] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2598] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2599] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* if-appearance: 2600..2699 — explicit-component appearance getters. */
     [2600] = { "IF_GETSCROLLX", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2601] = { "IF_GETSCROLLY", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2602] = { "IF_GETTEXT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -2704,6 +2742,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [2697] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2698] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2699] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* if-inventory: 2700..2799 — interface inventory, parent and identity getters. */
     [2700] = { "IF_GETINVOBJECT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2701] = { "IF_GETINVCOUNT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2702] = { "IF_HASSUB", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -2804,6 +2844,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [2797] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2798] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2799] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* if-target: 2800..2899 — explicit-component target and op getters. */
     [2800] = { "IF_GETTARGETMASK", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2801] = { "IF_GETOP", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2802] = { "IF_GETOPBASE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -2904,6 +2946,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [2897] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2898] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2899] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* component-action: 1900..1999 / 2900..2999 — component resize and trigger actions. */
     [2900] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2901] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2902] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -2933,7 +2977,7 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [2926] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2927] = { "IF_CALLONRESIZE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2928] = { "IF_TRIGGEROP", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [2929] = { "IF_TRIGGEROPLOCAL", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [2929] = { "IF_TRIGGEROPLOCAL", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2930] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2931] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2932] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -3004,6 +3048,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [2997] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2998] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2999] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* client: 3000..3199 — general client commands and preferences. */
     [3000] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3001] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3002] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -3204,6 +3250,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [3197] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3198] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3199] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* audio-options: 3200..3299 — audio and client option commands. */
     [3200] = { "SOUND_SYNTH", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [3201] = { "SOUND_SONG", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [3202] = { "SOUND_JINGLE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -3304,6 +3352,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [3297] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3298] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3299] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* client-state: 3300..3399 — client state, inventory, stats and coordinates. */
     [3300] = { "CLIENTCLOCK", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [3301] = { "INV_GETOBJ", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [3302] = { "INV_GETNUM", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -3404,6 +3454,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [3397] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3398] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3399] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* enum: 3400..3499 — enum lookups. */
     [3400] = { "ENUM_STRING", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [3401] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3402] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -3504,6 +3556,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [3497] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3498] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3499] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* keyboard: 3500..3599 — keyboard state. */
     [3500] = { "KEYHELD", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3501] = { "KEYPRESSED", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3502] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -3604,6 +3658,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [3597] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3598] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3599] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* social: 3600..3699 — friends, ignores and legacy clan chat. */
     [3600] = { "FRIEND_COUNT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [3601] = { "FRIEND_GETNAME", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [3602] = { "FRIEND_GETWORLD", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -3704,6 +3760,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [3697] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3698] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3699] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* unused-3700: 3700..3799 — unhandled 3700-series commands. */
     [3700] = { "_3700", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [3701] = { "_3701", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [3702] = { "_3702", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -3804,6 +3862,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [3797] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3798] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3799] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* clan: 3800..3899 — clan settings and channels. */
     [3800] = { "ACTIVECLANSETTINGS_FIND_LISTENED", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [3801] = { "ACTIVECLANSETTINGS_FIND_AFFINED", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [3802] = { "ACTIVECLANSETTINGS_GETCLANNAME", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -3904,6 +3964,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [3897] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3898] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3899] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* market: 3900..3999 — Grand Exchange and trading-post commands. */
     [3900] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3901] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3902] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -4004,6 +4066,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [3997] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3998] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [3999] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* math: 4000..4099 — integer maths and bit operations. */
     [4000] = { "ADD", CS2_OPERAND_INT8, CS2_HANDLER_VM },
     [4001] = { "SUB", CS2_OPERAND_INT8, CS2_HANDLER_VM },
     [4002] = { "MULTIPLY", CS2_OPERAND_INT8, CS2_HANDLER_VM },
@@ -4104,6 +4168,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [4097] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [4098] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [4099] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* string: 4100..4199 — string operations. */
     [4100] = { "APPEND_NUM", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [4101] = { "APPEND", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [4102] = { "APPEND_SIGNNUM", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -4204,6 +4270,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [4197] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [4198] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [4199] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* obj: 4200..4299 — object definitions and object search. */
     [4200] = { "OC_NAME", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [4201] = { "OC_OP", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [4202] = { "OC_IOP", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -4304,6 +4372,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [4297] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [4298] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [4299] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* chat: 4300..5099 — chat commands. */
     [4300] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [4301] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [4302] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -5104,6 +5174,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [5097] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5098] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5099] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* window: 5100..5399 — window-mode commands. */
     [5100] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5101] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5102] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -5404,6 +5476,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [5397] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5398] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5399] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* camera: 5400..5599 — camera commands. */
     [5400] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5401] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5402] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -5604,6 +5678,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [5597] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5598] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5599] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* login: 5600..5699 — logout and federated-login commands. */
     [5600] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5601] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5602] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -5704,6 +5780,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [5697] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5698] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5699] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* viewport: 5700..6299 — viewport, canvas, UI zoom and safe-area commands. */
     [5700] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5701] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [5702] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -6304,6 +6382,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [6297] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6298] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6299] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* world: 6300..6599 — world list, config params and platform commands. */
     [6300] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6301] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6302] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -6604,6 +6684,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [6597] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6598] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6599] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* worldmap: 6600..6699 — world-map and map-element commands. */
     [6600] = { "WORLDMAP_INIT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [6601] = { "WORLDMAP_GETMAPNAME", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [6602] = { "WORLDMAP_SETMAP", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -6704,6 +6786,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [6697] = { "WORLDMAP_ELEMENT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [6698] = { "WORLDMAP_ELEMENTCOORD1", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [6699] = { "WORLDMAP_ELEMENTCOORD", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+
+    /* clientop-npc: 6700..6799 — client ops and active NPC queries. */
     [6700] = { "CLIENTOP_NPC_SET", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [6701] = { "CLIENTOP_NPC_DEL", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [6702] = { "CLIENTOP_LOC_SET", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -6804,10 +6888,12 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [6797] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6798] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6799] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* clientop-loc: 6800..6899 — active location and object queries. */
     [6800] = { "_6800", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [6801] = { "_6801", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [6802] = { "_6802", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [6803] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [6803] = { "LOC_FIND", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [6804] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6805] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6806] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -6904,8 +6990,10 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [6897] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6898] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6899] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* clientop-player: 6900..6999 — active player and login-state commands. */
     [6900] = { "_6900", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [6901] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [6901] = { "_6901", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [6902] = { "_6902", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [6903] = { "_6903", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [6904] = { "_6904", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -6955,7 +7043,7 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [6948] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6949] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6950] = { "_6950", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [6951] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [6951] = { "COORD_INSCENE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [6952] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6953] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6954] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -7004,6 +7092,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [6997] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6998] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [6999] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* highlight: 7000..7099 — entity highlighting. */
     [7000] = { "HIGHLIGHT_NPC_SETUP", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7001] = { "HIGHLIGHT_NPC_ON", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7002] = { "HIGHLIGHT_NPC_OFF", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -7104,6 +7194,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [7097] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7098] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7099] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* minimenu: 7100..7199 — minimenu introspection. */
     [7100] = { "MINIMENU_TYPE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7101] = { "MINIMENU_ENTRY", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7102] = { "MINIMENU_FINDNPC", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -7204,21 +7296,23 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [7197] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7198] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7199] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7200] = { "_7200", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [7201] = { "_7201", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+
+    /* overlay: 7200..7499 — entity overlays, minimap and native extension commands. */
+    [7200] = { "OVERLAY_NPC_CREATE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7201] = { "OVERLAY_LOC_CREATE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7202] = { "_7202", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [7203] = { "_7203", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [7204] = { "_7204", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [7205] = { "_7205", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [7206] = { "_7206", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7203] = { "OVERLAY_PLAYER_CREATE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7204] = { "OVERLAY_COORD_CREATE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7205] = { "OVERLAY_NPC_GET", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7206] = { "OVERLAY_LOC_GET", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7207] = { "_7207", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [7208] = { "_7208", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [7209] = { "_7209", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [7210] = { "_7210", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [7211] = { "_7211", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7208] = { "OVERLAY_PLAYER_GET", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7209] = { "OVERLAY_COORD_GET", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7210] = { "OVERLAY_NPC_DESTROY", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7211] = { "OVERLAY_LOC_DESTROY", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7212] = { "_7212", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [7213] = { "_7213", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [7214] = { "_7214", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7213] = { "OVERLAY_PLAYER_DESTROY", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7214] = { "OVERLAY_COORD_DESTROY", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7215] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7216] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7217] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -7404,16 +7498,16 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [7397] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7398] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7399] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7400] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7401] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [7400] = { "LOOT_AUX_UPSERT2", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7401] = { "LOOT_AUX_UPSERT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7402] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7403] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7404] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [7404] = { "LOOT_AUX_REMOVE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7405] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7406] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7407] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7408] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7409] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [7406] = { "LOOT_AUX_GET", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7407] = { "LOOT_AUX_COUNT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7408] = { "LOOT_AUX_LOOKUP", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7409] = { "LOOT_AUX_CLEAR", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7410] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7411] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7412] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -7504,6 +7598,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [7497] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7498] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7499] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* db: 7500..7599 — client database commands. */
     [7500] = { "DB_FIND_WITH_COUNT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7501] = { "DB_FINDNEXT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7502] = { "DB_GETFIELD", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -7604,37 +7700,39 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [7597] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7598] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7599] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* loot: 7600..7699 — loot-tracker native commands. */
     [7600] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7601] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7602] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7603] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7604] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7605] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7606] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [7601] = { "LOOT_SOURCE_COUNT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7602] = { "LOOT_SOURCE_NAME", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7603] = { "LOOT_SOURCE_ITEMCOUNT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7604] = { "LOOT_SOURCE_TOTALVAL", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7605] = { "LOOT_BEGIN_QUERY", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7606] = { "LOOT_QUERY_ID", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7607] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7608] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7609] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7610] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7611] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7612] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7613] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7614] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7615] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7616] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7617] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [7608] = { "LOOT_AUX_COUNT_TOTAL", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7609] = { "LOOT_ROW_COUNT_BYNAME", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7610] = { "LOOT_ROW_COUNT_BYID", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7611] = { "LOOT_ROW_BYNAME", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7612] = { "LOOT_ROW_BYID", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7613] = { "LOOT_CLEAR_ALL", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7614] = { "LOOT_CLEAR_SOURCE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7615] = { "LOOT_REMOVE_BYID", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7616] = { "LOOT_IGNORE_ADD", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7617] = { "LOOT_IGNORE_REMOVE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7618] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7619] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7620] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7621] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7622] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7623] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [7619] = { "LOOT_GROUND_COUNT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7620] = { "LOOT_GROUND_NAME", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7621] = { "LOOT_IGNORE_CLEAR", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7622] = { "LOOT_SOURCE_IGNORE_ADD", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7623] = { "LOOT_SOURCE_IGNORE_REMOVE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7624] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7625] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7626] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [7625] = { "LOOT_SRCLIST_COUNT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [7626] = { "LOOT_SRCLIST_NAME", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7627] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7628] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [7628] = { "LOOT_ADD", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7629] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7630] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [7630] = { "LOOT_SOURCE_NAME2", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7631] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7632] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7633] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -7704,6 +7802,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [7697] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7698] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7699] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* extension: 7700..7999 — native extension and client-setting commands. */
     [7700] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7701] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7702] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -7813,9 +7913,9 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [7806] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7807] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7808] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7809] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [7809] = { "HISCORES_STATUS", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7810] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [7811] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [7811] = { "HISCORES_ERROR", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [7812] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7813] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7814] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -8004,14 +8104,16 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [7997] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7998] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [7999] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [8000] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+
+    /* array: 8000..8099 — typed list and array commands. */
+    [8000] = { "ARRAY_SORT_ALL", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [8001] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [8002] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [8003] = { "ARRAY_LENGTH", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [8004] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [8005] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [8006] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [8007] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [8007] = { "ARRAY_COUNT_MATCHES", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [8008] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [8009] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [8010] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -8056,4 +8158,160 @@ CS2_OpCode_String(int opcode)
     if( opcode < 0 || opcode >= cs2_opcode_meta_table_size )
         return "_unknown";
     return cs2_opcode_meta_table[opcode].name;
+}
+
+enum CS2_OpcodeGroup
+CS2_OpcodeGroupOf(int opcode)
+{
+    if( (opcode >= 0 && opcode < 100) )
+        return CS2_OPCODE_GROUP_VM_CORE;
+    if( (opcode >= 100 && opcode < 1000) )
+        return CS2_OPCODE_GROUP_COMPONENT;
+    if( (opcode >= 1000 && opcode < 1100) || (opcode >= 2000 && opcode < 2100) )
+        return CS2_OPCODE_GROUP_COMPONENT_LAYOUT;
+    if( (opcode >= 1100 && opcode < 1200) || (opcode >= 2100 && opcode < 2200) )
+        return CS2_OPCODE_GROUP_COMPONENT_APPEARANCE;
+    if( (opcode >= 1200 && opcode < 1300) || (opcode >= 2200 && opcode < 2300) )
+        return CS2_OPCODE_GROUP_COMPONENT_MODEL;
+    if( (opcode >= 1300 && opcode < 1400) || (opcode >= 2300 && opcode < 2400) )
+        return CS2_OPCODE_GROUP_COMPONENT_OP;
+    if( (opcode >= 1400 && opcode < 1500) || (opcode >= 2400 && opcode < 2500) )
+        return CS2_OPCODE_GROUP_COMPONENT_LISTENER;
+    if( (opcode >= 1500 && opcode < 1600) )
+        return CS2_OPCODE_GROUP_CC_GEOMETRY;
+    if( (opcode >= 1600 && opcode < 1700) )
+        return CS2_OPCODE_GROUP_CC_APPEARANCE;
+    if( (opcode >= 1700 && opcode < 1800) )
+        return CS2_OPCODE_GROUP_CC_INVENTORY;
+    if( (opcode >= 1800 && opcode < 1900) )
+        return CS2_OPCODE_GROUP_CC_TARGET;
+    if( (opcode >= 1900 && opcode < 2000) || (opcode >= 2900 && opcode < 3000) )
+        return CS2_OPCODE_GROUP_COMPONENT_ACTION;
+    if( (opcode >= 2500 && opcode < 2600) )
+        return CS2_OPCODE_GROUP_IF_GEOMETRY;
+    if( (opcode >= 2600 && opcode < 2700) )
+        return CS2_OPCODE_GROUP_IF_APPEARANCE;
+    if( (opcode >= 2700 && opcode < 2800) )
+        return CS2_OPCODE_GROUP_IF_INVENTORY;
+    if( (opcode >= 2800 && opcode < 2900) )
+        return CS2_OPCODE_GROUP_IF_TARGET;
+    if( (opcode >= 3000 && opcode < 3200) )
+        return CS2_OPCODE_GROUP_CLIENT;
+    if( (opcode >= 3200 && opcode < 3300) )
+        return CS2_OPCODE_GROUP_AUDIO_OPTIONS;
+    if( (opcode >= 3300 && opcode < 3400) )
+        return CS2_OPCODE_GROUP_CLIENT_STATE;
+    if( (opcode >= 3400 && opcode < 3500) )
+        return CS2_OPCODE_GROUP_ENUM;
+    if( (opcode >= 3500 && opcode < 3600) )
+        return CS2_OPCODE_GROUP_KEYBOARD;
+    if( (opcode >= 3600 && opcode < 3700) )
+        return CS2_OPCODE_GROUP_SOCIAL;
+    if( (opcode >= 3700 && opcode < 3800) )
+        return CS2_OPCODE_GROUP_UNUSED_3700;
+    if( (opcode >= 3800 && opcode < 3900) )
+        return CS2_OPCODE_GROUP_CLAN;
+    if( (opcode >= 3900 && opcode < 4000) )
+        return CS2_OPCODE_GROUP_MARKET;
+    if( (opcode >= 4000 && opcode < 4100) )
+        return CS2_OPCODE_GROUP_MATH;
+    if( (opcode >= 4100 && opcode < 4200) )
+        return CS2_OPCODE_GROUP_STRING;
+    if( (opcode >= 4200 && opcode < 4300) )
+        return CS2_OPCODE_GROUP_OBJ;
+    if( (opcode >= 4300 && opcode < 5100) )
+        return CS2_OPCODE_GROUP_CHAT;
+    if( (opcode >= 5100 && opcode < 5400) )
+        return CS2_OPCODE_GROUP_WINDOW;
+    if( (opcode >= 5400 && opcode < 5600) )
+        return CS2_OPCODE_GROUP_CAMERA;
+    if( (opcode >= 5600 && opcode < 5700) )
+        return CS2_OPCODE_GROUP_LOGIN;
+    if( (opcode >= 5700 && opcode < 6300) )
+        return CS2_OPCODE_GROUP_VIEWPORT;
+    if( (opcode >= 6300 && opcode < 6600) )
+        return CS2_OPCODE_GROUP_WORLD;
+    if( (opcode >= 6600 && opcode < 6700) )
+        return CS2_OPCODE_GROUP_WORLDMAP;
+    if( (opcode >= 6700 && opcode < 6800) )
+        return CS2_OPCODE_GROUP_CLIENTOP_NPC;
+    if( (opcode >= 6800 && opcode < 6900) )
+        return CS2_OPCODE_GROUP_CLIENTOP_LOC;
+    if( (opcode >= 6900 && opcode < 7000) )
+        return CS2_OPCODE_GROUP_CLIENTOP_PLAYER;
+    if( (opcode >= 7000 && opcode < 7100) )
+        return CS2_OPCODE_GROUP_HIGHLIGHT;
+    if( (opcode >= 7100 && opcode < 7200) )
+        return CS2_OPCODE_GROUP_MINIMENU;
+    if( (opcode >= 7200 && opcode < 7500) )
+        return CS2_OPCODE_GROUP_OVERLAY;
+    if( (opcode >= 7500 && opcode < 7600) )
+        return CS2_OPCODE_GROUP_DB;
+    if( (opcode >= 7600 && opcode < 7700) )
+        return CS2_OPCODE_GROUP_LOOT;
+    if( (opcode >= 7700 && opcode < 8000) )
+        return CS2_OPCODE_GROUP_EXTENSION;
+    if( (opcode >= 8000 && opcode < 8100) )
+        return CS2_OPCODE_GROUP_ARRAY;
+    if( (opcode >= 8100 && opcode < 8600) )
+        return CS2_OPCODE_GROUP_TYPED_DATA;
+    if( (opcode >= 13000 && opcode < 14000) )
+        return CS2_OPCODE_GROUP_OP_COUNT;
+    return CS2_OPCODE_GROUP_UNKNOWN;
+}
+
+const char*
+CS2_OpcodeGroupName(enum CS2_OpcodeGroup group)
+{
+    switch( group )
+    {
+    case CS2_OPCODE_GROUP_VM_CORE: return "vm-core";
+    case CS2_OPCODE_GROUP_COMPONENT: return "component";
+    case CS2_OPCODE_GROUP_COMPONENT_LAYOUT: return "component-layout";
+    case CS2_OPCODE_GROUP_COMPONENT_APPEARANCE: return "component-appearance";
+    case CS2_OPCODE_GROUP_COMPONENT_MODEL: return "component-model";
+    case CS2_OPCODE_GROUP_COMPONENT_OP: return "component-op";
+    case CS2_OPCODE_GROUP_COMPONENT_LISTENER: return "component-listener";
+    case CS2_OPCODE_GROUP_CC_GEOMETRY: return "cc-geometry";
+    case CS2_OPCODE_GROUP_CC_APPEARANCE: return "cc-appearance";
+    case CS2_OPCODE_GROUP_CC_INVENTORY: return "cc-inventory";
+    case CS2_OPCODE_GROUP_CC_TARGET: return "cc-target";
+    case CS2_OPCODE_GROUP_COMPONENT_ACTION: return "component-action";
+    case CS2_OPCODE_GROUP_IF_GEOMETRY: return "if-geometry";
+    case CS2_OPCODE_GROUP_IF_APPEARANCE: return "if-appearance";
+    case CS2_OPCODE_GROUP_IF_INVENTORY: return "if-inventory";
+    case CS2_OPCODE_GROUP_IF_TARGET: return "if-target";
+    case CS2_OPCODE_GROUP_CLIENT: return "client";
+    case CS2_OPCODE_GROUP_AUDIO_OPTIONS: return "audio-options";
+    case CS2_OPCODE_GROUP_CLIENT_STATE: return "client-state";
+    case CS2_OPCODE_GROUP_ENUM: return "enum";
+    case CS2_OPCODE_GROUP_KEYBOARD: return "keyboard";
+    case CS2_OPCODE_GROUP_SOCIAL: return "social";
+    case CS2_OPCODE_GROUP_UNUSED_3700: return "unused-3700";
+    case CS2_OPCODE_GROUP_CLAN: return "clan";
+    case CS2_OPCODE_GROUP_MARKET: return "market";
+    case CS2_OPCODE_GROUP_MATH: return "math";
+    case CS2_OPCODE_GROUP_STRING: return "string";
+    case CS2_OPCODE_GROUP_OBJ: return "obj";
+    case CS2_OPCODE_GROUP_CHAT: return "chat";
+    case CS2_OPCODE_GROUP_WINDOW: return "window";
+    case CS2_OPCODE_GROUP_CAMERA: return "camera";
+    case CS2_OPCODE_GROUP_LOGIN: return "login";
+    case CS2_OPCODE_GROUP_VIEWPORT: return "viewport";
+    case CS2_OPCODE_GROUP_WORLD: return "world";
+    case CS2_OPCODE_GROUP_WORLDMAP: return "worldmap";
+    case CS2_OPCODE_GROUP_CLIENTOP_NPC: return "clientop-npc";
+    case CS2_OPCODE_GROUP_CLIENTOP_LOC: return "clientop-loc";
+    case CS2_OPCODE_GROUP_CLIENTOP_PLAYER: return "clientop-player";
+    case CS2_OPCODE_GROUP_HIGHLIGHT: return "highlight";
+    case CS2_OPCODE_GROUP_MINIMENU: return "minimenu";
+    case CS2_OPCODE_GROUP_OVERLAY: return "overlay";
+    case CS2_OPCODE_GROUP_DB: return "db";
+    case CS2_OPCODE_GROUP_LOOT: return "loot";
+    case CS2_OPCODE_GROUP_EXTENSION: return "extension";
+    case CS2_OPCODE_GROUP_ARRAY: return "array";
+    case CS2_OPCODE_GROUP_TYPED_DATA: return "typed-data";
+    case CS2_OPCODE_GROUP_OP_COUNT: return "op-count";
+    default: return "unknown";
+    }
 }

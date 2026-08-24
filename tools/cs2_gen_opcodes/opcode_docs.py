@@ -104,15 +104,15 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     ),
     "POP_INT_DISCARD": OpcodeDoc(
         summary="Discard int",
-        operand="repeat count",
+        operand="unused (a byte, like RETURN's; not a repeat count)",
         int_in=("value",),
-        notes="discards operand times",
+        notes="discards exactly one value",
     ),
     "POP_STRING_DISCARD": OpcodeDoc(
         summary="Discard string",
-        operand="repeat count",
+        operand="unused (a byte, like RETURN's; not a repeat count)",
         str_in=("value",),
-        notes="discards operand times",
+        notes="discards exactly one value",
     ),
     "BRANCH": OpcodeDoc(
         summary="Unconditional branch",
@@ -290,14 +290,18 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("filled",),
     ),
     "CC_SETARC": OpcodeDoc(
-        summary="Set arc start/end angle on active child",
+        summary="Set the arc's start and end angle on the active child",
         int_in=("start_angle", "end_angle"),
-        notes="widget type 10; 65536 = a full turn, 0 = straight up, clockwise",
+        notes=(
+            "Widget type 10 only. 65536 is a full turn, 0 is straight up, and "
+            "the sweep runs clockwise. Drawn as an annulus sector; script 5480 "
+            "builds the overlay countdown pie from three of them."
+        ),
     ),
     "IF_SETARC": OpcodeDoc(
-        summary="Set arc start/end angle",
+        summary="Set the arc's start and end angle",
         int_in=("start_angle", "end_angle", "component"),
-        notes="widget type 10; 65536 = a full turn, 0 = straight up, clockwise",
+        notes="The by-id form of CC_SETARC; same angle units.",
     ),
     "CC_SETTRANS": OpcodeDoc(
         summary="Set transparency",
@@ -326,7 +330,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         ),
     ),
     "CC_SETTARGETVERB": OpcodeDoc(
-        summary="Set target verb (stub)",
+        summary="Set target verb on the active/dot component",
         str_in=("text",),
     ),
     "CC_CLEAROPS": OpcodeDoc(
@@ -623,7 +627,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         ),
     ),
     "IF_SETTARGETVERB": OpcodeDoc(
-        summary="Set target verb (stub)",
+        summary="Set target verb on a named component",
         str_in=("text",),
         int_in=("component",),
     ),
@@ -706,8 +710,12 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     ),
     "IF_GETOP": OpcodeDoc(
         summary="Get op text",
-        int_in=("component", "op_index"),
+        int_in=("op_index", "component"),
         str_out=("op text",),
+        notes=(
+            "The rev-239 handler pops the explicit component first, then the "
+            "one-based op index."
+        ),
     ),
     "IF_GETOPBASE": OpcodeDoc(
         summary="Get op base text",
@@ -874,6 +882,15 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Linear interpolate",
         int_in=("a", "b", "c", "d", "e"),
         int_out=("a + (b - a) * (e - c) / (d - c)",),
+    ),
+    "RANDOM": OpcodeDoc(
+        summary="Random exclusive",
+        int_in=("max",),
+        int_out=("rand() % max",),
+        notes=(
+            "Returns 0 when max <= 0. LostCity engine.rs2 documents the range "
+            "as 0 through max - 1; the input is required for stack balance."
+        ),
     ),
     "RANDOMINC": OpcodeDoc(
         summary="Random inclusive",
@@ -1468,6 +1485,17 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_out=("1 if found (active set) else 0",),
         notes="Opcode 203; completes the reference overlay-layer family.",
     ),
+    "IF_GETCOMPONENTPARAM": OpcodeDoc(
+        summary="Read a runtime param from a named component",
+        operand="unused",
+        int_in=("param", "component", "fallback"),
+        int_out=("component param value, or fallback on a miss",),
+        notes=(
+            "Absent from both vendored tables. All 16 rev-239 call sites push "
+            "three ints and use literal -1 as the fallback; see the derivation "
+            "in local_opcodes.py."
+        ),
+    ),
     "IF_SETPARAM": OpcodeDoc(
         summary="Write a runtime param onto a named component",
         int_in=("param_id", "value", "component_uid", "child_index", "type"),
@@ -1482,11 +1510,37 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     "IF_TRIGGEROPLOCAL": OpcodeDoc(
         summary="Synthesize a server component click with typed arguments",
         int_in=("crc", "component", "child_index", "typed ints"),
-        str_in=("typed strings", "signature"),
+        str_in=("signature (plus any typed strings it describes)",),
         notes=(
             "Variable arity is described by the signature. The rev-239 wire op is "
             "IF_SCRIPT_TRIGGER; this client adapts it to IF_BUTTON1."
         ),
+    ),
+    "SOUND_SYNTH": OpcodeDoc(
+        summary="Play a cache sound effect",
+        int_in=("synth", "loops", "delay"),
+        notes=(
+            "About 600 rev-239 call sites use sound_synth(synth, 1, 0); these are "
+            "the interface interaction sounds."
+        ),
+    ),
+    "SOUND_SONG": OpcodeDoc(
+        summary="Play a song with fade-out and fade-in settings",
+        int_in=(
+            "id",
+            "fade_out_delay",
+            "fade_out_speed",
+            "fade_in_delay",
+            "fade_in_speed",
+        ),
+        notes=(
+            "The CS2 twin of MIDI_SONG_V2. Script 9630 and RSProt's MidiSongV2 "
+            "agree on the default fade tuple 0/60/60/0."
+        ),
+    ),
+    "SOUND_JINGLE": OpcodeDoc(
+        summary="Play a MIDI jingle",
+        int_in=("id", "delay"),
     ),
     "SOUND_SONG_WITHSECONDARY": OpcodeDoc(
         summary="Play a song with a secondary track and cross-fade settings",
@@ -1519,6 +1573,14 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         notes=(
             "The coordinate-anchored twin of LOC_FIND; overlays recheck it as the "
             "scene window moves."
+        ),
+    ),
+    "_6901": OpcodeDoc(
+        summary="Make the local player the active player",
+        int_out=("1 if a local player exists else -1",),
+        notes=(
+            "The only setter in the _6900.._6905 active-player block. The NXT "
+            "reference selects m_localPlayerIndex before pushing the result."
         ),
     ),
     "OVERLAY_NPC_CREATE": OpcodeDoc(
@@ -1610,16 +1672,6 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "Sorts primary ascending (lexically for strings, numerically otherwise) "
             "and applies the same permutation to secondary. Array handles travel "
             "on the string stack at this revision."
-        ),
-    ),
-    "ARRAY_COUNT_MATCHES": OpcodeDoc(
-        summary="Count matching cells in a typed array range",
-        int_in=("typed value", "start", "end", "value_type"),
-        str_in=("array handle", "typed value when string"),
-        int_out=("match_count",),
-        notes=(
-            "Variable arity: value_type selects the value stack. Counts [start, "
-            "end); a negative end means the array end."
         ),
     ),
     "ARRAY_LENGTH": OpcodeDoc(

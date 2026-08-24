@@ -301,7 +301,7 @@ remain distinct throughout dispatch and yielding.
 | **Enum** | `ENUM`, `ENUM_STRING`, `ENUM_GETOUTPUTCOUNT` | Config enum table access |
 | **CC (child component)** | `CC_CREATE`, `CC_SETPOSITION`, `CC_SETTEXT`, `CC_SETOBJECT`, `CC_GET*`, `CC_SETON*` | Create/update/query dynamic child widgets |
 | **IF (interface)** | `IF_SETPOSITION`, `IF_SETTEXT`, `IF_SETON*`, `IF_GET*`, `IF_FIND` | Update/query interface layers |
-| **Tree navigation** | `CC_FINDROOT`, `CC_CHILDREN_FIND_COUNT`, `IF_CHILDREN_FIND` | Walk component hierarchies |
+| **Tree navigation** | `CC_CHILDREN_FIND_COUNT`, `CC_CHILDREN_FINDNEXT`, `IF_CHILDREN_FIND` | Walk component hierarchies |
 | **Object config** | `OC_PARAM`, `OC_NAME`, `OC_COST`, `OC_STACKABLE` | Item/object definition lookups |
 | **Misc** | `CLIENTCLOCK`, `STRUCT_PARAM`, `PARAHEIGHT`, `PARAWIDTH` | Clock, struct params, text layout |
 

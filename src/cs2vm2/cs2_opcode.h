@@ -3,10 +3,15 @@
 #define CS2_OPCODE_H
 
 #define CS2_OPCODE_MAX 8024
-#define CS2_OPCODE_COUNT 886
+#define CS2_OPCODE_COUNT 926
 
 #define CS2_OP_SS_AND -2
 #define CS2_OP_SS_OR -1
+
+/* === CS2 opcode group: vm-core (0..99) ===
+ * VM control flow, locals, vars and arrays.
+ * rev-239 execution: inline in Statics.method4464.
+ */
 /* PUSH_CONSTANT_INT — Push int constant.
  * operand: int constant
  * int stack in:   -
@@ -170,7 +175,7 @@
  */
 #define CS2_OP_JOIN_STRING 37
 /* POP_INT_DISCARD — Discard int.
- * operand: unused (a byte, like RETURN's; NOT a repeat count)
+ * operand: unused (a byte, like RETURN's; not a repeat count)
  * int stack in:   value
  * str stack in:   -
  * int stack out:  -
@@ -179,7 +184,7 @@
  */
 #define CS2_OP_POP_INT_DISCARD 38
 /* POP_STRING_DISCARD — Discard string.
- * operand: unused (a byte, like RETURN's; NOT a repeat count)
+ * operand: unused (a byte, like RETURN's; not a repeat count)
  * int stack in:   -
  * str stack in:   value
  * int stack out:  -
@@ -237,30 +242,6 @@
  * notes: array[operand][index] = value
  */
 #define CS2_OP_POP_ARRAY_INT 46
-/* ARRAY_SORT_ALL — Sort two paired arrays by the first.
- * int stack in:   -
- * str stack in:   primary handle, secondary handle (secondary on top)
- * notes: sorts primary ascending (strcmp for string arrays, numeric
- * otherwise) and applies the same permutation to secondary. The questlist
- * (script 2633) sorts names carrying row-ids this way. Arrays travel as
- * handles on the string stack at this revision. */
-#define CS2_OP_ARRAY_SORT_ALL 8000
-/* Count cells in [start, end) equal to a value. `end` < 0 means "to the end".
- * The array is a HANDLE on the string stack — see cs2-arrays-are-handles. */
-#define CS2_OP_ARRAY_COUNT_MATCHES 8007
-/* ARRAY_LENGTH — handle on the string stack -> element count. xrsps 8003. */
-#define CS2_OP_ARRAY_LENGTH 8003
-/* ARRAY_SPLIT — (string, separator) -> new string-array handle. */
-#define CS2_OP_ARRAY_SPLIT 8018
-/* ARRAY_JOIN — (handle, separator) -> joined string. xrsps 8019. */
-#define CS2_OP_ARRAY_JOIN 8019
-/* ARRAY_NEW — (typeCode, length, capacity) -> handle. xrsps 8022. */
-#define CS2_OP_ARRAY_NEW 8022
-/* ARRAY_SETLENGTH — (handle, n). Overview sites then fill 0..n-1. */
-#define CS2_OP_ARRAY_SETLENGTH 8023
-/* ARRAY_APPEND — (handle, value, typeCode). Int-typed form at Overview sites;
- * string-typed pops the value off the string stack (same convention as 8007). */
-#define CS2_OP_ARRAY_APPEND 8024
 #define CS2_OP_PUSH_VARC_STRING_OLD 47
 #define CS2_OP_POP_VARC_STRING_OLD 48
 /* PUSH_VARC_STRING — Read client string varc.
@@ -300,6 +281,11 @@
  *        (nothing between 76 and 100); claimed here rather than
  *        dialect-translated. See engine/cs2_opcode_dialect.h. */
 #define CS2_OP_BRANCH_IF_ONE 86
+
+/* === CS2 opcode group: component (100..999) ===
+ * component construction and addressing.
+ * rev-239 dispatch: Statics.method6889 -> method4548.
+ */
 /* CC_CREATE — Create dynamic child component.
  * operand: 0 = active component, 1 = dot component
  * int stack in:   parent, type, child_index, is_nested  (is_nested = top)
@@ -319,19 +305,15 @@
  * str stack out:  -
  */
 #define CS2_OP_CC_DELETEALL 102
-/* OVERLAY_CC_CREATE — CC_CREATE, but into a scripted entity overlay's layer.
- * int stack in:   overlay, type, child_index      (child_index = top)
+/* OVERLAY_CC_CREATE — Create a dynamic child in a scripted entity overlay layer.
+ * int stack in:   overlay, type, child_index  (child_index = top)
  * str stack in:   -
  * int stack out:  -
  * str stack out:  -
- * notes: the parent is named by OVERLAY INDEX, not by component id — an
- *        overlay layer is not reachable through IF_FIND. Sets active to the
- *        new child. Reference asserts `type != 0` ("Dynamic layers aren't
- *        allowed") and that the slot does not leave a gap. See
- *        game/rs_entity_overlay.h.
+ * notes: The parent is an overlay index, not a component id. Sets the active component to the new child; dynamic layers (type 0) and child-slot gaps are rejected. See game/rs_entity_overlay.h.
  */
 #define CS2_OP_OVERLAY_CC_CREATE 103
-/* OVERLAY_CC_DELETEALL — empty a scripted entity overlay's layer.
+/* OVERLAY_CC_DELETEALL — Delete every dynamic child from a scripted entity overlay layer.
  * int stack in:   overlay
  * str stack in:   -
  * int stack out:  -
@@ -362,25 +344,20 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_FIND 201
-/* OVERLAY_FIND — make a scripted entity overlay's LAYER the active component.
+/* OVERLAY_FIND — Make a scripted entity overlay layer the active component.
  * int stack in:   overlay
  * str stack in:   -
- * int stack out:  1 if the overlay exists (active set) else 0
+ * int stack out:  1 if found (active set) else 0
  * str stack out:  -
- * notes: this is what the decompiled scripts print as `_203(...)`, and it is
- *        opcode 202 — the vendored decompiler table names 202 and 203 alike.
- *        It replaces the guessed CC_FINDROOT, which popped nothing: 57 call
- *        sites in this cache pass one argument, so the guess also leaked an
- *        int per call. See game/rs_entity_overlay.h.
+ * notes: This is opcode 202 even though the vendored decompiler maps both _202 and _203 to 202. Rev-239 call sites pass one argument; treating it as the old guessed CC_FINDROOT leaks an int.
  */
 #define CS2_OP_OVERLAY_FIND 202
-/* OVERLAY_CC_FIND — CC_FIND within a scripted entity overlay's layer.
+/* OVERLAY_CC_FIND — Find a dynamic child inside a scripted entity overlay layer.
  * int stack in:   overlay, sub                    (sub = top)
  * str stack in:   -
  * int stack out:  1 if found (active set) else 0
  * str stack out:  -
- * notes: no script in this cache calls it; implemented because the reference
- *        has it and the family is otherwise complete.
+ * notes: Opcode 203; completes the reference overlay-layer family.
  */
 #define CS2_OP_OVERLAY_CC_FIND 203
 #define CS2_OP_CC_CHILDREN_FINDNEXTID 204
@@ -391,6 +368,12 @@
 #define CS2_OP_CC_CHILDREN_FINDNEXT 213
 #define CS2_OP__213 213
 #define CS2_OP_CHILDREN_ARRAY 215
+
+/* === CS2 opcode group: component-layout (1000..1099 / 2000..2099) ===
+ * component position, size and visibility setters.
+ * rev-239 dispatch: Statics.method6889 -> method5842.
+ * The listed ranges deliberately share one component handler.
+ */
 /* CC_SETPOSITION — Set position modes.
  * int stack in:   x, y, x_mode, y_mode  (y_mode = top)
  * str stack in:   -
@@ -422,6 +405,12 @@
  */
 #define CS2_OP_CC_SETNOCLICKTHROUGH 1005
 #define CS2_OP_CC_SETNOSCROLLTHROUGH 1006
+
+/* === CS2 opcode group: component-appearance (1100..1199 / 2100..2199) ===
+ * component graphic, model and text setters.
+ * rev-239 dispatch: Statics.method6889 -> method4754.
+ * The listed ranges deliberately share one component handler.
+ */
 #define CS2_OP_CC_SETSCROLLPOS 1100
 /* CC_SETCOLOUR — Set colour on active child.
  * int stack in:   colour
@@ -542,10 +531,7 @@
  * str stack in:   -
  * int stack out:  -
  * str stack out:  -
- * notes: widget type 10 only. 65536 is a full turn, 0 is straight up and the
- * sweep runs clockwise. Drawn as an annulus sector: cc_setfill(true) fills the
- * whole disc, cc_setfill(false) + cc_setlinewid(n) leaves an n-pixel band along
- * the arc. Clientscript 5480 builds the overlay countdown pie out of three.
+ * notes: Widget type 10 only. 65536 is a full turn, 0 is straight up, and the sweep runs clockwise. Drawn as an annulus sector; script 5480 builds the overlay countdown pie from three of them.
  */
 #define CS2_OP_CC_SETARC 1128
 #define CS2_OP_CC_INPUT_SETSUBMITMODE 1133
@@ -562,6 +548,12 @@
 #define CS2_OP_CC_INPUT_SETCURSOROFFSET 1144
 #define CS2_OP_CC_INPUT_SETLINEWIDTHLIMIT 1145
 #define CS2_OP_CC_INPUT_SETCHARFILTER 1146
+
+/* === CS2 opcode group: component-model (1200..1299 / 2200..2299) ===
+ * component object and head-model setters.
+ * rev-239 dispatch: Statics.method6889 -> method5661.
+ * The listed ranges deliberately share one component handler.
+ */
 /* CC_SETOBJECT — Set object icon on active child.
  * int stack in:   obj_count, obj_id  (obj_id = top)
  * str stack in:   -
@@ -599,6 +591,12 @@
  * str stack out:  -
  */
 #define CS2_OP_CC_SETOBJECT_ALWAYS_NUM 1212
+
+/* === CS2 opcode group: component-op (1300..1399 / 2300..2399) ===
+ * component ops, dragging and key bindings.
+ * rev-239 dispatch: Statics.method6889 -> method12438.
+ * The listed ranges deliberately share one component handler.
+ */
 /* CC_SETOP — Set right-click op.
  * operand: 0 = active component, 1 = dot component
  * int stack in:   index
@@ -751,6 +749,12 @@
  * str stack out:  -
  */
 #define CS2_OP_CC_SETOPTKEYIGNOREHELD 1355
+
+/* === CS2 opcode group: component-listener (1400..1499 / 2400..2499) ===
+ * component listener registration.
+ * rev-239 dispatch: Statics.method6889 -> method4487.
+ * The listed ranges deliberately share one component handler.
+ */
 /* CC_SETONCLICK — Set onClick handler on active child.
  * operand: 0 = active component, 1 = dot component
  * int stack in:   -
@@ -877,6 +881,11 @@
 #define CS2_OP_CC_INPUT_SETONABORT 1437
 #define CS2_OP_CC_INPUT_SETONFOCUSCHANGED 1438
 #define CS2_OP_CC_INPUT_SETONUPDATE 1439
+
+/* === CS2 opcode group: cc-geometry (1500..1599) ===
+ * active-component geometry getters.
+ * rev-239 dispatch: Statics.method6889 -> method1470.
+ */
 /* CC_GETX — Get relative X of child component.
  * operand: 0 = active component, 1 = dot component
  * int stack in:   -
@@ -923,6 +932,11 @@
  * str stack out:  -
  */
 #define CS2_OP_CC_GETLAYER 1505
+
+/* === CS2 opcode group: cc-appearance (1600..1699) ===
+ * active-component appearance getters.
+ * rev-239 dispatch: Statics.method6889 -> method6296.
+ */
 /* CC_GETSCROLLX — Get scroll X (stub).
  * int stack in:   -
  * str stack in:   -
@@ -970,6 +984,11 @@
 #define CS2_OP_CC_GETMODELTRANSPARENT 1614
 #define CS2_OP__1615 1615
 #define CS2_OP__1616 1616
+
+/* === CS2 opcode group: cc-inventory (1700..1799) ===
+ * active-component inventory and identity getters.
+ * rev-239 dispatch: Statics.method6889 -> method12337.
+ */
 #define CS2_OP_CC_GETINVOBJECT 1700
 #define CS2_OP_CC_GETINVCOUNT 1701
 /* CC_GETID — Get active component id.
@@ -997,6 +1016,11 @@
  * notes: OldSchool-era, distinct from CC_GETPARAM (1613): the table lives on the component at runtime and starts empty (IF3 files carry no param section). VARIABLE ARITY, so the counts above are the kind == 0 case only: `kind` names the ParamType's type, and kind == 2 means the value was pushed on the STRING stack, leaving just (param_id, kind) on the int stack — script 9581 writes param 1017, declared `s`, that way. Popping three ints unconditionally steals an unrelated int from under it. Dedicated dispatch in cs2vm2.c handles both shapes, so this never reaches StackMetaStub with the wrong one.
  */
 #define CS2_OP_CC_SETCOMPONENTPARAM 1704
+
+/* === CS2 opcode group: cc-target (1800..1899) ===
+ * active-component target and op getters.
+ * rev-239 dispatch: Statics.method6889 -> method6843.
+ */
 #define CS2_OP_CC_GETTARGETMASK 1800
 /* CC_GETOP — Get op text.
  * int stack in:   op_index
@@ -1012,8 +1036,20 @@
  * str stack out:  op_base
  */
 #define CS2_OP_CC_GETOPBASE 1802
+
+/* === CS2 opcode group: component-action (1900..1999 / 2900..2999) ===
+ * component resize and trigger actions.
+ * rev-239 dispatch: Statics.method6889 -> method1005.
+ * The listed ranges deliberately share one component handler.
+ */
 #define CS2_OP_CC_CALLONRESIZE 1927
 #define CS2_OP_CC_TRIGGEROP 1928
+
+/* === CS2 opcode group: component-layout (1000..1099 / 2000..2099) ===
+ * component position, size and visibility setters.
+ * rev-239 dispatch: Statics.method6889 -> method5842.
+ * The listed ranges deliberately share one component handler.
+ */
 /* IF_SETPOSITION — Set position.
  * int stack in:   x, y, x_mode, y_mode, component  (component = top)
  * str stack in:   -
@@ -1046,6 +1082,12 @@
  */
 #define CS2_OP_IF_SETNOCLICKTHROUGH 2005
 #define CS2_OP_IF_SETNOSCROLLTHROUGH 2006
+
+/* === CS2 opcode group: component-appearance (1100..1199 / 2100..2199) ===
+ * component graphic, model and text setters.
+ * rev-239 dispatch: Statics.method6889 -> method4754.
+ * The listed ranges deliberately share one component handler.
+ */
 /* IF_SETSCROLLPOS — Set scroll position.
  * int stack in:   scroll_y, scroll_x, component  (component = top)
  * str stack in:   -
@@ -1176,7 +1218,7 @@
  * str stack in:   -
  * int stack out:  -
  * str stack out:  -
- * notes: the by-id form of CC_SETARC; same angle units.
+ * notes: The by-id form of CC_SETARC; same angle units.
  */
 #define CS2_OP_IF_SETARC 2128
 /*
@@ -1283,6 +1325,12 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_INPUT_SETCHARFILTER 2146
+
+/* === CS2 opcode group: component-model (1200..1299 / 2200..2299) ===
+ * component object and head-model setters.
+ * rev-239 dispatch: Statics.method6889 -> method5661.
+ * The listed ranges deliberately share one component handler.
+ */
 /* IF_SETOBJECT — Set object icon.
  * int stack in:   obj_id, obj_count, component  (component = top)
  * str stack in:   -
@@ -1313,6 +1361,12 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_SETOBJECT_ALWAYS_NUM 2212
+
+/* === CS2 opcode group: component-op (1300..1399 / 2300..2399) ===
+ * component ops, dragging and key bindings.
+ * rev-239 dispatch: Statics.method6889 -> method12438.
+ * The listed ranges deliberately share one component handler.
+ */
 /* IF_SETOP — Set op text.
  * int stack in:   index, component  (component = top)
  * str stack in:   text
@@ -1443,6 +1497,12 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_SETOPTKEYIGNOREHELD 2355
+
+/* === CS2 opcode group: component-listener (1400..1499 / 2400..2499) ===
+ * component listener registration.
+ * rev-239 dispatch: Statics.method6889 -> method4487.
+ * The listed ranges deliberately share one component handler.
+ */
 #define CS2_OP_IF_SETONCLICK 2400
 #define CS2_OP_IF_SETONHOLD 2401
 #define CS2_OP_IF_SETONRELEASE 2402
@@ -1515,6 +1575,11 @@
 #define CS2_OP_IF_INPUT_SETONABORT 2437
 #define CS2_OP_IF_INPUT_SETONFOCUSCHANGED 2438
 #define CS2_OP_IF_INPUT_SETONUPDATE 2439
+
+/* === CS2 opcode group: if-geometry (2500..2599) ===
+ * explicit-component geometry getters.
+ * rev-239 dispatch: Statics.method6889 -> method4787.
+ */
 /* IF_GETX — Get relative X.
  * int stack in:   component
  * str stack in:   -
@@ -1557,6 +1622,11 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_GETLAYER 2505
+
+/* === CS2 opcode group: if-appearance (2600..2699) ===
+ * explicit-component appearance getters.
+ * rev-239 dispatch: Statics.method6889 -> method8067.
+ */
 /* IF_GETSCROLLX — Get scroll X (stub).
  * int stack in:   component
  * str stack in:   -
@@ -1604,29 +1674,40 @@
 #define CS2_OP_IF_GETMODELTRANSPARENT 2614
 #define CS2_OP__2615 2615
 #define CS2_OP__2616 2616
+
+/* === CS2 opcode group: if-inventory (2700..2799) ===
+ * interface inventory, parent and identity getters.
+ * rev-239 dispatch: Statics.method6889 -> method3056.
+ */
 #define CS2_OP_IF_GETINVOBJECT 2700
 #define CS2_OP_IF_GETINVCOUNT 2701
 #define CS2_OP_IF_HASSUB 2702
-/* IF_GETCOMPONENTPARAM (2703) — the IF form of CC_GETCOMPONENTPARAM (1703).
- * operand: unused (the dot flag)
- * int stack in:   param, component, fallback  (fallback = top)
- * int stack out:  the component's runtime param value, or `fallback` on a miss
- *
- * Absent from the vendored opcode table AND from 3rd/rscache's
- * cs2_command.gen.h, which is why 20 scripts in cache.osrs239 fail to decompile
- * at it. tools/cs2_gen_opcodes/local_opcodes.py carries the derivation: three
- * pushed and one consumed at all 16 call sites, and the third argument is the
- * literal -1 everywhere, which is what makes "fallback" and "sub-id" the same
- * observable behaviour here. */
+/* IF_GETCOMPONENTPARAM — Read a runtime param from a named component.
+ * operand: unused
+ * int stack in:   param, component, fallback                    (fallback = top)
+ * str stack in:   -
+ * int stack out:  component param value, or fallback on a miss
+ * str stack out:  -
+ * notes: Absent from both vendored tables. All 16 rev-239 call sites push three ints and use literal -1 as the fallback; see the derivation in local_opcodes.py.
+ */
 #define CS2_OP_IF_GETCOMPONENTPARAM 2703
-/* IF_SETPARAM (2704) — write a runtime param onto a named component.
- * int stack in:   param_id, value, component_uid, child_index, type
- *                 (type on top; 2/115 = string value on the string stack)
+/* IF_SETPARAM — Write a runtime param onto a named component.
+ * int stack in:   param_id, value, component_uid, child_index, type  (type = top)
  * str stack in:   value when type names a string
- * notes: xrsps IF_SETPARAM. Previously misidentified as IF_HASCHILD_MODAL from
- * an older deob; Overview (9176) call sites are five ints and nothing out. */
+ * int stack out:  -
+ * str stack out:  -
+ * notes: Variable arity: type 2/115 takes the value from the string stack, so the integer `value` is absent. child_index -1 names the component itself. Rev-239 call sites identify this opcode; IF_HASCHILD_MODAL is retained only as a legacy source alias.
+ */
 #define CS2_OP_IF_SETPARAM 2704
-#define CS2_OP_IF_HASCHILD_MODAL 2704 /* legacy alias; same opcode id */
+#define CS2_OP_IF_HASCHILD_MODAL 2704
+/* IF_HASCHILD_OVERLAY (2705) — legacy interface-parent probe.
+ * operand: unused
+ * int stack in:   widget, parent  (parent = top)
+ * str stack in:   -
+ * int stack out:  1 if InterfaceParent[widget].group_id == parent, else 0
+ * str stack out:  -
+ * notes: retained from the rev-634 interface-parent family. Opcode
+ *        2704 is IF_SETPARAM in the current rev-239 dialect. */
 #define CS2_OP_IF_HASCHILD_OVERLAY 2705
 /* IF_GETTOP — Get root component id.
  * int stack in:   -
@@ -1635,14 +1716,18 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_GETTOP 2706
+
+/* === CS2 opcode group: if-target (2800..2899) ===
+ * explicit-component target and op getters.
+ * rev-239 dispatch: Statics.method6889 -> method2.
+ */
 #define CS2_OP_IF_GETTARGETMASK 2800
 /* IF_GETOP — Get op text.
  * int stack in:   op_index, component  (component = top)
  * str stack in:   -
  * int stack out:  -
  * str stack out:  op text
- * notes: the explicit component is popped before the one-based op index,
- * matching the revision-239 gamepack handler.
+ * notes: The rev-239 handler pops the explicit component first, then the one-based op index.
  */
 #define CS2_OP_IF_GETOP 2801
 /* IF_GETOPBASE — Get op base text.
@@ -1652,13 +1737,27 @@
  * str stack out:  op_base
  */
 #define CS2_OP_IF_GETOPBASE 2802
+
+/* === CS2 opcode group: component-action (1900..1999 / 2900..2999) ===
+ * component resize and trigger actions.
+ * rev-239 dispatch: Statics.method6889 -> method1005.
+ * The listed ranges deliberately share one component handler.
+ */
 #define CS2_OP_IF_CALLONRESIZE 2927
 #define CS2_OP_IF_TRIGGEROP 2928
-/* IF_TRIGGEROPLOCAL — synthesize a server button click with typed args.
- * int stack in:   crc, component, childIndex, typedInts...
- * str stack in:   signature ("i" / "s" / …)
- * Real rev-239 wire is IF_SCRIPT_TRIGGER; this client adapts to IF_BUTTON1. */
+/* IF_TRIGGEROPLOCAL — Synthesize a server component click with typed arguments.
+ * int stack in:   crc, component, child_index, typed ints          (typed ints = top)
+ * str stack in:   signature (plus any typed strings it describes)
+ * int stack out:  -
+ * str stack out:  -
+ * notes: Variable arity is described by the signature. The rev-239 wire op is IF_SCRIPT_TRIGGER; this client adapts it to IF_BUTTON1.
+ */
 #define CS2_OP_IF_TRIGGEROPLOCAL 2929
+
+/* === CS2 opcode group: client (3000..3199) ===
+ * general client commands and preferences.
+ * rev-239 dispatch: Statics.method6889 -> method6397.
+ */
 #define CS2_OP_MES 3100
 #define CS2_OP_ANIM 3101
 #define CS2_OP_IF_CLOSE 3103
@@ -1773,35 +1872,34 @@
 #define CS2_OP_GETBRIGHTNESS 3182
 #define CS2_OP_SETANTIDRAG 3183
 #define CS2_OP__3184 3184
-/*
- * sound_synth(synth, loops, delay) -- a cache sound effect from a script.
- *
- * Arity read off the decompiled clientscripts rather than assumed: ~600 call
- * sites in the rev-239 cache, every one of the form `sound_synth(synth_N, 1, 0)`.
- * These are the interface interaction sounds.
+
+/* === CS2 opcode group: audio-options (3200..3299) ===
+ * audio and client option commands.
+ * rev-239 dispatch: Statics.method6889 -> method6695.
+ */
+/* SOUND_SYNTH — Play a cache sound effect.
+ * int stack in:   synth, loops, delay  (delay = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: About 600 rev-239 call sites use sound_synth(synth, 1, 0); these are the interface interaction sounds.
  */
 #define CS2_OP_SOUND_SYNTH 3200
-/*
- * sound_song(id, fadeOutDelay, fadeOutSpeed, fadeInDelay, fadeInSpeed).
- *
- * The CS2-side twin of MIDI_SONG_V2. The argument order is pinned by two
- * independent sources agreeing: script9630 defaults absent arguments to
- * 0/60/60/0 in that order, and RSProt's MidiSongV2 documents the defaults as
- * fadeOutDelay 0, fadeOutSpeed 60, fadeInDelay 60, fadeInSpeed 0.
+/* SOUND_SONG — Play a song with fade-out and fade-in settings.
+ * int stack in:   id, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed  (fade_in_speed = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: The CS2 twin of MIDI_SONG_V2. Script 9630 and RSProt's MidiSongV2 agree on the default fade tuple 0/60/60/0.
  */
 #define CS2_OP_SOUND_SONG 3201
-/** sound_jingle(id, delay) -- the CS2-side twin of MIDI_JINGLE. */
-#define CS2_OP_SOUND_JINGLE 3202
-/*
- * sound_song_withsecondary(primary, secondary, fadeOutDelay, fadeOutSpeed,
- * fadeInDelay, fadeInSpeed) -- the CS2-side twin of MIDI_SONG_WITHSECONDARY.
- *
- * Named `_3221` in the decompiler's table. script9630 calls it in the same
- * breath as sound_song, with a secondary id looked up from the primary, and
- * falls back to sound_song when that lookup returns -1 -- which is what
- * identifies it.
+/* SOUND_JINGLE — Play a MIDI jingle.
+ * int stack in:   id, delay  (delay = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
  */
-#define CS2_OP_SOUND_SONG_WITHSECONDARY 3221
+#define CS2_OP_SOUND_JINGLE 3202
 #define CS2_OP_SETVOLUMEMUSIC 3203
 #define CS2_OP_GETVOLUMEMUSIC 3204
 #define CS2_OP_SETVOLUMESOUNDS 3205
@@ -1815,6 +1913,19 @@
 #define CS2_OP_DEVICEOPTION_GET 3214
 #define CS2_OP_GAMEOPTION_GET 3215
 #define CS2_OP_DEVICEOPTION_GETRANGE 3217
+/* SOUND_SONG_WITHSECONDARY — Play a song with a secondary track and cross-fade settings.
+ * int stack in:   primary, secondary, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed  (fade_in_speed = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: Named _3221 upstream. Script 9630 falls back to SOUND_SONG when its secondary lookup returns -1, which identifies the operation.
+ */
+#define CS2_OP_SOUND_SONG_WITHSECONDARY 3221
+
+/* === CS2 opcode group: client-state (3300..3399) ===
+ * client state, inventory, stats and coordinates.
+ * rev-239 dispatch: Statics.method6889 -> method6548.
+ */
 /* CLIENTCLOCK — Get client tick counter.
  * int stack in:   -
  * str stack in:   -
@@ -1920,6 +2031,11 @@
 #define CS2_OP_MOUSE_GETX 3326
 #define CS2_OP_MOUSE_GETY 3327
 #define CS2_OP__3330 3330
+
+/* === CS2 opcode group: enum (3400..3499) ===
+ * enum lookups.
+ * rev-239 dispatch: Statics.method6889 -> method6018.
+ */
 #define CS2_OP_ENUM_STRING 3400
 /* ENUM — Enum lookup.
  * int stack in:   input_type, output_type, enum_id, key  (key = top)
@@ -1935,6 +2051,11 @@
  * str stack out:  -
  */
 #define CS2_OP_ENUM_GETOUTPUTCOUNT 3411
+
+/* === CS2 opcode group: keyboard (3500..3599) ===
+ * keyboard state.
+ * rev-239 dispatch: Statics.method6889 -> method6403.
+ */
 /* KEYHELD — Is the given key currently held down?.
  * int stack in:   keycode
  * str stack in:   -
@@ -1951,6 +2072,11 @@
  * notes: edge-triggered; cleared each frame. OSRS internal key code.
  */
 #define CS2_OP_KEYPRESSED 3501
+
+/* === CS2 opcode group: social (3600..3699) ===
+ * friends, ignores and legacy clan chat.
+ * rev-239 dispatch: Statics.method6889 -> method7997.
+ */
 #define CS2_OP_FRIEND_COUNT 3600
 #define CS2_OP_FRIEND_GETNAME 3601
 #define CS2_OP_FRIEND_GETWORLD 3602
@@ -2008,9 +2134,19 @@
 #define CS2_OP__3655 3655
 #define CS2_OP__3656 3656
 #define CS2_OP__3657 3657
+
+/* === CS2 opcode group: unused-3700 (3700..3799) ===
+ * unhandled 3700-series commands.
+ * rev-239 dispatch: Statics.method6889 -> method13645.
+ */
 #define CS2_OP__3700 3700
 #define CS2_OP__3701 3701
 #define CS2_OP__3702 3702
+
+/* === CS2 opcode group: clan (3800..3899) ===
+ * clan settings and channels.
+ * rev-239 dispatch: Statics.method6889 -> method4507.
+ */
 #define CS2_OP_ACTIVECLANSETTINGS_FIND_LISTENED 3800
 #define CS2_OP_ACTIVECLANSETTINGS_FIND_AFFINED 3801
 #define CS2_OP_ACTIVECLANSETTINGS_GETCLANNAME 3802
@@ -2046,6 +2182,11 @@
 #define CS2_OP_ACTIVECLANCHANNEL_GETUSERSLOT 3860
 #define CS2_OP_ACTIVECLANCHANNEL_GETSORTEDUSERSLOT 3861
 #define CS2_OP_CLANPROFILE_FIND 3890
+
+/* === CS2 opcode group: market (3900..3999) ===
+ * Grand Exchange and trading-post commands.
+ * rev-239 dispatch: Statics.method6889 -> method3202.
+ */
 #define CS2_OP_STOCKMARKET_GETOFFERTYPE 3903
 #define CS2_OP_STOCKMARKET_GETOFFERITEM 3904
 #define CS2_OP_STOCKMARKET_GETOFFERPRICE 3905
@@ -2069,6 +2210,11 @@
 #define CS2_OP_TRADINGPOST_GETOFFERCOUNT 3924
 #define CS2_OP_TRADINGPOST_GETOFFERPRICE 3925
 #define CS2_OP_TRADINGPOST_GETOFFERITEM 3926
+
+/* === CS2 opcode group: math (4000..4099) ===
+ * integer maths and bit operations.
+ * rev-239 dispatch: Statics.method6889 -> method2838.
+ */
 /* ADD — Integer add.
  * int stack in:   a, b   (b = top)
  * str stack in:   -
@@ -2101,18 +2247,9 @@
 /* RANDOM — Random exclusive.
  * int stack in:   max
  * str stack in:   -
- * int stack out:  rand() % max        (0 .. max - 1)
+ * int stack out:  rand() % max
  * str stack out:  -
- * notes: 0 if max <= 0, mirroring RANDOMINC's guard below.
- *
- *        This was the one opcode of the pair with NO stack comment, so the
- *        generator's name heuristic gave it (0, 0, 1, 0) — no argument at all —
- *        and the handler matched that: it pushed a raw rand() and left the
- *        argument on the int stack. The reference is explicit that there is
- *        one, and what its range is:
- *          [command,random](int $num)(int)
- *          "Get a random number - within the range of 0 to $num - 1"
- *        (LostCity content/scripts/engine.rs2:958-959).
+ * notes: Returns 0 when max <= 0. LostCity engine.rs2 documents the range as 0 through max - 1; the input is required for stack balance.
  */
 #define CS2_OP_RANDOM 4004
 /* RANDOMINC — Random inclusive.
@@ -2212,6 +2349,11 @@
 #define CS2_OP__4034 4034
 #define CS2_OP_ABS 4035
 #define CS2_OP_STRING_TO_INT 4036
+
+/* === CS2 opcode group: string (4100..4199) ===
+ * string operations.
+ * rev-239 dispatch: Statics.method6889 -> method5814.
+ */
 /* APPEND_NUM — Append int as decimal.
  * int stack in:   value
  * str stack in:   dest
@@ -2324,6 +2466,11 @@
  * str stack out:  uppercased text
  */
 #define CS2_OP_UPPERCASE 4122
+
+/* === CS2 opcode group: obj (4200..4299) ===
+ * object definitions and object search.
+ * rev-239 dispatch: Statics.method6889 -> method2965.
+ */
 #define CS2_OP_OC_NAME 4200
 #define CS2_OP_OC_OP 4201
 #define CS2_OP_OC_IOP 4202
@@ -2350,6 +2497,11 @@
 #define CS2_OP_OC_WEIGHT 4217
 #define CS2_OP_OC_EXAMINE 4218
 #define CS2_OP_OC_ISUBOP 4222
+
+/* === CS2 opcode group: chat (4300..5099) ===
+ * chat commands.
+ * rev-239 dispatch: Statics.method6889 -> method11780.
+ */
 #define CS2_OP_CHAT_GETFILTER_PUBLIC 5000
 #define CS2_OP_CHAT_SETFILTER 5001
 #define CS2_OP_CHAT_SENDABUSEREPORT 5002
@@ -2372,6 +2524,11 @@
 #define CS2_OP_CHAT_GETTIMESTAMPS 5025
 #define CS2_OP_CHAT_GETHISTORYEX_BYTYPEANDLINE 5030
 #define CS2_OP_CHAT_GETHISTORYEX_BYUID 5031
+
+/* === CS2 opcode group: window (5100..5399) ===
+ * window-mode commands.
+ * rev-239 dispatch: Statics.method6889 -> method9060.
+ */
 #define CS2_OP_GETWINDOWMODE 5306
 #define CS2_OP_SETWINDOWMODE 5307
 #define CS2_OP_GETDEFAULTWINDOWMODE 5308
@@ -2381,15 +2538,30 @@
 #define CS2_OP__5312 5312
 #define CS2_OP__5350 5350
 #define CS2_OP__5351 5351
+
+/* === CS2 opcode group: camera (5400..5599) ===
+ * camera commands.
+ * rev-239 dispatch: Statics.method6889 -> method4488.
+ */
 #define CS2_OP_CAM_FORCEANGLE 5504
 #define CS2_OP_CAM_GETANGLE_XA 5505
 #define CS2_OP_CAM_GETANGLE_YA 5506
 #define CS2_OP_CAM_SETFOLLOWHEIGHT 5530
 #define CS2_OP_CAM_GETFOLLOWHEIGHT 5531
+
+/* === CS2 opcode group: login (5600..5699) ===
+ * logout and federated-login commands.
+ * rev-239 dispatch: Statics.method6889 -> method6568.
+ */
 #define CS2_OP_LOGOUT 5630
 #define CS2_OP_FEDERATED_LOGIN 5631
 #define CS2_OP__5632 5632
 #define CS2_OP__5633 5633
+
+/* === CS2 opcode group: viewport (5700..6299) ===
+ * viewport, canvas, UI zoom and safe-area commands.
+ * rev-239 dispatch: Statics.method6889 -> method6341.
+ */
 #define CS2_OP_VIEWPORT_SETFOV 6200
 #define CS2_OP_VIEWPORT_SETZOOM 6201
 #define CS2_OP_VIEWPORT_CLAMPFOV 6202
@@ -2406,6 +2578,11 @@
 #define CS2_OP_SAFEAREA_GETMAXY 6223
 #define CS2_OP_SAFEAREA_GETMAXY_ALT 6231
 #define CS2_OP_CAM_GETYAW 6232
+
+/* === CS2 opcode group: world (6300..6599) ===
+ * world list, config params and platform commands.
+ * rev-239 dispatch: Statics.method6889 -> method5150.
+ */
 #define CS2_OP_WORLDLIST_FETCH 6500
 #define CS2_OP_WORLDLIST_START 6501
 #define CS2_OP_WORLDLIST_NEXT 6502
@@ -2475,6 +2652,11 @@
  */
 #define CS2_OP_MOBILE_WIFIAVAILABLE 6526
 #define CS2_OP__6527 6527
+
+/* === CS2 opcode group: worldmap (6600..6699) ===
+ * world-map and map-element commands.
+ * rev-239 dispatch: Statics.method6889 -> method629.
+ */
 /* World map (interface 595). Coords are packed as plane<<28 | x<<14 | y; a
  * "display" coord is a position on the map surface, a "source" coord is a real
  * world coord. Map ids index the worldmap "details" archive (cache table 19).
@@ -2816,6 +2998,11 @@
  * str stack out:  -
  */
 #define CS2_OP_WORLDMAP_ELEMENTCOORD 6699
+
+/* === CS2 opcode group: clientop-npc (6700..6799) ===
+ * client ops and active NPC queries.
+ * rev-239 dispatch: Statics.method6889 -> method12492.
+ */
 #define CS2_OP_CLIENTOP_NPC_SET 6700
 #define CS2_OP_CLIENTOP_NPC_DEL 6701
 #define CS2_OP_CLIENTOP_LOC_SET 6702
@@ -2831,37 +3018,38 @@
 #define CS2_OP__6752 6752
 #define CS2_OP__6753 6753
 #define CS2_OP_NC_NAME 6754
+
+/* === CS2 opcode group: clientop-loc (6800..6899) ===
+ * active location and object queries.
+ * rev-239 dispatch: Statics.method6889 -> method3101.
+ */
 #define CS2_OP__6800 6800
 #define CS2_OP__6801 6801
 #define CS2_OP__6802 6802
-/* LOC_FIND — is there a loc of this type on this tile, and if so make it the
- *            ACTIVE LOC.
- * int stack in:   coord, loc_type                 (loc_type = top)
+/* LOC_FIND — Find a location of a given type at a tile and make it active.
+ * int stack in:   coord, loc_type                     (loc_type = top)
  * str stack in:   -
- * int stack out:  1 when found (active loc set) else 0
+ * int stack out:  1 if found (active loc set) else 0
  * str stack out:  -
- * notes: the gate every static-overlay script opens with — script 6498 will
- *        not draw a fishing spot until this says the spot is still there.
- *        Reference builds a LocInfo from the world's loc layer at the coord
- *        and assigns it to ScriptRunner's active loc, which is what makes the
- *        following _6800/_6801/_6802 and OVERLAY_LOC_* answer about it.
+ * notes: Static-overlay scripts use this as their scene-presence gate; later active-loc and OVERLAY_LOC operations address the selected location.
  */
 #define CS2_OP_LOC_FIND 6803
 #define CS2_OP__6850 6850
 #define CS2_OP__6851 6851
 #define CS2_OP__6852 6852
 #define CS2_OP__6853 6853
+
+/* === CS2 opcode group: clientop-player (6900..6999) ===
+ * active player and login-state commands.
+ * rev-239 dispatch: Statics.method6889 -> method6167.
+ */
 #define CS2_OP__6900 6900
 /* _6901 — Make the local player the active player.
  * int stack in:   -
  * str stack in:   -
- * int stack out:  1 when there is a local player else -1
+ * int stack out:  1 if a local player exists else -1
  * str stack out:  -
- * notes: the only WRITE in the _6900.._6905 block. The reference sets
- *        its ScriptRunner's active player to m_localPlayerIndex and
- *        pushes 1 or -1; the four getters beside it are about whichever
- *        player is active. Absent from the vendored table -- added by
- *        tools/cs2_gen_opcodes/local_opcodes.py.
+ * notes: The only setter in the _6900.._6905 active-player block. The NXT reference selects m_localPlayerIndex before pushing the result.
  */
 #define CS2_OP__6901 6901
 /* _6902 — Active player's route length.
@@ -2915,16 +3103,19 @@
  *        (0x7FFFFD). Offline/unlogged stub pushes 0 (static default). */
 #define CS2_OP_LOGIN_INT24 6910
 #define CS2_OP__6950 6950
-/* COORD_INSCENE — is this coord inside the loaded scene.
+/* COORD_INSCENE — Test whether a packed coordinate is inside the loaded scene.
  * int stack in:   coord
  * str stack in:   -
- * int stack out:  1 when the tile is in the build area else 0
+ * int stack out:  1 if inside the build area else 0
  * str stack out:  -
- * notes: the coord-anchored twin of LOC_FIND: a script that put an overlay on
- *        a tile re-checks with this before drawing, because the scene window
- *        moves and an overlay outside it has nowhere to project to.
+ * notes: The coordinate-anchored twin of LOC_FIND; overlays recheck it as the scene window moves.
  */
 #define CS2_OP_COORD_INSCENE 6951
+
+/* === CS2 opcode group: highlight (7000..7099) ===
+ * entity highlighting.
+ * rev-239 dispatch: Statics.method6889 -> method8558.
+ */
 /* HIGHLIGHT_NPC_SETUP — Define what highlight group N looks like.
  * int stack in:   group, colour, style, opacity, flags  (flags = top)
  * str stack in:   -
@@ -3240,6 +3431,11 @@
  * str stack out:  -
  */
 #define CS2_OP__7044 7044
+
+/* === CS2 opcode group: minimenu (7100..7199) ===
+ * minimenu introspection.
+ * rev-239 dispatch: Statics.method6889 -> method1135.
+ */
 #define CS2_OP_MINIMENU_TYPE 7100
 #define CS2_OP_MINIMENU_ENTRY 7101
 #define CS2_OP_MINIMENU_FINDNPC 7102
@@ -3254,59 +3450,55 @@
 #define CS2_OP__7120 7120
 #define CS2_OP__7121 7121
 #define CS2_OP__7122 7122
-/*
- * Scripted entity overlays (7200..7214) — jag::oldscape::EntityOverlays.
- *
- * Every CREATE takes the same tail: (slot, band, width, height, source_coord),
- * where `slot` is the script's own id for this overlay on this subject, `band`
- * is IfType::OverlayTypes (0 middle / 1 above / 2 below) and the last argument
- * is the boolean `WorldCoordToSourceCoord` flag the highlight ops also carry.
- * The four families differ only in what the overlay hangs off. The GET forms
- * take just the slot and answer -1 when there is none; the DESTROY forms take
- * the slot and answer nothing. See game/rs_entity_overlay.h.
+
+/* === CS2 opcode group: overlay (7200..7499) ===
+ * entity overlays, minimap and native extension commands.
+ * rev-239 dispatch: Statics.method6889 -> method12357.
  */
-/* OVERLAY_NPC_CREATE — hang an overlay off the active npc.
- * int stack in:   slot, band, width, height, source_coord
+/* Scripted entity overlays (7200..7214) — jag::oldscape::EntityOverlays.
+ * CREATE forms share the tail (slot, band, width, height, source_coord):
+ * band is 0 middle / 1 above / 2 below, and source_coord selects world-
+ * versus display-coordinate anchoring. GET and DESTROY address the same
+ * subject-specific slot. See game/rs_entity_overlay.h. */
+/* OVERLAY_NPC_CREATE — Attach an overlay to the active NPC.
+ * int stack in:   slot, band, width, height, source_coord  (source_coord = top)
  * str stack in:   -
  * int stack out:  overlay index (-1 when none)
  * str stack out:  -
  */
 #define CS2_OP_OVERLAY_NPC_CREATE 7200
-/* OVERLAY_LOC_CREATE — hang an overlay off the active loc.
- * int stack in:   slot, band, width, height, source_coord
+/* OVERLAY_LOC_CREATE — Attach an overlay to the active location.
+ * int stack in:   slot, band, width, height, source_coord  (source_coord = top)
  * str stack in:   -
  * int stack out:  overlay index (-1 when none)
  * str stack out:  -
- * notes: anchored at the loc's coord with the loc's LAYER as the static type,
- *        so two locs on one tile each get their own.
+ * notes: Anchored at the location coord and layer, so separate locations on one tile retain separate overlays.
  */
 #define CS2_OP_OVERLAY_LOC_CREATE 7201
 #define CS2_OP__7202 7202
-/* OVERLAY_PLAYER_CREATE — hang an overlay off the active player.
- * int stack in:   slot, band, width, height, source_coord
+/* OVERLAY_PLAYER_CREATE — Attach an overlay to the active player.
+ * int stack in:   slot, band, width, height, source_coord  (source_coord = top)
  * str stack in:   -
  * int stack out:  overlay index (-1 when none)
  * str stack out:  -
  */
 #define CS2_OP_OVERLAY_PLAYER_CREATE 7203
-/* OVERLAY_COORD_CREATE — hang an overlay off a bare tile.
- * int stack in:   coord, slot, band, width, height, source_coord
+/* OVERLAY_COORD_CREATE — Attach an overlay to a bare tile.
+ * int stack in:   coord, slot, band, width, height, source_coord  (source_coord = top)
  * str stack in:   -
  * int stack out:  overlay index (-1 when none)
  * str stack out:  -
  */
 #define CS2_OP_OVERLAY_COORD_CREATE 7204
-/* OVERLAY_NPC_GET — the active npc's overlay in this slot.
+/* OVERLAY_NPC_GET — Get one overlay attached to the active NPC.
  * int stack in:   slot
  * str stack in:   -
  * int stack out:  overlay index (-1 when none)
  * str stack out:  -
- * notes: the vendored table had this as (0 in, 1 out). It pops the slot; a
- *        script that asked for one slot and got the answer for whatever was
- *        left on the stack is the failure that hid behind the missing pop.
+ * notes: The vendored signature incorrectly recorded zero inputs; the slot must be popped or the integer stack leaks.
  */
 #define CS2_OP_OVERLAY_NPC_GET 7205
-/* OVERLAY_LOC_GET — the active loc's overlay in this slot.
+/* OVERLAY_LOC_GET — Get one overlay attached to the active location.
  * int stack in:   slot
  * str stack in:   -
  * int stack out:  overlay index (-1 when none)
@@ -3314,28 +3506,28 @@
  */
 #define CS2_OP_OVERLAY_LOC_GET 7206
 #define CS2_OP__7207 7207
-/* OVERLAY_PLAYER_GET — the active player's overlay in this slot.
+/* OVERLAY_PLAYER_GET — Get one overlay attached to the active player.
  * int stack in:   slot
  * str stack in:   -
  * int stack out:  overlay index (-1 when none)
  * str stack out:  -
  */
 #define CS2_OP_OVERLAY_PLAYER_GET 7208
-/* OVERLAY_COORD_GET — a tile's overlay in this slot.
- * int stack in:   coord, slot
+/* OVERLAY_COORD_GET — Get one overlay attached to a tile.
+ * int stack in:   coord, slot                   (slot = top)
  * str stack in:   -
  * int stack out:  overlay index (-1 when none)
  * str stack out:  -
  */
 #define CS2_OP_OVERLAY_COORD_GET 7209
-/* OVERLAY_NPC_DESTROY — drop the active npc's overlay in this slot.
+/* OVERLAY_NPC_DESTROY — Destroy one overlay attached to the active NPC.
  * int stack in:   slot
  * str stack in:   -
  * int stack out:  -
  * str stack out:  -
  */
 #define CS2_OP_OVERLAY_NPC_DESTROY 7210
-/* OVERLAY_LOC_DESTROY — drop the active loc's overlay in this slot.
+/* OVERLAY_LOC_DESTROY — Destroy one overlay attached to the active location.
  * int stack in:   slot
  * str stack in:   -
  * int stack out:  -
@@ -3343,15 +3535,15 @@
  */
 #define CS2_OP_OVERLAY_LOC_DESTROY 7211
 #define CS2_OP__7212 7212
-/* OVERLAY_PLAYER_DESTROY — drop the active player's overlay in this slot.
+/* OVERLAY_PLAYER_DESTROY — Destroy one overlay attached to the active player.
  * int stack in:   slot
  * str stack in:   -
  * int stack out:  -
  * str stack out:  -
  */
 #define CS2_OP_OVERLAY_PLAYER_DESTROY 7213
-/* OVERLAY_COORD_DESTROY — drop a tile's overlay in this slot.
- * int stack in:   coord, slot
+/* OVERLAY_COORD_DESTROY — Destroy one overlay attached to a tile.
+ * int stack in:   coord, slot  (slot = top)
  * str stack in:   -
  * int stack out:  -
  * str stack out:  -
@@ -3361,6 +3553,19 @@
 #define CS2_OP_MINIMAP_SETZOOM 7252
 #define CS2_OP_MINIMAP_GETZOOM 7253
 #define CS2_OP_MINIMAP_SETICONZOOMLIMIT 7254
+/* Loot-tracker auxiliary-list ops inside the 7200..7499 native group. */
+#define CS2_OP_LOOT_AUX_UPSERT2 7400
+#define CS2_OP_LOOT_AUX_UPSERT 7401
+#define CS2_OP_LOOT_AUX_REMOVE 7404
+#define CS2_OP_LOOT_AUX_GET 7406
+#define CS2_OP_LOOT_AUX_COUNT 7407
+#define CS2_OP_LOOT_AUX_LOOKUP 7408
+#define CS2_OP_LOOT_AUX_CLEAR 7409
+
+/* === CS2 opcode group: db (7500..7599) ===
+ * client database commands.
+ * rev-239 dispatch: Statics.method6889 -> method870.
+ */
 /* Client database family. Read DBROW config (kind 38) and the DBTABLEINDEX
  * (cache table 21); see CS2VM2_Op_Db / exec_db. */
 #define CS2_OP_DB_FIND_WITH_COUNT 7500
@@ -3375,54 +3580,120 @@
 #define CS2_OP_DB_FINDALL 7509
 #define CS2_OP_DB_FIND_FILTER 7510
 
-/* Loot-tracker native store (7600-family host ops). */
-#define CS2_OP_LOOT_SOURCE_COUNT     7601
-#define CS2_OP_LOOT_SOURCE_NAME      7602
+/* === CS2 opcode group: loot (7600..7699) ===
+ * loot-tracker native commands.
+ * rev-239 dispatch: Statics.method6889 -> method10020.
+ */
+/* Loot-tracker native store (7600-family host ops). The rev-239 Java
+ * range handler returns unhandled; this port implements the cache's
+ * native loot-tracker extension. */
+#define CS2_OP_LOOT_SOURCE_COUNT 7601
+#define CS2_OP_LOOT_SOURCE_NAME 7602
 #define CS2_OP_LOOT_SOURCE_ITEMCOUNT 7603
-/* 7604: per-source kill count. Scripts 7166/7160 write it into the source
- * component's scroll height; 7133/2907/7175 format that as "Name x N" and
- * sum it into Total count. GP totals come from item widgets, not this op. */
-#define CS2_OP_LOOT_SOURCE_TOTALVAL  7604
-#define CS2_OP_LOOT_BEGIN_QUERY      7605
-#define CS2_OP_LOOT_QUERY_ID         7606
-#define CS2_OP_LOOT_AUX_COUNT_TOTAL  7608
-#define CS2_OP_LOOT_ROW_COUNT_BYNAME 7609
-#define CS2_OP_LOOT_ROW_COUNT_BYID   7610
-#define CS2_OP_LOOT_ROW_BYNAME       7611
-#define CS2_OP_LOOT_ROW_BYID         7612
-#define CS2_OP_LOOT_CLEAR_ALL        7613
-#define CS2_OP_LOOT_CLEAR_SOURCE     7614
-#define CS2_OP_LOOT_REMOVE_BYID      7615
-#define CS2_OP_LOOT_IGNORE_ADD       7616
-#define CS2_OP_LOOT_IGNORE_REMOVE    7617
-#define CS2_OP_LOOT_GROUND_COUNT     7619
-#define CS2_OP_LOOT_GROUND_NAME      7620
-#define CS2_OP_LOOT_IGNORE_CLEAR     7621
-#define CS2_OP_LOOT_SOURCE_IGNORE_ADD    7622
-#define CS2_OP_LOOT_SOURCE_IGNORE_REMOVE 7623
-#define CS2_OP_LOOT_SRCLIST_COUNT    7625
-#define CS2_OP_LOOT_SRCLIST_NAME     7626
-/* LOOT_ADD — write one kill-drop row into the native store.
- * int stack in:   obj, qty, event_id  (pushed after name)
+/* LOOT_SOURCE_TOTALVAL — Get the recorded kill count for one loot source.
+ * int stack in:   -
  * str stack in:   source_name
- * int/str out:    -
- * notes: Clientscript 7192 (LOOTTRACKER_ADD_LOOT) is the only caller. The
- *        event_id batches multi-item kills: one kill_count bump per distinct
- *        id; the store also merges rows by (source name, obj_id). */
-#define CS2_OP_LOOT_ADD              7628
-#define CS2_OP_LOOT_SOURCE_NAME2     7630
+ * int stack out:  kill_count
+ * str stack out:  -
+ * notes: The historical name says TOTALVAL, but scripts use this as a source kill count. GP totals are calculated from item widgets.
+ */
+#define CS2_OP_LOOT_SOURCE_TOTALVAL 7604
+#define CS2_OP_LOOT_BEGIN_QUERY 7605
+#define CS2_OP_LOOT_QUERY_ID 7606
+#define CS2_OP_LOOT_AUX_COUNT_TOTAL 7608
+#define CS2_OP_LOOT_ROW_COUNT_BYNAME 7609
+#define CS2_OP_LOOT_ROW_COUNT_BYID 7610
+#define CS2_OP_LOOT_ROW_BYNAME 7611
+#define CS2_OP_LOOT_ROW_BYID 7612
+#define CS2_OP_LOOT_CLEAR_ALL 7613
+#define CS2_OP_LOOT_CLEAR_SOURCE 7614
+#define CS2_OP_LOOT_REMOVE_BYID 7615
+#define CS2_OP_LOOT_IGNORE_ADD 7616
+#define CS2_OP_LOOT_IGNORE_REMOVE 7617
+#define CS2_OP_LOOT_GROUND_COUNT 7619
+#define CS2_OP_LOOT_GROUND_NAME 7620
+#define CS2_OP_LOOT_IGNORE_CLEAR 7621
+#define CS2_OP_LOOT_SOURCE_IGNORE_ADD 7622
+#define CS2_OP_LOOT_SOURCE_IGNORE_REMOVE 7623
+#define CS2_OP_LOOT_SRCLIST_COUNT 7625
+#define CS2_OP_LOOT_SRCLIST_NAME 7626
+/* LOOT_ADD — Write one kill-drop row into the native loot store.
+ * int stack in:   obj, qty, event_id  (event_id = top)
+ * str stack in:   source_name
+ * int stack out:  -
+ * str stack out:  -
+ * notes: event_id batches multi-item kills so each event increments the kill count once; rows merge by (source name, object id).
+ */
+#define CS2_OP_LOOT_ADD 7628
+#define CS2_OP_LOOT_SOURCE_NAME2 7630
 
-/* Loot aux-list ops (7400-family). */
-#define CS2_OP_LOOT_AUX_UPSERT2     7400
-#define CS2_OP_LOOT_AUX_UPSERT      7401
-#define CS2_OP_LOOT_AUX_REMOVE      7404
-#define CS2_OP_LOOT_AUX_GET         7406
-#define CS2_OP_LOOT_AUX_COUNT       7407
-#define CS2_OP_LOOT_AUX_LOOKUP      7408
-#define CS2_OP_LOOT_AUX_CLEAR       7409
+/* === CS2 opcode group: extension (7700..7999) ===
+ * native extension and client-setting commands.
+ * rev-239 dispatch: Statics.method6889 -> method11128.
+ */
+/* Hiscores native-extension stubs (7809/7811). */
+#define CS2_OP_HISCORES_STATUS 7809
+#define CS2_OP_HISCORES_ERROR 7811
 
-/* Hiscores stubs (7809/7811). */
-#define CS2_OP_HISCORES_STATUS       7809
-#define CS2_OP_HISCORES_ERROR        7811
+/* === CS2 opcode group: array (8000..8099) ===
+ * typed list and array commands.
+ * rev-239 dispatch: Statics.method6889 -> method12336.
+ */
+/* ARRAY_SORT_ALL — Sort two paired arrays by the first array.
+ * int stack in:   -
+ * str stack in:   primary handle, secondary handle  (secondary handle = top)
+ * int stack out:  -
+ * str stack out:  -
+ * notes: Sorts primary ascending (lexically for strings, numerically otherwise) and applies the same permutation to secondary. Array handles travel on the string stack at this revision.
+ */
+#define CS2_OP_ARRAY_SORT_ALL 8000
+/* ARRAY_LENGTH — Get the element count of an array handle.
+ * int stack in:   -
+ * str stack in:   array handle
+ * int stack out:  length
+ * str stack out:  -
+ */
+#define CS2_OP_ARRAY_LENGTH 8003
+/* ARRAY_COUNT_MATCHES — count cells in [start, end) equal to a typed value.
+ * A negative end means "to the end". The array is a handle on the
+ * string stack; value_type selects whether the search value is popped
+ * from the int or string stack, so this opcode has variable arity. */
+#define CS2_OP_ARRAY_COUNT_MATCHES 8007
+/* ARRAY_SPLIT — Split a string into a new string-array handle.
+ * int stack in:   -
+ * str stack in:   text, separator  (separator = top)
+ * int stack out:  -
+ * str stack out:  array handle
+ */
+#define CS2_OP_ARRAY_SPLIT 8018
+/* ARRAY_JOIN — Join a string array with a separator.
+ * int stack in:   -
+ * str stack in:   array handle, separator  (separator = top)
+ * int stack out:  -
+ * str stack out:  joined text
+ */
+#define CS2_OP_ARRAY_JOIN 8019
+/* ARRAY_NEW — Create a typed array handle.
+ * int stack in:   type_code, length, capacity  (capacity = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  array handle
+ */
+#define CS2_OP_ARRAY_NEW 8022
+/* ARRAY_SETLENGTH — Resize an array handle.
+ * int stack in:   length
+ * str stack in:   array handle
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_ARRAY_SETLENGTH 8023
+/* ARRAY_APPEND — Append a typed value to an array handle.
+ * int stack in:   typed value, value_type                (value_type = top)
+ * str stack in:   array handle, typed value when string  (typed value when string = top)
+ * int stack out:  -
+ * str stack out:  -
+ * notes: Variable arity: value_type selects the value stack.
+ */
+#define CS2_OP_ARRAY_APPEND 8024
 
 #endif
