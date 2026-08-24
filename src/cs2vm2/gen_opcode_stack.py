@@ -100,13 +100,10 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     4218: (1, 0, 0, 1),  # OC_EXAMINE(item) -> examine text (real data: obj.desc)
     4222: (3, 0, 0, 1),  # OC_ISUBOP(obj, opIndex, subIndex) -> sub-op string (stub: "")
     206: (0, 0, 1, 0),  # IF_CHILDREN_FINDNEXTID
-    # New in the rev-239 gameframe scripts and in neither vendored table. Arity
-    # established by `cs2 infer-arity` over cache.osrs239: ten sites, every one
-    # solving to the same six-int pop with nothing pushed, unanimously. What it
-    # *means* is still unknown, so this only keeps the stack balanced — the six
-    # arguments are dropped and nothing happens. Reached from script 8483 during
-    # boot, where the alternative was StackMetaStub's assert.
-    210: (6, 0, 0, 0),  # _210(component, int, int, int, int, int)
+    # CC_FIND_PARAM(root, param1, value1, param2, value2, param3, value3) finds
+    # a matching component and pushes whether it succeeded. All rev-239 call
+    # sites have this exact shape; the generic VM stub currently returns zero.
+    210: (7, 0, 1, 0),
     211: (3, 0, 1, 0),  # IF_CHILDREN_COLLECT(start, component, unused) -> count
     212: (1, 0, 1, 0),  # CC_CHILDREN_FIND+count(start) -> count
     213: (0, 0, 1, 0),  # CC_CHILDREN_FINDNEXT() -> bool (set target; != FINDNEXTID)

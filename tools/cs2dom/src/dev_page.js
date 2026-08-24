@@ -203,12 +203,15 @@ let catalog = [];
 let chosen = null;
 let pickerMatches = [];
 let pickerActive = -1;
+let refreshEpoch = 0;
 
 const $ = (id) => document.getElementById(id);
 
 async function refresh() {
+  const epoch = ++refreshEpoch;
   if( catalog.length === 0 ) {
     const listing = await fetch('/catalog').then((response) => response.json());
+    if( epoch !== refreshEpoch ) return;
     catalog = listing.interfaces || [];
     if( !chosen ) chosen = catalog[0] && catalog[0].key;
     populatePicker();
@@ -218,8 +221,32 @@ async function refresh() {
     interface: chosen || '',
   });
   const response = await fetch('/state?' + query);
-  data = await response.json();
+  const next = await response.json();
+  if( epoch !== refreshEpoch ) return;
+  data = next;
   render();
+  const iface = data.interfaces && data.interfaces[0];
+  if( iface && iface.nativeTree ) hydrateNativeTree(iface, epoch);
+}
+
+async function hydrateNativeTree(iface, epoch) {
+  try {
+    const response = await fetch(iface.nativeTree);
+    if( !response.ok ) throw new Error(await response.text());
+    const native = await response.json();
+    if( !native.viewport || !Array.isArray(native.boxes) )
+      throw new Error('invalid native tree response');
+    if( epoch !== refreshEpoch || data.interfaces[0] !== iface ) return;
+    iface.viewport = native.viewport;
+    iface.boxes = native.boxes;
+    iface.nativeTreeReady = true;
+    drawStage(iface);
+    drawTree(iface);
+  } catch( error ) {
+    if( epoch !== refreshEpoch || data.interfaces[0] !== iface ) return;
+    $('status').textContent = 'C inspector unavailable — ' + error.message;
+    $('status').className = 'status bad';
+  }
 }
 
 function populatePicker() {
@@ -386,25 +413,36 @@ function render() {
 function drawStage(iface) {
   const stage = $('stage');
   const root = iface.boxes[0];
-  const width = root ? Math.max(root.w, 32) : 256;
-  const height = root ? Math.max(root.h, 32) : 128;
+  const native = Boolean(iface.nativeFrame);
+  const width = iface.viewport && native
+    ? iface.viewport.width : root ? Math.max(root.w, 32) : 256;
+  const height = iface.viewport && native
+    ? iface.viewport.height : root ? Math.max(root.h, 32) : 128;
   stage.style.width = width + 'px';
   stage.style.height = height + 'px';
-  const native = Boolean(iface.nativeFrame);
   stage.className = (native ? 'native ' : '') + ($('wire').checked ? 'wire' : '');
   $('dims').textContent = width + '×' + height + ' — interface ' + iface.interfaceId +
     (native ? ' — C client' : '');
 
+  /* Tree hydration follows the bitmap request. Reuse the already-loaded image
+     when only inspector boxes changed, avoiding a black flash and a duplicate
+     no-store image request. */
+  const reusableFrame = native ? stage.querySelector('.nativeframe') : null;
   stage.innerHTML = '';
   const epoch = ++modelEpoch;
-  const originX = root ? root.x : 0;
-  const originY = root ? root.y : 0;
+  /* Native boxes are already framebuffer coordinates. Imported roots may be
+     inset or sized differently and must never shift/stretch the C image. */
+  const originX = native ? 0 : root ? root.x : 0;
+  const originY = native ? 0 : root ? root.y : 0;
 
   if( native ) {
-    const frame = document.createElement('img');
+    const frame = reusableFrame || document.createElement('img');
     frame.className = 'nativeframe';
     frame.alt = 'Interface ' + iface.interfaceId + ' rendered by the C client';
-    frame.src = iface.nativeFrame;
+    if( frame.dataset.source !== iface.nativeFrame ) {
+      frame.dataset.source = iface.nativeFrame;
+      frame.src = iface.nativeFrame;
+    }
     frame.onerror = () => {
       /* A missing native binary/cache should not make the editor blank. Paint
          the diagnostic DOM fallback in-place and keep the error visible. */
@@ -622,16 +660,26 @@ function drawTree(iface) {
   tree.innerHTML = '';
   const depth = new Map();
   for( const box of iface.boxes ) {
-    const level = box.layer === null ? 0 : (depth.get(box.layer) ?? 0) + 1;
+    const linkedLevel = box.layer === null ? 0 : (depth.get(box.layer) ?? 0) + 1;
+    const level = Number.isInteger(box.depth) ? box.depth : linkedLevel;
     depth.set(box.fileId, level);
 
     const row = document.createElement('div');
     const bound = box.dynamic.length ? ' <span class="bound">◆ ' + box.dynamic.join(' ') + '</span>' : '';
     const events = box.events.length ? ' <span class="rowlabel">' + box.events.join(' ') + '</span>' : '';
+    const nativeDynamic = box.native && box.native.dynamic
+      ? ' <span class="bound">child ' + box.native.childIndex + '</span>' : '';
+    const flags = [
+      box.effectiveHidden ? 'hidden' : '',
+      box.culled ? 'culled' : '',
+      box.emitted === false && !box.effectiveHidden && !box.culled ? 'not walked' : '',
+    ].filter(Boolean);
+    const visibility = flags.length
+      ? ' <span class="rowlabel">[' + flags.join(', ') + ']</span>' : '';
     row.innerHTML = '&nbsp;'.repeat(level * 2) +
       box.fileId + ' ' + box.name +
       ' <span class="rowlabel">' + box.kind.toLowerCase() + ' ' +
-      box.w + '×' + box.h + '</span>' + bound + events;
+      box.w + '×' + box.h + '</span>' + nativeDynamic + bound + events + visibility;
     row.onmouseenter = () => {
       const target = document.querySelector('.box[data-name="' + box.name + '"]');
       if( target ) target.classList.add('outline');
@@ -667,11 +715,12 @@ function drawControls(iface) {
     return;
   }
 
+  const native = Boolean(iface.nativeFrame);
   for( const input of iface.inputs ) {
     controls.appendChild(
-      input.control.kind === 'inventory' ? inventoryControl(input)
-      : input.control.kind === 'text' ? textControl(input)
-      : sliderControl(input));
+      input.control.kind === 'inventory' ? inventoryControl(input, native)
+      : input.control.kind === 'text' ? textControl(input, native)
+      : sliderControl(input, native));
   }
 }
 
@@ -694,7 +743,8 @@ function controlShell(input, body) {
   return { wrap, head };
 }
 
-function sliderControl(input) {
+function sliderControl(input, native) {
+  const explicit = input.key in state;
   const value = ensure(input.key, input.initial ?? input.control.initial ?? 0);
   const slider = document.createElement('input');
   slider.type = 'range';
@@ -705,7 +755,8 @@ function sliderControl(input) {
 
   const { wrap, head } = controlShell(input, slider);
   const readout = document.createElement('b');
-  readout.textContent = String(value);
+  readout.textContent = native && !explicit ? 'client default' : String(value);
+  if( native && !explicit ) slider.title = 'Drag to override the C client boot value';
   head.appendChild(readout);
 
   slider.oninput = () => {
@@ -716,11 +767,13 @@ function sliderControl(input) {
   return wrap;
 }
 
-function textControl(input) {
+function textControl(input, native) {
+  const explicit = input.key in state;
   const value = ensure(input.key, input.initial ?? '');
   const field = document.createElement('input');
   field.type = 'text';
   field.value = String(value);
+  if( native && !explicit ) field.placeholder = 'client default';
   field.style.width = '100%';
 
   const { wrap } = controlShell(input, field);
@@ -733,7 +786,13 @@ function textControl(input) {
  * (item, count) pairs under invobj:<id>, which is the shape inv_getnum and
  * inv_total ask about in src/host.js.
  */
-function inventoryControl(input) {
+function inventoryControl(input, native) {
+  if( native ) {
+    const note = document.createElement('div');
+    note.className = 'rowlabel';
+    note.textContent = 'Uses the offline client inventory; no account contents were supplied.';
+    return controlShell(input, note).wrap;
+  }
   const key = 'invobj:' + input.id;
   let contents = ensure(key, {});
 

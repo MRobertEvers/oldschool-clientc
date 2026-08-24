@@ -43,6 +43,7 @@ import { prepareDat2Project } from '../src/dat2.js';
 import { page as devPage } from '../src/dev_page.js';
 import { modelIndex, rawModel } from '../src/model.js';
 import { nativeTreeInspector, parseNativeTree } from '../src/native_tree.js';
+import { encodeNativeState, nativePreviewFingerprint } from '../src/native_preview.js';
 import { collectInterfaceScripts, prepareNativeOverlay } from '../src/native_overlay.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -96,6 +97,14 @@ test('untouched controls do not seed false native-state defaults', () => {
     const html = devPage();
     assertIncludes(html, 'return key in state ? state[key] : fallback;');
     assertIncludes(html, 'contents = state[key] = { ...contents };');
+});
+
+test('native tree metadata replaces the diagnostic inspector without moving the framebuffer', () => {
+    const html = devPage();
+    assertIncludes(html, 'hydrateNativeTree(iface, epoch)');
+    assertIncludes(html, 'iface.viewport = native.viewport;');
+    assertIncludes(html, 'const originX = native ? 0');
+    assertIncludes(html, "box.effectiveHidden ? 'hidden' : ''");
 });
 
 /* ---- a scratch project --------------------------------------------------- */
@@ -961,6 +970,42 @@ test('native UITree parser enforces its machine-output bounds and links', () => 
         hooks: [], draw: null,
     }];
     assertThrows(() => parseNativeTree(invalid), 'missing parent 99');
+});
+
+test('native preview state transport is canonical, typed and bounded', () => {
+    const first = encodeNativeState({
+        'varcstr:359': 'dragon', 'stat:3': 77, 'varbit:3958': 1,
+        'varc:5': 11, 'varp:115': 4, 'inventory:93': { 0: 995 },
+    });
+    const reordered = encodeNativeState({
+        'varp:115': 4, 'varc:5': 11, 'varbit:3958': 1,
+        'stat:3': 77, 'varcstr:359': 'dragon',
+    });
+    assert(first.equals(reordered), 'state object insertion order changed the native packet');
+    assert(first.subarray(0, 8).toString('ascii') === 'C2STATE1', 'state packet magic changed');
+    assert(first.readUInt32LE(8) === 5, 'unsupported state slices reached the native packet');
+    assertThrows(() => encodeNativeState({ 'stat:25': 1 }), 'out of range');
+    assertThrows(() => encodeNativeState({ 'varcstr:1': 2 }), 'must be a string');
+    assertThrows(() => encodeNativeState({ 'varp:1': 1.5 }), 'signed 32-bit integer');
+    assertThrows(() => encodeNativeState({ 'varp:1': 1, 'varp:01': 2 }), 'duplicate canonical');
+});
+
+test('native preview fingerprint covers state and every Dat2 index', () => {
+    const root = mkdtempSync(join(scratch, 'native-fingerprint-'));
+    const cache = join(root, 'cache.osrs239');
+    const binary = join(root, 'torirs');
+    mkdirSync(cache);
+    writeFileSync(binary, 'fixture');
+    writeFileSync(join(cache, 'main_file_cache.dat2'), 'dat2');
+    writeFileSync(join(cache, 'main_file_cache.idx0'), 'zero');
+    writeFileSync(join(cache, 'main_file_cache.idx17'), 'seventeen');
+    const project = { cache, nativeClient: binary, revision: 'osrs239' };
+    const baseline = nativePreviewFingerprint(project, 12, 512, 334, {});
+    const state = nativePreviewFingerprint(project, 12, 512, 334, { 'varbit:3958': 1 });
+    assert(baseline !== state, 'state did not invalidate the native frame');
+    writeFileSync(join(cache, 'main_file_cache.idx17'), 'changed index bytes');
+    const changed = nativePreviewFingerprint(project, 12, 512, 334, {});
+    assert(baseline !== changed, 'an idx-only cache change did not invalidate the frame');
 });
 
 /* ---- 3d. sprites --------------------------------------------------------- */

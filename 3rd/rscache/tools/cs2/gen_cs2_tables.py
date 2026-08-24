@@ -88,7 +88,6 @@ KINDS = [
     "BASIC",
     "TYPED_POP",
     "DESCRIPTOR_ARGS",
-    "VARIADIC_INT_RESULT",
     "CLIENTSCRIPT",
     "PARAM",
     "ACTIVE_PARAM",

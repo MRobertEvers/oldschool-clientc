@@ -111,7 +111,8 @@ npm run build        # write the content tree and allocate ids
 npm run bake         # make -C src torirsserver-cache
 ```
 
-`npm run ship` does both. Other scripts: `test`, `check` (type-check),
+`npm run ship` does both. Other scripts: `test`, `test:native` (production-C
+pixel/state/tree regression), `check` (type-check),
 `cachegen` (regenerate the cache bindings), `ops` (print the vocabulary),
 `build:dry` (render and verify, write nothing), `verify` (build the CS2 tool,
 then run the tests).

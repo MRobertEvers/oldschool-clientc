@@ -107,8 +107,6 @@ enum RSCache_CS2_CommandKind
     RSCACHE_CS2_CMD_TYPED_POP,
     /** Three fixed ints, descriptor-selected values, then the descriptor string. */
     RSCACHE_CS2_CMD_DESCRIPTOR_ARGS,
-    /** Rev-239 opcode 210: all pending int payload values, one int result. */
-    RSCACHE_CS2_CMD_VARIADIC_INT_RESULT,
     RSCACHE_CS2_CMD_CLIENTSCRIPT,
     RSCACHE_CS2_CMD_PARAM,
     /** Active-component param lookup; result stack comes from the param config. */

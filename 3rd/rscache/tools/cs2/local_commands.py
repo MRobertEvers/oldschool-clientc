@@ -43,17 +43,15 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # CC_COPY 105 = { int_in 3 }: parent, src_sub, dst_sub. Clones a dynamic
     # child into another slot under the same parent and makes the copy active.
     "CC_COPY": (["COMPONENT", "COMSUBID", "COMSUBID"], [], True),
-    # _210 = { int_in 6 }. Established by `cs2 infer-arity` over cache.osrs239,
-    # not by a client: ten call sites, every one solving to the same six-int pop
-    # with nothing pushed, no other candidate surviving at any of them. The types
-    # are plain INT because the method establishes counts, not meanings — the
-    # first argument is a component in every site traced, but one shape is not a
-    # signature. src/cs2vm2 carries the same counts, and drops the arguments.
-    # The official deob's older method12650/210 is 5 -> 0, but every rev-239
-    # cache call site has the evolved ABI: six inputs and one boolean-like
-    # result (the same net -5). Both the six-push and seven-push/outer-value
-    # shapes then reach their following comparison with exactly two operands.
-    "cc_find_param": (["INT", "INT", "INT", "INT", "INT", "INT"], ["INT"], False),
+    # Rev-239 opcode 210 takes the search root followed by three (param, value)
+    # pairs and returns whether it found a matching component. Every cache call
+    # site pushes exactly that seven-int shape and immediately consumes the
+    # result. The first value is also passed to the client's component lookup,
+    # so COMPONENT is established rather than inferred from source aesthetics.
+    # Treating this as six inputs left the root on the decompiler's simulated
+    # stack and produced constants-as-conditions such as `if (60817424 = 1)`.
+    "cc_find_param":
+        (["COMPONENT", "INT", "INT", "INT", "INT", "INT", "INT"], ["INT"], False),
     # The cache's 7200-range collection iterators consume their selectors;
     # vendored Command.kt recorded only the result side.
     "overlay_loc_get": (["INT"], ["INT"], False),
@@ -777,7 +775,8 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # handler preamble (method4754/method1470/method6296/method12337) selects
     # field5113 over field2369 before it looks at the opcode at all.
     "cc_parentid": ([], ["INT"], True),
-    "cc_find_param": (["INT", "INT", "INT", "INT", "INT", "INT"], ["INT"], True),
+    "cc_find_param":
+        (["COMPONENT", "INT", "INT", "INT", "INT", "INT", "INT"], ["INT"], True),
     "cc_assert": ([], [], True),
     "cc_sethttpsprite": (["STRING"], [], True),
     "cc_crmview_dismiss": ([], ["INT"], True),
@@ -815,10 +814,6 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
 # one out -- desynchronised the operand stack of every script that read a
 # multi-field column, which is what took script 7603 and 79 others.
 LOCAL_KINDS: dict[int, str] = {
-    # Rev-239 call sites carry either six or seven int operands and immediately
-    # consume one int result. Preserve the cache's variable payload explicitly;
-    # the official deob's older 5 -> 0 implementation documents the ABI drift.
-    210: "VARIADIC_INT_RESULT",
     216: "TYPED_POP",
     2929: "DESCRIPTOR_ARGS",
     1703: "ACTIVE_PARAM",

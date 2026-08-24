@@ -46,7 +46,8 @@ export function nativePreviewStatus(project = {}) {
  * Render one cache interface through the real C client.
  *
  * The returned `rgba` is top-down RGBA. `bmp` and `png` contain the same frame,
- * making the function suitable for a file-writing CLI or an HTTP response.
+ * and `tree` is the validated runtime UITree snapshot produced after that
+ * frame's final layout/emit. Both artifacts come from one client boot.
  */
 export async function renderNativeInterface(project, interfaceId, {
     width = 512,
@@ -187,6 +188,10 @@ export function encodeNativeState(state = {}) {
         records.push({ kind: STATE_KIND[kindName], id, payload });
     }
     records.sort((a, b) => a.kind - b.kind || a.id - b.id);
+    for( let i = 1; i < records.length; i++ ) {
+        if( records[i - 1].kind === records[i].kind && records[i - 1].id === records[i].id )
+            throw new Error('native preview state contains duplicate canonical ids');
+    }
     if( records.length > MAX_STATE_RECORDS )
         throw new Error(`native preview state exceeds ${MAX_STATE_RECORDS} records`);
 

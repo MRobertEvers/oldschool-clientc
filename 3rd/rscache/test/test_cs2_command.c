@@ -28,6 +28,14 @@ main(void)
         RSCache_CS2_CommandArg(RSCache_CS2_CommandGet(3113), 1),
         RSCACHE_CS2_PROTO_BOOLEAN);
 
+    RSCACHE_TEST_GROUP("cc_find_param fixed signature");
+    const struct RSCache_CS2_CommandInfo* find_param = RSCache_CS2_CommandGet(210);
+    RSCACHE_CHECK_EQ(find_param->kind, RSCACHE_CS2_CMD_BASIC);
+    RSCACHE_CHECK_EQ(find_param->arg_count, 7);
+    RSCACHE_CHECK_EQ(find_param->def_count, 1);
+    RSCACHE_CHECK_EQ(RSCache_CS2_CommandArg(find_param, 0), RSCACHE_CS2_PROTO_COMPONENT);
+    RSCACHE_CHECK_EQ(RSCache_CS2_CommandDef(find_param, 0), RSCACHE_CS2_PROTO_INT);
+
     RSCACHE_TEST_GROUP("numeric compatibility aliases");
     RSCACHE_CHECK_EQ(RSCache_CS2_CommandOfName("_103"), 103);
     RSCACHE_CHECK_EQ(RSCache_CS2_CommandOfName("_1703"), 1703);

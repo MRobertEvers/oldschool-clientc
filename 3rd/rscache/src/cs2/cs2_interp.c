@@ -1112,51 +1112,6 @@ cs2_translate_descriptor_args(struct cs2_interp* interp, int opcode)
         arena, RSCache_CS2_ExprFromList(arena, NULL, 0), operation);
 }
 
-static struct RSCache_CS2_Insn*
-cs2_translate_variadic_int_result(
-    struct cs2_interp* interp, int opcode, const struct RSCache_CS2_CommandInfo* info)
-{
-    struct RSCache_CS2_Arena* arena = cs2_arena(interp);
-    bool dot = false;
-    if( info->dot_capable )
-    {
-        int operand = cs2_operand_int(interp);
-        if( operand != 0 && operand != 1 )
-        {
-            cs2_fail(
-                interp,
-                "script %d pc %d: opcode %d active-form flag was %d, not a boolean",
-                interp->script_id,
-                interp->pc,
-                opcode,
-                operand);
-            return NULL;
-        }
-        dot = operand == 1;
-    }
-    int count = interp->stack.count;
-    struct RSCache_CS2_Expr** args = (struct RSCache_CS2_Expr**)RSCache_CS2_ArenaAlloc(
-        arena, (size_t)(count > 0 ? count : 1) * sizeof(*args));
-    for( int i = count - 1; i >= 0; i-- )
-        args[i] = cs2_pop(interp, RSCACHE_CS2_STACK_INT);
-    if( interp->failed )
-        return NULL;
-
-    enum RSCache_CS2_StackType result_stack = RSCACHE_CS2_STACK_INT;
-    struct RSCache_CS2_Expr* operation = RSCache_CS2_ExprOperation(
-        arena,
-        &result_stack,
-        1,
-        opcode,
-        RSCache_CS2_ExprFromList(arena, args, count),
-        dot);
-    struct RSCache_CS2_Expr* definition = cs2_push(interp, result_stack, NULL);
-    RSCache_CS2_TypingAssign(
-        RSCache_CS2_TypingsOfExpr(cs2_typings(interp), operation)->items[0],
-        RSCache_CS2_TypingsOfElement(cs2_typings(interp), definition));
-    return RSCache_CS2_InsnAssignment(arena, definition, operation);
-}
-
 /* -------------------------------------------------------------------------
  * The client-database family
  *
@@ -1667,9 +1622,6 @@ cs2_translate(struct cs2_interp* interp)
 
     case RSCACHE_CS2_CMD_DESCRIPTOR_ARGS:
         return cs2_translate_descriptor_args(interp, opcode);
-
-    case RSCACHE_CS2_CMD_VARIADIC_INT_RESULT:
-        return cs2_translate_variadic_int_result(interp, opcode, info);
 
     case RSCACHE_CS2_CMD_CLIENTSCRIPT:
         return cs2_translate_clientscript(interp, opcode);

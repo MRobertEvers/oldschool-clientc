@@ -135,17 +135,15 @@ export function serve(project, { port = 8099, open = true, log = console.log } =
                 nativeFrames.set(fingerprint, frame);
                 frame.catch(() => nativeFrames.delete(fingerprint));
             }
-            frame.then(
-                (rendered) => {
-                    if( responseKind === 'png' )
-                        return send(response, 200, 'image/png', rendered.png);
-                    const inspector = nativeTreeInspector(rendered.tree, selectedIr);
-                    return send(response, 200, 'application/json', JSON.stringify({
-                        viewport: inspector.viewport,
-                        boxes: inspector.boxes,
-                    }));
-                },
-                (error) => send(response, 500, 'text/plain', error.message));
+            frame.then((rendered) => {
+                if( responseKind === 'png' )
+                    return send(response, 200, 'image/png', rendered.png);
+                const inspector = nativeTreeInspector(rendered.tree, selectedIr);
+                return send(response, 200, 'application/json', JSON.stringify({
+                    viewport: inspector.viewport,
+                    boxes: inspector.boxes,
+                }));
+            }).catch((error) => send(response, 500, 'text/plain', error.message));
             return undefined;
         }
 
@@ -311,14 +309,19 @@ function view(project, current, selected, stateJson, contentCatalog, sources) {
 
 function nativePreviewUrls(native, result, state) {
     if( !native.available || (result.source !== 'dat2' && result.source !== 'content') )
-        return { nativeFrame: null, nativeTree: null };
-    const query = '?width=512&height=334&source=' + encodeURIComponent(result.source) +
+        return { nativeFrame: null, nativeTree: null, viewport: null };
+    const width = 512;
+    const height = 334;
+    const query = `?width=${width}&height=${height}&source=` + encodeURIComponent(result.source) +
         '&name=' + encodeURIComponent(result.name) +
         '&state=' + encodeURIComponent(JSON.stringify(state));
     const root = `/native/interface/${result.interfaceId}`;
     return {
         nativeFrame: `${root}.png${query}`,
         nativeTree: `${root}.tree.json${query}`,
+        /* Known before the asynchronous tree sidecar arrives, so the browser
+         * never sizes the native bitmap from an imported component record. */
+        viewport: { width, height },
     };
 }
 

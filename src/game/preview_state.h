@@ -29,8 +29,10 @@ enum ToriRSPreviewStateKind
  * Validate and atomically apply a CS2Dom preview-state packet.
  *
  * Returns 1 on success and 0 on failure. No value is changed unless the whole
- * packet is structurally valid and every referenced varbit exists. `error` is
- * always NUL-terminated when its capacity is non-zero.
+ * packet is structurally valid and every referenced varbit exists.
+ * `applied_stat_mask`, when supplied, receives one bit per seeded skill so the
+ * preview boot can dispatch only those post-registration stat listeners.
+ * `error` is always NUL-terminated when its capacity is non-zero.
  */
 int
 ToriRSPreviewState_ApplyBuffer(
