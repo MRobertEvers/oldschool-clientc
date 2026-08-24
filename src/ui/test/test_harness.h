@@ -258,5 +258,6 @@ void test_chrome_exec(void);
 void test_chrome_cs2(void);
 void test_entity_overlay_draw_order(void);
 void test_server_driven_viewport_widgets(void);
+void test_frame_replacement(void);
 
 #endif

@@ -4518,6 +4518,8 @@ app_entity_overlay_layout(struct App* app)
             pos->y = y;
             pos->width = w;
             pos->height = h;
+            pos->layout_resolved = 0;
+            UITree_MarkNodeDirty(app->tree, parent);
             UITree_LayoutInvalidateBoxes(app->tree);
         }
     }
@@ -4591,10 +4593,11 @@ app_entity_overlay_layout(struct App* app)
 
         if( c->position.x != x || c->position.y != y )
         {
-            c->position.x = x;
-            c->position.y = y;
-            c->is_dirty = 1;
-            UITree_LayoutInvalidateBoxes(app->tree);
+            /* This is a retained-tree mutation, not just a repaint request.
+             * ApplyPosition clears the cached absolute box and bumps dirty_gen,
+             * so the emit-retention gate cannot reuse the sprite command from
+             * the previous camera angle. */
+            (void)UITree_ApplyPosition(app->tree, item->component_id, x, y);
         }
 
         if( getenv("TORIRS_OVERLAY_SCRIPT_DEBUG") )
@@ -24335,9 +24338,9 @@ App_PluginLayoutTick(struct App* app)
          */
         PluginHost_LayoutChanged(app->plugins);
     }
-    /* The re-assert is NOT here. It has to be the last writer before the draw,
-     * and the tick is nowhere near last -- see UITree_EmitWalk, which is where
-     * it runs from. */
+    /* UITree_EmitWalk keeps a final generation fence as well. It no longer
+     * rewrites CS2 geometry: it only rebinds the standing semantic declaration
+     * if topology somehow changed after this settled pass. */
 }
 
 int
@@ -24522,12 +24525,6 @@ App_RunOnce(
     /* After the frame handlers, not before: a plugin that re-authors its
      * geometry from on_frame gets it on screen this frame rather than next. */
     app_plugin_geometry_settle(app);
-    /* And the gameframe with them, for the same reason: a layout that claimed
-     * the frame from its start handler has to be on screen this frame, not
-     * next -- the alternative is one rendered frame of the lane's chrome
-     * flashing past every time a layout plugin is switched on. */
-    App_PluginLayoutTick(app);
-
     /*
      * All Settings rows, drained here and not inside the VM.
      *
@@ -24865,6 +24862,11 @@ App_RunOnce(
                                                : "settled:pending_clientscripts");
         return 0;
     }
+    /* Reconcile the gameframe only after the pre-interaction CS2 transaction
+     * is complete. Applying it at the head of App_RunOnce made every later
+     * CC_DELETEALL/CC_CREATE hand interaction a tree one generation newer
+     * than the semantic bindings it was using. */
+    App_PluginLayoutTick(app);
     app_frame_latch_note(app, NULL);
 
     app->input_frame_consumed = 1;
@@ -25932,6 +25934,11 @@ App_RunOnce(
                     app->tree->components[idx].behavior.hide = 0;
             }
         }
+        /* Interaction hooks and the persistent-state rebinds above can run a
+         * second CS2/topology transaction. This is the publication fence: the
+         * standing semantic declaration must name the exact incarnations the
+         * emit walk is about to commit, never the tree from frame start. */
+        App_PluginLayoutTick(app);
         /* Publication invariant: an emit list is a frame commit, not a view of
          * whatever intermediate state the cooperative schedulers reached. */
         assert(App_FrameSettled(app));

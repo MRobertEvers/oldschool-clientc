@@ -152,6 +152,42 @@ test_scripted_entity_overlay(void)
         emit.cmds[child_at].w == 36 && emit.cmds[child_at].h == 32,
         "the marker keeps the size the script gave it");
 
+    /* A camera turn moves the ordinary component after the first emit. The
+     * retained-list gate watches dirty_gen before the next EmitWalk, while the
+     * incremental layout only recomputes nodes whose cached box was cleared.
+     * Both signals must change or the fish sprite remains at its old angle even
+     * though host-drawn world primitives are refreshed. */
+    {
+        uint32_t const dirty_before = tree->dirty_gen;
+        int const moved_x = 180;
+        int const moved_y = 140;
+
+        TEST_ASSERT(
+            UITree_ApplyPosition(
+                tree, tree->components[layer].component_id, moved_x, moved_y),
+            "camera projection can move the scripted overlay layer");
+        TEST_ASSERT(
+            tree->dirty_gen != dirty_before,
+            "moving a visible overlay invalidates the retained emit list");
+        TEST_ASSERT(
+            !tree->components[layer].position.layout_resolved,
+            "moving an overlay invalidates its cached absolute box");
+
+        emit.count = 0;
+        UITree_EmitWalk(tree, &host, &emit, -1);
+        child_at = -1;
+        for( int i = 0; i < emit.count; i++ )
+            if( emit.cmds[i].component_id == child_com )
+                child_at = i;
+
+        TEST_ASSERT(child_at >= 0, "the moved overlay child is emitted again");
+        if( child_at >= 0 )
+            TEST_ASSERT(
+                emit.cmds[child_at].x == OV_WORLD_X + moved_x &&
+                    emit.cmds[child_at].y == OV_WORLD_Y + moved_y,
+                "the sprite follows the updated camera projection");
+    }
+
     /* Clipped to the world, not to the canvas. */
     /*
      * Clipped INSIDE the world, not to the canvas.

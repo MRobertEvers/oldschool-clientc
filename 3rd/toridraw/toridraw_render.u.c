@@ -108,6 +108,35 @@ toridraw_dbg_log(
 #include "graphics/projection_zdiv_simd.u.c"
 // clang-format on
 
+#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
+/*
+ * Private renderer ABI: the first argument addresses Scene's contiguous
+ * screen/orthographic output-pointer block. The assembly derives the prepared
+ * camera vectors from that block, so all eight arguments stay in registers.
+ */
+extern void
+toridraw_project_vertices_fused_neon_noclip_native_prepared_aarch64(
+    int* const* output_pointer_block,
+    const vertexint_t* vertex_x,
+    const vertexint_t* vertex_y,
+    const vertexint_t* vertex_z,
+    int num_vertices,
+    int model_yaw,
+    int model_mid_z,
+    const struct ToriDraw_Position* position);
+
+extern void
+toridraw_project_vertices_fused_neon_notex_noclip_native_prepared_aarch64(
+    int* const* output_pointer_block,
+    const vertexint_t* vertex_x,
+    const vertexint_t* vertex_y,
+    const vertexint_t* vertex_z,
+    int num_vertices,
+    int model_yaw,
+    int model_mid_z,
+    const struct ToriDraw_Position* position);
+#endif
+
 /** Far plane for bounding-cylinder frustum cull. */
 // #define TORIDRAW_CYLINDER_FAR_PLANE_Z 3500
 #define TORIDRAW_CYLINDER_FAR_PLANE_Z 7500
@@ -2270,8 +2299,11 @@ toridraw_project_vertices_clip(
 }
 
 /* Models that provably cannot; no sentinel, no near-plane test. */
-static inline void
-toridraw_project_vertices_noclip(
+#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
+__attribute__((noinline))
+#endif
+static void
+toridraw_project_vertices_noclip_portable(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
@@ -2428,6 +2460,67 @@ toridraw_project_vertices_noclip(
             camera->yaw);
     }
 
+}
+
+#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
+__attribute__((always_inline))
+#endif
+static inline void
+toridraw_project_vertices_noclip(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_Camera* camera,
+    int model_pitch,
+    int model_yaw,
+    int model_roll,
+    int camera_roll,
+    int model_mid_z)
+{
+#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
+    int const num_vertices = model_vertex_count(hnd);
+
+    if( model_pitch == 0 && model_roll == 0 && camera_roll == 0 &&
+        scene->projection_prepared_camera_source == camera && num_vertices >= 4 )
+    {
+        if( model_has_textures(hnd) )
+        {
+            toridraw_project_vertices_fused_neon_noclip_native_prepared_aarch64(
+                &scene->screen_vertices_x,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                num_vertices,
+                model_yaw,
+                model_mid_z,
+                position);
+        }
+        else
+        {
+            toridraw_project_vertices_fused_neon_notex_noclip_native_prepared_aarch64(
+                &scene->screen_vertices_x,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                num_vertices,
+                model_yaw,
+                model_mid_z,
+                position);
+        }
+        return;
+    }
+#endif
+
+    toridraw_project_vertices_noclip_portable(
+        scene,
+        hnd,
+        position,
+        camera,
+        model_pitch,
+        model_yaw,
+        model_roll,
+        camera_roll,
+        model_mid_z);
 }
 
 /*

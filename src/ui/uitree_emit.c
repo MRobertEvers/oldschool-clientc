@@ -567,6 +567,17 @@ UITree_EmitFill(
          * property — see UITree.mask_keep_opaque. */
         out->mask_scene_id = component->u.minimap.mask_scene_id;
         out->mask_atlas_index = component->u.minimap.mask_atlas_index;
+        {
+            int art_override = 0;
+            int mask_override = 0;
+            if( UITree_FrameSkinOverride(
+                    tree, node_index, &art_override, &mask_override) &&
+                mask_override > 0 )
+            {
+                out->mask_scene_id = mask_override;
+                out->mask_atlas_index = 0;
+            }
+        }
         out->mask_keep_opaque = tree->mask_keep_opaque;
         out->rotation_r2pi2048 = UITree_ComponentSpriteRotation(component, host);
         /* Entity/flag overlay dots, computed by the host in center-relative
@@ -644,6 +655,24 @@ UITree_EmitFill(
         out->kind = UITREE_EMIT_COMPASS;
         out->scene_id = component->u.sprite.scene_id;
         out->atlas_index = component->u.sprite.atlas_index;
+        {
+            int art_override = 0;
+            int mask_override = 0;
+            if( UITree_FrameSkinOverride(
+                    tree, node_index, &art_override, &mask_override) )
+            {
+                if( art_override > 0 )
+                {
+                    out->scene_id = art_override;
+                    out->atlas_index = 0;
+                }
+                if( mask_override > 0 )
+                {
+                    out->mask_scene_id = mask_override;
+                    out->mask_atlas_index = 0;
+                }
+            }
+        }
         /* No RevConfig sprite= binding (interface-open path): fall back to the
          * client-hardcoded compass the host loaded. */
         if( out->scene_id <= 0 )
@@ -651,8 +680,11 @@ UITree_EmitFill(
         if( out->scene_id <= 0 )
             return false;
         /* The pack's placeholder graphic doubles as the circular clip. */
-        out->mask_scene_id = component->u.sprite.mask_scene_id;
-        out->mask_atlas_index = component->u.sprite.mask_atlas_index;
+        if( out->mask_scene_id <= 0 )
+        {
+            out->mask_scene_id = component->u.sprite.mask_scene_id;
+            out->mask_atlas_index = component->u.sprite.mask_atlas_index;
+        }
         out->mask_keep_opaque = tree->mask_keep_opaque;
         out->rotation_r2pi2048 = UITree_ComponentSpriteRotation(component, host);
         return true;
@@ -2798,23 +2830,10 @@ UITree_EmitWalk(
      * interface, so the sidebar's whole inventory drew at 16,8 under a clip of
      * zero width: no item icons at all. No-op when nothing invalidated.
      */
-    /*
-     * A plugin layout is restated here, at the last moment before anything is
-     * drawn, and that placement is the whole point.
-     *
-     * Every other writer of a node's box and hide flag runs during the TICK --
-     * the CS1 value scripts on a dat1 frame, the CS2 onload and resize hooks on
-     * a cache one, the slot manager on both -- and each of them is right about
-     * the frame it was written for. A declaration applied once, earlier in the
-     * frame, simply loses to whichever of them ran last, and what that looks
-     * like is the plugin's gameframe and the lane's gameframe on screen
-     * together. Being last is the only way to be authoritative, and this is
-     * where last is.
-     *
-     * Costs a comparison per node the declaration touched, and nothing at all
-     * when no plugin holds the frame. Before EnsureLayout, so a box it changes
-     * is resolved by the pass below rather than a frame later.
-     */
+    /* Publication fence for a plugin gameframe. Geometry and art are effective
+     * layers now, so this does not race CS1/CS2 by rewriting their native
+     * fields. It only re-resolves semantic membership when topology changed
+     * since the declaration, before EnsureLayout consumes those bindings. */
     UITree_FrameReassert((struct UITree*)tree);
     UITree_EnsureLayout(tree);
     /* Reachability scratch for the retention signal — see UITree::emit_visited.

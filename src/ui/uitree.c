@@ -942,6 +942,9 @@ push_element_unlinked(struct UITree* tree)
 
     struct UITreeComponent* component = &tree->components[idx];
     memset(component, 0, sizeof(struct UITreeComponent));
+    if( ++tree->next_incarnation == 0 )
+        tree->next_incarnation++;
+    component->incarnation = tree->next_incarnation;
     component->parent = -1;
     component->first_child = -1;
     component->next_sibling = -1;
@@ -3148,13 +3151,21 @@ UITree_ApplyPosition(
     if( idx < 0 )
         return false;
     struct UITreeComponent* const com = &tree->components[idx];
-    if( com->position.x == x && com->position.y == y && com->position.layout_resolved )
+    int const frame_owned = UITree_FramePositionOwned(tree, idx);
+    if( com->position.x == x && com->position.y == y &&
+        (com->position.layout_resolved || frame_owned) )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
     }
     com->position.x = x;
     com->position.y = y;
+    /* The plugin owns only the effective box. Keep accepting the cache's
+     * native state underneath it, but do not invalidate or dirty a frame whose
+     * visible result did not change. Release will expose this value and marks
+     * the node once at that transition. */
+    if( frame_owned )
+        return true;
     com->position.layout_resolved = 0;
     UITree_LayoutInvalidateBoxes(tree);
     UITree_MarkNodeDirty(tree, idx);
@@ -3173,14 +3184,17 @@ UITree_ApplySize(
     if( idx < 0 )
         return false;
     struct UITreeComponent* const com = &tree->components[idx];
+    int const frame_owned = UITree_FramePositionOwned(tree, idx);
     if( com->position.width == width && com->position.height == height &&
-        com->position.layout_resolved )
+        (com->position.layout_resolved || frame_owned) )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
     }
     com->position.width = width;
     com->position.height = height;
+    if( frame_owned )
+        return true;
     com->position.layout_resolved = 0;
     UITree_LayoutInvalidateBoxes(tree);
     UITree_MarkNodeDirty(tree, idx);
@@ -3201,8 +3215,10 @@ UITree_ApplyPositionModes(
     if( idx < 0 )
         return false;
     struct UITreeComponent* const com = &tree->components[idx];
+    int const frame_owned = UITree_FramePositionOwned(tree, idx);
     if( com->position.x == x && com->position.y == y && com->position.x_mode == (int8_t)x_mode &&
-        com->position.y_mode == (int8_t)y_mode && com->position.layout_resolved )
+        com->position.y_mode == (int8_t)y_mode &&
+        (com->position.layout_resolved || frame_owned) )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
@@ -3211,6 +3227,8 @@ UITree_ApplyPositionModes(
     com->position.y = y;
     com->position.x_mode = (int8_t)x_mode;
     com->position.y_mode = (int8_t)y_mode;
+    if( frame_owned )
+        return true;
     com->position.layout_resolved = 0;
     UITree_LayoutInvalidateBoxes(tree);
     UITree_MarkNodeDirty(tree, idx);
@@ -3231,9 +3249,11 @@ UITree_ApplySizeModes(
     if( idx < 0 )
         return false;
     struct UITreeComponent* const com = &tree->components[idx];
+    int const frame_owned = UITree_FramePositionOwned(tree, idx);
     if( com->position.width == width && com->position.height == height &&
         com->position.width_mode == (int8_t)width_mode &&
-        com->position.height_mode == (int8_t)height_mode && com->position.layout_resolved )
+        com->position.height_mode == (int8_t)height_mode &&
+        (com->position.layout_resolved || frame_owned) )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
@@ -3242,6 +3262,8 @@ UITree_ApplySizeModes(
     com->position.height = height;
     com->position.width_mode = (int8_t)width_mode;
     com->position.height_mode = (int8_t)height_mode;
+    if( frame_owned )
+        return true;
     com->position.layout_resolved = 0;
     UITree_LayoutInvalidateBoxes(tree);
     UITree_MarkNodeDirty(tree, idx);

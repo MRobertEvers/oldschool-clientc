@@ -38,6 +38,20 @@ ToriDraw_RasterSetScanline(bool enabled);
 bool
 ToriDraw_RasterGetScanline(void);
 
+/**
+ * Prepare camera-only projection constants once for a run of models using the
+ * same camera object. Call again after changing that camera or the selected
+ * sine/cosine tables, and clear it when the run ends. Other camera objects use
+ * the ordinary portable projection path.
+ */
+void
+ToriDraw_ScenePrepareProjectionCamera(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_Camera* camera);
+
+void
+ToriDraw_SceneClearProjectionCamera(struct ToriDraw_Scene* scene);
+
 void
 ToriDraw_RenderModel(
     struct ToriDraw_ModelHandle hnd,

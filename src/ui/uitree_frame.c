@@ -70,38 +70,26 @@ _Static_assert(
 
 struct UITreeFrameLayout
 {
-    /** Nodes carrying each role, the ids they had (so a reclaimed slot cannot
-     *  be mistaken for the component that was placed in it), and the boxes
-     *  they were authored at. */
+    /** Nodes carrying each role and their exact array-slot incarnations. */
     int32_t slot_node[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
-    int slot_component_id[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
+    uint32_t slot_incarnation[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
     /** UITree_FrameSlotIndex for each, so a per-member box finds its node
      *  without re-deriving it every frame. */
     int slot_member[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
-    struct UITreeElemPosition slot_saved[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
-    /** The picture each node drew from before a skin replaced it, so a release
-     *  hands the lane back its own compass and not the plugin's. */
-    struct UITreeFrameNodeSkin
-    {
-        uint8_t saved;
-        int art_scene_id;
-        int art_atlas_index;
-        int mask_scene_id;
-        int mask_atlas_index;
-    } slot_saved_skin[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
     int slot_node_count[UITREE_FRAME_SLOT_COUNT];
-    /** The declaration itself, kept so the re-assert can restate it. */
+    /** The declaration itself, kept so a topology change can re-resolve it. */
     struct UITreeFrameSlotRect slot_rect[UITREE_FRAME_SLOT_COUNT];
-    /** Lane chrome the declaration suppressed. No "what was it before": the
-     *  flag is the layout's alone, so clearing it restores exactly the state
-     *  the lane had. */
+    /** Lane chrome (and unplaced slots) the declaration suppresses. */
     int32_t hidden[UITREE_FRAME_HIDDEN_MAX];
+    uint32_t hidden_incarnation[UITREE_FRAME_HIDDEN_MAX];
     int hidden_count;
-    /** Layers widened so they stop clipping the surfaces hanging under them,
-     *  and the boxes they had before. @see frame_stretch_ancestors. */
+    /** Layers effectively widened so they do not clip placed surfaces. */
     int32_t stretched[UITREE_FRAME_STRETCHED_MAX];
-    struct UITreeElemPosition stretched_saved[UITREE_FRAME_STRETCHED_MAX];
+    uint32_t stretched_incarnation[UITREE_FRAME_STRETCHED_MAX];
     int stretched_count;
+    /** The semantic binding this table describes. */
+    uint32_t applied_generation;
+    int root_group;
     uint8_t active;
 };
 
@@ -118,6 +106,19 @@ frame_state(struct UITree* tree)
         assert(tree->frame_layout);
     }
     return tree->frame_layout;
+}
+
+static int
+frame_node_same(
+    struct UITree const* tree,
+    int32_t idx,
+    uint32_t incarnation)
+{
+    assert(tree);
+    if( idx < 0 || (uint32_t)idx >= tree->component_count )
+        return 0;
+    return !tree->components[idx].freed && incarnation != 0 &&
+           tree->components[idx].incarnation == incarnation;
 }
 
 static int
@@ -369,9 +370,8 @@ frame_collect_slots(
                 break;
             }
             fl->slot_node[s][n] = (int32_t)i;
-            fl->slot_component_id[s][n] = c->component_id;
+            fl->slot_incarnation[s][n] = c->incarnation;
             fl->slot_member[s][n] = UITree_FrameSlotIndex(c, s);
-            fl->slot_saved[s][n] = c->position;
             fl->slot_node_count[s] = n + 1;
         }
     }
@@ -396,84 +396,31 @@ frame_rect_for(
     return slot->all.placed ? &slot->all : NULL;
 }
 
-/*
- * One node, at the declared box.
- *
- * An absolute box, and every mode cleared. A cache component states its
- * geometry in MODES as often as in numbers -- widthmode 1 is "fill my parent",
- * xmode 1 is "centre in it" -- and writing x/y/w/h while leaving those standing
- * means the resolve recomputes the box from the parent and throws the
- * declaration away. The plugin said where it goes; nothing else gets a vote.
- *
- * The hide is NOT cleared. A sidebar mount that is not the selected tab is
- * hidden by the slot manager, and showing all fourteen because the layout
- * placed the role would draw the whole tab set stacked in one panel. The
- * declaration says where a role goes, not which of its nodes is the one on
- * screen -- that stays the client's.
- */
+/* Record one suppression in a declaration being built. Applying the flag is a
+ * separate diff step: rebuilding an unchanged semantic binding must not show
+ * and hide the same native node merely because unrelated CS2 topology moved. */
 static void
-frame_place_node(
-    struct UITree* tree,
-    int32_t idx,
-    struct UITreeFrameRect const* rect)
-{
-    struct UITreeComponent* c;
-
-    assert(tree);
-    assert(rect);
-    c = &tree->components[idx];
-    if( c->position.kind == UIPOS_XY && c->position.x == rect->x && c->position.y == rect->y &&
-        c->position.width == rect->w && c->position.height == rect->h &&
-        c->position.x_mode < 0 && c->position.y_mode < 0 && c->position.width_mode < 0 &&
-        c->position.height_mode < 0 && c->position.relative_flags == 0 )
-        return;
-
-    c->position.kind = UIPOS_XY;
-    c->position.x = rect->x;
-    c->position.y = rect->y;
-    c->position.width = rect->w;
-    c->position.height = rect->h;
-    c->position.x_mode = -1;
-    c->position.y_mode = -1;
-    c->position.width_mode = -1;
-    c->position.height_mode = -1;
-    c->position.relative_flags = 0;
-    c->position.layout_resolved = 0;
-    UITree_MarkNodeDirty(tree, idx);
-    UITree_LayoutInvalidateBoxes(tree);
-}
-
-static void
-frame_hide_node(
-    struct UITree* tree,
+frame_record_hidden(
+    struct UITree const* tree,
     struct UITreeFrameLayout* fl,
     int32_t idx)
 {
-    struct UITreeComponent* c;
-
     assert(tree);
     assert(fl);
-    if( fl->hidden_count >= UITREE_FRAME_HIDDEN_MAX )
+    if( !frame_node_alive(tree, idx) || fl->hidden_count >= UITREE_FRAME_HIDDEN_MAX )
         return;
-    c = &tree->components[idx];
+    for( int i = 0; i < fl->hidden_count; i++ )
+        if( fl->hidden[i] == idx &&
+            fl->hidden_incarnation[i] == tree->components[idx].incarnation )
+            return;
     fl->hidden[fl->hidden_count] = idx;
+    fl->hidden_incarnation[fl->hidden_count] = tree->components[idx].incarnation;
     fl->hidden_count++;
-    c->frame_hidden = 1;
-    UITree_MarkNodeDirty(tree, idx);
 }
 
-/*
- * Widen one layer to the canvas, remembering the box it had.
- *
- * WIDEN and never move: x/y are left exactly as authored. A layer's children
- * are positioned in its space, so shifting it would take the whole frame with
- * it -- and the only thing wrong with the layer is its SIZE.
- *
- * The size modes are cleared for the same reason frame_place_node clears them:
- * a `widthmode` that says "fill my parent" would recompute the box from a
- * parent that is itself the wrong size, and the write would be thrown away on
- * the next resolve.
- */
+/* Record an effective containment override. Native geometry is deliberately
+ * untouched; UITree_FramePositionOverride derives the widened position from
+ * whatever CS1/CS2 most recently wrote. */
 static void
 frame_stretch_node(
     struct UITree* tree,
@@ -482,7 +429,7 @@ frame_stretch_node(
     int canvas_w,
     int canvas_h)
 {
-    struct UITreeComponent* c;
+    struct UITreeComponent const* c;
 
     assert(tree);
     assert(fl);
@@ -490,26 +437,14 @@ frame_stretch_node(
     if( c->position.width >= canvas_w && c->position.height >= canvas_h &&
         c->position.width_mode < 0 && c->position.height_mode < 0 )
         return;
-
     for( int i = 0; i < fl->stretched_count; i++ )
-        if( fl->stretched[i] == idx )
-            goto write;
+        if( fl->stretched[i] == idx && fl->stretched_incarnation[i] == c->incarnation )
+            return;
     if( fl->stretched_count >= UITREE_FRAME_STRETCHED_MAX )
         return;
     fl->stretched[fl->stretched_count] = idx;
-    fl->stretched_saved[fl->stretched_count] = c->position;
+    fl->stretched_incarnation[fl->stretched_count] = c->incarnation;
     fl->stretched_count++;
-
-write:
-    if( c->position.width < canvas_w )
-        c->position.width = canvas_w;
-    if( c->position.height < canvas_h )
-        c->position.height = canvas_h;
-    c->position.width_mode = -1;
-    c->position.height_mode = -1;
-    c->position.layout_resolved = 0;
-    UITree_MarkNodeDirty(tree, idx);
-    UITree_LayoutInvalidateBoxes(tree);
 }
 
 /*
@@ -528,130 +463,10 @@ write:
  * inside interface group roots, and any one of them clips just as hard.
  *
  * Sized to the CANVAS rather than to the declaration's own union, because the
- * boxes a declaration states are canvas coordinates -- frame_place_node writes
- * them straight into a position whose modes it has just cleared -- so "does
- * not clip the canvas" is the only condition that makes every one of them
- * land where it was asked for.
+ * boxes a declaration states are canvas coordinates, so "does not clip the
+ * canvas" is the only condition that makes every one of them land where it
+ * was asked for.
  */
-/*
- * Where one node keeps the picture it is drawn from, or 0 when it keeps none.
- *
- * Two unions and one accessor, because the two skinnable surfaces spell the
- * same two fields differently -- a compass is a rotated SPRITE and a minimap
- * is a baked map -- and every caller below wants "the art and the mask",
- * never "the sprite union".
- *
- * The atlas indices come with them and are not an afterthought: a plugin image
- * is a scene entry holding exactly one sprite, so a component that kept the
- * lane's index would look up frame 3 of a one-frame picture and draw nothing.
- */
-struct UITreeFrameNodeSkinRef
-{
-    int* art_scene_id;
-    int* art_atlas_index;
-    int* mask_scene_id;
-    int* mask_atlas_index;
-};
-
-static int
-frame_node_skin_ref(
-    struct UITreeComponent* c,
-    struct UITreeFrameNodeSkinRef* out)
-{
-    assert(c);
-    assert(out);
-    switch( c->type )
-    {
-    case UIELEM_BUILTIN_COMPASS:
-        out->art_scene_id = &c->u.sprite.scene_id;
-        out->art_atlas_index = &c->u.sprite.atlas_index;
-        out->mask_scene_id = &c->u.sprite.mask_scene_id;
-        out->mask_atlas_index = &c->u.sprite.mask_atlas_index;
-        return 1;
-    case UIELEM_BUILTIN_MINIMAP:
-        /* The map itself is baked by the host and asked for by the emit walk,
-         * so `scene_id` here is not what gets drawn -- only the mask is. Kept
-         * in the pair anyway so a declaration that names art for a minimap is
-         * saved and restored like any other rather than half-applied. */
-        out->art_scene_id = &c->u.minimap.scene_id;
-        out->art_atlas_index = NULL;
-        out->mask_scene_id = &c->u.minimap.mask_scene_id;
-        out->mask_atlas_index = &c->u.minimap.mask_atlas_index;
-        return 1;
-    default:
-        return 0;
-    }
-}
-
-/*
- * Skin one node, remembering what it was drawn from.
- *
- * The save happens ONCE per node per declaration -- `saved` is the flag -- so
- * a re-assert that runs every frame cannot end up remembering the plugin's own
- * picture as the lane's.
- */
-static void
-frame_skin_node(
-    struct UITree* tree,
-    struct UITreeFrameNodeSkin* saved,
-    int32_t idx,
-    struct UITreeFrameSkin const* skin)
-{
-    struct UITreeFrameNodeSkinRef ref;
-    struct UITreeComponent* c;
-
-    assert(tree);
-    assert(saved);
-    assert(skin);
-    c = &tree->components[idx];
-    if( !frame_node_skin_ref(c, &ref) )
-        return;
-
-    if( !saved->saved )
-    {
-        saved->saved = 1;
-        saved->art_scene_id = *ref.art_scene_id;
-        saved->art_atlas_index = ref.art_atlas_index ? *ref.art_atlas_index : 0;
-        saved->mask_scene_id = *ref.mask_scene_id;
-        saved->mask_atlas_index = *ref.mask_atlas_index;
-    }
-
-    if( skin->art_scene_id > 0 )
-    {
-        *ref.art_scene_id = skin->art_scene_id;
-        if( ref.art_atlas_index )
-            *ref.art_atlas_index = 0;
-    }
-    if( skin->mask_scene_id > 0 )
-    {
-        *ref.mask_scene_id = skin->mask_scene_id;
-        *ref.mask_atlas_index = 0;
-    }
-    UITree_MarkNodeDirty(tree, idx);
-}
-
-static void
-frame_unskin_node(
-    struct UITree* tree,
-    struct UITreeFrameNodeSkin* saved,
-    int32_t idx)
-{
-    struct UITreeFrameNodeSkinRef ref;
-
-    assert(tree);
-    assert(saved);
-    if( !saved->saved )
-        return;
-    saved->saved = 0;
-    if( !frame_node_skin_ref(&tree->components[idx], &ref) )
-        return;
-    *ref.art_scene_id = saved->art_scene_id;
-    if( ref.art_atlas_index )
-        *ref.art_atlas_index = saved->art_atlas_index;
-    *ref.mask_scene_id = saved->mask_scene_id;
-    *ref.mask_atlas_index = saved->mask_atlas_index;
-    UITree_MarkNodeDirty(tree, idx);
-}
 
 static int
 frame_is_placed_node(
@@ -690,8 +505,8 @@ frame_stretch_ancestors(
                 /* A layer that is ITSELF a placed surface keeps the box the
                  * declaration gave it -- the chat region is a role and a
                  * container at once, and widening it to the canvas would put
-                 * the chat log across the whole window on the next re-assert
-                 * and then argue with the placement every frame. */
+                 * the chat log across the whole window rather than at the
+                 * declaration's effective box. */
                 if( frame_is_placed_node(fl, p) )
                     continue;
                 frame_stretch_node(tree, fl, p, canvas_w, canvas_h);
@@ -723,8 +538,38 @@ frame_collect_chrome(
             continue;
         if( !frame_is_lane_chrome(c, root_group) )
             continue;
-        frame_hide_node(tree, fl, (int32_t)i);
+        frame_record_hidden(tree, fl, (int32_t)i);
     }
+}
+
+static int
+frame_hidden_has(
+    struct UITreeFrameLayout const* fl,
+    int32_t idx,
+    uint32_t incarnation)
+{
+    assert(fl);
+    for( int i = 0; i < fl->hidden_count; i++ )
+        if( fl->hidden[i] == idx && fl->hidden_incarnation[i] == incarnation )
+            return 1;
+    return 0;
+}
+
+static void
+frame_mark_bound_nodes(
+    struct UITree* tree,
+    struct UITreeFrameLayout const* fl)
+{
+    assert(tree);
+    assert(fl);
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+        for( int n = 0; n < fl->slot_node_count[s]; n++ )
+            if( frame_node_same(
+                    tree, fl->slot_node[s][n], fl->slot_incarnation[s][n]) )
+                UITree_MarkNodeDirty(tree, fl->slot_node[s][n]);
+    for( int i = 0; i < fl->stretched_count; i++ )
+        if( frame_node_same(tree, fl->stretched[i], fl->stretched_incarnation[i]) )
+            UITree_MarkNodeDirty(tree, fl->stretched[i]);
 }
 
 void
@@ -734,32 +579,28 @@ UITree_FrameApply(
     int root_group)
 {
     struct UITreeFrameLayout* fl;
+    struct UITreeFrameLayout next;
 
     assert(tree);
     assert(slots);
 
-    /* Every apply is a fresh declaration, so the previous one is undone first:
-     * the roles it moved go back to where they were authored and the chrome it
-     * hid is shown again, and only then is the new one written. Without this a
-     * layout that stopped placing the compass would leave the compass where
-     * the LAST declaration put it, and a re-declared frame would accumulate
-     * hides across every resize. */
-    UITree_FrameRelease(tree);
-    fl = frame_state(tree);
-
-    memset(fl->slot_node_count, 0, sizeof(fl->slot_node_count));
-    /* A skin the release could not hand back -- its node was reclaimed between
-     * the two -- is one nothing may hand back later either: the id it was
-     * saved against is gone. */
-    memset(fl->slot_saved_skin, 0, sizeof(fl->slot_saved_skin));
-    frame_collect_slots(tree, fl);
+    /* Build the new binding off to the side. The old declaration stays fully
+     * effective until the diff below commits this one, so a re-declaration can
+     * never expose the lane's frame as an intermediate state. */
+    memset(&next, 0, sizeof(next));
+    memcpy(next.slot_rect, slots, sizeof(next.slot_rect));
+    next.root_group = root_group;
+    next.applied_generation = tree->generation;
+    next.active = 1;
+    frame_collect_slots(tree, &next);
 
     for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
     {
-        for( int n = 0; n < fl->slot_node_count[s]; n++ )
+        for( int n = 0; n < next.slot_node_count[s]; n++ )
         {
-            int32_t const idx = fl->slot_node[s][n];
-            struct UITreeFrameRect const* rect = frame_rect_for(&slots[s], fl->slot_member[s][n]);
+            int32_t const idx = next.slot_node[s][n];
+            struct UITreeFrameRect const* rect =
+                frame_rect_for(&next.slot_rect[s], next.slot_member[s][n]);
 
             if( !rect )
             {
@@ -768,20 +609,65 @@ UITree_FrameApply(
                  * layout has no compass housing of its own, and leaving the
                  * lane's compass on screen would put it wherever the old frame
                  * had it. */
-                frame_hide_node(tree, fl, idx);
-                continue;
+                frame_record_hidden(tree, &next, idx);
             }
-
-            frame_place_node(tree, idx, rect);
-            if( slots[s].skin.placed )
-                frame_skin_node(tree, &fl->slot_saved_skin[s][n], idx, &slots[s].skin);
         }
     }
 
-    memcpy(fl->slot_rect, slots, sizeof(fl->slot_rect));
-    frame_stretch_ancestors(tree, fl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    frame_collect_chrome(tree, fl, root_group);
-    fl->active = 1;
+    frame_stretch_ancestors(tree, &next, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    frame_collect_chrome(tree, &next, root_group);
+
+    fl = frame_state(tree);
+    if( fl->active )
+    {
+        /* `generation` is intentionally excluded from semantic equality. A
+         * chat-row rebuild can bump it hundreds of times without changing one
+         * frame role; accepting the new generation must then be a true no-op. */
+        uint32_t const next_generation = next.applied_generation;
+        next.applied_generation = fl->applied_generation;
+        if( memcmp(fl, &next, sizeof(next)) == 0 )
+        {
+            fl->applied_generation = next_generation;
+            return;
+        }
+        next.applied_generation = next_generation;
+    }
+
+    /* Suppression is the only override represented on the component itself.
+     * Diff it by exact incarnation so unchanged chrome never flashes visible,
+     * and a recycled index is never touched on behalf of its predecessor. */
+    for( int i = 0; i < fl->hidden_count; i++ )
+    {
+        int32_t const idx = fl->hidden[i];
+        uint32_t const incarnation = fl->hidden_incarnation[i];
+        if( !frame_node_same(tree, idx, incarnation) ||
+            frame_hidden_has(&next, idx, incarnation) )
+            continue;
+        if( tree->components[idx].frame_hidden )
+        {
+            tree->components[idx].frame_hidden = 0;
+            UITree_MarkNodeDirty(tree, idx);
+        }
+    }
+    for( int i = 0; i < next.hidden_count; i++ )
+    {
+        int32_t const idx = next.hidden[i];
+        uint32_t const incarnation = next.hidden_incarnation[i];
+        if( !frame_node_same(tree, idx, incarnation) ||
+            frame_hidden_has(fl, idx, incarnation) )
+            continue;
+        if( !tree->components[idx].frame_hidden )
+        {
+            tree->components[idx].frame_hidden = 1;
+            UITree_MarkNodeDirty(tree, idx);
+        }
+    }
+
+    /* Geometry and skin are sparse effective layers. Mark both the outgoing
+     * and incoming bindings once, then atomically replace the table. */
+    frame_mark_bound_nodes(tree, fl);
+    frame_mark_bound_nodes(tree, &next);
+    *fl = next;
     UITree_LayoutInvalidate(tree);
 }
 
@@ -795,37 +681,13 @@ UITree_FrameReassert(struct UITree* tree)
     if( !fl || !fl->active )
         return;
 
-    /*
-     * The BOXES, and only the boxes.
-     *
-     * The suppression needs no restating -- `frame_hidden` has one writer and
-     * it is this file. A slot's box does: on a dat1 lane every gameframe
-     * component carries IF1 value scripts, and the CS1 tick re-evaluates them
-     * and writes the interface's authored geometry back, so a placement made
-     * once is undone before the frame it was made for is drawn. Nothing is
-     * wrong with the CS1 tick; the layout simply has to be the LAST writer,
-     * and calling this from the emit walk is what makes it one.
-     *
-     * The loop skips a node that already agrees, so the steady-state cost is a
-     * comparison per placed node -- about twenty on a 2004 frame -- and no
-     * layout invalidation at all.
-     */
-    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+    if( fl->applied_generation != tree->generation )
     {
-        for( int n = 0; n < fl->slot_node_count[s]; n++ )
-        {
-            int32_t const idx = fl->slot_node[s][n];
-            struct UITreeFrameRect const* rect =
-                frame_rect_for(&fl->slot_rect[s], fl->slot_member[s][n]);
-            if( !rect || !frame_node_alive(tree, idx) )
-                continue;
-            frame_place_node(tree, idx, rect);
-        }
+        struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
+        int const root_group = fl->root_group;
+        memcpy(slots, fl->slot_rect, sizeof(slots));
+        UITree_FrameApply(tree, slots, root_group);
     }
-    /* And the containment with them, for the same reason: the CS1 tick writes
-     * a dat1 component's authored geometry back, and `fixed_shell`'s authored
-     * geometry is the 765x503 the 2004 frame was drawn at. */
-    frame_stretch_ancestors(tree, fl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 }
 
 void
@@ -841,47 +703,139 @@ UITree_FrameRelease(struct UITree* tree)
     for( int i = 0; i < fl->hidden_count; i++ )
     {
         int32_t const idx = fl->hidden[i];
-        if( !frame_node_alive(tree, idx) )
+        if( !frame_node_same(tree, idx, fl->hidden_incarnation[i]) )
             continue;
-        tree->components[idx].frame_hidden = 0;
-        UITree_MarkNodeDirty(tree, idx);
+        if( tree->components[idx].frame_hidden )
+        {
+            tree->components[idx].frame_hidden = 0;
+            UITree_MarkNodeDirty(tree, idx);
+        }
     }
-    fl->hidden_count = 0;
 
-    for( int i = 0; i < fl->stretched_count; i++ )
-    {
-        int32_t const idx = fl->stretched[i];
-        if( !frame_node_alive(tree, idx) )
-            continue;
-        tree->components[idx].position = fl->stretched_saved[i];
-        tree->components[idx].position.layout_resolved = 0;
-        UITree_MarkNodeDirty(tree, idx);
-    }
-    fl->stretched_count = 0;
+    frame_mark_bound_nodes(tree, fl);
+    memset(fl, 0, sizeof(*fl));
+    UITree_LayoutInvalidate(tree);
+}
 
+int
+UITree_FramePositionOverride(
+    struct UITree const* tree,
+    int32_t node,
+    struct UITreeElemPosition* out)
+{
+    struct UITreeFrameLayout const* fl;
+
+    assert(tree);
+    assert(out);
+    fl = tree->frame_layout;
+    if( !fl || !fl->active )
+        return 0;
+
+    /* A placed semantic surface owns its whole effective box. The native
+     * position remains on the component and is copied only as a starting point
+     * so fields outside x/y/w/h keep their ordinary defaults. */
     for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
     {
         for( int n = 0; n < fl->slot_node_count[s]; n++ )
         {
-            int32_t const idx = fl->slot_node[s][n];
-            if( !frame_node_alive(tree, idx) )
+            struct UITreeFrameRect const* rect;
+            if( fl->slot_node[s][n] != node ||
+                !frame_node_same(tree, node, fl->slot_incarnation[s][n]) )
                 continue;
-            /* The id guard is the whole reason it is stored: between the apply
-             * and this, a slot can have been reclaimed and handed to a
-             * different component, and restoring the old box onto it would
-             * move something that was never moved. */
-            if( tree->components[idx].component_id != fl->slot_component_id[s][n] )
-                continue;
-            frame_unskin_node(tree, &fl->slot_saved_skin[s][n], idx);
-            tree->components[idx].position = fl->slot_saved[s][n];
-            tree->components[idx].position.layout_resolved = 0;
-            UITree_MarkNodeDirty(tree, idx);
+            rect = frame_rect_for(&fl->slot_rect[s], fl->slot_member[s][n]);
+            if( !rect )
+                return 0;
+            *out = tree->components[node].position;
+            out->layout_resolved = 0;
+            out->kind = UIPOS_XY;
+            out->x = rect->x;
+            out->y = rect->y;
+            out->width = rect->w;
+            out->height = rect->h;
+            out->x_mode = -1;
+            out->y_mode = -1;
+            out->width_mode = -1;
+            out->height_mode = -1;
+            out->relative_flags = 0;
+            return 1;
         }
-        fl->slot_node_count[s] = 0;
     }
 
-    fl->active = 0;
-    UITree_LayoutInvalidate(tree);
+    /* Ancestors retain native position and only gain enough effective extent
+     * to contain the canvas. A script changing their native state therefore
+     * remains meaningful and appears immediately on release. */
+    for( int i = 0; i < fl->stretched_count; i++ )
+    {
+        if( fl->stretched[i] != node ||
+            !frame_node_same(tree, node, fl->stretched_incarnation[i]) )
+            continue;
+        *out = tree->components[node].position;
+        out->layout_resolved = 0;
+        if( out->width < UITREE_LAYOUT_ROOT_W )
+            out->width = UITREE_LAYOUT_ROOT_W;
+        if( out->height < UITREE_LAYOUT_ROOT_H )
+            out->height = UITREE_LAYOUT_ROOT_H;
+        out->width_mode = -1;
+        out->height_mode = -1;
+        return 1;
+    }
+    return 0;
+}
+
+int
+UITree_FramePositionOwned(
+    struct UITree const* tree,
+    int32_t node)
+{
+    struct UITreeFrameLayout const* fl;
+
+    assert(tree);
+    fl = tree->frame_layout;
+    if( !fl || !fl->active )
+        return 0;
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+        for( int n = 0; n < fl->slot_node_count[s]; n++ )
+            if( fl->slot_node[s][n] == node &&
+                frame_node_same(tree, node, fl->slot_incarnation[s][n]) &&
+                frame_rect_for(&fl->slot_rect[s], fl->slot_member[s][n]) )
+                return 1;
+    return 0;
+}
+
+int
+UITree_FrameSkinOverride(
+    struct UITree const* tree,
+    int32_t node,
+    int* out_art_scene_id,
+    int* out_mask_scene_id)
+{
+    struct UITreeFrameLayout const* fl;
+
+    assert(tree);
+    fl = tree->frame_layout;
+    if( out_art_scene_id )
+        *out_art_scene_id = 0;
+    if( out_mask_scene_id )
+        *out_mask_scene_id = 0;
+    if( !fl || !fl->active )
+        return 0;
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+    {
+        if( !fl->slot_rect[s].skin.placed )
+            continue;
+        for( int n = 0; n < fl->slot_node_count[s]; n++ )
+        {
+            if( fl->slot_node[s][n] != node ||
+                !frame_node_same(tree, node, fl->slot_incarnation[s][n]) )
+                continue;
+            if( out_art_scene_id )
+                *out_art_scene_id = fl->slot_rect[s].skin.art_scene_id;
+            if( out_mask_scene_id )
+                *out_mask_scene_id = fl->slot_rect[s].skin.mask_scene_id;
+            return 1;
+        }
+    }
+    return 0;
 }
 
 int

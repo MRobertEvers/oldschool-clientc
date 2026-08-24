@@ -458,6 +458,17 @@ struct UITreeComponent
     /** Slot is on the tree free-list (CC_DELETEALL reclaim); skipped by array
      *  walks and reused by the next push. */
     uint8_t freed;
+    /**
+     * Identity of this particular occupant of the component-array slot.
+     *
+     * Array indices are storage, not identity: CC_DELETEALL puts an index on
+     * the free list and the next CC_CREATE can hand it straight to an
+     * unrelated node. Long-lived side tables (notably a plugin gameframe
+     * declaration) pair an index with this value before touching it, so an
+     * old declaration can never restore state through a recycled index.
+     * Zero is reserved for an empty/reclaimed slot.
+     */
+    uint32_t incarnation;
     int32_t free_next;
     /** Hint at the tail of `first_child`'s sibling list, so appending a child is
      *  O(1) instead of walking the list (cc_create fills a container one child at
@@ -879,6 +890,8 @@ struct UITree
     /** Tail of root sibling list — O(1) append while baking large packs. */
     int32_t last_root_index;
     uint32_t generation;
+    /** Monotonic source for UITreeComponent::incarnation. Zero is skipped. */
+    uint32_t next_incarnation;
     /** Bumped every time `UITree_LayoutResolve` actually walks, i.e. every time
      *  a resolved box could have moved. `dirty_gen` does not cover this: layout
      *  re-resolves on `layout_stale`, `layout_force_full` and a changed root box,

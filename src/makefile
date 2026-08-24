@@ -273,6 +273,19 @@ TORIDRAW_CFLAGS = -std=c11 $(TORIDRAW_O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -MMD -
 	-I$(TORIDRAW_DIR) \
 	-I$(BMP_DIR)
 
+# The M4-tuned projection file uses Mach-O assembly and a private eight-register
+# ABI, so enable it only for native Apple arm64 SIMD builds. Every other lane
+# keeps the existing portable SIMD/scalar dispatch.
+TORIDRAW_PROJECTION_ASM_OBJ =
+ifeq ($(PLATFORM),macos)
+ifeq ($(shell uname -m),arm64)
+ifneq ($(TORIDRAW_NO_SIMD),1)
+TORIDRAW_CFLAGS += -DTORIDRAW_APPLE_NEON_PROJECTION_ASM=1
+TORIDRAW_PROJECTION_ASM_OBJ = $(OBJ_DIR)/projection16_apple.o
+endif
+endif
+endif
+
 # Toolchain, SDL and link flags come from the selected platform block. The
 # base subset also reaches the vendored units: a platform whose libc hides
 # strdup behind a feature macro hides it from 3rd/ too.
@@ -588,6 +601,7 @@ RSPROT_UNITY_SRC = $(RSPROT_DIR)/rsprot_unity.c
 RSPROT_PACKETS_UNITY_SRC = $(RSPROT_DIR)/rsprot_packets_unity.c
 TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
 TRSPK_UNITY_SRC = $(TRSPK_DIR)/trspk_unity.c
+TORIDRAW_UNITY_LINK_OBJS = $(OBJ_DIR)/toridraw_unity.o $(TORIDRAW_PROJECTION_ASM_OBJ)
 # Objects derived from SRCS (one .o per source, flat in OBJ_DIR) plus the
 # out-of-tree/unity extras that have their own rules below. The world_builder
 # pipeline ($(WB_OBJS), incl. wb_minimap.o â the Minimap world.h is written
@@ -600,7 +614,7 @@ GPU_OBJS = $(addprefix $(OBJ_DIR)/,$(PLATFORM_GPU_OBJ_NAMES))
 OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
 	$(OBJ_DIR)/ini.o $(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
 	$(OBJ_DIR)/hmap.o $(EMBED_SERVER_OBJS) \
-	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
+	$(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
 	$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/rsprot_packets_unity.o \
 	$(OBJ_DIR)/pkt_exec.o \
 	$(OBJ_DIR)/trspk_unity.o $(GPU_OBJS) \
@@ -1064,22 +1078,22 @@ test-proctex-coverage: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rsca
 # Which raster kernels the RS727 QBD *source* models demand: texture render
 # types, face shading, face alpha, and the per-material compositing properties.
 # Reads the RS727 cache read-only and writes nothing.
-rs2012-qbd-kernel-survey: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
+rs2012-qbd-kernel-survey: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_qbd_kernel_survey \
 		engine/proctex/test/rs2012_qbd_kernel_survey.c \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 
 .PHONY: plugin-model-extract plugin-beam-assets
 
-plugin-model-extract: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
+plugin-model-extract: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_model_extract \
 		plugin/tools/plugin_model_extract.c \
 		engine/torirs_model_from_rscache.c engine/toridraw_model_from_torirs.c \
 		engine/toridraw_animation_from_rscache.c engine/torirs_types.c \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 
 # The loot beam's two shipped models, lifted out of OSRS 239.
@@ -1258,7 +1272,7 @@ rs2012-model-faces: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # OB3 viewer: renders a model through the real project/sort/raster path and
 # writes a multi-angle contact sheet. The iteration loop for face-priority
 # authoring -- no cache, no window, no game.
-RS2012_MODEL_TOOL_DEPS = $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
+RS2012_MODEL_TOOL_DEPS = $(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 	$(OBJ_DIR)/bmp.o
@@ -1469,6 +1483,9 @@ $(OBJ_DIR)/xteas.o: $(REPO_ROOT)/3rd/xteas/xteas.c | $(OBJ_DIR)
 
 $(OBJ_DIR)/toridraw_unity.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(TORIDRAW_CFLAGS) -w -c $(TORIDRAW_UNITY_SRC) -o $@
+
+$(OBJ_DIR)/projection16_apple.o: $(TORIDRAW_DIR)/graphics/projection16_apple.S | $(OBJ_DIR)
+	$(CC) -c $< -o $@
 
 $(OBJ_DIR)/trspk_unity.o: $(TRSPK_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -w -c $(TRSPK_UNITY_SRC) -o $@
@@ -1978,7 +1995,7 @@ test-inv: $(OBJ_DIR) inv/inv_manager.c inv/inv_manager_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/inv_manager_test inv/inv_manager.c inv/inv_manager_test.c
 	./$(OBJ_DIR)/inv_manager_test
 
-test-world: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
+test-world: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/world_test \
 		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
@@ -1987,18 +2004,18 @@ test-world: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		features/features.c \
 		world/test/world_test_unit.c world/test/world_test_sim.c \
 		world/test/world_test_route.c world/test/world_test_main.c \
-		$(OBJ_DIR)/toridraw_unity.o
+		$(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/world_test
 
-test-pick: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+test-pick: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/pick_face_test \
 		render/test/pick_face_test.c \
-		$(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/pick_face_test
 
 # The terrain pick's level guard. Links the world the same way test-world does,
 # because the guard's whole subject is a bridge column's tile flags.
-test-pick-level: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
+test-pick-level: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/pick_level_test \
 		render/test/pick_level_test.c render/torirs_pick.c \
 		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
@@ -2006,7 +2023,7 @@ test-pick-level: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
 		engine/world_builder/minimap.c painters/painters.c painters/scene_occluders.c \
 		features/features.c \
-		$(OBJ_DIR)/toridraw_unity.o
+		$(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/pick_level_test
 
 test-trig-tables-share: $(OBJ_DIR)
@@ -2074,18 +2091,19 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_chrome_cs2.c ui/torirs_chrome_exec_cs2.c \
 		$(CHROME_EXEC_TEST_CFLAGS) \
 		ui/test/uitree_test_entity_overlay_order.c \
-		ui/test/uitree_test_server_viewport.c ui/test/uitree_test_roles.c \
+		ui/test/uitree_test_server_viewport.c ui/test/uitree_test_frame.c \
+		ui/test/uitree_test_roles.c \
 		ui/test/uitree_test_scripted_overlay.c render/torirs_arc.c -lm
 	./$(OBJ_DIR)/uitree_test
 
 # Font markup grammar + the rules it strokes (<str>, <u>), rasterised into a
 # plain buffer with the baked font. Pixel-level, but needs no cache and no
 # renderer â ToriDraw2D_DrawString writes the buffer itself.
-test-font-markup: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+test-font-markup: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/font_markup_test \
 		ui/test/font_markup_test.c engine/torirs_debug_font_baked.c \
 		$(BMP_DIR)/bmp.c \
-		$(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o -lm
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o -lm
 	./$(OBJ_DIR)/font_markup_test
 
 # Debug-overlay raster tests: display list -> emit desc -> ToriRS_Frame -> Soft3D,
@@ -2136,7 +2154,7 @@ test-web-channel:
 	node web/test/host_plugin_files_test.js
 	$(MAKE) test-chrome-web-skin
 
-test-debug-overlay-visual: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o \
+test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o
 	@mkdir -p build
 	$(CC) $(CFLAGS) -I$(BMP_DIR) -o $(OBJ_DIR)/debug_overlay_visual \
@@ -2147,7 +2165,7 @@ test-debug-overlay-visual: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o \
 		render/torirs_polygon.c render/torirs_arc.c \
 		platform/platform_sdl2_renderer_soft3d.c \
 		$(BMP_DIR)/bmp.c \
-		$(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o \
 		$(OBJ_DIR)/toridraw_model_sprite.o -lm
 	./$(OBJ_DIR)/debug_overlay_visual
 
@@ -2235,9 +2253,9 @@ check-no-drain:
 		|| (echo "check-no-drain: FAIL â runtime TaskRunner_Drain found" && exit 1)
 
 # Walkmerge blend (Model.maskAnimate port) + seq-meta plumbing.
-test-walkmerge: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
+test-walkmerge: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/walkmerge_test \
-		world/test/walkmerge_test.c $(OBJ_DIR)/toridraw_unity.o
+		world/test/walkmerge_test.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/walkmerge_test
 
 # Parity of the `scanline` raster family against the shipping `branching`
@@ -2306,9 +2324,9 @@ test-texmap: $(OBJ_DIR)
 # ToriDraw_RenderHD's per-face routing: does each face reach the kernel its
 # render type, material gate and alpha name? Asserts on ToriDraw_HDRenderStats,
 # because a mis-routed face still produces pixels and the image cannot tell.
-test-render-hd: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+test-render-hd: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/render_hd_test \
-		$(TORIDRAW_DIR)/toridraw_render_hd_test.c $(OBJ_DIR)/toridraw_unity.o \
+		$(TORIDRAW_DIR)/toridraw_render_hd_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_font.o
 	./$(OBJ_DIR)/render_hd_test
 
@@ -2322,9 +2340,9 @@ scanline-compare: $(OBJ_DIR) $(OBJS)
 	@echo "built $(OBJ_DIR)/scanline_compare â run: $(OBJ_DIR)/scanline_compare $(DAT1_CACHE)"
 
 # Angle-unit guard for the compass/minimap rotated blit (camera yaw, 2048/turn).
-test-rotate-blit: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
+test-rotate-blit: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/rotate_blit_test \
-		render/test/rotate_blit_test.c render/trspk_sprite.c $(OBJ_DIR)/toridraw_unity.o
+		render/test/rotate_blit_test.c render/trspk_sprite.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/rotate_blit_test
 
 # Packet exec seam against bare managers (no cache/disk). Links the app
@@ -3944,42 +3962,42 @@ test-bootmanifest: $(OBJ_DIR)
 	./$(OBJ_DIR)/bootmanifest_test
 
 # Actor vs scene model-light regimes (toridraw profiles + LightSetProfiles).
-test-light-model: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
+test-light-model: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/light_model_test \
-		$(TORIDRAW_DIR)/toridraw_light_model_test.c $(OBJ_DIR)/toridraw_unity.o
+		$(TORIDRAW_DIR)/toridraw_light_model_test.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/light_model_test
 
 # DynamicObject sequence termination: frameStep governs the final location pose.
-test-animation-object-step: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+test-animation-object-step: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/animation_object_step_test \
-		$(TORIDRAW_DIR)/toridraw_animation_test.c $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+		$(TORIDRAW_DIR)/toridraw_animation_test.c $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o
 	./$(OBJ_DIR)/animation_object_step_test
 
 # Public scene scratch-capacity profile contract and independent SMALL/lazy
 # texture behavior.
-test-scene-profiles: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+test-scene-profiles: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/scene_profile_test \
-		$(TORIDRAW_DIR)/toridraw_scene_profile_test.c $(OBJ_DIR)/toridraw_unity.o \
+		$(TORIDRAW_DIR)/toridraw_scene_profile_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/scene_profile_test
 
 # Depth-tested raster family: a model tagged TORIDRAW_MODEL_FLAG_ZBUFFER
 # resolves its own faces per pixel, the result does not depend on face order,
 # and the buffer is reset per model so nothing leaks between them.
-test-zbuffer: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+test-zbuffer: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/zbuffer_test \
-		$(TORIDRAW_DIR)/toridraw_zbuffer_test.c $(OBJ_DIR)/toridraw_unity.o \
+		$(TORIDRAW_DIR)/toridraw_zbuffer_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/zbuffer_test
 
 # The ToriRS -> ToriDraw adaptor must not forward decode flags into the render
 # flag word: the two `flags` bytes are different namespaces, and bit 0 on the
 # ToriDraw side is TORIDRAW_MODEL_FLAG_ZBUFFER, which drops face priorities.
-test-model-render-flags: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o \
+test-model-render-flags: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o \
 		$(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/model_render_flags_test \
 		engine/test/model_render_flags_test.c engine/toridraw_model_from_torirs.c \
-		engine/torirs_types.c $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o \
+		engine/torirs_types.c $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o \
 		$(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/model_render_flags_test
 
@@ -3988,9 +4006,9 @@ test-model-render-flags: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/torid
 # bmp.o: ToriDraw_SpriteWriteBmpFile is in the unity, so every target that links
 # it needs bmp_write_file. Without it these two fail to LINK, which reads as a
 # failing test rather than a missing object.
-test-near-clip: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+test-near-clip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/near_clip_test \
-		$(TORIDRAW_DIR)/toridraw_near_clip_test.c $(OBJ_DIR)/toridraw_unity.o \
+		$(TORIDRAW_DIR)/toridraw_near_clip_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/near_clip_test
 

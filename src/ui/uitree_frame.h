@@ -161,10 +161,13 @@ UITree_FrameSlotMemberNode(
  * Apply a whole declaration.
  *
  * `slots` is UITREE_FRAME_SLOT_COUNT entries. Every role is answered: a placed
- * one is moved and shown, an unplaced one is hidden. Then the lane's own
- * chrome is collected and hidden, and the collection is kept so that
- * UITree_FrameReassert can put it back each frame and UITree_FrameRelease can
- * undo it.
+ * one receives an effective position override, an unplaced one is hidden.
+ * Then the lane's own chrome is collected and hidden.
+ *
+ * The override never replaces the component's authored/script-owned position
+ * or art. CS1/CS2 remain free to update that native state while the claim is
+ * standing; layout and emit select the plugin layer, and release merely drops
+ * it so the latest native state is revealed.
  *
  * `root_group` is the interface group of the cache gameframe, or -1 on a lane
  * whose frame is revconfig builtins. It is what tells the toplevel's OWN
@@ -178,25 +181,24 @@ UITree_FrameApply(
     int root_group);
 
 /**
- * Re-hide what the last apply hid.
+ * Reconcile the standing declaration with the current tree generation.
  *
- * Called once a frame, and it is not redundant. On a cache gameframe the
- * toplevel's own scripts show and hide its decoration constantly -- an
- * onload, a resize hook, a tab flip -- and a suppression applied once would be
- * undone by the first script that ran after it. Walks only the collected list,
- * so it costs the number of nodes actually hidden and not the tree.
+ * Called at the publication fence. A CS2 rebuild can reclaim a matched node
+ * and reuse its array index after the earlier declaration; reconciliation
+ * re-resolves the semantic roles and native chrome against the exact tree that
+ * will be drawn. An unchanged binding is a no-op even when unrelated topology
+ * bumped the tree generation.
  */
 void
 UITree_FrameReassert(struct UITree* tree);
 
 /**
  * Give the frame back to the lane: the collected chrome is shown again and
- * every moved surface returns to the box it was authored at.
+ * the effective geometry/art overrides are dropped.
  *
- * Restoring the boxes matters as much as the hides. A released layout that
- * left the viewport at its own rectangle would hand back a gameframe with the
- * lane's stones drawn around a scene that is still the wrong size, which reads
- * as a broken client rather than as a plugin that stopped.
+ * There is deliberately no saved snapshot to restore. The cache's scripts may
+ * have changed their native geometry or art while the plugin held the frame;
+ * release must reveal that newest state rather than an old pre-claim copy.
  */
 void
 UITree_FrameRelease(struct UITree* tree);
@@ -220,6 +222,38 @@ UITree_FrameHiddenCount(struct UITree const* tree);
 
 int
 UITree_FrameSlotCount(struct UITree const* tree, int slot);
+
+/**
+ * Copy the effective plugin position for `node` into `out`, or return 0 when
+ * the standing declaration does not override it.
+ *
+ * Used only by the layout resolver. The component's own position remains the
+ * native CS1/CS2 value and receives the resolved abs_* result, so every normal
+ * bounds consumer automatically observes the effective box.
+ */
+int
+UITree_FramePositionOverride(
+    struct UITree const* tree,
+    int32_t node,
+    struct UITreeElemPosition* out);
+
+/** 1 when a placed slot fully owns `node`'s effective box. Geometry mutators
+ *  use this to update native state without dirtying an unchanged frame. */
+int
+UITree_FramePositionOwned(
+    struct UITree const* tree,
+    int32_t node);
+
+/**
+ * Effective art/mask overrides for a skinned slot. Each output may be NULL;
+ * zero means that half stays native. Returns 1 for a currently bound skin.
+ */
+int
+UITree_FrameSkinOverride(
+    struct UITree const* tree,
+    int32_t node,
+    int* out_art_scene_id,
+    int* out_mask_scene_id);
 
 /** Drop the frame table. Called from UITree_Free / UITree_Clear: the node
  *  indices in it name nodes that are about to stop existing. */
