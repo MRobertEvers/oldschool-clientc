@@ -2207,6 +2207,44 @@ toridraw_project_vertices_clip(
     int camera_roll,
     int model_mid_z)
 {
+#if defined(TORIDRAW_SSE2_PREPARED_PROJECTION)
+    /* Same gate as the Apple prepared path: yaw-only geometry, and a prepared
+     * block that was published for this exact camera. */
+    if( model_pitch == 0 && model_roll == 0 && camera_roll == 0 &&
+        scene->projection_prepared_camera_source == camera )
+    {
+        if( model_has_textures(hnd) )
+        {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 1, model_vertex_count(hnd));
+            ToriDraw_ProjPreparedClip(
+                scene,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                camera->yaw,
+                model_yaw,
+                model_mid_z,
+                position);
+        }
+        else
+        {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 1, model_vertex_count(hnd));
+            ToriDraw_ProjPreparedNotexClip(
+                scene,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                camera->yaw,
+                model_yaw,
+                model_mid_z,
+                position);
+        }
+        return;
+    }
+#endif
+
     /* Full 6DOF when model/camera roll is set (obj-icon zan2d, etc.). yaw-only and
      * pitch+yaw keep the SIMD fused paths; array6_fused matches v0 Dash. */
     if( model_roll != 0 || camera_roll != 0 )
@@ -2572,6 +2610,44 @@ toridraw_project_vertices_noclip(
                 model_vertices_y(hnd),
                 model_vertices_z(hnd),
                 num_vertices,
+                model_yaw,
+                model_mid_z,
+                position);
+        }
+        return;
+    }
+#endif
+
+#if defined(TORIDRAW_SSE2_PREPARED_PROJECTION)
+    /* Same gate as the Apple prepared path: yaw-only geometry, and a prepared
+     * block that was published for this exact camera. */
+    if( model_pitch == 0 && model_roll == 0 && camera_roll == 0 &&
+        scene->projection_prepared_camera_source == camera )
+    {
+        if( model_has_textures(hnd) )
+        {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 0, model_vertex_count(hnd));
+            ToriDraw_ProjPreparedNoclip(
+                scene,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                camera->yaw,
+                model_yaw,
+                model_mid_z,
+                position);
+        }
+        else
+        {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 0, model_vertex_count(hnd));
+            ToriDraw_ProjPreparedNotexNoclip(
+                scene,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                camera->yaw,
                 model_yaw,
                 model_mid_z,
                 position);

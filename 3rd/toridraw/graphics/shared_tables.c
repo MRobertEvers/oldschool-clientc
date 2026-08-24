@@ -3,9 +3,7 @@
 #include <math.h>
 #include <stdint.h>
 
-#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
 _Alignas(64) int g_projection_model_yaw_table[2048][2];
-#endif
 
 #ifndef TORIDRAW_TABLES_PRECOMPUTED
 
@@ -42,7 +40,6 @@ const int* g_tan_table;
 static void
 ToriDraw_RebuildProjectionModelYawTable(void)
 {
-#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
     if( !g_cos_table || !g_sin_table )
         return;
 
@@ -51,7 +48,6 @@ ToriDraw_RebuildProjectionModelYawTable(void)
         g_projection_model_yaw_table[i][0] = g_cos_table[i];
         g_projection_model_yaw_table[i][1] = g_sin_table[i];
     }
-#endif
 }
 
 int
