@@ -553,7 +553,35 @@ replay extension are documented in `test/uitree_redraw/README.md`.
 
 ### Recorded PR-profile result (2026-08-24)
 
-The final numbers below are populated only from a clean committed worktree.
+The clean `quick` run compared candidate `93ca8ceef6e3e376c6c81e4077fdac05d63bf01c`
+with the immutable baseline `e6a4364221d5bc8c54e98d5614d84f8b42871b16`.
+The candidate tree was clean, all required lanes ran, the evidence was marked
+complete and reproducible, and all **882/882 gates passed**.
+
+- **Exact appearance parity:** all 256 baseline-forced/candidate-forced pairs
+  and all 256 candidate-retained/candidate-forced pairs had zero differing RGB
+  pixels and a maximum channel delta of zero. All 46 real Soft3D chrome pairs
+  were also exact. The legacy production-retained baseline demonstrated the
+  regression in 31 named host-only checkpoints (11 camera and 20 other host
+  inputs), while every non-allowlisted checkpoint remained exact.
+- **Primary steady-state speed:** 13,971.000 ns/op before versus 35.250 ns/op
+  after; median paired ratio 0.00252 with 95% bootstrap CI
+  `[0.00244, 0.00272]`.
+- **Correctness-qualified aggregate speed:** 273,293.125 ns/op before versus
+  263,298.062 ns/op after; median paired ratio 0.96187 with 95% bootstrap CI
+  `[0.95944, 0.96466]`. This aggregate excludes the legacy camera result because
+  that path rendered a stale frame. The candidate's correct camera path was
+  separately guarded against its own forced-full oracle and passed at ratio
+  1.00193 with CI `[0.99751, 1.00386]`.
+- **Evidence volume:** six balanced process-order trials at 4,000 operations per
+  scenario, 5,000 paired bootstrap samples, 2,022 BMP files, 2,114 checksummed
+  artifacts, archived native build/test logs, JSON/CSV summaries, JUnit, and an
+  HTML before/oracle/after/diff gallery.
+
+The complete local artifact is
+`build/uitree-redraw/quick-code-93ca/`; `report.md`, `manifest.json`,
+`summary.json`, and `SHA256SUMS` contain the human-readable result, immutable
+source/tool identity, machine-readable gates, and integrity hashes respectively.
 Development runs may be used to tune the suite, but cannot support the PR's
 appearance or performance claim.
 
@@ -566,7 +594,7 @@ appearance or performance claim.
 - [x] `make -C src test-cs2-frame-settle` — all settle/fence cases passed.
 - [x] `make -C src -B OPT=1 all` — clean optimized rebuild and native link
       completed; only existing unrelated compiler/linker warnings were emitted.
-- [ ] Run the clean four-way `quick` profile and record its gate/statistics
+- [x] Run the clean four-way `quick` profile and record its gate/statistics
       summary above.
 - [x] `git diff --check` — no whitespace errors.
 - [x] Run the deterministic App-shared fishing-overlay projection/orbit capture
