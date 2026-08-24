@@ -181,7 +181,10 @@ RSCache_CS2_CommandClearOverrides(void);
 const char*
 RSCache_CS2_CommandName(int opcode);
 
-/** Opcode for a source spelling, or -1. Case-insensitive. */
+/**
+ * Opcode for a source spelling, or -1. Semantic names are case-insensitive;
+ * the `_1234` compatibility spelling is also accepted for an existing row.
+ */
 int
 RSCache_CS2_CommandOfName(const char* name);
 

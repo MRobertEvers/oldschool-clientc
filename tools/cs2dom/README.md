@@ -59,14 +59,50 @@ Then `make -C src torirsserver-cache` bakes it, and the client boots it.
 ```sh
 cd tools/cs2dom
 npm install          # one dependency: typescript
+make -C ../../src torirs
+make -C ../../3rd/rscache/tools cachepack
 npm start            # dev server + browser, watching example/ui/*.tsx
 ```
 
-`npm start` opens a page with three panes: the interface laid out by the client's
-own IF3 rules with the cache's real sprites, a control for every piece of host
-state it reads, and the `.if` and `.cs2` it compiles to. Save a file and the page
-redraws — no rebuild, no bake, nothing written to the content tree. "New
+`npm start` opens a page with three panes: the interface, its runtime tree and
+host-state controls, and the `.if` and `.cs2` records. Save a file and the page
+redraws — no full cache bake and nothing written to the content tree. "New
 component" writes a starter `.tsx` and the watcher picks it up.
+
+The interface picker also contains every readable interface under the configured
+content tree. Choosing one under **OSRS-Content** opens its `.if` and `.compack`
+on demand, rebuilds the parent/child component tree into cs2dom's React-style IR,
+and shows a read-only decompiled `.tsx` view beside the original records. The
+records are never copied into `ui/` or modified.
+
+For presentation, cs2dom makes a content-addressed copy-on-write Dat2 overlay,
+replaces the selected interface and every reachable source CS2 script, and asks
+the production C client to boot and render it. That means the preview uses the
+same App, UITree, CS2 VM, bitmap fonts, sprites, models, animation, clipping,
+dynamic children and Soft3D rasterizer as the client itself. A warm overlay is
+reused; editing the `.if` or one of its reachable scripts gives it a new key.
+
+The same browser can open a Dat2 cache without an OSRS-Content checkout:
+
+```sh
+node bin/cs2dom.js dev --project example \
+  --cache ../../cache.osrs239 --rev osrs239
+```
+
+`--rev` is the cachepack profile name; cache formats are revision-sensitive, so it
+is stated rather than guessed. The exact frame reads that Dat2 cache directly.
+On first open, cs2dom also asks the repository's `cachepack` to decode the
+interfaces, clientscripts, sprites and models into a read-only tree under the OS
+temporary directory. That derived tree supplies the searchable catalog, records
+pane and diagnostic authored-component fallback. It is keyed by every cache
+file, the revision and cachepack build, so subsequent opens reuse it and a
+changed cache invalidates it automatically. The disposable `cs2dom-dat2`
+directory may be removed from the OS temporary directory at any time.
+
+When the project has `content` and a Dat2 cache is supplied as above, the picker
+shows both **OSRS-Content** and **Dat2 cache** groups. The same interface may appear
+in both; its `.if`, scripts, sprites and models are always read from the group selected,
+which makes comparing an edited content record with the binary cache straightforward.
 
 Then, when it looks right:
 
@@ -148,20 +184,30 @@ A read with no model — `enum`, the `db_*` commands — is **listed in the page
 unmodelled** rather than answered with a zero. A preview that quietly invents
 values is worse than one that admits what it is guessing.
 
-## What the preview is and is not
+## Preview fidelity
 
-Geometry is a port of the client's own layout: `src/preview.js` follows
-`src/ui/ui_if3_layout.h` formula for formula, including the 14-bit fixed-point
-proportional modes and the truncating division in centring. Sprites are the real
-ones, decoded out of the content tree's bitmaps. Text is the browser's, **not**
-the cache's bitmap font, and a model is a labelled box. For anything that turns
-on drawing rather than layout, bake and look at the client — that path is
-unchanged and always authoritative.
+An **OSRS-Content** or **Dat2 cache** selection is rendered by the production C
+client into one framebuffer. There is no parallel browser implementation in
+that path: layout, conditional CS2, component mutation, runtime-created children,
+cache fonts, sprites, item and player models, animation, clipping, blending and
+rasterization all come from the same code that renders the game. The transparent
+HTML boxes on top are inspector hit regions only and never repaint client pixels.
+
+An unsaved **Authored TSX** selection is different: it has no cache record for
+the C client to open yet. It therefore keeps the fast diagnostic renderer while
+you edit. `src/preview.js` ports the C layout and clipping rules, real cache
+sprites are used, and models use toridraw WASM. Build the component to put it
+through the authoritative native path.
+
+The native preview is offline, so state that normally comes from a logged-in
+server starts at the C client's own boot defaults. The controls seed supported
+varp, varbit, varc and stat values before UITree build and `onLoad`; they do not
+invent an account, inventory or world scene that was never supplied.
 
 ## Commands
 
 ```
-cs2dom dev       [--project DIR] [--port N] [--no-open]
+cs2dom dev       [--project DIR] [--cache DIR --rev NAME] [--port N] [--no-open]
 cs2dom build     [--project DIR] [--dry-run] [--no-verify]
 cs2dom cachegen  [--project DIR] [--out FILE]
 cs2dom check     [--project DIR]
@@ -173,11 +219,36 @@ A project is a directory with `cs2dom.json`:
 ```json
 {
   "content": "../../../OSRS-Content/osrs239-content",
+  "cache": "../../../cache.osrs239",
+  "revision": "osrs239",
+  "cs2Names": "../../../../cs2/src/main/resources/org/runestar/cs2",
   "sources": "ui",
   "varcPool": [1400, 1499],
   "cachegen": ["sprites", "fonts", "interfaces", "varps", "varbits", "varcs", "invs", "stats"]
 }
 ```
+
+For a read-only Dat2 project, replace `content` with the cache and its explicit
+profile:
+
+```json
+{
+  "cache": "../../../cache.osrs239",
+  "revision": "osrs239",
+  "sources": "ui",
+  "varcPool": [1400, 1499]
+}
+```
+
+`dev` supports that form directly. `build` still requires an unpacked `content`
+tree because writing generated source back into a binary cache is a separate bake
+operation.
+
+Source CS2 with symbolic RuneStar names also needs the RuneStar name-table
+directory. Set `CACHEPACK_CS2_NAMES`, or add a project-relative `"cs2Names"`
+path in `cs2dom.json`; the usual sibling `cs2` checkout is discovered
+automatically. A selected script that cannot compile fails visibly instead of
+silently retaining stale bytecode from the base cache.
 
 `varcPool` is the id range `useState` allocates from — client-side scratch
 variables the cache does not define. `cachegen` picks which tables land in
@@ -203,14 +274,10 @@ would be authoring something the format does not have.
   The build prints this as a warning rather than letting it look like it works.
 - Cache-authored `name=` and target hooks are dropped on the way to this client's
   runtime, so those props are written correctly but do not arrive.
-- No dynamic children: a list whose *length* comes from state would need
-  `cc_create`, which is the natural next piece of work. A list with a build-time
-  length is already free.
 - No common-subexpression elimination — an expression used by two props of one
   component is emitted twice.
-- The preview shares an evaluator with nothing in the client; a snapshot diff of
-  the real `UITree` against `layout()` is the check that would make it
-  trustworthy rather than merely careful.
+- Unsaved authored TSX uses the diagnostic browser renderer until it is built;
+  imported OSRS-Content and Dat2 records use the exact native framebuffer.
 
 ## Layout of the source
 
@@ -228,6 +295,13 @@ would be authoring something the format does not have.
 | `src/host.js` | host state slices, ranges, preview controls |
 | `src/eval.js` | evaluating the IR against made-up state |
 | `src/preview.js` | the client's IF3 layout, ported |
+| `src/content.js` | `.if`/`.compack` → preview IR and read-only React-style TSX |
+| `src/cache_runtime.js` | bounded source-CS2 runtime for imported hooks and dynamic UI |
+| `src/model.js` | cache model records → entity-viewer wire bridge for toridraw/WASM |
+| `src/dat2.js` | selective, cached Dat2 → read-only content source |
+| `src/native_overlay.js` | selected `.if` + reachable CS2 → keyed COW Dat2 overlay |
+| `src/native_preview.js` | bounded production-client framebuffer bridge |
+| `src/native_tree.js` | validated live UITree snapshot → inspector metadata |
 | `src/dev.js`, `src/dev_page.js` | the dev server and its page |
 | `src/ledger.js` | id allocation through the pack files |
 | `src/verify.js` | handing generated CS2 to the real compiler |

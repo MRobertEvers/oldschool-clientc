@@ -39,12 +39,45 @@ export function page() {
   header .status.bad { color: var(--bad); }
   header .status.fresh { color: var(--hot); }
   header .spacer { flex: 1; }
-  button, select, input {
+  button, input {
     font: 12px var(--mono); color: var(--ink); background: #241f19;
     border: 1px solid var(--line); border-radius: 3px; padding: 4px 8px;
   }
   button { cursor: pointer; }
   button:hover { border-color: var(--accent); }
+  .picker { position: relative; width: min(460px, 44vw); }
+  #pick { width: 100%; padding: 6px 9px; outline: none; }
+  #pick:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(226,169,63,.12); }
+  #pick::-webkit-search-cancel-button { cursor: pointer; }
+  .pickmenu {
+    display: none; position: absolute; z-index: 100; top: calc(100% + 6px); left: 0; right: 0;
+    max-height: min(520px, 72vh); overflow-y: auto; padding: 5px;
+    border: 1px solid #413a2e; border-radius: 5px; background: #181510;
+    box-shadow: 0 14px 36px rgba(0,0,0,.5);
+  }
+  .pickmenu.open { display: block; }
+  .pickgroup {
+    padding: 7px 8px 4px; color: var(--dim); font: 600 9px var(--mono);
+    letter-spacing: .11em; text-transform: uppercase;
+  }
+  .pickrow {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px;
+    width: 100%; padding: 7px 8px; border: 0; border-radius: 3px; background: transparent;
+    color: var(--ink); text-align: left; cursor: pointer;
+  }
+  .pickrow:hover, .pickrow.active { background: #2a241b; }
+  .pickrow.active { box-shadow: inset 2px 0 var(--accent); }
+  .pickname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pickid { color: #766e5f; font: 10px var(--mono); }
+  .picksource {
+    min-width: 48px; padding: 1px 5px; border: 1px solid #4c4436; border-radius: 8px;
+    color: var(--dim); font: 600 8px var(--mono); text-align: center; text-transform: uppercase;
+  }
+  .picksource.authored { border-color: #82652d; color: var(--accent); }
+  .picksource.dat2 { border-color: #276f62; color: var(--hot); }
+  .picksource.content { border-color: #5a536f; color: #aaa0cf; }
+  .pickempty, .pickmore { padding: 10px 8px; color: var(--dim); font: 10px var(--mono); }
+  .pickmore { border-top: 1px solid var(--line); margin-top: 4px; }
 
   main { display: grid; grid-template-columns: 1fr 260px 420px; overflow: hidden; }
   section { overflow: auto; padding: 14px; }
@@ -66,15 +99,34 @@ export function page() {
     background-position: 0 0, 0 8px, 8px -8px, -8px 0;
     outline: 1px solid var(--line);
   }
+  #stage.native { overflow: hidden; background: #000; }
+  .nativeframe {
+    position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%;
+    object-fit: fill; image-rendering: pixelated;
+  }
   .box { position: absolute; overflow: hidden; }
   .box.text { display: flex; white-space: pre; }
   .box.model, .box.unknown {
     border: 1px dashed #4a4335; color: var(--dim);
     font: 10px var(--mono); display: flex; align-items: center; justify-content: center;
   }
+  .box.model.ready { border: 0; }
+  .box.model canvas { width: 100%; height: 100%; image-rendering: pixelated; }
   .box img { width: 100%; height: 100%; image-rendering: pixelated; }
   .box.outline { outline: 1px solid var(--accent); outline-offset: 0; }
   #stage.wire .box { outline: 1px solid rgba(226,169,63,.35); }
+  /* The native framebuffer already contains every pixel. Boxes remain as
+     transparent inspector hit regions; painting them again would put CSS's
+     approximate fonts/sprites back over the authoritative C render. */
+  #stage.native .box {
+    z-index: 1; overflow: visible; background: transparent !important;
+    border: 0 !important; color: transparent !important; opacity: 1 !important;
+    text-shadow: none !important; pointer-events: none;
+  }
+  #stage.native .box > * { display: none !important; }
+  #stage.native .box.outline {
+    outline: 1px solid var(--accent); background: rgba(226,169,63,.08) !important;
+  }
 
   .rowlabel { font: 11px var(--mono); color: var(--dim); }
   .tree { font: 11px var(--mono); }
@@ -112,7 +164,12 @@ export function page() {
 <body>
 <header>
   <h1>cs2dom</h1>
-  <select id="pick"></select>
+  <div class="picker" id="picker">
+    <input id="pick" type="search" autocomplete="off" spellcheck="false"
+      placeholder="Search interfaces…" aria-label="Interface" aria-expanded="false"
+      aria-controls="pickmenu" aria-autocomplete="list">
+    <div id="pickmenu" class="pickmenu" role="listbox" aria-label="Interfaces"></div>
+  </div>
   <button id="add">new component</button>
   <label class="rowlabel"><input type="checkbox" id="wire"> outlines</label>
   <span class="spacer"></span>
@@ -138,17 +195,166 @@ export function page() {
   </section>
 </main>
 
+<script src="/toridraw/ev_wasm.js"></script>
 <script>
 const state = {};            // "varp:300" -> value
 let data = null;
-let chosen = 0;
+let catalog = [];
+let chosen = null;
+let pickerMatches = [];
+let pickerActive = -1;
 
 const $ = (id) => document.getElementById(id);
 
 async function refresh() {
-  const response = await fetch('/state?state=' + encodeURIComponent(JSON.stringify(state)));
+  if( catalog.length === 0 ) {
+    const listing = await fetch('/catalog').then((response) => response.json());
+    catalog = listing.interfaces || [];
+    if( !chosen ) chosen = catalog[0] && catalog[0].key;
+    populatePicker();
+  }
+  const query = new URLSearchParams({
+    state: JSON.stringify(state),
+    interface: chosen || '',
+  });
+  const response = await fetch('/state?' + query);
   data = await response.json();
   render();
+}
+
+function populatePicker() {
+  const pick = $('pick');
+  pick.placeholder = 'Search ' + catalog.length.toLocaleString() + ' interfaces…';
+  syncPickerLabel();
+  renderPicker('');
+}
+
+function sourceTitle(source) {
+  return source === 'authored' ? 'Authored TSX'
+    : source === 'dat2' ? 'Dat2 cache' : 'OSRS-Content';
+}
+
+function syncPickerLabel() {
+  const entry = catalog.find((item) => item.key === chosen);
+  $('pick').value = entry ? entry.name : '';
+}
+
+function matchingEntries(query) {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const ranked = catalog.map((entry) => {
+    const name = entry.name.toLowerCase();
+    const source = entry.source.toLowerCase();
+    const title = sourceTitle(entry.source).toLowerCase();
+    const id = String(entry.interfaceId);
+    const haystack = name + ' ' + source + ' ' + title + ' ' + id;
+    if( !terms.every((term) => haystack.includes(term)) ) return null;
+    let score = 0;
+    for( const term of terms ) {
+      score += name === term ? 0 : name.startsWith(term) ? 1 : name.includes(term) ? 3
+        : id === term ? 2 : source.startsWith(term) || title.startsWith(term) ? 4 : 8;
+    }
+    return { entry, score };
+  }).filter(Boolean);
+  ranked.sort((a, b) => a.score - b.score ||
+    a.entry.name.localeCompare(b.entry.name, undefined, { numeric: true }) ||
+    a.entry.interfaceId - b.entry.interfaceId);
+  return ranked.map((item) => item.entry);
+}
+
+function renderPicker(query) {
+  const menu = $('pickmenu');
+  menu.innerHTML = '';
+  pickerActive = -1;
+
+  const matches = matchingEntries(query);
+  const visible = query.trim()
+    ? matches.slice(0, 120)
+    : ['authored', 'dat2', 'content'].flatMap((source) =>
+        matches.filter((entry) => entry.source === source).slice(0, 20));
+  pickerMatches = [];
+
+  if( visible.length === 0 ) {
+    const empty = document.createElement('div');
+    empty.className = 'pickempty';
+    empty.textContent = 'No interfaces match “' + query.trim() + '”.';
+    menu.appendChild(empty);
+    return;
+  }
+
+  for( const source of ['authored', 'dat2', 'content'] ) {
+    const entries = visible.filter((entry) => entry.source === source);
+    if( entries.length === 0 ) continue;
+    const group = document.createElement('div');
+    group.className = 'pickgroup';
+    group.textContent = sourceTitle(source);
+    menu.appendChild(group);
+
+    for( const entry of entries ) {
+      const index = pickerMatches.length;
+      pickerMatches.push(entry);
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.id = 'pickoption-' + index;
+      row.className = 'pickrow';
+      row.setAttribute('role', 'option');
+      row.setAttribute('aria-selected', entry.key === chosen ? 'true' : 'false');
+
+      const sourceBadge = document.createElement('span');
+      sourceBadge.className = 'picksource ' + source;
+      sourceBadge.textContent = source === 'content' ? 'files' : source;
+      const name = document.createElement('span');
+      name.className = 'pickname';
+      name.textContent = entry.name;
+      const id = document.createElement('span');
+      id.className = 'pickid';
+      id.textContent = '#' + entry.interfaceId;
+      row.append(sourceBadge, name, id);
+      row.onpointerdown = (event) => event.preventDefault();
+      row.onclick = () => chooseInterface(entry);
+      menu.appendChild(row);
+    }
+  }
+
+  if( matches.length > visible.length ) {
+    const more = document.createElement('div');
+    more.className = 'pickmore';
+    more.textContent = 'Showing ' + visible.length.toLocaleString() + ' of ' +
+      matches.length.toLocaleString() + ' matches — keep typing to narrow the list.';
+    menu.appendChild(more);
+  }
+}
+
+function openPicker() {
+  $('pickmenu').classList.add('open');
+  $('pick').setAttribute('aria-expanded', 'true');
+}
+
+function closePicker() {
+  $('pickmenu').classList.remove('open');
+  $('pick').setAttribute('aria-expanded', 'false');
+  $('pick').removeAttribute('aria-activedescendant');
+  pickerActive = -1;
+  syncPickerLabel();
+}
+
+function movePickerActive(delta) {
+  if( pickerMatches.length === 0 ) return;
+  pickerActive = pickerActive < 0
+    ? (delta > 0 ? 0 : pickerMatches.length - 1)
+    : (pickerActive + delta + pickerMatches.length) % pickerMatches.length;
+  document.querySelectorAll('.pickrow').forEach((row, index) => {
+    row.classList.toggle('active', index === pickerActive);
+  });
+  const row = $('pickoption-' + pickerActive);
+  $('pick').setAttribute('aria-activedescendant', row.id);
+  row.scrollIntoView({ block: 'nearest' });
+}
+
+function chooseInterface(entry) {
+  chosen = entry.key;
+  for( const key of Object.keys(state) ) delete state[key];
+  closePicker();
+  refresh();
 }
 
 function render() {
@@ -167,20 +373,8 @@ function render() {
   $('status').className = 'status fresh';
   setTimeout(() => { $('status').className = 'status'; }, 900);
 
-  const pick = $('pick');
-  if( pick.options.length !== data.interfaces.length ||
-      [...pick.options].some((o, i) => o.textContent !== data.interfaces[i].name) ) {
-    pick.innerHTML = '';
-    data.interfaces.forEach((iface, i) => {
-      const option = document.createElement('option');
-      option.value = i; option.textContent = iface.name;
-      pick.appendChild(option);
-    });
-  }
-  if( chosen >= data.interfaces.length ) chosen = 0;
-  pick.value = String(chosen);
-
-  const iface = data.interfaces[chosen];
+  if( !$('pickmenu').classList.contains('open') ) syncPickerLabel();
+  const iface = data.interfaces[0];
   if( !iface ) return;
 
   drawStage(iface);
@@ -196,12 +390,38 @@ function drawStage(iface) {
   const height = root ? Math.max(root.h, 32) : 128;
   stage.style.width = width + 'px';
   stage.style.height = height + 'px';
-  stage.className = $('wire').checked ? 'wire' : '';
-  $('dims').textContent = width + '×' + height + ' — interface ' + iface.interfaceId;
+  const native = Boolean(iface.nativeFrame);
+  stage.className = (native ? 'native ' : '') + ($('wire').checked ? 'wire' : '');
+  $('dims').textContent = width + '×' + height + ' — interface ' + iface.interfaceId +
+    (native ? ' — C client' : '');
 
   stage.innerHTML = '';
+  const epoch = ++modelEpoch;
   const originX = root ? root.x : 0;
   const originY = root ? root.y : 0;
+
+  if( native ) {
+    const frame = document.createElement('img');
+    frame.className = 'nativeframe';
+    frame.alt = 'Interface ' + iface.interfaceId + ' rendered by the C client';
+    frame.src = iface.nativeFrame;
+    frame.onerror = () => {
+      /* A missing native binary/cache should not make the editor blank. Paint
+         the diagnostic DOM fallback in-place and keep the error visible. */
+      stage.classList.remove('native');
+      frame.remove();
+      for( const record of fallbackPaint ) {
+        paint(record.element, record.box, iface);
+        if( roleOf(record.box.type) === 'model' )
+          paintModel(record.element, record.box, iface, epoch);
+      }
+      $('status').textContent = 'C preview unavailable — showing diagnostic DOM';
+      $('status').className = 'status bad';
+    };
+    stage.appendChild(frame);
+  }
+
+  const fallbackPaint = [];
 
   for( const box of iface.boxes ) {
     const element = document.createElement('div');
@@ -210,21 +430,34 @@ function drawStage(iface) {
     element.style.top = (box.y - originY) + 'px';
     element.style.width = box.w + 'px';
     element.style.height = box.h + 'px';
-    if( box.props.hidden ) element.style.display = 'none';
-    if( box.props.transparency ) element.style.opacity = String(1 - box.props.transparency / 255);
+    if( box.emitted === false || box.effectiveHidden || box.culled )
+      element.style.display = 'none';
+    if( box.clip && box.w > 0 && box.h > 0 ) {
+      const top = Math.max(0, box.clip.top - box.y);
+      const right = Math.max(0, box.x + box.w - box.clip.right);
+      const bottom = Math.max(0, box.y + box.h - box.clip.bottom);
+      const left = Math.max(0, box.clip.left - box.x);
+      if( top || right || bottom || left )
+        element.style.clipPath = 'inset(' + top + 'px ' + right + 'px ' +
+          bottom + 'px ' + left + 'px)';
+    }
+    if( !native && box.props.transparency )
+      element.style.opacity = String(1 - box.props.transparency / 255);
     element.title = box.name + ' — ' + box.kind + ' (file ' + box.fileId + ')';
     element.dataset.name = box.name;
 
-    paint(element, box);
+    if( native ) fallbackPaint.push({ element, box });
+    else paint(element, box, iface);
     stage.appendChild(element);
+    if( !native && roleOf(box.type) === 'model' ) paintModel(element, box, iface, epoch);
   }
 }
 
 function roleOf(type) {
-  return ({ 0: 'layer', 2: 'inv', 3: 'rect', 4: 'text', 5: 'graphic', 6: 'model', 9: 'line' })[type] || 'unknown';
+  return ({ 0: 'layer', 2: 'inv', 3: 'rect', 4: 'text', 5: 'graphic', 6: 'model', 8: 'text', 9: 'line' })[type] || 'unknown';
 }
 
-function paint(element, box) {
+function paint(element, box, iface) {
   const props = box.props;
   switch( roleOf(box.type) ) {
     case 'rect':
@@ -243,7 +476,7 @@ function paint(element, box) {
     case 'graphic': {
       if( props.sprite >= 0 ) {
         const image = document.createElement('img');
-        image.src = '/sprite/' + props.sprite + '.png';
+        image.src = '/sprite/' + iface.spriteSource + '/' + props.sprite + '.png';
         image.alt = '';
         image.onerror = () => {
           element.classList.add('unknown');
@@ -259,13 +492,124 @@ function paint(element, box) {
       element.style.height = Math.max(1, props.lineWidth | 0) + 'px';
       break;
     case 'model':
-      element.textContent = 'model ' + props.model;
+      element.textContent = props.model >= 0 ? 'loading model ' + props.model : 'loading player';
       break;
     case 'layer':
       break;
     default:
       element.textContent = box.kind;
   }
+}
+
+/* ---- toridraw model components ---------------------------------------- */
+
+let modelEpoch = 0;
+let modelWasm = null;
+let modelQueue = Promise.resolve();
+const modelBlobs = new Map();
+
+async function wasmRenderer() {
+  if( modelWasm ) return modelWasm;
+  if( typeof EVModule !== 'function' ) throw new Error('toridraw module did not load');
+  const mod = await EVModule({ locateFile: () => '/toridraw/ev_wasm.wasm' });
+  const wrap = (name, result, args) => mod.cwrap(name, result, args);
+  modelWasm = {
+    mod,
+    init: wrap('ev_w_init', null, []),
+    alloc: wrap('ev_w_alloc', 'number', ['number']),
+    release: wrap('ev_w_release', null, ['number']),
+    setModel: wrap('ev_w_set_model', 'number', ['number', 'number']),
+    setModelHd: wrap('ev_w_set_model_hd', 'number', ['number', 'number']),
+    clearModelHd: wrap('ev_w_clear_model_hd', null, []),
+    setTextures: wrap('ev_w_set_textures', 'number', ['number', 'number']),
+    setAnim: wrap('ev_w_set_anim', 'number', ['number', 'number']),
+    clearAnim: wrap('ev_w_clear_anim', null, []),
+    setPan: wrap('ev_w_set_pan', null, ['number', 'number']),
+    render: wrap('ev_w_render', 'number', ['number', 'number', 'number', 'number', 'number', 'number']),
+  };
+  modelWasm.init();
+  return modelWasm;
+}
+
+function pushWasm(wasm, bytes, fn) {
+  const ptr = wasm.alloc(bytes.length || 1);
+  if( !ptr ) return 0;
+  if( bytes.length ) wasm.mod.HEAPU8.set(bytes, ptr);
+  const result = fn(ptr, bytes.length);
+  wasm.release(ptr);
+  return result;
+}
+
+async function fetchModel(url) {
+  if( modelBlobs.has(url) ) return modelBlobs.get(url);
+  const pending = (async () => {
+    const response = await fetch(url);
+    if( !response.ok ) throw new Error((await response.text()) || 'model not found');
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const textureIds = response.headers.get('X-Texture-Ids');
+    let textures = new Uint8Array(0);
+    if( textureIds ) {
+      const textureResponse = await fetch('/model/textures.bin?ids=' + encodeURIComponent(textureIds));
+      if( textureResponse.ok ) textures = new Uint8Array(await textureResponse.arrayBuffer());
+    }
+    return { bytes, textures };
+  })();
+  modelBlobs.set(url, pending);
+  return pending;
+}
+
+function paintModel(element, box, iface, epoch) {
+  if( box.w <= 0 || box.h <= 0 ) return;
+  const player = box.props.clientCode === 328 && box.props.model < 0;
+  if( box.props.model < 0 && !player ) {
+    element.textContent = 'model source unavailable';
+    return;
+  }
+  const url = player
+    ? '/model/' + iface.modelSource + '/player.model'
+    : '/model/' + iface.modelSource + '/' + box.props.model + '.model';
+  modelQueue = modelQueue.then(async () => {
+    const [{ bytes, textures }, wasm] = await Promise.all([fetchModel(url), wasmRenderer()]);
+    if( epoch !== modelEpoch || !element.isConnected ) return;
+    const magic = String.fromCharCode(...bytes.subarray(0, 4));
+    const faces = pushWasm(wasm, bytes, (ptr, size) =>
+      magic === 'EVH1' ? wasm.setModelHd(ptr, size) : wasm.setModel(ptr, size));
+    if( magic !== 'EVH1' ) wasm.clearModelHd();
+    pushWasm(wasm, textures, (ptr, size) => wasm.setTextures(ptr, size));
+    wasm.clearAnim();
+    if( box.props.seq >= 0 ) {
+      try {
+        const response = await fetch('/model/seq/' + box.props.seq + '.anim');
+        if( response.ok ) {
+          const animation = new Uint8Array(await response.arrayBuffer());
+          pushWasm(wasm, animation, (ptr, size) => wasm.setAnim(ptr, size));
+        }
+      } catch { /* bind pose is a valid fallback */ }
+    }
+    if( !faces ) throw new Error('model decode failed');
+
+    const width = Math.max(1, Math.min(1024, box.w | 0));
+    const height = Math.max(1, Math.min(1024, box.h | 0));
+    wasm.setPan(box.props.xOffset | 0, box.props.yOffset | 0);
+    const ptr = wasm.render(
+      width, height, box.props.yAngle | 0, box.props.xAngle | 0,
+      Math.max(1, box.props.zoom | 0), box.props.seq >= 0 ? 0 : -1);
+    if( !ptr ) throw new Error('model render failed');
+    const rgba = new Uint8ClampedArray(
+      wasm.mod.HEAPU8.slice(ptr, ptr + width * height * 4));
+    if( epoch !== modelEpoch || !element.isConnected ) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    canvas.getContext('2d').putImageData(new ImageData(rgba, width, height), 0, 0);
+    element.textContent = '';
+    element.classList.add('ready');
+    element.appendChild(canvas);
+  }).catch((error) => {
+    if( epoch === modelEpoch && element.isConnected ) {
+      element.textContent = 'model unavailable';
+      element.title += ' — ' + error.message;
+    }
+  });
 }
 
 function colour(value) {
@@ -314,8 +658,11 @@ function drawControls(iface) {
   if( !iface.inputs.length ) {
     const empty = document.createElement('div');
     empty.className = 'rowlabel';
-    empty.textContent = 'Nothing here reads host state — every prop is fixed at build ' +
-                        'time, so this interface needs no scripts at all.';
+    empty.textContent = iface.source !== 'authored'
+      ? 'This is the static cache record. Scripts referenced by its hooks are loaded ' +
+        'beside the decompiled TSX in Cache records.'
+      : 'Nothing here reads host state — every prop is fixed at build time, so this ' +
+        'interface needs no scripts at all.';
     controls.appendChild(empty);
     return;
   }
@@ -329,8 +676,7 @@ function drawControls(iface) {
 }
 
 function ensure(key, fallback) {
-  if( !(key in state) ) state[key] = fallback;
-  return state[key];
+  return key in state ? state[key] : fallback;
 }
 
 function controlShell(input, body) {
@@ -389,7 +735,14 @@ function textControl(input) {
  */
 function inventoryControl(input) {
   const key = 'invobj:' + input.id;
-  const contents = ensure(key, {});
+  let contents = ensure(key, {});
+
+  const editContents = (edit) => {
+    /* An untouched control is not native state. Once the user edits it, clone
+       first so the outgoing request gets a new, explicit inventory value. */
+    contents = state[key] = { ...contents };
+    edit(contents);
+  };
 
   const body = document.createElement('div');
   body.className = 'inv';
@@ -403,12 +756,16 @@ function inventoryControl(input) {
       const amount = document.createElement('input');
       amount.type = 'number'; amount.value = String(count); amount.min = '0';
       amount.oninput = () => {
-        contents[obj] = Number(amount.value) || 0;
+        editContents((next) => { next[obj] = Number(amount.value) || 0; });
         refresh();
       };
       const drop = document.createElement('button');
       drop.textContent = '×';
-      drop.onclick = () => { delete contents[obj]; redraw(); refresh(); };
+      drop.onclick = () => {
+        editContents((next) => { delete next[obj]; });
+        redraw();
+        refresh();
+      };
       row.appendChild(amount);
       row.appendChild(drop);
       body.appendChild(row);
@@ -418,7 +775,7 @@ function inventoryControl(input) {
     add.onclick = () => {
       const obj = prompt('item id');
       if( obj === null ) return;
-      contents[Number(obj) || 0] = 1;
+      editContents((next) => { next[Number(obj) || 0] = 1; });
       redraw();
       refresh();
     };
@@ -441,6 +798,8 @@ function drawRecords(iface) {
     records.appendChild(note);
   }
 
+  if( iface.reactSource )
+    add('decompiled/' + iface.name + '.tsx (read-only view)', iface.reactSource);
   add('interfaces/' + iface.name + '.if', iface.interfaceText);
   add('interfaces/' + iface.name + '.compack', iface.compackText);
   for( const script of iface.scripts )
@@ -457,7 +816,35 @@ function drawRecords(iface) {
   }
 }
 
-$('pick').onchange = (event) => { chosen = Number(event.target.value); render(); };
+$('pick').onfocus = () => {
+  renderPicker('');
+  openPicker();
+  $('pick').select();
+};
+$('pick').oninput = () => {
+  renderPicker($('pick').value);
+  openPicker();
+};
+$('pick').onkeydown = (event) => {
+  if( event.key === 'ArrowDown' || event.key === 'ArrowUp' ) {
+    event.preventDefault();
+    if( !$('pickmenu').classList.contains('open') ) {
+      renderPicker('');
+      openPicker();
+    }
+    movePickerActive(event.key === 'ArrowDown' ? 1 : -1);
+  } else if( event.key === 'Enter' && pickerActive >= 0 ) {
+    event.preventDefault();
+    chooseInterface(pickerMatches[pickerActive]);
+  } else if( event.key === 'Escape' ) {
+    event.preventDefault();
+    closePicker();
+    $('pick').blur();
+  }
+};
+document.addEventListener('pointerdown', (event) => {
+  if( !$('picker').contains(event.target) ) closePicker();
+});
 $('wire').onchange = () => render();
 $('add').onclick = async () => {
   const name = prompt('component name (a file, ui/<name>.tsx)');
@@ -467,7 +854,7 @@ $('add').onclick = async () => {
   if( result.error ) alert(result.error);
 };
 
-new EventSource('/events').onmessage = () => refresh();
+new EventSource('/events').onmessage = () => { catalog = []; refresh(); };
 refresh();
 </script>
 </body>

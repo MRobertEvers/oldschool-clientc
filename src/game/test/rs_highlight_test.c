@@ -337,8 +337,9 @@ main(void)
     /* ---- the OP GROUP block (7040..7044), keyed by a menu NAME ----------
      *
      * The cache only ever sets it up and clears it -- script 5486's teardown
-     * is `_7040(group, -1, 0, 0, 0)` over twenty groups and 6686 is
-     * `_7044(6)` -- so these are the calls it makes, plus the ON/OFF/GET the
+     * is `HIGHLIGHT_OPGROUP_SETUP(group, -1, 0, 0, 0)` over twenty groups and
+     * 6686 is `HIGHLIGHT_OPGROUP_CLEAR(6)` -- so these are the calls it makes,
+     * plus the ON/OFF/GET the
      * reference implements and nothing here has a caller for yet.
      */
     {
@@ -347,19 +348,19 @@ main(void)
         int const group[] = { 9 };
         int const other_group[] = { 5 };
 
-        apply(&st, CS2_OP__7040, teardown, 5);
+        apply(&st, CS2_OP_HIGHLIGHT_OPGROUP_SETUP, teardown, 5);
         CHECK(
             !RS_HighlightGroupLive(&st, RS_HIGHLIGHT_OPGROUP, 9),
             "the cache's teardown form leaves the group off");
 
-        apply(&st, CS2_OP__7040, setup, 5);
+        apply(&st, CS2_OP_HIGHLIGHT_OPGROUP_SETUP, setup, 5);
         CHECK(
             RS_HighlightGroupLive(&st, RS_HIGHLIGHT_OPGROUP, 9),
             "and a real style makes it live");
 
-        apply_named(&st, CS2_OP__7041, group, 1, "Cow");
+        apply_named(&st, CS2_OP_HIGHLIGHT_OPGROUP_ON, group, 1, "Cow");
         CHECK(
-            apply_named(&st, CS2_OP__7043, group, 1, "Cow") == 1,
+            apply_named(&st, CS2_OP_HIGHLIGHT_OPGROUP_GET, group, 1, "Cow") == 1,
             "a named op group records its subject");
         /* The two name-keyed kinds share one list and must not see each
          * other's subjects: a player called Cow is not the Cow group. */
@@ -368,12 +369,12 @@ main(void)
             apply_named(&st, CS2_OP_HIGHLIGHT_PLAYER_GET, group, 1, "Cow") == 0,
             "and the kinds do not answer for each other");
         CHECK(
-            apply_named(&st, CS2_OP__7043, other_group, 1, "Cow") == 0,
+            apply_named(&st, CS2_OP_HIGHLIGHT_OPGROUP_GET, other_group, 1, "Cow") == 0,
             "in either direction");
 
-        apply(&st, CS2_OP__7044, group, 1);
+        apply(&st, CS2_OP_HIGHLIGHT_OPGROUP_CLEAR, group, 1);
         CHECK(
-            apply_named(&st, CS2_OP__7043, group, 1, "Cow") == 0,
+            apply_named(&st, CS2_OP_HIGHLIGHT_OPGROUP_GET, group, 1, "Cow") == 0,
             "CLEAR empties the op group's own subjects");
         CHECK(
             apply_named(&st, CS2_OP_HIGHLIGHT_PLAYER_GET, other_group, 1, "Cow") == 1,

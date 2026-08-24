@@ -28,6 +28,9 @@ export const IF_TYPE = {
     text: 4,
     graphic: 5,
     model: 6,
+    /* IF1 hover text. Imported content presents it as React-style <Text>; cs2dom
+     * does not author new IF1 records. */
+    tooltip: 8,
     line: 9,
 };
 

@@ -8318,11 +8318,11 @@ CS2VM2_Op_Highlight(struct CS2VM2_Thread* vm, int opcode)
         CS2VM_HIGHLIGHT_CASE(HIGHLIGHT_TILE_OFF);
         CS2VM_HIGHLIGHT_CASE(HIGHLIGHT_TILE_GET);
         CS2VM_HIGHLIGHT_CASE(HIGHLIGHT_TILE_CLEAR);
-        CS2VM_HIGHLIGHT_CASE(_7040);
-        CS2VM_HIGHLIGHT_CASE(_7041);
-        CS2VM_HIGHLIGHT_CASE(_7042);
-        CS2VM_HIGHLIGHT_CASE(_7043);
-        CS2VM_HIGHLIGHT_CASE(_7044);
+        CS2VM_HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_SETUP);
+        CS2VM_HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_ON);
+        CS2VM_HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_OFF);
+        CS2VM_HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_GET);
+        CS2VM_HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_CLEAR);
     default:
         assert(0 && "unexpected highlight opcode");
         return CS2VM_EXECNO_ERROR;
@@ -8636,21 +8636,19 @@ CS2VM2_Op_ClientOpContext(struct CS2VM2_Thread* vm, int opcode)
 }
 
 /*
- * The ACTIVE PLAYER: `_6901`, `_6902`, `_6903`, `_6904`, `_6905`.
+ * The ACTIVE PLAYER: ACTIVEPLAYER_SETLOCAL, ACTIVEPLAYER_GETROUTELENGTH,
+ * ACTIVEPLAYER_GETROUTECOORD, ACTIVEPLAYER_GETUID and LOCALPLAYER_GETUID.
  *
- * `_6901` is the one that WRITES -- it makes the local player the active one
- * and pushes whether there was one to make active, which is how a script that
+ * ACTIVEPLAYER_SETLOCAL is the one that WRITES -- it makes the local player
+ * active and pushes whether there was one to make active, which is how a script that
  * was not entered from a per-player trigger gets a subject for the other four.
- * Only `_6903` takes an argument (the route index), so it is the only one that
- * pops. The rest are bare reads the host pushes the answer to, like the
- * context getters above.
+ * Only ACTIVEPLAYER_GETROUTECOORD takes an argument (the route index), so it is
+ * the only one that pops. The rest are bare reads the host pushes the answer to,
+ * like the context getters above.
  *
- * `_6902` sits in the same numeric block as the client-op context getters and
- * is NOT one: the reference's ScriptRunnerImpl_6900To6999.cpp answers it with
- * `player->m_routeLength`, having first asserted `m_activePlayer != -1`. It
- * was routed as "the active player's COORD" here on the strength of the block
- * it sits in, which made clientscript 5203 read a coord where it wanted a
- * count.
+ * ACTIVEPLAYER_GETROUTELENGTH sits in the same numeric block as the client-op
+ * context getters and is NOT one: the reference answers it with
+ * `player->m_routeLength`, having first asserted `m_activePlayer != -1`.
  */
 static int
 CS2VM2_Op_ActivePlayer(struct CS2VM2_Thread* vm, int opcode)
@@ -8660,7 +8658,7 @@ CS2VM2_Op_ActivePlayer(struct CS2VM2_Thread* vm, int opcode)
     struct CS2VM_HostRequest request;
     int index = -1;
     request.kind = (enum CS2VM_HostRequestKind)opcode;
-    if( opcode == CS2_OP__6903 &&
+    if( opcode == CS2_OP_ACTIVEPLAYER_GETROUTECOORD &&
         CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
@@ -8672,11 +8670,11 @@ CS2VM2_Op_ActivePlayer(struct CS2VM2_Thread* vm, int opcode)
         break
     switch( opcode )
     {
-        CS2VM_ACTIVE_PLAYER_CASE(_6901);
-        CS2VM_ACTIVE_PLAYER_CASE(_6902);
-        CS2VM_ACTIVE_PLAYER_CASE(_6903);
-        CS2VM_ACTIVE_PLAYER_CASE(_6904);
-        CS2VM_ACTIVE_PLAYER_CASE(_6905);
+        CS2VM_ACTIVE_PLAYER_CASE(ACTIVEPLAYER_SETLOCAL);
+        CS2VM_ACTIVE_PLAYER_CASE(ACTIVEPLAYER_GETROUTELENGTH);
+        CS2VM_ACTIVE_PLAYER_CASE(ACTIVEPLAYER_GETROUTECOORD);
+        CS2VM_ACTIVE_PLAYER_CASE(ACTIVEPLAYER_GETUID);
+        CS2VM_ACTIVE_PLAYER_CASE(LOCALPLAYER_GETUID);
     default:
         assert(0 && "unexpected active-player opcode");
         return CS2VM_EXECNO_ERROR;
@@ -12270,9 +12268,9 @@ CS2VM2_RunOp(
         return CS2VM2_Op_ClientOp(vm, opcode, false);
     /*
      * The client op's subject, read from inside the script it just ran. Listed
-     * one by one rather than as ranges: the blocks are not uniform -- `_6901`
+     * one by one rather than as ranges: the blocks are not uniform -- 6901
      * is a SETTER and belongs with the active-player group below, and the
-     * player block's `_6902`.. are about a route -- and a range would have
+     * player block's 6902.. are about a route -- and a range would have
      * routed those here too and answered them with a confident zero.
      */
     case CS2_OP__6750: /* npc name   */
@@ -12306,11 +12304,11 @@ CS2VM2_RunOp(
     /* The active player's route (6902/6903) and the two player uids
      * (6904/6905). Numerically inside the player block above, but a different
      * question -- see CS2VM2_Op_ActivePlayer. */
-    case CS2_OP__6901: /* make the local player active */
-    case CS2_OP__6902: /* route length            */
-    case CS2_OP__6903: /* route coord at an index */
-    case CS2_OP__6904: /* active player uid       */
-    case CS2_OP__6905: /* local player uid        */
+    case CS2_OP_ACTIVEPLAYER_SETLOCAL:
+    case CS2_OP_ACTIVEPLAYER_GETROUTELENGTH:
+    case CS2_OP_ACTIVEPLAYER_GETROUTECOORD:
+    case CS2_OP_ACTIVEPLAYER_GETUID:
+    case CS2_OP_LOCALPLAYER_GETUID:
         return CS2VM2_Op_ActivePlayer(vm, opcode);
     case CS2_OP_COORD_INSCENE:
         return CS2VM2_Op_SubjectFind(vm, opcode);
@@ -12326,12 +12324,9 @@ CS2VM2_RunOp(
      * panel alone tripped two of them (HIGHLIGHT_TILE_SETUP from clientscript
      * 4763, HIGHLIGHT_TILE_CLEAR from 5198).
      *
-     * 7040..7044 are a ninth group of the same shape, keyed by a name string
-     * like the PLAYER one, that postdates the vendored Opcodes.kt — no ON/OFF
-     * name pins its subject, so they keep their _70xx spelling. The cache does
-     * call them (clientscript 6689 toggles 7041/7042 behind 7043; 6698 reads
-     * 7043 beside HIGHLIGHT_NPC_GET on the same group), and they are the same
-     * kind of highlight state, so they route here too. */
+     * 7040..7044 are the OPGROUP family, keyed by the right-click subject name.
+     * The reference calls HighlightManager's Add/Remove/IsOpGroupHighlighted
+     * methods for them, and they route through the same highlight state here. */
     case CS2_OP_HIGHLIGHT_NPC_SETUP:
     case CS2_OP_HIGHLIGHT_NPC_ON:
     case CS2_OP_HIGHLIGHT_NPC_OFF:
@@ -12372,11 +12367,11 @@ CS2VM2_RunOp(
     case CS2_OP_HIGHLIGHT_TILE_OFF:
     case CS2_OP_HIGHLIGHT_TILE_GET:
     case CS2_OP_HIGHLIGHT_TILE_CLEAR:
-    case CS2_OP__7040:
-    case CS2_OP__7041:
-    case CS2_OP__7042:
-    case CS2_OP__7043:
-    case CS2_OP__7044:
+    case CS2_OP_HIGHLIGHT_OPGROUP_SETUP:
+    case CS2_OP_HIGHLIGHT_OPGROUP_ON:
+    case CS2_OP_HIGHLIGHT_OPGROUP_OFF:
+    case CS2_OP_HIGHLIGHT_OPGROUP_GET:
+    case CS2_OP_HIGHLIGHT_OPGROUP_CLEAR:
         return CS2VM2_Op_Highlight(vm, opcode);
 
     /* === CS2 opcode group: minimenu (7100..7199) ===

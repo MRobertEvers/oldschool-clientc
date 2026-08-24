@@ -1575,11 +1575,11 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "scene window moves."
         ),
     ),
-    "_6901": OpcodeDoc(
+    "P_FINDSELF": OpcodeDoc(
         summary="Make the local player the active player",
         int_out=("1 if a local player exists else -1",),
         notes=(
-            "The only setter in the _6900.._6905 active-player block. The NXT "
+            "The only setter in the 6901..6905 active-player block. The NXT "
             "reference selects m_localPlayerIndex before pushing the result."
         ),
     ),
@@ -1881,15 +1881,15 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     # fields). They are NOT client-op context getters despite sitting beside
     # _6900: they are about the ACTIVE PLAYER, which the client sets before
     # firing a per-player trigger and MINIMENU_FINDPLAYER sets from the menu.
-    "_6902": OpcodeDoc(
+    "P_ROUTELENGTH": OpcodeDoc(
         summary="Active player's route length",
         int_out=("m_routeLength (0..9)",),
         notes="The queue of tiles the server has put the player on that the\n"
         "client has not walked through yet. 0 means standing still, and\n"
         "clientscript 5203 reads it exactly that way: with a route it marks\n"
-        "_6903(0), without one it marks `coord`.",
+        "P_ROUTE(0), without one it marks `coord`.",
     ),
-    "_6903": OpcodeDoc(
+    "P_ROUTE": OpcodeDoc(
         summary="Active player's route coord at an index",
         int_in=("index",),
         int_out=("coord or -1",),
@@ -1899,16 +1899,17 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         "walking. The reference packs it as plane << 28 | x << 14 | z after\n"
         "WorldCoordFromBuildCoord, and asserts index < m_routeLength.",
     ),
-    "_6904": OpcodeDoc(
+    "UID": OpcodeDoc(
         summary="Active player's uid",
         int_out=("uid or -1",),
     ),
-    "_6905": OpcodeDoc(
+    "SELF_PLAYER_UID": OpcodeDoc(
         summary="Local player's uid",
         int_out=("uid or -1",),
-        notes="`_6904 = _6905` is how a per-player trigger script asks whether\n"
-        "the player it fired for is this client's own -- clientscript 5203\n"
-        "(the current-tile indicator) is the cache's only user of either.",
+        notes="`UID = SELF_PLAYER_UID` is how a per-player\n"
+        "trigger script asks whether the player it fired for is this client's\n"
+        "own -- clientscript 5203 (the current-tile indicator) is the cache's\n"
+        "only user of either.",
     ),
     "HIGHLIGHT_TILE_ON": OpcodeDoc(
         summary="Put one tile into a highlight group",
@@ -1927,31 +1928,31 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Empty a whole highlight group",
         int_in=("group",),
     ),
-    # 7040..7044: the ninth highlight group, shaped exactly like the PLAYER one
-    # (SETUP, then a name-keyed ON/OFF/GET, then CLEAR) but postdating the
-    # vendored Opcodes.kt, so its subject has no name here. Arities are from the
-    # cache's own call sites and match the decompiler's table.
-    "_7040": OpcodeDoc(
+    # 7040..7044: the OpGroup highlight family, shaped exactly like the PLAYER
+    # one (SETUP, then a name-keyed ON/OFF/GET, then CLEAR). The reference calls
+    # HighlightManager's Add/Remove/IsOpGroupHighlighted methods. Arities are
+    # from the cache's own call sites and match the decompiler's table.
+    "HIGHLIGHT_GROUP_SETUP": OpcodeDoc(
         summary="Define what highlight group N looks like",
         int_in=("group", "colour", "style", "opacity", "flags"),
     ),
-    "_7041": OpcodeDoc(
-        summary="Put one named subject into a highlight group",
+    "HIGHLIGHT_GROUP_ON": OpcodeDoc(
+        summary="Put one named operation group into a highlight group",
         int_in=("group",),
         str_in=("name",),
     ),
-    "_7042": OpcodeDoc(
-        summary="Take one named subject out of a highlight group",
+    "HIGHLIGHT_GROUP_OFF": OpcodeDoc(
+        summary="Take one named operation group out of a highlight group",
         int_in=("group",),
         str_in=("name",),
     ),
-    "_7043": OpcodeDoc(
-        summary="Is this named subject in the highlight group",
+    "HIGHLIGHT_GROUP_GET": OpcodeDoc(
+        summary="Is this named operation group in the highlight group",
         int_in=("group",),
         str_in=("name",),
         int_out=("highlighted",),
     ),
-    "_7044": OpcodeDoc(
+    "HIGHLIGHT_GROUP_CLEAR": OpcodeDoc(
         summary="Empty a whole highlight group",
         int_in=("group",),
     ),

@@ -77,6 +77,19 @@ def merge_local(entries: list[tuple[str, int]]) -> list[tuple[str, int]]:
     return merged
 
 
+def validate_documented_names(entries: list[tuple[str, int]]) -> None:
+    """A behavior we can document is specific enough to receive a real name."""
+
+    anonymous_docs = [
+        (name, opcode)
+        for name, opcode in entries
+        if re.fullmatch(r"_\d+", name) and name in OPCODE_DOCS
+    ]
+    if anonymous_docs:
+        joined = ", ".join(f"{name} ({opcode})" for name, opcode in anonymous_docs)
+        raise ValueError(f"documented opcodes still have placeholder names: {joined}")
+
+
 def validate_group_coverage(entries: list[tuple[str, int]]) -> None:
     """Every real VM opcode must land in a reference dispatch group."""
 
@@ -506,6 +519,7 @@ def main() -> int:
         print(f"missing {VENDOR}", file=sys.stderr)
         return 1
     entries = merge_local(parse_opcodes(VENDOR))
+    validate_documented_names(entries)
     validate_group_coverage(entries)
     validate_dispatch_grouping(entries)
     OUT_DIR.mkdir(parents=True, exist_ok=True)

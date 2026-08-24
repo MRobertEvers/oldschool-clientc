@@ -15,7 +15,10 @@
  * Run: node tools/cs2dom/test/run_tests.js
  */
 
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import {
+    chmodSync, mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, readFileSync,
+    readdirSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +36,14 @@ import { checkRange, rangeContext, SLICES } from '../src/host.js';
 import { evaluate, resolveProps, stateInputs } from '../src/eval.js';
 import { layout, axisFromPositionMode, dimFromParentMode } from '../src/preview.js';
 import { decodeBmp, encodePng } from '../src/png.js';
+import {
+    contentInterfaceCatalog, executeContentHooks, openContentInterface, parseBlocks,
+} from '../src/content.js';
+import { prepareDat2Project } from '../src/dat2.js';
+import { page as devPage } from '../src/dev_page.js';
+import { modelIndex, rawModel } from '../src/model.js';
+import { nativeTreeInspector, parseNativeTree } from '../src/native_tree.js';
+import { collectInterfaceScripts, prepareNativeOverlay } from '../src/native_overlay.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = findRepoRoot(HERE);
@@ -66,6 +77,27 @@ function assertThrows(fn, fragment) {
         throw new Error(`expected a failure mentioning "${fragment}", got: ${threw.message}`);
 }
 
+test('the interface picker is searchable and keyboard accessible', () => {
+    const html = devPage();
+    assertIncludes(html, 'id="pick" type="search"');
+    assertIncludes(html, 'function matchingEntries(query)');
+    assertIncludes(html, "event.key === 'ArrowDown'");
+    assertIncludes(html, 'role="listbox"');
+});
+
+test('the preview embeds the toridraw WASM model component', () => {
+    const html = devPage();
+    assertIncludes(html, '<script src="/toridraw/ev_wasm.js"></script>');
+    assertIncludes(html, "wrap('ev_w_render'");
+    assertIncludes(html, "'/model/' + iface.modelSource");
+});
+
+test('untouched controls do not seed false native-state defaults', () => {
+    const html = devPage();
+    assertIncludes(html, 'return key in state ? state[key] : fallback;');
+    assertIncludes(html, 'contents = state[key] = { ...contents };');
+});
+
 /* ---- a scratch project --------------------------------------------------- */
 
 const scratch = mkdtempSync(join(tmpdir(), 'cs2dom-test-'));
@@ -83,6 +115,117 @@ function makeContent(name = 'content') {
     writeFileSync(join(dir, 'configs', 'all.varbit.compack'), '9=energy_bit\n');
     writeFileSync(join(dir, 'configs', 'all.varp.compack'), '300=sa_energy\n');
     return dir;
+}
+
+/** A complete but tiny Dat2/content pair for exercising native cache overlays. */
+function makeNativeOverlayFixture(name, { fail = false } = {}) {
+    const root = join(scratch, name);
+    const content = join(root, 'content');
+    const cache = join(root, 'cache');
+    const cacheRoot = join(root, 'overlays');
+    const cs2Names = join(root, 'cs2-names');
+    const calls = join(root, 'cachepack-calls.jsonl');
+    const tool = join(root, 'fake-cachepack');
+    for( const path of [
+        join(content, 'pack'), join(content, 'interfaces'), join(content, 'scripts'),
+        join(content, 'configs'), cache, cs2Names,
+    ] ) mkdirSync(path, { recursive: true });
+
+    writeFileSync(join(cache, 'main_file_cache.dat2'), 'base dat2');
+    writeFileSync(join(cache, 'main_file_cache.idx3'), 'interfaces index');
+    writeFileSync(join(cache, 'main_file_cache.idx7'), 'models index');
+    writeFileSync(join(cache, 'main_file_cache.idx12'), 'scripts index');
+    writeFileSync(join(cache, 'main_file_cache.idx255'), 'reference index');
+    writeFileSync(join(cs2Names, 'commands.tsv'), '0\treturn\n');
+
+    writeFileSync(join(content, 'pack', '3_interfaces.pack'), '12=panel\n');
+    writeFileSync(join(content, 'pack', '8_sprites.pack'), '40=button\n');
+    writeFileSync(join(content, 'pack', '12_clientscripts.pack'), [
+        '10=entry',
+        '11=proc_a',
+        '12=event_b',
+        '13=numeric_script',
+        '14=raw_only',
+        '15=event_c',
+        '99=unrelated',
+        '',
+    ].join('\n'));
+    writeFileSync(join(content, 'configs', 'all.varbit.compack'), '1=example_bit\n');
+    writeFileSync(join(content, 'configs', 'all.varp.compack'), '2=example_var\n');
+    writeFileSync(join(content, 'configs', 'all.varp'), '[example_var]\ntype=0\n');
+    writeFileSync(join(content, 'interfaces', 'panel.compack'), '0=root\n');
+    writeFileSync(join(content, 'interfaces', 'panel.if'), [
+        '[root]',
+        'if3=yes',
+        'type=0',
+        'onload=i:10',
+        'onop=i:14',
+        '',
+    ].join('\n'));
+
+    writeFileSync(join(content, 'scripts', 'entry.cs2'), [
+        '[clientscript,entry]',
+        '~proc_a();',
+        'if_setontimer("event_b(0)", null);',
+        '~script13();',
+        'return;',
+    ].join('\n'));
+    writeFileSync(join(content, 'scripts', 'proc_a.cs2'), [
+        '[proc,proc_a]',
+        "if_setonvartransmit('event_c{var1}', null);",
+        'return;',
+    ].join('\n'));
+    writeFileSync(join(content, 'scripts', 'event_b.cs2'), [
+        '[clientscript,event_b]',
+        '~proc_a();',
+        'return;',
+    ].join('\n'));
+    writeFileSync(join(content, 'scripts', 'numeric_script.cs2'),
+                  '[clientscript,numeric_script]\nreturn;\n');
+    writeFileSync(join(content, 'scripts', 'event_c.cs2'),
+                  '[clientscript,event_c]\nreturn;\n');
+    writeFileSync(join(content, 'scripts', 'unrelated.cs2'),
+                  '[clientscript,unrelated]\nreturn;\n');
+    /* raw_only deliberately has no .cs2: the base cache must supply it. */
+
+    writeFileSync(tool, [
+        '#!/usr/bin/env node',
+        "const fs = require('node:fs');",
+        "const path = require('node:path');",
+        "const arg = (name) => process.argv[process.argv.indexOf(name) + 1];",
+        "const list = (dir) => fs.existsSync(dir) ? fs.readdirSync(dir).sort() : [];",
+        "const src = arg('--src');",
+        "const out = arg('--out');",
+        "const archiveList = arg('--archive-list');",
+        `const calls = ${JSON.stringify(calls)};`,
+        'fs.appendFileSync(calls, JSON.stringify({',
+        '  argv: process.argv.slice(2),',
+        "  archives: fs.readFileSync(archiveList, 'utf8').trim().split(/\\r?\\n/),",
+        "  pack: list(path.join(src, 'pack')),",
+        "  configs: list(path.join(src, 'configs')),",
+        "  interfaces: list(path.join(src, 'interfaces')),",
+        "  scripts: list(path.join(src, 'scripts')),",
+        '  cs2Names: process.env.CACHEPACK_CS2_NAMES || null,',
+        "}) + '\\n');",
+        ...(fail ? [
+            "process.stderr.write('selected archive(s) were codec-declined\\n');",
+            'process.exit(9);',
+        ] : [
+            "fs.appendFileSync(path.join(out, 'main_file_cache.dat2'), '|overlay');",
+        ]),
+    ].join('\n'));
+    chmodSync(tool, 0o755);
+
+    return {
+        root, content, cache, cacheRoot, cs2Names, calls, tool,
+        project: { cache, content, revision: 'osrs239' },
+    };
+}
+
+function nativeOverlayCalls(fixture) {
+    if( !existsSync(fixture.calls) ) return [];
+    return readFileSync(fixture.calls, 'utf8').trim().split('\n').filter(Boolean)
+        .map((line) => JSON.parse(line));
 }
 
 /** Render one .tsx written inline, and lower it. */
@@ -570,8 +713,12 @@ test('layout matches the client formulas, including the fixed-point modes', () =
     assert(axisFromPositionMode(1, 0, 0, 100, 27) === 36, 'centre mode');
     assert(axisFromPositionMode(2, 4, 0, 100, 20) === 76, 'right mode');
     assert(axisFromPositionMode(3, 8192, 0, 100, 10) === 50, 'proportional mode');
+    assert(axisFromPositionMode(3, -1, 0, 1, 10) === -1,
+           'proportional position must use signed >> 14, not truncating division');
     assert(dimFromParentMode(1, 20, 100) === 80, 'minus mode');
     assert(dimFromParentMode(2, 8192, 100) === 50, 'proportional size');
+    assert(dimFromParentMode(2, -1, 1) === -1,
+           'proportional size must round a negative product toward minus infinity');
 });
 
 test('nested components lay out against their parent, not the viewport', () => {
@@ -592,6 +739,228 @@ test('nested components lay out against their parent, not the viewport', () => {
     const dot = boxes.find((b) => b.name === 'dot');
     /* root at 10,10; inner at 15,15; centred 10x10 in a 50x50 is +20. */
     assert(dot.x === 35 && dot.y === 35, `dot landed at ${dot.x},${dot.y}`);
+});
+
+test('layout links forward parents before resolving and paints depth first', () => {
+    const built = compileSource(`
+        import { Layer, Rect } from 'cs2dom';
+        export default function ForwardTree() {
+            return (
+                <Layer id="root" x={10} y={20} width={100} height={80}>
+                    <Layer id="first" x={3} y={4} width={50} height={40}>
+                        <Rect id="grandchild" x={5} y={6} width={7} height={8} color={1} fill />
+                    </Layer>
+                    <Rect id="second" x={70} y={4} width={10} height={10} color={2} fill />
+                </Layer>
+            );
+        }
+    `);
+    const named = (name) => built.ir.components.find((component) => component.name === name);
+    /* Put both children before their parent and the grandchild after its parent's
+     * sibling. A flat archive walk gets both topology and paint order wrong. */
+    built.ir.components = [named('first'), named('second'), named('grandchild'), named('root')];
+
+    const boxes = layout(built.ir, {});
+    assert(boxes.map((box) => box.name).join(',') === 'root,first,grandchild,second',
+           `paint order was ${boxes.map((box) => box.name).join(',')}`);
+    const grandchild = boxes.find((box) => box.name === 'grandchild');
+    assert(grandchild.x === 18 && grandchild.y === 30,
+           `forward-parent grandchild landed at ${grandchild.x},${grandchild.y}`);
+    assert(grandchild.depth === 2, `forward-parent depth was ${grandchild.depth}`);
+});
+
+test('layout propagates hidden and collapsed-layer state through whole subtrees', () => {
+    const built = compileSource(`
+        import { Layer, Rect } from 'cs2dom';
+        export default function Visibility() {
+            return (
+                <Layer id="root" width={100} height={100} hidden>
+                    <Layer id="collapsed" width={0} height={20}>
+                        <Rect id="child" width={10} height={10} color={1} fill />
+                    </Layer>
+                </Layer>
+            );
+        }
+    `);
+    const boxes = layout(built.ir, {});
+    const root = boxes.find((box) => box.name === 'root');
+    const collapsed = boxes.find((box) => box.name === 'collapsed');
+    const child = boxes.find((box) => box.name === 'child');
+    assert(root.effectiveHidden && collapsed.effectiveHidden && child.effectiveHidden,
+           'an ancestor hide did not suppress the complete subtree');
+    assert(collapsed.culled && child.culled,
+           'a zero-width clipping layer did not structurally cull its subtree');
+    assert(!root.emitted && !collapsed.emitted && !child.emitted,
+           'a hidden/collapsed subtree remained in the paint list');
+});
+
+test('scroll extents drive child layout while clamped offsets drive screen position', () => {
+    const built = compileSource(`
+        import { Layer, Rect } from 'cs2dom';
+        export default function Scroller() {
+            return (
+                <Layer id="root" x={10} y={20} width={100} height={80}
+                       scrollWidth={200} scrollHeight={300}>
+                    <Rect id="content" widthMode="minus" heightMode="minus"
+                          width={0} height={0} color={1} fill />
+                </Layer>
+            );
+        }
+    `);
+    const rootComponent = built.ir.components.find((component) => component.name === 'root');
+    rootComponent.static.scrollX = 30;
+    rootComponent.static.scrollY = 40;
+
+    const boxes = layout(built.ir, {});
+    const root = boxes.find((box) => box.name === 'root');
+    const content = boxes.find((box) => box.name === 'content');
+    assert(content.w === 200 && content.h === 300,
+           `content used ${content.w}x${content.h} instead of the scroll extent`);
+    assert(content.absX === 10 && content.absY === 20, 'scroll changed logical layout coordinates');
+    assert(content.x === -20 && content.y === -20,
+           `scroll offset produced screen position ${content.x},${content.y}`);
+    assert(root.scrollX === 30 && root.scrollY === 40, 'valid scroll offsets were not retained');
+    assert(content.clip.left === 10 && content.clip.top === 20 &&
+           content.clip.right === 110 && content.clip.bottom === 100,
+           `scroll viewport clip was ${JSON.stringify(content.clip)}`);
+
+    rootComponent.static.scrollX = 999;
+    rootComponent.static.scrollY = -20;
+    const clamped = layout(built.ir, {}).find((box) => box.name === 'root');
+    assert(clamped.scrollX === 100 && clamped.scrollY === 0,
+           `scroll clamp was ${clamped.scrollX},${clamped.scrollY}`);
+});
+
+test('ordinary nested layers replace clips while scroll layers establish surfaces', () => {
+    const built = compileSource(`
+        import { Layer, Rect } from 'cs2dom';
+        export default function Clips() {
+            return (
+                <Layer id="root" width={100} height={100}>
+                    <Layer id="inner" x={80} width={100} height={100}>
+                        <Rect id="leaf" x={70} width={20} height={20} color={1} fill />
+                    </Layer>
+                </Layer>
+            );
+        }
+    `);
+    const boxes = layout(built.ir, {}, { width: 200, height: 100 });
+    const inner = boxes.find((box) => box.name === 'inner');
+    const leaf = boxes.find((box) => box.name === 'leaf');
+    assert(inner.clip.left === 0 && inner.clip.right === 100,
+           'the outer layer did not clip the inner layer itself');
+    assert(leaf.clip.left === 80 && leaf.clip.right === 180,
+           `ordinary layer clip compounded instead of replacing: ${JSON.stringify(leaf.clip)}`);
+
+    /* Once the outer layer scrolls, its 100px viewport is the enclosing surface;
+     * the inner layer can no longer reset clipping past that viewport. */
+    const root = built.ir.components.find((component) => component.name === 'root');
+    root.static.scrollWidth = 200;
+    const scrolled = layout(built.ir, {}, { width: 200, height: 100 });
+    const clippedLeaf = scrolled.find((box) => box.name === 'leaf');
+    assert(clippedLeaf.clip.left === 80 && clippedLeaf.clip.right === 100,
+           `scroll surface leaked: ${JSON.stringify(clippedLeaf.clip)}`);
+});
+
+test('native UITree snapshots drive inspector topology, runtime boxes, visibility and hooks', () => {
+    const node = ({
+        id, uid, parent = -1, firstChild = -1, nextSibling = -1,
+        dynamic = false, childIndex = -1, kind = 'layer', type = 0,
+        x = 0, y = 0, width = 10, height = 10, hidden = false,
+        culled = false, walked = true, hooks = [], draw = null,
+    }) => ({
+        node: id, uid, group: uid < 0 ? -1 : uid >> 16, file: uid < 0 ? -1 : uid & 0xffff,
+        parent, first_child: firstChild, next_sibling: nextSibling, depth: parent < 0 ? 0 : 1,
+        dynamic, child_index: childIndex, kind, type, widget_type: type, if3: true,
+        transparency: 0, client_code: 0, item_id: -1, item_count: 0,
+        raw: { x, y, width, height, x_mode: 0, y_mode: 0, width_mode: 0, height_mode: 0 },
+        box: { x, y, width, height, resolved: true },
+        scroll: { x: 0, y: 0, width: 0, height: 0 },
+        visibility: {
+            own_hidden: hidden, frame_hidden: false, replacement_hidden: false,
+            effective_hidden: hidden, culled, walked, displayable: !hidden && !culled,
+        },
+        hooks,
+        draw,
+    });
+    const document = {
+        schema: 1, interface: 12, viewport: { width: 512, height: 334 }, root: 3,
+        component_count: 10, live_count: 3, exported_count: 3, emit_count: 1, truncated: false,
+        /* Storage order is deliberately unrelated to the sibling links. */
+        nodes: [
+            node({
+                id: 7, uid: 12 << 16, parent: 3, dynamic: true, childIndex: 42,
+                kind: 'rectangle', type: 3, x: 18, y: 24, width: 96, height: 31,
+                hidden: true,
+                hooks: [{ name: 'on_timer', script: 99, argc: 3, string_argc: 0 }],
+            }),
+            node({ id: 3, uid: 12 << 16, firstChild: 9, width: 512, height: 334 }),
+            node({
+                id: 9, uid: (12 << 16) | 4, parent: 3, nextSibling: 7,
+                kind: 'text', type: 4, x: 12, y: 8, width: 120, height: 20,
+                draw: {
+                    count: 1, kind: 2, x: 12, y: 8, width: 120, height: 20,
+                    clip: { x: 0, y: 0, width: 512, height: 334 }, scroll_x: 0, scroll_y: 0,
+                },
+            }),
+        ],
+    };
+
+    const parsed = parseNativeTree(JSON.stringify(document));
+    assert(parsed.tree.map((entry) => entry.node).join(',') === '3,9,7',
+           `native sibling order was ${parsed.tree.map((entry) => entry.node).join(',')}`);
+    const ir = {
+        interfaceId: 12,
+        components: [
+            { fileId: 0, name: 'infinite' },
+            { fileId: 4, name: 'title' },
+        ],
+    };
+    const inspector = nativeTreeInspector(parsed, ir);
+    assert(inspector.viewport.width === 512 && inspector.viewport.height === 334,
+           'native framebuffer dimensions were not preserved');
+    assert(inspector.boxes.map((box) => box.name).join(',') === 'infinite,title,infinite[42]',
+           `native inspector names/order were ${inspector.boxes.map((box) => box.name).join(',')}`);
+    const dynamic = inspector.boxes.find((box) => box.native.node === 7);
+    assert(dynamic.w === 96 && dynamic.h === 31, 'post-script native size was replaced by imported IR');
+    assert(dynamic.effectiveHidden && !dynamic.emitted, 'native hidden state was not authoritative');
+    assert(dynamic.hooks[0] === 'on_timer' && dynamic.native.hooks[0].script === 99,
+           'runtime hook metadata was lost');
+    const title = inspector.boxes.find((box) => box.name === 'title');
+    assert(title.clip.right === 512 && title.native.drawCount === 1,
+           'native emit/clip metadata was lost');
+});
+
+test('native UITree parser enforces its machine-output bounds and links', () => {
+    const empty = JSON.stringify({
+        schema: 1, interface: 12, viewport: { width: 512, height: 334 }, root: -1,
+        component_count: 0, live_count: 0, exported_count: 0, emit_count: 0,
+        truncated: false, nodes: [],
+    });
+    assertThrows(() => parseNativeTree(empty, { maxBytes: 10 }), 'exceeds 10 bytes');
+    const invalid = JSON.parse(empty);
+    invalid.root = 4;
+    invalid.component_count = 1;
+    invalid.live_count = 1;
+    invalid.exported_count = 1;
+    invalid.nodes = [{
+        node: 4, uid: 1, group: 0, file: 1,
+        parent: 99, first_child: -1, next_sibling: -1, depth: 0,
+        dynamic: false, child_index: -1, kind: 'layer', type: 1, widget_type: 0,
+        if3: true, transparency: 0, client_code: 0, item_id: -1, item_count: 0,
+        raw: {
+            x: 0, y: 0, width: 1, height: 1,
+            x_mode: 0, y_mode: 0, width_mode: 0, height_mode: 0,
+        },
+        box: { x: 0, y: 0, width: 1, height: 1, resolved: true },
+        scroll: { x: 0, y: 0, width: 0, height: 0 },
+        visibility: {
+            own_hidden: false, frame_hidden: false, replacement_hidden: false,
+            effective_hidden: false, culled: false, walked: true, displayable: true,
+        },
+        hooks: [], draw: null,
+    }];
+    assertThrows(() => parseNativeTree(invalid), 'missing parent 99');
 });
 
 /* ---- 3d. sprites --------------------------------------------------------- */
@@ -619,6 +988,284 @@ test('a cachepack sprite bitmap becomes a PNG', () => {
     assert(png.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
            'PNG signature');
     assert(png.readUInt32BE(16) === 2 && png.readUInt32BE(20) === 1, 'PNG dimensions');
+});
+
+/* ---- 3e. opening unpacked content --------------------------------------- */
+
+test('an unpacked .if is rebuilt as React-style preview IR with linked scripts', () => {
+    const content = makeContent('open-content');
+    writeFileSync(join(content, 'pack', '3_interfaces.pack'), '10=existing_panel\n');
+    writeFileSync(join(content, 'pack', '12_clientscripts.pack'), '77=script_77\n');
+    writeFileSync(join(content, 'interfaces', 'existing_panel.compack'),
+                  '0=universe\n4=backing\n9=label\n');
+    writeFileSync(join(content, 'interfaces', 'existing_panel.if'), `
+        // existing cache interface
+        [universe]
+        if3=yes
+        type=0
+        width=120
+        height=40
+        onload=i:77,i:-2147483645,s:a,b
+
+        [backing]
+        if3=yes
+        type=3
+        width=120
+        height=40
+        layer=655360
+        colour=2236962
+        fill=yes
+
+        [label]
+        if3=yes
+        type=4
+        x=4
+        y=4
+        width=112
+        height=20
+        layer=655360
+        text=From content
+        font=495
+        colour=16777215
+    `);
+    writeFileSync(join(content, 'scripts', 'script_77.cs2'),
+                  '// 77\n[clientscript,existing_init](component $component0, string $string0)\nreturn;\n');
+
+    const catalog = contentInterfaceCatalog(content);
+    assert(catalog.length === 1 && catalog[0].key === 'content:existing_panel',
+           'the content interface was not catalogued');
+
+    const opened = openContentInterface(content, 'existing_panel');
+    assert(opened.interfaceId === 10, 'interface id');
+    assert(opened.ir.components.length === 3, 'component count');
+    assert(opened.ir.components[1].fileId === 4, 'compack file id was not preserved');
+    assert(opened.ir.components[1].layer === 0, 'full parent uid was not reduced to its file id');
+    assert(opened.ir.components[2].static.text === 'From content', 'text field');
+    assert(opened.scripts.length === 1 && opened.scripts[0].id === 77, 'hook script was not loaded');
+    assertIncludes(opened.scripts[0].source, '[clientscript,existing_init]');
+    assertIncludes(opened.reactSource, 'export default function ExistingPanel()');
+    assertIncludes(opened.reactSource, '<Rect id={"backing"}');
+    assertIncludes(opened.reactSource, 'universe cache hooks: onload=i:77');
+});
+
+test('interface parsing keeps equals signs and commas inside field values', () => {
+    const blocks = parseBlocks('[root]\ntext=a=b,c\nonload=i:1,s:x,y\n');
+    assert(blocks[0].fields.text === 'a=b,c', 'equals/comma text was truncated');
+    assert(blocks[0].fields.onload === 'i:1,s:x,y', 'hook string was truncated');
+});
+
+test('cache onload scripts apply conditional component state and resolve model assets', () => {
+    const content = makeContent('runtime-content');
+    mkdirSync(join(content, 'models'), { recursive: true });
+    writeFileSync(join(content, 'pack', '3_interfaces.pack'), '10=runtime_panel\n');
+    writeFileSync(join(content, 'pack', '12_clientscripts.pack'), '77=runtime_init\n');
+    writeFileSync(join(content, 'pack', '7_models.pack'), '55=model_55\n');
+    writeFileSync(join(content, 'pack', '8_sprites.pack'), '170=miscgraphics_0\n179=miscgraphics_9\n');
+    writeFileSync(join(content, 'models', 'model_55.model'), Buffer.from([1, 2, 3]));
+    writeFileSync(join(content, 'interfaces', 'runtime_panel.compack'), '0=root\n2=panel\n3=avatar\n');
+    writeFileSync(join(content, 'interfaces', 'runtime_panel.if'), [
+        '[root]', 'if3=yes', 'type=0', 'width=100', 'height=100',
+        'onload=i:77,i:-2147483645,i:655362', '',
+        '[panel]', 'if3=yes', 'type=5', 'width=20', 'height=20', 'layer=655360', '',
+        '[avatar]', 'if3=yes', 'type=6', 'width=20', 'height=20', 'layer=655360',
+        'clientcode=328', 'modelzoom=550', '',
+    ].join('\n'));
+    writeFileSync(join(content, 'scripts', 'runtime_init.cs2'), [
+        '[clientscript,runtime_init](component $self, component $panel)',
+        'if (%varbit9 = 0) {',
+        '  if_sethide(true, $panel);',
+        '} else {',
+        '  if_sethide(false, $panel);',
+        '  if_setgraphic("miscgraphics,9", $panel);',
+        '}',
+    ].join('\n'));
+
+    const hidden = openContentInterface(content, 'runtime_panel');
+    executeContentHooks(hidden, { 'varbit:9': 0 });
+    assert(hidden.ir.components.find((component) => component.name === 'panel').static.hidden,
+           'false branch state did not hide the panel');
+    assert(hidden.ir.components.find((component) => component.name === 'avatar').static.clientCode === 328,
+           'client-code model selector was lost');
+
+    const visible = openContentInterface(content, 'runtime_panel');
+    executeContentHooks(visible, { 'varbit:9': 1 });
+    const panel = visible.ir.components.find((component) => component.name === 'panel');
+    assert(!panel.static.hidden && panel.static.sprite === 179,
+           'true branch state did not update visibility and sprite');
+    assert(stateInputs(visible.ir).some((input) => input.key === 'varbit:9'),
+           'script state read did not become a preview control');
+    assert(rawModel(content, modelIndex(content), 55).equals(Buffer.from([1, 2, 3])),
+           'content model id did not resolve to its raw cache record');
+});
+
+test('a Dat2 project is selectively decoded once and invalidated when the cache changes', () => {
+    const root = join(scratch, 'dat2-project');
+    const cache = join(root, 'cache');
+    const derived = join(root, 'derived');
+    mkdirSync(join(root, 'ui'), { recursive: true });
+    mkdirSync(cache, { recursive: true });
+    writeFileSync(join(cache, 'main_file_cache.dat2'), 'first');
+    writeFileSync(join(cache, 'main_file_cache.idx255'), 'reference');
+    writeFileSync(join(root, 'cs2dom.json'), JSON.stringify({
+        cache: 'cache', revision: 'osrs239', sources: 'ui',
+    }));
+
+    /* A tiny cachepack stand-in: this test is about staging, reuse and invalidation;
+     * the real decoder is exercised by the repository-cache smoke test. */
+    const tool = join(root, 'fake-cachepack');
+    writeFileSync(tool, [
+        '#!/usr/bin/env node',
+        "const fs = require('node:fs');",
+        "const path = require('node:path');",
+        "const arg = (name) => process.argv[process.argv.indexOf(name) + 1];",
+        "const out = arg('--src'), cache = arg('--cache');",
+        "for (const dir of ['pack', 'interfaces', 'scripts', 'sprites'])",
+        "  fs.mkdirSync(path.join(out, dir), { recursive: true });",
+        "fs.writeFileSync(path.join(out, 'pack', '3_interfaces.pack'), '0=panel\\n');",
+        "fs.writeFileSync(path.join(out, 'pack', '8_sprites.pack'), '');",
+        "fs.writeFileSync(path.join(out, 'pack', '12_clientscripts.pack'), '');",
+        "fs.writeFileSync(path.join(out, 'interfaces', 'panel.if'), '[root]\\nif3=yes\\ntype=0\\n');",
+        "fs.writeFileSync(path.join(out, 'interfaces', 'panel.compack'), '0=root\\n');",
+        "fs.appendFileSync(path.join(cache, 'invocations'), '1\\n');",
+    ].join('\n'));
+    chmodSync(tool, 0o755);
+
+    const project = loadProject(root);
+    assert(project.content === null && project.cache === cache, 'cache-only project config');
+    const first = prepareDat2Project(project, { tool, cacheRoot: derived });
+    assert(first.contentSource === 'dat2' && first.derivedContent, 'Dat2 source marker');
+    assert(contentInterfaceCatalog(first.content, { source: 'dat2' }).length === 1,
+           'derived interface was not readable');
+
+    const again = prepareDat2Project(project, { tool, cacheRoot: derived });
+    assert(again.content === first.content && again.reusedDat2Decode, 'decode was not reused');
+    assert(readFileSync(join(cache, 'invocations'), 'utf8').trim().split('\n').length === 1,
+           'cachepack ran for an unchanged cache');
+
+    writeFileSync(join(cache, 'main_file_cache.dat2'), 'changed cache bytes');
+    const changed = prepareDat2Project(project, { tool, cacheRoot: derived });
+    assert(changed.content !== first.content, 'a changed Dat2 cache reused stale output');
+    assert(readFileSync(join(cache, 'invocations'), 'utf8').trim().split('\n').length === 2,
+           'changed cache was not decoded again');
+
+    const unpacked = join(root, 'content');
+    mkdirSync(unpacked);
+    const combined = prepareDat2Project({
+        ...project, content: unpacked, unpackedContent: unpacked, contentSource: 'content',
+    }, { tool, cacheRoot: derived });
+    assert(combined.content === unpacked, 'Dat2 replaced the authored content ledger');
+    assert(combined.dat2Content === changed.content, 'combined project lost its Dat2 source');
+});
+
+test('native overlay closure follows procedures and deferred events but keeps base-only scripts', () => {
+    const fixture = makeNativeOverlayFixture('native-overlay-closure');
+    const scripts = collectInterfaceScripts(fixture.content, 'panel');
+    const actual = scripts.map(({ id, name }) => [id, name]);
+    const expected = [
+        [10, 'entry'],
+        [11, 'proc_a'],
+        [12, 'event_b'],
+        [13, 'numeric_script'],
+        [15, 'event_c'],
+    ];
+    assert(JSON.stringify(actual) === JSON.stringify(expected),
+           `unexpected native script closure: ${JSON.stringify(actual)}`);
+    assert(!scripts.some(({ id }) => id === 14),
+           'a hook without editable source displaced its base-cache script');
+    assert(!scripts.some(({ id }) => id === 99),
+           'an unreachable content script was pulled into the overlay');
+});
+
+test('native overlay stages a sparse source set and invalidates cache and source keys', () => {
+    const fixture = makeNativeOverlayFixture('native-overlay-selection');
+    const options = {
+        tool: fixture.tool,
+        cacheRoot: fixture.cacheRoot,
+        cs2Names: fixture.cs2Names,
+    };
+    const first = prepareNativeOverlay(fixture.project, 'panel', options);
+    assert(!first.nativeOverlay.reused, 'a new overlay was reported as reused');
+    assert(first.nativeOverlay.interfaceId === 12, 'the selected interface id was lost');
+    assert(JSON.stringify(first.nativeOverlay.scriptIds) === JSON.stringify([10, 11, 12, 13, 15]),
+           `unexpected overlay script ids: ${JSON.stringify(first.nativeOverlay.scriptIds)}`);
+    assert(first.cache !== fixture.cache, 'the overlay still points at the mutable base cache');
+    assert(existsSync(join(first.cache, '.cs2dom-native-overlay.json')),
+           'the reusable overlay marker was not published');
+    assert(readFileSync(join(first.cache, 'main_file_cache.dat2'), 'utf8') === 'base dat2|overlay',
+           'the fake packer did not receive and update the cloned cache');
+    assert(readFileSync(join(fixture.cache, 'main_file_cache.dat2'), 'utf8') === 'base dat2',
+           'overlay composition modified the base cache');
+
+    let calls = nativeOverlayCalls(fixture);
+    assert(calls.length === 1, `cachepack ran ${calls.length} times for the first overlay`);
+    assert(calls[0].argv.includes('--asset-only') &&
+           calls[0].argv.includes('--assets=interfaces,scripts'),
+           `cachepack did not receive sparse asset flags: ${JSON.stringify(calls[0].argv)}`);
+    assert(JSON.stringify(calls[0].archives) === JSON.stringify([
+        'interfaces=12',
+        'scripts=10',
+        'scripts=11',
+        'scripts=12',
+        'scripts=13',
+        'scripts=15',
+    ]), `unexpected archive selection: ${JSON.stringify(calls[0].archives)}`);
+    assert(JSON.stringify(calls[0].interfaces) === JSON.stringify(['panel.compack', 'panel.if']),
+           `unexpected staged interfaces: ${JSON.stringify(calls[0].interfaces)}`);
+    assert(JSON.stringify(calls[0].scripts) === JSON.stringify([
+        'entry.cs2', 'event_b.cs2', 'event_c.cs2', 'numeric_script.cs2', 'proc_a.cs2',
+    ]), `unexpected staged scripts: ${JSON.stringify(calls[0].scripts)}`);
+    assert(JSON.stringify(calls[0].pack) === JSON.stringify([
+        '12_clientscripts.pack', '3_interfaces.pack', '8_sprites.pack',
+    ]), `the lookup ledgers were not staged: ${JSON.stringify(calls[0].pack)}`);
+    assert(JSON.stringify(calls[0].configs) === JSON.stringify([
+        'all.varbit.compack', 'all.varp.compack',
+    ]), `non-compack config source was staged: ${JSON.stringify(calls[0].configs)}`);
+    assert(calls[0].cs2Names === resolve(fixture.cs2Names),
+           'the selected CS2 name table was not passed to cachepack');
+
+    const reused = prepareNativeOverlay(fixture.project, 12, options);
+    assert(reused.cache === first.cache && reused.nativeOverlay.reused,
+           'an identical numeric selection did not reuse its overlay key');
+    assert(nativeOverlayCalls(fixture).length === 1,
+           'cachepack reran for unchanged compiler inputs');
+
+    writeFileSync(join(fixture.cache, 'main_file_cache.idx7'), 'expanded models index bytes');
+    const indexChanged = prepareNativeOverlay(fixture.project, 'panel', options);
+    assert(indexChanged.nativeOverlay.key !== first.nativeOverlay.key &&
+           indexChanged.cache !== first.cache && !indexChanged.nativeOverlay.reused,
+           'an idx-only base-cache change reused a stale overlay');
+
+    const entry = join(fixture.content, 'scripts', 'entry.cs2');
+    writeFileSync(entry, `${readFileSync(entry, 'utf8')}\n// edited source\n`);
+    const sourceChanged = prepareNativeOverlay(fixture.project, 'panel', options);
+    assert(sourceChanged.nativeOverlay.key !== indexChanged.nativeOverlay.key &&
+           !sourceChanged.nativeOverlay.reused,
+           'a reachable source edit reused a stale overlay');
+
+    const unrelated = join(fixture.content, 'scripts', 'unrelated.cs2');
+    writeFileSync(unrelated, `${readFileSync(unrelated, 'utf8')}\n// unrelated edit\n`);
+    const unrelatedChanged = prepareNativeOverlay(fixture.project, 'panel', options);
+    assert(unrelatedChanged.nativeOverlay.key === sourceChanged.nativeOverlay.key &&
+           unrelatedChanged.nativeOverlay.reused,
+           'an unreachable source edit invalidated the selected overlay');
+    calls = nativeOverlayCalls(fixture);
+    assert(calls.length === 3,
+           `cachepack should run once per relevant key, but ran ${calls.length} times`);
+});
+
+test('native overlay reports cachepack failure and removes its private staging cache', () => {
+    const fixture = makeNativeOverlayFixture('native-overlay-failure', { fail: true });
+    assertThrows(() => prepareNativeOverlay(fixture.project, 'panel', {
+        tool: fixture.tool,
+        cacheRoot: fixture.cacheRoot,
+        cs2Names: fixture.cs2Names,
+    }), 'selected archive(s) were codec-declined');
+    assert(existsSync(fixture.cacheRoot) && readdirSync(fixture.cacheRoot).length === 0,
+           'a failed cachepack run left a partial overlay behind');
+    assert(nativeOverlayCalls(fixture).length === 1,
+           'the failing fake cachepack did not receive exactly one attempt');
+    assert(readFileSync(join(fixture.cache, 'main_file_cache.dat2'), 'utf8') === 'base dat2',
+           'a failed overlay modified the base cache');
 });
 
 /* ---- 4. ids -------------------------------------------------------------- */

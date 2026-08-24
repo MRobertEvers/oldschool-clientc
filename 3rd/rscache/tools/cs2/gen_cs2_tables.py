@@ -276,7 +276,15 @@ def main() -> int:
     # so a LOCAL_BASIC entry for it used to fail with "has no opcode id".
     meta_names = parse_opcode_meta(REPO_OPCODE_META)
     for opcode, name in meta_names.items():
-        by_id.setdefault(opcode, name.lower())
+        # Opcodes.kt deliberately retains numeric placeholders for commands it
+        # did not understand when that snapshot was made.  The VM metadata is
+        # newer and is the shared source of truth for names, so a semantic name
+        # must replace an old `_1234` spelling rather than lose to setdefault().
+        # Keep the placeholder in by_name: old decompiles remain valid compiler
+        # input while newly decompiled source uses the established name.
+        old_name = by_id.get(opcode)
+        if old_name is None or re.fullmatch(r"_\d+", old_name):
+            by_id[opcode] = name.lower()
         by_name.setdefault(name, opcode)
     for opcode, name in LOCAL_NAMES.items():
         by_id[opcode] = name.lower()

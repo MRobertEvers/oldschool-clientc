@@ -3,7 +3,7 @@
 #define CS2_OPCODE_H
 
 #define CS2_OPCODE_MAX 8024
-#define CS2_OPCODE_COUNT 926
+#define CS2_OPCODE_COUNT 975
 
 #define CS2_OP_SS_AND -2
 #define CS2_OP_SS_OR -1
@@ -269,6 +269,7 @@
  * notes: pc = case target or fall through
  */
 #define CS2_OP_SWITCH 60
+#define CS2_OP_PUSH_CONSTANT_NULL 63
 #define CS2_OP_PUSH_VARCLANSETTING 74
 #define CS2_OP_PUSH_VARCLAN 76
 /* BRANCH_IF_ONE — RS2-era (rev 634) conditional branch.
@@ -363,11 +364,14 @@
 #define CS2_OP_CC_CHILDREN_FINDNEXTID 204
 #define CS2_OP_IF_CHILDREN_FIND 205
 #define CS2_OP_IF_CHILDREN_FINDNEXTID 206
+#define CS2_OP_CC_PARENTID 209
+#define CS2_OP_CC_FIND_PARAM 210
 #define CS2_OP_IF_CHILDREN_COLLECT 211
 #define CS2_OP_CC_CHILDREN_FIND_COUNT 212
 #define CS2_OP_CC_CHILDREN_FINDNEXT 213
 #define CS2_OP__213 213
 #define CS2_OP_CHILDREN_ARRAY 215
+#define CS2_OP_CC_ASSERT 222
 
 /* === CS2 opcode group: component-layout (1000..1099 / 2000..2099) ===
  * component position, size and visibility setters.
@@ -534,6 +538,7 @@
  * notes: Widget type 10 only. 65536 is a full turn, 0 is straight up, and the sweep runs clockwise. Drawn as an annulus sector; script 5480 builds the overlay countdown pie from three of them.
  */
 #define CS2_OP_CC_SETARC 1128
+#define CS2_OP_CC_SETHTTPSPRITE 1129
 #define CS2_OP_CC_INPUT_SETSUBMITMODE 1133
 #define CS2_OP_CC_INPUT_SETSELECTCOLOUR 1134
 #define CS2_OP_CC_INPUT_SETACCEPTMODE 1135
@@ -548,6 +553,7 @@
 #define CS2_OP_CC_INPUT_SETCURSOROFFSET 1144
 #define CS2_OP_CC_INPUT_SETLINEWIDTHLIMIT 1145
 #define CS2_OP_CC_INPUT_SETCHARFILTER 1146
+#define CS2_OP_CC_CRMVIEW_DISMISS 1152
 
 /* === CS2 opcode group: component-model (1200..1299 / 2200..2299) ===
  * component object and head-model setters.
@@ -591,6 +597,7 @@
  * str stack out:  -
  */
 #define CS2_OP_CC_SETOBJECT_ALWAYS_NUM 1212
+#define CS2_OP_CC_SETLOCMODEL 1214
 
 /* === CS2 opcode group: component-op (1300..1399 / 2300..2399) ===
  * component ops, dragging and key bindings.
@@ -977,13 +984,15 @@
 #define CS2_OP_CC_GETMODELANGLE_Z 1607
 #define CS2_OP_CC_GETMODELANGLE_Y 1608
 #define CS2_OP_CC_GETTRANS 1609
-#define CS2_OP__1610 1610
+#define CS2_OP_CC_GETBLENDTRANS 1610
 #define CS2_OP_CC_GETCOLOUR 1611
 #define CS2_OP_CC_GETFILLCOLOUR 1612
 #define CS2_OP_CC_GETPARAM 1613
 #define CS2_OP_CC_GETMODELTRANSPARENT 1614
-#define CS2_OP__1615 1615
-#define CS2_OP__1616 1616
+#define CS2_OP_CC_GETARCSTART 1615
+#define CS2_OP_CC_GETARCEND 1616
+#define CS2_OP_CC_INPUT_GETFOCUS 1624
+#define CS2_OP_CC_INPUT_GETCARETPOSITION 1628
 
 /* === CS2 opcode group: cc-inventory (1700..1799) ===
  * active-component inventory and identity getters.
@@ -1361,6 +1370,8 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_SETOBJECT_ALWAYS_NUM 2212
+#define CS2_OP_IF_SETLOCMODEL 2214
+#define CS2_OP_IF_SETNPCMODEL 2215
 
 /* === CS2 opcode group: component-op (1300..1399 / 2300..2399) ===
  * component ops, dragging and key bindings.
@@ -1760,6 +1771,7 @@
  */
 #define CS2_OP_MES 3100
 #define CS2_OP_ANIM 3101
+#define CS2_OP_MES_TYPED 3102
 #define CS2_OP_IF_CLOSE 3103
 #define CS2_OP_RESUME_COUNTDIALOG 3104
 #define CS2_OP_RESUME_NAMEDIALOG 3105
@@ -1776,11 +1788,11 @@
 #define CS2_OP_SETSHIFTCLICKDROP 3117
 #define CS2_OP_SETSHOWMOUSEOVERTEXT 3118
 #define CS2_OP_RENDERSELF 3119
-#define CS2_OP__3120 3120
+#define CS2_OP_SETDRAWPLAYERNAMES_FRIENDS 3120
 #define CS2_OP__3121 3121
-#define CS2_OP__3122 3122
+#define CS2_OP_SETDRAWPLAYERNAMES_OTHERS 3122
 #define CS2_OP__3123 3123
-#define CS2_OP__3124 3124
+#define CS2_OP_RESETDRAWPLAYERNAMES 3124
 #define CS2_OP_SETSHOWMOUSECROSS 3125
 #define CS2_OP_SETSHOWLOADINGMESSAGES 3126
 #define CS2_OP_SETTAPTODROP 3127
@@ -1792,8 +1804,8 @@
  * str stack out:  -
  */
 #define CS2_OP_SETKEYINPUTENABLED 3129
-#define CS2_OP__3130 3130
-#define CS2_OP__3131 3131
+#define CS2_OP_SETFEEDBACKSPRITE 3130
+#define CS2_OP_SETFEEDBACKSHOWPOPUPTEXT 3131
 #define CS2_OP_GETCANVASSIZE 3132
 #define CS2_OP_MOBILE_SETFPS 3133
 #define CS2_OP_MOBILE_OPENSTORE 3134
@@ -1830,7 +1842,7 @@
 #define CS2_OP_SETREMEMBERUSERNAME 3143
 #define CS2_OP_GETREMEMBERUSERNAME 3144
 #define CS2_OP_SHOW_IOS_REVIEW 3145
-#define CS2_OP__3157 3157
+#define CS2_OP_SHOP_OPENCATEGORIES 3157
 /*
  * Mobile local (push) notifications, 3170..3173. Newer than the vendored RuneStar
  * table, which has nothing between 3157 and 3181. Desktop has no notification
@@ -1868,10 +1880,15 @@
  * str stack out:  -
  */
 #define CS2_OP_LOCAL_NOTIFICATION_SUPPORTED 3173
+#define CS2_OP_MARKETING_INITANALYTICS 3177
+#define CS2_OP_MARKETING_SENDANALYTICSEVENT 3178
+#define CS2_OP_MARKETING_INITATTRIBUTION 3179
+#define CS2_OP_MARKETING_SENDATTRIBUTIONEVENT 3180
 #define CS2_OP_SETBRIGHTNESS 3181
 #define CS2_OP_GETBRIGHTNESS 3182
 #define CS2_OP_SETANTIDRAG 3183
 #define CS2_OP__3184 3184
+#define CS2_OP_SEQ_PREFETCH 3189
 
 /* === CS2 opcode group: audio-options (3200..3299) ===
  * audio and client option commands.
@@ -1921,6 +1938,9 @@
  * notes: Named _3221 upstream. Script 9630 falls back to SOUND_SONG when its secondary lookup returns -1, which identifies the operation.
  */
 #define CS2_OP_SOUND_SONG_WITHSECONDARY 3221
+#define CS2_OP_RT7_SETENABLED 3223
+#define CS2_OP_RT7_SD 3224
+#define CS2_OP_RT7_HD 3225
 
 /* === CS2 opcode group: client-state (3300..3399) ===
  * client state, inventory, stats and coordinates.
@@ -2030,6 +2050,9 @@
 #define CS2_OP_MOVECOORD 3325
 #define CS2_OP_MOUSE_GETX 3326
 #define CS2_OP_MOUSE_GETY 3327
+#define CS2_OP_IDLETIMER_GET 3328
+#define CS2_OP_IDLETIMER_RESET 3329
+#define CS2_OP_DESTINATIONCOORD 3330
 #define CS2_OP__3330 3330
 
 /* === CS2 opcode group: enum (3400..3499) ===
@@ -2104,9 +2127,9 @@
 #define CS2_OP_CLAN_GETCHATOWNERNAME 3625
 #define CS2_OP_CLAN_ISFRIEND 3626
 #define CS2_OP_CLAN_ISIGNORE 3627
-#define CS2_OP__3628 3628
-#define CS2_OP__3629 3629
-#define CS2_OP__3630 3630
+#define CS2_OP_FRIENDLIST_SORT_RESET 3628
+#define CS2_OP_FRIENDLIST_SORT_LEGACY 3629
+#define CS2_OP_FRIENDLIST_SORT_NAME 3630
 #define CS2_OP__3631 3631
 #define CS2_OP__3632 3632
 #define CS2_OP__3633 3633
@@ -2115,33 +2138,33 @@
 #define CS2_OP__3636 3636
 #define CS2_OP__3637 3637
 #define CS2_OP__3638 3638
-#define CS2_OP__3639 3639
+#define CS2_OP_FRIENDLIST_SORT_APPLY 3639
 #define CS2_OP__3640 3640
 #define CS2_OP__3641 3641
 #define CS2_OP__3642 3642
 #define CS2_OP__3643 3643
-#define CS2_OP__3644 3644
-#define CS2_OP__3645 3645
-#define CS2_OP__3646 3646
-#define CS2_OP__3647 3647
-#define CS2_OP__3648 3648
+#define CS2_OP_FRIENDSCHAT_SORT_RESET 3644
+#define CS2_OP_FRIENDSCHAT_SORT_LEGACY 3645
+#define CS2_OP_FRIENDSCHAT_SORT_NAME 3646
+#define CS2_OP_FRIENDSCHAT_SORT_WORLD 3647
+#define CS2_OP_FRIENDSCHAT_SORT_LASTWORLDCHANGE 3648
 #define CS2_OP__3649 3649
 #define CS2_OP__3650 3650
 #define CS2_OP__3651 3651
-#define CS2_OP__3652 3652
+#define CS2_OP_FRIENDSCHAT_SORT_ONLINE_WORLD 3652
 #define CS2_OP__3653 3653
 #define CS2_OP__3654 3654
-#define CS2_OP__3655 3655
-#define CS2_OP__3656 3656
-#define CS2_OP__3657 3657
+#define CS2_OP_FRIENDSCHAT_SORT_APPLY 3655
+#define CS2_OP_FRIENDLIST_SORT_RANK 3656
+#define CS2_OP_FRIENDSCHAT_SORT_RANK 3657
 
 /* === CS2 opcode group: unused-3700 (3700..3799) ===
  * unhandled 3700-series commands.
  * rev-239 dispatch: Statics.method6889 -> method13645.
  */
-#define CS2_OP__3700 3700
-#define CS2_OP__3701 3701
-#define CS2_OP__3702 3702
+#define CS2_OP_STEAM_SETACHIEVEMENT 3700
+#define CS2_OP_STEAM_SETSTAT 3701
+#define CS2_OP_STEAM_STORESTATS 3702
 
 /* === CS2 opcode group: clan (3800..3899) ===
  * clan settings and channels.
@@ -2210,6 +2233,8 @@
 #define CS2_OP_TRADINGPOST_GETOFFERCOUNT 3924
 #define CS2_OP_TRADINGPOST_GETOFFERPRICE 3925
 #define CS2_OP_TRADINGPOST_GETOFFERITEM 3926
+#define CS2_OP_STOCKMARKET_SELLABLE 3931
+#define CS2_OP_STOCKMARKET_VALUE 3932
 
 /* === CS2 opcode group: math (4000..4099) ===
  * integer maths and bit operations.
@@ -2466,6 +2491,8 @@
  * str stack out:  uppercased text
  */
 #define CS2_OP_UPPERCASE 4122
+#define CS2_OP_TEXT_PRONOUN 4123
+#define CS2_OP_PRONOUN 4124
 
 /* === CS2 opcode group: obj (4200..4299) ===
  * object definitions and object search.
@@ -2555,8 +2582,8 @@
  */
 #define CS2_OP_LOGOUT 5630
 #define CS2_OP_FEDERATED_LOGIN 5631
-#define CS2_OP__5632 5632
-#define CS2_OP__5633 5633
+#define CS2_OP_FEDERATED_LOGIN_STATE 5632
+#define CS2_OP_FEDERATED_SHOP 5633
 
 /* === CS2 opcode group: viewport (5700..6299) ===
  * viewport, canvas, UI zoom and safe-area commands.
@@ -2625,8 +2652,8 @@
 #define CS2_OP_CLIENTTYPE 6519
 #define CS2_OP__6520 6520
 #define CS2_OP_MOBILE_KEYBOARDHIDE 6521
-#define CS2_OP__6522 6522
-#define CS2_OP__6523 6523
+#define CS2_OP_MOBILE_KEYBOARDSHOWSTRING 6522
+#define CS2_OP_MOBILE_KEYBOARDSHOWINTEGER 6523
 /* MOBILE_BATTERYLEVEL — Battery charge percentage (0..100).
  * int stack in:   -
  * str stack in:   -
@@ -2651,7 +2678,8 @@
  * notes: Desktop is treated as an unmetered connection.
  */
 #define CS2_OP_MOBILE_WIFIAVAILABLE 6526
-#define CS2_OP__6527 6527
+#define CS2_OP_PLATFORMTYPE 6527
+#define CS2_OP_CLIENT_VERSION 6531
 
 /* === CS2 opcode group: worldmap (6600..6699) ===
  * world-map and map-element commands.
@@ -3013,18 +3041,26 @@
 #define CS2_OP_CLIENTOP_PLAYER_DEL 6707
 #define CS2_OP_CLIENTOP_TILE_SET 6708
 #define CS2_OP_CLIENTOP_TILE_DEL 6709
+#define CS2_OP_NPC_NAME 6750
 #define CS2_OP__6750 6750
+#define CS2_OP_NPC_UID 6751
 #define CS2_OP__6751 6751
+#define CS2_OP_NPC_CREATIONCYCLE 6752
 #define CS2_OP__6752 6752
+#define CS2_OP_NPC_TYPE 6753
 #define CS2_OP__6753 6753
 #define CS2_OP_NC_NAME 6754
+#define CS2_OP_NC_GETOPBASE 6761
+#define CS2_OP_NC_GETOP 6762
 
 /* === CS2 opcode group: clientop-loc (6800..6899) ===
  * active location and object queries.
  * rev-239 dispatch: Statics.method6889 -> method3101.
  */
 #define CS2_OP__6800 6800
+#define CS2_OP_LOC_COORD 6801
 #define CS2_OP__6801 6801
+#define CS2_OP_LOC_TYPE 6802
 #define CS2_OP__6802 6802
 /* LOC_FIND — Find a location of a given type at a tile and make it active.
  * int stack in:   coord, loc_type                     (loc_type = top)
@@ -3034,25 +3070,35 @@
  * notes: Static-overlay scripts use this as their scene-presence gate; later active-loc and OVERLAY_LOC operations address the selected location.
  */
 #define CS2_OP_LOC_FIND 6803
+#define CS2_OP_LC_GETOPBASE 6806
+#define CS2_OP_LC_GETOP 6807
+#define CS2_OP_LC_NAME 6809
 #define CS2_OP__6850 6850
+#define CS2_OP_OBJ_COORD 6851
 #define CS2_OP__6851 6851
+#define CS2_OP_OBJ_TYPE 6852
 #define CS2_OP__6852 6852
 #define CS2_OP__6853 6853
+#define CS2_OP_OC_GETOPBASE 6857
+#define CS2_OP_OC_GETOP 6858
+#define CS2_OP_OBJ_OWNER 6863
 
 /* === CS2 opcode group: clientop-player (6900..6999) ===
  * active player and login-state commands.
  * rev-239 dispatch: Statics.method6889 -> method6167.
  */
+#define CS2_OP_P_NAME 6900
 #define CS2_OP__6900 6900
-/* _6901 — Make the local player the active player.
+/* P_FINDSELF — Make the local player the active player.
  * int stack in:   -
  * str stack in:   -
  * int stack out:  1 if a local player exists else -1
  * str stack out:  -
- * notes: The only setter in the _6900.._6905 active-player block. The NXT reference selects m_localPlayerIndex before pushing the result.
+ * notes: The only setter in the 6901..6905 active-player block. The NXT reference selects m_localPlayerIndex before pushing the result.
  */
-#define CS2_OP__6901 6901
-/* _6902 — Active player's route length.
+#define CS2_OP_P_FINDSELF 6901
+#define CS2_OP_ACTIVEPLAYER_SETLOCAL 6901
+/* P_ROUTELENGTH — Active player's route length.
  * int stack in:   -
  * str stack in:   -
  * int stack out:  m_routeLength (0..9)
@@ -3060,10 +3106,11 @@
  * notes: The queue of tiles the server has put the player on that the
  *        client has not walked through yet. 0 means standing still, and
  *        clientscript 5203 reads it exactly that way: with a route it marks
- *        _6903(0), without one it marks `coord`.
+ *        P_ROUTE(0), without one it marks `coord`.
  */
-#define CS2_OP__6902 6902
-/* _6903 — Active player's route coord at an index.
+#define CS2_OP_P_ROUTELENGTH 6902
+#define CS2_OP_ACTIVEPLAYER_GETROUTELENGTH 6902
+/* P_ROUTE — Active player's route coord at an index.
  * int stack in:   index
  * str stack in:   -
  * int stack out:  coord or -1
@@ -3074,24 +3121,28 @@
  *        walking. The reference packs it as plane << 28 | x << 14 | z after
  *        WorldCoordFromBuildCoord, and asserts index < m_routeLength.
  */
-#define CS2_OP__6903 6903
-/* _6904 — Active player's uid.
+#define CS2_OP_P_ROUTE 6903
+#define CS2_OP_ACTIVEPLAYER_GETROUTECOORD 6903
+/* UID — Active player's uid.
  * int stack in:   -
  * str stack in:   -
  * int stack out:  uid or -1
  * str stack out:  -
  */
-#define CS2_OP__6904 6904
-/* _6905 — Local player's uid.
+#define CS2_OP_UID 6904
+#define CS2_OP_ACTIVEPLAYER_GETUID 6904
+/* SELF_PLAYER_UID — Local player's uid.
  * int stack in:   -
  * str stack in:   -
  * int stack out:  uid or -1
  * str stack out:  -
- * notes: `_6904 = _6905` is how a per-player trigger script asks whether
- *        the player it fired for is this client's own -- clientscript 5203
- *        (the current-tile indicator) is the cache's only user of either.
+ * notes: `UID = SELF_PLAYER_UID` is how a per-player
+ *        trigger script asks whether the player it fired for is this client's
+ *        own -- clientscript 5203 (the current-tile indicator) is the cache's
+ *        only user of either.
  */
-#define CS2_OP__6905 6905
+#define CS2_OP_SELF_PLAYER_UID 6905
+#define CS2_OP_LOCALPLAYER_GETUID 6905
 /* LOGIN_INT24 — rev 634 login/account int getter (Class24.anInt359).
  * operand: unused
  * int stack in:   -
@@ -3102,6 +3153,7 @@
  *        alongside the membership flag). Scripts probe 8388605
  *        (0x7FFFFD). Offline/unlogged stub pushes 0 (static default). */
 #define CS2_OP_LOGIN_INT24 6910
+#define CS2_OP_TILE_COORD 6950
 #define CS2_OP__6950 6950
 /* COORD_INSCENE — Test whether a packed coordinate is inside the loaded scene.
  * int stack in:   coord
@@ -3396,41 +3448,46 @@
  * str stack out:  -
  */
 #define CS2_OP_HIGHLIGHT_TILE_CLEAR 7039
-/* _7040 — Define what highlight group N looks like.
+/* HIGHLIGHT_GROUP_SETUP — Define what highlight group N looks like.
  * int stack in:   group, colour, style, opacity, flags  (flags = top)
  * str stack in:   -
  * int stack out:  -
  * str stack out:  -
  */
-#define CS2_OP__7040 7040
-/* _7041 — Put one named subject into a highlight group.
+#define CS2_OP_HIGHLIGHT_GROUP_SETUP 7040
+#define CS2_OP_HIGHLIGHT_OPGROUP_SETUP 7040
+/* HIGHLIGHT_GROUP_ON — Put one named operation group into a highlight group.
  * int stack in:   group
  * str stack in:   name
  * int stack out:  -
  * str stack out:  -
  */
-#define CS2_OP__7041 7041
-/* _7042 — Take one named subject out of a highlight group.
+#define CS2_OP_HIGHLIGHT_GROUP_ON 7041
+#define CS2_OP_HIGHLIGHT_OPGROUP_ON 7041
+/* HIGHLIGHT_GROUP_OFF — Take one named operation group out of a highlight group.
  * int stack in:   group
  * str stack in:   name
  * int stack out:  -
  * str stack out:  -
  */
-#define CS2_OP__7042 7042
-/* _7043 — Is this named subject in the highlight group.
+#define CS2_OP_HIGHLIGHT_GROUP_OFF 7042
+#define CS2_OP_HIGHLIGHT_OPGROUP_OFF 7042
+/* HIGHLIGHT_GROUP_GET — Is this named operation group in the highlight group.
  * int stack in:   group
  * str stack in:   name
  * int stack out:  highlighted
  * str stack out:  -
  */
-#define CS2_OP__7043 7043
-/* _7044 — Empty a whole highlight group.
+#define CS2_OP_HIGHLIGHT_GROUP_GET 7043
+#define CS2_OP_HIGHLIGHT_OPGROUP_GET 7043
+/* HIGHLIGHT_GROUP_CLEAR — Empty a whole highlight group.
  * int stack in:   group
  * str stack in:   -
  * int stack out:  -
  * str stack out:  -
  */
-#define CS2_OP__7044 7044
+#define CS2_OP_HIGHLIGHT_GROUP_CLEAR 7044
+#define CS2_OP_HIGHLIGHT_OPGROUP_CLEAR 7044
 
 /* === CS2 opcode group: minimenu (7100..7199) ===
  * minimenu introspection.
@@ -3561,6 +3618,12 @@
 #define CS2_OP_LOOT_AUX_COUNT 7407
 #define CS2_OP_LOOT_AUX_LOOKUP 7408
 #define CS2_OP_LOOT_AUX_CLEAR 7409
+#define CS2_OP_MINIMENU_HOVERED_INDEX 7460
+#define CS2_OP_MINIMENU_SETBLOCKMODE 7462
+#define CS2_OP_MINIMENU_RESETORDER 7465
+#define CS2_OP_MINIMENU_SETORDEREDIT 7466
+#define CS2_OP_MINIMENU_TOGGLESCROLL 7470
+#define CS2_OP_MINIMENU_GETSCROLL 7471
 
 /* === CS2 opcode group: db (7500..7599) ===
  * client database commands.
@@ -3631,9 +3694,16 @@
  * native extension and client-setting commands.
  * rev-239 dispatch: Statics.method6889 -> method11128.
  */
+#define CS2_OP_HISCORE_GETRANK 7801
+#define CS2_OP_HISCORE_GETVALUE 7802
 /* Hiscores native-extension stubs (7809/7811). */
 #define CS2_OP_HISCORES_STATUS 7809
+#define CS2_OP_HISCORE_CLEAR 7810
 #define CS2_OP_HISCORES_ERROR 7811
+#define CS2_OP_HISCORE_SETAPI 7812
+#define CS2_OP_HISCORE_GETMEMBERLEVEL 7819
+#define CS2_OP_HISCORE_GETMEMBERNAME 7823
+#define CS2_OP_HISCORE_GETMEMBERHISCORES 7824
 
 /* === CS2 opcode group: array (8000..8099) ===
  * typed list and array commands.
@@ -3673,6 +3743,7 @@
  * str stack out:  joined text
  */
 #define CS2_OP_ARRAY_JOIN 8019
+#define CS2_OP_ENUM_GETOUTPUTS 8021
 /* ARRAY_NEW — Create a typed array handle.
  * int stack in:   type_code, length, capacity  (capacity = top)
  * str stack in:   -

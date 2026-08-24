@@ -884,8 +884,9 @@ RS_CS2Host_Init(
     host->script_highlight_hover_tile = cs2_host_ref(refs, "script", "highlight_hover_tile");
     host->script_highlight_current_tile = cs2_host_ref(refs, "script", "highlight_current_tile");
     host->script_highlight_dest_tile = cs2_host_ref(refs, "script", "highlight_dest_tile");
-    /* -1, not 0: 0 is a real player slot, so a zero here would make `_6905`
-     * name whichever player the server put in slot 0 before login. */
+    /* -1, not 0: 0 is a real player slot, so a zero here would make
+     * LOCALPLAYER_GETUID name whichever player the server put in slot 0 before
+     * login. */
     host->local_pid = -1;
     host->top_interface_id = -1;
     host->mouse_x = -1;
@@ -7689,7 +7690,7 @@ exec_active_player_request(
 
     switch( opcode )
     {
-    case CS2_OP__6901:
+    case CS2_OP_ACTIVEPLAYER_SETLOCAL:
     {
         struct RS_ClientOpContext ctx;
         if( host->local_pid < 0 )
@@ -7705,14 +7706,14 @@ exec_active_player_request(
         answer = 1;
         break;
     }
-    case CS2_OP__6904:
+    case CS2_OP_ACTIVEPLAYER_GETUID:
         answer = uid;
         break;
-    case CS2_OP__6905:
+    case CS2_OP_LOCALPLAYER_GETUID:
         answer = host->local_pid;
         break;
-    case CS2_OP__6902:
-    case CS2_OP__6903:
+    case CS2_OP_ACTIVEPLAYER_GETROUTELENGTH:
+    case CS2_OP_ACTIVEPLAYER_GETROUTECOORD:
     {
         int coord = -1;
         int length = -1;
@@ -7720,7 +7721,7 @@ exec_active_player_request(
             length = host->player_route(host->world_user, uid, index, &coord);
         if( length < 0 )
             length = 0;
-        answer = opcode == CS2_OP__6902 ? length : coord;
+        answer = opcode == CS2_OP_ACTIVEPLAYER_GETROUTELENGTH ? length : coord;
         break;
     }
     default:
@@ -10188,15 +10189,15 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_CLIENTOP_CONTEXT_CASE(_6900);
 
-        RS_CS2_ACTIVE_PLAYER_CASE(_6901);
+        RS_CS2_ACTIVE_PLAYER_CASE(ACTIVEPLAYER_SETLOCAL);
 
-        RS_CS2_ACTIVE_PLAYER_CASE(_6902);
+        RS_CS2_ACTIVE_PLAYER_CASE(ACTIVEPLAYER_GETROUTELENGTH);
 
-        RS_CS2_ACTIVE_PLAYER_CASE(_6903);
+        RS_CS2_ACTIVE_PLAYER_CASE(ACTIVEPLAYER_GETROUTECOORD);
 
-        RS_CS2_ACTIVE_PLAYER_CASE(_6904);
+        RS_CS2_ACTIVE_PLAYER_CASE(ACTIVEPLAYER_GETUID);
 
-        RS_CS2_ACTIVE_PLAYER_CASE(_6905);
+        RS_CS2_ACTIVE_PLAYER_CASE(LOCALPLAYER_GETUID);
 
         RS_CS2_CLIENTOP_CONTEXT_CASE(_6950);
 
@@ -10282,15 +10283,15 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_HIGHLIGHT_CASE(HIGHLIGHT_TILE_CLEAR);
 
-        RS_CS2_HIGHLIGHT_CASE(_7040);
+        RS_CS2_HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_SETUP);
 
-        RS_CS2_HIGHLIGHT_CASE(_7041);
+        RS_CS2_HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_ON);
 
-        RS_CS2_HIGHLIGHT_CASE(_7042);
+        RS_CS2_HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_OFF);
 
-        RS_CS2_HIGHLIGHT_CASE(_7043);
+        RS_CS2_HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_GET);
 
-        RS_CS2_HIGHLIGHT_CASE(_7044);
+        RS_CS2_HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_CLEAR);
 
         RS_CS2_MINIMENU_CASE(MINIMENU_TYPE);
 

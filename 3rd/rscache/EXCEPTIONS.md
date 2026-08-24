@@ -2644,6 +2644,24 @@ The final gate is **9,724/9,724 present scripts byte-exact**; numeric ID 0 is th
 only one of the scanned 9,725 IDs not decompiled because it is absent from the
 cache.
 
+### G15. Current opcode names differ from the 2021 reference *(Deviation)*
+
+The shared rev-239 VM metadata now has semantic names for 192 opcodes that the
+vendored 2021 RuneStar table still spells as numeric placeholders. The second
+96-name batch is backed by the canonical declarations in the adjacent
+`osrs-cache/data/commands` catalogue and cross-checked against the rev-239 Java
+dispatcher and rev-216 native decompile. The CS2 table
+generator previously used `setdefault`, so an older `_7000` placeholder won over
+the VM's established `HIGHLIGHT_NPC_SETUP` name. The compiler and decompiler
+therefore lagged the runtime metadata even though they read it.
+
+Current metadata now replaces only numeric placeholders; genuine vendor names
+keep their precedence. The compiler continues accepting `_1234` for any existing
+command row, while the decompiler emits the canonical semantic name. Against the
+RuneStar/cs2 fixture, 127 compared sources exercise one of the renamed rows:
+6,491 compared, 6,144 identical and exactly 347 different. This is a source-name
+difference only; the full rev-239 cache round trip remains 9,724/9,724 byte-exact.
+
 ---
 
 ## F. Not ours

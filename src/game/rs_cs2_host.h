@@ -442,7 +442,8 @@ struct RS_CS2Host
         int name_cap);
     int (*coord_in_scene)(void* user, int coord);
     /**
-     * One player's queued ROUTE, for `_6902` and `_6903`.
+     * One player's queued ROUTE, for ACTIVEPLAYER_GETROUTELENGTH and
+     * ACTIVEPLAYER_GETROUTECOORD.
      *
      * A route is the tiles the server has put a player on that the client has
      * not walked through yet -- the reference's `ClientPlayer::m_routeLength`
@@ -450,7 +451,8 @@ struct RS_CS2Host
      * WorldEntityFacet_Pathing. Index 0 is the NEWEST entry, so it is the
      * player's server-side tile and runs AHEAD of the rendered position while
      * they walk; that is the whole point of the current-tile indicator, which
-     * marks `_6903(0)` when there is a route and `coord` when there is not.
+     * marks ACTIVEPLAYER_GETROUTECOORD(0) when there is a route and `coord`
+     * when there is not.
      *
      * Returns the route length, or -1 when no player in the world has that
      * uid. `*out_coord` is filled with the packed absolute coord of entry
@@ -476,14 +478,15 @@ struct RS_CS2Host
      * zero. See CS2VM2_Op_Coord. */
     int local_coord;
     /**
-     * The local player's uid, as `_6905` reports it, or -1 before login.
+     * The local player's uid, as LOCALPLAYER_GETUID reports it, or -1 before
+     * login.
      *
      * This client's player uid IS the server player slot (pid), the same
      * choice RS_ClientOpContext::uid makes for an npc and for the same reason:
      * the value never leaves the client, so the only requirement is that
      * whoever reports it and whoever resolves it agree.
      *
-     * Read beside `_6904` (the ACTIVE player's uid) and never on its own: the
+     * Read beside ACTIVEPLAYER_GETUID and never on its own: the
      * pair is how a per-player trigger script asks "is this me", which is what
      * clientscript 5203 opens with.
      */
@@ -518,7 +521,8 @@ struct RS_CS2Host
      * set before firing it:
      *
      *     5197  [trigger_48]  hovered tile      _7039(5); tile_on(_6950, 5, 0)
-     *     5203  [trigger_49]  current tile      _7039(3); tile_on(_6903(0) or coord, 3, 0)
+     *     5203  [trigger_49]  current tile
+     *            _7039(3); tile_on(ACTIVEPLAYER_GETROUTECOORD(0) or coord, 3, 0)
      *     5209  [trigger_47]  destination tile  _7039(4); tile_on(_6950, 4, 0)
      *
      * Nothing in the CACHE calls them -- a trigger script is the client's to

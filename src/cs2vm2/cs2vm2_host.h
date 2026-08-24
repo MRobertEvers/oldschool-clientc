@@ -312,8 +312,8 @@ enum CS2VM_WidgetIntField
 /** A client-op context getter. The opcode is the whole request: these take no
  *  arguments and the host pushes the answer. */
 
-/** 6902..6905. `index` is `_6903`'s route index and -1 for the three forms
- *  that pop nothing. */
+/** 6902..6905. `index` is ACTIVEPLAYER_GETROUTECOORD's route index and -1 for
+ *  the three forms that pop nothing. */
 
 /** Any loot-tracker opcode (7400-family + 7600-family). `name` is borrowed
  *  from the VM's string pool for the ops that pop a string; the host must

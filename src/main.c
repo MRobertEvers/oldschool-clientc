@@ -51,6 +51,7 @@ struct ToriRS_D3D9;
 #include "toridraw_math.h"
 #include "ui/uitree_hover.h"
 #include "ui/uitree_layout.h"
+#include "ui/uitree_snapshot.h"
 
 #include <assert.h>
 #include <bmp.h>
@@ -3156,6 +3157,8 @@ main(
     };
     int argi;
     int i;
+    int preview_width = 0;
+    int preview_height = 0;
 
     /*
      * Buffer the diagnostic stream, and flush it once per frame (see
@@ -3383,7 +3386,23 @@ main(
         char* root_size_sep = NULL;
         long root_w = strtol(getenv("TORIRS_ROOT_SIZE"), &root_size_sep, 10);
         long root_h = root_size_sep && *root_size_sep ? strtol(root_size_sep + 1, NULL, 10) : 0;
+        if( getenv("TORIRS_PREVIEW_BMP") &&
+            (root_w <= 0 || root_h <= 0 || root_w > 4096 || root_h > 4096) )
+        {
+            fprintf(stderr, "native preview size must be 1..4096 on each axis\n");
+            return 1;
+        }
         UITree_LayoutSetRootSize((int)root_w, (int)root_h);
+        /* The ordinary client canvas has a deliberate 765x503 floor. A native
+         * interface preview is a host slot rather than a game window, so keep
+         * the requested dimensions and restore them after App_Init publishes
+         * the normal canvas through App_SetCanvasSize. This opt-in path is the
+         * only place where a sub-minimum canvas is legal. */
+        if( getenv("TORIRS_PREVIEW_BMP") )
+        {
+            preview_width = (int)root_w;
+            preview_height = (int)root_h;
+        }
         fprintf(stderr, "root_size: %dx%d\n", UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     }
     /* `[ui:boot] window` / --window: the stated boot size. Same slot as the
@@ -3409,6 +3428,22 @@ main(
         return 1;
 #endif
     App_Init(&app, &cfg);
+    if( getenv("TORIRS_PREVIEW_BMP") )
+    {
+        /* Default to the fixed-mode main/modal slot used by cs2dom. App_Init
+         * has no interface nodes yet, so restoring the root and host viewport
+         * here cannot skip resize hooks; App_OpenRootInterface below observes
+         * these exact dimensions on its first layout and onLoad pass. */
+        if( preview_width <= 0 || preview_height <= 0 )
+        {
+            preview_width = 512;
+            preview_height = 334;
+        }
+        UITree_LayoutSetRootSize(preview_width, preview_height);
+        app.host.viewport_w = preview_width;
+        app.host.viewport_h = preview_height;
+        fprintf(stderr, "preview_size: %dx%d\n", preview_width, preview_height);
+    }
 #if defined(TORIRS_WEB_CACHE_IDB)
     if( executor_attach_js5_web() != 0 )
     {
@@ -3453,13 +3488,20 @@ main(
      * bar). The headless harness/debug paths below inspect the freshly built
      * tree synchronously, so pump the boot to completion for them; the plain
      * interactive run skips this and renders the loading state instead. */
-    if( write_bmp || getenv("TORIRS_WORLD_NODE_DEBUG") || getenv("TORIRS_SIM_CLICK") ||
+    if( write_bmp || getenv("TORIRS_PREVIEW_BMP") || getenv("TORIRS_WORLD_NODE_DEBUG") ||
+        getenv("TORIRS_SIM_CLICK") ||
         getenv("TORIRS_SIM_KEYS") || getenv("TORIRS_SIM_WORLD_KEY") ||
         getenv("TORIRS_SIM_MOUSE_CLICK") || getenv("TORIRS_DUMP_EMIT") ||
         getenv("TORIRS_DUMP_TREE") || getenv("TORIRS_WORLD_BMP") ||
         getenv("TORIRS_DUMP_ROLES") || getenv("TORIRS_DUMP_CLIENTCODES") ||
         getenv("TORIRS_CMD_REPLAY") )
         App_BootWait(&app);
+
+    if( getenv("TORIRS_PREVIEW_BMP") && app.preview_state_failed )
+    {
+        App_Shutdown(&app);
+        return 1;
+    }
 
     /* TORIRS_WORLD_NODE_DEBUG=1: world viewport node state + root sibling
      * chain (the emit walk draws the chain in order). idx=-1 means the opened
@@ -4046,6 +4088,62 @@ main(
         }
         fprintf(stderr, "emit_skip: com=0x%x dropped %d cmds\n", skip_com, app.emit.count - kept);
         app.emit.count = kept;
+    }
+
+    /* TORIRS_PREVIEW_BMP=path: render one deterministic interface frame through
+     * the production App/UITree/Soft3D pipeline and exit before creating a
+     * platform window. Unlike TORIRS_WORLD_BMP this accepts an output path and,
+     * with the size restoration above, can represent a real 512x334 host slot. */
+    if( getenv("TORIRS_PREVIEW_BMP") )
+    {
+        char const* path = getenv("TORIRS_PREVIEW_BMP");
+        int* pixels;
+        FILE* probe;
+        if( !path[0] )
+        {
+            fprintf(stderr, "TORIRS_PREVIEW_BMP requires a non-empty path\n");
+            App_Shutdown(&app);
+            return 1;
+        }
+        pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+        assert(pixels);
+        App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        if( getenv("TORIRS_PREVIEW_TREE") )
+        {
+            char const* tree_path = getenv("TORIRS_PREVIEW_TREE");
+            if( !tree_path[0] ||
+                UITreeSnapshot_WriteJson(
+                    app.tree,
+                    &app.emit,
+                    tree_path,
+                    cfg.interface_id,
+                    UITREE_LAYOUT_ROOT_W,
+                    UITREE_LAYOUT_ROOT_H) != 0 )
+            {
+                fprintf(stderr, "failed to write native preview tree %s\n", tree_path);
+                free(pixels);
+                App_Shutdown(&app);
+                return 1;
+            }
+        }
+        bmp_write_file(path, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        free(pixels);
+        probe = fopen(path, "rb");
+        if( !probe )
+        {
+            fprintf(stderr, "failed to write native preview %s\n", path);
+            App_Shutdown(&app);
+            return 1;
+        }
+        fclose(probe);
+        printf(
+            "wrote %s (%dx%d, %d emit cmds)\n",
+            path,
+            UITREE_LAYOUT_ROOT_W,
+            UITREE_LAYOUT_ROOT_H,
+            app.emit.count);
+        App_Shutdown(&app);
+        return 0;
     }
 
     if( write_bmp )
