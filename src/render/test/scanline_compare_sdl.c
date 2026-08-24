@@ -543,7 +543,7 @@ world_load(
     run_task(
         viewer,
         CreateTask_WorldLoad(
-            viewer->provider, viewer->world_builder, chunks, 1, -1, -1, NULL, NULL, NULL));
+            viewer->provider, viewer->world_builder, chunks, 1, -1, -1, 104, NULL, NULL, NULL));
 
     if( !viewer->world->load_complete )
     {

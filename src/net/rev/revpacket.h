@@ -667,6 +667,100 @@ struct PktSetActiveWorld
     int level;    /* g1: plane the addressed view draws */
 };
 
+/*
+ * WORLDENTITY_INFO (rev 239+): per-view sailing-boat sync. Count movement
+ * entries walk the ACTIVE view's entity list in list order, then a trailer
+ * of new-entity spawns runs while bytes remain. SAILING.md §5.4.
+ *
+ * At most 15 entities can exist client-side (16 world views, id 0 = root),
+ * so a count or spawn run past that is a malformed frame, dropped at parse.
+ */
+#define PKT_WEV_INFO_MAX 15
+
+/* Wire movement ops. */
+#define PKT_WEV_OP_DESPAWN 0
+#define PKT_WEV_OP_FLAGS 1
+#define PKT_WEV_OP_ENQUEUE 2
+#define PKT_WEV_OP_SNAP 3
+
+/**
+ * Default op-enabled mask: the deob's class467 constructor seeds field5694
+ * with 31 (five bits, every right-click op enabled). The updateFlags bit-0x2
+ * payload replaces it; entities that never carry one keep all five.
+ */
+#define PKT_WEV_OP_MASK_ALL 31
+
+struct PktWevUpdate
+{
+    int op; /* PKT_WEV_OP_* */
+    /* Ops 2/3 only: signed deltas off the 2-bit-per-axis bitfield
+     * (0 → 0, 1 → i8, 2 → i16, 3 → i32), fine units / angle units. */
+    int dx;
+    int dy;
+    int dz;
+    int dangle;
+    /* Raw updateFlags byte. Both payload bits are decoded into the fields
+     * below; op 0 (despawn) carries NO flags byte at all and leaves this 0.
+     */
+    unsigned update_flags;
+    /* Bit 0x2: the 5-bit op-enabled mask (deob field5694), read with the
+     * (128 - b) & 0xFF transform. Absent → PKT_WEV_OP_MASK_ALL, which the
+     * exec layer must NOT apply (an absent mask leaves the entity's own). */
+    int has_op_mask;
+    int op_mask;
+    int has_seq;
+    int seq_id; /* -1 = clear (65535 on the wire) */
+    int seq_delay;
+};
+
+struct PktWevSpawn
+{
+    int id; /* g2: world-entity id, 1..15 (0 is the root view) */
+    unsigned update_flags;
+    int has_op_mask;
+    int op_mask;
+    int has_seq;
+    int seq_id;
+    int seq_delay;
+    int size_x_tiles; /* ((-sizeByte & 0xFF) >> 4 & 0xF) * 8 */
+    int size_z_tiles; /* ((-sizeByte & 0xFF)      & 0xF) * 8 */
+    int priority_group; /* g1 (b - 128) & 0xFF ownerTypeIndex (deob class276) */
+    int config_id;      /* signed little-endian u16: archive-72 record */
+    /* Absolute transform: the same 4-axis delta bitfield applied to
+     * (0, 0, 0, 0), so x/z land in fine units (tiles<<7), y 0, angle 0. */
+    int x;
+    int y;
+    int z;
+    int angle; /* & 0x7FF */
+};
+
+struct PktWorldEntityInfo
+{
+    int count; /* entities that remain, in list order */
+    struct PktWevUpdate updates[PKT_WEV_INFO_MAX];
+    int spawn_count;
+    struct PktWevSpawn spawns[PKT_WEV_INFO_MAX];
+};
+
+/**
+ * REBUILD_WORLDENTITY_V4: rebuild the ACTIVE view's deck map. base_x/base_z
+ * are the view's SW corner in absolute root-world tiles (the off-map staging
+ * rectangle — deob field1405/field1395), zone-aligned. The zone-descriptor
+ * grid that follows the header is bit-packed over
+ * [4 levels][view_size_x/8][view_size_z/8] — dimensions the server took from
+ * the view's spawn-time size and did NOT put on the wire, so the stateless
+ * parse layer cannot walk it. The grid bytes are carried raw (`data`, heap,
+ * freed by gameproto_free — the PLAYER_INFO precedent) and decoded at exec
+ * with PktRebuildWev_DecodeZones, where the active view's size is known.
+ */
+struct PktRebuildWev
+{
+    int base_x;
+    int base_z;
+    int length; /* raw grid bytes (after the u16 source-square count) */
+    uint8_t* data;
+};
+
 struct PktFriendListLoaded
 {
     int status; /* g1: 2 = connected */
@@ -962,6 +1056,8 @@ struct RevPacket
         struct PktRunClientScript _runclientscript;
         struct PktSetNpcUpdateOrigin _set_npc_update_origin;
         struct PktSetActiveWorld _set_active_world;
+        struct PktWorldEntityInfo _worldentity_info;
+        struct PktRebuildWev _rebuild_wev;
     };
 };
 

@@ -33,6 +33,15 @@ struct Task_GameProtoExec
     /* Obj-load cursors (ground item models must be cached before exec). */
     int zone_i;
     int pending_obj_id;
+
+    /* REBUILD_WORLDENTITY (SAILING_PLAN C2): the target view id (the
+     * SET_ACTIVE_WORLD cursor, captured before the first await because
+     * SERVER_TICK_END resets the cursor), the descriptor grid decoded against
+     * that view's size onto the 13-stride instance array, and the boat
+     * scene's side in tiles. */
+    int wev_view_id;
+    int wev_scene_size;
+    int32_t wev_zones[PKT_MAP_REBUILD_ZONES];
 };
 
 /* The view a REBUILD packet addresses: its own world_area prefix (0 = root),
@@ -44,6 +53,15 @@ static struct Worldview*
 rebuild_view(struct Task_GameProtoExec* self)
 {
     return WorldviewRegistry_Get(&self->app->worldviews, self->packet._map_rebuild.world_area);
+}
+
+/* The boat view a REBUILD_WORLDENTITY addresses: the SET_ACTIVE_WORLD cursor
+ * as captured into the task (deob field5861 — V3+ dropped the wire-carried
+ * view id). Same resolve-fresh-per-use rule as rebuild_view above. */
+static struct Worldview*
+wev_view(struct Task_GameProtoExec* self)
+{
+    return WorldviewRegistry_Get(&self->app->worldviews, self->wev_view_id);
 }
 
 /* Obj id referenced by a zone entry that spawns a ground item, or -1. */
@@ -110,7 +128,9 @@ rebuild_compute_chunks(struct Task_GameProtoExec* self)
 }
 
 /*
- * REBUILD_REGION descriptors -> the distinct *source* map squares to prefetch.
+ * Instance descriptors -> the distinct *source* map squares to prefetch, for
+ * both REBUILD_REGION and REBUILD_WORLDENTITY (which is a region rebuild into
+ * a boat view's world).
  *
  * Not the squares under the scene: those are the instance's own reserved
  * coordinates, which by construction have no archives at all. The load has to
@@ -123,10 +143,13 @@ rebuild_compute_chunks(struct Task_GameProtoExec* self)
  * dropping one is a missing zone, not a corrupt scene.
  */
 static void
-rebuild_region_compute_chunks(struct Task_GameProtoExec* self)
+rebuild_instance_compute_chunks(
+    struct Task_GameProtoExec* self,
+    const int32_t* zones)
 {
-    const int32_t* zones = self->packet._map_rebuild.zones;
     int cap = (int)(sizeof(self->chunks) / sizeof(self->chunks[0])) / 2;
+
+    assert(zones);
 
     self->chunk_count = 0;
     for( int i = 0; i < PKT_MAP_REBUILD_ZONES; i++ )
@@ -184,9 +207,9 @@ Task_GameProtoExec_Run(
         self->zone_z = self->packet._map_rebuild.zonez;
         /* The tail below (App_WorldRebuildBegin's root flags, the entity
          * shift, camera/minimap, App_WorldLoadFinish) acts on the ROOT scene:
-         * a boat's rebuild arrives as REBUILD_WORLDENTITY (plan C2) and never
-         * through here. rebuild_view() already asserts the id is live; this
-         * pins that at C0/C1 only the root can be addressed by these two
+         * a boat's rebuild arrives as REBUILD_WORLDENTITY (the branch below)
+         * and never through here. rebuild_view() already asserts the id is
+         * live; this pins that only the root can be addressed by these two
          * packets. */
         assert(self->packet._map_rebuild.world_area == WORLDVIEW_ROOT);
         {
@@ -199,7 +222,7 @@ Task_GameProtoExec_Run(
         }
 
         if( self->packet._map_rebuild.zones )
-            rebuild_region_compute_chunks(self);
+            rebuild_instance_compute_chunks(self, self->packet._map_rebuild.zones);
         else
             rebuild_compute_chunks(self);
         /* Entities carry scene-local coords relative to the old base;
@@ -216,7 +239,7 @@ Task_GameProtoExec_Run(
          * App_WorldLoadFinish (which the shift must precede). */
         PT_TASK_AWAITSELF_IF(CreateTask_WorldLoad(
             app->provider, rebuild_view(self)->builder, self->chunks, self->chunk_count,
-            self->zone_x, self->zone_z, self->packet._map_rebuild.zones, NULL, NULL));
+            self->zone_x, self->zone_z, 104, self->packet._map_rebuild.zones, NULL, NULL));
         /* The load's final step swapped the scene synchronously (same
          * task drain — no frame renders in between): relocate the kept
          * entities before any later packet or frame reads them, then run
@@ -227,6 +250,76 @@ Task_GameProtoExec_Run(
                 rebuild_view(self)->world->_base_tile_x - self->prev_base_x,
                 rebuild_view(self)->world->_base_tile_z - self->prev_base_z);
         App_WorldLoadFinish(app);
+    }
+    else if( self->packet.packet_type == PKT_NAME_REBUILD_WORLDENTITY )
+    {
+        /* REBUILD_WORLDENTITY (SAILING_PLAN C2): stage the deck map into the
+         * ACTIVE view's own world through the same zone-template path a
+         * REBUILD_REGION takes — the deob loads it "exactly like a main-world
+         * rebuild" (SAILING.md §5). The target is the SET_ACTIVE_WORLD cursor
+         * (deob field5861; V3+ carries no view id on the wire), captured into
+         * the task before the first await: SERVER_TICK_END resets the cursor,
+         * and it execs behind this task on the same serial queue. */
+        self->wev_view_id = app->active_world;
+        /* The root has no deck: its rebuilds arrive as REBUILD_NORMAL /
+         * REBUILD_REGION above. A server addressing the root here is a
+         * protocol violation, the mirror of the WORLDVIEW_ROOT pin there. */
+        assert(self->wev_view_id != WORLDVIEW_ROOT);
+        {
+            struct Worldview* view = wev_view(self);
+            int decoded;
+
+            /* Grid decode needs the view's spawn-time size — the reason the
+             * parse arm carried the bytes raw. A bitstream that does not
+             * match the size means the two ends disagree about this view:
+             * stop at the frame that caused it. */
+            decoded = PktRebuildWev_DecodeZones(
+                &self->packet._rebuild_wev,
+                view->size_x_tiles / 8,
+                view->size_z_tiles / 8,
+                self->wev_zones);
+            assert(decoded && "REBUILD_WORLDENTITY grid does not match the view size");
+            /* OPT=1 builds define NDEBUG (src/makefile), which eats the assert
+             * and with it the only read of `decoded`. */
+            (void)decoded;
+
+            /* The World's scene is square; a non-square view leaves the
+             * extra zones 0 = void in the decoded grid. */
+            self->wev_scene_size = view->size_x_tiles > view->size_z_tiles
+                                       ? view->size_x_tiles
+                                       : view->size_z_tiles;
+
+            /* The wire base is the deck's SW corner in absolute root-world
+             * tiles (deob field1405/field1395) — the view's membership
+             * rectangle the spawn left at (0,0). Zone-aligned by
+             * construction: the grid can only address whole zones. */
+            assert(self->packet._rebuild_wev.base_x % 8 == 0);
+            assert(self->packet._rebuild_wev.base_z % 8 == 0);
+            view->base_x = self->packet._rebuild_wev.base_x;
+            view->base_z = self->packet._rebuild_wev.base_z;
+
+            /* Pin the boat World's scene base to the wire base:
+             * World_ResetScene bases the scene at (center - size/16)*8, so
+             * center = base/8 + size/16 lands _base_tile exactly on it. */
+            self->zone_x = self->packet._rebuild_wev.base_x / 8 + self->wev_scene_size / 16;
+            self->zone_z = self->packet._rebuild_wev.base_z / 8 + self->wev_scene_size / 16;
+
+            rebuild_instance_compute_chunks(self, self->wev_zones);
+
+            /* C2 drain rule: the boat's own EntityRemoved queue must be
+             * empty before its rebuild resets the scene allocation
+             * (World_ResetSceneAlloc asserts exactly that). */
+            App_WorldDrainEntityRemovedFor(app, view->world);
+        }
+        /* Awaited like the root rebuild so later packets (zone state for the
+         * deck, entity info) exec against a landed world. The load's tail
+         * already set load_complete; no entity shift (the view held nothing
+         * until now) and no MAP_BUILD_COMPLETE — the server gates that ack
+         * on the ROOT map load alone. */
+        PT_TASK_AWAITSELF_IF(CreateTask_WorldLoad(
+            app->provider, wev_view(self)->builder, self->chunks, self->chunk_count,
+            self->zone_x, self->zone_z, self->wev_scene_size, self->wev_zones, NULL, NULL));
+        app->need_redraw = 1;
     }
     else if( self->packet.packet_type == PKT_NAME_OBJ_ADD ||
              self->packet.packet_type == PKT_NAME_OBJ_REVEAL )

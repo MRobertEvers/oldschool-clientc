@@ -260,7 +260,7 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
 
         next = scene->elements.nodes[id].next;
         el = ToriDraw_SceneElementGet(scene, id);
-        if( !el || el->pool != (uint8_t)TORIDRAW_SCENE_POOL_DYNAMIC )
+        if( !el || el->pool != (uint8_t)builder->dynamic_pool )
             continue;
         if( !keep[id] )
             ToriDraw_SceneElementRemove(scene, id);
@@ -282,6 +282,10 @@ WorldBuilder_New(
     builder->cache = cache;
     builder->scene = scene;
     builder->varp = varp;
+    /* The root view's pair until told otherwise (WorldBuilder_SetSceneView) —
+     * the pools a single-world client has always used. */
+    builder->static_pool = TORIDRAW_SCENE_POOL_STATIC;
+    builder->dynamic_pool = TORIDRAW_SCENE_POOL_DYNAMIC;
     /* calloc leaves the debug ring at 0, which is a valid element id. */
     for( int i = 0; i < (int)(sizeof(builder->scenery_dbg_element) /
                               sizeof(builder->scenery_dbg_element[0]));
@@ -312,6 +316,45 @@ WorldBuilder_Free(struct WorldBuilder* builder)
 }
 
 void
+WorldBuilder_SetSceneView(
+    struct WorldBuilder* builder,
+    int view_id)
+{
+    assert(builder);
+    assert(view_id >= 0);
+    assert(view_id < TORIDRAW_SCENE_POOL_VIEW_MAX);
+    builder->static_pool = TORIDRAW_SCENE_POOL_STATIC_VIEW(view_id);
+    builder->dynamic_pool = TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(view_id);
+}
+
+/*
+ * Batching is a retained-arena upload for view 0's static geometry, and only
+ * view 0's clear drops that arena (ToriDraw_SceneClearPool). A boat deck lives
+ * in its own pool and is unloaded element by element, so batching it would
+ * leave its geometry in the arena after the elements are gone — stale hulls
+ * that only a mainland rebuild could clear. Off the batch path, a deck's
+ * elements emit MODEL_LOAD and draw through the per-element route entities
+ * already use, which is what a few hundred tiles wants anyway.
+ */
+static void
+world_builder_batch_begin(struct WorldBuilder* builder)
+{
+    assert(builder);
+    if( builder->static_pool != TORIDRAW_SCENE_POOL_STATIC )
+        return;
+    ToriDraw_SceneBatchBegin(builder->scene);
+}
+
+static void
+world_builder_batch_end(struct WorldBuilder* builder)
+{
+    assert(builder);
+    if( builder->static_pool != TORIDRAW_SCENE_POOL_STATIC )
+        return;
+    ToriDraw_SceneBatchEnd(builder->scene);
+}
+
+void
 WorldBuilder_RebuildCenterzoneBegin(
     struct WorldBuilder* builder,
     int zone_center_x,
@@ -336,7 +379,7 @@ WorldBuilder_RebuildCenterzoneBegin(
 
     /* Static pool only: entity elements (players/npcs/objs) keep their ids
      * across a rebuild — the REBUILD_NORMAL shift relocates them instead. */
-    ToriDraw_SceneClearPool(builder->scene, TORIDRAW_SCENE_POOL_STATIC);
+    ToriDraw_SceneClearPool(builder->scene, builder->static_pool);
     world_builder_reconcile_dynamic_elements(builder);
 
     builder->blendmap = blendmap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
@@ -594,7 +637,7 @@ WorldBuilder_RebuildInstance(
 
     WorldBuilder_RebuildCenterzoneBegin(builder, zone_center_x, zone_center_z, scene_size);
 
-    ToriDraw_SceneBatchBegin(builder->scene);
+    world_builder_batch_begin(builder);
 
     for( int pass = 0; pass < 2; pass++ )
     {
@@ -634,7 +677,7 @@ WorldBuilder_RebuildInstance(
 
     WorldBuilder_RebuildCenterzoneEnd(builder);
 
-    ToriDraw_SceneBatchEnd(builder->scene);
+    world_builder_batch_end(builder);
 
     if( wb_timing_on() )
         fprintf(stderr, "rebuild_timing: instance total=%.1fms\n", wb_now_ms() - t0);
@@ -959,7 +1002,7 @@ WorldBuilder_RebuildCenterzone(
 
     double t_begin = wb_timing_on() ? wb_now_ms() : 0.0;
 
-    ToriDraw_SceneBatchBegin(builder->scene);
+    world_builder_batch_begin(builder);
 
     struct World* world = builder->world;
     for( int mapx = world->_chunk_sw_x; mapx <= world->_chunk_ne_x; mapx++ )
@@ -982,7 +1025,7 @@ WorldBuilder_RebuildCenterzone(
 
     double t_end = wb_timing_on() ? wb_now_ms() : 0.0;
 
-    ToriDraw_SceneBatchEnd(builder->scene);
+    world_builder_batch_end(builder);
 
     if( wb_timing_on() )
     {
@@ -1014,7 +1057,7 @@ WorldBuilder_RebuildChunklistBegin(
     world_builder_free_transient_maps(builder);
     World_ResetSceneChunkList(world, chunks_xz, count);
 
-    ToriDraw_SceneClearPool(builder->scene, TORIDRAW_SCENE_POOL_STATIC);
+    ToriDraw_SceneClearPool(builder->scene, builder->static_pool);
     world_builder_reconcile_dynamic_elements(builder);
 
     int scene_size = world->_scene_size;
@@ -1041,7 +1084,7 @@ WorldBuilder_RebuildChunklist(
 {
     WorldBuilder_RebuildChunklistBegin(builder, chunks_xz, count);
 
-    ToriDraw_SceneBatchBegin(builder->scene);
+    world_builder_batch_begin(builder);
 
     for( int i = 0; i < count; i++ )
     {
@@ -1059,7 +1102,7 @@ WorldBuilder_RebuildChunklist(
 
     WorldBuilder_RebuildCenterzoneEnd(builder);
 
-    ToriDraw_SceneBatchEnd(builder->scene);
+    world_builder_batch_end(builder);
 }
 
 /* Client-TS locChangeUnchecked (Client.ts:7733): a zone LOC_ADD_CHANGE/LOC_DEL
@@ -1186,7 +1229,7 @@ WorldBuilder_ApplyLocChange(
                 .chunk_pos_z = scene_z,
                 .chunk_pos_level = level,
             };
-            ToriDraw_SceneBatchBegin(builder->scene);
+            world_builder_batch_begin(builder);
             builder->scenery_runtime_spawn = 1;
             /* Reuse the build path for correct per-shape model/orientation/size,
              * but suppress its single-slot painter registration (it would assert
@@ -1227,7 +1270,7 @@ WorldBuilder_ApplyLocChange(
                     }
                 }
             }
-            ToriDraw_SceneBatchEnd(builder->scene);
+            world_builder_batch_end(builder);
         }
     }
 }

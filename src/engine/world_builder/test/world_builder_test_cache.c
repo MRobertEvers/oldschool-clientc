@@ -741,7 +741,8 @@ test_world_builder_bench(void)
     double t0 = bench_now_ms();
     run_task(
         queue, io, px,
-        CreateTask_WorldLoad(provider, builder, chunks, count, zone_x, zone_z, NULL, NULL, NULL));
+        CreateTask_WorldLoad(
+            provider, builder, chunks, count, zone_x, zone_z, 104, NULL, NULL, NULL));
     double t1 = bench_now_ms();
     printf("bench: cold WorldLoad (IO + rebuild) = %.1f ms\n", t1 - t0);
 

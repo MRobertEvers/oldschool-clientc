@@ -815,6 +815,11 @@ gameproto_free(struct RevPacket* p)
         p->_map_rebuild.zones = NULL;
         p->_map_rebuild.region_count = 0;
         break;
+    case PKT_NAME_REBUILD_WORLDENTITY:
+        free(p->_rebuild_wev.data);
+        p->_rebuild_wev.data = NULL;
+        p->_rebuild_wev.length = 0;
+        break;
     case PKT_NAME_UPDATE_INV_FULL:
         free(p->_update_inv_full.obj_ids);
         free(p->_update_inv_full.obj_counts);
@@ -866,4 +871,71 @@ gameproto_free(struct RevPacket* p)
     default:
         break;
     }
+}
+
+/* Bounds-checked MSB-first bit read (same shape as the osrs239 parse arm's
+ * gbits_checked): the wev grid decode runs at exec against wire-fed bytes, so
+ * a short frame must fail the decode, not terminate the client. */
+static uint32_t
+wev_gbits(
+    uint8_t const* data,
+    int len,
+    int* bit_pos,
+    int count,
+    int* ok)
+{
+    uint32_t value = 0;
+
+    if( !*ok || count < 0 || count > 32 || *bit_pos < 0 || *bit_pos + count > len * 8 )
+    {
+        *ok = 0;
+        return 0;
+    }
+    for( int i = 0; i < count; i++ )
+    {
+        int pos = (*bit_pos)++;
+        value = (value << 1) | ((data[pos >> 3] >> (7 - (pos & 7))) & 1u);
+    }
+    return value;
+}
+
+int
+PktRebuildWev_DecodeZones(
+    struct PktRebuildWev const* p,
+    int zones_x,
+    int zones_z,
+    int32_t* out_zones)
+{
+    int bit_pos = 0;
+    int ok = 1;
+
+    assert(p);
+    assert(p->data);
+    assert(out_zones);
+    /* 13 is the PKT_MAP_REBUILD_ZONES stride (revpacket.h): a view wider than
+     * the full-instance grid cannot be expressed in the array the world-load
+     * path consumes. */
+    assert(zones_x > 0);
+    assert(zones_x <= 13);
+    assert(zones_z > 0);
+    assert(zones_z <= 13);
+
+    memset(out_zones, 0, PKT_MAP_REBUILD_ZONES * sizeof(*out_zones));
+    /* Deob class592.method12654: [4 levels][zonesX][zonesZ], 1 presence bit
+     * then a 26-bit descriptor. The destination index re-strides the view's
+     * compact wire grid onto the 13x13 instance array; everything past the
+     * view's zone counts stays 0 = void. */
+    for( int level = 0; level < 4; level++ )
+        for( int zx = 0; zx < zones_x; zx++ )
+            for( int zz = 0; zz < zones_z; zz++ )
+            {
+                if( wev_gbits(p->data, p->length, &bit_pos, 1, &ok) )
+                    out_zones[level * 13 * 13 + zx * 13 + zz] =
+                        (int32_t)wev_gbits(p->data, p->length, &bit_pos, 26, &ok);
+                if( !ok )
+                    return 0;
+            }
+    /* Byte-aligned full consumption, the same test the region arm applies:
+     * trailing bytes mean the two ends disagree about the view's size. */
+    return (bit_pos + 7) / 8 == p->length;
 }

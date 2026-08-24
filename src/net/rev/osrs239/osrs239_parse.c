@@ -90,6 +90,82 @@ sign24(int v)
     return (v & 0x800000) ? v - 0x1000000 : v;
 }
 
+/* WORLDENTITY_INFO's 2-bit-per-axis delta: 0 → 0, 1 → i8, 2 → i16, 3 → i32
+ * (SAILING.md §5.4). Big-endian, signed. */
+static int
+wev_delta(
+    RSProt_Buffer* c,
+    int code)
+{
+    switch( code & 3 )
+    {
+    case 0:
+        return 0;
+    case 1:
+        return (int8_t)RSProt_BufferG1(c);
+    case 2:
+        return (int16_t)RSProt_BufferG2Be(c);
+    default:
+        return (int32_t)RSProt_BufferG4Be(c);
+    }
+}
+
+/*
+ * WORLDENTITY_INFO's updateFlags PAYLOAD (deob Statics.method12230).
+ *
+ * Two bits, and the 0x2 one is read FIRST: it carries the entity's 5-bit
+ * op-enabled mask (class467.field5694) through class617.method13166, the
+ * `(128 - b) & 0xFF` transform. Bit 0x1 then carries a u16 seq id (65535 =
+ * clear, surfaced as -1) plus a u8 delay.
+ *
+ * The flags byte itself is NOT read here, because it is not always adjacent
+ * to its payload: in the spawn trailer the deob reads the byte at field 2 —
+ * right after the id — and consumes this payload only after the absolute
+ * transform, at the very end of the record.
+ */
+static void
+wev_flag_payload_defaults(
+    int* out_has_op_mask,
+    int* out_op_mask,
+    int* out_has_seq,
+    int* out_seq_id,
+    int* out_seq_delay)
+{
+    *out_has_op_mask = 0;
+    *out_op_mask = PKT_WEV_OP_MASK_ALL;
+    *out_has_seq = 0;
+    *out_seq_id = -1;
+    *out_seq_delay = 0;
+}
+
+static int
+wev_read_flag_payload(
+    RSProt_Buffer* c,
+    unsigned flags,
+    int* out_has_op_mask,
+    int* out_op_mask,
+    int* out_has_seq,
+    int* out_seq_id,
+    int* out_seq_delay)
+{
+    wev_flag_payload_defaults(
+        out_has_op_mask, out_op_mask, out_has_seq, out_seq_id, out_seq_delay);
+    if( flags & 0x2 )
+    {
+        *out_has_op_mask = 1;
+        *out_op_mask = RSProt_BufferG1_sub128(c);
+    }
+    if( flags & 0x1 )
+    {
+        int seq = RSProt_BufferG2Be(c);
+
+        *out_has_seq = 1;
+        *out_seq_id = (seq == 65535) ? -1 : seq;
+        *out_seq_delay = RSProt_BufferG1(c);
+    }
+    return c->err ? 0 : 1;
+}
+
 /* Bounds-checked MSB-first bit read used by the instanced-region descriptor
  * grid. Net_BitBuffer deliberately asserts on malformed input; a network
  * decoder must reject a short frame instead of terminating the client. */
@@ -1225,6 +1301,116 @@ osrs239_parse(
         return len == 0;
 
     /*
+     * WORLDENTITY_INFO_V7 (op 122): hand-written from docs/SAILING.md §5.4
+     * (deob Statics.method977) — RSProt's generator excludes the whole info
+     * family, so unlike the rest of this file there is no vendored encoder to
+     * transcribe from.
+     *
+     * Three things the deob pins that are easy to get wrong:
+     *
+     *  - The 2-bit axis codes are taken LSB-first (dx bits 0-1 .. dangle
+     *    bits 6-7), each code selecting nothing / i8 / i16 BE / i32 BE.
+     *  - updateFlags is NOT an atomic unit. The flag byte and its payload are
+     *    adjacent only in the update records; in the spawn trailer the byte is
+     *    read right after the id and the payload only after the transform.
+     *    Op 0 (despawn) carries no flag byte at all.
+     *  - The spawn scalars all use alt transforms: sizeByte through
+     *    method13137 `(-b) & 0xFF`, ownerTypeIndex through method13164
+     *    `(b - 128) & 0xFF`, configId through method13178 (signed LE u16).
+     */
+    case PKT_NAME_WORLDENTITY_INFO:
+    {
+        struct PktWorldEntityInfo* p = &out->_worldentity_info;
+
+        memset(p, 0, sizeof(*p));
+        p->count = RSProt_BufferG1(&c);
+        if( c.err || p->count > PKT_WEV_INFO_MAX )
+            return 0;
+        for( int i = 0; i < p->count; i++ )
+        {
+            struct PktWevUpdate* u = &p->updates[i];
+
+            u->op = RSProt_BufferG1(&c);
+            if( c.err || u->op > PKT_WEV_OP_SNAP )
+                return 0;
+            u->update_flags = 0;
+            wev_flag_payload_defaults(
+                &u->has_op_mask, &u->op_mask, &u->has_seq, &u->seq_id, &u->seq_delay);
+            /* Op 0 removes the entity; the deob's `if (op != 0)` guards every
+             * remaining read of the record, flag byte included. */
+            if( u->op == PKT_WEV_OP_DESPAWN )
+                continue;
+            if( u->op == PKT_WEV_OP_ENQUEUE || u->op == PKT_WEV_OP_SNAP )
+            {
+                int mask = RSProt_BufferG1(&c);
+
+                u->dx = wev_delta(&c, mask & 3);
+                u->dy = wev_delta(&c, (mask >> 2) & 3);
+                u->dz = wev_delta(&c, (mask >> 4) & 3);
+                u->dangle = wev_delta(&c, (mask >> 6) & 3);
+            }
+            u->update_flags = (unsigned)RSProt_BufferG1(&c);
+            if( c.err )
+                return 0;
+            if( !wev_read_flag_payload(
+                    &c,
+                    u->update_flags,
+                    &u->has_op_mask,
+                    &u->op_mask,
+                    &u->has_seq,
+                    &u->seq_id,
+                    &u->seq_delay) )
+                return 0;
+        }
+        /* New entities, while bytes remain. */
+        while( !c.err && c.rpos < len )
+        {
+            struct PktWevSpawn* s;
+            int size_byte;
+            int mask;
+
+            if( p->spawn_count >= PKT_WEV_INFO_MAX )
+                return 0;
+            s = &p->spawns[p->spawn_count];
+            s->id = RSProt_BufferG2Be(&c);
+            /* Id 0 is the root view and 16+ is past the registry: a frame
+             * naming either is malformed, not a state to spawn. */
+            if( c.err || s->id <= 0 || s->id > PKT_WEV_INFO_MAX )
+                return 0;
+            s->update_flags = (unsigned)RSProt_BufferG1(&c);
+            size_byte = RSProt_BufferG1_neg(&c);
+            s->size_x_tiles = ((size_byte >> 4) & 0xF) * 8;
+            s->size_z_tiles = (size_byte & 0xF) * 8;
+            /* A zero nibble is a zero-tile view — nothing can live in it. */
+            if( s->size_x_tiles == 0 || s->size_z_tiles == 0 )
+                return 0;
+            s->priority_group = RSProt_BufferG1_add128(&c);
+            s->config_id = RSProt_BufferG2sLe(&c);
+            /* The absolute transform arrives as the same 4-axis bitfield
+             * applied to (0,0,0,0). */
+            mask = RSProt_BufferG1(&c);
+            s->x = wev_delta(&c, mask & 3);
+            s->y = wev_delta(&c, (mask >> 2) & 3);
+            s->z = wev_delta(&c, (mask >> 4) & 3);
+            s->angle = wev_delta(&c, (mask >> 6) & 3) & 0x7FF;
+            if( c.err )
+                return 0;
+            /* The flag payload trails the record, not its own flag byte. */
+            if( !wev_read_flag_payload(
+                    &c,
+                    s->update_flags,
+                    &s->has_op_mask,
+                    &s->op_mask,
+                    &s->has_seq,
+                    &s->seq_id,
+                    &s->seq_delay) )
+                return 0;
+            p->spawn_count++;
+        }
+        return c.err ? 0 : (c.rpos == len);
+    }
+
+    /*
      * RunClientScriptEncoder: pjstr types, the arguments in REVERSE order, then
      * p4 the script id.
      *
@@ -1521,6 +1707,41 @@ osrs239_parse(
             p->zones = NULL;
             return 0;
         }
+        return 1;
+    }
+
+    /*
+     * RebuildWorldEntityV4Encoder: p2 baseX, p2 baseZ (absolute root-world
+     * tiles of the ACTIVE view's SW staging corner), then the same
+     * encodeRegionV2 grid REBUILD_REGION carries — p2 distinctSourceSquareCount
+     * and pBit(1)/pBit(26) records — but over [4][viewZonesX][viewZonesZ],
+     * dimensions the server reads off the view being rebuilt (deob
+     * Statics.method6693: field1391/8 x field1412/8) and does NOT put on the
+     * wire. This stateless layer validates and consumes what it can (header +
+     * count; the count is a loading hint here exactly as in the region arm)
+     * and carries the grid bytes raw for the exec layer, which knows the
+     * active view's size (PktRebuildWev_DecodeZones).
+     */
+    case PKT_NAME_REBUILD_WORLDENTITY:
+    {
+        struct PktRebuildWev* p = &out->_rebuild_wev;
+        int source_square_count;
+
+        memset(p, 0, sizeof(*p));
+        p->base_x = RSProt_BufferG2Be(&c);
+        p->base_z = RSProt_BufferG2Be(&c);
+        source_square_count = RSProt_BufferG2Be(&c);
+        if( c.err || source_square_count < 0 ||
+            source_square_count > PKT_MAP_REBUILD_ZONES )
+            return 0;
+        /* The smallest legal view (1x1 zones) still carries 4 presence bits,
+         * so a grid with no bytes at all is a malformed frame. */
+        if( len - c.rpos < 1 )
+            return 0;
+        p->length = len - c.rpos;
+        p->data = malloc((size_t)p->length);
+        assert(p->data);
+        memcpy(p->data, data + c.rpos, (size_t)p->length);
         return 1;
     }
 

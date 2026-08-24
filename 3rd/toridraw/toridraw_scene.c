@@ -305,6 +305,10 @@ td_scene_allocate_element_id(
     int id;
 
     assert(scene);
+    /* The pool tag is one byte on the element; a view pool past the end would
+     * wrap onto another view's elements and free them on that view's clear. */
+    assert(pool >= 0);
+    assert(pool < 256);
 
     if( scene->elements.free_head != TORIDRAW_INTRUSIVE_NIL )
         element = (struct ToriDraw_SceneElement*)ToriDraw_IntrusiveListGet(
@@ -1125,6 +1129,12 @@ ToriDraw_SceneClearPool(
     bool clear_retained_batch;
 
     assert(scene);
+    assert(pool >= 0);
+    assert(pool < 256);
+    /* Only view 0's static geometry goes into the retained batch arena, so
+     * only its clear may drop the arena wholesale; every other pool (a boat
+     * deck's static half, any view's entities) is unloaded element by element
+     * so the arena — and with it the mainland — is left alone. */
     clear_retained_batch = pool == TORIDRAW_SCENE_POOL_STATIC;
 
     for( i = scene->elements.head; i != TORIDRAW_INTRUSIVE_NIL; i = next )

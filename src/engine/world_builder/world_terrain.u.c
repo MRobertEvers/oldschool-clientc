@@ -650,7 +650,8 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                     .u.model.model = td,
                 };
 
-                int element_id = ToriDraw_SceneElementAdd(builder->scene);
+                int element_id =
+                    ToriDraw_SceneElementAddPool(builder->scene, builder->static_pool);
                 if( element_id < 0 )
                 {
                     ToriDraw_ModelFree(td);

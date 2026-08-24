@@ -537,6 +537,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	world/worldview.c \
+	world/wev.c engine/dat2/task_dat2_wevconfig_load.c \
 	engine/world_builder/task_world_load.c \
 	editor/editor.c editor/editor_doc.c editor/editor_jm2.c \
 	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \
@@ -703,6 +704,7 @@ endif
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
 .PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
 .PHONY: torirsserver-scripts-lanes torirsserver-lanes
+.PHONY: test-wev test-wev-rebuild
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -2399,6 +2401,30 @@ test-net-exec: $(OBJ_DIR) $(OBJS)
 		game/test/rs_gameproto_exec_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/net_exec_test
+
+# World entities (sailing, SAILING_PLAN C1): the WORLDENTITY_INFO delta
+# reader, the class458 interpolator (incl. the 2047->1 wraparound arc), the
+# footprint corner bake, and the archive-72 WevConfig decode against the real
+# cache at ../cache.osrs239 (loud SKIP when absent).
+test-wev: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/wev_test \
+		world/test/wev_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/wev_test
+
+# World entities (sailing, SAILING_PLAN C2): REBUILD_WORLDENTITY_V4 (op 109)
+# — the raw-carry parse arm, the view-sized bit-grid decode (13x13 stride,
+# whole-stream rejection), and a 1-zone raft deck rebuilt through
+# CreateTask_WorldLoad into a boat world sharing the root's ToriDraw scene,
+# height-checked against a real root Lumbridge rebuild. Also the per-view
+# element pools that make one shared scene safe: each view rebuilt with the
+# other already built, plus the despawn sweep. Cache-backed against
+# ../cache.osrs239 (loud SKIP when absent; the parse/decode/pool checks run).
+test-wev-rebuild: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/wev_rebuild_test \
+		world/test/wev_rebuild_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/wev_rebuild_test
 
 # The CLIENT half of friends / ignore / private chat: the store, the CS2 host
 # ops, the friend-transmit registration, and the generated stack shapes. The

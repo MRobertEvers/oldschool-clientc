@@ -152,6 +152,17 @@ CreateTask_Dat2HitsplatLoad(
     struct RS_Hitsplats* hitsplats);
 
 /*
+ * WorldEntityConfig types (config group 72 — sailing boats, deob class387),
+ * whole-group and eager. OldSchool 239+ only; an absent group leaves the
+ * table empty, which is the pre-sailing world rather than an error.
+ */
+struct WevConfigTable;
+struct ToriRS_Task*
+CreateTask_Dat2WevConfigLoad(
+    struct CacheProvider* provider,
+    struct WevConfigTable* table);
+
+/*
  * Healthbar types (config group 33), whole-group and eager.
  *
  * The overhead bar's pixel width, its fill denominator and its fade are all in

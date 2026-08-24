@@ -8249,6 +8249,10 @@ App_Init(
     WorldviewRegistry_Init(&app->worldviews);
     WorldviewRegistry_RegisterRoot(&app->worldviews, app->world, app->world_builder);
     app->active_world = WORLDVIEW_ROOT;
+    /* World entities (sailing, SAILING_PLAN C1): no boats until
+     * WORLDENTITY_INFO spawns one; the config table fills at boot. */
+    Wevs_Init(&app->wevs);
+    WevConfigTable_Init(&app->wev_configs);
     app->painter_buffer = painter_buffer_new();
     assert(app->painter_buffer);
     /* v1 GameRunescape camera defaults; repositioned on world load complete. */
@@ -8954,6 +8958,7 @@ App_Shutdown(struct App* app)
     /* Frees any owned (non-root) views; the root slot only borrows the pair
      * freed just below. */
     WorldviewRegistry_Free(&app->worldviews);
+    WevConfigTable_Free(&app->wev_configs);
     WorldBuilder_Free(app->world_builder);
     World_Free(app->world);
     VarPManager_Free(&app->varps);
@@ -9135,16 +9140,15 @@ app_bind_configured_overlays(struct App* app)
  * LinkBelow column has to sample level+1 or it sinks to the underpass floor —
  * the "player walks under the bridge" symptom. */
 static int
-app_world_height(
-    void* userdata,
+app_world_height_in(
+    struct World* world,
     int world_x,
     int world_z,
     int level)
 {
-    struct App* app = (struct App*)userdata;
     int real_level = level;
 
-    if( !app->world || !app->world->heightmap )
+    if( !world || !world->heightmap )
         return 0;
 
     /* getAvH out-of-scene guard (Client.ts:5296): a tile outside [0,scene_size)
@@ -9155,16 +9159,61 @@ app_world_height(
     {
         int tile_x = world_x >> 7;
         int tile_z = world_z >> 7;
-        int scene_size = app->world->_scene_size;
+        int scene_size = world->_scene_size;
         if( tile_x < 0 || tile_z < 0 || tile_x >= scene_size || tile_z >= scene_size )
             return 0;
     }
 
     if( level < WORLD_MAP_TERRAIN_LEVELS - 1 &&
-        (World_TileFlagGet(app->world, world_x >> 7, world_z >> 7, 1) &
+        (World_TileFlagGet(world, world_x >> 7, world_z >> 7, 1) &
          RSCACHE_FLOFLAG_LINK_BELOW) != 0 )
         real_level = level + 1;
-    return heightmap_get_interpolated(app->world->heightmap, world_x, world_z, real_level);
+    return heightmap_get_interpolated(world->heightmap, world_x, world_z, real_level);
+}
+
+static int
+app_world_height(
+    void* userdata,
+    int world_x,
+    int world_z,
+    int level)
+{
+    struct App* app = (struct App*)userdata;
+
+    assert(app);
+    return app_world_height_in(app->world, world_x, world_z, level);
+}
+
+/* WevHeightFn: terrain under a hull, for the world-entity interpolator.
+ *
+ * Two things separate this from app_world_height. The sample belongs to the
+ * view the boat floats IN (the root for a boat, a carrier's deck later), not
+ * to app->world by assumption. And a Wev transform is absolute root-world fine
+ * units off the wire, while every World samples its heightmap in scene-local
+ * units — feeding the absolute value straight in puts every real boat outside
+ * [0,scene_size) and the out-of-scene guard flattens it to y 0. */
+static int
+app_wev_terrain_height(
+    void* userdata,
+    int view_id,
+    int world_x,
+    int world_z,
+    int level)
+{
+    struct App* app = (struct App*)userdata;
+    struct Worldview* view;
+
+    assert(app);
+    view = WorldviewRegistry_Get(&app->worldviews, view_id);
+    /* Every live view owns a World (WorldviewRegistry_Register asserts it);
+     * whether that World has a heightmap yet is the loaded-or-not question
+     * app_world_height_in answers. */
+    assert(view->world);
+    return app_world_height_in(
+        view->world,
+        world_x - (view->world->_base_tile_x << 7),
+        world_z - (view->world->_base_tile_z << 7),
+        level);
 }
 
 /* World_SeqSource getters: seq timing resolved from the scene animation
@@ -9659,6 +9708,7 @@ app_world_load_begin(
         chunk_pair_count,
         -1,
         -1,
+        104,
         NULL,
         app_world_load_finish_cb,
         app);
@@ -11183,6 +11233,12 @@ Task_AppBoot_Run(
      * binds — so this is a dat2-only load and an absent group is not an error. */
     if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2HitsplatLoad(app->provider, &app->hitsplats));
+
+    /* WorldEntityConfig types (sailing boats, config group 72). dat2 only and
+     * OldSchool 239+ within that; an absent group leaves the table empty,
+     * which is the pre-sailing world rather than an error. */
+    if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
+        PT_TASK_AWAITSELF_IF(CreateTask_Dat2WevConfigLoad(app->provider, &app->wev_configs));
 
     /* Healthbar types. dat2 only for the same reason as hitsplats -- dat1 has
      * no such config group, and the table's defaults are the reference's own
@@ -16733,7 +16789,15 @@ enum
 
 /* Wrap a freshly built (owned) model in a new dynamic scene element. The
  * element owns the model from here (SceneElementRemove frees it), which is
- * why spawns copy registry models instead of sharing handles. */
+ * why spawns copy registry models instead of sharing handles.
+ *
+ * The pool is the ROOT view's dynamic half, which is right for as long as
+ * every entity lives in app->world. When entities start being owned by a boat
+ * view they must be allocated in THAT view's dynamic pool
+ * (TORIDRAW_SCENE_POOL_DYNAMIC_VIEW / WorldBuilder.dynamic_pool) instead: the
+ * reconcile pass sweeps a view's own pool against its own entity list, so a
+ * deck entity holding a root-pool element would be swept by the mainland's
+ * next rebuild, which does not know its owner. */
 static int
 app_world_scene_element_create(
     struct App* app,
@@ -22121,17 +22185,19 @@ app_world_camera_follow(struct App* app)
 /* Apply queued WorldEventKind_EntityRemoved: free the DYNAMIC scene element.
  * Must run before World_ResetSceneAlloc (which asserts the queue is empty) and
  * after bulk despawns in App_WorldRebuildShift — silent drops used to orphan
- * elements across ClearPool(STATIC) and climb the scene id high-water mark. */
+ * elements across ClearPool(STATIC) and climb the scene id high-water mark.
+ * Parameterized over the world because every view's World feeds the one shared
+ * scene: a boat view drains its own queue through here before its deck rebuild
+ * (SAILING_PLAN C2), the root through the wrapper below. */
 void
-App_WorldDrainEntityRemoved(struct App* app)
+App_WorldDrainEntityRemovedFor(
+    struct App* app,
+    struct World* world)
 {
-    struct World* world;
     int count;
 
     assert(app);
-    world = app->world;
-    if( !world )
-        return;
+    assert(world);
 
     count = World_EventsCount(world);
     for( int i = 0; i < count; i++ )
@@ -22197,6 +22263,17 @@ App_WorldDrainEntityRemoved(struct App* app)
     World_EventsClear(world);
 }
 
+void
+App_WorldDrainEntityRemoved(struct App* app)
+{
+    assert(app);
+    /* No world before the first root rebuild is a legitimate boot state, not
+     * a caller bug — the drain is simply a no-op then. */
+    if( !app->world )
+        return;
+    App_WorldDrainEntityRemovedFor(app, app->world);
+}
+
 static void
 app_world_frame(
     struct App* app,
@@ -22204,6 +22281,22 @@ app_world_frame(
     float frame_cycles)
 {
     struct World* world = app->world;
+
+    /*
+     * World entities (sailing, SAILING_PLAN C1): one interpolation step for
+     * every live view's boats — root first, nested views via the worklist —
+     * with heights re-sampled from the terrain under each hull.
+     *
+     * Ahead of the world gate, not behind it, because this call is what
+     * advances the cycle clock that WORLDENTITY_INFO stamps its targets
+     * with. The deob bumps client.field742 unconditionally in doCycle; gate
+     * it and a rebuild — exactly when boats are arriving — freezes the clock
+     * while packets keep stamping targets against it, so every segment that
+     * lands during the gap shares one enqueue cycle and the whole backlog
+     * expires the instant the clock moves again. The walk below is a no-op
+     * when no entity is live, which is the boot case this gate covers.
+     */
+    Wevs_Frame(&app->wevs, frame_cycles, app_wev_terrain_height, app);
 
     if( !app->world_active || !app->world_view_valid || !world )
         return;
@@ -28406,6 +28499,158 @@ App_ActiveWorldview(struct App* app)
     /* Get() asserts the cursor names a live view — the same failure the deob
      * client throws when a packet addresses a despawned world entity. */
     return WorldviewRegistry_Get(&app->worldviews, app->active_world);
+}
+
+struct Wev*
+App_WevSpawn(
+    struct App* app,
+    int id,
+    int config_id,
+    int size_x_tiles,
+    int size_z_tiles,
+    int priority_group,
+    int x,
+    int z,
+    int angle,
+    unsigned op_mask)
+{
+    struct World* world;
+    struct WorldBuilder* builder;
+    struct WevConfig const* config;
+
+    assert(app);
+    /* A spawn needs the full boot substrate: the shared scene the view's
+     * builder writes into and the cache provider it reads from. A harness App
+     * without them cannot spawn a boat — stop here, loudly. */
+    assert(app->scene);
+    assert(app->provider);
+    /* The config table is loaded once at boot; a spawn naming a config the
+     * cache does not carry is a protocol violation (the deob throws on an
+     * unknown WorldEntityConfig id), not a state to limp past. */
+    assert(WevConfigTable_Has(&app->wev_configs, config_id));
+    config = WevConfigTable_Get(&app->wev_configs, config_id);
+
+    /* The wire's size nibbles reach 15 zones; the descriptor grid the deck
+     * rebuild is decoded onto is the REBUILD_REGION 13x13 (PKT_MAP_REBUILD_
+     * ZONES). Refuse the oversized view here, where the size is still named,
+     * rather than inside PktRebuildWev_DecodeZones a packet later. */
+    assert(size_x_tiles > 0);
+    assert(size_z_tiles > 0);
+    assert(size_x_tiles / 8 <= WORLD_INSTANCE_ZONES);
+    assert(size_z_tiles / 8 <= WORLD_INSTANCE_ZONES);
+
+    /*
+     * Recon OQ4: element ids are scene-global — every view's terrain and
+     * scenery draws from the root's one element pool, so a deck's terrain
+     * spends the root's headroom. Assert it now, at spawn, instead of
+     * overflowing in the middle of the deck rebuild.
+     *
+     * Two separate claims, split so a failure names which one broke, and
+     * counting terrain only: one element per tile per level. Scenery is
+     * bounded by the deck's loc count, not by its tile count, so the old
+     * doubling was arithmetic, not a bound — and with it a maximum view
+     * needed 104*104*4*2 = 86,528 of a 65,536 pool, which no scene state
+     * whatsoever could satisfy. The undoubled figure is 43,264: one
+     * maximum-size view fits and two do not, so the old note about "~15 max-
+     * size views" was wrong in the same direction.
+     */
+    assert(
+        size_x_tiles * size_z_tiles * WORLD_MAP_TERRAIN_LEVELS <=
+        TORIDRAW_SCENE_MAX_ELEMENTS);
+    /* ...and the pool must still have that much left, which is the leak
+     * check: a session that has been sailing all day should not have drifted
+     * upward. A failure HERE means the scene is leaking elements. */
+    assert(
+        ToriDraw_SceneElementSlotCount(app->scene) +
+            size_x_tiles * size_z_tiles * WORLD_MAP_TERRAIN_LEVELS <=
+        TORIDRAW_SCENE_MAX_ELEMENTS);
+
+    /* The entity's own simulation pair, same shape as the root's (Phase 4b
+     * above): a World over the shared scene plus the builder that keeps it in
+     * sync. The registry takes ownership and frees both on despawn. */
+    world = World_New();
+    assert(world);
+    World_SetScene(world, app->scene);
+    builder = WorldBuilder_New(world, app->provider, app->scene, &app->varps);
+    assert(builder);
+    /* One scene, one element namespace, one pool pair per view: the deck's
+     * terrain and scenery are allocated in view `id`'s static pool, so its
+     * rebuild frees the deck and nothing else, and the root's rebuild sweeps
+     * only the root's. Bound before the first build — elements keep the pool
+     * they were allocated in. */
+    WorldBuilder_SetSceneView(builder, id);
+
+    /* Eager scene allocation (plan C2, deob class100 allocating its heights
+     * at construction): the boat's heightmap, collision maps, minimap and its
+     * own Painter exist from spawn, so an entity can enter the view before
+     * the first deck rebuild lands. Square scene of the larger side; parked
+     * at base (0,0) — REBUILD_WORLDENTITY re-runs this reset with the wire's
+     * staging base (base = (center - size/16)*8). */
+    {
+        int scene_size = size_x_tiles > size_z_tiles ? size_x_tiles : size_z_tiles;
+
+        World_ResetScene(world, scene_size / 16, scene_size / 16, scene_size);
+    }
+
+    /* The per-view rebuild (REBUILD_WORLDENTITY, task_gameproto_exec.c) —
+     * staging the deck map into the off-map rectangle this registers — fills
+     * in base_x/base_z. Until then the view's membership box sits at (0,0)
+     * with only its size known. */
+    WorldviewRegistry_Register(
+        &app->worldviews,
+        id,
+        world,
+        builder,
+        0,
+        0,
+        size_x_tiles,
+        size_z_tiles,
+        app->active_world);
+
+    return Wevs_Spawn(
+        &app->wevs,
+        id,
+        app->active_world,
+        config,
+        config_id,
+        x,
+        z,
+        angle,
+        priority_group,
+        op_mask);
+}
+
+void
+App_WevDespawn(
+    struct App* app,
+    int id)
+{
+    struct Worldview* view;
+
+    assert(app);
+    assert(app->scene);
+    /* Entity first (asserts its own list is empty — nested entities despawn
+     * leaves-first), then its view: Release frees the owned world/builder
+     * pair the spawn built. */
+    Wevs_Despawn(&app->wevs, id);
+
+    view = WorldviewRegistry_Get(&app->worldviews, id);
+    /* The scene outlives the view. Freeing the World reclaims the deck's
+     * entity records, not the SHARED scene's elements the builder placed for
+     * them — so the view's two pools are swept here, at the one place a view
+     * stops existing. Without it a boat that sails out of range leaves its
+     * whole deck in the element pool, and the spawn-time headroom assert is
+     * what eventually reports it, a dozen boats too late.
+     *
+     * Drain first: the departing world's EntityRemoved queue still names
+     * DYNAMIC elements whose owner is already gone, and the drain is what
+     * hands them to the plugins before they are freed. */
+    App_WorldDrainEntityRemovedFor(app, view->world);
+    ToriDraw_SceneClearPool(app->scene, TORIDRAW_SCENE_POOL_STATIC_VIEW(id));
+    ToriDraw_SceneClearPool(app->scene, TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(id));
+
+    WorldviewRegistry_Release(&app->worldviews, id);
+    app->need_redraw = 1;
 }
 
 int

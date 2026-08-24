@@ -1022,7 +1022,10 @@ scenery_load_model(
         }
     }
 
-    int element_id = ToriDraw_SceneElementAdd(builder->scene);
+    /* The builder's own static pool, not the scene's default one: a boat
+     * deck's geometry has to be freeable without touching the mainland's
+     * (WorldBuilder_SetSceneView). */
+    int element_id = ToriDraw_SceneElementAddPool(builder->scene, builder->static_pool);
     assert(element_id >= 0 && "world_load_scenery_model: invalid element_id");
 
     /* ToriRS actions are [5][64]; the entity facet stores [5][32]. Repack at

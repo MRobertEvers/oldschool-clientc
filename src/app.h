@@ -49,6 +49,7 @@
 #include "game/rs_hitsplat.h"
 #include "game/rs_soundscape.h"
 #include "varp/varp_manager.h"
+#include "world/wev.h"
 #include "world/world_pickset.h"
 #include "world/worldview.h"
 
@@ -745,6 +746,15 @@ struct App
      * despawn.
      */
     struct WorldviewRegistry worldviews;
+    /**
+     * Live world entities (sailing boats) + each view's server-ordered entity
+     * list, fed by WORLDENTITY_INFO and advanced by Wevs_Frame every frame
+     * (wev.h). An entity's id doubles as its view id in `worldviews`.
+     */
+    struct Wevs wevs;
+    /** WorldEntityConfig table (config archive 72), loaded once at boot by
+     * CreateTask_Dat2WevConfigLoad. Empty on a pre-sailing cache. */
+    struct WevConfigTable wev_configs;
     /**
      * Packet-apply cursor: the view id the current tick's zone/entity packets
      * address. SET_ACTIVE_WORLD flips it; SERVER_TICK_END resets it to
@@ -2785,6 +2795,39 @@ struct Worldview*
 App_ActiveWorldview(struct App* app);
 
 /**
+ * Spawn one world entity from the WORLDENTITY_INFO new-entity trailer
+ * (SAILING_PLAN C1): builds the entity's own (World, WorldBuilder) pair over
+ * the App's shared scene, registers it as view `id` under the active-world
+ * cursor's view, and creates the Wev at the trailer's absolute transform
+ * (fine units / 0..2047). `config_id` must name a loaded WevConfig — a spawn
+ * for a config the cache does not carry is a protocol violation and asserts.
+ * Requires a fully-booted App (scene + provider live); a harness App without
+ * them asserts rather than half-spawning.
+ */
+struct Wev*
+App_WevSpawn(
+    struct App* app,
+    int id,
+    int config_id,
+    int size_x_tiles,
+    int size_z_tiles,
+    int priority_group,
+    int x,
+    int z,
+    int angle,
+    unsigned op_mask);
+
+/**
+ * Despawn world entity `id`: removes the Wev from its parent's list and
+ * releases its Worldview (freeing the owned world/builder pair). Any nested
+ * entities must have been despawned first — the server sends leaves first.
+ */
+void
+App_WevDespawn(
+    struct App* app,
+    int id);
+
+/**
  * REBUILD_NORMAL (Client-TS / deob method3310): early-out when the centre
  * zone is unchanged and a world is active; otherwise queue a classic 104x104
  * zone-centred load. The packet task awaits the load, then shifts entities
@@ -2807,9 +2850,16 @@ App_WorldRebuildBegin(
 
 /** Drain WorldEventKind_EntityRemoved into ToriDraw_SceneElementRemove.
  *  Required before a scene rebuild begins (ResetSceneAlloc asserts the queue
- *  is empty) and after bulk despawns. */
+ *  is empty) and after bulk despawns. The root wrapper no-ops before the
+ *  first world exists; the For variant takes any view's World — a boat view
+ *  drains its own queue through it before its deck rebuild (C2 drain rule). */
 void
 App_WorldDrainEntityRemoved(struct App* app);
+
+void
+App_WorldDrainEntityRemovedFor(
+    struct App* app,
+    struct World* world);
 
 /** Post-load wiring (height fn, texture sync, minimap bake, and the
  * server ack for a REBUILD_NORMAL-driven load). Runs at the tail of the world
