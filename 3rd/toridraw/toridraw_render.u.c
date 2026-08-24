@@ -110,10 +110,9 @@ toridraw_dbg_log(
 
 #if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
 /*
- * Private renderer ABI: the first argument addresses RenderContext's
- * contiguous screen/orthographic output-pointer block. The assembly derives
- * the prepared camera vectors from that block, so all eight arguments stay in
- * registers.
+ * Private renderer ABI: the first argument addresses Scene's contiguous
+ * screen/orthographic output-pointer block. The assembly derives the prepared
+ * camera vectors from that block, so all eight arguments stay in registers.
  */
 extern void
 toridraw_project_vertices_fused_neon_noclip_native_prepared_aarch64(
@@ -301,7 +300,7 @@ toridraw_face_sort_debug_init(struct ToriDraw_FaceSortDebugStats* stats)
 
 static inline void
 toridraw_face_sort_debug_print(
-    const struct ToriDraw_RenderContext* scene,
+    const struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     const struct ToriDraw_FaceSortDebugStats* stats,
     int ordered)
@@ -411,7 +410,7 @@ toridraw_face_sort_debug_print(
 
 static inline void
 toridraw_projection_debug_print(
-    const struct ToriDraw_RenderContext* scene,
+    const struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     const struct ToriDraw_Position* position,
     const struct ToriDraw_ViewPort* view_port,
@@ -1442,7 +1441,7 @@ sort_face_draw_order(
  */
 static void
 toridraw_dbg_check_face_order(
-    struct ToriDraw_RenderContext* scene,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     const uint8_t* face_priorities,
     int face_count,
@@ -1551,7 +1550,7 @@ toridraw_dbg_check_face_order(
 
 static inline void
 ToriDraw_ComputeProjectedFaceOrder(
-    struct ToriDraw_RenderContext* scene,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd)
 {
     struct ToriDraw_FaceSortDebugStats debug_stats_storage;
@@ -1733,7 +1732,7 @@ ToriDraw_ComputeProjectedFaceOrder(
 
 static inline int
 bucket_sort_by_average_depth_small(
-    struct ToriDraw_RenderContext* scene,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_FaceSortDebugStats* debug_stats,
     bool near_clipped,
     int model_min_depth,
@@ -1869,7 +1868,7 @@ bucket_sort_by_average_depth_small(
  */
 static inline void
 partition_and_accumulate_faces_by_priority_small(
-    struct ToriDraw_RenderContext* scene,
+    struct ToriDraw_Scene* scene,
     int* priority_depths,
     int* counts,
     const uint8_t* face_priorities,
@@ -1927,7 +1926,7 @@ partition_and_accumulate_faces_by_priority_small(
 
 static inline int
 sort_face_draw_order_small(
-    struct ToriDraw_RenderContext* scene,
+    struct ToriDraw_Scene* scene,
     int* face_draw_order,
     int* priority_depths,
     int* counts)
@@ -2022,7 +2021,7 @@ sort_face_draw_order_small(
 
 static inline void
 ToriDraw_ComputeProjectedFaceOrderSmall(
-    struct ToriDraw_RenderContext* scene,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd)
 {
     struct ToriDraw_FaceSortDebugStats debug_stats_storage;
@@ -2141,7 +2140,7 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
 /* Models that can reach behind the near plane. */
 static inline void
 toridraw_project_vertices_clip(
-    struct ToriDraw_RenderContext* scene,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
     struct ToriDraw_Camera* camera,
@@ -2305,7 +2304,7 @@ __attribute__((noinline))
 #endif
 static void
 toridraw_project_vertices_noclip_portable(
-    struct ToriDraw_RenderContext* scene,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
     struct ToriDraw_Camera* camera,
@@ -2468,7 +2467,7 @@ __attribute__((always_inline))
 #endif
 static inline void
 toridraw_project_vertices_noclip(
-    struct ToriDraw_RenderContext* scene,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
     struct ToriDraw_Camera* camera,
@@ -2531,7 +2530,7 @@ toridraw_project_vertices_noclip(
  */
 static inline void
 toridraw_project_vertices_parallel_clip(
-    struct ToriDraw_RenderContext* scene,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
     struct ToriDraw_Camera* camera,
@@ -2586,7 +2585,7 @@ toridraw_project_vertices_parallel_clip(
 
 static inline void
 toridraw_project_vertices_parallel_noclip(
-    struct ToriDraw_RenderContext* scene,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
     struct ToriDraw_Camera* camera,
@@ -2641,7 +2640,7 @@ toridraw_project_vertices_parallel_noclip(
 
 static inline int
 ToriDraw_Project(
-    struct ToriDraw_RenderContext* scene,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
     struct ToriDraw_ViewPort* view_port,

@@ -48,10 +48,6 @@
  * selects the compact CSR face sorter, whereas this enum selects the model's
  * vertex/face capacity.  Depth capacity is independently selected with
  * TORIDRAW_SCENE_DEPTH_16K.  HIGH_8K preserves the post-QBD vertex/face limits.
- * Scene construction also allocates this tier's projected-vertex and final
- * face-order storage for the fixed same-thread re-entry contexts; the large
- * depth/priority sorting workspaces remain single-copy and are reused after an
- * outer model has finished sorting.
  */
 enum ToriDraw_ScratchBufferSize
 {

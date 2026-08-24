@@ -5,25 +5,30 @@
 
 #include <stdbool.h>
 
-/*
- * The four drawable face classes produced by ToriDraw's model decoder.  Raw
- * face_infos values are not members of this enum: the core has already
- * applied their hidden/special policy before a callback is selected.
- */
-enum ToriDraw_RasterFaceClass
+/* The four terminal algorithms in the stock/SD face rasterizer. */
+enum ToriDraw_RasterFaceClassSD
 {
-    TORIDRAW_RASTER_FACE_GOURAUD = 0,
-    TORIDRAW_RASTER_FACE_FLAT = 1,
-    TORIDRAW_RASTER_FACE_TEXTURED = 2,
-    TORIDRAW_RASTER_FACE_TEXTURED_FLAT = 3,
-    TORIDRAW_RASTER_FACE_CLASS_COUNT = 4,
+    TORIDRAW_RASTER_FACE_SD_GOURAUD = 0,
+    TORIDRAW_RASTER_FACE_SD_FLAT = 1,
+    TORIDRAW_RASTER_FACE_SD_TEXTURED = 2,
+    TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT = 3,
+    TORIDRAW_RASTER_FACE_SD_CLASS_COUNT = 4,
 };
 
-/* A kernel may participate in either renderer, or in both. */
-enum ToriDraw_RasterKernelDomain
+/*
+ * HD has two solid algorithms and four texture projection algorithms. Texture
+ * shading, face alpha, texel gating, modulation, and depth testing are inputs
+ * to these algorithms; they are deliberately not additional vtable axes.
+ */
+enum ToriDraw_RasterFaceClassHD
 {
-    TORIDRAW_RASTER_KERNEL_STOCK = 1u << 0,
-    TORIDRAW_RASTER_KERNEL_HD = 1u << 1,
+    TORIDRAW_RASTER_FACE_HD_GOURAUD = 0,
+    TORIDRAW_RASTER_FACE_HD_FLAT = 1,
+    TORIDRAW_RASTER_FACE_HD_PLANE = 2,
+    TORIDRAW_RASTER_FACE_HD_CYLINDER = 3,
+    TORIDRAW_RASTER_FACE_HD_CUBE = 4,
+    TORIDRAW_RASTER_FACE_HD_SPHERE = 5,
+    TORIDRAW_RASTER_FACE_HD_CLASS_COUNT = 6,
 };
 
 enum ToriDraw_RasterTextureGate
@@ -31,15 +36,6 @@ enum ToriDraw_RasterTextureGate
     TORIDRAW_RASTER_TEXTURE_OPAQUE = 0,
     TORIDRAW_RASTER_TEXTURE_COLOR_KEY = 1,
     TORIDRAW_RASTER_TEXTURE_TEXEL_ALPHA = 2,
-};
-
-/* What the tagged texture mapping union below contains. */
-enum ToriDraw_RasterMappingPayload
-{
-    TORIDRAW_RASTER_MAPPING_VERTEX_FRAME = 0,
-    TORIDRAW_RASTER_MAPPING_STOCK_FACE_FALLBACK = 1,
-    TORIDRAW_RASTER_MAPPING_HD = 2,
-    TORIDRAW_RASTER_MAPPING_HD_FRAME_FALLBACK = 3,
 };
 
 struct ToriDraw_RasterVertexFrame
@@ -50,11 +46,24 @@ struct ToriDraw_RasterVertexFrame
 };
 
 /*
- * Prepared texture state for one face.  It is meaningful only for the two
- * textured face classes.  ToriDraw has resolved and bounds-checked the texture
- * and the active mapping member before invoking a callback.
+ * Prepared texture state for one textured face. ToriDraw has resolved and
+ * bounds-checked the texture and mapping before invoking a textured callback;
+ * solid callbacks must not inspect their face's texture member.
  */
-struct ToriDraw_RasterTexture
+struct ToriDraw_RasterTextureSD
+{
+    int texture_id;
+    const int* texels;
+    int width;
+    int height;
+    enum ToriDraw_RasterTextureGate gate;
+    /* Non-zero render types select the stock affine texture family. */
+    unsigned int render_type;
+    bool frame_fallback;
+    struct ToriDraw_RasterVertexFrame frame;
+};
+
+struct ToriDraw_RasterTextureHD
 {
     int texture_id;
     const int* texels;
@@ -64,16 +73,15 @@ struct ToriDraw_RasterTexture
     bool clamp_s;
     bool clamp_t;
 
-    /* The original model render-type byte, retained for implementation policy. */
+    /* Original raw render type. face_class selects the active mapping member. */
     unsigned int render_type;
-    enum ToriDraw_RasterMappingPayload mapping_payload;
+    bool frame_fallback;
     union
     {
         struct ToriDraw_RasterVertexFrame vertex_frame;
         const struct ToriDraw_TexMapping* hd_mapping;
     } mapping;
 
-    /* Prepared HD sampler inputs; zero/false for the stock domain. */
     bool modulate;
     int tint_r;
     int tint_g;
@@ -82,20 +90,18 @@ struct ToriDraw_RasterTexture
 };
 
 /*
- * Pass-stable input shared by every callback for one model.  The structure is
- * read-only, but pixel_buffer and zbuffer name writable render targets.  The
+ * Pass-stable input shared by every callback for one model. The structure is
+ * read-only, but pixel_buffer and zbuffer name writable render targets. The
  * framebuffer pointer is rebased to clip_origin_x/clip_origin_y; width and
  * height describe that rebased region, and projection_center_* use its local
  * coordinates.
  *
- * All pointed-to storage is borrowed and valid only for the active raster
- * pass.  `internal` is reserved for ToriDraw's built-in implementations and is
+ * All pointed-to storage is borrowed and valid only for the active render
+ * call. `internal` is reserved for ToriDraw's built-in implementations and is
  * not an extension point for application kernels.
  */
 struct ToriDraw_RasterTarget
 {
-    enum ToriDraw_RasterKernelDomain domain;
-
     toripixel_t* pixel_buffer;
     torizdepth_t* zbuffer;
     int width;
@@ -110,7 +116,6 @@ struct ToriDraw_RasterTarget
     int camera_cot16;
     int model_mid_z;
     bool parallel_projection;
-    bool smooth_shading;
     bool affine_textures;
     bool depth_test;
     bool near_clip_available;
@@ -134,86 +139,101 @@ struct ToriDraw_RasterTarget
 };
 
 /*
- * Normalized input for one drawable face.  The same stack object may be reused
- * for the next face, so neither this pointer nor any descriptor pointer may be
- * retained by a callback.  Flat classes receive shade[0] repeated three times;
- * opacity is effective source coverage in the range 0..255.
+ * Normalized input for one drawable face. The same stack object may be reused
+ * for the next face, so neither it nor any descriptor pointer may be retained.
+ * Flat classes receive shade[0] repeated three times; opacity is effective
+ * source coverage in the range 0..255.
  */
-struct ToriDraw_RasterFace
+struct ToriDraw_RasterFaceSD
 {
-    enum ToriDraw_RasterFaceClass face_class;
+    enum ToriDraw_RasterFaceClassSD face_class;
     int face_index;
     int vertex[3];
     int shade[3];
     int opacity;
     bool near_clipped;
-    struct ToriDraw_RasterTexture texture;
+    struct ToriDraw_RasterTextureSD texture;
 };
 
-typedef void (*ToriDraw_RasterKernelFaceFn)(
+struct ToriDraw_RasterFaceHD
+{
+    enum ToriDraw_RasterFaceClassHD face_class;
+    int face_index;
+    int vertex[3];
+    int shade[3];
+    int opacity;
+    bool near_clipped;
+    struct ToriDraw_RasterTextureHD texture;
+};
+
+typedef void (*ToriDraw_RasterKernelSDFaceFn)(
     void* user_data,
     const struct ToriDraw_RasterTarget* target,
-    const struct ToriDraw_RasterFace* face);
+    const struct ToriDraw_RasterFaceSD* face);
 
-/*
- * NULL slots are sparse overrides: resolution continues through `fallback`
- * and finally through the active render entry point's terminal kernel.  A
- * deliberate no-op must therefore be represented by a real callback.
- */
-struct ToriDraw_RasterKernelVTable
+typedef void (*ToriDraw_RasterKernelHDFaceFn)(
+    void* user_data,
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFaceHD* face);
+
+/* NULL slots are sparse overrides and resolve through the typed fallback. */
+struct ToriDraw_RasterKernelSDVTable
 {
-    ToriDraw_RasterKernelFaceFn draw_gouraud;
-    ToriDraw_RasterKernelFaceFn draw_flat;
-    ToriDraw_RasterKernelFaceFn draw_textured;
-    ToriDraw_RasterKernelFaceFn draw_textured_flat;
+    ToriDraw_RasterKernelSDFaceFn draw_gouraud;
+    ToriDraw_RasterKernelSDFaceFn draw_flat;
+    ToriDraw_RasterKernelSDFaceFn draw_textured;
+    ToriDraw_RasterKernelSDFaceFn draw_textured_flat;
+};
+
+struct ToriDraw_RasterKernelHDVTable
+{
+    ToriDraw_RasterKernelHDFaceFn draw_gouraud;
+    ToriDraw_RasterKernelHDFaceFn draw_flat;
+    ToriDraw_RasterKernelHDFaceFn draw_plane;
+    ToriDraw_RasterKernelHDFaceFn draw_cylinder;
+    ToriDraw_RasterKernelHDFaceFn draw_cube;
+    ToriDraw_RasterKernelHDFaceFn draw_sphere;
 };
 
 /*
- * A scene borrows this object, its vtable, its fallback chain, and user_data.
- * They must remain alive and immutable while bound or while a raster pass is
- * active.  `domains` is a non-empty mask of ToriDraw_RasterKernelDomain bits.
- * A callback may synchronously render either a different scene or the same
- * scene again. Complete same-scene renders use an independently preallocated
- * render context. Concurrent use of one scene still requires external
- * synchronization.
+ * A render call borrows the selected object, vtable, fallback chain, and
+ * user_data. They must remain alive and immutable until that call returns.
+ * Sparse application kernels must explicitly fall back to a complete root.
+ *
+ * Rendering one scene recursively or concurrently is outside the contract:
+ * the scene owns one startup-allocated projection/sort scratch set.
  */
-struct ToriDraw_RasterKernel
+struct ToriDraw_RasterKernelSD
 {
-    const struct ToriDraw_RasterKernelVTable* vtable;
+    const struct ToriDraw_RasterKernelSDVTable* vtable;
     void* user_data;
-    const struct ToriDraw_RasterKernel* fallback;
-    unsigned int domains;
+    const struct ToriDraw_RasterKernelSD* fallback;
+};
+
+struct ToriDraw_RasterKernelHD
+{
+    const struct ToriDraw_RasterKernelHDVTable* vtable;
+    void* user_data;
+    const struct ToriDraw_RasterKernelHD* fallback;
 };
 
 /* Process-lifetime, immutable built-in terminal roots. */
-const struct ToriDraw_RasterKernel*
-ToriDraw_RasterKernelGetBranching(void);
+const struct ToriDraw_RasterKernelSD*
+ToriDraw_RasterKernelSDGetBranching(void);
 
-const struct ToriDraw_RasterKernel*
-ToriDraw_RasterKernelGetScanline(void);
+const struct ToriDraw_RasterKernelSD*
+ToriDraw_RasterKernelSDGetScanline(void);
 
-const struct ToriDraw_RasterKernel*
-ToriDraw_RasterKernelGetHDBranching(void);
+const struct ToriDraw_RasterKernelSD*
+ToriDraw_RasterKernelSDGetSmoothBranching(void);
 
-const struct ToriDraw_RasterKernel*
-ToriDraw_RasterKernelGetHDScanline(void);
+const struct ToriDraw_RasterKernelSD*
+ToriDraw_RasterKernelSDGetSmoothScanline(void);
 
-/*
- * Bind a borrowed override/root chain to a scene.  Set rejects NULL, malformed
- * or cyclic chains.  Set and Reset both reject changes during an active raster
- * pass and leave the previous binding untouched on failure.  Reset stores the
- * NULL sentinel meaning "inherit the entry point's terminal".  Get returns the
- * explicit binding, so NULL is a normal answer.
- */
-bool
-ToriDraw_SceneSetRasterKernel(
-    struct ToriDraw_Scene* scene,
-    const struct ToriDraw_RasterKernel* kernel);
+const struct ToriDraw_RasterKernelHD*
+ToriDraw_RasterKernelHDGetBranching(void);
 
-bool
-ToriDraw_SceneResetRasterKernel(struct ToriDraw_Scene* scene);
-
-const struct ToriDraw_RasterKernel*
-ToriDraw_SceneGetRasterKernel(const struct ToriDraw_Scene* scene);
+const struct ToriDraw_RasterKernelHD*
+ToriDraw_RasterKernelHDGetScanline(void);
 
 #endif

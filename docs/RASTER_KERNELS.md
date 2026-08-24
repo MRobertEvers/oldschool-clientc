@@ -1,992 +1,434 @@
 # ToriDraw raster kernels
 
-Status: implemented architecture and migration record. HD near-plane
-reconstruction and workload-level performance measurement remain documented
-follow-ups; neither changes the public dispatch contract.
+Status: implemented design and public contract.
 
 ## Purpose
 
-ToriDraw should choose its model-face raster implementation through a
-`ToriDraw_RasterKernel` interface. A scene can then select a complete raster
-family at runtime or layer sparse face-type overrides over an existing family.
+Raster kernels are the per-call extension point between model-face preparation
+and triangle rasterization. A caller can choose a built-in normal or smooth SD
+variant and its branching or scanline implementation at runtime, replace
+selected face classes, or provide a complete renderer without changing a scene
+or model.
 
-The design has four priorities:
-
-1. Preserve the behavior of every face currently accepted by the stock model
-   raster path.
-2. Make a runtime variant switch local to a scene and stable for one model
-   raster pass.
-3. Pay one interface dispatch per drawable face, with no kernel dispatch in
-   scanline, span, or pixel loops.
-4. Make partial overrides representation-safe: an override receives normalized,
-   debug-checked face data and inherits every slot it does not replace.
-
-This is an interface extraction first. It must not silently change alpha,
-texture, clipping, sorting, or depth behavior.
-
-## Scope
-
-The implementation covers the normal software model raster flow:
+The boundary is intentionally above triangle setup and span/pixel loops:
 
 ```text
-ToriDraw_RenderModel
-  -> ToriDraw_RenderModel1Project
-  -> ToriDraw_RenderModel2SortFaces
-  -> ToriDraw_RenderModel3Raster
-  -> ToriDraw_RasterWithFaceIndices
-  -> prepared face
-  -> selected ToriDraw_RasterKernel slot
+project -> sort or back-face cull -> prepare face -> one kernel callback
+                                               -> direct triangle/span/pixel code
 ```
 
-It also covers the unsorted face loop used by `ToriDraw_RenderZBuffered` and the
-base model fields of both `TORIDRAWMK_MODEL` and `TORIDRAWMK_MODEL_HD` when they
-pass through that normal flow.
+ToriDraw owns model interpretation. It rejects hidden or unsupported faces,
+resolves and validates texture/mapping inputs, normalizes shades and opacity,
+and prepares clipping state before the callback. A kernel therefore receives a
+semantic face instead of having to decode `face_infos` or reinterpret P/M/N
+records.
 
-`ToriDraw_RenderHD` and `ToriDraw_RenderHDZBuffered` use the same four-slot
-interface through HD-domain terminal roots while retaining their material,
-alpha, missing-material, mapping, tint, statistics, and depth policies.
-`TORIDRAW_PIXEL16` exposes the same public object/vtable layout and stock
-dispatch, while its HD render entry points return the defined unsupported
-result.
+The interface covers the software face loops for `TORIDRAWMK_MODEL` and
+`TORIDRAWMK_MODEL_HD`. Ground meshes use their existing ground/GPU/packet paths
+and are not raster-kernel inputs.
 
-The following are deliberately separate:
+## Typed public interface
 
-- HD near-plane reconstruction remains incomplete in the underlying PMN/mapped
-  families and is a separately reviewed follow-up; the interface does not claim
-  to repair it.
-- `ToriDraw_ModelGround` is consumed by the ground/GPU/packet paths and is not
-  accepted by the current software `ToriDraw_Raster` entry point.
-- Low-level Gouraud-RGB triangle kernels are implementation families, not a
-  semantic class emitted by the current model face classifier, so they do not
-  require a fifth public slot.
-- Sorting, priority buckets, projection, picking, and lighting are not kernel
-  services. In particular, a kernel cannot recover a face dropped by an
-  upstream sort limit.
-- Same-thread callback re-entry is supported by preallocated scene render
-  contexts. This does not make one scene safe for concurrent rendering from
-  multiple threads; callers must still serialize that use.
+There is no untyped kernel base. Stock/SD and HD have separate callback, face,
+texture, vtable, kernel, and fallback types in
+[`toridraw_raster_kernel.h`](../3rd/toridraw/toridraw_raster_kernel.h). They share
+only `ToriDraw_RasterTarget`.
 
-## Why the interface belongs at the face boundary
+SD has four terminal face classes:
 
-The current switch in
-[`toridraw_raster.u.c`](../3rd/toridraw/toridraw_raster.u.c) combines several
-jobs: interpreting encoded model data, skipping non-drawable faces, resolving a
-texture, selecting one of four semantic face classes, and calling a triangle
-family. The current runtime scanline selection then branches again in triangle
-wrappers.
+| `ToriDraw_RasterFaceClassSD` | Meaning |
+|---|---|
+| `TORIDRAW_RASTER_FACE_SD_GOURAUD` | Untextured, three prepared shades |
+| `TORIDRAW_RASTER_FACE_SD_FLAT` | Untextured, one shade repeated three times |
+| `TORIDRAW_RASTER_FACE_SD_TEXTURED` | Textured, three prepared shades |
+| `TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT` | Textured, one shade repeated three times |
 
-The useful extension point is after interpretation but before triangle setup.
-It is frequent enough to replace a face implementation, but high enough that
-the hot span and pixel loops remain direct calls. It also prevents every custom
-kernel from having to rediscover rules such as whether P/M/N are vertex indices
-or texture-mapping data.
+HD has six terminal face classes:
 
-Raw `face_infos` values are not vtable indices. They encode lighting and hidden
-face policy, while the drawable raster classes are:
+| `ToriDraw_RasterFaceClassHD` | Meaning |
+|---|---|
+| `TORIDRAW_RASTER_FACE_HD_GOURAUD` | Solid Gouraud fallback or untextured face |
+| `TORIDRAW_RASTER_FACE_HD_FLAT` | Solid flat fallback or untextured face |
+| `TORIDRAW_RASTER_FACE_HD_PLANE` | P/M/N vertex-frame projection |
+| `TORIDRAW_RASTER_FACE_HD_CYLINDER` | Cylinder mapping |
+| `TORIDRAW_RASTER_FACE_HD_CUBE` | Cube mapping |
+| `TORIDRAW_RASTER_FACE_HD_SPHERE` | Sphere mapping |
 
-| Semantic class | Untextured | Textured | Shade selection |
-|---|---:|---:|---|
-| Gouraud | yes | no | three prepared shades |
-| Flat | yes | no | flat-colour sentinel |
-| Textured | no | yes | three prepared shades |
-| Textured flat | no | yes | flat-colour sentinel |
+Texture gate, face alpha, modulation, clamping, affine mapping, near clipping,
+and depth testing are inputs to those algorithms. They are not additional
+vtable slots. SD smooth Gouraud shading is instead an implementation choice of
+the selected kernel: the four-slot SD shape is identical for normal and smooth
+kernels.
 
-Depth testing, near clipping, affine versus perspective mapping, and opaque
-versus colour-keyed textures are modifiers within those classes. Making each
-combination a public vtable slot would expose a large, unstable matrix and make
-partial overrides awkward.
-
-## Public interface
-
-The implementation adds a public raster-kernel header and exposes these names
-through [`toridraw.h`](../3rd/toridraw/toridraw.h). The callback descriptors and
-HD mapping record are concrete public read-only structures, not opaque handles.
-The object and vtable shape is deliberately small:
+The callback types are deliberately distinct:
 
 ```c
-struct ToriDraw_RasterKernel;
-struct ToriDraw_RasterTarget;
-struct ToriDraw_RasterFace;
-/* ToriDraw_TexMapping is defined by toridraw_texture_mapping.h. */
-
-enum ToriDraw_RasterFaceClass
-{
-    TORIDRAW_RASTER_FACE_GOURAUD = 0,
-    TORIDRAW_RASTER_FACE_FLAT = 1,
-    TORIDRAW_RASTER_FACE_TEXTURED = 2,
-    TORIDRAW_RASTER_FACE_TEXTURED_FLAT = 3,
-    TORIDRAW_RASTER_FACE_CLASS_COUNT = 4,
-};
-
-enum ToriDraw_RasterKernelDomain
-{
-    TORIDRAW_RASTER_KERNEL_STOCK = 1u << 0,
-    TORIDRAW_RASTER_KERNEL_HD = 1u << 1,
-};
-
-enum ToriDraw_RasterTextureGate
-{
-    TORIDRAW_RASTER_TEXTURE_OPAQUE = 0,
-    TORIDRAW_RASTER_TEXTURE_COLOR_KEY = 1,
-    TORIDRAW_RASTER_TEXTURE_TEXEL_ALPHA = 2,
-};
-
-enum ToriDraw_RasterMappingPayload
-{
-    TORIDRAW_RASTER_MAPPING_VERTEX_FRAME = 0,
-    TORIDRAW_RASTER_MAPPING_STOCK_FACE_FALLBACK = 1,
-    TORIDRAW_RASTER_MAPPING_HD = 2,
-    TORIDRAW_RASTER_MAPPING_HD_FRAME_FALLBACK = 3,
-};
-
-typedef void (*ToriDraw_RasterKernelFaceFn)(
+typedef void (*ToriDraw_RasterKernelSDFaceFn)(
     void *user_data,
     const struct ToriDraw_RasterTarget *target,
-    const struct ToriDraw_RasterFace *face);
+    const struct ToriDraw_RasterFaceSD *face);
 
-struct ToriDraw_RasterKernelVTable
-{
-    ToriDraw_RasterKernelFaceFn draw_gouraud;
-    ToriDraw_RasterKernelFaceFn draw_flat;
-    ToriDraw_RasterKernelFaceFn draw_textured;
-    ToriDraw_RasterKernelFaceFn draw_textured_flat;
+typedef void (*ToriDraw_RasterKernelHDFaceFn)(
+    void *user_data,
+    const struct ToriDraw_RasterTarget *target,
+    const struct ToriDraw_RasterFaceHD *face);
+```
+
+The public vtables and objects are:
+
+```c
+struct ToriDraw_RasterKernelSDVTable {
+    ToriDraw_RasterKernelSDFaceFn draw_gouraud;
+    ToriDraw_RasterKernelSDFaceFn draw_flat;
+    ToriDraw_RasterKernelSDFaceFn draw_textured;
+    ToriDraw_RasterKernelSDFaceFn draw_textured_flat;
 };
 
-struct ToriDraw_RasterKernel
-{
-    const struct ToriDraw_RasterKernelVTable *vtable;
+struct ToriDraw_RasterKernelHDVTable {
+    ToriDraw_RasterKernelHDFaceFn draw_gouraud;
+    ToriDraw_RasterKernelHDFaceFn draw_flat;
+    ToriDraw_RasterKernelHDFaceFn draw_plane;
+    ToriDraw_RasterKernelHDFaceFn draw_cylinder;
+    ToriDraw_RasterKernelHDFaceFn draw_cube;
+    ToriDraw_RasterKernelHDFaceFn draw_sphere;
+};
+
+struct ToriDraw_RasterKernelSD {
+    const struct ToriDraw_RasterKernelSDVTable *vtable;
     void *user_data;
-    const struct ToriDraw_RasterKernel *fallback;
-    unsigned int domains;
+    const struct ToriDraw_RasterKernelSD *fallback;
+};
+
+struct ToriDraw_RasterKernelHD {
+    const struct ToriDraw_RasterKernelHDVTable *vtable;
+    void *user_data;
+    const struct ToriDraw_RasterKernelHD *fallback;
 };
 ```
 
-The four callbacks intentionally share one signature. This keeps fallback
-resolution and instrumentation simple and allows a single override callback to
-cover multiple classes when desired.
+The kernel, vtable, fallback chain, and `user_data` are borrowed for the render
+call. They must remain alive and immutable until it returns. A vtable should
+normally be `static const`; a kernel and its state may be stack objects when the
+render call is synchronous.
 
-Built-in roots are immutable, process-lifetime objects:
+## Prepared descriptors
+
+### Shared target
+
+`ToriDraw_RasterTarget` is stable for one model raster call. It provides:
+
+- the writable pixel buffer and optional z-buffer, rebased to the clip origin;
+- local width, height, stride, clip origin, and projection centre;
+- near-plane, camera projection, model-depth, parallel/affine/depth, and
+  near-clip-availability values;
+- projected screen and orthographic vertex arrays; and
+- posed and bind-pose model-space vertex arrays.
+
+Screen coordinates in the arrays are relative to `projection_center_x` and
+`projection_center_y`. `pixel_buffer` and `zbuffer` already point at the local
+clip origin. All arrays are borrowed scene or model storage and remain valid
+only for the call.
+
+`internal` is reserved for built-in ToriDraw kernels. Application callbacks
+must use the public fields and must not inspect, replace, or retain it.
+
+### Faces
+
+`ToriDraw_RasterFaceSD` and `ToriDraw_RasterFaceHD` are separate normalized
+descriptors. Both contain the typed class, original face index, three model
+vertex indices, three shades, effective opacity from 0 through 255, and a
+`near_clipped` flag.
+
+Flat faces repeat `shade[0]` in all three entries. The descriptor is reused for
+later faces, so a callback must not retain its address.
+
+SD embeds `ToriDraw_RasterTextureSD`. For textured classes it contains the
+resolved texture id, texels, dimensions and gate, the raw stock render type,
+the selected P/M/N vertex frame, and whether that frame is a face-frame
+fallback. Stock textured faces retain their historical behavior of ignoring
+authored face alpha, so their prepared opacity is 255.
+
+HD embeds `ToriDraw_RasterTextureHD`. In addition to resolved texture data it
+contains clamp flags, raw render type, either a vertex frame or a validated
+`ToriDraw_TexMapping`, mapping-fallback state, and modulation tint/neutral
+values. A missing HD material becomes a visible solid Gouraud/flat face. A
+mapped type without mapping data becomes a plane face with
+`frame_fallback == true`. These policy decisions happen before dispatch.
+
+The texture member is meaningful only for a textured SD class or one of the
+four HD texture-projection classes.
+
+SD built-ins rebuild supported near-clipped triangles from the prepared
+orthographic arrays. The HD descriptors expose the same availability and face
+flag, but the current built-in HD projection families retain their existing
+non-rebuilding near-plane behavior; the interface does not claim to repair
+that separate limitation.
+
+## Per-call selection
+
+The explicit SD entry points are:
+
+- `ToriDraw_RenderModelWithRasterKernel`;
+- `ToriDraw_RenderModel3RasterWithRasterKernel`; and
+- `ToriDraw_RenderZBufferedWithRasterKernel`.
+
+The kernel-explicit phase-three and Z-buffered APIs do not take a `smooth`
+boolean, and `ToriDraw_RasterTarget` has no smooth-shading field. Selecting a
+normal root, a smooth root, or an application kernel completely specifies that
+choice. If an override needs distinct normal and smooth behavior, expose two
+kernel objects or encode that distinction in its `user_data`; callbacks cannot
+infer it from the target.
+
+The explicit HD entry points are:
+
+- `ToriDraw_RenderHDWithRasterKernel`; and
+- `ToriDraw_RenderHDZBufferedWithRasterKernel`.
+
+The kernel pointer is an argument to the call. It is not stored on
+`ToriDraw_Scene`, `ToriDraw_Model`, or `ToriDraw_ModelHD`, so two consecutive
+calls can use different variants without mutation or synchronization of model
+state.
+
+Normal and Z-buffered calls use the same typed kernel. Depth is reported by
+`target->depth_test` and `target->zbuffer`; built-in callbacks select their
+depth-tested terminal family from that modifier. The Z-buffered convenience
+flows also omit face sorting and perform back-face culling in model order. The
+ordinary SD flow may enable depth for a model through its existing model/scene
+z-buffer policy without changing kernel type.
+
+Projection, sorting, picking, model priority, and visibility limits remain
+outside the interface. A kernel cannot recover a face discarded before face
+preparation.
+
+## Built-in roots and compatibility wrappers
+
+ToriDraw exposes six immutable, process-lifetime terminal roots. SD provides
+normal and smooth implementations of both raster families; HD provides its
+branching and scanline implementations:
 
 ```c
-const struct ToriDraw_RasterKernel *
-ToriDraw_RasterKernelGetBranching(void);
-
-const struct ToriDraw_RasterKernel *
-ToriDraw_RasterKernelGetScanline(void);
+const struct ToriDraw_RasterKernelSD *ToriDraw_RasterKernelSDGetBranching(void);
+const struct ToriDraw_RasterKernelSD *ToriDraw_RasterKernelSDGetScanline(void);
+const struct ToriDraw_RasterKernelSD *ToriDraw_RasterKernelSDGetSmoothBranching(void);
+const struct ToriDraw_RasterKernelSD *ToriDraw_RasterKernelSDGetSmoothScanline(void);
+const struct ToriDraw_RasterKernelHD *ToriDraw_RasterKernelHDGetBranching(void);
+const struct ToriDraw_RasterKernelHD *ToriDraw_RasterKernelHDGetScanline(void);
 ```
 
-Scene selection is explicit:
+The legacy render functions choose a matching static root once per call from
+the process-wide `ToriDraw_RasterGetScanline()` selector. The legacy `smooth`
+argument on `ToriDraw_RenderModel3Raster` and `ToriDraw_RenderZBuffered` exists
+only to select the corresponding normal or smooth static SD root; it is not
+forwarded as raster state. `ToriDraw_RenderModel` and model-sprite helpers use a
+normal SD root. `ToriDraw_RenderHD` and `ToriDraw_RenderHDZBuffered` choose one
+of the two HD roots.
+
+`ToriDraw_RasterSetScanline(bool)` changes that compatibility choice, and
+`ToriDraw_Init()` recognizes `TORIDRAW_RASTER_SCANLINE=1`. Explicit-kernel calls
+are unaffected. New code that needs per-object or per-call selection should
+pass one of the root pointers directly instead of changing the global selector.
+
+## Sparse overrides and typed fallback
+
+A null vtable slot means “continue through this kernel's typed `fallback`
+chain.” Resolution walks the chain once before the face loop and records both
+the first function and the `user_data` belonging to the node that supplied it.
+Fallback is not traversed per face.
+
+An explicit chain must supply every slot. ToriDraw does not append a hidden
+default, so a sparse application kernel should end at an explicit complete root
+of the same type. A null kernel, null vtable, cycle, or unresolved slot makes
+the raster stage fail. To suppress a face class deliberately, install a no-op
+callback; do not leave its slot null.
+
+An explicit callback replaces its slot. Fallback does not run after it. An
+instrumenting callback that also wants the built-in result can call the chosen
+complete root's corresponding vtable function itself.
+
+### Sparse SD override
+
+This example counts flat faces and then delegates them to the selected built-in
+variant. All other classes resolve directly from `base`:
 
 ```c
-bool
-ToriDraw_SceneSetRasterKernel(
-    struct ToriDraw_Scene *scene,
-    const struct ToriDraw_RasterKernel *kernel);
-
-bool
-ToriDraw_SceneResetRasterKernel(struct ToriDraw_Scene *scene);
-
-const struct ToriDraw_RasterKernel *
-ToriDraw_SceneGetRasterKernel(const struct ToriDraw_Scene *scene);
-```
-
-The binding lives on the scene because callers are allowed to run projection,
-sorting, and raster phases separately, and phase 3 receives the scene rather
-than the original model arguments. Adding a kernel only to the convenience
-`ToriDraw_RenderModel` call would leave those callers on a different dispatch
-path.
-
-`Set` requires a non-null, acyclic, structurally valid chain. It returns false
-and leaves the old binding untouched if validation fails or a raster pass is
-active. `Reset` has the same active-pass rule and stores null on success,
-meaning "inherit the render entry point's terminal root." `Get` returns the
-explicit binding and may therefore return null. There is intentionally no
-context-free "effective" getter: stock and HD entry points supply different
-terminals.
-
-Keep the kernel pointer at the end of `ToriDraw_Scene`. The scene begins with a
-resident `ToriDraw_RenderContext` overlaid with the legacy render-field names,
-so the assembly-sensitive projection layout remains at the same offsets while
-private code can pass one explicit context pointer. The nested-context pool and
-its active/cursor fields immediately follow that prefix, keeping the ordinary
-acquire branch at a small scene offset. Every scene allocation and
-buffer-initialization path initializes them.
-
-### Ownership and mutation
-
-The scene borrows the kernel, vtable, fallback chain, and `user_data`; it never
-copies or frees them. They must outlive every scene binding and every active
-raster pass that uses them. Vtables should normally be `static const`.
-
-Changing a scene binding is allowed only between model raster passes. Set/reset
-from a callback is rejected; otherwise a callback could retire `user_data` that
-another resolved slot still needs. At pass entry ToriDraw snapshots the binding
-and terminal root. Concurrent mutation or rendering of the same scene requires
-external synchronization.
-
-A callback may synchronously render the active scene again. The complete stock,
-forced-z-buffer, HD, HD-z-buffer, and direct widget-model entry points select a
-render context once before projection and release it on every return, including
-culls and invalid live chains.
-`ToriDraw_RenderModel3Raster` may also be called recursively: it uses the
-currently active context when invoked by a callback, and otherwise uses the
-resident context. Phase 3 only reads prepared projection/order arrays and
-creates a fresh pass-local face descriptor. If that prepared model opts into
-depth testing, a recursive phase 3 leases the next preallocated context only
-for its mutable depth storage: resetting or growing the inner buffer cannot
-invalidate the paused outer target, and no vertex/order array is copied. The
-split projection/sort APIs remain low-level phase controls and must not be
-interleaved recursively without an owning complete entry point.
-
-### Re-entrant render contexts
-
-The ordinary render uses the resident `ToriDraw_RenderContext` at offset zero in
-`ToriDraw_Scene`. `ToriDraw_SceneNew` also allocates
-`TORIDRAW_NESTED_RENDER_CONTEXTS` additional contexts (eight by default and
-compile-time configurable), including every fixed-capacity projection and face
-order buffer. Private projection, sort, stock raster, HD raster, z-buffer, and
-widget helpers receive the selected context explicitly. No render fields are
-swapped into or out of the scene.
-
-A complete entry point publishes one `active_render_context` pointer when it
-acquires its context and restores the previous context when it returns. There
-are no application callbacks during projection or sorting, so retaining that
-pointer across the full extent lets every raster loop enter directly with no
-second scope or publication step. A complete render entered with no outer
-render active uses the resident context. A complete render entered by a face
-callback leases the next preallocated context and releases it in LIFO order.
-Recursive phase 3 for a depth-tested model uses the same pool as a depth-only
-scratch lease while continuing to read its active projection context.
-Missing startup storage, pool exhaustion, and a non-LIFO release are
-programming/configuration errors and assert immediately; they are never
-converted into a cull result or a silently skipped render. Raising
-`TORIDRAW_NESTED_RENDER_CONTEXTS` raises the supported callback nesting limit.
-
-The z-buffer retains its existing viewport-sized, grow-on-demand policy because
-`ToriDraw_SceneNew` has no viewport dimensions; each context keeps that
-allocation for later renders once first used. An explicitly resized resident
-buffer remains a scene-wide opt-in: nested contexts inherit permission to grow
-their own storage rather than falling back to painter order. Context-owned
-state consists of:
-
-- the active model handle, projected centre/bounds, near-clip flag, and effective
-  near plane;
-- all six projected/orthographic vertex arrays;
-- the final face-order array and count; and
-- an independent z-buffer pointer, dimensions, and contents when a depth entry
-  point is used.
-
-Depth and priority bucket workspaces remain shared. Kernel callbacks run only
-after the outer sort has completed, so those intermediates are dead while the
-outer raster is paused; the nested sort may reuse them without copying or
-changing the outer result. This avoids multiplying the large 16K-depth sort
-allocation for every supported nesting level.
-
-The common single-threaded path performs one predictable active-context check
-and pointer store at entry, then an assertion and pointer restore at exit. It
-performs no allocation, locking, atomic or thread-local access, scratch
-transfer, extra raster scope, or additional face/span/pixel-loop indirection.
-Complete nested entry paths are cold-outlined, while the explicit-context body
-is forced inline into each ordinary root entry so that re-entry support does not
-add a common-path helper call. The face loop first captures raw array pointers
-in its existing pass-local descriptor, so explicit context ownership does not
-add a lookup per face. Only the cold nested arm copies the prepared-camera
-constants and current texture-state pointer into its already allocated context.
-Same-scene concurrent threads are outside the contract and callers must
-serialize them.
-
-Publish the active context for the entire complete render and restore the
-previous pointer afterward, so popping an inner render never makes the scene
-binding mutable while an outer pass still uses its resolved `user_data`.
-
-Version 1 has no destructor or ownership callback. The repository builds
-ToriDraw from source, including its unity translation unit, rather than loading
-binary raster plugins. `abi_version` and `struct_size` fields should be added
-only if binary compatibility becomes a real requirement. Source consumers must
-be rebuilt when these concrete public structures change; keep the vtable layout
-stable and identical in normal and `TORIDRAW_PIXEL16` builds.
-
-## Sparse overrides and fallback
-
-A null vtable slot means "continue down the explicit `fallback` chain for this
-face class." If the chain ends before supplying the slot, resolution continues
-through the render entry point's terminal root. It does not mean "skip this
-face." To suppress a class, install an explicit no-op callback. Built-in roots
-have all four slots populated and a null fallback.
-
-The resolver ignores a node whose `domains` mask does not include the current
-stock or HD pass. This lets one scene carry a stock-only, HD-only, or shared
-override safely. Built-in stock roots advertise only `STOCK`; HD roots
-advertise only `HD`. A zero or unknown domain mask is invalid.
-
-For example, an application can replace flat faces and inherit everything else:
-
-```c
-static const struct ToriDraw_RasterKernelVTable outline_vtable = {
-    .draw_flat = draw_flat_outline,
+struct FlatCounter {
+    int count;
+    const struct ToriDraw_RasterKernelSD *base;
 };
-
-static struct OutlineState outline_state;
-static struct ToriDraw_RasterKernel outline_kernel;
 
 static void
-init_outline_kernel(void)
+counted_flat(void *opaque,
+             const struct ToriDraw_RasterTarget *target,
+             const struct ToriDraw_RasterFaceSD *face)
 {
-    outline_kernel = (struct ToriDraw_RasterKernel){
-        .vtable = &outline_vtable,
-        .user_data = &outline_state,
-        .fallback = NULL,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK |
-                   TORIDRAW_RASTER_KERNEL_HD,
-    };
+    struct FlatCounter *counter = opaque;
+    counter->count++;
+    counter->base->vtable->draw_flat(counter->base->user_data, target, face);
 }
-```
 
-With a null explicit fallback, this override inherits the stock terminal from a
-stock call and the HD terminal from an HD call. To pin its inherited stock slots
-to one variant, set `fallback` to `ToriDraw_RasterKernelGetBranching()` or
-`ToriDraw_RasterKernelGetScanline()` and restrict its domain accordingly. The
-vtable can be `static const`; initialize the kernel once and then treat the
-whole chain as immutable while bound.
-
-Each resolved slot is a pair of callback and `user_data`. The `user_data` comes
-from the chain node that supplied that callback, not necessarily from the head
-kernel. This is necessary for multiple independent override layers.
-
-At the start of `ToriDraw_RasterWithFaceIndices`, resolve the explicit chain and
-the entry-point terminal into a small stack object:
-
-```c
-struct ToriDraw_ResolvedRasterSlot
-{
-    ToriDraw_RasterKernelFaceFn function;
-    void *user_data;
+static const struct ToriDraw_RasterKernelSDVTable counter_vtable = {
+    .draw_flat = counted_flat,
 };
 
-struct ToriDraw_ResolvedRasterKernel
+/* In the calling function: */
+const struct ToriDraw_RasterKernelSD *base;
+if (smooth) {
+    base = use_scanline
+        ? ToriDraw_RasterKernelSDGetSmoothScanline()
+        : ToriDraw_RasterKernelSDGetSmoothBranching();
+} else {
+    base = use_scanline
+        ? ToriDraw_RasterKernelSDGetScanline()
+        : ToriDraw_RasterKernelSDGetBranching();
+}
+struct FlatCounter counter = { .base = base };
+struct ToriDraw_RasterKernelSD kernel = {
+    .vtable = &counter_vtable,
+    .user_data = &counter,
+    .fallback = base,
+};
+
+int result = ToriDraw_RenderModelWithRasterKernel(
+    model, scene, &position, &viewport, &camera, pixels, &kernel);
+```
+
+An HD override uses the same pattern with `ToriDraw_RasterKernelHD`, its
+six-slot vtable, and an HD root. For example, setting only `draw_cube` replaces
+cube-mapped faces while the typed fallback supplies solid, plane, cylinder, and
+sphere slots.
+
+### Complete wireframe kernel
+
+A complete SD wireframe variant can point all four slots at one callback. This
+minimal example skips near-plane intersections; a production version should
+clip them using the orthographic arrays when `near_clip_available` is true.
+`app_draw_line` is application code, not a ToriDraw API.
+
+```c
+static void
+draw_wireframe(void *opaque,
+               const struct ToriDraw_RasterTarget *target,
+               const struct ToriDraw_RasterFaceSD *face)
 {
-    struct ToriDraw_ResolvedRasterSlot slots[TORIDRAW_RASTER_FACE_CLASS_COUNT];
+    if (face->near_clipped)
+        return;
+
+    int x[3], y[3];
+    for (int i = 0; i < 3; i++) {
+        int vertex = face->vertex[i];
+        x[i] = target->screen_vertices_x[vertex] + target->projection_center_x;
+        y[i] = target->screen_vertices_y[vertex] + target->projection_center_y;
+    }
+
+    app_draw_line(opaque, target, x[0], y[0], x[1], y[1]);
+    app_draw_line(opaque, target, x[1], y[1], x[2], y[2]);
+    app_draw_line(opaque, target, x[2], y[2], x[0], y[0]);
+}
+
+static const struct ToriDraw_RasterKernelSDVTable wire_vtable = {
+    .draw_gouraud = draw_wireframe,
+    .draw_flat = draw_wireframe,
+    .draw_textured = draw_wireframe,
+    .draw_textured_flat = draw_wireframe,
+};
+
+struct ToriDraw_RasterKernelSD wire = {
+    .vtable = &wire_vtable,
+    .user_data = &wire_state,
 };
 ```
 
-Resolution performs no allocation. It detects fallback cycles, validates every
-node, skips domain-incompatible nodes, and fills any remaining slots from the
-complete internal terminal. Cycle detection can use tortoise/hare traversal
-before the four slot walks. The inner face loop then contains neither
-null/fallback checks nor a global variant check.
+This kernel is complete and needs no fallback. A depth-aware wireframe must
+honor `target->depth_test` and update/test the supplied z-buffer. HD wireframe
+support needs a separate HD callback and all six HD slots because the face
+descriptor type is different.
 
-Set-time validation gives callers an error result. Pass-time validation is
-still required because live borrowed nodes could have been structurally mutated
-in violation of the contract. If that happens, the resolver emits a diagnostic
-before the face loop, discards the entire explicit chain, and uses the
-entry-point terminal. It never loops forever, calls a null slot, or draws
-through a partially resolved custom chain. This recovery assumes the chain
-storage is still readable. Freeing a bound node, vtable, or `user_data` is a
-lifetime violation that no pointer-based C API can detect safely.
+## Scratch ownership and reentrancy
 
-The public vtable keeps named members for readable initializers; the resolved
-form uses the stable face-class enum as an array index. The core guarantees the
-class range before the indexed load.
+`ToriDraw_SceneNew` allocates one reusable projection/sort scratch set sized by
+the selected `ToriDraw_ScratchBufferSize`: six projected/orthographic vertex
+arrays, face order, and the selected full or small sorter buffers. Rendering
+uses stack-local preparation contexts and descriptors that point into this
+scene-owned storage; it does not allocate a per-call context or swap scratch
+fields.
 
-Version 1 treats an override as a complete replacement for its semantic class.
-A public "call next implementation" operation is intentionally omitted. It
-would require retaining the chain position in every callback and would add
-complexity to the hot contract. A callback may inspect the prepared face and
-choose its replacement draw implementation, but it cannot mutate the const
-descriptor or invoke the next slot. Add explicit delegation only after a
-concrete wrapper use case requires it.
+The same scene is consequently non-reentrant. Do not recursively render from a
+kernel callback with that scene, and do not render it concurrently from
+multiple threads. There is deliberately no reentry machinery: the API does not
+detect or serialize either case, and they would overwrite the active projection
+and sort scratch. Use a separate scene, with its own startup allocation, for an
+independent nested render. The normal use case remains one render thread per
+scene.
 
-## Prepared callback data
+The optional model z-buffer is also scene-owned and reused. It can be sized
+before rendering with `ToriDraw_SceneZBufferResize`; otherwise a depth-enabled
+entry point may grow it on first use. It never grows per face.
 
-Callbacks receive borrowed, read-only descriptors. ToriDraw owns their storage;
-a callback must not retain either pointer beyond the call.
-
-Use concrete public structures with a compact common header and a tagged
-texture payload. Do not expose an opaque type unless the same change also adds
-a complete accessor API; otherwise an out-of-tree override could not do useful
-work. Conversely, raw face-info, colour-sentinel, alpha, and texture-coordinate
-arrays stay in the private core context so callbacks do not need to decode them.
-
-### `ToriDraw_RasterTarget`
-
-This descriptor is constructed once and is stable for the model pass. Its
-public fields provide:
-
-- the active `ToriDraw_RasterKernelDomain`;
-- framebuffer and optional depth-buffer pointers;
-- width, height, stride, viewport/clip origin, and projection centre;
-- camera/near-plane constants and parallel-versus-perspective projection;
-- pass flags for smooth shading, affine textures, depth testing, and available
-  near-clip data;
-- projected screen/depth arrays and orthographic arrays used by clipping;
-- model-space position arrays required by a prepared mapping payload.
-
-The descriptor is logically const, but the framebuffer and depth buffer it
-points to are writable render targets. A reserved ToriDraw-private context
-pointer may let built-in callbacks reach incremental-migration state, but it is
-not part of the external override contract. Mutable implementation details such
-as the one-entry texture cache, current material table, and routing/debug
-counters remain owned by that core pass context rather than becoming
-kernel-global state.
-
-### `ToriDraw_RasterFace`
-
-This descriptor is reused for one drawable face. Its common header contains:
-
-- semantic face class and original face index;
-- model-contract A/B/C vertex indices, with the existing debug-level bounds
-  diagnostics;
-- `shade[3]`, always normalized to A/B/C values; a flat class gets A/A/A and
-  never exposes `TORIDRAWHSL16_FLAT` as an active shade;
-- effective source opacity from 0 through 255, where 255 is opaque;
-- whether the source triangle contains the near-clip sentinel.
-
-For stock untextured faces, effective opacity is 255 when the alpha array is
-absent and otherwise `255 - raw_alpha`; faces at the current cutoff never reach
-a callback. For stock textured faces it is always 255, preserving the current
-ignored-face-alpha behavior. HD preparation supplies the effective HD face
-opacity instead. The raw byte is not exposed as a second competing meaning.
-Untextured shades are prepared HSL16 palette words; textured shades are the
-prepared lightness values expected by the texture families. The semantic class
-therefore determines how to interpret the same three integer fields.
-
-The active tagged texture payload, present only for `TEXTURED` and
-`TEXTURED_FLAT`, contains:
-
-- texture id, resolved texels, dimensions, and address/clamp state;
-- a normalized gate enum: opaque, RGB-zero colour key, or texel alpha;
-- the original texture render-type byte;
-- a mapping-payload tag and union:
-  - `VERTEX_FRAME`: valid type-0 P/M/N vertex indices;
-  - `STOCK_FACE_FALLBACK`: safe A/B/C indices for an absent/normalized-`-1`
-    coordinate or a nonzero render type, while retaining the byte that controls
-    affine routing;
-  - `HD_MAPPING`: a non-null `const struct ToriDraw_TexMapping *` into the
-    `MODEL_HD` mapping tail for HD types 1-3; its prepared mapping fields are
-    public through `toridraw_texture_mapping.h`;
-  - `HD_FRAME_FALLBACK`: three bounds-checked vertex indices reused by the
-    current HD missing-mapping fallback;
-- prepared HD-only sampler fields such as modulation/tint when the target
-  domain is HD. Face coverage always uses the common effective-opacity field;
-  do not add a second alpha representation.
-
-Base `MODEL` objects have no decoded HD mapping. A normal stock render of a
-`MODEL_HD` also uses only `VERTEX_FRAME` or `STOCK_FACE_FALLBACK`; it must not
-consume the HD tail. HD type 0 prepares its frame from the bind/original
-positions, while HD types 1-3 use `HD_MAPPING`. This policy-tagged union prevents
-negative axis/mapping values from being mistaken for vertex indices.
-
-This extraction does not add a new release-mode malformed-model policy. Valid
-decoded A/B/C indices remain part of the existing model contract, the sort may
-already have dereferenced them, and debug checks continue to report violations.
-The descriptors are representation-safe, not a sandbox: a callback can still
-misuse a valid array and index. The guarantee is that the core never labels raw
-mapping-axis data as a vertex-index payload.
-
-Keep the face descriptor compact: common fields plus the active union, with all
-pass-stable arrays in `Target`. Reuse one stack instance and assign the active
-fields instead of clearing/copying a large structure for every face. Scanline
-accumulators, sampler inner-loop state, and the HD compositing table remain
-private to concrete kernels.
-
-## Core and kernel responsibilities
-
-The boundary is intentionally strict:
-
-| Core dispatcher owns | Selected kernel owns |
-|---|---|
-| face order and priority-sort results | final face/near-clip entry point |
-| pre-clip backface culling and near-clip exemption | clipped-polygon winding and triangle setup |
-| raw face-info interpretation | affine/perspective triangle selection |
-| hidden/invalid/alpha skip policy | opaque/keyed triangle selection |
-| texture lookup and one-entry cache | scanline/span family below the face call |
-| semantic class selection | writing colour/depth targets |
-| descriptor normalization and routing/skip counters | implementation-local debug/perf counters |
-| per-model depth-buffer reset | |
-
-This gives an override the same normalized input that a built-in receives while
-ensuring that alternate kernels cannot accidentally disagree about which raw
-faces exist or confuse a mapping record with vertex indices.
-
-The existing debug `drawn` counters count successful routing to a face
-implementation, not proven pixel writes; clipped and degenerate triangles
-already make that distinction. Rename or document them as `dispatched` when the
-interface lands. An explicit no-op therefore counts as one dispatch and zero
-implementation-local writes. Preserve `TORIDRAW_RASTER_DEBUG` accounting and
-the `TORIDRAW_SKIP_TEXTURED` bisect knob during extraction; retire either only
-in a separately documented cleanup.
-
-Hidden faces, invalid raw types, alpha skips, and missing stock textures are not
-override slots because no drawable face exists after policy. If a later use
-case needs to replace those decisions, add a separately named cold
-classification/preparation hook; do not overload a draw callback or turn the
-raw byte into a vtable index.
-
-### Required stock behavior
-
-The refactor must preserve the current valid-model decisions in
-[`ToriDraw_RasterModelFace`](../3rd/toridraw/toridraw_raster.u.c), with the named
-malformed-coordinate hardening called out below:
-
-| Input condition | Required result |
-|---|---|
-| face omitted by sorted culling/order, or rejected by the unsorted front-face test | no callback |
-| raw face type 2, or a raw type outside 0-3 | no callback |
-| raw face type 3 | continue through the existing colour, texture, and alpha policy; do not skip on the raw value alone |
-| hidden-colour sentinel | no callback |
-| untextured effective opacity `255 - face_alpha <= 1` | no callback |
-| stock textured face whose texture cannot be resolved | no callback |
-| malformed explicit texture coordinate or unsafe prepared frame indices | no callback and a named diagnostic count |
-| a near-clipped face for which the pass has no required prepared coordinates | no callback |
-| untextured, non-flat face | exactly one `draw_gouraud` call |
-| untextured flat-sentinel face | exactly one `draw_flat` call |
-| textured, non-flat face | exactly one `draw_textured` call |
-| textured flat-sentinel face | exactly one `draw_textured_flat` call |
-
-Lighting has special signed-alpha handling for values 254 and 255 before this
-stage. Preserve the resulting hidden/special semantics; do not simplify raw
-face type and alpha into a new public enum earlier in the pipeline.
-
-The default matrix is also contractual: absent `face_infos` means raw type 0
-and absent alpha means effective opacity 255. In a normal non-Pixel16 build,
-only texture id `-1` selects the untextured route. During lighting, signed alpha
-255 becomes hidden type 2 and 254 becomes special type 3: an untextured type-3
-face becomes flat black and is normally removed by the later opacity cutoff,
-while a textured type-3 face is lit hidden. Ordinary textured alpha is ignored
-only after those lighting effects have already happened. Authored raw type 3
-with no alpha is therefore not universally hidden and may draw.
-
-Current stock textured rendering ignores per-face alpha, including its
-depth-tested path, while untextured rendering applies it. Missing stock
-textures are skipped. These are compatibility requirements for this extraction,
-not endorsements. Any alpha or fallback correction needs its own visual review
-and tests.
-
-For texture render type 0, a valid texture-coordinate record may provide P/M/N
-vertex indices. Every nonzero byte carries non-vertex data in the stock flow;
-the stock built-ins must continue their current affine A/B/C fallback and must
-not accidentally activate the HD cylinder/cube/sphere projections. Preserve
-the original byte in the tagged payload. An absent or adapter-normalized `-1`
-texture coordinate falls back to face A/B/C. Preserve the current edge case
-where that internal fallback coordinate can still consult
-`texture_render_types[face]` when the face index is in range, which may force
-affine routing.
-
-An explicit out-of-range coordinate on a directly constructed model is not a
-current fallback case: the stock helper treats it as a plane record and indexes
-P/M/N out of bounds. Decoders normally normalize it to `-1`. The new preparer
-must reject/count this malformed condition before the callback rather than
-publish unsafe indices. This is a documented safety hardening, not pixel-parity
-behavior for valid decoded models.
-
-Cache/model adapters normalize texture-coordinate bytes separately (including
-255/out-of-range to `-1`); this interface must not normalize them a second,
-different way. There is also an upstream merge hazard where P/M/N rebasing can
-touch nonzero-type axis data. The interface tags that data safely but does not
-repair model merging as part of this extraction.
-
-Sorted and unsorted/depth-tested loops must perform equivalent front-face
-culling. A face with the near-clipped sentinel bypasses the early cull because
-the clipped polygon establishes its own winding. Depth-buffer reset remains
-once per model, outside the kernel chain.
-
-Stock near-clip capability is a model-level quirk:
-`ToriDraw_ModelHasTextures`/`textured_face_count > 0` decides whether the
-orthographic scratch exists, not whether the current face is textured. Thus an
-untextured face in a model with texture records can be clipped, while the same
-face in a wholly untextured model is dropped. Core dispatch owns that
-availability test and the pre-clip cull exemption; the selected face wrapper
-owns clipping the polygon and testing the rebuilt winding.
-
-Today the unavailable-data case is counted early only when raster debugging is
-enabled and otherwise reaches a triangle wrapper that returns without pixels.
-The interface makes it an unconditional named core skip so a custom callback is
-never handed an unusable face. This changes new dispatch observability, not
-pixels, and belongs in the Phase 0 oracle and routing test.
-
-## Runtime variant selection
-
-Today `ToriDraw_RasterSetScanline` changes a process-global boolean, and several
-triangle wrappers consult it. During migration:
-
-1. Keep `ToriDraw_RasterSetScanline` and `ToriDraw_RasterGetScanline` as
-   deprecated compatibility APIs.
-2. Treat them as selection of the stock entry-point terminal. Continue to honor
-   `TORIDRAW_RASTER_SCANLINE` during `ToriDraw_Init`.
-3. Snapshot the applicable terminal once at pass entry. A compatible explicit
-   chain overlays it; a complete compatible root pins all four slots.
-4. Give branching and scanline roots separate callbacks that directly call
-   their triangle families. Until this split exists, the two root objects must
-   not be advertised as independently selectable because both still reach leaf
-   wrappers governed by the global.
-5. Migrate HD untextured/missing-material fallbacks and audit any other library
-   consumer of selector-reading wrappers. Keep
-   `toridraw_scanline_parity_test.c` unchanged as the raw-family oracle: it calls
-   branching/scanline symbols directly. Keep
-   `src/render/test/scanline_compare_sdl.c` working through the compatibility
-   setter for an unpinned scene, and optionally add an explicit-root mode.
-6. Only then remove the global read from leaf wrappers and narrow the old API's
-   comment to "select the terminal used by unpinned raster passes."
-
-This preserves legacy direct callers during migration and ultimately permits
-two scenes to render with different variants in the same process. A sparse
-override with no explicit fallback follows later process-default changes at the
-next pass; a chain terminating in a complete root does not.
-
-## HD integration
-
-[`toridraw_render_hd.u.c`](../3rd/toridraw/toridraw_render_hd.u.c) already has a
-large private matrix over projection, texture gate, face alpha, modulation, and
-depth testing. That matrix should not become dozens of public vtable slots.
-
-The completed interface adds two domain-specific roots. Their textured slots
-share the same HD matrices; their flat/Gouraud slots preserve whether the
-snapshotted process terminal selected branching or scanline:
-
-```c
-const struct ToriDraw_RasterKernel *
-ToriDraw_RasterKernelGetHDBranching(void);
-
-const struct ToriDraw_RasterKernel *
-ToriDraw_RasterKernelGetHDScanline(void);
-```
-
-An unpinned HD pass snapshots the same process family selection and chooses the
-matching HD terminal, preserving the current effect of
-`ToriDraw_RasterSetScanline` on HD solid and missing-material fallbacks.
-
-After the stock path is stable, integrate HD as follows:
-
-1. Share structural face normalization/debug checks and the four semantic
-   callback classes where their meaning is identical.
-2. Keep per-call `materials` and `out_stats` in the HD pass context. Prepare the
-   resolved sampler/mapping payload before invoking a callback; they are not
-   persistent kernel `user_data`.
-3. Implement the HD roots whose textured callbacks dispatch through the
-   existing private matrices and whose solid callbacks directly select their
-   named family.
-4. Keep `ToriDraw_RenderHD` and `ToriDraw_RenderHDZBuffered` as compatibility
-   facades.
-5. Supply the matching HD root as the terminal for an HD pass. Compatible
-   explicit HD/shared-domain slots overlay it; stock-only nodes are ignored.
-   Therefore a sparse override can safely live on a scene used by both flows.
-
-HD currently draws a visible flat/Gouraud fallback for a missing material and
-honors face alpha on textured faces. Stock rendering skips a missing texture
-and ignores textured face alpha. The adapter must retain that distinction; a
-shared interface is not permission to merge policy. Prepare a missing-material
-face as the appropriate solid semantic class before dispatch so the callback
-sees normalized fallback data. Core HD route counters continue to describe
-where the face was dispatched, including through a custom no-op.
-
-HD has three more cold-policy rules that preparation must retain:
-
-- if any lit `face_colors_a/b/c` array is absent, count the face as
-  `skipped_hidden` and make no callback; stock continues its existing valid-model
-  precondition instead;
-- null texels or a material width other than 64/128 means missing material and
-  takes the solid fallback, while an invalid gate coerces to opaque;
-- modulation is derived from authored `model->face_colors[face]` HSL (or zero
-  when that array is absent), never from the 0..127 lit textured shades. Publish
-  the already prepared tint/sampler values to the callback.
-
-HD also differs in mapping details. Type 0 uses the original/bind-pose P/M/N
-frame and types 1-3 use the decoded HD mapping tail. When a mapping is missing,
-current code coerces to the frame path and reuses that record's P/M/N as vertex
-indices: it draws only when all three happen to be in range and otherwise
-skips. Represent the successful case as `HD_FRAME_FALLBACK`; do not silently
-replace it with A/B/C. Malformed render types above 3 currently coerce to type
-0. Preserve each rule in the adapter, and treat any future A/B/C repair as a
-separately reviewed behavior change.
-
-Current HD near clipping is incomplete: its untextured fallback disables the
-stock rebuild and its mapped/PMN kernels do not rebuild a near-plane polygon.
-The cull loop nevertheless exempts sentinel faces. Record this as a known
-baseline during the interface-only adapter, then implement and test HD
-near-plane reconstruction as a separately reviewed subphase before claiming
-that the common interface handles every HD face. Do not silently describe the
-current incomplete behavior as supported.
+Kernel objects themselves contain no scene scratch. Immutable kernels can be
+shared, provided any application `user_data` follows the caller's threading
+rules and remains valid for every active call.
 
 ## `TORIDRAW_PIXEL16`
 
-The public object and vtable layout must compile unchanged with
-`TORIDRAW_PIXEL16`; do not hide fields or reorder callbacks conditionally.
-Pixel16 supports the stock domain only. The current unity build cannot compile
-the real HD unit because HD embeds z-buffer types and 32-bit texture kernels
-that Pixel16 excludes. Before adding its routing oracle, guard the real HD unit
-and provide stable Pixel16 HD API/root stubs that report unsupported
-(`TORIDRAW_CULL_ERROR` for render calls, zeroed optional stats) without entering
-face dispatch.
+The typed public interface and distinct branching/scanline root objects remain
+available in a 16-bit-pixel build, with these behavior differences:
 
-The stock Pixel16 classifier is intentionally different: texture lookup and
-both textured cases are compiled out. Every face that survives the common
-raw-type, hidden-shade, untextured-opacity, and near-clip-availability policy
-ignores texture presence and reaches only `draw_flat` or `draw_gouraud`
-according to the final C shade. Missing textures do not skip in this build.
+- SD rendering works, but texture rasterization is compiled out. Faces that
+  carry textures are classified as normalized Gouraud or flat SD faces, so the
+  textured SD slots are complete but unreachable from production
+  classification.
+- The depth-tested 32-bit family is absent.
+  `ToriDraw_RenderZBufferedWithRasterKernel` is unsupported: it asserts in an
+  assertion-enabled build and returns `TORIDRAW_CULL_ERROR` otherwise. Model
+  depth flags are inert in the ordinary flow.
+- HD roots remain valid complete typed objects, but all HD and HD-Z render
+  entry points report `TORIDRAW_CULL_ERROR`, clear supplied HD statistics, and
+  do not invoke application callbacks.
 
-Preserve that collapse exactly. Complete roots still populate the two textured
-slots with non-null unreachable assertion stubs so resolution has one layout,
-but an ordinary Pixel16 model must never reach those stubs. The forced z-buffer
-entry point keeps its existing assertion. Add a Pixel16 routing oracle instead
-of assuming the normal-build matrix applies.
+An SD override intended for both pixel formats should implement meaningful
+Gouraud and flat behavior and must not assume a texture descriptor is active
+for those classes.
 
 ## Performance contract
 
-For a valid, resolved stock kernel, the steady-state model loop should do:
+The implementation keeps dispatch outside inner raster loops:
 
-```text
-classify/prepare face -> load resolved slot -> one public indirect face call
-                       -> direct triangle/scanline/span/pixel implementation
-```
+1. Validate the typed fallback chain and resolve four or six slots once per
+   raster call.
+2. Prepare one stack descriptor for each drawable face.
+3. Make one indirect callback through the resolved `{function, user_data}`
+   slot.
+4. Let the selected callback enter direct triangle, span, and pixel code.
 
-Required properties:
+There is no per-face fallback walk, scratch-field exchange, or synchronization
+branch; the selected kernel is passed down directly. Kernel resolution and
+dispatch allocate no heap storage. Separate lazy texture-state or z-buffer
+provisioning may allocate before the face loop and can be paid at startup when
+required. The compatibility inputs are read once when their wrapper chooses a
+root. In particular, normal versus smooth SD Gouraud is encoded by that root,
+not carried through the explicit raster core or tested per face. Runtime
+choices inside a built-in callback are semantic modifiers such as depth,
+affine mapping, gate, alpha, and modulation.
 
-- kernel selection and fallback resolution happen once per model raster pass;
-- no heap allocation occurs during resolution or per-face dispatch;
-- each drawable face makes exactly one public interface call;
-- no fallback, null-slot, or process-global family read remains in the callback
-  body or any scanline/span/pixel descendant;
-- texture lookup retains the current per-model one-entry cache;
-- target state that is constant for the pass is prepared once, not copied for
-  every face;
-- the compact face descriptor does not force stores for inactive payload fields.
+## Acceptance criteria
 
-HD also makes one public interface call per source face. Its textured callback
-may retain the existing private compositing/mapping table call once per emitted
-triangle; an unclipped face emits one triangle and a rebuilt clipped polygon may
-emit more. That is an explicit exception, not another public virtual layer.
-Measure it independently and keep the private table out of spans and pixels.
+The kernel boundary is correct when tests establish all of the following:
 
-Benchmark the real model path, not only direct triangle calls. Compare old and
-new complete branching, complete scanline, sorted, and forced-zbuffer paths;
-also compare a resolved sparse chain. Include tiny/low-face models (where
-per-pass resolution dominates), untextured-heavy, texture-hit/miss mixtures,
-opaque/keyed textures, and large QBD/Jad/wyrm stress fixtures. Measure descriptor
-construction as well as the call itself.
+- every drawable SD class reaches exactly one of four typed slots;
+- every drawable HD class reaches exactly one of six typed slots;
+- flat shades, opacity, vertex indices, texture gates, frames/mappings, clip
+  state, and target arrays are normalized as documented;
+- all four normal/smooth SD roots and both HD roots preserve their corresponding
+  legacy output;
+- sparse chains keep the `user_data` of the node supplying each slot, while
+  cycles and incomplete chains fail before the face loop;
+- the same SD or HD override works in normal and depth-enabled entry points and
+  observes depth through the target rather than a different vtable shape;
+- changing the kernel argument affects only that call and writes no scene or
+  model kernel state; and
+- Pixel16 follows the reduced behavior above.
 
-Use paired batches of at least 2,000 frames, multiple repetitions, and medians;
-record routed faces, pixels, and wall time. A repeatable regression over 2% with
-run-to-run noise below that threshold is a redesign trigger. Inspect optimized
-output to confirm that the public indirect call occurs only at the face
-boundary and that no global family read remains below it.
-
-## Migration record
-
-The interface landed through the staged sequence below. The bullets retain the
-original acceptance wording so future changes can be checked against the same
-constraints. Phases 1-5 are implemented. Phase 0's routing oracles are present,
-with broader image/performance fixtures still useful; Phase 6 is explicitly the
-separate HD near-clip follow-up.
-
-### Phase 0: lock down the oracle
-
-- Add model-level routing fixtures before moving code out of
-  `ToriDraw_RasterModelFace`.
-- Capture branching pixel hashes for representative untextured, textured,
-  clipped, depth-tested, smooth, and non-smooth models.
-- Capture the current Pixel16 class collapse and the stock/HD mapping and alpha
-  differences as routing oracles.
-- First make Pixel16 a defined build again by guarding the real HD unity include
-  and adding deterministic unsupported HD stubs; do not mistake today's compile
-  failure for a render oracle.
-- Record the existing direct-model out-of-range coordinate failure under a
-  sanitizer so the named safety hardening is deliberate and measurable.
-- Record the known scanline differences documented in
-  [RASTER_VARIANT_CATALOGUE.md](RASTER_VARIANT_CATALOGUE.md) rather than treating
-  every difference as a new failure.
-
-### Phase 1: add the interface without changing dispatch
-
-- Add the concrete public kernel/vtable, domain, target, face, gate, and mapping
-  payload declarations.
-- Initialize the nullable binding and resident/pooled render-context state in
-  `ToriDraw_Scene`, but keep scene binding APIs private until the resolver and
-  independent roots are tested and ready to affect rendering.
-- Implement and unit-test entry-point terminal injection, domain filtering,
-  cycle detection, and pass-time safe fallback as internal machinery.
-- Add the branching root internally, but do not expose branching/scanline
-  getters while leaf wrappers still read the global.
-- Leave the old face router in control until its behavior is covered.
-
-### Phase 2: separate policy from drawing
-
-- Split `ToriDraw_RasterModelFace` into a core classifier/preparer and four
-  built-in draw callbacks.
-- Preserve raw-type, hidden-colour, alpha, texture-cache, missing-texture, and
-  valid-model P/M/N rules byte for byte, apart from the documented malformed
-  coordinate rejection.
-- Route both sorted and unsorted/depth-tested face loops through the internal
-  complete branching root; do not consult the dormant scene binding yet.
-- Make the complete branching root the stock terminal and compare it to the
-  Phase 0 oracle, including normal `MODEL_HD` base rendering and Pixel16.
-
-### Phase 3: extract runtime variants
-
-- Give scanline and branching roots direct family-specific face callbacks.
-- Migrate HD solid fallbacks off wrappers that consult the global at leaf level;
-  retain the raw-family parity test and the unpinned compatibility compare tool.
-- Convert the global scanline API into terminal selection for unpinned passes
-  and remove all lower-level global reads.
-- Finish the complete branching and scanline roots after their callbacks are
-  genuinely independent, but keep their public getters gated with scene binding
-  until Phase 4.
-- Verify smooth/non-smooth, affine/perspective, near-clipped, z-buffered, and
-  Pixel16 configurations before promising independent scene roots.
-
-### Phase 4: enable sparse overrides
-
-- Test multi-layer inheritance, entry-point terminal injection, supplying
-  `user_data`, domain filtering, explicit no-op suppression, invalid domains,
-  cycles, and live-chain mutation recovery before the public cutover.
-- Export the built-in getters and validating bool-returning scene set/reset/get
-  APIs together, then activate compatible scene bindings in both sorted and
-  unsorted loops.
-- Resolve slots once per pass and fill holes from the snapshotted terminal.
-- Verify independent bindings for two scenes, process-default changes between
-  passes, pinned-root behavior, and rejection of set/reset during a pass.
-
-### Phase 5: adapt HD without policy drift
-
-- Add branching/scanline HD roots using the existing private texture tables and
-  direct solid-family fallbacks.
-- Move per-call materials, sampler preparation, and stats through the HD target
-  and face preparation contract, not kernel lifetime state.
-- Keep stock and HD texture/alpha fallback policy separate.
-- Preserve malformed mapping, missing material, and missing mapping behavior;
-  keep the private HD matrix's extra indirect call explicit and measured.
-- Capture the current near-clip limitation rather than changing it inside the
-  interface extraction.
-
-### Phase 6: close HD near clipping and clean up
-
-- Implement and test HD near-plane polygon reconstruction for solid, PMN, and
-  mapped textured faces as a separately reviewed behavior change.
-- Delete obsolete monolithic routing only after all parity and performance
-  gates pass.
-- Update public API comments and the variant catalogue with the final symbols.
-- Add the new test command to the World/render row in `BUILD_AND_RUN.md`.
-
-## Tests and acceptance criteria
-
-Add `3rd/toridraw/toridraw_raster_kernel_test.c` and a `test-raster-kernel`
-target in [`src/makefile`](../src/makefile). Because ToriDraw is unity-built,
-any new implementation source must also be included by
-[`toridraw_unity.c`](../3rd/toridraw/toridraw_unity.c) or an existing included
-unit.
-
-The routing test should use a spy kernel and synthetic model faces to prove:
-
-- every drawable semantic class reaches exactly its matching slot once;
-- `face_infos` absent and raw types 0/1/2/3/out-of-range combine correctly with
-  normal/flat/hidden C shades;
-- alpha absent/0/128/253/254/255 combines correctly with texture id
-  -1/resident/missing, including the lighting-stage 254/255 effects and ignored
-  ordinary stock textured alpha;
-- hidden, invalid, alpha-skipped, unresolved-texture, back-facing, and
-  unavailable-near-clip faces call no slot;
-- flat callbacks receive A/A/A, effective opacity has one documented meaning,
-  and prepared vertex, gate, texture, mapping, and source-face fields are exact;
-- texture coordinates absent/-1/in-range and render types 0/1/2/3/malformed
-  produce the correct payload tag; an explicit out-of-range coordinate is a
-  named malformed-input skip, and non-vertex mapping values are never published
-  as P/M/N indices;
-- affine selection remains `texture_affine || render_type != 0`, including the
-  coordinate-fallback edge case, and opaque/keyed selection is preserved;
-- z-buffered flat/Gouraud/textured shade triples and framebuffer/z-buffer clip
-  rebasing are correct when clip-left/top are nonzero and stride differs from
-  width;
-- all four classes cover their sorted, forced-zbuffer, and near-clip routes;
-  sorted and unsorted culling use the same near-sentinel exemption;
-- an untextured near-clipped fixture differing only in
-  `textured_face_count` preserves the model-level scratch-availability quirk;
-- normal stock rendering of a `MODEL_HD` uses only its base policy;
-- texture-cache hit/miss behavior and residency changes between model passes do
-  not leak stale prepared state;
-- a sparse flat override inherits the other three slots from the stock or HD
-  entry-point terminal as appropriate;
-- two fallback layers retain the `user_data` of the supplying node;
-- an explicit no-op suppresses a class while a null slot inherits it;
-- invalid domains and fallback cycles are rejected through the validation
-  status path without relying on a platform-specific death test;
-- incompatible-domain nodes are skipped, two scenes select different complete
-  roots, reset follows the terminal, and process-default changes affect only
-  unpinned chains at the next pass;
-- set/reset from inside a callback is rejected and the borrowed chain remains
-  live for the entire pass;
-- same-scene stock recursion through at least two nested complete renders uses
-  distinct preallocated projection/order contexts, preserves every outer
-  pointer and value, resumes all face slots, and keeps mutation rejected after
-  an inner context returns;
-- same-scene HD and HD-z-buffer recursion preserves independent resolved slots,
-  projection/order scratch, and live depth-buffer pointers;
-- recursive phase 3 leases independent retained depth storage, including when
-  a larger inner viewport grows its buffer while the outer target is live;
-- Pixel16 routes every face surviving its common skip policy only to
-  flat/Gouraud, never reaches its textured assertion stubs, and returns the
-  defined unsupported result from HD entry points.
-
-Run the new suite alongside:
-
-- `make -C src test-scanline`
-- `make -C src test-zbuffer`
-- `make -C src test-near-clip`
-- `make -C src test-model-render-flags`
-- `make -C src test-render-hd`
-- `make -C src test-pick`, which covers hidden and signed-alpha semantics
-- a Pixel16 build of `test-raster-kernel`
-- a normal optimized client/ToriDraw build
-
-Extend near-clip coverage to include flat and both textured stock classes. In
-the HD phases, cover raw/malformed mapping types, all gates, missing materials
-and both the in-range/invalid-PMN missing-mapping outcomes, both solid variants,
-depth mode, and the new near-plane rebuild. Add explicit no-callback coverage
-for null lit-colour arrays, invalid-width material fallback, and invalid-gate
-coercion. The modulation test must compare pixels from an authored HSL hue that
-differs from the lit 0..127 shade; routing counters alone cannot catch use of the
-wrong colour source.
-
-The functional interface cutover is complete when:
-
-1. Complete branching and scanline roots match their stock oracles, including
-   the documented scanline differences.
-2. The Pixel16 stock oracle is unchanged; forced z-buffer retains its assertion
-   and HD returns its defined unsupported result.
-3. Every accepted stock face is either skipped for its documented reason or
-   invokes exactly one resolved public slot.
-4. Sparse/domain-filtered overrides work without per-face chain traversal, and
-   two scenes can use different variants independently.
-5. Existing scanline, z-buffer, near-clip, model-flag, picking, and HD tests
-   continue to pass. HD near-plane reconstruction remains Phase 6 and is not
-   claimed as part of the completed adapter.
-6. Optimized stock builds contain no runtime family read in or below the
-   selected callback; HD contains only its documented private table call.
-
-The remaining workload-level release gate is for the complete and sparse paths
-to meet the performance threshold across the stated small, mixed, and large
-fixtures. Optimized-output inspection already confirms that stock family
-selection is outside the callbacks and their descendants; the broader timed
-fixture run is intentionally tracked separately from functional acceptance.
-
-## Expected file changes
-
-| File | Change |
-|---|---|
-| `3rd/toridraw/toridraw_texture_mapping.h` | public prepared HD mapping representation |
-| `3rd/toridraw/toridraw_raster_kernel.h` | public object, vtable, descriptors, built-in getters |
-| `3rd/toridraw/toridraw_raster_kernel.c` | chain validation/resolution and scene binding APIs |
-| `3rd/toridraw/toridraw.h` | export the new API; deprecate global scanline selection |
-| `3rd/toridraw/toridraw_types.h` | public mapping include plus resident/pooled render-context state |
-| `3rd/toridraw/toridraw_render_context_fields.inc` | one source of truth for the resident context and legacy scene aliases |
-| `3rd/toridraw/toridraw_render_context_internal.h` | explicit context pipeline, active-pass guard, and assertion-based pool contract |
-| `3rd/toridraw/toridraw.c` | startup context scratch allocation, context pipeline entry points, and Pixel16 guards |
-| `3rd/toridraw/toridraw_raster.u.c` | classifier/preparer, domain-aware chain resolution, one-call face dispatch |
-| `3rd/toridraw/triangles/*` | direct branching/scanline face callbacks; remove leaf global checks |
-| `3rd/toridraw/toridraw_render_hd.u.c` | HD domain roots, prepared policy adapter, later near-clip closure |
-| `3rd/toridraw/toridraw_raster_kernel_test.c` | routing, override, lifetime, and safety tests |
-| `3rd/toridraw/toridraw_unity.c` | include any new implementation unit |
-| `src/makefile` | test target and relevant build wiring |
-| `BUILD_AND_RUN.md` | advertise the new World/render test command |
-
-This layout keeps the public interface small, the face policy centralized, and
-the expensive variant matrix inside concrete implementations where it can be
-optimized without changing user code.
+The relevant implementation is in
+[`toridraw_raster_kernel.c`](../3rd/toridraw/toridraw_raster_kernel.c),
+[`toridraw_raster.u.c`](../3rd/toridraw/toridraw_raster.u.c), and
+[`toridraw_render_hd.u.c`](../3rd/toridraw/toridraw_render_hd.u.c).

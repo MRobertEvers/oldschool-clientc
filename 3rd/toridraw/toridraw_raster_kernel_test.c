@@ -1,13 +1,8 @@
 /*
- * Public raster-kernel routing regression.
+ * Public typed raster-kernel routing regression.
  *
- * This constructs ordinary models, binds public kernels to public scenes, and
- * drives the public render entry points. Callback checks also inspect the
- * scene's published render-context identity so same-scene recursion proves it
- * retained the outer scratch rather than merely producing plausible output.
- *
- * Build and run:
- *   make -C src test-raster-kernel
+ * This stays on the public surface: complete SD/HD callback tables, explicit
+ * per-call rendering, same-type sparse fallback, and legacy-wrapper parity.
  */
 
 #include "toridraw.h"
@@ -16,6 +11,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(TORIDRAW_PIXEL16) && !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#include <signal.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 #define VIEW_WIDTH 320
 #define VIEW_HEIGHT 200
@@ -27,8 +28,8 @@
 #define CAMERA_DISTANCE 600
 #define TEST_TEXTURE_ID 7
 #define TEST_TEXTURE_WIDTH 64
-#define FACE_COUNT 4
-#define VERTEX_COUNT (FACE_COUNT * 3)
+#define SD_FACE_COUNT 4
+#define SD_VERTEX_COUNT (SD_FACE_COUNT * 3)
 
 static int failures;
 
@@ -44,24 +45,6 @@ static int failures;
         }                                                                                          \
     } while( 0 )
 
-struct Fixture
-{
-    struct ToriDraw_Model model;
-    struct ToriDraw_ModelHandle handle;
-    vertexint_t vertex_x[VERTEX_COUNT];
-    vertexint_t vertex_y[VERTEX_COUNT];
-    vertexint_t vertex_z[VERTEX_COUNT];
-    faceint_t face_a[FACE_COUNT];
-    faceint_t face_b[FACE_COUNT];
-    faceint_t face_c[FACE_COUNT];
-    hsl16_t shade_a[FACE_COUNT];
-    hsl16_t shade_b[FACE_COUNT];
-    hsl16_t shade_c[FACE_COUNT];
-    alphaint_t alpha[FACE_COUNT];
-    int face_info[FACE_COUNT];
-    faceint_t texture[FACE_COUNT];
-};
-
 struct RenderEnv
 {
     struct ToriDraw_Scene* scene;
@@ -69,176 +52,23 @@ struct RenderEnv
     const int* texture_texels;
 };
 
-struct Spy
+struct SDFixture
 {
-    const char* name;
-    const struct Fixture* fixture;
-    const struct RenderEnv* env;
-    int calls[TORIDRAW_RASTER_FACE_CLASS_COUNT];
-    int face_calls[FACE_COUNT];
-    int total_calls;
-    int noop_calls;
-
-    bool attempt_mutation;
-    bool mutation_attempted;
-    bool set_during_callback;
-    bool reset_during_callback;
-    const struct ToriDraw_RasterKernel* replacement;
-
-    bool attempt_recursive_render;
-    bool recursive_render_attempted;
-    bool recursive_scratch_unchanged;
-    bool recursive_contexts_distinct;
-    bool set_after_nested;
-    bool reset_after_nested;
-    int recursive_depth;
-    int recursive_depth_limit;
-    bool recursive_started[3];
-    const struct ToriDraw_RenderContext* context_by_depth[3];
-    const int* screen_x_by_depth[3];
-    const int* face_order_by_depth[3];
+    struct ToriDraw_Model model;
+    struct ToriDraw_ModelHandle handle;
+    vertexint_t vertex_x[SD_VERTEX_COUNT];
+    vertexint_t vertex_y[SD_VERTEX_COUNT];
+    vertexint_t vertex_z[SD_VERTEX_COUNT];
+    faceint_t face_a[SD_FACE_COUNT];
+    faceint_t face_b[SD_FACE_COUNT];
+    faceint_t face_c[SD_FACE_COUNT];
+    hsl16_t shade_a[SD_FACE_COUNT];
+    hsl16_t shade_b[SD_FACE_COUNT];
+    hsl16_t shade_c[SD_FACE_COUNT];
+    alphaint_t alpha[SD_FACE_COUNT];
+    int face_info[SD_FACE_COUNT];
+    faceint_t texture[SD_FACE_COUNT];
 };
-
-static void
-fixture_init(struct Fixture* fixture)
-{
-    static const int centre_x[FACE_COUNT] = { -120, -40, 40, 120 };
-
-    memset(fixture, 0, sizeof(*fixture));
-    fixture->model.vertex_count = VERTEX_COUNT;
-    fixture->model.face_count = FACE_COUNT;
-    fixture->model.vertices_x = fixture->vertex_x;
-    fixture->model.vertices_y = fixture->vertex_y;
-    fixture->model.vertices_z = fixture->vertex_z;
-    fixture->model.face_indices_a = fixture->face_a;
-    fixture->model.face_indices_b = fixture->face_b;
-    fixture->model.face_indices_c = fixture->face_c;
-    fixture->model.face_colors_a = fixture->shade_a;
-    fixture->model.face_colors_b = fixture->shade_b;
-    fixture->model.face_colors_c = fixture->shade_c;
-    fixture->model.face_alphas = fixture->alpha;
-    fixture->model.face_infos = fixture->face_info;
-    fixture->model.face_textures = fixture->texture;
-
-    /* One record is enough to retain orthographic projection scratch.  These
-     * faces deliberately have no face_texture_coords array, so stock texture
-     * preparation publishes its safe A/B/C fallback frame. */
-    fixture->model.textured_face_count = 1;
-
-    for( int face = 0; face < FACE_COUNT; face++ )
-    {
-        int const vertex = face * 3;
-        int const x = centre_x[face];
-
-        fixture->vertex_x[vertex + 0] = (vertexint_t)(x - 22);
-        fixture->vertex_y[vertex + 0] = -28;
-        fixture->vertex_z[vertex + 0] = 0;
-        fixture->vertex_x[vertex + 1] = (vertexint_t)(x + 22);
-        fixture->vertex_y[vertex + 1] = -28;
-        fixture->vertex_z[vertex + 1] = 0;
-        fixture->vertex_x[vertex + 2] = (vertexint_t)x;
-        fixture->vertex_y[vertex + 2] = 28;
-        fixture->vertex_z[vertex + 2] = 0;
-
-        /* The same front-facing convention used by the HD routing fixture. */
-        fixture->face_a[face] = (faceint_t)(vertex + 0);
-        fixture->face_b[face] = (faceint_t)(vertex + 2);
-        fixture->face_c[face] = (faceint_t)(vertex + 1);
-        fixture->face_info[face] = 0;
-        fixture->texture[face] = -1;
-    }
-
-    fixture->shade_a[0] = 0x1234;
-    fixture->shade_b[0] = 0x1235;
-    fixture->shade_c[0] = 0x1236;
-    fixture->alpha[0] = 17; /* effective opacity 238 */
-
-    fixture->shade_a[1] = 0x2345;
-    fixture->shade_b[1] = 0x3456;
-    fixture->shade_c[1] = TORIDRAWHSL16_FLAT;
-    fixture->alpha[1] = 0;
-
-    fixture->shade_a[2] = 40;
-    fixture->shade_b[2] = 60;
-    fixture->shade_c[2] = 80;
-    fixture->alpha[2] = 200; /* ignored by stock textured policy */
-    fixture->texture[2] = TEST_TEXTURE_ID;
-
-    fixture->shade_a[3] = 70;
-    fixture->shade_b[3] = 90;
-    fixture->shade_c[3] = TORIDRAWHSL16_FLAT;
-    fixture->alpha[3] = 254; /* ignored by stock textured policy */
-    fixture->texture[3] = TEST_TEXTURE_ID;
-
-    fixture->handle.kind = TORIDRAWMK_MODEL;
-    fixture->handle.u.model.model = &fixture->model;
-    ToriDraw_ModelSetBoundsCylinder(&fixture->model);
-}
-
-static void
-fixture_destroy(struct Fixture* fixture)
-{
-    free(fixture->model.bounds_cylinder);
-    fixture->model.bounds_cylinder = NULL;
-}
-
-static struct ToriDraw_Texture*
-make_test_texture(int rgb)
-{
-    struct ToriDraw_Texture* texture = calloc(1, sizeof(*texture));
-
-    if( !texture )
-        return NULL;
-    texture->texels = malloc(
-        (size_t)TEST_TEXTURE_WIDTH * TEST_TEXTURE_WIDTH * sizeof(*texture->texels));
-    if( !texture->texels )
-    {
-        free(texture);
-        return NULL;
-    }
-    for( int i = 0; i < TEST_TEXTURE_WIDTH * TEST_TEXTURE_WIDTH; i++ )
-        texture->texels[i] = rgb;
-    texture->width = TEST_TEXTURE_WIDTH;
-    texture->height = TEST_TEXTURE_WIDTH;
-    /* Exercise normalized colour-key routing rather than the opaque default. */
-    texture->opaque = false;
-    return texture;
-}
-
-static bool
-render_env_init(struct RenderEnv* env, int texture_rgb)
-{
-    struct ToriDraw_Texture* texture;
-
-    memset(env, 0, sizeof(*env));
-    env->scene = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
-    env->pixels = calloc((size_t)VIEW_STRIDE * VIEW_HEIGHT, sizeof(*env->pixels));
-    texture = make_test_texture(texture_rgb);
-    CHECK(env->scene != NULL, "scene allocation");
-    CHECK(env->pixels != NULL, "framebuffer allocation");
-    CHECK(texture != NULL, "texture allocation");
-    if( !env->scene || !env->pixels || !texture )
-    {
-        if( texture )
-            ToriDraw_TextureFree(texture);
-        ToriDraw_SceneFree(env->scene);
-        free(env->pixels);
-        memset(env, 0, sizeof(*env));
-        return false;
-    }
-
-    env->texture_texels = texture->texels;
-    ToriDraw_SceneSetTexture(env->scene, TEST_TEXTURE_ID, texture);
-    return true;
-}
-
-static void
-render_env_destroy(struct RenderEnv* env)
-{
-    ToriDraw_SceneFree(env->scene);
-    free(env->pixels);
-    memset(env, 0, sizeof(*env));
-}
 
 static struct ToriDraw_ViewPort
 test_viewport(void)
@@ -269,39 +99,67 @@ test_camera(void)
     return camera;
 }
 
-static bool
-render_fixture_with_ordered_count(
-    struct RenderEnv* env,
-    const struct Fixture* fixture,
-    int expected_ordered)
+static struct ToriDraw_Texture*
+make_test_texture(void)
 {
-    struct ToriDraw_ViewPort viewport = test_viewport();
-    struct ToriDraw_Camera camera = test_camera();
-    struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
-    int cull;
-    int ordered;
+    struct ToriDraw_Texture* texture = calloc(1, sizeof(*texture));
 
-    memset(env->pixels, 0, (size_t)VIEW_STRIDE * VIEW_HEIGHT * sizeof(*env->pixels));
-    cull = ToriDraw_RenderModel1Project(
-        fixture->handle, env->scene, &position, &viewport, &camera);
-    CHECK(cull == TORIDRAW_CULL_VISIBLE, "fixture projection returned %d", cull);
-    if( cull != TORIDRAW_CULL_VISIBLE )
-        return false;
-
-    ordered = ToriDraw_RenderModel2SortFaces(fixture->handle, env->scene);
-    CHECK(ordered == expected_ordered, "fixture ordered %d/%d expected faces", ordered,
-          expected_ordered);
-    if( ordered != expected_ordered )
-        return false;
-
-    ToriDraw_RenderModel3Raster(env->scene, &viewport, &camera, env->pixels, false);
-    return true;
+    if( !texture )
+        return NULL;
+    texture->texels = malloc(
+        (size_t)TEST_TEXTURE_WIDTH * TEST_TEXTURE_WIDTH * sizeof(*texture->texels));
+    if( !texture->texels )
+    {
+        free(texture);
+        return NULL;
+    }
+    for( int i = 0; i < TEST_TEXTURE_WIDTH * TEST_TEXTURE_WIDTH; i++ )
+        texture->texels[i] = 0x00C06020;
+    texture->width = TEST_TEXTURE_WIDTH;
+    texture->height = TEST_TEXTURE_WIDTH;
+    texture->opaque = false;
+    return texture;
 }
 
 static bool
-render_fixture(struct RenderEnv* env, const struct Fixture* fixture)
+render_env_init(struct RenderEnv* env)
 {
-    return render_fixture_with_ordered_count(env, fixture, FACE_COUNT);
+    struct ToriDraw_Texture* texture;
+
+    memset(env, 0, sizeof(*env));
+    env->scene = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    env->pixels = calloc((size_t)VIEW_STRIDE * VIEW_HEIGHT, sizeof(*env->pixels));
+    texture = make_test_texture();
+    CHECK(env->scene != NULL, "scene allocation");
+    CHECK(env->pixels != NULL, "framebuffer allocation");
+    CHECK(texture != NULL, "texture allocation");
+    if( !env->scene || !env->pixels || !texture )
+    {
+        if( texture )
+            ToriDraw_TextureFree(texture);
+        ToriDraw_SceneFree(env->scene);
+        free(env->pixels);
+        memset(env, 0, sizeof(*env));
+        return false;
+    }
+
+    env->texture_texels = texture->texels;
+    ToriDraw_SceneSetTexture(env->scene, TEST_TEXTURE_ID, texture);
+    return true;
+}
+
+static void
+render_env_destroy(struct RenderEnv* env)
+{
+    ToriDraw_SceneFree(env->scene);
+    free(env->pixels);
+    memset(env, 0, sizeof(*env));
+}
+
+static void
+clear_pixels(struct RenderEnv* env)
+{
+    memset(env->pixels, 0, (size_t)VIEW_STRIDE * VIEW_HEIGHT * sizeof(*env->pixels));
 }
 
 static long
@@ -315,1028 +173,506 @@ count_nonzero_pixels(const struct RenderEnv* env)
 }
 
 static void
-spy_init(
-    struct Spy* spy,
-    const char* name,
-    const struct Fixture* fixture,
-    const struct RenderEnv* env)
+sd_fixture_init(struct SDFixture* fixture)
 {
-    memset(spy, 0, sizeof(*spy));
-    spy->name = name;
-    spy->fixture = fixture;
-    spy->env = env;
-    spy->recursive_scratch_unchanged = true;
-    spy->recursive_contexts_distinct = true;
+    static const int centre_x[SD_FACE_COUNT] = { -120, -40, 40, 120 };
+
+    memset(fixture, 0, sizeof(*fixture));
+    fixture->model.vertex_count = SD_VERTEX_COUNT;
+    fixture->model.face_count = SD_FACE_COUNT;
+    fixture->model.vertices_x = fixture->vertex_x;
+    fixture->model.vertices_y = fixture->vertex_y;
+    fixture->model.vertices_z = fixture->vertex_z;
+    fixture->model.face_indices_a = fixture->face_a;
+    fixture->model.face_indices_b = fixture->face_b;
+    fixture->model.face_indices_c = fixture->face_c;
+    fixture->model.face_colors_a = fixture->shade_a;
+    fixture->model.face_colors_b = fixture->shade_b;
+    fixture->model.face_colors_c = fixture->shade_c;
+    fixture->model.face_alphas = fixture->alpha;
+    fixture->model.face_infos = fixture->face_info;
+    fixture->model.face_textures = fixture->texture;
+    fixture->model.textured_face_count = 1;
+
+    for( int face = 0; face < SD_FACE_COUNT; face++ )
+    {
+        int const vertex = face * 3;
+        int const x = centre_x[face];
+
+        fixture->vertex_x[vertex + 0] = (vertexint_t)(x - 22);
+        fixture->vertex_y[vertex + 0] = -28;
+        fixture->vertex_x[vertex + 1] = (vertexint_t)(x + 22);
+        fixture->vertex_y[vertex + 1] = -28;
+        fixture->vertex_x[vertex + 2] = (vertexint_t)x;
+        fixture->vertex_y[vertex + 2] = 28;
+        fixture->face_a[face] = (faceint_t)(vertex + 0);
+        fixture->face_b[face] = (faceint_t)(vertex + 2);
+        fixture->face_c[face] = (faceint_t)(vertex + 1);
+        fixture->texture[face] = -1;
+    }
+
+    fixture->shade_a[0] = 0x1234;
+    fixture->shade_b[0] = 0x1235;
+    fixture->shade_c[0] = 0x1236;
+    fixture->alpha[0] = 17;
+
+    fixture->shade_a[1] = 0x2345;
+    fixture->shade_b[1] = 0x3456;
+    fixture->shade_c[1] = TORIDRAWHSL16_FLAT;
+
+    fixture->shade_a[2] = 40;
+    fixture->shade_b[2] = 60;
+    fixture->shade_c[2] = 80;
+    fixture->texture[2] = TEST_TEXTURE_ID;
+
+    fixture->shade_a[3] = 70;
+    fixture->shade_b[3] = 90;
+    fixture->shade_c[3] = TORIDRAWHSL16_FLAT;
+    fixture->texture[3] = TEST_TEXTURE_ID;
+
+    fixture->handle.kind = TORIDRAWMK_MODEL;
+    fixture->handle.u.model.model = &fixture->model;
+    ToriDraw_ModelSetBoundsCylinder(&fixture->model);
 }
 
 static void
-verify_target(const struct Spy* spy, const struct ToriDraw_RasterTarget* target)
+sd_fixture_destroy(struct SDFixture* fixture)
 {
-    const struct Fixture* fixture = spy->fixture;
-    const struct RenderEnv* env = spy->env;
-    const struct ToriDraw_RenderContext* context = env->scene->active_render_context;
+    free(fixture->model.bounds_cylinder);
+    fixture->model.bounds_cylinder = NULL;
+}
 
-    CHECK(target != NULL, "%s received a null target", spy->name);
-    CHECK(context != NULL, "%s callback has no active render context", spy->name);
-    if( !target || !context )
+static void
+check_sd_root(const struct ToriDraw_RasterKernelSD* kernel, const char* label)
+{
+    CHECK(kernel != NULL, "%s root is null", label);
+    if( !kernel )
         return;
-    CHECK(target->domain == TORIDRAW_RASTER_KERNEL_STOCK, "%s target domain %d", spy->name,
-          (int)target->domain);
-    CHECK(target->pixel_buffer == env->pixels + CLIP_LEFT + CLIP_TOP * VIEW_STRIDE,
-          "%s framebuffer was not clip-rebased", spy->name);
-    CHECK(target->zbuffer == NULL && !target->depth_test, "%s unexpectedly depth-tested", spy->name);
-    CHECK(target->width == CLIP_RIGHT - CLIP_LEFT, "%s target width %d", spy->name, target->width);
-    CHECK(target->height == CLIP_BOTTOM - CLIP_TOP, "%s target height %d", spy->name,
-          target->height);
-    CHECK(target->stride == VIEW_STRIDE, "%s target stride %d", spy->name, target->stride);
-    CHECK(target->clip_origin_x == CLIP_LEFT && target->clip_origin_y == CLIP_TOP,
-          "%s clip origin (%d,%d)", spy->name, target->clip_origin_x, target->clip_origin_y);
-    CHECK(target->projection_center_x == (CLIP_RIGHT - CLIP_LEFT) / 2 &&
-              target->projection_center_y == (CLIP_BOTTOM - CLIP_TOP) / 2,
-          "%s projection center (%d,%d)", spy->name, target->projection_center_x,
-          target->projection_center_y);
-    CHECK(target->near_plane_z == context->projection_near_plane_z,
-          "%s near plane %d", spy->name, target->near_plane_z);
-    CHECK(target->camera_cot16 != 0, "%s camera cotangent was zero", spy->name);
-    CHECK(target->model_mid_z == context->projected_vertex.z, "%s model mid-z %d", spy->name,
-          target->model_mid_z);
-    CHECK(!target->parallel_projection, "%s unexpectedly parallel", spy->name);
-    CHECK(!target->smooth_shading, "%s unexpectedly smooth", spy->name);
-    CHECK(target->affine_textures, "%s lost the affine camera flag", spy->name);
-    CHECK(target->near_clip_available, "%s lost orthographic near-clip data", spy->name);
-    CHECK(target->vertex_count == VERTEX_COUNT, "%s vertex count %d", spy->name,
-          target->vertex_count);
-    CHECK(target->screen_vertices_x == context->screen_vertices_x &&
-              target->screen_vertices_y == context->screen_vertices_y &&
-              target->screen_vertices_z == context->screen_vertices_z,
-          "%s projected arrays differ from active-context scratch", spy->name);
-    CHECK(target->orthographic_vertices_x == context->orthographic_vertices_x &&
-              target->orthographic_vertices_y == context->orthographic_vertices_y &&
-              target->orthographic_vertices_z == context->orthographic_vertices_z,
-          "%s orthographic arrays differ from active-context scratch", spy->name);
-    CHECK(target->posed_vertices_x == fixture->vertex_x &&
-              target->posed_vertices_y == fixture->vertex_y &&
-              target->posed_vertices_z == fixture->vertex_z,
-          "%s posed arrays differ from the model", spy->name);
-    CHECK(target->bind_vertices_x == fixture->vertex_x &&
-              target->bind_vertices_y == fixture->vertex_y &&
-              target->bind_vertices_z == fixture->vertex_z,
-          "%s bind-pose fallback arrays differ from the model", spy->name);
-}
-
-static enum ToriDraw_RasterFaceClass
-expected_class(int face_index)
-{
-    static const enum ToriDraw_RasterFaceClass classes[FACE_COUNT] = {
-        TORIDRAW_RASTER_FACE_GOURAUD,
-        TORIDRAW_RASTER_FACE_FLAT,
-#ifdef TORIDRAW_PIXEL16
-        TORIDRAW_RASTER_FACE_GOURAUD,
-        TORIDRAW_RASTER_FACE_FLAT,
-#else
-        TORIDRAW_RASTER_FACE_TEXTURED,
-        TORIDRAW_RASTER_FACE_TEXTURED_FLAT,
-#endif
-    };
-    return classes[face_index];
+    CHECK(kernel->vtable != NULL, "%s vtable is null", label);
+    if( !kernel->vtable )
+        return;
+    CHECK(kernel->vtable->draw_gouraud && kernel->vtable->draw_flat &&
+              kernel->vtable->draw_textured && kernel->vtable->draw_textured_flat,
+          "%s root is incomplete", label);
 }
 
 static void
-verify_face(const struct Spy* spy, const struct ToriDraw_RasterFace* face)
+check_hd_root(const struct ToriDraw_RasterKernelHD* kernel, const char* label)
 {
-    const struct Fixture* fixture = spy->fixture;
+    CHECK(kernel != NULL, "%s root is null", label);
+    if( !kernel )
+        return;
+    CHECK(kernel->vtable != NULL, "%s vtable is null", label);
+    if( !kernel->vtable )
+        return;
+    CHECK(kernel->vtable->draw_gouraud && kernel->vtable->draw_flat &&
+              kernel->vtable->draw_plane && kernel->vtable->draw_cylinder &&
+              kernel->vtable->draw_cube && kernel->vtable->draw_sphere,
+          "%s root is incomplete", label);
+}
+
+static void
+test_typed_root_layouts(void)
+{
+    const struct ToriDraw_RasterKernelSD* sd_branching =
+        ToriDraw_RasterKernelSDGetBranching();
+    const struct ToriDraw_RasterKernelSD* sd_scanline =
+        ToriDraw_RasterKernelSDGetScanline();
+    const struct ToriDraw_RasterKernelSD* sd_smooth_branching =
+        ToriDraw_RasterKernelSDGetSmoothBranching();
+    const struct ToriDraw_RasterKernelSD* sd_smooth_scanline =
+        ToriDraw_RasterKernelSDGetSmoothScanline();
+    const struct ToriDraw_RasterKernelHD* hd_branching =
+        ToriDraw_RasterKernelHDGetBranching();
+    const struct ToriDraw_RasterKernelHD* hd_scanline =
+        ToriDraw_RasterKernelHDGetScanline();
+
+    CHECK(sizeof(struct ToriDraw_RasterKernelSDVTable) ==
+              4 * sizeof(ToriDraw_RasterKernelSDFaceFn),
+          "SD vtable is not four typed slots");
+    CHECK(sizeof(struct ToriDraw_RasterKernelHDVTable) ==
+              6 * sizeof(ToriDraw_RasterKernelHDFaceFn),
+          "HD vtable is not six typed slots");
+    check_sd_root(sd_branching, "SD branching");
+    check_sd_root(sd_scanline, "SD scanline");
+    check_sd_root(sd_smooth_branching, "SD smooth branching");
+    check_sd_root(sd_smooth_scanline, "SD smooth scanline");
+    check_hd_root(hd_branching, "HD branching");
+    check_hd_root(hd_scanline, "HD scanline");
+    CHECK(sd_branching != sd_scanline && sd_branching != sd_smooth_branching &&
+              sd_scanline != sd_smooth_scanline,
+          "SD roots are unexpectedly aliased");
+    CHECK(hd_branching != hd_scanline, "HD roots are unexpectedly aliased");
+#ifdef TORIDRAW_PIXEL16
+    CHECK(sizeof(toripixel_t) == 2, "Pixel16 toripixel_t is %zu bytes", sizeof(toripixel_t));
+#else
+    CHECK(sizeof(toripixel_t) == 4, "Pixel32 toripixel_t is %zu bytes", sizeof(toripixel_t));
+#endif
+}
+
+struct SDSpy
+{
+    const struct SDFixture* fixture;
+    const struct RenderEnv* env;
+    int calls[TORIDRAW_RASTER_FACE_SD_CLASS_COUNT];
+    int face_calls[SD_FACE_COUNT];
+    int total_calls;
+    bool expect_depth;
+};
+
+static enum ToriDraw_RasterFaceClassSD
+sd_expected_class(int face)
+{
+#ifdef TORIDRAW_PIXEL16
+    static const enum ToriDraw_RasterFaceClassSD expected[SD_FACE_COUNT] = {
+        TORIDRAW_RASTER_FACE_SD_GOURAUD,
+        TORIDRAW_RASTER_FACE_SD_FLAT,
+        TORIDRAW_RASTER_FACE_SD_GOURAUD,
+        TORIDRAW_RASTER_FACE_SD_FLAT,
+    };
+#else
+    static const enum ToriDraw_RasterFaceClassSD expected[SD_FACE_COUNT] = {
+        TORIDRAW_RASTER_FACE_SD_GOURAUD,
+        TORIDRAW_RASTER_FACE_SD_FLAT,
+        TORIDRAW_RASTER_FACE_SD_TEXTURED,
+        TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT,
+    };
+#endif
+    return expected[face];
+}
+
+static void
+sd_verify_target(const struct SDSpy* spy, const struct ToriDraw_RasterTarget* target)
+{
+    CHECK(target != NULL, "SD callback received a null target");
+    if( !target )
+        return;
+    CHECK(target->pixel_buffer == spy->env->pixels + CLIP_LEFT + CLIP_TOP * VIEW_STRIDE,
+          "SD framebuffer was not clip-rebased");
+    CHECK(target->width == CLIP_RIGHT - CLIP_LEFT &&
+              target->height == CLIP_BOTTOM - CLIP_TOP && target->stride == VIEW_STRIDE,
+          "SD target geometry %dx%d/%d", target->width, target->height, target->stride);
+    CHECK(target->clip_origin_x == CLIP_LEFT && target->clip_origin_y == CLIP_TOP,
+          "SD clip origin (%d,%d)", target->clip_origin_x, target->clip_origin_y);
+    CHECK(target->vertex_count == SD_VERTEX_COUNT, "SD vertex count %d", target->vertex_count);
+    CHECK(target->screen_vertices_x == spy->env->scene->screen_vertices_x &&
+              target->orthographic_vertices_x == spy->env->scene->orthographic_vertices_x,
+          "SD projection arrays differ from scene scratch");
+    CHECK(target->posed_vertices_x == spy->fixture->vertex_x &&
+              target->bind_vertices_x == spy->fixture->vertex_x,
+          "SD model arrays were not published");
+    if( spy->expect_depth )
+        CHECK(target->depth_test && target->zbuffer != NULL,
+              "SD depth entry did not publish a depth target");
+    else
+        CHECK(!target->depth_test && target->zbuffer == NULL,
+              "SD sorted entry unexpectedly depth-tested");
+}
+
+static void
+sd_verify_face(const struct SDSpy* spy, const struct ToriDraw_RasterFaceSD* face)
+{
     int index;
 
-    CHECK(face != NULL, "%s received a null face", spy->name);
+    CHECK(face != NULL, "SD callback received a null face");
     if( !face )
         return;
     index = face->face_index;
-    CHECK(index >= 0 && index < FACE_COUNT, "%s face index %d", spy->name, index);
-    if( index < 0 || index >= FACE_COUNT )
+    CHECK(index >= 0 && index < SD_FACE_COUNT, "SD face index %d", index);
+    if( index < 0 || index >= SD_FACE_COUNT )
         return;
-
-    CHECK(face->face_class == expected_class(index), "%s face %d class %d", spy->name, index,
+    CHECK(face->face_class == sd_expected_class(index), "SD face %d class %d", index,
           (int)face->face_class);
-    CHECK(face->vertex[0] == fixture->face_a[index] &&
-              face->vertex[1] == fixture->face_b[index] &&
-              face->vertex[2] == fixture->face_c[index],
-          "%s face %d vertices (%d,%d,%d)", spy->name, index, face->vertex[0], face->vertex[1],
-          face->vertex[2]);
-    CHECK(!face->near_clipped, "%s face %d unexpectedly near-clipped", spy->name, index);
+    CHECK(face->vertex[0] == spy->fixture->face_a[index] &&
+              face->vertex[1] == spy->fixture->face_b[index] &&
+              face->vertex[2] == spy->fixture->face_c[index],
+          "SD face %d vertices", index);
+    CHECK(!face->near_clipped, "SD face %d unexpectedly near-clipped", index);
 
     if( index == 0 )
-    {
         CHECK(face->shade[0] == 0x1234 && face->shade[1] == 0x1235 &&
-                  face->shade[2] == 0x1236,
-              "%s Gouraud shades (%d,%d,%d)", spy->name, face->shade[0], face->shade[1],
-              face->shade[2]);
-        CHECK(face->opacity == 238, "%s Gouraud opacity %d", spy->name, face->opacity);
-    }
+                  face->shade[2] == 0x1236 && face->opacity == 238,
+              "SD Gouraud descriptor");
     else if( index == 1 )
-    {
         CHECK(face->shade[0] == 0x2345 && face->shade[1] == 0x2345 &&
-                  face->shade[2] == 0x2345,
-              "%s flat shades were not normalized", spy->name);
-        CHECK(face->opacity == 255, "%s flat opacity %d", spy->name, face->opacity);
-    }
+                  face->shade[2] == 0x2345 && face->opacity == 255,
+              "SD flat descriptor");
     else
     {
-        int const expected_shade_a = index == 2 ? 40 : 70;
-#ifdef TORIDRAW_PIXEL16
-        int const expected_shade_b = index == 2 ? 60 : 70;
-        int const expected_shade_c = index == 2 ? 80 : 70;
+        int const shade_a = index == 2 ? 40 : 70;
+        int const shade_b = index == 2 ? 60 : 70;
+        int const shade_c = index == 2 ? 80 : 70;
 
-        CHECK(face->shade[0] == expected_shade_a && face->shade[1] == expected_shade_b &&
-                  face->shade[2] == expected_shade_c,
-              "%s Pixel16-collapsed face %d shades (%d,%d,%d)", spy->name, index,
-              face->shade[0], face->shade[1], face->shade[2]);
-        CHECK(face->opacity == (index == 2 ? 55 : 1),
-              "%s Pixel16-collapsed face %d opacity %d", spy->name, index, face->opacity);
-#else
-        int const expected_shade_b = index == 2 ? 60 : 70;
-        int const expected_shade_c = index == 2 ? 80 : 70;
-
-        CHECK(face->shade[0] == expected_shade_a && face->shade[1] == expected_shade_b &&
-                  face->shade[2] == expected_shade_c,
-              "%s textured face %d shades (%d,%d,%d)", spy->name, index, face->shade[0],
-              face->shade[1], face->shade[2]);
-        CHECK(face->opacity == 255, "%s textured face %d did not ignore authored alpha",
-              spy->name, index);
-        CHECK(face->texture.texture_id == TEST_TEXTURE_ID, "%s texture id %d", spy->name,
-              face->texture.texture_id);
-        CHECK(face->texture.texels == spy->env->texture_texels, "%s texture pointer mismatch",
-              spy->name);
-        CHECK(face->texture.width == TEST_TEXTURE_WIDTH &&
+        CHECK(face->shade[0] == shade_a && face->shade[1] == shade_b &&
+                  face->shade[2] == shade_c && face->opacity == 255,
+              "SD face %d shade/opacity", index);
+#ifndef TORIDRAW_PIXEL16
+        CHECK(face->texture.texture_id == TEST_TEXTURE_ID &&
+                  face->texture.texels == spy->env->texture_texels &&
+                  face->texture.width == TEST_TEXTURE_WIDTH &&
                   face->texture.height == TEST_TEXTURE_WIDTH,
-              "%s texture dimensions %dx%d", spy->name, face->texture.width,
-              face->texture.height);
-        CHECK(face->texture.gate == TORIDRAW_RASTER_TEXTURE_COLOR_KEY, "%s texture gate %d",
-              spy->name, (int)face->texture.gate);
-        CHECK(!face->texture.clamp_s && !face->texture.clamp_t, "%s stock clamp flags set",
-              spy->name);
-        CHECK(face->texture.render_type == 0, "%s stock render type %u", spy->name,
-              face->texture.render_type);
-        CHECK(face->texture.mapping_payload == TORIDRAW_RASTER_MAPPING_STOCK_FACE_FALLBACK,
-              "%s stock mapping payload %d", spy->name, (int)face->texture.mapping_payload);
-        CHECK(face->texture.mapping.vertex_frame.p == face->vertex[0] &&
-                  face->texture.mapping.vertex_frame.m == face->vertex[1] &&
-                  face->texture.mapping.vertex_frame.n == face->vertex[2],
-              "%s stock fallback frame differs from A/B/C", spy->name);
-        CHECK(!face->texture.modulate && face->texture.tint_r == 0 &&
-                  face->texture.tint_g == 0 && face->texture.tint_b == 0 &&
-                  face->texture.texture_neutral == 0,
-              "%s stock face carried HD sampler state", spy->name);
+              "SD face %d texture identity", index);
+        CHECK(face->texture.gate == TORIDRAW_RASTER_TEXTURE_COLOR_KEY &&
+                  face->texture.render_type == 0 && face->texture.frame_fallback,
+              "SD face %d texture policy", index);
+        CHECK(face->texture.frame.p == face->vertex[0] &&
+                  face->texture.frame.m == face->vertex[1] &&
+                  face->texture.frame.n == face->vertex[2],
+              "SD face %d fallback frame", index);
 #endif
     }
 }
 
-static int
-fixture_dispatch_count(void);
+static void
+sd_spy_record(
+    struct SDSpy* spy,
+    enum ToriDraw_RasterFaceClassSD slot,
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFaceSD* face)
+{
+    CHECK(spy != NULL, "SD slot %d received null user data", (int)slot);
+    if( !spy )
+        return;
+    CHECK(face && face->face_class == slot, "SD slot %d received class %d", (int)slot,
+          face ? (int)face->face_class : -1);
+    spy->calls[slot]++;
+    spy->total_calls++;
+    if( face && face->face_index >= 0 && face->face_index < SD_FACE_COUNT )
+        spy->face_calls[face->face_index]++;
+    sd_verify_target(spy, target);
+    sd_verify_face(spy, face);
+}
+
+#define DEFINE_SD_CALLBACK(name, slot)                                                           \
+    static void name(void* user_data, const struct ToriDraw_RasterTarget* target,                 \
+                     const struct ToriDraw_RasterFaceSD* face)                                    \
+    {                                                                                              \
+        sd_spy_record((struct SDSpy*)user_data, slot, target, face);                               \
+    }
+
+DEFINE_SD_CALLBACK(sd_spy_gouraud, TORIDRAW_RASTER_FACE_SD_GOURAUD)
+DEFINE_SD_CALLBACK(sd_spy_flat, TORIDRAW_RASTER_FACE_SD_FLAT)
+DEFINE_SD_CALLBACK(sd_spy_textured, TORIDRAW_RASTER_FACE_SD_TEXTURED)
+DEFINE_SD_CALLBACK(sd_spy_textured_flat, TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT)
+
+static const struct ToriDraw_RasterKernelSDVTable sd_full_vtable = {
+    .draw_gouraud = sd_spy_gouraud,
+    .draw_flat = sd_spy_flat,
+    .draw_textured = sd_spy_textured,
+    .draw_textured_flat = sd_spy_textured_flat,
+};
+
+static const struct ToriDraw_RasterKernelSDVTable sd_sparse_vtable = {
+    .draw_flat = sd_spy_flat,
+};
 
 static void
-spy_attempt_same_scene_recursion(struct Spy* spy)
+check_sd_full_calls(const struct SDSpy* spy)
 {
-    struct ToriDraw_Scene* scene = spy->env->scene;
-    struct ToriDraw_RenderContext* context = scene->active_render_context;
+#ifdef TORIDRAW_PIXEL16
+    static const int expected[TORIDRAW_RASTER_FACE_SD_CLASS_COUNT] = { 2, 2, 0, 0 };
+#else
+    static const int expected[TORIDRAW_RASTER_FACE_SD_CLASS_COUNT] = { 1, 1, 1, 1 };
+#endif
+
+    CHECK(spy->total_calls == SD_FACE_COUNT, "SD total calls %d", spy->total_calls);
+    for( int slot = 0; slot < TORIDRAW_RASTER_FACE_SD_CLASS_COUNT; slot++ )
+        CHECK(spy->calls[slot] == expected[slot], "SD slot %d calls %d", slot,
+              spy->calls[slot]);
+    for( int face = 0; face < SD_FACE_COUNT; face++ )
+        CHECK(spy->face_calls[face] == 1, "SD face %d calls %d", face,
+              spy->face_calls[face]);
+}
+
+static int
+project_and_sort_sd(
+    const struct SDFixture* fixture,
+    struct RenderEnv* env,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* viewport,
+    struct ToriDraw_Camera* camera)
+{
+    int result = ToriDraw_RenderModel1Project(
+        fixture->handle, env->scene, position, viewport, camera);
+
+    CHECK(result == TORIDRAW_CULL_VISIBLE, "SD projection returned %d", result);
+    if( result == TORIDRAW_CULL_VISIBLE )
+        CHECK(ToriDraw_RenderModel2SortFaces(fixture->handle, env->scene) == SD_FACE_COUNT,
+              "SD sort count");
+    return result;
+}
+
+static void
+test_sd_direct_apis(const struct SDFixture* fixture, struct RenderEnv* env)
+{
     struct ToriDraw_ViewPort viewport = test_viewport();
     struct ToriDraw_Camera camera = test_camera();
-    struct ToriDraw_Position position = { .x = 90, .y = -35, .z = 925, .yaw = 128 };
-    struct ToriDraw_ModelHandle active_hnd;
-    struct ProjectedVertex projected_vertex;
-    struct ToriDraw_AABB aabb;
-    struct ToriDraw_AABB cylinder_aabb;
-    int screen_x[VERTEX_COUNT];
-    int screen_y[VERTEX_COUNT];
-    int screen_z[VERTEX_COUNT];
-    int face_order[FACE_COUNT];
-    int ordered;
-    int projection_near_plane_z;
-    bool near_clipped;
-    int* screen_x_pointer;
-    int* screen_y_pointer;
-    int* screen_z_pointer;
-    int* orthographic_x_pointer;
-    int* orthographic_y_pointer;
-    int* orthographic_z_pointer;
-    int* face_order_pointer;
-
-    spy->recursive_render_attempted = true;
-    CHECK(context != NULL, "%s recursion started without an active context", spy->name);
-    if( !context )
-    {
-        spy->recursive_scratch_unchanged = false;
-        return;
-    }
-    active_hnd = context->active_hnd;
-    projected_vertex = context->projected_vertex;
-    aabb = context->aabb;
-    cylinder_aabb = context->cylinder_fast_aabb;
-    ordered = context->tmp_face_order_count;
-    projection_near_plane_z = context->projection_near_plane_z;
-    near_clipped = context->near_clipped;
-    screen_x_pointer = context->screen_vertices_x;
-    screen_y_pointer = context->screen_vertices_y;
-    screen_z_pointer = context->screen_vertices_z;
-    orthographic_x_pointer = context->orthographic_vertices_x;
-    orthographic_y_pointer = context->orthographic_vertices_y;
-    orthographic_z_pointer = context->orthographic_vertices_z;
-    face_order_pointer = context->tmp_face_order;
-    memcpy(screen_x, context->screen_vertices_x, sizeof(screen_x));
-    memcpy(screen_y, context->screen_vertices_y, sizeof(screen_y));
-    memcpy(screen_z, context->screen_vertices_z, sizeof(screen_z));
-    memcpy(face_order, context->tmp_face_order, sizeof(face_order));
-
-    spy->recursive_depth++;
-    ToriDraw_RenderModel(
-        spy->fixture->handle, scene, &position, &viewport, &camera, spy->env->pixels);
-    spy->recursive_depth--;
-
-    spy->recursive_scratch_unchanged = spy->recursive_scratch_unchanged &&
-        scene->active_render_context == context &&
-        context->screen_vertices_x == screen_x_pointer &&
-        context->screen_vertices_y == screen_y_pointer &&
-        context->screen_vertices_z == screen_z_pointer &&
-        context->orthographic_vertices_x == orthographic_x_pointer &&
-        context->orthographic_vertices_y == orthographic_y_pointer &&
-        context->orthographic_vertices_z == orthographic_z_pointer &&
-        context->tmp_face_order == face_order_pointer &&
-        memcmp(&active_hnd, &context->active_hnd, sizeof(active_hnd)) == 0 &&
-        memcmp(&projected_vertex, &context->projected_vertex, sizeof(projected_vertex)) == 0 &&
-        memcmp(&aabb, &context->aabb, sizeof(aabb)) == 0 &&
-        memcmp(&cylinder_aabb, &context->cylinder_fast_aabb, sizeof(cylinder_aabb)) == 0 &&
-        memcmp(screen_x, context->screen_vertices_x, sizeof(screen_x)) == 0 &&
-        memcmp(screen_y, context->screen_vertices_y, sizeof(screen_y)) == 0 &&
-        memcmp(screen_z, context->screen_vertices_z, sizeof(screen_z)) == 0 &&
-        context->tmp_face_order_count == ordered &&
-        memcmp(face_order, context->tmp_face_order, sizeof(face_order)) == 0 &&
-        context->projection_near_plane_z == projection_near_plane_z &&
-        context->near_clipped == near_clipped;
-
-    /* Popping an inner context must not make the outer kernel binding mutable. */
-    spy->set_after_nested =
-        spy->set_after_nested || ToriDraw_SceneSetRasterKernel(scene, spy->replacement);
-    spy->reset_after_nested =
-        spy->reset_after_nested || ToriDraw_SceneResetRasterKernel(scene);
-}
-
-static void
-spy_record(
-    struct Spy* spy,
-    enum ToriDraw_RasterFaceClass slot,
-    const struct ToriDraw_RasterTarget* target,
-    const struct ToriDraw_RasterFace* face)
-{
-    CHECK(spy != NULL, "slot %d received null user_data", (int)slot);
-    if( !spy )
-        return;
-    CHECK(face && face->face_class == slot, "%s callback slot %d received class %d", spy->name,
-          (int)slot, face ? (int)face->face_class : -1);
-    spy->calls[slot]++;
-    if( face && face->face_index >= 0 && face->face_index < FACE_COUNT )
-        spy->face_calls[face->face_index]++;
-    spy->total_calls++;
-    verify_target(spy, target);
-    verify_face(spy, face);
-
-    if( spy->attempt_recursive_render )
-    {
-        const struct ToriDraw_RenderContext* context =
-            spy->env->scene->active_render_context;
-        int const depth = spy->recursive_depth;
-        CHECK(depth >= 0 && depth < 3, "%s recursive depth %d", spy->name, depth);
-        CHECK(context != NULL, "%s depth %d has no active context", spy->name, depth);
-        if( context && depth >= 0 && depth < 3 )
-        {
-            if( !spy->context_by_depth[depth] )
-            {
-                spy->context_by_depth[depth] = context;
-                spy->screen_x_by_depth[depth] = target->screen_vertices_x;
-                spy->face_order_by_depth[depth] = context->tmp_face_order;
-            }
-            else
-            {
-                CHECK(spy->context_by_depth[depth] == context,
-                      "%s depth %d changed active context within a pass", spy->name, depth);
-                CHECK(spy->screen_x_by_depth[depth] == target->screen_vertices_x,
-                      "%s depth %d changed projected context within a pass", spy->name, depth);
-                CHECK(spy->face_order_by_depth[depth] == context->tmp_face_order,
-                      "%s depth %d changed face-order context within a pass", spy->name, depth);
-            }
-            if( depth > 0 )
-            {
-                spy->recursive_contexts_distinct = spy->recursive_contexts_distinct &&
-                    spy->context_by_depth[depth] != spy->context_by_depth[depth - 1] &&
-                    spy->screen_x_by_depth[depth] != spy->screen_x_by_depth[depth - 1] &&
-                    spy->face_order_by_depth[depth] != spy->face_order_by_depth[depth - 1];
-            }
-        }
-    }
-
-    if( spy->attempt_mutation && !spy->mutation_attempted )
-    {
-        spy->mutation_attempted = true;
-        spy->set_during_callback = ToriDraw_SceneSetRasterKernel(
-            spy->env->scene, spy->replacement);
-        spy->reset_during_callback = ToriDraw_SceneResetRasterKernel(spy->env->scene);
-    }
-    if( spy->attempt_recursive_render && spy->recursive_depth < spy->recursive_depth_limit &&
-        !spy->recursive_started[spy->recursive_depth] )
-    {
-        spy->recursive_started[spy->recursive_depth] = true;
-        spy_attempt_same_scene_recursion(spy);
-    }
-}
-
-#define DEFINE_SPY_CALLBACK(name, slot)                                                           \
-    static void name(void* user_data, const struct ToriDraw_RasterTarget* target,                 \
-                     const struct ToriDraw_RasterFace* face)                                      \
-    {                                                                                              \
-        spy_record((struct Spy*)user_data, slot, target, face);                                    \
-    }
-
-DEFINE_SPY_CALLBACK(spy_gouraud, TORIDRAW_RASTER_FACE_GOURAUD)
-DEFINE_SPY_CALLBACK(spy_flat, TORIDRAW_RASTER_FACE_FLAT)
-DEFINE_SPY_CALLBACK(spy_textured, TORIDRAW_RASTER_FACE_TEXTURED)
-DEFINE_SPY_CALLBACK(spy_textured_flat, TORIDRAW_RASTER_FACE_TEXTURED_FLAT)
-
-static void
-spy_explicit_noop(
-    void* user_data,
-    const struct ToriDraw_RasterTarget* target,
-    const struct ToriDraw_RasterFace* face)
-{
-    struct Spy* spy = user_data;
-
-    CHECK(spy != NULL, "explicit no-op received null user_data");
-    if( !spy )
-        return;
-    spy->noop_calls++;
-    CHECK(face && face->face_class == TORIDRAW_RASTER_FACE_TEXTURED_FLAT,
-          "%s no-op received class %d", spy->name, face ? (int)face->face_class : -1);
-    verify_target(spy, target);
-    verify_face(spy, face);
-    /* Deliberately no draw and no delegation. */
-}
-
-static const struct ToriDraw_RasterKernelVTable full_spy_vtable = {
-    .draw_gouraud = spy_gouraud,
-    .draw_flat = spy_flat,
-    .draw_textured = spy_textured,
-    .draw_textured_flat = spy_textured_flat,
-};
-
-static const struct ToriDraw_RasterKernelVTable sparse_spy_vtable = {
-    .draw_flat = spy_flat,
-    .draw_textured_flat = spy_explicit_noop,
-};
-
-static int
-fixture_dispatch_count(void)
-{
-#ifdef TORIDRAW_PIXEL16
-    return 3;
-#else
-    return FACE_COUNT;
-#endif
-}
-
-static void
-check_call_multiplier(const struct Spy* spy, int multiplier)
-{
-#ifdef TORIDRAW_PIXEL16
-    static const int expected[TORIDRAW_RASTER_FACE_CLASS_COUNT] = { 2, 1, 0, 0 };
-    static const int expected_faces[FACE_COUNT] = { 1, 1, 1, 0 };
-    int const expected_total = 3;
-#else
-    static const int expected[TORIDRAW_RASTER_FACE_CLASS_COUNT] = { 1, 1, 1, 1 };
-    static const int expected_faces[FACE_COUNT] = { 1, 1, 1, 1 };
-    int const expected_total = FACE_COUNT;
-#endif
-
-    CHECK(spy->total_calls == expected_total * multiplier, "%s total calls %d", spy->name,
-          spy->total_calls);
-    for( int slot = 0; slot < TORIDRAW_RASTER_FACE_CLASS_COUNT; slot++ )
-        CHECK(spy->calls[slot] == expected[slot] * multiplier,
-              "%s slot %d calls %d, expected %d", spy->name, slot, spy->calls[slot],
-              expected[slot] * multiplier);
-    for( int face = 0; face < FACE_COUNT; face++ )
-        CHECK(spy->face_calls[face] == expected_faces[face] * multiplier,
-              "%s face %d calls %d, expected %d", spy->name, face, spy->face_calls[face],
-              expected_faces[face] * multiplier);
-}
-
-static void
-check_one_call_per_class(const struct Spy* spy)
-{
-    check_call_multiplier(spy, 1);
-}
-
-static void
-test_four_slots_and_callback_guard(
-    const struct Fixture* fixture,
-    struct RenderEnv* env)
-{
-    struct Spy spy;
-    struct ToriDraw_RasterKernel kernel;
-
-#ifdef TORIDRAW_PIXEL16
-    printf("Pixel16 collapse reaches normalized Gouraud/flat descriptors\n");
-#else
-    printf("four stock slots receive normalized descriptors\n");
-#endif
-    spy_init(&spy, "full", fixture, env);
-    kernel = (struct ToriDraw_RasterKernel){
-        .vtable = &full_spy_vtable,
+    struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
+    struct SDSpy spy = { .fixture = fixture, .env = env };
+    const struct ToriDraw_RasterKernelSD full_kernel = {
+        .vtable = &sd_full_vtable,
         .user_data = &spy,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
     };
-    spy.attempt_mutation = true;
-    spy.replacement = ToriDraw_RasterKernelGetBranching();
-
-    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, &kernel), "bind complete spy");
-    CHECK(ToriDraw_SceneGetRasterKernel(env->scene) == &kernel, "complete spy getter");
-    render_fixture(env, fixture);
-    check_one_call_per_class(&spy);
-    CHECK(spy.mutation_attempted, "callback mutation was not attempted");
-    CHECK(!spy.set_during_callback, "Set succeeded during a callback");
-    CHECK(!spy.reset_during_callback, "Reset succeeded during a callback");
-    CHECK(ToriDraw_SceneGetRasterKernel(env->scene) == &kernel,
-          "callback mutation changed the binding");
-    CHECK(count_nonzero_pixels(env) == 0, "spy callbacks unexpectedly drew pixels");
-    CHECK(ToriDraw_SceneResetRasterKernel(env->scene), "reset complete spy");
-}
-
-static void
-test_same_scene_reentrant_stock(const struct Fixture* fixture, struct RenderEnv* env)
-{
-    struct Spy spy;
-    struct ToriDraw_RasterKernel kernel;
-
-    printf("same-scene stock callbacks re-enter through independent startup contexts\n");
-    spy_init(&spy, "recursive-stock", fixture, env);
-    spy.attempt_recursive_render = true;
-    spy.recursive_depth_limit = 2;
-    spy.replacement = ToriDraw_RasterKernelGetBranching();
-    kernel = (struct ToriDraw_RasterKernel){
-        .vtable = &full_spy_vtable,
+    const struct ToriDraw_RasterKernelSD sparse_kernel = {
+        .vtable = &sd_sparse_vtable,
         .user_data = &spy,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
+        .fallback = ToriDraw_RasterKernelSDGetBranching(),
     };
+    int result;
 
-    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, &kernel), "bind recursive stock spy");
-    render_fixture(env, fixture);
-    check_call_multiplier(&spy, spy.recursive_depth_limit + 1);
-    CHECK(spy.recursive_render_attempted, "recursive stock callback did not run");
-    CHECK(spy.recursive_scratch_unchanged,
-          "same-scene recursive RenderModel did not restore live outer scratch");
-    CHECK(spy.recursive_contexts_distinct,
-          "nested stock renders shared projected or face-order scratch");
-    CHECK(!spy.set_after_nested && !spy.reset_after_nested,
-          "popping a nested context cleared the outer binding guard");
-    CHECK(env->scene->active_render_context == NULL &&
-              env->scene->nested_render_contexts_used == 0,
-          "recursive stock render leaked an active context");
-    CHECK(count_nonzero_pixels(env) == 0, "recursive spy callbacks unexpectedly drew pixels");
-    CHECK(ToriDraw_SceneGetRasterKernel(env->scene) == &kernel,
-          "recursive render changed the scene binding");
-    CHECK(ToriDraw_SceneResetRasterKernel(env->scene), "reset recursive stock spy");
-}
+    clear_pixels(env);
+    result = ToriDraw_RenderModelWithRasterKernel(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, &full_kernel);
+    CHECK(result == TORIDRAW_CULL_VISIBLE, "direct SD render returned %d", result);
+    check_sd_full_calls(&spy);
+    CHECK(count_nonzero_pixels(env) == 0, "SD spy callbacks drew pixels");
+
+    memset(&spy.calls, 0, sizeof(spy.calls));
+    memset(&spy.face_calls, 0, sizeof(spy.face_calls));
+    spy.total_calls = 0;
+    clear_pixels(env);
+    if( project_and_sort_sd(fixture, env, &position, &viewport, &camera) ==
+        TORIDRAW_CULL_VISIBLE )
+    {
+        result = ToriDraw_RenderModel3RasterWithRasterKernel(
+            env->scene, &viewport, &camera, env->pixels, &sparse_kernel);
+        CHECK(result == TORIDRAW_CULL_VISIBLE, "direct SD phase3 returned %d", result);
+#ifdef TORIDRAW_PIXEL16
+        CHECK(spy.total_calls == 2 && spy.calls[TORIDRAW_RASTER_FACE_SD_FLAT] == 2,
+              "Pixel16 sparse SD head calls %d", spy.total_calls);
+#else
+        CHECK(spy.total_calls == 1 && spy.calls[TORIDRAW_RASTER_FACE_SD_FLAT] == 1,
+              "sparse SD head calls %d", spy.total_calls);
+#endif
+        CHECK(count_nonzero_pixels(env) > 0, "SD typed fallback root drew no pixels");
+    }
 
 #ifndef TORIDRAW_PIXEL16
-
-struct Phase3DepthSpy
-{
-    struct RenderEnv* env;
-    toripixel_t* nested_pixels;
-    const struct ToriDraw_RenderContext* outer_context;
-    const torizdepth_t* outer_zbuffer;
-    bool nested_started;
-    bool nested_completed;
-    bool depth_storage_isolated;
-    int depth;
-    int calls;
-};
+    memset(&spy.calls, 0, sizeof(spy.calls));
+    memset(&spy.face_calls, 0, sizeof(spy.face_calls));
+    spy.total_calls = 0;
+    spy.expect_depth = true;
+    clear_pixels(env);
+    result = ToriDraw_RenderZBufferedWithRasterKernel(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, &full_kernel);
+    CHECK(result == TORIDRAW_CULL_VISIBLE, "direct SD depth returned %d", result);
+    check_sd_full_calls(&spy);
+    CHECK(count_nonzero_pixels(env) == 0, "SD depth spy callbacks drew pixels");
+#endif
+}
 
 static void
-phase3_depth_spy_draw(
-    void* user_data,
-    const struct ToriDraw_RasterTarget* target,
-    const struct ToriDraw_RasterFace* face)
+test_sd_legacy_parity(const struct SDFixture* fixture, struct RenderEnv* env)
 {
-    struct Phase3DepthSpy* spy = user_data;
-    struct ToriDraw_Scene* scene = spy->env->scene;
-    struct ToriDraw_RenderContext* context = scene->active_render_context;
-
-    (void)face;
-    spy->calls++;
-    CHECK(context != NULL, "recursive phase 3 did not publish its projection context");
-    CHECK(target && target->depth_test && target->zbuffer,
-          "recursive phase 3 did not retain model depth testing");
-    if( !context || !target || !target->zbuffer )
-        return;
-
-    if( spy->depth != 0 )
-    {
-        CHECK(context == spy->outer_context,
-              "recursive phase 3 replaced its read-only projection context");
-        CHECK(scene->nested_render_contexts_used == 1,
-              "recursive phase 3 did not lease exactly one depth scratch context");
-        spy->depth_storage_isolated =
-            spy->depth_storage_isolated && target->zbuffer != spy->outer_zbuffer;
-        return;
-    }
-
-    if( spy->nested_started )
-        return;
-
-    spy->nested_started = true;
-    spy->outer_context = context;
-    spy->outer_zbuffer = context->zbuffer;
-
-    /* A larger target forces the recursive depth allocation to grow. If phase
-     * 3 reused the active context, this could realloc the outer pass's live
-     * target pointer; the leased startup context must absorb it instead. */
-    struct ToriDraw_ViewPort nested_viewport = {
-        .width = 640,
-        .height = 400,
-        .stride = 672,
-        .x_center = 320,
-        .y_center = 200,
-        .clip_right = 640,
-        .clip_bottom = 400,
-    };
+    struct ToriDraw_ViewPort viewport = test_viewport();
     struct ToriDraw_Camera camera = test_camera();
+    struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
+    const struct ToriDraw_RasterKernelSD* branching =
+        ToriDraw_RasterKernelSDGetBranching();
+    const struct ToriDraw_RasterKernelSD* smooth =
+        ToriDraw_RasterKernelSDGetSmoothBranching();
+    size_t const image_bytes =
+        (size_t)VIEW_STRIDE * VIEW_HEIGHT * sizeof(*env->pixels);
+    toripixel_t* reference = malloc(image_bytes);
+    int result;
 
-    spy->depth++;
-    ToriDraw_RenderModel3Raster(
-        scene, &nested_viewport, &camera, spy->nested_pixels, false);
-    spy->depth--;
-    spy->nested_completed = true;
-
-    CHECK(scene->active_render_context == spy->outer_context,
-          "recursive phase 3 did not restore the outer active context");
-    CHECK(scene->nested_render_contexts_used == 0,
-          "recursive phase 3 leaked its depth scratch context");
-    CHECK(spy->outer_context->zbuffer == spy->outer_zbuffer,
-          "recursive phase 3 reallocated the outer depth buffer");
-}
-
-static const struct ToriDraw_RasterKernelVTable phase3_depth_spy_vtable = {
-    .draw_gouraud = phase3_depth_spy_draw,
-    .draw_flat = phase3_depth_spy_draw,
-    .draw_textured = phase3_depth_spy_draw,
-    .draw_textured_flat = phase3_depth_spy_draw,
-};
-
-static void
-test_recursive_phase3_depth_scratch(struct Fixture* fixture, struct RenderEnv* env)
-{
-    struct Phase3DepthSpy spy = {
-        .env = env,
-        .depth_storage_isolated = true,
-    };
-    struct ToriDraw_RasterKernel kernel = {
-        .vtable = &phase3_depth_spy_vtable,
-        .user_data = &spy,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
-    };
-    uint8_t const saved_model_flags = fixture->model.flags;
-    size_t const nested_pixel_count = (size_t)672 * 400;
-
-    printf("recursive phase 3 leases independent preallocated depth scratch\n");
-    spy.nested_pixels = calloc(nested_pixel_count, sizeof(*spy.nested_pixels));
-    CHECK(spy.nested_pixels != NULL, "recursive phase-3 framebuffer allocation");
-    if( !spy.nested_pixels )
+    CHECK(reference != NULL, "SD parity image allocation");
+    if( !reference )
         return;
-
-    fixture->model.flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
-    CHECK(ToriDraw_SceneZBufferResize(env->scene, VIEW_STRIDE, VIEW_HEIGHT),
-          "explicit root z-buffer opt-in");
-    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, &kernel),
-          "bind recursive phase-3 depth spy");
-    render_fixture(env, fixture);
-
-    CHECK(spy.nested_started && spy.nested_completed,
-          "recursive phase-3 depth pass did not complete");
-    CHECK(spy.depth_storage_isolated,
-          "recursive phase 3 shared the outer pass's live depth buffer");
-    CHECK(spy.calls == FACE_COUNT * 2, "recursive phase-3 callback count %d", spy.calls);
-    CHECK(env->scene->active_render_context == NULL &&
-              env->scene->nested_render_contexts_used == 0,
-          "recursive phase-3 depth test leaked render state");
-    CHECK(ToriDraw_SceneResetRasterKernel(env->scene),
-          "reset recursive phase-3 depth spy");
-
-    ToriDraw_SceneZBufferFree(env->scene);
-    fixture->model.flags = saved_model_flags;
-    free(spy.nested_pixels);
-}
-
-#endif
-
-static void
-check_one_face_suppressed(const struct Spy* spy, int suppressed_face)
-{
-    CHECK(spy->total_calls == fixture_dispatch_count() - 1,
-          "%s dispatched %d faces after suppressing face %d", spy->name, spy->total_calls,
-          suppressed_face);
-    for( int face = 0; face < FACE_COUNT; face++ )
-    {
-#ifdef TORIDRAW_PIXEL16
-        int const normally_dispatched = face != 3;
-#else
-        int const normally_dispatched = 1;
-#endif
-        int const expected = normally_dispatched && face != suppressed_face;
-        CHECK(spy->face_calls[face] == expected, "%s face %d calls %d, expected %d", spy->name,
-              face, spy->face_calls[face], expected);
-    }
-}
-
-static void
-test_pre_dispatch_skips(struct Fixture* fixture, struct RenderEnv* env)
-{
-    struct Spy spy;
-    struct ToriDraw_RasterKernel kernel = {
-        .vtable = &full_spy_vtable,
-        .user_data = &spy,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
-    };
-    int saved_int;
-    hsl16_t saved_shade;
-    alphaint_t saved_alpha;
-    faceint_t saved_b;
-    faceint_t saved_c;
-
-    printf("pre-dispatch hidden, invalid, alpha, texture and backface policy calls no slot\n");
-    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, &kernel), "bind skip-policy spy");
-
-    saved_int = fixture->face_info[0];
-    fixture->face_info[0] = 2;
-    spy_init(&spy, "raw-type-2", fixture, env);
-    render_fixture(env, fixture);
-    check_one_face_suppressed(&spy, 0);
-    fixture->face_info[0] = saved_int;
-
-    saved_int = fixture->face_info[0];
-    fixture->face_info[0] = 4;
-    spy_init(&spy, "raw-type-out-of-range", fixture, env);
-    render_fixture(env, fixture);
-    check_one_face_suppressed(&spy, 0);
-    fixture->face_info[0] = saved_int;
-
-    saved_shade = fixture->shade_c[0];
-    fixture->shade_c[0] = TORIDRAWHSL16_HIDDEN;
-    spy_init(&spy, "hidden-colour", fixture, env);
-    render_fixture(env, fixture);
-    check_one_face_suppressed(&spy, 0);
-    fixture->shade_c[0] = saved_shade;
-
-    saved_alpha = fixture->alpha[0];
-    fixture->alpha[0] = 254;
-    spy_init(&spy, "alpha-cutoff", fixture, env);
-    render_fixture(env, fixture);
-    check_one_face_suppressed(&spy, 0);
-    fixture->alpha[0] = saved_alpha;
-
-#ifndef TORIDRAW_PIXEL16
-    saved_int = fixture->texture[2];
-    fixture->texture[2] = TEST_TEXTURE_ID + 1;
-    spy_init(&spy, "missing-texture", fixture, env);
-    render_fixture(env, fixture);
-    check_one_face_suppressed(&spy, 2);
-    fixture->texture[2] = (faceint_t)saved_int;
-
-    {
-        faceint_t malformed_coords[FACE_COUNT] = { -1, -1, 1, -1 };
-
-        fixture->model.face_texture_coords = malformed_coords;
-        spy_init(&spy, "malformed-texture-coordinate", fixture, env);
-        render_fixture(env, fixture);
-        check_one_face_suppressed(&spy, 2);
-        fixture->model.face_texture_coords = NULL;
-    }
-#endif
-
-    saved_b = fixture->face_b[0];
-    saved_c = fixture->face_c[0];
-    fixture->face_b[0] = saved_c;
-    fixture->face_c[0] = saved_b;
-    spy_init(&spy, "backface", fixture, env);
-    render_fixture_with_ordered_count(env, fixture, FACE_COUNT - 1);
-    check_one_face_suppressed(&spy, 0);
-    fixture->face_b[0] = saved_b;
-    fixture->face_c[0] = saved_c;
-
-    CHECK(ToriDraw_SceneResetRasterKernel(env->scene), "reset skip-policy spy");
-}
-
-static void
-test_live_chain_mutation_recovery(
-    const struct Fixture* fixture,
-    struct RenderEnv* env)
-{
-    struct Spy spy;
-    struct ToriDraw_RasterKernel kernel;
-
-    printf("a malformed live borrowed chain is discarded wholesale at pass entry\n");
-    spy_init(&spy, "mutated-live-chain", fixture, env);
-    kernel = (struct ToriDraw_RasterKernel){
-        .vtable = &full_spy_vtable,
-        .user_data = &spy,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
-    };
-    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, &kernel), "bind live-mutation control");
-
-    kernel.domains = 0;
-    render_fixture(env, fixture);
-    CHECK(spy.total_calls == 0, "part of an invalid live chain reached a callback");
-    CHECK(count_nonzero_pixels(env) > 0, "terminal did not recover an invalid live chain");
-    CHECK(ToriDraw_SceneGetRasterKernel(env->scene) == &kernel,
-          "pass-time validation rewrote the borrowed scene binding");
-
-    kernel.domains = TORIDRAW_RASTER_KERNEL_STOCK;
-    CHECK(ToriDraw_SceneResetRasterKernel(env->scene), "reset restored live-mutation control");
-}
-
-static void
-test_sparse_fallback_and_noop(
-    const struct Fixture* fixture,
-    struct RenderEnv* env)
-{
-    struct Spy head;
-    struct Spy tail;
-    struct ToriDraw_RasterKernel tail_kernel;
-    struct ToriDraw_RasterKernel head_kernel;
-
-    printf("sparse fallback retains supplier user_data; explicit no-op does not inherit\n");
-    spy_init(&head, "sparse-head", fixture, env);
-    spy_init(&tail, "fallback-tail", fixture, env);
-    tail_kernel = (struct ToriDraw_RasterKernel){
-        .vtable = &full_spy_vtable,
-        .user_data = &tail,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
-    };
-    head_kernel = (struct ToriDraw_RasterKernel){
-        .vtable = &sparse_spy_vtable,
-        .user_data = &head,
-        .fallback = &tail_kernel,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
-    };
-
-    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, &head_kernel), "bind sparse chain");
-    render_fixture(env, fixture);
-    CHECK(head.total_calls == 1 && head.calls[TORIDRAW_RASTER_FACE_FLAT] == 1,
-          "sparse head supplied the wrong ordinary slots");
-#ifdef TORIDRAW_PIXEL16
-    CHECK(head.noop_calls == 0, "Pixel16 emitted a textured-flat slot");
-    CHECK(tail.total_calls == 2 && tail.calls[TORIDRAW_RASTER_FACE_GOURAUD] == 2,
-          "Pixel16 fallback tail did not supply both Gouraud faces");
-    CHECK(tail.calls[TORIDRAW_RASTER_FACE_FLAT] == 0 &&
-              tail.calls[TORIDRAW_RASTER_FACE_TEXTURED] == 0 &&
-              tail.calls[TORIDRAW_RASTER_FACE_TEXTURED_FLAT] == 0,
-          "Pixel16 sparse chain reached an unexpected slot");
-#else
-    CHECK(head.noop_calls == 1, "explicit no-op calls %d", head.noop_calls);
-    CHECK(tail.total_calls == 2 && tail.calls[TORIDRAW_RASTER_FACE_GOURAUD] == 1 &&
-              tail.calls[TORIDRAW_RASTER_FACE_TEXTURED] == 1,
-          "fallback tail did not supply exactly the two null slots");
-    CHECK(tail.calls[TORIDRAW_RASTER_FACE_FLAT] == 0 &&
-              tail.calls[TORIDRAW_RASTER_FACE_TEXTURED_FLAT] == 0,
-          "fallback traversed past an explicit slot");
-#endif
-    CHECK(count_nonzero_pixels(env) == 0, "sparse spy chain unexpectedly drew pixels");
-    CHECK(ToriDraw_SceneResetRasterKernel(env->scene), "reset sparse chain");
-}
-
-static void
-test_two_scene_independence(
-    const struct Fixture* fixture,
-    struct RenderEnv* first,
-    struct RenderEnv* second)
-{
-    struct Spy first_spy;
-    struct Spy second_spy;
-    struct ToriDraw_RasterKernel first_kernel;
-    struct ToriDraw_RasterKernel second_kernel;
-
-    printf("two scenes retain independent complete roots\n");
-    spy_init(&first_spy, "scene-one", fixture, first);
-    spy_init(&second_spy, "scene-two", fixture, second);
-    first_kernel = (struct ToriDraw_RasterKernel){
-        .vtable = &full_spy_vtable,
-        .user_data = &first_spy,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
-    };
-    second_kernel = (struct ToriDraw_RasterKernel){
-        .vtable = &full_spy_vtable,
-        .user_data = &second_spy,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
-    };
-
-    CHECK(ToriDraw_SceneSetRasterKernel(first->scene, &first_kernel), "bind first scene");
-    CHECK(ToriDraw_SceneSetRasterKernel(second->scene, &second_kernel), "bind second scene");
-    render_fixture(first, fixture);
-    check_one_call_per_class(&first_spy);
-    CHECK(second_spy.total_calls == 0, "first render called the second scene's kernel");
-    render_fixture(second, fixture);
-    check_one_call_per_class(&second_spy);
-    CHECK(first_spy.total_calls == fixture_dispatch_count(),
-          "second render called the first scene's kernel");
-    CHECK(ToriDraw_SceneGetRasterKernel(first->scene) == &first_kernel &&
-              ToriDraw_SceneGetRasterKernel(second->scene) == &second_kernel,
-          "scene bindings were not independent");
-    CHECK(ToriDraw_SceneResetRasterKernel(first->scene), "reset first scene");
-    CHECK(ToriDraw_SceneResetRasterKernel(second->scene), "reset second scene");
-}
-
-static void
-test_incompatible_domain(
-    const struct Fixture* fixture,
-    struct RenderEnv* env)
-{
-    struct Spy hd;
-    struct Spy stock;
-    struct ToriDraw_RasterKernel stock_kernel;
-    struct ToriDraw_RasterKernel hd_kernel;
-
-    printf("stock passes skip incompatible HD-domain nodes\n");
-    spy_init(&hd, "hd-only", fixture, env);
-    spy_init(&stock, "stock-fallback", fixture, env);
-    stock_kernel = (struct ToriDraw_RasterKernel){
-        .vtable = &full_spy_vtable,
-        .user_data = &stock,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
-    };
-    hd_kernel = (struct ToriDraw_RasterKernel){
-        .vtable = &full_spy_vtable,
-        .user_data = &hd,
-        .fallback = &stock_kernel,
-        .domains = TORIDRAW_RASTER_KERNEL_HD,
-    };
-
-    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, &hd_kernel), "bind mixed-domain chain");
-    render_fixture(env, fixture);
-    CHECK(hd.total_calls == 0, "stock pass called an HD-domain node");
-    check_one_call_per_class(&stock);
-    CHECK(ToriDraw_SceneResetRasterKernel(env->scene), "reset mixed-domain chain");
-}
-
-static void
-test_invalid_set_rejection(
-    const struct Fixture* fixture,
-    struct RenderEnv* env)
-{
-    struct Spy spy;
-    struct ToriDraw_RasterKernel valid;
-    struct ToriDraw_RasterKernel no_vtable;
-    struct ToriDraw_RasterKernel no_domain;
-    struct ToriDraw_RasterKernel unknown_domain;
-    struct ToriDraw_RasterKernel cycle;
-
-    printf("Set rejects null, malformed, unknown-domain and cyclic chains\n");
-    spy_init(&spy, "valid-before-errors", fixture, env);
-    valid = (struct ToriDraw_RasterKernel){
-        .vtable = &full_spy_vtable,
-        .user_data = &spy,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
-    };
-    no_vtable = (struct ToriDraw_RasterKernel){
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
-    };
-    no_domain = (struct ToriDraw_RasterKernel){
-        .vtable = &full_spy_vtable,
-    };
-    unknown_domain = (struct ToriDraw_RasterKernel){
-        .vtable = &full_spy_vtable,
-        .domains = 1u << 12,
-    };
-    cycle = (struct ToriDraw_RasterKernel){
-        .vtable = &full_spy_vtable,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
-    };
-    cycle.fallback = &cycle;
-
-    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, &valid), "bind valid control kernel");
-    CHECK(!ToriDraw_SceneSetRasterKernel(env->scene, NULL), "Set accepted NULL");
-    CHECK(!ToriDraw_SceneSetRasterKernel(env->scene, &no_vtable), "Set accepted null vtable");
-    CHECK(!ToriDraw_SceneSetRasterKernel(env->scene, &no_domain), "Set accepted zero domains");
-    CHECK(!ToriDraw_SceneSetRasterKernel(env->scene, &unknown_domain),
-          "Set accepted unknown domain bits");
-    CHECK(!ToriDraw_SceneSetRasterKernel(env->scene, &cycle), "Set accepted a fallback cycle");
-    CHECK(ToriDraw_SceneGetRasterKernel(env->scene) == &valid,
-          "a rejected Set changed the previous binding");
-    CHECK(ToriDraw_SceneResetRasterKernel(env->scene), "reset valid control kernel");
-}
-
-static void
-test_reset_and_process_terminals(
-    const struct Fixture* fixture,
-    struct RenderEnv* env)
-{
-    struct Spy spy;
-    struct ToriDraw_RasterKernel kernel;
-    bool const original_scanline = ToriDraw_RasterGetScanline();
-
-    printf("Reset drops the explicit root and both process terminals remain live\n");
-    spy_init(&spy, "reset-control", fixture, env);
-    kernel = (struct ToriDraw_RasterKernel){
-        .vtable = &full_spy_vtable,
-        .user_data = &spy,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
-    };
-    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, &kernel), "bind reset control");
-    render_fixture(env, fixture);
-    check_one_call_per_class(&spy);
-    CHECK(ToriDraw_SceneResetRasterKernel(env->scene), "reset explicit root");
-    CHECK(ToriDraw_SceneGetRasterKernel(env->scene) == NULL, "Reset did not store inherit sentinel");
 
     ToriDraw_RasterSetScanline(false);
-    render_fixture(env, fixture);
-    CHECK(count_nonzero_pixels(env) > 0, "branching process terminal drew no pixels");
-    CHECK(spy.total_calls == fixture_dispatch_count(),
-          "reset scene retained the old callback chain");
-    CHECK(ToriDraw_SceneGetRasterKernel(env->scene) == NULL,
-          "branching process selection created an explicit binding");
+    clear_pixels(env);
+    ToriDraw_RenderModel(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels);
+    memcpy(reference, env->pixels, image_bytes);
+    CHECK(count_nonzero_pixels(env) > 0, "legacy SD wrapper drew no pixels");
 
     ToriDraw_RasterSetScanline(true);
-    render_fixture(env, fixture);
-    CHECK(count_nonzero_pixels(env) > 0, "scanline process terminal drew no pixels");
-    CHECK(spy.total_calls == fixture_dispatch_count(),
-          "process switch revived the old callback chain");
-    CHECK(ToriDraw_SceneGetRasterKernel(env->scene) == NULL,
-          "scanline process selection created an explicit binding");
+    clear_pixels(env);
+    result = ToriDraw_RenderModelWithRasterKernel(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, branching);
+    CHECK(result == TORIDRAW_CULL_VISIBLE, "explicit SD root returned %d", result);
+    CHECK(memcmp(reference, env->pixels, image_bytes) == 0,
+          "legacy SD wrapper differs from pinned branching root");
 
-    ToriDraw_RasterSetScanline(original_scanline);
+    ToriDraw_RasterSetScanline(false);
+    clear_pixels(env);
+    if( project_and_sort_sd(fixture, env, &position, &viewport, &camera) ==
+        TORIDRAW_CULL_VISIBLE )
+        CHECK(ToriDraw_RenderModel3Raster(
+                  env->scene, &viewport, &camera, env->pixels, true) ==
+                  TORIDRAW_CULL_VISIBLE,
+              "legacy smooth SD phase3");
+    memcpy(reference, env->pixels, image_bytes);
+
+    clear_pixels(env);
+    if( project_and_sort_sd(fixture, env, &position, &viewport, &camera) ==
+        TORIDRAW_CULL_VISIBLE )
+        CHECK(ToriDraw_RenderModel3RasterWithRasterKernel(
+                  env->scene, &viewport, &camera, env->pixels, smooth) ==
+                  TORIDRAW_CULL_VISIBLE,
+              "explicit smooth SD phase3");
+    CHECK(memcmp(reference, env->pixels, image_bytes) == 0,
+          "legacy smooth phase3 differs from smooth root");
+
+#ifndef TORIDRAW_PIXEL16
+    clear_pixels(env);
+    result = ToriDraw_RenderZBuffered(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, true);
+    CHECK(result == TORIDRAW_CULL_VISIBLE, "legacy smooth SD depth returned %d", result);
+    memcpy(reference, env->pixels, image_bytes);
+
+    clear_pixels(env);
+    result = ToriDraw_RenderZBufferedWithRasterKernel(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, smooth);
+    CHECK(result == TORIDRAW_CULL_VISIBLE, "explicit smooth SD depth returned %d", result);
+    CHECK(memcmp(reference, env->pixels, image_bytes) == 0,
+          "legacy smooth SD depth differs from smooth root");
+#endif
+
+    free(reference);
 }
 
 #ifndef TORIDRAW_PIXEL16
 
-#define HD_TEXTURE_COUNT 2
+#define HD_FACE_COUNT 6
+#define HD_VERTEX_COUNT (HD_FACE_COUNT * 3)
+#define HD_TEXTURE_COUNT 4
 
 struct HDFixture
 {
     struct ToriDraw_ModelHD hd;
     struct ToriDraw_ModelHandle handle;
-    vertexint_t vertex_x[VERTEX_COUNT];
-    vertexint_t vertex_y[VERTEX_COUNT];
-    vertexint_t vertex_z[VERTEX_COUNT];
-    faceint_t face_a[FACE_COUNT];
-    faceint_t face_b[FACE_COUNT];
-    faceint_t face_c[FACE_COUNT];
-    hsl16_t shade_a[FACE_COUNT];
-    hsl16_t shade_b[FACE_COUNT];
-    hsl16_t shade_c[FACE_COUNT];
-    hsl16_t authored_color[FACE_COUNT];
-    alphaint_t alpha[FACE_COUNT];
-    int face_info[FACE_COUNT];
-    faceint_t texture[FACE_COUNT];
-    faceint_t texture_coord[FACE_COUNT];
+    vertexint_t vertex_x[HD_VERTEX_COUNT];
+    vertexint_t vertex_y[HD_VERTEX_COUNT];
+    vertexint_t vertex_z[HD_VERTEX_COUNT];
+    faceint_t face_a[HD_FACE_COUNT];
+    faceint_t face_b[HD_FACE_COUNT];
+    faceint_t face_c[HD_FACE_COUNT];
+    hsl16_t shade_a[HD_FACE_COUNT];
+    hsl16_t shade_b[HD_FACE_COUNT];
+    hsl16_t shade_c[HD_FACE_COUNT];
+    hsl16_t authored_color[HD_FACE_COUNT];
+    alphaint_t alpha[HD_FACE_COUNT];
+    int face_info[HD_FACE_COUNT];
+    faceint_t texture[HD_FACE_COUNT];
+    faceint_t texture_coord[HD_FACE_COUNT];
     uint8_t render_type[HD_TEXTURE_COUNT];
     faceint_t texture_p[HD_TEXTURE_COUNT];
     faceint_t texture_m[HD_TEXTURE_COUNT];
     faceint_t texture_n[HD_TEXTURE_COUNT];
 };
 
-struct HDSpy
-{
-    const char* name;
-    const struct HDFixture* fixture;
-    const struct RenderEnv* env;
-    const struct ToriDraw_HDMaterial* materials;
-    int calls[TORIDRAW_RASTER_FACE_CLASS_COUNT];
-    int face_calls[FACE_COUNT];
-    int total_calls;
-    bool missing_last_material;
-    bool first_mapping_fallback;
-    bool first_malformed_render_type;
-    bool expect_depth;
-    bool attempt_mutation;
-    bool mutation_attempted;
-    bool set_during_callback;
-    bool reset_during_callback;
-    bool attempt_recursive_render;
-    bool recursive_render_attempted;
-    bool recursive_render_active;
-    bool recursive_zbuffer;
-    bool recursive_scratch_unchanged;
-    bool recursive_context_distinct;
-    const struct ToriDraw_RenderContext* outer_context;
-    const int* outer_screen_x;
-    const int* outer_face_order;
-    const torizdepth_t* outer_zbuffer;
-};
-
 static void
 hd_fixture_init(struct HDFixture* fixture)
 {
-    static const int centre_x[FACE_COUNT] = { -120, -40, 40, 120 };
+    static const int centre_x[HD_FACE_COUNT] = { -125, -75, -25, 25, 75, 125 };
     struct ToriDraw_Model* model;
 
     memset(fixture, 0, sizeof(*fixture));
     model = &fixture->hd.base;
-    model->vertex_count = VERTEX_COUNT;
-    model->face_count = FACE_COUNT;
+    model->vertex_count = HD_VERTEX_COUNT;
+    model->face_count = HD_FACE_COUNT;
     model->vertices_x = fixture->vertex_x;
     model->vertices_y = fixture->vertex_y;
     model->vertices_z = fixture->vertex_z;
@@ -1357,17 +693,17 @@ hd_fixture_init(struct HDFixture* fixture)
     model->textured_m_coordinate = fixture->texture_m;
     model->textured_n_coordinate = fixture->texture_n;
 
-    for( int face = 0; face < FACE_COUNT; face++ )
+    for( int face = 0; face < HD_FACE_COUNT; face++ )
     {
         int const vertex = face * 3;
         int const x = centre_x[face];
 
-        fixture->vertex_x[vertex + 0] = (vertexint_t)(x - 22);
-        fixture->vertex_y[vertex + 0] = -28;
-        fixture->vertex_x[vertex + 1] = (vertexint_t)(x + 22);
-        fixture->vertex_y[vertex + 1] = -28;
+        fixture->vertex_x[vertex + 0] = (vertexint_t)(x - 18);
+        fixture->vertex_y[vertex + 0] = -25;
+        fixture->vertex_x[vertex + 1] = (vertexint_t)(x + 18);
+        fixture->vertex_y[vertex + 1] = -25;
         fixture->vertex_x[vertex + 2] = (vertexint_t)x;
-        fixture->vertex_y[vertex + 2] = 28;
+        fixture->vertex_y[vertex + 2] = 25;
         fixture->face_a[face] = (faceint_t)(vertex + 0);
         fixture->face_b[face] = (faceint_t)(vertex + 2);
         fixture->face_c[face] = (faceint_t)(vertex + 1);
@@ -1380,32 +716,25 @@ hd_fixture_init(struct HDFixture* fixture)
     fixture->shade_b[0] = 0x1235;
     fixture->shade_c[0] = 0x1236;
     fixture->alpha[0] = 17;
-
     fixture->shade_a[1] = 0x2345;
     fixture->shade_b[1] = 0x3456;
     fixture->shade_c[1] = TORIDRAWHSL16_FLAT;
 
-    fixture->shade_a[2] = 20;
-    fixture->shade_b[2] = 30;
-    fixture->shade_c[2] = 40;
+    for( int coord = 0; coord < HD_TEXTURE_COUNT; coord++ )
+    {
+        int const face = coord + 2;
+
+        fixture->shade_a[face] = (hsl16_t)(30 + coord * 10);
+        fixture->shade_b[face] = (hsl16_t)(40 + coord * 10);
+        fixture->shade_c[face] = (hsl16_t)(50 + coord * 10);
+        fixture->texture[face] = (faceint_t)coord;
+        fixture->texture_coord[face] = (faceint_t)coord;
+        fixture->render_type[coord] = (uint8_t)coord;
+        fixture->texture_p[coord] = fixture->face_a[face];
+        fixture->texture_m[coord] = fixture->face_b[face];
+        fixture->texture_n[coord] = fixture->face_c[face];
+    }
     fixture->alpha[2] = 64;
-    fixture->texture[2] = 0;
-    fixture->texture_coord[2] = 0;
-
-    fixture->shade_a[3] = 55;
-    fixture->shade_b[3] = 66;
-    fixture->shade_c[3] = TORIDRAWHSL16_FLAT;
-    fixture->texture[3] = 1;
-    fixture->texture_coord[3] = 1;
-
-    fixture->render_type[0] = 1;
-    fixture->render_type[1] = 0;
-    fixture->texture_p[0] = fixture->face_a[2];
-    fixture->texture_m[0] = fixture->face_b[2];
-    fixture->texture_n[0] = fixture->face_c[2];
-    fixture->texture_p[1] = fixture->face_a[3];
-    fixture->texture_m[1] = fixture->face_b[3];
-    fixture->texture_n[1] = fixture->face_c[3];
 
     fixture->handle = ToriDraw_ModelHandleFromHD(&fixture->hd);
     ToriDraw_ModelSetBoundsCylinder(model);
@@ -1424,782 +753,467 @@ hd_fixture_destroy(struct HDFixture* fixture)
 }
 
 static void
-hd_spy_init(
-    struct HDSpy* spy,
-    const char* name,
-    const struct HDFixture* fixture,
-    const struct RenderEnv* env,
-    const struct ToriDraw_HDMaterial* materials)
-{
-    memset(spy, 0, sizeof(*spy));
-    spy->name = name;
-    spy->fixture = fixture;
-    spy->env = env;
-    spy->materials = materials;
-    spy->recursive_scratch_unchanged = true;
-    spy->recursive_context_distinct = true;
-}
-
-static void
-verify_hd_target(const struct HDSpy* spy, const struct ToriDraw_RasterTarget* target)
-{
-    const struct ToriDraw_Model* model = &spy->fixture->hd.base;
-    const struct ToriDraw_RenderContext* context =
-        spy->env->scene->active_render_context;
-
-    CHECK(target && target->domain == TORIDRAW_RASTER_KERNEL_HD, "%s target domain", spy->name);
-    CHECK(context != NULL, "%s HD callback has no active render context", spy->name);
-    if( !target || !context )
-        return;
-    CHECK(target->pixel_buffer == spy->env->pixels + CLIP_LEFT + CLIP_TOP * VIEW_STRIDE,
-          "%s HD framebuffer was not clip-rebased", spy->name);
-    if( spy->expect_depth )
-        CHECK(target->depth_test && target->zbuffer ==
-                                          context->zbuffer + CLIP_LEFT + CLIP_TOP * VIEW_STRIDE,
-              "%s HD depth target was not clip-rebased", spy->name);
-    else
-        CHECK(target->zbuffer == NULL && !target->depth_test, "%s HD sorted pass depth-tested",
-              spy->name);
-    CHECK(target->width == CLIP_RIGHT - CLIP_LEFT &&
-              target->height == CLIP_BOTTOM - CLIP_TOP && target->stride == VIEW_STRIDE,
-          "%s HD target geometry %dx%d/%d", spy->name, target->width, target->height,
-          target->stride);
-    CHECK(target->clip_origin_x == CLIP_LEFT && target->clip_origin_y == CLIP_TOP,
-          "%s HD clip origin (%d,%d)", spy->name, target->clip_origin_x,
-          target->clip_origin_y);
-    CHECK(target->projection_center_x == (CLIP_RIGHT - CLIP_LEFT) / 2 &&
-              target->projection_center_y == (CLIP_BOTTOM - CLIP_TOP) / 2,
-          "%s HD projection centre", spy->name);
-    CHECK(target->near_plane_z == context->projection_near_plane_z &&
-              target->camera_cot16 != 0 && target->model_mid_z == context->projected_vertex.z,
-          "%s HD camera state", spy->name);
-    CHECK(!target->parallel_projection && !target->smooth_shading &&
-              !target->affine_textures && target->near_clip_available,
-          "%s HD target flags", spy->name);
-    CHECK(target->vertex_count == VERTEX_COUNT, "%s HD vertex count %d", spy->name,
-          target->vertex_count);
-    CHECK(target->screen_vertices_x == context->screen_vertices_x &&
-              target->orthographic_vertices_x == context->orthographic_vertices_x,
-          "%s HD projected arrays", spy->name);
-    CHECK(target->posed_vertices_x == model->vertices_x &&
-              target->bind_vertices_x == model->vertices_x,
-          "%s HD posed/bind arrays", spy->name);
-}
-
-static void
-verify_hd_face(const struct HDSpy* spy, const struct ToriDraw_RasterFace* face)
-{
-    const struct HDFixture* fixture = spy->fixture;
-    int index;
-    enum ToriDraw_RasterFaceClass expected;
-
-    CHECK(face != NULL, "%s received null HD face", spy->name);
-    if( !face )
-        return;
-    index = face->face_index;
-    CHECK(index >= 0 && index < FACE_COUNT, "%s HD face index %d", spy->name, index);
-    if( index < 0 || index >= FACE_COUNT )
-        return;
-    expected = expected_class(index);
-    if( spy->missing_last_material && index == 3 )
-        expected = TORIDRAW_RASTER_FACE_FLAT;
-    CHECK(face->face_class == expected, "%s HD face %d class %d, expected %d", spy->name,
-          index, (int)face->face_class, (int)expected);
-    CHECK(face->vertex[0] == fixture->face_a[index] &&
-              face->vertex[1] == fixture->face_b[index] &&
-              face->vertex[2] == fixture->face_c[index] && !face->near_clipped,
-          "%s HD face %d source vertices", spy->name, index);
-
-    if( index == 0 )
-    {
-        CHECK(face->shade[0] == 0x1234 && face->shade[1] == 0x1235 &&
-                  face->shade[2] == 0x1236 && face->opacity == 238,
-              "%s HD Gouraud normalization", spy->name);
-    }
-    else if( index == 1 )
-    {
-        CHECK(face->shade[0] == 0x2345 && face->shade[1] == 0x2345 &&
-                  face->shade[2] == 0x2345 && face->opacity == 255,
-              "%s HD flat normalization", spy->name);
-    }
-    else if( index == 2 )
-    {
-        int const rgb = ToriDraw_Hsl16ToRgb(fixture->authored_color[2]);
-        int const expected_r = ((rgb >> 16) & 0xFF) * 2;
-        int const expected_g = ((rgb >> 8) & 0xFF) * 2;
-        int const expected_b = (rgb & 0xFF) * 2;
-        int expected_gate = spy->materials[0].gate;
-
-        if( expected_gate < TORIDRAW_HD_GATE_OPAQUE || expected_gate > TORIDRAW_HD_GATE_ALPHA )
-            expected_gate = TORIDRAW_HD_GATE_OPAQUE;
-
-        CHECK(face->shade[0] == 20 && face->shade[1] == 30 && face->shade[2] == 40 &&
-                  face->opacity == 191,
-              "%s HD textured normalization", spy->name);
-        CHECK(face->texture.texture_id == 0 &&
-                  face->texture.texels == spy->materials[0].texels &&
-                  face->texture.width == TEST_TEXTURE_WIDTH &&
-                  face->texture.height == TEST_TEXTURE_WIDTH,
-              "%s HD mapped texture identity", spy->name);
-        CHECK(face->texture.gate == (enum ToriDraw_RasterTextureGate)expected_gate &&
-                  face->texture.clamp_s && !face->texture.clamp_t,
-              "%s HD mapped sampler flags", spy->name);
-        if( spy->first_malformed_render_type )
-            CHECK(face->texture.render_type == 255 &&
-                      face->texture.mapping_payload == TORIDRAW_RASTER_MAPPING_VERTEX_FRAME &&
-                      face->texture.mapping.vertex_frame.p == fixture->texture_p[0] &&
-                      face->texture.mapping.vertex_frame.m == fixture->texture_m[0] &&
-                      face->texture.mapping.vertex_frame.n == fixture->texture_n[0],
-                  "%s malformed HD render type was not coerced to its valid frame", spy->name);
-        else if( spy->first_mapping_fallback )
-            CHECK(face->texture.render_type == 1 &&
-                      face->texture.mapping_payload ==
-                          TORIDRAW_RASTER_MAPPING_HD_FRAME_FALLBACK &&
-                      face->texture.mapping.vertex_frame.p == fixture->texture_p[0] &&
-                      face->texture.mapping.vertex_frame.m == fixture->texture_m[0] &&
-                      face->texture.mapping.vertex_frame.n == fixture->texture_n[0],
-                  "%s missing HD mapping did not expose its valid frame fallback", spy->name);
-        else
-            CHECK(face->texture.render_type == 1 &&
-                      face->texture.mapping_payload == TORIDRAW_RASTER_MAPPING_HD &&
-                      face->texture.mapping.hd_mapping == fixture->hd.texture_mappings,
-                  "%s HD mapping payload", spy->name);
-        CHECK(face->texture.modulate && face->texture.texture_neutral == 128 &&
-                  face->texture.tint_r == expected_r && face->texture.tint_g == expected_g &&
-                  face->texture.tint_b == expected_b,
-              "%s HD tint (%d,%d,%d)", spy->name, face->texture.tint_r,
-              face->texture.tint_g, face->texture.tint_b);
-    }
-    else if( !spy->missing_last_material )
-    {
-        int expected_gate = spy->materials[1].gate;
-
-        if( expected_gate < TORIDRAW_HD_GATE_OPAQUE || expected_gate > TORIDRAW_HD_GATE_ALPHA )
-            expected_gate = TORIDRAW_HD_GATE_OPAQUE;
-        CHECK(face->shade[0] == 55 && face->shade[1] == 55 && face->shade[2] == 55 &&
-                  face->opacity == 255,
-              "%s HD textured-flat normalization", spy->name);
-        CHECK(face->texture.texture_id == 1 &&
-                  face->texture.texels == spy->materials[1].texels &&
-                  face->texture.gate == (enum ToriDraw_RasterTextureGate)expected_gate &&
-                  !face->texture.clamp_s && face->texture.clamp_t,
-              "%s HD flat texture sampler", spy->name);
-        CHECK(face->texture.mapping_payload == TORIDRAW_RASTER_MAPPING_VERTEX_FRAME &&
-                  face->texture.mapping.vertex_frame.p == fixture->texture_p[1] &&
-                  face->texture.mapping.vertex_frame.m == fixture->texture_m[1] &&
-                  face->texture.mapping.vertex_frame.n == fixture->texture_n[1],
-              "%s HD frame mapping", spy->name);
-        CHECK(!face->texture.modulate && face->texture.tint_r == 256 &&
-                  face->texture.tint_g == 256 && face->texture.tint_b == 256 &&
-                  face->texture.texture_neutral == 144,
-              "%s HD non-modulated tint", spy->name);
-    }
-    else
-    {
-        CHECK(face->shade[0] == 55 && face->shade[1] == 55 && face->shade[2] == 55 &&
-                  face->opacity == 255,
-              "%s missing material did not route as normalized solid", spy->name);
-    }
-}
-
-static void
-hd_spy_attempt_same_scene_recursion(struct HDSpy* spy)
-{
-    struct ToriDraw_Scene* scene = spy->env->scene;
-    struct ToriDraw_RenderContext* context = scene->active_render_context;
-    struct ToriDraw_ViewPort viewport = test_viewport();
-    struct ToriDraw_Camera camera = test_camera();
-    struct ToriDraw_Position position = { .x = -70, .y = 25, .z = 900, .yaw = 96 };
-    struct ToriDraw_HDMaterials table = { spy->materials, HD_TEXTURE_COUNT };
-    struct ToriDraw_HDRenderStats stats;
-    struct ToriDraw_ModelHandle active_hnd;
-    struct ProjectedVertex projected_vertex;
-    struct ToriDraw_AABB aabb;
-    struct ToriDraw_AABB cylinder_aabb;
-    int screen_x[VERTEX_COUNT];
-    int screen_y[VERTEX_COUNT];
-    int screen_z[VERTEX_COUNT];
-    int face_order[FACE_COUNT];
-    int* screen_x_pointer;
-    int* screen_y_pointer;
-    int* screen_z_pointer;
-    int* orthographic_x_pointer;
-    int* orthographic_y_pointer;
-    int* orthographic_z_pointer;
-    int* face_order_pointer;
-    int ordered;
-    int near_plane;
-    bool near_clipped;
-
-    spy->recursive_render_attempted = true;
-    CHECK(context != NULL, "%s HD recursion started without an active context", spy->name);
-    if( !context )
-    {
-        spy->recursive_scratch_unchanged = false;
-        return;
-    }
-    active_hnd = context->active_hnd;
-    projected_vertex = context->projected_vertex;
-    aabb = context->aabb;
-    cylinder_aabb = context->cylinder_fast_aabb;
-    screen_x_pointer = context->screen_vertices_x;
-    screen_y_pointer = context->screen_vertices_y;
-    screen_z_pointer = context->screen_vertices_z;
-    orthographic_x_pointer = context->orthographic_vertices_x;
-    orthographic_y_pointer = context->orthographic_vertices_y;
-    orthographic_z_pointer = context->orthographic_vertices_z;
-    face_order_pointer = context->tmp_face_order;
-    ordered = context->tmp_face_order_count;
-    near_plane = context->projection_near_plane_z;
-    near_clipped = context->near_clipped;
-    memcpy(screen_x, context->screen_vertices_x, sizeof(screen_x));
-    memcpy(screen_y, context->screen_vertices_y, sizeof(screen_y));
-    memcpy(screen_z, context->screen_vertices_z, sizeof(screen_z));
-    memcpy(face_order, context->tmp_face_order, sizeof(face_order));
-
-    spy->recursive_render_active = true;
-    spy->outer_context = context;
-    spy->outer_screen_x = screen_x_pointer;
-    spy->outer_face_order = face_order_pointer;
-    spy->outer_zbuffer = context->zbuffer;
-    int result = spy->recursive_zbuffer
-                     ? ToriDraw_RenderHDZBuffered(
-                           spy->fixture->handle, scene, &position, &viewport, &camera,
-                           spy->env->pixels, &table, &stats)
-                     : ToriDraw_RenderHD(
-                           spy->fixture->handle, scene, &position, &viewport, &camera,
-                           spy->env->pixels, &table, &stats);
-    spy->recursive_render_active = false;
-
-    CHECK(result == TORIDRAW_CULL_VISIBLE, "%s nested HD render returned %d", spy->name, result);
-    spy->recursive_scratch_unchanged = spy->recursive_scratch_unchanged &&
-        scene->active_render_context == context &&
-        context->screen_vertices_x == screen_x_pointer &&
-        context->screen_vertices_y == screen_y_pointer &&
-        context->screen_vertices_z == screen_z_pointer &&
-        context->orthographic_vertices_x == orthographic_x_pointer &&
-        context->orthographic_vertices_y == orthographic_y_pointer &&
-        context->orthographic_vertices_z == orthographic_z_pointer &&
-        context->tmp_face_order == face_order_pointer &&
-        memcmp(&active_hnd, &context->active_hnd, sizeof(active_hnd)) == 0 &&
-        memcmp(&projected_vertex, &context->projected_vertex, sizeof(projected_vertex)) == 0 &&
-        memcmp(&aabb, &context->aabb, sizeof(aabb)) == 0 &&
-        memcmp(&cylinder_aabb, &context->cylinder_fast_aabb, sizeof(cylinder_aabb)) == 0 &&
-        memcmp(screen_x, context->screen_vertices_x, sizeof(screen_x)) == 0 &&
-        memcmp(screen_y, context->screen_vertices_y, sizeof(screen_y)) == 0 &&
-        memcmp(screen_z, context->screen_vertices_z, sizeof(screen_z)) == 0 &&
-        context->tmp_face_order_count == ordered &&
-        memcmp(face_order, context->tmp_face_order, sizeof(face_order)) == 0 &&
-        context->projection_near_plane_z == near_plane && context->near_clipped == near_clipped;
-}
-
-static void
-hd_spy_record(
-    struct HDSpy* spy,
-    enum ToriDraw_RasterFaceClass slot,
-    const struct ToriDraw_RasterTarget* target,
-    const struct ToriDraw_RasterFace* face)
-{
-    CHECK(spy != NULL, "HD callback slot %d received null user_data", (int)slot);
-    if( !spy )
-        return;
-    CHECK(face && face->face_class == slot, "%s HD slot %d received class %d", spy->name,
-          (int)slot, face ? (int)face->face_class : -1);
-    spy->calls[slot]++;
-    spy->total_calls++;
-    if( face && face->face_index >= 0 && face->face_index < FACE_COUNT )
-        spy->face_calls[face->face_index]++;
-    verify_hd_target(spy, target);
-    verify_hd_face(spy, face);
-
-    if( spy->recursive_render_active )
-    {
-        const struct ToriDraw_RenderContext* context =
-            spy->env->scene->active_render_context;
-        CHECK(context != NULL, "%s nested HD callback has no active context", spy->name);
-        spy->recursive_context_distinct = spy->recursive_context_distinct &&
-            context && context != spy->outer_context &&
-            target->screen_vertices_x != spy->outer_screen_x &&
-            context->tmp_face_order != spy->outer_face_order;
-        if( spy->recursive_zbuffer )
-            spy->recursive_context_distinct = spy->recursive_context_distinct &&
-                context && context->zbuffer != spy->outer_zbuffer;
-    }
-    if( spy->attempt_recursive_render && !spy->recursive_render_attempted )
-        hd_spy_attempt_same_scene_recursion(spy);
-
-    if( spy->attempt_mutation && !spy->mutation_attempted )
-    {
-        spy->mutation_attempted = true;
-        spy->set_during_callback = ToriDraw_SceneSetRasterKernel(
-            spy->env->scene, ToriDraw_RasterKernelGetHDBranching());
-        spy->reset_during_callback = ToriDraw_SceneResetRasterKernel(spy->env->scene);
-    }
-}
-
-#define DEFINE_HD_SPY_CALLBACK(name, slot)                                                     \
-    static void name(void* user_data, const struct ToriDraw_RasterTarget* target,              \
-                     const struct ToriDraw_RasterFace* face)                                   \
-    {                                                                                           \
-        hd_spy_record((struct HDSpy*)user_data, slot, target, face);                             \
-    }
-
-DEFINE_HD_SPY_CALLBACK(hd_spy_gouraud, TORIDRAW_RASTER_FACE_GOURAUD)
-DEFINE_HD_SPY_CALLBACK(hd_spy_flat, TORIDRAW_RASTER_FACE_FLAT)
-DEFINE_HD_SPY_CALLBACK(hd_spy_textured, TORIDRAW_RASTER_FACE_TEXTURED)
-DEFINE_HD_SPY_CALLBACK(hd_spy_textured_flat, TORIDRAW_RASTER_FACE_TEXTURED_FLAT)
-
-static const struct ToriDraw_RasterKernelVTable hd_spy_vtable = {
-    .draw_gouraud = hd_spy_gouraud,
-    .draw_flat = hd_spy_flat,
-    .draw_textured = hd_spy_textured,
-    .draw_textured_flat = hd_spy_textured_flat,
-};
-
-static void
-render_hd_fixture(
-    struct RenderEnv* env,
-    const struct HDFixture* fixture,
-    const struct ToriDraw_HDMaterials* materials,
-    struct ToriDraw_HDRenderStats* stats)
-{
-    struct ToriDraw_ViewPort viewport = test_viewport();
-    struct ToriDraw_Camera camera = test_camera();
-    struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
-    int result;
-
-    memset(env->pixels, 0, (size_t)VIEW_STRIDE * VIEW_HEIGHT * sizeof(*env->pixels));
-    result = ToriDraw_RenderHD(
-        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, materials,
-        stats);
-    CHECK(result == TORIDRAW_CULL_VISIBLE, "HD fixture render returned %d", result);
-    CHECK(env->scene->render_context.tmp_face_order_count == FACE_COUNT,
-          "HD fixture ordered %d/%d faces", env->scene->render_context.tmp_face_order_count,
-          FACE_COUNT);
-}
-
-static void
-render_hd_zbuffer_fixture(
-    struct RenderEnv* env,
-    const struct HDFixture* fixture,
-    const struct ToriDraw_HDMaterials* materials,
-    struct ToriDraw_HDRenderStats* stats)
-{
-    struct ToriDraw_ViewPort viewport = test_viewport();
-    struct ToriDraw_Camera camera = test_camera();
-    struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
-    int result;
-
-    memset(env->pixels, 0, (size_t)VIEW_STRIDE * VIEW_HEIGHT * sizeof(*env->pixels));
-    result = ToriDraw_RenderHDZBuffered(
-        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, materials,
-        stats);
-    CHECK(result == TORIDRAW_CULL_VISIBLE, "HD depth fixture render returned %d", result);
-}
-
-static void
-check_hd_full_calls(const struct HDSpy* spy)
-{
-    CHECK(spy->total_calls == FACE_COUNT, "%s HD total calls %d", spy->name, spy->total_calls);
-    for( int slot = 0; slot < TORIDRAW_RASTER_FACE_CLASS_COUNT; slot++ )
-        CHECK(spy->calls[slot] == 1, "%s HD slot %d calls %d", spy->name, slot,
-              spy->calls[slot]);
-}
-
-static void
 init_hd_materials(
     struct ToriDraw_HDMaterial materials[HD_TEXTURE_COUNT],
     const struct RenderEnv* env)
 {
     memset(materials, 0, HD_TEXTURE_COUNT * sizeof(*materials));
-    materials[0].texels = env->texture_texels;
-    materials[0].width = TEST_TEXTURE_WIDTH;
-    materials[0].gate = TORIDRAW_HD_GATE_ALPHA;
-    materials[0].clamp_s = 1;
-    materials[0].modulate = 1;
-    materials[0].texture_neutral = 128;
-    materials[1].texels = env->texture_texels;
-    materials[1].width = TEST_TEXTURE_WIDTH;
-    materials[1].gate = TORIDRAW_HD_GATE_TRANS;
-    materials[1].clamp_t = 1;
-    materials[1].texture_neutral = 144;
+    for( int i = 0; i < HD_TEXTURE_COUNT; i++ )
+    {
+        materials[i].texels = env->texture_texels;
+        materials[i].width = TEST_TEXTURE_WIDTH;
+        materials[i].gate = i % 3;
+        materials[i].clamp_s = i & 1;
+        materials[i].clamp_t = (i >> 1) & 1;
+        materials[i].modulate = i == 3;
+        materials[i].texture_neutral = 128;
+    }
+}
+
+struct HDSpy
+{
+    const struct HDFixture* fixture;
+    const struct RenderEnv* env;
+    int calls[TORIDRAW_RASTER_FACE_HD_CLASS_COUNT];
+    int face_calls[HD_FACE_COUNT];
+    int total_calls;
+    bool expect_depth;
+};
+
+static enum ToriDraw_RasterFaceClassHD
+hd_expected_class(int face)
+{
+    static const enum ToriDraw_RasterFaceClassHD expected[HD_FACE_COUNT] = {
+        TORIDRAW_RASTER_FACE_HD_GOURAUD,
+        TORIDRAW_RASTER_FACE_HD_FLAT,
+        TORIDRAW_RASTER_FACE_HD_PLANE,
+        TORIDRAW_RASTER_FACE_HD_CYLINDER,
+        TORIDRAW_RASTER_FACE_HD_CUBE,
+        TORIDRAW_RASTER_FACE_HD_SPHERE,
+    };
+    return expected[face];
 }
 
 static void
-test_hd_routing(struct RenderEnv* env)
+hd_verify_target(const struct HDSpy* spy, const struct ToriDraw_RasterTarget* target)
 {
-    struct HDFixture fixture;
-    struct HDSpy full;
-    struct HDSpy ignored;
-    struct HDSpy shared;
-    struct ToriDraw_HDMaterial materials[HD_TEXTURE_COUNT];
-    struct ToriDraw_HDMaterials table = { materials, HD_TEXTURE_COUNT };
-    struct ToriDraw_HDMaterials missing_table = { materials, 1 };
-    struct ToriDraw_HDRenderStats stats;
-    struct ToriDraw_RasterKernel full_kernel;
-    struct ToriDraw_RasterKernel shared_kernel;
-    struct ToriDraw_RasterKernel stock_head;
-
-    printf("HD descriptors, solid fallback, domains and callback guard\n");
-    ToriDraw_HDSetTuning(NULL);
-    hd_fixture_init(&fixture);
-    init_hd_materials(materials, env);
-
-    hd_spy_init(&full, "hd-full", &fixture, env, materials);
-    full_kernel = (struct ToriDraw_RasterKernel){
-        .vtable = &hd_spy_vtable,
-        .user_data = &full,
-        .domains = TORIDRAW_RASTER_KERNEL_HD,
-    };
-    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, &full_kernel), "bind HD full spy");
-    render_hd_fixture(env, &fixture, &table, &stats);
-    check_hd_full_calls(&full);
-    CHECK(stats.drawn_untextured == 2 && stats.drawn_cylinder == 1 &&
-              stats.drawn_plane == 1 && stats.with_facealpha == 1 &&
-              stats.with_modulate == 1,
-          "HD full routing stats");
-    CHECK(count_nonzero_pixels(env) == 0, "HD spy callbacks unexpectedly drew pixels");
-
-    hd_spy_init(&full, "hd-reentrant", &fixture, env, materials);
-    full.attempt_recursive_render = true;
-    render_hd_fixture(env, &fixture, &table, &stats);
-    CHECK(full.total_calls == FACE_COUNT * 2, "reentrant HD total calls %d", full.total_calls);
-    for( int slot = 0; slot < TORIDRAW_RASTER_FACE_CLASS_COUNT; slot++ )
-        CHECK(full.calls[slot] == 2, "reentrant HD slot %d calls %d", slot, full.calls[slot]);
-    CHECK(full.recursive_render_attempted && full.recursive_scratch_unchanged &&
-              full.recursive_context_distinct,
-          "same-scene HD recursion did not isolate and restore live scratch");
-    CHECK(env->scene->active_render_context == NULL &&
-              env->scene->nested_render_contexts_used == 0,
-          "recursive HD render leaked an active context");
-
-    hd_spy_init(&full, "hd-zbuffer-reentrant", &fixture, env, materials);
-    full.expect_depth = true;
-    full.attempt_recursive_render = true;
-    full.recursive_zbuffer = true;
-    render_hd_zbuffer_fixture(env, &fixture, &table, &stats);
-    CHECK(full.total_calls == FACE_COUNT * 2, "reentrant HD zbuffer calls %d", full.total_calls);
-    CHECK(full.recursive_render_attempted && full.recursive_scratch_unchanged &&
-              full.recursive_context_distinct,
-          "same-scene HD zbuffer recursion shared live depth or projection scratch");
-    CHECK(env->scene->active_render_context == NULL &&
-              env->scene->nested_render_contexts_used == 0,
-          "recursive HD zbuffer render leaked an active context");
-
-    hd_spy_init(&full, "hd-missing-material", &fixture, env, materials);
-    full.missing_last_material = true;
-    render_hd_fixture(env, &fixture, &missing_table, &stats);
-    CHECK(full.total_calls == FACE_COUNT &&
-              full.calls[TORIDRAW_RASTER_FACE_GOURAUD] == 1 &&
-              full.calls[TORIDRAW_RASTER_FACE_FLAT] == 2 &&
-              full.calls[TORIDRAW_RASTER_FACE_TEXTURED] == 1 &&
-              full.calls[TORIDRAW_RASTER_FACE_TEXTURED_FLAT] == 0,
-          "missing HD material did not route textured-flat to solid flat");
-    CHECK(stats.fallback_no_texels == 1 && stats.drawn_untextured == 3,
-          "missing HD material stats");
-    CHECK(ToriDraw_SceneResetRasterKernel(env->scene), "reset HD full spy");
-
-    hd_spy_init(&ignored, "hd-stock-only", &fixture, env, materials);
-    hd_spy_init(&shared, "hd-shared", &fixture, env, materials);
-    shared.attempt_mutation = true;
-    shared_kernel = (struct ToriDraw_RasterKernel){
-        .vtable = &hd_spy_vtable,
-        .user_data = &shared,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK | TORIDRAW_RASTER_KERNEL_HD,
-    };
-    stock_head = (struct ToriDraw_RasterKernel){
-        .vtable = &hd_spy_vtable,
-        .user_data = &ignored,
-        .fallback = &shared_kernel,
-        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
-    };
-    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, &stock_head), "bind HD mixed-domain chain");
-    render_hd_fixture(env, &fixture, &table, &stats);
-    CHECK(ignored.total_calls == 0, "HD pass called stock-only node");
-    check_hd_full_calls(&shared);
-    CHECK(shared.mutation_attempted && !shared.set_during_callback &&
-              !shared.reset_during_callback,
-          "HD callback mutation was not rejected");
-    CHECK(ToriDraw_SceneGetRasterKernel(env->scene) == &stock_head,
-          "HD callback mutation changed the binding");
-    CHECK(ToriDraw_SceneResetRasterKernel(env->scene), "reset HD mixed-domain chain");
-
-    hd_fixture_destroy(&fixture);
+    CHECK(target != NULL, "HD callback received a null target");
+    if( !target )
+        return;
+    CHECK(target->pixel_buffer == spy->env->pixels + CLIP_LEFT + CLIP_TOP * VIEW_STRIDE,
+          "HD framebuffer was not clip-rebased");
+    CHECK(target->width == CLIP_RIGHT - CLIP_LEFT &&
+              target->height == CLIP_BOTTOM - CLIP_TOP && target->stride == VIEW_STRIDE,
+          "HD target geometry %dx%d/%d", target->width, target->height, target->stride);
+    CHECK(target->vertex_count == HD_VERTEX_COUNT, "HD vertex count %d", target->vertex_count);
+    CHECK(target->posed_vertices_x == spy->fixture->vertex_x &&
+              target->bind_vertices_x == spy->fixture->vertex_x,
+          "HD model arrays were not published");
+    if( spy->expect_depth )
+        CHECK(target->depth_test && target->zbuffer != NULL,
+              "HD depth entry did not publish a depth target");
+    else
+        CHECK(!target->depth_test && target->zbuffer == NULL,
+              "HD sorted entry unexpectedly depth-tested");
 }
 
 static void
-test_hd_edge_contracts(struct RenderEnv* env)
+hd_verify_face(const struct HDSpy* spy, const struct ToriDraw_RasterFaceHD* face)
 {
-    struct HDFixture fixture;
-    struct HDSpy spy;
+    int index;
+
+    CHECK(face != NULL, "HD callback received a null face");
+    if( !face )
+        return;
+    index = face->face_index;
+    CHECK(index >= 0 && index < HD_FACE_COUNT, "HD face index %d", index);
+    if( index < 0 || index >= HD_FACE_COUNT )
+        return;
+    CHECK(face->face_class == hd_expected_class(index), "HD face %d class %d", index,
+          (int)face->face_class);
+    CHECK(face->vertex[0] == spy->fixture->face_a[index] &&
+              face->vertex[1] == spy->fixture->face_b[index] &&
+              face->vertex[2] == spy->fixture->face_c[index],
+          "HD face %d vertices", index);
+    CHECK(!face->near_clipped, "HD face %d unexpectedly near-clipped", index);
+    if( index >= 2 )
+    {
+        int const coord = index - 2;
+
+        CHECK(face->texture.texture_id == coord &&
+                  face->texture.texels == spy->env->texture_texels &&
+                  face->texture.width == TEST_TEXTURE_WIDTH &&
+                  face->texture.height == TEST_TEXTURE_WIDTH,
+              "HD face %d texture identity", index);
+        CHECK(face->texture.render_type == (unsigned int)coord &&
+                  !face->texture.frame_fallback,
+              "HD face %d render type/fallback", index);
+        if( coord == 0 )
+            CHECK(face->texture.mapping.vertex_frame.p == spy->fixture->texture_p[coord] &&
+                      face->texture.mapping.vertex_frame.m == spy->fixture->texture_m[coord] &&
+                      face->texture.mapping.vertex_frame.n == spy->fixture->texture_n[coord],
+                  "HD plane frame");
+        else
+            CHECK(face->texture.mapping.hd_mapping ==
+                      &spy->fixture->hd.texture_mappings[coord],
+                  "HD mapped face %d mapping pointer", index);
+    }
+}
+
+static void
+hd_spy_record(
+    struct HDSpy* spy,
+    enum ToriDraw_RasterFaceClassHD slot,
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFaceHD* face)
+{
+    CHECK(spy != NULL, "HD slot %d received null user data", (int)slot);
+    if( !spy )
+        return;
+    CHECK(face && face->face_class == slot, "HD slot %d received class %d", (int)slot,
+          face ? (int)face->face_class : -1);
+    spy->calls[slot]++;
+    spy->total_calls++;
+    if( face && face->face_index >= 0 && face->face_index < HD_FACE_COUNT )
+        spy->face_calls[face->face_index]++;
+    hd_verify_target(spy, target);
+    hd_verify_face(spy, face);
+}
+
+#define DEFINE_HD_CALLBACK(name, slot)                                                           \
+    static void name(void* user_data, const struct ToriDraw_RasterTarget* target,                 \
+                     const struct ToriDraw_RasterFaceHD* face)                                    \
+    {                                                                                              \
+        hd_spy_record((struct HDSpy*)user_data, slot, target, face);                               \
+    }
+
+DEFINE_HD_CALLBACK(hd_spy_gouraud, TORIDRAW_RASTER_FACE_HD_GOURAUD)
+DEFINE_HD_CALLBACK(hd_spy_flat, TORIDRAW_RASTER_FACE_HD_FLAT)
+DEFINE_HD_CALLBACK(hd_spy_plane, TORIDRAW_RASTER_FACE_HD_PLANE)
+DEFINE_HD_CALLBACK(hd_spy_cylinder, TORIDRAW_RASTER_FACE_HD_CYLINDER)
+DEFINE_HD_CALLBACK(hd_spy_cube, TORIDRAW_RASTER_FACE_HD_CUBE)
+DEFINE_HD_CALLBACK(hd_spy_sphere, TORIDRAW_RASTER_FACE_HD_SPHERE)
+
+static const struct ToriDraw_RasterKernelHDVTable hd_full_vtable = {
+    .draw_gouraud = hd_spy_gouraud,
+    .draw_flat = hd_spy_flat,
+    .draw_plane = hd_spy_plane,
+    .draw_cylinder = hd_spy_cylinder,
+    .draw_cube = hd_spy_cube,
+    .draw_sphere = hd_spy_sphere,
+};
+
+static const struct ToriDraw_RasterKernelHDVTable hd_sparse_vtable = {
+    .draw_cube = hd_spy_cube,
+};
+
+static void
+check_hd_full_calls(const struct HDSpy* spy)
+{
+    CHECK(spy->total_calls == HD_FACE_COUNT, "HD total calls %d", spy->total_calls);
+    for( int slot = 0; slot < TORIDRAW_RASTER_FACE_HD_CLASS_COUNT; slot++ )
+        CHECK(spy->calls[slot] == 1, "HD slot %d calls %d", slot, spy->calls[slot]);
+    for( int face = 0; face < HD_FACE_COUNT; face++ )
+        CHECK(spy->face_calls[face] == 1, "HD face %d calls %d", face,
+              spy->face_calls[face]);
+}
+
+static void
+check_hd_stats(const struct ToriDraw_HDRenderStats* stats)
+{
+    CHECK(stats->faces == HD_FACE_COUNT && stats->drawn_untextured == 2 &&
+              stats->drawn_plane == 1 && stats->drawn_cylinder == 1 &&
+              stats->drawn_cube == 1 && stats->drawn_sphere == 1,
+          "HD routing stats %d/%d/%d/%d/%d/%d", stats->faces, stats->drawn_untextured,
+          stats->drawn_plane, stats->drawn_cylinder, stats->drawn_cube,
+          stats->drawn_sphere);
+}
+
+static void
+test_hd_direct_apis(const struct HDFixture* fixture, struct RenderEnv* env)
+{
+    struct ToriDraw_ViewPort viewport = test_viewport();
+    struct ToriDraw_Camera camera = test_camera();
+    struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
     struct ToriDraw_HDMaterial materials[HD_TEXTURE_COUNT];
     struct ToriDraw_HDMaterials table = { materials, HD_TEXTURE_COUNT };
     struct ToriDraw_HDRenderStats stats;
-    struct ToriDraw_RasterKernel kernel;
-    struct ToriDraw_TexMapping* saved_mappings;
-    hsl16_t* saved_colours;
-    faceint_t saved_p;
-    uint8_t saved_render_type;
-
-    printf("HD malformed material, colour, mapping and depth contracts\n");
-    hd_fixture_init(&fixture);
-    init_hd_materials(materials, env);
-    hd_spy_init(&spy, "hd-edge", &fixture, env, materials);
-    kernel = (struct ToriDraw_RasterKernel){
-        .vtable = &hd_spy_vtable,
+    struct HDSpy spy = { .fixture = fixture, .env = env };
+    const struct ToriDraw_RasterKernelHD full_kernel = {
+        .vtable = &hd_full_vtable,
         .user_data = &spy,
-        .domains = TORIDRAW_RASTER_KERNEL_HD,
     };
-    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, &kernel), "bind HD edge spy");
+    const struct ToriDraw_RasterKernelHD sparse_kernel = {
+        .vtable = &hd_sparse_vtable,
+        .user_data = &spy,
+        .fallback = ToriDraw_RasterKernelHDGetBranching(),
+    };
+    int result;
 
-    materials[1].width = 32;
-    hd_spy_init(&spy, "hd-invalid-width", &fixture, env, materials);
-    spy.missing_last_material = true;
-    render_hd_fixture(env, &fixture, &table, &stats);
-    CHECK(spy.total_calls == FACE_COUNT &&
-              spy.calls[TORIDRAW_RASTER_FACE_GOURAUD] == 1 &&
-              spy.calls[TORIDRAW_RASTER_FACE_FLAT] == 2 &&
-              spy.calls[TORIDRAW_RASTER_FACE_TEXTURED] == 1 &&
-              spy.calls[TORIDRAW_RASTER_FACE_TEXTURED_FLAT] == 0,
-          "invalid HD material width did not route through solid flat");
-    CHECK(stats.fallback_no_texels == 1 && stats.drawn_untextured == 3 &&
-              stats.drawn_cylinder == 1 && stats.drawn_plane == 0 &&
-              stats.gate_alpha == 1 && stats.gate_trans == 0,
-          "invalid HD material width stats");
-    materials[1].width = TEST_TEXTURE_WIDTH;
-
-    materials[1].gate = 99;
-    hd_spy_init(&spy, "hd-invalid-gate", &fixture, env, materials);
-    render_hd_fixture(env, &fixture, &table, &stats);
+    init_hd_materials(materials, env);
+    clear_pixels(env);
+    result = ToriDraw_RenderHDWithRasterKernel(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, &table,
+        &stats, &full_kernel);
+    CHECK(result == TORIDRAW_CULL_VISIBLE, "direct HD render returned %d", result);
     check_hd_full_calls(&spy);
-    CHECK(stats.gate_opaque == 1 && stats.gate_trans == 0 && stats.gate_alpha == 1,
-          "invalid HD gate was not coerced to opaque");
-    materials[1].gate = TORIDRAW_HD_GATE_TRANS;
+    check_hd_stats(&stats);
+    CHECK(count_nonzero_pixels(env) == 0, "HD spy callbacks drew pixels");
 
-    saved_colours = fixture.hd.base.face_colors_b;
-    fixture.hd.base.face_colors_b = NULL;
-    hd_spy_init(&spy, "hd-null-lit-colours", &fixture, env, materials);
-    render_hd_fixture(env, &fixture, &table, &stats);
-    CHECK(spy.total_calls == 0, "HD face with a null lit-colour array reached a callback");
-    CHECK(stats.skipped_hidden == FACE_COUNT && stats.drawn_untextured == 0 &&
-              stats.drawn_plane == 0 && stats.drawn_cylinder == 0 &&
-              stats.gate_opaque == 0 && stats.gate_trans == 0 && stats.gate_alpha == 0,
-          "null HD lit-colour stats");
-    fixture.hd.base.face_colors_b = saved_colours;
-
-    saved_mappings = fixture.hd.texture_mappings;
-    fixture.hd.texture_mappings = NULL;
-    hd_spy_init(&spy, "hd-missing-mapping-valid-frame", &fixture, env, materials);
-    spy.first_mapping_fallback = true;
-    render_hd_fixture(env, &fixture, &table, &stats);
-    check_hd_full_calls(&spy);
-    CHECK(stats.fallback_no_mapping == 1 && stats.drawn_plane == 2 &&
-              stats.drawn_cylinder == 0,
-          "valid HD frame fallback stats");
-
-    saved_p = fixture.texture_p[0];
-    fixture.texture_p[0] = VERTEX_COUNT;
-    hd_spy_init(&spy, "hd-missing-mapping-invalid-frame", &fixture, env, materials);
-    spy.first_mapping_fallback = true;
-    render_hd_fixture(env, &fixture, &table, &stats);
-    CHECK(spy.total_calls == FACE_COUNT - 1 && spy.face_calls[2] == 0 &&
-              spy.calls[TORIDRAW_RASTER_FACE_GOURAUD] == 1 &&
-              spy.calls[TORIDRAW_RASTER_FACE_FLAT] == 1 &&
-              spy.calls[TORIDRAW_RASTER_FACE_TEXTURED] == 0 &&
-              spy.calls[TORIDRAW_RASTER_FACE_TEXTURED_FLAT] == 1,
-          "invalid HD fallback frame reached a callback");
-    CHECK(stats.fallback_no_mapping == 1 && stats.skipped_hidden == 1 &&
-              stats.drawn_plane == 1 && stats.drawn_cylinder == 0 &&
-              stats.gate_alpha == 1 && stats.gate_trans == 1 &&
-              stats.with_facealpha == 1 && stats.with_modulate == 1,
-          "invalid HD fallback frame stats");
-    fixture.texture_p[0] = saved_p;
-    fixture.hd.texture_mappings = saved_mappings;
-
-    saved_render_type = fixture.render_type[0];
-    fixture.render_type[0] = 255;
-    hd_spy_init(&spy, "hd-malformed-render-type", &fixture, env, materials);
-    spy.first_malformed_render_type = true;
-    render_hd_fixture(env, &fixture, &table, &stats);
-    check_hd_full_calls(&spy);
-    CHECK(stats.fallback_no_mapping == 0 && stats.drawn_plane == 2 &&
-              stats.drawn_cylinder == 0,
-          "malformed HD render type was not coerced to plane");
-    fixture.render_type[0] = saved_render_type;
-
-    hd_spy_init(&spy, "hd-depth", &fixture, env, materials);
+    memset(&spy.calls, 0, sizeof(spy.calls));
+    memset(&spy.face_calls, 0, sizeof(spy.face_calls));
+    spy.total_calls = 0;
     spy.expect_depth = true;
-    render_hd_zbuffer_fixture(env, &fixture, &table, &stats);
+    clear_pixels(env);
+    result = ToriDraw_RenderHDZBufferedWithRasterKernel(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, &table,
+        &stats, &full_kernel);
+    CHECK(result == TORIDRAW_CULL_VISIBLE, "direct HD depth returned %d", result);
     check_hd_full_calls(&spy);
-    CHECK(stats.drawn_untextured == 2 && stats.drawn_plane == 1 &&
-              stats.drawn_cylinder == 1,
-          "HD depth callback stats");
-    CHECK(count_nonzero_pixels(env) == 0, "HD depth spy callbacks unexpectedly drew pixels");
+    check_hd_stats(&stats);
 
-    hd_spy_init(&spy, "hd-sorted-after-depth", &fixture, env, materials);
-    render_hd_fixture(env, &fixture, &table, &stats);
-    check_hd_full_calls(&spy);
-
-    CHECK(ToriDraw_SceneResetRasterKernel(env->scene), "reset HD edge spy");
-    hd_fixture_destroy(&fixture);
+    memset(&spy.calls, 0, sizeof(spy.calls));
+    memset(&spy.face_calls, 0, sizeof(spy.face_calls));
+    spy.total_calls = 0;
+    spy.expect_depth = false;
+    clear_pixels(env);
+    result = ToriDraw_RenderHDWithRasterKernel(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, &table,
+        &stats, &sparse_kernel);
+    CHECK(result == TORIDRAW_CULL_VISIBLE, "HD fallback render returned %d", result);
+    CHECK(spy.total_calls == 1 && spy.calls[TORIDRAW_RASTER_FACE_HD_CUBE] == 1,
+          "sparse HD head calls %d", spy.total_calls);
+    check_hd_stats(&stats);
+    CHECK(count_nonzero_pixels(env) > 0, "HD typed fallback root drew no pixels");
 }
 
 static void
-test_explicit_hd_roots(struct RenderEnv* env)
+test_hd_legacy_parity(const struct HDFixture* fixture, struct RenderEnv* env)
 {
-    const struct ToriDraw_RasterKernel* branching = ToriDraw_RasterKernelGetHDBranching();
-    const struct ToriDraw_RasterKernel* scanline = ToriDraw_RasterKernelGetHDScanline();
-    struct HDFixture fixture;
+    struct ToriDraw_ViewPort viewport = test_viewport();
+    struct ToriDraw_Camera camera = test_camera();
+    struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
     struct ToriDraw_HDMaterial materials[HD_TEXTURE_COUNT];
     struct ToriDraw_HDMaterials table = { materials, HD_TEXTURE_COUNT };
-    struct ToriDraw_HDRenderStats stats;
-    toripixel_t* reference;
-    bool const original_scanline = ToriDraw_RasterGetScanline();
+    struct ToriDraw_HDRenderStats legacy_stats;
+    struct ToriDraw_HDRenderStats direct_stats;
+    const struct ToriDraw_RasterKernelHD* branching =
+        ToriDraw_RasterKernelHDGetBranching();
     size_t const image_bytes =
         (size_t)VIEW_STRIDE * VIEW_HEIGHT * sizeof(*env->pixels);
+    toripixel_t* reference = malloc(image_bytes);
+    int legacy_result;
+    int direct_result;
 
-    printf("explicit HD roots are complete and pin their family at runtime\n");
-    CHECK(branching && scanline && branching != scanline, "HD roots are null or aliased");
-    if( !branching || !scanline )
-        return;
-    CHECK(branching->domains == TORIDRAW_RASTER_KERNEL_HD &&
-              scanline->domains == TORIDRAW_RASTER_KERNEL_HD,
-          "HD roots expose the wrong domains");
-    CHECK(branching->vtable && scanline->vtable && branching->vtable->draw_gouraud &&
-              branching->vtable->draw_flat && branching->vtable->draw_textured &&
-              branching->vtable->draw_textured_flat && scanline->vtable->draw_gouraud &&
-              scanline->vtable->draw_flat && scanline->vtable->draw_textured &&
-              scanline->vtable->draw_textured_flat,
-          "HD root vtable is incomplete");
-    if( !branching->vtable || !scanline->vtable )
-        return;
-    CHECK(branching->vtable->draw_gouraud != scanline->vtable->draw_gouraud &&
-              branching->vtable->draw_flat != scanline->vtable->draw_flat,
-          "HD solid roots do not select distinct families");
-    CHECK(branching->vtable->draw_textured == scanline->vtable->draw_textured &&
-              branching->vtable->draw_textured_flat == scanline->vtable->draw_textured_flat,
-          "HD roots unexpectedly duplicate the shared textured family");
-
-    reference = malloc(image_bytes);
-    CHECK(reference != NULL, "HD root image allocation");
+    CHECK(reference != NULL, "HD parity image allocation");
     if( !reference )
         return;
-    hd_fixture_init(&fixture);
     init_hd_materials(materials, env);
-
-    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, branching), "bind explicit HD branching root");
     ToriDraw_RasterSetScanline(false);
-    render_hd_fixture(env, &fixture, &table, &stats);
-    CHECK(count_nonzero_pixels(env) > 0, "explicit HD branching root drew no pixels");
+
+    clear_pixels(env);
+    legacy_result = ToriDraw_RenderHD(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, &table,
+        &legacy_stats);
     memcpy(reference, env->pixels, image_bytes);
     ToriDraw_RasterSetScanline(true);
-    render_hd_fixture(env, &fixture, &table, &stats);
+    clear_pixels(env);
+    direct_result = ToriDraw_RenderHDWithRasterKernel(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, &table,
+        &direct_stats, branching);
+    CHECK(legacy_result == direct_result && direct_result == TORIDRAW_CULL_VISIBLE,
+          "HD sorted parity results %d/%d", legacy_result, direct_result);
+    CHECK(memcmp(&legacy_stats, &direct_stats, sizeof(legacy_stats)) == 0,
+          "HD sorted parity stats differ");
     CHECK(memcmp(reference, env->pixels, image_bytes) == 0,
-          "global selector overrode an explicit HD branching root");
+          "legacy HD wrapper differs from pinned branching root");
 
-    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, scanline), "bind explicit HD scanline root");
-    ToriDraw_RasterSetScanline(true);
-    render_hd_fixture(env, &fixture, &table, &stats);
-    CHECK(count_nonzero_pixels(env) > 0, "explicit HD scanline root drew no pixels");
-    memcpy(reference, env->pixels, image_bytes);
     ToriDraw_RasterSetScanline(false);
-    render_hd_fixture(env, &fixture, &table, &stats);
+    clear_pixels(env);
+    legacy_result = ToriDraw_RenderHDZBuffered(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, &table,
+        &legacy_stats);
+    memcpy(reference, env->pixels, image_bytes);
+    clear_pixels(env);
+    direct_result = ToriDraw_RenderHDZBufferedWithRasterKernel(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, &table,
+        &direct_stats, branching);
+    CHECK(legacy_result == direct_result && direct_result == TORIDRAW_CULL_VISIBLE,
+          "HD depth parity results %d/%d", legacy_result, direct_result);
+    CHECK(memcmp(&legacy_stats, &direct_stats, sizeof(legacy_stats)) == 0,
+          "HD depth parity stats differ");
     CHECK(memcmp(reference, env->pixels, image_bytes) == 0,
-          "global selector overrode an explicit HD scanline root");
+          "legacy HD depth differs from explicit branching root");
 
-    CHECK(ToriDraw_SceneResetRasterKernel(env->scene), "reset explicit HD root");
-    ToriDraw_RasterSetScanline(original_scanline);
-    hd_fixture_destroy(&fixture);
     free(reference);
 }
 
-#endif /* !TORIDRAW_PIXEL16 */
+#else /* TORIDRAW_PIXEL16 */
 
-#ifdef TORIDRAW_PIXEL16
-static void
-test_pixel16_hd_unsupported(const struct Fixture* fixture, struct RenderEnv* env)
+struct Pixel16HDSpy
 {
-    const struct ToriDraw_RasterKernel* branching = ToriDraw_RasterKernelGetHDBranching();
-    const struct ToriDraw_RasterKernel* scanline = ToriDraw_RasterKernelGetHDScanline();
+    int calls;
+};
+
+static void
+pixel16_hd_unexpected_callback(
+    void* user_data,
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFaceHD* face)
+{
+    struct Pixel16HDSpy* spy = user_data;
+
+    (void)target;
+    (void)face;
+    spy->calls++;
+}
+
+static const struct ToriDraw_RasterKernelHDVTable pixel16_hd_vtable = {
+    .draw_gouraud = pixel16_hd_unexpected_callback,
+    .draw_flat = pixel16_hd_unexpected_callback,
+    .draw_plane = pixel16_hd_unexpected_callback,
+    .draw_cylinder = pixel16_hd_unexpected_callback,
+    .draw_cube = pixel16_hd_unexpected_callback,
+    .draw_sphere = pixel16_hd_unexpected_callback,
+};
+
+static void
+check_zero_hd_stats(const struct ToriDraw_HDRenderStats* stats, const char* label)
+{
+    struct ToriDraw_HDRenderStats zero = {0};
+
+    CHECK(memcmp(stats, &zero, sizeof(*stats)) == 0, "%s did not clear stats", label);
+}
+
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+static void
+test_pixel16_sd_depth_unsupported(
+    const struct SDFixture* fixture,
+    struct RenderEnv* env,
+    bool explicit_kernel)
+{
+    struct ToriDraw_ViewPort viewport = test_viewport();
+    struct ToriDraw_Camera camera = test_camera();
+    struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
+    struct SDSpy spy = { .fixture = fixture, .env = env };
+    const struct ToriDraw_RasterKernelSD kernel = {
+        .vtable = &sd_full_vtable,
+        .user_data = &spy,
+    };
+    pid_t child = fork();
+    int status = 0;
+
+    CHECK(child >= 0, "fork for Pixel16 SD depth unsupported check");
+    if( child < 0 )
+        return;
+    if( child == 0 )
+    {
+        int result;
+
+        close(STDERR_FILENO);
+        if( explicit_kernel )
+            result = ToriDraw_RenderZBufferedWithRasterKernel(
+                fixture->handle, env->scene, &position, &viewport, &camera, env->pixels,
+                &kernel);
+        else
+            result = ToriDraw_RenderZBuffered(
+                fixture->handle, env->scene, &position, &viewport, &camera, env->pixels,
+                false);
+        _exit(result == TORIDRAW_CULL_ERROR && spy.total_calls == 0 ? 0 : 2);
+    }
+
+    CHECK(waitpid(child, &status, 0) == child, "wait for Pixel16 SD depth child");
+    CHECK((WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT) ||
+              (WIFEXITED(status) && WEXITSTATUS(status) == 0),
+          "Pixel16 %s SD depth status 0x%x", explicit_kernel ? "explicit" : "legacy",
+          status);
+}
+#endif
+
+static void
+test_pixel16_hd_unsupported(const struct SDFixture* fixture, struct RenderEnv* env)
+{
     struct ToriDraw_ViewPort viewport = test_viewport();
     struct ToriDraw_Camera camera = test_camera();
     struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
     struct ToriDraw_HDRenderStats stats;
-    struct ToriDraw_HDRenderStats zero_stats = {0};
+    struct Pixel16HDSpy spy = {0};
+    const struct ToriDraw_RasterKernelHD kernel = {
+        .vtable = &pixel16_hd_vtable,
+        .user_data = &spy,
+    };
     int result;
-
-    printf("Pixel16 HD entry points report unsupported and clear stats\n");
-    CHECK(branching && scanline && branching != scanline, "Pixel16 HD roots are null or aliased");
-    if( branching && scanline )
-    {
-        CHECK(branching->domains == TORIDRAW_RASTER_KERNEL_HD &&
-                  scanline->domains == TORIDRAW_RASTER_KERNEL_HD,
-              "Pixel16 HD root domains");
-        CHECK(branching->vtable && scanline->vtable && branching->vtable->draw_gouraud &&
-                  branching->vtable->draw_flat && branching->vtable->draw_textured &&
-                  branching->vtable->draw_textured_flat && scanline->vtable->draw_gouraud &&
-                  scanline->vtable->draw_flat && scanline->vtable->draw_textured &&
-                  scanline->vtable->draw_textured_flat,
-              "Pixel16 HD root vtable is incomplete");
-    }
 
     memset(&stats, 0xA5, sizeof(stats));
     result = ToriDraw_RenderHD(
-        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, NULL, &stats);
-    CHECK(result == TORIDRAW_CULL_ERROR, "Pixel16 RenderHD returned %d", result);
-    CHECK(memcmp(&stats, &zero_stats, sizeof(stats)) == 0,
-          "Pixel16 RenderHD did not zero its stats");
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, NULL,
+        &stats);
+    CHECK(result == TORIDRAW_CULL_ERROR, "Pixel16 legacy HD returned %d", result);
+    check_zero_hd_stats(&stats, "Pixel16 legacy HD");
+
+    memset(&stats, 0xA5, sizeof(stats));
+    result = ToriDraw_RenderHDWithRasterKernel(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, NULL,
+        &stats, &kernel);
+    CHECK(result == TORIDRAW_CULL_ERROR, "Pixel16 direct HD returned %d", result);
+    check_zero_hd_stats(&stats, "Pixel16 direct HD");
 
     memset(&stats, 0xA5, sizeof(stats));
     result = ToriDraw_RenderHDZBuffered(
-        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, NULL, &stats);
-    CHECK(result == TORIDRAW_CULL_ERROR, "Pixel16 RenderHDZBuffered returned %d", result);
-    CHECK(memcmp(&stats, &zero_stats, sizeof(stats)) == 0,
-          "Pixel16 RenderHDZBuffered did not zero its stats");
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, NULL,
+        &stats);
+    CHECK(result == TORIDRAW_CULL_ERROR, "Pixel16 legacy HD depth returned %d", result);
+    check_zero_hd_stats(&stats, "Pixel16 legacy HD depth");
+
+    memset(&stats, 0xA5, sizeof(stats));
+    result = ToriDraw_RenderHDZBufferedWithRasterKernel(
+        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, NULL,
+        &stats, &kernel);
+    CHECK(result == TORIDRAW_CULL_ERROR, "Pixel16 direct HD depth returned %d", result);
+    check_zero_hd_stats(&stats, "Pixel16 direct HD depth");
+    CHECK(spy.calls == 0, "Pixel16 unsupported HD path invoked %d callbacks", spy.calls);
 }
-#endif
+
+#endif /* TORIDRAW_PIXEL16 */
 
 int
 main(void)
 {
-    struct Fixture fixture;
-    struct RenderEnv first = {0};
-    struct RenderEnv second = {0};
+    struct SDFixture sd_fixture;
+    struct RenderEnv env;
 
     ToriDraw_Init();
-    fixture_init(&fixture);
-    if( !render_env_init(&first, 0x00C06020) || !render_env_init(&second, 0x002060C0) )
+    ToriDraw_RasterSetScanline(false);
+    test_typed_root_layouts();
+    sd_fixture_init(&sd_fixture);
+    if( !render_env_init(&env) )
     {
-        render_env_destroy(&first);
-        render_env_destroy(&second);
-        fixture_destroy(&fixture);
+        sd_fixture_destroy(&sd_fixture);
         return 1;
     }
 
-    test_four_slots_and_callback_guard(&fixture, &first);
-    test_same_scene_reentrant_stock(&fixture, &first);
+    test_sd_direct_apis(&sd_fixture, &env);
+    test_sd_legacy_parity(&sd_fixture, &env);
+
 #ifndef TORIDRAW_PIXEL16
-    test_recursive_phase3_depth_scratch(&fixture, &first);
-#endif
-    test_pre_dispatch_skips(&fixture, &first);
-    test_live_chain_mutation_recovery(&fixture, &first);
-    test_sparse_fallback_and_noop(&fixture, &first);
-    test_two_scene_independence(&fixture, &first, &second);
-    test_incompatible_domain(&fixture, &first);
-    test_invalid_set_rejection(&fixture, &first);
-    test_reset_and_process_terminals(&fixture, &first);
-#ifndef TORIDRAW_PIXEL16
-    test_hd_routing(&first);
-    test_hd_edge_contracts(&first);
-    test_explicit_hd_roots(&first);
+    {
+        struct HDFixture hd_fixture;
+
+        hd_fixture_init(&hd_fixture);
+        test_hd_direct_apis(&hd_fixture, &env);
+        test_hd_legacy_parity(&hd_fixture, &env);
+        hd_fixture_destroy(&hd_fixture);
+    }
 #else
-    test_pixel16_hd_unsupported(&fixture, &first);
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+    test_pixel16_sd_depth_unsupported(&sd_fixture, &env, false);
+    test_pixel16_sd_depth_unsupported(&sd_fixture, &env, true);
+#endif
+    test_pixel16_hd_unsupported(&sd_fixture, &env);
 #endif
 
-    render_env_destroy(&second);
-    render_env_destroy(&first);
-    fixture_destroy(&fixture);
-
+    render_env_destroy(&env);
+    sd_fixture_destroy(&sd_fixture);
     if( failures )
     {
         fprintf(stderr, "toridraw_raster_kernel_test: %d failure(s)\n", failures);

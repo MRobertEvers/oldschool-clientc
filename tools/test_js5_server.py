@@ -44,7 +44,9 @@ def fetch(sock, archive, group, xor_key=0, urgent=True):
     wire_position = 8
     while len(container) < total:
         if wire_position % 512 == 0:
-            assert recv_exact(sock, 1, xor_key) == b"\xff"
+            marker = recv_exact(sock, 1, xor_key)
+            if marker != b"\xff":
+                raise AssertionError(f"invalid JS5 block marker: {marker!r}")
             wire_position += 1
         take = min(total - len(container), 512 - (wire_position % 512))
         container.extend(recv_exact(sock, take, xor_key))
@@ -126,7 +128,9 @@ def run(executable, client_executable, cache):
         stalled.sendall(bytes([1, 22]) + struct.pack(">H", 837))
         peer, status = handshake(port)
         assert status == 0
-        assert fetch(peer, 255, 255) == master
+        peer_master = fetch(peer, 255, 255)
+        if peer_master != master:
+            raise AssertionError("peer master index differs from the initial response")
         checks += 1
         peer.close()
         stalled.close()

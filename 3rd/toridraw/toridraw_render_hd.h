@@ -41,6 +41,7 @@
  */
 
 struct ToriDraw_Scene;
+struct ToriDraw_RasterKernelHD;
 
 /** How a material's texels decide coverage. */
 enum ToriDraw_HDGate
@@ -224,6 +225,20 @@ ToriDraw_RenderHD(
     const struct ToriDraw_HDMaterials* materials,
     struct ToriDraw_HDRenderStats* out_stats);
 
+/* The same HD render through an explicit per-call kernel chain. Sparse chains
+ * must name a complete HD built-in root through `fallback`. */
+int
+ToriDraw_RenderHDWithRasterKernel(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_HDMaterials* materials,
+    struct ToriDraw_HDRenderStats* out_stats,
+    const struct ToriDraw_RasterKernelHD* kernel);
+
 /**
  * The same render, resolved per pixel instead of per face.
  *
@@ -263,6 +278,18 @@ ToriDraw_RenderHDZBuffered(
     toripixel_t* pixel_buffer,
     const struct ToriDraw_HDMaterials* materials,
     struct ToriDraw_HDRenderStats* out_stats);
+
+int
+ToriDraw_RenderHDZBufferedWithRasterKernel(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_HDMaterials* materials,
+    struct ToriDraw_HDRenderStats* out_stats,
+    const struct ToriDraw_RasterKernelHD* kernel);
 
 /**
  * Build the per-face-group mappings for an HD model from a decoder's raw

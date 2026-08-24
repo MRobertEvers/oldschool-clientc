@@ -11,6 +11,7 @@
 #include "toridraw_model_sprite.h"
 #include "toridraw_model_transform.h"
 #include "toridraw_raster_kernel.h"
+#include "toridraw_render_hd.h"
 #include "toridraw_scene.h"
 #include "toridraw_sprite.h"
 #include "toridraw_types.h"
@@ -26,15 +27,10 @@ void
 ToriDraw_Init(void);
 
 /**
- * Compatibility selector for the terminal inherited by an unpinned scene (or
- * by null slots in a sparse raster-kernel chain). A complete explicitly bound
- * kernel remains pinned. Off by default; ToriDraw_Init() also honours
- * TORIDRAW_RASTER_SCANLINE=1 in the environment. New code should bind one of
- * the built-in roots with ToriDraw_SceneSetRasterKernel instead.
+ * Compatibility selector used by the legacy render entry points. Off by
+ * default; ToriDraw_Init() also honours TORIDRAW_RASTER_SCANLINE=1 in the
+ * environment. Kernel-explicit calls are unaffected.
  */
-/* The HD render flow and its material table. */
-#include "toridraw_render_hd.h"
-
 void
 ToriDraw_RasterSetScanline(bool enabled);
 
@@ -64,6 +60,18 @@ ToriDraw_RenderModel(
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer);
 
+/* Project, sort and raster one model through an explicit SD kernel chain.
+ * Sparse chains must name a complete SD built-in root through `fallback`. */
+int
+ToriDraw_RenderModelWithRasterKernel(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_RasterKernelSD* kernel);
+
 int
 ToriDraw_RenderModel1Project(
     struct ToriDraw_ModelHandle hnd,
@@ -84,6 +92,14 @@ ToriDraw_RenderModel3Raster(
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer,
     bool smooth);
+
+int
+ToriDraw_RenderModel3RasterWithRasterKernel(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_RasterKernelSD* kernel);
 
 /**
  * ToriDraw_RenderModel, resolved per pixel instead of per face.
@@ -115,6 +131,16 @@ ToriDraw_RenderZBuffered(
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer,
     bool smooth);
+
+int
+ToriDraw_RenderZBufferedWithRasterKernel(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_RasterKernelSD* kernel);
 
 /** Bounding-box hit test against the last projected model (reference
  *  Model.useAABBMouseCheck). Cheaper and far more forgiving than the per-face

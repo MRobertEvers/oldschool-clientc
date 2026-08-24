@@ -2,38 +2,78 @@
 #define TORIDRAW_RASTER_KERNEL_INTERNAL_H
 
 #include "toridraw_raster_kernel.h"
-#include "toridraw_render_context_internal.h"
 
-struct ToriDraw_ResolvedRasterSlot
+#include <assert.h>
+
+struct ToriDraw_ResolvedRasterSlotSD
 {
-    ToriDraw_RasterKernelFaceFn function;
+    ToriDraw_RasterKernelSDFaceFn function;
     void* user_data;
 };
 
-struct ToriDraw_ResolvedRasterKernel
+struct ToriDraw_ResolvedRasterKernelSD
 {
-    struct ToriDraw_ResolvedRasterSlot slots[TORIDRAW_RASTER_FACE_CLASS_COUNT];
+    struct ToriDraw_ResolvedRasterSlotSD slots[TORIDRAW_RASTER_FACE_SD_CLASS_COUNT];
 };
 
-/* Structural validation used by both the public setter and pass resolution. */
-bool
-ToriDraw_RasterKernelChainIsValid(const struct ToriDraw_RasterKernel* kernel);
+struct ToriDraw_ResolvedRasterSlotHD
+{
+    ToriDraw_RasterKernelHDFaceFn function;
+    void* user_data;
+};
 
-/*
- * Resolve once at model-pass entry.  Domain-incompatible nodes are ignored and
- * each slot retains the user_data of the node that supplied its callback.
- *
- * `terminal` is injected after the explicit borrowed chain.  If that live
- * chain has become invalid since Set, it is discarded wholesale and a
- * diagnostic is emitted before resolving the terminal.  The function returns
- * false only when the terminal itself is invalid or cannot supply all four
- * slots; `out` is then cleared.  It performs no allocation.
- */
+struct ToriDraw_ResolvedRasterKernelHD
+{
+    struct ToriDraw_ResolvedRasterSlotHD slots[TORIDRAW_RASTER_FACE_HD_CLASS_COUNT];
+};
+
 bool
-ToriDraw_RasterKernelResolve(
-    const struct ToriDraw_RasterKernel* kernel,
-    const struct ToriDraw_RasterKernel* terminal,
-    enum ToriDraw_RasterKernelDomain domain,
-    struct ToriDraw_ResolvedRasterKernel* out);
+ToriDraw_RasterKernelSDResolve(
+    const struct ToriDraw_RasterKernelSD* kernel,
+    struct ToriDraw_ResolvedRasterKernelSD* out);
+
+bool
+ToriDraw_RasterKernelHDResolve(
+    const struct ToriDraw_RasterKernelHD* kernel,
+    struct ToriDraw_ResolvedRasterKernelHD* out);
+
+/* The sole prepared-face dispatch point in each typed raster pipeline. */
+static inline void
+ToriDraw_RasterKernelSDDispatch(
+    const struct ToriDraw_ResolvedRasterKernelSD* kernel,
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFaceSD* face)
+{
+    const struct ToriDraw_ResolvedRasterSlotSD* slot;
+
+    assert(kernel);
+    assert(target);
+    assert(face);
+    assert(face->face_class >= 0 &&
+           face->face_class < TORIDRAW_RASTER_FACE_SD_CLASS_COUNT);
+
+    slot = &kernel->slots[face->face_class];
+    assert(slot->function);
+    slot->function(slot->user_data, target, face);
+}
+
+static inline void
+ToriDraw_RasterKernelHDDispatch(
+    const struct ToriDraw_ResolvedRasterKernelHD* kernel,
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFaceHD* face)
+{
+    const struct ToriDraw_ResolvedRasterSlotHD* slot;
+
+    assert(kernel);
+    assert(target);
+    assert(face);
+    assert(face->face_class >= 0 &&
+           face->face_class < TORIDRAW_RASTER_FACE_HD_CLASS_COUNT);
+
+    slot = &kernel->slots[face->face_class];
+    assert(slot->function);
+    slot->function(slot->user_data, target, face);
+}
 
 #endif
