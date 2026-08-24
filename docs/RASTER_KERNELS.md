@@ -449,7 +449,7 @@ malformed-coordinate hardening called out below:
 | raw face type 2, or a raw type outside 0-3 | no callback |
 | raw face type 3 | continue through the existing colour, texture, and alpha policy; do not skip on the raw value alone |
 | hidden-colour sentinel | no callback |
-| untextured opacity `255 - face_alpha` at or below the current cutoff | no callback |
+| untextured effective opacity `255 - face_alpha <= 1` | no callback |
 | stock textured face whose texture cannot be resolved | no callback |
 | malformed explicit texture coordinate or unsafe prepared frame indices | no callback and a named diagnostic count |
 | a near-clipped face for which the pass has no required prepared coordinates | no callback |
@@ -534,9 +534,12 @@ triangle wrappers consult it. During migration:
    their triangle families. Until this split exists, the two root objects must
    not be advertised as independently selectable because both still reach leaf
    wrappers governed by the global.
-5. Migrate every direct consumer of those wrappers, including
-   `toridraw_scanline_parity_test.c`, `src/render/test/scanline_compare_sdl.c`,
-   and HD untextured/missing-material fallback calls.
+5. Migrate HD untextured/missing-material fallbacks and audit any other library
+   consumer of selector-reading wrappers. Keep
+   `toridraw_scanline_parity_test.c` unchanged as the raw-family oracle: it calls
+   branching/scanline symbols directly. Keep
+   `src/render/test/scanline_compare_sdl.c` working through the compatibility
+   setter for an unpinned scene, and optionally add an explicit-root mode.
 6. Only then remove the global read from leaf wrappers and narrow the old API's
    comment to "select the terminal used by unpinned raster passes."
 
@@ -569,8 +572,8 @@ matching HD terminal, preserving the current effect of
 
 After the stock path is stable, integrate HD as follows:
 
-1. Share structural face normalization/debug checks and the four semantic callback classes
-   where their meaning is identical.
+1. Share structural face normalization/debug checks and the four semantic
+   callback classes where their meaning is identical.
 2. Keep per-call `materials` and `out_stats` in the HD pass context. Prepare the
    resolved sampler/mapping payload before invoking a callback; they are not
    persistent kernel `user_data`.
@@ -590,6 +593,17 @@ shared interface is not permission to merge policy. Prepare a missing-material
 face as the appropriate solid semantic class before dispatch so the callback
 sees normalized fallback data. Core HD route counters continue to describe
 where the face was dispatched, including through a custom no-op.
+
+HD has three more cold-policy rules that preparation must retain:
+
+- if any lit `face_colors_a/b/c` array is absent, count the face as
+  `skipped_hidden` and make no callback; stock continues its existing valid-model
+  precondition instead;
+- null texels or a material width other than 64/128 means missing material and
+  takes the solid fallback, while an invalid gate coerces to opaque;
+- modulation is derived from authored `model->face_colors[face]` HSL (or zero
+  when that array is absent), never from the 0..127 lit textured shades. Publish
+  the already prepared tint/sampler values to the callback.
 
 HD also differs in mapping details. Type 0 uses the original/bind-pose P/M/N
 frame and types 1-3 use the decoded HD mapping tail. When a mapping is missing,
@@ -611,12 +625,19 @@ current incomplete behavior as supported.
 ## `TORIDRAW_PIXEL16`
 
 The public object and vtable layout must compile unchanged with
-`TORIDRAW_PIXEL16`; do not hide fields or reorder callbacks conditionally. Its
-current classifier is intentionally different: texture lookup and both
-textured cases are compiled out. Every face that survives the common raw-type,
-hidden-shade, untextured-opacity, and near-clip-availability policy ignores
-texture presence and reaches only `draw_flat` or `draw_gouraud` according to the
-final C shade. Missing textures do not skip in this build.
+`TORIDRAW_PIXEL16`; do not hide fields or reorder callbacks conditionally.
+Pixel16 supports the stock domain only. The current unity build cannot compile
+the real HD unit because HD embeds z-buffer types and 32-bit texture kernels
+that Pixel16 excludes. Before adding its routing oracle, guard the real HD unit
+and provide stable Pixel16 HD API/root stubs that report unsupported
+(`TORIDRAW_CULL_ERROR` for render calls, zeroed optional stats) without entering
+face dispatch.
+
+The stock Pixel16 classifier is intentionally different: texture lookup and
+both textured cases are compiled out. Every face that survives the common
+raw-type, hidden-shade, untextured-opacity, and near-clip-availability policy
+ignores texture presence and reaches only `draw_flat` or `draw_gouraud`
+according to the final C shade. Missing textures do not skip in this build.
 
 Preserve that collapse exactly. Complete roots still populate the two textured
 slots with non-null unreachable assertion stubs so resolution has one layout,
@@ -645,10 +666,11 @@ Required properties:
   every face;
 - the compact face descriptor does not force stores for inactive payload fields.
 
-HD also makes one public interface call. Its textured callback may retain the
-one additional indirect call already used by its private compositing/mapping
-matrix; that is an explicit exception, not another public virtual layer. Measure
-it independently and keep the private table out of spans and pixels.
+HD also makes one public interface call per source face. Its textured callback
+may retain the existing private compositing/mapping table call once per emitted
+triangle; an unclipped face emits one triangle and a rebuilt clipped polygon may
+emit more. That is an explicit exception, not another public virtual layer.
+Measure it independently and keep the private table out of spans and pixels.
 
 Benchmark the real model path, not only direct triangle calls. Compare old and
 new complete branching, complete scanline, sorted, and forced-zbuffer paths;
@@ -673,6 +695,11 @@ boundary and that no global family read remains below it.
   clipped, depth-tested, smooth, and non-smooth models.
 - Capture the current Pixel16 class collapse and the stock/HD mapping and alpha
   differences as routing oracles.
+- First make Pixel16 a defined build again by guarding the real HD unity include
+  and adding deterministic unsupported HD stubs; do not mistake today's compile
+  failure for a render oracle.
+- Record the existing direct-model out-of-range coordinate failure under a
+  sanitizer so the named safety hardening is deliberate and measurable.
 - Record the known scanline differences documented in
   [RASTER_VARIANT_CATALOGUE.md](RASTER_VARIANT_CATALOGUE.md) rather than treating
   every difference as a new failure.
@@ -695,7 +722,8 @@ boundary and that no global family read remains below it.
 - Split `ToriDraw_RasterModelFace` into a core classifier/preparer and four
   built-in draw callbacks.
 - Preserve raw-type, hidden-colour, alpha, texture-cache, missing-texture, and
-  P/M/N rules byte for byte.
+  valid-model P/M/N rules byte for byte, apart from the documented malformed
+  coordinate rejection.
 - Route both sorted and unsorted/depth-tested face loops through the internal
   complete branching root; do not consult the dormant scene binding yet.
 - Make the complete branching root the stock terminal and compare it to the
@@ -704,12 +732,13 @@ boundary and that no global family read remains below it.
 ### Phase 3: extract runtime variants
 
 - Give scanline and branching roots direct family-specific face callbacks.
-- Migrate parity/compare tools and HD solid fallbacks off wrappers that consult
-  the global at leaf level.
+- Migrate HD solid fallbacks off wrappers that consult the global at leaf level;
+  retain the raw-family parity test and the unpinned compatibility compare tool.
 - Convert the global scanline API into terminal selection for unpinned passes
   and remove all lower-level global reads.
-- Expose the complete branching and scanline getters only after their callbacks
-  are genuinely independent.
+- Finish the complete branching and scanline roots after their callbacks are
+  genuinely independent, but keep their public getters gated with scene binding
+  until Phase 4.
 - Verify smooth/non-smooth, affine/perspective, near-clipped, z-buffered, and
   Pixel16 configurations before promising independent scene roots.
 
@@ -718,8 +747,9 @@ boundary and that no global family read remains below it.
 - Test multi-layer inheritance, entry-point terminal injection, supplying
   `user_data`, domain filtering, explicit no-op suppression, invalid domains,
   cycles, and live-chain mutation recovery before the public cutover.
-- Implement/export the validating bool-returning scene set/reset/get APIs, then
-  activate compatible scene bindings in both sorted and unsorted loops.
+- Export the built-in getters and validating bool-returning scene set/reset/get
+  APIs together, then activate compatible scene bindings in both sorted and
+  unsorted loops.
 - Resolve slots once per pass and fill holes from the snapshotted terminal.
 - Verify independent bindings for two scenes, process-default changes between
   passes, pinned-root behavior, and rejection of set/reset during a pass.
@@ -792,8 +822,9 @@ The routing test should use a spy kernel and synthetic model faces to prove:
   unpinned chains at the next pass;
 - set/reset from inside a callback is rejected and the borrowed chain remains
   live for the entire pass;
-- Pixel16 routes every ordinary non-hidden face only to flat/Gouraud and never
-  reaches its textured assertion stubs.
+- Pixel16 routes every face surviving its common skip policy only to
+  flat/Gouraud, never reaches its textured assertion stubs, and returns the
+  defined unsupported result from HD entry points.
 
 Run the new suite alongside:
 
@@ -809,14 +840,19 @@ Run the new suite alongside:
 Extend near-clip coverage to include flat and both textured stock classes. In
 the HD phases, cover raw/malformed mapping types, all gates, missing materials
 and both the in-range/invalid-PMN missing-mapping outcomes, both solid variants,
-depth mode, and the new near-plane rebuild.
+depth mode, and the new near-plane rebuild. Add explicit no-callback coverage
+for null lit-colour arrays, invalid-width material fallback, and invalid-gate
+coercion. The modulation test must compare pixels from an authored HSL hue that
+differs from the lit 0..127 shade; routing counters alone cannot catch use of the
+wrong colour source.
 
 The change is complete when:
 
 1. Complete branching and scanline roots match their stock oracles, including
    the documented scanline differences.
-2. The Pixel16 oracle is unchanged, and forced z-buffer remains unsupported.
-3. Every accepted stock face is either skipped for the same named reason or
+2. The Pixel16 stock oracle is unchanged; forced z-buffer retains its assertion
+   and HD returns its defined unsupported result.
+3. Every accepted stock face is either skipped for its documented reason or
    invokes exactly one resolved public slot.
 4. Sparse/domain-filtered overrides work without per-face chain traversal, and
    two scenes can use different variants independently.

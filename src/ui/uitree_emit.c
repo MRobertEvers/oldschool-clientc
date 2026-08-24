@@ -2935,14 +2935,6 @@ UITree_EmitWalk(
     /* Last, so developer chrome is over everything including drag ghosts. */
     emit_debug_overlay_pass(tree, host, out);
 
-    /* The builtin source may have returned zero and therefore appended no
-     * descriptor. Reachability records that its host request still ran. */
-    if( tree->entity_overlay_index >= 0 &&
-        (uint32_t)tree->entity_overlay_index < tree->component_count &&
-        (uint32_t)tree->entity_overlay_index < tree->emit_visited_cap &&
-        tree->emit_visited[tree->entity_overlay_index] )
-        out->volatile_overlay_seen |= (uint8_t)(1u << UITREE_EMIT_OVERLAY_ENTITY);
-
     /* One pass over the finished list to answer "may this list be retained?".
      * See UITreeEmitBuffer.volatile_refs — the test is on the pointers, so it
      * stays correct as kinds are added. A few hundred predictable loads against
@@ -3000,10 +2992,12 @@ emit_buffer_insert_at(
     struct UITreeEmitDesc const* desc)
 {
     int const old_count = out->count;
+    int const source = desc->entity_overlay_source;
 
     assert(out);
     assert(desc);
     assert(at >= 0 && at <= old_count);
+    assert(source >= UITREE_EMIT_OVERLAY_ENTITY && source <= UITREE_EMIT_OVERLAY_FRAME);
     emit_buffer_append(out, desc);
     if( at < old_count )
     {
@@ -3013,19 +3007,41 @@ emit_buffer_insert_at(
             (size_t)(old_count - at) * sizeof(*out->cmds));
         out->cmds[at] = *desc;
     }
+    /* Preserve conceptual insertion slots for sources that are currently
+     * empty. A strictly later slot moves with this insertion; an equal slot
+     * remains before it, which preserves the order captured by the full walk
+     * when two absent overlays share the same boundary. */
+    for( int other = UITREE_EMIT_OVERLAY_ENTITY;
+         other <= UITREE_EMIT_OVERLAY_FRAME;
+         other++ )
+        if( other != source && out->volatile_overlay_insert_at[other] > at )
+            out->volatile_overlay_insert_at[other]++;
+    out->volatile_overlay_insert_at[source] = at;
 }
 
 static void
 emit_buffer_remove_at(struct UITreeEmitBuffer* out, int at)
 {
+    int source;
+
     assert(out);
     assert(at >= 0 && at < out->count);
+    source = out->cmds[at].entity_overlay_source;
+    assert(source >= UITREE_EMIT_OVERLAY_ENTITY && source <= UITREE_EMIT_OVERLAY_FRAME);
     if( at + 1 < out->count )
         memmove(
             &out->cmds[at],
             &out->cmds[at + 1],
             (size_t)(out->count - at - 1) * sizeof(*out->cmds));
     out->count--;
+    for( int other = UITREE_EMIT_OVERLAY_ENTITY;
+         other <= UITREE_EMIT_OVERLAY_FRAME;
+         other++ )
+        if( other != source && out->volatile_overlay_insert_at[other] > at )
+            out->volatile_overlay_insert_at[other]--;
+    /* The removed source still belongs immediately before the command that
+     * slid into its old slot (or at end if it was last). */
+    out->volatile_overlay_insert_at[source] = at;
 }
 
 static int
@@ -3189,7 +3205,6 @@ UITree_EmitRefreshVolatile(
             desc.entity_overlay_count = count;
             desc.clip = clip;
             emit_buffer_insert_at(out, insert_at, &desc);
-            out->volatile_overlay_insert_at[source] = insert_at;
         }
         else
         {

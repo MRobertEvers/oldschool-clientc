@@ -241,8 +241,8 @@ find_wheel_hook_component(
  * still receive keys, and scripts self-gate on varcs.
  *
  * The flat array scan is equivalent to the reference's DFS for membership:
- * UITree_ComponentOrAncestorDisplayHidden encodes the same hidden-subtree rule
- * rule, mounted sub-interfaces are reparented into this same array (so they need
+ * UITree_ComponentOrAncestorDisplayHidden encodes the same hidden-subtree
+ * rule; mounted sub-interfaces are reparented into this same array (so they need
  * no separate pass as they do in the reference), and an array scan cannot
  * produce the duplicates the reference has to dedupe. Only enumeration ORDER
  * differs -- build order rather than DFS pre-order, diverging once CC_CREATE

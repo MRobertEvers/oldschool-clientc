@@ -24334,6 +24334,19 @@ App_PluginLayoutTick(struct App* app)
         app->plugin_layout_h != UITREE_LAYOUT_ROOT_H )
     {
         PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        /* A handler may release and immediately reclaim from inside EV_LAYOUT.
+         * The host correctly abandons that transaction (its claim epoch moved),
+         * which leaves dirty set and the effective frame released. Give the
+         * replacement claim one bounded, sequential attempt now so native
+         * chrome cannot leak into interaction between this tick and the final
+         * publication tick. Resolve first because the replacement handler may
+         * read role_rect while composing its declaration. A handler that keeps
+         * changing ownership cannot spin us: it gets at most this one retry. */
+        if( app->plugin_layout_owned && app->plugin_layout_dirty )
+        {
+            UITree_EnsureLayout(app->tree);
+            PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        }
         /* FrameApply installs an effective geometry layer and invalidates the
          * resolved boxes. Publish that layer before anybody hears that regions
          * moved: layout-changed subscribers are allowed to read role_rect from

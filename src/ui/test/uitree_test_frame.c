@@ -68,17 +68,19 @@ enum RetainedOverlaySource
     RETAINED_OVERLAY_CANVAS,
     RETAINED_OVERLAY_FRAME,
     RETAINED_OVERLAY_SOURCE_COUNT,
+    RETAINED_OVERLAY_PHASE_COUNT = 4,
 };
 
 struct RetainedOverlayHost
 {
-    struct UITreeEntityOverlay items[RETAINED_OVERLAY_SOURCE_COUNT][2][3];
+    struct UITreeEntityOverlay
+        items[RETAINED_OVERLAY_SOURCE_COUNT][RETAINED_OVERLAY_PHASE_COUNT][3];
     int calls[RETAINED_OVERLAY_SOURCE_COUNT];
     int last_call_seq[RETAINED_OVERLAY_SOURCE_COUNT];
     int call_seq;
     int phase;
     int zero_initial;
-    uint8_t empty_mask[2];
+    uint8_t empty_mask[RETAINED_OVERLAY_PHASE_COUNT];
 };
 
 static int
@@ -420,6 +422,12 @@ test_frame_keeps_native_state_beneath_effective_layout(void)
         "layout resolves the compass through the plugin rectangle");
     assert_native_art(tree, &frame);
     assert_plugin_emit(tree, &buf, &frame);
+
+    quiet_dirty = tree->dirty_gen;
+    declare_plugin_frame(tree);
+    TEST_ASSERT(
+        tree->dirty_gen == quiet_dirty && tree->components[frame.chrome].frame_hidden,
+        "an identical declaration is an atomic no-op, never a release/reapply flash");
 
     /* The cache's resize hook restates a new native box while the plugin owns
      * the frame. This must update native state without becoming visible until
@@ -786,6 +794,9 @@ test_retained_empty_entity_keeps_final_no_world_order(void)
      * rotate ahead of pointer feedback before the empty entity's conceptual
      * insertion slot is recorded. */
     state.empty_mask[0] = (uint8_t)(1u << RETAINED_OVERLAY_ENTITY);
+    state.empty_mask[1] =
+        (uint8_t)((1u << RETAINED_OVERLAY_ENTITY) | (1u << RETAINED_OVERLAY_CANVAS));
+    state.empty_mask[2] = (uint8_t)(1u << RETAINED_OVERLAY_CANVAS);
     UITree_HostInit(&host);
     host.user = &state;
     host.request = retained_overlay_host_request;
@@ -819,7 +830,18 @@ test_retained_empty_entity_keeps_final_no_world_order(void)
         canvas_desc >= 0 && cross_desc >= 0 && canvas_desc < cross_desc,
         "standing canvas chrome remains below pointer feedback");
 
+    /* First remove the standing CANVAS while ENTITY remains absent. The
+     * entity's saved no-world slot must move left with that removal. */
     state.phase = 1;
+    TEST_ASSERT(
+        UITree_EmitRefreshVolatile(tree, &host, &buf),
+        "mixed no-world refresh can remove canvas while entity remains empty");
+    TEST_ASSERT(
+        emit_find_overlay_source(&buf, RETAINED_OVERLAY_ENTITY) < 0 &&
+            emit_find_overlay_source(&buf, RETAINED_OVERLAY_CANVAS) < 0,
+        "mixed transition leaves both sources absent");
+
+    state.phase = 2;
     TEST_ASSERT(
         UITree_EmitRefreshVolatile(tree, &host, &buf),
         "no-world entity source can become nonempty in the retained list");
@@ -827,9 +849,8 @@ test_retained_empty_entity_keeps_final_no_world_order(void)
     canvas_desc = emit_find_overlay_source(&buf, RETAINED_OVERLAY_CANVAS);
     cross_desc = emit_find(&buf, cross) ? (int)(emit_find(&buf, cross) - buf.cmds) : -1;
     TEST_ASSERT(
-        canvas_desc >= 0 && cross_desc >= 0 && entity_desc >= 0 &&
-            canvas_desc < cross_desc && cross_desc < entity_desc,
-        "retained insertion uses the entity source's final post-rotation slot");
+        canvas_desc < 0 && cross_desc >= 0 && entity_desc >= 0 && cross_desc < entity_desc,
+        "retained insertion rebases the entity slot after an earlier canvas removal");
 
     UITree_EmitBufferInit(&fresh);
     UITree_EmitWalk(tree, &host, &fresh, -1);
@@ -843,6 +864,49 @@ test_retained_empty_entity_keeps_final_no_world_order(void)
         "no-world retained insertion is byte-identical to a fresh full walk");
 
     UITree_EmitBufferFree(&fresh);
+    UITree_EmitBufferFree(&buf);
+    UITree_Free(tree);
+}
+
+static void
+test_transparent_entity_overlay_stays_absent_on_refresh(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct UITreeEmitBuffer buf;
+    struct UITreeHost host;
+    struct RetainedOverlayHost state;
+    int32_t root;
+    int32_t entity_overlay;
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    memset(&state, 0, sizeof(state));
+    UITree_HostInit(&host);
+    host.user = &state;
+    host.request = retained_overlay_host_request;
+    root = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    entity_overlay = UITree_TestPushXy(
+        tree, root, UIELEM_BUILTIN_ENTITY_OVERLAY, FRAME_ENTITY_OVERLAY_ID,
+        0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    TEST_ASSERT(root >= 0 && entity_overlay >= 0, "transparent entity overlay fixture");
+    tree->components[entity_overlay].trans = 255;
+
+    UITree_EmitBufferInit(&buf);
+    UITree_EmitWalk(tree, &host, &buf, -1);
+    TEST_ASSERT(
+        state.calls[RETAINED_OVERLAY_ENTITY] == 0 &&
+            !(buf.volatile_overlay_seen &
+              (uint8_t)(1u << UITREE_EMIT_OVERLAY_ENTITY)),
+        "a fully transparent entity node never issues or registers its source");
+    TEST_ASSERT(
+        UITree_EmitRefreshVolatile(tree, &host, &buf),
+        "other retained overlay sources still refresh");
+    TEST_ASSERT(
+        state.calls[RETAINED_OVERLAY_ENTITY] == 0 &&
+            emit_find_overlay_source(&buf, RETAINED_OVERLAY_ENTITY) < 0,
+        "retained refresh cannot resurrect a transparent entity overlay");
+
     UITree_EmitBufferFree(&buf);
     UITree_Free(tree);
 }
@@ -1136,6 +1200,7 @@ test_frame_replacement(void)
     test_frame_reconciles_rebuilt_nodes_before_emit();
     test_retained_overlay_refresh_preserves_source();
     test_retained_empty_entity_keeps_final_no_world_order();
+    test_transparent_entity_overlay_stays_absent_on_refresh();
     test_zero_mask_skin_explicitly_unmasks();
     test_frame_visibility_invalidates_retention_and_hover();
     test_large_ancestor_remains_effectively_stretched_after_shrink();
