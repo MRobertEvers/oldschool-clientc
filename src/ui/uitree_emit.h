@@ -212,6 +212,12 @@ struct UITreeEmitBuffer
      *  refreshed. Today that is WORLDMAP, whose desc does not record tiles vs
      *  overview, or a legacy entity-overlay desc with no recorded source. */
     int volatile_unrefreshable;
+    /** External host domains actually read while constructing this list, and
+     * their versions at publication. Unlike `volatile_refs`, these cover host
+     * values copied into ordinary descriptors (camera yaw, selected tab,
+     * inventory contents, asset availability, etc.). */
+    UITreeHostInputMask host_input_dependencies;
+    struct UITreeHostInputStamp host_input_stamp;
 };
 
 void
@@ -219,6 +225,14 @@ UITree_EmitBufferInit(struct UITreeEmitBuffer* buf);
 
 void
 UITree_EmitBufferFree(struct UITreeEmitBuffer* buf);
+
+/** True when every external host input consumed by the last full walk still
+ * has the version captured in `buf`. The retained-list gate should require
+ * this in addition to tree/layout/hover identity. */
+bool
+UITree_EmitBufferHostInputsCurrent(
+    struct UITreeEmitBuffer const* buf,
+    struct UITreeHost const* host);
 
 /**
  * Full DFS walk: fill clip, EmitFill, append drawable cmds.

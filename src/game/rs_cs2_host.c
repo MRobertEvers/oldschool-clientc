@@ -5055,9 +5055,7 @@ exec_widget_set_arc(
     idx = UITree_FindByComponentId(tree, request.component_id);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_ARC )
         return CS2VM_EXECNO_OK;
-    tree->components[idx].u.rs_arc.arc_start = request.arc_start;
-    tree->components[idx].u.rs_arc.arc_end = request.arc_end;
-    UITree_MarkNodeDirty(tree, idx);
+    (void)UITree_SetArcAnglesAt(tree, idx, request.arc_start, request.arc_end);
     return CS2VM_EXECNO_OK;
 }
 
@@ -5075,14 +5073,15 @@ exec_widget_set_model_angle(
     idx = UITree_FindByComponentId(tree, request.component_id);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
         return CS2VM_EXECNO_OK;
-    tree->components[idx].u.rs_model.x_offset = request.offset_x;
-    tree->components[idx].u.rs_model.y_offset = request.offset_y;
-    tree->components[idx].u.rs_model.xan = request.angle_x;
-    tree->components[idx].u.rs_model.yan = request.angle_y;
-    tree->components[idx].u.rs_model.zan = request.angle_z;
-    if( request.zoom > 0 )
-        tree->components[idx].u.rs_model.zoom = request.zoom;
-    UITree_MarkNodeDirty(tree, idx);
+    (void)UITree_SetModelPoseAt(
+        tree,
+        idx,
+        request.offset_x,
+        request.offset_y,
+        request.angle_x,
+        request.angle_y,
+        request.angle_z,
+        request.zoom);
     return CS2VM_EXECNO_OK;
 }
 
@@ -8510,8 +8509,13 @@ rs_cs2_host_exec_dispatch(
             node = rs_cs2_node(host, request->u.if_set_scroll_size.component_id);
             if( node && node->type == UIELEM_RS_LAYER )
             {
+                int32_t const idx =
+                    rs_cs2_find_node(host, request->u.if_set_scroll_size.component_id);
+                int scroll_x;
+                int scroll_y;
                 UITree_EnsureLayout(tree);
-                UITree_ScrollClampComponent(node);
+                UITree_ScrollGetClamped(node, &scroll_x, &scroll_y);
+                (void)UITree_SetScrollPosAt(tree, idx, scroll_x, scroll_y);
             }
         }
         return CS2VM_EXECNO_OK;
@@ -8604,13 +8608,11 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETTRANS:
-        node = rs_cs2_node(host, request->u.cc_set_trans.component_id);
-        if( node && node->trans != request->u.cc_set_trans.trans )
-        {
-            node->trans = request->u.cc_set_trans.trans;
-            UITree_MarkNodeDirty(
-                tree, rs_cs2_find_node(host, request->u.cc_set_trans.component_id));
-        }
+        if( tree )
+            (void)UITree_SetTransparencyAt(
+                tree,
+                rs_cs2_find_node(host, request->u.cc_set_trans.component_id),
+                request->u.cc_set_trans.trans);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETNOCLICKTHROUGH:

@@ -532,8 +532,9 @@ bridge_input_to_uitree(
 
 /* IF1 scrollbars are emit-drawn (not draggable components), so they have no
  * place in the generic input path. Intercept the bar strip before the pointer
- * bridge can hand the press to the object-drag system and drive
- * component->scroll_x/y directly. Returns 1 while the bar owns the mouse. */
+ * bridge can hand the press to the object-drag system; the scrollbar helper
+ * publishes its result through the typed setter. Returns 1 while the bar owns
+ * the mouse. */
 static int
 interact_scrollbars(
     struct UIInteraction* interact,
@@ -703,10 +704,18 @@ interact_wheel(
     layer_idx = find_wheel_scroll_layer(tree, mx, my);
     if( layer_idx >= 0 )
     {
-        struct UITreeComponent* layer = &tree->components[layer_idx];
+        struct UITreeComponent const* layer = &tree->components[layer_idx];
+        int sx;
+        int sy;
+        int const max_y = UITree_ScrollMaxY(layer);
+        UITree_ScrollGetClamped(layer, &sx, &sy);
         /* Wheel up (positive) scrolls content up -> scroll_y down. */
-        layer->scroll_y -= input->curr.mouse_wheel_y * UITREE_SCROLLBAR_WHEEL_STEP;
-        UITree_ScrollClampComponent(layer);
+        sy -= input->curr.mouse_wheel_y * UITREE_SCROLLBAR_WHEEL_STEP;
+        if( sy < 0 )
+            sy = 0;
+        if( sy > max_y )
+            sy = max_y;
+        (void)UITree_SetScrollPosAt(tree, layer_idx, sx, sy);
         out->wheel_consumed = 1;
         out->need_redraw = 1;
         return;
@@ -803,10 +812,15 @@ interact_drag_push_ondrag(
      * area (the track for a scrollbar dragger), folded back into
      * content space via the area's scroll. */
     intent.has_event_mouse = 1;
-    intent.event_mouse_x = src->drag_visual_x - parent_x +
-                           (parent_idx >= 0 ? tree->components[parent_idx].scroll_x : 0);
-    intent.event_mouse_y = src->drag_visual_y - parent_y +
-                           (parent_idx >= 0 ? tree->components[parent_idx].scroll_y : 0);
+    {
+        int parent_scroll_x = 0;
+        int parent_scroll_y = 0;
+        if( parent_idx >= 0 && tree->components[parent_idx].type == UIELEM_RS_LAYER )
+            UITree_ScrollGetClamped(
+                &tree->components[parent_idx], &parent_scroll_x, &parent_scroll_y);
+        intent.event_mouse_x = src->drag_visual_x - parent_x + parent_scroll_x;
+        intent.event_mouse_y = src->drag_visual_y - parent_y + parent_scroll_y;
+    }
     if( torirs_trace_drag() )
     {
         fprintf(

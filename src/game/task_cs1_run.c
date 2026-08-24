@@ -88,8 +88,7 @@ task_cs1_eval_component(struct Task_CS1Eval* self)
 
     if( component->cs1_active != (active ? 1 : 0) )
     {
-        component->cs1_active = active ? 1 : 0;
-        component->is_dirty = 1;
+        (void)UITree_SetCS1ActiveAt(self->host->tree, self->cursor, active ? 1 : 0);
         self->host->eval_dirty = true;
     }
 
@@ -105,8 +104,7 @@ task_cs1_eval_component(struct Task_CS1Eval* self)
 
         if( component->cs1_values[i] != value )
         {
-            component->cs1_values[i] = value;
-            component->is_dirty = 1;
+            (void)UITree_SetCS1ValueAt(self->host->tree, self->cursor, i, value);
             self->host->eval_dirty = true;
         }
     }

@@ -440,10 +440,7 @@ task_cs2_bake_pack(struct Task_CS2Run* self)
         struct UITreeComponent* root = &tree->components[pack_root_idx];
         if( !root->behavior.hide )
             root->behavior.hide_unmounted = 1;
-        root->behavior.hide = 1;
-        /* Closing a pack changes the emit list; the retention gate reads
-         * dirty_gen and this path does not go through MarkNodeDirty. */
-        tree->dirty_gen++;
+        (void)UITree_SetHideAt(tree, pack_root_idx, 1);
     }
 
     UITree_LayoutResolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -464,7 +461,7 @@ task_cs2_bake_pack(struct Task_CS2Run* self)
                 int sid = UITreeSceneBridge_EnsureModel(
                     self->host->bridge, c->u.rs_model.gamecache_model_id);
                 if( sid >= 0 )
-                    c->u.rs_model.gamecache_model_id = sid;
+                    (void)UITree_SetModelAt(tree, idx, sid);
             }
         }
     }

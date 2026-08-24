@@ -1,9 +1,231 @@
 #include "test_harness.h"
 
+static void
+test_host_input_epochs(void)
+{
+    struct UITreeHost host;
+    struct TestHostState hs;
+    struct UITreeHostInputStamp stamp;
+    UITreeHostInputMask const camera = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CAMERA);
+    UITreeHostInputMask const pointer = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_POINTER);
+    UITreeHostInputMask const inventory = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY);
+    UITreeHostInputMask const client = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE);
+    UITreeHostInputMask const assets = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_ASSETS);
+    UITreeHostInputMask const world = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_WORLD);
+    UITreeHostInputMask const animation = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_ANIMATION);
+    UITreeHostInputMask const overlays = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_OVERLAYS);
+    UITreeHostInputMask const expected[UITREE_HOST_REQUEST_COUNT] = {
+        [UITREE_HOST_IS_ACTIVE] = client | inventory,
+        [UITREE_HOST_APPLY_BUTTON_CLICK] = 0,
+        [UITREE_HOST_EVAL_TEXT_PLACEHOLDER] = client | inventory,
+        [UITREE_HOST_GET_SELECTED_TAB] = client,
+        [UITREE_HOST_SET_SELECTED_TAB] = 0,
+        [UITREE_HOST_GET_CAMERA_YAW] = camera,
+        [UITREE_HOST_GET_CROSS_ACTIVE] = pointer | animation,
+        [UITREE_HOST_GET_CROSS_ATLAS_FRAME] = pointer | animation,
+        [UITREE_HOST_GET_CROSS_POSITION] = pointer | animation,
+        [UITREE_HOST_GET_MINIMENU_VISIBLE] = pointer | client,
+        [UITREE_HOST_GET_MINIMENU_STATE] = pointer | client,
+        [UITREE_HOST_GET_HOVERTEXT_STATE] = pointer | client,
+        [UITREE_HOST_MEASURE_TEXT] = assets,
+        [UITREE_HOST_SCENE_SPRITE_HAS] = assets,
+        [UITREE_HOST_SCENE_FONT_HAS] = assets,
+        [UITREE_HOST_SCENE_MODEL_HAS] = assets,
+        [UITREE_HOST_GET_INV_SOURCE_SLOT] = inventory,
+        [UITREE_HOST_SET_INV_SOURCE_SLOT] = 0,
+        [UITREE_HOST_GET_SCROLLBAR_SCENE] = assets,
+        [UITREE_HOST_GET_STATIC_SPRITE_SCENE] = assets,
+        [UITREE_HOST_GET_MINIMAP_STATE] = camera | world | assets,
+        [UITREE_HOST_GET_MINIMAP_HIDDEN] = client | world,
+        [UITREE_HOST_GET_MULTIWAY] = world,
+        [UITREE_HOST_GET_REBOOT_TIMER] = client | animation,
+        [UITREE_HOST_GET_MINIMAP_DOTS] = camera | world | overlays,
+        [UITREE_HOST_GET_ENTITY_OVERLAYS] = camera | world | overlays,
+        [UITREE_HOST_GET_CANVAS_OVERLAYS] = overlays,
+        [UITREE_HOST_BEGIN_OVERLAYS] = 0,
+        [UITREE_HOST_GET_ROLE_OVERLAY_GROUPS] = overlays,
+        [UITREE_HOST_SET_ROLE_OVERLAY_CLIP] = 0,
+        [UITREE_HOST_GET_FRAME_OVERLAYS] = overlays,
+        [UITREE_HOST_GET_WORLDMAP_TILES] = camera | world | assets | overlays,
+        [UITREE_HOST_GET_WORLDMAP_OVERVIEW] = camera | world | assets | overlays,
+        [UITREE_HOST_GET_TAB_ENABLED] = client,
+        [UITREE_HOST_GET_TAB_FLASH_HIDDEN] = client | animation,
+        [UITREE_HOST_GET_CHAT_FILTER_MODE] = client,
+        [UITREE_HOST_CYCLE_CHAT_FILTER_MODE] = 0,
+        [UITREE_HOST_GET_CHAT_STATE] = client,
+        [UITREE_HOST_GET_OBJ_NAME] = assets,
+        [UITREE_HOST_GET_INV_DRAG] = pointer | inventory,
+        [UITREE_HOST_GET_INV_COUNT_FONT] = assets,
+        [UITREE_HOST_GET_INV_SELECT_ICON] = inventory | assets,
+        [UITREE_HOST_GET_INV_SELECTION] = inventory,
+        [UITREE_HOST_GET_OBJ_ICON_PLAIN] = assets,
+        [UITREE_HOST_GET_OBJ_ICON_BORDERED] = assets,
+        [UITREE_HOST_GET_DEBUG_OVERLAY] = overlays | assets,
+        [UITREE_HOST_GET_IF_EVENTS] = client,
+    };
+
+    printf("TEST: retained emit host-input epochs\n");
+
+    /* Every current request is deliberately classified. This exact table is a
+     * tripwire for additions: an unclassified new kind safely returns ALL in
+     * production and fails here until its real dependencies are documented. */
+    for( int i = 0; i < UITREE_HOST_REQUEST_COUNT; i++ )
+    {
+        enum UITreeHostRequestKind const kind = (enum UITreeHostRequestKind)i;
+        UITreeHostInputMask const mask = UITree_HostRequestInputMask(kind);
+
+        TEST_ASSERT(!(mask & ~UITREE_HOST_INPUT_ALL), "host request input mask is in range");
+        TEST_ASSERT(mask == expected[i], "host request has its documented input dependencies");
+    }
+    TEST_ASSERT(
+        UITree_HostRequestInputMask((enum UITreeHostRequestKind)(UITREE_HOST_REQUEST_COUNT + 17)) ==
+            UITREE_HOST_INPUT_ALL,
+        "unknown host request conservatively reads every input domain");
+
+    UITree_TestHostInit(&host, &hs);
+    TEST_ASSERT(
+        UITree_HostPublishInputSignature(&host, UITREE_HOST_INPUT_CAMERA, 0x1234),
+        "first semantic source signature advances its domain");
+    TEST_ASSERT(
+        !UITree_HostPublishInputSignature(&host, UITREE_HOST_INPUT_CAMERA, 0x1234),
+        "unchanged semantic source signature is a no-op");
+    {
+        uint64_t const epoch = host.input_epoch[UITREE_HOST_INPUT_CAMERA];
+        TEST_ASSERT(
+            UITree_HostPublishInputSignature(&host, UITREE_HOST_INPUT_CAMERA, 0x5678),
+            "changed semantic source signature advances its domain");
+        TEST_ASSERT(
+            host.input_epoch[UITREE_HOST_INPUT_CAMERA] == epoch + 1,
+            "signature publication advances exactly one epoch");
+        TEST_ASSERT(
+            !UITree_HostPublishInputSignature(
+                &host, (enum UITreeHostInputDomain)UITREE_HOST_INPUT_DOMAIN_COUNT, 1),
+            "invalid signature domain is rejected");
+    }
+    UITree_HostInputStampCapture(&host, camera | inventory, &stamp);
+    TEST_ASSERT(UITree_HostInputStampIsCurrent(&stamp, &host), "fresh host stamp is current");
+
+    UITree_HostInputsChanged(&host, pointer);
+    TEST_ASSERT(
+        UITree_HostInputStampIsCurrent(&stamp, &host),
+        "unobserved host input does not invalidate a stamp");
+
+    UITree_HostInputsChanged(&host, camera);
+    TEST_ASSERT(
+        !UITree_HostInputStampIsCurrent(&stamp, &host),
+        "observed host input invalidates a stamp");
+
+    /* A real walk records only the host domains it reads. The unconditional
+     * canvas-overlay query also proves that a zero-result request is tracked:
+     * a later plugin overlay can add a descriptor where none existed before. */
+    {
+        struct UITree* tree = UITree_New(8);
+        struct UITreeEmitBuffer emit;
+        int32_t const compass =
+            UITree_TestPushXy(tree, -1, UIELEM_BUILTIN_COMPASS, 700, 0, 0, 32, 32);
+
+        TEST_ASSERT(compass >= 0, "push camera-dependent compass");
+        tree->components[compass].u.sprite.scene_id = 1;
+        UITree_EmitBufferInit(&emit);
+        UITree_EmitWalk(tree, &host, &emit, -1);
+        TEST_ASSERT(
+            emit.host_input_dependencies & camera,
+            "emit walk observes the compass camera read");
+        TEST_ASSERT(
+            emit.host_input_dependencies &
+                UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_OVERLAYS),
+            "emit walk observes a zero-result overlay read");
+        TEST_ASSERT(
+            !(emit.host_input_dependencies & pointer),
+            "emit walk does not subscribe to an unread pointer domain");
+        TEST_ASSERT(
+            UITree_EmitBufferHostInputsCurrent(&emit, &host),
+            "completed emit records current host inputs");
+
+        UITree_HostInputsChanged(&host, pointer);
+        TEST_ASSERT(
+            UITree_EmitBufferHostInputsCurrent(&emit, &host),
+            "unread pointer change leaves compass emit reusable");
+        UITree_HostInputsChanged(&host, camera);
+        TEST_ASSERT(
+            !UITree_EmitBufferHostInputsCurrent(&emit, &host),
+            "camera change rejects retained compass emit");
+
+        /* Same pointer vocabulary, three different host producers. Retained
+         * refresh must preserve that provenance rather than replacing plugin
+         * frame/canvas output with the world entity list. */
+        {
+            struct UITreeEntityOverlay item = { 0 };
+            struct UITreeEmitBuffer refresh;
+            int32_t const overlay =
+                UITree_TestPushXy(tree, -1, UIELEM_BUILTIN_ENTITY_OVERLAY, 701, 0, 0, 1, 1);
+            int32_t const world =
+                UITree_TestPushXy(tree, -1, UIELEM_BUILTIN_WORLD, 702, 0, 0, 1, 1);
+            uint8_t const all_overlay_sources =
+                (uint8_t)((1u << UITREE_EMIT_OVERLAY_ENTITY) |
+                          (1u << UITREE_EMIT_OVERLAY_CANVAS) |
+                          (1u << UITREE_EMIT_OVERLAY_FRAME));
+            int source_count[UITREE_EMIT_OVERLAY_FRAME + 1] = { 0 };
+
+            TEST_ASSERT(overlay >= 0 && world >= 0, "push retained overlay fixture");
+            hs.entity_overlays = &item;
+            hs.canvas_overlays = &item;
+            hs.frame_overlays = &item;
+            hs.entity_overlay_count = 0;
+            hs.canvas_overlay_count = 0;
+            hs.frame_overlay_count = 0;
+            UITree_TestResolve(tree);
+            UITree_EmitBufferInit(&refresh);
+            UITree_EmitWalk(tree, &host, &refresh, -1);
+            TEST_ASSERT(
+                (refresh.volatile_overlay_seen & all_overlay_sources) == all_overlay_sources,
+                "zero-count overlay sources retain standing refresh records");
+            TEST_ASSERT(
+                !(refresh.volatile_overlay_nonempty & all_overlay_sources),
+                "zero-count standing records do not expose renderer commands");
+
+            memset(hs.request_count, 0, sizeof(hs.request_count));
+            hs.entity_overlay_count = 1;
+            hs.canvas_overlay_count = 1;
+            hs.frame_overlay_count = 1;
+            TEST_ASSERT(
+                UITree_EmitRefreshVolatile(tree, &host, &refresh),
+                "standing overlay records refresh across zero-to-nonzero transitions");
+            TEST_ASSERT(
+                hs.request_count[UITREE_HOST_GET_ENTITY_OVERLAYS] == 1,
+                "world overlay refresh reissues the world request once");
+            TEST_ASSERT(
+                hs.request_count[UITREE_HOST_GET_CANVAS_OVERLAYS] == 1,
+                "canvas overlay refresh preserves canvas provenance");
+            TEST_ASSERT(
+                hs.request_count[UITREE_HOST_GET_FRAME_OVERLAYS] == 1,
+                "frame overlay refresh preserves frame provenance");
+            for( int i = 0; i < refresh.count; i++ )
+            {
+                int const source = refresh.cmds[i].entity_overlay_source;
+                if( source >= UITREE_EMIT_OVERLAY_ENTITY &&
+                    source <= UITREE_EMIT_OVERLAY_FRAME )
+                    source_count[source]++;
+            }
+            TEST_ASSERT(
+                source_count[UITREE_EMIT_OVERLAY_ENTITY] == 1 &&
+                    source_count[UITREE_EMIT_OVERLAY_CANVAS] == 1 &&
+                    source_count[UITREE_EMIT_OVERLAY_FRAME] == 1,
+                "refresh inserts one command with each original overlay source");
+            UITree_EmitBufferFree(&refresh);
+        }
+
+        UITree_EmitBufferFree(&emit);
+        UITree_Free(tree);
+    }
+}
+
 void
 test_mutate_emit(void)
 {
     printf("TEST: mutate / emit / hide\n");
+
+    test_host_input_epochs();
 
     struct UITree* tree = UITree_New(16);
     struct TestHostState hs;
@@ -180,6 +402,15 @@ test_mutate_emit(void)
         TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[layer], layer, -1, &desc),
                     "scrollbar emit with scroll_y");
         TEST_ASSERT(desc.scroll_off_y == 50, "scroll_off_y from component");
+
+        tree->components[layer].scroll_y = 500;
+        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[layer], layer, -1, &desc),
+                    "scrollbar emit locally clamps an out-of-range value");
+        TEST_ASSERT(desc.scroll_off_y == 200, "emit uses the clamped scrollbar offset");
+        TEST_ASSERT(
+            tree->components[layer].scroll_y == 500,
+            "emit does not mutate canonical scroll state during a read");
+        TEST_ASSERT(UITree_SetScrollPosAt(tree, layer, 0, 50), "restore scroll through typed setter");
     }
 
     TEST_ASSERT(UITree_ApplyColour(tree, 501, 0x99), "apply colour");

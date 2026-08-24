@@ -81,6 +81,10 @@ fill_scrollbar_v(
     int scrollbar_scene,
     struct UITreeEmitDesc* out)
 {
+    int scroll_x;
+    int scroll_y;
+
+    UITree_ScrollGetClamped(component, &scroll_x, &scroll_y);
     memset(out, 0, sizeof(*out));
     out->kind = UITREE_EMIT_SCROLLBAR_V;
     out->node_index = node_index;
@@ -89,8 +93,8 @@ fill_scrollbar_v(
     out->y = y;
     out->w = UITREE_SCROLLBAR_THICKNESS;
     out->h = UITree_ScrollLayerNeedsHorizontal(component) ? h - UITREE_SCROLLBAR_THICKNESS : h;
-    out->scroll_off_x = component->scroll_x;
-    out->scroll_off_y = component->scroll_y;
+    out->scroll_off_x = scroll_x;
+    out->scroll_off_y = scroll_y;
     out->scroll_content = component->u.rs_layer.scroll_height;
     out->scene_id = scrollbar_scene;
     out->atlas_index = 0;
@@ -108,6 +112,10 @@ fill_scrollbar_h(
     int scrollbar_scene,
     struct UITreeEmitDesc* out)
 {
+    int scroll_x;
+    int scroll_y;
+
+    UITree_ScrollGetClamped(component, &scroll_x, &scroll_y);
     memset(out, 0, sizeof(*out));
     out->kind = UITREE_EMIT_SCROLLBAR_H;
     out->node_index = node_index;
@@ -116,8 +124,8 @@ fill_scrollbar_h(
     out->y = y + h - UITREE_SCROLLBAR_THICKNESS;
     out->w = UITree_ScrollLayerNeedsVertical(component) ? w - UITREE_SCROLLBAR_THICKNESS : w;
     out->h = UITREE_SCROLLBAR_THICKNESS;
-    out->scroll_off_x = component->scroll_x;
-    out->scroll_off_y = component->scroll_y;
+    out->scroll_off_x = scroll_x;
+    out->scroll_off_y = scroll_y;
     out->scroll_content = component->u.rs_layer.scroll_width;
     out->scene_id = scrollbar_scene;
     out->atlas_index = 0;
@@ -698,15 +706,11 @@ UITree_EmitFill(
     case UIELEM_RS_LAYER:
     {
         int sb_scene;
-        struct UITreeComponent* layer_mut;
         if( component->if3 )
             return false;
         if( !UITree_ScrollLayerNeedsVertical(component) &&
             !UITree_ScrollLayerNeedsHorizontal(component) )
             return false;
-        /* Clamp scroll position for thumb math (IF1). */
-        layer_mut = (struct UITreeComponent*)component;
-        UITree_ScrollClampComponent(layer_mut);
         sb_scene = host_scrollbar_scene(host);
         /* Prefer vertical when both axes need chrome (EmitWalk emits H after children). */
         if( UITree_ScrollLayerNeedsVertical(component) )
@@ -865,6 +869,15 @@ UITree_EmitBufferFree(struct UITreeEmitBuffer* buf)
         return;
     free(buf->cmds);
     memset(buf, 0, sizeof(*buf));
+}
+
+bool
+UITree_EmitBufferHostInputsCurrent(
+    struct UITreeEmitBuffer const* buf,
+    struct UITreeHost const* host)
+{
+    assert(buf);
+    return UITree_HostInputStampIsCurrent(&buf->host_input_stamp, host);
 }
 
 static void
@@ -1988,7 +2001,6 @@ emit_append_layer_scrollbars(
     assert(layer && out && parent_clip);
     assert(layer->type == UIELEM_RS_LAYER && !layer->if3);
 
-    UITree_ScrollClampComponent(layer);
     sb_scene = host_scrollbar_scene(host);
     vscroll = UITree_ScrollLayerNeedsVertical(layer);
     hscroll = UITree_ScrollLayerNeedsHorizontal(layer);
@@ -2188,7 +2200,7 @@ emit_walk_node(
     /* Native/script hiding outranks replacement art too: an anchor is local to
      * a target that is actually present in this frame, not a way to resurrect
      * a collapsed tab or a gameframe lane that suppressed the whole surface. */
-    if( c->frame_hidden )
+    if( c->frame_hidden || c->projection_hidden )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return;
@@ -2313,17 +2325,18 @@ emit_walk_node(
 
     scroll_layer = layer_needs_scroll_offset(c);
     if1_bar = layer_is_if1_scrollbar(c);
-    if( scroll_layer )
-        UITree_ScrollClampComponent(c);
 
     child_scroll_x = scroll_off_x;
     child_scroll_y = scroll_off_y;
     if( scroll_layer )
     {
+        int clamped_x;
+        int clamped_y;
+        UITree_ScrollGetClamped(c, &clamped_x, &clamped_y);
         if( UITree_ScrollLayerNeedsHorizontal(c) )
-            child_scroll_x += c->scroll_x;
+            child_scroll_x += clamped_x;
         if( UITree_ScrollLayerNeedsVertical(c) )
-            child_scroll_y += c->scroll_y;
+            child_scroll_y += clamped_y;
     }
 
     child_clip = parent_clip;
@@ -2991,11 +3004,27 @@ UITree_EmitWalk(
     int hovered_component_id)
 {
     struct UITreeRoleOverlayGroup const* role_groups = NULL;
+    struct UITreeHost const* stamp_host = host;
+    struct UITreeHost observed_host;
     int role_group_count = 0;
     int role_anchor_seen = 0;
 
     assert(tree);
     assert(out);
+
+    /* Observe host reads through a shallow copy: the application's host stays
+     * immutable, while every UITree_Host call made by this walk contributes
+     * its classified input domains to the buffer. This records requests which
+     * return "nothing" too — important because a later zero-to-nonzero answer
+     * can add a descriptor that did not exist to be refreshed in place. */
+    out->host_input_dependencies = 0;
+    if( host )
+    {
+        observed_host = *host;
+        observed_host.observed_input_mask = &out->host_input_dependencies;
+        host = &observed_host;
+    }
+
     out->volatile_overlay_seen = 0;
     out->volatile_overlay_nonempty = 0;
     memset(out->volatile_overlay_template, 0, sizeof(out->volatile_overlay_template));
@@ -3183,6 +3212,9 @@ UITree_EmitWalk(
         out->volatile_refs++;
         out->volatile_unrefreshable = 1;
     }
+
+    UITree_HostInputStampCapture(
+        stamp_host, out->host_input_dependencies, &out->host_input_stamp);
 }
 
 static void
