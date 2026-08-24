@@ -1,5 +1,245 @@
 #include "test_harness.h"
 
+enum RefreshMutationKind
+{
+    REFRESH_MUTATION_NONE,
+    REFRESH_MUTATION_HOST,
+    REFRESH_MUTATION_LAYOUT,
+    REFRESH_MUTATION_HOVER,
+};
+
+struct RefreshMutationProbe
+{
+    struct UITree* tree;
+    struct UITreeHost* host;
+    int* hovered_component_id;
+    enum RefreshMutationKind mutation;
+    int armed;
+};
+
+static int
+refresh_mutation_request(void* user, struct UITreeHostRequest* req)
+{
+    struct RefreshMutationProbe* probe = (struct RefreshMutationProbe*)user;
+
+    if( probe->armed && req->kind == UITREE_HOST_BEGIN_OVERLAYS )
+    {
+        probe->armed = 0;
+        switch( probe->mutation )
+        {
+        case REFRESH_MUTATION_HOST:
+            UITree_HostInputsChanged(
+                probe->host,
+                UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE));
+            break;
+        case REFRESH_MUTATION_LAYOUT:
+            UITree_LayoutInvalidateBoxes(probe->tree);
+            break;
+        case REFRESH_MUTATION_HOVER:
+            *probe->hovered_component_id = 680;
+            break;
+        case REFRESH_MUTATION_NONE:
+            break;
+        }
+    }
+    return UITree_Host(NULL, req);
+}
+
+static void
+test_emit_retain_gate(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct UITree* other_tree = UITree_New(1);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    struct UITreeEmitBuffer emit;
+    struct UITreeEmitBuffer other_emit;
+    struct UITreeEmitRetainGate gate = { 0 };
+    UITreeHostInputMask const camera = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CAMERA);
+    UITreeHostInputMask const overlays = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_OVERLAYS);
+    int32_t rect;
+
+    printf("TEST: production retained-emit gate identity\n");
+    TEST_ASSERT(tree != NULL, "retain-gate tree allocation");
+    if( !tree )
+    {
+        UITree_Free(other_tree);
+        return;
+    }
+    TEST_ASSERT(other_tree != NULL, "retain-gate second tree allocation");
+
+    UITree_TestHostInit(&host, &hs);
+    rect = UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 680, 5, 6, 40, 30);
+    TEST_ASSERT(rect >= 0, "retain-gate fixture component");
+    UITree_TestResolve(tree);
+    UITree_EmitBufferInit(&emit);
+    UITree_EmitBufferInit(&other_emit);
+    UITree_EmitWalk(tree, &host, &emit, -1);
+
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "an unprimed gate never retains");
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    TEST_ASSERT(
+        UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "a freshly captured settled frame is reusable");
+    other_emit.host_input_stamp = emit.host_input_stamp;
+    other_emit.publication_seq = emit.publication_seq;
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &other_emit, -1, &gate),
+        "a gate cannot authorize a different buffer with matching source stamps");
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "a gate cannot authorize a newer uncaptured buffer publication");
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    if( other_tree )
+    {
+        struct UITreeEmitRetainGate wrong_owner = gate;
+        wrong_owner.source_tree = other_tree;
+        TEST_ASSERT(
+            !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &wrong_owner),
+            "a captured identity cannot be reused by a different tree instance");
+    }
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, 680, &gate),
+        "hover identity participates in retention");
+
+    /* Camera state was not read by this fixture; changing an unrelated host
+     * domain must not manufacture a full walk. The unconditional empty overlay
+     * request was read, so that domain must reject the same retained buffer. */
+    UITree_HostInputsChanged(&host, camera);
+    TEST_ASSERT(
+        UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "an unread host domain does not reject retention");
+    UITree_HostInputsChanged(&host, overlays);
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "a consumed host domain rejects retention");
+
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    TEST_ASSERT(
+        UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "a full walk refreshes host dependency identity");
+
+    UITree_LayoutInvalidateBoxes(tree);
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "pending layout work rejects retention before its sequence advances");
+    UITree_EnsureLayout(tree);
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "a completed new layout sequence rejects the old buffer");
+
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    TEST_ASSERT(UITree_ApplyColour(tree, 680, 0x123456), "mutate retain-gate fixture");
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "a visible component mutation rejects retention");
+
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    TEST_ASSERT(
+        UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 681, 0, 0, 1, 1) >= 0,
+        "topology mutation fixture");
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "tree topology participates in retention");
+
+    /* Volatile requests execute arbitrary host/plugin callbacks. A callback
+     * which changes any term of the original publication identity must make
+     * the retained refresh fall back to a full walk, even when dirty_gen stays
+     * unchanged. */
+    {
+        struct RefreshMutationProbe probe = {
+            .tree = tree,
+            .host = &host,
+        };
+        int hovered = -1;
+
+        probe.hovered_component_id = &hovered;
+        host.user = &probe;
+        host.request = refresh_mutation_request;
+        UITree_EnsureLayout(tree);
+        emit.count = 0;
+        UITree_EmitWalk(tree, &host, &emit, hovered);
+        UITree_EmitRetainGateCapture(tree, &emit, hovered, &gate);
+        TEST_ASSERT(emit.volatile_refs > 0, "refresh-mutation fixture is volatile");
+        TEST_ASSERT(
+            !emit.volatile_unrefreshable,
+            "refresh-mutation fixture permits a retained refresh");
+        TEST_ASSERT(
+            UITree_EmitRetainGateRefreshVolatile(
+                tree, &host, &emit, &hovered, &gate),
+            "an unchanged volatile refresh remains reusable");
+        TEST_ASSERT(
+            !UITree_EmitRetainGateQuiet(tree, &host, &emit, hovered, &gate),
+            "a successful refresh advances the exact buffer publication");
+        UITree_EmitRetainGateCapture(tree, &emit, hovered, &gate);
+        TEST_ASSERT(
+            UITree_EmitRetainGateQuiet(tree, &host, &emit, hovered, &gate),
+            "capturing a successful refresh publishes its new buffer identity");
+
+        probe.mutation = REFRESH_MUTATION_HOST;
+        probe.armed = 1;
+        TEST_ASSERT(
+            !UITree_EmitRetainGateRefreshVolatile(
+                tree, &host, &emit, &hovered, &gate),
+            "a host epoch changed inside refresh rejects the retained frame");
+
+        emit.count = 0;
+        UITree_EmitWalk(tree, &host, &emit, hovered);
+        UITree_EmitRetainGateCapture(tree, &emit, hovered, &gate);
+        probe.mutation = REFRESH_MUTATION_LAYOUT;
+        probe.armed = 1;
+        TEST_ASSERT(
+            !UITree_EmitRetainGateRefreshVolatile(
+                tree, &host, &emit, &hovered, &gate),
+            "layout invalidated inside refresh rejects the retained frame");
+
+        UITree_EnsureLayout(tree);
+        emit.count = 0;
+        UITree_EmitWalk(tree, &host, &emit, hovered);
+        UITree_EmitRetainGateCapture(tree, &emit, hovered, &gate);
+        probe.mutation = REFRESH_MUTATION_HOVER;
+        probe.armed = 1;
+        TEST_ASSERT(
+            !UITree_EmitRetainGateRefreshVolatile(
+                tree, &host, &emit, &hovered, &gate),
+            "hover changed inside refresh rejects the retained frame");
+    }
+
+    UITree_EmitBufferFree(&other_emit);
+    UITree_EmitBufferFree(&emit);
+    UITree_Free(other_tree);
+    UITree_Free(tree);
+}
+
+struct ActiveHostProbe
+{
+    int result;
+    int calls;
+    enum UITreeHostRequestKind last_kind;
+    struct UITreeComponent const* last_component;
+};
+
+static int
+active_host_probe_request(void* user, struct UITreeHostRequest* req)
+{
+    struct ActiveHostProbe* probe = (struct ActiveHostProbe*)user;
+
+    probe->calls++;
+    probe->last_kind = req->kind;
+    probe->last_component = req->u.is_active.component;
+    return probe->result;
+}
+
 static void
 test_host_input_epochs(void)
 {
@@ -82,6 +322,55 @@ test_host_input_epochs(void)
             UITREE_HOST_INPUT_ALL,
         "unknown host request conservatively reads every input domain");
 
+    /* UITree_ComponentIsActiveHost bypasses the generic UITree_Host dispatcher
+     * because this request occurs once per drawable node. Pin its observable
+     * contract directly so a future dependency-table change cannot leave the
+     * optimized path subscribed to a stale set of input domains. */
+    {
+        struct UITreeHost active_host;
+        struct UITreeComponent component = { 0 };
+        struct ActiveHostProbe probe = { 0 };
+        UITreeHostInputMask observed = 0;
+        UITreeHostInputMask const active_dependencies =
+            UITree_HostRequestInputMask(UITREE_HOST_IS_ACTIVE);
+
+        UITree_HostInit(&active_host);
+        active_host.user = &probe;
+        active_host.request = active_host_probe_request;
+        active_host.observed_input_mask = &observed;
+        probe.result = 1;
+        TEST_ASSERT(
+            UITree_ComponentIsActiveHost(&active_host, &component),
+            "active-state hot path returns the host result");
+        TEST_ASSERT(probe.calls == 1, "active-state hot path dispatches exactly once");
+        TEST_ASSERT(
+            probe.last_kind == UITREE_HOST_IS_ACTIVE && probe.last_component == &component,
+            "active-state hot path preserves the request payload");
+        TEST_ASSERT(
+            observed == active_dependencies,
+            "active-state hot path observes the canonical dependency mask");
+
+        observed = 0;
+        probe.result = 0;
+        TEST_ASSERT(
+            !UITree_ComponentIsActiveHost(&active_host, &component),
+            "active-state hot path preserves a false host result");
+        TEST_ASSERT(probe.calls == 2, "false active-state result still dispatches once");
+        TEST_ASSERT(
+            observed == active_dependencies,
+            "false active-state result observes the canonical dependency mask");
+
+        observed = 0;
+        active_host.request = NULL;
+        TEST_ASSERT(
+            !UITree_ComponentIsActiveHost(&active_host, &component),
+            "hostless active-state fallback is false");
+        TEST_ASSERT(probe.calls == 2, "hostless active-state fallback does not dispatch");
+        TEST_ASSERT(
+            observed == active_dependencies,
+            "hostless active-state fallback still records its dependencies");
+    }
+
     UITree_TestHostInit(&host, &hs);
     TEST_ASSERT(
         UITree_HostPublishInputSignature(&host, UITREE_HOST_INPUT_CAMERA, 0x1234),
@@ -128,6 +417,10 @@ test_host_input_epochs(void)
         tree->components[compass].u.sprite.scene_id = 1;
         UITree_EmitBufferInit(&emit);
         UITree_EmitWalk(tree, &host, &emit, -1);
+        TEST_ASSERT(
+            (emit.host_input_dependencies & (client | inventory)) ==
+                (client | inventory),
+            "hot active-state dispatch records both of its dependency domains");
         TEST_ASSERT(
             emit.host_input_dependencies & camera,
             "emit walk observes the compass camera read");
@@ -225,6 +518,7 @@ test_mutate_emit(void)
 {
     printf("TEST: mutate / emit / hide\n");
 
+    test_emit_retain_gate();
     test_host_input_epochs();
 
     struct UITree* tree = UITree_New(16);

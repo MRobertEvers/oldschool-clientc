@@ -103,6 +103,7 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
+#include "render/torirs_world_projection.h"
 #include "toridraw.h"
 #include "toridraw_model_transform.h"
 #include "ui/uitree_build.h"
@@ -2180,18 +2181,6 @@ app_minimenu_font_scene_id(struct App* app);
  * hitsplats and overhead chat all landing 512/scale times too far from the
  * viewport centre.
  */
-static int
-app_world_proj_scale(struct App* app)
-{
-    struct ToriDraw_Camera const* cam = &app->world_camera;
-    int scale;
-    if( cam->proj_mode == TORIDRAW_PROJ_MODE_FOV )
-        scale = toridraw_proj_scale_from_fov(cam->fov_rpi2048);
-    else
-        scale = cam->proj_scale;
-    return scale > 0 ? scale : TORIDRAW_PROJ_SCALE_DEFAULT;
-}
-
 /* Project a world point at an ABSOLUTE height. The height-above-ground
  * spelling below samples terrain per point, which is right for entities but
  * wrong for anything that must stay coplanar — a footprint outline on sloped
@@ -2205,39 +2194,26 @@ app_world_project_at(
     int* out_x,
     int* out_y)
 {
-    int dx, dy, dz, tmp;
-    int sin_pitch, cos_pitch, sin_yaw, cos_yaw;
-    int scale;
-
     if( !app->world || !app->world_view_valid )
         return 0;
     if( fine_x < 128 || fine_z < 128 )
         return 0;
-
-    dx = fine_x - app->world_camera_pos.x;
-    dy = world_y - app->world_camera_pos.y;
-    dz = fine_z - app->world_camera_pos.z;
-
-    sin_pitch = ToriDraw_Sin(app->world_camera.pitch);
-    cos_pitch = ToriDraw_Cos(app->world_camera.pitch);
-    sin_yaw = ToriDraw_Sin(app->world_camera.yaw);
-    cos_yaw = ToriDraw_Cos(app->world_camera.yaw);
-
-    tmp = (dz * sin_yaw + dx * cos_yaw) >> 16;
-    dz = (dz * cos_yaw - dx * sin_yaw) >> 16;
-    dx = tmp;
-
-    tmp = (dy * cos_pitch - dz * sin_pitch) >> 16;
-    dz = (dy * sin_pitch + dz * cos_pitch) >> 16;
-    dy = tmp;
-
-    if( dz < 50 )
-        return 0;
-
-    scale = app_world_proj_scale(app);
-    *out_x = app->world_emit_desc.x + app->world_emit_desc.w / 2 + (dx * scale / dz);
-    *out_y = app->world_emit_desc.y + app->world_emit_desc.h / 2 + (dy * scale / dz);
-    return 1;
+    /* Keep the reference's overlay near plane at 50. The renderer camera may
+     * be lowered experimentally, but accepting a point closer than the overlay
+     * contract did before this extraction would be an appearance change. */
+    return ToriRS_WorldProjectPoint(
+        &app->world_camera,
+        &app->world_camera_pos,
+        app->world_emit_desc.x,
+        app->world_emit_desc.y,
+        app->world_emit_desc.w,
+        app->world_emit_desc.h,
+        50,
+        fine_x,
+        world_y,
+        fine_z,
+        out_x,
+        out_y);
 }
 
 static int
@@ -21678,8 +21654,8 @@ app_world_camera_cinema(struct App* app)
  *
  * The follow camera's `pitch * 3 + 600` is a FIXED-VIEWPORT distance: the
  * reference then scales it by an endpoint pair interpolated over the world
- * viewport HEIGHT, exactly the way the projection scale is (app_world_proj_scale
- * / class159.method5357), and over the same `height - 334` in [0,100] band:
+ * viewport HEIGHT, exactly the way the projection scale is
+ * (class159.method5357), and over the same `height - 334` in [0,100] band:
  *
  *     zoom = (far - near) * clamp(vpH - 334, 0, 100) / 100 + near
  *     distance = (pitch * 3 + 600) * zoom / 256
@@ -21726,8 +21702,6 @@ app_world_camera_follow(struct App* app)
     struct WorldEntity_Player* player;
     int target_x, target_y, target_z;
     int pitch, yaw, distance;
-    int inv_pitch, inv_yaw;
-    int off_x, off_y, off_z;
 
     /* U unlocked the camera: the follow update stands down and the W/A/S/D +
      * R/F debug keys own world_camera_pos until U relocks. Without this gate
@@ -21909,10 +21883,6 @@ app_world_camera_follow(struct App* app)
     distance = pitch * 3 + app->world_cam_height;
     if( app->revconfig_profile.camera.zoom_mode != REVCONFIG_CAMERA_ZOOM_FIXED )
         distance = distance * app_world_cam_dist_zoom(app) / 256;
-    off_x = 0;
-    off_y = 0;
-    off_z = distance;
-
     /* Look-at height: the reference samples the ground under the ACTOR (not
      * under the eased anchor), takes the minimum over its footprint, then
      * drops 8, then the camera's own 50 — client.method1605:
@@ -21924,28 +21894,14 @@ app_world_camera_follow(struct App* app)
     target_x = (int)app->orbit_x;
     target_z = (int)app->orbit_z;
 
-    inv_pitch = (2048 - pitch) & 0x7ff;
-    inv_yaw = (2048 - yaw) & 0x7ff;
-    if( inv_pitch != 0 )
-    {
-        int sin = ToriDraw_Sin(inv_pitch);
-        int cos = ToriDraw_Cos(inv_pitch);
-        int tmp = (off_y * cos - distance * sin) >> 16;
-        off_z = (off_y * sin + distance * cos) >> 16;
-        off_y = tmp;
-    }
-    if( inv_yaw != 0 )
-    {
-        int sin = ToriDraw_Sin(inv_yaw);
-        int cos = ToriDraw_Cos(inv_yaw);
-        int tmp = (off_z * sin + off_x * cos) >> 16;
-        off_z = (off_z * cos - off_x * sin) >> 16;
-        off_x = tmp;
-    }
-
-    app->world_camera_pos.x = target_x - off_x;
-    app->world_camera_pos.y = target_y - off_y;
-    app->world_camera_pos.z = target_z - off_z;
+    ToriRS_OrbitCameraEye(
+        target_x,
+        target_y,
+        target_z,
+        pitch,
+        yaw,
+        distance,
+        &app->world_camera_pos);
     app->world_camera.pitch = pitch;
     app->world_camera.yaw = yaw;
 
@@ -27054,32 +27010,27 @@ App_RunOnce(
              * last completed sequence can otherwise retain stale geometry in
              * the frame between UITree_LayoutInvalidate and EmitWalk's
              * UITree_EnsureLayout. */
-            gate_quiet = app->emit_gate_primed && !app->tree->layout_stale &&
-                         !app->tree->layout_force_full &&
-                         app->tree->dirty_gen == app->emit_gate_prev_dirty_gen &&
-                         app->tree->layout_resolve_seq == app->emit_gate_prev_layout_seq &&
-                         app->tree->generation == app->emit_gate_prev_tree_generation &&
-                         app->hover_com_id == app->emit_gate_prev_hover &&
-                         UITree_EmitBufferHostInputsCurrent(&app->emit, &app->ui_host);
+            gate_quiet = UITree_EmitRetainGateQuiet(
+                app->tree,
+                &app->ui_host,
+                &app->emit,
+                app->hover_com_id,
+                &app->emit_gate);
             /* Every dirty_gen source was measured bursty (creates, hide flips,
              * child link/unlink — all interface-open work), so on a steady-state
              * frame the tree term should hold and the gate should fire. It fires
              * twice in 2,000 frames. These two counters say which term is
              * actually failing instead of assuming it is the tree one. */
-            if( app->emit_gate_primed &&
-                app->tree->dirty_gen == app->emit_gate_prev_dirty_gen )
+            if( app->emit_gate.primed &&
+                app->tree->dirty_gen == app->emit_gate.dirty_gen )
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GATE_TREE_QUIET, 1);
-            if( app->emit_gate_primed && app->hover_com_id == app->emit_gate_prev_hover )
+            if( app->emit_gate.primed &&
+                app->hover_com_id == app->emit_gate.hovered_component_id )
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GATE_HOVER_QUIET, 1);
-            if( app->emit_gate_primed )
+            if( app->emit_gate.primed )
                 TORIRS_PERF_COUNT(
                     TORIRS_PERF_CTR_EMIT_DIRTY_BUMPS,
-                    (int)(app->tree->dirty_gen - app->emit_gate_prev_dirty_gen));
-            app->emit_gate_prev_dirty_gen = app->tree->dirty_gen;
-            app->emit_gate_prev_layout_seq = app->tree->layout_resolve_seq;
-            app->emit_gate_prev_tree_generation = app->tree->generation;
-            app->emit_gate_prev_hover = app->hover_com_id;
-            app->emit_gate_primed = 1;
+                    (int)(app->tree->dirty_gen - app->emit_gate.dirty_gen));
         }
         /* Opt 11/12/14, emit half: nothing the walk reads has moved, so the list
          * it would produce is the one already in the buffer. Reuse it in place —
@@ -27118,10 +27069,12 @@ App_RunOnce(
 
             if( retain )
             {
-                int reusable = 1;
-                if( app->emit.volatile_refs )
-                    reusable = UITree_EmitRefreshVolatile(
-                        app->tree, &app->ui_host, &app->emit);
+                int reusable = UITree_EmitRetainGateRefreshVolatile(
+                    app->tree,
+                    &app->ui_host,
+                    &app->emit,
+                    &app->hover_com_id,
+                    &app->emit_gate);
                 if( reusable )
                     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAINED, 1);
                 else
@@ -27148,6 +27101,12 @@ App_RunOnce(
                 }
             }
         }
+        /* Publish the identity after either the retained volatile refresh or
+         * the full walk. A host callback or EnsureLayout inside those paths may
+         * advance an input/tree epoch; capturing before publication would make
+         * the next frame conservatively rebuild despite a settled result. */
+        UITree_EmitRetainGateCapture(
+            app->tree, &app->emit, app->hover_com_id, &app->emit_gate);
         /* DIAGNOSTIC (Opt 11 scoping, temporary): retaining the emit list only
          * pays if the list repeats, so measure the repeat rate before building
          * anything that could retain it. Every desc is memset before fill, so

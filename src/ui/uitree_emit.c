@@ -871,6 +871,14 @@ UITree_EmitBufferFree(struct UITreeEmitBuffer* buf)
     memset(buf, 0, sizeof(*buf));
 }
 
+static void
+emit_buffer_advance_publication(struct UITreeEmitBuffer* buf)
+{
+    buf->publication_seq++;
+    if( buf->publication_seq == 0 )
+        buf->publication_seq++;
+}
+
 bool
 UITree_EmitBufferHostInputsCurrent(
     struct UITreeEmitBuffer const* buf,
@@ -878,6 +886,96 @@ UITree_EmitBufferHostInputsCurrent(
 {
     assert(buf);
     return UITree_HostInputStampIsCurrent(&buf->host_input_stamp, host);
+}
+
+static bool
+emit_retain_gate_sources_quiet(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer const* buf,
+    int hovered_component_id,
+    struct UITreeEmitRetainGate const* gate)
+{
+    /* A pending invalidation precedes the completed resolver-sequence bump.
+     * Both pending flags therefore belong to the identity; otherwise the
+     * frame between invalidation and resolution could retain stale boxes. */
+    return gate->primed && gate->source_tree == tree && !tree->layout_stale &&
+           !tree->layout_force_full &&
+           tree->dirty_gen == gate->dirty_gen &&
+           tree->layout_resolve_seq == gate->layout_resolve_seq &&
+           tree->generation == gate->tree_generation &&
+           hovered_component_id == gate->hovered_component_id &&
+           UITree_EmitBufferHostInputsCurrent(buf, host);
+}
+
+bool
+UITree_EmitRetainGateQuiet(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer const* buf,
+    int hovered_component_id,
+    struct UITreeEmitRetainGate const* gate)
+{
+    assert(tree);
+    assert(buf);
+    assert(gate);
+
+    return gate->source_buffer == buf &&
+           gate->buffer_publication_seq == buf->publication_seq &&
+           emit_retain_gate_sources_quiet(
+               tree, host, buf, hovered_component_id, gate);
+}
+
+void
+UITree_EmitRetainGateCapture(
+    struct UITree const* tree,
+    struct UITreeEmitBuffer const* buf,
+    int hovered_component_id,
+    struct UITreeEmitRetainGate* gate)
+{
+    assert(tree);
+    assert(buf);
+    assert(gate);
+
+    gate->source_tree = tree;
+    gate->source_buffer = buf;
+    gate->buffer_publication_seq = buf->publication_seq;
+    gate->dirty_gen = tree->dirty_gen;
+    gate->layout_resolve_seq = tree->layout_resolve_seq;
+    gate->tree_generation = tree->generation;
+    gate->hovered_component_id = hovered_component_id;
+    gate->primed = 1;
+}
+
+bool
+UITree_EmitRetainGateRefreshVolatile(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* buf,
+    int const* hovered_component_id,
+    struct UITreeEmitRetainGate const* gate)
+{
+    assert(tree);
+    assert(buf);
+    assert(hovered_component_id);
+    assert(gate);
+
+    if( !UITree_EmitRetainGateQuiet(
+            tree, host, buf, *hovered_component_id, gate) ||
+        buf->volatile_unrefreshable )
+        return false;
+    if( !buf->volatile_refs )
+        return true;
+    if( !UITree_EmitRefreshVolatile(tree, host, buf) )
+        return false;
+
+    /* Host callbacks are arbitrary App/plugin code. They can advance an input
+     * epoch, change topology, invalidate layout, or move hover while refreshing
+     * a same-frame pointer. Recheck the complete semantic identity captured by
+     * the original full walk before publishing any partially refreshed list.
+     * Ignore only publication_seq: this refresh itself deliberately advanced it. */
+    return emit_retain_gate_sources_quiet(
+        tree, host, buf, *hovered_component_id, gate);
 }
 
 static void
@@ -3215,6 +3313,7 @@ UITree_EmitWalk(
 
     UITree_HostInputStampCapture(
         stamp_host, out->host_input_dependencies, &out->host_input_stamp);
+    emit_buffer_advance_publication(out);
 }
 
 static void
@@ -3344,6 +3443,9 @@ UITree_EmitRefreshVolatile(
     assert(tree);
     assert(out);
     assert(!out->volatile_unrefreshable);
+    /* Invalidate any gate bound to the pre-refresh buffer even if a callback
+     * aborts after changing only part of the volatile descriptor set. */
+    emit_buffer_advance_publication(out);
     dirty_before = tree->dirty_gen;
 
     {

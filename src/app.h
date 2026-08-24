@@ -1423,11 +1423,7 @@ struct App
     /** Previous publication identity for the retained-emit gate. Per-App (not
      * function statics) so a second client or a reinitialized App cannot inherit
      * another tree's quiet verdict. */
-    uint32_t emit_gate_prev_dirty_gen;
-    uint32_t emit_gate_prev_layout_seq;
-    uint32_t emit_gate_prev_tree_generation;
-    int emit_gate_prev_hover;
-    int emit_gate_primed;
+    struct UITreeEmitRetainGate emit_gate;
     struct UIInteraction interact;
     struct SeqLoadTracker seq_loads;
     struct InterfaceOpenStats open_stats;

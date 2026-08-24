@@ -45,8 +45,15 @@ framebuffer redraw. In particular, it now has:
   completed layout sequence;
 - request-by-request dependency recording, including calls that return no
   overlays, and source-correct refresh of entity, canvas, and frame overlays;
+- one shared production retained-emit predicate used by the app, unit tests,
+  and the A/B harness, bound to an exact tree/buffer publication and revalidated
+  after volatile callbacks, plus a dependency-preserving fast path for the
+  per-node active-state request;
 - focused tests for mutation impacts, unchanged writes, invalid inputs,
   dependency masking, stale-stamp rejection, and volatile overlay provenance.
+- a deterministic before/oracle/after raster and benchmark suite with exact RGB
+  comparisons, statistical performance gates, screenshots, diffs, reports,
+  JUnit, and artifact checksums.
 
 The app currently derives coarse source signatures at the publication fence and
 also bumps inventory/client-state domains from authoritative callbacks. This is
@@ -316,6 +323,14 @@ the construction exemption.
    retained frames, forced walks, and false-positive rebuilds.
 5. Keep compare-before-write counters so optimization work can distinguish real
    state changes from scripts restating current values.
+6. Run `tools/uitree_redraw_suite.py` for a cache-independent four-way oracle:
+   `origin/v3` forced and production-retained redraws plus candidate forced and
+   production-retained redraws. Forced-vs-forced proves implementation parity;
+   candidate retained-vs-forced proves retention soundness; legacy retained
+   differences are accepted only at named host-input regressions and become the
+   before/fix evidence. Benchmark timings compare production policy with
+   production policy in separate processes, with screenshots and verification
+   work outside timed regions.
 
 ## Risks and mitigations
 
@@ -444,6 +459,7 @@ the changed boundary:
 | integration | `make -C src test-uitree`, `make -C src test-client-trigger`, optimized native link |
 | camera regression | deterministic orbit capture with fishing sprite aligned to its world marker |
 | retention soundness | representative replay with `TORIRS_EMIT_VERIFY=1`, zero unsound reports |
+| A/B appearance and speed | `python3 tools/uitree_redraw_suite.py --profile quick` for PRs; `--profile full` for release/nightly evidence |
 
 Focused oracle cases also include: CS1-only active/value changes, wheel and
 scrollbar child movement, drag begin/move/end ordering, unhide of a previously
@@ -456,6 +472,89 @@ layout nodes visited, dirty roots, emit descriptors rebuilt, host dependency
 invalidations, and total frame time. Correctness gates land before performance
 claims.
 
+## Deterministic A/B redraw suite
+
+The implementation in `test/uitree_redraw/` and
+`tools/uitree_redraw_suite.py` makes appearance and speed claims reproducible
+without a cache, save, network session, or interactive camera. The runner
+creates a detached worktree at the resolved `origin/v3` commit and builds the
+same C driver against both source revisions. A release run refuses a dirty
+candidate worktree; `--allow-dirty` exists only for development evidence and is
+labelled as such.
+
+Four independent visual processes are required:
+
+1. baseline with full walks forced — the old implementation's correct-picture
+   oracle;
+2. baseline with its actual App-local production retention policy — the
+   user-visible before state;
+3. candidate with full walks forced — the candidate correct-picture oracle;
+4. candidate with its shared production retention predicate — the optimized
+   after state.
+
+Every frame records scenario/checkpoint, normalized pixel hash, semantic command
+hash, descriptor count, full walks, and retained frames. Each 32-bit BMP is
+decoded to top-to-bottom RGB. Release gates require:
+
+```text
+baseline forced RGB == candidate forced RGB
+candidate retained RGB == candidate forced RGB
+different pixels == 0 and maximum channel delta == 0
+```
+
+Legacy retained output must equal the oracle outside the explicitly named
+`host-camera` and `host-input` frames, must differ in at least one such frame,
+and must recover on the following tree mutation. The gallery consequently shows
+the honest production-retained before image, forced oracle, candidate-retained
+after image, and exact diff instead of pretending that `origin/v3` always did a
+full walk.
+
+The 24-state seeded trace covers initial/steady retention, hover enter/leave,
+two-axis nested scrolling, text/colour/alpha changes, randomized dynamic child
+replacement, host-only camera and CS1 changes, previously unreachable
+hide/unhide, volatile overlay 0→1→2→0 refresh, arc/sprite transforms, and a real
+fishing-marker orbit. `App` and the harness call the same pure integer orbit and
+world-point projection leaf; fixed tile-centre goldens cover move, viewport
+clip, near-plane hide, and reveal without assigning screen coordinates as test
+inputs. The retained process uses an independent reference fixture, so its full
+oracle cannot mutate production reachability scratch. A separate 46-image lane
+compiles the real display-list translator, baked fonts, and Soft3D rasterizer
+against both revisions.
+
+Performance trials run three independent processes with the same seed:
+baseline production retention, candidate production retention, and candidate
+forced full walk. A balanced six-order schedule removes a fixed thermal/order
+bias. The report uses paired candidate/baseline ratios and deterministic paired
+bootstrap 95% confidence intervals. `steady` and `correct_aggregate` (steady,
+overlay position, scroll, hover, content, and topology) must have an upper bound
+below 1.0. The stale legacy camera workload is reported but excluded from the
+speed claim; candidate retained-vs-forced measurements separately record the
+cost of producing the correct camera frame and the benefit on steady frames.
+Mutation workloads keep the 3%/100 ns non-regression guard.
+
+Profiles are intentionally different sizes:
+
+| Profile | Visual frames | Timed operations per scenario | Process pairs | Bootstrap samples |
+|---|---:|---:|---:|---:|
+| `quick` | 256 | 4,000 | 6 | 5,000 |
+| `full` | 2,048 | 30,000 | 18 | 20,000 |
+
+Every complete run first archives the full UITree tests, client-trigger tests,
+CS2 frame-settlement tests, and an optimized native-client link. It then
+preserves `manifest.json`, JSON/CSV summaries, a Markdown report, raw per-process
+metrics, all before/oracle/after BMPs, decoded-RGB diff BMPs, an
+HTML gallery, JUnit, command logs, and `SHA256SUMS`, including on failure. The
+default artifact root is under ignored `build/uitree-redraw/`; large generated
+evidence is uploaded by CI or retained locally rather than committed as source
+goldens. The exact runner/output contract and optional cache-backed full-client
+replay extension are documented in `test/uitree_redraw/README.md`.
+
+### Recorded PR-profile result (2026-08-24)
+
+The final numbers below are populated only from a clean committed worktree.
+Development runs may be used to tune the suite, but cannot support the PR's
+appearance or performance claim.
+
 ## Verification performed in this worktree
 
 - [x] `make -C src test-uitree` — all UITree tests passed, including the new
@@ -465,8 +564,11 @@ claims.
 - [x] `make -C src test-cs2-frame-settle` — all settle/fence cases passed.
 - [x] `make -C src -B OPT=1 all` — clean optimized rebuild and native link
       completed; only existing unrelated compiler/linker warnings were emitted.
+- [ ] Run the clean four-way `quick` profile and record its gate/statistics
+      summary above.
 - [x] `git diff --check` — no whitespace errors.
-- [ ] Run a deterministic in-client fishing-overlay orbit capture.
+- [x] Run the deterministic App-shared fishing-overlay projection/orbit capture
+      (move, clip, near-plane hide, and reveal goldens).
 - [ ] Run a representative replay with `TORIRS_EMIT_VERIFY=1` and confirm zero
       `[emit-unsound]` reports before shipping retention broadly.
 

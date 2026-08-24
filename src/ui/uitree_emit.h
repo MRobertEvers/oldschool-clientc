@@ -218,6 +218,35 @@ struct UITreeEmitBuffer
      * inventory contents, asset availability, etc.). */
     UITreeHostInputMask host_input_dependencies;
     struct UITreeHostInputStamp host_input_stamp;
+    /** Advances after every full walk or attempted volatile refresh. Retain
+     * gates bind to one exact buffer publication, not merely to a tree whose
+     * counters happen to match. Zero is reserved for an unpublished buffer. */
+    uint64_t publication_seq;
+};
+
+/**
+ * Publication identity retained between frames by the whole-buffer emit gate.
+ *
+ * Keep the predicate beside the emitter instead of open-coding it in App or a
+ * test harness: a new input to the emitted command list must have one shared
+ * place to join the identity.  The snapshot is intentionally per App/tree;
+ * process-global statics can make a newly initialized client inherit another
+ * client's quiet verdict.
+ */
+struct UITreeEmitRetainGate
+{
+    /** Exact tree whose publication identity was captured. Generations can
+     * coincide across two independently initialized trees, so the owner is a
+     * required part of the identity rather than an assertion-only aid. */
+    struct UITree const* source_tree;
+    /** Exact emitted publication described by this identity. */
+    struct UITreeEmitBuffer const* source_buffer;
+    uint64_t buffer_publication_seq;
+    uint32_t dirty_gen;
+    uint32_t layout_resolve_seq;
+    uint32_t tree_generation;
+    int hovered_component_id;
+    uint8_t primed;
 };
 
 void
@@ -233,6 +262,35 @@ bool
 UITree_EmitBufferHostInputsCurrent(
     struct UITreeEmitBuffer const* buf,
     struct UITreeHost const* host);
+
+/** True only when a previously emitted whole command buffer is reusable. */
+bool
+UITree_EmitRetainGateQuiet(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer const* buf,
+    int hovered_component_id,
+    struct UITreeEmitRetainGate const* gate);
+
+/** Capture the identity of the tree/hover state about to be published. */
+void
+UITree_EmitRetainGateCapture(
+    struct UITree const* tree,
+    struct UITreeEmitBuffer const* buf,
+    int hovered_component_id,
+    struct UITreeEmitRetainGate* gate);
+
+/** Refresh same-frame host pointers only while the complete pre-refresh
+ * publication identity remains current. The hover pointer is read both before
+ * and after callbacks, since a callback is permitted to invalidate App state.
+ * Returns false when the caller must discard the partial refresh and full-walk. */
+bool
+UITree_EmitRetainGateRefreshVolatile(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* buf,
+    int const* hovered_component_id,
+    struct UITreeEmitRetainGate const* gate);
 
 /**
  * Full DFS walk: fill clip, EmitFill, append drawable cmds.
