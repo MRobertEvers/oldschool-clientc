@@ -713,10 +713,10 @@ static const struct ToriDraw_RasterKernelHDVTable g_hd_branching_vtable = {
     .draw = {
         [TORIDRAW_RASTER_FACE_HD_GOURAUD] = hd_branching_gouraud,
         [TORIDRAW_RASTER_FACE_HD_FLAT] = hd_branching_flat,
-        [TORIDRAW_RASTER_FACE_HD_PLANE] = hd_draw_plane_painter,
-        [TORIDRAW_RASTER_FACE_HD_CYLINDER] = hd_draw_cylinder,
-        [TORIDRAW_RASTER_FACE_HD_CUBE] = hd_draw_cube,
-        [TORIDRAW_RASTER_FACE_HD_SPHERE] = hd_draw_sphere,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE] = hd_draw_plane_painter,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER] = hd_draw_cylinder,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE] = hd_draw_cube,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE] = hd_draw_sphere,
     },
 };
 
@@ -724,10 +724,10 @@ static const struct ToriDraw_RasterKernelHDVTable g_hd_scanline_vtable = {
     .draw = {
         [TORIDRAW_RASTER_FACE_HD_GOURAUD] = hd_scanline_gouraud,
         [TORIDRAW_RASTER_FACE_HD_FLAT] = hd_scanline_flat,
-        [TORIDRAW_RASTER_FACE_HD_PLANE] = hd_draw_plane_painter,
-        [TORIDRAW_RASTER_FACE_HD_CYLINDER] = hd_draw_cylinder,
-        [TORIDRAW_RASTER_FACE_HD_CUBE] = hd_draw_cube,
-        [TORIDRAW_RASTER_FACE_HD_SPHERE] = hd_draw_sphere,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE] = hd_draw_plane_painter,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER] = hd_draw_cylinder,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE] = hd_draw_cube,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE] = hd_draw_sphere,
     },
 };
 
@@ -735,10 +735,10 @@ static const struct ToriDraw_RasterKernelHDVTable g_hd_z_vtable = {
     .draw = {
         [TORIDRAW_RASTER_FACE_HD_GOURAUD] = hd_draw_gouraud_z,
         [TORIDRAW_RASTER_FACE_HD_FLAT] = hd_draw_flat_z,
-        [TORIDRAW_RASTER_FACE_HD_PLANE] = hd_draw_plane_z,
-        [TORIDRAW_RASTER_FACE_HD_CYLINDER] = hd_draw_cylinder_z,
-        [TORIDRAW_RASTER_FACE_HD_CUBE] = hd_draw_cube_z,
-        [TORIDRAW_RASTER_FACE_HD_SPHERE] = hd_draw_sphere_z,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE] = hd_draw_plane_z,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER] = hd_draw_cylinder_z,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE] = hd_draw_cube_z,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE] = hd_draw_sphere_z,
     },
 };
 
@@ -985,7 +985,7 @@ hd_draw_face(struct hd_ctx* ctx, int face)
         if( st )
             st->drawn_plane++;
 
-        ctx->face.face_class = TORIDRAW_RASTER_FACE_HD_PLANE;
+        ctx->face.face_class = TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE;
         ctx->face.texture.frame_fallback = mapping_fallback;
         ctx->face.texture.mapping.vertex_frame.p = tp;
         ctx->face.texture.mapping.vertex_frame.m = tm;
@@ -1009,11 +1009,11 @@ hd_draw_face(struct hd_ctx* ctx, int face)
     ctx->face.texture.frame_fallback = false;
     ctx->face.texture.mapping.hd_mapping = mapping;
     if( render_type == 1 )
-        ctx->face.face_class = TORIDRAW_RASTER_FACE_HD_CYLINDER;
+        ctx->face.face_class = TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER;
     else if( render_type == 2 )
-        ctx->face.face_class = TORIDRAW_RASTER_FACE_HD_CUBE;
+        ctx->face.face_class = TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE;
     else
-        ctx->face.face_class = TORIDRAW_RASTER_FACE_HD_SPHERE;
+        ctx->face.face_class = TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE;
     hd_dispatch_prepared_face(ctx);
 }
 
@@ -1412,10 +1412,10 @@ static const struct ToriDraw_RasterKernelHDVTable g_hd_pixel16_vtable = {
     .draw = {
         [TORIDRAW_RASTER_FACE_HD_GOURAUD] = hd_pixel16_unsupported_face,
         [TORIDRAW_RASTER_FACE_HD_FLAT] = hd_pixel16_unsupported_face,
-        [TORIDRAW_RASTER_FACE_HD_PLANE] = hd_pixel16_unsupported_face,
-        [TORIDRAW_RASTER_FACE_HD_CYLINDER] = hd_pixel16_unsupported_face,
-        [TORIDRAW_RASTER_FACE_HD_CUBE] = hd_pixel16_unsupported_face,
-        [TORIDRAW_RASTER_FACE_HD_SPHERE] = hd_pixel16_unsupported_face,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE] = hd_pixel16_unsupported_face,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER] = hd_pixel16_unsupported_face,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE] = hd_pixel16_unsupported_face,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE] = hd_pixel16_unsupported_face,
     },
 };
 

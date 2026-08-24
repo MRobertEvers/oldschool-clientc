@@ -49,10 +49,10 @@ HD has six terminal face classes:
 |---|---|
 | `TORIDRAW_RASTER_FACE_HD_GOURAUD` | Solid Gouraud fallback or untextured face |
 | `TORIDRAW_RASTER_FACE_HD_FLAT` | Solid flat fallback or untextured face |
-| `TORIDRAW_RASTER_FACE_HD_PLANE` | P/M/N vertex-frame projection |
-| `TORIDRAW_RASTER_FACE_HD_CYLINDER` | Cylinder mapping |
-| `TORIDRAW_RASTER_FACE_HD_CUBE` | Cube mapping |
-| `TORIDRAW_RASTER_FACE_HD_SPHERE` | Sphere mapping |
+| `TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE` | P/M/N vertex-frame projection |
+| `TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER` | Cylinder mapping |
+| `TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE` | Cube mapping |
+| `TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE` | Sphere mapping |
 
 Texture gate, face alpha, modulation, clamping, affine mapping, and near
 clipping are inputs to those algorithms. They are not additional vtable slots.
@@ -359,8 +359,8 @@ int result = ToriDraw_RenderModelWithRasterKernel(
 ```
 
 An HD override uses the same pattern: copy one complete built-in HD vtable and
-replace, for example, `draw[TORIDRAW_RASTER_FACE_HD_CUBE]`. The copied solid,
-plane, cylinder, and sphere callbacks ignore the application kernel's
+replace, for example, `draw[TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE]`. The copied
+solid, plane, cylinder, and sphere callbacks ignore the application kernel's
 `user_data`; the replacement receives it normally. Copy the built-in flags to
 retain its orchestration, or assign one of the four documented flag
 combinations when the replacement vtable implements that mode.

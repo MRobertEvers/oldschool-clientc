@@ -899,10 +899,10 @@ hd_expected_class(int face)
     static const enum ToriDraw_RasterFaceClassHD expected[HD_FACE_COUNT] = {
         TORIDRAW_RASTER_FACE_HD_GOURAUD,
         TORIDRAW_RASTER_FACE_HD_FLAT,
-        TORIDRAW_RASTER_FACE_HD_PLANE,
-        TORIDRAW_RASTER_FACE_HD_CYLINDER,
-        TORIDRAW_RASTER_FACE_HD_CUBE,
-        TORIDRAW_RASTER_FACE_HD_SPHERE,
+        TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE,
+        TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER,
+        TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE,
+        TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE,
     };
     return expected[face];
 }
@@ -1004,19 +1004,19 @@ hd_spy_record(
 
 DEFINE_HD_CALLBACK(hd_spy_gouraud, TORIDRAW_RASTER_FACE_HD_GOURAUD)
 DEFINE_HD_CALLBACK(hd_spy_flat, TORIDRAW_RASTER_FACE_HD_FLAT)
-DEFINE_HD_CALLBACK(hd_spy_plane, TORIDRAW_RASTER_FACE_HD_PLANE)
-DEFINE_HD_CALLBACK(hd_spy_cylinder, TORIDRAW_RASTER_FACE_HD_CYLINDER)
-DEFINE_HD_CALLBACK(hd_spy_cube, TORIDRAW_RASTER_FACE_HD_CUBE)
-DEFINE_HD_CALLBACK(hd_spy_sphere, TORIDRAW_RASTER_FACE_HD_SPHERE)
+DEFINE_HD_CALLBACK(hd_spy_plane, TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE)
+DEFINE_HD_CALLBACK(hd_spy_cylinder, TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER)
+DEFINE_HD_CALLBACK(hd_spy_cube, TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE)
+DEFINE_HD_CALLBACK(hd_spy_sphere, TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE)
 
 static const struct ToriDraw_RasterKernelHDVTable hd_full_vtable = {
     .draw = {
         [TORIDRAW_RASTER_FACE_HD_GOURAUD] = hd_spy_gouraud,
         [TORIDRAW_RASTER_FACE_HD_FLAT] = hd_spy_flat,
-        [TORIDRAW_RASTER_FACE_HD_PLANE] = hd_spy_plane,
-        [TORIDRAW_RASTER_FACE_HD_CYLINDER] = hd_spy_cylinder,
-        [TORIDRAW_RASTER_FACE_HD_CUBE] = hd_spy_cube,
-        [TORIDRAW_RASTER_FACE_HD_SPHERE] = hd_spy_sphere,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE] = hd_spy_plane,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER] = hd_spy_cylinder,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE] = hd_spy_cube,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE] = hd_spy_sphere,
     },
 };
 
@@ -1261,10 +1261,10 @@ static const struct ToriDraw_RasterKernelHDVTable pixel16_hd_vtable = {
     .draw = {
         [TORIDRAW_RASTER_FACE_HD_GOURAUD] = pixel16_hd_unexpected_callback,
         [TORIDRAW_RASTER_FACE_HD_FLAT] = pixel16_hd_unexpected_callback,
-        [TORIDRAW_RASTER_FACE_HD_PLANE] = pixel16_hd_unexpected_callback,
-        [TORIDRAW_RASTER_FACE_HD_CYLINDER] = pixel16_hd_unexpected_callback,
-        [TORIDRAW_RASTER_FACE_HD_CUBE] = pixel16_hd_unexpected_callback,
-        [TORIDRAW_RASTER_FACE_HD_SPHERE] = pixel16_hd_unexpected_callback,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE] = pixel16_hd_unexpected_callback,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER] = pixel16_hd_unexpected_callback,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE] = pixel16_hd_unexpected_callback,
+        [TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE] = pixel16_hd_unexpected_callback,
     },
 };
 
