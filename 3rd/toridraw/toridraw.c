@@ -7,6 +7,65 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
+_Static_assert(
+    offsetof(struct ToriDraw_ProjectionPreparedCamera, cos_yaw) == 0,
+    "prepared projection cos-yaw offset");
+_Static_assert(
+    offsetof(struct ToriDraw_ProjectionPreparedCamera, sin_yaw) == 16,
+    "prepared projection sin-yaw offset");
+_Static_assert(
+    offsetof(struct ToriDraw_ProjectionPreparedCamera, cos_pitch) == 32,
+    "prepared projection cos-pitch offset");
+_Static_assert(
+    offsetof(struct ToriDraw_ProjectionPreparedCamera, sin_pitch) == 48,
+    "prepared projection sin-pitch offset");
+_Static_assert(
+    offsetof(struct ToriDraw_ProjectionPreparedCamera, cot15) == 64,
+    "prepared projection cotangent offset");
+_Static_assert(
+    sizeof(struct ToriDraw_ProjectionPreparedCamera) == 80,
+    "prepared projection camera size");
+_Static_assert(
+    _Alignof(struct ToriDraw_ProjectionPreparedCamera) >= 16,
+    "prepared projection camera alignment");
+_Static_assert(
+    offsetof(struct ToriDraw_Scene, screen_vertices_y) ==
+        offsetof(struct ToriDraw_Scene, screen_vertices_x) + sizeof(int*),
+    "projection screen-y pointer layout");
+_Static_assert(
+    offsetof(struct ToriDraw_Scene, screen_vertices_z) ==
+        offsetof(struct ToriDraw_Scene, screen_vertices_x) + 2 * sizeof(int*),
+    "projection screen-z pointer layout");
+_Static_assert(
+    offsetof(struct ToriDraw_Scene, orthographic_vertices_x) ==
+        offsetof(struct ToriDraw_Scene, screen_vertices_x) + 3 * sizeof(int*),
+    "projection orthographic-x pointer layout");
+_Static_assert(
+    offsetof(struct ToriDraw_Scene, orthographic_vertices_y) ==
+        offsetof(struct ToriDraw_Scene, screen_vertices_x) + 4 * sizeof(int*),
+    "projection orthographic-y pointer layout");
+_Static_assert(
+    offsetof(struct ToriDraw_Scene, orthographic_vertices_z) ==
+        offsetof(struct ToriDraw_Scene, screen_vertices_x) + 5 * sizeof(int*),
+    "projection orthographic-z pointer layout");
+_Static_assert(
+    offsetof(struct ToriDraw_Scene, projection_prepared_camera) ==
+        offsetof(struct ToriDraw_Scene, screen_vertices_x) + 6 * sizeof(int*),
+    "prepared projection relative layout");
+_Static_assert(
+    offsetof(struct ToriDraw_Position, x) == 0,
+    "projection position-x layout");
+_Static_assert(
+    offsetof(struct ToriDraw_Position, y) ==
+        offsetof(struct ToriDraw_Position, x) + sizeof(int),
+    "projection position-y layout");
+_Static_assert(
+    offsetof(struct ToriDraw_Position, z) ==
+        offsetof(struct ToriDraw_Position, x) + 2 * sizeof(int),
+    "projection position-z layout");
+#endif
+
 #define TORIDRAW_LOW_MAX_VERTICES    2048
 #define TORIDRAW_LOW_MAX_FACES       4096
 #define TORIDRAW_LOW_PRIORITY_STRIDE 4096
@@ -664,6 +723,45 @@ bool
 ToriDraw_RasterGetScanline(void)
 {
     return g_toridraw_raster_scanline != 0;
+}
+
+void
+ToriDraw_ScenePrepareProjectionCamera(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_Camera* camera)
+{
+    struct ToriDraw_ProjectionPreparedCamera* prepared;
+    int values[5];
+
+    assert(scene);
+    assert(camera);
+
+    /* Publish the source only after all five vectors are complete. */
+    scene->projection_prepared_camera_source = NULL;
+    prepared = &scene->projection_prepared_camera;
+    values[0] = ToriDraw_ReadCosTable(camera->yaw);
+    values[1] = ToriDraw_ReadSinTable(camera->yaw);
+    values[2] = ToriDraw_ReadCosTable(camera->pitch);
+    values[3] = ToriDraw_ReadSinTable(camera->pitch);
+    values[4] =
+        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048) >> 1;
+
+    for( int lane = 0; lane < 4; lane++ )
+    {
+        prepared->cos_yaw[lane] = values[0];
+        prepared->sin_yaw[lane] = values[1];
+        prepared->cos_pitch[lane] = values[2];
+        prepared->sin_pitch[lane] = values[3];
+        prepared->cot15[lane] = values[4];
+    }
+    scene->projection_prepared_camera_source = camera;
+}
+
+void
+ToriDraw_SceneClearProjectionCamera(struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    scene->projection_prepared_camera_source = NULL;
 }
 
 void

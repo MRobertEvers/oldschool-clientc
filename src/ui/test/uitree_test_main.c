@@ -19,6 +19,7 @@ main(void)
     test_drag_scrollbar_137_geometry();
     test_drag_cc_dragpickup_seeds();
     test_press_repeat_and_release();
+    test_frame_hidden_cancels_active_input();
     test_scroll_hit();
     test_wheel_stops_at_interface();
     test_drag_scrolled();
@@ -45,6 +46,7 @@ main(void)
     test_scripted_entity_overlay_clipped();
     test_scripted_overlay_arc();
     test_server_driven_viewport_widgets();
+    test_frame_replacement();
     test_roles();
 
     if( g_failures )

@@ -1624,13 +1624,32 @@ struct ToriRSServerNpcDef;
 
 enum
 {
-    TORIRSSERVER_CAPTURE_MAX = 512,
+    /* 512 was enough while the suite only ran at revision 230; 239 emits more
+     * per tick and some stanzas ran the count out. There are ~170 static
+     * captures, so this size is paid 170 times over in BSS — raise it for a
+     * measured overflow, not on suspicion. */
+    TORIRSSERVER_CAPTURE_MAX = 1024,
     TORIRSSERVER_CAPTURE_BYTES = 1024,
 };
 
 struct ToriRSServerCapturedPacket
 {
     int opcode;
+    /**
+     * Bytes this packet actually carried, which may exceed the `data` this
+     * record kept — revision 239's appearance and interface-resync blocks run
+     * past 4 KB. `len` is always what is READABLE in `data`; `full_len` is what
+     * went on the wire, and `truncated` says the two differ.
+     *
+     * Recording a cut copy rather than refusing the packet is the point: a
+     * refused packet made `overflow` mean "some packet was too big", which
+     * invalidated the whole capture and reported as an overflowed buffer
+     * holding eighty packets. Absence assertions stay honest because the packet
+     * is still in the record; a decoder that runs off the end gets a short read
+     * and says so.
+     */
+    int full_len;
+    int truncated;
     /**
      * The packet's CANONICAL name (`PKT_NAME_*`), beside the revision's number
      * for it.
@@ -1654,8 +1673,9 @@ struct ToriRSServerCapture
 {
     struct ToriRSServerCapturedPacket packets[TORIRSSERVER_CAPTURE_MAX];
     int count;
-    /** Set when a packet was dropped, so a test cannot silently assert against
-     *  a truncated record. */
+    /** Set when the COUNT ran out and packets were dropped entirely, so a test
+     *  cannot silently assert absence against a partial record. An oversized
+     *  packet does not set this — it is kept, cut, and flagged per packet. */
     int overflow;
 };
 
@@ -1682,6 +1702,14 @@ ToriRSServer_CaptureFindNamed(
     const struct ToriRSServerCapture* capture,
     int pkt_name,
     int from);
+
+/** True when the canonical `pkt_names` all appear in order — the
+ *  revision-independent form of `ToriRSServer_CaptureHasSequence`. */
+int
+ToriRSServer_CaptureHasSequenceNamed(
+    const struct ToriRSServerCapture* capture,
+    const int* pkt_names,
+    int count);
 
 /** True when `opcodes` all appear in order. Other packets may interleave. */
 int
@@ -3924,6 +3952,9 @@ struct ToriRSServer
     int familiar_singles_assist;
 
     /** Non-NULL only under the selftest; see ToriRSServer_CaptureBegin. */
+    /** Generation of the reservation the current scene was built from, 0 when
+     *  the scene is ordinary map. See `scene_centre_generation`. */
+    int scene_built_generation;
     struct ToriRSServerCapture* capture;
 
     /**

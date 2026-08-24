@@ -950,6 +950,34 @@ struct App
      */
     struct UITreeEntityOverlay canvas_overlays[512];
     int canvas_overlay_count;
+    /** Canvas primitives explicitly bound to a semantic role. The raw list
+     * preserves draw order while handlers run; the grouped list gives the
+     * UITree one contiguous span per exact target incarnation. */
+    struct AppPluginRoleOverlayRaw
+    {
+        struct UITreeEntityOverlay item;
+        int32_t node_index;
+        uint32_t node_incarnation;
+        uint8_t replace;
+    } plugin_role_overlay_raw[512];
+    int plugin_role_overlay_raw_count;
+    struct UITreeEntityOverlay plugin_role_overlay_items[512];
+    struct UITreeRoleOverlayGroup plugin_role_overlay_groups[64];
+    int plugin_role_overlay_group_count;
+    /** UITREE_HOST_BEGIN_OVERLAYS has already opened this App_RunOnce's
+     * overlay batch. A retained refresh can discover a new role anchor and
+     * immediately fall back to a full walk; the second BEGIN must reuse the
+     * first Canvas dispatch rather than consuming plugin draw budget twice. */
+    int plugin_overlay_batch_started;
+    int plugin_canvas_overlay_prepared;
+    int plugin_role_anchor_seen;
+    /** Current canvas subscriber's explicit anchor. `active && !valid` is a
+     * missing target and therefore DROPS draws instead of making them global. */
+    int plugin_role_anchor_active;
+    int plugin_role_anchor_valid;
+    int32_t plugin_role_anchor_node;
+    uint32_t plugin_role_anchor_incarnation;
+    uint8_t plugin_role_anchor_replace;
     /*
      * The plugin FRAME overlay: chrome, over the 3D scene and under the
      * interfaces (UITREE_HOST_GET_FRAME_OVERLAYS).
@@ -987,6 +1015,21 @@ struct App
         int w;
         int h;
         uint32_t tag;
+        /** enum AppPluginSurface. Declaration order is the z-order within a
+         * global surface; anchored Canvas regions use role_paint_order below. */
+        uint8_t surface;
+        uint8_t role_anchored;
+        uint8_t role_replace;
+        int32_t role_node;
+        uint32_t role_incarnation;
+        int role_clip_x;
+        int role_clip_y;
+        int role_clip_w;
+        int role_clip_h;
+        /** Monotonic order in which the emit walk reached this exact role
+         * boundary. Unlike declaration order, this is the z-order after Canvas
+         * declarations have been relocated into their semantic subtrees. */
+        uint32_t role_paint_order;
         /** The verbs the player reads, in declaration order; op 0 is the
          *  left-click default. `op_count` 0 is a region that offers none and
          *  exists only to stop a click falling through. */
@@ -994,6 +1037,33 @@ struct App
         int op_count;
     } plugin_regions[64];
     int plugin_region_count;
+    uint32_t plugin_role_paint_order;
+
+    /** A plugin hit region owns one complete physical left-button gesture.
+     * The semantic identity is retained instead of an array index because the
+     * draw list is rebuilt between press and release. */
+    struct AppPluginPointerCapture
+    {
+        int active;
+        int plugin;
+        uint32_t tag;
+        uint8_t surface;
+        uint8_t role_anchored;
+        uint8_t role_replace;
+        int32_t role_node;
+        uint32_t role_incarnation;
+    } plugin_pointer_capture;
+
+    /** Engine-side incarnation fence for the host's persistent replacement
+     * claims. The host arbitrates ownership; these rows remember only which
+     * exact component-array occupant was suppressed by each accepted claim. */
+    struct AppPluginRoleReplacement
+    {
+        int plugin;
+        char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
+        int32_t node_index;
+        uint32_t node_incarnation;
+    } plugin_role_replacements[64];
 
     /*
      * The gameframe, when a plugin is arranging it.
@@ -1996,9 +2066,17 @@ struct App
      * INV_BUTTOND. CS2 release: onDragComplete + dual-endpoint IfButtonD,
      * no local item mutation (rev-230 deob). */
     int inv_drag_com_id;
+    /** Exact cell/grid occupant armed on mouse-down. Prevents a held gesture
+     * transferring to a same-id node rebuilt into the recycled slot. */
+    int32_t inv_drag_node_index;
+    uint32_t inv_drag_node_incarnation;
     int inv_drag_can_drag; /* armed cell's IF_SETEVENTS drag-depth != 0 */
     int inv_drag_from_slot;
     int inv_drag_source_id; /* inv container source id */
+    /** Exact item occupying the armed slot on mouse-down. A container update
+     * can replace A with B without rebuilding the grid/cell node, so node
+     * incarnation alone is not an item-gesture lifetime fence. */
+    int inv_drag_obj_id;
     int inv_drag_cycles;
     int inv_drag_grab_x; /* mouse at arm time (reference objGrabX/Y) */
     int inv_drag_grab_y;

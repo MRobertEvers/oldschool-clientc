@@ -324,20 +324,24 @@ ToriRSServer_Send(
     {
         struct ToriRSServerCapture* capture = srv->capture;
 
-        if( capture->count < TORIRSSERVER_CAPTURE_MAX && len <= TORIRSSERVER_CAPTURE_BYTES )
+        if( capture->count < TORIRSSERVER_CAPTURE_MAX )
         {
             struct ToriRSServerCapturedPacket* packet = &capture->packets[capture->count++];
+            int kept = len > TORIRSSERVER_CAPTURE_BYTES ? TORIRSSERVER_CAPTURE_BYTES : len;
 
             packet->opcode = opcode;
             packet->name = pkt_name;
-            packet->len = len;
-            if( len > 0 )
-                memcpy(packet->data, payload, (size_t)len);
+            packet->len = kept;
+            packet->full_len = len;
+            packet->truncated = kept != len;
+            if( kept > 0 )
+                memcpy(packet->data, payload, (size_t)kept);
         }
         else
         {
-            /* Never silently truncate: a test asserting "this packet is absent"
-             * against a full buffer would pass for the wrong reason. */
+            /* Never silently DROP: a test asserting "this packet is absent"
+             * against a full buffer would pass for the wrong reason. An
+             * oversized packet is kept and cut instead — see `truncated`. */
             capture->overflow = 1;
         }
     }
@@ -5622,6 +5626,31 @@ ToriRSServer_CaptureFindNamed(
             return i;
     }
     return -1;
+}
+
+/*
+ * The same ordering test by CANONICAL name.
+ *
+ * `ToriRSServer_CaptureHasSequence` matches wire numbers, which are a different
+ * set per revision — so a sequence written in 230's numbers asserts nothing at
+ * 239, silently, exactly as the single-packet search did.
+ */
+int
+ToriRSServer_CaptureHasSequenceNamed(
+    const struct ToriRSServerCapture* capture,
+    const int* pkt_names,
+    int count)
+{
+    int at = 0;
+
+    for( int i = 0; i < count; i++ )
+    {
+        at = ToriRSServer_CaptureFindNamed(capture, pkt_names[i], at);
+        if( at < 0 )
+            return 0;
+        at++;
+    }
+    return 1;
 }
 
 int

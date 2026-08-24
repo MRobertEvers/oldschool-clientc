@@ -86,6 +86,24 @@ RS_UISlots_CycleChatFilter(
     struct RS_UISlots* slots,
     int filter);
 
+/** How many modes this filter cycles through, or 0 for a filter that is not
+ *  one. Report abuse answers 1: it is a click-through, not a toggle. */
+int
+RS_UISlots_ChatFilterModeCount(int filter);
+
+/**
+ * Set one filter's mode outright. @return 1 when it took.
+ *
+ * The twin of the cycle above, and both are needed because the two gestures
+ * mean different things: a click steps to the next mode, and a menu row names
+ * the one it means. @see RS_UISlots_SetChatFilter's body.
+ */
+int
+RS_UISlots_SetChatFilter(
+    struct RS_UISlots* slots,
+    int filter,
+    int mode);
+
 /*
  * Runtime open/close API — the contract the network exec layer calls when
  * IF_OPENMAIN (197) / IF_OPENSIDE (187) / IF_OPENCHAT (141) / IF_CLOSE (174) /

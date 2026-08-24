@@ -69,7 +69,7 @@ static const struct Osrs239PacketInDef g_packet_in_definitions_osrs239[] = {
     {   35, 10,                    PKT_NAME_MIDI_SONG,                  "MIDI_SONG_V2" },
     {   99, 12,                    PKT_NAME_NONE,                       "MIDI_SONG_WITHSECONDARY" },
     {  107, 8,                     PKT_NAME_NONE,                       "MIDI_SWAP" },
-    {    0, 4,                     PKT_NAME_NONE,                       "MIDI_SONG_STOP" },
+    {    0, 4,                     PKT_NAME_MIDI_SONG_STOP,             "MIDI_SONG_STOP" },
     {  118, 5,                     PKT_NAME_MIDI_JINGLE,                "MIDI_JINGLE" },
     {   77, 5,                     PKT_NAME_SYNTH_SOUND,                "SYNTH_SOUND" },
     {  145, 3,                     PKT_NAME_NONE,                       "AMBIENTSOUND_START" },

@@ -54,6 +54,15 @@ extern const int* g_sin_table;
 extern const int* g_cos_table;
 extern const int* g_tan_table;
 
+#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
+/*
+ * Interleaved { cosine, sine } pairs for the Apple projection assembly.  The
+ * table is rebuilt whenever either selected source table changes, keeping one
+ * 8-byte model-yaw lookup on the projection hot path.
+ */
+extern int g_projection_model_yaw_table[2048][2];
+#endif
+
 /** Initialize and select ToriDraw's built-in 2,048-entry sine table. */
 void
 ToriDraw_InitSinTable(void);
@@ -64,6 +73,12 @@ ToriDraw_InitCosTable(void);
 void
 ToriDraw_InitTanTable(void);
 
+/**
+ * Select the 2,048-entry 16.16 sine table used by ToriDraw.
+ *
+ * Selected custom tables must remain alive and unchanged until they are
+ * replaced. Reselecting the same pointer refreshes projection-derived data.
+ */
 void
 ToriDraw_SetSinTable(const int* table);
 /**
@@ -71,7 +86,9 @@ ToriDraw_SetSinTable(const int* table);
  *
  * ToriDraw does not take ownership. Passing NULL restores its standalone
  * built-in table, so callers may optionally share a table owned by another
- * library without creating a dependency on that library.
+ * library without creating a dependency on that library. Selected custom
+ * tables must remain alive and unchanged until they are replaced; reselecting
+ * the same pointer refreshes projection-derived data.
  */
 void
 ToriDraw_SetCosTable(const int* table);

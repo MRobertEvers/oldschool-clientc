@@ -59,13 +59,21 @@
 --     over the world has to be findable without being something you look past
 --     the whole session.
 --   * The REPORT ABUSE button. Not "beside it" -- in its place: the region is
---     claimed over the button's own box, so the click that was Report abuse is
---     Take Screenshot instead. Solid, because a chat button is chrome and a
---     half-transparent one would read as disabled.
+--     resolved by role, the native control is suppressed, and this plugin's
+--     draw declarations are attached directly to that same paint boundary.
+--     The click that was Report abuse is Take Screenshot instead. Solid,
+--     because a chat button is chrome and a half-transparent one would read as
+--     disabled, and wearing the red plate that button wears -- @see
+--     PLATE_RAMP, which is measured off it.
 --
--- The art is `camera.png`, shipped in this plugin's asset folder and
--- hand-authored in the options_icons palette -- @see
--- script/plugins/assets/screenshot/camera.txt, which is where to edit it.
+-- The art is `camera.png` and `camera_small.png`, both shipped in this
+-- plugin's asset folder and hand-authored in the options_icons palette --
+-- @see script/plugins/assets/screenshot/camera.txt and camera_small.txt,
+-- which are where to edit them. Two sizes because the two placements are two
+-- different boxes: a
+-- corner of the scene has room for the 28x26 icon and a chat button, at 22
+-- rows, does not -- and a picture the client cannot scale is either the right
+-- size or sheared off by the clip.
 --
 
 ---@type torirs.Plugin
@@ -165,19 +173,53 @@ local CAPTURE_OPS = { "Take Screenshot" }
 --- How far a corner button sits off the safe area's edges.
 local MARGIN = 6
 
---- The plate the report-button placement draws under the camera, in the
---- options_icons ramp the art itself is painted from.
+--- The report button's own red, one entry per row from its top to its bottom.
 ---
---- Drawn rather than shipped as a picture, and that is the point: the button
---- it replaces is a different width and a different colour on every frame, and
---- a picture cut from one cache would be the wrong shape on the next. Two
---- rects fit whatever box the frame reports.
+--- The plate is the visual half of replacing the button. role.replace removes
+--- the native paint and interaction, so nothing underneath can flicker back or
+--- leak its label around the camera; this rebuilds the red control at the
+--- frame's own measured size. This used to be a flat dark rect with a light
+--- outline: a grey square with corners, in a row of rounded plates, where a red
+--- button was. It read as a hole cut in the frame.
 ---
---- It is also what makes the placement REPLACE the button rather than sit on
---- top of it: the widget underneath still draws its own label, and a camera
---- centred on the bare plate leaves "Re" and "rt" showing either side.
-local PLATE_FILL = 0x2b2824
-local PLATE_EDGE = 0x56504a
+--- MEASURED off the button it stands in for rather than chosen, on both of the
+--- frames that draw one: the OldSchool chatbox's own `Report` (interface 162's
+--- component 31, 79x22) and the plate the gameframe composes for a 2004 lane's
+--- `Report abuse` (100x23, three-sliced out of `osrs_chat_button_report`). The
+--- two ramps agree to within a couple of units a channel -- they are the same
+--- sprite family -- so one of them serves both, and this is the taller.
+---
+--- Drawn rather than shipped as a picture because the BOX is the frame's: 79
+--- wide here, 100 there, 33 rows on a dat1 profile's own privacy bar. A
+--- picture is one size and the client's blit does not scale, so a plate cut
+--- for one frame would be short on the next; a ramp indexed by row fits
+--- whatever box the role reports.
+---
+--- What the ramp does NOT carry is the source sprite's other axis: the real
+--- plate also falls into shadow over its last dozen columns, and a rectangle
+--- holds one colour, so reproducing that means a rect per column per row.
+--- Fifteen columns times twenty-three rows is most of a plugin's frame draw
+--- budget (512 items) spent on one button, and in bands wide enough to be
+--- affordable it reads as stripes -- which is worse than the flat end it
+--- replaces. The vertical ramp is the half that carries the shape.
+local PLATE_RAMP = {
+    0x872928, 0x722323, 0x722323, 0x722323, 0x722323, 0x722323,
+    0x722323, 0x6B2020, 0x6B2020, 0x631F1D, 0x631F1D, 0x631F1D,
+    0x631F1D, 0x5C1D1C, 0x531B1A, 0x531B1A, 0x4B1917, 0x4B1917,
+    0x431715, 0x431715, 0x3A1614, 0x3A1614, 0x2A1412,
+}
+
+--- How far each end row is pulled in, top row first, mirrored at the bottom.
+--- The rounded cap the chat plate is cut with, read off the same button: four
+--- columns on the corner row, then two, then one, then one.
+local PLATE_CAP = { 4, 2, 1, 1 }
+
+--- Hover, in the frame's own arithmetic: a lit chat button is the same plate
+--- with every channel half again as bright, which is how `redraw_chat_buttons`
+--- gets its hovered art from its idle art (@see FRAME_CHAT_BRIGHT_NUM in
+--- src/plugin/plugins/gameframe.c).
+local PLATE_LIT_NUM = 3
+local PLATE_LIT_DEN = 2
 
 --- Transparency in the reference's sense: 0 is solid, 255 is invisible. The
 --- resting value is a judgement -- far enough back that it is not competing
@@ -186,10 +228,11 @@ local PLATE_EDGE = 0x56504a
 local TRANS_RESTING = 170
 local TRANS_HOVER = 0
 
---- The handle from api.image_load, or nil until on_start has asked for it.
+--- The handles from api.image_load, or nil until on_start has asked for them.
 --- Asynchronous: image_size answers nil for the first frames, and the button
 --- simply is not drawn until it does.
 local icon = nil
+local icon_small = nil
 
 -- kind -> { config key that switches it on, folder it files under }.
 --
@@ -368,7 +411,9 @@ function plugin.on_key(api, ev)
     capture_now(api)
 end
 
--- Where the button goes this frame, as x, y, and whether it is the solid one.
+-- The box the button lives in this frame, and whether that box is a BUTTON --
+-- the report placement, which wears a plate -- or a region to sit in a corner
+-- of.
 --
 -- Measured EVERY frame and never cached, because every input is: the safe area
 -- moves when a window is resized or another plugin reserves an edge, and the
@@ -378,7 +423,7 @@ end
 -- Returns nil when there is nowhere to put it -- the setting is off, the frame
 -- has no report button, no region answered -- which the caller draws nothing
 -- for rather than guessing a corner.
-local function button_box(api, w, h)
+local function button_box(api)
     local where = api.config.camera
 
     if where == "off" then return nil end
@@ -387,32 +432,91 @@ local function button_box(api, w, h)
         -- One question, asked once. Which node answers it is the profile's
         -- business: a chat-button member on a 2004 frame, interface 162's
         -- component 31 on an OldSchool one, and neither spelling is here.
-        local box = report_button.rect()
+        --
         -- A revision whose profile has not named it is an answer, not a fault:
         -- the button is simply not offered rather than landing somewhere
-        -- arbitrary.
-        if not box then return nil end
-        return box.x + (box.w - w) // 2, box.y + (box.h - h) // 2, true, box
+        -- arbitrary, which is what the nil the role hands back becomes.
+        return report_button.rect(), true
     end
 
     -- The scene with the chrome taken out. The fallback chain is slot_rect's
     -- own: ask for the tightest region first, and a frame that has no safe
     -- area still has a canvas.
-    local area = api.layout.safe.rect()
+    return api.layout.safe.rect()
         or api.layout.viewport.rect()
-        or api.layout.canvas.rect()
-    if not area then return nil end
+        or api.layout.canvas.rect(), false
+end
 
+-- Where the icon sits inside a corner region, as x, y.
+local function corner_at(api, area, w, h)
+    local where = api.config.camera
     local left = area.x + MARGIN
     local right = area.x + area.w - w - MARGIN
     local top = area.y + MARGIN
     local bottom = area.y + area.h - h - MARGIN
 
-    if where == "top-left" then return left, top, false, area end
-    if where == "top-right" then return right, top, false, area end
-    if where == "bottom-left" then return left, bottom, false, area end
-    if where == "bottom-right" then return right, bottom, false, area end
+    if where == "top-left" then return left, top end
+    if where == "top-right" then return right, top end
+    if where == "bottom-left" then return left, bottom end
+    if where == "bottom-right" then return right, bottom end
     return nil
+end
+
+-- The largest icon that fits `box` with a row of plate showing above and
+-- below it, or nil while neither read has landed.
+--
+-- A height and not a preference, because the box is not this plugin's to
+-- choose: 22 rows on an OldSchool chat strip, 23 on a composed plate, 33 on a
+-- 2004 profile's privacy bar. The big icon is 26 tall, so on the first two it
+-- is the small one that fits and on the last it is not.
+--
+-- `box` is nil for a corner placement, which is the scene and always has room.
+local function icon_that_fits(api, box)
+    if icon then
+        local w, h = api.image_size(icon)
+        if w and (not box or h + 2 <= box.h) then return icon end
+    end
+    if icon_small and api.image_size(icon_small) then return icon_small end
+    return nil
+end
+
+-- The plate the report placement wears: the button it replaces, repainted.
+--
+-- One filled rect a row, which is what a gradient is when the only primitive
+-- is a rectangle -- 23 of them for a chat button, and the ramp is indexed by
+-- the row's position in the box so a taller button stretches it rather than
+-- running off the end of it.
+local function lit(rgb)
+    local out = 0
+
+    for shift = 0, 16, 8 do
+        local c = ((rgb >> shift) & 0xFF) * PLATE_LIT_NUM // PLATE_LIT_DEN
+        if c > 255 then c = 255 end
+        out = out | (c << shift)
+    end
+    return out
+end
+
+local function draw_plate(draw, box, hovered)
+    local rows = #PLATE_RAMP
+
+    for row = 0, box.h - 1 do
+        local rgb = PLATE_RAMP[row * rows // box.h + 1]
+        -- The rounded ends, top row first and mirrored at the bottom. A box
+        -- too short for both caps keeps the top one, and one too narrow for a
+        -- cap at all keeps its corners -- neither can be drawn as a negative
+        -- width.
+        local cap = PLATE_CAP[row + 1] or PLATE_CAP[box.h - row] or 0
+
+        if cap * 2 >= box.w then cap = 0 end
+        draw.rect(
+            box.x + cap,
+            box.y + row,
+            box.w - cap * 2,
+            1,
+            hovered and lit(rgb) or rgb,
+            255)
+    end
 end
 
 --- The camera button: claimed, then drawn.
@@ -422,53 +526,91 @@ end
 --- would be fighting whatever the next handler declares rather than sitting
 --- under its own art.
 function plugin.on_draw_canvas(api, draw)
-    if not icon then return end
-
-    local w, h = api.image_size(icon)
-
-    -- The read has not landed. Ordinary for the first frames after a start,
-    -- and not worth a message: the button appears when the picture does.
-    if not w then return end
     -- Before login there is no session to photograph and no frame to hang a
     -- button off; the login screen is not where this belongs.
     if not api.local_player() then return end
 
-    local x, y, solid, box = button_box(api, w, h)
-    if not x then return end
+    local box, plated = button_box(api)
+    if not box then return end
 
-    -- What is actually ON SCREEN, which is the art cut to the box it was
-    -- placed in: a frame whose report button is smaller than the picture shows
-    -- the middle of the camera rather than spilling it over the chat. A corner
-    -- button's own area never cuts it, so there the two are the same rectangle.
-    --
-    -- The CLIPPED box is what gets claimed and what the hover is tested
-    -- against, so the part of the button a player can see is exactly the part
-    -- that answers -- a region reaching past the art it stands for is a click
-    -- that lands on nothing visible.
-    local rx = math.max(x, box.x)
-    local ry = math.max(y, box.y)
-    local rw = math.min(x + w, box.x + box.w) - rx
-    local rh = math.min(y + h, box.y + box.h) - ry
+    -- The read has not landed. Ordinary for the first frames after a start.
+    -- A corner has nothing useful to draw yet; a report-button replacement
+    -- still draws its plate and remains clickable so display:none never leaves
+    -- a transient hole in the chrome while the camera art is loading.
+    local art = icon_that_fits(api, plated and box or nil)
+    if not art and not plated then return end
+
+    local x, y, rx, ry, rw, rh
+    if art then
+        local w, h = api.image_size(art)
+        if not w then
+            if not plated then return end
+            art = nil
+        else
+            if plated then
+                x = box.x + (box.w - w) // 2
+                y = box.y + (box.h - h) // 2
+            else
+                x, y = corner_at(api, box, w, h)
+                if not x then return end
+            end
+
+            -- What is actually ON SCREEN, which is the art cut to the box it
+            -- was placed in: a frame whose report button is smaller than the
+            -- picture shows the middle of the camera rather than spilling it
+            -- over the chat. A corner button's area never cuts it.
+            rx = math.max(x, box.x)
+            ry = math.max(y, box.y)
+            rw = math.min(x + w, box.x + box.w) - rx
+            rh = math.min(y + h, box.y + box.h) - ry
+        end
+    end
+    if not art then
+        rx, ry, rw, rh = box.x, box.y, box.w, box.h
+    end
 
     if rw <= 0 or rh <= 0 then return end
 
-    api.hit_region(rx, ry, rw, rh, CAPTURE_OPS, TAG_CAPTURE)
+    -- Only the report replacement changes local z-order. Its hit region and
+    -- every piece of its plate/art are emitted at the report role's own paint
+    -- boundary, immediately over the suppressed native subtree and under the
+    -- rest of the chrome. Corner buttons intentionally remain ordinary global
+    -- canvas overlays.
+    if plated and not report_button.anchor() then return end
 
+    -- What answers the click. In the report button's place that is the whole
+    -- BUTTON and not the camera on it -- a chat button is clickable across its
+    -- plate, and a region cut to the icon would leave the ends of a control
+    -- that plainly is one doing nothing. A corner button has no plate, so
+    -- there the region is the art, clipped: a region reaching past what a
+    -- player can see is a click that lands on nothing visible.
+    local hover_x, hover_y, hover_w, hover_h = rx, ry, rw, rh
+    if plated then
+        hover_x, hover_y, hover_w, hover_h = box.x, box.y, box.w, box.h
+    end
+    api.hit_region(hover_x, hover_y, hover_w, hover_h, CAPTURE_OPS, TAG_CAPTURE)
+
+    local mx, my = api.mouse_pos()
+    local hovered = mx ~= nil
+        and mx >= hover_x and mx < hover_x + hover_w
+        and my >= hover_y and my < hover_y + hover_h
+
+    -- In the report button's place it is chrome, and chrome is solid: a
+    -- half-transparent chat button reads as a disabled one. It lights under
+    -- the pointer the way the button it replaces does -- the plate brightens,
+    -- not the camera, which is what a chat button does and what an orb does
+    -- not.
     local trans = TRANS_RESTING
-    if solid then
-        -- In the report button's place it is chrome, and chrome is solid: a
-        -- half-transparent chat button reads as a disabled one.
+    if plated then
         trans = TRANS_HOVER
-        draw.rect(box.x, box.y, box.w, box.h, PLATE_FILL, 255)
-        draw.rect(box.x, box.y, box.w, box.h, PLATE_EDGE, 0)
-    else
-        local mx, my = api.mouse_pos()
-        if mx and mx >= rx and mx < rx + rw and my >= ry and my < ry + rh then
-            trans = TRANS_HOVER
-        end
+        draw_plate(draw, box, hovered)
+    elseif hovered then
+        trans = TRANS_HOVER
     end
 
-    draw.image(icon, x, y, trans, rx, ry, rw, rh)
+    if art then
+        draw.image(art, x, y, trans, rx, ry, rw, rh)
+    end
 end
 
 --- The click, and the menu row, arriving as the one thing they are.
@@ -485,18 +627,46 @@ function plugin.on_start(api)
     if not icon then
         api.log("camera.png did not load; the camera button is unavailable")
     end
+    -- Both, and at start rather than when a short box first asks for one: a
+    -- load issued from the draw handler is issued again on every frame until
+    -- it lands, and the button that needs this one is the one a player sees
+    -- most.
+    icon_small = api.image_load("camera_small.png")
+    if not icon_small then
+        api.log("camera_small.png did not load; the chat-button camera is unavailable")
+    end
     -- Bound here and resolved later. on_start runs before the gameframe is
-    -- built, so asking now would answer "not here" on every lane.
+    -- built, so geometry asked now would answer "not here" on every lane. A
+    -- replacement claim is keyed by the semantic name, though, and survives
+    -- the later build; it is state reconciled at config transitions rather
+    -- than a command repeated in every draw handler.
     report_button = api.role("report_button")
+    report_button.replace(api.config.camera == "report-button")
+end
+
+function plugin.on_config_changed(api, ev)
+    if ev.key == "camera" then
+        report_button.replace(api.config.camera == "report-button")
+    end
 end
 
 function plugin.on_stop(api)
     -- Anything still waiting belongs to a session that is over. Dropped rather
     -- than taken on the way out: the frame it was waiting for never came.
     pending = {}
+    if report_button then
+        -- Teardown releases it too; doing it here makes the script's ownership
+        -- explicit and keeps a direct stop/restart transition whole.
+        report_button.replace(false)
+        report_button = nil
+    end
     if icon then
         api.image_release(icon)
         icon = nil
+    end
+    if icon_small then
+        api.image_release(icon_small)
+        icon_small = nil
     end
 end
 

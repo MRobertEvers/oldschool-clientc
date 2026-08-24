@@ -268,6 +268,92 @@ app_chat_filters(struct App const* app)
     return filters;
 }
 
+/* Resolve a component id at the point an app-owned action is about to use it.
+ * Interaction and minimenu models deliberately retain ids across frames, while
+ * CC_DELETEALL may reclaim their old node and plugin layouts may suppress an
+ * ancestor after the model was built.  A missing id is not visible -- the
+ * public ComponentOrAncestorDisplayHidden helper cannot make that distinction
+ * because it starts from an already-resolved node. */
+static int32_t
+app_displayable_component_node(
+    struct App const* app,
+    int component_id)
+{
+    int32_t idx;
+
+    if( !app || !app->tree || component_id < 0 )
+        return -1;
+    idx = UITree_FindByComponentId(app->tree, component_id);
+    if( idx < 0 || (uint32_t)idx >= app->tree->component_count ||
+        app->tree->components[idx].freed ||
+        UITree_NodeOrAncestorDisplayHidden(app->tree, idx) )
+        return -1;
+    return idx;
+}
+
+static int
+app_intent_targets_live(
+    struct App const* app,
+    struct UIIntent const* intent)
+{
+    if( intent->has_node_identity )
+    {
+        struct UITreeComponent const* node;
+        if( !app || !app->tree || intent->node_index < 0 ||
+            (uint32_t)intent->node_index >= app->tree->component_count )
+            return 0;
+        node = &app->tree->components[intent->node_index];
+        if( node->freed || intent->node_incarnation == 0 ||
+            node->incarnation != intent->node_incarnation ||
+            (intent->component_id >= 0 && node->component_id != intent->component_id) ||
+            UITree_NodeOrAncestorDisplayHidden(app->tree, intent->node_index) )
+            return 0;
+    }
+    else if( app_displayable_component_node(app, intent->component_id) < 0 )
+        return 0;
+    /* -1 is the ordinary "no drop target" carried by onDrag. */
+    if( intent->has_drag_target && intent->drag_target_id >= 0 &&
+        intent->has_drag_target_identity )
+    {
+        struct UITreeComponent const* target;
+        if( !app || !app->tree || intent->drag_target_node_index < 0 ||
+            (uint32_t)intent->drag_target_node_index >= app->tree->component_count )
+            return 0;
+        target = &app->tree->components[intent->drag_target_node_index];
+        if( target->freed || intent->drag_target_node_incarnation == 0 ||
+            target->incarnation != intent->drag_target_node_incarnation ||
+            target->component_id != intent->drag_target_id ||
+            UITree_NodeOrAncestorDisplayHidden(
+                app->tree, intent->drag_target_node_index) )
+            return 0;
+    }
+    else if( intent->has_drag_target && intent->drag_target_id >= 0 &&
+             app_displayable_component_node(app, intent->drag_target_id) < 0 )
+        return 0;
+    return 1;
+}
+
+/* chat_index is a long-lived slot-table index rather than an identity.  Check
+ * that it still names the authored chat slot before using it, and apply the
+ * same effective visibility predicate as paint/hit traversal. */
+static int32_t
+app_chat_node_index(struct App const* app)
+{
+    struct UITreeComponent const* node;
+    int32_t idx;
+
+    if( !app || !app->tree )
+        return -1;
+    idx = app->slots.chat_index;
+    if( idx < 0 || (uint32_t)idx >= app->tree->component_count )
+        return -1;
+    node = &app->tree->components[idx];
+    if( node->freed || node->slot_tag != UITREE_SLOT_CHAT ||
+        UITree_NodeOrAncestorDisplayHidden(app->tree, idx) )
+        return -1;
+    return idx;
+}
+
 /* Chat node geometry + font, resolved through the slot index so nothing here
  * names coordinates or interface ids. Returns 0 when no chat region exists. */
 static int
@@ -278,11 +364,13 @@ app_chat_region(
     int* out_font_id)
 {
     struct UITreeComponent const* node;
+    int32_t idx;
     int x = 0, y = 0, w = 0, h = 0;
 
-    if( app->slots.chat_index < 0 )
+    idx = app_chat_node_index(app);
+    if( idx < 0 )
         return 0;
-    node = &app->tree->components[app->slots.chat_index];
+    node = &app->tree->components[idx];
     UITree_LayoutGetBounds(&node->position, &x, &y, &w, &h);
     if( out_x )
         *out_x = x;
@@ -307,9 +395,10 @@ app_point_in_chat(
     int y)
 {
     struct UITreeComponent const* node;
-    int32_t idx = app->slots.chat_index;
+    int32_t idx;
     int bx = 0, by = 0, bw = 0, bh = 0;
 
+    idx = app_chat_node_index(app);
     if( idx < 0 )
         return 0;
     node = &app->tree->components[idx];
@@ -366,8 +455,10 @@ app_text_input_focused(struct App const* app)
      * height value like "8" both edited the field AND fired the
      * map-editor-toggle hotkey on the same keystroke -- one more instance of
      * the bug this function exists to kill everywhere at once. */
-    return app->chat_input_active || app->chat.social_input_open ||
-           app->chat.dialog_input_open || app_iface_text_input_focused(app) ||
+    return (app_chat_node_index(app) >= 0 &&
+            (app->chat_input_active || app->chat.social_input_open ||
+             app->chat.dialog_input_open)) ||
+           app_iface_text_input_focused(app) ||
            app_chrome_holds_keyboard(app);
 }
 
@@ -434,8 +525,15 @@ app_chat_focus_tick(
     assert(out_submit);
     *out_submit = 0;
 
-    if( app->slots.chat_index < 0 )
+    if( app_chat_node_index(app) < 0 )
+    {
+        if( app->chat_input_active )
+        {
+            app->chat_input_active = 0;
+            app->need_redraw = 1;
+        }
         return 0;
+    }
     /* The loc editor took W/A/S/D/R/Space/Backspace for the frame and has
      * already forced the focus flags off; do not hand them back under it. */
     if( app->locedit_visible )
@@ -1811,15 +1909,10 @@ app_worldmap_surface_live(struct App* app)
         return 0;
     if( tree->components[idx].freed || tree->components[idx].type != UIELEM_BUILTIN_WORLDMAP )
         return 0;
-    for( ;; )
-    {
-        struct UITreeComponent const* n = &tree->components[idx];
-        if( n->behavior.hide )
-            return 0;
-        if( n->parent < 0 )
-            return UITree_RootIsDisplayable(tree, idx);
-        idx = n->parent;
-    }
+    /* Includes cache/script hide, plugin-frame suppression, mount-container
+     * ancestry and root displayability.  The old local walk tested only
+     * behavior.hide, so a frame-hidden world map still owned drag/click. */
+    return !UITree_NodeOrAncestorDisplayHidden(tree, idx);
 }
 
 /*
@@ -2284,6 +2377,24 @@ app_overlay_push(
      */
     if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_CANVAS )
     {
+        if( app->plugin_role_anchor_active )
+        {
+            struct AppPluginRoleOverlayRaw* anchored;
+            int cap = (int)(sizeof(app->plugin_role_overlay_raw) /
+                            sizeof(app->plugin_role_overlay_raw[0]));
+            /* An explicit anchor that missed is a drop, never an implicit
+             * promotion to the global canvas overlay. */
+            if( !app->plugin_role_anchor_valid ||
+                app->plugin_role_overlay_raw_count >= cap )
+                return;
+            anchored = &app->plugin_role_overlay_raw[
+                app->plugin_role_overlay_raw_count++];
+            anchored->item = *item;
+            anchored->node_index = app->plugin_role_anchor_node;
+            anchored->node_incarnation = app->plugin_role_anchor_incarnation;
+            anchored->replace = app->plugin_role_anchor_replace;
+            return;
+        }
         int cap = (int)(sizeof(app->canvas_overlays) / sizeof(app->canvas_overlays[0]));
         if( app->canvas_overlay_count >= cap )
             return;
@@ -2314,11 +2425,75 @@ app_overlay_count(struct App const* app)
     switch( app->plugin_draw_canvas )
     {
     case APP_PLUGIN_SURFACE_CANVAS:
-        return app->canvas_overlay_count;
+        return app->canvas_overlay_count + app->plugin_role_overlay_raw_count;
     case APP_PLUGIN_SURFACE_FRAME:
         return app->frame_overlay_count;
     default:
         return app->entity_overlay_count;
+    }
+}
+
+static void
+app_role_overlay_group_seed(
+    struct App* app,
+    int32_t node,
+    uint32_t incarnation,
+    int replace)
+{
+    int const cap = (int)(sizeof(app->plugin_role_overlay_groups) /
+                          sizeof(app->plugin_role_overlay_groups[0]));
+
+    assert(app);
+    for( int i = 0; i < app->plugin_role_overlay_group_count; i++ )
+    {
+        struct UITreeRoleOverlayGroup const* group =
+            &app->plugin_role_overlay_groups[i];
+        if( group->node_index == node && group->node_incarnation == incarnation &&
+            group->replace == (replace ? 1 : 0) )
+            return;
+    }
+    if( app->plugin_role_overlay_group_count >= cap )
+        return;
+    struct UITreeRoleOverlayGroup* group =
+        &app->plugin_role_overlay_groups[app->plugin_role_overlay_group_count++];
+    memset(group, 0, sizeof(*group));
+    group->node_index = node;
+    group->node_incarnation = incarnation;
+    group->replace = replace ? 1 : 0;
+}
+
+static void
+app_role_overlays_group(struct App* app)
+{
+    int write = 0;
+
+    assert(app);
+    /* Every raw item should already have a seed from role_anchor. Keep this
+     * defensive pass so a future engine draw path cannot orphan one. */
+    for( int i = 0; i < app->plugin_role_overlay_raw_count; i++ )
+    {
+        struct AppPluginRoleOverlayRaw const* raw =
+            &app->plugin_role_overlay_raw[i];
+        app_role_overlay_group_seed(
+            app, raw->node_index, raw->node_incarnation, raw->replace);
+    }
+    for( int g = 0; g < app->plugin_role_overlay_group_count; g++ )
+    {
+        struct UITreeRoleOverlayGroup* group =
+            &app->plugin_role_overlay_groups[g];
+        int const start = write;
+        for( int i = 0; i < app->plugin_role_overlay_raw_count; i++ )
+        {
+            struct AppPluginRoleOverlayRaw const* raw =
+                &app->plugin_role_overlay_raw[i];
+            if( raw->node_index != group->node_index ||
+                raw->node_incarnation != group->node_incarnation ||
+                raw->replace != group->replace )
+                continue;
+            app->plugin_role_overlay_items[write++] = raw->item;
+        }
+        group->items = &app->plugin_role_overlay_items[start];
+        group->item_count = write - start;
     }
 }
 
@@ -3510,8 +3685,96 @@ app_iface_com(
 static int
 app_minimenu_run_option(struct App* app, int option_index, int click_x, int click_y);
 
+static void
+app_minimenu_stamp_node_identities(
+    struct App const* app,
+    struct UIMinimenu* menu);
+
 #include "plugin/torirs_plugin_bridge.u.c"
 #include "plugin/torirs_plugin_panel.u.c"
+
+static int
+app_plugin_pointer_capture_matches(
+    struct AppPluginPointerCapture const* capture,
+    struct AppPluginRegion const* region)
+{
+    assert(capture);
+    assert(region);
+    return capture->plugin == region->plugin && capture->tag == region->tag &&
+           capture->surface == region->surface &&
+           capture->role_anchored == region->role_anchored &&
+           capture->role_replace == region->role_replace &&
+           (!capture->role_anchored ||
+            (capture->role_node == region->role_node &&
+             capture->role_incarnation == region->role_incarnation));
+}
+
+/* Latch after top chrome has first refusal but before world/editor raw-input
+ * consumers. Final release validation waits until the stable-tree gate, so a
+ * frame retried for async settlement cannot lose the one-shot mouse-up. */
+static void
+app_plugin_pointer_capture_latch(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    struct AppPluginPointerCapture* capture = &app->plugin_pointer_capture;
+
+    if( capture->active && !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) &&
+        !LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
+        !input->curr.mouse_button_up[TORIRSM_LEFT] &&
+        !LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
+        capture->active = 0;
+
+    if( !capture->active && !app->input_frame_consumed &&
+        !app->interact.minimenu.visible &&
+        LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
+    {
+        int const at =
+            app_plugin_region_at(app, input->curr.mouse_x, input->curr.mouse_y);
+        if( at >= 0 )
+        {
+            struct AppPluginRegion const* region = &app->plugin_regions[at];
+            capture->active = 1;
+            capture->plugin = region->plugin;
+            capture->tag = region->tag;
+            capture->surface = region->surface;
+            capture->role_anchored = region->role_anchored;
+            capture->role_replace = region->role_replace;
+            capture->role_node = region->role_node;
+            capture->role_incarnation = region->role_incarnation;
+        }
+    }
+    if( capture->active )
+        app->input_frame_consumed = 1;
+}
+
+static int
+app_plugin_pointer_capture_release(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    struct AppPluginPointerCapture* capture = &app->plugin_pointer_capture;
+    int result = -1;
+
+    if( !capture->active )
+        return -1;
+    if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
+    {
+        int const at = app_plugin_region_at(
+            app,
+            input->last_click_x[TORIRSM_LEFT],
+            input->last_click_y[TORIRSM_LEFT]);
+        if( at >= 0 &&
+            app_plugin_pointer_capture_matches(capture, &app->plugin_regions[at]) )
+            result = at;
+    }
+    if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) ||
+        input->curr.mouse_button_up[TORIRSM_LEFT] ||
+        (!LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) &&
+         !LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT)) )
+        capture->active = 0;
+    return result;
+}
 
 /**
  * Pixel size of a sprite already resident in the scene.
@@ -4540,6 +4803,8 @@ app_entity_overlay_layout(struct App* app)
             pos->y = y;
             pos->width = w;
             pos->height = h;
+            pos->layout_resolved = 0;
+            UITree_MarkNodeDirty(app->tree, parent);
             UITree_LayoutInvalidateBoxes(app->tree);
         }
     }
@@ -4613,10 +4878,11 @@ app_entity_overlay_layout(struct App* app)
 
         if( c->position.x != x || c->position.y != y )
         {
-            c->position.x = x;
-            c->position.y = y;
-            c->is_dirty = 1;
-            UITree_LayoutInvalidateBoxes(app->tree);
+            /* This is a retained-tree mutation, not just a repaint request.
+             * The setter clears the cached absolute box and bumps dirty_gen,
+             * so the emit-retention gate cannot reuse the sprite command from
+             * the previous camera angle. */
+            (void)UITree_EntityOverlaySetLayerPosition(app->tree, node, x, y);
         }
 
         if( getenv("TORIRS_OVERLAY_SCRIPT_DEBUG") )
@@ -4646,7 +4912,7 @@ app_entity_overlay_layout(struct App* app)
  * The plugin canvas overlay, built on demand.
  *
  * A whole function for four lines because the shape has to match the world
- * list's exactly: reset, let the pushers fill it, hand the array over. What is
+ * list's exactly: empty it, let the pushers fill it, hand the array over. What is
  * NOT here is any of the client's own drawing -- nothing but a plugin ever
  * writes to this list, which is why the pass that asks for it can be
  * unconditional and still cost nothing on a client with no plugins.
@@ -4659,27 +4925,36 @@ app_build_canvas_overlays(
     assert(app);
     assert(out_items);
 
+    if( app->plugin_canvas_overlay_prepared )
+    {
+        *out_items = app->canvas_overlays;
+        return app->canvas_overlay_count;
+    }
+
+    app->plugin_canvas_overlay_prepared = 1;
     app->canvas_overlay_count = 0;
-    /* The regions go with the pixels they describe: both are declared inside
-     * the draw dispatches, and a region kept from a frame whose drawing was
-     * replaced would answer clicks for something that is no longer on the
-     * screen. The reset lives in app_build_frame_overlays, which runs first in
-     * the same walk -- see there. */
+    app->plugin_role_overlay_raw_count = 0;
+    app->plugin_role_overlay_group_count = 0;
+    app->plugin_role_anchor_seen = 0;
+    app->plugin_role_anchor_active = 0;
+    app->plugin_role_anchor_valid = 0;
+    /* Regions are reset by UITREE_HOST_BEGIN_OVERLAYS before either surface is
+     * requested, including trees with no world/FRAME pass. */
     *out_items = app->canvas_overlays;
     if( !app->plugins )
         return 0;
 
     PluginHost_DrawCanvas(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    app_role_overlays_group(app);
     return app->canvas_overlay_count;
 }
 
 /*
  * The plugin FRAME overlay -- the same shape again, for the third surface.
  *
- * The regions are NOT reset here, unlike the canvas list's: this pass runs
- * first and the canvas pass runs later in the same emit walk, so clearing them
- * twice would throw away every tab stone the frame just claimed. One reset,
- * owned by whichever pass comes first, and it is this one.
+ * Click regions are reset once by UITREE_HOST_BEGIN_OVERLAYS, before this pass
+ * and the canvas pass. That remains true when no WORLD exists and this list is
+ * never requested, so canvas-only regions cannot accumulate over stale ones.
  */
 static int
 app_build_frame_overlays(
@@ -4690,7 +4965,6 @@ app_build_frame_overlays(
     assert(out_items);
 
     app->frame_overlay_count = 0;
-    app->plugin_region_count = 0;
     *out_items = app->frame_overlays;
     if( !app->plugins )
         return 0;
@@ -5016,6 +5290,20 @@ app_host_request(
 
     switch( req->kind )
     {
+    case UITREE_HOST_BEGIN_OVERLAYS:
+        /* A retained refresh which discovers its first semantic anchor is
+         * abandoned in favour of a full walk. Both passes issue BEGIN in the
+         * same App_RunOnce; preserve the already-built Canvas list across the
+         * fallback so plugin callbacks and their per-frame draw budget run
+         * exactly once. App_RunOnce clears this latch for the next frame. */
+        if( !app->plugin_overlay_batch_started )
+        {
+            app->plugin_overlay_batch_started = 1;
+            app->plugin_region_count = 0;
+            app->plugin_role_paint_order = 0;
+            app->plugin_canvas_overlay_prepared = 0;
+        }
+        return 0;
     case UITREE_HOST_GET_SCROLLBAR_SCENE:
         return UITreeSceneBridge_ScrollbarSceneId(&app->bridge);
     case UITREE_HOST_GET_STATIC_SPRITE_SCENE:
@@ -5037,6 +5325,40 @@ app_host_request(
         *req->u.get_entity_overlays.out_clip_w = UITREE_LAYOUT_ROOT_W;
         *req->u.get_entity_overlays.out_clip_h = UITREE_LAYOUT_ROOT_H;
         return app_build_canvas_overlays(app, req->u.get_entity_overlays.out_items);
+    case UITREE_HOST_GET_ROLE_OVERLAY_GROUPS:
+    {
+        struct UITreeEntityOverlay const* ignored = NULL;
+        (void)app_build_canvas_overlays(app, &ignored);
+        if( req->u.get_role_overlay_groups.out_groups )
+            *req->u.get_role_overlay_groups.out_groups =
+                app->plugin_role_overlay_groups;
+        if( req->u.get_role_overlay_groups.out_anchor_seen )
+            *req->u.get_role_overlay_groups.out_anchor_seen =
+                app->plugin_role_anchor_seen;
+        return app->plugin_role_overlay_group_count;
+    }
+    case UITREE_HOST_SET_ROLE_OVERLAY_CLIP:
+    {
+        int updated = 0;
+        uint32_t const paint_order = ++app->plugin_role_paint_order;
+        for( int i = 0; i < app->plugin_region_count; i++ )
+        {
+            struct AppPluginRegion* region = &app->plugin_regions[i];
+            if( !region->role_anchored ||
+                region->role_node != req->u.set_role_overlay_clip.node_index ||
+                region->role_incarnation !=
+                    req->u.set_role_overlay_clip.node_incarnation ||
+                !!region->role_replace != !!req->u.set_role_overlay_clip.replace )
+                continue;
+            region->role_clip_x = req->u.set_role_overlay_clip.clip_x;
+            region->role_clip_y = req->u.set_role_overlay_clip.clip_y;
+            region->role_clip_w = req->u.set_role_overlay_clip.clip_w;
+            region->role_clip_h = req->u.set_role_overlay_clip.clip_h;
+            region->role_paint_order = paint_order;
+            updated++;
+        }
+        return updated;
+    }
     case UITREE_HOST_GET_FRAME_OVERLAYS:
         /* Cut to the canvas, like the list above it: a gameframe is chrome
          * around the viewport, so clipping it to the viewport would erase
@@ -7077,10 +7399,12 @@ app_chrome_route_input(
 
     if( ToriRSChrome_MouseMove(ui, input->curr.mouse_x, input->curr.mouse_y) )
         app->input_frame_consumed = 1;
-    if( input->curr.mouse_button_down[TORIRSM_LEFT] &&
+    if( !app->plugin_pointer_capture.active &&
+        input->curr.mouse_button_down[TORIRSM_LEFT] &&
         ToriRSChrome_MouseDown(ui, input->curr.mouse_x, input->curr.mouse_y) )
         app->input_frame_consumed = 1;
-    if( input->curr.mouse_button_up[TORIRSM_LEFT] &&
+    if( !app->plugin_pointer_capture.active &&
+        input->curr.mouse_button_up[TORIRSM_LEFT] &&
         ToriRSChrome_MouseUp(ui, input->curr.mouse_x, input->curr.mouse_y) )
         app->input_frame_consumed = 1;
 
@@ -8001,6 +8325,8 @@ App_Init(
     RS_Audio_Init(&app->audio);
     ToriRS_AudioQueue_Reset(&app->audio_out);
     app->inv_drag_com_id = -1;
+    app->inv_drag_node_index = -1;
+    app->inv_drag_obj_id = -1;
     app->reboot_timer = 0;
     app->multiway = 0;
     app->minimap_state = 0;
@@ -15130,6 +15456,32 @@ app_world_paint(struct App* app)
     }
 }
 
+/* The world rectangle is retained from the last emit, but visibility is live.
+ * A layout may suppress the viewport before the next emit refreshes that
+ * rectangle, and a component-array index may have been reclaimed meanwhile.
+ * Check both the tree's current world identity and effective display state
+ * before an app-owned mouse gesture uses the retained box. */
+static int
+app_world_viewport_component_live(struct App const* app)
+{
+    struct UITreeComponent const* node;
+    int32_t idx;
+
+    if( !app || !app->tree || !app->world_view_valid )
+        return 0;
+    idx = app->world_emit_desc.node_index;
+    if( idx < 0 || (uint32_t)idx >= app->tree->component_count ||
+        idx != app->tree->world_index )
+        return 0;
+    node = &app->tree->components[idx];
+    if( node->freed || node->type != UIELEM_BUILTIN_WORLD )
+        return 0;
+    if( app->world_emit_desc.component_id >= 0 &&
+        node->component_id != app->world_emit_desc.component_id )
+        return 0;
+    return !UITree_NodeOrAncestorDisplayHidden(app->tree, idx);
+}
+
 /* "Only hittest the world if the mouse is over the world element": inside the
  * world emit clip rect with no *clickable* UI on top. Script-hover targets
  * (layers with only on_mouse_repeat / on_mouse_over — e.g. iface 548 child 40
@@ -15145,7 +15497,7 @@ app_world_mouse_gate(
     struct UITreeEmitClip const* clip;
     struct UITreeEmitDesc const* desc;
 
-    if( !app->world_active || !app->world_view_valid )
+    if( !app->world_active || !app_world_viewport_component_live(app) )
         return 0;
     /* A viewport interface (reference mainModalId) owns the entire viewport
      * rect: buildMinimenu adds that modal's component options there and NEVER
@@ -15945,8 +16297,16 @@ app_world_camera_keys(
      * scripts AND moves the camera in the same frame; there is no focused
      * text-input concept to defer to yet. The viewport still has to be on
      * screen — with no world drawn these keys belong to the interface. */
-    if( !app->world_active || !app->world_view_valid )
+    if( !app->world_active || !app_world_viewport_component_live(app) )
+    {
+        /* Do not leave held arrow ownership feeding the follow-camera tick
+         * after its viewport became display:none. */
+        app->cam_key_left = 0;
+        app->cam_key_right = 0;
+        app->cam_key_up = 0;
+        app->cam_key_down = 0;
         return;
+    }
     /* Suppressed while any text input has focus (the chat line, a modal
      * prompt, a panel's search box), so typing never flies the camera -- and
      * while the catalog's model view holds focus, whose WASD/EF orbit the
@@ -16141,7 +16501,8 @@ app_ui_hotkeys(
             continue;
 
         node = &app->tree->components[binding->node_index];
-        if( node->freed )
+        if( node->freed ||
+            UITree_NodeOrAncestorDisplayHidden(app->tree, binding->node_index) )
             continue;
 
         switch( binding->effect )
@@ -16250,7 +16611,7 @@ app_world_camera_mouse(
     int mouse_y = input->curr.mouse_y;
     int follow_cam;
 
-    if( !app->world_active || !app->world_view_valid )
+    if( !app->world_active || !app_world_viewport_component_live(app) )
     {
         app->cam_mmb_active = 0;
         return;
@@ -21145,7 +21506,7 @@ app_world_hotkeys(
      * under the real gameframe there is always some visible onKey component
      * and gating on it made every press suppress itself. */
     (void)out;
-    if( !app->world_active || !app->world_view_valid )
+    if( !app->world_active || !app_world_viewport_component_live(app) )
         return;
     /* Suppressed while any text input has focus, so spawn-digit keys type
      * instead. */
@@ -22041,6 +22402,7 @@ app_hover_text_update(
             UIMinimenu_Reset(&scratch);
             scratch.font_id = app->hover_text.font_id;
             RS_Minimenu_Build(&mctx, mouse_x, mouse_y, &scratch);
+            app_minimenu_stamp_node_identities(app, &scratch);
             app_plugin_menu_build(app, &scratch, mouse_x, mouse_y, 1);
         }
         UIHoverText_Compose(&scratch, &app->hover_text);
@@ -22387,6 +22749,44 @@ app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
     return 1;
 }
 
+/* Stamp the exact tree occupant behind every retained native UI row. Scratch
+ * menus are consumed synchronously, but a popup can stay open while an earlier
+ * hook deletes/rebuilds the same component id into the same array slot. */
+static void
+app_minimenu_stamp_node_identities(
+    struct App const* app,
+    struct UIMinimenu* menu)
+{
+    assert(app);
+    assert(menu);
+
+    for( int i = 0; i < menu->option_count; i++ )
+    {
+        struct UIMinimenuPick* pick = &menu->options[i].pick;
+        int32_t idx = -1;
+
+        if( pick->id < 0 )
+            continue;
+        if( pick->kind == UI_MINIMENU_PICK_UI )
+            idx = app_displayable_component_node(app, pick->id);
+        else if( pick->kind == UI_MINIMENU_PICK_INV_SLOT )
+        {
+            int32_t parent = app_displayable_component_node(app, pick->id);
+            if( parent >= 0 && app->tree->components[parent].type == UIELEM_RS_INV )
+                idx = parent;
+            else
+                (void)UITree_ObjCellDynamicAtSlot(
+                    app->tree, pick->id, pick->secondary_id, &idx, NULL, NULL);
+        }
+        if( idx < 0 || (uint32_t)idx >= app->tree->component_count ||
+            app->tree->components[idx].freed )
+            continue;
+        pick->has_node_identity = 1;
+        pick->node_index = idx;
+        pick->node_incarnation = app->tree->components[idx].incarnation;
+    }
+}
+
 /* Build + show the minimenu for a right click (reference openMenu: width from
  * the widest row, centered on the click, clamped to the canvas). The tree
  * node stays unpositioned — emit and the interact gesture read the model. */
@@ -22429,6 +22829,10 @@ app_minimenu_open(
      * ops are the cache's, and a plugin adding a row after them must not leave
      * the menu half-sorted. */
     app_clientop_menu_build(app, menu, 0);
+    /* Fence native rows before a plugin menu subscriber gets control. Even a
+     * synchronous rebuild from inside that callback must not transfer a row
+     * which was authored for the prior occupant to its same-id replacement. */
+    app_minimenu_stamp_node_identities(app, menu);
     app_plugin_menu_build(app, menu, click_x, click_y, 0);
 
     /* TORIRS_MINIMENU_DEBUG=1: the world pickset that fed the rows plus every
@@ -22902,6 +23306,7 @@ app_run_default_ui_row(
     UIMinimenu_Reset(&scratch);
     scratch.font_id = app->interact.minimenu.font_id;
     RS_Minimenu_Build(&mctx, click_x, click_y, &scratch);
+    app_minimenu_stamp_node_identities(app, &scratch);
     app_plugin_menu_build(app, &scratch, click_x, click_y, 0);
     default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
     /*
@@ -23018,13 +23423,28 @@ app_inv_resolve_drop(
     {
         int com = app->if_events[i].com_id;
         int events = app->if_events[i].events;
+        int32_t parent;
         int32_t node = -1;
         int slot;
 
         if( (events & UITREE_FLAG_DRAG_ON) == 0 )
             continue;
+        parent = app_displayable_component_node(app, com);
+        if( parent < 0 )
+            continue;
         slot = UITree_ObjCellDynamicSlotNodeAt(app->tree, com, mouse_x, mouse_y, &node);
         if( slot < 0 )
+            continue;
+        /* Empty dynamic cells are commonly behavior-hidden by their paint
+         * script and remain legitimate drop positions, so do not reject that
+         * terminal flag.  Their container/ancestors must still be effectively
+         * visible, and an explicitly frame-suppressed cell is not a target. */
+        if( node < 0 || (uint32_t)node >= app->tree->component_count ||
+            app->tree->components[node].freed || app->tree->components[node].frame_hidden ||
+            app->tree->components[node].replacement_hidden ||
+            (app->tree->components[node].parent >= 0 &&
+             UITree_NodeOrAncestorDisplayHidden(
+                 app->tree, app->tree->components[node].parent)) )
             continue;
         /* from/to of -1 mean a plain widget (not a sub-id range). */
         if( app->if_events[i].from >= 0 && app->if_events[i].to >= 0 &&
@@ -23202,6 +23622,69 @@ app_inv_drag_promoted(struct App const* app)
     return app->inv_drag_can_drag && app->inv_drag_threshold && app->inv_drag_cycles >= dead_time;
 }
 
+/* The drag latch stores the server-facing parent component id.  Re-resolve it
+ * every frame, then (for CS2 dynamic cells) also re-resolve the concrete slot
+ * child: a plugin layout can hide either level after mouse-down. */
+static int
+app_inv_drag_source_live(struct App const* app)
+{
+    struct UITreeComponent const* armed;
+    int32_t parent;
+
+    if( app->inv_drag_com_id < 0 || !app->tree || app->inv_drag_node_index < 0 ||
+        (uint32_t)app->inv_drag_node_index >= app->tree->component_count )
+        return 0;
+    armed = &app->tree->components[app->inv_drag_node_index];
+    if( armed->freed || app->inv_drag_node_incarnation == 0 ||
+        armed->incarnation != app->inv_drag_node_incarnation ||
+        UITree_NodeOrAncestorDisplayHidden(app->tree, app->inv_drag_node_index) )
+        return 0;
+    parent = app_displayable_component_node(app, app->inv_drag_com_id);
+    if( parent < 0 )
+        return 0;
+    if( app->inv_drag_source_id >= 0 )
+    {
+        struct InvSlot slot;
+        return app->inv_drag_obj_id > 0 &&
+               InvManager_GetSlot(
+                   &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, &slot) &&
+               slot.obj_id == app->inv_drag_obj_id;
+    }
+    {
+        int32_t node = -1;
+        int obj = 0;
+        if( !UITree_ObjCellDynamicAtSlot(
+                app->tree,
+                app->inv_drag_com_id,
+                app->inv_drag_from_slot,
+                &node,
+                &obj,
+                NULL) ||
+            obj <= 0 || obj != app->inv_drag_obj_id ||
+            UITree_NodeOrAncestorDisplayHidden(app->tree, node) )
+            return 0;
+    }
+    return 1;
+}
+
+static void
+app_inv_drag_cancel(struct App* app)
+{
+    app->inv_drag_com_id = -1;
+    app->inv_drag_node_index = -1;
+    app->inv_drag_node_incarnation = 0;
+    app->inv_drag_can_drag = 0;
+    app->inv_drag_source_id = -1;
+    app->inv_drag_obj_id = -1;
+    app->inv_drag_cycles = 0;
+    app->inv_drag_threshold = 0;
+    app->inv_drag_dx = 0;
+    app->inv_drag_dy = 0;
+    if( app->tree )
+        app->tree->anti_drag = 0;
+    app->need_redraw = 1;
+}
+
 /*
  * Whether emit should ghost the armed slot at trans 128.
  *
@@ -23268,9 +23751,12 @@ app_inv_drag_tick(
                     ? &app->tree->components[cell.node_index]
                     : NULL;
             app->inv_drag_com_id = cell.component_id;
+            app->inv_drag_node_index = cell.node_index;
+            app->inv_drag_node_incarnation = node ? node->incarnation : 0;
             app->inv_drag_can_drag = cell.can_drag;
             app->inv_drag_from_slot = cell.slot;
             app->inv_drag_source_id = cell.inv_source_id;
+            app->inv_drag_obj_id = cell.obj_id;
             app->inv_drag_cycles = 0;
             app->inv_drag_grab_x = mx;
             app->inv_drag_grab_y = my;
@@ -23289,6 +23775,14 @@ app_inv_drag_tick(
     {
         if( app->tree )
             app->tree->anti_drag = 0;
+        return;
+    }
+    if( !app_inv_drag_source_live(app) )
+    {
+        /* display:none during a held gesture cancels ownership.  In
+         * particular, release must not turn into a default menu action or a
+         * packet against a component which is no longer painted. */
+        app_inv_drag_cancel(app);
         return;
     }
     if( app->tree )
@@ -23341,12 +23835,125 @@ app_inv_drag_tick(
     {
         app_run_default_ui_row(app, mx, my);
     }
-    app->inv_drag_com_id = -1;
-    app->inv_drag_dx = 0;
-    app->inv_drag_dy = 0;
-    if( app->tree )
-        app->tree->anti_drag = 0;
-    app->need_redraw = 1;
+    app_inv_drag_cancel(app);
+}
+
+/* A right-click menu is retained across frames, so its component rows must be
+ * validated again when selected.  Component ids survive array realloc but not
+ * deletion, and effective visibility may change while the popup is open. */
+static int
+app_minimenu_ui_pick_live(
+    struct App const* app,
+    struct UIMinimenuPick const* pick)
+{
+    int32_t idx;
+
+    if( pick->kind != UI_MINIMENU_PICK_UI && pick->kind != UI_MINIMENU_PICK_INV_SLOT )
+        return 1;
+    if( pick->has_node_identity )
+    {
+        if( pick->node_index < 0 ||
+            (uint32_t)pick->node_index >= app->tree->component_count ||
+            app->tree->components[pick->node_index].freed ||
+            app->tree->components[pick->node_index].incarnation != pick->node_incarnation ||
+            (pick->id >= 0 &&
+             app->tree->components[pick->node_index].component_id != pick->id) )
+            return 0;
+        if( pick->allow_own_replacement_hidden
+                ? UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
+                      app->tree, pick->node_index)
+                : UITree_NodeOrAncestorDisplayHidden(app->tree, pick->node_index) )
+            return 0;
+        idx = pick->node_index;
+    }
+    else
+    {
+        /* Some authored builtin/client rows have no component id. They have no
+         * stale node identity to validate; preserve their local action path. */
+        if( pick->id < 0 )
+            return 1;
+        idx = app_displayable_component_node(app, pick->id);
+        if( idx < 0 )
+            return 0;
+    }
+    if( pick->kind == UI_MINIMENU_PICK_INV_SLOT &&
+        app->tree->components[idx].type == UIELEM_RS_INV )
+    {
+        struct InvSlot slot;
+        if( pick->has_node_identity && pick->node_index != idx )
+            return 0;
+        if( !InvManager_GetSlot(
+                &app->invs,
+                app->tree->components[idx].u.rs_inv.inv_source_id,
+                pick->secondary_id,
+                &slot) ||
+            slot.obj_id <= 0 ||
+            (pick->tertiary_id > 0 && slot.obj_id != pick->tertiary_id) )
+            return 0;
+    }
+    else if( pick->kind == UI_MINIMENU_PICK_INV_SLOT )
+    {
+        int32_t cell = -1;
+        int obj = 0;
+        if( !UITree_ObjCellDynamicAtSlot(
+                app->tree, pick->id, pick->secondary_id, &cell, &obj, NULL) ||
+            obj <= 0 || UITree_NodeOrAncestorDisplayHidden(app->tree, cell) )
+            return 0;
+        if( pick->has_node_identity && pick->node_index != cell )
+            return 0;
+        /* Do not execute an old item's row on a new item which was painted
+         * into the same dynamic slot while the menu was open. */
+        if( pick->tertiary_id > 0 && obj != pick->tertiary_id )
+            return 0;
+    }
+    else if( pick->has_node_identity && pick->node_index != idx )
+        return 0;
+    return 1;
+}
+
+static int
+app_minimenu_plugin_option_live(
+    struct App const* app,
+    struct UIMinimenuOption const* opt)
+{
+    int at;
+    int op;
+    struct AppPluginRegion const* region;
+
+    if( UIMinimenu_ActionNormalize(opt->action) != RS_MINIMENU_ACTION_PLUGIN_REGION )
+        return 1;
+    if( opt->action_index < 0 )
+        return 0;
+    at = opt->action_index / TORIRS_PLUGIN_REGION_OPS_MAX;
+    op = opt->action_index % TORIRS_PLUGIN_REGION_OPS_MAX;
+    if( at < 0 || at >= app->plugin_region_count )
+        return 0;
+    region = &app->plugin_regions[at];
+    if( op < 0 || op >= region->op_count || region->plugin != opt->pick.id ||
+        region->tag != (uint32_t)opt->pick.secondary_id ||
+        (region->role_anchored ? region->role_node : -1) != opt->pick.tertiary_id ||
+        (region->role_anchored ? region->role_incarnation : 0) !=
+            (uint32_t)opt->pick.quaternary_id )
+        return 0;
+    return app_plugin_role_region_live(app, region);
+}
+
+static void
+app_minimenu_close_if_stale(struct App* app)
+{
+    struct UIMinimenu* menu = &app->interact.minimenu;
+
+    if( !menu->visible )
+        return;
+    for( int i = 0; i < menu->option_count; i++ )
+    {
+        if( app_minimenu_ui_pick_live(app, &menu->options[i].pick) &&
+            app_minimenu_plugin_option_live(app, &menu->options[i]) )
+            continue;
+        UIMinimenu_Hide(menu);
+        app->need_redraw = 1;
+        return;
+    }
 }
 
 static int
@@ -23368,6 +23975,14 @@ app_minimenu_run_option(
     /* Reference doAction has no CANCEL branch at all: dismissing the menu is
      * not an interaction and must not disturb a running cross. */
     if( opt.action == REVCONFIG_MINIMENU_CANCEL )
+        return 0;
+
+    /* The menu model outlives the visibility snapshot which built it.  A row
+     * belonging to a now-suppressed/deleted widget only dismisses the popup;
+     * it must not paint a cross, reach a plugin, run a hook, or send a packet. */
+    if( !app_minimenu_ui_pick_live(app, &opt.pick) )
+        return 0;
+    if( !app_minimenu_plugin_option_live(app, &opt) )
         return 0;
 
     {
@@ -23438,6 +24053,13 @@ app_minimenu_run_option(
         if( PluginHost_MenuSelect(app->plugins, &row, click_x, click_y) )
             return 1;
     }
+
+    /* A PASS subscriber may still synchronously rebuild or suppress the row's
+     * target. Revalidate after returning from plugin code before native action
+     * can transfer the retained row to a new same-id occupant. */
+    if( !app_minimenu_ui_pick_live(app, &opt.pick) ||
+        !app_minimenu_plugin_option_live(app, &opt) )
+        return 0;
 
     /* A cache-installed client op. After the plugins, so a plugin may still
      * veto one; before every engine branch, because there is no engine
@@ -23540,6 +24162,20 @@ app_minimenu_run_option(
     }
 
     /*
+     * A privacy button's mode, named outright.
+     *
+     * Beside the row above and for its reason: there is no engine behaviour
+     * behind this id to fall through to, and a UI-kind pick carrying it would
+     * be read as an IF_BUTTON and press whatever component id it names.
+     */
+    if( opt.action == RS_MINIMENU_ACTION_CHAT_FILTER )
+    {
+        if( RS_UISlots_SetChatFilter(&app->slots, opt.pick.secondary_id, opt.pick.tertiary_id) )
+            app->need_redraw = 1;
+        return 0;
+    }
+
+    /*
      * A plugin canvas region's row -- an orb, a bar, anything a plugin drew on
      * the canvas and claimed.
      *
@@ -23553,8 +24189,7 @@ app_minimenu_run_option(
     {
         int const at = opt.action_index / TORIRS_PLUGIN_REGION_OPS_MAX;
         int const op = opt.action_index % TORIRS_PLUGIN_REGION_OPS_MAX;
-        if( opt.action_index >= 0 && at < app->plugin_region_count &&
-            op < app->plugin_regions[at].op_count )
+        if( app_minimenu_plugin_option_live(app, &opt) )
         {
             struct AppPluginRegion const* region = &app->plugin_regions[at];
             PluginHost_CanvasClick(
@@ -24472,7 +25107,8 @@ component_hidden_or_orphaned(
         struct UITreeComponent const* c;
         assert((uint32_t)idx < tree->component_count);
         c = &tree->components[idx];
-        if( c->freed || c->behavior.hide )
+        if( c->freed || c->behavior.hide || c->frame_hidden ||
+            c->replacement_hidden )
             return 1;
         idx = c->parent;
     }
@@ -24631,14 +25267,14 @@ App_SyncPluginLayoutCanvas(struct App* app)
      * The lane had a window mode before any plugin claimed the frame -- a dat1
      * world is fixed and says so in its manifest -- and a released layout
      * should hand that back rather than leave the client in whatever mode the
-     * plugin wanted. So only a live claim states one.
+     * plugin wanted. A live claim states its mode; a release restates the
+     * lane's default.
      */
-    if( !app->plugin_layout_owned )
-        return;
-
-    want = app->plugin_layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED
-               ? CS2VM_WINDOW_MODE_FIXED
-               : CS2VM_WINDOW_MODE_RESIZABLE;
+    want = !app->plugin_layout_owned
+               ? app->host.default_window_mode
+               : app->plugin_layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED
+                     ? CS2VM_WINDOW_MODE_FIXED
+                     : CS2VM_WINDOW_MODE_RESIZABLE;
     if( app->host.window_mode == want )
         return;
     /*
@@ -24684,6 +25320,11 @@ App_PluginLayoutTick(struct App* app)
 
     if( !app->plugins )
         return;
+    /* Semantic replacement claims are independent of gameframe ownership.
+     * Resolve them at the same pre-interaction publication fence so a role
+     * rebuilt into a recycled component-array slot cannot leak one native
+     * frame or inherit another target's suppression. */
+    PluginHost_ReconcileRoleReplacements(app->plugins);
     if( !app->plugin_layout_owned )
     {
         /* A claim that ended while the tree was up: give the chrome back once,
@@ -24692,8 +25333,16 @@ App_PluginLayoutTick(struct App* app)
         if( app->plugin_layout_dirty && app->tree )
         {
             UITree_FrameRelease(app->tree);
+            UITree_EnsureLayout(app->tree);
             app->plugin_layout_dirty = 0;
+            /* Clear before notifying: a subscriber may claim the frame from
+             * inside EV_LAYOUT_CHANGED, and its new dirty declaration must
+             * survive this release transaction. */
+            PluginHost_LayoutChanged(app->plugins);
         }
+        /* app_plugin_layout_set already restored the lane's default on the
+         * ownership transition. Do not restate it on every ownerless tick:
+         * ordinary CS2/user window-mode changes own this state again now. */
         return;
     }
     if( !app->tree || app->tree->root_index < 0 )
@@ -24737,6 +25386,24 @@ App_PluginLayoutTick(struct App* app)
         app->plugin_layout_h != UITREE_LAYOUT_ROOT_H )
     {
         PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        /* A handler may release and immediately reclaim from inside EV_LAYOUT.
+         * The host correctly abandons that transaction (its claim epoch moved),
+         * which leaves dirty set and the effective frame released. Give the
+         * replacement claim one bounded, sequential attempt now so native
+         * chrome cannot leak into interaction between this tick and the final
+         * publication tick. Resolve first because the replacement handler may
+         * read role_rect while composing its declaration. A handler that keeps
+         * changing ownership cannot spin us: it gets at most this one retry. */
+        if( app->plugin_layout_owned && app->plugin_layout_dirty )
+        {
+            UITree_EnsureLayout(app->tree);
+            PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        }
+        /* FrameApply installs an effective geometry layer and invalidates the
+         * resolved boxes. Publish that layer before anybody hears that regions
+         * moved: layout-changed subscribers are allowed to read role_rect from
+         * inside their handler, and interaction follows this tick immediately. */
+        UITree_EnsureLayout(app->tree);
         /*
          * And tell EVERY plugin, not just the frame's owner.
          *
@@ -24746,10 +25413,14 @@ App_PluginLayoutTick(struct App* app)
          * PluginHost_Layout is the owner's news; this is everybody else's.
          */
         PluginHost_LayoutChanged(app->plugins);
+        /* A subscriber may release (or replace) the claim synchronously. Its
+         * layout_set callback drops the effective frame immediately, so close
+         * that invalidation before interaction consumes the resolved boxes. */
+        UITree_EnsureLayout(app->tree);
     }
-    /* The re-assert is NOT here. It has to be the last writer before the draw,
-     * and the tick is nowhere near last -- see UITree_EmitWalk, which is where
-     * it runs from. */
+    /* UITree_EmitWalk keeps a final generation fence as well. It no longer
+     * rewrites CS2 geometry: it only rebinds the standing semantic declaration
+     * if topology somehow changed after this settled pass. */
 }
 
 int
@@ -24912,6 +25583,9 @@ App_RunOnce(
 {
     struct UIInteractOut out;
     int ran_cs2 = 0;
+    int plugin_pointer_owned = 0;
+    int plugin_region_click = -1;
+    int plugin_pointer_consumed = 0;
 
     assert(app);
     assert(input);
@@ -24930,16 +25604,11 @@ App_RunOnce(
     /* Plugins before the built-in developer tools, for the same reason those
      * run first: a plugin panel's toggle has to latch during a boot, and
      * anything it changes has to be visible to this frame's emit rebuild. */
+    app->plugin_overlay_batch_started = 0;
     PluginHost_FrameStart(app->plugins, now_ms);
     /* After the frame handlers, not before: a plugin that re-authors its
      * geometry from on_frame gets it on screen this frame rather than next. */
     app_plugin_geometry_settle(app);
-    /* And the gameframe with them, for the same reason: a layout that claimed
-     * the frame from its start handler has to be on screen this frame, not
-     * next -- the alternative is one rendered frame of the lane's chrome
-     * flashing past every time a layout plugin is switched on. */
-    App_PluginLayoutTick(app);
-
     /*
      * All Settings rows, drained here and not inside the VM.
      *
@@ -25035,6 +25704,10 @@ App_RunOnce(
     /* Loc editor next, same reasoning -- and it has to run before anything
      * downstream reads input_frame_consumed for click-to-walk. */
     app_loc_editor_tick(app, input);
+    /* Plugin regions paint beneath the developer/plugin chrome. Let that
+     * chrome claim a new press first; an already-captured plugin gesture still
+     * owns its held/release edges (app_chrome_route_input fences those). */
+    app_plugin_pointer_capture_latch(app, input);
     /* Map editor panel after the loc editor, for the same reason and in the
      * same order it is drawn: both read this frame's hover, and the map editor
      * acts on activations the overlay latched during the two calls above. */
@@ -25277,6 +25950,14 @@ App_RunOnce(
                                                : "settled:pending_clientscripts");
         return 0;
     }
+    /* Reconcile the gameframe only after the pre-interaction CS2 transaction
+     * is complete. Applying it at the head of App_RunOnce made every later
+     * CC_DELETEALL/CC_CREATE hand interaction a tree one generation newer
+     * than the semantic bindings it was using. */
+    App_PluginLayoutTick(app);
+    /* A popup retained from the previous frame must not keep native rows live
+     * after that reconciliation suppressed or rebuilt their component. */
+    app_minimenu_close_if_stale(app);
     app_frame_latch_note(app, NULL);
 
     app->input_frame_consumed = 1;
@@ -25298,10 +25979,21 @@ App_RunOnce(
      * per-cycle timer, and the repeat is what puts the tooltip back. */
     app->interact.client_cycle = app->logic_cycle;
 
+    plugin_pointer_owned = app->plugin_pointer_capture.active;
+    plugin_region_click = app_plugin_pointer_capture_release(app, input);
+
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INTERACT)
     {
-        UITree_InteractFrame(&app->interact, app->tree, &app->ui_host, input, now_ms, &out);
+        UITree_InteractFrameWithPointerCapture(
+            &app->interact,
+            app->tree,
+            &app->ui_host,
+            input,
+            now_ms,
+            plugin_pointer_owned,
+            &out);
     }
+    plugin_pointer_consumed = plugin_pointer_owned || out.minimenu_consumed_pointer;
 
     /* World hover: gate on the mouse being over the world element. The pick
      * itself runs inside App_Render (hittest right after each visible model
@@ -25346,14 +26038,16 @@ App_RunOnce(
      * appears there beside whatever else is under the pointer, which is what a
      * right click is for.
      */
-    int plugin_region_took_click = 0;
-    if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) && out.minimenu_select < 0 &&
-        !out.minimenu_closed )
+    if( plugin_region_click >= 0 && out.minimenu_select < 0 && !out.minimenu_closed )
     {
-        int const region = app_plugin_region_at(
+        int region = app_plugin_region_at(
             app,
             input->last_click_x[TORIRSM_LEFT],
             input->last_click_y[TORIRSM_LEFT]);
+        if( region < 0 ||
+            !app_plugin_pointer_capture_matches(
+                &app->plugin_pointer_capture, &app->plugin_regions[region]) )
+            region = -1;
 
         /*
          * TORIRS_PLUGIN_REGION_DEBUG=1: which plugin region a left click
@@ -25388,29 +26082,59 @@ App_RunOnce(
                     app->plugin_regions[i].op_count > 0 ? app->plugin_regions[i].ops[0]
                                                         : "");
         }
-        if( region >= 0 && app->plugin_regions[region].op_count > 0 )
+        if( region >= 0 )
         {
-            /* Op 0 is the default, the same rule the right-click menu's top
-             * row follows -- they are one decision, made once. */
-            PluginHost_CanvasClick(
-                app->plugins,
-                app->plugin_regions[region].plugin,
-                app->plugin_regions[region].tag,
-                0,
-                input->last_click_x[TORIRSM_LEFT],
-                input->last_click_y[TORIRSM_LEFT]);
-            plugin_region_took_click = 1;
-            /* Everything the click would otherwise have reached. Cleared
-             * rather than guarded at each of the three sites below, so a
-             * fourth route added later cannot quietly get the click too. */
+            if( app->plugin_regions[region].op_count > 0 )
+            {
+                /* Op 0 is the default, the same rule the right-click menu's
+                 * top row follows -- they are one decision, made once. */
+                PluginHost_CanvasClick(
+                    app->plugins,
+                    app->plugin_regions[region].plugin,
+                    app->plugin_regions[region].tag,
+                    0,
+                    input->last_click_x[TORIRSM_LEFT],
+                    input->last_click_y[TORIRSM_LEFT]);
+            }
+            /* Everything the click would otherwise have reached. A zero-op
+             * region deliberately follows this same path: its documented job
+             * is to be an opaque input surface without offering an action. */
             out.clicked_com_id = -1;
             out.minimap_click = 0;
+            out.chat_button_filter = -1;
             out.left_click_miss = 0;
+            {
+                int kept = 0;
+                for( int i = 0; i < out.intent_count; i++ )
+                {
+                    if( out.intents[i].is_click )
+                        continue;
+                    out.intents[kept++] = out.intents[i];
+                }
+                out.intent_count = kept;
+            }
             app->input_frame_consumed = 1;
             app->need_redraw = 1;
         }
     }
-    (void)plugin_region_took_click;
+
+    /*
+     * A chat filter button, if nothing above took the click.
+     *
+     * Dispatched HERE and not in the interact walk that found it, because a
+     * plugin layout may own that rectangle: the modern frames make these
+     * buttons open and close the chatbox and leave the filter to the right
+     * click, and a walk that cycled on the way past would have changed the
+     * setting before the layout ever saw the press.
+     */
+    if( out.chat_button_filter >= 0 )
+    {
+        struct UITreeHostRequest cycle_req = {
+            .kind = UITREE_HOST_CYCLE_CHAT_FILTER_MODE,
+            .u.chat_filter.filter = out.chat_button_filter,
+        };
+        UITree_Host(&app->ui_host, &cycle_req);
+    }
 
     /* Minimenu gesture results (see interact_minimenu): option selected on
      * mousedown -> dispatch; right press with no menu open -> build + show. */
@@ -25515,6 +26239,7 @@ App_RunOnce(
         UIMinimenu_Reset(&scratch);
         scratch.font_id = app->interact.minimenu.font_id;
         RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
+        app_minimenu_stamp_node_identities(app, &scratch);
         app_plugin_menu_build(app, &scratch, out.clicked_x, out.clicked_y, 0);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         /*
@@ -25641,6 +26366,7 @@ App_RunOnce(
         scratch.font_id = app->interact.minimenu.font_id;
         app_minimenu_ctx_ground_fallback(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
+        app_minimenu_stamp_node_identities(app, &scratch);
         app_plugin_menu_build(app, &scratch, out.left_click_miss_x, out.left_click_miss_y, 0);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         if( default_idx >= 0 )
@@ -25708,6 +26434,20 @@ App_RunOnce(
         out.intent_count = kept;
     }
 
+    /* InteractFrame collected these against one tree snapshot, but menu/default
+     * actions above may already have run CS2 and hidden or deleted a later
+     * target.  Compact before touching any retained hook pointer. */
+    {
+        int kept = 0;
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            if( !app_intent_targets_live(app, &out.intents[i]) )
+                continue;
+            out.intents[kept++] = out.intents[i];
+        }
+        out.intent_count = kept;
+    }
+
     /* Snapshot hooks by value before dispatching anything: intent->hook points
      * into tree->components[], and an earlier intent's script can CC_CREATE
      * (realloc) or CC_DELETEALL (reclaim/reuse the slot), dangling the pointer. */
@@ -25728,6 +26468,10 @@ App_RunOnce(
         {
             struct UIIntent const* intent = &out.intents[i];
             struct TaskRunner* dest = &app->runner;
+            /* An earlier intent in this same batch can hide/delete this one.
+             * Re-resolve at the last possible point before dispatch. */
+            if( !app_intent_targets_live(app, intent) )
+                continue;
             /* Set the op index explicitly per intent rather than relying on the
              * host default, so one intent's op cannot leak into the next.
              * Unset (0) means the primary left-click op, which is what every
@@ -25764,7 +26508,7 @@ App_RunOnce(
      * Enter are part of the answer. */
     int chat_submit_pending = 0;
     int const chat_keys_suppressed =
-        app_chat_focus_tick(app, input, out.minimenu_consumed_pointer, &chat_submit_pending);
+        app_chat_focus_tick(app, input, plugin_pointer_consumed, &chat_submit_pending);
 
     /*
      * Plugins see the keyboard before the interface scripts do.
@@ -25826,8 +26570,14 @@ App_RunOnce(
         {
             struct UIKeyTarget const* target = &out.key_targets[t];
             int32_t idx;
-            idx = UITree_FindByComponentId(app->tree, target->component_id);
-            if( idx < 0 )
+            if( !(target->hooks & UI_KEY_HOOK_TYPED) )
+                continue;
+            idx = target->node_index;
+            if( idx < 0 || (uint32_t)idx >= app->tree->component_count ||
+                app->tree->components[idx].freed ||
+                app->tree->components[idx].incarnation != target->node_incarnation ||
+                app->tree->components[idx].component_id != target->component_id ||
+                UITree_NodeOrAncestorDisplayHidden(app->tree, idx) )
                 continue;
             /* Re-check the hook too: the id may have been reclaimed and handed
              * to a different node since collection. */
@@ -25878,8 +26628,12 @@ App_RunOnce(
                 int32_t idx;
                 if( !(target->hooks & want) )
                     continue;
-                idx = UITree_FindByComponentId(app->tree, target->component_id);
-                if( idx < 0 )
+                idx = target->node_index;
+                if( idx < 0 || (uint32_t)idx >= app->tree->component_count ||
+                    app->tree->components[idx].freed ||
+                    app->tree->components[idx].incarnation != target->node_incarnation ||
+                    app->tree->components[idx].component_id != target->component_id ||
+                    UITree_NodeOrAncestorDisplayHidden(app->tree, idx) )
                     continue;
                 hook = down ? &UITree_Hooks(&app->tree->components[idx])->on_key_down
                             : &UITree_Hooks(&app->tree->components[idx])->on_key_up;
@@ -25912,7 +26666,7 @@ App_RunOnce(
      * Focus itself is not decided here: app_chat_focus_tick above owns it for
      * every revision, because a cache chatbox has a focus state too and only
      * its *typing* is a clientscript's. What is left below is the typing. */
-    if( app->slots.chat_index >= 0 && !app->locedit_visible )
+    if( app_chat_node_index(app) >= 0 && !app->locedit_visible )
     {
         int chat_captures =
             app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open;
@@ -26116,15 +26870,19 @@ App_RunOnce(
             int ry = 0;
             if( app_chat_region(app, &rx, &ry, NULL) )
             {
-                struct UITreeComponent const* node = &app->tree->components[app->slots.chat_index];
+                int32_t const chat_idx = app_chat_node_index(app);
                 int bx = 0, by = 0, bw = 0, bh = 0;
-                UITree_LayoutGetBounds(&node->position, &bx, &by, &bw, &bh);
-                if( input->curr.mouse_x >= bx && input->curr.mouse_x < bx + bw &&
-                    input->curr.mouse_y >= by && input->curr.mouse_y < by + bh )
+                if( chat_idx >= 0 )
                 {
-                    struct RS_ChatFilters filters = app_chat_filters(app);
-                    RS_Chat_Scroll(&app->chat, &filters, input->curr.mouse_wheel_y);
-                    app->need_redraw = 1;
+                    struct UITreeComponent const* node = &app->tree->components[chat_idx];
+                    UITree_LayoutGetBounds(&node->position, &bx, &by, &bw, &bh);
+                    if( input->curr.mouse_x >= bx && input->curr.mouse_x < bx + bw &&
+                        input->curr.mouse_y >= by && input->curr.mouse_y < by + bh )
+                    {
+                        struct RS_ChatFilters filters = app_chat_filters(app);
+                        RS_Chat_Scroll(&app->chat, &filters, input->curr.mouse_wheel_y);
+                        app->need_redraw = 1;
+                    }
                 }
             }
         }
@@ -26154,8 +26912,8 @@ App_RunOnce(
      * the same press cannot also spawn something. */
     app_ui_hotkeys(app, input);
     app_world_hotkeys(app, input, &out);
-    app_inv_drag_tick(app, input, out.minimenu_consumed_pointer);
-    app_worldmap_drag_tick(app, input, out.minimenu_consumed_pointer);
+    app_inv_drag_tick(app, input, plugin_pointer_consumed);
+    app_worldmap_drag_tick(app, input, plugin_pointer_consumed);
 
     /* Idle timer (reference IDLE_TIMER after ~90s of no input). */
     if( input->key_event_count > 0 || input->curr.mouse_button_down[TORIRSM_LEFT] ||
@@ -26194,6 +26952,10 @@ App_RunOnce(
             /* Press-time track onclick → cc_dragpickup stages pending during
              * the drain above. Consume it in the same frame so the thumb jumps
              * under the cursor now and keeps following it while held. */
+            if( app->tree && app->tree->pending_drag_pickup &&
+                app_displayable_component_node(
+                    app, app->tree->pending_drag_pickup_id) < 0 )
+                app->tree->pending_drag_pickup = 0;
             if( app->tree && app->tree->pending_drag_pickup )
             {
                 struct UIInteractOut pickup_out;
@@ -26209,11 +26971,14 @@ App_RunOnce(
                         .px = app->runner.px,
                     };
                     for( int i = 0; i < pickup_out.intent_count; i++ )
-                        if( pickup_out.intents[i].hook )
+                        if( pickup_out.intents[i].hook &&
+                            app_intent_targets_live(app, &pickup_out.intents[i]) )
                             hook_copies[i] = *pickup_out.intents[i].hook;
                     for( int i = 0; i < pickup_out.intent_count; i++ )
                     {
                         struct UIIntent const* intent = &pickup_out.intents[i];
+                        if( !app_intent_targets_live(app, intent) )
+                            continue;
                         RS_CS2_SetEventOp(
                             &app->host, intent->op_index > 0 ? intent->op_index : 1, 0);
                         if( intent->has_event_mouse )
@@ -26325,10 +27090,24 @@ App_RunOnce(
                     app->tree->components[idx].behavior.hide = 0;
             }
         }
+        /* Interaction hooks and the persistent-state rebinds above can run a
+         * second CS2/topology transaction. This is the publication fence: the
+         * standing semantic declaration must name the exact incarnations the
+         * emit walk is about to commit, never the tree from frame start. */
+        App_PluginLayoutTick(app);
+        app_minimenu_close_if_stale(app);
         /* Publication invariant: an emit list is a frame commit, not a view of
          * whatever intermediate state the cooperative schedulers reached. */
         assert(App_FrameSettled(app));
         app_entity_overlay_layout(app);
+        /* Resolve before evaluating retention. Frame reconciliation and the
+         * projected entity-overlay pass can both invalidate boxes without
+         * changing an already-pruned node's filtered dirty mark; resolving here
+         * advances layout_resolve_seq and makes the gate observe that change. */
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
+        {
+            UITree_EnsureLayout(app->tree);
+        }
         /* Opt 11 retention, SHADOW MODE: work out whether this walk could have
          * been skipped, but always run it anyway, and check the verdict against
          * the byte compare below. `emit_gen_unsound` counts frames the gate
@@ -26343,17 +27122,22 @@ App_RunOnce(
         {
             static uint32_t prev_dirty_gen = 0;
             static uint32_t prev_layout_seq = 0;
+            static uint32_t prev_tree_generation = 0;
             static int prev_hover = -2;
             static int primed = 0;
 
-            /* Three terms, not two. `dirty_gen` covers writes that claim to
+            /* Topology, resolved layout, visible writes, and hover all belong
+             * to the retained list's identity. `dirty_gen` covers writes that
+             * claim to
              * change what a node draws; it does NOT cover layout re-resolving,
              * which moves resolved boxes (and therefore emitted clips) off
              * `layout_stale` / `layout_force_full` / a changed root box without
              * raising anyone's `is_dirty`. That is the one hole the unsound
              * counter found: emit #5 of a 2,000-frame run, clip.w 765 -> 807 on
              * the group-548 root, gate quiet, list changed. */
-            gate_quiet = primed && app->tree->dirty_gen == prev_dirty_gen &&
+            gate_quiet = primed && !app->tree->layout_stale &&
+                         app->tree->generation == prev_tree_generation &&
+                         app->tree->dirty_gen == prev_dirty_gen &&
                          app->tree->layout_resolve_seq == prev_layout_seq &&
                          app->hover_com_id == prev_hover;
             /* Every dirty_gen source was measured bursty (creates, hide flips,
@@ -26371,6 +27155,7 @@ App_RunOnce(
                     (int)(app->tree->dirty_gen - prev_dirty_gen));
             prev_dirty_gen = app->tree->dirty_gen;
             prev_layout_seq = app->tree->layout_resolve_seq;
+            prev_tree_generation = app->tree->generation;
             prev_hover = app->hover_com_id;
             primed = 1;
         }
@@ -26411,9 +27196,25 @@ App_RunOnce(
 
             if( retain )
             {
-                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAINED, 1);
+                int reusable = 1;
                 if( app->emit.volatile_refs )
-                    UITree_EmitRefreshVolatile(app->tree, &app->ui_host, &app->emit);
+                    reusable = UITree_EmitRefreshVolatile(
+                        app->tree, &app->ui_host, &app->emit);
+                if( reusable )
+                    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAINED, 1);
+                else
+                {
+                    /* Defensive fallback for a volatile source that could not
+                     * be refreshed safely. Rebuild once and retain normally
+                     * again next frame. */
+                    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAIN_BLOCKED, 1);
+                    app->emit.count = 0;
+                    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_EMIT)
+                    {
+                        UITree_EmitWalk(
+                            app->tree, &app->ui_host, &app->emit, app->hover_com_id);
+                    }
+                }
             }
             else
             {

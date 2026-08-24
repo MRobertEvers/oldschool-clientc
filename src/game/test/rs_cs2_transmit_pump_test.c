@@ -51,10 +51,12 @@
  *      arriving on an otherwise-quiet tick left the chatbox unredrawn until
  *      some unrelated transmit happened to open the early return.
  *
- * No cache and no server: nothing on this path reads either, and a gate that
- * skips when a cache is missing is a gate that eventually only ever skips.
+ * No cache files and no server: the pump path reads neither. The inventory
+ * regression below uses only capacities inserted into the in-memory provider.
  */
 
+#include "cs2vm2/cs2vm2.h"
+#include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "game/rs_cs2_dispatch.h"
 #include "game/rs_cs2_host.h"
@@ -123,6 +125,7 @@ static void
 fixture_free(struct Fixture* fx)
 {
     ToriRS_TaskQueue_Free(fx->runner.queue);
+    InvManager_Free(&fx->invs);
     UITree_Free(fx->tree);
     dat2_buildcache_free(fx->bc);
 }
@@ -201,6 +204,83 @@ test_quiet_tick(void)
     RS_CS2_PumpTransmits(&fx.host, &fx.runner);
     CHECK(queued_count(&fx) == 0, "and the pump queues no tasks, got %d", queued_count(&fx));
 
+    fixture_free(&fx);
+}
+
+/* ==========================================================================
+ * Inventory/equipment onLoad must see their type capacities before the first
+ * UPDATE_INV_FULL.
+ *
+ * Interface group 387's equipment slots are not static inventory widgets.
+ * Component 15's onLoad script 3281 starts with `inv_size(inv_94)` and loops
+ * over that result; each iteration creates the three children for one slot and
+ * registers script 545 as its onInvTransmit listener. If a fresh host reports
+ * zero here, 3281 returns without registering anything, so the later
+ * container-94 packet has no listener it can wake. The visible result is the
+ * cache's untouched `*` operations and no slot graphics.
+ * ========================================================================== */
+
+static void
+test_standard_sizes_exist_before_first_packet(void)
+{
+    struct Fixture fx;
+    struct CS2VM2 vm;
+    struct CS2VM2_Thread* thread;
+    struct CS2VM_HostRequest request = { 0 };
+    struct CacheProvider* provider;
+    int size = -1;
+
+    printf("pump: sidebar onLoads see type capacities before the first packet\n");
+
+    fixture_init(&fx);
+    CS2VM2_Init(&vm);
+    CS2VM2_BindHost(&vm, &fx.host, RS_CS2Host_Exec);
+    thread = CS2VM2_ThreadMain(&vm);
+    provider = dat2_buildcache_as_provider(fx.bc);
+
+    CHECK(
+        fx.invs.source_count == 0 && fx.invs.container_count == 0,
+        "the host starts with zero live inventory sources and containers");
+
+    request.kind = CS2VM_HOST_REQUEST_INVS_GET_SIZE;
+    request.u.invs_get_size.inv_id = INV_MANAGER_CONTAINER_BACKPACK;
+
+    CHECK(
+        RS_CS2Host_Exec(thread, &request) == CS2VM_EXECNO_YIELD,
+        "uncached INV_SIZE(93) yields once for its InvType");
+    CacheProvider_InvtypeAdd(provider, INV_MANAGER_CONTAINER_BACKPACK, 28);
+    CHECK(
+        RS_CS2Host_Exec(thread, &request) == CS2VM_EXECNO_OK,
+        "INV_SIZE(93) completes after its InvType arrives");
+    CHECK(
+        CS2VM2_PopInt(thread, &size) == CS2VM_EXECNO_OK,
+        "INV_SIZE(93) pushes a result");
+    CHECK(
+        size == 28,
+        "INV_SIZE(93) is the 28-slot type capacity, got %d",
+        size);
+
+    request.u.invs_get_size.inv_id = INV_MANAGER_CONTAINER_WORN;
+
+    CHECK(
+        RS_CS2Host_Exec(thread, &request) == CS2VM_EXECNO_YIELD,
+        "uncached INV_SIZE(94) yields once for its InvType");
+    CacheProvider_InvtypeAdd(provider, INV_MANAGER_CONTAINER_WORN, 14);
+    CHECK(
+        RS_CS2Host_Exec(thread, &request) == CS2VM_EXECNO_OK,
+        "INV_SIZE(94) completes after its InvType arrives");
+    CHECK(
+        CS2VM2_PopInt(thread, &size) == CS2VM_EXECNO_OK,
+        "INV_SIZE(94) pushes a result");
+    CHECK(
+        size == 14,
+        "INV_SIZE(94) is the 14-slot type capacity, got %d",
+        size);
+    CHECK(
+        fx.invs.source_count == 0 && fx.invs.container_count == 0,
+        "InvType lookups leave the live inventory manager completely unseeded");
+
+    CS2VM2_Free(&vm);
     fixture_free(&fx);
 }
 
@@ -686,6 +766,7 @@ main(void)
     printf("TEST: RS_CS2_PumpTransmits — the transmit dirty-flag guard\n");
 
     test_quiet_tick();
+    test_standard_sizes_exist_before_first_packet();
     test_each_flag_alone();
     test_stat_notify_reaches_a_dispatch();
     test_widgets_loaded_queues_stat_unhide();

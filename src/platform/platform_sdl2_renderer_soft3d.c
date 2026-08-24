@@ -1075,11 +1075,13 @@ ToriRS_Soft3D_Execute(
         soft->has_3d = true;
         soft->view_port_3d = cmd->u.begin_3d.view_port;
         soft->camera_3d = cmd->u.begin_3d.camera;
+        ToriDraw_ScenePrepareProjectionCamera(soft->scene, &soft->camera_3d);
         if( soft->view_port_3d.stride <= 0 )
             soft->view_port_3d.stride = soft->stride;
         break;
 
     case TORIRSRC_END_3D:
+        ToriDraw_SceneClearProjectionCamera(soft->scene);
         soft->has_3d = false;
         break;
 

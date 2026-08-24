@@ -320,19 +320,52 @@ RS_UISlots_SetSideTab(struct App* app, int tabno)
     }
 }
 
+/* Mode counts per filter, reference Client-TS gameLoop (public %4, private %3,
+ * trade %3; report is a click-through, not a cycle). */
+static int const k_chat_mode_count[RS_UI_CHAT_FILTER_COUNT] = { 4, 3, 3, 1 };
+
+int
+RS_UISlots_ChatFilterModeCount(int filter)
+{
+    if( filter < 0 || filter >= RS_UI_CHAT_FILTER_COUNT )
+        return 0;
+    return k_chat_mode_count[filter];
+}
+
 int
 RS_UISlots_CycleChatFilter(
     struct RS_UISlots* slots,
     int filter)
 {
-    /* Mode counts per filter, reference Client-TS gameLoop (public %4,
-     * private %3, trade %3; report is a click-through, not a cycle). */
-    static int const k_mode_count[RS_UI_CHAT_FILTER_COUNT] = { 4, 3, 3, 1 };
-
     assert(slots);
     if( filter < 0 || filter >= RS_UI_CHAT_FILTER_COUNT )
         return 0;
     slots->chat_filter_mode[filter] =
-        (slots->chat_filter_mode[filter] + 1) % k_mode_count[filter];
+        (slots->chat_filter_mode[filter] + 1) % k_chat_mode_count[filter];
     return slots->chat_filter_mode[filter];
+}
+
+/*
+ * Set one filter outright, rather than stepping to the next.
+ *
+ * The step is what a LEFT click on the button does and the set is what a menu
+ * row does -- "Public chat: Friends" names the mode it means, and reaching it
+ * by cycling would be a different number of clicks depending on where you
+ * started. Both exist because the frame decides which gesture it offers: the
+ * modern layouts give the click to the chatbox switch and leave the modes to
+ * the right-click menu.
+ */
+int
+RS_UISlots_SetChatFilter(
+    struct RS_UISlots* slots,
+    int filter,
+    int mode)
+{
+    assert(slots);
+    if( filter < 0 || filter >= RS_UI_CHAT_FILTER_COUNT )
+        return 0;
+    if( mode < 0 || mode >= k_chat_mode_count[filter] )
+        return 0;
+    slots->chat_filter_mode[filter] = mode;
+    return 1;
 }

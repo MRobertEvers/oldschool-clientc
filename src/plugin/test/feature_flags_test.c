@@ -575,6 +575,20 @@ fake_role_id(void* u, char const* role)
 }
 
 static int
+fake_role_replace(void* u, int plugin, char const* role, int enabled)
+{
+    (void)u; (void)plugin; (void)role; (void)enabled;
+    return 1;
+}
+
+static int
+fake_role_anchor(void* u, int plugin, char const* role, int replace)
+{
+    (void)u; (void)plugin; (void)replace;
+    return role ? 0 : 1;
+}
+
+static int
 fake_stat(
     void* u,
     int s,
@@ -1004,6 +1018,24 @@ fake_layout_slot_skin(
     (void)m;
     return 0;
 }
+
+static int
+fake_layout_slot_overlay(
+    void* u,
+    int slot,
+    int image,
+    int x,
+    int y,
+    int trans)
+{
+    (void)u;
+    (void)slot;
+    (void)image;
+    (void)x;
+    (void)y;
+    (void)trans;
+    return 0;
+}
 static int
 fake_tab_active(void* u)
 {
@@ -1171,6 +1203,7 @@ fake_engine(void)
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
+    e.layout_slot_overlay = fake_layout_slot_overlay;
     e.layout_scrollbar = fake_layout_scrollbar;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
@@ -1181,6 +1214,8 @@ fake_engine(void)
     e.role_visible = fake_role_visible;
     e.role_click = fake_role_click;
     e.role_id = fake_role_id;
+    e.role_replace = fake_role_replace;
+    e.role_anchor = fake_role_anchor;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;

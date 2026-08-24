@@ -309,7 +309,7 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | C12 | **Partyroom** | 1760 | 500 | **partial** | The chest is a real world-shared container; the lever's two prices and the announcement ladder are in and tested. Only the deposit INTERFACE remains. |
 | C13 | **Wilderness events** — hot zone, chest, Ganodermic Beast | 1558 | 250 | **partial** | Hot zone bands, the three leaderboards and the chest announcement are in and tested. The Ganodermic Beast needs a cache asset this snapshot does not contain — see the log. |
 | C14 | **Castle Wars** | 1284 | 190 | **partial** | Clock, teams, flag rules and the four-outcome ticket table are in and tested. Catapults, barricades, doors and the arena need a scene. |
-| C15 | **Stronghold of Security** | 1121 | 150 | **partial** | Per-floor reward economy and the combat-level portal skip are in and tested. The security questions and the maze doors need the dialogue/door pass. |
+| C15 | **Stronghold of Security** | 1121 | 150 | **done** | All 280 gate leaves force-walk in both directions; the 33-question pool, four rewards/emotes, claim-or-combat portals, and every missing rope/chain maplink are implemented and tested. |
 | C16 | **Chompy bird hunting** (the activity, not the quest) | 794 | 260 | **done** | The hat ladder — the reason anyone hunts past the quest — is in, generated from the wiki and cross-checked against the cache's eighteen objs. |
 | C17 | **Motherlode Mine — completion** | 572 | 400 | **done** | Nugget economy, sack thresholds and both upper-level unlocks, verified. |
 | C18 | **Waterbirth Island** + **Taverley** + **TzHaar** area plugins | 355 | partial | **done** | Taverley shortcuts were already covered by the wiki-generated table (under display names, not symbols). TzHaar's Inferno **practice fee** is now in (`inferno_practice_fee.rs2`, 5-step). Waterbirth's crack is the DKS entry, already present. |
@@ -1358,14 +1358,11 @@ with and without, and what was explicitly deferred with its reason.
 
   Two things pinned:
 
-  * **The portal skip is on COMBAT LEVEL and is explicitly independent of the
-    reward.** The wiki says it outright: "can be used at a combat level of 26 or
-    above, **even if the reward hasn't been claimed before**". Implementing it as
-    "you may skip a floor you have already cleared" is the natural reading of a
-    dungeon shortcut and is the opposite of what the page says — it would lock a
-    high-level player out of the shortcut that exists precisely for them. The
-    test asserts both directions: unclaimed-but-high-level may skip, and
-    claimed-but-low-level may not.
+  * **The high-combat portal route is independent of the reward.** The wiki says
+    it outright: "can be used at a combat level of 26 or above, **even if the
+    reward hasn't been claimed before**". That establishes the high-level branch;
+    the completion pass below adds the other documented branch, where claiming
+    that floor's reward also activates its portal.
   * **The fourth floor pays boots, not coins.** 2,000 / 3,000 / 5,000 and then a
     choice of boots, so the reward is a table rather than a scaling formula, and
     floor 4 answering 0 coins is asserted rather than left to fall through.
@@ -1375,6 +1372,34 @@ with and without, and what was explicitly deferred with its reason.
 
   Final: 28183 scripts; `ToriRSServer_Pack` 0 errors; both contracts green; 39 owned
   assertions green.
+
+- 2026-08-23 — **C15 Stronghold of Security — completion.**
+
+  [wiki] Added the complete 33-question security pool. The detailed gate pages
+  clarify that claiming a floor's reward stops questions on that floor; the
+  main page's full-completion statement then follows naturally. Portals use the
+  documented **floor claim OR combat level** rule (26 / 51 / 76 on floors 1–3,
+  floor-4 claim only).
+
+  [cache] Exact op-1 handlers own all eight closed gate records, covering 280
+  placed leaves (72 / 76 / 60 / 72). Every admitted crossing uses the Stronghold
+  animation and forced exact movement while leaving the wall loc closed. The
+  geometric second-gate detector handles both directions and the 2-, 3-, and
+  4-tile vestibule spacings.
+
+  [maplink] Added 19 collision-checked rows for the Vault chain, all four Famine
+  ropes, the missing west side of the Pestilence vine, and the western Death
+  chain. The western Death chain resets to the Death-floor start; only the
+  central treasure-room chain exits to the surface.
+
+  The Gift, Grain, Box, and Cradle now grant their Wiki rewards, emotes, and
+  restores with permanent per-floor claim state. The Cradle remains repeatable
+  for replacement Fancy/Fighting boots; account-only Fancier boots are omitted
+  because this server has no Jagex-account/authenticator state.
+
+  Marked **done**. Final: 29,578 scripts; Stronghold static contract, script
+  compilation, server pack build, door audit, and the full native selftest are
+  green (10 Stronghold assertions).
 
 - 2026-08-20 — **C5 Warriors' Guild — the economy and the defender ladder.**
 

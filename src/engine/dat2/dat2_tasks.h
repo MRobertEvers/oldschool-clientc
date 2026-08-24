@@ -182,6 +182,13 @@ CreateTask_Dat2ParamLoad(
     struct CacheProvider* provider,
     int param_id);
 
+/** Load one inventory type capacity from config group 5. An absent record is
+ *  installed as a cached size of zero. */
+struct ToriRS_Task*
+CreateTask_Dat2InvtypeLoad(
+    struct CacheProvider* provider,
+    int inv_id);
+
 struct ToriRS_Task*
 CreateTask_Dat2DbRowLoad(
     struct CacheProvider* provider,

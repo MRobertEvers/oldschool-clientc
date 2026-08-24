@@ -458,6 +458,17 @@ struct UITreeComponent
     /** Slot is on the tree free-list (CC_DELETEALL reclaim); skipped by array
      *  walks and reused by the next push. */
     uint8_t freed;
+    /**
+     * Identity of this particular occupant of the component-array slot.
+     *
+     * Array indices are storage, not identity: CC_DELETEALL puts an index on
+     * the free list and the next CC_CREATE can hand it straight to an
+     * unrelated node. Long-lived side tables (notably a plugin gameframe
+     * declaration) pair an index with this value before touching it, so an
+     * old declaration can never restore state through a recycled index.
+     * Zero is reserved for an empty/reclaimed slot.
+     */
+    uint32_t incarnation;
     int32_t free_next;
     /** Hint at the tail of `first_child`'s sibling list, so appending a child is
      *  O(1) instead of walking the list (cc_create fills a container one child at
@@ -552,6 +563,10 @@ struct UITreeComponent
      * cannot be argued with.
      */
     uint8_t frame_hidden;
+    /** Suppressed by an owner-scoped semantic role replacement. Separate from
+     * frame_hidden so either declaration may release without revealing a
+     * subtree the other still owns. Cache scripts never write this flag. */
+    uint8_t replacement_hidden;
     /** enum UITreeSlotTag — nonzero marks this node as a mount region. */
     uint8_t slot_tag;
     /**
@@ -879,6 +894,8 @@ struct UITree
     /** Tail of root sibling list — O(1) append while baking large packs. */
     int32_t last_root_index;
     uint32_t generation;
+    /** Monotonic source for UITreeComponent::incarnation. Zero is skipped. */
+    uint32_t next_incarnation;
     /** Bumped every time `UITree_LayoutResolve` actually walks, i.e. every time
      *  a resolved box could have moved. `dirty_gen` does not cover this: layout
      *  re-resolves on `layout_stale`, `layout_force_full` and a changed root box,
@@ -1342,8 +1359,28 @@ UITree_MarkAllDirty(struct UITree* tree);
 int32_t
 UITree_EntityOverlayCreateLayer(struct UITree* tree, int sub_id, int width, int height);
 
+/**
+ * Move a layer made by `UITree_EntityOverlayCreateLayer` to its projected
+ * parent-relative position. This invalidates both incremental layout and the
+ * retained emit list; writing `position.x/y` directly does neither completely.
+ *
+ * Returns false when `idx` is not a live scripted-overlay layer.
+ */
+bool
+UITree_EntityOverlaySetLayerPosition(struct UITree* tree, int32_t idx, int x, int y);
+
 void
 UITree_MarkNodeDirty(
+    struct UITree* tree,
+    int32_t idx);
+
+/**
+ * Mark a node whose visibility changed. Unlike UITree_MarkNodeDirty this
+ * always advances retained-output identity: a previously pruned node was not
+ * visited by the last emit, but revealing it necessarily changes the next one.
+ */
+void
+UITree_MarkNodeVisibilityDirty(
     struct UITree* tree,
     int32_t idx);
 
@@ -1971,11 +2008,59 @@ UITree_FindDropTarget(
     int py,
     int exclude_component_id);
 
-/** Ancestor hide check, including InterfaceParent mount containers. */
+/** Exact-node form used by retained drag gestures. Returns the node index and
+ * optionally its component id, or -1 when no drop target is painted there. */
+int32_t
+UITree_FindDropTargetNode(
+    struct UITree const* tree,
+    int px,
+    int py,
+    int exclude_component_id,
+    int* out_component_id);
+
+/** Cache/script hide check, including InterfaceParent mount containers. */
 int
 UITree_ComponentOrAncestorHidden(
     struct UITree const* tree,
     int component_id);
+
+/** Display/input hide check, also including plugin-frame suppression. */
+int
+UITree_ComponentOrAncestorDisplayHidden(
+    struct UITree const* tree,
+    int component_id);
+
+/**
+ * The node-index form of ComponentOrAncestorDisplayHidden.
+ *
+ * Input gestures keep node indices while they are active, and a revconfig
+ * builtin may have no component id at all.  Those callers must still observe
+ * plugin-frame suppression as a true display:none subtree rather than
+ * continuing a press/drag against an element which is no longer painted.
+ */
+int
+UITree_NodeOrAncestorDisplayHidden(
+    struct UITree const* tree,
+    int32_t node_index);
+
+/** The replacement-overlay visibility query: identical to the display-hidden
+ * form except the target node's own replacement_hidden is the tombstone being
+ * tested and is ignored. Native/frame hiding, an ancestor replacement,
+ * InterfaceParent containers and orphaned roots still hide it. */
+int
+UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
+    struct UITree const* tree,
+    int32_t node_index);
+
+/** Set a replacement suppression only when `node_index` still holds the exact
+ * incarnation the caller resolved. Returns 1 when the identity was live (also
+ * for an idempotent write), 0 for a missing or recycled slot. */
+int
+UITree_SetReplacementHidden(
+    struct UITree* tree,
+    int32_t node_index,
+    uint32_t incarnation,
+    int hidden);
 
 /** Resync timer/key/wheel/resize/sub_change set membership from current hooks.
  *  Call after writing hook slots outside UITree_ApplyRuntimeHook (tests, etc.). */

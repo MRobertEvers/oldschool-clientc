@@ -942,6 +942,9 @@ push_element_unlinked(struct UITree* tree)
 
     struct UITreeComponent* component = &tree->components[idx];
     memset(component, 0, sizeof(struct UITreeComponent));
+    if( ++tree->next_incarnation == 0 )
+        tree->next_incarnation++;
+    component->incarnation = tree->next_incarnation;
     component->parent = -1;
     component->first_child = -1;
     component->next_sibling = -1;
@@ -1459,6 +1462,47 @@ UITree_MarkNodeDirty(
     }
     else
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_DIRTY_UNREACHED, 1);
+}
+
+void
+UITree_MarkNodeVisibilityDirty(
+    struct UITree* tree,
+    int32_t idx)
+{
+    assert(tree);
+    if( idx < 0 || (uint32_t)idx >= tree->component_count )
+        return;
+    tree->components[idx].is_dirty = 1;
+    /* Visibility is also reachability. In particular, an unhidden node has a
+     * zero emit_visited bit precisely because it was hidden last walk, so the
+     * ordinary filtered mark cannot describe this transition. */
+    uitree_topo_bump(tree, __LINE__);
+}
+
+int
+UITree_SetReplacementHidden(
+    struct UITree* tree,
+    int32_t node_index,
+    uint32_t incarnation,
+    int hidden)
+{
+    struct UITreeComponent* component;
+
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return 0;
+    component = &tree->components[node_index];
+    if( component->freed || incarnation == 0 || component->incarnation != incarnation )
+        return 0;
+    hidden = hidden ? 1 : 0;
+    if( component->replacement_hidden != hidden )
+    {
+        component->replacement_hidden = (uint8_t)hidden;
+        /* Both hiding and revealing change reachability. Use the unconditional
+         * visibility bump so a previously pruned target cannot be retained. */
+        UITree_MarkNodeVisibilityDirty(tree, node_index);
+    }
+    return 1;
 }
 
 void
@@ -2547,6 +2591,32 @@ UITree_EntityOverlayCreateLayer(struct UITree* tree, int sub_id, int width, int 
     return idx;
 }
 
+bool
+UITree_EntityOverlaySetLayerPosition(
+    struct UITree* tree,
+    int32_t idx,
+    int x,
+    int y)
+{
+    struct UITreeComponent* c;
+
+    assert(tree);
+    if( idx < 0 || (uint32_t)idx >= tree->component_count )
+        return false;
+    c = &tree->components[idx];
+    if( c->freed || c->type != UIELEM_RS_LAYER || c->parent != tree->entity_overlay_index )
+        return false;
+    if( c->position.x == x && c->position.y == y && c->position.layout_resolved )
+        return true;
+
+    c->position.x = x;
+    c->position.y = y;
+    c->position.layout_resolved = 0;
+    UITree_LayoutInvalidateBoxes(tree);
+    UITree_MarkNodeDirty(tree, idx);
+    return true;
+}
+
 int32_t
 UITree_CcCopy(
     struct UITree* tree,
@@ -3148,13 +3218,21 @@ UITree_ApplyPosition(
     if( idx < 0 )
         return false;
     struct UITreeComponent* const com = &tree->components[idx];
-    if( com->position.x == x && com->position.y == y && com->position.layout_resolved )
+    int const frame_owned = UITree_FramePositionOwned(tree, idx);
+    if( com->position.x == x && com->position.y == y &&
+        (com->position.layout_resolved || frame_owned) )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
     }
     com->position.x = x;
     com->position.y = y;
+    /* The plugin owns only the effective box. Keep accepting the cache's
+     * native state underneath it, but do not invalidate or dirty a frame whose
+     * visible result did not change. Release will expose this value and marks
+     * the node once at that transition. */
+    if( frame_owned )
+        return true;
     com->position.layout_resolved = 0;
     UITree_LayoutInvalidateBoxes(tree);
     UITree_MarkNodeDirty(tree, idx);
@@ -3173,14 +3251,17 @@ UITree_ApplySize(
     if( idx < 0 )
         return false;
     struct UITreeComponent* const com = &tree->components[idx];
+    int const frame_owned = UITree_FramePositionOwned(tree, idx);
     if( com->position.width == width && com->position.height == height &&
-        com->position.layout_resolved )
+        (com->position.layout_resolved || frame_owned) )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
     }
     com->position.width = width;
     com->position.height = height;
+    if( frame_owned )
+        return true;
     com->position.layout_resolved = 0;
     UITree_LayoutInvalidateBoxes(tree);
     UITree_MarkNodeDirty(tree, idx);
@@ -3201,8 +3282,10 @@ UITree_ApplyPositionModes(
     if( idx < 0 )
         return false;
     struct UITreeComponent* const com = &tree->components[idx];
+    int const frame_owned = UITree_FramePositionOwned(tree, idx);
     if( com->position.x == x && com->position.y == y && com->position.x_mode == (int8_t)x_mode &&
-        com->position.y_mode == (int8_t)y_mode && com->position.layout_resolved )
+        com->position.y_mode == (int8_t)y_mode &&
+        (com->position.layout_resolved || frame_owned) )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
@@ -3211,6 +3294,8 @@ UITree_ApplyPositionModes(
     com->position.y = y;
     com->position.x_mode = (int8_t)x_mode;
     com->position.y_mode = (int8_t)y_mode;
+    if( frame_owned )
+        return true;
     com->position.layout_resolved = 0;
     UITree_LayoutInvalidateBoxes(tree);
     UITree_MarkNodeDirty(tree, idx);
@@ -3231,9 +3316,11 @@ UITree_ApplySizeModes(
     if( idx < 0 )
         return false;
     struct UITreeComponent* const com = &tree->components[idx];
+    int const frame_owned = UITree_FramePositionOwned(tree, idx);
     if( com->position.width == width && com->position.height == height &&
         com->position.width_mode == (int8_t)width_mode &&
-        com->position.height_mode == (int8_t)height_mode && com->position.layout_resolved )
+        com->position.height_mode == (int8_t)height_mode &&
+        (com->position.layout_resolved || frame_owned) )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
@@ -3242,6 +3329,8 @@ UITree_ApplySizeModes(
     com->position.height = height;
     com->position.width_mode = (int8_t)width_mode;
     com->position.height_mode = (int8_t)height_mode;
+    if( frame_owned )
+        return true;
     com->position.layout_resolved = 0;
     UITree_LayoutInvalidateBoxes(tree);
     UITree_MarkNodeDirty(tree, idx);
@@ -4490,16 +4579,17 @@ UITree_ComponentIsDropTarget(struct UITreeComponent const* c)
     return 0;
 }
 
-int
-UITree_ComponentOrAncestorHidden(
+static int
+uitree_node_or_ancestor_hidden(
     struct UITree const* tree,
-    int component_id)
+    int32_t idx,
+    int include_plugin_hidden,
+    int32_t ignore_own_replacement)
 {
-    int32_t idx;
     int group;
     int mount_hops = 0;
+    int32_t group_root = -1;
     assert(tree);
-    idx = UITree_FindByComponentId(tree, component_id);
     while( idx >= 0 && (uint32_t)idx < tree->component_count )
     {
         group = (tree->components[idx].component_id >> 16) & 0xffff;
@@ -4514,7 +4604,12 @@ UITree_ComponentOrAncestorHidden(
          * widgets when combat level changes on an XP update. */
         do
         {
-            if( tree->components[idx].behavior.hide )
+            group_root = idx;
+            if( tree->components[idx].behavior.hide ||
+                (include_plugin_hidden &&
+                 (tree->components[idx].frame_hidden ||
+                  (tree->components[idx].replacement_hidden &&
+                   idx != ignore_own_replacement))) )
                 return 1;
             idx = tree->components[idx].parent;
         } while( idx >= 0 && (uint32_t)idx < tree->component_count );
@@ -4532,10 +4627,55 @@ UITree_ComponentOrAncestorHidden(
                 break;
             }
         }
-        if( idx < 0 || ++mount_hops > UITREE_INTERFACE_PARENT_MAX )
+        if( idx < 0 )
+            return group_root >= 0 && !UITree_RootIsDisplayable(tree, group_root);
+        if( ++mount_hops > UITREE_INTERFACE_PARENT_MAX )
             break;
     }
     return 0;
+}
+
+int
+UITree_ComponentOrAncestorHidden(
+    struct UITree const* tree,
+    int component_id)
+{
+    /* Cache/script activity remains live beneath a plugin frame so native CS2
+     * state is current the instant the effective frame layer is released. */
+    return uitree_node_or_ancestor_hidden(
+        tree, UITree_FindByComponentId(tree, component_id), 0, -1);
+}
+
+int
+UITree_ComponentOrAncestorDisplayHidden(
+    struct UITree const* tree,
+    int component_id)
+{
+    return uitree_node_or_ancestor_hidden(
+        tree, UITree_FindByComponentId(tree, component_id), 1, -1);
+}
+
+int
+UITree_NodeOrAncestorDisplayHidden(
+    struct UITree const* tree,
+    int32_t node_index)
+{
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return 1;
+    return uitree_node_or_ancestor_hidden(tree, node_index, 1, -1);
+}
+
+int
+UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
+    struct UITree const* tree,
+    int32_t node_index)
+{
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return 1;
+    return uitree_node_or_ancestor_hidden(
+        tree, node_index, 1, node_index);
 }
 
 static int
@@ -4550,6 +4690,7 @@ drop_target_pick_in_subtree(
     struct UITreeScrollClip const* clip,
     struct UITreeScrollClip const* surface,
     int* best_id,
+    int32_t* best_node,
     int* best_depth,
     int depth)
 {
@@ -4566,7 +4707,7 @@ drop_target_pick_in_subtree(
         return 0;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_DROP, 1);
     c = &tree->components[idx];
-    if( c->behavior.hide )
+    if( c->behavior.hide || c->frame_hidden || c->replacement_hidden )
         return 0;
     if( c->component_id == exclude_component_id )
         return 0;
@@ -4634,6 +4775,7 @@ drop_target_pick_in_subtree(
                 &child_clip,
                 &child_surface,
                 best_id,
+                best_node,
                 best_depth,
                 depth + 1);
         }
@@ -4643,8 +4785,47 @@ drop_target_pick_in_subtree(
     {
         *best_depth = depth;
         *best_id = c->component_id;
+        *best_node = idx;
     }
     return *best_id >= 0;
+}
+
+int32_t
+UITree_FindDropTargetNode(
+    struct UITree const* tree,
+    int px,
+    int py,
+    int exclude_component_id,
+    int* out_component_id)
+{
+    int32_t root;
+    int32_t best_node = -1;
+    int best_id = -1;
+    int best_depth = -1;
+    assert(tree);
+    for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
+    {
+        if( tree->components[root].behavior.hide || tree->components[root].frame_hidden ||
+            tree->components[root].replacement_hidden )
+            continue;
+        drop_target_pick_in_subtree(
+            tree,
+            root,
+            px,
+            py,
+            exclude_component_id,
+            0,
+            0,
+            NULL,
+            NULL,
+            &best_id,
+            &best_node,
+            &best_depth,
+            0);
+    }
+    if( out_component_id )
+        *out_component_id = best_id;
+    return best_node;
 }
 
 int
@@ -4654,16 +4835,8 @@ UITree_FindDropTarget(
     int py,
     int exclude_component_id)
 {
-    int32_t root;
-    int best_id = -1;
-    int best_depth = -1;
-    assert(tree);
-    for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
-    {
-        if( tree->components[root].behavior.hide )
-            continue;
-        drop_target_pick_in_subtree(
-            tree, root, px, py, exclude_component_id, 0, 0, NULL, NULL, &best_id, &best_depth, 0);
-    }
-    return best_id;
+    int component_id = -1;
+    (void)UITree_FindDropTargetNode(
+        tree, px, py, exclude_component_id, &component_id);
+    return component_id;
 }
