@@ -10,7 +10,10 @@
 
 #include "pktnames.h"
 
+#include <assert.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 struct PktMapRebuild
 {
@@ -860,6 +863,21 @@ struct RevPacket
 {
     enum GameProtoPktName packet_type;
 
+    /*
+     * RUNCLIENTSCRIPT alone, owned separately rather than in the union
+     * below, because its 28 argument slots x a 512-byte string each come
+     * to 14460 bytes and the next largest payload here is 176. In the
+     * union that 14 KB was the size of EVERY packet: the framer zeroes a
+     * RevPacket on the stack per arrival and net.c queues each parsed one
+     * by value, so a login burst of zone updates and varp writes paid it
+     * a few hundred times over for string storage none of them used.
+     *
+     * NULL unless a parser decoded one. Ownership follows the same rule
+     * as the other heap payloads here (_npc_info.data, _map_rebuild.*):
+     * it transfers with the packet, and gameproto_free releases it.
+     */
+    struct PktRunClientScript* _runclientscript;
+
     union
     {
         struct PktMapRebuild _map_rebuild;
@@ -943,10 +961,34 @@ struct RevPacket
         struct PktAmbientSoundStop _ambientsound_stop;
         struct PktSetMapFlag _set_map_flag;
         struct PktSetPlayerOp _set_player_op;
-        struct PktRunClientScript _runclientscript;
         struct PktSetNpcUpdateOrigin _set_npc_update_origin;
     };
 };
+
+/**
+ * Mint (or re-zero) the separately-owned RUNCLIENTSCRIPT payload a parser is
+ * about to fill, and hand it back to fill.
+ *
+ * Idempotent because the three parsers are tried in order against the same
+ * RevPacket and one may claim the payload before another decides the packet
+ * is its own; re-zeroing is what the fill used to do to the inline member.
+ */
+static inline struct PktRunClientScript*
+pkt_runclientscript_reset(struct RevPacket* out)
+{
+    assert(out);
+
+    if( !out->_runclientscript )
+    {
+        out->_runclientscript = calloc(1, sizeof(*out->_runclientscript));
+        assert(out->_runclientscript);
+    }
+    else
+    {
+        memset(out->_runclientscript, 0, sizeof(*out->_runclientscript));
+    }
+    return out->_runclientscript;
+}
 
 /** FIFO node for parsed packets awaiting exec (v0 packets list). */
 struct RevPacketItem

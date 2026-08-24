@@ -863,14 +863,28 @@ struct RS_CS2Host
      *  write that would otherwise overwrite it on the next tick. */
     bool cam_angle_forced;
 
-    struct RS_CS2InvTransmitHook inv_transmit_hooks[RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX];
+    /* Heap, grown on demand, dense over [0, count). As fixed
+     * RS_CS2_HOST_*_TRANSMIT_HOOK_MAX slabs these three were 6.62 MB of .bss --
+     * 98.3% of struct RS_CS2Host and 68% of struct App -- charged to every
+     * client start to hold what a session actually registers: 0 inv hooks and
+     * 6 var hooks. An entry is 4520 bytes, 4096 of it the fixed str_args
+     * block, so the empty slots were the whole cost. MAX survives as the
+     * ceiling, leaving the hooks-full drop path unchanged.
+     *
+     * Index, never hold a pointer across an acquire: a grow moves the base.
+     * The dispatch protothreads already re-derive from hook_index on every
+     * iteration, which is what makes that safe across their yields. */
+    struct RS_CS2InvTransmitHook* inv_transmit_hooks;
     int inv_transmit_hook_count;
+    int inv_transmit_hook_cap;
 
-    struct RS_CS2VarTransmitHook var_transmit_hooks[RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX];
+    struct RS_CS2VarTransmitHook* var_transmit_hooks;
     int var_transmit_hook_count;
+    int var_transmit_hook_cap;
 
-    struct RS_CS2StatTransmitHook stat_transmit_hooks[RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX];
+    struct RS_CS2StatTransmitHook* stat_transmit_hooks;
     int stat_transmit_hook_count;
+    int stat_transmit_hook_cap;
 
     /** Set when IF_SETHIDE unhides a subtree (TS markWidgetsLoaded). Consumed once
      *  per logic tick by RS_CS2_PumpTransmits; per-hook last_seen_serial gating

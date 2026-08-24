@@ -445,7 +445,19 @@ net_process_packets(struct ToriRS_Network* net)
             if( parsed < 0 )
                 parsed = gameproto_parse(net->rev, name, pdata, psize, &packet);
             if( parsed > 0 )
+            {
+                /* Owned payloads transfer to the queued copy; the stack one
+                 * is abandoned here and never read again. */
                 push_parsed_packet(net, &packet);
+            }
+            else
+            {
+                /* A parser that allocated before deciding the packet was
+                 * malformed -- or not its own -- still owns what it
+                 * allocated, and nothing downstream will ever see this
+                 * packet to free it. */
+                gameproto_free(&packet);
+            }
         }
     }
     packetbuffer_reset(&net->packet_buffer);

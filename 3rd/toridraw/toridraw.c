@@ -285,6 +285,7 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     free(scene->tex_state);
     free(scene->anim_list);
     free(scene->zbuffer);
+    free(scene->event_queue.events);
 
     memset(scene, 0, sizeof(*scene));
 }
@@ -497,6 +498,49 @@ ToriDraw_ScenePrintSize(
     printf("  total:      %6zu bytes (%.1f KiB)\n", total, (double)total / 1024.0);
 }
 
+/*
+ * struct ToriDraw_Scene declares _Alignas(16) on the prepared-camera block --
+ * the SSE2 and Apple AArch64 projection kernels are built around that layout --
+ * but 32-bit malloc promises only eight, so the declaration was a promise the
+ * allocator never made. The compiler believed it and wrote the block with
+ * `movaps`; an unaligned aligned-store raises a general-protection fault, which
+ * Windows reports as an access violation at 0xffffffff.
+ *
+ * It stayed hidden while the scene was 5.5 MB, because a block that size comes
+ * back page-aligned by accident. Moving the event queue off the struct left an
+ * ordinary 25 KB block, and whether it landed on 8 or 16 then followed the heap
+ * layout -- which is why the fault tracked the size of the environment block and
+ * vanished under a debugger.
+ *
+ * Over-allocate and keep the allocator's own pointer in the word below the
+ * block, so the free path hands back exactly what it was given.
+ */
+#define TORIDRAW_SCENE_ALIGN _Alignof(struct ToriDraw_Scene)
+
+static struct ToriDraw_Scene*
+td_scene_alloc_aligned(void)
+{
+    void* raw;
+    uintptr_t aligned;
+
+    raw = calloc(
+        1, sizeof(struct ToriDraw_Scene) + TORIDRAW_SCENE_ALIGN + sizeof(void*));
+    assert(raw);
+    aligned = ((uintptr_t)raw + sizeof(void*) + TORIDRAW_SCENE_ALIGN - 1) &
+              ~(uintptr_t)(TORIDRAW_SCENE_ALIGN - 1);
+    ((void**)aligned)[-1] = raw;
+    return (struct ToriDraw_Scene*)aligned;
+}
+
+/* A deallocator, so NULL is an idiom here exactly as it is for free. */
+static void
+td_scene_free_aligned(struct ToriDraw_Scene* scene)
+{
+    if( !scene )
+        return;
+    free(((void**)scene)[-1]);
+}
+
 struct ToriDraw_Scene*
 ToriDraw_SceneNew(
     uint32_t flags,
@@ -506,8 +550,7 @@ ToriDraw_SceneNew(
     if( !resolve_caps(flags, scratch_buffer_size, &caps) )
         return NULL;
 
-    struct ToriDraw_Scene* scene = calloc(1, sizeof(struct ToriDraw_Scene));
-    assert(scene);
+    struct ToriDraw_Scene* scene = td_scene_alloc_aligned();
 
     scene->flags = flags;
     /* Build on first query rather than reporting an empty list. */
@@ -516,14 +559,14 @@ ToriDraw_SceneNew(
     if( !ToriDraw_SceneAllocBuffers(scene, &caps) )
     {
         ToriDraw_SceneFreeBuffers(scene);
-        free(scene);
+        td_scene_free_aligned(scene);
         return NULL;
     }
 
     if( !ToriDraw_SceneGraphInit(scene) )
     {
         ToriDraw_SceneFreeBuffers(scene);
-        free(scene);
+        td_scene_free_aligned(scene);
         return NULL;
     }
 
@@ -537,7 +580,7 @@ ToriDraw_SceneFree(struct ToriDraw_Scene* scene)
         return;
     ToriDraw_SceneGraphShutdown(scene);
     ToriDraw_SceneFreeBuffers(scene);
-    free(scene);
+    td_scene_free_aligned(scene);
 }
 
 /* Raster family selector; see graphics/raster/scanline/scanline_select.h. */
@@ -735,6 +778,12 @@ ToriDraw_ScenePrepareProjectionCamera(
 
     assert(scene);
     assert(camera);
+    /* The compiler writes these five vectors with aligned stores, on the
+     * strength of the _Alignas(16) in the struct; td_scene_alloc_aligned is
+     * what makes that true of the block the scene actually lives in. */
+    assert(
+        ((uintptr_t)&scene->projection_prepared_camera &
+         (TORIDRAW_SCENE_ALIGN - 1)) == 0);
 
     /* Publish the source only after all five vectors are complete. */
     scene->projection_prepared_camera_source = NULL;

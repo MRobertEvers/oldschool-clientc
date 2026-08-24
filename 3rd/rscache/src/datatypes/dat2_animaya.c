@@ -1011,7 +1011,8 @@ RSCache_Dat2AnimMayaNewFromCache(
     if( !archive )
         return NULL;
 
-    struct RSCache_ReferenceTable* table = cache->tables[animayas_table];
+    struct RSCache_ReferenceTable* table =
+        RSCache_Dat2DiskReferenceTable(cache, animayas_table);
     maya = RSCache_Dat2AnimMayaNewFromArchive(table, archive, anim_maya_id);
     RSCache_Dat2DiskArchiveFree(archive);
     return maya;

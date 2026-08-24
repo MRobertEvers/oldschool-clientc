@@ -623,7 +623,8 @@ load_cache_item_dat2(
 
     /* An idx record with no reference-table entry (hand-patched cache) is a
      * missing archive, not a fatal error. */
-    if( !RSCache_Dat2DiskArchiveInitMetadataFromTable(px->dat2_disk->tables[table_id], archive) )
+    if( !RSCache_Dat2DiskArchiveInitMetadataFromTable(
+            RSCache_Dat2DiskReferenceTable(px->dat2_disk, table_id), archive) )
     {
         fprintf(
             stderr,

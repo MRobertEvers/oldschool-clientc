@@ -1868,6 +1868,18 @@ RS_CS2Host_Free(struct RS_CS2Host* host)
     host->db_find_rows = NULL;
     host->db_find_count = 0;
     host->db_find_cursor = 0;
+    free(host->inv_transmit_hooks);
+    host->inv_transmit_hooks = NULL;
+    host->inv_transmit_hook_count = 0;
+    host->inv_transmit_hook_cap = 0;
+    free(host->var_transmit_hooks);
+    host->var_transmit_hooks = NULL;
+    host->var_transmit_hook_count = 0;
+    host->var_transmit_hook_cap = 0;
+    free(host->stat_transmit_hooks);
+    host->stat_transmit_hooks = NULL;
+    host->stat_transmit_hook_count = 0;
+    host->stat_transmit_hook_cap = 0;
 }
 
 void
@@ -5086,6 +5098,37 @@ exec_widget_set_model_angle(
     return CS2VM_EXECNO_OK;
 }
 
+/* Admits one more entry to a dense transmit-hook array, moving the base if it
+ * has to grow. The caller has already refused the ceiling, so this cannot run
+ * out of room; max is here only to keep the last doubling from overshooting it.
+ * Geometric from 8, so a session's handful of hooks costs one allocation and
+ * the pathological 512 costs seven. */
+static void
+rs_cs2_grow_transmit_hooks(
+    void** hooks,
+    int* cap,
+    int count,
+    size_t elem,
+    int max)
+{
+    int next;
+    void* grown;
+
+    assert(hooks);
+    assert(cap);
+    assert(count < max);
+    if( count < *cap )
+        return;
+
+    next = *cap ? *cap * 2 : 8;
+    if( next > max )
+        next = max;
+    grown = realloc(*hooks, (size_t)next * elem);
+    assert(grown);
+    *hooks = grown;
+    *cap = next;
+}
+
 /* Acquire the inv-transmit hook slot for component_id. Re-registration for the
  * same component reuses its entry (the new script supersedes the old) while
  * preserving its dispatch state — a transmit script re-registering itself must not
@@ -5159,6 +5202,12 @@ rs_cs2_acquire_inv_transmit_hook(
         return NULL;
     }
 
+    rs_cs2_grow_transmit_hooks(
+        (void**)&host->inv_transmit_hooks,
+        &host->inv_transmit_hook_cap,
+        host->inv_transmit_hook_count,
+        sizeof(*host->inv_transmit_hooks),
+        RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX);
     hook = &host->inv_transmit_hooks[host->inv_transmit_hook_count++];
     memset(hook, 0, sizeof(*hook));
     return hook;
@@ -5225,6 +5274,12 @@ rs_cs2_acquire_var_transmit_hook(
         return NULL;
     }
 
+    rs_cs2_grow_transmit_hooks(
+        (void**)&host->var_transmit_hooks,
+        &host->var_transmit_hook_cap,
+        host->var_transmit_hook_count,
+        sizeof(*host->var_transmit_hooks),
+        RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX);
     hook = &host->var_transmit_hooks[host->var_transmit_hook_count++];
     memset(hook, 0, sizeof(*hook));
     return hook;
@@ -5578,6 +5633,12 @@ rs_cs2_acquire_stat_transmit_hook(
         return NULL;
     }
 
+    rs_cs2_grow_transmit_hooks(
+        (void**)&host->stat_transmit_hooks,
+        &host->stat_transmit_hook_cap,
+        host->stat_transmit_hook_count,
+        sizeof(*host->stat_transmit_hooks),
+        RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX);
     hook = &host->stat_transmit_hooks[host->stat_transmit_hook_count++];
     memset(hook, 0, sizeof(*hook));
     return hook;

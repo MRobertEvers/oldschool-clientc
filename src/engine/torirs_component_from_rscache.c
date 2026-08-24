@@ -98,19 +98,20 @@ torirs_component_copy_inv_slots_dat2(
         return;
     assert(dst);
 
+    struct ToriRS_ComponentInvSlots* slots = ToriRS_ComponentInvSlotsEnsure(dst);
     for( int i = 0; i < TORIRS_INV_SLOT_MAX; i++ )
     {
         if( src->invSlotOffsetX )
-            dst->inv_slot_offset_x[i] = src->invSlotOffsetX[i];
+            slots->offset_x[i] = src->invSlotOffsetX[i];
         if( src->invSlotOffsetY )
-            dst->inv_slot_offset_y[i] = src->invSlotOffsetY[i];
+            slots->offset_y[i] = src->invSlotOffsetY[i];
         if( src->invSlotGraphicId )
         {
-            dst->inv_slot_graphic_id[i] = src->invSlotGraphicId[i];
+            slots->graphic_id[i] = src->invSlotGraphicId[i];
             torirs_dat2_sprite_ref_from_id(
                 src->invSlotGraphicId[i],
-                dst->inv_slot_sprite_ref[i],
-                sizeof(dst->inv_slot_sprite_ref[i]));
+                slots->sprite_ref[i],
+                sizeof(slots->sprite_ref[i]));
         }
     }
 }
@@ -558,18 +559,19 @@ ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
          * item ops) and usable = objUse (show "Use"). */
         dst->inv_obj_ops = src->interactable ? 1 : 0;
         dst->inv_obj_use = src->usable ? 1 : 0;
+        struct ToriRS_ComponentInvSlots* slots = ToriRS_ComponentInvSlotsEnsure(dst);
         for( int i = 0; i < TORIRS_INV_SLOT_MAX; i++ )
         {
-            dst->inv_slot_graphic_id[i] = -1;
+            slots->graphic_id[i] = -1;
             if( src->invSlotOffsetX )
-                dst->inv_slot_offset_x[i] = src->invSlotOffsetX[i];
+                slots->offset_x[i] = src->invSlotOffsetX[i];
             if( src->invSlotOffsetY )
-                dst->inv_slot_offset_y[i] = src->invSlotOffsetY[i];
+                slots->offset_y[i] = src->invSlotOffsetY[i];
             if( src->invSlotGraphic && src->invSlotGraphic[i] )
                 strncpy(
-                    dst->inv_slot_sprite_ref[i],
+                    slots->sprite_ref[i],
                     src->invSlotGraphic[i],
-                    sizeof(dst->inv_slot_sprite_ref[i]) - 1);
+                    sizeof(slots->sprite_ref[i]) - 1);
         }
     }
 

@@ -62,7 +62,19 @@ out_pending_flush(struct PlatformSocket* sock)
 struct PlatformSocket*
 PlatformSocket_New(int default_port)
 {
-    struct PlatformSocket* sock = calloc(1, sizeof(*sock));
+    struct PlatformSocket* sock;
+    int wsa_rc;
+
+    /* Winsock needs a process-wide WSAStartup before socket(). The JS5 users
+     * (ondemand, js5_cache) each init on their own path; nothing does it for a
+     * client whose only wire is the game transport, so socket() died with
+     * WSANOTINITIALISED on any non-embed non-JS5 boot. Init is refcounted, so
+     * doubling up with a JS5 path is harmless. */
+    wsa_rc = sockstream_init();
+    assert(wsa_rc == 0);
+    (void)wsa_rc; /* OPT=1 defines NDEBUG, so the assert alone would drop it */
+
+    sock = calloc(1, sizeof(*sock));
     assert(sock);
     sock->default_port = default_port > 0 ? default_port : 43594;
     sock->last_status = TORIRS_NET_STATUS_DISCONNECTED;

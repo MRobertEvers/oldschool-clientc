@@ -81,9 +81,12 @@ struct MemProf_Site
  * last dump by this much, the report is rewritten in place -- so the file left
  * behind describes the high-water mark. The step is what keeps it affordable:
  * a dump sorts the whole site table, and doing that per allocation is the
- * mistake this file already made once.
+ * mistake this file already made once. Keep it small, though: the dump only
+ * describes the high-water mark to within one step, and at 16 MB that slack
+ * was enough for the last dump to land 4.9 MB below the true peak -- ranking
+ * a moment that was not the peak, which is worse than not ranking one.
  */
-#define MEMPROF_PEAK_STEP_BYTES (16 * 1024 * 1024)
+#define MEMPROF_PEAK_STEP_BYTES (1024 * 1024)
 
 static struct MemProf_Site* g_sites;
 static volatile LONG g_ready;
@@ -102,6 +105,9 @@ memprof_report(void);
 
 static void
 memprof_dump(const char* suffix, const char* label);
+
+static uintptr_t
+memprof_link_bias(void);
 
 static void
 memprof_init(void)
@@ -122,9 +128,104 @@ memprof_init(void)
     InterlockedExchange(&g_ready, 1);
 }
 
+/*
+ * TEMPORARY DIAGNOSTIC. The memory cuts introduced a fault that only fires
+ * under one environment block and never under a debugger, so the fault has to
+ * report itself. stderr is unbuffered; the redirected stdout buffer is not,
+ * which is why the flush comes first -- without it the log loses its last 4 KB
+ * and says nothing about where the process died.
+ *
+ * The stack scan is a poor-man's backtrace: -O2 without a frame pointer breaks
+ * an EBP walk, but every return address still sits somewhere in the frame, so
+ * printing the stack words that land inside the image finds them.
+ */
+static LONG WINAPI
+memprof_fault_filter(EXCEPTION_POINTERS* info)
+{
+    HMODULE base = GetModuleHandleA(NULL);
+    const IMAGE_DOS_HEADER* dos = (const IMAGE_DOS_HEADER*)base;
+    const IMAGE_NT_HEADERS* nt;
+    uintptr_t bias = memprof_link_bias();
+    uintptr_t lo = (uintptr_t)base;
+    uintptr_t hi;
+    uintptr_t sp;
+    uintptr_t stack_end;
+    MEMORY_BASIC_INFORMATION mbi;
+    uintptr_t* p;
+    int printed = 0;
+
+    fflush(NULL);
+    if( !info || !base || dos->e_magic != IMAGE_DOS_SIGNATURE )
+        return EXCEPTION_CONTINUE_SEARCH;
+    nt = (const IMAGE_NT_HEADERS*)((const char*)base + dos->e_lfanew);
+    hi = lo + nt->OptionalHeader.SizeOfImage;
+
+    fprintf(
+        stderr,
+        "FAULT: code=0x%08lx at 0x%08lx (link 0x%08lx) base=0x%08lx\n",
+        (unsigned long)info->ExceptionRecord->ExceptionCode,
+        (unsigned long)(uintptr_t)info->ExceptionRecord->ExceptionAddress,
+        (unsigned long)((uintptr_t)info->ExceptionRecord->ExceptionAddress + bias),
+        (unsigned long)lo);
+    if( info->ExceptionRecord->NumberParameters >= 2 )
+        fprintf(
+            stderr,
+            "FAULT: access %lu at 0x%08lx\n",
+            (unsigned long)info->ExceptionRecord->ExceptionInformation[0],
+            (unsigned long)info->ExceptionRecord->ExceptionInformation[1]);
+
+#if defined(_WIN64)
+    sp = (uintptr_t)info->ContextRecord->Rsp;
+#else
+    sp = (uintptr_t)info->ContextRecord->Esp;
+    fprintf(
+        stderr,
+        "FAULT: eip=%08lx esp=%08lx ebp=%08lx eax=%08lx ebx=%08lx\n"
+        "FAULT: ecx=%08lx edx=%08lx esi=%08lx edi=%08lx image=%08lx..%08lx\n",
+        (unsigned long)info->ContextRecord->Eip,
+        (unsigned long)info->ContextRecord->Esp,
+        (unsigned long)info->ContextRecord->Ebp,
+        (unsigned long)info->ContextRecord->Eax,
+        (unsigned long)info->ContextRecord->Ebx,
+        (unsigned long)info->ContextRecord->Ecx,
+        (unsigned long)info->ContextRecord->Edx,
+        (unsigned long)info->ContextRecord->Esi,
+        (unsigned long)info->ContextRecord->Edi,
+        (unsigned long)lo,
+        (unsigned long)hi);
+    {
+        int k;
+        for( k = 0; k < 16; k++ )
+            fprintf(
+                stderr,
+                "FAULT: raw[%02d] %08lx\n",
+                k,
+                (unsigned long)((uintptr_t*)sp)[k]);
+    }
+#endif
+    if( !VirtualQuery((void*)sp, &mbi, sizeof(mbi)) )
+        return EXCEPTION_CONTINUE_SEARCH;
+    stack_end = (uintptr_t)mbi.BaseAddress + mbi.RegionSize;
+    for( p = (uintptr_t*)sp; (uintptr_t)p < stack_end && printed < 40; p++ )
+    {
+        uintptr_t v = *p;
+        if( v <= lo || v >= hi )
+            continue;
+        fprintf(
+            stderr,
+            "FAULT: stack[%04u] 0x%08lx link 0x%08lx\n",
+            (unsigned)(((uintptr_t)p - sp) / sizeof(uintptr_t)),
+            (unsigned long)v,
+            (unsigned long)(v + bias));
+        printed++;
+    }
+    fflush(stderr);
+    return EXCEPTION_CONTINUE_SEARCH;
+}
 /* The linker rewrote every malloc in the program, this file included. */
 static void __attribute__((constructor)) memprof_ctor(void)
 {
+    SetUnhandledExceptionFilter(memprof_fault_filter);
     memprof_init();
 }
 
@@ -321,22 +422,43 @@ memprof_site_cmp(const void* a, const void* b)
     return 0;
 }
 
-/* Runtime address -> the address the linker gave the same instruction, which is
- * what addr2line wants. ASLR moves the image; the PE headers still carry the
- * base it was linked for. */
+/*
+ * Runtime address -> the address the linker gave the same instruction, which is
+ * what addr2line wants.
+ *
+ * This used to read OptionalHeader.ImageBase out of the mapped header, which is
+ * exactly the field the loader overwrites with wherever it decided to put the
+ * image: the answer was always zero, and on a relocated i686 build that made
+ * every printed call site a runtime address no symbolizer could resolve. The
+ * base the image was linked for only survives on disk, so read it from there.
+ */
 static uintptr_t
 memprof_link_bias(void)
 {
-    HMODULE base = GetModuleHandleA(NULL);
-    const IMAGE_DOS_HEADER* dos = (const IMAGE_DOS_HEADER*)base;
-    const IMAGE_NT_HEADERS* nt;
+    static uintptr_t cached;
+    static int resolved;
+    char path[MAX_PATH];
+    IMAGE_DOS_HEADER dos;
+    IMAGE_NT_HEADERS nt;
+    HMODULE base;
+    FILE* f;
 
-    if( !base || dos->e_magic != IMAGE_DOS_SIGNATURE )
+    if( resolved )
+        return cached;
+    resolved = 1;
+
+    base = GetModuleHandleA(NULL);
+    if( !base || !GetModuleFileNameA(NULL, path, sizeof(path)) )
         return 0;
-    nt = (const IMAGE_NT_HEADERS*)((const char*)base + dos->e_lfanew);
-    if( nt->Signature != IMAGE_NT_SIGNATURE )
+    f = fopen(path, "rb");
+    if( !f )
         return 0;
-    return (uintptr_t)nt->OptionalHeader.ImageBase - (uintptr_t)base;
+    if( fread(&dos, sizeof(dos), 1, f) == 1 && dos.e_magic == IMAGE_DOS_SIGNATURE &&
+        fseek(f, dos.e_lfanew, SEEK_SET) == 0 && fread(&nt, sizeof(nt), 1, f) == 1 &&
+        nt.Signature == IMAGE_NT_SIGNATURE )
+        cached = (uintptr_t)nt.OptionalHeader.ImageBase - (uintptr_t)base;
+    fclose(f);
+    return cached;
 }
 
 /*

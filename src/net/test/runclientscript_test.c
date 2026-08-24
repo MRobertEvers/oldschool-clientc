@@ -35,6 +35,7 @@
 #include "rsareabuf.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* net/rev/osrs230/osrs230_parse.c */
@@ -109,6 +110,9 @@ write_runclientscript(
 static int
 parse(uint8_t const* data, int len, struct RevPacket* out)
 {
+    /* The payload lives outside the union now, so a reused packet owns one
+     * from the previous parse; zeroing over it would drop the block. */
+    free(out->_runclientscript);
     memset(out, 0, sizeof(*out));
     return osrs230_parse(NULL, PKT_NAME_RUNCLIENTSCRIPT, data, len, out);
 }
@@ -124,7 +128,7 @@ static void
 test_mixed_roundtrip(void)
 {
     uint8_t bytes[512];
-    struct RevPacket pkt;
+    struct RevPacket pkt = { 0 };
     const int intv[5] = { 11, 22, 0, 44, 0 };
     const char* strv[5] = { NULL, NULL, "herb patch", NULL, "second" };
     int len;
@@ -137,17 +141,17 @@ test_mixed_roundtrip(void)
         return;
 
     CHECK_EQ(parse(bytes, len, &pkt), 1, "and parses");
-    CHECK_EQ(pkt._runclientscript.script_id, 1074, "the script id survives");
-    CHECK_EQ(pkt._runclientscript.argc, 5, "five arguments");
-    CHECK_EQ(pkt._runclientscript.intv[0], 11, "int 0");
-    CHECK_EQ(pkt._runclientscript.intv[1], 22, "int 1");
-    CHECK_EQ(pkt._runclientscript.intv[3], 44, "int 3");
-    CHECK(strcmp(pkt._runclientscript.strv[2], "herb patch") == 0, "string 2");
-    CHECK(strcmp(pkt._runclientscript.strv[4], "second") == 0, "string 4");
+    CHECK_EQ(pkt._runclientscript->script_id, 1074, "the script id survives");
+    CHECK_EQ(pkt._runclientscript->argc, 5, "five arguments");
+    CHECK_EQ(pkt._runclientscript->intv[0], 11, "int 0");
+    CHECK_EQ(pkt._runclientscript->intv[1], 22, "int 1");
+    CHECK_EQ(pkt._runclientscript->intv[3], 44, "int 3");
+    CHECK(strcmp(pkt._runclientscript->strv[2], "herb patch") == 0, "string 2");
+    CHECK(strcmp(pkt._runclientscript->strv[4], "second") == 0, "string 4");
     /* `str_mask` is what `App_RunClientScript` hands to the CS2 VM to decide
      * which stack each argument goes on. A bit in the wrong place puts a heap
      * pointer where an int belongs. */
-    CHECK_EQ(pkt._runclientscript.str_mask, (1u << 2) | (1u << 4), "str_mask names 2 and 4");
+    CHECK_EQ(pkt._runclientscript->str_mask, (1u << 2) | (1u << 4), "str_mask names 2 and 4");
 
     /*
      * And the hand-off itself, which is where this shape actually broke.
@@ -159,7 +163,7 @@ test_mixed_roundtrip(void)
      */
     {
         char const* strp[PKT_RUNCLIENTSCRIPT_ARG_MAX] = { 0 };
-        int n = pkt_runclientscript_compact_strings(&pkt._runclientscript, strp,
+        int n = pkt_runclientscript_compact_strings(pkt._runclientscript, strp,
                                                     PKT_RUNCLIENTSCRIPT_ARG_MAX);
 
         CHECK_EQ(n, 2, "two strings reach the CS2 dispatch");
@@ -184,7 +188,7 @@ static void
 test_trailing_string_compaction(void)
 {
     uint8_t bytes[512];
-    struct RevPacket pkt;
+    struct RevPacket pkt = { 0 };
     const int intv[5] = { 8, 249, 49155, 4, 0 };
     const char* strv[5] = { NULL, NULL, NULL, NULL, "herb patch" };
     char const* strp[PKT_RUNCLIENTSCRIPT_ARG_MAX] = { 0 };
@@ -195,10 +199,10 @@ test_trailing_string_compaction(void)
 
     len = write_runclientscript(bytes, sizeof(bytes), 1119, "iiiis", intv, strv, 5);
     CHECK_EQ(parse(bytes, len, &pkt), 1, "the payload round-trips");
-    CHECK_EQ(pkt._runclientscript.str_mask, 1u << 4, "only the last argument is a string");
-    CHECK_EQ(pkt._runclientscript.intv[2], 49155, "the packed state word survives");
+    CHECK_EQ(pkt._runclientscript->str_mask, 1u << 4, "only the last argument is a string");
+    CHECK_EQ(pkt._runclientscript->intv[2], 49155, "the packed state word survives");
 
-    n = pkt_runclientscript_compact_strings(&pkt._runclientscript, strp,
+    n = pkt_runclientscript_compact_strings(pkt._runclientscript, strp,
                                             PKT_RUNCLIENTSCRIPT_ARG_MAX);
     CHECK_EQ(n, 1, "one string reaches the CS2 dispatch");
     CHECK(strp[0] && strcmp(strp[0], "herb patch") == 0,
@@ -211,7 +215,7 @@ static void
 test_homogeneous_roundtrip(void)
 {
     uint8_t bytes[512];
-    struct RevPacket pkt;
+    struct RevPacket pkt = { 0 };
     int len;
 
     printf("all-int and all-string payloads\n");
@@ -221,23 +225,23 @@ test_homogeneous_roundtrip(void)
 
         len = write_runclientscript(bytes, sizeof(bytes), 1902, "iiii", intv, NULL, 4);
         CHECK_EQ(parse(bytes, len, &pkt), 1, "the skill guide's four ints parse");
-        CHECK_EQ(pkt._runclientscript.intv[0], 3, "argument 0 is first, not last");
-        CHECK_EQ(pkt._runclientscript.intv[3], 9, "argument 3 is last");
-        CHECK_EQ(pkt._runclientscript.str_mask, 0u, "and no argument is a string");
+        CHECK_EQ(pkt._runclientscript->intv[0], 3, "argument 0 is first, not last");
+        CHECK_EQ(pkt._runclientscript->intv[3], 9, "argument 3 is last");
+        CHECK_EQ(pkt._runclientscript->str_mask, 0u, "and no argument is a string");
     }
     {
         const char* strv[2] = { "Choose an option", "Yes|No" };
 
         len = write_runclientscript(bytes, sizeof(bytes), 58, "ss", NULL, strv, 2);
         CHECK_EQ(parse(bytes, len, &pkt), 1, "the chatmenu's two strings parse");
-        CHECK(strcmp(pkt._runclientscript.strv[0], "Choose an option") == 0, "header first");
-        CHECK(strcmp(pkt._runclientscript.strv[1], "Yes|No") == 0, "options second");
+        CHECK(strcmp(pkt._runclientscript->strv[0], "Choose an option") == 0, "header first");
+        CHECK(strcmp(pkt._runclientscript->strv[1], "Yes|No") == 0, "options second");
     }
     {
         len = write_runclientscript(bytes, sizeof(bytes), 1749, "", NULL, NULL, 0);
         CHECK_EQ(parse(bytes, len, &pkt), 1, "an empty argument list parses");
-        CHECK_EQ(pkt._runclientscript.argc, 0, "as zero arguments");
-        CHECK_EQ(pkt._runclientscript.script_id, 1749, "still carrying the script id");
+        CHECK_EQ(pkt._runclientscript->argc, 0, "as zero arguments");
+        CHECK_EQ(pkt._runclientscript->script_id, 1749, "still carrying the script id");
     }
 }
 
@@ -259,7 +263,7 @@ static void
 test_argument_overflow(void)
 {
     uint8_t bytes[2048];
-    struct RevPacket pkt;
+    struct RevPacket pkt = { 0 };
     char types[64];
     int intv[64];
     int len;
@@ -276,10 +280,10 @@ test_argument_overflow(void)
     len = write_runclientscript(bytes, sizeof(bytes), 785, types, intv, NULL,
                                 PKT_RUNCLIENTSCRIPT_ARG_MAX);
     CHECK_EQ(parse(bytes, len, &pkt), 1, "exactly PKT_RUNCLIENTSCRIPT_ARG_MAX arguments parse");
-    CHECK_EQ(pkt._runclientscript.argc, PKT_RUNCLIENTSCRIPT_ARG_MAX, "with every argument");
-    CHECK_EQ(pkt._runclientscript.intv[PKT_RUNCLIENTSCRIPT_ARG_MAX - 1],
+    CHECK_EQ(pkt._runclientscript->argc, PKT_RUNCLIENTSCRIPT_ARG_MAX, "with every argument");
+    CHECK_EQ(pkt._runclientscript->intv[PKT_RUNCLIENTSCRIPT_ARG_MAX - 1],
              1000 + PKT_RUNCLIENTSCRIPT_ARG_MAX - 1, "and the last one intact");
-    CHECK_EQ(pkt._runclientscript.script_id, 785, "and the script id after them");
+    CHECK_EQ(pkt._runclientscript->script_id, 785, "and the script id after them");
 
     /* `ge_pricechecker_prices` (script 785) takes 28 ints — now within the
      * raised PKT_RUNCLIENTSCRIPT_ARG_MAX. One beyond the cap must still fail. */

@@ -1093,6 +1093,13 @@ init_reference_tables(struct RSCache_Dat2Disk* disk)
         if( !dat2disk_table_present(disk, i) )
             continue;
 
+        /* Asked once here whether the open is eager or lazy: the store answers
+         * it by looking for an idxN file, and a lazy disk that re-asked per
+         * lookup would stat its way through every miss. */
+        disk->tables_present |= (uint64_t)1 << i;
+        if( disk->lazy_tables )
+            continue;
+
         struct RSCache_Dat2DiskArchive* table_archive =
             RSCache_Dat2DiskArchiveNewReferenceTableLoad(disk, i);
         if( !table_archive )
@@ -1115,7 +1122,18 @@ dat2disk_ensure_reference_table_loaded(
     if( disk->tables[table_id] )
         return disk->tables[table_id];
 
-    printf("Lazy-loading reference table %d\n", table_id);
+    /*
+     * A lazy disk recorded at open which tables the cache ships. Without that
+     * test every lookup of a table this branch does not carry — and an
+     * OldSchool dump does not carry RS2's 23..34 — would reach the loader,
+     * fail, and say so again on the next lookup. An eager disk has a zero
+     * bitmap and skips the test, since a NULL entry there already means the
+     * open tried and could not.
+     */
+    if( disk->lazy_tables &&
+        (disk->tables_present & ((uint64_t)1 << table_id)) == 0 )
+        return NULL;
+
     struct RSCache_Dat2DiskArchive* table_archive =
         RSCache_Dat2DiskArchiveNewReferenceTableLoad(disk, table_id);
     if( !table_archive )
@@ -1130,11 +1148,30 @@ dat2disk_ensure_reference_table_loaded(
     return disk->tables[table_id];
 }
 
+struct RSCache_ReferenceTable*
+RSCache_Dat2DiskReferenceTable(
+    struct RSCache_Dat2Disk* disk,
+    int table_id)
+{
+    assert(disk);
+
+    /* Callers hold this straight out of RSCache_Dat2DiskTableId, where it
+     * means the branch has no such table. That is an answer, not a bad
+     * argument. */
+    if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+        return NULL;
+
+    assert(table_id >= 0);
+    assert(table_id < RSCACHE_DAT2_DISK_TABLE_CAPACITY);
+    return dat2disk_ensure_reference_table_loaded(disk, table_id);
+}
+
 static struct RSCache_Dat2Disk*
 dat2disk_new_from_directory(
     const char* directory,
     const char* dat2_mode,
-    int read_only)
+    int read_only,
+    int lazy_tables)
 {
     if( !directory || !dat2_mode )
         return NULL;
@@ -1165,6 +1202,7 @@ dat2disk_new_from_directory(
     }
 
     disk->read_only = read_only;
+    disk->lazy_tables = lazy_tables;
     /* After read_only, which decides whether the vtable offers a put at all. */
     disk->store = RSCache_Dat2DiskFileStore(disk);
     init_reference_tables(disk);
@@ -1174,13 +1212,19 @@ dat2disk_new_from_directory(
 struct RSCache_Dat2Disk*
 RSCache_Dat2DiskNewFromDirectory(char const* directory)
 {
-    return dat2disk_new_from_directory(directory, "rb+", 0);
+    return dat2disk_new_from_directory(directory, "rb+", 0, 0);
+}
+
+struct RSCache_Dat2Disk*
+RSCache_Dat2DiskNewFromDirectoryLazyTables(char const* directory)
+{
+    return dat2disk_new_from_directory(directory, "rb+", 0, 1);
 }
 
 struct RSCache_Dat2Disk*
 RSCache_Dat2DiskNewReadOnlyFromDirectory(const char* directory)
 {
-    return dat2disk_new_from_directory(directory, "rb", 1);
+    return dat2disk_new_from_directory(directory, "rb", 1, 0);
 }
 
 struct RSCache_Dat2Disk*

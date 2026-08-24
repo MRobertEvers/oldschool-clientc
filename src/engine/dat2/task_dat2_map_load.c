@@ -145,11 +145,20 @@ Task_Dat2MapTerrainLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    dat2_buildcache_map_terrain_add(task->bc, map_id, rscache_terrain);
-
     torirs_terrain =
         ToriRS_MapTerrainFromRSCache(task->map_x, task->map_z, rscache_terrain);
     CacheProvider_MapTerrainAdd(&task->bc->base, map_id, torirs_terrain);
+
+    /*
+     * The decode is done with. Everything the client reads terrain for comes
+     * off the ToriRS copy just made — including has_authored_height and
+     * authored_height, which is the whole reason the fixup runs after the
+     * decode rather than inside it. This used to go into the buildcache's
+     * terrain map instead, which no caller has ever read from: 1.7 MB per
+     * loaded region held for a lookup nobody makes.
+     */
+    RSCache_MapTerrainFree(rscache_terrain);
+    rscache_terrain = NULL;
 
     PT_END(&task->pt);
 }

@@ -793,6 +793,11 @@ gameproto_free(struct RevPacket* p)
 
     switch( p->packet_type )
     {
+    case PKT_NAME_RUNCLIENTSCRIPT:
+        /* The one payload held outside the union; see struct RevPacket. */
+        free(p->_runclientscript);
+        p->_runclientscript = NULL;
+        break;
     case PKT_NAME_NPC_INFO:
         free(p->_npc_info.data);
         p->_npc_info.data = NULL;

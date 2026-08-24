@@ -139,8 +139,12 @@ RSCache_ReferenceTableNewDecode(
 
     if( total_children > 0 )
     {
-        table->children_pool = malloc(
-            (size_t)total_children * sizeof(struct RSCache_ReferenceTableArchiveFile));
+        /* Zeroed, because name_hash is filled in only under FLAG_IDENTIFIERS and
+         * most tables do not set it -- a malloc'd pool left every child in those
+         * tables carrying whatever the heap had there, which the encoder would
+         * then write out as a name. */
+        table->children_pool = calloc(
+            (size_t)total_children, sizeof(struct RSCache_ReferenceTableArchiveFile));
         if( !table->children_pool )
         {
             free(ids);

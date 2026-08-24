@@ -519,8 +519,26 @@ struct ToriDraw_Event
 
 struct ToriDraw_EventQueue
 {
-    struct ToriDraw_Event events[TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE];
+    /* Grown on demand instead of a flat TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE
+     * array. The queue is drained every frame by ToriDraw_SceneFrameEnd, so
+     * its real high-water is a small fraction of the cap, while the inline
+     * form put 5.5 MB into every struct ToriDraw_Scene -- and the scene is
+     * calloc'd, so all of it was resident from construction.
+     *
+     * The cap itself is unchanged: the emitters still refuse a push at
+     * TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE. Only the allocation follows
+     * demand, and capacity is never released -- there is nothing to release.
+     * The high-water is one event per scene element (19,360 in a loaded
+     * region), and it is reached again inside every window a trim could
+     * measure, so a shrink policy here only ever gives back what the next
+     * frame immediately takes.
+     *
+     * Element pointers must not outlive a push: `events` moves on grow.
+     * Both back-patch sites take theirs from the push that just happened,
+     * and both drains (rs_audio.c, torirs_frame.c) index. */
+    struct ToriDraw_Event* events;
     int count;
+    int cap;
 };
 
 struct ToriDraw_TextureState

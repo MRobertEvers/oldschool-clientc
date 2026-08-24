@@ -374,6 +374,17 @@ struct RSCache_Dat2Disk
     int profile_set;
     /** Non-zero when opened through NewReadOnlyFromDirectory. */
     int read_only;
+    /** Non-zero when reference tables load on first use rather than at open.
+     *  Set only by the LazyTables constructors; every other open fills
+     *  `tables` up front, which is what the callers that index it directly
+     *  rely on. */
+    int lazy_tables;
+    /** Which table ids the backing reported at open, one bit per id. Only
+     *  meaningful under lazy_tables, where it is what keeps a cache that does
+     *  not ship a table from re-asking the store for it on every lookup —
+     *  the eager path answers that question once, at open, and this is the
+     *  same answer kept for later. */
+    uint64_t tables_present;
     /** The backing. Never empty: store.get is non-NULL on every open disk. */
     struct RSCache_Dat2Store store;
 };
@@ -411,6 +422,22 @@ RSCache_Dat2DiskTableId(
     const struct RSCache_Dat2Disk* disk,
     enum RSCache_Dat2Table table);
 
+/**
+ * The reference table for `table_id`, loading it if this disk was opened
+ * lazily and has not needed it yet. Equivalent to reading disk->tables[id]
+ * on an eagerly opened disk, which is why it is safe to call from code that
+ * has to work with both.
+ *
+ * Returns NULL when the cache does not ship the table, when the decode fails,
+ * and for RSCACHE_DAT2_DISK_TABLE_ABSENT — callers routinely hold the result
+ * of RSCache_Dat2DiskTableId, and "this branch has no such table" is an answer
+ * rather than a mistake.
+ */
+struct RSCache_ReferenceTable*
+RSCache_Dat2DiskReferenceTable(
+    struct RSCache_Dat2Disk* disk,
+    int table_id);
+
 struct RSCache_Dat2Disk*
 RSCache_Dat2DiskNewFromDirectory(char const* directory);
 
@@ -421,6 +448,24 @@ RSCache_Dat2DiskNewFromDirectory(char const* directory);
  */
 struct RSCache_Dat2Disk*
 RSCache_Dat2DiskNewReadOnlyFromDirectory(const char* directory);
+
+/**
+ * As NewFromDirectory, but each reference table is decoded the first time
+ * something asks for it instead of all of them at open.
+ *
+ * A full cache carries 23 tables and about 12 MB of decoded reference data,
+ * and a client touches maybe two thirds of them — the rest were sharded
+ * record tables and asset kinds it never reads. Nothing about the eager pass
+ * was needed for correctness; the lazy path underneath it already existed and
+ * archive loads already went through it.
+ *
+ * The catch is `tables`: callers that index it directly see NULL for a table
+ * that has not been touched. Everything in this library and the client reads
+ * it through RSCache_Dat2DiskReferenceTable instead, but a caller that does
+ * not must use one of the eager constructors.
+ */
+struct RSCache_Dat2Disk*
+RSCache_Dat2DiskNewFromDirectoryLazyTables(char const* directory);
 
 /**
  * Open a cache directory for incremental population, creating an empty dat2

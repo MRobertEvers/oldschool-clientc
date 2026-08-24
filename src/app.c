@@ -8145,7 +8145,9 @@ App_Init(
     }
     else
     {
-        app->dat2_disk = RSCache_Dat2DiskNewFromDirectory(cfg->cache_dir);
+        /* Lazy: the client reads maybe two thirds of the tables a cache ships,
+         * and decoding the rest at open cost several MB it never looked at. */
+        app->dat2_disk = RSCache_Dat2DiskNewFromDirectoryLazyTables(cfg->cache_dir);
         if( !app->dat2_disk )
             fprintf(
                 stderr,

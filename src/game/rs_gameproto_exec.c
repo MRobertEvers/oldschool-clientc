@@ -1090,7 +1090,7 @@ RS_GameProto_Exec(
         break;
     case PKT_NAME_RUNCLIENTSCRIPT:
         if( ctx->app )
-            App_RunClientScript(ctx->app, &packet->_runclientscript);
+            App_RunClientScript(ctx->app, packet->_runclientscript);
         break;
     case PKT_NAME_TRIGGER_ONDIALOGABORT:
         exec_trigger_on_dialog_abort(ctx);

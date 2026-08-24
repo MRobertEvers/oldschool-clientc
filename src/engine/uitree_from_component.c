@@ -222,11 +222,13 @@ UITree_FillBuildFromToriRS(
     dst->line_width = src->line_width;
     dst->line_horizontal = src->line_horizontal;
 
+    /* An absent block reads as the all-zero columns a non-inventory component
+     * used to carry inline, so the destination lands on the same values. */
     for( int i = 0; i < UI_INV_SLOT_OFFSET_MAX && i < TORIRS_INV_SLOT_MAX; i++ )
     {
-        dst->inv_slot_offset_x[i] = src->inv_slot_offset_x[i];
-        dst->inv_slot_offset_y[i] = src->inv_slot_offset_y[i];
-        dst->inv_slot_graphic_id[i] = src->inv_slot_graphic_id[i];
+        dst->inv_slot_offset_x[i] = src->inv_slots ? src->inv_slots->offset_x[i] : 0;
+        dst->inv_slot_offset_y[i] = src->inv_slots ? src->inv_slots->offset_y[i] : 0;
+        dst->inv_slot_graphic_id[i] = src->inv_slots ? src->inv_slots->graphic_id[i] : 0;
     }
 
     dst->hide = src->hide;
