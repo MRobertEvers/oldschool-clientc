@@ -109,7 +109,9 @@ def main() -> int:
 
         output = io.StringIO()
         with redirect_stdout(output):
-            assert stage_module.stage(tree, out) == 0
+            stage_result = stage_module.stage(tree, out)
+        if stage_result != 0:
+            raise AssertionError(f"stage returned {stage_result}")
         physical_count = sum(path.is_file() for path in out.rglob("*"))
         assert physical_count == 35
         assert f"staged {physical_count} files" in output.getvalue()

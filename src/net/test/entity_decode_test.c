@@ -14,6 +14,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define TEST_CHECK(cond)                                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        if( !(cond) )                                                                              \
+        {                                                                                          \
+            fprintf(stderr, "FAIL: %s (%s:%d)\n", #cond, __FILE__, __LINE__);                     \
+            abort();                                                                               \
+        }                                                                                          \
+    } while( 0 )
+
 /* MSB-first bit writer matching the reader's packing. */
 struct BitWriter
 {
@@ -447,7 +457,7 @@ test_appearance_v5_decode(void)
     struct PktPlayerAppearance app;
 
     build_v5_blob(&w, APPEARANCE_WIRE_OBJ_TAG_V5, 0);
-    assert(PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, w.buf, bw_len(&w)));
+    TEST_CHECK(PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, w.buf, bw_len(&w)));
 
     /* Both tags land in the canonical vocabulary, not on the wire's numbers. */
     assert(app.slots[FIXTURE_KIT_SLOT] == Appearance_PackKit(FIXTURE_KIT_ID));
@@ -479,8 +489,8 @@ test_appearance_encoding_independent(void)
     build_classic_blob(&classic);
     build_v5_blob(&v5, APPEARANCE_WIRE_OBJ_TAG_V5, 0);
 
-    assert(PktPlayerAppearance_Decode(&a_classic, classic.buf, bw_len(&classic)));
-    assert(PktPlayerAppearance_DecodeAs(&a_v5, APPEARANCE_ENC_V5, v5.buf, bw_len(&v5)));
+    TEST_CHECK(PktPlayerAppearance_Decode(&a_classic, classic.buf, bw_len(&classic)));
+    TEST_CHECK(PktPlayerAppearance_DecodeAs(&a_v5, APPEARANCE_ENC_V5, v5.buf, bw_len(&v5)));
 
     /* Two blocks of different length, different field order and different tags
      * describing one player: everything the client renders from must match. */
@@ -508,7 +518,7 @@ test_appearance_tag_is_per_encoding(void)
      * is therefore never spelled at a call site, only chosen by encoding.
      */
     build_v5_blob(&w, APPEARANCE_WIRE_OBJ_TAG_CLASSIC, 0);
-    assert(PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, w.buf, bw_len(&w)));
+    TEST_CHECK(PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, w.buf, bw_len(&w)));
     assert(Appearance_SlotKind(app.slots[FIXTURE_OBJ_SLOT]) == APPEARANCE_SLOT_KIT);
     assert(Appearance_SlotObj(app.slots[FIXTURE_OBJ_SLOT]) == -1);
     printf("ok - the worn-obj tag is per-encoding (classic tag reads as a kit at 239)\n");
@@ -524,19 +534,19 @@ test_appearance_rejects_undecodable(void)
      * length — guessing its size reads every later field at the wrong offset,
      * so the block is refused whole. */
     build_v5_blob(&w, APPEARANCE_WIRE_OBJ_TAG_V5, 1 << 12);
-    assert(!PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, w.buf, bw_len(&w)));
+    TEST_CHECK(!PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, w.buf, bw_len(&w)));
 
     /* Truncation is rejected rather than silently decoding a naked player:
      * rsbuffer's getters return 0 past the end instead of failing. */
     {
         struct BitWriter full = { 0 };
         build_v5_blob(&full, APPEARANCE_WIRE_OBJ_TAG_V5, 0);
-        assert(!PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, full.buf, 10));
+        TEST_CHECK(!PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, full.buf, 10));
     }
     {
         struct BitWriter full = { 0 };
         build_classic_blob(&full);
-        assert(!PktPlayerAppearance_Decode(&app, full.buf, bw_len(&full) - 1));
+        TEST_CHECK(!PktPlayerAppearance_Decode(&app, full.buf, bw_len(&full) - 1));
     }
     printf("ok - undecodable and truncated appearance blocks are refused\n");
 }

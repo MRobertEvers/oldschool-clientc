@@ -105,7 +105,7 @@ ToriDraw_TriangleTextureScanlineAffine(
 }
 
 static inline void
-ToriDraw_TriangleTextureBlendAffineV3(
+ToriDraw_TriangleTextureBlendAffineV3Impl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -134,9 +134,10 @@ ToriDraw_TriangleTextureBlendAffineV3(
     int texture_opaque,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool scanline)
 {
-    if( TORIDRAW_SCANLINE_SELECTED() )
+    if( scanline )
     {
         ToriDraw_TriangleTextureScanlineAffine(
             pixel_buffer,
@@ -230,7 +231,7 @@ ToriDraw_TriangleTextureBlendAffineV3(
 }
 
 static inline void
-ToriDraw_TriangleTextureBlendAffine(
+ToriDraw_TriangleTextureBlendAffineImpl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -259,9 +260,10 @@ ToriDraw_TriangleTextureBlendAffine(
     int texture_opaque,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool scanline)
 {
-    if( TORIDRAW_SCANLINE_SELECTED() )
+    if( scanline )
     {
         ToriDraw_TriangleTextureScanlineAffine(
             pixel_buffer,
@@ -355,7 +357,7 @@ ToriDraw_TriangleTextureBlendAffine(
 }
 
 static inline void
-ToriDraw_TriangleTextureFlatAffineV3(
+ToriDraw_TriangleTextureFlatAffineV3Impl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -382,13 +384,14 @@ ToriDraw_TriangleTextureFlatAffineV3(
     int texture_opaque,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool scanline)
 {
     (void)near_plane_z;
     (void)offset_x;
     (void)offset_y;
 
-    if( TORIDRAW_SCANLINE_SELECTED() )
+    if( scanline )
     {
         ToriDraw_TriangleTextureScanlineAffine(
             pixel_buffer,
@@ -482,7 +485,7 @@ ToriDraw_TriangleTextureFlatAffineV3(
 }
 
 static inline void
-ToriDraw_TriangleTextureFlatAffine(
+ToriDraw_TriangleTextureFlatAffineImpl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -509,13 +512,14 @@ ToriDraw_TriangleTextureFlatAffine(
     int texture_opaque,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool scanline)
 {
     (void)near_plane_z;
     (void)offset_x;
     (void)offset_y;
 
-    if( TORIDRAW_SCANLINE_SELECTED() )
+    if( scanline )
     {
         ToriDraw_TriangleTextureScanlineAffine(
             pixel_buffer,
@@ -608,8 +612,102 @@ ToriDraw_TriangleTextureFlatAffine(
     }
 }
 
+#define TORIDRAW_TRIANGLE_TEXTURE_BLEND_AFFINE_PARAMETERS                                        \
+    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+        int screen_x0, int screen_x1, int screen_x2, int screen_y0, int screen_y1, int screen_y2, \
+        int orthographic_x0, int orthographic_x1, int orthographic_x2, int orthographic_y0,       \
+        int orthographic_y1, int orthographic_y2, int orthographic_z0, int orthographic_z1,       \
+        int orthographic_z2, int shade_a, int shade_b, int shade_c, int* RESTRICT texels,         \
+        int texture_size, int texture_opaque, int near_plane_z, int offset_x, int offset_y
+#define TORIDRAW_TRIANGLE_TEXTURE_BLEND_AFFINE_ARGUMENTS                                          \
+    pixel_buffer, stride, screen_width, screen_height, camera_cot16, screen_x0, screen_x1,         \
+        screen_x2, screen_y0, screen_y1, screen_y2, orthographic_x0, orthographic_x1,             \
+        orthographic_x2, orthographic_y0, orthographic_y1, orthographic_y2, orthographic_z0,      \
+        orthographic_z1, orthographic_z2, shade_a, shade_b, shade_c, texels, texture_size,        \
+        texture_opaque, near_plane_z, offset_x, offset_y
+
+#define TORIDRAW_DEFINE_AFFINE_BLEND_WRAPPERS(name)                                               \
+    static inline void ToriDraw_TriangleTexture##name##Branching(                                 \
+        TORIDRAW_TRIANGLE_TEXTURE_BLEND_AFFINE_PARAMETERS)                                        \
+    {                                                                                             \
+        ToriDraw_TriangleTexture##name##Impl(                                                     \
+            TORIDRAW_TRIANGLE_TEXTURE_BLEND_AFFINE_ARGUMENTS, false);                             \
+    }                                                                                             \
+    static inline void ToriDraw_TriangleTexture##name##Scanline(                                  \
+        TORIDRAW_TRIANGLE_TEXTURE_BLEND_AFFINE_PARAMETERS)                                        \
+    {                                                                                             \
+        ToriDraw_TriangleTexture##name##Impl(                                                     \
+            TORIDRAW_TRIANGLE_TEXTURE_BLEND_AFFINE_ARGUMENTS, true);                              \
+    }                                                                                             \
+    static inline void ToriDraw_TriangleTexture##name(                                            \
+        TORIDRAW_TRIANGLE_TEXTURE_BLEND_AFFINE_PARAMETERS)                                        \
+    {                                                                                             \
+        if( TORIDRAW_SCANLINE_SELECTED() )                                                        \
+        {                                                                                         \
+            ToriDraw_TriangleTexture##name##Scanline(                                             \
+                TORIDRAW_TRIANGLE_TEXTURE_BLEND_AFFINE_ARGUMENTS);                                \
+            return;                                                                               \
+        }                                                                                         \
+        ToriDraw_TriangleTexture##name##Branching(                                                \
+            TORIDRAW_TRIANGLE_TEXTURE_BLEND_AFFINE_ARGUMENTS);                                    \
+    }
+
+TORIDRAW_DEFINE_AFFINE_BLEND_WRAPPERS(BlendAffineV3)
+TORIDRAW_DEFINE_AFFINE_BLEND_WRAPPERS(BlendAffine)
+
+#undef TORIDRAW_DEFINE_AFFINE_BLEND_WRAPPERS
+#undef TORIDRAW_TRIANGLE_TEXTURE_BLEND_AFFINE_ARGUMENTS
+#undef TORIDRAW_TRIANGLE_TEXTURE_BLEND_AFFINE_PARAMETERS
+
+#define TORIDRAW_TRIANGLE_TEXTURE_FLAT_AFFINE_PARAMETERS                                         \
+    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+        int screen_x0, int screen_x1, int screen_x2, int screen_y0, int screen_y1, int screen_y2, \
+        int orthographic_x0, int orthographic_x1, int orthographic_x2, int orthographic_y0,       \
+        int orthographic_y1, int orthographic_y2, int orthographic_z0, int orthographic_z1,       \
+        int orthographic_z2, int shade, int* RESTRICT texels, int texture_size, int texture_opaque, \
+        int near_plane_z, int offset_x, int offset_y
+#define TORIDRAW_TRIANGLE_TEXTURE_FLAT_AFFINE_ARGUMENTS                                           \
+    pixel_buffer, stride, screen_width, screen_height, camera_cot16, screen_x0, screen_x1,         \
+        screen_x2, screen_y0, screen_y1, screen_y2, orthographic_x0, orthographic_x1,             \
+        orthographic_x2, orthographic_y0, orthographic_y1, orthographic_y2, orthographic_z0,      \
+        orthographic_z1, orthographic_z2, shade, texels, texture_size, texture_opaque,            \
+        near_plane_z, offset_x, offset_y
+
+#define TORIDRAW_DEFINE_AFFINE_FLAT_WRAPPERS(name)                                                \
+    static inline void ToriDraw_TriangleTexture##name##Branching(                                 \
+        TORIDRAW_TRIANGLE_TEXTURE_FLAT_AFFINE_PARAMETERS)                                         \
+    {                                                                                             \
+        ToriDraw_TriangleTexture##name##Impl(                                                     \
+            TORIDRAW_TRIANGLE_TEXTURE_FLAT_AFFINE_ARGUMENTS, false);                              \
+    }                                                                                             \
+    static inline void ToriDraw_TriangleTexture##name##Scanline(                                  \
+        TORIDRAW_TRIANGLE_TEXTURE_FLAT_AFFINE_PARAMETERS)                                         \
+    {                                                                                             \
+        ToriDraw_TriangleTexture##name##Impl(                                                     \
+            TORIDRAW_TRIANGLE_TEXTURE_FLAT_AFFINE_ARGUMENTS, true);                               \
+    }                                                                                             \
+    static inline void ToriDraw_TriangleTexture##name(                                            \
+        TORIDRAW_TRIANGLE_TEXTURE_FLAT_AFFINE_PARAMETERS)                                         \
+    {                                                                                             \
+        if( TORIDRAW_SCANLINE_SELECTED() )                                                        \
+        {                                                                                         \
+            ToriDraw_TriangleTexture##name##Scanline(                                             \
+                TORIDRAW_TRIANGLE_TEXTURE_FLAT_AFFINE_ARGUMENTS);                                 \
+            return;                                                                               \
+        }                                                                                         \
+        ToriDraw_TriangleTexture##name##Branching(                                                \
+            TORIDRAW_TRIANGLE_TEXTURE_FLAT_AFFINE_ARGUMENTS);                                     \
+    }
+
+TORIDRAW_DEFINE_AFFINE_FLAT_WRAPPERS(FlatAffineV3)
+TORIDRAW_DEFINE_AFFINE_FLAT_WRAPPERS(FlatAffine)
+
+#undef TORIDRAW_DEFINE_AFFINE_FLAT_WRAPPERS
+#undef TORIDRAW_TRIANGLE_TEXTURE_FLAT_AFFINE_ARGUMENTS
+#undef TORIDRAW_TRIANGLE_TEXTURE_FLAT_AFFINE_PARAMETERS
+
 static inline void
-ToriDraw_TriangleFaceTextureBlendAffineV3NearClip(
+ToriDraw_TriangleFaceTextureBlendAffineV3NearClipImpl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -636,7 +734,8 @@ ToriDraw_TriangleFaceTextureBlendAffineV3NearClip(
     int texture_opaque,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool scanline)
 {
     int clipped_count = 0;
 
@@ -851,7 +950,7 @@ ToriDraw_TriangleFaceTextureBlendAffineV3NearClip(
     xc += offset_x;
     yc += offset_y;
 
-    ToriDraw_TriangleTextureBlendAffineV3(
+    ToriDraw_TriangleTextureBlendAffineV3Impl(
         pixel_buffer,
         stride,
         screen_width,
@@ -880,7 +979,8 @@ ToriDraw_TriangleFaceTextureBlendAffineV3NearClip(
         texture_opaque,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 
     static int colors[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
 
@@ -912,7 +1012,7 @@ ToriDraw_TriangleFaceTextureBlendAffineV3NearClip(
     xb += offset_x;
     yb += offset_y;
 
-    ToriDraw_TriangleTextureBlendAffineV3(
+    ToriDraw_TriangleTextureBlendAffineV3Impl(
         pixel_buffer,
         stride,
         screen_width,
@@ -941,11 +1041,12 @@ ToriDraw_TriangleFaceTextureBlendAffineV3NearClip(
         texture_opaque,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 }
 
 static inline void
-ToriDraw_TriangleFaceTextureBlendAffineNearClip(
+ToriDraw_TriangleFaceTextureBlendAffineNearClipImpl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -972,7 +1073,8 @@ ToriDraw_TriangleFaceTextureBlendAffineNearClip(
     int texture_opaque,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool scanline)
 {
     int clipped_count = 0;
 
@@ -1187,7 +1289,7 @@ ToriDraw_TriangleFaceTextureBlendAffineNearClip(
     xc += offset_x;
     yc += offset_y;
 
-    ToriDraw_TriangleTextureBlendAffine(
+    ToriDraw_TriangleTextureBlendAffineImpl(
         pixel_buffer,
         stride,
         screen_width,
@@ -1216,7 +1318,8 @@ ToriDraw_TriangleFaceTextureBlendAffineNearClip(
         texture_opaque,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 
     static int colors[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
 
@@ -1248,7 +1351,7 @@ ToriDraw_TriangleFaceTextureBlendAffineNearClip(
     xb += offset_x;
     yb += offset_y;
 
-    ToriDraw_TriangleTextureBlendAffine(
+    ToriDraw_TriangleTextureBlendAffineImpl(
         pixel_buffer,
         stride,
         screen_width,
@@ -1277,11 +1380,12 @@ ToriDraw_TriangleFaceTextureBlendAffineNearClip(
         texture_opaque,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 }
 
 static inline void
-ToriDraw_TriangleFaceTextureBlendAffineV3(
+ToriDraw_TriangleFaceTextureBlendAffineV3Impl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -1310,7 +1414,8 @@ ToriDraw_TriangleFaceTextureBlendAffineV3(
     int offset_x,
     int offset_y,
     bool allow_near_clip,
-    bool near_clipped)
+    bool near_clipped,
+    bool scanline)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -1330,7 +1435,7 @@ ToriDraw_TriangleFaceTextureBlendAffineV3(
     {
         if( !allow_near_clip )
             return;
-        ToriDraw_TriangleFaceTextureBlendAffineV3NearClip(
+        ToriDraw_TriangleFaceTextureBlendAffineV3NearClipImpl(
             pixel_buffer,
             stride,
             screen_width,
@@ -1357,7 +1462,8 @@ ToriDraw_TriangleFaceTextureBlendAffineV3(
             texture_opaque,
             near_plane_z,
             offset_x,
-            offset_y);
+            offset_y,
+            scanline);
         return;
     }
 
@@ -1393,7 +1499,7 @@ ToriDraw_TriangleFaceTextureBlendAffineV3(
     x3 += offset_x;
     y3 += offset_y;
 
-    ToriDraw_TriangleTextureBlendAffineV3(
+    ToriDraw_TriangleTextureBlendAffineV3Impl(
         pixel_buffer,
         stride,
         screen_width,
@@ -1422,13 +1528,14 @@ ToriDraw_TriangleFaceTextureBlendAffineV3(
         texture_opaque,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 
     return;
 }
 
 static inline void
-ToriDraw_TriangleFaceTextureBlendAffine(
+ToriDraw_TriangleFaceTextureBlendAffineImpl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -1457,7 +1564,8 @@ ToriDraw_TriangleFaceTextureBlendAffine(
     int offset_x,
     int offset_y,
     bool allow_near_clip,
-    bool near_clipped)
+    bool near_clipped,
+    bool scanline)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -1477,7 +1585,7 @@ ToriDraw_TriangleFaceTextureBlendAffine(
     {
         if( !allow_near_clip )
             return;
-        ToriDraw_TriangleFaceTextureBlendAffineNearClip(
+        ToriDraw_TriangleFaceTextureBlendAffineNearClipImpl(
             pixel_buffer,
             stride,
             screen_width,
@@ -1504,7 +1612,8 @@ ToriDraw_TriangleFaceTextureBlendAffine(
             texture_opaque,
             near_plane_z,
             offset_x,
-            offset_y);
+            offset_y,
+            scanline);
         return;
     }
 
@@ -1540,7 +1649,7 @@ ToriDraw_TriangleFaceTextureBlendAffine(
     x3 += offset_x;
     y3 += offset_y;
 
-    ToriDraw_TriangleTextureBlendAffine(
+    ToriDraw_TriangleTextureBlendAffineImpl(
         pixel_buffer,
         stride,
         screen_width,
@@ -1569,13 +1678,14 @@ ToriDraw_TriangleFaceTextureBlendAffine(
         texture_opaque,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 
     return;
 }
 
 static inline void
-ToriDraw_TriangleFaceTextureFlatAffineV3NearClip(
+ToriDraw_TriangleFaceTextureFlatAffineV3NearClipImpl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -1600,7 +1710,8 @@ ToriDraw_TriangleFaceTextureFlatAffineV3NearClip(
     int texture_opaque,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool scanline)
 {
     int clipped_count = 0;
 
@@ -1783,7 +1894,7 @@ ToriDraw_TriangleFaceTextureFlatAffineV3NearClip(
     xc += offset_x;
     yc += offset_y;
 
-    ToriDraw_TriangleTextureFlatAffineV3(
+    ToriDraw_TriangleTextureFlatAffineV3Impl(
         pixel_buffer,
         stride,
         screen_width,
@@ -1810,7 +1921,8 @@ ToriDraw_TriangleFaceTextureFlatAffineV3NearClip(
         texture_opaque,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 
     assert(clipped_count <= 4);
     if( clipped_count != 4 )
@@ -1822,7 +1934,7 @@ ToriDraw_TriangleFaceTextureFlatAffineV3NearClip(
     xb += offset_x;
     yb += offset_y;
 
-    ToriDraw_TriangleTextureFlatAffineV3(
+    ToriDraw_TriangleTextureFlatAffineV3Impl(
         pixel_buffer,
         stride,
         screen_width,
@@ -1849,11 +1961,12 @@ ToriDraw_TriangleFaceTextureFlatAffineV3NearClip(
         texture_opaque,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 }
 
 static inline void
-ToriDraw_TriangleFaceTextureFlatAffineV3(
+ToriDraw_TriangleFaceTextureFlatAffineV3Impl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -1880,7 +1993,8 @@ ToriDraw_TriangleFaceTextureFlatAffineV3(
     int offset_x,
     int offset_y,
     bool allow_near_clip,
-    bool near_clipped)
+    bool near_clipped,
+    bool scanline)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -1893,7 +2007,7 @@ ToriDraw_TriangleFaceTextureFlatAffineV3(
     {
         if( !allow_near_clip )
             return;
-        ToriDraw_TriangleFaceTextureFlatAffineV3NearClip(
+        ToriDraw_TriangleFaceTextureFlatAffineV3NearClipImpl(
             pixel_buffer,
             stride,
             screen_width,
@@ -1918,7 +2032,8 @@ ToriDraw_TriangleFaceTextureFlatAffineV3(
             texture_opaque,
             near_plane_z,
             offset_x,
-            offset_y);
+            offset_y,
+            scanline);
         return;
     }
 
@@ -1949,7 +2064,7 @@ ToriDraw_TriangleFaceTextureFlatAffineV3(
     x3 += offset_x;
     y3 += offset_y;
 
-    ToriDraw_TriangleTextureFlatAffineV3(
+    ToriDraw_TriangleTextureFlatAffineV3Impl(
         pixel_buffer,
         stride,
         screen_width,
@@ -1976,11 +2091,12 @@ ToriDraw_TriangleFaceTextureFlatAffineV3(
         texture_opaque,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 }
 
 static inline void
-ToriDraw_TriangleFaceTextureFlatAffineNearClip(
+ToriDraw_TriangleFaceTextureFlatAffineNearClipImpl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -2005,7 +2121,8 @@ ToriDraw_TriangleFaceTextureFlatAffineNearClip(
     int texture_opaque,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool scanline)
 {
     int clipped_count = 0;
 
@@ -2188,7 +2305,7 @@ ToriDraw_TriangleFaceTextureFlatAffineNearClip(
     xc += offset_x;
     yc += offset_y;
 
-    ToriDraw_TriangleTextureFlatAffine(
+    ToriDraw_TriangleTextureFlatAffineImpl(
         pixel_buffer,
         stride,
         screen_width,
@@ -2215,7 +2332,8 @@ ToriDraw_TriangleFaceTextureFlatAffineNearClip(
         texture_opaque,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 
     assert(clipped_count <= 4);
     if( clipped_count != 4 )
@@ -2227,7 +2345,7 @@ ToriDraw_TriangleFaceTextureFlatAffineNearClip(
     xb += offset_x;
     yb += offset_y;
 
-    ToriDraw_TriangleTextureFlatAffine(
+    ToriDraw_TriangleTextureFlatAffineImpl(
         pixel_buffer,
         stride,
         screen_width,
@@ -2254,11 +2372,12 @@ ToriDraw_TriangleFaceTextureFlatAffineNearClip(
         texture_opaque,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 }
 
 static inline void
-ToriDraw_TriangleFaceTextureFlatAffine(
+ToriDraw_TriangleFaceTextureFlatAffineImpl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -2285,7 +2404,8 @@ ToriDraw_TriangleFaceTextureFlatAffine(
     int offset_x,
     int offset_y,
     bool allow_near_clip,
-    bool near_clipped)
+    bool near_clipped,
+    bool scanline)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -2298,7 +2418,7 @@ ToriDraw_TriangleFaceTextureFlatAffine(
     {
         if( !allow_near_clip )
             return;
-        ToriDraw_TriangleFaceTextureFlatAffineNearClip(
+        ToriDraw_TriangleFaceTextureFlatAffineNearClipImpl(
             pixel_buffer,
             stride,
             screen_width,
@@ -2323,7 +2443,8 @@ ToriDraw_TriangleFaceTextureFlatAffine(
             texture_opaque,
             near_plane_z,
             offset_x,
-            offset_y);
+            offset_y,
+            scanline);
         return;
     }
 
@@ -2354,7 +2475,7 @@ ToriDraw_TriangleFaceTextureFlatAffine(
     x3 += offset_x;
     y3 += offset_y;
 
-    ToriDraw_TriangleTextureFlatAffine(
+    ToriDraw_TriangleTextureFlatAffineImpl(
         pixel_buffer,
         stride,
         screen_width,
@@ -2381,6 +2502,107 @@ ToriDraw_TriangleFaceTextureFlatAffine(
         texture_opaque,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 }
+
+#define TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_AFFINE_PARAMETERS                                   \
+    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+        int face, int tp_vertex, int tm_vertex, int tn_vertex, faceint_t* RESTRICT face_indices_a, \
+        faceint_t* RESTRICT face_indices_b, faceint_t* RESTRICT face_indices_c,                   \
+        int* RESTRICT screen_vertices_x, int* RESTRICT screen_vertices_y,                         \
+        int* RESTRICT screen_vertices_z, int* RESTRICT orthographic_vertices_x,                   \
+        int* RESTRICT orthographic_vertices_y, int* RESTRICT orthographic_vertices_z,             \
+        hsl16_t* RESTRICT colors_a, hsl16_t* RESTRICT colors_b, hsl16_t* RESTRICT colors_c,       \
+        int* RESTRICT texels, int texture_size, int texture_opaque, int near_plane_z,             \
+        int offset_x, int offset_y, bool allow_near_clip, bool near_clipped
+#define TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_AFFINE_ARGUMENTS                                     \
+    pixel_buffer, stride, screen_width, screen_height, camera_cot16, face, tp_vertex, tm_vertex,   \
+        tn_vertex, face_indices_a, face_indices_b, face_indices_c, screen_vertices_x,              \
+        screen_vertices_y, screen_vertices_z, orthographic_vertices_x, orthographic_vertices_y,   \
+        orthographic_vertices_z, colors_a, colors_b, colors_c, texels, texture_size,              \
+        texture_opaque, near_plane_z, offset_x, offset_y, allow_near_clip, near_clipped
+
+#define TORIDRAW_DEFINE_AFFINE_BLEND_FACE_WRAPPERS(name)                                          \
+    static inline void ToriDraw_TriangleFaceTexture##name##Branching(                             \
+        TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_AFFINE_PARAMETERS)                                   \
+    {                                                                                             \
+        ToriDraw_TriangleFaceTexture##name##Impl(                                                 \
+            TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_AFFINE_ARGUMENTS, false);                        \
+    }                                                                                             \
+    static inline void ToriDraw_TriangleFaceTexture##name##Scanline(                              \
+        TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_AFFINE_PARAMETERS)                                   \
+    {                                                                                             \
+        ToriDraw_TriangleFaceTexture##name##Impl(                                                 \
+            TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_AFFINE_ARGUMENTS, true);                         \
+    }                                                                                             \
+    static inline void ToriDraw_TriangleFaceTexture##name(                                        \
+        TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_AFFINE_PARAMETERS)                                   \
+    {                                                                                             \
+        if( TORIDRAW_SCANLINE_SELECTED() )                                                        \
+        {                                                                                         \
+            ToriDraw_TriangleFaceTexture##name##Scanline(                                         \
+                TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_AFFINE_ARGUMENTS);                           \
+            return;                                                                               \
+        }                                                                                         \
+        ToriDraw_TriangleFaceTexture##name##Branching(                                            \
+            TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_AFFINE_ARGUMENTS);                               \
+    }
+
+TORIDRAW_DEFINE_AFFINE_BLEND_FACE_WRAPPERS(BlendAffineV3)
+TORIDRAW_DEFINE_AFFINE_BLEND_FACE_WRAPPERS(BlendAffine)
+
+#undef TORIDRAW_DEFINE_AFFINE_BLEND_FACE_WRAPPERS
+#undef TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_AFFINE_ARGUMENTS
+#undef TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_AFFINE_PARAMETERS
+
+#define TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_AFFINE_PARAMETERS                                    \
+    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+        int face, int tp_vertex, int tm_vertex, int tn_vertex, faceint_t* RESTRICT face_indices_a, \
+        faceint_t* RESTRICT face_indices_b, faceint_t* RESTRICT face_indices_c,                   \
+        int* RESTRICT screen_vertices_x, int* RESTRICT screen_vertices_y,                         \
+        int* RESTRICT screen_vertices_z, int* RESTRICT orthographic_vertices_x,                   \
+        int* RESTRICT orthographic_vertices_y, int* RESTRICT orthographic_vertices_z,             \
+        hsl16_t* RESTRICT colors, int* RESTRICT texels, int texture_size, int texture_opaque,     \
+        int near_plane_z, int offset_x, int offset_y, bool allow_near_clip, bool near_clipped
+#define TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_AFFINE_ARGUMENTS                                      \
+    pixel_buffer, stride, screen_width, screen_height, camera_cot16, face, tp_vertex, tm_vertex,   \
+        tn_vertex, face_indices_a, face_indices_b, face_indices_c, screen_vertices_x,              \
+        screen_vertices_y, screen_vertices_z, orthographic_vertices_x, orthographic_vertices_y,   \
+        orthographic_vertices_z, colors, texels, texture_size, texture_opaque, near_plane_z,      \
+        offset_x, offset_y, allow_near_clip, near_clipped
+
+#define TORIDRAW_DEFINE_AFFINE_FLAT_FACE_WRAPPERS(name)                                           \
+    static inline void ToriDraw_TriangleFaceTexture##name##Branching(                             \
+        TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_AFFINE_PARAMETERS)                                    \
+    {                                                                                             \
+        ToriDraw_TriangleFaceTexture##name##Impl(                                                 \
+            TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_AFFINE_ARGUMENTS, false);                         \
+    }                                                                                             \
+    static inline void ToriDraw_TriangleFaceTexture##name##Scanline(                              \
+        TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_AFFINE_PARAMETERS)                                    \
+    {                                                                                             \
+        ToriDraw_TriangleFaceTexture##name##Impl(                                                 \
+            TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_AFFINE_ARGUMENTS, true);                          \
+    }                                                                                             \
+    static inline void ToriDraw_TriangleFaceTexture##name(                                        \
+        TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_AFFINE_PARAMETERS)                                    \
+    {                                                                                             \
+        if( TORIDRAW_SCANLINE_SELECTED() )                                                        \
+        {                                                                                         \
+            ToriDraw_TriangleFaceTexture##name##Scanline(                                         \
+                TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_AFFINE_ARGUMENTS);                            \
+            return;                                                                               \
+        }                                                                                         \
+        ToriDraw_TriangleFaceTexture##name##Branching(                                            \
+            TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_AFFINE_ARGUMENTS);                                \
+    }
+
+TORIDRAW_DEFINE_AFFINE_FLAT_FACE_WRAPPERS(FlatAffineV3)
+TORIDRAW_DEFINE_AFFINE_FLAT_FACE_WRAPPERS(FlatAffine)
+
+#undef TORIDRAW_DEFINE_AFFINE_FLAT_FACE_WRAPPERS
+#undef TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_AFFINE_ARGUMENTS
+#undef TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_AFFINE_PARAMETERS
+
 #endif

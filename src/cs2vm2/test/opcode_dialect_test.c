@@ -141,8 +141,8 @@ build_wire_switch_script(
     src->int_operands[4] = 7; /* taken case: push 7 */
     src->opcodes[5] = 21;     /* RETURN */
 
-    assert(RSCache_CS2_ScriptAllocSwitches(src, 1));
-    assert(RSCache_CS2_ScriptAllocSwitchCases(src, 0, 1));
+    CHECK(RSCache_CS2_ScriptAllocSwitches(src, 1), "allocate switch table");
+    CHECK(RSCache_CS2_ScriptAllocSwitchCases(src, 0, 1), "allocate switch cases");
     src->switch_tables[0].cases[0].key = match_key;
     src->switch_tables[0].cases[0].target_pc = 2; /* from pc=1, +2 lands on push 7 */
 }

@@ -3,6 +3,7 @@
 
 #include "graphics/dash_restrict.h"
 #include "graphics/shared_tables.h"
+#include "toridraw_texture_mapping.h"
 
 #include <stdbool.h>
 
@@ -41,37 +42,6 @@
  * Through the arctangent table in shared_tables.h, never libm, so the result is
  * identical on every platform. See the note there.
  */
-
-/** The mapping a face group carries. Model space throughout. */
-struct ToriDraw_TexMapping
-{
-    /** Midpoint of the bounding box of every vertex in the face group. */
-    int centre_x;
-    int centre_y;
-    int centre_z;
-    /** Model space -> mapping space; rotation about the stored axis, then the
-     *  stored rotation, then the per-axis scales. Already scaled. */
-    float matrix[9];
-    /** 0-3 scroll direction, applied after projection. */
-    int direction;
-    /** Translation along the projection's second axis, in tiles. */
-    float speed;
-    /** Cube only, in tiles. */
-    float u_offset;
-    float v_offset;
-    /** Cylinder only: the u wrap width, which the seam fixup folds against. */
-    float scale_z;
-    /*
-     * Cube only. The face-selection test divides the triangle normal by the
-     * per-axis scales *again*, on top of the already-scaled matrix. That double
-     * application is the reference's, and which cube face a triangle lands on
-     * depends on it, so it is carried rather than folded away. Each entry is the
-     * raw stored scale over 64.
-     */
-    float axis_scale_x;
-    float axis_scale_y;
-    float axis_scale_z;
-};
 
 /** The scroll direction, shared by all three projections. */
 static inline void

@@ -21,7 +21,7 @@
 // clang-format on
 
 static inline void
-ToriDraw_TriangleTextureBlendOpaque(
+ToriDraw_TriangleTextureBlendOpaqueImpl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -49,13 +49,14 @@ ToriDraw_TriangleTextureBlendOpaque(
     int texture_size,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool scanline)
 {
     (void)near_plane_z;
     (void)offset_x;
     (void)offset_y;
 
-    if( TORIDRAW_SCANLINE_SELECTED() )
+    if( scanline )
     {
         raster_texshadeblend_persp_texopaque_scanline_lerp8(
             pixel_buffer,
@@ -116,7 +117,7 @@ ToriDraw_TriangleTextureBlendOpaque(
 }
 
 static inline void
-ToriDraw_TriangleTextureFlatOpaque(
+ToriDraw_TriangleTextureFlatOpaqueImpl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -142,13 +143,14 @@ ToriDraw_TriangleTextureFlatOpaque(
     int texture_size,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool scanline)
 {
     (void)near_plane_z;
     (void)offset_x;
     (void)offset_y;
 
-    if( TORIDRAW_SCANLINE_SELECTED() )
+    if( scanline )
     {
         raster_texshadeflat_persp_texopaque_scanline_lerp8(
             pixel_buffer,
@@ -206,8 +208,92 @@ ToriDraw_TriangleTextureFlatOpaque(
         texture_size);
 }
 
+#define TORIDRAW_TRIANGLE_TEXTURE_BLEND_OPAQUE_PARAMETERS                                        \
+    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+        int screen_x0, int screen_x1, int screen_x2, int screen_y0, int screen_y1, int screen_y2, \
+        int orthographic_x0, int orthographic_x1, int orthographic_x2, int orthographic_y0,       \
+        int orthographic_y1, int orthographic_y2, int orthographic_z0, int orthographic_z1,       \
+        int orthographic_z2, int shade_a, int shade_b, int shade_c, int* RESTRICT texels,         \
+        int texture_size, int near_plane_z, int offset_x, int offset_y
+#define TORIDRAW_TRIANGLE_TEXTURE_BLEND_OPAQUE_ARGUMENTS                                          \
+    pixel_buffer, stride, screen_width, screen_height, camera_cot16, screen_x0, screen_x1,         \
+        screen_x2, screen_y0, screen_y1, screen_y2, orthographic_x0, orthographic_x1,             \
+        orthographic_x2, orthographic_y0, orthographic_y1, orthographic_y2, orthographic_z0,      \
+        orthographic_z1, orthographic_z2, shade_a, shade_b, shade_c, texels, texture_size,        \
+        near_plane_z, offset_x, offset_y
+
 static inline void
-ToriDraw_TriangleFaceTextureBlendOpaqueNearClip(
+ToriDraw_TriangleTextureBlendOpaqueBranching(
+    TORIDRAW_TRIANGLE_TEXTURE_BLEND_OPAQUE_PARAMETERS)
+{
+    ToriDraw_TriangleTextureBlendOpaqueImpl(
+        TORIDRAW_TRIANGLE_TEXTURE_BLEND_OPAQUE_ARGUMENTS, false);
+}
+
+static inline void
+ToriDraw_TriangleTextureBlendOpaqueScanline(TORIDRAW_TRIANGLE_TEXTURE_BLEND_OPAQUE_PARAMETERS)
+{
+    ToriDraw_TriangleTextureBlendOpaqueImpl(TORIDRAW_TRIANGLE_TEXTURE_BLEND_OPAQUE_ARGUMENTS, true);
+}
+
+static inline void
+ToriDraw_TriangleTextureBlendOpaque(TORIDRAW_TRIANGLE_TEXTURE_BLEND_OPAQUE_PARAMETERS)
+{
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleTextureBlendOpaqueScanline(
+            TORIDRAW_TRIANGLE_TEXTURE_BLEND_OPAQUE_ARGUMENTS);
+        return;
+    }
+    ToriDraw_TriangleTextureBlendOpaqueBranching(
+        TORIDRAW_TRIANGLE_TEXTURE_BLEND_OPAQUE_ARGUMENTS);
+}
+
+#undef TORIDRAW_TRIANGLE_TEXTURE_BLEND_OPAQUE_ARGUMENTS
+#undef TORIDRAW_TRIANGLE_TEXTURE_BLEND_OPAQUE_PARAMETERS
+
+#define TORIDRAW_TRIANGLE_TEXTURE_FLAT_OPAQUE_PARAMETERS                                         \
+    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+        int screen_x0, int screen_x1, int screen_x2, int screen_y0, int screen_y1, int screen_y2, \
+        int orthographic_x0, int orthographic_x1, int orthographic_x2, int orthographic_y0,       \
+        int orthographic_y1, int orthographic_y2, int orthographic_z0, int orthographic_z1,       \
+        int orthographic_z2, int shade, int* RESTRICT texels, int texture_size, int near_plane_z, \
+        int offset_x, int offset_y
+#define TORIDRAW_TRIANGLE_TEXTURE_FLAT_OPAQUE_ARGUMENTS                                           \
+    pixel_buffer, stride, screen_width, screen_height, camera_cot16, screen_x0, screen_x1,         \
+        screen_x2, screen_y0, screen_y1, screen_y2, orthographic_x0, orthographic_x1,             \
+        orthographic_x2, orthographic_y0, orthographic_y1, orthographic_y2, orthographic_z0,      \
+        orthographic_z1, orthographic_z2, shade, texels, texture_size, near_plane_z, offset_x,    \
+        offset_y
+
+static inline void
+ToriDraw_TriangleTextureFlatOpaqueBranching(TORIDRAW_TRIANGLE_TEXTURE_FLAT_OPAQUE_PARAMETERS)
+{
+    ToriDraw_TriangleTextureFlatOpaqueImpl(TORIDRAW_TRIANGLE_TEXTURE_FLAT_OPAQUE_ARGUMENTS, false);
+}
+
+static inline void
+ToriDraw_TriangleTextureFlatOpaqueScanline(TORIDRAW_TRIANGLE_TEXTURE_FLAT_OPAQUE_PARAMETERS)
+{
+    ToriDraw_TriangleTextureFlatOpaqueImpl(TORIDRAW_TRIANGLE_TEXTURE_FLAT_OPAQUE_ARGUMENTS, true);
+}
+
+static inline void
+ToriDraw_TriangleTextureFlatOpaque(TORIDRAW_TRIANGLE_TEXTURE_FLAT_OPAQUE_PARAMETERS)
+{
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleTextureFlatOpaqueScanline(TORIDRAW_TRIANGLE_TEXTURE_FLAT_OPAQUE_ARGUMENTS);
+        return;
+    }
+    ToriDraw_TriangleTextureFlatOpaqueBranching(TORIDRAW_TRIANGLE_TEXTURE_FLAT_OPAQUE_ARGUMENTS);
+}
+
+#undef TORIDRAW_TRIANGLE_TEXTURE_FLAT_OPAQUE_ARGUMENTS
+#undef TORIDRAW_TRIANGLE_TEXTURE_FLAT_OPAQUE_PARAMETERS
+
+static inline void
+ToriDraw_TriangleFaceTextureBlendOpaqueNearClipImpl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -233,7 +319,8 @@ ToriDraw_TriangleFaceTextureBlendOpaqueNearClip(
     int texture_size,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool scanline)
 {
     int clipped_count = 0;
 
@@ -447,7 +534,7 @@ ToriDraw_TriangleFaceTextureBlendOpaqueNearClip(
     yb += offset_y;
     xc += offset_x;
     yc += offset_y;
-    ToriDraw_TriangleTextureBlendOpaque(
+    ToriDraw_TriangleTextureBlendOpaqueImpl(
         pixel_buffer,
         stride,
         screen_width,
@@ -475,7 +562,8 @@ ToriDraw_TriangleFaceTextureBlendOpaqueNearClip(
         texture_size,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 
     static int colors[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
 
@@ -506,7 +594,7 @@ ToriDraw_TriangleFaceTextureBlendOpaqueNearClip(
 
     xb += offset_x;
     yb += offset_y;
-    ToriDraw_TriangleTextureBlendOpaque(
+    ToriDraw_TriangleTextureBlendOpaqueImpl(
         pixel_buffer,
         stride,
         screen_width,
@@ -534,11 +622,12 @@ ToriDraw_TriangleFaceTextureBlendOpaqueNearClip(
         texture_size,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 }
 
 static inline void
-ToriDraw_TriangleFaceTextureBlendOpaque(
+ToriDraw_TriangleFaceTextureBlendOpaqueImpl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -566,7 +655,8 @@ ToriDraw_TriangleFaceTextureBlendOpaque(
     int offset_x,
     int offset_y,
     bool allow_near_clip,
-    bool near_clipped)
+    bool near_clipped,
+    bool scanline)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -586,7 +676,7 @@ ToriDraw_TriangleFaceTextureBlendOpaque(
     {
         if( !allow_near_clip )
             return;
-        ToriDraw_TriangleFaceTextureBlendOpaqueNearClip(
+        ToriDraw_TriangleFaceTextureBlendOpaqueNearClipImpl(
             pixel_buffer,
             stride,
             screen_width,
@@ -612,7 +702,8 @@ ToriDraw_TriangleFaceTextureBlendOpaque(
             texture_size,
             near_plane_z,
             offset_x,
-            offset_y);
+            offset_y,
+            scanline);
         return;
     }
 
@@ -732,7 +823,7 @@ ToriDraw_TriangleFaceTextureBlendOpaque(
     //     texture_size);
 
     // return;
-    ToriDraw_TriangleTextureBlendOpaque(
+    ToriDraw_TriangleTextureBlendOpaqueImpl(
         pixel_buffer,
         stride,
         screen_width,
@@ -760,13 +851,14 @@ ToriDraw_TriangleFaceTextureBlendOpaque(
         texture_size,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 
     return;
 }
 
 static inline void
-ToriDraw_TriangleFaceTextureFlatOpaqueNearClip(
+ToriDraw_TriangleFaceTextureFlatOpaqueNearClipImpl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -790,7 +882,8 @@ ToriDraw_TriangleFaceTextureFlatOpaqueNearClip(
     int texture_size,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool scanline)
 {
     int clipped_count = 0;
 
@@ -972,7 +1065,7 @@ ToriDraw_TriangleFaceTextureFlatOpaqueNearClip(
     yb += offset_y;
     xc += offset_x;
     yc += offset_y;
-    ToriDraw_TriangleTextureFlatOpaque(
+    ToriDraw_TriangleTextureFlatOpaqueImpl(
         pixel_buffer,
         stride,
         screen_width,
@@ -998,7 +1091,8 @@ ToriDraw_TriangleFaceTextureFlatOpaqueNearClip(
         texture_size,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 
     assert(clipped_count <= 4);
     if( clipped_count != 4 )
@@ -1026,7 +1120,7 @@ ToriDraw_TriangleFaceTextureFlatOpaqueNearClip(
 
     xb += offset_x;
     yb += offset_y;
-    ToriDraw_TriangleTextureFlatOpaque(
+    ToriDraw_TriangleTextureFlatOpaqueImpl(
         pixel_buffer,
         stride,
         screen_width,
@@ -1052,11 +1146,12 @@ ToriDraw_TriangleFaceTextureFlatOpaqueNearClip(
         texture_size,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 }
 
 static inline void
-ToriDraw_TriangleFaceTextureFlatOpaque(
+ToriDraw_TriangleFaceTextureFlatOpaqueImpl(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -1082,7 +1177,8 @@ ToriDraw_TriangleFaceTextureFlatOpaque(
     int offset_x,
     int offset_y,
     bool allow_near_clip,
-    bool near_clipped)
+    bool near_clipped,
+    bool scanline)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -1102,7 +1198,7 @@ ToriDraw_TriangleFaceTextureFlatOpaque(
     {
         if( !allow_near_clip )
             return;
-        ToriDraw_TriangleFaceTextureFlatOpaqueNearClip(
+        ToriDraw_TriangleFaceTextureFlatOpaqueNearClipImpl(
             pixel_buffer,
             stride,
             screen_width,
@@ -1126,7 +1222,8 @@ ToriDraw_TriangleFaceTextureFlatOpaque(
             texture_size,
             near_plane_z,
             offset_x,
-            offset_y);
+            offset_y,
+            scanline);
         return;
     }
 
@@ -1159,7 +1256,7 @@ ToriDraw_TriangleFaceTextureFlatOpaque(
     y2 += offset_y;
     x3 += offset_x;
     y3 += offset_y;
-    ToriDraw_TriangleTextureFlatOpaque(
+    ToriDraw_TriangleTextureFlatOpaqueImpl(
         pixel_buffer,
         stride,
         screen_width,
@@ -1185,9 +1282,108 @@ ToriDraw_TriangleFaceTextureFlatOpaque(
         texture_size,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        scanline);
 
     return;
 }
+
+#define TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_OPAQUE_PARAMETERS                                   \
+    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+        int face, int tp_vertex, int tm_vertex, int tn_vertex, faceint_t* RESTRICT face_indices_a, \
+        faceint_t* RESTRICT face_indices_b, faceint_t* RESTRICT face_indices_c,                   \
+        int* RESTRICT screen_vertices_x, int* RESTRICT screen_vertices_y,                         \
+        int* RESTRICT screen_vertices_z, int* RESTRICT orthographic_vertices_x,                   \
+        int* RESTRICT orthographic_vertices_y, int* RESTRICT orthographic_vertices_z,             \
+        hsl16_t* RESTRICT colors_a, hsl16_t* RESTRICT colors_b, hsl16_t* RESTRICT colors_c,       \
+        int* RESTRICT texels, int texture_size, int near_plane_z, int offset_x, int offset_y,     \
+        bool allow_near_clip, bool near_clipped
+#define TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_OPAQUE_ARGUMENTS                                     \
+    pixel_buffer, stride, screen_width, screen_height, camera_cot16, face, tp_vertex, tm_vertex,   \
+        tn_vertex, face_indices_a, face_indices_b, face_indices_c, screen_vertices_x,              \
+        screen_vertices_y, screen_vertices_z, orthographic_vertices_x, orthographic_vertices_y,   \
+        orthographic_vertices_z, colors_a, colors_b, colors_c, texels, texture_size, near_plane_z, \
+        offset_x, offset_y, allow_near_clip, near_clipped
+
+static inline void
+ToriDraw_TriangleFaceTextureBlendOpaqueBranching(
+    TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_OPAQUE_PARAMETERS)
+{
+    ToriDraw_TriangleFaceTextureBlendOpaqueImpl(
+        TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_OPAQUE_ARGUMENTS, false);
+}
+
+static inline void
+ToriDraw_TriangleFaceTextureBlendOpaqueScanline(
+    TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_OPAQUE_PARAMETERS)
+{
+    ToriDraw_TriangleFaceTextureBlendOpaqueImpl(
+        TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_OPAQUE_ARGUMENTS, true);
+}
+
+static inline void
+ToriDraw_TriangleFaceTextureBlendOpaque(
+    TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_OPAQUE_PARAMETERS)
+{
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleFaceTextureBlendOpaqueScanline(
+            TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_OPAQUE_ARGUMENTS);
+        return;
+    }
+    ToriDraw_TriangleFaceTextureBlendOpaqueBranching(
+        TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_OPAQUE_ARGUMENTS);
+}
+
+#undef TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_OPAQUE_ARGUMENTS
+#undef TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_OPAQUE_PARAMETERS
+
+#define TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_OPAQUE_PARAMETERS                                    \
+    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+        int face, int tp_vertex, int tm_vertex, int tn_vertex, faceint_t* RESTRICT face_indices_a, \
+        faceint_t* RESTRICT face_indices_b, faceint_t* RESTRICT face_indices_c,                   \
+        int* RESTRICT screen_vertices_x, int* RESTRICT screen_vertices_y,                         \
+        int* RESTRICT screen_vertices_z, int* RESTRICT orthographic_vertices_x,                   \
+        int* RESTRICT orthographic_vertices_y, int* RESTRICT orthographic_vertices_z,             \
+        hsl16_t* RESTRICT colors, int* RESTRICT texels, int texture_size, int near_plane_z,       \
+        int offset_x, int offset_y, bool allow_near_clip, bool near_clipped
+#define TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_OPAQUE_ARGUMENTS                                      \
+    pixel_buffer, stride, screen_width, screen_height, camera_cot16, face, tp_vertex, tm_vertex,   \
+        tn_vertex, face_indices_a, face_indices_b, face_indices_c, screen_vertices_x,              \
+        screen_vertices_y, screen_vertices_z, orthographic_vertices_x, orthographic_vertices_y,   \
+        orthographic_vertices_z, colors, texels, texture_size, near_plane_z, offset_x, offset_y,  \
+        allow_near_clip, near_clipped
+
+static inline void
+ToriDraw_TriangleFaceTextureFlatOpaqueBranching(
+    TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_OPAQUE_PARAMETERS)
+{
+    ToriDraw_TriangleFaceTextureFlatOpaqueImpl(
+        TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_OPAQUE_ARGUMENTS, false);
+}
+
+static inline void
+ToriDraw_TriangleFaceTextureFlatOpaqueScanline(
+    TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_OPAQUE_PARAMETERS)
+{
+    ToriDraw_TriangleFaceTextureFlatOpaqueImpl(
+        TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_OPAQUE_ARGUMENTS, true);
+}
+
+static inline void
+ToriDraw_TriangleFaceTextureFlatOpaque(TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_OPAQUE_PARAMETERS)
+{
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleFaceTextureFlatOpaqueScanline(
+            TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_OPAQUE_ARGUMENTS);
+        return;
+    }
+    ToriDraw_TriangleFaceTextureFlatOpaqueBranching(
+        TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_OPAQUE_ARGUMENTS);
+}
+
+#undef TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_OPAQUE_ARGUMENTS
+#undef TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_OPAQUE_PARAMETERS
 
 #endif
