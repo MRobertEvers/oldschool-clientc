@@ -211,6 +211,21 @@ struct Wev
     int view_id;
     /** View this entity is drawn inside (deob field5700). */
     int parent_view_id;
+    /**
+     * The level this hull floats on inside `parent_view_id`'s world — off
+     * SET_ACTIVE_WORLD, mirroring `Worldview.parent_level`.
+     *
+     * The terrain the per-frame height sample reads must come from this level,
+     * NOT from `config->plane`: the config's plane is where the deck is
+     * authored inside the entity's OWN world (the off-map staging region), and
+     * sampling the root's terrain there lifts a hull floating on open water to
+     * the height of whatever happens to sit one storey up at those coordinates
+     * — beside Lumbridge castle that is a 600-unit hop into the air.
+     *
+     * 0 until the first REBUILD_WORLDENTITY lands, which is both the common
+     * case (a hull floats on the surface plane) and the only safe guess.
+     */
+    int parent_level;
 
     struct WevConfig const* config;
     int config_id;

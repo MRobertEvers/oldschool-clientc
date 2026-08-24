@@ -1825,6 +1825,34 @@ suspend:
 }
 
 /**
+ * `TORIRS_WEV_DEBUG=1` — trace every descent the driver below is asked for and
+ * every one it completes.
+ *
+ * A world entity that renders nothing is otherwise indistinguishable at four
+ * different stages: the pseudo-loc never emitted a BEGIN_WORLD, the request
+ * arrived but was refused (unbound view, cycle, full stack), the descent ran
+ * but the child painter emitted no commands, or it emitted commands that the
+ * drain later dropped. The request/done pair separates the first three.
+ *
+ * Read once, not per descent: this sits in the per-frame paint driver, where
+ * even the getenv is charged every frame of every entity.
+ * @see app_wev_debug_enabled
+ */
+static int
+bucket_wev_debug_enabled(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_WEV_DEBUG");
+
+        cached = (v && v[0] && v[0] != '0') ? 1 : 0;
+    }
+    return cached;
+}
+
+/**
  * The paint driver: an explicit stack of suspendable contexts, never the C call
  * stack. stack[0] is the root painter; a world-entity pseudo-loc pushes the
  * view's painter with a camera already transformed into that view's space.
@@ -1910,6 +1938,19 @@ painter_paint_bucket(
             /* An unbound view, a repeat of a view id or of a painter, or a full
              * stack is not a descent: emit the closing marker immediately so the
              * stream stays balanced, and let the outer context carry on. */
+            if( bucket_wev_debug_enabled() )
+                fprintf(
+                    stderr,
+                    "wev: DESCEND request view %d active=%d dup_id=%d "
+                    "dup_painter=%d depth=%d cam %d,%d cmds=%d\n",
+                    view_id,
+                    view->active,
+                    (on_stack & (1u << view_id)) ? 1 : 0,
+                    painter_on_stack,
+                    depth,
+                    view->camera_sx,
+                    view->camera_sz,
+                    (int)(cursor.cur - cursor.base));
             if( !view->active || (on_stack & (1u << view_id)) || painter_on_stack ||
                 depth + 1 >= PAINTER_MAX_WORLD_VIEWS )
             {
@@ -1937,6 +1978,12 @@ painter_paint_bucket(
         if( depth == 0 )
             break;
 
+        if( bucket_wev_debug_enabled() )
+            fprintf(
+                stderr,
+                "wev: DESCEND done view %d emitted %d command(s)\n",
+                top->view_id,
+                (int)(cursor.cur - cursor.base));
         int view_id = top->view_id;
         assert(view_id > 0);
         bucket_cursor_reserve(&cursor, 1);

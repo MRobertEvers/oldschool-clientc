@@ -9352,7 +9352,13 @@ app_wev_register_pseudo_locs(
             continue;
         }
 
-        level = wev->config ? wev->config->plane : 0;
+        /* The carrier's level in THIS world, off SET_ACTIVE_WORLD — not
+         * `config->plane`, which is where the deck sits inside the entity's
+         * OWN world. A hull on open water is level 0 here and its deck is
+         * still authored at plane 1 over in the staging region; painting it
+         * at the config's plane put it above the root's draw mask, which is
+         * clamped to the player's roof level, so it was culled every frame. */
+        level = WorldviewRegistry_Get(&app->worldviews, id)->parent_level;
         if( level < 0 )
             level = 0;
         if( level >= COLLISION_LEVELS )

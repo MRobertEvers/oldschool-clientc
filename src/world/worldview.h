@@ -48,6 +48,22 @@ struct Worldview
      * 0 for the root — its extent is the scene, not a membership box. */
     int size_x_tiles;
     int size_z_tiles;
+    /**
+     * The level this view's carrier occupies in its PARENT world — the level
+     * its pseudo-loc is registered on, off SET_ACTIVE_WORLD's level byte.
+     *
+     * NOT the plane the deck sits on inside this view's own world: that is
+     * `WevConfig.plane`, a coordinate in the staging region the deck is
+     * authored at, and using it in the parent registers a boat floating on
+     * open water at level 1. The parent then masks it away entirely, because
+     * the root's draw mask is clamped to the player's own roof level
+     * (app.c, `app_world_roof_check`) — the loc paints every frame and is
+     * culled every frame.
+     *
+     * 0 until the first REBUILD_WORLDENTITY lands, which is both the common
+     * case (a hull floats on the surface plane) and the only safe guess.
+     */
+    int parent_level;
     /** View this one is drawn inside (deob field5700); WORLDVIEW_PARENT_NONE
      * for the root. */
     int parent_id;

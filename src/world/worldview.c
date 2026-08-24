@@ -54,6 +54,8 @@ WorldviewRegistry_RegisterRoot(
     view->base_z = 0;
     view->size_x_tiles = 0;
     view->size_z_tiles = 0;
+    /* The root rides in nothing, so it has no level within a carrier. */
+    view->parent_level = 0;
     view->parent_id = WORLDVIEW_PARENT_NONE;
     view->live = true;
     view->owns = false;
@@ -94,6 +96,9 @@ WorldviewRegistry_Register(
     view->base_z = base_z;
     view->size_x_tiles = size_x_tiles;
     view->size_z_tiles = size_z_tiles;
+    /* The spawn record carries no level; SET_ACTIVE_WORLD does, and it
+     * arrives with the rebuild. Surface plane until then. */
+    view->parent_level = 0;
     view->parent_id = parent_id;
     view->live = true;
     view->owns = true;
@@ -123,6 +128,7 @@ WorldviewRegistry_Release(
     view->base_z = 0;
     view->size_x_tiles = 0;
     view->size_z_tiles = 0;
+    view->parent_level = 0;
     view->parent_id = WORLDVIEW_PARENT_NONE;
     view->live = false;
     view->owns = false;

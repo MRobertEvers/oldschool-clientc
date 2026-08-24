@@ -423,6 +423,9 @@ Wevs_Spawn(
     wev->id = id;
     wev->view_id = id;
     wev->parent_view_id = parent_view_id;
+    /* The spawn record carries no level; SET_ACTIVE_WORLD does, and it arrives
+     * with the rebuild. Surface plane until then. */
+    wev->parent_level = 0;
     wev->config = config;
     wev->config_id = config_id;
     wev->x = x;
@@ -768,13 +771,16 @@ Wevs_Frame(
             Wev_Interpolate(wev, wevs->clock);
             /* Height is not interpolated: overwritten every frame from the
              * terrain of the view the hull floats in — the root for a boat,
-             * the carrier's deck for a nested entity. */
+             * the carrier's deck for a nested entity.
+             *
+             * Sampled at the hull's level in THAT view, never at
+             * `config->plane` — see Wev.parent_level. */
             wev->y = height_fn(
                 height_userdata,
                 view,
                 wev->x,
                 wev->z,
-                wev->config->plane);
+                wev->parent_level);
             assert(tail < WORLDVIEW_MAX);
             worklist[tail++] = wev->view_id;
         }

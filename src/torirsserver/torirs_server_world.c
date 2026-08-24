@@ -7263,10 +7263,16 @@ handle_cheat(
          * "Board" op). The client asserts the id is in its config table, so a
          * made-up default here would abort the client rather than draw a boat.
          *
-         * The deck is sourced from Lumbridge castle's zone (402,402): this
-         * cache carries no boat-shaped map template, so the deck renders as a
-         * chunk of masonry. That is a correct render of the mechanism, and the
-         * alternative — an empty deck — renders as nothing at all.
+         * The deck is sourced from Lumbridge castle's FIRST FLOOR (tile
+         * 3208,3216 on plane 1): this cache carries no boat-shaped map
+         * template, so the deck renders as a chunk of masonry. That is a
+         * correct render of the mechanism, and the alternative — an empty deck
+         * — renders as nothing at all.
+         *
+         * Plane 1 rather than the courtyard below it because the courtyard is
+         * grass, and a grass deck floating over Lumbridge's grass is a correct
+         * render that is indistinguishable from no render at all. A screenshot
+         * has to be able to tell those two apart.
          */
         int size_x = 2;
         int size_z = 3;
@@ -7342,7 +7348,7 @@ handle_cheat(
         for( int zx = 0; zx < zones_x; zx++ )
             for( int zz = 0; zz < zones_z; zz++ )
                 ToriRSServer_MapInstanceSetchunk(
-                    vessel->instance, 0, zx, zz, 402 * 8, 402 * 8, 0, 0);
+                    vessel->instance, 0, zx, zz, 3208, 3216, 1, 0);
         ToriRSServer_MapInstanceBuild(vessel->instance);
         ToriRSServer_WorldMapInstanceBuilt(srv, vessel->instance);
 

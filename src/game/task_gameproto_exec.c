@@ -297,6 +297,19 @@ Task_GameProtoExec_Run(
             assert(self->packet._rebuild_wev.base_z % 8 == 0);
             view->base_x = self->packet._rebuild_wev.base_x;
             view->base_z = self->packet._rebuild_wev.base_z;
+            /* The same SET_ACTIVE_WORLD that aimed this rebuild carried the
+             * carrier's level in its PARENT world, and that is the level its
+             * pseudo-loc belongs on. Captured here rather than at the spawn
+             * record, which execs under the parent's cursor and would read
+             * the parent's own level. */
+            view->parent_level = app->active_world_level;
+            /* The hull that carries this view samples the same level for its
+             * terrain height. Mirrored onto the Wev rather than looked up
+             * through the registry because Wevs_UpdateHeights runs inside
+             * wev.c, which has no worldview.h. */
+            if( Wevs_IsLive(&app->wevs, self->wev_view_id) )
+                Wevs_Get(&app->wevs, self->wev_view_id)->parent_level =
+                    app->active_world_level;
 
             /* Pin the boat World's scene base to the wire base:
              * World_ResetScene bases the scene at (center - size/16)*8, so

@@ -1932,6 +1932,32 @@ frame_only_loc_allows(
 /* --- SAILING_PLAN C3: the descent stack -------------------------------- */
 
 /**
+ * `TORIRS_WEV_DEBUG=1` — print the composed transform for every view the drain
+ * descends into.
+ *
+ * A hull at the wrong place and a hull that is not drawn at all look identical
+ * from outside; this is where the difference is legible, because the offset it
+ * prints can be read against the camera. It is how the deck was caught floating
+ * 600 units up — the terrain sample had run at the wrong level.
+ *
+ * Read once, not per view: this is on the per-frame drain path.
+ * @see app_wev_debug_enabled
+ */
+static int
+frame_wev_debug_enabled(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_WEV_DEBUG");
+
+        cached = (v && v[0] && v[0] != '0') ? 1 : 0;
+    }
+    return cached;
+}
+
+/**
  * PNTR_CMD_BEGIN_WORLD: compose this view's transform onto the stack top.
  *
  * With the parent already reduced to `root = R(Y) * p + O`, one more level of
@@ -1999,6 +2025,25 @@ frame_view_push(
         frame->view_stack[depth].off_y + xf->translate_y + xf->flatten_y_offset;
     frame->view_stack[depth + 1].yaw = (parent_yaw + xf->yaw) & 0x7ff;
     frame->view_stack[depth + 1].view_id = view_id;
+
+    if( frame_wev_debug_enabled() )
+        fprintf(
+            stderr,
+            "wev: XFORM view %d recenter %d,%d translate %d,%d,%d yaw %d -> "
+            "off %d,%d,%d (cam %d,%d,%d)\n",
+            view_id,
+            xf->recenter_x,
+            xf->recenter_z,
+            xf->translate_x,
+            xf->translate_y,
+            xf->translate_z,
+            xf->yaw,
+            frame->view_stack[depth + 1].off_x,
+            frame->view_stack[depth + 1].off_y,
+            frame->view_stack[depth + 1].off_z,
+            frame->cam_x,
+            frame->cam_y,
+            frame->cam_z);
 }
 
 /** PNTR_CMD_END_WORLD. A close at depth 0 is an unbalanced command stream. */
