@@ -163,8 +163,7 @@ test_scripted_entity_overlay(void)
         int const moved_y = 140;
 
         TEST_ASSERT(
-            UITree_ApplyPosition(
-                tree, tree->components[layer].component_id, moved_x, moved_y),
+            UITree_EntityOverlaySetLayerPosition(tree, layer, moved_x, moved_y),
             "camera projection can move the scripted overlay layer");
         TEST_ASSERT(
             tree->dirty_gen != dirty_before,

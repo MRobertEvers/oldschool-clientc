@@ -4594,10 +4594,10 @@ app_entity_overlay_layout(struct App* app)
         if( c->position.x != x || c->position.y != y )
         {
             /* This is a retained-tree mutation, not just a repaint request.
-             * ApplyPosition clears the cached absolute box and bumps dirty_gen,
+             * The setter clears the cached absolute box and bumps dirty_gen,
              * so the emit-retention gate cannot reuse the sprite command from
              * the previous camera angle. */
-            (void)UITree_ApplyPosition(app->tree, item->component_id, x, y);
+            (void)UITree_EntityOverlaySetLayerPosition(app->tree, node, x, y);
         }
 
         if( getenv("TORIRS_OVERLAY_SCRIPT_DEBUG") )

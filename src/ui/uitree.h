@@ -1355,6 +1355,16 @@ UITree_MarkAllDirty(struct UITree* tree);
 int32_t
 UITree_EntityOverlayCreateLayer(struct UITree* tree, int sub_id, int width, int height);
 
+/**
+ * Move a layer made by `UITree_EntityOverlayCreateLayer` to its projected
+ * parent-relative position. This invalidates both incremental layout and the
+ * retained emit list; writing `position.x/y` directly does neither completely.
+ *
+ * Returns false when `idx` is not a live scripted-overlay layer.
+ */
+bool
+UITree_EntityOverlaySetLayerPosition(struct UITree* tree, int32_t idx, int x, int y);
+
 void
 UITree_MarkNodeDirty(
     struct UITree* tree,

@@ -2550,6 +2550,32 @@ UITree_EntityOverlayCreateLayer(struct UITree* tree, int sub_id, int width, int 
     return idx;
 }
 
+bool
+UITree_EntityOverlaySetLayerPosition(
+    struct UITree* tree,
+    int32_t idx,
+    int x,
+    int y)
+{
+    struct UITreeComponent* c;
+
+    assert(tree);
+    if( idx < 0 || (uint32_t)idx >= tree->component_count )
+        return false;
+    c = &tree->components[idx];
+    if( c->freed || c->type != UIELEM_RS_LAYER || c->parent != tree->entity_overlay_index )
+        return false;
+    if( c->position.x == x && c->position.y == y && c->position.layout_resolved )
+        return true;
+
+    c->position.x = x;
+    c->position.y = y;
+    c->position.layout_resolved = 0;
+    UITree_LayoutInvalidateBoxes(tree);
+    UITree_MarkNodeDirty(tree, idx);
+    return true;
+}
+
 int32_t
 UITree_CcCopy(
     struct UITree* tree,
