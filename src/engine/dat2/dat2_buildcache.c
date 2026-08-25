@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "log/torirs_log.h"
 
 struct MapEntry_CacheModel
 {
@@ -1366,9 +1367,7 @@ dat2_buildcache_locs_init_from_archive_based(
             { "large_ids+osrs220",
               RSCACHE_CONFIG_LOC_DECODE_LARGE_MODEL_IDS | RSCACHE_CONFIG_LOC_DECODE_OSRS_220 },
         };
-        fprintf(
-            stderr,
-            "loc_scan: archive revision=%d files=%d (flags for revision: 0x%x)\n",
+        TORIRS_LOG("loc_scan: archive revision=%d files=%d (flags for revision: 0x%x)\n",
             archive->revision,
             filelist->file_count,
             RSCache_Dat2ConfigLocFlags(CacheProvider_Profile(&dat2_buildcache->base)));
@@ -1387,9 +1386,7 @@ dat2_buildcache_locs_init_from_archive_based(
                     first_bad = archive->file_ids[i];
                 RSCache_Dat2ConfigLocFreeInplace(&scan_loc);
             }
-            fprintf(
-                stderr,
-                "loc_scan: %-18s exact=%d/%d first_mismatch_id=%d\n",
+            TORIRS_ERR("loc_scan: %-18s exact=%d/%d first_mismatch_id=%d\n",
                 combos[c].name,
                 exact,
                 filelist->file_count,

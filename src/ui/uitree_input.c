@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* Screen click (px,py) landed on one of an RS_INV grid's slot rects. Inventory
  * components carry cols/rows in their base width/height (4x7 for the backpack),
@@ -294,9 +295,7 @@ hit_test_interactive_recursive(
         UITree_PointInScrolledBounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y);
 
     if( getenv("TORIRS_HIT_TRACE") && component->component_id > 0 )
-        fprintf(
-            stderr,
-            "hit: idx=%d com=%d type=%d box=%d,%d %dx%d in_self=%d passthru=%d vis=%d\n",
+        TORIRS_LOG("hit: idx=%d com=%d type=%d box=%d,%d %dx%d in_self=%d passthru=%d vis=%d\n",
             node_index,
             component->component_id,
             (int)component->type,

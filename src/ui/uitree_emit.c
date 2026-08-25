@@ -24,6 +24,7 @@ clip_intersect(
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Height of the obj-icon raster, and the reference an obj drawn as a MODEL is
@@ -2648,9 +2649,7 @@ emit_walk_node(
          * this clip (the enclosing interface layer ∩ surface). A clip narrower
          * than the widget's own right edge is what crops a chathead. */
         if( desc.kind == UITREE_EMIT_MODEL && getenv("TORIRS_MODEL_CLIP_DEBUG") )
-            fprintf(
-                stderr,
-                "model com=0x%08x box=%d,%d %dx%d (right=%d) clip=%d,%d %dx%d (right=%d)\n",
+            TORIRS_LOG("model com=0x%08x box=%d,%d %dx%d (right=%d) clip=%d,%d %dx%d (right=%d)\n",
                 desc.component_id, desc.x, desc.y, desc.w, desc.h, desc.x + desc.w,
                 desc.clip.x, desc.clip.y, desc.clip.w, desc.clip.h,
                 desc.clip.x + desc.clip.w);

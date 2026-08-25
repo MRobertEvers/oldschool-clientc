@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "log/torirs_log.h"
 
 /*
  * Plugin action ids start well clear of the four the editors already own
@@ -337,9 +338,7 @@ plugin_config_slot(struct ToriRS_PluginCtx* ctx, char const* key, bool create)
          * keys than the headroom above the schema, which is a settings file
          * that has outlived several renames. Said out loud because the
          * alternative is a setting that will not stick and no reason given. */
-        fprintf(
-            stderr,
-            "plugin: '%s' config store is full (%d); '%s' is not kept\n",
+        TORIRS_LOG("plugin: '%s' config store is full (%d); '%s' is not kept\n",
             ctx->name,
             TORIRS_PLUGIN_CONFIG_MAX,
             key);
@@ -542,9 +541,7 @@ api_subscribe(
     {
         /* Loud, not silent: a dropped subscription is a plugin that appears to
          * load and then never fires. */
-        fprintf(
-            stderr,
-            "plugin: %s subscription to event %d dropped, bus slot full (%d)\n",
+        TORIRS_LOG("plugin: %s subscription to event %d dropped, bus slot full (%d)\n",
             ctx->name,
             (int)ev,
             TORIRS_PLUGIN_SUBS_MAX);
@@ -561,12 +558,18 @@ api_log(struct ToriRS_PluginCtx* ctx, char const* fmt, ...)
     assert(ctx);
     assert(fmt);
 
+    /*
+     * A plugin's own log(). Narration by definition, and a plugin is free to
+     * call it from a per-frame event handler, so it goes through the channel
+     * like everything else -- an optimized build must not be paying a syscall
+     * per frame for a line nobody is reading.
+     */
     va_list args;
-    fprintf(stderr, "[%s] ", ctx->name);
+    TORIRS_LOG("[%s] ", ctx->name);
     va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
+    TORIRS_VLOG(fmt, args);
     va_end(args);
-    fputc('\n', stderr);
+    TORIRS_LOGC('\n');
 }
 
 static int
@@ -1368,9 +1371,7 @@ api_layout_reserve(struct ToriRS_PluginCtx* ctx, int slot, int edge, int px)
      * rather than making room beside it. */
     if( slot != TORIRS_PLUGIN_SLOT_SAFE )
     {
-        fprintf(
-            stderr,
-            "plugin: %s reserved from region %d; only SAFE can be reserved from\n",
+        TORIRS_LOG("plugin: %s reserved from region %d; only SAFE can be reserved from\n",
             ctx->name,
             slot);
         return 0;
@@ -1405,9 +1406,7 @@ api_layout_reserve(struct ToriRS_PluginCtx* ctx, int slot, int edge, int px)
         return 1; /* nothing of this plugin's to drop */
     if( free_row < 0 )
     {
-        fprintf(
-            stderr,
-            "plugin: %s could not reserve; the reservation table is full (%d)\n",
+        TORIRS_LOG("plugin: %s could not reserve; the reservation table is full (%d)\n",
             ctx->name,
             TORIRS_PLUGIN_RESERVES_MAX);
         return 0;
@@ -1914,9 +1913,7 @@ plugin_asset_name_ok(struct ToriRS_PluginCtx* ctx, char const* name)
         ok = false;
 
     if( !ok )
-        fprintf(
-            stderr,
-            "plugin: %s asked for asset '%s'; asset names are bare filenames of "
+        TORIRS_ERR("plugin: %s asked for asset '%s'; asset names are bare filenames of "
             "[A-Za-z0-9._-] with no '..', so that one is refused\n",
             ctx->name,
             name);
@@ -2003,9 +2000,7 @@ plugin_image_owned(struct ToriRS_PluginCtx* ctx, int image)
         return NULL;
     if( ctx->host->images[image].plugin != ctx->index )
     {
-        fprintf(
-            stderr,
-            "plugin: %s used image handle %d, which it does not own\n",
+        TORIRS_LOG("plugin: %s used image handle %d, which it does not own\n",
             ctx->name,
             image);
         return NULL;
@@ -2069,9 +2064,7 @@ plugin_model_publish(
     slot = &host->models[model];
     if( !host->engine.model_publish(host->engine.user, model, data, size) )
     {
-        fprintf(
-            stderr,
-            "plugin: %s model '%s' would not decode (%d bytes); it draws nothing\n",
+        TORIRS_LOG("plugin: %s model '%s' would not decode (%d bytes); it draws nothing\n",
             host->plugins[slot->plugin].name,
             slot->asset,
             size);
@@ -2114,9 +2107,7 @@ plugin_image_publish(
     slot = &host->images[image];
     if( !host->engine.image_publish(host->engine.user, image, data, size, &w, &h) )
     {
-        fprintf(
-            stderr,
-            "plugin: %s image '%s' would not decode (%d bytes); it draws nothing\n",
+        TORIRS_LOG("plugin: %s image '%s' would not decode (%d bytes); it draws nothing\n",
             host->plugins[slot->plugin].name,
             slot->asset,
             size);
@@ -2148,9 +2139,7 @@ api_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
     slot = plugin_asset_claim(host, ctx->index, name);
     if( !slot )
     {
-        fprintf(
-            stderr,
-            "plugin: %s asset '%s' not loaded, the resident asset table is full (%d)\n",
+        TORIRS_LOG("plugin: %s asset '%s' not loaded, the resident asset table is full (%d)\n",
             ctx->name,
             name,
             TORIRS_PLUGIN_ASSETS_MAX);
@@ -2195,9 +2184,7 @@ api_asset_save(struct ToriRS_PluginCtx* ctx, char const* name, void const* data,
     struct PluginAsset* slot = plugin_asset_claim(host, ctx->index, name);
     if( !slot )
     {
-        fprintf(
-            stderr,
-            "plugin: %s asset '%s' not saved, the resident asset table is full (%d)\n",
+        TORIRS_LOG("plugin: %s asset '%s' not saved, the resident asset table is full (%d)\n",
             ctx->name,
             name,
             TORIRS_PLUGIN_ASSETS_MAX);
@@ -2268,9 +2255,7 @@ plugin_screenshot_dir_ok(struct ToriRS_PluginCtx* ctx, char const* dir)
         ok = false;
 
     if( !ok )
-        fprintf(
-            stderr,
-            "plugin: %s asked to write a screenshot to '%s'; a destination is a path of "
+        TORIRS_LOG("plugin: %s asked to write a screenshot to '%s'; a destination is a path of "
             "[A-Za-z0-9._- /:] with no '..'\n",
             ctx->name,
             dir);
@@ -2435,9 +2420,7 @@ api_mesh_create(struct ToriRS_PluginCtx* ctx)
         if( !ctx->mesh_clipped )
         {
             ctx->mesh_clipped = true;
-            fprintf(
-                stderr,
-                "plugin: %s is at its %d mesh budget; further mesh_create "
+            TORIRS_ERR("plugin: %s is at its %d mesh budget; further mesh_create "
                 "calls are refused\n",
                 ctx->name,
                 TORIRS_PLUGIN_MESH_BUDGET);
@@ -2523,9 +2506,7 @@ api_object_create(struct ToriRS_PluginCtx* ctx)
         if( !ctx->object_clipped )
         {
             ctx->object_clipped = true;
-            fprintf(
-                stderr,
-                "plugin: %s is at its %d world-object budget; further "
+            TORIRS_ERR("plugin: %s is at its %d world-object budget; further "
                 "object_create calls are refused\n",
                 ctx->name,
                 TORIRS_PLUGIN_OBJECT_BUDGET);
@@ -2870,9 +2851,7 @@ plugin_draw_allow(struct ToriRS_PluginCtx* ctx, void* surface)
         if( !ctx->draw_clipped )
         {
             ctx->draw_clipped = true;
-            fprintf(
-                stderr,
-                "plugin: %s hit its %d-item draw budget this frame; "
+            TORIRS_LOG("plugin: %s hit its %d-item draw budget this frame; "
                 "the rest of its overlay was dropped\n",
                 ctx->name,
                 TORIRS_PLUGIN_DRAW_BUDGET);
@@ -3010,9 +2989,7 @@ api_image_load(struct ToriRS_PluginCtx* ctx, char const* name)
 
     if( free_slot < 0 )
     {
-        fprintf(
-            stderr,
-            "plugin: %s image '%s' not loaded, the resident image table is full (%d)\n",
+        TORIRS_LOG("plugin: %s image '%s' not loaded, the resident image table is full (%d)\n",
             ctx->name,
             name,
             TORIRS_PLUGIN_IMAGES_MAX);
@@ -3077,9 +3054,7 @@ api_model_load(struct ToriRS_PluginCtx* ctx, char const* name)
 
     if( free_slot < 0 )
     {
-        fprintf(
-            stderr,
-            "plugin: %s model '%s' not loaded, the resident model table is full (%d)\n",
+        TORIRS_LOG("plugin: %s model '%s' not loaded, the resident model table is full (%d)\n",
             ctx->name,
             name,
             TORIRS_PLUGIN_MODELS_MAX);
@@ -3134,9 +3109,7 @@ api_image_compose(
      * keeps a plugin from spending a slot on it. */
     if( w <= 0 || h <= 0 || w > 4096 || h > 4096 )
     {
-        fprintf(
-            stderr,
-            "plugin: %s composed image '%s' is %dx%d, which is not a picture\n",
+        TORIRS_LOG("plugin: %s composed image '%s' is %dx%d, which is not a picture\n",
             ctx->name,
             name,
             w,
@@ -3159,9 +3132,7 @@ api_image_compose(
         slot = free_slot;
     if( slot < 0 )
     {
-        fprintf(
-            stderr,
-            "plugin: %s image '%s' not composed, the resident image table is full "
+        TORIRS_LOG("plugin: %s image '%s' not composed, the resident image table is full "
             "(%d)\n",
             ctx->name,
             name,
@@ -3740,7 +3711,7 @@ PluginHost_Register(struct ToriRS_PluginHost* host, struct ToriRS_PluginDef cons
 
     if( host->plugin_count >= TORIRS_PLUGIN_MAX )
     {
-        fprintf(stderr, "plugin: table full, refusing '%s'\n", def->name);
+        TORIRS_ERR("plugin: table full, refusing '%s'\n", def->name);
         return -1;
     }
 
@@ -3750,9 +3721,7 @@ PluginHost_Register(struct ToriRS_PluginHost* host, struct ToriRS_PluginDef cons
      * second is refused rather than admitted to fight over them. */
     if( PluginHost_IndexOf(host, def->name) >= 0 )
     {
-        fprintf(
-            stderr,
-            "plugin: '%s' is already registered; the second one is refused "
+        TORIRS_ERR("plugin: '%s' is already registered; the second one is refused "
             "(names key the settings file, so they must be unique)\n",
             def->name);
         return -1;
@@ -3771,9 +3740,7 @@ PluginHost_Register(struct ToriRS_PluginHost* host, struct ToriRS_PluginDef cons
      */
     if( PluginHost_IndexOf(host, def->name) >= 0 )
     {
-        fprintf(
-            stderr,
-            "plugin: '%s' is already registered -- refusing the second one. "
+        TORIRS_ERR("plugin: '%s' is already registered -- refusing the second one. "
             "Two plugins cannot share a name: it is the ini section and the "
             "panel row. Rename one.\n",
             def->name);
@@ -3798,9 +3765,7 @@ PluginHost_Register(struct ToriRS_PluginHost* host, struct ToriRS_PluginDef cons
                 schema_count++;
         if( schema_count > TORIRS_PLUGIN_CONFIG_MAX )
         {
-            fprintf(
-                stderr,
-                "plugin: '%s' declares %d config items; the store holds %d. "
+            TORIRS_ERR("plugin: '%s' declares %d config items; the store holds %d. "
                 "Refusing it rather than dropping the last %d in silence.\n",
                 def->name,
                 schema_count,
@@ -4513,9 +4478,7 @@ PluginHost_Layout(struct ToriRS_PluginHost* host, int width, int height)
      */
     if( host->layout_canvas != TORIRS_PLUGIN_CANVAS_FIXED && (width <= 0 || height <= 0) )
     {
-        fprintf(
-            stderr,
-            "plugin: %s asked to lay out against a %dx%d canvas; nothing declared\n",
+        TORIRS_LOG("plugin: %s asked to lay out against a %dx%d canvas; nothing declared\n",
             host->plugins[host->layout_owner].name,
             width,
             height);

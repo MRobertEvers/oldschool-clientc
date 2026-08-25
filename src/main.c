@@ -1,4 +1,5 @@
 #include "app.h"
+#include "log/torirs_log.h"
 #include "bootmanifest/bootmanifest.h"
 #include "executor_config.h"
 #include "engine/uitree_scene_bridge.h"
@@ -216,9 +217,8 @@ dump_tree_node(
     int i;
 
     for( i = 0; i < depth; i++ )
-        printf("  ");
-    printf(
-        "[%d] kind=%s widget_type=%d trans=%d fill_mode=0 user_id=0x%08x (%d<<16|%d) %s",
+        TORIRS_LOG("  ");
+    TORIRS_LOG("[%d] kind=%s widget_type=%d trans=%d fill_mode=0 user_id=0x%08x (%d<<16|%d) %s",
         dump_index(c),
         kind,
         dump_widget_type(c),
@@ -229,32 +229,28 @@ dump_tree_node(
         c->dynamic ? "dynamic" : "static");
 
     if( c->type == UIELEM_RS_GRAPHIC )
-        printf(
-            " graphic=%d",
+        TORIRS_LOG(" graphic=%d",
             UITreeSceneBridge_SpriteCacheIdForScene(&app->bridge, c->u.rs_graphic.scene_id));
     else if( c->type == UIELEM_RS_TEXT )
-        printf(
-            " font=%d color=0x%x text=\"%s\"",
+        TORIRS_LOG(" font=%d color=0x%x text=\"%s\"",
             c->u.rs_text.font_id,
             (unsigned)c->u.rs_text.color,
             c->u.rs_text.text ? c->u.rs_text.text : "");
     else if( c->type == UIELEM_RS_LINE )
-        printf(
-            " color=0x%x width=%d dir=%d",
+        TORIRS_LOG(" color=0x%x width=%d dir=%d",
             (unsigned)c->u.rs_line.color,
             c->u.rs_line.line_width,
             c->u.rs_line.horizontal ? 1 : 0);
 
     if( c->type != UIELEM_RS_LAYER )
-        printf(
-            " abs=%d,%d %dx%d hidden=%d ownhide=%d",
+        TORIRS_LOG(" abs=%d,%d %dx%d hidden=%d ownhide=%d",
             c->position.abs_x,
             c->position.abs_y,
             c->position.abs_w,
             c->position.abs_h,
             dump_node_hidden(tree, idx),
             c->behavior.hide);
-    printf("\n");
+    TORIRS_LOG("\n");
 
     {
         struct DumpChildRef refs[512];
@@ -303,9 +299,7 @@ dump_hooks(struct App* app)
             struct UITreeRuntimeScriptHook const* slot = UITree_HooksSlotAtConst(hooks, h);
             if( !UITree_HookIsSet(slot) )
                 continue;
-            fprintf(
-                stderr,
-                "HOOKDUMP com=0x%08x (%d|%d) %s script=%d argc=%d\n",
+            TORIRS_LOG("HOOKDUMP com=0x%08x (%d|%d) %s script=%d argc=%d\n",
                 c->component_id,
                 (c->component_id >> 16) & 0xFFFF,
                 c->component_id & 0xFFFF,
@@ -378,8 +372,7 @@ dump_roots(struct App* app)
         int children = 0;
         for( int32_t k = c->first_child; k >= 0; k = app->tree->components[k].next_sibling )
             children++;
-        printf(
-            "ROOT[%d] index=%d type=%d com=0x%08x (%d|%d) hide=%d children=%d%s\n",
+        TORIRS_LOG("ROOT[%d] index=%d type=%d com=0x%08x (%d|%d) hide=%d children=%d%s\n",
             n++,
             (int)i,
             (int)c->type,
@@ -499,9 +492,7 @@ interactive_render_present(
                 ToriRS_D3D9_RenderFrame(d3d9, &frame);
             }
             if( getenv("TORIRS_FRAME_DEBUG") )
-                fprintf(
-                    stderr,
-                    "frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
+                TORIRS_LOG("frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
                     frame.dbg_emit_element,
                     frame.dbg_emit_terrain,
                     frame.dbg_drop_not_live,
@@ -560,9 +551,7 @@ interactive_render_present(
                 ToriRS_GL3_RenderFrame(gl3, &frame);
             }
             if( getenv("TORIRS_FRAME_DEBUG") )
-                fprintf(
-                    stderr,
-                    "frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
+                TORIRS_LOG("frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
                     frame.dbg_emit_element,
                     frame.dbg_emit_terrain,
                     frame.dbg_drop_not_live,
@@ -1042,7 +1031,7 @@ frame_loop_step(void)
             assert(pixels);
             char path[600];
             if( getenv("TORIRS_ANIM_DEBUG") )
-                fprintf(stderr, "bmp_series: frame_count=%ld\n", frame_count);
+                TORIRS_LOG("bmp_series: frame_count=%ld\n", frame_count);
             extern int g_torirs_painter_force;
             /* TORIRS_PAINTER_ALT=1: write frame_N.bmp painted by world3d AND
              * frame_N_bucket.bmp painted by the bucket painter, from the SAME
@@ -1071,39 +1060,35 @@ frame_loop_step(void)
     if( boot_stats && !boot_reported && app.app_state == APP_STATE_READY )
     {
         boot_reported = 1;
-        fprintf(
-            stderr,
-            "boot: %llums  frames=%d steps=%ld capped=%d\n",
+        TORIRS_LOG("boot: %llums  frames=%d steps=%ld capped=%d\n",
             (unsigned long long)(PlatformSDL2_Ticks64() - boot_start_ms),
             app.boot_frames,
             app.boot_steps,
             app.boot_frames_budget_capped);
     }
     if( boot_stats && frame_count == max_frames - 1 )
-        fprintf(
-            stderr,
-            "post-boot: busy_frames=%d busy_steps=%ld (frames that used the "
+        TORIRS_LOG("post-boot: busy_frames=%d busy_steps=%ld (frames that used the "
             "whole budget with work still queued)\n",
             app.busy_frames,
             app.busy_steps);
 
     if( sim_openmain > 0 && !sim_openmain_done && app.app_state == APP_STATE_READY )
     {
-        fprintf(stderr, "sim_openmain: opening main modal iface=%d\n", sim_openmain);
+        TORIRS_LOG("sim_openmain: opening main modal iface=%d\n", sim_openmain);
         RS_UISlots_OpenMain(&app, sim_openmain);
         sim_openmain_done = 1;
     }
 
     if( sim_openside > 0 && !sim_openside_done && app.app_state == APP_STATE_READY )
     {
-        fprintf(stderr, "sim_openside: opening side panel iface=%d\n", sim_openside);
+        TORIRS_LOG("sim_openside: opening side panel iface=%d\n", sim_openside);
         RS_UISlots_OpenSide(&app, sim_openside);
         sim_openside_done = 1;
     }
 
     if( sim_openchat > 0 && !sim_openchat_done && app.app_state == APP_STATE_READY )
     {
-        fprintf(stderr, "sim_openchat: opening chat dialog iface=%d\n", sim_openchat);
+        TORIRS_LOG("sim_openchat: opening chat dialog iface=%d\n", sim_openchat);
         RS_UISlots_OpenChat(&app, sim_openchat);
         sim_openchat_done = 1;
     }
@@ -1114,7 +1099,7 @@ frame_loop_step(void)
         int tabno = (int)strtol(sim_settab, &tab_sep, 0);
         int tab_iface =
             tab_sep && *tab_sep == ':' ? (int)strtol(tab_sep + 1, NULL, 0) : -1;
-        fprintf(stderr, "sim_settab: tab=%d iface=%d\n", tabno, tab_iface);
+        TORIRS_LOG("sim_settab: tab=%d iface=%d\n", tabno, tab_iface);
         RS_UISlots_SetTab(&app, tabno, tab_iface);
         RS_UISlots_SetSideTab(&app, tabno);
         sim_settab_done = 1;
@@ -1148,7 +1133,7 @@ frame_loop_step(void)
             char* sep = NULL;
             long com = strtol(cur, &sep, 0);
             int hide = sep && *sep == ':' ? (int)strtol(sep + 1, &sep, 0) : 1;
-            fprintf(stderr, "sim_sethide: com=%ld hide=%d\n", com, hide);
+            TORIRS_LOG("sim_sethide: com=%ld hide=%d\n", com, hide);
             App_IfHideSet(&app, (int)com, hide);
             while( sep && *sep && *sep != ',' )
                 sep++;
@@ -1163,12 +1148,12 @@ frame_loop_step(void)
     {
         if( sim_song_id >= 0 )
         {
-            fprintf(stderr, "sim_music: playing track %d\n", sim_song_id);
+            TORIRS_LOG("sim_music: playing track %d\n", sim_song_id);
             App_PlaySong(&app, sim_song_id, true, 0, 0);
         }
         if( sim_jingle_id >= 0 )
         {
-            fprintf(stderr, "sim_music: playing jingle %d\n", sim_jingle_id);
+            TORIRS_LOG("sim_music: playing jingle %d\n", sim_jingle_id);
             App_PlayJingle(&app, sim_jingle_id, 0);
         }
         sim_music_done = 1;
@@ -1182,9 +1167,7 @@ frame_loop_step(void)
     {
         if( sim_sound_next == 0 || (sim_sound_every > 0 && frame_count >= sim_sound_next) )
         {
-            fprintf(
-                stderr,
-                "sim_sound: queueing effect %d loops=%d\n",
+            TORIRS_LOG("sim_sound: queueing effect %d loops=%d\n",
                 sim_sound_id,
                 sim_sound_loops);
             App_PlaySound(&app, sim_sound_id, sim_sound_loops, 0);
@@ -1277,9 +1260,7 @@ frame_loop_step(void)
                         (uint8_t)drag_button,
                         (int)drag_x1,
                         (int)drag_y1);
-                    fprintf(
-                        stderr,
-                        "sim_drag: %ld,%ld -> %ld,%ld button=%ld (%ld left)\n",
+                    TORIRS_LOG("sim_drag: %ld,%ld -> %ld,%ld button=%ld (%ld left)\n",
                         drag_x0, drag_y0, drag_x1, drag_y1, drag_button, drag_repeats - 1);
                     if( --drag_repeats > 0 )
                     {
@@ -1343,9 +1324,7 @@ frame_loop_step(void)
                     CmdBus_PushMouseWheel(&bus, (int16_t)wheel_notches);
                     if( step == 2 + wheel_repeats )
                     {
-                        fprintf(
-                            stderr,
-                            "sim_wheel: %ld,%ld notches=%ld x%ld\n",
+                        TORIRS_LOG("sim_wheel: %ld,%ld notches=%ld x%ld\n",
                             wheel_x, wheel_y, wheel_notches, wheel_repeats);
                         wheel_frame = -1;
                     }
@@ -1397,7 +1376,7 @@ frame_loop_step(void)
                         UITree_Hooks(&app.tree->components[idx])->on_op;
                     if( hook.script_id <= 0 )
                         hook = UITree_Hooks(&app.tree->components[idx])->on_click;
-                    fprintf(stderr, "sim_hook: com=0x%lx script=%d\n", hook_com, hook.script_id);
+                    TORIRS_LOG("sim_hook: com=0x%lx script=%d\n", hook_com, hook.script_id);
                     /* A real op click latches which op it was; an onop script
                      * that switches on event_opindex (every list row does) is
                      * a no-op without it. 1 = the primary left-click op. */
@@ -1405,7 +1384,7 @@ frame_loop_step(void)
                     RS_CS2_DispatchHook(&app.host, &app.runner, (int)hook_com, &hook);
                 }
                 else
-                    fprintf(stderr, "sim_hook: component 0x%lx not found\n", hook_com);
+                    TORIRS_ERR("sim_hook: component 0x%lx not found\n", hook_com);
                 hook_frame = -1;
             }
         }
@@ -1443,9 +1422,7 @@ frame_loop_step(void)
             }
             if( sim_oploc_frame >= 0 && frame_count >= sim_oploc_frame )
             {
-                fprintf(
-                    stderr,
-                    "sim_oploc: op=%ld tile=%ld,%ld loc=%ld\n",
+                TORIRS_LOG("sim_oploc: op=%ld tile=%ld,%ld loc=%ld\n",
                     sim_oploc_op,
                     sim_oploc_x,
                     sim_oploc_z,
@@ -1490,9 +1467,7 @@ frame_loop_step(void)
             {
                 int slot = App_SimulateNpcOp(&app, (int)sim_opnpc_op, (int)sim_opnpc_npc);
 
-                fprintf(
-                    stderr,
-                    "sim_opnpc: op=%ld npc=%ld slot=%d\n",
+                TORIRS_LOG("sim_opnpc: op=%ld npc=%ld slot=%d\n",
                     sim_opnpc_op,
                     sim_opnpc_npc,
                     slot);
@@ -1597,8 +1572,7 @@ frame_loop_step(void)
 
             if( rs_frame >= 0 && frame_count >= rs_frame )
             {
-                fprintf(
-                    stderr, "sim_runscript: script=%ld argc=%d\n", rs_script, rs_argc);
+                TORIRS_LOG("sim_runscript: script=%ld argc=%d\n", rs_script, rs_argc);
                 RS_CS2_RunScript(
                     &app.host,
                     &app.runner,
@@ -1667,9 +1641,7 @@ frame_loop_step(void)
                  * unimplementable in the first place.
                  */
                 RS_CS2Host_QueueSettingsMirror(&app.host, (int)vb_id, (int)vb_value);
-                fprintf(
-                    stderr,
-                    "sim_varbit: %ld = %ld (base varp %d, reads back %d)\n",
+                TORIRS_LOG("sim_varbit: %ld = %ld (base varp %d, reads back %d)\n",
                     vb_id,
                     vb_value,
                     VarPManager_VarbitBaseVar(&app.varps, (int)vb_id),
@@ -1711,7 +1683,7 @@ frame_loop_step(void)
                     CmdBus_PushKeyEvent(&bus, -1, (int32_t)val, 0);
                 else
                     CmdBus_PushKeyEvent(&bus, (int32_t)val, 0, 0);
-                fprintf(stderr, "sim_type: %c%ld at frame %ld\n", kind, val, frame_count);
+                TORIRS_LOG("sim_type: %c%ld at frame %ld\n", kind, val, frame_count);
 
                 if( end && *end == ',' )
                 {
@@ -1779,7 +1751,7 @@ frame_loop_step(void)
                         else if( name[0] >= '0' && name[0] <= '9' )
                             hk_plain = (enum LibToriRS_KeyCode)(TORIRSK_0 + (name[0] - '0'));
                     }
-                    fprintf(stderr, "sim_hotkey: '%s' -> osrs_key=%d at frame %ld\n",
+                    TORIRS_LOG("sim_hotkey: '%s' -> osrs_key=%d at frame %ld\n",
                             name, hk_key, hk_frame);
                 }
                 else
@@ -1845,7 +1817,7 @@ frame_loop_step(void)
                     memcpy(text, body, len);
                     text[len] = '\0';
                     App_SendCommand(&app, text);
-                    fprintf(stderr, "sim_cmd: frame %ld sent ::%s\n", (long)frame_count, text);
+                    TORIRS_LOG("sim_cmd: frame %ld sent ::%s\n", (long)frame_count, text);
                 }
                 cmd_cursor = body[len] == ';' ? body + len + 1 : NULL;
             }
@@ -1878,7 +1850,7 @@ frame_loop_step(void)
                     if( end == spec )
                         break;
                     CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)code);
-                    fprintf(stderr, "sim_keyhold: holding key %ld\n", code);
+                    TORIRS_LOG("sim_keyhold: holding key %ld\n", code);
                     spec = (end && *end == ',') ? end + 1 : NULL;
                 }
             }
@@ -1925,9 +1897,7 @@ frame_loop_step(void)
                 if( step == 0 )
                 {
                     CmdBus_PushMouseMove(&bus, (int)pend_x, (int)pend_y);
-                    fprintf(
-                        stderr,
-                        "sim_click_at: frame=%ld move %ld,%ld right=%ld\n",
+                    TORIRS_LOG("sim_click_at: frame=%ld move %ld,%ld right=%ld\n",
                         pend_frame,
                         pend_x,
                         pend_y,
@@ -1942,7 +1912,7 @@ frame_loop_step(void)
                 {
                     CmdBus_PushMouseButton(
                         &bus, TORIRS_CMD_INPUT_MOUSE_UP, btn, (int)pend_x, (int)pend_y);
-                    fprintf(stderr, "sim_click_at: released %ld,%ld\n", pend_x, pend_y);
+                    TORIRS_LOG("sim_click_at: released %ld,%ld\n", pend_x, pend_y);
                     pend_frame = -1;
                 }
             }
@@ -1983,7 +1953,7 @@ frame_loop_step(void)
             }
             if( rz_frame >= 0 && frame_count >= rz_frame )
             {
-                fprintf(stderr, "sim_resize: frame=%ld %ldx%ld\n", rz_frame, rz_w, rz_h);
+                TORIRS_LOG("sim_resize: frame=%ld %ldx%ld\n", rz_frame, rz_w, rz_h);
                 CmdBus_PushWindowResize(&bus, (int32_t)rz_w, (int32_t)rz_h);
                 rz_frame = -1;
             }
@@ -2027,7 +1997,7 @@ frame_loop_step(void)
             }
             if( wz_frame >= 0 && frame_count >= wz_frame )
             {
-                fprintf(stderr, "sim_window: frame=%ld %ldx%ld\n", wz_frame, wz_w, wz_h);
+                TORIRS_LOG("sim_window: frame=%ld %ldx%ld\n", wz_frame, wz_w, wz_h);
                 PlatformSDL2_SetWindowSize(sdl, (int)wz_w, (int)wz_h);
                 wz_frame = -1;
             }
@@ -2039,9 +2009,7 @@ frame_loop_step(void)
     if( executor_cfg.js5_enabled &&
         PlatformXIO_Js5Pump(app.runner.px, PlatformSDL2_Ticks64()) < 0 )
     {
-        fprintf(
-            stderr,
-            "torirs: JS5 cache producer stopped (error=%d)\n",
+        TORIRS_ERR("torirs: JS5 cache producer stopped (error=%d)\n",
             (int)PlatformXIO_Js5LastError(app.runner.px));
         return 0;
     }
@@ -2081,9 +2049,7 @@ frame_loop_step(void)
                 int const scale =
                     main_dynamic_chrome_scale(UITREE_LAYOUT_ROOT_H, density);
                 if( App_SetChromeScale(&app, scale) && getenv("TORIRS_RESIZE_DEBUG") )
-                    fprintf(
-                        stderr,
-                        "chrome: scale %d (canvas %dx%d, density %d)\n",
+                    TORIRS_LOG("chrome: scale %d (canvas %dx%d, density %d)\n",
                         App_ChromeScale(&app),
                         UITREE_LAYOUT_ROOT_W,
                         UITREE_LAYOUT_ROOT_H,
@@ -2149,7 +2115,7 @@ frame_loop_step(void)
             PlatformSDL2_SetWindowSize(sdl, fw, fh);
             PlatformSDL2_SetCanvasFollowsWindow(sdl, &bus, false, fw, fh);
             if( getenv("TORIRS_RESIZE_DEBUG") )
-                fprintf(stderr, "fixed-chrome: canvas %dx%d (strip inset)\n", fw, fh);
+                TORIRS_LOG("fixed-chrome: canvas %dx%d (strip inset)\n", fw, fh);
         }
 
     /*
@@ -2171,8 +2137,7 @@ frame_loop_step(void)
         if( App_TakeWindowModeChange(&app, &new_mode) )
         {
             bool const resizable = new_mode == CS2VM_WINDOW_MODE_RESIZABLE;
-            fprintf(
-                stderr, "windowmode: %s\n", resizable ? "resizable" : "fixed");
+            TORIRS_LOG("windowmode: %s\n", resizable ? "resizable" : "fixed");
             PlatformSDL2_SetCanvasFollowsWindow(
                 sdl, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
             if( !resizable )
@@ -2183,7 +2148,7 @@ frame_loop_step(void)
             int layout_mode = 0;
             if( App_TakeClientLayoutChange(&app, &layout_mode) )
             {
-                fprintf(stderr, "client_layout: mode=%d\n", layout_mode);
+                TORIRS_LOG("client_layout: mode=%d\n", layout_mode);
                 if( app.net && app.net->state == TORIRS_NET_GAME )
                 {
                     uint8_t nsbuf[32];
@@ -2293,9 +2258,7 @@ frame_loop_teardown(void)
                 LibToriRS_Input_End(hov_input);
                 App_RunOnce(&app, (uint64_t)(t + 1) * 20, hov_input);
             }
-            fprintf(
-                stderr,
-                "sim_hover: parked at %d,%d hover_com_id=%d\n",
+            TORIRS_LOG("sim_hover: parked at %d,%d hover_com_id=%d\n",
                 hov_x,
                 hov_y,
                 app.hover_com_id);
@@ -2326,9 +2289,7 @@ frame_loop_teardown(void)
                 struct UITreeComponent const* c = &app.tree->components[i];
                 if( c->freed || ((c->component_id >> 16) & 0xFFFF) != want )
                     continue;
-                fprintf(
-                    stderr,
-                    "BOUNDS com=0x%08x (%d|%d) type=%d graphic=%d hidden=%d "
+                TORIRS_LOG("BOUNDS com=0x%08x (%d|%d) type=%d graphic=%d hidden=%d "
                     "abs=%d,%d %dx%d "
                     "wh=%d,%d modes=w%d,h%d,x%d,y%d scroll=%dx%d off=%d,%d\n",
                     (unsigned)c->component_id,
@@ -2383,9 +2344,7 @@ frame_loop_teardown(void)
                     continue;
                 if( filter_group >= 0 && group != filter_group )
                     continue;
-                fprintf(
-                    stderr,
-                    "EMIT_EXIT[%d] kind=%d com=0x%08x (%d|%d) x=%d y=%d w=%d h=%d scene=%d model=%d "
+                TORIRS_LOG("EMIT_EXIT[%d] kind=%d com=0x%08x (%d|%d) x=%d y=%d w=%d h=%d scene=%d model=%d "
                     "color=0x%06x filled=%d trans=%d tiled=%d clip=%d,%d %dx%d\n",
                     i, (int)d->kind, d->component_id, group, d->component_id & 0xFFFF,
                     d->x, d->y, d->w, d->h, d->scene_id, d->model_id, d->color, d->filled, d->trans,
@@ -2395,9 +2354,7 @@ frame_loop_teardown(void)
         if( getenv("TORIRS_NET_DEBUG") && app.tree )
         {
             for( int t = 0; t < 14; t++ )
-                fprintf(
-                    stderr,
-                    "exit: tab %d overlay=%d owner=%d\n",
+                TORIRS_LOG("exit: tab %d overlay=%d owner=%d\n",
                     t,
                     app.slots.side_overlay_id[t],
                     app.slots.side_owner_index[t]);
@@ -2405,9 +2362,7 @@ frame_loop_teardown(void)
             {
                 struct UITreeComponent const* c = &app.tree->components[i];
                 if( c->type == UIELEM_BUILTIN_TAB_ICONS )
-                    fprintf(
-                        stderr,
-                        "exit: tab_icon idx=%u tab=%d freed=%d hide=%d scene=%d x=%d y=%d\n",
+                    TORIRS_LOG("exit: tab_icon idx=%u tab=%d freed=%d hide=%d scene=%d x=%d y=%d\n",
                         i,
                         c->u.tab_icon.tabno,
                         (int)c->freed,
@@ -2417,23 +2372,17 @@ frame_loop_teardown(void)
                         c->position.abs_y);
             }
             for( int t = 0; t < 14; t++ )
-                fprintf(
-                    stderr,
-                    "exit: tabgate %d enabled=%d flash_hidden=%d flash_tab=%d\n",
+                TORIRS_LOG("exit: tabgate %d enabled=%d flash_hidden=%d flash_tab=%d\n",
                     t,
                     RS_UISlots_TabEnabled(&app.slots, t),
                     RS_UISlots_TabFlashHidden(&app.slots, t, app.logic_cycle),
                     app.slots.flash_tab);
             for( int f = 0; f < 6; f++ )
-                fprintf(
-                    stderr,
-                    "exit: scene_font %d has=%d\n",
+                TORIRS_LOG("exit: scene_font %d has=%d\n",
                     f,
                     (int)ToriDraw_SceneFontHas(app.scene, f));
-            fprintf(stderr, "exit: hover_com_id=%d\n", app.hover_com_id);
-            fprintf(
-                stderr,
-                "exit: minimap_view valid=%d box=%d,%d %dx%d com=%d\n",
+            TORIRS_LOG("exit: hover_com_id=%d\n", app.hover_com_id);
+            TORIRS_LOG("exit: minimap_view valid=%d box=%d,%d %dx%d com=%d\n",
                 app.minimap_view_valid,
                 app.minimap_emit_desc.x,
                 app.minimap_emit_desc.y,
@@ -2450,9 +2399,7 @@ frame_loop_teardown(void)
                     struct UITreeComponent const* c = &app.tree->components[i];
                     if( c->component_id != want )
                         continue;
-                    fprintf(
-                        stderr,
-                        "exit: com=%d idx=%u type=%d freed=%d hide=%d text='%s' "
+                    TORIRS_LOG("exit: com=%d idx=%u type=%d freed=%d hide=%d text='%s' "
                         "abs=%d,%d wh=%dx%d font=%d color=0x%x "
                         "textalign=%d,%d lineheight=%d parent=%d\n",
                         want,
@@ -2480,7 +2427,7 @@ frame_loop_teardown(void)
         App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         bmp_write_file(
             getenv("TORIRS_EXIT_BMP"), pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        printf("wrote %s\n", getenv("TORIRS_EXIT_BMP"));
+        TORIRS_LOG("wrote %s\n", getenv("TORIRS_EXIT_BMP"));
         free(pixels);
     }
 
@@ -2500,7 +2447,7 @@ frame_loop_teardown(void)
                 pixels,
                 UITREE_LAYOUT_ROOT_W,
                 UITREE_LAYOUT_ROOT_H);
-            printf("wrote %s\n", getenv("TORIRS_REPLAY_BMP"));
+            TORIRS_LOG("wrote %s\n", getenv("TORIRS_REPLAY_BMP"));
             free(pixels);
         }
     }
@@ -2521,9 +2468,7 @@ frame_loop_teardown(void)
     if( ToriRS_AudioTraceEnabled() )
     {
         struct PlatformAudioStats stats = PlatformAudio_Stats(audio);
-        fprintf(
-            stderr,
-            "audio: %d commands, %d voices started (%d stolen, %d rejected), "
+        TORIRS_ERR("audio: %d commands, %d voices started (%d stolen, %d rejected), "
             "%d frames played, stream %d dropped / %d starved, %d assets still live\n",
             stats.commands,
             stats.voices_started,
@@ -2533,15 +2478,11 @@ frame_loop_teardown(void)
             stats.stream_dropped_frames,
             stats.stream_starved_frames,
             stats.assets_live);
-        fprintf(
-            stderr,
-            "audio: bus gains effects/music/area %d/%d/%d\n",
+        TORIRS_LOG("audio: bus gains effects/music/area %d/%d/%d\n",
             stats.bus_volume[TORIRS_AUDIO_BUS_EFFECTS],
             stats.bus_volume[TORIRS_AUDIO_BUS_MUSIC],
             stats.bus_volume[TORIRS_AUDIO_BUS_AREA]);
-        fprintf(
-            stderr,
-            "audio: %d callbacks, %d underruns, period %.2f ms, "
+        TORIRS_LOG("audio: %d callbacks, %d underruns, period %.2f ms, "
             "interval %.2f/%.2f/%.2f ms, jitter peak %.2f ms, render peak %.2f ms\n",
             stats.updates,
             stats.underruns,
@@ -2551,9 +2492,7 @@ frame_loop_teardown(void)
             stats.update_interval_max_ms,
             stats.callback_jitter_max_ms,
             stats.render_max_ms);
-        fprintf(
-            stderr,
-            "audio: stream ring %d/%.1f/%d frames (now %d), capture dropped %d frames\n",
+        TORIRS_LOG("audio: stream ring %d/%.1f/%d frames (now %d), capture dropped %d frames\n",
             stats.queue_min_frames,
             stats.queue_mean_frames,
             stats.queue_max_frames,
@@ -2600,7 +2539,7 @@ parse_executor_cli_int(
 
     if( end == value || *end != '\0' || parsed < min || parsed > max )
     {
-        fprintf(stderr, "torirs: %s takes an integer in %d..%d\n", flag, min, max);
+        TORIRS_LOG("torirs: %s takes an integer in %d..%d\n", flag, min, max);
         return -1;
     }
     *out = (int)parsed;
@@ -2613,9 +2552,7 @@ set_executor_js5_host(char const* value)
     size_t len = strlen(value);
     if( len == 0 || len >= sizeof(executor_cfg.js5_host) )
     {
-        fprintf(
-            stderr,
-            "torirs: --js5-host must contain 1..%zu characters\n",
+        TORIRS_LOG("torirs: --js5-host must contain 1..%zu characters\n",
             sizeof(executor_cfg.js5_host) - 1);
         return -1;
     }
@@ -2661,7 +2598,7 @@ executor_prime_js5_reference_tables(struct RSCache_Dat2Disk* sparse)
     prime = PlatformXIOJs5Cache_New(sparse, &js5);
     if( !prime )
     {
-        fprintf(stderr, "torirs: failed to attach JS5 reference-table primer\n");
+        TORIRS_ERR("torirs: failed to attach JS5 reference-table primer\n");
         return -1;
     }
 
@@ -2679,9 +2616,7 @@ executor_prime_js5_reference_tables(struct RSCache_Dat2Disk* sparse)
         struct Js5Progress progress;
         PlatformXIOJs5Cache_GetProgress(prime, &progress);
         if( status < 0 )
-            fprintf(
-                stderr,
-                "torirs: JS5 reference-table prime failed (error=%d state=%d "
+            TORIRS_ERR("torirs: JS5 reference-table prime failed (error=%d state=%d "
                 "status=%u port=%u)\n",
                 (int)progress.last_error,
                 (int)progress.state,
@@ -2691,9 +2626,7 @@ executor_prime_js5_reference_tables(struct RSCache_Dat2Disk* sparse)
             /* Report here as well as after App_Init: this pass is the one that
              * actually downloads on a cold cache, so without it a first boot
              * reports the second pass's local-validation cost and looks free. */
-            fprintf(
-                stderr,
-                "torirs: JS5 reference tables primed (%u references, %llu network bytes)\n",
+            TORIRS_LOG("torirs: JS5 reference tables primed (%u references, %llu network bytes)\n",
                 (unsigned)progress.references_ready,
                 (unsigned long long)progress.bytes_received);
     }
@@ -2712,9 +2645,7 @@ executor_prepare_js5_cache(void)
     sparse = RSCache_Dat2DiskNewSparseFromDirectory(cfg.cache_dir);
     if( !sparse )
     {
-        fprintf(
-            stderr,
-            "torirs: cannot create/open incremental dat2 cache at %s "
+        TORIRS_ERR("torirs: cannot create/open incremental dat2 cache at %s "
             "(the directory must already exist)\n",
             cfg.cache_dir);
         return -1;
@@ -2736,7 +2667,7 @@ executor_attach_and_prime_js5(void)
     executor_js5_config(&js5);
     if( PlatformXIO_Js5Enable(app.runner.px, &js5) != 0 )
     {
-        fprintf(stderr, "torirs: failed to attach JS5 cache producer\n");
+        TORIRS_ERR("torirs: failed to attach JS5 cache producer\n");
         return -1;
     }
 
@@ -2751,9 +2682,7 @@ executor_attach_and_prime_js5(void)
     {
         struct Js5Progress progress;
         PlatformXIO_Js5GetProgress(app.runner.px, &progress);
-        fprintf(
-            stderr,
-            "torirs: JS5 metadata prime failed (error=%d state=%d status=%u port=%u)\n",
+        TORIRS_ERR("torirs: JS5 metadata prime failed (error=%d state=%d status=%u port=%u)\n",
             (int)progress.last_error,
             (int)progress.state,
             (unsigned)progress.handshake_status,
@@ -2764,9 +2693,7 @@ executor_attach_and_prime_js5(void)
     {
         struct Js5Progress progress;
         PlatformXIO_Js5GetProgress(app.runner.px, &progress);
-        fprintf(
-            stderr,
-            "torirs: JS5 metadata ready (%u references, %llu network bytes)\n",
+        TORIRS_LOG("torirs: JS5 metadata ready (%u references, %llu network bytes)\n",
             (unsigned)progress.references_ready,
             (unsigned long long)progress.bytes_received);
     }
@@ -2798,7 +2725,7 @@ executor_attach_js5_web(void)
 
     if( !WebCacheBoot_Ready() )
     {
-        fprintf(stderr, "torirs: JS5 metadata was never primed; cache reads will fail\n");
+        TORIRS_ERR("torirs: JS5 metadata was never primed; cache reads will fail\n");
         return -1;
     }
 
@@ -2813,12 +2740,10 @@ executor_attach_js5_web(void)
     js5.background_fill = false;
     if( PlatformXIO_Js5Enable(app.runner.px, &js5) != 0 )
     {
-        fprintf(stderr, "torirs: failed to attach JS5 cache producer\n");
+        TORIRS_ERR("torirs: failed to attach JS5 cache producer\n");
         return -1;
     }
-    fprintf(
-        stderr,
-        "torirs: JS5 attached (ws://%s:%d, rev %d) — filling on demand\n",
+    TORIRS_LOG("torirs: JS5 attached (ws://%s:%d, rev %d) — filling on demand\n",
         WebCacheBoot_Js5Host(),
         WebCacheBoot_Js5Port(),
         WebCacheBoot_Js5Revision());
@@ -2840,9 +2765,7 @@ struct MainArgState
 static void
 main_print_usage(char const* program)
 {
-    fprintf(
-        stderr,
-        "usage: %s [cache_dir] [interface_id] [--manifest <boot.ini>] "
+    TORIRS_LOG("usage: %s [cache_dir] [interface_id] [--manifest <boot.ini>] "
         "[--dat1|--dat2] [--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] "
         "[--bmp] [--connect host[:port]] [--port N] [--offline] [--user U] "
         "[--pass P] [--rev lc254|lc245_2|xrsps233] "
@@ -2878,7 +2801,7 @@ main_parse_argument_layer(
         {
             if( from_manifest )
             {
-                fprintf(stderr, "torirs: [client:args] cannot contain --manifest\n");
+                TORIRS_ERR("torirs: [client:args] cannot contain --manifest\n");
                 return 0;
             }
             if( argi + 1 >= argc )
@@ -3002,7 +2925,7 @@ main_parse_argument_layer(
             cfg.window_mode = CS2VM_WindowModeFromName(argv[++argi]);
             if( !cfg.window_mode )
             {
-                fprintf(stderr, "torirs: --windowmode takes fixed|resizable\n");
+                TORIRS_LOG("torirs: --windowmode takes fixed|resizable\n");
                 return 0;
             }
             continue;
@@ -3014,7 +2937,7 @@ main_parse_argument_layer(
             long h = (sep && *sep) ? strtol(sep + 1, NULL, 10) : 0;
             if( w <= 0 || h <= 0 )
             {
-                fprintf(stderr, "torirs: --window takes WxH\n");
+                TORIRS_LOG("torirs: --window takes WxH\n");
                 return 0;
             }
             cfg.window_w = (int)w;
@@ -3030,10 +2953,10 @@ main_parse_argument_layer(
             state->gl3_zbuffer = 0;
             continue;
 #elif defined(TORIRS_GL_ES2)
-            fprintf(stderr, "torirs: this build renders through WebGL1 — use --webgl1\n");
+            TORIRS_LOG("torirs: this build renders through WebGL1 — use --webgl1\n");
             return 0;
 #else
-            fprintf(stderr, "torirs: --opengl3 is not available in this build\n");
+            TORIRS_LOG("torirs: --opengl3 is not available in this build\n");
             return 0;
 #endif
         }
@@ -3046,7 +2969,7 @@ main_parse_argument_layer(
             state->gl3_zbuffer = 0;
             continue;
 #else
-            fprintf(stderr, "torirs: --webgl1 is the browser build's flag — use --opengl3\n");
+            TORIRS_LOG("torirs: --webgl1 is the browser build's flag — use --opengl3\n");
             return 0;
 #endif
         }
@@ -3062,12 +2985,10 @@ main_parse_argument_layer(
             state->gl3_zbuffer = 1;
             continue;
 #elif defined(TORIRS_GL_ES2)
-            fprintf(
-                stderr,
-                "torirs: this build renders through WebGL1 — use --webgl1-zbuffer\n");
+            TORIRS_LOG("torirs: this build renders through WebGL1 — use --webgl1-zbuffer\n");
             return 0;
 #else
-            fprintf(stderr, "torirs: --opengl3-zbuffer is not available in this build\n");
+            TORIRS_LOG("torirs: --opengl3-zbuffer is not available in this build\n");
             return 0;
 #endif
         }
@@ -3080,9 +3001,7 @@ main_parse_argument_layer(
             state->gl3_zbuffer = 1;
             continue;
 #else
-            fprintf(
-                stderr,
-                "torirs: --webgl1-zbuffer is the browser build's flag — "
+            TORIRS_LOG("torirs: --webgl1-zbuffer is the browser build's flag — "
                 "use --opengl3-zbuffer\n");
             return 0;
 #endif
@@ -3095,7 +3014,7 @@ main_parse_argument_layer(
             state->d3d9_zbuffer = 0;
             continue;
 #else
-            fprintf(stderr, "torirs: --d3d9 is not available in this build\n");
+            TORIRS_LOG("torirs: --d3d9 is not available in this build\n");
             return 0;
 #endif
         }
@@ -3107,7 +3026,7 @@ main_parse_argument_layer(
             state->d3d9_zbuffer = 1;
             continue;
 #else
-            fprintf(stderr, "torirs: --d3d9-zbuffer is not available in this build\n");
+            TORIRS_LOG("torirs: --d3d9-zbuffer is not available in this build\n");
             return 0;
 #endif
         }
@@ -3130,7 +3049,7 @@ main_parse_argument_layer(
             cfg.interface_id = atoi(argv[argi]);
             if( cfg.interface_id <= 0 )
             {
-                fprintf(stderr, "invalid interface id: %s\n", argv[argi]);
+                TORIRS_ERR("invalid interface id: %s\n", argv[argi]);
                 return 0;
             }
             positional++;
@@ -3138,9 +3057,7 @@ main_parse_argument_layer(
         }
 
     invalid:
-        fprintf(
-            stderr,
-            "torirs: invalid %s argument '%s'\n",
+        TORIRS_ERR("torirs: invalid %s argument '%s'\n",
             from_manifest ? "[client:args]" : "command-line",
             argv[argi]);
         main_print_usage(program);
@@ -3295,9 +3212,7 @@ main(
         }
         else
         {
-            fprintf(
-                stderr,
-                "torirs: cache identity unset — pass --manifest <boot.ini> (with "
+            TORIRS_LOG("torirs: cache identity unset — pass --manifest <boot.ini> (with "
                 "epoch/game/revision/quirks) or --rev <name>\n");
             return 1;
         }
@@ -3313,13 +3228,11 @@ main(
         char error[192];
         if( ToriRS_ExecutorConfig_ResolveJs5(&executor_cfg, &cfg, error, sizeof(error)) != 0 )
         {
-            fprintf(stderr, "torirs: %s\n", error);
+            TORIRS_ERR("torirs: %s\n", error);
             return 1;
         }
         if( executor_cfg.js5_enabled )
-            fprintf(
-                stderr,
-                "torirs: js5 host=%s port=%d fallback=%d revision=%d cache=%s\n",
+            TORIRS_LOG("torirs: js5 host=%s port=%d fallback=%d revision=%d cache=%s\n",
                 executor_cfg.js5_host,
                 executor_cfg.js5_port,
                 executor_cfg.js5_fallback_port,
@@ -3329,7 +3242,7 @@ main(
 #if defined(TORIRS_PLATFORM_WEB)
     if( executor_cfg.js5_enabled )
     {
-        fprintf(stderr, "torirs: JS5 incremental cache loading is native-only\n");
+        TORIRS_LOG("torirs: JS5 incremental cache loading is native-only\n");
         return 1;
     }
 #endif
@@ -3401,17 +3314,13 @@ main(
         char const* cache_label = cfg.cache_on_demand ? "(on demand)" : cfg.cache_dir;
 
         if( cfg.revconfig_ui_ini )
-            fprintf(
-                stderr,
-                "torirs: %s cache=%s revconfig=%s cache_ini=%s\n",
+            TORIRS_LOG("torirs: %s cache=%s revconfig=%s cache_ini=%s\n",
                 cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
                 cache_label,
                 cfg.revconfig_ui_ini,
                 cfg.revconfig_cache_ini ? cfg.revconfig_cache_ini : "(none)");
         else
-            fprintf(
-                stderr,
-                "torirs: %s cache=%s iface=%d\n",
+            TORIRS_LOG("torirs: %s cache=%s iface=%d\n",
                 cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
                 cache_label,
                 cfg.interface_id);
@@ -3431,7 +3340,7 @@ main(
         if( getenv("TORIRS_PREVIEW_BMP") &&
             (root_w <= 0 || root_h <= 0 || root_w > 4096 || root_h > 4096) )
         {
-            fprintf(stderr, "native preview size must be 1..4096 on each axis\n");
+            TORIRS_LOG("native preview size must be 1..4096 on each axis\n");
             return 1;
         }
         UITree_LayoutSetRootSize((int)root_w, (int)root_h);
@@ -3445,7 +3354,7 @@ main(
             preview_width = (int)root_w;
             preview_height = (int)root_h;
         }
-        fprintf(stderr, "root_size: %dx%d\n", UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        TORIRS_LOG("root_size: %dx%d\n", UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     }
     /* `[ui:boot] window` / --window: the stated boot size. Same slot as the
      * debug knob above and deliberately after it, so TORIRS_ROOT_SIZE keeps
@@ -3484,7 +3393,7 @@ main(
         UITree_LayoutSetRootSize(preview_width, preview_height);
         app.host.viewport_w = preview_width;
         app.host.viewport_h = preview_height;
-        fprintf(stderr, "preview_size: %dx%d\n", preview_width, preview_height);
+        TORIRS_LOG("preview_size: %dx%d\n", preview_width, preview_height);
     }
 #if defined(TORIRS_WEB_CACHE_IDB)
     if( executor_attach_js5_web() != 0 )
@@ -3576,13 +3485,11 @@ main(
     if( getenv("TORIRS_WORLD_NODE_DEBUG") )
     {
         int32_t widx = App_WorldNodeIndex(&app);
-        fprintf(stderr, "world node idx=%d\n", widx);
+        TORIRS_LOG("world node idx=%d\n", widx);
         if( widx >= 0 )
         {
             struct UITreeComponent const* wc = &app.tree->components[widx];
-            fprintf(
-                stderr,
-                "world node: com=0x%08x client_code=%d type=%d hide=%d trans=%d freed=%d "
+            TORIRS_LOG("world node: com=0x%08x client_code=%d type=%d hide=%d trans=%d freed=%d "
                 "parent=%d next_sib=%d\n",
                 wc->component_id,
                 wc->behavior.client_code,
@@ -3593,10 +3500,10 @@ main(
                 wc->parent,
                 wc->next_sibling);
         }
-        fprintf(stderr, "root chain:");
+        TORIRS_LOG("root chain:");
         for( int32_t r = app.tree->root_index; r >= 0; r = app.tree->components[r].next_sibling )
-            fprintf(stderr, " 0x%08x", app.tree->components[r].component_id);
-        fprintf(stderr, "\n");
+            TORIRS_LOG(" 0x%08x", app.tree->components[r].component_id);
+        TORIRS_LOG("\n");
     }
 
     /* TORIRS_SIM_CLICK=<component_id>: dispatch that component's on_click hook
@@ -3615,11 +3522,11 @@ main(
                 UITree_Hooks(&app.tree->components[idx])->on_click;
             if( hook.script_id <= 0 )
                 hook = UITree_Hooks(&app.tree->components[idx])->on_op;
-            fprintf(stderr, "sim_click: com=0x%x script=%d\n", com_id, hook.script_id);
+            TORIRS_LOG("sim_click: com=0x%x script=%d\n", com_id, hook.script_id);
             RS_CS2_DispatchHook(&app.host, &app.runner, com_id, &hook);
         }
         else
-            fprintf(stderr, "sim_click: component 0x%x not found\n", com_id);
+            TORIRS_ERR("sim_click: component 0x%x not found\n", com_id);
 
         /* Post-click processing mirrors App_RunOnce: transmit pump + logic
          * ticks, where scripts queued by the click actually run. */
@@ -3644,7 +3551,7 @@ main(
                     sim_render_frame(&app);
                 sim_ms += 20;
             }
-            fprintf(stderr, "sim_click: post-click ticks done\n");
+            TORIRS_LOG("sim_click: post-click ticks done\n");
         }
     }
 
@@ -3673,9 +3580,7 @@ main(
             if( !mc_input )
                 mc_input = LibToriRS_Input_Init(&mc_input_storage, 0);
 
-            fprintf(
-                stderr,
-                "sim_mouse_click: %s at %d,%d\n",
+            TORIRS_LOG("sim_mouse_click: %s at %d,%d\n",
                 button == TORIRSM_RIGHT ? "right" : "left",
                 mcx,
                 mcy);
@@ -3743,7 +3648,7 @@ main(
         {
             for( int pxi = px0; pxi <= px1; pxi += pstep )
             {
-                fprintf(stderr, "pick_sweep: %d,%d\n", pxi, py);
+                TORIRS_LOG("pick_sweep: %d,%d\n", pxi, py);
                 LibToriRS_Input_Begin(ps_input, ps_ms);
                 LibToriRS_Input_PushMouseMove(ps_input, pxi, py);
                 LibToriRS_Input_End(ps_input);
@@ -3771,15 +3676,13 @@ main(
             hstep = 1;
         for( int hy = hy0; hy <= hy1; hy += hstep )
         {
-            fprintf(stderr, "hover_probe y=%3d:", hy);
+            TORIRS_LOG("hover_probe y=%3d:", hy);
             for( int hx = hx0; hx <= hx1; hx += hstep )
-                fprintf(
-                    stderr,
-                    " %d",
+                TORIRS_LOG(" %d",
                     UITree_FindHoveredComponentIdForRegion(
                         app.tree, &app.ui_host, -1, hx, hy, 0, 0, UITREE_LAYOUT_ROOT_W,
                         UITREE_LAYOUT_ROOT_H));
-            fprintf(stderr, "\n");
+            TORIRS_LOG("\n");
         }
     }
 
@@ -3832,7 +3735,7 @@ main(
                     LibToriRS_Input_SetOsrsKeyState(sk_input, (int)val, 1, 1);
                     sk_held_key = (int)val;
                 }
-                fprintf(stderr, "sim_keys: %c%ld\n", kind, val);
+                TORIRS_LOG("sim_keys: %c%ld\n", kind, val);
             }
             else if( sk_tail_ticks-- <= 0 )
                 break;
@@ -3840,7 +3743,7 @@ main(
             (void)App_RunOnce(&app, sk_ms, sk_input);
             sk_ms += 20;
         }
-        fprintf(stderr, "sim_keys: done\n");
+        TORIRS_LOG("sim_keys: done\n");
     }
 
     /* TORIRS_SIM_WORLD_KEY=x,y,<char>[;...]: move the mouse to (x,y), run a
@@ -3871,7 +3774,7 @@ main(
             if( !swk_input )
                 swk_input = LibToriRS_Input_Init(&swk_storage, 0);
 
-            fprintf(stderr, "sim_world_key: '%c' at %d,%d\n", key_char ? key_char : '?', wkx, wky);
+            TORIRS_LOG("sim_world_key: '%c' at %d,%d\n", key_char ? key_char : '?', wkx, wky);
             for( int t = 0; t < 2; t++ )
             {
                 LibToriRS_Input_Begin(swk_input, swk_ms);
@@ -3949,7 +3852,7 @@ main(
             {
                 app.world_camera.yaw =
                     ToriDraw_NormalizeAngle((int)strtol(getenv("TORIRS_SIM_CAMERA_YAW"), NULL, 0));
-                fprintf(stderr, "sim_camera_yaw: %d\n", app.world_camera.yaw);
+                TORIRS_LOG("sim_camera_yaw: %d\n", app.world_camera.yaw);
             }
             LibToriRS_Input_Begin(yaw_input, yaw_ms);
             LibToriRS_Input_End(yaw_input);
@@ -3974,9 +3877,7 @@ main(
                 struct UITreeOpKeyBinding const* b = &UITree_OpKeys(c)->slots[slot];
                 if( !b->bound )
                     continue;
-                fprintf(
-                    stderr,
-                    "OPKEYDUMP com=0x%08x op=%d pairs=%d key0=(char=%d,code=%d) "
+                TORIRS_LOG("OPKEYDUMP com=0x%08x op=%d pairs=%d key0=(char=%d,code=%d) "
                     "rate=%d/%d ignore_held=%d on_op=%d\n",
                     c->component_id,
                     slot + 1,
@@ -4005,9 +3906,7 @@ main(
                     has_ops = 1;
             if( c->freed || !has_ops )
                 continue;
-            fprintf(
-                stderr,
-                "OPSDUMP com=0x%08x option=\"%s\" ops=[\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"]\n",
+            TORIRS_LOG("OPSDUMP com=0x%08x option=\"%s\" ops=[\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"]\n",
                 c->component_id,
                 mo->option,
                 mo->ops[0],
@@ -4063,13 +3962,13 @@ main(
                 if( !seen && group_count < (int)(sizeof(groups) / sizeof(groups[0])) )
                     groups[group_count++] = group;
             }
-            printf("mounted groups (%d):", group_count);
+            TORIRS_LOG("mounted groups (%d):", group_count);
             for( int k = 0; k < group_count; k++ )
-                printf(" %d", groups[k]);
-            printf("\n");
+                TORIRS_LOG(" %d", groups[k]);
+            TORIRS_LOG("\n");
         }
 
-        printf("roles: %d declared\n", app.ui_roles.count);
+        TORIRS_LOG("roles: %d declared\n", app.ui_roles.count);
         for( int ri = 0; ri < app.ui_roles.count; ri++ )
         {
             struct UITreeRoleEntry const* entry = &app.ui_roles.entries[ri];
@@ -4077,16 +3976,14 @@ main(
 
             if( node < 0 )
             {
-                printf(
-                    "  %-24s UNRESOLVED (%s%d match rungs)\n",
+                TORIRS_LOG("  %-24s UNRESOLVED (%s%d match rungs)\n",
                     entry->name,
                     entry->authored ? "authored + " : "",
                     entry->matcher_count);
                 continue;
             }
             struct UITreeComponent const* c = &app.tree->components[node];
-            printf(
-                "  %-24s node=%d com=0x%08x type=%d%s%s box=%d,%d %dx%d\n",
+            TORIRS_LOG("  %-24s node=%d com=0x%08x type=%d%s%s box=%d,%d %dx%d\n",
                 entry->name,
                 (int)node,
                 c->component_id,
@@ -4112,7 +4009,7 @@ main(
      */
     if( getenv("TORIRS_DUMP_CLIENTCODES") && app.tree )
     {
-        printf("clientcodes: %d live\n", app.tree->client_code.count);
+        TORIRS_LOG("clientcodes: %d live\n", app.tree->client_code.count);
         for( int32_t si = 0; si < app.tree->client_code.count; si++ )
         {
             int32_t idx = app.tree->client_code.slots[si];
@@ -4122,8 +4019,7 @@ main(
             c = &app.tree->components[idx];
             if( c->freed )
                 continue;
-            printf(
-                "  code=%-5d node=%d com=0x%08x type=%d box=%d,%d %dx%d\n",
+            TORIRS_LOG("  code=%-5d node=%d com=0x%08x type=%d box=%d,%d %dx%d\n",
                 c->behavior.client_code,
                 (int)idx,
                 c->component_id,
@@ -4152,7 +4048,7 @@ main(
                 continue;
             app.emit.cmds[kept++] = app.emit.cmds[i];
         }
-        fprintf(stderr, "emit_skip: com=0x%x dropped %d cmds\n", skip_com, app.emit.count - kept);
+        TORIRS_LOG("emit_skip: com=0x%x dropped %d cmds\n", skip_com, app.emit.count - kept);
         app.emit.count = kept;
     }
 
@@ -4167,7 +4063,7 @@ main(
         FILE* probe;
         if( !path[0] )
         {
-            fprintf(stderr, "TORIRS_PREVIEW_BMP requires a non-empty path\n");
+            TORIRS_LOG("TORIRS_PREVIEW_BMP requires a non-empty path\n");
             App_Shutdown(&app);
             return 1;
         }
@@ -4186,7 +4082,7 @@ main(
                     UITREE_LAYOUT_ROOT_W,
                     UITREE_LAYOUT_ROOT_H) != 0 )
             {
-                fprintf(stderr, "failed to write native preview tree %s\n", tree_path);
+                TORIRS_ERR("failed to write native preview tree %s\n", tree_path);
                 free(pixels);
                 App_Shutdown(&app);
                 return 1;
@@ -4197,13 +4093,12 @@ main(
         probe = fopen(path, "rb");
         if( !probe )
         {
-            fprintf(stderr, "failed to write native preview %s\n", path);
+            TORIRS_ERR("failed to write native preview %s\n", path);
             App_Shutdown(&app);
             return 1;
         }
         fclose(probe);
-        printf(
-            "wrote %s (%dx%d, %d emit cmds)\n",
+        TORIRS_LOG("wrote %s (%dx%d, %d emit cmds)\n",
             path,
             UITREE_LAYOUT_ROOT_W,
             UITREE_LAYOUT_ROOT_H,
@@ -4221,9 +4116,9 @@ main(
         else
             snprintf(path, sizeof(path), "build/interface_%d.bmp", cfg.interface_id);
         if( App_WriteBmp(&app, path, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) == 0 )
-            printf("wrote %s (%d cmds)\n", path, app.emit.count);
+            TORIRS_LOG("wrote %s (%d cmds)\n", path, app.emit.count);
         else
-            fprintf(stderr, "failed to write %s\n", path);
+            TORIRS_ERR("failed to write %s\n", path);
     }
 
     /* TORIRS_DUMP_LAYOUT=1: raw layout inputs + resolved box per component.
@@ -4257,9 +4152,7 @@ main(
                         parent_h = parent->u.rs_layer.scroll_height;
                 }
             }
-            fprintf(
-                stderr,
-                "LAYOUT com=0x%08x type=%d if3=%d parent=0x%08x pwh=%dx%d "
+            TORIRS_LOG("LAYOUT com=0x%08x type=%d if3=%d parent=0x%08x pwh=%dx%d "
                 "raw=%d,%d %dx%d modes=x%d,y%d,w%d,h%d abs=%d,%d %dx%d\n",
                 c->component_id,
                 (int)c->type,
@@ -4307,19 +4200,17 @@ main(
             }
             if( !inverted )
                 continue;
-            fprintf(stderr, "ORDER parent=0x%08x link order:", parent->component_id);
+            TORIRS_LOG("ORDER parent=0x%08x link order:", parent->component_id);
             for( child = parent->first_child; child >= 0;
                  child = app.tree->components[child].next_sibling )
             {
                 struct UITreeComponent const* cc = &app.tree->components[child];
-                fprintf(
-                    stderr,
-                    " %s(0x%08x,sub=%d)",
+                TORIRS_LOG(" %s(0x%08x,sub=%d)",
                     cc->dynamic ? "dyn" : "sta",
                     cc->component_id,
                     cc->dynamic ? cc->dynamic_child_index : -1);
             }
-            fprintf(stderr, "\n");
+            TORIRS_LOG("\n");
         }
     }
 
@@ -4328,9 +4219,7 @@ main(
         for( int i = 0; i < app.emit.count; i++ )
         {
             struct UITreeEmitDesc* d = &app.emit.cmds[i];
-            fprintf(
-                stderr,
-                "EMIT[%d] kind=%d com=0x%08x x=%d y=%d w=%d h=%d scene=%d color=0x%06x "
+            TORIRS_LOG("EMIT[%d] kind=%d com=0x%08x x=%d y=%d w=%d h=%d scene=%d color=0x%06x "
                 "filled=%d trans=%d tiled=%d clip=%d,%d %dx%d\n",
                 i,
                 (int)d->kind,
@@ -4365,15 +4254,15 @@ main(
         {
             int ids[512];
             int n = UITreeSceneBridge_CollectMissingTextures(&app.bridge, ids, 512);
-            fprintf(stderr, "TEX_AUDIT: %d missing scene textures:", n);
+            TORIRS_ERR("TEX_AUDIT: %d missing scene textures:", n);
             for( int i = 0; i < n; i++ )
-                fprintf(stderr, " %d", ids[i]);
-            fprintf(stderr, "\n");
-            fprintf(stderr, "TEX_AUDIT: failed:");
+                TORIRS_LOG(" %d", ids[i]);
+            TORIRS_LOG("\n");
+            TORIRS_ERR("TEX_AUDIT: failed:");
             for( int i = 0; i < 2048; i++ )
                 if( app.bridge.texture_failed[i] )
-                    fprintf(stderr, " %d", i);
-            fprintf(stderr, "\n");
+                    TORIRS_LOG(" %d", i);
+            TORIRS_LOG("\n");
         }
         /* TORIRS_TEST_LOCCHANGE=1: exercise the runtime loc-change path offline
          * (debugging the door segfault) by re-applying a change to the first
@@ -4411,12 +4300,12 @@ main(
                                             locs[k].angle);
                 applied++;
             }
-            fprintf(stderr, "TEST_LOCCHANGE: applied %d loc changes (%d walls) ok\n",
+            TORIRS_LOG("TEST_LOCCHANGE: applied %d loc changes (%d walls) ok\n",
                     applied, walls);
         }
         App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         bmp_write_file("build/world.bmp", pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        printf("wrote build/world.bmp (%d emit cmds)\n", app.emit.count);
+        TORIRS_LOG("wrote build/world.bmp (%d emit cmds)\n", app.emit.count);
         free(pixels);
         App_Shutdown(&app);
         return 0;
@@ -4442,7 +4331,7 @@ main(
 
         if( !sdl )
         {
-            fprintf(stderr, "window platform alloc failed\n");
+            TORIRS_ERR("window platform alloc failed\n");
             App_Shutdown(&app);
             return 1;
         }
@@ -4464,7 +4353,7 @@ main(
             if( !PlatformSDL2_InitForOpenGL3(
                     sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
             {
-                fprintf(stderr, "SDL OpenGL3 init failed\n");
+                TORIRS_ERR("SDL OpenGL3 init failed\n");
                 PlatformSDL2_Free(sdl);
                 App_Shutdown(&app);
                 return 1;
@@ -4474,7 +4363,7 @@ main(
                 !ToriRS_GL3_Init(
                     gl3, PlatformSDL2_Window(sdl), app.scene, gl3_zbuffer != 0) )
             {
-                fprintf(stderr, "GL3 renderer init failed\n");
+                TORIRS_ERR("GL3 renderer init failed\n");
                 ToriRS_GL3_Free(gl3);
                 PlatformSDL2_Free(sdl);
                 App_Shutdown(&app);
@@ -4494,7 +4383,7 @@ main(
 #endif
         if( !PlatformSDL2_Init(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
         {
-            fprintf(stderr, "window init failed\n");
+            TORIRS_ERR("window init failed\n");
             PlatformSDL2_Free(sdl);
             App_Shutdown(&app);
             return 1;
@@ -4545,9 +4434,7 @@ main(
             {
                 int const from_env = ToriRSChromeExec_KindFromName(want);
                 if( from_env < 0 )
-                    fprintf(
-                        stderr,
-                        "chrome: '%s' is not an executor (buffer|sdl|web|gdi|cs2); "
+                    TORIRS_LOG("chrome: '%s' is not an executor (buffer|sdl|web|gdi|cs2); "
                         "using buffer\n",
                         want);
                 else
@@ -4564,9 +4451,7 @@ main(
                 &got);
             if( wanted > TORIRS_CHROME_EXEC_BUFFER && got != wanted &&
                 wanted != TORIRS_CHROME_EXEC_CS2 )
-                fprintf(
-                    stderr,
-                    "chrome: no '%s' executor in this build; the plugin window stays in the "
+                TORIRS_LOG("chrome: no '%s' executor in this build; the plugin window stays in the "
                     "canvas\n",
                     ToriRSChromeExec_KindName(wanted));
             /* The KIND asked for, not the one ForKind produced: "cs2" is
@@ -4588,9 +4473,7 @@ main(
                     app.scene,
                     d3d9_zbuffer != 0) )
             {
-                fprintf(
-                    stderr,
-                    "D3D9 fixed-function renderer init failed; falling back to GDI Soft3D\n");
+                TORIRS_ERR("D3D9 fixed-function renderer init failed; falling back to GDI Soft3D\n");
                 ToriRS_D3D9_Free(d3d9);
                 d3d9 = NULL;
             }
@@ -4650,9 +4533,7 @@ main(
                 density = main_dynamic_chrome_scale(UITREE_LAYOUT_ROOT_H, density);
             App_SetChromeScale(&app, density);
             if( getenv("TORIRS_RESIZE_DEBUG") )
-                fprintf(
-                    stderr,
-                    "chrome: scale %d (display density %d)\n",
+                TORIRS_LOG("chrome: scale %d (display density %d)\n",
                     App_ChromeScale(&app),
                     PlatformSDL2_PixelDensity(sdl));
         }
@@ -4665,9 +4546,7 @@ main(
             if( !resizable )
                 CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
             if( getenv("TORIRS_RESIZE_DEBUG") )
-                fprintf(
-                    stderr,
-                    "windowmode: boot %s\n",
+                TORIRS_LOG("windowmode: boot %s\n",
                     CS2VM_WindowModeName(boot_mode));
         }
 
@@ -4677,7 +4556,7 @@ main(
         audio = PlatformAudio_New();
         if( !PlatformAudio_Init(audio, TORIRS_AUDIO_SAMPLE_RATE) )
         {
-            fprintf(stderr, "audio: no device; running silent\n");
+            TORIRS_LOG("audio: no device; running silent\n");
             /* Silence is free: without this the game still decodes every clip
              * and synthesises every music frame, then hands it to a backend
              * that drops it. */
@@ -4709,7 +4588,7 @@ main(
             }
             else
             {
-                fprintf(stderr, "TORIRS_SIM_SOUND: expected id[,loops[,every_frames]]\n");
+                TORIRS_ERR("TORIRS_SIM_SOUND: expected id[,loops[,every_frames]]\n");
             }
         }
 
@@ -4719,16 +4598,14 @@ main(
         if( getenv("TORIRS_CMD_RECORD") )
         {
             if( !CmdBus_RecordOpen(&bus, getenv("TORIRS_CMD_RECORD")) )
-                fprintf(
-                    stderr, "cmdbus: cannot record to %s\n", getenv("TORIRS_CMD_RECORD"));
+                TORIRS_ERR("cmdbus: cannot record to %s\n", getenv("TORIRS_CMD_RECORD"));
         }
         if( getenv("TORIRS_CMD_REPLAY") )
         {
             replay = CmdReplay_Open(getenv("TORIRS_CMD_REPLAY"));
             if( !replay )
             {
-                fprintf(
-                    stderr, "cmdbus: cannot replay %s\n", getenv("TORIRS_CMD_REPLAY"));
+                TORIRS_ERR("cmdbus: cannot replay %s\n", getenv("TORIRS_CMD_REPLAY"));
                 PlatformSDL2_Free(sdl);
                 App_Shutdown(&app);
                 return 1;
@@ -4805,8 +4682,7 @@ main(
                 else if( strcmp(transport_name, "tcp") == 0 )
                     transport_kind = NET_TRANSPORT_TCP;
                 else
-                    fprintf(stderr,
-                            "torirs: unknown transport=%s — using the revision's\n",
+                    TORIRS_ERR("torirs: unknown transport=%s — using the revision's\n",
                             transport_name);
             }
 

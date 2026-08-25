@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * The tree's slot enum and the plugin contract's are one enum written twice.
@@ -363,9 +364,7 @@ frame_collect_slots(
             n = fl->slot_node_count[s];
             if( n >= UITREE_FRAME_SLOT_NODES_MAX )
             {
-                fprintf(
-                    stderr,
-                    "frame: role %d has more than %d nodes; the rest keep the "
+                TORIRS_LOG("frame: role %d has more than %d nodes; the rest keep the "
                     "lane's own geometry\n",
                     s,
                     UITREE_FRAME_SLOT_NODES_MAX);

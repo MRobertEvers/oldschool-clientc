@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat1IdkLoad
 {
@@ -40,7 +41,7 @@ Task_Dat1IdkLoad_Run(
         config_jagfile = RSCache_IO_Dat1ConfigJagfileDecode(io, 0);
         if( !config_jagfile )
         {
-            fprintf(stderr, "Failed to decode dat1 config jagfile for idk %d\n", task->idk_id);
+            TORIRS_ERR("Failed to decode dat1 config jagfile for idk %d\n", task->idk_id);
             PT_EXIT(&task->pt);
         }
 
@@ -67,20 +68,18 @@ Task_Dat1IdkLoad_Run(
          */
         int const table_size = (int)task->bc->idk_hmap->size;
         if( task->idk_id >= table_size )
-            fprintf(
-                stderr,
-                "dat1 idk %d: past the end of the table (%d kits)\n",
+            TORIRS_LOG("dat1 idk %d: past the end of the table (%d kits)\n",
                 task->idk_id,
                 table_size);
         else
-            fprintf(stderr, "Failed to load dat1 idk %d\n", task->idk_id);
+            TORIRS_ERR("Failed to load dat1 idk %d\n", task->idk_id);
         PT_EXIT(&task->pt);
     }
 
     torirs_idk = ToriRS_IdkFromRSCacheDat1(task->idk_id, rscache_idk);
     if( !torirs_idk )
     {
-        fprintf(stderr, "Failed to convert dat1 idk %d\n", task->idk_id);
+        TORIRS_ERR("Failed to convert dat1 idk %d\n", task->idk_id);
         PT_EXIT(&task->pt);
     }
 

@@ -25,12 +25,13 @@
 #include "asyncio.h"
 #include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_lua.h"
-#include "torirs_log.h"
+#include "log/torirs_log.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* One slot, one item, no overlap: this task issues a single request at a time
  * and parks on it, the way CreateTask_PrefsLoad does. */
@@ -227,9 +228,7 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
     {
         if( !task->entries[task->at].source[0] )
         {
-            fprintf(
-                stderr,
-                "plugin: manifest entry '%s' has no source=, skipped\n",
+            TORIRS_LOG("plugin: manifest entry '%s' has no source=, skipped\n",
                 task->entries[task->at].name);
             continue;
         }
@@ -254,9 +253,7 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
         }
         else
         {
-            fprintf(
-                stderr,
-                "plugin: could not read script '%s' for '%s'\n",
+            TORIRS_LOG("plugin: could not read script '%s' for '%s'\n",
                 task->entries[task->at].source,
                 task->entries[task->at].name);
         }
@@ -297,18 +294,16 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
         for( int i = 0; i < count; i++ )
             enabled += PluginHost_IsEnabled(task->host, i) ? 1 : 0;
 
-        fprintf(stderr, "plugin: %d of %d enabled", enabled, count);
+        TORIRS_LOG("plugin: %d of %d enabled", enabled, count);
         for( int i = 0; i < count; i++ )
         {
             char const* error = PluginHost_Error(task->host, i);
-            fprintf(
-                stderr,
-                "%s%s%s",
+            TORIRS_LOG("%s%s%s",
                 i == 0 ? " -- " : ", ",
                 PluginHost_Name(task->host, i),
                 PluginHost_IsEnabled(task->host, i) ? "" : " (off)");
             if( error )
-                fprintf(stderr, " [%s]", error);
+                TORIRS_ERR(" [%s]", error);
         }
         fputc('\n', stderr);
     }
@@ -501,7 +496,7 @@ Task_PluginAssetWrite_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
 
     item = &io->io_slots[PLUGIN_IO_SLOT];
     if( IOITEM_ERROR_CODE(item) != 0 )
-        fprintf(stderr, "plugin: could not write asset to %s\n", task->path);
+        TORIRS_LOG("plugin: could not write asset to %s\n", task->path);
     ToriRS_IO_ClearItem(item);
 
     PT_END(&task->pt);
@@ -577,7 +572,7 @@ Task_PluginSave_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
 
     item = &io->io_slots[PLUGIN_IO_SLOT];
     if( IOITEM_ERROR_CODE(item) != 0 )
-        fprintf(stderr, "plugin: could not write settings to %s\n", task->path);
+        TORIRS_LOG("plugin: could not write settings to %s\n", task->path);
     ToriRS_IO_ClearItem(item);
 
     PT_END(&task->pt);

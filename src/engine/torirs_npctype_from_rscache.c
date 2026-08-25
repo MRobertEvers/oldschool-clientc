@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static void
 torirs_copy_menu_actions(
@@ -285,9 +286,7 @@ ToriRS_NpctypeFromRSCacheDat2(
             debug = env && *env && *env != '0';
         }
         if( debug )
-            fprintf(
-                stderr,
-                "npc-sound: %-5d %-28s idle %-6d crawl %-6d walk %-6d run %-6d "
+            TORIRS_LOG("npc-sound: %-5d %-28s idle %-6d crawl %-6d walk %-6d run %-6d "
                 "radius %-3d vol %d\n",
                 npc_id,
                 npctype->name,

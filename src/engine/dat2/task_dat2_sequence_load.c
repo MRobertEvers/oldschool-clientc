@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2SequenceLoad
 {
@@ -209,9 +210,7 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
             anim->replaceheldright = -1;
         }
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "seq_load: seq=%d skeletal maya=%d bones=%d baked=%d play=%d\n",
+            TORIRS_LOG("seq_load: seq=%d skeletal maya=%d bones=%d baked=%d play=%d\n",
                 self->seq_id,
                 self->seq ? self->seq->anim_maya_id : -1,
                 anim->skeletal->bone_count,
@@ -245,9 +244,7 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
     {
         anim = calloc(1, sizeof(*anim));
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "seq_load: seq=%d unavailable (config=%p frame_count=%d framemap=%p)\n",
+            TORIRS_LOG("seq_load: seq=%d unavailable (config=%p frame_count=%d framemap=%p)\n",
                 self->seq_id,
                 (void*)self->seq,
                 self->seq ? self->seq->frame_count : -1,
@@ -397,9 +394,7 @@ Task_Dat2SequenceLoad_Run(
                 self->seq_id, self->maya, self->skeletal_base);
         }
         if( !self->skeletal && getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "seq_load: seq=%d skeletal bake failed (maya_id=%d maya=%p base=%p)\n",
+            TORIRS_ERR("seq_load: seq=%d skeletal bake failed (maya_id=%d maya=%p base=%p)\n",
                 self->seq_id,
                 self->seq->anim_maya_id,
                 (void*)self->maya,

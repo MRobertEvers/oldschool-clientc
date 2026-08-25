@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Soft3D is stack-allocated and re-Init'd every App_Render, so persistent
@@ -950,9 +951,7 @@ soft3d_draw_model(
     {
         struct ToriDraw_Model const* m = cmd->model.u.model.model;
         struct ToriDraw_BoundsCylinder const* bc = m->bounds_cylinder;
-        fprintf(
-            stderr,
-            "draw_trace: element=%d vc=%d faces=%d CULL %d -> %d (0=visible) pos=(%d,%d,%d) "
+        TORIRS_LOG("draw_trace: element=%d vc=%d faces=%d CULL %d -> %d (0=visible) pos=(%d,%d,%d) "
             "radius=%d min_y=%d max_y=%d bias=%d after %d drawn frames\n",
             cmd->element_id, m->vertex_count, m->face_count, g_draw_trace_last_cull, (int)cull,
             position.x, position.y, position.z, bc ? bc->radius : -1, bc ? bc->min_y : 0,
@@ -1002,8 +1001,7 @@ soft3d_draw_model(
          * a model that keeps drawing is noise. */
         if( trace_this && ((sorted <= 0) != (g_draw_trace_last_sorted <= 0)) )
         {
-            fprintf(
-                stderr, "draw_trace: element=%d SORTED %d -> %d %s after %d frames\n",
+            TORIRS_LOG("draw_trace: element=%d SORTED %d -> %d %s after %d frames\n",
                 cmd->element_id, g_draw_trace_last_sorted, sorted,
                 sorted <= 0 ? "(RASTERIZES NOTHING - invisible but still clickable)"
                             : "(drawing again)",

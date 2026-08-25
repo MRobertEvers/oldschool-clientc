@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 
 
@@ -948,9 +949,7 @@ link_under_parent(
 
     if( parent_index >= 0 && (uint32_t)parent_index >= tree->component_count )
     {
-        fprintf(
-            stderr,
-            "uitree: invalid parent index %d for child %d (count=%u)\n",
+        TORIRS_ERR("uitree: invalid parent index %d for child %d (count=%u)\n",
             (int)parent_index,
             (int)new_index,
             tree->component_count);
@@ -3919,8 +3918,7 @@ UITree_ApplyGraphic2DAngle(
         if( debug < 0 )
             debug = getenv("TORIRS_ANGLE_DEBUG") != NULL;
         if( debug )
-            fprintf(
-                stderr, "set2dangle: com=0x%08x angle=%d\n", component_id, angle_r2pi65536);
+            TORIRS_LOG("set2dangle: com=0x%08x angle=%d\n", component_id, angle_r2pi65536);
     }
     if( tree->components[idx].u.rs_graphic.sprite_angle_r2pi65536 == angle_r2pi65536 )
     {

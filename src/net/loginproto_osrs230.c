@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 enum osrs230_login_state
 {
@@ -137,7 +138,7 @@ osrs230_recv(void* handle, uint8_t const* data, int size)
             uint64_t sid = (uint64_t)g8(&rbuf);
             if( status != 0 )
             {
-                fprintf(stderr, "osrs230 login: connect rejected status=%d\n", status);
+                TORIRS_ERR("osrs230 login: connect rejected status=%d\n", status);
                 h->state = OSRS230_ERR;
                 return off;
             }
@@ -153,7 +154,7 @@ osrs230_recv(void* handle, uint8_t const* data, int size)
                 h->state = OSRS230_DONE;
             else
             {
-                fprintf(stderr, "osrs230 login: rejected reply=%d\n", reply);
+                TORIRS_ERR("osrs230 login: rejected reply=%d\n", reply);
                 h->state = OSRS230_ERR;
             }
             break;

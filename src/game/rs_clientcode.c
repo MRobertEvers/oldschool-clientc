@@ -11,6 +11,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* Set a node's text in place (ownership matches UITree_ApplyText: heap copy).
  * Compares first so a per-tick pass does not churn allocations or force
@@ -220,9 +221,7 @@ design_preview_rebuild(struct App* app)
     design->redraw = 0;
     design->load_requested_count = 0;
     if( getenv("TORIRS_ANIM_DEBUG") )
-        fprintf(
-            stderr,
-            "design_preview: rebuilt gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] "
+        TORIRS_LOG("design_preview: rebuilt gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] "
             "colours=[%d,%d,%d,%d,%d]\n",
             design->gender,
             design->parts[0], design->parts[1], design->parts[2], design->parts[3],
@@ -516,7 +515,7 @@ RS_ClientCode_Button(
     {
     case RS_CC_LOGOUT:
         /* Reference sets logoutTimer=250 and notifies the server. */
-        fprintf(stderr, "clientcode: logout requested\n");
+        TORIRS_LOG("clientcode: logout requested\n");
         return 1;
     case RS_CC_ACCEPT_DESIGN:
         /* Reference sends IDK_SAVEDESIGN and returns true, so the plain

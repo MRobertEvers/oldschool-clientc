@@ -17,6 +17,7 @@
 #include "osrs/palette.h"
 #include "toridraw_scene.h"
 #include "toridraw_sprite.h"
+#include "log/torirs_log.h"
 
 #define WORLDMAP_TILES 64
 /*
@@ -161,9 +162,7 @@ RS_WorldMapRender_BeginFrame(struct RS_WorldMapRender* render)
     {
         static int frame = 0;
         if( ++frame % 300 == 0 )
-            fprintf(
-                stderr,
-                "worldmap stats: bakes=%d no_source=%d no_geography=%d waiting=%d budget=%d "
+            TORIRS_LOG("worldmap stats: bakes=%d no_source=%d no_geography=%d waiting=%d budget=%d "
                 "bytes=%zu requested=%d\n",
                 render->stat_bakes, render->stat_no_source, render->stat_no_geography,
                 render->stat_waiting, render->stat_budget, render->baked_bytes,
@@ -1294,9 +1293,7 @@ RS_WorldMapRender_RegionSprite(
     render->baked_bytes += worldmap_slot_bytes(&render->slots[slot]);
 
     if( getenv("TORIRS_WORLDMAP_DEBUG") )
-        fprintf(
-            stderr,
-            "worldmap: baked region %d,%d area=%d scale=%d slot=%d\n",
+        TORIRS_LOG("worldmap: baked region %d,%d area=%d scale=%d slot=%d\n",
             region_x,
             region_y,
             area->id,

@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static int
 torirs_trace_drag(void)
@@ -60,9 +61,7 @@ scrollbar_trace_claim(
     if( hit->layer_index < 0 || (uint32_t)hit->layer_index >= tree->component_count )
         return;
     layer = &tree->components[hit->layer_index];
-    fprintf(
-        stderr,
-        "scrollbardbg: press %d,%d claimed by com=0x%08x (%d|%d) kind=%d "
+    TORIRS_LOG("scrollbardbg: press %d,%d claimed by com=0x%08x (%d|%d) kind=%d "
         "layer=%d,%d %dx%d scroll=%dx%d\n",
         mx,
         my,
@@ -823,9 +822,7 @@ interact_drag_push_ondrag(
     }
     if( torirs_trace_drag() )
     {
-        fprintf(
-            stderr,
-            "TORIRS_TRACE_DRAG on_drag src=%d area=%d area_uid=%d area_xywh=%d,%d,%d,%d "
+        TORIRS_LOG("TORIRS_TRACE_DRAG on_drag src=%d area=%d area_uid=%d area_xywh=%d,%d,%d,%d "
             "visual_y=%d parent_y=%d event_y=%d hook=%d\n",
             st->drag_source_id,
             parent_idx >= 0 ? tree->components[parent_idx].component_id : -1,
@@ -932,9 +929,7 @@ interact_drag_consume_pending(
 
     if( torirs_trace_drag() )
     {
-        fprintf(
-            stderr,
-            "TORIRS_TRACE_DRAG pickup id=%d pickup_xy=%d,%d held=%d visual_y=%d\n",
+        TORIRS_LOG("TORIRS_TRACE_DRAG pickup id=%d pickup_xy=%d,%d held=%d visual_y=%d\n",
             src->component_id,
             pending_x,
             pending_y,

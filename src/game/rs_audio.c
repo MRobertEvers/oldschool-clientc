@@ -15,12 +15,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #define AUDIO_TRACE(...)                                                                           \
     do                                                                                             \
     {                                                                                              \
         if( ToriRS_AudioTraceEnabled() )                                                           \
-            fprintf(stderr, __VA_ARGS__);                                                          \
+            TORIRS_LOG(__VA_ARGS__);                                                          \
     } while( 0 )
 
 /**

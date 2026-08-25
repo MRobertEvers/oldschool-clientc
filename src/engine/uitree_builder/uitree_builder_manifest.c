@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 void
 uibuilder_manifest_init(struct UIBuilderManifest* out)
@@ -460,9 +461,7 @@ uibuilder_manifest_from_revconfig_rooted(
                 if( iface >= 0 )
                     add_component_req(out, &component_cap, iface);
                 else
-                    fprintf(
-                        stderr,
-                        "revconfig: component '%s' is an rs_iface with no componentno= and no "
+                    TORIRS_LOG("revconfig: component '%s' is an rs_iface with no componentno= and no "
                         "root interface to fall back on; it will mount nothing\n",
                         item->u.uicomponent.name);
             }

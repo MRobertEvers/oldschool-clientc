@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * The opcode table.
@@ -181,9 +182,7 @@ highlight_group_ok(struct RS_HighlightState* state, int group, char const* what)
     if( group >= 0 && group < RS_HIGHLIGHT_GROUP_MAX )
         return true;
     (void)state;
-    fprintf(
-        stderr,
-        "highlight: %s named group %d, which is outside 0..%d -- ignored\n",
+    TORIRS_LOG("highlight: %s named group %d, which is outside 0..%d -- ignored\n",
         what,
         group,
         RS_HIGHLIGHT_GROUP_MAX - 1);
@@ -264,9 +263,7 @@ RS_HighlightOn(
         if( !state->overflowed )
         {
             state->overflowed = true;
-            fprintf(
-                stderr,
-                "highlight: the %s list is full at %d subjects; further ones are "
+            TORIRS_ERR("highlight: the %s list is full at %d subjects; further ones are "
                 "refused (they would otherwise be silently unmarked)\n",
                 RS_HighlightKindName(kind),
                 RS_HIGHLIGHT_MEMBERS_MAX);
@@ -352,9 +349,7 @@ RS_HighlightNameOn(
     {
         /* Truncating would key the highlight on a name that is not the one the
          * script said, which marks a different player rather than none. */
-        fprintf(
-            stderr,
-            "highlight: player name '%s' is longer than %d bytes -- refused\n",
+        TORIRS_ERR("highlight: player name '%s' is longer than %d bytes -- refused\n",
             name,
             RS_HIGHLIGHT_NAME_MAX - 1);
         return false;
@@ -369,9 +364,7 @@ RS_HighlightNameOn(
         if( !state->overflowed )
         {
             state->overflowed = true;
-            fprintf(
-                stderr,
-                "highlight: the named list is full at %d names; further ones are "
+            TORIRS_ERR("highlight: the named list is full at %d names; further ones are "
                 "refused (they would otherwise be silently unmarked)\n",
                 RS_HIGHLIGHT_NAMED_MAX);
         }
@@ -532,9 +525,7 @@ RS_HighlightApply(
         /* The opcode table in cs2vm2 and this one disagree about the form.
          * Acting on it would read a group out of whichever slot happened to
          * line up, so it is refused and said out loud. */
-        fprintf(
-            stderr,
-            "highlight: opcode %d took %d ints, expected %d -- ignored\n",
+        TORIRS_ERR("highlight: opcode %d took %d ints, expected %d -- ignored\n",
             opcode,
             arg_count,
             op->arg_count);
@@ -558,9 +549,7 @@ RS_HighlightApply(
     {
         if( !name )
         {
-            fprintf(
-                stderr,
-                "highlight: opcode %d takes a name off the string stack and got "
+            TORIRS_LOG("highlight: opcode %d takes a name off the string stack and got "
                 "none -- ignored\n",
                 opcode);
             return false;

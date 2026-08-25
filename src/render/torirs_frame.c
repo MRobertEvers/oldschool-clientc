@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static void
 frame_queue(
@@ -1617,9 +1618,7 @@ ToriRS_Frame_BuildWorldViewPort(
     /* TORIRS_VP_DEBUG=1: the raster/texture origin is the clip-rect center;
      * it must land on x_center/y_center or textured faces skew. */
     if( getenv("TORIRS_VP_DEBUG") )
-        fprintf(
-            stderr,
-            "world_vp: desc=(%d,%d %dx%d) clip=(%d,%d %dx%d) canvas=%dx%d "
+        TORIRS_LOG("world_vp: desc=(%d,%d %dx%d) clip=(%d,%d %dx%d) canvas=%dx%d "
             "-> w=%d h=%d center=(%d,%d) raster_origin=(%d,%d)\n",
             desc->x, desc->y, desc->w, desc->h,
             desc->clip.x, desc->clip.y, desc->clip.w, desc->clip.h,
@@ -1761,9 +1760,7 @@ emit_loc_debug(
 emit:
     budget--;
 
-    fprintf(
-        stderr,
-        "emit_loc %d el=%d: world=(%d,%d,%d) yaw=%d cam=(%d,%d,%d) rel=(%d,%d,%d) "
+    TORIRS_LOG("emit_loc %d el=%d: world=(%d,%d,%d) yaw=%d cam=(%d,%d,%d) rel=(%d,%d,%d) "
         "tile=(%d,%d) slot=(%d,%d) lvl=%d\n",
         want_loc,
         element_id,
@@ -1807,9 +1804,7 @@ emit:
                 if( m->vertices_z[v] < zmin ) zmin = m->vertices_z[v];
                 if( m->vertices_z[v] > zmax ) zmax = m->vertices_z[v];
             }
-            fprintf(
-                stderr,
-                "          extent x[%d..%d] z[%d..%d] -> world x[%d..%d] z[%d..%d] "
+            TORIRS_LOG("          extent x[%d..%d] z[%d..%d] -> world x[%d..%d] z[%d..%d] "
                 "tiles x[%d..%d] z[%d..%d] (pre-yaw)\n",
                 xmin, xmax, zmin, zmax,
                 el->world_position.x + xmin,
@@ -1904,7 +1899,7 @@ only_loc_init(void)
         g_only_loc[g_only_loc_count++] = (int)v;
         p = (*end == ',') ? end + 1 : end;
     }
-    fprintf(stderr, "only_loc: %d id(s), terrain suppressed\n", g_only_loc_count);
+    TORIRS_LOG("only_loc: %d id(s), terrain suppressed\n", g_only_loc_count);
 }
 
 static bool
@@ -2036,14 +2031,13 @@ try_emit_world_draw_model(
                      * to and including this line. */
                     if( cmd->_bf_kind == PNTR_CMD_TERRAIN ||
                         cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
-                        fprintf(stderr, "order %4d cmd=%4d TERRAIN%s tile=%d,%d L%d\n", seq++,
+                        TORIRS_LOG("order %4d cmd=%4d TERRAIN%s tile=%d,%d L%d\n", seq++,
                                 frame->painters_index - 1,
                                 cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY ? "(pick)" : "",
                                 (int)cmd->_terrain._bf_terrain_x, (int)cmd->_terrain._bf_terrain_z,
                                 (int)cmd->_terrain._bf_terrain_y);
                     else if( sc )
-                        fprintf(stderr,
-                                "order %4d cmd=%4d LOC loc=%d slot=%d,%d L%d size=%dx%d\n", seq++,
+                        TORIRS_LOG("order %4d cmd=%4d LOC loc=%d slot=%d,%d L%d size=%dx%d\n", seq++,
                                 frame->painters_index - 1,
                                 sc->loc_id, sc->grid_position.x, sc->grid_position.z,
                                 sc->grid_position.level,
@@ -2057,15 +2051,14 @@ try_emit_world_draw_model(
                         struct WorldEntity_NPC* npc =
                             World_NpcGetByElementId(frame->world, element_id, NULL);
                         if( npc )
-                            fprintf(stderr,
-                                    "order %4d cmd=%4d NPC npc=%d tile=%d,%d L%d size=%d "
+                            TORIRS_LOG("order %4d cmd=%4d NPC npc=%d tile=%d,%d L%d size=%d "
                                     "draw=%d,%d\n",
                                     seq++, frame->painters_index - 1, npc->npc_id,
                                     npc->grid_position.x, npc->grid_position.z,
                                     npc->grid_position.level, npc->size,
                                     (int)npc->draw_position.x, (int)npc->draw_position.z);
                         else
-                            fprintf(stderr, "order %4d cmd=%4d ELEM element=%d at=%d,%d,%d\n",
+                            TORIRS_LOG("order %4d cmd=%4d ELEM element=%d at=%d,%d,%d\n",
                                     seq++, frame->painters_index - 1, element_id,
                                     el->world_position.x, el->world_position.y,
                                     el->world_position.z);

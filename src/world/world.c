@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #define WORLD_PROJECTILE_ANGLE_TO_RAD 0.02454369
 #define WORLD_PROJECTILE_ANGLE_TO_RPI2048 325.949
@@ -2035,8 +2036,7 @@ world_apply_primary_animation(
          * engine kill could both play 8097 on one npc.
          */
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(stderr,
-                    "anim: seq %d re-applied while already playing (frame %d, restart mode %d)\n",
+            TORIRS_LOG("anim: seq %d re-applied while already playing (frame %d, restart mode %d)\n",
                     seq_id, (int)animation->primary.frame, restart);
         if( restart == 1 ) /* RestartMode.RESET */
         {
@@ -2059,9 +2059,7 @@ world_apply_primary_animation(
             world_seq_priority(world, animation->primary.anim_id) )
     {
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "anim: seq %d (prio %d) refused by incumbent %d (prio %d)\n",
+            TORIRS_ERR("anim: seq %d (prio %d) refused by incumbent %d (prio %d)\n",
                 seq_id,
                 world_seq_priority(world, seq_id),
                 (int)animation->primary.anim_id,
@@ -2069,9 +2067,7 @@ world_apply_primary_animation(
         return;
     }
     if( getenv("TORIRS_ANIM_DEBUG") )
-        fprintf(
-            stderr,
-            "anim: seq %d (prio %d) applied over %d [idle seq %d frame %d cycle %d]\n",
+        TORIRS_LOG("anim: seq %d (prio %d) applied over %d [idle seq %d frame %d cycle %d]\n",
             seq_id,
             world_seq_priority(world, seq_id),
             (int)animation->primary.anim_id,

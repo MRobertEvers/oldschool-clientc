@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2LocLoad
 {
@@ -71,7 +72,7 @@ Task_Dat2LocLoad_Run(
 
     if( !task->group )
     {
-        fprintf(stderr, "Failed to decode dat2 loc group for loc %d\n", task->loc_id);
+        TORIRS_ERR("Failed to decode dat2 loc group for loc %d\n", task->loc_id);
         PT_EXIT(&task->pt);
     }
 
@@ -82,9 +83,7 @@ Task_Dat2LocLoad_Run(
         task->addr.group_shift ? (task->loc_id & task->addr.file_mask)
                                : task->loc_id);
     if( getenv("TORIRS_LOC_MODEL_DEBUG") )
-        fprintf(
-            stderr,
-            "locgroup: loc %d -> table %d group %d files %d -> pos %d\n",
+        TORIRS_LOG("locgroup: loc %d -> table %d group %d files %d -> pos %d\n",
             task->loc_id, task->group_table, task->group_id,
             task->group->file_count, pos);
     if( pos >= 0 )
@@ -94,7 +93,7 @@ Task_Dat2LocLoad_Run(
             task->group->filelist->file_sizes[pos]);
     if( !rscache_loc )
     {
-        fprintf(stderr, "Failed to load dat2 loc %d\n", task->loc_id);
+        TORIRS_ERR("Failed to load dat2 loc %d\n", task->loc_id);
         PT_EXIT(&task->pt);
     }
     rscache_loc->_id = task->loc_id;
@@ -105,7 +104,7 @@ Task_Dat2LocLoad_Run(
     RSCache_Dat2ConfigLocFree(rscache_loc);
     if( !torirs_loc )
     {
-        fprintf(stderr, "Failed to convert dat2 loc %d\n", task->loc_id);
+        TORIRS_ERR("Failed to convert dat2 loc %d\n", task->loc_id);
         PT_EXIT(&task->pt);
     }
 
@@ -122,9 +121,7 @@ Task_Dat2LocLoad_Run(
     if( getenv("TORIRS_LOC_CFG") &&
         (int)strtol(getenv("TORIRS_LOC_CFG"), NULL, 0) == task->loc_id )
     {
-        fprintf(
-            stderr,
-            "loc_cfg %d: name='%s' size=%dx%d seq=%d shapes=%s groups=%d\n",
+        TORIRS_LOG("loc_cfg %d: name='%s' size=%dx%d seq=%d shapes=%s groups=%d\n",
             task->loc_id,
             torirs_loc->name ? torirs_loc->name : "",
             torirs_loc->size_x,
@@ -132,26 +129,22 @@ Task_Dat2LocLoad_Run(
             torirs_loc->seq_id,
             torirs_loc->shapes ? "yes" : "no(implicit shape 10)",
             torirs_loc->shapes_and_model_count);
-        fprintf(
-            stderr,
-            "  transforms: count=%d varbit=%d varp=%d ->",
+        TORIRS_LOG("  transforms: count=%d varbit=%d varp=%d ->",
             torirs_loc->transform_count,
             torirs_loc->transform_varbit,
             torirs_loc->transform_varp);
         for( int i = 0; i < torirs_loc->transform_count; i++ )
-            fprintf(stderr, " %d", torirs_loc->transforms[i]);
-        fprintf(stderr, "\n");
+            TORIRS_LOG(" %d", torirs_loc->transforms[i]);
+        TORIRS_LOG("\n");
         for( int i = 0; i < torirs_loc->shapes_and_model_count; i++ )
         {
-            fprintf(
-                stderr,
-                "  group %d: shape=%d models(%d):",
+            TORIRS_LOG("  group %d: shape=%d models(%d):",
                 i,
                 torirs_loc->shapes ? torirs_loc->shapes[i] : -1,
                 torirs_loc->lengths ? torirs_loc->lengths[i] : 0);
             for( int j = 0; torirs_loc->lengths && j < torirs_loc->lengths[i]; j++ )
-                fprintf(stderr, " %d", torirs_loc->models[i][j]);
-            fprintf(stderr, "\n");
+                TORIRS_LOG(" %d", torirs_loc->models[i][j]);
+            TORIRS_LOG("\n");
         }
     }
 

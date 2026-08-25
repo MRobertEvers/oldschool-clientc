@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2MapLoad
 {
@@ -88,7 +89,7 @@ Task_Dat2MapTerrainLoad_Run(
         table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
         if( !table )
         {
-            fprintf(stderr, "Failed to load maps reference table\n");
+            TORIRS_ERR("Failed to load maps reference table\n");
             PT_EXIT(&task->pt);
         }
         dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_MAPS, table);
@@ -100,7 +101,7 @@ Task_Dat2MapTerrainLoad_Run(
     archive_id = task_dat2_map_resolve(table, task->map_x, task->map_z, 0);
     if( archive_id < 0 )
     {
-        fprintf(stderr, "No terrain archive for map (%d,%d)\n", task->map_x, task->map_z);
+        TORIRS_LOG("No terrain archive for map (%d,%d)\n", task->map_x, task->map_z);
         PT_EXIT(&task->pt);
     }
 
@@ -110,7 +111,7 @@ Task_Dat2MapTerrainLoad_Run(
     archive = RSCache_IO_Dat2MapArchiveDecode(io, 0);
     if( !archive )
     {
-        fprintf(stderr, "Failed to load terrain archive for map (%d,%d)\n", task->map_x, task->map_z);
+        TORIRS_ERR("Failed to load terrain archive for map (%d,%d)\n", task->map_x, task->map_z);
         PT_EXIT(&task->pt);
     }
 
@@ -141,7 +142,7 @@ Task_Dat2MapTerrainLoad_Run(
         RSCache_MapTerrainFixup(rscache_terrain, task->map_x, task->map_z);
     if( !rscache_terrain )
     {
-        fprintf(stderr, "Failed to decode terrain for map (%d,%d)\n", task->map_x, task->map_z);
+        TORIRS_ERR("Failed to decode terrain for map (%d,%d)\n", task->map_x, task->map_z);
         PT_EXIT(&task->pt);
     }
 
@@ -189,7 +190,7 @@ Task_Dat2MapSceneryLoad_Run(
         table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
         if( !table )
         {
-            fprintf(stderr, "Failed to load maps reference table\n");
+            TORIRS_ERR("Failed to load maps reference table\n");
             PT_EXIT(&task->pt);
         }
         dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_MAPS, table);
@@ -201,7 +202,7 @@ Task_Dat2MapSceneryLoad_Run(
     archive_id = task_dat2_map_resolve(table, task->map_x, task->map_z, 1);
     if( archive_id < 0 )
     {
-        fprintf(stderr, "No scenery archive for map (%d,%d)\n", task->map_x, task->map_z);
+        TORIRS_LOG("No scenery archive for map (%d,%d)\n", task->map_x, task->map_z);
         PT_EXIT(&task->pt);
     }
 
@@ -211,7 +212,7 @@ Task_Dat2MapSceneryLoad_Run(
     archive = RSCache_IO_Dat2MapArchiveDecode(io, 0);
     if( !archive )
     {
-        fprintf(stderr, "Failed to load scenery archive for map (%d,%d)\n", task->map_x, task->map_z);
+        TORIRS_ERR("Failed to load scenery archive for map (%d,%d)\n", task->map_x, task->map_z);
         PT_EXIT(&task->pt);
     }
 
@@ -222,7 +223,7 @@ Task_Dat2MapSceneryLoad_Run(
         files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
         if( !files || files->file_count < 2 )
         {
-            fprintf(stderr, "Failed to split scenery archive for map (%d,%d)\n", task->map_x, task->map_z);
+            TORIRS_ERR("Failed to split scenery archive for map (%d,%d)\n", task->map_x, task->map_z);
             RSCache_FileListFree(files);
             RSCache_Dat2DiskArchiveFree(archive);
             PT_EXIT(&task->pt);
@@ -236,7 +237,7 @@ Task_Dat2MapSceneryLoad_Run(
     RSCache_Dat2DiskArchiveFree(archive);
     if( !rscache_locs )
     {
-        fprintf(stderr, "Failed to decode scenery for map (%d,%d)\n", task->map_x, task->map_z);
+        TORIRS_ERR("Failed to decode scenery for map (%d,%d)\n", task->map_x, task->map_z);
         PT_EXIT(&task->pt);
     }
 

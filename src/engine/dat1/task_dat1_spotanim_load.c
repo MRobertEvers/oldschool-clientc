@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat1SpotanimLoad
 {
@@ -40,9 +41,7 @@ Task_Dat1SpotanimLoad_Run(
         config_jagfile = RSCache_IO_Dat1ConfigJagfileDecode(io, 0);
         if( !config_jagfile )
         {
-            fprintf(
-                stderr,
-                "Failed to decode dat1 config jagfile for spotanim %d\n",
+            TORIRS_ERR("Failed to decode dat1 config jagfile for spotanim %d\n",
                 task->spotanim_id);
             PT_EXIT(&task->pt);
         }
@@ -53,7 +52,7 @@ Task_Dat1SpotanimLoad_Run(
     list = dat1_buildcache_get_spotanim_list(task->bc);
     if( !list || task->spotanim_id < 0 || task->spotanim_id >= list->spotanims_count )
     {
-        fprintf(stderr, "Failed to load dat1 spotanim %d\n", task->spotanim_id);
+        TORIRS_ERR("Failed to load dat1 spotanim %d\n", task->spotanim_id);
         PT_EXIT(&task->pt);
     }
 
@@ -61,7 +60,7 @@ Task_Dat1SpotanimLoad_Run(
         task->spotanim_id, &list->spotanims[task->spotanim_id]);
     if( !torirs_spotanim )
     {
-        fprintf(stderr, "Failed to convert dat1 spotanim %d\n", task->spotanim_id);
+        TORIRS_ERR("Failed to convert dat1 spotanim %d\n", task->spotanim_id);
         PT_EXIT(&task->pt);
     }
 

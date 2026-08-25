@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static int
 rev_packetin_size(int wire_opcode)
@@ -67,9 +68,7 @@ GameProtoRev_LC254(void)
             for( char* tok = strtok(buf, ","); tok && i < 9; tok = strtok(NULL, ",") )
                 k_rev_lc254.jag_checksum[i++] = (int32_t)strtol(tok, NULL, 10);
             if( i != 9 )
-                fprintf(
-                    stderr,
-                    "lc254: TORIRS_JAG_CRC had %d of 9 values; login CRCs incomplete\n",
+                TORIRS_LOG("lc254: TORIRS_JAG_CRC had %d of 9 values; login CRCs incomplete\n",
                     i);
         }
     }

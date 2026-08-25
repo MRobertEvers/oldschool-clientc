@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Turn one HEADBAR block into the record the overlay reads.
@@ -70,7 +71,7 @@ static void
 entity_debug_log(char const* fmt, int a, int b)
 {
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(stderr, fmt, a, b);
+        TORIRS_LOG(fmt, a, b);
 }
 
 /*
@@ -154,9 +155,7 @@ npc_trace(
 {
     if( !npc_trace_wants(npc_id) )
         return;
-    fprintf(
-        stderr,
-        "npc_trace: npc=%d slot=%d list_idx=%d world=%d element=%d cycle=%d %s=%d\n",
+    TORIRS_LOG("npc_trace: npc=%d slot=%d list_idx=%d world=%d element=%d cycle=%d %s=%d\n",
         npc_id, slot, list_idx, world_idx, element_id,
         (app && app->world) ? app->world->cycle : -1, what, detail);
 }
@@ -638,9 +637,7 @@ player_apply_op(
     }
     case PKT_PLAYER_INFO_OP_SEQUENCE:
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "player_info: sequence idx=%d id=%d delay=%d\n",
+            TORIRS_LOG("player_info: sequence idx=%d id=%d delay=%d\n",
                 idx,
                 op->_sequence.sequence_id,
                 op->_sequence.delay);
@@ -758,9 +755,7 @@ player_apply_op(
         break;
     case PKT_PLAYER_INFO_OP_SPOTANIM:
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "player_info: spotanim idx=%d id=%d height=%d delay=%d\n",
+            TORIRS_LOG("player_info: spotanim idx=%d id=%d height=%d delay=%d\n",
                 idx,
                 op->_spotanim.spotanim_id,
                 op->_spotanim.height_delay >> 16,
@@ -792,8 +787,7 @@ player_apply_op(
          * pair, "the obstacle did not glide" cannot be split into "the server
          * never set the mask" and "the client dropped the block". */
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(stderr,
-                    "exactmove player idx=%d (%d,%d)->(%d,%d) cycles %d..%d "
+            TORIRS_LOG("exactmove player idx=%d (%d,%d)->(%d,%d) cycles %d..%d "
                     "facing=%d yaw=%d\n",
                     idx, sx, sz, ex, ez, op->_exactmove.start_cycle_delta,
                     op->_exactmove.end_cycle_delta, op->_exactmove.facing,
@@ -1255,9 +1249,7 @@ npc_target_op(
         if( self->cur_slot >= 0 &&
             RS_EntitySync_FindNpc(esync, self->cur_slot, &stale_world_idx, &stale_element_id) )
         {
-            fprintf(
-                stderr,
-                "entity_sync: npc slot %d entered view but is still registered "
+            TORIRS_LOG("entity_sync: npc slot %d entered view but is still registered "
                 "(world %d, element %d) - despawning the stale entity first\n",
                 self->cur_slot, stale_world_idx, stale_element_id);
             npc_trace(
@@ -1386,8 +1378,7 @@ npc_apply_op(
         break;
     case PKT_NPC_INFO_OP_SEQUENCE:
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(stderr,
-                    "anim: npc SEQUENCE op seq=%d delay=%d slot=%d world_idx=%d%s\n",
+            TORIRS_LOG("anim: npc SEQUENCE op seq=%d delay=%d slot=%d world_idx=%d%s\n",
                     op->_sequence.sequence_id, op->_sequence.delay, self->cur_slot, idx,
                     idx >= 0 ? "" : "  <-- NO TARGET, dropped");
         if( idx >= 0 )
@@ -1704,8 +1695,7 @@ Task_ExecNpcInfo_Run(
                         World_NpcSetPrimaryAnimation(
                             app->world, world_idx, self->pending_seq, self->pending_delay);
                     else if( getenv("TORIRS_ANIM_DEBUG") )
-                        fprintf(stderr,
-                                "anim: npc seq %d DROPPED - slot %d no longer resolves "
+                        TORIRS_LOG("anim: npc seq %d DROPPED - slot %d no longer resolves "
                                 "(reaped while the sequence load was awaiting)\n",
                                 self->pending_seq, self->cur_slot);
                 }
@@ -1719,9 +1709,7 @@ Task_ExecNpcInfo_Run(
     {
         uint64_t total = PlatformSDL2_TicksUs() - self->bd_start;
         if( total >= (uint64_t)g_npcinfo_bd_ms * 1000u )
-            fprintf(
-                stderr,
-                "npcinfo_bd: total %.2f decode %.2f apply %.2f spawn %.2f retype %.2f "
+            TORIRS_LOG("npcinfo_bd: total %.2f decode %.2f apply %.2f spawn %.2f retype %.2f "
                 "rest %.2f | ops %d spawns %d\n",
                 total / 1000.0,
                 g_bd_decode / 1000.0,

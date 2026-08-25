@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Bumped only when a key changes meaning, never when one is added: an unknown
@@ -148,8 +149,7 @@ RS_Prefs_Decode(
     }
 
     if( version > RS_PREFS_VERSION )
-        fprintf(stderr,
-                "prefs: the settings file is version %d and this client writes %d — keys "
+        TORIRS_LOG("prefs: the settings file is version %d and this client writes %d — keys "
                 "this client does not know were ignored\n",
                 version, RS_PREFS_VERSION);
     return 1;

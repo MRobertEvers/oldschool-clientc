@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* xrsps client opcodes (ClientPacketId.ts, active set). */
 #define XR_OP_HELLO 200
@@ -209,7 +210,7 @@ xr_recv(void* handle, uint8_t const* data, int size)
                 off += hdr + plen;
                 break; /* stop; poll stages the handshake, remainder is GAME */
             }
-            fprintf(stderr, "xrsps login: rejected (errorCode=%d)\n", err_code);
+            TORIRS_ERR("xrsps login: rejected (errorCode=%d)\n", err_code);
             h->state = XR_LOGIN_ERR;
             off += hdr + plen;
             break;

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Slot names, positionally. Must match `struct UITreeRuntimeHooks` field for
@@ -184,9 +185,7 @@ UITree_HookSet(
         {
             if( warned_count < (int)(sizeof(warned_script) / sizeof(warned_script[0])) )
                 warned_script[warned_count++] = script_id;
-            fprintf(
-                stderr,
-                "uitree: hook clientscript %d passed %d string arguments; only the first "
+            TORIRS_LOG("uitree: hook clientscript %d passed %d string arguments; only the first "
                 "%d are kept and the rest arrive as \"\" (UITREE_HOOK_STR_ARG_MAX)\n",
                 script_id,
                 str_argc,

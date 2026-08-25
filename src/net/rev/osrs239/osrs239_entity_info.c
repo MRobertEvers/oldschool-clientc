@@ -35,6 +35,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #define V5_PLAYER_SLOTS 2048
 
@@ -414,7 +415,7 @@ player_high_res(
             /* The reference throws here, and so does a real client: opcode 0
              * with no extended info means "drop to low resolution", which the
              * local player cannot do. */
-            fprintf(stderr, "osrs239: PLAYER_INFO dropped the local index to low res\n");
+            TORIRS_LOG("osrs239: PLAYER_INFO dropped the local index to low res\n");
             return;
         }
         g_player.low_res_pos[idx] =
@@ -781,7 +782,7 @@ player_extended(
          * only the middle one is invisible from either end. Pairs with
          * TORIRSSERVER_EXT_DEBUG on the server. */
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(stderr, "osrs239: player %d extended flag=0x%x at %d/%d\n", idx, flag,
+            TORIRS_LOG("osrs239: player %d extended flag=0x%x at %d/%d\n", idx, flag,
                     pos, len);
 
         {
@@ -1182,9 +1183,7 @@ player_extended(
                 V5_PLAYER_APPEARANCE;
         if( (flag & ~known) != 0 )
         {
-            fprintf(
-                stderr,
-                "osrs239: PLAYER_INFO extended flag 0x%x has undecoded blocks "
+            TORIRS_LOG("osrs239: PLAYER_INFO extended flag 0x%x has undecoded blocks "
                 "(0x%x); tail stopped\n",
                 flag,
                 flag & ~known);
@@ -1208,7 +1207,7 @@ osrs239_player_info_read(
         /* No init block means no high-resolution set and no coordinates: every
          * section below would walk the wrong slots. Dropping is the only
          * answer that cannot corrupt the table. */
-        fprintf(stderr, "osrs239: PLAYER_INFO before the GPI init block; dropped\n");
+        TORIRS_LOG("osrs239: PLAYER_INFO before the GPI init block; dropped\n");
         return 0;
     }
 
@@ -1312,8 +1311,7 @@ npc_extended(
                 }
                 if( (body & (4 | 8)) != 0 )
                 {
-                    fprintf(stderr,
-                            "osrs239: NPC legacy body customisation needs NpcType array "
+                    TORIRS_LOG("osrs239: NPC legacy body customisation needs NpcType array "
                             "lengths; tail stopped\n");
                     return;
                 }
@@ -1611,8 +1609,7 @@ npc_extended(
                      * lengths come from the current NpcType recolour/retexture
                      * arrays. This pure decoder has no cache access, so lying
                      * about a length would corrupt every later npc block. */
-                    fprintf(stderr,
-                            "osrs239: NPC head customisation needs NpcType array lengths; "
+                    TORIRS_LOG("osrs239: NPC head customisation needs NpcType array lengths; "
                             "tail stopped\n");
                     return;
                 }
@@ -1783,9 +1780,7 @@ npc_extended(
                 V5_NPC_TRANSFORMATION;
         if( (flag & ~known) != 0 )
         {
-            fprintf(
-                stderr,
-                "osrs239: NPC_INFO extended flag 0x%x has undecoded blocks (0x%x); "
+            TORIRS_LOG("osrs239: NPC_INFO extended flag 0x%x has undecoded blocks (0x%x); "
                 "tail stopped\n",
                 flag,
                 flag & ~known);

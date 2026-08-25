@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 void
 RS_UISlots_Init(struct RS_UISlots* slots)
@@ -180,14 +181,14 @@ slot_mount(
     if( owner_index < 0 )
     {
         if( iface_id > 0 )
-            fprintf(stderr, "rs_ui_slots: no mount region for iface %d\n", iface_id);
+            TORIRS_LOG("rs_ui_slots: no mount region for iface %d\n", iface_id);
         return;
     }
     if( !app->builder_active )
     {
         /* Cache-interface boot (dat2 path) has no RevConfig builder; slot
          * mounts there go through the CS2 openSub flow instead. */
-        fprintf(stderr, "rs_ui_slots: slot mount requires the RevConfig build path\n");
+        TORIRS_LOG("rs_ui_slots: slot mount requires the RevConfig build path\n");
         return;
     }
 
@@ -227,7 +228,7 @@ RS_UISlots_OpenSide(struct App* app, int iface_id)
      * runtime, so nothing offline -- not the cache, not the scripts -- can say
      * which interface ends up on which tab. This is the only place that knows. */
     if( getenv("TORIRS_TAB_DEBUG") )
-        fprintf(stderr, "TABDBG openside iface=%d\n", iface_id);
+        TORIRS_LOG("TABDBG openside iface=%d\n", iface_id);
     app->slots.side_modal_id = iface_id > 0 ? iface_id : -1;
     slot_mount(app, app->slots.side_modal_index, iface_id);
     app->need_redraw = 1;
@@ -295,14 +296,12 @@ RS_UISlots_SetTab(struct App* app, int tabno, int iface_id)
     if( iface_id == 65535 )
         iface_id = -1;
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "rs_ui_slots: settab tab=%d iface=%d owner=%d\n",
+        TORIRS_LOG("rs_ui_slots: settab tab=%d iface=%d owner=%d\n",
             tabno,
             iface_id,
             app->slots.side_owner_index[tabno]);
     if( getenv("TORIRS_TAB_DEBUG") )
-        fprintf(stderr, "TABDBG settab tab=%d iface=%d\n", tabno, iface_id);
+        TORIRS_LOG("TABDBG settab tab=%d iface=%d\n", tabno, iface_id);
     app->slots.side_overlay_id[tabno] = iface_id > 0 ? iface_id : -1;
     slot_mount(app, app->slots.side_owner_index[tabno], iface_id);
 }

@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #define WORLD_LOAD_MAX_CHUNKS 64
 
@@ -259,9 +260,7 @@ Task_WorldLoad_Run(
                 p,
                 CacheProvider_MapId(
                     self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1])) )
-            fprintf(
-                stderr,
-                "world_load: map %d,%d unavailable (missing archive)\n",
+            TORIRS_ERR("world_load: map %d,%d unavailable (missing archive)\n",
                 self->chunks_xz[self->c * 2],
                 self->chunks_xz[self->c * 2 + 1]);
     }
@@ -321,9 +320,7 @@ Task_WorldLoad_Run(
     {
         struct ToriRS_Location* dbg = CacheProvider_LocationGet(p, self->locs.items[self->i]);
         if( getenv("TORIRS_LOC_MODEL_DEBUG") )
-            fprintf(
-                stderr,
-                "collect loc %d: %s groups=%d shapes=%s models=%s\n",
+            TORIRS_ERR("collect loc %d: %s groups=%d shapes=%s models=%s\n",
                 self->locs.items[self->i],
                 dbg ? "present" : "MISSING",
                 dbg ? dbg->shapes_and_model_count : -1,
@@ -384,9 +381,7 @@ Task_WorldLoad_Run(
         PT_TASK_AWAITSELF_IF(
             CreateTask_SequenceLoad(p, self->builder->scene, self->seqs.items[self->i]));
 
-    fprintf(
-        stderr,
-        "world_load: %d chunks, %d underlays, %d overlays, %d textures, %d locs, %d models, "
+    TORIRS_LOG("world_load: %d chunks, %d underlays, %d overlays, %d textures, %d locs, %d models, "
         "%d seqs\n",
         self->chunk_count,
         self->underlays.count,

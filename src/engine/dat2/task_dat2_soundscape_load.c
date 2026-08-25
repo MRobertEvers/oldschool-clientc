@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Ambient soundscapes (config group 15), whole-group and eager at boot.
@@ -121,9 +122,7 @@ Task_Dat2SoundscapeLoad_Run(
         RSCache_Dat2ConfigSoundscapeDecodeInplace(
             &entry, filelist->files[i], filelist->file_sizes[i]);
         if( entry._consumed != filelist->file_sizes[i] )
-            fprintf(
-                stderr,
-                "soundscape %d: decode consumed %d of %d bytes\n",
+            TORIRS_LOG("soundscape %d: decode consumed %d of %d bytes\n",
                 id,
                 entry._consumed,
                 filelist->file_sizes[i]);
@@ -140,7 +139,7 @@ Task_Dat2SoundscapeLoad_Run(
         free(entries);
         PT_EXIT(&task->pt);
     }
-    printf("soundscape load: %d ids (%d records)\n", count, decoded);
+    TORIRS_LOG("soundscape load: %d ids (%d records)\n", count, decoded);
 
     /*
      * Bring the clips into residence.

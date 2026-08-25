@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 _Static_assert(
     BOOTMANIFEST_DEBUG_HOTKEY_MAX <= APP_DEBUG_HOTKEY_MAX,
@@ -63,7 +64,7 @@ bm_parse_padded_int(char const* key, char const* value, int* out)
     v = strtol(value, &end, 10);
     if( end == value || v < 0 )
     {
-        fprintf(stderr, "bootmanifest: '%s' must be a non-negative int, got '%s'\n", key, value);
+        TORIRS_LOG("bootmanifest: '%s' must be a non-negative int, got '%s'\n", key, value);
         return 0;
     }
     while( *end == ' ' || *end == '\t' )
@@ -72,7 +73,7 @@ bm_parse_padded_int(char const* key, char const* value, int* out)
      * trailing comment. */
     if( *end != '\0' && *end != ';' && *end != '#' && *end != ':' )
     {
-        fprintf(stderr, "bootmanifest: trailing junk after '%s': '%s'\n", key, end);
+        TORIRS_LOG("bootmanifest: trailing junk after '%s': '%s'\n", key, end);
         return 0;
     }
     *out = (int)v;
@@ -90,7 +91,7 @@ bm_parse_int(char const* key, char const* value, int* out)
     v = strtol(value, &end, 10);
     if( end == value || *end != '\0' )
     {
-        fprintf(stderr, "bootmanifest: '%s' must be an int, got '%s'\n", key, value);
+        TORIRS_LOG("bootmanifest: '%s' must be an int, got '%s'\n", key, value);
         return 0;
     }
     *out = (int)v;
@@ -113,9 +114,7 @@ bm_parse_bounded_int(
     parsed = strtol(value, &end, 10);
     if( end == value || *end != '\0' || parsed < min || parsed > max )
     {
-        fprintf(
-            stderr,
-            "bootmanifest: [%s] %s must be in %d..%d, got '%s'\n",
+        TORIRS_LOG("bootmanifest: [%s] %s must be in %d..%d, got '%s'\n",
             section,
             key,
             min,
@@ -151,7 +150,7 @@ bm_parse_xyz(char const* key, char const* value, int* x, int* y, int* z)
     *z = (int)vz;
     return 1;
 bad:
-    fprintf(stderr, "bootmanifest: '%s' must be x,y,z ints, got '%s'\n", key, value);
+    TORIRS_LOG("bootmanifest: '%s' must be x,y,z ints, got '%s'\n", key, value);
     return 0;
 }
 
@@ -234,9 +233,7 @@ bm_set_kv(
         {
             if( bm->client_arg_count >= BOOTMANIFEST_CLIENT_ARG_MAX )
             {
-                fprintf(
-                    stderr,
-                    "bootmanifest: [client:args] holds at most %d arguments\n",
+                TORIRS_LOG("bootmanifest: [client:args] holds at most %d arguments\n",
                     BOOTMANIFEST_CLIENT_ARG_MAX);
                 bm->client_args_error = 1;
                 return;
@@ -261,9 +258,7 @@ bm_set_kv(
         {
             if( bm->lane_count >= BOOTMANIFEST_LANE_MAX )
             {
-                fprintf(
-                    stderr,
-                    "bootmanifest: [content:lanes] holds at most %d lanes\n",
+                TORIRS_LOG("bootmanifest: [content:lanes] holds at most %d lanes\n",
                     BOOTMANIFEST_LANE_MAX);
                 bm->lanes_error = 1;
                 return;
@@ -310,9 +305,7 @@ bm_set_kv(
                 bm->editor_server = BOOTMANIFEST_EDITOR_SERVER_TCP;
             else
             {
-                fprintf(
-                    stderr,
-                    "bootmanifest: [editor:boot] server must be embed|tcp, got '%s'\n",
+                TORIRS_LOG("bootmanifest: [editor:boot] server must be embed|tcp, got '%s'\n",
                     value);
                 bm->editor_server_error = 1;
             }
@@ -347,9 +340,7 @@ bm_set_kv(
                 bm->editor_panel = BOOTMANIFEST_EDITOR_PANEL_TAB;
             else
             {
-                fprintf(
-                    stderr,
-                    "bootmanifest: [editor:boot] panel must be inprocess|tab, got '%s'\n",
+                TORIRS_LOG("bootmanifest: [editor:boot] panel must be inprocess|tab, got '%s'\n",
                     value);
                 bm->editor_panel_error = 1;
             }
@@ -374,9 +365,7 @@ bm_set_kv(
             int const kind = ToriRSChromeExec_KindFromName(value);
             if( kind < 0 )
             {
-                fprintf(
-                    stderr,
-                    "bootmanifest: [chrome] executor must be "
+                TORIRS_LOG("bootmanifest: [chrome] executor must be "
                     "buffer|sdl|web|gdi|cs2, got '%s'\n",
                     value);
                 bm->chrome_executor_error = 1;
@@ -411,7 +400,7 @@ bm_set_kv(
             int epoch = RSCache_EpochFromName(value);
             if( epoch == RSCACHE_EPOCH_UNSET )
             {
-                fprintf(stderr, "bootmanifest: [cache] epoch must be dat1|dat2, got '%s'\n", value);
+                TORIRS_LOG("bootmanifest: [cache] epoch must be dat1|dat2, got '%s'\n", value);
                 return;
             }
             bm->cache_epoch = epoch;
@@ -423,8 +412,7 @@ bm_set_kv(
             int game = RSCache_GameFromName(value);
             if( game == RSCACHE_GAME_UNSET )
             {
-                fprintf(
-                    stderr, "bootmanifest: [cache] game must be rs2|oldschool, got '%s'\n", value);
+                TORIRS_LOG("bootmanifest: [cache] game must be rs2|oldschool, got '%s'\n", value);
                 return;
             }
             bm->cache_game = game;
@@ -435,8 +423,7 @@ bm_set_kv(
             int rev = atoi(value);
             if( rev <= 0 )
             {
-                fprintf(
-                    stderr, "bootmanifest: [cache] revision must be a positive int, got '%s'\n",
+                TORIRS_LOG("bootmanifest: [cache] revision must be a positive int, got '%s'\n",
                     value);
                 return;
             }
@@ -448,9 +435,7 @@ bm_set_kv(
             uint32_t quirks = RSCACHE_QUIRK_NONE;
             if( !RSCache_QuirksFromList(value, &quirks) )
             {
-                fprintf(
-                    stderr,
-                    "bootmanifest: [cache] quirks must be none|kronos|void_rs634_no_xteas, got '%s'\n",
+                TORIRS_LOG("bootmanifest: [cache] quirks must be none|kronos|void_rs634_no_xteas, got '%s'\n",
                     value);
                 return;
             }
@@ -475,9 +460,7 @@ bm_set_kv(
                 bm->cache_on_demand = 1;
                 return;
             }
-            fprintf(
-                stderr,
-                "bootmanifest: [cache] source must be disk|ondemand, got '%s'\n",
+            TORIRS_LOG("bootmanifest: [cache] source must be disk|ondemand, got '%s'\n",
                 value);
             return;
         }
@@ -492,7 +475,7 @@ bm_set_kv(
             }
             else
             {
-                fprintf(stderr, "bootmanifest: [cache] spawn must be \"x,z\", got '%s'\n", value);
+                TORIRS_LOG("bootmanifest: [cache] spawn must be \"x,z\", got '%s'\n", value);
             }
             return;
         }
@@ -570,7 +553,7 @@ bm_set_kv(
             if( bm_parse_crc_list(value, bm->jag_crc) )
                 bm->jag_crc_set = 1;
             else
-                fprintf(stderr, "bootmanifest: [net] jag_crc needs exactly 9 int32s\n");
+                TORIRS_LOG("bootmanifest: [net] jag_crc needs exactly 9 int32s\n");
             return;
         }
         break;
@@ -583,9 +566,7 @@ bm_set_kv(
             else if( strcmp(value, "false") == 0 || strcmp(value, "0") == 0 )
                 bm->js5_enabled = 0;
             else
-                fprintf(
-                    stderr,
-                    "bootmanifest: [js5] enabled must be true|false, got '%s'\n",
+                TORIRS_LOG("bootmanifest: [js5] enabled must be true|false, got '%s'\n",
                     value);
             return;
         }
@@ -623,7 +604,7 @@ bm_set_kv(
             else if( strcmp(value, "cs2") == 0 )
                 bm->ui_logic = APP_UI_LOGIC_CS2;
             else
-                fprintf(stderr, "bootmanifest: [ui] logic must be cs1|cs2, got '%s'\n", value);
+                TORIRS_LOG("bootmanifest: [ui] logic must be cs1|cs2, got '%s'\n", value);
             return;
         }
         if( strcmp(key, "chrome") == 0 )
@@ -633,8 +614,7 @@ bm_set_kv(
             else if( strcmp(value, "cache") == 0 )
                 bm->chrome = 2;
             else
-                fprintf(
-                    stderr, "bootmanifest: [ui] chrome must be revconfig|cache, got '%s'\n", value);
+                TORIRS_LOG("bootmanifest: [ui] chrome must be revconfig|cache, got '%s'\n", value);
             return;
         }
         if( strcmp(key, "revconfig_ui") == 0 )
@@ -656,9 +636,7 @@ bm_set_kv(
         {
             bm->window_mode = CS2VM_WindowModeFromName(value);
             if( !bm->window_mode )
-                fprintf(
-                    stderr,
-                    "bootmanifest: [ui] windowmode must be fixed|resizable, got '%s'\n",
+                TORIRS_LOG("bootmanifest: [ui] windowmode must be fixed|resizable, got '%s'\n",
                     value);
             return;
         }
@@ -677,9 +655,7 @@ bm_set_kv(
             scale = atoi(value);
             if( scale < 1 || scale > 4 )
             {
-                fprintf(
-                    stderr,
-                    "bootmanifest: [ui] chrome_scale must be 1..4 or dynamic, got '%s'\n",
+                TORIRS_LOG("bootmanifest: [ui] chrome_scale must be 1..4 or dynamic, got '%s'\n",
                     value);
                 return;
             }
@@ -697,9 +673,7 @@ bm_set_kv(
             else if( strcmp(value, "box") == 0 )
                 bm->chrome_checkbox = 2;
             else
-                fprintf(
-                    stderr,
-                    "bootmanifest: [ui] chrome_checkbox must be tick|box, got '%s'\n",
+                TORIRS_LOG("bootmanifest: [ui] chrome_checkbox must be tick|box, got '%s'\n",
                     value);
             return;
         }
@@ -730,7 +704,7 @@ bm_set_kv(
             }
             else
             {
-                fprintf(stderr, "bootmanifest: [ui] window must be WxH, got '%s'\n", value);
+                TORIRS_LOG("bootmanifest: [ui] window must be WxH, got '%s'\n", value);
             }
             return;
         }
@@ -763,9 +737,7 @@ bm_set_kv(
             return;
         if( bm->gameframe_count >= BOOTMANIFEST_GAMEFRAME_MAX )
         {
-            fprintf(
-                stderr,
-                "bootmanifest: [ui:gameframe] holds at most %d mounts; dropping %s=%s\n",
+            TORIRS_LOG("bootmanifest: [ui:gameframe] holds at most %d mounts; dropping %s=%s\n",
                 BOOTMANIFEST_GAMEFRAME_MAX, key, value);
             return;
         }
@@ -787,9 +759,7 @@ bm_set_kv(
             return;
         if( bm->varc_count >= BOOTMANIFEST_GAMEFRAME_MAX )
         {
-            fprintf(
-                stderr,
-                "bootmanifest: [ui:varc] holds at most %d seeds; dropping %s=%s\n",
+            TORIRS_LOG("bootmanifest: [ui:varc] holds at most %d seeds; dropping %s=%s\n",
                 BOOTMANIFEST_GAMEFRAME_MAX, key, value);
             return;
         }
@@ -815,7 +785,7 @@ bm_set_kv(
 
         if( !name[0] )
         {
-            fprintf(stderr, "bootmanifest: [action:<name>] requires a name\n");
+            TORIRS_LOG("bootmanifest: [action:<name>] requires a name\n");
             bm->debug_hotkey_error = 1;
             return;
         }
@@ -829,7 +799,7 @@ bm_set_kv(
         {
             if( bm->debug_action_count >= BOOTMANIFEST_DEBUG_ACTION_MAX )
             {
-                fprintf(stderr, "bootmanifest: at most %d debug actions\n",
+                TORIRS_LOG("bootmanifest: at most %d debug actions\n",
                         BOOTMANIFEST_DEBUG_ACTION_MAX);
                 bm->debug_hotkey_error = 1;
                 return;
@@ -846,7 +816,7 @@ bm_set_kv(
                     action->target = i;
                     return;
                 }
-            fprintf(stderr, "bootmanifest: [action:%s] has unknown target '%s'\n", name, value);
+            TORIRS_ERR("bootmanifest: [action:%s] has unknown target '%s'\n", name, value);
             bm->debug_hotkey_error = 1;
             return;
         }
@@ -890,13 +860,13 @@ bm_set_kv(
                 }
         if( parsed == TORIRSK_UNKNOWN )
         {
-            fprintf(stderr, "bootmanifest: [debug:hotkeys] has unknown key '%s'\n", key);
+            TORIRS_ERR("bootmanifest: [debug:hotkeys] has unknown key '%s'\n", key);
             bm->debug_hotkey_error = 1;
             return;
         }
         if( bm->debug_hotkey_count >= BOOTMANIFEST_DEBUG_HOTKEY_MAX )
         {
-            fprintf(stderr, "bootmanifest: at most %d debug hotkeys\n",
+            TORIRS_LOG("bootmanifest: at most %d debug hotkeys\n",
                     BOOTMANIFEST_DEBUG_HOTKEY_MAX);
             bm->debug_hotkey_error = 1;
             return;
@@ -915,9 +885,7 @@ bm_set_kv(
              * load time, next to the file it came from. */
             if( !ToriRS_Features_ByName(value) )
             {
-                fprintf(
-                    stderr,
-                    "bootmanifest: [features] era must be lostcity|osrs|server_routed, got '%s'\n",
+                TORIRS_LOG("bootmanifest: [features] era must be lostcity|osrs|server_routed, got '%s'\n",
                     value);
                 return;
             }
@@ -929,8 +897,7 @@ bm_set_kv(
             int model = ToriRS_Features_NearestModelByName(value);
             if( model < 0 )
             {
-                fprintf(stderr,
-                        "bootmanifest: [features] ground_click_nearest must be "
+                TORIRS_LOG("bootmanifest: [features] ground_click_nearest must be "
                         "ring3|box10_rect|none, got '%s'\n",
                         value);
                 return;
@@ -959,8 +926,7 @@ bm_set_kv(
             int model = ToriRS_Features_MoverModelByName(value);
             if( model < 0 )
             {
-                fprintf(stderr,
-                        "bootmanifest: [features] mover must be cycle|frame, got '%s'\n",
+                TORIRS_LOG("bootmanifest: [features] mover must be cycle|frame, got '%s'\n",
                         value);
                 return;
             }
@@ -975,8 +941,7 @@ bm_set_kv(
             if( distance < TORIRS_PAINTER_DRAW_DISTANCE_MIN ||
                 distance > TORIRS_PAINTER_DRAW_DISTANCE_MAX )
             {
-                fprintf(stderr,
-                        "bootmanifest: [features] painter_draw_distance must be "
+                TORIRS_LOG("bootmanifest: [features] painter_draw_distance must be "
                         "%d..%d, got '%s'\n",
                         TORIRS_PAINTER_DRAW_DISTANCE_MIN,
                         TORIRS_PAINTER_DRAW_DISTANCE_MAX,
@@ -1034,9 +999,7 @@ bm_set_kv(
             {
                 if( v != 0 && v != 1 )
                 {
-                    fprintf(
-                        stderr,
-                        "bootmanifest: npc_type_ambient_contrast must be 0|1, got '%s'\n",
+                    TORIRS_LOG("bootmanifest: npc_type_ambient_contrast must be 0|1, got '%s'\n",
                         value);
                     return;
                 }
@@ -1058,7 +1021,7 @@ bm_set_kv(
         return;
     }
 
-    fprintf(stderr, "bootmanifest: ignoring unknown key '%s'\n", key);
+    TORIRS_ERR("bootmanifest: ignoring unknown key '%s'\n", key);
 }
 
 /* Split dirname of `path` into dir (without trailing slash). "" for a bare
@@ -1100,7 +1063,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     FILE* f = fopen(path, "rb");
     if( !f )
     {
-        fprintf(stderr, "bootmanifest: cannot open '%s'\n", path);
+        TORIRS_ERR("bootmanifest: cannot open '%s'\n", path);
         return -1;
     }
 
@@ -1152,9 +1115,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
                  * a known section rather than a typo — warning about it would
                  * print two lines of noise on every boot of every migrated
                  * manifest, which is how a warning stops being read at all. */
-                fprintf(
-                    stderr,
-                    "bootmanifest: ignoring unknown section '[%s]'\n",
+                TORIRS_ERR("bootmanifest: ignoring unknown section '[%s]'\n",
                     element._section.name);
             break;
         case INI_ELEMENT_KEYVAL:
@@ -1176,9 +1137,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
 
     if( parse_result != TORI_INI_ERR_NONE || reader.state != INI_READER_STATE_DONE )
     {
-        fprintf(
-            stderr,
-            "bootmanifest: parse of '%s' failed (result=%d state=%d offset=%u)\n",
+        TORIRS_ERR("bootmanifest: parse of '%s' failed (result=%d state=%d offset=%u)\n",
             path,
             parse_result,
             (int)reader.state,
@@ -1189,7 +1148,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     for( int i = 0; i < bm->debug_action_count; i++ )
         if( bm->debug_actions[i].target < 0 )
         {
-            fprintf(stderr, "bootmanifest: [action:%s] is missing required t=\n",
+            TORIRS_ERR("bootmanifest: [action:%s] is missing required t=\n",
                     bm->debug_actions[i].name);
             bm->debug_hotkey_error = 1;
         }
@@ -1204,7 +1163,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
             }
         if( !found )
         {
-            fprintf(stderr, "bootmanifest: [debug:hotkeys] references unknown action '%s'\n",
+            TORIRS_ERR("bootmanifest: [debug:hotkeys] references unknown action '%s'\n",
                     bm->debug_hotkeys[i].action);
             bm->debug_hotkey_error = 1;
         }
@@ -1224,9 +1183,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
         && (bm->editor_server_host[0] || bm->editor_server_port > 0
             || bm->editor_client_id > 0) )
     {
-        fprintf(
-            stderr,
-            "bootmanifest: '%s' sets [editor:boot] host/port/client without "
+        TORIRS_LOG("bootmanifest: '%s' sets [editor:boot] host/port/client without "
             "server=tcp; the embedded ToriRSMapEd has no address and no other "
             "process to share a Client with\n",
             path);
@@ -1240,9 +1197,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
 #if !defined(__EMSCRIPTEN__)
     if( bm->editor_panel == BOOTMANIFEST_EDITOR_PANEL_TAB )
     {
-        fprintf(
-            stderr,
-            "bootmanifest: '%s' asks for [editor:boot] panel=tab, which only a web "
+        TORIRS_LOG("bootmanifest: '%s' asks for [editor:boot] panel=tab, which only a web "
             "build can open. Use panel=inprocess for a native boot.\n",
             path);
         return -1;
@@ -1253,28 +1208,28 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
      * assert — report and fail the load. */
     if( bm->cache_epoch == RSCACHE_EPOCH_UNSET )
     {
-        fprintf(stderr, "bootmanifest: '%s' missing required [cache:boot] epoch=\n", path);
+        TORIRS_ERR("bootmanifest: '%s' missing required [cache:boot] epoch=\n", path);
         return -1;
     }
     if( bm->cache_game == RSCACHE_GAME_UNSET )
     {
-        fprintf(stderr, "bootmanifest: '%s' missing required [cache:boot] game=\n", path);
+        TORIRS_ERR("bootmanifest: '%s' missing required [cache:boot] game=\n", path);
         return -1;
     }
     if( bm->cache_revision < 0 )
     {
-        fprintf(stderr, "bootmanifest: '%s' missing required [cache:boot] revision=\n", path);
+        TORIRS_ERR("bootmanifest: '%s' missing required [cache:boot] revision=\n", path);
         return -1;
     }
     if( !bm->cache_quirks_set )
     {
-        fprintf(stderr, "bootmanifest: '%s' missing required [cache:boot] quirks=\n", path);
+        TORIRS_ERR("bootmanifest: '%s' missing required [cache:boot] quirks=\n", path);
         return -1;
     }
 
     if( bm->client_args_error )
     {
-        fprintf(stderr, "bootmanifest: invalid [client:args] in '%s'\n", path);
+        TORIRS_ERR("bootmanifest: invalid [client:args] in '%s'\n", path);
         return -1;
     }
 

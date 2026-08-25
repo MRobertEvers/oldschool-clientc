@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* #region agent log — texture publish trace, defined in app.c. */
 int
@@ -803,7 +804,7 @@ UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge)
     {
         int resolved = PlayerAppearance_ResolveDefaultMale(bridge->provider, &app);
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(stderr, "EnsurePlayerModel: resolved=%d kits=[%d,%d,%d,%d,%d,%d,%d]\n",
+            TORIRS_LOG("EnsurePlayerModel: resolved=%d kits=[%d,%d,%d,%d,%d,%d,%d]\n",
                 resolved, app.kits[0], app.kits[1], app.kits[2], app.kits[3],
                 app.kits[4], app.kits[5], app.kits[6]);
         if( resolved <= 0 )
@@ -1539,7 +1540,7 @@ UITreeSceneBridge_PublishTextures(
         if( texture_id < 0 || texture_id >= 2048 )
         {
             if( app_tex_trace_enabled() )
-                fprintf(stderr, "tex_trace: publish id=%d -> rejected (out of range)\n", texture_id);
+                TORIRS_ERR("tex_trace: publish id=%d -> rejected (out of range)\n", texture_id);
             continue;
         }
 
@@ -1548,7 +1549,7 @@ UITreeSceneBridge_PublishTextures(
         {
             bridge->texture_failed[texture_id] = 1;
             if( app_tex_trace_enabled() )
-                fprintf(stderr, "tex_trace: publish id=%d -> FAILED (no provider entry)\n", texture_id);
+                TORIRS_ERR("tex_trace: publish id=%d -> FAILED (no provider entry)\n", texture_id);
             continue;
         }
 
@@ -1557,9 +1558,7 @@ UITreeSceneBridge_PublishTextures(
         {
             bridge->texture_failed[texture_id] = 1;
             if( app_tex_trace_enabled() )
-                fprintf(
-                    stderr,
-                    "tex_trace: publish id=%d -> FAILED (convert: texels=%p %dx%d)\n",
+                TORIRS_ERR("tex_trace: publish id=%d -> FAILED (convert: texels=%p %dx%d)\n",
                     texture_id,
                     (void*)rs->texels,
                     rs->width,
@@ -1569,9 +1568,7 @@ UITreeSceneBridge_PublishTextures(
 
         ToriDraw_SceneSetTexture(bridge->scene, texture_id, texture);
         if( app_tex_trace_enabled() )
-            fprintf(
-                stderr,
-                "tex_trace: publish id=%d -> %s (%dx%d opaque=%d)\n",
+            TORIRS_LOG("tex_trace: publish id=%d -> %s (%dx%d opaque=%d)\n",
                 texture_id,
                 UITreeSceneBridge_TextureResident(bridge, texture_id) ? "resident"
                                                                       : "SET BUT NOT RESIDENT",

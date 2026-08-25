@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Minimal RFC 6455 WebSocket client transport (xrsps). Flow:
@@ -75,7 +76,7 @@ ws_debug(void)
     do                                                                                             \
     {                                                                                              \
         if( ws_debug() )                                                                           \
-            fprintf(stderr, __VA_ARGS__);                                                          \
+            TORIRS_LOG(__VA_ARGS__);                                                          \
     } while( 0 )
 
 static void
@@ -349,7 +350,7 @@ ws_try_finish_handshake(struct NetTransportWs* self, struct ToriRS_CmdBus* bus)
     }
     if( !is_101 )
     {
-        fprintf(stderr, "ws: upgrade rejected (no 101 status)\n");
+        TORIRS_ERR("ws: upgrade rejected (no 101 status)\n");
         ws_close(self, bus, TORIRS_NET_STATUS_FAILED);
         return -1;
     }
@@ -402,7 +403,7 @@ ws_parse_frames(struct NetTransportWs* self, struct ToriRS_CmdBus* bus)
             break;
         if( st == WS_DECODE_ERROR )
         {
-            fprintf(stderr, "ws: malformed frame, closing\n");
+            TORIRS_LOG("ws: malformed frame, closing\n");
             ws_close(self, bus, TORIRS_NET_STATUS_FAILED);
             return;
         }

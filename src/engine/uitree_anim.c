@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "log/torirs_log.h"
 
 static int
 tracker_has(struct SeqLoadTracker const* tracker, int seq_id)
@@ -137,9 +138,7 @@ UITreeAnim_Advance(
             if( debug < 0 )
                 debug = getenv("TORIRS_ANIM_DEBUG") != NULL;
             if( debug )
-                fprintf(
-                    stderr,
-                    "uitree_anim: com=0x%x seq=%d not posable (anim=%p base=%p frames=%d)\n",
+                TORIRS_ERR("uitree_anim: com=0x%x seq=%d not posable (anim=%p base=%p frames=%d)\n",
                     c->component_id,
                     seq,
                     (void*)anim,

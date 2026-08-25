@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * The selection relay speaks ABSOLUTE WORLD TILES, never scene coordinates.
@@ -975,8 +976,7 @@ editor_variant_rebuild(
         }
     }
     if( cfg->transform_count > EDITOR_LOC_VARIANT_MAX - 1 )
-        fprintf(
-            stderr, "editor: loc %d has %d variants, listing the first %d\n",
+        TORIRS_LOG("editor: loc %d has %d variants, listing the first %d\n",
             panel->cat_picked_id, cfg->transform_count, EDITOR_LOC_VARIANT_MAX - 1);
 
     if( panel->cat_var_choice >= panel->cat_var_count )
@@ -1200,7 +1200,7 @@ editor_apply_tool_field(
 
             if( panel->cat_picked_id < 0 )
             {
-                fprintf(stderr, "editor: pick an entry in the catalog first\n");
+                TORIRS_LOG("editor: pick an entry in the catalog first\n");
                 return 0;
             }
             idx = Editor_PanelSpawnAdd(
@@ -1361,7 +1361,7 @@ Editor_PanelRecordLocEdit(
      * better than writing the placement into the wrong square's `.jl2`. */
     if( from_map_x != to_map_x || from_map_z != to_map_z )
     {
-        fprintf(stderr, "editor: loc moves across a square border are not saved yet\n");
+        TORIRS_LOG("editor: loc moves across a square border are not saved yet\n");
         return 0;
     }
     if( !Editor_DocFindSquare(&app->editor->doc, from_map_x, from_map_z) )
@@ -1659,7 +1659,7 @@ editor_loc_command(
      * cross-square move refuses under. */
     if( !Editor_DocFindSquare(&app->editor->doc, map_x, map_z) )
     {
-        fprintf(stderr, "editor: square m%d_%d is not open, refusing the loc edit\n", map_x, map_z);
+        TORIRS_ERR("editor: square m%d_%d is not open, refusing the loc edit\n", map_x, map_z);
         return 0;
     }
 
@@ -1700,7 +1700,7 @@ Editor_PanelApplyToSelection(
 
     if( panel->sel_kind == EDITOR_SELECTION_NONE )
     {
-        fprintf(stderr, "editor: select a tile or loc first\n");
+        TORIRS_LOG("editor: select a tile or loc first\n");
         return 0;
     }
 
@@ -1722,7 +1722,7 @@ Editor_PanelApplyToSelection(
     /* Terrain fields apply themselves the moment they change; there is
      * nothing batched up for an Apply to flush. Saying so beats silently
      * doing nothing. */
-    fprintf(stderr, "editor: terrain fields apply as you change them\n");
+    TORIRS_LOG("editor: terrain fields apply as you change them\n");
     return 0;
 }
 
@@ -1790,7 +1790,7 @@ Editor_PanelReplaceSelectedLoc(
         return 0;
     if( !Editor_DocFindSquare(&app->editor->doc, map_x, map_z) )
     {
-        fprintf(stderr, "editor: square m%d_%d is not open, refusing the loc edit\n", map_x, map_z);
+        TORIRS_ERR("editor: square m%d_%d is not open, refusing the loc edit\n", map_x, map_z);
         return 0;
     }
 
@@ -1875,7 +1875,7 @@ Editor_PanelPlaceLocAt(
 
     if( panel->cat_picked_id < 0 )
     {
-        fprintf(stderr, "editor: pick a loc in the catalog first\n");
+        TORIRS_LOG("editor: pick a loc in the catalog first\n");
         return 0;
     }
     shape_row = ToriRSChrome_DropdownSelected(ui, panel->dd_loc_shape);
@@ -1956,7 +1956,7 @@ Editor_PanelMoveSelectedLocTo(
 
     if( panel->sel_kind != EDITOR_SELECTION_LOC )
     {
-        fprintf(stderr, "editor: select a loc to move first\n");
+        TORIRS_LOG("editor: select a loc to move first\n");
         return 0;
     }
     if( scene_x == panel->sel_scene_x && scene_z == panel->sel_scene_z )
@@ -2053,7 +2053,7 @@ Editor_PanelSpawnAdd(
         return -1;
     if( panel->spawn_count >= EDITOR_SPAWN_MAX )
     {
-        fprintf(stderr, "editor: spawn list full (%d); save first\n", EDITOR_SPAWN_MAX);
+        TORIRS_LOG("editor: spawn list full (%d); save first\n", EDITOR_SPAWN_MAX);
         return -1;
     }
     e = &panel->spawns[panel->spawn_count];
@@ -2175,7 +2175,7 @@ Editor_PanelDeleteSelection(
     }
     if( panel->sel_kind != EDITOR_SELECTION_LOC )
     {
-        fprintf(stderr, "editor: nothing deletable is selected\n");
+        TORIRS_LOG("editor: nothing deletable is selected\n");
         return 0;
     }
     /* By element when the overlay has healed one -- exact layer -- else by
@@ -2280,8 +2280,7 @@ editor_clear_tile_locs(
 
     if( sx < 0 || sz < 0 )
         return;
-    fprintf(
-        stderr, "editor: cleared %d loc(s) at %d,%d\n",
+    TORIRS_LOG("editor: cleared %d loc(s) at %d,%d\n",
         Editor_PanelClearLocsAt(panel, app, sx, sz, Editor_PanelEditLevel(panel, app)), sx, sz);
 }
 
@@ -2293,7 +2292,7 @@ panel_bake_progress(
     char const* line)
 {
     (void)user_data;
-    fprintf(stderr, "bake: %s\n", line);
+    TORIRS_LOG("bake: %s\n", line);
 }
 
 /*
@@ -2514,8 +2513,7 @@ Editor_PanelTick(
         {
             panel->sq_total = total < EDITOR_SQUARE_MAX ? total : EDITOR_SQUARE_MAX;
             if( total > panel->sq_total )
-                fprintf(
-                    stderr, "editor: %d squares in the tree, holding the first %d\n", total,
+                TORIRS_LOG("editor: %d squares in the tree, holding the first %d\n", total,
                     panel->sq_total);
         }
         panel->sq_listed = 1;
@@ -2570,12 +2568,12 @@ Editor_PanelTick(
     {
         int const row = ToriRSChrome_DropdownSelected(ui, panel->sq_dd_list);
         if( row < 0 || row >= panel->sq_count )
-            fprintf(stderr, "editor: pick a square in the list first\n");
+            TORIRS_LOG("editor: pick a square in the list first\n");
         else if( Editor_DocHasUnsaved(&editor->doc) )
             /* Loading discards the scene the edits were made against, so an
              * unsaved edit would be silently lost. Refuse and say why rather
              * than opening a dialog this chrome has no widget for. */
-            fprintf(stderr, "editor: save (or undo) your changes before opening another square\n");
+            TORIRS_LOG("editor: save (or undo) your changes before opening another square\n");
         else
         {
             /* The row is an index into the FILTERED view; sq_row_index maps it
@@ -2717,18 +2715,15 @@ Editor_PanelTick(
             int const saved = Editor_SaveAll(editor);
             int const spawned = Editor_PanelSpawnsSave(panel, app);
             if( saved < 0 )
-                fprintf(stderr, "editor: read-only session, nothing saved\n");
+                TORIRS_LOG("editor: read-only session, nothing saved\n");
             else
-                fprintf(
-                    stderr, "editor: saved %d square(s) as text, %d spawn file(s)\n", saved,
+                TORIRS_LOG("editor: saved %d square(s) as text, %d spawn file(s)\n", saved,
                     spawned);
             break;
         }
         case 1: /* Bake cache. The one bake call site in the tree. */
-            fprintf(stderr, "editor: baking, this takes a while\n");
-            fprintf(
-                stderr,
-                "editor: bake %s\n",
+            TORIRS_LOG("editor: baking, this takes a while\n");
+            TORIRS_ERR("editor: bake %s\n",
                 Editor_Bake(editor, panel_bake_progress, NULL) ? "finished" : "FAILED");
             break;
         case 2: /* Close editor */
@@ -2743,10 +2738,10 @@ Editor_PanelTick(
         switch( ToriRSChrome_DropdownSelected(ui, panel->menu_edit) )
         {
         case 0:
-            fprintf(stderr, "editor: undo reverted %d edit(s)\n", Editor_Undo(editor));
+            TORIRS_LOG("editor: undo reverted %d edit(s)\n", Editor_Undo(editor));
             break;
         case 1:
-            fprintf(stderr, "editor: redo reapplied %d edit(s)\n", Editor_Redo(editor));
+            TORIRS_LOG("editor: redo reapplied %d edit(s)\n", Editor_Redo(editor));
             break;
         case 2:
             Editor_PanelApplyToSelection(panel, app);
@@ -2761,9 +2756,9 @@ Editor_PanelTick(
             /* Same placement, different loc: the selected loc becomes the
              * catalog's pick, keeping its tile, shape and rotation. */
             if( panel->sel_kind != EDITOR_SELECTION_LOC )
-                fprintf(stderr, "editor: select a loc to swap first\n");
+                TORIRS_LOG("editor: select a loc to swap first\n");
             else if( panel->cat_picked_id < 0 )
-                fprintf(stderr, "editor: pick a replacement in the catalog first\n");
+                TORIRS_LOG("editor: pick a replacement in the catalog first\n");
             else
                 Editor_PanelReplaceSelectedLoc(
                     panel, app, panel->cat_picked_id, panel->sel_shape, panel->sel_angle,

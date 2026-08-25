@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include <rscache.h>
+#include "log/torirs_log.h"
 
 /*
  * Slots are scanned linearly. Groups are read at task granularity — a few
@@ -68,9 +69,7 @@ dat2_group_cache_census(struct Dat2GroupCache const* cache)
 
     assert(cache);
     lookups = cache->hits + cache->misses;
-    fprintf(
-        stderr,
-        "[dat2_group_cache] budget=%.2f MB peak=%.2f MB live=%.2f MB\n"
+    TORIRS_LOG("[dat2_group_cache] budget=%.2f MB peak=%.2f MB live=%.2f MB\n"
         "[dat2_group_cache] lookups=%llu hits=%llu misses=%llu hit=%.1f%%\n"
         "[dat2_group_cache] evictions=%llu evicted=%.2f MB\n",
         cache->budget / (1024.0 * 1024.0),
@@ -88,9 +87,7 @@ dat2_group_cache_census(struct Dat2GroupCache const* cache)
         struct Dat2GroupCacheSlot const* slot = &cache->slots[i];
         if( !slot->occupied )
             continue;
-        fprintf(
-            stderr,
-            "[dat2_group_cache]   resident table=%d group=%d files=%d %.2f MB\n",
+        TORIRS_LOG("[dat2_group_cache]   resident table=%d group=%d files=%d %.2f MB\n",
             slot->group.table,
             slot->group.group,
             slot->group.file_count,

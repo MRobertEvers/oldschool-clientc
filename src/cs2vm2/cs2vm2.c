@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "log/torirs_log.h"
 
 #define CS2VM2_DEBUG_OPS 0
 
@@ -541,9 +542,7 @@ CS2VM2_CheckYieldHalt(
 
     if( vm->yield_halt_count > 1 )
     {
-        fprintf(
-            stderr,
-            "CS2VM: opcode %d yielded more than once at script=%d pc=%d frame=%d\n",
+        TORIRS_LOG("CS2VM: opcode %d yielded more than once at script=%d pc=%d frame=%d\n",
             opcode,
             script_id,
             op_pc,
@@ -660,9 +659,7 @@ CS2VM2_TraceOpcode(
 #endif
 
     char const* op_name = CS2_OpCode_String(opcode);
-    fprintf(
-        stderr,
-        "CS2TRACE script=%d pc=%d op=%s(%d) intOp=%d istack=%d sstack=%d aw=0x%08x dw=0x%08x",
+    TORIRS_ERR("CS2TRACE script=%d pc=%d op=%s(%d) intOp=%d istack=%d sstack=%d aw=0x%08x dw=0x%08x",
         frame->script->script_id,
         op_pc,
         op_name ? op_name : "_unknown",
@@ -673,24 +670,22 @@ CS2VM2_TraceOpcode(
         (unsigned)vm->active_component_id,
         (unsigned)vm->dot_component_id);
     if( g_cs2_trace_extra[0] != '\0' )
-        fprintf(stderr, " %s", g_cs2_trace_extra);
+        TORIRS_LOG(" %s", g_cs2_trace_extra);
     /* TEMP DEBUG: top-of-stack values for parity diffing (mode 2 only). */
     if( g_cs2_trace_mode == 2 )
     {
         if( vm->ints_stack_top > 0 )
-            fprintf(stderr, " itop=%d", vm->ints_stack[vm->ints_stack_top - 1]);
+            TORIRS_LOG(" itop=%d", vm->ints_stack[vm->ints_stack_top - 1]);
         if( vm->strs_stack_top > 0 )
-            fprintf(
-                stderr,
-                " stop=\"%s\"",
+            TORIRS_ERR(" stop=\"%s\"",
                 vm->strs_stack[vm->strs_stack_top - 1] ? vm->strs_stack[vm->strs_stack_top - 1]
                                                        : "(null)");
     }
     if( result == CS2VM_EXECNO_YIELD )
-        fprintf(stderr, " result=yield");
+        TORIRS_LOG(" result=yield");
     else if( result != CS2VM_EXECNO_OK )
-        fprintf(stderr, " result=error");
-    fprintf(stderr, "\n");
+        TORIRS_ERR(" result=error");
+    TORIRS_LOG("\n");
     if( result != CS2VM_EXECNO_YIELD )
         CS2VM2_ClearTraceExtra();
 }
@@ -1730,9 +1725,7 @@ CS2VM2_Op_GosubWithParams(
         /* Say so. A blown call stack otherwise surfaces as "script N failed at
          * opcode 40", which reads like a bad gosub target and sent this hunt
          * looking at the callee rather than the depth. */
-        fprintf(
-            stderr,
-            "CS2VM2: call depth %d exhausted calling script %d from script %d "
+        TORIRS_LOG("CS2VM2: call depth %d exhausted calling script %d from script %d "
             "(raise CS2VM_MAX_FRAMES)\n",
             CS2VM_MAX_FRAMES,
             operand,
@@ -6937,9 +6930,7 @@ CS2VM2_Op_DefineArray(
 
     if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
     {
-        fprintf(
-            stderr,
-            "CS2VM2: array pool exhausted (%d) in script %d\n",
+        TORIRS_LOG("CS2VM2: array pool exhausted (%d) in script %d\n",
             CS2VM2_MAX_ARRAYS,
             frame->script ? frame->script->script_id : -1);
         vm->array_alloc = CS2VM2_MAX_ARRAYS - 1; /* fail soft: reuse the last */
@@ -7354,9 +7345,7 @@ CS2VM2_Op_ArraySplit(
 
     if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
     {
-        fprintf(
-            stderr,
-            "CS2VM2: array pool exhausted (%d) in script %d (ARRAY_SPLIT)\n",
+        TORIRS_LOG("CS2VM2: array pool exhausted (%d) in script %d (ARRAY_SPLIT)\n",
             CS2VM2_MAX_ARRAYS,
             frame->script ? frame->script->script_id : -1);
         return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
@@ -7438,9 +7427,7 @@ CS2VM2_Op_ArrayNew(
 
     if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
     {
-        fprintf(
-            stderr,
-            "CS2VM2: array pool exhausted (%d) in script %d (ARRAY_NEW)\n",
+        TORIRS_LOG("CS2VM2: array pool exhausted (%d) in script %d (ARRAY_NEW)\n",
             CS2VM2_MAX_ARRAYS,
             frame->script ? frame->script->script_id : -1);
         return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
@@ -7666,9 +7653,7 @@ CS2VM2_Op_IF_ChildrenCollect(
 
     if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
     {
-        fprintf(
-            stderr,
-            "CS2VM2: array pool exhausted (%d) in script %d (IF_CHILDREN_COLLECT)\n",
+        TORIRS_LOG("CS2VM2: array pool exhausted (%d) in script %d (IF_CHILDREN_COLLECT)\n",
             CS2VM2_MAX_ARRAYS,
             frame->script ? frame->script->script_id : -1);
         vm->children_collect_handle = NULL;
@@ -7708,9 +7693,7 @@ CS2VM2_Op_ChildrenArray(
 
     if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
     {
-        fprintf(
-            stderr,
-            "CS2VM2: array pool exhausted (%d) in script %d (CHILDREN_ARRAY)\n",
+        TORIRS_LOG("CS2VM2: array pool exhausted (%d) in script %d (CHILDREN_ARRAY)\n",
             CS2VM2_MAX_ARRAYS,
             frame->script ? frame->script->script_id : -1);
         return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
@@ -8247,9 +8230,7 @@ CS2VM2_ReportUnimplementedOpcode(
     int first;
     int last;
 
-    fprintf(
-        stderr,
-        "CS2VM2: unimplemented opcode %d (%s) — no stack signature\n",
+    TORIRS_LOG("CS2VM2: unimplemented opcode %d (%s) — no stack signature\n",
         opcode,
         CS2_OpCode_String(opcode));
 
@@ -8263,18 +8244,14 @@ CS2VM2_ReportUnimplementedOpcode(
     if( last > script->op_count )
         last = script->op_count;
 
-    fprintf(
-        stderr,
-        "  in script %d (int_locals=%d str_locals=%d), pc=%d:\n",
+    TORIRS_LOG("  in script %d (int_locals=%d str_locals=%d), pc=%d:\n",
         script->script_id,
         script->local_int_count,
         script->local_string_count,
         frame->pc);
     for( int pci = first; pci < last; pci++ )
     {
-        fprintf(
-            stderr,
-            "  %s pc=%d op=%d %-22s operand=%d str=%s\n",
+        TORIRS_ERR("  %s pc=%d op=%d %-22s operand=%d str=%s\n",
             pci == frame->pc ? "->" : "  ",
             pci,
             script->opcodes[pci],
@@ -9207,9 +9184,7 @@ CS2VM2_Op_StackMetaStub(
             {
                 if( in_table )
                     reported[opcode] = true;
-                fprintf(
-                    stderr,
-                    "cs2-survey: opcode %d unimplemented (script %d pc %d)\n",
+                TORIRS_LOG("cs2-survey: opcode %d unimplemented (script %d pc %d)\n",
                     opcode,
                     frame->script ? frame->script->script_id : -1,
                     frame->pc);
@@ -9236,9 +9211,7 @@ CS2VM2_Op_StackMetaStub(
         if( !announced[opcode] )
         {
             announced[opcode] = true;
-            fprintf(
-                stderr,
-                "cs2-stub: opcode %d has an inherited signature (%d,%d,%d,%d) but no "
+            TORIRS_LOG("cs2-stub: opcode %d has an inherited signature (%d,%d,%d,%d) but no "
                 "implementation — stack balanced, results faked (script %d pc %d)\n",
                 opcode,
                 meta.int_in,
@@ -12798,40 +12771,39 @@ CS2VM2_DebugPrintOpCode(
     char const* str_operand)
 {
 #if CS2VM2_DEBUG_OPS
-    printf("pc=%d %s (op %d)", frame->pc, CS2_OpCode_String(opcode), opcode);
+    TORIRS_LOG("pc=%d %s (op %d)", frame->pc, CS2_OpCode_String(opcode), opcode);
 
     switch( cs2_opcode_operand_kind(opcode) )
     {
     case CS2_OPERAND_STRING:
-        printf(" operand.str=\"%s\"", str_operand ? str_operand : "(null)");
+        TORIRS_ERR(" operand.str=\"%s\"", str_operand ? str_operand : "(null)");
         break;
     case CS2_OPERAND_INT8:
     case CS2_OPERAND_INT32:
-        printf(" operand.int=%d", operand);
+        TORIRS_LOG(" operand.int=%d", operand);
         break;
     case CS2_OPERAND_NONE:
     default:
         break;
     }
-    printf("\n");
+    TORIRS_LOG("\n");
 
     if( opcode == CS2_OP_PUSH_INT_LOCAL || opcode == CS2_OP_POP_INT_LOCAL )
-        printf(
-            "    int_local[%d] = %d\n",
+        TORIRS_LOG("    int_local[%d] = %d\n",
             operand,
             cs2vm2_frame_int_local(frame, operand));
 
     if( opcode == CS2_OP_PUSH_STRING_LOCAL || opcode == CS2_OP_POP_STRING_LOCAL )
     {
         char const* value = cs2vm2_frame_str_local(frame, operand);
-        printf("    str_local[%d] = \"%s\"\n", operand, value ? value : "(null)");
+        TORIRS_ERR("    str_local[%d] = \"%s\"\n", operand, value ? value : "(null)");
     }
 
     int int_args = 0;
     int str_args = 0;
     if( CS2VM2_OpArgCounts(opcode, operand, &int_args, &str_args) != 0 )
     {
-        printf("    args: variable (callee signature)\n");
+        TORIRS_LOG("    args: variable (callee signature)\n");
         return;
     }
 
@@ -12839,23 +12811,22 @@ CS2VM2_DebugPrintOpCode(
     {
         int depth = vm->ints_stack_top - 1 - i;
         if( depth >= 0 )
-            printf("    int arg[%d] (top-%d) = %d\n", i, i, vm->ints_stack[depth]);
+            TORIRS_LOG("    int arg[%d] (top-%d) = %d\n", i, i, vm->ints_stack[depth]);
         else
-            printf("    int arg[%d] = <stack underflow>\n", i);
+            TORIRS_LOG("    int arg[%d] = <stack underflow>\n", i);
     }
     for( int i = 0; i < str_args; i++ )
     {
         int depth = vm->strs_stack_top - 1 - i;
         if( depth >= 0 )
         {
-            printf(
-                "    str arg[%d] (top-%d) = \"%s\"\n",
+            TORIRS_ERR("    str arg[%d] (top-%d) = \"%s\"\n",
                 i,
                 i,
                 vm->strs_stack[depth] ? vm->strs_stack[depth] : "(null)");
         }
         else
-            printf("    str arg[%d] = <stack underflow>\n", i);
+            TORIRS_LOG("    str arg[%d] = <stack underflow>\n", i);
     }
 #endif
 }
@@ -12993,12 +12964,11 @@ cs2_profile_report(void)
             all_ns += g_cs2_profile[i].ns;
             all_calls += g_cs2_profile[i].calls;
         }
-        fprintf(
-            stderr, "=== cs2 RunScript total: %.3f ms over %llu calls, %llu distinct scripts ===\n",
+        TORIRS_LOG("=== cs2 RunScript total: %.3f ms over %llu calls, %llu distinct scripts ===\n",
             (double)all_ns / 1e6, (unsigned long long)all_calls,
             (unsigned long long)g_cs2_profile_rows);
     }
-    fprintf(stderr, "=== cs2 script profile (top 20 by total wall time) ===\n");
+    TORIRS_LOG("=== cs2 script profile (top 20 by total wall time) ===\n");
     for( int rank = 0; rank < 20 && rank < g_cs2_profile_rows; rank++ )
     {
         int best = -1;
@@ -13011,9 +12981,7 @@ cs2_profile_report(void)
         }
         if( best < 0 )
             break;
-        fprintf(
-            stderr,
-            "  script %-6d %8.3f ms total  %6u calls  %8.3f us/call  %8llu creates  %8llu "
+        TORIRS_LOG("  script %-6d %8.3f ms total  %6u calls  %8.3f us/call  %8llu creates  %8llu "
             "marks  %8llu topo  %7.2f topo/call  uitree.c:%d\n",
             g_cs2_profile[best].script_id, (double)g_cs2_profile[best].ns / 1e6,
             g_cs2_profile[best].calls,
@@ -13038,16 +13006,15 @@ cs2_profile_report(void)
             total_ms += (double)g_cs2_profile[i].ns / 1e6;
             total_calls += g_cs2_profile[i].calls_total;
         }
-        fprintf(
-            stderr, "  ALL %d scripts: %.3f ms total, %llu calls\n", g_cs2_profile_rows,
+        TORIRS_LOG("  ALL %d scripts: %.3f ms total, %llu calls\n", g_cs2_profile_rows,
             total_ms, (unsigned long long)total_calls);
     }
-    fprintf(stderr, "=== end cs2 script profile ===\n");
+    TORIRS_LOG("=== end cs2 script profile ===\n");
 
     /* Cumulative share is the number target 8 is actually choosing against: it
      * says how many distinct opcodes a micro-op set has to cover to reach most
      * of the traffic. Forty rows is enough to see that curve flatten. */
-    fprintf(stderr, "=== cs2 opcode histogram (top 40 of %llu executed) ===\n",
+    TORIRS_LOG("=== cs2 opcode histogram (top 40 of %llu executed) ===\n",
             (unsigned long long)g_cs2_opcode_hist_total);
     {
         uint64_t running = 0;
@@ -13064,8 +13031,7 @@ cs2_profile_report(void)
             if( best < 0 )
                 break;
             running += g_cs2_opcode_hist[best];
-            fprintf(
-                stderr, "  op %-6d %10u  %5.2f%%  cum %5.2f%%\n", best,
+            TORIRS_LOG("  op %-6d %10u  %5.2f%%  cum %5.2f%%\n", best,
                 g_cs2_opcode_hist[best],
                 g_cs2_opcode_hist_total
                     ? 100.0 * (double)g_cs2_opcode_hist[best] / (double)g_cs2_opcode_hist_total
@@ -13076,11 +13042,10 @@ cs2_profile_report(void)
             g_cs2_opcode_hist[best] = 0; /* consumed, same selection sort as above */
         }
         if( g_cs2_opcode_hist_dropped )
-            fprintf(
-                stderr, "  (%u executions had an opcode outside [0,%d) and were not counted)\n",
+            TORIRS_LOG("  (%u executions had an opcode outside [0,%d) and were not counted)\n",
                 g_cs2_opcode_hist_dropped, CS2_OPCODE_HIST_SIZE);
     }
-    fprintf(stderr, "=== end cs2 opcode histogram ===\n");
+    TORIRS_LOG("=== end cs2 opcode histogram ===\n");
 }
 
 static struct cs2_profile_row*

@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "log/torirs_log.h"
 
 struct NetTransport*
 NetTransport_NewWs(int default_port); /* net_transport_ws.c */
@@ -83,7 +84,7 @@ NetTransport_New(int kind, int default_port, char const* rev_name)
     case NET_TRANSPORT_WS:
         return NetTransport_NewWs(default_port);
     default:
-        fprintf(stderr, "NetTransport_New: unknown transport kind %d\n", kind);
+        TORIRS_ERR("NetTransport_New: unknown transport kind %d\n", kind);
         return NULL;
     }
 }

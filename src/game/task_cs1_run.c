@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /** Guards against a component whose loads never satisfy it. */
 #define TASK_CS1_RETRY_MAX 4
@@ -163,7 +164,7 @@ Task_CS1Eval_Run(
 
             if( !self->host->has_pending )
             {
-                fprintf(stderr, "Task_CS1Eval: yield without pending host request\n");
+                TORIRS_LOG("Task_CS1Eval: yield without pending host request\n");
                 break;
             }
 

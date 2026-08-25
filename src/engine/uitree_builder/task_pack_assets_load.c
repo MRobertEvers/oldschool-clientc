@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_PackAssetsLoad
 {
@@ -117,9 +118,7 @@ Task_PackAssetsLoad_Run(
         assert(pack && "PackAssetsLoad requires ComponentPack already loaded");
         collect_from_pack(self, pack);
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "PackAssetsLoad: iface=%d components=%d sprites=%d fonts=%d models=%d "
+            TORIRS_LOG("PackAssetsLoad: iface=%d components=%d sprites=%d fonts=%d models=%d "
                 "npcs=%d needs_player=%d\n",
                 self->iface_id,
                 pack->component_count,
