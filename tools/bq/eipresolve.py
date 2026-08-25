@@ -21,6 +21,7 @@ the two tables would hide which one you are looking at.
 import argparse
 import bisect
 import os
+import re
 import subprocess
 import sys
 
@@ -28,6 +29,36 @@ DEFAULT_NM = os.environ.get(
     'BQ_NM',
     r'C:\Users\mrobe\Documents\git_repos\oldschool-clientc\toolchains'
     r'\mingw32\bin\nm.exe')
+
+
+DEFAULT_OBJDUMP = os.environ.get('BQ_OBJDUMP',
+                                 DEFAULT_NM.replace('nm.exe', 'objdump.exe'))
+
+
+def linked_base(exe, objdump):
+    """The image base the linker wrote into the PE header.
+
+    The sampler stores `eip - module_base` (toridraw_eip_sample.c:77), so its
+    offsets do not depend on where the loader put the image. `nm` reports
+    LINKED addresses, so resolution has to add the LINKED base back -- not the
+    base the run happened to observe.
+
+    On XP the two are the same number, which is why this never mattered: XP
+    does not relocate the main image. Windows 10/11 do, and adding a relocated
+    base to an offset lands every sample past the end of the symbol table,
+    where bisect piles the whole profile onto whichever symbol happens to be
+    last. Nothing about the output says it went wrong -- you notice only
+    because one symbol is holding 84% of the frame.
+    """
+    assert exe
+    assert objdump
+    try:
+        out = subprocess.check_output([objdump, '-p', exe],
+                                      stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    m = re.search(r'ImageBase\s+([0-9a-fA-F]+)', out.decode('ascii', 'replace'))
+    return int(m.group(1), 16) if m else None
 
 
 def parse_dump(path):
@@ -101,13 +132,25 @@ def main():
     ap.add_argument('dump')
     ap.add_argument('exe')
     ap.add_argument('--nm', default=DEFAULT_NM)
+    ap.add_argument('--objdump', default=DEFAULT_OBJDUMP)
+    ap.add_argument('--base', default=None,
+                    help='hex base to resolve against; the default is the '
+                         "exe's linked ImageBase, which is the address space "
+                         'nm reports in')
     ap.add_argument('--top', type=int, default=40)
     ap.add_argument('--ms', type=float, default=None,
                     help='measured ms/frame, to turn shares into milliseconds')
     a = ap.parse_args()
 
     head, bins, others, mods = parse_dump(a.dump)
-    base = int(head.get('module_base', '0x400000'), 16)
+    observed = int(head.get('module_base', '0x400000'), 16)
+    # Resolve in the LINKED address space; see linked_base() above.
+    if a.base is not None:
+        base = int(a.base, 16)
+    else:
+        base = linked_base(a.exe, a.objdump)
+        if base is None:
+            base = observed
     total = int(head.get('samples_total', 0))
     in_image = int(head.get('samples_in_image', 0))
     failed = int(head.get('suspend_failures', 0))
@@ -119,8 +162,13 @@ def main():
 
     print('dump          : %s' % a.dump)
     print('binary        : %s' % a.exe)
-    print('module base   : 0x%08x   (nm range 0x%08x-0x%08x)'
-          % (base, syms[0][0], syms[-1][0]))
+    print('module base   : 0x%08x observed, resolving at 0x%08x   '
+          '(nm range 0x%08x-0x%08x)'
+          % (observed, base, syms[0][0], syms[-1][0]))
+    if observed != base:
+        print('              : image relocated %+d bytes; the dump stores '
+              'base-independent offsets, so this is handled.'
+              % (observed - base))
     if not (syms[0][0] <= base + 0x1000 <= syms[-1][0] + 0x10000):
         print('WARNING: the dump base and the symbol table do not overlap. '
               'Either this is not the binary that ran, or the image moved.')
