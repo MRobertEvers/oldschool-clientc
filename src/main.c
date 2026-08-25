@@ -2230,6 +2230,43 @@ frame_loop_step(void)
      * main(). */
     fflush(stderr);
     App_NoteFrameTime(&app, PlatformSDL2_TicksUs() - frame_start_us);
+
+    /*
+     * TORIRS_FPS_REPORT=1: frames per second, every two seconds.
+     *
+     * Not a nicety. A CPU percentage is only comparable between two clients
+     * that are drawing at the same rate, and that was assumed rather than
+     * checked for a long time -- the Java client turned out to be rendering 31
+     * fps against our 50, which invalidated every "% of one core" comparison
+     * made against it. It also decides whether an ablation is readable at all:
+     * a client that is missing its frame cap absorbs a deleted phase as frame
+     * time instead of as CPU, and the arm then shows no saving at all.
+     *
+     * So every measured arm should be able to state its own frame rate.
+     */
+    {
+        static int report = -1;
+        static uint64_t win_start_ms;
+        static int win_frames;
+
+        if( report < 0 )
+            report = getenv("TORIRS_FPS_REPORT") ? 1 : 0;
+        if( report )
+        {
+            uint64_t now_ms = PlatformSDL2_Ticks64();
+            if( win_start_ms == 0 )
+                win_start_ms = now_ms;
+            win_frames++;
+            if( now_ms - win_start_ms >= 2000 )
+            {
+                TORIRS_REPORT(
+                    "[fps] %.1f\n",
+                    (double)win_frames * 1000.0 / (double)(now_ms - win_start_ms));
+                win_start_ms = now_ms;
+                win_frames = 0;
+            }
+        }
+    }
     /* The browser paces us: emscripten_set_main_loop is backed by
      * requestAnimationFrame, and a blocking sleep here would stall the page's
      * whole main thread rather than yield it. */

@@ -568,3 +568,70 @@ The raster work in sections 3 and 9 of this plan is therefore **closed**. Do not
 spend more time on the kernels, the span loops, or overdraw: at 18.5 ns/px
 against 40.9 we are already the faster rasteriser, and even eliminating our
 rasterisation entirely would leave us slower than the Java client overall.
+
+---
+
+## 13. Rasterisation, measured with the frame rate verified in every arm
+
+Sections 9-12 were all measured without checking frame rate, and the frame rates
+are not equal: **we render 50 fps, the Java client renders 31.** Redone with
+both clients reporting their own fps, and every figure normalised **per frame**.
+
+| arm | fps | CPU ms/frame |
+|---|---|---|
+| torirs baseline | 50.0 | 15.15 |
+| torirs, raster ablated | 50.0 | 8.75 |
+| Java baseline | 31.0 | 16.23 |
+| Java, all three rasterisers ablated | 49.5 | 0.97 |
+
+| | pixels/frame | **raster ms/frame** | **ns per pixel** |
+|---|---|---|---|
+| **torirs** | 341,692 | **6.40** | **18.7** |
+| Java | 355,744 | 15.26 | 42.9 |
+
+**Our rasterisation is 2.4x cheaper per frame and 2.3x faster per pixel, on
+0.96x the pixel count.** Geometry is at parity: 6,924 faces against 7,269, and
+341,692 pixels against 355,744.
+
+### 13.1 The geometry ratios in sections 9-12 were all frame-rate errors
+
+Java's census prints per SECOND and Java runs at 31 fps; dividing by 50 gave
+1.52x. Corrected, the two clients draw the same amount:
+
+| per frame | torirs | Java | ratio |
+|---|---|---|---|
+| triangles | 6,924 | 7,269 | 0.95x |
+| pixels | 341,692 | 355,744 | 0.96x |
+
+So "we draw a third of Java's pixels" (S9), "3.6x more" (S10) and "1.52x more"
+(S11) were all wrong, and all from the same root cause: **a per-second number
+divided by an assumed frame rate.**
+
+### 13.2 Why the per-kernel Java ablations were unreadable
+
+Ablating Java's gouraud raster alone changed its CPU by **nothing** (50.3 % ->
+50.3 %) even though `gspans/s` went 1,608,944 -> 0 and pixels fell 41 %. Java's
+baseline misses its frame cap, so a client that gets cheaper spends the saving
+on frame rate rather than on CPU. Only the all-kernels arm crossed the cap
+(49.5 fps) and showed the cost.
+
+**An ablation is only readable when the client hits its frame cap in every arm.**
+Ours does -- 50.0 fps in both -- which is why the torirs figures above are sound.
+
+### 13.3 Consequence: rasterisation is not our problem
+
+Per frame, against the Java client:
+
+| | torirs | Java | gap |
+|---|---|---|---|
+| rasterisation | 6.40 ms | 15.26 ms | **-8.86 ms (we win)** |
+| everything else | 8.75 ms | 0.97 ms | **+7.78 ms** |
+| total | 15.15 ms | 16.23 ms | -1.08 ms |
+
+We are already the cheaper client per frame. We burn more CPU per SECOND only
+because we draw 61 % more frames.
+
+Optimising the rasteriser further would be tuning the one part that is 2.3x
+ahead. The remaining work is **everything that is not rasterisation**: 8.75 ms
+against 0.97 ms, whose largest named item is the per-frame full-DIB `BitBlt`
+(13.4 % of EIP work samples).
