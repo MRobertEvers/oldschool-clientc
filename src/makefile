@@ -124,9 +124,16 @@ ifeq ($(EMBED_SERVER),1)
 EMBED_SERVER_SUFFIX = _es
 else
 EMBED_SERVER_SUFFIX =
+# PROFILE=1 changes CFLAGS, so it must own its object directory: reusing the
+# release objects would silently link a profile build with no frame pointers
+# and no DWARF in anything that did not happen to be rebuilt.
+PROFILE_SUFFIX =
+ifeq ($(PROFILE),1)
+PROFILE_SUFFIX = _prof
+endif
 endif
 ifeq ($(OPT),1)
-OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(PROFILE_SUFFIX)$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = -O3
 else
 OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
@@ -164,9 +171,25 @@ endif
 # The optimized XP deliverable is a deployment binary, not a profiling build.
 # Let the i686 register allocator reclaim EBP and do not carry DWARF through
 # every object. Other lanes retain their existing diagnostic-friendly flags.
+#
+# PROFILE=1 opts the optimized lane back into frame pointers and DWARF, for a
+# sampling profile of the build that actually ships. It is deliberately a knob
+# on OPT=1 rather than a reason to profile OPT=0: an -O0 profile measures code
+# nobody runs, and the two disagree about which function is even hot.
+#
+# The cost is one register and slightly larger objects, not a different program
+# -- -g changes no codegen at all. Note the hand-written asm kernels use EBP as
+# a scratch register, so a frame-pointer walk terminates on entry to them: their
+# samples are correct as LEAVES (the flat EIP histogram is unaffected) but carry
+# no callers. The histogram is the ground truth for "where"; the stacks are the
+# call tree for the C around it.
 ifeq ($(PLATFORM),win32)
 ifeq ($(OPT),1)
+ifeq ($(PROFILE),1)
+BUILD_DIAGNOSTIC_CFLAGS = -fno-omit-frame-pointer -g
+else
 BUILD_DIAGNOSTIC_CFLAGS = -fomit-frame-pointer
+endif
 else
 BUILD_DIAGNOSTIC_CFLAGS = -fno-omit-frame-pointer -g
 endif
