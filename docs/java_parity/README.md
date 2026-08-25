@@ -1,5 +1,32 @@
 # Beating the Java client: where the time actually goes
 
+> ## ⚠ READ FIRST: the Java client renders 31 fps, not 50
+>
+> Measured 2026-08-25 by counting `Pix2D.cls()` (one call per frame) — **31.0 fps,
+> steady over 26 samples**. Our client renders **50.0 fps**. Every "% of one core"
+> comparison in this document, including the headline **74.7 % against 49.7 %**,
+> compares two clients doing different amounts of work per second and is
+> **invalid as written**.
+>
+> | | fps | CPU % of one core | **CPU ms per FRAME** |
+> |---|---|---|---|
+> | torirs | 50.0 | 74.8 | **14.96** |
+> | Java | 31.0 | 50.3 | **16.23** |
+>
+> **Per frame we already use less CPU than the Java client.** We burn more total
+> because we render 61 % more frames. Java's pacer targets ~50 fps and cannot
+> reach it: with all three `Pix3D` rasterisers ablated it jumps to **49.5 fps at
+> 4.8 % CPU**, so it is raster-bound down to 31.
+>
+> Consequences for everything below:
+> * Compare **CPU ms per frame**, never CPU %.
+> * **Report fps in every arm, for both clients.** An ablation on a client that
+>   is missing its frame cap absorbs the saving as frame time rather than CPU:
+>   removing Java's gouraud raster drops its pixels 41 % and its CPU by *zero*.
+> * `docs/java_parity/PLAN.md` §9–12 were written before this was known.
+
+
+
 Both clients, same XP box, same rev-289 LostCity world, both pinned at 50 fps.
 Everything here was measured on 2026-08-25 against `merge/v3-pr49`
 (v3 + PR #49 + the log-channel sweep), except where it says otherwise.

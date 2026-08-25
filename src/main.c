@@ -736,6 +736,36 @@ static int uncapped;
 /* TORIRS_PACE_SPIN=1: burn the pacing wait instead of sleeping it. Profiling
  * aid for isolating wake-up cost from render cost; see docs/PERF_HARNESS.md. */
 static int pace_spin;
+
+/*
+ * Milliseconds per drawn frame. 20 (50 fps) unless TORIRS_FRAME_MS says otherwise.
+ *
+ * This is a knob because the frame rate is not comparable between clients and
+ * was assumed to be. The Java client on the XP target renders **31 fps**, not
+ * 50: its GameShell paces `mainloop()` (logic) against `deltime` and lets
+ * `mainredraw()` run once per iteration with only a 1 ms sleep, so its DRAW rate
+ * floats to whatever the machine manages. Ours pins the draw at 20 ms and hits
+ * it. Comparing "% of one core" between a client doing 50 draws a second and one
+ * doing 31 measures the frame rate, not the renderer -- per frame we are the
+ * cheaper of the two (14.96 ms against 16.23 ms).
+ *
+ * So this exists to hold the draw rate fixed while comparing, and to let the
+ * deployed cap be set deliberately rather than by a literal buried in the pacer.
+ */
+static int
+frame_period_ms(void)
+{
+    static int cached = -1;
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_FRAME_MS");
+        int ms = (v && *v) ? atoi(v) : 20;
+        /* A zero or negative period would spin the loop with no wait at all;
+         * that is what --uncapped is for, and it says so explicitly. */
+        cached = ms > 0 ? ms : 20;
+    }
+    return cached;
+}
 /* Frame start of the previous loop iteration, for the `period` stage. */
 static uint64_t prev_frame_start_us;
 #if defined(TORIRS_PLATFORM_WEB)
@@ -2217,11 +2247,11 @@ frame_loop_step(void)
              * sleeping. Diagnostic only — it pins a core at 100% — but it is the
              * only way to separate the cap's own cost from the cost of resuming
              * a CPU that Windows parked during the sleep. */
-            while( PlatformSDL2_Ticks64() < frame_start_ms + 20 )
+            while( PlatformSDL2_Ticks64() < frame_start_ms + frame_period_ms() )
                 ;
         }
         else
-            PlatformSDL2_SleepUntil(frame_start_ms + 20);
+            PlatformSDL2_SleepUntil(frame_start_ms + frame_period_ms());
 
         TORIRS_PERF_CARRY(
             TORIRS_PERF_STAGE_PACE, (PlatformSDL2_TicksUs() - pace_begin_us) * 1000u);

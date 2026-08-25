@@ -27284,7 +27284,13 @@ App_RunOnce(
                     &app->hover_com_id,
                     &app->emit_gate);
                 if( reusable )
+                {
                     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAINED, 1);
+                    /* The command list is the one already on screen, so the
+                     * chrome pixels are unchanged and only the live regions
+                     * need presenting. See App_PresentDamage. */
+                    app->ui_retained_frame = 1;
+                }
                 else
                 {
                     /* Defensive fallback for a volatile source that could not

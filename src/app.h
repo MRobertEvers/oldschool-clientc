@@ -895,6 +895,10 @@ struct App
     struct World_PickSet world_pickset;
     struct UITreeEmitDesc world_emit_desc;
     int world_view_valid;
+    /** Set when this frame reused the previous command list unchanged (PR #49's
+     *  retain gate). The chrome pixels are then identical to what is already on
+     *  screen, which is what a damaged-rect present needs to know. */
+    int ui_retained_frame;
     /**
      * The component the last MODAL sub-interface was mounted on, or -1.
      *
