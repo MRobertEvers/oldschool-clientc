@@ -1,0 +1,119 @@
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..fa6a54ea2 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -1048,6 +1048,94 @@ ToriDraw_CalculateCylinderAabb8point(
+  * instantiation. Marked always_inline because the whole point is that the
+  * constant reaches the loop body.
+  */
++
++/* #region agent log -- ADVERSARIAL VERIFIER PROBE, local counting only */
++struct TD_WCensus
++{
++    long long windings;        /* non-clip-candidate faces that computed a winding */
++    long long sign_diff;       /* 64-bit sign != 32-bit sign  <-- THE KILL SHOT */
++    long long value_diff;      /* 64-bit value != sign-extended 32-bit value */
++    long long over_bound;      /* any |delta| > 16384 (the arm's assert) */
++    long long over_int32;      /* |winding64| > INT32_MAX (true wrap) */
++    long long over_coord;      /* any |vx| or |vy| > 8192 on a non-clipped vertex */
++    long long near_models;     /* models with near_clipped == true */
++    long long models;
++    int max_dx;                /* max |delta| seen */
++    int max_coord;             /* max |vx|,|vy| seen */
++    long long max_absw;        /* max |winding64| */
++    long long front64, front32; /* accepted-count under each rule */
++};
++static struct TD_WCensus g_wcensus;
++
++static void
++td_wcensus_dump(void)
++{
++    const struct TD_WCensus* c = &g_wcensus;
++    fprintf(stderr,
++        "wcensus: models=%lld near_models=%lld windings=%lld "
++        "SIGN_DIFF=%lld value_diff=%lld over_bound=%lld over_int32=%lld "
++        "over_coord=%lld max_delta=%d max_coord=%d max_absw=%lld "
++        "front64=%lld front32=%lld\n",
++        c->models, c->near_models, c->windings,
++        c->sign_diff, c->value_diff, c->over_bound, c->over_int32,
++        c->over_coord, c->max_dx, c->max_coord, c->max_absw,
++        c->front64, c->front32);
++    fflush(stderr);
++}
++
++static void
++td_wcensus_face(int ax, int ay, int bx, int by, int cx, int cy)
++{
++    struct TD_WCensus* c = &g_wcensus;
++    int const dx1 = ax - bx, dy1 = ay - by, dx2 = cx - bx, dy2 = cy - by;
++    long long const w64 = (long long)dx1 * dy2 - (long long)dy1 * dx2;
++    int const w32 = dx1 * dy2 - dy1 * dx2;
++    int const s64 = w64 > 0 ? 1 : (w64 < 0 ? -1 : 0);
++    int const s32 = w32 > 0 ? 1 : (w32 < 0 ? -1 : 0);
++    long long absw = w64 < 0 ? -w64 : w64;
++    int d[4]; int i;
++    d[0] = dx1; d[1] = dy1; d[2] = dx2; d[3] = dy2;
++
++    c->windings++;
++    if( s64 != s32 ) c->sign_diff++;
++    if( w64 != (long long)w32 ) c->value_diff++;
++    if( absw > 2147483647LL ) c->over_int32++;
++    if( absw > c->max_absw ) c->max_absw = absw;
++    if( s64 > 0 ) c->front64++;
++    if( s32 > 0 ) c->front32++;
++    for( i = 0; i < 4; i++ )
++    {
++        int a = d[i] < 0 ? -d[i] : d[i];
++        if( a > c->max_dx ) c->max_dx = a;
++        if( a > 16384 ) { c->over_bound++; break; }
++    }
++    {
++        int co[6]; int k;
++        co[0]=ax; co[1]=ay; co[2]=bx; co[3]=by; co[4]=cx; co[5]=cy;
++        for( k = 0; k < 6; k++ )
++        {
++            int a = co[k] < 0 ? -co[k] : co[k];
++            if( a > c->max_coord ) c->max_coord = a;
++        }
++        for( k = 0; k < 6; k++ )
++        {
++            int a = co[k] < 0 ? -co[k] : co[k];
++            if( a > 8192 ) { c->over_coord++; break; }
++        }
++    }
++    if( (c->windings % 20000000) == 0 ) td_wcensus_dump();
++}
++
++static void
++td_wcensus_model(bool near_clipped)
++{
++    static int reg = 0;
++    if( !reg ) { reg = 1; atexit(td_wcensus_dump); }
++    g_wcensus.models++;
++    if( near_clipped ) g_wcensus.near_models++;
++}
++/* #endregion */
++
+ #if defined(__GNUC__) || defined(__clang__)
+ __attribute__((always_inline))
+ #endif
+@@ -1072,6 +1160,7 @@ bucket_sort_by_average_depth_impl(
+     int min_d = depth_levels;
+     int max_d = 0;
+ 
++    td_wcensus_model(near_clipped);
+     for( int f = 0; f < num_faces; f++ )
+     {
+         const uint32_t a = face_a[f];
+@@ -1085,8 +1174,11 @@ bucket_sort_by_average_depth_impl(
+              vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
+         long long winding = 1;
+         if( !clip_candidate )
++        {
++            td_wcensus_face(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
+             winding = toridraw_winding_2d(
+                 vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
++        }
+ 
+         /* A clipped vertex has sentinel x and undivided y, so this triangle's
+          * screen-space winding does not exist yet. The reference buckets it

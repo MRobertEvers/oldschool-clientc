@@ -105,3 +105,11 @@ were never meant to ship.
 repo files (docs, tools, android) alongside the arm. It is archived here as a
 source-only cumulative diff over `3rd/` and `src/` — apply it with
 `git apply`, not `git am`.
+
+## `_uncommitted/`
+
+Seven worktrees held arm work that was never committed. Those diffs are
+captured under `_uncommitted/`, restricted to `3rd/` and `src/`, each named
+for its worktree. Unlike the series above they are plain `git diff` output —
+apply with `git apply`. Their bases are recorded in the commit that added
+them; several are not `f1dfe77a5`, so check before applying.
