@@ -1,0 +1,636 @@
+From 936caa56a11633cd6a9a5b74f38f196153fa120b Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:16:52 -0500
+Subject: [PATCH] wip(r4-nonrender): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r4-nonrender.
+
+files: src/app.c src/engine/world_builder/world_scenery.u.c src/hunt_r4.h src/makefile src/platform/platform_sdl2_renderer_soft3d.c src/platform/torirs_heapcount.c src/render/torirs_frame.c src/world/world.c src/world/world.h src/world/world_cycle.c
+---
+ src/app.c                                    |   7 +-
+ src/engine/world_builder/world_scenery.u.c   |   3 +
+ src/hunt_r4.h                                |  32 +++
+ src/makefile                                 |  25 +++
+ src/platform/platform_sdl2_renderer_soft3d.c |  17 +-
+ src/platform/torirs_heapcount.c              | 222 +++++++++++++++++++
+ src/render/torirs_frame.c                    |  68 ++++++
+ src/world/world.c                            |   1 +
+ src/world/world.h                            |  11 +
+ src/world/world_cycle.c                      |  77 ++++++-
+ 10 files changed, 459 insertions(+), 4 deletions(-)
+ create mode 100644 src/hunt_r4.h
+ create mode 100644 src/platform/torirs_heapcount.c
+
+diff --git a/src/app.c b/src/app.c
+index 3b3ab67e3..958d3fdb3 100644
+--- a/src/app.c
++++ b/src/app.c
+@@ -1,3 +1,4 @@
++#include "hunt_r4.h"
+ #include "app.h"
+ 
+ #if defined(TORIRS_WEB_CACHE_IDB)
+@@ -28143,7 +28144,11 @@ App_Render(
+      * the mouse point right after it projects (the only window where the
+      * scene scratch holds its projection), then the raw hits classify into
+      * the pickset + hover tile the click/hotkey paths consume next frame. */
+-    if( app_world_drawable(app) && app->world_mouse_in_viewport )
++    /* TORIRS_R4_NOPICK=1 (ablation only): arm the renderer with no pick point,
++     * which removes BOTH the per-model hittest that rides projection and the
++     * PickHitsClassify pass below. Sizes the whole world-pick path. */
++    HUNT_R4_KNOB(r4_nopick, "TORIRS_R4_NOPICK")
++    if( !r4_nopick && app_world_drawable(app) && app->world_mouse_in_viewport )
+         ToriRS_Soft3D_SetPick(&soft, app->world_mouse_x, app->world_mouse_y);
+ 
+     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
+diff --git a/src/engine/world_builder/world_scenery.u.c b/src/engine/world_builder/world_scenery.u.c
+index e58e6d3bd..618e54b9d 100644
+--- a/src/engine/world_builder/world_scenery.u.c
++++ b/src/engine/world_builder/world_scenery.u.c
+@@ -1102,7 +1102,10 @@ scenery_load_model(
+                  * build-time static registration below, which
+                  * painter_reset_to_static truncates. */
+                 if( builder->scenery_runtime_spawn )
++                {
+                     sc->runtime_spawn = 1;
++                    world->scenery_runtime_spawn_seen = 1;
++                }
+                 scenery_debug_record(
+                     builder, sc, map_tile, config_loc, model, element_id, pool_idx, size_x,
+                     size_z);
+diff --git a/src/hunt_r4.h b/src/hunt_r4.h
+new file mode 100644
+index 000000000..bcd422c50
+--- /dev/null
++++ b/src/hunt_r4.h
+@@ -0,0 +1,32 @@
++#ifndef HUNT_R4_H
++#define HUNT_R4_H
++
++/*
++ * R4 "nonrender" hunt knobs.
++ *
++ * One binary, several runtime arms. Every knob is read exactly once per
++ * process into a function-local static, so the steady-state cost of a knob is
++ * a load and a perfectly-predicted branch -- not a getenv on the frame path.
++ *
++ * Knobs are OFF by default, so the same binary with no environment set is the
++ * control arm.
++ */
++
++#include <stdlib.h>
++
++static inline int
++hunt_r4_read(const char* name)
++{
++    const char* v = getenv(name);
++    if( !v )
++        return 0;
++    return atoi(v);
++}
++
++/* Declare + initialise a cached knob in the enclosing scope. */
++#define HUNT_R4_KNOB(var, name)          \
++    static int var = -1;                 \
++    if( var < 0 )                        \
++        var = hunt_r4_read(name);
++
++#endif /* HUNT_R4_H */
+diff --git a/src/makefile b/src/makefile
+index ce14e6b3e..f9aa897f6 100644
+--- a/src/makefile
++++ b/src/makefile
+@@ -438,6 +438,28 @@ LDFLAGS += -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc \
+ 	-Wl,--wrap=free -Wl,--wrap=strdup
+ endif
+ 
++# --- Per-frame heap/getenv call counting (HEAPCOUNT=1) --------------------
++# COUNT ONLY. Never time a binary built with this: every hooked call gains a
++# counter increment. It exists to answer "how many mallocs does a steady frame
++# make, and from where", which no profile in this hunt has measured.
++ifeq ($(HEAPCOUNT),1)
++ifeq ($(MEMPROF),1)
++$(error HEAPCOUNT=1 and MEMPROF=1 both define __wrap_malloc - pick one)
++endif
++ifeq ($(MEMTRACE),1)
++$(error HEAPCOUNT=1 and MEMTRACE=1 both define __wrap_malloc - pick one)
++endif
++HEAPCOUNT_CFLAGS := -DTORIRS_HEAPCOUNT=1 \
++	-fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
++CFLAGS          += $(HEAPCOUNT_CFLAGS)
++RSCACHE_CFLAGS  += $(HEAPCOUNT_CFLAGS)
++RSPROT_CFLAGS   += $(HEAPCOUNT_CFLAGS)
++COMPRESS_CFLAGS += $(HEAPCOUNT_CFLAGS)
++TORIDRAW_CFLAGS += $(HEAPCOUNT_CFLAGS)
++LDFLAGS += -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc \
++	-Wl,--wrap=free -Wl,--wrap=strdup -Wl,--wrap=getenv
++endif
++
+ # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
+ # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
+ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) \
+@@ -605,6 +627,9 @@ endif
+ ifeq ($(MEMPROF),1)
+ SRCS += platform/torirs_memprof_win32.c
+ endif
++ifeq ($(HEAPCOUNT),1)
++SRCS += platform/torirs_heapcount.c
++endif
+ 
+ # Defined up here, above both the EMBED_SERVER block and the $(TARGET) rule.
+ # $(TARGET): $(OBJS) expands its prerequisites when the makefile is *read*,
+diff --git a/src/platform/platform_sdl2_renderer_soft3d.c b/src/platform/platform_sdl2_renderer_soft3d.c
+index de701e34e..f928305db 100644
+--- a/src/platform/platform_sdl2_renderer_soft3d.c
++++ b/src/platform/platform_sdl2_renderer_soft3d.c
+@@ -1,3 +1,4 @@
++#include "hunt_r4.h"
+ #include "platform/platform_sdl2_renderer_soft3d.h"
+ 
+ #include "perf/torirs_perf.h"
+@@ -1607,7 +1608,21 @@ ToriRS_Soft3D_RenderFrame(
+ #else
+         uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
+ #endif
+-        if( ToriDraw_FrameAbArm() )
++        /*
++         * R4 nonrender: the non-temporal kernel was only ever reachable on A/B
++         * arm 1, and ToriDraw_FrameAbArm() returns 0 unless TORIDRAW_FRAME_AB
++         * is set -- so the shipped build has always run the ordinary-store
++         * loop below, and toridraw_fb_clear32_nt_asm carries zero EIP samples
++         * despite being linked in.
++         *   TORIRS_R4_FBCLEAR=1 -> non-temporal kernel by default.
++         *   TORIRS_R4_FBCLEAR=2 -> skip the clear entirely (ablation ceiling).
++         */
++        HUNT_R4_KNOB(r4_fbclear, "TORIRS_R4_FBCLEAR")
++        if( r4_fbclear == 2 )
++        {
++            (void)bg; /* ablation only: last frame's pixels stay under the raster */
++        }
++        else if( r4_fbclear == 1 || ToriDraw_FrameAbArm() )
+         {
+             TORIDRAW_FB_CLEAR32(p, n, bg);
+         }
+diff --git a/src/platform/torirs_heapcount.c b/src/platform/torirs_heapcount.c
+new file mode 100644
+index 000000000..d841dcf8c
+--- /dev/null
++++ b/src/platform/torirs_heapcount.c
+@@ -0,0 +1,222 @@
++/*
++ * torirs_heapcount.c -- COUNT-ONLY instrument for the XP frame hunt.
++ *
++ * NOT SHIPPABLE and NEVER TIMED. It answers one question the hunt has never
++ * asked: how many heap calls, and how many getenv calls, does a steady-state
++ * frame make, and from where?
++ *
++ * Unlike torirs_memprof_win32.c it stores nothing in the block, so the program
++ * it measures allocates exactly what it would have. Every hook is a counter
++ * increment plus the real call.
++ *
++ * Counts are split at TORIRS_HEAPCOUNT_WARM frames (default 100) so boot
++ * allocation does not drown the steady state, which is the only part a
++ * 900-frame bench spends its time in.
++ */
++#if defined(TORIRS_HEAPCOUNT)
++
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++extern void* __real_malloc(size_t size);
++extern void* __real_calloc(size_t nmemb, size_t size);
++extern void* __real_realloc(void* ptr, size_t size);
++extern void __real_free(void* ptr);
++extern char* __real_strdup(const char* str);
++extern char* __real_getenv(const char* name);
++
++extern long g_torirs_frame_no;
++
++#define HC_SITE_BITS 14u
++#define HC_SITE_CAP (1u << HC_SITE_BITS)
++
++struct HC_Site
++{
++    void* ra;
++    long calls;
++};
++
++static struct HC_Site g_site[HC_SITE_CAP];
++static long g_site_collisions;
++
++static long g_calls[6];      /* malloc calloc realloc free strdup getenv */
++static long g_calls_warm[6]; /* snapshot taken at the warm frame */
++static long g_bytes;
++static long g_bytes_warm;
++static long g_warm_frame_seen;
++static long g_last_frame;
++static long g_frames_counted;
++
++static long
++hc_warm(void)
++{
++    static long w = -1;
++    if( w < 0 )
++    {
++        const char* e = __real_getenv("TORIRS_HEAPCOUNT_WARM");
++        w = e ? atol(e) : 100;
++    }
++    return w;
++}
++
++/* Called on every hooked entry: notices the first frame past the warm line and
++ * snapshots the totals there, so steady-state = total - snapshot. */
++static void
++hc_tick(void)
++{
++    if( g_torirs_frame_no != g_last_frame )
++    {
++        g_last_frame = g_torirs_frame_no;
++        if( g_torirs_frame_no == hc_warm() && !g_warm_frame_seen )
++        {
++            g_warm_frame_seen = 1;
++            memcpy(g_calls_warm, g_calls, sizeof(g_calls));
++            g_bytes_warm = g_bytes;
++        }
++    }
++}
++
++static void
++hc_site(void* ra)
++{
++    uint32_t slot = ((uint32_t)(uintptr_t)ra * 2654435761u) >> (32u - HC_SITE_BITS);
++    uint32_t probe;
++    if( !g_warm_frame_seen )
++        return; /* steady state only */
++    for( probe = 0; probe < 8u; probe++ )
++    {
++        struct HC_Site* s = &g_site[(slot + probe) & (HC_SITE_CAP - 1u)];
++        if( s->ra == NULL )
++        {
++            s->ra = ra;
++            s->calls = 1;
++            return;
++        }
++        if( s->ra == ra )
++        {
++            s->calls++;
++            return;
++        }
++    }
++    g_site_collisions++;
++}
++
++static int g_report_armed;
++
++static void
++hc_report(void)
++{
++    FILE* f;
++    const char* out = __real_getenv("TORIRS_HEAPCOUNT_OUT");
++    long frames;
++    int i;
++    static const char* names[6] = {
++        "malloc", "calloc", "realloc", "free", "strdup", "getenv"
++    };
++
++    f = out ? fopen(out, "w") : stderr;
++    if( !f )
++        f = stderr;
++
++    frames = g_torirs_frame_no - hc_warm();
++    if( frames < 1 )
++        frames = 1;
++    g_frames_counted = frames;
++
++    fprintf(f, "heapcount warm_frame=%ld last_frame=%ld steady_frames=%ld\n",
++            hc_warm(), g_torirs_frame_no, frames);
++    for( i = 0; i < 6; i++ )
++        fprintf(f, "%-8s total=%-10ld steady=%-10ld per_frame=%.2f\n",
++                names[i], g_calls[i], g_calls[i] - g_calls_warm[i],
++                (double)(g_calls[i] - g_calls_warm[i]) / (double)frames);
++    fprintf(f, "bytes    total=%-10ld steady=%-10ld per_frame=%.1f\n",
++            g_bytes, g_bytes - g_bytes_warm,
++            (double)(g_bytes - g_bytes_warm) / (double)frames);
++    fprintf(f, "site_collisions %ld\n", g_site_collisions);
++
++    /* Steady-state alloc sites, unsorted (the off-line reader sorts). Link-time
++     * addresses: addr2line -f -C -i -e torirs.exe <addr> names them. */
++    for( i = 0; i < (int)HC_SITE_CAP; i++ )
++        if( g_site[i].ra && g_site[i].calls > 0 )
++            fprintf(f, "S %08lx %ld %.3f\n",
++                    (unsigned long)(uintptr_t)g_site[i].ra,
++                    g_site[i].calls,
++                    (double)g_site[i].calls / (double)frames);
++    if( f != stderr )
++        fclose(f);
++}
++
++static void
++hc_arm(void)
++{
++    if( g_report_armed )
++        return;
++    g_report_armed = 1;
++    atexit(hc_report);
++}
++
++void*
++__wrap_malloc(size_t size)
++{
++    hc_arm();
++    hc_tick();
++    g_calls[0]++;
++    g_bytes += (long)size;
++    hc_site(__builtin_return_address(0));
++    return __real_malloc(size);
++}
++
++void*
++__wrap_calloc(size_t nmemb, size_t size)
++{
++    hc_arm();
++    hc_tick();
++    g_calls[1]++;
++    g_bytes += (long)(nmemb * size);
++    hc_site(__builtin_return_address(0));
++    return __real_calloc(nmemb, size);
++}
++
++void*
++__wrap_realloc(void* ptr, size_t size)
++{
++    hc_arm();
++    hc_tick();
++    g_calls[2]++;
++    g_bytes += (long)size;
++    hc_site(__builtin_return_address(0));
++    return __real_realloc(ptr, size);
++}
++
++void
++__wrap_free(void* ptr)
++{
++    hc_arm();
++    hc_tick();
++    g_calls[3]++;
++    __real_free(ptr);
++}
++
++char*
++__wrap_strdup(const char* str)
++{
++    hc_arm();
++    hc_tick();
++    g_calls[4]++;
++    hc_site(__builtin_return_address(0));
++    return __real_strdup(str);
++}
++
++char*
++__wrap_getenv(const char* name)
++{
++    hc_arm();
++    hc_tick();
++    g_calls[5]++;
++    hc_site(__builtin_return_address(0));
++    return __real_getenv(name);
++}
++
++#endif /* TORIRS_HEAPCOUNT */
+diff --git a/src/render/torirs_frame.c b/src/render/torirs_frame.c
+index ca7a84f48..7f262a3ad 100644
+--- a/src/render/torirs_frame.c
++++ b/src/render/torirs_frame.c
+@@ -1,3 +1,4 @@
++#include "hunt_r4.h"
+ #include "render/torirs_frame.h"
+ 
+ #include "painters/painters.h"
+@@ -1929,6 +1930,69 @@ frame_only_loc_allows(
+     return false;
+ }
+ 
++/*
++ * R4 nonrender: software prefetch for the world emit loop.
++ *
++ * Every painter command resolves to a scene element through two dependent
++ * loads that both miss: scene->elements.nodes[id] (a 12-byte node in a ~90 KB
++ * array, indexed by an id with no locality at all) and then node.data, which
++ * points at an individually allocated ToriDraw_SceneElement somewhere else
++ * again. Nothing in the loop hides them, so on the Pentium 4 target the emit
++ * loop is a pointer chase two levels deep, once per command, ~2582 times a
++ * frame.
++ *
++ * The ids are known ahead of time -- they sit in the command array, which is
++ * sequential and already in cache -- so the chase can be run early. Two
++ * distances: the far one pulls the node in, the near one is far enough behind
++ * it that node.data is a hit and its target can be prefetched in turn.
++ */
++#define R4_EMITPF_FAR  12
++#define R4_EMITPF_NEAR 4
++
++static inline void
++r4_emit_prefetch(struct ToriRS_Frame* frame, int index)
++{
++    const struct ToriDraw_IntrusiveNode* nodes = frame->scene->elements.nodes;
++    int live = frame->scene->elements.count;
++    int total = frame->painters->command_count;
++    int i;
++    int id;
++
++    if( !nodes )
++        return;
++
++    i = index + R4_EMITPF_FAR;
++    if( i < total )
++    {
++        const struct PaintersElementCommand* c = &frame->painters->commands[i];
++        if( c->_bf_kind == PNTR_CMD_ELEMENT )
++        {
++            id = (int)c->_entity._bf_entity;
++            if( id >= 0 && id < live )
++                __builtin_prefetch(&nodes[id], 0, 1);
++        }
++    }
++
++    i = index + R4_EMITPF_NEAR;
++    if( i < total )
++    {
++        const struct PaintersElementCommand* c = &frame->painters->commands[i];
++        if( c->_bf_kind == PNTR_CMD_ELEMENT )
++        {
++            id = (int)c->_entity._bf_entity;
++            if( id >= 0 && id < live )
++            {
++                const char* d = (const char*)nodes[id].data;
++                if( d )
++                {
++                    __builtin_prefetch(d, 0, 1);
++                    __builtin_prefetch(d + 64, 0, 1);
++                }
++            }
++        }
++    }
++}
++
+ static bool
+ try_emit_world_draw_model(
+     struct ToriRS_Frame* frame,
+@@ -1948,10 +2012,14 @@ try_emit_world_draw_model(
+      * names the same command on every frame of the same scene. */
+     paint_limit = ToriRS_Frame_PaintLimitGet();
+ 
++    HUNT_R4_KNOB(r4_emitpf, "TORIRS_R4_EMITPF")
++
+     while( frame->painters_index < frame->painters->command_count )
+     {
+         if( paint_limit >= 0 && frame->painters_index >= paint_limit )
+             break;
++        if( r4_emitpf )
++            r4_emit_prefetch(frame, frame->painters_index);
+         struct PaintersElementCommand* cmd =
+             &frame->painters->commands[frame->painters_index++];
+         int element_id = -1;
+diff --git a/src/world/world.c b/src/world/world.c
+index 96a03d4ac..a6bcb63fc 100644
+--- a/src/world/world.c
++++ b/src/world/world.c
+@@ -442,6 +442,7 @@ World_ResetSceneAlloc(
+      * relocates them (Client-TS keeps entity slots across a rebuild). */
+     World_EntityPoolReset(&world->entities.scenery);
+     world->scenery_pick_count = 0;
++    world->scenery_runtime_spawn_seen = 0;
+     /* Pending EntityRemoved must be drained (SceneElementRemove) before a
+      * scene reset — wiping the queue here would orphan DYNAMIC elements. */
+     assert(world->event_count == 0 && "drain EntityRemoved before World_ResetSceneAlloc");
+diff --git a/src/world/world.h b/src/world/world.h
+index c9a4f4975..d7f530077 100644
+--- a/src/world/world.h
++++ b/src/world/world.h
+@@ -248,6 +248,17 @@ struct World
+ 
+     struct World_SceneryPick scenery_picks[WORLD_SCENERY_PICK_MAX];
+     int scenery_pick_count;
++    /** Has any loc in the scenery pool ever been flagged runtime_spawn since
++     *  the last scene reset?  Monotonic within a map session: set when a zone
++     *  LOC_ADD_CHANGE spawns a loc, cleared only by World_ResetSceneAlloc.
++     *
++     *  World_CycleRegisterPainterDynamics walks the WHOLE scenery pool every
++     *  frame to find runtime spawns, and WorldEntity_Scenery is 380 bytes, so
++     *  on a 128x128 map that scan streams megabytes a frame to read one int
++     *  per entry that is almost always zero.  Monotonic rather than a refcount
++     *  on purpose: a missed decrement only costs the scan back, while a missed
++     *  increment would make a spawned door invisible. */
++    int scenery_runtime_spawn_seen;
+ 
+     World_HeightFn height_fn;
+     void* height_userdata;
+diff --git a/src/world/world_cycle.c b/src/world/world_cycle.c
+index 264877537..a53646db2 100644
+--- a/src/world/world_cycle.c
++++ b/src/world/world_cycle.c
+@@ -1,3 +1,4 @@
++#include "hunt_r4.h"
+ #include "world.h"
+ 
+ #include "entity_facets.h"
+@@ -1528,6 +1529,23 @@ world_dyn_register_npcs(struct World* world, bool alwaysontop, int local_level)
+  * scenery_head->next), so earlier tiers sit behind later ones; combined with
+  * the tile-claim dedup this reproduces which single entity wins a stacked
+  * tile. */
++/** How many scenery entries carry runtime_spawn. Only the assert above uses
++ *  it, so it costs nothing under OPT=1 (-DNDEBUG). */
++static int
++world_scenery_runtime_spawn_scan(const struct World_EntityPool* pool)
++{
++    int n = 0;
++    assert(pool);
++    for( int si = World_EntityPoolHead(pool); si != WORLD_ENTITY_NIL;
++         si = World_EntityPoolNext(pool, si) )
++    {
++        const struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, si);
++        if( sc && sc->runtime_spawn )
++            n++;
++    }
++    return n;
++}
++
+ static void
+ World_CycleRegisterPainterDynamics(struct World* world)
+ {
+@@ -1542,7 +1560,57 @@ World_CycleRegisterPainterDynamics(struct World* world)
+      * must be re-registered every cycle. Registered before the dynamics below so
+      * they draw with the scenery (behind players/NPCs), matching a normal loc. */
+     pool = &world->entities.scenery;
+-    for( int si = World_EntityPoolHead(pool); si != WORLD_ENTITY_NIL;
++    /*
++     * TORIRS_R4_DYNSTAT=1: one line, once, naming what this walk costs --
++     * how many entries it visits and how many bytes of pool that touches.
++     */
++    HUNT_R4_KNOB(r4_dynstat, "TORIRS_R4_DYNSTAT")
++    if( r4_dynstat )
++    {
++        static int once = 0;
++        if( !once )
++        {
++            int n = 0;
++            int spawns = 0;
++            for( int si = World_EntityPoolHead(pool); si != WORLD_ENTITY_NIL;
++                 si = World_EntityPoolNext(pool, si) )
++            {
++                struct WorldEntity_Scenery* s = World_EntityPoolGet(pool, si);
++                n++;
++                if( s && s->runtime_spawn )
++                    spawns++;
++            }
++            fprintf(
++                stderr,
++                "r4_dynstat: scenery walk=%d entries runtime_spawn=%d elem=%d B "
++                "span=%d KB | obj_stack=%d projectile=%d spotanim=%d
++",
++                n,
++                spawns,
++                (int)sizeof(struct WorldEntity_Scenery),
++                (int)((size_t)n * sizeof(struct WorldEntity_Scenery) / 1024u),
++                world->entities.obj_stack.active_count,
++                world->entities.projectile.active_count,
++                world->entities.spotanim.active_count);
++            once = 1;
++        }
++    }
++
++    /*
++     * TORIRS_R4_DYNFAST=1: skip the whole-pool scan while no loc has ever been
++     * runtime-spawned since the last scene reset. The scan reads one int at
++     * offset 284 of a 380-byte record, once per scenery entry, every frame.
++     */
++    HUNT_R4_KNOB(r4_dynfast, "TORIRS_R4_DYNFAST")
++    if( r4_dynfast && !world->scenery_runtime_spawn_seen )
++    {
++        /* The invariant, checked where NDEBUG is not set: nothing in the pool
++         * is flagged when the flag says nothing is. */
++        assert(world_scenery_runtime_spawn_scan(pool) == 0);
++        pool = NULL;
++    }
++    for( int si = pool ? World_EntityPoolHead(pool) : WORLD_ENTITY_NIL;
++         si != WORLD_ENTITY_NIL;
+          si = World_EntityPoolNext(pool, si) )
+     {
+         struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, si);
+@@ -1813,6 +1881,11 @@ World_Cycle(
+     World_CycleUpdateProjectiles(world, cycles_elapsed);
+     World_CycleUpdateSpotanims(world, cycles_elapsed);
+ 
+-    if( world->painter )
++    /* TORIRS_R4_NODYN=1 (ablation only): skip the per-frame dynamics
++     * re-registration -- painter_reset_to_static plus a full walk of the
++     * scenery / obj / player / npc / projectile / spotanim pools -- to size
++     * what it costs on a frame where nothing moved. */
++    HUNT_R4_KNOB(r4_nodyn, "TORIRS_R4_NODYN")
++    if( world->painter && !r4_nodyn )
+         World_CycleRegisterPainterDynamics(world);
+ }

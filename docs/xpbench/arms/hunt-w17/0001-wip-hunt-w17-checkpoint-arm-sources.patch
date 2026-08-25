@@ -1,0 +1,592 @@
+From e07af8cb6f8e6fa6555718f6d06d9cd4f0efb96c Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:15:04 -0500
+Subject: [PATCH] wip(hunt-w17): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/w17.
+
+files: 3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c 3rd/toridraw/graphics/raster/texture/span/tex.span_uv.h 3rd/toridraw/graphics/raster/texture/span/tex_span_trans_census.h 3rd/toridraw/graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c 3rd/toridraw/graphics/raster/texture/texshadeflat.persp.texopaque.ordered.lerp8.scanline.u.c
+---
+ .../raster/texture/span/tex.span.sse2.u.c     |  73 ++++++-
+ .../raster/texture/span/tex.span_uv.h         |  46 +++-
+ .../texture/span/tex_span_trans_census.h      | 205 ++++++++++++++++++
+ ...lend.persp.textrans.branching.lerp8_v3.u.c |   3 +
+ ...persp.texopaque.ordered.lerp8.scanline.u.c |  51 ++++-
+ 5 files changed, 375 insertions(+), 3 deletions(-)
+ create mode 100644 3rd/toridraw/graphics/raster/texture/span/tex_span_trans_census.h
+
+diff --git a/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c b/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c
+index 6954be769..695fe0bf4 100644
+--- a/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c
++++ b/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c
+@@ -2,6 +2,7 @@
+ #include "graphics/int_wrap.h"
+ #include "graphics/raster/raster_ablate.h"
+ #include "graphics/raster/span_census.h"
++#include "graphics/raster/texture/span/tex_span_trans_census.h"
+ #include "graphics/shade.h"
+ 
+ #include <assert.h>
+@@ -671,23 +672,49 @@ raster_linear_transparent_blend_lerp8_v3(
+     {
+         int u = (u_scan >> texture_shift) & u_mask;
+         int v = v_scan & v_mask;
++#if defined(W17_TEXL1) && W17_TEXL1
++        idx[i] = (u + v) & 2047;
++#else
+         idx[i] = u + v;
++#endif
+         u_scan += step_u;
+         v_scan += step_v;
+     }
+ 
++    TORIDRAW_TRANS_CENSUS_BLOCK((const int*)texels, idx);
++
+     __m128i t0 = _mm_set_epi32(texels[idx[3]], texels[idx[2]], texels[idx[1]], texels[idx[0]]);
+     __m128i t1 = _mm_set_epi32(texels[idx[7]], texels[idx[6]], texels[idx[5]], texels[idx[4]]);
++
++    __m128i zero = _mm_setzero_si128();
++#if defined(W17_MICRO) && W17_MICRO
++    /* 45.9% of the blocks this kernel is handed are eight transparent texels
++     * (measured: 492,599 of 1,072,986 over 900 frames). Lane i of t0|t1 is
++     * zero exactly when texels i and i+4 both are, so four zero lanes means
++     * the block writes the framebuffer back unchanged. Leaving before the
++     * shade skips two unaligned framebuffer LOADS as well as the stores, and
++     * the framebuffer is 1.5 MB against a 1 MB L2, so those loads are the
++     * ones that miss. */
++    if( _mm_movemask_epi8(_mm_cmpeq_epi32(_mm_or_si128(t0, t1), zero)) == 0xFFFF )
++        return;
++#endif
+     __m128i r0 = shade_blend4_sse(t0, shade);
+     __m128i r1 = shade_blend4_sse(t1, shade);
+ 
+-    __m128i zero = _mm_setzero_si128();
+     __m128i ex0 = _mm_loadu_si128((__m128i*)pixel_buffer);
+     __m128i ex1 = _mm_loadu_si128((__m128i*)(pixel_buffer + 4));
+     __m128i bm0 = _mm_cmpeq_epi32(t0, zero);
+     __m128i bm1 = _mm_cmpeq_epi32(t1, zero);
++#if defined(W17_MICRO) && W17_MICRO
++    /* shade_blend of a zero texel is zero in every lane, so the shaded vector
++     * is ALREADY zero wherever the blend mask selects the framebuffer:
++     * andnot(bm, r) == r and the OR alone reconstructs the select. */
++    r0 = _mm_or_si128(_mm_and_si128(bm0, ex0), r0);
++    r1 = _mm_or_si128(_mm_and_si128(bm1, ex1), r1);
++#else
+     r0 = _mm_or_si128(_mm_and_si128(bm0, ex0), _mm_andnot_si128(bm0, r0));
+     r1 = _mm_or_si128(_mm_and_si128(bm1, ex1), _mm_andnot_si128(bm1, r1));
++#endif
+ 
+     _mm_storeu_si128((__m128i*)pixel_buffer, r0);
+     _mm_storeu_si128((__m128i*)(pixel_buffer + 4), r1);
+@@ -948,12 +975,32 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
+     int remaining = steps & 7;
+ 
+     TORIDRAW_TEXSPAN_CENSUS_SPAN(steps);
++    TORIDRAW_TRANS_CENSUS_SPAN(steps);
+ 
+     /* Everything above is the per-span prologue -- clip, adjust, step. This
+      * keeps it and drops the fill, the same cut TORIDRAW_ABLATE=1 makes in the
+      * gouraud span, so the two subtract the same way. */
+     TORIDRAW_ABLATE_TEX_RETURN();
+ 
++#if defined(W17_PREFETCH) && W17_PREFETCH
++    /* The trapezoid walk calls this once per row and advances pixel_offset by
++     * one screen_width each time, so the line this span will want NEXT is
++     * already addressable, a whole span of work ahead of the load. That lead
++     * is the point: the framebuffer is 765*503*4 = 1.539 MB against a 1 MB L2
++     * and the transparent blend READS it, so the miss sits on the critical
++     * path rather than behind a store buffer.
++     *
++     * One prefetch for the head of the next row's span and one for its tail,
++     * because a span of 5.7 pixels straddles a 16-pixel line about half the
++     * time. On the last row of a triangle these address up to one screen_width
++     * past the framebuffer; an x86 prefetch of an unmapped or out-of-range
++     * address is architecturally a no-op -- it neither faults nor fills a TLB
++     * entry -- which is why this needs no bound the span does not already
++     * have. */
++    __builtin_prefetch(&pixel_buffer[offset + screen_width], 0, 3);
++    __builtin_prefetch(&pixel_buffer[offset + screen_width + steps], 0, 3);
++#endif
++
+     int step_au8 = step_au_dx << 3;
+     int step_bv8 = step_bv_dx << 3;
+     int step_cw8 = step_cw_dx << 3;
+@@ -985,6 +1032,15 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
+                 float inv_w_n = 1.0f / (float)w_n;
+                 nxt_u = tex_span_u_quotient(au + step_au8, inv_w_n, texture_width);
+                 nxt_v = tex_span_wrapped_quotient(bv + step_bv8, w_n, inv_w_n);
++#if defined(W17_PREFETCH) && W17_PREFETCH
++                /* nxt is this block's far endpoint AND the next block's near
++                 * one, so its texel line is wanted a full block from now.
++                 * nxt_u is already clamped into [0, texture_width) and the row
++                 * is masked the way the fill masks it, so the address is
++                 * inside the texture by construction. */
++                __builtin_prefetch(
++                    &texels[(nxt_u & u_mask) + ((nxt_v & u_mask) << texture_shift)], 0, 3);
++#endif
+             }
+             else
+             {
+@@ -1016,6 +1072,7 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
+             else
+             {
+                 TORIDRAW_TEXSPAN_CENSUS_EXACT(8);
++                TORIDRAW_TRANS_CENSUS_EXACT(8);
+                 tex_span_exact_block(
+                     pixel_buffer,
+                     offset,
+@@ -1074,6 +1131,7 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
+         if( w_n == 0 || !tex_span_lerp8_fits(cur_v, nxt_v, texture_width) )
+         {
+             TORIDRAW_TEXSPAN_CENSUS_EXACT(remaining);
++            TORIDRAW_TRANS_CENSUS_EXACT(remaining);
+             tex_span_exact_block(
+                 pixel_buffer,
+                 offset,
+@@ -1100,13 +1158,24 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
+ 
+         TORIDRAW_TEXSPAN_CENSUS_TAIL(remaining);
+         TORIDRAW_ABLATE_TEX_RETURN_IF(2);
++        TORIDRAW_TRANS_CENSUS_TAIL_DECL;
+         for( int i = 0; i < remaining; i++ )
+         {
+             int u = (u_scan >> texture_shift) & u_mask;
+             int v = v_scan & v_mask;
++#if defined(W17_TEXL1) && W17_TEXL1
++            int t = texels[(u + v) & 2047];
++#else
+             int t = texels[u + v];
++#endif
++            TORIDRAW_TRANS_CENSUS_TAIL(t);
++#if defined(W17_MICRO) && W17_MICRO
++            pixel_buffer[offset] =
++                shade_blend(t, shade) | (pixel_buffer[offset] & tex_span_keep_mask(t));
++#else
+             if( t != 0 )
+                 pixel_buffer[offset] = shade_blend(t, shade);
++#endif
+             offset++;
+             u_scan += s_u;
+             v_scan += s_v;
+@@ -1551,6 +1620,8 @@ draw_texture_scanline_transparent_blend_affine_branching_lerp8_ish16_ordered(
+     shade8bit_ish8 = toridraw_wrap_add(
+         shade8bit_ish8, toridraw_wrap_mul(step_shade8bit_dx_ish8, x0));
+ 
++    TORIDRAW_TRANS_CENSUS_AFFINE();
++
+     int width = x1 - x0;
+ 
+     int texture_shift = (texture_width == 128) ? 7 : 6;
+diff --git a/3rd/toridraw/graphics/raster/texture/span/tex.span_uv.h b/3rd/toridraw/graphics/raster/texture/span/tex.span_uv.h
+index f7970afa8..bd8e4f3f0 100644
+--- a/3rd/toridraw/graphics/raster/texture/span/tex.span_uv.h
++++ b/3rd/toridraw/graphics/raster/texture/span/tex.span_uv.h
+@@ -133,6 +133,27 @@ tex_span_wrapped_scan_start(int cur, int texture_width, int texture_shift)
+     return (cur & (texture_width - 1)) << texture_shift;
+ }
+ 
++/**
++ * Where a fully transparent texel leaves the framebuffer alone, as a mask
++ * instead of a branch.
++ *
++ * `t | -t` carries the sign bit for every value except zero, so this is -1 for
++ * a transparent texel and 0 for any other. It pairs with the fact that
++ * shade_blend(0, shade) is exactly zero -- the multiply has a zero operand in
++ * every channel -- so
++ *
++ *     pixel = shade_blend(texel, shade) | (pixel & tex_span_keep_mask(texel))
++ *
++ * reproduces "leave the pixel alone when the texel is zero" bit for bit, with
++ * a redundant same-value store where the branch used to skip.
++ */
++static inline int
++tex_span_keep_mask(int texel)
++{
++    unsigned int t = (unsigned int)texel;
++    return (int)((t | (0u - t)) >> 31) - 1;
++}
++
+ /**
+  * The per-pixel path: an exact divide per pixel, the same mapping the reference
+  * rasterizer uses for the whole span. Only blocks that fail
+@@ -163,9 +184,32 @@ tex_span_exact_block(
+         {
+             int u = clamp(au / w, 0, texture_width - 1);
+             int v = (bv / w) & (texture_width - 1);
+-            int texel = texels[u + (v << texture_shift)];
++            int index = u + (v << texture_shift);
++#if defined(W17_TEXL1) && W17_TEXL1
++            /* ABLATION. Confines this route's texel reads to the first 2048
++             * texels -- 8 KB, half of the 16 KB L1D, so they stay resident --
++             * while keeping every divide, every branch and every framebuffer
++             * access exactly where they were. 2048 and not 64 because the
++             * mask has to sample a realistic slice of the texture: the
++             * transparent/opaque MIX drives how much blending work happens,
++             * and a 64-texel window would be one strip of one row. The image
++             * is wrong on purpose; the delta is this route's texture-miss
++             * bill. */
++            if( transparent )
++                index &= 2047;
++#endif
++            int texel = texels[index];
++#if defined(W17_MICRO) && W17_MICRO
++            if( transparent )
++                pixel_buffer[offset + i] = shade_blend(texel, shade) |
++                                           (pixel_buffer[offset + i] &
++                                            tex_span_keep_mask(texel));
++            else
++                pixel_buffer[offset + i] = shade_blend(texel, shade);
++#else
+             if( !transparent || texel != 0 )
+                 pixel_buffer[offset + i] = shade_blend(texel, shade);
++#endif
+         }
+         au += step_au_dx;
+         bv += step_bv_dx;
+diff --git a/3rd/toridraw/graphics/raster/texture/span/tex_span_trans_census.h b/3rd/toridraw/graphics/raster/texture/span/tex_span_trans_census.h
+new file mode 100644
+index 000000000..a700cfb6c
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/texture/span/tex_span_trans_census.h
+@@ -0,0 +1,205 @@
++#ifndef TEX_SPAN_TRANS_CENSUS_H
++#define TEX_SPAN_TRANS_CENSUS_H
++
++/**
++ * The TRANSPARENT texture span's own census.
++ *
++ * The block-mix census in graphics/raster/span_census.h counts every
++ * perspective texture span together, and on a build with the hand-written
++ * kernels in place that mixes two populations with nothing in common: the
++ * opaque triangles, which never reach the C at all, and the transparent ones,
++ * which are the only production caller of
++ * draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered.
++ *
++ * The questions this one answers, and why each decides a different fix:
++ *
++ *   - pixels split lerp8 / exact / tail. The exact block divides TWICE PER
++ *     PIXEL; a P4 idiv is 40-70 cycles and does not pipeline, so a percent of
++ *     pixels there is worth ten percent anywhere else.
++ *   - how many texels in a block are zero, and whether a block tends to be all
++ *     one or the other. A block that is entirely opaque does not need the
++ *     read-modify-write select at all.
++ *   - how often the tail's `texel != 0` predicate CHANGES between adjacent
++ *     pixels. That is the branch a 31-stage pipeline pays 20-30 cycles for,
++ *     and it is the only measurement that says whether making it branchless
++ *     is a win or a tax.
++ *
++ * Counting only. -DTORIDRAW_TRANS_CENSUS=1 is never a binary to time -- the
++ * counters sit inside the fill. It deliberately does NOT name any of the three
++ * macros the makefile's asm gate reads, so a census build still links the
++ * hand-written kernels and the opaque triangles still bypass this C entirely,
++ * which is exactly the separation being measured.
++ */
++
++#if defined(TORIDRAW_TRANS_CENSUS) && TORIDRAW_TRANS_CENSUS
++
++#include <stdio.h>
++#include <stdlib.h>
++
++struct ToriDraw_TransCensus
++{
++    /* Perspective transparent spans, and the pixels they were asked for. */
++    double spans;
++    double pixels;
++    double spans_no_block;
++
++    /* Where those pixels were actually drawn. */
++    double blocks_lerp8;
++    double blocks_exact;
++    double pixels_exact;
++    double pixels_tail;
++
++    /* Texel transparency inside the eight-pixel linear blocks. */
++    double texels_zero;
++    double texels_nonzero;
++    double blocks_all_zero;
++    double blocks_all_opaque;
++    double blocks_mixed;
++
++    /* The scalar tail's per-pixel predicate, and how often it flips. */
++    double tail_zero;
++    double tail_nonzero;
++    double tail_flips;
++
++    /* Callers, to prove which populations are in the numbers above. */
++    double tri_faces;
++    double affine_spans;
++
++    /* The flat-shaded opaque scanline emitter next door: four integer divides
++     * per eight-pixel block, where the v3 walk carries one endpoint over. */
++    double flat_spans;
++    double flat_pixels;
++    double flat_blocks;
++};
++
++struct ToriDraw_TransCensus g_toridraw_trans_census;
++
++static void
++ToriDraw_TransCensusDump(void)
++{
++    const struct ToriDraw_TransCensus* c = &g_toridraw_trans_census;
++    const char* path = getenv("TORIDRAW_TRANS_CENSUS_FILE");
++    FILE* out = stderr;
++
++    if( path )
++    {
++        FILE* f = fopen(path, "w");
++        if( f )
++            out = f;
++    }
++
++    fprintf(out, "=== toridraw transparent span census ===\n");
++    fprintf(out, "tri_faces          %.0f\n", c->tri_faces);
++    fprintf(out, "spans              %.0f\n", c->spans);
++    fprintf(out, "pixels             %.0f\n", c->pixels);
++    fprintf(out, "spans_no_block     %.0f\n", c->spans_no_block);
++    fprintf(out, "affine_spans       %.0f\n", c->affine_spans);
++    fprintf(out, "blocks_lerp8       %.0f\n", c->blocks_lerp8);
++    fprintf(out, "blocks_exact       %.0f\n", c->blocks_exact);
++    fprintf(out, "pixels_lerp8       %.0f\n", c->blocks_lerp8 * 8.0);
++    fprintf(out, "pixels_exact       %.0f\n", c->pixels_exact);
++    fprintf(out, "pixels_tail        %.0f\n", c->pixels_tail);
++    fprintf(out, "texels_zero        %.0f\n", c->texels_zero);
++    fprintf(out, "texels_nonzero     %.0f\n", c->texels_nonzero);
++    fprintf(out, "blocks_all_zero    %.0f\n", c->blocks_all_zero);
++    fprintf(out, "blocks_all_opaque  %.0f\n", c->blocks_all_opaque);
++    fprintf(out, "blocks_mixed       %.0f\n", c->blocks_mixed);
++    fprintf(out, "tail_zero          %.0f\n", c->tail_zero);
++    fprintf(out, "tail_nonzero       %.0f\n", c->tail_nonzero);
++    fprintf(out, "tail_flips         %.0f\n", c->tail_flips);
++    fprintf(out, "flat_spans         %.0f\n", c->flat_spans);
++    fprintf(out, "flat_pixels        %.0f\n", c->flat_pixels);
++    fprintf(out, "flat_blocks        %.0f\n", c->flat_blocks);
++    fflush(out);
++}
++
++static void
++toridraw_trans_census_open(void)
++{
++    static int registered = 0;
++    if( registered )
++        return;
++    registered = 1;
++    atexit(ToriDraw_TransCensusDump);
++}
++
++static inline void
++toridraw_trans_census_span(int steps)
++{
++    toridraw_trans_census_open();
++    g_toridraw_trans_census.spans += 1.0;
++    g_toridraw_trans_census.pixels += (double)steps;
++    if( (steps >> 3) == 0 )
++        g_toridraw_trans_census.spans_no_block += 1.0;
++}
++
++static inline void
++toridraw_trans_census_block(const int* texels, const int* idx)
++{
++    int nonzero = 0;
++    for( int i = 0; i < 8; i++ )
++        nonzero += (texels[idx[i]] != 0) ? 1 : 0;
++
++    g_toridraw_trans_census.blocks_lerp8 += 1.0;
++    g_toridraw_trans_census.texels_nonzero += (double)nonzero;
++    g_toridraw_trans_census.texels_zero += (double)(8 - nonzero);
++    if( nonzero == 0 )
++        g_toridraw_trans_census.blocks_all_zero += 1.0;
++    else if( nonzero == 8 )
++        g_toridraw_trans_census.blocks_all_opaque += 1.0;
++    else
++        g_toridraw_trans_census.blocks_mixed += 1.0;
++}
++
++static inline void
++toridraw_trans_census_exact(int count)
++{
++    g_toridraw_trans_census.blocks_exact += 1.0;
++    g_toridraw_trans_census.pixels_exact += (double)count;
++}
++
++static inline void
++toridraw_trans_census_tail_pixel(int texel, int* prev)
++{
++    int nonzero = (texel != 0) ? 1 : 0;
++    g_toridraw_trans_census.pixels_tail += 1.0;
++    if( nonzero )
++        g_toridraw_trans_census.tail_nonzero += 1.0;
++    else
++        g_toridraw_trans_census.tail_zero += 1.0;
++    if( *prev >= 0 && *prev != nonzero )
++        g_toridraw_trans_census.tail_flips += 1.0;
++    *prev = nonzero;
++}
++
++#define TORIDRAW_TRANS_CENSUS_SPAN(steps) toridraw_trans_census_span((steps))
++#define TORIDRAW_TRANS_CENSUS_BLOCK(texels, idx) toridraw_trans_census_block((texels), (idx))
++#define TORIDRAW_TRANS_CENSUS_EXACT(count) toridraw_trans_census_exact((count))
++#define TORIDRAW_TRANS_CENSUS_TAIL_DECL int trans_census_prev = -1
++#define TORIDRAW_TRANS_CENSUS_TAIL(texel)                                                          \
++    toridraw_trans_census_tail_pixel((texel), &trans_census_prev)
++#define TORIDRAW_TRANS_CENSUS_TRI() (g_toridraw_trans_census.tri_faces += 1.0)
++#define TORIDRAW_TRANS_CENSUS_AFFINE() (g_toridraw_trans_census.affine_spans += 1.0)
++#define TORIDRAW_TRANS_CENSUS_FLAT(steps)                                                          \
++    do                                                                                             \
++    {                                                                                              \
++        toridraw_trans_census_open();                                                              \
++        g_toridraw_trans_census.flat_spans += 1.0;                                                 \
++        g_toridraw_trans_census.flat_pixels += (double)(steps);                                    \
++        g_toridraw_trans_census.flat_blocks += (double)((steps) >> 3);                             \
++    } while( 0 )
++
++#else
++
++#define TORIDRAW_TRANS_CENSUS_SPAN(steps) ((void)0)
++#define TORIDRAW_TRANS_CENSUS_BLOCK(texels, idx) ((void)0)
++#define TORIDRAW_TRANS_CENSUS_EXACT(count) ((void)0)
++#define TORIDRAW_TRANS_CENSUS_TAIL_DECL ((void)0)
++#define TORIDRAW_TRANS_CENSUS_TAIL(texel) ((void)0)
++#define TORIDRAW_TRANS_CENSUS_TRI() ((void)0)
++#define TORIDRAW_TRANS_CENSUS_AFFINE() ((void)0)
++#define TORIDRAW_TRANS_CENSUS_FLAT(steps) ((void)0)
++
++#endif
++
++#endif
+diff --git a/3rd/toridraw/graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c b/3rd/toridraw/graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c
+index bda5e3f6b..ec9572c21 100644
+--- a/3rd/toridraw/graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c
++++ b/3rd/toridraw/graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c
+@@ -5,6 +5,7 @@
+ #include "graphics/dash_restrict.h"
+ #include "graphics/int_wrap.h"
+ #include "span/tex.span_peer_decl.h"
++#include "graphics/raster/texture/span/tex_span_trans_census.h"
+ 
+ static inline void
+ raster_texshadeblend_persp_textrans_branching_lerp8_v3_ordered(
+@@ -34,6 +35,8 @@ raster_texshadeblend_persp_textrans_branching_lerp8_v3_ordered(
+     int* RESTRICT texels,
+     int texture_width)
+ {
++    TORIDRAW_TRANS_CENSUS_TRI();
++
+     if( y0 > screen_height )
+         return;
+ 
+diff --git a/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.texopaque.ordered.lerp8.scanline.u.c b/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.texopaque.ordered.lerp8.scanline.u.c
+index ce12e7922..2809e7345 100644
+--- a/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.texopaque.ordered.lerp8.scanline.u.c
++++ b/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.texopaque.ordered.lerp8.scanline.u.c
+@@ -5,6 +5,7 @@
+ #include "graphics/dash_restrict.h"
+ #include "graphics/shade.h"
+ #include "span/tex.span_peer_decl.h"
++#include "graphics/raster/texture/span/tex_span_trans_census.h"
+ 
+ #include <assert.h>
+ #include <stdint.h>
+@@ -59,6 +60,7 @@ raster_texshadeflat_persp_texopaque_ordered_lerp8_scanline(
+     step_cw_dx <<= 3;
+ 
+     steps = screen_x1 - screen_x0;
++    TORIDRAW_TRANS_CENSUS_FLAT(steps);
+ 
+     assert(screen_x0 < screen_width);
+     assert(screen_x1 < screen_width);
+@@ -83,6 +85,20 @@ raster_texshadeflat_persp_texopaque_ordered_lerp8_scanline(
+ 
+     int lerp8_steps = steps >> 3;
+     int lerp8_last_steps = steps & 0x7;
++#if defined(W17_MICRO) && W17_MICRO
++    /* au/bv/cw advance exactly once per iteration, before next_* is divided
++     * out of them and never again before the following iteration divides
++     * curr_* out of those same three -- so iteration k+1's near endpoint is
++     * the integer iteration k already computed as its far endpoint. Carrying
++     * it turns four idivs per eight pixels into two, and a Prescott idiv is
++     * 40-70 cycles that do not pipeline.
++     *
++     * Both `continue` paths leave without a far endpoint (the second has
++     * already advanced au/bv/cw past the one it would have used), so they
++     * clear the flag and the next iteration divides for curr_* exactly the
++     * way the unpatched loop always does. */
++    int have_next = 0;
++#endif
+     do
+     {
+         if( lerp8_steps == 0 )
+@@ -90,12 +106,26 @@ raster_texshadeflat_persp_texopaque_ordered_lerp8_scanline(
+ 
+         int w = (cw) >> texture_shift;
+         if( w == 0 )
++        {
++#if defined(W17_MICRO) && W17_MICRO
++            have_next = 0;
++#endif
+             continue;
+-
++        }
++
++#if defined(W17_MICRO) && W17_MICRO
++        if( !have_next )
++        {
++            curr_u = (au) / w;
++            curr_u = clamp(curr_u, 0, texture_width - 1);
++            curr_v = (bv) / w;
++        }
++#else
+         curr_u = (au) / w;
+         curr_u = clamp(curr_u, 0, texture_width - 1);
+         curr_v = (bv) / w;
+         // curr_v = clamp(curr_v, 0, texture_width - 1);
++#endif
+ 
+         au += step_au_dx;
+         bv += step_bv_dx;
+@@ -103,7 +133,12 @@ raster_texshadeflat_persp_texopaque_ordered_lerp8_scanline(
+ 
+         w = (cw) >> texture_shift;
+         if( w == 0 )
++        {
++#if defined(W17_MICRO) && W17_MICRO
++            have_next = 0;
++#endif
+             continue;
++        }
+ 
+         next_u = (au) / w;
+         next_u = clamp(next_u, 0x0, texture_width - 1);
+@@ -128,6 +163,11 @@ raster_texshadeflat_persp_texopaque_ordered_lerp8_scanline(
+         u_scan += step_u;
+         v_scan += step_v;
+         offset += 8;
++#if defined(W17_MICRO) && W17_MICRO
++        curr_u = next_u;
++        curr_v = next_v;
++        have_next = 1;
++#endif
+ 
+     } while( lerp8_steps-- > 0 );
+ 
+@@ -138,9 +178,18 @@ raster_texshadeflat_persp_texopaque_ordered_lerp8_scanline(
+     if( w == 0 )
+         return;
+ 
++#if defined(W17_MICRO) && W17_MICRO
++    if( !have_next )
++    {
++        curr_u = (au) / w;
++        curr_u = clamp(curr_u, 0, texture_width - 1);
++        curr_v = (bv) / w;
++    }
++#else
+     curr_u = (au) / w;
+     curr_u = clamp(curr_u, 0, texture_width - 1);
+     curr_v = (bv) / w;
++#endif
+ 
+     au += step_au_dx;
+     bv += step_bv_dx;

@@ -1,0 +1,215 @@
+From 68423edcffab45fba6e4f56a483da308deb3b9b9 Mon Sep 17 00:00:00 2001
+From: Matt Evers <mrobertevers@gmail.com>
+Date: Tue, 25 Aug 2026 02:47:01 -0500
+Subject: [PATCH] abl(nosort): HUNTABL_SORTMODE ablation ladder for the depth
+ sort
+
+Throwaway ablation, never shippable. HUNTABL_SORTMODE=1 skips
+ToriDraw_ComputeProjectedFaceOrder entirely and emits the front-facing
+faces in model array order; =2 runs the real sorter in full and then
+discards its answer, isolating the draw-order change from the sort cost;
+=3 drops the cull too and draws every face.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ 3rd/toridraw/toridraw.c          |  10 +++
+ 3rd/toridraw/toridraw_render.u.c | 140 +++++++++++++++++++++++++++++++
+ 2 files changed, 150 insertions(+)
+
+diff --git a/3rd/toridraw/toridraw.c b/3rd/toridraw/toridraw.c
+index b2a4729f7..4cd2d429a 100644
+--- a/3rd/toridraw/toridraw.c
++++ b/3rd/toridraw/toridraw.c
+@@ -799,10 +799,20 @@ ToriDraw_RenderModel2SortFaces(
+     struct ToriDraw_ModelHandle hnd,
+     struct ToriDraw_Scene* scene)
+ {
++#if defined(HUNTABL_SORTMODE) && (HUNTABL_SORTMODE == 1 || HUNTABL_SORTMODE == 3)
++    /* ABLATION: the depth sort never runs. See ToriDraw_HuntablFaceOrderArray. */
++    ToriDraw_HuntablFaceOrderArray(scene, hnd);
++#else
+     if( scene->flags & TORIDRAW_SCENE_SMALL )
+         ToriDraw_ComputeProjectedFaceOrderSmall(scene, hnd);
+     else
+         ToriDraw_ComputeProjectedFaceOrder(scene, hnd);
++#endif
++#if defined(HUNTABL_SORTMODE) && HUNTABL_SORTMODE == 2
++    /* ABLATION: sort ran in full, now throw the order away. */
++    assert(!(scene->flags & TORIDRAW_SCENE_SMALL));
++    ToriDraw_HuntablDiscardSortedOrder(scene);
++#endif
+     return scene->tmp_face_order_count;
+ }
+ 
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..9129f71fe 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -1051,6 +1051,23 @@ ToriDraw_CalculateCylinderAabb8point(
+ #if defined(__GNUC__) || defined(__clang__)
+ __attribute__((always_inline))
+ #endif
++/* ---------------------------------------------------------------------------
++ * HUNTABL_SORTMODE -- throwaway ablation switch for the WinXP frame hunt.
++ * Undefined (or 0) is the shipping sorter, bit for bit.
++ *   1  nosort    -- cull only, faces drawn in model array order
++ *   2  sortdisc  -- full sort runs, answer discarded, array order drawn
++ *   3  nocull    -- no sort and no cull, every face drawn in array order
++ * The name deliberately shares no substring with the three probe macros
++ * src/makefile gates the handrolled asm kernels on.
++ * ------------------------------------------------------------------------ */
++#if defined(HUNTABL_SORTMODE) && HUNTABL_SORTMODE == 2
++/* The largest scratch tier is 32768 faces (TORIDRAW_VERYHIGH_MAX_FACES) and
++ * ToriDraw_Project refuses anything above the tier, so this cannot be short. */
++#define HUNTABL_ACCEPT_CAP 32768
++static int g_huntabl_accept_order[HUNTABL_ACCEPT_CAP];
++static int g_huntabl_accept_count = 0;
++#endif
++
+ static inline int
+ bucket_sort_by_average_depth_impl(
+     faceint_t* RESTRICT face_depth_buckets,
+@@ -1072,6 +1089,10 @@ bucket_sort_by_average_depth_impl(
+     int min_d = depth_levels;
+     int max_d = 0;
+ 
++#if defined(HUNTABL_SORTMODE) && HUNTABL_SORTMODE == 2
++    g_huntabl_accept_count = 0;
++#endif
++
+     for( int f = 0; f < num_faces; f++ )
+     {
+         const uint32_t a = face_a[f];
+@@ -1132,6 +1153,11 @@ bucket_sort_by_average_depth_impl(
+                     face_depth_bucket_counts[depth_avg] = count + 1;
+                     face_depth_buckets[depth_avg * depth_stride + count] = (faceint_t)f;
+ 
++#if defined(HUNTABL_SORTMODE) && HUNTABL_SORTMODE == 2
++                    assert(g_huntabl_accept_count < HUNTABL_ACCEPT_CAP);
++                    g_huntabl_accept_order[g_huntabl_accept_count++] = f;
++#endif
++
+                     if( debug_stats )
+                     {
+                         debug_stats->accepted++;
+@@ -1544,6 +1570,120 @@ toridraw_dbg_check_face_order(
+ }
+ /* #endregion */
+ 
++#if defined(HUNTABL_SORTMODE) && (HUNTABL_SORTMODE == 1 || HUNTABL_SORTMODE == 3)
++/*
++ * ABLATION, not a shipping path. Emits the model's faces in array order.
++ *
++ * HUNTABL_SORTMODE 1 keeps the back-face/degenerate cull the real sorter does
++ * on its way past -- same face SET as the control, so the rasterizer receives
++ * the same triangles in a different order -- and drops everything else: the
++ * depth average, the quantisation, the bucket table, the drain walk, the
++ * bucket-count memset and the entire priority path.
++ *
++ * HUNTABL_SORTMODE 3 drops the cull too, so every face of every model reaches
++ * a kernel. That is roughly 2.4x the triangles, deliberately: it is the only
++ * way to price the cull, and it is NOT a bound on anything by itself.
++ */
++static inline void
++ToriDraw_HuntablFaceOrderArray(
++    struct ToriDraw_Scene* scene,
++    struct ToriDraw_ModelHandle hnd)
++{
++    const faceint_t* RESTRICT fia = NULL;
++    const faceint_t* RESTRICT fib = NULL;
++    const faceint_t* RESTRICT fic = NULL;
++    int face_count = 0;
++
++    assert(scene);
++
++    switch( hnd.kind )
++    {
++    case TORIDRAWMK_MODEL:
++    case TORIDRAWMK_MODEL_HD:
++    {
++        struct ToriDraw_Model* m = model_as_full(hnd);
++        fia = m->face_indices_a;
++        fib = m->face_indices_b;
++        fic = m->face_indices_c;
++        face_count = m->face_count;
++        break;
++    }
++    default:
++        assert(0);
++        break;
++    }
++
++    /* ToriDraw_Project already refused any model past the scratch tier, so the
++     * order array holds every face. Assert it rather than clamp: a clamp here
++     * would silently shorten the very thing being timed. */
++    assert(face_count <= scene->max_faces);
++
++    {
++        int* RESTRICT order = scene->tmp_face_order;
++        int n = 0;
++
++#if HUNTABL_SORTMODE == 1
++        const int* RESTRICT vx = scene->screen_vertices_x;
++        const int* RESTRICT vy = scene->screen_vertices_y;
++        bool const near_clipped = scene->near_clipped;
++
++        for( int f = 0; f < face_count; f++ )
++        {
++            const uint32_t a = fia[f];
++            const uint32_t b = fib[f];
++            const uint32_t c = fic[f];
++
++            bool const clip_candidate =
++                near_clipped &&
++                (vx[a] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
++                 vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
++                 vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
++
++            if( !clip_candidate )
++            {
++                long long const winding =
++                    toridraw_winding_2d(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
++                if( !toridraw_winding_front_facing(winding) )
++                    continue;
++            }
++
++            order[n++] = f;
++        }
++#else
++        (void)fia;
++        (void)fib;
++        (void)fic;
++        for( int f = 0; f < face_count; f++ )
++            order[n++] = f;
++#endif
++
++        scene->tmp_face_order_count = n;
++    }
++}
++#endif /* HUNTABL_SORTMODE 1 or 3 */
++
++#if defined(HUNTABL_SORTMODE) && HUNTABL_SORTMODE == 2
++/*
++ * ABLATION control twin: the real sorter has already run and paid every cycle
++ * it normally pays; this throws its answer away and substitutes the identical
++ * accepted set in model array order. The delta against the control is then the
++ * ORDER change alone -- overdraw and nothing else.
++ */
++static inline void
++ToriDraw_HuntablDiscardSortedOrder(struct ToriDraw_Scene* scene)
++{
++    assert(scene);
++    assert(g_huntabl_accept_count >= 0);
++    assert(g_huntabl_accept_count <= scene->max_faces);
++
++    memcpy(
++        scene->tmp_face_order,
++        g_huntabl_accept_order,
++        (size_t)g_huntabl_accept_count * sizeof(scene->tmp_face_order[0]));
++    scene->tmp_face_order_count = g_huntabl_accept_count;
++}
++#endif /* HUNTABL_SORTMODE 2 */
++
+ static inline void
+ ToriDraw_ComputeProjectedFaceOrder(
+     struct ToriDraw_Scene* scene,

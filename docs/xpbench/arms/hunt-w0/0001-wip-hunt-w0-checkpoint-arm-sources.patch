@@ -1,0 +1,422 @@
+From 03de12a16e796158b839d404d64a868ea7561858 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:14:44 -0500
+Subject: [PATCH] wip(hunt-w0): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/w0.
+
+files: 3rd/toridraw/toridraw_proj_bench.c 3rd/toridraw/toridraw_render.u.c
+---
+ 3rd/toridraw/toridraw_proj_bench.c | 149 ++++++++++++++++++++++++++---
+ 3rd/toridraw/toridraw_render.u.c   |  98 ++++++++++++++++++-
+ 2 files changed, 230 insertions(+), 17 deletions(-)
+
+diff --git a/3rd/toridraw/toridraw_proj_bench.c b/3rd/toridraw/toridraw_proj_bench.c
+index a44455cbb..d5a290fb3 100644
+--- a/3rd/toridraw/toridraw_proj_bench.c
++++ b/3rd/toridraw/toridraw_proj_bench.c
+@@ -37,6 +37,10 @@
+ 
+ #include "graphics/projection16_fast.sse2.h"
+ #include "graphics/projection16_simd.u.c"
++/* Included again by name so the bench still builds on a lane where
++ * projection16_simd.u.c declined to pull it in; the guard makes the
++ * second include a no-op on the SSE2 lane that already has it. */
++#include "graphics/projection16_prepared.sse2.h"
+ 
+ /* ------------------------------------------------------------ census shape */
+ 
+@@ -234,8 +238,96 @@ struct Outputs
+ static struct Outputs const g_out_a = { g_ox, g_oy, g_oz, g_sx, g_sy, g_sz };
+ static struct Outputs const g_out_b = { g_bx, g_by, g_bz, g_tx, g_ty, g_tz };
+ 
++/*
++ * Which kernel a run drives. VARIANT_REF is what the renderer ships today;
++ * the other two are the candidates, and the comparison always runs against
++ * VARIANT_REF so a candidate is scored on the picture it changes.
++ */
++enum Variant
++{
++    VARIANT_REF = 0,
++    VARIANT_FAST = 1,
++    VARIANT_PREPARED = 2,
++};
++
++/*
++ * The prepared kernel reads the camera out of a block the scene publishes once
++ * per frame (ToriDraw_ScenePrepareProjectionCamera). The bench has no scene,
++ * so it builds the same block from the same four table reads and the same
++ * cot16 >> 1.
++ */
++static struct ToriDraw_ProjectionPreparedCamera g_prepared;
++
++static void
++build_prepared_camera(void)
++{
++    int values[5];
++
++    values[0] = ToriDraw_ReadCosTable(CAM_YAW);
++    values[1] = ToriDraw_ReadSinTable(CAM_YAW);
++    values[2] = ToriDraw_ReadCosTable(CAM_PITCH);
++    values[3] = ToriDraw_ReadSinTable(CAM_PITCH);
++    values[4] = CAM_COT16 >> 1;
++
++    for( int lane = 0; lane < 4; lane++ )
++    {
++        g_prepared.cos_yaw[lane] = values[0];
++        g_prepared.sin_yaw[lane] = values[1];
++        g_prepared.cos_pitch[lane] = values[2];
++        g_prepared.sin_pitch[lane] = values[3];
++        g_prepared.cot15[lane] = values[4];
++    }
++}
++
++/*
++ * One call per (textured, clipped) corner so want_ortho and want_clip reach
++ * the always_inline core as literals -- the same thing the four entry points
++ * in projection16_prepared.sse2.h do for the renderer.
++ */
++static void
++project_one_prepared(struct Model const* m, struct Outputs const* o)
++{
++    vertexint_t* vx = &g_vx[m->arena_offset];
++    vertexint_t* vy = &g_vy[m->arena_offset];
++    vertexint_t* vz = &g_vz[m->arena_offset];
++    int const n = m->num_vertices;
++    int const yaw = m->model_yaw;
++
++    assert(m);
++    assert(o);
++
++    /* clang-format off */
++    if( m->clipped )
++    {
++        if( m->textured )
++            toridraw_proj_prepared_core(
++                &g_prepared, o->ox, o->oy, o->oz, o->sx, o->sy, o->sz,
++                vx, vy, vz, n, CAM_YAW, yaw, 0,
++                m->scene_x, m->scene_y, m->scene_z, NEAR_Z, 1, 1);
++        else
++            toridraw_proj_prepared_core(
++                &g_prepared, NULL, NULL, NULL, o->sx, o->sy, o->sz,
++                vx, vy, vz, n, CAM_YAW, yaw, 0,
++                m->scene_x, m->scene_y, m->scene_z, NEAR_Z, 0, 1);
++    }
++    else
++    {
++        if( m->textured )
++            toridraw_proj_prepared_core(
++                &g_prepared, o->ox, o->oy, o->oz, o->sx, o->sy, o->sz,
++                vx, vy, vz, n, CAM_YAW, yaw, 0,
++                m->scene_x, m->scene_y, m->scene_z, 0, 1, 0);
++        else
++            toridraw_proj_prepared_core(
++                &g_prepared, NULL, NULL, NULL, o->sx, o->sy, o->sz,
++                vx, vy, vz, n, CAM_YAW, yaw, 0,
++                m->scene_x, m->scene_y, m->scene_z, 0, 0, 0);
++    }
++    /* clang-format on */
++}
++
+ static void
+-project_one(struct Model const* m, struct Outputs const* o, int fast)
++project_one(struct Model const* m, struct Outputs const* o, int variant)
+ {
+     vertexint_t* vx = &g_vx[m->arena_offset];
+     vertexint_t* vy = &g_vy[m->arena_offset];
+@@ -247,6 +339,14 @@ project_one(struct Model const* m, struct Outputs const* o, int fast)
+     assert(o);
+     assert(n <= MAX_MODEL_VTX);
+ 
++    if( variant == VARIANT_PREPARED )
++    {
++        project_one_prepared(m, o);
++        return;
++    }
++
++    int const fast = ( variant == VARIANT_FAST );
++
+     /* clang-format off */
+     if( m->clipped )
+     {
+@@ -395,7 +495,7 @@ print_diff(char const* label, struct Diff const* d)
+ }
+ 
+ static int
+-compare_kernels(void)
++compare_kernels(int variant, char const* label)
+ {
+     struct Diff ortho = { 0.0, 0.0, 0 };
+     struct Diff screen_xy = { 0.0, 0.0, 0 };
+@@ -404,6 +504,11 @@ compare_kernels(void)
+     int worst_m = -1;
+     int worst_i = -1;
+     int failed = 0;
++    /* Bucket 0 counts exact agreement; bucket 5 is everything past the
++     * four-unit ceiling this harness is willing to call a rounding change. */
++    double hist[6] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
++
++    assert(label);
+ 
+     for( int m = 0; m < MODEL_COUNT; m++ )
+     {
+@@ -422,8 +527,8 @@ compare_kernels(void)
+         memset(g_ty, 0, sizeof(g_ty));
+         memset(g_tz, 0, sizeof(g_tz));
+ 
+-        project_one(&g_models[m], &g_out_a, 0);
+-        project_one(&g_models[m], &g_out_b, 1);
++        project_one(&g_models[m], &g_out_a, VARIANT_REF);
++        project_one(&g_models[m], &g_out_b, variant);
+ 
+         if( g_models[m].textured )
+         {
+@@ -454,6 +559,7 @@ compare_kernels(void)
+                 continue;
+ 
+             visible.checked += 1.0;
++            hist[d < 5 ? d : 5] += 1.0;
+             if( d == 0 )
+                 continue;
+             visible.differing += 1.0;
+@@ -466,16 +572,24 @@ compare_kernels(void)
+         }
+     }
+ 
+-    printf("compare (fast vs projection16_simd.sse2):\n");
++    printf("compare (%s vs projection16_simd.sse2):\n", label);
+     print_diff("orthographic xyz", &ortho);
+     print_diff("screen xy", &screen_xy);
+     print_diff("screen z", &screen_z);
+     print_diff("on-screen xy", &visible);
++    printf(
++        "  on-screen |d|   : 0:%.2f%% 1:%.2f%% 2:%.2f%% 3:%.2f%% 4:%.2f%% >4:%.2f%%\n",
++        100.0 * hist[0] / visible.checked,
++        100.0 * hist[1] / visible.checked,
++        100.0 * hist[2] / visible.checked,
++        100.0 * hist[3] / visible.checked,
++        100.0 * hist[4] / visible.checked,
++        100.0 * hist[5] / visible.checked);
+ 
+     if( worst_m >= 0 )
+     {
+-        project_one(&g_models[worst_m], &g_out_a, 0);
+-        project_one(&g_models[worst_m], &g_out_b, 1);
++        project_one(&g_models[worst_m], &g_out_a, VARIANT_REF);
++        project_one(&g_models[worst_m], &g_out_b, variant);
+         printf(
+             "  worst on-screen vertex: model %d vertex %d of %d, yaw %d, "
+             "depth %d -> old (%d, %d) new (%d, %d)\n",
+@@ -501,21 +615,25 @@ compare_kernels(void)
+ /* ------------------------------------------------------------------ timing */
+ 
+ static double
+-time_variant(int fast, int passes)
++time_variant(int variant, int passes)
+ {
+     clock_t const t0 = clock();
+ 
+     for( int p = 0; p < passes; p++ )
+         for( int m = 0; m < MODEL_COUNT; m++ )
+-            project_one(&g_models[m], &g_out_a, fast);
++            project_one(&g_models[m], &g_out_a, variant);
+ 
+     return 1000.0 * (double)( clock() - t0 ) / (double)CLOCKS_PER_SEC;
+ }
+ 
++/* Which candidate the timing half drives; the compare half always runs both. */
++static int g_timed_variant = VARIANT_PREPARED;
++
+ int
+ main(int argc, char** argv)
+ {
+     int passes = ( argc > 1 ) ? atoi(argv[1]) : 500;
++    int timed = ( argc > 2 ) ? atoi(argv[2]) : VARIANT_PREPARED;
+     double vertices = 0.0;
+     double best_old = 0.0;
+     double best_new = 0.0;
+@@ -527,6 +645,7 @@ main(int argc, char** argv)
+ 
+     ToriDraw_InitSinTable();
+     ToriDraw_InitCosTable();
++    build_prepared_camera();
+     build_workload();
+     clip_share = classify_by_depth();
+ 
+@@ -539,18 +658,20 @@ main(int argc, char** argv)
+         vertices,
+         passes);
+ 
+-    failed = compare_kernels();
++    failed = compare_kernels(VARIANT_FAST, "fast");
++    printf("\n");
++    failed |= compare_kernels(VARIANT_PREPARED, "prepared");
+ 
+     /* Warm the arena and the branch predictors before the clock starts. */
+-    time_variant(0, 1);
+-    time_variant(1, 1);
++    time_variant(VARIANT_REF, 1);
++    time_variant(timed, 1);
+ 
+     printf("\n            old (ms)   new (ms)    speedup\n");
+     for( int rep = 0; rep < 5; rep++ )
+     {
+         /* Interleaved, so a thermal drift hits both variants equally. */
+-        double const a = time_variant(0, passes);
+-        double const b = time_variant(1, passes);
++        double const a = time_variant(VARIANT_REF, passes);
++        double const b = time_variant(timed, passes);
+ 
+         printf("  rep %d:   %8.2f   %8.2f    %6.3fx\n", rep, a, b, a / b);
+ 
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..db0f72000 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -891,11 +891,13 @@ ToriDraw_FastCull(
+ static void
+ ToriDraw_CalculateCylinderAabb8point(
+     struct ToriDraw_AABB* aabb,
++    struct ToriDraw_Scene* scene,
+     struct ToriDraw_ModelHandle hnd,
+     struct ToriDraw_Position* position,
+     struct ToriDraw_ViewPort* view_port,
+     struct ToriDraw_Camera* camera)
+ {
++    assert(scene);
+     const struct ToriDraw_BoundsCylinder* bcyl = model_bounds_cylinder(hnd);
+     assert(bcyl);
+     int model_edge_radius = bcyl->radius;
+@@ -984,6 +986,45 @@ ToriDraw_CalculateCylinderAabb8point(
+             camera->yaw,
+             camera_roll);
+     }
++#if defined(TORIDRAW_SSE2_PREPARED_PROJECTION) && defined(TORIDRAW_PREPARED_AABB8)
++    /*
++     * Eight corners is two 4-wide blocks, so almost none of what this branch
++     * costs is arithmetic: project_vertices_array_fused_notex_clip is a
++     * twenty-argument cdecl call, and on 32-bit x86 that is twenty stack
++     * pushes plus a per-call camera setup -- four trig reads and a dozen
++     * splats -- for eight vertices. The prepared core takes the camera out of
++     * the block the scene published at BEGIN_3D and inlines here, so the
++     * setup is gone and the call is gone.
++     *
++     * Same clipping family, same -5000 sentinel, same near plane: only the
++     * rounding moves, by the unit or two projection16_prepared.sse2.h
++     * documents, which the min/max sweep below widens or narrows the box by.
++     */
++    else if( scene->projection_prepared_camera_source == camera )
++    {
++        toridraw_proj_prepared_core(
++            &scene->projection_prepared_camera,
++            NULL,
++            NULL,
++            NULL,
++            sc_x,
++            sc_y,
++            sc_z,
++            bb_x,
++            bb_y,
++            bb_z,
++            8,
++            ToriDraw_NormalizeAngle(camera->yaw),
++            model_yaw,
++            0,
++            position->x,
++            position->y,
++            position->z,
++            camera->near_plane_z,
++            0,
++            1);
++    }
++#endif
+     else
+     {
+         project_vertices_array_fused_notex_clip(
+@@ -2322,7 +2363,7 @@ toridraw_project_vertices_clip(
+ }
+ 
+ /* Models that provably cannot; no sentinel, no near-plane test. */
+-#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
++#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM) || defined(TORIDRAW_PREPARED_NOCLIP)
+ __attribute__((noinline))
+ #endif
+ static void
+@@ -2485,7 +2526,7 @@ toridraw_project_vertices_noclip_portable(
+ 
+ }
+ 
+-#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
++#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM) || defined(TORIDRAW_PREPARED_NOCLIP)
+ __attribute__((always_inline))
+ #endif
+ static inline void
+@@ -2532,6 +2573,56 @@ toridraw_project_vertices_noclip(
+         }
+         return;
+     }
++#elif defined(TORIDRAW_SSE2_PREPARED_PROJECTION) && defined(TORIDRAW_PREPARED_NOCLIP)
++    /*
++     * The same gate on the SSE2 lane, over the same prepared block. The
++     * fused-yaw identity R_cam(R_model v + t) == R_(model+cam) v + R_cam t
++     * only holds about a shared axis, so model pitch/roll and camera roll must
++     * all be zero; anything else falls through to the portable family below
++     * rather than being folded away. The prepared block is republished from
++     * the frame's own camera on every TORIRSRC_BEGIN_3D, so the pointer test
++     * is a "is this the camera it was built for", not a staleness check.
++     *
++     * camera->yaw is normalized here because the kernel indexes
++     * g_projection_model_yaw_table with (model_yaw + camera_yaw) & 2047 and a
++     * negative camera yaw would combine to the wrong angle -- the portable
++     * family never had to care, because ToriDraw_ReadCosTable masks.
++     */
++    int const num_vertices = model_vertex_count(hnd);
++
++    if( model_pitch == 0 && model_roll == 0 && camera_roll == 0 &&
++        scene->projection_prepared_camera_source == camera && num_vertices >= 4 )
++    {
++        int const camera_yaw = ToriDraw_NormalizeAngle(camera->yaw);
++
++        if( model_has_textures(hnd) )
++        {
++            ToriDraw_ProjPreparedNoclip(
++                scene,
++                model_vertices_x(hnd),
++                model_vertices_y(hnd),
++                model_vertices_z(hnd),
++                num_vertices,
++                camera_yaw,
++                model_yaw,
++                model_mid_z,
++                position);
++        }
++        else
++        {
++            ToriDraw_ProjPreparedNotexNoclip(
++                scene,
++                model_vertices_x(hnd),
++                model_vertices_y(hnd),
++                model_vertices_z(hnd),
++                num_vertices,
++                camera_yaw,
++                model_yaw,
++                model_mid_z,
++                position);
++        }
++        return;
++    }
+ #endif
+ 
+     toridraw_project_vertices_noclip_portable(
+@@ -2758,7 +2849,8 @@ ToriDraw_Project(
+ 
+     scene->projected_vertex = center_projection;
+ 
+-    ToriDraw_CalculateCylinderAabb8point(&scene->aabb, hnd, position, view_port, camera);
++    ToriDraw_CalculateCylinderAabb8point(
++        &scene->aabb, scene, hnd, position, view_port, camera);
+ 
+     cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
+     if( cull != TORIDRAW_CULL_VISIBLE )

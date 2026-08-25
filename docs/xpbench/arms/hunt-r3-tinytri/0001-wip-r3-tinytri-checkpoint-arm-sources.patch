@@ -1,0 +1,1054 @@
+From a526ca4109fa7c16d7e38bbdc7afd21470d9cf33 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:16:35 -0500
+Subject: [PATCH] wip(r3-tinytri): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-tinytri.
+
+files: 3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S 3rd/toridraw/graphics/raster/gouraudhsllightness/tinytri_census.c 3rd/toridraw/graphics/raster/gouraudhsllightness/tinytri_census.h 3rd/toridraw/toridraw_gouraud_tri_asm_test.c 3rd/toridraw/toridraw_unity.c 3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
+---
+ .../gouraudhsllightness/gouraud_tri_i686.S    | 239 ++++++++++-
+ .../gouraudhsllightness/tinytri_census.c      | 380 ++++++++++++++++++
+ .../gouraudhsllightness/tinytri_census.h      | 157 ++++++++
+ 3rd/toridraw/toridraw_gouraud_tri_asm_test.c  |  31 +-
+ 3rd/toridraw/toridraw_unity.c                 |   1 +
+ .../triangles/toridraw_triangle_gouraud.u.c   |   3 +
+ 6 files changed, 790 insertions(+), 21 deletions(-)
+ create mode 100644 3rd/toridraw/graphics/raster/gouraudhsllightness/tinytri_census.c
+ create mode 100644 3rd/toridraw/graphics/raster/gouraudhsllightness/tinytri_census.h
+
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+index d8b79f6d2..afe9a86a0 100644
+--- a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+@@ -135,8 +135,40 @@
+ #define V_DAC    144
+ #define V_SAREA  148
+ #define V_TMP    152
++#define V_FASTNC 156	/* rung fastnc: bbox proved BOTH segments unclipped  */
+ #define FRAME    160
+ 
++/* ---- tiny-triangle ladder ---------------------------------------------
++ *
++ * The census (900 moving-camera frames, 12,868,988 live gouraud triangles)
++ * says the per-triangle prologue, not the fill, is what this kernel spends
++ * its time on: 51.44% of its EIP samples land in sort+prologue+segment setup
++ * and only 48.56% in the eight row loops. 73.061% of live triangles have
++ * |sarea| < 16 and together carry 4.126% of the pixels. Each rung below
++ * deletes a piece of that prologue.
++ *
++ * The first four are BIT-EXACT and are on here: toridraw_gouraud_tri_asm_test
++ * runs them against the C twin over 2,000,000 randomised triangles, framebuffer
++ * against framebuffer, including a generator written for this class. Set any of
++ * them to 0 to build the arm below it in the ladder; TT_FLAT16 is a ceiling
++ * probe that CHANGES OUTPUT and stays off.
++ */
++#ifndef TT_SEGDIRECT
++#define TT_SEGDIRECT 1	/* SEGMENT reads the real slots; kill SETSEG        */
++#endif
++#ifndef TT_FASTNC
++#define TT_FASTNC    1	/* x-bbox onscreen + y0>=0 proves NC1=NC2=1        */
++#endif
++#ifndef TT_POW2DIV
++#define TT_POW2DIV   1	/* power-of-two edge divisor -> bsf + sar          */
++#endif
++#ifndef TT_PZERO
++#define TT_PZERO     1	/* provable zero-pixel reject, before every divide */
++#endif
++#ifndef TT_FLAT16
++#define TT_FLAT16    0	/* CEILING PROBE, NOT BIT-EXACT: flat-shade <16    */
++#endif
++
+ /* four pushes + FRAME + the return address */
+ #define A(n) (180 + 4 * (n))(%esp)
+ 
+@@ -264,14 +296,14 @@
+  * caller proved once per segment whether any row can leave the viewport, so
+  * the common case runs a row loop with no clamping in it at all.
+  */
+-.macro	SEGMENT
+-	movl	V_EL(%esp), %ebx
+-	movl	V_ER(%esp), %esi
++.macro	SEGMENT el, er, sl, sr, nc, cnt
++	movl	\el(%esp), %ebx
++	movl	\er(%esp), %esi
+ 	movl	V_HSL(%esp), %ebp
+-	movl	V_CNT(%esp), %eax
++	movl	\cnt(%esp), %eax
+ 	testl	%eax, %eax
+ 	jle	5900f
+-	cmpl	$0, V_NC(%esp)
++	cmpl	$0, \nc(%esp)
+ 	je	5500f
+ 
+ 	/* ---- proved inside the viewport: no left/right clamp ---- */
+@@ -279,8 +311,8 @@
+ 5000:
+ 	movl	%ebx, %eax
+ 	movl	%esi, %ecx
+-	addl	V_STEPL(%esp), %ebx
+-	addl	V_STEPR(%esp), %esi
++	addl	\sl(%esp), %ebx
++	addl	\sr(%esp), %esi
+ 
+ 	cmpl	%ecx, %eax
+ 	je	5400f
+@@ -303,7 +335,7 @@
+ 	addl	V_SYH(%esp), %ebp	/* every row, drawn or not           */
+ 	movl	V_STRIDE(%esp), %eax
+ 	addl	%eax, V_OFF(%esp)
+-	decl	V_CNT(%esp)
++	decl	\cnt(%esp)
+ 	jne	5000b
+ 	jmp	5900f
+ 
+@@ -312,8 +344,8 @@
+ 5500:
+ 	movl	%ebx, %eax
+ 	movl	%esi, %ecx
+-	addl	V_STEPL(%esp), %ebx
+-	addl	V_STEPR(%esp), %esi
++	addl	\sl(%esp), %ebx
++	addl	\sr(%esp), %esi
+ 
+ 	cmpl	%ecx, %eax
+ 	je	5800f
+@@ -345,12 +377,12 @@
+ 	addl	V_SYH(%esp), %ebp
+ 	movl	V_STRIDE(%esp), %eax
+ 	addl	%eax, V_OFF(%esp)
+-	decl	V_CNT(%esp)
++	decl	\cnt(%esp)
+ 	jne	5500b
+ 
+ 5900:
+-	movl	%ebx, V_EL(%esp)
+-	movl	%esi, V_ER(%esp)
++	movl	%ebx, \el(%esp)
++	movl	%esi, \er(%esp)
+ 	movl	%ebp, V_HSL(%esp)
+ .endm
+ 
+@@ -476,6 +508,39 @@ Lsorted:
+ 	je	Lret
+ 	movl	%eax, %ebx		/* %ebx = dy_AC */
+ 
++#if TT_PZERO
++	/* PROVABLE zero-pixel reject, and it sits here -- before sarea, before
++	 * the reciprocal, before all three edge divides -- because it needs
++	 * nothing but the sorted y values and the screen height.
++	 *
++	 * With y0 >= 0 there is no negative-y pre-step, so BOTH of segment 1
++	 * edges start at exactly x0<<16. Row 0 of segment 1 therefore has
++	 * x_left_ish16 == x_right_ish16, which both row loops discard on their
++	 * first compare. So a segment 1 of one row draws nothing, and if
++	 * segment 2 is empty as well the whole triangle draws nothing.
++	 *
++	 * 12.407% of live triangles match; the census drew 412,540,393 pixels
++	 * over 900 frames and exactly 0 of them came from this class. It is
++	 * 45% of the 27.489% that draw nothing at all -- the rest need a
++	 * per-row argument this test cannot make. */
++	movl	V_Y0(%esp), %eax
++	testl	%eax, %eax
++	js	Lpz_no			/* y0 < 0: there IS a pre-step       */
++	movl	V_SCRH(%esp), %ecx
++	movl	V_Y1(%esp), %edx
++	cmpl	%ecx, %edx
++	cmovg	%ecx, %edx		/* y1 clamped (y1 > h clamps y2 too) */
++	movl	V_Y2(%esp), %esi
++	cmpl	%ecx, %esi
++	cmovg	%ecx, %esi		/* y2 clamped                        */
++	cmpl	%edx, %esi
++	jne	Lpz_no			/* n2 != 0                           */
++	subl	%eax, %edx		/* n1, and it cannot go negative:    */
++	cmpl	$1, %edx		/*   the sort already left y0 <= h   */
++	jle	Lret
++Lpz_no:
++#endif
++
+ 	movl	V_X2(%esp), %esi
+ 	subl	V_X0(%esp), %esi	/* %esi = dx_AC */
+ 	movl	V_X1(%esp), %edi
+@@ -518,6 +583,25 @@ Lsorted:
+ 	je	Lret
+ 	movl	%eax, V_SAREA(%esp)
+ 
++#if TT_FLAT16
++	/* CEILING PROBE -- OUTPUT-CHANGED, not bit-exact. 73.061% of live
++	 * triangles have |sarea| < 16 and carry 4.126% of the pixels between
++	 * them; shading that class flat from vertex A deletes the reciprocal
++	 * and both colour gradients for three triangles in four. This arm
++	 * exists to price that, not to ship. */
++	movl	%eax, %ecx
++	movl	%ecx, %edx
++	sarl	$31, %edx
++	xorl	%edx, %ecx
++	subl	%edx, %ecx		/* |sarea|                           */
++	cmpl	$16, %ecx
++	jge	Lgrad
++	movl	$0, V_SXH(%esp)
++	movl	$0, V_SXH4(%esp)
++	movl	$0, V_SYH(%esp)
++	jmp	Lgrad_done
++Lgrad:
++#endif
+ 	movl	V_C1(%esp), %eax
+ 	subl	V_C0(%esp), %eax
+ 	movl	%eax, V_DAB(%esp)
+@@ -580,6 +664,9 @@ Lsorted:
+ 	mulsd	%xmm7, %xmm1
+ 	cvttsd2si %xmm1, %eax
+ 	movl	%eax, V_SYH(%esp)
++#if TT_FLAT16
++Lgrad_done:
++#endif
+ 
+ 	/* The three edge slopes. The divides stay divides: five per triangle
+ 	 * measured ~0.5% of frame, about 2.7 cycles apiece because they are
+@@ -593,6 +680,24 @@ Lsorted:
+ 	jle	Lno_ac
+ 	movl	%esi, %eax
+ 	shll	$16, %eax
++#if TT_POW2DIV
++	/* dy is a power of two for 64.583% of the live edge divides -- 1.578 of
++	 * the 2.444 a triangle takes -- because 83.05% of triangles are 8 rows
++	 * or shorter. The shift is EXACT, not an approximation: the second test
++	 * is (dividend & (dy-1)) == 0, so the quotient has no fractional part
++	 * at all and the round-toward-minus-infinity of sar cannot differ from
++	 * the round-toward-zero of idiv. That test also makes the <<16 dividend
++	 * wrap irrelevant -- it is applied to whatever 32 bits shll left. */
++	leal	-1(%ebx), %ecx
++	testl	%ebx, %ecx
++	jne	Lidiv_ac
++	testl	%eax, %ecx
++	jne	Lidiv_ac
++	bsfl	%ebx, %ecx
++	sarl	%cl, %eax
++	jmp	Lno_ac
++Lidiv_ac:
++#endif
+ 	cltd
+ 	idivl	%ebx
+ Lno_ac:
+@@ -603,6 +708,17 @@ Lno_ac:
+ 	jle	Lno_ab
+ 	movl	%edi, %eax
+ 	shll	$16, %eax
++#if TT_POW2DIV
++	leal	-1(%ebp), %ecx
++	testl	%ebp, %ecx
++	jne	Lidiv_ab
++	testl	%eax, %ecx
++	jne	Lidiv_ab
++	bsfl	%ebp, %ecx
++	sarl	%cl, %eax
++	jmp	Lno_ab
++Lidiv_ab:
++#endif
+ 	cltd
+ 	idivl	%ebp
+ Lno_ab:
+@@ -616,8 +732,25 @@ Lno_ab:
+ 	movl	V_X2(%esp), %eax
+ 	subl	V_X1(%esp), %eax
+ 	shll	$16, %eax
++#if TT_POW2DIV
++	/* %ebx is dead from here (the dy_AC divide is done) and %cl has to hold
++	 * the shift count, so the divisor moves out of %ecx. */
++	movl	%ecx, %ebx
++	leal	-1(%ebx), %ecx
++	testl	%ebx, %ecx
++	jne	Lidiv_bc
++	testl	%eax, %ecx
++	jne	Lidiv_bc
++	bsfl	%ebx, %ecx
++	sarl	%cl, %eax
++	jmp	Lno_bc
++Lidiv_bc:
++	cltd
++	idivl	%ebx
++#else
+ 	cltd
+ 	idivl	%ecx
++#endif
+ Lno_bc:
+ 	movl	%eax, V_SXBC(%esp)
+ 
+@@ -640,9 +773,15 @@ Lno_bc:
+ 	movl	%eax, V_HSL(%esp)
+ 
+ 	/* ---- vertical clipping ---- */
++#if TT_FASTNC
++	movl	$1, V_FASTNC(%esp)
++#endif
+ 	movl	V_Y0(%esp), %ecx
+ 	testl	%ecx, %ecx
+ 	jns	Ly0_ok
++#if TT_FASTNC
++	movl	$0, V_FASTNC(%esp)	/* pre-stepped: no proof, use NOHCLIP */
++#endif
+ 	movl	V_SXAC(%esp), %eax
+ 	imull	%ecx, %eax
+ 	subl	%eax, V_EAC(%esp)
+@@ -700,6 +839,43 @@ Ln1_ok:
+ Ln2_ok:
+ 	movl	%eax, V_N2(%esp)
+ 
++#if TT_FASTNC
++	/* The job of NOHCLIP, done from the x-bbox instead of five multiplies.
++	 *
++	 * The three edge slopes truncate TOWARD ZERO, so |k*s| <= |dx<<16| for
++	 * every k <= dy: an edge can never step past the vertex it is walking
++	 * to. With y0 >= 0 there is no pre-step to start it outside that range
++	 * either, and every segment row count is bounded by the dy of its own
++	 * edge. So every edge value the two segments ever see lies between
++	 * minx<<16 and maxx<<16 -- and if minx >= 0 and maxx < screen_width
++	 * that is inside the viewport by construction, which is exactly what
++	 * NOHCLIP goes and computes.
++	 *
++	 * 89.018% of live triangles qualify. The census ran the real NOHCLIP
++	 * alongside this predicate over 12,868,988 triangles and recorded 0
++	 * disagreements. */
++	cmpl	$0, V_FASTNC(%esp)
++	je	Lfnc_done
++	movl	V_X0(%esp), %ecx
++	movl	V_X1(%esp), %eax
++	movl	%ecx, %edx
++	cmpl	%eax, %ecx
++	cmovg	%eax, %ecx		/* minx */
++	cmovl	%eax, %edx		/* maxx */
++	movl	V_X2(%esp), %eax
++	cmpl	%eax, %ecx
++	cmovg	%eax, %ecx
++	cmpl	%eax, %edx
++	cmovl	%eax, %edx
++	testl	%ecx, %ecx
++	js	Lfnc_off
++	cmpl	V_SCRW(%esp), %edx
++	jl	Lfnc_done
++Lfnc_off:
++	movl	$0, V_FASTNC(%esp)
++Lfnc_done:
++#endif
++
+ 	/* Which edge is on the left for this triangle. */
+ 	movl	V_Y0(%esp), %eax
+ 	cmpl	V_Y1(%esp), %eax
+@@ -716,6 +892,14 @@ Lflat_no:
+ 
+ /* ---- AB/BC on the left, AC on the right ---- */
+ LbranchA:
++#if TT_FASTNC
++	cmpl	$0, V_FASTNC(%esp)
++	je	LhclipA
++	movl	$1, V_NC1(%esp)
++	movl	$1, V_NC2(%esp)
++	jmp	LsegA
++LhclipA:
++#endif
+ 	NOHCLIP V_EAB, V_SXAB, V_EAC, V_SXAC, V_N1, V_NC1
+ 	/* BC is not advanced during the first trapezoid; AC is. */
+ 	movl	V_N1(%esp), %eax
+@@ -723,31 +907,52 @@ LbranchA:
+ 	addl	V_EAC(%esp), %eax
+ 	movl	%eax, V_TMP(%esp)
+ 	NOHCLIP V_EBC, V_SXBC, V_TMP, V_SXAC, V_N2, V_NC2
++LsegA:
+ 
++#if TT_SEGDIRECT
++	SEGMENT V_EAB, V_EAC, V_SXAB, V_SXAC, V_NC1, V_N1
++	/* The stepped AC value went straight back into V_EAC. */
++	SEGMENT V_EBC, V_EAC, V_SXBC, V_SXAC, V_NC2, V_N2
++#else
+ 	SETSEG V_EAB, V_EAC, V_SXAB, V_SXAC, V_NC1, V_N1
+-	SEGMENT
++	SEGMENT V_EL, V_ER, V_STEPL, V_STEPR, V_NC, V_CNT
+ 	/* AC carries its stepped value into the second trapezoid. */
+ 	movl	V_ER(%esp), %eax
+ 	movl	%eax, V_EAC(%esp)
+ 	SETSEG V_EBC, V_EAC, V_SXBC, V_SXAC, V_NC2, V_N2
+-	SEGMENT
++	SEGMENT V_EL, V_ER, V_STEPL, V_STEPR, V_NC, V_CNT
++#endif
+ 	jmp	Lret
+ 
+ /* ---- AC on the left, AB/BC on the right ---- */
+ LbranchB:
++#if TT_FASTNC
++	cmpl	$0, V_FASTNC(%esp)
++	je	LhclipB
++	movl	$1, V_NC1(%esp)
++	movl	$1, V_NC2(%esp)
++	jmp	LsegB
++LhclipB:
++#endif
+ 	NOHCLIP V_EAC, V_SXAC, V_EAB, V_SXAB, V_N1, V_NC1
+ 	movl	V_N1(%esp), %eax
+ 	imull	V_SXAC(%esp), %eax
+ 	addl	V_EAC(%esp), %eax
+ 	movl	%eax, V_TMP(%esp)
+ 	NOHCLIP V_TMP, V_SXAC, V_EBC, V_SXBC, V_N2, V_NC2
++LsegB:
+ 
++#if TT_SEGDIRECT
++	SEGMENT V_EAC, V_EAB, V_SXAC, V_SXAB, V_NC1, V_N1
++	SEGMENT V_EAC, V_EBC, V_SXAC, V_SXBC, V_NC2, V_N2
++#else
+ 	SETSEG V_EAC, V_EAB, V_SXAC, V_SXAB, V_NC1, V_N1
+-	SEGMENT
++	SEGMENT V_EL, V_ER, V_STEPL, V_STEPR, V_NC, V_CNT
+ 	movl	V_EL(%esp), %eax
+ 	movl	%eax, V_EAC(%esp)
+ 	SETSEG V_EAC, V_EBC, V_SXAC, V_SXBC, V_NC2, V_N2
+-	SEGMENT
++	SEGMENT V_EL, V_ER, V_STEPL, V_STEPR, V_NC, V_CNT
++#endif
+ 
+ Lret:
+ 	addl	$FRAME, %esp
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/tinytri_census.c b/3rd/toridraw/graphics/raster/gouraudhsllightness/tinytri_census.c
+new file mode 100644
+index 000000000..8b96817d7
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/tinytri_census.c
+@@ -0,0 +1,380 @@
++#include "graphics/raster/gouraudhsllightness/tinytri_census.h"
++
++#if defined(TORIDRAW_TINYTRI_CENSUS) && TORIDRAW_TINYTRI_CENSUS
++
++#include "graphics/raster/flat/flat_screen_edges.h"
++
++struct ToriDraw_TinyTriCensus g_toridraw_tinytri_census;
++
++/* Geometry twin of raster_gouraudhsllightness_screen_opaque_bary_branching_s4:
++ * same y sort, same early-outs, same slopes, same clipping, same walk. Colour
++ * is not modelled -- this counts rows, spans and pixels, nothing else. The
++ * total pixel count is cross-checked against the independently measured
++ * 458,384 gouraud px/frame in COUNTS.md. */
++static void
++tinytri_ordered(
++    int screen_width,
++    int screen_height,
++    int x0, int x1, int x2,
++    int y0, int y1, int y2)
++{
++    struct ToriDraw_TinyTriCensus* c = &g_toridraw_tinytri_census;
++    int dx_AC, dy_AC, dx_AB, dy_AB, sarea;
++    int sx_AC, sx_AB, sx_BC;
++    int e_AC, e_AB, e_BC;
++    int minx, maxx, k, px;
++    int y0_orig, dyac_full;
++
++    if( y2 - y0 == 0 )
++        return;
++    dx_AC = x2 - x0;
++    dy_AC = y2 - y0;
++    dx_AB = x1 - x0;
++    dy_AB = y1 - y0;
++    sarea = dx_AB * dy_AC - dx_AC * dy_AB;
++    if( sarea == 0 )
++        return;
++
++    c->live += 1.0;
++    dyac_full = dy_AC;
++    k = toridraw_tinytri_log2b(sarea);
++    c->sarea_log2[k] += 1.0;
++
++    minx = x0 < x1 ? x0 : x1;
++    if( x2 < minx )
++        minx = x2;
++    maxx = x0 > x1 ? x0 : x1;
++    if( x2 > maxx )
++        maxx = x2;
++    if( minx >= 0 && maxx < screen_width )
++        c->xbbox_onscreen += 1.0;
++    if( y0 >= 0 && y2 <= screen_height )
++        c->no_vclip += 1.0;
++    if( minx >= 0 && maxx < screen_width && y0 >= 0 && y2 <= screen_height )
++        c->both_free += 1.0;
++
++    {
++        int d;
++        d = dy_AC;
++        if( d < 0 )
++            d = 0;
++        if( d > 599 )
++            d = 599;
++        c->dy_ac[d] += 1.0;
++        if( dy_AC > 0 )
++            c->edge_divides += 1.0;
++
++        d = dy_AB;
++        if( d < 0 )
++            d = 0;
++        if( d > 599 )
++            d = 599;
++        c->dy_ab[d] += 1.0;
++        if( dy_AB > 0 )
++            c->edge_divides += 1.0;
++
++        d = y2 - y1;
++        if( d < 0 )
++            d = 0;
++        if( d > 599 )
++            d = 599;
++        c->dy_bc[d] += 1.0;
++        if( y2 != y1 )
++            c->edge_divides += 1.0;
++    }
++
++    if( dy_AC > 0 )
++    {
++        c->div_live += 1.0;
++        if( (dy_AC & (dy_AC - 1)) == 0 )
++            c->div_pow2 += 1.0;
++    }
++    if( dy_AB > 0 )
++    {
++        c->div_live += 1.0;
++        if( (dy_AB & (dy_AB - 1)) == 0 )
++            c->div_pow2 += 1.0;
++    }
++    if( y2 != y1 )
++    {
++        int dbc = y2 - y1;
++        c->div_live += 1.0;
++        if( dbc > 0 && (dbc & (dbc - 1)) == 0 )
++            c->div_pow2 += 1.0;
++    }
++
++    sx_AC = (dy_AC > 0) ? ((dx_AC << 16) / dy_AC) : 0;
++    sx_AB = (dy_AB > 0) ? ((dx_AB << 16) / dy_AB) : 0;
++    sx_BC = (y2 != y1) ? (((x2 - x1) << 16) / (y2 - y1)) : 0;
++
++    e_AC = x0 << 16;
++    e_AB = x0 << 16;
++    e_BC = x1 << 16;
++    y0_orig = y0;
++
++    if( y0 < 0 )
++    {
++        e_AC -= sx_AC * y0;
++        if( y1 > 0 )
++            e_AB -= sx_AB * y0;
++        y0 = 0;
++    }
++    if( y1 < 0 )
++    {
++        e_BC -= sx_BC * y1;
++        y1 = 0;
++    }
++    if( y1 > screen_height )
++    {
++        y1 = screen_height;
++        y2 = screen_height;
++    }
++    else if( y2 > screen_height )
++    {
++        y2 = screen_height;
++    }
++
++    px = 0;
++    {
++        int n1 = y1 - y0;
++        int n2 = y2 - y1;
++        int nc1, nc2, pred_nc;
++        if( n1 < 0 )
++            n1 = 0;
++        if( n2 < 0 )
++            n2 = 0;
++        if( n1 == 0 )
++            c->n1_0 += 1.0;
++        if( n2 == 0 )
++            c->n2_0 += 1.0;
++        pred_nc = (y0_orig >= 0 && minx >= 0 && maxx < screen_width);
++        if( pred_nc )
++            c->nc_pred += 1.0;
++        if( (y0 == y1 && sx_AC <= sx_BC) || (y0 != y1 && sx_AC >= sx_AB) )
++        {
++            nc1 = flat_screen_fixed_edges_no_hclip(
++                e_AB, sx_AB, e_AC, sx_AC, n1, screen_width);
++            nc2 = flat_screen_fixed_edges_no_hclip(
++                e_BC, sx_BC, e_AC + n1 * sx_AC, sx_AC, n2, screen_width);
++            px += toridraw_tinytri_walk(
++                e_AB, sx_AB, e_AC, sx_AC, n1, screen_width, nc1);
++            px += toridraw_tinytri_walk(
++                e_BC, sx_BC, e_AC + n1 * sx_AC, sx_AC, n2, screen_width, nc2);
++        }
++        else
++        {
++            nc1 = flat_screen_fixed_edges_no_hclip(
++                e_AC, sx_AC, e_AB, sx_AB, n1, screen_width);
++            nc2 = flat_screen_fixed_edges_no_hclip(
++                e_AC + n1 * sx_AC, sx_AC, e_BC, sx_BC, n2, screen_width);
++            px += toridraw_tinytri_walk(
++                e_AC, sx_AC, e_AB, sx_AB, n1, screen_width, nc1);
++            px += toridraw_tinytri_walk(
++                e_AC + n1 * sx_AC, sx_AC, e_BC, sx_BC, n2, screen_width, nc2);
++        }
++        if( pred_nc && !(nc1 && nc2) )
++            c->nc_pred_viol += 1.0;
++        if( y0_orig >= 0 && n2 == 0 && n1 <= 1 )
++        {
++            c->pz_pred += 1.0;
++            c->pz_pred_px += (double)px;
++        }
++        if( dyac_full == 1 )
++        {
++            c->dyac1 += 1.0;
++            c->dyac1_px += (double)px;
++            if( px == 0 )
++                c->dyac1_zero += 1.0;
++        }
++    }
++
++    c->pixels += (double)px;
++    c->px_by_sarea_log2[k] += (double)px;
++    c->tris_px[toridraw_tinytri_pxbucket(px)] += 1.0;
++    if( px == 0 )
++        c->zero_pixel_tris += 1.0;
++}
++
++void
++toridraw_tinytri_census_record(
++    int screen_width,
++    int screen_height,
++    int ux0, int ux1, int ux2,
++    int uy0, int uy1, int uy2)
++{
++    struct ToriDraw_TinyTriCensus* c = &g_toridraw_tinytri_census;
++
++    if( !c->registered )
++    {
++        c->registered = 1;
++        atexit(ToriDraw_TinyTriCensusDump);
++    }
++    c->calls += 1.0;
++
++    /* Exactly the kernel's six-way sort and its early-outs. */
++    if( uy0 <= uy1 && uy0 <= uy2 )
++    {
++        if( uy0 > screen_height )
++            return;
++        if( uy1 <= uy2 )
++        {
++            if( uy2 < 0 )
++                return;
++            tinytri_ordered(screen_width, screen_height, ux0, ux1, ux2, uy0, uy1, uy2);
++        }
++        else
++        {
++            if( uy1 < 0 )
++                return;
++            tinytri_ordered(screen_width, screen_height, ux0, ux2, ux1, uy0, uy2, uy1);
++        }
++    }
++    else if( uy1 <= uy2 )
++    {
++        if( uy1 > screen_height )
++            return;
++        if( uy2 <= uy0 )
++        {
++            if( uy0 < 0 )
++                return;
++            tinytri_ordered(screen_width, screen_height, ux1, ux2, ux0, uy1, uy2, uy0);
++        }
++        else
++        {
++            if( uy2 < 0 )
++                return;
++            tinytri_ordered(screen_width, screen_height, ux1, ux0, ux2, uy1, uy0, uy2);
++        }
++    }
++    else
++    {
++        if( uy2 > screen_height )
++            return;
++        if( uy0 <= uy1 )
++        {
++            if( uy1 < 0 )
++                return;
++            tinytri_ordered(screen_width, screen_height, ux2, ux0, ux1, uy2, uy0, uy1);
++        }
++        else
++        {
++            if( uy0 < 0 )
++                return;
++            tinytri_ordered(screen_width, screen_height, ux2, ux1, ux0, uy2, uy1, uy0);
++        }
++    }
++}
++
++static void
++tinytri_dy_table(FILE* out, const char* name, const double* t, double total)
++{
++    double run;
++    int i;
++    static const int edges[] = { 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 64, 128, 599 };
++    int e;
++    fprintf(out, "\n%s: cumulative share of triangles with dy <= N\n", name);
++    for( e = 0; e < (int)(sizeof(edges) / sizeof(edges[0])); e++ )
++    {
++        run = 0.0;
++        for( i = 0; i <= edges[e] && i < 600; i++ )
++            run += t[i];
++        fprintf(out, "   dy <= %4d : %10.0f  %7.3f%%\n", edges[e], run,
++                total > 0.0 ? 100.0 * run / total : 0.0);
++    }
++    fprintf(out, "   dy == 0    : %10.0f  %7.3f%%   (no divide taken)\n", t[0],
++            total > 0.0 ? 100.0 * t[0] / total : 0.0);
++}
++
++void
++ToriDraw_TinyTriCensusDump(void)
++{
++    struct ToriDraw_TinyTriCensus* c = &g_toridraw_tinytri_census;
++    const char* path = getenv("TORIDRAW_TINYTRI_CENSUS_FILE");
++    FILE* out = stderr;
++    double run = 0.0, runpx = 0.0;
++    int k;
++    static const char* pxnames[12] = { "0", "1", "2", "3", "4", "5-8", "9-16",
++                                       "17-32", "33-64", "65-128", "129-256", ">256" };
++
++    if( c->calls <= 0.0 )
++        return;
++    if( path )
++    {
++        FILE* f = fopen(path, "w");
++        if( f )
++            out = f;
++    }
++
++    fprintf(out, "\n=== gouraud tiny-triangle census (opaque s4 path) ===\n");
++    fprintf(out, "calls                %14.0f\n", c->calls);
++    fprintf(out, "live (past sarea!=0) %14.0f  %7.3f%%\n", c->live,
++            100.0 * c->live / c->calls);
++    fprintf(out, "rows walked          %14.0f  %8.3f / live tri\n", c->rows,
++            c->rows / c->live);
++    fprintf(out, "spans drawn          %14.0f  %8.3f / live tri\n", c->spans_drawn,
++            c->spans_drawn / c->live);
++    fprintf(out, "spans empty          %14.0f  %8.3f / live tri\n", c->spans_empty,
++            c->spans_empty / c->live);
++    fprintf(out, "pixels               %14.0f  %8.3f / live tri\n", c->pixels,
++            c->pixels / c->live);
++    fprintf(out, "zero-pixel triangles %14.0f  %7.3f%% of live\n", c->zero_pixel_tris,
++            100.0 * c->zero_pixel_tris / c->live);
++    fprintf(out, "x-bbox fully onscreen%14.0f  %7.3f%% of live\n", c->xbbox_onscreen,
++            100.0 * c->xbbox_onscreen / c->live);
++    fprintf(out, "no vertical clip     %14.0f  %7.3f%% of live\n", c->no_vclip,
++            100.0 * c->no_vclip / c->live);
++    fprintf(out, "both free            %14.0f  %7.3f%% of live\n", c->both_free,
++            100.0 * c->both_free / c->live);
++    fprintf(out, "live edge divides    %14.0f  %8.3f / live tri\n", c->edge_divides,
++            c->edge_divides / c->live);
++
++    fprintf(out, "\n--- candidate fast-path predicates ---\n");
++    fprintf(out, "PRED zero   y0>=0 && n2==0 && n1<=1 : %12.0f  %7.3f%% of live   pixels drawn %.0f (must be 0)\n",
++            c->pz_pred, 100.0 * c->pz_pred / c->live, c->pz_pred_px);
++    fprintf(out, "PRED noclip y0>=0 && xbbox onscreen : %12.0f  %7.3f%% of live   violations %.0f (must be 0)\n",
++            c->nc_pred, 100.0 * c->nc_pred / c->live, c->nc_pred_viol);
++    fprintf(out, "edge divides live %14.0f  %8.3f / live tri\n", c->div_live,
++            c->div_live / c->live);
++    fprintf(out, "  ...power of two %14.0f  %7.3f%% of live divides, %8.3f / live tri\n",
++            c->div_pow2, 100.0 * c->div_pow2 / c->div_live, c->div_pow2 / c->live);
++    fprintf(out, "dy_AC == 1 (one row) %12.0f  %7.3f%% of live   pixels %.0f (%.3f%% of all)   zero-pixel %.0f\n",
++            c->dyac1, 100.0 * c->dyac1 / c->live, c->dyac1_px,
++            100.0 * c->dyac1_px / c->pixels, c->dyac1_zero);
++    fprintf(out, "n1 == 0 %28.0f  %7.3f%%\n", c->n1_0, 100.0 * c->n1_0 / c->live);
++    fprintf(out, "n2 == 0 %28.0f  %7.3f%%\n", c->n2_0, 100.0 * c->n2_0 / c->live);
++
++    fprintf(out, "\n|sarea| distribution and the PIXELS that class carries\n");
++    fprintf(out, "%12s %12s %8s %9s %14s %8s %9s\n", "|sarea| <", "tris", "share",
++            "cumul", "pixels", "share", "cumul");
++    for( k = 0; k <= 32; k++ )
++    {
++        if( c->sarea_log2[k] == 0.0 )
++            continue;
++        run += c->sarea_log2[k];
++        runpx += c->px_by_sarea_log2[k];
++        fprintf(out, "%12.0f %12.0f %7.3f%% %8.3f%% %14.0f %7.3f%% %8.3f%%\n",
++                (k >= 31) ? 2147483648.0 : (double)(1u << k), c->sarea_log2[k],
++                100.0 * c->sarea_log2[k] / c->live, 100.0 * run / c->live,
++                c->px_by_sarea_log2[k],
++                100.0 * c->px_by_sarea_log2[k] / c->pixels, 100.0 * runpx / c->pixels);
++    }
++
++    fprintf(out, "\npixels drawn per triangle\n");
++    run = 0.0;
++    for( k = 0; k < 12; k++ )
++    {
++        run += c->tris_px[k];
++        fprintf(out, "%10s px : %12.0f  %7.3f%%  cumul %7.3f%%\n", pxnames[k],
++                c->tris_px[k], 100.0 * c->tris_px[k] / c->live, 100.0 * run / c->live);
++    }
++
++    tinytri_dy_table(out, "dy_AC", c->dy_ac, c->live);
++    tinytri_dy_table(out, "dy_AB", c->dy_ab, c->live);
++    tinytri_dy_table(out, "dy_BC", c->dy_bc, c->live);
++
++    fflush(out);
++    if( out != stderr )
++        fclose(out);
++}
++
++#endif
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/tinytri_census.h b/3rd/toridraw/graphics/raster/gouraudhsllightness/tinytri_census.h
+new file mode 100644
+index 000000000..3dc19c8b5
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/tinytri_census.h
+@@ -0,0 +1,157 @@
++#ifndef TORIDRAW_TINYTRI_CENSUS_H
++#define TORIDRAW_TINYTRI_CENSUS_H
++
++/**
++ * How small is a gouraud triangle on the MOVING camera, and what does the
++ * small class cost?
++ *
++ * The prologue of toridraw_gouraud_tri_opaque_s4_asm is 46.65% of that
++ * kernel's samples (EIP map, 8,523 samples over 900 frames). Whether that is
++ * worth attacking depends on the size distribution, and every published
++ * distribution for this scene was taken on the STILL camera 79 degrees
++ * overhead. This re-measures it on the eye-level orbit, and adds the joint
++ * question nobody has answered: what SHARE OF PIXELS does the small class
++ * carry? A prologue paid for a triangle that draws two pixels is waste; the
++ * same prologue for one that draws two hundred is not.
++ *
++ * Compile-time gated. Never in a timed build.
++ */
++
++#if defined(TORIDRAW_TINYTRI_CENSUS) && TORIDRAW_TINYTRI_CENSUS
++
++#include <stdio.h>
++#include <stdlib.h>
++
++struct ToriDraw_TinyTriCensus
++{
++    double calls;          /**< reached the kernel at all                    */
++    double live;           /**< survived y-reject, dy_AC != 0, sarea != 0    */
++    double sarea_log2[34]; /**< bucket k: 2^(k-1) <= |sarea| < 2^k           */
++    double px_by_sarea_log2[34];
++    double dy_ac[600];     /**< dy value, clamped into the last bucket       */
++    double dy_ab[600];
++    double dy_bc[600];
++    double edge_divides;   /**< live edge divides (dy > 0)                   */
++    double xbbox_onscreen; /**< minx >= 0 && maxx < screen_width             */
++    double no_vclip;       /**< y0 >= 0 && y2 <= screen_height               */
++    double both_free;      /**< xbbox_onscreen && no_vclip                   */
++    double rows;
++    double spans_drawn;
++    double spans_empty;
++    double pixels;
++    double zero_pixel_tris;
++    double tris_px[12]; /**< 0,1,2,3,4,5-8,9-16,17-32,33-64,65-128,129-256,>256 */
++
++    /* --- candidate fast-path predicates, each with the pixels it covers --- */
++    double pz_pred;      /**< y0>=0 && n2==0 && n1<=1  (claimed PROVABLY zero) */
++    double pz_pred_px;   /**< pixels those actually drew -- MUST stay 0        */
++    double nc_pred;      /**< y0>=0 && minx>=0 && maxx<w (claimed nc1=nc2=1)   */
++    double nc_pred_viol; /**< nc_pred true but the real NOHCLIP said 0 -- MUST
++                          *   stay 0                                          */
++    double div_live;     /**< edge divides actually taken                      */
++    double div_pow2;     /**< ...of which the divisor is a power of two        */
++    double dyac1;        /**< dy_AC == 1: the whole triangle is one row        */
++    double dyac1_px;
++    double dyac1_zero;   /**< dy_AC==1 that draw nothing                       */
++    double n1_0;         /**< n1 == 0 (segment 1 never runs)                   */
++    double n2_0;         /**< n2 == 0                                          */
++    int registered;
++};
++
++extern struct ToriDraw_TinyTriCensus g_toridraw_tinytri_census;
++
++void
++ToriDraw_TinyTriCensusDump(void);
++
++static inline int
++toridraw_tinytri_log2b(int v)
++{
++    unsigned mag = (v < 0) ? (unsigned)(-(unsigned)v) : (unsigned)v;
++    int k = 0;
++    while( mag )
++    {
++        mag >>= 1;
++        k++;
++    }
++    return k;
++}
++
++static inline int
++toridraw_tinytri_pxbucket(int px)
++{
++    if( px <= 4 )
++        return px;
++    if( px <= 8 )
++        return 5;
++    if( px <= 16 )
++        return 6;
++    if( px <= 32 )
++        return 7;
++    if( px <= 64 )
++        return 8;
++    if( px <= 128 )
++        return 9;
++    if( px <= 256 )
++        return 10;
++    return 11;
++}
++
++/* One segment of the trapezoid walk, geometry only, exactly as
++ * raster_..._bary_branching_s4_ordered walks it. Returns pixels drawn and
++ * accumulates the span counters. */
++static inline int
++toridraw_tinytri_walk(
++    int el, int stepl, int er, int stepr, int n, int screen_width, int noclip)
++{
++    int px = 0;
++    while( n-- > 0 )
++    {
++        int a = el;
++        int b = er;
++        el += stepl;
++        er += stepr;
++        g_toridraw_tinytri_census.rows += 1.0;
++        if( a == b )
++        {
++            g_toridraw_tinytri_census.spans_empty += 1.0;
++            continue;
++        }
++        {
++            int xs = a >> 16;
++            int xe = b >> 16;
++            if( !noclip )
++            {
++                if( xe >= screen_width )
++                    xe = screen_width - 1;
++                if( xs < 0 )
++                    xs = 0;
++            }
++            if( xs >= xe )
++            {
++                g_toridraw_tinytri_census.spans_empty += 1.0;
++                continue;
++            }
++            g_toridraw_tinytri_census.spans_drawn += 1.0;
++            px += (xe - xs);
++        }
++    }
++    return px;
++}
++
++void
++toridraw_tinytri_census_record(
++    int screen_width,
++    int screen_height,
++    int ux0, int ux1, int ux2,
++    int uy0, int uy1, int uy2);
++
++#define TORIDRAW_TINYTRI_CENSUS_RECORD(w, h, x0, x1, x2, y0, y1, y2) \
++    toridraw_tinytri_census_record((w), (h), (x0), (x1), (x2), (y0), (y1), (y2))
++
++#else
++
++#define TORIDRAW_TINYTRI_CENSUS_RECORD(w, h, x0, x1, x2, y0, y1, y2) ((void)0)
++
++#endif
++
++#endif
+diff --git a/3rd/toridraw/toridraw_gouraud_tri_asm_test.c b/3rd/toridraw/toridraw_gouraud_tri_asm_test.c
+index 34a11d2ea..be93c4e35 100644
+--- a/3rd/toridraw/toridraw_gouraud_tri_asm_test.c
++++ b/3rd/toridraw/toridraw_gouraud_tri_asm_test.c
+@@ -75,14 +75,14 @@ range(int lo, int hi)
+ }
+ 
+ /*
+- * Six generators, cycled. Each one reaches something the others cannot.
++ * Seven generators, cycled. Each one reaches something the others cannot.
+  */
+ static void
+ generate(struct tri* t, int kind)
+ {
+     int i;
+ 
+-    switch( kind % 6 )
++    switch( kind % 7 )
+     {
+     case 0: /* fully interior: the common case, and the only one that runs the
+              * proved-no-clip loop for its whole height. */
+@@ -141,8 +141,8 @@ generate(struct tri* t, int kind)
+         t->y[2] = t->y[1] + range(0, 30);
+         break;
+ 
+-    default: /* tall and thin the other way: wide flat spans that run the block
+-              * loop many times, so a drifting colour accumulator shows up. */
++    case 5: /* tall and thin the other way: wide flat spans that run the block
++             * loop many times, so a drifting colour accumulator shows up. */
+         t->x[0] = range(-30, 10);
+         t->y[0] = range(0, H - 1);
+         t->x[1] = range(W - 10, W + 30);
+@@ -150,6 +150,29 @@ generate(struct tri* t, int kind)
+         t->x[2] = range(-30, W + 30);
+         t->y[2] = t->y[0] + range(1, 6);
+         break;
++
++    default: /* tiny: the class the whole scene is actually made of. 73.06% of
++              * live gouraud triangles in a moving Lumbridge frame have
++              * |sarea| < 16, 27.49% of them draw no pixel at all, and 83.05%
++              * are eight rows or shorter. Case 0 almost never produces one and
++              * case 4 produces the tall kind, so the prologue short cuts --
++              * the zero-pixel reject, the power-of-two edge divide, the
++              * bbox-proves-no-clip test -- would otherwise be scored on a
++              * handful of accidents. The x range straddles both viewport
++              * edges on purpose: that is the boundary the bbox test decides
++              * on, and dy is drawn from the powers of two the shift divide
++              * claims plus the ones it must refuse. */
++    {
++        static const int dys[16] = { 0, 0, 1, 1, 1, 2, 2, 3, 3, 4, 5, 6,
++                                     7, 8, 12, 16 };
++        t->x[0] = range(-3, W + 2);
++        t->y[0] = range(-3, H + 2);
++        t->x[1] = t->x[0] + range(-4, 4);
++        t->y[1] = t->y[0] + dys[next() & 15];
++        t->x[2] = t->x[0] + range(-4, 4);
++        t->y[2] = t->y[1] + dys[next() & 15];
++        break;
++    }
+     }
+ 
+     for( i = 0; i < 3; i++ )
+diff --git a/3rd/toridraw/toridraw_unity.c b/3rd/toridraw/toridraw_unity.c
+index e9db3a847..42a44860c 100644
+--- a/3rd/toridraw/toridraw_unity.c
++++ b/3rd/toridraw/toridraw_unity.c
+@@ -28,6 +28,7 @@
+ #include "graphics/raster/raster_ablate.c"
+ #include "graphics/raster/face_census.c"
+ #include "graphics/raster/gouraudhsllightness/sarea_census.c"
++#include "graphics/raster/gouraudhsllightness/tinytri_census.c"
+ #include "graphics/proj_census.c"
+ #include "graphics/raster/span_census.c"
+ #include "graphics/shared_tables.c"
+diff --git a/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c b/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
+index 22e2fd2eb..d1424fd4c 100644
+--- a/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
++++ b/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
+@@ -18,6 +18,7 @@
+ #include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c"
+ #include "graphics/raster/gouraudhsllightness/gouraud_tri_asm.h"
+ #include "graphics/raster/face_census.h"
++#include "graphics/raster/gouraudhsllightness/tinytri_census.h"
+ // clang-format on
+ 
+ static inline void
+@@ -86,6 +87,8 @@ ToriDraw_TriangleGouraud(
+ 
+     if( alpha == 0xFF )
+     {
++        TORIDRAW_TINYTRI_CENSUS_RECORD(
++            screen_width, screen_height, x1, x2, x3, y1, y2, y3);
+         // raster_gouraudhsllightness_screen_opaque_edge_sort_s4(
+         TORIDRAW_GOURAUD_TRI_OPAQUE_S4(
+             pixel_buffer,

@@ -1,0 +1,404 @@
+From bacd4972c28cc46bdded1ae39c68e3c045a03702 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:16:23 -0500
+Subject: [PATCH] wip(r3-texlerp): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-texlerp.
+
+files: 3rd/toridraw/graphics/raster/span_census.c 3rd/toridraw/graphics/raster/texlerp_census.h 3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c 3rd/toridraw/graphics/raster/texture/span/tex.span_uv.h
+---
+ 3rd/toridraw/graphics/raster/span_census.c    | 109 +++++++++++++++++
+ 3rd/toridraw/graphics/raster/texlerp_census.h | 111 ++++++++++++++++++
+ .../raster/texture/span/tex.span.sse2.u.c     |  21 ++++
+ .../raster/texture/span/tex.span_uv.h         |   9 ++
+ 4 files changed, 250 insertions(+)
+ create mode 100644 3rd/toridraw/graphics/raster/texlerp_census.h
+
+diff --git a/3rd/toridraw/graphics/raster/span_census.c b/3rd/toridraw/graphics/raster/span_census.c
+index e9699b523..e559620f9 100644
+--- a/3rd/toridraw/graphics/raster/span_census.c
++++ b/3rd/toridraw/graphics/raster/span_census.c
+@@ -158,3 +158,112 @@ ToriDraw_SpanCensusDump(void)
+ }
+ 
+ #endif
++
++#include "graphics/raster/texlerp_census.h"
++
++#if defined(TORIDRAW_TEXLERP_CENSUS) && TORIDRAW_TEXLERP_CENSUS
++
++struct ToriDraw_TexLerpCensus g_toridraw_texlerp_census;
++struct ToriDraw_TexLerpCensus g_toridraw_texlerp_census_trans;
++struct ToriDraw_TexLerpCensus* g_toridraw_texlerp_cur = &g_toridraw_texlerp_census;
++
++static void
++toridraw_texlerp_dump_one(FILE* out, char const* tag, struct ToriDraw_TexLerpCensus const* c)
++{
++    double frames;
++    char const* fs = getenv("TORIRS_MAX_FRAMES");
++
++    if( c->spans == 0.0 )
++        return;
++    frames = fs ? atof(fs) : 1.0;
++    if( frames <= 0.0 )
++        frames = 1.0;
++
++    fprintf(out, "== texlerp %s (per frame over %.0f frames) ==\n", tag, frames);
++    fprintf(
++        out,
++        "spans %.1f  pixels %.1f  px/span %.3f\n",
++        c->spans / frames,
++        c->pixels / frames,
++        c->pixels / c->spans);
++    fprintf(
++        out,
++        "noblock spans %.1f (%.2f%%)  their pixels %.1f (%.2f%% of px)\n",
++        c->spans_noblock / frames,
++        100.0 * c->spans_noblock / c->spans,
++        c->pixels_noblock / frames,
++        100.0 * c->pixels_noblock / c->pixels);
++    fprintf(
++        out,
++        "pairs %.1f  pairs/span %.3f  pairs/pixel %.4f\n",
++        c->pairs / frames,
++        c->pairs / c->spans,
++        c->pairs / c->pixels);
++    fprintf(
++        out,
++        "v-slow (idivl) %.1f  = %.3f%% of pairs, %.4f per span\n",
++        c->vslow / frames,
++        100.0 * c->vslow / c->pairs,
++        c->vslow / c->spans);
++    fprintf(
++        out,
++        "u clamp lo %.1f (%.2f%%) hi %.1f (%.2f%%)\n",
++        c->uclamp_lo / frames,
++        100.0 * c->uclamp_lo / c->pairs,
++        c->uclamp_hi / frames,
++        100.0 * c->uclamp_hi / c->pairs);
++    fprintf(
++        out,
++        "blocks lerp8 %.1f  exact %.1f (%.1f px)  w0-skipped %.1f\n",
++        c->blk_lerp8 / frames,
++        c->blk_exact / frames,
++        c->px_exact / frames,
++        c->blk_w0 / frames);
++    fprintf(
++        out,
++        "tail lerp px %.1f (%.2f%% of px)  spans with remain>=4 %.1f (%.2f%%)\n",
++        c->px_tail_lerp / frames,
++        100.0 * c->px_tail_lerp / c->pixels,
++        c->tails_ge4 / frames,
++        100.0 * c->tails_ge4 / c->spans);
++    fprintf(out, "spans whose pixel-0 w==0 %.1f (%.2f%%)\n",
++        c->spans_w0 / frames, 100.0 * c->spans_w0 / c->spans);
++    fprintf(out, "remain,spans,pct\n");
++    for( int i = 0; i < 8; i++ )
++        fprintf(out, "%d,%.1f,%.2f\n", i, c->remain[i] / frames,
++                100.0 * c->remain[i] / c->spans);
++    fprintf(out, "len,spans,span_cum_pct,pixel_cum_pct\n");
++    {
++        double srun = 0.0, prun = 0.0;
++        for( int i = 0; i <= TORIDRAW_TEXLERP_LENMAX; i++ )
++        {
++            if( c->len[i] == 0.0 )
++                continue;
++            srun += c->len[i];
++            prun += c->len[i] * (double)i;
++            fprintf(out, "%d,%.1f,%.2f,%.2f\n", i, c->len[i] / frames,
++                    100.0 * srun / c->spans, 100.0 * prun / c->pixels);
++        }
++    }
++    fflush(out);
++}
++
++void
++ToriDraw_TexLerpCensusDump(void)
++{
++    char const* path = getenv("TORIDRAW_TEXLERP_CENSUS_FILE");
++    FILE* out = stderr;
++
++    if( path )
++    {
++        FILE* f = fopen(path, "wb");
++        if( f )
++            out = f;
++    }
++    toridraw_texlerp_dump_one(out, "OPAQUE", &g_toridraw_texlerp_census);
++    toridraw_texlerp_dump_one(out, "TRANSPARENT", &g_toridraw_texlerp_census_trans);
++    if( out != stderr )
++        fclose(out);
++}
++
++#endif
+diff --git a/3rd/toridraw/graphics/raster/texlerp_census.h b/3rd/toridraw/graphics/raster/texlerp_census.h
+new file mode 100644
+index 000000000..2086fc077
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/texlerp_census.h
+@@ -0,0 +1,111 @@
++#ifndef TORIDRAW_RASTER_TEXLERP_CENSUS_H
++#define TORIDRAW_RASTER_TEXLERP_CENSUS_H
++
++/*
++ * The perspective texture span, counted at the granularity the KERNEL pays at.
++ *
++ * The existing texspan census answers "how many blocks per span". This one
++ * answers the question that decides whether the per-span prologue is the cost:
++ * how many QUOTIENT PAIRS -- a reciprocal, a clamped u convert and a wrapped v
++ * convert -- are computed per span, against how many pixels that span draws,
++ * and how often the wrapped convert has to fall through to an idivl.
++ *
++ * Never built into a timed binary. -DTORIDRAW_TEXLERP_CENSUS=1 alongside
++ * -DTORIDRAW_SPAN_CENSUS=1 (which is what withdraws the asm kernels so the C
++ * twin -- the thing these hooks live in -- actually runs).
++ */
++
++#if defined(TORIDRAW_TEXLERP_CENSUS) && TORIDRAW_TEXLERP_CENSUS
++
++#include <stdio.h>
++#include <stdlib.h>
++
++#define TORIDRAW_TEXLERP_LENMAX 40
++
++struct ToriDraw_TexLerpCensus
++{
++    double spans;
++    double pixels;
++    /* Span length histogram, exact 0..39 then one overflow bucket. */
++    double len[TORIDRAW_TEXLERP_LENMAX + 1];
++    /* Spans that run no 8-pixel block at all, and the pixels they draw. */
++    double spans_noblock;
++    double pixels_noblock;
++    /* remaining (steps & 7) histogram. */
++    double remain[8];
++    /* Quotient pairs computed: one reciprocal + one u convert + one v convert. */
++    double pairs;
++    /* Of those, the v convert that had to divide instead. */
++    double vslow;
++    /* u converts that clamped rather than converting. */
++    double uclamp_lo;
++    double uclamp_hi;
++    /* Blocks. */
++    double blk_lerp8;
++    double blk_exact8;
++    double blk_exact_tail;
++    double px_exact;
++    /* Tail. */
++    double px_tail_lerp;
++    double tails_lerp;
++    double tails_ge4;
++    /* Spans whose first block has w == 0 (nothing to draw from pixel 0). */
++    double spans_w0;
++    /* Blocks skipped entirely because w == 0. */
++    double blk_w0;
++};
++
++extern struct ToriDraw_TexLerpCensus g_toridraw_texlerp_census;
++extern struct ToriDraw_TexLerpCensus g_toridraw_texlerp_census_trans;
++extern struct ToriDraw_TexLerpCensus* g_toridraw_texlerp_cur;
++
++void
++ToriDraw_TexLerpCensusDump(void);
++
++static inline void
++toridraw_texlerp_select(int transparent)
++{
++    if( g_toridraw_texlerp_census.spans == 0.0 &&
++        g_toridraw_texlerp_census_trans.spans == 0.0 )
++        atexit(ToriDraw_TexLerpCensusDump);
++    g_toridraw_texlerp_cur =
++        transparent ? &g_toridraw_texlerp_census_trans : &g_toridraw_texlerp_census;
++}
++
++static inline void
++toridraw_texlerp_span(int steps)
++{
++    struct ToriDraw_TexLerpCensus* c = g_toridraw_texlerp_cur;
++    int i = steps;
++    if( i < 0 )
++        i = 0;
++    if( i > TORIDRAW_TEXLERP_LENMAX )
++        i = TORIDRAW_TEXLERP_LENMAX;
++    c->spans += 1.0;
++    c->pixels += (double)steps;
++    c->len[i] += 1.0;
++    c->remain[steps & 7] += 1.0;
++    if( (steps >> 3) == 0 )
++    {
++        c->spans_noblock += 1.0;
++        c->pixels_noblock += (double)steps;
++    }
++    if( (steps & 7) >= 4 )
++        c->tails_ge4 += 1.0;
++}
++
++#define TORIDRAW_TEXLERP_SELECT(t) toridraw_texlerp_select((t))
++#define TORIDRAW_TEXLERP_SPAN(steps) toridraw_texlerp_span((steps))
++#define TORIDRAW_TEXLERP_BUMP(field) (g_toridraw_texlerp_cur->field += 1.0)
++#define TORIDRAW_TEXLERP_ADD(field, n) (g_toridraw_texlerp_cur->field += (double)(n))
++
++#else
++
++#define TORIDRAW_TEXLERP_SELECT(t) ((void)0)
++#define TORIDRAW_TEXLERP_SPAN(steps) ((void)0)
++#define TORIDRAW_TEXLERP_BUMP(field) ((void)0)
++#define TORIDRAW_TEXLERP_ADD(field, n) ((void)0)
++
++#endif
++
++#endif
+diff --git a/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c b/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c
+index 6954be769..3733d4b7f 100644
+--- a/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c
++++ b/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c
+@@ -1,4 +1,5 @@
+ #include "graphics/dash_restrict.h"
++#include "graphics/raster/texlerp_census.h"
+ #include "graphics/int_wrap.h"
+ #include "graphics/raster/raster_ablate.h"
+ #include "graphics/raster/span_census.h"
+@@ -737,6 +738,8 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+     int blocks = steps >> 3;
+     int remaining = steps & 7;
+ 
++    TORIDRAW_TEXLERP_SELECT(0);
++    TORIDRAW_TEXLERP_SPAN(steps);
+     TORIDRAW_TEXSPAN_CENSUS_SPAN(steps);
+ 
+     /* Everything above is the per-span prologue -- clip, adjust, step. This
+@@ -792,6 +795,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+                 int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+ 
+                 TORIDRAW_TEXSPAN_CENSUS_LERP8();
++                TORIDRAW_TEXLERP_BUMP(blk_lerp8);
+                 raster_linear_opaque_blend_lerp8_v3(
+                     (uint32_t*)&pixel_buffer[offset],
+                     (uint32_t*)texels,
+@@ -807,6 +811,8 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+             else
+             {
+                 TORIDRAW_TEXSPAN_CENSUS_EXACT(8);
++                TORIDRAW_TEXLERP_BUMP(blk_exact8);
++                TORIDRAW_TEXLERP_ADD(px_exact, 8);
+                 tex_span_exact_block(
+                     pixel_buffer,
+                     offset,
+@@ -830,6 +836,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+         }
+         else
+         {
++            TORIDRAW_TEXLERP_BUMP(blk_w0);
+             have_cur = 0;
+         }
+         au += step_au8;
+@@ -865,6 +872,8 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+         if( w_n == 0 || !tex_span_lerp8_fits(cur_v, nxt_v, texture_width) )
+         {
+             TORIDRAW_TEXSPAN_CENSUS_EXACT(remaining);
++            TORIDRAW_TEXLERP_BUMP(blk_exact_tail);
++            TORIDRAW_TEXLERP_ADD(px_exact, remaining);
+             tex_span_exact_block(
+                 pixel_buffer,
+                 offset,
+@@ -890,6 +899,8 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+         int v_scan = tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift);
+ 
+         TORIDRAW_TEXSPAN_CENSUS_TAIL(remaining);
++        TORIDRAW_TEXLERP_ADD(px_tail_lerp, remaining);
++        TORIDRAW_TEXLERP_BUMP(tails_lerp);
+         TORIDRAW_ABLATE_TEX_RETURN_IF(2);
+         for( int i = 0; i < remaining; i++ )
+         {
+@@ -947,6 +958,8 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
+     int blocks = steps >> 3;
+     int remaining = steps & 7;
+ 
++    TORIDRAW_TEXLERP_SELECT(1);
++    TORIDRAW_TEXLERP_SPAN(steps);
+     TORIDRAW_TEXSPAN_CENSUS_SPAN(steps);
+ 
+     /* Everything above is the per-span prologue -- clip, adjust, step. This
+@@ -1001,6 +1014,7 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
+                 int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+ 
+                 TORIDRAW_TEXSPAN_CENSUS_LERP8();
++                TORIDRAW_TEXLERP_BUMP(blk_lerp8);
+                 raster_linear_transparent_blend_lerp8_v3(
+                     (uint32_t*)&pixel_buffer[offset],
+                     (uint32_t*)texels,
+@@ -1016,6 +1030,8 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
+             else
+             {
+                 TORIDRAW_TEXSPAN_CENSUS_EXACT(8);
++                TORIDRAW_TEXLERP_BUMP(blk_exact8);
++                TORIDRAW_TEXLERP_ADD(px_exact, 8);
+                 tex_span_exact_block(
+                     pixel_buffer,
+                     offset,
+@@ -1039,6 +1055,7 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
+         }
+         else
+         {
++            TORIDRAW_TEXLERP_BUMP(blk_w0);
+             have_cur = 0;
+         }
+         au += step_au8;
+@@ -1074,6 +1091,8 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
+         if( w_n == 0 || !tex_span_lerp8_fits(cur_v, nxt_v, texture_width) )
+         {
+             TORIDRAW_TEXSPAN_CENSUS_EXACT(remaining);
++            TORIDRAW_TEXLERP_BUMP(blk_exact_tail);
++            TORIDRAW_TEXLERP_ADD(px_exact, remaining);
+             tex_span_exact_block(
+                 pixel_buffer,
+                 offset,
+@@ -1099,6 +1118,8 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
+         int v_scan = tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift);
+ 
+         TORIDRAW_TEXSPAN_CENSUS_TAIL(remaining);
++        TORIDRAW_TEXLERP_ADD(px_tail_lerp, remaining);
++        TORIDRAW_TEXLERP_BUMP(tails_lerp);
+         TORIDRAW_ABLATE_TEX_RETURN_IF(2);
+         for( int i = 0; i < remaining; i++ )
+         {
+diff --git a/3rd/toridraw/graphics/raster/texture/span/tex.span_uv.h b/3rd/toridraw/graphics/raster/texture/span/tex.span_uv.h
+index f7970afa8..f7a0c0e34 100644
+--- a/3rd/toridraw/graphics/raster/texture/span/tex.span_uv.h
++++ b/3rd/toridraw/graphics/raster/texture/span/tex.span_uv.h
+@@ -6,6 +6,7 @@
+ #include "graphics/raster/raster_ablate.h"
+ #include "graphics/shade.h"
+ #include "graphics/shared_tables.h"
++#include "graphics/raster/texlerp_census.h"
+ 
+ #include <stdint.h>
+ 
+@@ -57,6 +58,7 @@ tex_span_wrapped_quotient(int n, int w, float inv_w)
+     if( quotient > -TEX_SPAN_RECIPROCAL_EXACT_LIMIT &&
+         quotient < TEX_SPAN_RECIPROCAL_EXACT_LIMIT )
+         return (int)quotient;
++    TORIDRAW_TEXLERP_BUMP(vslow);
+     return n / w;
+ }
+ 
+@@ -77,10 +79,17 @@ static inline int
+ tex_span_u_quotient(int au, float inv_w, int texture_width)
+ {
+     float quotient = (float)au * inv_w;
++    TORIDRAW_TEXLERP_BUMP(pairs);
+     if( quotient <= 0.0f )
++    {
++        TORIDRAW_TEXLERP_BUMP(uclamp_lo);
+         return 0;
++    }
+     if( quotient >= (float)(texture_width - 1) )
++    {
++        TORIDRAW_TEXLERP_BUMP(uclamp_hi);
+         return texture_width - 1;
++    }
+     return (int)quotient;
+ }
+ 

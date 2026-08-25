@@ -1,0 +1,198 @@
+From feb295516a0732e9b327c8f1318cb4410a533a4c Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:15:57 -0500
+Subject: [PATCH 2/2] wip(r3-gspan): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-gspan.
+
+files: 3rd/toridraw/graphics/raster/gouraudhsllightness/gwalk_census.c 3rd/toridraw/graphics/raster/gouraudhsllightness/gwalk_census.h
+---
+ .../raster/gouraudhsllightness/gwalk_census.c | 100 ++++++++++++++++++
+ .../raster/gouraudhsllightness/gwalk_census.h |  69 ++++++++++++
+ 2 files changed, 169 insertions(+)
+ create mode 100644 3rd/toridraw/graphics/raster/gouraudhsllightness/gwalk_census.c
+ create mode 100644 3rd/toridraw/graphics/raster/gouraudhsllightness/gwalk_census.h
+
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gwalk_census.c b/3rd/toridraw/graphics/raster/gouraudhsllightness/gwalk_census.c
+new file mode 100644
+index 000000000..91cc1e77b
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gwalk_census.c
+@@ -0,0 +1,100 @@
++#include "graphics/raster/gouraudhsllightness/gwalk_census.h"
++
++#if defined(TORIDRAW_GWALK_CENSUS) && TORIDRAW_GWALK_CENSUS
++
++struct ToriDraw_GWalkCensus g_toridraw_gwalk_census;
++
++/**
++ * Report everything per FRAME as well as absolute, because the only use of
++ * these numbers is against a 2.8 GHz cycle budget for one frame. The frame
++ * count is taken from an env var rather than guessed.
++ */
++void
++ToriDraw_GWalkCensusDump(void)
++{
++    struct ToriDraw_GWalkCensus const* c = &g_toridraw_gwalk_census;
++    char const* frames_env = getenv("TORIDRAW_GWALK_CENSUS_FRAMES");
++    double frames = frames_env ? atof(frames_env) : 1.0;
++    FILE* out = stderr;
++    char const* path = getenv("TORIDRAW_GWALK_CENSUS_FILE");
++
++    if( c->calls == 0.0 )
++        return;
++    if( frames <= 0.0 )
++        frames = 1.0;
++    if( path )
++    {
++        FILE* f = fopen(path, "wb");
++        if( f )
++            out = f;
++    }
++
++    fprintf(
++        out,
++        "gwalk-census: %.0f frames\n"
++        "  calls          %12.0f  %10.1f /frame\n"
++        "  rej_sort       %12.0f  %10.1f /frame  (%.2f%% of calls)\n"
++        "  rej_dy0        %12.0f  %10.1f /frame  (%.2f%%)\n"
++        "  rej_sarea0     %12.0f  %10.1f /frame  (%.2f%%)\n"
++        "  reach_walk     %12.0f  %10.1f /frame  (%.2f%%)\n"
++        "  rows           %12.0f  %10.1f /frame  %.3f rows/walked-tri\n"
++        "    noclip       %12.0f  (%.2f%% of rows)\n"
++        "    clipped      %12.0f  (%.2f%% of rows)\n"
++        "  row_equal      %12.0f  (%.2f%% of rows)\n"
++        "  row_empty      %12.0f  (%.2f%% of rows)\n"
++        "  spans          %12.0f  %10.1f /frame  (%.2f%% of rows)\n"
++        "  px             %12.0f  %10.1f /frame  %.3f px/span\n"
++        "  spans_short    %12.0f  (%.2f%% of spans)\n"
++        "  blocks         %12.0f  %10.1f /frame  %.3f blocks/span\n"
++        "  tails          %12.0f  (%.2f%% of spans)\n"
++        "  seg_noclip     %12.0f of %12.0f segments (%.2f%%)\n",
++        frames,
++        c->calls,
++        c->calls / frames,
++        c->rej_sort,
++        c->rej_sort / frames,
++        100.0 * c->rej_sort / c->calls,
++        c->rej_dy0,
++        c->rej_dy0 / frames,
++        100.0 * c->rej_dy0 / c->calls,
++        c->rej_sarea0,
++        c->rej_sarea0 / frames,
++        100.0 * c->rej_sarea0 / c->calls,
++        c->reach_walk,
++        c->reach_walk / frames,
++        100.0 * c->reach_walk / c->calls,
++        c->rows,
++        c->rows / frames,
++        c->reach_walk > 0.0 ? c->rows / c->reach_walk : 0.0,
++        c->rows_noclip,
++        c->rows > 0.0 ? 100.0 * c->rows_noclip / c->rows : 0.0,
++        c->rows_clip,
++        c->rows > 0.0 ? 100.0 * c->rows_clip / c->rows : 0.0,
++        c->row_equal,
++        c->rows > 0.0 ? 100.0 * c->row_equal / c->rows : 0.0,
++        c->row_empty,
++        c->rows > 0.0 ? 100.0 * c->row_empty / c->rows : 0.0,
++        c->spans,
++        c->spans / frames,
++        c->rows > 0.0 ? 100.0 * c->spans / c->rows : 0.0,
++        c->px,
++        c->px / frames,
++        c->spans > 0.0 ? c->px / c->spans : 0.0,
++        c->spans_short,
++        c->spans > 0.0 ? 100.0 * c->spans_short / c->spans : 0.0,
++        c->blocks,
++        c->blocks / frames,
++        c->spans > 0.0 ? c->blocks / c->spans : 0.0,
++        c->tails,
++        c->spans > 0.0 ? 100.0 * c->tails / c->spans : 0.0,
++        c->seg_nc[1],
++        c->seg_nc[0] + c->seg_nc[1],
++        (c->seg_nc[0] + c->seg_nc[1]) > 0.0
++            ? 100.0 * c->seg_nc[1] / (c->seg_nc[0] + c->seg_nc[1])
++            : 0.0);
++    fflush(out);
++    if( out != stderr )
++        fclose(out);
++}
++
++#endif
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gwalk_census.h b/3rd/toridraw/graphics/raster/gouraudhsllightness/gwalk_census.h
+new file mode 100644
+index 000000000..2981a9d58
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gwalk_census.h
+@@ -0,0 +1,69 @@
++#ifndef TORIDRAW_GWALK_CENSUS_H
++#define TORIDRAW_GWALK_CENSUS_H
++
++/**
++ * How much of gouraud_tri_i686.S actually executes, per frame.
++ *
++ * The span census next door answers "how long is a span". This answers the
++ * question that decides whether shrinking the kernel's code can matter at all:
++ * how many triangles reach the prologue, how many ROWS are walked, and how many
++ * of those rows emit nothing. A row that emits nothing still pays the edge step,
++ * the two shifts, the compare and the row join -- and if most rows are empty the
++ * kernel is a walk, not a fill.
++ *
++ * Counted in the C twin, which is bit-identical to the asm
++ * (toridraw_gouraud_tri_asm_test), so every count transfers exactly. Gated on
++ * TORIDRAW_SPAN_CENSUS as well as its own switch because the makefile withdraws
++ * the asm only for that one, and a census that ran beside the asm would count
++ * nothing.
++ */
++
++#if defined(TORIDRAW_GWALK_CENSUS) && TORIDRAW_GWALK_CENSUS
++
++#include <stdio.h>
++#include <stdlib.h>
++
++struct ToriDraw_GWalkCensus
++{
++    double calls;        /* entries to the sorted wrapper                   */
++    double rej_sort;     /* rejected by the y sort's own screen tests       */
++    double rej_dy0;      /* y2 - y0 == 0                                    */
++    double rej_sarea0;   /* zero signed area                                */
++    double reach_walk;   /* triangles that reach the trapezoid walks        */
++    double rows;         /* row-loop trips, both segments                   */
++    double rows_noclip;  /* rows that took the proven-inside scanline       */
++    double rows_clip;    /* rows that took the clamped scanline             */
++    double row_equal;    /* rows returned on x_start_ish16 == x_end_ish16   */
++    double row_empty;    /* rows returned on x_start >= x_end               */
++    double spans;        /* rows that reached the fill                      */
++    double px;           /* pixels the fill wrote (span length, not stores) */
++    double spans_short;  /* fills with stride < 4: no block loop at all     */
++    double blocks;       /* trips of the 4-pixel block loop                 */
++    double tails;        /* fills whose block loop ran and left a tail      */
++    double seg_nc[2];    /* segments proved free of horizontal clipping     */
++};
++
++extern struct ToriDraw_GWalkCensus g_toridraw_gwalk_census;
++
++void
++ToriDraw_GWalkCensusDump(void);
++
++static inline void
++toridraw_gwalk_bump(double* slot)
++{
++    if( g_toridraw_gwalk_census.calls == 0.0 )
++        atexit(ToriDraw_GWalkCensusDump);
++    *slot += 1.0;
++}
++
++#define GWALK_BUMP(field) toridraw_gwalk_bump(&g_toridraw_gwalk_census.field)
++#define GWALK_ADD(field, n) (g_toridraw_gwalk_census.field += (double)(n))
++
++#else
++
++#define GWALK_BUMP(field) ((void)0)
++#define GWALK_ADD(field, n) ((void)0)
++
++#endif
++
++#endif

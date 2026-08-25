@@ -1,0 +1,148 @@
+From 2ba6afc54b290ee20e0b9a5e8f9aa57a7615e44a Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:14:48 -0500
+Subject: [PATCH] wip(hunt-w1): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/w1.
+
+files: src/app.c src/platform/platform_sdl2_renderer_soft3d.c src/platform/platform_win32gdi.c
+---
+ src/app.c                                    |  8 ++++-
+ src/platform/platform_sdl2_renderer_soft3d.c | 31 +++++++++-----------
+ src/platform/platform_win32gdi.c             | 29 ++++++++++++++++--
+ 3 files changed, 48 insertions(+), 20 deletions(-)
+
+diff --git a/src/app.c b/src/app.c
+index 3b3ab67e3..4fa98f4b8 100644
+--- a/src/app.c
++++ b/src/app.c
+@@ -15826,6 +15826,10 @@ app_world_pick_finish(
+     struct ToriRS_PickResult result;
+     struct WorldEntity_Player* player = app_local_player(app);
+     int player_level = player ? player->grid_position.level : -1;
++    /* Latched, not re-read: this runs once per frame and getenv walks the whole
++     * environment block every call. Same idiom as pick_debug_dump in
++     * render/torirs_pick.c. */
++    static int pick_debug = -1;
+ 
+     ToriRS_PickHitsClassify(app->world, hits, player_level, &app->world_pickset, &result);
+     if( result.hover_tile_valid )
+@@ -15840,7 +15844,9 @@ app_world_pick_finish(
+         app->world_hover_tile_z = -1;
+     }
+ 
+-    if( getenv("TORIRS_WORLD_PICK_DEBUG") )
++    if( pick_debug < 0 )
++        pick_debug = getenv("TORIRS_WORLD_PICK_DEBUG") != NULL;
++    if( pick_debug )
+     {
+         fprintf(
+             stderr,
+diff --git a/src/platform/platform_sdl2_renderer_soft3d.c b/src/platform/platform_sdl2_renderer_soft3d.c
+index de701e34e..92f8a73e0 100644
+--- a/src/platform/platform_sdl2_renderer_soft3d.c
++++ b/src/platform/platform_sdl2_renderer_soft3d.c
+@@ -1607,23 +1607,20 @@ ToriRS_Soft3D_RenderFrame(
+ #else
+         uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
+ #endif
+-        if( ToriDraw_FrameAbArm() )
+-        {
+-            TORIDRAW_FB_CLEAR32(p, n, bg);
+-        }
+-        else
+-        {
+-            size_t i = 0;
+-            for( ; i + 4 <= n; i += 4 )
+-            {
+-                p[i] = bg;
+-                p[i + 1] = bg;
+-                p[i + 2] = bg;
+-                p[i + 3] = bg;
+-            }
+-            for( ; i < n; i++ )
+-                p[i] = bg;
+-        }
++        /*
++         * Armed unconditionally. The A/B above is what chose it, and the arm
++         * it used to alternate against was a copy of the dword-store loop that
++         * still lives -- as the reference twin -- in graphics/fb_clear.h, where
++         * TORIDRAW_FB_CLEAR32 resolves to it on every target without the i686
++         * kernel. Deleting the copy loses nothing.
++         *
++         * The clear is only half the question, and the other half is measured
++         * rather than argued: a non-temporal store leaves the framebuffer in
++         * RAM, so the present BitBlt that reads it back reads 1.54 MB cold
++         * against a 1 MB L2. If the blit gives back more than the 0.69 ms the
++         * clear saves, this loses. The bench decides.
++         */
++        TORIDRAW_FB_CLEAR32(p, n, bg);
+ #endif
+     }
+ 
+diff --git a/src/platform/platform_win32gdi.c b/src/platform/platform_win32gdi.c
+index acc3de545..4e310061c 100644
+--- a/src/platform/platform_win32gdi.c
++++ b/src/platform/platform_win32gdi.c
+@@ -39,6 +39,7 @@
+ 
+ #include <assert.h>
+ #include <stdint.h>
++#include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ 
+@@ -77,6 +78,12 @@ struct PlatformSDL2
+     int     resizable_h;
+     int     interface_scale_mode;
+ 
++    /* Last text handed to the caption, so a per-frame caller does not repeat
++     * itself. See PlatformSDL2_SetTitle. Sized to hold main.c's readout whole:
++     * a title that overflowed would compare equal on its tail and stop
++     * updating. Same field, same size, as the SDL backend's. */
++    char    title[256];
++
+     /* Set only for the duration of PollCommands so the WndProc can translate
+      * into the caller's bus; the coalesced resize is applied after the pump. */
+     struct ToriRS_CmdBus* poll_bus;
+@@ -617,6 +624,9 @@ PlatformSDL2_Init(struct PlatformSDL2* p, int width, int height, char const* tit
+     if( !p->hwnd )
+         return false;
+     SetWindowLongPtr(p->hwnd, GWLP_USERDATA, (LONG_PTR)p);
++    /* CreateWindowExA already put this text in the caption; recording it keeps
++     * the change-check in SetTitle honest about what the window already says. */
++    snprintf(p->title, sizeof(p->title), "%s", title ? title : "ToriRS");
+ 
+     /* Held for the window's life rather than fetched per present; see the field
+      * comment. Also the DC the memory DC is made compatible with. */
+@@ -753,11 +763,26 @@ PlatformSDL2_QuitRequested(struct PlatformSDL2* p)
+     return p->quit != 0;
+ }
+ 
++/*
++ * The caller is a per-frame debug readout (main.c's update_window_title), so
++ * this arrives at frame rate with the same string in it. SetWindowTextA is a
++ * SendMessage(WM_SETTEXT): it reaches DefWindowProc, which repaints the themed
++ * non-client caption through uxtheme's DrawTextExW. On the Pentium 4 target
++ * that is 1.4 ms of every frame, almost all of it inside ntdll, spent telling
++ * the window something it already says. Comparing first costs a strcmp of a
++ * string that is already in cache. The SDL backend guards the same call for
++ * the same reason; see PlatformSDL2_SetTitle in platform_sdl2.c.
++ */
+ void
+ PlatformSDL2_SetTitle(struct PlatformSDL2* p, char const* title)
+ {
+-    if( p->hwnd && title )
+-        SetWindowTextA(p->hwnd, title);
++    assert(p);
++    assert(p->hwnd);
++    assert(title);
++    if( strncmp(p->title, title, sizeof(p->title) - 1) == 0 )
++        return;
++    snprintf(p->title, sizeof(p->title), "%s", title);
++    SetWindowTextA(p->hwnd, title);
+ }
+ 
+ void

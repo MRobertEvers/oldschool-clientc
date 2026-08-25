@@ -1,0 +1,277 @@
+From 82c977a9b80560023427b9ec95c61126ce13a5bf Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:15:24 -0500
+Subject: [PATCH] wip(hunt-w3): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/w3.
+
+files: 3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc 3rd/toridraw/graphics/raster/texture/tex_tri_asm.h 3rd/toridraw/graphics/raster/texture/tex_tri_i686.S 3rd/toridraw/triangles/toridraw_triangle_texture_opaque.u.c
+---
+ .../raster/texture/span/tex_span_body.inc     | 65 +++++++++++++------
+ .../graphics/raster/texture/tex_tri_asm.h     |  9 ++-
+ .../graphics/raster/texture/tex_tri_i686.S    | 16 +++--
+ .../toridraw_triangle_texture_opaque.u.c      | 42 ++++++++++++
+ 4 files changed, 106 insertions(+), 26 deletions(-)
+
+diff --git a/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc b/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc
+index 33caa4842..585111359 100644
+--- a/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc
++++ b/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc
+@@ -62,6 +62,8 @@
+ #define REMAIN    56
+ #define BLKN      60
+ #define SHADE     64
++/* The quotient pipeline. Every *_V slot carries v + 2^29, not v -- the fit
++ * test below is why, and why nothing else has to care. */
+ #define CUR_U     68
+ #define CUR_V     72
+ #define NXT_U     76
+@@ -75,6 +77,7 @@
+ #define EB_N      108
+ #define EB_I      112
+ #define EB_SH     116
++#define W16       120           /* (cw + ST_CW16) >> sh, carried between blocks */
+ 
+ #define FRAME     124
+ #define A(n) (144 + 4 * (n))(%esp)
+@@ -433,6 +436,7 @@
+ 	QUOTU   AU(%esp), \twm1f, %edx
+ 	movl    %edx, CUR_U(%esp)
+ 	WRAPQ   BV(%esp), %ecx, %edx
++	addl    $536870912, %edx
+ 	movl    %edx, CUR_V(%esp)
+ 	jmp     2f
+ 1:
+@@ -453,20 +457,38 @@
+ 	movl    BV(%esp), %edx
+ 	addl    ST_BV8(%esp), %edx
+ 	WRAPQ   %edx, %ecx, %ebx
++	addl    $536870912, %ebx
+ 	movl    %ebx, NXT_V(%esp)
+ 	jmp     4f
+ 3:
+ 	movl    $-1, NXT_U(%esp)
+ 4:
+ 
++	/*
++	 * Ask whether there is a block BEFORE seeding for one. The seed below
++	 * feeds xmm7, xmm7 feeds the block loop and nothing else, so on the tail
++	 * path its result is dead -- and 61.4% of the spans in the lumbridge
++	 * bench (21,271 of 34,643) are that path: one to seven pixels with no
++	 * whole block at all. Every one of them was paying a nine-instruction
++	 * dependent rcpss-plus-Newton chain to throw the answer away.
++	 */
++	cmpl    $0, BLKN(%esp)
++	jle     .Ltail\tag
++
+ 	/* Seed the reciprocal pipeline: block 0 consumes 1/w_2. */
+ 	movl    CW(%esp), %eax
+ 	addl    ST_CW16(%esp), %eax
+ 	sarl    $\sh, %eax
++	movl    %eax, W16(%esp)
+ 	RECIP7  %eax, %edx
+ 
+-	cmpl    $0, BLKN(%esp)
+-	jle     .Ltail\tag
++	/*
++	 * The blend's zero register, cleared once per span rather than once per
++	 * block. Nothing between here and the last store writes xmm5: GATHER
++	 * takes 0/1/6, BLEND4 2/3, RECIP 0/1, RECIP7 0/7, QUOTU and WRAPQ 2/3,
++	 * and EXACTBLK no xmm at all.
++	 */
++	pxor    %xmm5, %xmm5
+ 
+ .Lblk\tag:
+ 	/*
+@@ -474,14 +496,19 @@
+ 	 * xmm7, while the one issued three blocks back is consumed to build the
+ 	 * quotient pair for block k+2. Everything below is the shadow both hide
+ 	 * in.
++	 *
++	 * w16 is not summed here, it is read. ST_CW24 == ST_CW16 + ST_CW8 and
++	 * cw advances by ST_CW8 per block, so cw_k + ST_CW24 and cw_(k+1) +
++	 * ST_CW16 are the same wrapped dword -- and therefore, shifted by the
++	 * same sh, the same divisor. Block k leaves its w24 in W16 and block
++	 * k+1 finds its w16 already there; the seed above put block 0's in.
+ 	 */
+-	movl    CW(%esp), %ecx
+-	addl    ST_CW16(%esp), %ecx
+-	sarl    $\sh, %ecx
++	movl    W16(%esp), %ecx
+ 	movaps  %xmm7, %xmm1
+ 	movl    CW(%esp), %eax
+ 	addl    ST_CW24(%esp), %eax
+ 	sarl    $\sh, %eax
++	movl    %eax, W16(%esp)
+ 	RECIP7  %eax, %edx
+ 	testl   %ecx, %ecx
+ 	je      .Lfutz\tag
+@@ -492,6 +519,7 @@
+ 	movl    BV(%esp), %edx
+ 	addl    ST_BV16(%esp), %edx
+ 	WRAPQ   %edx, %ecx, %ebx
++	addl    $536870912, %ebx
+ 	movl    %ebx, FUT_V(%esp)
+ .Lfutd\tag:
+ 
+@@ -505,19 +533,21 @@
+ 	 * where a 16.16 scan cannot overflow, and the block must not sweep more
+ 	 * than one texture tile in v -- past that the wrap is not a straight
+ 	 * line and the exact path has to run.
++	 *
++	 * The endpoints arrive with +2^29 already in them, added once at the
++	 * divide that produced them, so the magnitude test is one cmp against
++	 * 2^30 instead of an add and a cmp -- here, and again at the tail. The
++	 * other two readers do not notice: one takes a difference, where the
++	 * bias cancels, and one masks with texture_width - 1, whose bits 2^29
++	 * does not reach.
+ 	 */
+-	movl    CUR_V(%esp), %eax
+-	addl    $536870912, %eax
+-	cmpl    $1073741824, %eax
++	cmpl    $1073741824, CUR_V(%esp)
+ 	ja      .Lexact8\tag
+ 	movl    NXT_V(%esp), %ecx
+-	movl    %ecx, %eax
+-	addl    $536870912, %eax
+-	cmpl    $1073741824, %eax
++	cmpl    $1073741824, %ecx
+ 	ja      .Lexact8\tag
+ 	subl    CUR_V(%esp), %ecx
+-	movl    %ecx, %eax
+-	addl    $(\twm1 + 1), %eax
++	leal    (\twm1 + 1)(%ecx), %eax
+ 	cmpl    $(2 * \twm1 + 2), %eax
+ 	ja      .Lexact8\tag
+ 
+@@ -545,7 +575,6 @@
+ 	movd    %edx, %xmm4
+ 	pshuflw $0, %xmm4, %xmm4
+ 	pshufd  $0, %xmm4, %xmm4
+-	pxor    %xmm5, %xmm5
+ 
+ 	FILL8   \sh, \twm1, \vmask
+ 	jmp     .Ladv\tag
+@@ -596,13 +625,9 @@
+ 	cmpl    $-1, NXT_U(%esp)
+ 	je      .Ltexact\tag
+ 
+-	movl    CUR_V(%esp), %eax
+-	addl    $536870912, %eax
+-	cmpl    $1073741824, %eax
++	cmpl    $1073741824, CUR_V(%esp)
+ 	ja      .Ltexact\tag
+-	movl    NXT_V(%esp), %eax
+-	addl    $536870912, %eax
+-	cmpl    $1073741824, %eax
++	cmpl    $1073741824, NXT_V(%esp)
+ 	ja      .Ltexact\tag
+ 	movl    NXT_V(%esp), %eax
+ 	subl    CUR_V(%esp), %eax
+diff --git a/3rd/toridraw/graphics/raster/texture/tex_tri_asm.h b/3rd/toridraw/graphics/raster/texture/tex_tri_asm.h
+index 3613ec14d..27495ae91 100644
+--- a/3rd/toridraw/graphics/raster/texture/tex_tri_asm.h
++++ b/3rd/toridraw/graphics/raster/texture/tex_tri_asm.h
+@@ -44,7 +44,14 @@ extern "C" {
+ #endif
+ 
+ /** Bit-exact hand-written twin of
+- *  raster_texshadeblend_persp_texopaque_branching_lerp8_v3, sort included. */
++ *  raster_texshadeblend_persp_texopaque_branching_lerp8_v3, sort included.
++ *
++ *  texture_width must be 128. Every osrs239 texture bakes at that width, and
++ *  assembling SPANBODY -- the largest macro in the rasterizer -- a second time
++ *  for a width no scene contains is instruction fetch nobody spends. The
++ *  dispatch site sends any other width to the C twin above; the kernel itself
++ *  returns without drawing, which is all an assembler can say about a broken
++ *  contract. */
+ void toridraw_textri_opaque_lerp8_v3_asm(
+     int* pixel_buffer,
+     int stride,
+diff --git a/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S b/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S
+index 572644735..f04a1f2b3 100644
+--- a/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S
++++ b/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S
+@@ -643,10 +643,18 @@ _toridraw_textri_opaque_lerp8_v3_asm:
+ 	 * across every span of the triangle. */
+ 	movl	T(A_TEXELS), %esi
+ 
+-	/* The width dispatch, once per triangle instead of once per row. */
++	/*
++	 * The width dispatch, once per triangle instead of once per row -- and
++	 * with only one width left to dispatch to. Every osrs239 texture bakes
++	 * at 128, so the 64-wide instantiation of SPANBODY was the largest
++	 * block of never-executed code in the rasterizer. The call site in
++	 * toridraw_triangle_texture_opaque.u.c sends a 64-wide face to the C
++	 * twin instead, which is where correct was defined in the first place;
++	 * the jne is the belt to that braces, and cannot be reached from it.
++	 */
+ 	cmpl	$128, T(A_TW)
+-	je	.Lwalk128
+-	jmp	.Lwalk64
++	jne	.Lret
++	jmp	.Lwalk128
+ 
+ .Lret:
+ 	addl	$TFRAME, %esp
+@@ -766,5 +774,3 @@ _toridraw_textri_opaque_lerp8_v3_asm:
+ .Lwalk128:
+ 	WALK	7, 127, 0x3F80, LC_f127, 128
+ 
+-.Lwalk64:
+-	WALK	6, 63, 0x0FC0, LC_f63, 64
+diff --git a/3rd/toridraw/triangles/toridraw_triangle_texture_opaque.u.c b/3rd/toridraw/triangles/toridraw_triangle_texture_opaque.u.c
+index 118d06959..c2fec168f 100644
+--- a/3rd/toridraw/triangles/toridraw_triangle_texture_opaque.u.c
++++ b/3rd/toridraw/triangles/toridraw_triangle_texture_opaque.u.c
+@@ -97,6 +97,48 @@ ToriDraw_TriangleTextureBlendOpaque(
+         return;
+     }
+ 
++#ifdef TORIDRAW_TEXTRI_ASM
++    /*
++     * The hand-written kernel assembles the 128-wide fill only. Every
++     * osrs239 texture bakes at 128, and a second instantiation of SPANBODY
++     * -- the largest macro in the rasterizer -- to serve a width the scene
++     * does not contain is code the instruction fetcher pays for and nothing
++     * executes. The C twin is the reference the kernel is scored against by
++     * toridraw_textri_asm_test.c, so a 64-wide face sent here is not a
++     * fallback so much as the definition running directly.
++     */
++    if( texture_size != 128 )
++    {
++        raster_texshadeblend_persp_texopaque_branching_lerp8_v3(
++            pixel_buffer,
++            stride,
++            screen_width,
++            screen_height,
++            camera_cot16,
++            screen_x0,
++            screen_x1,
++            screen_x2,
++            screen_y0,
++            screen_y1,
++            screen_y2,
++            orthographic_x0,
++            orthographic_x1,
++            orthographic_x2,
++            orthographic_y0,
++            orthographic_y1,
++            orthographic_y2,
++            orthographic_z0,
++            orthographic_z1,
++            orthographic_z2,
++            shade_a,
++            shade_b,
++            shade_c,
++            texels,
++            texture_size);
++        return;
++    }
++#endif
++
+     TORIDRAW_TEX_TRI_PERSP_OPAQUE(
+         pixel_buffer,
+         stride,
