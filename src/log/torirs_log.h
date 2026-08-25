@@ -48,6 +48,19 @@
 /** Errors from a variadic wrapper that already holds a va_list. */
 #define TORIRS_VERR(fmt, ap) vfprintf(stderr, (fmt), (ap))
 
+/*
+ * Output the user explicitly asked for: a profiler report, a census, a dump
+ * behind its own environment variable. Always compiled in, because it is
+ * already gated -- at runtime, by the flag that turned it on -- and a report
+ * that disappears from the optimized build is missing from the only build whose
+ * numbers anyone wants. TORIRS_PERF=1 is the case that named this: its whole
+ * report was narration by shape and would have vanished under OPT=1.
+ *
+ * The test for this channel is not "is it interesting" but "did someone turn it
+ * on". If the line prints unconditionally, it is TORIRS_LOG.
+ */
+#define TORIRS_REPORT(...) fprintf(stderr, __VA_ARGS__)
+
 #if TORIRS_LOG_ENABLED
 /** Developer narration. Compiled out when TORIRS_LOG_ENABLED is 0. */
 #  define TORIRS_LOG(...) fprintf(stderr, __VA_ARGS__)
