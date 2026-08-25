@@ -1408,6 +1408,41 @@ soft3d_pixowner_end(void)
  * Two clock reads per command is not free when perf is enabled; `r_cmds` is
  * the divisor that says how much was added. Read the split as a ratio between
  * the classes. With perf off this costs one predicted branch per command. */
+/* ABLATION SUPPORT (measurement only) -- see the TORIRS_ABL_NOCHROME arm in
+ * ToriRS_Soft3D_RenderFrame. Read once; off is one predicted branch. */
+static int
+soft3d_abl_nochrome(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_ABL_NOCHROME") ? 1 : 0;
+    return armed;
+}
+
+/* True for the command kinds that put pixels in the framebuffer, as opposed to
+ * state transitions and resource loads. Kept beside the dispatcher's switch so
+ * the two cannot drift apart. */
+static int
+soft3d_cmd_is_draw(enum ToriRS_RenderCommandKind kind)
+{
+    switch( kind )
+    {
+    case TORIRSRC_DRAW_MODEL:
+    case TORIRSRC_DRAW_MODEL_WIDGET:
+    case TORIRSRC_SPRITE:
+    case TORIRSRC_FONT:
+    case TORIRSRC_LINE:
+    case TORIRSRC_CLEAR_RECT:
+    case TORIRSRC_FILL_RECT:
+    case TORIRSRC_POLYGON_BEGIN:
+    case TORIRSRC_POLYGON_POINT:
+    case TORIRSRC_POLYGON_END:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 static void
 soft3d_execute_measured(
     struct ToriRS_Soft3D* soft,
@@ -1638,6 +1673,31 @@ ToriRS_Soft3D_RenderFrame(
             soft3d_pixowner_after_command(soft, &cmd);
         }
         soft3d_pixowner_end();
+    }
+    else if( soft3d_abl_nochrome() )
+    {
+        /* ABLATION (TORIRS_ABL_NOCHROME=1, measurement only): execute the 3D
+         * pass and every state/resource command, and drop the 2D *drawing*
+         * outside it -- the sidebar, chatback, minimap, compass and every
+         * sprite and glyph composing them.
+         *
+         * This deliberately renders a wrong image. Its only purpose is to put
+         * an upper bound on what damage-gated chrome rasterisation could
+         * recover, by deleting all of it: a damage system that never redrew a
+         * single chrome pixel could not beat this number. Loads/unloads and
+         * BEGIN/END still run, or the scene state diverges from the command
+         * stream and the 3D pass stops being comparable. */
+        int depth_3d = 0;
+        while( ToriRS_FrameNextCommand(frame, &cmd) )
+        {
+            if( cmd.kind == TORIRSRC_BEGIN_3D )
+                depth_3d++;
+            else if( cmd.kind == TORIRSRC_END_3D && depth_3d > 0 )
+                depth_3d--;
+            else if( depth_3d == 0 && soft3d_cmd_is_draw(cmd.kind) )
+                continue;
+            soft3d_execute_measured(soft, &cmd);
+        }
     }
     else
     {

@@ -233,6 +233,17 @@ gdi_fill_black(HDC dc, int left, int top, int right, int bottom)
     FillRect(dc, &rect, (HBRUSH)GetStockObject(BLACK_BRUSH));
 }
 
+/* ABLATION SUPPORT (measurement only) -- see the TORIRS_ABL_PRESENT_VP arm in
+ * gdi_paint_latest. Read once; off is one predicted branch. */
+static int
+gdi_abl_present_vp(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_ABL_PRESENT_VP") ? 1 : 0;
+    return armed;
+}
+
 static void
 gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
 {
@@ -275,7 +286,28 @@ gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
     {
         if( box.right == p->width && box.bottom == p->height )
         {
-            BitBlt(dc, box.left, box.top, p->width, p->height, p->mem_dc, 0, 0, SRCCOPY);
+            int blit_w = p->width;
+            int blit_h = p->height;
+
+            /* ABLATION (TORIRS_ABL_PRESENT_VP=1, measurement only): present
+             * only a world-viewport-sized 512x334 region instead of the whole
+             * 765x503 DIB.
+             *
+             * This bounds what damaged-rect presentation could recover from the
+             * per-frame GDI BitBlt: in an idle in-world steady state the world
+             * viewport is the region that genuinely changes, so a damage system
+             * cannot blit less than this. The origin is deliberately (0,0) --
+             * the kernel cost tracks the area copied, not where it lands, and
+             * using the true viewport origin would only make the wrong image
+             * look more plausible. */
+            if( gdi_abl_present_vp() )
+            {
+                if( blit_w > 512 )
+                    blit_w = 512;
+                if( blit_h > 334 )
+                    blit_h = 334;
+            }
+            BitBlt(dc, box.left, box.top, blit_w, blit_h, p->mem_dc, 0, 0, SRCCOPY);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PRESENT_BLIT_1TO1, 1);
         }
         else

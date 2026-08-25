@@ -25,6 +25,7 @@
 #include "asyncio.h"
 #include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_lua.h"
+#include "torirs_log.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -417,9 +418,15 @@ Task_PluginAssetRead_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
          * for an asset is waiting on the event, and "the file is not there" is
          * the answer it needs -- an asset_load that simply never comes back is
          * indistinguishable from one still in flight.
+         *
+         * Narration, not an error: the plugin is told through
+         * PluginHost_AssetDeliver below either way, and a plugin that re-asks
+         * every tick turns this into a per-frame write. Measured at 178 KB of
+         * stderr per 30 s in-world on the XP target -- roughly one syscall a
+         * frame restating a fact that had not changed. The delivery is the
+         * contract; this line is for whoever is watching.
          */
-        fprintf(
-            stderr,
+        TORIRS_LOG(
             "plugin: %s asset '%s' not found (%s, %s)\n",
             task->plugin,
             task->asset,
