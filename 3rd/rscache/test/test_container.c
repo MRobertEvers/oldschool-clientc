@@ -375,11 +375,17 @@ check_reftable_roundtrip(
             RSCACHE_CHECK_EQ(got->children.count, want->children.count);
 
             if( flags & RSCACHE_REFTABLE_FLAG_IDENTIFIERS )
-                RSCACHE_CHECK_EQ(got->identifier, want->identifier);
+                RSCACHE_CHECK_EQ(
+                    RSCache_ReferenceTableIdentifier(decoded, ids[i]),
+                    RSCache_ReferenceTableIdentifier(&source, ids[i]));
             if( flags & RSCACHE_REFTABLE_FLAG_SIZES )
             {
-                RSCACHE_CHECK_EQ(got->compressed, want->compressed);
-                RSCACHE_CHECK_EQ(got->uncompressed, want->uncompressed);
+                RSCACHE_CHECK_EQ(
+                    RSCache_ReferenceTableCompressed(decoded, ids[i]),
+                    RSCache_ReferenceTableCompressed(&source, ids[i]));
+                RSCACHE_CHECK_EQ(
+                    RSCache_ReferenceTableUncompressed(decoded, ids[i]),
+                    RSCache_ReferenceTableUncompressed(&source, ids[i]));
             }
             if( flags & RSCACHE_REFTABLE_FLAG_WHIRLPOOL )
                 RSCACHE_CHECK_BYTES_EQ(
@@ -466,8 +472,8 @@ test_reference_table(void)
         table.ids = &one_id;
         table.archive_count = 1;
         struct RSCache_ReferenceTableArchive archive = { 0 };
-        archive.index = 0;
         table.archives = &archive;
+        RSCache_ReferenceTableSetHasArchive(&table, 0, true);
 
         uint8_t buffer[256];
         uint32_t size = RSCache_ReferenceTableEncode(&table, buffer, sizeof(buffer));
@@ -587,7 +593,7 @@ test_disk_writer(void)
             RSCache_ReferenceTableSetHasArchive(&table, i, false);
         for( int i = 0; i < 3; i++ )
         {
-            table.archives[ids[i]].index = ids[i];
+            RSCache_ReferenceTableSetHasArchive(&table, ids[i], true);
             table.archives[ids[i]].version = 5;
             table.archives[ids[i]].children.count = 1;
             table.archives[ids[i]].children.files =

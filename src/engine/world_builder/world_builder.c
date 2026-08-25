@@ -5,7 +5,6 @@
 #include "contour_ground_queue.u.c"
 #include "decor_buildmap.h"
 #include "engine/cache_provider.h"
-#include "engine/torirs_model_inst_cache.h"
 #include "painters/painters.h"
 #include "painters/scene_occluders.h"
 #include "flag_map.h"
@@ -17,7 +16,9 @@
 #include "shademap.h"
 #include "sharelight_map.h"
 #include "terrain_shapemap.h"
+#include "toridraw_model.h"
 #include "toridraw_scene.h"
+#include "toridraw_shared_model.h"
 #include <rscache.h>
 
 #include <assert.h>
@@ -68,6 +69,7 @@ static int g_wb_census_dup_n;        /* placements served from the prototype cac
 static size_t g_wb_census_dup_b;
 static int g_wb_census_unique_n;     /* non-shareable, genuinely per-placement */
 static size_t g_wb_census_unique_b;
+
 
 static int
 wb_census_on(void)
@@ -314,13 +316,6 @@ WorldBuilder_New(
                               sizeof(builder->scenery_dbg_element[0]));
          i++ )
         builder->scenery_dbg_element[i] = -1;
-    builder->scenery_model_cache = calloc(1, sizeof(*builder->scenery_model_cache));
-    assert(builder->scenery_model_cache);
-    {
-        bool inited = TorirsModelInstCache_Init(builder->scenery_model_cache);
-        assert(inited && "WorldBuilder_New: scenery model cache init");
-        (void)inited;
-    }
     return builder;
 }
 
@@ -329,11 +324,6 @@ WorldBuilder_Free(struct WorldBuilder* builder)
 {
     if( !builder )
         return;
-    if( builder->scenery_model_cache )
-    {
-        TorirsModelInstCache_Free(builder->scenery_model_cache);
-        free(builder->scenery_model_cache);
-    }
     world_builder_free_transient_maps(builder);
     free(builder);
 }
@@ -361,9 +351,9 @@ WorldBuilder_RebuildCenterzoneBegin(
 
     /* Loc configs may have been reloaded (varbit morphs re-resolve per place;
      * the map editor re-seeds the provider) — a prototype baked from the old
-     * config must not survive into this build. */
-    TorirsModelInstCache_Clear(builder->scenery_model_cache);
-
+     * config must not survive into this build. The scene's shared-model store
+     * needs no explicit clear for that: it retains nothing on its own, so the
+     * ClearPool below is what empties it. */
     world_builder_free_transient_maps(builder);
     World_ResetScene(world, zone_center_x, zone_center_z, scene_size);
 
@@ -938,13 +928,6 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
         builder->lightmap = NULL;
     }
 
-    /* The prototype cache's whole value is within the build that just ran —
-     * every instance of a repeated loc after the first copies its lit model.
-     * Dropping it here keeps zero prototypes resident during play (a scene's
-     * worth is several MB); a runtime loc spawn simply rebuilds its one model,
-     * which is what it always did. */
-    TorirsModelInstCache_Clear(builder->scenery_model_cache);
-
     if( wb_timing_on() )
     {
         double te1 = wb_now_ms();
@@ -1059,8 +1042,6 @@ WorldBuilder_RebuildChunklistBegin(
 {
     struct World* world = builder->world;
     assert(world && "WorldBuilder_RebuildChunklistBegin: world is NULL");
-
-    TorirsModelInstCache_Clear(builder->scenery_model_cache);
 
     world_builder_free_transient_maps(builder);
     World_ResetSceneChunkList(world, chunks_xz, count);

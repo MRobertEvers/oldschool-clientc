@@ -377,6 +377,36 @@ ToriDraw_SceneElementSetAnimLoop(
     int element_id,
     bool loop);
 
+/**
+ * This element's model, made private first if other elements share it.
+ *
+ * The one door through which a placed model may be written. A loc that stands
+ * in a scene hundreds of times holds ONE model (see
+ * ToriDraw_Model::shared_owner), so editing it through
+ * ToriDraw_SceneElementGet would edit every placement; ask here instead and
+ * the element gets a copy of its own, which it then owns outright.
+ *
+ * Returns NULL when the element is dead or does not carry a full model -- both
+ * are ordinary states for a caller that is chasing an element it did not
+ * create. The returned pointer belongs to the element, not the caller.
+ */
+struct ToriDraw_Model*
+ToriDraw_SceneElementModelForWrite(
+    struct ToriDraw_Scene* scene,
+    int element_id);
+
+/**
+ * The scene's shared-model store, created on the first ask.
+ *
+ * One per scene, and the only place a shared model may live: the models in it
+ * are held by this scene's elements, so its lifetime is the scene's. Built
+ * lazily because a scene that draws no world geometry -- a widget model view,
+ * an icon raster -- never has two placements of anything and would otherwise
+ * pay for a table it never reads. See toridraw_shared_model.h.
+ */
+struct ToriDraw_SharedModelStore*
+ToriDraw_SceneSharedModels(struct ToriDraw_Scene* scene);
+
 void
 ToriDraw_SceneElementSetModel(
     struct ToriDraw_Scene* scene,

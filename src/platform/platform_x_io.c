@@ -36,6 +36,17 @@
  * free the archive they receive.
  */
 #define DAT2_ARCHIVE_CACHE_SLOTS 32
+/*
+ * How many of those slots hold an archive unless told otherwise.
+ *
+ * The win the cache exists for comes from the few groups in flight at once --
+ * a group is requested once per id it contains, so the repeat run is a burst,
+ * not a long tail. Over a 400-frame boot, 4 slots decompress no more than 32
+ * do and give back 0.6 MB of retained archives. Raise it with
+ * TORIRS_DAT2_ARCHIVE_SLOTS (up to DAT2_ARCHIVE_CACHE_SLOTS) for a workload
+ * that keeps more groups open.
+ */
+#define DAT2_ARCHIVE_CACHE_SLOTS_DEFAULT 4
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
 #define JS5_PENDING_SLOTS (TORIRS_IO_MAX_ITEMS * 2)
 #endif
@@ -100,10 +111,10 @@ dat2_archive_cache_slots(void)
     long n;
 
     if( !env || env[0] == '\0' )
-        return DAT2_ARCHIVE_CACHE_SLOTS;
+        return DAT2_ARCHIVE_CACHE_SLOTS_DEFAULT;
     n = strtol(env, NULL, 10);
     if( n < 1 || n > DAT2_ARCHIVE_CACHE_SLOTS )
-        return DAT2_ARCHIVE_CACHE_SLOTS;
+        return DAT2_ARCHIVE_CACHE_SLOTS_DEFAULT;
     return (int)n;
 }
 

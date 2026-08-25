@@ -6,6 +6,7 @@
 #include "toridraw_math.h"
 #include "toridraw_model.h"
 #include "toridraw_model_transform.h"
+#include "toridraw_shared_model.h"
 #include "toridraw_sprite.h"
 
 #include <assert.h>
@@ -362,6 +363,42 @@ td_scene_allocate_element_id(
     element->pool = (uint8_t)pool;
     scene->anim_list_dirty = true;
     return id;
+}
+
+struct ToriDraw_SharedModelStore*
+ToriDraw_SceneSharedModels(struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    if( !scene->shared_models )
+        scene->shared_models = ToriDraw_SharedModelStoreNew();
+    return scene->shared_models;
+}
+
+struct ToriDraw_Model*
+ToriDraw_SceneElementModelForWrite(
+    struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    struct ToriDraw_SceneElement* element;
+    struct ToriDraw_Model* model;
+
+    assert(scene);
+
+    if( element_id < 0 || !ToriDraw_SceneElementIsLive(scene, element_id) )
+        return NULL;
+    element = ToriDraw_SceneElementGet(scene, element_id);
+    if( !element || element->model.kind != TORIDRAWMK_MODEL )
+        return NULL;
+    model = element->model.u.model.model;
+    if( !model || (!model->shared_owner && !model->borrowed_topology) )
+        return model;
+
+    /* Give this element geometry it can edit and hand the loan back. The copy
+     * carries the bind pose, so an element about to be animated is no worse off
+     * for being copied here than it would have been built unshared. */
+    element->model.u.model.model = ToriDraw_ModelCopy(model);
+    ToriDraw_ModelFree(model);
+    return element->model.u.model.model;
 }
 
 static void

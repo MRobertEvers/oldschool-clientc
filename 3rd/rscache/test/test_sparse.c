@@ -95,8 +95,7 @@ make_reference_container(
         RSCache_ReferenceTableSetHasArchive(&table, i, false);
     RSCache_ReferenceTableSetHasArchive(&table, group_id, true);
     table.archives[group_id].crc = 0x10203040;
-    RSCache_ReferenceTableCompressed(&table, group_id) = 8;
-    RSCache_ReferenceTableUncompressed(&table, group_id) = 3;
+    RSCache_ReferenceTableSetSizes(&table, group_id, 8, 3);
     table.archives[group_id].version = group_version;
     table.archives[group_id].children.count = 1;
     table.archives[group_id].children.files =

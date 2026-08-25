@@ -103,8 +103,7 @@ write_seed_cache(const char* directory)
 
     RSCache_ReferenceTableSetHasArchive(&table, archive_id, true);
     table.archives[archive_id].crc = crc;
-    RSCache_ReferenceTableCompressed(&table, archive_id) = compressed;
-    RSCache_ReferenceTableUncompressed(&table, archive_id) = uncompressed;
+    RSCache_ReferenceTableSetSizes(&table, archive_id, compressed, uncompressed);
     table.archives[archive_id].version = 1;
     table.archives[archive_id].children.count = 1;
     table.archives[archive_id].children.files =

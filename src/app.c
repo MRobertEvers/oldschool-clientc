@@ -9998,10 +9998,9 @@ app_map_editor_ghost_update(struct App* app)
         app->need_redraw = 1;
     }
 
-    /* Translucency, once the async add has produced an element. Forcing the
-     * ELEMENT's model is safe because world elements own their model copies
-     * (Task_WorldLoad and ApplyLocChange both copy) -- a shared instance
-     * would ghost every placement of this loc on screen. */
+    /* Translucency, once the async add has produced an element. The fade is
+     * written onto the ELEMENT's own model rather than the loc's, so only the
+     * placement under the cursor goes translucent. */
     if( app->ghost_active && !app->ghost_alpha_done && app->world && app->scene )
     {
         int const idx = World_SceneryFindAt(
@@ -10010,15 +10009,15 @@ app_map_editor_ghost_update(struct App* app)
         {
             struct WorldEntity_Scenery* scenery =
                 World_EntityPoolGet(&app->world->entities.scenery, idx);
-            struct ToriDraw_SceneElement* element =
-                scenery && ToriDraw_SceneElementIsLive(app->scene, scenery->element_id)
-                    ? ToriDraw_SceneElementGet(app->scene, scenery->element_id)
-                    : NULL;
-            /* The handle is a tagged union; only a full model carries faces
-             * to fade (a sprite billboard has none). */
-            struct ToriDraw_Model* model =
-                element && element->model.kind == TORIDRAWMK_MODEL ? element->model.u.model.model
-                                                                   : NULL;
+            /* ForWrite, not Get: placements of one loc share a single model
+             * (ToriDraw_Model::shared_owner), and fading it in place would
+             * ghost every other one of the same fence on screen. It also
+             * answers the tagged-union question -- only a full model carries
+             * faces to fade, and a sprite billboard comes back NULL. */
+            struct ToriDraw_Model* model = scenery
+                                               ? ToriDraw_SceneElementModelForWrite(
+                                                     app->scene, scenery->element_id)
+                                               : NULL;
 
             if( model && model->face_count > 0 )
             {
@@ -28545,8 +28544,15 @@ app_world_scenery_anim_apply(
             World_EntityPoolGet(&app->world->entities.scenery, idx);
         if( scenery && scenery->element_id >= 0 )
         {
-            struct ToriDraw_SceneElement* element =
-                ToriDraw_SceneElementGet(app->scene, scenery->element_id);
+            struct ToriDraw_SceneElement* element;
+
+            /* Everything below writes to this element's model -- the quarter
+             * turn is un-baked in place, and app_world_apply_seq captures a
+             * bind pose and then poses it every frame. A static loc's model is
+             * shared with its every other placement, so it has to become this
+             * element's own before any of that. */
+            ToriDraw_SceneElementModelForWrite(app->scene, scenery->element_id);
+            element = ToriDraw_SceneElementGet(app->scene, scenery->element_id);
 
             /* A loc with no config animation is built as static scenery: its
              * map orientation is baked directly into its vertices. LOC_ANIM

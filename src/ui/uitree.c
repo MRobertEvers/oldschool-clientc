@@ -1017,8 +1017,22 @@ push_element_unlinked(struct UITree* tree)
     {
         if( tree->component_count >= tree->component_capacity )
         {
+            /*
+             * Three-halves, not double. A component is 404 bytes and the tree
+             * ratchets to the high-water of SIMULTANEOUS components -- it never
+             * shrinks, because the free list recycles slots instead. Doubling
+             * therefore rounds that high-water up to the next power of two and
+             * keeps the gap for the life of the process, and it is the largest
+             * single block in the UI. Three-halves lands nearer the true count
+             * and halves the copy that a grow has to hold live.
+             *
+             * The step stays at least one so the sequence cannot stall on a
+             * small capacity where integer division rounds the growth away.
+             */
             uint32_t new_capacity =
-                tree->component_capacity == 0 ? 16 : tree->component_capacity * 2;
+                tree->component_capacity == 0
+                    ? 16
+                    : tree->component_capacity + (tree->component_capacity >> 1) + 1;
             struct UITreeComponent* new_components =
                 realloc(tree->components, new_capacity * sizeof(struct UITreeComponent));
             if( !new_components )

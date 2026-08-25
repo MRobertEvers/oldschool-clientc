@@ -140,6 +140,38 @@ struct ToriDraw_Bones
 
 struct ToriDraw_Model
 {
+    /*
+     * Set when this model is not ours: it belongs to a shared-model store and
+     * is on loan to however many placements point at it. NULL -- what every
+     * constructor here leaves, since they all calloc the shell -- means an
+     * ordinary privately owned model.
+     *
+     * See toridraw_shared_model.h for why the arrangement exists and what it
+     * costs. What it means HERE is three things: ToriDraw_ModelFree drops a
+     * holder instead of freeing, ToriDraw_ModelAssertWritable refuses an
+     * in-place write, and ToriDraw_SceneElementModelForWrite is how a
+     * placement that must write gets geometry of its own.
+     */
+    struct ToriDraw_SharedModel* shared_owner;
+
+    /*
+     * When set, every array in TORIDRAW_TOPOLOGY_FIELDS belongs to this donor
+     * and not to this model: the face arrays are aliases into geometry that
+     * placements of the same loc share, while the vertices and per-corner
+     * colours beside them stay private.
+     *
+     * This is the half-shared case. A loc that is contoured to the ground or
+     * takes its lighting from a neighbour cannot share a whole model -- its
+     * vertices and colours are placement-dependent -- but its faces index those
+     * vertices identically at every placement, and the faces are the larger
+     * half. See ToriDraw_SharedModelStoreBorrowTopology.
+     *
+     * ToriDraw_ModelFree_arrays skips them and drops a holder instead, and
+     * ToriDraw_SceneElementModelForWrite treats a model with one of these
+     * exactly as it treats a fully shared one: copy first, then write.
+     */
+    struct ToriDraw_SharedModel* borrowed_topology;
+
     uint8_t flags;
     int vertex_count;
     int face_count;
@@ -412,6 +444,11 @@ struct ToriDraw_Texture
     int width;
     int height;
     bool opaque;
+    /* Set when `texels` belongs to somebody else and this texture only points
+     * at it -- the scene still owns the struct and frees it, but leaves the
+     * pixels alone. Zero means owned, so a texture built the ordinary way (all
+     * of them are calloc'd or brace-initialised) frees its texels as before. */
+    bool borrowed_texels;
     int animation_direction;
     int animation_speed;
 };
@@ -718,6 +755,18 @@ struct ToriDraw_Scene
     /** Always-resident cache fonts indexed by revconfig cache_font_id 0–3. */
     struct ToriDraw_Font* cache_fonts[TORIDRAW_CACHE_FONT_SLOT_COUNT];
     struct ToriDraw_IntrusiveList elements;
+
+    /*
+     * Models this scene's elements share between them, NULL until something
+     * asks. See toridraw_shared_model.h; reach it through
+     * ToriDraw_SceneSharedModels, which builds it on the first ask.
+     *
+     * It belongs to the scene because its entries are held by the scene's
+     * elements and by nothing else: the store retains nothing of its own, so
+     * clearing the element pool empties it and freeing the scene -- after the
+     * graph shutdown that disposes those elements -- is what frees it.
+     */
+    struct ToriDraw_SharedModelStore* shared_models;
 
     bool batch_building;
     int current_batch_id;

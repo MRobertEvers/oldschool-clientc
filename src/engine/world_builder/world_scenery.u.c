@@ -400,6 +400,36 @@ scenery_loc_model_shareable(const struct ToriRS_Location* loc)
     return loc->contour_ground_type == 0 && loc->sharelight == 0 && loc->seq_id == -1;
 }
 
+/*
+ * Key a loc's geometry within one build: the resolved config id, which shape of
+ * it was selected, and the rotation baked into the vertices.
+ *
+ * Everything a build does to a loc model past that point -- the model ids it
+ * merges, the recolours and retextures, the mirror, the resize, the offset --
+ * is read off the same config, so two placements agreeing on these three agree
+ * on the finished geometry. Placement enters only through contouring, borrowed
+ * lighting and animation, and those are exactly what
+ * scenery_loc_model_shareable rules out.
+ *
+ * `space` separates the two things stored under this key. A whole-model
+ * prototype and a faces-only donor can exist for the same loc -- the predicate
+ * is per-config, but nothing guarantees that forever -- and a donor returned to
+ * a whole-model Acquire would be a model with no vertices.
+ */
+#define SCENERY_KEY_SPACE_PROTO 0
+#define SCENERY_KEY_SPACE_TOPOLOGY 1
+
+static int64_t
+scenery_model_key(
+    int space,
+    int loc_id,
+    int shape_select,
+    int rotation)
+{
+    return ((int64_t)space << 62) | ((int64_t)loc_id << 9) |
+           ((int64_t)(shape_select & 0x1F) << 4) | (int64_t)(rotation & 0xF);
+}
+
 static void
 scenery_register_sharelight(
     struct WorldBuilder* builder,
@@ -970,8 +1000,19 @@ scenery_load_model(
      * convert-merge-transform-light chain. For placement-independent locs
      * (scenery_loc_model_shareable) the finished, LIT model is cached once per
      * (resolved id, shape, rotation) — Client-TS keeps LocType model caches at
-     * the same seam — and every later instance is a plain copy. Elements still
-     * own their copy (runtime removal frees it; sharing would double-free).
+     * the same seam — and every later instance is the SAME model, not a copy.
+     *
+     * One model for N placements is the whole point: the copies were the
+     * largest single pool in the process. The scene's shared-model store owns
+     * it and each placement holds it (toridraw_shared_model.h), so a runtime
+     * removal drops one holder rather than freeing geometry the rest of the
+     * scene is still drawing, and the two paths that edit a placed loc's model
+     * take ToriDraw_SceneElementModelForWrite to get a private copy first.
+     *
+     * The store keeps nothing alive by itself, so it needs no clearing seam: a
+     * rebuild's ToriDraw_SceneClearPool drops the placements and the entries go
+     * with them, which is also what stops a prototype baked from a reloaded loc
+     * config from ever being served stale.
      *
      * Pre-lighting is what makes the cache worth having, so a shareable model
      * is lit HERE rather than in the End-batch defaultlight pass;
@@ -982,10 +1023,10 @@ scenery_load_model(
      */
     if( proto_shareable )
     {
-        proto_key = ((int64_t)config_loc->id << 9) | ((int64_t)(shape_select & 0x1F) << 4) |
-                    (int64_t)(rotation & 0xF);
-        model = TorirsModelInstCache_CopyGet(
-            builder->scenery_model_cache, TORIRS_MODEL_INST_LOC_BASE, proto_key);
+        proto_key = scenery_model_key(
+            SCENERY_KEY_SPACE_PROTO, config_loc->id, shape_select, rotation);
+        model = ToriDraw_SharedModelStoreAcquire(
+            ToriDraw_SceneSharedModels(builder->scene), proto_key);
     }
 
     if( model )
@@ -1016,19 +1057,48 @@ scenery_load_model(
                 ToriDraw_LightModelScene(light_hnd, config_loc->contrast, config_loc->ambient);
                 ToriDraw_ModelFreeNormals(model);
             }
-            TorirsModelInstCache_Put(
-                builder->scenery_model_cache,
-                TORIRS_MODEL_INST_LOC_BASE,
-                proto_key,
-                ToriDraw_ModelCopy(model));
+            /* Hand the freshly built model to the store and take it straight
+             * back as this placement's copy -- the same pointer, now shared,
+             * with this placement as its first holder. */
+            model = ToriDraw_SharedModelStorePublish(
+                ToriDraw_SceneSharedModels(builder->scene), proto_key, model);
+        }
+        else if( config_loc->seq_id == -1 )
+        {
+            /*
+             * Not shareable whole, but shareable in half. This loc is contoured
+             * to the ground or lit from a neighbour, so its vertices and its
+             * per-corner colours have to be its own -- but the faces indexing
+             * those vertices are the same at every placement of it, and there
+             * are far more faces than there is anything else. A census of a
+             * settled scene put 6915 such placements over 754 distinct
+             * (id, shape, rotation) keys.
+             *
+             * Safe HERE and not earlier: the build's recolour, retexture and
+             * mirror all write the face arrays, so the loan can only be taken
+             * once they have finished. Everything past this point --
+             * contouring, the End-batch defaultlight pass, sharelight --
+             * touches vertices and per-corner colours, which stay private.
+             *
+             * Animated locs are excluded rather than handled: an alpha
+             * transform (ToriDraw_ModelAnimateFrame op 5) writes face_alphas in
+             * place every frame, and they are 150 placements out of the 6915.
+             */
+            model = ToriDraw_SharedModelStoreBorrowTopology(
+                ToriDraw_SceneSharedModels(builder->scene),
+                scenery_model_key(
+                    SCENERY_KEY_SPACE_TOPOLOGY, config_loc->id, shape_select, rotation),
+                model);
         }
     }
 
     if( wb_census_on() )
     {
-        /* The cache's own copy is not counted: it is cleared at build end, so
-         * the steady-state cost of a key with N placements is N models, and
-         * sharing would make it 1. That 1 is the miss branch below. */
+        /* Duplicates are counted at what they WOULD cost unshared -- the
+         * bytes a copy of this model needs -- so the dup line still reads as
+         * the size of the saving. Actual retained bytes are the proto line
+         * alone: a key with N placements now holds one model, built on the
+         * miss below. */
         size_t const bytes = ToriDraw_ModelHeapBytes(model);
         if( from_cache )
         {

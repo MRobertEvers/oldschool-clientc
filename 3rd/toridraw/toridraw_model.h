@@ -42,6 +42,22 @@ ToriDraw_BufCopy(
         (src) = NULL;                                                                              \
     } while( 0 )
 
+/**
+ * The arrays that describe a model's FACES, as opposed to where its corners sit
+ * or what colour they came out.
+ *
+ * Every one of these is a function of the loc config and the rotation alone: a
+ * face names vertex slots, not positions, so contouring a placement to the
+ * ground or relighting it from a neighbour moves the vertices underneath
+ * without renumbering anything here. That is what makes the set loanable
+ * between placements; see ToriDraw_Model::borrowed_topology.
+ *
+ * Kept as one list so the free path, the steal and the adopt cannot drift out
+ * of step -- a field added to the model and forgotten here would be freed twice
+ * or leaked, and neither shows up near its cause.
+ */
+#define TORIDRAW_TOPOLOGY_FIELDS(X)                                                                    X(face_indices_a)                                                                                  X(face_indices_b)                                                                                  X(face_indices_c)                                                                                  X(face_colors)                                                                                     X(face_textures)                                                                                   X(face_alphas)                                                                                     X(face_infos)                                                                                      X(face_priorities)                                                                                 X(textured_p_coordinate)                                                                           X(textured_m_coordinate)                                                                           X(textured_n_coordinate)                                                                           X(texture_render_types)                                                                            X(face_texture_coords)
+
 static inline struct ToriDraw_Model*
 ToriDraw_ModelNew(
     int vertex_count,
@@ -82,8 +98,49 @@ ToriDraw_ModelCalculateVertexNormals(struct ToriDraw_Model* model);
 void
 ToriDraw_ModelFreeNormals(struct ToriDraw_Model* model);
 
+/**
+ * Free the model and its arrays -- or, for one on loan from a shared-model
+ * store, drop this holder and leave the geometry to the others.
+ */
 void
 ToriDraw_ModelFree(struct ToriDraw_Model* model);
+
+/**
+ * Abort if `model` is on loan from a shared-model store, for the in-place
+ * mutators.
+ *
+ * A borrowed model is written through exactly one door
+ * (ToriDraw_SceneElementModelForWrite, which takes a private copy first). Any
+ * other writer is a bug that would otherwise show up as every placement of one
+ * loc moving, fading or animating together, which is a long way from its
+ * cause.
+ */
+static inline void
+ToriDraw_ModelAssertWritable(const struct ToriDraw_Model* model)
+{
+    assert(model);
+    assert(!model->shared_owner && "in-place write to a shared model");
+    (void)model;
+}
+
+/**
+ * Abort if `model` would be writing through a loan, for the mutators that touch
+ * the FACE arrays rather than the vertices.
+ *
+ * Stricter than ToriDraw_ModelAssertWritable because a half-shared model passes
+ * that one: its vertices really are private, so moving, scaling and mirroring
+ * the corners is fine, and only a recolour or a retexture reaches into the
+ * borrowed half. Splitting the two keeps the vertex mutators usable on a
+ * placement that borrowed its topology instead of asserting on the common case.
+ */
+static inline void
+ToriDraw_ModelAssertTopologyWritable(const struct ToriDraw_Model* model)
+{
+    assert(model);
+    assert(!model->shared_owner && "in-place write to a shared model");
+    assert(!model->borrowed_topology && "in-place write to borrowed topology");
+    (void)model;
+}
 
 void
 ToriDraw_ModelAssertPnmTextureInvariant(struct ToriDraw_Model const* model);
@@ -228,7 +285,8 @@ ToriDraw_TextureFree(struct ToriDraw_Texture* texture)
 {
     if( !texture )
         return;
-    free(texture->texels);
+    if( !texture->borrowed_texels )
+        free(texture->texels);
     free(texture);
 }
 

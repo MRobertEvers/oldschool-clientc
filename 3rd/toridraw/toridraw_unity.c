@@ -20,6 +20,7 @@
 #include "toridraw_model.c"
 #include "toridraw_model_transform.c"
 #include "toridraw_scene.c"
+#include "toridraw_shared_model.c"
 #include "toridraw_sprite.c"
 #include "toridraw_2d.c"
 #include "toridraw_vec.c"
