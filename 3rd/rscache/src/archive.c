@@ -448,6 +448,24 @@ RSCache_ArchiveDecompressDat(
             capacity *= 2;
         }
 
+        /* `capacity` was an ESTIMATE -- the gzip ISIZE footer, which is only
+         * meaningful when the payload really is gzip. The archive keeps `out`
+         * for as long as the caller holds it, so an estimate that overshot is
+         * not a transient cost: it is retained slack, sitting in the heap at
+         * whatever the footer happened to say. On the LostCity on-demand path
+         * that was one live 16 MB block against archives of a few KB, and it
+         * was the single largest site in the boot profile.
+         *
+         * Shrinking is the whole fix. It cannot move the data (realloc only
+         * shrinks in place or copies down), and the caller reads data_size,
+         * never capacity, so nothing above here can tell the difference. */
+        if( uncompressed_length < capacity )
+        {
+            uint8_t* shrunk = realloc(out, uncompressed_length ? uncompressed_length : 1);
+            assert(shrunk);
+            out = shrunk;
+        }
+
         free(archive->data);
         archive->data = out;
         archive->data_size = (int)uncompressed_length;
