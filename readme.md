@@ -22,9 +22,13 @@ make -C src io-server    # cache/boot server used by the browser build
 ```
 
 On Windows, use `./build_windows.ps1 -Opt` for the modern x86_64 artifact or
-`./build_winxp.ps1 -Opt` for the XP-compatible i686 artifact. Omitting `-Opt`
-intentionally builds the corresponding debug lane. Both compiler toolchains
-are pinned in this repository; see [Repository Windows toolchains](tools/toolchain/README.md).
+`./build_winxp.ps1` for the XP-compatible i686 artifact. The two wrappers
+differ on purpose: `build_windows.ps1` builds its debug lane when `-Opt` is
+omitted, whereas the XP lane defaults to release, because it is the lane the
+numbers in `docs/xpbench` are measured on and an OPT=0 artifact is not
+comparable to them. Pass `-DebugBuild` for the XP debug lane.
+
+Both compiler toolchains are pinned in this repository; see [Repository Windows toolchains](tools/toolchain/README.md).
 Platform selection, prerequisites, renderer flags, compatibility constraints,
 and known defects are centralized in
 [Platform quirks and contracts](docs/platform_quirks.md). Detailed active guides

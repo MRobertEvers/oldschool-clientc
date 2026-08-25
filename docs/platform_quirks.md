@@ -1170,7 +1170,7 @@ make -C src io-server
 For Windows, use the repository toolchain through the matching wrapper:
 
 ```powershell
-./build_winxp.ps1 -Opt
+./build_winxp.ps1
 ./build_windows.ps1 -Opt
 ```
 

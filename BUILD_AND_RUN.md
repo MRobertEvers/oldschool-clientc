@@ -348,8 +348,8 @@ subsystem stamp that looked correct to both `objdump` and `dumpbin`.
 Built **here** (an XP box has no compiler) and copied to the target.
 
 ```powershell
-.\build_winxp.ps1               # debug   (winxp-debug)
-.\build_winxp.ps1 -Opt          # release (winxp)
+.\build_winxp.ps1               # release (winxp)  <- the measured lane
+.\build_winxp.ps1 -DebugBuild   # debug   (winxp-debug)
 ```
 
 Output: `dist\win32\torirs.exe` — statically linked, so the one file is the
