@@ -149,6 +149,31 @@ cs2w_invocation_destroy(struct CS2W_Invocation* invocation);
 int
 cs2w_invocation_set_fast_host(struct CS2W_Invocation* invocation, int enabled);
 
+/* Bounded invocation-local mirror of the React DB query iterator. A failed
+ * import leaves it invalid and DB_FINDNEXT retains the generic HOST path. */
+int
+cs2w_invocation_set_fast_db_iterator(
+    struct CS2W_Invocation* invocation,
+    const int32_t* rows,
+    int count,
+    int cursor,
+    int revision);
+
+int
+cs2w_invocation_clear_fast_db_iterator(struct CS2W_Invocation* invocation);
+
+int
+cs2w_invocation_fast_db_iterator_dirty(const struct CS2W_Invocation* invocation);
+
+int
+cs2w_invocation_fast_db_iterator_cursor(const struct CS2W_Invocation* invocation);
+
+int
+cs2w_invocation_fast_db_iterator_revision(const struct CS2W_Invocation* invocation);
+
+int
+cs2w_invocation_mark_fast_db_iterator_clean(struct CS2W_Invocation* invocation);
+
 /* Mixed ScriptEvent arguments fill their respective local banks in call order. */
 int
 cs2w_invocation_add_int_arg(struct CS2W_Invocation* invocation, int value);
@@ -187,6 +212,13 @@ cs2w_invocation_error_script_id(const struct CS2W_Invocation* invocation);
 
 int
 cs2w_invocation_host_call_count(const struct CS2W_Invocation* invocation);
+
+/* Diagnostic counts for the bounded session-local immutable scalar L1. */
+int
+cs2w_invocation_fast_scalar_l1_hits(const struct CS2W_Invocation* invocation);
+
+int
+cs2w_invocation_fast_scalar_l1_misses(const struct CS2W_Invocation* invocation);
 
 /* ---- Borrowed HOST request reflection ---------------------------------- */
 

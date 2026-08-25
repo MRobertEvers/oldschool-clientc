@@ -332,35 +332,8 @@ CS2VM2_SaveYieldCheckpoint(
     cp->frame_sp = vm->frame_sp;
     cp->active_component_id = vm->active_component_id;
     cp->dot_component_id = vm->dot_component_id;
-    cp->undo_log_len = vm->undo_log_len;
     /* No frame copy: a yielding op leaves frame contents untouched (see the
      * CS2VM_EXECNO_YIELD contract), so restore is a pure pointer rollback. */
-}
-
-/*
- * Only an opcode that reaches the host can yield.  Keep that fact generated
- * from the same request schema as the host-request enum instead of maintaining
- * a second handwritten opcode list: an omitted hosted opcode would make its
- * first cache miss impossible to roll back correctly.
- *
- * This byte table replaces six checkpoint stores on the overwhelmingly common
- * VM-only instructions (constants, locals, branches, arithmetic, strings and
- * arrays).  Unknown/out-of-range opcodes stay conservative: their dispatch may
- * gain a host implementation in a newer dialect without first extending this
- * build's canonical opcode ceiling.
- */
-static uint8_t const g_cs2vm2_opcode_may_yield[CS2_OPCODE_MAX + 1] = {
-#define CS2VM_HOST_REQUEST_KIND(name, opcode, fields) [CS2_OP_##name] = 1,
-#include "cs2vm2_host_request_kinds.def"
-#undef CS2VM_HOST_REQUEST_KIND
-};
-
-static inline bool
-CS2VM2_OpcodeMayYield(int opcode)
-{
-    if( (unsigned)opcode > CS2_OPCODE_MAX )
-        return true;
-    return g_cs2vm2_opcode_may_yield[opcode] != 0;
 }
 
 static void
@@ -392,7 +365,7 @@ CS2VM2_RestoreYieldCheckpoint(
      * yielded, newest first, so the op re-runs from the same clean state as the
      * stacks/frames. Ops that never mutate persistent fields append nothing and
      * pay nothing here. */
-    while( vm->undo_log_len > cp->undo_log_len )
+    while( vm->undo_log_len > 0 )
     {
         struct CS2VM2_ArrayUndo const* undo = &vm->undo_log[--vm->undo_log_len];
         if( undo->slot < 0 || undo->slot >= CS2VM2_MAX_ARRAYS || undo->index < 0 ||
@@ -489,8 +462,8 @@ cs2vm2_array_local(struct CS2VM2_Thread* vm, struct CS2VM2_Frame* frame, int slo
 }
 
 /* Opt-in tracked array store: records the prior value so a yield restore can undo
- * it (see the undo_log contract in CS2VM2_Thread). Used by array-writing opcodes
- * whose replay-on-yield would otherwise double-apply. */
+ * it (see the undo_log contract in CS2VM2_Thread). Hosted compound opcodes route
+ * writes here; VM-only POP_ARRAY_INT writes directly because it cannot yield. */
 static int
 cs2vm2_array_track(struct CS2VM2_Thread* vm, struct CS2VM2_Array* array, int index)
 {
@@ -7068,7 +7041,11 @@ CS2VM2_Op_PopArrayInt(
             return CS2VM_EXECNO_ERROR;
         if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        CS2VM2_ArrayStoreStr(vm, array, index, text);
+        /* POP_ARRAY_INT is VM-only and cannot yield, so this write is already
+         * committed when the opcode returns; recording an undo entry would be
+         * dead work. Hosted compound ops still use CS2VM2_ArrayStoreStr. */
+        if( index >= 0 && index < array->size )
+            array->cells.strings[index] = text;
         return CS2VM_EXECNO_OK;
     }
 
@@ -7077,9 +7054,9 @@ CS2VM2_Op_PopArrayInt(
     if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    /* Tracked store: records the prior cell value in the per-op undo log so a
-     * yield inside this op cannot leave the write half-applied on replay. */
-    CS2VM2_ArrayStore(vm, array, index, value);
+    /* As above, no host call means no yield/replay boundary to undo. */
+    if( array && index >= 0 && index < array->size )
+        array->cells.ints[index] = value;
 
     return CS2VM_EXECNO_OK;
 }
@@ -9099,6 +9076,18 @@ static struct CS2VM2OpcodeStackRs2 const g_cs2vm2_opcode_stack_rs2[] = {
     { 6510, { 0, 0, 1, 0, 1 } },
     { 6900, { 0, 0, 1, 0, 1 } },
 };
+
+#ifndef NDEBUG
+static void
+cs2vm2_opcode_stack_rs2_assert_sorted(void)
+{
+    size_t const count = sizeof(g_cs2vm2_opcode_stack_rs2) /
+                         sizeof(g_cs2vm2_opcode_stack_rs2[0]);
+    for( size_t i = 1; i < count; i++ )
+        assert(g_cs2vm2_opcode_stack_rs2[i - 1].opcode <
+               g_cs2vm2_opcode_stack_rs2[i].opcode);
+}
+#endif
 
 static bool
 cs2vm2_opcode_stack_rs2_lookup(
@@ -13171,10 +13160,8 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
          * mutations are never touched. */
         vm->undo_log_len = 0;
 
-        bool const may_yield = CS2VM2_OpcodeMayYield(opcode);
         struct CS2VM2_YieldCheckpoint yield_cp;
-        if( may_yield )
-            CS2VM2_SaveYieldCheckpoint(vm, &yield_cp);
+        CS2VM2_SaveYieldCheckpoint(vm, &yield_cp);
 
         result = CS2VM2_RunOp(vm, frame, opcode, operand, str_operand_str);
 
@@ -13208,20 +13195,6 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
                 CS2VM2_ClearYieldHalt(vm);
             break;
         case CS2VM_EXECNO_YIELD:
-            /* `may_yield` is generated from the exhaustive host-request
-             * schema. Reaching a host without a schema entry is a VM contract
-             * bug, not a reason to restore an uninitialised checkpoint. */
-            if( !may_yield )
-            {
-                vm->last_error_opcode = opcode;
-                vm->last_error_pc = op_pc;
-                vm->last_error_script_id = frame->script->script_id;
-                assert(0 && "non-host opcode yielded");
-                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles);
-                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles);
-                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_ABORTS, 1);
-                return CS2VM_EXECNO_ERROR;
-            }
             if( !CS2VM2_CheckYieldHalt(vm, frame, op_pc, opcode) )
             {
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles);
@@ -13895,15 +13868,14 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* vm)
  *   - undo_log, children_iter_indices — only read below their counters.
  *   - arrays[]  — every read is guarded by .defined && index < .size, and
  *                 defining an array initialises its own cells.
- *   - str_pool  — zeroed by CS2VM2_StrPool_Init, which never reads the old
- *                 state (the memory here may be uninitialised malloc'd bytes).
+ *   - str_pool  — prepared by the caller: fresh blocks Init it, warm blocks
+ *                 preserve the empty regular allocation left by Release.
  *
  * So only the scalars and the per-array .defined/.size flags need clearing.
  * Values below match exactly what the old memset produced (note yield_halt_pc
  * is 0 here, not the -1 that CS2VM2_ClearYieldHalt uses).
  *
- * Like CS2VM2_StrPool_Init, this drops rather than frees what the thread held:
- * it is for a fresh block or one that CS2VM2_Free has already emptied.
+ * The caller must supply either a fresh block or one Release has already reset.
  */
 static void
 cs2vm2_thread_init_common(
@@ -13944,8 +13916,6 @@ cs2vm2_thread_init_common(
 
     thread->array_alloc = 0;
 
-    CS2VM2_StrPool_Init(&thread->str_pool);
-
     thread->canvas_w = 0;
     thread->canvas_h = 0;
     thread->window_mode = 0;
@@ -13957,13 +13927,12 @@ cs2vm2_thread_init(
     struct CS2VM2_Thread* thread,
     struct CS2VM2* vm)
 {
-    /* Cell blocks are dropped here, not freed: like str_pool, this is for a
-     * fresh block or one CS2VM2_Free has already emptied (see the note above).
-     * A pooled VM comes back through Release -> CS2VM2_Free, which frees them,
-     * so dropping the pointers here cannot leak.
+    /* This path is only for a fresh malloc'd VM, so its cell pointers and
+     * string-pool descriptor contain indeterminate bytes and must be initialised
+     * without reading them.
      *
      * This is the only full-width part of thread setup, and it is why the warm
-     * path below exists: CS2VM2_Free leaves all 128 descriptors already clean,
+     * path below exists: Release leaves all 128 descriptors already clean,
      * so a block coming back out of the pool does not need this loop at all. */
     for( int i = 0; i < CS2VM2_MAX_ARRAYS; i++ )
     {
@@ -13973,6 +13942,7 @@ cs2vm2_thread_init(
         thread->arrays[i].size = 0;
         thread->arrays[i].is_string = 0;
     }
+    CS2VM2_StrPool_Init(&thread->str_pool);
     cs2vm2_thread_init_common(thread, vm);
 }
 
@@ -13980,6 +13950,9 @@ void
 CS2VM2_Init(struct CS2VM2* vm)
 {
     assert(vm);
+#ifndef NDEBUG
+    cs2vm2_opcode_stack_rs2_assert_sorted();
+#endif
     vm->thread_count = CS2VM2_MAX_THREADS;
     vm->host_exec = NULL;
     vm->user = NULL;
@@ -13988,9 +13961,9 @@ CS2VM2_Init(struct CS2VM2* vm)
 }
 
 /*
- * Init for a block that CS2VM2_Free has just emptied.
+ * Init for a block that Release has just reset.
  *
- * Free walks the arrays it actually handed out and leaves every descriptor —
+ * Release walks the arrays it actually handed out and leaves every descriptor —
  * all 128 of them — with a NULL cell block, zero capacity, and the defined/size
  * flags cleared, so re-clearing the table would be writing zeroes over zeroes.
  * Scripts allocate almost no arrays, so the table Free touches is nearly empty
@@ -14007,18 +13980,34 @@ cs2vm2_init_warm(struct CS2VM2* vm)
     vm->host_exec = NULL;
     vm->user = NULL;
     for( int i = 0; i < CS2VM2_MAX_THREADS; i++ )
+    {
+        /* Match a fresh Init's per-lifetime diagnostics while preserving the
+         * empty regular block itself. */
+        vm->threads[i].str_pool.bytes_peak = 0;
+        vm->threads[i].str_pool.reset_count = 0;
         cs2vm2_thread_init_common(&vm->threads[i], vm);
+    }
 }
 
-void
-CS2VM2_Free(struct CS2VM2* vm)
+/* Tear down live state. A pooled VM keeps the one regular string block that
+ * StrPool_Reset deliberately retains; a true teardown releases it too. With a
+ * 16-VM pool this retains at most 128 KiB and removes the first string-block
+ * malloc/free pair from every warm invocation. */
+static void
+cs2vm2_cleanup(
+    struct CS2VM2* vm,
+    bool retain_string_block)
 {
     assert(vm);
     for( int i = 0; i < CS2VM2_MAX_THREADS; i++ )
     {
         CS2VM2_ResetRuntime(&vm->threads[i]);
-        /* ResetRuntime keeps a block for reuse; nothing will reuse it now. */
-        CS2VM2_StrPool_Free(&vm->threads[i].str_pool);
+        if( !retain_string_block )
+        {
+            /* ResetRuntime keeps a block for reuse; a true teardown has no
+             * next script, so release that last block as well. */
+            CS2VM2_StrPool_Free(&vm->threads[i].str_pool);
+        }
         /* Arrays are handed out by bumping array_alloc, so everything at or
          * past it was never touched and is already NULL from whichever Init
          * built this block. Walking all 128 was 128 free(NULL) calls to reach
@@ -14039,6 +14028,12 @@ CS2VM2_Free(struct CS2VM2* vm)
         vm->threads[i].array_alloc = 0;
         cs2vm2_thread_frames_release(&vm->threads[i]);
     }
+}
+
+void
+CS2VM2_Free(struct CS2VM2* vm)
+{
+    cs2vm2_cleanup(vm, false);
 }
 
 /* --- VM block pool ------------------------------------------------------- */
@@ -14103,12 +14098,12 @@ CS2VM2_Release(struct CS2VM2* vm)
     if( !vm )
         return;
 
-    /* Measured alongside the Init above because the two are one round trip:
-     * a pool hit avoids the 2.9 MB malloc and nothing else, so whatever these
-     * two cost is what every script pays no matter how warm the pool is. */
+    bool const pooled = g_vm_pool_count < CS2VM2_POOL_MAX;
+
+    /* Measured alongside the Init above because the two are one round trip. */
     if( g_torirs_perf_enabled )
         clock_gettime(CLOCK_MONOTONIC, &t0);
-    CS2VM2_Free(vm);
+    cs2vm2_cleanup(vm, pooled);
     if( g_torirs_perf_enabled )
     {
         clock_gettime(CLOCK_MONOTONIC, &t1);
@@ -14118,7 +14113,7 @@ CS2VM2_Release(struct CS2VM2* vm)
                 (int64_t)(t1.tv_nsec - t0.tv_nsec));
     }
 
-    if( g_vm_pool_count < CS2VM2_POOL_MAX )
+    if( pooled )
         g_vm_pool[g_vm_pool_count++] = vm;
     else
         free(vm);
@@ -14128,7 +14123,12 @@ void
 CS2VM2_PoolDrain(void)
 {
     while( g_vm_pool_count > 0 )
-        free(g_vm_pool[--g_vm_pool_count]);
+    {
+        struct CS2VM2* vm = g_vm_pool[--g_vm_pool_count];
+        /* Release parks warm blocks with one regular string allocation. */
+        CS2VM2_Free(vm);
+        free(vm);
+    }
     /* Parked VMs hold no frames (Release empties them), so the free list is all
      * that is left to give back. */
     while( g_frame_pool_count > 0 )

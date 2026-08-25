@@ -37,6 +37,12 @@ import {
     layout as resolveLayout, layoutBox, layoutGeometry, layoutVisibility,
 } from './preview.js';
 
+const FAST_DB_ITERATOR_MAX = 65536;
+const DB_ITERATOR_WRITES = new Set([
+    'DB_FIND_WITH_COUNT', 'DB_FINDNEXT', 'DB_FINDALL_WITH_COUNT',
+    'DB_FIND_FILTER_WITH_COUNT', 'DB_FIND', 'DB_FINDALL', 'DB_FIND_FILTER',
+]);
+
 export const HOST_RUNTIME_SCHEMA = 'cs2dom-host/1';
 
 export const HOST_RUNTIME_LIMITS = Object.freeze({
@@ -119,7 +125,6 @@ const DYNAMIC_PROPS_CACHE = new Map();
 const EMPTY_DYNAMIC_ARRAY = Object.freeze([]);
 const EMPTY_AUTHORED_PROPS = new Set();
 const RECYCLED_DYNAMIC_META = Symbol('cs2dom.recycledDynamicMeta');
-const RECYCLED_DYNAMIC_HOOKS = Symbol('cs2dom.recycledDynamicHooks');
 const FAST_INT_GEOMETRY_READS = Object.freeze({
     1500: 'if_getx', 1501: 'if_gety', 1502: 'if_getwidth', 1503: 'if_getheight',
     2500: 'if_getx', 2501: 'if_gety', 2502: 'if_getwidth', 2503: 'if_getheight',
@@ -131,6 +136,7 @@ const FAST_INT_GEOMETRY_READS = Object.freeze({
  * retained across a possible WebAssembly memory growth. */
 const FAST_HOST_RECORD_WORDS = 12;
 const FAST_HOST_HOOK_STRING_LENGTH = 256;
+const FAST_HOST_PENDING_TOKEN_MAX = 0x7fffffff;
 const FAST_HOST_TEXT_DECODER = new TextDecoder();
 const FAST_HOST_KINDS = Object.freeze({
     CC_CREATE: 100,
@@ -559,6 +565,7 @@ export class HostRuntime {
         const dbData = dbSeed?.data ?? (dbSeed?.dbTables || dbSeed?.tables
             ? dbSeed : this.hostData);
         this.db = createDbState({ data: dbData, iterator: dbSeed?.iterator });
+        this.fastDbIteratorRevision = 1;
         /* Only data carried by the HostData identity may enter its shared WASM
          * namespace. A restored/explicit DB state can differ while reusing the
          * same HostData object, so give that shape an isolated namespace and
@@ -626,7 +633,11 @@ export class HostRuntime {
         this.recordChanges = options.recordChanges !== false;
         this.fastTouchCount = null;
         this.fastDeletedComponents = null;
-        this.dynamicComponentPools = new WeakMap();
+        this.fastHookPayloadScratch = {
+            triggerCount: 0, intCount: 0, stringCount: 0, signatureLength: 0,
+            signatureOffset: 0, triggerOffset: 0, intOffset: 0, stringOffset: 0,
+        };
+        this.dynamicComponentPools = new Map();
         this.changeLog = [];
         this.changeLogHead = 0;
         this.structureRevision = 0;
@@ -706,14 +717,14 @@ export class HostRuntime {
     /** Run cache/React onLoad hooks exactly once after the script runner is installed. */
     mount() {
         return this._boundary(() => {
-            if( this.mounted ) return this._result([]);
+            if( this.mounted ) return this._result([], null, this.operationDepth === 1);
             this.mounted = true;
             const intents = [];
             for( const component of [...this.ir.components] ) {
                 const resolved = this._resolveHook(component, definition('on_load'));
                 if( resolved ) this._emit(component, resolved, baseEvent('mount'), {}, intents);
             }
-            return this._result(intents);
+            return this._result(intents, null, this.operationDepth === 1);
         });
     }
 
@@ -944,7 +955,8 @@ export class HostRuntime {
                         baseEvent('input_focus', { focused: input.focused }), {}, intents);
                 }
             }
-            return this._result(intents, { input: cloneInputState(input) });
+            return this._result(intents, { input: cloneInputState(input) },
+                this.operationDepth === 1);
         });
     }
 
@@ -1491,12 +1503,14 @@ export class HostRuntime {
         }
         const installs = records[base + 2] > 0;
         if( !installs && presentCount === 0 ) return;
+        const payload = installs ? fastHookPayload(
+            records, base, arena, arenaView, this.fastHookPayloadScratch) : null;
         if( installs && presentCount === 1 && exactPresent && fastHookMatches(
-            component.hooks[exact], records, base, arena, arenaView) )
+            component.hooks[exact], records, base, arena, arenaView, payload) )
             return;
 
         const binding = installs
-            ? fastHookBinding(records, base, arena, arenaView) : null;
+            ? fastHookBinding(records, base, arena, arenaView, payload) : null;
         for( const alias of aliases ) delete component.hooks[alias];
         if( binding ) component.hooks[exact] = binding;
         if( this.recordChanges ) this._record({
@@ -1631,18 +1645,10 @@ export class HostRuntime {
                             component, descriptor, records, base, arena, arenaView);
                     } else if( records[base + 2] > 0 ) {
                         component.hooks ||= {};
-                        let recycled = null;
-                        const oldHooks = component[RECYCLED_DYNAMIC_HOOKS];
-                        if( oldHooks ) {
-                            for( const alias of hookAliases(descriptor) ) {
-                                if( !oldHooks[alias] ) continue;
-                                recycled = oldHooks[alias];
-                                break;
-                            }
-                        }
-                        component.hooks[descriptor.canonical] = recycled && fastHookMatches(
-                            recycled, records, base, arena, arenaView)
-                            ? recycled : fastHookBinding(records, base, arena, arenaView);
+                        const payload = fastHookPayload(
+                            records, base, arena, arenaView, this.fastHookPayloadScratch);
+                        component.hooks[descriptor.canonical] = fastHookBinding(
+                            records, base, arena, arenaView, payload);
                         touches++;
                     } else component.hooks ||= {};
                 } else if( kind === FAST_HOST_KINDS.CC_SETOPBASE ) {
@@ -1770,17 +1776,12 @@ export class HostRuntime {
             (this.fastDeletedComponents?.size || 0);
         if( liveComponentCount >= this.limits.components )
             throw new HostRuntimeError('component limit reached', 'LIMIT');
-        let component = !this.recordChanges
-            ? this._takeDynamicComponent(parent, type, subId) : null;
+        const pool = !this.recordChanges ? this.dynamicComponentPools.get(type) : null;
+        let component = pool?.pop() || null;
         if( component ) {
-            component[RECYCLED_DYNAMIC_HOOKS] = component.hooks;
             const staticProps = resetDynamicProps(component.static, type, kind);
-            /* Exact parent/type/sub-id pooling makes these two internal
-             * identity strings identical to the newly-created values. Keep
-             * their storage while still advancing the allocation sequence;
-             * generation and transient UID continue to fence every stale
-             * public ref exactly as before. */
-            this.nextDynamic++;
+            component.fileId = `@host:${this.nextDynamic++}`;
+            component.name = `${parent.name}[${subId}]`;
             component.kind = kind;
             component.type = type;
             component.layer = parent.fileId;
@@ -1835,7 +1836,7 @@ export class HostRuntime {
     _fastCreatePackedChild(parent, type, subId, dot) {
         if( this.recordChanges || !Number.isInteger(type) || type < 0 || type > 255 ) {
             const ref = this._createChild(parent, type, subId, { dot });
-            return { ref, component: this._component(ref) };
+            return this._component(ref);
         }
         const kind = TYPE_KIND.get(type) || 'Object';
         const existing = this.dynamicChildren.get(parent)?.get(subId) || null;
@@ -1847,11 +1848,12 @@ export class HostRuntime {
         if( liveComponentCount >= this.limits.components )
             throw new HostRuntimeError('component limit reached', 'LIMIT');
 
-        let component = this._takeDynamicComponent(parent, type, subId);
+        const pool = this.dynamicComponentPools.get(type);
+        let component = pool?.pop() || null;
         if( component ) {
-            component[RECYCLED_DYNAMIC_HOOKS] = component.hooks;
             const staticProps = resetDynamicProps(component.static, type, kind);
-            this.nextDynamic++;
+            component.fileId = `@host:${this.nextDynamic++}`;
+            component.name = `${parent.name}[${subId}]`;
             component.kind = kind;
             component.type = type;
             component.layer = parent.fileId;
@@ -1894,29 +1896,7 @@ export class HostRuntime {
         this._touch();
         if( dot ) this.dotActive = ref;
         else this.active = ref;
-        return { ref, component };
-    }
-
-    _takeDynamicComponent(parent, type, subId) {
-        const slots = this.dynamicComponentPools.get(parent)?.get(type);
-        if( !slots ) return null;
-        const component = slots.get(subId) || null;
-        if( component ) slots.delete(subId);
         return component;
-    }
-
-    _poolDynamicComponent(parent, component, subId) {
-        let types = this.dynamicComponentPools.get(parent);
-        if( !types ) {
-            types = new Map();
-            this.dynamicComponentPools.set(parent, types);
-        }
-        let slots = types.get(component.type);
-        if( !slots ) {
-            slots = new Map();
-            types.set(component.type, slots);
-        }
-        slots.set(subId, component);
     }
 
     _copyChild(parentValue, sourceSubId, destinationSubId, { dot = false } = {}) {
@@ -2021,8 +2001,6 @@ export class HostRuntime {
                 const siblings = parent && this.dynamicChildren.get(parent);
                 if( siblings?.get(meta.subId) === component ) siblings.delete(meta.subId);
                 if( siblings?.size === 0 ) this.dynamicChildren.delete(parent);
-                if( !this.recordChanges && parent )
-                    this._poolDynamicComponent(parent, component, meta.subId);
             }
             this.dynamicChildren.delete(component);
         }
@@ -2035,7 +2013,15 @@ export class HostRuntime {
                 this.byUid.delete(meta.componentId);
             this.dynamicCount -= Number(meta.dynamic);
             this.meta.delete(component);
-            if( !this.recordChanges && meta.dynamic ) component[RECYCLED_DYNAMIC_META] = meta;
+            if( !this.recordChanges && meta.dynamic ) {
+                component[RECYCLED_DYNAMIC_META] = meta;
+                let pool = this.dynamicComponentPools.get(component.type);
+                if( !pool ) {
+                    pool = [];
+                    this.dynamicComponentPools.set(component.type, pool);
+                }
+                pool.push(component);
+            }
         }
         if( this.active && refs.some((ref) => sameRef(ref, this.active)) ) this.active = null;
         if( this.dotActive && refs.some((ref) => sameRef(ref, this.dotActive)) ) this.dotActive = null;
@@ -2128,11 +2114,13 @@ export class HostRuntime {
                 : kind === 'varcstr' ? boundedText(key, value ?? '') : finiteValue(key, value);
             const before = this.readState(kind, id);
             if( stateValuesEqual(before, next) )
-                return this._result([], { key, value: cloneValue(before), changed: false });
+                return this._result([], { key, value: cloneValue(before), changed: false },
+                    this.operationDepth === 1);
             this.state[key] = next;
             this._record({ kind: 'state', key, value: cloneValue(next) });
             if( options.transmit !== false ) this._queueStateTransmit(kind, id, options);
-            return this._result([], { key, value: cloneValue(next), changed: true });
+            return this._result([], { key, value: cloneValue(next), changed: true },
+                this.operationDepth === 1);
         });
     }
 
@@ -2200,14 +2188,18 @@ export class HostRuntime {
         return index === rows.length ? rows : rows.slice(0, index);
     }
 
-    fastHostValueSnapshot(queryKind, key) {
+    fastHostValue(queryKind, key) {
         let value;
         if( queryKind === 3 ) value = this.readState('varp', key);
         else if( queryKind === 4 ) value = this.readState('varbit', key);
         else if( queryKind === 5 ) value = this.readState('varc', key);
         else if( queryKind === 6 ) value = this.clientClock;
         else throw new HostRuntimeError('unknown fast scalar snapshot query', 'BAD_REQUEST');
-        return Int32Array.of(Number(value) | 0);
+        return Number(value) | 0;
+    }
+
+    fastHostValueSnapshot(queryKind, key) {
+        return Int32Array.of(this.fastHostValue(queryKind, key));
     }
 
     /** Exact scalar companion to the generic reflected HOST surface. Values
@@ -2219,6 +2211,34 @@ export class HostRuntime {
 
     fastHostDbDataSnapshot() {
         return this.fastScalarDbData;
+    }
+
+    /** Copy the current DB query iterator into one short-lived C invocation.
+     * Explicit/restored DB stores deliberately stay on the generic path: only
+     * the immutable HostData namespace has the identity guarantee needed by
+     * the native fast DB handlers. */
+    fastHostDbIteratorSnapshot() {
+        if( !this.fastScalarDbData ) return null;
+        const rows = this.db.iterator.rows;
+        if( !Array.isArray(rows) || rows.length > FAST_DB_ITERATOR_MAX ) return null;
+        return {
+            rows: Int32Array.from(rows, (row) => Number(row) | 0),
+            cursor: Math.max(0, Math.min(rows.length, Number(this.db.iterator.cursor) | 0)),
+            revision: this.fastDbIteratorRevision | 0,
+        };
+    }
+
+    /** Publish native DB_FINDNEXT progress back to the React-owned iterator.
+     * The revision check prevents an outer invocation from overwriting an
+     * iterator replaced by a nested hook. */
+    fastHostDbIteratorCommit(revision, cursor) {
+        if( !this.fastScalarDbData || (revision | 0) !== (this.fastDbIteratorRevision | 0) )
+            return false;
+        const rows = this.db.iterator.rows;
+        if( !Array.isArray(rows) || !Number.isInteger(cursor) ||
+            cursor < 0 || cursor > rows.length ) return false;
+        this.db.iterator.cursor = cursor;
+        return true;
     }
 
     fastHostScalarDataValue(requestKind, a, b, c) {
@@ -2385,12 +2405,12 @@ export class HostRuntime {
             const byUid = this.byUid;
             const dynamicChildren = this.dynamicChildren;
             const meta = this.meta;
-            /* C allocates create tokens as INT_MAX-serial. A dense array avoids
-             * one hash-node allocation for every dynamic child in large list
-             * rebuilds; direct/noncanonical test producers retain a lazy Map
-             * fallback with identical semantics. */
+            /* C assigns compact-create tokens as INT_MAX - serial, where the
+             * serial starts at one and cannot exceed this chunk's record
+             * count. A dense array avoids allocating one Map node for every
+             * one of ca_tasks' thousands of transient rows. `undefined` is an
+             * unknown token; `null` is a known create whose parent was absent. */
             const createdBySerial = [];
-            let createdFallback = null;
             let missingCreatedIds = null;
             let cachedComponentId = NaN;
             let cachedComponentTemporary = false;
@@ -2436,52 +2456,41 @@ export class HostRuntime {
                         (rawParentId < -1 ? byUid.get(rawParentId >>> 0) : null) || null;
                     const previousId = records[base + 8];
                     const previousIsToken = Boolean(records[base + 9]);
-                    let previousComponent;
-                    if( previousIsToken ) {
-                        const serial = fastCreateTokenSerial(previousId);
-                        const known = serial
-                            ? createdBySerial[serial] !== undefined
-                            : Boolean(createdFallback?.has(previousId));
-                        if( !known ) throw new HostRuntimeError(
-                            'packed CC_CREATE references an unknown temporary target',
-                            'BAD_REQUEST');
-                        previousComponent = serial
-                            ? createdBySerial[serial] : createdFallback.get(previousId);
-                        previousComponent ||= null;
-                    } else previousComponent = byUid.get(previousId) ||
+                    const previousSerial = FAST_HOST_PENDING_TOKEN_MAX - previousId;
+                    if( previousIsToken && (previousSerial <= 0 ||
+                        previousSerial > recordCount ||
+                        createdBySerial[previousSerial] === undefined) ) throw new HostRuntimeError(
+                        'packed CC_CREATE references an unknown temporary target', 'BAD_REQUEST');
+                    const previousComponent = previousIsToken
+                        ? createdBySerial[previousSerial] || null
+                        : byUid.get(previousId) ||
                         (previousId < -1 ? byUid.get(previousId >>> 0) : null) || null;
                     const previousActualId = previousIsToken
                         ? previousComponent
                             ? meta.get(previousComponent).componentId
-                            : missingCreatedIds?.get(previousId) ?? -1
+                            : missingCreatedIds?.[previousSerial] ?? -1
                         : previousId;
+                    const token = records[base + 7];
+                    const tokenSerial = FAST_HOST_PENDING_TOKEN_MAX - token;
+                    if( tokenSerial <= 0 || tokenSerial > recordCount )
+                        throw new HostRuntimeError(
+                            'packed CC_CREATE carries a malformed temporary target', 'BAD_REQUEST');
                     if( !parent ) {
                         records[base + 6] = previousActualId | 0;
-                        const token = records[base + 7];
-                        const serial = fastCreateTokenSerial(token);
-                        if( serial ) createdBySerial[serial] = previousComponent;
-                        else {
-                            createdFallback ||= new Map();
-                            createdFallback.set(token, previousComponent);
-                        }
+                        createdBySerial[tokenSerial] = previousComponent;
                         if( !previousComponent ) {
-                            missingCreatedIds ||= new Map();
-                            missingCreatedIds.set(records[base + 7], previousActualId);
+                            missingCreatedIds ||= [];
+                            missingCreatedIds[tokenSerial] = previousActualId;
                         }
                         continue;
                     }
-                    const { ref, component: child } = this._fastCreatePackedChild(
+                    const child = this._fastCreatePackedChild(
                         parent, records[base + 2], records[base + 3],
                         Boolean(records[base + 5]));
+                    const ref = meta.get(child).ref;
                     const actual = ref.componentId | 0;
                     records[base + 6] = actual;
-                    const token = records[base + 7];
-                    const serial = fastCreateTokenSerial(token);
-                    if( serial ) createdBySerial[serial] = child;
-                    else {
-                        createdFallback ||= new Map();
-                        createdFallback.set(token, child);
-                    }
+                    createdBySerial[tokenSerial] = child;
                     cachedComponentId = actual;
                     cachedComponentTemporary = false;
                     cachedComponent = child;
@@ -2500,14 +2509,11 @@ export class HostRuntime {
                 if( rawComponentId === cachedComponentId &&
                     temporaryComponent === cachedComponentTemporary ) component = cachedComponent;
                 else if( temporaryComponent ) {
-                    const serial = fastCreateTokenSerial(rawComponentId);
-                    const known = serial
-                        ? createdBySerial[serial] !== undefined
-                        : Boolean(createdFallback?.has(rawComponentId));
-                    if( !known ) throw new HostRuntimeError(
+                    const tokenSerial = FAST_HOST_PENDING_TOKEN_MAX - rawComponentId;
+                    if( tokenSerial <= 0 || tokenSerial > recordCount ||
+                        createdBySerial[tokenSerial] === undefined ) throw new HostRuntimeError(
                         'packed setter references an unknown temporary target', 'BAD_REQUEST');
-                    component = (serial
-                        ? createdBySerial[serial] : createdFallback.get(rawComponentId)) || null;
+                    component = createdBySerial[tokenSerial] || null;
                     cachedComponentId = rawComponentId;
                     cachedComponentTemporary = true;
                     cachedComponent = component;
@@ -2693,7 +2699,14 @@ export class HostRuntime {
             });
             return outcome.result;
         }
-        if( DB_REQUEST_NAMES.has(kind) ) return handleDbRequest(this.db, kind, request);
+        if( DB_REQUEST_NAMES.has(kind) ) {
+            const result = handleDbRequest(this.db, kind, request);
+            if( DB_ITERATOR_WRITES.has(kind) ) {
+                this.fastDbIteratorRevision = this.fastDbIteratorRevision === 0x7fffffff
+                    ? 1 : this.fastDbIteratorRevision + 1;
+            }
+            return result;
+        }
         if( LOOT_REQUESTS.has(kind) ) {
             const outcome = handleLootRequest(this.loot, request, {
                 objectCost: (id) => this.hostData.objects[String(id)]?.cost,
@@ -3840,7 +3853,7 @@ export class HostRuntime {
                         keyPressed: locals.keyPressed,
                     }), locals, intents);
             }
-            return this._result(intents);
+            return this._result(intents, null, this.operationDepth === 1);
         });
     }
 
@@ -3852,7 +3865,7 @@ export class HostRuntime {
             this.dispatchDepth++;
             this.epoch++;
             const intents = [];
-            let extra = {};
+            let extra = null;
             try {
                 switch( input.type ) {
                     case 'pointer_move': this._pointerMove(input, intents); break;
@@ -3880,7 +3893,7 @@ export class HostRuntime {
                     default: throw new HostRuntimeError(`unsupported input ${input.type}`, 'BAD_INPUT');
                 }
             } finally { this.dispatchDepth--; }
-            return this._result(intents, extra);
+            return this._result(intents, extra, this.operationDepth === 1);
         });
     }
 
@@ -3909,7 +3922,7 @@ export class HostRuntime {
             this.interaction.menuOpen = true;
             return { menu: cloneValue(this.interaction.menuEntries) };
         }
-        if( input.button !== 0 ) return {};
+        if( input.button !== 0 ) return null;
         const hit = this._hit(input.x, input.y);
         this.interaction.pressed = hit ? this.ref(hit) : null;
         this.interaction.button = 0;
@@ -4477,24 +4490,25 @@ export class HostRuntime {
         const parentMeta = this.meta.get(parent);
         const componentId = this._allocateDynamicComponentId(parentMeta.componentId);
         const meta = recycledMeta || {};
-        Object.assign(meta, {
-            key: `dyn:${this.interfaceId}:${this.nextGeneration}`,
-            /* Match UITree_CcCreate's 0x8000..0xffff UID band. A dynamic
-             * component is addressed by this transient packed id inside C;
-             * its stable React identity remains key+generation and its public
-             * child slot remains subId. Sharing the parent's UID made two
-             * active children indistinguishable across the WASM boundary. */
-            componentId,
-            publicFileId: parentMeta.publicFileId,
-            subId,
-            dynamic: true,
-            generation: this.nextGeneration++,
-            draggable: false,
-            dragParent: null,
-            dragDeadZone: 5,
-            dragDeadTime: 0,
-            dragBehavior: 0,
-        });
+        /* Direct writes retain the exact stable field order on both new and
+         * recycled metadata without allocating a 12-field Object.assign source
+         * for every transient row. */
+        meta.key = `dyn:${this.interfaceId}:${this.nextGeneration}`;
+        /* Match UITree_CcCreate's 0x8000..0xffff UID band. A dynamic component
+         * is addressed by this transient packed id inside C; its stable React
+         * identity remains key+generation and its public child slot remains
+         * subId. Sharing the parent's UID made two active children
+         * indistinguishable across the WASM boundary. */
+        meta.componentId = componentId;
+        meta.publicFileId = parentMeta.publicFileId;
+        meta.subId = subId;
+        meta.dynamic = true;
+        meta.generation = this.nextGeneration++;
+        meta.draggable = false;
+        meta.dragParent = null;
+        meta.dragDeadZone = 5;
+        meta.dragDeadTime = 0;
+        meta.dragBehavior = 0;
         this._index(component, meta);
         this.byUid.set(componentId, component);
         let children = this.dynamicChildren.get(parent);
@@ -4619,12 +4633,17 @@ export class HostRuntime {
         };
     }
 
-    _result(intents, extra = {}) {
+    _result(intents, extra = null, deferInteraction = false) {
         return {
             epoch: this.epoch,
             version: this.version,
             intents,
-            interaction: this._interactionView(),
+            /* The outer boundary always refreshes this field after draining
+             * component follow-ups and retiring newly-hidden interaction
+             * targets. Avoid materialising the guaranteed-to-be-discarded
+             * first view. Nested React-authored Host calls are observable
+             * before that boundary returns and therefore never defer. */
+            interaction: deferInteraction ? null : this._interactionView(),
             ...extra,
         };
     }
@@ -4819,12 +4838,7 @@ function fastRecordString(records, base, arena) {
     return FAST_HOST_TEXT_DECODER.decode(arena.subarray(offset, offset + length));
 }
 
-function fastCreateTokenSerial(token) {
-    const serial = 0x7fffffff - token;
-    return Number.isInteger(serial) && serial > 0 && serial <= 65536 ? serial : 0;
-}
-
-function fastHookPayload(records, base, arena, arenaView) {
+function fastHookPayload(records, base, arena, arenaView, payload) {
     const triggerCount = records[base + 3];
     const intCount = records[base + 4];
     const stringCount = records[base + 7];
@@ -4848,15 +4862,19 @@ function fastHookPayload(records, base, arena, arenaView) {
     const end = stringOffset + stringCount * FAST_HOST_HOOK_STRING_LENGTH;
     if( end > payloadOffset + payloadLength ) throw new HostRuntimeError(
         'packed fast host hook payload overflow', 'BAD_REQUEST');
-    return {
-        triggerCount, intCount, stringCount, signatureLength,
-        signatureOffset, triggerOffset, intOffset, stringOffset,
-    };
+    payload.triggerCount = triggerCount;
+    payload.intCount = intCount;
+    payload.stringCount = stringCount;
+    payload.signatureLength = signatureLength;
+    payload.signatureOffset = signatureOffset;
+    payload.triggerOffset = triggerOffset;
+    payload.intOffset = intOffset;
+    payload.stringOffset = stringOffset;
+    return payload;
 }
 
-function fastHookMatches(existing, records, base, arena, arenaView) {
+function fastHookMatches(existing, records, base, arena, arenaView, payload) {
     if( scriptId(existing) !== records[base + 2] ) return false;
-    const payload = fastHookPayload(records, base, arena, arenaView);
     const signature = String(existing?.signature || '');
     if( signature.length !== payload.signatureLength ) return false;
     for( let index = 0; index < signature.length; index++ )
@@ -4888,10 +4906,9 @@ function fastHookMatches(existing, records, base, arena, arenaView) {
     return stringAt === payload.stringCount;
 }
 
-function fastHookBinding(records, base, arena, arenaView) {
-    const payload = fastHookPayload(records, base, arena, arenaView);
-    const signature = FAST_HOST_TEXT_DECODER.decode(arena.subarray(
-        payload.signatureOffset, payload.signatureOffset + payload.signatureLength));
+function fastHookBinding(records, base, arena, arenaView, payload) {
+    const signature = fastHookSignature(
+        arena, payload.signatureOffset, payload.signatureLength);
     const triggerIds = new Array(payload.triggerCount);
     for( let index = 0; index < triggerIds.length; index++ )
         triggerIds[index] = arenaView.getInt32(payload.triggerOffset + index * 4, true);
@@ -4913,6 +4930,20 @@ function fastHookBinding(records, base, arena, arenaView) {
     return {
         script: { id: records[base + 2] }, args, signature, triggerIds,
     };
+}
+
+function fastHookSignature(arena, offset, length) {
+    /* C emits the listener ABI vocabulary as single-byte ASCII (`i`, `s`, and
+     * the optional trigger marker). Decode those bytes directly so every hook
+     * install does not allocate a short-lived Uint8Array subview. */
+    let result = '';
+    let index = 0;
+    for( ; index + 4 <= length; index += 4 ) result += String.fromCharCode(
+        arena[offset + index], arena[offset + index + 1],
+        arena[offset + index + 2], arena[offset + index + 3]);
+    for( ; index < length; index++ )
+        result += String.fromCharCode(arena[offset + index]);
+    return result;
 }
 
 function fastHookString(arena, offset) {

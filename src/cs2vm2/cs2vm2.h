@@ -188,7 +188,6 @@ struct CS2VM2_YieldCheckpoint
     int frame_sp;
     int active_component_id;
     int dot_component_id;
-    int undo_log_len; /* undo_log length at op entry; on yield, roll back to here */
 };
 
 /*
@@ -410,12 +409,12 @@ CS2VM2_Free(struct CS2VM2* vm);
  * allocator traffic in a boot — a gigabyte of it, interleaved with the small
  * long-lived allocations that fragment a wasm heap.
  *
- * Acquire returns an Init'd VM; Release runs the CS2VM2_Free teardown and parks
- * the block. Recycling a block is exactly as safe as a fresh malloc:
- * cs2vm2_thread_init is written against uninitialised memory (see its comment).
- * A block that comes back out of the pool skips that wide clear, because Free
- * left the array table clean — see cs2vm2_init_warm. Drain releases the parked
- * blocks and the pooled call frames — call it at shutdown or when trimming. */
+ * Acquire returns an Init'd VM; Release resets its live state and parks the
+ * block. One empty 8 KiB string bump block is retained per parked VM; no script
+ * strings, arrays, or call frames survive. A block that comes back out of the
+ * pool skips the wide array clear because Release left the table clean — see
+ * cs2vm2_init_warm. Overflow and Drain fully release the parked blocks and the
+ * pooled call frames — call Drain at shutdown or when trimming. */
 struct CS2VM2*
 CS2VM2_Acquire(void);
 

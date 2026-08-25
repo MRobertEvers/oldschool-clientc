@@ -75,6 +75,20 @@ const DB_HOST_DATA = Object.freeze({
                 2: { types: ['int', 'int'], values: [[41, 42]], tupleCount: 1 },
             },
         },
+        13: {
+            id: 13,
+            tableId: 3,
+            columns: {
+                0: { types: ['int'], values: [[995]], tupleCount: 1 },
+            },
+        },
+        14: {
+            id: 14,
+            tableId: 3,
+            columns: {
+                0: { types: ['int'], values: [[7]], tupleCount: 1 },
+            },
+        },
     },
 });
 
@@ -145,7 +159,8 @@ function packed(records) {
         let previous = rootWire;
         let previousIsToken = 0;
         for( let subId = 0; subId < types.length; subId++ ) {
-            const token = 0x7fffff00 - subId;
+            /* Match the C bridge's dense INT_MAX-serial token sequence. */
+            const token = 0x7fffffff - (subId + 1);
             const create = add(100);
             create[1] = rootWire;
             create[2] = types[subId];
@@ -211,6 +226,103 @@ function packed(records) {
     }
 }
 
+/* Packed temporary ids are an internal dense INT_MAX-serial namespace. Reject
+ * malformed/out-of-chunk ids before creating a child, distinguish an unknown
+ * slot from a known missing-parent create, and preserve missing-target result
+ * propagation through a later create. */
+{
+    const host = lowGroupHost({ recordChanges: false });
+    const rootWire = host.ref('root').componentId | 0;
+    const malformedCreate = new Int32Array(RECORD_WORDS);
+    malformedCreate[0] = 100;
+    malformedCreate[1] = rootWire;
+    malformedCreate[2] = IF_TYPE.text;
+    malformedCreate[3] = 1;
+    malformedCreate[7] = 123;
+    malformedCreate[8] = rootWire;
+    assert.throws(
+        () => host.requestFastPackedBatch(malformedCreate, 1, new Uint8Array(0)),
+        (error) => error instanceof HostRuntimeError && error.code === 'BAD_REQUEST');
+    assert.equal(host.findChild('root', 1, false), null,
+        'malformed packed token partially created a child');
+
+    const unknownPrevious = malformedCreate.slice();
+    unknownPrevious[7] = 0x7ffffffe;
+    unknownPrevious[8] = 0x7ffffffd;
+    unknownPrevious[9] = 1;
+    assert.throws(
+        () => host.requestFastPackedBatch(unknownPrevious, 1, new Uint8Array(0)),
+        (error) => error instanceof HostRuntimeError && error.code === 'BAD_REQUEST');
+    assert.equal(host.findChild('root', 1, false), null,
+        'unknown previous packed token partially created a child');
+
+    const malformedSetter = new Int32Array(RECORD_WORDS);
+    malformedSetter[0] = IF_SETHIDE;
+    malformedSetter[1] = 123;
+    malformedSetter[2] = 1;
+    malformedSetter[11] = 1;
+    assert.throws(
+        () => host.requestFastPackedBatch(malformedSetter, 1, new Uint8Array(0)),
+        (error) => error instanceof HostRuntimeError && error.code === 'BAD_REQUEST');
+
+    const missing = new Int32Array(3 * RECORD_WORDS);
+    missing[0] = 100;
+    missing[1] = 12345;
+    missing[2] = IF_TYPE.text;
+    missing[3] = 2;
+    missing[7] = 0x7ffffffe;
+    missing[8] = rootWire;
+    missing[RECORD_WORDS] = IF_SETHIDE;
+    missing[RECORD_WORDS + 1] = 0x7ffffffe;
+    missing[RECORD_WORDS + 2] = 1;
+    missing[RECORD_WORDS + 11] = 1;
+    missing[2 * RECORD_WORDS] = 100;
+    missing[2 * RECORD_WORDS + 1] = 12345;
+    missing[2 * RECORD_WORDS + 2] = IF_TYPE.text;
+    missing[2 * RECORD_WORDS + 3] = 3;
+    missing[2 * RECORD_WORDS + 7] = 0x7ffffffd;
+    missing[2 * RECORD_WORDS + 8] = 0x7ffffffe;
+    missing[2 * RECORD_WORDS + 9] = 1;
+    host.requestFastPackedBatch(missing, 3, new Uint8Array(0));
+    assert.equal(missing[6], rootWire);
+    assert.equal(missing[2 * RECORD_WORDS + 6], rootWire);
+}
+
+/* An outer dispatch snapshots interaction once, after all synchronous hooks
+ * and visibility retirement. A React-authored hook making a nested public Host
+ * call still receives its immediate interaction view rather than the outer
+ * boundary's deferred placeholder. */
+{
+    const root = layer(0, 'root');
+    root.ops = [{ index: 1, text: 'Use' }];
+    root.hooks = { on_timer: { script: { id: 64990 }, args: [] } };
+    let nestedResult = null;
+    const host = createHostRuntime({ interfaceId: 12, components: [root] }, {
+        viewport: { width: 128, height: 96 },
+        invoke: (intent, runtime) => {
+            nestedResult = runtime.writeState('varp', 1, 7);
+            runtime.mutate('if_sethide', intent.component, true);
+        },
+    });
+    host.dispatch({ type: 'pointer_move', x: 8, y: 8 });
+    assert.equal(host.activeRef(), null);
+    assert.equal(host.snapshot().interaction.hover?.name, 'root');
+
+    const interactionView = host._interactionView.bind(host);
+    let interactionViews = 0;
+    host._interactionView = () => {
+        interactionViews++;
+        return interactionView();
+    };
+    const result = host.dispatch({ type: 'tick', cycle: 1 });
+    assert(nestedResult?.interaction && nestedResult.interaction.hover?.name === 'root',
+        'nested React Host result lost its immediate interaction view');
+    assert.equal(result.interaction.hover, null,
+        'outer result was not refreshed after synchronous visibility changes');
+    assert.equal(interactionViews, 2,
+        'outer dispatch built a discarded pre-reconciliation interaction view');
+}
+
 /* FROMDATE uses the client's fixed UTC epoch and English month table. */
 {
     const host = lowGroupHost();
@@ -226,7 +338,12 @@ function packed(records) {
     const host = lowGroupHost({ hostData: DB_HOST_DATA });
     const { records, arena } = __wasmRuntimeTest.fastScalarPreload(host);
     const found = new Map();
+    const rowTables = new Map();
     for( let at = 0; at < records.length; at += 9 ) {
+        if( records[at] === 7505 ) {
+            rowTables.set(records[at + 1], records[at + 5]);
+            continue;
+        }
         if( records[at] !== 7502 ) continue;
         const key = `${records[at + 1]}:${records[at + 2]}:${records[at + 3]}`;
         found.set(key, records[at + 4] === 2
@@ -243,6 +360,18 @@ function packed(records) {
         'whole multi-field DB tuples must retain generic arity handling');
     assert.equal(found.get('12:12321:0'), 41);
     assert.equal(found.get('12:12322:0'), 42);
+    assert.equal(rowTables.get(12), 3);
+    assert.equal(rowTables.get(13), 3);
+
+    host.request({ kind: 'DB_FIND_WITH_COUNT', column: 12288, typeTag: 0, value: 995 });
+    const iterator = host.fastHostDbIteratorSnapshot();
+    assert.deepEqual([...iterator.rows], [12, 13]);
+    assert.equal(iterator.cursor, 0);
+    assert.equal(host.fastHostDbIteratorCommit(iterator.revision, 1), true);
+    assert.equal(host.snapshot().db.iterator.cursor, 1);
+    host.request({ kind: 'DB_FINDALL', tableId: 3 });
+    assert.equal(host.fastHostDbIteratorCommit(iterator.revision, 2), false,
+        'a stale native iterator revision overwrote a replacement query');
 
     const override = lowGroupHost({
         hostData: DB_HOST_DATA,
@@ -255,6 +384,8 @@ function packed(records) {
     assert.notEqual(override.fastHostScalarDataIdentity(), DB_HOST_DATA,
         'an explicit DB override must not reuse its HostData scalar namespace');
     assert.equal(override.fastHostDbDataSnapshot(), null);
+    assert.equal(override.fastHostDbIteratorSnapshot(), null);
+    assert.equal(override.fastHostDbIteratorCommit(1, 0), false);
 }
 
 /* INV_GETOBJ/NUM are native empty reads for invalid signed inputs, rather than
@@ -393,6 +524,9 @@ for( const [triggerCount, expectedCount] of [[-1, 0], [4097, 4096]] ) {
     const dbMissingScriptId = 64994;
     const dbDefaultScriptId = 64993;
     const dbMultiScriptId = 64992;
+    const dbIteratorScriptId = 64991;
+    const dbNextScriptId = 64990;
+    const dbRowTableScriptId = 64989;
     const source = [
         `// ${scriptId}`,
         '[clientscript,cs2dom_fast_boundary]()',
@@ -458,6 +592,30 @@ for( const [triggerCount, expectedCount] of [[-1, 0], [4097, 4096]] ) {
         'cc_create(interface_12:0, 4, 95, 0);',
         'cc_settext(tostring($int0));',
     ].join('\n');
+    const dbIteratorSource = [
+        `// ${dbIteratorScriptId}`,
+        '[clientscript,cs2dom_db_fast_iterator]()',
+        'def_int $count0 = db_find_with_count(12288, 995, 0);',
+        'def_dbrow $first1 = db_findnext;',
+        'def_dbrow $second2 = db_findnext;',
+        'def_dbrow $end3 = db_findnext;',
+        'cc_create(interface_12:0, 4, 96, 0);',
+        'cc_settext(tostring($second2));',
+    ].join('\n');
+    const dbNextSource = [
+        `// ${dbNextScriptId}`,
+        '[clientscript,cs2dom_db_fast_next]()',
+        'def_dbrow $first0 = db_findnext;',
+        'def_dbrow $second1 = db_findnext;',
+        'cc_create(interface_12:0, 4, 97, 0);',
+        'cc_settext(tostring($second1));',
+    ].join('\n');
+    const dbRowTableSource = [
+        `// ${dbRowTableScriptId}`,
+        '[clientscript,cs2dom_db_fast_rowtable]()',
+        'cc_create(interface_12:0, 4, 98, 0);',
+        'cc_settext(tostring(db_getrowtable(12)));',
+    ].join('\n');
     const compiled = compileScripts([
         { id: scriptId, name: 'cs2dom_fast_boundary', source },
         { id: wideScriptId, name: 'cs2dom_fast_wide_hook', source: wideSource },
@@ -468,8 +626,11 @@ for( const [triggerCount, expectedCount] of [[-1, 0], [4097, 4096]] ) {
         { id: dbMissingScriptId, name: 'cs2dom_db_fast_missing', source: dbMissingSource },
         { id: dbDefaultScriptId, name: 'cs2dom_db_fast_default', source: dbDefaultSource },
         { id: dbMultiScriptId, name: 'cs2dom_db_generic_multi', source: dbMultiSource },
+        { id: dbIteratorScriptId, name: 'cs2dom_db_fast_iterator', source: dbIteratorSource },
+        { id: dbNextScriptId, name: 'cs2dom_db_fast_next', source: dbNextSource },
+        { id: dbRowTableScriptId, name: 'cs2dom_db_fast_rowtable', source: dbRowTableSource },
     ], { repoRoot: repo, revision: 'osrs239', returnBytecode: true });
-    assert(compiled.ok && compiled.bytecode.length === 9,
+    assert(compiled.ok && compiled.bytecode.length === 12,
         `could not compile fast boundary script: ${compiled.output}`);
 
     const host = lowGroupHost({ hostData: DB_HOST_DATA });
@@ -551,11 +712,18 @@ for( const [triggerCount, expectedCount] of [[-1, 0], [4097, 4096]] ) {
             '29-Feb-2024');
 
         let genericDbCalls = 0;
+        let genericDbFindCalls = 0;
+        let genericDbNextCalls = 0;
+        let genericDbRowTableCalls = 0;
         const dbGenericRequest = host.request.bind(host);
         host.request = (request, ...rest) => {
             if( request?.kind === 'DB_GETFIELD' ) genericDbCalls++;
+            if( request?.kind === 'DB_FIND_WITH_COUNT' ) genericDbFindCalls++;
+            if( request?.kind === 'DB_FINDNEXT' ) genericDbNextCalls++;
+            if( request?.kind === 'DB_GETROWTABLE' ) genericDbRowTableCalls++;
             return dbGenericRequest(request, ...rest);
         };
+        let firstDbIntResult = null;
         for( const [dbScriptId, childIndex, expected] of [
             [dbIntScriptId, 91, '995'],
             [dbStringScriptId, 92, 'Coins'],
@@ -565,12 +733,21 @@ for( const [triggerCount, expectedCount] of [[-1, 0], [4097, 4096]] ) {
             const dbResult = runtime.invokeIntent({
                 component: host.ref('root'), hook: { scriptId: dbScriptId, args: [] }, locals: {},
             });
+            if( dbScriptId === dbIntScriptId ) firstDbIntResult = dbResult;
             assert.equal(dbResult.scriptId, dbScriptId);
             assert.equal(host.component(host.findChild('root', childIndex, false)).props.text,
                 expected);
         }
         assert.equal(genericDbCalls, 0,
             'preloaded scalar DB_GETFIELD calls crossed the generic JS bridge');
+        assert.equal(firstDbIntResult.fastScalarL1Hits, 0);
+        assert.equal(firstDbIntResult.fastScalarL1Misses, 1);
+        const repeatedDbInt = runtime.invokeIntent({
+            component: host.ref('root'), hook: { scriptId: dbIntScriptId, args: [] }, locals: {},
+        });
+        assert.equal(repeatedDbInt.fastScalarL1Hits, 1);
+        assert.equal(repeatedDbInt.fastScalarL1Misses, 0);
+        assert.equal(genericDbCalls, 0);
 
         const multiResult = runtime.invokeIntent({
             component: host.ref('root'), hook: { scriptId: dbMultiScriptId, args: [] }, locals: {},
@@ -579,6 +756,36 @@ for( const [triggerCount, expectedCount] of [[-1, 0], [4097, 4096]] ) {
         assert.equal(genericDbCalls, 1,
             'a polymorphic whole DB tuple did not retain generic arity handling');
         assert.equal(host.component(host.findChild('root', 95, false)).props.text, '41');
+
+        const iteratorResult = runtime.invokeIntent({
+            component: host.ref('root'), hook: { scriptId: dbIteratorScriptId, args: [] }, locals: {},
+        });
+        assert.equal(iteratorResult.scriptId, dbIteratorScriptId);
+        assert.equal(genericDbFindCalls, 1,
+            'the stateful DB query must still execute once in the React Host');
+        assert.equal(genericDbNextCalls, 0,
+            'a bounded DB iterator snapshot did not keep DB_FINDNEXT inside C');
+        assert.equal(host.component(host.findChild('root', 96, false)).props.text, '13');
+        assert.deepEqual(host.snapshot().db.iterator, { rows: [12, 13], cursor: 2 },
+            'native DB_FINDNEXT progress was not committed to the React Host');
+
+        host.request({ kind: 'DB_FIND_WITH_COUNT', column: 12288, typeTag: 0, value: 995 });
+        const nextCallsBefore = genericDbNextCalls;
+        runtime.invokeIntent({
+            component: host.ref('root'), hook: { scriptId: dbNextScriptId, args: [] }, locals: {},
+        });
+        assert.equal(genericDbNextCalls - nextCallsBefore, 1,
+            'a generic first DB_FINDNEXT did not seed the remaining native iterator');
+        assert.equal(host.component(host.findChild('root', 97, false)).props.text, '13');
+        assert.deepEqual(host.snapshot().db.iterator, { rows: [12, 13], cursor: 2 });
+
+        runtime.invokeIntent({
+            component: host.ref('root'),
+            hook: { scriptId: dbRowTableScriptId, args: [] }, locals: {},
+        });
+        assert.equal(genericDbRowTableCalls, 0,
+            'preloaded DB_GETROWTABLE crossed the generic JS bridge');
+        assert.equal(host.component(host.findChild('root', 98, false)).props.text, '3');
     } finally { runtime.destroy(); }
 
     /* Fast cache hits and the fully generic bridge must produce the same live
@@ -607,7 +814,75 @@ for( const [triggerCount, expectedCount] of [[-1, 0], [4097, 4096]] ) {
             assert.equal(genericHost.component(
                 genericHost.findChild('root', childIndex, false)).props.text, expected);
         }
+        genericRuntime.invokeIntent({
+            component: genericHost.ref('root'),
+            hook: { scriptId: dbIteratorScriptId, args: [] },
+            locals: {},
+        });
+        assert.equal(genericHost.component(
+            genericHost.findChild('root', 96, false)).props.text, '13');
+        assert.deepEqual(genericHost.snapshot().db.iterator, { rows: [12, 13], cursor: 2 });
+        genericRuntime.invokeIntent({
+            component: genericHost.ref('root'),
+            hook: { scriptId: dbRowTableScriptId, args: [] }, locals: {},
+        });
+        assert.equal(genericHost.component(
+            genericHost.findChild('root', 98, false)).props.text, '3');
     } finally { genericRuntime.destroy(); }
+
+    /* A caller-supplied DB state must not see DB entries already cached under
+     * the shared HostData identity. Its isolated namespace falls through with
+     * all three operands restored and returns the override's exact value. */
+    const overrideHost = lowGroupHost({
+        hostData: DB_HOST_DATA,
+        db: { dbTables: DB_HOST_DATA.dbTables, dbRows: {
+            12: { id: 12, tableId: 3, columns: {
+                0: { types: ['int'], values: [[123]], tupleCount: 1 },
+            } },
+        } },
+    });
+    let overrideDbCalls = 0;
+    let overrideDbNextCalls = 0;
+    let overrideDbRowTableCalls = 0;
+    const overrideRequest = overrideHost.request.bind(overrideHost);
+    overrideHost.request = (request, ...rest) => {
+        if( request?.kind === 'DB_GETFIELD' ) overrideDbCalls++;
+        if( request?.kind === 'DB_FINDNEXT' ) overrideDbNextCalls++;
+        if( request?.kind === 'DB_GETROWTABLE' ) overrideDbRowTableCalls++;
+        return overrideRequest(request, ...rest);
+    };
+    const overrideRuntime = await createWasmCS2Runtime({
+        host: overrideHost,
+        moduleFactory,
+        wasmUrl: `data:application/wasm;base64,${readFileSync(wasmPath).toString('base64')}`,
+        fastHost: true,
+        program,
+    });
+    try {
+        overrideRuntime.invokeIntent({
+            component: overrideHost.ref('root'),
+            hook: { scriptId: dbIntScriptId, args: [] },
+            locals: {},
+        });
+        assert.equal(overrideHost.component(
+            overrideHost.findChild('root', 91, false)).props.text, '123');
+        assert.equal(overrideDbCalls, 1);
+        overrideRuntime.invokeIntent({
+            component: overrideHost.ref('root'),
+            hook: { scriptId: dbIteratorScriptId, args: [] },
+            locals: {},
+        });
+        assert.equal(overrideDbNextCalls, 3,
+            'an explicit DB override leaked into the native iterator path');
+        assert.equal(overrideHost.component(
+            overrideHost.findChild('root', 96, false)).props.text, '-1');
+        overrideRuntime.invokeIntent({
+            component: overrideHost.ref('root'),
+            hook: { scriptId: dbRowTableScriptId, args: [] }, locals: {},
+        });
+        assert.equal(overrideDbRowTableCalls, 1,
+            'an explicit DB override reused a preloaded DB_GETROWTABLE answer');
+    } finally { overrideRuntime.destroy(); }
 }
 
 console.log('fast HOST edge and boundary tests passed');

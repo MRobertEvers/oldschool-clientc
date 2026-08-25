@@ -1281,6 +1281,22 @@ test-cs2-host-request-producers: $(OBJ_DIR)
 		perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_host_request_producers_test
 
+.PHONY: test-cs2-array-bounds
+test-cs2-array-bounds: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_bounds_test \
+		cs2vm2/test/array_bounds_test.c \
+		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
+		perf/torirs_perf.c $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_array_bounds_test
+
+.PHONY: test-cs2-vm-pool
+test-cs2-vm-pool: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_vm_pool_test \
+		cs2vm2/test/vm_pool_test.c \
+		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
+		perf/torirs_perf.c $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_vm_pool_test
+
 # Procedural-texture coverage report over a 643-era cache. Not a pass/fail test â it
 # names the unported operation blocking the most textures, which is the number to work
 # against while porting. Run from the repo root so the default cache path resolves.
