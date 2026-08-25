@@ -161,7 +161,7 @@ upload_model_nodes(
                     fprintf(stderr, "  EnsurePlayerModel -> %d\n", scene_id);
                 if( scene_id >= 0 )
                 {
-                    c->u.rs_model.gamecache_model_id = scene_id;
+                    (void)UITree_SetModelAt(tree, i, scene_id);
                     /* Pose the preview. The server appearance's readyanim is not
                      * decoded here, so use the standard human ready sequence; the
                      * tick driver loads it and disables gracefully if absent.
@@ -178,7 +178,7 @@ upload_model_nodes(
         }
         scene_id = UITreeSceneBridge_EnsureModel(bridge, cache_id);
         if( scene_id >= 0 )
-            c->u.rs_model.gamecache_model_id = scene_id;
+            (void)UITree_SetModelAt(tree, i, scene_id);
     }
 }
 
@@ -431,14 +431,8 @@ mount_pack_under_target(struct Task_InterfaceOpen* self)
             continue;
         if( c->behavior.hide_unmounted )
         {
-            c->behavior.hide = 0;
             c->behavior.hide_unmounted = 0;
-            /* Unhiding makes this node reachable by the emit walk when it was
-             * not before, which is exactly the transition the retention gate
-             * has to see (Opt 11). It cannot go through UITree_MarkNodeDirty:
-             * that filters by the last walk's reachability, and by definition
-             * this node was unreachable then. Bump directly. */
-            self->tree->dirty_gen++;
+            (void)UITree_SetHideAt(self->tree, i, 0);
         }
         if( c->parent == mount_idx )
             continue;
@@ -683,11 +677,8 @@ Task_InterfaceOpen_Run(
                 continue;
             if( c->behavior.hide_unmounted )
             {
-                c->behavior.hide = 0;
                 c->behavior.hide_unmounted = 0;
-                /* See the mount sweep above: an unhide is a reachability
-                 * change the retention gate must not miss. */
-                self->tree->dirty_gen++;
+                (void)UITree_SetHideAt(self->tree, idx, 0);
             }
         }
     }

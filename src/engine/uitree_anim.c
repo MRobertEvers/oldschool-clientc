@@ -103,11 +103,19 @@ UITreeAnim_Advance(
         if( cycles > 0 &&
             (c->u.rs_model.rotate_x_speed != 0 || c->u.rs_model.rotate_y_speed != 0) )
         {
-            c->u.rs_model.xan =
+            int const xan =
                 (c->u.rs_model.xan + c->u.rs_model.rotate_x_speed * cycles) & 2047;
-            c->u.rs_model.yan =
+            int const yan =
                 (c->u.rs_model.yan + c->u.rs_model.rotate_y_speed * cycles) & 2047;
-            UITree_MarkNodeDirty(tree, idx);
+            (void)UITree_SetModelPoseAt(
+                tree,
+                idx,
+                c->u.rs_model.x_offset,
+                c->u.rs_model.y_offset,
+                xan,
+                yan,
+                c->u.rs_model.zan,
+                0);
             applied = 1;
         }
         seq = c->u.rs_model.anim_seq_id;

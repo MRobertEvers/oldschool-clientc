@@ -128,7 +128,10 @@ UITree_ScrollMaxY(struct UITreeComponent const* layer)
 }
 
 void
-UITree_ScrollClampComponent(struct UITreeComponent* layer)
+UITree_ScrollGetClamped(
+    struct UITreeComponent const* layer,
+    int* out_x,
+    int* out_y)
 {
     int sx;
     int sy;
@@ -150,8 +153,10 @@ UITree_ScrollClampComponent(struct UITreeComponent* layer)
         sy = 0;
     if( sy > max_y )
         sy = max_y;
-    layer->scroll_x = sx;
-    layer->scroll_y = sy;
+    if( out_x )
+        *out_x = sx;
+    if( out_y )
+        *out_y = sy;
 }
 
 void
@@ -258,10 +263,13 @@ UITree_AccumScrollOffset(
 
         if( !mounted && layer->type == UIELEM_RS_LAYER )
         {
+            int effective_scroll_x;
+            int effective_scroll_y;
+            UITree_ScrollGetClamped(layer, &effective_scroll_x, &effective_scroll_y);
             if( off_x && UITree_ScrollLayerNeedsHorizontal(layer) )
-                *off_x += layer->scroll_x;
+                *off_x += effective_scroll_x;
             if( off_y && UITree_ScrollLayerNeedsVertical(layer) )
-                *off_y += layer->scroll_y;
+                *off_y += effective_scroll_y;
         }
         child = cur;
         cur = layer->parent;
@@ -374,7 +382,8 @@ hit_vertical_scrollbar(
     /* Canonical scroll offset lives on the component (emit + CS2 opcodes use it).
      * Grip math must mirror the drawn grip in torirs_frame.c
      * vertical_scrollbar_grip. */
-    int sy = layer->scroll_y;
+    int sy;
+    UITree_ScrollGetClamped(layer, NULL, &sy);
     int track_h = vh - 32;
     if( track_h <= 0 )
         return UITREE_SCROLLBAR_V_GRIP;
@@ -417,7 +426,8 @@ hit_horizontal_scrollbar(
         return UITREE_SCROLLBAR_H_RIGHT;
 
     /* Canonical scroll offset on the component; mirror horizontal_scrollbar_grip. */
-    int sx = layer->scroll_x;
+    int sx;
+    UITree_ScrollGetClamped(layer, &sx, NULL);
     int track_w = sw - 32;
     if( track_w <= 0 )
         return UITREE_SCROLLBAR_H_GRIP;
@@ -454,7 +464,7 @@ find_scrollbar_recursive(
      * whole subtree exactly as emit/hit/menu do, or an invisible IF1 bar can
      * capture the pointer before generic hit-testing gets a say. */
     if( component->behavior.hide || component->frame_hidden ||
-        component->replacement_hidden )
+        component->replacement_hidden || component->projection_hidden )
         return false;
     int bx = 0;
     int by = 0;
@@ -501,12 +511,14 @@ find_scrollbar_recursive(
 
         int child_scroll_x = scroll_off_x;
         int child_scroll_y = scroll_off_y;
-        /* Descend using the canonical component scroll offset so the strip hitbox
-         * lines up with emit (which also offsets children by component->scroll_*). */
+        int effective_scroll_x;
+        int effective_scroll_y;
+        UITree_ScrollGetClamped(component, &effective_scroll_x, &effective_scroll_y);
+        /* Descend using the same effective offset as emit. */
         if( UITree_ScrollLayerNeedsHorizontal(component) )
-            child_scroll_x += component->scroll_x;
+            child_scroll_x += effective_scroll_x;
         if( UITree_ScrollLayerNeedsVertical(component) )
-            child_scroll_y += component->scroll_y;
+            child_scroll_y += effective_scroll_y;
 
         /* Accumulate in render order: ordinary children, then InterfaceParent
          * roots. A later hit overwrites `out`, so mounted/sibling content drawn
@@ -665,7 +677,7 @@ scrollbar_apply_horizontal_grip(
 
 bool
 UITree_ScrollbarHandle(
-    struct UITree const* tree,
+    struct UITree* tree,
     struct UITreeScrollbarHitInfo const* hit,
     int px,
     int py,
@@ -682,15 +694,16 @@ UITree_ScrollbarHandle(
         UITree_NodeOrAncestorDisplayHidden(tree, hit->layer_index) )
         return false;
 
-    /* Write the canonical component scroll offset (what emit + CS2 opcodes read).
-     * tree is const-qualified for the read-only hit path; the layer index came
-     * from FindScrollbarAt on this same tree, so mutating it here is sound. */
-    struct UITreeComponent* layer = &tree->components[hit->layer_index];
+    /* The hit was collected from this tree. Publish the resulting canonical
+     * offset through the typed setter so a retained emit cannot reuse the old
+     * child translation. */
+    struct UITreeComponent const* layer = &tree->components[hit->layer_index];
     if( layer->component_id < 0 )
         return false;
 
-    int sx = layer->scroll_x;
-    int sy = layer->scroll_y;
+    int sx;
+    int sy;
+    UITree_ScrollGetClamped(layer, &sx, &sy);
     int max_x = UITree_ScrollMaxX(layer);
     int max_y = UITree_ScrollMaxY(layer);
     int const delta = step > 0 ? step : UITREE_SCROLLBAR_ARROW_DELTA;
@@ -743,9 +756,7 @@ UITree_ScrollbarHandle(
         sx = max_x;
     if( sy > max_y )
         sy = max_y;
-    layer->scroll_x = sx;
-    layer->scroll_y = sy;
-    return true;
+    return UITree_SetScrollPosAt(tree, hit->layer_index, sx, sy);
 }
 
 bool

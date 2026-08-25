@@ -19,6 +19,9 @@ struct UITreeSceneBridge
     struct CacheProvider* provider;
     int next_scene_id;
 
+    /** Monotonic version of scene-id bindings published by this bridge. */
+    uint64_t asset_revision;
+
     /** Device pixels per chrome pixel for the baked overlay faces: 1, 2 or 3.
      *  Init leaves 1; @see UITreeSceneBridge_SetChromeScale. */
     int chrome_scale;
@@ -177,6 +180,10 @@ UITreeSceneBridge_Init(
 
 void
 UITreeSceneBridge_Free(struct UITreeSceneBridge* bridge);
+
+/** Version of bridge-owned asset bindings observable by UITree host requests. */
+uint64_t
+UITreeSceneBridge_AssetRevision(struct UITreeSceneBridge const* bridge);
 
 /** Ensure sprite in scene. Returns scene_id or -1. */
 int

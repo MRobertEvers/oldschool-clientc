@@ -331,13 +331,10 @@ UITree_ObjCellDynamicSwap(
     /* An empty cell is hidden by the paint script, so a swap has to move the
      * hide with the item or the moved item lands in an invisible slot. */
     {
-        uint8_t hide_swap = a->behavior.hide;
-        a->behavior.hide = b->behavior.hide;
-        b->behavior.hide = hide_swap;
-        /* Swapping hide bits can make an unreachable slot reachable, which the
-         * MarkNodeDirty calls below cannot signal — their bump is filtered on
-         * the old reachability. See UITree_SetHide for the rule. */
-        tree->dirty_gen++;
+        uint8_t const hide_a = a->behavior.hide;
+        uint8_t const hide_b = b->behavior.hide;
+        (void)UITree_SetHideAt(tree, idx_a, hide_b);
+        (void)UITree_SetHideAt(tree, idx_b, hide_a);
     }
 
     UITree_MarkNodeDirty(tree, idx_a);

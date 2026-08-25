@@ -104,6 +104,7 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
+#include "render/torirs_world_projection.h"
 #include "toridraw.h"
 #include "toridraw_model_transform.h"
 #include "ui/uitree_build.h"
@@ -2204,18 +2205,6 @@ app_minimenu_font_scene_id(struct App* app);
  * hitsplats and overhead chat all landing 512/scale times too far from the
  * viewport centre.
  */
-static int
-app_world_proj_scale(struct App* app)
-{
-    struct ToriDraw_Camera const* cam = &app->world_camera;
-    int scale;
-    if( cam->proj_mode == TORIDRAW_PROJ_MODE_FOV )
-        scale = toridraw_proj_scale_from_fov(cam->fov_rpi2048);
-    else
-        scale = cam->proj_scale;
-    return scale > 0 ? scale : TORIDRAW_PROJ_SCALE_DEFAULT;
-}
-
 /* Project a world point at an ABSOLUTE height. The height-above-ground
  * spelling below samples terrain per point, which is right for entities but
  * wrong for anything that must stay coplanar — a footprint outline on sloped
@@ -2229,39 +2218,26 @@ app_world_project_at(
     int* out_x,
     int* out_y)
 {
-    int dx, dy, dz, tmp;
-    int sin_pitch, cos_pitch, sin_yaw, cos_yaw;
-    int scale;
-
     if( !app->world || !app->world_view_valid )
         return 0;
     if( fine_x < 128 || fine_z < 128 )
         return 0;
-
-    dx = fine_x - app->world_camera_pos.x;
-    dy = world_y - app->world_camera_pos.y;
-    dz = fine_z - app->world_camera_pos.z;
-
-    sin_pitch = ToriDraw_Sin(app->world_camera.pitch);
-    cos_pitch = ToriDraw_Cos(app->world_camera.pitch);
-    sin_yaw = ToriDraw_Sin(app->world_camera.yaw);
-    cos_yaw = ToriDraw_Cos(app->world_camera.yaw);
-
-    tmp = (dz * sin_yaw + dx * cos_yaw) >> 16;
-    dz = (dz * cos_yaw - dx * sin_yaw) >> 16;
-    dx = tmp;
-
-    tmp = (dy * cos_pitch - dz * sin_pitch) >> 16;
-    dz = (dy * sin_pitch + dz * cos_pitch) >> 16;
-    dy = tmp;
-
-    if( dz < 50 )
-        return 0;
-
-    scale = app_world_proj_scale(app);
-    *out_x = app->world_emit_desc.x + app->world_emit_desc.w / 2 + (dx * scale / dz);
-    *out_y = app->world_emit_desc.y + app->world_emit_desc.h / 2 + (dy * scale / dz);
-    return 1;
+    /* Keep the reference's overlay near plane at 50. The renderer camera may
+     * be lowered experimentally, but accepting a point closer than the overlay
+     * contract did before this extraction would be an appearance change. */
+    return ToriRS_WorldProjectPoint(
+        &app->world_camera,
+        &app->world_camera_pos,
+        app->world_emit_desc.x,
+        app->world_emit_desc.y,
+        app->world_emit_desc.w,
+        app->world_emit_desc.h,
+        50,
+        fine_x,
+        world_y,
+        fine_z,
+        out_x,
+        out_y);
 }
 
 static int
@@ -4794,23 +4770,14 @@ app_entity_overlay_layout(struct App* app)
      * the rect. A tree whose world has not been emitted yet has no rect and so
      * no overlays -- which is right, because there is nothing to anchor to. */
     {
-        struct UITreeElemPosition* pos = &app->tree->components[parent].position;
+        struct UITreeElemPosition const* pos = &app->tree->components[parent].position;
         int const w = app->world_view_valid ? app->world_emit_desc.w : 0;
         int const h = app->world_view_valid ? app->world_emit_desc.h : 0;
         int const x = app->world_view_valid ? app->world_emit_desc.x : 0;
         int const y = app->world_view_valid ? app->world_emit_desc.y : 0;
         if( pos->kind != UIPOS_XY || pos->x != x || pos->y != y || pos->width != w ||
             pos->height != h )
-        {
-            pos->kind = UIPOS_XY;
-            pos->x = x;
-            pos->y = y;
-            pos->width = w;
-            pos->height = h;
-            pos->layout_resolved = 0;
-            UITree_MarkNodeDirty(app->tree, parent);
-            UITree_LayoutInvalidateBoxes(app->tree);
-        }
+            (void)UITree_SetXYBoxAt(app->tree, parent, x, y, w, h);
     }
 
     /* Band 1 stacks upward and band 2 downward, per subject -- two overlays on
@@ -4845,8 +4812,6 @@ app_entity_overlay_layout(struct App* app)
             RS_CS2Host_OverlayReap(&app->host, i);
             continue;
         }
-        if( !anchor.ok )
-            continue; /* live, just not on screen this frame. */
 
         int32_t const node = UITree_FindByComponentId(app->tree, item->component_id);
         if( node < 0 )
@@ -4857,6 +4822,15 @@ app_entity_overlay_layout(struct App* app)
             app->client_trigger_refire_pending = 1;
             continue;
         }
+        /* Projection failure is camera-owned visibility, not script-owned
+         * `hide`. Leaving the old layer visible here freezes an overlay at its
+         * last valid coordinates when its subject crosses the near plane. */
+        if( !anchor.ok )
+        {
+            (void)UITree_SetProjectionHiddenAt(app->tree, node, 1);
+            continue;
+        }
+        (void)UITree_SetProjectionHiddenAt(app->tree, node, 0);
 
         struct UITreeComponent* c = &app->tree->components[node];
         int const w = c->position.width;
@@ -5617,6 +5591,301 @@ app_host_request(
     }
 }
 
+/* ---- Retained UITree host-input publication --------------------------- *
+ *
+ * Host requests copy ambient App state into otherwise-retainable descriptors.
+ * The emit walk records which coarse domains it actually read; this publication
+ * fence gives those domains semantic versions without making each state writer
+ * know which nodes (or even which open interface) consumed it.
+ *
+ * These hashes are not render caches. They are compact compare-before-bump
+ * snapshots of the values host requests can expose. Event-driven sources such
+ * as InvManager also bump their domain directly, while the snapshot closes
+ * over local selection state which is not owned by that manager. */
+#define APP_UI_INPUT_HASH_OFFSET 1469598103934665603ull
+#define APP_UI_INPUT_HASH_PRIME 1099511628211ull
+
+static uint64_t
+app_ui_input_hash_bytes(
+    uint64_t hash,
+    void const* data,
+    size_t size)
+{
+    unsigned char const* bytes = (unsigned char const*)data;
+
+    for( size_t i = 0; i < size; i++ )
+    {
+        hash ^= bytes[i];
+        hash *= APP_UI_INPUT_HASH_PRIME;
+    }
+    return hash;
+}
+
+static uint64_t
+app_ui_input_hash_int(
+    uint64_t hash,
+    int value)
+{
+    return app_ui_input_hash_bytes(hash, &value, sizeof(value));
+}
+
+static uint64_t
+app_ui_input_hash_u64(
+    uint64_t hash,
+    uint64_t value)
+{
+    return app_ui_input_hash_bytes(hash, &value, sizeof(value));
+}
+
+static uint64_t
+app_ui_input_hash_string(
+    uint64_t hash,
+    char const* value)
+{
+    size_t length = value ? strlen(value) : 0;
+
+    hash = app_ui_input_hash_bytes(hash, &length, sizeof(length));
+    if( length )
+        hash = app_ui_input_hash_bytes(hash, value, length);
+    return hash;
+}
+
+static void
+app_ui_host_publish_inputs(struct App* app)
+{
+    uint64_t signature[UITREE_HOST_INPUT_DOMAIN_COUNT];
+    struct WorldEntity_Player const* local;
+    struct UIMinimenu const* menu;
+    int menu_count;
+    int ghosting;
+
+    assert(app);
+    for( int domain = 0; domain < UITREE_HOST_INPUT_DOMAIN_COUNT; domain++ )
+        signature[domain] = app_ui_input_hash_int(APP_UI_INPUT_HASH_OFFSET, domain + 1);
+
+    /* CAMERA: everything used by yaw-based chrome and world projection. The
+     * local player is the minimap anchor when present; free camera position is
+     * the fallback. */
+    signature[UITREE_HOST_INPUT_CAMERA] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_CAMERA], ToriDraw_NormalizeAngle(app->world_camera.yaw));
+    signature[UITREE_HOST_INPUT_CAMERA] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera.pitch);
+    signature[UITREE_HOST_INPUT_CAMERA] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.x);
+    signature[UITREE_HOST_INPUT_CAMERA] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.y);
+    signature[UITREE_HOST_INPUT_CAMERA] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.z);
+    local = app_local_player(app);
+    signature[UITREE_HOST_INPUT_CAMERA] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], local != NULL);
+    if( local )
+    {
+        signature[UITREE_HOST_INPUT_CAMERA] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_CAMERA], (int)local->draw_position.x);
+        signature[UITREE_HOST_INPUT_CAMERA] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_CAMERA], (int)local->draw_position.z);
+    }
+
+    /* POINTER: hash only visible/observable phases. Inactive cross/menu/hover
+     * scratch may move without changing a descriptor and should not defeat a
+     * quiet retained frame. */
+    signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_POINTER], UICross_IsActive(&app->cross));
+    if( UICross_IsActive(&app->cross) )
+    {
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->cross.x);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->cross.y);
+        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_POINTER], UICross_AtlasFrame(&app->cross));
+    }
+    menu = &app->interact.minimenu;
+    signature[UITREE_HOST_INPUT_POINTER] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->visible);
+    if( menu->visible )
+    {
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->x);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->y);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->width);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->height);
+        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_POINTER], menu->hovered_option);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->font_id);
+        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+            signature[UITREE_HOST_INPUT_POINTER], &menu->layout, sizeof(menu->layout));
+        menu_count = menu->option_count;
+        if( menu_count < 0 )
+            menu_count = 0;
+        if( menu_count > UITREE_MINIMENU_MAX_OPTIONS )
+            menu_count = UITREE_MINIMENU_MAX_OPTIONS;
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu_count);
+        for( int i = 0; i < menu_count; i++ )
+        {
+            struct UIMinimenuOption const* option = &menu->options[i];
+            signature[UITREE_HOST_INPUT_POINTER] =
+                app_ui_input_hash_string(signature[UITREE_HOST_INPUT_POINTER], option->text);
+            signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+                signature[UITREE_HOST_INPUT_POINTER],
+                &option->action,
+                sizeof(option->action));
+            signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+                signature[UITREE_HOST_INPUT_POINTER],
+                &option->action_index,
+                sizeof(option->action_index));
+            signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+                signature[UITREE_HOST_INPUT_POINTER], &option->pick, sizeof(option->pick));
+        }
+    }
+    signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_POINTER], app->hover_text.visible);
+    if( app->hover_text.visible )
+    {
+        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+            signature[UITREE_HOST_INPUT_POINTER],
+            &app->hover_text.x,
+            sizeof(app->hover_text.x) * 5);
+        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_string(
+            signature[UITREE_HOST_INPUT_POINTER], app->hover_text.text);
+    }
+    ghosting = app_inv_drag_ghosting(app);
+    signature[UITREE_HOST_INPUT_POINTER] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], ghosting);
+    if( ghosting )
+    {
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_com_id);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_source_id);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_from_slot);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_dx);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_dy);
+    }
+
+    /* CLIENT_STATE: selected/available tabs, chat presentation and the server
+     * IF_SETEVENTS overrides copied into host-produced menu descriptors. */
+    signature[UITREE_HOST_INPUT_CLIENT_STATE] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_CLIENT_STATE], &app->slots, sizeof(app->slots));
+    signature[UITREE_HOST_INPUT_CLIENT_STATE] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_CLIENT_STATE], &app->chat_view, sizeof(app->chat_view));
+    signature[UITREE_HOST_INPUT_CLIENT_STATE] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_CLIENT_STATE], app->if_event_count);
+    if( app->if_event_count > 0 )
+        signature[UITREE_HOST_INPUT_CLIENT_STATE] = app_ui_input_hash_bytes(
+            signature[UITREE_HOST_INPUT_CLIENT_STATE],
+            app->if_events,
+            (size_t)app->if_event_count * sizeof(*app->if_events));
+
+    /* INVENTORY: container contents publish through the InvManager callback;
+     * selection and drag addressing live on App and need this small snapshot. */
+    signature[UITREE_HOST_INPUT_INVENTORY] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_INVENTORY],
+        &app->invs.selection,
+        sizeof(app->invs.selection));
+    signature[UITREE_HOST_INPUT_INVENTORY] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_INVENTORY], &app->objsel, sizeof(app->objsel));
+    signature[UITREE_HOST_INPUT_INVENTORY] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_INVENTORY],
+        &app->inv_drag_com_id,
+        sizeof(app->inv_drag_com_id) * 4);
+
+    /* ASSETS: owner-side mutation revisions catch arrivals before a skipped
+     * host request gets another chance to publish them, plus same-id registry
+     * replacements which map cardinality cannot see. Provider model/sprite
+     * streaming may conservatively cause an extra full UI walk; three scalar
+     * reads are still cheaper and more reliable than scanning the registries. */
+    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_u64(
+        signature[UITREE_HOST_INPUT_ASSETS],
+        app->provider ? CacheProvider_UIAssetRevision(app->provider) : 0);
+    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_u64(
+        signature[UITREE_HOST_INPUT_ASSETS], UITreeSceneBridge_AssetRevision(&app->bridge));
+    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_u64(
+        signature[UITREE_HOST_INPUT_ASSETS],
+        app->scene ? ToriDraw_SceneUIAssetRevision(app->scene) : 0);
+
+    signature[UITREE_HOST_INPUT_WORLD] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->minimap_state);
+    signature[UITREE_HOST_INPUT_WORLD] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->multiway);
+    signature[UITREE_HOST_INPUT_WORLD] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->world_map_scene_id);
+    signature[UITREE_HOST_INPUT_WORLD] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->world_map_w);
+    signature[UITREE_HOST_INPUT_WORLD] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->world_map_h);
+    signature[UITREE_HOST_INPUT_WORLD] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_WORLD], app->world && app->world->load_complete);
+    if( app->world && app->world->minimap )
+    {
+        signature[UITREE_HOST_INPUT_WORLD] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_WORLD], app->world->minimap->width);
+        signature[UITREE_HOST_INPUT_WORLD] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_WORLD], app->world->minimap->height);
+    }
+
+    /* Hash visible animation phases, not raw clocks: an inactive cross and a
+     * non-flashing tab do not change their descriptors as cycles advance. */
+    signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_ANIMATION], UICross_IsActive(&app->cross));
+    if( UICross_IsActive(&app->cross) )
+        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_ANIMATION], UICross_AtlasFrame(&app->cross));
+    signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_ANIMATION], app->reboot_timer != 0);
+    if( app->reboot_timer != 0 )
+        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_ANIMATION],
+            app->reboot_timer / APP_LOGIC_CYCLES_PER_SECOND);
+    signature[UITREE_HOST_INPUT_ANIMATION] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_ANIMATION], app->slots.flash_tab);
+    if( app->slots.flash_tab >= 0 )
+        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_ANIMATION],
+            RS_UISlots_TabFlashHidden(&app->slots, app->slots.flash_tab, app->logic_cycle));
+
+    /* Same-frame world/plugin overlay arrays are refreshed by source-tagged
+     * standing records, including sources currently returning zero items.
+     * Chrome is retained data, so its exact build serials participate here. */
+    signature[UITREE_HOST_INPUT_OVERLAYS] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_OVERLAYS],
+        &app->dbg_ui.build_serial,
+        sizeof(app->dbg_ui.build_serial));
+    signature[UITREE_HOST_INPUT_OVERLAYS] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_OVERLAYS],
+        &app->plugin_ui.build_serial,
+        sizeof(app->plugin_ui.build_serial));
+    signature[UITREE_HOST_INPUT_OVERLAYS] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_OVERLAYS],
+        app->plugins ? PluginHost_WinRevision(app->plugins) : 0);
+
+    for( int domain = 0; domain < UITREE_HOST_INPUT_DOMAIN_COUNT; domain++ )
+        (void)UITree_HostPublishInputSignature(
+            &app->ui_host, (enum UITreeHostInputDomain)domain, signature[domain]);
+}
+
+static void
+app_inv_ui_host_change(
+    void* userdata,
+    int container_id)
+{
+    struct App* app = (struct App*)userdata;
+    (void)container_id;
+
+    UITree_HostInputsChanged(
+        &app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY));
+    app->need_redraw = 1;
+}
+
 /* ---- Inventory obj-icon reconcile ------------------------------------- *
  *
  * Server UPDATE_INV_FULL/PARTIAL (rs_gameproto_exec.c) write item ids into the
@@ -5663,6 +5932,7 @@ struct Task_InvIconReconcile
     int obj_ids[APP_INV_ICON_BATCH_MAX];
     int counts[APP_INV_ICON_BATCH_MAX];
     int n;
+    int published_change;
 };
 
 static int
@@ -5676,6 +5946,7 @@ Task_InvIconReconcile_Run(
 
     PT_BEGIN(&self->pt);
 
+    self->published_change = 0;
     /* Collect the batch that still needs a model load (bounded; leftovers are
      * caught by the next tick's scan once this pass stamps its slots). */
     self->n = 0;
@@ -5740,6 +6011,7 @@ Task_InvIconReconcile_Run(
             {
                 slot->scene_id = scene_id;
                 slot->atlas_index = 0;
+                self->published_change = 1;
                 continue;
             }
             /* Could not build it *yet*: leave the slot pending so the next
@@ -5749,9 +6021,15 @@ Task_InvIconReconcile_Run(
                 continue;
             slot->scene_id = APP_INV_ICON_SCENE_FAILED;
             slot->atlas_index = 0;
+            self->published_change = 1;
         }
     }
 
+    if( self->published_change )
+        UITree_HostInputsChanged(
+            &app->ui_host,
+            UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY) |
+                UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_ASSETS));
     app->inv_icon_reconcile_inflight = 0;
     app->need_redraw = 1;
     PT_END(&self->pt);
@@ -6482,6 +6760,9 @@ app_varp_change(
 {
     struct App* app = (struct App*)userdata;
 
+    UITree_HostInputsChanged(
+        &app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE));
+    app->need_redraw = 1;
     app_varp_refresh_loc_transforms(app, varp_id);
     app_varp_refresh_npc_transforms(app, varp_id);
     /* Modern audio slider clicks call GAMEOPTION/DEVICEOPTION directly, while
@@ -8420,6 +8701,7 @@ App_Init(
     UITree_HostInit(&app->ui_host);
     app->ui_host.user = app;
     app->ui_host.request = app_host_request;
+    InvManager_SetChangeCallback(&app->invs, app_inv_ui_host_change, app);
     UIInteraction_Init(&app->interact);
     UIHoverText_Reset(&app->hover_text);
     app_debug_overlay_init(app);
@@ -19975,17 +20257,24 @@ app_player_model_poll(struct App* app)
             continue;
         if( node->behavior.client_code != UITREE_CLIENT_CODE_LOCAL_PLAYER_MODEL )
             continue;
+        int const anim_changed =
+            node->u.rs_model.anim_frame != seq_frame || node->u.rs_model.anim_seq_id != seq_id;
         if( node->u.rs_model.gamecache_model_id != scene_id || node->u.rs_model.xan != 150 ||
             node->u.rs_model.yan != yan || node->u.rs_model.zan != 0 ||
-            node->u.rs_model.anim_frame != seq_frame || node->u.rs_model.anim_seq_id != seq_id )
-        {
-            UITree_MarkNodeDirty(app->tree, i);
+            anim_changed )
             app->need_redraw = 1;
-        }
-        node->u.rs_model.gamecache_model_id = scene_id;
-        node->u.rs_model.xan = 150;
-        node->u.rs_model.yan = yan;
-        node->u.rs_model.zan = 0;
+        (void)UITree_SetModelAt(app->tree, i, scene_id);
+        (void)UITree_SetModelPoseAt(
+            app->tree,
+            i,
+            node->u.rs_model.x_offset,
+            node->u.rs_model.y_offset,
+            150,
+            yan,
+            0,
+            0);
+        if( anim_changed )
+            UITree_MarkNodeDirty(app->tree, i);
         node->u.rs_model.anim_seq_id = seq_id;
         /* Frame comes from the entity, so anim_hold is what keeps
          * UITreeAnim_Advance from running a second, independent clock on it. */
@@ -21825,8 +22114,8 @@ app_world_camera_cinema(struct App* app)
  *
  * The follow camera's `pitch * 3 + 600` is a FIXED-VIEWPORT distance: the
  * reference then scales it by an endpoint pair interpolated over the world
- * viewport HEIGHT, exactly the way the projection scale is (app_world_proj_scale
- * / class159.method5357), and over the same `height - 334` in [0,100] band:
+ * viewport HEIGHT, exactly the way the projection scale is
+ * (class159.method5357), and over the same `height - 334` in [0,100] band:
  *
  *     zoom = (far - near) * clamp(vpH - 334, 0, 100) / 100 + near
  *     distance = (pitch * 3 + 600) * zoom / 256
@@ -21873,8 +22162,6 @@ app_world_camera_follow(struct App* app)
     struct WorldEntity_Player* player;
     int target_x, target_y, target_z;
     int pitch, yaw, distance;
-    int inv_pitch, inv_yaw;
-    int off_x, off_y, off_z;
 
     /* U unlocked the camera: the follow update stands down and the W/A/S/D +
      * R/F debug keys own world_camera_pos until U relocks. Without this gate
@@ -22056,10 +22343,6 @@ app_world_camera_follow(struct App* app)
     distance = pitch * 3 + app->world_cam_height;
     if( app->revconfig_profile.camera.zoom_mode != REVCONFIG_CAMERA_ZOOM_FIXED )
         distance = distance * app_world_cam_dist_zoom(app) / 256;
-    off_x = 0;
-    off_y = 0;
-    off_z = distance;
-
     /* Look-at height: the reference samples the ground under the ACTOR (not
      * under the eased anchor), takes the minimum over its footprint, then
      * drops 8, then the camera's own 50 — client.method1605:
@@ -22071,28 +22354,14 @@ app_world_camera_follow(struct App* app)
     target_x = (int)app->orbit_x;
     target_z = (int)app->orbit_z;
 
-    inv_pitch = (2048 - pitch) & 0x7ff;
-    inv_yaw = (2048 - yaw) & 0x7ff;
-    if( inv_pitch != 0 )
-    {
-        int sin = ToriDraw_Sin(inv_pitch);
-        int cos = ToriDraw_Cos(inv_pitch);
-        int tmp = (off_y * cos - distance * sin) >> 16;
-        off_z = (off_y * sin + distance * cos) >> 16;
-        off_y = tmp;
-    }
-    if( inv_yaw != 0 )
-    {
-        int sin = ToriDraw_Sin(inv_yaw);
-        int cos = ToriDraw_Cos(inv_yaw);
-        int tmp = (off_z * sin + off_x * cos) >> 16;
-        off_z = (off_z * cos - off_x * sin) >> 16;
-        off_x = tmp;
-    }
-
-    app->world_camera_pos.x = target_x - off_x;
-    app->world_camera_pos.y = target_y - off_y;
-    app->world_camera_pos.z = target_z - off_z;
+    ToriRS_OrbitCameraEye(
+        target_x,
+        target_y,
+        target_z,
+        pitch,
+        yaw,
+        distance,
+        &app->world_camera_pos);
     app->world_camera.pitch = pitch;
     app->world_camera.yaw = yaw;
 
@@ -22973,7 +23242,7 @@ app_minimenu_open(
                     if( !app->tree->components[i].freed &&
                         app->tree->components[i].type == UIELEM_BUILTIN_MINIMENU )
                     {
-                        app->tree->components[i].u.minimenu.font_id = resolved;
+                        (void)UITree_SetMinimenuFontAt(app->tree, (int32_t)i, resolved);
                         break;
                     }
                 font = ToriDraw_SceneFontGet(app->scene, resolved);
@@ -27156,7 +27425,7 @@ App_RunOnce(
                 int want = (int)strtol(force_show, NULL, 0);
                 int32_t idx = UITree_FindByComponentId(app->tree, want);
                 if( idx >= 0 )
-                    app->tree->components[idx].behavior.hide = 0;
+                    (void)UITree_SetHideAt(app->tree, idx, 0);
             }
         }
         /* Interaction hooks and the persistent-state rebinds above can run a
@@ -27177,6 +27446,7 @@ App_RunOnce(
         {
             UITree_EnsureLayout(app->tree);
         }
+        app_ui_host_publish_inputs(app);
         /* Opt 11 retention, SHADOW MODE: work out whether this walk could have
          * been skipped, but always run it anyway, and check the verdict against
          * the byte compare below. `emit_gen_unsound` counts frames the gate
@@ -27184,49 +27454,43 @@ App_RunOnce(
          * have served a stale list. It is the safety proof for turning the skip
          * on, and it must be 0 over a full replay.
          *
-         * The tree half is `dirty_gen`; the host half is not covered yet, so a
-         * nonzero unsound count here names the host inputs still unaccounted
-         * for rather than condemning the approach. */
+         * The tree half is `dirty_gen`; the host half is the dependency stamp
+         * captured by the previous full walk and published immediately above. */
         int gate_quiet = 0;
         {
-            static uint32_t prev_dirty_gen = 0;
-            static uint32_t prev_layout_seq = 0;
-            static uint32_t prev_tree_generation = 0;
-            static int prev_hover = -2;
-            static int primed = 0;
-
-            /* Topology, resolved layout, visible writes, and hover all belong
-             * to the retained list's identity. `dirty_gen` covers writes that
-             * claim to
+            /* Three terms, not two. `dirty_gen` covers writes that claim to
              * change what a node draws; it does NOT cover layout re-resolving,
              * which moves resolved boxes (and therefore emitted clips) off
              * `layout_stale` / `layout_force_full` / a changed root box without
              * raising anyone's `is_dirty`. That is the one hole the unsound
              * counter found: emit #5 of a 2,000-frame run, clip.w 765 -> 807 on
              * the group-548 root, gate quiet, list changed. */
-            gate_quiet = primed && !app->tree->layout_stale &&
-                         app->tree->generation == prev_tree_generation &&
-                         app->tree->dirty_gen == prev_dirty_gen &&
-                         app->tree->layout_resolve_seq == prev_layout_seq &&
-                         app->hover_com_id == prev_hover;
+            /* A pending invalidation precedes the resolver sequence bump.  It
+             * is therefore part of the identity itself: comparing only the
+             * last completed sequence can otherwise retain stale geometry in
+             * the frame between UITree_LayoutInvalidate and EmitWalk's
+             * UITree_EnsureLayout. */
+            gate_quiet = UITree_EmitRetainGateQuiet(
+                app->tree,
+                &app->ui_host,
+                &app->emit,
+                app->hover_com_id,
+                &app->emit_gate);
             /* Every dirty_gen source was measured bursty (creates, hide flips,
              * child link/unlink — all interface-open work), so on a steady-state
              * frame the tree term should hold and the gate should fire. It fires
              * twice in 2,000 frames. These two counters say which term is
              * actually failing instead of assuming it is the tree one. */
-            if( primed && app->tree->dirty_gen == prev_dirty_gen )
+            if( app->emit_gate.primed &&
+                app->tree->dirty_gen == app->emit_gate.dirty_gen )
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GATE_TREE_QUIET, 1);
-            if( primed && app->hover_com_id == prev_hover )
+            if( app->emit_gate.primed &&
+                app->hover_com_id == app->emit_gate.hovered_component_id )
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GATE_HOVER_QUIET, 1);
-            if( primed )
+            if( app->emit_gate.primed )
                 TORIRS_PERF_COUNT(
                     TORIRS_PERF_CTR_EMIT_DIRTY_BUMPS,
-                    (int)(app->tree->dirty_gen - prev_dirty_gen));
-            prev_dirty_gen = app->tree->dirty_gen;
-            prev_layout_seq = app->tree->layout_resolve_seq;
-            prev_tree_generation = app->tree->generation;
-            prev_hover = app->hover_com_id;
-            primed = 1;
+                    (int)(app->tree->dirty_gen - app->emit_gate.dirty_gen));
         }
         /* Opt 11/12/14, emit half: nothing the walk reads has moved, so the list
          * it would produce is the one already in the buffer. Reuse it in place —
@@ -27265,10 +27529,12 @@ App_RunOnce(
 
             if( retain )
             {
-                int reusable = 1;
-                if( app->emit.volatile_refs )
-                    reusable = UITree_EmitRefreshVolatile(
-                        app->tree, &app->ui_host, &app->emit);
+                int reusable = UITree_EmitRetainGateRefreshVolatile(
+                    app->tree,
+                    &app->ui_host,
+                    &app->emit,
+                    &app->hover_com_id,
+                    &app->emit_gate);
                 if( reusable )
                     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAINED, 1);
                 else
@@ -27295,6 +27561,12 @@ App_RunOnce(
                 }
             }
         }
+        /* Publish the identity after either the retained volatile refresh or
+         * the full walk. A host callback or EnsureLayout inside those paths may
+         * advance an input/tree epoch; capturing before publication would make
+         * the next frame conservatively rebuild despite a settled result. */
+        UITree_EmitRetainGateCapture(
+            app->tree, &app->emit, app->hover_com_id, &app->emit_gate);
         /* DIAGNOSTIC (Opt 11 scoping, temporary): retaining the emit list only
          * pays if the list repeats, so measure the repeat rate before building
          * anything that could retain it. Every desc is memset before fill, so

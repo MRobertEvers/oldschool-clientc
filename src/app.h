@@ -1423,6 +1423,10 @@ struct App
     /* Phase 5: frame state. */
     struct UITreeHost ui_host;
     struct UITreeEmitBuffer emit;
+    /** Previous publication identity for the retained-emit gate. Per-App (not
+     * function statics) so a second client or a reinitialized App cannot inherit
+     * another tree's quiet verdict. */
+    struct UITreeEmitRetainGate emit_gate;
     struct UIInteraction interact;
     struct SeqLoadTracker seq_loads;
     struct InterfaceOpenStats open_stats;

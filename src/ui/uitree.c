@@ -1588,6 +1588,67 @@ UITree_MarkNodeDirty(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_DIRTY_UNREACHED, 1);
 }
 
+/*
+ * Runtime component writes have more than one cache consequence.  Keeping the
+ * mapping here means a typed setter cannot remember the repaint bit while
+ * forgetting the layout cache (or vice versa), which is exactly the class of
+ * bug the scripted entity-overlay position update exposed.
+ *
+ * These are effects, not events: callers describe the field they are setting
+ * through UITree_Set*At, and those setters choose the effects.  External
+ * dependencies such as camera or inventory epochs belong one level above this
+ * API; after recomputing a value they finish by calling a typed setter.
+ */
+enum UITreeMutationImpact
+{
+    UITREE_IMPACT_EMIT_SELF = 1u << 0,
+    /** This node's own layout inputs changed.  A changed resolved box is
+     * propagated to descendants by UITree_LayoutResolve. */
+    UITREE_IMPACT_LAYOUT_SELF = 1u << 1,
+    /** A child coordinate-space input changed without changing the parent's
+     * resolved box (currently a layer's scroll extent), so every cached box
+     * must be made unresolved. */
+    UITREE_IMPACT_LAYOUT_TREE = 1u << 2,
+    /** Traversal reachability changed.  This bump cannot use the previous
+     * emit-visited bitmap, because an unhide invalidates that very answer. */
+    UITREE_IMPACT_REACHABILITY = 1u << 3,
+};
+
+static void
+uitree_note_mutation(
+    struct UITree* tree,
+    int32_t idx,
+    uint32_t impacts)
+{
+    assert(tree);
+    assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+    assert(!tree->components[idx].freed);
+
+    if( impacts & UITREE_IMPACT_LAYOUT_TREE )
+        UITree_LayoutInvalidate(tree);
+    else if( impacts & UITREE_IMPACT_LAYOUT_SELF )
+    {
+        tree->components[idx].position.layout_resolved = 0;
+        UITree_LayoutInvalidateBoxes(tree);
+    }
+
+    if( impacts & UITREE_IMPACT_EMIT_SELF )
+        UITree_MarkNodeDirty(tree, idx);
+    if( impacts & UITREE_IMPACT_REACHABILITY )
+        uitree_topo_bump(tree, __LINE__);
+}
+
+static struct UITreeComponent*
+uitree_component_at_mutable(
+    struct UITree* tree,
+    int32_t idx)
+{
+    assert(tree);
+    if( idx < 0 || (uint32_t)idx >= tree->component_count || tree->components[idx].freed )
+        return NULL;
+    return &tree->components[idx];
+}
+
 void
 UITree_MarkNodeVisibilityDirty(
     struct UITree* tree,
@@ -2022,8 +2083,11 @@ UITree_SetBehavior(
         return;
 
     struct UITreeComponent* c = &tree->components[idx];
+    if( c->freed )
+        return;
     struct UITreeBehavior* dst = &c->behavior;
     int old_client_code = dst->client_code;
+    uint8_t const old_hide = dst->hide;
 
     if( dst->scripts )
     {
@@ -2062,7 +2126,14 @@ UITree_SetBehavior(
     }
 
     if( src->scripts_count <= 0 || !src->scripts )
+    {
+        uitree_note_mutation(
+            tree,
+            idx,
+            UITREE_IMPACT_EMIT_SELF |
+                (old_hide != dst->hide ? UITREE_IMPACT_REACHABILITY : 0));
         return;
+    }
 
     dst->scripts = calloc((size_t)src->scripts_count, sizeof(int*));
     dst->scripts_lengths = calloc((size_t)src->scripts_count, sizeof(int));
@@ -2101,6 +2172,16 @@ UITree_SetBehavior(
         memcpy(
             dst->script_operand, src->script_operand, (size_t)src->comparator_count * sizeof(int));
     }
+
+    /* SetBehavior is mostly a construction API today, but it is public and can
+     * replace fields consumed by emit (active/hover colours and CS1 scripts) or
+     * traversal (`hide`). Keep it on the same mutation seam as the typed runtime
+     * setters so a post-publication call cannot leave a retained list stale. */
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_EMIT_SELF |
+            (old_hide != dst->hide ? UITREE_IMPACT_REACHABILITY : 0));
 }
 
 int32_t
@@ -2725,15 +2806,7 @@ UITree_EntityOverlaySetLayerPosition(
     c = &tree->components[idx];
     if( c->freed || c->type != UIELEM_RS_LAYER || c->parent != tree->entity_overlay_index )
         return false;
-    if( c->position.x == x && c->position.y == y && c->position.layout_resolved )
-        return true;
-
-    c->position.x = x;
-    c->position.y = y;
-    c->position.layout_resolved = 0;
-    UITree_LayoutInvalidateBoxes(tree);
-    UITree_MarkNodeDirty(tree, idx);
-    return true;
+    return UITree_SetPositionAt(tree, idx, x, y);
 }
 
 int32_t
@@ -3028,14 +3101,13 @@ UITree_CollectDynamicChildIndices(
 }
 
 bool
-UITree_ApplyHide(
+UITree_SetHideAt(
     struct UITree* tree,
-    int component_id,
+    int32_t idx,
     int hide)
 {
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 )
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c )
         return false;
     hide = hide ? 1 : 0;
     /*
@@ -3047,21 +3119,102 @@ UITree_ApplyHide(
      * Every applier below therefore compares first and leaves the node clean
      * when nothing changed; the position/size ones already did.
      */
-    if( tree->components[idx].behavior.hide == (uint8_t)hide )
+    if( c->behavior.hide == (uint8_t)hide )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
     }
-    tree->components[idx].behavior.hide = (uint8_t)hide;
-    UITree_MarkNodeDirty(tree, idx);
-    /* MarkNodeDirty alone is not enough here, and this is the general rule for
-     * every `hide` write: its dirty_gen bump is filtered by whether the last
-     * walk reached this node, which is precisely what this line just changed.
-     * An unhide would be dropped as "unreachable" using the reachability it is
-     * abolishing, and the gate would call the frame quiet while a panel opened.
-     * Bump unconditionally instead. */
-    uitree_topo_bump(tree, __LINE__);
+    c->behavior.hide = (uint8_t)hide;
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
     return true;
+}
+
+bool
+UITree_SetCS1ActiveAt(
+    struct UITree* tree,
+    int32_t idx,
+    int active)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c )
+        return false;
+    active = active ? 1 : 0;
+    if( c->cs1_active == (uint8_t)active )
+        return true;
+    c->cs1_active = (uint8_t)active;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
+bool
+UITree_SetCS1ValueAt(
+    struct UITree* tree,
+    int32_t idx,
+    int value_index,
+    int value)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c || value_index < 0 || value_index >= UITREE_CS1_VALUE_MAX )
+        return false;
+    if( c->cs1_values[value_index] == value )
+        return true;
+    c->cs1_values[value_index] = value;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
+bool
+UITree_SetFrameHiddenAt(
+    struct UITree* tree,
+    int32_t idx,
+    int hidden)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c )
+        return false;
+    hidden = hidden ? 1 : 0;
+    if( c->frame_hidden == (uint8_t)hidden )
+        return true;
+    c->frame_hidden = (uint8_t)hidden;
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
+    return true;
+}
+
+bool
+UITree_SetProjectionHiddenAt(
+    struct UITree* tree,
+    int32_t idx,
+    int hidden)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c || c->type != UIELEM_RS_LAYER || c->parent != tree->entity_overlay_index )
+        return false;
+    hidden = hidden ? 1 : 0;
+    if( c->projection_hidden == (uint8_t)hidden )
+        return true;
+    c->projection_hidden = (uint8_t)hidden;
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
+    return true;
+}
+
+bool
+UITree_ApplyHide(
+    struct UITree* tree,
+    int component_id,
+    int hide)
+{
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
+    int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    return UITree_SetHideAt(tree, idx, hide);
 }
 
 bool
@@ -3204,16 +3357,14 @@ UITree_ApplyClickMask(
 }
 
 bool
-UITree_ApplyText(
+UITree_SetTextAt(
     struct UITree* tree,
-    int component_id,
+    int32_t idx,
     char const* text)
 {
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 )
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c )
         return false;
-    struct UITreeComponent* c = &tree->components[idx];
     char const* text_now = c->type == UIELEM_RS_TEXT ? c->u.rs_text.text : c->data_text;
     char* copy;
 
@@ -3243,7 +3394,42 @@ UITree_ApplyText(
         free(c->data_text);
         c->data_text = copy;
     }
-    UITree_MarkNodeDirty(tree, idx);
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
+bool
+UITree_ApplyText(
+    struct UITree* tree,
+    int component_id,
+    char const* text)
+{
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
+    int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    return UITree_SetTextAt(tree, idx, text);
+}
+
+bool
+UITree_SetGraphicAt(
+    struct UITree* tree,
+    int32_t idx,
+    int scene_id,
+    int atlas_index)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c || c->type != UIELEM_RS_GRAPHIC )
+        return false;
+    if( c->u.rs_graphic.scene_id == scene_id &&
+        c->u.rs_graphic.atlas_index == atlas_index &&
+        c->u.rs_graphic.graphic_hitbox_only == 0 )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
+    c->u.rs_graphic.scene_id = scene_id;
+    c->u.rs_graphic.atlas_index = atlas_index;
+    c->u.rs_graphic.graphic_hitbox_only = 0;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
     return true;
 }
 
@@ -3255,40 +3441,26 @@ UITree_ApplyGraphic(
     int atlas_index)
 {
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
-        return false;
-    if( tree->components[idx].u.rs_graphic.scene_id == scene_id &&
-        tree->components[idx].u.rs_graphic.atlas_index == atlas_index &&
-        tree->components[idx].u.rs_graphic.graphic_hitbox_only == 0 )
-    {
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
-        return true;
-    }
-    tree->components[idx].u.rs_graphic.scene_id = scene_id;
-    tree->components[idx].u.rs_graphic.atlas_index = atlas_index;
-    tree->components[idx].u.rs_graphic.graphic_hitbox_only = 0;
-    UITree_MarkNodeDirty(tree, idx);
-    return true;
+    int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    return UITree_SetGraphicAt(tree, idx, scene_id, atlas_index);
 }
 
 bool
-UITree_ApplyColour(
+UITree_SetColourAt(
     struct UITree* tree,
-    int component_id,
+    int32_t idx,
     int colour)
 {
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 )
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c )
         return false;
-    struct UITreeComponent* c = &tree->components[idx];
     /* Both the generic field and the type's own copy — they can be written from
      * different places, so "the generic one already matches" is not enough. */
     int const colour_now_matches =
         c->colour == colour &&
         (c->type != UIELEM_RS_TEXT || c->u.rs_text.color == colour) &&
-        (c->type != UIELEM_RS_RECT || c->u.rs_rect.color == colour);
+        (c->type != UIELEM_RS_RECT || c->u.rs_rect.color == colour) &&
+        (c->type != UIELEM_RS_ARC || c->u.rs_arc.color == colour);
     if( colour_now_matches )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
@@ -3301,7 +3473,37 @@ UITree_ApplyColour(
         c->u.rs_rect.color = colour;
     else if( c->type == UIELEM_RS_ARC )
         c->u.rs_arc.color = colour;
-    UITree_MarkNodeDirty(tree, idx);
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
+bool
+UITree_ApplyColour(
+    struct UITree* tree,
+    int component_id,
+    int colour)
+{
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
+    int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    return UITree_SetColourAt(tree, idx, colour);
+}
+
+bool
+UITree_SetFillColourAt(
+    struct UITree* tree,
+    int32_t idx,
+    int colour)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c )
+        return false;
+    if( c->fill_colour == colour )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
+    c->fill_colour = colour;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
     return true;
 }
 
@@ -3312,31 +3514,130 @@ UITree_ApplyFillColour(
     int colour)
 {
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 )
+    int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    return UITree_SetFillColourAt(tree, idx, colour);
+}
+
+bool
+UITree_SetTransparencyAt(
+    struct UITree* tree,
+    int32_t idx,
+    int transparency)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c )
         return false;
-    if( tree->components[idx].fill_colour == colour )
+    if( c->trans == transparency )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
     }
-    tree->components[idx].fill_colour = colour;
-    UITree_MarkNodeDirty(tree, idx);
+    c->trans = transparency;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
     return true;
 }
 
 bool
-UITree_ApplyPosition(
+UITree_SetMinimenuFontAt(
     struct UITree* tree,
-    int component_id,
+    int32_t idx,
+    int font_id)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c || c->type != UIELEM_BUILTIN_MINIMENU )
+        return false;
+    if( c->u.minimenu.font_id == font_id )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
+    c->u.minimenu.font_id = font_id;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
+bool
+UITree_SetArcAnglesAt(
+    struct UITree* tree,
+    int32_t idx,
+    int arc_start,
+    int arc_end)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c || c->type != UIELEM_RS_ARC )
+        return false;
+    if( c->u.rs_arc.arc_start == arc_start && c->u.rs_arc.arc_end == arc_end )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
+    c->u.rs_arc.arc_start = arc_start;
+    c->u.rs_arc.arc_end = arc_end;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
+bool
+UITree_SetModelAt(
+    struct UITree* tree,
+    int32_t idx,
+    int model_id)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c || c->type != UIELEM_RS_MODEL )
+        return false;
+    if( c->u.rs_model.gamecache_model_id == model_id )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
+    c->u.rs_model.gamecache_model_id = model_id;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
+bool
+UITree_SetModelPoseAt(
+    struct UITree* tree,
+    int32_t idx,
+    int x_offset,
+    int y_offset,
+    int x_angle,
+    int y_angle,
+    int z_angle,
+    int zoom)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c || c->type != UIELEM_RS_MODEL )
+        return false;
+    if( c->u.rs_model.x_offset == x_offset && c->u.rs_model.y_offset == y_offset &&
+        c->u.rs_model.xan == x_angle && c->u.rs_model.yan == y_angle &&
+        c->u.rs_model.zan == z_angle && (zoom <= 0 || c->u.rs_model.zoom == zoom) )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
+    c->u.rs_model.x_offset = x_offset;
+    c->u.rs_model.y_offset = y_offset;
+    c->u.rs_model.xan = x_angle;
+    c->u.rs_model.yan = y_angle;
+    c->u.rs_model.zan = z_angle;
+    if( zoom > 0 )
+        c->u.rs_model.zoom = zoom;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
+bool
+UITree_SetPositionAt(
+    struct UITree* tree,
+    int32_t idx,
     int x,
     int y)
 {
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 )
+    struct UITreeComponent* const com = uitree_component_at_mutable(tree, idx);
+    if( !com )
         return false;
-    struct UITreeComponent* const com = &tree->components[idx];
     int const frame_owned = UITree_FramePositionOwned(tree, idx);
     if( com->position.x == x && com->position.y == y &&
         (com->position.layout_resolved || frame_owned) )
@@ -3352,24 +3653,65 @@ UITree_ApplyPosition(
      * the node once at that transition. */
     if( frame_owned )
         return true;
-    com->position.layout_resolved = 0;
-    UITree_LayoutInvalidateBoxes(tree);
-    UITree_MarkNodeDirty(tree, idx);
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
     return true;
 }
 
 bool
-UITree_ApplySize(
+UITree_ApplyPosition(
     struct UITree* tree,
     int component_id,
+    int x,
+    int y)
+{
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
+    int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    return UITree_SetPositionAt(tree, idx, x, y);
+}
+
+bool
+UITree_SetXYBoxAt(
+    struct UITree* tree,
+    int32_t idx,
+    int x,
+    int y,
     int width,
     int height)
 {
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 )
+    struct UITreeComponent* const com = uitree_component_at_mutable(tree, idx);
+    if( !com )
         return false;
-    struct UITreeComponent* const com = &tree->components[idx];
+    if( com->position.kind == UIPOS_XY && com->position.x == x && com->position.y == y &&
+        com->position.width == width && com->position.height == height )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
+    com->position.kind = UIPOS_XY;
+    com->position.x = x;
+    com->position.y = y;
+    com->position.width = width;
+    com->position.height = height;
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
+bool
+UITree_SetSizeAt(
+    struct UITree* tree,
+    int32_t idx,
+    int width,
+    int height)
+{
+    struct UITreeComponent* const com = uitree_component_at_mutable(tree, idx);
+    if( !com )
+        return false;
     int const frame_owned = UITree_FramePositionOwned(tree, idx);
     if( com->position.width == width && com->position.height == height &&
         (com->position.layout_resolved || frame_owned) )
@@ -3381,26 +3723,37 @@ UITree_ApplySize(
     com->position.height = height;
     if( frame_owned )
         return true;
-    com->position.layout_resolved = 0;
-    UITree_LayoutInvalidateBoxes(tree);
-    UITree_MarkNodeDirty(tree, idx);
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
     return true;
 }
 
 bool
-UITree_ApplyPositionModes(
+UITree_ApplySize(
     struct UITree* tree,
     int component_id,
+    int width,
+    int height)
+{
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
+    int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    return UITree_SetSizeAt(tree, idx, width, height);
+}
+
+bool
+UITree_SetPositionModesAt(
+    struct UITree* tree,
+    int32_t idx,
     int x,
     int y,
     int x_mode,
     int y_mode)
 {
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 )
+    struct UITreeComponent* const com = uitree_component_at_mutable(tree, idx);
+    if( !com )
         return false;
-    struct UITreeComponent* const com = &tree->components[idx];
     int const frame_owned = UITree_FramePositionOwned(tree, idx);
     if( com->position.x == x && com->position.y == y && com->position.x_mode == (int8_t)x_mode &&
         com->position.y_mode == (int8_t)y_mode &&
@@ -3415,26 +3768,39 @@ UITree_ApplyPositionModes(
     com->position.y_mode = (int8_t)y_mode;
     if( frame_owned )
         return true;
-    com->position.layout_resolved = 0;
-    UITree_LayoutInvalidateBoxes(tree);
-    UITree_MarkNodeDirty(tree, idx);
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
     return true;
 }
 
 bool
-UITree_ApplySizeModes(
+UITree_ApplyPositionModes(
     struct UITree* tree,
     int component_id,
+    int x,
+    int y,
+    int x_mode,
+    int y_mode)
+{
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
+    int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    return UITree_SetPositionModesAt(tree, idx, x, y, x_mode, y_mode);
+}
+
+bool
+UITree_SetSizeModesAt(
+    struct UITree* tree,
+    int32_t idx,
     int width,
     int height,
     int width_mode,
     int height_mode)
 {
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 )
+    struct UITreeComponent* const com = uitree_component_at_mutable(tree, idx);
+    if( !com )
         return false;
-    struct UITreeComponent* const com = &tree->components[idx];
     int const frame_owned = UITree_FramePositionOwned(tree, idx);
     if( com->position.width == width && com->position.height == height &&
         com->position.width_mode == (int8_t)width_mode &&
@@ -3450,10 +3816,25 @@ UITree_ApplySizeModes(
     com->position.height_mode = (int8_t)height_mode;
     if( frame_owned )
         return true;
-    com->position.layout_resolved = 0;
-    UITree_LayoutInvalidateBoxes(tree);
-    UITree_MarkNodeDirty(tree, idx);
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
     return true;
+}
+
+bool
+UITree_ApplySizeModes(
+    struct UITree* tree,
+    int component_id,
+    int width,
+    int height,
+    int width_mode,
+    int height_mode)
+{
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
+    int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    return UITree_SetSizeModesAt(tree, idx, width, height, width_mode, height_mode);
 }
 
 bool
@@ -3552,6 +3933,72 @@ UITree_ApplyGraphic2DAngle(
 }
 
 bool
+UITree_SetScrollSizeAt(
+    struct UITree* tree,
+    int32_t idx,
+    int scroll_width,
+    int scroll_height)
+{
+    struct UITreeComponent* const com = uitree_component_at_mutable(tree, idx);
+    int changed;
+    int box_width;
+    int box_height;
+    int max_x;
+    int max_y;
+    int clamped_x;
+    int clamped_y;
+    int position_changed;
+
+    if( !com || com->type != UIELEM_RS_LAYER )
+        return false;
+    UITree_EnsureLayoutFor(tree, idx);
+    UITree_LayoutGetBounds(&com->position, NULL, NULL, &box_width, &box_height);
+    changed = com->u.rs_layer.scroll_width != scroll_width ||
+              com->u.rs_layer.scroll_height != scroll_height;
+    if( changed )
+    {
+        com->u.rs_layer.scroll_width = scroll_width;
+        com->u.rs_layer.scroll_height = scroll_height;
+        /* The scroll extent is what this layer's children lay out against
+         * (layout_parent_box), so it is a layout input like a position field. */
+        uitree_note_mutation(
+            tree,
+            idx,
+            UITREE_IMPACT_LAYOUT_TREE | UITREE_IMPACT_EMIT_SELF);
+    }
+
+    /* Extent changes can make the old canonical offset invalid. The layer box
+     * was resolved before invalidation, so canonicalize without resolving the
+     * whole tree or turning this lazy layout mutation into an eager one. */
+    max_x = scroll_width - box_width;
+    max_y = scroll_height - box_height;
+    if( max_x < 0 )
+        max_x = 0;
+    if( max_y < 0 )
+        max_y = 0;
+    clamped_x = com->scroll_x;
+    clamped_y = com->scroll_y;
+    if( clamped_x < 0 )
+        clamped_x = 0;
+    if( clamped_x > max_x )
+        clamped_x = max_x;
+    if( clamped_y < 0 )
+        clamped_y = 0;
+    if( clamped_y > max_y )
+        clamped_y = max_y;
+    position_changed = com->scroll_x != clamped_x || com->scroll_y != clamped_y;
+    if( position_changed )
+    {
+        com->scroll_x = clamped_x;
+        com->scroll_y = clamped_y;
+        uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
+    }
+    if( !changed && !position_changed )
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+    return true;
+}
+
+bool
 UITree_ApplyScrollSize(
     struct UITree* tree,
     int component_id,
@@ -3559,22 +4006,45 @@ UITree_ApplyScrollSize(
     int scroll_height)
 {
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 || tree->components[idx].type != UIELEM_RS_LAYER )
+    int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    return UITree_SetScrollSizeAt(tree, idx, scroll_width, scroll_height);
+}
+
+bool
+UITree_SetScrollPosAt(
+    struct UITree* tree,
+    int32_t idx,
+    int scroll_x,
+    int scroll_y)
+{
+    struct UITreeComponent* const com = uitree_component_at_mutable(tree, idx);
+    if( !com )
         return false;
-    struct UITreeComponent* const com = &tree->components[idx];
-    if( com->u.rs_layer.scroll_width == scroll_width &&
-        com->u.rs_layer.scroll_height == scroll_height )
+    if( com->type == UIELEM_RS_LAYER )
+    {
+        int max_x;
+        int max_y;
+
+        UITree_EnsureLayoutFor(tree, idx);
+        max_x = UITree_ScrollMaxX(com);
+        max_y = UITree_ScrollMaxY(com);
+        if( scroll_x < 0 )
+            scroll_x = 0;
+        if( scroll_x > max_x )
+            scroll_x = max_x;
+        if( scroll_y < 0 )
+            scroll_y = 0;
+        if( scroll_y > max_y )
+            scroll_y = max_y;
+    }
+    if( com->scroll_x == scroll_x && com->scroll_y == scroll_y )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
     }
-    com->u.rs_layer.scroll_width = scroll_width;
-    com->u.rs_layer.scroll_height = scroll_height;
-    /* The scroll extent is what this layer's children lay out against
-     * (layout_parent_box), so it is a layout input like a position field. */
-    UITree_LayoutInvalidate(tree);
-    UITree_MarkNodeDirty(tree, idx);
+    com->scroll_x = scroll_x;
+    com->scroll_y = scroll_y;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
     return true;
 }
 
@@ -3586,18 +4056,8 @@ UITree_ApplyScrollPos(
     int scroll_y)
 {
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 )
-        return false;
-    if( tree->components[idx].scroll_x == scroll_x && tree->components[idx].scroll_y == scroll_y )
-    {
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
-        return true;
-    }
-    tree->components[idx].scroll_x = scroll_x;
-    tree->components[idx].scroll_y = scroll_y;
-    UITree_MarkNodeDirty(tree, idx);
-    return true;
+    int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    return UITree_SetScrollPosAt(tree, idx, scroll_x, scroll_y);
 }
 
 /* Does `child` sit in an equipment slot — a container the script builds three
@@ -3743,12 +4203,7 @@ UITree_ApplyObject(
      * rs_graphic.scene_id (SETGRAPHIC chrome). Emit prefers item when set. */
 
     if( c->behavior.hide )
-    {
-        c->behavior.hide = 0;
-        /* Unhide = reachability change; MarkNodeDirty would filter it out
-         * because the walk could not have reached this node last frame. */
-        uitree_topo_bump(tree, __LINE__);
-    }
+        (void)UITree_SetHideAt(tree, idx, 0);
     /* Hide silhouette sibling while an item occupies the equipment slot. */
     if( is_equipment_overlay && c->parent >= 0 )
     {
@@ -3774,17 +4229,8 @@ UITree_ApplyModel(
     int model_id)
 {
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
-        return false;
-    if( tree->components[idx].u.rs_model.gamecache_model_id == model_id )
-    {
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
-        return true;
-    }
-    tree->components[idx].u.rs_model.gamecache_model_id = model_id;
-    UITree_MarkNodeDirty(tree, idx);
-    return true;
+    int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    return UITree_SetModelAt(tree, idx, model_id);
 }
 
 bool
@@ -3816,19 +4262,19 @@ UITree_ApplyModelOffset(
     int y_offset)
 {
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
+    int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    struct UITreeComponent* const c = uitree_component_at_mutable(tree, idx);
+    if( !c || c->type != UIELEM_RS_MODEL )
         return false;
-    if( tree->components[idx].u.rs_model.x_offset == x_offset &&
-        tree->components[idx].u.rs_model.y_offset == y_offset )
-    {
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
-        return true;
-    }
-    tree->components[idx].u.rs_model.x_offset = x_offset;
-    tree->components[idx].u.rs_model.y_offset = y_offset;
-    UITree_MarkNodeDirty(tree, idx);
-    return true;
+    return UITree_SetModelPoseAt(
+        tree,
+        idx,
+        x_offset,
+        y_offset,
+        c->u.rs_model.xan,
+        c->u.rs_model.yan,
+        c->u.rs_model.zan,
+        0);
 }
 
 bool
@@ -3840,23 +4286,19 @@ UITree_ApplyModelAngle(
     int zoom)
 {
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
-    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
+    int32_t const idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    struct UITreeComponent* const c = uitree_component_at_mutable(tree, idx);
+    if( !c || c->type != UIELEM_RS_MODEL )
         return false;
-    /* zoom <= 0 means "leave the zoom alone", so it is not part of the test. */
-    if( tree->components[idx].u.rs_model.xan == xan &&
-        tree->components[idx].u.rs_model.yan == yan &&
-        (zoom <= 0 || tree->components[idx].u.rs_model.zoom == zoom) )
-    {
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
-        return true;
-    }
-    tree->components[idx].u.rs_model.xan = xan;
-    tree->components[idx].u.rs_model.yan = yan;
-    if( zoom > 0 )
-        tree->components[idx].u.rs_model.zoom = zoom;
-    UITree_MarkNodeDirty(tree, idx);
-    return true;
+    return UITree_SetModelPoseAt(
+        tree,
+        idx,
+        c->u.rs_model.x_offset,
+        c->u.rs_model.y_offset,
+        xan,
+        yan,
+        c->u.rs_model.zan,
+        zoom);
 }
 
 bool
@@ -4558,12 +5000,19 @@ UITree_SetComponentDragActive(
         return;
     com->drag_active = want;
     if( want )
-    {
         tree->drag_active_nodes++;
-        return;
+    else
+    {
+        assert(tree->drag_active_nodes > 0);
+        tree->drag_active_nodes--;
     }
-    assert(tree->drag_active_nodes > 0);
-    tree->drag_active_nodes--;
+
+    /* Starting or ending a drag changes both the source subtree's position in
+     * the command list and, for deferred drags, its z-order/pass membership.
+     * Active frames are deliberately non-retainable because drag_visual_x/y
+     * move independently below; this mark is still required for the release
+     * frame, after drag_active_nodes has returned to zero. */
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
 }
 
 int
@@ -4727,6 +5176,7 @@ uitree_node_or_ancestor_hidden(
             if( tree->components[idx].behavior.hide ||
                 (include_plugin_hidden &&
                  (tree->components[idx].frame_hidden ||
+                  tree->components[idx].projection_hidden ||
                   (tree->components[idx].replacement_hidden &&
                    idx != ignore_own_replacement))) )
                 return 1;
@@ -4826,7 +5276,8 @@ drop_target_pick_in_subtree(
         return 0;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_DROP, 1);
     c = &tree->components[idx];
-    if( c->behavior.hide || c->frame_hidden || c->replacement_hidden )
+    if( c->behavior.hide || c->frame_hidden || c->replacement_hidden ||
+        c->projection_hidden )
         return 0;
     if( c->component_id == exclude_component_id )
         return 0;
@@ -4835,8 +5286,8 @@ drop_target_pick_in_subtree(
         return 0;
 
     UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
-    /* Drop targets are picked at DRAWN positions: offset by ancestor scroll
-     * (canonical component->scroll_x/y, same as emit and hit-testing). */
+    /* Drop targets are picked at DRAWN positions using the same effective,
+     * clamped ancestor scroll as emit and hit-testing. */
     hit = UITree_PointInScrolledBounds(px, py, x, y, w, h, scroll_off_x, scroll_off_y);
 
     child_scroll_x = scroll_off_x;
@@ -4861,10 +5312,13 @@ drop_target_pick_in_subtree(
     }
     if( c->type == UIELEM_RS_LAYER )
     {
+        int effective_scroll_x;
+        int effective_scroll_y;
+        UITree_ScrollGetClamped(c, &effective_scroll_x, &effective_scroll_y);
         if( UITree_ScrollLayerNeedsHorizontal(c) )
-            child_scroll_x += c->scroll_x;
+            child_scroll_x += effective_scroll_x;
         if( UITree_ScrollLayerNeedsVertical(c) )
-            child_scroll_y += c->scroll_y;
+            child_scroll_y += effective_scroll_y;
     }
 
     /* Mounted roots are physical children in UITree, but reference input walks
@@ -4925,7 +5379,8 @@ UITree_FindDropTargetNode(
     for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
         if( tree->components[root].behavior.hide || tree->components[root].frame_hidden ||
-            tree->components[root].replacement_hidden )
+            tree->components[root].replacement_hidden ||
+            tree->components[root].projection_hidden )
             continue;
         drop_target_pick_in_subtree(
             tree,

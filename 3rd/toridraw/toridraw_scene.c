@@ -49,6 +49,22 @@ struct MapEntry_Font
     struct ToriDraw_Font* font;
 };
 
+static void
+td_scene_ui_assets_changed(struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    scene->ui_asset_revision++;
+    if( scene->ui_asset_revision == 0 )
+        scene->ui_asset_revision++;
+}
+
+uint64_t
+ToriDraw_SceneUIAssetRevision(struct ToriDraw_Scene const* scene)
+{
+    assert(scene);
+    return scene->ui_asset_revision;
+}
+
 struct MapEntry_Sound
 {
     int id;
@@ -518,6 +534,8 @@ ToriDraw_SceneGraphInit(struct ToriDraw_Scene* scene)
 {
     assert(scene);
 
+    scene->ui_asset_revision = 0;
+
     scene->models_hmap = td_scene_map_new(sizeof(struct MapEntry_ToriModel), 1024);
     scene->animation_hmap = td_scene_map_new(sizeof(struct MapEntry_Animation), 512);
     scene->sprites_hmap = td_scene_map_new(sizeof(struct MapEntry_Sprite), 1024);
@@ -645,6 +663,7 @@ ToriDraw_SceneSpriteAdd(
     entry->sprites = sprites;
     entry->count = count;
     td_scene_emit_sprite(scene, TORIDRAW_EVENT_SPRITE_LOAD, element_id, sprites, count);
+    td_scene_ui_assets_changed(scene);
 }
 
 void
@@ -674,6 +693,7 @@ ToriDraw_SceneSpriteRemove(
     entry->sprites = NULL;
     entry->count = 0;
     ToriDraw_MapSearch(scene->sprites_hmap, &element_id, TORIDRAW_MAP_REMOVE);
+    td_scene_ui_assets_changed(scene);
 }
 
 struct ToriDraw_Sprite**
@@ -733,6 +753,7 @@ ToriDraw_SceneFontAdd(
     entry->id = font_id;
     entry->font = font;
     td_scene_emit_font(scene, TORIDRAW_EVENT_FONT_LOAD, font_id, font);
+    td_scene_ui_assets_changed(scene);
 }
 
 /* --- sound assets --------------------------------------------------------- */
@@ -960,6 +981,7 @@ ToriDraw_SceneModelAdd(
 
     entry->id = model_id;
     entry->model = model;
+    td_scene_ui_assets_changed(scene);
 }
 
 struct ToriDraw_ModelHandle
@@ -998,17 +1020,24 @@ ToriDraw_SceneModelRemove(
     if( !entry )
         return none;
 
+    td_scene_ui_assets_changed(scene);
     return entry->model;
 }
 
 void
 ToriDraw_SceneModelsClearAll(struct ToriDraw_Scene* scene)
 {
+    bool changed;
+
     assert(scene);
     assert(scene->models_hmap);
 
+    changed = ToriDraw_MapCount(scene->models_hmap) > 0;
+
     td_scene_free_models_map(scene->models_hmap);
     td_scene_map_reset(&scene->models_hmap, sizeof(struct MapEntry_ToriModel), 1024);
+    if( changed )
+        td_scene_ui_assets_changed(scene);
 }
 
 void

@@ -5071,9 +5071,7 @@ exec_widget_set_arc(
     idx = UITree_FindByComponentId(tree, component_id);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_ARC )
         return CS2VM_EXECNO_OK;
-    tree->components[idx].u.rs_arc.arc_start = arc_start;
-    tree->components[idx].u.rs_arc.arc_end = arc_end;
-    UITree_MarkNodeDirty(tree, idx);
+    (void)UITree_SetArcAnglesAt(tree, idx, arc_start, arc_end);
     return CS2VM_EXECNO_OK;
 }
 
@@ -5097,14 +5095,15 @@ exec_widget_set_model_angle(
     idx = UITree_FindByComponentId(tree, component_id);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
         return CS2VM_EXECNO_OK;
-    tree->components[idx].u.rs_model.x_offset = offset_x;
-    tree->components[idx].u.rs_model.y_offset = offset_y;
-    tree->components[idx].u.rs_model.xan = angle_x;
-    tree->components[idx].u.rs_model.yan = angle_y;
-    tree->components[idx].u.rs_model.zan = angle_z;
-    if( zoom > 0 )
-        tree->components[idx].u.rs_model.zoom = zoom;
-    UITree_MarkNodeDirty(tree, idx);
+    (void)UITree_SetModelPoseAt(
+        tree,
+        idx,
+        offset_x,
+        offset_y,
+        angle_x,
+        angle_y,
+        angle_z,
+        zoom);
     return CS2VM_EXECNO_OK;
 }
 
@@ -8037,8 +8036,12 @@ exec_widget_set_scroll_size(
         struct UITreeComponent* node = rs_cs2_node(host, component_id);
         if( node && node->type == UIELEM_RS_LAYER )
         {
+            int32_t const idx = rs_cs2_find_node(host, component_id);
+            int scroll_x;
+            int scroll_y;
             UITree_EnsureLayout(tree);
-            UITree_ScrollClampComponent(node);
+            UITree_ScrollGetClamped(node, &scroll_x, &scroll_y);
+            (void)UITree_SetScrollPosAt(tree, idx, scroll_x, scroll_y);
         }
     }
     return CS2VM_EXECNO_OK;
@@ -8140,12 +8143,7 @@ exec_widget_set_trans(
     int trans)
 {
     struct UITree* tree = rs_cs2_tree(host);
-    struct UITreeComponent* node = rs_cs2_node(host, component_id);
-    if( node && node->trans != trans )
-    {
-        node->trans = trans;
-        UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, component_id));
-    }
+    (void)UITree_SetTransparencyAt(tree, rs_cs2_find_node(host, component_id), trans);
     return CS2VM_EXECNO_OK;
 }
 

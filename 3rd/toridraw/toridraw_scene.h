@@ -73,6 +73,10 @@ ToriDraw_SceneNew(
 void
 ToriDraw_SceneFree(struct ToriDraw_Scene* scene);
 
+/** Version of model/sprite/font registry state observable by UITree. */
+uint64_t
+ToriDraw_SceneUIAssetRevision(struct ToriDraw_Scene const* scene);
+
 size_t
 ToriDraw_SceneSize(
     uint32_t flags,

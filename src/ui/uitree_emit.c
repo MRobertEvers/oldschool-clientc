@@ -81,6 +81,10 @@ fill_scrollbar_v(
     int scrollbar_scene,
     struct UITreeEmitDesc* out)
 {
+    int scroll_x;
+    int scroll_y;
+
+    UITree_ScrollGetClamped(component, &scroll_x, &scroll_y);
     memset(out, 0, sizeof(*out));
     out->kind = UITREE_EMIT_SCROLLBAR_V;
     out->node_index = node_index;
@@ -89,8 +93,8 @@ fill_scrollbar_v(
     out->y = y;
     out->w = UITREE_SCROLLBAR_THICKNESS;
     out->h = UITree_ScrollLayerNeedsHorizontal(component) ? h - UITREE_SCROLLBAR_THICKNESS : h;
-    out->scroll_off_x = component->scroll_x;
-    out->scroll_off_y = component->scroll_y;
+    out->scroll_off_x = scroll_x;
+    out->scroll_off_y = scroll_y;
     out->scroll_content = component->u.rs_layer.scroll_height;
     out->scene_id = scrollbar_scene;
     out->atlas_index = 0;
@@ -108,6 +112,10 @@ fill_scrollbar_h(
     int scrollbar_scene,
     struct UITreeEmitDesc* out)
 {
+    int scroll_x;
+    int scroll_y;
+
+    UITree_ScrollGetClamped(component, &scroll_x, &scroll_y);
     memset(out, 0, sizeof(*out));
     out->kind = UITREE_EMIT_SCROLLBAR_H;
     out->node_index = node_index;
@@ -116,8 +124,8 @@ fill_scrollbar_h(
     out->y = y + h - UITREE_SCROLLBAR_THICKNESS;
     out->w = UITree_ScrollLayerNeedsVertical(component) ? w - UITREE_SCROLLBAR_THICKNESS : w;
     out->h = UITREE_SCROLLBAR_THICKNESS;
-    out->scroll_off_x = component->scroll_x;
-    out->scroll_off_y = component->scroll_y;
+    out->scroll_off_x = scroll_x;
+    out->scroll_off_y = scroll_y;
     out->scroll_content = component->u.rs_layer.scroll_width;
     out->scene_id = scrollbar_scene;
     out->atlas_index = 0;
@@ -129,8 +137,9 @@ fill_scrollbar_h(
  *
  * The reference client substitutes the value of the component's Nth value
  * script, rendering anything at or above CS1's "infinity" as "*" (the
- * inv-contains sentinel). Values come from the host, which serves them from
- * the last evaluation pass — drawing never runs the VM.
+ * inv-contains sentinel). Task_CS1Eval publishes the values on the component
+ * before the frame fence, so drawing neither runs the VM nor round-trips the
+ * already tree-owned result through the host.
  */
 static void
 uitree_emit_format_placeholders(
@@ -152,13 +161,7 @@ uitree_emit_format_placeholders(
     {
         if( src[0] == '%' && src[1] >= '1' && src[1] <= '0' + UITREE_CS1_VALUE_MAX )
         {
-            struct UITreeHostRequest req;
-            memset(&req, 0, sizeof(req));
-            req.kind = UITREE_HOST_EVAL_TEXT_PLACEHOLDER;
-            req.u.eval_text_placeholder.component = component;
-            req.u.eval_text_placeholder.script_idx = src[1] - '1';
-
-            int value = UITree_Host(host, &req);
+            int const value = host ? component->cs1_values[src[1] - '1'] : 0;
 
             char buf[16];
             int len;
@@ -227,7 +230,11 @@ UITree_EmitFill(
      * matches this component's own id. */
     bool const hovered =
         hovered_component_id >= 0 && component->component_id == hovered_component_id;
-    bool const active = host ? UITree_ComponentIsActiveHost(host, component) : false;
+    /* Task_CS1Eval publishes this through UITree_SetCS1ActiveAt before the
+     * settled frame fence. Reading the tree-owned cache directly avoids one
+     * host callback per drawable node and makes that typed publication the
+     * single mutation seam that retention observes. */
+    bool const active = host && component->cs1_active != 0;
 
     int x = 0, y = 0, w = 0, h = 0;
     UITree_LayoutGetBounds(&component->position, &x, &y, &w, &h);
@@ -698,15 +705,11 @@ UITree_EmitFill(
     case UIELEM_RS_LAYER:
     {
         int sb_scene;
-        struct UITreeComponent* layer_mut;
         if( component->if3 )
             return false;
         if( !UITree_ScrollLayerNeedsVertical(component) &&
             !UITree_ScrollLayerNeedsHorizontal(component) )
             return false;
-        /* Clamp scroll position for thumb math (IF1). */
-        layer_mut = (struct UITreeComponent*)component;
-        UITree_ScrollClampComponent(layer_mut);
         sb_scene = host_scrollbar_scene(host);
         /* Prefer vertical when both axes need chrome (EmitWalk emits H after children). */
         if( UITree_ScrollLayerNeedsVertical(component) )
@@ -865,6 +868,114 @@ UITree_EmitBufferFree(struct UITreeEmitBuffer* buf)
         return;
     free(buf->cmds);
     memset(buf, 0, sizeof(*buf));
+}
+
+static void
+emit_buffer_advance_publication(struct UITreeEmitBuffer* buf)
+{
+    buf->publication_seq++;
+    if( buf->publication_seq == 0 )
+        buf->publication_seq++;
+}
+
+bool
+UITree_EmitBufferHostInputsCurrent(
+    struct UITreeEmitBuffer const* buf,
+    struct UITreeHost const* host)
+{
+    assert(buf);
+    return UITree_HostInputStampIsCurrent(&buf->host_input_stamp, host);
+}
+
+static bool
+emit_retain_gate_sources_quiet(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer const* buf,
+    int hovered_component_id,
+    struct UITreeEmitRetainGate const* gate)
+{
+    /* A pending invalidation precedes the completed resolver-sequence bump.
+     * Both pending flags therefore belong to the identity; otherwise the
+     * frame between invalidation and resolution could retain stale boxes. */
+    return gate->primed && gate->source_tree == tree && !UITree_HasActiveDrag(tree) &&
+           !tree->layout_stale &&
+           !tree->layout_force_full &&
+           tree->dirty_gen == gate->dirty_gen &&
+           tree->layout_resolve_seq == gate->layout_resolve_seq &&
+           tree->generation == gate->tree_generation &&
+           hovered_component_id == gate->hovered_component_id &&
+           UITree_EmitBufferHostInputsCurrent(buf, host);
+}
+
+bool
+UITree_EmitRetainGateQuiet(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer const* buf,
+    int hovered_component_id,
+    struct UITreeEmitRetainGate const* gate)
+{
+    assert(tree);
+    assert(buf);
+    assert(gate);
+
+    return gate->source_buffer == buf &&
+           gate->buffer_publication_seq == buf->publication_seq &&
+           emit_retain_gate_sources_quiet(
+               tree, host, buf, hovered_component_id, gate);
+}
+
+void
+UITree_EmitRetainGateCapture(
+    struct UITree const* tree,
+    struct UITreeEmitBuffer const* buf,
+    int hovered_component_id,
+    struct UITreeEmitRetainGate* gate)
+{
+    assert(tree);
+    assert(buf);
+    assert(gate);
+
+    gate->source_tree = tree;
+    gate->source_buffer = buf;
+    gate->buffer_publication_seq = buf->publication_seq;
+    gate->dirty_gen = tree->dirty_gen;
+    gate->layout_resolve_seq = tree->layout_resolve_seq;
+    gate->tree_generation = tree->generation;
+    gate->hovered_component_id = hovered_component_id;
+    gate->primed = 1;
+}
+
+bool
+UITree_EmitRetainGateRefreshVolatile(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* buf,
+    int const* hovered_component_id,
+    struct UITreeEmitRetainGate const* gate)
+{
+    assert(tree);
+    assert(buf);
+    assert(hovered_component_id);
+    assert(gate);
+
+    if( !UITree_EmitRetainGateQuiet(
+            tree, host, buf, *hovered_component_id, gate) ||
+        buf->volatile_unrefreshable )
+        return false;
+    if( !buf->volatile_refs )
+        return true;
+    if( !UITree_EmitRefreshVolatile(tree, host, buf) )
+        return false;
+
+    /* Host callbacks are arbitrary App/plugin code. They can advance an input
+     * epoch, change topology, invalidate layout, or move hover while refreshing
+     * a same-frame pointer. Recheck the complete semantic identity captured by
+     * the original full walk before publishing any partially refreshed list.
+     * Ignore only publication_seq: this refresh itself deliberately advanced it. */
+    return emit_retain_gate_sources_quiet(
+        tree, host, buf, *hovered_component_id, gate);
 }
 
 static void
@@ -1988,7 +2099,6 @@ emit_append_layer_scrollbars(
     assert(layer && out && parent_clip);
     assert(layer->type == UIELEM_RS_LAYER && !layer->if3);
 
-    UITree_ScrollClampComponent(layer);
     sb_scene = host_scrollbar_scene(host);
     vscroll = UITree_ScrollLayerNeedsVertical(layer);
     hscroll = UITree_ScrollLayerNeedsHorizontal(layer);
@@ -2188,7 +2298,7 @@ emit_walk_node(
     /* Native/script hiding outranks replacement art too: an anchor is local to
      * a target that is actually present in this frame, not a way to resurrect
      * a collapsed tab or a gameframe lane that suppressed the whole surface. */
-    if( c->frame_hidden )
+    if( c->frame_hidden || c->projection_hidden )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return;
@@ -2313,17 +2423,18 @@ emit_walk_node(
 
     scroll_layer = layer_needs_scroll_offset(c);
     if1_bar = layer_is_if1_scrollbar(c);
-    if( scroll_layer )
-        UITree_ScrollClampComponent(c);
 
     child_scroll_x = scroll_off_x;
     child_scroll_y = scroll_off_y;
     if( scroll_layer )
     {
+        int clamped_x;
+        int clamped_y;
+        UITree_ScrollGetClamped(c, &clamped_x, &clamped_y);
         if( UITree_ScrollLayerNeedsHorizontal(c) )
-            child_scroll_x += c->scroll_x;
+            child_scroll_x += clamped_x;
         if( UITree_ScrollLayerNeedsVertical(c) )
-            child_scroll_y += c->scroll_y;
+            child_scroll_y += clamped_y;
     }
 
     child_clip = parent_clip;
@@ -2992,11 +3103,27 @@ UITree_EmitWalk(
     int hovered_component_id)
 {
     struct UITreeRoleOverlayGroup const* role_groups = NULL;
+    struct UITreeHost const* stamp_host = host;
+    struct UITreeHost observed_host;
     int role_group_count = 0;
     int role_anchor_seen = 0;
 
     assert(tree);
     assert(out);
+
+    /* Observe host reads through a shallow copy: the application's host stays
+     * immutable, while every UITree_Host call made by this walk contributes
+     * its classified input domains to the buffer. This records requests which
+     * return "nothing" too — important because a later zero-to-nonzero answer
+     * can add a descriptor that did not exist to be refreshed in place. */
+    out->host_input_dependencies = 0;
+    if( host )
+    {
+        observed_host = *host;
+        observed_host.observed_input_mask = &out->host_input_dependencies;
+        host = &observed_host;
+    }
+
     out->volatile_overlay_seen = 0;
     out->volatile_overlay_nonempty = 0;
     memset(out->volatile_overlay_template, 0, sizeof(out->volatile_overlay_template));
@@ -3133,6 +3260,7 @@ UITree_EmitWalk(
      * stays correct as kinds are added. A few hundred predictable loads against
      * a walk that visits millions of nodes; it does not register in the stage. */
     out->volatile_refs = 0;
+    out->volatile_desc_refs = 0;
     out->volatile_unrefreshable = 0;
     for( int i = 0; i < out->count; i++ )
     {
@@ -3162,6 +3290,7 @@ UITree_EmitWalk(
         if( !d->minimap_dots && !d->entity_overlays && !d->worldmap_tiles && !d->debug_prims )
             continue;
         out->volatile_refs++;
+        out->volatile_desc_refs++;
         /* A WORLDMAP desc does not record which of the two host requests filled
          * it (tiles vs overview), so it cannot be re-issued from the desc alone.
          * Likewise an overlay without provenance is unsafe to guess. Refusing
@@ -3184,6 +3313,10 @@ UITree_EmitWalk(
         out->volatile_refs++;
         out->volatile_unrefreshable = 1;
     }
+
+    UITree_HostInputStampCapture(
+        stamp_host, out->host_input_dependencies, &out->host_input_stamp);
+    emit_buffer_advance_publication(out);
 }
 
 static void
@@ -3313,6 +3446,9 @@ UITree_EmitRefreshVolatile(
     assert(tree);
     assert(out);
     assert(!out->volatile_unrefreshable);
+    /* Invalidate any gate bound to the pre-refresh buffer even if a callback
+     * aborts after changing only part of the volatile descriptor set. */
+    emit_buffer_advance_publication(out);
     dirty_before = tree->dirty_gen;
 
     {
@@ -3365,14 +3501,28 @@ UITree_EmitRefreshVolatile(
 
         if( !(out->volatile_overlay_seen & bit) )
             continue;
-        for( int i = 0; i < out->count; i++ )
-            if( out->cmds[i].entity_overlay_source == source )
+        /* A zero-count standing source has no descriptor in the published
+         * list. Trust the metadata built by the full walk instead of scanning
+         * thousands of unrelated commands three times on every retained frame. */
+        if( out->volatile_overlay_nonempty & bit )
+        {
+            int const hint = out->volatile_overlay_insert_at[source];
+            if( hint >= 0 && hint < out->count &&
+                out->cmds[hint].entity_overlay_source == source )
+                desc_index = hint;
+            else
+                for( int i = 0; i < out->count; i++ )
+                    if( out->cmds[i].entity_overlay_source == source )
+                    {
+                        desc_index = i;
+                        break;
+                    }
+            if( desc_index >= 0 )
             {
-                desc_index = i;
-                out->volatile_overlay_template[source] = out->cmds[i];
-                out->volatile_overlay_insert_at[source] = i;
-                break;
+                out->volatile_overlay_template[source] = out->cmds[desc_index];
+                out->volatile_overlay_insert_at[source] = desc_index;
             }
+        }
 
         switch( source )
         {
@@ -3449,27 +3599,28 @@ UITree_EmitRefreshVolatile(
         out->volatile_overlay_nonempty |= bit;
     }
 
-    for( int i = 0; i < out->count; i++ )
-    {
-        struct UITreeEmitDesc* d = &out->cmds[i];
+    if( out->volatile_desc_refs )
+        for( int i = 0; i < out->count; i++ )
+        {
+            struct UITreeEmitDesc* d = &out->cmds[i];
 
-        if( d->minimap_dots )
-        {
-            struct UITreeHostRequest req = {
-                .kind = UITREE_HOST_GET_MINIMAP_DOTS,
-                .u.get_minimap_dots.out_dots = &d->minimap_dots,
-            };
-            d->minimap_dot_count = UITree_Host(host, &req);
+            if( d->minimap_dots )
+            {
+                struct UITreeHostRequest req = {
+                    .kind = UITREE_HOST_GET_MINIMAP_DOTS,
+                    .u.get_minimap_dots.out_dots = &d->minimap_dots,
+                };
+                d->minimap_dot_count = UITree_Host(host, &req);
+            }
+            if( d->debug_prims )
+            {
+                struct UITreeHostRequest req;
+                req.kind = UITREE_HOST_GET_DEBUG_OVERLAY;
+                req.u.get_debug_overlay.out_prims = &d->debug_prims;
+                d->debug_prim_count = UITree_Host(host, &req);
+            }
+            if( tree->dirty_gen != dirty_before )
+                return 0;
         }
-        if( d->debug_prims )
-        {
-            struct UITreeHostRequest req;
-            req.kind = UITREE_HOST_GET_DEBUG_OVERLAY;
-            req.u.get_debug_overlay.out_prims = &d->debug_prims;
-            d->debug_prim_count = UITree_Host(host, &req);
-        }
-        if( tree->dirty_gen != dirty_before )
-            return 0;
-    }
     return 1;
 }
