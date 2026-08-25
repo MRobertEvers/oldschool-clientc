@@ -392,24 +392,6 @@ dump_roots(struct App* app)
     }
 }
 
-static void
-update_window_title(
-    struct PlatformSDL2* sdl,
-    struct App const* app,
-    int interface_id)
-{
-    char title[160];
-
-    snprintf(
-        title,
-        sizeof(title),
-        "ToriRS iface=%d hover=%d clicked=%d",
-        interface_id,
-        app->hover_com_id,
-        app->clicked_com_id);
-    PlatformSDL2_SetTitle(sdl, title);
-}
-
 /* Headless sim frames must render like the real loop does: the world pickset
  * and hover tile refresh inside App_Render, so every RunOnce that reports a
  * redraw is followed by a render into a scratch canvas. */
@@ -2242,7 +2224,6 @@ frame_loop_step(void)
         PlatformAudio_Update(audio);
         PlatformAudio_Feedback(audio, &audio_feedback);
         App_SetAudioFeedback(&app, &audio_feedback);
-        update_window_title(sdl, &app, cfg.interface_id);
     }
     /* Close the work timer before pacing sleeps — otherwise capped runs always
      * report ~20 ms (sleep fills the residual) and uncapped Delay(1) adds a
@@ -4442,11 +4423,23 @@ main(
     }
 
     {
-        char title[64];
+        /* The window is called ToriRS, and stays called ToriRS.
+         *
+         * It used to carry the boot interface id, and then be rewritten every
+         * frame with the hovered and clicked component ids. On Windows that is
+         * not a string assignment: SetWindowText crosses into the kernel,
+         * posts WM_SETTEXT, and repaints the non-client title bar -- fifty
+         * times a second, to show two numbers only a developer reads. It cost
+         * measurable kernel time on the XP target (see
+         * docs/2004Scape_Memory_Usage.md), which is a strange price for a
+         * caption nobody was looking at.
+         *
+         * The hover/click ids belong in the developer overlay, which is where
+         * a developer already looks and which costs nothing when it is off. */
+        char const* title = "ToriRS";
 
         sdl = PlatformSDL2_New();
 
-        snprintf(title, sizeof(title), "ToriRS iface=%d", cfg.interface_id);
         if( !sdl )
         {
             fprintf(stderr, "window platform alloc failed\n");
