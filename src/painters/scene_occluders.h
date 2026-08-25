@@ -41,10 +41,38 @@ enum OccluderHides
     OCCLUDER_HIDES_BELOW_PLANE = 5,    /* mode 5: camera above a Y-plane (y is negative-up) */
 };
 
+/*
+ * How small a merged surface is still worth keeping as an occluder.
+ *
+ * Primarily a cost/benefit threshold. Each occluder is tested as its own
+ * projected shadow rectangle (scene_occluders_point_hidden_ref), so a smaller
+ * occluder casts a proportionally smaller shadow and can only ever ADD correct
+ * culling -- it cannot hide something a larger one would have left visible.
+ * What a too-small occluder costs is a per-frame test that rarely pays for
+ * itself, plus a slot out of the OCCLUDER_MAX_PER_LEVEL budget below.
+ *
+ * The one place it is not purely a cost question: a ground tile is judged by
+ * sampling its four CORNERS, so a tile whose corners are all shadowed but whose
+ * middle is not can be culled when it should not be. That approximation comes
+ * from the reference and exists at any gate; halving the gates admits more
+ * occluders and therefore widens the exposure to it.
+ *
+ * Measured on the bench suite (lumbridge-ground, soft3d, 765x503): -10.8%
+ * frame time, winning all six paired runs against an interleaved baseline,
+ * painter commands 2929 -> 2636. A two-sample image comparison (four frames
+ * per binary, every within- and between-group pair) put the between-group
+ * difference inside the spread that two runs of the SAME binary already
+ * produce, so no image change was detectable -- but that scene animates
+ * entities independently of the camera, so this bounds the difference rather
+ * than proving equivalence. docs/xpbench/OCCLUDER_GATES.md has the runs.
+ *
+ * This is a deliberate divergence from the reference client, which uses 8 and
+ * 4. Restore those two numbers to get reference behaviour back.
+ */
 /** Wall merge must cover at least this many (levels × tiles). */
-#define OCCLUDER_WALL_MIN_TILE_AREA 8
+#define OCCLUDER_WALL_MIN_TILE_AREA 4
 /** Floor merge must cover at least this many tiles. */
-#define OCCLUDER_FLOOR_MIN_TILE_AREA 4
+#define OCCLUDER_FLOOR_MIN_TILE_AREA 2
 /** Wall planes extend this many scene units below the top-level ground. */
 #define OCCLUDER_WALL_HEIGHT 240
 /** Occluders closer than this to the eye are skipped (degenerate projection). */

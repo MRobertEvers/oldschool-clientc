@@ -588,12 +588,21 @@ load_cache_item_dat2(
     struct PlatformX_IO* px,
     struct ToriRS_IOItem* item)
 {
-    int logical_table = item->u.cache.table_id;
-    int table_id = dat2_resolve_table(px, logical_table);
-    int archive_id = item->u.cache.archive_id;
+    int logical_table;
+    int table_id;
+    int archive_id;
     struct RSCache_Dat2DiskArchive* archive = NULL;
 
+    assert(px);
+    assert(item);
+    /* Ahead of the first read, not after it: dat2_resolve_table dereferences
+     * px->dat2_disk, so an assert placed below that call is one a NULL disk
+     * never reaches -- it faults in the resolve instead. */
     assert(px->dat2_disk);
+
+    logical_table = item->u.cache.table_id;
+    table_id = dat2_resolve_table(px, logical_table);
+    archive_id = item->u.cache.archive_id;
 
     if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT )
     {
