@@ -140,7 +140,8 @@ class WasmSession {
             typeof host.fastHostInventorySnapshot === 'function' &&
             typeof host.fastHostChildrenSnapshot === 'function' &&
             typeof host.fastHostValueSnapshot === 'function' &&
-            typeof host.fastHostIntDataValue === 'function' &&
+            typeof host.fastHostScalarDataValue === 'function' &&
+            typeof host.fastHostScalarDataCacheable === 'function' &&
             typeof host.requestFastBatch === 'function');
     }
 
@@ -299,18 +300,42 @@ class WasmSession {
         }
     }
 
-    fastIntQuery(invocation, requestKind, a, b, c, outputPointer) {
+    fastScalarQuery(invocation, requestKind, a, b, c, intOutputPointer,
+        stringOutputPointer, stringCapacity, stringLengthOutputPointer,
+        cacheableOutputPointer) {
         try {
-            const result = this.host.fastHostIntDataValue(requestKind, a, b, c);
-            if( result === null ) return 0;
+            const result = this.host.fastHostScalarDataValue(requestKind, a, b, c);
             if( result && typeof result.then === 'function' )
                 throw new WasmCS2RuntimeError('HostRuntime returned a Promise', 'ASYNC_HOST');
             const views = currentHeapViews(this.api);
-            const address = Number(outputPointer) >>> 0;
-            heapBounds(views, address, 4, 'fast HOST integer result');
-            if( address % 4 !== 0 ) throw new WasmCS2RuntimeError(
-                'unaligned fast HOST integer result', 'FAST_HOST');
-            views.data.setInt32(address, Number(result) | 0, true);
+            const intAddress = Number(intOutputPointer) >>> 0;
+            const lengthAddress = Number(stringLengthOutputPointer) >>> 0;
+            const cacheableAddress = Number(cacheableOutputPointer) >>> 0;
+            heapBounds(views, intAddress, 4, 'fast HOST scalar integer result');
+            heapBounds(views, lengthAddress, 4, 'fast HOST scalar string length');
+            heapBounds(views, cacheableAddress, 4, 'fast HOST scalar cacheability');
+            if( intAddress % 4 !== 0 || lengthAddress % 4 !== 0 ||
+                cacheableAddress % 4 !== 0 )
+                throw new WasmCS2RuntimeError(
+                    'unaligned fast HOST scalar result', 'FAST_HOST');
+            views.data.setInt32(cacheableAddress,
+                this.host.fastHostScalarDataCacheable(requestKind, a, b, c) ? 1 : 0, true);
+            if( typeof result === 'string' ) {
+                const bytes = UTF8_ENCODER.encode(result);
+                views.data.setInt32(lengthAddress, bytes.length, true);
+                if( !Number.isInteger(stringCapacity) || stringCapacity < 0 ||
+                    stringCapacity > 1048576 ) throw new WasmCS2RuntimeError(
+                    'invalid fast HOST scalar string capacity', 'FAST_HOST');
+                if( bytes.length < stringCapacity ) {
+                    const stringAddress = Number(stringOutputPointer) >>> 0;
+                    heapBounds(views, stringAddress, bytes.length + 1,
+                        'fast HOST scalar string result');
+                    views.u8.set(bytes, stringAddress);
+                    views.u8[stringAddress + bytes.length] = 0;
+                }
+                return 2;
+            }
+            views.data.setInt32(intAddress, Number(result) | 0, true);
             return 1;
         } catch( error ) {
             this.hostErrors.set(invocation, error);
@@ -521,10 +546,13 @@ async function instantiateModule(factory, wasmUrl) {
             return runtime ? runtime.fastQuery(Number(invocation), Number(queryKind), Number(key),
                 Number(output), Number(capacity)) : ABI.hostError;
         },
-        cs2FastHostIntQuery(session, invocation, requestKind, a, b, c, output) {
+        cs2FastHostScalarQuery(session, invocation, requestKind, a, b, c,
+            intOutput, stringOutput, stringCapacity, stringLengthOutput, cacheableOutput) {
             const runtime = sessions.get(Number(session));
-            return runtime ? runtime.fastIntQuery(Number(invocation), Number(requestKind),
-                Number(a), Number(b), Number(c), Number(output)) : ABI.hostError;
+            return runtime ? runtime.fastScalarQuery(Number(invocation), Number(requestKind),
+                Number(a), Number(b), Number(c), Number(intOutput), Number(stringOutput),
+                Number(stringCapacity), Number(stringLengthOutput),
+                Number(cacheableOutput)) : ABI.hostError;
         },
         cs2FastHostFlush(session, invocation, records, recordCount, arena, arenaSize) {
             const runtime = sessions.get(Number(session));
@@ -1025,7 +1053,7 @@ function specialResultPattern(request) {
 function childSubId(value) {
     const ref = resultRef(value) || value;
     const subId = Number(ref?.subId ?? ref?.sub_id ?? ref?.childIndex ?? ref?.child_index);
-    if( !Number.isInteger(subId) || subId < 0 || subId > 0xffff )
+    if( !Number.isInteger(subId) || subId < -0x80000000 || subId > 0x7fffffff )
         throw new WasmCS2RuntimeError('HOST child iterator returned an invalid sub-id', 'HOST_RESULT');
     return subId | 0;
 }

@@ -369,6 +369,7 @@ export const CS2_HOST_REQUESTS = Object.freeze([
     Object.freeze([3621, "IGNORE_COUNT"]),
     Object.freeze([3622, "IGNORE_GETNAME"]),
     Object.freeze([3623, "IGNORE_TEST"]),
+    Object.freeze([4104, "FROMDATE"]),
     Object.freeze([4108, "PARAHEIGHT"]),
     Object.freeze([4109, "PARAWIDTH"]),
     Object.freeze([4200, "OC_NAME"]),

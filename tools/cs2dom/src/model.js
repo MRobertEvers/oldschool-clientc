@@ -85,6 +85,49 @@ export function proxyModel(server, response, { method = 'GET', path, body = null
     attempt(30);
 }
 
+/**
+ * Buffered counterpart used by the dev server's bounded response cache. Model
+ * blobs are already consumed whole by the renderer worker, so buffering here
+ * removes a renderer round-trip on every repeat without changing the payload.
+ */
+export function requestModel(server, { method = 'GET', path, body = null } = {}) {
+    if( !server ) return Promise.resolve({
+        status: 503,
+        headers: { 'content-type': 'text/plain' },
+        body: Buffer.from('model renderer is unavailable'),
+    });
+    return new Promise((resolveRequest, rejectRequest) => {
+        const attempt = (remaining) => {
+            const upstream = httpRequest({
+                hostname: '127.0.0.1', port: server.port, path, method,
+                headers: body ? {
+                    'content-length': body.length,
+                    'content-type': 'application/octet-stream',
+                } : {},
+            }, (incoming) => {
+                const chunks = [];
+                let length = 0;
+                incoming.on('data', (chunk) => {
+                    chunks.push(chunk);
+                    length += chunk.length;
+                });
+                incoming.on('end', () => resolveRequest({
+                    status: incoming.statusCode || 502,
+                    headers: incoming.headers,
+                    body: Buffer.concat(chunks, length),
+                }));
+                incoming.on('error', rejectRequest);
+            });
+            upstream.on('error', (error) => {
+                if( remaining > 0 ) return setTimeout(() => attempt(remaining - 1), 100);
+                rejectRequest(error);
+            });
+            if( body ) upstream.end(body); else upstream.end();
+        };
+        attempt(30);
+    });
+}
+
 function inferRevision(project) {
     const match = /(?:^|[/\\])(osrs\d+)(?:-content)?(?:[/\\]|$)/.exec(project.content || project.unpackedContent || '');
     return match?.[1] || null;

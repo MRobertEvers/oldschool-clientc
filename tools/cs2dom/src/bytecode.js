@@ -91,6 +91,20 @@ function compileProgram(project, result, input, log) {
     const fallbackFailures = new Map();
     if( input.sources.length && !rawProgramComplete ) {
         const sources = normalizeCompilerSources(input.sources, hookIds(result?.ir));
+        const rawById = new Map(selectedRaw.map((script) => [script.id, script]));
+        const fallbackIds = new Set();
+        if( input.exactRawFallback ) {
+            for( const source of sources ) {
+                if( !rawById.has(source.id) || !unconditionalSelfRecursiveStub(source) ) continue;
+                fallbackIds.add(source.id);
+                fallbackFailures.set(source.id, {
+                    id: source.id,
+                    name: source.name,
+                    fallbackKind: 'lossy-stub',
+                    message: 'decompiler emitted an unconditional self-recursive stub',
+                });
+            }
+        }
         const compileOptions = {
             repoRoot: root,
             names,
@@ -99,7 +113,8 @@ function compileProgram(project, result, input, log) {
             rawScripts: selectedRaw,
             returnBytecode: true,
         };
-        compiled = compileSourceClosure(sources, compileOptions);
+        let active = sources.filter((script) => !fallbackIds.has(script.id));
+        compiled = compileSourceClosure(active, compileOptions);
 
         /* OSRS-Content is decompiler output. A small number of records are
          * provably lossy (for example a callback alias assembled from unrelated
@@ -108,9 +123,6 @@ function compileProgram(project, result, input, log) {
          * content tree, preserve the successfully authored records and replace
          * each compiler-failed record with that exact original cache payload. */
         if( !compiled.ok && input.exactRawFallback ) {
-            const rawById = new Map(selectedRaw.map((script) => [script.id, script]));
-            const fallbackIds = new Set();
-            let active = sources;
             for( let pass = 0; !compiled.ok && pass < sources.length; pass++ ) {
                 let added = 0;
                 for( const failure of compiled.failures || [] ) {
@@ -137,6 +149,21 @@ function compileProgram(project, result, input, log) {
     const rawNeeded = rawProgramComplete
         ? selectedIds : referencedRawIds(input.sources, input.raw, roots);
     for( const id of fallbackFailures.keys() ) rawNeeded.add(id);
+    if( fallbackFailures.size ) {
+        const compiledIds = new Set((compiled.bytecode || []).map((script) => script.id));
+        for( const [id, from] of exactRawDependencyClosure(
+            input.raw, input.contentDir, fallbackFailures.keys()) ) {
+            rawNeeded.add(id);
+            if( fallbackFailures.has(id) || compiledIds.has(id) ) continue;
+            const raw = input.raw.find((script) => script.id === id);
+            fallbackFailures.set(id, {
+                id,
+                name: raw?.name || `script_${id}`,
+                fallbackKind: 'dependency',
+                message: `transitive dependency of exact Dat2 fallback script ${from}`,
+            });
+        }
+    }
     for( const script of input.raw )
         if( rawNeeded.has(script.id) ) records.set(script.id, bytecodeRecord(script));
     for( const script of compiled.bytecode || [] ) records.set(script.id, bytecodeRecord(script));
@@ -149,14 +176,17 @@ function compileProgram(project, result, input, log) {
             source: 'exact-dat2',
             cache: input.exactRawFallback.cache,
             revision: input.exactRawFallback.revision,
+            reasonKind: failure.fallbackKind || 'compile-failure',
             reason: failure.message,
         }));
     const warnings = [
         ...(missingRoots.length
             ? [`hook scripts unavailable in extracted content: ${missingRoots.join(', ')}`] : []),
-        ...fallbacks.map((fallback) =>
-            `${fallback.name} (${fallback.id}) uses exact ${fallback.revision} Dat2 bytecode ` +
-            `because its decompiled source did not compile: ${fallback.reason}`),
+        ...fallbacks.map((fallback) => fallback.reasonKind === 'dependency'
+            ? `${fallback.name} (${fallback.id}) uses exact ${fallback.revision} Dat2 bytecode ` +
+                `as a dependency of another exact fallback: ${fallback.reason}`
+            : `${fallback.name} (${fallback.id}) uses exact ${fallback.revision} Dat2 bytecode ` +
+                `because its decompiled source is not executable as-is: ${fallback.reason}`),
     ];
     return {
         schema: PROGRAM_SCHEMA,
@@ -168,6 +198,20 @@ function compileProgram(project, result, input, log) {
         warnings,
         fallbacks,
     };
+}
+
+function unconditionalSelfRecursiveStub(script) {
+    const source = String(script?.source || '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '')
+        .trim();
+    const header = /^\s*\[(?:proc|clientscript),([^\]]+)\][^\n]*\n/.exec(source);
+    if( !header ) return false;
+    const body = source.slice(header[0].length).trim();
+    const call = /^~([A-Za-z0-9_]*[A-Za-z_][A-Za-z0-9_]*)\s*(?:\([^;]*\))?\s*;$/.exec(body);
+    if( !call ) return false;
+    return call[1] === header[1] || call[1] === script.name ||
+        call[1] === `script${script.id}` || call[1] === `script_${script.id}`;
 }
 
 function compileSourceClosure(sources, options) {
@@ -195,6 +239,95 @@ function mergeScriptBytes(...groups) {
         for( const script of group || [] )
             if( Number.isInteger(script.id) && script.id >= 0 ) records.set(script.id, script);
     return [...records.values()].sort((left, right) => left.id - right.id);
+}
+
+function exactRawDependencyClosure(rawScripts, contentDir, rootIds) {
+    const byId = new Map((rawScripts || []).map((script) => [script.id, script]));
+    const byName = new Map();
+    for( const script of rawScripts || [] ) {
+        byName.set(script.name, script.id);
+        byName.set(`script${script.id}`, script.id);
+        byName.set(`script_${script.id}`, script.id);
+    }
+    const result = new Map();
+    const pending = [...rootIds].map((id) => [id, id]);
+    const visited = new Set();
+    while( pending.length ) {
+        const [id, origin] = pending.shift();
+        if( visited.has(id) ) continue;
+        visited.add(id);
+        const script = byId.get(id);
+        if( !script ) continue;
+        const targets = new Set(rawGosubTargets(script));
+        const sourcePath = contentDir && script.name
+            ? join(contentDir, 'scripts', `${script.name}.cs2`) : null;
+        if( sourcePath && existsSync(sourcePath) ) {
+            const source = readFileSync(sourcePath, 'utf8');
+            for( const pattern of [
+                /~([A-Za-z0-9_]*[A-Za-z_][A-Za-z0-9_]*)/g,
+                /["']([A-Za-z0-9_]*[A-Za-z_][A-Za-z0-9_]*)(?=\s*(?:[({]|["']))/g,
+            ] ) {
+                for( const match of source.matchAll(pattern) ) {
+                    let target = byName.get(match[1]);
+                    if( !Number.isInteger(target) ) {
+                        const suffix = /(?:^|_)(\d+)$/.exec(match[1]);
+                        const numeric = suffix ? Number(suffix[1]) : null;
+                        if( Number.isInteger(numeric) && byId.has(numeric) ) target = numeric;
+                    }
+                    if( Number.isInteger(target) ) targets.add(target);
+                }
+            }
+        }
+        for( const target of targets ) {
+            if( !byId.has(target) || visited.has(target) ) continue;
+            if( !result.has(target) ) result.set(target, id);
+            pending.push([target, origin]);
+        }
+    }
+    return result;
+}
+
+function rawGosubTargets(script) {
+    let bytes;
+    try { bytes = Buffer.from(script.bytes ?? readFileSync(script.file)); }
+    catch { return []; }
+    if( bytes.length < 16 ) return [];
+    const trailerLength = bytes.readUInt16BE(bytes.length - 2);
+    for( const footerSize of [14, 18] ) {
+        const trailer = bytes.length - footerSize - trailerLength;
+        if( trailer <= 0 || trailer + 4 > bytes.length - 2 ) continue;
+        const opCount = bytes.readInt32BE(trailer);
+        if( opCount <= 0 || opCount > 65536 ) continue;
+        let offset = bytes.indexOf(0) + 1;
+        if( offset <= 0 || offset >= trailer ) continue;
+        const targets = [];
+        let valid = true;
+        for( let opIndex = 0; opIndex < opCount && valid; opIndex++ ) {
+            if( offset + 2 > trailer ) { valid = false; break; }
+            const opcode = bytes.readUInt16BE(offset);
+            offset += 2;
+            let operand = 0;
+            if( opcode === 61 ) {
+                if( offset + 8 > trailer ) { valid = false; break; }
+                offset += 8;
+            } else if( opcode >= 100 || [21, 38, 39, 62, 63].includes(opcode) ) {
+                if( offset + 1 > trailer ) { valid = false; break; }
+                operand = bytes.readInt8(offset);
+                offset++;
+            } else if( opcode === 3 ) {
+                const end = bytes.indexOf(0, offset);
+                if( end < 0 || end >= trailer ) { valid = false; break; }
+                offset = end + 1;
+            } else {
+                if( offset + 4 > trailer ) { valid = false; break; }
+                operand = bytes.readInt32BE(offset);
+                offset += 4;
+            }
+            if( opcode === 40 && operand >= 0 ) targets.push(operand);
+        }
+        if( valid && offset === trailer ) return targets;
+    }
+    return [];
 }
 
 function referencedRawIds(sources, raw, roots) {
@@ -393,7 +526,10 @@ function cacheSourceIdentity(path) {
         ? { revision, size, crc: crc.toLowerCase() } : null;
 }
 
-export const __bytecodeTest = Object.freeze({ exactDat2Fallback });
+export const __bytecodeTest = Object.freeze({
+    exactDat2Fallback,
+    unconditionalSelfRecursiveStub,
+});
 
 function bytecodeRecord(script) {
     const bytes = Buffer.from(script.bytes ?? readFileSync(script.file));

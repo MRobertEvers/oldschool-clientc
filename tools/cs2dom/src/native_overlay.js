@@ -175,11 +175,23 @@ export function collectInterfaceScripts(contentDir, interfaceName, options = {})
     const compilerNames = readScriptNames(typeof options === 'string'
         ? options : options.cs2Names);
     const compilerResolved = new Set();
-    const scriptIds = (alias, expectedRole, allowNumericSuffix = true) => {
+    const scriptIds = (alias, expectedRole, allowNumericSuffix = true,
+        allowCompilerRoleMismatch = false) => {
         let direct = nameToId.get(alias);
         if( !Number.isInteger(direct) ) {
             direct = compilerNames.byRoleName.get(`${expectedRole}\0${alias}`);
             if( Number.isInteger(direct) ) compilerResolved.add(direct);
+        }
+        /* Some rev-239 decompiler callback labels are present in the compiler
+         * ledger under the wrong role, while the compiled setter still emits
+         * that exact numeric script id. In a callback-setter position only, a
+         * unique cross-role name is therefore deterministic. Follow the pack
+         * record at that id, but retain its authored header instead of applying
+         * the incorrect compiler-ledger role to the dependency itself. */
+        if( !Number.isInteger(direct) && allowCompilerRoleMismatch ) {
+            const candidates = compilerNames.byName.get(alias) || [];
+            if( candidates.length === 1 && scriptPack.has(candidates[0]) )
+                direct = candidates[0];
         }
         if( Number.isInteger(direct) && expectedRole ) {
             const declared = compilerNames.byId.get(direct);
@@ -238,22 +250,23 @@ export function collectInterfaceScripts(contentDir, interfaceName, options = {})
          * to resolve and which become future runtime roots. Follow both forms. */
         const callPatterns = [
             { pattern: /~([A-Za-z0-9_]*[A-Za-z_][A-Za-z0-9_]*)/g,
-                role: 'proc', numericSuffix: true },
+                role: 'proc', numericSuffix: true, roleMismatch: false },
             /* Deferred hook strings can be either `name(args)` or the bare
              * `name` spelling used by no-argument callbacks. Ordinary labels
              * are harmless because only names present in the script ledger are
              * followed. */
             { pattern: /["']([A-Za-z0-9_]*[A-Za-z_][A-Za-z0-9_]*)(?=\s*(?:[({]|["']))/g,
-                role: 'clientscript', numericSuffix: false },
+                role: 'clientscript', numericSuffix: false, roleMismatch: false },
             /* A renamed deferred callback may no longer be present by name in
              * the ledger. Only callback setters make its trailing id
              * authoritative; other quoted names can be sprites or enums. */
             { pattern: /(?:cc|if)_seton[a-z0-9_]*\(\s*["']([A-Za-z0-9_]*[A-Za-z_][A-Za-z0-9_]*)/g,
-                role: 'clientscript', numericSuffix: true },
+                role: 'clientscript', numericSuffix: true, roleMismatch: true },
         ];
-        for( const { pattern: calls, role, numericSuffix } of callPatterns ) {
+        for( const { pattern: calls, role, numericSuffix, roleMismatch } of callPatterns ) {
             for( let call; (call = calls.exec(source)); ) {
-                for( const callee of scriptIds(call[1], role, numericSuffix) )
+                for( const callee of scriptIds(
+                    call[1], role, numericSuffix, roleMismatch) )
                     if( !selected.has(callee) ) pending.push(callee);
             }
         }
@@ -275,7 +288,7 @@ export function collectInterfaceScripts(contentDir, interfaceName, options = {})
  * calls: following the pack alias alone silently stages the clientscript
  * wrapper and leaves the GOSUB target absent at runtime. */
 function readScriptNames(path) {
-    const result = { byId: new Map(), byRoleName: new Map() };
+    const result = { byId: new Map(), byRoleName: new Map(), byName: new Map() };
     if( !path ) return result;
     let file = resolve(path);
     if( existsSync(file) && statSync(file).isDirectory() )
@@ -289,6 +302,9 @@ function readScriptNames(path) {
         const value = { id, role: match[2], name: match[3] };
         result.byId.set(id, value);
         result.byRoleName.set(`${value.role}\0${value.name}`, id);
+        const candidates = result.byName.get(value.name) || [];
+        candidates.push(id);
+        result.byName.set(value.name, candidates);
     }
     return result;
 }

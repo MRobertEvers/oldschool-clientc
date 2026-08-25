@@ -20,7 +20,8 @@ export function fontManifest(contentDir, rawId, options = {}) {
     const metricsPath = join(contentDir, 'fonts', `font_${id}.fm`);
     if( !existsSync(metricsPath) ) return null;
 
-    const names = readPack(join(contentDir, 'pack', '8_sprites.pack'));
+    const names = options.spriteNames instanceof Map
+        ? options.spriteNames : readPack(join(contentDir, 'pack', '8_sprites.pack'));
     const spriteName = names.get(id);
     if( !spriteName ) return null;
     const spriteDir = join(contentDir, 'sprites', spriteName);
@@ -56,10 +57,12 @@ export function fontManifest(contentDir, rawId, options = {}) {
     };
 }
 
-export function fontGlyphPng(contentDir, rawId, rawCode) {
+export function fontGlyphPng(contentDir, rawId, rawCode, options = {}) {
     const id = fontId(rawId);
     const code = boundedInteger('glyph code', rawCode, 0, MAX_GLYPHS - 1);
-    const spriteName = readPack(join(contentDir, 'pack', '8_sprites.pack')).get(id);
+    const names = options.spriteNames instanceof Map
+        ? options.spriteNames : readPack(join(contentDir, 'pack', '8_sprites.pack'));
+    const spriteName = names.get(id);
     if( !spriteName ) return null;
     const path = join(contentDir, 'sprites', spriteName, `${code}.bmp`);
     if( !existsSync(path) ) return null;

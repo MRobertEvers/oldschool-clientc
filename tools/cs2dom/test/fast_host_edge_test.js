@@ -65,6 +65,30 @@ function packed(records) {
     return words;
 }
 
+/* Dynamic child slots are native signed ints, independent from the bounded
+ * transient component-UID allocator. Shipped GIM scripts create at -1 before
+ * replacing that exact slot. */
+{
+    const host = lowGroupHost();
+    const first = host.createChild('root', IF_TYPE.text, -1);
+    const replacement = host.createChild('root', IF_TYPE.graphic, -1);
+    assert.notEqual(first.key, replacement.key);
+    assert.equal(host.findChild('root', -1, false)?.key, replacement.key);
+    assert.deepEqual(host.children('root', { startIndex: -0x80000000 })
+        .map((ref) => ref.subId), [-1]);
+    assert.throws(() => host.component(first),
+        (error) => error instanceof HostRuntimeError && error.code === 'STALE_REF');
+}
+
+/* FROMDATE uses the client's fixed UTC epoch and English month table. */
+{
+    const host = lowGroupHost();
+    assert.equal(host.request({ kind: 'FROMDATE', day: -11745 }), '1-Jan-1970');
+    assert.equal(host.request({ kind: 'FROMDATE', day: 0 }), '27-Feb-2002');
+    assert.equal(host.request({ kind: 'FROMDATE', day: 8037 }), '29-Feb-2024');
+    assert.equal(host.request({ kind: 'FROMDATE', day: 8038 }), '1-Mar-2024');
+}
+
 /* INV_GETOBJ/NUM are native empty reads for invalid signed inputs, rather than
  * request validation failures. Positive slots are full C ints, not uint16s. */
 {
@@ -195,6 +219,7 @@ for( const [triggerCount, expectedCount] of [[-1, 0], [4097, 4096]] ) {
     const scriptId = 65000;
     const wideScriptId = 64999;
     const nestedScriptId = 64998;
+    const fromDateScriptId = 64997;
     const source = [
         `// ${scriptId}`,
         '[clientscript,cs2dom_fast_boundary]()',
@@ -221,12 +246,19 @@ for( const [triggerCount, expectedCount] of [[-1, 0], [4097, 4096]] ) {
         'cc_createsibling(4, 3);',
         'cc_settext("sibling");',
     ].join('\n');
+    const fromDateSource = [
+        `// ${fromDateScriptId}`,
+        '[clientscript,cs2dom_fromdate]()',
+        'cc_create(interface_12:0, 4, 90, 0);',
+        'cc_settext(fromdate(8037));',
+    ].join('\n');
     const compiled = compileScripts([
         { id: scriptId, name: 'cs2dom_fast_boundary', source },
         { id: wideScriptId, name: 'cs2dom_fast_wide_hook', source: wideSource },
         { id: nestedScriptId, name: 'cs2dom_fast_nested_create', source: nestedSource },
+        { id: fromDateScriptId, name: 'cs2dom_fromdate', source: fromDateSource },
     ], { repoRoot: repo, revision: 'osrs239', returnBytecode: true });
-    assert(compiled.ok && compiled.bytecode.length === 3,
+    assert(compiled.ok && compiled.bytecode.length === 4,
         `could not compile fast boundary script: ${compiled.output}`);
 
     const host = lowGroupHost();
@@ -298,6 +330,13 @@ for( const [triggerCount, expectedCount] of [[-1, 0], [4097, 4096]] ) {
         assert.equal(host.component(nested).props.text, 'nested');
         assert.equal(host.component(sibling).props.text, 'sibling');
         assert.equal(host.activeRef().key, sibling.key);
+
+        const dateResult = runtime.invokeIntent({
+            component: host.ref('root'), hook: { scriptId: fromDateScriptId, args: [] }, locals: {},
+        });
+        assert.equal(dateResult.scriptId, fromDateScriptId);
+        assert.equal(host.component(host.findChild('root', 90, false)).props.text,
+            '29-Feb-2024');
     } finally { runtime.destroy(); }
 }
 

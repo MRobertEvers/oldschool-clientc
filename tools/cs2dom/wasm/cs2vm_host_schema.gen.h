@@ -2575,6 +2575,10 @@ static const struct CS2W_FieldDescriptor cs2w_fields_IGNORE_TEST[] = {
     { "name", CS2W_FIELD_STRING, offsetof(struct CS2VM_HostRequest, u.IGNORE_TEST) + offsetof(struct CS2VM_HostRequest_IGNORE_TEST, name), 1, 0, CS2W_NO_OFFSET },
 };
 
+static const struct CS2W_FieldDescriptor cs2w_fields_FROMDATE[] = {
+    { "day", CS2W_FIELD_I32, offsetof(struct CS2VM_HostRequest, u.FROMDATE) + offsetof(struct CS2VM_HostRequest_FROMDATE, day), 1, 0, CS2W_NO_OFFSET },
+};
+
 static const struct CS2W_FieldDescriptor cs2w_fields_PARAHEIGHT[] = {
     { "font_id", CS2W_FIELD_I32, offsetof(struct CS2VM_HostRequest, u.PARAHEIGHT) + offsetof(struct CS2VM_HostRequest_PARAHEIGHT, font_id), 1, 0, CS2W_NO_OFFSET },
     { "max_width", CS2W_FIELD_I32, offsetof(struct CS2VM_HostRequest, u.PARAHEIGHT) + offsetof(struct CS2VM_HostRequest_PARAHEIGHT, max_width), 1, 0, CS2W_NO_OFFSET },
@@ -4733,6 +4737,7 @@ static const struct CS2W_RequestDescriptor cs2w_requests[] = {
     { 3621, "IGNORE_COUNT", cs2w_fields_IGNORE_COUNT, (int)(sizeof(cs2w_fields_IGNORE_COUNT) / sizeof(cs2w_fields_IGNORE_COUNT[0])) },
     { 3622, "IGNORE_GETNAME", cs2w_fields_IGNORE_GETNAME, (int)(sizeof(cs2w_fields_IGNORE_GETNAME) / sizeof(cs2w_fields_IGNORE_GETNAME[0])) },
     { 3623, "IGNORE_TEST", cs2w_fields_IGNORE_TEST, (int)(sizeof(cs2w_fields_IGNORE_TEST) / sizeof(cs2w_fields_IGNORE_TEST[0])) },
+    { 4104, "FROMDATE", cs2w_fields_FROMDATE, (int)(sizeof(cs2w_fields_FROMDATE) / sizeof(cs2w_fields_FROMDATE[0])) },
     { 4108, "PARAHEIGHT", cs2w_fields_PARAHEIGHT, (int)(sizeof(cs2w_fields_PARAHEIGHT) / sizeof(cs2w_fields_PARAHEIGHT[0])) },
     { 4109, "PARAWIDTH", cs2w_fields_PARAWIDTH, (int)(sizeof(cs2w_fields_PARAWIDTH) / sizeof(cs2w_fields_PARAWIDTH[0])) },
     { 4200, "OC_NAME", cs2w_fields_OC_NAME, (int)(sizeof(cs2w_fields_OC_NAME) / sizeof(cs2w_fields_OC_NAME[0])) },

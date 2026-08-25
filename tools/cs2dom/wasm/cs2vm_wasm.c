@@ -70,19 +70,23 @@ EM_JS(
 
 /* Scalar content/layout reads still belong to JavaScript, but reflecting a
  * complete request object for every immutable enum/struct lookup is needless
- * work. A zero result asks C to use the generic polymorphic path (notably for
- * string values); one means JavaScript wrote the exact signed int result. */
+ * work. Result 1 is an i32, 2 is UTF-8 with its byte length written separately,
+ * and 0 asks C to preserve the generic path for an unsupported shape. */
 EM_JS(
     int,
-    cs2w_js_fast_host_int_query,
+    cs2w_js_fast_host_scalar_query,
     (uintptr_t session, uintptr_t invocation, int request_kind,
-     int a, int b, int c, uintptr_t output),
+     int a, int b, int c, uintptr_t int_output,
+     uintptr_t string_output, int string_capacity, uintptr_t string_length_output,
+     uintptr_t cacheable_output),
     {
-        const query = Module['cs2FastHostIntQuery'];
+        const query = Module['cs2FastHostScalarQuery'];
         if( typeof query !== 'function' ) return -1;
         try
         {
-            return query(session, invocation, request_kind, a, b, c, output) | 0;
+            return query(session, invocation, request_kind, a, b, c, int_output,
+                         string_output, string_capacity, string_length_output,
+                         cacheable_output) | 0;
         }
         catch( error )
         {
@@ -183,6 +187,24 @@ struct CS2W_FastValue
     int value;
 };
 
+/* Immutable cache-data reads are shared by every hook in one WASM session.
+ * A large generated interface can ask for the same enum/struct tuple thousands
+ * of times while rebuilding dynamic rows. Keeping those exact scalar answers
+ * here avoids a C -> JavaScript round trip after the first read without moving
+ * ownership of the backing cache data out of HostRuntime. */
+struct CS2W_FastScalarCacheEntry
+{
+    int occupied;
+    int request_kind;
+    int a;
+    int b;
+    int c;
+    int result_kind;
+    int int_value;
+    char* string_value;
+    int string_length;
+};
+
 struct CS2W_FieldDescriptor
 {
     const char* name;
@@ -222,6 +244,9 @@ struct CS2W_Session
     int script_capacity;
     int last_error;
     char last_error_message[CS2W_ERROR_MESSAGE_LEN];
+    struct CS2W_FastScalarCacheEntry* fast_scalar_cache;
+    int fast_scalar_cache_count;
+    int fast_scalar_cache_capacity;
 };
 
 struct CS2W_EventValues
@@ -284,6 +309,8 @@ struct CS2W_Invocation
     struct CS2W_FastValue* fast_values;
     int fast_value_count;
     int fast_value_capacity;
+    char* fast_scalar_string;
+    int fast_scalar_string_capacity;
 };
 
 static char*
@@ -1059,26 +1086,211 @@ cs2w_fast_value(
 #endif
 }
 
-/* Returns 1 for an exact integer result, 0 when the request is polymorphic
- * and must use the generic bridge, and -1 on a JavaScript/HOST failure. */
+static uint32_t
+cs2w_fast_scalar_hash(int request_kind, int a, int b, int c)
+{
+    uint32_t hash = 2166136261u;
+    const uint32_t words[] = {
+        (uint32_t)request_kind, (uint32_t)a, (uint32_t)b, (uint32_t)c
+    };
+    for( int i = 0; i < 4; i++ )
+    {
+        hash ^= words[i];
+        hash *= 16777619u;
+        hash ^= hash >> 16;
+    }
+    return hash;
+}
+
+static struct CS2W_FastScalarCacheEntry*
+cs2w_fast_scalar_cache_slot(
+    struct CS2W_Session* session,
+    int request_kind,
+    int a,
+    int b,
+    int c)
+{
+    if( !session->fast_scalar_cache_capacity ) return NULL;
+    uint32_t mask = (uint32_t)session->fast_scalar_cache_capacity - 1u;
+    uint32_t index = cs2w_fast_scalar_hash(request_kind, a, b, c) & mask;
+    for( ;; )
+    {
+        struct CS2W_FastScalarCacheEntry* entry =
+            &session->fast_scalar_cache[index];
+        if( !entry->occupied ||
+            (entry->request_kind == request_kind && entry->a == a &&
+             entry->b == b && entry->c == c) )
+            return entry;
+        index = (index + 1u) & mask;
+    }
+}
+
 static int
-cs2w_fast_int_query(
+cs2w_fast_scalar_cache_grow(struct CS2W_Session* session)
+{
+    int old_capacity = session->fast_scalar_cache_capacity;
+    int capacity = old_capacity ? old_capacity * 2 : 256;
+    if( capacity < old_capacity || capacity > 65536 ) return 0;
+    struct CS2W_FastScalarCacheEntry* entries =
+        (struct CS2W_FastScalarCacheEntry*)calloc(
+            (size_t)capacity, sizeof(*entries));
+    if( !entries ) return 0;
+    struct CS2W_FastScalarCacheEntry* old_entries = session->fast_scalar_cache;
+    session->fast_scalar_cache = entries;
+    session->fast_scalar_cache_capacity = capacity;
+    for( int i = 0; i < old_capacity; i++ )
+    {
+        struct CS2W_FastScalarCacheEntry* old = &old_entries[i];
+        if( !old->occupied ) continue;
+        struct CS2W_FastScalarCacheEntry* next = cs2w_fast_scalar_cache_slot(
+            session, old->request_kind, old->a, old->b, old->c);
+        *next = *old;
+    }
+    free(old_entries);
+    return 1;
+}
+
+static int
+cs2w_fast_scalar_cache_lookup(
+    struct CS2W_Session* session,
+    int request_kind,
+    int a,
+    int b,
+    int c,
+    int* value_out,
+    const char** string_out,
+    int* string_length_out)
+{
+    struct CS2W_FastScalarCacheEntry* entry = cs2w_fast_scalar_cache_slot(
+        session, request_kind, a, b, c);
+    if( !entry || !entry->occupied ) return 0;
+    *value_out = entry->int_value;
+    if( entry->result_kind == 2 )
+    {
+        *string_out = entry->string_value;
+        *string_length_out = entry->string_length;
+    }
+    return entry->result_kind;
+}
+
+/* Cache allocation is an optimization only. If memory is tight, keep the
+ * just-produced HOST result and retry JavaScript on the next lookup rather
+ * than turning a valid script into an allocation failure. */
+static void
+cs2w_fast_scalar_cache_store(
+    struct CS2W_Session* session,
+    int request_kind,
+    int a,
+    int b,
+    int c,
+    int result_kind,
+    int int_value,
+    const char* string_value,
+    int string_length)
+{
+    if( result_kind != 1 && result_kind != 2 ) return;
+    if( !session->fast_scalar_cache_capacity ||
+        (session->fast_scalar_cache_count + 1) * 10 >=
+            session->fast_scalar_cache_capacity * 7 )
+    {
+        if( !cs2w_fast_scalar_cache_grow(session) ) return;
+    }
+    struct CS2W_FastScalarCacheEntry* entry = cs2w_fast_scalar_cache_slot(
+        session, request_kind, a, b, c);
+    if( !entry || entry->occupied ) return;
+    char* string_copy = NULL;
+    if( result_kind == 2 )
+    {
+        string_copy = (char*)malloc((size_t)string_length + 1);
+        if( !string_copy ) return;
+        memcpy(string_copy, string_value, (size_t)string_length);
+        string_copy[string_length] = '\0';
+    }
+    entry->occupied = 1;
+    entry->request_kind = request_kind;
+    entry->a = a;
+    entry->b = b;
+    entry->c = c;
+    entry->result_kind = result_kind;
+    entry->int_value = int_value;
+    entry->string_value = string_copy;
+    entry->string_length = string_length;
+    session->fast_scalar_cache_count++;
+}
+
+/* Returns 1 for an exact integer result, 2 for an exact UTF-8 result, 0 for a
+ * generic fallback, and -1 on a JavaScript/HOST failure. */
+static int
+cs2w_fast_scalar_query(
     struct CS2W_Invocation* invocation,
     int request_kind,
     int a,
     int b,
     int c,
-    int* value_out)
+    int* value_out,
+    const char** string_out,
+    int* string_length_out)
 {
 #ifdef __EMSCRIPTEN__
-    return cs2w_js_fast_host_int_query(
+    int cached = cs2w_fast_scalar_cache_lookup(
+        invocation->session, request_kind, a, b, c,
+        value_out, string_out, string_length_out);
+    if( cached ) return cached;
+    if( !invocation->fast_scalar_string )
+    {
+        invocation->fast_scalar_string = (char*)malloc(4096);
+        if( !invocation->fast_scalar_string ) return -1;
+        invocation->fast_scalar_string_capacity = 4096;
+    }
+    int length = 0;
+    int cacheable = 0;
+    int result = cs2w_js_fast_host_scalar_query(
         (uintptr_t)invocation->session,
         (uintptr_t)invocation,
         request_kind,
         a,
         b,
         c,
-        (uintptr_t)value_out);
+        (uintptr_t)value_out,
+        (uintptr_t)invocation->fast_scalar_string,
+        invocation->fast_scalar_string_capacity,
+        (uintptr_t)&length,
+        (uintptr_t)&cacheable);
+    if( result == 2 && length >= invocation->fast_scalar_string_capacity )
+    {
+        if( length < 0 || length >= CS2W_MAX_DYNAMIC_FIELD * CS2VM_SETON_STR_ARG_LEN )
+            return 0;
+        char* buffer = (char*)realloc(
+            invocation->fast_scalar_string, (size_t)length + 1);
+        if( !buffer ) return -1;
+        invocation->fast_scalar_string = buffer;
+        invocation->fast_scalar_string_capacity = length + 1;
+        result = cs2w_js_fast_host_scalar_query(
+            (uintptr_t)invocation->session,
+            (uintptr_t)invocation,
+            request_kind,
+            a,
+            b,
+            c,
+            (uintptr_t)value_out,
+            (uintptr_t)invocation->fast_scalar_string,
+            invocation->fast_scalar_string_capacity,
+            (uintptr_t)&length,
+            (uintptr_t)&cacheable);
+    }
+    if( result == 2 )
+    {
+        if( length < 0 || length >= invocation->fast_scalar_string_capacity ) return -1;
+        invocation->fast_scalar_string[length] = '\0';
+        *string_out = invocation->fast_scalar_string;
+        *string_length_out = length;
+    }
+    if( cacheable && (result == 1 || result == 2) )
+        cs2w_fast_scalar_cache_store(
+            invocation->session, request_kind, a, b, c, result,
+            *value_out, result == 2 ? invocation->fast_scalar_string : NULL,
+            result == 2 ? length : 0);
+    return result;
 #else
     (void)invocation;
     (void)request_kind;
@@ -1086,8 +1298,27 @@ cs2w_fast_int_query(
     (void)b;
     (void)c;
     (void)value_out;
+    (void)string_out;
+    (void)string_length_out;
     return -1;
 #endif
+}
+
+static int
+cs2w_fast_push_scalar(
+    struct CS2VM2_Thread* thread,
+    int result_kind,
+    int int_value,
+    const char* string_value,
+    int string_length,
+    int allow_string)
+{
+    if( result_kind < 0 ) return CS2VM_EXECNO_ERROR;
+    if( result_kind == 0 ) return CS2VM_EXECNO_YIELD;
+    if( result_kind == 1 ) return CS2VM2_PushInt(thread, int_value);
+    if( result_kind != 2 || !allow_string ) return CS2VM_EXECNO_YIELD;
+    char* copy = CS2VM2_StrDupLen(thread, string_value, (size_t)string_length);
+    return copy ? CS2VM2_PushStr(thread, copy) : CS2VM_EXECNO_ERROR;
 }
 
 static int
@@ -1203,48 +1434,64 @@ cs2w_fast_host_exec(
     case CS2VM_HOST_REQUEST_STRUCT_PARAM:
     {
         int value = 0;
-        int result = cs2w_fast_int_query(
+        const char* string_value = NULL;
+        int string_length = 0;
+        int result = cs2w_fast_scalar_query(
             invocation,
             request->kind,
             request->u.STRUCT_PARAM.struct_id,
             request->u.STRUCT_PARAM.param_id,
             0,
-            &value);
-        if( result < 0 ) return CS2VM_EXECNO_ERROR;
-        if( result == 0 ) return CS2VM_EXECNO_YIELD;
-        return CS2VM2_PushInt(thread, value);
+            &value,
+            &string_value,
+            &string_length);
+        return cs2w_fast_push_scalar(
+            thread, result, value, string_value, string_length, 1);
     }
+    case CS2VM_HOST_REQUEST_ENUM_STRING:
     case CS2VM_HOST_REQUEST_ENUM:
     {
-        /* String enums retain the generic result writer. Numeric enums can be
-         * pushed directly without allocating/reflection on either side. */
-        if( request->u.ENUM.output_type == (int)'s' )
-            return CS2VM_EXECNO_YIELD;
+        int enum_id = request->kind == CS2VM_HOST_REQUEST_ENUM
+                          ? request->u.ENUM.enum_id
+                          : request->u.ENUM_STRING.enum_id;
+        int key = request->kind == CS2VM_HOST_REQUEST_ENUM
+                      ? request->u.ENUM.key
+                      : request->u.ENUM_STRING.key;
+        int output_type = request->kind == CS2VM_HOST_REQUEST_ENUM
+                              ? request->u.ENUM.output_type
+                              : (int)'s';
         int value = 0;
-        int result = cs2w_fast_int_query(
+        const char* string_value = NULL;
+        int string_length = 0;
+        int result = cs2w_fast_scalar_query(
             invocation,
             request->kind,
-            request->u.ENUM.enum_id,
-            request->u.ENUM.key,
-            request->u.ENUM.output_type,
-            &value);
-        if( result != 1 )
-            return result < 0 ? CS2VM_EXECNO_ERROR : CS2VM_EXECNO_YIELD;
-        return CS2VM2_PushInt(thread, value);
+            enum_id,
+            key,
+            output_type,
+            &value,
+            &string_value,
+            &string_length);
+        return cs2w_fast_push_scalar(
+            thread, result, value, string_value, string_length,
+            output_type == (int)'s');
     }
     case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
     {
         int value = 0;
-        int result = cs2w_fast_int_query(
+        const char* string_value = NULL;
+        int string_length = 0;
+        int result = cs2w_fast_scalar_query(
             invocation,
             request->kind,
             request->u.ENUM_GETOUTPUTCOUNT.enum_id,
             0,
             0,
-            &value);
-        if( result != 1 )
-            return result < 0 ? CS2VM_EXECNO_ERROR : CS2VM_EXECNO_YIELD;
-        return CS2VM2_PushInt(thread, value);
+            &value,
+            &string_value,
+            &string_length);
+        return cs2w_fast_push_scalar(
+            thread, result, value, string_value, string_length, 0);
     }
     case CS2VM_HOST_REQUEST_CC_GETX:
     case CS2VM_HOST_REQUEST_CC_GETY:
@@ -1279,11 +1526,13 @@ cs2w_fast_host_exec(
         default: component_id = request->u.IF_GETHEIGHT.component_id; break;
         }
         int value = 0;
-        int result = cs2w_fast_int_query(
-            invocation, request->kind, component_id, 0, 0, &value);
-        if( result != 1 )
-            return result < 0 ? CS2VM_EXECNO_ERROR : CS2VM_EXECNO_YIELD;
-        return CS2VM2_PushInt(thread, value);
+        const char* string_value = NULL;
+        int string_length = 0;
+        int result = cs2w_fast_scalar_query(
+            invocation, request->kind, component_id, 0, 0,
+            &value, &string_value, &string_length);
+        return cs2w_fast_push_scalar(
+            thread, result, value, string_value, string_length, 0);
     }
     case CS2VM_HOST_REQUEST_PUSH_VAR:
     case CS2VM_HOST_REQUEST_PUSH_VARBIT:
@@ -1689,6 +1938,9 @@ cs2w_session_destroy(struct CS2W_Session* session)
         free(session->scripts[i]);
     }
     free(session->scripts);
+    for( int i = 0; i < session->fast_scalar_cache_capacity; i++ )
+        free(session->fast_scalar_cache[i].string_value);
+    free(session->fast_scalar_cache);
     session->magic = 0;
     free(session);
     return 1;
@@ -1885,6 +2137,7 @@ cs2w_invocation_destroy(struct CS2W_Invocation* invocation)
     free(invocation->fast_inventories);
     free(invocation->fast_children);
     free(invocation->fast_values);
+    free(invocation->fast_scalar_string);
     free(invocation->fast_records);
     free(invocation->fast_arena);
     invocation->magic = 0;

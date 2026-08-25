@@ -1661,6 +1661,27 @@ CS2VM2_Op_ParaHeight(
 }
 
 int
+CS2VM2_Op_FromDate(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int day;
+    if( CS2VM2_PopInt(vm, &day) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    request.kind = CS2VM_HOST_REQUEST_FROMDATE;
+    memset(&request.u.FROMDATE, 0, sizeof(request.u.FROMDATE));
+    request.u.FROMDATE.day = day;
+    return vm->vm->host_exec(vm, &request);
+}
+
+int
 CS2VM2_Op_ParaWidth(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
@@ -12072,6 +12093,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_AppendChar(vm, frame, operand);
     case CS2_OP_COMPARE:
         return CS2VM2_Op_Compare(vm, frame, operand);
+    case CS2_OP_FROMDATE:
+        return CS2VM2_Op_FromDate(vm, frame, operand);
     case CS2_OP_SUBSTRING:
         return CS2VM2_Op_Substring(vm, frame, operand);
     /* Pure string transforms. These previously fell through to StackMetaStub,
@@ -13988,14 +14011,22 @@ CS2VM2_Acquire(void)
     }
     assert(vm);
 
-    clock_gettime(CLOCK_MONOTONIC, &t0);
+    /* clock_gettime crosses the JS/WASM boundary in the browser.  These
+     * timestamps only feed TORIRS_PERF, so paying for two imports on every
+     * acquire while profiling is disabled is pure interaction latency. */
+    if( g_torirs_perf_enabled )
+        clock_gettime(CLOCK_MONOTONIC, &t0);
     if( warm )
         cs2vm2_init_warm(vm);
     else
         CS2VM2_Init(vm);
-    clock_gettime(CLOCK_MONOTONIC, &t1);
-    init_ns = (int64_t)(t1.tv_sec - t0.tv_sec) * 1000000000LL + (int64_t)(t1.tv_nsec - t0.tv_nsec);
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_VM_INIT_NS, init_ns);
+    if( g_torirs_perf_enabled )
+    {
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        init_ns = (int64_t)(t1.tv_sec - t0.tv_sec) * 1000000000LL +
+                  (int64_t)(t1.tv_nsec - t0.tv_nsec);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_VM_INIT_NS, init_ns);
+    }
     return vm;
 }
 
@@ -14011,12 +14042,17 @@ CS2VM2_Release(struct CS2VM2* vm)
     /* Measured alongside the Init above because the two are one round trip:
      * a pool hit avoids the 2.9 MB malloc and nothing else, so whatever these
      * two cost is what every script pays no matter how warm the pool is. */
-    clock_gettime(CLOCK_MONOTONIC, &t0);
+    if( g_torirs_perf_enabled )
+        clock_gettime(CLOCK_MONOTONIC, &t0);
     CS2VM2_Free(vm);
-    clock_gettime(CLOCK_MONOTONIC, &t1);
-    TORIRS_PERF_COUNT(
-        TORIRS_PERF_CTR_CS2_VM_RELEASE_NS,
-        (int64_t)(t1.tv_sec - t0.tv_sec) * 1000000000LL + (int64_t)(t1.tv_nsec - t0.tv_nsec));
+    if( g_torirs_perf_enabled )
+    {
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        TORIRS_PERF_COUNT(
+            TORIRS_PERF_CTR_CS2_VM_RELEASE_NS,
+            (int64_t)(t1.tv_sec - t0.tv_sec) * 1000000000LL +
+                (int64_t)(t1.tv_nsec - t0.tv_nsec));
+    }
 
     if( g_vm_pool_count < CS2VM2_POOL_MAX )
         g_vm_pool[g_vm_pool_count++] = vm;

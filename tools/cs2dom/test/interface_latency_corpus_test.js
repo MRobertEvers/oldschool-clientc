@@ -12,6 +12,8 @@
  *     node test/interface_latency_corpus_test.js
  *   CS2DOM_CORPUS_SHARD=0/8 node test/interface_latency_corpus_test.js
  *   CS2DOM_CORPUS_HARD_FAIL=1 node test/interface_latency_corpus_test.js
+ *   CS2DOM_CORPUS_PROFILE=1 CS2DOM_CORPUS_PROFILE_UNIQUE=1
+ *     node test/interface_latency_corpus_test.js
  *
  * Target sampling deduplicates components which expose the same hook scripts,
  * operation indexes, and interaction traits. Set CS2DOM_CORPUS_TARGET_LIMIT=0
@@ -46,6 +48,7 @@ const TARGET_LIMIT = nonnegativeInteger(process.env.CS2DOM_CORPUS_TARGET_LIMIT, 
 const HARD_FAIL = process.env.CS2DOM_CORPUS_HARD_FAIL === '1';
 const FAST_HOST = process.env.CS2DOM_WASM_FAST_HOST !== '0';
 const PROFILE = process.env.CS2DOM_CORPUS_PROFILE === '1';
+const PROFILE_UNIQUE = process.env.CS2DOM_CORPUS_PROFILE_UNIQUE === '1';
 const INTERFACE_TIMEOUT_MS = positiveNumber(
     process.env.CS2DOM_CORPUS_INTERFACE_TIMEOUT_MS, 120_000);
 const PROGRESS_EVERY = positiveInteger(process.env.CS2DOM_CORPUS_PROGRESS_EVERY, 25);
@@ -64,6 +67,14 @@ const KEY_HOOKS = new Set([
 ]);
 const TIMER_HOOKS = new Set(['ontimer']);
 const PRIORITY_TARGET = /(?:search|quantity5|unlock|combi|confirm|submit|continue)/i;
+
+/* Some cache interfaces are only valid in the client state which opens them.
+ * Keep those states explicit and narrowly keyed by interface name: this is a
+ * real-host fixture, not a VM fallback.  The jigsaw on-load script looks up
+ * varp 4756 as a DB row and the live scrambled-puzzle row in rev 239 is 5397. */
+const INTERFACE_STATE_FIXTURES = Object.freeze({
+    jigsaw: Object.freeze({ 'varp:4756': 5397 }),
+});
 
 if( isMainThread ) {
     const summary = await supervise();
@@ -153,6 +164,7 @@ async function corpusWorker() {
             unavailablePrograms: [],
             fallbackInterfaces: [],
             fallbackRecords: 0,
+            stateFixtures: [],
             mountedInterfaces: 0,
             mountFailures: [],
             discovered: {
@@ -228,6 +240,8 @@ async function auditInterface(record, compileProject, hostData, wasmUrl, summary
 
     let current = null;
     let invalidated = false;
+    const fixtureState = INTERFACE_STATE_FIXTURES[record.name] || null;
+    if( fixtureState ) summary.stateFixtures.push(identity(record, { state: fixtureState }));
     const makeSession = async () => {
         const mountBefore = performance.now();
         const metrics = { hooks: 0, hostRequests: 0 };
@@ -236,6 +250,7 @@ async function auditInterface(record, compileProject, hostData, wasmUrl, summary
             session.host = createHostRuntime(imported.ir, {
                 viewport: { width: 512, height: 334 },
                 hostData,
+                state: fixtureState ? { ...fixtureState } : {},
                 recordChanges: false,
                 invoke(intent) {
                     metrics.hooks++;
@@ -719,6 +734,22 @@ function installDispatchProfile(session) {
         row.invokeMs += ms;
         row.invokes.push({ scriptId: intent?.hook?.scriptId, ms });
     });
+    wrap(session.wasm, 'fastScalarQuery', (row, ms, [, requestKind, a, b, c]) => {
+        row.fastScalarMs += ms;
+        row.fastScalarCalls++;
+        row.fastScalarKinds[requestKind] = (row.fastScalarKinds[requestKind] || 0) + 1;
+        if( PROFILE_UNIQUE )
+            (row.fastScalarKeys[requestKind] ||= new Set()).add(`${a}/${b}/${c}`);
+    });
+    wrap(session.wasm, 'fastQuery', (row, ms, [, queryKind]) => {
+        row.fastQueryMs += ms;
+        row.fastQueryCalls++;
+        row.fastQueryKinds[queryKind] = (row.fastQueryKinds[queryKind] || 0) + 1;
+    });
+    wrap(session.wasm, 'fastFlush', (row, ms) => {
+        row.fastFlushMs += ms;
+        row.fastFlushCalls++;
+    });
     wrap(session.host, 'request', (row, ms, [request]) => {
         const kind = String(typeof request === 'object' ? request?.kind : request);
         const metric = row.requests[kind] ||= { calls: 0, ms: 0, maxMs: 0 };
@@ -750,6 +781,15 @@ function installDispatchProfile(session) {
                 fastBatchMs: 0,
                 fastBatches: 0,
                 fastRecords: 0,
+                fastScalarMs: 0,
+                fastScalarCalls: 0,
+                fastScalarKinds: {},
+                fastScalarKeys: {},
+                fastQueryMs: 0,
+                fastQueryCalls: 0,
+                fastQueryKinds: {},
+                fastFlushMs: 0,
+                fastFlushCalls: 0,
                 requests: {},
                 methods: {},
             };
@@ -757,10 +797,15 @@ function installDispatchProfile(session) {
         end() {
             const result = current;
             current = null;
-            if( result ) result.topRequests = Object.entries(result.requests)
-                .map(([kind, metric]) => ({ kind, ...metric }))
-                .sort((left, right) => right.ms - left.ms)
-                .slice(0, 12);
+            if( result ) {
+                if( PROFILE_UNIQUE ) result.fastScalarUniqueKinds = Object.fromEntries(
+                    Object.entries(result.fastScalarKeys).map(([kind, keys]) => [kind, keys.size]));
+                delete result.fastScalarKeys;
+                result.topRequests = Object.entries(result.requests)
+                    .map(([kind, metric]) => ({ kind, ...metric }))
+                    .sort((left, right) => right.ms - left.ms)
+                    .slice(0, 12);
+            }
             return result;
         },
     };
@@ -825,6 +870,8 @@ function printSummary(summary) {
         `${summary.unavailablePrograms.length} unavailable programs`);
     console.log(`exact Dat2 source fallback: ${summary.fallbackRecords} records across ` +
         `${summary.fallbackInterfaces.length} interfaces`);
+    if( summary.stateFixtures.length ) console.log(`real client-state fixtures: ` +
+        summary.stateFixtures.map((row) => `${row.interfaceId}:${row.interface}`).join(', '));
     console.log(actualFull
         ? `actual full-corpus wall time: ${formatMs(summary.elapsedMs)}`
         : `projected full-corpus diagnostic cost: ${formatMs(projectedMs)} ` +
@@ -858,8 +905,20 @@ function formatRow(row) {
     const methods = row.profile.methods || {};
     const top = (row.profile.topRequests || []).slice(0, 4)
         .map((request) => `${request.kind}:${request.calls}/${request.ms.toFixed(2)}ms`).join(',');
+    const scalarKinds = Object.entries(row.profile.fastScalarKinds || {})
+        .sort((left, right) => right[1] - left[1]).slice(0, 6)
+        .map(([kind, calls]) => `${kind}:${calls}` +
+            (row.profile.fastScalarUniqueKinds
+                ? `/${row.profile.fastScalarUniqueKinds[kind] ?? 0}u` : '')).join(',');
+    const queryKinds = Object.entries(row.profile.fastQueryKinds || {})
+        .sort((left, right) => right[1] - left[1]).slice(0, 6)
+        .map(([kind, calls]) => `${kind}:${calls}`).join(',');
     return `${base} · profile invoke=${row.profile.invokeMs.toFixed(2)}ms ` +
         `fast=${row.profile.fastBatchMs.toFixed(2)}ms/${row.profile.fastRecords} ` +
+        `cflush=${row.profile.fastFlushMs.toFixed(2)}ms/${row.profile.fastFlushCalls} ` +
+        `scalar=${row.profile.fastScalarMs.toFixed(2)}ms/${row.profile.fastScalarCalls}` +
+        `[${scalarKinds}] query=${row.profile.fastQueryMs.toFixed(2)}ms/` +
+        `${row.profile.fastQueryCalls}[${queryKinds}] ` +
         `layout=${(methods.layout?.ms || 0).toFixed(2)}ms ` +
         `emit=${(methods._emit?.ms || 0).toFixed(2)}ms requests=[${top}]`;
 }

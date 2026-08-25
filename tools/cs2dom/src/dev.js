@@ -26,6 +26,9 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { build } from './build.js';
+import {
+    BoundedAssetCache, assetRecord, fileVersion, filesVersion, sendAsset,
+} from './asset_cache.js';
 import { createBytecodePrograms } from './bytecode.js';
 import { layout } from './preview.js';
 import { stateInputs } from './eval.js';
@@ -38,7 +41,9 @@ import {
 import { prepareDat2Project } from './dat2.js';
 import { fontGlyphPng, fontManifest, parseSpriteMeta } from './font.js';
 import { contentHostData } from './host_data.js';
-import { modelAssets, modelIndex, proxyModel, rawModel, startModelServer } from './model.js';
+import {
+    modelAssets, modelIndex, proxyModel, rawModel, requestModel, startModelServer,
+} from './model.js';
 import {
     nativePreviewFingerprint, nativePreviewStatus, renderNativeInterface,
 } from './native_preview.js';
@@ -59,14 +64,32 @@ export const BROWSER_RUNTIME_MODULES = new Set([
     'worker_runtime_controller.js',
 ]);
 
-export function serve(project, { port = 8099, open = true, log = console.log } = {}) {
+export function serve(project, {
+    port = 8099,
+    open = true,
+    log = console.log,
+    assetCacheBytes = 64 * 1024 * 1024,
+    assetCacheEntries = 4096,
+    assetCacheItemBytes = 16 * 1024 * 1024,
+} = {}) {
     project = prepareDat2Project(project, { log });
     mkdirSync(project.sources, { recursive: true });
     let current = compile(project);
+    let buildRevision = 0;
+    const assetCache = new BoundedAssetCache({
+        maxBytes: assetCacheBytes,
+        maxEntries: assetCacheEntries,
+        maxItemBytes: assetCacheItemBytes,
+    });
     const clients = new Set();
     const sources = interfaceSources(project);
     const sprites = new Map([...sources].map(([source, dir]) => [source, spriteIndex(dir)]));
     const models = new Map([...sources].map(([source, dir]) => [source, modelIndex(dir)]));
+    const spritePackVersions = new Map([...sources].map(([source, dir]) =>
+        [source, fileVersion(join(dir, 'pack', '8_sprites.pack'))]));
+    const modelPackVersions = new Map([...sources].map(([source, dir]) =>
+        [source, fileVersion(join(dir, 'pack', '7_models.pack'))]));
+    const spriteFiles = new Map();
     const hostData = new Map([...sources].map(([source, dir]) => [source, contentHostData(dir)]));
     /* HOST lookups are several megabytes for a full cache. Serialize each source
      * once and let the page cache it across interface changes and hot reloads;
@@ -79,9 +102,15 @@ export function serve(project, { port = 8099, open = true, log = console.log } =
     const bytecodeProgram = createBytecodePrograms(project, { log });
     const contentCatalog = [...sources].flatMap(([source, dir]) =>
         contentInterfaceCatalog(dir, { source }));
+    const pageAsset = assetRecord(page(), {
+        type: 'text/html; charset=utf-8', version: 'server',
+    });
 
     const rebuild = () => {
         current = compile(project);
+        buildRevision++;
+        assetCache.deletePrefix('catalog:');
+        assetCache.deletePrefix('state:');
         const message = `data: ${JSON.stringify({ at: Date.now() })}\n\n`;
         for( const client of clients ) client.write(message);
         if( current.error ) log(`  ✗ ${current.error.message.split('\n')[0]}`);
@@ -99,20 +128,39 @@ export function serve(project, { port = 8099, open = true, log = console.log } =
         const url = new URL(request.url, 'http://localhost');
 
         if( url.pathname === '/' )
-            return send(response, 200, 'text/html; charset=utf-8', page());
+            return sendAsset(request, response, pageAsset);
 
         if( url.pathname === '/state' ) {
             const state = url.searchParams.get('state');
             const selected = url.searchParams.get('interface');
-            return send(response, 200, 'application/json',
-                        JSON.stringify(view(project, current, selected, state, contentCatalog, sources,
-                            bytecodeProgram, hostData)));
+            const key = `state:${url.search}`;
+            const resident = assetCache.get(key);
+            if( resident ) {
+                const residentVersion = `${buildRevision}:${filesVersion(
+                    resident.dependencies || [])}`;
+                if( resident.version === residentVersion )
+                    return sendAsset(request, response, resident, {
+                        cacheControl: 'private, max-age=0, must-revalidate',
+                    });
+                assetCache.delete(key);
+            }
+            const value = view(project, current, selected, state, contentCatalog, sources,
+                bytecodeProgram, hostData);
+            const nextDependencies = viewDependencies(value);
+            const version = `${buildRevision}:${filesVersion(nextDependencies)}`;
+            const entry = assetRecord(JSON.stringify(value), {
+                type: 'application/json', version, dependencies: nextDependencies,
+            });
+            assetCache.set(key, entry);
+            return sendAsset(request, response, entry, {
+                cacheControl: 'private, max-age=0, must-revalidate',
+            });
         }
 
         if( url.pathname === '/catalog' ) {
-            return send(response, 200, 'application/json', JSON.stringify({
-                interfaces: catalog(current, contentCatalog),
-            }));
+            return serveCached(request, response, assetCache, 'catalog:all', String(buildRevision),
+                () => JSON.stringify({ interfaces: catalog(current, contentCatalog) }),
+                { type: 'application/json' });
         }
 
         const hostDataMatch = /^\/host-data\/([^/]+)\.json$/.exec(url.pathname);
@@ -123,22 +171,25 @@ export function serve(project, { port = 8099, open = true, log = console.log } =
             const payload = hostDataJson.get(source);
             return payload === undefined
                 ? send(response, 404, 'text/plain', 'no such host-data source')
-                : send(response, 200, 'application/json', payload);
+                : serveCached(request, response, assetCache, `host-data:${source}`, 'server',
+                    () => payload, { type: 'application/json' });
         }
 
         const runtimeModule = /^\/runtime\/([a-z0-9_]+\.js)$/.exec(url.pathname);
-        if( runtimeModule && BROWSER_RUNTIME_MODULES.has(runtimeModule[1]) )
-            return send(response, 200, 'text/javascript; charset=utf-8',
-                readFileSync(join(MODULE_ROOT, runtimeModule[1])));
+        if( runtimeModule && BROWSER_RUNTIME_MODULES.has(runtimeModule[1]) ) {
+            const file = join(MODULE_ROOT, runtimeModule[1]);
+            return serveFile(request, response, assetCache,
+                `file:runtime:${runtimeModule[1]}`, file, 'text/javascript; charset=utf-8');
+        }
 
         const cs2vmAsset = /^\/cs2vm-wasm\/(cs2vm_wasm\.(?:js|wasm))$/.exec(url.pathname);
         if( cs2vmAsset ) {
             const file = join(CS2VM_WEB_ROOT, cs2vmAsset[1]);
             if( !existsSync(file) ) return send(response, 404, 'text/plain',
                 'C CS2VM/WASM module is not built');
-            return send(response, 200,
-                cs2vmAsset[1].endsWith('.wasm') ? 'application/wasm' : 'text/javascript; charset=utf-8',
-                readFileSync(file));
+            return serveFile(request, response, assetCache, `file:cs2vm:${cs2vmAsset[1]}`, file,
+                cs2vmAsset[1].endsWith('.wasm')
+                    ? 'application/wasm' : 'text/javascript; charset=utf-8');
         }
 
         if( url.pathname === '/native/status' )
@@ -189,12 +240,22 @@ export function serve(project, { port = 8099, open = true, log = console.log } =
             }
             frame.then((rendered) => {
                 if( responseKind === 'png' )
-                    return send(response, 200, 'image/png', rendered.png);
+                    return serveCached(request, response, assetCache,
+                        `native:${fingerprint}:png`, fingerprint,
+                        () => rendered.png, {
+                            type: 'image/png',
+                            cacheControl: 'private, max-age=0, must-revalidate',
+                        });
                 const inspector = nativeTreeInspector(rendered.tree, selectedIr);
-                return send(response, 200, 'application/json', JSON.stringify({
-                    viewport: inspector.viewport,
-                    boxes: inspector.boxes,
-                }));
+                return serveCached(request, response, assetCache,
+                    `native:${fingerprint}:tree`, fingerprint,
+                    () => JSON.stringify({
+                        viewport: inspector.viewport,
+                        boxes: inspector.boxes,
+                    }), {
+                        type: 'application/json',
+                        cacheControl: 'private, max-age=0, must-revalidate',
+                    });
             }).catch((error) => send(response, 500, 'text/plain', error.message));
             return undefined;
         }
@@ -216,48 +277,93 @@ export function serve(project, { port = 8099, open = true, log = console.log } =
             const source = parts.length === 3 ? parts[1] : project.contentSource;
             const id = Number.parseInt(basename(parts.at(-1), '.png'), 10);
             const contentDir = sources.get(source);
-            const png = contentDir ? spritePng(contentDir, sprites.get(source), id, {
-                tiled: url.searchParams.get('tile') === '1',
-            }) : null;
-            if( !png ) return send(response, 404, 'text/plain', 'no such sprite');
-            return send(response, 200, 'image/png', png);
+            if( !contentDir ) return send(response, 404, 'text/plain', 'no such sprite');
+            const index = refreshIndex(source, contentDir, 'sprite', sprites,
+                spritePackVersions, assetCache, spriteIndex);
+            const resolved = resolveSpriteFiles(contentDir, index, id, spriteFiles);
+            if( !resolved ) return send(response, 404, 'text/plain', 'no such sprite');
+            const tiled = url.searchParams.get('tile') === '1';
+            const version = [
+                spritePackVersions.get(source),
+                resolved.directoryVersion,
+                fileVersion(resolved.bitmap),
+                fileVersion(resolved.metaPath),
+            ].join(':');
+            return serveCached(request, response, assetCache,
+                `sprite:${source}:${id}:${tiled ? 1 : 0}`, version,
+                () => spritePng(contentDir, index, id, { tiled, resolved }),
+                { type: 'image/png', nullable: true, notFound: 'no such sprite' });
         }
 
         const fontManifestMatch = /^\/font\/([^/]+)\/(\d+)\.json$/.exec(url.pathname);
         if( fontManifestMatch ) {
-            const contentDir = sources.get(decodeURIComponent(fontManifestMatch[1]));
-            const manifest = contentDir ? fontManifest(contentDir, Number(fontManifestMatch[2]), {
-                source: decodeURIComponent(fontManifestMatch[1]),
-            }) : null;
-            return manifest ? send(response, 200, 'application/json', JSON.stringify(manifest))
-                : send(response, 404, 'text/plain', 'no such font');
+            const source = decodeURIComponent(fontManifestMatch[1]);
+            const contentDir = sources.get(source);
+            if( !contentDir ) return send(response, 404, 'text/plain', 'no such font');
+            const id = Number(fontManifestMatch[2]);
+            const index = refreshIndex(source, contentDir, 'sprite', sprites,
+                spritePackVersions, assetCache, spriteIndex);
+            const spriteName = index.get(id);
+            if( !spriteName ) return send(response, 404, 'text/plain', 'no such font');
+            const spriteDir = join(contentDir, 'sprites', spriteName);
+            const version = [
+                spritePackVersions.get(source),
+                fileVersion(join(contentDir, 'fonts', `font_${id}.fm`)),
+                fileVersion(join(spriteDir, 'pack.meta')),
+                fileVersion(spriteDir),
+            ].join(':');
+            return serveCached(request, response, assetCache,
+                `font:${source}:${id}:manifest`, version,
+                () => {
+                    const manifest = fontManifest(contentDir, id, {
+                        source, spriteNames: index,
+                    });
+                    return manifest ? JSON.stringify(manifest) : null;
+                }, { type: 'application/json', nullable: true, notFound: 'no such font' });
         }
         const fontGlyphMatch = /^\/font\/([^/]+)\/(\d+)\/(\d+)\.png$/.exec(url.pathname);
         if( fontGlyphMatch ) {
-            const contentDir = sources.get(decodeURIComponent(fontGlyphMatch[1]));
-            const png = contentDir ? fontGlyphPng(contentDir,
-                Number(fontGlyphMatch[2]), Number(fontGlyphMatch[3])) : null;
-            return png ? send(response, 200, 'image/png', png)
-                : send(response, 404, 'text/plain', 'no such glyph');
+            const source = decodeURIComponent(fontGlyphMatch[1]);
+            const contentDir = sources.get(source);
+            if( !contentDir ) return send(response, 404, 'text/plain', 'no such glyph');
+            const id = Number(fontGlyphMatch[2]);
+            const code = Number(fontGlyphMatch[3]);
+            const index = refreshIndex(source, contentDir, 'sprite', sprites,
+                spritePackVersions, assetCache, spriteIndex);
+            const spriteName = index.get(id);
+            if( !spriteName ) return send(response, 404, 'text/plain', 'no such glyph');
+            const bitmap = join(contentDir, 'sprites', spriteName, `${code}.bmp`);
+            const version = `${spritePackVersions.get(source)}:${fileVersion(bitmap)}`;
+            return serveCached(request, response, assetCache,
+                `font:${source}:${id}:glyph:${code}`, version,
+                () => fontGlyphPng(contentDir, id, code, { spriteNames: index }),
+                { type: 'image/png', nullable: true, notFound: 'no such glyph' });
         }
 
         if( url.pathname === '/toridraw/ev_wasm.js' && existsSync(rendererAssets.javascript) )
-            return send(response, 200, 'text/javascript; charset=utf-8', readFileSync(rendererAssets.javascript));
+            return serveFile(request, response, assetCache, 'file:toridraw:classic',
+                rendererAssets.javascript, 'text/javascript; charset=utf-8');
         if( url.pathname === '/toridraw/ev_wasm_module.js' && existsSync(rendererAssets.javascript) )
-            return send(response, 200, 'text/javascript; charset=utf-8',
+            return serveFile(request, response, assetCache, 'file:toridraw:module',
+                rendererAssets.javascript, 'text/javascript; charset=utf-8', (body) =>
                 Buffer.concat([
-                    readFileSync(rendererAssets.javascript),
+                    body,
                     Buffer.from('\nexport { EVModule };\n'),
                 ]));
         if( url.pathname === '/toridraw/ev_wasm.wasm' && existsSync(rendererAssets.wasm) )
-            return send(response, 200, 'application/wasm', readFileSync(rendererAssets.wasm));
+            return serveFile(request, response, assetCache, 'file:toridraw:wasm',
+                rendererAssets.wasm, 'application/wasm');
 
         if( url.pathname === '/model/textures.bin' )
-            return proxyModel(renderer, response, { path: `/api/textures.bin${url.search}` });
+            return serveModel(request, response, assetCache,
+                `model:renderer:textures:${url.search}`, 'renderer', renderer,
+                { path: `/api/textures.bin${url.search}` });
         if( url.pathname.startsWith('/model/seq/') ) {
             const id = Number.parseInt(basename(url.pathname, '.anim'), 10);
             if( !Number.isInteger(id) ) return send(response, 404, 'text/plain', 'no such sequence');
-            return proxyModel(renderer, response, { path: `/api/seq/${id}.anim` });
+            return serveModel(request, response, assetCache,
+                `model:renderer:seq:${id}`, 'renderer', renderer,
+                { path: `/api/seq/${id}.anim` });
         }
 
         if( url.pathname.startsWith('/model/') ) {
@@ -271,16 +377,32 @@ export function serve(project, { port = 8099, open = true, log = console.log } =
                 const id = Number.parseInt(basename(parts[3], '.model'), 10);
                 if( !Number.isInteger(id) )
                     return send(response, 404, 'text/plain', 'no such configured model');
-                return proxyModel(renderer, response, { path: `/api/${leaf}/${id}.model${url.search}` });
+                return serveModel(request, response, assetCache,
+                    `model:renderer:${leaf}:${id}:${url.search}`, 'renderer', renderer,
+                    { path: `/api/${leaf}/${id}.model${url.search}` });
             }
             const id = Number.parseInt(basename(leaf, '.model'), 10);
-            const bytes = rawModel(sources.get(source), models.get(source), id);
-            if( !bytes ) return send(response, 404, 'text/plain', 'no such model');
+            const contentDir = sources.get(source);
+            const index = refreshIndex(source, contentDir, 'model', models,
+                modelPackVersions, assetCache, modelIndex);
+            const modelName = index.get(id);
+            const modelPath = modelName
+                ? join(contentDir, 'models', `${modelName}.model`) : null;
+            const modelVersion = modelPath ? fileVersion(modelPath) : '-';
+            if( modelVersion === '-' )
+                return send(response, 404, 'text/plain', 'no such model');
             /* A UI archive model uses scene lighting and the native widget's
              * SD-texture gate. The entity viewer's general /api/modelfile path
              * intentionally uses an actor/HD preview profile, so keep the UI
              * route explicit. */
-            return proxyModel(renderer, response, { method: 'POST', path: '/api/widgetmodel', body: bytes });
+            return serveModel(request, response, assetCache,
+                `model:widget:${source}:${id}`,
+                `${modelPackVersions.get(source)}:${modelVersion}`, renderer,
+                {
+                    method: 'POST',
+                    path: '/api/widgetmodel',
+                    body: () => rawModel(contentDir, index, id),
+                });
         }
 
         if( url.pathname === '/new' && request.method === 'POST' ) {
@@ -314,6 +436,10 @@ export function serve(project, { port = 8099, open = true, log = console.log } =
     });
 
     server.on('close', () => renderer?.child.kill());
+
+    /* Exposed for diagnostics/tests without making the cache mutable from the
+     * browser. This is intentionally a snapshot function, not the cache itself. */
+    server.assetCacheStats = () => assetCache.snapshot();
 
     return server;
 }
@@ -407,6 +533,16 @@ function view(project, current, selected, stateJson, contentCatalog, sources, by
             reactSource: result.reactSource || null,
             }; }),
     };
+}
+
+function viewDependencies(value) {
+    const paths = new Set();
+    for( const iface of value?.interfaces || [] ) {
+        if( iface.file ) paths.add(iface.file);
+        for( const script of iface.scripts || [] )
+            if( script?.file ) paths.add(script.file);
+    }
+    return [...paths];
 }
 
 function previewViewport(result) {
@@ -521,26 +657,55 @@ function spriteIndex(contentDir) {
 }
 
 export function spritePng(contentDir, index, id, options = {}) {
-    const name = index.get(id);
-    if( !name ) return null;
-    const dir = join(contentDir, 'sprites', name);
-    if( !existsSync(dir) ) return null;
-    /* A pack holds several sprites; the preview shows the first, which is the one
-     * a component with a plain graphic id gets. */
-    const bitmap = readdirSync(dir).filter((f) => extname(f) === '.bmp').sort()[0];
-    if( !bitmap ) return null;
+    const resolved = options.resolved || resolveSpriteFiles(contentDir, index, id);
+    if( !resolved ) return null;
     try {
-        const decoded = decodeBmp(readFileSync(join(dir, bitmap)));
-        const frameIndex = Number.parseInt(basename(bitmap, '.bmp'), 10);
-        const metaPath = join(dir, 'pack.meta');
-        const meta = existsSync(metaPath) && Number.isInteger(frameIndex)
-            ? parseSpriteMeta(readFileSync(metaPath, 'utf8')).get(frameIndex)
+        const decoded = decodeBmp(readFileSync(resolved.bitmap));
+        const meta = existsSync(resolved.metaPath) && Number.isInteger(resolved.frameIndex)
+            ? parseSpriteMeta(readFileSync(resolved.metaPath, 'utf8')).get(resolved.frameIndex)
             : null;
         const pixels = options.tiled ? spriteTile(decoded, meta) : spriteCanvas(decoded, meta);
         return encodePng(pixels);
     } catch {
         return null;
     }
+}
+
+function resolveSpriteFiles(contentDir, index, id, cache = null) {
+    const name = index.get(id);
+    if( !name ) return null;
+    const dir = join(contentDir, 'sprites', name);
+    const directoryVersion = fileVersion(dir);
+    if( directoryVersion === '-' ) return null;
+    const key = `${contentDir}\0${id}`;
+    const prior = cache?.get(key);
+    if( prior?.name === name && prior.directoryVersion === directoryVersion ) {
+        cache.delete(key);
+        cache.set(key, prior);
+        return prior;
+    }
+    /* A pack holds several sprites; the preview shows the first, which is the one
+     * a component with a plain graphic id gets. Resolve that filename once per
+     * directory identity rather than scanning the directory on every request. */
+    const filename = readdirSync(dir).filter((file) => extname(file) === '.bmp').sort()[0];
+    if( !filename ) return null;
+    const bitmap = join(dir, filename);
+    const metaPath = join(dir, 'pack.meta');
+    const resolved = {
+        name,
+        directoryVersion,
+        bitmap,
+        metaPath,
+        frameIndex: Number.parseInt(basename(filename, '.bmp'), 10),
+        dependencies: [
+            join(contentDir, 'pack', '8_sprites.pack'), dir, bitmap, metaPath,
+        ],
+    };
+    if( cache ) {
+        cache.set(key, resolved);
+        while( cache.size > 4096 ) cache.delete(cache.keys().next().value);
+    }
+    return resolved;
 }
 
 /* ---- scaffolding --------------------------------------------------------- */
@@ -572,6 +737,73 @@ function newComponent(project, rawName) {
 }
 
 /* ---- plumbing ------------------------------------------------------------ */
+
+function serveCached(request, response, cache, key, version, load, options = {}) {
+    let entry = cache.get(key, version);
+    if( !entry ) {
+        const body = load();
+        if( body === null || body === undefined ) {
+            if( options.nullable )
+                return send(response, 404, 'text/plain', options.notFound || 'not found');
+            throw new Error(`asset loader '${key}' returned no body`);
+        }
+        entry = assetRecord(body, {
+            type: options.type,
+            headers: options.headers,
+            version,
+        });
+        cache.set(key, entry);
+    }
+    return sendAsset(request, response, entry, { cacheControl: options.cacheControl });
+}
+
+function serveFile(request, response, cache, key, path, type, transform = null) {
+    const version = fileVersion(path);
+    if( version === '-' ) return send(response, 404, 'text/plain', 'asset is not built');
+    return serveCached(request, response, cache, key, version,
+        () => transform ? transform(readFileSync(path)) : readFileSync(path), { type });
+}
+
+function serveModel(request, response, cache, key, version, renderer, options) {
+    cache.getOrLoad(key, version, async () => {
+        const body = typeof options.body === 'function' ? options.body() : options.body;
+        if( options.body && !body ) return assetRecord('no such model', {
+            status: 404,
+            type: 'text/plain',
+            version,
+            cacheable: false,
+        });
+        const result = await requestModel(renderer, { ...options, body });
+        return assetRecord(result.body, {
+            status: result.status,
+            type: result.headers['content-type'] || 'application/octet-stream',
+            headers: result.headers,
+            version,
+            cacheable: result.status < 500,
+        });
+    }).then((entry) => sendAsset(request, response, entry))
+      .catch((error) => {
+          if( !response.headersSent )
+              return send(response, 502, 'text/plain',
+                  `model renderer did not start: ${error.message}`);
+          response.destroy(error);
+      });
+    return undefined;
+}
+
+function refreshIndex(source, contentDir, kind, indexes, versions, cache, load) {
+    const pack = join(contentDir, 'pack', kind === 'sprite'
+        ? '8_sprites.pack' : '7_models.pack');
+    const version = fileVersion(pack);
+    if( versions.get(source) === version ) return indexes.get(source);
+    const index = load(contentDir);
+    indexes.set(source, index);
+    versions.set(source, version);
+    cache.deletePrefix(`${kind}:${source}:`);
+    if( kind === 'sprite' ) cache.deletePrefix(`font:${source}:`);
+    else cache.deletePrefix(`model:widget:${source}:`);
+    return index;
+}
 
 function send(response, status, type, body) {
     response.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' });

@@ -4029,6 +4029,46 @@ test('script closure uses the compiler ledger to distinguish same-name procs and
     'transitive procedure role was not canonicalized from the compiler ledger');
 });
 
+test('script closure follows a unique wrong-role compiler alias used by a callback setter', () => {
+    const root = join(scratch, 'callback-wrong-role-script-closure');
+    const content = join(root, 'content');
+    const cs2Names = join(root, 'cs2-names');
+    mkdirSync(join(content, 'pack'), { recursive: true });
+    mkdirSync(join(content, 'interfaces'), { recursive: true });
+    mkdirSync(join(content, 'scripts'), { recursive: true });
+    mkdirSync(cs2Names, { recursive: true });
+    writeFileSync(join(content, 'pack', '12_clientscripts.pack'), [
+        '10=entry',
+        '42=real_timer_name',
+        '',
+    ].join('\n'));
+    writeFileSync(join(cs2Names, 'script-names.tsv'), [
+        '10\t[clientscript,entry]',
+        /* The recovered ledger label has the wrong proc role, matching the
+         * lossy rev-239 records used by toplevel and giants_foundry_hud. */
+        '42\t[proc,decompiler_timer_alias]',
+        '',
+    ].join('\n'));
+    writeFileSync(join(content, 'interfaces', 'panel.if'),
+                  '[root]\nonload=i:10\n');
+    writeFileSync(join(content, 'scripts', 'entry.cs2'), [
+        '[clientscript,entry]',
+        'if_setontimer("decompiler_timer_alias", null);',
+        'return;',
+    ].join('\n'));
+    writeFileSync(join(content, 'scripts', 'real_timer_name.cs2'),
+                  '[clientscript,real_timer_name]\nreturn;\n');
+
+    const scripts = collectInterfaceScripts(content, 'panel', { cs2Names });
+    assert(JSON.stringify(scripts.map(({ id, name }) => [id, name])) === JSON.stringify([
+        [10, 'entry'], [42, 'real_timer_name'],
+    ]), `wrong-role callback closure was ${JSON.stringify(
+        scripts.map(({ id, name }) => [id, name]))}`);
+    const timer = scripts.find(({ id }) => id === 42);
+    assert(timer.compilerRole === undefined && timer.compilerName === undefined,
+        'wrong-role compiler metadata was applied to the real callback source');
+});
+
 test('content bytecode fallback requires an exact cache revision and source fingerprint', () => {
     const root = join(scratch, 'exact-bytecode-fallback');
     const content = join(root, 'content');
@@ -4060,6 +4100,26 @@ test('content bytecode fallback requires an exact cache revision and source fing
     writeFileSync(join(derived, 'meta.ini'), meta.replace('1a2b3c4d', 'ffffffff'));
     assert(__bytecodeTest.exactDat2Fallback(project, content) === null,
         'a mismatched cache CRC was accepted as exact bytecode fallback');
+});
+
+test('exact bytecode fallback only classifies unconditional self-recursive decompiler stubs', () => {
+    assert(__bytecodeTest.unconditionalSelfRecursiveStub({
+        id: 1340,
+        name: 'quest_f2p_count',
+        source: '// cache stub\n[proc,quest_f2p_count](int $int0)\n' +
+            '~quest_f2p_count($int0);\n',
+    }), 'a guaranteed infinite self-recursive stub was not recognized');
+    assert(!__bytecodeTest.unconditionalSelfRecursiveStub({
+        id: 9,
+        name: 'recursive_search',
+        source: '[proc,recursive_search](int $int0)(int)\n' +
+            'if ($int0 = 0) { return(0); }\nreturn(~recursive_search(calc($int0 - 1)));\n',
+    }), 'a recursive procedure with a base case was incorrectly replaced');
+    assert(!__bytecodeTest.unconditionalSelfRecursiveStub({
+        id: 10,
+        name: 'different',
+        source: '[proc,different]\n~real_helper();\n',
+    }), 'an ordinary single-call forwarding procedure was incorrectly replaced');
 });
 
 test('native overlay stages a sparse source set and invalidates cache and source keys', () => {

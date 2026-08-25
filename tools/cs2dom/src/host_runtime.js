@@ -40,8 +40,8 @@ import {
 export const HOST_RUNTIME_SCHEMA = 'cs2dom-host/1';
 
 export const HOST_RUNTIME_LIMITS = Object.freeze({
-    components: 8192,
-    dynamicComponents: 4096,
+    components: 16384,
+    dynamicComponents: 8192,
     hookInvocations: 256,
     hookArgs: 64,
     hookTriggers: 4096,
@@ -421,7 +421,7 @@ const SPECIAL_REQUESTS = new Set([
     'CLIENTTYPE', 'MAP_MEMBERS', 'ON_MOBILE',
     'RUNENERGY_VISIBLE', 'RUNWEIGHT_VISIBLE',
     'ENUM', 'ENUM_STRING', 'ENUM_GETOUTPUTCOUNT',
-    'PARAWIDTH', 'PARAHEIGHT',
+    'FROMDATE', 'PARAWIDTH', 'PARAHEIGHT',
     'OC_NAME', 'OC_COST', 'OC_STACKABLE', 'OC_CERT', 'OC_UNCERT', 'OC_MEMBERS',
     'OC_PLACEHOLDER', 'OC_UNPLACEHOLDER', 'OC_OP', 'OC_IOP', 'OC_PARAM',
     'STRUCT_PARAM', 'NC_PARAM', 'LC_PARAM',
@@ -672,7 +672,8 @@ export class HostRuntime {
                 const parent = this.byFileId.get(component.layer);
                 if( !parent ) continue;
                 this._indexDynamic(component, parent, boundedInteger(
-                    'dynamic child index', component.subId ?? 0, 0, 65535));
+                    'dynamic child index', component.subId ?? 0,
+                    -0x80000000, 0x7fffffff));
                 this.dynamicCount++;
                 pendingDynamic.splice(index, 1);
             }
@@ -1557,9 +1558,18 @@ export class HostRuntime {
         const parent = this._component(parentValue);
         const type = boundedInteger('component type', rawType, 0, 255);
         const kind = TYPE_KIND.get(type) || 'Object';
-        const subId = boundedInteger('child index', rawSubId, 0, 65535);
+        /* UITree stores the script-provided dynamic child sub-id as a signed
+         * int. Values such as -1 are used by shipped interfaces; the separate
+         * transient packed component UID remains in its 0x8000..0xffff band. */
+        const subId = boundedInteger(
+            'child index', rawSubId, -0x80000000, 0x7fffffff);
         const existing = this.findChild(parent, subId, false);
-        if( existing ) this._delete(existing);
+        if( existing ) {
+            const live = this._component(existing);
+            if( !this.recordChanges && this.fastDeletedComponents )
+                this._deleteForFastReplace(live);
+            else this._delete(live);
+        }
         if( this.dynamicCount >= this.limits.dynamicComponents )
             throw new HostRuntimeError('dynamic component limit reached', 'LIMIT');
         const liveComponentCount = this.ir.components.length -
@@ -1640,7 +1650,8 @@ export class HostRuntime {
     /** Dynamic children in canonical ascending sub-id order. */
     children(parentValue, { startIndex = 0 } = {}) {
         const parent = this._component(parentValue);
-        const start = boundedInteger('child start index', startIndex, -1, 65535);
+        const start = boundedInteger(
+            'child start index', startIndex, -0x80000000, 0x7fffffff);
         return [...(this.dynamicChildren.get(parent)?.entries() || [])]
             .filter(([subId]) => subId >= start)
             .sort(([left], [right]) => left - right)
@@ -1711,6 +1722,65 @@ export class HostRuntime {
         else this._touch();
         this._retireDeletedInteraction(refs);
         return refs;
+    }
+
+    /* Production redraws replace thousands of dynamic slots inside one packed
+     * transaction. The public delete path materialises a Set, traversal array,
+     * refs array and several callback closures for each slot. Here the target
+     * is already proven dynamic and change recording is disabled, so walk its
+     * tree once, deindex directly, and let the batch's single final filter drop
+     * those exact component objects. Paint order remains unchanged because the
+     * replacement itself is still appended like native UITree_CcCreate. */
+    _deleteForFastReplace(component) {
+        const descendants = this.dynamicChildren.get(component);
+        let doomed = null;
+        if( descendants?.size ) {
+            doomed = [component, ...descendants.values()];
+            for( let index = 1; index < doomed.length; index++ ) {
+                const children = this.dynamicChildren.get(doomed[index]);
+                if( children?.size ) doomed.push(...children.values());
+            }
+        }
+        const count = doomed ? doomed.length : 1;
+        for( let index = 0; index < count; index++ ) {
+            const target = doomed ? doomed[index] : component;
+            const meta = this.meta.get(target);
+            const ref = meta.ref;
+            this.fastDeletedComponents.add(target);
+            this.dynamicChildren.delete(target);
+            this.byKey.delete(meta.key);
+            this.byName.delete(target.name);
+            this.byFileId.delete(target.fileId);
+            if( this.byUid.get(meta.componentId) === target ) this.byUid.delete(meta.componentId);
+            this.dynamicCount--;
+            this.meta.delete(target);
+            if( this.active && sameRef(ref, this.active) ) this.active = null;
+            if( this.dotActive && sameRef(ref, this.dotActive) ) this.dotActive = null;
+            if( sameRef(ref, this.interaction.hover) ) this.interaction.hover = null;
+            if( sameRef(ref, this.interaction.pressed) ) this.interaction.pressed = null;
+        }
+        const parent = this.byFileId.get(component.layer);
+        const siblings = parent && this.dynamicChildren.get(parent);
+        /* meta was removed above; the root's public sub-id is also the slot in
+         * the parent's map, so identity removal avoids retaining it without
+         * needing a second ref allocation. */
+        if( siblings ) {
+            for( const [slot, child] of siblings ) {
+                if( child !== component ) continue;
+                siblings.delete(slot);
+                break;
+            }
+            if( siblings.size === 0 ) this.dynamicChildren.delete(parent);
+        }
+        if( !this.interaction.pressed ) {
+            this.interaction.button = null;
+            this.interaction.dragging = false;
+            this.interaction.clickFired = false;
+            this.interaction.dragPickupX = 0;
+            this.interaction.dragPickupY = 0;
+        }
+        this.structureRevision++;
+        this._touch();
     }
 
     readState(kind, rawId) {
@@ -1795,14 +1865,14 @@ export class HostRuntime {
         return Int32Array.of(Number(value) | 0);
     }
 
-    /** Exact scalar-only companion to the generic reflected HOST surface.
-     * Returning null means the opcode's result is a string and must use the
-     * ordinary polymorphic writer. Numeric results stay JavaScript-owned but
-     * avoid constructing thousands of transient request records. */
-    fastHostIntDataValue(requestKind, a, b, c) {
+    /** Exact scalar companion to the generic reflected HOST surface. Values
+     * stay JavaScript-owned while the bridge avoids constructing thousands of
+     * transient request records. */
+    fastHostScalarDataValue(requestKind, a, b, c) {
         let value;
         if( requestKind === 6516 ) value = this._structParamValue(a, b);
-        else if( requestKind === 3408 ) value = this._enumValue(a, b, c);
+        else if( requestKind === 3400 || requestKind === 3408 )
+            value = this._enumValue(a, b, requestKind === 3400 ? 115 : c);
         else if( requestKind === 3411 ) value = this._enumOutputCountValue(a);
         else {
             const read = FAST_INT_GEOMETRY_READS[requestKind];
@@ -1811,7 +1881,23 @@ export class HostRuntime {
             const component = this._component(a, false);
             value = component ? this.read(read, component) : 0;
         }
-        return typeof value === 'string' ? null : Number(value) | 0;
+        return typeof value === 'string' ? value : Number(value) | 0;
+    }
+
+    /** Whether a scalar cache-data answer is immutable for this HostRuntime.
+     * Geometry is versioned elsewhere and must never enter the WASM session
+     * cache. A STRUCT_PARAM that reaches the user-supplied paramDefault hook is
+     * deliberately excluded because that callback may be stateful. */
+    fastHostScalarDataCacheable(requestKind, a, b, c) {
+        if( requestKind === 3400 || requestKind === 3408 || requestKind === 3411 ) return true;
+        if( requestKind !== 6516 ) return false;
+        const param = this.hostData.params[String(b)] || null;
+        const struct = this.hostData.structs[String(a)] || null;
+        const values = struct?.params || struct?.values || struct || {};
+        if( Object.prototype.hasOwnProperty.call(values, String(b)) ) return true;
+        if( Boolean(param?.string ?? param?.isString ?? param?.is_string) ) return true;
+        return Object.prototype.hasOwnProperty.call(param || {}, 'defaultInt') ||
+            Object.prototype.hasOwnProperty.call(param || {}, 'default_int');
     }
 
     requestFastBatch(requests) {
@@ -2303,6 +2389,7 @@ export class HostRuntime {
         if( kind === 'ON_MOBILE' ) return 0;
         if( kind === 'RUNENERGY_VISIBLE' ) return finiteOptional(this.state.runenergy, 100);
         if( kind === 'RUNWEIGHT_VISIBLE' ) return finiteOptional(this.state.runweight, 0);
+        if( kind === 'FROMDATE' ) return formatClientDate(request.day);
         if( kind === 'ENUM' || kind === 'ENUM_STRING' ) return this._enumLookup(kind, request);
         if( kind === 'ENUM_GETOUTPUTCOUNT' ) return this._enumOutputCount(request);
         if( kind === 'PARAWIDTH' || kind === 'PARAHEIGHT' )
@@ -5189,6 +5276,37 @@ function boundedText(name, value) {
     if( text.length > HOST_RUNTIME_LIMITS.text )
         throw new HostRuntimeError(`${name} exceeds ${HOST_RUNTIME_LIMITS.text} characters`, 'LIMIT');
     return text;
+}
+
+const CLIENT_MONTH_NAMES = Object.freeze([
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+]);
+
+/* Native FROMDATE anchors CS2 day zero 11,745 UTC days after Unix epoch.
+ * Date handles the entire realistic game range. The integer civil-date
+ * fallback keeps the HOST deterministic for the remaining signed-i32 inputs
+ * that exceed ECMAScript Date's TimeClip range. */
+function formatClientDate(rawDay) {
+    const day = boundedInteger('date day', rawDay, -0x80000000, 0x7fffffff);
+    const unixDay = day + 11745;
+    const date = new Date(unixDay * 86400000);
+    if( Number.isFinite(date.getTime()) ) return `${date.getUTCDate()}-${
+        CLIENT_MONTH_NAMES[date.getUTCMonth()]}-${date.getUTCFullYear()}`;
+
+    let z = BigInt(unixDay) + 719468n;
+    const era = (z >= 0n ? z : z - 146096n) / 146097n;
+    const dayOfEra = z - era * 146097n;
+    const yearOfEra = (dayOfEra - dayOfEra / 1460n + dayOfEra / 36524n -
+        dayOfEra / 146096n) / 365n;
+    let year = yearOfEra + era * 400n;
+    const dayOfYear = dayOfEra -
+        (365n * yearOfEra + yearOfEra / 4n - yearOfEra / 100n);
+    const monthPrime = (5n * dayOfYear + 2n) / 153n;
+    const monthDay = dayOfYear - (153n * monthPrime + 2n) / 5n + 1n;
+    const month = monthPrime + (monthPrime < 10n ? 3n : -9n);
+    if( month <= 2n ) year++;
+    return `${monthDay}-${CLIENT_MONTH_NAMES[Number(month - 1n)]}-${year}`;
 }
 
 function normalizeHostData(value) {

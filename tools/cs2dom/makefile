@@ -69,7 +69,7 @@ $(CS2W_SCHEMA): wasm/gen_host_schema.py $(CS2W_SCHEMA_SOURCE)
 	$(PYTHON) $^ $@
 
 $(CS2W_REQUESTS_JS): wasm/gen_host_schema.py $(CS2W_SCHEMA_SOURCE)
-	$(PYTHON) $(CS2W_SCHEMA_SOURCE) $@ --format js
+	$(PYTHON) $^ $@ --format js
 
 $(CS2W_BUILD):
 	mkdir -p $@
