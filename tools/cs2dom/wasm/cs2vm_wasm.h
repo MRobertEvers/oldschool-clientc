@@ -104,6 +104,21 @@ cs2w_session_load_script(
 int
 cs2w_session_seal(struct CS2W_Session* session);
 
+/* Bind/preload one immutable HostData namespace before sealing the session.
+ * The compact preload records are copied synchronously by the module. */
+int
+cs2w_session_set_fast_scalar_namespace(
+    struct CS2W_Session* session,
+    int namespace_id);
+
+int
+cs2w_session_preload_fast_scalars(
+    struct CS2W_Session* session,
+    const int32_t* records,
+    int record_count,
+    const uint8_t* arena,
+    int arena_size);
+
 int
 cs2w_session_script_count(const struct CS2W_Session* session);
 

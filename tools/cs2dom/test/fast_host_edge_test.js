@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { IF_TYPE } from '../src/components.js';
 import { createHostRuntime, HostRuntimeError } from '../src/host_runtime.js';
-import { createWasmCS2Runtime } from '../src/wasm_runtime.js';
+import { createWasmCS2Runtime, __wasmRuntimeTest } from '../src/wasm_runtime.js';
 import { compileScripts, findRepoRoot } from '../src/verify.js';
 import moduleFactory from '../web/cs2vm_wasm.js';
 
@@ -45,12 +45,38 @@ function highGroupHost() {
     });
 }
 
-function lowGroupHost() {
+function lowGroupHost(options = {}) {
     return createHostRuntime({
         interfaceId: 12,
         components: [layer(0, 'root')],
-    }, { viewport: { width: 128, height: 96 } });
+    }, { viewport: { width: 128, height: 96 }, ...options });
 }
+
+const DB_HOST_DATA = Object.freeze({
+    dbTables: {
+        3: {
+            id: 3,
+            columns: {
+                0: { types: ['int'], defaults: [[7]], tupleCount: 1 },
+                1: { types: ['string'], defaults: [['fallback']], tupleCount: 1 },
+                2: { types: ['int', 'int'], defaults: [[1, 2]], tupleCount: 1 },
+                3: { types: ['int'], defaults: [[77]], tupleCount: 1 },
+                4: { types: ['int'], defaults: [], tupleCount: 0 },
+            },
+        },
+    },
+    dbRows: {
+        12: {
+            id: 12,
+            tableId: 3,
+            columns: {
+                0: { types: ['int'], values: [[995]], tupleCount: 2 },
+                1: { types: ['string'], values: [['Coins']], tupleCount: 1 },
+                2: { types: ['int', 'int'], values: [[41, 42]], tupleCount: 1 },
+            },
+        },
+    },
+});
 
 function packed(records) {
     const words = new Int32Array(records.length * RECORD_WORDS);
@@ -80,6 +106,111 @@ function packed(records) {
         (error) => error instanceof HostRuntimeError && error.code === 'STALE_REF');
 }
 
+/* Production-only fresh-create fusion must remain exactly equivalent to the
+ * ordinary packed replay for every dynamic widget family, including rejected
+ * type-specific setters, repeated/no-op transitions, operation removal, and
+ * a clear of an absent hook. Repeat after delete-all to exercise the recycled
+ * component/resource path rather than only first-use allocation. */
+{
+    const makeBatch = (rootWire) => {
+        const encoder = new TextEncoder();
+        const arenaBytes = [];
+        const records = [];
+        const addString = (text) => {
+            const offset = arenaBytes.length;
+            const bytes = encoder.encode(text);
+            arenaBytes.push(...bytes);
+            return [offset, bytes.length];
+        };
+        const add = (kind) => {
+            const words = new Int32Array(RECORD_WORDS);
+            words[0] = kind;
+            records.push(words);
+            return words;
+        };
+        const addSetter = (kind, token, values = []) => {
+            const words = add(kind);
+            words[1] = token;
+            words[11] = 1;
+            for( let index = 0; index < values.length; index++ )
+                words[index + 2] = values[index];
+            return words;
+        };
+        const addStringSetter = (kind, token, value, text) => {
+            const [offset, length] = addString(text);
+            return addSetter(kind, token, [value, offset, length]);
+        };
+        const types = [0, 2, IF_TYPE.rectangle, IF_TYPE.text, IF_TYPE.graphic,
+            IF_TYPE.model, 8, IF_TYPE.line, 10, 255];
+        let previous = rootWire;
+        let previousIsToken = 0;
+        for( let subId = 0; subId < types.length; subId++ ) {
+            const token = 0x7fffff00 - subId;
+            const create = add(100);
+            create[1] = rootWire;
+            create[2] = types[subId];
+            create[3] = subId;
+            create[7] = token;
+            create[8] = previous;
+            create[9] = previousIsToken;
+            addSetter(1000, token, [3, 4, 1, 2]);
+            addSetter(1000, token, [3, 4, 1, 2]); // exact no-op
+            addSetter(1001, token, [31, 17, 0, 0]);
+            addSetter(1003, token, [1]);
+            addSetter(1003, token, [0]); // queues widgets-loaded
+            addSetter(1101, token, [0x123456]);
+            addSetter(1102, token, [1]);
+            addSetter(1103, token, [73]);
+            addSetter(1105, token, [4151]);
+            addStringSetter(1112, token, 0, `child-${subId}`);
+            addSetter(1113, token, [494]);
+            addSetter(1114, token, [1, 2, 3]);
+            addSetter(1115, token, [1]);
+            addStringSetter(1300, token, 1, 'Use');
+            addStringSetter(1300, token, 1, 'Use'); // exact no-op
+            addStringSetter(1300, token, 1, ''); // remove
+            addSetter(1307, token); // clear already-empty ops
+            addStringSetter(1300, token, 11, 'ignored'); // invalid slot still decodes
+            addStringSetter(1305, token, 0, `base-${subId}`);
+            addSetter(1403, token, [-1]); // clear absent hook creates {}
+            previous = token;
+            previousIsToken = 1;
+        }
+        const words = new Int32Array(records.length * RECORD_WORDS);
+        for( let index = 0; index < records.length; index++ )
+            words.set(records[index], index * RECORD_WORDS);
+        return { words, arena: Uint8Array.from(arenaBytes), count: records.length };
+    };
+    const view = (host) => ({
+        version: host.version,
+        widgetsLoaded: host.pendingTransmits.widgetsLoaded,
+        activeSubId: host.activeRef()?.subId,
+        children: host.children('root', { startIndex: -0x80000000 }).map((ref) => {
+            const component = host.component(ref);
+            const raw = host.ir.components.find((entry) => entry.name === component.name);
+            return {
+                subId: component.subId, type: component.type, props: component.props,
+                ops: component.ops, hooks: raw.hooks, runtime: component.runtime,
+            };
+        }),
+    });
+    const fused = lowGroupHost({ recordChanges: false });
+    const replayed = lowGroupHost({ recordChanges: false });
+    replayed._fastApplyFreshPackedRun = (_component, _token, _records, start) => start - 1;
+    for( let pass = 0; pass < 2; pass++ ) {
+        if( pass ) {
+            fused.deleteAll('root');
+            replayed.deleteAll('root');
+        }
+        for( const host of [fused, replayed] ) {
+            const batch = makeBatch(host.ref('root').componentId | 0);
+            host.requestFastPackedBatch(batch.words, batch.count, batch.arena);
+        }
+        assert.deepEqual(view(fused), view(replayed),
+            `fresh packed fusion diverged on pass ${pass + 1}`);
+    }
+}
+
 /* FROMDATE uses the client's fixed UTC epoch and English month table. */
 {
     const host = lowGroupHost();
@@ -87,6 +218,43 @@ function packed(records) {
     assert.equal(host.request({ kind: 'FROMDATE', day: 0 }), '27-Feb-2002');
     assert.equal(host.request({ kind: 'FROMDATE', day: 8037 }), '29-Feb-2024');
     assert.equal(host.request({ kind: 'FROMDATE', day: 8038 }), '1-Mar-2024');
+}
+
+/* The immutable preload contains exact scalar DB records, including typed
+ * missing-tuple and table-default values, but never a polymorphic whole tuple. */
+{
+    const host = lowGroupHost({ hostData: DB_HOST_DATA });
+    const { records, arena } = __wasmRuntimeTest.fastScalarPreload(host);
+    const found = new Map();
+    for( let at = 0; at < records.length; at += 9 ) {
+        if( records[at] !== 7502 ) continue;
+        const key = `${records[at + 1]}:${records[at + 2]}:${records[at + 3]}`;
+        found.set(key, records[at + 4] === 2
+            ? new TextDecoder().decode(arena.subarray(
+                records[at + 6], records[at + 6] + records[at + 7]))
+            : records[at + 5]);
+    }
+    assert.equal(found.get('12:12288:0'), 995);
+    assert.equal(found.get('12:12288:1'), -1);
+    assert.equal(found.get('12:12304:0'), 'Coins');
+    assert.equal(found.get('12:12336:0'), 77);
+    assert.equal(found.get('12:12352:0'), -1);
+    assert.equal(found.has('12:12320:0'), false,
+        'whole multi-field DB tuples must retain generic arity handling');
+    assert.equal(found.get('12:12321:0'), 41);
+    assert.equal(found.get('12:12322:0'), 42);
+
+    const override = lowGroupHost({
+        hostData: DB_HOST_DATA,
+        db: { dbTables: DB_HOST_DATA.dbTables, dbRows: {
+            12: { id: 12, tableId: 3, columns: {
+                0: { types: ['int'], values: [[123]], tupleCount: 1 },
+            } },
+        } },
+    });
+    assert.notEqual(override.fastHostScalarDataIdentity(), DB_HOST_DATA,
+        'an explicit DB override must not reuse its HostData scalar namespace');
+    assert.equal(override.fastHostDbDataSnapshot(), null);
 }
 
 /* INV_GETOBJ/NUM are native empty reads for invalid signed inputs, rather than
@@ -220,6 +388,11 @@ for( const [triggerCount, expectedCount] of [[-1, 0], [4097, 4096]] ) {
     const wideScriptId = 64999;
     const nestedScriptId = 64998;
     const fromDateScriptId = 64997;
+    const dbIntScriptId = 64996;
+    const dbStringScriptId = 64995;
+    const dbMissingScriptId = 64994;
+    const dbDefaultScriptId = 64993;
+    const dbMultiScriptId = 64992;
     const source = [
         `// ${scriptId}`,
         '[clientscript,cs2dom_fast_boundary]()',
@@ -252,16 +425,54 @@ for( const [triggerCount, expectedCount] of [[-1, 0], [4097, 4096]] ) {
         'cc_create(interface_12:0, 4, 90, 0);',
         'cc_settext(fromdate(8037));',
     ].join('\n');
+    const dbIntSource = [
+        `// ${dbIntScriptId}`,
+        '[clientscript,cs2dom_db_fast_int]()',
+        'cc_create(interface_12:0, 4, 91, 0);',
+        'cc_settext(tostring(db_getfield(12, 12288, 0)));',
+    ].join('\n');
+    const dbStringSource = [
+        `// ${dbStringScriptId}`,
+        '[clientscript,cs2dom_db_fast_string]()',
+        'cc_create(interface_12:0, 4, 92, 0);',
+        'cc_settext(db_getfield(12, 12304, 0));',
+    ].join('\n');
+    const dbMissingSource = [
+        `// ${dbMissingScriptId}`,
+        '[clientscript,cs2dom_db_fast_missing]()',
+        'cc_create(interface_12:0, 4, 93, 0);',
+        'cc_settext(tostring(db_getfield(12, 12288, 1)));',
+    ].join('\n');
+    const dbDefaultSource = [
+        `// ${dbDefaultScriptId}`,
+        '[clientscript,cs2dom_db_fast_default]()',
+        'cc_create(interface_12:0, 4, 94, 0);',
+        'cc_settext(tostring(db_getfield(12, 12336, 0)));',
+    ].join('\n');
+    const dbMultiSource = [
+        `// ${dbMultiScriptId}`,
+        '[clientscript,cs2dom_db_generic_multi]()',
+        'def_int $int0 = 0;',
+        'def_int $int1 = 0;',
+        '$int0, $int1 = db_getfield(12, 12320, 0);',
+        'cc_create(interface_12:0, 4, 95, 0);',
+        'cc_settext(tostring($int0));',
+    ].join('\n');
     const compiled = compileScripts([
         { id: scriptId, name: 'cs2dom_fast_boundary', source },
         { id: wideScriptId, name: 'cs2dom_fast_wide_hook', source: wideSource },
         { id: nestedScriptId, name: 'cs2dom_fast_nested_create', source: nestedSource },
         { id: fromDateScriptId, name: 'cs2dom_fromdate', source: fromDateSource },
+        { id: dbIntScriptId, name: 'cs2dom_db_fast_int', source: dbIntSource },
+        { id: dbStringScriptId, name: 'cs2dom_db_fast_string', source: dbStringSource },
+        { id: dbMissingScriptId, name: 'cs2dom_db_fast_missing', source: dbMissingSource },
+        { id: dbDefaultScriptId, name: 'cs2dom_db_fast_default', source: dbDefaultSource },
+        { id: dbMultiScriptId, name: 'cs2dom_db_generic_multi', source: dbMultiSource },
     ], { repoRoot: repo, revision: 'osrs239', returnBytecode: true });
-    assert(compiled.ok && compiled.bytecode.length === 4,
+    assert(compiled.ok && compiled.bytecode.length === 9,
         `could not compile fast boundary script: ${compiled.output}`);
 
-    const host = lowGroupHost();
+    const host = lowGroupHost({ hostData: DB_HOST_DATA });
     const chunks = [];
     const commitPacked = host.requestFastPackedBatch.bind(host);
     host.requestFastPackedBatch = (records, count, arena) => {
@@ -269,17 +480,18 @@ for( const [triggerCount, expectedCount] of [[-1, 0], [4097, 4096]] ) {
         return commitPacked(records, count, arena);
     };
     const wasmPath = resolve(here, '../web/cs2vm_wasm.wasm');
+    const program = {
+        available: true, dialect: 'osrs', revision: 'osrs239',
+        scripts: compiled.bytecode.map((script) => ({
+            id: script.id, data: Buffer.from(script.bytes).toString('base64'),
+        })),
+    };
     const runtime = await createWasmCS2Runtime({
         host,
         moduleFactory,
         wasmUrl: `data:application/wasm;base64,${readFileSync(wasmPath).toString('base64')}`,
         fastHost: true,
-        program: {
-            available: true, dialect: 'osrs', revision: 'osrs239',
-            scripts: compiled.bytecode.map((script) => ({
-                id: script.id, data: Buffer.from(script.bytes).toString('base64'),
-            })),
-        },
+        program,
     });
     try {
         const result = runtime.invokeIntent({
@@ -337,7 +549,65 @@ for( const [triggerCount, expectedCount] of [[-1, 0], [4097, 4096]] ) {
         assert.equal(dateResult.scriptId, fromDateScriptId);
         assert.equal(host.component(host.findChild('root', 90, false)).props.text,
             '29-Feb-2024');
+
+        let genericDbCalls = 0;
+        const dbGenericRequest = host.request.bind(host);
+        host.request = (request, ...rest) => {
+            if( request?.kind === 'DB_GETFIELD' ) genericDbCalls++;
+            return dbGenericRequest(request, ...rest);
+        };
+        for( const [dbScriptId, childIndex, expected] of [
+            [dbIntScriptId, 91, '995'],
+            [dbStringScriptId, 92, 'Coins'],
+            [dbMissingScriptId, 93, '-1'],
+            [dbDefaultScriptId, 94, '77'],
+        ] ) {
+            const dbResult = runtime.invokeIntent({
+                component: host.ref('root'), hook: { scriptId: dbScriptId, args: [] }, locals: {},
+            });
+            assert.equal(dbResult.scriptId, dbScriptId);
+            assert.equal(host.component(host.findChild('root', childIndex, false)).props.text,
+                expected);
+        }
+        assert.equal(genericDbCalls, 0,
+            'preloaded scalar DB_GETFIELD calls crossed the generic JS bridge');
+
+        const multiResult = runtime.invokeIntent({
+            component: host.ref('root'), hook: { scriptId: dbMultiScriptId, args: [] }, locals: {},
+        });
+        assert.equal(multiResult.scriptId, dbMultiScriptId);
+        assert.equal(genericDbCalls, 1,
+            'a polymorphic whole DB tuple did not retain generic arity handling');
+        assert.equal(host.component(host.findChild('root', 95, false)).props.text, '41');
     } finally { runtime.destroy(); }
+
+    /* Fast cache hits and the fully generic bridge must produce the same live
+     * component presentation for every scalar type and the multi-value case. */
+    const genericHost = lowGroupHost({ hostData: DB_HOST_DATA });
+    const genericRuntime = await createWasmCS2Runtime({
+        host: genericHost,
+        moduleFactory,
+        wasmUrl: `data:application/wasm;base64,${readFileSync(wasmPath).toString('base64')}`,
+        fastHost: false,
+        program,
+    });
+    try {
+        for( const [dbScriptId, childIndex, expected] of [
+            [dbIntScriptId, 91, '995'],
+            [dbStringScriptId, 92, 'Coins'],
+            [dbMissingScriptId, 93, '-1'],
+            [dbDefaultScriptId, 94, '77'],
+            [dbMultiScriptId, 95, '41'],
+        ] ) {
+            genericRuntime.invokeIntent({
+                component: genericHost.ref('root'),
+                hook: { scriptId: dbScriptId, args: [] },
+                locals: {},
+            });
+            assert.equal(genericHost.component(
+                genericHost.findChild('root', childIndex, false)).props.text, expected);
+        }
+    } finally { genericRuntime.destroy(); }
 }
 
 console.log('fast HOST edge and boundary tests passed');

@@ -337,6 +337,32 @@ CS2VM2_SaveYieldCheckpoint(
      * CS2VM_EXECNO_YIELD contract), so restore is a pure pointer rollback. */
 }
 
+/*
+ * Only an opcode that reaches the host can yield.  Keep that fact generated
+ * from the same request schema as the host-request enum instead of maintaining
+ * a second handwritten opcode list: an omitted hosted opcode would make its
+ * first cache miss impossible to roll back correctly.
+ *
+ * This byte table replaces six checkpoint stores on the overwhelmingly common
+ * VM-only instructions (constants, locals, branches, arithmetic, strings and
+ * arrays).  Unknown/out-of-range opcodes stay conservative: their dispatch may
+ * gain a host implementation in a newer dialect without first extending this
+ * build's canonical opcode ceiling.
+ */
+static uint8_t const g_cs2vm2_opcode_may_yield[CS2_OPCODE_MAX + 1] = {
+#define CS2VM_HOST_REQUEST_KIND(name, opcode, fields) [CS2_OP_##name] = 1,
+#include "cs2vm2_host_request_kinds.def"
+#undef CS2VM_HOST_REQUEST_KIND
+};
+
+static inline bool
+CS2VM2_OpcodeMayYield(int opcode)
+{
+    if( (unsigned)opcode > CS2_OPCODE_MAX )
+        return true;
+    return g_cs2vm2_opcode_may_yield[opcode] != 0;
+}
+
 static void
 CS2VM2_RestoreYieldCheckpoint(
     struct CS2VM2_Thread* vm,
@@ -9015,11 +9041,11 @@ static struct CS2VM2OpcodeStackRs2 const g_cs2vm2_opcode_stack_rs2[] = {
     /* 1122 / 2122: CC_/IF_ set of the type-5 flag bit 1 (Class46.aBoolean745).
      * The IF_ form pops the component id first (Class66:2731 `i -= 1000`). */
     { 1122, { 1, 0, 0, 0, 1 } },
-    { 2122, { 2, 0, 0, 0, 1 } },
     /* 1311/2314 collide with CC_SETOPSUBMENU and IF_SETTARGETPRIORITY: at 634
      * both are plain one-int widget setters (Class66 `class46.anInt713` /
      * `anInt719`). */
     { 1311, { 1, 0, 0, 0, 1 } },
+    { 2122, { 2, 0, 0, 0, 1 } },
     { 2314, { 2, 0, 0, 0, 1 } },
     /* 2703: count of a widget's dynamic children (Class46.aClass46Array798). */
     { 2703, { 1, 0, 1, 0, 1 } },
@@ -9079,14 +9105,36 @@ cs2vm2_opcode_stack_rs2_lookup(
     int opcode,
     struct CS2VM2OpcodeStack* out)
 {
-    for( size_t i = 0; i < sizeof(g_cs2vm2_opcode_stack_rs2) / sizeof(g_cs2vm2_opcode_stack_rs2[0]);
-         i++ )
+    /* Every RS2 instruction passes through this probe before the canonical
+     * dispatcher. The overlay is deliberately sparse and sorted, so a linear
+     * scan made ordinary (non-overlay) opcodes compare against the complete
+     * table on every VM cycle. Dynamic interface builders execute tens of
+     * thousands of those cycles per input event. Keep the table as the single
+     * source of truth, but search it logarithmically. */
+    size_t low = 0;
+    size_t high = sizeof(g_cs2vm2_opcode_stack_rs2) /
+                  sizeof(g_cs2vm2_opcode_stack_rs2[0]);
+    if( opcode < (int)g_cs2vm2_opcode_stack_rs2[0].opcode ||
+        opcode > (int)g_cs2vm2_opcode_stack_rs2[high - 1].opcode )
+        return false;
+    while( low < high )
     {
-        if( g_cs2vm2_opcode_stack_rs2[i].opcode == (uint16_t)opcode )
+        size_t middle = low + (high - low) / 2;
+        uint16_t candidate = g_cs2vm2_opcode_stack_rs2[middle].opcode;
+        if( candidate < (uint16_t)opcode )
+            low = middle + 1;
+        else
+            high = middle;
+    }
+    if( low < sizeof(g_cs2vm2_opcode_stack_rs2) /
+                  sizeof(g_cs2vm2_opcode_stack_rs2[0]) &&
+        g_cs2vm2_opcode_stack_rs2[low].opcode == (uint16_t)opcode )
+    {
+        if( out )
         {
-            *out = g_cs2vm2_opcode_stack_rs2[i].meta;
-            return true;
+            *out = g_cs2vm2_opcode_stack_rs2[low].meta;
         }
+        return true;
     }
     return false;
 }
@@ -13123,8 +13171,10 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
          * mutations are never touched. */
         vm->undo_log_len = 0;
 
+        bool const may_yield = CS2VM2_OpcodeMayYield(opcode);
         struct CS2VM2_YieldCheckpoint yield_cp;
-        CS2VM2_SaveYieldCheckpoint(vm, &yield_cp);
+        if( may_yield )
+            CS2VM2_SaveYieldCheckpoint(vm, &yield_cp);
 
         result = CS2VM2_RunOp(vm, frame, opcode, operand, str_operand_str);
 
@@ -13158,6 +13208,20 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
                 CS2VM2_ClearYieldHalt(vm);
             break;
         case CS2VM_EXECNO_YIELD:
+            /* `may_yield` is generated from the exhaustive host-request
+             * schema. Reaching a host without a schema entry is a VM contract
+             * bug, not a reason to restore an uninitialised checkpoint. */
+            if( !may_yield )
+            {
+                vm->last_error_opcode = opcode;
+                vm->last_error_pc = op_pc;
+                vm->last_error_script_id = frame->script->script_id;
+                assert(0 && "non-host opcode yielded");
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles);
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles);
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_ABORTS, 1);
+                return CS2VM_EXECNO_ERROR;
+            }
             if( !CS2VM2_CheckYieldHalt(vm, frame, op_pc, opcode) )
             {
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles);

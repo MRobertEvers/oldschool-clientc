@@ -98,6 +98,16 @@ const objectLeafBox = layoutBox(ir, {}, viewport, objectLeaf);
 assert.deepEqual({ x: objectLeafBox.x, y: objectLeafBox.y }, { x: 55, y: 15 });
 assert.deepEqual(objectLeafBox.clip, { left: 10, top: 20, right: 110, bottom: 100 });
 
+/* Viewport-only passes retain unchanged shallow prop snapshots. A later
+ * in-place HOST write must still publish a new snapshot without retroactively
+ * changing the paint record held by the previous worker-stage revision. */
+const beforeStaticWrite = layout(ir, {}, viewport).find((box) => box.fileId === orphan.fileId);
+orphan.static.color = 0x123456;
+const afterStaticWrite = layout(ir, {}, viewport).find((box) => box.fileId === orphan.fileId);
+assert.equal(beforeStaticWrite.props.color, undefined);
+assert.equal(afterStaticWrite.props.color, 0x123456);
+assert.notEqual(afterStaticWrite.props, beforeStaticWrite.props);
+
 /* In-place topology changes must invalidate the structural plan even when no
  * full layout pass runs first. */
 inner.layer = null;

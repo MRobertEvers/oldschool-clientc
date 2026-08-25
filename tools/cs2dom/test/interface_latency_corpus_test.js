@@ -14,6 +14,8 @@
  *   CS2DOM_CORPUS_HARD_FAIL=1 node test/interface_latency_corpus_test.js
  *   CS2DOM_CORPUS_PROFILE=1 CS2DOM_CORPUS_PROFILE_UNIQUE=1
  *     node test/interface_latency_corpus_test.js
+ *   CS2DOM_CORPUS_PROFILE=1 CS2DOM_CORPUS_PROFILE_UNIQUE=1
+ *     CS2DOM_CORPUS_PROFILE_KEYS=1 node test/interface_latency_corpus_test.js
  *
  * Target sampling deduplicates components which expose the same hook scripts,
  * operation indexes, and interaction traits. Set CS2DOM_CORPUS_TARGET_LIMIT=0
@@ -49,6 +51,7 @@ const HARD_FAIL = process.env.CS2DOM_CORPUS_HARD_FAIL === '1';
 const FAST_HOST = process.env.CS2DOM_WASM_FAST_HOST !== '0';
 const PROFILE = process.env.CS2DOM_CORPUS_PROFILE === '1';
 const PROFILE_UNIQUE = process.env.CS2DOM_CORPUS_PROFILE_UNIQUE === '1';
+const PROFILE_KEYS = process.env.CS2DOM_CORPUS_PROFILE_KEYS === '1';
 const INTERFACE_TIMEOUT_MS = positiveNumber(
     process.env.CS2DOM_CORPUS_INTERFACE_TIMEOUT_MS, 120_000);
 const PROGRESS_EVERY = positiveInteger(process.env.CS2DOM_CORPUS_PROGRESS_EVERY, 25);
@@ -67,6 +70,12 @@ const KEY_HOOKS = new Set([
 ]);
 const TIMER_HOOKS = new Set(['ontimer']);
 const PRIORITY_TARGET = /(?:search|quantity5|unlock|combi|confirm|submit|continue)/i;
+const PACKED_PROFILE_METHODS = Object.freeze([
+    '_createChild', '_fastCreatePackedChild', '_fastApplyFreshPackedRun',
+    '_deleteSet', '_deleteForFastReplace',
+    '_fastSetPosition', '_fastSetSize', '_fastSetSimpleProp', '_fastSetTextAlign',
+    '_fastSetPackedHook', '_fastSetOp', '_fastSetOpBase',
+]);
 
 /* Some cache interfaces are only valid in the client state which opens them.
  * Keep those states explicit and narrowly keyed by interface name: this is a
@@ -724,9 +733,13 @@ function installDispatchProfile(session) {
         const original = owner[name];
         owner[name] = function(...args) {
             const before = performance.now();
-            try { return original.apply(this, args); }
+            let result;
+            try {
+                result = original.apply(this, args);
+                return result;
+            }
             finally {
-                if( current ) measure(current, performance.now() - before, args);
+                if( current ) measure(current, performance.now() - before, args, result);
             }
         };
     };
@@ -750,12 +763,25 @@ function installDispatchProfile(session) {
         row.fastFlushMs += ms;
         row.fastFlushCalls++;
     });
-    wrap(session.host, 'request', (row, ms, [request]) => {
+    wrap(session.host, 'request', (row, ms, [request], result) => {
         const kind = String(typeof request === 'object' ? request?.kind : request);
         const metric = row.requests[kind] ||= { calls: 0, ms: 0, maxMs: 0 };
         metric.calls++;
         metric.ms += ms;
         metric.maxMs = Math.max(metric.maxMs, ms);
+        if( PROFILE_UNIQUE && kind === 'DB_GETFIELD' ) {
+            (row.requestKeys[kind] ||= new Set()).add(
+                `${request.rowId}/${request.column}/${request.index}`);
+            (row.requestKeys['DB_GETFIELD:rowColumn'] ||= new Set()).add(
+                `${request.rowId}/${request.column}`);
+            (row.requestKeys['DB_GETFIELD:row'] ||= new Set()).add(`${request.rowId}`);
+            (row.requestKeys['DB_GETFIELD:column'] ||= new Set()).add(`${request.column}`);
+            const pattern = typeof result?.pattern === 'string' ? result.pattern : '<invalid>';
+            row.dbFieldPatterns[pattern] = (row.dbFieldPatterns[pattern] || 0) + 1;
+            if( PROFILE_KEYS && row.requestKeySamples.length < 128 )
+                row.requestKeySamples.push(
+                    `${request.rowId}/${request.column}/${request.index}:${pattern}`);
+        }
     });
     wrap(session.host, 'requestFastBatch', (row, ms, [requests]) => {
         row.fastBatchMs += ms;
@@ -768,7 +794,7 @@ function installDispatchProfile(session) {
         row.fastRecords += count || 0;
     });
     for( const name of ['layout', '_box', '_geometry', '_emit', '_retireInvisibleInteraction',
-        '_hookTargets', '_tick'] ) wrap(session.host, name, (row, ms) => {
+        '_hookTargets', '_tick', ...PACKED_PROFILE_METHODS] ) wrap(session.host, name, (row, ms) => {
         const metric = row.methods[name] ||= { calls: 0, ms: 0 };
         metric.calls++;
         metric.ms += ms;
@@ -791,6 +817,9 @@ function installDispatchProfile(session) {
                 fastFlushMs: 0,
                 fastFlushCalls: 0,
                 requests: {},
+                requestKeys: {},
+                requestKeySamples: [],
+                dbFieldPatterns: {},
                 methods: {},
             };
         },
@@ -801,6 +830,9 @@ function installDispatchProfile(session) {
                 if( PROFILE_UNIQUE ) result.fastScalarUniqueKinds = Object.fromEntries(
                     Object.entries(result.fastScalarKeys).map(([kind, keys]) => [kind, keys.size]));
                 delete result.fastScalarKeys;
+                if( PROFILE_UNIQUE ) result.requestUniqueKinds = Object.fromEntries(
+                    Object.entries(result.requestKeys).map(([kind, keys]) => [kind, keys.size]));
+                delete result.requestKeys;
                 result.topRequests = Object.entries(result.requests)
                     .map(([kind, metric]) => ({ kind, ...metric }))
                     .sort((left, right) => right.ms - left.ms)
@@ -904,7 +936,10 @@ function formatRow(row) {
     if( !row.profile ) return base;
     const methods = row.profile.methods || {};
     const top = (row.profile.topRequests || []).slice(0, 4)
-        .map((request) => `${request.kind}:${request.calls}/${request.ms.toFixed(2)}ms`).join(',');
+        .map((request) => `${request.kind}:${request.calls}` +
+            (row.profile.requestUniqueKinds?.[request.kind] === undefined ? ''
+                : `/${row.profile.requestUniqueKinds[request.kind]}u`) +
+            `/${request.ms.toFixed(2)}ms`).join(',');
     const scalarKinds = Object.entries(row.profile.fastScalarKinds || {})
         .sort((left, right) => right[1] - left[1]).slice(0, 6)
         .map(([kind, calls]) => `${kind}:${calls}` +
@@ -913,6 +948,20 @@ function formatRow(row) {
     const queryKinds = Object.entries(row.profile.fastQueryKinds || {})
         .sort((left, right) => right[1] - left[1]).slice(0, 6)
         .map(([kind, calls]) => `${kind}:${calls}`).join(',');
+    const packedMethods = PACKED_PROFILE_METHODS
+        .map((name) => [name, methods[name]])
+        .filter(([, metric]) => metric?.calls)
+        .sort((left, right) => right[1].ms - left[1].ms)
+        .map(([name, metric]) => `${name}:${metric.calls}/${metric.ms.toFixed(2)}ms`).join(',');
+    const dbFields = row.profile.requestUniqueKinds?.DB_GETFIELD === undefined ? '' :
+        ` db=[keys=${row.profile.requestUniqueKinds.DB_GETFIELD},` +
+        `rowcols=${row.profile.requestUniqueKinds['DB_GETFIELD:rowColumn']},` +
+        `rows=${row.profile.requestUniqueKinds['DB_GETFIELD:row']},` +
+        `columns=${row.profile.requestUniqueKinds['DB_GETFIELD:column']},patterns=` +
+        `${Object.entries(row.profile.dbFieldPatterns || {}).map(([pattern, calls]) =>
+            `${pattern}:${calls}`).join(',')}]` +
+        (PROFILE_KEYS && row.profile.requestKeySamples?.length
+            ? ` dbkeys=[${row.profile.requestKeySamples.join(',')}]` : '');
     return `${base} · profile invoke=${row.profile.invokeMs.toFixed(2)}ms ` +
         `fast=${row.profile.fastBatchMs.toFixed(2)}ms/${row.profile.fastRecords} ` +
         `cflush=${row.profile.fastFlushMs.toFixed(2)}ms/${row.profile.fastFlushCalls} ` +
@@ -920,7 +969,8 @@ function formatRow(row) {
         `[${scalarKinds}] query=${row.profile.fastQueryMs.toFixed(2)}ms/` +
         `${row.profile.fastQueryCalls}[${queryKinds}] ` +
         `layout=${(methods.layout?.ms || 0).toFixed(2)}ms ` +
-        `emit=${(methods._emit?.ms || 0).toFixed(2)}ms requests=[${top}]`;
+        `emit=${(methods._emit?.ms || 0).toFixed(2)}ms packed=[${packedMethods}] ` +
+        `requests=[${top}]${dbFields}`;
 }
 
 function formatMs(value) {

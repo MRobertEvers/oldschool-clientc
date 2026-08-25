@@ -49,6 +49,7 @@ const TRACE_SEQUENCE = process.env.CS2DOM_BANK_TRACE_SEQUENCE === '1';
 const PROFILE_FAST = process.env.CS2DOM_BANK_PROFILE_FAST === '1';
 const TRACE_SLOW = process.env.CS2DOM_BANK_TRACE_SLOW === '1';
 const FAST_HOST = process.env.CS2DOM_WASM_FAST_HOST !== '0';
+const PRELOAD_HOST_DATA = process.env.CS2DOM_WASM_PRELOAD_HOST_DATA !== '0';
 
 if( isMainThread ) {
     const summary = await supervise();
@@ -164,6 +165,7 @@ async function stressWorker() {
         const wasmUrl = `data:application/wasm;base64,${readFileSync(WASM).toString('base64')}`;
         wasm = session.wasm = await createWasmCS2Runtime({
             program, host: session.host, moduleFactory, wasmUrl, fastHost: FAST_HOST,
+            preloadHostData: PRELOAD_HOST_DATA,
         });
         const fastProfile = PROFILE_FAST ? installFastProfile(session) : null;
         session.host.mount();

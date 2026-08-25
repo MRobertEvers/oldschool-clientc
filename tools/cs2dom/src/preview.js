@@ -76,7 +76,7 @@ export function layout(
     const { nodes, roots } = plan;
     const evaluationMemo = plan.sharedExpressions ? new WeakMap() : null;
     for( const node of nodes ) {
-        node.props = resolveProps(node.component, state, unmodelled, evaluationMemo);
+        node.props = resolveNodeProps(node, state, unmodelled, evaluationMemo);
         node.geometryResolved = false;
         node.traversed = false;
     }
@@ -121,7 +121,7 @@ export function layoutBox(
     const evaluationMemo = plan.sharedExpressions ? new WeakMap() : null;
     for( let index = chain.length - 1; index >= 0; index-- ) {
         const cursor = chain[index];
-        cursor.props = resolveProps(cursor.component, state, unmodelled, evaluationMemo);
+        cursor.props = resolveNodeProps(cursor, state, unmodelled, evaluationMemo);
         cursor.geometryResolved = false;
     }
 
@@ -168,7 +168,7 @@ export function layoutGeometry(
     const evaluationMemo = plan.sharedExpressions ? new WeakMap() : null;
     for( let index = chain.length - 1; index >= 0; index-- ) {
         const cursor = chain[index];
-        cursor.props = resolveProps(cursor.component, state, unmodelled, evaluationMemo);
+        cursor.props = resolveNodeProps(cursor, state, unmodelled, evaluationMemo);
         cursor.geometryResolved = false;
     }
 
@@ -251,6 +251,9 @@ function layoutPlan(ir, components, structureRevision) {
             fileId: component.fileId,
             layer: component.layer,
             props: null,
+            propsKeyCount: -1,
+            eventKeys: EMPTY_COMPONENTS,
+            hookKeys: EMPTY_COMPONENTS,
             parent: null,
             children: [],
             geometry: { x: 0, y: 0, w: 0, h: 0 },
@@ -398,17 +401,70 @@ function resolveNodeBox(node, context, viewport) {
         effectiveHidden,
         culled,
         emitted: !effectiveHidden && !culled,
-        clip: { ...context.clip },
-        surface: { ...context.surface },
+        /* Rectangle/context records are immutable for the lifetime of a layout
+         * result. Sharing them across sibling boxes avoids two allocations per
+         * widget without allowing a later layout to mutate an earlier stage. */
+        clip: context.clip,
+        surface: context.surface,
         scrollX: ownScrollX,
         scrollY: ownScrollY,
         props,
         dynamic: component.dynamic?.length
             ? component.dynamic.map((d) => d.prop) : EMPTY_COMPONENTS,
         ops: component.ops || [],
-        events: component.events ? Object.keys(component.events) : EMPTY_COMPONENTS,
-        hooks: component.hooks ? Object.keys(component.hooks) : EMPTY_COMPONENTS,
+        events: node.eventKeys = stableKeys(component.events, node.eventKeys),
+        hooks: node.hookKeys = stableKeys(component.hooks, node.hookKeys),
     };
+}
+
+/* Preserve the previous shallow props snapshot when a viewport-only layout did
+ * not change an authored component. This is both safe for stage diffing (the
+ * mutable source is never exposed) and avoids cloning thousands of records just
+ * because their root clip changed. Runtime CC objects already have the same
+ * zero-copy guarantee in resolveProps(). */
+function resolveNodeProps(node, state, unmodelled, memo) {
+    const component = node.component;
+    const source = component.static || {};
+    if( !component.runtimeDynamic && (!component.dynamic || component.dynamic.length === 0) &&
+        node.props && recordMatches(source, node.props, node.propsKeyCount) )
+        return node.props;
+
+    const props = resolveProps(component, state, unmodelled, memo);
+    if( !component.runtimeDynamic && (!component.dynamic || component.dynamic.length === 0) )
+        node.propsKeyCount = ownKeyCount(source);
+    return props;
+}
+
+function recordMatches(source, snapshot, expectedKeys) {
+    let count = 0;
+    for( const key in source ) {
+        if( !Object.prototype.hasOwnProperty.call(source, key) ) continue;
+        count++;
+        if( !Object.prototype.hasOwnProperty.call(snapshot, key) ||
+            source[key] !== snapshot[key] ) return false;
+    }
+    return count === expectedKeys;
+}
+
+function ownKeyCount(value) {
+    let count = 0;
+    for( const key in value )
+        if( Object.prototype.hasOwnProperty.call(value, key) ) count++;
+    return count;
+}
+
+function stableKeys(value, previous) {
+    if( !value ) return EMPTY_COMPONENTS;
+    let count = 0;
+    let matches = true;
+    for( const key in value ) {
+        if( !Object.prototype.hasOwnProperty.call(value, key) ) continue;
+        if( previous[count] !== key ) matches = false;
+        count++;
+    }
+    if( count === 0 ) return EMPTY_COMPONENTS;
+    if( matches && count === previous.length ) return previous;
+    return Object.keys(value);
 }
 
 function childContext(node, context, box) {

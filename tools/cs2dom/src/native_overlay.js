@@ -174,6 +174,11 @@ export function collectInterfaceScripts(contentDir, interfaceName, options = {})
     const nameToId = new Map([...scriptPack].map(([id, name]) => [name, id]));
     const compilerNames = readScriptNames(typeof options === 'string'
         ? options : options.cs2Names);
+    /* OSRS-Content keeps revision-specific recovered aliases beside the
+     * unpacked revision. They are useful as a closure oracle, but not as an
+     * authority for rewriting authored headers: some recovered roles are
+     * provably wrong even though their numeric id is exact. */
+    const recoveredNames = readScriptNames(join(dirname(content), 'new_script_names.txt'));
     const compilerResolved = new Set();
     const scriptIds = (alias, expectedRole, allowNumericSuffix = true,
         allowCompilerRoleMismatch = false) => {
@@ -189,7 +194,10 @@ export function collectInterfaceScripts(contentDir, interfaceName, options = {})
          * record at that id, but retain its authored header instead of applying
          * the incorrect compiler-ledger role to the dependency itself. */
         if( !Number.isInteger(direct) && allowCompilerRoleMismatch ) {
-            const candidates = compilerNames.byName.get(alias) || [];
+            const candidates = [...new Set([
+                ...(compilerNames.byName.get(alias) || []),
+                ...(recoveredNames.byName.get(alias) || []),
+            ])];
             if( candidates.length === 1 && scriptPack.has(candidates[0]) )
                 direct = candidates[0];
         }
@@ -296,7 +304,7 @@ function readScriptNames(path) {
     if( !existsSync(file) || !statSync(file).isFile() ) return result;
     for( const raw of readFileSync(file, 'utf8').split(/\r?\n/) ) {
         const line = raw.replace(/\/\/.*$/, '').trim();
-        const match = /^(\d+)\s+\[(clientscript|proc),([^\]]+)\]$/.exec(line);
+        const match = /^(\d+)\s+\[(clientscript|proc),([^\]]+)\](?:\s+.*)?$/.exec(line);
         if( !match ) continue;
         const id = Number(match[1]);
         const value = { id, role: match[2], name: match[3] };

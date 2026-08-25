@@ -118,6 +118,8 @@ const DYNAMIC_PROPS_CACHE = new Map();
  * input only. Sharing them avoids eight throwaway containers per CC_CREATE. */
 const EMPTY_DYNAMIC_ARRAY = Object.freeze([]);
 const EMPTY_AUTHORED_PROPS = new Set();
+const RECYCLED_DYNAMIC_META = Symbol('cs2dom.recycledDynamicMeta');
+const RECYCLED_DYNAMIC_HOOKS = Symbol('cs2dom.recycledDynamicHooks');
 const FAST_INT_GEOMETRY_READS = Object.freeze({
     1500: 'if_getx', 1501: 'if_gety', 1502: 'if_getwidth', 1503: 'if_getheight',
     2500: 'if_getx', 2501: 'if_gety', 2502: 'if_getwidth', 2503: 'if_getheight',
@@ -520,6 +522,12 @@ export class HostRuntime {
         this.paramDefault = typeof options.paramDefault === 'function'
             ? options.paramDefault : () => 0;
         this.hostData = normalizeHostData(options.hostData);
+        /* Cache definitions are immutable input for one preview generation.
+         * Retain the caller's object identity so the shared WASM module can
+         * reuse exact enum/struct answers across fresh interaction sessions
+         * without conflating different cache/content sources. */
+        this.hostDataIdentity = options.hostData && typeof options.hostData === 'object'
+            ? options.hostData : this.hostData;
         this.clientType = integer(options.clientType ?? this.hostData.clientType, 10);
         this.mapMembers = Boolean(options.mapMembers ?? this.hostData.mapMembers ?? true);
         this.interfaceParents = normalizeInterfaceParents(
@@ -546,10 +554,18 @@ export class HostRuntime {
         const pendingDeferred = options.pendingDeferred ??
             options.session?.pendingDeferred ?? this.state.pendingDeferred;
         this.pendingDeferred = pendingDeferredState(pendingDeferred);
-        const dbSeed = options.db ?? options.session?.db ?? this.state.db ?? options.hostData?.db;
+        const dbOverride = options.db ?? options.session?.db ?? this.state.db;
+        const dbSeed = dbOverride ?? options.hostData?.db;
         const dbData = dbSeed?.data ?? (dbSeed?.dbTables || dbSeed?.tables
             ? dbSeed : this.hostData);
         this.db = createDbState({ data: dbData, iterator: dbSeed?.iterator });
+        /* Only data carried by the HostData identity may enter its shared WASM
+         * namespace. A restored/explicit DB state can differ while reusing the
+         * same HostData object, so give that shape an isolated namespace and
+         * leave its DB calls on the exact generic path. */
+        this.fastScalarDataIdentity = dbOverride === undefined
+            ? this.hostDataIdentity : this;
+        this.fastScalarDbData = dbOverride === undefined ? this.db.data : null;
         this.loot = createLootState(
             options.loot ?? options.session?.loot ?? this.state.loot ?? options.hostData?.loot);
         this.overlay = createOverlayState(
@@ -610,6 +626,7 @@ export class HostRuntime {
         this.recordChanges = options.recordChanges !== false;
         this.fastTouchCount = null;
         this.fastDeletedComponents = null;
+        this.dynamicComponentPools = new WeakMap();
         this.changeLog = [];
         this.changeLogHead = 0;
         this.structureRevision = 0;
@@ -621,7 +638,10 @@ export class HostRuntime {
         /* CC_FIND is one of the hottest bank redraw operations. Keep the
          * native parent/sub-id identity indexed instead of rediscovering it by
          * scanning the complete mounted interface for every lookup. */
-        this.dynamicChildren = new WeakMap();
+        /* Kept iterable so the C bridge can snapshot every parent/sub-id edge
+         * once per invocation instead of issuing one JS query per CC_FIND
+         * parent. Delete paths remove every retired parent explicitly. */
+        this.dynamicChildren = new Map();
         this.active = null;
         this.dotActive = null;
         this.childIteration = { parent: null, refs: [], index: 0 };
@@ -1486,6 +1506,180 @@ export class HostRuntime {
         else this._touch();
     }
 
+    /* CC_CREATE is followed by setters targeting its batch-local token in the
+     * cache's dynamic-list builders. The ordinary packed loop must resolve the
+     * token and re-check authored bindings for every record. A brand-new
+     * component has no authored/runtime overrides, so commit that contiguous
+     * run directly while retaining each operation's no-op and version rules.
+     * Stop at the first observer, different target, nested create, or setter
+     * outside this proven vocabulary; the outer loop handles it unchanged. */
+    _fastApplyFreshPackedRun(component, token, records, start, recordCount, arena, arenaView) {
+        const props = component.static;
+        let touches = 0;
+        let index = start;
+        try {
+            for( ; index < recordCount; index++ ) {
+                const base = index * FAST_HOST_RECORD_WORDS;
+                if( !records[base + 11] || records[base + 1] !== token ) break;
+                const kind = records[base];
+                if( kind === FAST_HOST_KINDS.CC_SETPOSITION ) {
+                    const x = records[base + 2];
+                    const y = records[base + 3];
+                    const xMode = records[base + 4];
+                    const yMode = records[base + 5];
+                    if( props.x !== x || props.y !== y ||
+                        props.xMode !== xMode || props.yMode !== yMode ) {
+                        props.x = x; props.y = y;
+                        props.xMode = xMode; props.yMode = yMode;
+                        touches++;
+                    }
+                } else if( kind === FAST_HOST_KINDS.CC_SETSIZE ) {
+                    const width = records[base + 2];
+                    const height = records[base + 3];
+                    const widthMode = records[base + 4];
+                    const heightMode = records[base + 5];
+                    if( props.width !== width || props.height !== height ||
+                        props.widthMode !== widthMode || props.heightMode !== heightMode ) {
+                        props.width = width; props.height = height;
+                        props.widthMode = widthMode; props.heightMode = heightMode;
+                        touches++;
+                    }
+                } else if( kind === FAST_HOST_KINDS.CC_SETHIDE ) {
+                    const hidden = Boolean(records[base + 2]);
+                    const before = Boolean(props.hidden);
+                    if( before !== hidden ) {
+                        props.hidden = hidden;
+                        if( before && !hidden ) this.pendingTransmits.widgetsLoaded = true;
+                        touches++;
+                    }
+                } else if( kind === FAST_HOST_KINDS.CC_SETTRANS ) {
+                    const transparency = records[base + 2];
+                    if( props.transparency !== transparency ) {
+                        props.transparency = transparency;
+                        touches++;
+                    }
+                } else if( kind === FAST_HOST_KINDS.CC_SETCOLOUR ) {
+                    const color = records[base + 2];
+                    if( props.color !== color ) {
+                        props.color = color;
+                        touches++;
+                    }
+                } else if( kind === FAST_HOST_KINDS.CC_SETFILL ) {
+                    if( component.type !== IF_TYPE.rectangle && component.type !== 10 ) continue;
+                    const fill = Boolean(records[base + 2]);
+                    if( props.fill !== fill ) {
+                        props.fill = fill;
+                        touches++;
+                    }
+                } else if( kind === FAST_HOST_KINDS.CC_SETGRAPHIC ) {
+                    if( component.type !== IF_TYPE.graphic ) continue;
+                    const sprite = records[base + 2];
+                    if( props.sprite !== sprite ) {
+                        props.sprite = sprite;
+                        touches++;
+                    }
+                } else if( kind === FAST_HOST_KINDS.CC_SETTEXT ) {
+                    /* Decode first: the ordinary packed call evaluates its
+                     * string argument before discovering an unsupported
+                     * dynamic type. A corrupt arena therefore still fails at
+                     * the identical record boundary. */
+                    const rawText = fastRecordString(records, base, arena);
+                    if( component.type !== IF_TYPE.text ) continue;
+                    const text = boundedText('text', rawText);
+                    if( props.text !== text ) {
+                        props.text = text;
+                        touches++;
+                    }
+                } else if( kind === FAST_HOST_KINDS.CC_SETTEXTFONT ) {
+                    if( component.type !== IF_TYPE.text ) continue;
+                    const font = records[base + 2];
+                    if( props.font !== font ) {
+                        props.font = font;
+                        touches++;
+                    }
+                } else if( kind === FAST_HOST_KINDS.CC_SETTEXTALIGN ) {
+                    if( component.type !== IF_TYPE.text ) continue;
+                    const halign = records[base + 2];
+                    const valign = records[base + 3];
+                    const lineHeight = records[base + 4];
+                    if( props.halign !== halign || props.valign !== valign ||
+                        props.lineHeight !== lineHeight ) {
+                        props.halign = halign; props.valign = valign;
+                        props.lineHeight = lineHeight;
+                        touches++;
+                    }
+                } else if( kind === FAST_HOST_KINDS.CC_SETTEXTSHADOW ) {
+                    if( component.type !== IF_TYPE.text ) continue;
+                    const shadow = Boolean(records[base + 2]);
+                    if( props.shadow !== shadow ) {
+                        props.shadow = shadow;
+                        touches++;
+                    }
+                } else if( FAST_HOST_HOOK_DEFINITIONS[kind] ) {
+                    const descriptor = FAST_HOST_HOOK_DEFINITIONS[kind];
+                    let aliasPresent = false;
+                    if( component.hooks ) {
+                        for( const alias of hookAliases(descriptor) ) {
+                            if( !Object.prototype.hasOwnProperty.call(component.hooks, alias) )
+                                continue;
+                            aliasPresent = true;
+                            break;
+                        }
+                    }
+                    if( aliasPresent ) {
+                        this._fastSetPackedHook(
+                            component, descriptor, records, base, arena, arenaView);
+                    } else if( records[base + 2] > 0 ) {
+                        component.hooks ||= {};
+                        let recycled = null;
+                        const oldHooks = component[RECYCLED_DYNAMIC_HOOKS];
+                        if( oldHooks ) {
+                            for( const alias of hookAliases(descriptor) ) {
+                                if( !oldHooks[alias] ) continue;
+                                recycled = oldHooks[alias];
+                                break;
+                            }
+                        }
+                        component.hooks[descriptor.canonical] = recycled && fastHookMatches(
+                            recycled, records, base, arena, arenaView)
+                            ? recycled : fastHookBinding(records, base, arena, arenaView);
+                        touches++;
+                    } else component.hooks ||= {};
+                } else if( kind === FAST_HOST_KINDS.CC_SETOPBASE ) {
+                    const text = boundedText(
+                        'operation base', fastRecordString(records, base, arena));
+                    if( component.runtime.opBase !== text ) {
+                        component.runtime.opBase = text;
+                        touches++;
+                    }
+                } else if( kind === FAST_HOST_KINDS.CC_SETOP ) {
+                    const opIndex = records[base + 2];
+                    const rawText = fastRecordString(records, base, arena);
+                    if( opIndex < 1 || opIndex > 10 ) continue;
+                    const text = boundedText('operation text', rawText);
+                    if( !component.ops?.length ) {
+                        if( text ) {
+                            component.ops = [{ index: opIndex, text }];
+                            touches++;
+                        }
+                    } else this._fastSetOp(component, opIndex, text);
+                } else if( kind === FAST_HOST_KINDS.CC_CLEAROPS ) {
+                    if( component.ops?.length ) {
+                        component.ops = [];
+                        touches++;
+                    }
+                } else break;
+            }
+        } finally {
+            /* requestFastPackedBatch establishes the deferred counter before
+             * entering this path. Keep partial writes/versioning observable if
+             * a malformed later string or hook throws, exactly like replaying
+             * the preceding records one by one. */
+            this.fastTouchCount += touches;
+        }
+        return index - 1;
+    }
+
     _supports(component, op) {
         const supported = OP_TYPES.get(op);
         /* The number supplied to cc_create is a widget type, while the C tree
@@ -1576,21 +1770,52 @@ export class HostRuntime {
             (this.fastDeletedComponents?.size || 0);
         if( liveComponentCount >= this.limits.components )
             throw new HostRuntimeError('component limit reached', 'LIMIT');
-        const staticProps = dynamicProps(type, kind);
-        const component = {
-            fileId: `@host:${this.nextDynamic++}`,
-            name: `${parent.name}[${subId}]`,
-            kind, type, layer: parent.fileId, subId,
-            props: staticProps, static: staticProps, authoredProps: EMPTY_AUTHORED_PROPS,
-            dynamic: EMPTY_DYNAMIC_ARRAY, ops: EMPTY_DYNAMIC_ARRAY,
-            events: null, hooks: null, triggers: null,
-            dependencies: EMPTY_DYNAMIC_ARRAY, scriptBindings: EMPTY_DYNAMIC_ARRAY,
-            rawFields: null, runtimeDynamic: true,
-            runtime: emptyRuntimeState(),
-        };
+        let component = !this.recordChanges
+            ? this._takeDynamicComponent(parent, type, subId) : null;
+        if( component ) {
+            component[RECYCLED_DYNAMIC_HOOKS] = component.hooks;
+            const staticProps = resetDynamicProps(component.static, type, kind);
+            /* Exact parent/type/sub-id pooling makes these two internal
+             * identity strings identical to the newly-created values. Keep
+             * their storage while still advancing the allocation sequence;
+             * generation and transient UID continue to fence every stale
+             * public ref exactly as before. */
+            this.nextDynamic++;
+            component.kind = kind;
+            component.type = type;
+            component.layer = parent.fileId;
+            component.subId = subId;
+            component.props = staticProps;
+            component.static = staticProps;
+            component.authoredProps = EMPTY_AUTHORED_PROPS;
+            component.dynamic = EMPTY_DYNAMIC_ARRAY;
+            component.ops = EMPTY_DYNAMIC_ARRAY;
+            component.events = null;
+            component.hooks = null;
+            component.triggers = null;
+            component.dependencies = EMPTY_DYNAMIC_ARRAY;
+            component.scriptBindings = EMPTY_DYNAMIC_ARRAY;
+            component.rawFields = null;
+            component.runtimeDynamic = true;
+            resetRuntimeState(component.runtime);
+        } else {
+            const staticProps = dynamicProps(type, kind);
+            component = {
+                fileId: `@host:${this.nextDynamic++}`,
+                name: `${parent.name}[${subId}]`,
+                kind, type, layer: parent.fileId, subId,
+                props: staticProps, static: staticProps, authoredProps: EMPTY_AUTHORED_PROPS,
+                dynamic: EMPTY_DYNAMIC_ARRAY, ops: EMPTY_DYNAMIC_ARRAY,
+                events: null, hooks: null, triggers: null,
+                dependencies: EMPTY_DYNAMIC_ARRAY, scriptBindings: EMPTY_DYNAMIC_ARRAY,
+                rawFields: null, runtimeDynamic: true,
+                runtime: emptyRuntimeState(),
+            };
+        }
         this.ir.components.push(component);
         this.structureRevision++;
-        this._indexDynamic(component, parent, subId);
+        this._indexDynamic(
+            component, parent, subId, component[RECYCLED_DYNAMIC_META] || null);
         this.dynamicCount++;
         const ref = this.meta.get(component).ref;
         if( this.recordChanges ) this._record({
@@ -1599,6 +1824,99 @@ export class HostRuntime {
         else this._touch();
         this.setActive(component, { dot });
         return ref;
+    }
+
+    /* The packed C bridge has already resolved the parent and transports every
+     * numeric field through an Int32Array. Avoid resolving that same parent
+     * three more times through the public reference machinery for each of the
+     * thousands of CC_CREATEs in a redraw. This is deliberately production
+     * only: public/change-recording callers retain the fully defensive path
+     * above, while malformed packed types still fall back to its validation. */
+    _fastCreatePackedChild(parent, type, subId, dot) {
+        if( this.recordChanges || !Number.isInteger(type) || type < 0 || type > 255 ) {
+            const ref = this._createChild(parent, type, subId, { dot });
+            return { ref, component: this._component(ref) };
+        }
+        const kind = TYPE_KIND.get(type) || 'Object';
+        const existing = this.dynamicChildren.get(parent)?.get(subId) || null;
+        if( existing ) this._deleteForFastReplace(existing);
+        if( this.dynamicCount >= this.limits.dynamicComponents )
+            throw new HostRuntimeError('dynamic component limit reached', 'LIMIT');
+        const liveComponentCount = this.ir.components.length -
+            (this.fastDeletedComponents?.size || 0);
+        if( liveComponentCount >= this.limits.components )
+            throw new HostRuntimeError('component limit reached', 'LIMIT');
+
+        let component = this._takeDynamicComponent(parent, type, subId);
+        if( component ) {
+            component[RECYCLED_DYNAMIC_HOOKS] = component.hooks;
+            const staticProps = resetDynamicProps(component.static, type, kind);
+            this.nextDynamic++;
+            component.kind = kind;
+            component.type = type;
+            component.layer = parent.fileId;
+            component.subId = subId;
+            component.props = staticProps;
+            component.static = staticProps;
+            component.authoredProps = EMPTY_AUTHORED_PROPS;
+            component.dynamic = EMPTY_DYNAMIC_ARRAY;
+            component.ops = EMPTY_DYNAMIC_ARRAY;
+            component.events = null;
+            component.hooks = null;
+            component.triggers = null;
+            component.dependencies = EMPTY_DYNAMIC_ARRAY;
+            component.scriptBindings = EMPTY_DYNAMIC_ARRAY;
+            component.rawFields = null;
+            component.runtimeDynamic = true;
+            resetRuntimeState(component.runtime);
+        } else {
+            const staticProps = dynamicProps(type, kind);
+            component = {
+                fileId: `@host:${this.nextDynamic++}`,
+                name: `${parent.name}[${subId}]`,
+                kind, type, layer: parent.fileId, subId,
+                props: staticProps, static: staticProps,
+                authoredProps: EMPTY_AUTHORED_PROPS,
+                dynamic: EMPTY_DYNAMIC_ARRAY, ops: EMPTY_DYNAMIC_ARRAY,
+                events: null, hooks: null, triggers: null,
+                dependencies: EMPTY_DYNAMIC_ARRAY,
+                scriptBindings: EMPTY_DYNAMIC_ARRAY,
+                rawFields: null, runtimeDynamic: true,
+                runtime: emptyRuntimeState(),
+            };
+        }
+        this.ir.components.push(component);
+        this.structureRevision++;
+        this._indexDynamic(
+            component, parent, subId, component[RECYCLED_DYNAMIC_META] || null);
+        this.dynamicCount++;
+        const ref = this.meta.get(component).ref;
+        this._touch();
+        if( dot ) this.dotActive = ref;
+        else this.active = ref;
+        return { ref, component };
+    }
+
+    _takeDynamicComponent(parent, type, subId) {
+        const slots = this.dynamicComponentPools.get(parent)?.get(type);
+        if( !slots ) return null;
+        const component = slots.get(subId) || null;
+        if( component ) slots.delete(subId);
+        return component;
+    }
+
+    _poolDynamicComponent(parent, component, subId) {
+        let types = this.dynamicComponentPools.get(parent);
+        if( !types ) {
+            types = new Map();
+            this.dynamicComponentPools.set(parent, types);
+        }
+        let slots = types.get(component.type);
+        if( !slots ) {
+            slots = new Map();
+            types.set(component.type, slots);
+        }
+        slots.set(subId, component);
     }
 
     _copyChild(parentValue, sourceSubId, destinationSubId, { dot = false } = {}) {
@@ -1690,7 +2008,7 @@ export class HostRuntime {
             }
         }
         const refs = [...doomed].map((component) => this.ref(component));
-        if( this.fastDeletedComponents ) {
+        if( this.fastDeletedComponents && this.recordChanges ) {
             for( const component of doomed ) this.fastDeletedComponents.add(component);
         } else this.ir.components = this.ir.components.filter((component) => !doomed.has(component));
         this.structureRevision++;
@@ -1703,6 +2021,8 @@ export class HostRuntime {
                 const siblings = parent && this.dynamicChildren.get(parent);
                 if( siblings?.get(meta.subId) === component ) siblings.delete(meta.subId);
                 if( siblings?.size === 0 ) this.dynamicChildren.delete(parent);
+                if( !this.recordChanges && parent )
+                    this._poolDynamicComponent(parent, component, meta.subId);
             }
             this.dynamicChildren.delete(component);
         }
@@ -1715,6 +2035,7 @@ export class HostRuntime {
                 this.byUid.delete(meta.componentId);
             this.dynamicCount -= Number(meta.dynamic);
             this.meta.delete(component);
+            if( !this.recordChanges && meta.dynamic ) component[RECYCLED_DYNAMIC_META] = meta;
         }
         if( this.active && refs.some((ref) => sameRef(ref, this.active)) ) this.active = null;
         if( this.dotActive && refs.some((ref) => sameRef(ref, this.dotActive)) ) this.dotActive = null;
@@ -1855,6 +2176,30 @@ export class HostRuntime {
         return Int32Array.from(rows);
     }
 
+    /** One borrowed snapshot for every dynamic edge in the current tree.
+     * CC_FIND-heavy scripts otherwise cross C -> JS once per distinct parent
+     * even though all those queries observe the same tree revision. */
+    fastHostAllChildrenSnapshot() {
+        let count = 0;
+        for( const children of this.dynamicChildren.values() ) count += children.size;
+        if( count > this.limits.dynamicComponents ) throw new HostRuntimeError(
+            'dynamic child snapshot exceeds the configured limit', 'LIMIT');
+        const rows = new Int32Array(count * 3);
+        let index = 0;
+        for( const [parent, children] of this.dynamicChildren ) {
+            const parentId = this.meta.get(parent)?.componentId;
+            if( !Number.isInteger(parentId) ) continue;
+            for( const [subId, child] of children ) {
+                const childId = this.meta.get(child)?.componentId;
+                if( !Number.isInteger(childId) ) continue;
+                rows[index++] = parentId | 0;
+                rows[index++] = subId | 0;
+                rows[index++] = childId | 0;
+            }
+        }
+        return index === rows.length ? rows : rows.slice(0, index);
+    }
+
     fastHostValueSnapshot(queryKind, key) {
         let value;
         if( queryKind === 3 ) value = this.readState('varp', key);
@@ -1868,6 +2213,14 @@ export class HostRuntime {
     /** Exact scalar companion to the generic reflected HOST surface. Values
      * stay JavaScript-owned while the bridge avoids constructing thousands of
      * transient request records. */
+    fastHostScalarDataIdentity() {
+        return this.fastScalarDataIdentity;
+    }
+
+    fastHostDbDataSnapshot() {
+        return this.fastScalarDbData;
+    }
+
     fastHostScalarDataValue(requestKind, a, b, c) {
         let value;
         if( requestKind === 6516 ) value = this._structParamValue(a, b);
@@ -2032,7 +2385,13 @@ export class HostRuntime {
             const byUid = this.byUid;
             const dynamicChildren = this.dynamicChildren;
             const meta = this.meta;
-            const createdByToken = new Map();
+            /* C allocates create tokens as INT_MAX-serial. A dense array avoids
+             * one hash-node allocation for every dynamic child in large list
+             * rebuilds; direct/noncanonical test producers retain a lazy Map
+             * fallback with identical semantics. */
+            const createdBySerial = [];
+            let createdFallback = null;
+            let missingCreatedIds = null;
             let cachedComponentId = NaN;
             let cachedComponentTemporary = false;
             let cachedComponent = null;
@@ -2076,30 +2435,62 @@ export class HostRuntime {
                     const parent = byUid.get(rawParentId) ||
                         (rawParentId < -1 ? byUid.get(rawParentId >>> 0) : null) || null;
                     const previousId = records[base + 8];
-                    const previous = records[base + 9]
-                        ? createdByToken.get(previousId)
-                        : { id: previousId, component: byUid.get(previousId) ||
-                            (previousId < -1 ? byUid.get(previousId >>> 0) : null) || null };
-                    if( records[base + 9] && !previous ) throw new HostRuntimeError(
-                        'packed CC_CREATE references an unknown temporary target', 'BAD_REQUEST');
+                    const previousIsToken = Boolean(records[base + 9]);
+                    let previousComponent;
+                    if( previousIsToken ) {
+                        const serial = fastCreateTokenSerial(previousId);
+                        const known = serial
+                            ? createdBySerial[serial] !== undefined
+                            : Boolean(createdFallback?.has(previousId));
+                        if( !known ) throw new HostRuntimeError(
+                            'packed CC_CREATE references an unknown temporary target',
+                            'BAD_REQUEST');
+                        previousComponent = serial
+                            ? createdBySerial[serial] : createdFallback.get(previousId);
+                        previousComponent ||= null;
+                    } else previousComponent = byUid.get(previousId) ||
+                        (previousId < -1 ? byUid.get(previousId >>> 0) : null) || null;
+                    const previousActualId = previousIsToken
+                        ? previousComponent
+                            ? meta.get(previousComponent).componentId
+                            : missingCreatedIds?.get(previousId) ?? -1
+                        : previousId;
                     if( !parent ) {
-                        records[base + 6] = previous.id | 0;
-                        createdByToken.set(records[base + 7], previous);
+                        records[base + 6] = previousActualId | 0;
+                        const token = records[base + 7];
+                        const serial = fastCreateTokenSerial(token);
+                        if( serial ) createdBySerial[serial] = previousComponent;
+                        else {
+                            createdFallback ||= new Map();
+                            createdFallback.set(token, previousComponent);
+                        }
+                        if( !previousComponent ) {
+                            missingCreatedIds ||= new Map();
+                            missingCreatedIds.set(records[base + 7], previousActualId);
+                        }
                         continue;
                     }
-                    const ref = this._createChild(
+                    const { ref, component: child } = this._fastCreatePackedChild(
                         parent, records[base + 2], records[base + 3],
-                        { dot: Boolean(records[base + 5]) });
-                    const child = this._component(ref);
+                        Boolean(records[base + 5]));
                     const actual = ref.componentId | 0;
                     records[base + 6] = actual;
-                    createdByToken.set(records[base + 7], { id: actual, component: child });
+                    const token = records[base + 7];
+                    const serial = fastCreateTokenSerial(token);
+                    if( serial ) createdBySerial[serial] = child;
+                    else {
+                        createdFallback ||= new Map();
+                        createdFallback.set(token, child);
+                    }
                     cachedComponentId = actual;
                     cachedComponentTemporary = false;
                     cachedComponent = child;
                     cachedParentId = rawParentId;
                     cachedParent = parent;
                     cachedParentChildren = dynamicChildren.get(parent) || null;
+                    if( !this.recordChanges ) index = this._fastApplyFreshPackedRun(
+                        child, records[base + 7], records, index + 1,
+                        recordCount, arena, arenaView);
                     continue;
                 }
 
@@ -2109,10 +2500,14 @@ export class HostRuntime {
                 if( rawComponentId === cachedComponentId &&
                     temporaryComponent === cachedComponentTemporary ) component = cachedComponent;
                 else if( temporaryComponent ) {
-                    const created = createdByToken.get(rawComponentId);
-                    if( !created ) throw new HostRuntimeError(
+                    const serial = fastCreateTokenSerial(rawComponentId);
+                    const known = serial
+                        ? createdBySerial[serial] !== undefined
+                        : Boolean(createdFallback?.has(rawComponentId));
+                    if( !known ) throw new HostRuntimeError(
                         'packed setter references an unknown temporary target', 'BAD_REQUEST');
-                    component = created.component;
+                    component = (serial
+                        ? createdBySerial[serial] : createdFallback.get(rawComponentId)) || null;
                     cachedComponentId = rawComponentId;
                     cachedComponentTemporary = true;
                     cachedComponent = component;
@@ -4078,10 +4473,11 @@ export class HostRuntime {
         if( uid !== null ) this.byUid.set(uid, component);
     }
 
-    _indexDynamic(component, parent, subId) {
+    _indexDynamic(component, parent, subId, recycledMeta = null) {
         const parentMeta = this.meta.get(parent);
         const componentId = this._allocateDynamicComponentId(parentMeta.componentId);
-        this._index(component, {
+        const meta = recycledMeta || {};
+        Object.assign(meta, {
             key: `dyn:${this.interfaceId}:${this.nextGeneration}`,
             /* Match UITree_CcCreate's 0x8000..0xffff UID band. A dynamic
              * component is addressed by this transient packed id inside C;
@@ -4099,6 +4495,7 @@ export class HostRuntime {
             dragDeadTime: 0,
             dragBehavior: 0,
         });
+        this._index(component, meta);
         this.byUid.set(componentId, component);
         let children = this.dynamicChildren.get(parent);
         if( !children ) {
@@ -4422,6 +4819,11 @@ function fastRecordString(records, base, arena) {
     return FAST_HOST_TEXT_DECODER.decode(arena.subarray(offset, offset + length));
 }
 
+function fastCreateTokenSerial(token) {
+    const serial = 0x7fffffff - token;
+    return Number.isInteger(serial) && serial > 0 && serial <= 65536 ? serial : 0;
+}
+
 function fastHookPayload(records, base, arena, arenaView) {
     const triggerCount = records[base + 3];
     const intCount = records[base + 4];
@@ -4739,6 +5141,16 @@ function emptyRuntimeState() {
     return { opBase: '', targetPriority: 0, submenus: null, params: null, opKeys: null, input: null };
 }
 
+function resetRuntimeState(runtime) {
+    runtime.opBase = '';
+    runtime.targetPriority = 0;
+    runtime.submenus = null;
+    runtime.params = null;
+    runtime.opKeys = null;
+    runtime.input = null;
+    return runtime;
+}
+
 function cloneRuntimeState(value) {
     const source = value || {};
     return {
@@ -4818,10 +5230,10 @@ function cloneBox(box) {
     };
 }
 
-function dynamicProps(type, kind) {
+function dynamicPropsTemplate(type, kind) {
     const cacheKey = `${type}:${kind}`;
     const cached = DYNAMIC_PROPS_CACHE.get(cacheKey);
-    if( cached ) return { ...cached };
+    if( cached ) return cached;
     const definition = ELEMENTS[kind];
     const common = definition || ELEMENTS.Layer;
     const result = Object.fromEntries(Object.entries(common.props)
@@ -4854,7 +5266,23 @@ function dynamicProps(type, kind) {
         arcStart: 0, arcEnd: 0,
     });
     DYNAMIC_PROPS_CACHE.set(cacheKey, Object.freeze(result));
-    return { ...result };
+    return result;
+}
+
+function dynamicProps(type, kind) {
+    return { ...dynamicPropsTemplate(type, kind) };
+}
+
+function resetDynamicProps(target, type, kind) {
+    const template = dynamicPropsTemplate(type, kind);
+    /* Fast setters may add fields that are not part of the authored type's
+     * default schema. A pooled component must be indistinguishable from a new
+     * CC_CREATE, so drop every such field before copying the canonical
+     * defaults back onto the stable-shape object. */
+    for( const key of Object.keys(target) ) {
+        if( !Object.prototype.hasOwnProperty.call(template, key) ) delete target[key];
+    }
+    return Object.assign(target, template);
 }
 
 function modelKind(value) {

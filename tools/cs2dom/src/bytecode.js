@@ -122,13 +122,34 @@ function compileProgram(project, result, input, log) {
          * supplied bytecode whose cache/revision/CRC identity matches this
          * content tree, preserve the successfully authored records and replace
          * each compiler-failed record with that exact original cache payload. */
-        if( !compiled.ok && input.exactRawFallback ) {
-            for( let pass = 0; !compiled.ok && pass < sources.length; pass++ ) {
+        if( input.exactRawFallback ) {
+            for( let pass = 0; pass < sources.length; pass++ ) {
                 let added = 0;
                 for( const failure of compiled.failures || [] ) {
                     if( fallbackIds.has(failure.id) || !rawById.has(failure.id) ) continue;
                     fallbackIds.add(failure.id);
                     fallbackFailures.set(failure.id, failure);
+                    added++;
+                }
+                /* A source record can compile cleanly yet still be provably
+                 * lossy. Array arguments are one rev-239 decompiler failure:
+                 * the rebuilt footer advertises a different int/string
+                 * contract, so GOSUB fails before the callee can run. Only an
+                 * exact cache footer is authoritative enough to replace such
+                 * an otherwise successful record. */
+                for( const script of compiled.bytecode || [] ) {
+                    if( fallbackIds.has(script.id) || !rawById.has(script.id) ) continue;
+                    const rebuilt = rawArgumentSignature(script);
+                    const exact = rawArgumentSignature(rawById.get(script.id));
+                    if( !rebuilt || !exact || sameArgumentSignature(rebuilt, exact) ) continue;
+                    fallbackIds.add(script.id);
+                    fallbackFailures.set(script.id, {
+                        id: script.id,
+                        name: script.name,
+                        fallbackKind: 'signature-mismatch',
+                        message: `decompiled argument signature ${formatArgumentSignature(rebuilt)} ` +
+                            `does not match exact cache signature ${formatArgumentSignature(exact)}`,
+                    });
                     added++;
                 }
                 if( !added ) break;
@@ -291,7 +312,14 @@ function rawGosubTargets(script) {
     let bytes;
     try { bytes = Buffer.from(script.bytes ?? readFileSync(script.file)); }
     catch { return []; }
-    if( bytes.length < 16 ) return [];
+    const decoded = rawScriptInstructions(bytes);
+    return decoded ? decoded.instructions
+        .filter(({ opcode, operand }) => opcode === 40 && operand >= 0)
+        .map(({ operand }) => operand) : [];
+}
+
+function rawScriptInstructions(bytes) {
+    if( bytes.length < 16 ) return null;
     const trailerLength = bytes.readUInt16BE(bytes.length - 2);
     for( const footerSize of [14, 18] ) {
         const trailer = bytes.length - footerSize - trailerLength;
@@ -300,7 +328,7 @@ function rawGosubTargets(script) {
         if( opCount <= 0 || opCount > 65536 ) continue;
         let offset = bytes.indexOf(0) + 1;
         if( offset <= 0 || offset >= trailer ) continue;
-        const targets = [];
+        const instructions = [];
         let valid = true;
         for( let opIndex = 0; opIndex < opCount && valid; opIndex++ ) {
             if( offset + 2 > trailer ) { valid = false; break; }
@@ -309,6 +337,7 @@ function rawGosubTargets(script) {
             let operand = 0;
             if( opcode === 61 ) {
                 if( offset + 8 > trailer ) { valid = false; break; }
+                operand = bytes.subarray(offset, offset + 8);
                 offset += 8;
             } else if( opcode >= 100 || [21, 38, 39, 62, 63].includes(opcode) ) {
                 if( offset + 1 > trailer ) { valid = false; break; }
@@ -317,17 +346,42 @@ function rawGosubTargets(script) {
             } else if( opcode === 3 ) {
                 const end = bytes.indexOf(0, offset);
                 if( end < 0 || end >= trailer ) { valid = false; break; }
+                operand = bytes.toString('utf8', offset, end);
                 offset = end + 1;
             } else {
                 if( offset + 4 > trailer ) { valid = false; break; }
                 operand = bytes.readInt32BE(offset);
                 offset += 4;
             }
-            if( opcode === 40 && operand >= 0 ) targets.push(operand);
+            instructions.push({ opcode, operand });
         }
-        if( valid && offset === trailer ) return targets;
+        if( valid && offset === trailer )
+            return { footerSize, trailer, instructions };
     }
-    return [];
+    return null;
+}
+
+function rawArgumentSignature(script) {
+    let bytes;
+    try { bytes = Buffer.from(script.bytes ?? readFileSync(script.file)); }
+    catch { return null; }
+    const decoded = rawScriptInstructions(bytes);
+    if( !decoded ) return null;
+    const offset = decoded.trailer + (decoded.footerSize === 18 ? 10 : 8);
+    return {
+        ints: bytes.readUInt16BE(offset),
+        strings: bytes.readUInt16BE(offset + 2),
+        longs: decoded.footerSize === 18 ? bytes.readUInt16BE(offset + 4) : 0,
+    };
+}
+
+function sameArgumentSignature(left, right) {
+    return left.ints === right.ints && left.strings === right.strings &&
+        left.longs === right.longs;
+}
+
+function formatArgumentSignature(signature) {
+    return `${signature.ints}i/${signature.strings}s/${signature.longs}l`;
 }
 
 function referencedRawIds(sources, raw, roots) {
@@ -528,6 +582,7 @@ function cacheSourceIdentity(path) {
 
 export const __bytecodeTest = Object.freeze({
     exactDat2Fallback,
+    rawArgumentSignature,
     unconditionalSelfRecursiveStub,
 });
 

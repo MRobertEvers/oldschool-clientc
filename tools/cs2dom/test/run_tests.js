@@ -2232,8 +2232,8 @@ test('component deferred queues retain the first sixteen requests and restore fr
 });
 
 test('the live host classifies every generated command name deterministically', () => {
-    assert(HOST_REQUEST_COVERAGE.total === 632,
-           `HOST coverage included ${HOST_REQUEST_COVERAGE.total} entries instead of the C ABI's 632`);
+    assert(HOST_REQUEST_COVERAGE.total === 633,
+           `HOST coverage included ${HOST_REQUEST_COVERAGE.total} entries instead of the C ABI's 633`);
     assert(HOST_REQUEST_COVERAGE.total === HOST_REQUEST_COVERAGE.entries.length &&
            HOST_REQUEST_COVERAGE.supported + HOST_REQUEST_COVERAGE.unsupported ===
                HOST_REQUEST_COVERAGE.total,
@@ -2394,7 +2394,7 @@ test('all world-map calls use cache geometry and advance on React frame ticks', 
     assert(snapshot.worldMap.zoomScaleNowFp > scaleBefore &&
         !Object.hasOwn(snapshot.worldMap, 'areas'),
     'world-map transitions did not advance on tick or cloned immutable cache records');
-    assert(HOST_REQUEST_COVERAGE.supported === 631 && HOST_REQUEST_COVERAGE.unsupported === 1 &&
+    assert(HOST_REQUEST_COVERAGE.supported === 632 && HOST_REQUEST_COVERAGE.unsupported === 1 &&
         HOST_REQUEST_COVERAGE.entries.find((entry) => !entry.supported)?.kind === 'GOSUB_WITH_PARAMS',
     `JavaScript HOST coverage was ${HOST_REQUEST_COVERAGE.supported}/${HOST_REQUEST_COVERAGE.total}`);
 });
@@ -4044,9 +4044,12 @@ test('script closure follows a unique wrong-role compiler alias used by a callba
     ].join('\n'));
     writeFileSync(join(cs2Names, 'script-names.tsv'), [
         '10\t[clientscript,entry]',
+        '',
+    ].join('\n'));
+    writeFileSync(join(root, 'new_script_names.txt'), [
         /* The recovered ledger label has the wrong proc role, matching the
          * lossy rev-239 records used by toplevel and giants_foundry_hud. */
-        '42\t[proc,decompiler_timer_alias]',
+        '42\t[proc,decompiler_timer_alias]\trecovered',
         '',
     ].join('\n'));
     writeFileSync(join(content, 'interfaces', 'panel.if'),
@@ -4100,6 +4103,23 @@ test('content bytecode fallback requires an exact cache revision and source fing
     writeFileSync(join(derived, 'meta.ini'), meta.replace('1a2b3c4d', 'ffffffff'));
     assert(__bytecodeTest.exactDat2Fallback(project, content) === null,
         'a mismatched cache CRC was accepted as exact bytecode fallback');
+});
+
+test('exact bytecode fallback reads modern script argument contracts from the footer', () => {
+    /* Empty script name, RETURN with its one-byte operand, then the modern
+     * 18-byte footer: count, three local counts, three argument counts, and
+     * switch-payload length. */
+    const bytes = Buffer.alloc(22);
+    bytes.writeUInt16BE(21, 1);
+    bytes.writeInt8(0, 3);
+    bytes.writeInt32BE(1, 4);
+    bytes.writeUInt16BE(7, 14);
+    bytes.writeUInt16BE(1, 16);
+    bytes.writeUInt16BE(2, 18);
+    bytes.writeUInt16BE(0, 20);
+    const signature = __bytecodeTest.rawArgumentSignature({ bytes });
+    assert(JSON.stringify(signature) === JSON.stringify({ ints: 7, strings: 1, longs: 2 }),
+        `modern bytecode argument signature was ${JSON.stringify(signature)}`);
 });
 
 test('exact bytecode fallback only classifies unconditional self-recursive decompiler stubs', () => {

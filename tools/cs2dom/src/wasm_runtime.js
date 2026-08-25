@@ -47,10 +47,22 @@ const MAX_CHILD_ITERATOR = 256;
 const FAST_RECORD_WORDS = 12;
 const FAST_QUERY_INVENTORY = 1;
 const FAST_QUERY_CHILDREN = 2;
+const FAST_QUERY_ALL_CHILDREN = 7;
 const FAST_QUERY_SCALAR_MIN = 3;
 const FAST_QUERY_SCALAR_MAX = 6;
 const FAST_QUERY_MISSING = -2;
 const FAST_HOOK_STRING_LENGTH = 256;
+const FAST_SCALAR_PRELOAD_WORDS = 9;
+/* One rev-239 HostData image contains roughly 400k immutable enum/struct/DB
+ * scalar answers. Keep the wire snapshot bounded while leaving enough room
+ * for that real cache rather than silently falling back during first input. */
+const FAST_SCALAR_PRELOAD_MAX = 524288;
+const FAST_SCALAR_STRUCT_PARAM = 6516;
+const FAST_SCALAR_ENUM_STRING = 3400;
+const FAST_SCALAR_ENUM = 3408;
+const FAST_SCALAR_ENUM_COUNT = 3411;
+const FAST_SCALAR_DB_GETFIELD = 7502;
+const CS2_TYPE_STRING = 115;
 const UTF8_ENCODER = new TextEncoder();
 const UTF8_DECODER = new TextDecoder();
 const DIRECT_REFLECTION_CACHE = new WeakMap();
@@ -110,6 +122,7 @@ export async function createWasmCS2Runtime({
     moduleUrl = '/cs2vm-wasm/cs2vm_wasm.js',
     wasmUrl = '/cs2vm-wasm/cs2vm_wasm.wasm',
     fastHost = true,
+    preloadHostData = true,
 } = {}) {
     validateProgram(program);
     if( !host || typeof host.request !== 'function' )
@@ -118,7 +131,7 @@ export async function createWasmCS2Runtime({
     const bundle = moduleFactory
         ? await instantiateModule(moduleFactory, wasmUrl)
         : await defaultModule(moduleUrl, wasmUrl);
-    const runtime = new WasmSession(bundle, program, host, fastHost);
+    const runtime = new WasmSession(bundle, program, host, fastHost, preloadHostData);
     try { runtime.load(); }
     catch( error ) {
         runtime.destroy();
@@ -128,7 +141,7 @@ export async function createWasmCS2Runtime({
 }
 
 class WasmSession {
-    constructor(bundle, program, host, fastHost) {
+    constructor(bundle, program, host, fastHost, preloadHostData) {
         this.bundle = bundle;
         this.api = bundle.api;
         this.program = program;
@@ -136,9 +149,11 @@ class WasmSession {
         this.session = 0;
         this.destroyed = false;
         this.hostErrors = new Map();
+        this.preloadHostData = preloadHostData !== false;
         this.fastHost = Boolean(fastHost && typeof this.api._cs2w_invocation_set_fast_host === 'function' &&
             typeof host.fastHostInventorySnapshot === 'function' &&
             typeof host.fastHostChildrenSnapshot === 'function' &&
+            typeof host.fastHostAllChildrenSnapshot === 'function' &&
             typeof host.fastHostValueSnapshot === 'function' &&
             typeof host.fastHostScalarDataValue === 'function' &&
             typeof host.fastHostScalarDataCacheable === 'function' &&
@@ -152,6 +167,18 @@ class WasmSession {
         if( !this.session ) throw new WasmCS2RuntimeError(
             'C CS2VM/WASM could not allocate a session', 'CREATE');
         this.bundle.sessions.set(this.session, this);
+
+        if( this.fastHost &&
+            typeof this.api._cs2w_session_set_fast_scalar_namespace === 'function' &&
+            typeof this.host.fastHostScalarDataIdentity === 'function' ) {
+            const identity = this.host.fastHostScalarDataIdentity();
+            const namespace = this.bundle.scalarNamespace(identity);
+            if( namespace && !this.api._cs2w_session_set_fast_scalar_namespace(
+                this.session, namespace) ) throw this.sessionError(
+                'could not bind the immutable HostData cache namespace', 'CREATE');
+            if( namespace && this.preloadHostData ) this.bundle.preloadScalarData(
+                this.session, identity, this.host);
+        }
 
         for( const record of this.program.scripts ) {
             const bytes = programBytes(record.data);
@@ -273,6 +300,7 @@ class WasmSession {
         try {
             const width = queryKind === FAST_QUERY_INVENTORY ? 3
                 : queryKind === FAST_QUERY_CHILDREN ? 2
+                    : queryKind === FAST_QUERY_ALL_CHILDREN ? 3
                     : queryKind >= FAST_QUERY_SCALAR_MIN && queryKind <= FAST_QUERY_SCALAR_MAX
                         ? 1 : 0;
             if( !width || !Number.isInteger(capacity) || capacity < 0 || capacity > 65536 )
@@ -281,7 +309,9 @@ class WasmSession {
                 ? this.host.fastHostInventorySnapshot(key)
                 : queryKind === FAST_QUERY_CHILDREN
                     ? this.host.fastHostChildrenSnapshot(key)
-                    : this.host.fastHostValueSnapshot(queryKind, key);
+                    : queryKind === FAST_QUERY_ALL_CHILDREN
+                        ? this.host.fastHostAllChildrenSnapshot()
+                        : this.host.fastHostValueSnapshot(queryKind, key);
             if( rows === null ) return FAST_QUERY_MISSING;
             if( !(rows instanceof Int32Array) || rows.length % width !== 0 )
                 throw new WasmCS2RuntimeError('malformed fast HOST snapshot', 'FAST_HOST');
@@ -531,6 +561,13 @@ async function defaultModule(moduleUrl, wasmUrl) {
 
 async function instantiateModule(factory, wasmUrl) {
     const sessions = new Map();
+    const scalarNamespaces = new WeakMap();
+    /* Retain the compact TypedArrays beside their HostData identity. They are
+     * only a few MiB and contain no object graph to scan; dropping them right
+     * before the first user input instead makes V8 reclaim the build buffers
+     * unpredictably inside that interaction. */
+    const preloadedScalarData = new WeakMap();
+    let nextScalarNamespace = 1;
     const api = await factory({
         locateFile(path) {
             return String(path).endsWith('.wasm') ? wasmUrl : `/cs2vm-wasm/${path}`;
@@ -565,7 +602,39 @@ async function instantiateModule(factory, wasmUrl) {
      * schema and are immutable for the lifetime of a module. Keep them beside
      * the shared Emscripten instance instead of reflecting and UTF-8 decoding
      * the same metadata for every C -> JavaScript HOST call. */
-    return { api, sessions, requestSchemas: new Map() };
+    return {
+        api,
+        sessions,
+        requestSchemas: new Map(),
+        scalarNamespace(identity) {
+            if( !identity || (typeof identity !== 'object' && typeof identity !== 'function') )
+                return 0;
+            const cached = scalarNamespaces.get(identity);
+            if( cached ) return cached;
+            if( nextScalarNamespace > 0x7fffffff ) throw new WasmCS2RuntimeError(
+                'immutable HostData namespace space exhausted', 'LIMIT');
+            const namespace = nextScalarNamespace++;
+            scalarNamespaces.set(identity, namespace);
+            return namespace;
+        },
+        preloadScalarData(session, identity, host) {
+            if( preloadedScalarData.has(identity) ||
+                typeof api._cs2w_session_preload_fast_scalars !== 'function' ) return;
+            const { records, arena } = fastScalarPreload(host);
+            if( records.length % FAST_SCALAR_PRELOAD_WORDS !== 0 )
+                throw new WasmCS2RuntimeError(
+                    'immutable HostData preload record shape is invalid', 'FAST_HOST');
+            const loaded = withInt32Array(api, records, (recordsPointer) =>
+                withBytes(api, arena, (arenaPointer) =>
+                    api._cs2w_session_preload_fast_scalars(
+                        session, recordsPointer,
+                        records.length / FAST_SCALAR_PRELOAD_WORDS,
+                        arenaPointer, arena.length)));
+            if( !loaded ) throw new WasmCS2RuntimeError(
+                'C CS2VM/WASM rejected immutable HostData preload', 'FAST_HOST');
+            preloadedScalarData.set(identity, { records, arena });
+        },
+    };
 }
 
 function validateModule(api) {
@@ -1159,6 +1228,212 @@ function programBytes(value) {
     return bytes;
 }
 
+/* Materialize immutable enum/struct/DB cache data once per HostData object and
+ * shared WASM module. Exact entries plus native defaults let the C VM answer
+ * data-dependent lookup keys without thousands of synchronous JS crossings;
+ * stateful paramDefault callbacks are intentionally omitted. */
+function fastScalarPreload(host) {
+    const cacheInt = (value) => {
+        const number = Number(value);
+        return Number.isInteger(number) && number >= -0x80000000 && number <= 0x7fffffff
+            ? number | 0 : null;
+    };
+    const data = host.hostData || {};
+    const visit = (add) => {
+        const enums = data.enums || {};
+        for( const rawEnumId in enums ) {
+            if( !Object.hasOwn(enums, rawEnumId) ) continue;
+            const rawEntry = enums[rawEnumId];
+            const enumId = cacheInt(rawEnumId);
+            if( enumId === null || !rawEntry || typeof rawEntry !== 'object' ) continue;
+            const entry = rawEntry;
+            const values = entry.values && typeof entry.values === 'object' ? entry.values : {};
+            const typedOutput = entry.string ? CS2_TYPE_STRING : 0;
+            add(FAST_SCALAR_ENUM_COUNT, enumId, 0, 0,
+                host.fastHostScalarDataValue(FAST_SCALAR_ENUM_COUNT, enumId, 0, 0));
+            add(FAST_SCALAR_ENUM_STRING, enumId, 0, CS2_TYPE_STRING,
+                String(entry.defaultString ?? 'null'), true);
+            add(FAST_SCALAR_ENUM, enumId, 0, typedOutput,
+                entry.string ? String(entry.defaultString ?? 'null')
+                    : Number(entry.defaultInt ?? 0) | 0, true);
+            for( const rawKey in values ) {
+                if( !Object.hasOwn(values, rawKey) ) continue;
+                const key = cacheInt(rawKey);
+                if( key === null ) continue;
+                add(FAST_SCALAR_ENUM_STRING, enumId, key, CS2_TYPE_STRING,
+                    host.fastHostScalarDataValue(
+                        FAST_SCALAR_ENUM_STRING, enumId, key, CS2_TYPE_STRING));
+                add(FAST_SCALAR_ENUM, enumId, key, typedOutput,
+                    host.fastHostScalarDataValue(
+                        FAST_SCALAR_ENUM, enumId, key, typedOutput));
+            }
+        }
+        const structs = data.structs || {};
+        for( const rawStructId in structs ) {
+            if( !Object.hasOwn(structs, rawStructId) ) continue;
+            const rawStruct = structs[rawStructId];
+            const structId = cacheInt(rawStructId);
+            if( structId === null || !rawStruct || typeof rawStruct !== 'object' ) continue;
+            const values = rawStruct.params || rawStruct.values || rawStruct;
+            for( const rawParamId in values ) {
+                if( !Object.hasOwn(values, rawParamId) ) continue;
+                const paramId = cacheInt(rawParamId);
+                if( paramId === null ) continue;
+                add(FAST_SCALAR_STRUCT_PARAM, structId, paramId, 0,
+                    host.fastHostScalarDataValue(
+                        FAST_SCALAR_STRUCT_PARAM, structId, paramId, 0));
+            }
+        }
+        const params = data.params || {};
+        for( const rawParamId in params ) {
+            if( !Object.hasOwn(params, rawParamId) ) continue;
+            const rawParam = params[rawParamId];
+            const paramId = cacheInt(rawParamId);
+            if( paramId === null || !rawParam || typeof rawParam !== 'object' ) continue;
+            const stringParam = Boolean(rawParam.string ?? rawParam.isString ?? rawParam.is_string);
+            if( stringParam ) add(FAST_SCALAR_STRUCT_PARAM, 0, paramId, 0,
+                String(rawParam.defaultString ?? rawParam.default_string ?? ''), true);
+            else if( Object.hasOwn(rawParam, 'defaultInt') || Object.hasOwn(rawParam, 'default_int') )
+                add(FAST_SCALAR_STRUCT_PARAM, 0, paramId, 0,
+                    Number(rawParam.defaultInt ?? rawParam.default_int) | 0, true);
+        }
+
+        /* DB_GETFIELD is polymorphic, so only preload calls whose selected
+         * result is exactly one int or string. Whole multi-field tuples retain
+         * the generic reflected path and its native stack arity. The snapshot
+         * is the HostRuntime's normalized immutable DB data; stateful DB find
+         * iterator state is deliberately not represented here. */
+        const db = typeof host.fastHostDbDataSnapshot === 'function'
+            ? host.fastHostDbDataSnapshot() : null;
+        const rows = db?.dbRows || {};
+        const tables = db?.dbTables || {};
+        const isStringType = (type) => {
+            const normalized = String(type ?? '').toLowerCase();
+            return normalized === 'string' || normalized === '36';
+        };
+        const typedDefault = (type) => isStringType(type) ? '' : -1;
+        const scalar = (type, value) => isStringType(type)
+            ? String(value ?? '') : Number(value ?? -1) | 0;
+        for( const rawRowId in rows ) {
+            if( !Object.hasOwn(rows, rawRowId) ) continue;
+            const row = rows[rawRowId];
+            const rowId = cacheInt(rawRowId);
+            const tableId = cacheInt(row?.tableId);
+            if( rowId === null || rowId < 0 || tableId === null || tableId < 0 ||
+                tableId > 0xfffff || !row || typeof row !== 'object' ) continue;
+            const rowColumns = row.columns && typeof row.columns === 'object'
+                ? row.columns : {};
+            const tableColumns = tables[tableId]?.columns;
+            const columnIds = new Set([
+                ...Object.keys(tableColumns && typeof tableColumns === 'object'
+                    ? tableColumns : {}),
+                ...Object.keys(rowColumns),
+            ]);
+            for( const rawColumnId of columnIds ) {
+                const columnId = cacheInt(rawColumnId);
+                if( columnId === null || columnId < 0 || columnId > 0xff ) continue;
+                const column = rowColumns[columnId] || tableColumns?.[columnId];
+                if( !column || typeof column !== 'object' ) continue;
+                const types = Array.isArray(column.types) ? column.types : [];
+                const values = Array.isArray(column.values) ? column.values : [];
+                const tupleCount = Number(column.tupleCount);
+                if( !Number.isSafeInteger(tupleCount) || tupleCount < 0 ) continue;
+                const packedBase = ((tableId & 0xfffff) << 12) |
+                    ((columnId & 0xff) << 4);
+                /* Cache tables commonly declare an optional scalar column
+                 * with zero tuples. Shipped scripts still read index zero and
+                 * native returns that type's missing value. Seed precisely
+                 * that conventional key; arbitrary out-of-range indexes and
+                 * empty multi-tuples remain generic rather than expanding an
+                 * unbounded key domain. */
+                if( tupleCount === 0 && types.length <= 1 ) {
+                    const type = types[0] ?? 'int';
+                    add(FAST_SCALAR_DB_GETFIELD, rowId, packedBase, 0,
+                        typedDefault(type));
+                }
+                for( let index = 0; index < tupleCount; index++ ) {
+                    const tuple = Array.isArray(values[index]) ? values[index] : null;
+                    if( types.length <= 1 ) {
+                        const type = types[0] ?? 'int';
+                        const value = tuple && tuple.length > 0
+                            ? scalar(type, tuple[0]) : typedDefault(type);
+                        add(FAST_SCALAR_DB_GETFIELD, rowId, packedBase, index, value);
+                    }
+                    /* Low-nibble selector N addresses field N-1 and can encode
+                     * only fields 0..14. A wider or invalid selector remains a
+                     * generic DB request, exactly like the native client. */
+                    for( let field = 0; field < types.length && field < 15; field++ ) {
+                        const type = types[field];
+                        const value = tuple && field < tuple.length
+                            ? scalar(type, tuple[field]) : typedDefault(type);
+                        add(FAST_SCALAR_DB_GETFIELD, rowId,
+                            packedBase | (field + 1), index, value);
+                    }
+                }
+            }
+        }
+    };
+
+    let recordCount = 0;
+    let arenaLength = 0;
+    visit((kind, a, b, c, value) => {
+        recordCount++;
+        if( recordCount > FAST_SCALAR_PRELOAD_MAX ) throw new WasmCS2RuntimeError(
+            'immutable HostData scalar preload exceeds its bounded record limit', 'LIMIT');
+        if( typeof value === 'string' ) arenaLength += utf8Length(value);
+        if( arenaLength > 64 * 1024 * 1024 ) throw new WasmCS2RuntimeError(
+            'immutable HostData scalar preload exceeds its bounded string arena', 'LIMIT');
+    });
+
+    const records = new Int32Array(recordCount * FAST_SCALAR_PRELOAD_WORDS);
+    const arena = new Uint8Array(arenaLength);
+    let recordAt = 0;
+    let arenaAt = 0;
+    visit((kind, a, b, c, value, isDefault = false) => {
+        let resultKind = 1;
+        let intValue = Number(value) | 0;
+        let stringOffset = 0;
+        let stringLength = 0;
+        if( typeof value === 'string' ) {
+            resultKind = 2;
+            intValue = 0;
+            stringOffset = arenaAt;
+            stringLength = utf8Length(value);
+            const encoded = UTF8_ENCODER.encodeInto(value, arena.subarray(arenaAt));
+            if( encoded.read !== value.length || encoded.written !== stringLength )
+                throw new WasmCS2RuntimeError(
+                    'immutable HostData string encoding was incomplete', 'FAST_HOST');
+            arenaAt += stringLength;
+        }
+        records[recordAt] = kind | 0;
+        records[recordAt + 1] = a | 0;
+        records[recordAt + 2] = b | 0;
+        records[recordAt + 3] = c | 0;
+        records[recordAt + 4] = resultKind;
+        records[recordAt + 5] = intValue;
+        records[recordAt + 6] = stringOffset;
+        records[recordAt + 7] = stringLength;
+        records[recordAt + 8] = isDefault ? 1 : 0;
+        recordAt += FAST_SCALAR_PRELOAD_WORDS;
+    });
+    return { records, arena };
+}
+
+function utf8Length(value) {
+    let length = 0;
+    for( let index = 0; index < value.length; index++ ) {
+        const code = value.charCodeAt(index);
+        if( code <= 0x7f ) length++;
+        else if( code <= 0x7ff ) length += 2;
+        else if( code >= 0xd800 && code <= 0xdbff && index + 1 < value.length &&
+            value.charCodeAt(index + 1) >= 0xdc00 && value.charCodeAt(index + 1) <= 0xdfff ) {
+            length += 4;
+            index++;
+        } else length += 3;
+    }
+    return length;
+}
+
 function withBytes(api, bytes, callback) {
     const pointer = api._malloc(Math.max(1, bytes.length));
     if( !pointer ) throw new WasmCS2RuntimeError('WASM byte allocation failed', 'OUT_OF_MEMORY');
@@ -1224,4 +1499,5 @@ export const __wasmRuntimeTest = Object.freeze({
     reflectRequest,
     writeDbFieldResult,
     writeHostResult,
+    fastScalarPreload,
 });

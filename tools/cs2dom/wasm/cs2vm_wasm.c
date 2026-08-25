@@ -145,7 +145,13 @@ cs2w_set_native_host_exec(CS2W_NativeHostExec exec)
 #define CS2W_FAST_QUERY_VARBIT 4
 #define CS2W_FAST_QUERY_VARC_INT 5
 #define CS2W_FAST_QUERY_CLIENTCLOCK 6
+#define CS2W_FAST_QUERY_ALL_CHILDREN 7
 #define CS2W_FAST_QUERY_MISSING (-2)
+#define CS2W_FAST_SESSION_SCALAR_CACHE_MAX 65536
+#define CS2W_FAST_SHARED_SCALAR_CACHE_MAX 1048576
+#define CS2W_FAST_SCALAR_PRELOAD_WORDS 9
+#define CS2W_FAST_SCALAR_PRELOAD_MAX 524288
+#define CS2W_FAST_SCALAR_DEFAULT_KIND_BIAS 0x40000000
 
 struct CS2W_FastRecord
 {
@@ -168,6 +174,13 @@ struct CS2W_FastInventory
 
 struct CS2W_FastChildEntry
 {
+    int sub_id;
+    int component_id;
+};
+
+struct CS2W_FastAllChildEntry
+{
+    int parent_id;
     int sub_id;
     int component_id;
 };
@@ -195,6 +208,7 @@ struct CS2W_FastValue
 struct CS2W_FastScalarCacheEntry
 {
     int occupied;
+    int namespace_id;
     int request_kind;
     int a;
     int b;
@@ -244,10 +258,34 @@ struct CS2W_Session
     int script_capacity;
     int last_error;
     char last_error_message[CS2W_ERROR_MESSAGE_LEN];
+    int fast_scalar_namespace;
     struct CS2W_FastScalarCacheEntry* fast_scalar_cache;
     int fast_scalar_cache_count;
     int fast_scalar_cache_capacity;
+    /* An invocation is deliberately short-lived, while the compiled script
+     * session survives every input dispatched to one mounted interface.  Keep
+     * the largest packed-transaction buffers on that session between hooks so
+     * a dynamic list redraw does not repeatedly grow/copy/free a 1-3 MiB
+     * record bank.  A single spare per session is sufficient for the common
+     * synchronous path; nested invocations simply allocate their own buffers
+     * and the larger set wins when both unwind. */
+    struct CS2W_FastRecord* spare_fast_records;
+    int spare_fast_record_capacity;
+    uint8_t* spare_fast_arena;
+    int spare_fast_arena_capacity;
+    char* spare_fast_scalar_string;
+    int spare_fast_scalar_string_capacity;
 };
+
+/* Emscripten instantiates one module for every preview worker and many short
+ * C sessions inside it.  HostData is immutable cache input, so sessions which
+ * JavaScript explicitly assigns the same identity namespace can share exact
+ * enum/struct answers.  This is bounded independently from the per-session
+ * fallback and never changes HOST ownership: JavaScript still supplies each
+ * first answer for a namespace. */
+static struct CS2W_FastScalarCacheEntry* g_fast_scalar_cache;
+static int g_fast_scalar_cache_count;
+static int g_fast_scalar_cache_capacity;
 
 struct CS2W_EventValues
 {
@@ -306,6 +344,9 @@ struct CS2W_Invocation
     struct CS2W_FastChildren* fast_children;
     int fast_children_count;
     int fast_children_capacity;
+    struct CS2W_FastAllChildEntry* fast_all_children;
+    int fast_all_child_count;
+    int fast_all_children_loaded;
     struct CS2W_FastValue* fast_values;
     int fast_value_count;
     int fast_value_capacity;
@@ -526,6 +567,16 @@ cs2w_fast_clear_snapshots(struct CS2W_Invocation* invocation)
         free(invocation->fast_children[i].entries);
     invocation->fast_children_count = 0;
     invocation->fast_value_count = 0;
+}
+
+static void
+cs2w_fast_clear_all_children(struct CS2W_Invocation* invocation)
+{
+    if( !invocation ) return;
+    free(invocation->fast_all_children);
+    invocation->fast_all_children = NULL;
+    invocation->fast_all_child_count = 0;
+    invocation->fast_all_children_loaded = 0;
 }
 
 static int
@@ -866,6 +917,18 @@ cs2w_fast_child_compare(const void* left, const void* right)
 }
 
 static int
+cs2w_fast_all_child_compare(const void* left, const void* right)
+{
+    const struct CS2W_FastAllChildEntry* a =
+        (const struct CS2W_FastAllChildEntry*)left;
+    const struct CS2W_FastAllChildEntry* b =
+        (const struct CS2W_FastAllChildEntry*)right;
+    if( a->parent_id != b->parent_id )
+        return (a->parent_id > b->parent_id) - (a->parent_id < b->parent_id);
+    return (a->sub_id > b->sub_id) - (a->sub_id < b->sub_id);
+}
+
+static int
 cs2w_fast_query_rows(
     struct CS2W_Invocation* invocation,
     int query_kind,
@@ -1035,6 +1098,56 @@ cs2w_fast_children(
 }
 
 static int
+cs2w_fast_all_child_value(
+    struct CS2W_Invocation* invocation,
+    int parent_id,
+    int sub_id,
+    int* component_id_out)
+{
+    if( !invocation->fast_all_children_loaded )
+    {
+        void* rows = NULL;
+        int count = 0;
+        int missing = 0;
+        if( !cs2w_fast_query_rows(
+                invocation,
+                CS2W_FAST_QUERY_ALL_CHILDREN,
+                0,
+                (int)sizeof(struct CS2W_FastAllChildEntry),
+                &rows,
+                &count,
+                &missing) ||
+            missing )
+            return -1;
+        invocation->fast_all_children = (struct CS2W_FastAllChildEntry*)rows;
+        invocation->fast_all_child_count = count;
+        invocation->fast_all_children_loaded = 1;
+        if( count > 1 )
+            qsort(invocation->fast_all_children, (size_t)count,
+                  sizeof(*invocation->fast_all_children),
+                  cs2w_fast_all_child_compare);
+    }
+    int low = 0;
+    int high = invocation->fast_all_child_count;
+    while( low < high )
+    {
+        int middle = low + (high - low) / 2;
+        struct CS2W_FastAllChildEntry* entry =
+            &invocation->fast_all_children[middle];
+        if( entry->parent_id < parent_id ||
+            (entry->parent_id == parent_id && entry->sub_id < sub_id) )
+            low = middle + 1;
+        else
+            high = middle;
+    }
+    if( low >= invocation->fast_all_child_count ) return 0;
+    struct CS2W_FastAllChildEntry* entry = &invocation->fast_all_children[low];
+    if( entry->parent_id != parent_id || entry->sub_id != sub_id ) return 0;
+    *component_id_out = entry->component_id;
+    return 1;
+}
+
+static int
 cs2w_fast_value(
     struct CS2W_Invocation* invocation,
     int query_kind,
@@ -1087,13 +1200,14 @@ cs2w_fast_value(
 }
 
 static uint32_t
-cs2w_fast_scalar_hash(int request_kind, int a, int b, int c)
+cs2w_fast_scalar_hash(int namespace_id, int request_kind, int a, int b, int c)
 {
     uint32_t hash = 2166136261u;
     const uint32_t words[] = {
-        (uint32_t)request_kind, (uint32_t)a, (uint32_t)b, (uint32_t)c
+        (uint32_t)namespace_id, (uint32_t)request_kind,
+        (uint32_t)a, (uint32_t)b, (uint32_t)c
     };
-    for( int i = 0; i < 4; i++ )
+    for( int i = 0; i < 5; i++ )
     {
         hash ^= words[i];
         hash *= 16777619u;
@@ -1104,21 +1218,24 @@ cs2w_fast_scalar_hash(int request_kind, int a, int b, int c)
 
 static struct CS2W_FastScalarCacheEntry*
 cs2w_fast_scalar_cache_slot(
-    struct CS2W_Session* session,
+    struct CS2W_FastScalarCacheEntry* entries,
+    int capacity,
+    int namespace_id,
     int request_kind,
     int a,
     int b,
     int c)
 {
-    if( !session->fast_scalar_cache_capacity ) return NULL;
-    uint32_t mask = (uint32_t)session->fast_scalar_cache_capacity - 1u;
-    uint32_t index = cs2w_fast_scalar_hash(request_kind, a, b, c) & mask;
+    if( !capacity ) return NULL;
+    uint32_t mask = (uint32_t)capacity - 1u;
+    uint32_t index = cs2w_fast_scalar_hash(
+        namespace_id, request_kind, a, b, c) & mask;
     for( ;; )
     {
-        struct CS2W_FastScalarCacheEntry* entry =
-            &session->fast_scalar_cache[index];
+        struct CS2W_FastScalarCacheEntry* entry = &entries[index];
         if( !entry->occupied ||
-            (entry->request_kind == request_kind && entry->a == a &&
+            (entry->namespace_id == namespace_id &&
+             entry->request_kind == request_kind && entry->a == a &&
              entry->b == b && entry->c == c) )
             return entry;
         index = (index + 1u) & mask;
@@ -1126,27 +1243,31 @@ cs2w_fast_scalar_cache_slot(
 }
 
 static int
-cs2w_fast_scalar_cache_grow(struct CS2W_Session* session)
+cs2w_fast_scalar_cache_grow(
+    struct CS2W_FastScalarCacheEntry** entries_inout,
+    int* capacity_inout,
+    int max_capacity)
 {
-    int old_capacity = session->fast_scalar_cache_capacity;
+    int old_capacity = *capacity_inout;
     int capacity = old_capacity ? old_capacity * 2 : 256;
-    if( capacity < old_capacity || capacity > 65536 ) return 0;
+    if( capacity < old_capacity || capacity > max_capacity ) return 0;
     struct CS2W_FastScalarCacheEntry* entries =
         (struct CS2W_FastScalarCacheEntry*)calloc(
             (size_t)capacity, sizeof(*entries));
     if( !entries ) return 0;
-    struct CS2W_FastScalarCacheEntry* old_entries = session->fast_scalar_cache;
-    session->fast_scalar_cache = entries;
-    session->fast_scalar_cache_capacity = capacity;
+    struct CS2W_FastScalarCacheEntry* old_entries = *entries_inout;
     for( int i = 0; i < old_capacity; i++ )
     {
         struct CS2W_FastScalarCacheEntry* old = &old_entries[i];
         if( !old->occupied ) continue;
         struct CS2W_FastScalarCacheEntry* next = cs2w_fast_scalar_cache_slot(
-            session, old->request_kind, old->a, old->b, old->c);
+            entries, capacity, old->namespace_id,
+            old->request_kind, old->a, old->b, old->c);
         *next = *old;
     }
     free(old_entries);
+    *entries_inout = entries;
+    *capacity_inout = capacity;
     return 1;
 }
 
@@ -1161,8 +1282,27 @@ cs2w_fast_scalar_cache_lookup(
     const char** string_out,
     int* string_length_out)
 {
+    struct CS2W_FastScalarCacheEntry* entries = session->fast_scalar_namespace
+        ? g_fast_scalar_cache : session->fast_scalar_cache;
+    int capacity = session->fast_scalar_namespace
+        ? g_fast_scalar_cache_capacity : session->fast_scalar_cache_capacity;
     struct CS2W_FastScalarCacheEntry* entry = cs2w_fast_scalar_cache_slot(
-        session, request_kind, a, b, c);
+        entries, capacity, session->fast_scalar_namespace,
+        request_kind, a, b, c);
+    if( !entry || !entry->occupied )
+    {
+        if( request_kind == CS2VM_HOST_REQUEST_STRUCT_PARAM )
+            entry = cs2w_fast_scalar_cache_slot(
+                entries, capacity, session->fast_scalar_namespace,
+                request_kind + CS2W_FAST_SCALAR_DEFAULT_KIND_BIAS,
+                0, b, 0);
+        else if( request_kind == CS2VM_HOST_REQUEST_ENUM ||
+                 request_kind == CS2VM_HOST_REQUEST_ENUM_STRING )
+            entry = cs2w_fast_scalar_cache_slot(
+                entries, capacity, session->fast_scalar_namespace,
+                request_kind + CS2W_FAST_SCALAR_DEFAULT_KIND_BIAS,
+                a, 0, c);
+    }
     if( !entry || !entry->occupied ) return 0;
     *value_out = entry->int_value;
     if( entry->result_kind == 2 )
@@ -1189,14 +1329,21 @@ cs2w_fast_scalar_cache_store(
     int string_length)
 {
     if( result_kind != 1 && result_kind != 2 ) return;
-    if( !session->fast_scalar_cache_capacity ||
-        (session->fast_scalar_cache_count + 1) * 10 >=
-            session->fast_scalar_cache_capacity * 7 )
+    struct CS2W_FastScalarCacheEntry** entries = session->fast_scalar_namespace
+        ? &g_fast_scalar_cache : &session->fast_scalar_cache;
+    int* count = session->fast_scalar_namespace
+        ? &g_fast_scalar_cache_count : &session->fast_scalar_cache_count;
+    int* capacity = session->fast_scalar_namespace
+        ? &g_fast_scalar_cache_capacity : &session->fast_scalar_cache_capacity;
+    int max_capacity = session->fast_scalar_namespace
+        ? CS2W_FAST_SHARED_SCALAR_CACHE_MAX : CS2W_FAST_SESSION_SCALAR_CACHE_MAX;
+    if( !*capacity || (*count + 1) * 10 >= *capacity * 7 )
     {
-        if( !cs2w_fast_scalar_cache_grow(session) ) return;
+        if( !cs2w_fast_scalar_cache_grow(entries, capacity, max_capacity) ) return;
     }
     struct CS2W_FastScalarCacheEntry* entry = cs2w_fast_scalar_cache_slot(
-        session, request_kind, a, b, c);
+        *entries, *capacity, session->fast_scalar_namespace,
+        request_kind, a, b, c);
     if( !entry || entry->occupied ) return;
     char* string_copy = NULL;
     if( result_kind == 2 )
@@ -1207,6 +1354,7 @@ cs2w_fast_scalar_cache_store(
         string_copy[string_length] = '\0';
     }
     entry->occupied = 1;
+    entry->namespace_id = session->fast_scalar_namespace;
     entry->request_kind = request_kind;
     entry->a = a;
     entry->b = b;
@@ -1215,7 +1363,74 @@ cs2w_fast_scalar_cache_store(
     entry->int_value = int_value;
     entry->string_value = string_copy;
     entry->string_length = string_length;
-    session->fast_scalar_cache_count++;
+    (*count)++;
+}
+
+/* Seed immutable HostData outside an interaction.  Records are a compact
+ * nine-i32 wire tuple:
+ *   kind,a,b,c,result-kind,int-value,string-offset,string-length,is-default
+ * String bytes are copied into the bounded module cache, so both borrowed
+ * input views may be released as soon as this synchronous call returns. */
+CS2W_EXPORT int
+cs2w_session_preload_fast_scalars(
+    struct CS2W_Session* session,
+    const int32_t* records,
+    int record_count,
+    const uint8_t* arena,
+    int arena_size)
+{
+    if( !cs2w_session_valid(session) || session->sealed ||
+        session->invocation_count != 0 || session->fast_scalar_namespace <= 0 ||
+        record_count < 0 || record_count > CS2W_FAST_SCALAR_PRELOAD_MAX ||
+        arena_size < 0 || arena_size > 64 * 1024 * 1024 ||
+        (record_count > 0 && !records) || (arena_size > 0 && !arena) )
+        return 0;
+    for( int index = 0; index < record_count; index++ )
+    {
+        const int32_t* row = records + index * CS2W_FAST_SCALAR_PRELOAD_WORDS;
+        int request_kind = row[0];
+        int result_kind = row[4];
+        int string_offset = row[6];
+        int string_length = row[7];
+        int is_default = row[8];
+        if( (request_kind != CS2VM_HOST_REQUEST_STRUCT_PARAM &&
+             request_kind != CS2VM_HOST_REQUEST_ENUM_STRING &&
+             request_kind != CS2VM_HOST_REQUEST_ENUM &&
+             request_kind != CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT &&
+             request_kind != CS2VM_HOST_REQUEST_DB_GETFIELD) ||
+            (result_kind != 1 && result_kind != 2) ||
+            (is_default != 0 && is_default != 1) ||
+            (is_default &&
+             (request_kind == CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT ||
+              request_kind == CS2VM_HOST_REQUEST_DB_GETFIELD)) )
+            return 0;
+        const char* string_value = NULL;
+        if( result_kind == 2 )
+        {
+            if( string_offset < 0 || string_length < 0 ||
+                string_offset > arena_size || string_length > arena_size - string_offset )
+                return 0;
+            string_value = (const char*)arena + string_offset;
+        }
+        else if( string_offset != 0 || string_length != 0 )
+            return 0;
+
+        int a = row[1];
+        int b = row[2];
+        int c = row[3];
+        if( is_default )
+        {
+            request_kind += CS2W_FAST_SCALAR_DEFAULT_KIND_BIAS;
+            if( row[0] == CS2VM_HOST_REQUEST_STRUCT_PARAM )
+                a = c = 0;
+            else
+                b = 0;
+        }
+        cs2w_fast_scalar_cache_store(
+            session, request_kind, a, b, c, result_kind,
+            row[5], string_value, string_length);
+    }
+    return 1;
 }
 
 /* Returns 1 for an exact integer result, 2 for an exact UTF-8 result, 0 for a
@@ -1412,13 +1627,11 @@ cs2w_fast_host_exec(
     }
     case CS2VM_HOST_REQUEST_CC_FIND:
     {
-        struct CS2W_FastChildren* children = cs2w_fast_children(
-            invocation, request->u.CC_FIND.parent_id);
-        if( !children )
-            return CS2VM_EXECNO_ERROR;
         int component_id = -1;
-        int found = cs2w_fast_child_value(
-            children, request->u.CC_FIND.sub_id, &component_id);
+        int found = cs2w_fast_all_child_value(
+            invocation, request->u.CC_FIND.parent_id,
+            request->u.CC_FIND.sub_id, &component_id);
+        if( found < 0 ) return CS2VM_EXECNO_ERROR;
         record = cs2w_fast_record(invocation, request->kind);
         if( !record )
             return CS2VM_EXECNO_ERROR;
@@ -1460,6 +1673,10 @@ cs2w_fast_host_exec(
         int output_type = request->kind == CS2VM_HOST_REQUEST_ENUM
                               ? request->u.ENUM.output_type
                               : (int)'s';
+        /* Every non-string CS2 type is represented by the same i32 HOST
+         * result. Canonicalize that cache dimension so char/coord/component
+         * enum declarations share the exact preloaded integer entry. */
+        int cache_output_type = output_type == (int)'s' ? (int)'s' : 0;
         int value = 0;
         const char* string_value = NULL;
         int string_length = 0;
@@ -1468,7 +1685,7 @@ cs2w_fast_host_exec(
             request->kind,
             enum_id,
             key,
-            output_type,
+            cache_output_type,
             &value,
             &string_value,
             &string_length);
@@ -1492,6 +1709,34 @@ cs2w_fast_host_exec(
             &string_length);
         return cs2w_fast_push_scalar(
             thread, result, value, string_value, string_length, 0);
+    }
+    case CS2VM_HOST_REQUEST_DB_GETFIELD:
+    {
+        /* CS2VM2 deliberately leaves all DB operands on its typed stacks for
+         * the Host. Answer only exact scalar preloads here; on a cache miss,
+         * restore the original row/column/index order and let the generic
+         * polymorphic bridge preserve arbitrary result arity. */
+        int index;
+        int column;
+        int row_id;
+        if( CS2VM2_PopInt(thread, &index) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(thread, &column) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(thread, &row_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        int value = 0;
+        const char* string_value = NULL;
+        int string_length = 0;
+        int result = cs2w_fast_scalar_cache_lookup(
+            invocation->session, request->kind, row_id, column, index,
+            &value, &string_value, &string_length);
+        if( result )
+            return cs2w_fast_push_scalar(
+                thread, result, value, string_value, string_length, 1);
+        if( CS2VM2_PushInt(thread, row_id) != CS2VM_EXECNO_OK ||
+            CS2VM2_PushInt(thread, column) != CS2VM_EXECNO_OK ||
+            CS2VM2_PushInt(thread, index) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM_EXECNO_YIELD;
     }
     case CS2VM_HOST_REQUEST_CC_GETX:
     case CS2VM_HOST_REQUEST_CC_GETY:
@@ -1804,6 +2049,7 @@ cs2w_fast_host_is_pure_read(int kind)
     return kind == CS2VM_HOST_REQUEST_ENUM ||
            kind == CS2VM_HOST_REQUEST_ENUM_STRING ||
            kind == CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT ||
+           kind == CS2VM_HOST_REQUEST_DB_GETFIELD ||
            kind == CS2VM_HOST_REQUEST_CHAT_GETHISTORYLENGTH ||
            kind == CS2VM_HOST_REQUEST_STRUCT_PARAM ||
            kind == CS2VM_HOST_REQUEST_PUSH_VAR ||
@@ -1811,6 +2057,19 @@ cs2w_fast_host_is_pure_read(int kind)
            kind == CS2VM_HOST_REQUEST_PUSH_VARC_INT ||
            kind == CS2VM_HOST_REQUEST_PUSH_VARC_STRING ||
            kind == CS2VM_HOST_REQUEST_CLIENTCLOCK;
+}
+
+static int
+cs2w_fast_host_changes_children(int kind)
+{
+    return kind == CS2VM_HOST_REQUEST_CC_CREATE ||
+           kind == CS2VM_HOST_REQUEST_CC_CREATECHILD ||
+           kind == CS2VM_HOST_REQUEST_CC_CREATESIBLING ||
+           kind == CS2VM_HOST_REQUEST_CC_COPY ||
+           kind == CS2VM_HOST_REQUEST_CC_DELETE ||
+           kind == CS2VM_HOST_REQUEST_CC_DELETEALL ||
+           kind == CS2VM_HOST_REQUEST_OVERLAY_CC_CREATE ||
+           kind == CS2VM_HOST_REQUEST_OVERLAY_CC_DELETEALL;
 }
 
 static int
@@ -1822,6 +2081,13 @@ cs2w_bridge_host_exec(
     if( !cs2w_invocation_valid(invocation) || !request )
         return CS2VM_EXECNO_ERROR;
     invocation->host_call_count++;
+
+    /* Component/data getters flush queued field writes but cannot change the
+     * parent/sub-id graph. Preserve its invocation-wide snapshot across those
+     * barriers; only the native structure-changing vocabulary invalidates it. */
+    if( invocation->fast_host_enabled &&
+        cs2w_fast_host_changes_children(request->kind) )
+        cs2w_fast_clear_all_children(invocation);
 
     if( request->kind == CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS )
     {
@@ -1922,6 +2188,20 @@ cs2w_session_create(
     return session;
 }
 
+/* Opt one unsealed session into the module-wide immutable-data cache. Zero
+ * preserves the isolated per-session fallback used by native/direct callers. */
+CS2W_EXPORT int
+cs2w_session_set_fast_scalar_namespace(
+    struct CS2W_Session* session,
+    int namespace_id)
+{
+    if( !cs2w_session_valid(session) || session->sealed ||
+        session->invocation_count != 0 || namespace_id < 0 )
+        return 0;
+    session->fast_scalar_namespace = namespace_id;
+    return 1;
+}
+
 CS2W_EXPORT int
 cs2w_session_destroy(struct CS2W_Session* session)
 {
@@ -1941,6 +2221,9 @@ cs2w_session_destroy(struct CS2W_Session* session)
     for( int i = 0; i < session->fast_scalar_cache_capacity; i++ )
         free(session->fast_scalar_cache[i].string_value);
     free(session->fast_scalar_cache);
+    free(session->spare_fast_records);
+    free(session->spare_fast_arena);
+    free(session->spare_fast_scalar_string);
     session->magic = 0;
     free(session);
     return 1;
@@ -2118,8 +2401,40 @@ cs2w_invocation_create(
     invocation->event.key_pressed = -1;
     invocation->event.window_mode = CS2VM_WINDOW_MODE_FIXED;
     invocation->event.default_window_mode = CS2VM_WINDOW_MODE_FIXED;
+    invocation->fast_records = session->spare_fast_records;
+    invocation->fast_record_capacity = session->spare_fast_record_capacity;
+    session->spare_fast_records = NULL;
+    session->spare_fast_record_capacity = 0;
+    invocation->fast_arena = session->spare_fast_arena;
+    invocation->fast_arena_capacity = session->spare_fast_arena_capacity;
+    session->spare_fast_arena = NULL;
+    session->spare_fast_arena_capacity = 0;
+    invocation->fast_scalar_string = session->spare_fast_scalar_string;
+    invocation->fast_scalar_string_capacity =
+        session->spare_fast_scalar_string_capacity;
+    session->spare_fast_scalar_string = NULL;
+    session->spare_fast_scalar_string_capacity = 0;
     session->invocation_count++;
     return invocation;
+}
+
+static void*
+cs2w_recycle_fast_buffer(
+    void* spare,
+    int* spare_capacity,
+    void* buffer,
+    int capacity)
+{
+    if( !buffer )
+        return spare;
+    if( !spare || capacity > *spare_capacity )
+    {
+        free(spare);
+        *spare_capacity = capacity;
+        return buffer;
+    }
+    free(buffer);
+    return spare;
 }
 
 CS2W_EXPORT int
@@ -2134,12 +2449,25 @@ cs2w_invocation_destroy(struct CS2W_Invocation* invocation)
         free(invocation->strings[i]);
     free(invocation->event.opbase);
     cs2w_fast_clear_snapshots(invocation);
+    cs2w_fast_clear_all_children(invocation);
     free(invocation->fast_inventories);
     free(invocation->fast_children);
     free(invocation->fast_values);
-    free(invocation->fast_scalar_string);
-    free(invocation->fast_records);
-    free(invocation->fast_arena);
+    session->spare_fast_scalar_string = (char*)cs2w_recycle_fast_buffer(
+        session->spare_fast_scalar_string,
+        &session->spare_fast_scalar_string_capacity,
+        invocation->fast_scalar_string,
+        invocation->fast_scalar_string_capacity);
+    session->spare_fast_records = (struct CS2W_FastRecord*)cs2w_recycle_fast_buffer(
+        session->spare_fast_records,
+        &session->spare_fast_record_capacity,
+        invocation->fast_records,
+        invocation->fast_record_capacity);
+    session->spare_fast_arena = (uint8_t*)cs2w_recycle_fast_buffer(
+        session->spare_fast_arena,
+        &session->spare_fast_arena_capacity,
+        invocation->fast_arena,
+        invocation->fast_arena_capacity);
     invocation->magic = 0;
     if( session->invocation_count > 0 )
         session->invocation_count--;
