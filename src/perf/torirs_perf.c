@@ -96,6 +96,9 @@ static char const* const g_stage_names[TORIRS_PERF_STAGE_COUNT] = {
     "r_font",
     "r_rect",
     "r_other",
+    "r_project",
+    "r_sort",
+    "r_raster",
 };
 
 static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {

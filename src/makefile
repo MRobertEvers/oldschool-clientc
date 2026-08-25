@@ -503,7 +503,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	engine/dat2/task_dat2_texture_load.c \
 	engine/dat2/task_dat2_sprite_load.c engine/dat2/task_dat2_font_load.c \
 	engine/dat2/task_dat2_enum_load.c engine/dat2/task_dat2_struct_load.c \
-	engine/dat2/task_dat2_param_load.c engine/dat2/task_dat2_invtype_load.c \
+	engine/dat2/task_dat2_param_load.c \
 	engine/dat2/task_dat2_varbit_load.c engine/dat2/task_dat2_varp_load.c \
 	engine/dat1/task_dat1_varbit_load.c \
 	engine/dat2/task_dat2_dbrow_load.c engine/dat2/task_dat2_dbindex_load.c \
