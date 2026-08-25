@@ -1532,7 +1532,8 @@ Editor_PanelSelectLoc(
     panel->cat_picked_id = scenery->loc_id;
     snprintf(
         panel->cat_picked_name, sizeof(panel->cat_picked_name), "%s (%d)",
-        scenery->name[0] ? scenery->name : "<unnamed>", scenery->loc_id);
+        scenery->info->name[0] ? scenery->info->name : "<unnamed>",
+        scenery->loc_id);
     {
         char line[TORIRS_CHROME_LABEL_MAX];
         snprintf(line, sizeof(line), "Locs %s", panel->cat_picked_name);

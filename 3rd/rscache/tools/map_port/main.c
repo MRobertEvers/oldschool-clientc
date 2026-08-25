@@ -209,8 +209,8 @@ named_map_archive_id(
         return -1;
     const struct RSCache_ReferenceTable* table = disk->tables[table_id];
     for( int i = 0; i < table->archive_count; i++ )
-        if( table->archives[i].index >= 0 && table->archives[i].identifier == wanted )
-            return table->archives[i].index;
+        if( RSCache_ReferenceTableHasArchive(table, i) && RSCache_ReferenceTableIdentifier(table, i) == wanted )
+            return i;
     return -1;
 }
 

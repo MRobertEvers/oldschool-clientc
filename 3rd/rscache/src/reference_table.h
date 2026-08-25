@@ -22,13 +22,24 @@ struct RSCache_ReferenceTableArchiveFile
  * them NULL. RSCache_ReferenceTableWhirlpool reads a digest back. */
 #define RSCACHE_REFTABLE_WHIRLPOOL_BYTES 64
 
+/*
+ * Four of this struct's six ints have moved to id-indexed arrays on the table,
+ * for the same reason the whirlpool did: they are answers about an archive that
+ * most archives do not have, and a resident table pays for them on every slot
+ * including its holes.
+ *
+ * `index` was a presence flag written as an int -- it held either the archive's
+ * own id or -1, and every reader either tested the sign or used it as the id it
+ * already had. It is a bit in `present` now. `identifier` is meaningful only
+ * under FLAG_IDENTIFIERS and `compressed`/`uncompressed` only under FLAG_SIZES,
+ * so each gets an array that stays NULL for a table whose flags do not ask for
+ * it. Reaching them through the accessors is also the faster way to scan for a
+ * name hash, which several loaders do over the whole table: a packed int array
+ * walks one cache line per sixteen archives instead of one per two.
+ */
 struct RSCache_ReferenceTableArchive
 {
-    int index;
-    int identifier;
     int crc;
-    int compressed;
-    int uncompressed;
     int version;
     struct
     {
@@ -110,12 +121,87 @@ struct RSCache_ReferenceTable
      */
     unsigned char* whirlpools;
     int whirlpool_count;
+
+    /*
+     * One bit per archive id: set when the table lists that archive, clear for
+     * a hole. Replaces the per-archive `index` int, which cost 4 bytes to carry
+     * the same one bit. Sized like the whirlpool pool -- lazily, against
+     * archive_count -- so table growth needs no bookkeeping here.
+     */
+    unsigned char* present;
+    int present_count;
+
+    /*
+     * Archive name hashes, indexed by archive id. NULL unless the table sets
+     * FLAG_IDENTIFIERS, and a NULL reads as "nothing here is named", which is
+     * the zero those tables stored before.
+     */
+    int* identifiers;
+    int identifier_count;
+
+    /*
+     * Compressed and uncompressed container lengths, indexed by archive id.
+     * Both NULL unless the table sets FLAG_SIZES; they are decoded, encoded and
+     * grown as a pair, so one count covers them.
+     */
+    int* compressed_sizes;
+    int* uncompressed_sizes;
+    int size_count;
 };
 
 #define RSCACHE_REFTABLE_FLAG_IDENTIFIERS 0x1
 #define RSCACHE_REFTABLE_FLAG_WHIRLPOOL 0x2
 #define RSCACHE_REFTABLE_FLAG_SIZES 0x4
 #define RSCACHE_REFTABLE_FLAG_HASH 0x8
+
+/**
+ * Whether the table lists `archive_id` — the replacement for the old
+ * `archives[id].index >= 0` test. Out-of-range ids read as absent, which is
+ * what a bounds check followed by that test used to mean.
+ */
+bool
+RSCache_ReferenceTableHasArchive(
+    const struct RSCache_ReferenceTable* table,
+    int archive_id);
+
+/** Mark `archive_id` present or absent. Allocates the bitmap on first use. */
+void
+RSCache_ReferenceTableSetHasArchive(
+    struct RSCache_ReferenceTable* table,
+    int archive_id,
+    bool present);
+
+/** Archive name hash, or 0 when the table carries none (no FLAG_IDENTIFIERS). */
+int
+RSCache_ReferenceTableIdentifier(
+    const struct RSCache_ReferenceTable* table,
+    int archive_id);
+
+/** Set the archive name hash. Allocates the array on first use. */
+void
+RSCache_ReferenceTableSetIdentifier(
+    struct RSCache_ReferenceTable* table,
+    int archive_id,
+    int identifier);
+
+/** Container lengths, 0 when the table carries none (no FLAG_SIZES). */
+int
+RSCache_ReferenceTableCompressed(
+    const struct RSCache_ReferenceTable* table,
+    int archive_id);
+
+int
+RSCache_ReferenceTableUncompressed(
+    const struct RSCache_ReferenceTable* table,
+    int archive_id);
+
+/** Set both container lengths. Allocates the arrays on first use. */
+void
+RSCache_ReferenceTableSetSizes(
+    struct RSCache_ReferenceTable* table,
+    int archive_id,
+    int compressed,
+    int uncompressed);
 
 struct RSCache_ReferenceTable*
 RSCache_ReferenceTableNewDecode(

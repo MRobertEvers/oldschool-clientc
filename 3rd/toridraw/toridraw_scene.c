@@ -156,7 +156,12 @@ td_event_queue_reserve(struct ToriDraw_EventQueue* queue)
     if( queue->count < queue->cap )
         return;
 
-    next = queue->cap ? queue->cap * 2 : 256;
+    /* 3/2, not 2x. Doubling carries up to 100% dead capacity at the moment it
+     * grows, and this queue stops at its high-water for the rest of the
+     * session -- the last doubling overshot to the 32768-entry cap and held
+     * 2.75 MB against a count well under it. 3/2 bounds the slack at 50% and
+     * is still amortised O(1). */
+    next = queue->cap ? queue->cap + queue->cap / 2 : 256;
     if( next > TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE )
         next = TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE;
     grown = realloc(queue->events, (size_t)next * sizeof(*queue->events));

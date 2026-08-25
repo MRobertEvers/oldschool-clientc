@@ -316,16 +316,15 @@ check_reftable_roundtrip(
     source.archive_count = max_id;
     source.archives = calloc((size_t)max_id, sizeof(struct RSCache_ReferenceTableArchive));
     for( int i = 0; i < max_id; i++ )
-        source.archives[i].index = -1;
+        RSCache_ReferenceTableSetHasArchive(&source, i, false);
 
     for( int i = 0; i < id_count; i++ )
     {
         struct RSCache_ReferenceTableArchive* archive = &source.archives[ids[i]];
-        archive->index = ids[i];
-        archive->identifier = 0x1000 + ids[i];
+        RSCache_ReferenceTableSetHasArchive(&source, ids[i], true);
+        RSCache_ReferenceTableSetIdentifier(&source, ids[i], 0x1000 + ids[i]);
         archive->crc = (int)(0xABCD0000u + (uint32_t)ids[i]);
-        archive->compressed = 100 + ids[i];
-        archive->uncompressed = 200 + ids[i];
+        RSCache_ReferenceTableSetSizes(&source, ids[i], 100 + ids[i], 200 + ids[i]);
         archive->version = 300 + ids[i];
 
         /* Sparse child ids too. */
@@ -585,7 +584,7 @@ test_disk_writer(void)
         table.archive_count = 10;
         table.archives = calloc(10, sizeof(struct RSCache_ReferenceTableArchive));
         for( int i = 0; i < 10; i++ )
-            table.archives[i].index = -1;
+            RSCache_ReferenceTableSetHasArchive(&table, i, false);
         for( int i = 0; i < 3; i++ )
         {
             table.archives[ids[i]].index = ids[i];

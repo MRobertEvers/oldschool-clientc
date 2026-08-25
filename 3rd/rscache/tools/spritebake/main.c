@@ -455,9 +455,9 @@ list_sprites(
                 *comma = '\0';
             hash = RSCache_ArchiveNameHashDat2(tok);
             for( int a = 0; a < rt->archive_count; a++ )
-                if( rt->archives[a].identifier == hash )
+                if( RSCache_ReferenceTableIdentifier(rt, a) == hash )
                 {
-                    hit = rt->archives[a].index;
+                    hit = a;
                     break;
                 }
             if( hit >= 0 )
@@ -489,9 +489,9 @@ list_sprites(
         struct RSCache_Dat2SpritePack* pack;
 
         for( int a = 0; a < rt->archive_count; a++ )
-            if( rt->archives[a].index == id )
+            if( RSCache_ReferenceTableHasArchive(rt, a) && a == id )
             {
-                identifier = rt->archives[a].identifier;
+                identifier = RSCache_ReferenceTableIdentifier(rt, a);
                 break;
             }
         pack = load_pack(c, id);
@@ -931,9 +931,9 @@ main(int argc, char** argv)
             int hash = RSCache_ArchiveNameHashDat2(sprites[i].by_name);
             sprites[i].archive_id = -1;
             for( int a = 0; rt && a < rt->archive_count; a++ )
-                if( rt->archives[a].identifier == hash )
+                if( RSCache_ReferenceTableIdentifier(rt, a) == hash )
                 {
-                    sprites[i].archive_id = rt->archives[a].index;
+                    sprites[i].archive_id = a;
                     break;
                 }
             if( sprites[i].archive_id < 0 )

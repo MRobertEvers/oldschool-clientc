@@ -666,13 +666,12 @@ dat2_edit_reftable_ensure_archive(
         for( int i = table->archive_count; i < new_count; i++ )
         {
             memset(&grown[i], 0, sizeof(grown[i]));
-            grown[i].index = -1;
         }
         table->archives = grown;
         table->archive_count = new_count;
     }
 
-    if( table->archives[archive_id].index >= 0 )
+    if( RSCache_ReferenceTableHasArchive(table, archive_id) )
     {
         assert(dat2_edit_ids_contains(table->ids, table->id_count, archive_id));
         return true;
@@ -697,7 +696,7 @@ dat2_edit_reftable_ensure_archive(
     table->ids[insert_at] = archive_id;
     table->id_count++;
 
-    table->archives[archive_id].index = archive_id;
+    RSCache_ReferenceTableSetHasArchive(table, archive_id, true);
     return true;
 }
 
@@ -777,8 +776,8 @@ dat2_edit_update_reference_entry(
     archive->version = archive->version <= 0 ? 1 : archive->version + 1;
     if( (table->flags & RSCACHE_REFTABLE_FLAG_SIZES) != 0 )
     {
-        archive->compressed = info->compressed;
-        archive->uncompressed = info->uncompressed;
+        RSCache_ReferenceTableSetSizes(
+            table, info->archive_id, info->compressed, info->uncompressed);
     }
     if( (table->flags & RSCACHE_REFTABLE_FLAG_WHIRLPOOL) != 0 )
     {

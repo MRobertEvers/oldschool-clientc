@@ -57,6 +57,24 @@ extern char* __real_strdup(const char* str);
 #define MEMPROF_SITE_CAP (1u << MEMPROF_SITE_BITS)
 #define MEMPROF_REPORT_SITES 80u
 
+/* TORIRS_MEMPROF_SITES widens the ranking. The default is a readable summary,
+ * but it hides the long tail -- at one point 80 sites named 89.91 of 109.94
+ * live MB, leaving 20 MB spread over sites the report never mentioned. Only
+ * the printing grows; the sort already covers the whole table. */
+static unsigned
+memprof_report_sites(void)
+{
+    char const* env = getenv("TORIRS_MEMPROF_SITES");
+    long n;
+
+    if( !env || env[0] == '\0' )
+        return MEMPROF_REPORT_SITES;
+    n = strtol(env, NULL, 10);
+    if( n <= 0 )
+        return MEMPROF_REPORT_SITES;
+    return (unsigned)n;
+}
+
 struct MemProf_Hdr
 {
     uint32_t magic;
@@ -536,7 +554,7 @@ memprof_dump(const char* suffix, const char* label)
         (unsigned long long)(uintptr_t)&memprof_dump,
         (unsigned long long)bias);
 
-    for( i = 0; i < ranked_count && i < MEMPROF_REPORT_SITES; i++ )
+    for( i = 0; i < ranked_count && i < (uint32_t)memprof_report_sites(); i++ )
     {
         const struct MemProf_Site* site = ranked[i];
 

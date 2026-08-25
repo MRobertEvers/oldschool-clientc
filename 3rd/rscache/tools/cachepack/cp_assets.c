@@ -617,7 +617,7 @@ cp_assets_name_maps(struct CP_Ctx* ctx)
     for( int i = 0; i < rt->id_count; i++ )
     {
         int id = rt->ids[i];
-        if( id < rt->archive_count && rt->archives[id].identifier != 0 )
+        if( id < rt->archive_count && RSCache_ReferenceTableIdentifier(rt, id) != 0 )
             identified = 1;
     }
 
@@ -655,7 +655,7 @@ cp_assets_name_maps(struct CP_Ctx* ctx)
         name[0] = '\0';
         if( identified )
         {
-            int want = id < rt->archive_count ? rt->archives[id].identifier : 0;
+            int want = id < rt->archive_count ? RSCache_ReferenceTableIdentifier(rt, id) : 0;
             for( int x = 0; x < 256 && !name[0]; x++ )
             {
                 for( int z = 0; z < 256 && !name[0]; z++ )
@@ -1427,7 +1427,7 @@ archive_in_cache(struct CP_Ctx* ctx, int table_id, int archive_id)
     rt = ctx->cache.disk->tables[table_id];
     if( !rt || !rt->archives || archive_id < 0 || archive_id >= rt->archive_count )
         return 0;
-    return rt->archives[archive_id].index >= 0;
+    return RSCache_ReferenceTableHasArchive(rt, archive_id);
 }
 
 static int

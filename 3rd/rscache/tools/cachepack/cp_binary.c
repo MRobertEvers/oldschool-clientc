@@ -327,7 +327,7 @@ cp_reference_ensure(struct CP_Ctx* ctx, int table_id)
  * sprite with
  *
  *     name_hash = RSCache_ArchiveNameHashDat2(name);
- *     for( i ... ) if( table->archives[i].identifier == name_hash ) ...
+ *     for( i ... ) if( RSCache_ReferenceTableIdentifier(table, i) == name_hash ) ...
  *
  * so an archive whose `identifier` is 0 is unreachable by name however
  * correctly its bytes were written. Packing onto a base cache hides this
@@ -357,13 +357,13 @@ cp_reference_set_name(
     rt = cp_reference_ensure(ctx, table_id);
     if( !rt )
         return 0;
-    if( archive_id < 0 || archive_id >= rt->archive_count || rt->archives[archive_id].index < 0 )
+    if( archive_id < 0 || archive_id >= rt->archive_count || !RSCache_ReferenceTableHasArchive(rt, archive_id) )
         return 1; /* nothing was written for this id; nothing to name */
 
     identifier = RSCache_ArchiveNameHashDat2((char*)name);
-    if( rt->archives[archive_id].identifier != identifier )
+    if( RSCache_ReferenceTableIdentifier(rt, archive_id) != identifier )
     {
-        rt->archives[archive_id].identifier = identifier;
+        RSCache_ReferenceTableSetIdentifier(rt, archive_id, identifier);
         if( out_dirty )
             *out_dirty = 1;
     }
@@ -394,7 +394,7 @@ cp_reference_sync(
      * belonging to some other archive.
      */
     struct RSCache_ReferenceTableArchive* archive = NULL;
-    if( archive_id >= 0 && archive_id < rt->archive_count && rt->archives[archive_id].index >= 0 )
+    if( archive_id >= 0 && archive_id < rt->archive_count && RSCache_ReferenceTableHasArchive(rt, archive_id) )
         archive = &rt->archives[archive_id];
     if( !archive )
     {
@@ -441,7 +441,7 @@ cp_reference_sync(
             memset(rt->archives + rt->archive_count, 0,
                    (size_t)(next - rt->archive_count) * sizeof(*rt->archives));
             for( int i = rt->archive_count; i < next; i++ )
-                rt->archives[i].index = -1;
+                RSCache_ReferenceTableSetHasArchive(rt, i, false);
             rt->archive_count = next;
         }
 
@@ -474,7 +474,7 @@ cp_reference_sync(
 
         archive = &rt->archives[archive_id];
         memset(archive, 0, sizeof(*archive));
-        archive->index = archive_id;
+        RSCache_ReferenceTableSetHasArchive(rt, archive_id, true);
         *out_dirty = 1;
         cp_warn(ctx, &ctx->warn_reference_added,
                 "idx%d archive %d added to the reference table", table_id, archive_id);
@@ -566,9 +566,14 @@ cp_reference_sync(
     archive->crc = crc;
     if( rt->flags & RSCACHE_REFTABLE_FLAG_SIZES )
     {
-        archive->compressed = body;
-        if( uncompressed > 0 )
-            archive->uncompressed = uncompressed;
+        /* A zero uncompressed length means the container did not carry one;
+         * keep whatever the table already had rather than clearing it. */
+        RSCache_ReferenceTableSetSizes(
+            rt,
+            archive_id,
+            body,
+            uncompressed > 0 ? uncompressed
+                             : RSCache_ReferenceTableUncompressed(rt, archive_id));
     }
     if( rt->flags & RSCACHE_REFTABLE_FLAG_WHIRLPOOL )
     {

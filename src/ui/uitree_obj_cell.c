@@ -68,8 +68,8 @@ grid_cell(
     layout.rows = node->u.rs_inv.rows;
     layout.margin_x = node->u.rs_inv.margin_x;
     layout.margin_y = node->u.rs_inv.margin_y;
-    layout.offset_x = node->u.rs_inv.inv_slot_offset_x;
-    layout.offset_y = node->u.rs_inv.inv_slot_offset_y;
+    layout.offset_x = UITree_InvSlots(node)->offset_x;
+    layout.offset_y = UITree_InvSlots(node)->offset_y;
 
     UITree_LayoutGetBounds(&node->position, &bx, &by, &bw, &bh);
     UITree_AccumScrollOffset(tree, node_index, &offx, &offy);

@@ -65,6 +65,10 @@ struct PlatformX_IO
     char* script_dir;
 
     struct Dat2ArchiveCacheSlot archive_cache[DAT2_ARCHIVE_CACHE_SLOTS];
+    /* Slots actually used, <= DAT2_ARCHIVE_CACHE_SLOTS. The array stays a fixed
+     * member (it is 8 bytes a slot); only how many of them are allowed to hold
+     * an archive is tunable, because the archives are what cost megabytes. */
+    int archive_cache_slots;
     uint64_t archive_cache_clock;
 
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
@@ -86,12 +90,30 @@ struct PlatformX_IO
 static struct PlatformX_IO* g_web_px = NULL;
 #endif
 
+/* TORIRS_DAT2_ARCHIVE_SLOTS narrows the LRU without a rebuild. An unusable
+ * value falls back to the compiled default rather than asserting: this reads a
+ * user's environment, not a caller's argument. */
+static int
+dat2_archive_cache_slots(void)
+{
+    char const* env = getenv("TORIRS_DAT2_ARCHIVE_SLOTS");
+    long n;
+
+    if( !env || env[0] == '\0' )
+        return DAT2_ARCHIVE_CACHE_SLOTS;
+    n = strtol(env, NULL, 10);
+    if( n < 1 || n > DAT2_ARCHIVE_CACHE_SLOTS )
+        return DAT2_ARCHIVE_CACHE_SLOTS;
+    return (int)n;
+}
+
 struct PlatformX_IO*
 PlatformX_IO_New(void)
 {
     struct PlatformX_IO* px = malloc(sizeof(struct PlatformX_IO));
     assert(px);
     memset(px, 0, sizeof(struct PlatformX_IO));
+    px->archive_cache_slots = dat2_archive_cache_slots();
 #if defined(TORIRS_WEB_CACHE_IDB)
     g_web_px = px;
 #endif
@@ -212,7 +234,7 @@ dat2_archive_cache_get(
     int table_id,
     int archive_id)
 {
-    for( int i = 0; i < DAT2_ARCHIVE_CACHE_SLOTS; i++ )
+    for( int i = 0; i < px->archive_cache_slots; i++ )
     {
         struct Dat2ArchiveCacheSlot* slot = &px->archive_cache[i];
         if( slot->archive && slot->archive->table_id == table_id &&
@@ -232,7 +254,7 @@ dat2_archive_cache_put(
     struct RSCache_Dat2DiskArchive* archive)
 {
     struct Dat2ArchiveCacheSlot* lru = &px->archive_cache[0];
-    for( int i = 0; i < DAT2_ARCHIVE_CACHE_SLOTS; i++ )
+    for( int i = 0; i < px->archive_cache_slots; i++ )
     {
         struct Dat2ArchiveCacheSlot* slot = &px->archive_cache[i];
         if( !slot->archive )

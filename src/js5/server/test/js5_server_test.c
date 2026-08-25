@@ -194,8 +194,8 @@ make_integrity_reference(
     if( !table.archives )
         return false;
     for( int index = 0; index < table.archive_count; index++ )
-        table.archives[index].index = -1;
-    table.archives[group].index = 0;
+        RSCache_ReferenceTableSetHasArchive(&table, index, false);
+    RSCache_ReferenceTableSetHasArchive(&table, group, true);
     table.archives[group].crc = (int)group_crc;
     table.archives[group].version = (int)group_version;
     table.archives[group].children.count = 1;

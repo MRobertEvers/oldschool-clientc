@@ -378,7 +378,8 @@ app_chat_region(
     if( out_y )
         *out_y = y;
     if( out_font_id )
-        *out_font_id = node->u.chat.font_id > 0 ? node->u.chat.font_id : 1;
+        *out_font_id =
+            UITree_Chat(node)->font_id > 0 ? UITree_Chat(node)->font_id : 1;
     return 1;
 }
 
@@ -4354,7 +4355,7 @@ app_client_trigger_loc(struct App* app, struct WorldEntity_Scenery* loc, int tri
         app->world->_base_tile_x + loc->grid_position.x,
         app->world->_base_tile_z + loc->grid_position.z);
     ctx.layer = World_LocShapeToLayer(loc->shape);
-    snprintf(ctx.name, sizeof(ctx.name), "%s", loc->name);
+    snprintf(ctx.name, sizeof(ctx.name), "%s", loc->info->name);
     app_client_trigger_debug_coord("loc", trigger, loc->loc_id, ctx.coord);
     app_client_trigger_queue(app, &ctx, script_id);
 }
@@ -4517,7 +4518,7 @@ app_cs2_loc_at_coord(
     if( !scenery )
         return 0;
     *out_layer = World_LocShapeToLayer(scenery->shape);
-    snprintf(out_name, (size_t)name_cap, "%s", scenery->name);
+    snprintf(out_name, (size_t)name_cap, "%s", scenery->info->name);
     return 1;
 }
 
@@ -7179,7 +7180,7 @@ app_loc_editor_reselect(struct App* app)
     app->locedit_size_x = scenery->size_x;
     app->locedit_size_z = scenery->size_z;
     app->locedit_interactive = scenery->interactive;
-    snprintf(app->locedit_name, sizeof(app->locedit_name), "%s", scenery->name);
+    snprintf(app->locedit_name, sizeof(app->locedit_name), "%s", scenery->info->name);
     app->locedit_scene_x = scenery->grid_position.x;
     app->locedit_scene_z = scenery->grid_position.z;
     app->locedit_level = scenery->grid_position.level;
@@ -7223,7 +7224,7 @@ app_loc_editor_select_element(
     app->locedit_size_x = scenery->size_x;
     app->locedit_size_z = scenery->size_z;
     app->locedit_interactive = scenery->interactive;
-    snprintf(app->locedit_name, sizeof(app->locedit_name), "%s", scenery->name);
+    snprintf(app->locedit_name, sizeof(app->locedit_name), "%s", scenery->info->name);
     app->locedit_scene_x = scenery->grid_position.x;
     app->locedit_scene_z = scenery->grid_position.z;
     app->locedit_level = scenery->grid_position.level;
@@ -13201,7 +13202,7 @@ app_logic_tick(struct App* app)
                             loc->grid_position.level,
                             base_x + loc->grid_position.x,
                             base_z + loc->grid_position.z);
-                        snprintf(mo.name, sizeof(mo.name), "%s", loc->name);
+                        snprintf(mo.name, sizeof(mo.name), "%s", loc->info->name);
                     }
                     else if( hit->type == WORLD_PICK_OBJSTACK )
                     {
@@ -16289,7 +16290,7 @@ app_world_pick_finish(
                 scenery ? scenery->grid_position.x : -1,
                 scenery ? scenery->grid_position.z : -1,
                 scenery ? scenery->grid_position.level : -1,
-                scenery ? scenery->name : "");
+                scenery ? scenery->info->name : "");
         }
     }
 }
@@ -18819,16 +18820,28 @@ app_loc_change_apply_ops(
     if( !sc )
         return;
 
-    for( int i = 0; i < 5; i++ )
+    /* The label block is shared, so the override is not written in place: the
+     * edited copy is interned and the placement repointed. Every slot is
+     * rewritten from zero rather than truncated with a NUL, because entries are
+     * compared byte for byte and a shortened name that left its old tail behind
+     * would intern as a second, identical-looking label. */
     {
-        if( (self->loc_op_flags & (1 << i)) == 0 )
+        struct WorldEntity_SceneryInfo probe = *sc->info;
+
+        for( int i = 0; i < 5; i++ )
         {
-            sc->actions[i].name[0] = '\0';
-            continue;
+            char const* label = NULL;
+
+            if( (self->loc_op_flags & (1 << i)) == 0 )
+                label = "";
+            else if( self->loc_ops[i][0] != '\0' )
+                label = self->loc_ops[i];
+            if( !label )
+                continue;
+            memset(probe.actions[i].name, 0, sizeof(probe.actions[i].name));
+            snprintf(probe.actions[i].name, sizeof(probe.actions[i].name), "%s", label);
         }
-        if( self->loc_ops[i][0] == '\0' )
-            continue;
-        snprintf(sc->actions[i].name, sizeof(sc->actions[i].name), "%s", self->loc_ops[i]);
+        sc->info = World_SceneryInfoIntern(app->world, &probe);
     }
 }
 
@@ -22630,7 +22643,7 @@ app_clientop_menu_build(struct App* app, struct UIMinimenu* menu, int hover_pass
             if( !loc )
                 continue;
             kind = RS_CLIENTOP_LOC;
-            subject = loc->name;
+            subject = loc->info->name;
             break;
         }
         case UI_MINIMENU_PICK_OBJ:
@@ -22743,7 +22756,7 @@ app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
             loc->grid_position.level,
             base_x + loc->grid_position.x,
             base_z + loc->grid_position.z);
-        snprintf(ctx.name, sizeof(ctx.name), "%s", loc->name);
+        snprintf(ctx.name, sizeof(ctx.name), "%s", loc->info->name);
         break;
     }
     case RS_CLIENTOP_OBJ:
@@ -24158,8 +24171,8 @@ app_minimenu_run_option(
                     CacheProvider_LocationGet(app->provider, scenery->loc_id);
                 if( loc && loc->desc[0] )
                     desc = loc->desc;
-                if( scenery->name[0] )
-                    name = scenery->name;
+                if( scenery->info->name[0] )
+                    name = scenery->info->name;
             }
         }
         else if( app->world && opt.action == REVCONFIG_MINIMENU_OPOBJ6 )

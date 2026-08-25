@@ -263,14 +263,14 @@ app_plugin_fill_loc(
     out->angle = scenery->angle;
     out->element_id = scenery->element_id;
     out->interactive = scenery->interactive;
-    snprintf(out->name, sizeof(out->name), "%s", scenery->name);
+    snprintf(out->name, sizeof(out->name), "%s", scenery->info->name);
 
     /* The ops are a facet array with a per-slot name; a slot with no name is
      * an op the loc does not offer. Packed to a bitmask here because that is
      * the only question a plugin asks of them -- the TEXT of an op is the
      * minimenu's business, and a plugin that wants it reads the menu build. */
     for( int i = 0; i < 5; i++ )
-        if( scenery->actions[i].name[0] != '\0' )
+        if( scenery->info->actions[i].name[0] != '\0' )
             out->visible_ops |= (uint8_t)(1u << i);
 }
 
@@ -671,7 +671,7 @@ app_plugin_highlights_rebuild_pools(
                     proto.overhead_height = app_plugin_element_height(app, loc->element_id);
                     proto.fine_x = (loc->grid_position.x * 128) + 64;
                     proto.fine_z = (loc->grid_position.z * 128) + 64;
-                    snprintf(proto.name, sizeof(proto.name), "%s", loc->name);
+                    snprintf(proto.name, sizeof(proto.name), "%s", loc->info->name);
                     proto.tile_x = tile_x;
                     proto.tile_z = tile_z;
                     proto.level = loc->grid_position.level;
@@ -684,7 +684,7 @@ app_plugin_highlights_rebuild_pools(
             }
 
             {
-                int const group = app_plugin_opgroup_group(hl, loc->name);
+                int const group = app_plugin_opgroup_group(hl, loc->info->name);
                 if( group >= 0 &&
                     app_plugin_highlight_begin(app, RS_HIGHLIGHT_OPGROUP, group, &proto) )
                 {
@@ -693,7 +693,7 @@ app_plugin_highlights_rebuild_pools(
                     proto.overhead_height = app_plugin_element_height(app, loc->element_id);
                     proto.fine_x = (loc->grid_position.x * 128) + 64;
                     proto.fine_z = (loc->grid_position.z * 128) + 64;
-                    snprintf(proto.name, sizeof(proto.name), "%s", loc->name);
+                    snprintf(proto.name, sizeof(proto.name), "%s", loc->info->name);
                     proto.tile_x = tile_x;
                     proto.tile_z = tile_z;
                     proto.level = loc->grid_position.level;

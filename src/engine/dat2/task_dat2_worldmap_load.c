@@ -47,14 +47,16 @@ task_dat2_worldmap_resolve_archive_id(
     name_hash = RSCache_ArchiveNameHashDat2((char*)name);
     for( int i = 0; i < table->archive_count; i++ )
     {
-        if( table->archives[i].identifier == name_hash )
-            return table->archives[i].index;
+        if( RSCache_ReferenceTableIdentifier(table, i) == name_hash )
+            return i;
     }
     /* OSRS 238+: details/compositemap/compositetexture may be unnamed; fall
      * back to archive id. */
     if( unnamed_fallback_id >= 0 && unnamed_fallback_id < table->archive_count &&
-        table->archives[unnamed_fallback_id].index >= 0 )
-        return table->archives[unnamed_fallback_id].index;
+        RSCache_ReferenceTableHasArchive(table, unnamed_fallback_id) )
+        return RSCache_ReferenceTableHasArchive(table, unnamed_fallback_id)
+                   ? unnamed_fallback_id
+                   : -1;
     return -1;
 }
 

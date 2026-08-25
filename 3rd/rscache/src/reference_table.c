@@ -70,17 +70,16 @@ RSCache_ReferenceTableNewDecode(
         return NULL;
     }
     memset(table->archives, 0, max_id * sizeof(struct RSCache_ReferenceTableArchive));
-    for( int i = 0; i < max_id; i++ )
-        table->archives[i].index = -1;
     table->archive_count = max_id;
 
+    /* Absent is the zero bit, so the holes need no pass of their own. */
     for( int i = 0; i < id_count; i++ )
-        table->archives[ids[i]].index = ids[i];
+        RSCache_ReferenceTableSetHasArchive(table, ids[i], true);
 
     if( (table->flags & FLAG_IDENTIFIERS) != 0 )
     {
         for( int i = 0; i < id_count; i++ )
-            table->archives[ids[i]].identifier = g4(&buffer);
+            RSCache_ReferenceTableSetIdentifier(table, ids[i], g4(&buffer));
     }
 
     for( int i = 0; i < id_count; i++ )
@@ -110,9 +109,9 @@ RSCache_ReferenceTableNewDecode(
     {
         for( int i = 0; i < id_count; i++ )
         {
-            int id = ids[i];
-            table->archives[id].compressed = g4(&buffer);
-            table->archives[id].uncompressed = g4(&buffer);
+            int compressed = g4(&buffer);
+            int uncompressed = g4(&buffer);
+            RSCache_ReferenceTableSetSizes(table, ids[i], compressed, uncompressed);
         }
     }
 
@@ -327,7 +326,7 @@ RSCache_ReferenceTableEncode(
     if( (table->flags & FLAG_IDENTIFIERS) != 0 )
     {
         for( int i = 0; i < table->id_count; i++ )
-            p4(&buffer, table->archives[table->ids[i]].identifier);
+            p4(&buffer, RSCache_ReferenceTableIdentifier(table, table->ids[i]));
     }
 
     for( int i = 0; i < table->id_count; i++ )
@@ -350,8 +349,8 @@ RSCache_ReferenceTableEncode(
         for( int i = 0; i < table->id_count; i++ )
         {
             int id = table->ids[i];
-            p4(&buffer, table->archives[id].compressed);
-            p4(&buffer, table->archives[id].uncompressed);
+            p4(&buffer, RSCache_ReferenceTableCompressed(table, id));
+            p4(&buffer, RSCache_ReferenceTableUncompressed(table, id));
         }
     }
 
@@ -479,6 +478,146 @@ RSCache_ReferenceTableWhirlpoolSlot(
     return table->whirlpools + (size_t)archive_id * RSCACHE_REFTABLE_WHIRLPOOL_BYTES;
 }
 
+bool
+RSCache_ReferenceTableHasArchive(
+    const struct RSCache_ReferenceTable* table,
+    int archive_id)
+{
+    assert(table);
+
+    /* Out of range is absent, not a bad argument: callers used to bounds-check
+     * and then read `.index`, and every one of them wanted the same answer for
+     * an id past the end. */
+    if( archive_id < 0 || archive_id >= table->archive_count )
+        return false;
+    if( !table->present || archive_id >= table->present_count )
+        return false;
+    return (table->present[archive_id >> 3] & (1u << (archive_id & 7))) != 0;
+}
+
+void
+RSCache_ReferenceTableSetHasArchive(
+    struct RSCache_ReferenceTable* table,
+    int archive_id,
+    bool present)
+{
+    assert(table);
+    assert(archive_id >= 0);
+    assert(archive_id < table->archive_count);
+
+    /* Sized against archive_count on every call, like the whirlpool pool, so a
+     * table that grew after the bitmap was made catches up here. */
+    if( table->present_count < table->archive_count )
+    {
+        size_t was = ((size_t)table->present_count + 7) / 8;
+        size_t now = ((size_t)table->archive_count + 7) / 8;
+        unsigned char* grown = realloc(table->present, now ? now : 1);
+        assert(grown);
+        if( now > was )
+            memset(grown + was, 0, now - was);
+        table->present = grown;
+        table->present_count = table->archive_count;
+    }
+    if( present )
+        table->present[archive_id >> 3] |= (unsigned char)(1u << (archive_id & 7));
+    else
+        table->present[archive_id >> 3] &= (unsigned char)~(1u << (archive_id & 7));
+}
+
+int
+RSCache_ReferenceTableIdentifier(
+    const struct RSCache_ReferenceTable* table,
+    int archive_id)
+{
+    assert(table);
+    assert(archive_id >= 0);
+
+    /* Unnamed is an answer: a table without FLAG_IDENTIFIERS never had a hash
+     * for any archive, and stored this zero for all of them. */
+    if( !table->identifiers || archive_id >= table->identifier_count )
+        return 0;
+    return table->identifiers[archive_id];
+}
+
+void
+RSCache_ReferenceTableSetIdentifier(
+    struct RSCache_ReferenceTable* table,
+    int archive_id,
+    int identifier)
+{
+    assert(table);
+    assert(archive_id >= 0);
+    assert(archive_id < table->archive_count);
+
+    if( table->identifier_count < table->archive_count )
+    {
+        size_t was = (size_t)table->identifier_count * sizeof(int);
+        size_t now = (size_t)table->archive_count * sizeof(int);
+        int* grown = realloc(table->identifiers, now);
+        assert(grown);
+        memset((char*)grown + was, 0, now - was);
+        table->identifiers = grown;
+        table->identifier_count = table->archive_count;
+    }
+    table->identifiers[archive_id] = identifier;
+}
+
+int
+RSCache_ReferenceTableCompressed(
+    const struct RSCache_ReferenceTable* table,
+    int archive_id)
+{
+    assert(table);
+    assert(archive_id >= 0);
+
+    if( !table->compressed_sizes || archive_id >= table->size_count )
+        return 0;
+    return table->compressed_sizes[archive_id];
+}
+
+int
+RSCache_ReferenceTableUncompressed(
+    const struct RSCache_ReferenceTable* table,
+    int archive_id)
+{
+    assert(table);
+    assert(archive_id >= 0);
+
+    if( !table->uncompressed_sizes || archive_id >= table->size_count )
+        return 0;
+    return table->uncompressed_sizes[archive_id];
+}
+
+void
+RSCache_ReferenceTableSetSizes(
+    struct RSCache_ReferenceTable* table,
+    int archive_id,
+    int compressed,
+    int uncompressed)
+{
+    assert(table);
+    assert(archive_id >= 0);
+    assert(archive_id < table->archive_count);
+
+    /* Decoded, encoded and grown as a pair, so one count covers both. */
+    if( table->size_count < table->archive_count )
+    {
+        size_t was = (size_t)table->size_count * sizeof(int);
+        size_t now = (size_t)table->archive_count * sizeof(int);
+        int* grown_compressed = realloc(table->compressed_sizes, now);
+        int* grown_uncompressed = realloc(table->uncompressed_sizes, now);
+        assert(grown_compressed);
+        assert(grown_uncompressed);
+        memset((char*)grown_compressed + was, 0, now - was);
+        memset((char*)grown_uncompressed + was, 0, now - was);
+        table->compressed_sizes = grown_compressed;
+        table->uncompressed_sizes = grown_uncompressed;
+        table->size_count = table->archive_count;
+    }
+    table->compressed_sizes[archive_id] = compressed;
+    table->uncompressed_sizes[archive_id] = uncompressed;
+}
+
 int
 RSCache_ReferenceTableChildNameHash(
     const struct RSCache_ReferenceTableArchive* archive,
@@ -520,6 +659,10 @@ RSCache_ReferenceTableFree(struct RSCache_ReferenceTable* table)
     free(table->children_pool);
     free(table->children_name_hash_pool);
     free(table->whirlpools);
+    free(table->present);
+    free(table->identifiers);
+    free(table->compressed_sizes);
+    free(table->uncompressed_sizes);
 
     if( table->archives )
         free(table->archives);

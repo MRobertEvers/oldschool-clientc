@@ -92,11 +92,11 @@ make_reference_container(
         return false;
 
     for( int i = 0; i < table.archive_count; ++i )
-        table.archives[i].index = -1;
-    table.archives[group_id].index = group_id;
+        RSCache_ReferenceTableSetHasArchive(&table, i, false);
+    RSCache_ReferenceTableSetHasArchive(&table, group_id, true);
     table.archives[group_id].crc = 0x10203040;
-    table.archives[group_id].compressed = 8;
-    table.archives[group_id].uncompressed = 3;
+    RSCache_ReferenceTableCompressed(&table, group_id) = 8;
+    RSCache_ReferenceTableUncompressed(&table, group_id) = 3;
     table.archives[group_id].version = group_version;
     table.archives[group_id].children.count = 1;
     table.archives[group_id].children.files =

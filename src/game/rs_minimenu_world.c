@@ -269,7 +269,7 @@ scenery_debug_name(
     char* buf,
     int cap)
 {
-    char const* name = scenery->name[0] ? scenery->name : "Scenery";
+    char const* name = scenery->info->name[0] ? scenery->info->name : "Scenery";
 
     if( !WorldEntity_SceneryDebugEnabled() )
         return name;
@@ -578,9 +578,10 @@ add_scenery_rows(
 
     for( int i = 4; i >= 0; i-- )
     {
-        if( scenery->actions[i].name[0] == '\0' )
+        if( scenery->info->actions[i].name[0] == '\0' )
             continue;
-        snprintf(text, sizeof(text), "%s @cya@%s", scenery->actions[i].name, name);
+        snprintf(
+            text, sizeof(text), "%s @cya@%s", scenery->info->actions[i].name, name);
         UIMinimenu_AddOption(menu, text, oploc_action_for_slot(i), i, pick);
     }
 

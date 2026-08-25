@@ -1395,7 +1395,7 @@ RSCache_Dat2DiskArchiveInitMetadataFromTable(
      * the reference table doesn't list — past its max id or in an id gap
      * (index == -1). Report failure instead of indexing out of bounds. */
     if( archive->archive_id < 0 || archive->archive_id >= table->archive_count ||
-        table->archives[archive->archive_id].index < 0 )
+        !RSCache_ReferenceTableHasArchive(table, archive->archive_id) )
         return false;
     struct RSCache_ReferenceTableArchive* archive_reference = &table->archives[archive->archive_id];
     archive->revision = archive_reference->version;

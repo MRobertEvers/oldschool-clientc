@@ -615,6 +615,96 @@ UITree_MenuSubmenuFree(struct UITreeMenuOptions* opts)
 
 struct UITreeRuntimeHooks const uitree_hooks_none;
 
+/* Not the zeroed block: an absent background is -1, not 0. */
+struct UITreeInvSlots const uitree_inv_slots_none = {
+    .bg_scene_id = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+};
+
+struct UITreeInvSlots const*
+UITree_InvSlots(struct UITreeComponent const* c)
+{
+    assert(c);
+    return c->u.rs_inv.slots ? c->u.rs_inv.slots : &uitree_inv_slots_none;
+}
+
+struct UITreeInvSlots*
+UITree_InvSlotsMut(struct UITreeComponent* c)
+{
+    assert(c);
+    if( !c->u.rs_inv.slots )
+    {
+        c->u.rs_inv.slots = malloc(sizeof(*c->u.rs_inv.slots));
+        assert(c->u.rs_inv.slots);
+        *c->u.rs_inv.slots = uitree_inv_slots_none;
+    }
+    return c->u.rs_inv.slots;
+}
+
+struct UITreeChatConfig const uitree_chat_none = { 0 };
+struct UITreeDebugOverlayConfig const uitree_debug_overlay_none = { 0 };
+struct UITreeChatButtonConfig const uitree_chat_button_none = { 0 };
+
+struct UITreeChatConfig const*
+UITree_Chat(struct UITreeComponent const* c)
+{
+    assert(c);
+    return c->u.chat ? c->u.chat : &uitree_chat_none;
+}
+
+struct UITreeChatConfig*
+UITree_ChatMut(struct UITreeComponent* c)
+{
+    assert(c);
+    if( !c->u.chat )
+    {
+        c->u.chat = malloc(sizeof(*c->u.chat));
+        assert(c->u.chat);
+        *c->u.chat = uitree_chat_none;
+    }
+    return c->u.chat;
+}
+
+struct UITreeDebugOverlayConfig const*
+UITree_DebugOverlay(struct UITreeComponent const* c)
+{
+    assert(c);
+    return c->u.debug_overlay ? c->u.debug_overlay : &uitree_debug_overlay_none;
+}
+
+struct UITreeDebugOverlayConfig*
+UITree_DebugOverlayMut(struct UITreeComponent* c)
+{
+    assert(c);
+    if( !c->u.debug_overlay )
+    {
+        c->u.debug_overlay = malloc(sizeof(*c->u.debug_overlay));
+        assert(c->u.debug_overlay);
+        *c->u.debug_overlay = uitree_debug_overlay_none;
+    }
+    return c->u.debug_overlay;
+}
+
+struct UITreeChatButtonConfig const*
+UITree_ChatButton(struct UITreeComponent const* c)
+{
+    assert(c);
+    return c->u.chat_button ? c->u.chat_button : &uitree_chat_button_none;
+}
+
+struct UITreeChatButtonConfig*
+UITree_ChatButtonMut(struct UITreeComponent* c)
+{
+    assert(c);
+    if( !c->u.chat_button )
+    {
+        c->u.chat_button = malloc(sizeof(*c->u.chat_button));
+        assert(c->u.chat_button);
+        *c->u.chat_button = uitree_chat_button_none;
+    }
+    return c->u.chat_button;
+}
+
 struct UITreeRuntimeHooks*
 UITree_HooksMut(struct UITreeComponent* c)
 {
@@ -1286,6 +1376,26 @@ uitree_component_free_owned(struct UITreeComponent* c)
         free((void*)c->u.rs_text.text_active);
         c->u.rs_text.text_active = NULL;
     }
+    if( c->type == UIELEM_RS_INV )
+    {
+        free(c->u.rs_inv.slots);
+        c->u.rs_inv.slots = NULL;
+    }
+    if( c->type == UIELEM_BUILTIN_CHAT )
+    {
+        free(c->u.chat);
+        c->u.chat = NULL;
+    }
+    if( c->type == UIELEM_BUILTIN_DEBUG_OVERLAY )
+    {
+        free(c->u.debug_overlay);
+        c->u.debug_overlay = NULL;
+    }
+    if( c->type == UIELEM_BUILTIN_CHAT_BUTTON )
+    {
+        free(c->u.chat_button);
+        c->u.chat_button = NULL;
+    }
     free(c->child_key_index);
     c->child_key_index = NULL;
     c->child_key_index_cap = 0;
@@ -1752,9 +1862,10 @@ UITree_DebugOverlaySetFontIds(
     {
         struct UITreeComponent* c = &tree->components[tree->debug_overlays.slots[s]];
         assert(c->type == UIELEM_BUILTIN_DEBUG_OVERLAY);
-        c->u.debug_overlay.font_id_small = font_id_small;
-        c->u.debug_overlay.font_id_menu = font_id_menu;
-        c->u.debug_overlay.font_id_body = font_id_body;
+        struct UITreeDebugOverlayConfig* overlay = UITree_DebugOverlayMut(c);
+        overlay->font_id_small = font_id_small;
+        overlay->font_id_menu = font_id_menu;
+        overlay->font_id_body = font_id_body;
     }
 }
 
@@ -2080,21 +2191,17 @@ UITree_Push(
         break;
 
     case UIELEM_BUILTIN_DEBUG_OVERLAY:
-        component->u.debug_overlay.font_id_small = spec->u.debug_overlay.font_id_small;
-        component->u.debug_overlay.font_id_body = spec->u.debug_overlay.font_id_body;
-        component->u.debug_overlay.skin_scene_id = spec->u.debug_overlay.skin_scene_id;
-        for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
-            component->u.debug_overlay.skin_atlas[i] = spec->u.debug_overlay.skin_atlas[i];
-        component->u.debug_overlay.font_id_menu = spec->u.debug_overlay.font_id_menu;
+        /* The spec arm is the same struct now, so the field-by-field copy
+         * this replaced is one assignment. */
+        *UITree_DebugOverlayMut(component) = spec->u.debug_overlay;
         break;
 
     case UIELEM_BUILTIN_CHAT:
-        component->u.chat.minimenu = spec->u.chat.minimenu;
-        component->u.chat.font_id = spec->u.chat.font_id;
+        *UITree_ChatMut(component) = spec->u.chat;
         break;
 
     case UIELEM_BUILTIN_CHAT_BUTTON:
-        component->u.chat_button = spec->u.chat_button;
+        *UITree_ChatButtonMut(component) = spec->u.chat_button;
         component->is_dirty = 1;
         uitree_topo_bump(tree, __LINE__);
         break;
@@ -2204,35 +2311,33 @@ UITree_Push(
         component->u.rs_inv.can_drag = spec->u.rs_inv.can_drag;
         component->u.rs_inv.obj_ops = spec->u.rs_inv.obj_ops;
         component->u.rs_inv.obj_use = spec->u.rs_inv.obj_use;
+        /* The block is only allocated when a spec actually carries per-slot
+         * data. The no-override case is uitree_inv_slots_none, which already
+         * reads as offset 0 and background -1 -- the same answer the explicit
+         * -1 fill used to write into every inv component. */
         if( spec->u.rs_inv.inv_slot_offset_x && spec->u.rs_inv.inv_slot_offset_y )
         {
+            struct UITreeInvSlots* slots = UITree_InvSlotsMut(component);
             memcpy(
-                component->u.rs_inv.inv_slot_offset_x,
+                slots->offset_x,
                 spec->u.rs_inv.inv_slot_offset_x,
                 (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
             memcpy(
-                component->u.rs_inv.inv_slot_offset_y,
+                slots->offset_y,
                 spec->u.rs_inv.inv_slot_offset_y,
                 (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
         }
         if( spec->u.rs_inv.inv_slot_bg_scene_id && spec->u.rs_inv.inv_slot_bg_atlas_index )
         {
+            struct UITreeInvSlots* slots = UITree_InvSlotsMut(component);
             memcpy(
-                component->u.rs_inv.inv_slot_bg_scene_id,
+                slots->bg_scene_id,
                 spec->u.rs_inv.inv_slot_bg_scene_id,
                 (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
             memcpy(
-                component->u.rs_inv.inv_slot_bg_atlas_index,
+                slots->bg_atlas_index,
                 spec->u.rs_inv.inv_slot_bg_atlas_index,
                 (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
-        }
-        else
-        {
-            for( int i = 0; i < UI_INV_SLOT_OFFSET_MAX; i++ )
-            {
-                component->u.rs_inv.inv_slot_bg_scene_id[i] = -1;
-                component->u.rs_inv.inv_slot_bg_atlas_index[i] = 0;
-            }
         }
         break;
 

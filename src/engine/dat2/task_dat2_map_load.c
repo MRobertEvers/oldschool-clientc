@@ -39,8 +39,8 @@ task_dat2_map_resolve_archive_id(
 
     for( int i = 0; i < table->archive_count; i++ )
     {
-        if( table->archives[i].identifier == name_hash )
-            return table->archives[i].index;
+        if( RSCache_ReferenceTableIdentifier(table, i) == name_hash )
+            return i;
     }
     return -1;
 }
@@ -60,7 +60,7 @@ task_dat2_map_resolve(
 
     int region_id = RSCache_MapSquareId(map_x, map_z);
     if( region_id >= 0 && region_id < table->archive_count &&
-        table->archives[region_id].index >= 0 )
+        RSCache_ReferenceTableHasArchive(table, region_id) )
         return region_id;
     return -1;
 }

@@ -1292,7 +1292,7 @@ emit_chat_button(
 
     if( !host )
         return;
-    cfg = &c->u.chat_button;
+    cfg = UITree_ChatButton(c);
     UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
 
     {
@@ -1724,8 +1724,8 @@ emit_rs_inv_slots(
     layout.rows = c->u.rs_inv.rows;
     layout.margin_x = c->u.rs_inv.margin_x;
     layout.margin_y = c->u.rs_inv.margin_y;
-    layout.offset_x = c->u.rs_inv.inv_slot_offset_x;
-    layout.offset_y = c->u.rs_inv.inv_slot_offset_y;
+    layout.offset_x = UITree_InvSlots(c)->offset_x;
+    layout.offset_y = UITree_InvSlots(c)->offset_y;
     slot_limit = UITree_InvViewGridSlotLimit(&layout);
 
     /* Armed slot press/drag (reference TYPE_INV draw: only the objDragSlot
@@ -1805,8 +1805,8 @@ emit_rs_inv_slots(
         }
         else if( slot < UI_INV_SLOT_OFFSET_MAX )
         {
-            int bg_scene = c->u.rs_inv.inv_slot_bg_scene_id[slot];
-            int bg_atlas = c->u.rs_inv.inv_slot_bg_atlas_index[slot];
+            int bg_scene = UITree_InvSlots(c)->bg_scene_id[slot];
+            int bg_atlas = UITree_InvSlots(c)->bg_atlas_index[slot];
             if( bg_scene < 0 )
                 continue;
             scene_id = bg_scene;
@@ -2705,12 +2705,13 @@ emit_debug_overlay_node(
     desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
     desc.node_index = idx;
     desc.component_id = c->component_id;
-    desc.debug_font_id[TORIRS_CHROME_FONT_SMALL] = c->u.debug_overlay.font_id_small;
-    desc.debug_font_id[TORIRS_CHROME_FONT_MENU] = c->u.debug_overlay.font_id_menu;
-    desc.debug_font_id[TORIRS_CHROME_FONT_BODY] = c->u.debug_overlay.font_id_body;
-    desc.debug_skin_scene_id = c->u.debug_overlay.skin_scene_id;
+    struct UITreeDebugOverlayConfig const* overlay = UITree_DebugOverlay(c);
+    desc.debug_font_id[TORIRS_CHROME_FONT_SMALL] = overlay->font_id_small;
+    desc.debug_font_id[TORIRS_CHROME_FONT_MENU] = overlay->font_id_menu;
+    desc.debug_font_id[TORIRS_CHROME_FONT_BODY] = overlay->font_id_body;
+    desc.debug_skin_scene_id = overlay->skin_scene_id;
     for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
-        desc.debug_skin_atlas[i] = c->u.debug_overlay.skin_atlas[i];
+        desc.debug_skin_atlas[i] = overlay->skin_atlas[i];
     /* Screen-space, not laid out: every prim already carries absolute
      * pixels and its own scissor box. The desc clip is the canvas. */
     desc.clip.x = 0;

@@ -5130,7 +5130,9 @@ rs_cs2_grow_transmit_hooks(
     if( count < *cap )
         return;
 
-    next = *cap ? *cap * 2 : 8;
+    /* 3/2 rather than doubling: the array is never released, so the overshoot
+     * of the last growth is held for the session. */
+    next = *cap ? *cap + *cap / 2 : 8;
     if( next > max )
         next = max;
     grown = realloc(*hooks, (size_t)next * elem);

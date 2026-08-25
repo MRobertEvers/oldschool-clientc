@@ -196,6 +196,23 @@ struct World_LocChange
     int end_time;
 };
 
+/**
+ * Every distinct (name, ops) pair the loaded scene shows, owned by the world.
+ *
+ * A flat array with a precomputed hash per entry, scanned linearly. The scene
+ * settles at a few hundred entries against tens of thousands of interns, all
+ * of them at build time, so the scan costs less than the hash table that would
+ * replace it -- and unlike a table it hands back a pointer that stays valid
+ * for the life of the world, which is the whole point.
+ */
+struct World_SceneryInfoTable
+{
+    struct WorldEntity_SceneryInfo** entries;
+    uint32_t* hashes;
+    int count;
+    int capacity;
+};
+
 struct World
 {
     int _base_tile_x;
@@ -242,6 +259,9 @@ struct World
     struct ToriRS_FeatureTable const* features;
 
     struct World_EntityList entities;
+
+    /** Shared loc labels; see World_SceneryInfoIntern. */
+    struct World_SceneryInfoTable scenery_info;
 
     struct World_Event events[WORLD_MAX_EVENTS];
     int event_count;
@@ -707,6 +727,19 @@ World_PluginObjectSetActive(
  * cannot shift one -- the app re-materialises them against the new origin. */
 void
 World_PluginObjectClear(struct World* world);
+
+/**
+ * The world's shared copy of `probe`'s name and ops, adding it if new.
+ *
+ * `probe` is a scratch block the caller fills; the returned pointer belongs to
+ * the world and outlives the call, but not World_Free. Zero the scratch before
+ * filling it -- entries are compared byte for byte, so trailing garbage past a
+ * short name would split one label into two.
+ */
+struct WorldEntity_SceneryInfo const*
+World_SceneryInfoIntern(
+    struct World* world,
+    struct WorldEntity_SceneryInfo const* probe);
 
 int
 World_SceneryRegister(

@@ -125,8 +125,9 @@ dat2_clientscript_id_by_name_hash(struct CacheProvider* provider, int name_hash)
         assert(bc->clientscript_names);
         for( int i = 0; i < table->archive_count; i++ )
         {
-            bc->clientscript_names[i * 2 + 0] = table->archives[i].identifier;
-            bc->clientscript_names[i * 2 + 1] = table->archives[i].index;
+            bc->clientscript_names[i * 2 + 0] = RSCache_ReferenceTableIdentifier(table, i);
+            bc->clientscript_names[i * 2 + 1] =
+                RSCache_ReferenceTableHasArchive(table, i) ? i : -1;
         }
         bc->clientscript_name_count = table->archive_count;
         qsort(

@@ -657,8 +657,8 @@ test_scenery(void)
 
     struct WorldEntity_Scenery* sc = World_SceneryGetByElementId(world, 70);
     TEST_ASSERT(sc && sc->loc_id == 900, "get by element");
-    TEST_ASSERT(strcmp(sc->name, "Door") == 0, "name");
-    TEST_ASSERT(strcmp(sc->actions[0].name, "Examine") == 0, "action0");
+    TEST_ASSERT(strcmp(sc->info->name, "Door") == 0, "name");
+    TEST_ASSERT(strcmp(sc->info->actions[0].name, "Examine") == 0, "action0");
     TEST_ASSERT(World_SceneryGetByElementId(world, 999) == NULL, "miss");
 
     World_RegisterSceneryPick(world, 70, 900);

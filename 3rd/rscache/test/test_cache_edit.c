@@ -99,12 +99,12 @@ write_seed_cache(const char* directory)
     if( !table.archives )
         return false;
     for( int i = 0; i < table.archive_count; i++ )
-        table.archives[i].index = -1;
+        RSCache_ReferenceTableSetHasArchive(&table, i, false);
 
-    table.archives[archive_id].index = archive_id;
+    RSCache_ReferenceTableSetHasArchive(&table, archive_id, true);
     table.archives[archive_id].crc = crc;
-    table.archives[archive_id].compressed = compressed;
-    table.archives[archive_id].uncompressed = uncompressed;
+    RSCache_ReferenceTableCompressed(&table, archive_id) = compressed;
+    RSCache_ReferenceTableUncompressed(&table, archive_id) = uncompressed;
     table.archives[archive_id].version = 1;
     table.archives[archive_id].children.count = 1;
     table.archives[archive_id].children.files =

@@ -202,7 +202,9 @@ UITree_FrameSlotIndex(
     switch( slot )
     {
     case UITREE_FRAME_SLOT_CHAT_BUTTONS:
-        return node->type == UIELEM_BUILTIN_CHAT_BUTTON ? (int)node->u.chat_button.filter : -1;
+        return node->type == UIELEM_BUILTIN_CHAT_BUTTON
+                   ? (int)UITree_ChatButton(node)->filter
+                   : -1;
     case UITREE_FRAME_SLOT_SIDEBAR:
         return node->type == UIELEM_BUILTIN_SIDEBAR ? node->u.sidebar.tabno : -1;
     default:

@@ -1411,7 +1411,7 @@ interact_click(
             /* Reported, not cycled. @see UITreeInteractOut::chat_button_filter
              * -- a plugin layout may own this rectangle, and a filter cycled
              * here is one nothing downstream can put back. */
-            out->chat_button_filter = (int)hit_c->u.chat_button.filter;
+            out->chat_button_filter = (int)UITree_ChatButton(hit_c)->filter;
             out->need_redraw = 1;
             return;
         }

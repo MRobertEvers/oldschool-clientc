@@ -92,10 +92,33 @@ struct MapEntry_Texture
 #define DAT2_INTERFACE_MAP_CAPACITY 512
 #define DAT2_CLIENTSCRIPT_MAP_CAPACITY 4096
 #define DAT2_CONFIG_MAP_CAPACITY 4096
-/* Split-group LRU budget. The loc group is the largest single entry (a few MB
- * on an osrs230 cache), so this holds it plus the other config groups a boot
- * interleaves with it, and evicts rather than accumulating all of them. */
-#define DAT2_GROUP_CACHE_BUDGET ((size_t)24 * 1024 * 1024)
+/* Split-group LRU budget, swept against tracked peak on the soft3d boot: 24 MB
+ * cost 108.20, 8 MB 108.23, 4 MB 105.63, 2 MB 107.35. 4 MB is the knee.
+ *
+ * 24 MB never bound -- the census shows the cache topping out around 4 MB with
+ * a 98.9% hit rate -- so the budget was only ever an accumulation ceiling. And
+ * 2 MB is worse than 4, not better: Dat2GroupCache_Put splits the new group
+ * before it evicts, so a put transiently holds the whole cache plus the new
+ * blob, and a budget below the largest live group pays that twice over. */
+#define DAT2_GROUP_CACHE_BUDGET ((size_t)4 * 1024 * 1024)
+
+/* DAT2_GROUP_CACHE_MB overrides the budget so it can be swept without a
+ * rebuild. An unparseable or out-of-range value falls back to the compiled
+ * default rather than asserting: this reads a user's environment, not a
+ * caller's argument. */
+static size_t
+dat2_group_cache_budget(void)
+{
+    char const* env = getenv("DAT2_GROUP_CACHE_MB");
+    long mb;
+
+    if( !env || env[0] == '\0' )
+        return DAT2_GROUP_CACHE_BUDGET;
+    mb = strtol(env, NULL, 10);
+    if( mb <= 0 || mb > 4096 )
+        return DAT2_GROUP_CACHE_BUDGET;
+    return (size_t)mb * 1024 * 1024;
+}
 
 static size_t
 dat2_hmap_buffer_bytes(
@@ -290,7 +313,8 @@ dat2_buildcache_new(void)
     /* Enough for the handful of config groups a boot reads back to back (the
      * loc group alone is several MB) without letting every table stay resident
      * for the whole session. */
-    dat2_buildcache->group_cache = Dat2GroupCache_New(DAT2_GROUP_CACHE_BUDGET);
+    dat2_buildcache->group_cache =
+        Dat2GroupCache_New(dat2_group_cache_budget());
     dat2_buildcache->models_hmap = dat2_buildcache_map_new(
         dat2_buildcache, sizeof(struct MapEntry_CacheModel), DAT2_MODEL_MAP_CAPACITY);
     dat2_buildcache->componentpacks_hmap = dat2_buildcache_map_new(
