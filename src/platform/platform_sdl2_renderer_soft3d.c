@@ -900,6 +900,25 @@ draw_trace_min_vertices(void)
     return cached;
 }
 
+/* See the two arms in soft3d_draw_model. Read once; off is a predicted branch. */
+static int
+soft3d_abl_noraster(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_ABL_NORASTER") ? 1 : 0;
+    return armed;
+}
+
+static int
+soft3d_abl_nomodels(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_ABL_NOMODELS") ? 1 : 0;
+    return armed;
+}
+
 static void
 soft3d_draw_model(
     struct ToriRS_Soft3D* soft,
@@ -915,6 +934,16 @@ soft3d_draw_model(
     if( !soft->has_3d )
         return;
     if( cmd->model.kind == TORIDRAWMK_NONE )
+        return;
+
+    /* ABLATION (TORIRS_ABL_NOMODELS=1, measurement only): drop the whole 3D
+     * model pass -- projection, hittest, face sort and raster alike.
+     *
+     * With TORIRS_ABL_NORASTER below, this decomposes `render` by deletion
+     * rather than by instrumentation. TORIRS_PERF is ~69% of the frame on this
+     * box, so its own split of r_project / r_sort / r_raster cannot be read as
+     * absolute time; three runs of a build that simply does less can. */
+    if( soft3d_abl_nomodels() )
         return;
 
     if( cmd->animation && cmd->element_id >= 0 )
@@ -1021,6 +1050,13 @@ soft3d_draw_model(
             return;
         }
     }
+    /* ABLATION (TORIRS_ABL_NORASTER=1, measurement only): keep the projection,
+     * the hittest and the face sort; write no pixels. The difference against
+     * the baseline is what rasterisation actually costs, and the difference
+     * against TORIRS_ABL_NOMODELS is what deciding-what-to-draw costs. */
+    if( soft3d_abl_noraster() )
+        return;
+
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_RASTER)
     {
         ToriDraw_RenderModel3Raster(
@@ -1416,6 +1452,7 @@ soft3d_abl_nochrome(void)
         armed = getenv("TORIRS_ABL_NOCHROME") ? 1 : 0;
     return armed;
 }
+
 
 /* True for the command kinds that put pixels in the framebuffer, as opposed to
  * state transitions and resource loads. Kept beside the dispatcher's switch so

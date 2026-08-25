@@ -178,3 +178,76 @@ The honest summary: we are losing to a client running on the **non-optimising
 C1 JIT**, using an inner loop we have already beaten, which means the loss is in
 how much work we hand that loop — and the next hour of measurement decides
 whether that is geometry or per-face overhead.
+
+---
+
+## 8. Experiment 1 result — measured, and it moves the target twice
+
+Run 2026-08-25, one binary (`torirs_e1.exe`), three arms back to back, only the
+environment differing. Ablation by deletion, no profiler in the frame.
+
+| arm | % of one core | user / 30 s |
+|---|---|---|
+| baseline | **73.1 %** | 20.05 s |
+| `TORIRS_ABL_NORASTER=1` (project + sort, no pixels) | **38.6 %** | 9.77 s |
+| `TORIRS_ABL_NOMODELS=1` (no 3D at all) | **32.1 %** | 7.94 s |
+
+Decomposition of the 73.1:
+
+| component | points | share of frame |
+|---|---|---|
+| **model rasterisation** | **34.5** | **47 %** |
+| projection + face sort + model dispatch | 6.5 | 9 % |
+| everything that is not the 3D pass | 32.1 | 44 % |
+
+Baseline drifted 65.9 -> 73.1 between sessions on the same build family (scene
+population; the spread is about +-3 points and this pair is wider). The three
+arms above ran consecutively, so their *differences* are sound even though the
+absolute baseline is not comparable across sessions.
+
+### 8.1 This overturns the TORIRS_PERF split
+
+`TORIRS_PERF` put rasterisation at 53 % of attributed model work and
+projection + sort at 47 % — near parity. By deletion it is **34.5 against 6.5,
+a factor of 5.3**. `r_project` and `r_sort` wrap small per-model work, so the
+fixed per-scope clock cost inflates them far more than it inflates `r_raster`.
+This is the same trap [[xp-perf-instrumentation-dominates-frame]] records; it
+applies *within* the stage table, not only to its total.
+
+**Projection and sorting are not a target.** 6.5 points, and the 141
+sort-empty models per frame are a slice of that 6.5, not of the 30-point gap.
+Item 1 of section 3 in the plan is withdrawn.
+
+### 8.2 There are two gaps, not one
+
+Java's **entire** frame is 35.5 % of a core. Ours splits into two pieces that
+are each about that size:
+
+* **Rasterisation alone: 34.5 points.** Our raster costs what Java's whole
+  client costs — while running an inner loop that is provably better than
+  theirs per pixel (section 0 of the plan). At 6,682 faces and ~6.9 ms of raster
+  per frame that is roughly **2,000 cycles per face** on a ~2 GHz P4, which no
+  22-pixel triangle should cost. Either we write far more pixels than the
+  viewport implies (a painter's algorithm has unbounded overdraw, and we run one
+  for all but the opted-in z-buffered models), or the per-triangle and
+  per-scanline prologue dwarfs the fill. **Measuring pixels-written per frame is
+  the next decisive number.**
+* **Everything that is not 3D: 32.1 points.** With the entire model pass
+  deleted we still burn nearly Java's whole-frame budget. The chrome raster
+  ablation already accounted for only 4.3 of it, and the clear and the present
+  are perhaps 5 more between them. That leaves roughly **20 points in app
+  logic, CS2, plugins, networking and input** — a target nobody has looked at,
+  and the Java client has no plugin layer at all.
+
+### 8.3 Revised order
+
+| # | Work | Why |
+|---|---|---|
+| 1 | **Pixel census**: pixels written per frame, and the span-length distribution | Decides whether the 34.5 points is overdraw or per-triangle setup. `TORIDRAW_SPAN_CENSUS` exists; note the makefile withdraws the asm kernels from a census build, which is fine for counting. |
+| 2 | **Plugins A/B** — run with all 8 disabled | Bounds the ~20 non-3D points; two minutes, one env var |
+| 3 | Whichever of overdraw / per-triangle setup the census names | The 34.5 points |
+| 4 | Damaged-rect present | Most of the kernel delta |
+| 5 | Chrome damage gating on PR #49 | 4.3 points |
+
+Withdrawn from the earlier ordering: projection/sort work (8.1), and matching
+the Java inner loop (section 0 — ours is already better).
