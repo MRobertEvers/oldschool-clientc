@@ -38,6 +38,8 @@
 #include <assert.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -410,6 +412,62 @@ vessel_quantize(int fine)
     return ((fine + TORIRSSERVER_VESSEL_FINE_QUANTUM / 2) >> 5) << 5;
 }
 
+/**
+ * Per-tick mover trace, off unless TORIRS_VESSEL_DEBUG is set.
+ *
+ * The mover's failure modes are all silent: a blocked step parks the hull and
+ * every later tick returns at the IDLE guard, so "sailed once and stopped" and
+ * "never ticked at all" look identical from outside. This names which.
+ */
+static int
+vessel_debug_enabled(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+        cached = getenv("TORIRS_VESSEL_DEBUG") ? 1 : 0;
+    return cached;
+}
+
+/** Re-walk the footprint samples of a refused step and name each tile's flag
+ *  word. "Blocked" alone cannot distinguish a hull that left the stamped water
+ *  patch from one still inside it that a loc bit refuses. */
+static void
+vessel_debug_dump_footprint(
+    const struct ToriRSServerVessel* vessel,
+    int fine_x,
+    int fine_z,
+    int angle)
+{
+    int half_x = vessel->size_x_tiles * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2);
+    int half_z = vessel->size_z_tiles * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2);
+    int lx;
+    int lz;
+    int rx;
+    int rz;
+
+    for( lz = -half_z + 32; lz <= half_z - 32; lz += 64 )
+        for( lx = -half_x + 32; lx <= half_x - 32; lx += 64 )
+        {
+            int tx;
+            int tz;
+
+            vessel_rotate_forward(angle, lx, lz, &rx, &rz);
+            tx = (fine_x + rx) >> 7;
+            tz = (fine_z + rz) >> 7;
+            fprintf(
+                stderr,
+                "vessel:   sample local %d,%d -> tile %d,%d flags 0x%x %s\n",
+                lx,
+                lz,
+                tx,
+                tz,
+                (unsigned)ToriRSServer_SceneTileFlags(vessel->level, tx, tz),
+                ToriRSServer_VesselTileSailable(vessel->level, tx, tz) ? "ok"
+                                                                       : "REFUSED");
+        }
+}
+
 static void
 vessel_tick(struct ToriRSServerVessel* vessel)
 {
@@ -426,6 +484,20 @@ vessel_tick(struct ToriRSServerVessel* vessel)
     int step_z;
     int next_x;
     int next_z;
+
+    if( vessel_debug_enabled() )
+        fprintf(
+            stderr,
+            "vessel: tick state %d angle %d heading %d tier %d fine %d,%d tile %d,%d level %d\n",
+            (int)vessel->state,
+            vessel->angle,
+            vessel->heading,
+            vessel->speed_tier,
+            vessel->fine_x,
+            vessel->fine_z,
+            vessel->fine_x >> 7,
+            vessel->fine_z >> 7,
+            vessel->level);
 
     if( vessel->state == TORIRSSERVER_VESSEL_IDLE )
         return;
@@ -495,12 +567,35 @@ vessel_tick(struct ToriRSServerVessel* vessel)
     vessel->residual_z = want_z - step_z;
 
     if( step_x == 0 && step_z == 0 )
+    {
+        if( vessel_debug_enabled() )
+            fprintf(
+                stderr,
+                "vessel: no step (ideal %d,%d residual %d,%d)\n",
+                ideal_x,
+                ideal_z,
+                vessel->residual_x,
+                vessel->residual_z);
         return;
+    }
 
     next_x = vessel->fine_x + step_x;
     next_z = vessel->fine_z + step_z;
     if( !vessel_footprint_sailable(vessel, next_x, next_z, vessel->angle) )
     {
+        if( vessel_debug_enabled() )
+            fprintf(
+                stderr,
+                "vessel: BLOCKED step %d,%d from tile %d,%d to tile %d,%d level %d -> parked\n",
+                step_x,
+                step_z,
+                vessel->fine_x >> 7,
+                vessel->fine_z >> 7,
+                next_x >> 7,
+                next_z >> 7,
+                vessel->level);
+        if( vessel_debug_enabled() )
+            vessel_debug_dump_footprint(vessel, next_x, next_z, vessel->angle);
         /* A blocked step stops the boat: whole step or none, no sliding. */
         ToriRSServer_VesselStop(vessel);
         return;

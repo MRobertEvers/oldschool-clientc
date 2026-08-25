@@ -778,6 +778,12 @@ struct App
      * The deob's scene-mode flip and deck-height focus are what will read it.
      */
     int aboard_view;
+
+    /** `TORIRS_WEV_DEBUG=1` latch: the last `aboard_view` a trace line named,
+     *  so the per-tick routing pass prints only when the answer changes.
+     *  Seeded to WORLDVIEW_ROOT by App_Init, which is also the value the first
+     *  routing pass computes, so a client that boards nothing never prints. */
+    int dbg_aboard_view;
     /**
      * Plane the last SET_ACTIVE_WORLD said the addressed view draws (the deob
      * snapshots the active WorldView's plane beside the cursor). Nothing

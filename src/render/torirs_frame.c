@@ -1994,6 +1994,7 @@ frame_view_push(
     xf = &frame->views[view_id];
 
     frame->view_depth = depth + 1;
+    frame->dbg_view_traced = false;
     if( !xf->live )
     {
         /* The painter descended into a view the App never bound this frame.
@@ -2185,6 +2186,31 @@ try_emit_world_draw_model(
         rel.x -= frame->cam_x;
         rel.y -= frame->cam_y;
         rel.z -= frame->cam_z;
+
+        /* The first draw inside each descent, in all three spaces. "The
+         * transform looks sane" and "the geometry lands in front of the
+         * camera" are different claims, and only this one answers the second:
+         * a deck-local position that was never deck-local, or a `rel` a
+         * hundred thousand units off, both read as "nothing composited". */
+        if( frame->view_depth > 0 && !frame->dbg_view_traced && frame_wev_debug_enabled() )
+        {
+            frame->dbg_view_traced = true;
+            fprintf(
+                stderr,
+                "wev: DRAW view %d element %d local %d,%d,%d -> abs %d,%d,%d "
+                "-> rel %d,%d,%d\n",
+                frame->view_stack[frame->view_depth].view_id,
+                element_id,
+                el->world_position.x,
+                el->world_position.y,
+                el->world_position.z,
+                abs_pos.x,
+                abs_pos.y,
+                abs_pos.z,
+                rel.x,
+                rel.y,
+                rel.z);
+        }
 
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
             emit_loc_debug(frame, el, &rel, element_id);

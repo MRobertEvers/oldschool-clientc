@@ -36,9 +36,11 @@
  * units (SAILING.md §5.5). */
 #define WEV_ORIENTATIONS 16
 
-/** The deob bakes each footprint box at three inflation margins (fine units;
- * SAILING.md §5.4 "margin variants 256/334/362"). Index with WEV_MARGIN_*. */
-#define WEV_FOOTPRINT_MARGINS 3
+/** The deob bakes the footprint box four times (fine units): once with no
+ * inflation at all (class387.field4867 — the hull's true extent, and the one
+ * the accessors expose) and then at the three margins 256/334/362
+ * (class387.field4861[0..2]). Index 0 is the un-inflated box. */
+#define WEV_FOOTPRINT_MARGINS 4
 
 /** Default flattened-render HSL when opcode 27 is absent — which is every
  * entry of cache.osrs239 (h 38, s 2, l 84; SAILING.md §5.3). */
@@ -57,16 +59,19 @@ struct WevConfig
     int pivot_x;
     int pivot_z;
     /**
-     * Footprint bounds, ops 6..9 as SIGNED u16s (op 7 decodes to -256 in
-     * cache.osrs239). The doc's w/h vs offset assignment is provisional —
-     * op 6 never occurs in this cache and a boardable ship carries
-     * off 0/0 — so the four are stored verbatim and the corner bake below
-     * names its interpretation; revisit against the deob in C3/C4.
+     * Footprint bounds. Settled against the deob (class387 builds
+     * `new class575(op8, op9, op6, op7)` and class556 prints that constructor
+     * as "%dx%d (offset %d,%d)"): 8/9 are the box SIZE, read unsigned, and
+     * 6/7 are its OFFSET, read signed. The sizes are exact tile multiples in
+     * cache.osrs239 and they name the hull tiers — 128x384 is the 1x3 skiff
+     * (#1), 256x640 the 2x5 sloop (#2, #10, #11), 384x1280 the 3x10 class
+     * (#3, #12–#14), 384x1152 the 3x9 named ships (#5–#8). "The Zenith" (#9)
+     * genuinely carries 0x0: its extent comes off the wire, not the config.
      */
-    int bounds_w;     /* op 6 */
-    int bounds_h;     /* op 7 */
-    int bounds_off_x; /* op 8 */
-    int bounds_off_z; /* op 9 */
+    int bounds_w;     /* op 8, u16 */
+    int bounds_h;     /* op 9, u16 */
+    int bounds_off_x; /* op 6, i16 */
+    int bounds_off_z; /* op 7, i16 (-256 on the ten-tile hulls) */
 
     char* name; /* op 12; heap, NULL when absent */
     /** Op 14: a parameterless flag of unknown meaning (present on the five
@@ -91,10 +96,10 @@ struct WevConfig
      * oriented box in fine units relative to the entity position. Corner
      * order: (-x,-z), (+x,-z), (+x,+z), (-x,+z) before rotation.
      *
-     * Bake interpretation (provisional with the bounds fields above): the box
-     * is centered at (bounds_off_x, bounds_off_z) with half-extents
-     * (|bounds_w|/2 + margin, |bounds_h|/2 + margin), rotated by the bucket's
-     * angle (bucket * 128 units of 2048).
+     * The box is centered at (bounds_off_x, bounds_off_z) with half-extents
+     * (bounds_w/2 + margin, bounds_h/2 + margin), rotated by the bucket's
+     * angle (bucket * 128 units of 2048). Margin 0 is 0, so index 0 is the
+     * hull's true extent.
      */
     int corner_x[WEV_FOOTPRINT_MARGINS][WEV_ORIENTATIONS][4];
     int corner_z[WEV_FOOTPRINT_MARGINS][WEV_ORIENTATIONS][4];
@@ -414,11 +419,19 @@ Wev_Interpolate(
  * downstream as scenery sorting in front of a hull it is behind.
  *
  * `wev->config` must be present — "does this entity have a config?" is the
- * caller's question. `margin_index` selects one of the baked inflation
- * variants; index 0 is the tightest and is what the painter wants. Note even
- * that one carries the deob's 256-unit inflation, so the box is conservative
- * by ~2 tiles a side rather than exact; tightening it needs an un-inflated
- * bake, which C4 can add if the over-coverage costs sorting accuracy.
+ * caller's question. `margin_index` selects an inflation variant; index 0 is
+ * the un-inflated box and is what the painter wants.
+ *
+ * Evaluated at the entity's EXACT angle, not at one of the 16 baked buckets.
+ * The buckets exist because the deob queries the box's four corners
+ * (class570.method12440 rounds to `((angle + 64) & 0x7ff) / 128`), and an
+ * inflated box swallows the up-to-11.25-degree residual. The painter's
+ * footprint has no such slack once margin 0 is the true box: a hull halfway
+ * between two buckets — which is every frame of a turn, since the
+ * interpolator sweeps the angle continuously — would be under-covered by a
+ * tile, and an under-covered footprint is exactly how the parent's water gets
+ * to sort in front of the hull. The rotated AABB is closed-form, so this
+ * takes the exact answer rather than the nearest bucket's.
  *
  * `out_min_tile_*` is the MIN corner, not the centre, matching what
  * painter_add_world_entity expects.

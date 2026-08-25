@@ -9412,13 +9412,14 @@ app_wev_register_pseudo_locs(
             fprintf(
                 stderr,
                 "wev: view %d entity %d PAINTED at scene tile %d,%d level %d "
-                "(config plane %d) (fine %d,%d "
+                "(parent_level %d, config plane %d) (fine %d,%d "
                 "angle %d)\n",
                 view_id,
                 id,
                 gx,
                 gz,
                 level,
+                WorldviewRegistry_Get(&app->worldviews, id)->parent_level,
                 wev->config ? wev->config->plane : -1,
                 wev->x,
                 wev->z,
@@ -9658,6 +9659,41 @@ app_wev_deck_box(
 }
 
 /**
+ * The plane, inside a world entity's OWN world, that its deck is authored at.
+ *
+ * This is `WevConfig.plane`, and it is NOT `Worldview.parent_level`: the
+ * parent level is the level the hull floats on out in the carrier's world,
+ * whereas an actor aboard stands on the deck, over in the staging region the
+ * deck was authored in. Both the height sample and the painter registration
+ * for a deck actor have to use this one.
+ *
+ * Sampling level 0 instead is what put a player on the BOTTOM of the hull:
+ * config 9's ship is authored with the lower deck at plane 0, the railed main
+ * deck at plane 1 and the quarterdeck at plane 2, so a level-0 actor stood
+ * below the planking with the ship's own geometry drawn over them.
+ */
+static int
+app_wev_deck_level(
+    struct App* app,
+    int view_id)
+{
+    struct Wev const* wev;
+    int level;
+
+    assert(app);
+    assert(Wevs_IsLive(&app->wevs, view_id));
+
+    wev = Wevs_Get(&app->wevs, view_id);
+    assert(wev->config);
+    level = wev->config->plane;
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    return level;
+}
+
+/**
  * Membership, the deob's geometric rule (SAILING_PLAN C5.1): descend the view
  * tree from the root as long as some entity's base rectangle contains the
  * point, carrying the point into each deck's space as we go. The result is the
@@ -9812,7 +9848,25 @@ app_wev_route_actors(struct App* app)
          * position, which the server keeps projected onto the hull — but the
          * aboard scene-mode flip and the deck-height focus both key off it. */
         if( app->esync.local_pid >= 0 && player->server_pid == app->esync.local_pid )
+        {
             app->aboard_view = view_id;
+            /* Only on a change. This runs every tick for every player, and
+             * "still where they were" is the answer on all but the one tick a
+             * boarding capture is actually about. */
+            if( app_wev_debug_enabled() && app->dbg_aboard_view != view_id )
+            {
+                app->dbg_aboard_view = view_id;
+                fprintf(
+                    stderr,
+                    "wev: local player ABOARD view %d at view-local %d,%d "
+                    "(root %d,%d)\n",
+                    view_id,
+                    x,
+                    z,
+                    (int)player->draw_position.x,
+                    (int)player->draw_position.z);
+            }
+        }
     }
 
     pool = &world->entities.npc;
@@ -9850,6 +9904,7 @@ app_wev_register_deck_actors(
     struct World* owner;
     struct World_EntityPool* pool;
     int view_id;
+    int deck_level;
 
     assert(app);
     assert(world);
@@ -9863,6 +9918,7 @@ app_wev_register_deck_actors(
     owner = app->world;
     if( !owner )
         return;
+    deck_level = app_wev_deck_level(app, view_id);
 
     for( int pass = 0; pass < 4; pass++ )
     {
@@ -9889,7 +9945,7 @@ app_wev_register_deck_actors(
                 World_RegisterForeignActor(
                     world,
                     player->element_id,
-                    /*level=*/0,
+                    deck_level,
                     player->view_placement.x,
                     player->view_placement.z,
                     WORLD_MOVER_PAINTER_PADDING,
@@ -9916,7 +9972,7 @@ app_wev_register_deck_actors(
                 World_RegisterForeignActor(
                     world,
                     npc->element_id,
-                    /*level=*/0,
+                    deck_level,
                     npc->view_placement.x,
                     npc->view_placement.z,
                     WORLD_MOVER_PAINTER_PADDING + (size - 1) * 64,
@@ -14821,8 +14877,9 @@ app_logic_tick(struct App* app)
  * C3's descent transform is what puts it back in root space at emit time,
  * composing the hull's yaw onto the element's. Writing root coordinates here
  * instead would rotate the actor around the boat twice. Height comes from the
- * DECK's heightmap, so an actor stands on the deck rather than on the sea
- * floor beneath it.
+ * DECK's heightmap, at the deck's own plane (@see app_wev_deck_level), so an
+ * actor stands on the planking rather than on the sea floor beneath it — or,
+ * as level 0 gave, inside the hull under the planking.
  */
 static int
 app_world_sync_placement(
@@ -14857,7 +14914,11 @@ app_world_sync_placement(
     /* The element's yaw is composed with the hull's on the way out, so what
      * goes on the element is the actor's heading RELATIVE to the deck. */
     deck_yaw = (yaw - wev->angle) & 0x7ff;
-    deck_y = app_world_height_in(view->world, placement->x, placement->z, /*level=*/0);
+    deck_y = app_world_height_in(
+        view->world,
+        placement->x,
+        placement->z,
+        app_wev_deck_level(app, placement->view_id));
     ToriDraw_SceneElementSetPosition(
         app->scene, element_id, placement->x, deck_y, placement->z, deck_yaw);
     return 1;

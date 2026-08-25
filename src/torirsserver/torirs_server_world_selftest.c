@@ -38042,6 +38042,39 @@ ToriRSServer_WorldSelftest(void)
                            !ToriRSServer_VesselTileSailable(0, patch_x, patch_z + 9),
                        "while the ground past its edge does not");
 
+        /*
+         * The distinction ::vesselspawn's water stamp got wrong. Every tile
+         * the patch above covers started at flag zero, so there OR-ing FLOOR
+         * in and REPLACING the word are the same edit — which is exactly why
+         * this fixture never caught it. Stamp the same lake over ground that
+         * already carries a loc and they part company: FLOOR present *with*
+         * LOC present is blocked for every mover, so the hull turned on the
+         * spot and parked on its second tick against a fence it had
+         * supposedly just flooded.
+         *
+         * The tile ends on COLL_FLAG_FLOOR alone, which is what the stamp
+         * above left it on, so the maneuvers below see the arena unchanged.
+         */
+        if( patch_found )
+        {
+            struct CollisionMap* cm = ToriRSServer_SceneCollision(0);
+            int fenced_x = patch_x + 6 - ToriRSServer_SceneBaseX();
+            int fenced_z = patch_z + 6 - ToriRSServer_SceneBaseZ();
+
+            collision_map_add_loc(cm, fenced_x, fenced_z, 1, 1, COLL_ANGLE_WEST, 0);
+            SELFTEST_CHECK(
+                !ToriRSServer_VesselTileSailable(0, patch_x + 6, patch_z + 6),
+                "a loc standing on a stamped water tile refuses the hull");
+            collision_map_add_floor(cm, fenced_x, fenced_z);
+            SELFTEST_CHECK(
+                !ToriRSServer_VesselTileSailable(0, patch_x + 6, patch_z + 6),
+                "and stamping FLOOR over it again does not clear the loc");
+            collision_map_set_water(cm, fenced_x, fenced_z);
+            SELFTEST_CHECK(
+                ToriRSServer_VesselTileSailable(0, patch_x + 6, patch_z + 6),
+                "only collision_map_set_water leaves open water behind");
+        }
+
         if( patch_found )
         {
             handle = ToriRSServer_VesselSpawn(srv, 1, 2, 3, 0, patch_x, patch_z, 0);

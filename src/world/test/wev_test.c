@@ -21,6 +21,11 @@
 #include "rscache.h"
 
 #include <assert.h>
+#include <math.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -395,20 +400,38 @@ test_frame_driver(void)
     nested = Wevs_Spawn(&wevs, 6, 5, &cfg, 1, 2000, 0, 0, 0, 0);
     Wev_ApplyMove(boat, 300, 0, 0, 0, false, 0.0);
 
+    /* The spawn record carries no level, so both start on the surface plane. */
+    TEST_WEV_ASSERT(boat->parent_level == 0, "spawn defaults to the surface plane");
+
+    /*
+     * What SET_ACTIVE_WORLD does when the rebuild lands: the level each hull
+     * floats on inside its PARENT world. Deliberately three distinct values --
+     * `cfg.plane` (1) is the plane the deck is authored at inside the entity's
+     * OWN staging world, and sampling the parent's terrain there is the bug
+     * these numbers exist to catch. Neither hull may read it, and neither may
+     * read a hardcoded 0 either.
+     */
+    boat->parent_level = 2;
+    nested->parent_level = 3;
+
     Wevs_Frame(&wevs, 15.0, test_height_fn, NULL);
     TEST_WEV_ASSERT(wevs.clock == 15.0, "clock advances by frame_cycles");
     /* Armed on this very frame, so the window is [14, 30] and one cycle of it
      * has passed: 1000 + 300/16 = 1018. */
     TEST_WEV_ASSERT(boat->x == 1018, "driver interpolates the boat");
-    TEST_WEV_ASSERT(boat->y == 1101, "boat height sampled against the ROOT view");
+    /* 1018/10 + 2*1000 + 0*100000 -- root view, the hull's own parent_level. */
+    TEST_WEV_ASSERT(boat->y == 2101, "boat height sampled against the ROOT view at parent_level");
     TEST_WEV_ASSERT(nested->x == 2000, "nested entity reached through the worklist");
-    TEST_WEV_ASSERT(nested->y == 501200, "nested height sampled against its carrier's view");
+    /* 2000/10 + 3*1000 + 5*100000 -- carrier's view, the nested parent_level. */
+    TEST_WEV_ASSERT(
+        nested->y == 503200, "nested height sampled against its carrier's view at parent_level");
 
     boat->y = -12345;
     Wevs_Frame(&wevs, 15.0, test_height_fn, NULL);
     TEST_WEV_ASSERT(wevs.clock == 30.0, "clock keeps accumulating");
     TEST_WEV_ASSERT(boat->x == 1300, "second frame lands the segment");
-    TEST_WEV_ASSERT(boat->y == 1130, "height re-sampled every frame, never interpolated");
+    /* 1300/10 + 2*1000: the level rides along, the height never interpolates. */
+    TEST_WEV_ASSERT(boat->y == 2130, "height re-sampled every frame, never interpolated");
 
     printf("ok - per-frame driver (worklist, clock, terrain hook)\n");
 }
@@ -426,8 +449,9 @@ test_config_decode_synthetic(void)
     uint8_t rec[] = {
         2,  1,                            /* plane */
         4,  0xFF, 0xC0,                   /* pivot_x = -64 */
-        6,  0x02, 0x00,                   /* bounds_w = 512 */
-        7,  0x01, 0x00,                   /* bounds_h = 256 */
+        7,  0xFF, 0x00,                   /* bounds_off_z = -256 (op 7 is signed) */
+        8,  0x02, 0x00,                   /* bounds_w = 512 (op 8 is the SIZE) */
+        9,  0x01, 0x00,                   /* bounds_h = 256 */
         12, 'S', 'h', 'i', 'p', 0,        /* name */
         14,                               /* parameterless flag */
         15, 'B', 'o', 'a', 'r', 'd', 0,   /* ops[0] */
@@ -441,8 +465,10 @@ test_config_decode_synthetic(void)
     TEST_WEV_ASSERT(cfg.id == 7, "id kept");
     TEST_WEV_ASSERT(cfg.plane == 1, "plane");
     TEST_WEV_ASSERT(cfg.pivot_x == -64, "pivot_x signed");
-    TEST_WEV_ASSERT(cfg.bounds_w == 512, "bounds_w");
-    TEST_WEV_ASSERT(cfg.bounds_h == 256, "bounds_h");
+    TEST_WEV_ASSERT(cfg.bounds_w == 512, "op 8 is the box width");
+    TEST_WEV_ASSERT(cfg.bounds_h == 256, "op 9 is the box height");
+    TEST_WEV_ASSERT(cfg.bounds_off_x == 0, "op 6 absent leaves the x offset 0");
+    TEST_WEV_ASSERT(cfg.bounds_off_z == -256, "op 7 is the z offset, signed");
     TEST_WEV_ASSERT(cfg.name && strcmp(cfg.name, "Ship") == 0, "name string");
     TEST_WEV_ASSERT(cfg.flag14, "op 14 is a flag, not a string");
     TEST_WEV_ASSERT(cfg.ops[0] && strcmp(cfg.ops[0], "Board") == 0, "op 15 is ops[0]");
@@ -451,17 +477,19 @@ test_config_decode_synthetic(void)
     TEST_WEV_ASSERT(cfg.click_mode == 2, "click mode defaults to 2");
     TEST_WEV_ASSERT(cfg.flat_hsl == WEV_FLAT_HSL_DEFAULT, "flat HSL default 39188");
 
-    /* Corner bake off those bounds: margin[0]=256 → half-extents 512 x 384.
-     * Bucket 0 is the unrotated box; bucket 4 (512 units = 90°) swaps the
-     * axes. Corner 2 is (+x,+z) pre-rotation. */
-    TEST_WEV_ASSERT(cfg.corner_x[0][0][0] == -512, "bucket 0 corner 0 x");
+    /* Corner bake off those bounds: margin[0] = 0, so index 0 is the box
+     * itself — half-extents 256 x 128, centred at (0,-256). Bucket 0 is the
+     * unrotated box; bucket 4 (512 units = 90°) swaps the axes. Corner 2 is
+     * (+x,+z) pre-rotation. */
+    TEST_WEV_ASSERT(cfg.corner_x[0][0][0] == -256, "bucket 0 corner 0 x");
     TEST_WEV_ASSERT(cfg.corner_z[0][0][0] == -384, "bucket 0 corner 0 z");
-    TEST_WEV_ASSERT(cfg.corner_x[0][0][2] == 512, "bucket 0 corner 2 x");
-    TEST_WEV_ASSERT(cfg.corner_z[0][0][2] == 384, "bucket 0 corner 2 z");
-    TEST_WEV_ASSERT(cfg.corner_x[0][4][2] == -384, "90-degree bucket rotates x");
-    TEST_WEV_ASSERT(cfg.corner_z[0][4][2] == 512, "90-degree bucket rotates z");
-    /* Largest margin inflates, never shrinks. */
-    TEST_WEV_ASSERT(cfg.corner_x[2][0][2] == 512 + (362 - 256), "margin 2 wider");
+    TEST_WEV_ASSERT(cfg.corner_x[0][0][2] == 256, "bucket 0 corner 2 x");
+    TEST_WEV_ASSERT(cfg.corner_z[0][0][2] == -128, "bucket 0 corner 2 z");
+    TEST_WEV_ASSERT(cfg.corner_x[0][4][2] == 128, "90-degree bucket rotates x");
+    TEST_WEV_ASSERT(cfg.corner_z[0][4][2] == 256, "90-degree bucket rotates z");
+    /* The three inflations sit above the true box, never below it. */
+    TEST_WEV_ASSERT(cfg.corner_x[1][0][2] == 256 + 256, "margin 1 inflates by 256");
+    TEST_WEV_ASSERT(cfg.corner_x[3][0][2] == 256 + 362, "margin 3 is the widest");
     WevConfig_FreeContents(&cfg);
 
     /* An unknown opcode stops the decode and reports where — and clears the
@@ -554,8 +582,8 @@ test_config_decode_cache(char const* cache_dir)
         if( id == 4 )
         {
             TEST_WEV_ASSERT(cfg.plane == 0, "wev 4 plane");
-            TEST_WEV_ASSERT(cfg.bounds_off_x == 512, "wev 4 off x");
-            TEST_WEV_ASSERT(cfg.bounds_off_z == 512, "wev 4 off z");
+            TEST_WEV_ASSERT(cfg.bounds_w == 512, "wev 4 is 4x4 tiles");
+            TEST_WEV_ASSERT(cfg.bounds_h == 512, "wev 4 is 4x4 tiles");
             TEST_WEV_ASSERT(cfg.click_mode == 1, "wev 4 explicit click mode");
             pinned++;
         }
@@ -566,8 +594,8 @@ test_config_decode_cache(char const* cache_dir)
             TEST_WEV_ASSERT(cfg.plane == 1, "wev 5 plane");
             TEST_WEV_ASSERT(cfg.pivot_x == -64, "wev 5 pivot x (signed u16)");
             TEST_WEV_ASSERT(cfg.pivot_z == 512, "wev 5 pivot z");
-            TEST_WEV_ASSERT(cfg.bounds_off_x == 384, "wev 5 off x");
-            TEST_WEV_ASSERT(cfg.bounds_off_z == 1152, "wev 5 off z");
+            TEST_WEV_ASSERT(cfg.bounds_w == 384, "wev 5 'Ship' is 3 tiles wide");
+            TEST_WEV_ASSERT(cfg.bounds_h == 1152, "wev 5 'Ship' is 9 tiles long");
             TEST_WEV_ASSERT(cfg.anim_id == 13428, "wev 5 anim");
             TEST_WEV_ASSERT(cfg.op26 == 7291, "wev 5 op26");
             pinned++;
@@ -579,13 +607,20 @@ test_config_decode_cache(char const* cache_dir)
             TEST_WEV_ASSERT(cfg.op24 == 1, "wev 9 op24");
             TEST_WEV_ASSERT(cfg.op26 == 7292, "wev 9 op26");
             TEST_WEV_ASSERT(cfg.pivot_z == 192, "wev 9 pivot z");
+            /* The one record with no box of its own: the Zenith's extent
+             * arrives on the wire, not in archive 72. */
+            TEST_WEV_ASSERT(cfg.bounds_w == 0, "wev 9 carries no footprint width");
+            TEST_WEV_ASSERT(cfg.bounds_h == 0, "wev 9 carries no footprint height");
             pinned++;
         }
         else if( id == 13 )
         {
             TEST_WEV_ASSERT(
                 cfg.name && strcmp(cfg.name, "The Bark of the Bight") == 0, "wev 13 name");
-            TEST_WEV_ASSERT(cfg.bounds_h == -256, "wev 13 negative bounds (0xff00)");
+            TEST_WEV_ASSERT(
+                cfg.bounds_off_z == -256, "wev 13 negative z offset (0xff00, signed)");
+            TEST_WEV_ASSERT(cfg.bounds_w == 384, "wev 13 is 3 tiles wide");
+            TEST_WEV_ASSERT(cfg.bounds_h == 1280, "wev 13 is 10 tiles long");
             TEST_WEV_ASSERT(cfg.ops[1] && strcmp(cfg.ops[1], "Attack") == 0, "wev 13 Attack op");
             TEST_WEV_ASSERT(cfg.category == 2439, "wev 13 category");
             TEST_WEV_ASSERT(cfg.op26 == 7290, "wev 13 op26");
@@ -613,11 +648,11 @@ test_footprint_tiles(void)
 {
     struct WevConfig cfg;
     struct Wev wev;
-    /* bounds 512 x 256, offsets 0; margin[0] = 256 => half-extents 512 x 384. */
+    /* bounds 512 x 256, offsets 0; margin[0] = 0 => half-extents 256 x 128. */
     uint8_t rec[] = {
         2, 0,             /* plane */
-        6, 0x02, 0x00,    /* bounds_w = 512 */
-        7, 0x01, 0x00,    /* bounds_h = 256 */
+        8, 0x02, 0x00,    /* bounds_w = 512 */
+        9, 0x01, 0x00,    /* bounds_h = 256 */
         0,
     };
     int mx;
@@ -632,17 +667,17 @@ test_footprint_tiles(void)
     memset(&wev, 0, sizeof(wev));
     wev.config = &cfg;
 
-    /* Unrotated: x spans [-512,512] -> tiles -4..4, z spans [-384,384] -> -3..3. */
+    /* Unrotated: x spans [-256,256] -> tiles -2..2, z spans [-128,128] -> -1..1. */
     wev.angle = 0;
     Wev_FootprintTiles(&wev, 0, &mx, &mz, &sx, &sz);
-    TEST_WEV_ASSERT(mx == -4 && sx == 9, "heading 0: 9 tiles across the long axis");
-    TEST_WEV_ASSERT(mz == -3 && sz == 7, "heading 0: 7 tiles across the short axis");
+    TEST_WEV_ASSERT(mx == -2 && sx == 5, "heading 0: 5 tiles across the long axis");
+    TEST_WEV_ASSERT(mz == -1 && sz == 3, "heading 0: 3 tiles across the short axis");
 
     /* 90 degrees (angle 512, bucket 4) swaps them. A fixed footprint cannot be
      * right at both headings, which is the whole point of recomputing it. */
     wev.angle = 512;
     Wev_FootprintTiles(&wev, 0, &mx, &mz, &sx, &sz);
-    TEST_WEV_ASSERT(sx == 7 && sz == 9, "heading 90: the axes swap");
+    TEST_WEV_ASSERT(sx == 3 && sz == 5, "heading 90: the axes swap");
 
     /* Off-axis is strictly wider than either: the diagonal reaches further. */
     {
@@ -651,8 +686,8 @@ test_footprint_tiles(void)
 
         wev.angle = 256;
         Wev_FootprintTiles(&wev, 0, &mx, &mz, &dx, &dz);
-        TEST_WEV_ASSERT(dx > 9, "heading 45 is wider in x than either axis-aligned pose");
-        TEST_WEV_ASSERT(dz > 9, "heading 45 is wider in z than either axis-aligned pose");
+        TEST_WEV_ASSERT(dx > 5, "heading 45 is wider in x than either axis-aligned pose");
+        TEST_WEV_ASSERT(dz > 5, "heading 45 is wider in z than either axis-aligned pose");
     }
 
     /* Every heading keeps the entity's own tile inside the box - the painter
@@ -670,15 +705,66 @@ test_footprint_tiles(void)
     wev.x = 128 * 5;
     wev.z = 128 * 2;
     Wev_FootprintTiles(&wev, 0, &mx, &mz, &sx, &sz);
-    TEST_WEV_ASSERT(mx == -4 + 5 && sx == 9, "a whole-tile move shifts x, not the extent");
-    TEST_WEV_ASSERT(mz == -3 + 2 && sz == 7, "a whole-tile move shifts z, not the extent");
+    TEST_WEV_ASSERT(mx == -2 + 5 && sx == 5, "a whole-tile move shifts x, not the extent");
+    TEST_WEV_ASSERT(mz == -1 + 2 && sz == 3, "a whole-tile move shifts z, not the extent");
 
     /* Negative absolute coordinates floor. >>7 gives -7 here; a /128 would
      * truncate to -6 and mis-seed the box by a whole tile. */
     wev.x = -128 * 3;
     wev.z = 0;
     Wev_FootprintTiles(&wev, 0, &mx, &mz, &sx, &sz);
-    TEST_WEV_ASSERT(mx == -7 && sx == 9, "a negative origin floors instead of truncating");
+    TEST_WEV_ASSERT(mx == -5 && sx == 5, "a negative origin floors instead of truncating");
+
+    /* Every heading, on and off the 16 baked buckets, actually COVERS the
+     * rotated hull. This is the property the painter needs: the pseudo-loc's
+     * rectangle has to contain the geometry the descent draws, or the parent's
+     * own tiles sort in front of it. Bucket-rounding used to be hidden by the
+     * 256-unit inflation; with margin 0 being the true box it is not, so the
+     * footprint is taken at the exact angle and this checks it. */
+    {
+        wev.x = 0;
+        wev.z = 0;
+        for( int a = 0; a < 2048; a += 7 )
+        {
+            double theta = (double)a * (2.0 * M_PI / 2048.0);
+            double sn = sin(theta);
+            double cs = cos(theta);
+            /* half-extents of the fixture's 512x256 box */
+            double hx = 256.0;
+            double hz = 128.0;
+            double bx[4] = { -hx, hx, hx, -hx };
+            double bz[4] = { -hz, -hz, hz, hz };
+
+            wev.angle = a;
+            Wev_FootprintTiles(&wev, 0, &mx, &mz, &sx, &sz);
+            for( int k = 0; k < 4; k++ )
+            {
+                int rx = (int)lround(bx[k] * cs - bz[k] * sn);
+                int rz = (int)lround(bx[k] * sn + bz[k] * cs);
+
+                TEST_WEV_ASSERT(
+                    (rx >> 7) >= mx && (rx >> 7) < mx + sx,
+                    "every heading covers the rotated hull in x");
+                TEST_WEV_ASSERT(
+                    (rz >> 7) >= mz && (rz >> 7) < mz + sz,
+                    "every heading covers the rotated hull in z");
+            }
+        }
+        /* The 16 buckets themselves, spelled out: a boat parked on a heading
+         * is the common case and none of them may under-cover. */
+        for( int b = 0; b < WEV_ORIENTATIONS; b++ )
+        {
+            wev.angle = b * 128;
+            Wev_FootprintTiles(&wev, 0, &mx, &mz, &sx, &sz);
+            TEST_WEV_ASSERT(sx >= 3 && sz >= 3, "each of the 16 buckets spans the hull");
+            /* Four of the sixteen are axis-aligned -- b 0/4/8/12, i.e. every
+             * 90 degrees -- and only those reproduce the unrotated 5+3. b 2 is
+             * 45 degrees, not an axis, and legitimately costs 6+6. */
+            TEST_WEV_ASSERT(
+                (b & 3) == 0 ? (sx + sz == 8) : (sx + sz >= 8),
+                "the four axis buckets give 5+3; off-axis is never smaller");
+        }
+    }
 
     /* A wider margin never shrinks the box. */
     {

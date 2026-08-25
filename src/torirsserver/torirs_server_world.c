@@ -6645,6 +6645,62 @@ cheat_npc_from_name(
 }
 
 /*
+ * The sailing boat template lives in map square m60_99 -- the off-map staging
+ * region this cache authors hulls in, at tiles x 3840..3903, z 6336..6399.
+ * A whole three-deck ship (`boatkit_deck_straight01`, `boatkit_shiphull_*`,
+ * `boatkit_mast_*`, `boatkit_helm01`, cannons, ladders) occupies zones
+ * (5..6, 5..7) on planes 0..2 -- the 16x24 tiles starting here.
+ *
+ * Found by decoding every `.jl2` in the content tree against the 400
+ * `sailing_boat_*` loc ids: of the 696 map squares that mention sailing at
+ * all, only m60_99 and m60_100 carry hulls, and only m60_99 carries an
+ * assembled ship rather than a rack of bare hull models. This is why the deck
+ * no longer comes from Lumbridge castle: there IS a boat-shaped map template,
+ * it is simply not on the playable grid.
+ */
+#define VESSEL_DECK_TEMPLATE_X 3880
+#define VESSEL_DECK_TEMPLATE_Z 6376
+
+/**
+ * Point every zone of a vessel's deck at the footprint starting at
+ * `src_x`,`src_z` -- one source zone per deck zone, on every plane.
+ *
+ * Per-zone and not one repeated chunk, because a ship is not a tiling: the bow
+ * sits in one source zone and the stern in another, and aiming all six deck
+ * zones at the same source builds six identical midships slabs. All four
+ * planes because the entity's own world is where the hull (plane 0), the main
+ * deck (plane 1) and the quarterdeck (plane 2) are authored, and which of them
+ * a client draws is `WevConfig.plane`'s answer, not this function's.
+ */
+static void
+vessel_deck_fill_from(
+    struct ToriRSServerVessel* vessel,
+    int src_x,
+    int src_z)
+{
+    int zones_x = 0;
+    int zones_z = 0;
+
+    assert(vessel);
+    assert(src_x >= 0);
+    assert(src_z >= 0);
+
+    ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
+    for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
+        for( int zx = 0; zx < zones_x; zx++ )
+            for( int zz = 0; zz < zones_z; zz++ )
+                ToriRSServer_MapInstanceSetchunk(
+                    vessel->instance,
+                    level,
+                    zx,
+                    zz,
+                    src_x + zx * 8,
+                    src_z + zz * 8,
+                    level,
+                    0);
+}
+
+/*
  * Server commands, so a session can be steered without a UI.
  *
  * `::~name` is the cache-independent spelling. The pristine revision-239
@@ -7252,31 +7308,196 @@ handle_cheat(
      * those match on shape rather than on a name, and a mistyped vessel
      * command should say so rather than fall through to a teleport.
      */
+    if( strncmp(text, "vesselgoto", 10) == 0 )
+    {
+        /*
+         * `::vesselgoto <x> <z> [level]` — teleport, under a name content does
+         * not own.
+         *
+         * `::tele` is claimed by the content pack's `[debugproc,tele]`, which
+         * takes a `level,mx,mz,lx,lz` coordinate and answers the packet before
+         * the C ladder below ever sees it — so a capture harness driving
+         * `[net:boot] cheat=` cannot reach the C `tele` branch at all, and the
+         * failure is silent: the debugproc "ran", and the player did not move.
+         * Absolute tiles here because that is what `::vesselwater` prints and
+         * what `::vesselspawnat` takes, and a capture that has to convert
+         * between two coordinate systems gets one of them wrong.
+         */
+        int to_x = -1;
+        int to_z = -1;
+        int to_level = player->level;
+
+        if( sscanf(text, "vesselgoto %d %d %d", &to_x, &to_z, &to_level) < 2 )
+        {
+            say(srv, "Usage: ::vesselgoto <x> <z> [level]");
+            return;
+        }
+        ToriRSServer_WorldTeleport(srv, to_level, to_x, to_z);
+        fprintf(
+            stderr, "vesselgoto: player at %d,%d level %d\n", player->x, player->z,
+            player->level);
+        say(srv, "Teleported to %d,%d level %d.", to_x, to_z, to_level);
+        return;
+    }
+
+    if( strncmp(text, "vesselwater", 11) == 0 )
+    {
+        /*
+         * `::vesselwater [radius]` — print the sailable tiles around the
+         * caller as ASCII, one line per row, z descending so the picture reads
+         * like the world map (north at the top).
+         *
+         * Finding real water is otherwise guesswork. Only the map's BLOCK
+         * setting becomes COLL_FLAG_FLOOR, and no screenshot can tell "the
+         * hull is floating on the sea" apart from "the hull is parked on grass
+         * that `::vesselspawn` stamped sailable" — so a capture of a boat on
+         * water has to be aimed at tiles the CACHE calls water, and this is
+         * how those are found. It reads the built scene, which is the only
+         * place collision exists at all.
+         */
+        int radius = 24;
+
+        sscanf(text, "vesselwater %d", &radius);
+        if( radius < 1 )
+            radius = 1;
+        /* The built scene is 104 tiles wide. Past its edge SceneTileFlags reads
+         * 0 and every tile prints as land, which is a lie rather than a map. */
+        if( radius > 50 )
+            radius = 50;
+
+        fprintf(
+            stderr,
+            "vesselwater: level %d centre %d,%d radius %d "
+            "('~' sailable, '.' not, '@' the caller)\n",
+            player->level, player->x, player->z, radius);
+        for( int dz = radius; dz >= -radius; dz-- )
+        {
+            char row[128];
+            int n = 0;
+
+            for( int dx = -radius; dx <= radius; dx++ )
+            {
+                int sailable = ToriRSServer_VesselTileSailable(
+                    player->level, player->x + dx, player->z + dz);
+
+                row[n++] = (dx == 0 && dz == 0) ? '@' : (sailable ? '~' : '.');
+            }
+            row[n] = '\0';
+            fprintf(stderr, "vesselwater: %5d %s\n", player->z + dz, row);
+        }
+        say(srv, "Sailability around %d,%d dumped to stderr.", player->x, player->z);
+        return;
+    }
+
+    /*
+     * Before the `vesselspawn` branch below, which matches on an 11-character
+     * prefix and would otherwise swallow this name and read its arguments as
+     * a size pair.
+     */
+    if( strncmp(text, "vesselspawnat", 13) == 0 )
+    {
+        /*
+         * `::vesselspawnat <x> <z> [size_x] [size_z] [config]` — the same hull
+         * as `::vesselspawn`, at an absolute tile, and with NO water stamp.
+         *
+         * That omission is the whole point. `::vesselspawn` makes its own
+         * water, so the hull it places is sailable by construction and sits on
+         * whatever the map happens to draw there — grass, in Lumbridge. A
+         * capture of a boat at SEA has to put the hull over tiles the cache
+         * already calls water, and stamping any of them would make the picture
+         * unfalsifiable. `::vesselwater` finds those tiles; this puts a hull on
+         * them and reports what the collision map says about the result, so
+         * the log records whether the water under a screenshot was real.
+         */
+        int at_x = -1;
+        int at_z = -1;
+        int size_x = 16;
+        int size_z = 24;
+        int config_id = 9;
+        int src_x = VESSEL_DECK_TEMPLATE_X;
+        int src_z = VESSEL_DECK_TEMPLATE_Z;
+        int handle;
+        struct ToriRSServerVessel* vessel;
+        int zones_x = 0;
+        int zones_z = 0;
+        int base_tile_x = 0;
+        int base_tile_z = 0;
+
+        if( sscanf(
+                text, "vesselspawnat %d %d %d %d %d %d %d", &at_x, &at_z, &size_x,
+                &size_z, &config_id, &src_x, &src_z) < 2 )
+        {
+            say(srv,
+                "Usage: ::vesselspawnat <x> <z> [size_x] [size_z] [config] "
+                "[src_x] [src_z]");
+            return;
+        }
+        if( size_x < 1 )
+            size_x = 1;
+        if( size_z < 1 )
+            size_z = 1;
+        if( size_x > 96 )
+            size_x = 96;
+        if( size_z > 96 )
+            size_z = 96;
+
+        handle = ToriRSServer_VesselSpawn(
+            srv, config_id, size_x, size_z, player->level, at_x, at_z, 0);
+        if( handle == 0 )
+        {
+            say(srv, "No deck instance free — the map-instance pool is full.");
+            return;
+        }
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        if( vessel->view_id == 0 )
+        {
+            say(srv, "Vessel %d spawned, but all 15 world-view ids are taken; "
+                     "it will not appear on any client.",
+                handle);
+            return;
+        }
+
+        ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
+        ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z);
+        vessel_deck_fill_from(vessel, src_x, src_z);
+        ToriRSServer_MapInstanceBuild(vessel->instance);
+        ToriRSServer_WorldMapInstanceBuilt(srv, vessel->instance);
+
+        fprintf(
+            stderr,
+            "vesselspawnat: vessel %d view %d at %d,%d level %d; deck %dx%d "
+            "zones from %d,%d; centre tile sailable=%d (unstamped)\n",
+            handle, vessel->view_id, at_x, at_z, player->level, zones_x, zones_z,
+            src_x, src_z,
+            ToriRSServer_VesselTileSailable(player->level, at_x, at_z));
+        say(srv, "Vessel %d (config %d, view %d) at %d,%d; deck %d,%d.", handle,
+            config_id, vessel->view_id, at_x, at_z, base_tile_x, base_tile_z);
+        return;
+    }
+
     if( strncmp(text, "vesselspawn", 11) == 0 )
     {
         /*
-         * `::vesselspawn [size_x] [size_z] [config]` — a hull beside the
-         * player, on stamped water, with a real deck under it.
+         * `::vesselspawn [size_x] [size_z] [config] [src_x] [src_z]` — a
+         * hull beside the player, on stamped water, with a real deck under it.
          *
          * Config 9 is "The Zenith" and is a real archive-72 record in
          * cache.osrs239 (src/world/test/wev_test.c pins its name and its
          * "Board" op). The client asserts the id is in its config table, so a
          * made-up default here would abort the client rather than draw a boat.
          *
-         * The deck is sourced from Lumbridge castle's FIRST FLOOR (tile
-         * 3208,3216 on plane 1): this cache carries no boat-shaped map
-         * template, so the deck renders as a chunk of masonry. That is a
-         * correct render of the mechanism, and the alternative — an empty deck
-         * — renders as nothing at all.
-         *
-         * Plane 1 rather than the courtyard below it because the courtyard is
-         * grass, and a grass deck floating over Lumbridge's grass is a correct
-         * render that is indistinguishable from no render at all. A screenshot
-         * has to be able to tell those two apart.
+         * The deck is sourced from the ship template at
+         * VESSEL_DECK_TEMPLATE_X,_Z, and the default size is the template's own
+         * 16x24. These sizes are TILES; the wire's size nibbles are ZONES, so
+         * `2 3` asks for a 2x3-TILE hull under an 8x8-tile client deck box —
+         * the mismatch that made an earlier capture look like a floating slab.
+         * Whole-zone sizes keep the two in agreement.
          */
-        int size_x = 2;
-        int size_z = 3;
+        int size_x = 16;
+        int size_z = 24;
         int config_id = 9;
+        int src_x = VESSEL_DECK_TEMPLATE_X;
+        int src_z = VESSEL_DECK_TEMPLATE_Z;
         int tile_x;
         int tile_z;
         int handle;
@@ -7286,7 +7507,9 @@ handle_cheat(
         int base_tile_x = 0;
         int base_tile_z = 0;
 
-        sscanf(text, "vesselspawn %d %d %d", &size_x, &size_z, &config_id);
+        sscanf(
+            text, "vesselspawn %d %d %d %d %d", &size_x, &size_z, &config_id, &src_x,
+            &src_z);
         if( size_x < 1 )
             size_x = 1;
         if( size_z < 1 )
@@ -7308,6 +7531,12 @@ handle_cheat(
          * refuses. Without a patch under the hull the mover's very first step
          * is blocked and `::vesselsail` produces no deltas at all, which is
          * the failure this command exists to avoid.
+         *
+         * The patch REPLACES the tile's collision rather than adding floor to
+         * it. Lumbridge is fences, walls and hedges: OR-ing FLOOR onto a tile
+         * that already carries COLL_FLAG_LOC leaves it blocked for every
+         * mover, so the hull turned on the spot and parked on its second tick
+         * against a loc bit it had supposedly just flooded.
          */
         {
             struct CollisionMap* cm = ToriRSServer_SceneCollision(player->level);
@@ -7315,9 +7544,9 @@ handle_cheat(
             int base_z = ToriRSServer_SceneBaseZ();
 
             if( cm && base_x >= 0 )
-                for( int dx = -16; dx <= 16; dx++ )
-                    for( int dz = -16; dz <= 16; dz++ )
-                        collision_map_add_floor(
+                for( int dx = -size_x - 8; dx <= size_x + 8; dx++ )
+                    for( int dz = -size_z - 8; dz <= size_z + 8; dz++ )
+                        collision_map_set_water(
                             cm, tile_x + dx - base_x, tile_z + dz - base_z);
         }
 
@@ -7337,18 +7566,13 @@ handle_cheat(
             return;
         }
 
-        /*
-         * The deck's terrain. Every zone of the reservation is pointed at the
-         * same source zone, so a multi-zone deck is a repeated courtyard
-         * rather than a hole — an unset zone decodes to 0 = void and the
-         * client draws nothing there.
-         */
+        /* The deck's terrain, one template zone per deck zone. An unset zone
+         * decodes to 0 = void and the client draws nothing there, so a deck
+         * bigger than the template still gets filled — it just repeats the
+         * template's far edge past the ship's stern. */
         ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
         ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z);
-        for( int zx = 0; zx < zones_x; zx++ )
-            for( int zz = 0; zz < zones_z; zz++ )
-                ToriRSServer_MapInstanceSetchunk(
-                    vessel->instance, 0, zx, zz, 3208, 3216, 1, 0);
+        vessel_deck_fill_from(vessel, src_x, src_z);
         ToriRSServer_MapInstanceBuild(vessel->instance);
         ToriRSServer_WorldMapInstanceBuilt(srv, vessel->instance);
 

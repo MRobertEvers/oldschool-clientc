@@ -106,6 +106,9 @@ struct ToriRS_Frame
     int dbg_emit_terrain;
     int dbg_drop_not_live;
     int dbg_drop_no_model;
+    /** One-shot latch so the wev trace reports the FIRST draw of each descent
+     * and not all hundred of them. Cleared by frame_view_push. */
+    bool dbg_view_traced;
     /** Sub-step within UITREE_EMIT_SCROLLBAR_V/H expansion (0 = not mid-bar). */
     int scrollbar_step;
     /**

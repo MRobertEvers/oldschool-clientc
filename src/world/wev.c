@@ -10,7 +10,12 @@
  * class458 interpolator. See wev.h for the shapes and docs/SAILING.md §5.
  */
 
-const int WEV_FOOTPRINT_MARGIN[WEV_FOOTPRINT_MARGINS] = { 256, 334, 362 };
+/* Index 0 is the TRUE box (deob class387.field4867, built with no
+ * inflation at all); 1..3 are its field4861[0..2] inflations. Anything
+ * that asks where the hull physically is — the painter's pseudo-loc
+ * footprint above all — wants index 0; the inflated ones are for the
+ * click/approach tests that have slack by design. */
+const int WEV_FOOTPRINT_MARGIN[WEV_FOOTPRINT_MARGINS] = { 0, 256, 334, 362 };
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -121,8 +126,8 @@ wev_config_bake_corners(struct WevConfig* config)
 {
     for( int m = 0; m < WEV_FOOTPRINT_MARGINS; m++ )
     {
-        int hx = abs(config->bounds_w) / 2 + WEV_FOOTPRINT_MARGIN[m];
-        int hz = abs(config->bounds_h) / 2 + WEV_FOOTPRINT_MARGIN[m];
+        int hx = config->bounds_w / 2 + WEV_FOOTPRINT_MARGIN[m];
+        int hz = config->bounds_h / 2 + WEV_FOOTPRINT_MARGIN[m];
         /* Corner order pre-rotation: (-x,-z), (+x,-z), (+x,+z), (-x,+z). */
         int const bx[4] = { -hx, hx, hx, -hx };
         int const bz[4] = { -hz, -hz, hz, hz };
@@ -194,17 +199,25 @@ WevConfig_Decode(
         case 5:
             config->pivot_z = wc_g2s(&c);
             break;
+        /* 6/7 are the box OFFSET and 8/9 its SIZE, not the other way round:
+         * deob class387 builds the footprint as
+         * `new class575(op8, op9, op6, op7)` and class556's own toString
+         * spells that constructor "%dx%d (offset %d,%d)". The read widths
+         * agree — 6/7 come off method13132 (signed, and op 7 is -256 on the
+         * ten-tile hulls) while 8/9 come off method13235 (unsigned). Reading
+         * them the other way round put every hull's footprint a boat-length
+         * away from the hull, so the parent's water sorted in front of it. */
         case 6:
-            config->bounds_w = wc_g2s(&c);
-            break;
-        case 7:
-            config->bounds_h = wc_g2s(&c);
-            break;
-        case 8:
             config->bounds_off_x = wc_g2s(&c);
             break;
-        case 9:
+        case 7:
             config->bounds_off_z = wc_g2s(&c);
+            break;
+        case 8:
+            config->bounds_w = wc_g2(&c);
+            break;
+        case 9:
+            config->bounds_h = wc_g2(&c);
             break;
         case 12:
             free(config->name);
@@ -680,9 +693,15 @@ Wev_FootprintTiles(
     int* out_size_x,
     int* out_size_z)
 {
-    int bucket;
-    int const* cx;
-    int const* cz;
+    double theta;
+    double sn;
+    double cs;
+    int hx;
+    int hz;
+    double cx;
+    double cz;
+    double ex;
+    double ez;
     int min_x;
     int max_x;
     int min_z;
@@ -701,29 +720,31 @@ Wev_FootprintTiles(
     assert(out_size_x);
     assert(out_size_z);
 
-    /* Nearest of the 16 baked buckets rather than the one below: the residual
-     * is at most half a bucket (64 of 2048, under 12 degrees) and the baked
-     * inflation margin more than covers it. */
-    bucket = (((wev->angle & 0x7FF) + 64) >> 7) & (WEV_ORIENTATIONS - 1);
+    /* The exact heading, all 2048 of them, not the nearest of the 16 baked
+     * buckets: see wev.h. The corner tables stay baked for the deob's own
+     * bucketed corner queries; this one is closed-form off the same box. */
+    theta = (double)(wev->angle & 0x7FF) * (2.0 * M_PI / 2048.0);
+    sn = sin(theta);
+    cs = cos(theta);
 
-    cx = wev->config->corner_x[margin_index][bucket];
-    cz = wev->config->corner_z[margin_index][bucket];
+    hx = wev->config->bounds_w / 2 + WEV_FOOTPRINT_MARGIN[margin_index];
+    hz = wev->config->bounds_h / 2 + WEV_FOOTPRINT_MARGIN[margin_index];
 
-    min_x = cx[0];
-    max_x = cx[0];
-    min_z = cz[0];
-    max_z = cz[0];
-    for( int k = 1; k < 4; k++ )
-    {
-        if( cx[k] < min_x )
-            min_x = cx[k];
-        if( cx[k] > max_x )
-            max_x = cx[k];
-        if( cz[k] < min_z )
-            min_z = cz[k];
-        if( cz[k] > max_z )
-            max_z = cz[k];
-    }
+    /* Rotating a box about the entity moves its centre and swells its extent;
+     * the extent is |cos|*hx + |sin|*hz per axis, which peaks near 45 degrees
+     * at the half-diagonal. */
+    cx = (double)wev->config->bounds_off_x * cs - (double)wev->config->bounds_off_z * sn;
+    cz = (double)wev->config->bounds_off_x * sn + (double)wev->config->bounds_off_z * cs;
+    ex = fabs(cs) * (double)hx + fabs(sn) * (double)hz;
+    ez = fabs(sn) * (double)hx + fabs(cs) * (double)hz;
+
+    /* lround, not floor/ceil: at the axis-aligned headings cos/sin carry a
+     * 1e-16 residual, and a ceil would push a clean 128 to 129 and hand back a
+     * box a whole tile wider than the one at the bucket beside it. */
+    min_x = (int)lround(cx - ex);
+    max_x = (int)lround(cx + ex);
+    min_z = (int)lround(cz - ez);
+    max_z = (int)lround(cz + ez);
 
     /* Corners are fine units relative to the entity. >>7 and never /128: an
      * arithmetic shift floors, so a negative absolute coordinate lands on the
