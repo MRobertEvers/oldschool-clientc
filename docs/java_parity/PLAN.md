@@ -251,3 +251,75 @@ are each about that size:
 
 Withdrawn from the earlier ordering: projection/sort work (8.1), and matching
 the Java inner loop (section 0 — ours is already better).
+
+---
+
+## 9. How much each client draws — measured on both sides
+
+The Java client was instrumented directly: a counter in `Pix3D`'s three triangle
+entry points and three span entry points, reporting on a wall clock. Counts
+only, one add per span and never per pixel, so the client stays at its 50 fps
+cap and the scene being counted does not change. Ours is the existing
+`TORIDRAW_SPAN_CENSUS` probe over 1,500 frames.
+
+| per frame | torirs | Java | ratio |
+|---|---|---|---|
+| triangles | 6,682 | ~5,140 | **1.30x** |
+| spans | 27,045 | ~52,900 | 0.51x |
+| **pixels written** | **136,419** | **~402,000** | **0.34x** |
+| pixels per triangle | 20.4 | 78.2 | 0.26x |
+| pixels per span | **5.04** | ~7.6 | 0.66x |
+| overdraw vs 512x334 viewport | 0.80x | 2.35x | |
+
+**We draw a third of the pixels the Java client draws, and take longer doing
+it.** Our rasterisation is 6.9 ms/frame (34.5 points of one core) for 136k
+pixels -- about **50 ns/px**. Java's *entire frame*, everything included, is
+7.1 ms for 402k pixels, so its raster is **under 17.7 ns/px** and really nearer
+12. We are at least 2.8x slower per pixel and realistically closer to 4x.
+
+### 9.1 Why: the good kernel almost never runs
+
+The span-length distribution is the whole story:
+
+| span length | share of spans | share of pixels |
+|---|---|---|
+| 1 px | **34.2 %** | 6.8 % |
+| <= 2 px | 53.9 % | 14.6 % |
+| <= 4 px | 73.5 % | 27.7 % |
+| <= 8 px | 86.1 % | 43.1 % |
+
+A third of our spans are a **single pixel**. Three quarters are four or fewer,
+which is the point at which the hand-written kernel's 4-pixel block loop takes
+zero trips -- its own comment already recorded 59.5 % taking none, and at 5.04
+px/span average it is worse than that. The inner loop we beat Java on is
+**effectively dead code**; everything is per-span prologue: edge stepping,
+clip test, colour prestep, the call itself.
+
+Java avoids this not by having a better loop but by having **bigger triangles**:
+78 pixels each against our 20, and 7.6-pixel spans against our 5.04, so their
+4- and 8-pixel unrolls actually execute.
+
+### 9.2 The geometry difference is the opposite of the hypothesis
+
+Section 2 of the plan asked whether we draw *more* than Java. We draw 30 % more
+**triangles** and 66 % fewer **pixels**. So it is not a draw-distance or
+occlusion deficit -- if anything we cull more. It is that our geometry arrives
+as many small triangles where theirs arrives as fewer large ones.
+
+Note also the coverage figure: at 136k pixels into a 171k-pixel viewport we do
+not cover the screen once, while Java covers it 2.35 times. Either a large
+surface (terrain) reaches the framebuffer through a path the span census does
+not instrument, or our scene genuinely contains far less large-area geometry
+than the reference. **That is the next thing to check, and it is cheap** -- the
+census is per-kernel, so a kernel it does not cover would explain the whole
+discrepancy and would also mean the 50 ns/px above is overstated.
+
+### 9.3 What this changes
+
+* **Do not chase the inner loop.** Confirmed twice now: the loop is better than
+  Java's and it barely executes.
+* **Attack span setup, or attack triangle size.** Either make the prologue cheap
+  enough for a 1-5 pixel span, or stop generating so many tiny triangles.
+* **The 9.08 % in `ToriDraw_ComputeProjectedFaceOrderSmall`** (EIP profile) is
+  the same disease: 6,682 faces to sort, more than Java's 5,140, for less
+  painted area.
