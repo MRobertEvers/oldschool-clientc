@@ -6,6 +6,7 @@
 #include "toridraw_math.h"
 #include "toridraw_model.h"
 #include "toridraw_model_transform.h"
+#include "toridraw_shared_model.h"
 #include "toridraw_sprite.h"
 
 #include <assert.h>
@@ -143,6 +144,33 @@ td_scene_element_ptr(
     struct ToriDraw_Scene* scene,
     int element_id);
 
+/* Makes room for one more event. The caller has already refused the push at
+ * TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE, so this only ever grows toward it. */
+static void
+td_event_queue_reserve(struct ToriDraw_EventQueue* queue)
+{
+    struct ToriDraw_Event* grown;
+    int next;
+
+    assert(queue);
+    assert(queue->count < TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE);
+    if( queue->count < queue->cap )
+        return;
+
+    /* 3/2, not 2x. Doubling carries up to 100% dead capacity at the moment it
+     * grows, and this queue stops at its high-water for the rest of the
+     * session -- the last doubling overshot to the 32768-entry cap and held
+     * 2.75 MB against a count well under it. 3/2 bounds the slack at 50% and
+     * is still amortised O(1). */
+    next = queue->cap ? queue->cap + queue->cap / 2 : 256;
+    if( next > TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE )
+        next = TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE;
+    grown = realloc(queue->events, (size_t)next * sizeof(*queue->events));
+    assert(grown);
+    queue->events = grown;
+    queue->cap = next;
+}
+
 static void
 td_scene_emit(
     struct ToriDraw_Scene* scene,
@@ -178,6 +206,7 @@ td_scene_emit(
             event.world_position = element->world_position;
     }
 
+    td_event_queue_reserve(&scene->event_queue);
     scene->event_queue.events[scene->event_queue.count++] = event;
 }
 
@@ -200,6 +229,7 @@ td_scene_emit_sprite(
     event.element_id = element_id;
     event.sprites = sprites;
     event.sprite_count = count;
+    td_event_queue_reserve(&scene->event_queue);
     scene->event_queue.events[scene->event_queue.count++] = event;
 }
 
@@ -220,6 +250,7 @@ td_scene_emit_font(
     event.kind = kind;
     event.texture_id = font_id;
     event.font = font;
+    td_event_queue_reserve(&scene->event_queue);
     scene->event_queue.events[scene->event_queue.count++] = event;
 }
 
@@ -240,6 +271,7 @@ td_scene_emit_sound(
     event.kind = kind;
     event.sound_id = sound_id;
     event.sound = sound;
+    td_event_queue_reserve(&scene->event_queue);
     scene->event_queue.events[scene->event_queue.count++] = event;
 }
 
@@ -331,6 +363,42 @@ td_scene_allocate_element_id(
     element->pool = (uint8_t)pool;
     scene->anim_list_dirty = true;
     return id;
+}
+
+struct ToriDraw_SharedModelStore*
+ToriDraw_SceneSharedModels(struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    if( !scene->shared_models )
+        scene->shared_models = ToriDraw_SharedModelStoreNew();
+    return scene->shared_models;
+}
+
+struct ToriDraw_Model*
+ToriDraw_SceneElementModelForWrite(
+    struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    struct ToriDraw_SceneElement* element;
+    struct ToriDraw_Model* model;
+
+    assert(scene);
+
+    if( element_id < 0 || !ToriDraw_SceneElementIsLive(scene, element_id) )
+        return NULL;
+    element = ToriDraw_SceneElementGet(scene, element_id);
+    if( !element || element->model.kind != TORIDRAWMK_MODEL )
+        return NULL;
+    model = element->model.u.model.model;
+    if( !model || (!model->shared_owner && !model->borrowed_topology) )
+        return model;
+
+    /* Give this element geometry it can edit and hand the loan back. The copy
+     * carries the bind pose, so an element about to be animated is no worse off
+     * for being copied here than it would have been built unshared. */
+    element->model.u.model.model = ToriDraw_ModelCopy(model);
+    ToriDraw_ModelFree(model);
+    return element->model.u.model.model;
 }
 
 static void
@@ -1337,12 +1405,53 @@ td_scene_element_assign_model(
             scene, TORIDRAW_EVENT_MODEL_LOAD, 0, element_id, 0, 0, &element->model, NULL, NULL);
 }
 
+/*
+ * Whether this element can pose the model it is holding. Only an element that
+ * can be posed needs a bind pose, and in a loaded region almost none can: the
+ * ~19k elements are overwhelmingly static scenery.
+ */
+static bool
+td_scene_element_is_animated(const struct ToriDraw_SceneElement* element)
+{
+    assert(element);
+    return element->animation != NULL || element->secondary_animation != NULL ||
+           element->skeletal_animation != NULL || element->anim_seq_id > 0 ||
+           element->anim2_seq_id > 0;
+}
+
+/*
+ * The pose every keyframe composes against. Idempotent on purpose: a model that
+ * already carries a bind pose keeps it, or whatever pose it is currently in
+ * would become the new bind -- the same corruption from the other direction.
+ */
+static void
+td_ensure_bind_pose(struct ToriDraw_ModelHandle* handle)
+{
+    struct ToriDraw_Model* model;
+
+    assert(handle);
+    if( handle->kind != TORIDRAWMK_MODEL )
+        return;
+    model = handle->u.model.model;
+    if( !model || model->vertex_count <= 0 || model->original_vertices_x )
+        return;
+    ToriDraw_ModelCaptureOriginalVertices(model);
+}
+
 void
 ToriDraw_SceneElementSetModel(
     struct ToriDraw_Scene* scene,
     int element_id,
     struct ToriDraw_ModelHandle model)
 {
+    struct ToriDraw_SceneElement* element;
+
+    assert(scene);
+    assert(td_scene_element_valid(scene, element_id));
+
+    element = td_scene_element_ptr(scene, element_id);
+    assert(element);
+
     /*
      * Mounting a model is the last moment it is guaranteed to be at its bind
      * pose, and the first at which the renderer may animate it -- so it is
@@ -1351,20 +1460,21 @@ ToriDraw_SceneElementSetModel(
      * with the one before it, which looks like the model inflating into shards
      * rather than like anything missing.
      *
-     * SetAnimationSeq also captures, and for the ordinary spawn-then-animate
-     * order that was enough, which is why this gap survived: it only shows when
-     * a model is swapped UNDER a running animation without the sequence being
-     * re-bound afterwards (a same-tick npc_changetype + npc_anim that re-binds
-     * the sequence already playing). Capturing here removes the ordering
-     * dependency entirely -- an element cannot hold an unresettable model.
+     * The case that reaches here is a model swapped UNDER a running animation
+     * without the sequence being re-bound afterwards (a same-tick npc_changetype
+     * + npc_anim that re-binds the sequence already playing), so the gate is
+     * that the element is ALREADY animated. The opposite order -- model first,
+     * animation after -- is covered where the element becomes animated:
+     * SetAnimation, SetAnimationSeq and SetSecondaryAnimationSeq each capture.
+     * Between the four, an element still cannot hold an unresettable model.
      *
-     * Conditional, so it never overwrites a bind pose the model already has:
-     * re-capturing unconditionally would take whatever pose the model is in and
-     * make THAT the bind, which is the same bug from the other direction.
+     * The gate is what makes it affordable. Capturing for every element that
+     * merely HAS a model meant three mallocs apiece across a whole region --
+     * 3.3 MB of bind poses that nothing could ever read, in 58k heap blocks
+     * whose per-block overhead the allocation tracker does not even see.
      */
-    if( model.kind == TORIDRAWMK_MODEL && model.u.model.model &&
-        model.u.model.model->vertex_count > 0 && !model.u.model.model->original_vertices_x )
-        ToriDraw_ModelCaptureOriginalVertices(model.u.model.model);
+    if( td_scene_element_is_animated(element) )
+        td_ensure_bind_pose(&model);
 
     td_scene_element_assign_model(scene, element_id, model);
 }
@@ -1390,6 +1500,9 @@ ToriDraw_SceneElementSetAnimation(
     if( animation )
     {
         *slot = animation;
+        /* Animated from here on, and SetModel declined to capture while it was
+         * not. Whatever the model is holding now is its bind pose. */
+        td_ensure_bind_pose(&element->model);
         if( !element->dynamic )
         {
             struct ToriDraw_Event* event;
@@ -1509,6 +1622,8 @@ ToriDraw_SceneElementSetSecondaryAnimationSeq(
     element->anim2_frame = 0;
     if( seq_id <= 0 )
         element->secondary_animation = NULL;
+    else
+        td_ensure_bind_pose(&element->model);
 }
 
 void

@@ -413,6 +413,21 @@ static int fake_display_setting_set(void* u, int s, int v) { (void)u; (void)s; (
 static int fake_varbit(void* u, int i) { (void)u; (void)i; return 0; }
 static int fake_varp(void* u, int i) { (void)u; (void)i; return 0; }
 static int fake_cache_id(void* u, char const* k, char const* n) { (void)u; (void)k; (void)n; return -1; }
+/* The lane every test below runs on. UNKNOWN by default, which is what a boot
+ * that has not identified its cache yet answers -- and the plugin runs on it,
+ * because standing down over a question nobody has answered would take the
+ * frame away from every lane. */
+static int g_lane_game = TORIRS_PLUGIN_GAME_UNKNOWN;
+static int fake_lane(void* u, struct ToriRS_PluginLane* o)
+{
+    (void)u;
+    memset(o, 0, sizeof(*o));
+    o->game = g_lane_game;
+    o->epoch = g_lane_game == TORIRS_PLUGIN_GAME_OLDSCHOOL ? TORIRS_PLUGIN_EPOCH_DAT2
+                                                           : TORIRS_PLUGIN_EPOCH_DAT1;
+    o->revision = g_lane_game == TORIRS_PLUGIN_GAME_OLDSCHOOL ? 239 : 254;
+    return g_lane_game != TORIRS_PLUGIN_GAME_UNKNOWN;
+}
 static int fake_project(void* u, int a, int b, int c, int* x, int* y) { (void)u; (void)a; (void)b; (void)c; (void)x; (void)y; return 0; }
 static int fake_draw_tile(void* u, int x, int z, int l, uint32_t c, uint32_t f, int a) { (void)u; (void)x; (void)z; (void)l; (void)c; (void)f; (void)a; return 0; }
 static int fake_draw_hull(void* u, int e, uint32_t c, int a, int s) { (void)u; (void)e; (void)c; (void)a; (void)s; return 0; }
@@ -528,6 +543,7 @@ main(void)
     e.varbit = fake_varbit;
     e.varp = fake_varp;
     e.cache_id = fake_cache_id;
+    e.lane = fake_lane;
     e.project = fake_project;
     e.draw_tile = fake_draw_tile;
     e.draw_hull = fake_draw_hull;
@@ -932,6 +948,62 @@ main(void)
         draw(1440, 900);
         CHECK(g_frame.end_calls == before, "a released layout declares nothing");
         CHECK(g_frame.blits == 0, "and draws nothing");
+    }
+
+    /* ---- 7. the lane that brings its own ------------------------------- */
+
+    /*
+     * An OldSchool cache authors all three of these frames itself, so the
+     * plugin has nothing to add and stands down before it subscribes.
+     *
+     * A fresh host rather than a lane switched under the running one: a lane
+     * is stated at boot and never changes inside a process, and a test that
+     * changed one would be testing a transition the client cannot make.
+     */
+    PluginHost_Free(g_host);
+    g_lane_game = TORIRS_PLUGIN_GAME_OLDSCHOOL;
+    g_host = PluginHost_New(&e);
+    e.user = g_host;
+    PluginHost_Free(g_host);
+    g_host = PluginHost_New(&e);
+    g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_GAMEFRAME);
+
+    PluginHost_SetEnabled(g_host, g_plugin, true);
+    PluginHost_Start(g_host);
+
+    CHECK(!PluginHost_IsEnabled(g_host, g_plugin), "an OldSchool lane switches the frame off");
+    CHECK(
+        PluginHost_Error(g_host, g_plugin) != NULL,
+        "and says why, where the roster draws the row");
+    CHECK(g_frame.owned == 0, "a plugin that stood down never claims the frame");
+
+    {
+        /* Not merely unclaimed: no handler of this plugin's was registered at
+         * all, so nothing of it is reached by a layout or a draw pass. */
+        int const before = g_frame.end_calls;
+        declare(765, 503);
+        draw(765, 503);
+        draw_over(765, 503);
+        CHECK(g_frame.end_calls == before, "and declares nothing");
+        CHECK(g_frame.blits == 0, "and draws nothing");
+    }
+
+    {
+        /*
+         * And the switch the user set is still in the file.
+         *
+         * The whole reason the refusal is not a plain disable: this client
+         * boots several lanes, `enabled=1` was stated once for all of them,
+         * and an OldSchool boot that cleared it would take the frame away from
+         * the 2004 world it was chosen on.
+         */
+        void* data = NULL;
+        int size = 0;
+        CHECK(PluginHost_ConfigEncode(g_host, &data, &size) == 1, "the settings encode");
+        CHECK(
+            data && size > 0 && strstr((char const*)data, "enabled=1") != NULL,
+            "and still carry the enabled=1 the user saved");
+        free(data);
     }
 
     PluginHost_Free(g_host);

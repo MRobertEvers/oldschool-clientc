@@ -327,7 +327,7 @@ cp_reference_ensure(struct CP_Ctx* ctx, int table_id)
  * sprite with
  *
  *     name_hash = RSCache_ArchiveNameHashDat2(name);
- *     for( i ... ) if( table->archives[i].identifier == name_hash ) ...
+ *     for( i ... ) if( RSCache_ReferenceTableIdentifier(table, i) == name_hash ) ...
  *
  * so an archive whose `identifier` is 0 is unreachable by name however
  * correctly its bytes were written. Packing onto a base cache hides this
@@ -357,13 +357,13 @@ cp_reference_set_name(
     rt = cp_reference_ensure(ctx, table_id);
     if( !rt )
         return 0;
-    if( archive_id < 0 || archive_id >= rt->archive_count || rt->archives[archive_id].index < 0 )
+    if( archive_id < 0 || archive_id >= rt->archive_count || !RSCache_ReferenceTableHasArchive(rt, archive_id) )
         return 1; /* nothing was written for this id; nothing to name */
 
     identifier = RSCache_ArchiveNameHashDat2((char*)name);
-    if( rt->archives[archive_id].identifier != identifier )
+    if( RSCache_ReferenceTableIdentifier(rt, archive_id) != identifier )
     {
-        rt->archives[archive_id].identifier = identifier;
+        RSCache_ReferenceTableSetIdentifier(rt, archive_id, identifier);
         if( out_dirty )
             *out_dirty = 1;
     }
@@ -394,7 +394,7 @@ cp_reference_sync(
      * belonging to some other archive.
      */
     struct RSCache_ReferenceTableArchive* archive = NULL;
-    if( archive_id >= 0 && archive_id < rt->archive_count && rt->archives[archive_id].index >= 0 )
+    if( archive_id >= 0 && archive_id < rt->archive_count && RSCache_ReferenceTableHasArchive(rt, archive_id) )
         archive = &rt->archives[archive_id];
     if( !archive )
     {
@@ -441,7 +441,7 @@ cp_reference_sync(
             memset(rt->archives + rt->archive_count, 0,
                    (size_t)(next - rt->archive_count) * sizeof(*rt->archives));
             for( int i = rt->archive_count; i < next; i++ )
-                rt->archives[i].index = -1;
+                RSCache_ReferenceTableSetHasArchive(rt, i, false);
             rt->archive_count = next;
         }
 
@@ -474,7 +474,7 @@ cp_reference_sync(
 
         archive = &rt->archives[archive_id];
         memset(archive, 0, sizeof(*archive));
-        archive->index = archive_id;
+        RSCache_ReferenceTableSetHasArchive(rt, archive_id, true);
         *out_dirty = 1;
         cp_warn(ctx, &ctx->warn_reference_added,
                 "idx%d archive %d added to the reference table", table_id, archive_id);
@@ -500,40 +500,88 @@ cp_reference_sync(
     {
         children_differ = archive->children.count != file_count;
         for( int i = 0; !children_differ && i < file_count; i++ )
-            children_differ = archive->children.files[i].id != file_ids[i];
+            children_differ = RSCache_ReferenceTableChildId(archive, i) != file_ids[i];
     }
     if( archive->crc == crc && !children_differ )
         return 1;
 
     if( children_differ )
     {
-        struct RSCache_ReferenceTableArchiveFile* grown = realloc(
-            archive->children.files, (size_t)file_count * sizeof(*grown));
-        if( !grown )
-            return 0;
-        /* The name hash is the client's `getArchive(name)` key. A file the tree
-         * did not previously hold has no name to hash, so it gets -1 — which is
-         * what the decoder reads for "unnamed" and what every id-addressed table
-         * already carries. */
-        for( int i = 0; i < file_count; i++ )
+        struct RSCache_ReferenceTableArchiveFile* grown;
+        int* grown_hashes = NULL;
+        int old_count = archive->children.count;
+        bool pooled = RSCache_ReferenceTableChildrenPooled(rt, archive->children.files);
+
+        /* The name hash is the client's `getArchive(name)` key, so the hashes of
+         * files the tree kept have to survive the regrow. They sit in an array
+         * parallel to the ids now, present only on a table with identifiers. A
+         * file the tree did not previously hold has no name to hash, so it gets
+         * -1 — what the decoder reads for "unnamed" and what every id-addressed
+         * table already carries. */
+        if( (rt->flags & RSCACHE_REFTABLE_FLAG_IDENTIFIERS) != 0 )
         {
-            grown[i].id = file_ids[i];
-            grown[i].name_hash = i < archive->children.count ? archive->children.files[i].name_hash
-                                                             : -1;
+            const int* old_hashes = archive->children.name_hashes;
+
+            grown_hashes = malloc((size_t)file_count * sizeof(int));
+            if( !grown_hashes )
+                return 0;
+            for( int i = 0; i < file_count; i++ )
+                grown_hashes[i] = (old_hashes && i < old_count) ? old_hashes[i] : -1;
         }
+
+        if( pooled )
+        {
+            /* A decoded archive's children are a slice of the table's pool and
+             * cannot be realloc'd; replace with an owned array and abandon the
+             * slice. */
+            grown = malloc((size_t)file_count * sizeof(*grown));
+            if( !grown )
+            {
+                free(grown_hashes);
+                return 0;
+            }
+        }
+        else
+        {
+            grown = realloc(archive->children.files, (size_t)file_count * sizeof(*grown));
+            if( !grown )
+            {
+                free(grown_hashes);
+                return 0;
+            }
+            /* Read above into grown_hashes, so it is safe to drop now -- unless
+             * it is a slice of the table's pool, which an identity run's is
+             * even though its ids never were. */
+            if( !RSCache_ReferenceTableChildNameHashesPooled(
+                    rt, archive->children.name_hashes) )
+                free(archive->children.name_hashes);
+        }
+        for( int i = 0; i < file_count; i++ )
+            grown[i].id = file_ids[i];
         archive->children.files = grown;
+        archive->children.name_hashes = grown_hashes;
         archive->children.count = file_count;
     }
 
     archive->crc = crc;
     if( rt->flags & RSCACHE_REFTABLE_FLAG_SIZES )
     {
-        archive->compressed = body;
-        if( uncompressed > 0 )
-            archive->uncompressed = uncompressed;
+        /* A zero uncompressed length means the container did not carry one;
+         * keep whatever the table already had rather than clearing it. */
+        RSCache_ReferenceTableSetSizes(
+            rt,
+            archive_id,
+            body,
+            uncompressed > 0 ? uncompressed
+                             : RSCache_ReferenceTableUncompressed(rt, archive_id));
     }
     if( rt->flags & RSCACHE_REFTABLE_FLAG_WHIRLPOOL )
-        RSCache_Whirlpool(container, (uint32_t)body, archive->whirlpool);
+    {
+        RSCache_Whirlpool(
+            container,
+            (uint32_t)body,
+            RSCache_ReferenceTableWhirlpoolSlot(rt, archive_id));
+    }
 
     /*
      * Take the version from the archive's own trailer rather than incrementing.

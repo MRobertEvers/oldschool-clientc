@@ -46,12 +46,13 @@ dat1_pack_resolve_sprite_refs(
         if( component->sprite_active_ref[0] != '\0' )
             component->graphic_active =
                 dat1_buildcache_sprite_ref_acquire(dat1_buildcache, component->sprite_active_ref);
-        for( int slot = 0; slot < TORIRS_INV_SLOT_MAX; slot++ )
+        /* A component that is not an inventory has no slot columns at all. */
+        for( int slot = 0; component->inv_slots && slot < TORIRS_INV_SLOT_MAX; slot++ )
         {
-            if( component->inv_slot_sprite_ref[slot][0] == '\0' )
+            if( component->inv_slots->sprite_ref[slot][0] == '\0' )
                 continue;
-            component->inv_slot_graphic_id[slot] = dat1_buildcache_sprite_ref_acquire(
-                dat1_buildcache, component->inv_slot_sprite_ref[slot]);
+            component->inv_slots->graphic_id[slot] = dat1_buildcache_sprite_ref_acquire(
+                dat1_buildcache, component->inv_slots->sprite_ref[slot]);
         }
     }
 }

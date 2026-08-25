@@ -806,7 +806,22 @@ ToriRS_ComponentSizeOf(const struct ToriRS_Component* component)
         bytes += (size_t)component->scripts_count * sizeof(*component->script_comparator);
     if( component->script_operand )
         bytes += (size_t)component->scripts_count * sizeof(*component->script_operand);
+    if( component->inv_slots )
+        bytes += sizeof(*component->inv_slots);
     return bytes;
+}
+
+struct ToriRS_ComponentInvSlots*
+ToriRS_ComponentInvSlotsEnsure(struct ToriRS_Component* component)
+{
+    assert(component);
+
+    if( !component->inv_slots )
+    {
+        component->inv_slots = calloc(1, sizeof(*component->inv_slots));
+        assert(component->inv_slots);
+    }
+    return component->inv_slots;
 }
 
 static void
@@ -818,6 +833,11 @@ torirs_component_release_owned(struct ToriRS_Component* component)
     /* Before the CS1 early-out below: the hooks are owned whether or not this
      * component also carries CS1 scripts, and most that have hooks have none. */
     ToriRS_ComponentHooksFree(component);
+
+    /* Ahead of the CS1 early-out below too: an inventory grid need not carry
+     * any scripts, and the columns are owned either way. */
+    free(component->inv_slots);
+    component->inv_slots = NULL;
 
     if( !component->scripts_lengths )
         return;

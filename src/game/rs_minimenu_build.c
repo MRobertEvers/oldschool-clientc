@@ -620,7 +620,7 @@ add_chat_rows(
     int click_y,
     struct UIMinimenu* menu)
 {
-    struct UITreeChatMinimenuConfig const* config = &node->u.chat.minimenu;
+    struct UITreeChatMinimenuConfig const* config = &UITree_Chat(node)->minimenu;
     char sender[UITREE_MINIMENU_OPTION_LEN];
     int chat_type = 0;
     int const before = menu->option_count;
@@ -661,7 +661,7 @@ add_chat_button_rows(
     struct UITreeComponent const* node,
     struct UIMinimenu* menu)
 {
-    struct UITreeChatButtonConfig const* cfg = &node->u.chat_button;
+    struct UITreeChatButtonConfig const* cfg = UITree_ChatButton(node);
     int const filter = (int)cfg->filter;
     int const modes = RS_UISlots_ChatFilterModeCount(filter);
     int const before = menu->option_count;

@@ -833,7 +833,7 @@ bridge_update_friendlist(int revision, uint8_t const* data, int len, struct RevP
 static int
 bridge_runclientscript(int revision, uint8_t const* data, int len, struct RevPacket* out)
 {
-    struct PktRunClientScript* p = &out->_runclientscript;
+    struct PktRunClientScript* p;
     static MsgRunClientScriptArg args[MSG_RUNCLIENTSCRIPT_MAX_ARGS];
     static int32_t ints[MSG_RUNCLIENTSCRIPT_MAX_ELEMS];
     static const char* strs[MSG_RUNCLIENTSCRIPT_MAX_ELEMS];
@@ -860,7 +860,7 @@ bridge_runclientscript(int revision, uint8_t const* data, int len, struct RevPac
     if( !rsprot_exec_ok(&x) || buf.err || !msg.types )
         return 0;
 
-    memset(p, 0, sizeof(*p));
+    p = pkt_runclientscript_reset(out);
     p->script_id = msg.id;
     argc = (int)strlen(msg.types);
     if( argc > PKT_RUNCLIENTSCRIPT_ARG_MAX )

@@ -44,7 +44,13 @@ struct TorirsPerfFrame
 };
 
 static struct TorirsPerfFrame g_cur;
-static struct TorirsPerfFrame g_ring[TORIRS_PERF_RING];
+/* Heap, and only while perf is on.  TORIRS_PERF_RING frames is 3.86 MB on
+ * win32; as .bss that was private commit charged to every client start,
+ * including the memory-gated ones that never enable perf.  Nothing touches
+ * it when disabled: every writer is behind `g_torirs_perf_enabled`
+ * (perf/torirs_perf.h:640-701) and every reader behind `g_ring_count`,
+ * which TorirsPerf_Init leaves at 0. */
+static struct TorirsPerfFrame* g_ring;
 static int g_ring_count;
 static int g_ring_head;
 static uint64_t g_frame_begin_ns;
@@ -96,6 +102,9 @@ static char const* const g_stage_names[TORIRS_PERF_STAGE_COUNT] = {
     "r_font",
     "r_rect",
     "r_other",
+    "r_project",
+    "r_sort",
+    "r_raster",
 };
 
 static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
@@ -290,6 +299,10 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "r_cmds_sprite",
     "r_cmds_font",
     "r_cmds_rect",
+    "r_model_culled",
+    "r_model_drawn",
+    "r_model_sort_empty",
+    "r_model_faces",
 };
 
 /* COUNT_SET gauges: window flush reports last sample, not a sum. */
@@ -854,7 +867,6 @@ TorirsPerf_Init(int enabled)
     int i;
 
     memset(&g_cur, 0, sizeof(g_cur));
-    memset(g_ring, 0, sizeof(g_ring));
     memset(g_stage_begin_ns, 0, sizeof(g_stage_begin_ns));
     memset(g_stage_depth, 0, sizeof(g_stage_depth));
     g_frame_cpu_begin_ns = 0;
@@ -885,6 +897,24 @@ TorirsPerf_Init(int enabled)
         g_torirs_perf_enabled = 1;
     else
         g_torirs_perf_enabled = 0;
+
+    /* Sized only once perf is known to be on.  Init is idempotent, so an
+     * already-allocated ring is reset in place rather than reallocated. */
+    if( g_torirs_perf_enabled )
+    {
+        if( !g_ring )
+        {
+            g_ring = calloc(TORIRS_PERF_RING, sizeof(*g_ring));
+            assert(g_ring);
+        }
+        else
+            memset(g_ring, 0, TORIRS_PERF_RING * sizeof(*g_ring));
+    }
+    else if( g_ring )
+    {
+        free(g_ring);
+        g_ring = NULL;
+    }
 
     csv = getenv("TORIRS_PERF_CSV");
     if( csv && csv[0] )
@@ -929,6 +959,10 @@ TorirsPerf_Shutdown(void)
         fclose(g_window_csv);
         g_window_csv = NULL;
     }
+    free(g_ring);
+    g_ring = NULL;
+    g_ring_count = 0;
+    g_ring_head = 0;
     g_torirs_perf_enabled = 0;
 }
 

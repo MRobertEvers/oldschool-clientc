@@ -5,7 +5,10 @@
 #include "graphics/tori_compat.h"
 #include "graphics/dash_restrict.h"
 #include "graphics/raster/gouraudhsllightness/gouraudhsllightness_barycentric_steps.h"
+#include "graphics/raster/gouraudhsllightness/gouraud_span_fill.h"
 #include "graphics/raster/flat/flat_screen_edges.h"
+#include "graphics/raster/span_census.h"
+#include "graphics/raster/raster_ablate.h"
 
 #include "graphics/shared_tables.h"
 
@@ -49,35 +52,13 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
         color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
 
     int stride = (x_end - x_start);
+    TORIDRAW_SPAN_CENSUS_RECORD(
+        stride, offset, 1, color_hsl16_ish8, color_step_hsl16_ish8);
 
-    int steps = (stride) >> 2;
-    color_step_hsl16_ish8 <<= 2;
+    TORIDRAW_ABLATE_RETURN_AT(1);
 
-    while( steps-- > 0 )
-    {
-        int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
-
-        for( int i = 0; i < 4; i++ )
-        {
-            pixel_buffer[offset] = rgb_color;
-            offset += 1;
-        }
-
-        color_hsl16_ish8 = toridraw_wrap_add(color_hsl16_ish8, color_step_hsl16_ish8);
-    }
-
-    int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
-    switch( (stride) & 0x3 )
-    {
-    case 3:
-        pixel_buffer[offset] = rgb_color;
-        offset += 1;
-    case 2:
-        pixel_buffer[offset] = rgb_color;
-        offset += 1;
-    case 1:
-        pixel_buffer[offset] = rgb_color;
-    }
+    toridraw_gouraud_span_fill_short(
+        pixel_buffer, offset, stride, color_hsl16_ish8, color_step_hsl16_ish8);
 }
 
 /**
@@ -109,35 +90,13 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered_noclip
         color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
 
     int stride = (x_end - x_start);
+    TORIDRAW_SPAN_CENSUS_RECORD(
+        stride, offset, 0, color_hsl16_ish8, color_step_hsl16_ish8);
 
-    int steps = (stride) >> 2;
-    color_step_hsl16_ish8 <<= 2;
+    TORIDRAW_ABLATE_RETURN_AT(1);
 
-    while( steps-- > 0 )
-    {
-        int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
-
-        pixel_buffer[offset + 0] = rgb_color;
-        pixel_buffer[offset + 1] = rgb_color;
-        pixel_buffer[offset + 2] = rgb_color;
-        pixel_buffer[offset + 3] = rgb_color;
-        offset += 4;
-
-        color_hsl16_ish8 = toridraw_wrap_add(color_hsl16_ish8, color_step_hsl16_ish8);
-    }
-
-    int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
-    switch( (stride) & 0x3 )
-    {
-    case 3:
-        pixel_buffer[offset] = rgb_color;
-        offset += 1;
-    case 2:
-        pixel_buffer[offset] = rgb_color;
-        offset += 1;
-    case 1:
-        pixel_buffer[offset] = rgb_color;
-    }
+    toridraw_gouraud_span_fill_short(
+        pixel_buffer, offset, stride, color_hsl16_ish8, color_step_hsl16_ish8);
 }
 
 static inline void
@@ -288,6 +247,8 @@ raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
     {
         y2 = screen_height;
     }
+
+    TORIDRAW_ABLATE_RETURN_AT(2);
 
     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )

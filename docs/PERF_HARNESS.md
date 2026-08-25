@@ -76,6 +76,213 @@ excludes the limiter's final spin and post-frame loop work. On XP,
 one-frame percentile, so the comparison gate uses its longer-window raw mean.
 Measure wall-clock effective fps separately.
 
+## Scene benchmarks (`./launch bench`)
+
+The scenarios above measure the client *doing* something — logging in, opening
+a bank, spawning npcs. A renderer change needs the opposite: the same geometry,
+the same camera, nothing moving, so the only variable left is the code.
+
+That is what a **scene benchmark** is. `manifests/manifest_osrs239_bench.ini`
+declares one `[bench:<name>]` block per camera — which map squares to mesh and
+where the eye stands over them — and `./launch bench` gives each its own
+offline client process, then keeps the per-window rows of the perf CSV as its
+samples.
+
+```bash
+./launch bench osrs239-bench                        # every scene, soft3d
+./launch bench osrs239-bench --list                 # the suite, without running it
+./launch bench osrs239-bench --scene falador --shots
+./launch bench osrs239-bench --renderer soft3d,d3d9
+./launch bench osrs239-bench --baseline build/bench/osrs239-bench/<stamp>
+```
+
+`soft3d-scanline` is a renderer *variant*, not a different flag: the same
+`--soft3d` binary launched with `TORIDRAW_RASTER_SCANLINE=1`, selecting the
+`graphics/raster/scanline/` kernel family instead of the default kernels
+(`bench.RENDERER_ENV` carries the variable; plain `soft3d` pins it to `0` so a
+stray value in the machine's environment cannot turn the A/B into a B/B). The
+bench world's `[bench] renderers=soft3d,soft3d-scanline` makes every scene a
+kernel A/B by default.
+
+Everything lands in `build/bench/<profile>/<stamp>/`: one `.csv` and
+`.csv.windows.csv` per run, the run's stdout+stderr in a `.log`, `--shots`
+BMPs under `shots/<run>/`, and a `summary.json` that `--baseline` reads back.
+
+### What the runner pins
+
+| | how | why |
+|---|---|---|
+| geometry | `TORIRS_WORLD_MAP=x,z;x,z;…` | the scene's map squares, meshed offline |
+| camera | `TORIRS_WEDGE_CAM=x,y,z,pitch,yaw` | re-pinned every frame in `app_world_paint`, *before* the painter, occluders and renderer read it — so it cannot drift, and it needs no player entity |
+| length | `TORIRS_MAX_FRAMES=(warmup+samples)*sample_frames` | the process ends on its own; a bench run is a capture, not a session |
+| samples | `TORIRS_PERF_WINDOW=<sample_frames>` | each window is one sample, with its own percentiles |
+| no server | `--offline` | no login, no world tick, no npc spawns, no network jitter |
+| no pacing | `--uncapped` | under the 50 fps pace most of a frame is the pacing sleep, and a 20% faster renderer moves no number at all |
+| no plugins | `[ui:boot] plugins=0` in the world | a plugin is client code with its own opinion about the frame -- `gameframe-layout` relays the whole gameframe out from its own saved layout -- so a run carrying one times that opinion as the renderer's, and the two competing mounts make the chrome visibly flicker |
+| no gameframe | a `[revconfig:layout:root]` holding one `type=world` component | the frame is the 3D viewport and nothing else. The cache gameframe is ~1,000 components rebuilt and blitted every frame, and it is opaque: it covers roughly a third of the canvas, so mounting it both adds UI cost and removes world pixels |
+| canvas = window | `--windowmode resizable` | under `fixed` the tree lays out at the classic 765x503 and the finished frame is scaled to the window, so a scene asking for a bigger `canvas=` would measure a 765x503 raster and a stretch |
+
+One process per (scene × renderer × repetition), because the map and camera
+knobs are read once at world load — and because a crash then costs one scene
+rather than the suite.
+
+**The first window is discarded** (`warmup=1`). It holds the tail of cache
+load, first-touch page faults, and every model and texture the scene will ever
+build. This is the same rule `compare.py --drift` applies to window 0.
+
+Reported `p50`/`p95` are the **medians across the kept samples**; `worst p95`
+is the largest single sample. Median alone hides a scene that is fine three
+windows out of four; worst alone makes every run look like its unluckiest
+window.
+
+### Reading the table
+
+```
+scene                     renderer   frame p50   frame p95   worst p95   fps      render    build     paint     cmds       n
+lumbridge                 soft3d      5.59        7.17        7.32      176.3      4.25      0.91      0.91      4021       4
+varrock-square            soft3d      6.59        7.67        8.05      149.4      5.34      0.77      0.77      3797       4
+grand-exchange            soft3d      3.70        5.24        7.46      257.7      2.81      0.52      0.52      4091       4
+grand-exchange-low        soft3d      6.76        8.71        9.26      144.9      5.82      0.56      0.56      3404       4
+grand-exchange-orbit      soft3d      3.92        5.39        6.28      247.0      3.03      0.52      0.52      4220       4
+varrock-walk              soft3d      5.03        6.74        7.15      195.1      4.02      0.61      0.61      3577       4
+falador                   soft3d      6.68        8.46        8.79      148.7      5.13      0.80      0.80      4316       4
+lumbridge-swamp           soft3d      1.96        2.83        2.93      477.3      1.49      0.27      0.27      3045       4
+```
+
+(Milliseconds. Measured 2026-08-23, `TORIDRAW_OPT=1` Win64, 765x503, bare
+viewport.) These are roughly half the frame times the same scenes reported
+while the suite still mounted the cache gameframe -- the gameframe was most of
+`render`, which is exactly why it is gone.
+
+`cmds` is the per-frame painter command count, and it is there to catch the
+failure mode a timing table cannot: **a faster number over a lighter scene is
+not a faster renderer.** If `frame p50` drops and `cmds` drops with it, the
+change removed work from the scene, not from the rasteriser. `cmds` was
+identical to the command across two separate runs of the same scene, so a
+moved count is a real change rather than noise.
+
+Frame times are *not* stable between processes, and the spread is larger than
+it looks: `falador` measured 6.68 and 4.97 ms p50 in the two repeats of a
+single `--repeat 2` run, and `lumbridge` measured 5.59, 6.13 and 3.23 ms p50 in
+three runs minutes apart on an otherwise idle machine. `--shots` costs a couple
+of ms more again in the run it writes its BMP from. **`cmds` is the number to
+trust between runs; the times need `--repeat` and a rested machine, and a delta
+under ~2x is not evidence on its own.** This is the harness's weakest point
+today.
+
+### Measured: the `scanline` family vs the default kernels (2026-08-23)
+
+Win64 `OPT=1`, 12 scenes x {`soft3d`, `soft3d-scanline`}, 1500 frames each.
+`cmds` and `r_cmds_model` were identical on both sides of every scene, so each
+pair is the same workload through a different rasteriser.
+
+| stage | median | range | slower in |
+|---|---|---|---|
+| `r_raster` | **+6.4%** | -5.9 .. +11.9% | 10/12 |
+| `render` | +2.7% | -8.0 .. +6.8% | 9/12 |
+| `frame` | +2.1% | -6.6 .. +6.5% | 9/12 |
+| `r_project` *(control)* | -0.4% | -12.8 .. +7.1% | 5/12 |
+| `r_sort` *(control)* | -0.3% | -6.2 .. +1.3% | 3/12 |
+
+**The scanline family is slower, by roughly 6% of raster time.** Read it off
+`r_raster`, not `frame`: the kernel cannot touch projection or the face sort, so
+`r_project` and `r_sort` are controls, and their spread is what this harness's
+run-to-run noise actually looks like (±13% on a single scene, centred on zero).
+That noise is why the per-scene numbers are not individually meaningful — but it
+is independent across scenes, so 10 of 12 pairs leaning one way is a sign test
+at p≈0.02, and the two apparent wins are the two scenes whose *control* stages
+also moved (lumbridge's `r_project` read -12.8%, i.e. the whole run was fast).
+
+This is against the family's design intent — it hoists the y-sort, the left/right
+edge choice, vertical clipping and the horizontal-clip test to once per triangle
+to buy cheaper inner loops (see `scanline_common.h`). Paying that setup per
+triangle only wins when triangles are large enough for the cheaper spans to
+repay it, and these scenes are hundreds of models of small ones. Confirming that
+reading means the `TORIDRAW_ABLATE` ladder, which can separate per-triangle
+prologue from walk from fill; nobody has run it against this axis yet.
+
+### Adding a scene
+
+```ini
+[bench:my-scene]
+description=what makes this camera worth timing
+map=49,54
+map=50,54
+map=49,55
+map=50,55
+at=3164,3486
+look=280,0
+```
+
+`at=` is an **absolute OSRS tile** — the way the wiki names a location. It
+derives both the map square (`tile/64`) and the eye's position inside the scene
+(`tile%64 * 128 + 64`); a tile outside the squares the scene meshes is an error
+rather than a camera pointed off the edge of the world.
+
+Name a **block of four** squares unless the scene is deliberately a floor
+measurement. One square is 64x64 tiles — under half the 104x104 the live client
+keeps resident — so a single-square scene understates every distance-scaled
+cost the renderer has. `app_world_map_squares_parse` in `src/app.c` accepts up
+to 16.
+
+Then look at it before trusting it:
+
+```bash
+./launch bench osrs239-bench --scene my-scene --shots
+```
+
+`--shots` writes one BMP per run at the last warmup frame, through the same
+camera the samples are measured with. Naming a plausible tile and getting a
+hillside is the easiest mistake this harness lets you make.
+
+### Moving cameras
+
+A scene with only `at=`/`look=` is a still. Add a route and the same scene is
+measured while the camera travels it:
+
+```ini
+[bench:varrock-walk]
+description=south along the Varrock main road, there and back
+map=50,53
+map=51,53
+map=50,54
+map=51,54
+look=200,0
+via=3205,3400
+via=3213,3428
+via=3221,3456
+motion=linear
+wrap=pingpong
+```
+
+| key | meaning |
+|---|---|
+| `via=<worldx>,<worldz>` | one waypoint, repeated; absolute OSRS tiles, same as `at=`. Two or more make a route. Up to 32 (`APP_WEDGE_CAM_PATH_MAX`) |
+| `orbit=<radius_tiles>,<steps>` | a ring of `steps` waypoints at `radius` tiles around `at=`, each facing it. Needs `at=` and at least 3 steps |
+| `motion=linear\|spline` | straight legs, or a Catmull-Rom curve through the waypoints |
+| `wrap=loop\|pingpong\|hold` | return to the first waypoint, walk back the way it came, or stop on the last one |
+| `motion_frames=<n>` | frames per traversal. Defaults to `sample_frames` for `loop`, `sample_frames/2` for `pingpong`, `warmup*sample_frames` for `hold` |
+
+`via=` and `orbit=` are alternatives; naming both is an error rather than a
+route with a ring appended. An orbit is generated in scene units rather than
+snapped to tiles - rounding a 12-tile ring to the tile grid puts some
+waypoints 11.3 tiles out, a 6% pulse in the radius that shows up as a periodic
+wobble in the frame time. Prefer `motion=spline` for an orbit: linear legs cut
+the corners off the ring, so the camera speeds up and slows down once per leg.
+
+**A sample window must hold a whole number of camera cycles.** The runner
+enforces it, and a pingpong's cycle is two traversals rather than one.
+Otherwise window 1 covers the dense north side and window 2 the empty south,
+and the four per-window percentiles stop being four repeats of one measurement
+- `--repeat` and `--baseline` both become noise.
+
+**Phase is a function of the frame ordinal, never the clock.** Frame *n* is at
+the same point on the route in every run, whatever that run cost, so a renderer
+change moves the time without moving the scene. The check that this holds is
+`cmds`: across `--repeat 2`, `grand-exchange-orbit` reported 4220 painter
+commands and `varrock-walk` 3577 in *both* runs -- byte-identical, exactly as
+for the still scenes.
+
 ## Current Windows renderer architecture (2026-08-06)
 
 The optimized Windows renderer has one D3D9 architecture on both build lanes.

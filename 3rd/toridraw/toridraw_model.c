@@ -5,6 +5,7 @@
 #include "toridraw_lighting.h"
 #include "toridraw_math.h"
 #include "toridraw_model_transform.h"
+#include "toridraw_shared_model.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -455,23 +456,19 @@ ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
     free(m->face_colors_a);
     free(m->face_colors_b);
     free(m->face_colors_c);
-    free(m->face_indices_a);
-    free(m->face_indices_b);
-    free(m->face_indices_c);
-    free(m->face_textures);
     free(m->original_vertices_x);
     free(m->original_vertices_y);
     free(m->original_vertices_z);
-    free(m->face_alphas);
     free(m->original_face_alphas);
-    free(m->face_infos);
-    free(m->face_priorities);
-    free(m->face_colors);
-    free(m->textured_p_coordinate);
-    free(m->textured_m_coordinate);
-    free(m->textured_n_coordinate);
-    free(m->texture_render_types);
-    free(m->face_texture_coords);
+
+    /* The face half is either ours or on loan; the caller (ToriDraw_ModelFree)
+     * is what drops the holder, because this runs for the HD shell too. */
+    if( !m->borrowed_topology )
+    {
+#define TORIDRAW_TOPOLOGY_FREE(field) free(m->field);
+        TORIDRAW_TOPOLOGY_FIELDS(TORIDRAW_TOPOLOGY_FREE)
+#undef TORIDRAW_TOPOLOGY_FREE
+    }
     ToriDraw_NormalsFree(m->normals);
     ToriDraw_NormalsFree(m->merged_normals);
     ToriDraw_BonesFree(m->vertex_bones);
@@ -503,6 +500,11 @@ ToriDraw_ModelHDFromModel(struct ToriDraw_Model* model)
 
     hd = (struct ToriDraw_ModelHD*)calloc(1, sizeof(*hd));
     assert(hd);
+    /* The shell is copied by value below and the original is freed without
+     * going through ToriDraw_ModelFree, so a borrowed-topology holder would be
+     * duplicated into the HD model and never dropped. No HD model is built from
+     * a scene placement today; this is what says so. */
+    assert(!model->borrowed_topology);
 
     /* By value: the arrays are pointers and move with the struct, so freeing
      * the shell afterwards must not go through ToriDraw_ModelFree — that would
@@ -530,7 +532,16 @@ ToriDraw_ModelFree(struct ToriDraw_Model* model)
 {
     if( !model )
         return;
+    if( model->shared_owner )
+    {
+        /* Not ours to free. The store's last holder comes back through here
+         * with the back-pointer already cleared. */
+        ToriDraw_SharedModelRelease(model->shared_owner);
+        return;
+    }
     ToriDraw_ModelFree_arrays(model);
+    if( model->borrowed_topology )
+        ToriDraw_SharedModelRelease(model->borrowed_topology);
     free(model);
 }
 
@@ -648,7 +659,7 @@ ToriDraw_ModelFreeNormals(struct ToriDraw_Model* model)
 void
 ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
 {
-    assert(model);
+    ToriDraw_ModelAssertWritable(model);
     size_t const vc = (size_t)model->vertex_count;
 
     /*
@@ -740,7 +751,7 @@ ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
 void
 ToriDraw_ModelAnimateReset(struct ToriDraw_Model* model)
 {
-    assert(model);
+    ToriDraw_ModelAssertWritable(model);
     if( !model->original_vertices_x )
         return;
 

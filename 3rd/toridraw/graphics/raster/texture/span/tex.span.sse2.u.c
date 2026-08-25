@@ -1,5 +1,7 @@
 #include "graphics/dash_restrict.h"
 #include "graphics/int_wrap.h"
+#include "graphics/raster/raster_ablate.h"
+#include "graphics/raster/span_census.h"
 #include "graphics/shade.h"
 
 #include <assert.h>
@@ -630,6 +632,7 @@ raster_linear_opaque_blend_lerp8_v3(
 {
     int idx[8];
     assert(texture_shift == 7 || texture_shift == 6);
+    TORIDRAW_ABLATE_TEX_RETURN_IF(4);
     for( int i = 0; i < 8; i++ )
     {
         int u = (u_scan >> texture_shift) & u_mask;
@@ -663,6 +666,7 @@ raster_linear_transparent_blend_lerp8_v3(
 {
     int idx[8];
     assert(texture_shift == 7 || texture_shift == 6);
+    TORIDRAW_ABLATE_TEX_RETURN_IF(4);
     for( int i = 0; i < 8; i++ )
     {
         int u = (u_scan >> texture_shift) & u_mask;
@@ -733,6 +737,13 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
     int blocks = steps >> 3;
     int remaining = steps & 7;
 
+    TORIDRAW_TEXSPAN_CENSUS_SPAN(steps);
+
+    /* Everything above is the per-span prologue -- clip, adjust, step. This
+     * keeps it and drops the fill, the same cut TORIDRAW_ABLATE=1 makes in the
+     * gouraud span, so the two subtract the same way. */
+    TORIDRAW_ABLATE_TEX_RETURN();
+
     int step_au8 = step_au_dx << 3;
     int step_bv8 = step_bv_dx << 3;
     int step_cw8 = step_cw_dx << 3;
@@ -780,6 +791,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
                 int s_u = (nxt_u - cur_u) << (texture_shift - 3);
                 int s_v = (nxt_v - cur_v) << (texture_shift - 3);
 
+                TORIDRAW_TEXSPAN_CENSUS_LERP8();
                 raster_linear_opaque_blend_lerp8_v3(
                     (uint32_t*)&pixel_buffer[offset],
                     (uint32_t*)texels,
@@ -794,6 +806,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
             }
             else
             {
+                TORIDRAW_TEXSPAN_CENSUS_EXACT(8);
                 tex_span_exact_block(
                     pixel_buffer,
                     offset,
@@ -851,6 +864,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
 
         if( w_n == 0 || !tex_span_lerp8_fits(cur_v, nxt_v, texture_width) )
         {
+            TORIDRAW_TEXSPAN_CENSUS_EXACT(remaining);
             tex_span_exact_block(
                 pixel_buffer,
                 offset,
@@ -875,6 +889,8 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
         int u_scan = cur_u << texture_shift;
         int v_scan = tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift);
 
+        TORIDRAW_TEXSPAN_CENSUS_TAIL(remaining);
+        TORIDRAW_ABLATE_TEX_RETURN_IF(2);
         for( int i = 0; i < remaining; i++ )
         {
             int u = (u_scan >> texture_shift) & u_mask;
@@ -931,6 +947,13 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
     int blocks = steps >> 3;
     int remaining = steps & 7;
 
+    TORIDRAW_TEXSPAN_CENSUS_SPAN(steps);
+
+    /* Everything above is the per-span prologue -- clip, adjust, step. This
+     * keeps it and drops the fill, the same cut TORIDRAW_ABLATE=1 makes in the
+     * gouraud span, so the two subtract the same way. */
+    TORIDRAW_ABLATE_TEX_RETURN();
+
     int step_au8 = step_au_dx << 3;
     int step_bv8 = step_bv_dx << 3;
     int step_cw8 = step_cw_dx << 3;
@@ -977,6 +1000,7 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
                 int s_u = (nxt_u - cur_u) << (texture_shift - 3);
                 int s_v = (nxt_v - cur_v) << (texture_shift - 3);
 
+                TORIDRAW_TEXSPAN_CENSUS_LERP8();
                 raster_linear_transparent_blend_lerp8_v3(
                     (uint32_t*)&pixel_buffer[offset],
                     (uint32_t*)texels,
@@ -991,6 +1015,7 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
             }
             else
             {
+                TORIDRAW_TEXSPAN_CENSUS_EXACT(8);
                 tex_span_exact_block(
                     pixel_buffer,
                     offset,
@@ -1048,6 +1073,7 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
 
         if( w_n == 0 || !tex_span_lerp8_fits(cur_v, nxt_v, texture_width) )
         {
+            TORIDRAW_TEXSPAN_CENSUS_EXACT(remaining);
             tex_span_exact_block(
                 pixel_buffer,
                 offset,
@@ -1072,6 +1098,8 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
         int u_scan = cur_u << texture_shift;
         int v_scan = tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift);
 
+        TORIDRAW_TEXSPAN_CENSUS_TAIL(remaining);
+        TORIDRAW_ABLATE_TEX_RETURN_IF(2);
         for( int i = 0; i < remaining; i++ )
         {
             int u = (u_scan >> texture_shift) & u_mask;

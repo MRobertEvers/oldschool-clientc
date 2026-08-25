@@ -9,7 +9,6 @@
 
 struct CacheProvider;
 struct ToriDraw_Scene;
-struct TorirsModelInstCache;
 struct VarPManager;
 struct Blendmap;
 struct Overlaymap;
@@ -67,12 +66,6 @@ struct WorldBuilder
      *  so a helper that bakes its rotation never has to reset it. */
     int scenery_deferred_angle;
 
-    /** Lit scenery model prototypes keyed (resolved loc id, shape, rotation) —
-     *  the Client-TS LocType model-cache idea, scoped to the builder. Only locs
-     *  whose built model is placement-independent go in (no contour, no
-     *  sharelight, no seq — see scenery_loc_model_shareable). Cleared at every
-     *  Rebuild*Begin so config reloads can never serve a stale bake. */
-    struct TorirsModelInstCache* scenery_model_cache;
 };
 
 /**

@@ -197,6 +197,20 @@ struct PackEntry
     int id;
 };
 
+/* Names are bump-allocated into a chain of these, never realloc'd (entries
+ * point straight into the bytes) and never freed one at a time — every free
+ * site tears down a whole pack. One strdup per symbol put ~212k tiny blocks on
+ * the heap for ~5MB of names; the chain carries the same bytes in a few
+ * hundred blocks. */
+#define PACK_NAME_CHUNK_BYTES (16 * 1024)
+
+struct PackNameChunk
+{
+    struct PackNameChunk* next;
+    size_t used;
+    char bytes[PACK_NAME_CHUNK_BYTES];
+};
+
 struct Pack
 {
     struct PackEntry* entries;
@@ -204,6 +218,7 @@ struct Pack
     struct PackEntry** by_id;
     int count;
     int capacity;
+    struct PackNameChunk* names;
 };
 
 static struct Pack g_packs[TORIRSSERVER_PACK_COUNT];
@@ -258,6 +273,44 @@ pack_build_indexes(struct Pack* pack)
     qsort(pack->by_id, (size_t)pack->count, sizeof(*pack->by_id), pack_entry_id_compare);
 }
 
+static char*
+pack_name_intern(
+    struct Pack* pack,
+    const char* name)
+{
+    size_t len = strlen(name) + 1;
+    struct PackNameChunk* chunk = pack->names;
+
+    /* Symbols come out of 512-byte line buffers, so a name can never outgrow a
+     * chunk. */
+    assert(len <= PACK_NAME_CHUNK_BYTES);
+    if( !chunk || chunk->used + len > PACK_NAME_CHUNK_BYTES )
+    {
+        chunk = malloc(sizeof(*chunk));
+        assert(chunk);
+        chunk->next = pack->names;
+        chunk->used = 0;
+        pack->names = chunk;
+    }
+    memcpy(chunk->bytes + chunk->used, name, len);
+    chunk->used += len;
+    return chunk->bytes + chunk->used - len;
+}
+
+static void
+pack_names_free(struct Pack* pack)
+{
+    struct PackNameChunk* chunk = pack->names;
+
+    while( chunk )
+    {
+        struct PackNameChunk* next = chunk->next;
+        free(chunk);
+        chunk = next;
+    }
+    pack->names = NULL;
+}
+
 static void
 pack_add(
     struct Pack* pack,
@@ -273,7 +326,7 @@ pack_add(
         pack->entries = grown;
         pack->capacity = capacity;
     }
-    pack->entries[pack->count].name = strdup(name);
+    pack->entries[pack->count].name = pack_name_intern(pack, name);
     pack->entries[pack->count].id = id;
     pack->count++;
 }
@@ -343,6 +396,7 @@ load_component_symbols_from_root(
         snprintf(path, sizeof(path), "%s/interfaces/%s.compack", dir, iface_name);
         if( pack_load(&children, path) == 0 )
         {
+            pack_names_free(&children);
             free(children.entries);
             continue;
         }
@@ -367,8 +421,7 @@ load_component_symbols_from_root(
             pack_add(&g_packs[TORIRSSERVER_PACK_COMPONENT], full, uid);
             loaded++;
         }
-        for( int c = 0; c < children.count; c++ )
-            free(children.entries[c].name);
+        pack_names_free(&children);
         free(children.entries);
     }
     return loaded;
@@ -1094,6 +1147,23 @@ npc_def_seed_from_cache(
     const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfo(npc_id);
 
     *def = g_npc_default;
+    /* The struct copy aliased the default's heap arrays — a `[default]` block
+     * may state `param=` or a patrol, and every def's free would then be a
+     * double free. Own copies, or nothing. */
+    if( g_npc_default.params )
+    {
+        def->params = malloc((size_t)g_npc_default.param_count * sizeof(*def->params));
+        assert(def->params);
+        memcpy(def->params, g_npc_default.params,
+               (size_t)g_npc_default.param_count * sizeof(*def->params));
+    }
+    if( g_npc_default.patrol )
+    {
+        def->patrol = calloc(TORIRSSERVER_NPC_PATROL_MAX, sizeof(*def->patrol));
+        assert(def->patrol);
+        memcpy(def->patrol, g_npc_default.patrol,
+               TORIRSSERVER_NPC_PATROL_MAX * sizeof(*def->patrol));
+    }
     def->npc_id = npc_id;
     if( info->has_params )
     {
@@ -1204,6 +1274,11 @@ record_authored_param(
                       TORIRSSERVER_NPCDEF_PARAM_MAX);
         return;
     }
+    /* Exact-size realloc: appends are capped at PARAM_MAX per def and happen
+     * only at load, so growth games buy nothing here. */
+    def->params = realloc(
+        def->params, ((size_t)def->param_count + 1) * sizeof(*def->params));
+    assert(def->params);
     def->params[def->param_count].key = param_id;
     def->params[def->param_count].value = resolved;
     def->param_count++;
@@ -1470,6 +1545,13 @@ apply_patrol(
                       "got `%s`\n",
                       where, index, text);
         return 0;
+    }
+    /* Full-size on first touch: N picks the slot, so lines may arrive out of
+     * order, and only the handful of npcs that patrol pay the 256 bytes. */
+    if( !def->patrol )
+    {
+        def->patrol = calloc(TORIRSSERVER_NPC_PATROL_MAX, sizeof(*def->patrol));
+        assert(def->patrol);
     }
     def->patrol[index - 1].level = level;
     def->patrol[index - 1].x = x;
@@ -4283,6 +4365,17 @@ ToriRSServer_ContentLoad(const char* dir)
     walk_configs(path, ".npc", load_npc_default_config);
     walk_configs(path, ".npc", load_npc_generated_config);
     walk_configs(path, ".npc", load_npc_authored_config);
+    /* The roster is complete and nothing appends after this point
+     * (npc_def_find_mutable's only caller is load_npc_config), so give back
+     * the doubling headroom — the last grow leaves up to half the block
+     * empty. Before any World spawn caches a `npc->def` pointer, or the
+     * realloc would move the array out from under it. */
+    if( g_npc_def_count > 0 )
+    {
+        g_npc_defs = realloc(g_npc_defs, (size_t)g_npc_def_count * sizeof(*g_npc_defs));
+        assert(g_npc_defs);
+        g_npc_def_capacity = g_npc_def_count;
+    }
     walk_configs(path, ".obj", load_obj_config);
     walk_configs(path, ".loc", load_loc_config);
     /* After .obj: a stockN= line names an obj and resolves it against
@@ -4372,7 +4465,18 @@ band_seed_npc(
     void* record,
     int id)
 {
-    npc_def_seed_from_cache((struct ToriRSServerNpcDef*)record, id);
+    struct ToriRSServerNpcDef* def = (struct ToriRSServerNpcDef*)record;
+
+    npc_def_seed_from_cache(def, id);
+    /* The band registers only scalar fields, and this stack record is seeded
+     * once per archive — keep the deep-copied arrays and they leak, one pair
+     * per record compared. */
+    free(def->params);
+    def->params = NULL;
+    def->param_count = 0;
+    free(def->patrol);
+    def->patrol = NULL;
+    def->patrol_count = 0;
 }
 
 /** What load_loc_config starts a block from, exactly. */
@@ -4719,8 +4823,7 @@ ToriRSServer_ContentFree(void)
 {
     for( int kind = 0; kind < TORIRSSERVER_PACK_COUNT; kind++ )
     {
-        for( int i = 0; i < g_packs[kind].count; i++ )
-            free(g_packs[kind].entries[i].name);
+        pack_names_free(&g_packs[kind]);
         free(g_packs[kind].entries);
         free(g_packs[kind].by_name);
         free(g_packs[kind].by_id);
@@ -4730,9 +4833,20 @@ ToriRSServer_ContentFree(void)
         g_packs[kind].count = 0;
         g_packs[kind].capacity = 0;
     }
+    for( int i = 0; i < g_npc_def_count; i++ )
+    {
+        free(g_npc_defs[i].params);
+        free(g_npc_defs[i].patrol);
+    }
     free(g_npc_defs);
     g_npc_defs = NULL;
     g_npc_def_count = g_npc_def_capacity = 0;
+    free(g_npc_default.params);
+    g_npc_default.params = NULL;
+    g_npc_default.param_count = 0;
+    free(g_npc_default.patrol);
+    g_npc_default.patrol = NULL;
+    g_npc_default.patrol_count = 0;
     ToriRSServer_SceneLocOpOverlayReset();
     free(g_loc_defs);
     g_loc_defs = NULL;

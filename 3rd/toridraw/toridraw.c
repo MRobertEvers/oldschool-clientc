@@ -2,6 +2,7 @@
 #include <assert.h>
 
 #include "toridraw_types.h"
+#include "toridraw_shared_model.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -101,10 +102,6 @@ _Static_assert(
 #define TORIDRAW_DEPTH_LEVELS_16K       16384
 #define TORIDRAW_FULL_DEPTH_STRIDE 512
 
-#define TORIDRAW_SMALL_MAX_VERTICES  1024
-#define TORIDRAW_SMALL_MAX_FACES     2048
-#define TORIDRAW_SMALL_FLEX_PRIO11   TORIDRAW_SMALL_MAX_FACES
-#define TORIDRAW_SMALL_FLEX_PRIO12   TORIDRAW_SMALL_MAX_FACES
 
 struct ToriDraw_ScratchProfile
 {
@@ -187,23 +184,22 @@ resolve_caps(
                              ? TORIDRAW_DEPTH_LEVELS_16K
                              : TORIDRAW_DEPTH_LEVELS_REFERENCE;
 
+    /* Capacity always comes from the tier; SMALL only selects the CSR
+     * sorter, whose buffers scale with max_faces instead of carrying the
+     * dense depth_levels x depth_stride bucket table. */
+    caps->max_vertices = profile->max_vertices;
+    caps->max_faces = profile->max_faces;
+    caps->flex_prio11 = profile->flex_prio11;
+    caps->flex_prio12 = profile->flex_prio12;
     if( caps->small_mode )
     {
-        caps->max_vertices = TORIDRAW_SMALL_MAX_VERTICES;
-        caps->max_faces = TORIDRAW_SMALL_MAX_FACES;
         caps->depth_stride = 0;
         caps->priority_stride = 0;
-        caps->flex_prio11 = TORIDRAW_SMALL_FLEX_PRIO11;
-        caps->flex_prio12 = TORIDRAW_SMALL_FLEX_PRIO12;
     }
     else
     {
-        caps->max_vertices = profile->max_vertices;
-        caps->max_faces = profile->max_faces;
         caps->depth_stride = TORIDRAW_FULL_DEPTH_STRIDE;
         caps->priority_stride = profile->priority_stride;
-        caps->flex_prio11 = profile->flex_prio11;
-        caps->flex_prio12 = profile->flex_prio12;
     }
 
     return true;
@@ -290,6 +286,7 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     free(scene->tex_state);
     free(scene->anim_list);
     free(scene->zbuffer);
+    free(scene->event_queue.events);
 
     memset(scene, 0, sizeof(*scene));
 }
@@ -326,7 +323,11 @@ ToriDraw_SceneAllocBuffers(
     if( caps->small_mode )
     {
         scene->sm_face_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
-        scene->sm_depth_offset = malloc((size_t)(caps->depth_levels + 1) * sizeof(int));
+        /* calloc, not malloc: the counting sort never clears this table whole.
+         * Each sort re-zeroes only the [min, max + 1] window it dirtied after
+         * its consumer has walked it, so the all-zero state is established
+         * here, once (the full-mode tmp_depth_face_count invariant). */
+        scene->sm_depth_offset = calloc((size_t)(caps->depth_levels + 1), sizeof(int));
         scene->sm_depth_cursor = malloc((size_t)caps->depth_levels * sizeof(int));
         scene->sm_faces_by_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
         scene->sm_prio_offset = malloc(13 * sizeof(int));
@@ -347,7 +348,12 @@ ToriDraw_SceneAllocBuffers(
     }
     else
     {
-        scene->tmp_depth_face_count = malloc((size_t)caps->depth_levels * sizeof(faceint_t));
+        /* calloc, not malloc: the render path never clears this table whole.
+         * Each sort re-zeroes only the buckets it dirtied after its consumer
+         * has walked them (ToriDraw_ComputeProjectedFaceOrder), so the
+         * all-zero state is established here, once. */
+        scene->tmp_depth_face_count =
+            calloc((size_t)caps->depth_levels, sizeof(faceint_t));
         scene->tmp_depth_faces = malloc(
             (size_t)caps->depth_levels * (size_t)caps->depth_stride * sizeof(faceint_t));
         scene->tmp_priority_face_count = malloc(12 * sizeof(faceint_t));
@@ -497,6 +503,49 @@ ToriDraw_ScenePrintSize(
     printf("  total:      %6zu bytes (%.1f KiB)\n", total, (double)total / 1024.0);
 }
 
+/*
+ * struct ToriDraw_Scene declares _Alignas(16) on the prepared-camera block --
+ * the SSE2 and Apple AArch64 projection kernels are built around that layout --
+ * but 32-bit malloc promises only eight, so the declaration was a promise the
+ * allocator never made. The compiler believed it and wrote the block with
+ * `movaps`; an unaligned aligned-store raises a general-protection fault, which
+ * Windows reports as an access violation at 0xffffffff.
+ *
+ * It stayed hidden while the scene was 5.5 MB, because a block that size comes
+ * back page-aligned by accident. Moving the event queue off the struct left an
+ * ordinary 25 KB block, and whether it landed on 8 or 16 then followed the heap
+ * layout -- which is why the fault tracked the size of the environment block and
+ * vanished under a debugger.
+ *
+ * Over-allocate and keep the allocator's own pointer in the word below the
+ * block, so the free path hands back exactly what it was given.
+ */
+#define TORIDRAW_SCENE_ALIGN _Alignof(struct ToriDraw_Scene)
+
+static struct ToriDraw_Scene*
+td_scene_alloc_aligned(void)
+{
+    void* raw;
+    uintptr_t aligned;
+
+    raw = calloc(
+        1, sizeof(struct ToriDraw_Scene) + TORIDRAW_SCENE_ALIGN + sizeof(void*));
+    assert(raw);
+    aligned = ((uintptr_t)raw + sizeof(void*) + TORIDRAW_SCENE_ALIGN - 1) &
+              ~(uintptr_t)(TORIDRAW_SCENE_ALIGN - 1);
+    ((void**)aligned)[-1] = raw;
+    return (struct ToriDraw_Scene*)aligned;
+}
+
+/* A deallocator, so NULL is an idiom here exactly as it is for free. */
+static void
+td_scene_free_aligned(struct ToriDraw_Scene* scene)
+{
+    if( !scene )
+        return;
+    free(((void**)scene)[-1]);
+}
+
 struct ToriDraw_Scene*
 ToriDraw_SceneNew(
     uint32_t flags,
@@ -506,8 +555,7 @@ ToriDraw_SceneNew(
     if( !resolve_caps(flags, scratch_buffer_size, &caps) )
         return NULL;
 
-    struct ToriDraw_Scene* scene = calloc(1, sizeof(struct ToriDraw_Scene));
-    assert(scene);
+    struct ToriDraw_Scene* scene = td_scene_alloc_aligned();
 
     scene->flags = flags;
     /* Build on first query rather than reporting an empty list. */
@@ -518,7 +566,7 @@ ToriDraw_SceneNew(
     if( !ToriDraw_SceneGraphInit(scene) )
     {
         ToriDraw_SceneFreeBuffers(scene);
-        free(scene);
+        td_scene_free_aligned(scene);
         return NULL;
     }
 
@@ -531,8 +579,11 @@ ToriDraw_SceneFree(struct ToriDraw_Scene* scene)
     if( !scene )
         return;
     ToriDraw_SceneGraphShutdown(scene);
+    /* After the shutdown, not before: disposing the elements is what returns
+     * the models they borrowed, and the store asserts it is empty. */
+    ToriDraw_SharedModelStoreFree(scene->shared_models);
     ToriDraw_SceneFreeBuffers(scene);
-    free(scene);
+    td_scene_free_aligned(scene);
 }
 
 /* Raster family selector; see graphics/raster/scanline/scanline_select.h. */
@@ -844,6 +895,12 @@ ToriDraw_ScenePrepareProjectionCamera(
 
     assert(scene);
     assert(camera);
+    /* The compiler writes these five vectors with aligned stores, on the
+     * strength of the _Alignas(16) in the struct; td_scene_alloc_aligned is
+     * what makes that true of the block the scene actually lives in. */
+    assert(
+        ((uintptr_t)&scene->projection_prepared_camera &
+         (TORIDRAW_SCENE_ALIGN - 1)) == 0);
 
     /* Publish the source only after all five vectors are complete. */
     scene->projection_prepared_camera_source = NULL;

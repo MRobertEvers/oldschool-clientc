@@ -401,7 +401,7 @@ update_window_title(
     snprintf(
         title,
         sizeof(title),
-        "torirs iface=%d hover=%d clicked=%d",
+        "ToriRS iface=%d hover=%d clicked=%d",
         interface_id,
         app->hover_com_id,
         app->clicked_com_id);
@@ -914,6 +914,15 @@ frame_loop_step(void)
 
     if( max_frames > 0 && frame_count++ >= max_frames )
         return 0;
+
+    /* Unconditional, unlike frame_count above, which only moves when the
+     * run was bounded. TORIRS_WEDGE_CAM_PATH phases off this, and a camera
+     * that only moved under TORIRS_MAX_FRAMES would be a knob you could not
+     * eyeball before trusting it. */
+    {
+        extern long g_torirs_frame_no;
+        g_torirs_frame_no++;
+    }
 
 #if !defined(__EMSCRIPTEN__)
     /* The pacing budget starts before any frame work. The input timestamp
@@ -3482,7 +3491,31 @@ main(
     if( !cfg.window_mode && App_UiLogic(&app) == APP_UI_LOGIC_CS1 )
         cfg.window_mode = CS2VM_WINDOW_MODE_FIXED;
     App_SetBootWindowMode(&app, cfg.window_mode);
-    App_OpenRootInterface(&app, cfg.interface_id);
+    /*
+     * No gameframe before the server asks for one.
+     *
+     * A networked boot is re-rooted at login: the world sends IF_OPENTOP with
+     * the group the player's display mode actually wants
+     * (ToriRSServer_GameframeOpentop), and App_OpenRootInterface throws the
+     * whole tree away to bake it. Mounting `[ui:boot] interface_id` here
+     * therefore loads and lays out an entire cache gameframe -- packs, onload
+     * scripts, transmit dispatch -- purely to discard it a moment later, and
+     * shows it meanwhile, so a client that has not connected to anything looks
+     * exactly like one that has. The world half of the same automount is
+     * already gated this way (`[ui:varc]`, `[ui:gameframe]` and the region load
+     * in Task_AppBoot all test `!net_enabled`); this is the root itself.
+     *
+     * Offline there is no such packet, so the manifest's id is the only answer
+     * there will ever be and it still roots the tree -- which is what keeps the
+     * offline worlds (bench, mapeditor, packed, worldmap, rs634void) and
+     * `--offline` on any networked manifest booting into a frame as before.
+     *
+     * -1 rather than 0 for "no root": INTERFACE_ID_UNSET is 0, but 0 is a real
+     * cache group to the builder, which would mount it instead of nothing.
+     */
+    App_OpenRootInterface(
+        &app,
+        app.net_enabled || cfg.interface_id == INTERFACE_ID_UNSET ? -1 : cfg.interface_id);
 
     /* Boot is fully async (App_RunOnce pumps it; App_Render shows a loading
      * bar). The headless harness/debug paths below inspect the freshly built
@@ -4361,7 +4394,7 @@ main(
 
         sdl = PlatformSDL2_New();
 
-        snprintf(title, sizeof(title), "torirs iface=%d", cfg.interface_id);
+        snprintf(title, sizeof(title), "ToriRS iface=%d", cfg.interface_id);
         if( !sdl )
         {
             fprintf(stderr, "window platform alloc failed\n");

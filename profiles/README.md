@@ -8,6 +8,7 @@ in shell history or in a copied manifest.
 ./launch list                     every profile, with a one-line description
 ./launch show osrs239-web         the resolved plan — processes, ports, argv
 ./launch run  osrs239             prepare, build, start services, launch
+./launch bench osrs239-bench      time the world's [bench:*] scenes
 ./launch status                   what is up right now, across all runs
 ./launch stop  osrs239-web        stop the services this run started
 ./launch logs  osrs239-web -f     follow its service logs
@@ -32,6 +33,28 @@ ones still running; `logs <run> <TAB>` lists the log files that run actually
 has. The shell asks `launch complete` for the candidates, so a new subcommand,
 flag, or profile is completable without touching the shell scripts — see
 [tools/launcher/completion.py](../tools/launcher/completion.py).
+
+
+## Benchmark profiles
+
+`./launch bench <profile>` times the `[bench:<name>]` scenes its world
+declares — one fixed camera over a fixed set of map squares, one offline
+client process each, per-window perf samples. `osrs239-bench` is the worked
+example, and `docs/PERF_HARNESS.md` covers the scene keys and how to read the
+table.
+
+Two things make a bench profile different from a run profile, and both are the
+world's doing rather than the profile's:
+
+  * **No server, structurally.** The world states no `transport=` and no
+    `host=`, so the client never constructs a net subsystem. `--offline` in
+    `[args]` is the belt to that braces.
+  * **`flavor=opt`, always.** A benchmark against a `-O0` build measures the
+    register allocator, and the ranking it produces between two kernels does
+    not survive being compiled properly.
+
+`./launch run osrs239-bench` still works and boots one client at the manifest
+spawn — which is how you go and look at a scene by hand after a number moves.
 
 ## Naming
 

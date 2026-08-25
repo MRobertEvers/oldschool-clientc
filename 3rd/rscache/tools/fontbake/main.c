@@ -664,9 +664,9 @@ list_fonts(
         int identifier = 0;
 
         for( int a = 0; a < rt->archive_count; a++ )
-            if( rt->archives[a].index == id )
+            if( RSCache_ReferenceTableHasArchive(rt, a) && a == id )
             {
-                identifier = rt->archives[a].identifier;
+                identifier = RSCache_ReferenceTableIdentifier(rt, a);
                 break;
             }
 
@@ -710,9 +710,9 @@ list_fonts(
                 *comma = '\0';
             hash = RSCache_ArchiveNameHashDat2(tok);
             for( int a = 0; a < rt->archive_count; a++ )
-                if( rt->archives[a].identifier == hash )
+                if( RSCache_ReferenceTableIdentifier(rt, a) == hash )
                 {
-                    hit = rt->archives[a].index;
+                    hit = a;
                     break;
                 }
             if( hit >= 0 )

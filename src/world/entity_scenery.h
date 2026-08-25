@@ -107,6 +107,31 @@ WorldEntity_SceneryPickInactive(void);
 void
 WorldEntity_SceneryDebugSetTools(bool active);
 
+/**
+ * The name and the five menu options a loc placement shows -- shared, never
+ * copied per placement.
+ *
+ * Every placement of a loc type carries the same 234 bytes of label, a scene
+ * holds thousands of placements against a few hundred types, and the great
+ * majority carry nothing at all: walls, gravel, fences and ground decor have
+ * neither a name nor an op, so they all resolve to one block. Held inline this
+ * was 234 of the entity's 380 bytes, on a pool that runs to eight thousand.
+ *
+ * Interned per world by content (World_SceneryInfoIntern), so it is never
+ * NULL -- an unnamed, op-less placement points at the shared empty block. The
+ * pointer is const because a placement never edits its own label: the one path
+ * that overrides ops (a LOC_ADD_CHANGE dressing the door it just spawned)
+ * interns the edited copy and repoints, which also means two spawns carrying
+ * the same override still share.
+ */
+struct WorldEntity_SceneryInfo
+{
+    /* 64, matching ToriRS_Location.name (TORIRS_NAME_MAX) -- col-tagged names
+     * don't fit in 32. */
+    char name[64];
+    struct WorldEntityFacet_Action actions[5];
+};
+
 struct WorldEntity_Scenery
 {
     int element_id;
@@ -129,10 +154,9 @@ struct WorldEntity_Scenery
     int force_approach;
     struct WorldEntityFacet_Orientation orientation;
     struct WorldEntityFacet_AnimationStep animation;
-    /* 64, matching ToriRS_Location.name (TORIRS_NAME_MAX) -- col-tagged names
-     * don't fit in 32. */
-    char name[64];
-    struct WorldEntityFacet_Action actions[5];
+    /** Name and menu options, shared with every placement that shows the same
+     *  ones. Never NULL once the placement is registered. */
+    struct WorldEntity_SceneryInfo const* info;
     /** LocType.active. The reference negates a non-active loc's scene
      *  typecode so Model.draw never records it as a pick hit; torirs filters
      *  in torirs_pick.c instead (walls/gravel/floor decor stay unclickable). */

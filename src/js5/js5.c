@@ -792,7 +792,7 @@ static bool
 js5_group_listed(const struct Js5Archive* archive, int group)
 {
     return archive->reference && group >= 0 && group < archive->reference->archive_count &&
-           archive->reference->archives[group].index >= 0 &&
+           RSCache_ReferenceTableHasArchive(archive->reference, group) &&
            archive->reference->archives[group].children.count > 0;
 }
 
@@ -907,7 +907,7 @@ js5_decode_reference(
     {
         int group = table->ids[index];
         if( group < 0 || group > UINT16_MAX || group >= table->archive_count ||
-            table->archives[group].index < 0 || table->archives[group].children.count < 0 )
+            !RSCache_ReferenceTableHasArchive(table, group) || table->archives[group].children.count < 0 )
         {
             RSCache_ReferenceTableFree(table);
             return NULL;

@@ -110,9 +110,9 @@ row_holds(
     int tuple_position,
     int value)
 {
-    const struct ToriRSServerDbRowColumn* store = &row->columns[column];
-    const struct ToriRSServerDbValue* values = store->values;
-    int count = store->count;
+    const struct ToriRSServerDbRowColumn* store = ToriRSServer_DbRowColumn(row, column);
+    const struct ToriRSServerDbValue* values = store ? store->values : NULL;
+    int count = store ? store->count : 0;
 
     if( count == 0 )
     {
@@ -239,12 +239,12 @@ ToriRSServer_OpsDb(
             last = tuple_index + 1;
         }
 
-        store = &row->columns[column_index];
+        store = ToriRSServer_DbRowColumn(row, column_index);
         for( int i = first; i < last; i++ )
         {
             int offset = (values[2] * column->type_count) + i;
-            const struct ToriRSServerDbValue* source = store->values;
-            int source_count = store->count;
+            const struct ToriRSServerDbValue* source = store ? store->values : NULL;
+            int source_count = store ? store->count : 0;
 
             if( source_count == 0 )
             {
@@ -311,7 +311,9 @@ ToriRSServer_OpsDb(
             return 1;
         }
         {
-            int count = row->columns[column_index].count;
+            const struct ToriRSServerDbRowColumn* store =
+                ToriRSServer_DbRowColumn(row, column_index);
+            int count = store ? store->count : 0;
             if( count == 0 )
                 count = column->default_count;
             SSVM_PushInt(state, count / column->type_count);

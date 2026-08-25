@@ -101,9 +101,12 @@ import_table(
             assert(defaults);
             for( int i = 0; i < total; i++ )
             {
-                defaults[i].value = src->values[i].int_value;
-                defaults[i].text = src->values[i].is_string
-                    ? src->values[i].string_value : NULL;
+                /* One member, never both — the value is a union now, and the
+                 * setter re-reads it by the schema position. */
+                if( src->values[i].is_string )
+                    defaults[i].text = src->values[i].string_value;
+                else
+                    defaults[i].value = src->values[i].int_value;
             }
             ToriRSServer_DbColumnDefaultsSet(table, col, defaults, total);
             free(defaults);
@@ -158,16 +161,12 @@ import_row(
         assert(values);
         for( int i = 0; i < total; i++ )
         {
+            /* One member, never both — the value is a union now, and the
+             * setter re-reads it by the schema position. */
             if( src->values[i].is_string )
-            {
                 values[i].text = src->values[i].string_value;
-                values[i].value = 0;
-            }
             else
-            {
                 values[i].value = src->values[i].int_value;
-                values[i].text = NULL;
-            }
         }
         ToriRSServer_DbRowColumnSet(row, col, values, total);
         free(values);

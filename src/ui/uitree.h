@@ -416,6 +416,63 @@ struct UITreeComponentParam
     char* str;
 };
 
+/*
+ * The per-slot overrides an RS_INV component may carry.
+ *
+ * Held off the component because inventories are a handful of nodes while the
+ * union that carried these four arrays sized all of them: at 20 slots they are
+ * 320 of the union's 352 bytes, and the union is the widest arm of a struct
+ * that a loaded tree holds 8192 of. Every non-inv component paid for them.
+ *
+ * Absent is a real answer, so reads go through UITree_InvSlots, which hands
+ * back uitree_inv_slots_none rather than NULL -- the callers assign .offset_x
+ * straight into a layout and must not have to branch.
+ */
+struct UITreeInvSlots
+{
+    int offset_x[UI_INV_SLOT_OFFSET_MAX];
+    int offset_y[UI_INV_SLOT_OFFSET_MAX];
+    /** -1 = this slot draws no background, which is why "none" cannot be the
+     *  zeroed block. */
+    int bg_scene_id[UI_INV_SLOT_OFFSET_MAX];
+    int bg_atlas_index[UI_INV_SLOT_OFFSET_MAX];
+};
+
+/*
+ * The chrome arms held off the component.
+ *
+ * A tree carries one chat panel, one debug overlay and a handful of chat
+ * buttons, and each of those arms was sizing the union for all 8192
+ * components: chat at 344 bytes was the widest outright, then chat_button at
+ * 168 and debug_overlay at 136 were the widest of what remained. Behind
+ * pointers the union falls to rs_model's 60, so a component sheds 284 bytes
+ * it only ever needed on a few nodes.
+ *
+ * Reads go through the accessors, which hand back a zeroed "none" block rather
+ * than NULL. Absent is a real state -- a chat node whose spec has not run yet
+ * -- and it has always read as all-zero, because a fresh component slot is
+ * memset before its type is set.
+ */
+struct UITreeChatConfig
+{
+    struct UITreeChatMinimenuConfig minimenu;
+    int font_id; /* INI font= (message + input line font, e.g. p12) */
+};
+
+struct UITreeDebugOverlayConfig
+{
+    /** Scene font ids the host registered the baked debug faces
+     * under, indexed by enum ToriRSChromeFontSlot. ui/ stays leaf, so they
+     * travel as plain ints the same way minimenu.font_id does. */
+    int font_id_small;
+    int font_id_menu;
+    int font_id_body;
+    /** Scene id the host uploaded the baked chrome skin under, and the
+     * atlas index per enum ToriRSChromeSkinSlot. -1 = no skin. */
+    int skin_scene_id;
+    int skin_atlas[TORIRS_CHROME_SKIN_SLOT_COUNT];
+};
+
 struct UITreeComponent
 {
     /* --- Hot block: the fields every per-frame walk reads on every node it
@@ -728,10 +785,9 @@ struct UITreeComponent
             int obj_ops;
             /** Show the "Use" row (objUse); 0 hides it. */
             int obj_use;
-            int inv_slot_offset_x[UI_INV_SLOT_OFFSET_MAX];
-            int inv_slot_offset_y[UI_INV_SLOT_OFFSET_MAX];
-            int inv_slot_bg_scene_id[UI_INV_SLOT_OFFSET_MAX];
-            int inv_slot_bg_atlas_index[UI_INV_SLOT_OFFSET_MAX];
+            /** NULL until a spec supplies per-slot data. Read through
+             *  UITree_InvSlots, never directly. */
+            struct UITreeInvSlots* slots;
         } rs_inv;
         struct
         {
@@ -765,25 +821,14 @@ struct UITreeComponent
             /** revconfig color=; text colour of the countdown line. */
             int color;
         } reboot_timer;
-        struct
-        {
-            /** Scene font ids the host registered the baked debug faces
-             * under, indexed by enum ToriRSChromeFontSlot. ui/ stays leaf, so they
-             * travel as plain ints the same way minimenu.font_id does. */
-            int font_id_small;
-            int font_id_menu;
-            int font_id_body;
-            /** Scene id the host uploaded the baked chrome skin under, and the
-             * atlas index per enum ToriRSChromeSkinSlot. -1 = no skin. */
-            int skin_scene_id;
-            int skin_atlas[TORIRS_CHROME_SKIN_SLOT_COUNT];
-        } debug_overlay;
-        struct
-        {
-            struct UITreeChatMinimenuConfig minimenu;
-            int font_id; /* INI font= (message + input line font, e.g. p12) */
-        } chat;
-        struct UITreeChatButtonConfig chat_button;
+        /** NULL until a spec configures the overlay. Read through
+         *  UITree_DebugOverlay, never directly. */
+        struct UITreeDebugOverlayConfig* debug_overlay;
+        /** NULL until a spec configures the panel. Read through UITree_Chat. */
+        struct UITreeChatConfig* chat;
+        /** NULL until a spec configures the button. Read through
+         *  UITree_ChatButton. */
+        struct UITreeChatButtonConfig* chat_button;
         struct
         {
             int color;
@@ -807,6 +852,39 @@ struct UITreeComponent
 
 /** The all-zero block a component with no hooks reads as. Never written. */
 extern struct UITreeRuntimeHooks const uitree_hooks_none;
+
+/** Every slot at offset 0 with no background -- what an inv with no per-slot
+ *  overrides behaves as. */
+extern struct UITreeInvSlots const uitree_inv_slots_none;
+
+/** The zeroed blocks the accessors hand back for an unconfigured component. */
+extern struct UITreeChatConfig const uitree_chat_none;
+extern struct UITreeDebugOverlayConfig const uitree_debug_overlay_none;
+extern struct UITreeChatButtonConfig const uitree_chat_button_none;
+
+/** The component's chrome block, or the "none" block. Never NULL. */
+struct UITreeChatConfig const*
+UITree_Chat(struct UITreeComponent const* c);
+struct UITreeDebugOverlayConfig const*
+UITree_DebugOverlay(struct UITreeComponent const* c);
+struct UITreeChatButtonConfig const*
+UITree_ChatButton(struct UITreeComponent const* c);
+
+/** The component's chrome block, allocating it on first use. */
+struct UITreeChatConfig*
+UITree_ChatMut(struct UITreeComponent* c);
+struct UITreeDebugOverlayConfig*
+UITree_DebugOverlayMut(struct UITreeComponent* c);
+struct UITreeChatButtonConfig*
+UITree_ChatButtonMut(struct UITreeComponent* c);
+
+/** The component's per-slot data, or the "none" block. Never NULL. */
+struct UITreeInvSlots const*
+UITree_InvSlots(struct UITreeComponent const* c);
+
+/** The component's per-slot data, allocating it on first use. */
+struct UITreeInvSlots*
+UITree_InvSlotsMut(struct UITreeComponent* c);
 
 /**
  * A component's hook block for reading. Never NULL, so a caller may take the
@@ -1286,24 +1364,8 @@ struct UITreeNodeSpec
             /** revconfig color=; text colour of the countdown line. */
             int color;
         } reboot_timer;
-        struct
-        {
-            /** Scene font ids the host registered the baked debug faces
-             * under, indexed by enum ToriRSChromeFontSlot. ui/ stays leaf, so they
-             * travel as plain ints the same way minimenu.font_id does. */
-            int font_id_small;
-            int font_id_menu;
-            int font_id_body;
-            /** Scene id the host uploaded the baked chrome skin under, and the
-             * atlas index per enum ToriRSChromeSkinSlot. -1 = no skin. */
-            int skin_scene_id;
-            int skin_atlas[TORIRS_CHROME_SKIN_SLOT_COUNT];
-        } debug_overlay;
-        struct
-        {
-            struct UITreeChatMinimenuConfig minimenu;
-            int font_id;
-        } chat;
+        struct UITreeDebugOverlayConfig debug_overlay;
+        struct UITreeChatConfig chat;
         struct UITreeChatButtonConfig chat_button;
         struct
         {

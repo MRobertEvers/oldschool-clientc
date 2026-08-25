@@ -32,9 +32,16 @@ int
 app_tex_trace_enabled(void);
 /* #endregion */
 
-#define BRIDGE_SPRITE_MAP_CAP 4096
-#define BRIDGE_MODEL_MAP_CAP 4096
-#define BRIDGE_OBJ_ICON_MAP_CAP 4096
+/*
+ * Initial sizes, not ceilings -- the map doubles itself past 75% load. Sprites
+ * are the only channel a boot fills (517 of them); the model and icon maps hold
+ * what the open interfaces happen to show, which is tens, not thousands. All
+ * three used to reserve 4096 slots apiece across eight maps -- 1 MB to hold 559
+ * entries.
+ */
+#define BRIDGE_SPRITE_MAP_CAP 2048
+#define BRIDGE_MODEL_MAP_CAP 256
+#define BRIDGE_OBJ_ICON_MAP_CAP 256
 
 static struct ToriDraw_Texture*
 bridge_texture_from_torirs(const struct ToriRS_Texture* rs);
@@ -1434,11 +1441,21 @@ UITreeSceneBridge_CollectMissingTextures(
     return count;
 }
 
+/*
+ * The scene's view of a cached material, pointing at the cache's pixels.
+ *
+ * The texels are not copied. `rs` comes from CacheProvider_TextureGet, whose
+ * table holds every texture it has ever baked for the life of the provider --
+ * it has no eviction and CacheProvider_TextureCacheClear has no callers -- and
+ * the provider outlives every scene built against it, so the borrow cannot
+ * dangle. Nothing downstream writes through the pointer either: the raster
+ * only samples it, and no other consumer of CacheProvider_TextureGet reads
+ * `texels` at all. Copying cost 1.75 MB of duplicate atlases at peak.
+ */
 static struct ToriDraw_Texture*
 bridge_texture_from_torirs(const struct ToriRS_Texture* rs)
 {
     struct ToriDraw_Texture* texture;
-    size_t texel_bytes;
 
     assert(rs);
     if( !rs->texels || rs->width <= 0 || rs->height <= 0 )
@@ -1447,10 +1464,8 @@ bridge_texture_from_torirs(const struct ToriRS_Texture* rs)
     texture = calloc(1, sizeof(*texture));
     assert(texture);
 
-    texel_bytes = (size_t)rs->width * (size_t)rs->height * sizeof(int);
-    texture->texels = malloc(texel_bytes);
-    assert(texture->texels);
-    memcpy(texture->texels, rs->texels, texel_bytes);
+    texture->texels = rs->texels;
+    texture->borrowed_texels = true;
     texture->width = rs->width;
     texture->height = rs->height;
     texture->opaque = rs->opaque;

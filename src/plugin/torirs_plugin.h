@@ -1000,6 +1000,59 @@ enum ToriRS_PluginDisplaySetting
 };
 
 /* ------------------------------------------------------------------------ */
+/* The lane                                                                  */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Which lineage's field layouts the booted cache carries.
+ *
+ * The LINEAGE and not the revision, because that is the question a plugin
+ * actually has. Answering "is this an OldSchool world?" by revision number is
+ * wrong on both axes: the two lineages number their revisions independently,
+ * so 254 is a 2004 dat1 world and 233 is an OldSchool one, and a threshold
+ * written against either number is a threshold against the wrong thing.
+ */
+enum ToriRS_PluginGame
+{
+    /** Nothing has stated one yet. @see ToriRS_PluginApi::lane. */
+    TORIRS_PLUGIN_GAME_UNKNOWN = 0,
+    TORIRS_PLUGIN_GAME_OLDSCHOOL = 1,
+    /** The classic client's lineage: the 2004 dat1 worlds AND the later dat2
+     *  RS2 revisions, which are that same client with a different container. */
+    TORIRS_PLUGIN_GAME_RS2 = 2
+};
+
+/** Which on-disk container family the cache is stored in. Not a proxy for the
+ *  lineage: OldSchool and the later RS2 revisions are both dat2. */
+enum ToriRS_PluginEpoch
+{
+    TORIRS_PLUGIN_EPOCH_UNKNOWN = 0,
+    /** Jagfile era: main_file_cache.dat + .idx1..5. */
+    TORIRS_PLUGIN_EPOCH_DAT1 = 1,
+    /** JS5: main_file_cache.dat2 + .idx0..N. */
+    TORIRS_PLUGIN_EPOCH_DAT2 = 2
+};
+
+/**
+ * What this client booted, as the boot manifest's `[cache:boot]` stated it.
+ *
+ * Deliberately NOT a feature flag, and the distinction is the one the feature
+ * verbs already draw: a flag is a BEHAVIOUR a plugin may legitimately want a
+ * different value of, and this is a FACT about the cache on disk that nothing
+ * can want differently. So it is read-only, and there is no "whatever this
+ * boot resolved" sentinel -- that is the only thing it ever is.
+ */
+struct ToriRS_PluginLane
+{
+    /** enum ToriRS_PluginGame. */
+    int game;
+    /** enum ToriRS_PluginEpoch. */
+    int epoch;
+    /** Numbered in `game`'s own lineage, so it means nothing without it. */
+    int revision;
+};
+
+/* ------------------------------------------------------------------------ */
 /* Feature flags                                                             */
 /* ------------------------------------------------------------------------ */
 
@@ -1316,6 +1369,36 @@ struct ToriRS_PluginApi
      * stream, would be putting words in someone's mouth.
      */
     void (*notify)(struct ToriRS_PluginCtx* ctx, char const* text);
+
+    /**
+     * Switch this plugin off, now, and say why.
+     *
+     * For the plugin that can only tell whether it belongs here once it can
+     * SEE where "here" is: the lane it booted on, the cache's own content, a
+     * device this build has not got. That decision cannot be made in the def
+     * -- a def is compiled -- and it must not be made by running anyway and
+     * drawing nothing, because a plugin that is switched on and inert is a
+     * feature that silently does not work with nothing on any screen to say
+     * so.
+     *
+     * `reason` is what the roster shows beside the row and what the boot line
+     * prints, so it is written for a PERSON: it says which lane refused the
+     * plugin, not which branch was taken.
+     *
+     * WHAT THIS DOES NOT DO IS EDIT THE USER'S SWITCH. The saved `enabled=`
+     * is a preference stated once for every lane this client boots, and a
+     * client that cleared it on the one lane that cannot use the plugin would
+     * lose the preference for all the others -- boot an OldSchool world once
+     * and the gameframe chosen on a 2004 world is forgotten. So the plugin is
+     * torn down and reported off, the saved line is left exactly as it was,
+     * and changing lanes is all it takes to have the feature back.
+     *
+     * Legal from `init` and from any handler, and the earlier the better:
+     * from `init`, before subscribing, nothing is ever registered at all. The
+     * calling handler keeps running afterwards -- this cannot return for it --
+     * so it should do nothing but return.
+     */
+    void (*disable_self)(struct ToriRS_PluginCtx* ctx, char const* reason);
 
     /* -- clocks -- */
 
@@ -1965,6 +2048,23 @@ struct ToriRS_PluginApi
      * exist on this cache -- and a builtin that gets it should switch off.
      */
     int (*cache_id)(struct ToriRS_PluginCtx* ctx, char const* kind, char const* name);
+    /**
+     * What this client booted: the cache's lineage, container and revision.
+     *
+     * The coarse companion to cache_id. That one answers "does this cache have
+     * the row I want", which is the question a plugin that reads a var or
+     * drives an interface has; this one answers "which client am I inside",
+     * which is the question a plugin whose whole reason to exist is a gap in
+     * one lineage and nothing at all in another has.
+     *
+     * @return 1 with `out` filled, or 0 with `out` zeroed for a boot whose
+     * identity is not stated yet -- which is what every field reads as, so a
+     * caller that ignores the return still gets UNKNOWN rather than a lineage
+     * nothing told it. Treat that as "do not decide yet" and never as "not
+     * OldSchool": the cache profile lands during boot, and a plugin started
+     * before it would otherwise read the absence as an answer.
+     */
+    int (*lane)(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginLane* out);
     /**
      * A colour-row setting, as 0xRRGGBB.
      *

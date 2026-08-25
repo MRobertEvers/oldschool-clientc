@@ -36,8 +36,8 @@ collect_inv_grid_slot_hit(
     layout.rows = component->u.rs_inv.rows;
     layout.margin_x = component->u.rs_inv.margin_x;
     layout.margin_y = component->u.rs_inv.margin_y;
-    layout.offset_x = component->u.rs_inv.inv_slot_offset_x;
-    layout.offset_y = component->u.rs_inv.inv_slot_offset_y;
+    layout.offset_x = UITree_InvSlots(component)->offset_x;
+    layout.offset_y = UITree_InvSlots(component)->offset_y;
 
     return UITree_InvViewGridHitTest(bx, by, &layout, px + scroll_off_x, py + scroll_off_y) >= 0;
 }

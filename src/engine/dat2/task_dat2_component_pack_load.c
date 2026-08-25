@@ -61,9 +61,13 @@ Task_Dat2ComponentPackLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    dat2_buildcache_componentpack_add(task->bc, task->iface_id, rscache_pack);
-
     torirs_pack = ToriRS_ComponentPackFromRSCacheDat2(rscache_pack);
+    /* The converted pack copies every field by value and deep-copies every
+     * array it keeps, so the decoded form has no reader left the moment this
+     * returns. It used to be handed to the build cache, which held all 25 of
+     * them for the session and was never asked for one. */
+    RSCache_Dat2ComponentPackFree(rscache_pack);
+    rscache_pack = NULL;
     if( !torirs_pack )
     {
         fprintf(stderr, "Failed to convert dat2 component pack %d\n", task->iface_id);

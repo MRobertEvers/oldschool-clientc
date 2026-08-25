@@ -1889,6 +1889,18 @@ RS_CS2Host_Free(struct RS_CS2Host* host)
     host->db_find_rows = NULL;
     host->db_find_count = 0;
     host->db_find_cursor = 0;
+    free(host->inv_transmit_hooks);
+    host->inv_transmit_hooks = NULL;
+    host->inv_transmit_hook_count = 0;
+    host->inv_transmit_hook_cap = 0;
+    free(host->var_transmit_hooks);
+    host->var_transmit_hooks = NULL;
+    host->var_transmit_hook_count = 0;
+    host->var_transmit_hook_cap = 0;
+    free(host->stat_transmit_hooks);
+    host->stat_transmit_hooks = NULL;
+    host->stat_transmit_hook_count = 0;
+    host->stat_transmit_hook_cap = 0;
 }
 
 void
@@ -5096,6 +5108,39 @@ exec_widget_set_model_angle(
     return CS2VM_EXECNO_OK;
 }
 
+/* Admits one more entry to a dense transmit-hook array, moving the base if it
+ * has to grow. The caller has already refused the ceiling, so this cannot run
+ * out of room; max is here only to keep the last doubling from overshooting it.
+ * Geometric from 8, so a session's handful of hooks costs one allocation and
+ * the pathological 512 costs seven. */
+static void
+rs_cs2_grow_transmit_hooks(
+    void** hooks,
+    int* cap,
+    int count,
+    size_t elem,
+    int max)
+{
+    int next;
+    void* grown;
+
+    assert(hooks);
+    assert(cap);
+    assert(count < max);
+    if( count < *cap )
+        return;
+
+    /* 3/2 rather than doubling: the array is never released, so the overshoot
+     * of the last growth is held for the session. */
+    next = *cap ? *cap + *cap / 2 : 8;
+    if( next > max )
+        next = max;
+    grown = realloc(*hooks, (size_t)next * elem);
+    assert(grown);
+    *hooks = grown;
+    *cap = next;
+}
+
 /* Acquire the inv-transmit hook slot for component_id. Re-registration for the
  * same component reuses its entry (the new script supersedes the old) while
  * preserving its dispatch state — a transmit script re-registering itself must not
@@ -5169,6 +5214,12 @@ rs_cs2_acquire_inv_transmit_hook(
         return NULL;
     }
 
+    rs_cs2_grow_transmit_hooks(
+        (void**)&host->inv_transmit_hooks,
+        &host->inv_transmit_hook_cap,
+        host->inv_transmit_hook_count,
+        sizeof(*host->inv_transmit_hooks),
+        RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX);
     hook = &host->inv_transmit_hooks[host->inv_transmit_hook_count++];
     memset(hook, 0, sizeof(*hook));
     return hook;
@@ -5235,6 +5286,12 @@ rs_cs2_acquire_var_transmit_hook(
         return NULL;
     }
 
+    rs_cs2_grow_transmit_hooks(
+        (void**)&host->var_transmit_hooks,
+        &host->var_transmit_hook_cap,
+        host->var_transmit_hook_count,
+        sizeof(*host->var_transmit_hooks),
+        RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX);
     hook = &host->var_transmit_hooks[host->var_transmit_hook_count++];
     memset(hook, 0, sizeof(*hook));
     return hook;
@@ -5275,7 +5332,16 @@ rs_cs2_cache_hook_args(
     char str_args[][CS2VM_SETON_STR_ARG_LEN],
     struct ToriRS_ScriptHook const* src)
 {
-    int argc = src->argc > 0 ? src->argc - 1 : 0;
+    int argc;
+
+    assert(int_args);
+    assert(int_arg_count);
+    assert(str_arg_mask);
+    assert(str_arg_count);
+    assert(str_args);
+    assert(src);
+
+    argc = src->argc > 0 ? src->argc - 1 : 0;
 
     if( argc > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
         argc = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
@@ -5284,11 +5350,35 @@ rs_cs2_cache_hook_args(
     *int_arg_count = argc;
 
     *str_arg_mask = src->str_mask >> 1;
-    *str_arg_count =
-        src->str_argc > CS2VM_SETON_STR_ARG_MAX ? CS2VM_SETON_STR_ARG_MAX : src->str_argc;
+    /*
+     * Two different bounds meet here and they are not the same number: the
+     * destination holds CS2VM_SETON_STR_ARG_MAX rows (16), the source holds
+     * TORIRS_COMPONENT_HOOK_STR_MAX (4). Clamping the count to the
+     * destination's bound, and running the copy loop to it while indexing the
+     * *source* with it, meant twelve of every sixteen iterations read past the
+     * end of `src->strv` and handed whatever followed the struct to "%s".
+     * strlen then ran from there until it met a zero byte or an unmapped page.
+     *
+     * That is the crash the XP box died of in strlen inside snprintf, roughly
+     * one launch in three, from
+     * RS_CS2_RegisterCacheTransmitHooks <- Task_InterfaceOpen_Run: whether it
+     * faulted was decided by what happened to sit after the hook record, so it
+     * tracked heap layout -- a console being attached was enough to change the
+     * odds -- and not anything about the frame it died on.
+     *
+     * The source array is the bound for reading it, and slots past the count
+     * are cleared rather than left to whatever the destination held, so every
+     * row the transmit tables go on to read is a defined string.
+     */
+    *str_arg_count = src->str_argc > TORIRS_COMPONENT_HOOK_STR_MAX
+                         ? TORIRS_COMPONENT_HOOK_STR_MAX
+                         : src->str_argc;
     for( int i = 0; i < CS2VM_SETON_STR_ARG_MAX; i++ )
     {
-        snprintf(str_args[i], CS2VM_SETON_STR_ARG_LEN, "%s", src->strv[i]);
+        if( i < *str_arg_count )
+            snprintf(str_args[i], CS2VM_SETON_STR_ARG_LEN, "%s", src->strv[i]);
+        else
+            str_args[i][0] = '\0';
     }
 }
 
@@ -5572,6 +5662,12 @@ rs_cs2_acquire_stat_transmit_hook(
         return NULL;
     }
 
+    rs_cs2_grow_transmit_hooks(
+        (void**)&host->stat_transmit_hooks,
+        &host->stat_transmit_hook_cap,
+        host->stat_transmit_hook_count,
+        sizeof(*host->stat_transmit_hooks),
+        RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX);
     hook = &host->stat_transmit_hooks[host->stat_transmit_hook_count++];
     memset(hook, 0, sizeof(*hook));
     return hook;

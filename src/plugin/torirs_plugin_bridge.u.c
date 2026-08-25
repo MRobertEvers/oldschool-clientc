@@ -263,14 +263,14 @@ app_plugin_fill_loc(
     out->angle = scenery->angle;
     out->element_id = scenery->element_id;
     out->interactive = scenery->interactive;
-    snprintf(out->name, sizeof(out->name), "%s", scenery->name);
+    snprintf(out->name, sizeof(out->name), "%s", scenery->info->name);
 
     /* The ops are a facet array with a per-slot name; a slot with no name is
      * an op the loc does not offer. Packed to a bitmask here because that is
      * the only question a plugin asks of them -- the TEXT of an op is the
      * minimenu's business, and a plugin that wants it reads the menu build. */
     for( int i = 0; i < 5; i++ )
-        if( scenery->actions[i].name[0] != '\0' )
+        if( scenery->info->actions[i].name[0] != '\0' )
             out->visible_ops |= (uint8_t)(1u << i);
 }
 
@@ -364,6 +364,37 @@ app_plugin_highlight_push(struct App* app, struct ToriRS_PluginHighlightItem con
     return item;
 }
 
+/* The entity pools the rebuild walks, one per pass that has a pool. */
+enum
+{
+    APP_PLUGIN_HL_POOL_NPC = 0,
+    APP_PLUGIN_HL_POOL_PLAYER,
+    APP_PLUGIN_HL_POOL_LOC,
+    APP_PLUGIN_HL_POOL_OBJ,
+    APP_PLUGIN_HL_POOL_COUNT
+};
+
+/*
+ * Does any name-keyed subject belong to this kind?
+ *
+ * PLAYER and OPGROUP share the one `named` list, so "is anything named" has to
+ * ask which kind rather than just whether the list is non-empty.
+ *
+ * `kind` is an int because that is what the member stores -- the enum's
+ * underlying type is unsigned here, and comparing the two directly is a
+ * signedness warning for no gain.
+ */
+static bool
+app_plugin_highlight_named_any(struct RS_HighlightState const* hl, int kind)
+{
+    assert(hl);
+
+    for( int i = 0; i < hl->named_count; i++ )
+        if( hl->named[i].kind == kind )
+            return true;
+    return false;
+}
+
 /*
  * Does an OP GROUP name this thing?
  *
@@ -387,25 +418,81 @@ app_plugin_opgroup_group(struct RS_HighlightState const* hl, char const* name)
 }
 
 /*
+ * Which pools have anything to look for.
+ *
+ * A pool walk exists only to test that pool's entities against a subject list,
+ * so an empty list makes the entire walk dead work -- and with nothing
+ * highlighted, which is the ordinary state, every list is empty while the
+ * scenery pool alone is ~23k entities to step through, once per frame, to
+ * produce nothing.
+ *
+ * Answered per pool rather than once for the whole rebuild: tagging a single
+ * npc must not put the loc and obj pools back on the frame.
+ *
+ * This cannot be hoisted to `hl->revision` instead. The resolved list carries
+ * draw positions, and those move every frame without anything being said -- a
+ * revision cache would pin a highlight to where its npc stood when the op was
+ * picked, which is the same bug the npc pass avoids by leaving the member's
+ * coord out of the match.
+ *
+ * OPGROUP is keyed by right-click NAME and applies across the npc, loc and obj
+ * pools (see app_plugin_opgroup_group), so it re-arms all three.
+ */
+static void
+app_plugin_highlight_pools_wanted(
+    struct RS_HighlightState const* hl,
+    bool want[APP_PLUGIN_HL_POOL_COUNT])
+{
+    assert(hl);
+    assert(want);
+
+    bool const opgroup_any = app_plugin_highlight_named_any(hl, RS_HIGHLIGHT_OPGROUP);
+
+    want[APP_PLUGIN_HL_POOL_NPC] = hl->member_count[RS_HIGHLIGHT_NPC] > 0 ||
+                                   hl->member_count[RS_HIGHLIGHT_NPCTYPE] > 0 ||
+                                   opgroup_any;
+    want[APP_PLUGIN_HL_POOL_PLAYER] =
+        app_plugin_highlight_named_any(hl, RS_HIGHLIGHT_PLAYER);
+    want[APP_PLUGIN_HL_POOL_LOC] = hl->member_count[RS_HIGHLIGHT_LOC] > 0 ||
+                                   hl->member_count[RS_HIGHLIGHT_LOCTYPE] > 0 ||
+                                   opgroup_any;
+    want[APP_PLUGIN_HL_POOL_OBJ] = hl->member_count[RS_HIGHLIGHT_OBJ] > 0 ||
+                                   hl->member_count[RS_HIGHLIGHT_OBJTYPE] > 0 ||
+                                   opgroup_any;
+}
+
+/*
  * Rebuild the resolved list.
  *
  * One pass per kind, and each pass walks the pool it needs at most once: a
  * member list is short (the largest real one is the 109 loctypes the cache
  * marks) and the pools are long, so the inner test is against the members and
  * the outer walk is the pool.
+ *
+ * `want` skips the pools with nothing to look for; passing all-true walks
+ * every pool, which is what the debug cross-check in the caller compares
+ * against.
  */
 static void
-app_plugin_highlights_rebuild(struct App* app)
+app_plugin_highlights_rebuild_pools(
+    struct App* app,
+    bool const want[APP_PLUGIN_HL_POOL_COUNT])
 {
     struct RS_HighlightState const* hl;
     struct ToriRS_PluginHighlightItem proto;
 
     assert(app);
+    assert(want);
 
     app->plugin_highlight_count = 0;
     if( !app->world )
         return;
     hl = &app->host.highlight;
+
+    bool const want_npc = want[APP_PLUGIN_HL_POOL_NPC];
+    bool const want_player = want[APP_PLUGIN_HL_POOL_PLAYER];
+    bool const want_loc = want[APP_PLUGIN_HL_POOL_LOC];
+    bool const want_obj = want[APP_PLUGIN_HL_POOL_OBJ];
 
     /* ---- tiles: the member IS the thing, no pool to walk. ---- */
     for( int i = 0; i < hl->member_count[RS_HIGHLIGHT_TILE]; i++ )
@@ -436,6 +523,7 @@ app_plugin_highlights_rebuild(struct App* app)
      * the npc stood on when the op was picked, and matching on it would drop
      * the highlight the moment the npc took a step -- which is the opposite of
      * what tagging one is for. ---- */
+    if( want_npc )
     {
         struct World_EntityPool* pool = &app->world->entities.npc;
         for( int at = World_EntityPoolHead(pool); at != WORLD_ENTITY_NIL;
@@ -513,6 +601,7 @@ app_plugin_highlights_rebuild(struct App* app)
      * report of a player's name, so the compare is exact -- and the local
      * player is in this pool too, which is what makes the developer op's
      * "highlight yourself" work. ---- */
+    if( want_player )
     {
         struct World_EntityPool* pool = &app->world->entities.player;
         for( int at = World_EntityPoolHead(pool); at != WORLD_ENTITY_NIL;
@@ -545,6 +634,7 @@ app_plugin_highlights_rebuild(struct App* app)
     }
 
     /* ---- locs: by type anywhere, or by type at one coord. ---- */
+    if( want_loc )
     {
         struct World_EntityPool* pool = &app->world->entities.scenery;
         for( int at = World_EntityPoolHead(pool); at != WORLD_ENTITY_NIL;
@@ -581,7 +671,7 @@ app_plugin_highlights_rebuild(struct App* app)
                     proto.overhead_height = app_plugin_element_height(app, loc->element_id);
                     proto.fine_x = (loc->grid_position.x * 128) + 64;
                     proto.fine_z = (loc->grid_position.z * 128) + 64;
-                    snprintf(proto.name, sizeof(proto.name), "%s", loc->name);
+                    snprintf(proto.name, sizeof(proto.name), "%s", loc->info->name);
                     proto.tile_x = tile_x;
                     proto.tile_z = tile_z;
                     proto.level = loc->grid_position.level;
@@ -594,7 +684,7 @@ app_plugin_highlights_rebuild(struct App* app)
             }
 
             {
-                int const group = app_plugin_opgroup_group(hl, loc->name);
+                int const group = app_plugin_opgroup_group(hl, loc->info->name);
                 if( group >= 0 &&
                     app_plugin_highlight_begin(app, RS_HIGHLIGHT_OPGROUP, group, &proto) )
                 {
@@ -603,7 +693,7 @@ app_plugin_highlights_rebuild(struct App* app)
                     proto.overhead_height = app_plugin_element_height(app, loc->element_id);
                     proto.fine_x = (loc->grid_position.x * 128) + 64;
                     proto.fine_z = (loc->grid_position.z * 128) + 64;
-                    snprintf(proto.name, sizeof(proto.name), "%s", loc->name);
+                    snprintf(proto.name, sizeof(proto.name), "%s", loc->info->name);
                     proto.tile_x = tile_x;
                     proto.tile_z = tile_z;
                     proto.level = loc->grid_position.level;
@@ -617,6 +707,7 @@ app_plugin_highlights_rebuild(struct App* app)
     }
 
     /* ---- ground items ---- */
+    if( want_obj )
     {
         struct World_EntityPool* pool = &app->world->entities.obj_stack;
         for( int at = World_EntityPoolHead(pool); at != WORLD_ENTITY_NIL;
@@ -684,6 +775,96 @@ app_plugin_highlights_rebuild(struct App* app)
 }
 
 /*
+ * Is the highlight debug channel on?
+ *
+ * Cached: this is asked once per frame per caller, and getenv on this platform
+ * is a linear scan of the environment block.
+ */
+static bool
+app_plugin_highlight_debug(void)
+{
+    static int on = -1;
+
+    if( on < 0 )
+        on = getenv("TORIRS_HIGHLIGHT_DEBUG") != NULL;
+    return on != 0;
+}
+
+/*
+ * Rebuild, walking only the pools with something to look for.
+ *
+ * Under TORIRS_HIGHLIGHT_DEBUG the rebuild is repeated with every pool armed
+ * and the two results compared, so "the gate skipped a pool that had a
+ * highlight in it" reports itself instead of looking like a highlight the
+ * script never asked for -- which is indistinguishable from outside, and is
+ * exactly the failure this whole debug channel exists for. The ungated result
+ * is the one left in place: if they ever disagree, the drawn frame stays
+ * correct and only the log says so.
+ */
+static void
+app_plugin_highlights_rebuild(struct App* app)
+{
+    bool want[APP_PLUGIN_HL_POOL_COUNT];
+
+    assert(app);
+
+    app_plugin_highlight_pools_wanted(&app->host.highlight, want);
+    app_plugin_highlights_rebuild_pools(app, want);
+
+    if( app_plugin_highlight_debug() )
+    {
+        int const gated = app->plugin_highlight_count;
+        bool const all[APP_PLUGIN_HL_POOL_COUNT] = { true, true, true, true };
+
+        app_plugin_highlights_rebuild_pools(app, all);
+        if( gated != app->plugin_highlight_count )
+            fprintf(
+                stderr,
+                "highlight-gate: MISMATCH gated=%d ungated=%d "
+                "(npc %d, player %d, loc %d, obj %d)\n",
+                gated,
+                app->plugin_highlight_count,
+                (int)want[APP_PLUGIN_HL_POOL_NPC],
+                (int)want[APP_PLUGIN_HL_POOL_PLAYER],
+                (int)want[APP_PLUGIN_HL_POOL_LOC],
+                (int)want[APP_PLUGIN_HL_POOL_OBJ]);
+
+        /* Which pools the gate left armed, and how long the list each armed
+         * pool tests against is. An armed pool that resolves to nothing still
+         * pays its whole walk -- entities x members -- so this is the number
+         * that says whether the gate reached the cost or only the tail of it. */
+        static int last_state = -1;
+        int const state =
+            (int)want[APP_PLUGIN_HL_POOL_NPC] | ((int)want[APP_PLUGIN_HL_POOL_PLAYER] << 1) |
+            ((int)want[APP_PLUGIN_HL_POOL_LOC] << 2) | ((int)want[APP_PLUGIN_HL_POOL_OBJ] << 3) |
+            (app->host.highlight.revision << 4);
+        if( state != last_state )
+        {
+            struct RS_HighlightState const* hl = &app->host.highlight;
+            last_state = state;
+            fprintf(
+                stderr,
+                "highlight-gate: armed npc=%d player=%d loc=%d obj=%d | members"
+                " npc=%d npctype=%d loc=%d loctype=%d obj=%d objtype=%d tile=%d"
+                " named=%d rev=%d\n",
+                (int)want[APP_PLUGIN_HL_POOL_NPC],
+                (int)want[APP_PLUGIN_HL_POOL_PLAYER],
+                (int)want[APP_PLUGIN_HL_POOL_LOC],
+                (int)want[APP_PLUGIN_HL_POOL_OBJ],
+                hl->member_count[RS_HIGHLIGHT_NPC],
+                hl->member_count[RS_HIGHLIGHT_NPCTYPE],
+                hl->member_count[RS_HIGHLIGHT_LOC],
+                hl->member_count[RS_HIGHLIGHT_LOCTYPE],
+                hl->member_count[RS_HIGHLIGHT_OBJ],
+                hl->member_count[RS_HIGHLIGHT_OBJTYPE],
+                hl->member_count[RS_HIGHLIGHT_TILE],
+                hl->named_count,
+                hl->revision);
+        }
+    }
+}
+
+/*
  * What the groups RESOLVED to, on TORIRS_HIGHLIGHT_DEBUG.
  *
  * The op trace says what the cache asked for and the member counts say what
@@ -701,7 +882,7 @@ app_plugin_highlights_report(struct App* app)
     int signature = 0;
 
     assert(app);
-    if( !getenv("TORIRS_HIGHLIGHT_DEBUG") )
+    if( !app_plugin_highlight_debug() )
         return;
 
     for( int i = 0; i < app->plugin_highlight_count; i++ )
@@ -1673,6 +1854,66 @@ app_plugin_cache_id(void* user, char const* kind, char const* name)
     assert(kind);
     assert(name);
     return RevConfigRefs_Get(&app->revconfig_refs, kind, name);
+}
+
+/*
+ * What `[cache:boot]` stated, translated out of rscache's enums into the
+ * plugin header's own.
+ *
+ * Translated and not cast, even though the two sets agree value for value
+ * today. The plugin header names no engine type -- that is what makes the
+ * layer language-agnostic -- so its enum is free to be renumbered, and a cast
+ * would turn that into a plugin quietly reading RS2 for OldSchool rather than
+ * a compile error.
+ *
+ * The PROVIDER's copy rather than the AppConfig it came from, because the
+ * provider's is the one the decoders read: a plugin that disagreed with them
+ * about which client this is would be answering a question nothing else in the
+ * process answers the same way.
+ */
+static int
+app_plugin_lane(void* user, struct ToriRS_PluginLane* out)
+{
+    struct App* app = (struct App*)user;
+    struct RSCache const* profile;
+
+    assert(app);
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    /* Not yet identified is a real state and not a fault: the host is built in
+     * App_Init before the cache profile is set, so anything that asks in
+     * between gets UNKNOWN and is documented to wait rather than decide. */
+    if( !app->provider || !RSCache_ProfileIsIdentified(&app->provider->profile) )
+        return 0;
+
+    profile = CacheProvider_Profile(app->provider);
+    switch( profile->game )
+    {
+    case RSCACHE_GAME_OLDSCHOOL:
+        out->game = TORIRS_PLUGIN_GAME_OLDSCHOOL;
+        break;
+    case RSCACHE_GAME_RS2:
+        out->game = TORIRS_PLUGIN_GAME_RS2;
+        break;
+    default:
+        out->game = TORIRS_PLUGIN_GAME_UNKNOWN;
+        break;
+    }
+    switch( profile->epoch )
+    {
+    case RSCACHE_EPOCH_DAT1:
+        out->epoch = TORIRS_PLUGIN_EPOCH_DAT1;
+        break;
+    case RSCACHE_EPOCH_DAT2:
+        out->epoch = TORIRS_PLUGIN_EPOCH_DAT2;
+        break;
+    default:
+        out->epoch = TORIRS_PLUGIN_EPOCH_UNKNOWN;
+        break;
+    }
+    out->revision = profile->revision;
+    return 1;
 }
 
 /*
@@ -3607,6 +3848,7 @@ app_plugin_engine(struct App* app)
     engine.varbit = app_plugin_varbit;
     engine.varp = app_plugin_varp;
     engine.cache_id = app_plugin_cache_id;
+    engine.lane = app_plugin_lane;
     engine.obj_info = app_plugin_obj_info;
     engine.inv_slot = app_plugin_inv_slot;
     engine.inv_size = app_plugin_inv_size;

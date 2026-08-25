@@ -23,6 +23,14 @@
 #include "projection16_simd.sse41.u.c"
 #elif defined(__SSE2__) && !defined(SSE2_DISABLED)
 #include "projection16_simd.sse2.u.c"
+/*
+ * Prepared-camera model-yaw family, the x86 answer to the prepared AArch64
+ * entry points in projection16_apple.S. Only the SSE2 lane gets it: the SSE4.1
+ * and AVX2 kernels above have their own measured shapes, and this one has been
+ * benchmarked against the SSE2 pair it displaces, not against those.
+ */
+#define TORIDRAW_SSE2_PREPARED_PROJECTION 1
+#include "projection16_prepared.sse2.h"
 #elif defined(__SSE__) && !defined(SSE_DISABLED)
 #include "projection16_simd.sse_float.u.c"
 #else

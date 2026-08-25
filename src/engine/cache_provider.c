@@ -7,11 +7,19 @@
 
 #include <assert.h>
 #include <rscache.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define CACHE_PROVIDER_MODEL_CAPACITY 8192
-#define CACHE_PROVIDER_SPRITE_CAPACITY 4096
+/*
+ * Initial map sizes, not ceilings: cache_provider_hmap_prepare_insert doubles
+ * the buffer past 75% load, so a map that outgrows its number costs one rehash
+ * and nothing else. Each is the next power of two above twice what a booted
+ * osrs239 session actually holds, measured rather than guessed -- the old
+ * uniform 4096s were paying 1.5 MB to hold 5.6k entries.
+ */
+#define CACHE_PROVIDER_MODEL_CAPACITY 4096
+#define CACHE_PROVIDER_SPRITE_CAPACITY 2048
 /*
  * How much of each derived cache survives a trim (see
  * CacheProvider_TrimDerivedCaches). These are working-set sizes, not hard
@@ -31,34 +39,36 @@
  */
 #define CACHE_PROVIDER_MODEL_KEEP ((size_t)1536)
 #define CACHE_PROVIDER_SPRITE_KEEP ((size_t)1024)
-#define CACHE_PROVIDER_FONT_CAPACITY 256
-#define CACHE_PROVIDER_ENUM_CAPACITY 2048
-#define CACHE_PROVIDER_STRUCT_CAPACITY 2048
-#define CACHE_PROVIDER_PARAM_CAPACITY 2048
-#define CACHE_PROVIDER_INVTYPE_CAPACITY 2048
-#define CACHE_PROVIDER_COMPONENTPACK_CAPACITY 512
-#define CACHE_PROVIDER_CLIENTSCRIPT_CAPACITY 4096
-#define CACHE_PROVIDER_OBJTYPE_CAPACITY 4096
-#define CACHE_PROVIDER_NPCTYPE_CAPACITY 4096
-#define CACHE_PROVIDER_SPOTANIMTYPE_CAPACITY 1024
-#define CACHE_PROVIDER_SOUND_CAPACITY 1024
+#define CACHE_PROVIDER_FONT_CAPACITY 16
+#define CACHE_PROVIDER_ENUM_CAPACITY 256
+#define CACHE_PROVIDER_STRUCT_CAPACITY 128
+#define CACHE_PROVIDER_PARAM_CAPACITY 128
+#define CACHE_PROVIDER_INVTYPE_CAPACITY 16
+#define CACHE_PROVIDER_COMPONENTPACK_CAPACITY 64
+#define CACHE_PROVIDER_CLIENTSCRIPT_CAPACITY 2048
+#define CACHE_PROVIDER_OBJTYPE_CAPACITY 512
+#define CACHE_PROVIDER_NPCTYPE_CAPACITY 64
+#define CACHE_PROVIDER_SPOTANIMTYPE_CAPACITY 16
+#define CACHE_PROVIDER_SOUND_CAPACITY 16
 #define CACHE_PROVIDER_IDK_CAPACITY 512
-#define CACHE_PROVIDER_MAP_TERRAIN_CAPACITY 512
-#define CACHE_PROVIDER_MAP_SCENERY_CAPACITY 512
+#define CACHE_PROVIDER_MAP_TERRAIN_CAPACITY 32
+#define CACHE_PROVIDER_MAP_SCENERY_CAPACITY 32
 #define CACHE_PROVIDER_LOCATION_CAPACITY 4096
-#define CACHE_PROVIDER_FLOTYPE_CAPACITY 512
-#define CACHE_PROVIDER_UNDERLAY_CAPACITY 512
-#define CACHE_PROVIDER_TEXTURE_CAPACITY 512
-#define CACHE_PROVIDER_SPRITE_NAME_CAPACITY 256
-#define CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY 4096
-#define CACHE_PROVIDER_MAPELEMENT_CAPACITY 1024
+#define CACHE_PROVIDER_FLOTYPE_CAPACITY 128
+#define CACHE_PROVIDER_UNDERLAY_CAPACITY 64
+#define CACHE_PROVIDER_TEXTURE_CAPACITY 128
+#define CACHE_PROVIDER_SPRITE_NAME_CAPACITY 32
+#define CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY 64
+#define CACHE_PROVIDER_MAPELEMENT_CAPACITY 64
 #define CACHE_PROVIDER_DBROW_CAPACITY 2048
 /* The renderer releases each region once baked, so only the in-flight ones sit
  * here — a map surface never has hundreds resident. */
-#define CACHE_PROVIDER_WORLDMAP_GEOGRAPHY_CAPACITY 64
-#define CACHE_PROVIDER_DBINDEX_CAPACITY 256
-/* One record per table; cache.osrs239 has 247 of them. */
-#define CACHE_PROVIDER_DBTABLE_CAPACITY 256
+#define CACHE_PROVIDER_WORLDMAP_GEOGRAPHY_CAPACITY 16
+#define CACHE_PROVIDER_DBINDEX_CAPACITY 16
+/* One record per table -- cache.osrs239 has 247 -- but they load on demand and a
+ * session touches a couple. The map doubles itself past 75% load, so this is a
+ * starting size, not a ceiling. */
+#define CACHE_PROVIDER_DBTABLE_CAPACITY 16
 
 /*
  * `last_used` is the LRU clock for the two caches that grow without bound over
@@ -395,6 +405,10 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
 {
     assert(provider);
 
+    /* TEMP census: occupancy vs capacity for every provider map, so the
+     * CACHE_PROVIDER_*_CAPACITY constants can be set from what a session
+     * actually holds instead of from a guess. Runs before the cleanups, which
+     * empty the maps and rebuild them at the compiled capacity. */
     CacheProvider_ModelsCleanup(provider);
     CacheProvider_SpritesCleanup(provider);
     CacheProvider_FontsCleanup(provider);

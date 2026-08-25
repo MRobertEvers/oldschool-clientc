@@ -5,12 +5,21 @@ from __future__ import annotations
 
 import hashlib
 import html
+import sys
 from pathlib import Path
 
 
 HERE = Path(__file__).resolve().parent
-INPUT = HERE / "verysleepy_stacks.folded"
-OUTPUT = HERE / "winxp-soft3d-60s-flamegraph.svg"
+# Defaults name the first capture. Every later capture is a different binary
+# measured under different conditions, so pass its folded stacks explicitly
+# rather than overwriting an SVG that documents a run you can no longer take.
+#   render_flamegraph.py <stacks.folded> [out.svg]
+INPUT = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "verysleepy_stacks.folded"
+OUTPUT = (
+    Path(sys.argv[2])
+    if len(sys.argv) > 2
+    else INPUT.with_name(INPUT.name.replace("_stacks.folded", "") + "-flamegraph.svg")
+)
 WIDTH = 1600
 FRAME_HEIGHT = 18
 LEFT = 10

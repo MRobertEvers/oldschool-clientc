@@ -253,6 +253,10 @@ struct ToriRS_PluginEngine
 
     /** The boot profile's `[<kind>:<name>] id=` table. @see ToriRS_PluginApi::cache_id. */
     int (*cache_id)(void* user, char const* kind, char const* name);
+    /** What `[cache:boot]` stated. OPTIONAL -- a NULL here answers every
+     *  plugin UNKNOWN, which is the one answer nothing decides on.
+     *  @see ToriRS_PluginApi::lane. */
+    int (*lane)(void* user, struct ToriRS_PluginLane* out);
 
     /** One objtype, resident-only. @see ToriRS_PluginApi::obj_info. */
     int (*obj_info)(void* user, int obj_id, struct ToriRS_PluginObjInfo* out);
@@ -480,6 +484,15 @@ void PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, boo
  * here would switch it on behind the user's back.
  */
 void PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index);
+/**
+ * Is this plugin switched on RIGHT NOW -- the user's switch, minus any lane
+ * that refused it. What the roster's checkbox and the boot line both want.
+ *
+ * Deliberately not the saved state. A plugin that called `disable_self` is
+ * off, and reporting it on because the ini still says so would draw a ticked
+ * box over a plugin that is torn down. The saved line is the config encoder's
+ * business and nobody else's. @see ToriRS_PluginApi::disable_self.
+ */
 bool PluginHost_IsEnabled(struct ToriRS_PluginHost const* host, int plugin_index);
 int PluginHost_Count(struct ToriRS_PluginHost const* host);
 /** The plugin's identity: the ini section, the manifest entry, the key

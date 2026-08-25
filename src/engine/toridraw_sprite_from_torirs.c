@@ -6,27 +6,37 @@
 
 #include <assert.h>
 #include <stdlib.h>
-#include <string.h>
 
 struct ToriDraw_Sprite*
-ToriDraw_SpriteFromToriRSFrame(struct ToriRS_SpriteFrame const* frame)
+ToriDraw_SpriteFromToriRSFrame(struct ToriRS_SpriteFrame* frame)
 {
     uint32_t* argb;
     struct ToriDraw_Sprite* spr;
-    size_t n;
 
     assert(frame);
     if( !frame->pixels_argb || frame->width <= 0 || frame->height <= 0 )
         return NULL;
 
-    n = (size_t)frame->width * (size_t)frame->height;
-    argb = malloc(n * sizeof(uint32_t));
-    assert(argb);
-    memcpy(argb, frame->pixels_argb, n * sizeof(uint32_t));
+    /*
+     * A move, not a copy.
+     *
+     * These pixels were decoded once into the ToriRS sprite the provider
+     * holds, and the only thing that ever reads them is this conversion:
+     * UITreeSceneBridge_EnsureSprite memoises the scene id per graphic id and
+     * never clears the map, and every other reader of a provider sprite looks
+     * at frame_count alone. Copying therefore kept a second full set of ARGB
+     * resident for the life of the scene — 2.5 MB across ~875 frames — to
+     * back a buffer nobody would look at again.
+     *
+     * The guard above is what makes the handover safe: with width and height
+     * already known positive, ToriDraw_SpriteNewFromArgbOwned cannot return
+     * NULL, so the buffer cannot be stranded between the two owners.
+     */
+    argb = frame->pixels_argb;
+    frame->pixels_argb = NULL;
 
     spr = ToriDraw_SpriteNewFromArgbOwned(argb, frame->width, frame->height);
-    if( !spr )
-        return NULL;
+    assert(spr);
 
     spr->crop_x = frame->crop_x;
     spr->crop_y = frame->crop_y;
@@ -37,7 +47,7 @@ ToriDraw_SpriteFromToriRSFrame(struct ToriRS_SpriteFrame const* frame)
 
 struct ToriDraw_Sprite**
 ToriDraw_SpritesFromToriRS(
-    struct ToriRS_Sprite const* src,
+    struct ToriRS_Sprite* src,
     int* out_count)
 {
     struct ToriDraw_Sprite** sprites;

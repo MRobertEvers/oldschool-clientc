@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -27,6 +28,16 @@ struct Dat2GroupCache
     size_t bytes;
     size_t budget;
     uint64_t clock;
+
+    /* Census, dumped by DAT2_GROUP_CACHE_CENSUS=1. A budget is only worth
+     * lowering if the misses it buys are cheap, and the miss count is the only
+     * way to tell an eviction that was reclaimed from one that gets re-split on
+     * the very next lookup. */
+    uint64_t hits;
+    uint64_t misses;
+    uint64_t evictions;
+    size_t evicted_bytes;
+    size_t peak_bytes;
 };
 
 struct Dat2GroupCache*
@@ -43,12 +54,48 @@ dat2_group_cache_release(struct Dat2GroupCacheSlot* slot, size_t* bytes)
 {
     if( !slot->occupied )
         return;
-    if( slot->group.filelist )
-        RSCache_FileListFree(slot->group.filelist);
+    RSCache_FileListFreeShared(slot->group.filelist, slot->group.blob);
     free(slot->group.file_ids);
     assert(*bytes >= slot->group.bytes);
     *bytes -= slot->group.bytes;
     memset(slot, 0, sizeof(*slot));
+}
+
+static void
+dat2_group_cache_census(struct Dat2GroupCache const* cache)
+{
+    uint64_t lookups;
+
+    assert(cache);
+    lookups = cache->hits + cache->misses;
+    fprintf(
+        stderr,
+        "[dat2_group_cache] budget=%.2f MB peak=%.2f MB live=%.2f MB\n"
+        "[dat2_group_cache] lookups=%llu hits=%llu misses=%llu hit=%.1f%%\n"
+        "[dat2_group_cache] evictions=%llu evicted=%.2f MB\n",
+        cache->budget / (1024.0 * 1024.0),
+        cache->peak_bytes / (1024.0 * 1024.0),
+        cache->bytes / (1024.0 * 1024.0),
+        (unsigned long long)lookups,
+        (unsigned long long)cache->hits,
+        (unsigned long long)cache->misses,
+        lookups ? 100.0 * (double)cache->hits / (double)lookups : 0.0,
+        (unsigned long long)cache->evictions,
+        cache->evicted_bytes / (1024.0 * 1024.0));
+
+    for( int i = 0; i < DAT2_GROUP_CACHE_SLOTS; i++ )
+    {
+        struct Dat2GroupCacheSlot const* slot = &cache->slots[i];
+        if( !slot->occupied )
+            continue;
+        fprintf(
+            stderr,
+            "[dat2_group_cache]   resident table=%d group=%d files=%d %.2f MB\n",
+            slot->group.table,
+            slot->group.group,
+            slot->group.file_count,
+            slot->group.bytes / (1024.0 * 1024.0));
+    }
 }
 
 void
@@ -56,6 +103,8 @@ Dat2GroupCache_Free(struct Dat2GroupCache* cache)
 {
     if( !cache )
         return;
+    if( getenv("DAT2_GROUP_CACHE_CENSUS") )
+        dat2_group_cache_census(cache);
     Dat2GroupCache_Clear(cache);
     free(cache);
 }
@@ -102,7 +151,11 @@ Dat2GroupCache_Get(
     assert(cache);
     slot = dat2_group_cache_find(cache, table, group);
     if( !slot )
+    {
+        cache->misses++;
         return NULL;
+    }
+    cache->hits++;
     slot->last_used = ++cache->clock;
     return &slot->group;
 }
@@ -124,6 +177,8 @@ dat2_group_cache_evict_one(struct Dat2GroupCache* cache)
     }
     if( !victim )
         return 0;
+    cache->evictions++;
+    cache->evicted_bytes += victim->group.bytes;
     dat2_group_cache_release(victim, &cache->bytes);
     return 1;
 }
@@ -165,6 +220,7 @@ Dat2GroupCache_Put(
 {
     struct Dat2GroupCacheSlot* slot;
     struct RSCache_FileList* filelist;
+    char* blob = NULL;
     int* file_ids = NULL;
     size_t bytes;
 
@@ -178,8 +234,8 @@ Dat2GroupCache_Put(
         return &slot->group;
     }
 
-    filelist = RSCache_FileListNewFromDecode(
-        archive->data, archive->data_size, archive->file_count);
+    filelist = RSCache_FileListNewFromDecodeShared(
+        archive->data, archive->data_size, archive->file_count, &blob);
     if( !filelist )
         return NULL;
 
@@ -206,7 +262,7 @@ Dat2GroupCache_Put(
     slot = dat2_group_cache_free_slot(cache);
     if( !slot )
     {
-        RSCache_FileListFree(filelist);
+        RSCache_FileListFreeShared(filelist, blob);
         free(file_ids);
         return NULL;
     }
@@ -216,11 +272,14 @@ Dat2GroupCache_Put(
     slot->group.table = table;
     slot->group.group = group;
     slot->group.filelist = filelist;
+    slot->group.blob = blob;
     slot->group.file_ids = file_ids;
     slot->group.file_count = archive->file_count;
     slot->group.revision = archive->revision;
     slot->group.bytes = bytes;
     cache->bytes += bytes;
+    if( cache->bytes > cache->peak_bytes )
+        cache->peak_bytes = cache->bytes;
 
     return &slot->group;
 }

@@ -102,16 +102,15 @@ dat2_map_archive_id(
     if( maps_table == RSCACHE_DAT2_DISK_TABLE_ABSENT )
         return -1;
 
-    struct RSCache_ReferenceTable* table = cache->tables[maps_table];
+    struct RSCache_ReferenceTable* table =
+        RSCache_Dat2DiskReferenceTable(cache, maps_table);
     if( !table )
         return -1;
 
     for( int i = 0; i < table->archive_count; i++ )
     {
-        struct RSCache_ReferenceTableArchive* archive_reference = &table->archives[i];
-
-        if( archive_reference->identifier == name_hash )
-            return archive_reference->index;
+        if( RSCache_ReferenceTableIdentifier(table, i) == name_hash )
+            return i;
     }
 
     return -1;
@@ -126,10 +125,11 @@ dat2_maps_has_archive(
     int maps_table = RSCache_Dat2DiskTableId(cache, RSCACHE_DAT2_TABLE_MAPS);
     if( maps_table == RSCACHE_DAT2_DISK_TABLE_ABSENT )
         return false;
-    struct RSCache_ReferenceTable* table = cache->tables[maps_table];
+    struct RSCache_ReferenceTable* table =
+        RSCache_Dat2DiskReferenceTable(cache, maps_table);
     if( !table || archive_id < 0 || archive_id >= table->archive_count )
         return false;
-    return table->archives[archive_id].index >= 0;
+    return RSCache_ReferenceTableHasArchive(table, archive_id);
 }
 
 /**

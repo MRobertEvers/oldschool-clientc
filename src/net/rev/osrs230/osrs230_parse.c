@@ -117,13 +117,13 @@ osrs230_parse(
         if( cur.err || !terminated )
             return 0;
 
-        memset(&out->_runclientscript, 0, sizeof(out->_runclientscript));
-        out->_runclientscript.argc = argc;
+        struct PktRunClientScript* p = pkt_runclientscript_reset(out);
+        p->argc = argc;
         for( int i = argc - 1; i >= 0; i-- )
         {
             if( types[i] == 's' )
             {
-                char* dst = out->_runclientscript.strv[i];
+                char* dst = p->strv[i];
                 int n = 0;
                 for( ;; )
                 {
@@ -134,14 +134,14 @@ osrs230_parse(
                         dst[n++] = (char)ch;
                 }
                 dst[n] = '\0';
-                out->_runclientscript.str_mask |= 1u << i;
+                p->str_mask |= 1u << i;
             }
             else
             {
-                out->_runclientscript.intv[i] = RSProt_BufferG4Be(&cur);
+                p->intv[i] = RSProt_BufferG4Be(&cur);
             }
         }
-        out->_runclientscript.script_id = RSProt_BufferG4Be(&cur);
+        p->script_id = RSProt_BufferG4Be(&cur);
         return cur.err ? 0 : 1;
     }
 

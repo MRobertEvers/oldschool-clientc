@@ -79,14 +79,14 @@ collect_from_pack(
         if( c->graphic_active > 0 )
             unique_id_add(
                 &self->sprite_ids, &self->sprite_count, &self->sprite_cap, c->graphic_active);
-        for( int s = 0; s < TORIRS_INV_SLOT_MAX; s++ )
+        for( int s = 0; c->inv_slots && s < TORIRS_INV_SLOT_MAX; s++ )
         {
-            if( c->inv_slot_graphic_id[s] > 0 )
+            if( c->inv_slots->graphic_id[s] > 0 )
                 unique_id_add(
                     &self->sprite_ids,
                     &self->sprite_count,
                     &self->sprite_cap,
-                    c->inv_slot_graphic_id[s]);
+                    c->inv_slots->graphic_id[s]);
         }
         if( c->font_id >= 0 )
             unique_id_add(&self->font_ids, &self->font_count, &self->font_cap, c->font_id);

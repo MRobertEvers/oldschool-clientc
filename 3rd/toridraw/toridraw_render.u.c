@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "graphics/dash_restrict.h"
+#include "graphics/proj_census.h"
 #include "graphics/projection.h"
 #include "toridraw_math.h"
 #include "toridraw_model_internal.h"
@@ -1606,10 +1607,14 @@ ToriDraw_ComputeProjectedFaceOrder(
         debug_stats = &debug_stats_storage;
     }
 
-    memset(
-        scene->tmp_depth_face_count,
-        0,
-        (size_t)scene->depth_levels * sizeof(scene->tmp_depth_face_count[0]));
+    /* No clear here. The bucket-count table arrives all-zero -- calloc'd at
+     * scene creation, and each sort below re-zeroes exactly the buckets it
+     * dirtied once its consumer has walked them, so the invariant holds from
+     * model to model. The reference engine bounds this clear by the model's
+     * depth diameter for the same reason: a full-width clear is
+     * depth_levels-sized, and on the 16K tier that is 32KB zeroed per model
+     * to bucket a median of ~19 faces -- ~30MB of memset a frame, 6.9% of
+     * steady-state CPU on the XP lane, all of it evicting 2x a P4's L1D. */
 
     /*
      * How much depth precision this model has to give up to be sortable.
@@ -1679,6 +1684,22 @@ ToriDraw_ComputeProjectedFaceOrder(
             }
         }
         scene->tmp_face_order_count = order_index;
+
+        /* Restore the all-zero invariant: re-zero exactly the buckets this
+         * model dirtied. The sort's returned bounds are the ACTUAL touched
+         * range -- every accepted bucket write updated them -- not the
+         * bias-derived estimate, which animation can stretch past. An empty
+         * sort returns 0 (min=max=0): a 2-byte clear of an already-zero
+         * bucket. */
+        assert(model_min_depth >= 0);
+        assert(model_max_depth < scene->depth_levels);
+        assert(model_min_depth <= model_max_depth);
+        memset(
+            &scene->tmp_depth_face_count[model_min_depth],
+            0,
+            (size_t)(model_max_depth - model_min_depth + 1) *
+                sizeof(scene->tmp_depth_face_count[0]));
+
         if( debug_stats )
             toridraw_face_sort_debug_print(scene, hnd, debug_stats, order_index);
         /* #region agent log */
@@ -1710,6 +1731,18 @@ ToriDraw_ComputeProjectedFaceOrder(
         face_priorities,
         model_min_depth,
         model_max_depth);
+
+    /* Same invariant restore as the no-priority path: the partition above only
+     * reads the bucket counts over [model_min_depth, model_max_depth], so once
+     * it returns the dirtied range can be re-zeroed. */
+    assert(model_min_depth >= 0);
+    assert(model_max_depth < scene->depth_levels);
+    assert(model_min_depth <= model_max_depth);
+    memset(
+        &scene->tmp_depth_face_count[model_min_depth],
+        0,
+        (size_t)(model_max_depth - model_min_depth + 1) *
+            sizeof(scene->tmp_depth_face_count[0]));
 
     scene->tmp_face_order_count = sort_face_draw_order(
         scene->tmp_priority_depth_sum,
@@ -1748,7 +1781,10 @@ bucket_sort_by_average_depth_small(
     int min_d = depth_levels;
     int max_d = 0;
 
-    memset(scene->sm_depth_offset, 0, (size_t)depth_levels * sizeof(int));
+    /* sm_depth_offset is all-zero here: allocation callocs it, and every
+     * consumer re-zeroes exactly the [min_d, max_d + 1] range it dirtied
+     * (ToriDraw_ComputeProjectedFaceOrderSmall). Zeroing the whole table
+     * instead would put a depth_levels-sized memset on every model draw. */
 
     for( int f = 0; f < num_faces; f++ )
     {
@@ -1837,16 +1873,22 @@ bucket_sort_by_average_depth_small(
     if( min_d > max_d )
         return 0;
 
+    /* Prefix-sum only the touched window. Entries outside [min_d, max_d + 1]
+     * are still zero and stay that way; the consumers never read past the
+     * bounds this returns. */
     int total = 0;
-    for( int d = 0; d < depth_levels; d++ )
+    for( int d = min_d; d <= max_d; d++ )
     {
         int count = scene->sm_depth_offset[d];
         scene->sm_depth_offset[d] = total;
         total += count;
     }
-    scene->sm_depth_offset[depth_levels] = total;
+    scene->sm_depth_offset[max_d + 1] = total;
 
-    memcpy(scene->sm_depth_cursor, scene->sm_depth_offset, (size_t)depth_levels * sizeof(int));
+    memcpy(
+        &scene->sm_depth_cursor[min_d],
+        &scene->sm_depth_offset[min_d],
+        (size_t)(max_d - min_d + 1) * sizeof(int));
 
     for( int f = 0; f < num_faces; f++ )
     {
@@ -2108,6 +2150,14 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
                 scene->tmp_face_order[order_index++] = scene->sm_faces_by_depth[j];
         }
         scene->tmp_face_order_count = order_index;
+
+        /* Restore the all-zero invariant the counting sort relies on: the
+         * sort dirtied exactly [model_min_depth, model_max_depth + 1]. */
+        memset(
+            &scene->sm_depth_offset[model_min_depth],
+            0,
+            (size_t)(model_max_depth - model_min_depth + 2) * sizeof(int));
+
         if( debug_stats )
             toridraw_face_sort_debug_print(scene, hnd, debug_stats, order_index);
         return;
@@ -2118,6 +2168,13 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
 
     partition_and_accumulate_faces_by_priority_small(
         scene, priority_depths, counts, face_priorities, model_min_depth, model_max_depth);
+
+    /* Same invariant restore as the no-priority path, once the partition has
+     * consumed the offsets. */
+    memset(
+        &scene->sm_depth_offset[model_min_depth],
+        0,
+        (size_t)(model_max_depth - model_min_depth + 2) * sizeof(int));
 
     scene->tmp_face_order_count =
         sort_face_draw_order_small(scene, scene->tmp_face_order, priority_depths, counts);
@@ -2150,12 +2207,51 @@ toridraw_project_vertices_clip(
     int camera_roll,
     int model_mid_z)
 {
+#if defined(TORIDRAW_SSE2_PREPARED_PROJECTION)
+    /* Same gate as the Apple prepared path: yaw-only geometry, and a prepared
+     * block that was published for this exact camera. */
+    if( model_pitch == 0 && model_roll == 0 && camera_roll == 0 &&
+        scene->projection_prepared_camera_source == camera )
+    {
+        if( model_has_textures(hnd) )
+        {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 1, model_vertex_count(hnd));
+            ToriDraw_ProjPreparedClip(
+                scene,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                camera->yaw,
+                model_yaw,
+                model_mid_z,
+                position);
+        }
+        else
+        {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 1, model_vertex_count(hnd));
+            ToriDraw_ProjPreparedNotexClip(
+                scene,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                camera->yaw,
+                model_yaw,
+                model_mid_z,
+                position);
+        }
+        return;
+    }
+#endif
+
     /* Full 6DOF when model/camera roll is set (obj-icon zan2d, etc.). yaw-only and
      * pitch+yaw keep the SIMD fused paths; array6_fused matches v0 Dash. */
     if( model_roll != 0 || camera_roll != 0 )
     {
         if( model_has_textures(hnd) )
         {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_6DOF_TEX, 1, model_vertex_count(hnd));
             project_vertices_array6_fused_clip(
                 scene->orthographic_vertices_x,
                 scene->orthographic_vertices_y,
@@ -2182,6 +2278,7 @@ toridraw_project_vertices_clip(
         }
         else
         {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_6DOF_NOTEX, 1, model_vertex_count(hnd));
             project_vertices_array6_fused_notex_clip(
                 scene->screen_vertices_x,
                 scene->screen_vertices_y,
@@ -2208,6 +2305,7 @@ toridraw_project_vertices_clip(
     {
         if( model_has_textures(hnd) )
         {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_PITCHYAW_TEX, 1, model_vertex_count(hnd));
             project_vertices_array_pitchyaw_fused_clip(
                 scene->orthographic_vertices_x,
                 scene->orthographic_vertices_y,
@@ -2232,6 +2330,7 @@ toridraw_project_vertices_clip(
         }
         else
         {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_PITCHYAW_NOTEX, 1, model_vertex_count(hnd));
             project_vertices_array_pitchyaw_fused_notex_clip(
                 scene->screen_vertices_x,
                 scene->screen_vertices_y,
@@ -2254,6 +2353,7 @@ toridraw_project_vertices_clip(
     }
     else if( model_has_textures(hnd) )
     {
+        TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 1, model_vertex_count(hnd));
         project_vertices_array_fused_clip(
             scene->orthographic_vertices_x,
             scene->orthographic_vertices_y,
@@ -2277,6 +2377,7 @@ toridraw_project_vertices_clip(
     }
     else
     {
+        TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 1, model_vertex_count(hnd));
         project_vertices_array_fused_notex_clip(
             scene->screen_vertices_x,
             scene->screen_vertices_y,
@@ -2320,6 +2421,7 @@ toridraw_project_vertices_noclip_portable(
     {
         if( model_has_textures(hnd) )
         {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_6DOF_TEX, 0, model_vertex_count(hnd));
             project_vertices_array6_fused_noclip(
                 scene->orthographic_vertices_x,
                 scene->orthographic_vertices_y,
@@ -2346,6 +2448,7 @@ toridraw_project_vertices_noclip_portable(
         }
         else
         {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_6DOF_NOTEX, 0, model_vertex_count(hnd));
             project_vertices_array6_fused_notex_noclip(
                 scene->screen_vertices_x,
                 scene->screen_vertices_y,
@@ -2372,6 +2475,7 @@ toridraw_project_vertices_noclip_portable(
     {
         if( model_has_textures(hnd) )
         {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_PITCHYAW_TEX, 0, model_vertex_count(hnd));
             project_vertices_array_pitchyaw_fused_noclip(
                 scene->orthographic_vertices_x,
                 scene->orthographic_vertices_y,
@@ -2396,6 +2500,7 @@ toridraw_project_vertices_noclip_portable(
         }
         else
         {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_PITCHYAW_NOTEX, 0, model_vertex_count(hnd));
             project_vertices_array_pitchyaw_fused_notex_noclip(
                 scene->screen_vertices_x,
                 scene->screen_vertices_y,
@@ -2418,6 +2523,7 @@ toridraw_project_vertices_noclip_portable(
     }
     else if( model_has_textures(hnd) )
     {
+        TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 0, model_vertex_count(hnd));
         project_vertices_array_fused_noclip(
             scene->orthographic_vertices_x,
             scene->orthographic_vertices_y,
@@ -2441,6 +2547,7 @@ toridraw_project_vertices_noclip_portable(
     }
     else
     {
+        TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 0, model_vertex_count(hnd));
         project_vertices_array_fused_notex_noclip(
             scene->screen_vertices_x,
             scene->screen_vertices_y,
@@ -2503,6 +2610,44 @@ toridraw_project_vertices_noclip(
                 model_vertices_y(hnd),
                 model_vertices_z(hnd),
                 num_vertices,
+                model_yaw,
+                model_mid_z,
+                position);
+        }
+        return;
+    }
+#endif
+
+#if defined(TORIDRAW_SSE2_PREPARED_PROJECTION)
+    /* Same gate as the Apple prepared path: yaw-only geometry, and a prepared
+     * block that was published for this exact camera. */
+    if( model_pitch == 0 && model_roll == 0 && camera_roll == 0 &&
+        scene->projection_prepared_camera_source == camera )
+    {
+        if( model_has_textures(hnd) )
+        {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 0, model_vertex_count(hnd));
+            ToriDraw_ProjPreparedNoclip(
+                scene,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                camera->yaw,
+                model_yaw,
+                model_mid_z,
+                position);
+        }
+        else
+        {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 0, model_vertex_count(hnd));
+            ToriDraw_ProjPreparedNotexNoclip(
+                scene,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                camera->yaw,
                 model_yaw,
                 model_mid_z,
                 position);

@@ -112,8 +112,8 @@ dat2_resolve_sprite_archive_by_name(
     name_hash = RSCache_ArchiveNameHashDat2(name);
     for( i = 0; i < table->archive_count; i++ )
     {
-        if( table->archives[i].identifier == name_hash )
-            return table->archives[i].index;
+        if( RSCache_ReferenceTableIdentifier(table, i) == name_hash )
+            return i;
     }
     return -1;
 }

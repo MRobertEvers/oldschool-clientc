@@ -21,11 +21,37 @@
  * them either.
  *
  * A plugin is the right shape for that gap for the same reason the minimap
- * orbs are: it brings its own art, it names nothing by cache id, and it runs
- * on every lane this client boots. What it cannot bring is the LIVE surfaces
- * -- the scene, the minimap, the chat log, the sidebar interface, the modal
- * region -- so it declares where each of those goes and the host puts them
- * there. @see ToriRS_PluginLayoutSlot.
+ * orbs are: it brings its own art and it names nothing by cache id, so it is
+ * pinned to no revision. What it cannot bring is the LIVE surfaces -- the
+ * scene, the minimap, the chat log, the sidebar interface, the modal region
+ * -- so it declares where each of those goes and the host puts them there.
+ * @see ToriRS_PluginLayoutSlot.
+ *
+ * ## The lane it stands down on
+ *
+ * An OldSchool cache is the one lane with no gap to fill. Its own CS2 content
+ * authors all three of these frames, drives them from the Display panel, and
+ * goes on rearranging them at runtime -- so the plugin's copy would not be a
+ * choice added, it would be a second, frozen gameframe SUPPRESSING the live
+ * one, and the Display panel would go on offering layouts that no longer
+ * changed anything.
+ *
+ * So the plugin asks which lane it booted on (api->lane) and, on an OldSchool
+ * one, switches itself off before it subscribes to anything. That check is
+ * made here rather than by the manifests because it is a fact about the
+ * CACHE: there are nine OldSchool manifests in this tree and nothing stops a
+ * tenth, and a per-manifest `enabled=0` would be nine copies of one statement
+ * with the next one missing it.
+ *
+ * The LINEAGE and not the era table. `manifest_osrs233xrsps.ini` states
+ * `era=server_routed` and is still an OldSchool cache with the whole
+ * gameframe in it, and `manifest_rs634void.ini` resolves to the LOSTCITY era
+ * off a dat2 RS2 cache that has none of it -- so era is the wrong axis in
+ * both directions. @see ToriRS_PluginGame.
+ *
+ * The user's saved choice is NOT touched by this: disable_self leaves the ini
+ * alone, so a client that boots an OldSchool world and then a 2004 one has
+ * the frame it was told to have on the second.
  *
  * ## The art is the plugin's, not the cache's
  *
@@ -1908,6 +1934,30 @@ frame_on_config(
     return TORIRS_PLUGIN_PASS;
 }
 
+/**
+ * Does the cache this client booted already carry a gameframe of its own?
+ *
+ * Only OldSchool does. Both dat1 lineages and the later dat2 RS2 revisions
+ * have the 2004 frame and nothing to switch it for, which is the gap this
+ * plugin fills; an unidentified lane is not yet an answer and is treated as
+ * "no", because refusing to run on a boot that has simply not said yet would
+ * be the plugin switching itself off over a question nobody asked.
+ */
+static int
+frame_lane_has_own_gameframe(
+    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_PluginApi const* api)
+{
+    struct ToriRS_PluginLane lane;
+
+    assert(ctx);
+    assert(api);
+
+    if( !api->lane(ctx, &lane) )
+        return 0;
+    return lane.game == TORIRS_PLUGIN_GAME_OLDSCHOOL;
+}
+
 static void
 frame_init(
     struct ToriRS_PluginCtx* ctx,
@@ -1918,6 +1968,16 @@ frame_init(
     assert(api->abi_version == TORIRS_PLUGIN_ABI);
 
     g_api = api;
+    /*
+     * Before the subscriptions, so a lane that has its own frame never gets a
+     * handler of this plugin's registered at all -- no claim to lose, no draw
+     * pass to walk, no EV_STOP to unwind.
+     */
+    if( frame_lane_has_own_gameframe(ctx, api) )
+    {
+        api->disable_self(ctx, "this cache brings its own gameframe");
+        return;
+    }
     api->subscribe(ctx, TORIRS_PLUGIN_EV_START, frame_on_start, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, frame_on_stop, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_LAYOUT, frame_on_layout, NULL);

@@ -70,10 +70,28 @@ static struct ToriRSServerSceneLoc* g_locs;
 static int g_loc_count;
 static int g_loc_capacity;
 
-/* Loc configs, decoded once and kept: a door swap needs the *new* loc's
- * footprint, which is not in the map square. */
+/* Loc configs, decoded on demand: a door swap needs the *new* loc's
+ * footprint, which is not in the map square — but decoding all 62,400 up
+ * front held ~22.6MB of structs for a scene that touches a few thousand.
+ * The raw config bytes stay resident in one arena (`g_loc_raw`), and decoded
+ * structs live in `g_loc_configs` bounded by a CLOCK ring: an access sets
+ * the id's referenced bit, an insert over a full ring evicts the first
+ * cached id whose bit it does not have to clear first. A just-returned
+ * config therefore survives at least one full cursor lap, which is what
+ * makes the two-configs-in-hand callers (door swaps) safe. */
+enum
+{
+    LOC_CONFIG_CACHE_CAP = 1024,
+};
 static struct RSCache_Dat2ConfigLoc** g_loc_configs;
 static int g_loc_config_count;
+static unsigned char* g_loc_raw;
+static uint32_t* g_loc_raw_offset;
+static int32_t* g_loc_raw_size; /* 0 = the cache has no file for this id */
+static unsigned char* g_loc_ref;
+static int g_loc_clock_slots[LOC_CONFIG_CACHE_CAP];
+static int g_loc_clock_cursor;
+static struct RSCache g_loc_profile;
 
 /* ------------------------------------------------------------------ */
 /* Accessors                                                           */
@@ -141,12 +159,55 @@ ToriRSServer_SceneLoc(int slot)
 /* Loc configs                                                         */
 /* ------------------------------------------------------------------ */
 
+/* Make room in the CLOCK ring and claim a slot for `loc_id`. */
+static void
+loc_config_cache_admit(int loc_id)
+{
+    for( ;; )
+    {
+        int* slot = &g_loc_clock_slots[g_loc_clock_cursor];
+
+        g_loc_clock_cursor = (g_loc_clock_cursor + 1) % LOC_CONFIG_CACHE_CAP;
+        if( *slot < 0 )
+        {
+            *slot = loc_id;
+            return;
+        }
+        if( g_loc_ref[*slot] )
+        {
+            g_loc_ref[*slot] = 0;
+            continue;
+        }
+        RSCache_Dat2ConfigLocFree(g_loc_configs[*slot]);
+        g_loc_configs[*slot] = NULL;
+        *slot = loc_id;
+        return;
+    }
+}
+
 static const struct RSCache_Dat2ConfigLoc*
 loc_config(int loc_id)
 {
+    struct RSCache_Dat2ConfigLoc* config;
+
     if( !g_loc_configs || loc_id < 0 || loc_id >= g_loc_config_count )
         return NULL;
-    return g_loc_configs[loc_id];
+    config = g_loc_configs[loc_id];
+    if( !config )
+    {
+        if( g_loc_raw_size[loc_id] <= 0 )
+            return NULL;
+        config = RSCache_Dat2ConfigLocNewDecodeProfile(
+            &g_loc_profile,
+            (char*)(g_loc_raw + g_loc_raw_offset[loc_id]),
+            g_loc_raw_size[loc_id]);
+        if( !config )
+            return NULL;
+        loc_config_cache_admit(loc_id);
+        g_loc_configs[loc_id] = config;
+    }
+    g_loc_ref[loc_id] = 1;
+    return config;
 }
 
 /* ------------------------------------------------------------------ */
@@ -258,6 +319,17 @@ free_loc_configs(void)
     free(g_loc_configs);
     g_loc_configs = NULL;
     g_loc_config_count = 0;
+    free(g_loc_raw);
+    g_loc_raw = NULL;
+    free(g_loc_raw_offset);
+    g_loc_raw_offset = NULL;
+    free(g_loc_raw_size);
+    g_loc_raw_size = NULL;
+    free(g_loc_ref);
+    g_loc_ref = NULL;
+    for( int i = 0; i < LOC_CONFIG_CACHE_CAP; i++ )
+        g_loc_clock_slots[i] = -1;
+    g_loc_clock_cursor = 0;
 }
 
 static int
@@ -295,23 +367,50 @@ load_loc_configs(
     g_loc_config_count = highest + 1;
     g_loc_configs = calloc((size_t)(g_loc_config_count > 0 ? g_loc_config_count : 1),
                            sizeof(*g_loc_configs));
-    if( !g_loc_configs )
+    assert(g_loc_configs);
+
+    /* Keep the raw bytes, not the decoded structs — loc_config() decodes on
+     * demand into the CLOCK-bounded cache. One arena rather than a block per
+     * file: 62,400 separate mallocs is a megabyte of allocator headers. */
     {
-        g_loc_config_count = 0;
-        RSCache_FileListFree(files);
-        RSCache_Dat2DiskArchiveFree(archive);
-        return 0;
+        size_t total = 0;
+        size_t cursor = 0;
+
+        for( int i = 0; i < archive->file_count; i++ )
+        {
+            int id = archive->file_ids[i];
+
+            if( id < 0 || id >= g_loc_config_count || files->file_sizes[i] <= 0 )
+                continue;
+            total += (size_t)files->file_sizes[i];
+        }
+        g_loc_raw = malloc(total > 0 ? total : 1);
+        assert(g_loc_raw);
+        g_loc_raw_offset =
+            calloc((size_t)g_loc_config_count, sizeof(*g_loc_raw_offset));
+        assert(g_loc_raw_offset);
+        g_loc_raw_size = calloc((size_t)g_loc_config_count, sizeof(*g_loc_raw_size));
+        assert(g_loc_raw_size);
+        g_loc_ref = calloc((size_t)g_loc_config_count, sizeof(*g_loc_ref));
+        assert(g_loc_ref);
+
+        for( int i = 0; i < archive->file_count; i++ )
+        {
+            int id = archive->file_ids[i];
+
+            if( id < 0 || id >= g_loc_config_count || files->file_sizes[i] <= 0 )
+                continue;
+            memcpy(g_loc_raw + cursor, files->files[i], (size_t)files->file_sizes[i]);
+            g_loc_raw_offset[id] = (uint32_t)cursor;
+            g_loc_raw_size[id] = files->file_sizes[i];
+            cursor += (size_t)files->file_sizes[i];
+        }
     }
 
-    for( int i = 0; i < archive->file_count; i++ )
-    {
-        int id = archive->file_ids[i];
-
-        if( id < 0 || id >= g_loc_config_count || files->file_sizes[i] <= 0 )
-            continue;
-        g_loc_configs[id] = RSCache_Dat2ConfigLocNewDecodeProfile(
-            profile, files->files[i], files->file_sizes[i]);
-    }
+    g_loc_profile = *profile;
+    for( int i = 0; i < LOC_CONFIG_CACHE_CAP; i++ )
+        g_loc_clock_slots[i] = -1;
+    g_loc_clock_cursor = 0;
 
     RSCache_FileListFree(files);
     RSCache_Dat2DiskArchiveFree(archive);

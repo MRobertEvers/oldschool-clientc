@@ -159,6 +159,23 @@ enum TorirsPerfStage
     TORIRS_PERF_STAGE_R_FONT,
     TORIRS_PERF_STAGE_R_RECT,
     TORIRS_PERF_STAGE_R_OTHER,
+
+    /* The three phases of soft3d_draw_model, nested inside `r_model`.
+     *
+     * `r_model` is 82.8% of `render` on the XP lane, and subtracting the two
+     * span fills off it leaves 57% of the whole frame unaccounted for. That
+     * remainder was a residual -- render minus what the ablation switches could
+     * turn off -- not a measurement, and a residual is not something to
+     * optimise against. These name the three calls the phase pipeline already
+     * makes, so the remainder splits into per-vertex projection, the face
+     * bucket sort, and the raster walk that is left once the fills are ablated.
+     *
+     * Six extra clock reads per drawn model when perf is ON. Divide by
+     * `r_model_drawn`, and read them against each other rather than as
+     * absolute nanoseconds -- same caveat as the six stages above. */
+    TORIRS_PERF_STAGE_R_PROJECT,
+    TORIRS_PERF_STAGE_R_SORT,
+    TORIRS_PERF_STAGE_R_RASTER,
     TORIRS_PERF_STAGE_COUNT
 };
 
@@ -499,6 +516,24 @@ enum TorirsPerfCounter
     TORIRS_PERF_CTR_R_CMDS_SPRITE,
     TORIRS_PERF_CTR_R_CMDS_FONT,
     TORIRS_PERF_CTR_R_CMDS_RECT,
+
+    /** What the three model gates do with those submissions. `r_cmds_model` is
+     *  what the painter handed the renderer; these say how far each one got.
+     *
+     *  A model rejected by FastCull/AabbCull (toridraw_render.u.c:2638) costs a
+     *  rotation-invariant sphere test and an 8-point AABB and nothing else. One
+     *  that passes pays a transform for every vertex whether or not a single
+     *  pixel survives. One that then sorts to zero faces paid that projection
+     *  in full and rasterizes nothing.
+     *
+     *  So `r_model_culled / r_cmds_model` is the answer to "is the culling
+     *  working", and `r_model_faces / r_model_drawn` is what the rasterizer is
+     *  actually being asked to fill. Counted here rather than inside toridraw
+     *  because the verdicts are already in hand at the soft3d call site. */
+    TORIRS_PERF_CTR_R_MODEL_CULLED,
+    TORIRS_PERF_CTR_R_MODEL_DRAWN,
+    TORIRS_PERF_CTR_R_MODEL_SORT_EMPTY,
+    TORIRS_PERF_CTR_R_MODEL_FACES,
 
     TORIRS_PERF_CTR_COUNT
 };

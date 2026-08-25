@@ -463,6 +463,17 @@ struct BootManifest
      *  a machine whose renderer cannot afford 4x the pixels, not to ask for it.
      *  TORIRS_HIDPI overrides. */
     int hidpi;
+    /** `[ui:boot] plugins=`: load the plugin layer at all. 0 = unset (load
+     *  it), 1 = on, -1 = explicitly off. TORIRS_PLUGINS overrides.
+     *
+     *  Off is for a world that has to hold still. A plugin is client code with
+     *  its own opinion about the gameframe -- gameframe-layout relays the whole
+     *  frame out from its own saved layout -- so a benchmark that carries one
+     *  is timing that opinion as if it were the renderer's cost. It does not
+     *  hold still either: the base frame and the plugin's layout each mount, so
+     *  the chrome is torn down and rebuilt on a cycle and the client visibly
+     *  flickers between the two. */
+    int plugins;
     /* `window = WxH` — initial canvas/window size. 0 = unset (the fixed frame).
      * Clamped to the canvas floor by App_SetCanvasSize like any other size. */
     int window_w;

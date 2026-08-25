@@ -66,6 +66,7 @@
 #include "ui/uitree.h"
 #include "varp/varp_manager.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -454,6 +455,11 @@ test_widgets_loaded_queues_stat_unhide(void)
     listener = UITree_Push(fx.tree, -1, &spec);
     CHECK(listener >= 0, "XP tracker listener component");
     fx.tree->components[listener].behavior.hide = 1;
+    /* The registry is heap-grown now, so a test that pokes slot 0 directly has
+     * to give itself the slot first. */
+    fx.host.stat_transmit_hooks = calloc(1, sizeof(*fx.host.stat_transmit_hooks));
+    assert(fx.host.stat_transmit_hooks);
+    fx.host.stat_transmit_hook_cap = 1;
     fx.host.stat_transmit_hook_count = 1;
     fx.host.stat_transmit_hooks[0].component_id = spec.component_id;
     fx.host.stat_transmit_hooks[0].script_id = 5451;

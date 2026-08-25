@@ -328,6 +328,24 @@ enum ToriRSServerHuntMode
  *  from -1, which is `healthbar=null` — a record saying it has no bar. */
 #define TORIRSSERVER_NPC_HEALTHBAR_UNSET (-2)
 
+/** One authored `param=` row, filed under its param id — see the `params`
+ *  field below for why this exists beside the named C fields. */
+struct ToriRSServerNpcDefParam
+{
+    int32_t key;
+    int32_t value;
+};
+
+/** One patrol waypoint — see the `patrol` field below. */
+struct ToriRSServerNpcDefPatrol
+{
+    int x;
+    int z;
+    int level;
+    /** Ticks to stand still on arrival before moving to the next one. */
+    int pause;
+};
+
 struct ToriRSServerNpcDef
 {
     int npc_id;
@@ -500,12 +518,15 @@ struct ToriRSServerNpcDef
      * Only params whose name the pack knows land here. `death_drop` (2634) is
      * the one that has always been script-visible, and it was visible by having
      * its name spelled in C.
+     *
+     * Heap-allocated at exactly `param_count` entries, NULL when the block
+     * stated none. This and `patrol` were inline
+     * `[TORIRSSERVER_NPCDEF_PARAM_MAX]` / `[TORIRSSERVER_NPC_PATROL_MAX]`
+     * arrays — 512 bytes of a 720-byte struct — and with a def seeded for
+     * every cache npc that inline emptiness was ~8MB of the server's boot
+     * footprint.
      */
-    struct
-    {
-        int32_t key;
-        int32_t value;
-    } params[TORIRSSERVER_NPCDEF_PARAM_MAX];
+    struct ToriRSServerNpcDefParam* params;
     int param_count;
 
     /** The block stated `hitpoints=`. Everything else has a defensible
@@ -527,15 +548,12 @@ struct ToriRSServerNpcDef
      * Sized at 16 because the reference's longest route is ten and a route long
      * enough to need more is one an author should be splitting. Overflow is a
      * content error, not a truncation.
+     *
+     * Heap-allocated at the full TORIRSSERVER_NPC_PATROL_MAX on the first
+     * `patrol<N>=` line (N decides the slot, so lines may arrive out of
+     * order), NULL for the overwhelming majority of npcs that never patrol.
      */
-    struct
-    {
-        int x;
-        int z;
-        int level;
-        /** Ticks to stand still on arrival before moving to the next one. */
-        int pause;
-    } patrol[TORIRSSERVER_NPC_PATROL_MAX];
+    struct ToriRSServerNpcDefPatrol* patrol;
     int patrol_count;
     /** The mode an npc starts in and returns to. Only meaningful when
      *  `defaultmode_stated` is set; a `wanderrange` still implies wander, which

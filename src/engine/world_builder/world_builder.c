@@ -5,7 +5,6 @@
 #include "contour_ground_queue.u.c"
 #include "decor_buildmap.h"
 #include "engine/cache_provider.h"
-#include "engine/torirs_model_inst_cache.h"
 #include "painters/painters.h"
 #include "painters/scene_occluders.h"
 #include "flag_map.h"
@@ -17,7 +16,9 @@
 #include "shademap.h"
 #include "sharelight_map.h"
 #include "terrain_shapemap.h"
+#include "toridraw_model.h"
 #include "toridraw_scene.h"
+#include "toridraw_shared_model.h"
 #include <rscache.h>
 
 #include <assert.h>
@@ -53,6 +54,34 @@ static double g_wb_t_model_convert_ms; /* ModelFromToriRS + merge */
 static double g_wb_t_model_transform_ms; /* apply_transforms + SD strip + bounds */
 static int g_wb_n_model_builds;
 static int g_wb_n_model_srcs;
+
+/*
+ * Scenery model heap census (TORIRS_SCENERY_CENSUS=1). Splits the scene's model
+ * bytes into the part that is irreducible -- one prototype per distinct
+ * (id, shape, rotation), plus every placement-dependent model -- and the part
+ * that is pure duplication, i.e. the per-placement ToriDraw_ModelCopy of a
+ * shareable prototype that nothing ever mutates. `dup` is what refcounting the
+ * shareable path would hand back.
+ */
+static int g_wb_census_proto_n;      /* distinct shareable prototypes built */
+static size_t g_wb_census_proto_b;
+static int g_wb_census_dup_n;        /* placements served from the prototype cache */
+static size_t g_wb_census_dup_b;
+static int g_wb_census_unique_n;     /* non-shareable, genuinely per-placement */
+static size_t g_wb_census_unique_b;
+
+
+static int
+wb_census_on(void)
+{
+    static int v = -1;
+    if( v < 0 )
+    {
+        const char* e = getenv("TORIRS_SCENERY_CENSUS");
+        v = (e && *e && *e != '0') ? 1 : 0;
+    }
+    return v;
+}
 
 /* Cached env-flag probes for the per-model / per-tile debug hooks below.
  * getenv() in those loops was the single hottest symbol of a whole rebuild
@@ -287,13 +316,6 @@ WorldBuilder_New(
                               sizeof(builder->scenery_dbg_element[0]));
          i++ )
         builder->scenery_dbg_element[i] = -1;
-    builder->scenery_model_cache = calloc(1, sizeof(*builder->scenery_model_cache));
-    assert(builder->scenery_model_cache);
-    {
-        bool inited = TorirsModelInstCache_Init(builder->scenery_model_cache);
-        assert(inited && "WorldBuilder_New: scenery model cache init");
-        (void)inited;
-    }
     return builder;
 }
 
@@ -302,11 +324,6 @@ WorldBuilder_Free(struct WorldBuilder* builder)
 {
     if( !builder )
         return;
-    if( builder->scenery_model_cache )
-    {
-        TorirsModelInstCache_Free(builder->scenery_model_cache);
-        free(builder->scenery_model_cache);
-    }
     world_builder_free_transient_maps(builder);
     free(builder);
 }
@@ -325,12 +342,18 @@ WorldBuilder_RebuildCenterzoneBegin(
     g_wb_t_model_transform_ms = 0.0;
     g_wb_n_model_builds = 0;
     g_wb_n_model_srcs = 0;
+    g_wb_census_proto_n = 0;
+    g_wb_census_proto_b = 0;
+    g_wb_census_dup_n = 0;
+    g_wb_census_dup_b = 0;
+    g_wb_census_unique_n = 0;
+    g_wb_census_unique_b = 0;
 
     /* Loc configs may have been reloaded (varbit morphs re-resolve per place;
      * the map editor re-seeds the provider) — a prototype baked from the old
-     * config must not survive into this build. */
-    TorirsModelInstCache_Clear(builder->scenery_model_cache);
-
+     * config must not survive into this build. The scene's shared-model store
+     * needs no explicit clear for that: it retains nothing on its own, so the
+     * ClearPool below is what empties it. */
     world_builder_free_transient_maps(builder);
     World_ResetScene(world, zone_center_x, zone_center_z, scene_size);
 
@@ -905,13 +928,6 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
         builder->lightmap = NULL;
     }
 
-    /* The prototype cache's whole value is within the build that just ran —
-     * every instance of a repeated loc after the first copies its lit model.
-     * Dropping it here keeps zero prototypes resident during play (a scene's
-     * worth is several MB); a runtime loc spawn simply rebuilds its one model,
-     * which is what it always did. */
-    TorirsModelInstCache_Clear(builder->scenery_model_cache);
-
     if( wb_timing_on() )
     {
         double te1 = wb_now_ms();
@@ -931,6 +947,24 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
             g_wb_n_model_srcs,
             g_wb_t_model_convert_ms,
             g_wb_t_model_transform_ms);
+    }
+
+    if( wb_census_on() )
+    {
+        size_t const kept = g_wb_census_proto_b + g_wb_census_unique_b;
+        fprintf(
+            stderr,
+            "scenery_census: total=%.2fMB kept=%.2fMB dup=%.2fMB | protos n=%d %.2fMB "
+            "| dup_placements n=%d %.2fMB | unique n=%d %.2fMB\n",
+            (double)(kept + g_wb_census_dup_b) / (1024.0 * 1024.0),
+            (double)kept / (1024.0 * 1024.0),
+            (double)g_wb_census_dup_b / (1024.0 * 1024.0),
+            g_wb_census_proto_n,
+            (double)g_wb_census_proto_b / (1024.0 * 1024.0),
+            g_wb_census_dup_n,
+            (double)g_wb_census_dup_b / (1024.0 * 1024.0),
+            g_wb_census_unique_n,
+            (double)g_wb_census_unique_b / (1024.0 * 1024.0));
     }
 
     world->load_complete = true;
@@ -1008,8 +1042,6 @@ WorldBuilder_RebuildChunklistBegin(
 {
     struct World* world = builder->world;
     assert(world && "WorldBuilder_RebuildChunklistBegin: world is NULL");
-
-    TorirsModelInstCache_Clear(builder->scenery_model_cache);
 
     world_builder_free_transient_maps(builder);
     World_ResetSceneChunkList(world, chunks_xz, count);

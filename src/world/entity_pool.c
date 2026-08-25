@@ -5,14 +5,31 @@
 #include <string.h>
 
 #define WORLD_ENTITY_INITIAL_CAPACITY 64
-#define WORLD_ENTITY_GROWTH_FACTOR 2
+
+/*
+ * Half again, not double. A pool that doubles carries, at the moment it grows,
+ * as much dead capacity as it does live entities, and the scenery pool is the
+ * client resident set: 380 bytes an entity, 8,216 of them in a Lumbridge scene,
+ * and a capacity of 16,384 because the count crossed 8,192 by twenty-four. That
+ * is 3.1 MB of the 32-bit budget spent on room for entities that never arrive.
+ *
+ * Growth stays amortised O(1) -- the copy is still a constant fraction of the
+ * array -- and it is not a per-frame cost either way: capacity only moves when
+ * the high-water mark does. Three more reallocs across a session buys the space
+ * back.
+ */
+#define WORLD_ENTITY_GROWTH_NUMERATOR 3
+#define WORLD_ENTITY_GROWTH_DENOMINATOR 2
 
 static bool
 World_EntityPoolGrow(struct World_EntityPool* pool)
 {
     int old_cap = pool->capacity;
-    int new_cap = pool->capacity ? pool->capacity * WORLD_ENTITY_GROWTH_FACTOR
-                                 : WORLD_ENTITY_INITIAL_CAPACITY;
+    int new_cap = pool->capacity
+                      ? pool->capacity * WORLD_ENTITY_GROWTH_NUMERATOR /
+                            WORLD_ENTITY_GROWTH_DENOMINATOR
+                      : WORLD_ENTITY_INITIAL_CAPACITY;
+    assert(new_cap > old_cap);
     void* grown_items = realloc(pool->items, (size_t)new_cap * (size_t)pool->element_size);
     struct World_EntityPoolNode* grown_nodes =
         realloc(pool->nodes, (size_t)new_cap * sizeof(struct World_EntityPoolNode));

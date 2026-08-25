@@ -12,7 +12,6 @@ struct Dat2BuildCache
 {
     struct CacheProvider base;
     struct HMap* models_hmap;
-    struct HMap* componentpacks_hmap;
     struct HMap* object_hmap;
     struct HMap* npctype_hmap;
     /** RS2 BasType / render-animation configs (config group 32). */
@@ -164,24 +163,9 @@ dat2_buildcache_map_scenery_has(
 void
 dat2_buildcache_map_scenery_cleanup(struct Dat2BuildCache* dat2_buildcache);
 
-void
-dat2_buildcache_componentpack_add(
-    struct Dat2BuildCache* dat2_buildcache,
-    int iface_id,
-    struct RSCache_Dat2ComponentPack* pack);
 
-struct RSCache_Dat2ComponentPack*
-dat2_buildcache_componentpack_get(
-    struct Dat2BuildCache* dat2_buildcache,
-    int iface_id);
 
-bool
-dat2_buildcache_componentpack_has(
-    struct Dat2BuildCache* dat2_buildcache,
-    int iface_id);
 
-void
-dat2_buildcache_componentpacks_cleanup(struct Dat2BuildCache* dat2_buildcache);
 
 void
 dat2_buildcache_object_add(

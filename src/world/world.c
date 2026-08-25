@@ -56,6 +56,10 @@ World_Free(struct World* world)
     free(world->mapscenes);
     free(world->area_sounds);
     World_EntityListFree(&world->entities);
+    for( int i = 0; i < world->scenery_info.count; i++ )
+        free(world->scenery_info.entries[i]);
+    free(world->scenery_info.entries);
+    free(world->scenery_info.hashes);
     free(world);
 }
 
@@ -1271,6 +1275,68 @@ World_ClearProjectilesAndSpotanims(struct World* world)
     }
 }
 
+/* FNV-1a over the whole block. The block has no interior padding (a 64-byte
+ * name then five 34-byte actions, all of alignment 2) and callers zero their
+ * scratch, so hashing it as bytes is sound. */
+static uint32_t
+world_scenery_info_hash(struct WorldEntity_SceneryInfo const* info)
+{
+    unsigned char const* bytes = (unsigned char const*)info;
+    uint32_t hash = 2166136261u;
+
+    assert(info);
+    for( size_t i = 0; i < sizeof(*info); i++ )
+    {
+        hash ^= bytes[i];
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+struct WorldEntity_SceneryInfo const*
+World_SceneryInfoIntern(
+    struct World* world,
+    struct WorldEntity_SceneryInfo const* probe)
+{
+    struct World_SceneryInfoTable* table;
+    struct WorldEntity_SceneryInfo* entry;
+    uint32_t hash;
+
+    assert(world);
+    assert(probe);
+
+    table = &world->scenery_info;
+    hash = world_scenery_info_hash(probe);
+    for( int i = 0; i < table->count; i++ )
+    {
+        if( table->hashes[i] != hash )
+            continue;
+        if( memcmp(table->entries[i], probe, sizeof(*probe)) == 0 )
+            return table->entries[i];
+    }
+
+    if( table->count == table->capacity )
+    {
+        int capacity = table->capacity ? table->capacity * 2 : 64;
+        struct WorldEntity_SceneryInfo** entries =
+            realloc(table->entries, (size_t)capacity * sizeof(*entries));
+        uint32_t* hashes = realloc(table->hashes, (size_t)capacity * sizeof(*hashes));
+        assert(entries);
+        assert(hashes);
+        table->entries = entries;
+        table->hashes = hashes;
+        table->capacity = capacity;
+    }
+
+    entry = malloc(sizeof(*entry));
+    assert(entry);
+    memcpy(entry, probe, sizeof(*entry));
+    table->hashes[table->count] = hash;
+    table->entries[table->count] = entry;
+    table->count++;
+    return entry;
+}
+
 static void
 World_CopyMenuActions(
     struct WorldEntityFacet_Action dest[5],
@@ -1327,12 +1393,18 @@ World_SceneryRegister(
     scenery->shape = shape;
     scenery->angle = angle;
     scenery->force_approach = force_approach & 0xf;
-    if( name )
     {
-        strncpy(scenery->name, name, sizeof(scenery->name) - 1);
-        scenery->name[sizeof(scenery->name) - 1] = '\0';
+        struct WorldEntity_SceneryInfo probe;
+
+        memset(&probe, 0, sizeof(probe));
+        if( name )
+        {
+            strncpy(probe.name, name, sizeof(probe.name) - 1);
+            probe.name[sizeof(probe.name) - 1] = '\0';
+        }
+        World_CopyMenuActions(probe.actions, actions);
+        scenery->info = World_SceneryInfoIntern(world, &probe);
     }
-    World_CopyMenuActions(scenery->actions, actions);
     scenery->interactive = interactive ? 1 : 0;
     scenery->painter_wall_ab = -1;
     scenery->painter_ground_decor = 0;

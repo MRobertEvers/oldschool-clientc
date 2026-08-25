@@ -1224,7 +1224,7 @@ osrs239_parse(
      */
     case PKT_NAME_RUNCLIENTSCRIPT:
     {
-        struct PktRunClientScript* p = &out->_runclientscript;
+        struct PktRunClientScript* p;
         char types[PKT_RUNCLIENTSCRIPT_ARG_MAX + 1];
         int argc = 0;
         int terminated = 0;
@@ -1252,7 +1252,7 @@ osrs239_parse(
         if( c.err || !terminated )
             return 0;
 
-        memset(p, 0, sizeof(*p));
+        p = pkt_runclientscript_reset(out);
         p->argc = argc;
         for( int i = argc - 1; i >= 0; i-- )
         {

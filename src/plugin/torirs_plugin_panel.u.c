@@ -812,11 +812,14 @@ app_plugin_panel_apply(struct App* app, int widget)
                 g_plugin_page = row->plugin;
                 return;
             }
-            PluginHost_SetEnabled(app->plugins, row->plugin, on != 0);
-            /* Re-enabling clears the fault note: whatever it said was about
-             * the run that just ended. */
+            /* Cleared BEFORE the start and not after: whatever it said was
+             * about the run that just ended, and a plugin that looks at the
+             * lane and stands down again writes its reason from inside the
+             * start below -- clearing afterwards would wipe the one line that
+             * explains why the switch bounced back. */
             if( on )
                 PluginHost_SetError(app->plugins, row->plugin, NULL);
+            PluginHost_SetEnabled(app->plugins, row->plugin, on != 0);
             return;
         }
 

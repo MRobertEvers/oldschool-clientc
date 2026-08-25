@@ -556,6 +556,9 @@ d3d9_update_letterbox(struct ToriRS_D3D9* renderer)
 }
 
 static void
+d3d9_mark_active_static_batches_dirty(struct ToriRS_D3D9* renderer);
+
+static void
 d3d9_release_default_pool(struct ToriRS_D3D9* renderer)
 {
     /* SetIndices retains a device-side reference. Unbind it before dropping
@@ -578,6 +581,19 @@ d3d9_release_default_pool(struct ToriRS_D3D9* renderer)
         renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].vbo_gpu = NULL;
     }
     renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].gpu_capacity = 0u;
+    if( renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_gpu )
+    {
+        IDirect3DVertexBuffer9_Release(
+            renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_gpu);
+        renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_gpu = NULL;
+    }
+    renderer->groups[TRSPK_VBO_GROUP_STATIC].gpu_capacity = 0u;
+    if( renderer->static_batch_vbo )
+    {
+        IDirect3DVertexBuffer9_Release(renderer->static_batch_vbo);
+        renderer->static_batch_vbo = NULL;
+    }
+    renderer->static_batch_gpu_page_capacity = 0u;
 }
 
 static void
@@ -614,6 +630,13 @@ d3d9_reset_device(struct ToriRS_D3D9* renderer, int width, int height)
     renderer->reset_pending = false;
     d3d9_update_letterbox(renderer);
     d3d9_restore_after_reset(renderer);
+    /* Reset released every DEFAULT-pool buffer, including the retained static
+     * geometry (the batch arena and the static group). Their CPU copies are
+     * intact; re-mark them dirty so the next draw's upload pass rebuilds the
+     * buffers from them. */
+    d3d9_mark_active_static_batches_dirty(renderer);
+    if( renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu )
+        trspk_vbo_set_dirty(renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu);
     return true;
 }
 
@@ -1239,6 +1262,28 @@ d3d9_ui_record_rotmask_upload(
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_UI_TEXTURE_UPLOADS, 1);
 }
 
+/* FNV-1a over the sprite's pixel buffer and the fields the uploads read.
+ * The sprites behind a rotmask slot (minimap area, compass) are rewritten in
+ * place without any generation counter, so content identity is the only way
+ * to tell an untouched frame from a real refresh. */
+static uint32_t
+d3d9_ui_rotmask_content_hash(const struct ToriDraw_Sprite* sprite)
+{
+    uint32_t hash = 2166136261u;
+    size_t count;
+    size_t i;
+    assert(sprite);
+    assert(sprite->pixels_argb);
+    count = (size_t)sprite->width * (size_t)sprite->height;
+    for( i = 0; i < count; i++ )
+        hash = (hash ^ sprite->pixels_argb[i]) * 16777619u;
+    hash = (hash ^ (uint32_t)sprite->crop_x) * 16777619u;
+    hash = (hash ^ (uint32_t)sprite->crop_y) * 16777619u;
+    hash = (hash ^ (uint32_t)sprite->width) * 16777619u;
+    hash = (hash ^ (uint32_t)sprite->height) * 16777619u;
+    return hash;
+}
+
 static bool
 d3d9_ui_rotmask_upload_source(
     struct ToriRS_D3D9* renderer,
@@ -1249,6 +1294,7 @@ d3d9_ui_rotmask_upload_source(
     UINT texture_width;
     UINT texture_height;
     D3DLOCKED_RECT locked;
+    uint32_t content_hash;
     int sx;
     int sy;
     int y;
@@ -1257,13 +1303,17 @@ d3d9_ui_rotmask_upload_source(
         return false;
     assert(renderer);
     assert(slot);
+    content_hash = d3d9_ui_rotmask_content_hash(sprite);
+    if( slot->source_texture && slot->source_hash_valid &&
+        slot->source_hash == content_hash )
+        return true;
     if( slot->source_texture )
     {
         /* Content refresh (e.g. minimap floor change, world map rebake): the
          * slot's cache key (scene/atlas ids, dims) is unchanged, but the
          * sprite's pixels_argb may have been rewritten in place since the
-         * texture was last uploaded, so re-copy every frame rather than
-         * trusting a one-time upload. */
+         * texture was last uploaded, so re-copy when the content hash says
+         * the pixels actually changed. */
         HRESULT hr = IDirect3DTexture9_LockRect(slot->source_texture, 0u, &locked, NULL, 0u);
         if( FAILED(hr) )
         {
@@ -1306,6 +1356,8 @@ d3d9_ui_rotmask_upload_source(
     slot->source_texture = texture;
     slot->source_texture_width = texture_width;
     slot->source_texture_height = texture_height;
+    slot->source_hash = content_hash;
+    slot->source_hash_valid = true;
     d3d9_ui_record_rotmask_upload(
         renderer, (int)texture_width, (int)texture_height);
     return true;
@@ -1321,6 +1373,7 @@ d3d9_ui_rotmask_upload_mask(
     UINT texture_width;
     UINT texture_height;
     D3DLOCKED_RECT locked;
+    uint32_t content_hash;
     int x;
     int y;
     assert(mask);
@@ -1328,6 +1381,10 @@ d3d9_ui_rotmask_upload_mask(
         return false;
     assert(renderer);
     assert(slot);
+    content_hash = d3d9_ui_rotmask_content_hash(mask);
+    if( slot->mask_texture && slot->mask_hash_valid &&
+        slot->mask_hash == content_hash )
+        return true;
     if( slot->mask_texture )
     {
         HRESULT hr = IDirect3DTexture9_LockRect(slot->mask_texture, 0u, &locked, NULL, 0u);
@@ -1372,6 +1429,8 @@ d3d9_ui_rotmask_upload_mask(
     slot->mask_texture = texture;
     slot->mask_texture_width = texture_width;
     slot->mask_texture_height = texture_height;
+    slot->mask_hash = content_hash;
+    slot->mask_hash_valid = true;
     d3d9_ui_record_rotmask_upload(
         renderer, (int)texture_width, (int)texture_height);
     return true;
@@ -3834,13 +3893,17 @@ d3d9_upload_group(struct ToriRS_D3D9* renderer, struct D3D9ModelGroup* group)
         if( group->vbo_gpu )
             IDirect3DVertexBuffer9_Release(group->vbo_gpu);
         group->vbo_gpu = NULL;
+        /* DEFAULT for the static group too (was MANAGED): vbo_cpu is a full
+         * copy already, so the runtime's MANAGED sysmem mirror only doubled
+         * it. Reset releases this buffer and re-marks vbo_cpu dirty; this
+         * same creation path then rebuilds it on the next upload. */
         hr = IDirect3DDevice9_CreateVertexBuffer(
             renderer->device,
             (UINT)(capacity * sizeof(struct TRSPK_VertexD3D9)),
             D3DUSAGE_WRITEONLY |
                 (group->reset_each_frame ? D3DUSAGE_DYNAMIC : 0u),
             0u,
-            group->reset_each_frame ? D3DPOOL_DEFAULT : D3DPOOL_MANAGED,
+            D3DPOOL_DEFAULT,
             &group->vbo_gpu,
             NULL);
         if( FAILED(hr) )
@@ -4127,12 +4190,17 @@ d3d9_ensure_static_batch_vbo(
     byte_capacity = vertex_capacity * sizeof(struct TRSPK_VertexD3D9);
     if( vertex_capacity > INT_MAX || byte_capacity > UINT_MAX )
         return false;
+    /* DEFAULT, not MANAGED: the runtime keeps a full sysmem mirror of every
+     * MANAGED resource in-process, which doubled this arena's footprint. The
+     * batch16 chunks are the restore source instead — the arena is released
+     * before Reset and every chunk re-marked dirty after (d3d9_reset_device),
+     * so the next d3d9_upload_dirty_static_batches refills it. */
     hr = IDirect3DDevice9_CreateVertexBuffer(
         renderer->device,
         (UINT)byte_capacity,
         D3DUSAGE_WRITEONLY,
         0u,
-        D3DPOOL_MANAGED,
+        D3DPOOL_DEFAULT,
         &replacement,
         NULL);
     if( FAILED(hr) )
@@ -4301,9 +4369,17 @@ static bool
 d3d9_upload_dirty_static_batches(struct ToriRS_D3D9* renderer)
 {
     uint32_t batch_slot;
+    bool recreated = false;
     assert(renderer);
     if( !renderer->static_batch_upload_pending )
         return true;
+    /* A device Reset releases the DEFAULT-pool arena; rebuild it before
+     * uploading. If it came back fresh, no page's contents survived. */
+    if( !d3d9_ensure_static_batch_vbo(
+            renderer, renderer->static_page_count, &recreated) )
+        return false;
+    if( recreated )
+        d3d9_mark_active_static_batches_dirty(renderer);
     for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
     {
         struct D3D9StaticBatch* batch = &renderer->static_batches[batch_slot];
@@ -5228,9 +5304,12 @@ d3d9_binding_cpu_source(
     {
         struct TRSPK_Batch16Chunk* chunk = NULL;
         uint32_t page_id;
-        if( binding != D3D9_STATIC_PAGE_BINDING_BASE ||
-            base_offset % D3D9_VBO_PAGE != 0u )
+        if( binding != D3D9_STATIC_PAGE_BINDING_BASE )
             return false;
+        /* The zbuffer's opaque flush biases node offsets inside the page
+         * (page_base + cluster_min) so same-cluster segments coalesce; floor
+         * back to the page.  Bias < D3D9_VBO_PAGE, so this cannot land on the
+         * next page. */
         page_id = base_offset / D3D9_VBO_PAGE;
         if( !d3d9_resolve_static_page(
                 renderer, page_id, NULL, &chunk, NULL) )
@@ -5262,9 +5341,12 @@ d3d9_build_draw_ranges16(
         const struct TRSPK_Triangles* triangles;
         const uint16_t* src = node->ibo.indices.as_u16;
         uint32_t count = node->ibo.index_count;
+        /* Static-page indices are stored rebased by the node's intra-page bias
+         * (offset % page); add the bias back so CPU-side triangle-config and
+         * bounds lookups address the chunk with original page-local vertices. */
         uint32_t absolute_offset = node->group < TRSPK_VBO_GROUP_COUNT
             ? node->ibo.offset
-            : 0u;
+            : node->ibo.offset % D3D9_VBO_PAGE;
         uint32_t i = 0u;
         if( !d3d9_binding_cpu_source(
                 renderer, node->group, node->ibo.offset, &vbo, &triangles) )
@@ -5486,6 +5568,8 @@ d3d9_end_3d(struct ToriRS_D3D9* renderer)
         goto done;
     if( trspk_atlas_is_dirty(&renderer->atlas) && !d3d9_upload_atlas(renderer) )
         goto done;
+    if( renderer->zbuffer )
+        d3d9_zbuffer_flush_opaque(renderer);
     if( renderer->ibo_chain && renderer->ibo_chain->head )
         d3d9_draw_retained(renderer, renderer->ibo_chain, false);
     if( renderer->zbuffer )
@@ -6007,6 +6091,147 @@ ToriRS_D3D9_GetPoseBase(
 }
 #endif
 
+static uint64_t
+d3d9_pose_table_bytes(const struct TRSPK_PoseTable* table)
+{
+    uint64_t bytes = (uint64_t)table->element_cap * sizeof(struct TRSPK_PoseElement);
+    uint32_t element_index;
+    uint32_t track;
+    for( element_index = 0u; element_index < table->element_count; element_index++ )
+        for( track = 0u; track < TRSPK_POSE_TRACK_COUNT; track++ )
+            bytes += (uint64_t)table->elements[element_index]
+                         .tracks[track]
+                         .pose_cap *
+                sizeof(uint32_t);
+    return bytes;
+}
+
+static uint64_t
+d3d9_core_ibochain_bytes(const struct TRSPK_IBOChain* chain, uint32_t* out_nodes)
+{
+    uint64_t bytes = 0u;
+    uint32_t nodes = 0u;
+    const struct TRSPK_IBOChainNode* node;
+    assert(chain);
+    for( node = chain->head; node; node = node->next )
+    {
+        bytes += sizeof(*node) + (uint64_t)node->capacity * sizeof(uint16_t);
+        nodes++;
+    }
+    for( node = chain->free_head; node; node = node->next )
+    {
+        bytes += sizeof(*node) + (uint64_t)node->capacity * sizeof(uint16_t);
+        nodes++;
+    }
+    if( out_nodes )
+        *out_nodes = nodes;
+    return bytes;
+}
+
+/**
+ * One-shot shutdown attribution of every retained pool the renderer owns.
+ *
+ * MANAGED-pool resources are reported apart from the CPU pools because each
+ * one exists twice per process: the D3D9 runtime keeps a complete system
+ * memory mirror it restores the video copy from, so their bytes hit private
+ * working set even before the driver's own copy.
+ */
+static void
+d3d9_report_retained_memory(struct ToriRS_D3D9* renderer)
+{
+    uint64_t batch_vbo_cpu = 0u;
+    uint64_t batch_tri_cpu = 0u;
+    uint32_t batch_chunks = 0u;
+    uint64_t group_vbo_cpu[TRSPK_VBO_GROUP_COUNT];
+    uint64_t group_tri_cpu[TRSPK_VBO_GROUP_COUNT];
+    uint64_t group_slots_cpu[TRSPK_VBO_GROUP_COUNT];
+    uint64_t group_vbo_gpu[TRSPK_VBO_GROUP_COUNT];
+    uint64_t chain_bytes = 0u;
+    uint32_t chain_nodes = 0u;
+    uint32_t batch;
+    uint32_t group;
+    uint32_t chunk_index;
+    assert(renderer);
+    for( batch = 0u; batch < renderer->static_batch_count; batch++ )
+    {
+        struct TRSPK_Batch16* cpu = renderer->static_batches[batch].cpu;
+        uint32_t count;
+        if( !cpu )
+            continue;
+        count = trspk_batch16_chunk_count(cpu);
+        for( chunk_index = 0u; chunk_index < count; chunk_index++ )
+        {
+            const struct TRSPK_Batch16Chunk* chunk =
+                trspk_batch16_get_chunk(cpu, chunk_index);
+            if( !chunk )
+                continue;
+            batch_chunks++;
+            if( chunk->vbo )
+                batch_vbo_cpu += (uint64_t)chunk->vbo->capacity *
+                    sizeof(struct TRSPK_VertexD3D9);
+            batch_tri_cpu += (uint64_t)chunk->triangles.cap * sizeof(int);
+        }
+    }
+    for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
+    {
+        const struct D3D9ModelGroup* g = &renderer->groups[group];
+        group_vbo_cpu[group] = g->vbo_cpu
+            ? (uint64_t)g->vbo_cpu->capacity * sizeof(struct TRSPK_VertexD3D9)
+            : 0u;
+        group_tri_cpu[group] = (uint64_t)g->triangles.cap * sizeof(int);
+        group_slots_cpu[group] = g->arena
+            ? (uint64_t)g->arena->slot_capacity * sizeof(struct TRSPK_ModelSlot)
+            : 0u;
+        group_vbo_gpu[group] =
+            (uint64_t)g->gpu_capacity * sizeof(struct TRSPK_VertexD3D9);
+    }
+    if( renderer->ibo_chain )
+        chain_bytes = d3d9_core_ibochain_bytes(renderer->ibo_chain, &chain_nodes);
+    printf(
+        "d3d9_mem: === retained memory report ===\n"
+        "d3d9_mem: batch16_cpu_vertices  %10.2f MB (%u chunks)\n"
+        "d3d9_mem: batch16_cpu_configs   %10.2f MB\n"
+        "d3d9_mem: static_vbo_default    %10.2f MB (%u pages; DEFAULT pool, no mirror)\n"
+        "d3d9_mem: group_static_cpu      %10.2f MB (vbo) + %.2f MB (configs) + %.2f MB (slots)\n"
+        "d3d9_mem: group_static_default  %10.2f MB (DEFAULT pool, no mirror)\n"
+        "d3d9_mem: group_dynamic_cpu     %10.2f MB (vbo) + %.2f MB (configs)\n"
+        "d3d9_mem: group_dynamic_default %10.2f MB\n"
+        "d3d9_mem: ibo_default           %10.2f MB\n"
+        "d3d9_mem: ibo_chain_cpu         %10.2f MB (%u nodes)\n"
+        "d3d9_mem: draw_ranges_cpu       %10.2f MB\n"
+        "d3d9_mem: model_indices_cpu     %10.2f MB\n"
+        "d3d9_mem: atlas_cpu             %10.2f MB world + %.2f MB ui\n"
+        "d3d9_mem: pose_tables_cpu       %10.2f MB\n",
+        (double)batch_vbo_cpu / 1048576.0,
+        batch_chunks,
+        (double)batch_tri_cpu / 1048576.0,
+        (double)renderer->static_batch_gpu_page_capacity * D3D9_VBO_PAGE *
+            sizeof(struct TRSPK_VertexD3D9) / 1048576.0,
+        renderer->static_batch_gpu_page_capacity,
+        (double)group_vbo_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
+        (double)group_tri_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
+        (double)group_slots_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
+        (double)group_vbo_gpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
+        (double)group_vbo_cpu[TRSPK_VBO_GROUP_DYNAMIC] / 1048576.0,
+        (double)group_tri_cpu[TRSPK_VBO_GROUP_DYNAMIC] / 1048576.0,
+        (double)group_vbo_gpu[TRSPK_VBO_GROUP_DYNAMIC] / 1048576.0,
+        (double)renderer->gpu_ibo_capacity * sizeof(uint16_t) / 1048576.0,
+        (double)chain_bytes / 1048576.0,
+        chain_nodes,
+        renderer->draw_ranges
+            ? (double)renderer->draw_ranges->capacity *
+                sizeof(struct TRSPK_DrawRange) / 1048576.0
+            : 0.0,
+        (double)renderer->model_index_capacity * sizeof(uint16_t) / 1048576.0,
+        (double)renderer->atlas.stride * renderer->atlas.height / 1048576.0,
+        (double)renderer->ui_sprite_atlas.stride * renderer->ui_sprite_atlas.height /
+            1048576.0,
+        ((double)d3d9_pose_table_bytes(&renderer->poses) +
+            (double)d3d9_pose_table_bytes(&renderer->batch_poses)) /
+            1048576.0);
+    d3d9_zbuffer_report_memory(renderer);
+}
+
 void
 ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)
 {
@@ -6015,6 +6240,7 @@ ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)
     int texture;
     if( !renderer )
         return;
+    d3d9_report_retained_memory(renderer);
     if( renderer->scene_active )
         d3d9_end_frame_scene(renderer);
     d3d9_release_default_pool(renderer);

@@ -1025,6 +1025,33 @@ struct ToriRS_ScriptHook
     char strv[TORIRS_COMPONENT_HOOK_STR_MAX][TORIRS_COMPONENT_HOOK_STR_LEN];
 };
 
+struct ToriRS_Component;
+
+/* The four inv-slot columns, split out of struct ToriRS_Component and minted
+ * only for the components that are inventories. Inline they were 2800 of a
+ * component's 4556 bytes -- 61% -- carried by every label, rectangle, model
+ * and line in every loaded pack, roughly 4 MB across a gameframe, for the sake
+ * of the few dozen grids that use them. sprite_ref is the bulk of it.
+ *
+ * NULL means not-an-inventory, and reads the same as the all-zero columns a
+ * non-inventory component used to carry: every reader either tests the id for
+ * > 0 or is already handed a NULL-checked pointer. */
+struct ToriRS_ComponentInvSlots
+{
+    /** Raw cache inv-slot graphic ids (dat2 invSlotGraphicId). */
+    int graphic_id[TORIRS_INV_SLOT_MAX];
+    /** Per-slot pixel offsets (dat1 invSlotOffsetX/Y). */
+    int offset_x[TORIRS_INV_SLOT_MAX];
+    int offset_y[TORIRS_INV_SLOT_MAX];
+    /** Empty-slot background sprite refs (dat1 invSlotGraphic name or dat2 spr:id). */
+    char sprite_ref[TORIRS_INV_SLOT_MAX][TORIRS_SPRITE_REF_MAX];
+};
+
+/* Mints the block on first write. Every caller is already inside a branch that
+ * has established the component is an inventory. */
+struct ToriRS_ComponentInvSlots*
+ToriRS_ComponentInvSlotsEnsure(struct ToriRS_Component* component);
+
 struct ToriRS_Component
 {
     int id;
@@ -1070,8 +1097,6 @@ struct ToriRS_Component
     int sprite_angle;
     uint8_t horizontal_flip;
     uint8_t vertical_flip;
-    /** Raw cache inv-slot graphic ids (dat2 invSlotGraphicId). */
-    int inv_slot_graphic_id[TORIRS_INV_SLOT_MAX];
     int transparency;
     /** Raw text horizontal alignment (dat2 textHorizontalAlignment). */
     int text_h_align;
@@ -1157,11 +1182,9 @@ struct ToriRS_Component
     int inv_obj_use;
     /** LINE widget line thickness (dat2 lineWidth). */
     int line_width;
-    /** Per-slot pixel offsets (dat1 invSlotOffsetX/Y). */
-    int inv_slot_offset_x[TORIRS_INV_SLOT_MAX];
-    int inv_slot_offset_y[TORIRS_INV_SLOT_MAX];
-    /** Empty-slot background sprite refs (dat1 invSlotGraphic name or dat2 spr:id). */
-    char inv_slot_sprite_ref[TORIRS_INV_SLOT_MAX][TORIRS_SPRITE_REF_MAX];
+    /** Inv-slot columns, or NULL when this component is not an inventory.
+     *  Owned; released by torirs_component_release_owned. */
+    struct ToriRS_ComponentInvSlots* inv_slots;
     /** Client.ts hide: layer skipped unless hovered_component_id == component id. */
     uint8_t hide;
     int button_type;

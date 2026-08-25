@@ -531,6 +531,9 @@ struct AppConfig
      *  it, 0 is unset and leaves the platform default standing (on, except on
      *  the web lane). TORIRS_HIDPI outranks all three. */
     int hidpi;
+    /** `[ui:boot] plugins` -- -1 declines the plugin layer, 1 asks for it, 0 is
+     *  unset and loads it. TORIRS_PLUGINS outranks both. */
+    int plugins;
     /** `[ui:boot] window` — initial canvas AND window size, 0 = unset (the
      * 765x503 fixed frame). Only meaningful in resizable mode, where it is the
      * size the gameframe is laid out at before the user touches anything.

@@ -56,6 +56,38 @@ db_grow(
     return grown ? grown : array;
 }
 
+/* The row's store for `col_id`, created on first write. Not db_grow: its
+ * 32-slot floor on a per-row array would put most of the inline
+ * columns[TORIRSSERVER_DB_COLUMN_MAX] waste straight back. */
+static struct ToriRSServerDbRowColumn*
+db_row_cell_ensure(
+    struct ToriRSServerDbRow* row,
+    int col_id)
+{
+    struct ToriRSServerDbRowCell* cell;
+
+    assert(row);
+    assert(col_id >= 0);
+    assert(col_id < TORIRSSERVER_DB_COLUMN_MAX);
+
+    for( int i = 0; i < row->cell_count; i++ )
+    {
+        if( row->cells[i].col_id == col_id )
+            return &row->cells[i].store;
+    }
+    if( row->cell_count == row->cell_capacity )
+    {
+        row->cell_capacity = row->cell_capacity ? row->cell_capacity * 2 : 2;
+        row->cells = realloc(
+            row->cells, (size_t)row->cell_capacity * sizeof(*row->cells));
+        assert(row->cells);
+    }
+    cell = &row->cells[row->cell_count++];
+    memset(cell, 0, sizeof(*cell));
+    cell->col_id = col_id;
+    return &cell->store;
+}
+
 /* ------------------------------------------------------------------ */
 /* Value types                                                         */
 /* ------------------------------------------------------------------ */
@@ -224,6 +256,23 @@ ToriRSServer_DbRow(int row_id)
     {
         if( g_rows[i].row_id == row_id )
             return &g_rows[i];
+    }
+    return NULL;
+}
+
+const struct ToriRSServerDbRowColumn*
+ToriRSServer_DbRowColumn(
+    const struct ToriRSServerDbRow* row,
+    int col_id)
+{
+    assert(row);
+    assert(col_id >= 0);
+    assert(col_id < TORIRSSERVER_DB_COLUMN_MAX);
+
+    for( int i = 0; i < row->cell_count; i++ )
+    {
+        if( row->cells[i].col_id == col_id )
+            return &row->cells[i].store;
     }
     return NULL;
 }
@@ -522,7 +571,7 @@ row_value(
     const char* text,
     int* out_ok)
 {
-    struct ToriRSServerDbValue out = { 0, NULL };
+    struct ToriRSServerDbValue out = { { 0 } };
     const char* expanded = text;
 
     *out_ok = 1;
@@ -706,7 +755,7 @@ load_dbrow_file(const char* path)
             if( !resolved )
                 continue;
 
-            store = &row->columns[index];
+            store = db_row_cell_ensure(row, index);
             for( int i = 0; i < filled; i++ )
             {
                 store->values = db_grow(store->values, &store->capacity,
@@ -900,6 +949,36 @@ ToriRSServer_DbLoad(const char* dir)
 void
 ToriRSServer_DbFree(void)
 {
+    /* Rows before tables: a value is a union, and only the table's schema says
+     * which positions hold a strdup'd string to free. */
+    for( int i = 0; i < g_row_count; i++ )
+    {
+        free((void*)g_rows[i].symbol);
+        for( int cell = 0; cell < g_rows[i].cell_count; cell++ )
+        {
+            struct ToriRSServerDbRowColumn* store = &g_rows[i].cells[cell].store;
+            const struct ToriRSServerDbTable* table = ToriRSServer_DbTable(g_rows[i].table_id);
+            const struct ToriRSServerDbColumn* column;
+
+            /* A cell only exists after a write through a resolved column. */
+            assert(table);
+            assert(g_rows[i].cells[cell].col_id < table->column_count);
+            column = &table->columns[g_rows[i].cells[cell].col_id];
+            assert(column->type_count > 0);
+            for( int val = 0; val < store->count; val++ )
+            {
+                if( column->is_string[val % column->type_count] )
+                    free((void*)store->values[val].text);
+            }
+            free(store->values);
+        }
+        free(g_rows[i].cells);
+    }
+    free(g_rows);
+    g_rows = NULL;
+    g_row_count = 0;
+    g_row_capacity = 0;
+
     for( int i = 0; i < g_table_count; i++ )
     {
         free((void*)g_tables[i].symbol);
@@ -908,7 +987,11 @@ ToriRSServer_DbFree(void)
             struct ToriRSServerDbColumn* column = &g_tables[i].columns[col];
 
             for( int val = 0; val < column->default_count; val++ )
-                free((void*)column->defaults[val].text);
+            {
+                if( column->type_count > 0 &&
+                    column->is_string[val % column->type_count] )
+                    free((void*)column->defaults[val].text);
+            }
             free(column->defaults);
             free((void*)g_tables[i].columns[col].name);
         }
@@ -917,23 +1000,6 @@ ToriRSServer_DbFree(void)
     g_tables = NULL;
     g_table_count = 0;
     g_table_capacity = 0;
-
-    for( int i = 0; i < g_row_count; i++ )
-    {
-        free((void*)g_rows[i].symbol);
-        for( int col = 0; col < TORIRSSERVER_DB_COLUMN_MAX; col++ )
-        {
-            struct ToriRSServerDbRowColumn* store = &g_rows[i].columns[col];
-
-            for( int val = 0; val < store->count; val++ )
-                free((void*)store->values[val].text);
-            free(store->values);
-        }
-    }
-    free(g_rows);
-    g_rows = NULL;
-    g_row_count = 0;
-    g_row_capacity = 0;
     free(g_ordered);
     g_ordered = NULL;
     g_ordered_count = 0;
@@ -996,9 +1062,9 @@ ToriRSServer_DbEnsureRow(
         if( g_rows[i].row_id != row_id )
             continue;
         row = &g_rows[i];
-        for( int col = 0; col < TORIRSSERVER_DB_COLUMN_MAX; col++ )
+        for( int cell = 0; cell < row->cell_count; cell++ )
         {
-            if( row->columns[col].count > 0 )
+            if( row->cells[cell].store.count > 0 )
             {
                 has_values = 1;
                 break;
@@ -1085,15 +1151,23 @@ ToriRSServer_DbColumnDefaultsSet(
     assert(values || count == 0);
 
     column = &table->columns[col_id];
+    /* The union needs the schema to tell strings from ints — DbColumnDefine
+     * must have run for this column first. */
+    assert(column->type_count > 0);
     for( int i = 0; i < column->default_count; i++ )
-        free((void*)column->defaults[i].text);
+    {
+        if( column->is_string[i % column->type_count] )
+            free((void*)column->defaults[i].text);
+    }
     free(column->defaults);
     column->defaults = count > 0 ? calloc((size_t)count, sizeof(*column->defaults)) : NULL;
     column->default_count = column->defaults ? count : 0;
     for( int i = 0; i < column->default_count; i++ )
     {
-        column->defaults[i].value = values[i].value;
-        column->defaults[i].text = values[i].text ? strdup(values[i].text) : NULL;
+        if( column->is_string[i % column->type_count] )
+            column->defaults[i].text = values[i].text ? strdup(values[i].text) : NULL;
+        else
+            column->defaults[i].value = values[i].value;
     }
 }
 
@@ -1105,6 +1179,8 @@ ToriRSServer_DbRowColumnSet(
     int count)
 {
     struct ToriRSServerDbRowColumn* store;
+    const struct ToriRSServerDbTable* table;
+    const struct ToriRSServerDbColumn* column;
 
     assert(row);
     assert(col_id >= 0);
@@ -1112,9 +1188,19 @@ ToriRSServer_DbRowColumnSet(
     assert(count >= 0);
     assert(values || count == 0);
 
-    store = &row->columns[col_id];
+    /* The union needs the row's table schema to tell strings from ints. */
+    table = ToriRSServer_DbTable(row->table_id);
+    assert(table);
+    assert(col_id < table->column_count);
+    column = &table->columns[col_id];
+    assert(column->type_count > 0);
+
+    store = db_row_cell_ensure(row, col_id);
     for( int i = 0; i < store->count; i++ )
-        free((void*)store->values[i].text);
+    {
+        if( column->is_string[i % column->type_count] )
+            free((void*)store->values[i].text);
+    }
     free(store->values);
     store->values = NULL;
     store->count = 0;
@@ -1122,13 +1208,19 @@ ToriRSServer_DbRowColumnSet(
 
     for( int i = 0; i < count; i++ )
     {
-        struct ToriRSServerDbValue copy = { 0, NULL };
+        struct ToriRSServerDbValue copy = { { 0 } };
 
         store->values = db_grow(store->values, &store->capacity, store->count,
                                 sizeof(*store->values));
-        copy.value = values[i].value;
-        if( values[i].text )
-            copy.text = strdup(values[i].text);
+        if( column->is_string[i % column->type_count] )
+        {
+            if( values[i].text )
+                copy.text = strdup(values[i].text);
+        }
+        else
+        {
+            copy.value = values[i].value;
+        }
         store->values[store->count++] = copy;
     }
 }

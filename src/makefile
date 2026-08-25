@@ -95,6 +95,11 @@ MEMTRACE_SUFFIX = _mt
 else
 MEMTRACE_SUFFIX =
 endif
+ifeq ($(MEMPROF),1)
+MEMPROF_SUFFIX = _mp
+else
+MEMPROF_SUFFIX =
+endif
 ifeq ($(ENABLE_ASAN),1)
 ASAN_SUFFIX = _asan
 else
@@ -121,11 +126,39 @@ else
 EMBED_SERVER_SUFFIX =
 endif
 ifeq ($(OPT),1)
-OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = -O3
 else
-OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = $(PLATFORM_DEBUG_O_LEVEL)
+endif
+
+# What OPT=1 adds beyond -O3. These were not in this makefile: the XP profiling
+# build that produced docs/winxp_profiles/analysis.md carried them on the
+# command line, so the numbers on record describe flags no `make OPT=1` could
+# reproduce. Both belong in the release configuration itself.
+#
+#   -flto      The client is built as a handful of large unity TUs plus a few
+#              hundred ordinary ones. Cross-TU inlining is exactly what the
+#              unity files exist to fake, and LTO does it without the
+#              #include-a-.c arrangement. Wants matching flags at link, which
+#              PLATFORM_LDFLAGS already supplies for this lane (-O3 -g0).
+#
+#   -DNDEBUG   Compiles out assert(). Note this contradicts CLAUDE.md, which
+#              states asserts stay live in every configuration including OPT=1
+#              -- the convention there makes assert() the error handling, not a
+#              debug aid. It is safe in the narrow mechanical sense: all 45
+#              assert() sites in src/ and 3rd/toridraw that wrap a call wrap a
+#              pure predicate (World_EntityPoolIsActive, td_scene_element_valid,
+#              ToriDraw_SceneHasZBuffer, ...), so nothing with a side effect
+#              vanishes with the macro. What it does cost is the loud abort:
+#              an assert()ed malloc becomes an unchecked one.
+ifeq ($(OPT),1)
+OPT_RELEASE_CFLAGS  = -DNDEBUG -flto
+OPT_RELEASE_LDFLAGS = -flto
+else
+OPT_RELEASE_CFLAGS  =
+OPT_RELEASE_LDFLAGS =
 endif
 
 # The optimized XP deliverable is a deployment binary, not a profiling build.
@@ -269,7 +302,20 @@ TORIDRAW_O_LEVEL = -O2
 else
 TORIDRAW_O_LEVEL = $(O_LEVEL)
 endif
+# Raster probes, off unless asked for. The rasterizer's measurement gates are
+# compile-time (graphics/raster/span_census.h, graphics/raster/raster_ablate.h)
+# because a runtime branch in the innermost span loop taxes the very thing it
+# is there to measure. `?=` so this can be set from the environment and reach a
+# build driven by ./launch, which does not forward make arguments:
+#
+#   rm -f src/build_win64_opt/toridraw_unity.o     # not dep-tracked for -D
+#   TORIDRAW_PROBE_CFLAGS=-DTORIDRAW_SPAN_TRACE=1 ./launch bench osrs239-bench ...
+#
+# Removing the unity object by hand is not optional: the .u.c files it pulls in
+# are not dependency-tracked, and an added -D forces no rebuild on its own.
+TORIDRAW_PROBE_CFLAGS ?=
 TORIDRAW_CFLAGS = -std=c11 $(TORIDRAW_O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -MMD -MP \
+	$(TORIDRAW_PROBE_CFLAGS) \
 	-I$(TORIDRAW_DIR) \
 	-I$(BMP_DIR)
 
@@ -295,6 +341,17 @@ RSPROT_CFLAGS   += $(PLATFORM_BASE_CFLAGS)
 COMPRESS_CFLAGS += $(PLATFORM_BASE_CFLAGS)
 TORIDRAW_CFLAGS += $(PLATFORM_BASE_CFLAGS)
 LDFLAGS = $(PLATFORM_LDFLAGS) $(PLATFORM_STRIP_LDFLAGS)
+
+# Empty unless OPT=1; see the definition above. Every compile that feeds the
+# final link gets these, because a partly-LTO link is a silently partly-
+# optimized one -- GCC accepts the mixture and just leaves the plain objects
+# out of the whole-program pass.
+CFLAGS          += $(OPT_RELEASE_CFLAGS)
+RSCACHE_CFLAGS  += $(OPT_RELEASE_CFLAGS)
+RSPROT_CFLAGS   += $(OPT_RELEASE_CFLAGS)
+COMPRESS_CFLAGS += $(OPT_RELEASE_CFLAGS)
+TORIDRAW_CFLAGS += $(OPT_RELEASE_CFLAGS)
+LDFLAGS         += $(OPT_RELEASE_LDFLAGS)
 
 ifeq ($(ENABLE_ASAN),1)
 CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
@@ -351,6 +408,33 @@ RSPROT_CFLAGS   += $(MEMTRACE_CFLAGS)
 COMPRESS_CFLAGS += $(MEMTRACE_CFLAGS)
 TORIDRAW_CFLAGS += $(MEMTRACE_CFLAGS)
 LDFLAGS += $(PLATFORM_MEMTRACE_WRAP_LDFLAGS)
+endif
+
+# --- Retained-heap profiling (MEMPROF=1) ---------------------------------
+# Windows-only sibling of MEMTRACE, and mutually exclusive with it: both define
+# the same __wrap_ entry points. This one keeps live totals per call site rather
+# than a timeline, so it answers "what is still allocated at exit, and by whom".
+# Its own wrap list rather than PLATFORM_MEMTRACE_WRAP_LDFLAGS -- ld errors on
+# a wrapped symbol whose __wrap_ half nobody defines, and this file defines
+# five of the seven that list names.
+# -g only: the profiler reads __builtin_return_address(0), not the stack, so the
+# frame pointer stays omitted and the lane keeps the codegen it is measuring.
+ifeq ($(MEMPROF),1)
+ifeq ($(MEMTRACE),1)
+$(error MEMPROF=1 and MEMTRACE=1 both define __wrap_malloc - pick one)
+endif
+ifeq ($(ENABLE_ASAN),1)
+$(error MEMPROF=1 and ENABLE_ASAN=1 both hook malloc - pick one)
+endif
+MEMPROF_CFLAGS := -DTORIRS_MEMPROF=1 -g \
+	-fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
+CFLAGS          += $(MEMPROF_CFLAGS)
+RSCACHE_CFLAGS  += $(MEMPROF_CFLAGS)
+RSPROT_CFLAGS   += $(MEMPROF_CFLAGS)
+COMPRESS_CFLAGS += $(MEMPROF_CFLAGS)
+TORIDRAW_CFLAGS += $(MEMPROF_CFLAGS)
+LDFLAGS += -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc \
+	-Wl,--wrap=free -Wl,--wrap=strdup
 endif
 
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
@@ -517,6 +601,9 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 ifeq ($(MEMTRACE),1)
 SRCS += platform/torirs_memtrace.c
 endif
+ifeq ($(MEMPROF),1)
+SRCS += platform/torirs_memprof_win32.c
+endif
 
 # Defined up here, above both the EMBED_SERVER block and the $(TARGET) rule.
 # $(TARGET): $(OBJS) expands its prerequisites when the makefile is *read*,
@@ -601,7 +688,43 @@ RSPROT_UNITY_SRC = $(RSPROT_DIR)/rsprot_unity.c
 RSPROT_PACKETS_UNITY_SRC = $(RSPROT_DIR)/rsprot_packets_unity.c
 TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
 TRSPK_UNITY_SRC = $(TRSPK_DIR)/trspk_unity.c
-TORIDRAW_UNITY_LINK_OBJS = $(OBJ_DIR)/toridraw_unity.o $(TORIDRAW_PROJECTION_ASM_OBJ)
+
+# --- Hand-written texture span kernel ------------------------------------
+# The perspective texture span's per-block setup -- one reciprocal and two
+# quotients per eight pixels -- measured LARGER than the SSE2 gather it feeds,
+# and it is a serial float chain the compiler schedules in the same iteration as
+# the fill. tex_span_asm.h carries the full argument; the short version is that
+# the divide is software-pipelined three blocks ahead, which GCC will not do
+# across a loop with four data-dependent branches in it.
+#
+# Only the two x86 Windows lanes have one, because those are the two whose ABI
+# and ISA floor this tree pins exactly (win32 is i686/pentium4, win64 is the MS
+# x64 ABI). Every other lane keeps the C, which stays the reference in all of
+# them -- toridraw_texspan_asm_test.c is what says the two agree.
+#
+# A probe build opts out. The census and ablation counters live in the C and the
+# asm does not carry them, so a measurement build that quietly ran the asm would
+# report a texture span that draws no spans.
+TEXSPAN_ASM_SRC :=
+ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
+ifeq ($(PLATFORM),win64)
+TEXSPAN_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/texture/span/tex_span_x64.S
+endif
+ifeq ($(PLATFORM),win32)
+TEXSPAN_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/texture/span/tex_span_i686.S
+endif
+endif
+
+ifneq ($(TEXSPAN_ASM_SRC),)
+TEXSPAN_ASM_OBJ  := $(OBJ_DIR)/tex_span_asm.o
+TORIDRAW_CFLAGS  += -DTORIDRAW_TEXSPAN_ASM=1
+endif
+
+# Everything that links the toridraw unity object links its asm halves with it:
+# the Apple arm64 projection kernel and the x86 Windows texture span, each empty
+# on the lanes that do not have one. Naming the set once is what keeps a target
+# from silently reaching the C through a unity object compiled to call the asm.
+TORIDRAW_UNITY_LINK_OBJS = $(OBJ_DIR)/toridraw_unity.o $(TORIDRAW_PROJECTION_ASM_OBJ) $(TEXSPAN_ASM_OBJ)
 # Objects derived from SRCS (one .o per source, flat in OBJ_DIR) plus the
 # out-of-tree/unity extras that have their own rules below. The world_builder
 # pipeline ($(WB_OBJS), incl. wb_minimap.o â the Minimap world.h is written
@@ -1413,7 +1536,7 @@ $(OBJ_DIR)/ini.o: $(INI_SRC) | $(OBJ_DIR)
 # Lua 5.5, one object with its own flags (see plugin/lua_unity.c for what is
 # deliberately left out of it). -w because a vendored library's warnings are
 # not ours to fix and would drown the tree's own.
-LUA_CFLAGS = -std=c99 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) $(PLATFORM_BASE_CFLAGS) -I$(LUA_DIR)
+LUA_CFLAGS = -std=c99 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) $(OPT_RELEASE_CFLAGS) $(PLATFORM_BASE_CFLAGS) -I$(LUA_DIR)
 $(OBJ_DIR)/lua_unity.o: $(SRC_DIR)/plugin/lua_unity.c | $(OBJ_DIR)
 	$(CC) $(LUA_CFLAGS) -w -c $(SRC_DIR)/plugin/lua_unity.c -o $@
 
@@ -1506,6 +1629,19 @@ $(OBJ_DIR)/toridraw_unity.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
 
 $(OBJ_DIR)/projection16_apple.o: $(TORIDRAW_DIR)/graphics/projection16_apple.S | $(OBJ_DIR)
 	$(CC) -c $< -o $@
+
+# Assembled through $(CC) so the target architecture follows the lane's own
+# compiler and the C preprocessor runs first -- the .S is cpp'd, and its two
+# texture-width specialisations are macro expansions.
+#
+# It deliberately does NOT take $(PLATFORM_BASE_CFLAGS). Those carry the lane's
+# -include win32_compat.h, and a force-included C header handed to the
+# assembler is several hundred lines of "no such instruction". Nothing else in
+# there can change what this file assembles to: it names its own registers.
+ifneq ($(TEXSPAN_ASM_SRC),)
+$(TEXSPAN_ASM_OBJ): $(TEXSPAN_ASM_SRC) | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
+endif
 
 $(OBJ_DIR)/trspk_unity.o: $(TRSPK_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -w -c $(TRSPK_UNITY_SRC) -o $@
@@ -2336,6 +2472,42 @@ test-raster-kernel-pixel16: $(OBJ_DIR) $(RASTER_KERNEL_PIXEL16_OBJS) $(TORIDRAW_
 # component box differs from the image, and in a measured client frame all of
 # them were 1:1 -- so the shortcut is the common path, not the rare one, and it
 # has to be exact. Standalone TU, no cache or disk.
+# Gouraud span-fill kernels: bit-exactness against the reference twin first,
+# then ns/pixel over a replayed trace of real spans. The scene bench's `render`
+# p50 repeats to +/-1-3% and the whole span fill is a few percent of it, so a
+# kernel change is smaller than that harness's own spread and has to be scored
+# here instead. TRACE=<file> replays a capture made with -DTORIDRAW_SPAN_TRACE=1;
+# without one it falls back to a synthetic distribution and says so.
+test-span-bench: $(OBJ_DIR)
+	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/span_bench \
+		$(TORIDRAW_DIR)/toridraw_span_bench.c -lm
+	./$(OBJ_DIR)/span_bench $(TRACE)
+
+# The hand-written texture span kernel against the C twin it replaces: every
+# pixel of 8000 spans compared, then a timing of both, interleaved, best-of.
+#
+# Interleaved and best-of because the two are within a factor of two of each
+# other and this machine's clock drifts more than that difference over a run of
+# consecutive passes -- alternating them puts both sides in the same weather.
+#
+# Only the two x86 Windows lanes have a kernel; anywhere else there is nothing
+# to score, and saying so is better than silently testing the C against itself.
+test-texspan-asm: $(OBJ_DIR)
+ifeq ($(TEXSPAN_ASM_SRC),)
+	@echo "test-texspan-asm: no kernel for PLATFORM=$(PLATFORM) -- nothing to score"
+else
+	@# Two steps, and for the same reason $(TEXSPAN_ASM_OBJ) is its own rule:
+	@# the C half needs $(PLATFORM_BASE_CFLAGS) or the lane's ISA floor is not
+	@# the one being tested -- win32 without -march=pentium4 has no SSE2 and
+	@# the reference twin does not compile -- while the asm half must not see
+	@# them, because -include win32_compat.h reaches the assembler as several
+	@# hundred lines of "no such instruction".
+	$(CC) -I$(TORIDRAW_DIR) -c $(TEXSPAN_ASM_SRC) -o $(OBJ_DIR)/texspan_asm_test_kernel.o
+	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function 		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/texspan_asm_test 		$(TORIDRAW_DIR)/toridraw_texspan_asm_test.c 		$(OBJ_DIR)/texspan_asm_test_kernel.o -lm
+	./$(OBJ_DIR)/texspan_asm_test
+endif
+
 test-blit-scaled: $(OBJ_DIR)
 	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/blit_scaled_test \

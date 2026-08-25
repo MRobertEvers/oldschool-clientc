@@ -1133,6 +1133,30 @@ fake_if_click(void* u, int component_id, int op)
 }
 
 
+/*
+ * The lane this fake booted on, as `[cache:boot]` would have stated it.
+ *
+ * A global rather than a field of the fake, because a lane is decided before
+ * anything the host does and never changes under a running client -- the tests
+ * set it, build a host, and that is the world that host lives in.
+ */
+static int g_lane_game = TORIRS_PLUGIN_GAME_UNKNOWN;
+
+static int
+fake_lane(void* u, struct ToriRS_PluginLane* o)
+{
+    (void)u;
+    memset(o, 0, sizeof(*o));
+    o->game = g_lane_game;
+    /* An unidentified cache answers 0 with the whole struct zeroed, which is
+     * the one answer a plugin is told not to decide on. */
+    if( g_lane_game == TORIRS_PLUGIN_GAME_UNKNOWN )
+        return 0;
+    o->epoch = TORIRS_PLUGIN_EPOCH_DAT2;
+    o->revision = g_lane_game == TORIRS_PLUGIN_GAME_OLDSCHOOL ? 239 : 254;
+    return 1;
+}
+
 static struct ToriRS_PluginEngine
 fake_engine(void)
 {
@@ -1152,6 +1176,7 @@ fake_engine(void)
     e.hover_tile = fake_hover_tile;
     e.hover_entity = fake_hover_entity;
     e.element_height = fake_element_height;
+    e.lane = fake_lane;
     e.feature_next = fake_feature_next;
     e.feature_get = fake_feature_get;
     e.feature_set = fake_feature_set;
@@ -1628,6 +1653,138 @@ static struct ToriRS_PluginDef const BETA = {
     .priority = 10,
     .config = NULL,
     .init = beta_init,
+};
+
+/*
+ * The shape the gameframe plugin has: it asks which lane it booted on and, on
+ * one it cannot work on, switches ITSELF off.
+ *
+ * A local def rather than the real plugin because what is under test is the
+ * HOST's half -- that a refusal reads as off, that it survives a second Start,
+ * that it does not reach the settings file, and that an explicit enable or a
+ * reload puts the question back. The gameframe's own answer is tested beside
+ * the gameframe.
+ *
+ * `disabled_by_default` because that is where the trap is: the encoder writes
+ * `enabled=` only when the switch DIFFERS from the declared default, so a
+ * refusal that cleared `enabled` on this def would silently drop the user's
+ * saved `enabled=1` instead of leaving it for the next lane.
+ */
+static int g_standoff_inits;
+static int g_standoff_starts;
+static int g_standoff_stops;
+static int g_standoff_ticks;
+
+static enum ToriRS_PluginVerdict
+standoff_start(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    (void)ctx;
+    (void)ev;
+    (void)ud;
+    g_standoff_starts++;
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
+standoff_stop(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    (void)ctx;
+    (void)ev;
+    (void)ud;
+    g_standoff_stops++;
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
+standoff_tick(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    (void)ctx;
+    (void)ev;
+    (void)ud;
+    g_standoff_ticks++;
+    return TORIRS_PLUGIN_PASS;
+}
+
+static void
+standoff_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
+{
+    struct ToriRS_PluginLane lane;
+
+    g_api = api;
+    g_standoff_inits++;
+
+    /* Before the subscriptions, so a lane it cannot run on never gets a
+     * handler of this plugin's registered at all. */
+    if( api->lane(ctx, &lane) && lane.game == TORIRS_PLUGIN_GAME_OLDSCHOOL )
+    {
+        api->disable_self(ctx, "this cache brings its own gameframe");
+        return;
+    }
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_START, standoff_start, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, standoff_stop, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_LOGIC_TICK, standoff_tick, NULL);
+}
+
+static struct ToriRS_PluginDef const STANDOFF = {
+    .name = "standoff",
+    .version = "1",
+    .disabled_by_default = true,
+    .init = standoff_init,
+};
+
+/*
+ * And one that decides from inside a handler instead of from init.
+ *
+ * The api verb is documented to be legal there too, and the caller goes on
+ * running afterwards -- which is the part that can break: the teardown it runs
+ * is the same one PluginHost_SetEnabled uses, so it ends by clearing the
+ * host's dispatching mark out from under the handler that called it.
+ */
+static int g_latecomer_after;
+static int g_latecomer_stops;
+
+static enum ToriRS_PluginVerdict
+latecomer_stop(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    (void)ctx;
+    (void)ev;
+    (void)ud;
+    g_latecomer_stops++;
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
+latecomer_start(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    (void)ev;
+    (void)ud;
+    g_api->disable_self(ctx, "not on this lane");
+    /* Still this plugin's ctx, still answering for it: an api call the rest of
+     * the handler makes must not come back for whoever ran before it. */
+    if( g_api->cfg_str(ctx, "colour") )
+        g_latecomer_after++;
+    return TORIRS_PLUGIN_PASS;
+}
+
+static struct ToriRS_PluginConfigItem const LATECOMER_CFG[] = {
+    { .key = "colour", .label = "colour", .type = TORIRS_PLUGIN_CFG_STRING,
+      .default_value = "#000000" },
+    { 0 },
+};
+
+static void
+latecomer_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
+{
+    g_api = api;
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_START, latecomer_start, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, latecomer_stop, NULL);
+}
+
+static struct ToriRS_PluginDef const LATECOMER = {
+    .name = "latecomer",
+    .version = "1",
+    .config = LATECOMER_CFG,
+    .init = latecomer_init,
 };
 
 static struct ToriRS_PluginDef const OFF_BY_DEFAULT = {
@@ -2626,6 +2783,121 @@ main(void)
         PluginHost_Free(hr);
     }
 
+    /* ---- standing down ------------------------------------------------- */
+
+    /*
+     * A plugin that looks at the lane it booted on and refuses it.
+     *
+     * The load-bearing half is everything the refusal does NOT do: it does not
+     * touch the switch the user saved, and it does not leave the plugin
+     * running-but-inert where the roster would go on showing it as on.
+     */
+    {
+        struct ToriRS_PluginHost* hs;
+        int s;
+
+        /* A lane it can run on, first, so the checks below are about the lane
+         * and not about the plugin never having worked. */
+        g_lane_game = TORIRS_PLUGIN_GAME_RS2;
+        g_standoff_inits = 0;
+        g_standoff_starts = 0;
+        g_standoff_stops = 0;
+        g_standoff_ticks = 0;
+
+        hs = PluginHost_New(&engine);
+        s = PluginHost_Register(hs, &STANDOFF);
+        PluginHost_SetEnabled(hs, s, true);
+        CHECK(PluginHost_IsEnabled(hs, s), "on a lane it accepts, the plugin runs");
+        CHECK(g_standoff_starts == 1, "and its EV_START handler is reached");
+        PluginHost_Free(hs);
+
+        /* The same plugin, the same switch, a lane it stands down on. */
+        g_lane_game = TORIRS_PLUGIN_GAME_OLDSCHOOL;
+        g_standoff_inits = 0;
+        g_standoff_starts = 0;
+        g_standoff_stops = 0;
+        g_standoff_ticks = 0;
+
+        hs = PluginHost_New(&engine);
+        s = PluginHost_Register(hs, &STANDOFF);
+        PluginHost_SetEnabled(hs, s, true);
+
+        CHECK(g_standoff_inits == 1, "the plugin is still asked -- the host decides nothing");
+        CHECK(!PluginHost_IsEnabled(hs, s), "and having stood down, it reads as off");
+        CHECK(g_standoff_starts == 0, "EV_START never reaches a plugin that refused");
+        CHECK(
+            PluginHost_Error(hs, s) != NULL &&
+                strstr(PluginHost_Error(hs, s), "own gameframe") != NULL,
+            "the reason is on the row, in the words the plugin wrote");
+
+        PluginHost_LogicTick(hs, 1);
+        CHECK(g_standoff_ticks == 0, "and nothing else reaches it either");
+
+        /* Every later Start runs this list again -- a script finishing its
+         * load is one -- and none of them may re-take a decision already made
+         * or the log fills with the same line once a second. */
+        PluginHost_Start(hs);
+        CHECK(g_standoff_inits == 1, "a later Start does not put the question again");
+
+        /*
+         * And the switch is still the user's.
+         *
+         * This client boots several lanes from one settings file: `enabled=1`
+         * was stated once for all of them, so an OldSchool boot that cleared
+         * it would take the plugin away from the next lane too.
+         */
+        {
+            void* data = NULL;
+            int size = 0;
+            CHECK(PluginHost_ConfigEncode(hs, &data, &size) == 1, "the settings encode");
+            CHECK(
+                strstr((char*)data, "[plugin:standoff]") != NULL &&
+                    strstr((char*)data, "enabled=1") != NULL,
+                "and still carry the enabled=1 the user saved");
+            free(data);
+        }
+
+        /* Asked again, explicitly: the question goes back to the plugin, which
+         * on this lane gives the same answer -- and says so again, beside the
+         * switch that was just clicked. */
+        PluginHost_SetError(hs, s, NULL);
+        PluginHost_SetEnabled(hs, s, true);
+        CHECK(g_standoff_inits == 2, "flipping the switch on takes the decision again");
+        CHECK(!PluginHost_IsEnabled(hs, s), "and on the same lane it stands down again");
+        CHECK(PluginHost_Error(hs, s) != NULL, "leaving the reason where the row draws it");
+
+        /* A reload is a fresh run decided from a fresh source, so the refusal
+         * does not outlive it -- here the source now says a lane it accepts. */
+        g_lane_game = TORIRS_PLUGIN_GAME_RS2;
+        PluginHost_Reload(hs, s);
+        CHECK(PluginHost_IsEnabled(hs, s), "a reload takes the refusal back off");
+        CHECK(g_standoff_starts == 1, "and the plugin runs");
+
+        /* Switched off by hand and on again is an ordinary enable, with no
+         * refusal left over to make the click do nothing. */
+        PluginHost_SetEnabled(hs, s, false);
+        CHECK(!PluginHost_IsEnabled(hs, s), "an ordinary disable still switches it off");
+        PluginHost_SetEnabled(hs, s, true);
+        CHECK(PluginHost_IsEnabled(hs, s), "and an ordinary enable switches it back on");
+
+        PluginHost_Free(hs);
+        g_lane_game = TORIRS_PLUGIN_GAME_UNKNOWN;
+    }
+
+    /* Standing down from inside a handler rather than from init. */
+    {
+        struct ToriRS_PluginHost* hl = PluginHost_New(&engine);
+        int const l = PluginHost_Register(hl, &LATECOMER);
+
+        g_latecomer_after = 0;
+        g_latecomer_stops = 0;
+        PluginHost_Start(hl);
+
+        CHECK(!PluginHost_IsEnabled(hl, l), "a handler can stand its own plugin down");
+        CHECK(g_latecomer_after == 1, "and the api still answers for it on the way out");
+        CHECK(g_latecomer_stops == 1, "the handlers it had registered are unwound");
+        PluginHost_Free(hl);
+    }
 
     /* ---- release and reclaim during EV_LAYOUT ----------------------------- */
     {
