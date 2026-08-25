@@ -15,6 +15,13 @@ const SUITES = Object.freeze([
     'host_subject_test.js',
     'host_state_transmit_test.js',
     'host_worldmap_test.js',
+    'font_runtime_test.js',
+    'dev_page_render_test.js',
+    'model_render_worker_test.js',
+    'runtime_worker_test.js',
+    'preview_target_box_test.js',
+    'fast_host_edge_test.js',
+    'bankmain_wasm_stress_test.js',
     'run_tests.js',
 ]);
 

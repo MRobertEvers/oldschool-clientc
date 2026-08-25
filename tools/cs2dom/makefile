@@ -90,7 +90,7 @@ $(CS2W_WEB): $(CS2W_CORE) $(CS2W_HEADERS) | web
 		-sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORT_NAME=createCS2VMModule \
 		-sENVIRONMENT=web -sFILESYSTEM=0 -sNO_EXIT_RUNTIME=1 \
 		-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=16777216 -sSTACK_SIZE=1048576 \
-		-sEXPORTED_FUNCTIONS='["_malloc","_free"]' \
+		-sEXPORTED_FUNCTIONS='["_malloc","_free","_cs2w_request_field_offset","_cs2w_request_field_capacity","_cs2w_request_field_stride","_cs2w_request_field_count_offset","_cs2w_request_pointer_size"]' \
 		-sEXPORTED_RUNTIME_METHODS='["cwrap","UTF8ToString","HEAPU8","HEAP32","HEAPU32"]' \
 		-sASSERTIONS=0
 

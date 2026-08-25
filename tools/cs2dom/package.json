@@ -14,6 +14,8 @@
     "dev": "node bin/cs2dom.js dev --project example",
     "pretest": "make src/cs2_host_requests.js",
     "test": "node test/run_all_tests.js",
+    "pretest:bank": "make wasm",
+    "test:bank": "node test/bankmain_wasm_stress_test.js",
     "test:native": "node test/native_preview_test.js",
     "build": "node bin/cs2dom.js build --project example",
     "build:dry": "node bin/cs2dom.js build --project example --dry-run",

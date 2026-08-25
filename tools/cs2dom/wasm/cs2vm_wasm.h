@@ -79,7 +79,7 @@ enum CS2W_FieldKind
 struct CS2W_Session;
 struct CS2W_Invocation;
 
-#define CS2W_ABI_VERSION 0x00010000u
+#define CS2W_ABI_VERSION 0x00010002u
 
 uint32_t
 cs2w_abi_version(void);
@@ -128,6 +128,11 @@ cs2w_invocation_create(
 
 int
 cs2w_invocation_destroy(struct CS2W_Invocation* invocation);
+
+/* Enable the browser-only compact HOST transaction path before first run.
+ * Unsupported/native builds reject enabled=1 and retain generic callbacks. */
+int
+cs2w_invocation_set_fast_host(struct CS2W_Invocation* invocation, int enabled);
 
 /* Mixed ScriptEvent arguments fill their respective local banks in call order. */
 int
@@ -181,6 +186,26 @@ cs2w_request_field_name(int kind, int field_index);
 
 int
 cs2w_request_field_kind(int kind, int field_index);
+
+/* Immutable C layout metadata. Browser hosts may cache these values and read
+ * the borrowed request directly from the current Emscripten heap. Offsets are
+ * relative to CS2VM_HostRequest; -1 means an invalid field/no count member.
+ * The legacy value accessors below remain the portable fallback. */
+int
+cs2w_request_field_offset(int kind, int field_index);
+
+int
+cs2w_request_field_capacity(int kind, int field_index);
+
+int
+cs2w_request_field_stride(int kind, int field_index);
+
+int
+cs2w_request_field_count_offset(int kind, int field_index);
+
+/* Direct heap reflection is valid only for the wasm32 ABI. */
+int
+cs2w_request_pointer_size(void);
 
 /* Semantic length: arg_count/pair_count/etc., not just fixed C capacity. */
 int

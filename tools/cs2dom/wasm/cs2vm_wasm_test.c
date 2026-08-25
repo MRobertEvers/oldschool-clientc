@@ -456,16 +456,33 @@ test_schema(void)
     assert(field_i32((uintptr_t)&request, kind, "component_id") == 0x12345678);
     int trigger_field = field_index(kind, "trigger_ids");
     assert(cs2w_request_field_kind(kind, trigger_field) == CS2W_FIELD_I32_POINTER);
+    assert(cs2w_request_field_offset(kind, trigger_field) ==
+           (int)((uint8_t*)&request.u.IF_SETONVARTRANSMIT.trigger_ids -
+                 (uint8_t*)&request));
+    assert(cs2w_request_field_capacity(kind, trigger_field) == 0);
+    assert(cs2w_request_field_stride(kind, trigger_field) == 0);
+    assert(cs2w_request_field_count_offset(kind, trigger_field) ==
+           (int)((uint8_t*)&request.u.IF_SETONVARTRANSMIT.trigger_count -
+                 (uint8_t*)&request));
     assert(cs2w_request_field_length((uintptr_t)&request, trigger_field) == 3);
     assert(cs2w_request_field_i32((uintptr_t)&request, trigger_field, 2) == 33);
     int mask_field = field_index(kind, "str_arg_mask");
+    assert(cs2w_request_field_capacity(kind, mask_field) == 2);
+    assert(cs2w_request_field_count_offset(kind, mask_field) == -1);
     assert(cs2w_request_field_i32((uintptr_t)&request, mask_field, 0) == 0);
     assert(cs2w_request_field_i32((uintptr_t)&request, mask_field, 1) == 256);
     int strings_field = field_index(kind, "str_args");
+    assert(cs2w_request_field_capacity(kind, strings_field) == CS2VM_SETON_STR_ARG_MAX);
+    assert(cs2w_request_field_stride(kind, strings_field) == CS2VM_SETON_STR_ARG_LEN);
     assert(cs2w_request_field_length((uintptr_t)&request, strings_field) == 1);
     assert(strcmp(
                cs2w_request_field_string((uintptr_t)&request, strings_field, 0),
                "hello") == 0);
+    assert(cs2w_request_pointer_size() == (int)sizeof(void*));
+    assert(cs2w_request_field_offset(-1, 0) == -1);
+    assert(cs2w_request_field_capacity(kind, -1) == -1);
+    assert(cs2w_request_field_stride(kind, 9999) == -1);
+    assert(cs2w_request_field_count_offset(-1, 0) == -1);
 
     assert(strcmp(cs2w_request_kind_name(CS2_OP_CC_GETMODELZOOM), "CC_GETMODELZOOM") == 0);
     assert(strcmp(
@@ -630,6 +647,9 @@ main(void)
     struct CS2W_Invocation* invocation =
         cs2w_invocation_create(session, 100, 0x1111, 0x2222, 512, 334);
     assert(invocation);
+    assert(cs2w_abi_version() == CS2W_ABI_VERSION);
+    assert(!cs2w_invocation_set_fast_host(invocation, 1));
+    assert(cs2w_invocation_set_fast_host(invocation, 0));
     assert(cs2w_invocation_add_int_arg(invocation, CS2VM_SCRIPT_ARG_MOUSE_X));
     assert(cs2w_invocation_add_string_arg(invocation, "event_opbase"));
     assert(cs2w_invocation_set_event_i32(invocation, CS2W_EVENT_MOUSE_X, 42));

@@ -6,6 +6,7 @@
 
 #include <rscache.h>
 
+#include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -40,6 +41,78 @@ EM_JS(
             return -1;
         }
     });
+
+/* The generic callback above is deliberately retained for every request.  A
+ * browser HostRuntime may additionally opt one invocation into the compact
+ * transaction ABI below.  JavaScript still owns every read and mutation: C
+ * only caches immutable snapshots returned by JS and queues ordered request
+ * records until the next observation barrier. */
+EM_JS(
+    int,
+    cs2w_js_fast_host_query,
+    (uintptr_t session, uintptr_t invocation, int query_kind, int key,
+     uintptr_t output, int capacity),
+    {
+        const query = Module['cs2FastHostQuery'];
+        if( typeof query !== 'function' ) return -1;
+        try
+        {
+            return query(session, invocation, query_kind, key, output, capacity) | 0;
+        }
+        catch( error )
+        {
+            Module['cs2LastHostError'] = error;
+            if( typeof Module['onCs2HostError'] === 'function' )
+                Module['onCs2HostError'](error);
+            return -1;
+        }
+    });
+
+/* Scalar content/layout reads still belong to JavaScript, but reflecting a
+ * complete request object for every immutable enum/struct lookup is needless
+ * work. A zero result asks C to use the generic polymorphic path (notably for
+ * string values); one means JavaScript wrote the exact signed int result. */
+EM_JS(
+    int,
+    cs2w_js_fast_host_int_query,
+    (uintptr_t session, uintptr_t invocation, int request_kind,
+     int a, int b, int c, uintptr_t output),
+    {
+        const query = Module['cs2FastHostIntQuery'];
+        if( typeof query !== 'function' ) return -1;
+        try
+        {
+            return query(session, invocation, request_kind, a, b, c, output) | 0;
+        }
+        catch( error )
+        {
+            Module['cs2LastHostError'] = error;
+            if( typeof Module['onCs2HostError'] === 'function' )
+                Module['onCs2HostError'](error);
+            return -1;
+        }
+    });
+
+EM_JS(
+    int,
+    cs2w_js_fast_host_flush,
+    (uintptr_t session, uintptr_t invocation, uintptr_t records, int record_count,
+     uintptr_t arena, int arena_size),
+    {
+        const flush = Module['cs2FastHostFlush'];
+        if( typeof flush !== 'function' ) return -1;
+        try
+        {
+            return flush(session, invocation, records, record_count, arena, arena_size) | 0;
+        }
+        catch( error )
+        {
+            Module['cs2LastHostError'] = error;
+            if( typeof Module['onCs2HostError'] === 'function' )
+                Module['onCs2HostError'](error);
+            return -1;
+        }
+    });
 #else
 #define CS2W_EXPORT
 static CS2W_NativeHostExec g_native_host_exec = NULL;
@@ -57,6 +130,58 @@ cs2w_set_native_host_exec(CS2W_NativeHostExec exec)
 #define CS2W_MAX_DYNAMIC_FIELD 4096
 #define CS2W_ERROR_MESSAGE_LEN 192
 #define CS2W_NO_OFFSET ((size_t)-1)
+#define CS2W_FAST_RECORD_WORDS 12
+#define CS2W_FAST_MAX_RECORDS 65536
+#define CS2W_FAST_INITIAL_RECORDS 1024
+#define CS2W_FAST_INITIAL_ARENA 16384
+#define CS2W_FAST_INITIAL_SNAPSHOT_ENTRIES 2048
+#define CS2W_FAST_QUERY_INVENTORY 1
+#define CS2W_FAST_QUERY_CHILDREN 2
+#define CS2W_FAST_QUERY_VAR 3
+#define CS2W_FAST_QUERY_VARBIT 4
+#define CS2W_FAST_QUERY_VARC_INT 5
+#define CS2W_FAST_QUERY_CLIENTCLOCK 6
+#define CS2W_FAST_QUERY_MISSING (-2)
+
+struct CS2W_FastRecord
+{
+    int32_t words[CS2W_FAST_RECORD_WORDS];
+};
+
+struct CS2W_FastInventoryEntry
+{
+    int slot;
+    int object_id;
+    int count;
+};
+
+struct CS2W_FastInventory
+{
+    int id;
+    struct CS2W_FastInventoryEntry* entries;
+    int count;
+};
+
+struct CS2W_FastChildEntry
+{
+    int sub_id;
+    int component_id;
+};
+
+struct CS2W_FastChildren
+{
+    int parent_id;
+    int parent_exists;
+    struct CS2W_FastChildEntry* entries;
+    int count;
+};
+
+struct CS2W_FastValue
+{
+    int kind;
+    int key;
+    int value;
+};
 
 struct CS2W_FieldDescriptor
 {
@@ -140,6 +265,25 @@ struct CS2W_Invocation
     int error_opcode;
     int error_pc;
     int error_script_id;
+    int fast_host_enabled;
+    struct CS2W_FastRecord* fast_records;
+    int fast_record_count;
+    int fast_record_capacity;
+    uint8_t* fast_arena;
+    int fast_arena_size;
+    int fast_arena_capacity;
+    int fast_create_serial;
+    int fast_active_token;
+    int fast_dot_token;
+    struct CS2W_FastInventory* fast_inventories;
+    int fast_inventory_count;
+    int fast_inventory_capacity;
+    struct CS2W_FastChildren* fast_children;
+    int fast_children_count;
+    int fast_children_capacity;
+    struct CS2W_FastValue* fast_values;
+    int fast_value_count;
+    int fast_value_capacity;
 };
 
 static char*
@@ -343,6 +487,1083 @@ cs2w_resolve_event_int(
     }
 }
 
+static void
+cs2w_fast_clear_snapshots(struct CS2W_Invocation* invocation)
+{
+    if( !invocation )
+        return;
+    for( int i = 0; i < invocation->fast_inventory_count; i++ )
+        free(invocation->fast_inventories[i].entries);
+    invocation->fast_inventory_count = 0;
+    for( int i = 0; i < invocation->fast_children_count; i++ )
+        free(invocation->fast_children[i].entries);
+    invocation->fast_children_count = 0;
+    invocation->fast_value_count = 0;
+}
+
+static int
+cs2w_fast_reserve_records(
+    struct CS2W_Invocation* invocation,
+    int additional)
+{
+    if( additional < 0 || invocation->fast_record_count > INT_MAX - additional )
+        return 0;
+    int required = invocation->fast_record_count + additional;
+    if( required <= invocation->fast_record_capacity )
+        return 1;
+    int capacity = invocation->fast_record_capacity
+                       ? invocation->fast_record_capacity
+                       : CS2W_FAST_INITIAL_RECORDS;
+    while( capacity < required )
+    {
+        if( capacity > INT_MAX / 2 )
+            return 0;
+        capacity *= 2;
+    }
+    struct CS2W_FastRecord* records = (struct CS2W_FastRecord*)realloc(
+        invocation->fast_records,
+        (size_t)capacity * sizeof(*records));
+    if( !records )
+        return 0;
+    invocation->fast_records = records;
+    invocation->fast_record_capacity = capacity;
+    return 1;
+}
+
+static int
+cs2w_fast_reserve_arena(
+    struct CS2W_Invocation* invocation,
+    int additional,
+    int* offset_out)
+{
+    int aligned = (invocation->fast_arena_size + 3) & ~3;
+    if( additional < 0 || aligned < invocation->fast_arena_size ||
+        aligned > INT_MAX - additional )
+        return 0;
+    int required = aligned + additional;
+    if( required > invocation->fast_arena_capacity )
+    {
+        int capacity = invocation->fast_arena_capacity
+                           ? invocation->fast_arena_capacity
+                           : CS2W_FAST_INITIAL_ARENA;
+        while( capacity < required )
+        {
+            if( capacity > INT_MAX / 2 )
+                return 0;
+            capacity *= 2;
+        }
+        uint8_t* arena = (uint8_t*)realloc(invocation->fast_arena, (size_t)capacity);
+        if( !arena )
+            return 0;
+        invocation->fast_arena = arena;
+        invocation->fast_arena_capacity = capacity;
+    }
+    if( aligned > invocation->fast_arena_size )
+        memset(
+            invocation->fast_arena + invocation->fast_arena_size,
+            0,
+            (size_t)(aligned - invocation->fast_arena_size));
+    invocation->fast_arena_size = required;
+    *offset_out = aligned;
+    return 1;
+}
+
+static int cs2w_fast_flush(struct CS2W_Invocation* invocation);
+
+static int
+cs2w_fast_is_pending_target(
+    const struct CS2W_Invocation* invocation,
+    int component_id)
+{
+    return (invocation->fast_active_token != 0 &&
+            component_id == invocation->fast_active_token) ||
+           (invocation->fast_dot_token != 0 &&
+            component_id == invocation->fast_dot_token);
+}
+
+static void
+cs2w_fast_set_record_component(
+    const struct CS2W_Invocation* invocation,
+    struct CS2W_FastRecord* record,
+    int component_id)
+{
+    record->words[1] = component_id;
+    /* Word 11 distinguishes a batch-local create token from an ordinary
+     * signed component id.  The full signed UID domain remains available to
+     * real IF/CC records, including interface groups >= 32768. */
+    record->words[11] = cs2w_fast_is_pending_target(invocation, component_id);
+}
+
+static void
+cs2w_fast_patch_request_targets(
+    struct CS2W_Invocation* invocation,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest* request,
+    int active_token,
+    int dot_token)
+{
+    if( (!active_token && !dot_token) || !request )
+        return;
+    const struct CS2W_RequestDescriptor* descriptor =
+        cs2w_request_descriptor(request->kind);
+    if( !descriptor )
+        return;
+    int active_id = CS2VM2_DotOrActiveComponentId(thread, 0);
+    int dot_id = CS2VM2_DotOrActiveComponentId(thread, 1);
+    for( int i = 0; i < descriptor->field_count; i++ )
+    {
+        const struct CS2W_FieldDescriptor* field = &descriptor->fields[i];
+        if( field->kind != CS2W_FIELD_I32 ||
+            (strcmp(field->name, "component_id") != 0 &&
+             strcmp(field->name, "parent_id") != 0 &&
+             strcmp(field->name, "uid") != 0) )
+            continue;
+        int value;
+        memcpy(&value, (uint8_t*)request + field->offset, sizeof(value));
+        if( active_token && value == active_token )
+            memcpy((uint8_t*)request + field->offset, &active_id, sizeof(active_id));
+        else if( dot_token && value == dot_token )
+            memcpy((uint8_t*)request + field->offset, &dot_id, sizeof(dot_id));
+    }
+}
+
+/* JavaScript deliberately caps one borrowed packed view at 65,536 records.
+ * Commit at that exact wire boundary before appending another record.  A
+ * chunk flush is still synchronous, so script/Host ordering is unchanged and
+ * no C or JS state can be observed between adjacent records. */
+static int
+cs2w_fast_ensure_record_room(struct CS2W_Invocation* invocation)
+{
+    if( invocation->fast_record_count < CS2W_FAST_MAX_RECORDS )
+        return 1;
+    return cs2w_fast_flush(invocation) == CS2VM_EXECNO_OK;
+}
+
+static struct CS2W_FastRecord*
+cs2w_fast_record(
+    struct CS2W_Invocation* invocation,
+    int kind)
+{
+    if( !cs2w_fast_ensure_record_room(invocation) ||
+        !cs2w_fast_reserve_records(invocation, 1) )
+        return NULL;
+    struct CS2W_FastRecord* record =
+        &invocation->fast_records[invocation->fast_record_count++];
+    memset(record, 0, sizeof(*record));
+    record->words[0] = kind;
+    return record;
+}
+
+static int
+cs2w_fast_enqueue_hook(
+    struct CS2W_Invocation* invocation,
+    int kind,
+    int component_id,
+    int script_id,
+    const char* signature,
+    const int* trigger_ids,
+    int trigger_count,
+    const int* int_args,
+    int int_arg_count,
+    uint64_t str_arg_mask,
+    int str_arg_count,
+    const char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN])
+{
+    /* A positive trigger_count above CS2VM_STACK_MAX cannot be produced by
+     * CS2VM2: the handler must pop every trigger id before constructing this
+     * request. Keep the 4096 guard as defence for a corrupt/direct request;
+     * every rejected shape uses the generic bridge rather than aborting. */
+    if( trigger_count < 0 || trigger_count > CS2W_MAX_DYNAMIC_FIELD ||
+        int_arg_count < 0 || int_arg_count > CS2VM_SETON_INT_ARG_MAX ||
+        str_arg_count < 0 || str_arg_count > CS2VM_SETON_STR_ARG_MAX ||
+        (trigger_count > 0 && !trigger_ids) )
+        return 0;
+    const char* safe_signature = signature ? signature : "";
+    size_t raw_signature_length = strlen(safe_signature);
+    if( raw_signature_length > CS2W_MAX_HOOK_ARGS + 1 )
+        return 0;
+    int signature_length = (int)raw_signature_length;
+    int signature_block = (int)((raw_signature_length + 3u) & ~3u);
+    size_t payload_size = sizeof(int32_t) + (size_t)signature_block +
+                          (size_t)trigger_count * sizeof(int32_t) +
+                          (size_t)int_arg_count * sizeof(int32_t) +
+                          (size_t)str_arg_count * CS2VM_SETON_STR_ARG_LEN;
+    if( payload_size > INT_MAX )
+        return 0;
+    /* Hook payload offsets belong to the same chunk as their record.  Flush
+     * before reserving arena bytes; flushing from cs2w_fast_record afterwards
+     * would reset the arena and leave this record pointing at stale bytes. */
+    if( !cs2w_fast_ensure_record_room(invocation) )
+        return 0;
+    int offset;
+    if( !cs2w_fast_reserve_arena(invocation, (int)payload_size, &offset) )
+        return 0;
+    uint8_t* cursor = invocation->fast_arena + offset;
+    memcpy(cursor, &signature_length, sizeof(signature_length));
+    cursor += sizeof(signature_length);
+    if( signature_length )
+        memcpy(cursor, safe_signature, (size_t)signature_length);
+    if( signature_block > signature_length )
+        memset(cursor + signature_length, 0, (size_t)(signature_block - signature_length));
+    cursor += signature_block;
+    if( trigger_count )
+    {
+        memcpy(cursor, trigger_ids, (size_t)trigger_count * sizeof(int32_t));
+        cursor += (size_t)trigger_count * sizeof(int32_t);
+    }
+    if( int_arg_count )
+    {
+        memcpy(cursor, int_args, (size_t)int_arg_count * sizeof(int32_t));
+        cursor += (size_t)int_arg_count * sizeof(int32_t);
+    }
+    if( str_arg_count )
+        memcpy(
+            cursor,
+            str_args,
+            (size_t)str_arg_count * CS2VM_SETON_STR_ARG_LEN);
+
+    struct CS2W_FastRecord* record = cs2w_fast_record(invocation, kind);
+    if( !record )
+    {
+        invocation->fast_arena_size = offset;
+        return 0;
+    }
+    if( kind < CS2VM_HOST_REQUEST_IF_SETPOSITION )
+        cs2w_fast_set_record_component(invocation, record, component_id);
+    else
+        record->words[1] = component_id;
+    record->words[2] = script_id;
+    record->words[3] = trigger_count;
+    record->words[4] = int_arg_count;
+    record->words[5] = (int32_t)(uint32_t)str_arg_mask;
+    record->words[6] = (int32_t)(uint32_t)(str_arg_mask >> 32);
+    record->words[7] = str_arg_count;
+    record->words[8] = signature_length;
+    record->words[9] = offset;
+    record->words[10] = (int)payload_size;
+    return 1;
+}
+
+/* Compact setters with one UTF-8 argument use the same borrowed arena as
+ * hooks.  The byte length is explicit so JavaScript never scans past this
+ * transaction, and the record-room check precedes the arena reservation for
+ * the same chunk-boundary reason as cs2w_fast_enqueue_hook. */
+static int
+cs2w_fast_enqueue_string(
+    struct CS2W_Invocation* invocation,
+    int kind,
+    int component_id,
+    int value,
+    const char* text)
+{
+    const char* source = text ? text : "";
+    size_t raw_length = strlen(source);
+    if( raw_length > INT_MAX || !cs2w_fast_ensure_record_room(invocation) )
+        return 0;
+    int offset;
+    if( !cs2w_fast_reserve_arena(invocation, (int)raw_length, &offset) )
+        return 0;
+    if( raw_length )
+        memcpy(invocation->fast_arena + offset, source, raw_length);
+    struct CS2W_FastRecord* record = cs2w_fast_record(invocation, kind);
+    if( !record )
+    {
+        invocation->fast_arena_size = offset;
+        return 0;
+    }
+    cs2w_fast_set_record_component(invocation, record, component_id);
+    record->words[2] = value;
+    record->words[3] = offset;
+    record->words[4] = (int)raw_length;
+    return 1;
+}
+
+static int
+cs2w_fast_flush(struct CS2W_Invocation* invocation)
+{
+    if( !invocation->fast_host_enabled || invocation->fast_record_count == 0 )
+        return CS2VM_EXECNO_OK;
+#ifdef __EMSCRIPTEN__
+    int active_token = invocation->fast_active_token;
+    int dot_token = invocation->fast_dot_token;
+    int result = cs2w_js_fast_host_flush(
+        (uintptr_t)invocation->session,
+        (uintptr_t)invocation,
+        (uintptr_t)invocation->fast_records,
+        invocation->fast_record_count,
+        (uintptr_t)invocation->fast_arena,
+        invocation->fast_arena_size);
+    if( result != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( active_token || dot_token )
+    {
+        for( int i = 0; i < invocation->fast_record_count; i++ )
+        {
+            struct CS2W_FastRecord* record = &invocation->fast_records[i];
+            if( record->words[0] != CS2VM_HOST_REQUEST_CC_CREATE )
+                continue;
+            int token = record->words[7];
+            if( active_token && token == active_token )
+                CS2VM2_SetTargetComponentId(invocation->thread, 0, record->words[6]);
+            if( dot_token && token == dot_token )
+                CS2VM2_SetTargetComponentId(invocation->thread, 1, record->words[6]);
+        }
+    }
+    invocation->fast_active_token = 0;
+    invocation->fast_dot_token = 0;
+    invocation->fast_create_serial = 0;
+    invocation->fast_record_count = 0;
+    invocation->fast_arena_size = 0;
+    return CS2VM_EXECNO_OK;
+#else
+    return CS2VM_EXECNO_ERROR;
+#endif
+}
+
+static int
+cs2w_fast_inventory_compare(const void* left, const void* right)
+{
+    const struct CS2W_FastInventoryEntry* a =
+        (const struct CS2W_FastInventoryEntry*)left;
+    const struct CS2W_FastInventoryEntry* b =
+        (const struct CS2W_FastInventoryEntry*)right;
+    return (a->slot > b->slot) - (a->slot < b->slot);
+}
+
+static int
+cs2w_fast_child_compare(const void* left, const void* right)
+{
+    const struct CS2W_FastChildEntry* a = (const struct CS2W_FastChildEntry*)left;
+    const struct CS2W_FastChildEntry* b = (const struct CS2W_FastChildEntry*)right;
+    return (a->sub_id > b->sub_id) - (a->sub_id < b->sub_id);
+}
+
+static int
+cs2w_fast_query_rows(
+    struct CS2W_Invocation* invocation,
+    int query_kind,
+    int key,
+    int row_size,
+    void** rows_out,
+    int* count_out,
+    int* missing_out)
+{
+#ifdef __EMSCRIPTEN__
+    int capacity = CS2W_FAST_INITIAL_SNAPSHOT_ENTRIES;
+    void* rows = malloc((size_t)capacity * (size_t)row_size);
+    if( !rows )
+        return 0;
+    int count = cs2w_js_fast_host_query(
+        (uintptr_t)invocation->session,
+        (uintptr_t)invocation,
+        query_kind,
+        key,
+        (uintptr_t)rows,
+        capacity);
+    if( count == CS2W_FAST_QUERY_MISSING )
+    {
+        free(rows);
+        *rows_out = NULL;
+        *count_out = 0;
+        *missing_out = 1;
+        return 1;
+    }
+    if( count < 0 || count > 65536 )
+    {
+        free(rows);
+        return 0;
+    }
+    if( count > capacity )
+    {
+        void* resized = realloc(rows, (size_t)count * (size_t)row_size);
+        if( !resized )
+        {
+            free(rows);
+            return 0;
+        }
+        rows = resized;
+        capacity = count;
+        int second = cs2w_js_fast_host_query(
+            (uintptr_t)invocation->session,
+            (uintptr_t)invocation,
+            query_kind,
+            key,
+            (uintptr_t)rows,
+            capacity);
+        if( second != count )
+        {
+            free(rows);
+            return 0;
+        }
+    }
+    if( count == 0 )
+    {
+        free(rows);
+        rows = NULL;
+    }
+    *rows_out = rows;
+    *count_out = count;
+    *missing_out = 0;
+    return 1;
+#else
+    (void)invocation;
+    (void)query_kind;
+    (void)key;
+    (void)row_size;
+    (void)rows_out;
+    (void)count_out;
+    (void)missing_out;
+    return 0;
+#endif
+}
+
+static struct CS2W_FastInventory*
+cs2w_fast_inventory(
+    struct CS2W_Invocation* invocation,
+    int id)
+{
+    for( int i = 0; i < invocation->fast_inventory_count; i++ )
+        if( invocation->fast_inventories[i].id == id )
+            return &invocation->fast_inventories[i];
+    if( invocation->fast_inventory_count == invocation->fast_inventory_capacity )
+    {
+        int capacity = invocation->fast_inventory_capacity
+                           ? invocation->fast_inventory_capacity * 2
+                           : 4;
+        struct CS2W_FastInventory* values = (struct CS2W_FastInventory*)realloc(
+            invocation->fast_inventories,
+            (size_t)capacity * sizeof(*values));
+        if( !values )
+            return NULL;
+        invocation->fast_inventories = values;
+        invocation->fast_inventory_capacity = capacity;
+    }
+    void* rows = NULL;
+    int count = 0;
+    int missing = 0;
+    if( !cs2w_fast_query_rows(
+            invocation,
+            CS2W_FAST_QUERY_INVENTORY,
+            id,
+            (int)sizeof(struct CS2W_FastInventoryEntry),
+            &rows,
+            &count,
+            &missing) ||
+        missing )
+        return NULL;
+    struct CS2W_FastInventory* inventory =
+        &invocation->fast_inventories[invocation->fast_inventory_count++];
+    inventory->id = id;
+    inventory->entries = (struct CS2W_FastInventoryEntry*)rows;
+    inventory->count = count;
+    if( count > 1 )
+        qsort(inventory->entries, (size_t)count, sizeof(*inventory->entries),
+              cs2w_fast_inventory_compare);
+    return inventory;
+}
+
+static struct CS2W_FastChildren*
+cs2w_fast_children(
+    struct CS2W_Invocation* invocation,
+    int parent_id)
+{
+    for( int i = 0; i < invocation->fast_children_count; i++ )
+        if( invocation->fast_children[i].parent_id == parent_id )
+            return &invocation->fast_children[i];
+    if( invocation->fast_children_count == invocation->fast_children_capacity )
+    {
+        int capacity = invocation->fast_children_capacity
+                           ? invocation->fast_children_capacity * 2
+                           : 4;
+        struct CS2W_FastChildren* values = (struct CS2W_FastChildren*)realloc(
+            invocation->fast_children,
+            (size_t)capacity * sizeof(*values));
+        if( !values )
+            return NULL;
+        invocation->fast_children = values;
+        invocation->fast_children_capacity = capacity;
+    }
+    void* rows = NULL;
+    int count = 0;
+    int missing = 0;
+    if( !cs2w_fast_query_rows(
+            invocation,
+            CS2W_FAST_QUERY_CHILDREN,
+            parent_id,
+            (int)sizeof(struct CS2W_FastChildEntry),
+            &rows,
+            &count,
+            &missing) )
+        return NULL;
+    struct CS2W_FastChildren* children =
+        &invocation->fast_children[invocation->fast_children_count++];
+    children->parent_id = parent_id;
+    children->parent_exists = !missing;
+    children->entries = (struct CS2W_FastChildEntry*)rows;
+    children->count = count;
+    if( count > 1 )
+        qsort(children->entries, (size_t)count, sizeof(*children->entries),
+              cs2w_fast_child_compare);
+    return children;
+}
+
+static int
+cs2w_fast_value(
+    struct CS2W_Invocation* invocation,
+    int query_kind,
+    int key,
+    int* value_out)
+{
+    for( int i = 0; i < invocation->fast_value_count; i++ )
+    {
+        struct CS2W_FastValue* value = &invocation->fast_values[i];
+        if( value->kind == query_kind && value->key == key )
+        {
+            *value_out = value->value;
+            return 1;
+        }
+    }
+    if( invocation->fast_value_count == invocation->fast_value_capacity )
+    {
+        int capacity = invocation->fast_value_capacity
+                           ? invocation->fast_value_capacity * 2
+                           : 16;
+        struct CS2W_FastValue* values = (struct CS2W_FastValue*)realloc(
+            invocation->fast_values,
+            (size_t)capacity * sizeof(*values));
+        if( !values )
+            return 0;
+        invocation->fast_values = values;
+        invocation->fast_value_capacity = capacity;
+    }
+#ifdef __EMSCRIPTEN__
+    int value = 0;
+    int count = cs2w_js_fast_host_query(
+        (uintptr_t)invocation->session,
+        (uintptr_t)invocation,
+        query_kind,
+        key,
+        (uintptr_t)&value,
+        1);
+    if( count != 1 )
+        return 0;
+    struct CS2W_FastValue* cached =
+        &invocation->fast_values[invocation->fast_value_count++];
+    cached->kind = query_kind;
+    cached->key = key;
+    cached->value = value;
+    *value_out = value;
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+/* Returns 1 for an exact integer result, 0 when the request is polymorphic
+ * and must use the generic bridge, and -1 on a JavaScript/HOST failure. */
+static int
+cs2w_fast_int_query(
+    struct CS2W_Invocation* invocation,
+    int request_kind,
+    int a,
+    int b,
+    int c,
+    int* value_out)
+{
+#ifdef __EMSCRIPTEN__
+    return cs2w_js_fast_host_int_query(
+        (uintptr_t)invocation->session,
+        (uintptr_t)invocation,
+        request_kind,
+        a,
+        b,
+        c,
+        (uintptr_t)value_out);
+#else
+    (void)invocation;
+    (void)request_kind;
+    (void)a;
+    (void)b;
+    (void)c;
+    (void)value_out;
+    return -1;
+#endif
+}
+
+static int
+cs2w_fast_inventory_value(
+    const struct CS2W_FastInventory* inventory,
+    int slot,
+    int count_value)
+{
+    int low = 0;
+    int high = inventory->count;
+    while( low < high )
+    {
+        int middle = low + (high - low) / 2;
+        if( inventory->entries[middle].slot < slot )
+            low = middle + 1;
+        else
+            high = middle;
+    }
+    if( low < inventory->count && inventory->entries[low].slot == slot )
+        return count_value ? inventory->entries[low].count
+                           : inventory->entries[low].object_id;
+    return count_value ? 0 : -1;
+}
+
+static int
+cs2w_fast_child_value(
+    const struct CS2W_FastChildren* children,
+    int sub_id,
+    int* component_id_out)
+{
+    if( !children->parent_exists )
+        return 0;
+    int low = 0;
+    int high = children->count;
+    while( low < high )
+    {
+        int middle = low + (high - low) / 2;
+        if( children->entries[middle].sub_id < sub_id )
+            low = middle + 1;
+        else
+            high = middle;
+    }
+    if( low >= children->count || children->entries[low].sub_id != sub_id )
+        return 0;
+    *component_id_out = children->entries[low].component_id;
+    return 1;
+}
+
+static int
+cs2w_fast_host_exec(
+    struct CS2W_Invocation* invocation,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest* request)
+{
+    struct CS2W_FastRecord* record;
+    switch( request->kind )
+    {
+    case CS2VM_HOST_REQUEST_CC_CREATE:
+    {
+        /* Keep a batch-local target token in the C thread. Subsequent compact
+         * CC setters carry word-11=1 and JavaScript resolves that token after
+         * applying this create. Any observing/generic request flushes first
+         * and patches the real signed id back into the VM/request. */
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        if( invocation->fast_create_serial >= INT_MAX - 1 )
+            return CS2VM_EXECNO_ERROR;
+        int previous = CS2VM2_DotOrActiveComponentId(
+            thread, request->u.CC_CREATE.dot_operand);
+        int previous_is_token = cs2w_fast_is_pending_target(invocation, previous);
+        /* CC_CREATECHILD/CC_CREATESIBLING validate their implicit parent in
+         * CS2VM2 before the HOST bridge sees the request, and reject every
+         * negative component id.  Keep pending ids in a positive reserved
+         * band so nested creation reaches this bridge; word 11 and the
+         * invocation token slots, rather than the sign, distinguish them
+         * from real component ids. */
+        int token = INT_MAX - ++invocation->fast_create_serial;
+        record->words[1] = request->u.CC_CREATE.parent_id;
+        record->words[2] = request->u.CC_CREATE.component_type;
+        record->words[3] = request->u.CC_CREATE.child_index;
+        record->words[4] = request->u.CC_CREATE.is_nested;
+        record->words[5] = request->u.CC_CREATE.dot_operand;
+        record->words[6] = -1;
+        record->words[7] = token;
+        record->words[8] = previous;
+        record->words[9] = previous_is_token;
+        if( request->u.CC_CREATE.dot_operand ) invocation->fast_dot_token = token;
+        else invocation->fast_active_token = token;
+        CS2VM2_SetTargetComponentId(thread, request->u.CC_CREATE.dot_operand, token);
+        return CS2VM_EXECNO_OK;
+    }
+    case CS2VM_HOST_REQUEST_CC_FIND:
+    {
+        struct CS2W_FastChildren* children = cs2w_fast_children(
+            invocation, request->u.CC_FIND.parent_id);
+        if( !children )
+            return CS2VM_EXECNO_ERROR;
+        int component_id = -1;
+        int found = cs2w_fast_child_value(
+            children, request->u.CC_FIND.sub_id, &component_id);
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record )
+            return CS2VM_EXECNO_ERROR;
+        record->words[1] = request->u.CC_FIND.parent_id;
+        record->words[2] = request->u.CC_FIND.sub_id;
+        record->words[3] = request->u.CC_FIND.dot_operand;
+        record->words[4] = component_id;
+        if( found )
+            CS2VM2_SetTargetComponentId(
+                thread, request->u.CC_FIND.dot_operand, component_id);
+        return CS2VM2_PushInt(thread, found);
+    }
+    case CS2VM_HOST_REQUEST_STRUCT_PARAM:
+    {
+        int value = 0;
+        int result = cs2w_fast_int_query(
+            invocation,
+            request->kind,
+            request->u.STRUCT_PARAM.struct_id,
+            request->u.STRUCT_PARAM.param_id,
+            0,
+            &value);
+        if( result < 0 ) return CS2VM_EXECNO_ERROR;
+        if( result == 0 ) return CS2VM_EXECNO_YIELD;
+        return CS2VM2_PushInt(thread, value);
+    }
+    case CS2VM_HOST_REQUEST_ENUM:
+    {
+        /* String enums retain the generic result writer. Numeric enums can be
+         * pushed directly without allocating/reflection on either side. */
+        if( request->u.ENUM.output_type == (int)'s' )
+            return CS2VM_EXECNO_YIELD;
+        int value = 0;
+        int result = cs2w_fast_int_query(
+            invocation,
+            request->kind,
+            request->u.ENUM.enum_id,
+            request->u.ENUM.key,
+            request->u.ENUM.output_type,
+            &value);
+        if( result != 1 )
+            return result < 0 ? CS2VM_EXECNO_ERROR : CS2VM_EXECNO_YIELD;
+        return CS2VM2_PushInt(thread, value);
+    }
+    case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
+    {
+        int value = 0;
+        int result = cs2w_fast_int_query(
+            invocation,
+            request->kind,
+            request->u.ENUM_GETOUTPUTCOUNT.enum_id,
+            0,
+            0,
+            &value);
+        if( result != 1 )
+            return result < 0 ? CS2VM_EXECNO_ERROR : CS2VM_EXECNO_YIELD;
+        return CS2VM2_PushInt(thread, value);
+    }
+    case CS2VM_HOST_REQUEST_CC_GETX:
+    case CS2VM_HOST_REQUEST_CC_GETY:
+    case CS2VM_HOST_REQUEST_CC_GETWIDTH:
+    case CS2VM_HOST_REQUEST_CC_GETHEIGHT:
+    case CS2VM_HOST_REQUEST_IF_GETX:
+    case CS2VM_HOST_REQUEST_IF_GETY:
+    case CS2VM_HOST_REQUEST_IF_GETWIDTH:
+    case CS2VM_HOST_REQUEST_IF_GETHEIGHT:
+    {
+        /* Component geometry observes every queued setter. A pending create
+         * additionally needs generic target patching, so leave that rare
+         * shape to the normal barrier. */
+        if( invocation->fast_active_token || invocation->fast_dot_token )
+            return CS2VM_EXECNO_YIELD;
+        if( cs2w_fast_flush(invocation) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        cs2w_fast_clear_snapshots(invocation);
+        int component_id;
+        switch( request->kind )
+        {
+        case CS2VM_HOST_REQUEST_CC_GETX: component_id = request->u.CC_GETX.component_id; break;
+        case CS2VM_HOST_REQUEST_CC_GETY: component_id = request->u.CC_GETY.component_id; break;
+        case CS2VM_HOST_REQUEST_CC_GETWIDTH:
+            component_id = request->u.CC_GETWIDTH.component_id; break;
+        case CS2VM_HOST_REQUEST_CC_GETHEIGHT:
+            component_id = request->u.CC_GETHEIGHT.component_id; break;
+        case CS2VM_HOST_REQUEST_IF_GETX: component_id = request->u.IF_GETX.component_id; break;
+        case CS2VM_HOST_REQUEST_IF_GETY: component_id = request->u.IF_GETY.component_id; break;
+        case CS2VM_HOST_REQUEST_IF_GETWIDTH:
+            component_id = request->u.IF_GETWIDTH.component_id; break;
+        default: component_id = request->u.IF_GETHEIGHT.component_id; break;
+        }
+        int value = 0;
+        int result = cs2w_fast_int_query(
+            invocation, request->kind, component_id, 0, 0, &value);
+        if( result != 1 )
+            return result < 0 ? CS2VM_EXECNO_ERROR : CS2VM_EXECNO_YIELD;
+        return CS2VM2_PushInt(thread, value);
+    }
+    case CS2VM_HOST_REQUEST_PUSH_VAR:
+    case CS2VM_HOST_REQUEST_PUSH_VARBIT:
+    case CS2VM_HOST_REQUEST_PUSH_VARC_INT:
+    case CS2VM_HOST_REQUEST_CLIENTCLOCK:
+    {
+        int query_kind;
+        int key;
+        if( request->kind == CS2VM_HOST_REQUEST_PUSH_VAR )
+        {
+            query_kind = CS2W_FAST_QUERY_VAR;
+            key = request->u.PUSH_VAR.varp_id;
+        }
+        else if( request->kind == CS2VM_HOST_REQUEST_PUSH_VARBIT )
+        {
+            query_kind = CS2W_FAST_QUERY_VARBIT;
+            key = request->u.PUSH_VARBIT.varbit_id;
+        }
+        else if( request->kind == CS2VM_HOST_REQUEST_PUSH_VARC_INT )
+        {
+            query_kind = CS2W_FAST_QUERY_VARC_INT;
+            key = request->u.PUSH_VARC_INT.varc_id;
+        }
+        else
+        {
+            query_kind = CS2W_FAST_QUERY_CLIENTCLOCK;
+            key = 0;
+        }
+        int value;
+        if( !cs2w_fast_value(invocation, query_kind, key, &value) )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM2_PushInt(thread, value);
+    }
+    case CS2VM_HOST_REQUEST_INV_GETOBJ:
+    case CS2VM_HOST_REQUEST_INV_GETNUM:
+    {
+        int id = request->kind == CS2VM_HOST_REQUEST_INV_GETOBJ
+                     ? request->u.INV_GETOBJ.inv_id
+                     : request->u.INV_GETNUM.inv_id;
+        int slot = request->kind == CS2VM_HOST_REQUEST_INV_GETOBJ
+                       ? request->u.INV_GETOBJ.slot
+                       : request->u.INV_GETNUM.slot;
+        struct CS2W_FastInventory* inventory = cs2w_fast_inventory(invocation, id);
+        if( !inventory )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM2_PushInt(
+            thread,
+            cs2w_fast_inventory_value(
+                inventory,
+                slot,
+                request->kind == CS2VM_HOST_REQUEST_INV_GETNUM));
+    }
+    case CS2VM_HOST_REQUEST_CC_SETHIDE:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETHIDE.component_id);
+        record->words[2] = request->u.CC_SETHIDE.hidden ? 1 : 0;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_IF_SETHIDE:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        record->words[1] = request->u.IF_SETHIDE.component_id;
+        record->words[2] = request->u.IF_SETHIDE.hidden ? 1 : 0;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETPOSITION:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETPOSITION.component_id);
+        record->words[2] = request->u.CC_SETPOSITION.x;
+        record->words[3] = request->u.CC_SETPOSITION.y;
+        record->words[4] = request->u.CC_SETPOSITION.xmode;
+        record->words[5] = request->u.CC_SETPOSITION.ymode;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETSIZE:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETSIZE.component_id);
+        record->words[2] = request->u.CC_SETSIZE.width;
+        record->words[3] = request->u.CC_SETSIZE.height;
+        record->words[4] = request->u.CC_SETSIZE.wmode;
+        record->words[5] = request->u.CC_SETSIZE.hmode;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_IF_SETPOSITION:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        record->words[1] = request->u.IF_SETPOSITION.component_id;
+        record->words[2] = request->u.IF_SETPOSITION.x;
+        record->words[3] = request->u.IF_SETPOSITION.y;
+        record->words[4] = request->u.IF_SETPOSITION.xmode;
+        record->words[5] = request->u.IF_SETPOSITION.ymode;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_IF_SETSIZE:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        record->words[1] = request->u.IF_SETSIZE.component_id;
+        record->words[2] = request->u.IF_SETSIZE.width;
+        record->words[3] = request->u.IF_SETSIZE.height;
+        record->words[4] = request->u.IF_SETSIZE.wmode;
+        record->words[5] = request->u.IF_SETSIZE.hmode;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETTRANS:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETTRANS.component_id);
+        record->words[2] = request->u.CC_SETTRANS.trans;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETCOLOUR:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETCOLOUR.component_id);
+        record->words[2] = request->u.CC_SETCOLOUR.colour;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETFILL:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETFILL.component_id);
+        record->words[2] = request->u.CC_SETFILL.filled;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETGRAPHIC:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETGRAPHIC.component_id);
+        record->words[2] = request->u.CC_SETGRAPHIC.graphic_id;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETTEXT:
+        return cs2w_fast_enqueue_string(
+                   invocation, request->kind, request->u.CC_SETTEXT.component_id,
+                   0, request->u.CC_SETTEXT.text)
+                   ? CS2VM_EXECNO_OK
+                   : CS2VM_EXECNO_YIELD;
+    case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETTEXTFONT.component_id);
+        record->words[2] = request->u.CC_SETTEXTFONT.font_id;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETTEXTALIGN:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETTEXTALIGN.component_id);
+        record->words[2] = request->u.CC_SETTEXTALIGN.x_align;
+        record->words[3] = request->u.CC_SETTEXTALIGN.y_align;
+        record->words[4] = request->u.CC_SETTEXTALIGN.line_height;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETTEXTSHADOW:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETTEXTSHADOW.component_id);
+        record->words[2] = request->u.CC_SETTEXTSHADOW.shadowed;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_IF_SETTRANS:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        record->words[1] = request->u.IF_SETTRANS.component_id;
+        record->words[2] = request->u.IF_SETTRANS.trans;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETOBJECT.component_id);
+        record->words[2] = request->u.CC_SETOBJECT.obj_id;
+        record->words[3] = request->u.CC_SETOBJECT.count;
+        record->words[4] = request->u.CC_SETOBJECT.num_mode;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT_ALWAYS_NUM:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETOBJECT_ALWAYS_NUM.component_id);
+        record->words[2] = request->u.CC_SETOBJECT_ALWAYS_NUM.obj_id;
+        record->words[3] = request->u.CC_SETOBJECT_ALWAYS_NUM.count;
+        record->words[4] = request->u.CC_SETOBJECT_ALWAYS_NUM.num_mode;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT_NONUM:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETOBJECT_NONUM.component_id);
+        record->words[2] = request->u.CC_SETOBJECT_NONUM.obj_id;
+        record->words[3] = request->u.CC_SETOBJECT_NONUM.count;
+        record->words[4] = request->u.CC_SETOBJECT_NONUM.num_mode;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_CLEAROPS:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_CLEAROPS.component_id);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_IF_CLEAROPS:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        record->words[1] = request->u.IF_CLEAROPS.component_id;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETOP:
+        return cs2w_fast_enqueue_string(
+                   invocation, request->kind, request->u.CC_SETOP.component_id,
+                   request->u.CC_SETOP.index, request->u.CC_SETOP.text)
+                   ? CS2VM_EXECNO_OK
+                   : CS2VM_EXECNO_YIELD;
+    case CS2VM_HOST_REQUEST_CC_SETOPBASE:
+        return cs2w_fast_enqueue_string(
+                   invocation, request->kind, request->u.CC_SETOPBASE.component_id,
+                   0, request->u.CC_SETOPBASE.text)
+                   ? CS2VM_EXECNO_OK
+                   : CS2VM_EXECNO_YIELD;
+    case CS2VM_HOST_REQUEST_CC_SETDRAGGABLEBEHAVIOR:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETDRAGGABLEBEHAVIOR.component_id);
+        record->words[2] = request->u.CC_SETDRAGGABLEBEHAVIOR.behavior;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETDRAGDEADZONE:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETDRAGDEADZONE.component_id);
+        record->words[2] = request->u.CC_SETDRAGDEADZONE.zone;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETDRAGDEADTIME:
+        record = cs2w_fast_record(invocation, request->kind);
+        if( !record ) return CS2VM_EXECNO_ERROR;
+        cs2w_fast_set_record_component(
+            invocation, record, request->u.CC_SETDRAGDEADTIME.component_id);
+        record->words[2] = request->u.CC_SETDRAGDEADTIME.time;
+        return CS2VM_EXECNO_OK;
+#define CS2W_FAST_HOOK_CASE(name)                                            \
+    case CS2VM_HOST_REQUEST_##name:                                          \
+        return cs2w_fast_enqueue_hook(                                       \
+                   invocation, request->kind, request->u.name.component_id,  \
+                   request->u.name.script_id, request->u.name.signature,     \
+                   request->u.name.trigger_ids, request->u.name.trigger_count, \
+                   request->u.name.int_args, request->u.name.int_arg_count,  \
+                   request->u.name.str_arg_mask, request->u.name.str_arg_count, \
+                   request->u.name.str_args)                                 \
+                   ? CS2VM_EXECNO_OK                                         \
+                   : CS2VM_EXECNO_YIELD
+        CS2W_FAST_HOOK_CASE(CC_SETONMOUSEOVER);
+        CS2W_FAST_HOOK_CASE(CC_SETONMOUSELEAVE);
+        CS2W_FAST_HOOK_CASE(CC_SETONDRAG);
+        CS2W_FAST_HOOK_CASE(CC_SETONOP);
+        CS2W_FAST_HOOK_CASE(CC_SETONDRAGCOMPLETE);
+        CS2W_FAST_HOOK_CASE(CC_SETONMOUSEREPEAT);
+        CS2W_FAST_HOOK_CASE(IF_SETONMOUSEOVER);
+        CS2W_FAST_HOOK_CASE(IF_SETONMOUSELEAVE);
+        CS2W_FAST_HOOK_CASE(IF_SETONOP);
+#undef CS2W_FAST_HOOK_CASE
+    default: return CS2VM_EXECNO_YIELD;
+    }
+}
+
+static int
+cs2w_fast_host_is_pure_read(int kind)
+{
+    /* These reads use immutable content or host stores independent of the
+     * queued UITree fields. Keep the compact transaction open across them;
+     * component reads and every state write still force an ordered flush. */
+    return kind == CS2VM_HOST_REQUEST_ENUM ||
+           kind == CS2VM_HOST_REQUEST_ENUM_STRING ||
+           kind == CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT ||
+           kind == CS2VM_HOST_REQUEST_CHAT_GETHISTORYLENGTH ||
+           kind == CS2VM_HOST_REQUEST_STRUCT_PARAM ||
+           kind == CS2VM_HOST_REQUEST_PUSH_VAR ||
+           kind == CS2VM_HOST_REQUEST_PUSH_VARBIT ||
+           kind == CS2VM_HOST_REQUEST_PUSH_VARC_INT ||
+           kind == CS2VM_HOST_REQUEST_PUSH_VARC_STRING ||
+           kind == CS2VM_HOST_REQUEST_CLIENTCLOCK;
+}
+
 static int
 cs2w_bridge_host_exec(
     struct CS2VM2_Thread* thread,
@@ -366,6 +1587,45 @@ cs2w_bridge_host_exec(
         return CS2VM2_PushCallScript(thread, &callee->script);
     }
 
+    int pure_fast_read = 0;
+    if( invocation->fast_host_enabled )
+    {
+        /* A find must observe earlier creates, and a full chunk must commit
+         * before cs2w_fast_record can reuse its batch-local target tokens.
+         * Patch any request field already built from the placeholder after
+         * the flush publishes the real id into the C thread. */
+        if( (request->kind == CS2VM_HOST_REQUEST_CC_FIND &&
+             (invocation->fast_active_token || invocation->fast_dot_token)) ||
+            invocation->fast_record_count >= CS2W_FAST_MAX_RECORDS )
+        {
+            int active_token = invocation->fast_active_token;
+            int dot_token = invocation->fast_dot_token;
+            if( cs2w_fast_flush(invocation) != CS2VM_EXECNO_OK )
+                return CS2VM_EXECNO_ERROR;
+            cs2w_fast_patch_request_targets(
+                invocation, thread, request, active_token, dot_token);
+            cs2w_fast_clear_snapshots(invocation);
+        }
+        int fast_result = cs2w_fast_host_exec(invocation, thread, request);
+        if( fast_result != CS2VM_EXECNO_YIELD )
+            return fast_result;
+        /* Any request outside the proven transaction vocabulary may observe
+         * component state or invoke user code. Commit all earlier effects in
+         * wire order first, then discard snapshots which that request could
+         * invalidate. */
+        pure_fast_read = cs2w_fast_host_is_pure_read(request->kind);
+        if( !pure_fast_read )
+        {
+            int active_token = invocation->fast_active_token;
+            int dot_token = invocation->fast_dot_token;
+            if( cs2w_fast_flush(invocation) != CS2VM_EXECNO_OK )
+                return CS2VM_EXECNO_ERROR;
+            cs2w_fast_patch_request_targets(
+                invocation, thread, request, active_token, dot_token);
+            cs2w_fast_clear_snapshots(invocation);
+        }
+    }
+
 #ifdef __EMSCRIPTEN__
     int result = cs2w_js_host_exec(
         (uintptr_t)invocation->session,
@@ -383,6 +1643,8 @@ cs2w_bridge_host_exec(
                            (int)request->kind)
                      : CS2VM_EXECNO_ERROR;
 #endif
+    if( invocation->fast_host_enabled && !pure_fast_read )
+        cs2w_fast_clear_snapshots(invocation);
     if( result != CS2VM_EXECNO_OK && result != CS2VM_EXECNO_ERROR &&
         result != CS2VM_EXECNO_YIELD )
         return CS2VM_EXECNO_ERROR;
@@ -619,11 +1881,33 @@ cs2w_invocation_destroy(struct CS2W_Invocation* invocation)
     for( int i = 0; i < invocation->string_count; i++ )
         free(invocation->strings[i]);
     free(invocation->event.opbase);
+    cs2w_fast_clear_snapshots(invocation);
+    free(invocation->fast_inventories);
+    free(invocation->fast_children);
+    free(invocation->fast_values);
+    free(invocation->fast_records);
+    free(invocation->fast_arena);
     invocation->magic = 0;
     if( session->invocation_count > 0 )
         session->invocation_count--;
     free(invocation);
     return 1;
+}
+
+CS2W_EXPORT int
+cs2w_invocation_set_fast_host(
+    struct CS2W_Invocation* invocation,
+    int enabled)
+{
+    if( !cs2w_invocation_valid(invocation) || invocation->started )
+        return 0;
+#ifdef __EMSCRIPTEN__
+    invocation->fast_host_enabled = enabled ? 1 : 0;
+    return 1;
+#else
+    invocation->fast_host_enabled = 0;
+    return enabled ? 0 : 1;
+#endif
 }
 
 CS2W_EXPORT int
@@ -761,6 +2045,16 @@ cs2w_invocation_run(struct CS2W_Invocation* invocation)
     if( invocation->status == CS2W_RUN_YIELDED )
         CS2VM2_ClearYieldHalt(invocation->thread);
     status = CS2VM2_ThreadRun(invocation->thread, &error);
+    if( invocation->fast_host_enabled && cs2w_fast_flush(invocation) != CS2VM_EXECNO_OK )
+    {
+        invocation->status = CS2W_RUN_ERROR;
+        invocation->terminal = 1;
+        invocation->last_error = CS2W_ERROR_VM;
+        invocation->error_opcode = error.opcode;
+        invocation->error_pc = error.pc;
+        invocation->error_script_id = error.script_id;
+        return invocation->status;
+    }
     if( status == CS2VM2_THREAD_DONE )
     {
         invocation->status = CS2W_RUN_DONE;
@@ -781,6 +2075,7 @@ cs2w_invocation_run(struct CS2W_Invocation* invocation)
     invocation->error_script_id = error.script_id;
     return invocation->status;
 }
+
 
 CS2W_EXPORT int
 cs2w_invocation_last_error(const struct CS2W_Invocation* invocation)
@@ -842,6 +2137,54 @@ cs2w_request_field_kind(
 {
     const struct CS2W_FieldDescriptor* field = cs2w_request_field(kind, field_index);
     return field ? field->kind : CS2W_FIELD_INVALID;
+}
+
+static int
+cs2w_public_offset(size_t offset)
+{
+    return offset == CS2W_NO_OFFSET || offset > (size_t)INT_MAX ? -1 : (int)offset;
+}
+
+CS2W_EXPORT int
+cs2w_request_field_offset(
+    int kind,
+    int field_index)
+{
+    const struct CS2W_FieldDescriptor* field = cs2w_request_field(kind, field_index);
+    return field ? cs2w_public_offset(field->offset) : -1;
+}
+
+CS2W_EXPORT int
+cs2w_request_field_capacity(
+    int kind,
+    int field_index)
+{
+    const struct CS2W_FieldDescriptor* field = cs2w_request_field(kind, field_index);
+    return field ? field->capacity : -1;
+}
+
+CS2W_EXPORT int
+cs2w_request_field_stride(
+    int kind,
+    int field_index)
+{
+    const struct CS2W_FieldDescriptor* field = cs2w_request_field(kind, field_index);
+    return field ? field->stride : -1;
+}
+
+CS2W_EXPORT int
+cs2w_request_field_count_offset(
+    int kind,
+    int field_index)
+{
+    const struct CS2W_FieldDescriptor* field = cs2w_request_field(kind, field_index);
+    return field ? cs2w_public_offset(field->count_offset) : -1;
+}
+
+CS2W_EXPORT int
+cs2w_request_pointer_size(void)
+{
+    return (int)sizeof(void*);
 }
 
 CS2W_EXPORT int

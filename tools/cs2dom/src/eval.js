@@ -15,9 +15,16 @@ import { isExpr, INT, STRING, BOOL } from './expr.js';
 import { SLICES, HOST_READS, UNMODELLED } from './host.js';
 
 /** `state` is `{ 'varp:300': 4300, 'varc:1400': 1, 'stat:3': 55 }`. */
-export function evaluate(expression, state, unmodelled = null) {
+export function evaluate(expression, state, unmodelled = null, memo = null) {
     if( !isExpr(expression) ) return expression;
+    if( memo?.has(expression) ) return memo.get(expression);
 
+    const result = evaluateExpression(expression, state, unmodelled, memo);
+    if( memo ) memo.set(expression, result);
+    return result;
+}
+
+function evaluateExpression(expression, state, unmodelled, memo) {
     switch( expression.kind ) {
         case 'const':
             return expression.value;
@@ -28,8 +35,8 @@ export function evaluate(expression, state, unmodelled = null) {
         case 'state':
             return stateValue(expression.source, state);
         case 'arith': {
-            const a = evaluate(expression.left, state, unmodelled);
-            const b = evaluate(expression.right, state, unmodelled);
+            const a = evaluate(expression.left, state, unmodelled, memo);
+            const b = evaluate(expression.right, state, unmodelled, memo);
             switch( expression.op ) {
                 case '+': return a + b;
                 case '-': return a - b;
@@ -40,8 +47,8 @@ export function evaluate(expression, state, unmodelled = null) {
             }
         }
         case 'compare': {
-            const a = evaluate(expression.left, state, unmodelled);
-            const b = evaluate(expression.right, state, unmodelled);
+            const a = evaluate(expression.left, state, unmodelled, memo);
+            const b = evaluate(expression.right, state, unmodelled, memo);
             switch( expression.op ) {
                 case '=': return a === b;
                 case '!': return a !== b;
@@ -53,27 +60,28 @@ export function evaluate(expression, state, unmodelled = null) {
             }
         }
         case 'logic': {
-            const a = evaluate(expression.left, state, unmodelled);
+            const a = evaluate(expression.left, state, unmodelled, memo);
             return expression.op === '&'
-                ? a && evaluate(expression.right, state, unmodelled)
-                : a || evaluate(expression.right, state, unmodelled);
+                ? a && evaluate(expression.right, state, unmodelled, memo)
+                : a || evaluate(expression.right, state, unmodelled, memo);
         }
         case 'not':
-            return !evaluate(expression.value, state, unmodelled);
+            return !evaluate(expression.value, state, unmodelled, memo);
         case 'select':
-            return evaluate(expression.test, state, unmodelled)
-                ? evaluate(expression.whenTrue, state, unmodelled)
-                : evaluate(expression.whenFalse, state, unmodelled);
+            return evaluate(expression.test, state, unmodelled, memo)
+                ? evaluate(expression.whenTrue, state, unmodelled, memo)
+                : evaluate(expression.whenFalse, state, unmodelled, memo);
         case 'template': {
             let out = '';
             for( let i = 0; i < expression.strings.length; i++ ) {
                 out += expression.strings[i];
-                if( i < expression.values.length ) out += String(evaluate(expression.values[i], state, unmodelled));
+                if( i < expression.values.length )
+                    out += String(evaluate(expression.values[i], state, unmodelled, memo));
             }
             return out;
         }
         case 'call':
-            return evaluateCall(expression, state, unmodelled);
+            return evaluateCall(expression, state, unmodelled, memo);
         default:
             return 0;
     }
@@ -86,8 +94,8 @@ function stateValue(source, state) {
     return key in state ? state[key] : (source.initial ?? 0);
 }
 
-function evaluateCall(expression, state, unmodelled) {
-    const args = expression.args.map((a) => evaluate(a, state, unmodelled));
+function evaluateCall(expression, state, unmodelled, memo) {
+    const args = expression.args.map((a) => evaluate(a, state, unmodelled, memo));
 
     /* Pure arithmetic and string commands: the preview can answer these itself. */
     switch( expression.command ) {
@@ -109,10 +117,29 @@ function evaluateCall(expression, state, unmodelled) {
 }
 
 /** Every prop of a component, resolved against `state`. */
-export function resolveProps(component, state, unmodelled = null) {
-    const props = { ...component.static };
+export function resolveProps(component, state, unmodelled = null, memo = null) {
+    const source = component.static;
+    /* Runtime CC components already own a private mutable props object and do
+     * not carry authored expressions. Layout is a read-only view; returning
+     * that private object avoids cloning thousands of wide row/cell shapes on
+     * every interaction after a dynamic list rebuild. Detached snapshots still
+     * clone through structuredClone/cloneBox at their public boundary. */
+    if( component.runtimeDynamic && component.props === source &&
+        (!component.dynamic || component.dynamic.length === 0) ) return source;
+    let props;
+    if( component.runtimeDynamic && component.props === source ) {
+        /* A native redraw mixes several wide CC shapes in one grid. Generic
+         * object cloning becomes megamorphic there; an explicit own-key copy is
+         * considerably cheaper and still notices fields added by later setters. */
+        props = {};
+        for( const key of Object.keys(source) ) props[key] = source[key];
+    } else {
+        /* Authored components normally retain stable shapes, for which V8's
+         * Object.assign clone path is faster than per-key property definition. */
+        props = Object.assign({}, source);
+    }
     for( const binding of component.dynamic )
-        props[binding.prop] = evaluate(binding.expr, state, unmodelled);
+        props[binding.prop] = evaluate(binding.expr, state, unmodelled, memo);
     return props;
 }
 

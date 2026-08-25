@@ -48,12 +48,15 @@ import { nativeTreeInspector } from './native_tree.js';
 const DEBOUNCE_MS = 40;
 const MODULE_ROOT = dirname(fileURLToPath(import.meta.url));
 const CS2VM_WEB_ROOT = join(MODULE_ROOT, '..', 'web');
-const BROWSER_RUNTIME_MODULES = new Set([
-    'components.js', 'cs2_commands.js', 'eval.js', 'expr.js', 'font_runtime.js', 'host.js',
+export const BROWSER_RUNTIME_MODULES = new Set([
+    'components.js', 'cs2_commands.js', 'cs2_host_requests.js', 'eval.js', 'expr.js',
+    'font_runtime.js', 'host.js',
     'host_activity.js', 'host_chat_social.js', 'host_db.js', 'host_loot.js',
     'host_overlay.js', 'host_runtime.js', 'host_subject.js', 'host_worldmap.js',
+    'model_render_controller.js', 'model_render_protocol.js', 'model_render_worker.js',
     'ops.js', 'preview.js',
-    'wasm_runtime.js',
+    'runtime_worker.js', 'runtime_worker_protocol.js', 'wasm_runtime.js',
+    'worker_runtime_controller.js',
 ]);
 
 export function serve(project, { port = 8099, open = true, log = console.log } = {}) {
@@ -240,6 +243,12 @@ export function serve(project, { port = 8099, open = true, log = console.log } =
 
         if( url.pathname === '/toridraw/ev_wasm.js' && existsSync(rendererAssets.javascript) )
             return send(response, 200, 'text/javascript; charset=utf-8', readFileSync(rendererAssets.javascript));
+        if( url.pathname === '/toridraw/ev_wasm_module.js' && existsSync(rendererAssets.javascript) )
+            return send(response, 200, 'text/javascript; charset=utf-8',
+                Buffer.concat([
+                    readFileSync(rendererAssets.javascript),
+                    Buffer.from('\nexport { EVModule };\n'),
+                ]));
         if( url.pathname === '/toridraw/ev_wasm.wasm' && existsSync(rendererAssets.wasm) )
             return send(response, 200, 'application/wasm', readFileSync(rendererAssets.wasm));
 

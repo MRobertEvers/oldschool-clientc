@@ -59,9 +59,9 @@ export function prepareNativeOverlay(project, interfaceNameOrId, options = {}) {
     if( !tool || !existsSync(tool) )
         throw new Error(`${CACHEPACK_TOOL} is not built; build it with \`${CACHEPACK_BUILD}\``);
 
-    const selected = resolveInterface(content, interfaceNameOrId);
-    const scripts = collectInterfaceScripts(content, selected.name);
     const cs2Names = resolveCs2Names(project, options);
+    const selected = resolveInterface(content, interfaceNameOrId);
+    const scripts = collectInterfaceScripts(content, selected.name, { cs2Names });
     const cacheRoot = resolve(options.cacheRoot || join(tmpdir(), 'cs2dom-native-overlays'));
     mkdirSync(cacheRoot, { recursive: true });
 
@@ -166,12 +166,53 @@ export async function renderNativeContentInterface(project, interfaceNameOrId, o
 }
 
 /** Return the source-script closure rooted at every hook in an interface file. */
-export function collectInterfaceScripts(contentDir, interfaceName) {
+export function collectInterfaceScripts(contentDir, interfaceName, options = {}) {
     const content = resolve(contentDir);
     const interfacePath = join(content, 'interfaces', `${interfaceName}.if`);
     requireFile(interfacePath, 'interface source');
     const scriptPack = readPack(join(content, 'pack', '12_clientscripts.pack'));
     const nameToId = new Map([...scriptPack].map(([id, name]) => [name, id]));
+    const compilerNames = readScriptNames(typeof options === 'string'
+        ? options : options.cs2Names);
+    const compilerResolved = new Set();
+    const scriptIds = (alias, expectedRole, allowNumericSuffix = true) => {
+        let direct = nameToId.get(alias);
+        if( !Number.isInteger(direct) ) {
+            direct = compilerNames.byRoleName.get(`${expectedRole}\0${alias}`);
+            if( Number.isInteger(direct) ) compilerResolved.add(direct);
+        }
+        if( Number.isInteger(direct) && expectedRole ) {
+            const declared = compilerNames.byId.get(direct);
+            if( declared && declared.role !== expectedRole ) {
+                const alternate = compilerNames.byRoleName.get(
+                    `${expectedRole}\0${declared.name}`);
+                if( Number.isInteger(alternate) && scriptPack.has(alternate) ) {
+                    compilerResolved.add(alternate);
+                    /* Keep the numeric/file-alias record as compiler context as
+                     * well as the role-correct runtime target. Rewriting
+                     * `~script2597` to the friendly proc name requires the
+                     * clientscript 2597 metadata, while the resulting GOSUB
+                     * bytecode actually calls same-name proc 2601. */
+                    return [direct, alternate];
+                }
+            }
+        }
+        if( Number.isInteger(direct) ) return [direct];
+        if( !allowNumericSuffix ) return [];
+        const numeric = /^script_?(\d+)$/.exec(alias) || /_(\d+)$/.exec(alias);
+        const id = numeric ? Number(numeric[1]) : null;
+        if( !Number.isInteger(id) || !scriptPack.has(id) ) return [];
+        const declared = compilerNames.byId.get(id);
+        if( declared && expectedRole && declared.role !== expectedRole ) {
+            const alternate = compilerNames.byRoleName.get(
+                `${expectedRole}\0${declared.name}`);
+            if( Number.isInteger(alternate) && scriptPack.has(alternate) ) {
+                compilerResolved.add(alternate);
+                return [id, alternate];
+            }
+        }
+        return [id];
+    };
     const hookIds = new Set();
     const interfaceText = readFileSync(interfacePath, 'utf8');
     const hooks = /^\s*on[a-z0-9_]*\s*=\s*i:(-?\d+)/gim;
@@ -196,22 +237,60 @@ export function collectInterfaceScripts(contentDir, interfaceName) {
          * strings (`if_setontimer("name(0)", ...)`) which the compiler also has
          * to resolve and which become future runtime roots. Follow both forms. */
         const callPatterns = [
-            /~([A-Za-z_][A-Za-z0-9_]*)/g,
+            { pattern: /~([A-Za-z0-9_]*[A-Za-z_][A-Za-z0-9_]*)/g,
+                role: 'proc', numericSuffix: true },
             /* Deferred hook strings can be either `name(args)` or the bare
              * `name` spelling used by no-argument callbacks. Ordinary labels
              * are harmless because only names present in the script ledger are
              * followed. */
-            /["']([A-Za-z_][A-Za-z0-9_]*)(?=\s*(?:[({]|["']))/g,
+            { pattern: /["']([A-Za-z0-9_]*[A-Za-z_][A-Za-z0-9_]*)(?=\s*(?:[({]|["']))/g,
+                role: 'clientscript', numericSuffix: false },
+            /* A renamed deferred callback may no longer be present by name in
+             * the ledger. Only callback setters make its trailing id
+             * authoritative; other quoted names can be sprites or enums. */
+            { pattern: /(?:cc|if)_seton[a-z0-9_]*\(\s*["']([A-Za-z0-9_]*[A-Za-z_][A-Za-z0-9_]*)/g,
+                role: 'clientscript', numericSuffix: true },
         ];
-        for( const calls of callPatterns ) {
+        for( const { pattern: calls, role, numericSuffix } of callPatterns ) {
             for( let call; (call = calls.exec(source)); ) {
-                const numeric = /^script_?(\d+)$/.exec(call[1]);
-                const callee = numeric ? Number(numeric[1]) : nameToId.get(call[1]);
-                if( Number.isInteger(callee) && !selected.has(callee) ) pending.push(callee);
+                for( const callee of scriptIds(call[1], role, numericSuffix) )
+                    if( !selected.has(callee) ) pending.push(callee);
             }
         }
     }
-    return [...selected.values()].sort((left, right) => left.id - right.id);
+    return [...selected.values()].map((record) => {
+        const compiler = compilerResolved.has(record.id)
+            ? compilerNames.byId.get(record.id) : null;
+        return compiler ? {
+            ...record,
+            compilerRole: compiler.role,
+            compilerName: compiler.name,
+        } : record;
+    }).sort((left, right) => left.id - right.id);
+}
+
+/* The content pack preserves cache/file aliases, while the compiler ledger is
+ * the authority for a script's role. Clientscript and proc records may share a
+ * friendly name and differ only by id. That distinction matters for `~proc`
+ * calls: following the pack alias alone silently stages the clientscript
+ * wrapper and leaves the GOSUB target absent at runtime. */
+function readScriptNames(path) {
+    const result = { byId: new Map(), byRoleName: new Map() };
+    if( !path ) return result;
+    let file = resolve(path);
+    if( existsSync(file) && statSync(file).isDirectory() )
+        file = join(file, 'script-names.tsv');
+    if( !existsSync(file) || !statSync(file).isFile() ) return result;
+    for( const raw of readFileSync(file, 'utf8').split(/\r?\n/) ) {
+        const line = raw.replace(/\/\/.*$/, '').trim();
+        const match = /^(\d+)\s+\[(clientscript|proc),([^\]]+)\]$/.exec(line);
+        if( !match ) continue;
+        const id = Number(match[1]);
+        const value = { id, role: match[2], name: match[3] };
+        result.byId.set(id, value);
+        result.byRoleName.set(`${value.role}\0${value.name}`, id);
+    }
+    return result;
 }
 
 /** Stable key for the exact cache, source closure and compiler inputs. */
@@ -275,8 +354,18 @@ function stageSource(content, target, selected, scripts) {
     const compack = join(content, 'interfaces', `${selected.name}.compack`);
     if( existsSync(compack) )
         cloneFile(compack, join(target, 'interfaces', `${selected.name}.compack`));
-    for( const script of scripts )
-        cloneFile(script.path, join(target, 'scripts', basename(script.path)));
+    for( const script of scripts ) {
+        const staged = join(target, 'scripts', basename(script.path));
+        if( script.compilerRole && script.compilerName ) {
+            /* Cachepack sees a private source snapshot. Canonicalize only the
+             * role-resolved companion whose decompiler header disagrees with
+             * the compiler ledger; the authored OSRS-Content file remains
+             * untouched. */
+            writeFileSync(staged, script.source.replace(
+                /\[([A-Za-z_][A-Za-z0-9_]*),([^\]]+)\]/,
+                `[${script.compilerRole},${script.compilerName}]`));
+        } else cloneFile(script.path, staged);
+    }
 }
 
 function cloneCache(base, target) {

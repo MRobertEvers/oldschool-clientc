@@ -137,7 +137,10 @@ export function page() {
 
   .rowlabel { font: 11px var(--mono); color: var(--dim); }
   .tree { font: 11px var(--mono); }
-  .tree div { padding: 1px 0; cursor: default; white-space: nowrap; }
+  .tree div {
+    padding: 1px 0; cursor: default; white-space: nowrap;
+    content-visibility: auto; contain-intrinsic-size: auto 18px;
+  }
   .tree div:hover { color: var(--accent); }
   .tree .bound { color: var(--hot); }
 
@@ -167,6 +170,9 @@ export function page() {
   }
   pre .k { color: var(--accent); }
   .filename { font: 10px var(--mono); color: var(--dim); margin: 0 0 4px; letter-spacing: .04em; }
+  .record { content-visibility: auto; contain-intrinsic-size: auto 26px; margin-bottom: 5px; }
+  .record > summary { cursor: pointer; list-style-position: inside; }
+  .record > pre { margin-top: 4px; }
   .error {
     background: #2a1712; border: 1px solid var(--bad); color: #ffcdbd;
     padding: 10px; border-radius: 3px; font: 11px/1.5 var(--mono); white-space: pre-wrap;
@@ -213,31 +219,145 @@ export function page() {
   </section>
 </main>
 
-<script src="/toridraw/ev_wasm.js"></script>
 <script type="module">
-import { createHostRuntime } from '/runtime/host_runtime.js';
-import { createWasmCS2Runtime } from '/runtime/wasm_runtime.js';
+import { createWorkerRuntimeController } from '/runtime/worker_runtime_controller.js';
+import { createModelRenderController } from '/runtime/model_render_controller.js';
 import { paintCacheText } from '/runtime/font_runtime.js';
 
-const state = {};            // Values committed to the live React-side host.
-const draftState = {};       // Host-state edits waiting for an explicit save.
+let state = {};              // Values committed to the live React-side host.
+let draftState = {};         // Host-state edits waiting for an explicit save.
 let data = null;
 let catalog = [];
+let catalogSearchIndex = [];
+let catalogByKey = new Map();
 let chosen = null;
 let pickerMatches = [];
 let pickerActive = -1;
+let pickerActiveRow = null;
+let pickerSearchJob = null;
+let pickerSearchEpoch = 0;
+let pickerPendingMove = 0;
 let refreshEpoch = 0;
 let renderedControlsKey = null;
+let renderedStageBoxes = new Map();
+let renderedTreeRows = new Map();
+let stageBoxesByName = new Map();
+let outlinedStageName = null;
 let stateDirty = false;
-let hostRuntime = null;
-let wasmRuntime = null;
+let runtimeController = null;
+let runtimeSession = null;
+let pendingRuntimeSession = null;
 let runtimeWarnings = [];
 let runtimeMode = 'unavailable';
 let runtimeCycle = 0;
+const runtimeInitMetrics = { count: 0, maxEnqueueMs: 0, overBudget: 0 };
+globalThis.__cs2domRuntimeInitMetrics = runtimeInitMetrics;
+const runtimeInteractionMetrics = Object.fromEntries(
+  ['enqueue', 'dispatch', 'stage', 'controller'].map((phase) =>
+    [phase, { count: 0, maxMs: 0, overBudget: 0 }]));
+globalThis.__cs2domRuntimeInteractionMetrics = runtimeInteractionMetrics;
+let runtimeRenderFrame = 0;
+let pendingRuntimeRender = null;
+let recordsDrawFrame = 0;
+let pendingRecordsIface = null;
+let recordDrawJob = null;
+let recordDrawEpoch = 0;
+let activeRecordRoot = null;
+let recordTextHead = null;
+let recordTextTail = null;
+let recordTextFrame = 0;
+let stateCopyJob = null;
+let controlDrawJob = null;
+let renderedControlsScope = null;
+let treeDrawJob = null;
+let stageDrawJob = null;
+let stageDrawEpoch = 0;
+let stageRectFrame = 0;
+let stageRectCache = null;
+let modelRenderController = null;
+let opMenuElement = null;
+let interactionEpoch = 0;
 const heldButtons = new Set();
-const hostDataCache = new Map();
 
 const $ = (id) => document.getElementById(id);
+
+/* A frame callback is a 16.7ms throughput tax even when a slice used only a
+   fraction of its 4ms allowance. This FIFO posts one task at a time: browser
+   input task sources can run between every slice, jobs rejoin at the tail, and
+   a timer fence after at most two turns caps a continuous burst near 8ms and
+   gives rendering/network work a fair
+   chance even on engines which aggressively drain MessageChannel messages. */
+let cooperativeHead = null;
+let cooperativeTail = null;
+let cooperativePosted = false;
+let cooperativeBurst = 0;
+const cooperativeChannel = typeof globalThis.__cs2domPostTask !== 'function' &&
+  typeof MessageChannel === 'function' ? new MessageChannel() : null;
+const cooperativeTaskMetrics = {
+  scheduled: 0, completed: 0, queueDepth: 0, maxQueueDepth: 0,
+  maxTaskMs: 0, overBudget: 0, timerFences: 0,
+};
+globalThis.__cs2domCooperativeTaskMetrics = cooperativeTaskMetrics;
+if( cooperativeChannel ) cooperativeChannel.port1.onmessage = runCooperativeTurn;
+
+function scheduleCooperativeTask(callback) {
+  const node = { callback, next: null };
+  if( cooperativeTail ) cooperativeTail.next = node;
+  else cooperativeHead = node;
+  cooperativeTail = node;
+  cooperativeTaskMetrics.scheduled++;
+  cooperativeTaskMetrics.queueDepth++;
+  cooperativeTaskMetrics.maxQueueDepth = Math.max(
+    cooperativeTaskMetrics.maxQueueDepth, cooperativeTaskMetrics.queueDepth);
+  postCooperativeTurn();
+}
+
+function postCooperativeTurn() {
+  if( cooperativePosted || !cooperativeHead ) return;
+  cooperativePosted = true;
+  if( cooperativeBurst >= 2 ) {
+    cooperativeBurst = 0;
+    cooperativeTaskMetrics.timerFences++;
+    postCooperativeTimer();
+  } else {
+    const deterministicPost = globalThis.__cs2domPostTask;
+    if( typeof deterministicPost === 'function' )
+      deterministicPost(runCooperativeTurn);
+    else if( cooperativeChannel ) cooperativeChannel.port2.postMessage(0);
+    else postCooperativeTimer();
+  }
+}
+
+function postCooperativeTimer() {
+  const deterministicTimer = globalThis.__cs2domPostTimer;
+  if( typeof deterministicTimer === 'function' ) deterministicTimer(runCooperativeTurn);
+  else setTimeout(runCooperativeTurn, 0);
+}
+
+function runCooperativeTurn() {
+  cooperativePosted = false;
+  if( globalThis.navigator?.scheduling?.isInputPending?.() ) {
+    cooperativeTaskMetrics.timerFences++;
+    cooperativePosted = true;
+    postCooperativeTimer();
+    return;
+  }
+  const node = cooperativeHead;
+  if( !node ) { cooperativeBurst = 0; return; }
+  cooperativeHead = node.next;
+  if( !cooperativeHead ) cooperativeTail = null;
+  cooperativeTaskMetrics.queueDepth--;
+  const startedAt = performance.now();
+  try { node.callback(); }
+  finally {
+    const elapsed = performance.now() - startedAt;
+    cooperativeTaskMetrics.completed++;
+    cooperativeTaskMetrics.maxTaskMs = Math.max(cooperativeTaskMetrics.maxTaskMs, elapsed);
+    if( elapsed >= 10 ) cooperativeTaskMetrics.overBudget++;
+    if( cooperativeHead ) { cooperativeBurst++; postCooperativeTurn(); }
+    else cooperativeBurst = 0;
+  }
+}
 
 async function refresh({ hotReload = false } = {}) {
   const epoch = ++refreshEpoch;
@@ -245,6 +365,7 @@ async function refresh({ hotReload = false } = {}) {
     const listing = await fetch('/catalog').then((response) => response.json());
     if( epoch !== refreshEpoch ) return;
     catalog = listing.interfaces || [];
+    indexCatalog();
     if( !chosen ) chosen = catalog[0] && catalog[0].key;
     populatePicker();
   }
@@ -273,42 +394,39 @@ async function refresh({ hotReload = false } = {}) {
 
 async function createRuntimeSession(iface) {
   const session = {
-    host: null,
-    wasm: null,
+    controller: ensureRuntimeController(),
+    generation: 0,
+    iface,
+    installed: false,
     warnings: [],
     mode: 'unavailable',
   };
+  pendingRuntimeSession = session;
   try {
-    const hostData = await loadHostData(iface.runtime);
-    session.host = createHostRuntime(iface.runtime.ir, {
+    const config = {
+      ir: iface.runtime.ir,
       state,
       viewport: iface.viewport,
-      hostData,
-      invoke: (intent) => invokeSessionIntent(session, intent),
-    });
-    const bytecode = iface.runtime.bytecode;
-    if( bytecode?.available ) {
-      session.wasm = await createWasmCS2Runtime({
-        program: bytecode,
-        host: session.host,
-      });
-      session.mode = 'wasm';
-    } else {
-      for( const warning of bytecode?.warnings || [] )
-        pushRuntimeWarning(session.warnings, warning);
-      pushRuntimeWarning(session.warnings,
-        'Original CS2 bytecode is unavailable; scripts are not executed.');
-      session.mode = 'static';
+      program: iface.runtime.bytecode,
+      hostData: iface.runtime.hostData,
+      hostDataUrl: iface.runtime.hostDataUrl,
+    };
+    const enqueueStartedAt = performance.now();
+    const loading = session.controller.worker
+      ? session.controller.reload(config) : session.controller.start(config);
+    const enqueueMs = performance.now() - enqueueStartedAt;
+    runtimeInitMetrics.count++;
+    runtimeInitMetrics.maxEnqueueMs = Math.max(runtimeInitMetrics.maxEnqueueMs, enqueueMs);
+    if( enqueueMs >= 10 ) {
+      runtimeInitMetrics.overBudget++;
+      console.warn('cs2dom runtime init clone exceeded 10ms:', enqueueMs.toFixed(1) + 'ms');
     }
-    session.host.mount();
-    const snapshot = session.host.snapshot();
-    iface.viewport = snapshot.viewport;
-    iface.boxes = snapshot.boxes;
-    iface.runtimeVersion = snapshot.version;
+    session.generation = session.controller.session;
+    const ready = await loading;
+    session.mode = ready.mode;
+    session.warnings = session.controller.warnings;
+    if( ready.render ) applyWorkerRender(session, ready.render);
   } catch( error ) {
-    session.wasm?.destroy?.();
-    session.wasm = null;
-    session.host = null;
     session.mode = 'unavailable';
     pushRuntimeWarning(session.warnings, 'script runtime stopped: ' + error.message);
   }
@@ -316,54 +434,108 @@ async function createRuntimeSession(iface) {
 }
 
 function installRuntimeSession(session) {
-  resetRuntimeInteraction();
-  hostRuntime = session.host;
-  wasmRuntime = session.wasm;
+  heldButtons.clear();
+  interactionEpoch++;
+  runtimeCycle = 0;
+  closeOpMenu();
+  runtimeSession = session;
+  pendingRuntimeSession = null;
+  session.installed = true;
   runtimeWarnings = session.warnings;
   runtimeMode = session.mode;
+  if( session.mode !== 'unavailable' ) requestRuntimeTree(session);
 }
 
-function invokeSessionIntent(session, intent) {
-  if( !session.wasm ) return 0;
-  try {
-    return session.wasm.invokeIntent(intent);
-  } catch( error ) {
-    pushRuntimeWarning(session.warnings,
-      'C CS2VM/WASM: ' + (error?.message || String(error)));
-    return 0;
-  }
+function ensureRuntimeController() {
+  if( runtimeController ) return runtimeController;
+  runtimeController = createWorkerRuntimeController({
+    onStagePatch: ({ render, patch }) => {
+      const session = routedRuntimeSession();
+      if( !session ) return;
+      applyWorkerRender(session, render);
+      if( session.installed )
+        scheduleRuntimeRender(session.iface, session.controller, true, patch);
+    },
+    onTreeChunk: (chunk) => {
+      const session = routedRuntimeSession();
+      if( !session || chunk.requestId !== session.treeRequestId ) return;
+      if( chunk.begin ) session.iface.treeBoxes = [];
+      if( chunk.boxes?.length )
+        session.iface.treeBoxes.splice(chunk.index, chunk.boxes.length, ...chunk.boxes);
+      /* Accumulate transfer chunks without reconciling the growing prefix 28
+         times for bankmain. One keyed reconciliation runs at idle only after
+         the version-fenced stream is complete. */
+      if( session.installed && chunk.done && !chunk.stale ) {
+        scheduleTreeDraw(session.iface);
+        if( $('wire').checked ) scheduleRuntimeRender(session.iface, session.controller, false);
+      }
+    },
+    onWarning: (warning) => {
+      const session = routedRuntimeSession();
+      if( !session ) return;
+      pushRuntimeWarning(session.warnings, warning);
+      if( session.installed && session.iface === currentInterface() )
+        scheduleRecordsDraw(session.iface);
+    },
+    onResult: ({ result }) => {
+      if( result?.interaction && !result.interaction.menuOpen ) closeOpMenu();
+    },
+    onTiming: ({ phase, timing }) => observeRuntimeInteraction(phase,
+      phase === 'stage' ? timing?.maxStageTaskMs : timing?.maxDispatchTaskMs),
+    onReceiveTiming: ({ elapsed }) => observeRuntimeInteraction('controller', elapsed),
+    onBudgetViolation: ({ elapsed, phase = 'enqueue', source = 'main-thread' }) =>
+      console.warn('cs2dom ' + (source === 'runtime-worker' ? 'worker ' : '') +
+        phase + ' exceeded 10ms:', elapsed.toFixed(1) + 'ms'),
+  });
+  return runtimeController;
 }
 
-async function loadHostData(runtime) {
-  /* Direct data remains useful to embedders and focused tests. The dev server
-     supplies a URL so the full cache table is fetched only once per source. */
-  if( runtime?.hostData ) return runtime.hostData;
-  const url = runtime?.hostDataUrl;
-  if( !url ) return null;
-  let pending = hostDataCache.get(url);
-  if( !pending ) {
-    pending = fetch(url).then((response) => {
-      if( !response.ok ) throw new Error('HOST data request failed (' + response.status + ')');
-      return response.json();
-    }).catch((error) => {
-      hostDataCache.delete(url);
-      throw error;
-    });
-    hostDataCache.set(url, pending);
+function observeRuntimeInteraction(phase, rawElapsed) {
+  const metric = runtimeInteractionMetrics[phase];
+  const elapsed = Number(rawElapsed);
+  if( !metric || !Number.isFinite(elapsed) || elapsed < 0 ) return;
+  metric.count++;
+  metric.maxMs = Math.max(metric.maxMs, elapsed);
+  if( elapsed >= 10 ) metric.overBudget++;
+}
+
+function routedRuntimeSession() {
+  const candidate = pendingRuntimeSession || runtimeSession;
+  return candidate && candidate.controller === runtimeController &&
+    candidate.generation === runtimeController.session ? candidate : null;
+}
+
+function applyWorkerRender(session, render) {
+  session.iface.viewport = render.viewport;
+  session.iface.boxes = render.boxes;
+  session.iface.runtimeVersion = render.version;
+}
+
+function requestRuntimeTree(session) {
+  if( session.treePending ) {
+    session.treeWanted = true;
+    return;
   }
-  return pending;
+  session.treePending = true;
+  session.treeWanted = false;
+  /* onTreeChunk owns the inspector array; do not retain a second 1,700-widget
+     copy inside the controller while bankmain streams. */
+  const pending = session.controller.requestTree({ collect: false });
+  session.treeRequestId = session.controller.requestId;
+  pending.then(({ version }) => {
+    if( version !== session.iface.runtimeVersion ) session.treeWanted = true;
+  }).catch((error) => {
+    if( session.installed && session.generation === session.controller.session &&
+        !String(error?.message).includes('changed while it was streaming') ) noteRuntimeError(error);
+  }).finally(() => {
+    session.treePending = false;
+    if( session.treeWanted && session.installed && session === runtimeSession )
+      scheduleRuntimeTreeRefresh(session);
+  });
 }
 
 function pushRuntimeWarning(warnings, message) {
   if( message && !warnings.includes(message) ) warnings.push(message);
-}
-
-function applyRuntimeSnapshot(iface = currentInterface()) {
-  if( !iface || !hostRuntime ) return;
-  const snapshot = hostRuntime.snapshot();
-  iface.viewport = snapshot.viewport;
-  iface.boxes = snapshot.boxes;
-  iface.runtimeVersion = snapshot.version;
 }
 
 function populatePicker() {
@@ -373,99 +545,185 @@ function populatePicker() {
   renderPicker('');
 }
 
+function indexCatalog() {
+  catalogByKey = new Map(catalog.map((entry) => [entry.key, entry]));
+  catalogSearchIndex = catalog.map((entry) => {
+    const name = entry.name.toLowerCase();
+    const source = entry.source.toLowerCase();
+    const title = sourceTitle(entry.source).toLowerCase();
+    const id = String(entry.interfaceId);
+    return { entry, name, source, title, id,
+      haystack: name + ' ' + source + ' ' + title + ' ' + id };
+  });
+}
+
 function sourceTitle(source) {
   return source === 'authored' ? 'Authored TSX'
     : source === 'dat2' ? 'Dat2 cache' : 'OSRS-Content';
 }
 
 function syncPickerLabel() {
-  const entry = catalog.find((item) => item.key === chosen);
+  const entry = catalogByKey.get(chosen);
   $('pick').value = entry ? entry.name : '';
-}
-
-function matchingEntries(query) {
-  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const ranked = catalog.map((entry) => {
-    const name = entry.name.toLowerCase();
-    const source = entry.source.toLowerCase();
-    const title = sourceTitle(entry.source).toLowerCase();
-    const id = String(entry.interfaceId);
-    const haystack = name + ' ' + source + ' ' + title + ' ' + id;
-    if( !terms.every((term) => haystack.includes(term)) ) return null;
-    let score = 0;
-    for( const term of terms ) {
-      score += name === term ? 0 : name.startsWith(term) ? 1 : name.includes(term) ? 3
-        : id === term ? 2 : source.startsWith(term) || title.startsWith(term) ? 4 : 8;
-    }
-    return { entry, score };
-  }).filter(Boolean);
-  ranked.sort((a, b) => a.score - b.score ||
-    a.entry.name.localeCompare(b.entry.name, undefined, { numeric: true }) ||
-    a.entry.interfaceId - b.entry.interfaceId);
-  return ranked.map((item) => item.entry);
 }
 
 function renderPicker(query) {
   const menu = $('pickmenu');
-  menu.innerHTML = '';
+  pickerActiveRow?.classList.remove('active');
+  pickerActiveRow = null;
   pickerActive = -1;
-
-  const matches = matchingEntries(query);
-  const visible = query.trim()
-    ? matches.slice(0, 120)
-    : ['authored', 'dat2', 'content'].flatMap((source) =>
-        matches.filter((entry) => entry.source === source).slice(0, 20));
   pickerMatches = [];
+  menu.setAttribute('aria-busy', 'true');
+  menu.inert = true;
+  const trimmed = query.trim();
+  pickerSearchJob = {
+    epoch: ++pickerSearchEpoch, menu, query: trimmed,
+    terms: trimmed.toLowerCase().split(/\\s+/).filter(Boolean),
+    index: 0, matches: 0, ranked: [],
+    bySource: new Map(['authored', 'dat2', 'content'].map((source) => [source, []])),
+    plan: null, planIndex: 0, phase: 'scan',
+    slices: 0, startedAt: performance.now(),
+  };
+  schedulePickerSlice(pickerSearchJob);
+}
 
-  if( visible.length === 0 ) {
-    const empty = document.createElement('div');
-    empty.className = 'pickempty';
-    empty.textContent = 'No interfaces match “' + query.trim() + '”.';
-    menu.appendChild(empty);
-    return;
+const PICKER_SLICE_BUDGET_MS = 4;
+const pickerSliceMetrics = {
+  count: 0, maxMs: 0, overBudget: 0, completed: 0,
+  maxSlices: 0, maxCompletionMs: 0,
+};
+globalThis.__cs2domPickerSliceMetrics = pickerSliceMetrics;
+
+function rankCatalogRecord(record, terms) {
+  if( !terms.every((term) => record.haystack.includes(term)) ) return null;
+  let score = 0;
+  for( const term of terms ) score += record.name === term ? 0
+    : record.name.startsWith(term) ? 1 : record.name.includes(term) ? 3
+    : record.id === term ? 2
+    : record.source.startsWith(term) || record.title.startsWith(term) ? 4 : 8;
+  return { entry: record.entry, score };
+}
+
+function comparePickerRank(a, b) {
+  return a.score - b.score ||
+    a.entry.name.localeCompare(b.entry.name, undefined, { numeric: true }) ||
+    a.entry.interfaceId - b.entry.interfaceId;
+}
+
+function offerPickerRank(list, ranked, limit) {
+  let low = 0;
+  let high = list.length;
+  while( low < high ) {
+    const middle = (low + high) >>> 1;
+    if( comparePickerRank(list[middle], ranked) <= 0 ) low = middle + 1;
+    else high = middle;
   }
+  if( low < limit ) list.splice(low, 0, ranked);
+  if( list.length > limit ) list.pop();
+}
 
-  for( const source of ['authored', 'dat2', 'content'] ) {
-    const entries = visible.filter((entry) => entry.source === source);
-    if( entries.length === 0 ) continue;
-    const group = document.createElement('div');
-    group.className = 'pickgroup';
-    group.textContent = sourceTitle(source);
-    menu.appendChild(group);
+function schedulePickerSlice(job) {
+  scheduleCooperativeTask(() => runPickerSlice(job));
+}
 
-    for( const entry of entries ) {
-      const index = pickerMatches.length;
-      pickerMatches.push(entry);
-      const row = document.createElement('button');
-      row.type = 'button';
-      row.id = 'pickoption-' + index;
-      row.className = 'pickrow';
-      row.setAttribute('role', 'option');
-      row.setAttribute('aria-selected', entry.key === chosen ? 'true' : 'false');
-
-      const sourceBadge = document.createElement('span');
-      sourceBadge.className = 'picksource ' + source;
-      sourceBadge.textContent = source === 'content' ? 'files' : source;
-      const name = document.createElement('span');
-      name.className = 'pickname';
-      name.textContent = entry.name;
-      const id = document.createElement('span');
-      id.className = 'pickid';
-      id.textContent = '#' + entry.interfaceId;
-      row.append(sourceBadge, name, id);
-      row.onpointerdown = (event) => event.preventDefault();
-      row.onclick = () => chooseInterface(entry);
-      menu.appendChild(row);
+function runPickerSlice(job) {
+  if( job !== pickerSearchJob || job.epoch !== pickerSearchEpoch ) return;
+  const startedAt = performance.now();
+  job.slices++;
+  do {
+    if( job.phase === 'scan' ) {
+      if( job.index < catalogSearchIndex.length ) {
+        const ranked = rankCatalogRecord(catalogSearchIndex[job.index++], job.terms);
+        if( ranked ) {
+          job.matches++;
+          const list = job.query ? job.ranked : job.bySource.get(ranked.entry.source);
+          if( list ) offerPickerRank(list, ranked, job.query ? 120 : 20);
+        }
+      } else {
+        const visible = job.query ? job.ranked
+          : ['authored', 'dat2', 'content'].flatMap((source) => job.bySource.get(source));
+        job.plan = pickerPlan(visible, job.matches, job.query);
+        job.phase = 'clear';
+      }
+    } else if( job.phase === 'clear' ) {
+      if( job.menu.firstElementChild ) job.menu.firstElementChild.remove();
+      else job.phase = 'build';
+    } else if( job.phase === 'build' ) {
+      if( job.planIndex < job.plan.length ) buildPickerPlanItem(job, job.plan[job.planIndex++]);
+      else job.phase = 'done';
     }
+  } while( job.phase !== 'done' &&
+    performance.now() - startedAt < PICKER_SLICE_BUDGET_MS );
+  const elapsed = performance.now() - startedAt;
+  pickerSliceMetrics.count++;
+  pickerSliceMetrics.maxMs = Math.max(pickerSliceMetrics.maxMs, elapsed);
+  if( elapsed >= 10 ) pickerSliceMetrics.overBudget++;
+  if( job.phase !== 'done' ) return schedulePickerSlice(job);
+  job.menu.removeAttribute('aria-busy');
+  job.menu.inert = false;
+  pickerSearchJob = null;
+  pickerSliceMetrics.completed++;
+  pickerSliceMetrics.maxSlices = Math.max(pickerSliceMetrics.maxSlices, job.slices);
+  pickerSliceMetrics.maxCompletionMs = Math.max(
+    pickerSliceMetrics.maxCompletionMs, performance.now() - job.startedAt);
+  if( pickerPendingMove ) {
+    const delta = pickerPendingMove;
+    pickerPendingMove = 0;
+    movePickerActive(delta);
   }
+}
 
-  if( matches.length > visible.length ) {
-    const more = document.createElement('div');
-    more.className = 'pickmore';
-    more.textContent = 'Showing ' + visible.length.toLocaleString() + ' of ' +
-      matches.length.toLocaleString() + ' matches — keep typing to narrow the list.';
-    menu.appendChild(more);
+function pickerPlan(visible, matches, query) {
+  if( visible.length === 0 ) return [{ kind: 'empty', query }];
+  const plan = [];
+  let pickerIndex = 0;
+  for( const source of ['authored', 'dat2', 'content'] ) {
+    const entries = visible.filter((ranked) => ranked.entry.source === source);
+    if( entries.length === 0 ) continue;
+    plan.push({ kind: 'group', source });
+    for( const ranked of entries ) plan.push({
+      kind: 'entry', entry: ranked.entry, source, pickerIndex: pickerIndex++,
+    });
   }
+  if( matches > visible.length ) plan.push({ kind: 'more', shown: visible.length, matches });
+  return plan;
+}
+
+function buildPickerPlanItem(job, item) {
+  const element = document.createElement(item.kind === 'entry' ? 'button' : 'div');
+  if( item.kind === 'empty' ) {
+    element.className = 'pickempty';
+    element.textContent = 'No interfaces match “' + item.query + '”.';
+  } else if( item.kind === 'group' ) {
+    element.className = 'pickgroup';
+    element.textContent = sourceTitle(item.source);
+  } else if( item.kind === 'more' ) {
+    element.className = 'pickmore';
+    element.textContent = 'Showing ' + item.shown.toLocaleString() + ' of ' +
+      item.matches.toLocaleString() + ' matches — keep typing to narrow the list.';
+  } else {
+    const entry = item.entry;
+    pickerMatches.push(entry);
+    element.type = 'button';
+    element.id = 'pickoption-' + item.pickerIndex;
+    element.className = 'pickrow';
+    element.setAttribute('role', 'option');
+    element.setAttribute('aria-selected', entry.key === chosen ? 'true' : 'false');
+    const sourceBadge = document.createElement('span');
+    sourceBadge.className = 'picksource ' + item.source;
+    sourceBadge.textContent = item.source === 'content' ? 'files' : item.source;
+    const name = document.createElement('span');
+    name.className = 'pickname';
+    name.textContent = entry.name;
+    const id = document.createElement('span');
+    id.className = 'pickid';
+    id.textContent = '#' + entry.interfaceId;
+    element.append(sourceBadge, name, id);
+    element.onpointerdown = budgetedInputHandler('picker-choice-pointerdown',
+      (event) => event.preventDefault());
+    element.onclick = budgetedInputHandler('picker-choice', () => chooseInterface(entry));
+  }
+  job.menu.appendChild(element);
 }
 
 function openPicker() {
@@ -474,33 +732,48 @@ function openPicker() {
 }
 
 function closePicker() {
+  pickerSearchJob = null;
+  pickerSearchEpoch++;
+  pickerPendingMove = 0;
   $('pickmenu').classList.remove('open');
+  $('pickmenu').removeAttribute('aria-busy');
+  $('pickmenu').inert = false;
   $('pick').setAttribute('aria-expanded', 'false');
   $('pick').removeAttribute('aria-activedescendant');
+  pickerActiveRow = null;
   pickerActive = -1;
   syncPickerLabel();
 }
 
 function movePickerActive(delta) {
-  if( pickerMatches.length === 0 ) return;
+  if( pickerMatches.length === 0 ) {
+    pickerPendingMove += delta;
+    return;
+  }
   pickerActive = pickerActive < 0
     ? (delta > 0 ? 0 : pickerMatches.length - 1)
-    : (pickerActive + delta + pickerMatches.length) % pickerMatches.length;
-  document.querySelectorAll('.pickrow').forEach((row, index) => {
-    row.classList.toggle('active', index === pickerActive);
-  });
+    : ((pickerActive + delta) % pickerMatches.length + pickerMatches.length) %
+      pickerMatches.length;
+  pickerActiveRow?.classList.remove('active');
   const row = $('pickoption-' + pickerActive);
+  pickerActiveRow = row;
+  row.classList.add('active');
   $('pick').setAttribute('aria-activedescendant', row.id);
-  row.scrollIntoView({ block: 'nearest' });
+  requestAnimationFrame(() => {
+    if( pickerActiveRow === row ) row.scrollIntoView({ block: 'nearest' });
+  });
 }
 
 function chooseInterface(entry) {
   chosen = entry.key;
-  for( const key of Object.keys(state) ) delete state[key];
-  for( const key of Object.keys(draftState) ) delete draftState[key];
+  stateCopyJob = null;
+  state = {};
+  draftState = {};
   renderedControlsKey = null;
+  renderedControlsScope = null;
+  controlDrawJob = null;
   setStateDirty(false);
-  resetRuntimeInteraction();
+  clearRuntimeInteractionChrome();
   closePicker();
   refresh();
 }
@@ -513,11 +786,21 @@ function render({ hotReload = false } = {}) {
     records.innerHTML = '<div class="error"></div>';
     records.firstChild.textContent = data.error;
     if( !hotReload ) {
+      stageDrawJob = null;
+      stageDrawEpoch++;
+      for( const entry of renderedStageBoxes.values() ) retireStageElement(entry.element);
+      closeOpMenu();
       $('stage').innerHTML = '';
       $('tree').innerHTML = '';
       $('controls').innerHTML = '';
       $('stateactions').hidden = true;
+      renderedStageBoxes.clear();
+      renderedTreeRows.clear();
+      stageBoxesByName.clear();
+      outlinedStageName = null;
       renderedControlsKey = null;
+      renderedControlsScope = null;
+      controlDrawJob = null;
     }
     return;
   }
@@ -538,9 +821,18 @@ function render({ hotReload = false } = {}) {
   drawRecords(iface);
 }
 
-function drawStage(iface) {
+function drawStage(iface, { upsert = null, upsertBatches = null, dedupePartial = false } = {}) {
   const stage = $('stage');
-  const root = iface.boxes[0];
+  const wire = $('wire').checked;
+  /* The interaction channel carries only paintable boxes. Wire diagnostics
+     opt into the most recent full tree, which arrives independently in idle
+     64-widget chunks and therefore never bloats an input response. */
+  const fullBoxes = (wire && iface.treeBoxes?.length ? iface.treeBoxes : iface.boxes) || [];
+  const partialBatches = Array.isArray(upsertBatches) ? upsertBatches
+    : Array.isArray(upsert) ? [upsert] : null;
+  const partial = !wire && partialBatches !== null;
+  const boxes = partial ? null : fullBoxes;
+  const root = fullBoxes[0];
   const width = iface.viewport?.width || (root ? Math.max(root.w, 32) : 256);
   const height = iface.viewport?.height || (root ? Math.max(root.h, 32) : 128);
   stage.style.width = width + 'px';
@@ -551,40 +843,262 @@ function drawStage(iface) {
   $('dims').textContent = width + '×' + height + ' — interface ' + iface.interfaceId +
     ' — live React tree';
 
-  stage.innerHTML = '';
-  const epoch = ++modelEpoch;
+  const job = stageDrawJob = {
+    epoch: ++stageDrawEpoch,
+    iface, stage, boxes, wire, width, height, partial,
+    /* Runtime patches can contain thousands of changed widgets. Coalesce
+       them inside the same cooperative budget as DOM reconciliation instead
+       of doing an unmeasured Map/array pass in the message handler. */
+    partialBatches: partial ? partialBatches : null,
+    partialBatchIndex: 0, partialEntryIndex: 0,
+    partialMap: partial && dedupePartial ? new Map() : null, partialIterator: null,
+    phase: partial && dedupePartial ? 'merge' : 'scan', index: 0,
+    desired: partial ? null : [], desiredKeys: partial ? null : new Set(),
+    cleanupIterator: null, cursor: null,
+    slices: 0, startedAt: performance.now(),
+  };
+  /* Start immediately, but surrender before 4ms. Subsequent slices are frame
+     tasks, so an input event can always run between them. */
+  runStageSlice(job);
+}
 
-  for( const box of iface.boxes ) {
-    const role = roleOf(box.type);
-    const modelSurface = role === 'model' ? modelRenderSurface(box, width, height) : null;
-    const element = document.createElement('div');
-    element.className = 'box ' + role;
-    element.style.left = (modelSurface?.left ?? box.x) + 'px';
-    element.style.top = (modelSurface?.top ?? box.y) + 'px';
-    element.style.width = (modelSurface?.width ?? box.w) + 'px';
-    element.style.height = (modelSurface?.height ?? box.h) + 'px';
-    if( box.emitted === false || box.effectiveHidden || box.culled )
-      element.style.display = 'none';
-    if( role !== 'model' && role !== 'line' && box.clip && box.w > 0 && box.h > 0 ) {
-      const top = Math.max(0, box.clip.top - box.y);
-      const right = Math.max(0, box.x + box.w - box.clip.right);
-      const bottom = Math.max(0, box.y + box.h - box.clip.bottom);
-      const left = Math.max(0, box.clip.left - box.x);
-      if( top || right || bottom || left )
-        element.style.clipPath = 'inset(' + top + 'px ' + right + 'px ' +
-          bottom + 'px ' + left + 'px)';
-    }
-    if( box.props.transparency )
-      element.style.opacity = String(1 - box.props.transparency / 255);
-    element.setAttribute('aria-label', box.name + ', ' + box.kind + ', file ' + box.fileId);
-    element.dataset.name = box.name;
+function stageBoxKey(iface, box, index) {
+  return iface.interfaceId + ':' + (box.ref?.key || box.name || box.fileId || index);
+}
 
-    paint(element, box, iface, modelSurface);
-    stage.appendChild(element);
-    if( role === 'text' )
-      paintCacheText(element, box, iface, () => epoch === modelEpoch).catch(() => false);
-    if( role === 'model' ) paintModel(element, box, iface, epoch, modelSurface);
+function stageBoxSignature(box, iface, role, modelSurface) {
+  const sequence = box.presentation?.sequence ?? box.props.seq ?? -1;
+  return JSON.stringify([
+    role, box.x, box.y, box.w, box.h, box.clip, box.props, box.presentation,
+    iface.spriteSource, iface.modelSource, modelSurface,
+    role === 'model' && sequence >= 0 ? box.ref?.generation : null,
+  ]);
+}
+
+function createStageBox(box, iface, role, modelSurface) {
+  const element = document.createElement('div');
+  element.className = 'box ' + role;
+  element.style.left = (modelSurface?.left ?? box.x) + 'px';
+  element.style.top = (modelSurface?.top ?? box.y) + 'px';
+  element.style.width = (modelSurface?.width ?? box.w) + 'px';
+  element.style.height = (modelSurface?.height ?? box.h) + 'px';
+  if( role !== 'model' && role !== 'line' && box.clip && box.w > 0 && box.h > 0 ) {
+    const top = Math.max(0, box.clip.top - box.y);
+    const right = Math.max(0, box.x + box.w - box.clip.right);
+    const bottom = Math.max(0, box.y + box.h - box.clip.bottom);
+    const left = Math.max(0, box.clip.left - box.x);
+    if( top || right || bottom || left )
+      element.style.clipPath = 'inset(' + top + 'px ' + right + 'px ' +
+        bottom + 'px ' + left + 'px)';
   }
+  if( box.props.transparency )
+    element.style.opacity = String(1 - box.props.transparency / 255);
+  paint(element, box, iface, modelSurface);
+  return element;
+}
+
+const STAGE_SLICE_BUDGET_MS = 3;
+const stageSliceMetrics = {
+  count: 0, maxMs: 0, overBudget: 0, completed: 0, stale: 0,
+  maxSlices: 0, maxCompletionMs: 0,
+};
+globalThis.__cs2domStageSliceMetrics = stageSliceMetrics;
+
+function scheduleStageSlice(job) {
+  scheduleCooperativeTask(() => runStageSlice(job));
+}
+
+function runStageSlice(job) {
+  if( job !== stageDrawJob || job.epoch !== stageDrawEpoch ) {
+    stageSliceMetrics.stale++;
+    return;
+  }
+  const startedAt = performance.now();
+  job.slices++;
+  let keepGoing = true;
+  do {
+    if( job.phase === 'merge' ) mergeStagePatch(job);
+    else if( job.phase === 'scan' ) scanStageBox(job);
+    else if( job.phase === 'commit' ) commitStageBox(job);
+    else if( job.phase === 'cleanup' ) cleanupStageBox(job);
+    else if( job.phase === 'order' ) orderStageBox(job);
+    else keepGoing = false;
+    if( job.phase === 'done' ) keepGoing = false;
+  } while( keepGoing && performance.now() - startedAt < STAGE_SLICE_BUDGET_MS );
+
+  const elapsed = performance.now() - startedAt;
+  stageSliceMetrics.count++;
+  stageSliceMetrics.maxMs = Math.max(stageSliceMetrics.maxMs, elapsed);
+  if( elapsed >= 10 ) stageSliceMetrics.overBudget++;
+  if( job.phase === 'done' ) {
+    stageSliceMetrics.completed++;
+    stageSliceMetrics.maxSlices = Math.max(stageSliceMetrics.maxSlices, job.slices);
+    stageSliceMetrics.maxCompletionMs = Math.max(
+      stageSliceMetrics.maxCompletionMs, performance.now() - job.startedAt);
+    stageDrawJob = null;
+    scheduleStageRectRead();
+  } else scheduleStageSlice(job);
+}
+
+function mergeStagePatch(job) {
+  while( job.partialBatchIndex < job.partialBatches.length ) {
+    const batch = job.partialBatches[job.partialBatchIndex] || [];
+    if( job.partialEntryIndex < batch.length ) {
+      const entry = batch[job.partialEntryIndex++];
+      if( entry?.key && entry.box ) job.partialMap.set(entry.key, entry);
+      return;
+    }
+    job.partialBatchIndex++;
+    job.partialEntryIndex = 0;
+  }
+  job.partialIterator = job.partialMap.values();
+  job.phase = 'scan';
+}
+
+function nextStagePatchEntry(job) {
+  if( job.partialIterator ) return job.partialIterator.next();
+  while( job.partialBatchIndex < job.partialBatches.length ) {
+    const batch = job.partialBatches[job.partialBatchIndex] || [];
+    if( job.partialEntryIndex < batch.length )
+      return { value: batch[job.partialEntryIndex++], done: false };
+    job.partialBatchIndex++;
+    job.partialEntryIndex = 0;
+  }
+  return { value: undefined, done: true };
+}
+
+function scanStageBox(job) {
+  let box;
+  let index;
+  let patchEntry = null;
+  if( job.partial ) {
+    const next = nextStagePatchEntry(job);
+    if( next.done ) {
+      job.phase = 'done';
+      return;
+    }
+    index = job.index++;
+    patchEntry = next.value;
+    box = patchEntry?.box;
+  } else {
+    if( job.index >= job.boxes.length ) {
+      job.phase = 'commit';
+      job.index = 0;
+      return;
+    }
+    index = job.index++;
+    box = job.boxes[index];
+  }
+  if( !box ) return;
+  const role = roleOf(box.type);
+  /* Runtime hit testing owns empty cells; normal paint does not need their DOM. */
+  if( box.emitted === false || box.effectiveHidden || box.culled ||
+      !job.wire && role === 'graphic' && !(box.props.sprite >= 0) ) return;
+  const modelSurface = role === 'model'
+    ? modelRenderSurface(box, job.width, job.height) : null;
+  /* Worker keys intentionally omit the inspector's interface prefix. Derive
+     the DOM key from the box so a partial patch replaces the element created
+     by an earlier full draw instead of leaving a duplicate behind. */
+  const key = stageBoxKey(job.iface, box, index);
+  /* The worker sends only changed entries in a partial patch. Its monotonic
+     runtime version is therefore a complete invalidation token and avoids a
+     second JSON serialization of every changed widget on the UI thread. */
+  const signature = job.partial
+    ? job.iface.runtimeVersion
+    : stageBoxSignature(box, job.iface, role, modelSurface);
+  const previous = renderedStageBoxes.get(key);
+  const item = { key, box, role, modelSurface, signature, previous };
+  if( job.partial ) commitStageItem(job, item);
+  else {
+    job.desired.push(item);
+    job.desiredKeys.add(key);
+  }
+}
+
+function commitStageBox(job) {
+  if( job.index >= job.desired.length ) {
+    if( job.partial ) job.phase = 'done';
+    else {
+      job.phase = 'cleanup';
+      job.cleanupIterator = renderedStageBoxes.entries();
+    }
+    return;
+  }
+  const item = job.desired[job.index++];
+  commitStageItem(job, item);
+}
+
+function commitStageItem(job, item) {
+  let element = item.previous?.element;
+  if( !element || element.parentElement !== job.stage ||
+      item.previous.signature !== item.signature ) {
+    const replacementAnchor = job.partial ? element?.nextElementSibling : null;
+    if( element ) {
+      if( stageBoxesByName.get(element.dataset.name) === element )
+        stageBoxesByName.delete(element.dataset.name);
+      retireStageElement(element);
+    }
+    element = createStageBox(item.box, job.iface, item.role, item.modelSurface);
+    const menu = liveOpMenu();
+    job.stage.insertBefore(element,
+      job.partial && replacementAnchor?.parentElement === job.stage
+        ? replacementAnchor : menu || null);
+    const token = ++modelEpoch;
+    element.__paintToken = token;
+    element.__stageKey = item.key;
+    renderedStageBoxes.set(item.key, { element, signature: item.signature });
+    const isCurrent = () => element.__paintToken === token &&
+      renderedStageBoxes.get(item.key)?.element === element &&
+      element.parentElement === job.stage;
+    if( item.role === 'text' )
+      paintCacheText(element, item.box, job.iface, isCurrent).catch(() => false);
+    if( item.role === 'model' ) {
+      element.__modelOwner = item.key;
+      paintModel(element, item.box, job.iface, isCurrent,
+        item.modelSurface, item.key, token);
+    }
+  } else renderedStageBoxes.set(item.key, { element, signature: item.signature });
+  item.element = element;
+  element.setAttribute('aria-label',
+    item.box.name + ', ' + item.box.kind + ', file ' + item.box.fileId);
+  element.dataset.name = item.box.name;
+  stageBoxesByName.set(item.box.name, element);
+  if( outlinedStageName === item.box.name ) element.classList.add('outline');
+}
+
+function cleanupStageBox(job) {
+  const next = job.cleanupIterator.next();
+  if( next.done ) {
+    job.phase = 'order';
+    job.index = 0;
+    job.cursor = job.stage.firstElementChild;
+    return;
+  }
+  const [key, previous] = next.value;
+  if( job.desiredKeys.has(key) ) return;
+  renderedStageBoxes.delete(key);
+  if( stageBoxesByName.get(previous.element.dataset.name) === previous.element )
+    stageBoxesByName.delete(previous.element.dataset.name);
+  retireStageElement(previous.element);
+}
+
+function orderStageBox(job) {
+  if( job.index >= job.desired.length ) {
+    job.phase = 'done';
+    return;
+  }
+  const element = job.desired[job.index++].element;
+  const menu = liveOpMenu();
+  if( job.cursor === menu ) job.cursor = null;
+  if( element === job.cursor ) job.cursor = job.cursor.nextElementSibling;
+  else job.stage.insertBefore(element, job.cursor || menu || null);
+}
+
+function retireStageElement(element) {
+  element.__paintToken = 0;
+  if( element.__modelTimer ) clearTimeout(element.__modelTimer);
+  if( element.__modelOwner ) modelRenderController?.cancel(element.__modelOwner);
+  element.remove();
 }
 
 function modelRenderSurface(box, stageWidth, stageHeight) {
@@ -624,29 +1138,23 @@ function paint(element, box, iface, modelSurface = null) {
       if( props.sprite >= 0 ) {
         const url = '/sprite/' + iface.spriteSource + '/' + props.sprite + '.png' +
           (props.tiled ? '?tile=1' : '');
-        const image = new Image();
-        image.onerror = () => {
-          element.classList.add('unknown');
-          element.textContent = 'sprite ' + props.sprite;
-        };
         if( props.tiled ) {
-          const canvas = document.createElement('canvas');
-          canvas.width = Math.max(1, box.w | 0);
-          canvas.height = Math.max(1, box.h | 0);
-          image.onload = () => {
-            const context = canvas.getContext('2d');
-            const pattern = context?.createPattern(image, 'repeat');
-            if( pattern ) {
-              context.fillStyle = pattern;
-              context.fillRect(0, 0, canvas.width, canvas.height);
-            }
-          };
-          element.appendChild(canvas);
+          /* Native-sized CSS tiling remains O(1) on the input thread. A canvas
+             createPattern/fillRect callback scaled with widget area and could
+             become a surprise long task after the sliced reconcile finished. */
+          element.style.backgroundImage = 'url("' + url + '")';
+          element.style.backgroundRepeat = 'repeat';
+          element.style.imageRendering = 'pixelated';
         } else {
+          const image = new Image();
+          image.onerror = () => {
+            element.classList.add('unknown');
+            element.textContent = 'sprite ' + props.sprite;
+          };
           image.alt = '';
           element.appendChild(image);
+          image.src = url;
         }
-        image.src = url;
       }
       break;
     }
@@ -708,92 +1216,20 @@ function paint(element, box, iface, modelSurface = null) {
 /* ---- toridraw model components ---------------------------------------- */
 
 let modelEpoch = 0;
-let modelWasm = null;
-let modelQueue = Promise.resolve();
-const modelBlobs = new Map();
-const animationBlobs = new Map();
-
-async function wasmRenderer() {
-  if( modelWasm ) return modelWasm;
-  if( typeof EVModule !== 'function' ) throw new Error('toridraw module did not load');
-  const mod = await EVModule({ locateFile: () => '/toridraw/ev_wasm.wasm' });
-  const wrap = (name, result, args) => mod.cwrap(name, result, args);
-  modelWasm = {
-    mod,
-    init: wrap('ev_w_init', null, []),
-    alloc: wrap('ev_w_alloc', 'number', ['number']),
-    release: wrap('ev_w_release', null, ['number']),
-    setModel: wrap('ev_w_set_model', 'number', ['number', 'number']),
-    setModelHd: wrap('ev_w_set_model_hd', 'number', ['number', 'number']),
-    clearModelHd: wrap('ev_w_clear_model_hd', null, []),
-    setTextures: wrap('ev_w_set_textures', 'number', ['number', 'number']),
-    setAnim: wrap('ev_w_set_anim', 'number', ['number', 'number']),
-    clearAnim: wrap('ev_w_clear_anim', null, []),
-    frameCount: wrap('ev_w_frame_count', 'number', []),
-    frameDelay: wrap('ev_w_frame_delay', 'number', ['number']),
-    renderWidget: wrap('ev_w_render_widget', 'number', Array(16).fill('number')),
-  };
-  modelWasm.init();
-  return modelWasm;
-}
-
-function pushWasm(wasm, bytes, fn) {
-  const ptr = wasm.alloc(bytes.length || 1);
-  if( !ptr ) return 0;
-  if( bytes.length ) wasm.mod.HEAPU8.set(bytes, ptr);
-  const result = fn(ptr, bytes.length);
-  wasm.release(ptr);
-  return result;
-}
-
-async function fetchModel(url) {
-  if( modelBlobs.has(url) ) return modelBlobs.get(url);
-  const pending = (async () => {
-    const response = await fetch(url);
-    if( !response.ok ) throw new Error((await response.text()) || 'model not found');
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    const textureIds = response.headers.get('X-Texture-Ids');
-    let textures = new Uint8Array(0);
-    if( textureIds ) {
-      const textureResponse = await fetch('/model/textures.bin?ids=' + encodeURIComponent(textureIds));
-      if( textureResponse.ok ) textures = new Uint8Array(await textureResponse.arrayBuffer());
-    }
-    return { bytes, textures };
-  })();
-  modelBlobs.set(url, pending);
-  return pending;
-}
-
-async function fetchAnimation(id) {
-  if( animationBlobs.has(id) ) return animationBlobs.get(id);
-  const pending = fetch('/model/seq/' + id + '.anim').then(async (response) => {
-    if( response.status === 404 ) return null;
-    if( !response.ok ) throw new Error((await response.text()) || 'animation not found');
-    return new Uint8Array(await response.arrayBuffer());
-  }).catch((error) => {
-    animationBlobs.delete(id);
-    throw error;
+const modelRenderMetrics = { count: 0, maxEnqueueMs: 0, overBudget: 0 };
+globalThis.__cs2domModelRenderMetrics = modelRenderMetrics;
+function ensureModelRenderController() {
+  if( modelRenderController ) return modelRenderController;
+  modelRenderController = createModelRenderController({
+    onBudgetViolation: ({ elapsed }) => {
+      modelRenderMetrics.overBudget++;
+      console.warn('cs2dom model enqueue exceeded 10ms:', elapsed.toFixed(1) + 'ms');
+    },
   });
-  animationBlobs.set(id, pending);
-  return pending;
+  return modelRenderController;
 }
 
-function currentAnimationFrame(wasm, startedAt) {
-  const count = Math.max(0, wasm.frameCount() | 0);
-  if( count === 0 ) return { frame: -1, wait: 0 };
-  const delays = Array.from({ length: count }, (_, index) =>
-    Math.max(1, wasm.frameDelay(index) | 0));
-  const cycle = delays.reduce((sum, delay) => sum + delay, 0);
-  let tick = Math.floor(Math.max(0, performance.now() - startedAt) / 20) % cycle;
-  for( let frame = 0; frame < count; frame++ ) {
-    if( tick < delays[frame] )
-      return { frame, wait: Math.max(1, (delays[frame] - tick) * 20) };
-    tick -= delays[frame];
-  }
-  return { frame: 0, wait: 20 };
-}
-
-function paintModel(element, box, iface, epoch, surface) {
+function paintModel(element, box, iface, isCurrent, surface, owner, token) {
   if( box.w <= 0 || box.h <= 0 || !surface || surface.width <= 0 || surface.height <= 0 ) return;
   const marker = element.querySelector('.model-marker');
   const source = box.presentation?.source || {
@@ -812,59 +1248,60 @@ function paintModel(element, box, iface, epoch, surface) {
     : player ? 'player.model' : source.id + '.model';
   const url = '/model/' + iface.modelSource + '/' + route;
   const sequence = box.presentation?.sequence ?? box.props.seq ?? -1;
-  const startedAt = performance.now();
-  const modelPending = fetchModel(url);
-  const animationPending = sequence >= 0
-    ? fetchAnimation(sequence).catch(() => null) : Promise.resolve(null);
+  /* Window and worker performance clocks are not required to share an origin.
+     Animation phase crosses the boundary as an epoch timestamp instead. */
+  const startedAt = Date.now();
 
   const renderFrame = () => {
-    modelQueue = modelQueue.then(async () => {
-      const [{ bytes, textures }, animation, wasm] = await Promise.all([
-        modelPending, animationPending, wasmRenderer(),
-      ]);
-      if( epoch !== modelEpoch || !element.isConnected ) return;
-
-      const magic = String.fromCharCode(...bytes.subarray(0, 4));
-      const faces = pushWasm(wasm, bytes, (ptr, size) =>
-        magic === 'EVH1' ? wasm.setModelHd(ptr, size) : wasm.setModel(ptr, size));
-      if( magic !== 'EVH1' ) wasm.clearModelHd();
-      pushWasm(wasm, textures, (ptr, size) => wasm.setTextures(ptr, size));
-      wasm.clearAnim();
-      const animated = animation &&
-        pushWasm(wasm, animation, (ptr, size) => wasm.setAnim(ptr, size)) > 0;
-      if( !faces ) throw new Error('model decode failed');
-
-      const timing = animated ? currentAnimationFrame(wasm, startedAt) : { frame: -1, wait: 0 };
-      const width = Math.max(1, Math.min(1024, surface.width | 0));
-      const height = Math.max(1, Math.min(1024, surface.height | 0));
-      const ptr = wasm.renderWidget(
-        width, height,
-        surface.widgetX | 0, surface.widgetY | 0,
-        surface.widgetWidth | 0, surface.widgetHeight | 0,
-        Math.max(1, box.props.zoom | 0), box.props.xAngle | 0,
-        box.props.yAngle | 0, box.props.zAngle | 0,
-        box.props.xOffset | 0, box.props.yOffset | 0,
-        box.presentation?.orthographic ?? Boolean(box.props.orthographic),
-        box.presentation?.fixedZoom ?? Boolean(box.props.fixedZoom),
-        Boolean(source.composed), timing.frame);
-      if( !ptr ) throw new Error('model widget render failed');
-      const rgba = new Uint8ClampedArray(
-        wasm.mod.HEAPU8.slice(ptr, ptr + width * height * 4));
-      if( epoch !== modelEpoch || !element.isConnected ) return;
-
+    if( !isCurrent() ) return;
+    let ticket;
+    try {
+      ticket = ensureModelRenderController().render({
+        owner, token, modelUrl: url,
+        animationUrl: sequence >= 0 ? '/model/seq/' + sequence + '.anim' : null,
+        startedAt,
+        width: surface.width, height: surface.height,
+        widgetX: surface.widgetX, widgetY: surface.widgetY,
+        widgetWidth: surface.widgetWidth, widgetHeight: surface.widgetHeight,
+        zoom: box.props.zoom, xAngle: box.props.xAngle,
+        yAngle: box.props.yAngle, zAngle: box.props.zAngle,
+        xOffset: box.props.xOffset, yOffset: box.props.yOffset,
+        orthographic: box.presentation?.orthographic ?? Boolean(box.props.orthographic),
+        fixedZoom: box.presentation?.fixedZoom ?? Boolean(box.props.fixedZoom),
+        composed: Boolean(source.composed),
+        /* The worker decides whether OffscreenCanvas/ImageBitmap is available.
+           A bitmap still avoids a multi-megabyte structured clone when this
+           browser lacks bitmaprenderer: the 2D context can draw it directly. */
+        preferBitmap: true,
+        fallbackMaxDimension: 512,
+      });
+      modelRenderMetrics.count++;
+      modelRenderMetrics.maxEnqueueMs = Math.max(
+        modelRenderMetrics.maxEnqueueMs, ticket.enqueueMs);
+    } catch( error ) {
+      if( marker ) marker.textContent = 'model unavailable';
+      element.dataset.error = error.message;
+      return;
+    }
+    ticket.completion.then((frame) => {
+      if( frame.stale || !isCurrent() ) {
+        frame.bitmap?.close?.();
+        return;
+      }
       let canvas = element.querySelector('canvas');
       if( !canvas ) {
         canvas = document.createElement('canvas');
         element.prepend(canvas);
       }
-      canvas.width = width;
-      canvas.height = height;
-      canvas.getContext('2d').putImageData(new ImageData(rgba, width, height), 0, 0);
+      if( canvas.width !== frame.width ) canvas.width = frame.width;
+      if( canvas.height !== frame.height ) canvas.height = frame.height;
+      paintModelFrame(canvas, frame);
       element.classList.add('ready');
       element.removeAttribute('data-error');
-      if( animated && timing.wait > 0 ) setTimeout(renderFrame, timing.wait);
-    }).catch((error) => {
-      if( epoch === modelEpoch && element.isConnected ) {
+      if( frame.wait > 0 && isCurrent() )
+        element.__modelTimer = setTimeout(renderFrame, frame.wait);
+    }, (error) => {
+      if( isCurrent() ) {
         if( marker ) marker.textContent = 'model unavailable';
         element.dataset.error = error.message;
       }
@@ -873,97 +1310,258 @@ function paintModel(element, box, iface, epoch, surface) {
   renderFrame();
 }
 
+function paintModelFrame(canvas, frame) {
+  if( frame.bitmap ) {
+    let context = null;
+    if( canvas.__modelContextKind !== '2d' ) {
+      try { context = canvas.getContext('bitmaprenderer'); }
+      catch { context = null; }
+      if( context ) canvas.__modelContextKind = 'bitmaprenderer';
+    }
+    if( context || canvas.__modelContextKind === 'bitmaprenderer' ) {
+      (context || canvas.getContext('bitmaprenderer')).transferFromImageBitmap(frame.bitmap);
+      return;
+    }
+    const twoD = canvas.getContext('2d');
+    canvas.__modelContextKind = '2d';
+    try { twoD.drawImage(frame.bitmap, 0, 0); }
+    finally { frame.bitmap.close?.(); }
+    return;
+  }
+  /* RGBA is only emitted by workers without transferable bitmap support and
+     is capped at 512px on its largest axis before it reaches this task. */
+  const context = canvas.getContext('2d');
+  if( !context ) throw new Error('model canvas cannot accept RGBA fallback');
+  canvas.__modelContextKind = '2d';
+  const rgba = new Uint8ClampedArray(frame.rgba);
+  context.putImageData(new ImageData(rgba, frame.width, frame.height), 0, 0);
+}
+
 function colour(value) {
   const rgb = (value | 0) & 0xffffff;
   return '#' + rgb.toString(16).padStart(6, '0');
 }
 
+const TREE_SLICE_BUDGET_MS = 4;
+const treeSliceMetrics = {
+  count: 0, maxMs: 0, overBudget: 0, completed: 0,
+  maxSlices: 0, maxCompletionMs: 0,
+};
+globalThis.__cs2domTreeSliceMetrics = treeSliceMetrics;
+
+/*
+ * Bankmain's inspector contains ~1,700 rows. Reconciling them in one idle
+ * callback still blocks a pointer event that arrives during that callback.
+ * Keep the existing inspector usable while keyed rows converge in <=4ms
+ * slices. content-visibility prevents thousands of off-screen rows from
+ * becoming one deferred style/layout spike.
+ */
 function drawTree(iface) {
   const tree = $('tree');
-  tree.innerHTML = '';
-  const depth = new Map();
-  for( const box of iface.boxes ) {
-    const linkedLevel = box.layer === null ? 0 : (depth.get(box.layer) ?? 0) + 1;
-    const level = Number.isInteger(box.depth) ? box.depth : linkedLevel;
-    depth.set(box.fileId, level);
+  const boxes = iface.treeBoxes?.length ? iface.treeBoxes : (iface.boxes || []);
+  treeDrawJob = {
+    iface, tree, boxes, desiredKeys: new Set(),
+    depth: new Map(), index: 0, cursor: tree.firstElementChild,
+    cleanupIterator: null, cleanupDone: false,
+    slices: 0, startedAt: performance.now(),
+  };
+  tree.setAttribute('aria-busy', 'true');
+  scheduleTreeSlice(treeDrawJob);
+}
 
-    const row = document.createElement('div');
-    const bound = box.dynamic.length ? ' <span class="bound">◆ ' + box.dynamic.join(' ') + '</span>' : '';
-    const events = box.events.length ? ' <span class="rowlabel">' + box.events.join(' ') + '</span>' : '';
-    const nativeDynamic = box.native && box.native.dynamic
-      ? ' <span class="bound">child ' + box.native.childIndex + '</span>' : '';
-    const flags = [
-      box.effectiveHidden ? 'hidden' : '',
-      box.culled ? 'culled' : '',
-      box.emitted === false && !box.effectiveHidden && !box.culled ? 'not walked' : '',
-    ].filter(Boolean);
-    const visibility = flags.length
-      ? ' <span class="rowlabel">[' + flags.join(', ') + ']</span>' : '';
-    row.innerHTML = '&nbsp;'.repeat(level * 2) +
-      box.fileId + ' ' + box.name +
-      ' <span class="rowlabel">' + box.kind.toLowerCase() + ' ' +
-      box.w + '×' + box.h + '</span>' + nativeDynamic + bound + events + visibility;
-    row.onmouseenter = () => {
-      const target = document.querySelector('.box[data-name="' + box.name + '"]');
-      if( target ) target.classList.add('outline');
-    };
-    row.onmouseleave = () => {
-      document.querySelectorAll('.box.outline').forEach((b) => b.classList.remove('outline'));
-    };
-    tree.appendChild(row);
+function scheduleTreeSlice(job) {
+  scheduleCooperativeTask(() => runTreeSlice(job));
+}
+
+function runTreeSlice(job, deadline) {
+  if( job !== treeDrawJob ) return;
+  const startedAt = performance.now();
+  job.slices++;
+  const hasTime = () => performance.now() - startedAt < TREE_SLICE_BUDGET_MS &&
+    (!deadline || deadline.didTimeout || deadline.timeRemaining() > 1);
+
+  do {
+    if( job.index < job.boxes.length ) reconcileTreeRow(job, job.index++);
+    else {
+      if( !job.cleanupIterator ) job.cleanupIterator = renderedTreeRows.entries();
+      const next = job.cleanupIterator.next();
+      if( next.done ) { job.cleanupDone = true; break; }
+      if( !job.desiredKeys.has(next.value[0]) ) {
+        next.value[1].row.remove();
+        renderedTreeRows.delete(next.value[0]);
+      }
+    }
+  } while( hasTime() );
+
+  const pending = job.index < job.boxes.length || !job.cleanupDone;
+  if( !pending ) {
+    job.tree.removeAttribute('aria-busy');
+    treeSliceMetrics.completed++;
+    treeSliceMetrics.maxSlices = Math.max(treeSliceMetrics.maxSlices, job.slices);
+    treeSliceMetrics.maxCompletionMs = Math.max(
+      treeSliceMetrics.maxCompletionMs, performance.now() - job.startedAt);
+    treeDrawJob = null;
   }
+
+  const elapsed = performance.now() - startedAt;
+  treeSliceMetrics.count++;
+  treeSliceMetrics.maxMs = Math.max(treeSliceMetrics.maxMs, elapsed);
+  if( elapsed >= 10 ) treeSliceMetrics.overBudget++;
+  if( pending ) scheduleTreeSlice(job);
+}
+
+function reconcileTreeRow(job, index) {
+  const box = job.boxes[index];
+  if( !box ) return;
+  const linkedLevel = box.layer === null ? 0 : (job.depth.get(box.layer) ?? 0) + 1;
+  const level = Number.isInteger(box.depth) ? box.depth : linkedLevel;
+  job.depth.set(box.fileId, level);
+
+  const bound = box.dynamic.length
+    ? ' <span class="bound">◆ ' + box.dynamic.join(' ') + '</span>' : '';
+  const events = box.events.length
+    ? ' <span class="rowlabel">' + box.events.join(' ') + '</span>' : '';
+  const nativeDynamic = box.native && box.native.dynamic
+    ? ' <span class="bound">child ' + box.native.childIndex + '</span>' : '';
+  const flags = [
+    box.effectiveHidden ? 'hidden' : '',
+    box.culled ? 'culled' : '',
+    box.emitted === false && !box.effectiveHidden && !box.culled ? 'not walked' : '',
+  ].filter(Boolean);
+  const visibility = flags.length
+    ? ' <span class="rowlabel">[' + flags.join(', ') + ']</span>' : '';
+  const html = '&nbsp;'.repeat(level * 2) + box.fileId + ' ' + box.name +
+    ' <span class="rowlabel">' + box.kind.toLowerCase() + ' ' +
+    box.w + '×' + box.h + '</span>' + nativeDynamic + bound + events + visibility;
+  const key = stageBoxKey(job.iface, box, index);
+  const previous = renderedTreeRows.get(key);
+  const reusable = previous?.row?.parentElement === job.tree;
+  const row = reusable ? previous.row : document.createElement('div');
+  if( !reusable || previous.html !== html ) row.innerHTML = html;
+  row.dataset.boxName = box.name;
+  renderedTreeRows.set(key, { row, html });
+  job.desiredKeys.add(key);
+
+  if( row === job.cursor ) job.cursor = job.cursor.nextElementSibling;
+  else job.tree.insertBefore(row, job.cursor);
 }
 
 function controlsRenderKey(iface) {
-  return JSON.stringify([
-    chosen, iface.interfaceId, iface.source,
-    iface.unmodelled || [], iface.inputs || [],
-  ]);
+  return chosen + '|' + iface.interfaceId + '|' + iface.source;
 }
 
 function drawControls(iface, force = false) {
   const controls = $('controls');
-  const nextKey = controlsRenderKey(iface);
-  $('stateactions').hidden = !iface.inputs.length;
-  if( !force && nextKey === renderedControlsKey ) return;
-  renderedControlsKey = nextKey;
-  controls.innerHTML = '';
-
-  if( iface.unmodelled && iface.unmodelled.length ) {
-    const note = document.createElement('div');
+  const inputs = iface.inputs || [];
+  const nextKey = inputs;
+  const nextScope = controlsRenderKey(iface);
+  $('stateactions').hidden = !inputs.length;
+  if( !force && nextKey === renderedControlsKey && nextScope === renderedControlsScope ) return;
+  if( !force && controlDrawJob?.key === nextKey && controlDrawJob.scope === nextScope ) return;
+  const root = document.createElement('div');
+  root.className = 'control-set';
+  root.setAttribute('aria-busy', 'true');
+  const note = (iface.unmodelled || []).length ? document.createElement('div') : null;
+  if( note ) {
     note.className = 'unmodelled';
-    note.innerHTML = '<b>shown as 0</b>' +
-      iface.unmodelled.map((u) => '<div>' + u + '</div>').join('');
-    controls.appendChild(note);
+    const heading = document.createElement('b');
+    heading.textContent = 'shown as 0';
+    note.appendChild(heading);
+    root.appendChild(note);
   }
+  const job = controlDrawJob = {
+    controls, root, note, iface, key: nextKey, scope: nextScope,
+    unmodelledIndex: 0, inputIndex: 0, phase: 'unmodelled', cleanupCursor: null,
+    slices: 0, startedAt: performance.now(),
+  };
+  scheduleCooperativeTask(() => runControlSlice(job));
+}
 
-  if( !iface.inputs.length ) {
+const controlSliceMetrics = {
+  count: 0, maxMs: 0, overBudget: 0, completed: 0,
+  maxSlices: 0, maxCompletionMs: 0,
+};
+globalThis.__cs2domControlSliceMetrics = controlSliceMetrics;
+
+function runControlSlice(job) {
+  if( job !== controlDrawJob ) return;
+  const startedAt = performance.now();
+  job.slices = (job.slices || 0) + 1;
+  job.startedAt ??= startedAt;
+  do {
+    if( job.phase === 'unmodelled' ) appendUnmodelledControl(job);
+    else if( job.phase === 'inputs' ) appendInputControl(job);
+    else if( job.phase === 'commit' ) commitControlRoot(job);
+    else if( job.phase === 'cleanup' ) cleanupPreviousControlRoot(job);
+    else break;
+  } while( job.phase !== 'done' && performance.now() - startedAt < 4 );
+  const elapsed = performance.now() - startedAt;
+  controlSliceMetrics.count++;
+  controlSliceMetrics.maxMs = Math.max(controlSliceMetrics.maxMs, elapsed);
+  if( elapsed >= 10 ) controlSliceMetrics.overBudget++;
+  if( job.phase === 'done' ) {
+    job.root.removeAttribute('aria-busy');
+    renderedControlsKey = job.key;
+    renderedControlsScope = job.scope;
+    controlDrawJob = null;
+    controlSliceMetrics.completed++;
+    controlSliceMetrics.maxSlices = Math.max(controlSliceMetrics.maxSlices, job.slices);
+    controlSliceMetrics.maxCompletionMs = Math.max(
+      controlSliceMetrics.maxCompletionMs, performance.now() - job.startedAt);
+  } else scheduleCooperativeTask(() => runControlSlice(job));
+}
+
+function appendUnmodelledControl(job) {
+  const values = job.iface.unmodelled || [];
+  if( job.unmodelledIndex < values.length ) {
+    const row = document.createElement('div');
+    row.textContent = values[job.unmodelledIndex++];
+    job.note.appendChild(row);
+  } else job.phase = 'inputs';
+}
+
+function appendInputControl(job) {
+  const inputs = job.iface.inputs || [];
+  if( job.inputIndex < inputs.length ) {
+    const input = inputs[job.inputIndex++];
+    job.root.appendChild(
+      input.control.kind === 'inventory' ? inventoryControl(input,
+        () => job === controlDrawJob || job.root.parentElement === job.controls)
+      : input.control.kind === 'text' ? textControl(input)
+      : sliderControl(input));
+    return;
+  }
+  if( inputs.length === 0 ) {
     const empty = document.createElement('div');
     empty.className = 'rowlabel';
-    empty.textContent = iface.source !== 'authored'
+    empty.textContent = job.iface.source !== 'authored'
       ? 'This is the static cache record. Scripts referenced by its hooks are loaded ' +
         'beside the decompiled TSX in Cache records.'
       : 'Nothing here reads host state — every prop is fixed at build time, so this ' +
         'interface needs no scripts at all.';
-    controls.appendChild(empty);
+    job.root.appendChild(empty);
+  }
+  job.phase = 'commit';
+}
+
+function commitControlRoot(job) {
+  job.controls.appendChild(job.root);
+  job.cleanupCursor = job.controls.firstElementChild;
+  job.phase = 'cleanup';
+}
+
+function cleanupPreviousControlRoot(job) {
+  const current = job.cleanupCursor;
+  if( !current || current === job.root ) {
+    job.phase = 'done';
     return;
   }
-
-  for( const input of iface.inputs ) {
-    controls.appendChild(
-      input.control.kind === 'inventory' ? inventoryControl(input)
-      : input.control.kind === 'text' ? textControl(input)
-      : sliderControl(input));
-  }
+  job.cleanupCursor = current.nextElementSibling;
+  current.remove();
 }
 
 function ensure(key, fallback) {
   return key in draftState ? draftState[key] : fallback;
-}
-
-function replaceState(target, source) {
-  for( const key of Object.keys(target) ) delete target[key];
-  Object.assign(target, JSON.parse(JSON.stringify(source)));
 }
 
 function setStateDirty(dirty, cleanLabel = 'No pending changes') {
@@ -973,6 +1571,46 @@ function setStateDirty(dirty, cleanLabel = 'No pending changes') {
   const note = $('state-note');
   note.textContent = dirty ? 'Unsaved changes' : cleanLabel;
   note.classList.toggle('dirty', dirty);
+}
+
+function saveStateDraft() {
+  if( stateCopyJob ) return;
+  $('controls').inert = true;
+  $('save-state').disabled = true;
+  $('revert-state').disabled = true;
+  $('state-note').textContent = 'Saving…';
+  const job = stateCopyJob = {
+    next: {}, phase: 'state', stateIterator: null, draftIterator: null,
+  };
+  scheduleCooperativeTask(() => runStateCopySlice(job));
+}
+
+function runStateCopySlice(job) {
+  if( job !== stateCopyJob ) return;
+  job.stateIterator ||= ownEntries(state);
+  job.draftIterator ||= ownEntries(draftState);
+  const startedAt = performance.now();
+  do {
+    const iterator = job.phase === 'state' ? job.stateIterator : job.draftIterator;
+    const next = iterator.next();
+    if( next.done ) {
+      if( job.phase === 'state' ) { job.phase = 'draft'; continue; }
+      state = job.next;
+      draftState = {};
+      stateCopyJob = null;
+      $('controls').inert = false;
+      setStateDirty(false, 'State saved');
+      clearRuntimeInteractionChrome();
+      refresh();
+      return;
+    }
+    job.next[next.value[0]] = next.value[1];
+  } while( performance.now() - startedAt < 4 );
+  scheduleCooperativeTask(() => runStateCopySlice(job));
+}
+
+function* ownEntries(object) {
+  for( const key in object ) if( Object.hasOwn(object, key) ) yield [key, object[key]];
 }
 
 function controlShell(input, body) {
@@ -1004,12 +1642,12 @@ function sliderControl(input) {
   readout.textContent = String(value);
   head.appendChild(readout);
 
-  slider.oninput = () => {
+  slider.oninput = budgetedInputHandler('host-state-range', () => {
     draftState[input.key] = Number(slider.value);
     readout.textContent = slider.value;
     slider.removeAttribute('title');
     setStateDirty(true);
-  };
+  });
   return wrap;
 }
 
@@ -1021,11 +1659,11 @@ function textControl(input) {
   field.style.width = '100%';
 
   const { wrap } = controlShell(input, field);
-  field.oninput = () => {
+  field.oninput = budgetedInputHandler('host-state-text', () => {
     draftState[input.key] = field.value;
     field.placeholder = '';
     setStateDirty(true);
-  };
+  });
   return wrap;
 }
 
@@ -1034,14 +1672,15 @@ function textControl(input) {
  * (item, count) pairs under invobj:<id>, which is the shape inv_getnum and
  * inv_total ask about in src/host.js.
  */
-function inventoryControl(input) {
+function inventoryControl(input, isCurrent = () => true) {
   const key = 'invobj:' + input.id;
   let contents = ensure(key, {});
+  let editableContents = null;
 
   const editContents = (edit) => {
     /* An untouched control is not committed state. Once the user edits it, clone
        first so the outgoing request gets a new, explicit inventory value. */
-    contents = draftState[key] = { ...contents };
+    if( draftState[key] !== contents ) contents = draftState[key] = editableContents;
     edit(contents);
     setStateDirty(true);
   };
@@ -1049,34 +1688,67 @@ function inventoryControl(input) {
   const body = document.createElement('div');
   body.className = 'inv';
 
+  let redrawEpoch = 0;
   const redraw = () => {
-    body.innerHTML = '';
-    for( const [obj, count] of Object.entries(contents) ) {
-      const row = document.createElement('div');
-      row.className = 'invrow';
-      row.innerHTML = '<span>obj ' + obj + '</span>';
-      const amount = document.createElement('input');
-      amount.type = 'number'; amount.value = String(count); amount.min = '0';
-      amount.oninput = () => {
-        editContents((next) => { next[obj] = Number(amount.value) || 0; });
-      };
-      const drop = document.createElement('button');
-      drop.textContent = '×';
-      drop.onclick = () => {
-        editContents((next) => { delete next[obj]; });
-        redraw();
-      };
-      row.appendChild(amount);
-      row.appendChild(drop);
-      body.appendChild(row);
-    }
+    const epoch = ++redrawEpoch;
+    editableContents = {};
+    body.inert = true;
+    body.setAttribute('aria-busy', 'true');
+    const iterator = ownEntries(contents);
+    const pump = () => {
+      if( epoch !== redrawEpoch || !isCurrent() ) return;
+      const startedAt = performance.now();
+      do {
+        if( body.firstElementChild ) {
+          body.firstElementChild.remove();
+          continue;
+        }
+        const next = iterator.next();
+        if( !next.done ) {
+          editableContents[next.value[0]] = next.value[1];
+          appendRow(next.value[0], next.value[1]);
+          continue;
+        }
+        appendAdd();
+        body.inert = false;
+        body.removeAttribute('aria-busy');
+        return;
+      } while( performance.now() - startedAt < 4 );
+      scheduleCooperativeTask(pump);
+    };
+    scheduleCooperativeTask(pump);
+  };
+
+  const appendRow = (obj, count) => {
+    const row = document.createElement('div');
+    row.className = 'invrow';
+    row.innerHTML = '<span>obj ' + obj + '</span>';
+    const amount = document.createElement('input');
+    amount.type = 'number'; amount.value = String(count); amount.min = '0';
+    amount.oninput = budgetedInputHandler('host-state-inventory', () => {
+      editContents((next) => { next[obj] = Number(amount.value) || 0; });
+    });
+    const drop = document.createElement('button');
+    drop.textContent = '×';
+    drop.onclick = budgetedInputHandler('host-state-inventory-drop', () => {
+      editContents((next) => { delete next[obj]; });
+      row.remove();
+    });
+    row.appendChild(amount);
+    row.appendChild(drop);
+    body.appendChild(row);
+  };
+
+  const appendAdd = () => {
     const add = document.createElement('button');
     add.textContent = '+ item';
     add.onclick = () => {
       const obj = prompt('item id');
       if( obj === null ) return;
-      editContents((next) => { next[Number(obj) || 0] = 1; });
-      redraw();
+      const id = Number(obj) || 0;
+      editContents((next) => { next[id] = 1; });
+      appendRow(id, 1);
+      body.appendChild(add);
     };
     body.appendChild(add);
   };
@@ -1088,31 +1760,190 @@ function inventoryControl(input) {
 
 function drawRecords(iface) {
   const records = $('records');
-  records.innerHTML = '';
+  const root = document.createElement('div');
+  root.className = 'record-set';
+  root.setAttribute('aria-busy', 'true');
+  const job = recordDrawJob = {
+    epoch: ++recordDrawEpoch, records, root, iface,
+    phase: 'warnings', warningGroup: 0, warningIndex: 0,
+    cleanupCursor: null, sourceIndex: 0, openedFirst: false,
+  };
+  runRecordSlice(job);
+}
 
-  for( const warning of [...(data.warnings || []), ...runtimeWarnings] ) {
-    const note = document.createElement('div');
-    note.className = 'warn';
-    note.textContent = '⚠ ' + warning;
-    records.appendChild(note);
+const RECORD_SLICE_BUDGET_MS = 4;
+const RECORD_TEXT_CHUNK = 16384;
+const recordSliceMetrics = {
+  count: 0, maxMs: 0, overBudget: 0, completed: 0,
+  maxSlices: 0, maxCompletionMs: 0,
+};
+globalThis.__cs2domRecordSliceMetrics = recordSliceMetrics;
+
+function runRecordSlice(job) {
+  if( job !== recordDrawJob || job.epoch !== recordDrawEpoch ) return;
+  const startedAt = performance.now();
+  job.slices = (job.slices || 0) + 1;
+  job.startedAt ??= startedAt;
+  do {
+    if( job.phase === 'warnings' ) appendRecordWarning(job);
+    else if( job.phase === 'commit' ) commitRecordRoot(job);
+    else if( job.phase === 'cleanup' ) cleanupPreviousRecordRoot(job);
+    else if( job.phase === 'sources' ) appendRecordSource(job);
+    else break;
+  } while( job.phase !== 'done' &&
+    performance.now() - startedAt < RECORD_SLICE_BUDGET_MS );
+  const elapsed = performance.now() - startedAt;
+  recordSliceMetrics.count++;
+  recordSliceMetrics.maxMs = Math.max(recordSliceMetrics.maxMs, elapsed);
+  if( elapsed >= 10 ) recordSliceMetrics.overBudget++;
+  if( job.phase === 'done' ) {
+    job.root.removeAttribute('aria-busy');
+    recordSliceMetrics.completed++;
+    recordSliceMetrics.maxSlices = Math.max(recordSliceMetrics.maxSlices, job.slices);
+    recordSliceMetrics.maxCompletionMs = Math.max(
+      recordSliceMetrics.maxCompletionMs, performance.now() - job.startedAt);
+    recordDrawJob = null;
+  } else scheduleCooperativeTask(() => runRecordSlice(job));
+}
+
+function appendRecordWarning(job) {
+  const groups = [data?.warnings || [], runtimeWarnings];
+  while( job.warningGroup < groups.length &&
+      job.warningIndex >= groups[job.warningGroup].length ) {
+    job.warningGroup++;
+    job.warningIndex = 0;
   }
-
-  if( iface.reactSource )
-    add('decompiled/' + iface.name + '.tsx (read-only view)', iface.reactSource);
-  add('interfaces/' + iface.name + '.if', iface.interfaceText);
-  add('interfaces/' + iface.name + '.compack', iface.compackText);
-  for( const script of iface.scripts )
-    add('scripts/' + script.name + '.cs2', script.source);
-
-  function add(name, text) {
-    const title = document.createElement('div');
-    title.className = 'filename';
-    title.textContent = name;
-    const block = document.createElement('pre');
-    block.textContent = text;
-    records.appendChild(title);
-    records.appendChild(block);
+  if( job.warningGroup >= groups.length ) {
+    job.phase = 'commit';
+    return;
   }
+  const note = document.createElement('div');
+  note.className = 'warn';
+  note.textContent = '⚠ ' + groups[job.warningGroup][job.warningIndex++];
+  job.root.appendChild(note);
+}
+
+function commitRecordRoot(job) {
+  job.records.appendChild(job.root);
+  activeRecordRoot = job.root;
+  job.cleanupCursor = job.records.firstElementChild;
+  job.phase = 'cleanup';
+}
+
+function cleanupPreviousRecordRoot(job) {
+  const current = job.cleanupCursor;
+  if( !current || current === job.root ) {
+    job.phase = 'sources';
+    return;
+  }
+  job.cleanupCursor = current.nextElementSibling;
+  current.remove();
+}
+
+function recordSourceAt(job, index) {
+  const iface = job.iface;
+  let offset = 0;
+  if( iface.reactSource ) {
+    if( index === offset ) return [
+      'decompiled/' + iface.name + '.tsx (read-only view)', iface.reactSource,
+    ];
+    offset++;
+  }
+  if( index === offset++ ) return ['interfaces/' + iface.name + '.if', iface.interfaceText];
+  if( index === offset++ ) return ['interfaces/' + iface.name + '.compack', iface.compackText];
+  const script = (iface.scripts || [])[index - offset];
+  return script ? ['scripts/' + script.name + '.cs2', script.source] : null;
+}
+
+function appendRecordSource(job) {
+  const source = recordSourceAt(job, job.sourceIndex++);
+  if( !source ) {
+    job.phase = 'done';
+    return;
+  }
+  const details = document.createElement('details');
+  details.className = 'record';
+  const title = document.createElement('summary');
+  title.className = 'filename';
+  title.textContent = source[0];
+  const block = document.createElement('pre');
+  details.appendChild(title);
+  details.appendChild(block);
+  details.__recordText = String(source[1] ?? '');
+  details.__recordOffset = 0;
+  details.ontoggle = budgetedInputHandler('record-toggle', () => {
+    if( details.open ) scheduleRecordText(details);
+  });
+  job.root.appendChild(details);
+  /* Keep the generated React view visible as before, but populate even that
+     one source in small text nodes instead of one potentially huge task. */
+  if( !job.openedFirst ) {
+    job.openedFirst = true;
+    details.open = true;
+    scheduleRecordText(details);
+  }
+}
+
+function scheduleRecordText(details) {
+  if( details.__recordLoaded || details.__recordQueued ) return;
+  details.__recordQueued = true;
+  details.setAttribute('aria-busy', 'true');
+  details.__recordNext = null;
+  if( recordTextTail ) recordTextTail.__recordNext = details;
+  else recordTextHead = details;
+  recordTextTail = details;
+  if( recordTextFrame ) return;
+  recordTextFrame = 1;
+  scheduleCooperativeTask(runRecordTextSlice);
+}
+
+function runRecordTextSlice() {
+  recordTextFrame = 0;
+  const startedAt = performance.now();
+  while( recordTextHead &&
+      performance.now() - startedAt < RECORD_SLICE_BUDGET_MS ) {
+    const details = recordTextHead;
+    recordTextHead = details.__recordNext;
+    details.__recordNext = null;
+    if( !recordTextHead ) recordTextTail = null;
+    details.__recordQueued = false;
+    if( !details.open || details.parentElement !== activeRecordRoot ||
+        activeRecordRoot?.parentElement !== $('records') ) continue;
+    const text = details.__recordText;
+    const offset = details.__recordOffset;
+    const chunk = text.slice(offset, offset + RECORD_TEXT_CHUNK);
+    if( chunk ) {
+      const span = document.createElement('span');
+      span.textContent = chunk;
+      details.lastElementChild.appendChild(span);
+      details.__recordOffset += chunk.length;
+    }
+    if( details.__recordOffset < text.length ) scheduleRecordText(details);
+    else {
+      details.__recordLoaded = true;
+      details.removeAttribute('aria-busy');
+      details.__recordText = '';
+    }
+  }
+  if( recordTextHead && !recordTextFrame ) {
+    recordTextFrame = 1;
+    scheduleCooperativeTask(runRecordTextSlice);
+  }
+  const elapsed = performance.now() - startedAt;
+  recordSliceMetrics.count++;
+  recordSliceMetrics.maxMs = Math.max(recordSliceMetrics.maxMs, elapsed);
+  if( elapsed >= 10 ) recordSliceMetrics.overBudget++;
+}
+
+function scheduleRecordsDraw(iface) {
+  pendingRecordsIface = iface;
+  if( recordsDrawFrame ) return;
+  recordsDrawFrame = requestAnimationFrame(() => {
+    recordsDrawFrame = 0;
+    const pending = pendingRecordsIface;
+    pendingRecordsIface = null;
+    if( pending === currentInterface() ) drawRecords(pending);
+  });
 }
 
 /* ---- live React host interaction --------------------------------------- */
@@ -1122,36 +1953,49 @@ function currentInterface() {
 }
 
 function resetRuntimeInteraction() {
-  disposeRuntimeSession({
-    host: hostRuntime,
-    wasm: wasmRuntime,
-  });
+  disposeRuntimeSession(runtimeSession);
   heldButtons.clear();
+  interactionEpoch++;
   runtimeCycle = 0;
   closeOpMenu();
-  hostRuntime = null;
-  wasmRuntime = null;
+  runtimeSession = null;
+  pendingRuntimeSession = null;
   runtimeMode = 'unavailable';
 }
 
-function disposeRuntimeSession(session, notifyFocus = true) {
-  if( notifyFocus && session?.host ) {
-    try { session.host.dispatch({ type: 'focus_lost' }); }
-    catch { /* the old runtime is being discarded */ }
-  }
-  try { session?.wasm?.destroy?.(); }
-  catch { /* teardown is best-effort for a stale session */ }
+function clearRuntimeInteractionChrome() {
+  heldButtons.clear();
+  interactionEpoch++;
+  runtimeCycle = 0;
+  closeOpMenu();
+}
+
+function disposeRuntimeSession(session) {
+  if( !session?.controller || session.generation !== session.controller.session ) return;
+  session.controller.dispose();
 }
 
 function stagePoint(event) {
-  const stage = $('stage');
-  const rect = stage.getBoundingClientRect();
+  const rect = stageRectCache;
   const iface = currentInterface();
-  const width = iface?.viewport?.width || stage.clientWidth;
-  const height = iface?.viewport?.height || stage.clientHeight;
-  const x = rect.width ? Math.floor((event.clientX - rect.left) * width / rect.width) : -1;
-  const y = rect.height ? Math.floor((event.clientY - rect.top) * height / rect.height) : -1;
+  const width = iface?.viewport?.width || 0;
+  const height = iface?.viewport?.height || 0;
+  /* getBoundingClientRect() in a pointer handler can synchronously lay out the
+     entire inspector. Geometry is sampled on an animation frame instead. */
+  const x = rect?.width ? Math.floor((event.clientX - rect.left) * width / rect.width) : -1;
+  const y = rect?.height ? Math.floor((event.clientY - rect.top) * height / rect.height) : -1;
   return { x, y };
+}
+
+function scheduleStageRectRead() {
+  if( stageRectFrame ) return;
+  stageRectFrame = requestAnimationFrame(() => {
+    stageRectFrame = 0;
+    const rect = $('stage').getBoundingClientRect();
+    stageRectCache = {
+      left: rect.left, top: rect.top, width: rect.width, height: rect.height,
+    };
+  });
 }
 
 function noteRuntimeError(error) {
@@ -1160,35 +2004,111 @@ function noteRuntimeError(error) {
   $('status').textContent = 'script interaction stopped — ' + message;
   $('status').className = 'status bad';
   const iface = currentInterface();
-  if( iface ) drawRecords(iface);
+  if( iface ) scheduleRecordsDraw(iface);
+}
+
+function scheduleRuntimeRender(iface, runtime, refreshTree = true, stagePatch = null) {
+  const incomingBatches = stagePatch?.upsertBatches ||
+    (stagePatch?.upsert?.length ? [stagePatch.upsert] : []);
+  const upsertCount = stagePatch?.upsertCount ??
+    incomingBatches.reduce((total, batch) => total + (batch?.length || 0), 0);
+  const removeCount = stagePatch?.removeCount ?? stagePatch?.remove?.length ?? 0;
+  const full = !stagePatch || stagePatch.reset || stagePatch.orderChanged ||
+    removeCount || !upsertCount;
+  if( !pendingRuntimeRender || pendingRuntimeRender.iface !== iface ||
+      pendingRuntimeRender.runtime !== runtime ) {
+    pendingRuntimeRender = {
+      iface, runtime, refreshTree, full, dedupePartial: false,
+      upsertBatches: full ? [] : incomingBatches.slice(),
+    };
+  } else {
+    pendingRuntimeRender.refreshTree ||= refreshTree;
+    pendingRuntimeRender.full ||= full;
+    if( pendingRuntimeRender.full ) pendingRuntimeRender.upsertBatches.length = 0;
+    else if( upsertCount ) {
+      pendingRuntimeRender.dedupePartial = true;
+      pendingRuntimeRender.upsertBatches.push(...incomingBatches);
+    }
+  }
+  if( runtimeRenderFrame ) return;
+  runtimeRenderFrame = requestAnimationFrame(() => {
+    runtimeRenderFrame = 0;
+    const pending = pendingRuntimeRender;
+    pendingRuntimeRender = null;
+    if( !pending || pending.runtime !== runtimeController || pending.iface !== currentInterface() ) return;
+    drawStage(pending.iface,
+      pending.full ? {} : {
+        upsertBatches: pending.upsertBatches,
+        dedupePartial: pending.dedupePartial,
+      });
+    if( pending.refreshTree ) scheduleRuntimeTreeRefresh(runtimeSession);
+  });
+}
+
+function scheduleTreeDraw(iface) {
+  if( iface === currentInterface() ) drawTree(iface);
 }
 
 function dispatchRuntime(input) {
   const iface = currentInterface();
-  if( !iface || !hostRuntime ) return null;
-  const beforeVersion = hostRuntime.version;
-  const beforeWarnings = runtimeWarnings.length;
+  const session = runtimeSession;
+  if( !iface || !session?.controller || session.controller.readyState !== 'ready' ) return null;
   try {
-    const result = hostRuntime.dispatch(input);
-    if( hostRuntime.version !== beforeVersion ) {
-      applyRuntimeSnapshot(iface);
-      drawStage(iface);
-      drawTree(iface);
-    }
-    if( runtimeWarnings.length !== beforeWarnings ) drawRecords(iface);
-    return result;
+    const ticket = session.controller.dispatch(input);
+    observeRuntimeInteraction('enqueue', ticket.enqueueMs);
+    ticket.completion.catch((error) => {
+      if( session === runtimeSession && session.generation === session.controller.session )
+        noteRuntimeError(error);
+    });
+    return ticket;
   } catch( error ) {
     noteRuntimeError(error);
     return null;
   }
 }
 
+let runtimeTreeRefresh = 0;
+function scheduleRuntimeTreeRefresh(session) {
+  if( !session?.installed || session !== runtimeSession || runtimeTreeRefresh ) return;
+  /* The inspector is diagnostic, not part of hit testing. Stream at most one
+     full tree per quiet window instead of 1,700 boxes after every 20ms tick. */
+  runtimeTreeRefresh = setTimeout(() => {
+    runtimeTreeRefresh = 0;
+    if( session === runtimeSession && session.controller.readyState === 'ready' )
+      requestRuntimeTree(session);
+  }, 150);
+}
+
 function pointerButton(button) {
   return button >= 0 && button <= 2 ? button : null;
 }
 
+function liveOpMenu() {
+  if( opMenuElement?.parentElement === $('stage') ) return opMenuElement;
+  opMenuElement = null;
+  return null;
+}
+
 function closeOpMenu() {
-  $('stage')?.querySelector('.opmenu')?.remove();
+  const menu = liveOpMenu();
+  opMenuElement = null;
+  menu?.remove();
+}
+
+function opMenuOutside(menu, event, margin = 10) {
+  /* Never force style/layout from a pointer handler. The popup records its
+     client-space bounds on the next frame; until then it conservatively owns
+     input for one frame. */
+  const rect = menu.__clientRect;
+  if( !rect ) return false;
+  return event.clientX < rect.left - margin || event.clientX >= rect.right + margin ||
+    event.clientY < rect.top - margin || event.clientY >= rect.bottom + margin;
+}
+
+function dismissOpMenu() {
+  interactionEpoch++;
+  closeOpMenu();
+  if( runtimeController?.readyState === 'ready' ) dispatchRuntime({ type: 'menu_close' });
 }
 
 function openOpMenu(menu, point) {
@@ -1196,20 +2116,52 @@ function openOpMenu(menu, point) {
   if( !Array.isArray(menu) || menu.length === 0 ) return;
   const shell = document.createElement('div');
   shell.className = 'opmenu';
-  shell.style.left = Math.max(0, Math.min($('stage').clientWidth - 150, point.x)) + 'px';
-  shell.style.top = Math.max(0, Math.min($('stage').clientHeight - 24, point.y)) + 'px';
-  shell.onpointerdown = (event) => event.stopPropagation();
+  const viewport = currentInterface()?.viewport || { width: 0, height: 0 };
+  shell.style.left = Math.max(0, Math.min(viewport.width - 150, point.x)) + 'px';
+  shell.style.top = Math.max(0, Math.min(viewport.height - 24, point.y)) + 'px';
+  /* The native minimenu owns its press and selects on mouse-down. Preventing
+     the browser focus default is equally important here: focusing a child
+     button blurs #stage, whose focus-lost handler closes the menu before the
+     subsequent click can run. */
+  shell.onpointerdown = budgetedInputHandler('menu-pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
   for( const item of menu ) {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = item.text || ('Option ' + item.opIndex);
-    button.onclick = () => {
+    let selected = false;
+    const choose = () => {
+      if( selected ) return;
+      selected = true;
       closeOpMenu();
       dispatchRuntime({ type: 'op', target: item.component, opIndex: item.opIndex });
     };
+    button.onpointerdown = budgetedInputHandler('menu-option-pointerdown', (event) => {
+      if( event.button !== 0 && event.button !== 2 ) return;
+      event.preventDefault();
+      event.stopPropagation();
+      choose();
+    });
+    /* detail=0 is keyboard activation. Pointer activation already selected
+       on its native mouse-down edge, and the guard makes either path safe. */
+    button.onclick = budgetedInputHandler('menu-option-click', (event) => {
+      event.preventDefault();
+      choose();
+    });
+    button.oncontextmenu = (event) => event.preventDefault();
     shell.appendChild(button);
   }
+  opMenuElement = shell;
   $('stage').appendChild(shell);
+  requestAnimationFrame(() => {
+    if( shell.parentElement !== $('stage') ) return;
+    const rect = shell.getBoundingClientRect();
+    shell.__clientRect = {
+      left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
+    };
+  });
 }
 
 function browserVk(event) {
@@ -1253,49 +2205,131 @@ function keyCharacter(event) {
   return codepoint >= 32 && codepoint <= 255 ? codepoint : -1;
 }
 
+function outlineStageBox(name) {
+  if( outlinedStageName ) stageBoxesByName.get(outlinedStageName)?.classList.remove('outline');
+  outlinedStageName = name;
+  if( name ) stageBoxesByName.get(name)?.classList.add('outline');
+}
+
+const INPUT_HANDLER_BUDGET_MS = 10;
+const inputHandlerMetrics = Object.create(null);
+globalThis.__cs2domInputHandlerMetrics = inputHandlerMetrics;
+function budgetedInputHandler(name, handler) {
+  return (event) => {
+    const startedAt = performance.now();
+    try {
+      return handler(event);
+    } finally {
+      const elapsed = performance.now() - startedAt;
+      const metric = inputHandlerMetrics[name] ||= { count: 0, maxMs: 0, overBudget: 0 };
+      metric.count++;
+      metric.lastMs = elapsed;
+      metric.maxMs = Math.max(metric.maxMs, elapsed);
+      if( elapsed >= INPUT_HANDLER_BUDGET_MS ) {
+        metric.overBudget++;
+        if( metric.overBudget === 1 )
+          console.warn('cs2dom input handler exceeded 10ms:', name, elapsed.toFixed(1) + 'ms');
+      }
+    }
+  };
+}
+
+const treeView = $('tree');
+treeView.onmouseover = budgetedInputHandler('tree-mouseover', (event) => {
+  const row = event.target.closest('[data-box-name]');
+  if( !row || !treeView.contains(row) || row.contains(event.relatedTarget) ) return;
+  outlineStageBox(row.dataset.boxName);
+});
+treeView.onmouseout = budgetedInputHandler('tree-mouseout', (event) => {
+  const row = event.target.closest('[data-box-name]');
+  if( !row || row.contains(event.relatedTarget) ) return;
+  outlineStageBox(null);
+});
+
 const stage = $('stage');
-stage.onpointermove = (event) => {
+if( typeof ResizeObserver === 'function' )
+  new ResizeObserver(scheduleStageRectRead).observe(stage);
+window.addEventListener('resize', scheduleStageRectRead, { passive: true });
+document.addEventListener('scroll', scheduleStageRectRead, { passive: true, capture: true });
+stage.onpointermove = budgetedInputHandler('pointermove', (event) => {
+  const menu = liveOpMenu();
+  if( menu ) {
+    /* choose-option owns the pointer and closes only after leaving its 10px
+       margin; no hover hooks leak through the popup while it is open. */
+    if( opMenuOutside(menu, event) ) dismissOpMenu();
+    return;
+  }
   dispatchRuntime({ type: 'pointer_move', ...stagePoint(event) });
-};
-stage.onpointerdown = (event) => {
+});
+stage.onpointerdown = budgetedInputHandler('pointerdown', (event) => {
   const button = pointerButton(event.button);
-  if( button === null || !hostRuntime ) return;
+  if( button === null || runtimeController?.readyState !== 'ready' ) return;
   event.preventDefault();
-  closeOpMenu();
+  const menu = liveOpMenu();
+  if( menu ) {
+    if( !opMenuOutside(menu, event) ) return;
+    /* An outside left press only dismisses; an outside right press dismisses
+       and continues below to reopen at the new point, matching choose-option. */
+    dismissOpMenu();
+    if( button !== 2 ) {
+      stage.focus({ preventScroll: true });
+      return;
+    }
+  }
+  const gestureEpoch = ++interactionEpoch;
   stage.focus({ preventScroll: true });
   try { stage.setPointerCapture(event.pointerId); } catch { /* already captured */ }
   heldButtons.add(button);
   const point = stagePoint(event);
-  const result = dispatchRuntime({ type: 'pointer_down', button, ...point });
-  if( button === 2 ) openOpMenu(result?.menu, point);
-};
-stage.onpointerup = (event) => {
+  const ticket = dispatchRuntime({ type: 'pointer_down', button, ...point });
+  if( button === 2 ) ticket?.completion.then((outcome) => {
+    if( gestureEpoch === interactionEpoch &&
+        runtimeController?.session === runtimeSession?.generation &&
+        runtimeController?.interaction?.menuOpen &&
+        outcome.result?.interaction?.menuOpen ) openOpMenu(outcome.result.menu, point);
+  }, () => {});
+});
+stage.onpointerup = budgetedInputHandler('pointerup', (event) => {
   const button = pointerButton(event.button);
-  if( button === null || !hostRuntime ) return;
+  if( button === null || runtimeController?.readyState !== 'ready' ) return;
   event.preventDefault();
   heldButtons.delete(button);
+  const menu = liveOpMenu();
+  if( menu ) {
+    if( opMenuOutside(menu, event) ) dismissOpMenu();
+    try { stage.releasePointerCapture(event.pointerId); } catch { /* not captured */ }
+    return;
+  }
   dispatchRuntime({ type: 'pointer_up', button, ...stagePoint(event) });
   try { stage.releasePointerCapture(event.pointerId); } catch { /* not captured */ }
-};
-stage.onpointercancel = (event) => {
-  const point = stagePoint(event);
-  for( const button of heldButtons )
-    dispatchRuntime({ type: 'pointer_up', button, ...point });
+});
+stage.onpointercancel = budgetedInputHandler('pointercancel', () => {
+  /* A cancelled browser gesture is not a mouse-up. Synthesizing one can fire
+     onRelease (and a deferred draggable click) for a press the OS cancelled. */
   heldButtons.clear();
-};
-stage.onpointerleave = () => {
-  if( heldButtons.size === 0 ) dispatchRuntime({ type: 'pointer_move', x: -1, y: -1 });
-};
-stage.addEventListener('wheel', (event) => {
-  if( !hostRuntime || event.deltaY === 0 ) return;
+  interactionEpoch++;
+  closeOpMenu();
+  dispatchRuntime({ type: 'focus_lost' });
+});
+stage.onpointerleave = budgetedInputHandler('pointerleave', () => {
+  if( liveOpMenu() ) dismissOpMenu();
+  else if( heldButtons.size === 0 ) dispatchRuntime({ type: 'pointer_move', x: -1, y: -1 });
+});
+stage.addEventListener('wheel', budgetedInputHandler('wheel', (event) => {
+  if( runtimeController?.readyState !== 'ready' || event.deltaY === 0 ) return;
   event.preventDefault();
+  const menu = liveOpMenu();
+  if( menu ) {
+    if( opMenuOutside(menu, event) ) dismissOpMenu();
+    return;
+  }
   dispatchRuntime({ type: 'wheel', wheel: -event.deltaY, ...stagePoint(event) });
-}, { passive: false });
-stage.oncontextmenu = (event) => {
-  if( hostRuntime ) event.preventDefault();
-};
-stage.onkeydown = (event) => {
-  if( !hostRuntime ) return;
+}), { passive: false });
+stage.oncontextmenu = budgetedInputHandler('contextmenu', (event) => {
+  if( runtimeController?.readyState === 'ready' ) event.preventDefault();
+});
+stage.onkeydown = budgetedInputHandler('keydown', (event) => {
+  if( runtimeController?.readyState !== 'ready' ) return;
   const keyTyped = osrsKey(event);
   const keyPressed = keyCharacter(event);
   if( keyTyped < 0 && keyPressed < 0 ) return;
@@ -1303,35 +2337,42 @@ stage.onkeydown = (event) => {
   if( !event.repeat && keyTyped >= 0 )
     dispatchRuntime({ type: 'key_down', keyTyped, keyPressed: Math.max(0, keyPressed) });
   dispatchRuntime({ type: 'key', keyTyped, keyPressed });
-};
-stage.onkeyup = (event) => {
-  if( !hostRuntime ) return;
+});
+stage.onkeyup = budgetedInputHandler('keyup', (event) => {
+  if( runtimeController?.readyState !== 'ready' ) return;
   const keyTyped = osrsKey(event);
   if( keyTyped < 0 ) return;
   event.preventDefault();
   dispatchRuntime({ type: 'key_up', keyTyped, keyPressed: 0 });
-};
-stage.onblur = () => {
+});
+stage.onblur = budgetedInputHandler('blur', () => {
   heldButtons.clear();
+  interactionEpoch++;
   closeOpMenu();
   dispatchRuntime({ type: 'focus_lost' });
-};
+});
 
-setInterval(() => {
-  if( hostRuntime && document.visibilityState === 'visible' )
-    dispatchRuntime({ type: 'tick', cycle: ++runtimeCycle });
-}, 20);
+function scheduleRuntimeTick() {
+  setTimeout(() => {
+    if( runtimeController?.readyState === 'ready' && document.visibilityState === 'visible' ) {
+      const ticket = dispatchRuntime({ type: 'tick', cycle: ++runtimeCycle });
+      if( ticket ) return ticket.completion.then(scheduleRuntimeTick, scheduleRuntimeTick);
+    }
+    scheduleRuntimeTick();
+  }, 20);
+}
+scheduleRuntimeTick();
 
-$('pick').onfocus = () => {
+$('pick').onfocus = budgetedInputHandler('picker-focus', () => {
   renderPicker('');
   openPicker();
   $('pick').select();
-};
-$('pick').oninput = () => {
+});
+$('pick').oninput = budgetedInputHandler('picker-input', () => {
   renderPicker($('pick').value);
   openPicker();
-};
-$('pick').onkeydown = (event) => {
+});
+$('pick').onkeydown = budgetedInputHandler('picker-keydown', (event) => {
   if( event.key === 'ArrowDown' || event.key === 'ArrowUp' ) {
     event.preventDefault();
     if( !$('pickmenu').classList.contains('open') ) {
@@ -1347,29 +2388,30 @@ $('pick').onkeydown = (event) => {
     closePicker();
     $('pick').blur();
   }
-};
-document.addEventListener('pointerdown', (event) => {
-  if( !$('picker').contains(event.target) ) closePicker();
 });
-$('wire').onchange = () => render();
-$('save-state').onclick = () => {
-  replaceState(state, draftState);
-  setStateDirty(false, 'State saved');
-  resetRuntimeInteraction();
-  refresh();
-};
-$('revert-state').onclick = () => {
-  replaceState(draftState, state);
+document.addEventListener('pointerdown', budgetedInputHandler('document-pointerdown', (event) => {
+  if( !$('pickmenu').classList.contains('open') ) return;
+  if( !$('picker').contains(event.target) ) closePicker();
+}));
+$('wire').onchange = budgetedInputHandler('wire-change', () => {
+  const iface = currentInterface();
+  if( iface ) scheduleCooperativeTask(() => drawStage(iface));
+});
+$('save-state').onclick = budgetedInputHandler('host-state-save', () => {
+  saveStateDraft();
+});
+$('revert-state').onclick = budgetedInputHandler('host-state-revert', () => {
+  draftState = {};
   setStateDirty(false, 'Draft discarded');
   const iface = data && data.interfaces && data.interfaces[0];
-  if( iface ) drawControls(iface, true);
-};
-$('controls').onkeydown = (event) => {
+  if( iface ) scheduleCooperativeTask(() => drawControls(iface, true));
+});
+$('controls').onkeydown = budgetedInputHandler('controls-keydown', (event) => {
   if( event.key === 'Enter' && (event.metaKey || event.ctrlKey) && stateDirty ) {
     event.preventDefault();
     $('save-state').click();
   }
-};
+});
 $('add').onclick = async () => {
   const name = prompt('component name (a file, ui/<name>.tsx)');
   if( !name ) return;
@@ -1382,6 +2424,7 @@ async function refreshCatalogQuietly() {
   try {
     const listing = await fetch('/catalog').then((response) => response.json());
     catalog = listing.interfaces || catalog;
+    indexCatalog();
   } catch { /* The current picker remains usable while the server rebuilds. */ }
 }
 
@@ -1389,7 +2432,7 @@ new EventSource('/events').onmessage = () => {
   /* Source saves invalidate the live script/tree session, but not the editor shell. Keep the
      picker, Host-state draft, focus and pane scroll positions alive; replace
      only the preview, runtime tree and generated cache/script records. */
-  resetRuntimeInteraction();
+  clearRuntimeInteractionChrome();
   refreshCatalogQuietly();
   refresh({ hotReload: true });
 };

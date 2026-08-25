@@ -33,7 +33,9 @@ import {
     setWorldMapDisplayPixelSize, snapshotWorldMapState,
 } from './host_worldmap.js';
 import { OPS } from './ops.js';
-import { layout as resolveLayout } from './preview.js';
+import {
+    layout as resolveLayout, layoutBox, layoutGeometry, layoutVisibility,
+} from './preview.js';
 
 export const HOST_RUNTIME_SCHEMA = 'cs2dom-host/1';
 
@@ -107,6 +109,65 @@ const DEFERRED_COMPONENT_QUEUE_LIMIT = 16;
 const MINIMAP_REQUESTS = new Set([
     'MINIMAP_SETZOOMABLE', 'MINIMAP_SETZOOM', 'MINIMAP_GETZOOM', 'MINIMAP_SETICONZOOMLIMIT',
 ]);
+const VALIDATED_HOST_REQUEST_KINDS = new Set();
+const NORMALIZED_HOST_REQUEST_KINDS = new Map();
+const DYNAMIC_PROPS_CACHE = new Map();
+/* Runtime-created components overwhelmingly leave authored metadata empty.
+ * These values are never mutated in place: setters replace `dynamic`/`ops`,
+ * hooks lazily allocate their own record, and the remaining fields are cache
+ * input only. Sharing them avoids eight throwaway containers per CC_CREATE. */
+const EMPTY_DYNAMIC_ARRAY = Object.freeze([]);
+const EMPTY_AUTHORED_PROPS = new Set();
+const FAST_INT_GEOMETRY_READS = Object.freeze({
+    1500: 'if_getx', 1501: 'if_gety', 1502: 'if_getwidth', 1503: 'if_getheight',
+    2500: 'if_getx', 2501: 'if_gety', 2502: 'if_getwidth', 2503: 'if_getheight',
+});
+/* Internal C/WASM transaction format. The public HOST surface remains named
+ * request records; this fixed-width view exists solely so a synchronous worker
+ * can commit a large native redraw without allocating an equivalent JS object
+ * graph first. The view is consumed before the C callback returns and is never
+ * retained across a possible WebAssembly memory growth. */
+const FAST_HOST_RECORD_WORDS = 12;
+const FAST_HOST_HOOK_STRING_LENGTH = 256;
+const FAST_HOST_TEXT_DECODER = new TextDecoder();
+const FAST_HOST_KINDS = Object.freeze({
+    CC_CREATE: 100,
+    CC_FIND: 200,
+    CC_SETPOSITION: 1000,
+    CC_SETSIZE: 1001,
+    CC_SETHIDE: 1003,
+    CC_SETCOLOUR: 1101,
+    CC_SETFILL: 1102,
+    CC_SETTRANS: 1103,
+    CC_SETGRAPHIC: 1105,
+    CC_SETTEXT: 1112,
+    CC_SETTEXTFONT: 1113,
+    CC_SETTEXTALIGN: 1114,
+    CC_SETTEXTSHADOW: 1115,
+    CC_SETOBJECT: 1200,
+    CC_SETOBJECT_NONUM: 1205,
+    CC_SETOBJECT_ALWAYS_NUM: 1212,
+    CC_SETOP: 1300,
+    CC_SETDRAGGABLEBEHAVIOR: 1302,
+    CC_SETDRAGDEADZONE: 1303,
+    CC_SETDRAGDEADTIME: 1304,
+    CC_SETOPBASE: 1305,
+    CC_CLEAROPS: 1307,
+    CC_SETONMOUSEOVER: 1403,
+    CC_SETONMOUSELEAVE: 1404,
+    CC_SETONDRAG: 1405,
+    CC_SETONOP: 1409,
+    CC_SETONDRAGCOMPLETE: 1410,
+    CC_SETONMOUSEREPEAT: 1412,
+    IF_SETPOSITION: 2000,
+    IF_SETSIZE: 2001,
+    IF_SETHIDE: 2003,
+    IF_SETTRANS: 2103,
+    IF_CLEAROPS: 2307,
+    IF_SETONMOUSEOVER: 2403,
+    IF_SETONMOUSELEAVE: 2404,
+    IF_SETONOP: 2409,
+});
 
 const TYPE_KIND = new Map([
     [IF_TYPE.inv, 'Object'], [IF_TYPE.rectangle, 'Rect'], [IF_TYPE.text, 'Text'],
@@ -165,6 +226,17 @@ for( const definition of EVENT_DEFINITIONS ) {
     for( const name of [definition.authored, definition.canonical, ...definition.imported] )
         if( name ) EVENT_BY_NAME.set(normalizeEventName(name), definition);
 }
+const FAST_HOST_HOOK_DEFINITIONS = Object.freeze({
+    [FAST_HOST_KINDS.CC_SETONMOUSEOVER]: EVENT_BY_NAME.get('onmouseover'),
+    [FAST_HOST_KINDS.CC_SETONMOUSELEAVE]: EVENT_BY_NAME.get('onmouseleave'),
+    [FAST_HOST_KINDS.CC_SETONDRAG]: EVENT_BY_NAME.get('ondrag'),
+    [FAST_HOST_KINDS.CC_SETONOP]: EVENT_BY_NAME.get('onop'),
+    [FAST_HOST_KINDS.CC_SETONDRAGCOMPLETE]: EVENT_BY_NAME.get('ondragcomplete'),
+    [FAST_HOST_KINDS.CC_SETONMOUSEREPEAT]: EVENT_BY_NAME.get('onmouserepeat'),
+    [FAST_HOST_KINDS.IF_SETONMOUSEOVER]: EVENT_BY_NAME.get('onmouseover'),
+    [FAST_HOST_KINDS.IF_SETONMOUSELEAVE]: EVENT_BY_NAME.get('onmouseleave'),
+    [FAST_HOST_KINDS.IF_SETONOP]: EVENT_BY_NAME.get('onop'),
+});
 
 const POINTER_EVENTS = new Set([
     'on_op', 'on_click', 'on_click_repeat', 'on_mouse_over', 'on_mouse_leave',
@@ -373,6 +445,25 @@ const SPECIAL_COMPONENT_SUFFIXES = new Set([
     'CLOSE', 'HASCHILD_OVERLAY', 'HASSUB',
 ]);
 
+/* Native IF/CC setters address the whole mounted UITree. A cache script may
+ * legitimately name a component from a companion group (bank search drives
+ * meslayer/chatbox 162 and 163) which is not part of cs2dom's selected React
+ * root. Once native's lazy group load has been attempted, an absent node makes
+ * these operations a no-op; it does not abort the running script. Keep this
+ * list at the HOST-request seam so the public mutate() API remains strict about
+ * stale React refs. */
+const MISSING_COMPONENT_NOOP_SUFFIXES = new Set([
+    'SETHTTPSPRITE', 'SETOP', 'SETOBJECT', 'SETOBJECT_NONUM',
+    'SETOBJECT_ALWAYS_NUM', 'SETNPCHEAD', 'SETPLAYERHEAD_SELF',
+    'SETPLAYERMODEL_SELF', 'SETMODEL_PLAYERCHATHEAD', 'SETLOCMODEL',
+    'SETNPCMODEL', 'SETDRAGGABLE', 'SETDRAGGABLEBEHAVIOR',
+    'SETDRAGDEADZONE', 'SETDRAGDEADTIME', 'SETOPBASE', 'CLEAROPS',
+    'SETOPSUBMENU', 'CLEAROPSUBMENU', 'SETTARGETPRIORITY',
+    'SETCOMPONENTPARAM', 'SETPARAM', 'SETOPKEY', 'SETOPTKEY',
+    'SETOPKEYRATE', 'SETOPTKEYRATE', 'SETOPKEYIGNOREHELD',
+    'SETOPTKEYIGNOREHELD',
+]);
+
 /* This is the C ABI surface, not the larger opcode vocabulary. Arithmetic,
  * branching, string operations, and other VM-internal commands never cross
  * the HOST seam and must not dilute its coverage numbers. */
@@ -516,18 +607,45 @@ export class HostRuntime {
         this.operationDepth = 0;
         this.dispatchDepth = 0;
         this.invocations = 0;
+        this.recordChanges = options.recordChanges !== false;
+        this.fastTouchCount = null;
+        this.fastDeletedComponents = null;
         this.changeLog = [];
+        this.changeLogHead = 0;
+        this.structureRevision = 0;
         this.meta = new WeakMap();
         this.byKey = new Map();
         this.byName = new Map();
         this.byFileId = new Map();
         this.byUid = new Map();
+        /* CC_FIND is one of the hottest bank redraw operations. Keep the
+         * native parent/sub-id identity indexed instead of rediscovering it by
+         * scanning the complete mounted interface for every lookup. */
+        this.dynamicChildren = new WeakMap();
         this.active = null;
         this.dotActive = null;
         this.childIteration = { parent: null, refs: [], index: 0 };
         this.layoutVersion = -1;
         this.layoutCache = [];
         this.boxByComponent = new WeakMap();
+        /* Target-only layout helpers walk the complete ancestor chain. CS2
+         * frequently asks the same component width/height dozens of times in
+         * one unmodified hook, so retain those pure answers for this HOST
+         * version. `_touch` advances `version` for every state/viewport/tree
+         * mutation; replacing each WeakMap lazily keeps invalidation O(1). */
+        this.targetGeometryVersion = -1;
+        this.targetGeometryCache = new WeakMap();
+        this.targetBoxVersion = -1;
+        this.targetBoxCache = new WeakMap();
+        this.visibilityVersion = -1;
+        this.visibilityCache = new WeakMap();
+        /* A CS2 hook commonly performs thousands of component writes before
+         * returning (bankmain_draw rebuilds every bank slot). Revalidating the
+         * hovered/pressed component after each write forces a full layout for
+         * every mutation and turns that bounded native transaction into an
+         * O(n^2) browser stall. Native UITree interaction is reconciled at the
+         * script/task boundary, so coalesce that work at the outer boundary. */
+        this.interactionVisibilityDirty = false;
         this.interaction = {
             /* RS_CS2Host initializes the live canvas pointer to (-1,-1).
              * MOUSE_GETX/Y are global pointer reads, distinct from the
@@ -581,18 +699,17 @@ export class HostRuntime {
     /** Current paint-order boxes. Each box carries the stable component ref. */
     layout() {
         if( this.layoutVersion === this.version ) return this.layoutCache;
-        const raw = resolveLayout(this.ir, this.state, this.viewport);
-        const byFileId = new Map(this.ir.components.map((component) => [component.fileId, component]));
+        const raw = resolveLayout(
+            this.ir, this.state, this.viewport, null, this.structureRevision);
         this.boxByComponent = new WeakMap();
         this.layoutCache = raw.map((box) => {
-            const component = byFileId.get(box.fileId);
-            const value = {
-                ...box,
-                ref: component ? this.ref(component) : null,
-                presentation: component ? this._presentation(component) : null,
-            };
-            if( component ) this.boxByComponent.set(component, value);
-            return value;
+            /* The live index is already updated by every create/delete. Avoid
+             * rebuilding the same component map after every bank mutation. */
+            const component = this.byFileId.get(box.fileId);
+            box.ref = component ? this.ref(component) : null;
+            box.presentation = component ? this._presentation(component) : null;
+            if( component ) this.boxByComponent.set(component, box);
+            return box;
         });
         this.layoutVersion = this.version;
         return this.layoutCache;
@@ -634,20 +751,26 @@ export class HostRuntime {
         };
     }
 
+    /**
+     * Data needed to repaint the browser preview. The default is detached for
+     * direct callers. A worker that immediately hands the payload to
+     * postMessage may request the read-only layout view and let structured
+     * clone perform the one necessary copy instead of cloning it twice.
+     */
+    renderSnapshot({ detached = true } = {}) {
+        this._retireInvisibleInteraction();
+        return {
+            version: this.version,
+            viewport: { ...this.viewport },
+            boxes: detached ? this.layout().map(cloneBox) : this.layout(),
+        };
+    }
+
     /** Stable identity. Generation fences deletion/recreation of a dynamic slot. */
     ref(value) {
         const component = this._component(value, false);
         if( !component ) return null;
-        const meta = this.meta.get(component);
-        return Object.freeze({
-            key: meta.key,
-            componentId: meta.componentId,
-            fileId: meta.publicFileId,
-            subId: meta.subId,
-            dynamic: meta.dynamic,
-            generation: meta.generation,
-            name: component.name,
-        });
+        return this.meta.get(component).ref;
     }
 
     component(value) {
@@ -711,18 +834,19 @@ export class HostRuntime {
     read(op, value = null, index = null) {
         const name = String(op || '').toLowerCase().replace(/^cc_/, 'if_');
         const component = this._component(value ?? this.active);
-        const box = this._box(component);
         switch( name ) {
-            case 'if_getwidth': return box?.w ?? 0;
-            case 'if_getheight': return box?.h ?? 0;
-            case 'if_getx': return box?.relX ?? 0;
-            case 'if_gety': return box?.relY ?? 0;
+            case 'if_getwidth': return this._geometry(component)?.w ?? 0;
+            case 'if_getheight': return this._geometry(component)?.h ?? 0;
+            case 'if_getx': return this._geometry(component)?.relX ?? 0;
+            case 'if_gety': return this._geometry(component)?.relY ?? 0;
             case 'if_getscrollwidth': return component.type === IF_TYPE.layer
                 ? component.static.scrollWidth ?? 0 : 0;
             case 'if_getscrollheight': return component.type === IF_TYPE.layer
                 ? component.static.scrollHeight ?? 0 : 0;
-            case 'if_getscrollx': return box?.scrollX ?? component.static.scrollX ?? 0;
-            case 'if_getscrolly': return box?.scrollY ?? component.static.scrollY ?? 0;
+            case 'if_getscrollx': return this._geometry(component)?.scrollX ??
+                component.static.scrollX ?? 0;
+            case 'if_getscrolly': return this._geometry(component)?.scrollY ??
+                component.static.scrollY ?? 0;
             case 'if_gethide': return Boolean(component.static.hidden);
             case 'if_gettext': return component.static.text ?? '';
             case 'if_getlayer': return component.layer === null ? -1
@@ -870,18 +994,22 @@ export class HostRuntime {
         if( op === 'if_setscrollpos' ) {
             if( values.length < 2 )
                 throw new HostRuntimeError(`${op} needs 2 values, got ${values.length}`, 'BAD_REQUEST');
-            const box = this._box(component);
-            const maxX = Math.max(0, finiteOptional(component.static.scrollWidth, 0) - (box?.w || 0));
-            const maxY = Math.max(0, finiteOptional(component.static.scrollHeight, 0) - (box?.h || 0));
+            const geometry = this._geometry(component);
+            const maxX = Math.max(0,
+                finiteOptional(component.static.scrollWidth, 0) - (geometry?.w || 0));
+            const maxY = Math.max(0,
+                finiteOptional(component.static.scrollHeight, 0) - (geometry?.h || 0));
             return this._setProps(component, op, ['scrollX', 'scrollY'], [
                 clampInteger(values[0], 0, maxX), clampInteger(values[1], 0, maxY),
             ]);
         }
         if( op === 'if_setscrollsize' ) {
             const changed = this._setProps(component, op, ['scrollWidth', 'scrollHeight'], values);
-            const box = this._box(component);
-            const maxX = Math.max(0, finiteOptional(component.static.scrollWidth, 0) - (box?.w || 0));
-            const maxY = Math.max(0, finiteOptional(component.static.scrollHeight, 0) - (box?.h || 0));
+            const geometry = this._geometry(component);
+            const maxX = Math.max(0,
+                finiteOptional(component.static.scrollWidth, 0) - (geometry?.w || 0));
+            const maxY = Math.max(0,
+                finiteOptional(component.static.scrollHeight, 0) - (geometry?.h || 0));
             const x = clampInteger(component.static.scrollX ?? 0, 0, maxX);
             const y = clampInteger(component.static.scrollY ?? 0, 0, maxY);
             if( x !== component.static.scrollX || y !== component.static.scrollY )
@@ -1002,14 +1130,15 @@ export class HostRuntime {
             const opIndex = boundedInteger('operation index', values[0], 1, 10);
             const subIndex = boundedInteger('submenu index', values[1], 0, 31);
             const text = boundedText('submenu text', values[2] ?? '');
-            component.runtime.submenus[opIndex] ||= {};
-            if( text ) component.runtime.submenus[opIndex][subIndex] = text;
-            else delete component.runtime.submenus[opIndex][subIndex];
+            const submenus = component.runtime.submenus ||= {};
+            submenus[opIndex] ||= {};
+            if( text ) submenus[opIndex][subIndex] = text;
+            else delete submenus[opIndex][subIndex];
             return this._changed('component', component, { op, opIndex, subIndex, text });
         }
         if( op === 'if_clearopsubmenu' ) {
             const opIndex = boundedInteger('operation index', values[0], 1, 10);
-            if( !component.runtime.submenus[opIndex] ) return this.ref(component);
+            if( !component.runtime.submenus?.[opIndex] ) return this.ref(component);
             delete component.runtime.submenus[opIndex];
             return this._changed('component', component, { op, opIndex });
         }
@@ -1024,7 +1153,7 @@ export class HostRuntime {
             const entry = typeof values[1] === 'string'
                 ? { string: boundedText('component parameter', values[1]) }
                 : { value: finiteValue('component parameter', values[1]) };
-            component.runtime.params[paramId] = entry;
+            (component.runtime.params ||= {})[paramId] = entry;
             return this._changed('component', component, { op, paramId, entry });
         }
         if( op === 'if_setopkey' ) {
@@ -1033,17 +1162,19 @@ export class HostRuntime {
             const codes = boundedKeyList('operation key codes', values[2]);
             if( chars.length !== codes.length )
                 throw new HostRuntimeError('operation key arrays must have equal length', 'BAD_REQUEST');
-            component.runtime.opKeys[opIndex] = {
+            const opKeys = component.runtime.opKeys ||= {};
+            opKeys[opIndex] = {
                 pairs: chars.map((character, index) => ({ character, code: codes[index] })),
                 rate: 0, enabled: true, ignoreHeld: false,
             };
             return this._changed('component', component, {
-                op, opIndex, pairs: component.runtime.opKeys[opIndex].pairs,
+                op, opIndex, pairs: opKeys[opIndex].pairs,
             });
         }
         if( op === 'if_setopkeyrate' ) {
             const opIndex = boundedInteger('operation index', values[0], 1, 10);
-            const key = component.runtime.opKeys[opIndex] ||= {
+            const opKeys = component.runtime.opKeys ||= {};
+            const key = opKeys[opIndex] ||= {
                 pairs: [], rate: 0, enabled: true, ignoreHeld: false,
             };
             key.rate = finiteValue('operation key rate', values[1]);
@@ -1054,7 +1185,8 @@ export class HostRuntime {
         }
         if( op === 'if_setopkeyignoreheld' ) {
             const opIndex = boundedInteger('operation index', values[0], 1, 10);
-            const key = component.runtime.opKeys[opIndex] ||= {
+            const opKeys = component.runtime.opKeys ||= {};
+            const key = opKeys[opIndex] ||= {
                 pairs: [], rate: 0, enabled: true, ignoreHeld: false,
             };
             key.ignoreHeld = true;
@@ -1090,7 +1222,8 @@ export class HostRuntime {
         if( values.length < props.length )
             throw new HostRuntimeError(`${op} needs ${props.length} values, got ${values.length}`, 'BAD_REQUEST');
         const wasHidden = op === 'if_sethide' && Boolean(component.static.hidden);
-        const changed = {};
+        const changed = this.recordChanges ? {} : null;
+        const changedProps = [];
         for( let index = 0; index < props.length; index++ ) {
             const prop = props[index];
             let value = values[index];
@@ -1101,15 +1234,255 @@ export class HostRuntime {
             if( component.static[prop] === value ) continue;
             component.static[prop] = value;
             if( component.props ) component.props[prop] = value;
-            /* Runtime component fields are authoritative until a later script
-             * writes them. Do not let the declarative expression re-evaluate
-             * over an imperative HOST setter in preview.layout. */
-            component.dynamic = (component.dynamic || []).filter((binding) => binding.prop !== prop);
-            changed[prop] = value;
+            changedProps.push(prop);
+            if( changed ) changed[prop] = value;
         }
-        if( Object.keys(changed).length === 0 ) return this.ref(component);
-        if( wasHidden && changed.hidden === false ) this.pendingTransmits.widgetsLoaded = true;
-        return this._changed('component', component, { op, props: changed });
+        if( changedProps.length === 0 ) return this.meta.get(component).ref;
+        /* Runtime component fields are authoritative until a later script
+         * writes them. Remove overwritten expressions once per operation;
+         * object setters can change ten fields and used to allocate ten
+         * successively-filtered arrays for one logical native write. */
+        if( component.dynamic?.length ) {
+            const overwritten = new Set(changedProps);
+            component.dynamic = component.dynamic.filter((binding) => !overwritten.has(binding.prop));
+        }
+        if( wasHidden && component.static.hidden === false )
+            this.pendingTransmits.widgetsLoaded = true;
+        return this._fastChangedComponent(component, op, changed);
+    }
+
+    _fastSetPosition(component, x, y, xMode, yMode) {
+        const props = component.static;
+        const cx = props.x !== x;
+        const cy = props.y !== y;
+        const cxMode = props.xMode !== xMode;
+        const cyMode = props.yMode !== yMode;
+        if( !cx && !cy && !cxMode && !cyMode ) return;
+        const changed = this.recordChanges ? {} : null;
+        if( cx ) this._fastAssignProp(component, 'x', x, changed);
+        if( cy ) this._fastAssignProp(component, 'y', y, changed);
+        if( cxMode ) this._fastAssignProp(component, 'xMode', xMode, changed);
+        if( cyMode ) this._fastAssignProp(component, 'yMode', yMode, changed);
+        if( component.dynamic?.length ) component.dynamic = component.dynamic.filter((binding) =>
+            !(cx && binding.prop === 'x') && !(cy && binding.prop === 'y') &&
+            !(cxMode && binding.prop === 'xMode') && !(cyMode && binding.prop === 'yMode'));
+        this._fastChangedComponent(component, 'if_setposition', changed, false);
+    }
+
+    _fastSetSize(component, width, height, widthMode, heightMode) {
+        const props = component.static;
+        const cw = props.width !== width;
+        const ch = props.height !== height;
+        const cwMode = props.widthMode !== widthMode;
+        const chMode = props.heightMode !== heightMode;
+        if( !cw && !ch && !cwMode && !chMode ) return;
+        const changed = this.recordChanges ? {} : null;
+        if( cw ) this._fastAssignProp(component, 'width', width, changed);
+        if( ch ) this._fastAssignProp(component, 'height', height, changed);
+        if( cwMode ) this._fastAssignProp(component, 'widthMode', widthMode, changed);
+        if( chMode ) this._fastAssignProp(component, 'heightMode', heightMode, changed);
+        if( component.dynamic?.length ) component.dynamic = component.dynamic.filter((binding) =>
+            !(cw && binding.prop === 'width') && !(ch && binding.prop === 'height') &&
+            !(cwMode && binding.prop === 'widthMode') &&
+            !(chMode && binding.prop === 'heightMode'));
+        this._fastChangedComponent(component, 'if_setsize', changed, false);
+    }
+
+    _fastSetHidden(component, hidden) {
+        const before = Boolean(component.static.hidden);
+        if( before === hidden ) return;
+        const changed = this.recordChanges ? { hidden } : null;
+        component.static.hidden = hidden;
+        if( component.props ) component.props.hidden = hidden;
+        if( component.dynamic?.length ) component.dynamic = component.dynamic.filter(
+            (binding) => binding.prop !== 'hidden');
+        if( before && !hidden ) this.pendingTransmits.widgetsLoaded = true;
+        this._fastChangedComponent(component, 'if_sethide', changed, false);
+    }
+
+    _fastSetTransparency(component, transparency) {
+        if( component.static.transparency === transparency ) return;
+        const changed = this.recordChanges ? { transparency } : null;
+        component.static.transparency = transparency;
+        if( component.props ) component.props.transparency = transparency;
+        if( component.dynamic?.length ) component.dynamic = component.dynamic.filter(
+            (binding) => binding.prop !== 'transparency');
+        this._fastChangedComponent(component, 'if_settrans', changed, false);
+    }
+
+    _fastSetSimpleProp(component, op, name, value, booleanValue = false) {
+        if( !this._supports(component, op) ) return;
+        if( booleanValue ) value = Boolean(value);
+        else if( name === 'text' || name === 'targetVerb' )
+            value = boundedText(name, value ?? '');
+        if( component.static[name] === value ) return;
+        const changed = this.recordChanges ? { [name]: value } : null;
+        this._fastAssignProp(component, name, value, null);
+        if( component.dynamic?.length ) component.dynamic = component.dynamic.filter(
+            (binding) => binding.prop !== name);
+        this._fastChangedComponent(component, op, changed, false);
+    }
+
+    _fastSetTextAlign(component, halign, valign, lineHeight) {
+        if( !this._supports(component, 'if_settextalign') ) return;
+        const props = component.static;
+        const ch = props.halign !== halign;
+        const cv = props.valign !== valign;
+        const cl = props.lineHeight !== lineHeight;
+        if( !ch && !cv && !cl ) return;
+        const changed = this.recordChanges ? {} : null;
+        if( ch ) this._fastAssignProp(component, 'halign', halign, changed);
+        if( cv ) this._fastAssignProp(component, 'valign', valign, changed);
+        if( cl ) this._fastAssignProp(component, 'lineHeight', lineHeight, changed);
+        if( component.dynamic?.length ) component.dynamic = component.dynamic.filter((binding) =>
+            !(ch && binding.prop === 'halign') && !(cv && binding.prop === 'valign') &&
+            !(cl && binding.prop === 'lineHeight'));
+        this._fastChangedComponent(component, 'if_settextalign', changed, false);
+    }
+
+    _fastSetOp(component, index, rawText) {
+        if( index < 1 || index > 10 ) return;
+        const text = boundedText('operation text', rawText ?? '');
+        component.ops ||= [];
+        const previous = component.ops.find((entry) => entry.index === index)?.text || '';
+        if( previous === text ) return;
+        if( component.ops.length === 0 && text ) component.ops = [{ index, text }];
+        else {
+            component.ops = component.ops.filter((entry) => entry.index !== index);
+            if( text ) component.ops.push({ index, text });
+            component.ops.sort((left, right) => left.index - right.index);
+        }
+        if( this.recordChanges ) this._record({
+            kind: 'component', ref: this.meta.get(component).ref,
+            op: 'if_setop', index, text,
+        });
+        else this._touch();
+    }
+
+    _fastSetOpBase(component, rawText) {
+        const text = boundedText('operation base', rawText ?? '');
+        if( component.runtime.opBase === text ) return;
+        component.runtime.opBase = text;
+        if( this.recordChanges ) this._record({
+            kind: 'component', ref: this.meta.get(component).ref,
+            op: 'if_setopbase', text,
+        });
+        else this._touch();
+    }
+
+    _fastSetObject(component, objectId, count, numberMode) {
+        const renderObjectId = objectId > 0
+            ? resolveCountObject(this.hostData.objects, objectId, count) : -1;
+        const modelKind = objectId > 0 ? 'object' : 'none';
+        let xAngle;
+        let yAngle;
+        let zoom;
+        let xOffset;
+        let yOffset;
+        let camera = false;
+        if( component.type === IF_TYPE.model && objectId > 0 ) {
+            const object = this.hostData.objects[String(renderObjectId)] ||
+                this.hostData.objects[String(objectId)] || null;
+            if( object ) {
+                camera = true;
+                xAngle = finiteOptional(object.xan2d, 0);
+                yAngle = finiteOptional(object.yan2d, 0);
+                zoom = finiteOptional(object.zoom2d, 2000);
+                if( zoom <= 0 ) zoom = 2000;
+                xOffset = 0;
+                yOffset = finiteOptional(object.offsetY2d ?? object.offset_y2d, 0);
+            }
+        }
+        const props = component.static;
+        if( props.objectId === objectId && props.objectCount === count &&
+            props.objectNumMode === numberMode && props.modelKind === modelKind &&
+            props.modelSourceId === renderObjectId && (!camera ||
+                (props.xAngle === xAngle && props.yAngle === yAngle && props.zoom === zoom &&
+                 props.xOffset === xOffset && props.yOffset === yOffset)) )
+            return;
+
+        const changed = this.recordChanges ? {} : null;
+        let changedMask = 0;
+        if( props.objectId !== objectId ) {
+            this._fastAssignProp(component, 'objectId', objectId, changed); changedMask |= 1 << 0;
+        }
+        if( props.objectCount !== count ) {
+            this._fastAssignProp(component, 'objectCount', count, changed); changedMask |= 1 << 1;
+        }
+        if( props.objectNumMode !== numberMode ) {
+            this._fastAssignProp(component, 'objectNumMode', numberMode, changed); changedMask |= 1 << 2;
+        }
+        if( props.modelKind !== modelKind ) {
+            this._fastAssignProp(component, 'modelKind', modelKind, changed); changedMask |= 1 << 3;
+        }
+        if( props.modelSourceId !== renderObjectId ) {
+            this._fastAssignProp(component, 'modelSourceId', renderObjectId, changed);
+            changedMask |= 1 << 4;
+        }
+        if( camera ) {
+            if( props.xAngle !== xAngle ) {
+                this._fastAssignProp(component, 'xAngle', xAngle, changed); changedMask |= 1 << 5;
+            }
+            if( props.yAngle !== yAngle ) {
+                this._fastAssignProp(component, 'yAngle', yAngle, changed); changedMask |= 1 << 6;
+            }
+            if( props.zoom !== zoom ) {
+                this._fastAssignProp(component, 'zoom', zoom, changed); changedMask |= 1 << 7;
+            }
+            if( props.xOffset !== xOffset ) {
+                this._fastAssignProp(component, 'xOffset', xOffset, changed); changedMask |= 1 << 8;
+            }
+            if( props.yOffset !== yOffset ) {
+                this._fastAssignProp(component, 'yOffset', yOffset, changed); changedMask |= 1 << 9;
+            }
+        }
+        if( component.dynamic?.length ) component.dynamic = component.dynamic.filter((binding) =>
+            !fastObjectPropChanged(changedMask, binding.prop));
+        this._fastChangedComponent(component, 'if_setobject', changed, false);
+    }
+
+    _fastAssignProp(component, prop, value, changed) {
+        component.static[prop] = value;
+        if( component.props ) component.props[prop] = value;
+        if( changed ) changed[prop] = value;
+    }
+
+    _fastChangedComponent(component, op, props, returnRef = true) {
+        const ref = this.recordChanges || returnRef ? this.meta.get(component).ref : undefined;
+        if( this.recordChanges ) {
+            this._record({ kind: 'component', ref, op, props });
+            return returnRef ? ref : undefined;
+        }
+        this._touch();
+        return returnRef ? ref : undefined;
+    }
+
+    _fastSetPackedHook(component, descriptor, records, base, arena, arenaView) {
+        component.hooks ||= {};
+        const exact = descriptor.canonical;
+        const aliases = hookAliases(descriptor);
+        let presentCount = 0;
+        let exactPresent = false;
+        for( const alias of aliases ) {
+            if( !Object.prototype.hasOwnProperty.call(component.hooks, alias) ) continue;
+            presentCount++;
+            exactPresent ||= alias === exact;
+        }
+        const installs = records[base + 2] > 0;
+        if( !installs && presentCount === 0 ) return;
+        if( installs && presentCount === 1 && exactPresent && fastHookMatches(
+            component.hooks[exact], records, base, arena, arenaView) )
+            return;
+
+        const binding = installs
+            ? fastHookBinding(records, base, arena, arenaView) : null;
+        for( const alias of aliases ) delete component.hooks[alias];
+        if( binding ) component.hooks[exact] = binding;
+        if( this.recordChanges ) this._record({
+            kind: 'hook', ref: this.meta.get(component).ref,
+            hook: exact, canonical: descriptor.canonical, scriptId: records[base + 2],
+        });
+        else this._touch();
     }
 
     _supports(component, op) {
@@ -1140,11 +1513,36 @@ export class HostRuntime {
 
     _setHook(value, eventName, binding) {
         const component = this._component(value ?? this.active);
-        const descriptor = definition(eventName);
-        const exact = exactHookKey(eventName, descriptor);
+        const descriptor = typeof eventName === 'object' && eventName
+            ? eventName : definition(eventName);
+        const exact = typeof eventName === 'string'
+            ? exactHookKey(eventName, descriptor) : descriptor.canonical;
         component.hooks ||= {};
-        for( const alias of hookAliases(descriptor) ) delete component.hooks[alias];
-        if( binding && scriptId(binding) > 0 ) component.hooks[exact] = normalizeBinding(binding, this);
+        const aliases = hookAliases(descriptor);
+        let presentCount = 0;
+        let exactPresent = false;
+        for( const alias of aliases ) {
+            if( !Object.prototype.hasOwnProperty.call(component.hooks, alias) ) continue;
+            presentCount++;
+            exactPresent ||= alias === exact;
+        }
+        const installs = Boolean(binding && scriptId(binding) > 0);
+        /* bankmain_draw rebinds the same drag listener for every dirty pass.
+         * Once the exact canonical slot already owns an equivalent binding,
+         * there is no tree mutation to version, retain, or repaint. Do still
+         * canonicalise imported aliases and remove duplicate aliases. */
+        if( installs && presentCount === 1 && exactPresent &&
+            hookBindingMatchesInput(component.hooks[exact], binding, this) )
+            return this.ref(component);
+        if( !installs && presentCount === 0 ) return this.ref(component);
+        const normalized = installs ? normalizeBinding(binding, this) : null;
+        /* Component-object hook args normalize to stable refs. The cheap raw
+         * comparison above intentionally falls through for that uncommon
+         * shape; compare once more after normalization before recording. */
+        if( normalized && presentCount === 1 && exactPresent &&
+            hookBindingsEqual(component.hooks[exact], normalized) ) return this.ref(component);
+        for( const alias of aliases ) delete component.hooks[alias];
+        if( normalized ) component.hooks[exact] = normalized;
         return this._changed('hook', component, {
             hook: exact, canonical: descriptor.canonical, scriptId: scriptId(binding),
         });
@@ -1164,22 +1562,31 @@ export class HostRuntime {
         if( existing ) this._delete(existing);
         if( this.dynamicCount >= this.limits.dynamicComponents )
             throw new HostRuntimeError('dynamic component limit reached', 'LIMIT');
-        if( this.ir.components.length >= this.limits.components )
+        const liveComponentCount = this.ir.components.length -
+            (this.fastDeletedComponents?.size || 0);
+        if( liveComponentCount >= this.limits.components )
             throw new HostRuntimeError('component limit reached', 'LIMIT');
         const staticProps = dynamicProps(type, kind);
         const component = {
             fileId: `@host:${this.nextDynamic++}`,
             name: `${parent.name}[${subId}]`,
             kind, type, layer: parent.fileId, subId,
-            props: staticProps, static: staticProps, authoredProps: new Set(), dynamic: [],
-            ops: [], events: {}, hooks: {}, triggers: {}, dependencies: [],
-            scriptBindings: [], rawFields: {}, runtimeDynamic: true,
+            props: staticProps, static: staticProps, authoredProps: EMPTY_AUTHORED_PROPS,
+            dynamic: EMPTY_DYNAMIC_ARRAY, ops: EMPTY_DYNAMIC_ARRAY,
+            events: null, hooks: null, triggers: null,
+            dependencies: EMPTY_DYNAMIC_ARRAY, scriptBindings: EMPTY_DYNAMIC_ARRAY,
+            rawFields: null, runtimeDynamic: true,
             runtime: emptyRuntimeState(),
         };
         this.ir.components.push(component);
+        this.structureRevision++;
         this._indexDynamic(component, parent, subId);
         this.dynamicCount++;
-        const ref = this._changed('create', component, { parent: this.ref(parent), type, subId });
+        const ref = this.meta.get(component).ref;
+        if( this.recordChanges ) this._record({
+            kind: 'create', ref, parent: this.meta.get(parent).ref, type, subId,
+        });
+        else this._touch();
         this.setActive(component, { dot });
         return ref;
     }
@@ -1215,22 +1622,29 @@ export class HostRuntime {
 
     findChild(parentValue, rawSubId, updateActive = true, { dot = false } = {}) {
         const parent = this._component(parentValue);
-        const subId = boundedInteger('child index', rawSubId, 0, 65535);
-        const found = this.ir.components.find((component) => component.layer === parent.fileId &&
-            this.meta.get(component)?.dynamic && this.meta.get(component).subId === subId) || null;
-        if( updateActive ) this.setActive(found, { dot });
-        return found ? this.ref(found) : null;
+        /* The C client treats every signed-int sub-id as a lookup and reports
+         * not-found for values outside the dynamic child band.  Do not turn a
+         * cache script's miss into a JS exception at the HOST boundary. */
+        const subId = finiteValue('child index', rawSubId);
+        const found = this.dynamicChildren.get(parent)?.get(subId) || null;
+        const ref = found ? this.ref(found) : null;
+        /* exec_cc_find only writes the implicit target on success. A miss
+         * pushes false and leaves the prior CC/dot target intact. */
+        if( updateActive && ref ) {
+            if( dot ) this.dotActive = ref;
+            else this.active = ref;
+        }
+        return ref;
     }
 
     /** Dynamic children in canonical ascending sub-id order. */
     children(parentValue, { startIndex = 0 } = {}) {
         const parent = this._component(parentValue);
         const start = boundedInteger('child start index', startIndex, -1, 65535);
-        return this.ir.components
-            .filter((component) => component.layer === parent.fileId &&
-                this.meta.get(component)?.dynamic && this.meta.get(component).subId >= start)
-            .sort((left, right) => this.meta.get(left).subId - this.meta.get(right).subId)
-            .map((component) => this.ref(component));
+        return [...(this.dynamicChildren.get(parent)?.entries() || [])]
+            .filter(([subId]) => subId >= start)
+            .sort(([left], [right]) => left - right)
+            .map(([, component]) => this.ref(component));
     }
 
     delete(value) {
@@ -1247,8 +1661,7 @@ export class HostRuntime {
     deleteAll(parentValue) {
         return this._boundary(() => {
             const parent = this._component(parentValue);
-            const doomed = new Set(this.ir.components.filter((component) =>
-                component.layer === parent.fileId && this.meta.get(component)?.dynamic));
+            const doomed = new Set(this.dynamicChildren.get(parent)?.values() || []);
             return this._deleteSet(doomed);
         });
     }
@@ -1256,18 +1669,32 @@ export class HostRuntime {
     _deleteSet(initial) {
         if( initial.size === 0 ) return [];
         const doomed = new Set(initial);
-        let grew = true;
-        while( grew ) {
-            grew = false;
-            for( const component of this.ir.components ) {
-                const parent = this.byFileId.get(component.layer);
-                if( parent && doomed.has(parent) && !doomed.has(component) ) {
-                    doomed.add(component); grew = true;
-                }
+        const pending = [...initial];
+        while( pending.length ) {
+            const component = pending.pop();
+            for( const child of this.dynamicChildren.get(component)?.values() || [] ) {
+                if( doomed.has(child) ) continue;
+                doomed.add(child);
+                pending.push(child);
             }
         }
         const refs = [...doomed].map((component) => this.ref(component));
-        this.ir.components = this.ir.components.filter((component) => !doomed.has(component));
+        if( this.fastDeletedComponents ) {
+            for( const component of doomed ) this.fastDeletedComponents.add(component);
+        } else this.ir.components = this.ir.components.filter((component) => !doomed.has(component));
+        this.structureRevision++;
+        /* Resolve every parent before removing any file-id entries: a doomed
+         * dynamic parent may precede its doomed descendants in this set. */
+        for( const component of doomed ) {
+            const meta = this.meta.get(component);
+            if( meta?.dynamic ) {
+                const parent = this.byFileId.get(component.layer);
+                const siblings = parent && this.dynamicChildren.get(parent);
+                if( siblings?.get(meta.subId) === component ) siblings.delete(meta.subId);
+                if( siblings?.size === 0 ) this.dynamicChildren.delete(parent);
+            }
+            this.dynamicChildren.delete(component);
+        }
         for( const component of doomed ) {
             const meta = this.meta.get(component);
             this.byKey.delete(meta.key);
@@ -1280,7 +1707,8 @@ export class HostRuntime {
         }
         if( this.active && refs.some((ref) => sameRef(ref, this.active)) ) this.active = null;
         if( this.dotActive && refs.some((ref) => sameRef(ref, this.dotActive)) ) this.dotActive = null;
-        this._record({ kind: 'delete', refs });
+        if( this.recordChanges ) this._record({ kind: 'delete', refs });
+        else this._touch();
         this._retireDeletedInteraction(refs);
         return refs;
     }
@@ -1321,6 +1749,389 @@ export class HostRuntime {
      * Execute one named HOST operation. Requests are ordinary JS records and
      * results are ordinary JS values; component refs preserve dynamic identity.
      */
+    fastHostInventorySnapshot(rawId) {
+        const numericId = finiteValue('inventory id', rawId);
+        /* rs_cs2_inv_get_obj/num return their empty defaults for negative
+         * inventory ids instead of aborting the script.  An empty snapshot
+         * gives the compact C lookup exactly the same result. */
+        if( numericId < 0 || numericId > 0x7fffffff ) return new Int32Array(0);
+        const id = stateId(numericId);
+        const source = this.state[`invslots:${id}`] || {};
+        const rows = [];
+        for( const [rawSlot, entry] of Object.entries(source) ) {
+            const slot = Number(rawSlot);
+            if( !Number.isInteger(slot) || slot < 0 || slot > 0x7fffffff ) continue;
+            const objectId = Number(entry?.id ?? entry?.objectId ?? -1) | 0;
+            rows.push(slot | 0, objectId > 0 ? objectId : -1,
+                objectId > 0 ? Number(entry?.count ?? 0) | 0 : 0);
+        }
+        if( rows.length > 3 ) {
+            const records = [];
+            for( let index = 0; index < rows.length; index += 3 )
+                records.push(rows.slice(index, index + 3));
+            records.sort((left, right) => left[0] - right[0]);
+            return Int32Array.from(records.flat());
+        }
+        return Int32Array.from(rows);
+    }
+
+    fastHostChildrenSnapshot(parentId) {
+        const parent = this._component(parentId, false);
+        if( !parent ) return null;
+        const rows = [...(this.dynamicChildren.get(parent)?.entries() || [])]
+            .sort(([left], [right]) => left - right)
+            .flatMap(([subId, component]) => [subId | 0,
+                this.meta.get(component).componentId | 0]);
+        return Int32Array.from(rows);
+    }
+
+    fastHostValueSnapshot(queryKind, key) {
+        let value;
+        if( queryKind === 3 ) value = this.readState('varp', key);
+        else if( queryKind === 4 ) value = this.readState('varbit', key);
+        else if( queryKind === 5 ) value = this.readState('varc', key);
+        else if( queryKind === 6 ) value = this.clientClock;
+        else throw new HostRuntimeError('unknown fast scalar snapshot query', 'BAD_REQUEST');
+        return Int32Array.of(Number(value) | 0);
+    }
+
+    /** Exact scalar-only companion to the generic reflected HOST surface.
+     * Returning null means the opcode's result is a string and must use the
+     * ordinary polymorphic writer. Numeric results stay JavaScript-owned but
+     * avoid constructing thousands of transient request records. */
+    fastHostIntDataValue(requestKind, a, b, c) {
+        let value;
+        if( requestKind === 6516 ) value = this._structParamValue(a, b);
+        else if( requestKind === 3408 ) value = this._enumValue(a, b, c);
+        else if( requestKind === 3411 ) value = this._enumOutputCountValue(a);
+        else {
+            const read = FAST_INT_GEOMETRY_READS[requestKind];
+            if( !read ) throw new HostRuntimeError(
+                'unknown fast integer data query', 'BAD_REQUEST');
+            const component = this._component(a, false);
+            value = component ? this.read(read, component) : 0;
+        }
+        return typeof value === 'string' ? null : Number(value) | 0;
+    }
+
+    requestFastBatch(requests) {
+        if( !Array.isArray(requests) )
+            throw new HostRuntimeError('fast host batch must be an array', 'BAD_REQUEST');
+        const apply = () => {
+            const createdByToken = new Map();
+            for( const request of requests ) {
+                const kind = request.kind;
+                if( kind === 'CC_CREATE' ) {
+                    const previous = request._fast_previous_temporary
+                        ? createdByToken.get(request._fast_previous_id)
+                        : { id: request._fast_previous_id,
+                            component: this._component(request._fast_previous_id, false) };
+                    if( request._fast_previous_temporary && !previous )
+                        throw new HostRuntimeError(
+                            'fast CC_CREATE references an unknown temporary target', 'BAD_REQUEST');
+                    const parent = this._component(request.parent_id, false);
+                    const result = parent ? this._request(kind, request) : null;
+                    const entry = result
+                        ? { id: result.componentId | 0, component: this._component(result) }
+                        : previous;
+                    /* Internal fallback handshake for C: unlike ordinary
+                     * named requests, the compact create record must return
+                     * its freshly allocated signed component id in-place. */
+                    request.result_component_id = entry.id | 0;
+                    createdByToken.set(request._fast_token, entry);
+                    continue;
+                }
+                if( kind === 'CC_FIND' ) {
+                    const parent = this._component(request.parent_id, false);
+                    /* Native leaves the active target untouched on every miss,
+                     * including an existing parent with no matching child. */
+                    const result = parent
+                        ? this.findChild(parent, request.sub_id, true,
+                            { dot: Boolean(request.dot_operand) })
+                        : null;
+                    const actual = result?.componentId ?? -1;
+                    if( request.expected_component_id !== undefined &&
+                        (actual | 0) !== (request.expected_component_id | 0) )
+                        throw new HostRuntimeError(
+                            'fast CC_FIND snapshot became stale before commit', 'STALE_FAST_SNAPSHOT');
+                    continue;
+                }
+                const component = request._fast_temporary_component
+                    ? createdByToken.get(request.component_id)?.component || null
+                    : this._component(request.component_id, false);
+                if( !component ) continue;
+                if( kind === 'CC_SETPOSITION' || kind === 'IF_SETPOSITION' )
+                    this._mutate('if_setposition', component,
+                    [request.x, request.y, request.xmode, request.ymode]);
+                else if( kind === 'CC_SETSIZE' || kind === 'IF_SETSIZE' )
+                    this._mutate('if_setsize', component,
+                    [request.width, request.height, request.wmode, request.hmode]);
+                else if( kind === 'CC_SETHIDE' || kind === 'IF_SETHIDE' )
+                    this._mutate('if_sethide', component, [request.hidden]);
+                else if( kind === 'CC_SETTRANS' || kind === 'IF_SETTRANS' )
+                    this._mutate('if_settrans', component, [request.trans]);
+                else if( kind === 'CC_SETOBJECT' || kind === 'CC_SETOBJECT_NONUM' ||
+                    kind === 'CC_SETOBJECT_ALWAYS_NUM' ) this._mutate(
+                    'if_setobject', component, [request.obj_id, request.count, request.num_mode]);
+                else if( kind === 'CC_CLEAROPS' || kind === 'IF_CLEAROPS' )
+                    this._mutate('if_clearops', component, []);
+                else if( kind === 'CC_SETONDRAG' || kind === 'CC_SETONDRAGCOMPLETE' )
+                    this._setHook(component,
+                        definition(kind === 'CC_SETONDRAG' ? 'on_drag' : 'on_drag_complete'),
+                        hookFromRequest(request));
+                else if( kind === 'CC_SETONMOUSEOVER' || kind === 'CC_SETONMOUSELEAVE' ||
+                    kind === 'CC_SETONMOUSEREPEAT' || kind === 'CC_SETONOP' ) this._setHook(component,
+                    definition(kind === 'CC_SETONMOUSEOVER' ? 'on_mouse_over'
+                        : kind === 'CC_SETONMOUSELEAVE' ? 'on_mouse_leave'
+                            : kind === 'CC_SETONMOUSEREPEAT' ? 'on_mouse_repeat' : 'on_op'),
+                    hookFromRequest(request));
+                else if( kind === 'IF_SETONMOUSEOVER' || kind === 'IF_SETONMOUSELEAVE' ||
+                    kind === 'IF_SETONOP' ) this._setHook(component,
+                    definition(kind === 'IF_SETONMOUSEOVER' ? 'on_mouse_over'
+                        : kind === 'IF_SETONMOUSELEAVE' ? 'on_mouse_leave' : 'on_op'),
+                    hookFromRequest(request));
+                else if( kind === 'CC_SETCOLOUR' ) this._mutate(
+                    'if_setcolour', component, [request.colour]);
+                else if( kind === 'CC_SETFILL' ) this._mutate(
+                    'if_setfill', component, [request.filled]);
+                else if( kind === 'CC_SETGRAPHIC' ) this._mutate(
+                    'if_setgraphic', component, [request.graphic_id]);
+                else if( kind === 'CC_SETTEXT' ) this._mutate(
+                    'if_settext', component, [request.text]);
+                else if( kind === 'CC_SETTEXTFONT' ) this._mutate(
+                    'if_settextfont', component, [request.font_id]);
+                else if( kind === 'CC_SETTEXTALIGN' ) this._mutate(
+                    'if_settextalign', component,
+                    [request.x_align, request.y_align, request.line_height]);
+                else if( kind === 'CC_SETTEXTSHADOW' ) this._mutate(
+                    'if_settextshadow', component, [request.shadowed]);
+                else if( kind === 'CC_SETOP' ) this._mutate(
+                    'if_setop', component, [request.index, request.text]);
+                else if( kind === 'CC_SETOPBASE' ) this._mutate(
+                    'if_setopbase', component, [request.text]);
+                else if( kind === 'CC_SETDRAGGABLEBEHAVIOR' ) this._mutate(
+                    'if_setdraggablebehavior', component, [request.behavior]);
+                else if( kind === 'CC_SETDRAGDEADZONE' ) this._mutate(
+                    'if_setdragdeadzone', component, [request.zone]);
+                else if( kind === 'CC_SETDRAGDEADTIME' ) this._mutate(
+                    'if_setdragdeadtime', component, [request.time]);
+                else throw new HostRuntimeError(
+                    `unsupported fast host request ${kind}`, 'UNSUPPORTED');
+            }
+            return null;
+        };
+        return this.operationDepth > 0 ? apply() : this._boundary(apply);
+    }
+
+    /**
+     * Commit the compact C/WASM transaction directly from its live heap view.
+     * `records` and `arena` are borrowed for this synchronous call only. Named
+     * request replay above remains the portable/public fallback and defines the
+     * observable ordering, versioning and missing-component semantics.
+     */
+    requestFastPackedBatch(records, recordCount, arena) {
+        if( !(records instanceof Int32Array) || !(arena instanceof Uint8Array) ||
+            !Number.isInteger(recordCount) || recordCount < 0 || recordCount > 65536 ||
+            records.length < recordCount * FAST_HOST_RECORD_WORDS )
+            throw new HostRuntimeError('malformed packed fast host batch', 'BAD_REQUEST');
+        const arenaView = new DataView(arena.buffer, arena.byteOffset, arena.byteLength);
+        const apply = () => {
+            const deferTouches = !this.recordChanges && this.fastTouchCount === null;
+            if( deferTouches ) this.fastTouchCount = 0;
+            const ownsFastDeletes = this.fastDeletedComponents === null;
+            if( ownsFastDeletes ) this.fastDeletedComponents = new Set();
+            /* A bank cell emits CC_FIND followed by several setters for that
+             * exact child. Packed transactions cannot create/delete nodes, so
+             * retain those resolutions for the lifetime of this borrowed view. */
+            const byUid = this.byUid;
+            const dynamicChildren = this.dynamicChildren;
+            const meta = this.meta;
+            const createdByToken = new Map();
+            let cachedComponentId = NaN;
+            let cachedComponentTemporary = false;
+            let cachedComponent = null;
+            let cachedParentId = NaN;
+            let cachedParent = null;
+            let cachedParentChildren = null;
+            try { for( let index = 0; index < recordCount; index++ ) {
+                const base = index * FAST_HOST_RECORD_WORDS;
+                const kind = records[base];
+                if( kind === FAST_HOST_KINDS.CC_FIND ) {
+                    const rawParentId = records[base + 1];
+                    let parent;
+                    if( rawParentId === cachedParentId ) parent = cachedParent;
+                    else {
+                        parent = byUid.get(rawParentId) ||
+                            (rawParentId < -1 ? byUid.get(rawParentId >>> 0) : null) || null;
+                        cachedParentId = rawParentId;
+                        cachedParent = parent;
+                        cachedParentChildren = parent ? dynamicChildren.get(parent) || null : null;
+                    }
+                    let actual = -1;
+                    if( parent ) {
+                        const child = cachedParentChildren?.get(records[base + 2]) || null;
+                        const ref = child ? meta.get(child).ref : null;
+                        if( ref ) {
+                            if( records[base + 3] ) this.dotActive = ref;
+                            else this.active = ref;
+                            actual = ref.componentId | 0;
+                            cachedComponentId = actual;
+                            cachedComponent = child;
+                        }
+                    }
+                    if( actual !== records[base + 4] ) throw new HostRuntimeError(
+                        'fast CC_FIND snapshot became stale before commit',
+                        'STALE_FAST_SNAPSHOT');
+                    continue;
+                }
+
+                if( kind === FAST_HOST_KINDS.CC_CREATE ) {
+                    const rawParentId = records[base + 1];
+                    const parent = byUid.get(rawParentId) ||
+                        (rawParentId < -1 ? byUid.get(rawParentId >>> 0) : null) || null;
+                    const previousId = records[base + 8];
+                    const previous = records[base + 9]
+                        ? createdByToken.get(previousId)
+                        : { id: previousId, component: byUid.get(previousId) ||
+                            (previousId < -1 ? byUid.get(previousId >>> 0) : null) || null };
+                    if( records[base + 9] && !previous ) throw new HostRuntimeError(
+                        'packed CC_CREATE references an unknown temporary target', 'BAD_REQUEST');
+                    if( !parent ) {
+                        records[base + 6] = previous.id | 0;
+                        createdByToken.set(records[base + 7], previous);
+                        continue;
+                    }
+                    const ref = this._createChild(
+                        parent, records[base + 2], records[base + 3],
+                        { dot: Boolean(records[base + 5]) });
+                    const child = this._component(ref);
+                    const actual = ref.componentId | 0;
+                    records[base + 6] = actual;
+                    createdByToken.set(records[base + 7], { id: actual, component: child });
+                    cachedComponentId = actual;
+                    cachedComponentTemporary = false;
+                    cachedComponent = child;
+                    cachedParentId = rawParentId;
+                    cachedParent = parent;
+                    cachedParentChildren = dynamicChildren.get(parent) || null;
+                    continue;
+                }
+
+                const rawComponentId = records[base + 1];
+                const temporaryComponent = Boolean(records[base + 11]);
+                let component;
+                if( rawComponentId === cachedComponentId &&
+                    temporaryComponent === cachedComponentTemporary ) component = cachedComponent;
+                else if( temporaryComponent ) {
+                    const created = createdByToken.get(rawComponentId);
+                    if( !created ) throw new HostRuntimeError(
+                        'packed setter references an unknown temporary target', 'BAD_REQUEST');
+                    component = created.component;
+                    cachedComponentId = rawComponentId;
+                    cachedComponentTemporary = true;
+                    cachedComponent = component;
+                }
+                else {
+                    component = byUid.get(rawComponentId) ||
+                        (rawComponentId < -1 ? byUid.get(rawComponentId >>> 0) : null) || null;
+                    cachedComponentId = rawComponentId;
+                    cachedComponentTemporary = false;
+                    cachedComponent = component;
+                }
+                if( !component ) continue;
+                if( kind === FAST_HOST_KINDS.CC_SETPOSITION ||
+                    kind === FAST_HOST_KINDS.IF_SETPOSITION ) this._fastSetPosition(
+                    component, records[base + 2], records[base + 3],
+                    records[base + 4], records[base + 5]);
+                else if( kind === FAST_HOST_KINDS.CC_SETSIZE ||
+                    kind === FAST_HOST_KINDS.IF_SETSIZE ) this._fastSetSize(
+                    component, records[base + 2], records[base + 3],
+                    records[base + 4], records[base + 5]);
+                else if( kind === FAST_HOST_KINDS.CC_SETHIDE ||
+                    kind === FAST_HOST_KINDS.IF_SETHIDE ) this._fastSetHidden(
+                    component, Boolean(records[base + 2]));
+                else if( kind === FAST_HOST_KINDS.CC_SETTRANS ||
+                    kind === FAST_HOST_KINDS.IF_SETTRANS ) this._fastSetTransparency(
+                    component, records[base + 2]);
+                else if( kind === FAST_HOST_KINDS.CC_SETCOLOUR )
+                    this._fastSetSimpleProp(component, 'if_setcolour',
+                        'color', records[base + 2]);
+                else if( kind === FAST_HOST_KINDS.CC_SETFILL )
+                    this._fastSetSimpleProp(component, 'if_setfill',
+                        'fill', records[base + 2], true);
+                else if( kind === FAST_HOST_KINDS.CC_SETGRAPHIC )
+                    this._fastSetSimpleProp(component, 'if_setgraphic',
+                        'sprite', records[base + 2]);
+                else if( kind === FAST_HOST_KINDS.CC_SETTEXT )
+                    this._fastSetSimpleProp(component, 'if_settext', 'text',
+                        fastRecordString(records, base, arena));
+                else if( kind === FAST_HOST_KINDS.CC_SETTEXTFONT )
+                    this._fastSetSimpleProp(component, 'if_settextfont',
+                        'font', records[base + 2]);
+                else if( kind === FAST_HOST_KINDS.CC_SETTEXTALIGN )
+                    this._fastSetTextAlign(component, records[base + 2],
+                        records[base + 3], records[base + 4]);
+                else if( kind === FAST_HOST_KINDS.CC_SETTEXTSHADOW )
+                    this._fastSetSimpleProp(component, 'if_settextshadow',
+                        'shadow', records[base + 2], true);
+                else if( kind === FAST_HOST_KINDS.CC_SETOBJECT ||
+                    kind === FAST_HOST_KINDS.CC_SETOBJECT_NONUM ||
+                    kind === FAST_HOST_KINDS.CC_SETOBJECT_ALWAYS_NUM ) this._fastSetObject(
+                    component, records[base + 2], records[base + 3], records[base + 4]);
+                else if( kind === FAST_HOST_KINDS.CC_CLEAROPS ||
+                    kind === FAST_HOST_KINDS.IF_CLEAROPS ) {
+                    if( component.ops?.length ) {
+                        component.ops = [];
+                        if( this.recordChanges ) this._record({
+                            kind: 'component', ref: meta.get(component).ref, op: 'if_clearops',
+                        });
+                        else this._touch();
+                    }
+                } else if( kind === FAST_HOST_KINDS.CC_SETONDRAG ||
+                    kind === FAST_HOST_KINDS.CC_SETONDRAGCOMPLETE ||
+                    kind === FAST_HOST_KINDS.CC_SETONMOUSEOVER ||
+                    kind === FAST_HOST_KINDS.CC_SETONMOUSELEAVE ||
+                    kind === FAST_HOST_KINDS.CC_SETONOP ||
+                    kind === FAST_HOST_KINDS.CC_SETONMOUSEREPEAT ||
+                    kind === FAST_HOST_KINDS.IF_SETONMOUSEOVER ||
+                    kind === FAST_HOST_KINDS.IF_SETONMOUSELEAVE ||
+                    kind === FAST_HOST_KINDS.IF_SETONOP ) {
+                    this._fastSetPackedHook(component, FAST_HOST_HOOK_DEFINITIONS[kind],
+                        records, base, arena, arenaView);
+                } else if( kind === FAST_HOST_KINDS.CC_SETOP ) this._fastSetOp(
+                    component, records[base + 2], fastRecordString(records, base, arena));
+                else if( kind === FAST_HOST_KINDS.CC_SETOPBASE ) this._fastSetOpBase(
+                    component, fastRecordString(records, base, arena));
+                else if( kind === FAST_HOST_KINDS.CC_SETDRAGGABLEBEHAVIOR ) this._mutate(
+                    'if_setdraggablebehavior', component, [records[base + 2]]);
+                else if( kind === FAST_HOST_KINDS.CC_SETDRAGDEADZONE ) this._mutate(
+                    'if_setdragdeadzone', component, [records[base + 2]]);
+                else if( kind === FAST_HOST_KINDS.CC_SETDRAGDEADTIME ) this._mutate(
+                    'if_setdragdeadtime', component, [records[base + 2]]);
+                else throw new HostRuntimeError(
+                    `unsupported packed fast host record ${kind}`, 'UNSUPPORTED');
+            } } finally {
+                if( ownsFastDeletes ) {
+                    const deleted = this.fastDeletedComponents;
+                    this.fastDeletedComponents = null;
+                    if( deleted.size ) this.ir.components = this.ir.components.filter(
+                        (component) => !deleted.has(component));
+                }
+                if( deferTouches ) {
+                    const touches = this.fastTouchCount;
+                    this.fastTouchCount = null;
+                    if( touches ) {
+                        this.version += touches;
+                        this.layoutVersion = -1;
+                        this.interactionVisibilityDirty = true;
+                    }
+                }
+            }
+            return null;
+        };
+        return this.operationDepth > 0 ? apply() : this._boundary(apply);
+    }
+
     request(kindOrRequest, payload = {}) {
         const supplied = typeof kindOrRequest === 'object' && kindOrRequest
             ? kindOrRequest : { ...payload, kind: kindOrRequest };
@@ -1328,18 +2139,28 @@ export class HostRuntime {
             throw new HostRuntimeError('host request must be an object', 'BAD_REQUEST');
         if( supplied.fields !== undefined )
             throw new HostRuntimeError('host request fields must be top-level', 'BAD_REQUEST');
-        const request = { ...supplied };
+        /* HOST request handlers are read-only. Avoid cloning every reflected
+         * WASM record: bank redraws cross this seam more than 20,000 times in
+         * one synchronous tick. */
+        const request = supplied;
         const kind = normalizeRequestKind(request.kind);
-        if( !supportsHostRequest(kind) ) throw new HostRuntimeError(
-            COMMAND_NAMES.has(kind)
-                ? `${kind} is explicitly unsupported by the UITree/HOST runtime`
-                : `unknown host request ${kind}`,
-            'UNSUPPORTED');
+        if( !VALIDATED_HOST_REQUEST_KINDS.has(kind) ) {
+            if( !supportsHostRequest(kind) ) throw new HostRuntimeError(
+                COMMAND_NAMES.has(kind)
+                    ? `${kind} is explicitly unsupported by the UITree/HOST runtime`
+                    : `unknown host request ${kind}`,
+                'UNSUPPORTED');
+            VALIDATED_HOST_REQUEST_KINDS.add(kind);
+        }
+        /* Reflected HOST calls run inside the enclosing hook/dispatch boundary.
+         * Another closure and nested try/finally for each of bankmain's 20K+
+         * calls cannot drain or reconcile anything, because only the outermost
+         * boundary owns that work. */
+        if( this.operationDepth > 0 ) return this._request(kind, request);
         return this._boundary(() => this._request(kind, request));
     }
 
     _request(kind, request) {
-        request._kind = kind;
         if( STATE_READ_REQUEST[kind] )
             return this.readState(STATE_READ_REQUEST[kind], requestField(request,
                 'id', 'varp', 'varbit', 'varc', 'stat', 'varp_id', 'varbit_id', 'varc_id',
@@ -1501,15 +2322,28 @@ export class HostRuntime {
         if( kind.startsWith('MEC_') ) return this._mapElementRead(kind, request);
         if( kind.startsWith('OC_') ) return this._objectRead(kind, request);
         if( kind === 'INV_GETOBJ' || kind === 'INV_GETNUM' ) {
-            const invId = stateId(requestField(request, 'inv_id', 'inventory_id'));
-            const slot = boundedInteger('inventory slot', requestField(request, 'slot'), 0, 65535);
+            const rawInvId = finiteValue('inventory id',
+                requestField(request, 'inv_id', 'inventory_id'));
+            const slot = finiteValue('inventory slot', requestField(request, 'slot'));
+            /* InvManager_GetObj/GetNum accept signed ints. Negative inputs and
+             * values outside that C domain are ordinary empty reads. Positive
+             * out-of-container slots likewise miss instead of trapping. */
+            if( rawInvId < 0 || rawInvId > 0x7fffffff ||
+                slot < 0 || slot > 0x7fffffff ) return kind === 'INV_GETOBJ' ? -1 : 0;
+            const invId = stateId(rawInvId);
             const entry = this.state[`invslots:${invId}`]?.[slot];
-            if( kind === 'INV_GETOBJ' ) return Number(entry?.id ?? entry?.objectId ?? -1);
-            return Number(entry?.count ?? 0);
+            const objectId = Number(entry?.id ?? entry?.objectId ?? -1);
+            if( kind === 'INV_GETOBJ' ) return objectId > 0 ? objectId : -1;
+            return objectId > 0 ? Number(entry?.count ?? 0) : 0;
         }
 
         if( kind === 'CC_CREATE' || kind === 'CC_CREATECHILD' || kind === 'CC_CREATESIBLING' ) {
-            let parent = this._component(targetOf(request, this, 'parent_id'));
+            let parent = this._component(targetOf(request, this, kind, 'parent_id'), false);
+            /* exec_cc_create returns OK and leaves the implicit CC target alone
+             * when a directly named parent remains absent after group loading. */
+            if( !parent && kind !== 'CC_CREATESIBLING' ) return null;
+            if( !parent ) throw new HostRuntimeError(
+                'component reference is missing or stale', 'STALE_REF');
             if( kind === 'CC_CREATESIBLING' || request.parentIsSibling || request.parent_is_sibling ) {
                 parent = this.byFileId.get(parent.layer) || null;
                 if( !parent ) throw new HostRuntimeError('sibling has no parent', 'BAD_REQUEST');
@@ -1519,24 +2353,35 @@ export class HostRuntime {
                 requestField(request, 'child_index', 'childIndex', 'sub_id', 'subId'),
                 { dot: Boolean(request.dot_operand ?? request.dotOperand) });
         }
-        if( kind === 'CC_FIND' ) return this.findChild(targetOf(request, this, 'parent_id'),
-            requestField(request, 'sub_id', 'subId', 'child_index', 'childIndex'), true,
-            { dot: Boolean(request.dot_operand ?? request.dotOperand) });
+        if( kind === 'CC_FIND' ) {
+            const parent = this._component(targetOf(request, this, kind, 'parent_id'), false);
+            if( !parent ) return null;
+            return this.findChild(parent,
+                requestField(request, 'sub_id', 'subId', 'child_index', 'childIndex'), true,
+                { dot: Boolean(request.dot_operand ?? request.dotOperand) });
+        }
         if( kind === 'IF_FIND' ) {
-            const found = this._component(targetOf(request, this), false);
+            const found = this._component(targetOf(request, this, kind), false);
             this.setActive(found, { dot: Boolean(request.dot_operand ?? request.dotOperand) });
             return found ? this.ref(found) : null;
         }
         if( kind === 'CC_COPY' ) return this._copyChild(
-            targetOf(request, this, 'parent_id'),
+            targetOf(request, this, kind, 'parent_id'),
             requestField(request, 'src_sub_id', 'srcSubId'),
             requestField(request, 'dst_sub_id', 'dstSubId'),
             { dot: Boolean(request.dot_operand ?? request.dotOperand) });
-        if( kind === 'CC_DELETE' ) return this._delete(targetOf(request, this));
-        if( kind === 'CC_DELETEALL' ) return this.deleteAll(targetOf(request, this));
+        if( kind === 'CC_DELETE' ) {
+            const component = this._component(targetOf(request, this, kind), false);
+            return component ? this._delete(component) : [];
+        }
+        if( kind === 'CC_DELETEALL' ) {
+            const parent = this._component(targetOf(request, this, kind), false);
+            return parent ? this.deleteAll(parent) : [];
+        }
         if( kind === 'IF_CHILDREN_FIND' || kind === 'IF_CHILDREN_COLLECT' ||
             kind === 'CC_CHILDREN_FIND_COUNT' ) {
-            const parent = targetOf(request, this, kind.startsWith('IF_') ? 'uid' : 'parent_id');
+            const parent = targetOf(request, this, kind,
+                kind.startsWith('IF_') ? 'uid' : 'parent_id');
             const refs = this.children(parent, {
                 startIndex: request.startIndex ?? request.start_index ?? 0,
             });
@@ -1547,7 +2392,7 @@ export class HostRuntime {
         }
         if( kind === 'CC_CHILDREN_FINDNEXT' ) {
             if( request.subId !== undefined || request.sub_id !== undefined )
-                return this.findChild(targetOf(request, this, 'parent_id'),
+                return this.findChild(targetOf(request, this, kind, 'parent_id'),
                     request.subId ?? request.sub_id, true,
                     { dot: Boolean(request.dotOperand ?? request.dot_operand) });
             const ref = this.childIteration.refs[this.childIteration.index++] || null;
@@ -1560,7 +2405,7 @@ export class HostRuntime {
             return ref ? ref.subId : -1;
         }
         if( kind === 'CC_PARENTID' ) {
-            const component = this._component(targetOf(request, this));
+            const component = this._component(targetOf(request, this, kind));
             const parent = this.byFileId.get(component.layer) || null;
             return parent ? this.ref(parent) : null;
         }
@@ -1569,7 +2414,8 @@ export class HostRuntime {
         const prefix = /^(CC|IF)_(.+)$/.exec(kind);
         if( !prefix ) throw new HostRuntimeError(`unsupported host request ${kind}`, 'UNSUPPORTED');
         const suffix = prefix[2];
-        const target = targetOf(request, this);
+        const target = targetOf(request, this, kind);
+        const targetComponent = this._component(target, false);
         if( suffix === 'ASSERT' || suffix === 'OP1309' || suffix === 'OP2309' )
             return null;
         if( suffix === 'CRMVIEW_DISMISS' ) {
@@ -1607,47 +2453,50 @@ export class HostRuntime {
             request.pickupY ?? request.pickup_y ?? request.values?.[1] ?? request.args?.[1]);
         if( suffix === 'FIND_PARAM' ) return this._findParam(request);
         if( suffix === 'GETPARAM' ) return this._structParam(request);
-        if( suffix === 'SETHTTPSPRITE' ) return this._mutate('if_sethttpsprite', target,
+        if( !targetComponent && missingComponentNoop(suffix) ) return null;
+        if( suffix === 'SETHTTPSPRITE' ) return this._mutate('if_sethttpsprite', targetComponent,
             [request.url ?? request.text ?? request.values?.[0] ?? request.args?.[0] ?? '']);
         if( INPUT_GETTERS[suffix] ) {
-            const input = this._component(target).runtime.input || cloneInputState({});
+            if( !targetComponent ) return INPUT_GETTERS[suffix] === 'focused' ? false : 0;
+            const input = targetComponent.runtime.input || cloneInputState({});
             return INPUT_GETTERS[suffix] === 'focused'
                 ? Boolean(input.focused) : input[INPUT_GETTERS[suffix]];
         }
         if( INPUT_SETTERS[suffix] ) return this._setInputField(
-            this._component(target), INPUT_SETTERS[suffix], requestField(request, 'value'));
+            targetComponent, INPUT_SETTERS[suffix], requestField(request, 'value'));
         if( suffix === 'GETCOMPONENTPARAM' ) {
-            const component = this._component(target);
             const paramId = stateId(requestField(request, 'paramId', 'param_id'));
-            const entry = component.runtime.params[paramId];
+            const entry = targetComponent?.runtime.params?.[paramId];
             if( entry && Object.hasOwn(entry, 'value') ) return entry.value;
             if( prefix[1] === 'IF' ) return finiteValue('component parameter default',
                 request.value ?? request.defaultValue ?? 0);
             return finiteValue('component parameter default', this.paramDefault(paramId, this) ?? 0);
         }
-        if( REQUEST_GETTERS[suffix] )
-            return this.read(REQUEST_GETTERS[suffix], target,
+        if( REQUEST_GETTERS[suffix] ) {
+            if( !targetComponent ) return missingComponentGetter(suffix);
+            return this.read(REQUEST_GETTERS[suffix], targetComponent,
                 suffix === 'GETOP' ? requestField(request, 'index', 'op_index', 'opIndex') : null);
-        if( suffix === 'SETOP' ) return this._mutate('if_setop', target,
+        }
+        if( suffix === 'SETOP' ) return this._mutate('if_setop', targetComponent,
             [requestField(request, 'index', 'op_index'), requestField(request, 'text')]);
         if( suffix === 'SETOBJECT' || suffix === 'SETOBJECT_NONUM' || suffix === 'SETOBJECT_ALWAYS_NUM' )
-            return this._mutate('if_setobject', target, [
+            return this._mutate('if_setobject', targetComponent, [
                 request.obj_id ?? request.objectId,
                 request.count ?? 0,
                 request.num_mode ?? request.numberMode ??
                     (suffix === 'SETOBJECT_ALWAYS_NUM' ? 1 : suffix === 'SETOBJECT_NONUM' ? 2 : 0),
             ]);
-        if( suffix === 'SETNPCHEAD' ) return this._mutate('if_setmodelsource', target,
+        if( suffix === 'SETNPCHEAD' ) return this._mutate('if_setmodelsource', targetComponent,
             ['npcHead', requestField(request, 'modelId', 'model_id', 'npcId', 'npc_id')]);
-        if( suffix === 'SETPLAYERHEAD_SELF' ) return this._mutate('if_setmodelsource', target,
+        if( suffix === 'SETPLAYERHEAD_SELF' ) return this._mutate('if_setmodelsource', targetComponent,
             ['playerHead', -1]);
-        if( suffix === 'SETPLAYERMODEL_SELF' ) return this._mutate('if_setmodelsource', target,
+        if( suffix === 'SETPLAYERMODEL_SELF' ) return this._mutate('if_setmodelsource', targetComponent,
             ['playerSelf', -1]);
-        if( suffix === 'SETMODEL_PLAYERCHATHEAD' ) return this._mutate('if_setmodelsource', target,
+        if( suffix === 'SETMODEL_PLAYERCHATHEAD' ) return this._mutate('if_setmodelsource', targetComponent,
             ['playerChatHead', -1]);
-        if( suffix === 'SETLOCMODEL' ) return this._mutate('if_setmodelsource', target,
+        if( suffix === 'SETLOCMODEL' ) return this._mutate('if_setmodelsource', targetComponent,
             ['locModel', requestField(request, 'locId', 'loc_id', 'modelId', 'model_id', 'id', 'value')]);
-        if( suffix === 'SETNPCMODEL' ) return this._mutate('if_setmodelsource', target,
+        if( suffix === 'SETNPCMODEL' ) return this._mutate('if_setmodelsource', targetComponent,
             ['npcModel', requestField(request, 'npcId', 'npc_id', 'modelId', 'model_id', 'id', 'value')]);
         if( suffix === 'SETDRAGGABLE' ) {
             let dragParent = request.dragParent ?? request.parent ?? request.ref_parent ??
@@ -1664,50 +2513,55 @@ export class HostRuntime {
             if( dragParent !== null && dragParent !== undefined &&
                 childIndex >= 0 && childIndex <= 0xffff )
                 dragParent = this.findChild(dragParent, childIndex, false) || dragParent;
-            return this._mutate('if_setdraggable', target, [true, dragParent]);
+            return this._mutate('if_setdraggable', targetComponent, [true, dragParent]);
         }
-        if( suffix === 'SETDRAGDEADZONE' ) return this._mutate('if_setdragdeadzone', target,
+        if( suffix === 'SETDRAGDEADZONE' ) return this._mutate('if_setdragdeadzone', targetComponent,
             [requestField(request, 'zone', 'value')]);
-        if( suffix === 'SETDRAGDEADTIME' ) return this._mutate('if_setdragdeadtime', target,
+        if( suffix === 'SETDRAGDEADTIME' ) return this._mutate('if_setdragdeadtime', targetComponent,
             [requestField(request, 'time', 'value')]);
-        if( suffix === 'SETDRAGGABLEBEHAVIOR' ) return this._mutate('if_setdraggablebehavior', target,
+        if( suffix === 'SETDRAGGABLEBEHAVIOR' ) return this._mutate(
+            'if_setdraggablebehavior', targetComponent,
             [request.behavior ?? request.value ?? request.values?.[0] ?? request.args?.[0] ?? 0]);
-        if( suffix === 'SETOPBASE' ) return this._mutate('if_setopbase', target,
+        if( suffix === 'SETOPBASE' ) return this._mutate('if_setopbase', targetComponent,
             [request.text ?? request.values?.[0] ?? request.args?.[0] ?? '']);
-        if( suffix === 'CLEAROPS' ) return this._mutate('if_clearops', target, []);
-        if( suffix === 'SETOPSUBMENU' ) return this._mutate('if_setopsubmenu', target, [
+        if( suffix === 'CLEAROPS' ) return this._mutate('if_clearops', targetComponent, []);
+        if( suffix === 'SETOPSUBMENU' ) return this._mutate('if_setopsubmenu', targetComponent, [
             requestField(request, 'opIndex', 'op_index'),
             requestField(request, 'subIndex', 'sub_index'),
             requestField(request, 'text'),
         ]);
-        if( suffix === 'CLEAROPSUBMENU' ) return this._mutate('if_clearopsubmenu', target,
+        if( suffix === 'CLEAROPSUBMENU' ) return this._mutate('if_clearopsubmenu', targetComponent,
             [requestField(request, 'opIndex', 'op_index')]);
-        if( suffix === 'SETTARGETPRIORITY' ) return this._mutate('if_settargetpriority', target,
+        if( suffix === 'SETTARGETPRIORITY' ) return this._mutate(
+            'if_settargetpriority', targetComponent,
             [requestField(request, 'priority', 'value')]);
         if( suffix === 'SETCOMPONENTPARAM' || suffix === 'SETPARAM' )
-            return this._mutate('if_setcomponentparam', target, [
+            return this._mutate('if_setcomponentparam', targetComponent, [
                 requestField(request, 'paramId', 'param_id'),
                 request.strValue ?? request.str_value ?? request.value,
             ]);
         if( suffix === 'SETOPKEY' || suffix === 'SETOPTKEY' ) {
             const opIndex = suffix === 'SETOPTKEY' ? 10
                 : requestField(request, 'opIndex', 'op_index', 'index');
-            return this._mutate('if_setopkey', target, [
+            return this._mutate('if_setopkey', targetComponent, [
                 opIndex, request.keyChars ?? request.key_chars ?? [],
                 request.keyCodes ?? request.key_codes ?? [],
             ]);
         }
         if( suffix === 'SETOPKEYRATE' || suffix === 'SETOPTKEYRATE' )
-            return this._mutate('if_setopkeyrate', target, [
+            return this._mutate('if_setopkeyrate', targetComponent, [
                 suffix === 'SETOPTKEYRATE' ? 10 : requestField(request, 'opIndex', 'op_index', 'index'),
                 requestField(request, 'rate'), request.enabled ?? true,
             ]);
         if( suffix === 'SETOPKEYIGNOREHELD' || suffix === 'SETOPTKEYIGNOREHELD' )
-            return this._mutate('if_setopkeyignoreheld', target, [
+            return this._mutate('if_setopkeyignoreheld', targetComponent, [
                 suffix === 'SETOPTKEYIGNOREHELD' ? 10
                     : requestField(request, 'opIndex', 'op_index', 'index'),
             ]);
         if( suffix === 'TRIGGEROP' ) return this._queueDeferredComponent('triggerOp', {
+            /* IF_TRIGGEROPLOCAL may deliberately name a companion-group UID
+             * which is not mounted in the selected React tree. Preserve that
+             * exact wire identity; resolving first would collapse it to -1. */
             componentId: this._deferredComponentId(target),
             opIndex: finiteValue('operation index',
                 requestField(request, 'opIndex', 'op_index', 'index')),
@@ -1721,16 +2575,16 @@ export class HostRuntime {
         });
         if( suffix.startsWith('INPUT_SETON') ) {
             const descriptor = definition(`on_${suffix.slice('INPUT_SETON'.length).toLowerCase()}`);
-            return this._setHook(target, descriptor.canonical, hookFromRequest(request));
+            return this._setHook(targetComponent, descriptor, hookFromRequest(request));
         }
         if( suffix.startsWith('SETON') ) {
             const descriptor = definition(setOnEvent(suffix));
-            return this._setHook(target, descriptor.canonical, hookFromRequest(request));
+            return this._setHook(targetComponent, descriptor, hookFromRequest(request));
         }
         const setter = REQUEST_SETTERS[suffix];
         if( !setter ) throw new HostRuntimeError(`unsupported host request ${kind}`, 'UNSUPPORTED');
         const values = requestValues(request, setter[1]);
-        return this._mutate(setter[0], target, values);
+        return this._mutate(setter[0], targetComponent, values);
     }
 
     _overlayAdapterSurface() {
@@ -1800,6 +2654,7 @@ export class HostRuntime {
             runtime: emptyRuntimeState(),
         };
         this.ir.components.push(component);
+        this.structureRevision++;
         this._indexStatic(component);
         this.overlayMount = this.ref(component);
         this._record({ kind: 'overlay-mount', ref: this.overlayMount });
@@ -2076,6 +2931,10 @@ export class HostRuntime {
             (kind === 'ENUM' ? args[3] : args[1]));
         const outputType = kind === 'ENUM_STRING' ? 115
             : finiteValue('enum output type', request.outputType ?? request.output_type ?? args[1]);
+        return this._enumValue(enumId, key, outputType);
+    }
+
+    _enumValue(enumId, key, outputType) {
         const entry = this.hostData.enums[String(enumId)] || null;
 
         /* An unavailable enum is distinct from an available empty enum. The C
@@ -2097,6 +2956,10 @@ export class HostRuntime {
             request.structId ?? request.struct_id ?? args[0] ?? -1);
         const paramId = finiteValue('parameter id',
             request.paramId ?? request.param_id ?? args[1] ?? -1);
+        return this._structParamValue(structId, paramId);
+    }
+
+    _structParamValue(structId, paramId) {
         const param = this.hostData.params[String(paramId)] || null;
         const struct = this.hostData.structs[String(structId)] || null;
         const values = struct?.params || struct?.values || struct || {};
@@ -2243,6 +3106,10 @@ export class HostRuntime {
     _enumOutputCount(request) {
         const args = request.args || request.values || [];
         const enumId = finiteValue('enum id', request.enumId ?? request.enum_id ?? args[0]);
+        return this._enumOutputCountValue(enumId);
+    }
+
+    _enumOutputCountValue(enumId) {
         const entry = this.hostData.enums[String(enumId)] || null;
         return entry ? Object.keys(entry.values || {}).length : 0;
     }
@@ -2392,7 +3259,28 @@ export class HostRuntime {
         this.services.outbound.push(outbound);
         if( this.services.outbound.length > 100 ) this.services.outbound.shift();
         this.onService?.(cloneValue(outbound));
-        this._record({ kind: 'service', service: 'if_button', outbound });
+        /* Publishing an outbound packet changes snapshot/service state, not a
+         * widget field. Keep the already-resolved hit/event geometry valid for
+         * the local hook which native dispatches immediately afterwards. */
+        this._record({ kind: 'service', service: 'if_button', outbound }, { layout: false });
+    }
+
+    _publishArmedButton(component, opIndex, source) {
+        if( !component || opIndex < 1 || opIndex > 10 ) return false;
+        const events = finiteOptional(component.static?.clickMask, 0) >>> 0;
+        if( !(events & (1 << opIndex)) ) return false;
+        const target = this._buttonTarget(component);
+        const service = {
+            kind: 'if_button', source, opIndex,
+            componentId: target.componentId, subId: target.subId,
+        };
+        /* Script-created item cells use the same IF_BUTTON<n> family, but
+         * rev-239's collapsed packet also carries the object id. Plain widget
+         * buttons retain the no-object sentinel by omitting this field. */
+        const objectId = finiteOptional(component.static?.objectId, 0);
+        if( objectId > 0 ) service.objectId = objectId;
+        this._publishButtonService(service);
+        return true;
     }
 
     _drainDeferredComponents(intents) {
@@ -2407,38 +3295,38 @@ export class HostRuntime {
              * task this pass had already queued. */
             const resizes = this.pendingDeferred.callOnResize.splice(0);
             const triggers = this.pendingDeferred.triggerOp.splice(0);
-            const jobs = [];
+            const resizeJobs = [];
+            const triggerJobs = [];
 
             for( const pending of resizes ) {
                 const component = this._component(pending.componentId, false);
                 if( !component ) continue;
                 const job = this._deferredHookJob(component, 'on_resize',
                     baseEvent('trigger', { kind: 'call_on_resize' }));
-                if( job ) jobs.push(job);
+                if( job ) resizeJobs.push(job);
             }
 
             for( const pending of triggers ) {
                 const component = this._component(pending.componentId, false);
                 if( !component ) continue;
                 const opIndex = pending.opIndex;
-                const events = finiteOptional(component.static?.clickMask, 0) >>> 0;
-                if( opIndex >= 1 && opIndex <= 10 && (events & (1 << opIndex)) ) {
-                    const target = this._buttonTarget(component);
-                    const service = {
-                        kind: 'if_button', source: 'cc_triggerop', opIndex,
-                        componentId: target.componentId, subId: target.subId,
-                    };
-                    const objectId = finiteOptional(component.static?.objectId, 0);
-                    if( objectId > 0 ) service.objectId = objectId;
-                    this._publishButtonService(service);
-                }
                 const job = this._deferredHookJob(component, 'on_op',
                     baseEvent('trigger', { kind: 'cc_triggerop', opIndex }), { opIndex });
-                if( job ) jobs.push(job);
+                triggerJobs.push({ component, opIndex, job });
             }
 
-            for( const job of jobs )
+            for( const job of resizeJobs )
                 this._emit(job.component, job.resolved, job.input, job.locals, intents);
+            for( const trigger of triggerJobs ) {
+                /* Native CC_TRIGGEROP dispatches its local on_op before it
+                 * synthesizes IF_BUTTON<n>; direct minimenu clicks use the
+                 * opposite ordering. Keep that distinction observable to a
+                 * JavaScript service adapter. */
+                const job = trigger.job;
+                if( job ) this._emit(job.component, job.resolved, job.input, job.locals, intents);
+                this._publishArmedButton(
+                    trigger.component, trigger.opIndex, 'cc_triggerop');
+            }
         }
     }
 
@@ -2498,6 +3386,10 @@ export class HostRuntime {
                         this.interaction.heldKeys.delete(input.keyTyped);
                         this._key(input, definition('on_key_up'), intents); break;
                     case 'op': this._op(input, intents); break;
+                    case 'menu_close':
+                        this.interaction.menuOpen = false;
+                        this.interaction.menuEntries = [];
+                        break;
                     case 'tick':
                         this._tick(input, intents);
                         this.interaction.pressedKeys.clear();
@@ -2601,6 +3493,10 @@ export class HostRuntime {
         this.interaction.menuOpen = false;
         const component = this._component(input.target);
         if( !this._visible(component) ) return;
+        /* app.c sends an armed numbered IF3 operation before it dispatches
+         * that component's local on_op. A local-only button still runs its
+         * listener; a server-armed button does both in this order. */
+        this._publishArmedButton(component, input.opIndex, 'minimenu');
         const resolved = this._resolveHook(component, definition('on_op'));
         if( resolved ) this._emit(component, resolved, input, { opIndex: input.opIndex }, intents);
     }
@@ -2617,8 +3513,16 @@ export class HostRuntime {
         if( cycleWorldMapState(this.worldMap) )
             this._record({ kind: 'worldmap-cycle', cycle: this.cycle });
         this._pumpTransmits(intents);
-        const hover = this._component(this.interaction.hover, false);
-        if( hover && this._visible(hover) ) this._emitNamed(hover, 'on_mouse_repeat', input, intents);
+        /* app.c runs and settles processWidgetTimers before
+         * UITree_InteractFrame. This ordering is observable in bankmain: its
+         * timer clears the mouseover container and onMouseRepeat rebuilds the
+         * tooltip for the current pointer. Reversing them clears the freshly
+         * rebuilt tooltip again and causes needless dynamic-tree churn. */
+        for( const ref of this._hookTargets(definition('on_timer'), this.limits.keyTargets) ) {
+            const component = this._component(ref, false);
+            if( component && this._visible(component) ) this._emitNamed(component, 'on_timer', input, intents);
+        }
+        /* Within UITree_InteractFrame, held-press hooks precede hover repeat. */
         const pressed = this._component(this.interaction.pressed, false);
         if( pressed && this.interaction.button === 0 ) {
             const synthetic = { ...input, x: this.interaction.x, y: this.interaction.y };
@@ -2636,10 +3540,8 @@ export class HostRuntime {
                 this._emitNamed(pressed, 'on_click_repeat', synthetic, intents);
             }
         }
-        for( const ref of this._hookTargets(definition('on_timer'), this.limits.keyTargets) ) {
-            const component = this._component(ref, false);
-            if( component && this._visible(component) ) this._emitNamed(component, 'on_timer', input, intents);
-        }
+        const hover = this._component(this.interaction.hover, false);
+        if( hover && this._visible(hover) ) this._emitNamed(hover, 'on_mouse_repeat', input, intents);
         this._drainTriggerOpLocals();
     }
 
@@ -2824,7 +3726,24 @@ export class HostRuntime {
 
     _click(leaf, input, intents) {
         const resolved = this._resolveAncestorHook(leaf, definition('on_op'), definition('on_click'));
+        const component = this._defaultButtonComponent(leaf, resolved?.component);
+        /* A pointer may land on decorative content nested inside the actual
+         * button. Native minimenu rows name the ancestor which owns the op;
+         * script-created object cells are the exception and keep their own
+         * object id while _buttonTarget maps them to parent/sub on the wire. */
+        this._publishArmedButton(component, 1, 'pointer');
         if( resolved ) this._emit(resolved.component, resolved.hook, input, { opIndex: 1 }, intents);
+    }
+
+    _defaultButtonComponent(leaf, resolvedComponent = null) {
+        for( let component = leaf; component;
+             component = this.byFileId.get(component.layer) || null )
+            if( finiteOptional(component.static?.objectId, 0) > 0 ) return component;
+        if( resolvedComponent ) return resolvedComponent;
+        for( let component = leaf; component;
+             component = this.byFileId.get(component.layer) || null )
+            if( component.ops?.some((op) => op.index === 1) ) return component;
+        return null;
     }
 
     _emitNamed(component, name, input, intents, locals = {}) {
@@ -2896,15 +3815,25 @@ export class HostRuntime {
         const result = [];
         for( const component of this.ir.components ) {
             if( result.length >= cap ) break;
-            if( !this._visible(component) || !this._resolveHook(component, descriptor) ) continue;
+            /* Hook registries are sparse. Resolve the cheap listener map
+             * before consulting layout visibility; timer scans otherwise do a
+             * cached box lookup for every one of bankmain's 1,700+ item cells. */
+            if( !this._resolveHook(component, descriptor) || !this._visible(component) ) continue;
             result.push(this.ref(component));
         }
         return result;
     }
 
     _visible(component) {
-        const box = this._box(component);
-        return Boolean(box && !box.effectiveHidden);
+        if( this.visibilityVersion !== this.version ) {
+            this.visibilityVersion = this.version;
+            this.visibilityCache = new WeakMap();
+        } else if( this.visibilityCache.has(component) )
+            return this.visibilityCache.get(component);
+        const visible = layoutVisibility(
+            this.ir, this.state, component, null, this.structureRevision);
+        this.visibilityCache.set(component, visible);
+        return visible;
     }
 
     _hit(x, y) {
@@ -2949,32 +3878,81 @@ export class HostRuntime {
     }
 
     changes(afterVersion = 0) {
-        const first = this.changeLog[0]?.version ?? this.version + 1;
+        const length = this.changeLog.length;
+        const first = length
+            ? this.changeLog[this.changeLogHead]?.version : this.version + 1;
+        const changes = [];
+        for( let offset = 0; offset < length; offset++ ) {
+            const change = this.changeLog[(this.changeLogHead + offset) % length];
+            if( change.version > afterVersion ) changes.push(cloneValue(change));
+        }
         return {
             from: afterVersion,
             to: this.version,
             truncated: afterVersion < first - 1,
-            changes: this.changeLog.filter((change) => change.version > afterVersion)
-                .map((change) => cloneValue(change)),
+            changes,
         };
     }
 
     _changed(kind, component, detail) {
         this._record({ kind, ref: this.ref(component), ...detail });
-        this._retireInvisibleInteraction();
         return this.ref(component);
     }
 
-    _record(change) {
+    _record(change, { layout = true } = {}) {
+        this._touch(layout);
+        if( !this.recordChanges ) return;
+        const entry = { version: this.version, ...change };
+        if( this.changeLog.length < this.limits.changes ) this.changeLog.push(entry);
+        else {
+            /* A bank redraw emits hundreds of thousands of changes. Shifting a
+             * full 4K array for each one made retention O(writes * capacity).
+             * Overwrite the oldest slot and advance the chronological head. */
+            this.changeLog[this.changeLogHead] = entry;
+            this.changeLogHead = (this.changeLogHead + 1) % this.changeLog.length;
+        }
+    }
+
+    _touch(layout = true) {
+        if( this.fastTouchCount !== null ) {
+            this.fastTouchCount++;
+            return;
+        }
+        const cachedLayout = this.layoutVersion === this.version;
         this.version++;
-        this.layoutVersion = -1;
-        this.changeLog.push({ version: this.version, ...change });
-        if( this.changeLog.length > this.limits.changes ) this.changeLog.shift();
+        if( layout ) {
+            this.layoutVersion = -1;
+            this.interactionVisibilityDirty = true;
+        } else if( cachedLayout ) this.layoutVersion = this.version;
     }
 
     _box(component) {
-        this.layout();
-        return this.boxByComponent.get(component) || null;
+        if( this.layoutVersion === this.version )
+            return this.boxByComponent.get(component) || null;
+        /* Event-local coordinates need the target's true screen box, including
+         * ancestor scroll and clips, but not a rebuilt paint list for every
+         * hook inside one synchronous bank transaction. */
+        if( this.targetBoxVersion !== this.version ) {
+            this.targetBoxVersion = this.version;
+            this.targetBoxCache = new WeakMap();
+        } else if( this.targetBoxCache.has(component) )
+            return this.targetBoxCache.get(component);
+        const box = layoutBox(
+            this.ir, this.state, this.viewport, component, null, this.structureRevision);
+        this.targetBoxCache.set(component, box);
+        return box;
+    }
+
+    _geometry(component) {
+        if( this.targetGeometryVersion !== this.version ) {
+            this.targetGeometryVersion = this.version;
+            this.targetGeometryCache = new WeakMap();
+        } else if( this.targetGeometryCache.has(component) )
+            return this.targetGeometryCache.get(component);
+        const geometry = layoutGeometry(
+            this.ir, this.state, this.viewport, component, null, this.structureRevision);
+        this.targetGeometryCache.set(component, geometry);
+        return geometry;
     }
 
     _syncWorldMapDisplaySize() {
@@ -3035,6 +4013,12 @@ export class HostRuntime {
             dragBehavior: 0,
         });
         this.byUid.set(componentId, component);
+        let children = this.dynamicChildren.get(parent);
+        if( !children ) {
+            children = new Map();
+            this.dynamicChildren.set(parent, children);
+        }
+        children.set(subId, component);
     }
 
     _allocateDynamicComponentId(parentId) {
@@ -3054,6 +4038,15 @@ export class HostRuntime {
     _index(component, meta) {
         if( this.byName.has(component.name) )
             throw new HostRuntimeError(`duplicate component name ${component.name}`, 'BAD_IR');
+        meta.ref = Object.freeze({
+            key: meta.key,
+            componentId: meta.componentId,
+            fileId: meta.publicFileId,
+            subId: meta.subId,
+            dynamic: meta.dynamic,
+            generation: meta.generation,
+            name: component.name,
+        });
         this.meta.set(component, meta);
         this.byKey.set(meta.key, component);
         this.byName.set(component.name, component);
@@ -3076,7 +4069,13 @@ export class HostRuntime {
             if( !component && named && Number(named[1]) === this.interfaceId )
                 component = this.byUid.get(Number(named[1]) * 65536 + Number(named[2])) || null;
         } else if( Number.isInteger(value) ) {
-            component = this.byUid.get(value) || this.byFileId.get(value) || null;
+            /* C/WASM transports packed interface ids as signed i32 values,
+             * while the React tree indexes their canonical uint32 identity.
+             * Preserve -1 as the missing sentinel and normalize every other
+             * negative wire id before falling back to a local file id. */
+            component = this.byUid.get(value) ||
+                (value < -1 ? this.byUid.get(value >>> 0) : null) ||
+                this.byFileId.get(value) || null;
         }
         if( required && !component ) throw new HostRuntimeError('component reference is missing or stale', 'STALE_REF');
         return component;
@@ -3103,6 +4102,7 @@ export class HostRuntime {
                 }
             }
         }
+        this.interactionVisibilityDirty = false;
     }
 
     _retireDeletedInteraction(refs) {
@@ -3164,19 +4164,28 @@ export class HostRuntime {
                 if( outer && completed ) {
                     const intents = Array.isArray(result?.intents) ? result.intents : [];
                     this._drainDeferredComponents(intents);
-                    if( result && Array.isArray(result.intents) ) {
+                }
+            } finally {
+                try {
+                    if( outer && this.interactionVisibilityDirty )
+                        this._retireInvisibleInteraction();
+                    if( outer && completed && result && Array.isArray(result.intents) ) {
                         result.version = this.version;
                         result.epoch = this.epoch;
                         result.interaction = this._interactionView();
                     }
-                }
-            } finally { this.operationDepth--; }
+                } finally { this.operationDepth--; }
+            }
         }
     }
 }
 
 function event(authored, canonical, ...imported) {
-    return Object.freeze({ authored, canonical, imported: Object.freeze(imported) });
+    const frozenImported = Object.freeze(imported);
+    return Object.freeze({
+        authored, canonical, imported: frozenImported,
+        aliases: Object.freeze([canonical, ...frozenImported, authored].filter(Boolean)),
+    });
 }
 
 function definition(name) {
@@ -3190,7 +4199,7 @@ function normalizeEventName(name) {
 }
 
 function hookAliases(descriptor) {
-    return [descriptor.canonical, ...descriptor.imported, descriptor.authored].filter(Boolean);
+    return descriptor.aliases;
 }
 
 function exactHookKey(name, descriptor) {
@@ -3214,6 +4223,43 @@ function normalizeBinding(binding, host) {
         signature: binding.signature || '',
         triggerIds: (binding.triggerIds || binding.trigger_ids || []).slice(0, host.limits.hookTriggers),
     };
+}
+
+function hookBindingsEqual(left, right) {
+    if( scriptId(left) !== scriptId(right) ||
+        String(left?.signature || '') !== String(right?.signature || '') ) return false;
+    const leftTriggers = left?.triggerIds || left?.trigger_ids || [];
+    const rightTriggers = right?.triggerIds || right?.trigger_ids || [];
+    return hookValuesEqual(left?.args || [], right?.args || []) &&
+        hookValuesEqual(leftTriggers, rightTriggers);
+}
+
+function hookBindingMatchesInput(existing, binding, host) {
+    if( scriptId(existing) !== scriptId(binding) ||
+        String(existing?.signature || '') !== String(binding?.signature || '') ||
+        !Array.isArray(binding?.args || []) ) return false;
+    const args = (binding.args || []).slice(0, host.limits.hookArgs);
+    const suppliedTriggers = binding.triggerIds || binding.trigger_ids || [];
+    if( !Array.isArray(suppliedTriggers) ) return false;
+    const triggers = binding.script
+        ? suppliedTriggers : suppliedTriggers.slice(0, host.limits.hookTriggers);
+    const existingTriggers = existing?.triggerIds || existing?.trigger_ids || [];
+    return hookValuesEqual(existing?.args || [], args) &&
+        hookValuesEqual(existingTriggers, triggers);
+}
+
+function hookValuesEqual(left, right) {
+    if( Object.is(left, right) ) return true;
+    if( !left || !right || typeof left !== 'object' || typeof right !== 'object' ) return false;
+    if( Array.isArray(left) !== Array.isArray(right) ) return false;
+    const leftKeys = Object.keys(left);
+    const rightKeys = Object.keys(right);
+    if( leftKeys.length !== rightKeys.length ) return false;
+    for( const key of leftKeys ) {
+        if( !Object.prototype.hasOwnProperty.call(right, key) ||
+            !hookValuesEqual(left[key], right[key]) ) return false;
+    }
+    return true;
 }
 
 function hookView(resolved, ref, host) {
@@ -3263,6 +4309,128 @@ function hookFromRequest(request) {
             : requestList(direct),
         triggerIds: triggerIds.slice(0, Math.max(0, triggerCount)),
     };
+}
+
+function fastObjectPropChanged(mask, prop) {
+    switch( prop ) {
+        case 'objectId': return Boolean(mask & 1 << 0);
+        case 'objectCount': return Boolean(mask & 1 << 1);
+        case 'objectNumMode': return Boolean(mask & 1 << 2);
+        case 'modelKind': return Boolean(mask & 1 << 3);
+        case 'modelSourceId': return Boolean(mask & 1 << 4);
+        case 'xAngle': return Boolean(mask & 1 << 5);
+        case 'yAngle': return Boolean(mask & 1 << 6);
+        case 'zoom': return Boolean(mask & 1 << 7);
+        case 'xOffset': return Boolean(mask & 1 << 8);
+        case 'yOffset': return Boolean(mask & 1 << 9);
+        default: return false;
+    }
+}
+
+function fastRecordString(records, base, arena) {
+    const offset = records[base + 3];
+    const length = records[base + 4];
+    if( offset < 0 || length < 0 || offset > arena.length || length > arena.length - offset )
+        throw new HostRuntimeError('packed fast host string overflow', 'BAD_REQUEST');
+    return FAST_HOST_TEXT_DECODER.decode(arena.subarray(offset, offset + length));
+}
+
+function fastHookPayload(records, base, arena, arenaView) {
+    const triggerCount = records[base + 3];
+    const intCount = records[base + 4];
+    const stringCount = records[base + 7];
+    const signatureLength = records[base + 8];
+    const payloadOffset = records[base + 9];
+    const payloadLength = records[base + 10];
+    if( triggerCount < 0 || triggerCount > HOST_RUNTIME_LIMITS.hookTriggers ||
+        intCount < 0 || intCount > HOST_RUNTIME_LIMITS.hookArgs ||
+        stringCount < 0 || stringCount > 16 ||
+        signatureLength < 0 || signatureLength > HOST_RUNTIME_LIMITS.hookArgs + 1 ||
+        payloadOffset < 0 || payloadLength < 4 ||
+        payloadOffset > arena.length - payloadLength || payloadOffset % 4 !== 0 )
+        throw new HostRuntimeError('malformed packed fast host hook', 'BAD_REQUEST');
+    const storedSignatureLength = arenaView.getInt32(payloadOffset, true);
+    if( storedSignatureLength !== signatureLength ) throw new HostRuntimeError(
+        'packed fast host hook signature length mismatch', 'BAD_REQUEST');
+    const signatureOffset = payloadOffset + 4;
+    const triggerOffset = signatureOffset + ((signatureLength + 3) & ~3);
+    const intOffset = triggerOffset + triggerCount * 4;
+    const stringOffset = intOffset + intCount * 4;
+    const end = stringOffset + stringCount * FAST_HOST_HOOK_STRING_LENGTH;
+    if( end > payloadOffset + payloadLength ) throw new HostRuntimeError(
+        'packed fast host hook payload overflow', 'BAD_REQUEST');
+    return {
+        triggerCount, intCount, stringCount, signatureLength,
+        signatureOffset, triggerOffset, intOffset, stringOffset,
+    };
+}
+
+function fastHookMatches(existing, records, base, arena, arenaView) {
+    if( scriptId(existing) !== records[base + 2] ) return false;
+    const payload = fastHookPayload(records, base, arena, arenaView);
+    const signature = String(existing?.signature || '');
+    if( signature.length !== payload.signatureLength ) return false;
+    for( let index = 0; index < signature.length; index++ )
+        if( signature.charCodeAt(index) !== arena[payload.signatureOffset + index] ) return false;
+
+    const triggers = existing?.triggerIds || existing?.trigger_ids || [];
+    if( triggers.length !== payload.triggerCount ) return false;
+    for( let index = 0; index < payload.triggerCount; index++ )
+        if( triggers[index] !== arenaView.getInt32(payload.triggerOffset + index * 4, true) )
+            return false;
+
+    const args = existing?.args || [];
+    if( args.length !== payload.intCount ) return false;
+    let stringAt = 0;
+    const lowMask = records[base + 5] >>> 0;
+    const highMask = records[base + 6] >>> 0;
+    for( let index = 0; index < payload.intCount; index++ ) {
+        const string = index < 32
+            ? Boolean((lowMask >>> index) & 1)
+            : Boolean((highMask >>> (index - 32)) & 1);
+        if( string ) {
+            if( stringAt >= payload.stringCount || String(args[index] ?? '') !==
+                fastHookString(arena, payload.stringOffset + stringAt * FAST_HOST_HOOK_STRING_LENGTH) )
+                return false;
+            stringAt++;
+        } else if( args[index] !== arenaView.getInt32(payload.intOffset + index * 4, true) )
+            return false;
+    }
+    return stringAt === payload.stringCount;
+}
+
+function fastHookBinding(records, base, arena, arenaView) {
+    const payload = fastHookPayload(records, base, arena, arenaView);
+    const signature = FAST_HOST_TEXT_DECODER.decode(arena.subarray(
+        payload.signatureOffset, payload.signatureOffset + payload.signatureLength));
+    const triggerIds = new Array(payload.triggerCount);
+    for( let index = 0; index < triggerIds.length; index++ )
+        triggerIds[index] = arenaView.getInt32(payload.triggerOffset + index * 4, true);
+    const args = new Array(payload.intCount);
+    let stringAt = 0;
+    const lowMask = records[base + 5] >>> 0;
+    const highMask = records[base + 6] >>> 0;
+    for( let index = 0; index < args.length; index++ ) {
+        const string = index < 32
+            ? Boolean((lowMask >>> index) & 1)
+            : Boolean((highMask >>> (index - 32)) & 1);
+        args[index] = string
+            ? fastHookString(arena,
+                payload.stringOffset + stringAt++ * FAST_HOST_HOOK_STRING_LENGTH)
+            : arenaView.getInt32(payload.intOffset + index * 4, true);
+    }
+    if( stringAt !== payload.stringCount ) throw new HostRuntimeError(
+        'packed fast host hook string mask mismatch', 'BAD_REQUEST');
+    return {
+        script: { id: records[base + 2] }, args, signature, triggerIds,
+    };
+}
+
+function fastHookString(arena, offset) {
+    const limit = offset + FAST_HOST_HOOK_STRING_LENGTH;
+    let end = offset;
+    while( end < limit && arena[end] !== 0 ) end++;
+    return FAST_HOST_TEXT_DECODER.decode(arena.subarray(offset, end));
 }
 
 function unpackSetOnArgs(signature, request) {
@@ -3481,7 +4649,7 @@ function cloneInterface(ir) {
 }
 
 function emptyRuntimeState() {
-    return { opBase: '', targetPriority: 0, submenus: {}, params: {}, opKeys: {}, input: null };
+    return { opBase: '', targetPriority: 0, submenus: null, params: null, opKeys: null, input: null };
 }
 
 function cloneRuntimeState(value) {
@@ -3564,6 +4732,9 @@ function cloneBox(box) {
 }
 
 function dynamicProps(type, kind) {
+    const cacheKey = `${type}:${kind}`;
+    const cached = DYNAMIC_PROPS_CACHE.get(cacheKey);
+    if( cached ) return { ...cached };
     const definition = ELEMENTS[kind];
     const common = definition || ELEMENTS.Layer;
     const result = Object.fromEntries(Object.entries(common.props)
@@ -3595,7 +4766,8 @@ function dynamicProps(type, kind) {
         color: 0, fillColor: 0, fill: false, lineWidth: 1,
         arcStart: 0, arcEnd: 0,
     });
-    return result;
+    DYNAMIC_PROPS_CACHE.set(cacheKey, Object.freeze(result));
+    return { ...result };
 }
 
 function modelKind(value) {
@@ -3838,7 +5010,7 @@ function validateInput(raw, viewportValue) {
     if( type === 'tick' && raw.cycle !== undefined )
         result.cycle = boundedInteger('cycle', raw.cycle, 0, Number.MAX_SAFE_INTEGER);
     const known = new Set(['pointer_move', 'pointer_down', 'pointer_up', 'wheel', 'key',
-        'key_down', 'key_up', 'op', 'tick', 'focus_lost']);
+        'key_down', 'key_up', 'op', 'menu_close', 'tick', 'focus_lost']);
     if( !known.has(type) ) throw new HostRuntimeError(`unsupported input event ${raw.type}`, 'BAD_INPUT');
     return result;
 }
@@ -3873,7 +5045,7 @@ function requestValues(request, names) {
     return names.map((aliases) => requestField(request, ...aliases));
 }
 
-function targetOf(request, host, preferred = 'component_id') {
+function targetOf(request, host, kind, preferred = 'component_id') {
     const explicit = request.ref ?? request.component ?? request.component_ref ?? request.target;
     if( explicit !== undefined ) return explicit;
     if( preferred === 'parent_id' ) {
@@ -3883,7 +5055,7 @@ function targetOf(request, host, preferred = 'component_id') {
     }
     if( preferred === 'uid' && request.uid !== undefined ) return request.uid;
     const componentId = request.component_id ?? request.componentId;
-    if( componentId !== undefined && request._kind?.startsWith('CC_') ) {
+    if( componentId !== undefined && kind.startsWith('CC_') ) {
         const active = (request.dot_operand ?? request.dotOperand) ? host.dotActive : host.active;
         if( active?.dynamic && active.componentId === componentId ) return active;
     }
@@ -3899,9 +5071,12 @@ function requestField(request, ...keys) {
 function normalizeRequestKind(value) {
     if( typeof value !== 'string' )
         throw new HostRuntimeError('host request kind must be a name', 'BAD_REQUEST');
+    const cached = NORMALIZED_HOST_REQUEST_KINDS.get(value);
+    if( cached ) return cached;
     const raw = value.toUpperCase();
     const kind = raw === 'CLIENT_CLOCK' ? 'CLIENTCLOCK' : raw;
     if( !/^[A-Z0-9_]+$/.test(kind) ) throw new HostRuntimeError('host request kind is invalid', 'BAD_REQUEST');
+    NORMALIZED_HOST_REQUEST_KINDS.set(value, kind);
     return kind;
 }
 
@@ -3937,6 +5112,19 @@ function supportsHostRequest(kind) {
         } catch { return false; }
     }
     return false;
+}
+
+function missingComponentNoop(suffix) {
+    return Boolean(REQUEST_SETTERS[suffix] || INPUT_SETTERS[suffix] ||
+        MISSING_COMPONENT_NOOP_SUFFIXES.has(suffix) || suffix.startsWith('SETON') ||
+        suffix.startsWith('INPUT_SETON'));
+}
+
+function missingComponentGetter(suffix) {
+    if( suffix === 'GETTEXT' || suffix === 'GETOP' || suffix === 'GETOPBASE' ) return '';
+    if( suffix === 'GETLAYER' || suffix === 'GETID' ) return -1;
+    if( suffix === 'GETHIDE' || suffix === 'GETMODELTRANSPARENT' ) return false;
+    return 0;
 }
 
 function unpack(values) {

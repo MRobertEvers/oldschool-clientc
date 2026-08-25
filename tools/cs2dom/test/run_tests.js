@@ -39,14 +39,18 @@ import {
 import { createSourceRuntimeSession } from '../src/cache_runtime.js';
 import { createWasmCS2Runtime, __wasmRuntimeTest } from '../src/wasm_runtime.js';
 import { evaluate, resolveProps, stateInputs } from '../src/eval.js';
-import { layout, axisFromPositionMode, dimFromParentMode } from '../src/preview.js';
+import {
+    layout, layoutGeometry, layoutVisibility, axisFromPositionMode, dimFromParentMode,
+} from '../src/preview.js';
 import { decodeBmp, encodePng, spriteCanvas, spriteTile } from '../src/png.js';
-import { spritePng } from '../src/dev.js';
+import { BROWSER_RUNTIME_MODULES, spritePng } from '../src/dev.js';
 import {
     contentInterfaceCatalog, executeContentHooks, openContentInterface, parseBlocks,
 } from '../src/content.js';
 import { DAT2_ASSETS, DAT2_CONFIG_TYPES, prepareDat2Project } from '../src/dat2.js';
-import { compileInterfaceProgram } from '../src/bytecode.js';
+import {
+    compileInterfaceProgram, normalizeCompilerSources, __bytecodeTest,
+} from '../src/bytecode.js';
 import {
     contentHostData, parseEnums, parseInventoryTypes, parseLocs, parseMapElements, parseNpcs,
     parseObjects, parseParams, parseStructs, parseVarbitVarps,
@@ -96,18 +100,23 @@ function assertThrows(fn, fragment) {
 test('the interface picker is searchable and keyboard accessible', () => {
     const html = devPage();
     assertIncludes(html, 'id="pick" type="search"');
-    assertIncludes(html, 'function matchingEntries(query)');
+    assertIncludes(html, 'function rankCatalogRecord(record, terms)');
+    assertIncludes(html, "budgetedInputHandler('picker-input'");
     assertIncludes(html, "event.key === 'ArrowDown'");
     assertIncludes(html, 'role="listbox"');
 });
 
 test('the preview embeds the toridraw WASM model component', () => {
     const html = devPage();
-    assertIncludes(html, '<script src="/toridraw/ev_wasm.js"></script>');
-    assertIncludes(html, "wrap('ev_w_render_widget'");
+    const worker = readFileSync(join(REPO, 'tools/cs2dom/src/model_render_worker.js'), 'utf8');
+    assert(!html.includes('<script src="/toridraw/ev_wasm.js"></script>'),
+        'toridraw is still parsed and initialized on the input thread');
+    assertIncludes(html, "createModelRenderController");
+    assertIncludes(worker, "wrap('ev_w_render_widget'");
     assertIncludes(html, 'function modelRenderSurface(box, stageWidth, stageHeight)');
-    assertIncludes(html, 'box.props.zAngle | 0');
-    assertIncludes(html, 'Boolean(source.composed), timing.frame');
+    assertIncludes(html, 'zAngle: box.props.zAngle');
+    assertIncludes(worker, 'Boolean(request.composed), timing.frame');
+    assertIncludes(worker, 'canvas.transferToImageBitmap()');
     assertIncludes(html, "'/model/' + iface.modelSource");
     assert(!html.includes('element.title ='), 'component hover still opens a native browser tooltip');
 });
@@ -115,7 +124,7 @@ test('the preview embeds the toridraw WASM model component', () => {
 test('untouched controls do not seed false native-state defaults', () => {
     const html = devPage();
     assertIncludes(html, 'return key in draftState ? draftState[key] : fallback;');
-    assertIncludes(html, 'contents = draftState[key] = { ...contents };');
+    assertIncludes(html, 'contents = draftState[key] = editableContents;');
 });
 
 test('host-state edits stay focused as drafts until Save state is pressed', () => {
@@ -123,9 +132,12 @@ test('host-state edits stay focused as drafts until Save state is pressed', () =
     assertIncludes(html, 'id="save-state" disabled>Save state</button>');
     assertIncludes(html, 'draftState[input.key] = field.value;');
     assertIncludes(html, 'draftState[input.key] = Number(slider.value);');
-    assertIncludes(html, 'replaceState(state, draftState);');
+    assertIncludes(html, 'const job = stateCopyJob = {');
+    assertIncludes(html, 'scheduleCooperativeTask(() => runStateCopySlice(job));');
+    assertIncludes(html, 'state = job.next;');
     assertIncludes(html, "setStateDirty(false, 'State saved');");
-    assertIncludes(html, 'if( !force && nextKey === renderedControlsKey ) return;');
+    assertIncludes(html,
+        'if( !force && nextKey === renderedControlsKey && nextScope === renderedControlsScope ) return;');
     assert(!html.includes('field.value; refresh();'), 'text edits still refresh on every key');
 });
 
@@ -140,7 +152,10 @@ test('the generated dev-page script parses', () => {
 test('the dev page paints native tiled sprites and full-geometry lines', () => {
     const html = devPage();
     assertIncludes(html, "(props.tiled ? '?tile=1' : '')");
-    assertIncludes(html, "context?.createPattern(image, 'repeat')");
+    assertIncludes(html, "element.style.backgroundImage = 'url(\"' + url + '\")';");
+    assertIncludes(html, "element.style.backgroundRepeat = 'repeat';");
+    assert(!html.includes('createPattern('),
+           'large tiled graphics still rasterize synchronously in image.onload');
     assertIncludes(html, 'background: #202428;');
     assert(!html.includes('background-image: linear-gradient'),
            'the native framebuffer clear is still replaced by a checkerboard');
@@ -251,25 +266,57 @@ test('source analysis matches the C client integer varc sentinel', () => {
 
 test('the dev page renders and interacts with the live React-side host tree', () => {
     const html = devPage();
-    assertIncludes(html, "import { createHostRuntime } from '/runtime/host_runtime.js';");
-    assertIncludes(html, "import { createWasmCS2Runtime } from '/runtime/wasm_runtime.js';");
-    assertIncludes(html, 'session.host = createHostRuntime(iface.runtime.ir');
-    assertIncludes(html, 'if( bytecode?.available )');
-    assertIncludes(html, 'session.wasm = await createWasmCS2Runtime');
-    assertIncludes(html, 'const hostDataCache = new Map();');
-    assertIncludes(html, 'const hostData = await loadHostData(iface.runtime);');
-    assertIncludes(html, "'Original CS2 bytecode is unavailable; scripts are not executed.'");
+    assertIncludes(html,
+        "import { createWorkerRuntimeController } from '/runtime/worker_runtime_controller.js';");
+    assertIncludes(html, 'runtimeController = createWorkerRuntimeController({');
+    assertIncludes(html, 'program: iface.runtime.bytecode,');
+    assertIncludes(html, 'hostDataUrl: iface.runtime.hostDataUrl,');
+    assertIncludes(html, '? session.controller.reload(config) : session.controller.start(config);');
+    assertIncludes(html, 'session.controller.requestTree({ collect: false });');
     assert(!html.includes('createSourceRuntimeSession'), 'the browser still contains a JS CS2 fallback');
     assertIncludes(html, 'if( epoch !== refreshEpoch )');
     assertIncludes(html, 'disposeRuntimeSession(session, false);');
-    assertIncludes(html, 'const result = hostRuntime.dispatch(input);');
-    assertIncludes(html, 'iface.boxes = snapshot.boxes;');
+    assertIncludes(html, 'const ticket = session.controller.dispatch(input);');
+    assertIncludes(html, 'session.iface.boxes = render.boxes;');
+    assertIncludes(html, 'ticket?.completion.then((outcome) => {');
+    assertIncludes(html, 'if( gestureEpoch === interactionEpoch &&',
+        'a stale right-click completion can reopen a dismissed minimenu');
+    assertIncludes(html, 'event.preventDefault();\n      event.stopPropagation();\n      choose();',
+        'minimenu pointer selection can still blur/close before dispatch');
+    assertIncludes(html, "dispatchRuntime({ type: 'op', target: item.component, opIndex: item.opIndex });",
+        'minimenu selection no longer enters the live host transaction');
+    assertIncludes(html,
+        "if( runtimeController?.readyState === 'ready' ) dispatchRuntime({ type: 'menu_close' });",
+        'the browser cannot dismiss the host-owned minimenu state');
+    assertIncludes(html,
+        "if( opMenuElement?.parentElement === $('stage') ) return opMenuElement;",
+        'the preview does not retain an O(1) reference to the live minimenu');
+    assert(!html.includes("stage.querySelector('.opmenu')"),
+        'an input handler still scans the whole preview for the minimenu');
+    const rectRead = html.slice(html.indexOf('function scheduleStageRectRead()'),
+        html.indexOf('function noteRuntimeError'));
+    assert(!rectRead.includes('stageRectCache = null'),
+        'a redraw still creates a frame where every pointer misses the stage');
+    assertIncludes(html, 'if( button !== 2 ) {\n      stage.focus({ preventScroll: true });\n      return;',
+        'an outside left menu press can leak through to the component tree');
+    assertIncludes(html,
+        "stage.onpointercancel = budgetedInputHandler('pointercancel', () => {\n  /* A cancelled browser gesture is not a mouse-up.",
+        'pointer cancellation can still synthesize release/click hooks');
     assert(!html.includes('nativeframe'), 'the native framebuffer is still the primary preview');
     assertIncludes(html, "box.effectiveHidden ? 'hidden' : ''");
     assertIncludes(html, "source.kind === 'object' ? 'obj/' + source.id + '.model'",
         'configured object models are not routed through toridraw');
     assertIncludes(html, "source.kind === 'npcHead' || source.kind === 'npcModel'",
         'NPC-backed model components are not routed through toridraw');
+});
+
+test('every browser runtime import is served by the dev server', () => {
+    for( const module of BROWSER_RUNTIME_MODULES ) {
+        const source = readFileSync(join(REPO, 'tools', 'cs2dom', 'src', module), 'utf8');
+        for( const match of source.matchAll(/\bfrom\s+['"]\.\/([^'"]+)['"]/g) )
+            assert(BROWSER_RUNTIME_MODULES.has(match[1]),
+                   `${module} imports ${match[1]}, but /runtime/${match[1]} is not served`);
+    }
 });
 
 /* ---- a scratch project --------------------------------------------------- */
@@ -389,6 +436,28 @@ test('Dat2 programs feed original clientscript bytes to the C/WASM VM', () => {
         `raw Dat2 program was unavailable: ${program.warnings.join('; ')}`);
     assert(Buffer.from(program.scripts[0].data, 'base64').equals(original),
         'Dat2 bytecode was decompiled/recompiled instead of transported verbatim');
+});
+
+test('compiler source aliases follow legacy names carrying the stable script id', () => {
+    const normalized = normalizeCompilerSources([
+        {
+            id: 10,
+            name: 'entry',
+            source: '[clientscript,entry]\n' +
+                '~old_helper_name_42();\n' +
+                'if_setoninvtransmit("old_event_name_43{bank}", null);\n' +
+                'cc_setgraphic("graphic_42");\n',
+        },
+        { id: 42, name: 'new_helper', source: '[clientscript,new_helper]\nreturn;\n' },
+        { id: 43, name: 'new_event', source: '[clientscript,new_event]\nreturn;\n' },
+    ], [10]);
+    const entry = normalized.find((record) => record.id === 10).source;
+    const helper = normalized.find((record) => record.id === 42).source;
+    assert(entry.includes('~new_helper();') && entry.includes('"new_event{bank}"') &&
+           entry.includes('cc_setgraphic("graphic_42")'),
+           `numeric legacy aliases were not canonicalized: ${entry}`);
+    assert(helper.includes('[proc,new_helper]'),
+           `numeric helper alias did not inform compiler role: ${helper}`);
 });
 
 /** A complete but tiny Dat2/content pair for exercising native cache overlays. */
@@ -1006,6 +1075,9 @@ test('layout matches the client formulas, including the fixed-point modes', () =
     assert(dimFromParentMode(2, 8192, 100) === 50, 'proportional size');
     assert(dimFromParentMode(2, -1, 1) === -1,
            'proportional size must round a negative product toward minus infinity');
+    assert(dimFromParentMode(2, 2147483647, 2147483647) === 281474976448512 &&
+           dimFromParentMode(2, 2147483647, -2147483648) === -281474976579584,
+           'proportional size lost exact signed 32-bit overflow-range products');
 });
 
 test('nested components lay out against their parent, not the viewport', () => {
@@ -1118,6 +1190,80 @@ test('scroll extents drive child layout while clamped offsets drive screen posit
            `scroll clamp was ${clamped.scrollX},${clamped.scrollY}`);
 });
 
+test('targeted geometry resolves dynamic ancestors and topology without painting siblings', () => {
+    const built = compileSource(`
+        import { Layer, Rect, useVarp } from 'cs2dom';
+        export default function Targeted() {
+            const offset = useVarp(300);
+            return (
+                <Layer id="root" x={10} y={20} width={100} height={80}
+                       scrollWidth={200} scrollHeight={160}>
+                    <Layer id="inner" x={offset} y={4} width={50} height={40}>
+                        <Rect id="target" x={5} y={6} width={7} height={8} color={1} fill />
+                    </Layer>
+                    <Rect id="unrelated" x={80} width={10} height={10} color={2} fill />
+                </Layer>
+            );
+        }
+    `);
+    const named = (name) => built.ir.components.find((component) => component.name === name);
+    const viewport = { width: 200, height: 100 };
+    const state = { 'varp:300': 9 };
+    const compare = (component) => {
+        const targeted = layoutGeometry(built.ir, state, viewport, component);
+        const box = layout(built.ir, state, viewport).find((candidate) =>
+            candidate.fileId === component.fileId);
+        assert(targeted && targeted.x === box.absX && targeted.y === box.absY &&
+               targeted.w === box.w && targeted.h === box.h &&
+               targeted.relX === box.relX && targeted.relY === box.relY &&
+               targeted.scrollX === box.scrollX && targeted.scrollY === box.scrollY,
+               `targeted geometry diverged: ${JSON.stringify({ targeted, box })}`);
+    };
+
+    compare(named('target'));
+    compare(named('root'));
+    state['varp:300'] = 23;
+    compare(named('target'));
+    assert(layoutGeometry(built.ir, state, viewport, named('target').fileId).x === 38,
+           'file-id geometry lookup did not resolve the changed dynamic ancestor');
+
+    /* Reparent in place with the same component array. The structural cache must
+     * notice layer changes before a later full layout has a chance to rebuild it. */
+    named('inner').layer = null;
+    const reparented = layoutGeometry(built.ir, state, viewport, named('target'));
+    assert(reparented.x === 28 && reparented.y === 10,
+           `targeted geometry retained stale parent links: ${JSON.stringify(reparented)}`);
+    compare(named('target'));
+});
+
+test('targeted visibility matches full layout through dynamic hidden ancestors', () => {
+    const built = compileSource(`
+        import { Layer, Rect, useVarp } from 'cs2dom';
+        export default function TargetedVisibility() {
+            const hidden = useVarp(300) === 1;
+            return (
+                <Layer id="root" width={100} height={80} hidden={hidden}>
+                    <Layer id="collapsed" width={0} height={20}>
+                        <Rect id="target" width={10} height={10} color={1} fill />
+                    </Layer>
+                </Layer>
+            );
+        }
+    `);
+    const target = built.ir.components.find((component) => component.name === 'target');
+    const compare = (state) => {
+        const box = layout(built.ir, state).find((candidate) => candidate.name === 'target');
+        assert(layoutVisibility(built.ir, state, target) === !box.effectiveHidden,
+               `targeted visibility diverged from ${JSON.stringify(box)}`);
+    };
+    compare({ 'varp:300': 0 });
+    compare({ 'varp:300': 1 });
+    assert(layoutVisibility(built.ir, { 'varp:300': 0 }, target.fileId),
+           'a merely culled target was incorrectly treated as hidden');
+    assert(!layoutVisibility(built.ir, {}, 0x7fffffff),
+           'a missing component was incorrectly visible');
+});
+
 test('ordinary nested layers replace clips while scroll layers establish surfaces', () => {
     const built = compileSource(`
         import { Layer, Rect } from 'cs2dom';
@@ -1225,11 +1371,258 @@ function liveHostFixture() {
     return { built, component };
 }
 
+test('large non-visibility transactions reconcile hover without rebuilding layout', () => {
+    const { built, component } = liveHostFixture();
+    component('button').hooks.onclick = { script: { id: 120 }, args: [] };
+    let host = null;
+    host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 },
+        invoke(intent) {
+            if( intent.hook.scriptId !== 120 ) return;
+            /* bankmain_draw performs this shape of work at much larger scale:
+             * thousands of HOST mutations while a quantity button is still
+             * hovered. Interaction visibility belongs to the completed task,
+             * not every intermediate component write. */
+            for( let index = 0; index < 200; index++ )
+                host.request({
+                    kind: 'IF_SETPOSITION', component: 'first_key',
+                    x: 2 + (index & 1), y: 50, xmode: 0, ymode: 0,
+                });
+        },
+    });
+    host.dispatch({ type: 'pointer_move', x: 20, y: 20 });
+    assert(host.snapshot().interaction.hover?.name === 'button',
+           'fixture did not establish a hovered component');
+
+    const resolveLayout = host.layout.bind(host);
+    let layoutPasses = 0;
+    host.layout = () => {
+        if( host.layoutVersion !== host.version ) layoutPasses++;
+        return resolveLayout();
+    };
+    const clicked = host.dispatch({ type: 'pointer_down', button: 0, x: 20, y: 20 });
+    assert(clicked.intents.some((intent) => intent.hook.scriptId === 120),
+           'large mutation hook did not run');
+    assert(layoutPasses === 0,
+           `a position-only hook transaction rebuilt layout ${layoutPasses} times`);
+    assert(clicked.interaction.hover?.name === 'button',
+           'boundary reconciliation lost a still-visible hovered component');
+});
+
+test('dynamic child lookup keeps a parent/sub-id index through the complete CC lifecycle', () => {
+    const { built } = liveHostFixture();
+    const host = createHostRuntime(built.ir, { recordChanges: false });
+    const first = host.createChild('root', IF_TYPE.text, 40);
+    const staleNested = host.createChild(first, IF_TYPE.graphic, 3);
+    const copied = host.request({
+        kind: 'CC_COPY', parent: 'root', srcSubId: 40, dstSubId: 7,
+    });
+    const replacement = host.createChild('root', IF_TYPE.rectangle, 40);
+    const nested = host.createChild(replacement, IF_TYPE.text, 3);
+
+    assert(host.resolve(first) === null && host.resolve(staleNested) === null &&
+           host.findChild('root', 40, false)?.key === replacement.key &&
+           host.findChild('root', 7, false)?.key === copied.key &&
+           host.findChild(replacement, 3, false)?.key === nested.key,
+           'replacement/copy did not update the dynamic child index');
+
+    /* Make the complexity contract executable: a lookup must not fall back to
+     * Array.find over the full mounted IR. */
+    const arrayFind = host.ir.components.find;
+    host.ir.components.find = () => { throw new Error('CC_FIND scanned the mounted IR'); };
+    try {
+        assert(host.findChild('root', 40, false)?.key === replacement.key &&
+               host.findChild(replacement, 3, false)?.key === nested.key &&
+               host.findChild('root', 41, false) === null,
+               'indexed CC_FIND returned the wrong slot');
+    } finally {
+        host.ir.components.find = arrayFind;
+    }
+
+    /* Constructing from a materialised live IR is the HostRuntime restore
+     * path used by source-hook previews. Nested parents may be indexed on a
+     * later constructor pass, so audit both levels. */
+    const restored = createHostRuntime(host.ir, { recordChanges: false });
+    const restoredParent = restored.findChild('root', 40, false);
+    assert(restoredParent && restored.findChild(restoredParent, 3, false)?.subId === 3 &&
+           restored.children('root', { startIndex: 8 }).map((ref) => ref.subId).join(',') === '40',
+           'restoring a materialised dynamic tree lost its parent/sub-id index');
+
+    const restoredFind = restored.ir.components.find;
+    restored.ir.components.find = () => { throw new Error('restored CC_FIND scanned the mounted IR'); };
+    try {
+        assert(restored.findChild('root', 7, false)?.subId === 7,
+               'restored CC_FIND did not use its rebuilt index');
+    } finally {
+        restored.ir.components.find = restoredFind;
+    }
+
+    restored.delete(restored.findChild(restoredParent, 3, false));
+    assert(restored.findChild(restoredParent, 3, false) === null,
+           'single deletion left a stale indexed child');
+    const secondCopy = restored.request({
+        kind: 'CC_COPY', parent: 'root', srcSubId: 40, dstSubId: 12,
+    });
+    assert(restored.findChild('root', 12, false)?.key === secondCopy.key,
+           'CC_COPY did not publish its destination in the child index');
+    restored.deleteAll('root');
+    assert(restored.children('root').length === 0 && restored.findChild('root', 40, false) === null &&
+           restored.dynamicCount === 0,
+           'CC_DELETEALL left stale child-index entries');
+    const recreated = restored.createChild('root', IF_TYPE.text, 40);
+    assert(restored.findChild('root', 40, false)?.key === recreated.key,
+           'a deleted parent/sub-id slot could not be reused');
+});
+
+test('synchronous geometry reads resolve only their target ancestry', () => {
+    const { built } = liveHostFixture();
+    const host = createHostRuntime(built.ir, { viewport: { width: 120, height: 100 } });
+    host.request({ kind: 'IF_SETSIZE', component: 'button',
+        width: 10, height: 20, widthMode: 1, heightMode: 1 });
+    host.request({ kind: 'IF_SETPOSITION', component: 'button',
+        x: 5, y: 3, xMode: 2, yMode: 1 });
+
+    /* Geometry getters and scroll clamping are synchronous CS2 operations.
+     * A large bank rebuild must not materialise every sibling just to answer
+     * one component, and read-after-write must still see the exact new modes. */
+    host.layout = () => { throw new Error('geometry operation resolved the full paint tree'); };
+    assert(host.request({ kind: 'IF_GETWIDTH', component: 'button' }) === 110 &&
+           host.request({ kind: 'IF_GETHEIGHT', component: 'button' }) === 80 &&
+           host.request({ kind: 'IF_GETX', component: 'button' }) === 5 &&
+           host.request({ kind: 'IF_GETY', component: 'button' }) === 13,
+           'targeted geometry diverged from IF3 size/position modes');
+    host.request({ kind: 'IF_SETSCROLLSIZE', component: 'root',
+        scrollWidth: 240, scrollHeight: 180 });
+    host.request({ kind: 'IF_SETSCROLLPOS', component: 'root', scrollX: 999, scrollY: 999 });
+    assert(host.request({ kind: 'IF_GETSCROLLWIDTH', component: 'root' }) === 240 &&
+           host.request({ kind: 'IF_GETSCROLLHEIGHT', component: 'root' }) === 180 &&
+           host.request({ kind: 'IF_GETSCROLLX', component: 'root' }) === 120 &&
+           host.request({ kind: 'IF_GETSCROLLY', component: 'root' }) === 80,
+           'targeted geometry did not preserve native scroll clamping');
+});
+
+test('equivalent hook writes are no-ops while alias cleanup and semantic changes remain visible', () => {
+    const { built, component } = liveHostFixture();
+    component('button').hooks.ondrag = { script: { id: 70 }, args: [] };
+    const host = createHostRuntime(built.ir);
+    const button = host.ref('button');
+    const write = (overrides = {}) => host.request({
+        kind: 'CC_SETONDRAG', component: button, script_id: 70,
+        signature: '', args: [], trigger_ids: [], ...overrides,
+    });
+
+    const initialVersion = host.version;
+    write();
+    assert(host.version === initialVersion + 1 &&
+           host.component(button).hooks.includes('on_drag') &&
+           !host.component(button).hooks.includes('ondrag'),
+           'an imported hook alias was not canonicalised as an observable mutation');
+    write();
+    assert(host.version === initialVersion + 1,
+           'an identical canonical SETONDRAG write advanced the runtime version');
+
+    const rich = () => write({
+        script_id: 71, signature: 'Wis',
+        args: [host.ref('root'), { type: 'int', value: 4 }, 'drag'],
+        trigger_ids: [3, 9],
+    });
+    rich();
+    const richVersion = host.version;
+    rich();
+    assert(host.version === richVersion && host.changes(richVersion).changes.length === 0,
+           'equivalent cloned hook args or triggers produced a retained change');
+
+    write({ script_id: 71, signature: 'Wis',
+        args: [host.ref('root'), { type: 'int', value: 4 }, 'drag'], trigger_ids: [3, 10] });
+    assert(host.version === richVersion + 1,
+           'a semantic trigger-set change was incorrectly discarded');
+    write({ script_id: -1 });
+    const clearedVersion = host.version;
+    write({ script_id: -1 });
+    assert(host.version === clearedVersion &&
+           !host.component(button).hooks.some((hook) => hook === 'on_drag' || hook === 'ondrag'),
+           'clearing an already absent hook was not a no-op');
+});
+
+test('render snapshots contain detached repaint data without persistence state', () => {
+    const { built } = liveHostFixture();
+    const host = createHostRuntime(built.ir, { viewport: { width: 120, height: 100 } });
+    host.mutate('if_setcolour', 'button', 0x123456);
+
+    const render = host.renderSnapshot();
+    const workerView = host.renderSnapshot({ detached: false });
+    const persisted = host.snapshot();
+    assert(Object.keys(render).join(',') === 'version,viewport,boxes',
+           `render snapshot leaked persistence fields: ${Object.keys(render).join(',')}`);
+    assert(JSON.stringify(render.boxes) === JSON.stringify(persisted.boxes) &&
+           render.version === persisted.version && render.viewport.width === 120,
+           'render snapshot diverged from the full snapshot repaint projection');
+    assert(workerView.boxes === host.layout() && workerView.viewport !== host.viewport,
+           'worker render view cloned boxes or exposed the mutable viewport');
+    const posted = structuredClone(workerView);
+    assert(posted.boxes !== workerView.boxes &&
+           JSON.stringify(posted.boxes) === JSON.stringify(render.boxes),
+           'worker render view is not structured-clone-safe');
+
+    render.viewport.width = 1;
+    render.boxes[0].props.width = 1;
+    render.boxes[0].dynamic.push('caller-owned');
+    render.boxes.pop();
+    const next = host.renderSnapshot();
+    assert(next.viewport.width === 120 && next.boxes.length === persisted.boxes.length &&
+           next.boxes[0].props.width !== 1 && !next.boxes[0].dynamic.includes('caller-owned'),
+           'render snapshot aliases live layout or viewport data');
+});
+
+test('bounded change retention preserves chronological and truncation semantics after wraparound', () => {
+    const { built } = liveHostFixture();
+    const host = createHostRuntime(built.ir, { limits: { changes: 3 } });
+    for( let color = 2; color <= 8; color++ )
+        host.mutate('if_setcolour', 'button', color);
+
+    let delta = host.changes(0);
+    assert(delta.truncated && delta.to === 7 &&
+           delta.changes.map((change) => change.version).join(',') === '5,6,7',
+           `wrapped change order was ${JSON.stringify(delta)}`);
+    assert(!host.changes(4).truncated &&
+           host.changes(5).changes.map((change) => change.version).join(',') === '6,7' &&
+           host.changes(7).changes.length === 0,
+           'wrapped change boundaries changed public changes() semantics');
+
+    delta.changes[0].props.color = 999;
+    assert(host.changes(4).changes[0].props.color === 6,
+           'change transport aliases retained runtime entries');
+    host.mutate('if_setcolour', 'button', 9);
+    host.mutate('if_setcolour', 'button', 10);
+    assert(host.changes(6).changes.map((change) => change.version).join(',') === '7,8,9',
+           'a second ring-buffer wrap lost chronological changes');
+});
+
+test('change recording can be disabled without disabling versions or rendering', () => {
+    const { built } = liveHostFixture();
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 }, recordChanges: false,
+    });
+    host.mutate('if_setposition', 'button', 22, 24, 0, 0);
+    host.mutate('if_setcolour', 'button', 0xabcdef);
+
+    const render = host.renderSnapshot();
+    const button = render.boxes.find((box) => box.name === 'button');
+    assert(host.version === 2 && render.version === 2 &&
+           button.x === 22 && button.y === 24 && button.props.color === 0xabcdef,
+           'disabling retained changes disabled versioning or renderer invalidation');
+    assert(host.changes(0).truncated && host.changes(0).changes.length === 0 &&
+           !host.changes(host.version).truncated,
+           'disabled change transport did not report its unavailable version range');
+});
+
 test('the live host owns its React IR and exposes stable component refs', () => {
     const { built } = liveHostFixture();
     const host = createHostRuntime(built.ir, { viewport: { width: 120, height: 100 } });
     const button = host.ref('button');
     const original = built.ir.components.find((component) => component.name === 'button');
+    assert(host.ref('button') === button,
+           'stable component identity allocated a new public ref for every HOST call');
 
     host.request({
         kind: 'IF_SETPOSITION', component: button,
@@ -1284,6 +1677,175 @@ test('the live host owns its React IR and exposes stable component refs', () => 
            'CC_FIND did not return and activate the exact dynamic ref');
     host.delete(child);
     assertThrows(() => host.component(child), 'stale');
+});
+
+test('HOST requests preserve native missing-component defaults for companion interface groups', () => {
+    const { built } = liveHostFixture();
+    const host = createHostRuntime(built.ir, { paramDefault: (id) => id === 44 ? -1 : 0 });
+    const foreignLayer = 162 * 65536 + 39;
+    const foreignParent = 163 * 65536;
+    const active = host.setActive('button');
+    const before = host.version;
+
+    assert(host.request({ kind: 'IF_SETHIDE', component_id: foreignLayer, hidden: true }) === null &&
+           host.request({ kind: 'IF_SETONTIMER', component_id: foreignLayer,
+               scriptId: 99, args: [] }) === null && host.version === before,
+           'a missing companion-group setter mutated or aborted the selected React tree');
+    assert(host.request({ kind: 'IF_GETWIDTH', component_id: foreignLayer }) === 0 &&
+           host.request({ kind: 'IF_GETHIDE', component_id: foreignLayer }) === false &&
+           host.request({ kind: 'IF_GETTEXT', component_id: foreignLayer }) === '' &&
+           host.request({ kind: 'IF_GETLAYER', component_id: foreignLayer }) === -1,
+           'missing companion-group getters did not use the native UITree defaults');
+    assert(host.request({ kind: 'IF_GETCOMPONENTPARAM', component_id: foreignLayer,
+               paramId: 44, value: 17 }) === 17 &&
+           host.request({ kind: 'CC_GETCOMPONENTPARAM', component_id: foreignLayer,
+               paramId: 44 }) === -1,
+           'missing component-param reads ignored their IF/cached native defaults');
+    assert(host.request({ kind: 'CC_DELETEALL', component_id: foreignLayer }).length === 0 &&
+           host.request({ kind: 'CC_CREATE', parent_id: foreignParent,
+               component_type: IF_TYPE.text, child_index: 0, dot_operand: 0 }) === null &&
+           host.request({ kind: 'CC_FIND', parent_id: foreignParent,
+               sub_id: 0, dot_operand: 0 }) === null,
+           'missing structural HOST requests were not deterministic native no-ops');
+    assert(host.activeRef().key === active.key && host.version === before,
+           'a missing companion-group request corrupted the local active target or React tree');
+    assertThrows(() => host.mutate('if_sethide', foreignLayer, true), 'stale');
+});
+
+test('the compact WASM HOST batch is exactly equivalent to ordered public requests', () => {
+    const make = () => {
+        const { built } = liveHostFixture();
+        const host = createHostRuntime(built.ir, {
+            state: { 'invslots:95': {
+                0: { id: 4151, count: 2 }, 7: { objectId: 995, count: 123 },
+            } },
+        });
+        const child = host.createChild('root', IF_TYPE.model, 7);
+        return { host, child };
+    };
+    const ordered = make();
+    const compact = make();
+    const packed = make();
+    const requests = (fixture) => {
+        const { host, child } = fixture;
+        const buttonId = host.ref('button').componentId;
+        return [
+        { kind: 'CC_FIND', parent_id: child.componentId >>> 16 << 16,
+            sub_id: 7, dot_operand: false, expected_component_id: child.componentId },
+        { kind: 'CC_SETHIDE', component_id: child.componentId, hidden: 0 },
+        { kind: 'CC_SETPOSITION', component_id: child.componentId,
+            x: 11, y: 12, xmode: 0, ymode: 0 },
+        { kind: 'CC_SETTRANS', component_id: child.componentId, trans: 27 },
+        { kind: 'CC_SETOBJECT', component_id: child.componentId,
+            obj_id: 995, count: 123, num_mode: 0 },
+        { kind: 'CC_CLEAROPS', component_id: child.componentId },
+        { kind: 'CC_SETONDRAG', component_id: child.componentId, script_id: 99,
+            signature: 'ii', trigger_ids: [4, 8], trigger_count: 2,
+            int_args: [3, 5], int_arg_count: 2, str_args: [], str_arg_count: 0 },
+        { kind: 'CC_SETONDRAGCOMPLETE', component_id: child.componentId, script_id: 100,
+            signature: 's', trigger_ids: [], trigger_count: 0,
+            int_args: [0], int_arg_count: 1, str_args: ['done'], str_arg_count: 1 },
+        { kind: 'IF_SETPOSITION', component_id: buttonId,
+            x: 21, y: 22, xmode: 0, ymode: 0 },
+        { kind: 'IF_SETSIZE', component_id: buttonId,
+            width: 31, height: 32, wmode: 0, hmode: 0 },
+        { kind: 'IF_SETHIDE', component_id: buttonId, hidden: 1 },
+        { kind: 'IF_SETTRANS', component_id: buttonId, trans: 41 },
+        { kind: 'IF_CLEAROPS', component_id: buttonId },
+        { kind: 'IF_SETONMOUSEOVER', component_id: buttonId, script_id: 101,
+            signature: 'i', trigger_ids: [], trigger_count: 0,
+            int_args: [6], int_arg_count: 1, str_args: [], str_arg_count: 0 },
+        { kind: 'IF_SETONMOUSELEAVE', component_id: buttonId, script_id: 102,
+            signature: '', trigger_ids: [], trigger_count: 0,
+            int_args: [], int_arg_count: 0, str_args: [], str_arg_count: 0 },
+        { kind: 'IF_SETONOP', component_id: buttonId, script_id: 103,
+            signature: 's', trigger_ids: [], trigger_count: 0,
+            int_args: [0], int_arg_count: 1, str_args: ['operate'], str_arg_count: 1 },
+    ]; };
+    for( const request of requests(ordered) ) ordered.host.request(request);
+    compact.host.requestFastBatch(requests(compact));
+    assert(JSON.stringify(ordered.host.snapshot()) === JSON.stringify(compact.host.snapshot()),
+           'compact HOST replay changed tree state, versioning, hooks, or active identity');
+    const packedRequests = requests(packed);
+    const words = new Int32Array(packedRequests.length * 12);
+    const arena = new Uint8Array(2048);
+    const arenaView = new DataView(arena.buffer);
+    const encoder = new TextEncoder();
+    let arenaSize = 0;
+    const kinds = {
+        CC_FIND: 200, CC_SETPOSITION: 1000, CC_SETHIDE: 1003,
+        CC_SETTRANS: 1103, CC_SETOBJECT: 1200, CC_CLEAROPS: 1307,
+        CC_SETONDRAG: 1405, CC_SETONDRAGCOMPLETE: 1410,
+        IF_SETPOSITION: 2000, IF_SETSIZE: 2001, IF_SETHIDE: 2003,
+        IF_SETTRANS: 2103, IF_CLEAROPS: 2307, IF_SETONMOUSEOVER: 2403,
+        IF_SETONMOUSELEAVE: 2404, IF_SETONOP: 2409,
+    };
+    for( let index = 0; index < packedRequests.length; index++ ) {
+        const request = packedRequests[index];
+        const base = index * 12;
+        words[base] = kinds[request.kind];
+        words[base + 1] = request.component_id ?? request.parent_id;
+        if( request.kind === 'CC_FIND' ) {
+            words[base + 2] = request.sub_id;
+            words[base + 3] = Number(request.dot_operand);
+            words[base + 4] = request.expected_component_id;
+        } else if( request.kind === 'CC_SETPOSITION' || request.kind === 'IF_SETPOSITION' ) {
+            words[base + 2] = request.x; words[base + 3] = request.y;
+            words[base + 4] = request.xmode; words[base + 5] = request.ymode;
+        } else if( request.kind === 'IF_SETSIZE' ) {
+            words[base + 2] = request.width; words[base + 3] = request.height;
+            words[base + 4] = request.wmode; words[base + 5] = request.hmode;
+        } else if( request.kind === 'CC_SETHIDE' || request.kind === 'IF_SETHIDE' )
+            words[base + 2] = request.hidden;
+        else if( request.kind === 'CC_SETTRANS' || request.kind === 'IF_SETTRANS' )
+            words[base + 2] = request.trans;
+        else if( request.kind === 'CC_SETOBJECT' ) {
+            words[base + 2] = request.obj_id; words[base + 3] = request.count;
+            words[base + 4] = request.num_mode;
+        } else if( request.kind === 'CC_SETONDRAG' ||
+            request.kind === 'CC_SETONDRAGCOMPLETE' ||
+            request.kind === 'IF_SETONMOUSEOVER' ||
+            request.kind === 'IF_SETONMOUSELEAVE' || request.kind === 'IF_SETONOP' ) {
+            const signature = encoder.encode(request.signature);
+            const signatureBlock = (signature.length + 3) & ~3;
+            const triggers = request.trigger_ids;
+            const ints = request.int_args;
+            const strings = request.str_args;
+            arenaSize = (arenaSize + 3) & ~3;
+            const payload = arenaSize;
+            arenaView.setInt32(arenaSize, signature.length, true); arenaSize += 4;
+            arena.set(signature, arenaSize); arenaSize += signatureBlock;
+            for( const value of triggers ) {
+                arenaView.setInt32(arenaSize, value, true); arenaSize += 4;
+            }
+            for( const value of ints ) {
+                arenaView.setInt32(arenaSize, value, true); arenaSize += 4;
+            }
+            for( const value of strings ) {
+                arena.set(encoder.encode(value).subarray(0, 255), arenaSize);
+                arenaSize += 256;
+            }
+            words[base + 2] = request.script_id;
+            words[base + 3] = triggers.length;
+            words[base + 4] = ints.length;
+            words[base + 5] = request.signature === 's' ? 1 : 0;
+            words[base + 7] = strings.length;
+            words[base + 8] = signature.length;
+            words[base + 9] = payload;
+            words[base + 10] = arenaSize - payload;
+        }
+    }
+    packed.host.requestFastPackedBatch(words, packedRequests.length, arena.subarray(0, arenaSize));
+    assert(JSON.stringify(ordered.host.snapshot()) === JSON.stringify(packed.host.snapshot()),
+           'packed HOST replay changed tree state, versioning, hooks, or active identity');
+    assert(JSON.stringify([...compact.host.fastHostInventorySnapshot(95)]) ===
+           JSON.stringify([0, 4151, 2, 7, 995, 123]),
+           'fast inventory snapshot did not preserve slot/object/count values');
+    assert(JSON.stringify([...compact.host.fastHostChildrenSnapshot(
+        compact.host.ref('root').componentId)]) === JSON.stringify([7, compact.child.componentId]),
+           'fast child snapshot did not preserve dynamic sub-id/component identity');
+    assert(compact.host.fastHostChildrenSnapshot(0x123456) === null,
+           'fast child snapshot did not distinguish a missing parent from an empty parent');
 });
 
 test('the live host models sprite, text, model, object and arc presentation fields', () => {
@@ -1529,8 +2091,8 @@ test('component trigger and resize HOST calls settle after the outer script in n
     const result = host.trigger('button', 'on_op', { opIndex: 2 });
     assert(trace.join(',') === [
         'begin:100', 'end:100',
-        'service:cc_triggerop:4',
         'begin:101', 'end:101', 'begin:102', 'end:102',
+        'service:cc_triggerop:4',
         'begin:103', 'end:103',
     ].join(','), `deferred component order was ${trace}`);
     assert(result.intents.map((intent) => intent.hook.scriptId).join(',') === '100,101,102,103',
@@ -1551,6 +2113,87 @@ test('component trigger and resize HOST calls settle after the outer script in n
            outbound[1].opIndex === 1 && outbound[1].componentId === 0x123456 &&
            outbound[1].subId === 77 && Object.keys(host.snapshot().pendingDeferred).length === 0,
            `tick-synthesized IF_BUTTON1 service was ${JSON.stringify(outbound)}`);
+});
+
+test('direct component operations publish armed IF_BUTTON services before local hooks', () => {
+    const built = compileSource(`
+        import { Graphic, Layer } from 'cs2dom';
+        export default function Buttons() {
+            return (
+                <Layer id="root" width={100} height={80}>
+                    <Layer id="button" x={10} y={10} width={40} height={24}>
+                        <Graphic id="decoration" width={40} height={24} sprite={10} />
+                    </Layer>
+                    <Layer id="mask_only" x={60} y={10} width={30} height={24} />
+                </Layer>
+            );
+        }
+    `, { name: 'button_services' });
+    const component = (name) => built.ir.components.find((item) => item.name === name);
+    component('button').hooks.on_op = { script: { id: 120 }, args: [] };
+    component('button').ops = [
+        { index: 1, text: 'Primary' },
+        { index: 2, text: 'Secondary' },
+        { index: 3, text: 'Local only' },
+    ];
+    component('button').static.clickMask = (1 << 1) | (1 << 2);
+    component('mask_only').static.clickMask = 1 << 1;
+
+    const trace = [];
+    const outbound = [];
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 100, height: 80 },
+        onService(service) {
+            outbound.push(service);
+            trace.push(`service:${service.source}:${service.opIndex}`);
+        },
+        invoke(intent) {
+            trace.push(`hook:${intent.hook.scriptId}:${intent.locals.opIndex}`);
+        },
+    });
+
+    host.layout();
+    const beforeButtonVersion = host.version;
+    assert(host.layoutVersion === beforeButtonVersion,
+           'button-service fixture did not begin with a current layout cache');
+    const pointer = host.dispatch({ type: 'pointer_down', button: 0, x: 20, y: 20 });
+    assert(pointer.hit.name === 'button' && trace.join(',') ===
+           'service:pointer:1,hook:120:1',
+           `left-click button ordering/ancestor target was ${trace}`);
+    assert(outbound[0].componentId === host.ref('button').componentId &&
+           outbound[0].subId === -1 && outbound[0].objectId === undefined,
+           `plain pointer button service was ${JSON.stringify(outbound[0])}`);
+    assert(host.version === beforeButtonVersion + 1 && host.layoutVersion === host.version,
+           'an outbound-only IF_BUTTON service invalidated unchanged widget layout');
+    host.dispatch({ type: 'pointer_up', button: 0, x: 20, y: 20 });
+    trace.length = 0;
+    const maskOnly = host.dispatch({ type: 'pointer_down', button: 0, x: 70, y: 20 });
+    assert(maskOnly.hit.name === 'mask_only' && trace.length === 0 && outbound.length === 1,
+           'a click-mask bit without an op row or local action became a numbered default op');
+    host.dispatch({ type: 'pointer_up', button: 0, x: 70, y: 20 });
+
+    trace.length = 0;
+    host.dispatch({ type: 'op', target: host.ref('button'), opIndex: 2 });
+    assert(trace.join(',') === 'service:minimenu:2,hook:120:2',
+           `menu operation ordering was ${trace}`);
+    trace.length = 0;
+    host.dispatch({ type: 'op', target: host.ref('button'), opIndex: 3 });
+    assert(trace.join(',') === 'hook:120:3' && outbound.length === 2,
+           'an unarmed numbered operation notified the server or skipped its local hook');
+
+    const object = host.createChild('root', IF_TYPE.graphic, 7);
+    host.request({ kind: 'CC_SETSIZE', component: object,
+        width: 16, height: 16, wmode: 0, hmode: 0 });
+    host.request({ kind: 'CC_SETOBJECT', component: object, obj_id: 995, count: 42 });
+    host.request({ kind: 'CC_SETCLICKMASK', component: object, value: 1 << 4 });
+    host.setHook(object, 'on_op', { scriptId: 121, args: [] });
+    trace.length = 0;
+    host.dispatch({ type: 'op', target: object, opIndex: 4 });
+    const objectService = outbound.at(-1);
+    assert(trace.join(',') === 'service:minimenu:4,hook:121:4' &&
+           objectService.componentId === host.ref('root').componentId &&
+           objectService.subId === 7 && objectService.objectId === 995,
+           `dynamic object IF_BUTTON service was ${JSON.stringify(objectService)} / ${trace}`);
 });
 
 test('component deferred queues retain the first sixteen requests and restore from snapshots', () => {
@@ -2138,6 +2781,56 @@ test('pointer hooks preserve exact cache/authored identity and client event loca
     assert(seen.some((intent) => intent.hook.canonical === 'on_release'),
            'release did not return to the press owner');
     assert(host.component('button').props.color === 99, 'synchronous hook mutation was not committed');
+
+    host.dispatch({ type: 'pointer_down', x: 15, y: 18, button: 0 });
+    seen.length = 0;
+    const cancelled = host.dispatch({ type: 'focus_lost' });
+    assert(cancelled.intents.length === 0 &&
+           !seen.some((intent) => intent.hook.canonical === 'on_release'),
+           'cancelled pointer ownership synthesized an onRelease hook');
+    assert(cancelled.interaction.pressed === null && cancelled.interaction.button === null,
+           'focus loss retained a cancelled pointer press');
+});
+
+test('logic ticks preserve native timer, held-press, then mouse-repeat ordering', () => {
+    const { built } = liveHostFixture();
+    const seen = [];
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 },
+        invoke: (intent) => seen.push(intent.hook.canonical),
+    });
+    host.setHook('root', 'on_timer', { scriptId: 80, args: [] });
+    host.setHook('button', 'on_mouse_repeat', { scriptId: 81, args: [] });
+
+    host.dispatch({ type: 'pointer_move', x: 15, y: 18 });
+    host.dispatch({ type: 'pointer_down', x: 15, y: 18, button: 0 });
+    seen.length = 0;
+    const tick = host.dispatch({ type: 'tick', cycle: 1 });
+
+    assert(seen.join(',') ===
+           'on_timer,on_hold,on_click_repeat,on_mouse_repeat',
+           `per-cycle hook ordering was ${seen.join(',')}`);
+    assert(tick.intents.map((intent) => intent.hook.canonical).join(',') === seen.join(','),
+           'tick result intents diverged from synchronous C/WASM invocation order');
+});
+
+test('minimenu dismissal is an input boundary that cannot click the underlying tree', () => {
+    const { built } = liveHostFixture();
+    const seen = [];
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 },
+        invoke: (intent) => seen.push(intent.hook.canonical),
+    });
+    host.dispatch({ type: 'pointer_move', x: 15, y: 18 });
+    const opened = host.dispatch({ type: 'pointer_down', x: 15, y: 18, button: 2 });
+    assert(opened.interaction.menuOpen, 'right press did not enter minimenu ownership');
+    seen.length = 0;
+
+    const closed = host.dispatch({ type: 'menu_close' });
+    assert(!closed.interaction.menuOpen && closed.interaction.menuEntries.length === 0,
+           'menu-close did not retire minimenu ownership');
+    assert(closed.intents.length === 0 && seen.length === 0,
+           'dismissing a minimenu invoked the component beneath it');
 });
 
 test('drag, wheel and direct op dispatch stay in the React host transaction', () => {
@@ -2465,6 +3158,165 @@ testAsync('C CS2VM/WASM receives live input, settings, viewport, and minimenu HO
     runtime.destroy();
 });
 
+test('the browser WASM adapter caches immutable reflection schema metadata', () => {
+    const heap = new Uint8Array(2048);
+    let cursor = 256;
+    const write = (value) => {
+        const bytes = new TextEncoder().encode(value);
+        const pointer = cursor;
+        heap.set(bytes, pointer);
+        heap[pointer + bytes.length] = 0;
+        cursor += bytes.length + 1;
+        return pointer;
+    };
+    const names = {
+        2003: { request: write('IF_SETHIDE'), fields: [write('hidden'), write('dot_operand')] },
+        1400: { request: write('CC_SETONCLICK'), fields: [write('int_args')] },
+    };
+    const counts = { request: 0, count: 0, name: 0, kind: 0, length: 0, value: 0 };
+    let hidden = 0;
+    let ints = [4, 5];
+    const api = {
+        HEAPU8: heap,
+        _cs2w_request_kind_name(kind) { counts.request++; return names[kind].request; },
+        _cs2w_request_field_count(kind) { counts.count++; return names[kind].fields.length; },
+        _cs2w_request_field_name(kind, index) { counts.name++; return names[kind].fields[index]; },
+        _cs2w_request_field_kind(kind) {
+            counts.kind++;
+            return kind === 1400 ? 5 : 2;
+        },
+        _cs2w_request_field_length() { counts.length++; return ints.length; },
+        _cs2w_request_field_i32(pointer, index, element) {
+            counts.value++;
+            if( pointer === 2003 ) return index === 0 ? hidden : 0;
+            return ints[element];
+        },
+        _cs2w_request_field_string() { return 0; },
+        _cs2w_thread_current_operand() { return 1; },
+    };
+    const schemas = new Map();
+
+    const first = __wasmRuntimeTest.reflectRequest(api, 2003, 2003, 33, schemas);
+    hidden = 1;
+    const second = __wasmRuntimeTest.reflectRequest(api, 2003, 2003, 33, schemas);
+    assert(first.hidden === 0 && second.hidden === 1 &&
+           first.dot_operand === false && second.dot_operand === false,
+           `cached scalar reflection returned ${JSON.stringify([first, second])}`);
+    assert(counts.request === 1 && counts.count === 1 && counts.name === 2 &&
+           counts.kind === 2 && counts.length === 0 && counts.value === 4,
+           `scalar reflection repeated immutable metadata: ${JSON.stringify(counts)}`);
+
+    const arrayFirst = __wasmRuntimeTest.reflectRequest(api, 1400, 1400, 33, schemas);
+    ints = [7, 8, 9];
+    const arraySecond = __wasmRuntimeTest.reflectRequest(api, 1400, 1400, 33, schemas);
+    assert(arrayFirst.int_args.join(',') === '4,5' &&
+           arraySecond.int_args.join(',') === '7,8,9',
+           `cached array reflection lost dynamic values: ${JSON.stringify([arrayFirst, arraySecond])}`);
+    assert(counts.request === 2 && counts.count === 2 && counts.name === 3 &&
+           counts.kind === 3 && counts.length === 2 && counts.value === 9,
+           `array reflection did not isolate schema from request data: ${JSON.stringify(counts)}`);
+});
+
+test('the browser WASM adapter reflects C requests directly from a growing heap', () => {
+    let heap = new Uint8Array(2048);
+    const api = { HEAPU8: heap };
+    const request = 128;
+    let metadataCursor = 1024;
+    const encoder = new TextEncoder();
+    const writeString = (at, value, capacity = value.length + 1) => {
+        const bytes = encoder.encode(value);
+        heap.fill(0, at, at + capacity);
+        heap.set(bytes.subarray(0, Math.max(0, capacity - 1)), at);
+        return at;
+    };
+    const metadataString = (value) => {
+        const at = metadataCursor;
+        metadataCursor += encoder.encode(value).length + 1;
+        return writeString(at, value);
+    };
+    const requestName = metadataString('DIRECT_LAYOUT');
+    const descriptors = [
+        ['integer', 1, 16, 1, 0, -1],
+        ['boolean', 2, 20, 1, 0, -1],
+        ['byte', 3, 21, 1, 0, -1],
+        ['text', 4, 24, 1, 0, -1],
+        ['fixed', 5, 28, 3, 0, 72],
+        ['pointed', 6, 40, 0, 0, 76],
+        ['wide', 7, 44, 2, 0, -1],
+        ['strings', 8, 52, 2, 8, 80],
+        ['dot_operand', 1, 84, 1, 0, -1],
+    ].map(([name, ...layout]) => [metadataString(name), ...layout]);
+    const counts = { pointerSize: 0, layout: 0, length: 0, i32: 0, string: 0 };
+    Object.assign(api, {
+        _cs2w_request_kind_name() { return requestName; },
+        _cs2w_request_field_count() { return descriptors.length; },
+        _cs2w_request_field_name(kind, index) { return descriptors[index][0]; },
+        _cs2w_request_field_kind(kind, index) { return descriptors[index][1]; },
+        _cs2w_request_field_offset(kind, index) { counts.layout++; return descriptors[index][2]; },
+        _cs2w_request_field_capacity(kind, index) { counts.layout++; return descriptors[index][3]; },
+        _cs2w_request_field_stride(kind, index) { counts.layout++; return descriptors[index][4]; },
+        _cs2w_request_field_count_offset(kind, index) {
+            counts.layout++; return descriptors[index][5];
+        },
+        _cs2w_request_pointer_size() { counts.pointerSize++; return 4; },
+        _cs2w_request_field_length() { counts.length++; return 0; },
+        _cs2w_request_field_i32() { counts.i32++; return 0; },
+        _cs2w_request_field_string() { counts.string++; return 0; },
+        _cs2w_thread_current_operand() { return 1; },
+    });
+    let view = new DataView(heap.buffer);
+    view.setInt32(request + 16, -123, true);
+    heap[request + 20] = 1;
+    heap[request + 21] = 250;
+    view.setUint32(request + 24, writeString(400, 'heap'), true);
+    [-1, 2, 3].forEach((value, index) => view.setInt32(request + 28 + index * 4, value, true));
+    view.setUint32(request + 40, 320, true);
+    view.setInt32(320, 44, true);
+    view.setInt32(324, -55, true);
+    view.setUint32(request + 44, 0x89abcdef, true);
+    view.setUint32(request + 48, 0xfedcba98, true);
+    writeString(request + 52, 'one', 8);
+    writeString(request + 60, 'two', 8);
+    view.setInt32(request + 72, 99, true); /* fixed arrays clamp to capacity */
+    view.setInt32(request + 76, 2, true);
+    view.setInt32(request + 80, 2, true);
+    view.setInt32(request + 84, 0, true);
+
+    const schemas = new Map();
+    const first = __wasmRuntimeTest.reflectRequest(api, request, 777, 33, schemas);
+    assert(first.integer === -123 && first.boolean === 1 && first.byte === 250 &&
+           first.text === 'heap' && first.fixed.join(',') === '-1,2,3' &&
+           first.pointed.join(',') === '44,-55' &&
+           first.wide.join(',') === `${0x89abcdef | 0},${0xfedcba98 | 0}` &&
+           first.strings.join(',') === 'one,two' && first.dot_operand === false,
+           `direct heap reflection returned ${JSON.stringify(first)}`);
+    assert(counts.pointerSize === 1 && counts.layout === descriptors.length * 4 &&
+           counts.length === 0 && counts.i32 === 0 && counts.string === 0,
+           `direct reflection crossed the value ABI: ${JSON.stringify(counts)}`);
+
+    /* Emscripten replaces every HEAP view after memory.grow(). The cached
+     * schema survives, while the decoder must bind to the replacement buffer. */
+    const grown = new Uint8Array(4096);
+    grown.set(heap);
+    heap = api.HEAPU8 = grown;
+    view = new DataView(heap.buffer);
+    view.setInt32(request + 16, 765, true);
+    view.setUint32(request + 24, writeString(2300, 'grown'), true);
+    view.setUint32(request + 40, 0, true);
+    const second = __wasmRuntimeTest.reflectRequest(api, request, 777, 33, schemas);
+    assert(second.integer === 765 && second.text === 'grown' && second.pointed.join(',') === '0,0',
+           `reflection kept a detached heap view: ${JSON.stringify(second)}`);
+    assert(counts.pointerSize === 1 && counts.layout === descriptors.length * 4,
+           `memory growth invalidated immutable layout metadata: ${JSON.stringify(counts)}`);
+
+    view.setUint32(request + 40, heap.length - 4, true);
+    assertThrows(() => __wasmRuntimeTest.reflectRequest(api, request, 777, 33, schemas),
+        'out of bounds');
+    view.setInt32(request + 76, -1, true);
+    const empty = __wasmRuntimeTest.reflectRequest(api, request, 777, 33, schemas);
+    assert(empty.pointed.length === 0, 'negative dynamic field count did not clamp to zero');
+});
+
 test('the browser WASM adapter honors C-owned special HOST result semantics', () => {
     const heap = new Uint8Array(4096);
     let cursor = 256;
@@ -2531,6 +3383,15 @@ test('the browser WASM adapter honors C-owned special HOST result semantics', ()
         { kind: 'STRUCT_PARAM' }, 72, host);
     assert(pushedStrings.join(',') === 'bank,tag' && pushedInts.join(',') === '19,-1,72',
            'polymorphic enum/component-param HOST results used command-table defaults');
+
+    const worldInts = [301, 0, 4, 77];
+    const worldStrings = ['Trade', 'w301'];
+    __wasmRuntimeTest.writeHostResult(api, 33, 6501,
+        { kind: 'WORLDLIST_START' }, { ints: worldInts, strings: worldStrings }, host);
+    assert(pushedInts.slice(-4).join(',') === '301,0,4,77' &&
+           pushedStrings.slice(-2).join(',') === 'Trade,w301' &&
+           worldInts.join(',') === '301,0,4,77' && worldStrings.join(',') === 'Trade,w301',
+           'mixed HOST result banks were copied out of order or consumed');
 
     /* cachepack's legacy metadata overstates these arities. Native
      * exec_worldmap and exec_mec push one integer for each, so the browser
@@ -3058,6 +3919,147 @@ test('native overlay closure follows procedures and deferred events but keeps ba
            'a hook without editable source displaced its base-cache script');
     assert(!scripts.some(({ id }) => id === 99),
            'an unreachable content script was pulled into the overlay');
+});
+
+test('script closure follows a renamed dependency through its legacy numeric suffix', () => {
+    const content = join(scratch, 'numeric-alias-closure');
+    mkdirSync(join(content, 'pack'), { recursive: true });
+    mkdirSync(join(content, 'interfaces'), { recursive: true });
+    mkdirSync(join(content, 'scripts'), { recursive: true });
+    writeFileSync(join(content, 'pack', '12_clientscripts.pack'),
+                  '10=entry\n42=renamed_event\n');
+    writeFileSync(join(content, 'interfaces', 'panel.if'),
+                  '[root]\nonload=i:10\n');
+    writeFileSync(join(content, 'scripts', 'entry.cs2'),
+                  '[clientscript,entry]\nif_setontimer("old_event_name_42", null);\n');
+    writeFileSync(join(content, 'scripts', 'renamed_event.cs2'),
+                  '[clientscript,renamed_event]\nreturn;\n');
+    assert(JSON.stringify(collectInterfaceScripts(content, 'panel').map(({ id, name }) =>
+        [id, name])) === JSON.stringify([[10, 'entry'], [42, 'renamed_event']]),
+    'numeric legacy dependency did not resolve through the script pack');
+});
+
+test('script closure and compiler aliases accept cache names beginning with digits', () => {
+    const content = join(scratch, 'digit-leading-script-closure');
+    mkdirSync(join(content, 'pack'), { recursive: true });
+    mkdirSync(join(content, 'interfaces'), { recursive: true });
+    mkdirSync(join(content, 'scripts'), { recursive: true });
+    writeFileSync(join(content, 'pack', '12_clientscripts.pack'), [
+        '10=entry',
+        '2711=1v1arena_clear_opbutton',
+        '2717=1v1arena_hud_toggle_2717',
+        '',
+    ].join('\n'));
+    writeFileSync(join(content, 'interfaces', 'panel.if'),
+                  '[root]\nonload=i:10\n');
+    writeFileSync(join(content, 'scripts', 'entry.cs2'), [
+        '[clientscript,entry]',
+        '~1v1arena_hud_toggle_2717();',
+        'if_setonop("1v1arena_clear_opbutton()", null);',
+        'return;',
+    ].join('\n'));
+    writeFileSync(join(content, 'scripts', '1v1arena_clear_opbutton.cs2'),
+                  '[clientscript,1v1arena_clear_opbutton]\nreturn;\n');
+    writeFileSync(join(content, 'scripts', '1v1arena_hud_toggle_2717.cs2'),
+                  '[clientscript,1v1arena_hud_toggle_2717]\nreturn;\n');
+    const scripts = collectInterfaceScripts(content, 'panel');
+    assert(JSON.stringify(scripts.map(({ id, name }) => [id, name])) === JSON.stringify([
+        [10, 'entry'], [2711, '1v1arena_clear_opbutton'], [2717, '1v1arena_hud_toggle_2717'],
+    ]), `digit-leading closure was ${JSON.stringify(scripts.map(({ id, name }) => [id, name]))}`);
+    const normalized = normalizeCompilerSources(scripts, [10]);
+    assert(normalized.find(({ id }) => id === 2717).source.includes(
+        '[proc,1v1arena_hud_toggle_2717]'),
+    'a digit-leading GOSUB target was not normalized to a proc');
+    assert(normalized.find(({ id }) => id === 2711).source.includes(
+        '[clientscript,1v1arena_clear_opbutton]'),
+    'a digit-leading deferred callback lost its clientscript role');
+});
+
+test('script closure uses the compiler ledger to distinguish same-name procs and clientscripts', () => {
+    const root = join(scratch, 'role-aware-script-closure');
+    const content = join(root, 'content');
+    const cs2Names = join(root, 'cs2-names');
+    mkdirSync(join(content, 'pack'), { recursive: true });
+    mkdirSync(join(content, 'interfaces'), { recursive: true });
+    mkdirSync(join(content, 'scripts'), { recursive: true });
+    mkdirSync(cs2Names, { recursive: true });
+    writeFileSync(join(content, 'pack', '12_clientscripts.pack'), [
+        '10=entry',
+        '20=widget_update',
+        '21=widget_update_21',
+        '22=nested_helper',
+        '',
+    ].join('\n'));
+    writeFileSync(join(cs2Names, 'script-names.tsv'), [
+        '10\t[clientscript,entry]',
+        '20\t[clientscript,widget_update]',
+        '21\t[proc,widget_update]',
+        '22\t[proc,nested_helper]',
+        '',
+    ].join('\n'));
+    writeFileSync(join(content, 'interfaces', 'panel.if'),
+                  '[root]\nonload=i:10\n');
+    writeFileSync(join(content, 'scripts', 'entry.cs2'), [
+        '[clientscript,entry]',
+        '~script20();',
+        'if_setontimer("widget_update()", null);',
+        'return;',
+    ].join('\n'));
+    writeFileSync(join(content, 'scripts', 'widget_update.cs2'),
+                  '[clientscript,widget_update]\nreturn;\n');
+    /* Cache decompilation can give the proc a clientscript header and a
+     * suffixed file alias. The external compiler ledger is authoritative. */
+    writeFileSync(join(content, 'scripts', 'widget_update_21.cs2'),
+                  '[clientscript,widget_update_21]\n~nested_helper();\nreturn;\n');
+    writeFileSync(join(content, 'scripts', 'nested_helper.cs2'),
+                  '[clientscript,nested_helper]\nreturn;\n');
+
+    const scripts = collectInterfaceScripts(content, 'panel', { cs2Names });
+    assert(JSON.stringify(scripts.map(({ id, name }) => [id, name])) === JSON.stringify([
+        [10, 'entry'], [20, 'widget_update'], [21, 'widget_update_21'], [22, 'nested_helper'],
+    ]), `role-aware closure was ${JSON.stringify(scripts.map(({ id, name }) => [id, name]))}`);
+    const normalized = normalizeCompilerSources(scripts, [10]);
+    assert(normalized.find(({ id }) => id === 10).source.includes('~widget_update();'),
+        'numeric clientscript alias did not resolve to the same-name proc');
+    assert(normalized.find(({ id }) => id === 20).source.includes(
+        '[clientscript,widget_update]'), 'clientscript role/name was not retained');
+    assert(normalized.find(({ id }) => id === 21).source.includes('[proc,widget_update]'),
+        'same-name procedure was not canonicalized from the compiler ledger');
+    assert(normalized.find(({ id }) => id === 22).source.includes('[proc,nested_helper]'),
+    'transitive procedure role was not canonicalized from the compiler ledger');
+});
+
+test('content bytecode fallback requires an exact cache revision and source fingerprint', () => {
+    const root = join(scratch, 'exact-bytecode-fallback');
+    const content = join(root, 'content');
+    const derived = join(root, 'derived');
+    const raw = join(derived, '.raw', 'scripts');
+    const cache = join(root, 'cache');
+    mkdirSync(content, { recursive: true });
+    mkdirSync(raw, { recursive: true });
+    mkdirSync(cache, { recursive: true });
+    const meta = [
+        '[cache]', 'revision = 239', 'rev_name = osrs239', '',
+        '[source]', 'dat2_size = 12345', 'dat2_crc32 = 1a2b3c4d', '',
+    ].join('\n');
+    writeFileSync(join(content, 'meta.ini'), meta);
+    writeFileSync(join(derived, 'meta.ini'), meta);
+    writeFileSync(join(derived, '.cs2dom-ready.json'), JSON.stringify({
+        cache: resolve(cache), revision: 'osrs239',
+    }));
+    const project = { cache, revision: 'osrs239', dat2RawScripts: raw };
+    const exact = __bytecodeTest.exactDat2Fallback(project, content);
+    assert(exact?.cache === resolve(cache) && exact.revision === 'osrs239' &&
+           exact.crc === '1a2b3c4d', 'matching Dat2 fallback identity was refused');
+    assert(__bytecodeTest.exactDat2Fallback({ ...project, revision: 'osrs240' }, content) === null,
+        'a mismatched revision was accepted as exact bytecode fallback');
+    assert(__bytecodeTest.exactDat2Fallback({ ...project, cache: join(root, 'other') }, content) === null,
+        'a mismatched cache path was accepted as exact bytecode fallback');
+    assert(__bytecodeTest.exactDat2Fallback({ revision: 'osrs239' }, content) === null,
+        'missing cache/raw provenance was accepted as exact bytecode fallback');
+    writeFileSync(join(derived, 'meta.ini'), meta.replace('1a2b3c4d', 'ffffffff'));
+    assert(__bytecodeTest.exactDat2Fallback(project, content) === null,
+        'a mismatched cache CRC was accepted as exact bytecode fallback');
 });
 
 test('native overlay stages a sparse source set and invalidates cache and source keys', () => {

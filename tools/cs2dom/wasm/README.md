@@ -29,7 +29,7 @@ const module = await createCS2VMModule({
 
 The complete exported contract and numeric constants are in
 [`cs2vm_wasm.h`](cs2vm_wasm.h). `cs2w_abi_version()` currently returns
-`0x00010000`.
+`0x00010002`.
 
 ## Lifetime and invocation model
 
@@ -61,6 +61,11 @@ with:
 - `cs2w_request_field_count(kind)`
 - `cs2w_request_field_name(kind, index)`
 - `cs2w_request_field_kind(kind, index)`
+- `cs2w_request_field_offset(kind, index)`
+- `cs2w_request_field_capacity(kind, index)`
+- `cs2w_request_field_stride(kind, index)`
+- `cs2w_request_field_count_offset(kind, index)`
+- `cs2w_request_pointer_size()`
 - `cs2w_request_field_length(request, index)`
 - `cs2w_request_field_i32(request, index, element)`
 - `cs2w_request_field_string(request, index, element)`
@@ -93,6 +98,14 @@ children-array handle.
 Typed result selection remains HOST policy. For example, JavaScript uses
 `ENUM.output_type` and component-param metadata to choose push-int versus
 push-string; the bridge deliberately does not duplicate that game-state logic.
+
+Browser hosts may opt an invocation into the compact transaction ABI with
+`cs2w_invocation_set_fast_host(invocation, 1)`. The module then calls the
+JavaScript-owned `cs2FastHostQuery` for inventory/child snapshots and
+`cs2FastHostFlush` for ordered mutation records. A request outside the proven
+fast vocabulary first commits the transaction and invalidates its snapshots;
+the generic `cs2HostExec` path remains the fallback. Native builds reject the
+opt-in so portable bridge tests always exercise the generic ABI.
 
 ## Generated schema
 
