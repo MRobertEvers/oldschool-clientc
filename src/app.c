@@ -8015,6 +8015,39 @@ app_attack_options_reset(struct App* app)
     }
 }
 
+/* The cache directory named at boot holds nothing openable.
+ *
+ * This cannot be reported with assert(): the optimized lane compiles assert()
+ * out (-DNDEBUG, src/Makefile:157, which documents the loud abort as the cost
+ * it pays). Without a real exit here the client walks on with a NULL disk and
+ * dies several thousand frames of setup later inside load_cache_item_dat2,
+ * with a bare SIGSEGV and no mention of a cache anywhere.
+ *
+ * The flush is not decoration. MinGW block-buffers stderr whenever it is a
+ * file or a pipe rather than a console, so a message written and then followed
+ * by an abrupt exit is discarded unread -- which is precisely how this failure
+ * presented: a crash with an empty log. */
+static void
+app_cache_missing(
+    char const* kind,
+    char const* dir,
+    char const* expected,
+    char const* hint)
+{
+    assert(kind);
+    assert(expected);
+    assert(hint);
+    fprintf(
+        stderr,
+        "app: no %s cache at %s (expected %s; %s)\n",
+        kind,
+        dir ? dir : "(unnamed cache)",
+        expected,
+        hint);
+    fflush(stderr);
+    exit(1);
+}
+
 void
 App_Init(
     struct App* app,
@@ -8138,12 +8171,11 @@ App_Init(
     {
         app->dat1_disk = RSCache_Dat1DiskNewFromDirectory(cfg->cache_dir);
         if( !app->dat1_disk )
-            fprintf(
-                stderr,
-                "app: no dat1 cache at %s (expected main_file_cache.dat; pass --dat2 for a "
-                "js5 cache)\n",
-                cfg->cache_dir);
-        assert(app->dat1_disk != NULL);
+            app_cache_missing(
+                "dat1",
+                cfg->cache_dir,
+                "main_file_cache.dat",
+                "pass --dat2 for a js5 cache");
         PlatformX_IO_InitDat1Disk(app->runner.px, app->dat1_disk);
         /* No xtea step: dat1 archives are not encrypted. */
     }
@@ -8153,12 +8185,11 @@ App_Init(
          * and decoding the rest at open cost several MB it never looked at. */
         app->dat2_disk = RSCache_Dat2DiskNewFromDirectoryLazyTables(cfg->cache_dir);
         if( !app->dat2_disk )
-            fprintf(
-                stderr,
-                "app: no dat2 cache at %s (expected main_file_cache.dat2; pass --dat1 for a "
-                "317-era cache)\n",
-                cfg->cache_dir);
-        assert(app->dat2_disk != NULL);
+            app_cache_missing(
+                "dat2",
+                cfg->cache_dir,
+                "main_file_cache.dat2",
+                "pass --dat1 for a 317-era cache");
         /* Map archives may be xtea-encrypted (OldSchool below 237; RS2 dat2
          * from 414). Keys load into the rscache global table the disk layer
          * consults on archive fetch — only when the identity gate says so. */
