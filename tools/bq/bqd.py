@@ -87,10 +87,32 @@ def stage_arms(job):
         for e in listing.get('entries', []):
             present.add(e['n'])
 
+    dropped = []
+    kept = []
     for arm in job['arms']:
         local = arm['exe']
         if not os.path.isfile(local):
-            return False, 'arm %s: local exe missing: %s' % (arm['name'], local)
+            # The binary is content-addressed on the box as bq_<sha12>.exe, so
+            # a local copy is only needed to UPLOAD it. If the box already holds
+            # this exact sha, the arm is runnable and the missing local file is
+            # irrelevant -- and the box-side runner re-hashes every arm before
+            # the first run anyway, so identity is still proven where it counts.
+            #
+            # This is not hypothetical: C: hit 100% mid-session and swept ~half
+            # the scratchpad's exes, after which three fully-staged jobs died
+            # here even though the box still had most of their binaries.
+            rn = remote_name(arm.get('sha256') or '')
+            if arm.get('sha256') and rn in present and st.get(rn) == arm['sha256']:
+                arm['remote'] = rn
+                arm['upload'] = 'cached (local copy gone)'
+                kept.append(arm)
+                continue
+            # Not on the box either -- drop this ONE arm rather than the job.
+            # Failing the whole job on the first bad arm threw away 38 good
+            # arms across three jobs, about 2.5 h of box time, for 25 bad paths.
+            dropped.append({'name': arm['name'], 'why': 'local exe missing',
+                            'exe': local, 'sha256': arm.get('sha256')})
+            continue
 
         sha = L.sha256_file(local)
         if arm.get('sha256') and arm['sha256'] != sha:
@@ -104,10 +126,11 @@ def stage_arms(job):
         if missing is None:
             arm['asm_syms'] = 'UNVERIFIED (nm unavailable)'
         elif missing:
-            return False, ('arm %s: handrolled kernels missing from the binary: '
-                           '%s -- built with TORIDRAW_ABLATE/SPAN_CENSUS/'
-                           'SPAN_TRACE in TORIDRAW_PROBE_CFLAGS?'
-                           % (arm['name'], ','.join(missing)))
+            dropped.append({'name': arm['name'], 'sha256': sha,
+                            'why': 'handrolled kernels missing: %s -- built with '
+                                   'TORIDRAW_ABLATE/SPAN_CENSUS/SPAN_TRACE in '
+                                   'TORIDRAW_PROBE_CFLAGS?' % ','.join(missing)})
+            continue
         else:
             arm['asm_syms'] = 'all 4 present'
 
@@ -115,12 +138,25 @@ def stage_arms(job):
         arm['remote'] = rn
         if rn in present and st.get(rn) == sha:
             arm['upload'] = 'cached'
+            kept.append(arm)
             continue
         t0 = time.time()
         n = L.box_put(local, L.BOX_ROOT + '\\' + rn)
         arm['upload'] = '%d B in %.1f s' % (n, time.time() - t0)
         st[rn] = sha
         save_boxstate(st)
+        kept.append(arm)
+
+    if dropped:
+        job['dropped_arms'] = dropped
+        job['arms'] = kept
+        for d in dropped:
+            log('DROPPED arm %s: %s' % (d['name'], d['why']))
+    # A job that is only its own controls measures nothing; that IS fatal.
+    real = [a for a in kept if a['name'] not in ('ctl', 'ctl2')]
+    if not real:
+        return False, ('every non-control arm was dropped: %s'
+                       % '; '.join('%s (%s)' % (d['name'], d['why']) for d in dropped))
     return True, None
 
 
@@ -223,6 +259,10 @@ def finish(job, result, status, error=None):
     result['submitted_by'] = job.get('submitted_by', '')
     result['submitted_at'] = job.get('submitted_at')
     result['host_end'] = time.time()
+    # Arms staged out of the job must survive into the result, or a job that
+    # quietly ran 9 of its 16 arms reads as a complete 9-arm job.
+    if job.get('dropped_arms'):
+        result['dropped_arms'] = job['dropped_arms']
     result['arms'] = {}
     for a in job['arms']:
         result['arms'][a['name']] = {

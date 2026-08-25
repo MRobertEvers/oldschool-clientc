@@ -7,6 +7,7 @@
 #
 # The HTTP shim times a script out at 120 s, so this relaunches itself
 # detached and the caller polls for the output file.
+import ctypes
 import hashlib
 import json
 import os
@@ -72,7 +73,15 @@ def bench_env(extra):
         ';1600,-900,2368,200,1537'
         ';1975,-900,3273,200,1281')
     e['TORIRS_MAX_FRAMES'] = str(JOB['frames'])
-    e['SDL_VIDEODRIVER'] = 'dummy'
+    # The XP lane is PLATFORM=win32 -- platform_win32gdi.c, and there is no
+    # SDL2.dll in the import table at all, so SDL_VIDEODRIVER was inert here
+    # for the whole hunt. TORIRS_WIN32_HIDDEN is the switch that actually
+    # makes this backend headless (platform_win32gdi.c:652), and it has to be
+    # set: with the window shown, the remote-desktop server that hosts this
+    # very API encodes the changing screen and takes 33% of the box's ONE
+    # cpu, landing on wall time as ~22 ms/frame no client code is
+    # responsible for -- and taking MORE from arms that render faster.
+    e['TORIRS_WIN32_HIDDEN'] = '1'
     e['TORIDRAW_RASTER_SCANLINE'] = '0'
     e['PYTHONIOENCODING'] = 'utf-8'
     # The profiler is ~69% of the XP frame. UNSET, not =0 -- a stray CSV var
@@ -130,6 +139,29 @@ def write_json(path, obj):
     os.rename(tmp, path)
 
 
+class _FILETIME(ctypes.Structure):
+    _fields_ = [('lo', ctypes.c_ulong), ('hi', ctypes.c_ulong)]
+
+
+def child_cpu_seconds(p):
+    """Kernel+user cpu the child actually received, in seconds.
+
+    Wall time on this box is the client's cost divided by whatever share of
+    the single cpu it won against everything else awake -- and the biggest of
+    those, the desktop streamer, works harder exactly when the client
+    repaints more. That correlation is what makes wall time misattribute
+    another process's work to the arm under test. Cpu time cannot be stolen.
+    """
+    def v(f):
+        return (f.hi << 32) | f.lo
+    c, e, k, u = _FILETIME(), _FILETIME(), _FILETIME(), _FILETIME()
+    ok = ctypes.windll.kernel32.GetProcessTimes(
+        int(p._handle), ctypes.byref(c), ctypes.byref(e),
+        ctypes.byref(k), ctypes.byref(u))
+    assert ok
+    return (v(k) + v(u)) / 1e7
+
+
 def run_one(remote_exe, log_path, extra_env, tag):
     env = dict(extra_env)
     # A profile run asks for the EIP sampler by setting TORIDRAW_EIP_SAMPLE=1
@@ -160,8 +192,10 @@ def run_one(remote_exe, log_path, extra_env, tag):
                          stdout=f, stderr=subprocess.STDOUT)
     rc = p.wait()
     dt = time.time() - t0
+    # Before f.close() and before the Popen handle can be collected.
+    cpu = child_cpu_seconds(p)
     f.close()
-    return rc, dt, t0, eip, strays
+    return rc, dt, t0, eip, strays, cpu
 
 
 def main():
@@ -221,11 +255,13 @@ def main():
             arm = by_name[name]
             tag = '%s_%s_r%d_s%d' % (JOB_ID, name, rep, slot)
             log_path = os.path.join(BQDIR, tag + '.log')
-            rc, dt, t0, eip, strays = run_one(arm['remote'], log_path,
-                                              arm.get('env', {}), tag)
+            rc, dt, t0, eip, strays, cpu = run_one(
+                arm['remote'], log_path, arm.get('env', {}), tag)
             result['runs'].append({
                 'arm': name, 'rep': rep, 'slot': slot, 'rc': rc,
                 'wall_s': dt, 'ms_per_frame': dt * 1000.0 / frames,
+                'cpu_s': cpu, 'cpu_ms_per_frame': cpu * 1000.0 / frames,
+                'cpu_share': (cpu / dt) if dt > 0 else 0.0,
                 'start': t0, 'end': t0 + dt,
                 'log': os.path.basename(log_path),
                 'eip': eip,
