@@ -104,6 +104,7 @@ CACHEPACK_SRCS := \
 	$(TOOLS)/cachepack/cp_pack.c \
 	$(TOOLS)/cachepack/cp_codec.c \
 	$(TOOLS)/cachepack/cp_binary.c \
+	$(TOOLS)/cachepack/cp_pack_ident.c \
 	$(TOOLS)/cachepack/cp_assets.c \
 	$(TOOLS)/cachepack/cp_walk.c \
 	$(TOOLS)/cachepack/cp_merge.c \

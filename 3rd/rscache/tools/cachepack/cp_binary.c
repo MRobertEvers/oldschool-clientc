@@ -6,6 +6,7 @@
 #include "dat2disk.h"
 #include "reference_table.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -361,6 +362,26 @@ cp_reference_set_name(
         return 1; /* nothing was written for this id; nothing to name */
 
     identifier = RSCache_ArchiveNameHashDat2((char*)name);
+    return cp_reference_set_identifier(ctx, table_id, archive_id, identifier, out_dirty);
+}
+
+int
+cp_reference_set_identifier(
+    struct CP_Ctx* ctx,
+    int table_id,
+    int archive_id,
+    int identifier,
+    int* out_dirty)
+{
+    struct RSCache_ReferenceTable* rt;
+
+    rt = cp_reference_ensure(ctx, table_id);
+    if( !rt )
+        return 0;
+    if( archive_id < 0 || archive_id >= rt->archive_count ||
+        !RSCache_ReferenceTableHasArchive(rt, archive_id) )
+        return 1; /* nothing was written for this id; nothing to name */
+
     if( RSCache_ReferenceTableIdentifier(rt, archive_id) != identifier )
     {
         RSCache_ReferenceTableSetIdentifier(rt, archive_id, identifier);
