@@ -1,0 +1,15 @@
+submitted 0824-205027-7b8e45; waiting
+job 0824-205027-7b8e45  [baseline-qualify]  status=ok  attempts=1
+frames=900 reps=2 order=dense,huntbase,huntbase,dense
+box window: 1108120647.609 -> 1108120914.515  (266.9 s exclusive)
+
+arm            sha256[:16]          best_ms    med_ms  worst_ms  runs
+------------------------------------------------------------------------------------------------
+dense          64166bdf3c92f06b      35.226    37.726    37.864  37.76 37.86 35.23 37.69
+huntbase       716969438cc39b92      35.556    35.799    38.819  38.82 35.82 35.78 35.56
+
+dense          asm=all 4 present  remote=bq_64166bdf3c92.exe  upload=cached
+huntbase       asm=all 4 present  remote=bq_716969438cc3.exe  upload=5558586 B in 0.1 s
+
+deltas vs fastest arm (dense, 35.226 ms):
+  huntbase         +0.330 ms   +0.94%   <-- inside the box bimodality; not a result yet
