@@ -467,3 +467,163 @@ On CPU we are behind and the goal is unmet: **74.7 % against 49.7 %** of a
 single XP core, after the title fix. The path there is §4.2, in order: gate the
 chrome raster on dirty regions, stop presenting through the kernel, and rule
 out the plugins.
+
+---
+
+## 6. PR #49 and damage-based drawing — verdict
+
+Measured 2026-08-25 on `merge/v3-pr49` (v3 + PR #49 + a log-channel sweep).
+The full profile comparison lives in `docs/java_parity/`; this section answers
+the question PR #49 was evaluated for.
+
+### 6.1 §4.2's ranking was wrong, and this is the correction
+
+§4.2 put "gate the chrome rasterisation on dirty state" first, reasoning from
+the ~120,000 pixels of sidebar and chatback we repaint that the Java client does
+not. The pixel count is right. The conclusion was not.
+
+An ablation that deletes **all** chrome rasterisation — every sidebar sprite,
+every glyph, the whole chatback, not merely gates it — moves the client from
+**65.9 % to 61.6 %** of one XP core. That is **4.3 points against a 30-point
+gap**: about a seventh. `TORIRS_PERF` agrees independently, putting
+`r_sprite + r_font + r_rect` at 7.8 % of the frame.
+
+Where the frame actually goes: **`render` is 86.3 % of it, and `r_model` alone
+is 65.6 %.** The gap to the Java client is 3D model rasterisation, which they do
+too — with a 4-pixel-per-iteration span loop, out of the *Client* (C1) JIT, with
+array bounds checks and a safepoint poll still in the code. See
+`docs/java_parity/README.md` §3.
+
+Two §2.4 claims also need correcting:
+
+* **The minimap is not dirty-gated in the Java client.** `Client.gameDraw` calls
+  `minimapDraw()` and `areaMap.draw(550, 4, ...)` unconditionally whenever
+  `sceneState == 2`. Only `drawSide`, `drawChat` and the tab icons are gated.
+* **Java's cheap presentation is not a GPU effect.** With
+  `-Dsun.java2d.d3d=false` it falls back to `GDIBlitLoops.nativeBlit` and its
+  kernel time is unchanged at 0.17 s per 30 s, against our 1.73 s. It wins by
+  blitting 197,840 px/frame from separate per-region surfaces where we BitBlt
+  all 384,795.
+
+### 6.2 Verdict on PR #49: **adopt, with changes** — but not as the next target
+
+The dirty/epoch model is sound and the code is careful. It is the right
+foundation for damage-based drawing whenever that work happens. It is simply
+not where the CPU is.
+
+**What it gets right.** The retain gate is live rather than shadow-mode
+(`app.c`, `UITree_EmitRetainGateQuiet`). The host-dependency channel is
+*compare-based*, not trust-based: `app_ui_host_publish_inputs` re-hashes ambient
+App state every frame and bumps an epoch only on a changed signature, so a
+writer that forgets to invalidate is caught anyway. `volatile_refs` is a real
+correctness fence — it notices that a byte-identical command list is not a
+byte-identical picture when a desc holds a same-frame host pointer. And
+`emit_visited` makes the reachability argument sound rather than hopeful.
+
+**Question 1 — does the epoch model carry per-node damage?** Partly. The comment
+at `app.c:13625` argues no per-node dirty bit can gate the emit *walk*, because
+emit reads far beyond the component struct. That argument is correct and the
+epoch channel answers it — but only at whole-buffer granularity:
+`UITree_EmitWalk` points `observed_input_mask` at **one** buffer-level
+accumulator, so the model answers "may anything have changed" and never "which
+node". Deriving per-node damage from a domain bump needs a reverse index the PR
+does not build.
+
+The argument does **not** transfer to gating the raster, and that is the useful
+half: raster gating needs to know *which screen rectangles differ*, not *why*.
+The command list is its own oracle — and PR #49 already contains the mechanism,
+as a diagnostic: the per-desc `memcmp` against the previous buffer under
+`g_torirs_perf_enabled`. Union the rects of the descs that differ and that is
+the damage set, with no dependency reasoning at all. Its own comment prices the
+compare at ~450 KB/frame, so it wants a per-desc hash folded into
+`emit_buffer_append` before it goes anywhere near the hot path.
+
+**Question 2 — what is missing.** Easy, because the PR or the renderer already
+has it:
+
+* *Node to screen rect*: `UITreeEmitDesc` already carries `node_index`,
+  `component_id`, `x/y/w/h` and `clip`.
+* *Damage accumulation*: `uitree_note_mutation(tree, idx, impacts)` is a single
+  choke point that already knows the node index of every mutation.
+* *Clipped rasterisation*: every 2D render command already carries a scissor,
+  and `viewport_from_scissor` (`platform_sdl2_renderer_soft3d.c:57`) is the one
+  place they all funnel through — "every draw kind funnels through here".
+
+Not addressed, and real work:
+
+* *Per-node command spans* — the buffer is retained or rebuilt whole.
+* *A conservative painted-extent function per emit kind.* `desc.x/y/w/h` is
+  **not** the painted extent: a non-if3 sprite blits at `x+ox, y+oy` sized from
+  the atlas entry, baseline text extends upward by font metrics, models project.
+  `desc.clip` bounds it soundly but is the whole canvas for top-level nodes.
+  Getting this wrong produces corruption that is hard to see and easy to ship.
+* *Skipping at dispatch, not at the clip.* Narrowing `viewport_from_scissor`
+  alone is not enough: `soft3d_draw_sprite` does malloc + memcpy + outline
+  cache lookup + alpha scale + transform **before** it reaches the clipped blit.
+  Damage has to reject the command before `soft3d_execute_measured`.
+* *Damaged-rect present* — see 6.3.
+
+**Question 3 — CS2.** Covered, and better than the PR's description implies,
+because the signature hash is the primary mechanism rather than the
+`UITree_HostInputsChanged` calls. CS2 varp writes reach `CLIENT_STATE` through
+`VarPManager`'s change callback (`app_varp_change`). CS1 results — which is how
+stats and inventory counts reach a widget — are cached onto the node by
+`task_cs1_run` and published through `UITree_SetCS1ActiveAt` /
+`UITree_SetCS1ValueAt`, i.e. as *tree* mutations that bump `dirty_gen`; the host
+answers `IS_ACTIVE` from `component->cs1_active` and never runs the VM at draw
+time. So the absence of skill levels from the `CLIENT_STATE` signature is not a
+hole.
+
+The failure mode if a domain is ever missed is a **frozen panel**: the gate
+calls the frame quiet, the retained list is reused, and the pixels stay stale
+until something unrelated bumps an epoch. The mitigations that exist and must be
+kept: unclassified request kinds fall back to `UITREE_HOST_INPUT_ALL`, and
+`TORIRS_EMIT_VERIFY=1` re-arms the `[emit-unsound]` detector. **Do not retire
+that detector when the skip is enabled** — it is the only thing standing between
+a missed domain and a silently wrong frame.
+
+One over-conservatism worth fixing cheaply: `UITREE_HOST_IS_ACTIVE` and
+`UITREE_HOST_EVAL_TEXT_PLACEHOLDER` are classified `client | inventory`, but
+both are pure reads of a cached field on the node whose write already marks it
+dirty. Classifying them `0` would stop every inventory change from forcing a
+full rebuild of any tree containing a CS1 node.
+
+**Question 4 — the ceiling.** Bounded by measurement, not estimated: **4.3
+points of one core**, ~1.34 s per 30 s, ~0.9 ms/frame. The 3D viewport is always
+dirty, so nothing in the chrome can do better. Against the ~30-point gap this is
+a seventh, and against the original 1.37x user-time framing it is far short.
+
+**Question 5 — does damaged-rect present also fix the GDI cost?** Yes, and it is
+the same change rather than an independent one: the damage set is exactly the
+argument list for a per-rect BitBlt. It is bounded though — the viewport plus
+the minimap are always damaged, which is 197,840 of 384,795 px, so present cost
+floors at ~51 % rather than at zero. Splitting one blit into several also
+multiplies the per-call cost, so the rect list wants coalescing. Presenting
+through D3D like Java2D does is the *independent* alternative, and note that
+Java's own measurements say it is not needed: with D3D off their kernel time
+does not move.
+
+### 6.3 The revised order
+
+1. **`r_model`** — 65.6 % of the frame, and the only item that can close a
+   30-point gap. `docs/java_parity/README.md` §3.3 has the Java inner loop as an
+   existence proof of what is enough on this hardware.
+2. **Present only what changed** — most of the 1.73 s kernel delta.
+3. **Rule out the plugins** — 8 on the frame path, `app_run` at 8.2 %.
+4. **Chrome damage gating, on PR #49's foundation** — capped at 4.3 points.
+5. Not targets, on evidence: the framebuffer clear (ours is ~10x better per
+   pixel than theirs), and the emit walk (1.1 % of frame, already retained).
+
+### 6.4 Two fixes that were only on the measurement branch
+
+Both were found by this work and are in `merge/v3-pr49`:
+
+* **The on-demand cache boot fix.** v3's `platform_x_io_ondemand.c` fetched the
+  bare `/versionlist` route; this engine serves `<stem><checksum>`, so it 404'd,
+  the on-demand source was never built, and the client dereferenced a NULL disk
+  cache — segfaulting with an **empty log**, because `OPT=1` compiles the
+  `assert` out. An `OPT=0` build named it in one run.
+* **Per-frame stderr.** The in-world client was writing 178,262 bytes per 30 s,
+  roughly one unbuffered syscall a frame, almost all of it a plugin restating a
+  missing asset. Now behind `TORIRS_LOG`, which compiles out under `NDEBUG`:
+  kernel 1.91 s to 1.73 s.
