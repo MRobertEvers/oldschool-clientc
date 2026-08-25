@@ -289,6 +289,50 @@ ToriRSServer_VesselFree(
     if( !vessel )
         return 0;
 
+    /*
+     * Nobody is left standing on a deck that is about to stop existing
+     * (docs/sailing_coverage.csv SAIL-54).
+     *
+     * A deck tile is a pool square — hundreds of squares off the real map,
+     * reachable by no route, and once the vessel is gone `obs_*` collapses back
+     * onto that raw tile so no other client can see them either. A rider left
+     * behind is not misplaced, they are deleted from the game while still
+     * logged in.
+     *
+     * They are put down where they LOOKED like they were standing: their own
+     * deck tile projected through the hull's final transform, which is the last
+     * place every other client saw them. The disembark then reads as the hull
+     * vanishing from under them rather than as a teleport across the map.
+     * Whether that root tile is open water is content's business — a scuttling
+     * script that wants a dock moves them first; the engine's job is only to
+     * refuse to strand them in the pool.
+     *
+     * Before the instance release, because both the ownership test and the
+     * projection belong to the vessel and neither survives it.
+     */
+    {
+        struct ToriRSServerPlayer* was_active = srv->active_player;
+
+        for( int i = 0; i < srv->player_count; i++ )
+        {
+            struct ToriRSServerPlayer* player = &srv->players[i];
+            int fine_x = 0;
+            int fine_z = 0;
+
+            if( !player->active )
+                continue;
+            if( ToriRSServer_VesselAtTile(srv, player->x, player->z) != vessel )
+                continue;
+            ToriRSServer_VesselDeckTileToRoot(vessel, player->x, player->z, &fine_x, &fine_z);
+            /* WorldTeleport acts on the bound player, so bind each in turn and
+             * put the previous binding back — the same save/restore every
+             * world-scoped helper called from outside a tick does. */
+            ToriRSServer_WorldSetActive(srv, player);
+            ToriRSServer_WorldTeleport(srv, vessel->level, fine_x >> 7, fine_z >> 7);
+        }
+        ToriRSServer_WorldSetActive(srv, was_active);
+    }
+
     /* The world-level release, not the bare registry one: the deck may hold
      * npcs, floor objects and loc changes, and the pool re-issues its squares
      * immediately (see ToriRSServer_WorldMapInstanceFree). */

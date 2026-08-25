@@ -2165,6 +2165,47 @@ struct ToriRSServerNpc
     int changetype_delay;
     int x, z, level;
     int spawn_x, spawn_z, spawn_level;
+    /*
+     * Observation coordinates, exactly as `struct ToriRSServerPlayer` carries
+     * them and for exactly the same reason (docs/sailing_coverage.csv SAIL-50).
+     *
+     * An npc standing on a vessel deck stands in the map-instance pool,
+     * hundreds of squares off the real map. Before these existed
+     * `ToriRSServer_NpcViewDeltas` measured raw x/z against a player's raw x/z,
+     * so a deckhand two tiles from a shore player read as a hundred-tile gap
+     * and NPC_INFO never mentioned it: the boat sailed past with an empty deck.
+     *
+     * `obs_*` is the deck tile projected through the hull transform into root
+     * coordinates, and it is the frame the entity streams measure in — theirs
+     * against the observer's, never one against the other. For every npc not on
+     * a deck it is simply x/z/level, which is what keeps a vessel-free world
+     * byte-identical to the pre-sailing encoder.
+     */
+    int obs_x;
+    int obs_z;
+    int obs_level;
+    /** obs - own; all three zero for an npc not standing on a deck. */
+    int obs_off_x;
+    int obs_off_z;
+    int obs_off_level;
+    /**
+     * Did the projection move independently of this npc's own feet?
+     *
+     * The v5 high-resolution section describes a tracked npc as WALK STEPS, so
+     * the client's copy advances by the steps we send and by nothing else. Three
+     * things move a deck npc's projection with no step to describe it: the hull
+     * sailing, the hull TURNING (a deck-local step at a non-cardinal heading is
+     * not a cardinal root step — the offset changes, so this catches it), and
+     * boarding or leaving a deck. All of them are funnelled into the one thing
+     * the section can say, the same funnel `tele` already uses: remove, and
+     * re-add at the projected tile in the same packet.
+     *
+     * Costs what the player flag costs — a hull under way re-adds its deck npcs
+     * every tick, which reads as a snap rather than a glide from the shore. The
+     * real client's answer is to report deck entities inside the BOAT's world
+     * view and let its transform carry them; that is a later phase's shape.
+     */
+    int obs_jumped;
     int wander_radius;
     /** The player this runtime npc belongs to. `owner_gen == 0` is unowned;
      *  the generation makes a reused pid fail closed instead of transferring
@@ -7298,6 +7339,23 @@ ToriRSServer_SendRebuildWorldEntity(
  */
 void
 ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv);
+
+/**
+ * One npc's projection, out of band with the per-tick sweep.
+ *
+ * Called by that sweep, and by `npc_spawn`, which stands an npc on a tile no
+ * sweep has seen yet. An encoder reached in between would otherwise read a
+ * stale `obs_*` — the previous occupant's for a recycled slot, 0,0 for a fresh
+ * one — and place the npc there.
+ *
+ * `ToriRSServer_WorldNpcTeleport` needs no such call: it runs in a movement
+ * phase, and the sweep is the first thing `phase_info` does, so the wire never
+ * sees a teleported npc through a pre-teleport projection.
+ */
+void
+ToriRSServer_WorldNpcRefreshObservation(
+    struct ToriRSServer* srv,
+    struct ToriRSServerNpc* npc);
 
 /**
  * How many NPC TRANSFORMATION blocks have been written since the process

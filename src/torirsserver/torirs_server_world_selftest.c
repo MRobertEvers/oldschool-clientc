@@ -1073,6 +1073,21 @@ selftest_park_player(
     player->x = tile_x;
     player->z = tile_z;
     player->level = 0;
+    /*
+     * And the projection that placement implies.
+     *
+     * `obs_*` is a per-tick cache that `phase_info` fills before it encodes
+     * anything, and it is what every entity-stream range test measures in
+     * (docs/sailing_coverage.csv SAIL-50). Several sections hand-run the
+     * encoders without running a tick — "phase 8's order by hand" — and those
+     * would otherwise measure against a player observed at 0,0, which reads as
+     * "nothing is ever in view" a few thousand tiles from the truth.
+     *
+     * The whole sweep rather than this one player: parking resets the world
+     * the next section measures, and an npc left projected by the previous
+     * section's vessel is the same staleness one struct over.
+     */
+    ToriRSServer_WorldRefreshObservation(srv);
     player->running = 0;
     player->dest_x = -1;
     player->dest_z = -1;
@@ -38674,6 +38689,483 @@ ToriRSServer_WorldSelftest(void)
             }
 
             /*
+             * The two notions of "aboard", and where they part company
+             * (docs/sailing_coverage.csv, area `aboard`).
+             *
+             * The server's notion is membership of the deck INSTANCE: a player
+             * is on a hull when `ToriRSServer_VesselAtTile` answers for the
+             * tile they stand on, and only the boarding teleport ever puts
+             * them on such a tile. The client's is purely geometric — its own
+             * root draw position falling inside a hull's footprint
+             * (`app_wev_route_point`, src/app.c). Nothing reconciles the two,
+             * so they agree only when a player got aboard the server's way.
+             *
+             * Several rows below pin CURRENT behaviour that is not the WANTED
+             * behaviour, and say so where they do. A cost that is pinned is a
+             * cost somebody can watch move; a cost described only in a header
+             * comment is one the next change silently doubles.
+             */
+            if( boat )
+            {
+                struct ToriRSServerPlayer* rider = ToriRSServer_WorldAddPlayer(srv, NULL);
+
+                fprintf(stderr,
+                        "ToriRSServer selftest: the two notions of aboard\n");
+                SELFTEST_CHECK(rider != NULL, "a rider joins to stand on the deck");
+                if( rider )
+                {
+                    int deck_x = deck_base_x + boat->size_x_tiles / 2;
+                    int deck_z = deck_base_z + boat->size_z_tiles / 2;
+                    int rider_pid;
+                    int own_x;
+                    int own_z;
+                    int first_obs_x;
+                    int first_obs_z;
+                    int sail_ticks = 8;
+                    int moving_ticks = 0;
+                    int jumped_on_moving = 0;
+                    int obs_matched = 0;
+                    int obs_still_while_hull_moved = 0;
+                    int own_moved = 0;
+
+                    ToriRSServer_WorldPlayerInit(rider);
+                    rider_pid = rider->pid;
+                    ToriRSServer_WorldSetActive(srv, rider);
+                    ToriRSServer_WorldTeleport(srv, 0, deck_x, deck_z);
+                    ToriRSServer_WorldSetActive(srv, player);
+
+                    /*
+                     * Back to the spawn transform before anything is measured.
+                     * The wire rows above sailed this hull three ticks north
+                     * and the stamped arena is 17 tiles across against a hull
+                     * 12 tiles long, so from where they left it there is
+                     * barely a tick of water ahead of the bow. Assigning the
+                     * transform is a fixture reset — the same move the
+                     * projection rows make with `vessel->angle` — not a claim
+                     * about how a hull is repositioned in play.
+                     */
+                    boat->fine_x = patch_x * TORIRSSERVER_VESSEL_FINE_PER_TILE + 64;
+                    boat->fine_z = patch_z * TORIRSSERVER_VESSEL_FINE_PER_TILE + 64;
+                    boat->angle = 0;
+                    boat->residual_x = 0;
+                    boat->residual_z = 0;
+                    selftest_tick(srv);
+
+                    SELFTEST_CHECK(ToriRSServer_VesselAtTile(srv, rider->x, rider->z) == boat,
+                                   "on a tile the hull owns, which is the whole of the "
+                                   "server's definition of aboard");
+
+                    /*
+                     * Boarding must not freeze them.
+                     *
+                     * The boarding teleport lands inside a map instance, so the
+                     * tick that carries it used to take the rev-239 branch in
+                     * the per-tick scene refresh — REBUILD_REGION, then
+                     * `rebuild_scene_pending = 1`, a barrier only
+                     * MAP_BUILD_COMPLETE lifts. `phase_players` skips every
+                     * player holding one, so until the client answered, the
+                     * rider took no step, ran no queue, resumed no script and
+                     * swung at nothing: a round trip in play, however long the
+                     * load takes on a slow one, and paid on EVERY boarding.
+                     *
+                     * The branch now excludes vessel decks. Pinned rather than
+                     * merely fixed because every row below is about the rider
+                     * MOVING, and with the barrier up "a standing rider's own
+                     * tile never moves" is also true of a rider who cannot move
+                     * at all — it would have gone on passing either way.
+                     */
+                    SELFTEST_CHECK(rider->rebuild_scene_pending == 0,
+                                   "boarding does not arm the rev-239 scene barrier "
+                                   "(rebuild_scene_pending=%d) — a vessel deck carries no "
+                                   "cutscene zone events to protect and phase_players "
+                                   "skips whoever holds one",
+                                   rider->rebuild_scene_pending);
+                    SELFTEST_CHECK(rider->login_scene_pending == 0,
+                                   "nor is the login barrier still up (login_scene_pending"
+                                   "=%d)",
+                                   rider->login_scene_pending);
+                    selftest_tick(srv);
+
+                    own_x = rider->x;
+                    own_z = rider->z;
+                    first_obs_x = rider->obs_x;
+                    first_obs_z = rider->obs_z;
+
+                    /*
+                     * A. The hull carries them.
+                     *
+                     * Measured per tick rather than end to end: a rider whose
+                     * observed tile is right at the start and right at the end
+                     * and wrong in between is exactly the bug this is for, and
+                     * two endpoint reads cannot see it.
+                     */
+                    ToriRSServer_VesselSetHeading(boat, 0);
+                    ToriRSServer_VesselSetSpeed(boat, 1);
+                    for( int tick = 0; tick < sail_ticks; tick++ )
+                    {
+                        int hull_fine_x = boat->fine_x;
+                        int hull_fine_z = boat->fine_z;
+                        int was_obs_x = rider->obs_x;
+                        int was_obs_z = rider->obs_z;
+                        int expect_fine_x = 0;
+                        int expect_fine_z = 0;
+
+                        selftest_tick(srv);
+
+                        ToriRSServer_VesselDeckTileToRoot(
+                            boat, rider->x, rider->z, &expect_fine_x, &expect_fine_z);
+                        if( rider->obs_x == (expect_fine_x >> 7) &&
+                            rider->obs_z == (expect_fine_z >> 7) )
+                            obs_matched++;
+                        if( rider->x != own_x || rider->z != own_z )
+                            own_moved++;
+                        if( boat->fine_x != hull_fine_x || boat->fine_z != hull_fine_z )
+                        {
+                            moving_ticks++;
+                            if( rider->obs_jumped )
+                                jumped_on_moving++;
+                            if( rider->obs_x == was_obs_x && rider->obs_z == was_obs_z )
+                                obs_still_while_hull_moved++;
+                        }
+                    }
+                    ToriRSServer_VesselStop(boat);
+
+                    SELFTEST_CHECK(moving_ticks >= 3,
+                                   "the arena leaves the bow at least three ticks of "
+                                   "water, got %d of %d",
+                                   moving_ticks, sail_ticks);
+                    SELFTEST_CHECK(own_moved == 0,
+                                   "a standing rider's OWN tile never moves — the deck "
+                                   "tile is the whole of their position, and %d tick(s) "
+                                   "moved it",
+                                   own_moved);
+                    SELFTEST_CHECK(obs_matched == sail_ticks,
+                                   "while their observed tile is that deck tile projected "
+                                   "through the hull, on every tick, got %d of %d",
+                                   obs_matched, sail_ticks);
+                    SELFTEST_CHECK(rider->obs_x != first_obs_x || rider->obs_z != first_obs_z,
+                                   "and it travelled: %d,%d -> %d,%d",
+                                   first_obs_x, first_obs_z, rider->obs_x, rider->obs_z);
+
+                    /*
+                     * The two costs of carrying them that way, pinned as
+                     * CURRENT behaviour. Neither is a bug in the projection —
+                     * both are what the projection makes PLAYER_INFO pay.
+                     *
+                     * A tier 1 hull advances 64 fine units a tick, half a
+                     * tile, so the two counters PARTITION the moving ticks:
+                     * either the projected tile changed and obs_jumped was
+                     * raised, or it did not and the hull moved under a rider
+                     * whose observed position stood still. Both halves are a
+                     * cost and neither is ever zero.
+                     */
+                    SELFTEST_CHECK(jumped_on_moving > 0 &&
+                                       jumped_on_moving + obs_still_while_hull_moved ==
+                                           moving_ticks,
+                                   "COST (plan risk R1, torirs_server.h obs_jumped): every "
+                                   "tick the projected tile moves raises obs_jumped on the "
+                                   "rider, which PLAYER_INFO answers with remove and "
+                                   "same-packet re-add for EVERY observer — %d of %d moving "
+                                   "ticks, the other %d quiet",
+                                   jumped_on_moving, moving_ticks, obs_still_while_hull_moved);
+                    SELFTEST_CHECK(obs_still_while_hull_moved > 0,
+                                   "COST: the projection is TILE-quantised (`fine >> 7`) "
+                                   "while the hull is encoded in FINE units and the client "
+                                   "interpolates it over 30 cycles, so %d of %d moving ticks "
+                                   "moved the hull under a rider whose observed tile did "
+                                   "not move — a rider slides relative to the deck",
+                                   obs_still_while_hull_moved, moving_ticks);
+
+                    /*
+                     * B. A step taken ON a moving deck.
+                     *
+                     * The rider's own motion and the hull's have to reach the
+                     * observer as ONE position, and the tick they are composed
+                     * on is the only place that can happen: the wire's high
+                     * resolution section describes a tracked player as walk
+                     * steps, and no sequence of steps expresses "walked one
+                     * east while the ground moved half a tile north".
+                     */
+                    {
+                        int walk_from_x = rider->x;
+                        int walk_from_z = rider->z;
+                        int walk_ticks = 4;
+                        int walked = 0;
+                        int composed = 0;
+                        int jumped_while_under_way = 0;
+                        int under_way_ticks = 0;
+                        int walk_to_x = 0;
+                        int walk_to_z = 0;
+                        static const int k_step_dx[4] = { 1, -1, 0, 0 };
+                        static const int k_step_dz[4] = { 0, 0, 1, -1 };
+
+                        boat->fine_x = patch_x * TORIRSSERVER_VESSEL_FINE_PER_TILE + 64;
+                        boat->fine_z = patch_z * TORIRSSERVER_VESSEL_FINE_PER_TILE + 64;
+                        boat->angle = 0;
+                        boat->residual_x = 0;
+                        boat->residual_z = 0;
+                        selftest_tick(srv);
+
+                        /* Somewhere to walk TO that is still this hull's deck:
+                         * a step off the reservation is a different test, and
+                         * a different bug. */
+                        for( int i = 0; i < 4 && walk_to_x == 0; i++ )
+                        {
+                            int try_x = rider->x + k_step_dx[i];
+                            int try_z = rider->z + k_step_dz[i];
+
+                            if( ToriRSServer_VesselAtTile(srv, try_x, try_z) == boat )
+                            {
+                                walk_to_x = try_x;
+                                walk_to_z = try_z;
+                            }
+                        }
+                        SELFTEST_CHECK(walk_to_x != 0,
+                                       "the deck has a neighbouring tile to walk to — a "
+                                       "deck with nowhere to stand is a deck nobody can "
+                                       "walk");
+
+                        ToriRSServer_WorldSetActive(srv, rider);
+                        if( walk_to_x != 0 )
+                            ToriRSServer_WorldWalkTo(srv, walk_to_x, walk_to_z);
+                        SELFTEST_CHECK(walk_to_x == 0 || rider->waypoint_index >= 0,
+                                       "and the route to %d,%d comes back with waypoints — "
+                                       "a failed route leaves the queue empty and the rider "
+                                       "simply stands there",
+                                       walk_to_x, walk_to_z);
+                        ToriRSServer_WorldSetActive(srv, player);
+
+                        ToriRSServer_VesselSetHeading(boat, 0);
+                        ToriRSServer_VesselSetSpeed(boat, 1);
+                        for( int tick = 0; tick < walk_ticks; tick++ )
+                        {
+                            int hull_fine_x = boat->fine_x;
+                            int hull_fine_z = boat->fine_z;
+                            int expect_fine_x = 0;
+                            int expect_fine_z = 0;
+
+                            selftest_tick(srv);
+
+                            ToriRSServer_VesselDeckTileToRoot(
+                                boat, rider->x, rider->z, &expect_fine_x, &expect_fine_z);
+                            if( rider->obs_x == (expect_fine_x >> 7) &&
+                                rider->obs_z == (expect_fine_z >> 7) )
+                                composed++;
+                            if( rider->x != walk_from_x || rider->z != walk_from_z )
+                                walked = 1;
+                            if( boat->fine_x != hull_fine_x || boat->fine_z != hull_fine_z )
+                            {
+                                under_way_ticks++;
+                                if( rider->obs_jumped )
+                                    jumped_while_under_way++;
+                            }
+                        }
+                        ToriRSServer_VesselStop(boat);
+
+                        SELFTEST_CHECK(walked,
+                                       "the rider takes a walk step along the deck while "
+                                       "it sails, %d,%d -> %d,%d",
+                                       walk_from_x, walk_from_z, rider->x, rider->z);
+                        SELFTEST_CHECK(composed == walk_ticks,
+                                       "and their step and the hull's compose into the ONE "
+                                       "observed tile every tick, got %d of %d",
+                                       composed, walk_ticks);
+                        SELFTEST_CHECK(under_way_ticks > 0,
+                                       "with the hull genuinely under way for the walk, "
+                                       "%d tick(s)",
+                                       under_way_ticks);
+                        SELFTEST_CHECK(jumped_while_under_way > 0,
+                                       "COST: obs_jumped fires while they walk (%d of %d "
+                                       "under-way ticks), so that step can never reach the "
+                                       "wire AS a step — it is folded into the same remove "
+                                       "and re-add a teleport gets",
+                                       jumped_while_under_way, under_way_ticks);
+                    }
+
+                    /*
+                     * C. An npc standing on the deck, seen from the shore.
+                     *
+                     * Two things had to be true and neither was. NPC_INFO
+                     * measured raw tiles, so a deckhand read as a pool square
+                     * hundreds off the arena; and the shore player's zonemap
+                     * does not subscribe to the pool, so the candidate query
+                     * could not have offered the npc even at zero range. Both
+                     * are checked here, and the second explicitly — a range
+                     * fix alone would have looked right and shipped an empty
+                     * deck (docs/sailing_coverage.csv SAIL-50).
+                     */
+                    {
+                        int chicken = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC,
+                                                                 "chicken");
+                        int npc_slot = -1;
+
+                        if( chicken > 0 )
+                            npc_slot = ToriRSServer_WorldNpcSpawn(
+                                srv, chicken, rider->x, rider->z + 1, 0);
+                        SELFTEST_CHECK(npc_slot >= 0,
+                                       "a deck hand spawns on the deck beside the rider");
+                        if( npc_slot >= 0 )
+                        {
+                            struct ToriRSServerNpc* hand = &srv->npcs[npc_slot];
+                            int shore_dx = 0;
+                            int shore_dz = 0;
+                            int deck_dx = 0;
+                            int deck_dz = 0;
+
+                            selftest_tick(srv);
+                            ToriRSServer_NpcViewDeltas(hand, player, &shore_dx, &shore_dz);
+                            ToriRSServer_NpcViewDeltas(hand, rider, &deck_dx, &deck_dz);
+
+                            SELFTEST_CHECK(ToriRSServer_VesselAtTile(srv, hand->x, hand->z) ==
+                                               boat,
+                                           "onto a tile the hull owns");
+                            SELFTEST_CHECK(deck_dx <= 1 && deck_dz <= 1,
+                                           "the rider is standing next to it, %d,%d away",
+                                           deck_dx, deck_dz);
+                            SELFTEST_CHECK(ToriRSServer_WorldNpcVisibleTo(srv, hand, rider),
+                                           "and may address it");
+                            SELFTEST_CHECK(hand->obs_x != hand->x || hand->obs_z != hand->z,
+                                           "it is OBSERVED somewhere other than it stands, "
+                                           "%d,%d rather than %d,%d",
+                                           hand->obs_x, hand->obs_z, hand->x, hand->z);
+                            SELFTEST_CHECK(abs(hand->obs_x - rider->obs_x) <= 1 &&
+                                               abs(hand->obs_z - rider->obs_z) <= 1,
+                                           "and observed beside the rider it is standing "
+                                           "beside, %d,%d vs %d,%d — the projection carries "
+                                           "the pair together",
+                                           hand->obs_x, hand->obs_z, rider->obs_x,
+                                           rider->obs_z);
+                            SELFTEST_CHECK(shore_dx <= TORIRSSERVER_NPC_VIEW_TILES &&
+                                               shore_dz <= TORIRSSERVER_NPC_VIEW_TILES,
+                                           "so the shore player measures it at %d,%d — the "
+                                           "projected gap, not the pool one",
+                                           shore_dx, shore_dz);
+                            /*
+                             * And the half a range fix cannot supply: the
+                             * candidate set. The zonemap walk is asked first
+                             * and must come back empty — the pool is in nobody
+                             * else's subscription — so if the cross-frame
+                             * query does not offer this npc, nothing does and
+                             * the deck renders empty however close the boat is.
+                             */
+                            {
+                                int candidates[TORIRSSERVER_TRACKED_NPC_MAX];
+                                int zonemap_has = 0;
+                                int crossframe_has = 0;
+                                int count;
+
+                                count = ToriRSServer_PlayerzonemapNpcs(
+                                    player, TORIRSSERVER_NPC_VIEW_TILES, candidates,
+                                    TORIRSSERVER_TRACKED_NPC_MAX);
+                                for( int i = 0; i < count; i++ )
+                                    zonemap_has = zonemap_has || candidates[i] == npc_slot;
+                                count = ToriRSServer_PlayerCrossFrameNpcs(
+                                    player, TORIRSSERVER_NPC_VIEW_TILES, candidates,
+                                    TORIRSSERVER_TRACKED_NPC_MAX);
+                                for( int i = 0; i < count; i++ )
+                                    crossframe_has = crossframe_has || candidates[i] == npc_slot;
+
+                                SELFTEST_CHECK(!zonemap_has,
+                                               "the shore player's zonemap cannot offer a "
+                                               "deck npc — it subscribes to no pool zone");
+                                SELFTEST_CHECK(crossframe_has,
+                                               "so the cross-frame query is what puts it in "
+                                               "their candidate set, and it does");
+                            }
+                            SELFTEST_CHECK(abs(rider->obs_x - player->x) <=
+                                                   TORIRSSERVER_NPC_VIEW_TILES &&
+                                               abs(rider->obs_z - player->z) <=
+                                                   TORIRSSERVER_NPC_VIEW_TILES,
+                                           "and the rider standing beside it is in that "
+                                           "range too, %d,%d vs %d,%d — deck and deckhand "
+                                           "arrive together rather than one without the "
+                                           "other",
+                                           rider->obs_x, rider->obs_z, player->x, player->z);
+
+                            ToriRSServer_WorldNpcFree(srv, npc_slot);
+                            ToriRSServer_WorldNpcReap(srv);
+                        }
+                    }
+
+                    /*
+                     * D. The hull is freed under them.
+                     *
+                     * `ToriRSServer_VesselFree` used to release the deck
+                     * instance and say nothing to whoever was standing in it:
+                     * no disembark, no teleport, no death, just a rider left on
+                     * a raw pool square that no longer belonged to anything —
+                     * unreachable by any route and, once `obs_*` collapsed back
+                     * onto that raw tile, invisible to every other client.
+                     *
+                     * The free now puts every rider down at their own deck tile
+                     * projected through the hull's FINAL transform, which is
+                     * the last place the shore saw them.
+                     */
+                    {
+                        int stranded_x = rider->x;
+                        int stranded_z = rider->z;
+                        int expect_fine_x = 0;
+                        int expect_fine_z = 0;
+                        int replacement;
+
+                        ToriRSServer_VesselDeckTileToRoot(
+                            boat, rider->x, rider->z, &expect_fine_x, &expect_fine_z);
+
+                        SELFTEST_CHECK(ToriRSServer_VesselFree(srv, hull) == 1,
+                                       "the hull frees with the rider still on its deck");
+                        selftest_tick(srv);
+
+                        SELFTEST_CHECK(rider->x != stranded_x || rider->z != stranded_z,
+                                       "the free does not leave them on the pool square "
+                                       "the deck used to occupy (%d,%d)",
+                                       stranded_x, stranded_z);
+                        SELFTEST_CHECK(rider->x == (expect_fine_x >> 7) &&
+                                           rider->z == (expect_fine_z >> 7),
+                                       "it puts them down where they LOOKED like they "
+                                       "were standing, %d,%d — expected %d,%d",
+                                       rider->x, rider->z, expect_fine_x >> 7,
+                                       expect_fine_z >> 7);
+                        SELFTEST_CHECK(ToriRSServer_VesselAtTile(srv, rider->x, rider->z) ==
+                                           NULL,
+                                       "on a tile no hull owns any more");
+                        SELFTEST_CHECK(rider->obs_x == rider->x && rider->obs_z == rider->z,
+                                       "so observed and own coordinates are one thing "
+                                       "again, %d,%d",
+                                       rider->obs_x, rider->obs_z);
+                        SELFTEST_CHECK(ToriRSServer_PlayerObservable(player, rider),
+                                       "and the shore player still has them — a disembark "
+                                       "reads as the hull vanishing from under them, not "
+                                       "as the rider vanishing with it");
+
+                        /* Put a hull back under the fixture the rows below
+                         * inherit: the next block frees `hull` itself and
+                         * asserts the free answers 1. */
+                        replacement =
+                            ToriRSServer_VesselSpawn(srv, 9, 6, 12, 0, patch_x, patch_z, 0);
+                        hull = replacement;
+                        boat = ToriRSServer_VesselGet(srv, replacement);
+                        SELFTEST_CHECK(boat != NULL, "a fresh hull takes the fixture back");
+                        if( boat )
+                        {
+                            for( int zx = 0; zx < zones_x; zx++ )
+                                for( int zz = 0; zz < zones_z; zz++ )
+                                    ToriRSServer_MapInstanceSetchunk(
+                                        boat->instance, 0, zx, zz, 3216, 3216, 0, 0);
+                            ToriRSServer_MapInstanceBuild(boat->instance);
+                            ToriRSServer_WorldMapInstanceBuilt(srv, boat->instance);
+                        }
+                    }
+
+                    ToriRSServer_WorldPlayerFree(srv, rider_pid);
+                    ToriRSServer_WorldPlayerReap(srv);
+                    /* The observer has to be TRACKING the replacement before
+                     * the next block, which reads its view id and serial and
+                     * asserts the swap comes out as op 0 plus a fresh spawn. */
+                    selftest_tick(srv);
+                }
+            }
+
+            /*
              * A view id changing hulls between two ticks.
              *
              * View ids are handed out lowest-free and pool slots are reused, so
@@ -38875,6 +39367,13 @@ ToriRSServer_WorldSelftest(void)
                            origin_dx);
 
             npc->x = player->x + far_origin_dx;
+            /* Moved by poking the struct, so the derivation a tick would have
+             * run has to be run by hand too — the same reason
+             * `ToriRSServer_ZoneSyncNpcs` is called below. Without it the range
+             * test measures the projection of where this npc USED to be and
+             * the far case reads as in view (docs/sailing_coverage.csv
+             * SAIL-50). */
+            ToriRSServer_WorldNpcRefreshObservation(srv, npc);
             npc->tele = 0;
             player->tracked_count = 0;
             memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
@@ -38945,6 +39444,8 @@ ToriRSServer_WorldSelftest(void)
              * does not hold.
              */
             npc->x = player->x + near_origin_dx;
+            /* By hand again, for the reason given at the far case. */
+            ToriRSServer_WorldNpcRefreshObservation(srv, npc);
             srv->wire = wire230;
             player->tracked_count = 0;
             memset(player->npc_tracked, 0, sizeof(player->npc_tracked));

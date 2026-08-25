@@ -5637,11 +5637,23 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
              * an ordinary continuation of the old one.
              */
             in_range = npc->active && ToriRSServer_WorldNpcVisibleTo(srv, npc, player) &&
-                       npc->level == player->level &&
+                       npc->obs_level == player->obs_level &&
                        npc->generation == player->tracked_generation[i] &&
                        view_dx <= view_tiles && view_dz <= view_tiles;
 
-            if( !in_range || npc->tele )
+            /*
+             * `obs_jumped` joins `tele` here, and for the identical reason
+             * (docs/sailing_coverage.csv SAIL-50).
+             *
+             * This section can only say STEP. A deck npc whose hull sailed or
+             * turned has moved in root coordinates without taking one, so
+             * there is nothing truthful to encode — and a step is not merely
+             * imprecise, it desynchronises the client's copy permanently,
+             * since every later delta is measured from a position that never
+             * happened. Remove and re-add restates it absolutely, which is the
+             * same answer PLAYER_INFO reaches for a carried player.
+             */
+            if( !in_range || npc->tele || npc->obs_jumped )
             {
                 rsab_pbit(&buf, 1, 1);
                 rsab_pbit(&buf, 2, 3); /* remove */
@@ -5658,12 +5670,14 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
                 player->npc_tracked[slot] = 0;
                 ToriRSServer_SlotMapReleaseWhy(
                     player, slot,
-                    !npc->active            ? "npc inactive"
-                    : npc->level != player->level ? "level changed"
+                    !npc->active                            ? "npc inactive"
+                    : npc->obs_level != player->obs_level   ? "observed plane changed"
                     : npc->generation != player->tracked_generation[i]
                         ? "generation changed (slot reused by a different npc)"
-                    : !in_range ? "out of view range"
-                                : "tele (teleport forces re-add)");
+                    : !in_range  ? "out of view range"
+                    : npc->tele  ? "tele (teleport forces re-add)"
+                                 : "projection jumped (its hull sailed or turned "
+                                   "under it — no step can describe that)");
                 continue;
             }
             kept_generation[kept_count] = npc->generation;
@@ -5715,6 +5729,24 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
          * coordinate that does not exist for it. */
         nearby_count = ToriRSServer_PlayerzonemapNpcs(player, view_tiles, nearby,
                                          TORIRSSERVER_TRACKED_NPC_MAX);
+        /*
+         * Plus the npcs no zonemap walk could have offered
+         * (docs/sailing_coverage.csv SAIL-50).
+         *
+         * A vessel deck is a map instance in the pool and it is in nobody's
+         * subscription but its riders', so the query above cannot return a
+         * deckhand to a player on the shore however close the boat is. Before
+         * this line every boat in the world sailed past with an empty deck,
+         * and nothing in the packet was malformed while it did.
+         *
+         * Appended rather than merged: the two sets are disjoint (an npc is
+         * filed in exactly one zone, and the observer's own hull is skipped),
+         * and in a world with no live vessel this returns 0 without touching a
+         * zone, so the ordinary case is the ordinary case.
+         */
+        nearby_count += ToriRSServer_PlayerCrossFrameNpcs(
+            player, view_tiles, nearby + nearby_count,
+            TORIRSSERVER_TRACKED_NPC_MAX - nearby_count);
         for( int i = 0; i < nearby_count; i++ )
         {
             int slot = nearby[i];
@@ -5727,8 +5759,12 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
             if( !npc->active || !ToriRSServer_WorldNpcVisibleTo(srv, npc, player) ||
                 player->npc_tracked[slot] )
                 continue;
-            dx = npc->x - player->x;
-            dz = npc->z - player->z;
+            /* Observed against observed. For everything off a deck these are
+             * x/z and this is the arithmetic that was always here; for a
+             * deckhand it is the projected tile, which is the only position
+             * the shore player's build area has a square for. */
+            dx = npc->obs_x - player->obs_x;
+            dz = npc->obs_z - player->obs_z;
             ToriRSServer_NpcViewDeltas(npc, player, &view_dx, &view_dz);
             /*
              * The SAME radius and the SAME measure the high-resolution loop
@@ -5740,8 +5776,10 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
             /* The plane, here rather than in the candidate set. The area is a
              * *subscription* and it spans all four on purpose — a loc change
              * one storey up still has to reach this client — so the entity
-             * streams, which are single-plane, filter at the point of use. */
-            if( npc->level != player->level )
+             * streams, which are single-plane, filter at the point of use.
+             * The OBSERVED plane: a deckhand's own level is a pool storey and
+             * means nothing to a shore player — the hull's is what they share. */
+            if( npc->obs_level != player->obs_level )
                 continue;
             if( view_dx > view_tiles || view_dz > view_tiles )
                 continue;
@@ -5758,7 +5796,7 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
                 fprintf(stderr,
                         "torirsserver: npc %d (type %d, size %d) is in view at %d,%d but its "
                         "origin delta %d,%d does not fit the v5 add; not sent\n",
-                        slot, npc->type, npc->size, npc->x, npc->z, dx, dz);
+                        slot, npc->type, npc->size, npc->obs_x, npc->obs_z, dx, dz);
                 continue;
             }
             if( kept_count >= TORIRSSERVER_TRACKED_NPC_MAX )
@@ -5774,8 +5812,11 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
             int slot = adds[i];
             int client_slot = ToriRSServer_SlotMapAcquire(player, slot);
             struct ToriRSServerNpc* npc = &srv->npcs[slot];
-            int dx = npc->x - player->x;
-            int dz = npc->z - player->z;
+            /* The same measure the range test above admitted it on, and it has
+             * to be — see the candidate query. Observed, so a deckhand is
+             * placed where the hull carries it rather than in the pool. */
+            int dx = npc->obs_x - player->obs_x;
+            int dz = npc->obs_z - player->obs_z;
 
             int const force_type = npc_add_requires_transformation(npc);
             int const extended = npc_extended_pending_v5(player, npc, 1) || force_type;

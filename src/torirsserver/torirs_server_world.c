@@ -3031,6 +3031,15 @@ npc_spawn(
         npc->spawn_x = x;
         npc->spawn_z = z;
         npc->spawn_level = level;
+        /* Projected now, not left to the memset.
+         * `ToriRSServer_WorldRefreshObservation` overwrites these at the top of
+         * every tick's info phase, but an encoder reached before the first of
+         * those — which is every selftest that builds a world and encodes
+         * without ticking — would otherwise read 0,0 and place the npc that
+         * far from whoever is watching. Content can and does spawn straight
+         * onto a deck, so this is the real projection rather than a copy of
+         * x/z. */
+        ToriRSServer_WorldNpcRefreshObservation(srv, npc);
         npc->face_dir = def->facing >= 0 ? def->facing : TORIRSSERVER_FACE_SOUTH;
         npc->def = def;
         npc->wander_radius = def->nomove ? 0 : def->wanderrange;
@@ -7416,6 +7425,23 @@ handle_cheat(
         int config_id = 9;
         int src_x = VESSEL_DECK_TEMPLATE_X;
         int src_z = VESSEL_DECK_TEMPLATE_Z;
+        /*
+         * Initial yaw in 2048-space, and the reason this argument exists.
+         *
+         * A hull spawns pointing south and only `vesselsail` ever turns it —
+         * at `turn_rate` units a tick, toward a heading, and then it sails off
+         * on that heading. So there was no way to photograph the same boat at
+         * a chosen angle: filming the turn gives you whichever yaws happened to
+         * fall on a captured frame, and the hull leaves the frame while you
+         * wait. Spawning AT an angle makes each of the sixteen compass
+         * headings a separate, repeatable still.
+         *
+         * Sixteen hulls at once would be the obvious alternative and it does
+         * not fit: the wire publishes 15 world-view ids (struct
+         * ToriRSServerVessel::view_id), so the sixteenth boat would be spawned,
+         * sailable, and invisible.
+         */
+        int angle = 0;
         int handle;
         struct ToriRSServerVessel* vessel;
         int zones_x = 0;
@@ -7424,12 +7450,12 @@ handle_cheat(
         int base_tile_z = 0;
 
         if( sscanf(
-                text, "vesselspawnat %d %d %d %d %d %d %d", &at_x, &at_z, &size_x,
-                &size_z, &config_id, &src_x, &src_z) < 2 )
+                text, "vesselspawnat %d %d %d %d %d %d %d %d", &at_x, &at_z, &size_x,
+                &size_z, &config_id, &src_x, &src_z, &angle) < 2 )
         {
             say(srv,
                 "Usage: ::vesselspawnat <x> <z> [size_x] [size_z] [config] "
-                "[src_x] [src_z]");
+                "[src_x] [src_z] [angle 0-2047]");
             return;
         }
         if( size_x < 1 )
@@ -7440,9 +7466,17 @@ handle_cheat(
             size_x = 96;
         if( size_z > 96 )
             size_z = 96;
+        /*
+         * Wrap rather than clamp: yaw is cyclic, so -128 and 2048 are the two
+         * spellings a caller stepping a compass round is most likely to reach,
+         * and clamping either would silently photograph the wrong boat.
+         */
+        angle %= TORIRSSERVER_VESSEL_ANGLE_UNITS;
+        if( angle < 0 )
+            angle += TORIRSSERVER_VESSEL_ANGLE_UNITS;
 
         handle = ToriRSServer_VesselSpawn(
-            srv, config_id, size_x, size_z, player->level, at_x, at_z, 0);
+            srv, config_id, size_x, size_z, player->level, at_x, at_z, angle);
         if( handle == 0 )
         {
             say(srv, "No deck instance free — the map-instance pool is full.");
@@ -7465,13 +7499,16 @@ handle_cheat(
 
         fprintf(
             stderr,
-            "vesselspawnat: vessel %d view %d at %d,%d level %d; deck %dx%d "
-            "zones from %d,%d; centre tile sailable=%d (unstamped)\n",
-            handle, vessel->view_id, at_x, at_z, player->level, zones_x, zones_z,
+            "vesselspawnat: vessel %d view %d at %d,%d level %d angle %d "
+            "(heading %d/16); deck %dx%d zones from %d,%d; centre tile "
+            "sailable=%d (unstamped)\n",
+            handle, vessel->view_id, at_x, at_z, player->level, vessel->angle,
+            vessel->angle / TORIRSSERVER_VESSEL_HEADING_STEP, zones_x, zones_z,
             src_x, src_z,
             ToriRSServer_VesselTileSailable(player->level, at_x, at_z));
-        say(srv, "Vessel %d (config %d, view %d) at %d,%d; deck %d,%d.", handle,
-            config_id, vessel->view_id, at_x, at_z, base_tile_x, base_tile_z);
+        say(srv, "Vessel %d (config %d, view %d) at %d,%d angle %d; deck %d,%d.",
+            handle, config_id, vessel->view_id, at_x, at_z, vessel->angle,
+            base_tile_x, base_tile_z);
         return;
     }
 
@@ -12536,6 +12573,61 @@ phase_zones(struct ToriRSServer* srv)
  * PLAYER_INFO encoder turns every one of them into remove-and-re-add rather
  * than into a step it cannot express (plan risk R1).
  */
+/*
+ * One npc's projection, factored out because it is needed at two moments that
+ * are not the same moment (docs/sailing_coverage.csv SAIL-50).
+ *
+ * The per-tick sweep below is the one that matters for the wire. The other is
+ * `npc_spawn`, which stands an npc on a tile no sweep has projected yet: an
+ * encoder reached in between — every selftest that builds a world and encodes
+ * without ticking — would read the previous occupant's projection, or 0,0 for
+ * a fresh slot, and place the npc there.
+ *
+ * `ToriRSServer_WorldNpcTeleport` deliberately does not call it. It runs in a
+ * movement phase and the sweep is the first thing `phase_info` does, so the
+ * ordering already covers it — and the npc struct carries no back-pointer to
+ * its world, so giving it one would be a signature change for nothing.
+ */
+void
+ToriRSServer_WorldNpcRefreshObservation(
+    struct ToriRSServer* srv,
+    struct ToriRSServerNpc* npc)
+{
+    struct ToriRSServerVessel* vessel;
+    int prev_off_x;
+    int prev_off_z;
+    int prev_off_level;
+    int fine_x = 0;
+    int fine_z = 0;
+
+    assert(srv);
+    assert(npc);
+
+    prev_off_x = npc->obs_off_x;
+    prev_off_z = npc->obs_off_z;
+    prev_off_level = npc->obs_off_level;
+
+    vessel = ToriRSServer_VesselAtTile(srv, npc->x, npc->z);
+    if( vessel )
+    {
+        ToriRSServer_VesselDeckTileToRoot(vessel, npc->x, npc->z, &fine_x, &fine_z);
+        npc->obs_x = fine_x >> 7;
+        npc->obs_z = fine_z >> 7;
+        npc->obs_level = vessel->level;
+    }
+    else
+    {
+        npc->obs_x = npc->x;
+        npc->obs_z = npc->z;
+        npc->obs_level = npc->level;
+    }
+    npc->obs_off_x = npc->obs_x - npc->x;
+    npc->obs_off_z = npc->obs_z - npc->z;
+    npc->obs_off_level = npc->obs_level - npc->level;
+    npc->obs_jumped = npc->obs_off_x != prev_off_x || npc->obs_off_z != prev_off_z ||
+                      npc->obs_off_level != prev_off_level;
+}
+
 void
 ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
 {
@@ -12571,6 +12663,30 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
         player->obs_jumped = player->obs_off_x != prev_off_x ||
                              player->obs_off_z != prev_off_z ||
                              player->obs_off_level != prev_off_level;
+    }
+
+    /*
+     * And the npcs, by the same rule and in the same pass
+     * (docs/sailing_coverage.csv SAIL-50).
+     *
+     * Here rather than in the npc mover for the reason the player loop is here:
+     * every observer's NPC_INFO this tick has to agree about where a deckhand
+     * was, and the streams all run after this point. A deck npc whose
+     * projection is recomputed per observer would be at two places in one tick.
+     *
+     * The whole slot array rather than a live list because there is no live
+     * list; 4096 slots once per tick is a rounding error next to the per-player
+     * work that follows, and it is paid whether or not a vessel exists — the
+     * OUTPUT for a vessel-free world is obs == own, which is what makes the
+     * encoders byte-identical to their pre-sailing selves.
+     */
+    for( int slot = 0; slot < TORIRSSERVER_NPC_MAX; slot++ )
+    {
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
+
+        if( !npc->active )
+            continue;
+        ToriRSServer_WorldNpcRefreshObservation(srv, npc);
     }
 }
 
@@ -13020,9 +13136,21 @@ phase_client_out(struct ToriRSServerPlayer* player)
         /* Instance scenes are assembled at runtime and are the path where
          * content immediately follows a teleport with cutscene zone events.
          * Normal edge rebuilds carry no such ephemeral transition in this
-         * server and retain their existing continuous-walk behavior. */
+         * server and retain their existing continuous-walk behavior.
+         *
+         * A VESSEL DECK IS NOT THAT PATH (docs/sailing_coverage.csv SAIL-37).
+         * Boarding is a map-instance teleport like any other, so this barrier
+         * used to arm on it — and `phase_players` skips every player holding
+         * it, so a player who boarded took no step, ran no queue, resumed no
+         * script and swung at nothing until MAP_BUILD_COMPLETE came back. A
+         * boarding carries no cutscene zone events to protect, the deck the
+         * client actually renders arrives on the world-entity path
+         * (REBUILD_WORLDENTITY inside the hull's own view, which has its own
+         * lifecycle and its own acknowledgement), and freezing the helmsman
+         * of a moving hull is worse than any race this guards. */
         if( srv->wire && srv->wire->revision >= 239 &&
             ToriRSServer_MapInstanceFind(player->x, player->z) != 0 &&
+            !ToriRSServer_VesselAtTile(srv, player->x, player->z) &&
             (player->x != player->v5_last_x || player->z != player->v5_last_z ||
              player->level != player->v5_last_level) )
         {
