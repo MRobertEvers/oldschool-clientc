@@ -152,6 +152,13 @@ function importComponent(block, fileId, interfaceId, warnings) {
         name: block.name,
         kind,
         type,
+        /* GETTARGETMASK has different cache semantics for the two widget
+         * families.  IF3 stores its six target bits inside the raw events word
+         * at bits 11..16; IF1's exported clickmask is already the decoded
+         * target mask.  Keep the decode family on the IR instead of throwing
+         * away the known `if3` field, so the live HOST can answer exactly as
+         * UITree's native builder does. */
+        if3: fieldValue(block.fields.if3 ?? 'yes', 'boolean'),
         layer: parentFileId(block.fields.layer, interfaceId),
         props: { ...staticProps },
         static: staticProps,

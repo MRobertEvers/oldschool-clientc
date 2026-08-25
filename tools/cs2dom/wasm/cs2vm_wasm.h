@@ -194,6 +194,15 @@ cs2w_request_field_string(uintptr_t request, int field_index, int element_index)
 
 /* ---- Results written synchronously by the JavaScript HOST ------------- */
 
+/* Pop one value while servicing a synchronous HOST request. Output pointers
+ * are required and are written only on success. A popped string remains owned
+ * by the thread pool and is borrowed for the duration of the callback. */
+int
+cs2w_thread_pop_int(uintptr_t thread, int* value_out);
+
+int
+cs2w_thread_pop_string(uintptr_t thread, const char** value_out);
+
 int
 cs2w_thread_push_int(uintptr_t thread, int value);
 

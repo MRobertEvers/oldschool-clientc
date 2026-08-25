@@ -50,7 +50,10 @@ const MODULE_ROOT = dirname(fileURLToPath(import.meta.url));
 const CS2VM_WEB_ROOT = join(MODULE_ROOT, '..', 'web');
 const BROWSER_RUNTIME_MODULES = new Set([
     'components.js', 'cs2_commands.js', 'eval.js', 'expr.js', 'font_runtime.js', 'host.js',
-    'host_runtime.js', 'ops.js', 'preview.js', 'wasm_runtime.js',
+    'host_activity.js', 'host_chat_social.js', 'host_db.js', 'host_loot.js',
+    'host_overlay.js', 'host_runtime.js', 'host_subject.js', 'host_worldmap.js',
+    'ops.js', 'preview.js',
+    'wasm_runtime.js',
 ]);
 
 export function serve(project, { port = 8099, open = true, log = console.log } = {}) {
@@ -418,6 +421,7 @@ function browserRuntimeIr(ir) {
             name: component.name,
             kind: component.kind,
             type: component.type,
+            if3: component.if3 !== false,
             layer: component.layer,
             subId: component.subId,
             props: jsonValue(component.props || component.static || {}),

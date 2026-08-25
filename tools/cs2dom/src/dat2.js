@@ -23,6 +23,13 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 export const CACHEPACK_TOOL = '3rd/rscache/tools/cachepack/cachepack';
 export const CACHEPACK_BUILD = 'make -C 3rd/rscache/tools cachepack';
+export const DAT2_CONFIG_TYPES = Object.freeze([
+    'varp', 'varbit', 'inv', 'varc', 'enum', 'obj', 'npc', 'loc', 'mapelement',
+    'param', 'struct', 'dbtable', 'dbrow',
+]);
+export const DAT2_ASSETS = Object.freeze([
+    'interfaces', 'scripts', 'sprites', 'models', 'fonts', 'worldmap/areas',
+]);
 
 /** Add a cached, selective Dat2 decode to a project as a read-only source. */
 export function prepareDat2Project(project, options = {}) {
@@ -60,8 +67,8 @@ export function prepareDat2Project(project, options = {}) {
     const staging = mkdtempSync(join(cacheRoot, `${key}.staging-`));
     const args = [
         'unpack', '--cache', cache, '--rev', project.revision, '--src', staging,
-        '--types', 'varp,varbit,inv,varc,enum,obj,param,struct',
-        '--assets=interfaces,scripts,sprites,models,fonts', '--warn', '5',
+        '--types', DAT2_CONFIG_TYPES.join(','),
+        `--assets=${DAT2_ASSETS.join(',')}`, '--warn', '5',
     ];
     const run = spawnSync(tool, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
     if( run.status !== 0 ) {
@@ -118,7 +125,10 @@ export function dat2CacheKey(cacheDir, revision, tool) {
             return [name, info.size, info.mtimeMs];
         });
     return createHash('sha256').update(JSON.stringify({
-        schema: 4,
+        /* Schema 6 also extracts the friendly worldmap area/composite records
+         * used by the synchronous WORLDMAP_* HOST. Never reuse an older tree:
+         * it looks healthy but cannot answer map geometry or icon iteration. */
+        schema: 6,
         cache,
         revision,
         files,

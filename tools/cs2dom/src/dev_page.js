@@ -87,20 +87,18 @@ export function page() {
     color: var(--dim); margin: 0 0 10px;
   }
 
-  /* the stage: a checkerboard so a transparent component still reads as one */
+  /* The production soft renderer clears its interface framebuffer to #202428.
+     Transparent margins and sprite pixels must composite over that same clear
+     colour; a checkerboard changes the bank frame even when every widget is
+     otherwise byte-for-byte correct. */
   #stage {
     position: relative; margin: 0 auto;
-    background-color: #0c0b09;
-    background-image: linear-gradient(45deg, #17150f 25%, transparent 25%),
-                      linear-gradient(-45deg, #17150f 25%, transparent 25%),
-                      linear-gradient(45deg, transparent 75%, #17150f 75%),
-                      linear-gradient(-45deg, transparent 75%, #17150f 75%);
-    background-size: 16px 16px;
-    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
-    outline: 1px solid var(--line); overflow: hidden; cursor: default;
+    background: #202428;
+    overflow: hidden; cursor: default;
     touch-action: none; user-select: none;
   }
-  #stage:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+  #stage:focus-visible { outline: 0; }
+  main section:first-child:has(#stage:focus-visible) > h2:first-child { color: var(--accent); }
   .box { position: absolute; overflow: hidden; }
   .box.text { display: flex; white-space: pre; }
   .box.unknown {
@@ -799,7 +797,8 @@ function paintModel(element, box, iface, epoch, surface) {
   if( box.w <= 0 || box.h <= 0 || !surface || surface.width <= 0 || surface.height <= 0 ) return;
   const marker = element.querySelector('.model-marker');
   const source = box.presentation?.source || {
-    kind: box.props.clientCode === 328 && box.props.model < 0 ? 'playerSelf' : 'model',
+    kind: [327, 328].includes(box.props.clientCode) && box.props.model < 0
+      ? 'playerSelf' : 'model',
     id: box.props.model,
   };
   const player = ['playerHead', 'playerSelf', 'playerChatHead'].includes(source.kind);

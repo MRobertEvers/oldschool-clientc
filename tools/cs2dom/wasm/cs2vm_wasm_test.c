@@ -37,6 +37,8 @@ static int g_nested = 0;
 static int g_model_x_angle = 1900;
 static int g_seen_model_get = 0;
 static int g_seen_model_set = 0;
+static int g_seen_db = 0;
+static int g_seen_db_results = 0;
 
 static int
 field_index(
@@ -73,6 +75,39 @@ field_string(
     int field = field_index(kind, name);
     assert(field >= 0);
     return cs2w_request_field_string(request, field, 0);
+}
+
+static int
+pop_int(
+    uintptr_t thread)
+{
+    int value = 0x13572468;
+    assert(cs2w_thread_pop_int(thread, &value));
+    return value;
+}
+
+static const char*
+pop_string(
+    uintptr_t thread)
+{
+    const char* value = NULL;
+    assert(cs2w_thread_pop_string(thread, &value));
+    return value;
+}
+
+static void
+assert_thread_stacks_empty(uintptr_t thread)
+{
+    int integer = 0x13572468;
+    const char* string = "unchanged";
+    assert(!cs2w_thread_pop_int(thread, &integer));
+    assert(integer == 0x13572468);
+    assert(!cs2w_thread_pop_string(thread, &string));
+    assert(strcmp(string, "unchanged") == 0);
+    assert(!cs2w_thread_pop_int(0, &integer));
+    assert(!cs2w_thread_pop_int(thread, NULL));
+    assert(!cs2w_thread_pop_string(0, &string));
+    assert(!cs2w_thread_pop_string(thread, NULL));
 }
 
 static int
@@ -142,6 +177,46 @@ host_exec(
             assert(value == 3);
             g_seen_children++;
         }
+        else if( id == 93 )
+        {
+            assert(value == 88);
+            g_seen_db_results++;
+        }
+        else if( id == 92 )
+        {
+            assert(value == 6);
+            g_seen_db_results++;
+        }
+        else if( id == 91 )
+        {
+            assert(value == 4);
+            g_seen_db_results++;
+        }
+        else if( id == 90 )
+        {
+            assert(value == 3);
+            g_seen_db_results++;
+        }
+        else if( id == 89 )
+        {
+            assert(value == 99);
+            g_seen_db_results++;
+        }
+        else if( id == 88 )
+        {
+            assert(value == 10);
+            g_seen_db_results++;
+        }
+        else if( id == 87 )
+        {
+            assert(value == 2);
+            g_seen_db_results++;
+        }
+        else if( id == 86 )
+        {
+            assert(value == 701);
+            g_seen_db_results++;
+        }
         else if( id == 200 )
         {
             assert(value == 5);
@@ -158,10 +233,20 @@ host_exec(
     }
     if( strcmp(name, "CC_SETTEXT") == 0 )
     {
-        assert(field_i32(request, kind, "component_id") == 0x2222);
-        assert(strcmp(field_string(request, kind, "text"), "Use") == 0);
-        assert(cs2w_thread_current_operand(thread) == 1);
-        g_seen_text++;
+        int component_id = field_i32(request, kind, "component_id");
+        if( component_id == 0x6666 )
+        {
+            assert(strcmp(field_string(request, kind, "text"), "db-value") == 0);
+            assert(cs2w_thread_current_operand(thread) == 0);
+            g_seen_db_results++;
+        }
+        else
+        {
+            assert(component_id == 0x2222);
+            assert(strcmp(field_string(request, kind, "text"), "Use") == 0);
+            assert(cs2w_thread_current_operand(thread) == 1);
+            g_seen_text++;
+        }
         return CS2W_HOST_OK;
     }
     if( strcmp(name, "CC_FIND") == 0 )
@@ -206,6 +291,87 @@ host_exec(
         assert(field_i32(request, kind, "zoom") == 420);
         g_model_x_angle = field_i32(request, kind, "angle_x");
         g_seen_model_set++;
+        return CS2W_HOST_OK;
+    }
+    if( strncmp(name, "DB_", 3) == 0 )
+    {
+        if( strcmp(name, "DB_GETFIELD") == 0 )
+        {
+            assert(pop_int(thread) == 2);       /* index */
+            assert(pop_int(thread) == 777);     /* packed column */
+            assert(pop_int(thread) == 321);     /* row id */
+            assert_thread_stacks_empty(thread);
+            assert(cs2w_thread_push_int(thread, 88));
+            assert(cs2w_thread_push_string(thread, "db-value"));
+        }
+        else if( strcmp(name, "DB_GETFIELDCOUNT") == 0 )
+        {
+            assert(pop_int(thread) == 777);     /* packed column */
+            assert(pop_int(thread) == 321);     /* row id */
+            assert_thread_stacks_empty(thread);
+            assert(cs2w_thread_push_int(thread, 3));
+        }
+        else if( strcmp(name, "DB_FIND_WITH_COUNT") == 0 )
+        {
+            assert(pop_int(thread) == 0);       /* int type tag */
+            assert(pop_int(thread) == 55);      /* value */
+            assert(pop_int(thread) == 440);     /* packed column */
+            assert_thread_stacks_empty(thread);
+            assert(cs2w_thread_push_int(thread, 6));
+        }
+        else if( strcmp(name, "DB_FIND_FILTER_WITH_COUNT") == 0 )
+        {
+            assert(pop_int(thread) == 2);       /* string type tag */
+            assert(strcmp(pop_string(thread), "needle") == 0);
+            assert(pop_int(thread) == 441);     /* packed column */
+            assert_thread_stacks_empty(thread);
+            assert(cs2w_thread_push_int(thread, 4));
+        }
+        else if( strcmp(name, "DB_FIND") == 0 )
+        {
+            assert(pop_int(thread) == 1);       /* any non-2 tag is int */
+            assert(pop_int(thread) == 56);
+            assert(pop_int(thread) == 442);
+            assert_thread_stacks_empty(thread);
+        }
+        else if( strcmp(name, "DB_FIND_FILTER") == 0 )
+        {
+            assert(pop_int(thread) == 2);
+            assert(strcmp(pop_string(thread), "narrow") == 0);
+            assert(pop_int(thread) == 443);
+            assert_thread_stacks_empty(thread);
+        }
+        else if( strcmp(name, "DB_FINDALL_WITH_COUNT") == 0 )
+        {
+            assert(pop_int(thread) == 10);      /* table id */
+            assert_thread_stacks_empty(thread);
+            assert(cs2w_thread_push_int(thread, 2));
+        }
+        else if( strcmp(name, "DB_GETROWTABLE") == 0 )
+        {
+            assert(pop_int(thread) == 321);     /* row id */
+            assert_thread_stacks_empty(thread);
+            assert(cs2w_thread_push_int(thread, 10));
+        }
+        else if( strcmp(name, "DB_GETROW") == 0 )
+        {
+            assert(pop_int(thread) == 4);       /* query index */
+            assert_thread_stacks_empty(thread);
+            assert(cs2w_thread_push_int(thread, 99));
+        }
+        else if( strcmp(name, "DB_FINDALL") == 0 )
+        {
+            assert(pop_int(thread) == 11);      /* table id */
+            assert_thread_stacks_empty(thread);
+        }
+        else if( strcmp(name, "DB_FINDNEXT") == 0 )
+        {
+            assert_thread_stacks_empty(thread);
+            assert(cs2w_thread_push_int(thread, 701));
+        }
+        else
+            assert(!"unexpected DB request");
+        g_seen_db++;
         return CS2W_HOST_OK;
     }
     fprintf(stderr, "unexpected HOST request %s (%d)\n", name, kind);
@@ -394,6 +560,51 @@ main(void)
     static const int model_tick_operands[] = {
         -3, 4, 0x5555, 0, 12, 0, 77, 88, 420, 0x5555, 0, 0,
     };
+    static const uint16_t db_ops[] = {
+        CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT,
+        CS2_OP_DB_GETFIELD, CS2_OP_POP_VAR, CS2_OP_CC_SETTEXT,
+        CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT,
+        CS2_OP_DB_GETFIELDCOUNT, CS2_OP_POP_VAR,
+        CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT,
+        CS2_OP_DB_FIND_WITH_COUNT, CS2_OP_POP_VAR,
+        CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_STRING, CS2_OP_PUSH_CONSTANT_INT,
+        CS2_OP_DB_FIND_FILTER_WITH_COUNT, CS2_OP_POP_VAR,
+        CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT,
+        CS2_OP_DB_FIND,
+        CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_STRING, CS2_OP_PUSH_CONSTANT_INT,
+        CS2_OP_DB_FIND_FILTER,
+        CS2_OP_PUSH_CONSTANT_INT, CS2_OP_DB_FINDALL_WITH_COUNT, CS2_OP_POP_VAR,
+        CS2_OP_PUSH_CONSTANT_INT, CS2_OP_DB_GETROWTABLE, CS2_OP_POP_VAR,
+        CS2_OP_PUSH_CONSTANT_INT, CS2_OP_DB_GETROW, CS2_OP_POP_VAR,
+        CS2_OP_PUSH_CONSTANT_INT, CS2_OP_DB_FINDALL,
+        CS2_OP_DB_FINDNEXT, CS2_OP_POP_VAR, CS2_OP_RETURN,
+    };
+    static const int db_operands[] = {
+        321, 777, 2, 0, 93, 0,
+        321, 777, 0, 90,
+        440, 55, 0, 0, 92,
+        441, 0, 2, 0, 91,
+        442, 56, 1, 0,
+        443, 0, 2, 0,
+        10, 0, 87,
+        321, 0, 88,
+        4, 0, 89,
+        11, 0,
+        0, 86, 0,
+    };
+    static const char* const db_strings[] = {
+        NULL, NULL, NULL, NULL, NULL, NULL,
+        NULL, NULL, NULL, NULL,
+        NULL, NULL, NULL, NULL, NULL,
+        NULL, "needle", NULL, NULL, NULL,
+        NULL, NULL, NULL, NULL,
+        NULL, "narrow", NULL, NULL,
+        NULL, NULL, NULL,
+        NULL, NULL, NULL,
+        NULL, NULL, NULL,
+        NULL, NULL,
+        NULL, NULL, NULL,
+    };
     const struct TestScript scripts[] = {
         { 100, (int)(sizeof(entry_ops) / sizeof(entry_ops[0])), entry_ops, entry_operands,
           NULL, 1, 1, 1, 1 },
@@ -403,6 +614,8 @@ main(void)
           NULL, 0, 0, 0, 0 },
         { 400, (int)(sizeof(model_tick_ops) / sizeof(model_tick_ops[0])),
           model_tick_ops, model_tick_operands, NULL, 0, 0, 0, 0 },
+        { 500, (int)(sizeof(db_ops) / sizeof(db_ops[0])),
+          db_ops, db_operands, db_strings, 0, 0, 0, 0 },
     };
 
     test_schema();
@@ -411,7 +624,7 @@ main(void)
     assert(session);
     for( size_t i = 0; i < sizeof(scripts) / sizeof(scripts[0]); i++ )
         load_script(session, &scripts[i]);
-    assert(cs2w_session_script_count(session) == 4);
+    assert(cs2w_session_script_count(session) == 5);
     assert(cs2w_session_seal(session));
 
     struct CS2W_Invocation* invocation =
@@ -447,6 +660,15 @@ main(void)
     assert(g_seen_model_get == 2);
     assert(g_seen_model_set == 2);
     assert(g_model_x_angle == 1924);
+
+    invocation = cs2w_invocation_create(session, 500, 0x6666, 0x6666, 512, 334);
+    assert(invocation);
+    assert(cs2w_invocation_run(invocation) == CS2W_RUN_DONE);
+    assert(cs2w_invocation_host_call_count(invocation) == 20);
+    assert(cs2w_invocation_destroy(invocation));
+    assert(g_seen_db == 11);
+    assert(g_seen_db_results == 9);
+
     assert(cs2w_session_destroy(session));
     CS2VM2_PoolDrain();
     puts("cs2vm wasm bridge: ok");

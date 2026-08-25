@@ -931,6 +931,32 @@ cs2w_request_field_string(
 }
 
 CS2W_EXPORT int
+cs2w_thread_pop_int(
+    uintptr_t thread_address,
+    int* value_out)
+{
+    struct CS2VM2_Thread* thread = (struct CS2VM2_Thread*)thread_address;
+    int value;
+    if( !thread || !value_out || CS2VM2_PopInt(thread, &value) != CS2VM_EXECNO_OK )
+        return 0;
+    *value_out = value;
+    return 1;
+}
+
+CS2W_EXPORT int
+cs2w_thread_pop_string(
+    uintptr_t thread_address,
+    const char** value_out)
+{
+    struct CS2VM2_Thread* thread = (struct CS2VM2_Thread*)thread_address;
+    char* value;
+    if( !thread || !value_out || CS2VM2_PopStr(thread, &value) != CS2VM_EXECNO_OK )
+        return 0;
+    *value_out = value;
+    return 1;
+}
+
+CS2W_EXPORT int
 cs2w_thread_push_int(
     uintptr_t thread_address,
     int value)

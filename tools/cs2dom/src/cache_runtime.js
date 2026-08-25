@@ -602,9 +602,9 @@ function interpolate(value) {
 /* ---- parser ------------------------------------------------------------ */
 
 function parseScript(source) {
-    const header = /^\s*(?:\/\/[^\n]*\n\s*)*\[[^\]]+\]\(([^)]*)\)(?:\([^)]*\))?/m.exec(source);
+    const header = /^\s*(?:\/\/[^\n]*\n\s*)*\[[^\]]+\](?:\(([^)]*)\)(?:\([^)]*\))?)?(?=[ \t]*\r?$)/m.exec(source);
     if( !header ) throw new Error('missing script header');
-    const params = [...header[1].matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s+(\$[A-Za-z0-9_]+)/g)]
+    const params = [...(header[1] || '').matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s+(\$[A-Za-z0-9_]+)/g)]
         .map((match) => ({ type: match[1], name: match[2] }));
     const bodyStart = source.indexOf('\n', header.index + header[0].length);
     const parser = new Parser(tokenize(bodyStart < 0 ? '' : source.slice(bodyStart + 1)));

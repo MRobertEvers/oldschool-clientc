@@ -137,7 +137,9 @@ export function stateInputs(ir) {
                 label: slice ? slice.label : source.kind,
                 request: slice ? slice.request : null,
                 control: slice ? slice.control : { min: 0, max: 100, step: 1 },
-                initial: source.initial ?? (slice?.control?.initial ?? 0),
+                initial: source.initial ??
+                    (source.kind === 'stat' && source.id === 3
+                        ? 10 : (slice?.control?.initial ?? 0)),
                 readBy: [],
             });
         }

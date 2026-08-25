@@ -71,7 +71,7 @@ export const SLICES = {
         request: 'STAT',
         limit: () => STAT_COUNT - 1,
         control: { min: 1, max: 99, step: 1, initial: 1 },
-        read: (state, source) => value(state, source, 1),
+        read: (state, source) => value(state, source, source.id === 3 ? 10 : 1),
     },
     inv: {
         label: 'inventory',
@@ -111,10 +111,15 @@ export const HOST_READS = {
     },
     inv_size: {
         request: 'INVS_GET_SIZE',
-        evaluate: (args, state) => state[`invsize:${args[0]}`] ?? 28,
+        /* Source-only analysis may carry an explicit fixture override. The
+         * live HOST reads immutable InvType data; an unavailable type is zero,
+         * never a guessed backpack capacity. */
+        evaluate: (args, state) => state[`invsize:${args[0]}`] ?? 0,
     },
-    stat: { request: 'STAT', evaluate: (args, state) => state[`stat:${args[0]}`] ?? 1 },
-    stat_base: { request: 'STAT_BASE', evaluate: (args, state) => state[`stat:${args[0]}`] ?? 1 },
+    stat: { request: 'STAT', evaluate: (args, state) =>
+        state[`stat:${args[0]}`] ?? (Number(args[0]) === 3 ? 10 : 1) },
+    stat_base: { request: 'STAT_BASE', evaluate: (args, state) =>
+        state[`stat:${args[0]}`] ?? (Number(args[0]) === 3 ? 10 : 1) },
     clientclock: { request: 'CLIENTCLOCK', evaluate: (args, state) => state['clock'] ?? 0 },
 };
 

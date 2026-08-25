@@ -111,28 +111,14 @@ export function spriteCanvas(sprite, meta = null) {
 /**
  * Produce the repeat cell used by a native tiled sprite.
  *
- * Native tiling repeats the cropped pixels, not the nominal transparent
- * canvas. Its first cell is phased by the crop offset. Rotating the repeat
- * cell by that phase lets the browser repeat it beginning at (0, 0) without a
- * second metadata request.
+ * The cache bitmap is only the non-transparent crop, but native tiling repeats
+ * the sprite's nominal canvas. The crop remains at its pack.meta offset inside
+ * that cell. This distinction is visible on the bank's 36x36 border sprites:
+ * sprite 172 contains a 6x36 stripe at x=15, so repeating the cropped bitmap
+ * paints a stripe every 6 pixels instead of once per 36-pixel cell.
  */
 export function spriteTile(sprite, meta = null) {
-    if( !meta || sprite.width <= 0 || sprite.height <= 0 ) return sprite;
-    const phaseX = modulo(-integer(meta.x, 0), sprite.width);
-    const phaseY = modulo(-integer(meta.y, 0), sprite.height);
-    if( phaseX === 0 && phaseY === 0 ) return sprite;
-
-    const rgba = Buffer.alloc(sprite.rgba.length);
-    for( let y = 0; y < sprite.height; y++ ) {
-        const sourceY = (y + phaseY) % sprite.height;
-        for( let x = 0; x < sprite.width; x++ ) {
-            const sourceX = (x + phaseX) % sprite.width;
-            const from = (sourceY * sprite.width + sourceX) * 4;
-            const to = (y * sprite.width + x) * 4;
-            sprite.rgba.copy(rgba, to, from, from + 4);
-        }
-    }
-    return { width: sprite.width, height: sprite.height, rgba };
+    return spriteCanvas(sprite, meta);
 }
 
 function positiveInteger(value, fallback) {
@@ -141,10 +127,6 @@ function positiveInteger(value, fallback) {
 
 function integer(value, fallback) {
     return Number.isInteger(value) ? value : fallback;
-}
-
-function modulo(value, divisor) {
-    return ((value % divisor) + divisor) % divisor;
 }
 
 function chunk(type, data) {

@@ -37,6 +37,7 @@
 #include "cs2vm2/cs2vm2_host.h"
 #include "cs2vm2/cs2vm2_script.h"
 #include "engine/dat2/dat2_buildcache.h"
+#include "game/rs_chat.h"
 #include "game/rs_cs2_host.h"
 #include "game/rs_social.h"
 #include "game/rs_ui_slots.h"
@@ -490,6 +491,7 @@ test_host_ops(void)
     struct InvManager invs;
     struct RS_CS2Host host;
     struct RS_Social social;
+    struct RS_Chat chat;
     struct CS2VM2 vm;
     int filter_modes[3] = { 0, 0, 0 };
     int iv = 0;
@@ -501,8 +503,10 @@ test_host_ops(void)
     InvManager_Init(&invs);
     RS_CS2Host_Init(&host, tree, provider, &invs, NULL, NULL, NULL);
     RS_Social_Init(&social);
+    RS_Chat_Init(&chat, "Player");
     RS_Social_AddFriend(&social, "bob", 7);
     RS_CS2Host_SetSocial(&host, &social, filter_modes, 7);
+    RS_CS2Host_SetChat(&host, &chat);
 
     CS2VM2_Init(&vm);
     CS2VM2_BindHost(&vm, &host, RS_CS2Host_Exec);
@@ -575,6 +579,38 @@ test_host_ops(void)
         CHECK(!RS_CS2Host_TakeSocialSend(&host, &send), "the queue drains empty");
     }
 
+    /* Both history forms have fixed generated stack contracts.  The basic
+     * form still includes friend-state (six results); EX appends its two
+     * reserved values (eight).  An under-push here shifts every later local in
+     * rebuildchatbox even when the history lookup misses. */
+    {
+        struct CS2VM_HostRequest req;
+        int ints_before = t->ints_stack_top;
+        int strs_before = t->strs_stack_top;
+
+        memset(&req, 0, sizeof(req));
+        req.kind = CS2VM_HOST_REQUEST_CHAT_GETHISTORY_BYUID;
+        req.u.CHAT_GETHISTORY_BYUID.opcode = CS2_OP_CHAT_GETHISTORY_BYUID;
+        req.u.CHAT_GETHISTORY_BYUID.uid = 999;
+        CHECK(RS_CS2Host_Exec(t, &req) == CS2VM_EXECNO_OK, "basic history lookup completes");
+        CHECK(t->ints_stack_top - ints_before == 3 && t->strs_stack_top - strs_before == 3,
+              "basic history pushes 3 ints/3 strings, got %d/%d",
+              t->ints_stack_top - ints_before, t->strs_stack_top - strs_before);
+        t->ints_stack_top = ints_before;
+        t->strs_stack_top = strs_before;
+
+        memset(&req, 0, sizeof(req));
+        req.kind = CS2VM_HOST_REQUEST_CHAT_GETHISTORYEX_BYUID;
+        req.u.CHAT_GETHISTORYEX_BYUID.opcode = CS2_OP_CHAT_GETHISTORYEX_BYUID;
+        req.u.CHAT_GETHISTORYEX_BYUID.uid = 999;
+        CHECK(RS_CS2Host_Exec(t, &req) == CS2VM_EXECNO_OK, "extended history lookup completes");
+        CHECK(t->ints_stack_top - ints_before == 4 && t->strs_stack_top - strs_before == 4,
+              "extended history pushes 4 ints/4 strings, got %d/%d",
+              t->ints_stack_top - ints_before, t->strs_stack_top - strs_before);
+        t->ints_stack_top = ints_before;
+        t->strs_stack_top = strs_before;
+    }
+
     /* chat_sendprivate through the real host: the queued packet must carry the
      * addressee and the body in the fields their names claim. */
     {
@@ -642,6 +678,7 @@ test_host_ops(void)
     CHECK(host.friend_transmit_dirty != 0, "NotifyFriendChanged raises the repaint flag");
 
     CS2VM2_Free(&vm);
+    RS_Chat_Free(&chat);
     UITree_Free(tree);
     dat2_buildcache_free(bc);
 }

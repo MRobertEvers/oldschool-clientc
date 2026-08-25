@@ -187,11 +187,27 @@ Each slice declares three things:
   that cannot be tested. Variables and stats get sliders; an inventory gets an
   item/count editor, since `inv_getnum` asks about contents rather than a number.
 
-Cache enums, object/parameter/struct records and font metrics are loaded once per
-selected source for synchronous HOST lookups. A read with no model — currently
-the `db_*` commands and world/account services that were not supplied — is
-**listed in the page as unmodelled** rather than answered with a zero. A preview
-that quietly invents values is worse than one that admits what it is guessing.
+Cache enums, objects, NPCs, locations, map elements, parameters, structs, DB
+tables/rows, world-map definitions and font metrics are loaded once per selected
+source for synchronous HOST lookups. Bounded client-owned services mirror the C
+client's deterministic state as well: highlights and client-op slots, chat
+history and filters, seeded friend/ignore lists, loot records, entity overlays,
+active subjects/routes and the world-map session.
+
+Actions which the production client hands to another service are kept honest.
+For example, friend-list edits and outgoing chat update the local state where the
+C client does, then emit a bounded service intent through HostRuntime's callback;
+logout and audio requests are recorded in the same way. They do not pretend that
+a server accepted the operation. Live account/network answers (such as real
+friend presence or hiscores results) and live-world entity/projection answers
+remain unavailable unless the caller supplies seed data or a synchronous scene
+provider. Those paths use the desktop client's empty, offline or no-target
+result, or remain visibly unsupported, rather than fabricating data.
+
+`GOSUB_WITH_PARAMS` is present in the generated request-name manifest for ABI
+bookkeeping, but the C VM resolves it internally against its own script registry.
+It is not a JavaScript HOST call and its out-of-scope classification is not a
+missing browser service.
 
 ## Preview fidelity
 
@@ -305,6 +321,9 @@ would be authoring something the format does not have.
 | `src/bytecode.js` | original/compiled `.cs2b` program transport for the C VM |
 | `src/wasm_runtime.js` | browser adapter for the C VM ABI and synchronous HOST bridge |
 | `src/host_runtime.js`, `src/host_data.js` | JavaScript HOST implementation over the live React-style tree |
+| `src/host_activity.js`, `src/host_chat_social.js` | bounded highlight/client-op and chat/social state plus service intents |
+| `src/host_db.js`, `src/host_worldmap.js` | cache-backed DB iterators and world-map state |
+| `src/host_loot.js`, `src/host_overlay.js`, `src/host_subject.js` | loot, dynamic overlay and live-subject state with optional scene adapters |
 | `wasm/` | narrow Emscripten ABI around the existing `src/cs2vm2` implementation |
 | `src/cache_runtime.js` | bounded source analysis used while importing readable records |
 | `src/model.js` | cache model records → entity-viewer wire bridge for toridraw/WASM |
@@ -316,6 +335,8 @@ would be authoring something the format does not have.
 | `src/ledger.js` | id allocation through the pack files |
 | `src/verify.js` | handing generated CS2 to the real compiler |
 
-`node test/run_tests.js` runs everything, including a gate that compiles one
-probe per command in the vocabulary — an argument order that drifts fails there
-rather than in the client.
+`npm test`, `make test` and `node test/run_all_tests.js` run every focused HOST
+parity suite followed by the central compiler/runtime suite. The latter remains
+available directly as `node test/run_tests.js`; it includes a gate that compiles
+one probe per command in the vocabulary, so an argument order that drifts fails
+there rather than in the client.

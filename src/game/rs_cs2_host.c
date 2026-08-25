@@ -7493,7 +7493,7 @@ exec_chat(
          *   2  name           printable sender, "" for a system line
          *   3  sender         the account friend/ignore is keyed on
          *   4  text           the message
-         *   5  friend state   1 friend, 2 ignored, 0 neither  (ex only)
+         *   5  friend state   1 friend, 2 ignored, 0 neither
          *   6  ""             reserved at this revision       (ex only)
          *   7  0              reserved at this revision       (ex only)
          *
@@ -7512,11 +7512,11 @@ exec_chat(
             return CS2VM_EXECNO_ERROR;
         if( rs_cs2_push_text(vm, node ? node->text : "") != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( !extended )
-            return CS2VM_EXECNO_OK;
         if( CS2VM2_PushInt(vm, node ? RS_Chat_NodeFriendState(node, host->social) : 0) !=
             CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
+        if( !extended )
+            return CS2VM_EXECNO_OK;
         if( CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm)) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         return CS2VM2_PushInt(vm, 0);

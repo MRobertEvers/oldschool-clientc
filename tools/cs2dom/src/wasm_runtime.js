@@ -46,12 +46,8 @@ const MAX_REFLECTED_VALUES = 4096;
 const MAX_CHILD_ITERATOR = 256;
 const TARGET_COMMANDS = new Set([
     'CC_CREATE', 'CC_COPY', 'CC_CREATECHILD', 'CC_CREATESIBLING',
-    'CC_FIND', 'IF_FIND', 'OVERLAY_FIND', 'OVERLAY_CC_FIND',
-    'CC_CHILDREN_FINDNEXT', 'IF_CHILDREN_FIND',
-]);
-const STATE_WRITES = new Set([
-    'POP_VAR', 'POP_VARBIT', 'POP_VARC_INT', 'POP_VARC_STRING',
-    'POP_VARC_STRING_OLD',
+    'CC_FIND', 'IF_FIND', 'OVERLAY_CC_CREATE', 'OVERLAY_FIND', 'OVERLAY_CC_FIND',
+    'CC_CHILDREN_FINDNEXT', 'IF_CHILDREN_FIND', 'MINIMENU_FINDCOMPONENT',
 ]);
 const CHILD_ITERATOR_COMMANDS = new Set([
     'IF_CHILDREN_FIND', 'IF_CHILDREN_COLLECT', 'CC_CHILDREN_FIND_COUNT',
@@ -68,6 +64,21 @@ const BASE_RESULTS = Object.freeze({
     PUSH_VARCLANSETTING: 'i',
     PUSH_VARCLAN: 'i',
 });
+const DB_REQUESTS = new Set([
+    'DB_FIND_WITH_COUNT', 'DB_FINDNEXT', 'DB_GETFIELD', 'DB_GETFIELDCOUNT',
+    'DB_FINDALL_WITH_COUNT', 'DB_GETROWTABLE', 'DB_GETROW',
+    'DB_FIND_FILTER_WITH_COUNT', 'DB_FIND', 'DB_FINDALL', 'DB_FIND_FILTER',
+]);
+const DB_FIND_REQUESTS = new Set([
+    'DB_FIND_WITH_COUNT', 'DB_FIND_FILTER_WITH_COUNT', 'DB_FIND', 'DB_FIND_FILTER',
+]);
+/* cachepack's legacy command type ids overstate these result arities. The
+ * current C opcode stack/native handlers push one integer for each; trusting
+ * the legacy table leaves extra zeroes on the C VM stack after an otherwise
+ * correct JavaScript HOST call. */
+const LEGACY_SCALAR_RESULT_REQUESTS = new Set([
+    'WORLDMAP_GETSOURCECOORD', 'WORLDMAP_GETNEARESTICON', 'MEC_SPRITE',
+]);
 
 let defaultModulePromise = null;
 
@@ -187,6 +198,9 @@ class WasmSession {
     setEvent(invocation, intent, component) {
         const locals = intent?.locals || {};
         const drag = hostRef(this.host, intent?.dragTarget, false);
+        const session = this.host.session || {};
+        const windowMode = Number(session.windowMode);
+        const defaultWindowMode = Number(session.defaultWindowMode);
         const fields = [
             [EVENT_I32.mouseX, locals.eventMouseX ?? locals.mouseX ?? 0],
             [EVENT_I32.mouseY, locals.eventMouseY ?? locals.mouseY ?? 0],
@@ -198,8 +212,9 @@ class WasmSession {
             [EVENT_I32.keyTyped, locals.keyTyped ?? -1],
             [EVENT_I32.keyPressed, locals.keyPressed ?? -1],
             [EVENT_I32.opSubIndex, locals.opSubIndex ?? 0],
-            [EVENT_I32.windowMode, 1],
-            [EVENT_I32.defaultWindowMode, 1],
+            [EVENT_I32.windowMode, windowMode === 1 || windowMode === 2 ? windowMode : 2],
+            [EVENT_I32.defaultWindowMode,
+                defaultWindowMode === 1 || defaultWindowMode === 2 ? defaultWindowMode : 2],
         ];
         for( const [field, value] of fields ) if( !this.api._cs2w_invocation_set_event_i32(
             invocation, field, Number(value) | 0) ) throw new WasmCS2RuntimeError(
@@ -218,8 +233,8 @@ class WasmSession {
     hostExec(invocation, thread, requestPointer, kind) {
         try {
             const request = reflectRequest(this.api, requestPointer, kind, thread);
-            if( STATE_WRITES.has(request.kind) ) request.transmit = false;
             normalizeSetOn(request);
+            normalizeDbRequest(this.api, thread, request);
             const result = this.host.request(request);
             if( result && typeof result.then === 'function' )
                 throw new WasmCS2RuntimeError('HostRuntime returned a Promise', 'ASYNC_HOST');
@@ -309,7 +324,8 @@ function validateModule(api) {
         '_cs2w_request_kind_name', '_cs2w_request_field_count',
         '_cs2w_request_field_name', '_cs2w_request_field_kind',
         '_cs2w_request_field_length', '_cs2w_request_field_i32',
-        '_cs2w_request_field_string', '_cs2w_thread_push_int',
+        '_cs2w_request_field_string', '_cs2w_thread_pop_int',
+        '_cs2w_thread_pop_string', '_cs2w_thread_push_int',
         '_cs2w_thread_push_string', '_cs2w_thread_set_target',
         '_cs2w_thread_set_children',
         '_cs2w_thread_current_operand',
@@ -337,7 +353,12 @@ function reflectRequest(api, pointer, kind, thread) {
         if( name === 'kind' ) result.value_kind = value;
         else result[name] = value;
     }
-    result.dot_operand = Boolean(api._cs2w_thread_current_operand(thread));
+    /* Several producer structs carry an exact dot target. Keep that value:
+     * the current bytecode operand is only a fallback for requests whose
+     * schema has no dot_operand field (for example a plain state read). */
+    if( Object.prototype.hasOwnProperty.call(result, 'dot_operand') )
+        result.dot_operand = Boolean(result.dot_operand);
+    else result.dot_operand = Boolean(api._cs2w_thread_current_operand(thread));
     return result;
 }
 
@@ -377,6 +398,52 @@ function normalizeSetOn(request) {
     request.triggerIds = Array.isArray(request.trigger_ids) ? request.trigger_ids : [];
 }
 
+/* DB bytecode deliberately reaches the C HOST with its operands still on the
+ * thread stacks: the search type tag chooses whether its value is an int or a
+ * string. Pop here in the same reverse-source order as exec_db(), then expose
+ * stable named fields to the JavaScript DB store. */
+function normalizeDbRequest(api, thread, request) {
+    if( !DB_REQUESTS.has(request.kind) ) return request;
+
+    if( request.kind === 'DB_GETROW' ) {
+        request.index = popThreadInt(api, thread, 'DB_GETROW index');
+    } else if( request.kind === 'DB_GETROWTABLE' ) {
+        request.rowId = popThreadInt(api, thread, 'DB_GETROWTABLE row');
+    } else if( request.kind === 'DB_GETFIELDCOUNT' ) {
+        request.column = popThreadInt(api, thread, 'DB_GETFIELDCOUNT column');
+        request.rowId = popThreadInt(api, thread, 'DB_GETFIELDCOUNT row');
+    } else if( request.kind === 'DB_GETFIELD' ) {
+        request.index = popThreadInt(api, thread, 'DB_GETFIELD index');
+        request.column = popThreadInt(api, thread, 'DB_GETFIELD column');
+        request.rowId = popThreadInt(api, thread, 'DB_GETFIELD row');
+    } else if( request.kind === 'DB_FINDALL' || request.kind === 'DB_FINDALL_WITH_COUNT' ) {
+        request.tableId = popThreadInt(api, thread, `${request.kind} table`);
+    } else if( DB_FIND_REQUESTS.has(request.kind) ) {
+        request.typeTag = popThreadInt(api, thread, `${request.kind} type tag`);
+        request.value = request.typeTag === 2
+            ? popThreadString(api, thread, `${request.kind} string value`)
+            : popThreadInt(api, thread, `${request.kind} integer value`);
+        request.column = popThreadInt(api, thread, `${request.kind} column`);
+    }
+    return request;
+}
+
+function popThreadInt(api, thread, description) {
+    return withI32Out(api, (pointer, view) => {
+        if( !api._cs2w_thread_pop_int(thread, pointer) ) throw new WasmCS2RuntimeError(
+            `C CS2VM could not pop ${description}`, 'HOST_STACK');
+        return view.getInt32(0, true);
+    });
+}
+
+function popThreadString(api, thread, description) {
+    return withI32Out(api, (pointer, view) => {
+        if( !api._cs2w_thread_pop_string(thread, pointer) ) throw new WasmCS2RuntimeError(
+            `C CS2VM could not pop ${description}`, 'HOST_STACK');
+        return readCString(api, view.getUint32(0, true));
+    });
+}
+
 function writeHostResult(api, thread, kind, request, result, host) {
     if( CHILD_ITERATOR_COMMANDS.has(request.kind) ) {
         const refs = Array.isArray(result) ? result : host?.childIteration?.refs || [];
@@ -394,8 +461,23 @@ function writeHostResult(api, thread, kind, request, result, host) {
         return;
     }
 
+    if( request.kind === 'DB_GETFIELD' ) {
+        writeDbFieldResult(api, thread, result);
+        return;
+    }
+
     const command = CS2_COMMANDS.get(kind);
     const pattern = specialResultPattern(request) ?? BASE_RESULTS[request.kind] ?? command?.defs ?? '';
+    if( request.kind === 'MINIMENU_FINDCOMPONENT' && result ) {
+        const ref = host?.activeRef?.() || null;
+        if( ref ) {
+            const id = packedComponentId(ref);
+            /* The C client latches both implicit component operands regardless
+             * of the opcode's dot bit, then pushes the boolean success value. */
+            api._cs2w_thread_set_target(thread, 0, id);
+            api._cs2w_thread_set_target(thread, 1, id);
+        }
+    }
     if( TARGET_COMMANDS.has(request.kind) ) {
         const ref = resultRef(result);
         if( ref ) api._cs2w_thread_set_target(
@@ -419,10 +501,36 @@ function writeHostResult(api, thread, kind, request, result, host) {
     }
 }
 
+/* DB_GETFIELD is the one HOST result whose arity and stack banks are selected
+ * by cache data rather than static opcode metadata. The DB handler returns its
+ * exact field-order signature alongside the parallel values. */
+function writeDbFieldResult(api, thread, result) {
+    const pattern = result?.pattern;
+    const values = result?.values;
+    if( typeof pattern !== 'string' || !Array.isArray(values) || pattern.length === 0 ||
+        pattern.length !== values.length || pattern.length > MAX_REFLECTED_VALUES ||
+        !/^[is]+$/.test(pattern) ) throw new WasmCS2RuntimeError(
+        'DB_GETFIELD HOST result must be non-empty { pattern: "is...", values: [...] }',
+        'HOST_RESULT');
+
+    for( let index = 0; index < pattern.length; index++ ) {
+        if( pattern[index] === 's' ) {
+            const ok = withString(api, values[index] ?? '', (pointer) =>
+                api._cs2w_thread_push_string(thread, pointer));
+            if( !ok ) throw new WasmCS2RuntimeError(
+                'C CS2VM rejected a DB_GETFIELD string result', 'HOST_RESULT');
+        } else if( !api._cs2w_thread_push_int(thread, resultInt(values[index])) ) {
+            throw new WasmCS2RuntimeError(
+                'C CS2VM rejected a DB_GETFIELD integer result', 'HOST_RESULT');
+        }
+    }
+}
+
 function specialResultPattern(request) {
     if( request.kind === 'ENUM' ) return Number(request.output_type) === 's'.charCodeAt(0) ? 's' : 'i';
     if( request.kind === 'CC_GETCOMPONENTPARAM' ) return 'i';
     if( POLYMORPHIC_RESULTS.has(request.kind) ) return '?';
+    if( LEGACY_SCALAR_RESULT_REQUESTS.has(request.kind) ) return 'i';
     return null;
 }
 
@@ -548,6 +656,16 @@ function withInt32Array(api, values, callback) {
     } finally { api._free(pointer); }
 }
 
+function withI32Out(api, callback) {
+    const pointer = api._malloc(4);
+    if( !pointer ) throw new WasmCS2RuntimeError('WASM stack-result allocation failed', 'OUT_OF_MEMORY');
+    try {
+        const view = new DataView(api.HEAPU8.buffer, pointer, 4);
+        view.setUint32(0, 0, true);
+        return callback(pointer, view);
+    } finally { api._free(pointer); }
+}
+
 function withString(api, value, callback) {
     const bytes = new TextEncoder().encode(String(value ?? ''));
     const pointer = api._malloc(bytes.length + 1);
@@ -574,8 +692,10 @@ export const __wasmRuntimeTest = Object.freeze({
     normalizeRevision,
     normalizeDialect,
     normalizeSetOn,
+    normalizeDbRequest,
     specialResultPattern,
     programBytes,
     reflectRequest,
+    writeDbFieldResult,
     writeHostResult,
 });

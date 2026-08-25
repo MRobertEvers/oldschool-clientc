@@ -28,13 +28,14 @@ install: node_modules
 $(CS2):
 	$(MAKE) -C $(REPO_ROOT)/3rd/rscache/tools cs2
 
-test: node_modules $(CS2)
-	$(NODE) test/run_tests.js
+test: node_modules $(CS2) src/cs2_host_requests.js
+	$(NODE) test/run_all_tests.js
 
 # ---- production C CS2VM2 in WebAssembly ---------------------------------
 
 CS2W_SCHEMA_SOURCE := $(REPO_ROOT)/src/cs2vm2/cs2vm2_host_request_kinds.def
 CS2W_SCHEMA := wasm/cs2vm_host_schema.gen.h
+CS2W_REQUESTS_JS := src/cs2_host_requests.js
 CS2W_BUILD := build/cs2vm
 CS2W_WEB := web/cs2vm_wasm.js
 CS2W_WASM := web/cs2vm_wasm.wasm
@@ -67,6 +68,9 @@ CS2W_HEADERS := \
 $(CS2W_SCHEMA): wasm/gen_host_schema.py $(CS2W_SCHEMA_SOURCE)
 	$(PYTHON) $^ $@
 
+$(CS2W_REQUESTS_JS): wasm/gen_host_schema.py $(CS2W_SCHEMA_SOURCE)
+	$(PYTHON) $(CS2W_SCHEMA_SOURCE) $@ --format js
+
 $(CS2W_BUILD):
 	mkdir -p $@
 
@@ -90,7 +94,7 @@ $(CS2W_WEB): $(CS2W_CORE) $(CS2W_HEADERS) | web
 		-sEXPORTED_RUNTIME_METHODS='["cwrap","UTF8ToString","HEAPU8","HEAP32","HEAPU32"]' \
 		-sASSERTIONS=0
 
-wasm: $(CS2W_WEB)
+wasm: $(CS2W_WEB) $(CS2W_REQUESTS_JS)
 	@test -f $(CS2W_WASM) || $(MAKE) -B $(CS2W_WEB)
 
 dev: node_modules wasm

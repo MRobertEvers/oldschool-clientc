@@ -45,14 +45,18 @@ import { spritePng } from '../src/dev.js';
 import {
     contentInterfaceCatalog, executeContentHooks, openContentInterface, parseBlocks,
 } from '../src/content.js';
-import { prepareDat2Project } from '../src/dat2.js';
+import { DAT2_ASSETS, DAT2_CONFIG_TYPES, prepareDat2Project } from '../src/dat2.js';
 import { compileInterfaceProgram } from '../src/bytecode.js';
-import { parseEnums, parseObjects, parseParams, parseStructs } from '../src/host_data.js';
+import {
+    contentHostData, parseEnums, parseInventoryTypes, parseLocs, parseMapElements, parseNpcs,
+    parseObjects, parseParams, parseStructs, parseVarbitVarps,
+} from '../src/host_data.js';
 import { page as devPage } from '../src/dev_page.js';
 import { modelIndex, rawModel } from '../src/model.js';
 import { nativeTreeInspector, parseNativeTree } from '../src/native_tree.js';
 import { encodeNativeState, nativePreviewFingerprint } from '../src/native_preview.js';
 import { collectInterfaceScripts, prepareNativeOverlay } from '../src/native_overlay.js';
+import { packWorldMapCoord } from '../src/host_worldmap.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = findRepoRoot(HERE);
@@ -137,6 +141,9 @@ test('the dev page paints native tiled sprites and full-geometry lines', () => {
     const html = devPage();
     assertIncludes(html, "(props.tiled ? '?tile=1' : '')");
     assertIncludes(html, "context?.createPattern(image, 'repeat')");
+    assertIncludes(html, 'background: #202428;');
+    assert(!html.includes('background-image: linear-gradient'),
+           'the native framebuffer clear is still replaced by a checkerboard');
     assertIncludes(html, "document.createElementNS('http://www.w3.org/2000/svg', 'line')");
     assertIncludes(html, 'pad + (props.lineDirection ? box.h : 0)');
     assertIncludes(html, 'pad + (props.lineDirection ? 0 : box.h)');
@@ -145,6 +152,12 @@ test('the dev page paints native tiled sprites and full-geometry lines', () => {
 });
 
 test('HOST lookup data preserves cache strings, actions and typed parameters', () => {
+    const inventoryTypes = parseInventoryTypes([
+        '[backpack]', 'size=28', '[bank]', 'size=800',
+    ].join('\n'), '93=backpack\n95=bank\n');
+    const varbitVarp = parseVarbitVarps([
+        '[energy_bit]', 'basevar=sa_energy', '[varbit_10]', 'basevar=varp_301',
+    ].join('\n'), '9=energy_bit\n', '300=sa_energy\n');
     const params = parseParams([
         '[count]', 'type=i', 'default=7', '[label]', 'type=s', 'defaultstr=none',
     ].join('\n'), '31=count\n32=label\n');
@@ -153,7 +166,8 @@ test('HOST lookup data preserves cache strings, actions and typed parameters', (
         'valstr=1,https://example.test/path',
     ].join('\n'), '44=links\n');
     const objects = parseObjects([
-        '[bank_item]', 'name=Bank item', 'cost=25', 'stackable=yes',
+        '[bank_item]', 'name=Bank item', 'desc=Kept safely in the bank.',
+        'cost=25', 'stackable=yes', 'shiftclickdrop=2',
         'model=55', '2dzoom=1337', '2dxan=111', '2dyan=222', '2dzan=333',
         '2dxof=-4', '2dyof=17', 'countobj1=stacked_item,10',
         'ifop1=Withdraw-1', 'op2=Take', 'param=count,int,12',
@@ -164,11 +178,18 @@ test('HOST lookup data preserves cache strings, actions and typed parameters', (
         '[bank_rules]', 'param=count,int,18', 'param=label,str,ready',
     ].join('\n'), '9=bank_rules\n', '31=count\n32=label\n');
     assert(params[31].defaultInt === 7 && params[32].defaultString === 'none');
+    assert(inventoryTypes[93].size === 28 && inventoryTypes[95].size === 800,
+           'inventory type capacities were not retained for INV_SIZE');
+    assert(varbitVarp[9] === 300 && varbitVarp[10] === 301,
+           'varbit backing-varp ids were not retained for transmit filtering');
     assert(enums[44].values[1] === 'https://example.test/path' &&
         enums[44].defaultString === 'https://fallback.test/');
     assert(objects[100].inventoryOps[0] === 'Withdraw-1' &&
         objects[100].groundOps[1] === 'Take' && objects[100].params[31] === 12 &&
         objects[100].params[32].string === 'https://item.test/');
+    assert(objects[100].examine === 'Kept safely in the bank.' &&
+        objects[100].shiftClickDropIndex === 2,
+        'object examine/shift-click fields were not retained for synchronous HOST reads');
     assert(objects[100].model === 55 && objects[100].zoom2d === 1337 &&
         objects[100].xan2d === 111 && objects[100].yan2d === 222 &&
         objects[100].zan2d === 333 && objects[100].offsetX2d === -4 &&
@@ -176,6 +197,36 @@ test('HOST lookup data preserves cache strings, actions and typed parameters', (
         objects[100].countVariants[0].count === 10,
         `object model presentation data was ${JSON.stringify(objects[100])}`);
     assert(structs[9].params[31] === 18 && structs[9].params[32].string === 'ready');
+});
+
+test('HOST NPC, loc and map-element parsers retain the C-visible cache surface', () => {
+    const params = '31=count\n32=label\n';
+    const npcs = parseNpcs([
+        '[banker]', 'name=Banker', 'model1=44', 'param=count,int,12',
+        'param=label,str,Open account', '[silent]', 'name=', 'param=count,int,-7',
+        '[empty_npc]', 'name=',
+    ].join('\n'), '100=banker\n101=silent\n102=empty_npc\n', params);
+    const locs = parseLocs([
+        '[bank_booth]', 'name=Bank booth', 'models=91', 'param=label,str,Use booth',
+        '[ordinary_wall]', 'name=Wall',
+    ].join('\n'), '200=bank_booth\n201=ordinary_wall\n', params);
+    const elements = parseMapElements([
+        '[bank_map_icon]', 'name=Bank', 'sprite=1448', 'textsize=2', 'category=9',
+        '[mapelement_8]',
+    ].join('\n'), '7=bank_map_icon\n');
+
+    assert(npcs[100].name === 'Banker' && npcs[100].params[31] === 12 &&
+        npcs[100].params[32].string === 'Open account');
+    assert(npcs[101].name === 'null' && npcs[101].params[31] === -7,
+        'empty NPC name did not use the C NC_NAME sentinel');
+    assert(!npcs[102], 'an externally indistinguishable empty NPC bloated the payload');
+    assert(locs[200].params[32].string === 'Use booth' && !locs[201],
+        'loc payload retained fields outside LC_PARAM');
+    assert(elements[7].name === 'Bank' && elements[7].sprite === 1448 &&
+        elements[7].textSize === 2 && elements[7].category === 9);
+    assert(elements[8].name === '' && elements[8].textSize === 0 &&
+        elements[8].category === -1 && elements[8].sprite === -1,
+        `map-element sentinels were ${JSON.stringify(elements[8])}`);
 });
 
 test('unset integer varcs match the C client sentinel', () => {
@@ -239,6 +290,85 @@ function makeContent(name = 'content') {
     writeFileSync(join(dir, 'configs', 'all.varp.compack'), '300=sa_energy\n');
     return dir;
 }
+
+test('content HOST payload exposes bounded plain-JSON entity config records', () => {
+    const content = makeContent('host-entity-data');
+    const configs = join(content, 'configs');
+    writeFileSync(join(configs, 'all.param.compack'), '31=count\n32=label\n');
+    writeFileSync(join(configs, 'all.param'), [
+        '[count]', 'type=i', 'default=5', '[label]', 'type=s', 'defaultstr=unknown',
+    ].join('\n'));
+    writeFileSync(join(configs, 'all.obj.compack'), '50=bank_token\n');
+    writeFileSync(join(configs, 'all.obj'), [
+        '[bank_token]', 'name=Bank token', 'desc=A token from the bank.',
+        'ifop5=Drop', 'shiftclickdrop=4',
+    ].join('\n'));
+    writeFileSync(join(configs, 'all.npc.compack'), '100=banker\n');
+    writeFileSync(join(configs, 'all.npc'), [
+        '[banker]', 'name=Banker', 'model1=123', 'op1=Talk-to', 'param=count,int,17',
+    ].join('\n'));
+    writeFileSync(join(configs, 'all.loc.compack'), '200=bank_booth\n201=wall\n');
+    writeFileSync(join(configs, 'all.loc'), [
+        '[bank_booth]', 'models=456', 'param=label,str,Use booth',
+        '[wall]', 'models=789',
+    ].join('\n'));
+    writeFileSync(join(configs, 'all.inv.compack'), '93=backpack\n95=bank\n');
+    writeFileSync(join(configs, 'all.inv'), '[backpack]\nsize=28\n[bank]\nsize=800\n');
+    writeFileSync(join(configs, 'all.mapelement.compack'), '7=bank_map_icon\n');
+    writeFileSync(join(configs, 'all.mapelement'), [
+        '[bank_map_icon]', 'name=Bank', 'sprite=1448', 'textsize=1', 'category=9',
+    ].join('\n'));
+    writeFileSync(join(configs, 'all.dbtable.compack'), '3=bank_rows\n');
+    writeFileSync(join(configs, 'all.dbtable'), [
+        '[bank_rows]', 'columns=2', 'columndef=0:id,int',
+        'columndef=1:label,string', 'defaults=1:0:Empty',
+    ].join('\n'));
+    writeFileSync(join(configs, 'all.dbrow.compack'), '12=bank_row\n');
+    writeFileSync(join(configs, 'all.dbrow'), [
+        '[bank_row]', 'columns=2', 'table=bank_rows', 'columndef=0:id,int',
+        'values=0:0:995', 'columndef=1:label,string', 'values=1:0:Coins',
+    ].join('\n'));
+    const worldMap = join(content, 'worldmap', 'areas');
+    mkdirSync(worldMap, { recursive: true });
+    const origin = packWorldMapCoord(0, 50 * 64 + 5, 50 * 64 + 6);
+    writeFileSync(join(worldMap, 'details.compack'), '4=surface\n');
+    writeFileSync(join(worldMap, 'compositemap.compack'), '4=surface\n');
+    writeFileSync(join(worldMap, 'details.wma'), [
+        '[surface]', 'internal=surface', 'external=Gielinor Surface', `origin=${origin}`,
+        'main=yes', 'zoom=75',
+        'section1=1,0,1,50,50,0,0,0,0,0,0,60,70,0,0,0,0,0',
+        'section1_dst_chunk_y_high=0',
+    ].join('\n'));
+    writeFileSync(join(worldMap, 'compositemap.wmc'), [
+        '[surface]', 'data0=1',
+        'region1=0,0,1,50,50,0,0,60,70,0,0,-1,-1',
+        `icon1=7,${origin},no`,
+    ].join('\n'));
+
+    const payload = contentHostData(content);
+    const plain = JSON.parse(JSON.stringify(payload));
+    assert(plain.objects[50].examine === 'A token from the bank.' &&
+        plain.objects[50].shiftClickDropIndex === 4);
+    assert(plain.npcs[100].name === 'Banker' && plain.npcs[100].params[31] === 17);
+    assert(plain.locs[200].params[32].string === 'Use booth' && !plain.locs[201]);
+    assert(plain.inventoryTypes[93].size === 28 && plain.inventoryTypes[95].size === 800,
+           'InvType capacities were not included in the synchronous HOST payload');
+    assert(plain.varbitVarp[9] === 300,
+           'varbit backing-varp ids were not included in the synchronous HOST payload');
+    assert(plain.mapElements[7].name === 'Bank' && plain.mapElements[7].textSize === 1 &&
+        plain.mapElements[7].category === 9 && plain.mapElements[7].sprite === 1448);
+    assert(plain.dbRows[12].tableId === 3 &&
+        plain.dbRows[12].columns[0].values[0][0] === 995 &&
+        plain.dbTables[3].columns[1].values[0][0] === 'Empty',
+        'DB table/row values were not included in the synchronous HOST payload');
+    assert(plain.worldMap.areas.length === 1 && plain.worldMap.areas[0].id === 4 &&
+        plain.worldMap.areas[0].externalName === 'Gielinor Surface' &&
+        plain.worldMap.areas[0].icons[0].element === 7,
+    'world-map geometry/icons were not included in the synchronous HOST payload');
+    assert(!Object.hasOwn(plain.npcs[100], 'model1') &&
+        !Object.hasOwn(plain.locs[200], 'models'),
+        'render-only entity data escaped into the synchronous HOST payload');
+});
 
 test('Dat2 programs feed original clientscript bytes to the C/WASM VM', () => {
     const content = makeContent('dat2-bytecode-content');
@@ -858,6 +988,7 @@ test('state inputs carry the slice a control is built from', () => {
     const inputs = stateInputs(built.ir);
     const stat = inputs.find((i) => i.kind === 'stat');
     assert(stat.control.max === 99, 'a stat control should stop at 99');
+    assert(stat.initial === 10, 'the hitpoints control did not use the native fresh-player seed');
     assert(stat.request === 'STAT', 'a stat should name its host request');
     assert(inputs.find((i) => i.kind === 'varp').readBy.includes('t'), 'the reader should be named');
 });
@@ -1351,15 +1482,115 @@ test('the live host implements dynamic traversal and component metadata operatio
 
     host.setHook(replacement, 'on_resize', { scriptId: 77, args: [] });
     const resize = host.request({ kind: 'CC_CALLONRESIZE', component: replacement });
-    assert(resize.intents.length === 1 && resize.intents[0].hook.canonical === 'on_resize' &&
+    assert(resize === null && seen.at(-1).hook.canonical === 'on_resize' &&
            seen.at(-1).component.key === replacement.key,
-           'named resize trigger did not dispatch through the HOST hook path');
+           'named resize request did not settle through the deferred HOST hook path');
     host.request({ kind: 'CC_CLEAROPS', component: replacement });
     assert(host.resolve(replacement).ops.length === 0, 'CC_CLEAROPS did not clear component options');
     assert(host.resolve(low), 'unrelated dynamic sibling was removed by metadata changes');
 });
 
+test('component trigger and resize HOST calls settle after the outer script in native FIFO batches', () => {
+    const { built, component } = liveHostFixture();
+    component('button').hooks.on_op = { script: { id: 100 }, args: [] };
+    component('first_key').hooks.on_resize = { script: { id: 101 }, args: [] };
+    component('figure').hooks.on_op = { script: { id: 102 }, args: [] };
+    component('second_key').hooks.on_resize = { script: { id: 103 }, args: [] };
+    component('figure').static.clickMask = 1 << 4;
+
+    const trace = [];
+    const outbound = [];
+    let host = null;
+    host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 },
+        onService(service) {
+            outbound.push(service);
+            trace.push(`service:${service.source}:${service.opIndex}`);
+        },
+        invoke(intent) {
+            const script = intent.hook.scriptId;
+            trace.push(`begin:${script}`);
+            if( script === 100 ) {
+                /* Deliberately issue trigger first: native drains resize first. */
+                host.request({ kind: 'CC_TRIGGEROP', component: 'figure', op_index: 4 });
+                host.request({ kind: 'IF_TRIGGEROPLOCAL', component_id: 0x123456, sub: 77 });
+                host.request({ kind: 'IF_CALLONRESIZE', component: 'first_key' });
+                assert(trace.join(',') === 'begin:100',
+                       `a deferred listener nested on the C VM stack: ${trace}`);
+            } else if( script === 101 ) {
+                host.request({ kind: 'CC_CALLONRESIZE', component: 'second_key' });
+                assert(!trace.includes('begin:103'),
+                       'a follow-up resize nested inside the resize listener');
+            }
+            trace.push(`end:${script}`);
+        },
+    });
+
+    const result = host.trigger('button', 'on_op', { opIndex: 2 });
+    assert(trace.join(',') === [
+        'begin:100', 'end:100',
+        'service:cc_triggerop:4',
+        'begin:101', 'end:101', 'begin:102', 'end:102',
+        'begin:103', 'end:103',
+    ].join(','), `deferred component order was ${trace}`);
+    assert(result.intents.map((intent) => intent.hook.scriptId).join(',') === '100,101,102,103',
+           `settled transaction intents were ${result.intents.map((intent) => intent.hook.scriptId)}`);
+    assert(outbound.length === 1 && outbound[0].kind === 'if_button' &&
+           outbound[0].source === 'cc_triggerop' && outbound[0].opIndex === 4 &&
+           outbound[0].componentId === host.ref('figure').componentId &&
+           outbound[0].subId === -1,
+           `synthesized button services were ${JSON.stringify(outbound)}`);
+    const beforeUnarmed = trace.length;
+    host.request({ kind: 'CC_TRIGGEROP', component: 'figure', op_index: 5 });
+    assert(outbound.length === 1 && trace.slice(beforeUnarmed).join(',') === 'begin:102,end:102',
+           'an unarmed trigger op did not run locally or incorrectly notified the server');
+    assert(host.snapshot().pendingDeferred.triggerOpLocal.length === 1,
+           'IF_TRIGGEROPLOCAL did not remain queued until the logic tick');
+    host.dispatch({ type: 'tick' });
+    assert(outbound.length === 2 && outbound[1].source === 'if_triggeroplocal' &&
+           outbound[1].opIndex === 1 && outbound[1].componentId === 0x123456 &&
+           outbound[1].subId === 77 && Object.keys(host.snapshot().pendingDeferred).length === 0,
+           `tick-synthesized IF_BUTTON1 service was ${JSON.stringify(outbound)}`);
+});
+
+test('component deferred queues retain the first sixteen requests and restore from snapshots', () => {
+    const { built, component } = liveHostFixture();
+    component('button').hooks.on_op = { script: { id: 110 }, args: [] };
+    component('first_key').hooks.on_resize = { script: { id: 111 }, args: [] };
+    let queuedSnapshot = null;
+    let resizeCount = 0;
+    let host = null;
+    host = createHostRuntime(built.ir, {
+        invoke(intent) {
+            if( intent.hook.scriptId === 110 ) {
+                for( let index = 0; index < 20; index++ )
+                    host.request({ kind: 'IF_CALLONRESIZE', component: 'first_key' });
+                queuedSnapshot = host.snapshot();
+            } else if( intent.hook.scriptId === 111 ) resizeCount++;
+        },
+    });
+    host.trigger('button', 'on_op');
+    assert(queuedSnapshot.pendingDeferred.callOnResize.length === 16 && resizeCount === 16,
+           `bounded resize queue retained ${queuedSnapshot.pendingDeferred.callOnResize.length}/` +
+           `${resizeCount} requests`);
+    assert(host.snapshot().services.deferredDrops.length === 4,
+           'deferred overflow did not report the four dropped newest requests');
+
+    let restoredCount = 0;
+    const restored = createHostRuntime(built.ir, {
+        pendingDeferred: queuedSnapshot.pendingDeferred,
+        invoke(intent) { if( intent.hook.scriptId === 111 ) restoredCount++; },
+    });
+    assert(restored.snapshot().pendingDeferred.callOnResize.length === 16,
+           'pending resize FIFO did not restore from its JSON snapshot');
+    restored.request({ kind: 'IF_GETTOP' });
+    assert(restoredCount === 16 && Object.keys(restored.snapshot().pendingDeferred).length === 0,
+           'restored component work did not settle at the next outer boundary');
+});
+
 test('the live host classifies every generated command name deterministically', () => {
+    assert(HOST_REQUEST_COVERAGE.total === 632,
+           `HOST coverage included ${HOST_REQUEST_COVERAGE.total} entries instead of the C ABI's 632`);
     assert(HOST_REQUEST_COVERAGE.total === HOST_REQUEST_COVERAGE.entries.length &&
            HOST_REQUEST_COVERAGE.supported + HOST_REQUEST_COVERAGE.unsupported ===
                HOST_REQUEST_COVERAGE.total,
@@ -1370,7 +1601,9 @@ test('the live host classifies every generated command name deterministically', 
            `${HOST_REQUEST_COVERAGE.uiTotal}`);
     assert(hostRequestCapability('IF_SETTEXT').supported,
            'a concrete component handler was classified unsupported');
-    const outside = hostRequestCapability('DB_GETFIELD');
+    assert(hostRequestCapability('DB_GETFIELD').supported,
+           'the cache-backed dynamic DB handler was classified unsupported');
+    const outside = hostRequestCapability('GOSUB_WITH_PARAMS');
     assert(outside.known && !outside.supported && outside.reason.includes('outside'),
            `non-UITree command classification was ${JSON.stringify(outside)}`);
     assert(!hostRequestCapability('NOT_A_COMMAND').known,
@@ -1380,8 +1613,261 @@ test('the live host classifies every generated command name deterministically', 
     const host = createHostRuntime(built.ir);
     assert(host.request({ kind: 'OC_NAME', id: 1 }) === 'null',
            'missing object record did not use the C host null-name fallback');
-    assertThrows(() => host.request({ kind: 'DB_GETFIELD' }), 'explicitly unsupported');
+    assert(host.request({ kind: 'DB_FINDALL_WITH_COUNT', tableId: 0 }) === 0,
+           'an empty cache did not expose a usable DB iterator');
+    assertThrows(() => host.request({ kind: 'GOSUB_WITH_PARAMS' }), 'explicitly unsupported');
     assertThrows(() => host.request({ kind: 'NOT_A_COMMAND' }), 'unknown host request');
+});
+
+test('host-owned activity, loot, chat, social and subject state is live and persistent', () => {
+    const outbound = [];
+    const host = createHostRuntime({ interfaceId: 91, components: [] }, {
+        hostData: { objects: { 995: { cost: 7 } } },
+        subjectState: { localPlayerUid: 12, localCoord: 0x123456 },
+        onService: (service) => outbound.push(service),
+    });
+
+    host.request({ kind: 'HIGHLIGHT_NPCTYPE_ON', args: [44, 3], arg_count: 2 });
+    assert(host.request({ kind: 'HIGHLIGHT_NPCTYPE_GET', args: [44, 3], arg_count: 2 }) === 1,
+           'numeric highlight state did not round-trip');
+    host.request({ kind: 'CLIENTOP_NPC_SET', slot: 2, label: 'Tag', script_id: 6688 });
+
+    host.request({ kind: 'LOOT_ADD', name: 'Goblin', int_args: [9, 2, 995] });
+    assert(host.request({ kind: 'LOOT_SOURCE_COUNT' }) === 1 &&
+           JSON.stringify(host.request({ kind: 'LOOT_ROW_BYNAME', name: 'Goblin', int_args: [1] })) ===
+               '[995,2]', 'loot registry did not use the cache-backed object record');
+
+    host.request({ kind: 'FRIEND_ADD', name: 'bob_smith' });
+    assert(host.request({ kind: 'FRIEND_COUNT' }) === 1 &&
+           JSON.stringify(host.request({ kind: 'FRIEND_GETNAME', index: 0 })) ===
+               '["Bob Smith",""]', 'social identity/display semantics did not round-trip');
+    host.request({ kind: 'CHAT_SETFILTER', public_mode: 1, private_mode: 2, trade_mode: 3 });
+    host.request({ kind: 'MES', text: 'Welcome' });
+    assert(host.request({ kind: 'CHAT_GETHISTORYLENGTH', type: 0 }) === 1 &&
+           host.request({ kind: 'CHAT_GETFILTER_PRIVATE' }) === 2,
+           'chat settings/history were not retained');
+    assert(outbound.length === 2 && outbound[0].kind === 'friend_add' &&
+           outbound[1].kind === 'chat_setmode',
+           `service adapter received ${JSON.stringify(outbound)}`);
+
+    assert(host.request({ kind: 'ACTIVEPLAYER_SETLOCAL' }) === 1 &&
+           host.request({ kind: 'ACTIVEPLAYER_GETUID' }) === 12,
+           'subject session did not bind the seeded local player');
+    const snapshot = host.snapshot();
+    assert(snapshot.activity.highlight.members.npctype.length === 1 &&
+           snapshot.activity.clientop.slots.npc[2].script_id === 6688 &&
+           snapshot.loot.sources[0].rows[0].value === 14 &&
+           snapshot.chatSocial.chat.messages[0].text === 'Welcome' &&
+           snapshot.subject.active.player.uid === 12,
+           'host-owned state was missing from the serializable snapshot');
+});
+
+test('DB iterators and scripted overlays remain live through the React HOST', () => {
+    const host = createHostRuntime({ interfaceId: 92, components: [] }, {
+        hostData: {
+            dbTables: { 2: { columns: { 0: { types: ['int'] } } } },
+            dbRows: {
+                10: { tableId: 2, columns: { 0: { types: ['int'], values: [[7]] } } },
+                20: { tableId: 2, columns: { 0: { types: ['int'], values: [[8]] } } },
+            },
+        },
+    });
+    const packedColumn = 2 << 12;
+    assert(host.request({ kind: 'DB_FIND_WITH_COUNT', column: packedColumn,
+        typeTag: 0, value: 7 }) === 1 &&
+        host.request({ kind: 'DB_FINDNEXT' }) === 10 &&
+        host.request({ kind: 'DB_FINDNEXT' }) === -1,
+    'the DB search iterator was not retained by HostRuntime');
+    assert(JSON.stringify(host.request({ kind: 'DB_GETFIELD', rowId: 20,
+        column: packedColumn, index: 0 })) ===
+        JSON.stringify({ pattern: 'i', values: [8] }),
+    'the DB dynamic typed result did not reach the WASM result contract');
+
+    const overlay = host.request({ kind: 'OVERLAY_COORD_CREATE',
+        args: [0x123456, 4, 1, 60, 40, 0] });
+    assert(overlay === 0 && host.request({ kind: 'OVERLAY_COORD_GET',
+        args: [0x123456, 4] }) === 0,
+    'a coordinate overlay did not keep native slot identity');
+    const layer = host.request({ kind: 'OVERLAY_FIND', args: [overlay], dot_operand: true });
+    assert(layer?.dynamic && host.activeRef({ dot: true })?.key === layer.key,
+           'overlay FIND did not target its React-owned layer');
+    const child = host.request({ kind: 'OVERLAY_CC_CREATE',
+        args: [overlay, IF_TYPE.graphic, 0], dot_operand: true });
+    assert(child?.dynamic && host.activeRef({ dot: true })?.key === child.key &&
+           host.request({ kind: 'OVERLAY_CC_FIND', args: [overlay, 0], dot_operand: false })?.key ===
+               child.key,
+           'overlay child creation/find did not share normal CC identity');
+    const snapshot = host.snapshot();
+    assert(snapshot.overlay.items[0].component_id === layer.componentId &&
+           snapshot.db.iterator.cursor === 1 &&
+           snapshot.boxes.some((box) => box.name === '$entity_overlay' && box.effectiveHidden),
+           'overlay/DB state was missing or fabricated an unprojected world position');
+});
+
+test('all world-map calls use cache geometry and advance on React frame ticks', () => {
+    const origin = packWorldMapCoord(0, 50 * 64 + 5, 50 * 64 + 6);
+    const { built, component } = liveHostFixture();
+    const surface = component('root');
+    surface.static.clientCode = 1400;
+    Object.assign(surface.static, {
+        width: 10, height: 20, widthMode: 1, heightMode: 1,
+    });
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 300, height: 180 },
+        hostData: {
+            mapElements: { 7: { category: 9 } },
+            worldMap: { areas: [{
+                id: 4, internalName: 'surface', externalName: 'Gielinor Surface',
+                origin, isMain: true, zoom: 75,
+                sections: [{
+                    kind: 1, minPlane: 0, planes: 1,
+                    srcRegionX: 50, srcRegionY: 50,
+                    dstRegionX: 60, dstRegionY: 70,
+                }],
+                icons: [{ element: 7, coord: origin, hidden: false }],
+            }] },
+        },
+    });
+    assert(host.request('WORLDMAP_GETCURRENTMAP') === 4 &&
+        host.request({ kind: 'WORLDMAP_GETMAPNAME', arg0: 4 }) === 'Gielinor Surface' &&
+        host.request('WORLDMAP_GETSIZE').join(',') === '97,54' &&
+        host.request('WORLDMAP_GETDISPLAYCOORD_CURRENT').join(',') ===
+            `${50 * 64 + 5},${50 * 64 + 6}`,
+    'HostRuntime did not route world-map getters through cache-backed geometry');
+    host.setViewport({ width: 600, height: 360 });
+    assert(host.request('WORLDMAP_GETSIZE').join(',') === '197,114',
+           'world-map display size did not track the resolved clientCode-1400 surface');
+    host.request({ kind: 'CC_SETHIDE', component: 'root', hidden: 1 });
+    host.setViewport({ width: 900, height: 540 });
+    assert(host.request('WORLDMAP_GETSIZE').join(',') === '197,114',
+           'a hidden world-map surface overwrote the last native draw dimensions');
+    host.request({ kind: 'CC_SETHIDE', component: 'root', hidden: 0 });
+    assert(host.request('WORLDMAP_GETSIZE').join(',') === '297,174',
+           'a remounted world-map surface did not publish its resolved dimensions');
+    host.request({ kind: 'WORLDMAP_SETZOOM', arg0: 200 });
+    const scaleBefore = host.snapshot().worldMap.zoomScaleNowFp;
+    host.dispatch({ type: 'tick' });
+    const snapshot = host.snapshot();
+    assert(snapshot.worldMap.zoomScaleNowFp > scaleBefore &&
+        !Object.hasOwn(snapshot.worldMap, 'areas'),
+    'world-map transitions did not advance on tick or cloned immutable cache records');
+    assert(HOST_REQUEST_COVERAGE.supported === 631 && HOST_REQUEST_COVERAGE.unsupported === 1 &&
+        HOST_REQUEST_COVERAGE.entries.find((entry) => !entry.supported)?.kind === 'GOSUB_WITH_PARAMS',
+    `JavaScript HOST coverage was ${HOST_REQUEST_COVERAGE.supported}/${HOST_REQUEST_COVERAGE.total}`);
+});
+
+test('the browser HOST mirrors native input, session, cache, and service families', () => {
+    const { built, component } = liveHostFixture();
+    component('button').ops = [{ index: 1, text: 'Use' }];
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 },
+        state: { 'statxp:3': 12345 },
+        session: {
+            localCoord: 0x1234567, destinationCoord: -1, mapWorld: 302, staffModLevel: 0,
+            gameOptions: { 7: 66 }, deviceOptions: { 27: 175 },
+        },
+        hostData: {
+            params: { 4: { string: true, defaultString: 'missing' } },
+            objects: {
+                10: { name: 'Bronze sword', examine: 'A sturdy sword.', members: true,
+                    invActions: ['Wield', '', '', '', 'Drop'] },
+                11: { name: 'Swordfish', shiftClickDropIndex: -1, invActions: ['', '', '', '', 'Drop'] },
+                12: { name: 'Sword ornament', shiftClickDropIndex: 2,
+                    invActions: ['', '', 'Attach', '', ''] },
+            },
+            npcs: { 7: { name: 'Banker', params: { 4: { string: 'Talkative' } } } },
+            locs: {},
+            mapElements: { 9: { name: 'Bank', textSize: 1, category: 3, sprite: 1448 } },
+        },
+    });
+
+    assert(host.request({ kind: 'STAT_XP', stat: 3 }) === 12345 &&
+           host.request('COORD') === 0x1234567 && host.request('MAP_WORLD') === 302,
+           'state/session getters did not use supplied live data');
+    assert(host.request('GETVOLUMEMUSIC') === 66 && host.request('UIZOOM_GET') === 175,
+           'option boot values diverged from supplied preferences');
+    host.request({ kind: 'SETVOLUMEMUSIC', value: 140 });
+    host.request({ kind: 'UIZOOM_SET', value: 450 });
+    assert(host.request('GAMEOPTION_GET', { option_id: 7 }) === 100 &&
+           host.request('DEVICEOPTION_GET', { option_id: 27 }) === 400 &&
+           host.request({ kind: 'DEVICEOPTION_GETRANGE', option_id: 19 }).join(',') === '0,100',
+           'option aliases, clamps, or range order diverged from native');
+    host.request({ kind: 'SETWINDOWMODE', mode: 1 });
+    host.request({ kind: 'SETDEFAULTWINDOWMODE', mode: 1 });
+    host.request({ kind: 'SETWINDOWMODE', mode: 9 });
+    assert(host.snapshot().session.windowMode === 1 && host.snapshot().session.defaultWindowMode === 1,
+           'window mode did not persist or accepted an invalid dialect value');
+
+    host.request({ kind: 'CAM_FORCEANGLE', angle_x: -4, angle_y: 2050 });
+    host.request({ kind: 'CAM_SETFOLLOWHEIGHT', height: -12 });
+    assert(host.request('CAM_GETANGLE_XA') === 128 && host.request('CAM_GETANGLE_YA') === 2 &&
+           host.request('CAM_GETFOLLOWHEIGHT') === -12,
+           'camera clamp/wrap/follow-height state diverged from native');
+    host.request({ kind: 'VIEWPORT_SETFOV', args: [256, 512] });
+    host.request({ kind: 'VIEWPORT_SETZOOM', args: [-1, 0] });
+    assert(host.request('VIEWPORT_GETFOV').join(',') === '256,512' &&
+           host.request('VIEWPORT_GETZOOM').join(',') === '256,320' &&
+           host.request('VIEWPORT_GETEFFECTIVESIZE').join(',') === '-1,-1' &&
+           host.request('SAFEAREA_GETMAXX') === 120 && host.request('SAFEAREA_GETMAXY') === 100,
+           'viewport/safe-area HOST state used non-native defaults or result order');
+
+    assert(host.request({ kind: 'NC_NAME', npc_id: 7 }) === 'Banker' &&
+           host.request({ kind: 'NC_NAME', npc_id: -1 }) === 'null' &&
+           host.request({ kind: 'NC_PARAM', type_id: 7, param_id: 4 }) === 'Talkative' &&
+           host.request({ kind: 'MEC_TEXT', mec_id: 9 }) === 'Bank' &&
+           host.request({ kind: 'MEC_TEXTSIZE', mec_id: 9 }) === 1 &&
+           host.request({ kind: 'MEC_CATEGORY', mec_id: 9 }) === 3 &&
+           host.request({ kind: 'MEC_SPRITE', mec_id: 9 }) === 1448,
+           'cache-backed NPC/map-element reads lost data or sentinels');
+    assert(host.request({ kind: 'OC_EXAMINE', item_id: 10 }) === 'A sturdy sword.' &&
+           host.request({ kind: 'OC_SHIFTCLICKIOP', item_id: 10 }) === 5 &&
+           host.request({ kind: 'OC_SHIFTCLICKIOP', item_id: 11 }) === -1 &&
+           host.request({ kind: 'OC_SHIFTCLICKIOP', item_id: 12 }) === 3 &&
+           host.request({ kind: 'OC_MEMBERS', item_id: 10 }) === 0 &&
+           host.request({ kind: 'OC_CERT', item_id: 999 }) === 0 &&
+           host.request({ kind: 'OC_CERT', item_id: 10 }) === 10 &&
+           host.request({ kind: 'OC_WEARPOS', item_id: 10 }) === -1 &&
+           host.request({ kind: 'OC_WEIGHT', item_id: 10 }) === 0 &&
+           host.request({ kind: 'OC_ISUBOP', item_id: 10, op_index: 0, sub_index: 0 }) === '',
+           'object extras did not preserve the current C-client semantics');
+    assert(host.request({ kind: 'OC_FIND', query: 'sword' }) === 3 &&
+           [host.request('OC_FINDNEXT'), host.request('OC_FINDNEXT'), host.request('OC_FINDNEXT'),
+               host.request('OC_FINDNEXT')].join(',') === '10,11,12,-1',
+           'object search was not stable, case-folded, and ascending');
+
+    host.request({ kind: 'CC_SETOPBASE', component: 'button', text: 'Widget' });
+    host.dispatch({ type: 'pointer_move', x: 20, y: 20 });
+    assert(host.request('MINIMENU_TYPE') === 7 &&
+           host.request('MINIMENU_ENTRY').join(',') === 'Use,Widget' &&
+           host.request('MINIMENU_FINDNPC') === 0 &&
+           host.request('MINIMENU_NUMOPS') === 1,
+           'component minimenu snapshot did not match the acting hover row');
+    const found = host.request('MINIMENU_FINDCOMPONENT');
+    assert(found === 1 && host.activeRef().key === host.ref('button').key &&
+           host.activeRef({ dot: true }).key === host.ref('button').key,
+           'MINIMENU_FINDCOMPONENT did not latch both implicit component operands');
+    host.dispatch({ type: 'pointer_down', x: 20, y: 20, button: 'right' });
+    assert(host.request('MINIMENU_ISOPEN') === 1, 'right-click did not publish an open minimenu');
+
+    host.dispatch({ type: 'key_down', keyTyped: 42 });
+    assert(host.request({ kind: 'KEYHELD', key_code: 42 }) === 1 &&
+           host.request({ kind: 'KEYPRESSED', key_code: 42 }) === 1,
+           'live key level/edge state did not reach HOST');
+    host.dispatch({ type: 'tick' });
+    assert(host.request({ kind: 'KEYHELD', key_code: 42 }) === 1 &&
+           host.request({ kind: 'KEYPRESSED', key_code: 42 }) === 0,
+           'KEYPRESSED did not retire at the native frame boundary');
+
+    host.request({ kind: 'SOUND_SONG', id: 73, loops: 1 });
+    host.request({ kind: 'MES', text: 'Hello' });
+    host.request({ kind: 'RESUME_COUNTDIALOG', text: '42' });
+    host.request({ kind: 'LOCAL_NOTIFICATION', title: 'ignored', body: 'desktop' });
+    host.request({ kind: 'LOGOUT' });
+    const services = host.snapshot().services;
+    assert(services.soundSongCount === 1 && services.lastSoundSong.id === 73 &&
+           services.messages[0].text === 'Hello' && services.countDialogResponses[0] === '42' &&
+           services.logoutRequested && host.request('LOCAL_NOTIFICATION_SUPPORTED') === 0,
+           'real service intents or desktop notification sentinels were lost');
 });
 
 test('the complete CC/IF HOST surface has bounded C-client service and tree semantics', () => {
@@ -1452,6 +1938,57 @@ test('the complete CC/IF HOST surface has bounded C-client service and tree sema
     assert(services.closeModalRequested && services.resumePauseButton.key === button.key &&
            services.crmViewDismissals === 1,
            `bounded service state was ${JSON.stringify(services)}`);
+});
+
+test('browser HOST cache/session selectors use native data instead of plausible constants', () => {
+    const { built, component } = liveHostFixture();
+    component('button').static.clickMask = (37 << 11) | 2;
+    component('button').if3 = true;
+    component('figure').static.clickMask = 45;
+    component('figure').if3 = false;
+    component('button').ops = [{ index: 1, text: 'Use' }];
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 },
+        hostData: { inventoryTypes: { 93: { size: 28 }, 95: { size: 800 } } },
+        subjectState: {
+            hoverCoord: 0x12345,
+            mouseover: { kind: 'obj', type: 995, count: 42, coord: 0x23456, name: 'Coins' },
+            active: { npc: { kind: 'npc', uid: 7, type: 1, name: 'Old target' } },
+        },
+    });
+
+    assert(host.request({ kind: 'IF_GETTARGETMASK', component: 'button' }) === 37 &&
+           host.request({ kind: 'IF_GETTARGETMASK', component: 'figure' }) === 45,
+           'IF3/IF1 target masks did not follow their native decode families');
+    assert(host.request({ kind: 'INV_SIZE', inv_id: 93 }) === 28 &&
+           host.request({ kind: 'INVS_GET_SIZE', inv_id: 95 }) === 800 &&
+           host.request({ kind: 'INV_SIZE', inv_id: 999 }) === 0,
+           'INV_SIZE did not read immutable InvType capacity/miss semantics');
+    assert(host.request({ kind: 'STAT', stat: 3 }) === 10 &&
+           host.request({ kind: 'STAT_BASE', stat: 3 }) === 10 &&
+           host.request({ kind: 'STAT_XP', stat: 3 }) === 1154 &&
+           host.request('RUNENERGY_VISIBLE') === 100,
+           'fresh-player stat defaults diverged from RS_PlayerStats_Init');
+
+    assert(host.request('MINIMENU_TYPE') === 4 && host.request('_7106') === 0x23456 &&
+           host.request('_7107') === 995 && host.request('MINIMENU_FINDNPC') === 0 &&
+           host.request('MINIMENU_FINDOBJ') === 1 && host.request('_6852') === 995,
+           'world minimenu reads did not latch the seeded mouseover subject');
+    assert(host.snapshot().subject.active.npc === null,
+           'a native minimenu FIND miss left a stale active subject');
+
+    host.dispatch({ type: 'pointer_move', x: 20, y: 20 });
+    assert(host.request('MINIMENU_TYPE') === 7 &&
+           host.request('MINIMENU_FINDCOMPONENT') === 1 &&
+           host.activeRef().key === host.ref('button').key &&
+           host.activeRef({ dot: true }).key === host.ref('button').key,
+           'component minimenu find did not return boolean success and latch both operands');
+
+    const emptyWorld = createHostRuntime(built.ir, {
+        subjectState: { hoverCoord: 0x34567 },
+    });
+    assert(emptyWorld.request('_7106') === 0x34567,
+           'minimenu coordinate miss did not fall back to the hovered ground tile');
 });
 
 test('browser HOST cache reads and bank setter payloads match the C client', () => {
@@ -1719,6 +2256,30 @@ test('the browser source session executes hooks inside the live React host', () 
     assert(warnings.length === 0, `source runtime warnings: ${warnings.join('; ')}`);
 });
 
+test('the source preview accepts zero-parameter headers without parentheses', () => {
+    const { built, component } = liveHostFixture();
+    const warnings = [];
+    const source = createSourceRuntimeSession(built.ir, {
+        warnings,
+        scriptNames: { 73: 'zero_params' },
+        scripts: [{
+            id: 73,
+            name: 'zero_params',
+            source: [
+                '// 73',
+                '[clientscript,zero_params]',
+                'if_settext("parsed", interface_700:2);',
+            ].join('\n'),
+        }],
+    });
+
+    source.invokeId(73, [], component('root'));
+    assert(component('first_key').static.text === 'parsed',
+           'the body after a signature-less script header did not execute');
+    assert(warnings.length === 0,
+           `signature-less source header warned: ${warnings.join('; ')}`);
+});
+
 testAsync('the browser WASM adapter loads raw bytecode and synchronously bridges HOST', async () => {
     const fake = fakeWasmModule();
     const requests = [];
@@ -1753,13 +2314,16 @@ testAsync('the browser WASM adapter loads raw bytecode and synchronously bridges
            'mixed hook arguments were not staged in their C local banks');
     assert(fake.events.get(0) === 3 && fake.events.get(1) === 4 && fake.events.get(3) === 7,
            `ScriptEvent fields were ${JSON.stringify([...fake.events])}`);
+    assert(fake.events.get(10) === 2 && fake.events.get(11) === 2,
+           'WASM staged the obsolete fixed-window default instead of native resizable mode');
     assert(fake.eventStrings.get(0) === 'Choose', 'event_opbase was not staged');
     assert(active.length === 2 && active[0][1] === false && active[1][1] === true,
            'HostRuntime active and dot refs were not initialized from the hook');
     assert(requests[0].kind === 'PUSH_VAR' && requests[0].id === 5 && requests[0].dot_operand &&
            fake.pushedInts.join(',') === '42', 'HOST getter/result did not cross the WASM seam');
     assert(requests[1].kind === 'POP_VAR' && requests[1].value === 9 &&
-           requests[1].transmit === false, 'script POP_VAR incorrectly fanned out transmit hooks');
+           requests[1].transmit === undefined,
+           'WASM suppressed the deferred POP_VAR transmit notification');
     assert(result.hostRequests === 2, 'WASM invocation did not report its HOST calls');
     runtime.destroy();
     assert(fake.destroyed, 'WASM session was not destroyed');
@@ -1808,6 +2372,96 @@ testAsync('browser HOST clock aliases and sound intents let C scripts continue',
     assert(host.readState('varp', 91) === 37,
            'the C script stopped before its request following SOUND_SYNTH');
     assert(result.hostRequests === 3, 'the fake C script did not complete all HOST requests');
+    runtime.destroy();
+});
+
+testAsync('browser HOST mouse getters preserve native live-pointer semantics and script progress', async () => {
+    const { built } = liveHostFixture();
+    const fake = fakeWasmModule({
+        /* Bank's recovered tooltip binding reaches these two requests during
+         * onLoad, then continues constructing the interface.  Keep the write
+         * after them so an unsupported getter cannot masquerade as a value. */
+        3326: { name: 'MOUSE_GETX', fields: [['_unused', 0]] },
+        3327: { name: 'MOUSE_GETY', fields: [['_unused', 0]] },
+        3329: { name: 'POP_VAR', fields: [['id', 92], ['value', 41]] },
+    });
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 },
+    });
+    const runtime = await createWasmCS2Runtime({
+        host,
+        moduleFactory: fake.factory,
+        program: {
+            available: true, dialect: 'osrs', revision: 'osrs239',
+            scripts: [{ id: 9444, data: 'AQID' }],
+        },
+    });
+    const invoke = () => runtime.invokeIntent({
+        component: host.ref('root'), hook: { scriptId: 9444, args: [] }, locals: {},
+    });
+
+    let result = invoke();
+    assert(fake.pushedInts.slice(0, 2).join(',') === '-1,-1',
+           `unentered native canvas pointer was ${fake.pushedInts.slice(0, 2)}`);
+    assert(host.readState('varp', 92) === 41 && result.hostRequests === 3,
+           'bank-style onLoad stopped at a mouse getter');
+
+    host.dispatch({ type: 'pointer_move', x: 37, y: 58 });
+    result = invoke();
+    assert(fake.pushedInts.slice(2, 4).join(',') === '37,58',
+           `live canvas pointer was ${fake.pushedInts.slice(2, 4)}`);
+
+    host.dispatch({ type: 'pointer_move', x: -1, y: 58 });
+    result = invoke();
+    assert(fake.pushedInts.slice(4, 6).join(',') === '-1,-1' && result.hostRequests === 3,
+           'off-canvas mouse getters did not collapse both coordinates to the native sentinel');
+    runtime.destroy();
+});
+
+testAsync('C CS2VM/WASM receives live input, settings, viewport, and minimenu HOST results', async () => {
+    const { built, component } = liveHostFixture();
+    component('button').ops = [{ index: 1, text: 'Use' }];
+    const fake = fakeWasmModule({
+        3214: { name: 'DEVICEOPTION_GET', fields: [['opcode', 3214], ['option_id', 27], ['value', 0]] },
+        3307: { name: 'STAT_XP', fields: [['stat', 3]] },
+        3500: { name: 'KEYHELD', fields: [['key_code', 42]] },
+        3501: { name: 'KEYPRESSED', fields: [['key_code', 42]] },
+        6204: { name: 'VIEWPORT_GETZOOM', fields: [] },
+        6211: { name: 'UIZOOM_GET', fields: [] },
+        6222: { name: 'SAFEAREA_GETMAXX', fields: [] },
+        6223: { name: 'SAFEAREA_GETMAXY', fields: [] },
+        7100: { name: 'MINIMENU_TYPE', fields: [] },
+        7102: { name: 'MINIMENU_FINDNPC', fields: [] },
+        7109: { name: 'MINIMENU_FINDCOMPONENT', fields: [] },
+        7110: { name: 'MINIMENU_NUMOPS', fields: [] },
+        7999: { name: 'POP_VAR', fields: [['id', 99], ['value', 77]] },
+    });
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 }, state: { 'statxp:3': 12345 },
+        session: { windowMode: 1, defaultWindowMode: 1, deviceOptions: { 27: 175 } },
+    });
+    host.request({ kind: 'CC_SETOPBASE', component: 'button', text: 'Widget' });
+    host.dispatch({ type: 'pointer_move', x: 20, y: 20 });
+    host.dispatch({ type: 'key_down', keyTyped: 42 });
+    const runtime = await createWasmCS2Runtime({
+        host, moduleFactory: fake.factory,
+        program: { available: true, dialect: 'osrs', revision: 'osrs239',
+            scripts: [{ id: 5350, data: 'AQID' }] },
+    });
+    const result = runtime.invokeIntent({
+        component: host.ref('root'), hook: { scriptId: 5350, args: [] }, locals: {},
+    });
+    assert(fake.pushedInts.join(',') ===
+           '175,12345,1,1,256,320,175,120,100,7,0,1,1',
+           `C-visible HOST results were ${fake.pushedInts.join(',')}`);
+    const buttonId = host.ref('button').componentId;
+    assert(fake.targets.some((target) => target.dot === 0 && target.componentId === buttonId) &&
+           fake.targets.some((target) => target.dot === 1 && target.componentId === buttonId),
+           `MINIMENU_FINDCOMPONENT C targets were ${JSON.stringify(fake.targets)}`);
+    assert(fake.events.get(10) === 1 && fake.events.get(11) === 1,
+           `WASM staged window modes ${fake.events.get(10)}/${fake.events.get(11)}`);
+    assert(host.readState('varp', 99) === 77 && result.hostRequests === 13,
+           'the C invocation stopped before its request following the new HOST family');
     runtime.destroy();
 });
 
@@ -1878,6 +2532,19 @@ test('the browser WASM adapter honors C-owned special HOST result semantics', ()
     assert(pushedStrings.join(',') === 'bank,tag' && pushedInts.join(',') === '19,-1,72',
            'polymorphic enum/component-param HOST results used command-table defaults');
 
+    /* cachepack's legacy metadata overstates these arities. Native
+     * exec_worldmap and exec_mec push one integer for each, so the browser
+     * adapter must not strand zeroes on the C VM stack. */
+    const beforeLegacyScalars = pushedInts.length;
+    __wasmRuntimeTest.writeHostResult(api, 33, 6618,
+        { kind: 'WORLDMAP_GETSOURCECOORD' }, 52956320, host);
+    __wasmRuntimeTest.writeHostResult(api, 33, 6638,
+        { kind: 'WORLDMAP_GETNEARESTICON' }, -1, host);
+    __wasmRuntimeTest.writeHostResult(api, 33, 6696,
+        { kind: 'MEC_SPRITE' }, 1448, host);
+    assert(pushedInts.slice(beforeLegacyScalars).join(',') === '52956320,-1,1448',
+           `legacy scalar results polluted the C stack: ${pushedInts.slice(beforeLegacyScalars)}`);
+
     const fieldNames = ['component_id', 'param_id', 'value', 'str_value', 'kind'];
     const namePointers = fieldNames.map(write);
     const requestName = write('CC_SETCOMPONENTPARAM');
@@ -1906,9 +2573,25 @@ test('the browser WASM adapter honors C-owned special HOST result semantics', ()
     const params = live.resolve(button).runtime.params;
     assert(params[40].value === 345 && params[41].string === 'label',
            `nullable reflected component params were ${JSON.stringify(params)}`);
+
+    const dotFieldName = write('dot_operand');
+    const dotRequestName = write('IF_FIND');
+    const reflectedDot = __wasmRuntimeTest.reflectRequest({
+        ...api,
+        _cs2w_request_kind_name() { return dotRequestName; },
+        _cs2w_request_field_count() { return 1; },
+        _cs2w_request_field_name() { return dotFieldName; },
+        _cs2w_request_field_kind() { return 1; },
+        _cs2w_request_field_length() { return 1; },
+        _cs2w_request_field_i32() { return 0; },
+        _cs2w_request_field_string() { return 0; },
+        _cs2w_thread_current_operand() { return 1; },
+    }, 44, 201, 33);
+    assert(reflectedDot.dot_operand === false,
+           'reflected request dot target was overwritten by the current operand');
 });
 
-test('state writes dispatch only matching visible transmit hooks', () => {
+test('state writes defer matching visible transmit hooks until a tick', () => {
     const { built, component } = liveHostFixture();
     component('first_key').hooks.onvarptransmit = { script: { id: 30 }, args: [] };
     component('first_key').triggers.varptriggers = [5];
@@ -1921,10 +2604,12 @@ test('state writes dispatch only matching visible transmit hooks', () => {
 
     const result = host.writeState('varp', 5, 42);
     assert(host.readState('varp', 5) === 42, 'state write was not retained');
-    assert(result.intents.length === 1 && result.intents[0].component.name === 'first_key',
-           `transmit targets were ${result.intents.map((intent) => intent.component.name)}`);
-    assert(result.intents[0].hook.name === 'onvarptransmit' &&
-           result.intents[0].hook.canonical === 'on_var_transmit',
+    assert(result.intents.length === 0, 'state write synchronously dispatched its transmit hook');
+    const tick = host.dispatch({ type: 'tick' });
+    assert(tick.intents.length === 1 && tick.intents[0].component.name === 'first_key',
+           `transmit targets were ${tick.intents.map((intent) => intent.component.name)}`);
+    assert(tick.intents[0].hook.name === 'onvarptransmit' &&
+           tick.intents[0].hook.canonical === 'on_var_transmit',
            'transmit hook identity was not preserved');
     host.request({ kind: 'POP_VAR', varp_id: 7, value: 81 });
     assert(host.request({ kind: 'PUSH_VAR', varpId: 7 }) === 81,
@@ -2098,7 +2783,7 @@ test('a cachepack sprite bitmap becomes a PNG', () => {
     assert(png.readUInt32BE(16) === 2 && png.readUInt32BE(20) === 1, 'PNG dimensions');
 });
 
-test('sprite metadata restores nominal margins and native tile phase', () => {
+test('sprite metadata restores nominal margins for scaled and tiled sprites', () => {
     const rgba = Buffer.from([
         255, 0, 0, 255, 0, 255, 0, 255,
         0, 0, 255, 255, 255, 255, 0, 255,
@@ -2117,12 +2802,15 @@ test('sprite metadata restores nominal margins and native tile phase', () => {
            'sprite crop bottom-right pixel was misplaced');
 
     const tile = spriteTile(crop, meta);
-    assert(tile.width === 2 && tile.height === 2, 'tiled sprite used the nominal canvas as its cell');
-    assert(tile.rgba.subarray(0, 4).equals(rgba.subarray(12, 16)),
-           'tiled sprite did not phase its first pixel by the crop offset');
+    assert(tile.width === 5 && tile.height === 4,
+           'tiled sprite did not use the nominal canvas as its repeat cell');
+    assert(tile.rgba.subarray(0, 4).equals(Buffer.alloc(4)),
+           'tiled sprite dropped the nominal transparent margin');
+    assert(tile.rgba.subarray(redAtOffset, redAtOffset + 4).equals(rgba.subarray(0, 4)),
+           'tiled sprite did not preserve the crop offset inside its repeat cell');
 });
 
-test('the sprite server applies pack.meta differently for scaled and tiled graphics', () => {
+test('the sprite server preserves the nominal repeat cell for tiled graphics', () => {
     const content = makeContent('sprite-metadata');
     const spriteDir = join(content, 'sprites', 'offset_icon');
     mkdirSync(spriteDir, { recursive: true });
@@ -2147,8 +2835,8 @@ test('the sprite server applies pack.meta differently for scaled and tiled graph
     const tiled = spritePng(content, index, 77, { tiled: true });
     assert(scaled.readUInt32BE(16) === 5 && scaled.readUInt32BE(20) === 3,
            'ordinary sprite response did not restore the nominal canvas');
-    assert(tiled.readUInt32BE(16) === 2 && tiled.readUInt32BE(20) === 1,
-           'tiled sprite response did not retain the cropped repeat-cell size');
+    assert(tiled.readUInt32BE(16) === 5 && tiled.readUInt32BE(20) === 3,
+           'tiled sprite response did not retain the nominal repeat-cell size');
 });
 
 /* ---- 3e. opening unpacked content --------------------------------------- */
@@ -2158,7 +2846,7 @@ test('an unpacked .if is rebuilt as React-style preview IR with linked scripts',
     writeFileSync(join(content, 'pack', '3_interfaces.pack'), '10=existing_panel\n');
     writeFileSync(join(content, 'pack', '12_clientscripts.pack'), '77=script_77\n');
     writeFileSync(join(content, 'interfaces', 'existing_panel.compack'),
-                  '0=universe\n4=backing\n9=label\n');
+                  '0=universe\n4=backing\n9=label\n10=legacy_target\n');
     writeFileSync(join(content, 'interfaces', 'existing_panel.if'), `
         // existing cache interface
         [universe]
@@ -2188,6 +2876,14 @@ test('an unpacked .if is rebuilt as React-style preview IR with linked scripts',
         text=From content
         font=495
         colour=16777215
+
+        [legacy_target]
+        if3=no
+        type=4
+        width=10
+        height=10
+        layer=655360
+        clickmask=45
     `);
     writeFileSync(join(content, 'scripts', 'script_77.cs2'),
                   '// 77\n[clientscript,existing_init](component $component0, string $string0)\nreturn;\n');
@@ -2198,10 +2894,15 @@ test('an unpacked .if is rebuilt as React-style preview IR with linked scripts',
 
     const opened = openContentInterface(content, 'existing_panel');
     assert(opened.interfaceId === 10, 'interface id');
-    assert(opened.ir.components.length === 3, 'component count');
+    assert(opened.ir.components.length === 4, 'component count');
     assert(opened.ir.components[1].fileId === 4, 'compack file id was not preserved');
     assert(opened.ir.components[1].layer === 0, 'full parent uid was not reduced to its file id');
     assert(opened.ir.components[2].static.text === 'From content', 'text field');
+    assert(opened.ir.components[0].if3 === true && opened.ir.components[3].if3 === false,
+           'the imported cache decode family was discarded');
+    const host = createHostRuntime(opened.ir);
+    assert(host.request({ kind: 'IF_GETTARGETMASK', component: 'legacy_target' }) === 45,
+           'an imported IF1 target mask was decoded as an IF3 events word');
     assert(opened.scripts.length === 1 && opened.scripts[0].id === 77, 'hook script was not loaded');
     assertIncludes(opened.scripts[0].source, '[clientscript,existing_init]');
     assertIncludes(opened.reactSource, 'export default function ExistingPanel()');
@@ -2223,13 +2924,18 @@ test('cache onload scripts apply conditional component state and resolve model a
     writeFileSync(join(content, 'pack', '7_models.pack'), '55=model_55\n');
     writeFileSync(join(content, 'pack', '8_sprites.pack'), '170=miscgraphics_0\n179=miscgraphics_9\n');
     writeFileSync(join(content, 'models', 'model_55.model'), Buffer.from([1, 2, 3]));
-    writeFileSync(join(content, 'interfaces', 'runtime_panel.compack'), '0=root\n2=panel\n3=avatar\n');
+    writeFileSync(join(content, 'interfaces', 'runtime_panel.compack'),
+                  '0=root\n2=panel\n3=avatar\n4=lock\n5=avatar_alt\n');
     writeFileSync(join(content, 'interfaces', 'runtime_panel.if'), [
         '[root]', 'if3=yes', 'type=0', 'width=100', 'height=100',
         'onload=i:77,i:-2147483645,i:655362', '',
         '[panel]', 'if3=yes', 'type=5', 'width=20', 'height=20', 'layer=655360', '',
         '[avatar]', 'if3=yes', 'type=6', 'width=20', 'height=20', 'layer=655360',
         'clientcode=328', 'modelzoom=550', '',
+        '[lock]', 'if3=yes', 'type=6', 'x=24', 'width=20', 'height=20', 'layer=655360',
+        'model=55', 'modelzoom=256', '',
+        '[avatar_alt]', 'if3=yes', 'type=6', 'x=48', 'width=20', 'height=20', 'layer=655360',
+        'clientcode=327', 'modelzoom=550', '',
     ].join('\n'));
     writeFileSync(join(content, 'scripts', 'runtime_init.cs2'), [
         '[clientscript,runtime_init](component $self, component $panel)',
@@ -2247,6 +2953,18 @@ test('cache onload scripts apply conditional component state and resolve model a
            'false branch state did not hide the panel');
     assert(hidden.ir.components.find((component) => component.name === 'avatar').static.clientCode === 328,
            'client-code model selector was lost');
+    const modelHost = createHostRuntime(hidden.ir);
+    let modelBoxes = modelHost.snapshot().boxes;
+    assert(modelBoxes.find((box) => box.name === 'avatar').presentation.source.kind === 'playerSelf' &&
+           modelBoxes.find((box) => box.name === 'avatar_alt').presentation.source.kind === 'playerSelf' &&
+           modelBoxes.find((box) => box.name === 'lock').presentation.source.kind === 'model' &&
+           modelBoxes.find((box) => box.name === 'lock').presentation.source.id === 55,
+           'client-code player model selection swallowed a cache model id');
+    modelHost.request({ kind: 'CC_SETMODEL', component: 'avatar', model_id: 55 });
+    modelBoxes = modelHost.snapshot().boxes;
+    assert(modelBoxes.find((box) => box.name === 'avatar').presentation.source.kind === 'model' &&
+           modelBoxes.find((box) => box.name === 'avatar').presentation.source.id === 55,
+           'an explicit CS2 model did not override the client-code player selector');
 
     const visible = openContentInterface(content, 'runtime_panel');
     executeContentHooks(visible, { 'varbit:9': 1 });
@@ -2260,6 +2978,11 @@ test('cache onload scripts apply conditional component state and resolve model a
 });
 
 test('a Dat2 project is selectively decoded once and invalidated when the cache changes', () => {
+    for( const type of ['npc', 'loc', 'mapelement', 'dbtable', 'dbrow'] )
+        assert(DAT2_CONFIG_TYPES.includes(type),
+               `Dat2 extraction omitted synchronous HOST config type ${type}`);
+    assert(DAT2_ASSETS.includes('worldmap/areas'),
+           'Dat2 extraction omitted the world-map area/composite HOST source');
     const root = join(scratch, 'dat2-project');
     const cache = join(root, 'cache');
     const derived = join(root, 'derived');
@@ -2468,6 +3191,8 @@ function fakeWasmModule(customRequests = null) {
     const events = new Map();
     const eventStrings = new Map();
     const pushedInts = [];
+    const pushedStrings = [];
+    const targets = [];
     const requests = customRequests || {
         1: { name: 'PUSH_VAR', fields: [['id', 5]] },
         2: { name: 'POP_VAR', fields: [['id', 5], ['value', 9]] },
@@ -2532,9 +3257,16 @@ function fakeWasmModule(customRequests = null) {
             return requests[table].fields[index][1];
         },
         _cs2w_request_field_string() { return 0; },
+        /* DB_* owns a dynamic value on the VM stack. Non-DB fixtures never
+         * pop it, but the production adapter validates that the safe exports
+         * are present before accepting a module. */
+        _cs2w_thread_pop_int() { return 0; },
+        _cs2w_thread_pop_string() { return 0; },
         _cs2w_thread_push_int(thread, value) { pushedInts.push(value); return 1; },
-        _cs2w_thread_push_string() { return 1; },
-        _cs2w_thread_set_target() { return 1; },
+        _cs2w_thread_push_string(thread, pointer) { pushedStrings.push(read(pointer)); return 1; },
+        _cs2w_thread_set_target(thread, dot, componentId) {
+            targets.push({ dot, componentId }); return 1;
+        },
         _cs2w_thread_set_children() { return 1; },
         _cs2w_thread_current_operand() { return 1; },
     };
@@ -2546,7 +3278,7 @@ function fakeWasmModule(customRequests = null) {
         return originalFieldCount(kind);
     };
     const fixture = {
-        loaded, intArgs, stringArgs, events, eventStrings, pushedInts,
+        loaded, intArgs, stringArgs, events, eventStrings, pushedInts, pushedStrings, targets,
         destroyed: false, reflectKind: 0,
         async factory(value) { options = value; return api; },
     };
