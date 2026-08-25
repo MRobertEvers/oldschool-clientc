@@ -1408,7 +1408,7 @@ RSCache_Dat2DiskArchiveInitMetadataFromTable(
         archive->file_ids = malloc((size_t)archive->file_count * sizeof(int));
         assert(archive->file_ids);
         for( int i = 0; i < archive->file_count; i++ )
-            archive->file_ids[i] = archive_reference->children.files[i].id;
+            archive->file_ids[i] = RSCache_ReferenceTableChildId(archive_reference, i);
     }
     return true;
 }

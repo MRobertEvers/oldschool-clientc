@@ -500,7 +500,7 @@ cp_reference_sync(
     {
         children_differ = archive->children.count != file_count;
         for( int i = 0; !children_differ && i < file_count; i++ )
-            children_differ = archive->children.files[i].id != file_ids[i];
+            children_differ = RSCache_ReferenceTableChildId(archive, i) != file_ids[i];
     }
     if( archive->crc == crc && !children_differ )
         return 1;
@@ -549,8 +549,12 @@ cp_reference_sync(
                 free(grown_hashes);
                 return 0;
             }
-            /* Read above into grown_hashes, so it is safe to drop now. */
-            free(archive->children.name_hashes);
+            /* Read above into grown_hashes, so it is safe to drop now -- unless
+             * it is a slice of the table's pool, which an identity run's is
+             * even though its ids never were. */
+            if( !RSCache_ReferenceTableChildNameHashesPooled(
+                    rt, archive->children.name_hashes) )
+                free(archive->children.name_hashes);
         }
         for( int i = 0; i < file_count; i++ )
             grown[i].id = file_ids[i];
@@ -568,12 +572,10 @@ cp_reference_sync(
     }
     if( rt->flags & RSCACHE_REFTABLE_FLAG_WHIRLPOOL )
     {
-        if( !archive->whirlpool )
-        {
-            archive->whirlpool = malloc(RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
-            assert(archive->whirlpool);
-        }
-        RSCache_Whirlpool(container, (uint32_t)body, archive->whirlpool);
+        RSCache_Whirlpool(
+            container,
+            (uint32_t)body,
+            RSCache_ReferenceTableWhirlpoolSlot(rt, archive_id));
     }
 
     /*

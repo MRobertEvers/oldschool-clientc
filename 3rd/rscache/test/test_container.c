@@ -340,9 +340,9 @@ check_reftable_roundtrip(
             archive->children.name_hashes[j] = 0x5000 + j;
         }
 
-        archive->whirlpool = malloc(RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
+        unsigned char* digest = RSCache_ReferenceTableWhirlpoolSlot(&source, ids[i]);
         for( int b = 0; b < RSCACHE_REFTABLE_WHIRLPOOL_BYTES; b++ )
-            archive->whirlpool[b] = (unsigned char)(ids[i] * 3 + b);
+            digest[b] = (unsigned char)(ids[i] * 3 + b);
     }
 
     uint32_t bound = RSCache_ReferenceTableEncodeBound(&source);
@@ -383,11 +383,18 @@ check_reftable_roundtrip(
                 RSCACHE_CHECK_EQ(got->uncompressed, want->uncompressed);
             }
             if( flags & RSCACHE_REFTABLE_FLAG_WHIRLPOOL )
-                RSCACHE_CHECK_BYTES_EQ(got->whirlpool, want->whirlpool, 64);
+                RSCACHE_CHECK_BYTES_EQ(
+                    RSCache_ReferenceTableWhirlpool(decoded, ids[i]),
+                    RSCache_ReferenceTableWhirlpool(&source, ids[i]),
+                    64);
 
             for( int j = 0; j < want->children.count && j < got->children.count; j++ )
             {
-                RSCACHE_CHECK_EQ(got->children.files[j].id, want->children.files[j].id);
+                /* Through the accessor on both sides: a run that came out
+                 * 0,1,2,... decodes with no array at all. */
+                RSCACHE_CHECK_EQ(
+                    RSCache_ReferenceTableChildId(got, j),
+                    RSCache_ReferenceTableChildId(want, j));
                 if( flags & RSCACHE_REFTABLE_FLAG_IDENTIFIERS )
                     RSCACHE_CHECK_EQ(
                         RSCache_ReferenceTableChildNameHash(got, j),
@@ -417,8 +424,8 @@ check_reftable_roundtrip(
     {
         free(source.archives[ids[i]].children.files);
         free(source.archives[ids[i]].children.name_hashes);
-        free(source.archives[ids[i]].whirlpool);
     }
+    free(source.whirlpools);
     free(source.archives);
     free(source.ids);
 }

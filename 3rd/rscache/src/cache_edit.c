@@ -751,10 +751,9 @@ dat2_edit_set_children(
     /* A decoded archive's children are a slice of the table's pool — replacing
      * them just abandons the slice; only an owned array is freed. */
     if( !RSCache_ReferenceTableChildrenPooled(table, archive->children.files) )
-    {
         free(archive->children.files);
+    if( !RSCache_ReferenceTableChildNameHashesPooled(table, archive->children.name_hashes) )
         free(archive->children.name_hashes);
-    }
     archive->children.files = files;
     /* A child list built from ids alone carries no names, which is what the
      * calloc'd array used to say by leaving every name_hash zero. */
@@ -783,12 +782,10 @@ dat2_edit_update_reference_entry(
     }
     if( (table->flags & RSCACHE_REFTABLE_FLAG_WHIRLPOOL) != 0 )
     {
-        if( !archive->whirlpool )
-        {
-            archive->whirlpool = malloc(RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
-            assert(archive->whirlpool);
-        }
-        memcpy(archive->whirlpool, info->whirlpool, RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
+        memcpy(
+            RSCache_ReferenceTableWhirlpoolSlot(table, info->archive_id),
+            info->whirlpool,
+            RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
     }
 
     if( info->update_children )

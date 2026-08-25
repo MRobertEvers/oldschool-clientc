@@ -973,7 +973,7 @@ RSCache_Dat2AnimMayaNewFromArchive(
 
     for( int i = 0; i < filelist->file_count; i++ )
     {
-        int id = archive_ref ? archive_ref->children.files[i].id : i;
+        int id = archive_ref ? RSCache_ReferenceTableChildId(archive_ref, i) : i;
         if( id != file_id )
             continue;
 

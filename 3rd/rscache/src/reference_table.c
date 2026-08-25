@@ -89,17 +89,18 @@ RSCache_ReferenceTableNewDecode(
     /* Whirlpool digests sit between the CRCs and the sizes. No cache in this repo
      * sets the flag (verified across all seven), so this branch was previously
      * absent — which would have silently misread every field after it for a cache
-     * that did set it. */
+     * that did set it.
+     *
+     * The first slot request allocates the whole pool, indexed by archive id.
+     * A sparse table pays 64 bytes for each of its holes that way, which is a
+     * bad trade only for a cache that sets this flag -- and none does. */
     if( (table->flags & FLAG_WHIRLPOOL) != 0 )
     {
         for( int i = 0; i < id_count; i++ )
         {
-            unsigned char* digest = malloc(RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
-            assert(digest);
-            table->archives[ids[i]].whirlpool = digest;
             greadto(
                 &buffer,
-                (char*)digest,
+                (char*)RSCache_ReferenceTableWhirlpoolSlot(table, ids[i]),
                 RSCACHE_REFTABLE_WHIRLPOOL_BYTES,
                 RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
         }
@@ -137,55 +138,113 @@ RSCache_ReferenceTableNewDecode(
         return NULL;
     }
 
+    /*
+     * The child ids are read twice. The first pass stores nothing; it only asks,
+     * per archive, whether the ids come out 0,1,2,... — 45% of the children in a
+     * shipped cache are numbered exactly that way, and for those the array only
+     * repeats what the index already says.
+     *
+     * Asking before allocating, rather than decoding and compacting after, is
+     * what makes the saving real: the peak is what the memory budget is measured
+     * against, and a compaction would have paid the full size first.
+     */
+    unsigned char* identity_bits = NULL;
+    uint64_t stored_children = 0;
+    uint32_t child_ids_position = buffer.position;
+
     if( total_children > 0 )
+    {
+        identity_bits = calloc(((size_t)id_count + 7) / 8, 1);
+        assert(identity_bits);
+
+        for( int i = 0; i < id_count; i++ )
+        {
+            int child_count = table->archives[ids[i]].children.count;
+            bool identity = true;
+
+            accumulator = 0;
+            for( int j = 0; j < child_count; j++ )
+            {
+                int delta = table->format >= 7 ? gusmart(&buffer) : g2(&buffer);
+                accumulator += delta;
+                if( accumulator != j )
+                    identity = false;
+            }
+
+            if( child_count > 0 && identity )
+                identity_bits[i >> 3] |= (unsigned char)(1 << (i & 7));
+            else
+                stored_children += (uint64_t)child_count;
+        }
+
+        buffer.position = child_ids_position;
+    }
+
+    if( stored_children > 0 )
     {
         /* Zeroed rather than malloc'd: a table that declares more children than
          * its remaining bytes can supply leaves the tail of the pool unwritten,
          * and the encoder would hand those ids straight back out. */
         table->children_pool = calloc(
-            (size_t)total_children, sizeof(struct RSCache_ReferenceTableArchiveFile));
-        if( !table->children_pool )
-        {
-            free(ids);
-            free(table->archives);
-            free(table);
-            return NULL;
-        }
-
-        /* Only a table with identifiers has anything to put here; the rest
-         * leave it NULL and every reader takes that as "unnamed". */
-        if( (table->flags & FLAG_IDENTIFIERS) != 0 )
-        {
-            table->children_name_hash_pool =
-                calloc((size_t)total_children, sizeof(int));
-            assert(table->children_name_hash_pool);
-        }
+            (size_t)stored_children, sizeof(struct RSCache_ReferenceTableArchiveFile));
+        assert(table->children_pool);
     }
-    table->children_pool_count = (size_t)total_children;
+    table->children_pool_count = (size_t)stored_children;
+
+    /* Only a table with identifiers has anything to put here; the rest leave it
+     * NULL and every reader takes that as "unnamed". Sized to every child and
+     * not just the stored ones: an identity run holds no ids and still names
+     * each of its files, so the two pools no longer share offsets. */
+    if( total_children > 0 && (table->flags & FLAG_IDENTIFIERS) != 0 )
+    {
+        table->children_name_hash_pool =
+            calloc((size_t)total_children, sizeof(int));
+        assert(table->children_name_hash_pool);
+        table->children_name_hash_pool_count = (size_t)total_children;
+    }
 
     size_t pool_used = 0;
+    size_t hashes_used = 0;
     for( int i = 0; i < id_count; i++ )
     {
         int id = ids[i];
-        if( table->archives[id].children.count <= 0 )
+        int child_count = table->archives[id].children.count;
+
+        if( child_count <= 0 )
             continue;
-        table->archives[id].children.files = table->children_pool + pool_used;
+
         if( table->children_name_hash_pool )
             table->archives[id].children.name_hashes =
-                table->children_name_hash_pool + pool_used;
-        pool_used += (size_t)table->archives[id].children.count;
+                table->children_name_hash_pool + hashes_used;
+        hashes_used += (size_t)child_count;
+
+        /* An identity run is left with `files` NULL, which is what says it is
+         * one; it gets no slice of the id pool, which was not sized for it. */
+        if( (identity_bits[i >> 3] & (1 << (i & 7))) != 0 )
+            continue;
+
+        table->archives[id].children.files = table->children_pool + pool_used;
+        pool_used += (size_t)child_count;
     }
 
     for( int i = 0; i < id_count; i++ )
     {
         int id = ids[i];
+        struct RSCache_ReferenceTableArchiveFile* files =
+            table->archives[id].children.files;
+
         accumulator = 0;
         for( int j = 0; j < table->archives[id].children.count; j++ )
         {
             int delta = table->format >= 7 ? gusmart(&buffer) : g2(&buffer);
-            table->archives[id].children.files[j].id = accumulator += delta;
+            accumulator += delta;
+            /* An identity run is walked again only to carry the cursor past it. */
+            if( files )
+                files[j].id = accumulator;
         }
     }
+
+    free(identity_bits);
 
     if( (table->flags & FLAG_IDENTIFIERS) != 0 )
     {
@@ -278,11 +337,11 @@ RSCache_ReferenceTableEncode(
     {
         for( int i = 0; i < table->id_count; i++ )
         {
-            assert(table->archives[table->ids[i]].whirlpool);
-            pbuf(
-                &buffer,
-                table->archives[table->ids[i]].whirlpool,
-                RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
+            const unsigned char* digest =
+                RSCache_ReferenceTableWhirlpool(table, table->ids[i]);
+            /* The flag promises a digest for every listed archive. */
+            assert(digest);
+            pbuf(&buffer, digest, RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
         }
     }
 
@@ -308,8 +367,9 @@ RSCache_ReferenceTableEncode(
         int child_previous = 0;
         for( int j = 0; j < table->archives[id].children.count; j++ )
         {
-            REFTABLE_PCOUNT(table->archives[id].children.files[j].id - child_previous);
-            child_previous = table->archives[id].children.files[j].id;
+            int child_id = RSCache_ReferenceTableChildId(&table->archives[id], j);
+            REFTABLE_PCOUNT(child_id - child_previous);
+            child_previous = child_id;
         }
     }
 
@@ -347,6 +407,78 @@ RSCache_ReferenceTableChildrenPooled(
     return p >= base && p < end;
 }
 
+bool
+RSCache_ReferenceTableChildNameHashesPooled(
+    const struct RSCache_ReferenceTable* table,
+    const int* name_hashes)
+{
+    uintptr_t p;
+    uintptr_t base;
+    uintptr_t end;
+
+    assert(table);
+    if( !name_hashes || !table->children_name_hash_pool )
+        return false;
+    p = (uintptr_t)name_hashes;
+    base = (uintptr_t)table->children_name_hash_pool;
+    end = (uintptr_t)(table->children_name_hash_pool + table->children_name_hash_pool_count);
+    return p >= base && p < end;
+}
+
+int
+RSCache_ReferenceTableChildId(
+    const struct RSCache_ReferenceTableArchive* archive,
+    int child_index)
+{
+    assert(archive);
+    assert(child_index >= 0);
+    assert(child_index < archive->children.count);
+
+    /* No array means an identity run, where the id is the index. */
+    if( !archive->children.files )
+        return child_index;
+    return archive->children.files[child_index].id;
+}
+
+const unsigned char*
+RSCache_ReferenceTableWhirlpool(
+    const struct RSCache_ReferenceTable* table,
+    int archive_id)
+{
+    assert(table);
+    assert(archive_id >= 0);
+
+    /* "This archive has no digest" is an answer, not a bad argument: every
+     * cache in this repo leaves the pool unallocated. */
+    if( !table->whirlpools || archive_id >= table->whirlpool_count )
+        return NULL;
+    return table->whirlpools + (size_t)archive_id * RSCACHE_REFTABLE_WHIRLPOOL_BYTES;
+}
+
+unsigned char*
+RSCache_ReferenceTableWhirlpoolSlot(
+    struct RSCache_ReferenceTable* table,
+    int archive_id)
+{
+    assert(table);
+    assert(archive_id >= 0);
+    assert(archive_id < table->archive_count);
+
+    /* Sized against archive_count on every call, so a table that grew after the
+     * pool was made catches up here instead of in the growth code. */
+    if( table->whirlpool_count < table->archive_count )
+    {
+        size_t was = (size_t)table->whirlpool_count * RSCACHE_REFTABLE_WHIRLPOOL_BYTES;
+        size_t now = (size_t)table->archive_count * RSCACHE_REFTABLE_WHIRLPOOL_BYTES;
+        unsigned char* grown = realloc(table->whirlpools, now);
+        assert(grown);
+        memset(grown + was, 0, now - was);
+        table->whirlpools = grown;
+        table->whirlpool_count = table->archive_count;
+    }
+    return table->whirlpools + (size_t)archive_id * RSCACHE_REFTABLE_WHIRLPOOL_BYTES;
+}
+
 int
 RSCache_ReferenceTableChildNameHash(
     const struct RSCache_ReferenceTableArchive* archive,
@@ -374,22 +506,20 @@ RSCache_ReferenceTableFree(struct RSCache_ReferenceTable* table)
 
     for( int i = 0; i < table->archive_count; i++ )
     {
-        /* A slice of the decode pool is not its own allocation; only an array a
-         * tool replaced after decode (or a hand-built table's) is freed here. */
-        if( table->archives[i].children.files &&
-            !RSCache_ReferenceTableChildrenPooled(table, table->archives[i].children.files) )
-        {
+        /* A slice of a decode pool is not its own allocation; only an array a
+         * tool replaced after decode (or a hand-built table's) is freed here.
+         * Asked of each array separately, because the two no longer travel
+         * together: an identity run has no `files` and still has name hashes. */
+        if( !RSCache_ReferenceTableChildrenPooled(table, table->archives[i].children.files) )
             free(table->archives[i].children.files);
-            /* name_hashes is pooled exactly when files is, so the same test
-             * decides both. */
+        if( !RSCache_ReferenceTableChildNameHashesPooled(
+                table, table->archives[i].children.name_hashes) )
             free(table->archives[i].children.name_hashes);
-        }
-        if( table->archives[i].whirlpool )
-            free(table->archives[i].whirlpool);
     }
 
     free(table->children_pool);
     free(table->children_name_hash_pool);
+    free(table->whirlpools);
 
     if( table->archives )
         free(table->archives);
