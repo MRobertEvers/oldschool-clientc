@@ -323,3 +323,80 @@ discrepancy and would also mean the 50 ns/px above is overstated.
 * **The 9.08 % in `ToriDraw_ComputeProjectedFaceOrderSmall`** (EIP profile) is
   the same disease: 6,682 faces to sort, more than Java's 5,140, for less
   painted area.
+
+---
+
+## 10. CORRECTION to section 9: the pixel comparison was wrong, and it inverts
+
+Section 9 concluded we draw a third of Java's pixels. **That is wrong.** It was
+built on `TORIDRAW_SPAN_CENSUS`, and that probe instruments exactly ONE call
+site pair -- `gouraudhsllightness.screen.opaque.bary.branching.s4` -- out of ten
+kernel classes. Our hottest kernel by profile, the textured one at 15.02 % self,
+contributed **zero** to it. The coverage anomaly flagged in 9.2 was the symptom.
+
+`TORIDRAW_FACE_CENSUS` is the right instrument: it records at the dispatch site,
+above either kernel, so it survives the asm and covers every class. 1,500 frames:
+
+| per frame | torirs | Java | ratio |
+|---|---|---|---|
+| triangles | 6,910 | ~5,140 | 1.34x |
+| **pixels** | **1,446,366** | **~402,000** | **3.60x** |
+| **overdraw** vs 512x334 | **8.46x** | 2.35x | 3.6x |
+| **ns per pixel** | **~4.8** | ~10.6 | **0.45x** |
+
+So the true picture is the inverse of section 9:
+
+* **Our per-pixel rasterisation is about twice as fast as Java's.** The
+  hand-written kernels are doing their job. Section 0's reading of the two
+  disassemblies was right; section 9's arithmetic on top of a broken census was
+  not.
+* **We rasterise 3.6x more pixels than the Java client.** Overdraw is 8.46x
+  against their 2.35x.
+* Our triangles are not small either: gouraud averages **168 px**, textured
+  **2,022 px**. The "20 px per triangle" in section 9 was the same artifact.
+
+By class, per frame:
+
+| class | faces | pixels | px/face |
+|---|---|---|---|
+| gouraud | 5,433 | 915,131 | 168 |
+| tex blend opaque (asm) | 225 | 454,908 | 2,022 |
+| flat | 1,121 | 46,248 | 41 |
+| tex blend trans | 113 | 28,735 | 254 |
+| tex flat opaque | 18 | 1,343 | 75 |
+
+Caveat, stated rather than buried: face-census area is the **geometric** area of
+the triangle (capped per face), not pixels actually stored, so faces clipped by
+the viewport inflate it. That cannot account for a 3.6x gap, but it does mean
+8.46x is an upper bound on real overdraw.
+
+### 10.1 Java's terrain does NOT use a separate kernel
+
+Checked, because it would have invalidated the Java side the same way. `Pix3D`
+exposes exactly six public raster entry points -- three triangle, three span --
+and all six are instrumented. `World.java`, which draws the terrain, calls
+`Pix3D.gouraudTriangle` (6 sites) and `Pix3D.textureTriangle` (5 sites)
+directly. The Java figure includes terrain and is sound.
+
+### 10.2 What the target now is
+
+**Overdraw, and nothing else in the raster.** We paint every pixel of the
+viewport 8.46 times where the reference paints it 2.35 times, with a kernel
+already twice as fast per pixel. Closing to their overdraw at our per-pixel rate
+would cut rasterisation from 34.5 points to under 10.
+
+That makes the ordering:
+
+1. **Find where the 8.46x comes from.** Prime suspects, in order: the terrain
+   painting under everything that later covers it, the painter's algorithm
+   drawing back-to-front with no occlusion, and `SCENE_SMALL`'s draw distance.
+   The reference culls with a tile-visibility pass (`World.resetVisCalc`, which
+   shows in its profile); we have `scene_occluders.c` and it is not established
+   that it is doing anything here.
+2. Present (13.4 % of samples in BitBlt).
+3. The 32.1 non-3D points.
+
+Withdrawn from section 9: "attack span setup", "make triangles bigger", and the
+claim that the 4-px block loop is dead code. At 168 px per gouraud face the
+block loop runs plenty; the span-length distribution that suggested otherwise
+was measured on the one unrepresentative kernel the span census covers.

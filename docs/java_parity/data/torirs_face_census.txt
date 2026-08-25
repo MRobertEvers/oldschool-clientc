@@ -1,0 +1,12 @@
+
+=== toridraw face census ===
+bucket                            faces    %texf    %allf          area px    %texa    %alla
+tex blend opaque  [ASM]          338226   63.23%    3.26%        682362512   93.80%   31.45%
+tex flat  opaque                  26818    5.01%    0.26%          2015508    0.28%    0.09%
+tex blend trans                  169860   31.76%    1.64%         43101975    5.92%    1.99%
+gouraud                         8149221        -   78.62%       1372696894        -   63.27%
+flat                            1681038        -   16.22%         69372446        -    3.20%
+
+faces total          10365163  (textured 534904)
+area total           2169549336 px  (textured 727479996 px)
+asm-covered share    93.80% of textured area, 31.45% of all area
