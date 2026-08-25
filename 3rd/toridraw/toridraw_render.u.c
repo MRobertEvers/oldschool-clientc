@@ -3,6 +3,7 @@
 #include "graphics/dash_restrict.h"
 #include "graphics/proj_census.h"
 #include "graphics/projection.h"
+#include "graphics/winding.h"
 #include "toridraw_math.h"
 #include "toridraw_model_internal.h"
 #include "toridraw_types.h"
@@ -1085,13 +1086,8 @@ bucket_sort_by_average_depth_impl(
              vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
         long long winding = 1;
         if( !clip_candidate )
-        {
-            const long long dx1 = (long long)vx[a] - vx[b];
-            const long long dy1 = (long long)vy[a] - vy[b];
-            const long long dx2 = (long long)vx[c] - vx[b];
-            const long long dy2 = (long long)vy[c] - vy[b];
-            winding = dx1 * dy2 - dy1 * dx2;
-        }
+            winding = toridraw_winding_2d(
+                vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
 
         /* A clipped vertex has sentinel x and undivided y, so this triangle's
          * screen-space winding does not exist yet. The reference buckets it
@@ -1801,13 +1797,8 @@ bucket_sort_by_average_depth_small(
              vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
         long long winding = 1;
         if( !clip_candidate )
-        {
-            const long long dx1 = (long long)vx[a] - vx[b];
-            const long long dy1 = (long long)vy[a] - vy[b];
-            const long long dx2 = (long long)vx[c] - vx[b];
-            const long long dy2 = (long long)vy[c] - vy[b];
-            winding = dx1 * dy2 - dy1 * dx2;
-        }
+            winding = toridraw_winding_2d(
+                vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
 
         if( clip_candidate || toridraw_winding_front_facing(winding) )
         {

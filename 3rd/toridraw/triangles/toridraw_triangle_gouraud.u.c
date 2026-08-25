@@ -16,6 +16,8 @@
 #include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s1.c"
 #include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c"
 #include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c"
+#include "graphics/raster/gouraudhsllightness/gouraud_tri_asm.h"
+#include "graphics/raster/face_census.h"
 // clang-format on
 
 static inline void
@@ -36,6 +38,13 @@ ToriDraw_TriangleGouraudImpl(
     int alpha,
     bool scanline)
 {
+    TORIDRAW_FACE_CENSUS_RECORD(
+        TORIDRAW_FACE_CENSUS_GOURAUD,
+        x1, y1,
+        x2, y2,
+        x3, y3,
+        screen_width * screen_height);
+
     if( scanline )
     {
         if( alpha == 0xFF )
@@ -79,7 +88,7 @@ ToriDraw_TriangleGouraudImpl(
     if( alpha == 0xFF )
     {
         // raster_gouraudhsllightness_screen_opaque_edge_sort_s4(
-        raster_gouraudhsllightness_screen_opaque_bary_branching_s4(
+        TORIDRAW_GOURAUD_TRI_OPAQUE_S4(
             pixel_buffer,
             stride,
             screen_width,
@@ -166,6 +175,13 @@ ToriDraw_TriangleGouraudS1Impl(
     int alpha,
     bool scanline)
 {
+    TORIDRAW_FACE_CENSUS_RECORD(
+        TORIDRAW_FACE_CENSUS_GOURAUD,
+        x1, y1,
+        x2, y2,
+        x3, y3,
+        screen_width * screen_height);
+
     if( scanline )
     {
         ToriDraw_TriangleGouraudScanline(

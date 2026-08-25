@@ -48,6 +48,8 @@ struct ToriRS_D3D9;
 #define TORIRS_D3D9_DEFAULT 0
 #endif
 #include "render/torirs_frame.h"
+#include "toridraw_eip_sample.h"
+#include "toridraw_frame_ab.h"
 #include "toridraw_math.h"
 #include "ui/uitree_hover.h"
 #include "ui/uitree_layout.h"
@@ -722,6 +724,28 @@ static int sim_sound_every;
 static long sim_sound_next;
 static long max_frames;
 static long frame_count;
+
+/**
+ * @brief Frame at which EIP sampling begins; see the call site for why.
+ *
+ * Read once and cached. This sits on the per-frame path, and the whole point
+ * of the sampler is that it does not perturb what it measures -- a getenv per
+ * frame would be a small lie told nine hundred times.
+ */
+static long
+eip_sample_warmup_frames(void)
+{
+    static long warmup = -1;
+    const char* v;
+
+    if( warmup >= 0 )
+        return warmup;
+    v = getenv("TORIDRAW_EIP_SAMPLE_WARMUP");
+    warmup = v ? atol(v) : 100;
+    if( warmup < 1 )
+        warmup = 1;
+    return warmup;
+}
 static struct NetTransport* sock;
 static int sim_openmain = -1;
 static int sim_openmain_done;
@@ -903,7 +927,14 @@ frame_loop_step(void)
     }
 #endif
     if( PlatformSDL2_QuitRequested(sdl) )
+    {
+        /* Both dumps are no-ops unless their env knob asked for them, and
+         * both are idempotent, so the two exits below can each call them
+         * without agreeing on which one runs. */
+        ToriDraw_EipSampleStop("quit");
+        ToriDraw_FrameAbDump("quit");
         return 0;
+    }
 
     uint64_t now;
     int app_redraw;
@@ -913,7 +944,28 @@ frame_loop_step(void)
 #endif
 
     if( max_frames > 0 && frame_count++ >= max_frames )
+    {
+        ToriDraw_EipSampleStop("frames");
+        ToriDraw_FrameAbDump("frames");
         return 0;
+    }
+
+    /*
+     * Switch the EIP sampler on once the run has reached steady state.
+     *
+     * The first frames of a bounded run are scene load-in: cold caches, cache
+     * archives being decompressed, models being built. Sampling those charges
+     * the frame's composition to code that runs a hundred times in a
+     * nine-hundred-frame run, which is precisely the misattribution the
+     * sampler exists to avoid. TORIDRAW_EIP_SAMPLE_WARMUP=N moves the line;
+     * the default is deliberately generous, since 100 of 900 frames is 11% of
+     * the run and the steady state is what the remaining 89% measures.
+     *
+     * Start, not Stop, carries the warmup: stopping is driven by the exits
+     * above, which is where the run actually ends.
+     */
+    if( frame_count == eip_sample_warmup_frames() )
+        ToriDraw_EipSampleStart();
 
     /* Unconditional, unlike frame_count above, which only moves when the
      * run was bounded. TORIRS_WEDGE_CAM_PATH phases off this, and a camera
