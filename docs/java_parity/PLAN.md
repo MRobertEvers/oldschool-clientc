@@ -476,3 +476,68 @@ assumption: that two counters called "pixels" on either side of a comparison
 were counting the same thing. Neither was wrong in isolation; they were
 incomparable. **A cross-client number needs the definition checked on both
 sides before the ratio is taken, not after it looks surprising.**
+
+---
+
+## 12. Rasterisation: measured on both sides by ablation. Ours already wins.
+
+Java's rasterisation cost had only ever been estimated. It is now measured the
+same way ours is -- by deletion. `Pix3D`'s three span functions return at entry
+under `JAVA_ABL_NORASTER=1`, so the scene walk, the triangle setup and the edge
+stepping all still run and only the pixel writing disappears. Four arms, same
+session, minutes apart:
+
+| | baseline | raster ablated | **raster cost** |
+|---|---|---|---|
+| **Java** | 50.3 % | 4.2 % | **46.1 pts = 9.22 ms/frame** |
+| **torirs** | 74.8 % | 43.2 % | **31.6 pts = 6.32 ms/frame** |
+
+Against the corrected pixel counts from section 11:
+
+| | pixels/frame | raster ms | **ns per pixel** |
+|---|---|---|---|
+| **torirs** | 341,692 | **6.32** | **18.5** |
+| Java | 225,500 | 9.22 | 40.9 |
+
+**Our rasterisation is 1.46x faster in absolute time and 2.2x faster per pixel,
+while drawing 1.52x more pixels.** No change was needed to achieve this; it was
+already true, and every earlier statement to the contrary came from an
+instrument, not from the client.
+
+### 12.1 Two independent checks that this is real
+
+* **Java's ablated remainder is exactly the clear.** 4.2 points is 0.84 ms/frame.
+  `Pix2D.cls` writes 171,008 pixels at the eight instructions per pixel its
+  compiled form shows (section 3.2); on this box that is ~0.7-0.9 ms. The
+  residue after removing the spans is the clear, and it lands where the
+  disassembly says it should.
+* **It also settles the hprof question.** hprof attributed 65 % of Java's
+  in-world work to `Pix2D.cls`. By ablation the clear is about **8 %** of its
+  frame. The 65 % was safepoint-poll density, exactly as section 3.4 argued --
+  now confirmed by a measurement that has no sampling bias at all.
+* **The disassembly predicted the ratio.** Java's textured inner loop is ~24
+  instructions per pixel with two array bounds checks and constant stack
+  spilling out of C1; ours is SSE2, eight pixels per perspective divide, no
+  bounds checks. A 2.2x per-pixel gap is the expected size of that difference.
+
+### 12.2 What this means for the remaining gap
+
+Our frame is 74.8 % against Java's 50.3 % in the same session. Rasterisation is
+**not** the reason -- we are ahead there by 2.9 ms/frame. The gap is:
+
+| | torirs | Java | gap |
+|---|---|---|---|
+| rasterisation | 6.32 ms | 9.22 ms | **-2.90 ms (we win)** |
+| everything else | 8.64 ms | 0.84 ms | **+7.80 ms** |
+| total | 14.96 ms | 10.06 ms | +4.90 ms |
+
+**Everything that is not rasterisation costs us 8.64 ms against Java's 0.84 ms.**
+That is the whole gap and then some. The EIP profile already names its largest
+single item -- 13.4 % of work samples in `BitBlt` -- and the rest is the
+projection, the face sort, the emit walk, CS2, input, networking and the plugin
+layer that the Java client does not have at all.
+
+The raster work in sections 3 and 9 of this plan is therefore **closed**. Do not
+spend more time on the kernels, the span loops, or overdraw: at 18.5 ns/px
+against 40.9 we are already the faster rasteriser, and even eliminating our
+rasterisation entirely would leave us slower than the Java client overall.
