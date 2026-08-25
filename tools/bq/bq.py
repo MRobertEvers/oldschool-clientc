@@ -64,6 +64,16 @@ def submit(args):
         a['build_cmd'] = args.build_cmd or ''
         a['source'] = args.source or ''
 
+    # The bench camera is [bench:lumbridge-ground], a 300-frame orbit. A run
+    # whose frame count is not a whole number of traversals covers a different
+    # arc of the ring than the run it is compared against -- the near wall on
+    # one and the open square on the next -- so the reps stop being repeats of
+    # one measurement. Refuse it here rather than let the box produce a number
+    # that looks fine.
+    assert args.frames % 300 == 0, (
+        'frames must be a multiple of the 300-frame camera period, got %d'
+        % args.frames)
+
     if args.build_cmd_file:
         with open(args.build_cmd_file, 'r', encoding='utf-8') as f:
             cmds = json.load(f)

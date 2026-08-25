@@ -178,7 +178,20 @@ def _atomic_write(path, text):
         f.write(text)
         f.flush()
         os.fsync(f.fileno())
-    os.replace(tmp, path)
+    # Windows fails os.replace with WinError 5 when ANY other process holds the
+    # destination open -- Python's open() for reading does not pass
+    # FILE_SHARE_DELETE. With a dozen agents polling the lock and the job files
+    # at once that collision is routine, not exceptional, and it killed a
+    # completed 5-arm job (0824-231902-aa108c) by propagating out of the
+    # drainer's heartbeat. Retry for ~2 s, then give up honestly.
+    for attempt in range(40):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if attempt == 39:
+                raise
+            time.sleep(0.05)
 
 
 def write_json(path, obj):
@@ -186,11 +199,19 @@ def write_json(path, obj):
 
 
 def read_json(path):
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except (FileNotFoundError, ValueError):
-        return None
+    # A reader can also lose the race against a writer's replace; a transient
+    # sharing violation is not "the file does not exist".
+    for attempt in range(20):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (FileNotFoundError, ValueError):
+            return None
+        except PermissionError:
+            if attempt == 19:
+                raise
+            time.sleep(0.05)
+    return None
 
 
 def append_runlog(record):

@@ -173,7 +173,14 @@ def poll_job(job, deadline, adopt=False):
                               'after %.0f s -- the detached launch failed'
                               % LAUNCH_SECONDS)
         if OWNER:
-            L.write_lease(OWNER)
+            # A heartbeat that loses the replace race against a concurrent
+            # reader must not kill the job it is heartbeating for. The lease
+            # stays valid for LEASE_SECONDS, so skipping one beat is free;
+            # dying here threw away a finished 5-arm run once already.
+            try:
+                L.write_lease(OWNER)
+            except OSError:
+                pass
         if time.time() - last_progress_change > STALL_SECONDS:
             return None, ('box went quiet: no progress for %.0f s'
                           % STALL_SECONDS)

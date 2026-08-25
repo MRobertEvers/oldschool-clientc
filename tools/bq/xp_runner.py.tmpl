@@ -42,7 +42,35 @@ def sha256(path):
 def bench_env(extra):
     e = dict(os.environ)
     e['TORIRS_WORLD_MAP'] = '50,50;51,50;50,51;51,51'
-    e['TORIRS_WEDGE_CAM'] = '2880,-2000,2368,450,0'
+    # The [bench:lumbridge-ground] scene: the castle circled at 10 tiles from
+    # eye level, one full turn per 300 frames. MOVING, deliberately.
+    #
+    # The still overhead wedge this queue started on ('2880,-2000,2368,450,0')
+    # measures a camera that never moves, and a renderer hunt against it scores
+    # every cross-frame cache at its best possible value -- occlusion verdicts,
+    # face orders and projected vertices are all bit-identical across all 900
+    # frames, so caching them reads as an enormous win that no played frame
+    # would ever see. It also looks 79 degrees down, where a building is its
+    # roof: one flat quad, no walls, and almost no overdraw.
+    #
+    # pitch 200 is 35 degrees, inside the live client's 128..383 clamp, so the
+    # near walls fill the frame and overdraw is a real term again. The orbit
+    # means no single bearing owns the number.
+    #
+    # 300 frames is one whole traversal, so a run's frame count MUST be a
+    # multiple of 300 or each run covers a different arc of the ring and the
+    # reps stop being repeats of one measurement. 900 = 3 cycles.
+    e['TORIRS_WEDGE_CAM'] = '2880,-900,2368,200,0'
+    e['TORIRS_WEDGE_CAM_PATH'] = (
+        'spline,300,loop'
+        ';2880,-900,3648,200,1025'
+        ';3785,-900,3273,200,767'
+        ';4160,-900,2368,200,511'
+        ';3785,-900,1463,200,255'
+        ';2880,-900,1088,200,0'
+        ';1975,-900,1463,200,1793'
+        ';1600,-900,2368,200,1537'
+        ';1975,-900,3273,200,1281')
     e['TORIRS_MAX_FRAMES'] = str(JOB['frames'])
     e['SDL_VIDEODRIVER'] = 'dummy'
     e['TORIDRAW_RASTER_SCANLINE'] = '0'
@@ -116,6 +144,15 @@ def run_one(remote_exe, log_path, extra_env, tag):
         else:
             eip = os.path.basename(env['TORIDRAW_EIP_SAMPLE_FILE'])
 
+    # Kill strays before EVERY run, not just once per job. Killing only at job
+    # start assumes nothing new can appear afterwards, and that assumption
+    # broke: when the host drainer died mid-job its box-side runner stayed
+    # alive detached and kept launching arms, so job 0824-231945-703204 timed
+    # itself against another benchmark for half its duration and recorded runs
+    # of 150-168 ms against a 64 ms baseline. Serialization is the one property
+    # this whole queue exists to guarantee, so re-establish it per run.
+    strays = kill_strays()
+
     f = open(log_path, 'wb')
     t0 = time.time()
     p = subprocess.Popen([os.path.join(ROOT, remote_exe)] + ARGS,
@@ -124,7 +161,7 @@ def run_one(remote_exe, log_path, extra_env, tag):
     rc = p.wait()
     dt = time.time() - t0
     f.close()
-    return rc, dt, t0, eip
+    return rc, dt, t0, eip, strays
 
 
 def main():
@@ -184,14 +221,15 @@ def main():
             arm = by_name[name]
             tag = '%s_%s_r%d_s%d' % (JOB_ID, name, rep, slot)
             log_path = os.path.join(BQDIR, tag + '.log')
-            rc, dt, t0, eip = run_one(arm['remote'], log_path,
-                                      arm.get('env', {}), tag)
+            rc, dt, t0, eip, strays = run_one(arm['remote'], log_path,
+                                              arm.get('env', {}), tag)
             result['runs'].append({
                 'arm': name, 'rep': rep, 'slot': slot, 'rc': rc,
                 'wall_s': dt, 'ms_per_frame': dt * 1000.0 / frames,
                 'start': t0, 'end': t0 + dt,
                 'log': os.path.basename(log_path),
                 'eip': eip,
+                'strays_killed': strays,
             })
             # Progress doubles as the heartbeat the drainer polls.
             write_json(PROGRESS, result)
