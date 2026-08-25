@@ -23,6 +23,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
+import { Session as InspectorSession } from 'node:inspector/promises';
 import { dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { isMainThread, parentPort, Worker, workerData } from 'node:worker_threads';
@@ -52,6 +53,8 @@ const FAST_HOST = process.env.CS2DOM_WASM_FAST_HOST !== '0';
 const PROFILE = process.env.CS2DOM_CORPUS_PROFILE === '1';
 const PROFILE_UNIQUE = process.env.CS2DOM_CORPUS_PROFILE_UNIQUE === '1';
 const PROFILE_KEYS = process.env.CS2DOM_CORPUS_PROFILE_KEYS === '1';
+const ALLOCATION_PROFILE = process.env.CS2DOM_CORPUS_ALLOC_PROFILE === '1';
+const FORCE_GC_BEFORE_DISPATCH = process.env.CS2DOM_CORPUS_FORCE_GC === '1';
 const INTERFACE_TIMEOUT_MS = positiveNumber(
     process.env.CS2DOM_CORPUS_INTERFACE_TIMEOUT_MS, 120_000);
 const PROGRESS_EVERY = positiveInteger(process.env.CS2DOM_CORPUS_PROGRESS_EVERY, 25);
@@ -312,6 +315,7 @@ async function auditInterface(record, compileProject, hostData, wasmUrl, summary
     }
     summary.mountedInterfaces++;
 
+    let allocationProfiler = null;
     try {
         const discovery = discover(current.host);
         mergeDiscovery(summary.discovered, discovery);
@@ -321,11 +325,17 @@ async function auditInterface(record, compileProject, hostData, wasmUrl, summary
         summary.discovered.sampledPointerTargets += pointerTargets.length;
         summary.discovered.sampledWheelTargets += wheelTargets.length;
         summary.discovered.sampledDragTargets += dragTargets.length;
+        /* Keep compilation, immutable preload and the first mount out of the
+         * allocation sample. With CS2DOM_CORPUS_EVENTS=tick this isolates one
+         * exact live redraw, including objects reclaimed by either young or
+         * major GC before the worker exits. */
+        if( ALLOCATION_PROFILE ) allocationProfiler = await startAllocationProfile();
 
         const timed = (session, componentLabel, scenario, event, eventLabel = event.type) => {
             const beforeHooks = session.metrics.hooks;
             const beforeHostRequests = session.metrics.hostRequests;
             const beforeVersion = session.host.version;
+            if( FORCE_GC_BEFORE_DISPATCH ) globalThis.gc?.();
             session.profile?.begin();
             const before = performance.now();
             let result = null;
@@ -532,7 +542,11 @@ async function auditInterface(record, compileProject, hostData, wasmUrl, summary
             timed(session, discovery.globalLabel, 'keyboard', { type: 'tick', cycle: 6 });
             if( session.host.version !== beforeVersion ) invalidated = true;
         }
-    } finally { destroyCurrent(); }
+    } finally {
+        destroyCurrent();
+        if( allocationProfiler ) mergeAllocationProfile(
+            summary, await stopAllocationProfile(allocationProfiler));
+    }
 }
 
 function discover(host) {
@@ -743,9 +757,11 @@ function installDispatchProfile(session) {
             }
         };
     };
-    wrap(session.wasm, 'invokeIntent', (row, ms, [intent]) => {
+    wrap(session.wasm, 'invokeIntent', (row, ms, [intent], result) => {
         row.invokeMs += ms;
         row.invokes.push({ scriptId: intent?.hook?.scriptId, ms });
+        row.fastScalarL1Hits += Number(result?.fastScalarL1Hits) || 0;
+        row.fastScalarL1Misses += Number(result?.fastScalarL1Misses) || 0;
     });
     wrap(session.wasm, 'fastScalarQuery', (row, ms, [, requestKind, a, b, c]) => {
         row.fastScalarMs += ms;
@@ -809,6 +825,8 @@ function installDispatchProfile(session) {
                 fastRecords: 0,
                 fastScalarMs: 0,
                 fastScalarCalls: 0,
+                fastScalarL1Hits: 0,
+                fastScalarL1Misses: 0,
                 fastScalarKinds: {},
                 fastScalarKeys: {},
                 fastQueryMs: 0,
@@ -870,6 +888,56 @@ function errorDetail(error) {
     };
 }
 
+async function startAllocationProfile() {
+    const session = new InspectorSession();
+    session.connect();
+    await session.post('HeapProfiler.startSampling', {
+        samplingInterval: positiveInteger(
+            process.env.CS2DOM_CORPUS_ALLOC_INTERVAL, 1024),
+        includeObjectsCollectedByMajorGC: true,
+        includeObjectsCollectedByMinorGC: true,
+    });
+    return session;
+}
+
+async function stopAllocationProfile(session) {
+    try {
+        const { profile } = await session.post('HeapProfiler.stopSampling');
+        const byHostSite = new Map();
+        const visit = (node, owner = null) => {
+            const frame = node.callFrame || {};
+            if( String(frame.url || '').endsWith('/src/host_runtime.js') ) owner = {
+                function: frame.functionName || '<anonymous>',
+                line: Number(frame.lineNumber) + 1,
+            };
+            if( owner && node.selfSize > 0 ) {
+                const key = `${owner.function}:${owner.line}`;
+                const row = byHostSite.get(key) || { ...owner, bytes: 0 };
+                row.bytes += node.selfSize;
+                byHostSite.set(key, row);
+            }
+            for( const child of node.children || [] ) visit(child, owner);
+        };
+        visit(profile.head);
+        return [...byHostSite.values()]
+            .sort((left, right) => right.bytes - left.bytes)
+            .slice(0, 30);
+    } finally { session.disconnect(); }
+}
+
+function mergeAllocationProfile(summary, rows) {
+    const merged = new Map((summary.allocationProfile || []).map((row) =>
+        [`${row.function}:${row.line}`, { ...row }]));
+    for( const row of rows ) {
+        const key = `${row.function}:${row.line}`;
+        const existing = merged.get(key);
+        if( existing ) existing.bytes += row.bytes;
+        else merged.set(key, { ...row });
+    }
+    summary.allocationProfile = [...merged.values()]
+        .sort((left, right) => right.bytes - left.bytes).slice(0, 30);
+}
+
 function compareIdentity(left, right) {
     return left.interfaceId - right.interfaceId ||
         String(left.component || '').localeCompare(String(right.component || ''));
@@ -908,6 +976,11 @@ function printSummary(summary) {
         ? `actual full-corpus wall time: ${formatMs(summary.elapsedMs)}`
         : `projected full-corpus diagnostic cost: ${formatMs(projectedMs)} ` +
           `(projection only; not a latency certification)`);
+    if( summary.allocationProfile?.length ) {
+        console.log('sampled HostRuntime allocations (including collected objects):');
+        for( const row of summary.allocationProfile.slice(0, 20) ) console.log(
+            `  ${(row.bytes / 1024).toFixed(1)}KiB · ${row.function}:${row.line}`);
+    }
 
     printRows('outliers', summary.outliers, formatRow);
     printRows('dispatch errors', summary.dispatchErrors, (row) =>
@@ -966,7 +1039,9 @@ function formatRow(row) {
         `fast=${row.profile.fastBatchMs.toFixed(2)}ms/${row.profile.fastRecords} ` +
         `cflush=${row.profile.fastFlushMs.toFixed(2)}ms/${row.profile.fastFlushCalls} ` +
         `scalar=${row.profile.fastScalarMs.toFixed(2)}ms/${row.profile.fastScalarCalls}` +
-        `[${scalarKinds}] query=${row.profile.fastQueryMs.toFixed(2)}ms/` +
+        `[${scalarKinds}] l1=${row.profile.fastScalarL1Hits}/` +
+        `${row.profile.fastScalarL1Hits + row.profile.fastScalarL1Misses} ` +
+        `query=${row.profile.fastQueryMs.toFixed(2)}ms/` +
         `${row.profile.fastQueryCalls}[${queryKinds}] ` +
         `layout=${(methods.layout?.ms || 0).toFixed(2)}ms ` +
         `emit=${(methods._emit?.ms || 0).toFixed(2)}ms packed=[${packedMethods}] ` +

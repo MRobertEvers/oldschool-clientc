@@ -386,6 +386,86 @@ test_varc_string_pair(
     free(script.string_operands);
 }
 
+struct UnexpectedHost
+{
+    int calls;
+};
+
+static int
+unexpected_host_exec(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest* request)
+{
+    struct UnexpectedHost* host = (struct UnexpectedHost*)CS2VM_USER(vm);
+    (void)request;
+    host->calls++;
+    return CS2VM_EXECNO_ERROR;
+}
+
+static void
+test_rs2_overlay_entry(
+    int opcode,
+    int int_in,
+    int str_in,
+    int int_out,
+    int str_out,
+    char const* label)
+{
+    struct CS2VM2 vm;
+    struct CS2VM2_Script script;
+    struct CS2VM2_ThreadError error;
+    struct UnexpectedHost host;
+    uint16_t wire_opcode = (uint16_t)opcode;
+    int operand = 0;
+    char* string_operand = NULL;
+    char value[] = "overlay-input";
+
+    memset(&host, 0, sizeof(host));
+    memset(&error, 0, sizeof(error));
+    CS2VM2_ScriptInit(&script);
+    script.script_id = 634000 + opcode;
+    script.rs2_dialect = true;
+    script.op_count = 1;
+    script.opcodes = &wire_opcode;
+    script.int_operands = &operand;
+    script.string_operands = &string_operand;
+
+    CS2VM2_Init(&vm);
+    CS2VM2_BindHost(&vm, &host, unexpected_host_exec);
+    struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(&vm);
+    CHECK_EQ(CS2VM2_ThreadStart(thread, &script), CS2VM_EXECNO_OK, label);
+    for( int i = 0; i < int_in; i++ )
+        thread->ints_stack[thread->ints_stack_top++] = 100 + i;
+    for( int i = 0; i < str_in; i++ )
+        thread->strs_stack[thread->strs_stack_top++] = value;
+
+    CHECK_EQ(
+        (int)CS2VM2_ThreadRun(thread, &error),
+        (int)CS2VM2_THREAD_DONE,
+        "RS2 overlay stub completes");
+    CHECK_EQ(host.calls, 0, "RS2 overlay collision never reaches canonical host handler");
+    CHECK_EQ(thread->ints_stack_top, int_out, "RS2 overlay int stack signature");
+    CHECK_EQ(thread->strs_stack_top, str_out, "RS2 overlay string stack signature");
+    CS2VM2_Free(&vm);
+}
+
+static void
+test_rs2_overlay_binary_lookup(void)
+{
+    printf("TEST: sorted RS2 overlay lookup keeps collision signatures exact\n");
+
+    /* First, middle and last entries make both binary-search bounds observable;
+     * 1122/1311/2122/2314 are canonical widget handlers and therefore also
+     * prove an overlay hit diverts instead of dispatching the wrong command. */
+    test_rs2_overlay_entry(202, 1, 0, 0, 0, "overlay first entry 202");
+    test_rs2_overlay_entry(1122, 1, 0, 0, 0, "overlay collision 1122");
+    test_rs2_overlay_entry(1311, 1, 0, 0, 0, "overlay collision 1311");
+    test_rs2_overlay_entry(2122, 2, 0, 0, 0, "overlay collision 2122");
+    test_rs2_overlay_entry(2314, 2, 0, 0, 0, "overlay collision 2314");
+    test_rs2_overlay_entry(6506, 1, 0, 4, 3, "overlay mixed output 6506");
+    test_rs2_overlay_entry(6900, 0, 0, 1, 0, "overlay last entry 6900");
+}
+
 int
 main(void)
 {
@@ -406,6 +486,7 @@ main(void)
         CS2VM_HOST_REQUEST_POP_VARC_STRING,
         CS2VM_HOST_REQUEST_PUSH_VARC_STRING,
         "PUSH/POP_VARC_STRING (49/50)");
+    test_rs2_overlay_binary_lookup();
 
     if( g_fail )
     {

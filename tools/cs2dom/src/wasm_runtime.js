@@ -53,7 +53,7 @@ const FAST_QUERY_SCALAR_MAX = 6;
 const FAST_QUERY_MISSING = -2;
 const FAST_HOOK_STRING_LENGTH = 256;
 const FAST_SCALAR_PRELOAD_WORDS = 9;
-/* One rev-239 HostData image contains roughly 400k immutable enum/struct/DB
+/* One rev-239 HostData image contains just under 500k immutable enum/struct/DB
  * scalar answers. Keep the wire snapshot bounded while leaving enough room
  * for that real cache rather than silently falling back during first input. */
 const FAST_SCALAR_PRELOAD_MAX = 524288;
@@ -62,6 +62,7 @@ const FAST_SCALAR_ENUM_STRING = 3400;
 const FAST_SCALAR_ENUM = 3408;
 const FAST_SCALAR_ENUM_COUNT = 3411;
 const FAST_SCALAR_DB_GETFIELD = 7502;
+const FAST_SCALAR_DB_GETROWTABLE = 7505;
 const CS2_TYPE_STRING = 115;
 const UTF8_ENCODER = new TextEncoder();
 const UTF8_DECODER = new TextDecoder();
@@ -94,6 +95,9 @@ const DB_REQUESTS = new Set([
 ]);
 const DB_FIND_REQUESTS = new Set([
     'DB_FIND_WITH_COUNT', 'DB_FIND_FILTER_WITH_COUNT', 'DB_FIND', 'DB_FIND_FILTER',
+]);
+const DB_ITERATOR_WRITES = new Set([
+    ...DB_FIND_REQUESTS, 'DB_FINDNEXT', 'DB_FINDALL', 'DB_FINDALL_WITH_COUNT',
 ]);
 /* cachepack's legacy command type ids overstate these result arities. The
  * current C opcode stack/native handlers push one integer for each; trusting
@@ -224,10 +228,19 @@ class WasmSession {
                 status: 'done',
                 scriptId: intent.hook.scriptId,
                 hostRequests: this.api._cs2w_invocation_host_call_count(invocation) | 0,
+                fastScalarL1Hits:
+                    typeof this.api._cs2w_invocation_fast_scalar_l1_hits === 'function'
+                        ? this.api._cs2w_invocation_fast_scalar_l1_hits(invocation) | 0 : 0,
+                fastScalarL1Misses:
+                    typeof this.api._cs2w_invocation_fast_scalar_l1_misses === 'function'
+                        ? this.api._cs2w_invocation_fast_scalar_l1_misses(invocation) | 0 : 0,
             };
         } finally {
-            this.hostErrors.delete(invocation);
-            this.api._cs2w_invocation_destroy(invocation);
+            try { this.commitFastDbIterator(invocation); }
+            finally {
+                this.hostErrors.delete(invocation);
+                this.api._cs2w_invocation_destroy(invocation);
+            }
         }
     }
 
@@ -281,6 +294,7 @@ class WasmSession {
 
     hostExec(invocation, thread, requestPointer, kind) {
         try {
+            this.commitFastDbIterator(invocation);
             const request = reflectRequest(
                 this.api, requestPointer, kind, thread, this.bundle.requestSchemas);
             normalizeSetOn(request);
@@ -288,12 +302,49 @@ class WasmSession {
             const result = this.host.request(request);
             if( result && typeof result.then === 'function' )
                 throw new WasmCS2RuntimeError('HostRuntime returned a Promise', 'ASYNC_HOST');
+            if( DB_ITERATOR_WRITES.has(request.kind) )
+                this.replaceFastDbIterator(invocation);
             writeHostResult(this.api, thread, kind, request, result, this.host);
             return ABI.hostOk;
         } catch( error ) {
             this.hostErrors.set(invocation, error);
             return ABI.hostError;
         }
+    }
+
+    replaceFastDbIterator(invocation) {
+        const set = this.api._cs2w_invocation_set_fast_db_iterator;
+        const clear = this.api._cs2w_invocation_clear_fast_db_iterator;
+        if( !this.fastHost || typeof set !== 'function' ||
+            typeof this.host.fastHostDbIteratorSnapshot !== 'function' ) return false;
+        const snapshot = this.host.fastHostDbIteratorSnapshot();
+        if( snapshot === null ) {
+            if( typeof clear === 'function' ) clear(invocation);
+            return false;
+        }
+        const rows = snapshot?.rows;
+        const cursor = Number(snapshot?.cursor);
+        const revision = Number(snapshot?.revision);
+        if( !(rows instanceof Int32Array) || rows.length > 65536 ||
+            !Number.isInteger(cursor) || cursor < 0 || cursor > rows.length ||
+            !Number.isInteger(revision) ) throw new WasmCS2RuntimeError(
+            'malformed fast DB iterator snapshot', 'FAST_HOST');
+        const loaded = withInt32Array(this.api, rows, (pointer) => set(
+            invocation, pointer, rows.length, cursor, revision)) | 0;
+        if( !loaded && typeof clear === 'function' ) clear(invocation);
+        return Boolean(loaded);
+    }
+
+    commitFastDbIterator(invocation) {
+        const dirty = this.api._cs2w_invocation_fast_db_iterator_dirty;
+        if( !this.fastHost || typeof dirty !== 'function' || !dirty(invocation) ||
+            typeof this.host.fastHostDbIteratorCommit !== 'function' ) return false;
+        const cursor = this.api._cs2w_invocation_fast_db_iterator_cursor(invocation) | 0;
+        const revision = this.api._cs2w_invocation_fast_db_iterator_revision(invocation) | 0;
+        const committed = this.host.fastHostDbIteratorCommit(revision, cursor) === true;
+        if( committed ) this.api._cs2w_invocation_mark_fast_db_iterator_clean(invocation);
+        else this.api._cs2w_invocation_clear_fast_db_iterator(invocation);
+        return committed;
     }
 
     fastQuery(invocation, queryKind, key, outputPointer, capacity) {
@@ -305,6 +356,20 @@ class WasmSession {
                         ? 1 : 0;
             if( !width || !Number.isInteger(capacity) || capacity < 0 || capacity > 65536 )
                 throw new WasmCS2RuntimeError('invalid fast HOST snapshot query', 'FAST_HOST');
+            if( width === 1 && typeof this.host.fastHostValue === 'function' ) {
+                const value = this.host.fastHostValue(queryKind, key);
+                if( value && typeof value.then === 'function' )
+                    throw new WasmCS2RuntimeError('HostRuntime returned a Promise', 'ASYNC_HOST');
+                if( capacity > 0 ) {
+                    const views = currentHeapViews(this.api);
+                    const address = Number(outputPointer) >>> 0;
+                    heapBounds(views, address, 4, 'fast HOST scalar value');
+                    if( address % 4 !== 0 ) throw new WasmCS2RuntimeError(
+                        'unaligned fast HOST scalar output', 'FAST_HOST');
+                    views.data.setInt32(address, Number(value) | 0, true);
+                }
+                return 1;
+            }
             const rows = queryKind === FAST_QUERY_INVENTORY
                 ? this.host.fastHostInventorySnapshot(key)
                 : queryKind === FAST_QUERY_CHILDREN
@@ -1321,6 +1386,7 @@ function fastScalarPreload(host) {
             const tableId = cacheInt(row?.tableId);
             if( rowId === null || rowId < 0 || tableId === null || tableId < 0 ||
                 tableId > 0xfffff || !row || typeof row !== 'object' ) continue;
+            add(FAST_SCALAR_DB_GETROWTABLE, rowId, 0, 0, tableId);
             const rowColumns = row.columns && typeof row.columns === 'object'
                 ? row.columns : {};
             const tableColumns = tables[tableId]?.columns;
