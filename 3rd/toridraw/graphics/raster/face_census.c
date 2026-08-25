@@ -29,6 +29,7 @@ ToriDraw_FaceCensusDump(void)
     double tex_area = 0.0;
     double all_faces = 0.0;
     double all_area = 0.0;
+    double all_area_raw = 0.0;
     int i;
 
     if( !f )
@@ -38,6 +39,7 @@ ToriDraw_FaceCensusDump(void)
     {
         all_faces += g_toridraw_face_census.faces[i];
         all_area += g_toridraw_face_census.area[i];
+        all_area_raw += g_toridraw_face_census.area_raw[i];
         if( i <= TORIDRAW_FACE_CENSUS_TEX_FLAT_AFFINE )
         {
             tex_faces += g_toridraw_face_census.faces[i];
@@ -85,6 +87,13 @@ ToriDraw_FaceCensusDump(void)
             all_faces, tex_faces);
     fprintf(f, "area total           %.0f px  (textured %.0f px)\n",
             all_area, tex_area);
+    /* Clipped is the one that means "pixels the rasteriser stored". The raw
+     * total sits beside it so the gap -- area projected off the edge of the
+     * viewport -- is visible rather than inferred; reporting only raw is what
+     * produced a bogus 8.46x overdraw figure. */
+    fprintf(f, "area CLIPPED         %.0f px   RAW %.0f px   raw/clipped %.2fx\n",
+            all_area, all_area_raw,
+            all_area > 0.0 ? all_area_raw / all_area : 0.0);
     fprintf(f, "asm-covered share    %.2f%% of textured area, %.2f%% of all area\n",
             tex_area > 0.0
                 ? 100.0 * g_toridraw_face_census.area[

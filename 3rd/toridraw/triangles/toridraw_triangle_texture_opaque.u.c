@@ -60,7 +60,7 @@ ToriDraw_TriangleTextureBlendOpaqueImpl(
         screen_x0, screen_y0,
         screen_x1, screen_y1,
         screen_x2, screen_y2,
-        screen_width * screen_height);
+        screen_width, screen_height);
 
     (void)near_plane_z;
     (void)offset_x;
@@ -161,7 +161,7 @@ ToriDraw_TriangleTextureFlatOpaqueImpl(
         screen_x0, screen_y0,
         screen_x1, screen_y1,
         screen_x2, screen_y2,
-        screen_width * screen_height);
+        screen_width, screen_height);
 
     (void)near_plane_z;
     (void)offset_x;

@@ -400,3 +400,79 @@ Withdrawn from section 9: "attack span setup", "make triangles bigger", and the
 claim that the 4-px block loop is dead code. At 168 px per gouraud face the
 block loop runs plenty; the span-length distribution that suggested otherwise
 was measured on the one unrepresentative kernel the span census covers.
+
+---
+
+## 11. The discrepancy, found: two censuses were measuring different things
+
+Sections 9 and 10 disagreed by a factor of ten in opposite directions. Both were
+wrong, and for the same reason: **the two clients' censuses did not measure the
+same quantity.**
+
+* Ours recorded the **unclipped** geometric area of the projected triangle,
+  capped at the whole 765x503 framebuffer. A terrain face seen at a grazing
+  angle projects far outside the viewport and counted its entire area.
+* Java's recorded span width **before** the function's own `hclip` clamp, so a
+  span running off the left or right edge counted its full width.
+
+Both are now corrected and measure the same thing -- pixels the rasteriser
+actually stores. Ours clips the triangle to the viewport exactly
+(Sutherland-Hodgman, then shoelace); Java's applies the same clamp `hclip`
+applies, computed at the top so no control flow moves. Both report the raw
+figure alongside, so the two can never silently drift apart again.
+
+| per frame | torirs | Java | ratio |
+|---|---|---|---|
+| triangles | 6,924 | 5,100 | 1.36x |
+| **pixels stored** | **341,692** | **225,500** | **1.52x** |
+| overdraw vs 512x334 | 2.00x | 1.32x | 1.52x |
+| **raw / clipped** | **4.21x** | **1.78x** | **2.4x** |
+| ns per pixel | ~20.2 | ~22 | ~0.9x |
+
+### 11.1 What is actually true
+
+* **Our per-pixel rasterisation is roughly at parity with Java's**, ~20 ns/px
+  against ~22. Not 2x better (section 10), not 4x worse (section 9).
+* **We draw 1.52x more pixels and 1.36x more triangles.** Real, and worth about
+  1.9 ms of the frame -- but modest.
+* **We waste far more work on off-screen area.** Our projected triangles carry
+  4.21x more area than lands in the viewport; Java's carry 1.78x. So roughly
+  **76 % of our projected triangle area is off-screen** and gets clipped away
+  span by span, against 44 % of theirs. Every one of those spans still pays its
+  setup before being clipped to nothing.
+
+### 11.2 Where the 2x total actually comes from
+
+Frame CPU, ours 13.3 ms against Java's 7.1 ms:
+
+| | torirs | Java (est.) | gap |
+|---|---|---|---|
+| rasterisation | 6.9 ms | ~5.0 ms | +1.9 ms |
+| everything not 3D | 6.4 ms | ~2.1 ms | **+4.3 ms** |
+
+**The non-3D half is the bigger half.** The 32.1-point measurement from
+experiment 1 was right and is where the gap mostly lives -- and the EIP profile
+already names its largest single item: 13.4 % of work samples in `BitBlt`.
+
+### 11.3 Revised targets
+
+1. **The non-3D 32.1 points** -- 4.3 ms of the 6.2 ms gap. Present/`BitBlt`
+   first (13.4 % of samples, and a damaged-rect present is a known change),
+   then the cs2 / input / networking ablations that were never run.
+2. **Off-screen overhang.** 4.21x raw-to-clipped against Java's 1.78x. Reject or
+   clip triangles at the triangle level rather than per span.
+3. **1.36x the triangles, 1.52x the pixels.** Worth ~1.9 ms; genuine but the
+   smallest of the three.
+
+Withdrawn: "overdraw is the whole raster gap" (section 10.2) -- our overdraw is
+2.00x against Java's 1.32x, a 1.5x difference, not 3.6x. And per-pixel kernel
+work is at parity, so neither "our kernel is twice as fast" nor "we are 4x
+slower per pixel" survives.
+
+### 11.4 The lesson worth keeping
+
+Three successive conclusions -- 0.34x, 3.60x, 1.52x -- came from one unexamined
+assumption: that two counters called "pixels" on either side of a comparison
+were counting the same thing. Neither was wrong in isolation; they were
+incomparable. **A cross-client number needs the definition checked on both
+sides before the ratio is taken, not after it looks surprising.**

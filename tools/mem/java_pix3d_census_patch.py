@@ -23,6 +23,7 @@ FIELDS = '''
 	public static long censusTris = 0;
 	public static long censusSpans = 0;
 	public static long censusPixels = 0;
+	public static long censusPixelsRaw = 0;
 	public static long censusT0 = 0;
 	public static long censusLast = 0;
 
@@ -34,9 +35,10 @@ FIELDS = '''
 		System.out.println("[census] tris/s=" + (long)(censusTris / secs)
 			+ " spans/s=" + (long)(censusSpans / secs)
 			+ " px/s=" + (long)(censusPixels / secs)
+			+ " rawpx/s=" + (long)(censusPixelsRaw / secs)
 			+ " avg_span_px=" + (censusSpans > 0 ? (censusPixels / censusSpans) : 0));
 		System.out.flush();
-		censusTris = 0; censusSpans = 0; censusPixels = 0; censusLast = now;
+		censusTris = 0; censusSpans = 0; censusPixels = 0; censusPixelsRaw = 0; censusLast = now;
 	}
 '''
 
@@ -59,13 +61,19 @@ for name in ("gouraudTriangle", "flatTriangle", "textureTriangle"):
 
 # Span entry points: count the span and its length before any clipping.
 add_after_sig(r"public static void gouraudRaster\([^)]*\)\s*\{",
-              "censusSpans++; if (arg3 > arg2) { censusPixels += (arg3 - arg2); }",
+              "censusSpans++; { int cl = hclip ? Math.max(arg2,0) : arg2;"
+              " int cr = hclip ? Math.min(arg3,Pix2D.sizeX) : arg3;"
+              " if (cr > cl) { censusPixels += (cr - cl); } if (arg3 > arg2) { censusPixelsRaw += (arg3 - arg2); } }",
               "gouraudRaster")
 add_after_sig(r"public static void flatRaster\([^)]*\)\s*\{",
-              "censusSpans++; if (arg4 > arg3) { censusPixels += (arg4 - arg3); }",
+              "censusSpans++; { int cl = hclip ? Math.max(arg3,0) : arg3;"
+              " int cr = hclip ? Math.min(arg4,Pix2D.sizeX) : arg4;"
+              " if (cr > cl) { censusPixels += (cr - cl); } if (arg4 > arg3) { censusPixelsRaw += (arg4 - arg3); } }",
               "flatRaster")
 add_after_sig(r"public static void textureRaster\([^)]*\)\s*\{",
-              "censusSpans++; if (arg6 > arg5) { censusPixels += (arg6 - arg5); }",
+              "censusSpans++; { int cl = hclip ? Math.max(arg5,0) : arg5;"
+              " int cr = hclip ? Math.min(arg6,Pix2D.sizeX) : arg6;"
+              " if (cr > cl) { censusPixels += (cr - cl); } if (arg6 > arg5) { censusPixelsRaw += (arg6 - arg5); } }",
               "textureRaster")
 
 open(SRC, "w", encoding="utf-8").write(text)
