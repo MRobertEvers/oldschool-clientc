@@ -635,3 +635,57 @@ Optimising the rasteriser further would be tuning the one part that is 2.3x
 ahead. The remaining work is **everything that is not rasterisation**: 8.75 ms
 against 0.97 ms, whose largest named item is the per-frame full-DIB `BitBlt`
 (13.4 % of EIP work samples).
+
+---
+
+## 14. "The rest of it", profiled: it is not the UITree
+
+Profiled with `TORIRS_ABL_NORASTER=1`, so model rasterisation is deleted and the
+sampler sees only the remaining **8.75 ms/frame**. EIP sampler at ~510 Hz,
+18,389 samples over 36.1 s, **50.0 fps confirmed in the arm**, pacing sleep
+excluded. 8,288 work samples.
+
+| group | share of non-raster | ms/frame |
+|---|---|---|
+| **chrome sprite + glyph blit** | **19.0 %** | **1.66** |
+| **face sort** (`ToriDraw_ComputeProjectedFaceOrderSmall`) | **14.8 %** | **1.30** |
+| **present** (`BitBlt` under `gdi_paint_latest`) | **13.4 %** | **1.17** |
+| projection (`Project`, `CalculateCylinderAabb8point`, `AnimApplyTransform`) | 6.6 % | 0.58 |
+| `painter_paint_bucket` | 5.2 % | 0.46 |
+| UI hit test (`hit_test_interactive_recursive` + its msvcrt) | 4.5 % | 0.39 |
+| **UITree emit** (`EmitWalk`, `emit_walk_node`, `app_ui_host_publish_inputs`) | **3.7 %** | **0.32** |
+| `ToriRS_FrameNextCommand` | 3.1 % | 0.27 |
+
+**The UITree is not where the time goes.** Emit is 3.7 % of the non-raster work,
+about **0.32 ms/frame**. PR #49's retain gate already did its job; there is
+nothing left to win there.
+
+### 14.1 Reading the unresolved addresses
+
+Three DLL addresses carry real weight and had to be attributed by their callers
+rather than guessed:
+
+| address | samples | called from |
+|---|---|---|
+| `[0x7c90e514]` (ntdll) | 11,163 | **10,039 from `frame_loop_step`** — the pacing sleep, i.e. idle — and only 1,054 from `gdi_paint_latest`, which is the real `BitBlt` |
+| `[0x77c46fa3]` (msvcrt) | 571 | **511 from `ToriDraw2D_BlitArgbAlpha`** — the per-sprite `memcpy` |
+| `[0x77c36cc1..cca]` (msvcrt) | 371 | **~315 from `hit_test_interactive_recursive`** |
+
+The first of those is why the idle filter matters: 90 % of the ntdll samples are
+the frame cap doing its job, and counting them as present cost would have
+inflated presentation about tenfold.
+
+### 14.2 The three worth acting on
+
+1. **Chrome sprite blitting, 1.66 ms/frame.** `soft3d_draw_sprite` does a
+   `malloc` + `memcpy` of the sprite's pixels **per draw** before it reaches the
+   clipped blit — that `memcpy` alone is 6.2 % of non-raster work, more than the
+   entire UITree emit. An opaque/unmodified fast path that blits straight from
+   the atlas would remove most of it, and the chrome ablation already bounds the
+   whole class at 4.3 points.
+2. **The face sort, 1.30 ms/frame**, in one function, over 6,924 faces.
+3. **Present, 1.17 ms/frame**, blitting all 384,795 px of the DIB when Java
+   blits 197,840 from per-region surfaces. `App::ui_retained_frame` is already
+   wired for the damage signal.
+
+Together 4.13 ms of the 8.75, against Java's whole non-raster budget of 0.97 ms.
