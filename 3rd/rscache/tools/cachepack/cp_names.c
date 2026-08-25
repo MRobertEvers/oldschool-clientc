@@ -3,6 +3,9 @@
 #include "cp_assets.h"
 #include "cp_register.h"
 
+#include "archive.h"
+#include "cs2/cs2_names.h"
+#include "cs2/cs2_types.h"
 #include "dat2disk.h"
 #include "filelist.h"
 #include "reference_table.h"
@@ -1066,6 +1069,176 @@ seed_interface_names(
     return 1;
 }
 
+static int
+archive_name_hashes_to(
+    const char* name,
+    int identifier)
+{
+    if( !name || !name[0] )
+        return 0;
+    return RSCache_ArchiveNameHashDat2((char*)name) == identifier;
+}
+
+/**
+ * `hashname("N")` when a script's cache name is the type/global integer the
+ * client hashes (world-map `"3338"`, tile `"-464"`).
+ */
+static int
+script_integer_hashname(
+    const char* cache_name,
+    int identifier,
+    char* out,
+    size_t out_size)
+{
+    struct RSCache_CS2_Arena arena;
+    struct RSCache_CS2_ScriptName parsed;
+    char* end = NULL;
+    long n;
+
+    if( !cache_name || cache_name[0] == '[' )
+        return 0;
+    n = strtol(cache_name, &end, 10);
+    if( !end || end == cache_name || *end != '\0' )
+        return 0;
+    if( n < (long)(-2147483647 - 1) || n > 2147483647L )
+        return 0;
+
+    RSCache_CS2_ArenaInit(&arena);
+    memset(&parsed, 0, sizeof(parsed));
+    if( !RSCache_CS2_ScriptNameParse(cache_name, &arena, &parsed) )
+    {
+        RSCache_CS2_ArenaFree(&arena);
+        return 0;
+    }
+    RSCache_CS2_ArenaFree(&arena);
+
+    snprintf(out, out_size, "%d", (int)n);
+    return archive_name_hashes_to(out, identifier);
+}
+
+/**
+ * Write `hashname` / `hashcode` on each asset pack line whose cache identifier
+ * is not djb2 of the pack filename. A tree-only pack then still has the column
+ * the client looks up by name.
+ */
+static void
+seed_asset_hash_fields(struct CP_Ctx* ctx)
+{
+    struct RSCache_CS2_Names script_names;
+    int scripts_named = 0;
+    const char* names_dir;
+
+    memset(&script_names, 0, sizeof(script_names));
+    names_dir = getenv("CACHEPACK_CS2_NAMES");
+    if( names_dir )
+    {
+        RSCache_CS2_NamesInit(&script_names);
+        if( RSCache_CS2_NamesLoadDirectory(&script_names, names_dir) >= 0 )
+            scripts_named = 1;
+        else
+            RSCache_CS2_NamesFree(&script_names);
+    }
+
+    for( int a = 0; a < CP_ASSET_COUNT; a++ )
+    {
+        const struct CP_Asset* asset = cp_asset(a);
+        int table_id = RSCache_Dat2DiskTableId(ctx->cache.disk, asset->table);
+        struct RSCache_ReferenceTable* rt;
+        struct LC_Pack* pack;
+
+        if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+            continue;
+        rt = ctx->cache.disk->tables[table_id];
+        if( !rt || (rt->flags & RSCACHE_REFTABLE_FLAG_IDENTIFIERS) == 0 )
+            continue;
+        pack = &ctx->names.asset_packs[a];
+
+        for( int i = 0; i < rt->id_count; i++ )
+        {
+            int id = rt->ids[i];
+            int identifier;
+            const char* pack_name;
+            const char* recovered = NULL;
+            char integer_name[16];
+
+            if( id < 0 )
+                continue;
+            identifier = RSCache_ReferenceTableIdentifier(rt, id);
+            pack_name = (id < pack->capacity && pack->names) ? pack->names[id] : NULL;
+            if( !pack_name )
+                continue;
+
+            if( identifier == 0 || archive_name_hashes_to(pack_name, identifier) )
+            {
+                lc_pack_clear_hash(pack, id);
+                continue;
+            }
+
+            /* A field already on the line that hashes to the cache identifier
+             * is the answer — do not replace a recovered `hashname("2x…,0")`
+             * with `hashcode`. */
+            {
+                const char* have_name = lc_pack_hashname(pack, id);
+                int have_code = 0;
+                if( have_name && archive_name_hashes_to(have_name, identifier) )
+                    continue;
+                if( lc_pack_hashcode(pack, id, &have_code) && have_code == identifier )
+                    continue;
+            }
+
+            {
+                char spaced[256];
+                size_t n = 0;
+                for( ; pack_name[n] && n + 1 < sizeof(spaced); n++ )
+                    spaced[n] = (char)(pack_name[n] == '_' ? ' ' : pack_name[n]);
+                spaced[n] = '\0';
+                if( strchr(spaced, ' ') && archive_name_hashes_to(spaced, identifier) )
+                {
+                    lc_pack_set_hashname(pack, id, spaced);
+                    continue;
+                }
+            }
+
+            if( a == CP_ASSET_SCRIPT )
+            {
+                char cand[300];
+                snprintf(cand, sizeof(cand), "[clientscript,%s]", pack_name);
+                if( archive_name_hashes_to(cand, identifier) )
+                {
+                    lc_pack_set_hashname(pack, id, cand);
+                    continue;
+                }
+                snprintf(cand, sizeof(cand), "[proc,%s]", pack_name);
+                if( archive_name_hashes_to(cand, identifier) )
+                {
+                    lc_pack_set_hashname(pack, id, cand);
+                    continue;
+                }
+            }
+
+            if( a == CP_ASSET_SCRIPT && scripts_named )
+                recovered = RSCache_CS2_NamesScript(&script_names, id);
+
+            if( a == CP_ASSET_SCRIPT && recovered &&
+                script_integer_hashname(recovered, identifier, integer_name, sizeof(integer_name)) )
+            {
+                lc_pack_set_hashname(pack, id, integer_name);
+                continue;
+            }
+            if( recovered && archive_name_hashes_to(recovered, identifier) )
+            {
+                lc_pack_set_hashname(pack, id, recovered);
+                continue;
+            }
+
+            lc_pack_set_hashcode(pack, id, identifier);
+        }
+    }
+
+    if( scripts_named )
+        RSCache_CS2_NamesFree(&script_names);
+}
+
 void
 cp_names_seed_from_cache(struct CP_Ctx* ctx)
 {
@@ -1205,6 +1378,8 @@ cp_names_seed_from_cache(struct CP_Ctx* ctx)
         if( filled )
             printf("  %-11s %6d unnamed %s ids indexed\n", "index", filled, asset->pack);
     }
+
+    seed_asset_hash_fields(ctx);
 }
 
 /*

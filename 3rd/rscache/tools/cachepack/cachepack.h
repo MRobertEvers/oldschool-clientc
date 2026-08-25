@@ -742,6 +742,25 @@ cp_reference_set_name(
     const char* name,
     int* out_dirty);
 
+/** Write a raw identifier, when the pack line carried `hashcode(N)`. */
+int
+cp_reference_set_identifier(
+    struct CP_Ctx* ctx,
+    int table_id,
+    int archive_id,
+    int identifier,
+    int* out_dirty);
+
+/**
+ * Identifier a pack line wants written: `hashcode`, else djb2(`hashname`),
+ * else djb2(`fallback_name`). `fallback_name` is the pack filename.
+ */
+int
+cp_pack_archive_identifier(
+    const struct LC_Pack* pack,
+    int id,
+    const char* fallback_name);
+
 
 /**
  * Point one reference-table entry at bytes now stored, and write the table back.

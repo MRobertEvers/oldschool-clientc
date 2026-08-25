@@ -1473,6 +1473,7 @@ put_archive(
     const char* out_cache_dir,
     int table_id,
     int archive_id,
+    const struct LC_Pack* pack,
     /* The archive's pack name, so the reference table can carry the identifier
      * the client resolves by. NULL where the caller has no name for it. */
     const char* name,
@@ -1502,9 +1503,13 @@ put_archive(
     if( rc == 0 )
         cp_reference_sync(ctx, table_id, archive_id, container, (int)container_size, file_ids,
                           file_count, out_dirty);
-    /* The archive's name is only known here, and without it the entry the sync
-     * just made is unreachable by name (see cp_reference_set_name). */
-    cp_reference_set_name(ctx, table_id, archive_id, name, out_dirty);
+    /* The identifier is only known here. A pack line may carry hashname/hashcode
+     * when the filename is not what the client hashes (world-map scripts). */
+    if( name && name[0] )
+    {
+        int identifier = cp_pack_archive_identifier(pack, archive_id, name);
+        cp_reference_set_identifier(ctx, table_id, archive_id, identifier, out_dirty);
+    }
     free(container);
     return rc == 0;
 }
@@ -1789,7 +1794,7 @@ import_one(
              * ran as a full pack. */
             written++;
         }
-        else if( put_archive(ctx, out_cache_dir, table_id, archive_id, name, payload,
+        else if( put_archive(ctx, out_cache_dir, table_id, archive_id, pack, name, payload,
                              payload_size, file_ids, file_count, key, &dirty) )
         {
             written++;

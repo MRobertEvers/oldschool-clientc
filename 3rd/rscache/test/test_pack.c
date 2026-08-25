@@ -348,6 +348,127 @@ test_spacing_normalises(void)
     lc_pack_free(&pack);
 }
 
+static void
+test_hashname_and_hashcode_round_trip(void)
+{
+    char path[512];
+    int code = 0;
+
+    RSCACHE_TEST_GROUP("hash fields");
+    tmp_path(path, sizeof(path), "hash.pack");
+    RSCACHE_CHECK(write_file(path,
+                             "12=bankmain\n"
+                             "1703=world_map_element_13_option_1_1703 hashname(\"3338\")  // client\n"
+                             "5197=torirs_highlight_tile_on5 hashname(\"-464\")\n"
+                             "3338=adventurepath_side_hint_mouseleave hashcode(-123456789)\n"
+                             "42=hexed hashcode(0x2a)\n"));
+
+    struct LC_Pack pack;
+    RSCACHE_CHECK(lc_pack_load(&pack, path, "script", 0));
+    RSCACHE_CHECK_EQ(pack.malformed, 0);
+    RSCACHE_CHECK(lc_pack_hashname(&pack, 12) == NULL);
+    RSCACHE_CHECK(!lc_pack_hashcode(&pack, 12, &code));
+    RSCACHE_CHECK_STR_EQ(lc_pack_hashname(&pack, 1703), "3338");
+    RSCACHE_CHECK_STR_EQ(lc_pack_note(&pack, 1703), "client");
+    RSCACHE_CHECK_STR_EQ(lc_pack_hashname(&pack, 5197), "-464");
+    RSCACHE_CHECK(lc_pack_hashcode(&pack, 3338, &code));
+    RSCACHE_CHECK_EQ(code, -123456789);
+    RSCACHE_CHECK(lc_pack_hashcode(&pack, 42, &code));
+    RSCACHE_CHECK_EQ(code, 42);
+
+    RSCACHE_CHECK(lc_pack_save(&pack, path));
+    char* text = read_file(path);
+    RSCACHE_CHECK(text != NULL);
+    if( text )
+    {
+        RSCACHE_CHECK_STR_EQ(text,
+                             "12=bankmain\n"
+                             "42=hexed hashcode(42)\n"
+                             "1703=world_map_element_13_option_1_1703 hashname(\"3338\")  // client\n"
+                             "3338=adventurepath_side_hint_mouseleave hashcode(-123456789)\n"
+                             "5197=torirs_highlight_tile_on5 hashname(\"-464\")\n");
+    }
+    free(text);
+    lc_pack_free(&pack);
+}
+
+static void
+test_hash_both_on_one_line_is_malformed(void)
+{
+    char path[512];
+
+    RSCACHE_TEST_GROUP("hash both");
+    tmp_path(path, sizeof(path), "hash_both.pack");
+    RSCACHE_CHECK(write_file(path,
+                             "1=ok hashname(\"a\")\n"
+                             "2=bad hashname(\"a\") hashcode(1)\n"
+                             "3=also hashcode(1) leftover\n"));
+
+    struct LC_Pack pack;
+    RSCACHE_CHECK(lc_pack_load(&pack, path, "script", 0));
+    RSCACHE_CHECK_EQ(pack.malformed, 2);
+    RSCACHE_CHECK_STR_EQ(pack.names[1], "ok");
+    RSCACHE_CHECK(pack.names[2] == NULL);
+    RSCACHE_CHECK(pack.names[3] == NULL);
+    lc_pack_free(&pack);
+}
+
+static void
+test_hash_survives_merge_and_rename(void)
+{
+    char path[512];
+
+    RSCACHE_TEST_GROUP("hash merge");
+    tmp_path(path, sizeof(path), "hash_merge.pack");
+    RSCACHE_CHECK(write_file(path,
+                             "3=goblin hashname(\"3338\")\n"
+                             "7=guard hashcode(42)\n"));
+
+    struct LC_Pack pack;
+    memset(&pack, 0, sizeof(pack));
+    snprintf(pack.type, sizeof(pack.type), "%s", "npc");
+    RSCACHE_CHECK(lc_pack_set(&pack, 3, "renamed"));
+    RSCACHE_CHECK(lc_pack_save(&pack, path));
+
+    char* text = read_file(path);
+    RSCACHE_CHECK(text != NULL);
+    if( text )
+    {
+        /* Rename keeps the hash, the same way it keeps a trailing comment. */
+        RSCACHE_CHECK(strstr(text, "3=renamed hashname(\"3338\")\n") != NULL);
+        RSCACHE_CHECK(strstr(text, "7=guard hashcode(42)\n") != NULL);
+    }
+    free(text);
+    lc_pack_free(&pack);
+}
+
+static void
+test_sparse_keeps_hashed_filler(void)
+{
+    char path[512];
+
+    RSCACHE_TEST_GROUP("hash sparse");
+    tmp_path(path, sizeof(path), "hash_sparse.pack");
+
+    struct LC_Pack pack;
+    memset(&pack, 0, sizeof(pack));
+    snprintf(pack.type, sizeof(pack.type), "%s", "script");
+    RSCACHE_CHECK(lc_pack_set(&pack, 1, "script_1"));
+    RSCACHE_CHECK(lc_pack_set(&pack, 2, "script_2"));
+    RSCACHE_CHECK(lc_pack_set_hashname(&pack, 2, "3338"));
+    RSCACHE_CHECK(lc_pack_save_sparse(&pack, path));
+
+    char* text = read_file(path);
+    RSCACHE_CHECK(text != NULL);
+    if( text )
+    {
+        RSCACHE_CHECK(strstr(text, "1=") == NULL);
+        RSCACHE_CHECK(strstr(text, "2=script_2 hashname(\"3338\")\n") != NULL);
+    }
+    free(text);
+    lc_pack_free(&pack);
+}
+
 int
 main(void)
 {
@@ -358,5 +479,9 @@ main(void)
     test_sparse_keeps_commented_filler();
     test_malformed_lines_are_counted();
     test_spacing_normalises();
+    test_hashname_and_hashcode_round_trip();
+    test_hash_both_on_one_line_is_malformed();
+    test_hash_survives_merge_and_rename();
+    test_sparse_keeps_hashed_filler();
     return rscache_test_report("pack");
 }

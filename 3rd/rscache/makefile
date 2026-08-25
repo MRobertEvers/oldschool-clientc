@@ -83,6 +83,13 @@ $(BUILD)/lc_pack.o: tools/port_lostcity/lc_pack.c | $(BUILD)
 $(BUILD)/test_pack: test/test_pack.c $(BUILD)/lc_pack.o | $(BUILD)
 	$(CC) $(CFLAGS) -Itest -Itools/common -Itools/port_lostcity -o $@ $< $(BUILD)/lc_pack.o
 
+$(BUILD)/cp_pack_ident.o: tools/cachepack/cp_pack_ident.c | $(BUILD)
+	$(CC) $(CFLAGS) -Itools/cachepack -Itools/port_lostcity -Itools/common -c $< -o $@
+
+$(BUILD)/test_pack_ident: test/test_pack_ident.c $(BUILD)/lc_pack.o $(BUILD)/cp_pack_ident.o $(LIB_OBJS) | $(BUILD)
+	$(CC) $(CFLAGS) -Itest -Itools/common -Itools/port_lostcity -Itools/cachepack -o $@ $< \
+		$(BUILD)/lc_pack.o $(BUILD)/cp_pack_ident.o $(LIB_OBJS)
+
 # The field-register suite, for the same reason as the pack suite above:
 # `fields/<type>.ini` is the contract between the packer that writes a server band
 # and `src/torirsserver/torirs_server_servercodec.c` that reads it, and the two disagreeing

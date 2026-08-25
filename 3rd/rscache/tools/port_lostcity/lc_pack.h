@@ -46,11 +46,23 @@
 /**
  * One pack file in memory, comments and all.
  *
- * `names`, `trailing` and `preceding` are parallel arrays over id, all of length
- * `capacity` and all sparse. A comment array entry is meaningful only where
- * `names[id]` is non-NULL, because a comment is anchored to the id that follows
- * it and an id with no name is not in the file.
+ * `names`, `trailing`, `preceding` and the hash columns are parallel arrays over
+ * id, all of length `capacity` and all sparse. A comment or hash entry is
+ * meaningful only where `names[id]` is non-NULL, because those fields are
+ * anchored to the id that follows them and an id with no name is not in the file.
  */
+enum LC_PackHashKind
+{
+    /** No hash field on this id — a merge leaves whatever the file already has. */
+    LC_PACK_HASH_ABSENT = 0,
+    /** `hashname("…")` — the client looks this string up (djb2). */
+    LC_PACK_HASH_NAME = 1,
+    /** `hashcode(N)` — the identifier column is this signed int. */
+    LC_PACK_HASH_CODE = 2,
+    /** Explicitly no hash field. A merge must not resurrect one from disk. */
+    LC_PACK_HASH_NONE = 3,
+};
+
 struct LC_Pack
 {
     /** Pack basename, e.g. "npc" for `pack/npc.pack`. Owned, so a type named on
@@ -77,6 +89,14 @@ struct LC_Pack
      * it justifies.
      */
     char** preceding;
+    /**
+     * Optional archive identifier, when the pack name is not what the client
+     * hashes. `hashname("3338")` on a world-map script, or `hashcode(N)` when
+     * the string is unknown. Parallel to `names`; see `enum LC_PackHashKind`.
+     */
+    enum LC_PackHashKind* hash_kind;
+    char** hashnames;
+    int* hashcodes;
     int capacity;
     /** One past the highest listed id, matching PackFile.max. */
     int max;
@@ -267,6 +287,37 @@ lc_pack_set_note(
     struct LC_Pack* pack,
     int id,
     const char* text);
+
+/** `hashname("…")` text, or NULL. */
+const char*
+lc_pack_hashname(
+    const struct LC_Pack* pack,
+    int id);
+
+/** True and writes `*out` when the id carries `hashcode(N)`. */
+int
+lc_pack_hashcode(
+    const struct LC_Pack* pack,
+    int id,
+    int* out);
+
+int
+lc_pack_set_hashname(
+    struct LC_Pack* pack,
+    int id,
+    const char* name);
+
+int
+lc_pack_set_hashcode(
+    struct LC_Pack* pack,
+    int id,
+    int code);
+
+/** Drop any hash field. A later merge will not restore one from disk. */
+int
+lc_pack_clear_hash(
+    struct LC_Pack* pack,
+    int id);
 
 /**
  * Id for `name`, appending it at the next free id when absent.

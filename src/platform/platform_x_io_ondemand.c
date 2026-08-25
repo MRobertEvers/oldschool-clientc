@@ -43,6 +43,8 @@ static const char* const g_jag_routes[] = {
     "/sounds",
 };
 #define OD_JAG_ROUTE_COUNT ((int)(sizeof(g_jag_routes) / sizeof(g_jag_routes[0])))
+/* Longest stem ("/versionlist") plus a signed 32-bit decimal plus the NUL. */
+#define OD_JAG_ROUTE_MAX 32
 
 struct PlatformXIOOnDemand
 {
@@ -55,6 +57,18 @@ struct PlatformXIOOnDemand
     struct SockStream* files;
 
     struct RSCache_MapSquares* map_squares;
+
+    /* The nine jag checksums, cached after the first `GET /crc`.
+     *
+     * They are not only the login block's business. A LostCity server routes
+     * the jag archives as `/title<crc>` -- the checksum is a path component,
+     * and the route answers 404 when it does not match what the server just
+     * packed. Bare `/title` is not an older spelling of the same route; it is
+     * the same 404 with an empty parameter. So an archive read needs the table
+     * before it can name its own URL, which is why this sits here rather than
+     * in the login code that also asks for it. */
+    int32_t jag_crc[9];
+    int jag_crc_valid;
 };
 
 /* ------------------------------------------------------------------ socket */
@@ -526,6 +540,88 @@ od_fetch_file(
     return od_fetch_file_once(od, archive, file, out_size);
 }
 
+/* ------------------------------------------------------------- jag routes */
+
+/**
+ * Fill od->jag_crc from `GET /crc`, once.
+ *
+ * Cached because every jag archive read needs it: the checksum is part of the
+ * route (see od_jag_route), so an uncached table would mean a second TCP
+ * connection to the web port before each of the nine. The table cannot go
+ * stale within a session -- a server that repacks its cache changes the
+ * checksums, and a client it was already serving is out of date by definition,
+ * which login reports as reply 6 rather than as a bad read here.
+ *
+ * This sits above PlatformXIOOnDemand_New because New is itself a caller:
+ * it reads /versionlist to build the map index, and that read needs a route.
+ */
+static int
+od_jag_crc_load(struct PlatformXIOOnDemand* od)
+{
+    char* body = NULL;
+    int size = 0;
+
+    assert(od);
+
+    if( od->jag_crc_valid )
+        return 0;
+
+    body = od_http_get(od, "/crc", &size);
+    if( !body )
+        return -1;
+
+    /* Nine big-endian checksums. The server appends a tenth int -- a hash over
+     * the nine, which it recomputes itself and the login block never carries
+     * -- so a short read is a failure but a long one is not. */
+    if( size < 9 * 4 )
+    {
+        free(body);
+        return -1;
+    }
+
+    for( int i = 0; i < 9; i++ )
+    {
+        const unsigned char* p = (const unsigned char*)body + i * 4;
+        od->jag_crc[i] =
+            (int32_t)(((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) |
+                      (uint32_t)p[3]);
+    }
+    free(body);
+    od->jag_crc_valid = 1;
+    return 0;
+}
+
+/**
+ * Write the route serving jag archive `archive_id` into `out`.
+ *
+ * `/title-564448443`, not `/title`. The server checks the checksum against
+ * what it last packed and answers 404 when it differs, so the bare stem is not
+ * an older spelling of the same route -- it is that same 404 with an empty
+ * parameter, which is why a client that never appended one saw every archive
+ * as missing rather than as stale.
+ *
+ * The archive ids indexing g_jag_routes are the ids indexing the checksum
+ * table, so one id names both halves.
+ */
+static int
+od_jag_route(
+    struct PlatformXIOOnDemand* od,
+    int archive_id,
+    char* out,
+    size_t out_size)
+{
+    assert(od);
+    assert(out);
+    assert(archive_id > 0);
+    assert(archive_id < OD_JAG_ROUTE_COUNT);
+
+    if( od_jag_crc_load(od) != 0 )
+        return -1;
+
+    snprintf(out, out_size, "%s%d", g_jag_routes[archive_id], (int)od->jag_crc[archive_id]);
+    return 0;
+}
+
 /* ------------------------------------------------------------ versionlist */
 
 static struct RSCache_MapSquares*
@@ -566,6 +662,7 @@ PlatformXIOOnDemand_New(
     struct PlatformXIOOnDemand* od = NULL;
     char* versionlist = NULL;
     int versionlist_size = 0;
+    char route[OD_JAG_ROUTE_MAX];
 
     assert(host);
 
@@ -584,16 +681,28 @@ PlatformXIOOnDemand_New(
      * map_index out of the way while doing it: `dat1_map_archive_id` has no
      * way to report "the table has not loaded yet", so a handle that exists
      * has to be a handle that can answer. */
-    versionlist = od_http_get(
-        od, g_jag_routes[RSCACHE_DAT1_CONFIG_VERSION_LIST], &versionlist_size);
+    if( od_jag_route(od, RSCACHE_DAT1_CONFIG_VERSION_LIST, route, sizeof(route)) != 0 )
+    {
+        fprintf(
+            stderr,
+            "ondemand: no checksums from http://%s:%d/crc -- is the LostCity "
+            "server running?\n",
+            od->host,
+            od->web_port);
+        free(od);
+        return NULL;
+    }
+
+    versionlist = od_http_get(od, route, &versionlist_size);
     if( !versionlist || versionlist_size <= 0 )
     {
         fprintf(
             stderr,
-            "ondemand: no versionlist from http://%s:%d/versionlist -- is the LostCity "
+            "ondemand: no versionlist from http://%s:%d%s -- is the LostCity "
             "server running?\n",
             od->host,
-            od->web_port);
+            od->web_port,
+            route);
         free(versionlist);
         free(od);
         return NULL;
@@ -661,10 +770,16 @@ PlatformXIOOnDemand_ArchiveLoad(
 
     if( table_id == RSCACHE_DAT1_DISK_TABLE_CONFIGS )
     {
+        char route[OD_JAG_ROUTE_MAX];
+
         if( archive_id <= 0 || archive_id >= OD_JAG_ROUTE_COUNT )
             return NULL;
         format = RSCACHE_ARCHIVE_FORMAT_DAT_MULTIFILE;
-        raw.data = od_http_get(od, g_jag_routes[archive_id], &raw.data_size);
+
+        if( od_jag_route(od, archive_id, route, sizeof(route)) != 0 )
+            return NULL;
+
+        raw.data = od_http_get(od, route, &raw.data_size);
         if( !raw.data )
             return NULL;
     }
@@ -710,31 +825,11 @@ PlatformXIOOnDemand_JagChecksums(
     struct PlatformXIOOnDemand* od,
     int32_t out[9])
 {
-    char* body = NULL;
-    int size = 0;
-
     assert(od);
     assert(out);
 
-    body = od_http_get(od, "/crc", &size);
-    if( !body )
+    if( od_jag_crc_load(od) != 0 )
         return -1;
-
-    /* Nine big-endian checksums. The server appends a tenth int -- a hash over
-     * the nine, which it recomputes itself and the login block never carries
-     * -- so a short read is a failure but a long one is not. */
-    if( size < 9 * 4 )
-    {
-        free(body);
-        return -1;
-    }
-
-    for( int i = 0; i < 9; i++ )
-    {
-        const unsigned char* p = (const unsigned char*)body + i * 4;
-        out[i] = (int32_t)(((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) |
-                           (uint32_t)p[3]);
-    }
-    free(body);
+    memcpy(out, od->jag_crc, sizeof(od->jag_crc));
     return 0;
 }
