@@ -251,6 +251,54 @@ soft3d_scale_pixel_alpha(
     }
 }
 
+/* --- sprite opacity census (TORIRS_SPRITE_CENSUS=1) ---------------------- */
+static double g_spr_opaque_n, g_spr_opaque_px, g_spr_mixed_n, g_spr_mixed_px;
+
+static void
+soft3d_sprite_census_dump(void)
+{
+    double n = g_spr_opaque_n + g_spr_mixed_n;
+    double px = g_spr_opaque_px + g_spr_mixed_px;
+    if( n <= 0.0 )
+        return;
+    TORIRS_REPORT(
+        "\n=== sprite opacity census ===\n"
+        "all-opaque : %10.0f blits (%5.1f%%)  %12.0f px (%5.1f%%)\n"
+        "mixed      : %10.0f blits (%5.1f%%)  %12.0f px (%5.1f%%)\n",
+        g_spr_opaque_n, 100.0 * g_spr_opaque_n / n, g_spr_opaque_px,
+        px > 0 ? 100.0 * g_spr_opaque_px / px : 0.0,
+        g_spr_mixed_n, 100.0 * g_spr_mixed_n / n, g_spr_mixed_px,
+        px > 0 ? 100.0 * g_spr_mixed_px / px : 0.0);
+}
+
+static int
+soft3d_sprite_census_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+    {
+        armed = getenv("TORIRS_SPRITE_CENSUS") ? 1 : 0;
+        if( armed )
+            atexit(soft3d_sprite_census_dump);
+    }
+    return armed;
+}
+
+static void
+soft3d_sprite_census_note(int opaque, int px)
+{
+    if( opaque )
+    {
+        g_spr_opaque_n += 1.0;
+        g_spr_opaque_px += (double)px;
+    }
+    else
+    {
+        g_spr_mixed_n += 1.0;
+        g_spr_mixed_px += (double)px;
+    }
+}
+
 static void
 soft3d_draw_sprite(
     struct ToriRS_Soft3D* soft,
@@ -390,6 +438,14 @@ soft3d_draw_sprite(
         }
         if( !cmd->if3 )
         {
+            /* TORIRS_SPRITE_CENSUS=1: how often does the opaque precondition
+             * actually hold, and over how much area? A fast path is worth only
+             * what its precondition is worth, and that has to be counted rather
+             * than assumed -- this one measured as no change at all. */
+            if( soft3d_sprite_census_armed() )
+                soft3d_sprite_census_note(
+                    ToriDraw_SpriteAlphaClass(spr) == TORIDRAW_SPRITE_ALPHA_ALL_OPAQUE,
+                    sw * sh);
             ToriDraw2D_BlitArgbAlpha(
                 &vp,
                 cmd->x + ox,
