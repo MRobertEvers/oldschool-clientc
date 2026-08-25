@@ -1759,6 +1759,48 @@ ToriDraw_ComputeProjectedFaceOrder(
     /* #endregion */
 }
 
+#ifndef NDEBUG
+/* The CSR sort below no longer clears sm_depth_offset, so it depends on the
+ * array arriving all-zero. Verifying that is O(depth_levels) -- the very cost
+ * the windowing exists to avoid -- so it is an assert and nothing else: gone
+ * in NDEBUG, and in a debug or test build it fails at the model that broke
+ * the invariant instead of at the frame that renders wrong. */
+static bool
+sm_depth_offset_all_zero(const struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    assert(scene->sm_depth_offset);
+
+    for( int d = 0; d <= scene->depth_levels; d++ )
+    {
+        if( scene->sm_depth_offset[d] != 0 )
+            return false;
+    }
+    return true;
+}
+#endif
+
+/*
+ * Restore the all-zero invariant over exactly the buckets one model dirtied:
+ * [min_depth, max_depth] from the counting pass, plus the end sentinel the
+ * prefix sum wrote at max_depth + 1. Call this once every consumer of
+ * sm_depth_offset has walked it, on every exit that reached the prefix sum.
+ */
+static inline void
+sm_depth_offset_restore(struct ToriDraw_Scene* scene, int min_depth, int max_depth)
+{
+    assert(scene);
+    assert(scene->sm_depth_offset);
+    assert(min_depth >= 0);
+    assert(max_depth < scene->depth_levels);
+    assert(min_depth <= max_depth);
+
+    memset(
+        &scene->sm_depth_offset[min_depth],
+        0,
+        (size_t)(max_depth - min_depth + 2) * sizeof(int));
+}
+
 static inline int
 bucket_sort_by_average_depth_small(
     struct ToriDraw_Scene* scene,
@@ -1777,10 +1819,13 @@ bucket_sort_by_average_depth_small(
     int min_d = depth_levels;
     int max_d = 0;
 
-    /* sm_depth_offset is all-zero here: allocation callocs it, and every
-     * consumer re-zeroes exactly the [min_d, max_d + 1] range it dirtied
-     * (ToriDraw_ComputeProjectedFaceOrderSmall). Zeroing the whole table
-     * instead would put a depth_levels-sized memset on every model draw. */
+    /* No clear here, and none of depth_levels width anywhere below. The
+     * counting pass only touches buckets in this model's depth span, so the
+     * table arrives all-zero -- calloc'd at scene creation, and every exit
+     * that dirties it re-zeroes that span once its consumers are done. A
+     * full-width clear is 64KB per model at DEPTH_16K, to bucket a median of
+     * ~19 faces, and it evicts 8x a P4's L1D on the way past. */
+    assert(sm_depth_offset_all_zero(scene));
 
     for( int f = 0; f < num_faces; f++ )
     {
@@ -1864,9 +1909,9 @@ bucket_sort_by_average_depth_small(
     if( min_d > max_d )
         return 0;
 
-    /* Prefix-sum only the touched window. Entries outside [min_d, max_d + 1]
-     * are still zero and stay that way; the consumers never read past the
-     * bounds this returns. */
+    /* Prefix sum over the model's span only. Buckets outside it are zero and
+     * stay zero; no consumer reads them, because every consumer is bounded by
+     * the same [min_d, max_d] this returns. */
     int total = 0;
     for( int d = min_d; d <= max_d; d++ )
     {
@@ -1874,8 +1919,15 @@ bucket_sort_by_average_depth_small(
         scene->sm_depth_offset[d] = total;
         total += count;
     }
+
+    /* End sentinel. Consumers read sm_depth_offset[depth + 1] for depth up to
+     * max_d, so max_d + 1 must hold the end of the last bucket -- which is why
+     * the array is calloc'd depth_levels + 1 long. */
+    assert(max_d + 1 <= depth_levels);
     scene->sm_depth_offset[max_d + 1] = total;
 
+    /* The scatter below bumps sm_depth_cursor only over [min_d, max_d], so
+     * that is all that needs seeding. */
     memcpy(
         &scene->sm_depth_cursor[min_d],
         &scene->sm_depth_offset[min_d],
@@ -2123,6 +2175,11 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
 
     if( bounds == 0 )
     {
+        /* bounds == 0 is ambiguous: it means "nothing accepted", and it is
+         * also what a model wholly inside bucket 0 encodes. In that second
+         * case the prefix sum ran and dirtied [0, 1], so restore regardless --
+         * zeroing two already-zero ints in the first case is free. */
+        sm_depth_offset_restore(scene, model_min_depth, model_max_depth);
         scene->tmp_face_order_count = 0;
         if( debug_stats )
             toridraw_face_sort_debug_print(scene, hnd, debug_stats, 0);
@@ -2142,13 +2199,7 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
         }
         scene->tmp_face_order_count = order_index;
 
-        /* Restore the all-zero invariant the counting sort relies on: the
-         * sort dirtied exactly [model_min_depth, model_max_depth + 1]. */
-        memset(
-            &scene->sm_depth_offset[model_min_depth],
-            0,
-            (size_t)(model_max_depth - model_min_depth + 2) * sizeof(int));
-
+        sm_depth_offset_restore(scene, model_min_depth, model_max_depth);
         if( debug_stats )
             toridraw_face_sort_debug_print(scene, hnd, debug_stats, order_index);
         return;
@@ -2160,12 +2211,9 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
     partition_and_accumulate_faces_by_priority_small(
         scene, priority_depths, counts, face_priorities, model_min_depth, model_max_depth);
 
-    /* Same invariant restore as the no-priority path, once the partition has
-     * consumed the offsets. */
-    memset(
-        &scene->sm_depth_offset[model_min_depth],
-        0,
-        (size_t)(model_max_depth - model_min_depth + 2) * sizeof(int));
+    /* Last reader of sm_depth_offset; the sort below works from sm_prio_faces
+     * and counts. */
+    sm_depth_offset_restore(scene, model_min_depth, model_max_depth);
 
     scene->tmp_face_order_count =
         sort_face_draw_order_small(scene, scene->tmp_face_order, priority_depths, counts);
