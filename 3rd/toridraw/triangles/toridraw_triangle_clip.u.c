@@ -3,6 +3,7 @@
 
 #include "../toridraw_math.h"
 #include "graphics/projection.h"
+#include "graphics/winding.h"
 #include "graphics/tori_compat.h"
 
 #include <assert.h>
@@ -23,23 +24,6 @@ static const int g_toridraw_triangle_reciprocol_shift = 16;
  * polygon. Use 64-bit products because near-plane projection can put otherwise
  * small model edges far outside the viewport.
  */
-/** TORIDRAW_FLIP_WINDING=1: cull the opposite screen-space winding.
- *  A bisect knob for the rs2012 QBD import - if a ported model renders
- *  inside-out (interior faces surviving, exterior culled), its faces are wound
- *  against the engine convention and the repair belongs in the importer, not
- *  here. See docs/qbd_toridraw_streaks_debug.md. */
-static int
-toridraw_flip_winding(void)
-{
-    static int on = -1;
-    if( on < 0 )
-    {
-        const char* v = getenv("TORIDRAW_FLIP_WINDING");
-        on = (v && v[0] && v[0] != '0') ? 1 : 0;
-    }
-    return on;
-}
-
 /** TORIDRAW_IGNORE_PRIORITIES=1: drop face render priorities and sort every
  *  face purely by average depth.
  *
@@ -61,32 +45,19 @@ toridraw_ignore_priorities(void)
     return on;
 }
 
-/** True when this screen-space winding should be drawn. */
-static inline bool
-toridraw_winding_front_facing(long long winding)
-{
-    return toridraw_flip_winding() ? (winding < 0) : (winding > 0);
-}
-
 static inline bool
 ToriDraw_TriangleClipFrontFacing(int clipped_count)
 {
-    int64_t dx01;
-    int64_t dy01;
-    int64_t dx21;
-    int64_t dy21;
-
     if( clipped_count < 3 )
         return false;
 
-    dx01 = (int64_t)g_toridraw_triangle_clip_x[0] - g_toridraw_triangle_clip_x[1];
-    dy01 = (int64_t)g_toridraw_triangle_clip_y[0] - g_toridraw_triangle_clip_y[1];
-    dx21 = (int64_t)g_toridraw_triangle_clip_x[2] - g_toridraw_triangle_clip_x[1];
-    dy21 = (int64_t)g_toridraw_triangle_clip_y[2] - g_toridraw_triangle_clip_y[1];
-    /* Must agree with the pre-clip bucketing test in toridraw_render.u.c,
-     * including under TORIDRAW_FLIP_WINDING - a clipped face culled by the
-     * opposite rule from its unclipped neighbours tears the silhouette. */
-    return toridraw_winding_front_facing(dx01 * dy21 - dy01 * dx21);
+    return toridraw_winding_2d_front_facing(
+        g_toridraw_triangle_clip_x[0],
+        g_toridraw_triangle_clip_y[0],
+        g_toridraw_triangle_clip_x[1],
+        g_toridraw_triangle_clip_y[1],
+        g_toridraw_triangle_clip_x[2],
+        g_toridraw_triangle_clip_y[2]);
 }
 
 /* #region agent log */

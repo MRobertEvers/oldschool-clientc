@@ -16,6 +16,7 @@
 #include "graphics/raster/texture/texshadeblend.affine.textrans.branching.lerp8.u.c"
 #include "graphics/raster/texture/texshadeblend.affine.texopaque.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texshadeblend.affine.textrans.branching.lerp8_v3.u.c"
+#include "graphics/raster/face_census.h"
 // clang-format on
 
 /**
@@ -136,6 +137,13 @@ ToriDraw_TriangleTextureBlendAffineV3(
     int offset_x,
     int offset_y)
 {
+    TORIDRAW_FACE_CENSUS_RECORD(
+        TORIDRAW_FACE_CENSUS_TEX_BLEND_AFFINE_V3,
+        screen_x0, screen_y0,
+        screen_x1, screen_y1,
+        screen_x2, screen_y2,
+        screen_width * screen_height);
+
     if( TORIDRAW_SCANLINE_SELECTED() )
     {
         ToriDraw_TriangleTextureScanlineAffine(
@@ -261,6 +269,13 @@ ToriDraw_TriangleTextureBlendAffine(
     int offset_x,
     int offset_y)
 {
+    TORIDRAW_FACE_CENSUS_RECORD(
+        TORIDRAW_FACE_CENSUS_TEX_BLEND_AFFINE,
+        screen_x0, screen_y0,
+        screen_x1, screen_y1,
+        screen_x2, screen_y2,
+        screen_width * screen_height);
+
     if( TORIDRAW_SCANLINE_SELECTED() )
     {
         ToriDraw_TriangleTextureScanlineAffine(
@@ -384,6 +399,13 @@ ToriDraw_TriangleTextureFlatAffineV3(
     int offset_x,
     int offset_y)
 {
+    TORIDRAW_FACE_CENSUS_RECORD(
+        TORIDRAW_FACE_CENSUS_TEX_FLAT_AFFINE_V3,
+        screen_x0, screen_y0,
+        screen_x1, screen_y1,
+        screen_x2, screen_y2,
+        screen_width * screen_height);
+
     (void)near_plane_z;
     (void)offset_x;
     (void)offset_y;
@@ -511,6 +533,13 @@ ToriDraw_TriangleTextureFlatAffine(
     int offset_x,
     int offset_y)
 {
+    TORIDRAW_FACE_CENSUS_RECORD(
+        TORIDRAW_FACE_CENSUS_TEX_FLAT_AFFINE,
+        screen_x0, screen_y0,
+        screen_x1, screen_y1,
+        screen_x2, screen_y2,
+        screen_width * screen_height);
+
     (void)near_plane_z;
     (void)offset_x;
     (void)offset_y;

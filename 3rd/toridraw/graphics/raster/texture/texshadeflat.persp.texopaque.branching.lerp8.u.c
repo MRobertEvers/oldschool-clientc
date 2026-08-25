@@ -1,6 +1,7 @@
 #ifndef TEXSHADEFLAT_PERSP_TEXOPAQUE_BRANCHING_LERP8_U_C
 #define TEXSHADEFLAT_PERSP_TEXOPAQUE_BRANCHING_LERP8_U_C
 
+#include "graphics/raster/raster_ablate.h"
 #include "graphics/dash_restrict.h"
 
 #include <stdint.h>
@@ -156,6 +157,11 @@ raster_texshadeflat_persp_texopaque_branching_lerp8_ordered(
     {
         y2 = screen_height;
     }
+
+    /* Texture level-2 rung: everything above is the per-triangle prologue,
+     * everything below is the trapezoid walk. Same boundary the gouraud
+     * triangle cuts at TORIDRAW_ABLATE=2. See raster_ablate.h. */
+    TORIDRAW_ABLATE_TEX_WALK_RETURN();
 
     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )

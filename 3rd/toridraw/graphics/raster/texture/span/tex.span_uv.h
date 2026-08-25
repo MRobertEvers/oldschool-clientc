@@ -3,6 +3,7 @@
 
 #include "graphics/clamp.h"
 #include "graphics/dash_restrict.h"
+#include "graphics/raster/raster_ablate.h"
 #include "graphics/shade.h"
 #include "graphics/shared_tables.h"
 
@@ -154,6 +155,7 @@ tex_span_exact_block(
     int texture_shift,
     int transparent)
 {
+    TORIDRAW_ABLATE_TEX_RETURN_IF(3);
     for( int i = 0; i < count; i++ )
     {
         int w = cw >> texture_shift;

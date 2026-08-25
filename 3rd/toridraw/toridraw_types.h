@@ -385,6 +385,21 @@ struct ToriDraw_Camera
     int roll;
 };
 
+/*
+ * Camera-only constants shared by every yaw projection in a command stream.
+ * Each value is splatted so the Apple AArch64 projection kernel can load the
+ * complete prepared state with two paired vector loads and one vector load.
+ * Keep the order and 16-byte alignment in sync with projection16_apple.S.
+ */
+struct ToriDraw_ProjectionPreparedCamera
+{
+    _Alignas(16) int cos_yaw[4];
+    int sin_yaw[4];
+    int cos_pitch[4];
+    int sin_pitch[4];
+    int cot15[4];
+};
+
 enum ToriDraw_TextureAnimation
 {
     TORIDRAW_TEXANIM_DIRECTION_NONE,
@@ -637,6 +652,14 @@ struct ToriDraw_Scene
     int* orthographic_vertices_x;
     int* orthographic_vertices_y;
     int* orthographic_vertices_z;
+
+    /*
+     * Optional prepared-camera state for the projection hot path. Pointer
+     * identity makes the normal render-command stream a single cheap compare;
+     * callers using another camera continue through the portable kernels.
+     */
+    struct ToriDraw_ProjectionPreparedCamera projection_prepared_camera;
+    const struct ToriDraw_Camera* projection_prepared_camera_source;
 
     faceint_t* tmp_depth_face_count;
     faceint_t* tmp_depth_faces;

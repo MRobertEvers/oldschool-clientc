@@ -164,17 +164,17 @@ main(void)
     CHECK(ToriDraw_SceneSize(TORIDRAW_SCENE_FULL, (enum ToriDraw_ScratchBufferSize)99) == 0);
     CHECK(ToriDraw_SceneNew(TORIDRAW_SCENE_FULL, (enum ToriDraw_ScratchBufferSize)-1) == NULL);
 
-    /* The existing SMALL flag still selects its CSR sorter; the size enum is
-     * explicit and validated, but does not change that separate algorithm.
-     * The depth flag remains an independent capacity axis in SMALL mode too. */
+    /* The SMALL flag selects the CSR sorter and nothing else: vertex/face
+     * capacity comes from the tier exactly as in FULL mode, and the depth
+     * flag remains an independent capacity axis. */
     scene = ToriDraw_SceneNew(
         TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_DEPTH_16K,
         TORIDRAW_SCRATCH_BUFFER_MED_4K);
     CHECK(scene != NULL);
     if( scene )
     {
-        CHECK(scene->max_vertices == 1024);
-        CHECK(scene->max_faces == 2048);
+        CHECK(scene->max_vertices == 4096);
+        CHECK(scene->max_faces == 8192);
         CHECK(scene->depth_levels == 16384);
         CHECK(scene->tmp_depth_faces == NULL);
         CHECK(scene->sm_faces_by_depth != NULL);

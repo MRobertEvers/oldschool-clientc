@@ -15,6 +15,7 @@
 #include "graphics/raster/flat/flat.screen.alpha.sort.s4.u.c"
 #include "graphics/raster/flat/flat.screen.opaque.branching.s4.c"
 #include "graphics/raster/flat/flat.screen.alpha.branching.s4.c"
+#include "graphics/raster/face_census.h"
 // clang-format on
 
 static inline void
@@ -32,6 +33,13 @@ ToriDraw_TriangleFlat(
     int color,
     int alpha)
 {
+    TORIDRAW_FACE_CENSUS_RECORD(
+        TORIDRAW_FACE_CENSUS_FLAT,
+        x1, y1,
+        x2, y2,
+        x3, y3,
+        screen_width * screen_height);
+
     if( TORIDRAW_SCANLINE_SELECTED() )
     {
         if( alpha == 0xFF )

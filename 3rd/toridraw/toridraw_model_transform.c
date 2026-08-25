@@ -194,6 +194,103 @@ ToriDraw_ModelSteal(struct ToriDraw_Model* src)
     return dst;
 }
 
+static size_t
+model_bones_bytes(const struct ToriDraw_Bones* bones)
+{
+    size_t total;
+    int i;
+
+    if( !bones )
+        return 0;
+
+    total = sizeof(*bones);
+    total += (size_t)bones->bones_count * sizeof(boneint_t*);
+    total += (size_t)bones->bones_count * sizeof(boneint_t);
+    for( i = 0; i < bones->bones_count; i++ )
+        total += (size_t)bones->bones_sizes[i] * sizeof(boneint_t);
+
+    return total;
+}
+
+static size_t
+model_normals_bytes(const struct ToriDraw_Normals* normals)
+{
+    size_t total;
+
+    if( !normals )
+        return 0;
+
+    /* Capacity, not count: a recycled block keeps the larger allocation. */
+    total = sizeof(*normals);
+    total += (size_t)normals->vertex_normals_cap * sizeof(struct ToriDraw_Normal);
+    total += (size_t)normals->face_normals_cap * sizeof(struct ToriDraw_Normal);
+
+    return total;
+}
+
+size_t
+ToriDraw_ModelHeapBytes(const struct ToriDraw_Model* model)
+{
+    size_t total;
+    int i;
+
+    assert(model);
+
+    total = sizeof(*model);
+
+#define BYTES_IF(FIELD, COUNT, TYPE)                                                               \
+    if( (model->FIELD) )                                                                           \
+        total += (size_t)(COUNT) * sizeof(TYPE);
+
+    BYTES_IF(vertices_x, model->vertex_count, vertexint_t)
+    BYTES_IF(vertices_y, model->vertex_count, vertexint_t)
+    BYTES_IF(vertices_z, model->vertex_count, vertexint_t)
+    BYTES_IF(original_vertices_x, model->vertex_count, vertexint_t)
+    BYTES_IF(original_vertices_y, model->vertex_count, vertexint_t)
+    BYTES_IF(original_vertices_z, model->vertex_count, vertexint_t)
+
+    BYTES_IF(face_indices_a, model->face_count, faceint_t)
+    BYTES_IF(face_indices_b, model->face_count, faceint_t)
+    BYTES_IF(face_indices_c, model->face_count, faceint_t)
+    BYTES_IF(face_colors_a, model->face_count, hsl16_t)
+    BYTES_IF(face_colors_b, model->face_count, hsl16_t)
+    BYTES_IF(face_colors_c, model->face_count, hsl16_t)
+    BYTES_IF(face_colors, model->face_count, hsl16_t)
+    BYTES_IF(face_textures, model->face_count, faceint_t)
+    BYTES_IF(face_alphas, model->face_count, alphaint_t)
+    BYTES_IF(original_face_alphas, model->face_count, alphaint_t)
+    BYTES_IF(face_infos, model->face_count, int)
+    BYTES_IF(face_texture_coords, model->face_count, faceint_t)
+
+    BYTES_IF(textured_p_coordinate, model->textured_face_count, faceint_t)
+    BYTES_IF(textured_m_coordinate, model->textured_face_count, faceint_t)
+    BYTES_IF(textured_n_coordinate, model->textured_face_count, faceint_t)
+    BYTES_IF(texture_render_types, model->textured_face_count, uint8_t)
+
+#undef BYTES_IF
+
+    if( model->face_priorities )
+        total += ToriDraw_FacePrioritiesByteCount(model->face_count);
+
+    if( model->bounds_cylinder )
+        total += sizeof(*model->bounds_cylinder);
+
+    total += model_normals_bytes(model->normals);
+    total += model_normals_bytes(model->merged_normals);
+    total += model_bones_bytes(model->vertex_bones);
+    total += model_bones_bytes(model->face_bones);
+
+    if( model->animaya_vertex_count > 0 && model->animaya_group_counts )
+    {
+        total += (size_t)model->animaya_vertex_count;
+        total += (size_t)model->animaya_vertex_count * sizeof(uint8_t*) * 2u;
+        for( i = 0; i < model->animaya_vertex_count; i++ )
+            total += (size_t)model->animaya_group_counts[i] * 2u;
+    }
+
+    return total;
+}
+
 struct ToriDraw_Model*
 ToriDraw_ModelCopy(struct ToriDraw_Model* src)
 {

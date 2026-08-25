@@ -3,6 +3,8 @@
 #include <math.h>
 #include <stdint.h>
 
+_Alignas(64) int g_projection_model_yaw_table[2048][2];
+
 #ifndef TORIDRAW_TABLES_PRECOMPUTED
 
 //   This tool renders a color palette using jagex's 16-bit HSL, 6 bits
@@ -34,6 +36,19 @@ const int* g_cos_table;
 const int* g_tan_table;
 
 #endif /* !TORIDRAW_TABLES_PRECOMPUTED */
+
+static void
+ToriDraw_RebuildProjectionModelYawTable(void)
+{
+    if( !g_cos_table || !g_sin_table )
+        return;
+
+    for( int i = 0; i < 2048; i++ )
+    {
+        g_projection_model_yaw_table[i][0] = g_cos_table[i];
+        g_projection_model_yaw_table[i][1] = g_sin_table[i];
+    }
+}
 
 int
 pix3d_set_gamma(
@@ -165,11 +180,13 @@ init_hsl16_to_rgb_table(void)
 void
 ToriDraw_InitSinTable(void)
 {
+    ToriDraw_RebuildProjectionModelYawTable();
 }
 
 void
 ToriDraw_InitCosTable(void)
 {
+    ToriDraw_RebuildProjectionModelYawTable();
 }
 
 void
@@ -204,6 +221,7 @@ ToriDraw_InitSinTable(void)
     for( int i = 0; i < 2048; i++ )
         g_sin_table_builtin[i] = (int)(sin((double)i * 0.0030679615) * (1 << 16));
     g_sin_table = g_sin_table_builtin;
+    ToriDraw_RebuildProjectionModelYawTable();
 }
 
 void
@@ -214,6 +232,7 @@ ToriDraw_InitCosTable(void)
     for( int i = 0; i < 2048; i++ )
         g_cos_table_builtin[i] = (int)(cos((double)i * 0.0030679615) * (1 << 16));
     g_cos_table = g_cos_table_builtin;
+    ToriDraw_RebuildProjectionModelYawTable();
 }
 
 void
@@ -266,6 +285,7 @@ ToriDraw_SetSinTable(const int* table)
 #else
     g_sin_table = table;
 #endif
+    ToriDraw_RebuildProjectionModelYawTable();
 }
 
 void
@@ -276,6 +296,7 @@ ToriDraw_SetCosTable(const int* table)
 #else
     g_cos_table = table;
 #endif
+    ToriDraw_RebuildProjectionModelYawTable();
 }
 
 void

@@ -391,10 +391,11 @@ raster_zbuf_screen_ordered(
         int const d_hsl_AB = tri->shade[1] - tri->shade[0];
         int const d_hsl_AC = tri->shade[2] - tri->shade[0];
 
+        double recip_sarea = gouraudhsllightness_barycentric_recip(sarea);
         s.hsl_step_dx_ish8 =
-            gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, sarea);
+            gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, recip_sarea);
         d.hsl_dy_ish8 =
-            gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, sarea);
+            gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, recip_sarea);
         s.hsl_ish8 = toridraw_wrap_sub(
             toridraw_wrap_add(s.hsl_step_dx_ish8, tri->shade[0] << 8),
             toridraw_wrap_mul(x0, s.hsl_step_dx_ish8));

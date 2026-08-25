@@ -5,9 +5,11 @@
 #include "graphics/tori_compat.h"
 #include "graphics/dash_restrict.h"
 #include "graphics/raster/gouraudhsllightness/gouraudhsllightness_barycentric_steps.h"
+#include "graphics/raster/gouraudhsllightness/gouraud_span_fill.h"
 #include "graphics/raster/flat/flat_screen_edges.h"
 #include "graphics/raster/span_census.h"
 #include "graphics/raster/raster_ablate.h"
+#include "graphics/raster/gouraudhsllightness/sarea_census.h"
 
 #include "graphics/shared_tables.h"
 
@@ -51,38 +53,13 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
         color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
 
     int stride = (x_end - x_start);
-    TORIDRAW_SPAN_CENSUS_RECORD(stride, offset, 1);
+    TORIDRAW_SPAN_CENSUS_RECORD(
+        stride, offset, 1, color_hsl16_ish8, color_step_hsl16_ish8);
 
     TORIDRAW_ABLATE_RETURN_AT(1);
 
-    int steps = (stride) >> 2;
-    color_step_hsl16_ish8 <<= 2;
-
-    while( steps-- > 0 )
-    {
-        int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
-
-        for( int i = 0; i < 4; i++ )
-        {
-            pixel_buffer[offset] = rgb_color;
-            offset += 1;
-        }
-
-        color_hsl16_ish8 = toridraw_wrap_add(color_hsl16_ish8, color_step_hsl16_ish8);
-    }
-
-    int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
-    switch( (stride) & 0x3 )
-    {
-    case 3:
-        pixel_buffer[offset] = rgb_color;
-        offset += 1;
-    case 2:
-        pixel_buffer[offset] = rgb_color;
-        offset += 1;
-    case 1:
-        pixel_buffer[offset] = rgb_color;
-    }
+    toridraw_gouraud_span_fill_short(
+        pixel_buffer, offset, stride, color_hsl16_ish8, color_step_hsl16_ish8);
 }
 
 /**
@@ -114,38 +91,13 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered_noclip
         color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
 
     int stride = (x_end - x_start);
-    TORIDRAW_SPAN_CENSUS_RECORD(stride, offset, 0);
+    TORIDRAW_SPAN_CENSUS_RECORD(
+        stride, offset, 0, color_hsl16_ish8, color_step_hsl16_ish8);
 
     TORIDRAW_ABLATE_RETURN_AT(1);
 
-    int steps = (stride) >> 2;
-    color_step_hsl16_ish8 <<= 2;
-
-    while( steps-- > 0 )
-    {
-        int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
-
-        pixel_buffer[offset + 0] = rgb_color;
-        pixel_buffer[offset + 1] = rgb_color;
-        pixel_buffer[offset + 2] = rgb_color;
-        pixel_buffer[offset + 3] = rgb_color;
-        offset += 4;
-
-        color_hsl16_ish8 = toridraw_wrap_add(color_hsl16_ish8, color_step_hsl16_ish8);
-    }
-
-    int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
-    switch( (stride) & 0x3 )
-    {
-    case 3:
-        pixel_buffer[offset] = rgb_color;
-        offset += 1;
-    case 2:
-        pixel_buffer[offset] = rgb_color;
-        offset += 1;
-    case 1:
-        pixel_buffer[offset] = rgb_color;
-    }
+    toridraw_gouraud_span_fill_short(
+        pixel_buffer, offset, stride, color_hsl16_ish8, color_step_hsl16_ish8);
 }
 
 static inline void
@@ -164,6 +116,14 @@ raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
     int color1_hsl16,
     int color2_hsl16)
 {
+    /* Level 3 is the rung the original ladder lacked. Level 2 returns *after*
+     * the prologue, so base-minus-2 is fill+walk and the per-triangle prologue
+     * -- five divides, the barycentric steps, the y clamps, the two no-hclip
+     * proofs -- never appears in any difference. With 11,570 gouraud triangles
+     * a frame and only 2.95 spans each, that prologue is the term most likely
+     * to dominate, and it was the one term nobody had measured. */
+    TORIDRAW_ABLATE_RETURN_AT(3);
+
     if( y2 - y0 == 0 )
         return;
 
@@ -176,16 +136,19 @@ raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
     if( sarea == 0 )
         return;
 
+    TORIDRAW_SAREA_CENSUS_RECORD(sarea);
+
     int d_hsl_AB = color1_hsl16 - color0_hsl16;
     int d_hsl_AC = color2_hsl16 - color0_hsl16;
 
     /**
      * This is derived from a barycentric coordinate.
      */
+    double recip_sarea = gouraudhsllightness_barycentric_recip(sarea);
     int step_x_hsl_ish8 =
-        gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, sarea);
+        gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, recip_sarea);
     int step_y_hsl_ish8 =
-        gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, sarea);
+        gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, recip_sarea);
 
     int step_edge_x_AC_ish16;
     int step_edge_x_AB_ish16;

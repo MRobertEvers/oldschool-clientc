@@ -18,6 +18,9 @@
 #include "graphics/raster/texture/texshadeflat.persp.texopaque.ordered.lerp8.scanline.u.c"
 #include "graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texshadeflat.persp.texopaque.branching.lerp8.u.c"
+#include "graphics/raster/texture/tex_tri_asm.h"
+#include "graphics/raster/texture/tex_tri_asm_support.u.c"
+#include "graphics/raster/face_census.h"
 // clang-format on
 
 static inline void
@@ -51,6 +54,13 @@ ToriDraw_TriangleTextureBlendOpaque(
     int offset_x,
     int offset_y)
 {
+    TORIDRAW_FACE_CENSUS_RECORD(
+        TORIDRAW_FACE_CENSUS_TEX_BLEND_OPAQUE,
+        screen_x0, screen_y0,
+        screen_x1, screen_y1,
+        screen_x2, screen_y2,
+        screen_width * screen_height);
+
     (void)near_plane_z;
     (void)offset_x;
     (void)offset_y;
@@ -87,7 +97,7 @@ ToriDraw_TriangleTextureBlendOpaque(
         return;
     }
 
-    raster_texshadeblend_persp_texopaque_branching_lerp8_v3(
+    TORIDRAW_TEX_TRI_PERSP_OPAQUE(
         pixel_buffer,
         stride,
         screen_width,
@@ -144,6 +154,13 @@ ToriDraw_TriangleTextureFlatOpaque(
     int offset_x,
     int offset_y)
 {
+    TORIDRAW_FACE_CENSUS_RECORD(
+        TORIDRAW_FACE_CENSUS_TEX_FLAT_OPAQUE,
+        screen_x0, screen_y0,
+        screen_x1, screen_y1,
+        screen_x2, screen_y2,
+        screen_width * screen_height);
+
     (void)near_plane_z;
     (void)offset_x;
     (void)offset_y;
