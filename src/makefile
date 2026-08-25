@@ -237,6 +237,7 @@ LUA_DIR      := $(REPO_ROOT)/3rd/lua
 # and sign-compare warnings that are not worth failing a build over.
 CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -Wall -Wextra \
 	-Werror=incompatible-pointer-types -MMD -MP \
+	$(TORIDRAW_PROBE_CFLAGS) \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(SRC_DIR)/serverscript \
 	-I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) -I$(RSAREABUF_DIR) \
@@ -720,11 +721,91 @@ TEXSPAN_ASM_OBJ  := $(OBJ_DIR)/tex_span_asm.o
 TORIDRAW_CFLAGS  += -DTORIDRAW_TEXSPAN_ASM=1
 endif
 
+# --- Hand-written gouraud triangle kernel ---------------------------------
+# The WHOLE opaque gouraud triangle -- vertex sort, prologue, both trapezoid
+# walks and the span fill -- not a leaf. gouraud_tri_i686.S carries the full
+# argument; the short version is that i686 has four callee-saved registers and
+# the row body needs more live values than that, so the C spills its
+# accumulators on every row and no tuning inside a helper can undo an allocation
+# decision made outside it.
+#
+# i686 only. There is no win64 twin: the x64 ABI has more callee-saved registers
+# than the row body has live values, which is the whole reason this kernel
+# exists, so it would be work with nothing to win.
+#
+# Opts out of a probe build for the same reason the texture span does: the
+# census and ablation counters live in the C, and a measurement build quietly
+# running the asm would report a gouraud triangle that draws nothing. Note the
+# gate reads the SAME three probe macros; TORIDRAW_FACE_CENSUS is deliberately
+# absent from both, because it counts at the dispatch site, above either kernel.
+GOURAUD_TRI_ASM_SRC :=
+ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
+ifeq ($(PLATFORM),win32)
+GOURAUD_TRI_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+endif
+endif
+
+ifneq ($(GOURAUD_TRI_ASM_SRC),)
+GOURAUD_TRI_ASM_OBJ := $(OBJ_DIR)/gouraud_tri_asm.o
+TORIDRAW_CFLAGS     += -DTORIDRAW_GOURAUD_TRI_ASM=1
+endif
+
+# --- Hand-written perspective-textured triangle kernel ---------------------
+# The WHOLE opaque textured triangle, in the same sense as the gouraud one
+# above: sort, plane build, edge divides, both trapezoid walks, and the span
+# fill expanded inline. It absorbs the standalone texture span -- which was its
+# only production caller -- so the nine of fifteen span arguments that are
+# triangle-invariant stop being pushed, and the twelve stride stores and the
+# texture-width branch stop being redone, once per scanline. tex_tri_asm.h
+# carries the census numbers that say this variant is the one worth absorbing.
+#
+# tex_span_i686.S stays in the link when this is on. It becomes a couple of KB
+# of dead code, which is cheaper than a conditional that has to stay right.
+#
+# i686 only, and withdrawn from a probe build, for the same two reasons as the
+# gouraud kernel: no win64 twin is worth writing, and the census and ablation
+# counters live in the C.
+TEXTRI_ASM_SRC :=
+ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
+ifeq ($(PLATFORM),win32)
+TEXTRI_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/texture/tex_tri_i686.S
+endif
+endif
+
+ifneq ($(TEXTRI_ASM_SRC),)
+TEXTRI_ASM_OBJ := $(OBJ_DIR)/tex_tri_asm.o
+TORIDRAW_CFLAGS += -DTORIDRAW_TEXTRI_ASM=1
+endif
+
+# The framebuffer clear. Unlike the three kernels above this one is not
+# withdrawn under the probe builds -- it has no census counters to invalidate,
+# and withdrawing it would make the probe build clear its screen differently
+# from the build being shipped.
+FB_CLEAR_ASM_SRC :=
+ifeq ($(PLATFORM),win32)
+FB_CLEAR_ASM_SRC := $(TORIDRAW_DIR)/graphics/fb_clear_i686.S
+endif
+
+ifneq ($(FB_CLEAR_ASM_SRC),)
+FB_CLEAR_ASM_OBJ := $(OBJ_DIR)/fb_clear_asm.o
+TORIDRAW_CFLAGS += -DTORIDRAW_FB_CLEAR_ASM=1
+CFLAGS += -DTORIDRAW_FB_CLEAR_ASM=1
+endif
+
+# The in-frame A/B harness. Its own object, not a unity include: it needs
+# windows.h for QueryPerformanceCounter.
+FRAME_AB_OBJ := $(OBJ_DIR)/toridraw_frame_ab.o
+
+# The EIP sampler. Same reasoning as the A/B object: it needs windows.h for
+# SuspendThread/GetThreadContext, which does not belong in the middle of the
+# unity translation unit.
+EIP_SAMPLE_OBJ := $(OBJ_DIR)/toridraw_eip_sample.o
+
 # Everything that links the toridraw unity object links its asm halves with it:
 # the Apple arm64 projection kernel and the x86 Windows texture span, each empty
 # on the lanes that do not have one. Naming the set once is what keeps a target
 # from silently reaching the C through a unity object compiled to call the asm.
-TORIDRAW_UNITY_LINK_OBJS = $(OBJ_DIR)/toridraw_unity.o $(TORIDRAW_PROJECTION_ASM_OBJ) $(TEXSPAN_ASM_OBJ)
+TORIDRAW_UNITY_LINK_OBJS = $(OBJ_DIR)/toridraw_unity.o $(TORIDRAW_PROJECTION_ASM_OBJ) $(TEXSPAN_ASM_OBJ) $(GOURAUD_TRI_ASM_OBJ) $(TEXTRI_ASM_OBJ) $(FB_CLEAR_ASM_OBJ) $(FRAME_AB_OBJ) $(EIP_SAMPLE_OBJ)
 # Objects derived from SRCS (one .o per source, flat in OBJ_DIR) plus the
 # out-of-tree/unity extras that have their own rules below. The world_builder
 # pipeline ($(WB_OBJS), incl. wb_minimap.o â the Minimap world.h is written
@@ -1659,6 +1740,33 @@ $(TEXSPAN_ASM_OBJ): $(TEXSPAN_ASM_SRC) | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
 endif
 
+# Same treatment, and for the same two reasons: cpp runs first (the kernel is
+# built out of macros) and PLATFORM_BASE_CFLAGS stays out (its -include of a C
+# header would reach the assembler as a few hundred bad instructions).
+ifneq ($(GOURAUD_TRI_ASM_SRC),)
+$(GOURAUD_TRI_ASM_OBJ): $(GOURAUD_TRI_ASM_SRC) | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
+endif
+
+# Third of the same shape. It also #includes span/tex_span_body.inc, so the
+# -I is load-bearing here rather than merely conventional.
+ifneq ($(TEXTRI_ASM_SRC),)
+$(TEXTRI_ASM_OBJ): $(TEXTRI_ASM_SRC) $(TORIDRAW_DIR)/graphics/raster/texture/span/tex_span_body.inc | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
+endif
+
+# Fourth of the same shape, and the simplest: no include, no template.
+ifneq ($(FB_CLEAR_ASM_SRC),)
+$(FB_CLEAR_ASM_OBJ): $(FB_CLEAR_ASM_SRC) | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
+endif
+
+$(FRAME_AB_OBJ): $(TORIDRAW_DIR)/toridraw_frame_ab.c $(TORIDRAW_DIR)/toridraw_frame_ab.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(TORIDRAW_CFLAGS) -c $< -o $@
+
+$(EIP_SAMPLE_OBJ): $(TORIDRAW_DIR)/toridraw_eip_sample.c $(TORIDRAW_DIR)/toridraw_eip_sample.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(TORIDRAW_CFLAGS) -c $< -o $@
+
 $(OBJ_DIR)/trspk_unity.o: $(TRSPK_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -w -c $(TRSPK_UNITY_SRC) -o $@
 
@@ -2522,6 +2630,59 @@ else
 	$(CC) -I$(TORIDRAW_DIR) -c $(TEXSPAN_ASM_SRC) -o $(OBJ_DIR)/texspan_asm_test_kernel.o
 	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function 		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/texspan_asm_test 		$(TORIDRAW_DIR)/toridraw_texspan_asm_test.c 		$(OBJ_DIR)/texspan_asm_test_kernel.o -lm
 	./$(OBJ_DIR)/texspan_asm_test
+endif
+
+# The hand-written gouraud triangle against the C twin it replaces: every pixel
+# of a framebuffer, over randomised triangles, compared exactly.
+#
+# Exactly, not approximately. The 4-pixel colour quantization in
+# toridraw_gouraud_span_fill_short is visible output -- toridraw_scanline_parity
+# _test pins it separately -- so a kernel that merely looked the same would be
+# changing what the client draws.
+#
+# The generators are the point, not the count: uniform random triangles are
+# almost all interior and would never reach the degenerate, flat-topped, sliver
+# and fully-offscreen cases where a hand-written walk actually breaks.
+#
+# i686 only; anywhere else there is nothing to score, and saying so beats
+# silently testing the C against itself.
+test-gouraud-tri-asm: $(OBJ_DIR)
+ifeq ($(GOURAUD_TRI_ASM_SRC),)
+	@echo "test-gouraud-tri-asm: no kernel for PLATFORM=$(PLATFORM) -- nothing to score"
+else
+	@# Split for the same reason as test-texspan-asm: the C half needs
+	@# $(PLATFORM_BASE_CFLAGS) or it is not the lane's ISA floor under test,
+	@# and the asm half must not see them, because -include win32_compat.h
+	@# reaches the assembler as several hundred bad instructions.
+	$(CC) -I$(TORIDRAW_DIR) -c $(GOURAUD_TRI_ASM_SRC) -o $(OBJ_DIR)/gouraud_tri_asm_test_kernel.o
+	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function 		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/gouraud_tri_asm_test 		$(TORIDRAW_DIR)/toridraw_gouraud_tri_asm_test.c 		$(OBJ_DIR)/gouraud_tri_asm_test_kernel.o -lm
+	./$(OBJ_DIR)/gouraud_tri_asm_test
+endif
+
+# The hand-written perspective-textured triangle against the C twin it
+# replaces. Same argument as test-gouraud-tri-asm, plus two of its own.
+#
+# The framebuffer is compared WITH guard bands on both sides, not just the
+# picture: this walk clamps its own row count, and a kernel that ran one row
+# past the bottom would write outside the viewport, which a picture-only
+# comparison would score as a pass.
+#
+# Both texture widths are generated, because the kernel hoists the 64-vs-128
+# dispatch out of the row loop and into the prologue -- so the two widths are
+# two separately assembled copies of the fill, and testing one says nothing
+# about the other.
+#
+# i686 only; anywhere else there is nothing to score.
+test-textri-asm: $(OBJ_DIR)
+ifeq ($(TEXTRI_ASM_SRC),)
+	@echo "test-textri-asm: no kernel for PLATFORM=$(PLATFORM) -- nothing to score"
+else
+	@# Split for the same reason as the two above: the C half needs
+	@# $(PLATFORM_BASE_CFLAGS) or it is not the lane's ISA floor under test,
+	@# and the asm half must not see them.
+	$(CC) -I$(TORIDRAW_DIR) -c $(TEXTRI_ASM_SRC) -o $(OBJ_DIR)/textri_asm_test_kernel.o
+	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function -Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) -I$(TORIDRAW_DIR) -o $(OBJ_DIR)/textri_asm_test $(TORIDRAW_DIR)/toridraw_textri_asm_test.c $(OBJ_DIR)/textri_asm_test_kernel.o -lm
+	./$(OBJ_DIR)/textri_asm_test
 endif
 
 test-blit-scaled: $(OBJ_DIR)

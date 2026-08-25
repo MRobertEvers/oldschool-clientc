@@ -1,0 +1,255 @@
+From aef80c1548c2a0eefa38f08de1b17abd95d9c268 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:16:17 -0500
+Subject: [PATCH] wip(r3-projsse2): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-projsse2.
+
+files: 3rd/toridraw/graphics/r3proj_census.h 3rd/toridraw/toridraw.c 3rd/toridraw/toridraw_render.u.c
+---
+ 3rd/toridraw/graphics/r3proj_census.h | 159 ++++++++++++++++++++++++++
+ 3rd/toridraw/toridraw.c               |   1 +
+ 3rd/toridraw/toridraw_render.u.c      |  29 +++++
+ 3 files changed, 189 insertions(+)
+ create mode 100644 3rd/toridraw/graphics/r3proj_census.h
+
+diff --git a/3rd/toridraw/graphics/r3proj_census.h b/3rd/toridraw/graphics/r3proj_census.h
+new file mode 100644
+index 000000000..72127e29a
+--- /dev/null
++++ b/3rd/toridraw/graphics/r3proj_census.h
+@@ -0,0 +1,159 @@
++#ifndef TORIDRAW_R3PROJ_CENSUS_H
++#define TORIDRAW_R3PROJ_CENSUS_H
++/* Hunt-only census. Never timed. Counts which projection kernel runs, over
++ * how many vertices, and how many 4-wide blocks vs scalar-tail lanes. */
++#if defined(R3PROJ_CENSUS) && R3PROJ_CENSUS
++
++#include <stdio.h>
++#include <stdlib.h>
++
++enum
++{
++    R3K_NOCLIP_6DOF_TEX, R3K_NOCLIP_6DOF_NOTEX,
++    R3K_NOCLIP_PY_TEX,   R3K_NOCLIP_PY_NOTEX,
++    R3K_NOCLIP_YAW_TEX,  R3K_NOCLIP_YAW_NOTEX,
++    R3K_CLIP_6DOF_TEX,   R3K_CLIP_6DOF_NOTEX,
++    R3K_CLIP_PY_TEX,     R3K_CLIP_PY_NOTEX,
++    R3K_CLIP_YAW_TEX,    R3K_CLIP_YAW_NOTEX,
++    R3K_AABB8_YAW,       R3K_AABB8_6DOF,      R3K_AABB8_PARALLEL,
++    R3K_COUNT
++};
++
++static const char* const g_r3k_names[R3K_COUNT] = {
++    "noclip_6dof_tex", "noclip_6dof_notex",
++    "noclip_pitchyaw_tex", "noclip_pitchyaw_notex",
++    "noclip_yaw_tex", "noclip_yaw_notex",
++    "clip_6dof_tex", "clip_6dof_notex",
++    "clip_pitchyaw_tex", "clip_pitchyaw_notex",
++    "clip_yaw_tex", "clip_yaw_notex",
++    "aabb8_yaw", "aabb8_6dof", "aabb8_parallel"
++};
++
++struct R3ProjCensus
++{
++    double calls[R3K_COUNT];
++    double verts[R3K_COUNT];
++    double tail[R3K_COUNT];      /* verts & 3 */
++    double yaw_zero[R3K_COUNT];  /* calls with model_yaw == 0 */
++    double vhist[16];            /* 4,8,12,...,>=64 in blocks of 4 */
++    double frames;
++    int installed;
++};
++
++static struct R3ProjCensus g_r3proj;
++static void R3ProjCensusDump(void);
++
++static inline void
++r3proj_record(int kind, int nverts, int model_yaw)
++{
++    struct R3ProjCensus* c = &g_r3proj;
++    int b;
++    if( !c->installed ) { c->installed = 1; atexit(R3ProjCensusDump); }
++    c->calls[kind] += 1.0;
++    c->verts[kind] += (double)nverts;
++    c->tail[kind] += (double)(nverts & 3);
++    if( model_yaw == 0 ) c->yaw_zero[kind] += 1.0;
++    b = nverts >> 2; if( b > 15 ) b = 15; if( b < 0 ) b = 0;
++    c->vhist[b] += 1.0;
++}
++
++#define R3PROJ_RECORD(k, n, y) r3proj_record((k), (n), (y))
++#define R3PROJ_FRAME() (g_r3proj.frames += 1.0)
++
++
++/* ---- value-range census: are the pmaddwd int16 operand gates safe? ---- */
++struct R3Range { int max_abs; double over32767; double n; };
++static struct R3Range g_r3rng[8];
++static const char* const g_r3rng_names[8] = {
++    "xz_rotated_vertex", "yr=y+scene_y", "xs(cam x)", "zs(cam z)",
++    "ys(cam y)", "zf(cam depth)", "xsc=(xs*cot15)>>6", "ysc=(ys*cot15)>>6"
++};
++
++static inline void
++r3rng_hit(int slot, int v)
++{
++    int a = v < 0 ? -v : v;
++    g_r3rng[slot].n += 1.0;
++    if( a > g_r3rng[slot].max_abs ) g_r3rng[slot].max_abs = a;
++    if( a > 32767 ) g_r3rng[slot].over32767 += 1.0;
++}
++
++/* Reference arithmetic, scalar, yaw-only family. Census build only. */
++static inline void
++r3proj_ranges(
++    const short* vx, const short* vy, const short* vz, int n,
++    int model_yaw, int scene_x, int scene_y, int scene_z,
++    int cot16, int camera_pitch, int camera_yaw)
++{
++    int cot15 = cot16 >> 1;
++    int ccy = ToriDraw_ReadCosTable(camera_yaw);
++    int scy = ToriDraw_ReadSinTable(camera_yaw);
++    int ccp = ToriDraw_ReadCosTable(camera_pitch);
++    int scp = ToriDraw_ReadSinTable(camera_pitch);
++    int cmy = ToriDraw_ReadCosTable(model_yaw);
++    int smy = ToriDraw_ReadSinTable(model_yaw);
++    for( int i = 0; i < n; i++ )
++    {
++        int x = vx[i], y = vy[i], z = vz[i];
++        int xr, zr;
++        if( model_yaw != 0 )
++        {
++            xr = (x * cmy + z * smy) >> 16;
++            zr = (z * cmy - x * smy) >> 16;
++        }
++        else { xr = x; zr = z; }
++        r3rng_hit(0, xr); r3rng_hit(0, zr);
++        xr += scene_x; zr += scene_z;
++        int yr = y + scene_y;
++        r3rng_hit(1, yr);
++        int xs = (xr * ccy + zr * scy) >> 16;
++        int zs = (zr * ccy - xr * scy) >> 16;
++        int ys = (yr * ccp - zs * scp) >> 16;
++        int zf = (yr * scp + zs * ccp) >> 16;
++        r3rng_hit(2, xs); r3rng_hit(3, zs);
++        r3rng_hit(4, ys); r3rng_hit(5, zf);
++        r3rng_hit(6, (xs * cot15) >> 6);
++        r3rng_hit(7, (ys * cot15) >> 6);
++    }
++}
++
++#define R3PROJ_RANGES(vx,vy,vz,n,my,sx,sy,sz,c16,cp,cy)     r3proj_ranges((vx),(vy),(vz),(n),(my),(sx),(sy),(sz),(c16),(cp),(cy))
++
++static void
++R3ProjCensusDump(void)
++{
++    struct R3ProjCensus const* c = &g_r3proj;
++    double f = c->frames > 0.0 ? c->frames : 1.0;
++    FILE* out = stderr;
++    const char* path = getenv("R3PROJ_CENSUS_FILE");
++    if( path ) { FILE* g = fopen(path, "w"); if( g ) out = g; }
++    fprintf(out, "R3PROJ frames=%.0f\n", c->frames);
++    fprintf(out, "%-24s %12s %12s %12s %12s %10s\n",
++            "kernel", "calls/frm", "verts/frm", "v/call", "tail/frm", "yaw0pct");
++    for( int i = 0; i < R3K_COUNT; i++ )
++    {
++        if( c->calls[i] == 0.0 ) continue;
++        fprintf(out, "%-24s %12.1f %12.1f %12.2f %12.1f %9.1f\n",
++                g_r3k_names[i], c->calls[i] / f, c->verts[i] / f,
++                c->verts[i] / c->calls[i], c->tail[i] / f,
++                100.0 * c->yaw_zero[i] / c->calls[i]);
++    }
++    fprintf(out, "vertex-count histogram (blocks of 4, calls/frame):\n");
++    for( int b = 0; b < 16; b++ )
++        if( c->vhist[b] != 0.0 )
++            fprintf(out, "  %2d-%2d verts : %10.1f\n", b*4, b*4+3, c->vhist[b] / f);
++    fprintf(out, "value ranges (max |v|, and how often |v| > 32767):\n");
++    for( int i = 0; i < 8; i++ )
++        if( g_r3rng[i].n > 0.0 )
++            fprintf(out, "  %-22s max=%10d  over32767=%.0f / %.0f (%.4f pct)\n",
++                    g_r3rng_names[i], g_r3rng[i].max_abs, g_r3rng[i].over32767,
++                    g_r3rng[i].n, 100.0 * g_r3rng[i].over32767 / g_r3rng[i].n);
++    if( out != stderr ) fclose(out);
++}
++
++#else
++#define R3PROJ_RECORD(k, n, y) ((void)0)
++#define R3PROJ_RANGES(vx,vy,vz,n,my,sx,sy,sz,c16,cp,cy) ((void)0)
++#define R3PROJ_FRAME() ((void)0)
++#endif
++#endif
+diff --git a/3rd/toridraw/toridraw.c b/3rd/toridraw/toridraw.c
+index b2a4729f7..5ccf217d1 100644
+--- a/3rd/toridraw/toridraw.c
++++ b/3rd/toridraw/toridraw.c
+@@ -755,6 +755,7 @@ ToriDraw_ScenePrepareProjectionCamera(
+         prepared->cot15[lane] = values[4];
+     }
+     scene->projection_prepared_camera_source = camera;
++    R3PROJ_FRAME();
+ }
+ 
+ void
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..9a6c8f232 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -6,6 +6,7 @@
+ #include "toridraw_math.h"
+ #include "toridraw_model_internal.h"
+ #include "toridraw_types.h"
++#include "graphics/r3proj_census.h"
+ 
+ #include <assert.h>
+ #include <limits.h>
+@@ -937,6 +938,13 @@ ToriDraw_CalculateCylinderAabb8point(
+      * as the sentinel to drag min_screen_x out to -5000 and keep the box
+      * conservative. Eight vertices, so the per-vertex cost is noise.
+      */
++    R3PROJ_RECORD(
++        toridraw_proj_is_parallel(camera->proj_mode)
++            ? R3K_AABB8_PARALLEL
++            : ((model_pitch != 0 || model_roll != 0 || camera_roll != 0)
++                   ? R3K_AABB8_6DOF
++                   : R3K_AABB8_YAW),
++        8, model_yaw);
+     if( toridraw_proj_is_parallel(camera->proj_mode) )
+     {
+         /* No sentinel needed: with no divide a corner behind the near plane
+@@ -2175,6 +2183,13 @@ toridraw_project_vertices_clip(
+ {
+     /* Full 6DOF when model/camera roll is set (obj-icon zan2d, etc.). yaw-only and
+      * pitch+yaw keep the SIMD fused paths; array6_fused matches v0 Dash. */
++    R3PROJ_RECORD(
++        (model_roll != 0 || camera_roll != 0)
++            ? (model_has_textures(hnd) ? R3K_CLIP_6DOF_TEX : R3K_CLIP_6DOF_NOTEX)
++            : (model_pitch != 0
++                   ? (model_has_textures(hnd) ? R3K_CLIP_PY_TEX : R3K_CLIP_PY_NOTEX)
++                   : (model_has_textures(hnd) ? R3K_CLIP_YAW_TEX : R3K_CLIP_YAW_NOTEX)),
++        model_vertex_count(hnd), model_yaw);
+     if( model_roll != 0 || camera_roll != 0 )
+     {
+         if( model_has_textures(hnd) )
+@@ -2339,6 +2354,20 @@ toridraw_project_vertices_noclip_portable(
+ {
+     /* Full 6DOF when model/camera roll is set (obj-icon zan2d, etc.). yaw-only and
+      * pitch+yaw keep the SIMD fused paths; array6_fused matches v0 Dash. */
++    R3PROJ_RECORD(
++        (model_roll != 0 || camera_roll != 0)
++            ? (model_has_textures(hnd) ? R3K_NOCLIP_6DOF_TEX : R3K_NOCLIP_6DOF_NOTEX)
++            : (model_pitch != 0
++                   ? (model_has_textures(hnd) ? R3K_NOCLIP_PY_TEX : R3K_NOCLIP_PY_NOTEX)
++                   : (model_has_textures(hnd) ? R3K_NOCLIP_YAW_TEX : R3K_NOCLIP_YAW_NOTEX)),
++        model_vertex_count(hnd), model_yaw);
++    if( model_roll == 0 && camera_roll == 0 && model_pitch == 0 )
++        R3PROJ_RANGES(
++            (const short*)model_vertices_x(hnd), (const short*)model_vertices_y(hnd),
++            (const short*)model_vertices_z(hnd), model_vertex_count(hnd), model_yaw,
++            position->x, position->y, position->z,
++            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
++            camera->pitch, camera->yaw);
+     if( model_roll != 0 || camera_roll != 0 )
+     {
+         if( model_has_textures(hnd) )

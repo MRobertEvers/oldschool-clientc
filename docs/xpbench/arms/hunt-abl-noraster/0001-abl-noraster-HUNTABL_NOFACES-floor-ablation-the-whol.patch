@@ -1,0 +1,89 @@
+From 1ab61e8f12795897e7df13f3ececc3acf40de1da Mon Sep 17 00:00:00 2001
+From: hunt-agent <mreverssci@gmail.com>
+Date: Tue, 25 Aug 2026 02:35:33 -0500
+Subject: [PATCH] abl(noraster): HUNTABL_NOFACES floor ablation - the whole
+ raster phase free
+
+Env-gated at the top of ToriDraw_RasterWithFaceIndices so one binary carries
+both rungs with byte-identical codegen: HUNTABL_NOFACES_LEVEL=0 is the
+self-control (full raster), =1 returns before context_from_handle so no model
+geometry reaches a span on any path. Projection, back-face cull, the depth
+bucket sort, the painter drain, the frame clear and the present all still run.
+
+Ablation only, never shippable.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ 3rd/toridraw/toridraw_raster.u.c | 52 ++++++++++++++++++++++++++++++++
+ 1 file changed, 52 insertions(+)
+
+diff --git a/3rd/toridraw/toridraw_raster.u.c b/3rd/toridraw/toridraw_raster.u.c
+index 43197f782..21fe78baa 100644
+--- a/3rd/toridraw/toridraw_raster.u.c
++++ b/3rd/toridraw/toridraw_raster.u.c
+@@ -1289,6 +1289,34 @@ toridraw_raster_face_front_facing(
+         ctx->vertex_y[c]);
+ }
+ 
++/* #region agent log */
++#ifdef HUNTABL_NOFACES
++/**
++ * Ablation ladder rung, never shippable. Read once from HUNTABL_NOFACES_LEVEL.
++ *
++ *   0  full raster. The self-control: this binary's codegen is byte-identical
++ *      to the ablated rung, so a delta between the two cannot be a code-layout
++ *      artefact of a different build.
++ *   1  the whole per-model raster phase returns immediately.
++ *
++ * The level lives behind one predictable compare on a resolved global, paid
++ * once per model raster call (~1.3k/frame), not once per face or per span.
++ */
++static int g_huntabl_noraster_level = -1;
++
++static inline int
++huntabl_noraster_level(void)
++{
++    if( g_huntabl_noraster_level < 0 )
++    {
++        const char* v = getenv("HUNTABL_NOFACES_LEVEL");
++        g_huntabl_noraster_level = v ? atoi(v) : 0;
++    }
++    return g_huntabl_noraster_level;
++}
++#endif
++/* #endregion */
++
+ static inline void
+ ToriDraw_RasterWithFaceIndices(
+     struct ToriDraw_Scene* scene,
+@@ -1303,6 +1331,30 @@ ToriDraw_RasterWithFaceIndices(
+      * the visibility answer. */
+     bool unsorted)
+ {
++    assert(scene);
++    assert(view_port);
++    assert(camera);
++    assert(pixel_buffer);
++/* #region agent log */
++#ifdef HUNTABL_NOFACES
++    /* ABLATION, never shippable: make the entire per-model raster phase free.
++     *
++     * Everything upstream still runs unchanged -- ToriDraw_Project, the
++     * back-face cull, ToriDraw_ComputeProjectedFaceOrder, the painter's bucket
++     * drain, the frame clear and the win32 present. Everything from the raster
++     * context outward is gone: per-model context setup, the ordered-face walk,
++     * per-face setup, the near-clip rebuild and all four kernels. Both entry
++     * points (ToriDraw_Raster and ToriDraw_RasterZBuffered) land here, so no
++     * model geometry reaches a span on any path.
++     *
++     * This is the floor arm of the ablation ladder: what the frame costs before
++     * a single pixel of geometry is shaded. The screen goes to the clear
++     * colour. Frame count, r_cmds_model, r_model_culled and r_model_faces are
++     * all untouched, because every one of them is counted upstream of here. */
++    if( huntabl_noraster_level() >= 1 )
++        return;
++#endif
++/* #endregion */
+     struct ToriDrawModelRasterContext ctx;
+     context_from_handle(scene, hnd, view_port, camera, smooth, force_zbuffer, &ctx);
+     {

@@ -1,0 +1,816 @@
+From 4f610c932fdff752722313ecc06ba7d0c38de8f1 Mon Sep 17 00:00:00 2001
+From: claude <noreply@anthropic.com>
+Date: Tue, 25 Aug 2026 02:47:10 -0500
+Subject: [PATCH] hunt(abl-tri1px): setup-vs-fill ladder, runtime-gated, all 4
+ asm kernels kept
+
+HUNTABL_LEVEL=0/1/2 on a global the .S files load, so one binary carries
+every rung and TORIDRAW_PROBE_CFLAGS stays empty (the makefile asm gate
+never fires).
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ .../flat/flat.screen.alpha.branching.s4.c     | 10 +++
+ .../flat/flat.screen.opaque.branching.s4.c    | 10 +++
+ .../gouraudhsllightness/gouraud_tri_i686.S    | 11 +++
+ ...lightness.screen.alpha.bary.branching.s1.c | 10 +++
+ ...lightness.screen.alpha.bary.branching.s4.c | 10 +++
+ ...ightness.screen.opaque.bary.branching.s4.c | 10 +++
+ .../gouraudrgb.screen.bary.branching.s4.inc   |  9 +++
+ 3rd/toridraw/graphics/raster/huntabl.h        | 72 +++++++++++++++++++
+ 3rd/toridraw/graphics/raster/raster_ablate.c  | 25 +++++++
+ .../graphics/raster/texture/tex_tri_i686.S    | 12 ++++
+ .../texmap.persp.branching.lerp8_v3_tmpl.inc  |  9 +++
+ ...texplane.persp.branching.lerp8_v3_tmpl.inc |  9 +++
+ ...blend.affine.texopaque.branching.lerp8.u.c | 10 +++
+ ...nd.affine.texopaque.branching.lerp8_v3.u.c | 10 +++
+ ...eblend.affine.textrans.branching.lerp8.u.c | 10 +++
+ ...end.affine.textrans.branching.lerp8_v3.u.c | 10 +++
+ ...end.persp.texopaque.branching.lerp8_v3.u.c | 10 +++
+ ...lend.persp.textrans.branching.lerp8_v3.u.c | 10 +++
+ ...deflat.persp.texopaque.branching.lerp8.u.c | 10 +++
+ ...adeflat.persp.textrans.branching.lerp8.u.c | 10 +++
+ .../graphics/raster/zbuffer/zbuf.screen.u.c   | 10 +++
+ 3rd/toridraw/toridraw_raster.u.c              |  8 +++
+ 22 files changed, 295 insertions(+)
+ create mode 100644 3rd/toridraw/graphics/raster/huntabl.h
+
+diff --git a/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.branching.s4.c b/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.branching.s4.c
+index 67b50d531..3f50e3a45 100644
+--- a/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.branching.s4.c
++++ b/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.branching.s4.c
+@@ -1,6 +1,8 @@
+ #ifndef FLAT_SCREEN_ALPHA_BRANCHING_S4_C
+ #define FLAT_SCREEN_ALPHA_BRANCHING_S4_C
+ 
++#include "graphics/raster/huntabl.h"
++
+ #include "graphics/alpha.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/raster/flat/flat_screen_edges.h"
+@@ -152,6 +154,9 @@ raster_flat_screen_alpha_branching_s4_ordered(
+     int color_hsl16,
+     int alpha)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     if( y2 - y0 == 0 )
+         return;
+ 
+@@ -223,6 +228,11 @@ raster_flat_screen_alpha_branching_s4_ordered(
+         y2 = screen_height;
+     }
+ 
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
+     {
+diff --git a/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.branching.s4.c b/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.branching.s4.c
+index 0225f1bf8..acfb97ee7 100644
+--- a/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.branching.s4.c
++++ b/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.branching.s4.c
+@@ -1,6 +1,8 @@
+ #ifndef FLAT_SCREEN_OPAQUE_BRANCHING_S4_C
+ #define FLAT_SCREEN_OPAQUE_BRANCHING_S4_C
+ 
++#include "graphics/raster/huntabl.h"
++
+ #include "graphics/dash_restrict.h"
+ #include "graphics/raster/flat/flat_screen_edges.h"
+ 
+@@ -124,6 +126,9 @@ raster_flat_screen_opaque_branching_s4_ordered(
+     int y2,
+     int color_hsl16)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     if( y2 - y0 == 0 )
+         return;
+ 
+@@ -195,6 +200,11 @@ raster_flat_screen_opaque_branching_s4_ordered(
+         y2 = screen_height;
+     }
+ 
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
+     {
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+index d8b79f6d2..eb73b0ab0 100644
+--- a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+@@ -271,6 +271,11 @@
+ 	movl	V_CNT(%esp), %eax
+ 	testl	%eax, %eax
+ 	jle	5900f
++	/* HUNT ABLATION level 1: skip the trapezoid walk and every span in it.
++	 * Everything above -- the y sort, the gradient solve, the edge setup and
++	 * the two divides -- has already run. */
++	cmpl	$0, _g_huntabl_level
++	jg	5900f
+ 	cmpl	$0, V_NC(%esp)
+ 	je	5500f
+ 
+@@ -406,6 +411,12 @@ _toridraw_gouraud_tri_opaque_s4_asm:
+ 	pushl	%ebx
+ 	subl	$FRAME, %esp
+ 
++	/* HUNT ABLATION level 2: the whole kernel, prologue included. The frame
++	 * is already established so Lret's teardown balances. See
++	 * graphics/raster/huntabl.h. */
++	cmpl	$2, _g_huntabl_level
++	jge	Lret
++
+ 	movl	A(0), %eax
+ 	movl	%eax, V_PIX(%esp)
+ 	movl	A(1), %eax
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s1.c b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s1.c
+index 718c3a86e..045c7a5b2 100644
+--- a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s1.c
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s1.c
+@@ -1,6 +1,8 @@
+ #ifndef GOURAUDHSLLIGHTNESS_SCREEN_ALPHA_BARY_BRANCHING_S1_C
+ #define GOURAUDHSLLIGHTNESS_SCREEN_ALPHA_BARY_BRANCHING_S1_C
+ 
++#include "graphics/raster/huntabl.h"
++
+ #include "graphics/alpha.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/int_wrap.h"
+@@ -73,6 +75,9 @@ raster_gouraudhsllightness_screen_alpha_bary_branching_s1_ordered(
+     int color2_hsl16,
+     int alpha)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     if( y2 - y0 == 0 )
+         return;
+ 
+@@ -157,6 +162,11 @@ raster_gouraudhsllightness_screen_alpha_bary_branching_s1_ordered(
+         y2 = screen_height;
+     }
+ 
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
+     {
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c
+index 5f6b7036c..9cac71a15 100644
+--- a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c
+@@ -1,6 +1,8 @@
+ #ifndef GOURAUDHSLLIGHTNESS_SCREEN_ALPHA_BARY_BRANCHING_S4_C
+ #define GOURAUDHSLLIGHTNESS_SCREEN_ALPHA_BARY_BRANCHING_S4_C
+ 
++#include "graphics/raster/huntabl.h"
++
+ #include "graphics/alpha.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/int_wrap.h"
+@@ -180,6 +182,9 @@ raster_gouraudhsllightness_screen_alpha_bary_branching_s4_ordered(
+     int color2_hsl16,
+     int alpha)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     if( y2 - y0 == 0 )
+         return;
+ 
+@@ -264,6 +269,11 @@ raster_gouraudhsllightness_screen_alpha_bary_branching_s4_ordered(
+         y2 = screen_height;
+     }
+ 
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
+     {
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c
+index da89af14b..404e2fa5d 100644
+--- a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c
+@@ -1,6 +1,8 @@
+ #ifndef GOURAUDHSLLIGHTNESS_SCREEN_OPAQUE_BARY_BRANCHING_S4_C
+ #define GOURAUDHSLLIGHTNESS_SCREEN_OPAQUE_BARY_BRANCHING_S4_C
+ 
++#include "graphics/raster/huntabl.h"
++
+ #include "graphics/int_wrap.h"
+ #include "graphics/tori_compat.h"
+ #include "graphics/dash_restrict.h"
+@@ -116,6 +118,9 @@ raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
+     int color1_hsl16,
+     int color2_hsl16)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     /* Level 3 is the rung the original ladder lacked. Level 2 returns *after*
+      * the prologue, so base-minus-2 is fill+walk and the per-triangle prologue
+      * -- five divides, the barycentric steps, the y clamps, the two no-hclip
+@@ -262,6 +267,11 @@ raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
+ 
+     TORIDRAW_ABLATE_RETURN_AT(2);
+ 
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
+     {
+diff --git a/3rd/toridraw/graphics/raster/gouraudrgb/gouraudrgb.screen.bary.branching.s4.inc b/3rd/toridraw/graphics/raster/gouraudrgb/gouraudrgb.screen.bary.branching.s4.inc
+index a0838ccda..ca103b2ff 100644
+--- a/3rd/toridraw/graphics/raster/gouraudrgb/gouraudrgb.screen.bary.branching.s4.inc
++++ b/3rd/toridraw/graphics/raster/gouraudrgb/gouraudrgb.screen.bary.branching.s4.inc
+@@ -1,3 +1,4 @@
++#include "graphics/raster/huntabl.h"
+ /*
+  * Barycentric RGB-interpolated triangle template, `branching` walk.
+  *
+@@ -226,6 +227,9 @@ GRGB_ORDERED(
+ #endif
+ )
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     if( y2 - y0 == 0 )
+         return;
+ 
+@@ -402,6 +406,11 @@ GRGB_ORDERED(
+         offset += stride;                                                                          \
+     } while( 0 )
+ 
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
+     {
+diff --git a/3rd/toridraw/graphics/raster/huntabl.h b/3rd/toridraw/graphics/raster/huntabl.h
+new file mode 100644
+index 000000000..34723b8aa
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/huntabl.h
+@@ -0,0 +1,72 @@
++#ifndef TORIDRAW_HUNTABL_H
++#define TORIDRAW_HUNTABL_H
++
++/*
++ * HUNT ABLATION: per-triangle SETUP versus per-pixel FILL.
++ *
++ * Not shippable. Not an optimisation. This is a stopwatch that answers one
++ * question the XP frame hunt is stuck on: of the 26.61 ms the EIP map credits
++ * to the two handrolled raster kernels, how much is the per-triangle prologue
++ * (vertex sort, gradient solve, the divides, edge setup) and how much is the
++ * trapezoid walk and the span fill?
++ *
++ * Deliberately NOT named after the makefile's three poisoned strings
++ * (see src/makefile: any of them inside TORIDRAW_PROBE_CFLAGS silently drops
++ * all four handrolled asm kernels, so a build that carries them measures a
++ * different renderer). Nothing here is a compile flag at all: the level is a
++ * global the asm kernels read, so ONE binary carries every rung and every
++ * delta is within-binary as well as within-job.
++ *
++ *   HUNTABL_LEVEL=0 (or unset)  everything runs. The ladder's own control:
++ *                               it still pays the level load and branch, so
++ *                               rung-to-rung deltas do not contain them.
++ *   HUNTABL_LEVEL=1             the per-triangle prologue runs in full and
++ *                               the scanline walk and span fill do not.
++ *                               Zero pixels are written by any triangle.
++ *   HUNTABL_LEVEL=2             the triangle kernel returns at its entry.
++ *                               Bounds the WHOLE of both kernels, which is
++ *                               what tests whether the EIP map's 16.27 ms and
++ *                               10.34 ms are where the time actually is.
++ *
++ * base - 1 = walk + span setup + fill.   1 - 2 = the per-triangle prologue.
++ *
++ * Why a runtime global and not #ifdef: an unconditional `return` after the
++ * prologue lets GCC delete the prologue as dead, which would hand back a
++ * measurement of nothing. A load the compiler cannot fold keeps every divide
++ * live. The asm kernels have no such hazard but read the same global so the
++ * rungs line up.
++ */
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/** -1 until HUNTABL_LEVEL is read; 0/1/2 after. Read by name from
++ *  gouraud_tri_i686.S and tex_tri_i686.S, so it must stay non-static. */
++extern int g_huntabl_level;
++
++/** Reads HUNTABL_LEVEL once. Called from the model raster entry, never from a
++ *  triangle: getenv() walks environ with a strncmp per entry. */
++void HuntAbl_LevelInit(void);
++
++#ifdef __cplusplus
++}
++#endif
++
++/** Cut the trapezoid walk and everything under it; keep the prologue. */
++#define HUNTABL_CUT_WALK()                                                     \
++    do                                                                         \
++    {                                                                          \
++        if( g_huntabl_level >= 1 )                                             \
++            return;                                                            \
++    } while( 0 )
++
++/** Cut the whole triangle. Placed at the first statement of the walk. */
++#define HUNTABL_CUT_ALL()                                                      \
++    do                                                                         \
++    {                                                                          \
++        if( g_huntabl_level >= 2 )                                             \
++            return;                                                            \
++    } while( 0 )
++
++#endif
+diff --git a/3rd/toridraw/graphics/raster/raster_ablate.c b/3rd/toridraw/graphics/raster/raster_ablate.c
+index 06e9b3e2b..5c8b76fff 100644
+--- a/3rd/toridraw/graphics/raster/raster_ablate.c
++++ b/3rd/toridraw/graphics/raster/raster_ablate.c
+@@ -7,3 +7,28 @@ int g_toridraw_ablate = -1;
+ int g_toridraw_ablate_tex = -1;
+ 
+ #endif
++
++/* ---- hunt ablation: setup vs fill -------------------------------------- */
++/* Lives here because raster_ablate.c is already in the toridraw unity link and
++ * the two asm kernels need a real, non-static symbol to load. Deliberately
++ * OUTSIDE the TORIDRAW_ABLATE guard above: this ladder must exist in a build
++ * that still has all four handrolled kernels, which is exactly the build the
++ * makefile refuses to give the guarded ladder. See graphics/raster/huntabl.h. */
++#include "graphics/raster/huntabl.h"
++#include <assert.h>
++#include <stdlib.h>
++
++/* `used` so LTO cannot delete or privatise the symbol the .S files load:
++ * the assembler objects are not IR, so nothing in the IR ever names it. */
++__attribute__((used)) int g_huntabl_level = -1;
++
++void
++HuntAbl_LevelInit(void)
++{
++    char const* s = getenv("HUNTABL_LEVEL");
++    g_huntabl_level = s ? atoi(s) : 0;
++    if( g_huntabl_level < 0 )
++        g_huntabl_level = 0;
++    if( g_huntabl_level > 2 )
++        g_huntabl_level = 2;
++}
+diff --git a/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S b/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S
+index 572644735..24dd91aed 100644
+--- a/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S
++++ b/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S
+@@ -248,6 +248,12 @@ _toridraw_textri_opaque_lerp8_v3_asm:
+ 	pushl	%ebp
+ 	subl	$TFRAME, %esp
+ 
++	/* HUNT ABLATION level 2: the whole kernel, prologue included. The frame
++	 * is already established so .Lret's teardown balances. See
++	 * graphics/raster/huntabl.h. */
++	cmpl	$2, _g_huntabl_level
++	jge	.Lret
++
+ 	/* ---------------------------------------------------------------- */
+ 	/* Sort the three (x, y, shade) triples by y, stably.                */
+ 	/*                                                                   */
+@@ -644,6 +650,12 @@ _toridraw_textri_opaque_lerp8_v3_asm:
+ 	movl	T(A_TEXELS), %esi
+ 
+ 	/* The width dispatch, once per triangle instead of once per row. */
++	/* HUNT ABLATION level 1: the y sort, the gradient solve, the edge setup,
++	 * texplane_prepare32 and the nine per-row invariants have all run; the
++	 * trapezoid walk and every textured span in it do not. */
++	cmpl	$0, _g_huntabl_level
++	jg	.Lret
++
+ 	cmpl	$128, T(A_TW)
+ 	je	.Lwalk128
+ 	jmp	.Lwalk64
+diff --git a/3rd/toridraw/graphics/raster/texture/texmap.persp.branching.lerp8_v3_tmpl.inc b/3rd/toridraw/graphics/raster/texture/texmap.persp.branching.lerp8_v3_tmpl.inc
+index a406150bd..de05e82e5 100644
+--- a/3rd/toridraw/graphics/raster/texture/texmap.persp.branching.lerp8_v3_tmpl.inc
++++ b/3rd/toridraw/graphics/raster/texture/texmap.persp.branching.lerp8_v3_tmpl.inc
+@@ -1,3 +1,4 @@
++#include "graphics/raster/huntabl.h"
+ /*
+  * Mapped textured triangle, `branching` walk. Included once per variant by the
+  * `texpmn`, `texcylinder`, `texcube` and `texsphere` families. The includer
+@@ -108,6 +109,9 @@ TMAP_FN(
+     const TMAP_MAP_T* RESTRICT mapping,
+     const struct ToriDraw_TexSampler* RESTRICT sampler TMAP_ZKEY_PARAMS)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     /* ---------------------------------------------------- 1. projection */
+ 
+     float u[3];
+@@ -378,6 +382,11 @@ TMAP_FN(
+ 
+     /* Which edge is on the left is decided once, from the signed area, rather
+      * than per row — the sorted triangle cannot change winding mid-walk. */
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     if( (ry0 == ry1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+         (ry0 != ry1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
+     {
+diff --git a/3rd/toridraw/graphics/raster/texture/texplane.persp.branching.lerp8_v3_tmpl.inc b/3rd/toridraw/graphics/raster/texture/texplane.persp.branching.lerp8_v3_tmpl.inc
+index 3c2e7c7a8..b25f2e187 100644
+--- a/3rd/toridraw/graphics/raster/texture/texplane.persp.branching.lerp8_v3_tmpl.inc
++++ b/3rd/toridraw/graphics/raster/texture/texplane.persp.branching.lerp8_v3_tmpl.inc
+@@ -1,3 +1,4 @@
++#include "graphics/raster/huntabl.h"
+ /*
+  * Perspective textured triangle with a shade plane, `branching` walk, over the
+  * extended capability matrix. Included once per variant. The includer defines:
+@@ -72,6 +73,9 @@ TSFA_ORDERED(
+     int shade7bit_c,
+     const struct ToriDraw_TexSampler* RESTRICT sampler TSFA_ZKEY_PARAMS)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     if( y0 > screen_height )
+         return;
+ 
+@@ -245,6 +249,11 @@ TSFA_ORDERED(
+         TSFA_ZADVANCE();                                                                           \
+     } while( 0 )
+ 
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
+     {
+diff --git a/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.texopaque.branching.lerp8.u.c b/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.texopaque.branching.lerp8.u.c
+index fe1da6311..fc9e2c1ef 100644
+--- a/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.texopaque.branching.lerp8.u.c
++++ b/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.texopaque.branching.lerp8.u.c
+@@ -1,6 +1,8 @@
+ #ifndef TEXSHADEBLEND_AFFINE_TEXOPAQUE_BRANCHING_LERP8_U_C
+ #define TEXSHADEBLEND_AFFINE_TEXOPAQUE_BRANCHING_LERP8_U_C
+ 
++#include "graphics/raster/huntabl.h"
++
+ #include "graphics/raster/raster_ablate.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/int_wrap.h"
+@@ -38,6 +40,9 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_ordered(
+     int* RESTRICT texels,
+     int texture_width)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     (void)camera_cot16;
+     (void)texture_width;
+     // Map orthographic texture coordinates to u/v/w
+@@ -183,6 +188,11 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_ordered(
+          * triangle cuts at TORIDRAW_ABLATE=2. See raster_ablate.h. */
+         TORIDRAW_ABLATE_TEX_WALK_RETURN();
+ 
++        /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++         * prologue and still runs; the trapezoid walk and every span below it
++         * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++        HUNTABL_CUT_WALK();
++
+         if( (y0 == y1 && step_x02_ish16 <= step_x12_ish16) ||
+             (y0 != y1 && step_x02_ish16 >= step_x01_ish16) )
+         {
+diff --git a/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.texopaque.branching.lerp8_v3.u.c b/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.texopaque.branching.lerp8_v3.u.c
+index 33b572873..dcb86d808 100644
+--- a/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.texopaque.branching.lerp8_v3.u.c
++++ b/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.texopaque.branching.lerp8_v3.u.c
+@@ -1,6 +1,8 @@
+ #ifndef TEXSHADEBLEND_AFFINE_TEXOPAQUE_BRANCHING_LERP8_V3_U_C
+ #define TEXSHADEBLEND_AFFINE_TEXOPAQUE_BRANCHING_LERP8_V3_U_C
+ 
++#include "graphics/raster/huntabl.h"
++
+ #include "graphics/raster/raster_ablate.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/int_wrap.h"
+@@ -34,6 +36,9 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_v3_ordered(
+     int* RESTRICT texels,
+     int texture_width)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     if( y0 > screen_height )
+         return;
+ 
+@@ -169,6 +174,11 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_v3_ordered(
+      * triangle cuts at TORIDRAW_ABLATE=2. See raster_ablate.h. */
+     TORIDRAW_ABLATE_TEX_WALK_RETURN();
+ 
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
+     {
+diff --git a/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.textrans.branching.lerp8.u.c b/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.textrans.branching.lerp8.u.c
+index 36e2de6bf..615258d6b 100644
+--- a/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.textrans.branching.lerp8.u.c
++++ b/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.textrans.branching.lerp8.u.c
+@@ -1,6 +1,8 @@
+ #ifndef TEXSHADEBLEND_AFFINE_TEXTRANS_BRANCHING_LERP8_U_C
+ #define TEXSHADEBLEND_AFFINE_TEXTRANS_BRANCHING_LERP8_U_C
+ 
++#include "graphics/raster/huntabl.h"
++
+ #include "graphics/raster/raster_ablate.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/int_wrap.h"
+@@ -38,6 +40,9 @@ raster_texshadeblend_affine_textrans_branching_lerp8_ordered(
+     int* RESTRICT texels,
+     int texture_width)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     (void)camera_cot16;
+     (void)texture_width;
+     // Map orthographic texture coordinates to u/v/w
+@@ -183,6 +188,11 @@ raster_texshadeblend_affine_textrans_branching_lerp8_ordered(
+          * triangle cuts at TORIDRAW_ABLATE=2. See raster_ablate.h. */
+         TORIDRAW_ABLATE_TEX_WALK_RETURN();
+ 
++        /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++         * prologue and still runs; the trapezoid walk and every span below it
++         * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++        HUNTABL_CUT_WALK();
++
+         if( (y0 == y1 && step_x02_ish16 <= step_x12_ish16) ||
+             (y0 != y1 && step_x02_ish16 >= step_x01_ish16) )
+         {
+diff --git a/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.textrans.branching.lerp8_v3.u.c b/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.textrans.branching.lerp8_v3.u.c
+index f5d4099c2..c7f3d29f4 100644
+--- a/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.textrans.branching.lerp8_v3.u.c
++++ b/3rd/toridraw/graphics/raster/texture/texshadeblend.affine.textrans.branching.lerp8_v3.u.c
+@@ -1,6 +1,8 @@
+ #ifndef TEXSHADEBLEND_AFFINE_TEXTRANS_BRANCHING_LERP8_V3_U_C
+ #define TEXSHADEBLEND_AFFINE_TEXTRANS_BRANCHING_LERP8_V3_U_C
+ 
++#include "graphics/raster/huntabl.h"
++
+ #include "graphics/raster/raster_ablate.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/int_wrap.h"
+@@ -34,6 +36,9 @@ raster_texshadeblend_affine_textrans_branching_lerp8_v3_ordered(
+     int* RESTRICT texels,
+     int texture_width)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     if( y0 > screen_height )
+         return;
+ 
+@@ -169,6 +174,11 @@ raster_texshadeblend_affine_textrans_branching_lerp8_v3_ordered(
+      * triangle cuts at TORIDRAW_ABLATE=2. See raster_ablate.h. */
+     TORIDRAW_ABLATE_TEX_WALK_RETURN();
+ 
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
+     {
+diff --git a/3rd/toridraw/graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c b/3rd/toridraw/graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c
+index 7cda6ee2c..fc8cfb695 100644
+--- a/3rd/toridraw/graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c
++++ b/3rd/toridraw/graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c
+@@ -1,6 +1,8 @@
+ #ifndef TEXSHADEBLEND_PERSP_TEXOPAQUE_BRANCHING_LERP8_V3_U_C
+ #define TEXSHADEBLEND_PERSP_TEXOPAQUE_BRANCHING_LERP8_V3_U_C
+ 
++#include "graphics/raster/huntabl.h"
++
+ #include "graphics/raster/raster_ablate.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/int_wrap.h"
+@@ -34,6 +36,9 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
+     int* RESTRICT texels,
+     int texture_width)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     if( y0 > screen_height )
+         return;
+ 
+@@ -182,6 +187,11 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
+      * triangle cuts at TORIDRAW_ABLATE=2. See raster_ablate.h. */
+     TORIDRAW_ABLATE_TEX_WALK_RETURN();
+ 
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
+     {
+diff --git a/3rd/toridraw/graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c b/3rd/toridraw/graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c
+index bda5e3f6b..9c4db0c52 100644
+--- a/3rd/toridraw/graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c
++++ b/3rd/toridraw/graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c
+@@ -1,6 +1,8 @@
+ #ifndef TEXSHADEBLEND_PERSP_TEXTRANS_BRANCHING_LERP8_V3_U_C
+ #define TEXSHADEBLEND_PERSP_TEXTRANS_BRANCHING_LERP8_V3_U_C
+ 
++#include "graphics/raster/huntabl.h"
++
+ #include "graphics/raster/raster_ablate.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/int_wrap.h"
+@@ -34,6 +36,9 @@ raster_texshadeblend_persp_textrans_branching_lerp8_v3_ordered(
+     int* RESTRICT texels,
+     int texture_width)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     if( y0 > screen_height )
+         return;
+ 
+@@ -182,6 +187,11 @@ raster_texshadeblend_persp_textrans_branching_lerp8_v3_ordered(
+      * triangle cuts at TORIDRAW_ABLATE=2. See raster_ablate.h. */
+     TORIDRAW_ABLATE_TEX_WALK_RETURN();
+ 
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
+     {
+diff --git a/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.texopaque.branching.lerp8.u.c b/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.texopaque.branching.lerp8.u.c
+index 9aac32c1f..270b1bc3a 100644
+--- a/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.texopaque.branching.lerp8.u.c
++++ b/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.texopaque.branching.lerp8.u.c
+@@ -1,6 +1,8 @@
+ #ifndef TEXSHADEFLAT_PERSP_TEXOPAQUE_BRANCHING_LERP8_U_C
+ #define TEXSHADEFLAT_PERSP_TEXOPAQUE_BRANCHING_LERP8_U_C
+ 
++#include "graphics/raster/huntabl.h"
++
+ #include "graphics/raster/raster_ablate.h"
+ #include "graphics/dash_restrict.h"
+ 
+@@ -32,6 +34,9 @@ raster_texshadeflat_persp_texopaque_branching_lerp8_ordered(
+     int* RESTRICT texels,
+     int texture_width)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     if( y0 > screen_height )
+         return;
+ 
+@@ -163,6 +168,11 @@ raster_texshadeflat_persp_texopaque_branching_lerp8_ordered(
+      * triangle cuts at TORIDRAW_ABLATE=2. See raster_ablate.h. */
+     TORIDRAW_ABLATE_TEX_WALK_RETURN();
+ 
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
+     {
+diff --git a/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.textrans.branching.lerp8.u.c b/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.textrans.branching.lerp8.u.c
+index 69a5de87b..f9a9c0ee0 100644
+--- a/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.textrans.branching.lerp8.u.c
++++ b/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.textrans.branching.lerp8.u.c
+@@ -1,6 +1,8 @@
+ #ifndef TEXSHADEFLAT_PERSP_TEXTRANS_BRANCHING_LERP8_U_C
+ #define TEXSHADEFLAT_PERSP_TEXTRANS_BRANCHING_LERP8_U_C
+ 
++#include "graphics/raster/huntabl.h"
++
+ #include "graphics/raster/raster_ablate.h"
+ #include "graphics/dash_restrict.h"
+ 
+@@ -32,6 +34,9 @@ raster_texshadeflat_persp_textrans_branching_lerp8_ordered(
+     int* RESTRICT texels,
+     int texture_width)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     if( y0 > screen_height )
+         return;
+ 
+@@ -163,6 +168,11 @@ raster_texshadeflat_persp_textrans_branching_lerp8_ordered(
+      * triangle cuts at TORIDRAW_ABLATE=2. See raster_ablate.h. */
+     TORIDRAW_ABLATE_TEX_WALK_RETURN();
+ 
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
+     {
+diff --git a/3rd/toridraw/graphics/raster/zbuffer/zbuf.screen.u.c b/3rd/toridraw/graphics/raster/zbuffer/zbuf.screen.u.c
+index f18084620..978dde4fb 100644
+--- a/3rd/toridraw/graphics/raster/zbuffer/zbuf.screen.u.c
++++ b/3rd/toridraw/graphics/raster/zbuffer/zbuf.screen.u.c
+@@ -4,6 +4,8 @@
+ #ifndef TORIDRAW_RASTER_ZBUF_SCREEN_U_C
+ #define TORIDRAW_RASTER_ZBUF_SCREEN_U_C
+ 
++#include "graphics/raster/huntabl.h"
++
+ /*
+  * Depth-tested raster kernels.
+  *
+@@ -329,6 +331,9 @@ raster_zbuf_screen_ordered(
+     int camera_cot16,
+     const struct ToriDraw_ZbufTriangle* tri)
+ {
++    /* HUNT ABLATION level 2: the whole triangle walk, prologue included. */
++    HUNTABL_CUT_ALL();
++
+     int const x0 = tri->x[0];
+     int const x1 = tri->x[1];
+     int const x2 = tri->x[2];
+@@ -538,6 +543,11 @@ raster_zbuf_screen_ordered(
+         y2 = screen_height;
+     }
+ 
++    /* HUNT ABLATION level 1. Everything above this line is the per-triangle
++     * prologue and still runs; the trapezoid walk and every span below it
++     * do not, so the triangle writes no pixel. See raster/huntabl.h. */
++    HUNTABL_CUT_WALK();
++
+     /* Which of the two edges bounds the span on the right; the stock kernels
+      * decide it with exactly this test. */
+     bool const ac_is_right = (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
+diff --git a/3rd/toridraw/toridraw_raster.u.c b/3rd/toridraw/toridraw_raster.u.c
+index 43197f782..c672f8044 100644
+--- a/3rd/toridraw/toridraw_raster.u.c
++++ b/3rd/toridraw/toridraw_raster.u.c
+@@ -6,6 +6,7 @@
+ #include "toridraw_model_internal.h"
+ #include "toridraw_types.h"
+ #include "graphics/winding.h"
++#include "graphics/raster/huntabl.h"
+ 
+ #include <assert.h>
+ #include <stdbool.h>
+@@ -1303,6 +1304,13 @@ ToriDraw_RasterWithFaceIndices(
+      * the visibility answer. */
+     bool unsorted)
+ {
++    /* Hunt ablation, once per model rather than once per triangle: the two asm
++     * kernels read g_huntabl_level directly and must never see -1. A load, a
++     * compare and a not-taken branch, 1,326 times a frame. See
++     * graphics/raster/huntabl.h. */
++    if( g_huntabl_level < 0 )
++        HuntAbl_LevelInit();
++
+     struct ToriDrawModelRasterContext ctx;
+     context_from_handle(scene, hnd, view_port, camera, smooth, force_zbuffer, &ctx);
+     {

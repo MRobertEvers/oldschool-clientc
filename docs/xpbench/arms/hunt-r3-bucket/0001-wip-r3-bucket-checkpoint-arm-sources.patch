@@ -1,0 +1,276 @@
+From 54e6cb11120c382a4a3b2eaa50ce88d48af9b444 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:15:31 -0500
+Subject: [PATCH] wip(r3-bucket): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-bucket.
+
+files: src/painters/painters_bucket.u.c
+---
+ src/painters/painters_bucket.u.c | 178 +++++++++++++++++++++++--------
+ 1 file changed, 131 insertions(+), 47 deletions(-)
+
+diff --git a/src/painters/painters_bucket.u.c b/src/painters/painters_bucket.u.c
+index 7d289c587..6dbf734ee 100644
+--- a/src/painters/painters_bucket.u.c
++++ b/src/painters/painters_bucket.u.c
+@@ -79,30 +79,58 @@ bucket_pop(
+     return -1;
+ }
+ 
++/* The wedgelog rows are diagnostic-only (TORIRS_WEDGELOG) and off in every
++ * timed build, but the snprintf buffer they declare is what made GCC give
++ * bucket_push_if_active an 84-byte frame and refuse to inline it. That frame
++ * was set up and torn down on all 15283 calls per frame -- 9780 of which are
++ * dedup rejects that touch nothing else (74 of the helper's 205 EIP samples
++ * sat in the reject epilogue alone). Out-of-lining the cold half shrinks the
++ * helper to a two-byte-compare test that GCC inlines at every call site. */
++static void __attribute__((noinline))
++bucket_push_wedgelog(int ti, int dist)
++{
++    char extra[32];
++    snprintf(extra, sizeof(extra), "d=%d", dist);
++    painter_wedgelog_event(ti, "PUSH", extra);
++}
++
++static void __attribute__((noinline))
++bucket_pop_wedgelog(int ti, int step)
++{
++    char extra[32];
++    snprintf(extra, sizeof(extra), "step=%d", step);
++    painter_wedgelog_event(ti, "POP", extra);
++}
++
++static void __attribute__((noinline))
++bucket_seed_wedgelog(int ti, int phase, int dist)
++{
++    char extra[48];
++    snprintf(extra, sizeof(extra), "phase=%d d=%d", phase, dist);
++    painter_wedgelog_event(ti, "SEED", extra);
++}
++
+ static inline int
+ bucket_push_if_active(
+     struct PainterBucketCtx* w,
+     struct TilePaint* paints,
+     int ti,
+     int dist,
+-    int64_t* perf_pushes,
+-    int64_t* perf_push_dedup)
++    int32_t* perf_pushes,
++    int32_t* perf_push_dedup)
+ {
+-    if( paints[ti].in_queue )
++    struct TilePaint* tp = &paints[ti];
++    if( tp->in_queue )
+     {
+         BUCKET_PERF_INCREMENT(*perf_push_dedup);
+         return 0;
+     }
+-    if( paints[ti].step == PAINT_STEP_DONE )
++    if( tp->step == PAINT_STEP_DONE )
+         return 0;
+     bucket_push(w, paints, ti, dist);
+     BUCKET_PERF_INCREMENT(*perf_pushes);
+     if( painter_wedgelog_armed() )
+-    {
+-        char extra[32];
+-        snprintf(extra, sizeof(extra), "d=%d", dist);
+-        painter_wedgelog_event(ti, "PUSH", extra);
+-    }
++        bucket_push_wedgelog(ti, dist);
+     return 1;
+ }
+ 
+@@ -602,10 +630,16 @@ painter_paint_bucket(
+     struct PaintersElement* elements = painter->elements;
+     struct ElementPaint* element_paints = painter->element_paints;
+     struct SceneryNode* scenery_pool = painter->scenery_pool;
+-    int64_t perf_pops = 0;
+-    int64_t perf_gate_rejects = 0;
+-    int64_t perf_pushes = 0;
+-    int64_t perf_push_dedup = 0;
++    /* 32-bit: these four fire ~29600 times per frame between them and every
++     * one was an `addl`+`adcl` pair through a stack slot -- the adcl of
++     * perf_pops sits in the 62-sample bin at +4592. A draw box is at most
++     * 128*128*4 tiles and no tile is popped more than a bounded number of
++     * times, so a frame cannot come near 2^31; they are widened once, at
++     * function exit, where TorirsPerf_Count wants int64. */
++    int32_t perf_pops = 0;
++    int32_t perf_gate_rejects = 0;
++    int32_t perf_pushes = 0;
++    int32_t perf_push_dedup = 0;
+     const struct PaintersCullMap* cullmap = painter->cullmap;
+     size_t cull_camera_key = painter->cull_camera_key;
+     int cull_all_visible = (cullmap == NULL || cullmap->all_visible);
+@@ -718,9 +752,51 @@ painter_paint_bucket(
+                 }
+             }
+ 
+-            for( int x = min_draw_x, ti = row; x < max_draw_x; x++, ti++ )
++            /* Cullspan exclusion is a contiguous prefix and suffix of the row,
++             * so it is a range, not a per-tile test. On the moving-Lumbridge
++             * bench 5503.78 of the 10754.37 tiles classified per frame (51.2%)
++             * fall outside the span -- ex_rowcull 2411.56 + ex_span 3092.22 --
++             * against only 18.28 excluded by the flags word. Every one of them
++             * used to load tiles[ti] (a 32-byte-strided read of a 2 MB array,
++             * `movzwl 0x1e(%edx,%eax,1),%edx`, sharing the 151-sample bin that
++             * is the second hottest in this function) and write six paint
++             * bytes, only for the range test to throw it away two branches
++             * later. Hoisting the range out leaves a byte store per tile.
++             *
++             * `step` is the only field of an excluded tile that anything ever
++             * reads. bucket_reference_gate_blocks and
++             * bucket_far_neighbours_pending look at a NEIGHBOUR's step and
++             * return immediately when it is DONE, which is what makes the seam
++             * scan -- the one place that reads a neighbour's seam_scan --
++             * unreachable for it. bucket_push_if_active refuses a DONE tile,
++             * so it is never queued and never popped, and near_wall_flags,
++             * occlusion, scenery_sorted and seam_relaxed are only ever reached
++             * through the popped tile. in_queue is already zero on every tile
++             * in the grid: the drain loop can only break from inside its
++             * bucket_queue_empty() arm, so no frame ends with one set. Both
++             * facts are asserted rather than commented. */
++            int body_lo = min_draw_x;
++            int body_hi = max_draw_x;
++            if( cullspan_active )
++            {
++                body_lo = row_culled ? max_draw_x : span_lo;
++                body_hi = row_culled ? max_draw_x : span_hi;
++                for( int ti = row, x = min_draw_x; x < body_lo; x++, ti++ )
++                {
++                    assert(paints[ti].in_queue == 0);
++                    paints[ti].step = PAINT_STEP_DONE;
++                }
++                for( int ti = row + (body_hi - min_draw_x), x = body_hi; x < max_draw_x;
++                     x++, ti++ )
++                {
++                    assert(paints[ti].in_queue == 0);
++                    paints[ti].step = PAINT_STEP_DONE;
++                }
++            }
++            tiles_in_box += max_draw_x - min_draw_x;
++
++            for( int x = body_lo, ti = row + (body_lo - min_draw_x); x < body_hi; x++, ti++ )
+             {
+-                tiles_in_box++;
+                 struct PaintersTile* t = &tiles[ti];
+                 struct TilePaint* tp = &paints[ti];
+ 
+@@ -739,15 +815,7 @@ painter_paint_bucket(
+                     continue;
+                 }
+ 
+-                if( cullspan_active )
+-                {
+-                    if( row_culled || x < span_lo || x >= span_hi )
+-                    {
+-                        tp->step = PAINT_STEP_DONE;
+-                        continue;
+-                    }
+-                }
+-                else if( !cull_all_visible )
++                if( !cullspan_active && !cull_all_visible )
+                 {
+                     int dx = x - camera_sx;
+                     int dz = z - camera_sz;
+@@ -864,11 +932,7 @@ painter_paint_bucket(
+                 {
+                     int dist = abs(sx - camera_sx) + abs(sz - camera_sz);
+                     if( painter_wedgelog_armed() )
+-                    {
+-                        char extra[48];
+-                        snprintf(extra, sizeof(extra), "phase=%d d=%d", phase, dist);
+-                        painter_wedgelog_event(tidx, "SEED", extra);
+-                    }
++                        bucket_seed_wedgelog(tidx, phase, dist);
+                     bucket_push_if_active(
+                         w, paints, tidx, dist, &perf_pushes, &perf_push_dedup);
+                     check_adjacent = (phase == 1);
+@@ -886,20 +950,47 @@ painter_paint_bucket(
+             continue;
+         BUCKET_PERF_INCREMENT(perf_pops);
+         if( painter_wedgelog_armed() )
+-        {
+-            char extra[32];
+-            snprintf(extra, sizeof(extra), "step=%d", (int)paints[e_tile].step);
+-            painter_wedgelog_event(e_tile, "POP", extra);
+-        }
++            bucket_pop_wedgelog(e_tile, (int)paints[e_tile].step);
+ 
+-        struct PaintersTile* tile = &tiles[e_tile];
+         struct TilePaint* tile_paint = &paints[e_tile];
+         if( tile_paint->step == PAINT_STEP_DONE )
+             continue;
+ 
++        /* The level gate runs FIRST, before tiles[e_tile] is touched.
++         *
++         * It reads nothing but tile_paints[], and on the moving-Lumbridge
++         * bench it rejects 4361.23 of 10166.71 pops per frame (42.90%) -- the
++         * classify pass pushes a level-L tile into the same Manhattan bucket
++         * as the level-(L-1) tile beneath it, later, so LIFO pops it first and
++         * it always finds the tile below still READY (push_classify_lv 3922.68
++         * per frame == level_ok 3922.68, the completion-site re-push that
++         * supersedes it). Every one of those rejects used to pay the load of
++         * tiles[e_tile] first: `movzwl (%edi),%ebx` is the single hottest
++         * instruction in this function, 326 of 2693 EIP samples (0.40 ms of
++         * 3.34 ms), streaming a 2 MB array past a 1 MB L2.
++         *
++         * `paintgrid_level > 0` is exactly `e_tile >= level_stride`: a tile is
++         * stored in the grid slot its paintgrid_level names (init_painter_tile
++         * writes slevel, painter_tile_copyto rewrites it to dest_slevel, and
++         * painter_tile_set_grid_level has no caller outside painters.c). The
++         * invariant is checked below, once the tile is loaded for real work. */
++        if( tile_paint->step == PAINT_STEP_READY && check_adjacent &&
++            e_tile >= level_stride )
++        {
++            if( paints[e_tile - level_stride].step != PAINT_STEP_DONE )
++            {
++                BUCKET_PERF_INCREMENT(perf_gate_rejects);
++                continue;
++            }
++        }
++
++        struct PaintersTile* tile = &tiles[e_tile];
+         int tile_sx = tile->sx;
+         int tile_sz = tile->sz;
+         int paintgrid_level = painters_tile_get_paintgrid_level(tile);
++        /* The hoisted level gate above substitutes `e_tile >= level_stride`
++         * for `paintgrid_level > 0`. */
++        assert(paintgrid_level == e_tile / level_stride);
+         /* Occlusion samples ground heights by originalLevel (Client-TS /
+          * Square.originalLevel). mesh_level survives bridge push-down;
+          * paintgrid_level is the shifted grid slot used for traversal. */
+@@ -912,14 +1003,7 @@ painter_paint_bucket(
+         {
+             if( check_adjacent )
+             {
+-                if( paintgrid_level > 0 )
+-                {
+-                    if( paints[e_tile - level_stride].step != PAINT_STEP_DONE )
+-                    {
+-                        BUCKET_PERF_INCREMENT(perf_gate_rejects);
+-                        continue;
+-                    }
+-                }
++                /* The level gate ran before tiles[e_tile] was loaded. */
+ 
+                 /* Match painter_paint_world3d draw_front adjacent deps, plus
+                  * the seam exception (bucket_gate_blocks). */
+@@ -1449,10 +1533,10 @@ painter_paint_bucket(
+     painter_dump_command_order(painter, buffer);
+ 
+ done:
+-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_POPS, perf_pops);
+-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_GATE_REJECTS, perf_gate_rejects);
+-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_PUSHES, perf_pushes);
+-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_PUSH_DEDUP, perf_push_dedup);
++    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_POPS, (int64_t)perf_pops);
++    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_GATE_REJECTS, (int64_t)perf_gate_rejects);
++    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_PUSHES, (int64_t)perf_pushes);
++    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_PUSH_DEDUP, (int64_t)perf_push_dedup);
+     return 0;
+ }
+ 

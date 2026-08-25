@@ -1,0 +1,281 @@
+From 80251ebd66f18b75c6114f1bebf0a39de2e7906a Mon Sep 17 00:00:00 2001
+From: Matt Evers <mrobertevers@gmail.com>
+Date: Tue, 25 Aug 2026 04:48:49 -0500
+Subject: [PATCH] census: sort span/occupancy census (never timed)
+
+---
+ 3rd/toridraw/graphics/sort_census.c |  70 ++++++++++++++
+ 3rd/toridraw/graphics/sort_census.h | 142 ++++++++++++++++++++++++++++
+ 3rd/toridraw/toridraw_render.u.c    |  13 +++
+ 3rd/toridraw/toridraw_unity.c       |   1 +
+ 4 files changed, 226 insertions(+)
+ create mode 100644 3rd/toridraw/graphics/sort_census.c
+ create mode 100644 3rd/toridraw/graphics/sort_census.h
+
+diff --git a/3rd/toridraw/graphics/sort_census.c b/3rd/toridraw/graphics/sort_census.c
+new file mode 100644
+index 000000000..52f842207
+--- /dev/null
++++ b/3rd/toridraw/graphics/sort_census.c
+@@ -0,0 +1,70 @@
++#include "graphics/sort_census.h"
++
++#if defined(TORIDRAW_SORT_CENSUS) && TORIDRAW_SORT_CENSUS
++
++#include <stdio.h>
++#include <stdlib.h>
++
++struct ToriDraw_SortCensus g_toridraw_sort_census;
++
++void
++ToriDraw_SortCensusDump(void)
++{
++    char const* path = getenv("TORIDRAW_SORT_CENSUS_FILE");
++    FILE* f = path ? fopen(path, "w") : stderr;
++    struct ToriDraw_SortCensus* c = &g_toridraw_sort_census;
++    double n = c->calls;
++    double live = c->calls - c->calls_empty;
++    int i;
++
++    if( !f )
++        f = stderr;
++    if( n <= 0.0 )
++        return;
++
++    fprintf(f, "\n=== toridraw sort census ===\n");
++    fprintf(f, "calls               %14.0f\n", c->calls);
++    fprintf(f, "calls_empty         %14.0f  %6.2f%%\n",
++            c->calls_empty, 100.0 * c->calls_empty / n);
++    fprintf(f, "calls_prio          %14.0f  %6.2f%%\n",
++            c->calls_prio, 100.0 * c->calls_prio / n);
++    fprintf(f, "calls_shift         %14.0f  %6.2f%%\n",
++            c->calls_shift, 100.0 * c->calls_shift / n);
++    fprintf(f, "faces_examined      %14.0f  per call %8.3f\n",
++            c->faces_examined, c->faces_examined / n);
++    fprintf(f, "accepted            %14.0f  per call %8.3f\n",
++            c->accepted, c->accepted / n);
++    fprintf(f, "bias mean           %14.3f  max %10.0f\n",
++            c->bias_sum / n, c->bias_max);
++    fprintf(f, "span (scan len) sum %14.0f  per live call %8.3f  max %8.0f\n",
++            c->span_sum, live > 0.0 ? c->span_sum / live : 0.0, c->span_max);
++    fprintf(f, "occupied buckets    %14.0f  per live call %8.3f\n",
++            c->occupied_sum, live > 0.0 ? c->occupied_sum / live : 0.0);
++    fprintf(f, "occupancy           %14.3f%%  (occupied/span)\n",
++            c->span_sum > 0.0 ? 100.0 * c->occupied_sum / c->span_sum : 0.0);
++    fprintf(f, "deepest bucket mean %14.3f  max %10.0f\n",
++            live > 0.0 ? c->occ_max_sum / live : 0.0, c->occ_max_max);
++    fprintf(f, "scan iters / face   %14.3f  (span_sum / faces_examined)\n",
++            c->faces_examined > 0.0 ? c->span_sum / c->faces_examined : 0.0);
++
++    fprintf(f, "\n%-8s %14s %8s %14s %8s %14s %8s %14s %8s\n",
++            "bin>=", "span", "%", "occmax", "%", "faces", "%", "bias", "%");
++    for( i = 0; i < TORIDRAW_SORT_CENSUS_LOG_BINS; i++ )
++    {
++        if( c->span_hist[i] == 0.0 && c->occ_hist[i] == 0.0 &&
++            c->faces_hist[i] == 0.0 && c->bias_hist[i] == 0.0 )
++            continue;
++        fprintf(f, "%-8d %14.0f %7.2f%% %14.0f %7.2f%% %14.0f %7.2f%% %14.0f %7.2f%%\n",
++                1 << i,
++                c->span_hist[i], live > 0.0 ? 100.0 * c->span_hist[i] / live : 0.0,
++                c->occ_hist[i], live > 0.0 ? 100.0 * c->occ_hist[i] / live : 0.0,
++                c->faces_hist[i], 100.0 * c->faces_hist[i] / n,
++                c->bias_hist[i], 100.0 * c->bias_hist[i] / n);
++    }
++    fprintf(f, "=== end toridraw sort census ===\n");
++    fflush(f);
++    if( path && f != stderr )
++        fclose(f);
++}
++
++#endif
+diff --git a/3rd/toridraw/graphics/sort_census.h b/3rd/toridraw/graphics/sort_census.h
+new file mode 100644
+index 000000000..36f69773d
+--- /dev/null
++++ b/3rd/toridraw/graphics/sort_census.h
+@@ -0,0 +1,142 @@
++#ifndef TORIDRAW_SORT_CENSUS_H
++#define TORIDRAW_SORT_CENSUS_H
++
++/**
++ * How much of the depth-bucket table does one model actually use?
++ *
++ * The bucket table is depth_levels x depth_stride faceint_t. With the shipping
++ * numbers that is 1500 x 512 x 2 = 1.5 MB, and one model writes into it at a
++ * 1024-byte stride: bucket d lives at byte d*1024. Two questions have been
++ * argued from first principles and never counted:
++ *
++ *   1. how many depth buckets does the drain SCAN (max_d - min_d + 1) versus
++ *      how many are non-empty, and
++ *   2. how deep does a single bucket ever get (the depth_stride=512 capacity
++ *      is a guess; max_bucket_occupancy has only ever been printed for
++ *      anomalies).
++ *
++ * Census-only, compiled out unless -DTORIDRAW_SORT_CENSUS=1, and it walks the
++ * count array a second time, so it is never a build anyone times.
++ */
++
++#if defined(TORIDRAW_SORT_CENSUS) && TORIDRAW_SORT_CENSUS
++
++#include <stdio.h>
++#include <stdlib.h>
++
++enum
++{
++    TORIDRAW_SORT_CENSUS_LOG_BINS = 16
++};
++
++struct ToriDraw_SortCensus
++{
++    double calls;
++    double calls_empty;
++    double calls_prio;
++    double calls_shift;
++    double faces_examined;
++    double accepted;
++    double bias_sum;
++    double bias_max;
++    double span_sum;      /**< max_d - min_d + 1, the drain's scan length */
++    double span_max;
++    double occupied_sum;  /**< non-empty buckets inside that span */
++    double occ_max_sum;   /**< per-model deepest bucket */
++    double occ_max_max;
++    double span_hist[TORIDRAW_SORT_CENSUS_LOG_BINS];
++    double occ_hist[TORIDRAW_SORT_CENSUS_LOG_BINS];
++    double faces_hist[TORIDRAW_SORT_CENSUS_LOG_BINS];
++    double bias_hist[TORIDRAW_SORT_CENSUS_LOG_BINS];
++    int registered;
++};
++
++extern struct ToriDraw_SortCensus g_toridraw_sort_census;
++
++void
++ToriDraw_SortCensusDump(void);
++
++static inline int
++toridraw_sort_census_bin(int v)
++{
++    int b = 0;
++    if( v < 1 )
++        return 0;
++    while( v > 1 && b < TORIDRAW_SORT_CENSUS_LOG_BINS - 1 )
++    {
++        v >>= 1;
++        b++;
++    }
++    return b;
++}
++
++/* counts[] is still live here -- call before the invariant-restoring memset. */
++static inline void
++toridraw_sort_census_record(
++    const short* counts,
++    int min_d,
++    int max_d,
++    int face_count,
++    int bias,
++    int depth_shift,
++    int has_prio,
++    int empty)
++{
++    struct ToriDraw_SortCensus* c = &g_toridraw_sort_census;
++    int span;
++    int occupied = 0;
++    int occ_max = 0;
++    int accepted = 0;
++    int d;
++
++    if( !c->registered )
++    {
++        c->registered = 1;
++        atexit(ToriDraw_SortCensusDump);
++    }
++
++    c->calls += 1.0;
++    c->faces_examined += (double)face_count;
++    c->bias_sum += (double)bias;
++    if( (double)bias > c->bias_max )
++        c->bias_max = (double)bias;
++    c->bias_hist[toridraw_sort_census_bin(bias)] += 1.0;
++    c->faces_hist[toridraw_sort_census_bin(face_count)] += 1.0;
++    if( depth_shift > 0 )
++        c->calls_shift += 1.0;
++    if( has_prio )
++        c->calls_prio += 1.0;
++    if( empty )
++    {
++        c->calls_empty += 1.0;
++        return;
++    }
++
++    span = max_d - min_d + 1;
++    for( d = min_d; d <= max_d; d++ )
++    {
++        int n = (int)counts[d];
++        if( n > 0 )
++        {
++            occupied++;
++            accepted += n;
++            if( n > occ_max )
++                occ_max = n;
++        }
++    }
++
++    c->accepted += (double)accepted;
++    c->span_sum += (double)span;
++    if( (double)span > c->span_max )
++        c->span_max = (double)span;
++    c->occupied_sum += (double)occupied;
++    c->occ_max_sum += (double)occ_max;
++    if( (double)occ_max > c->occ_max_max )
++        c->occ_max_max = (double)occ_max;
++    c->span_hist[toridraw_sort_census_bin(span)] += 1.0;
++    c->occ_hist[toridraw_sort_census_bin(occ_max)] += 1.0;
++}
++
++#endif /* TORIDRAW_SORT_CENSUS */
++
++#endif /* TORIDRAW_SORT_CENSUS_H */
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..0d705f15b 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -3,6 +3,7 @@
+ #include "graphics/dash_restrict.h"
+ #include "graphics/projection.h"
+ #include "graphics/winding.h"
++#include "graphics/sort_census.h"
+ #include "toridraw_math.h"
+ #include "toridraw_model_internal.h"
+ #include "toridraw_types.h"
+@@ -1661,6 +1662,18 @@ ToriDraw_ComputeProjectedFaceOrder(
+     model_min_depth = bounds & 0xFFFF;
+     int model_max_depth = bounds >> 16;
+ 
++#if defined(TORIDRAW_SORT_CENSUS) && TORIDRAW_SORT_CENSUS
++    toridraw_sort_census_record(
++        scene->tmp_depth_face_count,
++        model_min_depth,
++        model_max_depth,
++        face_count,
++        bias,
++        depth_shift,
++        face_priorities ? 1 : 0,
++        (bounds == 0 && scene->tmp_depth_face_count[0] == 0) ? 1 : 0);
++#endif
++
+     if( !face_priorities )
+     {
+         int order_index = 0;
+diff --git a/3rd/toridraw/toridraw_unity.c b/3rd/toridraw/toridraw_unity.c
+index e9db3a847..ac63eb4cb 100644
+--- a/3rd/toridraw/toridraw_unity.c
++++ b/3rd/toridraw/toridraw_unity.c
+@@ -27,6 +27,7 @@
+ #include "graphics/convex_hull.c"
+ #include "graphics/raster/raster_ablate.c"
+ #include "graphics/raster/face_census.c"
++#include "graphics/sort_census.c"
+ #include "graphics/raster/gouraudhsllightness/sarea_census.c"
+ #include "graphics/proj_census.c"
+ #include "graphics/raster/span_census.c"

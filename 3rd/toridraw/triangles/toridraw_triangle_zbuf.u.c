@@ -17,6 +17,7 @@
 
 #include "../toridraw_types.h"
 #include "graphics/dash_restrict.h"
+#include "graphics/winding.h"
 #include "graphics/raster/zbuffer/zbuf.screen.u.c"
 #include "graphics/zdepth.h"
 
@@ -185,15 +186,9 @@ toridraw_zbuf_build_near_clipped(
 
     /* Same winding rule the unclipped bucketing applies, so a clipped face is
      * not culled by the opposite test from its unclipped neighbours. */
-    {
-        int64_t const dx01 = (int64_t)out_x[0] - out_x[1];
-        int64_t const dy01 = (int64_t)out_y[0] - out_y[1];
-        int64_t const dx21 = (int64_t)out_x[2] - out_x[1];
-        int64_t const dy21 = (int64_t)out_y[2] - out_y[1];
-
-        if( !toridraw_winding_front_facing(dx01 * dy21 - dy01 * dx21) )
-            return 0;
-    }
+    if( !toridraw_winding_2d_front_facing(
+            out_x[0], out_y[0], out_x[1], out_y[1], out_x[2], out_y[2]) )
+        return 0;
 
     return count;
 }

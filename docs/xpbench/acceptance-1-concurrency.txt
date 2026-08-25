@@ -1,0 +1,26 @@
+job                    label                    arm           start      end  ms/frame
+----------------------------------------------------------------------------------------
+0824-202153-043726     smoke-dense              dense           0.0     33.4    37.067
+0824-203113-05973f     detachfix-validate       dense         335.0    366.5    35.070
+0824-203209-22d637     accept-concurrent-A      dense         392.4    426.4    37.742
+0824-203213-bed018     accept-concurrent-B      dense         428.3    459.9    35.070
+0824-203216-95e80c     accept-concurrent-C      dense         461.8    495.6    37.639
+0824-204702-f406c9     accept-restart-early     dense        1292.5   1304.2    39.217
+0824-204823-094678     accept-restart-early     dense        1371.5   1384.1    41.927
+0824-204847-548eb3     accept-restart-live      dense        1389.4   1401.2    39.270
+0824-204847-548eb3     accept-restart-live      dense        1401.3   1413.0    39.167
+0824-204847-548eb3     accept-restart-live      dense        1413.1   1425.7    42.033
+0824-204847-548eb3     accept-restart-live      dense        1425.7   1437.6    39.687
+0824-204944-942edf     accept-restart-after     dense        1446.2   1458.0    39.167
+0824-205027-7b8e45     baseline-qualify         dense        1491.0   1525.0    37.760
+0824-205027-7b8e45     baseline-qualify         huntbase     1525.1   1560.0    38.819
+0824-205027-7b8e45     baseline-qualify         huntbase     1560.0   1592.3    35.816
+0824-205027-7b8e45     baseline-qualify         dense        1592.3   1626.4    37.864
+0824-205027-7b8e45     baseline-qualify         dense        1626.4   1658.1    35.226
+0824-205027-7b8e45     baseline-qualify         huntbase     1658.2   1690.4    35.782
+0824-205027-7b8e45     baseline-qualify         huntbase     1690.5   1722.5    35.556
+0824-205027-7b8e45     baseline-qualify         dense        1722.6   1756.5    37.691
+0824-205529-9c793f     eip-profile              eip          1791.0   1826.3    39.236
+
+PASS: 21 timed runs across 11 jobs, none overlapping.
+      inter-run gaps (box clock): min 0.0 s, max 796.9 s

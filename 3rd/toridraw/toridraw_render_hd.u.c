@@ -30,6 +30,7 @@
 #include "toridraw_model.h"
 #include "toridraw_model_internal.h"
 #include "toridraw_texture_uv.h"
+#include "graphics/winding.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -1141,12 +1142,8 @@ hd_face_front_facing(const struct hd_ctx* ctx, int face)
          vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED) )
         return true;
 
-    long long const dx1 = (long long)vx[a] - vx[b];
-    long long const dy1 = (long long)vy[a] - vy[b];
-    long long const dx2 = (long long)vx[c] - vx[b];
-    long long const dy2 = (long long)vy[c] - vy[b];
-
-    return toridraw_winding_front_facing(dx1 * dy2 - dy1 * dx2);
+    return toridraw_winding_2d_front_facing(
+        vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
 }
 
 static int

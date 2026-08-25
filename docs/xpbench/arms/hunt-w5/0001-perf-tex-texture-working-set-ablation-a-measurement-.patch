@@ -1,0 +1,229 @@
+From f071ec35f47c7bfb4c148ae0df2c22ff42eb5774 Mon Sep 17 00:00:00 2001
+From: Matt Evers <mrobertevers@gmail.com>
+Date: Mon, 24 Aug 2026 23:28:58 -0500
+Subject: [PATCH 1/2] perf(tex): texture working-set ablation, a measurement
+ device
+
+Fold the texture gather's v mask so the 128x128x4 B texture is addressed
+as 16 rows (8 KB) or 1 row (512 B), and alias every same-sized texture to
+one buffer. Same instructions, same pixels, smaller address set: it sizes
+how much of the 115 cyc/px texture kernel is waiting on texel memory.
+Both knobs draw the wrong image on purpose and are never a shipping path.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ .../raster/texture/span/tex_span_body.inc     | 14 +--
+ .../graphics/raster/texture/tex_tri_i686.S    | 36 +++++++-
+ 3rd/toridraw/toridraw_raster.u.c              | 86 +++++++++++++++++++
+ 3 files changed, 129 insertions(+), 7 deletions(-)
+
+diff --git a/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc b/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc
+index 33caa4842..6ff64cfed 100644
+--- a/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc
++++ b/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc
+@@ -317,7 +317,7 @@
+  * Works from its own copies of au/bv/cw so the span accumulators are left
+  * alone, and touches only eax/ecx/edx/ebx/ebp besides.
+  */
+-	.macro EXACTBLK sh, twm1
++	.macro EXACTBLK sh, twm1, vmask
+ 	movl    AU(%esp), %eax
+ 	movl    %eax, EB_AU(%esp)
+ 	movl    BV(%esp), %eax
+@@ -378,9 +378,13 @@
+ 	cmpl    %ebp, %eax
+ 	cmovgl  %ebp, %eax
+ 
+-	/* (bv / w) & (texture_width - 1), the row offset once shifted */
+-	andl    $\twm1, %edx
++	/* (bv / w) & (texture_width - 1), the row offset once shifted.
++	 * Shift first and mask after, so the row wrap is the SAME \vmask
++	 * GATHER1 applies: ((bv / w) & twm1) << sh and ((bv / w) << sh) &
++	 * vmask select the same bits for every input, and one constant is
++	 * then in charge of the wrap instead of two that have to agree. */
+ 	shll    $\sh, %edx
++	andl    $\vmask, %edx
+ 	addl    %edx, %eax
+ 
+ 	movl    (%esi,%eax,4), %eax
+@@ -555,7 +559,7 @@
+ 	sarl    $8, %eax
+ 	movl    %eax, EB_SH(%esp)
+ 	movl    $8, EB_N(%esp)
+-	EXACTBLK \sh, \twm1
++	EXACTBLK \sh, \twm1, \vmask
+ .Lrot\tag:
+ 	movl    NXT_U(%esp), %eax
+ 	movl    %eax, CUR_U(%esp)
+@@ -616,7 +620,7 @@
+ 	movl    %eax, EB_SH(%esp)
+ 	movl    REMAIN(%esp), %eax
+ 	movl    %eax, EB_N(%esp)
+-	EXACTBLK \sh, \twm1
++	EXACTBLK \sh, \twm1, \vmask
+ 	jmp     \done
+ 
+ .Ltlerp\tag:
+diff --git a/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S b/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S
+index 572644735..617fe1278 100644
+--- a/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S
++++ b/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S
+@@ -645,8 +645,32 @@ _toridraw_textri_opaque_lerp8_v3_asm:
+ 
+ 	/* The width dispatch, once per triangle instead of once per row. */
+ 	cmpl	$128, T(A_TW)
+-	je	.Lwalk128
+-	jmp	.Lwalk64
++	jne	.Lwalk64
++
++	/* ABLATION FORK -- a measurement device, not a shipping path.
++	 *
++	 * g_toridraw_abl_texvmode picks which of three 128-wide walks runs.
++	 * They differ in ONE immediate: the mask GATHER1 applies to v_scan.
++	 * 0x3F80 keeps all seven v bits, so the walk addresses the whole
++	 * 64 KB texture; 0x0780 keeps four, folding every sample into the
++	 * first sixteen rows (8 KB); 0x0000 keeps none, folding the whole
++	 * triangle onto texel row zero (512 B).
++	 *
++	 * Nothing else moves: same instruction sequence, same instruction
++	 * count, same span geometry, same pixel count, same quotients. Only
++	 * the set of ADDRESSES the gather touches shrinks, which is exactly
++	 * the variable under test -- how much of this kernel is waiting on
++	 * texel memory. The image is wrong on the folded arms, on purpose.
++	 *
++	 * The fork is a compare and a branch once per triangle, so mode 0
++	 * measures the unmodified kernel to within a few cycles per face.
++	 */
++	movl	_g_toridraw_abl_texvmode, %eax
++	cmpl	$1, %eax
++	je	.Lwalkv16
++	cmpl	$2, %eax
++	je	.Lwalkv1
++	jmp	.Lwalk128
+ 
+ .Lret:
+ 	addl	$TFRAME, %esp
+@@ -768,3 +792,11 @@ _toridraw_textri_opaque_lerp8_v3_asm:
+ 
+ .Lwalk64:
+ 	WALK	6, 63, 0x0FC0, LC_f63, 64
++
++/* The two ablation walks. Identical to .Lwalk128 except for the v mask;
++ * see the fork above for what they are for. */
++.Lwalkv16:
++	WALK	7, 127, 0x0780, LC_f127, v16
++
++.Lwalkv1:
++	WALK	7, 127, 0x0000, LC_f127, v1
+diff --git a/3rd/toridraw/toridraw_raster.u.c b/3rd/toridraw/toridraw_raster.u.c
+index 43197f782..8b886ed85 100644
+--- a/3rd/toridraw/toridraw_raster.u.c
++++ b/3rd/toridraw/toridraw_raster.u.c
+@@ -17,6 +17,83 @@
+ static const int g_empty_texture_texels[128 * 128] = { 0 };
+ #endif
+ 
++/* #region agent log */
++/*
++ * TEXTURE WORKING-SET ABLATION -- measurement device, never a shipping path.
++ *
++ * The perspective texture kernel costs 115 cycles per filled pixel on the
++ * Pentium 4, and a bottom-up instruction model accounts for barely a third
++ * of that. The residual sits on exactly one texel load per pixel, and every
++ * osrs239 texture is 128x128x4 B = 64 KB against a 16 KB L1D with no
++ * mipmapping anywhere, so the suspicion is that the kernel is waiting on
++ * memory rather than executing.
++ *
++ * Two knobs, both read once, both selected per benchmark ARM by env var:
++ *
++ *   TORIDRAW_ABL_TEXVROWS = 128 | 16 | 1
++ *       how many texel ROWS the gather is allowed to address. The asm walk
++ *       folds v into that many rows with a narrower mask -- same
++ *       instructions, same count, same pixels drawn, smaller address set.
++ *       128 KB->64 KB per texture, 16 -> 8 KB, 1 -> 512 B.
++ *
++ *   TORIDRAW_ABL_TEXSHARE = 1
++ *       every texture of a given size aliases the first one loaded at that
++ *       size. Footprint per texture is unchanged at 64 KB; what collapses
++ *       is the NUMBER of distinct 64 KB buffers competing for L2.
++ *
++ * The first isolates the stride within one texture, the second the capacity
++ * across many. Both deliberately draw the wrong image.
++ */
++int g_toridraw_abl_texvmode = 0; /* 0 = 128 rows, 1 = 16 rows, 2 = 1 row */
++static int g_toridraw_abl_texshare = 0;
++
++static void
++toridraw_abl_tex_init(void)
++{
++    const char* rows = getenv("TORIDRAW_ABL_TEXVROWS");
++
++    g_toridraw_abl_texvmode = 0;
++    if( rows )
++    {
++        int n = atoi(rows);
++        /* Only the three the asm has walks for. Anything else is a typo in
++         * the arm spec, and a typo that silently measured the control arm
++         * would be reported as "the ablation did nothing". */
++        assert(n == 128 || n == 16 || n == 1);
++        g_toridraw_abl_texvmode = (n == 16) ? 1 : (n == 1) ? 2 : 0;
++    }
++    g_toridraw_abl_texshare = getenv("TORIDRAW_ABL_TEXSHARE") ? 1 : 0;
++
++    if( g_toridraw_abl_texvmode || g_toridraw_abl_texshare )
++        fprintf(
++            stderr,
++            "toridraw: TEXTURE ABLATION ACTIVE vmode=%d share=%d"
++            " -- the image is deliberately wrong\n",
++            g_toridraw_abl_texvmode,
++            g_toridraw_abl_texshare);
++}
++
++/*
++ * The alias table for TORIDRAW_ABL_TEXSHARE. Keyed on size so a 64-wide
++ * texture can never be handed a 64-wide buffer's worth of a 128-wide
++ * addressing pattern -- the ablation is allowed to draw nonsense, it is not
++ * allowed to read off the end of an allocation.
++ */
++static const int*
++toridraw_abl_texshare_alias(const int* texels, int texture_size)
++{
++    static const int* first_of_size[257];
++
++    assert(texels);
++    assert(texture_size > 0);
++    assert(texture_size <= 256);
++
++    if( !first_of_size[texture_size] )
++        first_of_size[texture_size] = texels;
++    return first_of_size[texture_size];
++}
++/* #endregion */
++
+ enum DashModelRasterFlags
+ {
+     RASTER_FLAG_GOURAUD_SMOOTH = 1 << 0,
+@@ -477,7 +554,12 @@ ToriDraw_RasterModelFace(
+     {
+         static int skip_textured = -1;
+         if( skip_textured < 0 )
++        {
+             skip_textured = getenv("TORIDRAW_SKIP_TEXTURED") ? 1 : 0;
++            /* Hung off the branch that already exists so the ablation adds
++             * no steady-state cost to the arm that has it switched off. */
++            toridraw_abl_tex_init();
++        }
+         if( skip_textured && texture_id != -1 )
+             return;
+     }
+@@ -539,6 +621,10 @@ ToriDraw_RasterModelFace(
+         texels = texture->texels;
+         texture_size = texture->width;
+         texture_opaque = texture->opaque;
++        /* #region agent log */
++        if( g_toridraw_abl_texshare )
++            texels = toridraw_abl_texshare_alias(texels, texture_size);
++        /* #endregion */
+         ctx->cache_texture_id = texture_id;
+         ctx->cache_texels = texels;
+         ctx->cache_texture_size = texture_size;

@@ -139,10 +139,11 @@ raster_gouraudhsllightness_screen_opaque_bary_sort_s1(
     int d_hsl_AB = color1_hsl16 - color0_hsl16;
     int d_hsl_AC = color2_hsl16 - color0_hsl16;
 
+    double recip_sarea = gouraudhsllightness_barycentric_recip(sarea);
     int step_x_hsl_ish8 =
-        gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, sarea);
+        gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, recip_sarea);
     int step_y_hsl_ish8 =
-        gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, sarea);
+        gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, recip_sarea);
 
     int dx_BC = x2 - x1;
     int dy_BC = y2 - y1;

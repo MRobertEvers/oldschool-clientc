@@ -1,0 +1,160 @@
+From 3a066fef34fdd84d8e90ea66a0306bcbfee5d114 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:39:13 -0500
+Subject: [PATCH 4/4] wip(r3-present): the measured arm -- exit diag counters +
+ SetDIBitsToDevice present
+
+Source of torirs-r3p2-p_ttlsdib.exe (sha dbfde8c816cc8de5...).  On top of the
+title guard:
+
+  diag  six counters bumped at most once per frame and one atexit fprintf per
+        process, reporting the two numbers only the XP box can answer: the
+        screen colour depth the 1.54 MB present converts into, and whether the
+        present took the 1:1 or the StretchBlt branch.
+
+  sdib  the 1:1 present becomes SetDIBitsToDevice(windowDC <- p->pixels)
+        instead of BitBlt(windowDC <- memDC-holding-the-DIB-section).  Same
+        bytes, same rect, one fewer DC to validate.  Sign unknown; 8
+        interleaved local reps could not separate it from BitBlt, and Win11
+        DWM redirection is not the XP path, so it needs the box.
+
+Verified by pixels, not by construction: a client-area capture of a static
+camera gives row-profile correlation 0.999695 against the control while the
+vertically-flipped correlation is -0.050, and mean-abs-diff 0.134/765 with
+0.08% of pixels differing -- the same residual the control shares with the
+title-guard build, which has an identical present path.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ src/platform/platform_win32gdi.c | 76 ++++++++++++++++++++++++++++++--
+ 1 file changed, 72 insertions(+), 4 deletions(-)
+
+diff --git a/src/platform/platform_win32gdi.c b/src/platform/platform_win32gdi.c
+index 6116c4055..13ff51b3f 100644
+--- a/src/platform/platform_win32gdi.c
++++ b/src/platform/platform_win32gdi.c
+@@ -53,9 +53,46 @@
+ 
+ static const char RPD_WNDCLASS[] = "TorirsWin32GdiWindow";
+ 
+-#define PD(x)          do { } while( 0 )
+-#define TTL_SKIPPED()  do { } while( 0 )
+-#define TTL_WRITTEN()  do { } while( 0 )
++/*
++ * Exit-time present report.  Six counters incremented at most once per frame
++ * and one fprintf per process, so it cannot move a frame time; it is here
++ * because the two numbers that decide what the 1.54 MB per-frame BitBlt costs
++ * -- the screen colour depth it converts into, and whether the present took the
++ * 1:1 or the StretchBlt branch -- are only knowable on the box being measured.
++ * The device caps are read once at Init, while the window still exists.
++ */
++static unsigned long g_pd_frames = 0;
++static unsigned long g_pd_bitblt = 0;
++static unsigned long g_pd_stretch = 0;
++static unsigned long g_pd_blit_px = 0;
++static unsigned long g_pd_ttl_skipped = 0;
++static unsigned long g_pd_ttl_written = 0;
++static int g_pd_bpp = -1;
++static int g_pd_planes = -1;
++static int g_pd_rastercaps = -1;
++static int g_pd_client_w = -1;
++static int g_pd_client_h = -1;
++
++static void
++present_diag_report(void)
++{
++    double f = g_pd_frames ? (double)g_pd_frames : 1.0;
++
++    fprintf(stderr,
++        "present_diag: frames=%lu client=%dx%d screen_bpp=%d planes=%d caps=0x%x\n"
++        "present_diag: bitblt=%lu (%.3f/f) stretch=%lu (%.3f/f) blit_px/frame=%.0f\n"
++        "present_diag: settext_skipped=%lu settext_written=%lu\n",
++        g_pd_frames, g_pd_client_w, g_pd_client_h,
++        g_pd_bpp, g_pd_planes, (unsigned)g_pd_rastercaps,
++        g_pd_bitblt, g_pd_bitblt / f, g_pd_stretch, g_pd_stretch / f,
++        (g_pd_bitblt + g_pd_stretch)
++            ? (double)g_pd_blit_px / (double)(g_pd_bitblt + g_pd_stretch)
++            : 0.0,
++        g_pd_ttl_skipped, g_pd_ttl_written);
++}
++#define PD(x)          do { (x)++; } while( 0 )
++#define TTL_SKIPPED()  do { g_pd_ttl_skipped++; } while( 0 )
++#define TTL_WRITTEN()  do { g_pd_ttl_written++; } while( 0 )
+ 
+ struct PlatformSDL2
+ {
+@@ -70,6 +107,7 @@ struct PlatformSDL2
+     HBITMAP dib;             /* top-down 32bpp DIB section                    */
+     HBITMAP old_bmp;         /* default bitmap displaced from mem_dc          */
+     int*    pixels;          /* DIB bits; App_Render writes here (ARGB8888)   */
++    BITMAPINFO dib_info;     /* the header gdi_make_dib built the DIB from */
+     int     width;
+     int     height;
+     int     gdi_frame_valid; /* the DIB contains one complete Soft3D frame    */
+@@ -119,6 +157,7 @@ gdi_make_dib(struct PlatformSDL2* p, int width, int height)
+     bi.bmiHeader.biBitCount = 32;
+     bi.bmiHeader.biCompression = BI_RGB;
+ 
++    p->dib_info = bi;
+     dib = CreateDIBSection(p->mem_dc, &bi, DIB_RGB_COLORS, &bits, NULL, 0);
+     if( !dib || !bits )
+     {
+@@ -289,7 +328,21 @@ gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
+     {
+         if( box.right == p->width && box.bottom == p->height )
+         {
+-            BitBlt(dc, box.left, box.top, p->width, p->height, p->mem_dc, 0, 0, SRCCOPY);
++            PD(g_pd_bitblt);
++            g_pd_blit_px += (unsigned long)p->width * (unsigned long)p->height;
++            /* The memory DC is only ever a carrier for these bits: nothing draws
++             * into it, so the 1:1 present can name the bits directly.  That
++             * drops one DC validation and one surface lock from a call the
++             * census measures at exactly 1.000 per frame, and hands the display
++             * driver the DIB in the shape DrvPutBits wants.  The DIB is
++             * top-down (biHeight is negative), so the whole image is scan lines
++             * 0..height-1 with the origin at the top left.  No GdiFlush is
++             * needed: the bits are written by the CPU through p->pixels, never
++             * through p->mem_dc, so there is no batched GDI drawing to settle. */
++            SetDIBitsToDevice(
++                dc, box.left, box.top, (DWORD)p->width, (DWORD)p->height,
++                0, 0, 0, (UINT)p->height,
++                p->pixels, &p->dib_info, DIB_RGB_COLORS);
+             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PRESENT_BLIT_1TO1, 1);
+         }
+         else
+@@ -304,6 +357,8 @@ gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
+                 SetStretchBltMode(dc, HALFTONE);
+                 SetBrushOrgEx(dc, box.left, box.top, NULL);
+             }
++            PD(g_pd_stretch);
++            g_pd_blit_px += (unsigned long)box.right * (unsigned long)box.bottom;
+             StretchBlt(
+                 dc, box.left, box.top, box.right, box.bottom,
+                 p->mem_dc, 0, 0, p->width, p->height, SRCCOPY);
+@@ -667,6 +722,18 @@ PlatformSDL2_Init(struct PlatformSDL2* p, int width, int height, char const* tit
+ 
+     p->timing_active = PlatformWin32Timing_Init() ? 1 : 0;
+ 
++    {
++        RECT diag_client;
++
++        g_pd_bpp = GetDeviceCaps(p->window_dc, BITSPIXEL);
++        g_pd_planes = GetDeviceCaps(p->window_dc, PLANES);
++        g_pd_rastercaps = GetDeviceCaps(p->window_dc, RASTERCAPS);
++        GetClientRect(p->hwnd, &diag_client);
++        g_pd_client_w = diag_client.right - diag_client.left;
++        g_pd_client_h = diag_client.bottom - diag_client.top;
++        atexit(present_diag_report);
++    }
++
+     ShowWindow(p->hwnd, getenv("TORIRS_WIN32_HIDDEN") ? SW_HIDE : SW_SHOW);
+     UpdateWindow(p->hwnd);
+     return true;
+@@ -939,6 +1006,7 @@ PlatformSDL2_Present(struct PlatformSDL2* p)
+      * stays clear for D3D9, preventing repair paints from covering its surface
+      * with the software buffer that renderer never populated. */
+     p->gdi_frame_valid = 1;
++    PD(g_pd_frames);
+ 
+     gdi_paint_latest(p, p->window_dc);
+ }

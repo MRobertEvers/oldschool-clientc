@@ -1,0 +1,205 @@
+From 4f4e63513cec06fc781544369756c080aa299f63 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:16:20 -0500
+Subject: [PATCH] wip(r3-sortwin): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-sortwin.
+
+files: 3rd/toridraw/toridraw_render.u.c
+---
+ 3rd/toridraw/toridraw_render.u.c | 145 +++++++++++++++++++++++++++++++
+ 1 file changed, 145 insertions(+)
+
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..8c0519630 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -239,6 +239,145 @@ toridraw_safe_near_plane_z(
+     return (int)required;
+ }
+ 
++/* #region agent log -- r3-sortwin footprint census (census build only) */
++#if defined(TORIDRAW_SORTFP_CENSUS) && TORIDRAW_SORTFP_CENSUS
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#define SFP_LEVELS 16384
++#define SFP_WORDS  (SFP_LEVELS / 32)
++/* Models per synthetic "frame" window. The bench scene draws ~1326 models a
++ * frame; a sliding window of that many calls is the residency question. */
++#define SFP_WINDOW 1326
++
++static unsigned int g_sfp_frame_bits[SFP_WORDS];   /* levels touched this window */
++static unsigned int g_sfp_run_bits[SFP_WORDS];     /* levels ever touched */
++static unsigned int g_sfp_frame_lines64[SFP_WORDS];/* stride-64 lines, 2 lvl/line */
++static unsigned int g_sfp_frame_lines32[SFP_WORDS];/* stride-32 lines, 1 lvl/line */
++static long long g_sfp_hist[64];   /* depth_avg >> 5, capped */
++static long long g_sfp_writes;
++static long long g_sfp_models;
++static long long g_sfp_windows;
++static long long g_sfp_win_levels;      /* sum over windows of distinct levels */
++static long long g_sfp_win_lines512;    /* stride 512: 1 line per level */
++static long long g_sfp_win_lines64;
++static long long g_sfp_win_lines32;
++static long long g_sfp_win_pages512;
++static long long g_sfp_maxlevel;
++static long long g_sfp_scan_iters;
++static long long g_sfp_occupied;
++static long long g_sfp_memset_bytes;
++static int g_sfp_registered;
++static unsigned int g_sfp_frame_pages512[SFP_WORDS]; /* 4 levels per 4KB page */
++
++static int sfp_popcnt(const unsigned int* w, int n)
++{
++    int i, c = 0;
++    for( i = 0; i < n; i++ )
++    {
++        unsigned int v = w[i];
++        while( v ) { v &= v - 1u; c++; }
++    }
++    return c;
++}
++
++static void sfp_dump(void)
++{
++    long long i, cum, tot;
++    const char* path = getenv("TORIDRAW_SORTFP_FILE");
++    FILE* f = path ? fopen(path, "w") : stderr;
++    if( !f ) f = stderr;
++    fprintf(f, "SORTFP models=%lld writes=%lld occupied=%lld scan_iters=%lld memset_bytes=%lld\n",
++            g_sfp_models, g_sfp_writes, g_sfp_occupied, g_sfp_scan_iters, g_sfp_memset_bytes);
++    fprintf(f, "SORTFP max_level=%lld run_distinct_levels=%d\n",
++            g_sfp_maxlevel, sfp_popcnt(g_sfp_run_bits, SFP_WORDS));
++    if( g_sfp_windows > 0 )
++        fprintf(f,
++            "SORTFP per-window(%d models) distinct_levels=%.1f lines@512=%.1f "
++            "lines@64=%.1f lines@32=%.1f pages@512=%.1f  bytes@512=%.0f bytes@64=%.0f bytes@32=%.0f\n",
++            SFP_WINDOW,
++            (double)g_sfp_win_levels / (double)g_sfp_windows,
++            (double)g_sfp_win_lines512 / (double)g_sfp_windows,
++            (double)g_sfp_win_lines64 / (double)g_sfp_windows,
++            (double)g_sfp_win_lines32 / (double)g_sfp_windows,
++            (double)g_sfp_win_pages512 / (double)g_sfp_windows,
++            64.0 * (double)g_sfp_win_lines512 / (double)g_sfp_windows,
++            64.0 * (double)g_sfp_win_lines64 / (double)g_sfp_windows,
++            64.0 * (double)g_sfp_win_lines32 / (double)g_sfp_windows);
++    tot = 0;
++    for( i = 0; i < 64; i++ ) tot += g_sfp_hist[i];
++    cum = 0;
++    for( i = 0; i < 64; i++ )
++    {
++        if( g_sfp_hist[i] == 0 ) continue;
++        cum += g_sfp_hist[i];
++        fprintf(f, "SORTFP hist level[%4lld..%4lld) = %10lld  cum=%6.2f%%\n",
++                i * 32, i * 32 + 32, g_sfp_hist[i],
++                tot ? 100.0 * (double)cum / (double)tot : 0.0);
++    }
++    if( f != stderr ) fclose(f);
++}
++
++static void sfp_note_write(int level)
++{
++    if( level < 0 || level >= SFP_LEVELS ) return;
++    if( !g_sfp_registered ) { g_sfp_registered = 1; atexit(sfp_dump); }
++    g_sfp_writes++;
++    if( level > g_sfp_maxlevel ) g_sfp_maxlevel = level;
++    g_sfp_hist[(level >> 5) < 63 ? (level >> 5) : 63]++;
++    g_sfp_frame_bits[level >> 5] |= 1u << (level & 31);
++    g_sfp_run_bits[level >> 5] |= 1u << (level & 31);
++    {
++        int l64 = level >> 1;   /* stride 64 -> 128 B/level -> 2 levels per 64B?  no: */
++        int l32 = level;        /* stride 32 -> 64 B/level -> 1 level per line */
++        int pg  = level >> 2;   /* stride 512 -> 1024 B/level -> 4 levels per 4 KB page */
++        /* stride 64 = 128 B per level = 2 cache lines per level; the write only
++         * ever touches the first, so lines@64 == distinct levels. The interesting
++         * packing is stride 32 (64 B = exactly one line) and stride 16 (32 B =
++         * two levels share a line) -- l64 below models stride 16. */
++        g_sfp_frame_lines64[l64 >> 5] |= 1u << (l64 & 31);
++        g_sfp_frame_lines32[l32 >> 5] |= 1u << (l32 & 31);
++        g_sfp_frame_pages512[pg >> 5] |= 1u << (pg & 31);
++    }
++}
++
++static void sfp_end_model(int scan_iters, int occupied, int memset_bytes)
++{
++    g_sfp_models++;
++    g_sfp_scan_iters += scan_iters;
++    g_sfp_occupied += occupied;
++    g_sfp_memset_bytes += memset_bytes;
++    if( g_sfp_models % SFP_WINDOW == 0 )
++    {
++        g_sfp_windows++;
++        g_sfp_win_levels += sfp_popcnt(g_sfp_frame_bits, SFP_WORDS);
++        g_sfp_win_lines512 += sfp_popcnt(g_sfp_frame_bits, SFP_WORDS);
++        g_sfp_win_lines64 += sfp_popcnt(g_sfp_frame_lines64, SFP_WORDS);
++        g_sfp_win_lines32 += sfp_popcnt(g_sfp_frame_lines32, SFP_WORDS);
++        g_sfp_win_pages512 += sfp_popcnt(g_sfp_frame_pages512, SFP_WORDS);
++        memset(g_sfp_frame_bits, 0, sizeof(g_sfp_frame_bits));
++        memset(g_sfp_frame_lines64, 0, sizeof(g_sfp_frame_lines64));
++        memset(g_sfp_frame_lines32, 0, sizeof(g_sfp_frame_lines32));
++        memset(g_sfp_frame_pages512, 0, sizeof(g_sfp_frame_pages512));
++    }
++}
++#define SFP_NOTE_WRITE(lvl)  sfp_note_write((lvl))
++#define SFP_DECL_MODEL()     int sfp_scan = 0; int sfp_occ = 0
++#define SFP_SCAN()           (sfp_scan++)
++#define SFP_OCC()            (sfp_occ++)
++#define SFP_END_MODEL_DRAIN(span) sfp_end_model(sfp_scan, sfp_occ, (span) * 2)
++#define SFP_END_MODEL_PRIO(span)  sfp_end_model((span), 0, (span) * 2)
++#else
++#define SFP_NOTE_WRITE(lvl)  ((void)0)
++#define SFP_DECL_MODEL()     ((void)0)
++#define SFP_SCAN()           ((void)0)
++#define SFP_OCC()            ((void)0)
++#define SFP_END_MODEL_DRAIN(span) ((void)0)
++#define SFP_END_MODEL_PRIO(span)  ((void)0)
++#endif
++/* #endregion */
++
+ struct ToriDraw_FaceSortDebugStats
+ {
+     int front_facing;
+@@ -1131,6 +1270,7 @@ bucket_sort_by_average_depth_impl(
+ 
+                     face_depth_bucket_counts[depth_avg] = count + 1;
+                     face_depth_buckets[depth_avg * depth_stride + count] = (faceint_t)f;
++                    SFP_NOTE_WRITE(depth_avg);
+ 
+                     if( debug_stats )
+                     {
+@@ -1664,13 +1804,16 @@ ToriDraw_ComputeProjectedFaceOrder(
+     if( !face_priorities )
+     {
+         int order_index = 0;
++        SFP_DECL_MODEL();
+         for( int depth = model_max_depth;
+              depth < scene->depth_levels && depth >= model_min_depth;
+              depth-- )
+         {
+             int bucket_count = (int)scene->tmp_depth_face_count[depth];
++            SFP_SCAN();
+             if( bucket_count == 0 )
+                 continue;
++            SFP_OCC();
+ 
+             faceint_t* faces = &scene->tmp_depth_faces[depth * scene->depth_stride];
+             for( int j = 0; j < bucket_count; j++ )
+@@ -1695,6 +1838,7 @@ ToriDraw_ComputeProjectedFaceOrder(
+             (size_t)(model_max_depth - model_min_depth + 1) *
+                 sizeof(scene->tmp_depth_face_count[0]));
+ 
++        SFP_END_MODEL_DRAIN(model_max_depth - model_min_depth + 1);
+         if( debug_stats )
+             toridraw_face_sort_debug_print(scene, hnd, debug_stats, order_index);
+         /* #region agent log */
+@@ -1739,6 +1883,7 @@ ToriDraw_ComputeProjectedFaceOrder(
+         (size_t)(model_max_depth - model_min_depth + 1) *
+             sizeof(scene->tmp_depth_face_count[0]));
+ 
++    SFP_END_MODEL_PRIO(model_max_depth - model_min_depth + 1);
+     scene->tmp_face_order_count = sort_face_draw_order(
+         scene->tmp_priority_depth_sum,
+         scene->tmp_flex_prio11_face_to_depth,
