@@ -1,0 +1,140 @@
+From a93cad330749e1add4bb490cdd8d2adfafd80446 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:14:29 -0500
+Subject: [PATCH] wip(abl-bucketdrain): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/abl-bucketdrain.
+
+files: src/painters/huntabl_bkt.h src/painters/painters_bucket.u.c
+---
+ src/painters/huntabl_bkt.h       | 35 ++++++++++++++++++++++
+ src/painters/painters_bucket.u.c | 51 ++++++++++++++++++++++++++++++++
+ 2 files changed, 86 insertions(+)
+ create mode 100644 src/painters/huntabl_bkt.h
+
+diff --git a/src/painters/huntabl_bkt.h b/src/painters/huntabl_bkt.h
+new file mode 100644
+index 000000000..862790522
+--- /dev/null
++++ b/src/painters/huntabl_bkt.h
+@@ -0,0 +1,35 @@
++#ifndef HUNTABL_BKT_H
++#define HUNTABL_BKT_H
++
++/*
++ * Round-3 XP frame hunt: ABLATION LADDER for painter_paint_bucket.
++ * Throwaway measurement scaffolding. Never ship a non-zero value.
++ *
++ * The switch is a plain #define in a header rather than a -D through
++ * TORIDRAW_PROBE_CFLAGS for two reasons: TORIDRAW_PROBE_CFLAGS only reaches
++ * 3rd/toridraw (this file is under src/), and src/makefile:709 silently drops
++ * all four handrolled asm kernels when that variable contains any of
++ * TORIDRAW_SPAN_CENSUS / TORIDRAW_ABLATE / TORIDRAW_SPAN_TRACE. Keeping the
++ * switch out of the flags entirely means the gate cannot be tripped.
++ *
++ *   0  control -- unmodified painter
++ *   1  drain skipped. Classify pass + bucket_reset + the classify loop's bulk
++ *      bucket_push still run; the drain loop (painters_bucket.u.c:830-1443) does
++ *      not. buffer->command_count comes out 0, so NOTHING IS DRAWN: this rung
++ *      removes the drain AND every consumer of the command list.
++ *   2  the ENTIRE paint is gone: no element_paints memset, no draw-box
++ *      resolve, no classify pass, no bucket_reset, no push, no dedup, no
++ *      drain. Nested under rung 1. (control - rung2) is the whole painter
++ *      route plus everything downstream of it; (rung1 - rung2) is the setup
++ *      half alone, because both rungs emit zero commands and the raster term
++ *      cancels in that delta.
++ *   3  INFLATION rung, not an ablation. painter_paint_bucket runs TWICE per
++ *      frame and the first result is discarded. The command list, and therefore
++ *      every downstream consumer, is bit-identical to the control, so
++ *      (rung3 - control) is the whole cost of one painter_paint_bucket call
++ *      with the raster held fixed. This is the only clean painter number in
++ *      the ladder.
++ */
++#define HUNTABL_BKT 0
++
++#endif
+diff --git a/src/painters/painters_bucket.u.c b/src/painters/painters_bucket.u.c
+index 7d289c587..a02de851c 100644
+--- a/src/painters/painters_bucket.u.c
++++ b/src/painters/painters_bucket.u.c
+@@ -3,6 +3,8 @@
+ 
+ #include "painters_i.h"
+ 
++#include "huntabl_bkt.h"
++
+ #include <assert.h>
+ #include <stdbool.h>
+ #include <stdint.h>
+@@ -591,6 +593,38 @@ painter_paint_bucket(
+     struct PainterBucketCtx* w = BM(painter);
+     assert(w);
+ 
++#if HUNTABL_BKT == 2
++    /* ABLATION rung 2: the ENTIRE paint is gone -- no element_paints memset,
++     * no draw-box resolve, no classify pass, no bucket_reset, no push, no
++     * dedup, no drain. Nested under rung 1: (rung1 - rung2) is the setup half
++     * (classify + reset + the classify loop's bulk push + the memset) with the
++     * raster term cancelled, because both rungs emit zero commands. */
++    (void)camera_sx;
++    (void)camera_sz;
++    (void)camera_slevel;
++    buffer->command_count = 0;
++    return 0;
++#endif
++
++#if HUNTABL_BKT == 3
++    /* INFLATION rung: pay for one extra complete paint, then fall through and
++     * do the real one. Every mutable thing the paint touches is reset at the
++     * top of the paint (element_paints via memset, TilePaint fields in the
++     * classify loop, the bucket queue in bucket_reset) and
++     * scenery_chain_sort_once is a selection sort that is idempotent on an
++     * already-sorted chain, so the discarded pass leaves the second pass
++     * bit-identical to the control's single pass. */
++    {
++        static int huntabl_paint_reentry = 0;
++        if( !huntabl_paint_reentry )
++        {
++            huntabl_paint_reentry = 1;
++            painter_paint_bucket(painter, buffer, camera_sx, camera_sz, camera_slevel);
++            huntabl_paint_reentry = 0;
++        }
++    }
++#endif
++
+     /* Hoisted fields — setup/main store through tile_paints, so the compiler
+      * cannot otherwise keep these in registers across iterations. */
+     int width = painter->width;
+@@ -827,6 +861,22 @@ painter_paint_bucket(
+         }
+     }
+ 
++#if HUNTABL_BKT == 1 || HUNTABL_BKT == 2
++    /* ABLATION rungs 1-2: the whole drain loop is gone. cmd_cur never leaves
++     * cmd_base, so buffer->command_count lands at 0 and every downstream
++     * consumer of the command list -- projection, face sort, raster, present
++     * -- has nothing to do. THIS IS NOT A CLEAN PAINTER BOUND. */
++    (void)seed_gen;
++    (void)seed_gen_initialized;
++    (void)check_adjacent;
++    (void)cmd_end;
++    (void)elements;
++    (void)element_paints;
++    (void)scenery_pool;
++    (void)levels;
++    (void)tiles_remaining;
++    (void)camera_slevel;
++#else
+     for( ;; )
+     {
+         if( bucket_queue_empty(w) )
+@@ -1441,6 +1491,7 @@ painter_paint_bucket(
+                 &perf_push_dedup);
+         }
+     }
++#endif
+ 
+     buffer->command_count = (int)(cmd_cur - cmd_base);
+     TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_PAINTER_COMMANDS, buffer->command_count);

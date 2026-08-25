@@ -1,0 +1,265 @@
+From 5f242a0baad48e0919bdc0d8c0b00c605fcaa530 Mon Sep 17 00:00:00 2001
+From: hunt-w11 <agent@local>
+Date: Mon, 24 Aug 2026 23:11:55 -0500
+Subject: [PATCH 2/2] perf(painter): hoist the push dedup test to the call site
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ src/painters/painters_bucket.u.c | 166 +++++++++++--------------------
+ 1 file changed, 59 insertions(+), 107 deletions(-)
+
+diff --git a/src/painters/painters_bucket.u.c b/src/painters/painters_bucket.u.c
+index 7d289c587..e7e778c50 100644
+--- a/src/painters/painters_bucket.u.c
++++ b/src/painters/painters_bucket.u.c
+@@ -79,33 +79,49 @@ bucket_pop(
+     return -1;
+ }
+ 
+-static inline int
+-bucket_push_if_active(
+-    struct PainterBucketCtx* w,
+-    struct TilePaint* paints,
++/* The PUSH telemetry row, out of line so the push test below stays small
++ * enough for the compiler to keep at every call site. */
++static void
++bucket_wedgelog_push(
+     int ti,
+-    int dist,
+-    int64_t* perf_pushes,
+-    int64_t* perf_push_dedup)
++    int dist)
+ {
+-    if( paints[ti].in_queue )
+-    {
+-        BUCKET_PERF_INCREMENT(*perf_push_dedup);
+-        return 0;
+-    }
+-    if( paints[ti].step == PAINT_STEP_DONE )
+-        return 0;
+-    bucket_push(w, paints, ti, dist);
+-    BUCKET_PERF_INCREMENT(*perf_pushes);
+-    if( painter_wedgelog_armed() )
+-    {
+-        char extra[32];
+-        snprintf(extra, sizeof(extra), "d=%d", dist);
+-        painter_wedgelog_event(ti, "PUSH", extra);
+-    }
+-    return 1;
++    char extra[32];
++    snprintf(extra, sizeof(extra), "d=%d", dist);
++    painter_wedgelog_event(ti, "PUSH", extra);
+ }
+ 
++/* Push a neighbour unless it is already queued or already finished.
++ *
++ * A macro, and expanded at the call site on purpose. The classify loop
++ * pre-loads every READY tile, so about half of all drain-time pushes land on a
++ * tile that is still sitting in the queue -- that rejection has to cost one
++ * byte load and a not-taken branch. As a six-argument call taking the address
++ * of two int64_t counters it cost tens of cycles instead: the address-taken
++ * counters live in memory and every increment is a 64-bit read-modify-write,
++ * and `dist_` was evaluated by the caller before the call, so a rejected push
++ * paid for a distance nobody used. `dist_` is now touched only on a real push.
++ *
++ * Reads `w`, `paints`, `perf_pushes` and `perf_push_dedup` from the enclosing
++ * painter_paint_bucket scope; #undef'd beside BUCKET_PERF_INCREMENT below. */
++#define BUCKET_PUSH_IF_ACTIVE(ti_, dist_)                 \
++    do                                                    \
++    {                                                     \
++        int bpa_ti = (ti_);                               \
++        if( paints[bpa_ti].in_queue )                     \
++        {                                                 \
++            BUCKET_PERF_INCREMENT(perf_push_dedup);       \
++        }                                                 \
++        else if( paints[bpa_ti].step != PAINT_STEP_DONE ) \
++        {                                                 \
++            int bpa_dist = (dist_);                       \
++            bucket_push(w, paints, bpa_ti, bpa_dist);     \
++            BUCKET_PERF_INCREMENT(perf_pushes);           \
++            if( painter_wedgelog_armed() )                \
++                bucket_wedgelog_push(bpa_ti, bpa_dist);   \
++        }                                                 \
++    } while( 0 )
++
+ static inline int
+ bucket_queue_empty(struct PainterBucketCtx* w)
+ {
+@@ -602,10 +618,12 @@ painter_paint_bucket(
+     struct PaintersElement* elements = painter->elements;
+     struct ElementPaint* element_paints = painter->element_paints;
+     struct SceneryNode* scenery_pool = painter->scenery_pool;
+-    int64_t perf_pops = 0;
+-    int64_t perf_gate_rejects = 0;
+-    int64_t perf_pushes = 0;
+-    int64_t perf_push_dedup = 0;
++    /* Per-call totals, tens of thousands each: 32 bits is ample, and on i686
++     * a 64-bit increment is an add/adc pair over two registers. */
++    int perf_pops = 0;
++    int perf_gate_rejects = 0;
++    int perf_pushes = 0;
++    int perf_push_dedup = 0;
+     const struct PaintersCullMap* cullmap = painter->cullmap;
+     size_t cull_camera_key = painter->cull_camera_key;
+     int cull_all_visible = (cullmap == NULL || cullmap->all_visible);
+@@ -869,8 +887,7 @@ painter_paint_bucket(
+                         snprintf(extra, sizeof(extra), "phase=%d d=%d", phase, dist);
+                         painter_wedgelog_event(tidx, "SEED", extra);
+                     }
+-                    bucket_push_if_active(
+-                        w, paints, tidx, dist, &perf_pushes, &perf_push_dedup);
++                    BUCKET_PUSH_IF_ACTIVE(tidx, dist);
+                     check_adjacent = (phase == 1);
+                     seeded = 1;
+                     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_DRAIN_EVENTS, 1);
+@@ -1038,46 +1055,22 @@ painter_paint_bucket(
+                 if( tile_inward_east_inbounds(tile_sx, camera_sx, max_draw_x) &&
+                     (spans & SPAN_FLAG_EAST) )
+                 {
+-                    bucket_push_if_active(
+-                        w,
+-                        paints,
+-                        e_tile + 1,
+-                        abs(tile_sx + 1 - camera_sx) + adz,
+-                        &perf_pushes,
+-                        &perf_push_dedup);
++                    BUCKET_PUSH_IF_ACTIVE(e_tile + 1, abs(tile_sx + 1 - camera_sx) + adz);
+                 }
+                 if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) &&
+                     (spans & SPAN_FLAG_NORTH) )
+                 {
+-                    bucket_push_if_active(
+-                        w,
+-                        paints,
+-                        e_tile + width,
+-                        adx + abs(tile_sz + 1 - camera_sz),
+-                        &perf_pushes,
+-                        &perf_push_dedup);
++                    BUCKET_PUSH_IF_ACTIVE(e_tile + width, adx + abs(tile_sz + 1 - camera_sz));
+                 }
+                 if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) &&
+                     (spans & SPAN_FLAG_WEST) )
+                 {
+-                    bucket_push_if_active(
+-                        w,
+-                        paints,
+-                        e_tile - 1,
+-                        abs(tile_sx - 1 - camera_sx) + adz,
+-                        &perf_pushes,
+-                        &perf_push_dedup);
++                    BUCKET_PUSH_IF_ACTIVE(e_tile - 1, abs(tile_sx - 1 - camera_sx) + adz);
+                 }
+                 if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) &&
+                     (spans & SPAN_FLAG_SOUTH) )
+                 {
+-                    bucket_push_if_active(
+-                        w,
+-                        paints,
+-                        e_tile - width,
+-                        adx + abs(tile_sz - 1 - camera_sz),
+-                        &perf_pushes,
+-                        &perf_push_dedup);
++                    BUCKET_PUSH_IF_ACTIVE(e_tile - width, adx + abs(tile_sz - 1 - camera_sz));
+                 }
+             }
+ 
+@@ -1234,14 +1227,8 @@ painter_paint_bucket(
+                 {
+                     for( int ox = min_tile_x, ti = row; ox <= max_tile_x; ox++, ti++ )
+                     {
+-                        int ndist = abs(ox - camera_sx) + abs(oz - camera_sz);
+-                        bucket_push_if_active(
+-                            w,
+-                            paints,
+-                            ti,
+-                            ndist,
+-                            &perf_pushes,
+-                            &perf_push_dedup);
++                        BUCKET_PUSH_IF_ACTIVE(
++                            ti, abs(ox - camera_sx) + abs(oz - camera_sz));
+                         some_drawn = 1;
+                     }
+                 }
+@@ -1254,13 +1241,7 @@ painter_paint_bucket(
+              * blocked, ensure this tile is revisited (footprint push usually
+              * covers it; push explicitly when nothing was footprint-pushed). */
+             if( blocked_undrawn && !some_drawn )
+-                bucket_push_if_active(
+-                    w,
+-                    paints,
+-                    e_tile,
+-                    tile_dist,
+-                    &perf_pushes,
+-                    &perf_push_dedup);
++                BUCKET_PUSH_IF_ACTIVE(e_tile, tile_dist);
+             continue;
+         }
+ 
+@@ -1391,54 +1372,24 @@ painter_paint_bucket(
+ 
+         if( paintgrid_level < levels - 1 )
+         {
+-            bucket_push_if_active(
+-                w,
+-                paints,
+-                e_tile + level_stride,
+-                tile_dist,
+-                &perf_pushes,
+-                &perf_push_dedup);
++            BUCKET_PUSH_IF_ACTIVE(e_tile + level_stride, tile_dist);
+         }
+ 
+         if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) )
+         {
+-            bucket_push_if_active(
+-                w,
+-                paints,
+-                e_tile + width,
+-                adx + abs(tile_sz + 1 - camera_sz),
+-                &perf_pushes,
+-                &perf_push_dedup);
++            BUCKET_PUSH_IF_ACTIVE(e_tile + width, adx + abs(tile_sz + 1 - camera_sz));
+         }
+         if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) )
+         {
+-            bucket_push_if_active(
+-                w,
+-                paints,
+-                e_tile - 1,
+-                abs(tile_sx - 1 - camera_sx) + adz,
+-                &perf_pushes,
+-                &perf_push_dedup);
++            BUCKET_PUSH_IF_ACTIVE(e_tile - 1, abs(tile_sx - 1 - camera_sx) + adz);
+         }
+         if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) )
+         {
+-            bucket_push_if_active(
+-                w,
+-                paints,
+-                e_tile - width,
+-                adx + abs(tile_sz - 1 - camera_sz),
+-                &perf_pushes,
+-                &perf_push_dedup);
++            BUCKET_PUSH_IF_ACTIVE(e_tile - width, adx + abs(tile_sz - 1 - camera_sz));
+         }
+         if( tile_inward_east_inbounds(tile_sx, camera_sx, max_draw_x) )
+         {
+-            bucket_push_if_active(
+-                w,
+-                paints,
+-                e_tile + 1,
+-                abs(tile_sx + 1 - camera_sx) + adz,
+-                &perf_pushes,
+-                &perf_push_dedup);
++            BUCKET_PUSH_IF_ACTIVE(e_tile + 1, abs(tile_sx + 1 - camera_sx) + adz);
+         }
+     }
+ 
+@@ -1786,6 +1737,7 @@ painter_collect_visible_depth(
+     return 0;
+ }
+ 
++#undef BUCKET_PUSH_IF_ACTIVE
+ #undef BUCKET_PERF_INCREMENT
+ 
+ #endif /* PAINTERS_BUCKET_U_C */

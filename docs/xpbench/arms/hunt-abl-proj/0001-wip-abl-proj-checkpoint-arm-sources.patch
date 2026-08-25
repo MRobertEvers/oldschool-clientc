@@ -1,0 +1,128 @@
+From d4f93004af3e2e9d5a9a804d55b4dc0a4f3abee5 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:14:40 -0500
+Subject: [PATCH] wip(abl-proj): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/abl-proj.
+
+files: 3rd/toridraw/toridraw.c 3rd/toridraw/toridraw_render.u.c
+---
+ 3rd/toridraw/toridraw.c          | 61 ++++++++++++++++++++++++++++++++
+ 3rd/toridraw/toridraw_render.u.c | 22 ++++++++++++
+ 2 files changed, 83 insertions(+)
+
+diff --git a/3rd/toridraw/toridraw.c b/3rd/toridraw/toridraw.c
+index b2a4729f7..ca41e722e 100644
+--- a/3rd/toridraw/toridraw.c
++++ b/3rd/toridraw/toridraw.c
+@@ -782,6 +782,54 @@ ToriDraw_RenderModel(
+     ToriDraw_RenderModel3Raster(scene, view_port, camera, pixel_buffer, false);
+ }
+ 
++/*
++ * HUNT PROBE -- projection-stage slope probe. Not shippable, never on by
++ * default. Build with -DHUNTABL_PROJREPS=2 (or 3) to run the ENTIRE projection
++ * stage that many times per model instead of once.
++ *
++ * Why a repeat probe and not a deletion. Every downstream stage's VOLUME is a
++ * function of the projection's output VALUES, not merely of it having run: the
++ * face sorter back-face-culls, degenerate-rejects and depth-buckets from
++ * screen_vertices_*, and ToriDraw_AabbCull drops whole models from the 8-point
++ * screen AABB. Deleting or staling the projection therefore changes how many
++ * faces reach the sorter and the rasterizer, which is precisely the "renders
++ * fewer faces, looks like a win" failure. Running the stage N times instead of
++ * once leaves the rendered frame BIT-IDENTICAL -- ToriDraw_Project is a pure
++ * function of (scene capacity, model, position, view_port, camera) that only
++ * writes scene scratch, so the last repetition reproduces exactly what the
++ * single call produced -- while adding a known, countable multiple of the
++ * stage's own work. The marginal cost per repetition is the bound.
++ *
++ * Shape matters for the measurement, so it is fixed deliberately:
++ *   - ONE out-of-line copy of the stage (noinline), called in a loop. The
++ *     stage is not duplicated in the instruction stream, so the Prescott's
++ *     12K-uop trace cache sees one body at every rep count and the x3-x2 delta
++ *     carries no code-size confound.
++ *   - A "memory" clobber between reps. Without it GCC inlines both calls, sees
++ *     the first call's stores overwritten by the second's, and dead-store-
++ *     eliminates most of the extra work -- the probe would measure nothing.
++ */
++#if defined(HUNTABL_PROJREPS)
++#if HUNTABL_PROJREPS < 1
++#error "HUNTABL_PROJREPS must be >= 1"
++#endif
++
++static int __attribute__((noinline))
++huntabl_project_once(
++    struct ToriDraw_Scene* scene,
++    struct ToriDraw_ModelHandle hnd,
++    struct ToriDraw_Position* position,
++    struct ToriDraw_ViewPort* view_port,
++    struct ToriDraw_Camera* camera)
++{
++    assert(scene);
++    assert(position);
++    assert(view_port);
++    assert(camera);
++    return ToriDraw_Project(scene, hnd, position, view_port, camera);
++}
++#endif
++
+ int
+ ToriDraw_RenderModel1Project(
+     struct ToriDraw_ModelHandle hnd,
+@@ -791,7 +839,20 @@ ToriDraw_RenderModel1Project(
+     struct ToriDraw_Camera* camera)
+ {
+     scene->active_hnd = hnd;
++#if defined(HUNTABL_PROJREPS)
++    {
++        int cull_ = TORIDRAW_CULL_VISIBLE;
++        for( int rep_ = 0; rep_ < HUNTABL_PROJREPS; rep_++ )
++        {
++            cull_ = huntabl_project_once(scene, hnd, position, view_port, camera);
++            /* Defeat dead-store elimination across repetitions. */
++            __asm__ __volatile__("" ::: "memory");
++        }
++        return cull_;
++    }
++#else
+     return ToriDraw_Project(scene, hnd, position, view_port, camera);
++#endif
+ }
+ 
+ int
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..f146d5be2 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -2852,6 +2852,28 @@ ToriDraw_Project(
+ 
+     scene->near_clipped = may_clip;
+ 
++#if defined(HUNTABL_PROJSTALE)
++    /*
++     * HUNT DIAGNOSTIC -- LOCAL ONLY, NEVER TIME THIS. Skips the per-vertex
++     * projection kernel and lets scene->screen_vertices_* keep whatever the
++     * PREVIOUS model left there, which is the "reuse the stale result" ablation
++     * shape. Its whole purpose is to measure how much downstream VOLUME that
++     * destroys, so that the volume-preserving repeat probe can be justified
++     * with numbers instead of an argument.
++     *
++     * The first HUNTABL_PROJSTALE models still project for real so the scratch
++     * arrays are never read uninitialised; the bench issues ~2,552 model
++     * commands per frame, so 4000 covers the whole first frame.
++     */
++    {
++        static long huntabl_stale_warm = 0;
++        if( huntabl_stale_warm < (HUNTABL_PROJSTALE) )
++            huntabl_stale_warm++;
++        else
++            return TORIDRAW_CULL_VISIBLE;
++    }
++#endif
++
+     if( toridraw_proj_is_parallel(camera->proj_mode) )
+     {
+         /*

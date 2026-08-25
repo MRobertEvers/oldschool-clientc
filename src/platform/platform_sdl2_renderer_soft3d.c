@@ -3,8 +3,10 @@
 #include "perf/torirs_perf.h"
 #include "render/torirs_frame.h"
 
+#include "graphics/fb_clear.h"
 #include "toridraw.h"
 #include "toridraw_2d.h"
+#include "toridraw_frame_ab.h"
 #include "toridraw_font.h"
 #include "toridraw_model_sprite.h"
 #include "toridraw_scene.h"
@@ -1441,6 +1443,112 @@ soft3d_execute_measured(
     }
 }
 
+#if defined(TORIDRAW_FB_POISON) && TORIDRAW_FB_POISON
+/*
+ * Survivor census for the frame clear. Poison is a colour the palette cannot
+ * produce, so any pixel still carrying it at end of frame was written by the
+ * clear and by nothing else.
+ */
+#define FB_POISON_VALUE 0xFFDEADBEu
+
+static unsigned long long g_fb_poison_frames;
+static unsigned long long g_fb_poison_survivors;
+static unsigned long long g_fb_poison_total;
+static int g_fb_poison_min_x = 1 << 30;
+static int g_fb_poison_max_x = -1;
+static int g_fb_poison_min_y = 1 << 30;
+static int g_fb_poison_max_y = -1;
+static unsigned g_fb_poison_worst;
+static unsigned g_fb_poison_best = 0xFFFFFFFFu;
+static unsigned g_fb_poison_last;
+static unsigned long long g_fb_poison_blank;
+static unsigned long long g_fb_poison_counted;
+static int g_fb_poison_atexit;
+
+/* Frames to let the scene come up before anything is believed. */
+#define FB_POISON_WARMUP 12
+static long g_fb_poison_warmup;
+
+static void
+fb_poison_dump(void)
+{
+    const char* path = getenv("TORIDRAW_FB_POISON_FILE");
+    FILE* f = path ? fopen(path, "w") : stderr;
+    double frames = (double)(g_fb_poison_frames ? g_fb_poison_frames : 1);
+    (void)frames;
+
+    assert(f);
+    fprintf(f, "fb poison census over %llu frames\n", g_fb_poison_frames);
+    fprintf(f, "  pixels cleared per frame: %.0f\n",
+            (double)g_fb_poison_total / frames);
+    fprintf(f, "  frames counted after %d warmup: %llu (%llu of them drew nothing)\n",
+            FB_POISON_WARMUP, g_fb_poison_counted, g_fb_poison_blank);
+    fprintf(f, "  survivors/frame: min %u, mean %.0f, max %u; last frame %u\n",
+            g_fb_poison_best == 0xFFFFFFFFu ? 0u : g_fb_poison_best,
+            (double)g_fb_poison_survivors
+                / (double)(g_fb_poison_counted ? g_fb_poison_counted : 1),
+            g_fb_poison_worst, g_fb_poison_last);
+    if( g_fb_poison_max_x >= 0 )
+        fprintf(f, "  survivor bbox: x %d..%d, y %d..%d (%dx%d)\n",
+                g_fb_poison_min_x, g_fb_poison_max_x,
+                g_fb_poison_min_y, g_fb_poison_max_y,
+                g_fb_poison_max_x - g_fb_poison_min_x + 1,
+                g_fb_poison_max_y - g_fb_poison_min_y + 1);
+    else
+        fprintf(f, "  survivor bbox: none -- every pixel was overdrawn\n");
+    if( path )
+        fclose(f);
+}
+
+static void
+fb_poison_scan(const struct ToriRS_Soft3D* soft)
+{
+    const uint32_t* p = (const uint32_t*)soft->pixels;
+    unsigned live = 0;
+    int y;
+
+    if( !g_fb_poison_atexit )
+    {
+        g_fb_poison_atexit = 1;
+        atexit(fb_poison_dump);
+    }
+    g_fb_poison_frames++;
+    g_fb_poison_total += (unsigned)soft->width * (unsigned)soft->height;
+
+    for( y = 0; y < soft->height; y++ )
+    {
+        const uint32_t* row = p + (size_t)y * (size_t)soft->width;
+        int x;
+        for( x = 0; x < soft->width; x++ )
+        {
+            if( row[x] != FB_POISON_VALUE )
+                continue;
+            live++;
+            if( g_fb_poison_warmup < FB_POISON_WARMUP )
+                continue;
+            if( x < g_fb_poison_min_x ) g_fb_poison_min_x = x;
+            if( x > g_fb_poison_max_x ) g_fb_poison_max_x = x;
+            if( y < g_fb_poison_min_y ) g_fb_poison_min_y = y;
+            if( y > g_fb_poison_max_y ) g_fb_poison_max_y = y;
+        }
+    }
+    g_fb_poison_last = live;
+    if( g_fb_poison_warmup < FB_POISON_WARMUP )
+    {
+        g_fb_poison_warmup++;
+        return;
+    }
+    g_fb_poison_counted++;
+    g_fb_poison_survivors += live;
+    if( live > g_fb_poison_worst )
+        g_fb_poison_worst = live;
+    if( live < g_fb_poison_best )
+        g_fb_poison_best = live;
+    if( live * 2 >= (unsigned)soft->width * (unsigned)soft->height )
+        g_fb_poison_blank++;
+}
+#endif
+
 void
 ToriRS_Soft3D_RenderFrame(
     struct ToriRS_Soft3D* soft,
@@ -1455,24 +1563,67 @@ ToriRS_Soft3D_RenderFrame(
     assert(soft->width > 0 && soft->height > 0);
 
     n = (size_t)soft->width * (size_t)soft->height;
+
+    /*
+     * The A/B brackets the clear AND the rasterization that follows it,
+     * because the two are coupled through the cache. Arm selection is read
+     * once, inside the region, so the clear and the accounting cannot
+     * disagree about which arm this frame was.
+     */
+    ToriDraw_FrameAbBegin();
+
+    /*
+     * Clear every frame. A census on the pinned bench found only 503 of
+     * 384,795 pixels still holding the clear colour at end of frame, which
+     * argued for clearing once -- but that bench has no skybox, and a skybox
+     * that does not cover every pixel shows whatever the clear would have
+     * removed. The bench could not falsify the premise, so the saving was
+     * withdrawn. What stays is the non-temporal clear below, which makes the
+     * clear cheaper without skipping it.
+     */
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_CLEAR)
     {
 #if defined(__APPLE__)
         uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
         memset_pattern4(soft->pixels, &bg, n * sizeof(int));
 #else
+        /*
+         * 765x503x4 = 1.54 MB written every frame and never read back in this
+         * pass -- long, contiguous, aligned, write-only. That is the one shape
+         * in this renderer where a non-temporal store pays: measured on the
+         * Pentium 4 target, 1.296 GB/s normal against 3.060 GB/s
+         * non-temporal, so 1.19 ms of clear against 0.50 ms.
+         *
+         * It is emphatically NOT the shape of a rasterizer span. The same
+         * probe measured the same two sequences at the census's real span
+         * length of 7.24 pixels and found the non-temporal version NINE TIMES
+         * slower, because a write-combine buffer evicted before it fills goes
+         * out as several partial-line transactions. The kernels keep their
+         * ordinary stores; see graphics/fb_clear_i686.S.
+         */
         uint32_t* p = (uint32_t*)soft->pixels;
+#if defined(TORIDRAW_FB_POISON) && TORIDRAW_FB_POISON
+        uint32_t bg = FB_POISON_VALUE;
+#else
         uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
-        size_t i = 0;
-        for( ; i + 4 <= n; i += 4 )
+#endif
+        if( ToriDraw_FrameAbArm() )
         {
-            p[i] = bg;
-            p[i + 1] = bg;
-            p[i + 2] = bg;
-            p[i + 3] = bg;
+            TORIDRAW_FB_CLEAR32(p, n, bg);
         }
-        for( ; i < n; i++ )
-            p[i] = bg;
+        else
+        {
+            size_t i = 0;
+            for( ; i + 4 <= n; i += 4 )
+            {
+                p[i] = bg;
+                p[i + 1] = bg;
+                p[i + 2] = bg;
+                p[i + 3] = bg;
+            }
+            for( ; i < n; i++ )
+                p[i] = bg;
+        }
 #endif
     }
 
@@ -1494,4 +1645,9 @@ ToriRS_Soft3D_RenderFrame(
             soft3d_execute_measured(soft, &cmd);
     }
     ToriRS_FrameEnd(frame);
+#if defined(TORIDRAW_FB_POISON) && TORIDRAW_FB_POISON
+    fb_poison_scan(soft);
+#endif
+
+    ToriDraw_FrameAbEnd();
 }

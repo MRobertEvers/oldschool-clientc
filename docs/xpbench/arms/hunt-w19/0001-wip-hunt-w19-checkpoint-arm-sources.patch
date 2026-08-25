@@ -1,0 +1,722 @@
+From 0a725ba420360ef7164c7d066636ca4c95898cf3 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:15:12 -0500
+Subject: [PATCH] wip(hunt-w19): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/w19.
+
+files: 3rd/toridraw/graphics/proj_census.c 3rd/toridraw/graphics/proj_census.h 3rd/toridraw/toridraw_render.u.c 3rd/toridraw/toridraw_unity.c 3rd/toridraw/w19_arm.h src/platform/platform_sdl2_renderer_soft3d.c
+---
+ 3rd/toridraw/graphics/proj_census.c          | 117 ++++------
+ 3rd/toridraw/graphics/proj_census.h          | 135 +++++-------
+ 3rd/toridraw/toridraw_render.u.c             | 216 +++++++++++++++++++
+ 3rd/toridraw/toridraw_unity.c                |   2 +-
+ 3rd/toridraw/w19_arm.h                       |  25 +++
+ src/platform/platform_sdl2_renderer_soft3d.c |  17 ++
+ 6 files changed, 346 insertions(+), 166 deletions(-)
+ create mode 100644 3rd/toridraw/w19_arm.h
+
+diff --git a/3rd/toridraw/graphics/proj_census.c b/3rd/toridraw/graphics/proj_census.c
+index d52a29caa..a3df494f3 100644
+--- a/3rd/toridraw/graphics/proj_census.c
++++ b/3rd/toridraw/graphics/proj_census.c
+@@ -4,88 +4,47 @@
+ 
+ struct ToriDraw_ProjCensus g_toridraw_proj_census;
+ 
+-static char const* const g_proj_kind_name[TORIDRAW_PROJ_KIND_COUNT] = {
+-    "6dof     tex", "6dof   notex", "pitchyaw tex", "pitchyaw ntx",
+-    "yaw      tex", "yaw    notex",
+-};
+-
+-/**
+- * Report shares of VERTICES, not of models. A kernel that runs on 2% of models
+- * but every one of them is a 400-vertex npc is not 2% of the work, and the
+- * model share is the number that would say it was.
+- */
+ void
+-ToriDraw_ProjCensusDump(void)
++toridraw_proj_census_dump(void)
+ {
+-    struct ToriDraw_ProjCensus const* c = &g_toridraw_proj_census;
+-    char const* path = getenv("TORIDRAW_PROJ_CENSUS_FILE");
+-    FILE* f = stderr;
+-    double verts_total = 0.0;
+-    unsigned int models_total = 0;
+-    int i;
+-
+-    for( i = 0; i < TORIDRAW_PROJ_KIND_COUNT; i++ )
+-    {
+-        verts_total += c->vertices[i][0] + c->vertices[i][1];
+-        models_total += c->models[i][0] + c->models[i][1];
+-    }
+-    if( models_total == 0 )
+-        return;
+-
+-    if( path )
+-    {
+-        f = fopen(path, "w");
+-        if( !f )
+-            f = stderr;
+-    }
+-
+-    fprintf(f, "proj-census: %u models, %.0f vertices\n", models_total, verts_total);
+-    fprintf(f, "  kernel        noclip models   clip models    vertices   %% verts\n");
+-    for( i = 0; i < TORIDRAW_PROJ_KIND_COUNT; i++ )
+-    {
+-        double v = c->vertices[i][0] + c->vertices[i][1];
+-
+-        if( c->models[i][0] + c->models[i][1] == 0 )
+-            continue;
+-        fprintf(
+-            f,
+-            "  %-12s  %13u  %12u  %10.0f  %7.2f\n",
+-            g_proj_kind_name[i],
+-            c->models[i][0],
+-            c->models[i][1],
+-            v,
+-            100.0 * v / verts_total);
+-    }
+-
+-    fprintf(f, "  vertices in the 4-wide scalar tail: %.0f (%.2f%%)\n",
+-        c->vertices_tail, 100.0 * c->vertices_tail / verts_total);
+-
+-    fprintf(f, "  vertex-count histogram (models):\n");
+-    for( i = 0; i < TORIDRAW_PROJ_CENSUS_BUCKETS; i++ )
+-    {
+-        int lo;
+-        int hi;
+-
+-        if( c->hist[i] == 0 )
+-            continue;
+-        if( i < TORIDRAW_PROJ_CENSUS_EXACT )
+-        {
+-            lo = i;
+-            hi = i;
+-        }
+-        else
+-        {
+-            lo = TORIDRAW_PROJ_CENSUS_EXACT << (i - TORIDRAW_PROJ_CENSUS_EXACT);
+-            hi = (lo * 2) - 1;
+-        }
+-        if( lo == hi )
+-            fprintf(f, "    %6d       %8u\n", lo, c->hist[i]);
+-        else
+-            fprintf(f, "    %6d-%-6d %8u\n", lo, hi, c->hist[i]);
+-    }
+-
++    struct ToriDraw_ProjCensus* c = &g_toridraw_proj_census;
++    const char* path = getenv("TORIDRAW_PROJ_CENSUS_OUT");
++    FILE* f = path ? fopen(path, "w") : stderr;
++    if( !f )
++        f = stderr;
++
++    fprintf(f, "\n=== toridraw projection census (totals over the run) ===\n");
++    fprintf(f, "ToriDraw_Project calls        %.0f\n", c->calls);
++    fprintf(f, "  capacity reject             %.0f\n", c->capacity_reject);
++    fprintf(f, "  no bounds cylinder          %.0f\n", c->fastcull_no_bounds);
++    fprintf(f, "  fastcull near reject        %.0f\n", c->fastcull_near_reject);
++    fprintf(f, "  fastcull far reject         %.0f\n", c->fastcull_far_reject);
++    fprintf(f, "  fastcull x reject           %.0f\n", c->fastcull_x_reject);
++    fprintf(f, "  fastcull y reject           %.0f\n", c->fastcull_y_reject);
++    fprintf(f, "  fastcull pass               %.0f\n", c->fastcull_pass);
++    fprintf(f, "  aabb8 reject                %.0f\n", c->aabb_reject);
++    fprintf(f, "project_divide calls          %.0f  (%.2f per Project call)\n",
++            c->divides, c->calls > 0 ? c->divides / c->calls : 0.0);
++    fprintf(f, "near-clip gate: may_clip %.0f  no_clip %.0f  parallel %.0f\n",
++            c->may_clip, c->no_clip, c->parallel);
++    fprintf(f, "vertices projected            %.0f\n", c->vertices);
++    fprintf(f, "\n%-28s %14s %14s\n", "family", "models", "vertices");
++    for( int clip = 0; clip < 2; clip++ )
++        for( int py = 0; py < 2; py++ )
++            for( int tex = 0; tex < 2; tex++ )
++            {
++                char name[64];
++                snprintf(name, sizeof(name), "%s_%s_%s",
++                         clip ? "clip" : "noclip",
++                         py ? "pitchyaw" : "yawonly",
++                         tex ? "tex" : "notex");
++                fprintf(f, "%-28s %14.0f %14.0f\n",
++                        name, c->family[clip][py][tex], c->family_vertices[clip][py][tex]);
++            }
++    fprintf(f, "=== end projection census ===\n");
++    fflush(f);
+     if( f != stderr )
+         fclose(f);
+ }
+ 
+-#endif /* TORIDRAW_PROJ_CENSUS */
++#endif
+diff --git a/3rd/toridraw/graphics/proj_census.h b/3rd/toridraw/graphics/proj_census.h
+index abad940eb..b3abf2620 100644
+--- a/3rd/toridraw/graphics/proj_census.h
++++ b/3rd/toridraw/graphics/proj_census.h
+@@ -1,115 +1,78 @@
+-#ifndef TORIDRAW_GRAPHICS_PROJ_CENSUS_H
+-#define TORIDRAW_GRAPHICS_PROJ_CENSUS_H
++#ifndef TORIDRAW_PROJ_CENSUS_H
++#define TORIDRAW_PROJ_CENSUS_H
+ 
+ /**
+- * Which projection kernel actually runs, and over how many vertices?
++ * What is ToriDraw_Project's per-model cost actually spent on?
+  *
+- * The perspective dispatch picks one of eight kernels per model -- three
+- * rotation shapes (6DOF, pitch+yaw, yaw-only) crossed with textured/untextured
+- * and clip/noclip -- and the SSE2 file behind them is 2400 lines. Any decision
+- * about hand-writing one of those is a decision about which of the eight a real
+- * scene reaches, and how long its vertex arrays are. Guessing gets this wrong
+- * the same way "models average 19 faces" got span length wrong: the dispatch
+- * key is a property of the MODEL, and a scene is not a uniform sample of models.
++ * The EIP map attributes 1.87 ms/frame to ToriDraw_Project and a separate
++ * 2.03 ms to the per-vertex kernel it calls, so the 1.87 is all driver: the
++ * capacity gate, the two culls, the near-clip decision and the family
++ * dispatch. Sizing any of those needs the branch counts, not a share of a
++ * symbol -- how many models reach the divides in ToriDraw_FastCull, how many
++ * are thrown away before them, and which of the eight projection families the
++ * survivors go to.
+  *
+- * Compile-time gated, like the span census next door, and for the same reason:
+- * this sits per-model on the render path, and a runtime branch there would tax
+- * the measurement it exists to take.
+- *
+- *   -DTORIDRAW_PROJ_CENSUS=1   per-kernel model and vertex counts, plus the
+- *                              vertex-count histogram that says whether a
+- *                              4-wide kernel ever gets a full second block.
+- *                              TORIDRAW_PROJ_CENSUS_FILE=<path> redirects it.
++ * Compile-time gated with -DTORIDRAW_PROJ_CENSUS=1 so a timed build has no
++ * branch here. This is NOT a flag the makefile's asm-withdrawal gate reads,
++ * but a census build is for counting only and never for timing.
+  */
+ 
+ #if defined(TORIDRAW_PROJ_CENSUS) && TORIDRAW_PROJ_CENSUS
+ 
+-#include <assert.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ 
+-enum
+-{
+-    TORIDRAW_PROJ_K_6DOF_TEX,
+-    TORIDRAW_PROJ_K_6DOF_NOTEX,
+-    TORIDRAW_PROJ_K_PITCHYAW_TEX,
+-    TORIDRAW_PROJ_K_PITCHYAW_NOTEX,
+-    TORIDRAW_PROJ_K_YAW_TEX,
+-    TORIDRAW_PROJ_K_YAW_NOTEX,
+-    TORIDRAW_PROJ_KIND_COUNT
+-};
+-
+-/** Exact for 0..63 vertices, then power-of-two up to >= 4096. */
+-#define TORIDRAW_PROJ_CENSUS_EXACT 64
+-#define TORIDRAW_PROJ_CENSUS_BUCKETS (TORIDRAW_PROJ_CENSUS_EXACT + 8)
+-
+ struct ToriDraw_ProjCensus
+ {
+-    /** Models projected by each kernel, split by whether it clips. */
+-    unsigned int models[TORIDRAW_PROJ_KIND_COUNT][2];
+-    /** Vertices those models carried -- the quantity the kernel loops over. */
+-    double vertices[TORIDRAW_PROJ_KIND_COUNT][2];
+-    /** Vertex counts, so the 4-wide block/tail split is a number not a guess. */
+-    unsigned int hist[TORIDRAW_PROJ_CENSUS_BUCKETS];
+-    /** Vertices landing in the scalar tail of a 4-wide kernel (count & 3). */
+-    double vertices_tail;
+-    /** Set once, by the first record, so the dump is registered exactly once. */
+-    int installed;
++    double calls;
++    double capacity_reject;
++    double fastcull_no_bounds;
++    double fastcull_near_reject;   /**< max_z < near_plane_z */
++    double fastcull_far_reject;    /**< mid_z past the 3500 far plane */
++    double fastcull_x_reject;      /**< after the first two divides */
++    double fastcull_y_reject;      /**< after all four divides */
++    double fastcull_pass;
++    double aabb_reject;
++
++    double divides;                /**< project_divide calls inside FastCull */
++
++    double may_clip;
++    double no_clip;
++    double parallel;
++
++    /* Family split of the perspective dispatch, [clip][pitchyaw][tex]. */
++    double family[2][2][2];
++    double family_vertices[2][2][2];
++
++    double vertices;               /**< vertices handed to a projection kernel */
++    int registered;
+ };
+ 
+ extern struct ToriDraw_ProjCensus g_toridraw_proj_census;
+ 
+-static inline int
+-toridraw_proj_census_bucket(int n)
+-{
+-    int bucket = TORIDRAW_PROJ_CENSUS_EXACT;
+-    int edge = TORIDRAW_PROJ_CENSUS_EXACT;
+-
+-    if( n < 0 )
+-        n = 0;
+-    if( n < TORIDRAW_PROJ_CENSUS_EXACT )
+-        return n;
+-    while( bucket < TORIDRAW_PROJ_CENSUS_BUCKETS - 1 && n >= edge * 2 )
+-    {
+-        bucket++;
+-        edge *= 2;
+-    }
+-    return bucket;
+-}
+-
+ void
+-ToriDraw_ProjCensusDump(void);
++toridraw_proj_census_dump(void);
+ 
+ static inline void
+-toridraw_proj_census_record(int kind, int clipped, int num_vertices)
++toridraw_proj_census_register(void)
+ {
+-    struct ToriDraw_ProjCensus* c = &g_toridraw_proj_census;
+-
+-    assert(kind >= 0);
+-    assert(kind < TORIDRAW_PROJ_KIND_COUNT);
+-    assert(num_vertices >= 0);
+-
+-    /* An empty model is a legitimate runtime state, not a contract violation. */
+-    if( num_vertices == 0 )
++    if( g_toridraw_proj_census.registered )
+         return;
+-    if( !c->installed )
+-    {
+-        c->installed = 1;
+-        atexit(ToriDraw_ProjCensusDump);
+-    }
+-    c->models[kind][clipped ? 1 : 0] += 1;
+-    c->vertices[kind][clipped ? 1 : 0] += (double)num_vertices;
+-    c->hist[toridraw_proj_census_bucket(num_vertices)] += 1;
+-    c->vertices_tail += (double)(num_vertices & 3);
++    g_toridraw_proj_census.registered = 1;
++    atexit(toridraw_proj_census_dump);
+ }
+ 
+-#define TORIDRAW_PROJ_CENSUS_RECORD(kind, clipped, n) \
+-    toridraw_proj_census_record((kind), (clipped), (n))
++#define TORIDRAW_PROJ_CENSUS_BUMP(field_, by_)                  \
++    do                                                          \
++    {                                                           \
++        toridraw_proj_census_register();                        \
++        g_toridraw_proj_census.field_ += (double)(by_);          \
++    } while( 0 )
+ 
+ #else
+ 
+-#define TORIDRAW_PROJ_CENSUS_RECORD(kind, clipped, n) ((void)0)
++#define TORIDRAW_PROJ_CENSUS_BUMP(field_, by_) ((void)0)
+ 
+-#endif /* TORIDRAW_PROJ_CENSUS */
++#endif
+ 
+-#endif /* TORIDRAW_GRAPHICS_PROJ_CENSUS_H */
++#endif
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..d50c1452b 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -1,6 +1,8 @@
+ #include <stdint.h>
+ #include <stdlib.h>
+ #include "graphics/dash_restrict.h"
++#include "w19_arm.h"
++#include "graphics/proj_census.h"
+ #include "graphics/projection.h"
+ #include "graphics/winding.h"
+ #include "toridraw_math.h"
+@@ -758,6 +760,52 @@ ToriDraw_AabbCull(
+     return TORIDRAW_CULL_VISIBLE;
+ }
+ 
++/**
++ * The two ends of a cylinder extent against a viewport half-size, without
++ * project_divide's divide.
++ *
++ * project_divide finishes in ToriDraw_ScaleUnitDiv's truncating `v * 512 / z`,
++ * and C truncates toward zero, so at z > 0 and a non-negative bound E the
++ * quotient clears the bound exactly when the dividend reaches the next
++ * multiple of z:
++ *
++ *     v*512 / z >  E   <=>   v*512 >=  (E+1)*z   <=>   v >=  ceil((E+1)*z/512)
++ *     v*512 / z < -E   <=>   v*512 <= -(E+1)*z   <=>   v <= -ceil((E+1)*z/512)
++ *
++ * One threshold therefore answers both ends, and neither end needs a divide of
++ * its own. `v` is computed the way project_divide computes it -- same product,
++ * same arithmetic shift -- so the verdict is the one the four divides gave.
++ *
++ * The wide cases fall back to the real divide: ScaleUnitDiv widens to 64 bits
++ * past +/-2^22, and (E+1)*z has to stay inside a signed int.
++ */
++static inline bool
++toridraw_fastcull_extent_rejects(
++    int ortho_min,
++    int ortho_max,
++    int mid_z,
++    int camera_cot16,
++    int screen_edge)
++{
++    assert(mid_z > 0);
++    assert(screen_edge >= 0);
++
++    int const cot_half = camera_cot16 >> 1;
++    int const v_min = (ortho_min * cot_half) >> 15;
++    int const v_max = (ortho_max * cot_half) >> 15;
++
++    if( mid_z > (1 << 20) || screen_edge >= (1 << 10) || v_min <= -(1 << 22) ||
++        v_min >= (1 << 22) || v_max <= -(1 << 22) || v_max >= (1 << 22) )
++        return project_divide(ortho_min, mid_z, camera_cot16) > screen_edge ||
++               project_divide(ortho_max, mid_z, camera_cot16) < -screen_edge;
++
++    {
++        int const threshold =
++            (((screen_edge + 1) * mid_z) + (UNIT_SCALE - 1)) >> UNIT_SCALE_SHIFT;
++        return v_min >= threshold || v_max <= -threshold;
++    }
++}
++
+ static inline int
+ ToriDraw_FastCull(
+     struct ToriDraw_AABB* aabb,
+@@ -782,6 +830,36 @@ ToriDraw_FastCull(
+     int cull_mz = 0;
+     assert(ToriDraw_ModelKindIsFull(hnd.kind));
+ 
++#if W19_FCNODIV
++    /*
++     * The cull centre is the model origin, so cull_mx/my/mz are zero and the
++     * model-yaw rotation folds away: what is left is the camera's yaw then its
++     * pitch, applied to the world position. Spelled out rather than called
++     * because project_orthographic_fast reaches the tables through a
++     * ToriDrawTrigFns struct built on the stack, and the indirect calls stop
++     * the compiler both from folding the dead rotation and from keeping the
++     * four table reads in registers across them. Same products, same order,
++     * same arithmetic shift.
++     */
++    {
++        int const cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch);
++        int const sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch);
++        int const cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw);
++        int const sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw);
++
++        int const x_rotated = cull_mx + scene_x;
++        int const y_rotated = cull_my + scene_y;
++        int const z_rotated = cull_mz + scene_z;
++
++        int const x_scene = (x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw) >> 16;
++        int const z_scene = (z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw) >> 16;
++
++        projected_vertex->x = x_scene;
++        projected_vertex->y = (y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch) >> 16;
++        projected_vertex->z = (y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch) >> 16;
++    }
++    (void)model_yaw;
++#else
+     project_orthographic_fast(
+         projected_vertex,
+         cull_mx,
+@@ -793,23 +871,113 @@ ToriDraw_FastCull(
+         scene_z,
+         camera_pitch,
+         camera_yaw);
++#endif
+ 
+     const struct ToriDraw_BoundsCylinder* bc = model_bounds_cylinder(hnd);
+     if( !bc )
++    {
++        TORIDRAW_PROJ_CENSUS_BUMP(fastcull_no_bounds, 1);
+         return TORIDRAW_CULL_ERROR;
++    }
+ 
+     int model_edge_radius = bc->radius;
+ 
+     int mid_z = projected_vertex->z;
+     int max_z = model_edge_radius + mid_z;
+     if( max_z < near_plane_z )
++    {
++        TORIDRAW_PROJ_CENSUS_BUMP(fastcull_near_reject, 1);
+         return TORIDRAW_CULL_FAST;
++    }
+ 
+     /* worldRender culls midZ>=3500; objRender / inventory icons do not.
+      * Icon cameras already use near_plane_z=1 (world uses 50). */
+     if( near_plane_z >= 50 && mid_z > TORIDRAW_CYLINDER_FAR_PLANE_Z )
++    {
++        TORIDRAW_PROJ_CENSUS_BUMP(fastcull_far_reject, 1);
+         return TORIDRAW_CULL_FAST;
++    }
+ 
++#if W19_FCNODIV
++    int mid_x = projected_vertex->x;
++    int mid_y = projected_vertex->y;
++
++    bool const parallel = toridraw_proj_is_parallel(camera->proj_mode);
++    int const zoom16 = camera->parallel_zoom16 ? camera->parallel_zoom16 : TORIDRAW_ORTHO_ZOOM_UNIT;
++
++    /* Depth only reaches the perspective extents through the divide; a parallel
++     * projection's screen size is the same at any depth, so the clamp below --
++     * which exists purely to keep that divisor off the near plane -- would be
++     * meaningless there. */
++    if( !parallel && mid_z < near_plane_z )
++        mid_z = near_plane_z;
++
++    int const cot16 =
++        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048);
++
++    int ortho_screen_x_min = mid_x - model_edge_radius;
++    int ortho_screen_x_max = mid_x + model_edge_radius;
++    int screen_edge_width = view_port->width >> 1;
++
++    if( parallel )
++    {
++        int const screen_x_min_unoffset =
++            (ortho_screen_x_min * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
++        int const screen_x_max_unoffset =
++            (ortho_screen_x_max * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
++        if( screen_x_min_unoffset > screen_edge_width ||
++            screen_x_max_unoffset < -screen_edge_width )
++        {
++            TORIDRAW_PROJ_CENSUS_BUMP(fastcull_x_reject, 1);
++            return TORIDRAW_CULL_FAST;
++        }
++    }
++    else if( toridraw_fastcull_extent_rejects(
++                 ortho_screen_x_min, ortho_screen_x_max, mid_z, cot16, screen_edge_width) )
++    {
++        TORIDRAW_PROJ_CENSUS_BUMP(fastcull_x_reject, 1);
++        return TORIDRAW_CULL_FAST;
++    }
++
++    int model_center_to_top_edge = bc->center_to_top_edge;
++
++    int model_center_to_bottom_edge =
++        (bc->center_to_bottom_edge * ToriDraw_ReadCosTable(camera_pitch) >> 16) +
++        (model_edge_radius * ToriDraw_ReadSinTable(camera_pitch) >> 16);
++
++    int ortho_screen_y_min = mid_y - abs(model_center_to_bottom_edge);
++    int ortho_screen_y_max = mid_y + abs(model_center_to_top_edge);
++    int screen_edge_height = view_port->height >> 1;
++
++    if( parallel )
++    {
++        int const screen_y_min_unoffset =
++            (ortho_screen_y_min * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
++        int const screen_y_max_unoffset =
++            (ortho_screen_y_max * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
++        if( screen_y_min_unoffset > screen_edge_height ||
++            screen_y_max_unoffset < -screen_edge_height )
++        {
++            TORIDRAW_PROJ_CENSUS_BUMP(fastcull_y_reject, 1);
++            return TORIDRAW_CULL_FAST;
++        }
++    }
++    else if( toridraw_fastcull_extent_rejects(
++                 ortho_screen_y_min, ortho_screen_y_max, mid_z, cot16, screen_edge_height) )
++    {
++        TORIDRAW_PROJ_CENSUS_BUMP(fastcull_y_reject, 1);
++        return TORIDRAW_CULL_FAST;
++    }
++
++    /* `aabb` is the scene's cylinder_fast_aabb. Nothing in the renderer reads
++     * it -- the visible path recomputes an eight-point box in
++     * ToriDraw_CalculateCylinderAabb8point and culls against that -- so the
++     * four screen coordinates it used to hold were the only reason this
++     * function divided at all. */
++    (void)aabb;
++
++    TORIDRAW_PROJ_CENSUS_BUMP(fastcull_pass, 1);
++#else
+     int mid_x = projected_vertex->x;
+     int mid_y = projected_vertex->y;
+ 
+@@ -846,8 +1014,13 @@ ToriDraw_FastCull(
+     }
+     int screen_edge_width = view_port->width >> 1;
+ 
++    if( !parallel )
++        TORIDRAW_PROJ_CENSUS_BUMP(divides, 2);
+     if( screen_x_min_unoffset > screen_edge_width || screen_x_max_unoffset < -screen_edge_width )
++    {
++        TORIDRAW_PROJ_CENSUS_BUMP(fastcull_x_reject, 1);
+         return TORIDRAW_CULL_FAST;
++    }
+ 
+     int model_center_to_top_edge = bc->center_to_top_edge;
+ 
+@@ -876,8 +1049,13 @@ ToriDraw_FastCull(
+             toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
+     }
+     int screen_edge_height = view_port->height >> 1;
++    if( !parallel )
++        TORIDRAW_PROJ_CENSUS_BUMP(divides, 2);
+     if( screen_y_min_unoffset > screen_edge_height || screen_y_max_unoffset < -screen_edge_height )
++    {
++        TORIDRAW_PROJ_CENSUS_BUMP(fastcull_y_reject, 1);
+         return TORIDRAW_CULL_FAST;
++    }
+ 
+     aabb->min_screen_x = screen_x_min_unoffset + view_port->x_center;
+     aabb->min_screen_y = screen_y_min_unoffset + view_port->y_center;
+@@ -885,6 +1063,8 @@ ToriDraw_FastCull(
+     aabb->max_screen_y = screen_y_max_unoffset + view_port->y_center;
+     aabb->kind = TORIDRAW_AABB_KIND_CYLINDER_4POINT;
+ 
++    TORIDRAW_PROJ_CENSUS_BUMP(fastcull_pass, 1);
++#endif
+     return TORIDRAW_CULL_VISIBLE;
+ }
+ 
+@@ -2671,6 +2851,18 @@ ToriDraw_Project(
+ {
+     struct ProjectedVertex center_projection;
+ 
++    TORIDRAW_PROJ_CENSUS_BUMP(calls, 1);
++
++#if W19_PREFETCH
++    /* bounds_cylinder is its own allocation and ToriDraw_FastCull does not read
++     * it until after the centre projection, so today that miss is fully
++     * exposed at bc->radius. Pulling the pointer load up to here hands the
++     * miss the whole of the projection's trig to hide behind, and touches the
++     * model header -- which the capacity gate below reads next -- one load
++     * earlier. */
++    __builtin_prefetch(model_bounds_cylinder(hnd), 0, 1);
++#endif
++
+     /* Refined below once the model's camera-space centre is known. Set here so
+      * an early cull cannot leave a stale plane behind for the next caller. */
+     scene->projection_near_plane_z = camera->near_plane_z;
+@@ -2717,6 +2909,7 @@ ToriDraw_Project(
+                 scene->max_vertices,
+                 model_face_count(hnd),
+                 scene->max_faces);
++        TORIDRAW_PROJ_CENSUS_BUMP(capacity_reject, 1);
+         return TORIDRAW_CULL_ERROR;
+     }
+ 
+@@ -2762,7 +2955,10 @@ ToriDraw_Project(
+ 
+     cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
+     if( cull != TORIDRAW_CULL_VISIBLE )
++    {
++        TORIDRAW_PROJ_CENSUS_BUMP(aabb_reject, 1);
+         return cull;
++    }
+ 
+     int const model_pitch = ToriDraw_NormalizeAngle(position->pitch);
+     int const model_yaw = ToriDraw_NormalizeAngle(position->yaw);
+@@ -2852,6 +3048,26 @@ ToriDraw_Project(
+ 
+     scene->near_clipped = may_clip;
+ 
++#if defined(TORIDRAW_PROJ_CENSUS) && TORIDRAW_PROJ_CENSUS
++    {
++        int const census_vc = model_vertex_count(hnd);
++        int const census_clip = may_clip ? 1 : 0;
++        int const census_py = (model_pitch != 0 || model_roll != 0 || camera_roll != 0) ? 1 : 0;
++        int const census_tex = model_has_textures(hnd) ? 1 : 0;
++        toridraw_proj_census_register();
++        if( toridraw_proj_is_parallel(camera->proj_mode) )
++            g_toridraw_proj_census.parallel += 1.0;
++        else if( may_clip )
++            g_toridraw_proj_census.may_clip += 1.0;
++        else
++            g_toridraw_proj_census.no_clip += 1.0;
++        g_toridraw_proj_census.vertices += (double)census_vc;
++        g_toridraw_proj_census.family[census_clip][census_py][census_tex] += 1.0;
++        g_toridraw_proj_census.family_vertices[census_clip][census_py][census_tex] +=
++            (double)census_vc;
++    }
++#endif
++
+     if( toridraw_proj_is_parallel(camera->proj_mode) )
+     {
+         /*
+diff --git a/3rd/toridraw/toridraw_unity.c b/3rd/toridraw/toridraw_unity.c
+index e9db3a847..30fae82cc 100644
+--- a/3rd/toridraw/toridraw_unity.c
++++ b/3rd/toridraw/toridraw_unity.c
+@@ -27,8 +27,8 @@
+ #include "graphics/convex_hull.c"
+ #include "graphics/raster/raster_ablate.c"
+ #include "graphics/raster/face_census.c"
+-#include "graphics/raster/gouraudhsllightness/sarea_census.c"
+ #include "graphics/proj_census.c"
++#include "graphics/raster/gouraudhsllightness/sarea_census.c"
+ #include "graphics/raster/span_census.c"
+ #include "graphics/shared_tables.c"
+ #include "osrs/palette.c"
+diff --git a/3rd/toridraw/w19_arm.h b/3rd/toridraw/w19_arm.h
+new file mode 100644
+index 000000000..5011b5409
+--- /dev/null
++++ b/3rd/toridraw/w19_arm.h
+@@ -0,0 +1,25 @@
++#ifndef W19_ARM_H
++#define W19_ARM_H
++
++/*
++ * Arm switches for the ToriDraw_Project hunt. Both default to 0, so a tree
++ * with neither flipped compiles the control program exactly.
++ *
++ * W19_PREFETCH  Touch the model header and its bounds cylinder before the
++ *               projection needs them. The census says ToriDraw_Project runs
++ *               2,551.8 times a frame and the capacity gate is the frame's
++ *               first read of each model allocation.
++ * W19_FCNODIV   ToriDraw_FastCull answers its two extent tests with a multiply
++ *               instead of project_divide's idivl, and stops filling the
++ *               screen AABB nothing in the renderer reads. 8,861.6 divides a
++ *               frame, measured.
++ */
++#ifndef W19_PREFETCH
++#define W19_PREFETCH 1
++#endif
++
++#ifndef W19_FCNODIV
++#define W19_FCNODIV 0
++#endif
++
++#endif /* W19_ARM_H */
+diff --git a/src/platform/platform_sdl2_renderer_soft3d.c b/src/platform/platform_sdl2_renderer_soft3d.c
+index de701e34e..e778b4b70 100644
+--- a/src/platform/platform_sdl2_renderer_soft3d.c
++++ b/src/platform/platform_sdl2_renderer_soft3d.c
+@@ -12,9 +12,11 @@
+ #include "toridraw_scene.h"
+ #include "toridraw_sprite.h"
+ #include "toridraw_types.h"
++#include "w19_arm.h"
+ 
+ #include <assert.h>
+ #include <stdint.h>
++#include <stddef.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -916,6 +918,21 @@ soft3d_draw_model(
+     if( cmd->model.kind == TORIDRAWMK_NONE )
+         return;
+ 
++#if W19_PREFETCH
++    /* The frame walks 2,551.8 model commands and each one is a cold
++     * allocation: ToriDraw_Project's capacity gate is the first read of the
++     * header and ToriDraw_FastCull then chases bounds_cylinder, 160 bytes on
++     * and in a line of its own. Issued before the animation apply and the perf
++     * bracket so the two misses overlap the command dispatch rather than
++     * stalling the gate. Prefetch only -- nothing here reads the model. */
++    if( ToriDraw_ModelKindIsFull(cmd->model.kind) )
++    {
++        char const* const header = (char const*)cmd->model.u.model.model;
++        __builtin_prefetch(header, 0, 1);
++        __builtin_prefetch(header + offsetof(struct ToriDraw_Model, bounds_cylinder), 0, 1);
++    }
++#endif
++
+     if( cmd->animation && cmd->element_id >= 0 )
+         ToriDraw_SceneElementApplyAnimation(
+             soft->scene, cmd->element_id, cmd->anim_index == 0, cmd->anim_frame);

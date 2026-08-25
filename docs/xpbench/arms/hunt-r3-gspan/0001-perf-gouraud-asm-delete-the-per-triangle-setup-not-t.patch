@@ -1,0 +1,412 @@
+From a9d01e0e73605729b54a170965c2dfbf9d58c03e Mon Sep 17 00:00:00 2001
+From: claude <noreply@anthropic.com>
+Date: Tue, 25 Aug 2026 02:18:51 -0500
+Subject: [PATCH 1/2] perf(gouraud asm): delete the per-triangle setup, not the
+ fill
+
+Census (300 frames, moving lumbridge): 13,359 triangles reach the
+trapezoid walks per frame and pay ~275 instructions of fixed setup
+each -- ~49% of the kernel's instruction stream -- for 31 pixels.
+
+- SEGMENT takes its real slots as arguments; the six generic slots,
+  V_HSL and V_SAREA are gone and the edges/colour stay in registers
+  across the segment boundary.  -38 instr/triangle.
+- The redundant ish16 equality test leaves both row loops, and the
+  1..3-px tail indexes an 8-byte table instead of xor/cmp/setge.
+- NOHCLIP and the unclamped row loop are deleted; the general clamped
+  loop runs every row, which cannot move a pixel.
+
+1123 -> 603 static instructions, 4160 -> 2336 bytes.
+test-gouraud-tri-asm: PASS, 200000 triangles, every pixel identical.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ .../gouraudhsllightness/gouraud_tri_i686.S    | 282 +++++++-----------
+ 1 file changed, 111 insertions(+), 171 deletions(-)
+
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+index d8b79f6d2..0c42e5c8b 100644
+--- a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+@@ -118,27 +118,23 @@
+ #define V_EAC     76	/* edge_x_AC_ish16                                  */
+ #define V_EAB     80	/* edge_x_AB_ish16                                  */
+ #define V_EBC     84	/* edge_x_BC_ish16                                  */
+-#define V_HSL     88	/* hsl_ish8, carried across both segments           */
+-#define V_OFF     92	/* row offset into the frame buffer, in pixels      */
+-#define V_NC1     96	/* segment proved free of horizontal clipping       */
+-#define V_NC2    100
+-#define V_N1     104	/* segment row counts                               */
+-#define V_N2     108
+-#define V_EL     112	/* the segment loop's left/right edge and steps,    */
+-#define V_ER     116	/*   named generically so one macro serves both     */
+-#define V_STEPL  120	/*   segments in both edge orientations            */
+-#define V_STEPR  124
+-#define V_NC     128
+-#define V_CNT    132
+-#define V_TAIL   136	/* stride & 3, parked while the block loop runs     */
+-#define V_DAB    140	/* colour deltas, live across two divides           */
+-#define V_DAC    144
+-#define V_SAREA  148
+-#define V_TMP    152
+-#define FRAME    160
++#define V_OFF     88	/* row offset into the frame buffer, in pixels      */
++#define V_N1      92	/* segment row counts; also the segment loop counter */
++#define V_N2      96
++#define V_TAIL   100	/* stride & 3, parked while the block loop runs     */
++#define V_DAB    104	/* colour deltas, live across two divides           */
++#define V_DAC    108
++#define FRAME    112
++
++/* There is no V_EL/V_ER/V_STEPL/V_STEPR/V_NC/V_CNT, no V_HSL and no V_SAREA.
++ * The two edges live in %ebx/%esi and the colour in %ebp for the whole walk,
++ * the steps and the row count are macro arguments naming V_SXAB/V_SXAC/... in
++ * place, and sarea is consumed by cvtsi2sd the instruction after it is formed.
++ * The generic slots they replace cost 38 instructions of stack-to-stack copy
++ * per triangle -- see the SEGMENT comment. */
+ 
+ /* four pushes + FRAME + the return address */
+-#define A(n) (180 + 4 * (n))(%esp)
++#define A(n) (132 + 4 * (n))(%esp)
+ 
+ /* ---- helpers ---------------------------------------------------------- */
+ 
+@@ -163,46 +159,30 @@
+ .endm
+ 
+ /*
+- * flat_screen_fixed_edges_no_hclip, once per segment. Affine extrema on a
+- * segment occur at its endpoints, so two evaluations settle every row of it.
+- * Result written to \dstslot as 0 or 1. Clobbers %eax %ecx %edx.
++ * THERE IS NO flat_screen_fixed_edges_no_hclip HERE ANY MORE
++ *
++ * There used to be, and it decided once per segment whether any row of that
++ * segment could leave the viewport, so that the common case could run a row
++ * loop with the left/right clamps removed. The census says that trade is the
++ * wrong way round on this scene:
++ *
++ *   NOHCLIP, twice per triangle              ~50 instructions, 2 imul
++ *   the AC pre-step it needs for segment 2     4 instructions, 1 imul
++ *   `cmpl $0,nc; je`, twice                    4 instructions
++ *   ------------------------------------------------------------------
++ *   per triangle, 13,359 of them per frame    ~58 instructions, 3 imul
++ *
++ *   the clamps it saved                        6 instructions per row,
++ *                                              on the 79.9% of 82,863 rows
++ *                                              that were proved clip-free
++ *                                              = 6 x 6.203 x 0.799 per tri
++ *
++ * which is 58 removed against 30 added per triangle, plus three 10-cycle
++ * Prescott imuls, plus ~1,000 bytes of a 3,700-byte function that no longer
++ * competes for the trace cache. The clamped loop was always the general path;
++ * running it on every row cannot change a pixel, because on a row the deleted
++ * proof would have accepted, both clamps are no-ops by construction.
+  */
+-.macro	NOHCLIP ea0, sa, eb0, sb, cnt, dstslot
+-	movl	\cnt(%esp), %ecx
+-	testl	%ecx, %ecx
+-	jle	8100f			/* n <= 0: vacuously true            */
+-	decl	%ecx			/* n - 1                             */
+-
+-	movl	\sa(%esp), %eax
+-	imull	%ecx, %eax
+-	addl	\ea0(%esp), %eax	/* e_a_last                          */
+-	movl	\ea0(%esp), %edx	/* e_a_first                         */
+-	cmpl	%eax, %edx
+-	jle	8000f
+-	movl	%eax, %edx		/* min_e_a                           */
+-8000:
+-	testl	%edx, %edx
+-	js	8200f			/* min_e_a < 0 -> clipping possible  */
+-
+-	movl	\sb(%esp), %eax
+-	imull	%ecx, %eax
+-	addl	\eb0(%esp), %eax	/* e_b_last                          */
+-	movl	\eb0(%esp), %edx	/* e_b_first                         */
+-	cmpl	%eax, %edx
+-	jge	8050f
+-	movl	%eax, %edx		/* max_e_b                           */
+-8050:
+-	movl	V_SCRW(%esp), %eax
+-	shll	$16, %eax
+-	cmpl	%eax, %edx
+-	jge	8200f
+-8100:
+-	movl	$1, \dstslot(%esp)
+-	jmp	8300f
+-8200:
+-	movl	$0, \dstslot(%esp)
+-8300:
+-.endm
+ 
+ /*
+  * The span fill. On entry %eax is the colour at x_start, %ecx the pixel count
+@@ -242,81 +222,79 @@
+ 	testl	%ecx, %ecx
+ 	je	\skip
+ 6100:
+-	/* 1..3 pixels. Three stores and two conditional indices; nothing
+-	 * outside [0, count) is ever addressed, and the duplicate store is a
+-	 * store-buffer hit, cheaper than being wrong about a branch. */
++	/* 1..3 pixels. Three stores and two indices, still no branch on the
++	 * count: nothing outside [0, count) is ever addressed, and the
++	 * duplicate store is a store-buffer hit, cheaper than being wrong
++	 * about a branch that splits 48/24/16.
++	 *
++	 * The indices come out of an 8-byte table rather than out of
++	 * xor/cmp/setge, which is five instructions instead of ten with no
++	 * partial-register write in either of them. This tail runs 41,521
++	 * times a frame -- every span under four pixels (59.1% of them) plus
++	 * every longer span whose length is not a multiple of four (28.2%) --
++	 * so the five are 208K instructions a frame. */
+ 	LOOKUP	%eax, %edx
+-	xorl	%eax, %eax
+-	cmpl	$2, %ecx
+-	setge	%al			/* i1 = count > 1                    */
+ 	movl	%edx, (%edi)
++	movzbl	Ltail_i1(%ecx), %eax
+ 	movl	%edx, (%edi,%eax,4)
+-	xorl	%eax, %eax
+-	cmpl	$3, %ecx
+-	setge	%al
+-	addl	%eax, %eax		/* i2 = count > 2 ? 2 : 0            */
++	movzbl	Ltail_i2(%ecx), %eax
+ 	movl	%edx, (%edi,%eax,4)
+ .endm
+ 
++	.section .rdata,"dr"
++	.p2align 3
++Ltail_i1:
++	.byte	0, 0, 1, 1		/* count > 1 ? 1 : 0                 */
++Ltail_i2:
++	.byte	0, 0, 0, 2		/* count > 2 ? 2 : 0                 */
++	.text
++
+ /*
+  * One trapezoid segment. %ebx left edge ish16, %esi right edge ish16,
+  * %ebp colour ish8. The horizontal clamps are hoisted out of the loop: the
+  * caller proved once per segment whether any row can leave the viewport, so
+  * the common case runs a row loop with no clamping in it at all.
++ *
++ * WHY THE SLOTS ARE ARGUMENTS AND NOT COPIES
++ *
++ * The edges, the steps, the no-clip flag and the row count used to be copied
++ * into six generic frame slots before each of the four instantiations, so that
++ * one parameterless macro could serve both segments in both edge orientations.
++ * The gouraud walk census (300 frames, moving lumbridge camera) says that copy
++ * is not affordable: 13,359 triangles per frame reach the walks and each one
++ * paid 24 instructions of SETSEG, 3 redundant register loads, 6 instructions
++ * of write-back and 2 to hand the AC edge from the first segment to the second
++ * -- 35 instructions, every one of them a stack-to-stack move through %eax,
++ * i.e. twelve dependent load/store pairs on a core whose store-to-load forward
++ * is five cycles. Naming the real slots as macro arguments deletes all of it.
++ *
++ * \ldl and \ldr are omitted where the register already holds the right edge:
++ * AC is walked by BOTH segments, so it simply stays in %ebx (or %esi) across
++ * the segment boundary instead of being written out and read back.
+  */
+-.macro	SEGMENT
+-	movl	V_EL(%esp), %ebx
+-	movl	V_ER(%esp), %esi
+-	movl	V_HSL(%esp), %ebp
+-	movl	V_CNT(%esp), %eax
++.macro	SEGMENT sl, sr, cnt, ldl, ldr
++.ifnb \ldl
++	movl	\ldl(%esp), %ebx
++.endif
++.ifnb \ldr
++	movl	\ldr(%esp), %esi
++.endif
++	movl	\cnt(%esp), %eax
+ 	testl	%eax, %eax
+ 	jle	5900f
+-	cmpl	$0, V_NC(%esp)
+-	je	5500f
+-
+-	/* ---- proved inside the viewport: no left/right clamp ---- */
+-	.p2align 4
+-5000:
+-	movl	%ebx, %eax
+-	movl	%esi, %ecx
+-	addl	V_STEPL(%esp), %ebx
+-	addl	V_STEPR(%esp), %esi
+ 
+-	cmpl	%ecx, %eax
+-	je	5400f
+-	sarl	$16, %eax
+-	sarl	$16, %ecx
+-	cmpl	%ecx, %eax
+-	jge	5400f
+-	subl	%eax, %ecx		/* pixel count                       */
+-
+-	movl	%eax, %edx
+-	imull	V_SXH(%esp), %edx	/* x_start * step, low 32 bits only  */
+-	addl	%ebp, %edx
+-	addl	V_OFF(%esp), %eax
+-	movl	V_PIX(%esp), %edi
+-	leal	(%edi,%eax,4), %edi
+-	movl	%edx, %eax
+-
+-	SPANFILL 5400f
+-5400:
+-	addl	V_SYH(%esp), %ebp	/* every row, drawn or not           */
+-	movl	V_STRIDE(%esp), %eax
+-	addl	%eax, V_OFF(%esp)
+-	decl	V_CNT(%esp)
+-	jne	5000b
+-	jmp	5900f
+-
+-	/* ---- may leave the viewport: clamp both ends ---- */
++	/* Every row clamps. See the note where NOHCLIP used to be. */
+ 	.p2align 4
+ 5500:
+ 	movl	%ebx, %eax
+ 	movl	%esi, %ecx
+-	addl	V_STEPL(%esp), %ebx
+-	addl	V_STEPR(%esp), %esi
++	addl	\sl(%esp), %ebx
++	addl	\sr(%esp), %esi
+ 
+-	cmpl	%ecx, %eax
+-	je	5800f
++	/* Nor here.  With ea == ec, write v = ea >> 16: v >= screen_width
++	 * clamps %ecx to screen_width-1 and leaves %eax = v > that; v < 0
++	 * clamps %eax to 0 and leaves %ecx = v < that; otherwise both are v.
++	 * All three reach `jge 5800f`, which is where the `je` went. */
+ 	sarl	$16, %ecx
+ 	movl	V_SCRW(%esp), %edx
+ 	cmpl	%edx, %ecx
+@@ -345,13 +323,10 @@
+ 	addl	V_SYH(%esp), %ebp
+ 	movl	V_STRIDE(%esp), %eax
+ 	addl	%eax, V_OFF(%esp)
+-	decl	V_CNT(%esp)
++	decl	\cnt(%esp)
+ 	jne	5500b
+ 
+ 5900:
+-	movl	%ebx, V_EL(%esp)
+-	movl	%esi, V_ER(%esp)
+-	movl	%ebp, V_HSL(%esp)
+ .endm
+ 
+ /* Copy one of the six vertex orderings into the sorted slots. */
+@@ -376,22 +351,6 @@
+ 	movl	%eax, V_C2(%esp)
+ .endm
+ 
+-/* Load the generic segment slots for one segment. */
+-.macro	SETSEG el, er, sl, sr, nc, cnt
+-	movl	\el(%esp), %eax
+-	movl	%eax, V_EL(%esp)
+-	movl	\er(%esp), %eax
+-	movl	%eax, V_ER(%esp)
+-	movl	\sl(%esp), %eax
+-	movl	%eax, V_STEPL(%esp)
+-	movl	\sr(%esp), %eax
+-	movl	%eax, V_STEPR(%esp)
+-	movl	\nc(%esp), %eax
+-	movl	%eax, V_NC(%esp)
+-	movl	\cnt(%esp), %eax
+-	movl	%eax, V_CNT(%esp)
+-.endm
+-
+ /* ---- entry ------------------------------------------------------------
+  * void toridraw_gouraud_tri_opaque_s4_asm(
+  *     toripixel_t* pixel_buffer, int stride, int screen_width,
+@@ -514,9 +473,16 @@ Lsorted:
+ 	movl	%esi, %edx
+ 	imull	%ebp, %edx
+ 	subl	%edx, %eax
+-	testl	%eax, %eax
+-	je	Lret
+-	movl	%eax, V_SAREA(%esp)
++	je	Lret			/* subl already set ZF               */
++
++	/* sarea never reaches a frame slot: it goes straight into the divide, and
++	 * the divide is ISSUED HERE rather than six instructions further down, so
++	 * its ~35 cycles run underneath the colour deltas and the imul chains that
++	 * follow. */
++	cvtsi2sd %eax, %xmm6
++	movl	$1, %eax
++	cvtsi2sd %eax, %xmm7
++	divsd	%xmm6, %xmm7	/* 1.0 / sarea, once for both */
+ 
+ 	movl	V_C1(%esp), %eax
+ 	subl	V_C0(%esp), %eax
+@@ -549,11 +515,7 @@ Lsorted:
+ 	 * xmm is free here: this kernel uses none of it anywhere else, and
+ 	 * xmm0-7 are all caller-saved in cdecl. %ecx is dead until the BC edge
+ 	 * loads it further down. */
+-	movl	$1, %eax
+-	cvtsi2sd %eax, %xmm7
+-	movl	V_SAREA(%esp), %ecx
+-	cvtsi2sd %ecx, %xmm6
+-	divsd	%xmm6, %xmm7		/* 1.0 / sarea, once for both */
++	/* (%xmm7 = 1.0/sarea was issued above, right after sarea was formed.) */
+ 
+ 	/* step_x_hsl_ish8 = ((d_hsl_AB*dy_AC - d_hsl_AC*dy_AB) << 8) / sarea */
+ 	movl	V_DAB(%esp), %eax
+@@ -637,7 +599,7 @@ Lno_bc:
+ 	movl	V_X0(%esp), %edx
+ 	imull	V_SXH(%esp), %edx
+ 	subl	%edx, %eax
+-	movl	%eax, V_HSL(%esp)
++	movl	%eax, %ebp		/* the colour lives in %ebp from here */
+ 
+ 	/* ---- vertical clipping ---- */
+ 	movl	V_Y0(%esp), %ecx
+@@ -657,7 +619,7 @@ Lno_bc:
+ Lno_ab_prestep:
+ 	movl	V_SYH(%esp), %eax
+ 	imull	%ecx, %eax
+-	subl	%eax, V_HSL(%esp)
++	subl	%eax, %ebp
+ 	movl	$0, V_Y0(%esp)
+ Ly0_ok:
+ 	movl	V_Y1(%esp), %ecx
+@@ -716,38 +678,16 @@ Lflat_no:
+ 
+ /* ---- AB/BC on the left, AC on the right ---- */
+ LbranchA:
+-	NOHCLIP V_EAB, V_SXAB, V_EAC, V_SXAC, V_N1, V_NC1
+-	/* BC is not advanced during the first trapezoid; AC is. */
+-	movl	V_N1(%esp), %eax
+-	imull	V_SXAC(%esp), %eax
+-	addl	V_EAC(%esp), %eax
+-	movl	%eax, V_TMP(%esp)
+-	NOHCLIP V_EBC, V_SXBC, V_TMP, V_SXAC, V_N2, V_NC2
+-
+-	SETSEG V_EAB, V_EAC, V_SXAB, V_SXAC, V_NC1, V_N1
+-	SEGMENT
+-	/* AC carries its stepped value into the second trapezoid. */
+-	movl	V_ER(%esp), %eax
+-	movl	%eax, V_EAC(%esp)
+-	SETSEG V_EBC, V_EAC, V_SXBC, V_SXAC, V_NC2, V_N2
+-	SEGMENT
++	SEGMENT V_SXAB, V_SXAC, V_N1, V_EAB, V_EAC
++	/* AC carries its stepped value into the second trapezoid -- in %esi. */
++	SEGMENT V_SXBC, V_SXAC, V_N2, V_EBC
+ 	jmp	Lret
+ 
+ /* ---- AC on the left, AB/BC on the right ---- */
+ LbranchB:
+-	NOHCLIP V_EAC, V_SXAC, V_EAB, V_SXAB, V_N1, V_NC1
+-	movl	V_N1(%esp), %eax
+-	imull	V_SXAC(%esp), %eax
+-	addl	V_EAC(%esp), %eax
+-	movl	%eax, V_TMP(%esp)
+-	NOHCLIP V_TMP, V_SXAC, V_EBC, V_SXBC, V_N2, V_NC2
+-
+-	SETSEG V_EAC, V_EAB, V_SXAC, V_SXAB, V_NC1, V_N1
+-	SEGMENT
+-	movl	V_EL(%esp), %eax
+-	movl	%eax, V_EAC(%esp)
+-	SETSEG V_EAC, V_EBC, V_SXAC, V_SXBC, V_NC2, V_N2
+-	SEGMENT
++	SEGMENT V_SXAC, V_SXAB, V_N1, V_EAC, V_EAB
++	/* AC stays in %ebx. */
++	SEGMENT V_SXAC, V_SXBC, V_N2, , V_EBC
+ 
+ Lret:
+ 	addl	$FRAME, %esp

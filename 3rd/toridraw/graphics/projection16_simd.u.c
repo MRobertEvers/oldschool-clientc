@@ -28,9 +28,15 @@
  * entry points in projection16_apple.S. Only the SSE2 lane gets it: the SSE4.1
  * and AVX2 kernels above have their own measured shapes, and this one has been
  * benchmarked against the SSE2 pair it displaces, not against those.
+ * PREPARED_PROJECTION_DISABLED compiles the family back out, which is how the
+ * A/B against the plain SSE2 pair is built: everything else about the two
+ * binaries is identical, so the only thing the measurement can be reading is
+ * this kernel. It follows the *_DISABLED convention the arch gates above use.
  */
+#if !defined(PREPARED_PROJECTION_DISABLED)
 #define TORIDRAW_SSE2_PREPARED_PROJECTION 1
 #include "projection16_prepared.sse2.h"
+#endif
 #elif defined(__SSE__) && !defined(SSE_DISABLED)
 #include "projection16_simd.sse_float.u.c"
 #else

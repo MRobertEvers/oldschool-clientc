@@ -1,0 +1,353 @@
+From 2737140a147065b7823831d4cafe8a328cc977d8 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:15:50 -0500
+Subject: [PATCH] wip(r3-facedepth): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-facedepth.
+
+files: 3rd/toridraw/bsort_census.c 3rd/toridraw/bsort_census.h 3rd/toridraw/toridraw_render.u.c 3rd/toridraw/toridraw_unity.c
+---
+ 3rd/toridraw/bsort_census.c      | 172 +++++++++++++++++++++++++++++++
+ 3rd/toridraw/bsort_census.h      |  60 +++++++++++
+ 3rd/toridraw/toridraw_render.u.c |  53 ++++++++++
+ 3rd/toridraw/toridraw_unity.c    |   1 +
+ 4 files changed, 286 insertions(+)
+ create mode 100644 3rd/toridraw/bsort_census.c
+ create mode 100644 3rd/toridraw/bsort_census.h
+
+diff --git a/3rd/toridraw/bsort_census.c b/3rd/toridraw/bsort_census.c
+new file mode 100644
+index 000000000..bfee97eb5
+--- /dev/null
++++ b/3rd/toridraw/bsort_census.c
+@@ -0,0 +1,172 @@
++#include "bsort_census.h"
++
++#if defined(TORIDRAW_BSORT_CENSUS) && TORIDRAW_BSORT_CENSUS
++
++struct ToriDraw_BSortCensus g_bsort_census;
++
++/* Distinct-line / distinct-page sets, sized for the largest span we expect and
++ * cleared by replaying the list rather than memsetting the whole table. */
++#define BSC_LINES 262144
++static unsigned char bsc_line_seen[BSC_LINES];
++static unsigned char bsc_page_seen[BSC_LINES];
++static int bsc_line_list[BSC_MAX_ACC];
++static int bsc_page_list[BSC_MAX_ACC];
++
++static void
++bsort_census_dump(void)
++{
++    struct ToriDraw_BSortCensus* c = &g_bsort_census;
++    double m = c->models > 0 ? c->models : 1;
++    FILE* f = stderr;
++    const char* p = getenv("TORIDRAW_BSORT_CENSUS_FILE");
++    int i;
++    if( p && p[0] )
++    {
++        FILE* g = fopen(p, "w");
++        if( g )
++            f = g;
++    }
++    fprintf(f, "BSORT-CENSUS models=%.0f models_prio=%.0f empty=%.0f shiftnz=%.0f\n",
++            c->models, c->models_prio, c->empty_sorts, c->depth_shift_nonzero);
++    fprintf(f, "  faces examined=%.0f accepted=%.0f back=%.0f degen=%.0f clipcand=%.0f\n",
++            c->faces_examined, c->faces_accepted, c->faces_back, c->faces_degen,
++            c->faces_clipcand);
++    fprintf(f, "  per-model examined=%.3f accepted=%.3f span=%.3f distinct_levels=%.3f\n",
++            c->faces_examined / m, c->faces_accepted / m, c->span_sum / m,
++            c->distinct_levels / m);
++    fprintf(f, "  per-model distinct_lines=%.3f distinct_pages=%.3f readback_iters=%.3f\n",
++            c->distinct_lines / m, c->distinct_pages / m, c->readback_iters / m);
++    fprintf(f, "  span_max=%.0f bucket_max=%.0f clear_bytes_per_model=%.2f\n",
++            c->span_max, c->bucket_max, c->clear_bytes / m);
++    fprintf(f, "  span_hist(1,2-4,5-8,9-16,17-32,33-64,65-128,129-256,257-512,>512)=");
++    for( i = 0; i < 10; i++ )
++        fprintf(f, "%.0f%s", c->span_hist[i], i == 9 ? "\n" : ",");
++    fprintf(f, "  occ_hist(1,2,3,4,5-8,9-16,17-32,33-64,>64)=");
++    for( i = 0; i < 9; i++ )
++        fprintf(f, "%.0f%s", c->occ_hist[i], i == 8 ? "\n" : ",");
++    fflush(f);
++    if( f != stderr )
++        fclose(f);
++}
++
++void
++bsort_census_register(void)
++{
++    if( !g_bsort_census.registered )
++    {
++        g_bsort_census.registered = 1;
++        atexit(bsort_census_dump);
++    }
++}
++
++static int
++bsc_span_bin(int span)
++{
++    if( span <= 1 ) return 0;
++    if( span <= 4 ) return 1;
++    if( span <= 8 ) return 2;
++    if( span <= 16 ) return 3;
++    if( span <= 32 ) return 4;
++    if( span <= 64 ) return 5;
++    if( span <= 128 ) return 6;
++    if( span <= 256 ) return 7;
++    if( span <= 512 ) return 8;
++    return 9;
++}
++
++static int
++bsc_occ_bin(int occ)
++{
++    if( occ <= 4 ) return occ - 1;
++    if( occ <= 8 ) return 4;
++    if( occ <= 16 ) return 5;
++    if( occ <= 32 ) return 6;
++    if( occ <= 64 ) return 7;
++    return 8;
++}
++
++void
++bsort_census_model(
++    const int* depths, const int* slots, int n,
++    int min_d, int max_d, int stride, int span_iters, int is_prio, int shift)
++{
++    struct ToriDraw_BSortCensus* c = &g_bsort_census;
++    int nline = 0;
++    int npage = 0;
++    int i;
++    int span;
++
++    bsort_census_register();
++    c->models += 1;
++    if( is_prio )
++        c->models_prio += 1;
++    if( shift )
++        c->depth_shift_nonzero += 1;
++    if( n == 0 )
++    {
++        c->empty_sorts += 1;
++        return;
++    }
++
++    span = max_d - min_d + 1;
++    c->span_sum += span;
++    if( span > c->span_max )
++        c->span_max = span;
++    c->span_hist[bsc_span_bin(span)] += 1;
++    c->readback_iters += span_iters;
++    c->clear_bytes += (double)span * 2.0;
++
++    /* Transposed mapping: slot-major. Every first-slot write (75.8% of
++     * nonempty buckets) lands in one contiguous depth_levels-wide plane. */
++    {
++        int tl = 0, tp = 0;
++        for( i = 0; i < n && i < BSC_MAX_ACC; i++ )
++        {
++            long off = ((long)slots[i] * 16384L + depths[i]) * 2L;
++            int line = (int)(off >> 6);
++            int page = (int)(off >> 12);
++            if( line >= 0 && line < BSC_LINES && !bsc_line_seen[line] )
++            {
++                bsc_line_seen[line] = 1;
++                bsc_line_list[tl++] = line;
++            }
++            if( page >= 0 && page < BSC_LINES && !bsc_page_seen[page] )
++            {
++                bsc_page_seen[page] = 1;
++                bsc_page_list[tp++] = page;
++            }
++        }
++        for( i = 0; i < tl; i++ )
++            bsc_line_seen[bsc_line_list[i]] = 0;
++        for( i = 0; i < tp; i++ )
++            bsc_page_seen[bsc_page_list[i]] = 0;
++        c->t_lines += tl;
++        c->t_pages += tp;
++    }
++
++    for( i = 0; i < n && i < BSC_MAX_ACC; i++ )
++    {
++        /* byte offset of the slot written inside the bucket table */
++        long off = ((long)depths[i] * stride + slots[i]) * 2L;
++        int line = (int)(off >> 6);
++        int page = (int)(off >> 12);
++        if( line >= 0 && line < BSC_LINES && !bsc_line_seen[line] )
++        {
++            bsc_line_seen[line] = 1;
++            bsc_line_list[nline++] = line;
++        }
++        if( page >= 0 && page < BSC_LINES && !bsc_page_seen[page] )
++        {
++            bsc_page_seen[page] = 1;
++            bsc_page_list[npage++] = page;
++        }
++    }
++    for( i = 0; i < nline; i++ )
++        bsc_line_seen[bsc_line_list[i]] = 0;
++    for( i = 0; i < npage; i++ )
++        bsc_page_seen[bsc_page_list[i]] = 0;
++
++    c->distinct_lines += nline;
++    c->distinct_pages += npage;
++}
++#endif
+diff --git a/3rd/toridraw/bsort_census.h b/3rd/toridraw/bsort_census.h
+new file mode 100644
+index 000000000..f9c2f19fd
+--- /dev/null
++++ b/3rd/toridraw/bsort_census.h
+@@ -0,0 +1,60 @@
++#ifndef TORIDRAW_BSORT_CENSUS_H
++#define TORIDRAW_BSORT_CENSUS_H
++/*
++ * Depth-bucket sorter footprint census. Build-gated, NEVER timed.
++ *
++ * The question it answers: the bucket table is depth_levels x depth_stride
++ * faceint_t, i.e. 16384 x 512 x 2 = 16 MB, and one depth level's row is 1024
++ * bytes. So a model that touches N distinct depth levels touches N distinct
++ * 64-byte lines that are 1 KB apart, spread over a span x 1024 byte window.
++ * Nobody has counted N, the span, or the pages.
++ */
++#if defined(TORIDRAW_BSORT_CENSUS) && TORIDRAW_BSORT_CENSUS
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++struct ToriDraw_BSortCensus
++{
++    double models;
++    double models_prio;
++    double faces_examined;
++    double faces_accepted;
++    double faces_back;
++    double faces_degen;
++    double faces_clipcand;
++    double span_sum;
++    double span_max;
++    double distinct_levels;
++    double distinct_lines;
++    double distinct_pages;
++    double bucket_max;
++    double occ_hist[9];
++    double span_hist[10];
++    double readback_iters;
++    double clear_bytes;
++    double empty_sorts;
++    /* what the same accesses would cost under a TRANSPOSED table:
++     *   offset = (slot * pitch + depth) * 2,  pitch = 16384 */
++    double t_lines;
++    double t_pages;
++    /* drain-scan branch behaviour: runs of empty buckets between nonempty ones */
++    double drain_runs;
++    double drain_run_hist[8];   /* 0,1,2,3,4-7,8-15,16-31,>=32 */
++    double depth_shift_nonzero;
++    int registered;
++};
++
++extern struct ToriDraw_BSortCensus g_bsort_census;
++
++void bsort_census_register(void);
++/* one model's accepted (depth,slot) pairs, replayed after the sort */
++void bsort_census_model(
++    const int* depths, const int* slots, int n,
++    int min_d, int max_d, int stride, int span_iters, int is_prio, int shift);
++
++#define BSC_MAX_ACC 8192
++
++#endif /* TORIDRAW_BSORT_CENSUS */
++#endif
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..3ecc1a324 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -6,6 +6,7 @@
+ #include "toridraw_math.h"
+ #include "toridraw_model_internal.h"
+ #include "toridraw_types.h"
++#include "bsort_census.h"
+ 
+ #include <assert.h>
+ #include <limits.h>
+@@ -1601,6 +1602,10 @@ ToriDraw_ComputeProjectedFaceOrder(
+         toridraw_face_sort_debug_init(&debug_stats_storage);
+         debug_stats = &debug_stats_storage;
+     }
++#if defined(TORIDRAW_BSORT_CENSUS) && TORIDRAW_BSORT_CENSUS
++    toridraw_face_sort_debug_init(&debug_stats_storage);
++    debug_stats = &debug_stats_storage;
++#endif
+ 
+     /* No clear here. The bucket-count table arrives all-zero -- calloc'd at
+      * scene creation, and each sort below re-zeroes exactly the buckets it
+@@ -1661,6 +1666,54 @@ ToriDraw_ComputeProjectedFaceOrder(
+     model_min_depth = bounds & 0xFFFF;
+     int model_max_depth = bounds >> 16;
+ 
++#if defined(TORIDRAW_BSORT_CENSUS) && TORIDRAW_BSORT_CENSUS
++    {
++        static int bsc_d[BSC_MAX_ACC];
++        static int bsc_s[BSC_MAX_ACC];
++        int bsc_n = 0;
++        int bsc_levels = 0;
++        struct ToriDraw_BSortCensus* bsc = &g_bsort_census;
++        if( bounds != 0 )
++        {
++            int bsc_run = 0;
++            for( int d = model_max_depth; d >= model_min_depth; d-- )
++            {
++                int k = (int)scene->tmp_depth_face_count[d];
++                if( k <= 0 )
++                {
++                    bsc_run++;
++                    continue;
++                }
++                bsc->drain_runs += 1;
++                bsc->drain_run_hist[ bsc_run<=3 ? bsc_run
++                                   : (bsc_run<=7?4:(bsc_run<=15?5:(bsc_run<=31?6:7))) ] += 1;
++                bsc_run = 0;
++                bsc_levels++;
++                if( k > bsc->bucket_max )
++                    bsc->bucket_max = k;
++                bsc->occ_hist[ k<=4 ? k-1 : (k<=8?4:(k<=16?5:(k<=32?6:(k<=64?7:8)))) ] += 1;
++                for( int j = 0; j < k && bsc_n < BSC_MAX_ACC; j++ )
++                {
++                    bsc_d[bsc_n] = d;
++                    bsc_s[bsc_n] = j;
++                    bsc_n++;
++                }
++            }
++        }
++        bsc->distinct_levels += bsc_levels;
++        bsc->faces_examined += (double)face_count;
++        bsc->faces_accepted += debug_stats_storage.accepted;
++        bsc->faces_back += debug_stats_storage.back_facing;
++        bsc->faces_degen += debug_stats_storage.degenerate;
++        bsc->faces_clipcand += debug_stats_storage.near_clip_candidates;
++        bsort_census_model(
++            bsc_d, bsc_s, bsc_n, model_min_depth, model_max_depth,
++            scene->depth_stride,
++            bounds ? (model_max_depth - model_min_depth + 1) : 0,
++            face_priorities ? 1 : 0, depth_shift);
++    }
++#endif
++
+     if( !face_priorities )
+     {
+         int order_index = 0;
+diff --git a/3rd/toridraw/toridraw_unity.c b/3rd/toridraw/toridraw_unity.c
+index e9db3a847..c0c8faf71 100644
+--- a/3rd/toridraw/toridraw_unity.c
++++ b/3rd/toridraw/toridraw_unity.c
+@@ -27,6 +27,7 @@
+ #include "graphics/convex_hull.c"
+ #include "graphics/raster/raster_ablate.c"
+ #include "graphics/raster/face_census.c"
++#include "bsort_census.c"
+ #include "graphics/raster/gouraudhsllightness/sarea_census.c"
+ #include "graphics/proj_census.c"
+ #include "graphics/raster/span_census.c"

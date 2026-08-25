@@ -6,6 +6,7 @@
 #include "toridraw_model_internal.h"
 #include "toridraw_raster_kernel_internal.h"
 #include "toridraw_types.h"
+#include "graphics/winding.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -1164,12 +1165,13 @@ toridraw_raster_face_front_facing(
          ctx->vertex_x[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED) )
         return true;
 
-    long long const dx1 = (long long)ctx->vertex_x[a] - ctx->vertex_x[b];
-    long long const dy1 = (long long)ctx->vertex_y[a] - ctx->vertex_y[b];
-    long long const dx2 = (long long)ctx->vertex_x[c] - ctx->vertex_x[b];
-    long long const dy2 = (long long)ctx->vertex_y[c] - ctx->vertex_y[b];
-
-    return toridraw_winding_front_facing(dx1 * dy2 - dy1 * dx2);
+    return toridraw_winding_2d_front_facing(
+        ctx->vertex_x[a],
+        ctx->vertex_y[a],
+        ctx->vertex_x[b],
+        ctx->vertex_y[b],
+        ctx->vertex_x[c],
+        ctx->vertex_y[c]);
 }
 
 static inline void

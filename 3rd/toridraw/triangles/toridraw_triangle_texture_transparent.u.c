@@ -17,6 +17,7 @@
 #include "graphics/raster/texture/texshadeflat.persp.textrans.ordered.lerp8.scanline.u.c"
 #include "graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texshadeflat.persp.textrans.branching.lerp8.u.c"
+#include "graphics/raster/face_census.h"
 // clang-format on
 
 static inline void
@@ -51,6 +52,13 @@ ToriDraw_TriangleTextureBlendTransparentImpl(
     int offset_y,
     bool scanline)
 {
+    TORIDRAW_FACE_CENSUS_RECORD(
+        TORIDRAW_FACE_CENSUS_TEX_BLEND_TRANS,
+        screen_x0, screen_y0,
+        screen_x1, screen_y1,
+        screen_x2, screen_y2,
+        screen_width * screen_height);
+
     (void)near_plane_z;
     (void)offset_x;
     (void)offset_y;
@@ -145,6 +153,13 @@ ToriDraw_TriangleTextureFlatTransparentImpl(
     int offset_y,
     bool scanline)
 {
+    TORIDRAW_FACE_CENSUS_RECORD(
+        TORIDRAW_FACE_CENSUS_TEX_FLAT_TRANS,
+        screen_x0, screen_y0,
+        screen_x1, screen_y1,
+        screen_x2, screen_y2,
+        screen_width * screen_height);
+
     (void)near_plane_z;
     (void)offset_x;
     (void)offset_y;
