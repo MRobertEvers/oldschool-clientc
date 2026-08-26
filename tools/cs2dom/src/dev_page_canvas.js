@@ -336,6 +336,20 @@ async function mountStages(key) {
   /* The boot varbit the client seeds before any script runs: interface
    * resizing (17772) is optimistically 1, and scripts branch on it. */
   runtime.session.host.state.setVarbit(17772, 1);
+  /*
+   * A script that dies takes ITSELF down, not the mount.
+   *
+   * That is the reference VM's behaviour — an aborted script leaves the
+   * rest of the interface building — and ballot proves it matters: the C
+   * host's CC_GETCOMPONENTPARAM answers a string-typed param with int 0,
+   * script 8315 dies on it in both clients, and the reference still draws
+   * the rest of the page. Without this the one death unwound settle() and
+   * the whole mount reported failure.
+   */
+  runtime.session.driver.onScriptError = (error, request) => {
+    log.textContent += 'script ' + (request?.scriptId ?? '?') + ' aborted: '
+      + error.message + '\\n';
+  };
   chrome.size = { width: detail.width ?? 765, height: detail.height ?? 503 };
   runtime.resize(chrome.size.width, chrome.size.height);
   fit();

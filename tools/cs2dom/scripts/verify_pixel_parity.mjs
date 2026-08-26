@@ -370,7 +370,17 @@ finally
 /* ---------------------------------------------------------------------- */
 
 const matching = results.filter((row) => !row.error && row.differing === 0);
-const differing = results.filter((row) => !row.error && row.differing > 0)
+/*
+ * A maxDelta of 1-2 is the BLEND-ROUNDING FLOOR, not a defect to chase: the
+ * C client blends translucent fills with an integer round-to-nearest div255
+ * while canvas compositing works in float, and the two round the same pixel
+ * apart. It is reported separately so the actionable list is the actionable
+ * list — but it is still reported, because a change that turns Δ2 into Δ20
+ * must not hide in a bucket nobody reads.
+ */
+const rounding = results.filter((row) => !row.error && row.differing > 0 && row.maxDelta <= 2)
+    .sort((a, b) => b.differing - a.differing);
+const differing = results.filter((row) => !row.error && row.differing > 0 && row.maxDelta > 2)
     .sort((a, b) => b.differing - a.differing);
 const failed = results.filter((row) => row.error);
 
@@ -380,18 +390,23 @@ writeFileSync(join(outDir, 'report.json'), `${JSON.stringify({
     total: results.length,
     matching: matching.length,
     differing: differing.map(({ appPng, refPng, diffPng, ...row }) => row),
+    rounding: rounding.map(({ appPng, refPng, diffPng, ...row }) => row),
     failed,
     captureFailures: captureFailures.map((entry) => entry.interfaceId),
 }, null, 1)}\n`);
 
 console.log(`pixel parity: ${matching.length} matching, `
-    + `${differing.length} differing, ${failed.length} failed `
-    + `of ${results.length} (frames=${frames} ticks=${ticks} tolerance=${tolerance})`);
+    + `${differing.length} differing, ${rounding.length} blend-rounding only (Δ≤2), `
+    + `${failed.length} failed of ${results.length} `
+    + `(frames=${frames} ticks=${ticks} tolerance=${tolerance})`);
 for( const row of differing )
     console.log(`  DIFF ${String(row.interfaceId).padStart(4)} ${row.name}: `
         + `${row.differing}px (max Δ${row.maxDelta}`
         + `${row.missingPerPaint ? `, ${row.missingPerPaint} assets missing` : ''}) `
         + `bbox ${row.bbox.width}x${row.bbox.height}@${row.bbox.x},${row.bbox.y}`);
+for( const row of rounding )
+    console.log(`  ROUND ${String(row.interfaceId).padStart(4)} ${row.name}: `
+        + `${row.differing}px (max Δ${row.maxDelta})`);
 for( const row of failed )
     console.log(`  FAIL ${String(row.interfaceId).padStart(4)} ${row.name}: ${row.error}`);
 process.exit(differing.length + failed.length > 0 ? 1 : 0);
