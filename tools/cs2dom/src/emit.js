@@ -281,6 +281,20 @@ export class Emitter {
          */
         if( kind === EMIT_KIND.SPRITE )
         {
+            /*
+             * A CONTENT slot draws none of this. The world viewport, the
+             * minimap and the compass are their own emit kinds in the C
+             * client — `uitree_build.c` retypes a component carrying one of
+             * these client codes to its builtin, and the RS_GRAPHIC arm
+             * returns false for any that reached the tree some other way.
+             *
+             * This preview does not host those kinds and the parity oracle
+             * filters them out of the reference, so emitting them as ordinary
+             * sprites is a difference in both directions: the minimap and
+             * compass of five toplevel interfaces drew as 35x35 and 152x152
+             * placeholder art the reference has no command for at all.
+             */
+            if( CONTENT_CLIENT_CODES.has(node.props.clientCode | 0) ) return;
             const hovered = node.componentId >= 0
                 && node.componentId === context.hoveredComponentId;
             if( effectiveSprite(node.props, hovered) < 0
@@ -392,6 +406,10 @@ export function establishesSurface(node, box) {
 export function clipsChildren(node) {
     return node.type === TYPE_LAYER;
 }
+
+/** `enum UITreeClientCode`'s content slots: world 1337, minimap 1338,
+ *  compass 1339. Each is a builtin draw this preview does not host. */
+const CONTENT_CLIENT_CODES = new Set([1337, 1338, 1339]);
 
 function emitKindOf(node) {
     switch( node.type )

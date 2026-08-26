@@ -562,6 +562,25 @@ async function run(reference) {
     if( MOUNT_TRANSMIT ) pump.dispatchAll();
     await driver.settle({ wait: false });
 
+    /*
+     * The spillover sweep, AFTER the mount scripts and not only at bake time.
+     *
+     * `task_interface_open` runs `hide_unmounted_spillover` as its step 10 —
+     * after onload, after the sub-change hooks, after the inv/var dispatch —
+     * so a script that reached into another group and un-hid its root has that
+     * undone. `toplevel_display` does exactly that to `popout`: hiding the
+     * pack when the loader baked it was not enough, because the script that
+     * caused the bake un-hides it two statements later, and the whole popout
+     * strip painted over five toplevel interfaces.
+     */
+    for( const node of tree.nodes )
+    {
+        if( node.freed || node.parent >= 0 || node.componentId < 0 ) continue;
+        if( ((node.componentId >>> 16) & 0xffff) === (id & 0xffff) ) continue;
+        tree.setHidden(node.index, true);
+    }
+    await driver.settle({ wait: false });
+
 
     /*
      * Then exactly as many ticks as the capture ran frames.
