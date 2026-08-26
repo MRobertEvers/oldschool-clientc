@@ -46,13 +46,28 @@ struct RSCache_Buffer;
 #define RSCACHE_DAT2_DEFAULTS_MAX_OPCODES 6
 
 /**
- * Slot names for the eleven ids, indexed by position.
+ * What each slot's id was called *in index 8*, at rev239. Commentary only.
  *
- * The record stores ids and no names -- index 17's reference table has the name
- * bit clear -- so this array is the mapping from position to meaning, recovered
- * by resolving osrs239's ids against the sprite table's own name hashes. It is
- * the same list as src/engine/static_sprites.c, minus the three dat1-era slots
- * that tree carries and this record does not have.
+ * Read the qualifiers, because they are the whole content of this array:
+ *
+ * - The defaults record stores no names. Opcode 2 writes eleven integers and
+ *   index 17's reference table has the name bit clear, so there is nothing in
+ *   that table to recover a name from.
+ * - These names are the *sprite table's*, and they are real: index 8 carries a
+ *   name hash per group (flags 0x5) and djb2 of every one of these eleven
+ *   matches its stored hash exactly. They are recovered, not authored.
+ * - But index 8 names the sprite a slot points at, not the slot. For rev239 the
+ *   two coincide. A cache that pointed slot 0 somewhere else would still have a
+ *   compass slot at 0 and this array would be naming the wrong thing.
+ *
+ * Only slot 0 is corroborated independently: field65 feeds Statics.field2579 in
+ * the deob, which is what RuneLite's injected setCompass writes. The other ten
+ * rest on the id lookup alone.
+ *
+ * So nothing may key on this array. cachepack prints it as a trailing comment
+ * and parses the slot index; that is the only use it is good for. (It happens to
+ * be src/engine/static_sprites.c's list minus that tree's three dat1-era slots,
+ * in the same order -- corroboration, but from our own artifact, not a source.)
  */
 extern const char* const RSCache_Dat2DefaultsSpriteSlotNames[RSCACHE_DAT2_DEFAULTS_SPRITE_COUNT];
 

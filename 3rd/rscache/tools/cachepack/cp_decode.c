@@ -5107,9 +5107,12 @@ defaults_emit_record(FILE* out, const struct RSCache_Dat2Defaults* rec)
             "//   opcodes  the order the record's opcodes appeared, so a repack is\n"
             "//            byte-exact. 2 and 6 carry the same eleven ids; which one\n"
             "//            was used is part of the bytes and so is kept.\n"
-            "//   sprite   <slot>:<sprite id>. The slot names are this tree's, not\n"
-            "//            the cache's -- index 17 stores no names at all. Order in\n"
-            "//            this file does not matter; the slot name places it.\n"
+            "//   sprite   <slot>:<sprite id>. The slot is the position in the\n"
+            "//            record, which is the only thing opcode 2 actually\n"
+            "//            encodes -- it writes eleven integers and no names.\n"
+            "//            The trailing comment is what that id is called in\n"
+            "//            index 8, which is a different table: it names the\n"
+            "//            sprite the slot points at, not the slot.\n"
             "//   ramp     <row>:<5 stops>, 24-bit RGB.\n"
             "//   model    a model id, in record order.\n"
             "//   legacy   opcode 1's value. The client reads it and throws it away.\n\n");
@@ -5126,8 +5129,8 @@ defaults_emit_record(FILE* out, const struct RSCache_Dat2Defaults* rec)
     if( rec->sprite_opcode )
     {
         for( int i = 0; i < RSCACHE_DAT2_DEFAULTS_SPRITE_COUNT; i++ )
-            fprintf(out, "sprite=%s:%d\n", RSCache_Dat2DefaultsSpriteSlotNames[i],
-                    rec->sprite_ids[i]);
+            fprintf(out, "sprite=%d:%d  // %s\n", i, rec->sprite_ids[i],
+                    RSCache_Dat2DefaultsSpriteSlotNames[i]);
         if( rec->sprite_opcode == 6 )
             fprintf(out, "sprite_trailer=%d\n", rec->sprite_trailer);
     }
@@ -5320,33 +5323,29 @@ defaults_parse_record(const char* path, struct RSCache_Dat2Defaults* rec)
             }
             else if( strcmp(key, "sprite") == 0 )
             {
-                const char* colon = strrchr(value, ':');
                 int slot = -1;
+                int id = 0;
 
-                if( !colon )
+                /*
+                 * Keyed on the slot index, not on the name in the comment.
+                 *
+                 * The name is index 8's name for whatever sprite this slot
+                 * currently points at -- verified against that table's own hash,
+                 * but a fact about the *target*, not about the slot. Parsing on
+                 * it would make a cross-table, revision-specific coincidence
+                 * load-bearing, and would reject a cache that pointed a slot
+                 * somewhere new. The record encodes a position; so does this.
+                 *
+                 * sscanf stops at the spaces before `//`, which is how the font
+                 * codec's commented `advance=` lines round-trip too.
+                 */
+                if( sscanf(value, "%d:%d", &slot, &id) != 2 || slot < 0 ||
+                    slot >= RSCACHE_DAT2_DEFAULTS_SPRITE_COUNT )
                 {
                     ok = 0;
                     break;
                 }
-                for( int s = 0; s < RSCACHE_DAT2_DEFAULTS_SPRITE_COUNT; s++ )
-                {
-                    size_t len = strlen(RSCache_Dat2DefaultsSpriteSlotNames[s]);
-
-                    if( (size_t)(colon - value) == len &&
-                        strncmp(value, RSCache_Dat2DefaultsSpriteSlotNames[s], len) == 0 )
-                    {
-                        slot = s;
-                        break;
-                    }
-                }
-                /* An unknown slot name would silently drop an id, so refuse the
-                 * file rather than encode ten of eleven. */
-                if( slot < 0 )
-                {
-                    ok = 0;
-                    break;
-                }
-                rec->sprite_ids[slot] = atoi(colon + 1);
+                rec->sprite_ids[slot] = id;
                 sprites_seen++;
             }
             else if( strcmp(key, "sprite_trailer") == 0 )

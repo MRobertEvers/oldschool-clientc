@@ -212,17 +212,17 @@ Group 3 unpacks to `defaults/defaults_3.defaults`:
 [defaults]
 opcodes=1,2,3,5
 legacy=000139
-sprite=compass:169
-sprite=mapedge:424
-sprite=mapscene:317
-sprite=headicons_pk:439
-sprite=headicons_prayer:440
-sprite=headicons_hint:441
-sprite=mapmarker:422
-sprite=cross:299
-sprite=mapdots:300
-sprite=scrollbar:316
-sprite=mod_icons:423
+sprite=0:169  // compass
+sprite=1:424  // mapedge
+sprite=2:317  // mapscene
+sprite=3:439  // headicons_pk
+sprite=4:440  // headicons_prayer
+sprite=5:441  // headicons_hint
+sprite=6:422  // mapmarker
+sprite=7:299  // cross
+sprite=8:300  // mapdots
+sprite=9:316  // scrollbar
+sprite=10:423 // mod_icons
 ramp=0:000000,ff0000,ffff00,ffffff,ffffff
 ramp=1:000000,00ff00,00ffff,ffffff,ffffff
 ramp=2:000000,0000ff,ff00ff,ffffff,ffffff
@@ -232,8 +232,40 @@ model=57379
 
 `opcodes` is there because the repack has to be byte-exact and the opcode order
 is part of the bytes — as is *which* opcode carried the ids, since 2 and 6 write
-the same eleven. Slot names place the ids, so their order in the file does not
-matter; an unknown slot name is refused rather than dropped.
+the same eleven.
+
+### Where the slot names come from, and why they are a comment
+
+They are keyed on the **slot index**, and the name is commentary, because those
+are two facts of very different strength and the file should not blur them.
+
+Three sources feed those lines:
+
+| what | source | strength |
+| ---- | ------ | -------- |
+| slot ordering | the deob's `class11.method235` read order | direct, structural |
+| the ids | index 17 group 3, the bytes themselves | direct |
+| the names | index 8's reference table name hashes | direct, but names the *target* |
+| "slot 0 is the compass slot" | RuneLite's injected `setCompass` on `field2579` | indirect |
+
+Two things follow that are easy to get backwards.
+
+**The names are not the client's.** Grep any deob tree in this repo's toolchain
+for `compass`, `mapedge`, `mapscene`, `mod_icons`, `scrollbar` or `headicons`
+and you get nothing — the only `compass` in the jar is RuneLite's injected hook
+name. No sprite name is compiled into the client.
+
+**The names are the cache's, and they are verified.** Index 8's reference table
+carries a name hash per group (`flags = 0x5`) and `djb2` of all eleven names
+matches its stored hash exactly — `compass` is `950484242` in the cache and
+`950484242` computed. Nothing here is authored or imported.
+
+But index 8 names *the sprite a slot points at*, not the slot. At rev239 those
+coincide. A revision that pointed slot 0 at some other group would still have a
+compass slot at 0, and the name would then be describing the new target. So
+parsing on the name would make a cross-table, revision-specific coincidence
+load-bearing, and would reject exactly the cache most worth reading. The slot
+index is what opcode 2 encodes, so the slot index is what the file keys on.
 
 Group 1's members unpack to `defaults/defaults_1/<id>.colours`:
 
