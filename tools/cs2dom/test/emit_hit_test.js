@@ -314,8 +314,16 @@ test('whatever the draw walk prunes, the hit tests prune too', () => {
         assert.equal(hits.hoverTarget(50, 50), -1, `type ${type} still hovered while hidden`);
         assert.equal(hits.dropTarget(50, 50), null, `type ${type} still dropped while hidden`);
         assert.equal(shouldPrune(tree.at(node)), true);
-        /* And it was reachable before hiding, or the test proves nothing. */
-        if( type !== WIDGET_TYPE.LAYER )
+        /*
+         * And it was reachable before hiding, or the test proves nothing —
+         * for the types that draw at all. A LAYER draws nothing of its own,
+         * and an OBJ box and an ARC draw nothing HERE: the C client emits
+         * them as its own `CC_OBJ` and `ARC` kinds, which this preview does
+         * not host. They are still walked, still hidden and still hit-tested,
+         * which is what this test is about.
+         */
+        const drawsNothing = [WIDGET_TYPE.LAYER, WIDGET_TYPE.OBJ, WIDGET_TYPE.ARC];
+        if( !drawsNothing.includes(type) )
             assert.ok(drewWhenVisible > 0, `type ${type} never drew at all`);
     }
 });
