@@ -224,7 +224,19 @@ export class BitmapFont {
             for( const segment of run.text.split(/(\s+)/) )
             {
                 if( segment === '' ) continue;
-                if( segment === '\n' ) { push(); continue; }
+                /*
+                 * COUNT the newlines in a whitespace run, do not test for one.
+                 *
+                 * `split(/(\s+)/)` hands back the whole run, so a paragraph
+                 * break arrives as "\n\n" and an `=== '\n'` test misses it
+                 * entirely — the run then falls through as a zero-width word
+                 * and the blank line vanishes. `paraheight` is what reads
+                 * this: `bond_main` measures a `<br><br>` block to size its
+                 * panel, so one uncounted line made the panel 14px short and
+                 * moved every command in the interface.
+                 */
+                const breaks = segment.match(/\r\n|[\r\n]/g);
+                if( breaks ) { for( let i = 0; i < breaks.length; i++ ) push(); continue; }
                 const width = this.runWidth(segment);
                 if( maxWidth > 0 && lineWidth + width > maxWidth && line !== '' )
                     push();
