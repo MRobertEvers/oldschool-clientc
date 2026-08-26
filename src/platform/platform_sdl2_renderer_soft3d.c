@@ -1161,6 +1161,16 @@ ToriRS_Soft3D_Init(
     soft->stride = width;
 }
 
+/* A/B for the damage clear's store kind; see the call site. Read once. */
+static int
+soft3d_damage_clear_nt(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_DAMAGE_CLEAR_PLAIN") ? 0 : 1;
+    return armed;
+}
+
 void
 ToriRS_Soft3D_SetDamage(
     struct ToriRS_Soft3D* soft,
@@ -1776,15 +1786,50 @@ ToriRS_Soft3D_RenderFrame(
 #endif
         if( soft->damage_valid )
         {
-            /* Row-at-a-time: the damage box is a sub-rectangle, so the one
-             * long contiguous run the non-temporal clear wants does not exist.
-             * Each row is still contiguous and still write-only, which is
-             * enough for it -- a 512-pixel row is 2 KB, well past the
-             * write-combine buffer's fill length. */
+            /*
+             * Row-at-a-time: the damage box is a sub-rectangle, so the one long
+             * contiguous run the non-temporal clear wants does not exist.
+             *
+             * The non-temporal clear keeps its job here, which is not what was
+             * expected: a 717-pixel row is 2.8 KB, and the guess was that
+             * filling and tearing down the write-combine buffer 335 times a
+             * frame would cost more than the NT store saves, since the measured
+             * 2.4x for this clear was taken on one long run. Both arms,
+             * measured, same binary:
+             *
+             *              fps   CPU ms/frame
+             *   plain     40.9          13.18
+             *   NT        43.9          12.43
+             *
+             * The guess was wrong by 0.75 ms/frame. A row is still write-only
+             * and never read back, so the plain stores pay read-for-ownership
+             * on every line they touch and the NT stores do not -- and that
+             * costs more than the per-row buffer teardown saves.
+             * TORIRS_DAMAGE_CLEAR_PLAIN=1 selects the losing arm.
+             */
             int rw = soft->damage_x1 - soft->damage_x0;
+            int nt = soft3d_damage_clear_nt();
             for( int y = soft->damage_y0; y < soft->damage_y1; y++ )
-                TORIDRAW_FB_CLEAR32(p + (size_t)y * soft->stride + soft->damage_x0,
-                    (size_t)rw, bg);
+            {
+                uint32_t* row = p + (size_t)y * soft->stride + soft->damage_x0;
+                if( nt )
+                {
+                    TORIDRAW_FB_CLEAR32(row, (size_t)rw, bg);
+                }
+                else
+                {
+                    int i = 0;
+                    for( ; i + 4 <= rw; i += 4 )
+                    {
+                        row[i] = bg;
+                        row[i + 1] = bg;
+                        row[i + 2] = bg;
+                        row[i + 3] = bg;
+                    }
+                    for( ; i < rw; i++ )
+                        row[i] = bg;
+                }
+            }
         }
         else if( ToriDraw_FrameAbArm() )
         {

@@ -25224,6 +25224,27 @@ component_hidden_or_orphaned(
 int
 App_MeasureRightChromeStripWidth(struct App const* app)
 {
+    /*
+     * Memo, keyed on the tree publication this answer was read from.
+     *
+     * The scan below is over every component -- 7,142 in a logged-in frame --
+     * and App_SyncFixedChromeInset asks for it once per frame from the main
+     * loop, so it ran in full on every frame whether or not anything had moved.
+     * An EIP profile of an in-world frame put it at 4.1% of non-raster work.
+     *
+     * The three key terms are the ones the scan actually reads: `dirty_gen`
+     * covers the hide/free flags, `layout_resolve_seq` covers the resolved
+     * boxes (a re-layout moves them without touching dirty_gen -- the same
+     * reason the emit retain gate needs both), and `component_count` covers a
+     * tree that grew or was rebuilt. Keyed on the tree pointer too, so two
+     * trees cannot read each other's answer.
+     */
+    static struct UITree const* memo_tree = NULL;
+    static uint32_t memo_dirty_gen;
+    static uint32_t memo_layout_seq;
+    static uint32_t memo_count;
+    static int memo_value;
+
     int canvas_w;
     int canvas_h;
     int best;
@@ -25232,6 +25253,11 @@ App_MeasureRightChromeStripWidth(struct App const* app)
     assert(app);
     if( !app->tree || app->tree->component_count == 0 )
         return 0;
+
+    if( memo_tree == app->tree && memo_dirty_gen == app->tree->dirty_gen &&
+        memo_layout_seq == app->tree->layout_resolve_seq &&
+        memo_count == app->tree->component_count )
+        return memo_value;
 
     canvas_w = UITREE_LAYOUT_ROOT_W;
     canvas_h = UITREE_LAYOUT_ROOT_H;
@@ -25282,6 +25308,12 @@ App_MeasureRightChromeStripWidth(struct App const* app)
             continue;
         best = w;
     }
+
+    memo_tree = app->tree;
+    memo_dirty_gen = app->tree->dirty_gen;
+    memo_layout_seq = app->tree->layout_resolve_seq;
+    memo_count = app->tree->component_count;
+    memo_value = best;
     return best;
 }
 
