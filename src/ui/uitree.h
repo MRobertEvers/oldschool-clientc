@@ -1068,6 +1068,25 @@ struct UITree
     uint32_t layout_order_count; /* live (non-freed) entries in layout_order */
     uint32_t layout_order_gen;   /* generation order/depth were computed for */
     uint8_t layout_order_valid;
+    /** Nodes whose own layout inputs changed since the last resolve.
+     *
+     *  A node's box is a pure function of its own fields and its parent's
+     *  box, so a resolve only has to visit the nodes that were invalidated
+     *  and, transitively, the descendants of those whose box actually moved.
+     *  Sweeping all of them to find the handful that moved cost 6,918 node
+     *  visits a frame to do ~80 nodes of work.
+     *
+     *  Only invalidators that can NAME a node contribute here. The ones that
+     *  cannot -- a root-box change, a frame-layer rebind, anything reaching
+     *  UITree_LayoutInvalidate -- set `layout_dirty_overflow` instead, and
+     *  the resolve falls back to the full sweep. So does a run that produces
+     *  more seeds than the list holds: past that many distinct nodes the
+     *  sweep is the cheaper answer anyway. The fallback is what makes this
+     *  safe -- the worst case is exactly the old behaviour. */
+    int32_t* layout_dirty;
+    uint32_t layout_dirty_count;
+    uint32_t layout_dirty_cap;
+    uint8_t layout_dirty_overflow;
     /** Forces the next resolve to recompute every node instead of only the ones
      *  whose own box or parent's box changed. Set when a box moved outside the
      *  resolve's own bookkeeping (a JIT chain resolve that could not record into

@@ -40,6 +40,11 @@ UITree_LayoutSetRootSize(int width, int height)
  * this at OPT=0 to read it -- with LTO the frame that returns here is often
  * not the frame you wanted named.
  */
+/* Past this many distinct seeds in one frame the full sweep is cheaper
+ * than the worklist, and the fallback keeps the worst case at exactly the
+ * old behaviour. */
+#define UITREE_LAYOUT_DIRTY_MAX 256
+
 #define UITREE_LAYOUT_BLAME_SLOTS 512
 
 static struct
@@ -118,6 +123,8 @@ UITree_LayoutInvalidate(struct UITree* tree)
     UITREE_LAYOUT_BLAME_HERE(tree);
     for( uint32_t i = 0; i < tree->component_count; i++ )
         tree->components[i].position.layout_resolved = 0;
+    /* Every box is now unresolved, so there is no useful seed set. */
+    tree->layout_dirty_overflow = 1;
     tree->layout_stale = 1;
     tree->layout_resolved_valid = 0;
 }
@@ -127,8 +134,41 @@ UITree_LayoutInvalidateBoxes(struct UITree* tree)
 {
     assert(tree);
     UITREE_LAYOUT_BLAME_HERE(tree);
+    /* No node named, so the next resolve cannot know where to start. */
+    tree->layout_dirty_overflow = 1;
     tree->layout_stale = 1;
     tree->layout_resolved_valid = 0;
+}
+
+void
+UITree_LayoutInvalidateNode(struct UITree* tree, int32_t idx)
+{
+    assert(tree);
+    assert(idx >= 0);
+    assert((uint32_t)idx < tree->component_count);
+
+    UITREE_LAYOUT_BLAME_HERE(tree);
+    tree->layout_stale = 1;
+    tree->layout_resolved_valid = 0;
+
+    if( tree->layout_dirty_overflow )
+        return;
+    if( tree->layout_dirty_count == tree->layout_dirty_cap )
+    {
+        uint32_t const cap = tree->layout_dirty_cap ? tree->layout_dirty_cap * 2u : 32u;
+        int32_t* grown;
+        if( cap > UITREE_LAYOUT_DIRTY_MAX )
+        {
+            /* More distinct nodes than the list is worth: the sweep wins. */
+            tree->layout_dirty_overflow = 1;
+            return;
+        }
+        grown = realloc(tree->layout_dirty, (size_t)cap * sizeof(*grown));
+        assert(grown);
+        tree->layout_dirty = grown;
+        tree->layout_dirty_cap = cap;
+    }
+    tree->layout_dirty[tree->layout_dirty_count++] = idx;
 }
 
 void
@@ -441,6 +481,116 @@ uitree_perf_snapshot(struct UITree const* tree)
         (int64_t)sizeof(struct UITreeComponent) * tree->component_capacity);
 }
 
+/* Depth of `idx` from the root, by walking parents. Only ever called on a
+ * seed, and a UI tree is a dozen deep, so this is cheaper than keeping a
+ * depth array in step with every reparent. */
+static int
+layout_depth_of(struct UITree const* tree, int32_t idx)
+{
+    int d = 0;
+    while( idx >= 0 && (uint32_t)idx < tree->component_count )
+    {
+        idx = tree->components[idx].parent;
+        d++;
+    }
+    return d;
+}
+
+/*
+ * Resolve only what the seeds can reach.
+ *
+ * A node's box depends on its own fields and its parent's box and nothing
+ * else, so a node whose parent was NOT recomputed already holds the value the
+ * sweep would give it -- layout_parent_box reads that box directly. What has
+ * to be visited is therefore each seed, plus the descendants of every node
+ * whose box actually moved.
+ *
+ * Seeds are processed shallowest first so an ancestor seed is recomputed
+ * before a descendant seed reads its box; children are appended as they are
+ * discovered and are always deeper than the node that pushed them, so the
+ * queue stays in a valid order without a sort.
+ *
+ * Returns the number of nodes visited, for the counter the sweep also feeds.
+ */
+static int64_t
+layout_resolve_dirty(
+    struct UITree* tree,
+    int root_x,
+    int root_y,
+    int root_w,
+    int root_h)
+{
+    uint32_t const n = tree->component_count;
+    uint32_t head = 0;
+    int64_t visited = 0;
+
+    assert(tree);
+    assert(!tree->layout_dirty_overflow);
+
+    /* Insertion sort by depth: the seed list is a handful of entries (a busy
+     * frame produced one), so this beats anything with a better bound. */
+    for( uint32_t i = 1; i < tree->layout_dirty_count; i++ )
+    {
+        int32_t const v = tree->layout_dirty[i];
+        int const dv = layout_depth_of(tree, v);
+        uint32_t j = i;
+        while( j > 0 && layout_depth_of(tree, tree->layout_dirty[j - 1]) > dv )
+        {
+            tree->layout_dirty[j] = tree->layout_dirty[j - 1];
+            j--;
+        }
+        tree->layout_dirty[j] = v;
+    }
+
+    /* The seed list doubles as the work queue: children are appended past
+     * layout_dirty_count.  A node can enter it twice -- once as a seed, once
+     * because its parent moved and pushed it -- and every node has exactly
+     * one parent, so n + seeds is the ceiling and cannot be exceeded.  Which
+     * is what makes the append below an assertion rather than a drop: a
+     * dropped append is a subtree silently left on last frame's box. */
+    {
+        uint32_t const need = n + tree->layout_dirty_count + 1u;
+        if( tree->layout_dirty_cap < need )
+        {
+            int32_t* grown =
+                realloc(tree->layout_dirty, (size_t)need * sizeof(*grown));
+            assert(grown);
+            tree->layout_dirty = grown;
+            tree->layout_dirty_cap = need;
+        }
+    }
+
+    while( head < tree->layout_dirty_count )
+    {
+        int32_t const i = tree->layout_dirty[head++];
+        int px;
+        int py;
+        int pw;
+        int ph;
+
+        if( i < 0 || (uint32_t)i >= n || tree->components[i].freed )
+            continue;
+
+        visited++;
+        layout_parent_box(
+            tree, tree->components[i].parent, root_x, root_y, root_w, root_h,
+            &px, &py, &pw, &ph);
+        if( !layout_compute_node(tree, (uint32_t)i, px, py, pw, ph) )
+            continue;
+
+        /* The box moved, so every descendant reads a different parent box.
+         * Appending only the direct children is enough: each one that moves
+         * in turn appends its own. */
+        for( int32_t c = tree->components[i].first_child; c >= 0 && (uint32_t)c < n;
+             c = tree->components[c].next_sibling )
+        {
+            assert(tree->layout_dirty_count < tree->layout_dirty_cap);
+            tree->layout_dirty[tree->layout_dirty_count++] = c;
+        }
+    }
+    return visited;
+}
+
 void
 UITree_LayoutResolve(
     struct UITree* tree,
@@ -471,6 +621,28 @@ UITree_LayoutResolve(
     /* Past the skip check: this call is going to recompute boxes, so any of them
      * may move. See UITree.layout_resolve_seq — the emit retention gate reads it. */
     tree->layout_resolve_seq++;
+
+    /* The seeds already say where the change was, so the sweep below is only
+     * needed when something invalidated without naming a node, when a JIT
+     * chain resolve left the per-node flags no longer describing the tree
+     * (layout_force_full), or when the root box moved -- which every box
+     * depends on. */
+    if( !tree->layout_dirty_overflow && !tree->layout_force_full &&
+        tree->layout_resolved_root_valid &&
+        tree->layout_resolved_root_x == root_x &&
+        tree->layout_resolved_root_y == root_y &&
+        tree->layout_resolved_root_w == root_w &&
+        tree->layout_resolved_root_h == root_h )
+    {
+        int64_t const visited =
+            layout_resolve_dirty(tree, root_x, root_y, root_w, root_h);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_LAYOUT_NODES, visited);
+        tree->layout_dirty_count = 0;
+        tree->layout_stale = 0;
+        tree->layout_resolved_valid = 1;
+        tree->layout_resolved_gen = tree->generation;
+        return;
+    }
 
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_LAYOUT_NODES, (int64_t)tree->component_count);
 
@@ -628,6 +800,8 @@ UITree_LayoutResolve(
     /* The marks only describe this pass; children have consumed them by now. */
     memset(changed, 0, n);
     tree->layout_force_full = 0;
+    tree->layout_dirty_count = 0;
+    tree->layout_dirty_overflow = 0;
     tree->layout_stale = 0;
     tree->layout_resolved_valid = 1;
     tree->layout_resolved_gen = tree->generation;
