@@ -371,9 +371,6 @@ else ifeq ($(PLATFORM),web)
   # with no server the database answers, with an empty database the server does.
   PLATFORM_OBJ_BASE := build_web
   PLATFORM_SRCS     := platform/platform_web_api.c \
-                       platform/platform_x_io_js5_cache.c \
-                       platform/dat2_web_store.c \
-                       platform/web_cache_boot.c \
                        platform/platform_audio_wasm.c \
                        platform/platform_sdl2_renderer_webgl1.c \
                        platform/platform_sdl2_renderer_webgl1zb.c
@@ -382,7 +379,9 @@ else ifeq ($(PLATFORM),web)
   # numbers, and putting it beside the platform that reads it today would make
   # the next one copy it.
   PLATFORM_EXTRA_SRCS := asyncio_abi.c
-  JS5_SRCS          := $(wildcard js5/*.c)
+  # No JS5 here: the producer is JavaScript (src/web/torirs_js5.js), and so
+  # is the dat1 one. Nothing in this module speaks either protocol.
+  JS5_SRCS          :=
   WEB_CACHE_CFLAGS  :=
   # The executor is a link input: a change to it must relink the module, because
   # it is as much a part of the program as any object file.
@@ -390,7 +389,7 @@ else ifeq ($(PLATFORM),web)
   # Everything JavaScript calls into. Without these on the list the runtime may
   # drop them, and the failure is a page that loads and then throws on the first
   # read rather than a link error naming the symbol.
-  WEB_CACHE_EXPORTS := ,"_ToriRS_IO_DescribeAbi","_ToriRS_IO_DescribeAbiCount","_ToriRS_WebApi_ArchiveDecode","_ToriRS_WebApi_ArchiveApplyMetadata","_ToriRS_WebApi_ReferenceTableFromContainer","_ToriRS_WebApi_ArchiveStructSize","_ToriRS_WebApi_ReferenceTableStructSize","_ToriRS_WebApi_ArchiveFree","_ToriRS_WebApi_Js5Request","_ToriRS_WebApi_Js5Tick","_ToriRS_WebApi_Js5Status","_torirs_web_cache_key","_torirs_web_cache_prime_begin","_torirs_web_cache_prime_step","_torirs_web_cache_prime_stats"
+  WEB_CACHE_EXPORTS := ,"_ToriRS_IO_DescribeAbi","_ToriRS_IO_DescribeAbiCount","_ToriRS_WebApi_ArchiveDecode","_ToriRS_WebApi_ArchiveApplyMetadata","_ToriRS_WebApi_ReferenceTableFromContainer","_ToriRS_WebApi_ArchiveStructSize","_ToriRS_WebApi_ReferenceTableStructSize","_ToriRS_WebApi_ArchiveFree"
   # UTF8ArrayToString/UTF8ToString read paths out of the queue; setValue is used
   # by the store's EM_JS bodies and the ABI read.
   WEB_CACHE_RUNTIME := ,"setValue","UTF8ToString","UTF8ArrayToString"

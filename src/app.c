@@ -1,11 +1,6 @@
 #include "app.h"
 #include "log/torirs_log.h"
 
-#if defined(TORIRS_WEB_CACHE_IDB)
-#include "platform/dat2_web_store.h"
-#include "platform/web_cache_boot.h"
-#endif
-
 #include "bmp.h"
 /* Screenshot encoding. Already linked for the cache codecs; the PNG writer
  * rides along, so a plugin capture costs no new dependency. */

@@ -21,9 +21,6 @@
 #include "platform/platform_x_io_js5.h"
 #include "platform/platform_x_io_js5_cache.h"
 #endif
-#if defined(TORIRS_PLATFORM_WEB)
-#include "platform/web_cache_boot.h"
-#endif
 #if defined(TORIRS_HAVE_GL3)
 /* The GPU renderer. Desktop GL 3.2 natively, WebGL1 in the browser — one file,
  * see TORIRS_GL_ES2 in platform_sdl2_renderer_gl3.c. */

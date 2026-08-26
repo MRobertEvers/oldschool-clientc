@@ -553,6 +553,24 @@ mergeInto(LibraryManager.library, {
     return total;
   },
 
+  /*
+   * Nothing to pump.
+   *
+   * There was, when the cache producer was a C state machine that could only
+   * advance while somebody called Tick. Both producers are JavaScript now
+   * (src/web/torirs_js5.js, src/web/torirs_ondemand.js) and their sockets
+   * deliver on their own, so a turn is something the event loop already gives
+   * them. Kept because main()'s loop calls it on every platform, and a browser
+   * saying "nothing needed" is an answer.
+   */
+  PlatformWeb_Pump: function () {},
+
+  /*
+   * Also nothing. There is no synchronous read anywhere on this platform to
+   * suppress -- every answer arrives after an await, which is the design.
+   */
+  PlatformWeb_SetBlockingReads: function (allowed) {},
+
   PlatformWeb_IO_ServerReachable__deps: ['$TORIRS_WEB_IO'],
   PlatformWeb_IO_ServerReachable: function (px) {
     const inst = TORIRS_WEB_IO.instances.get(px);
