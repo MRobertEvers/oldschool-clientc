@@ -153,11 +153,17 @@ class WasmSession {
         this.session = 0;
         this.destroyed = false;
         this.hostErrors = new Map();
+        /* cs2w_fast_query_rows asks once for a row count and once for the
+         * payload. Keep the immutable JS snapshot between those two calls.
+         * Without this invocation-local cache, a CC_FIND-heavy redraw builds
+         * and sorts the complete dynamic-child table twice per C query. */
+        this.fastQuerySnapshots = new Map();
         this.preloadHostData = preloadHostData !== false;
         this.fastHost = Boolean(fastHost && typeof this.api._cs2w_invocation_set_fast_host === 'function' &&
             typeof host.fastHostInventorySnapshot === 'function' &&
             typeof host.fastHostChildrenSnapshot === 'function' &&
-            typeof host.fastHostAllChildrenSnapshot === 'function' &&
+            (typeof host.fastHostAllChildrenWrite === 'function' ||
+                typeof host.fastHostAllChildrenSnapshot === 'function') &&
             typeof host.fastHostValueSnapshot === 'function' &&
             typeof host.fastHostScalarDataValue === 'function' &&
             typeof host.fastHostScalarDataCacheable === 'function' &&
@@ -217,6 +223,7 @@ class WasmSession {
                 'C CS2VM/WASM rejected the fast HOST transaction', 'INVOKE');
 
         this.hostErrors.delete(invocation);
+        if( this.fastHost ) this.fastQuerySnapshots.set(invocation, new Map());
         try {
             for( const raw of intent?.hook?.args || [] ) this.addArgument(invocation, raw);
             this.setEvent(invocation, intent, component);
@@ -238,6 +245,7 @@ class WasmSession {
         } finally {
             try { this.commitFastDbIterator(invocation); }
             finally {
+                this.fastQuerySnapshots.delete(invocation);
                 this.hostErrors.delete(invocation);
                 this.api._cs2w_invocation_destroy(invocation);
             }
@@ -302,6 +310,11 @@ class WasmSession {
             const result = this.host.request(request);
             if( result && typeof result.then === 'function' )
                 throw new WasmCS2RuntimeError('HostRuntime returned a Promise', 'ASYNC_HOST');
+            /* The generic surface can run arbitrary Host/service logic. C
+             * drops its fast snapshots at the same observer barrier; keeping
+             * the JS count/copy half past it could replay stale inventory or
+             * topology on a later query in this invocation. */
+            this.fastQuerySnapshots.get(invocation)?.clear();
             if( DB_ITERATOR_WRITES.has(request.kind) )
                 this.replaceFastDbIterator(invocation);
             writeHostResult(this.api, thread, kind, request, result, this.host);
@@ -370,13 +383,35 @@ class WasmSession {
                 }
                 return 1;
             }
-            const rows = queryKind === FAST_QUERY_INVENTORY
-                ? this.host.fastHostInventorySnapshot(key)
-                : queryKind === FAST_QUERY_CHILDREN
-                    ? this.host.fastHostChildrenSnapshot(key)
-                    : queryKind === FAST_QUERY_ALL_CHILDREN
-                        ? this.host.fastHostAllChildrenSnapshot()
-                        : this.host.fastHostValueSnapshot(queryKind, key);
+            if( queryKind === FAST_QUERY_ALL_CHILDREN &&
+                typeof this.host.fastHostAllChildrenWrite === 'function' ) {
+                const views = currentHeapViews(this.api);
+                const address = Number(outputPointer) >>> 0;
+                heapBounds(views, address, capacity * width * 4,
+                    'fast HOST borrowed child table');
+                if( address % 4 !== 0 ) throw new WasmCS2RuntimeError(
+                    'unaligned fast HOST snapshot output', 'FAST_HOST');
+                const count = this.host.fastHostAllChildrenWrite(
+                    views.i32, address >>> 2, capacity);
+                if( !Number.isInteger(count) || count < 0 || count > 65536 )
+                    throw new WasmCS2RuntimeError(
+                        'malformed fast HOST child count', 'FAST_HOST');
+                return count | 0;
+            }
+            const snapshots = this.fastQuerySnapshots.get(invocation);
+            const snapshotKey = `${queryKind}:${key}`;
+            let rows;
+            if( snapshots?.has(snapshotKey) ) rows = snapshots.get(snapshotKey);
+            else {
+                rows = queryKind === FAST_QUERY_INVENTORY
+                    ? this.host.fastHostInventorySnapshot(key)
+                    : queryKind === FAST_QUERY_CHILDREN
+                        ? this.host.fastHostChildrenSnapshot(key)
+                        : queryKind === FAST_QUERY_ALL_CHILDREN
+                            ? this.host.fastHostAllChildrenSnapshot()
+                            : this.host.fastHostValueSnapshot(queryKind, key);
+                snapshots?.set(snapshotKey, rows);
+            }
             if( rows === null ) return FAST_QUERY_MISSING;
             if( !(rows instanceof Int32Array) || rows.length % width !== 0 )
                 throw new WasmCS2RuntimeError('malformed fast HOST snapshot', 'FAST_HOST');
@@ -463,6 +498,10 @@ class WasmSession {
                     packedRecords, recordCount, packedArena);
                 if( result && typeof result.then === 'function' )
                     throw new WasmCS2RuntimeError('HostRuntime returned a Promise', 'ASYNC_HOST');
+                /* A packed transaction may create or delete children. C also
+                 * invalidates its copy at that barrier; invalidate the JS
+                 * count/copy cache before a subsequent query can reuse it. */
+                this.fastQuerySnapshots.get(invocation)?.clear();
                 return ABI.hostOk;
             }
             const requests = new Array(recordCount);
@@ -569,6 +608,7 @@ class WasmSession {
                 views.i32[(records >>> 2) + index * FAST_RECORD_WORDS + 6] =
                     Number(requests[index].result_component_id ?? -1) | 0;
             }
+            this.fastQuerySnapshots.get(invocation)?.clear();
             return ABI.hostOk;
         } catch( error ) {
             this.hostErrors.set(invocation, error);
@@ -609,6 +649,7 @@ class WasmSession {
             this.session = 0;
         }
         this.hostErrors.clear();
+        this.fastQuerySnapshots.clear();
     }
 }
 

@@ -139,6 +139,7 @@ cs2w_set_native_host_exec(CS2W_NativeHostExec exec)
 #define CS2W_FAST_INITIAL_RECORDS 1024
 #define CS2W_FAST_INITIAL_ARENA 16384
 #define CS2W_FAST_INITIAL_SNAPSHOT_ENTRIES 2048
+#define CS2W_FAST_INITIAL_ALL_CHILD_ENTRIES 4096
 #define CS2W_FAST_QUERY_INVENTORY 1
 #define CS2W_FAST_QUERY_CHILDREN 2
 #define CS2W_FAST_QUERY_VAR 3
@@ -156,6 +157,7 @@ cs2w_set_native_host_exec(CS2W_NativeHostExec exec)
 #define CS2W_FAST_SCALAR_PRELOAD_MAX 524288
 #define CS2W_FAST_SCALAR_DEFAULT_KIND_BIAS 0x40000000
 #define CS2W_FAST_DB_ITERATOR_MAX 65536
+#define CS2W_MAX_HOST_CALLS 131072
 
 struct CS2W_FastRecord
 {
@@ -199,6 +201,7 @@ struct CS2W_FastChildren
 
 struct CS2W_FastValue
 {
+    uint32_t generation;
     int kind;
     int key;
     int value;
@@ -302,6 +305,9 @@ struct CS2W_Session
     int spare_fast_db_iterator_capacity;
     struct CS2W_FastValue* spare_fast_values;
     int spare_fast_value_capacity;
+    struct CS2W_FastAllChildEntry* spare_fast_all_children;
+    int spare_fast_all_children_capacity;
+    uint32_t fast_value_generation;
 };
 
 /* Emscripten instantiates one module for every preview worker and many short
@@ -375,10 +381,12 @@ struct CS2W_Invocation
     int fast_children_capacity;
     struct CS2W_FastAllChildEntry* fast_all_children;
     int fast_all_child_count;
+    int fast_all_children_capacity;
     int fast_all_children_loaded;
     struct CS2W_FastValue* fast_values;
     int fast_value_count;
     int fast_value_capacity;
+    uint32_t fast_value_generation;
     char* fast_scalar_string;
     int fast_scalar_string_capacity;
     int* fast_db_iterator;
@@ -592,6 +600,20 @@ cs2w_resolve_event_int(
 }
 
 static void
+cs2w_fast_reset_values(struct CS2W_Invocation* invocation)
+{
+    invocation->fast_value_count = 0;
+    invocation->fast_value_generation = ++invocation->session->fast_value_generation;
+    if( invocation->fast_value_generation != 0 ) return;
+    invocation->fast_value_generation = ++invocation->session->fast_value_generation;
+    /* Only reachable after 2^32 cache generations. Retire every old entry
+     * before reusing generation one so a stale value can never compare equal. */
+    if( invocation->fast_values )
+        memset(invocation->fast_values, 0,
+               (size_t)invocation->fast_value_capacity * sizeof(*invocation->fast_values));
+}
+
+static void
 cs2w_fast_clear_snapshots(struct CS2W_Invocation* invocation)
 {
     if( !invocation )
@@ -602,15 +624,17 @@ cs2w_fast_clear_snapshots(struct CS2W_Invocation* invocation)
     for( int i = 0; i < invocation->fast_children_count; i++ )
         free(invocation->fast_children[i].entries);
     invocation->fast_children_count = 0;
-    invocation->fast_value_count = 0;
+    cs2w_fast_reset_values(invocation);
 }
 
 static void
 cs2w_fast_clear_all_children(struct CS2W_Invocation* invocation)
 {
     if( !invocation ) return;
-    free(invocation->fast_all_children);
-    invocation->fast_all_children = NULL;
+    /* Topology invalidates the rows, not their storage.  A generated list can
+     * rebuild and query the same several-thousand-child table more than once
+     * in one hook; retaining this bounded buffer avoids a malloc/realloc/free
+     * cycle without retaining any observable component data. */
     invocation->fast_all_child_count = 0;
     invocation->fast_all_children_loaded = 0;
 }
@@ -858,10 +882,6 @@ cs2w_fast_enqueue_hook(
     return 1;
 }
 
-/* Compact setters with one UTF-8 argument use the same borrowed arena as
- * hooks.  The byte length is explicit so JavaScript never scans past this
- * transaction, and the record-room check precedes the arena reservation for
- * the same chunk-boundary reason as cs2w_fast_enqueue_hook. */
 static int
 cs2w_fast_enqueue_string(
     struct CS2W_Invocation* invocation,
@@ -1142,26 +1162,64 @@ cs2w_fast_all_child_value(
 {
     if( !invocation->fast_all_children_loaded )
     {
-        void* rows = NULL;
-        int count = 0;
-        int missing = 0;
-        if( !cs2w_fast_query_rows(
-                invocation,
+#ifdef __EMSCRIPTEN__
+        int capacity = invocation->fast_all_children_capacity;
+        if( capacity == 0 )
+        {
+            capacity = CS2W_FAST_INITIAL_ALL_CHILD_ENTRIES;
+            invocation->fast_all_children =
+                (struct CS2W_FastAllChildEntry*)malloc(
+                    (size_t)capacity * sizeof(*invocation->fast_all_children));
+            if( !invocation->fast_all_children ) return -1;
+            invocation->fast_all_children_capacity = capacity;
+        }
+        int count = cs2w_js_fast_host_query(
+            (uintptr_t)invocation->session,
+            (uintptr_t)invocation,
+            CS2W_FAST_QUERY_ALL_CHILDREN,
+            0,
+            (uintptr_t)invocation->fast_all_children,
+            capacity);
+        if( count == CS2W_FAST_QUERY_MISSING ) return -1;
+        if( count < 0 || count > 65536 ) return -1;
+        if( count > capacity )
+        {
+            int next_capacity = capacity;
+            while( next_capacity < count )
+            {
+                if( next_capacity > 65536 / 2 )
+                {
+                    next_capacity = 65536;
+                    break;
+                }
+                next_capacity *= 2;
+            }
+            struct CS2W_FastAllChildEntry* resized =
+                (struct CS2W_FastAllChildEntry*)realloc(
+                    invocation->fast_all_children,
+                    (size_t)next_capacity * sizeof(*resized));
+            if( !resized ) return -1;
+            invocation->fast_all_children = resized;
+            invocation->fast_all_children_capacity = next_capacity;
+            capacity = next_capacity;
+            int second = cs2w_js_fast_host_query(
+                (uintptr_t)invocation->session,
+                (uintptr_t)invocation,
                 CS2W_FAST_QUERY_ALL_CHILDREN,
                 0,
-                (int)sizeof(struct CS2W_FastAllChildEntry),
-                &rows,
-                &count,
-                &missing) ||
-            missing )
-            return -1;
-        invocation->fast_all_children = (struct CS2W_FastAllChildEntry*)rows;
+                (uintptr_t)invocation->fast_all_children,
+                capacity);
+            if( second != count ) return -1;
+        }
         invocation->fast_all_child_count = count;
         invocation->fast_all_children_loaded = 1;
         if( count > 1 )
             qsort(invocation->fast_all_children, (size_t)count,
                   sizeof(*invocation->fast_all_children),
                   cs2w_fast_all_child_compare);
+#else
+        return -1;
+#endif
     }
     int low = 0;
     int high = invocation->fast_all_child_count;
@@ -1197,6 +1255,7 @@ static struct CS2W_FastValue*
 cs2w_fast_value_slot(
     struct CS2W_FastValue* values,
     int capacity,
+    uint32_t generation,
     int query_kind,
     int key)
 {
@@ -1205,7 +1264,8 @@ cs2w_fast_value_slot(
     for( ;; )
     {
         struct CS2W_FastValue* value = &values[index];
-        if( value->kind == 0 || (value->kind == query_kind && value->key == key) )
+        if( value->generation != generation ||
+            (value->kind == query_kind && value->key == key) )
             return value;
         index = (index + 1u) & (uint32_t)(capacity - 1);
     }
@@ -1223,9 +1283,9 @@ cs2w_fast_value_grow(struct CS2W_Invocation* invocation)
     for( int i = 0; i < old_capacity; i++ )
     {
         struct CS2W_FastValue* old = &invocation->fast_values[i];
-        if( old->kind == 0 ) continue;
+        if( old->generation != invocation->fast_value_generation ) continue;
         struct CS2W_FastValue* next = cs2w_fast_value_slot(
-            values, capacity, old->kind, old->key);
+            values, capacity, invocation->fast_value_generation, old->kind, old->key);
         *next = *old;
     }
     free(invocation->fast_values);
@@ -1242,8 +1302,9 @@ cs2w_fast_value(
     int* value_out)
 {
     struct CS2W_FastValue* cached = cs2w_fast_value_slot(
-        invocation->fast_values, invocation->fast_value_capacity, query_kind, key);
-    if( cached && cached->kind != 0 )
+        invocation->fast_values, invocation->fast_value_capacity,
+        invocation->fast_value_generation, query_kind, key);
+    if( cached && cached->generation == invocation->fast_value_generation )
     {
         *value_out = cached->value;
         return 1;
@@ -1265,12 +1326,13 @@ cs2w_fast_value(
         if( cs2w_fast_value_grow(invocation) )
             cached = cs2w_fast_value_slot(
                 invocation->fast_values, invocation->fast_value_capacity,
-                query_kind, key);
+                invocation->fast_value_generation, query_kind, key);
         else
             cached = NULL;
     }
     if( cached )
     {
+        cached->generation = invocation->fast_value_generation;
         cached->kind = query_kind;
         cached->key = key;
         cached->value = value;
@@ -2252,6 +2314,15 @@ cs2w_bridge_host_exec(
     struct CS2W_Invocation* invocation = (struct CS2W_Invocation*)CS2VM_USER(thread);
     if( !cs2w_invocation_valid(invocation) || !request )
         return CS2VM_EXECNO_ERROR;
+    if( invocation->host_call_count >= CS2W_MAX_HOST_CALLS )
+    {
+        /* A malformed or state-incompatible cache script must not monopolise
+         * the browser worker forever. This is far above the largest real
+         * interface redraw, but still turns an accidental GOSUB/HOST loop into
+         * a synchronous VM error which the React preview can report. */
+        invocation->last_error = CS2W_ERROR_VM;
+        return CS2VM_EXECNO_ERROR;
+    }
     invocation->host_call_count++;
 
     /* Component/data getters flush queued field writes but cannot change the
@@ -2401,6 +2472,7 @@ cs2w_session_destroy(struct CS2W_Session* session)
     free(session->spare_fast_scalar_string);
     free(session->spare_fast_db_iterator);
     free(session->spare_fast_values);
+    free(session->spare_fast_all_children);
     session->magic = 0;
     free(session);
     return 1;
@@ -2600,9 +2672,12 @@ cs2w_invocation_create(
     invocation->fast_value_capacity = session->spare_fast_value_capacity;
     session->spare_fast_values = NULL;
     session->spare_fast_value_capacity = 0;
-    if( invocation->fast_values )
-        memset(invocation->fast_values, 0,
-               (size_t)invocation->fast_value_capacity * sizeof(*invocation->fast_values));
+    invocation->fast_all_children = session->spare_fast_all_children;
+    invocation->fast_all_children_capacity =
+        session->spare_fast_all_children_capacity;
+    session->spare_fast_all_children = NULL;
+    session->spare_fast_all_children_capacity = 0;
+    cs2w_fast_reset_values(invocation);
     session->invocation_count++;
     return invocation;
 }
@@ -2666,6 +2741,12 @@ cs2w_invocation_destroy(struct CS2W_Invocation* invocation)
         &session->spare_fast_value_capacity,
         invocation->fast_values,
         invocation->fast_value_capacity);
+    session->spare_fast_all_children =
+        (struct CS2W_FastAllChildEntry*)cs2w_recycle_fast_buffer(
+            session->spare_fast_all_children,
+            &session->spare_fast_all_children_capacity,
+            invocation->fast_all_children,
+            invocation->fast_all_children_capacity);
     invocation->magic = 0;
     if( session->invocation_count > 0 )
         session->invocation_count--;

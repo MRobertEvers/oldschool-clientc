@@ -11,6 +11,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { bmpToPng } from './png.js';
+import { packName } from './pack.js';
 
 const MAX_FONT_ID = 1_000_000;
 const MAX_GLYPHS = 256;
@@ -114,7 +115,8 @@ function readPack(path) {
         const split = line.indexOf('=');
         if( split < 1 ) continue;
         const id = Number(line.slice(0, split));
-        if( Number.isInteger(id) ) result.set(id, line.slice(split + 1).trim());
+        const name = packName(line.slice(split + 1));
+        if( Number.isInteger(id) && name ) result.set(id, name);
     }
     return result;
 }

@@ -33,6 +33,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { CACHEPACK_BUILD, CACHEPACK_TOOL, findCachepack } from './dat2.js';
+import { packName } from './pack.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OVERLAY_SCHEMA = 2;
@@ -304,7 +305,14 @@ function readScriptNames(path) {
     if( !existsSync(file) || !statSync(file).isFile() ) return result;
     for( const raw of readFileSync(file, 'utf8').split(/\r?\n/) ) {
         const line = raw.replace(/\/\/.*$/, '').trim();
-        const match = /^(\d+)\s+\[(clientscript|proc),([^\]]+)\](?:\s+.*)?$/.exec(line);
+        /* Recovered ledgers also use `label` for an exact archive-name alias
+         * whose executable role could not be inferred. Those names are still
+         * authoritative inside callback setters: rev 239's
+         * `ca_map_set_get`, for example, resolves to clientscript 6277. Keep
+         * the neutral role in the name index so the callback-only
+         * cross-role path above can stage the real script without rewriting
+         * its authored clientscr/proc header. */
+        const match = /^(\d+)\s+\[(clientscript|proc|label),([^\]]+)\](?:\s+.*)?$/.exec(line);
         if( !match ) continue;
         const id = Number(match[1]);
         const value = { id, role: match[2], name: match[3] };
@@ -451,7 +459,7 @@ function readPack(path) {
         const equals = line.indexOf('=');
         if( equals < 1 ) continue;
         const id = Number(line.slice(0, equals).trim());
-        const name = line.slice(equals + 1).trim();
+        const name = packName(line.slice(equals + 1));
         if( Number.isInteger(id) && id >= 0 && name ) pack.set(id, name);
     }
     return pack;

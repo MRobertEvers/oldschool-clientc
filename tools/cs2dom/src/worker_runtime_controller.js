@@ -9,6 +9,7 @@ import {
 const COALESCE = new Set(['pointer_move', 'tick']);
 const MAX_PENDING_NODES = 4096;
 const MAX_AGGREGATE_EVENTS = 64;
+const EMPTY_STAGE_KEYS = Object.freeze([]);
 
 export function createWorkerRuntimeController(options = {}) {
     return new WorkerRuntimeController(options);
@@ -47,6 +48,16 @@ export class WorkerRuntimeController {
         this.stageMap = new Map();
         this.stageIndex = new Map();
         this.stageTransaction = null;
+        this.stagePublication = 0;
+        this.stageListeners = new Set();
+        this.stageNodeListeners = new Map();
+        this.stageOrderListeners = new Set();
+        this.stageNodes = new Map();
+        this.stageRoots = EMPTY_STAGE_KEYS;
+        this.stageSnapshot = Object.freeze({
+            session: this.session, revision: this.stagePublication,
+            render: null, patch: null,
+        });
         this.inFlight = null;
         this.pendingHead = null;
         this.pendingTail = null;
@@ -58,6 +69,65 @@ export class WorkerRuntimeController {
         this.readyResolve = null;
         this.readyReject = null;
         this.receiveMetrics = { count: 0, maxMs: 0, overBudget: 0 };
+    }
+
+    /** React-compatible committed-stage external store. */
+    subscribeStage(listener) {
+        if( typeof listener !== 'function' )
+            throw new TypeError('stage subscriber must be a function');
+        this.stageListeners.add(listener);
+        return () => this.stageListeners.delete(listener);
+    }
+
+    getStageSnapshot() {
+        return this.stageSnapshot;
+    }
+
+    /* ViewTreeStore-compatible projection for authored React widgets. The
+     * retained preview uses subscribeStage(); InterfacePreview can consume the
+     * same atomic controller directly through this finer-grained contract. */
+    subscribe(listener) {
+        return this.subscribeStage(listener);
+    }
+
+    getSnapshot() {
+        return this.stageSnapshot;
+    }
+
+    getRoots() {
+        return this.stageRoots;
+    }
+
+    getNode(renderKey) {
+        return this.stageNodes.get(String(renderKey)) || null;
+    }
+
+    getChildren() {
+        return EMPTY_STAGE_KEYS;
+    }
+
+    subscribeNode(renderKey, listener) {
+        if( typeof listener !== 'function' )
+            throw new TypeError('node subscriber must be a function');
+        const key = String(renderKey);
+        let listeners = this.stageNodeListeners.get(key);
+        if( !listeners ) this.stageNodeListeners.set(key, listeners = new Set());
+        listeners.add(listener);
+        return () => {
+            listeners.delete(listener);
+            if( listeners.size === 0 ) this.stageNodeListeners.delete(key);
+        };
+    }
+
+    subscribeOrder(parentRenderKey, listener) {
+        if( typeof listener !== 'function' )
+            throw new TypeError('order subscriber must be a function');
+        /* The stage projection is deliberately flat/absolute. Only its root
+         * paint order can change; every node therefore has a stable empty
+         * children vector. */
+        if( parentRenderKey !== null ) return () => {};
+        this.stageOrderListeners.add(listener);
+        return () => this.stageOrderListeners.delete(listener);
     }
 
     start(config) {
@@ -81,6 +151,7 @@ export class WorkerRuntimeController {
     _begin(config, createWorker) {
         this.session++;
         const session = this.session;
+        const retiredNodeKeys = new Set(this.stageNodes.keys());
         this.readyState = 'loading';
         this.mode = 'unavailable';
         this.warnings = [];
@@ -89,6 +160,12 @@ export class WorkerRuntimeController {
         this.stageMap = new Map();
         this.stageIndex = new Map();
         this.stageTransaction = null;
+        this.stageNodes = new Map();
+        this.stageRoots = EMPTY_STAGE_KEYS;
+        this._publishStageSnapshot(null, null, {
+            orderChanged: true,
+            changedNodeKeys: retiredNodeKeys,
+        });
         if( createWorker ) {
             this.worker = this.workerFactory(this.workerUrl);
             this.worker.onmessage = (event) => this._receive(event.data);
@@ -275,7 +352,8 @@ export class WorkerRuntimeController {
         if( message.type === 'failed' ) {
             this._appendWarnings(message.warnings);
             this.readyState = 'failed';
-            this._failReady(remoteError(message.error));
+            this.mode = 'unavailable';
+            this._retireSession(remoteError(message.error));
             return;
         }
         if( message.type === 'result' ) return this._result(message);
@@ -335,17 +413,31 @@ export class WorkerRuntimeController {
     _stage(chunk) {
         if( !chunk || !Number.isSafeInteger(chunk.transaction) ||
             !Number.isSafeInteger(chunk.index) ) return;
+        const validEnvelope = Number.isSafeInteger(chunk.total) && chunk.total > 0 &&
+            chunk.index >= 0 && chunk.index < chunk.total &&
+            Boolean(chunk.done) === (chunk.index === chunk.total - 1);
+        if( !validEnvelope ) {
+            if( this.stageTransaction?.id === chunk.transaction ) this.stageTransaction = null;
+            return;
+        }
         const legacy = Array.isArray(chunk.operations);
         if( !legacy && ![chunk.remove, chunk.upsert, chunk.order]
             .every((values) => values === undefined || Array.isArray(values)) ) return;
         if( chunk.index === 0 ) {
             this.stageTransaction = {
                 id: chunk.transaction,
+                total: chunk.total,
                 next: 0,
-                map: chunk.reset ? new Map() : this.stageMap,
-                index: chunk.orderChanged ? new Map() : this.stageIndex,
+                /* A stage transaction is an unpublished shadow.  Chunked
+                 * updates must not mutate the snapshot React is currently
+                 * reading before the final `done` chunk atomically commits
+                 * the transaction. */
+                map: chunk.reset ? new Map() : new Map(this.stageMap),
+                index: chunk.orderChanged ? new Map() : new Map(this.stageIndex),
                 entries: chunk.orderChanged ? [] : (this.currentRender?.entries || []).slice(),
                 boxes: chunk.orderChanged ? [] : (this.currentRender?.boxes || []).slice(),
+                nodes: chunk.reset ? new Map() : new Map(this.stageNodes),
+                changedNodeKeys: new Set(),
                 upsertBatches: [],
                 upsertCount: 0,
                 remove: [],
@@ -357,16 +449,25 @@ export class WorkerRuntimeController {
         }
         const transaction = this.stageTransaction;
         if( !transaction || transaction.id !== chunk.transaction ||
-            transaction.next !== chunk.index ) return;
+            transaction.total !== chunk.total || transaction.next !== chunk.index ||
+            transaction.reset !== Boolean(chunk.reset) ||
+            transaction.orderChanged !== Boolean(chunk.orderChanged) ) {
+            if( transaction?.id === chunk.transaction ) this.stageTransaction = null;
+            return;
+        }
         transaction.next++;
         if( legacy ) {
             let upsertBatch = null;
             for( const operation of chunk.operations ) {
                 if( operation?.[0] === 0 ) {
                     transaction.map.delete(operation[1]);
+                    transaction.nodes.delete(operation[1]);
+                    transaction.changedNodeKeys.add(operation[1]);
                     transaction.remove.push(operation[1]);
                 } else if( operation?.[0] === 1 ) {
                     transaction.map.set(operation[1].key, operation[1]);
+                    transaction.nodes.set(operation[1].key, stageNodeSnapshot(operation[1]));
+                    transaction.changedNodeKeys.add(operation[1].key);
                     (upsertBatch ||= []).push(operation[1]);
                     transaction.upsertCount++;
                     if( !transaction.orderChanged ) {
@@ -389,11 +490,15 @@ export class WorkerRuntimeController {
         } else {
             for( const key of chunk.remove || [] ) {
                 transaction.map.delete(key);
+                transaction.nodes.delete(key);
+                transaction.changedNodeKeys.add(key);
                 transaction.remove.push(key);
             }
             const upsertBatch = chunk.upsert || [];
             for( const entry of upsertBatch ) {
                 transaction.map.set(entry.key, entry);
+                transaction.nodes.set(entry.key, stageNodeSnapshot(entry));
+                transaction.changedNodeKeys.add(entry.key);
                 transaction.upsertCount++;
                 if( !transaction.orderChanged ) {
                     const index = transaction.index.get(entry.key);
@@ -416,6 +521,9 @@ export class WorkerRuntimeController {
         if( !chunk.done ) return;
         this.stageMap = transaction.map;
         this.stageIndex = transaction.index;
+        this.stageNodes = transaction.nodes;
+        if( transaction.orderChanged ) this.stageRoots = Object.freeze(
+            transaction.entries.map((entry) => entry.key));
         this.currentRender = {
             version: Number(transaction.version) || 0,
             viewport: transaction.viewport,
@@ -443,10 +551,34 @@ export class WorkerRuntimeController {
                 return flattenedUpsert;
             },
         };
+        this._publishStageSnapshot(this.currentRender, patch, transaction);
         this.callbacks.onStagePatch?.({
             render: this.currentRender,
             patch,
         });
+    }
+
+    _publishStageSnapshot(render, patch, transaction = null) {
+        this.stageSnapshot = Object.freeze({
+            session: this.session,
+            revision: ++this.stagePublication,
+            render,
+            patch,
+        });
+        for( const listener of [...this.stageListeners] ) {
+            try { listener(); }
+            catch( error ) { queueMicrotask(() => { throw error; }); }
+        }
+        if( !render || transaction?.orderChanged ) for( const listener of [...this.stageOrderListeners] ) {
+            try { listener(); }
+            catch( error ) { queueMicrotask(() => { throw error; }); }
+        }
+        for( const key of transaction?.changedNodeKeys || [] ) {
+            for( const listener of [...(this.stageNodeListeners.get(key) || [])] ) {
+                try { listener(); }
+                catch( error ) { queueMicrotask(() => { throw error; }); }
+            }
+        }
     }
 
     _tree(message) {
@@ -513,6 +645,44 @@ function defaultWorkerFactory(url) {
 
 function defaultClock() {
     return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+function stageNodeSnapshot(entry) {
+    const box = entry.box || {};
+    const ref = box.ref || {};
+    const geometry = Object.freeze({
+        x: Number(box.x) || 0,
+        y: Number(box.y) || 0,
+        width: Number(box.w) || 0,
+        height: Number(box.h) || 0,
+        clip: box.clip || null,
+        surface: box.surface || null,
+    });
+    return Object.freeze({
+        id: ref.componentId ?? box.fileId ?? entry.key,
+        renderKey: entry.key,
+        generation: Number(ref.generation) || 1,
+        parentId: null,
+        subId: Number.isFinite(Number(ref.subId)) ? Number(ref.subId) : -1,
+        fileId: box.fileId,
+        name: box.name || '',
+        kind: box.kind,
+        type: Number(box.type) || 0,
+        props: box.props || Object.freeze({}),
+        ops: box.ops || EMPTY_STAGE_KEYS,
+        hooks: box.hooks || EMPTY_STAGE_KEYS,
+        events: box.events || EMPTY_STAGE_KEYS,
+        presentation: box.presentation || null,
+        geometry,
+        x: geometry.x,
+        y: geometry.y,
+        w: geometry.width,
+        h: geometry.height,
+        effectiveHidden: Boolean(box.effectiveHidden),
+        culled: Boolean(box.culled),
+        emitted: box.emitted !== false,
+        children: EMPTY_STAGE_KEYS,
+    });
 }
 
 function remoteError(value) {

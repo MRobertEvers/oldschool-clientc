@@ -127,6 +127,15 @@ const scripts = [...html.matchAll(/<script(?: [^>]*)?>([\s\S]*?)<\/script>/g)];
 const inline = scripts.find((match) => match[1].trim())?.[1];
 assert(inline, 'dev page has no inline script');
 const browserScript = inline.replace(/^import .*;$/gm, '');
+assert.equal((browserScript.match(/mountRetainedInterfaceStage\(\$\('stage'\)/g) || []).length, 1,
+    'dev page creates more than one retained React stage root');
+assert.match(browserScript, /if\( runtimeController \) return runtimeController;/,
+    'hot reload no longer reuses the controller and retained React root');
+assert.match(browserScript,
+    /new EventSource\('\/events'\)\.onmessage = \(\) => \{[\s\S]*refresh\(\{ hotReload: true \}\);/,
+    'source events no longer reload only the live preview session');
+assert.doesNotMatch(browserScript, /location\.reload\(/,
+    'source hot reload still reloads the whole developer page');
 const declarations = browserScript.slice(0, browserScript.indexOf('const treeView ='));
 const idleCallbacks = [];
 const animationCallbacks = [];
@@ -273,7 +282,14 @@ const partialBoxes = [0, 1, 2].map((index) => box({
     w: 36,
     props: { fill: true, color: 0x101010 + index, transparency: 0 },
 }));
-const partialIface = { ...iface, boxes: partialBoxes };
+const partialIface = {
+    ...iface,
+    boxes: partialBoxes,
+    stageEntries: partialBoxes.map((entry, index) => ({
+        key: 'worker-key-' + index,
+        box: entry,
+    })),
+};
 drawStage(partialIface);
 flushAnimation();
 const partialElements = [...elements.get('stage').children];
@@ -309,6 +325,43 @@ assert.equal(elements.get('stage').children.length, 3,
     'coalesced partial revisions duplicated a stage widget');
 assert.equal(elements.get('stage').children[2].style.background, '#654321',
     'coalesced partial revisions did not retain the newest widget');
+
+/* A dynamic VM incarnation gets a fresh ref.key/generation while the worker
+   entry retains its logical parent/sub-id render key. Full and partial draws
+   must agree on that worker key or the replacement is appended beside the
+   stale widget. */
+const oldDynamic = box({
+    fileId: '@host:old', name: 'stable_slot',
+    ref: { key: 'dyn:12:1', generation: 1 },
+    props: { fill: true, color: 0x111111, transparency: 0 },
+});
+const stableIface = {
+    ...iface,
+    boxes: [oldDynamic],
+    stageEntries: [{ key: 'if:12:0/cc:7', box: oldDynamic }],
+    runtimeVersion: 20,
+};
+drawStage(stableIface);
+flushAnimation();
+const oldDynamicElement = elements.get('stage').firstElementChild;
+const newDynamic = {
+    ...oldDynamic,
+    fileId: '@host:new',
+    ref: { key: 'dyn:12:2', generation: 2 },
+    props: { ...oldDynamic.props, color: 0x222222 },
+};
+stableIface.boxes = [newDynamic];
+stableIface.stageEntries = [{ key: 'if:12:0/cc:7', box: newDynamic }];
+stableIface.runtimeVersion++;
+drawStage(stableIface, {
+    upsert: [{ key: 'if:12:0/cc:7', box: newDynamic }],
+});
+flushAnimation();
+assert.equal(elements.get('stage').children.length, 1,
+    'stable dynamic slot gained a duplicate DOM owner after VM recreation');
+assert.notEqual(elements.get('stage').firstElementChild, oldDynamicElement,
+    'stable dynamic slot retained paint from the retired VM incarnation');
+assert.equal(elements.get('stage').firstElementChild.style.background, '#222222');
 
 const currentRoot = elements.get('stage').firstElementChild;
 const visibleBoxes = Array.from({ length: 1500 }, (_, index) => box({
@@ -444,7 +497,15 @@ const maximumBoxes = Array.from({ length: 4096 }, (_, index) => box({
     h: 5,
     props: { fill: true, color: index & 0xffffff, transparency: 0 },
 }));
-const maximumIface = { ...iface, interfaceId: 65535, boxes: maximumBoxes };
+const maximumIface = {
+    ...iface,
+    interfaceId: 65535,
+    boxes: maximumBoxes,
+    stageEntries: maximumBoxes.map((entry, index) => ({
+        key: 'worker-maximum-' + index,
+        box: entry,
+    })),
+};
 const completedBeforeFairness = stageSliceMetrics.completed;
 let fairSentinelSawPending = false;
 drawStage(maximumIface);

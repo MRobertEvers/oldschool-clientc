@@ -6,6 +6,8 @@
  * exec_db's row/table fallback, typed results and stateful find iterator.
  */
 
+import { packName } from './pack.js';
+
 const DB_NAMES = Object.freeze([
     'DB_FIND_WITH_COUNT',
     'DB_FINDNEXT',
@@ -406,7 +408,7 @@ export function parseDbCompack(text) {
         const equals = line.indexOf('=');
         if( equals <= 0 ) continue;
         const recordId = id(line.slice(0, equals).trim());
-        const name = line.slice(equals + 1).trim();
+        const name = packName(line.slice(equals + 1));
         if( recordId === null || !name ) continue;
         byId[recordId] = name;
         byName[name] = recordId;

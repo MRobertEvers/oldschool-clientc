@@ -114,3 +114,11 @@ opt-in so portable bridge tests always exercise the generic ABI.
 side never assumes struct padding, pointer size, enum representation, or bool
 layout. The generated file is committed and regenerated automatically by the
 make target when the manifest changes.
+
+The same generator emits `src/generated/cs2_host.ts`: all 633 opcode literals,
+raw Dat2 wire operand forms, typed request fields/argument tuples and logical
+results, plus observer-barrier metadata. Stack/result shapes retain provenance
+because the command catalog contains inferred rows; every Host row is
+`executableReviewed: false` in this schema-only stage. Whole-closure routing
+must use `cs2HostOpcodeHasReviewedExecutableSemantics()` and must not treat
+catalog presence as permission to execute an opcode in TypeScript.

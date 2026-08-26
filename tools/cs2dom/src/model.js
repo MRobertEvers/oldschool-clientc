@@ -6,6 +6,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
+import { packName } from './pack.js';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const VIEWER = resolve(HERE, '..', '..', 'entity_viewer');
 
@@ -24,7 +26,8 @@ export function modelIndex(contentDir) {
         const split = line.indexOf('=');
         if( split < 1 ) continue;
         const id = Number.parseInt(line.slice(0, split), 10);
-        if( !Number.isNaN(id) ) out.set(id, line.slice(split + 1).trim());
+        const name = packName(line.slice(split + 1));
+        if( !Number.isNaN(id) && name ) out.set(id, name);
     }
     return out;
 }

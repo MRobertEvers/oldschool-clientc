@@ -17,6 +17,7 @@ import { join } from 'node:path';
 
 import { ELEMENTS, EVENTS, IF_TYPE } from './components.js';
 import { runCacheHooks } from './cache_runtime.js';
+import { packName } from './pack.js';
 
 const KIND_BY_TYPE = new Map([
     [IF_TYPE.layer, 'Layer'],
@@ -466,7 +467,8 @@ function compackByName(text) {
     for( const line of text.split(/\r?\n/) ) {
         const split = line.indexOf('=');
         if( split < 1 ) continue;
-        result.set(line.slice(split + 1).trim(), integer(line.slice(0, split), 0));
+        const name = packName(line.slice(split + 1));
+        if( name ) result.set(name, integer(line.slice(0, split), 0));
     }
     return result;
 }
@@ -479,7 +481,8 @@ function readPack(path) {
         const split = line.indexOf('=');
         if( split < 1 || line.trimStart().startsWith('//') ) continue;
         const id = Number.parseInt(line.slice(0, split), 10);
-        if( !Number.isNaN(id) ) result.set(id, line.slice(split + 1).trim());
+        const name = packName(line.slice(split + 1));
+        if( !Number.isNaN(id) && name ) result.set(id, name);
     }
     return result;
 }

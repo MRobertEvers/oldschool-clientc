@@ -58,7 +58,7 @@ Then `make -C src torirsserver-cache` bakes it, and the client boots it.
 
 ```sh
 cd tools/cs2dom
-npm install          # one dependency: typescript
+npm install          # TypeScript plus the React preview runtime
 make -C ../../src torirs
 make -C ../../3rd/rscache/tools cachepack
 make wasm           # compile the existing C cs2vm2 for the browser
@@ -80,12 +80,13 @@ For presentation, cs2dom mounts that IR into a browser-owned HostRuntime. The
 preview remains a normal React/DOM-style component tree: cache scripts mutate
 the same components synchronously, conditional hooks can create and delete
 children, cache bitmap fonts and sprites paint into their boxes, and models use
-the toridraw WASM component. Script execution is not reimplemented in
-JavaScript: Emscripten compiles the repository's existing `src/cs2vm2` C VM to
-WASM. Each C HOST request crosses a synchronous bridge to the JavaScript
-HostRuntime, which owns and updates the React-style tree. The production C
-client remains available as a reference oracle, but its framebuffer is not the
-interactive UI.
+the toridraw WASM component. The production default compiles the repository's
+existing `src/cs2vm2` C VM to WASM. Each C HOST request crosses a synchronous
+bridge to the JavaScript HostRuntime, which owns and updates the React-style
+tree. A review-gated TypeScript migration backend can run only complete
+core-only closures today; any unreviewed Host opcode keeps the whole session on
+C/WASM. The production C client remains available as a reference oracle, but
+its framebuffer is not the interactive UI.
 
 The same browser can open a Dat2 cache without an OSRS-Content checkout:
 
@@ -123,6 +124,67 @@ pixel/state/tree regression), `check` (type-check),
 `build:dry` (render and verify, write nothing), `verify` (build the CS2 tool,
 then run the tests).
 
+### Committed-tree React renderer
+
+`src/react_tree_renderer.js` is the actual React presentation boundary for the
+transactional tree migration. It consumes only a small external-store contract:
+`getRoots()`, `getNode(renderKey)`, and `subscribe(listener)`. Root arrays and
+per-node snapshots remain immutable and referentially stable between commits,
+so `useSyncExternalStore` can ignore a coarse store notification for every node
+that did not change. Stores may additionally expose targeted node/order
+subscriptions and a separate child-order snapshot, so reordering children does
+not invalidate their parent's fields. React keys are stable render keys, never
+transient VM ids. Pointer, wheel, and keyboard input is delegated once at the
+preview root and emitted as plain actions, avoiding per-widget handler closures
+and React synthetic events crossing into the runtime.
+
+The built-in renderers cover layers, rectangles, text, graphics, inventory,
+models, and lines. A registry can override them by renderer id, component name,
+widget type, or role; bitmap-font and toridraw renderers should use that seam.
+`src/react_tree_mount.js` supplies the browser `createRoot` wrapper. It is kept
+separate so worker-side and server-render tests do not import browser globals.
+
+`make react-runtime` bundles those normal React imports into the local
+`web/react_browser_runtime.js`; `npm start` builds it together with the C/WASM
+runtime and serves it at `/react-runtime.js`. The live cache-accurate painter is
+mounted inside `RetainedInterfaceStage`, so React owns the preview boundary and
+observes only final controller transactions while sprite/font/model DOM work
+remains cooperatively sliced. The same controller also implements the finer
+`ViewTreeStore` contract for authored per-widget React renderers.
+
+The same browser build compiles the exact Dat2 decoder, generated-semantics VM
+slice, and whole-closure router to `web/cs2_bytecode_decoder.js`,
+`web/cs2_vm_core.js`, and `web/cs2_engine_router.js`. The production mode is
+`wasm`; migration tests may request `auto` or `typescript`. `auto` uses
+TypeScript only when every declared entry, static hook, opcode-40 dependency,
+runtime-installed hook root, and interface group needed by `CC_CREATE` or
+`CC_FIND` is proven covered/preloaded. Until those proofs exist, `auto` selects
+C/WASM and explicit `typescript` rejects before Host/tree construction. There
+is no stateful mid-script fallback.
+
+To measure that migration boundary against real cache programs, run:
+
+```sh
+npm run audit:ts-backend
+node scripts/audit_ts_backend.js --filter bankmain,pirate_combilock,ca_tasks
+node scripts/audit_ts_backend.js --source content --filter bankmain
+node scripts/audit_ts_backend.js --all --compact > coverage.json
+npm run test:ca-tasks
+```
+
+The default audit is intentionally limited to the three named regression
+interfaces; `--all` is required for the 968-interface corpus. Stdout is stable
+JSON. It separates decoded registry records, unique entry-reachable scripts,
+and the sum of per-entry closures, and lists wire-known but unsupported core
+opcodes, schema-only Host opcodes, unresolved dynamic hook installers, and
+missing GOSUB targets. A Host row is not reported as executable until its
+generated `executableReviewed` gate and a real TypeScript implementation both
+pass whole-closure routing. The `ca_tasks` differential command exercises the
+exact Dat2 mount, hot redraw, filter-button interaction, and follow-up tick. It
+currently proves that auto mode safely uses the C/WASM fallback; TypeScript
+timing remains skipped until the timer closure installed as script 5244 is
+reviewed and admitted.
+
 ## Why it is shaped this way
 
 **CS2 output is source, not bytecode.** `RSCache_CS2_Compile` already exists and
@@ -131,9 +193,11 @@ diff, step through in the decompiler's dialect, and patch by hand. Every script
 this tool generates is handed to the real compiler (`3rd/rscache/tools/cs2/cs2`)
 *before* anything is written, so a tree never holds source that cannot bake.
 
-**React runs at build time, not in the client.** There is no reconciler in the
-game. The compiler renders the component once, splits every prop into two piles,
-and the split is the whole reactivity model:
+**Authored React still compiles at build time; preview React runs in the tool.**
+There is no React reconciler in the game client. The compiler renders the
+authored component once, splits every prop into two piles, and the split is the
+shipping reactivity model. Separately, the local development page uses React as
+a renderer over immutable committed tree snapshots:
 
 - a prop holding a plain value becomes a **field in the `.if`** and costs nothing
   at runtime;
@@ -298,8 +362,10 @@ would be authoring something the format does not have.
 - No common-subexpression elimination — an expression used by two props of one
   component is emitted twice.
 - If no original or compiled `.cs2b` is available, the preview says that scripts
-  are not running. There is no JavaScript bytecode VM or silent engine switch;
-  original Dat2 clientscript bytes run directly in the C CS2VM/WASM runtime.
+  are not running. Original Dat2 clientscript bytes currently remain on the C
+  CS2VM/WASM reference path. The generated-semantics TypeScript VM is selected
+  only for a completely supported script closure; there is no silent or
+  stateful mid-invocation engine switch.
 
 ## Layout of the source
 
@@ -309,6 +375,7 @@ would be authoring something the format does not have.
 | `src/transform.js` | TypeScript → executable module, with operators rewritten |
 | `src/loader.js` | runs a component in a `vm` context to find out what it draws |
 | `src/runtime.js` | what a `.tsx` imports: elements, hooks, actions |
+| `src/react_tree_renderer.js`, `src/react_tree_mount.js` | real React external-store preview renderer and browser mount boundary |
 | `src/components.js` | every element and prop, and the field/command each maps to |
 | `src/ops.js` | the operation vocabulary and argument orders |
 | `src/ir.js` | lowering: the static/dynamic split, hooks, scripts |
@@ -318,7 +385,8 @@ would be authoring something the format does not have.
 | `src/eval.js` | evaluating the IR against made-up state |
 | `src/preview.js` | the client's IF3 layout, ported |
 | `src/content.js` | `.if`/`.compack` → preview IR and read-only React-style TSX |
-| `src/bytecode.js` | original/compiled `.cs2b` program transport for the C VM |
+| `src/bytecode.js` | exact original/compiled `.cs2b` program transport |
+| `src/cs2_bytecode_decoder.ts`, `src/cs2_engine_router.ts` | strict Dat2 decoding and fail-closed whole-closure backend selection |
 | `src/wasm_runtime.js` | browser adapter for the C VM ABI and synchronous HOST bridge |
 | `src/host_runtime.js`, `src/host_data.js` | JavaScript HOST implementation over the live React-style tree |
 | `src/host_activity.js`, `src/host_chat_social.js` | bounded highlight/client-op and chat/social state plus service intents |

@@ -52,6 +52,38 @@ function lowGroupHost(options = {}) {
     }, { viewport: { width: 128, height: 96 }, ...options });
 }
 
+/* VM references identify one incarnation; renderer keys identify a logical
+ * parent/sub-id slot. Rebuilding both levels must preserve React ownership
+ * without making either retired C handle valid again. */
+{
+    const host = lowGroupHost();
+    const staticRef = host.ref('root');
+    assert.equal(host.renderKey(staticRef), staticRef.key,
+        'a static file did not retain its logical renderer identity');
+
+    const first = host.createChild('root', IF_TYPE.layer, 7);
+    const firstNested = host.createChild(first, IF_TYPE.text, -1);
+    const firstRenderKey = host.renderKey(first);
+    const nestedRenderKey = host.renderKey(firstNested);
+    host.delete(first);
+
+    const replacement = host.createChild('root', IF_TYPE.layer, 7);
+    const replacementNested = host.createChild(replacement, IF_TYPE.graphic, -1);
+    assert.notEqual(replacement.key, first.key);
+    assert.notEqual(replacement.generation, first.generation);
+    assert.equal(host.resolve(first), null);
+    assert.equal(host.resolve(firstNested), null);
+    assert.equal(host.renderKey(first), null);
+    assert.equal(host.renderKey(firstNested), null);
+    assert.equal(host.renderKey(replacement), firstRenderKey);
+    assert.equal(host.renderKey(replacementNested), nestedRenderKey);
+
+    const snapshot = host.snapshot();
+    assert(snapshot.boxes.every((box) => !Object.hasOwn(box, 'renderKey') &&
+        !Object.hasOwn(box.ref || {}, 'renderKey')),
+    'renderer identity leaked into canonical HOST snapshot boxes or refs');
+}
+
 const DB_HOST_DATA = Object.freeze({
     dbTables: {
         3: {
@@ -103,6 +135,116 @@ function packed(records) {
             words[base + 2 + word] = record.args[word];
     }
     return words;
+}
+
+function packedCreate(host, parentId, type, subId) {
+    const words = new Int32Array(RECORD_WORDS);
+    words[0] = 100;
+    words[1] = parentId | 0;
+    words[2] = type;
+    words[3] = subId;
+    words[7] = 0x7ffffffe;
+    words[8] = parentId | 0;
+    host.requestFastPackedBatch(words, 1, new Uint8Array(0));
+    return words[6];
+}
+
+/* Packed-created rows keep complete native/component identity while their two
+ * public string indexes remain deferred. Parent traversal must therefore use
+ * metadata, and the first name/layout observer must publish all live rows. */
+{
+    const host = lowGroupHost({ recordChanges: false });
+    const rootId = host.ref('root').componentId;
+    const parentId = packedCreate(host, rootId, IF_TYPE.layer, 7);
+    const nestedId = packedCreate(host, parentId, IF_TYPE.text, -1);
+    const root = host._component('root');
+    const parent = host.dynamicChildren.get(root).get(7);
+    const nested = host.dynamicChildren.get(parent).get(-1);
+
+    assert.equal(parent.layer, root.fileId);
+    assert.equal(nested.layer, parent.fileId);
+    assert.strictEqual(host.meta.get(nested).parent, parent);
+    assert.equal(host.byName.has(parent.name), false);
+    assert.equal(host.byName.has(nested.name), false);
+    assert.equal(host.byFileId.has(parent.fileId), false);
+    assert.equal(host.byFileId.has(nested.fileId), false);
+    assert.equal(host.read('IF_GETLAYER', nestedId).componentId, parentId,
+        'IF_GETLAYER depended on a deferred file-id index');
+    assert.equal(host.pendingPublicIndexes.length, 2);
+
+    const nestedView = host.resolve(nested.name);
+    assert.equal(nestedView.ref.componentId, nestedId);
+    assert.equal(nestedView.parent.componentId, parentId);
+    assert.strictEqual(host.byName.get(parent.name), parent);
+    assert.strictEqual(host.byName.get(nested.name), nested);
+    assert.strictEqual(host.byFileId.get(parent.fileId), parent);
+    assert.strictEqual(host.byFileId.get(nested.fileId), nested);
+    assert.equal(host.pendingPublicIndexes.length, 0);
+}
+
+/* A packed row can die before any public observer and its pooled object can be
+ * reused before publication. Removal keeps the pending queue dense, and only
+ * the pooled object's latest live incarnation may be indexed. */
+{
+    const host = lowGroupHost({ recordChanges: false });
+    const rootId = host.ref('root').componentId;
+    packedCreate(host, rootId, IF_TYPE.graphic, 4);
+    const root = host._component('root');
+    const first = host.dynamicChildren.get(root).get(4);
+    const retiredFileId = first.fileId;
+    const slotName = first.name;
+    host.deleteAll('root');
+    assert.equal(host.byName.has(slotName), false);
+    assert.equal(host.byFileId.has(retiredFileId), false);
+    assert.equal(host.pendingPublicIndexes.length, 0);
+
+    packedCreate(host, rootId, IF_TYPE.graphic, 4);
+    const replacement = host.dynamicChildren.get(root).get(4);
+    assert.strictEqual(replacement, first, 'fixture did not exercise pooled-object reuse');
+    const replacementFileId = replacement.fileId;
+    assert.notEqual(replacementFileId, retiredFileId);
+    assert.equal(host.pendingPublicIndexes.length, 1);
+
+    const boxes = host.renderSnapshot().boxes;
+    assert(boxes.some((box) => box.ref?.componentId === host.meta.get(replacement).componentId));
+    assert.strictEqual(host.byName.get(slotName), replacement);
+    assert.equal(host.byFileId.has(retiredFileId), false);
+    assert.strictEqual(host.byFileId.get(replacementFileId), replacement);
+    assert.equal(host.pendingPublicIndexes.length, 0);
+}
+
+/* A public child can be created beneath a still-private packed parent. The
+ * generic indexer must materialize that parent's logical renderer identity;
+ * concatenating its lazy null field would permanently create `null/cc:n`. */
+{
+    const host = lowGroupHost({ recordChanges: false });
+    const rootRef = host.ref('root');
+    const packedParentId = packedCreate(host, rootRef.componentId, IF_TYPE.layer, 9);
+    const packedParentRef = host.ref(packedParentId);
+    const publicChild = host.createChild(packedParentRef, IF_TYPE.text, 3);
+    const parentRenderKey = `${host.renderKey(rootRef)}/cc:9`;
+    assert.equal(host.renderKey(packedParentRef), parentRenderKey);
+    assert.equal(host.renderKey(publicChild), `${parentRenderKey}/cc:3`);
+}
+
+/* Publication validates the complete pending batch before changing either
+ * public map. Even malformed/internal duplicate identity cannot expose a
+ * partially-indexed tree to the renderer. */
+{
+    const host = lowGroupHost({ recordChanges: false });
+    const rootId = host.ref('root').componentId;
+    packedCreate(host, rootId, IF_TYPE.text, 1);
+    packedCreate(host, rootId, IF_TYPE.text, 2);
+    const root = host._component('root');
+    const first = host.dynamicChildren.get(root).get(1);
+    const second = host.dynamicChildren.get(root).get(2);
+    second.name = first.name;
+    assert.throws(() => host.layout(),
+        (error) => error instanceof HostRuntimeError && error.code === 'BAD_IR');
+    assert.equal(host.byName.has(first.name), false);
+    assert.equal(host.byFileId.has(first.fileId), false);
+    assert.equal(host.byFileId.has(second.fileId), false);
+    assert.equal(host.pendingPublicIndexes.length, 2);
 }
 
 /* Dynamic child slots are native signed ints, independent from the bounded
@@ -418,6 +560,13 @@ for( const mode of ['generic', 'named-fast', 'packed-fast'] ) {
     assert.equal(host.component(rootWire).name, 'root');
     assert.equal(host.component(childWire).name, 'root[7]');
     assert.deepEqual([...host.fastHostChildrenSnapshot(rootWire)], [7, childWire]);
+    const borrowedChildren = new Int32Array(7).fill(0x12345678);
+    assert.equal(host.fastHostAllChildrenWrite(borrowedChildren, 2, 0), 1);
+    assert.deepEqual([...borrowedChildren], new Array(7).fill(0x12345678),
+        'the count-only borrowed query wrote into WASM memory');
+    assert.equal(host.fastHostAllChildrenWrite(borrowedChildren, 2, 1), 1);
+    assert.deepEqual([...borrowedChildren.slice(2, 5)], [rootWire, 7, childWire],
+        'the borrowed global child table diverged from the canonical snapshot');
 
     if( mode === 'generic' ) {
         host.request({ kind: 'CC_FIND', parent_id: rootWire, sub_id: 7, dot_operand: 0 });

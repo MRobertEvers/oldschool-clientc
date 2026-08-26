@@ -20,6 +20,7 @@ import { lower, Cs2domError } from './ir.js';
 import { emitInterface, emitCompack } from './emit_if.js';
 import { emitScript } from './emit_cs2.js';
 import { Ledger } from './ledger.js';
+import { packName } from './pack.js';
 
 const MARKER = 'cs2dom';
 
@@ -227,7 +228,8 @@ export function readCompack(path) {
         const split = line.indexOf('=');
         if( split < 0 ) continue;
         const id = Number.parseInt(line.slice(0, split), 10);
-        if( !Number.isNaN(id) ) byName.set(line.slice(split + 1).trim(), id);
+        const name = packName(line.slice(split + 1));
+        if( !Number.isNaN(id) && name ) byName.set(name, id);
     }
     return byName;
 }

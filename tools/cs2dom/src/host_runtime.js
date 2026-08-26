@@ -33,14 +33,36 @@ import {
     setWorldMapDisplayPixelSize, snapshotWorldMapState,
 } from './host_worldmap.js';
 import { OPS } from './ops.js';
+import { resolveProps } from './eval.js';
 import {
+    axisFromPositionMode, dimFromParentMode,
     layout as resolveLayout, layoutBox, layoutGeometry, layoutVisibility,
 } from './preview.js';
+import { TREE_DELTA_SCHEMA, TREE_DIRTY } from './ui_tree_store.js';
 
 const FAST_DB_ITERATOR_MAX = 65536;
 const DB_ITERATOR_WRITES = new Set([
     'DB_FIND_WITH_COUNT', 'DB_FINDNEXT', 'DB_FINDALL_WITH_COUNT',
     'DB_FIND_FILTER_WITH_COUNT', 'DB_FIND', 'DB_FINDALL', 'DB_FIND_FILTER',
+]);
+
+/* Dirty projection is deliberately fail-closed. Only component-local paint
+ * and interaction fields can be reconstructed with a single layoutBox() walk;
+ * anything which can move, clip, reveal, create, delete, or expression-drive
+ * another node retains the full layout projector as its correctness oracle. */
+const TREE_DIRTY_CATEGORIES = Object.freeze(Object.values(TREE_DIRTY));
+const TREE_GEOMETRY_OPS = new Set([
+    'if_setposition', 'if_setsize', 'if_setscrollpos', 'if_setscrollsize',
+]);
+const TREE_VISIBILITY_OPS = new Set(['if_sethide']);
+const TREE_INTERACTION_OPS = new Set([
+    'if_setop', 'if_clearops', 'if_setopbase', 'if_setopsubmenu',
+    'if_clearopsubmenu', 'if_settargetverb', 'if_settargetpriority',
+    'if_setcomponentparam', 'if_setopkey', 'if_setopkeyrate',
+    'if_setopkeyignoreheld', 'if_setdraggable', 'if_setdragdeadzone',
+    'if_setdragdeadtime', 'if_setdraggablebehavior', 'if_setnoclickthrough',
+    'if_setnoscrollthrough', 'if_setpinch', 'if_setclickmask',
+    'if_setopforceleftclick',
 ]);
 
 export const HOST_RUNTIME_SCHEMA = 'cs2dom-host/1';
@@ -618,7 +640,13 @@ export class HostRuntime {
         this.limits = limits(options.limits);
         this.ir = cloneInterface(ir);
         this.interfaceId = integer(ir.interfaceId, 0);
+        /* `version` remains the native-compatible per-mutation clock used by
+         * read/layout caches and retained change history. `commitRevision` is
+         * the renderer clock: it advances once after an outer HOST operation
+         * and all of its deferred component work reach a fixed point. */
         this.version = 0;
+        this.commitRevision = 0;
+        this.committedMutationVersion = 0;
         this.epoch = 0;
         this.cycle = 0;
         this.mounted = false;
@@ -628,6 +656,11 @@ export class HostRuntime {
         this.nextGeneration = 1;
         this.sequence = 0;
         this.operationDepth = 0;
+        this.directInvocationDepth = 0;
+        this.directInvocationOwnsBoundary = false;
+        this.directInvocationOwnsFastTouches = false;
+        this.directInvocationOwnsFastDeletes = false;
+        this.directInvocationError = null;
         this.dispatchDepth = 0;
         this.invocations = 0;
         this.recordChanges = options.recordChanges !== false;
@@ -641,10 +674,23 @@ export class HostRuntime {
         this.changeLog = [];
         this.changeLogHead = 0;
         this.structureRevision = 0;
+        this.treeDeltaRevision = 0;
+        this.treeDeltaFull = false;
+        this.treeDeltaFallbackReason = null;
+        this.treeViewportDirty = false;
+        this.treeDirty = createTreeDirtySets();
         this.meta = new WeakMap();
         this.byKey = new Map();
+        this.byRenderKey = new Map();
         this.byName = new Map();
         this.byFileId = new Map();
+        /* Packed redraws create thousands of short-lived rows before React can
+         * observe them. Their component records and native identities are
+         * complete immediately, but publishing two public lookup entries per
+         * row is wasted work when a later packed record replaces/deletes the
+         * row in the same transaction. Keep a dense creation-order queue and
+         * flush it only at a lookup/layout observation boundary. */
+        this.pendingPublicIndexes = [];
         this.byUid = new Map();
         /* CC_FIND is one of the hottest bank redraw operations. Keep the
          * native parent/sub-id identity indexed instead of rediscovering it by
@@ -730,6 +776,7 @@ export class HostRuntime {
 
     /** Current paint-order boxes. Each box carries the stable component ref. */
     layout() {
+        this._publishPendingPublicIndexes();
         if( this.layoutVersion === this.version ) return this.layoutCache;
         const raw = resolveLayout(
             this.ir, this.state, this.viewport, null, this.structureRevision);
@@ -747,8 +794,14 @@ export class HostRuntime {
         return this.layoutCache;
     }
 
+    /** Alias used by transactional tree/VM adapters without changing legacy version semantics. */
+    get mutationVersion() {
+        return this.version;
+    }
+
     /** Serializable React renderer/state-tree snapshot. */
     snapshot() {
+        this._publishPendingPublicIndexes();
         this._retireInvisibleInteraction();
         return {
             schema: HOST_RUNTIME_SCHEMA,
@@ -790,6 +843,7 @@ export class HostRuntime {
      * clone perform the one necessary copy instead of cloning it twice.
      */
     renderSnapshot({ detached = true } = {}) {
+        this._publishPendingPublicIndexes();
         this._retireInvisibleInteraction();
         return {
             version: this.version,
@@ -798,18 +852,87 @@ export class HostRuntime {
         };
     }
 
+    /**
+     * Consume the renderer mutations committed since the previous call.
+     *
+     * `upsert` remains empty here because HostRuntime owns mutable VM records,
+     * while immutable paint boxes are projected on demand by projectRenderKey.
+     * The record otherwise follows the shared TreeDelta schema and is sealed
+     * only after a successful outer HOST boundary. A `full` projection is an
+     * explicit instruction to use layout(); callers must never reinterpret it
+     * as a dirty-only update.
+     */
+    consumeTreeDelta() {
+        if( this.commitRevision <= this.treeDeltaRevision ) return null;
+        const dirty = {};
+        let dirtyCount = 0;
+        for( const category of TREE_DIRTY_CATEGORIES ) {
+            const values = Object.freeze([...this.treeDirty[category]]);
+            dirty[category] = values;
+            dirtyCount += values.length;
+        }
+        const baseRevision = this.treeDeltaRevision;
+        const projection = this.treeDeltaFull ? 'full' : dirtyCount ? 'dirty' : 'none';
+        const delta = Object.freeze({
+            schema: TREE_DELTA_SCHEMA,
+            baseRevision,
+            revision: this.commitRevision,
+            mutationVersion: this.committedMutationVersion,
+            upsert: Object.freeze([]),
+            remove: Object.freeze([]),
+            order: Object.freeze([]),
+            reorderParents: Object.freeze([]),
+            dirty: Object.freeze(dirty),
+            dirtyGeometryRoots: dirty[TREE_DIRTY.GEOMETRY],
+            projection,
+            ...(this.treeDeltaFallbackReason
+                ? { fallbackReason: this.treeDeltaFallbackReason } : {}),
+            ...(this.treeViewportDirty ? { viewport: Object.freeze({ ...this.viewport }) } : {}),
+        });
+        this.treeDeltaRevision = this.commitRevision;
+        this.treeDeltaFull = false;
+        this.treeDeltaFallbackReason = null;
+        this.treeViewportDirty = false;
+        for( const category of TREE_DIRTY_CATEGORIES ) this.treeDirty[category].clear();
+        return delta;
+    }
+
+    /** Exact single-node projector used only for proven dirty categories. */
+    projectRenderKey(renderKey) {
+        this._publishPendingPublicIndexes();
+        const component = this.byRenderKey.get(String(renderKey)) || null;
+        if( !component || !this.meta.has(component) ) return null;
+        const box = layoutBox(
+            this.ir, this.state, this.viewport, component, null, this.structureRevision);
+        if( !box ) return null;
+        box.ref = this.ref(component);
+        box.presentation = this._presentation(component);
+        return box;
+    }
+
     /** Stable identity. Generation fences deletion/recreation of a dynamic slot. */
     ref(value) {
         const component = this._component(value, false);
         if( !component ) return null;
-        return this.meta.get(component).ref;
+        return this._materializeRef(component);
+    }
+
+    /**
+     * Renderer identity is the logical UI slot, not the transient VM handle.
+     * A stale ref deliberately resolves to null even when its former slot has
+     * since been recreated: generation fencing remains entirely authoritative
+     * for script-side component access.
+     */
+    renderKey(value) {
+        const component = this._component(value, false);
+        return component ? this._materializeRenderKey(component) : null;
     }
 
     component(value) {
+        this._publishPendingPublicIndexes();
         const component = this._component(value);
         const meta = this.meta.get(component);
-        const parent = component.layer === null || component.layer === undefined
-            ? null : this.byFileId.get(component.layer) || null;
+        const parent = this._parentOf(component);
         return {
             ref: this.ref(component),
             fileId: meta.publicFileId,
@@ -845,7 +968,8 @@ export class HostRuntime {
     }
 
     activeRef({ dot = false } = {}) {
-        return dot ? this.dotActive : this.active;
+        const active = dot ? this.dotActive : this.active;
+        return active ? this.ref(active) : null;
     }
 
     /** Change the React stage dimensions and invalidate every resolved box. */
@@ -882,7 +1006,7 @@ export class HostRuntime {
             case 'if_gethide': return Boolean(component.static.hidden);
             case 'if_gettext': return component.static.text ?? '';
             case 'if_getlayer': return component.layer === null ? -1
-                : this.ref(this.byFileId.get(component.layer));
+                : this.ref(this._parentOf(component));
             case 'if_getop': return component.ops?.find((entry) => entry.index === Number(index))?.text || '';
             case 'if_getopbase': return component.runtime.opBase;
             case 'if_gettrans': return component.static.transparency ?? 0;
@@ -1270,7 +1394,7 @@ export class HostRuntime {
             changedProps.push(prop);
             if( changed ) changed[prop] = value;
         }
-        if( changedProps.length === 0 ) return this.meta.get(component).ref;
+        if( changedProps.length === 0 ) return this.ref(component);
         /* Runtime component fields are authoritative until a later script
          * writes them. Remove overwritten expressions once per operation;
          * object setters can change ten fields and used to allocate ten
@@ -1386,10 +1510,13 @@ export class HostRuntime {
             component.ops.sort((left, right) => left.index - right.index);
         }
         if( this.recordChanges ) this._record({
-            kind: 'component', ref: this.meta.get(component).ref,
+            kind: 'component', ref: this.ref(component),
             op: 'if_setop', index, text,
         });
-        else this._touch();
+        else {
+            this._markTreeComponent(component, TREE_DIRTY.INTERACTION);
+            this._touch(true, true);
+        }
     }
 
     _fastSetOpBase(component, rawText) {
@@ -1397,10 +1524,13 @@ export class HostRuntime {
         if( component.runtime.opBase === text ) return;
         component.runtime.opBase = text;
         if( this.recordChanges ) this._record({
-            kind: 'component', ref: this.meta.get(component).ref,
+            kind: 'component', ref: this.ref(component),
             op: 'if_setopbase', text,
         });
-        else this._touch();
+        else {
+            this._markTreeComponent(component, TREE_DIRTY.INTERACTION);
+            this._touch(true, true);
+        }
     }
 
     _fastSetObject(component, objectId, count, numberMode) {
@@ -1481,12 +1611,13 @@ export class HostRuntime {
     }
 
     _fastChangedComponent(component, op, props, returnRef = true) {
-        const ref = this.recordChanges || returnRef ? this.meta.get(component).ref : undefined;
+        const ref = this.recordChanges || returnRef ? this.ref(component) : undefined;
         if( this.recordChanges ) {
             this._record({ kind: 'component', ref, op, props });
             return returnRef ? ref : undefined;
         }
-        this._touch();
+        this._markTreeComponent(component, treeDirtyForOperation(op));
+        this._touch(true, true);
         return returnRef ? ref : undefined;
     }
 
@@ -1514,10 +1645,13 @@ export class HostRuntime {
         for( const alias of aliases ) delete component.hooks[alias];
         if( binding ) component.hooks[exact] = binding;
         if( this.recordChanges ) this._record({
-            kind: 'hook', ref: this.meta.get(component).ref,
+            kind: 'hook', ref: this.ref(component),
             hook: exact, canonical: descriptor.canonical, scriptId: records[base + 2],
         });
-        else this._touch();
+        else {
+            this._markTreeComponent(component, TREE_DIRTY.INTERACTION);
+            this._touch(true, true);
+        }
     }
 
     /* CC_CREATE is followed by setters targeting its batch-local token in the
@@ -1822,7 +1956,10 @@ export class HostRuntime {
         if( this.recordChanges ) this._record({
             kind: 'create', ref, parent: this.meta.get(parent).ref, type, subId,
         });
-        else this._touch();
+        else {
+            this._markTreeFull('topology-create');
+            this._touch(true, true);
+        }
         this.setActive(component, { dot });
         return ref;
     }
@@ -1889,13 +2026,18 @@ export class HostRuntime {
         }
         this.ir.components.push(component);
         this.structureRevision++;
-        this._indexDynamic(
+        const componentMeta = this._fastIndexDynamic(
             component, parent, subId, component[RECYCLED_DYNAMIC_META] || null);
         this.dynamicCount++;
-        const ref = this.meta.get(component).ref;
-        this._touch();
-        if( dot ) this.dotActive = ref;
-        else this.active = ref;
+        this._markTreeFull('topology-create');
+        this.fastTouchCount++;
+        /* Packed C code consumes the fresh UID, not the public JS ref. Keep the
+         * active target as the live component until a public observer asks for
+         * a ref, avoiding a frozen object and transient key for every row that
+         * is immediately superseded by the next CC_CREATE. */
+        if( dot ) this.dotActive = component;
+        else this.active = component;
+        component[RECYCLED_DYNAMIC_META] = componentMeta;
         return component;
     }
 
@@ -1997,7 +2139,7 @@ export class HostRuntime {
         for( const component of doomed ) {
             const meta = this.meta.get(component);
             if( meta?.dynamic ) {
-                const parent = this.byFileId.get(component.layer);
+                const parent = this._parentOf(component);
                 const siblings = parent && this.dynamicChildren.get(parent);
                 if( siblings?.get(meta.subId) === component ) siblings.delete(meta.subId);
                 if( siblings?.size === 0 ) this.dynamicChildren.delete(parent);
@@ -2006,9 +2148,14 @@ export class HostRuntime {
         }
         for( const component of doomed ) {
             const meta = this.meta.get(component);
+            this._removePendingPublicIndex(component, meta);
             this.byKey.delete(meta.key);
-            this.byName.delete(component.name);
-            this.byFileId.delete(component.fileId);
+            if( meta.renderKey && this.byRenderKey.get(meta.renderKey) === component )
+                this.byRenderKey.delete(meta.renderKey);
+            if( this.byName.get(component.name) === component )
+                this.byName.delete(component.name);
+            if( this.byFileId.get(component.fileId) === component )
+                this.byFileId.delete(component.fileId);
             if( meta.componentId !== null && this.byUid.get(meta.componentId) === component )
                 this.byUid.delete(meta.componentId);
             this.dynamicCount -= Number(meta.dynamic);
@@ -2023,10 +2170,15 @@ export class HostRuntime {
                 pool.push(component);
             }
         }
-        if( this.active && refs.some((ref) => sameRef(ref, this.active)) ) this.active = null;
-        if( this.dotActive && refs.some((ref) => sameRef(ref, this.dotActive)) ) this.dotActive = null;
+        if( this.active && (doomed.has(this.active) ||
+            refs.some((ref) => sameRef(ref, this.active))) ) this.active = null;
+        if( this.dotActive && (doomed.has(this.dotActive) ||
+            refs.some((ref) => sameRef(ref, this.dotActive))) ) this.dotActive = null;
         if( this.recordChanges ) this._record({ kind: 'delete', refs });
-        else this._touch();
+        else {
+            this._markTreeFull('topology-delete');
+            this._touch(true, true);
+        }
         this._retireDeletedInteraction(refs);
         return refs;
     }
@@ -2039,6 +2191,7 @@ export class HostRuntime {
      * those exact component objects. Paint order remains unchanged because the
      * replacement itself is still appended like native UITree_CcCreate. */
     _deleteForFastReplace(component) {
+        const parent = this._parentOf(component);
         const descendants = this.dynamicChildren.get(component);
         let doomed = null;
         if( descendants?.size ) {
@@ -2053,20 +2206,24 @@ export class HostRuntime {
             const target = doomed ? doomed[index] : component;
             const meta = this.meta.get(target);
             const ref = meta.ref;
+            this._removePendingPublicIndex(target, meta);
             this.fastDeletedComponents.add(target);
             this.dynamicChildren.delete(target);
             this.byKey.delete(meta.key);
-            this.byName.delete(target.name);
-            this.byFileId.delete(target.fileId);
+            if( meta.renderKey && this.byRenderKey.get(meta.renderKey) === target )
+                this.byRenderKey.delete(meta.renderKey);
+            if( this.byName.get(target.name) === target ) this.byName.delete(target.name);
+            if( this.byFileId.get(target.fileId) === target )
+                this.byFileId.delete(target.fileId);
             if( this.byUid.get(meta.componentId) === target ) this.byUid.delete(meta.componentId);
             this.dynamicCount--;
             this.meta.delete(target);
-            if( this.active && sameRef(ref, this.active) ) this.active = null;
-            if( this.dotActive && sameRef(ref, this.dotActive) ) this.dotActive = null;
-            if( sameRef(ref, this.interaction.hover) ) this.interaction.hover = null;
-            if( sameRef(ref, this.interaction.pressed) ) this.interaction.pressed = null;
+            if( this.active === target || (ref && sameRef(ref, this.active)) ) this.active = null;
+            if( this.dotActive === target || (ref && sameRef(ref, this.dotActive)) )
+                this.dotActive = null;
+            if( ref && sameRef(ref, this.interaction.hover) ) this.interaction.hover = null;
+            if( ref && sameRef(ref, this.interaction.pressed) ) this.interaction.pressed = null;
         }
-        const parent = this.byFileId.get(component.layer);
         const siblings = parent && this.dynamicChildren.get(parent);
         /* meta was removed above; the root's public sub-id is also the slot in
          * the parent's map, so identity removal avoids retaining it without
@@ -2087,7 +2244,8 @@ export class HostRuntime {
             this.interaction.dragPickupY = 0;
         }
         this.structureRevision++;
-        this._touch();
+        this._markTreeFull('topology-replace');
+        this._touch(true, true);
     }
 
     readState(kind, rawId) {
@@ -2186,6 +2344,53 @@ export class HostRuntime {
             }
         }
         return index === rows.length ? rows : rows.slice(0, index);
+    }
+
+    /**
+     * Write the global CC_FIND table directly into a borrowed WASM heap view.
+     * The C bridge may provide a provisional capacity and retry with the
+     * returned authoritative count; each call fills only that bounded prefix.
+     * No view is retained after this synchronous call.
+     */
+    fastHostAllChildrenWrite(target, offset, capacity) {
+        if( !(target instanceof Int32Array) || !Number.isInteger(offset) || offset < 0 ||
+            !Number.isInteger(capacity) || capacity < 0 || capacity > 65536 ||
+            offset + capacity * 3 > target.length )
+            throw new HostRuntimeError('malformed borrowed child table', 'BAD_REQUEST');
+        const count = this.dynamicCount;
+        if( count > this.limits.dynamicComponents ) throw new HostRuntimeError(
+            'dynamic child snapshot exceeds the configured limit', 'LIMIT');
+        if( capacity === 0 || count === 0 ) return count;
+        const limit = Math.min(count, capacity);
+        let written = 0;
+        let failure = null;
+        this.dynamicChildren.forEach((children, parent) => {
+            if( written >= limit || failure ) return;
+            const parentId = this.meta.get(parent)?.componentId;
+            if( !Number.isInteger(parentId) ) {
+                failure = new HostRuntimeError(
+                    'dynamic child table has a stale parent', 'STALE_REF');
+                return;
+            }
+            children.forEach((child, subId) => {
+                if( written >= limit || failure ) return;
+                const childId = this.meta.get(child)?.componentId;
+                if( !Number.isInteger(childId) ) {
+                    failure = new HostRuntimeError(
+                        'dynamic child table has a stale child', 'STALE_REF');
+                    return;
+                }
+                const base = offset + written * 3;
+                target[base] = parentId | 0;
+                target[base + 1] = subId | 0;
+                target[base + 2] = childId | 0;
+                written++;
+            });
+        });
+        if( failure ) throw failure;
+        if( limit === count && written !== count ) throw new HostRuntimeError(
+            'dynamic child count diverged from its index', 'STALE_REF');
+        return count;
     }
 
     fastHostValue(queryKind, key) {
@@ -2435,11 +2640,11 @@ export class HostRuntime {
                     let actual = -1;
                     if( parent ) {
                         const child = cachedParentChildren?.get(records[base + 2]) || null;
-                        const ref = child ? meta.get(child).ref : null;
-                        if( ref ) {
-                            if( records[base + 3] ) this.dotActive = ref;
-                            else this.active = ref;
-                            actual = ref.componentId | 0;
+                        const childMeta = child ? meta.get(child) : null;
+                        if( childMeta ) {
+                            if( records[base + 3] ) this.dotActive = child;
+                            else this.active = child;
+                            actual = childMeta.componentId | 0;
                             cachedComponentId = actual;
                             cachedComponent = child;
                         }
@@ -2452,8 +2657,16 @@ export class HostRuntime {
 
                 if( kind === FAST_HOST_KINDS.CC_CREATE ) {
                     const rawParentId = records[base + 1];
-                    const parent = byUid.get(rawParentId) ||
-                        (rawParentId < -1 ? byUid.get(rawParentId >>> 0) : null) || null;
+                    let parent;
+                    if( rawParentId === cachedParentId ) parent = cachedParent;
+                    else {
+                        parent = byUid.get(rawParentId) ||
+                            (rawParentId < -1 ? byUid.get(rawParentId >>> 0) : null) || null;
+                        cachedParentId = rawParentId;
+                        cachedParent = parent;
+                        cachedParentChildren = parent
+                            ? dynamicChildren.get(parent) || null : null;
+                    }
                     const previousId = records[base + 8];
                     const previousIsToken = Boolean(records[base + 9]);
                     const previousSerial = FAST_HOST_PENDING_TOKEN_MAX - previousId;
@@ -2487,8 +2700,7 @@ export class HostRuntime {
                     const child = this._fastCreatePackedChild(
                         parent, records[base + 2], records[base + 3],
                         Boolean(records[base + 5]));
-                    const ref = meta.get(child).ref;
-                    const actual = ref.componentId | 0;
+                    const actual = meta.get(child).componentId | 0;
                     records[base + 6] = actual;
                     createdBySerial[tokenSerial] = child;
                     cachedComponentId = actual;
@@ -2572,7 +2784,10 @@ export class HostRuntime {
                         if( this.recordChanges ) this._record({
                             kind: 'component', ref: meta.get(component).ref, op: 'if_clearops',
                         });
-                        else this._touch();
+                        else {
+                            this._markTreeComponent(component, TREE_DIRTY.INTERACTION);
+                            this._touch(true, true);
+                        }
                     }
                 } else if( kind === FAST_HOST_KINDS.CC_SETONDRAG ||
                     kind === FAST_HOST_KINDS.CC_SETONDRAGCOMPLETE ||
@@ -2617,6 +2832,455 @@ export class HostRuntime {
             return null;
         };
         return this.operationDepth > 0 ? apply() : this._boundary(apply);
+    }
+
+    /**
+     * Own one allocation-free TypeScript VM -> Host transaction. The router
+     * may call this while dispatch() already owns the outer Host boundary; in
+     * that case direct execution only owns its fast mutation batch and leaves
+     * deferred work and renderer publication to the existing boundary.
+     */
+    beginCS2DirectInvocation() {
+        if( this.directInvocationDepth++ > 0 ) return;
+        this.directInvocationOwnsBoundary = this.operationDepth === 0;
+        this.directInvocationError = null;
+        if( this.directInvocationOwnsBoundary ) {
+            this.invocations = 0;
+            this.operationDepth++;
+        }
+        this.directInvocationOwnsFastTouches =
+            !this.recordChanges && this.fastTouchCount === null;
+        if( this.directInvocationOwnsFastTouches ) this.fastTouchCount = 0;
+        this.directInvocationOwnsFastDeletes = this.fastDeletedComponents === null;
+        if( this.directInvocationOwnsFastDeletes ) this.fastDeletedComponents = new Set();
+    }
+
+    endCS2DirectInvocation(error = null) {
+        if( this.directInvocationDepth <= 0 ) throw new HostRuntimeError(
+            'direct CS2 invocation is not active', 'BAD_STATE');
+        if( error !== null && error !== undefined && this.directInvocationError === null )
+            this.directInvocationError = error;
+        if( --this.directInvocationDepth > 0 ) return;
+
+        const ownsBoundary = this.directInvocationOwnsBoundary;
+        const ownsFastTouches = this.directInvocationOwnsFastTouches;
+        const ownsFastDeletes = this.directInvocationOwnsFastDeletes;
+        const failed = this.directInvocationError !== null;
+        this.directInvocationOwnsBoundary = false;
+        this.directInvocationOwnsFastTouches = false;
+        this.directInvocationOwnsFastDeletes = false;
+        this.directInvocationError = null;
+        let completed = false;
+        try {
+            if( ownsFastDeletes ) {
+                const deleted = this.fastDeletedComponents;
+                this.fastDeletedComponents = null;
+                if( deleted.size ) this.ir.components = this.ir.components.filter(
+                    (component) => !deleted.has(component));
+            }
+            if( ownsFastTouches ) {
+                const touches = this.fastTouchCount;
+                this.fastTouchCount = null;
+                if( touches ) {
+                    this.version += touches;
+                    this.layoutVersion = -1;
+                    this.interactionVisibilityDirty = true;
+                }
+            }
+            completed = !failed;
+        } finally {
+            if( ownsBoundary ) {
+                try {
+                    if( completed ) this._settleSuccessfulBoundary();
+                } finally { this.operationDepth--; }
+            }
+        }
+    }
+
+    _directComponent(componentId) {
+        return this._component(componentId, false);
+    }
+
+    _directMutate(componentId, operation, values) {
+        const component = this._directComponent(componentId);
+        if( component ) this._mutate(operation, component, values);
+    }
+
+    _directSimple(componentId, operation, property, value, booleanValue = false) {
+        const component = this._directComponent(componentId);
+        if( component ) this._fastSetSimpleProp(
+            component, operation, property, value, booleanValue);
+    }
+
+    _directSetOn(componentId, eventName, scriptIdValue, signatureValue,
+        triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+        stringArgCount, stringArgs) {
+        const component = this._directComponent(componentId);
+        if( !component ) return;
+        const descriptor = definition(eventName);
+        const binding = directHookBinding(
+            scriptIdValue, signatureValue, triggerIds, triggerCount,
+            intArgs, intArgCount, stringMask, stringArgCount, stringArgs);
+        if( this.recordChanges ) {
+            this._setHook(component, descriptor, binding);
+            return;
+        }
+        component.hooks ||= {};
+        const exact = descriptor.canonical;
+        const aliases = hookAliases(descriptor);
+        let presentCount = 0;
+        let exactPresent = false;
+        for( const alias of aliases ) {
+            if( !Object.prototype.hasOwnProperty.call(component.hooks, alias) ) continue;
+            presentCount++;
+            exactPresent ||= alias === exact;
+        }
+        const installs = scriptId(binding) > 0;
+        if( installs && presentCount === 1 && exactPresent &&
+            hookBindingMatchesInput(component.hooks[exact], binding, this) ) return;
+        if( !installs && presentCount === 0 ) return;
+        const normalized = installs ? normalizeBinding(binding, this) : null;
+        if( normalized && presentCount === 1 && exactPresent &&
+            hookBindingsEqual(component.hooks[exact], normalized) ) return;
+        for( const alias of aliases ) delete component.hooks[alias];
+        if( normalized ) component.hooks[exact] = normalized;
+        this._markTreeComponent(component, TREE_DIRTY.INTERACTION);
+        this._touch(true, true);
+    }
+
+    PUSH_VARBIT(varbitId) {
+        return Number(this.readState('varbit', varbitId)) | 0;
+    }
+
+    PUSH_VARC_INT(varcId) {
+        return Number(this.readState('varc', varcId)) | 0;
+    }
+
+    CC_CREATE(parentId, componentType, childIndex, isNested, dotOperand,
+        parentIsSibling) {
+        let parent = this._directComponent(parentId);
+        /* Native attempts a synchronous group load before this Host handler.
+         * HostRuntime owns one already-mounted React tree and has no safe
+         * synchronous loader to invoke here. The native terminal behavior for
+         * an unavailable parent is success-without-target-change, represented
+         * by null; yielding or inventing an async retry would split the VM
+         * transaction and violate whole-closure execution. */
+        if( !parent ) return null;
+        if( parentIsSibling ) {
+            parent = this._parentOf(parent);
+            if( !parent ) throw new HostRuntimeError('sibling has no parent', 'BAD_REQUEST');
+        }
+        void isNested;
+        const component = !this.recordChanges && this.fastDeletedComponents
+            ? this._fastCreatePackedChild(
+                parent, componentType, childIndex, Boolean(dotOperand))
+            : this._component(this._createChild(
+                parent, componentType, childIndex, { dot: Boolean(dotOperand) }));
+        return this._directComponentRef(component);
+    }
+
+    CC_DELETEALL(componentId) {
+        const parent = this._directComponent(componentId);
+        if( parent ) this._deleteSet(new Set(this.dynamicChildren.get(parent)?.values() || []));
+    }
+
+    CC_FIND(parentId, subId, dotOperand) {
+        const parent = this._directComponent(parentId);
+        /* As with CC_CREATE, an absent companion group is the native terminal
+         * miss after synchronous loading has been attempted: push false and
+         * retain the previous implicit target. HostRuntime cannot safely yield
+         * the synchronous TypeScript VM to invent a later group-load retry. */
+        if( !parent ) return null;
+        const childIndex = finiteValue('child index', subId);
+        const found = this.dynamicChildren.get(parent)?.get(childIndex) || null;
+        if( !found ) return null;
+        /* Keep the Host target live and private just like packed C/WASM. The
+         * returned direct ref is generation-fenced but deliberately carries no
+         * public key; React/public observers materialize that only on demand. */
+        if( dotOperand ) this.dotActive = found;
+        else this.active = found;
+        return this._directComponentRef(found);
+    }
+
+    CC_SETPOSITION(componentId, x, y, xMode, yMode) {
+        const component = this._directComponent(componentId);
+        if( component ) this._fastSetPosition(component, x, y, xMode, yMode);
+    }
+
+    CC_SETSIZE(componentId, width, height, widthMode, heightMode) {
+        const component = this._directComponent(componentId);
+        if( component ) this._fastSetSize(component, width, height, widthMode, heightMode);
+    }
+
+    CC_SETHIDE(componentId, hidden) {
+        const component = this._directComponent(componentId);
+        if( component ) this._fastSetHidden(component, Boolean(hidden));
+    }
+
+    CC_SETNOCLICKTHROUGH(componentId, enabled) {
+        this._directSimple(componentId, 'if_setnoclickthrough',
+            'noClickThrough', enabled, true);
+    }
+
+    CC_SETSCROLLPOS(componentId, scrollX, scrollY) {
+        this._directMutate(componentId, 'if_setscrollpos', [scrollX, scrollY]);
+    }
+
+    CC_SETCOLOUR(componentId, colour) {
+        this._directSimple(componentId, 'if_setcolour', 'color', colour);
+    }
+
+    CC_SETFILL(componentId, filled) {
+        this._directSimple(componentId, 'if_setfill', 'fill', filled, true);
+    }
+
+    CC_SETTRANS(componentId, transparency) {
+        const component = this._directComponent(componentId);
+        if( component ) this._fastSetTransparency(component, transparency);
+    }
+
+    CC_SETGRAPHIC(componentId, graphicId) {
+        this._directSimple(componentId, 'if_setgraphic', 'sprite', graphicId);
+    }
+
+    CC_SETTILING(componentId, tiling) {
+        this._directSimple(componentId, 'if_settiling', 'tiled', tiling, true);
+    }
+
+    CC_SETTEXT(componentId, value) {
+        this._directSimple(componentId, 'if_settext', 'text', value);
+    }
+
+    CC_SETTEXTFONT(componentId, fontId) {
+        this._directSimple(componentId, 'if_settextfont', 'font', fontId);
+    }
+
+    CC_SETTEXTALIGN(componentId, horizontal, vertical, lineHeight) {
+        const component = this._directComponent(componentId);
+        if( component ) this._fastSetTextAlign(
+            component, horizontal, vertical, lineHeight);
+    }
+
+    CC_SETTEXTSHADOW(componentId, shadowed) {
+        this._directSimple(componentId, 'if_settextshadow', 'shadow', shadowed, true);
+    }
+
+    CC_SETOP(componentId, index, text) {
+        const component = this._directComponent(componentId);
+        if( component ) this._fastSetOp(component, index, text);
+    }
+
+    CC_SETDRAGGABLE(componentId, parentUid, childIndex) {
+        const component = this._directComponent(componentId);
+        if( !component ) return;
+        let dragParent = parentUid < 0 ? null : parentUid;
+        if( dragParent !== null && childIndex >= 0 && childIndex <= 0xffff )
+            dragParent = this.findChild(dragParent, childIndex, false) || dragParent;
+        this._mutate('if_setdraggable', component, [true, dragParent]);
+    }
+
+    CC_SETDRAGGABLEBEHAVIOR(componentId, behavior) {
+        this._directMutate(componentId, 'if_setdraggablebehavior', [behavior]);
+    }
+
+    CC_SETONCLICK(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_click', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    CC_SETONHOLD(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_hold', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    CC_SETONMOUSEOVER(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_mouse_over', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    CC_SETONMOUSELEAVE(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_mouse_leave', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    CC_SETONDRAG(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_drag', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    CC_SETONVARTRANSMIT(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_var_transmit', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    CC_SETONTIMER(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_timer', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    CC_SETONOP(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_op', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    CC_SETONDRAGCOMPLETE(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_drag_complete', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    CC_SETONMOUSEREPEAT(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_mouse_repeat', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    CC_SETONSCROLLWHEEL(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_scroll_wheel', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    CC_SETONKEY(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_key', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    CC_GETY(componentId) {
+        const component = this._directComponent(componentId);
+        return component ? this.read('if_gety', component) : 0;
+    }
+
+    CC_GETHEIGHT(componentId) {
+        const component = this._directComponent(componentId);
+        return component ? this.read('if_getheight', component) : 0;
+    }
+
+    CC_GETID(componentId) {
+        const component = this._directComponent(componentId);
+        return component ? this.meta.get(component).subId : -1;
+    }
+
+    CC_SETCOMPONENTPARAM(componentId, paramId, value, stringValue, valueKind) {
+        void valueKind;
+        this._directMutate(componentId, 'if_setcomponentparam',
+            [paramId, stringValue ?? value]);
+    }
+
+    IF_SETPOSITION(componentId, x, y, xMode, yMode) {
+        this.CC_SETPOSITION(componentId, x, y, xMode, yMode);
+    }
+
+    IF_SETSIZE(componentId, width, height, widthMode, heightMode) {
+        this.CC_SETSIZE(componentId, width, height, widthMode, heightMode);
+    }
+
+    IF_SETHIDE(componentId, hidden) {
+        this.CC_SETHIDE(componentId, hidden);
+    }
+
+    IF_SETSCROLLPOS(componentId, scrollX, scrollY) {
+        this.CC_SETSCROLLPOS(componentId, scrollX, scrollY);
+    }
+
+    IF_SETCOLOUR(componentId, colour) {
+        this.CC_SETCOLOUR(componentId, colour);
+    }
+
+    IF_SETOP(componentId, index, text) {
+        this.CC_SETOP(componentId, index, text);
+    }
+
+    IF_SETOPBASE(componentId, text) {
+        const component = this._directComponent(componentId);
+        if( component ) this._fastSetOpBase(component, text);
+    }
+
+    IF_SETONVARTRANSMIT(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_var_transmit', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    IF_SETONTIMER(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_timer', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    IF_SETONOP(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_op', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    IF_SETONSCROLLWHEEL(componentId, scriptIdValue, signature, triggerIds, triggerCount,
+        intArgs, intArgCount, stringMask, stringArgCount, stringArgs) {
+        this._directSetOn(componentId, 'on_scroll_wheel', scriptIdValue, signature,
+            triggerIds, triggerCount, intArgs, intArgCount, stringMask,
+            stringArgCount, stringArgs);
+    }
+
+    IF_GETWIDTH(componentId) {
+        const component = this._directComponent(componentId);
+        return component ? this.read('if_getwidth', component) : 0;
+    }
+
+    IF_GETHEIGHT(componentId) {
+        const component = this._directComponent(componentId);
+        return component ? this.read('if_getheight', component) : 0;
+    }
+
+    IF_GETSCROLLHEIGHT(componentId) {
+        const component = this._directComponent(componentId);
+        return component ? this.read('if_getscrollheight', component) : 0;
+    }
+
+    IF_SETPARAM(componentId, paramId, value, stringValue, valueKind) {
+        void valueKind;
+        this._directMutate(componentId, 'if_setcomponentparam',
+            [paramId, stringValue ?? value]);
+    }
+
+    CLIENTCLOCK(_unused) {
+        return this.clientClock | 0;
+    }
+
+    ENUM(inputType, outputType, enumId, key) {
+        void inputType;
+        return this._enumValue(enumId, key, outputType);
+    }
+
+    ENUM_GETOUTPUTCOUNT(enumId) {
+        return this._enumOutputCountValue(enumId);
+    }
+
+    STRUCT_PARAM(structId, paramId) {
+        return this._structParamValue(structId, paramId);
     }
 
     request(kindOrRequest, payload = {}) {
@@ -2840,7 +3504,7 @@ export class HostRuntime {
             if( !parent ) throw new HostRuntimeError(
                 'component reference is missing or stale', 'STALE_REF');
             if( kind === 'CC_CREATESIBLING' || request.parentIsSibling || request.parent_is_sibling ) {
-                parent = this.byFileId.get(parent.layer) || null;
+                parent = this._parentOf(parent);
                 if( !parent ) throw new HostRuntimeError('sibling has no parent', 'BAD_REQUEST');
             }
             return this._createChild(parent,
@@ -2901,7 +3565,7 @@ export class HostRuntime {
         }
         if( kind === 'CC_PARENTID' ) {
             const component = this._component(targetOf(request, this, kind));
-            const parent = this.byFileId.get(component.layer) || null;
+            const parent = this._parentOf(component);
             return parent ? this.ref(parent) : null;
         }
         if( kind === 'IF_GETTOP' ) return this.interfaceId;
@@ -3741,7 +4405,7 @@ export class HostRuntime {
     _buttonTarget(component) {
         const meta = this.meta.get(component);
         if( !meta?.dynamic ) return { componentId: meta?.componentId ?? -1, subId: -1 };
-        const parent = this.byFileId.get(component.layer) || null;
+        const parent = this._parentOf(component);
         const parentMeta = parent && this.meta.get(parent);
         return {
             componentId: parentMeta?.componentId ?? meta.componentId,
@@ -4232,11 +4896,11 @@ export class HostRuntime {
 
     _defaultButtonComponent(leaf, resolvedComponent = null) {
         for( let component = leaf; component;
-             component = this.byFileId.get(component.layer) || null )
+             component = this._parentOf(component) )
             if( finiteOptional(component.static?.objectId, 0) > 0 ) return component;
         if( resolvedComponent ) return resolvedComponent;
         for( let component = leaf; component;
-             component = this.byFileId.get(component.layer) || null )
+             component = this._parentOf(component) )
             if( component.ops?.some((op) => op.index === 1) ) return component;
         return null;
     }
@@ -4297,7 +4961,7 @@ export class HostRuntime {
     }
 
     _resolveAncestorHook(leaf, ...descriptors) {
-        for( let component = leaf; component; component = this.byFileId.get(component.layer) || null ) {
+        for( let component = leaf; component; component = this._parentOf(component) ) {
             for( const descriptor of descriptors ) {
                 const hook = this._resolveHook(component, descriptor);
                 if( hook ) return { component, hook };
@@ -4363,7 +5027,7 @@ export class HostRuntime {
         const leaf = this._hit(x, y);
         if( !leaf ) return [];
         const result = [];
-        for( let component = leaf; component; component = this.byFileId.get(component.layer) || null ) {
+        for( let component = leaf; component; component = this._parentOf(component) ) {
             for( const op of component.ops || [] ) result.push({
                 component: this.ref(component), opIndex: op.index, text: op.text,
                 target: component.runtime?.opBase || component.static?.name || component.name || '',
@@ -4395,7 +5059,8 @@ export class HostRuntime {
     }
 
     _record(change, { layout = true } = {}) {
-        this._touch(layout);
+        this._trackTreeChange(change, layout);
+        this._touch(layout, true);
         if( !this.recordChanges ) return;
         const entry = { version: this.version, ...change };
         if( this.changeLog.length < this.limits.changes ) this.changeLog.push(entry);
@@ -4408,7 +5073,11 @@ export class HostRuntime {
         }
     }
 
-    _touch(layout = true) {
+    _touch(layout = true, dirtyClassified = false) {
+        /* Any new direct caller is unsafe for incremental projection until it
+         * states what it changed. This makes missing instrumentation fall back
+         * to the established full-layout oracle instead of dropping pixels. */
+        if( layout && !dirtyClassified ) this._markTreeFull('unclassified-host-write');
         if( this.fastTouchCount !== null ) {
             this.fastTouchCount++;
             return;
@@ -4419,6 +5088,47 @@ export class HostRuntime {
             this.layoutVersion = -1;
             this.interactionVisibilityDirty = true;
         } else if( cachedLayout ) this.layoutVersion = this.version;
+    }
+
+    _trackTreeChange(change, layout) {
+        if( !layout ) return;
+        if( change?.kind === 'component' ) {
+            const component = this._component(change.ref, false);
+            if( !component ) return this._markTreeFull('stale-component-write');
+            return this._markTreeComponent(component, treeDirtyForOperation(change.op));
+        }
+        if( change?.kind === 'hook' ) {
+            const component = this._component(change.ref, false);
+            if( !component ) return this._markTreeFull('stale-hook-write');
+            return this._markTreeComponent(component, TREE_DIRTY.INTERACTION);
+        }
+        if( change?.kind === 'input' ) {
+            const component = this._component(change.ref, false);
+            if( !component ) return this._markTreeFull('stale-input-write');
+            return this._markTreeComponent(component, [
+                TREE_DIRTY.PAINT, TREE_DIRTY.INTERACTION,
+            ]);
+        }
+        if( change?.kind === 'viewport' ) this.treeViewportDirty = true;
+        this._markTreeFull(`${change?.kind || 'unknown'}-write`);
+    }
+
+    _markTreeComponent(component, categories) {
+        /* Once any write requires the full oracle, per-node keys cannot make
+         * that commit cheaper. Avoid materialising thousands of transient
+         * dynamic render identities during bank/list rebuilds. */
+        if( this.treeDeltaFull ) return;
+        const key = this._materializeRenderKey(component);
+        for( const category of Array.isArray(categories) ? categories : [categories] ) {
+            this.treeDirty[category].add(key);
+            if( category !== TREE_DIRTY.PAINT && category !== TREE_DIRTY.INTERACTION )
+                this._markTreeFull(`${category}-write`);
+        }
+    }
+
+    _markTreeFull(reason) {
+        this.treeDeltaFull = true;
+        this.treeDeltaFallbackReason ||= String(reason || 'full-projector-required');
     }
 
     _box(component) {
@@ -4444,10 +5154,91 @@ export class HostRuntime {
             this.targetGeometryCache = new WeakMap();
         } else if( this.targetGeometryCache.has(component) )
             return this.targetGeometryCache.get(component);
-        const geometry = layoutGeometry(
+        /* The generic preview helper first builds a structural node for every
+         * live component. That is ideal for painting, but a CS2 width/height
+         * read depends only on the target's ancestor chain. Large dynamic
+         * grids (ca_tasks creates 3,230 cells) were rebuilding megabytes of
+         * unrelated nodes at each ordered HOST barrier. Walk the already
+         * indexed HostRuntime parent chain directly; retain the cycle-tolerant
+         * generic path only for malformed authored graphs. */
+        const geometry = this._fastGeometry(component) || layoutGeometry(
             this.ir, this.state, this.viewport, component, null, this.structureRevision);
         this.targetGeometryCache.set(component, geometry);
         return geometry;
+    }
+
+    _fastGeometry(component) {
+        const chain = [];
+        for( let cursor = component; cursor; cursor = this._parentOf(cursor) ) {
+            chain.push(cursor);
+            if( chain.length > this.ir.components.length ) return null;
+        }
+        let parentX = 0;
+        let parentY = 0;
+        let parentW = Number(this.viewport.width) | 0;
+        let parentH = Number(this.viewport.height) | 0;
+        let parentProps = null;
+        let parent = null;
+        let relX = 0;
+        let relY = 0;
+        let props = null;
+        let width = 0;
+        let height = 0;
+        let x = 0;
+        let y = 0;
+
+        for( let index = chain.length - 1; index >= 0; index-- ) {
+            const current = chain[index];
+            props = resolveProps(current, this.state);
+            const parentIsLayer = parent?.type === IF_TYPE.layer &&
+                !(parent.runtimeDynamic && parent.kind === 'Object');
+            const scrollWidth = parentIsLayer ? Number(parentProps.scrollWidth) | 0 : 0;
+            const scrollHeight = parentIsLayer ? Number(parentProps.scrollHeight) | 0 : 0;
+            const availableW = scrollWidth > 0 ? scrollWidth : parentW;
+            const availableH = scrollHeight > 0 ? scrollHeight : parentH;
+            const widthMode = Number(props.widthMode) | 0;
+            const heightMode = Number(props.heightMode) | 0;
+            width = dimFromParentMode(widthMode, Number(props.width) | 0, availableW);
+            height = dimFromParentMode(heightMode, Number(props.height) | 0, availableH);
+            if( widthMode === 4 || heightMode === 4 ) {
+                const aspectW = Math.max(1, Number(props.aspectW) | 0 || 1);
+                const aspectH = Math.max(1, Number(props.aspectH) | 0 || 1);
+                if( widthMode === 4 ) width = Math.trunc(aspectW * height / aspectH);
+                if( heightMode === 4 ) height = Math.trunc(aspectH * width / aspectW);
+                width = Math.max(0, width);
+                height = Math.max(0, height);
+            }
+            if( !parent && width === 0 && height === 0 ) {
+                width = availableW;
+                height = availableH;
+            }
+            x = axisFromPositionMode(
+                Number(props.xMode) | 0, Number(props.x) | 0,
+                parentX, availableW, width);
+            y = axisFromPositionMode(
+                Number(props.yMode) | 0, Number(props.y) | 0,
+                parentY, availableH, height);
+            relX = x - parentX;
+            relY = y - parentY;
+            parent = current;
+            parentProps = props;
+            parentX = x;
+            parentY = y;
+            parentW = width;
+            parentH = height;
+        }
+
+        const scrollLayer = component.type === IF_TYPE.layer &&
+            !(component.runtimeDynamic && component.kind === 'Object');
+        const maxScrollX = scrollLayer
+            ? Math.max(0, (Number(props.scrollWidth) | 0) - width) : 0;
+        const maxScrollY = scrollLayer
+            ? Math.max(0, (Number(props.scrollHeight) | 0) - height) : 0;
+        return {
+            x, y, w: width, h: height, relX, relY,
+            scrollX: Math.max(0, Math.min(maxScrollX, Number(props.scrollX) | 0)),
+            scrollY: Math.max(0, Math.min(maxScrollY, Number(props.scrollY) | 0)),
+        };
     }
 
     _syncWorldMapDisplaySize() {
@@ -4465,12 +5256,14 @@ export class HostRuntime {
     }
 
     _indexStatic(component) {
+        this._publishPendingPublicIndexes();
         const fileId = component.fileId;
         if( this.byFileId.has(fileId) )
             throw new HostRuntimeError(`duplicate component file id ${fileId}`, 'BAD_IR');
         const uid = Number.isInteger(fileId) ? this.interfaceId * 65536 + fileId : null;
         const meta = {
             key: `if:${this.interfaceId}:${String(fileId)}`,
+            renderKey: `if:${this.interfaceId}:${String(fileId)}`,
             componentId: uid,
             publicFileId: fileId,
             subId: -1,
@@ -4494,10 +5287,15 @@ export class HostRuntime {
          * recycled metadata without allocating a 12-field Object.assign source
          * for every transient row. */
         meta.key = `dyn:${this.interfaceId}:${this.nextGeneration}`;
+        /* Dynamic VM handles are deliberately fresh on every incarnation, but
+         * React owns the logical parent/sub-id slot. Deriving this recursively
+         * also preserves nested renderer identity when an ancestor slot is
+         * deleted and rebuilt during one interface redraw. */
+        meta.renderKey = `${this._materializeRenderKey(parent)}/cc:${subId}`;
         /* Match UITree_CcCreate's 0x8000..0xffff UID band. A dynamic component
-         * is addressed by this transient packed id inside C; its stable React
-         * identity remains key+generation and its public child slot remains
-         * subId. Sharing the parent's UID made two active children
+         * is addressed by this transient packed id inside C; its public child
+         * slot remains subId, while renderKey is deliberately renderer-only.
+         * Sharing the parent's UID made two active children
          * indistinguishable across the WASM boundary. */
         meta.componentId = componentId;
         meta.publicFileId = parentMeta.publicFileId;
@@ -4509,6 +5307,7 @@ export class HostRuntime {
         meta.dragDeadZone = 5;
         meta.dragDeadTime = 0;
         meta.dragBehavior = 0;
+        meta.parent = parent;
         this._index(component, meta);
         this.byUid.set(componentId, component);
         let children = this.dynamicChildren.get(parent);
@@ -4517,6 +5316,46 @@ export class HostRuntime {
             this.dynamicChildren.set(parent, children);
         }
         children.set(subId, component);
+    }
+
+    /* Packed redraw nodes are initially private to C and are usually replaced
+     * thousands at a time. Allocate the native identity/indexes now, but defer
+     * the JS-facing key, render key and frozen ref until one crosses a public
+     * API or the renderer projects it. Generation is still advanced here, so
+     * materialising later cannot make an old VM handle live again. */
+    _fastIndexDynamic(component, parent, subId, recycledMeta = null) {
+        const parentMeta = this.meta.get(parent);
+        const componentId = this._allocateDynamicComponentId(parentMeta.componentId);
+        const meta = recycledMeta || {};
+        meta.key = null;
+        meta.renderKey = null;
+        meta.parent = parent;
+        meta.componentId = componentId;
+        meta.publicFileId = parentMeta.publicFileId;
+        meta.subId = subId;
+        meta.dynamic = true;
+        meta.generation = this.nextGeneration++;
+        meta.draggable = false;
+        meta.dragParent = null;
+        meta.dragDeadZone = 5;
+        meta.dragDeadTime = 0;
+        meta.dragBehavior = 0;
+        meta.ref = null;
+        meta.directRef = null;
+        meta.publicIndexed = false;
+        if( this.byName.has(component.name) )
+            throw new HostRuntimeError(`duplicate component name ${component.name}`, 'BAD_IR');
+        this.meta.set(component, meta);
+        meta.pendingPublicIndex = this.pendingPublicIndexes.length;
+        this.pendingPublicIndexes.push(component);
+        this.byUid.set(componentId, component);
+        let children = this.dynamicChildren.get(parent);
+        if( !children ) {
+            children = new Map();
+            this.dynamicChildren.set(parent, children);
+        }
+        children.set(subId, component);
+        return meta;
     }
 
     _allocateDynamicComponentId(parentId) {
@@ -4534,8 +5373,12 @@ export class HostRuntime {
     }
 
     _index(component, meta) {
+        this._publishPendingPublicIndexes();
         if( this.byName.has(component.name) )
             throw new HostRuntimeError(`duplicate component name ${component.name}`, 'BAD_IR');
+        const renderOwner = meta.renderKey && this.byRenderKey.get(meta.renderKey);
+        if( renderOwner && renderOwner !== component ) throw new HostRuntimeError(
+            `duplicate render key ${meta.renderKey}`, 'BAD_IR');
         meta.ref = Object.freeze({
             key: meta.key,
             componentId: meta.componentId,
@@ -4547,8 +5390,130 @@ export class HostRuntime {
         });
         this.meta.set(component, meta);
         this.byKey.set(meta.key, component);
+        if( meta.renderKey ) this.byRenderKey.set(meta.renderKey, component);
         this.byName.set(component.name, component);
         this.byFileId.set(component.fileId, component);
+        meta.publicIndexed = true;
+        meta.pendingPublicIndex = -1;
+    }
+
+    /** Remove an unpublished row in O(1) without retaining pooled objects. */
+    _removePendingPublicIndex(component, meta) {
+        if( !meta || meta.publicIndexed || !Number.isInteger(meta.pendingPublicIndex) ||
+            meta.pendingPublicIndex < 0 ) return;
+        const pending = this.pendingPublicIndexes;
+        const index = meta.pendingPublicIndex;
+        if( index >= pending.length || pending[index] !== component ) {
+            meta.pendingPublicIndex = -1;
+            return;
+        }
+        const lastIndex = pending.length - 1;
+        const last = pending[lastIndex];
+        pending.pop();
+        if( index !== lastIndex ) {
+            pending[index] = last;
+            const lastMeta = this.meta.get(last);
+            if( lastMeta && !lastMeta.publicIndexed ) lastMeta.pendingPublicIndex = index;
+        }
+        meta.pendingPublicIndex = -1;
+    }
+
+    /**
+     * Publish packed-created dynamic components into the public name/file-id
+     * maps. Validation is deliberately a separate pass: a duplicate name must
+     * not leave half of the pending batch observable. Components deleted
+     * before publication are removed in O(1), while the liveness checks below
+     * keep publication fail-safe if future instrumentation mutates the queue.
+     */
+    _publishPendingPublicIndexes() {
+        const pending = this.pendingPublicIndexes;
+        if( pending.length === 0 ) return;
+        const live = [];
+        const seenNames = new Set();
+        for( let index = 0; index < pending.length; index++ ) {
+            const component = pending[index];
+            const meta = this.meta.get(component);
+            if( !meta || meta.publicIndexed ) continue;
+            const owner = this.byName.get(component.name);
+            if( (owner && owner !== component) || seenNames.has(component.name) )
+                throw new HostRuntimeError(
+                    `duplicate component name ${component.name}`, 'BAD_IR');
+            seenNames.add(component.name);
+            live.push(component);
+        }
+        for( const component of live ) {
+            const meta = this.meta.get(component);
+            /* No user code can run during this method, but retain the liveness
+             * guard so future observer hooks cannot publish a retired pooled
+             * object if this routine gains instrumentation. */
+            if( !meta || meta.publicIndexed ) continue;
+            this.byName.set(component.name, component);
+            this.byFileId.set(component.fileId, component);
+            meta.publicIndexed = true;
+            meta.pendingPublicIndex = -1;
+        }
+        pending.length = 0;
+    }
+
+    _materializeRef(component) {
+        const meta = this.meta.get(component);
+        if( !meta ) return null;
+        if( meta.ref ) return meta.ref;
+        const key = meta.key || `dyn:${this.interfaceId}:${meta.generation}`;
+        const owner = this.byKey.get(key);
+        if( owner && owner !== component ) throw new HostRuntimeError(
+            `duplicate component key ${key}`, 'BAD_IR');
+        meta.key = key;
+        meta.ref = Object.freeze({
+            key,
+            componentId: meta.componentId,
+            fileId: meta.publicFileId,
+            subId: meta.subId,
+            dynamic: meta.dynamic,
+            generation: meta.generation,
+            name: component.name,
+        });
+        this.byKey.set(key, component);
+        return meta.ref;
+    }
+
+    /** Minimal stable target returned to the direct TypeScript VM. It carries
+     * the native identity and generation fence required by CS2HostComponentRef
+     * without forcing a public key string, frozen presentation ref, or byKey
+     * entry for every transient list row. */
+    _directComponentRef(component) {
+        const meta = this.meta.get(component);
+        if( !meta ) return null;
+        if( meta.ref ) return meta.ref;
+        if( meta.directRef ) return meta.directRef;
+        meta.directRef = Object.freeze({
+            componentId: meta.componentId,
+            subId: meta.subId,
+            generation: meta.generation,
+        });
+        return meta.directRef;
+    }
+
+    _parentOf(component) {
+        if( !component || component.layer === null || component.layer === undefined ) return null;
+        const meta = this.meta.get(component);
+        return meta?.parent || this.byFileId.get(component.layer) || null;
+    }
+
+    _materializeRenderKey(component) {
+        const meta = this.meta.get(component);
+        if( !meta ) return null;
+        if( meta.renderKey ) return meta.renderKey;
+        const parent = this._parentOf(component);
+        const parentKey = parent ? this._materializeRenderKey(parent) : null;
+        if( !parentKey ) throw new HostRuntimeError(
+            'dynamic component has no renderer parent', 'STALE_REF');
+        meta.renderKey = `${parentKey}/cc:${meta.subId}`;
+        const owner = this.byRenderKey.get(meta.renderKey);
+        if( owner && owner !== component ) throw new HostRuntimeError(
+            `duplicate render key ${meta.renderKey}`, 'BAD_IR');
+        this.byRenderKey.set(meta.renderKey, component);
+        return meta.renderKey;
     }
 
     _component(value, required = true) {
@@ -4561,8 +5526,20 @@ export class HostRuntime {
                 if( candidate && (value.generation === undefined || value.generation === meta.generation) )
                     component = candidate;
             } else if( value.ref ) return this._component(value.ref, required);
+            else if( Number.isInteger(value.componentId) ) {
+                const id = value.componentId;
+                const candidate = this.byUid.get(id) ||
+                    (id < -1 ? this.byUid.get(id >>> 0) : null) || null;
+                const meta = candidate && this.meta.get(candidate);
+                if( candidate && (value.generation === undefined ||
+                    value.generation === meta.generation) ) component = candidate;
+            }
         } else if( typeof value === 'string' ) {
             component = this.byKey.get(value) || this.byName.get(value) || null;
+            if( !component && this.pendingPublicIndexes.length ) {
+                this._publishPendingPublicIndexes();
+                component = this.byKey.get(value) || this.byName.get(value) || null;
+            }
             const named = /^interface_(\d+):(\d+)$/.exec(value);
             if( !component && named && Number(named[1]) === this.interfaceId )
                 component = this.byUid.get(Number(named[1]) * 65536 + Number(named[2])) || null;
@@ -4574,6 +5551,12 @@ export class HostRuntime {
             component = this.byUid.get(value) ||
                 (value < -1 ? this.byUid.get(value >>> 0) : null) ||
                 this.byFileId.get(value) || null;
+            if( !component && this.pendingPublicIndexes.length ) {
+                this._publishPendingPublicIndexes();
+                component = this.byUid.get(value) ||
+                    (value < -1 ? this.byUid.get(value >>> 0) : null) ||
+                    this.byFileId.get(value) || null;
+            }
         }
         if( required && !component ) throw new HostRuntimeError('component reference is missing or stale', 'STALE_REF');
         return component;
@@ -4664,21 +5647,27 @@ export class HostRuntime {
                  * Drain only after their outer hook has completely returned,
                  * while keeping operationDepth raised so deferred listeners
                  * cannot recursively start a second drain on the C VM stack. */
-                if( outer && completed ) {
-                    const intents = Array.isArray(result?.intents) ? result.intents : [];
-                    this._drainDeferredComponents(intents);
-                }
-            } finally {
-                try {
-                    if( outer && this.interactionVisibilityDirty )
-                        this._retireInvisibleInteraction();
-                    if( outer && completed && result && Array.isArray(result.intents) ) {
-                        result.version = this.version;
-                        result.epoch = this.epoch;
-                        result.interaction = this._interactionView();
-                    }
-                } finally { this.operationDepth--; }
-            }
+                if( outer && completed ) this._settleSuccessfulBoundary(result);
+            } finally { this.operationDepth--; }
+        }
+    }
+
+    _settleSuccessfulBoundary(result = null) {
+        const intents = Array.isArray(result?.intents) ? result.intents : [];
+        this._drainDeferredComponents(intents);
+        if( this.interactionVisibilityDirty ) this._retireInvisibleInteraction();
+        if( result && Array.isArray(result.intents) ) {
+            result.version = this.version;
+            result.epoch = this.epoch;
+            result.interaction = this._interactionView();
+        }
+        /* A failed operation or deferred/interaction settlement may leave
+         * valid synchronous working mutations behind. They remain private
+         * until a later successful outer boundary publishes the complete
+         * accumulated transaction exactly once. */
+        if( this.version !== this.committedMutationVersion ) {
+            this.commitRevision++;
+            this.committedMutationVersion = this.version;
         }
     }
 }
@@ -4689,6 +5678,18 @@ function event(authored, canonical, ...imported) {
         authored, canonical, imported: frozenImported,
         aliases: Object.freeze([canonical, ...frozenImported, authored].filter(Boolean)),
     });
+}
+
+function createTreeDirtySets() {
+    return Object.fromEntries(TREE_DIRTY_CATEGORIES.map((category) => [category, new Set()]));
+}
+
+function treeDirtyForOperation(rawOperation) {
+    const operation = String(rawOperation || '').toLowerCase().replace(/^cc_/, 'if_');
+    if( TREE_GEOMETRY_OPS.has(operation) ) return TREE_DIRTY.GEOMETRY;
+    if( TREE_VISIBILITY_OPS.has(operation) ) return TREE_DIRTY.VISIBILITY;
+    if( TREE_INTERACTION_OPS.has(operation) ) return TREE_DIRTY.INTERACTION;
+    return TREE_DIRTY.PAINT;
 }
 
 function definition(name) {
@@ -4811,6 +5812,44 @@ function hookFromRequest(request) {
         args: direct === null ? unpackSetOnArgs(signature, request)
             : requestList(direct),
         triggerIds: triggerIds.slice(0, Math.max(0, triggerCount)),
+    };
+}
+
+/* Positional companion to hookFromRequest(). The TypeScript VM has already
+ * separated the listener ABI into fixed arrays and masks, so reconstruct only
+ * the retained binding; never manufacture a reflected/tagged Host request. */
+function directHookBinding(scriptIdValue, signatureValue, triggerIdsValue,
+    triggerCountValue, intArgsValue, intArgCountValue, stringMaskValue,
+    stringArgCountValue, stringArgsValue) {
+    const signature = String(signatureValue || '');
+    const parseLength = Math.min(signature.endsWith('Y')
+        ? signature.length - 1 : signature.length, HOST_RUNTIME_LIMITS.hookArgs);
+    const integers = requestList(intArgsValue);
+    const strings = requestList(stringArgsValue);
+    const masks = requestList(stringMaskValue);
+    const intCount = Math.max(0, Math.min(parseLength,
+        finiteOptional(intArgCountValue, parseLength), integers.length));
+    const stringCount = Math.max(0, Math.min(HOST_RUNTIME_LIMITS.hookArgs,
+        finiteOptional(stringArgCountValue, strings.length), strings.length));
+    const lowMask = finiteOptional(masks[0], 0) >>> 0;
+    const highMask = finiteOptional(masks[1], 0) >>> 0;
+    const args = new Array(intCount);
+    let stringAt = 0;
+    for( let index = 0; index < intCount; index++ ) {
+        const string = index < 32
+            ? Boolean((lowMask >>> index) & 1)
+            : Boolean((highMask >>> (index - 32)) & 1);
+        args[index] = string && stringAt < stringCount
+            ? String(strings[stringAt++] ?? '') : finiteOptional(integers[index], 0);
+    }
+    const triggers = requestList(triggerIdsValue);
+    const triggerCount = Math.max(0, Math.min(HOST_RUNTIME_LIMITS.hookTriggers,
+        finiteOptional(triggerCountValue, triggers.length), triggers.length));
+    return {
+        script: { id: finiteOptional(scriptIdValue, -1) },
+        args,
+        signature,
+        triggerIds: triggers.slice(0, triggerCount).map((value) => finiteOptional(value, 0)),
     };
 }
 

@@ -8,6 +8,8 @@
  * details.wma and compositemap.wmc files.
  */
 
+import { packName } from './pack.js';
+
 const REGION_TILES = 64;
 const CHUNK_TILES = 8;
 const CHUNKS_PER_REGION = 8;
@@ -1251,7 +1253,10 @@ function symbolIds(value) {
         const line = rawLine.trim();
         if( !line || line.startsWith('//') ) continue;
         const match = /^(\d+)=([^=]+)$/.exec(line);
-        if( match ) result.set(match[2].trim(), Number(match[1]));
+        if( match ) {
+            const name = packName(match[2]);
+            if( name ) result.set(name, Number(match[1]));
+        }
     }
     return result;
 }

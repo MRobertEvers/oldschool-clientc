@@ -22,6 +22,8 @@ const project = {
     revision: 'osrs239',
 };
 const expectedBankBaseline = '78cb454a6e43bbfaa1c809099ac056f436def3e4deea85249773c058786c9bcd';
+const expectedPirateCombilockBaseline =
+    '9de8b099997095a2247db6e5930bbae2ee35cc05f7ce68a5f872c2bffe8f5623';
 
 const status = nativePreviewStatus(project);
 if( !status.available ) {
@@ -59,6 +61,19 @@ check(nativePreviewFingerprint(project, 12) !==
       nativePreviewFingerprint(project, 12, 512, 334, { 'varbit:3958': 1 }),
       'state is absent from the render fingerprint');
 
+/* Lock the model-heavy combilock reference which exposed several camera/model
+ * parameter regressions in the browser renderer. The native sidecar records
+ * fifteen model widgets and the framebuffer hash covers their settled script
+ * state, overlap, clipping, and border presentation together. */
+const pirateCombilock = await renderNativeInterface(project, 26);
+check(hash(pirateCombilock) === expectedPirateCombilockBaseline,
+      `pirate combilock baseline changed: ${hash(pirateCombilock)}`);
+check(pirateCombilock.tree.nodes.filter((node) => node.widgetType === 6).length === 15,
+      'pirate combilock native snapshot lost its model widgets');
+check(pirateCombilock.tree.nodes.filter((node) => node.widgetType === 6)
+    .every((node) => node.box.resolved && node.draw?.kind === 6),
+      'pirate combilock model geometry/draw records are incomplete');
+
 /* Stats are seeded before onLoad and then dispatched once, after hooks exist,
  * against only the supplied skill ids. The stats panel provides a compact
  * pixel-level assertion for that path. */
@@ -71,4 +86,5 @@ const boostedAttack = await renderNativeInterface(project, 320, {
 check(hash(statsBaseline) !== hash(boostedAttack), 'stat state did not change the stats panel');
 
 process.stdout.write(
-    `native_preview_test: ok (bank ${hash(baseline)}, state ${hash(notedByBit)})\n`);
+    `native_preview_test: ok (bank ${hash(baseline)}, state ${hash(notedByBit)}, ` +
+    `pirate ${hash(pirateCombilock)})\n`);

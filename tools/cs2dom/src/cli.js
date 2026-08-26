@@ -20,6 +20,7 @@
 import { writeFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
 
 import { build, loadProject } from './build.js';
 import { generate, DEFAULT_TABLES } from './cachegen.js';
@@ -36,7 +37,8 @@ export function main(argv) {
 
     switch( command ) {
         case 'build': return commandBuild(flags);
-        case 'dev': case 'start': return commandDev(flags);
+        case 'dev-canvas': case 'dev': case 'start': return commandDevCanvas(flags);
+        case 'dev-legacy': return commandDev(flags);
         case 'cachegen': return commandCacheGen(flags);
         case 'check': return commandCheck(flags);
         case 'ops': return commandOps();
@@ -55,12 +57,14 @@ function usage(code) {
         '      scripts/<name>.cs2 into the content tree, and allocate ids in the pack\n' +
         '      files. Bake afterwards with: make -C src torirsserver-cache\n\n' +
         '  cs2dom dev [--project DIR] [--cache DIR --rev NAME] [--port N] [--no-open]\n' +
-        '      Watch ui/*.tsx, rebuild on save and show the result in a browser: the\n' +
-        '      authored components, OSRS-Content and Dat2 interfaces through the same\n' +
-        '      live DOM/React runtime. Includes searchable\n' +
-        '      records, runtime-tree inspection and host-state controls.\n\n' +
-        '      --cache opens a Dat2 cache directly; --rev names its cachepack profile.\n' +
-        '      The selective decode is cached in the OS temporary directory.\n\n' +
+        '      Open an interface in the browser and run it: cache CS2 compiled to\n' +
+        '      JavaScript, executed against a ported UITree on one thread, drawn to\n' +
+        '      one canvas. Three panes — the interface, the host state it reads as\n' +
+        '      controls, and the .if / .cs2 / JavaScript records it compiles to.\n\n' +
+        '      --cache opens a Dat2 cache directly; --rev names its cachepack profile.\n\n' +
+        '  cs2dom dev-legacy [--project DIR] …\n' +
+        '      The retiring C/WASM + React-DOM runtime. Nothing in the default build\n' +
+        '      path reaches it; it is here while its files are.\n\n' +
         '  cs2dom cachegen [--project DIR] [--out FILE]\n' +
         '      Regenerate cache.gen.ts — sprite, font, varp, varbit and interface ids\n' +
         '      as typed constants, read from the content tree.\n\n' +
@@ -153,6 +157,46 @@ function report(say, result, project, dryRun) {
     }
 }
 
+/**
+ * The JavaScript-native dev server.
+ *
+ * One canvas, no worker and no WASM: the runtime the browser loads is the same
+ * code the Node suites drive. The server's whole job is to hand it a
+ * catalogue, an interface's records and the modules it imports.
+ */
+function commandDevCanvas(flags) {
+    const project = loadProject(flags.project);
+    if( flags.cache ) project.cache = resolve(flags.cache);
+    if( flags.rev ) project.revision = flags.rev;
+    /* Imported here rather than at the top: a build should not pay for the
+     * server, and the server should not pay for the compiler. */
+    return import('./dev_canvas.js').then(({ serveCanvas }) => {
+        serveCanvas({
+            root: resolve(fileURLToPath(new URL('..', import.meta.url))),
+            contentDir: project.content ?? null,
+            cache: project.cache ?? null,
+            revision: project.revision ?? null,
+            names: project.cs2Names ?? null,
+            port: flags.port || 8099,
+            onListen: (address) => {
+                process.stdout.write(`cs2dom: ${address}\n`);
+                if( !flags.noOpen ) openBrowser(address);
+            },
+        });
+        /* The server owns the process from here; there is no exit code. */
+        return new Promise(() => {});
+    });
+}
+
+/** Open the page, or carry on: a server that cannot is still a server. */
+function openBrowser(address) {
+    const command = process.platform === 'darwin' ? 'open'
+        : process.platform === 'win32' ? 'start' : 'xdg-open';
+    try { spawn(command, [address], { stdio: 'ignore', detached: true }).unref(); }
+    catch { /* nothing to do about it */ }
+}
+
+/** The retiring C/WASM + React-DOM server, while its files are still here. */
 function commandDev(flags) {
     const project = loadProject(flags.project);
     if( flags.cache ) project.cache = resolve(flags.cache);

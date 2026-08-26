@@ -1,9 +1,9 @@
 /*
  * The dev page.
  *
- * One file, no build step, no framework — it is a tool for looking at a tree of
- * boxes, and a tool that needed its own toolchain would be one more thing between
- * a save and seeing the result.
+ * The developer chrome stays as one stable document, while a small local React
+ * bundle owns the committed preview surface. Source saves replace only the
+ * worker session/tree/records; picker and Host-state drafts stay mounted.
  *
  * Three panes: the interface as the client's layout rules place it, the state it
  * reads as controls, and the cache records it compiles to. The third pane is the
@@ -223,6 +223,7 @@ export function page() {
 import { createWorkerRuntimeController } from '/runtime/worker_runtime_controller.js';
 import { createModelRenderController } from '/runtime/model_render_controller.js';
 import { paintCacheText } from '/runtime/font_runtime.js';
+import { mountRetainedInterfaceStage } from '/react-runtime.js';
 
 let state = {};              // Values committed to the live React-side host.
 let draftState = {};         // Host-state edits waiting for an explicit save.
@@ -245,6 +246,8 @@ let stageBoxesByName = new Map();
 let outlinedStageName = null;
 let stateDirty = false;
 let runtimeController = null;
+let reactStageMount = null;
+let reactStageSurface = null;
 let runtimeSession = null;
 let pendingRuntimeSession = null;
 let runtimeWarnings = [];
@@ -453,8 +456,6 @@ function ensureRuntimeController() {
       const session = routedRuntimeSession();
       if( !session ) return;
       applyWorkerRender(session, render);
-      if( session.installed )
-        scheduleRuntimeRender(session.iface, session.controller, true, patch);
     },
     onTreeChunk: (chunk) => {
       const session = routedRuntimeSession();
@@ -487,7 +488,34 @@ function ensureRuntimeController() {
       console.warn('cs2dom ' + (source === 'runtime-worker' ? 'worker ' : '') +
         phase + ' exceeded 10ms:', elapsed.toFixed(1) + 'ms'),
   });
+  reactStageMount = mountRetainedInterfaceStage($('stage'), {
+    store: runtimeController,
+    onCommit: commitReactStage,
+  });
   return runtimeController;
+}
+
+function commitReactStage(snapshot, surface) {
+  reactStageSurface = surface;
+  const session = routedRuntimeSession();
+  if( !snapshot.render ) {
+    if( surface ) clearStageSurface();
+    return;
+  }
+  if( !session || snapshot.session !== session.generation ) return;
+  applyWorkerRender(session, snapshot.render);
+  if( session.installed )
+    scheduleRuntimeRender(session.iface, session.controller, true, snapshot.patch);
+}
+
+function clearStageSurface() {
+  stageDrawJob = null;
+  stageDrawEpoch++;
+  for( const entry of renderedStageBoxes.values() ) retireStageElement(entry.element);
+  renderedStageBoxes.clear();
+  stageBoxesByName.clear();
+  outlinedStageName = null;
+  reactStageSurface?.replaceChildren();
 }
 
 function observeRuntimeInteraction(phase, rawElapsed) {
@@ -508,6 +536,11 @@ function routedRuntimeSession() {
 function applyWorkerRender(session, render) {
   session.iface.viewport = render.viewport;
   session.iface.boxes = render.boxes;
+  /* Keep the controller's logical renderer keys parallel to its paint boxes.
+     They intentionally do not live on HOST refs/boxes: VM identity is a
+     transient generation-fenced handle, while React/DOM identity is the
+     stable logical slot carried by each committed stage entry. */
+  session.iface.stageEntries = render.entries;
   session.iface.runtimeVersion = render.version;
 }
 
@@ -786,18 +819,12 @@ function render({ hotReload = false } = {}) {
     records.innerHTML = '<div class="error"></div>';
     records.firstChild.textContent = data.error;
     if( !hotReload ) {
-      stageDrawJob = null;
-      stageDrawEpoch++;
-      for( const entry of renderedStageBoxes.values() ) retireStageElement(entry.element);
+      clearStageSurface();
       closeOpMenu();
-      $('stage').innerHTML = '';
       $('tree').innerHTML = '';
       $('controls').innerHTML = '';
       $('stateactions').hidden = true;
-      renderedStageBoxes.clear();
       renderedTreeRows.clear();
-      stageBoxesByName.clear();
-      outlinedStageName = null;
       renderedControlsKey = null;
       renderedControlsScope = null;
       controlDrawJob = null;
@@ -807,7 +834,8 @@ function render({ hotReload = false } = {}) {
 
   $('status').textContent = 'built ' + new Date().toLocaleTimeString() +
     (runtimeMode === 'static' ? ' — static (no CS2 bytecode)' :
-      runtimeMode === 'unavailable' ? ' — runtime unavailable' : ' — C CS2VM/WASM');
+      runtimeMode === 'unavailable' ? ' — runtime unavailable' :
+      runtimeMode === 'typescript' ? ' — TypeScript CS2VM' : ' — C CS2VM/WASM');
   $('status').className = runtimeMode === 'unavailable' ? 'status bad' : 'status fresh';
   setTimeout(() => { $('status').className = 'status'; }, 900);
 
@@ -822,12 +850,24 @@ function render({ hotReload = false } = {}) {
 }
 
 function drawStage(iface, { upsert = null, upsertBatches = null, dedupePartial = false } = {}) {
-  const stage = $('stage');
+  const shell = $('stage');
+  /* The pure renderer harness intentionally omits the React bundle. Retain a
+     shell fallback there; a live mounted root never lets React and the painter
+     own the same element. */
+  const stage = reactStageSurface || (!reactStageMount ? shell : null);
+  if( !stage ) {
+    scheduleCooperativeTask(() => {
+      if( iface === currentInterface() ) drawStage(iface, { upsert, upsertBatches, dedupePartial });
+    });
+    return;
+  }
   const wire = $('wire').checked;
   /* The interaction channel carries only paintable boxes. Wire diagnostics
      opt into the most recent full tree, which arrives independently in idle
      64-widget chunks and therefore never bloats an input response. */
   const fullBoxes = (wire && iface.treeBoxes?.length ? iface.treeBoxes : iface.boxes) || [];
+  const fullEntries = !wire && Array.isArray(iface.stageEntries) &&
+    iface.stageEntries.length === fullBoxes.length ? iface.stageEntries : null;
   const partialBatches = Array.isArray(upsertBatches) ? upsertBatches
     : Array.isArray(upsert) ? [upsert] : null;
   const partial = !wire && partialBatches !== null;
@@ -835,17 +875,18 @@ function drawStage(iface, { upsert = null, upsertBatches = null, dedupePartial =
   const root = fullBoxes[0];
   const width = iface.viewport?.width || (root ? Math.max(root.w, 32) : 256);
   const height = iface.viewport?.height || (root ? Math.max(root.h, 32) : 128);
-  stage.style.width = width + 'px';
-  stage.style.height = height + 'px';
-  stage.className = $('wire').checked ? 'wire' : '';
-  stage.tabIndex = 0;
-  stage.setAttribute('aria-label', 'Interactive React interface preview');
+  shell.style.width = width + 'px';
+  shell.style.height = height + 'px';
+  shell.className = $('wire').checked ? 'wire' : '';
+  shell.tabIndex = 0;
+  shell.setAttribute('aria-label', 'Interactive React interface preview');
   $('dims').textContent = width + '×' + height + ' — interface ' + iface.interfaceId +
     ' — live React tree';
 
   const job = stageDrawJob = {
     epoch: ++stageDrawEpoch,
-    iface, stage, boxes, wire, width, height, partial,
+    iface, stage, boxes, entries: partial ? null : fullEntries,
+    wire, width, height, partial,
     /* Runtime patches can contain thousands of changed widgets. Coalesce
        them inside the same cooperative budget as DOM reconciliation instead
        of doing an unmeasured Map/array pass in the message handler. */
@@ -862,8 +903,9 @@ function drawStage(iface, { upsert = null, upsertBatches = null, dedupePartial =
   runStageSlice(job);
 }
 
-function stageBoxKey(iface, box, index) {
-  return iface.interfaceId + ':' + (box.ref?.key || box.name || box.fileId || index);
+function stageBoxKey(iface, box, index, renderKey = null) {
+  return iface.interfaceId + ':' +
+    (renderKey || box.ref?.key || box.name || box.fileId || index);
 }
 
 function stageBoxSignature(box, iface, role, modelSurface) {
@@ -971,6 +1013,7 @@ function scanStageBox(job) {
   let box;
   let index;
   let patchEntry = null;
+  let projectionEntry = null;
   if( job.partial ) {
     const next = nextStagePatchEntry(job);
     if( next.done ) {
@@ -981,13 +1024,15 @@ function scanStageBox(job) {
     patchEntry = next.value;
     box = patchEntry?.box;
   } else {
-    if( job.index >= job.boxes.length ) {
+    const length = job.entries?.length ?? job.boxes.length;
+    if( job.index >= length ) {
       job.phase = 'commit';
       job.index = 0;
       return;
     }
     index = job.index++;
-    box = job.boxes[index];
+    projectionEntry = job.entries?.[index] || null;
+    box = projectionEntry?.box || job.boxes[index];
   }
   if( !box ) return;
   const role = roleOf(box.type);
@@ -996,10 +1041,13 @@ function scanStageBox(job) {
       !job.wire && role === 'graphic' && !(box.props.sprite >= 0) ) return;
   const modelSurface = role === 'model'
     ? modelRenderSurface(box, job.width, job.height) : null;
-  /* Worker keys intentionally omit the inspector's interface prefix. Derive
-     the DOM key from the box so a partial patch replaces the element created
-     by an earlier full draw instead of leaving a duplicate behind. */
-  const key = stageBoxKey(job.iface, box, index);
+  /* Worker keys intentionally omit the inspector's interface prefix. Preserve
+     that committed logical key across full and partial draws so recreating a
+     dynamic VM ref in the same parent/sub-id slot replaces, rather than
+     duplicates, its existing DOM owner. Static/no-runtime previews retain the
+     deterministic box-derived fallback. */
+  const key = stageBoxKey(
+    job.iface, box, index, patchEntry?.key || projectionEntry?.key || null);
   /* The worker sends only changed entries in a partial patch. Its monotonic
      runtime version is therefore a complete invalidation token and avoids a
      second JSON serialization of every changed widget on the UI thread. */
@@ -1039,10 +1087,9 @@ function commitStageItem(job, item) {
       retireStageElement(element);
     }
     element = createStageBox(item.box, job.iface, item.role, item.modelSurface);
-    const menu = liveOpMenu();
     job.stage.insertBefore(element,
       job.partial && replacementAnchor?.parentElement === job.stage
-        ? replacementAnchor : menu || null);
+        ? replacementAnchor : null);
     const token = ++modelEpoch;
     element.__paintToken = token;
     element.__stageKey = item.key;
@@ -1088,10 +1135,8 @@ function orderStageBox(job) {
     return;
   }
   const element = job.desired[job.index++].element;
-  const menu = liveOpMenu();
-  if( job.cursor === menu ) job.cursor = null;
-  if( element === job.cursor ) job.cursor = job.cursor.nextElementSibling;
-  else job.stage.insertBefore(element, job.cursor || menu || null);
+    if( element === job.cursor ) job.cursor = job.cursor.nextElementSibling;
+    else job.stage.insertBefore(element, job.cursor || null);
 }
 
 function retireStageElement(element) {

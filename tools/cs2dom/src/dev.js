@@ -30,6 +30,7 @@ import {
     BoundedAssetCache, assetRecord, fileVersion, filesVersion, sendAsset,
 } from './asset_cache.js';
 import { createBytecodePrograms } from './bytecode.js';
+import { clientStateForRevision } from './client_state.js';
 import { layout } from './preview.js';
 import { stateInputs } from './eval.js';
 import { decodeBmp, encodePng, spriteCanvas, spriteTile } from './png.js';
@@ -53,15 +54,18 @@ import { nativeTreeInspector } from './native_tree.js';
 const DEBOUNCE_MS = 40;
 const MODULE_ROOT = dirname(fileURLToPath(import.meta.url));
 const CS2VM_WEB_ROOT = join(MODULE_ROOT, '..', 'web');
+const REACT_RUNTIME_WEB = join(CS2VM_WEB_ROOT, 'react_browser_runtime.js');
+const TS_VM_RUNTIME_WEB = join(CS2VM_WEB_ROOT, 'cs2_vm_core.js');
+const TS_ENGINE_RUNTIME_WEB = join(CS2VM_WEB_ROOT, 'cs2_engine_router.js');
 export const BROWSER_RUNTIME_MODULES = new Set([
-    'components.js', 'cs2_commands.js', 'cs2_host_requests.js', 'eval.js', 'expr.js',
+    'client_state.js', 'components.js', 'cs2_commands.js', 'cs2_host_requests.js', 'eval.js', 'expr.js',
     'font_runtime.js', 'host.js',
     'host_activity.js', 'host_chat_social.js', 'host_db.js', 'host_loot.js',
     'host_overlay.js', 'host_runtime.js', 'host_subject.js', 'host_worldmap.js',
     'model_render_controller.js', 'model_render_protocol.js', 'model_render_worker.js',
-    'ops.js', 'preview.js',
+    'ops.js', 'pack.js', 'preview.js',
     'runtime_worker.js', 'runtime_worker_protocol.js', 'wasm_runtime.js',
-    'worker_runtime_controller.js',
+    'ui_tree_store.js', 'worker_runtime_controller.js',
 ]);
 
 export function serve(project, {
@@ -180,6 +184,27 @@ export function serve(project, {
             const file = join(MODULE_ROOT, runtimeModule[1]);
             return serveFile(request, response, assetCache,
                 `file:runtime:${runtimeModule[1]}`, file, 'text/javascript; charset=utf-8');
+        }
+
+        if( url.pathname === '/react-runtime.js' ) {
+            if( !existsSync(REACT_RUNTIME_WEB) ) return send(response, 503, 'text/plain',
+                'React preview runtime is not built; run make react-runtime');
+            return serveFile(request, response, assetCache, 'file:react-runtime',
+                REACT_RUNTIME_WEB, 'text/javascript; charset=utf-8');
+        }
+
+        if( url.pathname === '/ts-vm/cs2_vm_core.js' ) {
+            if( !existsSync(TS_VM_RUNTIME_WEB) ) return send(response, 503, 'text/plain',
+                'TypeScript CS2VM runtime is not built; run make react-runtime');
+            return serveFile(request, response, assetCache, 'file:ts-vm-runtime',
+                TS_VM_RUNTIME_WEB, 'text/javascript; charset=utf-8');
+        }
+
+        if( url.pathname === '/ts-vm/cs2_engine_router.js' ) {
+            if( !existsSync(TS_ENGINE_RUNTIME_WEB) ) return send(response, 503, 'text/plain',
+                'TypeScript CS2 engine router is not built; run make react-runtime');
+            return serveFile(request, response, assetCache, 'file:ts-engine-runtime',
+                TS_ENGINE_RUNTIME_WEB, 'text/javascript; charset=utf-8');
         }
 
         const cs2vmAsset = /^\/cs2vm-wasm\/(cs2vm_wasm\.(?:js|wasm))$/.exec(url.pathname);
@@ -483,10 +508,13 @@ function view(project, current, selected, stateJson, contentCatalog, sources, by
     if( !result )
         return { error: `interface '${key || ''}' is not available`, interfaces: [] };
 
-    let state = {};
-    try { if( stateJson ) state = JSON.parse(stateJson); } catch { /* fall back to defaults */ }
+    let explicitState = {};
+    try {
+        if( stateJson ) explicitState = JSON.parse(stateJson);
+    } catch { /* fall back to revision defaults */ }
     let renderedIr = result.ir;
     const bytecode = bytecodeProgram ? bytecodeProgram(result) : null;
+    const state = clientStateForRevision(bytecode?.revision || project.revision, explicitState);
     if( result.source === 'content' || result.source === 'dat2' ) {
         /* Execute against a second import for controls and the no-JS first
          * frame. The browser receives the pristine IR and mounts those hooks

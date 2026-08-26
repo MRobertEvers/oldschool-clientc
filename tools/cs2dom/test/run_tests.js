@@ -23,7 +23,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { build, loadProject } from '../src/build.js';
+import { build, loadProject, readCompack } from '../src/build.js';
 import { ModuleGraph, renderModule } from '../src/loader.js';
 import { lower } from '../src/ir.js';
 import { emitInterface, emitCompack } from '../src/emit_if.js';
@@ -436,6 +436,44 @@ test('Dat2 programs feed original clientscript bytes to the C/WASM VM', () => {
         `raw Dat2 program was unavailable: ${program.warnings.join('; ')}`);
     assert(Buffer.from(program.scripts[0].data, 'base64').equals(original),
         'Dat2 bytecode was decompiled/recompiled instead of transported verbatim');
+});
+
+test('Dat2 programs include transitive raw GOSUB dependencies', () => {
+    const content = makeContent('dat2-bytecode-closure');
+    const rawScripts = join(content, '.raw', 'scripts');
+    mkdirSync(rawScripts, { recursive: true });
+    writeFileSync(join(content, 'pack', '12_clientscripts.pack'),
+                  '7=raw_entry hashname("[clientscript,raw_entry]")\n' +
+                  '8=raw_helper hashcode(123)\n');
+    const rawScript = (instructions) => {
+        const body = [Buffer.from([0])];
+        for( const [opcode, operand = 0] of instructions ) {
+            const encoded = Buffer.alloc([21, 38, 39, 62, 63].includes(opcode) ? 3 : 6);
+            encoded.writeUInt16BE(opcode, 0);
+            if( encoded.length === 3 ) encoded.writeInt8(operand, 2);
+            else encoded.writeInt32BE(operand, 2);
+            body.push(encoded);
+        }
+        const footer = Buffer.alloc(18);
+        footer.writeInt32BE(instructions.length, 0);
+        return Buffer.concat([...body, footer]);
+    };
+    const entry = rawScript([[40, 8], [21, 0]]);
+    const helper = rawScript([[21, 0]]);
+    writeFileSync(join(rawScripts, 'raw_entry.cs2b'), entry);
+    writeFileSync(join(rawScripts, 'raw_helper.cs2b'), helper);
+    const result = {
+        source: 'dat2', name: 'raw_panel', contentDir: content,
+        scripts: [{ id: 7, name: 'raw_entry', source: '[clientscript,raw_entry]\nreturn;\n' }],
+        ir: { components: [{ hooks: { onload: { script: { id: 7 } } } }] },
+    };
+    const program = compileInterfaceProgram({
+        revision: 'osrs239', dat2Content: content, dat2RawScripts: rawScripts,
+    }, result);
+    assert(program.available && JSON.stringify(program.scripts.map(({ id }) => id)) === '[7,8]',
+        `raw Dat2 GOSUB closure was incomplete: ${program.scripts.map(({ id }) => id)}`);
+    assert(Buffer.from(program.scripts[1].data, 'base64').equals(helper),
+        'the transitive Dat2 dependency was not transported verbatim');
 });
 
 test('compiler source aliases follow legacy names carrying the stable script id', () => {
@@ -1400,6 +1438,8 @@ test('large non-visibility transactions reconcile hover without rebuilding layou
         if( host.layoutVersion !== host.version ) layoutPasses++;
         return resolveLayout();
     };
+    const beforeMutationVersion = host.mutationVersion;
+    const beforeCommitRevision = host.commitRevision;
     const clicked = host.dispatch({ type: 'pointer_down', button: 0, x: 20, y: 20 });
     assert(clicked.intents.some((intent) => intent.hook.scriptId === 120),
            'large mutation hook did not run');
@@ -1407,6 +1447,10 @@ test('large non-visibility transactions reconcile hover without rebuilding layou
            `a position-only hook transaction rebuilt layout ${layoutPasses} times`);
     assert(clicked.interaction.hover?.name === 'button',
            'boundary reconciliation lost a still-visible hovered component');
+    assert(host.mutationVersion > beforeMutationVersion + 100 &&
+           host.commitRevision === beforeCommitRevision + 1 &&
+           host.committedMutationVersion === host.mutationVersion,
+           'nested HOST writes published more than one fixed-point revision');
 });
 
 test('dynamic child lookup keeps a parent/sub-id index through the complete CC lifecycle', () => {
@@ -4072,6 +4116,47 @@ test('script closure follows a unique wrong-role compiler alias used by a callba
         'wrong-role compiler metadata was applied to the real callback source');
 });
 
+test('script closure follows a neutral recovered label used by a callback setter', () => {
+    const root = join(scratch, 'callback-label-script-closure');
+    const content = join(root, 'content');
+    const cs2Names = join(root, 'cs2-names');
+    mkdirSync(join(content, 'pack'), { recursive: true });
+    mkdirSync(join(content, 'interfaces'), { recursive: true });
+    mkdirSync(join(content, 'scripts'), { recursive: true });
+    mkdirSync(cs2Names, { recursive: true });
+    writeFileSync(join(content, 'pack', '12_clientscripts.pack'), [
+        '10=entry',
+        '42=real_callback_name',
+        '',
+    ].join('\n'));
+    writeFileSync(join(cs2Names, 'script-names.tsv'),
+                  '10\t[clientscript,entry]\n');
+    writeFileSync(join(root, 'new_script_names.txt'), [
+        /* Mirrors rev 239's 6277 [label,ca_map_set_get] recovery. A label is
+         * an exact archive alias even when recovery could not prove its role. */
+        '42\t[label,recovered_callback_alias]\trecovered',
+        '',
+    ].join('\n'));
+    writeFileSync(join(content, 'interfaces', 'panel.if'),
+                  '[root]\nonload=i:10\n');
+    writeFileSync(join(content, 'scripts', 'entry.cs2'), [
+        '[clientscript,entry]',
+        'if_setonop("recovered_callback_alias", null);',
+        'return;',
+    ].join('\n'));
+    writeFileSync(join(content, 'scripts', 'real_callback_name.cs2'),
+                  '[clientscript,real_callback_name]\nreturn;\n');
+
+    const scripts = collectInterfaceScripts(content, 'panel', { cs2Names });
+    assert(JSON.stringify(scripts.map(({ id, name }) => [id, name])) === JSON.stringify([
+        [10, 'entry'], [42, 'real_callback_name'],
+    ]), `neutral-label callback closure was ${JSON.stringify(
+        scripts.map(({ id, name }) => [id, name]))}`);
+    const callback = scripts.find(({ id }) => id === 42);
+    assert(callback.compilerRole === undefined && callback.compilerName === undefined,
+        'neutral label metadata rewrote the real callback source header');
+});
+
 test('content bytecode fallback requires an exact cache revision and source fingerprint', () => {
     const root = join(scratch, 'exact-bytecode-fallback');
     const content = join(root, 'content');
@@ -4261,6 +4346,27 @@ test('a pack file keeps its comment header when rewritten', () => {
     const text = readFileSync(join(dir, 'pack', '3_interfaces.pack'), 'utf8');
     assertIncludes(text, '// the interface namespace');
     assertIncludes(text, '1=second');
+});
+
+test('pack hash annotations are lookup metadata and survive ledger writes', () => {
+    const dir = makeContent('pack-hash-annotations');
+    const path = join(dir, 'pack', '12_clientscripts.pack');
+    writeFileSync(path,
+        '7=raw_entry hashname("[clientscript,raw_entry]")\n' +
+        '8=raw_helper hashcode(-1435100916)\n');
+
+    const names = readCompack(path);
+    assert(names.get('raw_entry') === 7 && names.get('raw_helper') === 8,
+        `hash annotations polluted canonical pack names: ${JSON.stringify([...names])}`);
+
+    const pack = new PackFile(path);
+    assert(pack.idFor('raw_entry') === 7, 'annotated pack name allocated a duplicate id');
+    assert(pack.idFor('new_helper') === 9, 'annotated pack ids changed allocation order');
+    pack.write();
+    const rewritten = readFileSync(path, 'utf8');
+    assertIncludes(rewritten, '7=raw_entry hashname("[clientscript,raw_entry]")');
+    assertIncludes(rewritten, '8=raw_helper hashcode(-1435100916)');
+    assertIncludes(rewritten, '9=new_helper');
 });
 
 function fakeWasmModule(customRequests = null) {

@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { collectInterfaceScripts } from './native_overlay.js';
 import { compileScripts, findRepoRoot } from './verify.js';
+import { packName } from './pack.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PROGRAM_SCHEMA = 'cs2dom-bytecode/1';
@@ -168,7 +169,8 @@ function compileProgram(project, result, input, log) {
 
     const records = new Map();
     const rawNeeded = rawProgramComplete
-        ? selectedIds : referencedRawIds(input.sources, input.raw, roots);
+        ? rawDependencyIds(input.raw, input.contentDir, selectedIds)
+        : referencedRawIds(input.sources, input.raw, roots);
     for( const id of fallbackFailures.keys() ) rawNeeded.add(id);
     if( fallbackFailures.size ) {
         const compiledIds = new Set((compiled.bytecode || []).map((script) => script.id));
@@ -305,6 +307,13 @@ function exactRawDependencyClosure(rawScripts, contentDir, rootIds) {
             pending.push([target, origin]);
         }
     }
+    return result;
+}
+
+function rawDependencyIds(rawScripts, contentDir, rootIds) {
+    const result = new Set(rootIds);
+    for( const id of exactRawDependencyClosure(rawScripts, contentDir, result).keys() )
+        result.add(id);
     return result;
 }
 
@@ -610,7 +619,9 @@ function programKey(project, result, input) {
         hash.update(script.source || '');
     }
     const selectedRawIds = input.preferRaw || input.exactRawFallback
-        ? new Set([...hookIds(result?.ir), ...input.sources.map((script) => script.id)]) : null;
+        ? rawDependencyIds(input.raw, input.contentDir,
+            new Set([...hookIds(result?.ir), ...input.sources.map((script) => script.id)]))
+        : null;
     for( const script of input.raw ) {
         if( selectedRawIds && !selectedRawIds.has(script.id) ) continue;
         const info = statSync(script.file);
@@ -637,7 +648,7 @@ function readPack(path) {
         const split = line.indexOf('=');
         if( split < 1 ) continue;
         const id = Number(line.slice(0, split));
-        const name = line.slice(split + 1).trim();
+        const name = packName(line.slice(split + 1));
         if( Number.isInteger(id) && name ) result.set(id, name);
     }
     return result;

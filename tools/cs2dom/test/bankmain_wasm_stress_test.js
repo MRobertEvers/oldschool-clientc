@@ -50,6 +50,9 @@ const PROFILE_FAST = process.env.CS2DOM_BANK_PROFILE_FAST === '1';
 const TRACE_SLOW = process.env.CS2DOM_BANK_TRACE_SLOW === '1';
 const FAST_HOST = process.env.CS2DOM_WASM_FAST_HOST !== '0';
 const PRELOAD_HOST_DATA = process.env.CS2DOM_WASM_PRELOAD_HOST_DATA !== '0';
+const EXPECTED_FINGERPRINT = process.env.CS2DOM_BANK_EXPECT_FINGERPRINT ||
+    (process.env.CS2DOM_BANK_CONTENT ? ''
+        : 'a5d399ff3197ba36957b0f5f2f7ecf0dea1e80f7da59b879ff19a55b2156a340');
 
 if( isMainThread ) {
     const summary = await supervise();
@@ -427,6 +430,9 @@ async function stressWorker() {
         wasm = null;
         const fingerprint = createHash('sha256')
             .update(JSON.stringify(session.host.snapshot())).digest('hex');
+        if( EXPECTED_FINGERPRINT ) assert(fingerprint === EXPECTED_FINGERPRINT,
+            `bankmain snapshot fingerprint changed: expected ${EXPECTED_FINGERPRINT}, ` +
+            `received ${fingerprint}`);
         parentPort.postMessage({ type: 'done', summary: {
             actions: rows.length,
             hooks,

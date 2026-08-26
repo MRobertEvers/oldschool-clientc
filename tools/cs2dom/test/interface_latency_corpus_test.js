@@ -12,6 +12,7 @@
  *     node test/interface_latency_corpus_test.js
  *   CS2DOM_CORPUS_SHARD=0/8 node test/interface_latency_corpus_test.js
  *   CS2DOM_CORPUS_HARD_FAIL=1 node test/interface_latency_corpus_test.js
+ *   CS2DOM_CORPUS_INTERFACE_SOURCE=dat2 node test/interface_latency_corpus_test.js
  *   CS2DOM_CORPUS_PROFILE=1 CS2DOM_CORPUS_PROFILE_UNIQUE=1
  *     node test/interface_latency_corpus_test.js
  *   CS2DOM_CORPUS_PROFILE=1 CS2DOM_CORPUS_PROFILE_UNIQUE=1
@@ -30,6 +31,7 @@ import { isMainThread, parentPort, Worker, workerData } from 'node:worker_thread
 import { fileURLToPath } from 'node:url';
 
 import { compileInterfaceProgram } from '../src/bytecode.js';
+import { OSRS239_LOGIN_STATE, osrs239ClientState } from '../src/client_state.js';
 import { contentInterfaceCatalog, openContentInterface } from '../src/content.js';
 import { prepareDat2Project } from '../src/dat2.js';
 import { contentHostData } from '../src/host_data.js';
@@ -43,9 +45,12 @@ const CONTENT = process.env.CS2DOM_CORPUS_CONTENT
     : join(REPO, 'OSRS-Content', 'osrs239-content');
 const CACHE = process.env.CS2DOM_CORPUS_CACHE
     ? resolve(process.env.CS2DOM_CORPUS_CACHE) : join(REPO, 'cache.osrs239');
+const INTERFACE_SOURCE = process.env.CS2DOM_CORPUS_INTERFACE_SOURCE === 'dat2'
+    ? 'dat2' : 'content';
 const WASM = resolve(HERE, '../web/cs2vm_wasm.wasm');
 const MODULE_URL = new URL('../web/cs2vm_wasm.js', import.meta.url).href;
 const EXPECTED_INTERFACE_COUNT = 968;
+const FAST_RECORD_WORDS = 12;
 const THRESHOLD_MS = positiveNumber(process.env.CS2DOM_CORPUS_THRESHOLD_MS, 10);
 const TARGET_LIMIT = nonnegativeInteger(process.env.CS2DOM_CORPUS_TARGET_LIMIT, 24);
 const HARD_FAIL = process.env.CS2DOM_CORPUS_HARD_FAIL === '1';
@@ -75,6 +80,7 @@ const TIMER_HOOKS = new Set(['ontimer']);
 const PRIORITY_TARGET = /(?:search|quantity5|unlock|combi|confirm|submit|continue)/i;
 const PACKED_PROFILE_METHODS = Object.freeze([
     '_createChild', '_fastCreatePackedChild', '_fastApplyFreshPackedRun',
+    '_indexDynamic', '_index',
     '_deleteSet', '_deleteForFastReplace',
     '_fastSetPosition', '_fastSetSize', '_fastSetSimpleProp', '_fastSetTextAlign',
     '_fastSetPackedHook', '_fastSetOp', '_fastSetOpBase',
@@ -144,7 +150,7 @@ async function corpusWorker() {
     try {
         assert(existsSync(CONTENT), `OSRS-Content is unavailable at ${CONTENT}`);
         assert(existsSync(WASM), `C CS2VM WebAssembly is unavailable at ${WASM}`);
-        const catalog = contentInterfaceCatalog(CONTENT, { source: 'content' })
+        const catalog = contentInterfaceCatalog(CONTENT, { source: INTERFACE_SOURCE })
             .sort((left, right) => left.interfaceId - right.interfaceId);
         assert(catalog.length === EXPECTED_INTERFACE_COUNT,
             `expected ${EXPECTED_INTERFACE_COUNT} readable .if interfaces, found ${catalog.length}`);
@@ -177,6 +183,7 @@ async function corpusWorker() {
             fallbackInterfaces: [],
             fallbackRecords: 0,
             stateFixtures: [],
+            globalStateFixture: OSRS239_LOGIN_STATE,
             mountedInterfaces: 0,
             mountFailures: [],
             discovered: {
@@ -226,7 +233,7 @@ async function auditInterface(record, compileProject, hostData, wasmUrl, summary
     let program;
     const compileBefore = performance.now();
     try {
-        imported = openContentInterface(CONTENT, record.name, { source: 'content' });
+        imported = openContentInterface(CONTENT, record.name, { source: INTERFACE_SOURCE });
         program = compileInterfaceProgram(compileProject, imported);
     } catch( error ) {
         summary.compileMs += performance.now() - compileBefore;
@@ -262,7 +269,7 @@ async function auditInterface(record, compileProject, hostData, wasmUrl, summary
             session.host = createHostRuntime(imported.ir, {
                 viewport: { width: 512, height: 334 },
                 hostData,
-                state: fixtureState ? { ...fixtureState } : {},
+                state: osrs239ClientState(fixtureState || {}),
                 recordChanges: false,
                 invoke(intent) {
                     metrics.hooks++;
@@ -804,10 +811,14 @@ function installDispatchProfile(session) {
         row.fastBatches++;
         row.fastRecords += requests?.length || 0;
     });
-    wrap(session.host, 'requestFastPackedBatch', (row, ms, [, count]) => {
+    wrap(session.host, 'requestFastPackedBatch', (row, ms, [records, count]) => {
         row.fastBatchMs += ms;
         row.fastBatches++;
         row.fastRecords += count || 0;
+        if( PROFILE_KEYS ) for( let index = 0; index < count; index++ ) {
+            const kind = records[index * FAST_RECORD_WORDS];
+            row.packedKinds[kind] = (row.packedKinds[kind] || 0) + 1;
+        }
     });
     for( const name of ['layout', '_box', '_geometry', '_emit', '_retireInvisibleInteraction',
         '_hookTargets', '_tick', ...PACKED_PROFILE_METHODS] ) wrap(session.host, name, (row, ms) => {
@@ -838,6 +849,7 @@ function installDispatchProfile(session) {
                 requestKeys: {},
                 requestKeySamples: [],
                 dbFieldPatterns: {},
+                packedKinds: {},
                 methods: {},
             };
         },
@@ -970,6 +982,11 @@ function printSummary(summary) {
         `${summary.unavailablePrograms.length} unavailable programs`);
     console.log(`exact Dat2 source fallback: ${summary.fallbackRecords} records across ` +
         `${summary.fallbackInterfaces.length} interfaces`);
+    console.log(`rev-239 login state: camera zoom varcs ` +
+        `${summary.globalStateFixture['varc:1338']},` +
+        `${summary.globalStateFixture['varc:1339']},` +
+        `${summary.globalStateFixture['varc:1340']},` +
+        `${summary.globalStateFixture['varc:1341']}`);
     if( summary.stateFixtures.length ) console.log(`real client-state fixtures: ` +
         summary.stateFixtures.map((row) => `${row.interfaceId}:${row.interface}`).join(', '));
     console.log(actualFull
@@ -1026,6 +1043,9 @@ function formatRow(row) {
         .filter(([, metric]) => metric?.calls)
         .sort((left, right) => right[1].ms - left[1].ms)
         .map(([name, metric]) => `${name}:${metric.calls}/${metric.ms.toFixed(2)}ms`).join(',');
+    const packedKinds = Object.entries(row.profile.packedKinds || {})
+        .sort((left, right) => right[1] - left[1]).slice(0, 12)
+        .map(([kind, calls]) => `${kind}:${calls}`).join(',');
     const dbFields = row.profile.requestUniqueKinds?.DB_GETFIELD === undefined ? '' :
         ` db=[keys=${row.profile.requestUniqueKinds.DB_GETFIELD},` +
         `rowcols=${row.profile.requestUniqueKinds['DB_GETFIELD:rowColumn']},` +
@@ -1045,6 +1065,7 @@ function formatRow(row) {
         `${row.profile.fastQueryCalls}[${queryKinds}] ` +
         `layout=${(methods.layout?.ms || 0).toFixed(2)}ms ` +
         `emit=${(methods._emit?.ms || 0).toFixed(2)}ms packed=[${packedMethods}] ` +
+        (PROFILE_KEYS ? `packedKinds=[${packedKinds}] ` : '') +
         `requests=[${top}]${dbFields}`;
 }
 

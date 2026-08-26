@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { parseFontMetrics } from './font.js';
 import { parseDbTextData } from './host_db.js';
 import { parseWorldMapFiles } from './host_worldmap.js';
+import { packName } from './pack.js';
 
 export const HOST_DATA_SCHEMA = 'cs2dom-host-data/1';
 
@@ -308,7 +309,10 @@ export function parseSymbolIds(text) {
     const result = new Map();
     for( const line of configLines(text) ) {
         const match = /^(\d+)=([^=]+)$/.exec(line);
-        if( match ) result.set(match[2].trim(), Number(match[1]));
+        if( match ) {
+            const name = packName(match[2]);
+            if( name ) result.set(name, Number(match[1]));
+        }
     }
     return result;
 }

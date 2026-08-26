@@ -147,7 +147,7 @@ export function stageBoxSignature(box) {
     return JSON.stringify([
         box.x, box.y, box.w, box.h, box.clip, box.props, box.presentation,
         box.emitted, box.effectiveHidden, box.culled, box.depth, box.layer,
-        box.dynamic, box.ops, box.events,
+        box.dynamic, box.ops, box.events, box.hooks,
     ]);
 }
 
@@ -168,7 +168,8 @@ export function stageBoxesEqual(left, right) {
         stageValueEqual(left.presentation, right.presentation) &&
         stageValueEqual(left.dynamic, right.dynamic) &&
         stageValueEqual(left.ops, right.ops) &&
-        stageValueEqual(left.events, right.events);
+        stageValueEqual(left.events, right.events) &&
+        stageValueEqual(left.hooks, right.hooks);
 }
 
 function stageValueEqual(left, right) {

@@ -5,6 +5,7 @@
  */
 
 import { createHostRuntime } from './host_runtime.js';
+import { clientStateForRevision } from './client_state.js';
 import { createWasmCS2Runtime } from './wasm_runtime.js';
 import {
     RUNTIME_WORKER_STAGE_CHUNK, RUNTIME_WORKER_STAGE_SLICE_ITEMS,
@@ -13,6 +14,8 @@ import {
 } from './runtime_worker_protocol.js';
 
 const HOST_DATA_CACHE = new Map();
+const TYPESCRIPT_ENGINE_MODULE = '/ts-vm/cs2_engine_router.js';
+let typescriptEngineModulePromise = null;
 
 export function createRuntimeWorkerEndpoint({
     send,
@@ -21,6 +24,8 @@ export function createRuntimeWorkerEndpoint({
     clock = () => globalThis.performance?.now?.() ?? Date.now(),
     createHost = createHostRuntime,
     createWasm = createWasmCS2Runtime,
+    prepareEngine = defaultPrepareEngine,
+    createTypeScript = defaultCreateTypeScript,
     stageTaskBudgetMs = RUNTIME_WORKER_STAGE_SLICE_MS,
     stageItemsPerTask = RUNTIME_WORKER_STAGE_SLICE_ITEMS,
 } = {}) {
@@ -98,14 +103,40 @@ export function createRuntimeWorkerEndpoint({
         return text;
     }
 
+    function failSession(session, error) {
+        if( current !== session ) return;
+        warning(session, error);
+        try { session.wasm?.destroy?.(); } catch { /* best effort */ }
+        session.wasm = null;
+        session.host = null;
+        session.mode = 'unavailable';
+        stopTree();
+        stopDispatch();
+        post('failed', session.id, {
+            error: serializeError(error), warnings: [...session.warnings],
+        });
+    }
+
     function beginStageUpdate(session, {
-        reset = false, sequence = null, onDone = null, onError = null,
+        reset = false, sequence = null, onDone = null, onError = null, treeDelta = null,
+        recoveryAttempted = false,
     } = {}) {
         if( stageJob ) throw new Error('a stage projection is already active');
         const previous = session.stage;
+        const dirtyKeys = !reset && previous &&
+            treeDelta?.baseRevision === session.treeRevision &&
+            typeof session.host.projectRenderKey === 'function'
+            ? incrementalStageDirtyKeys(treeDelta) : null;
         stageJob = {
             session, reset: Boolean(reset), sequence, onDone, onError,
-            phase: 'layout', layout: null, layoutIndex: 0,
+            treeDelta, dirtyKeys, recoveryAttempted: Boolean(recoveryAttempted),
+            phase: dirtyKeys ? 'dirty' : 'layout', layout: null, layoutIndex: 0,
+            dirtyIndex: 0, dirtyProjected: new Map(),
+            version: dirtyKeys ? Number(session.host.version) || 0 : 0,
+            viewport: dirtyKeys ? {
+                width: Math.max(1, Number(session.host.viewport?.width) || 512),
+                height: Math.max(1, Number(session.host.viewport?.height) || 334),
+            } : null,
             previousEntries: previous?.entries || [],
             previousMap: previous?.byKey || new Map(), previousKeys: previous?.keys || [],
             nextEntries: [], nextMap: new Map(), nextKeys: [], removeIndex: 0,
@@ -152,6 +183,29 @@ export function createRuntimeWorkerEndpoint({
             };
             try { post('timing', job.session.id, { sequence: job.sequence, timing }); }
             catch( timingError ) { if( !error ) error = timingError; }
+            if( error && !job.recoveryAttempted && current === job.session && job.session.host ) {
+                /* consumeTreeDelta() transfers ownership before projection starts.
+                 * A projector/layout/send exception must therefore retain that
+                 * exact committed revision until one bounded full reset either
+                 * publishes it or reports a terminal error. A new transaction
+                 * also supersedes any uncommitted chunks from the failed job. */
+                warning(job.session,
+                    `Stage projection failed; retrying one full rebuild: ${error?.message || error}`);
+                try {
+                    beginStageUpdate(job.session, {
+                        reset: true,
+                        sequence: job.sequence,
+                        treeDelta: job.treeDelta,
+                        recoveryAttempted: true,
+                        onDone: job.onDone,
+                        onError: job.onError,
+                    });
+                    return;
+                } catch( retryError ) {
+                    stageJob = null;
+                    error = retryError;
+                }
+            }
             if( error ) job.onError?.(error, timing);
             else job.onDone?.(timing);
             return;
@@ -177,6 +231,61 @@ export function createRuntimeWorkerEndpoint({
                 processed++;
                 continue;
             }
+            if( job.phase === 'dirty' ) {
+                if( job.dirtyIndex >= job.dirtyKeys.length ) {
+                    if( job.upsert.length === 0 ) {
+                        job.nextEntries = job.previousEntries;
+                        job.nextMap = job.previousMap;
+                        job.nextKeys = job.previousKeys;
+                        job.phase = 'finalize';
+                        continue;
+                    }
+                    job.phase = 'dirty-assemble';
+                    job.layoutIndex = 0;
+                    continue;
+                }
+                const key = job.dirtyKeys[job.dirtyIndex++];
+                const old = job.previousMap.get(key) || null;
+                const box = job.session.host.projectRenderKey(key);
+                if( box && paintableStageBox(box) ) {
+                    /* A formerly-unpaintable node has no retained draw-order
+                     * slot. Its exact insertion point requires the full tree. */
+                    if( !old ) {
+                        restartFullStage(job);
+                        processed++;
+                        continue;
+                    }
+                    const entry = { key, box };
+                    if( !stageBoxesEqual(old.box, box) ) {
+                        job.dirtyProjected.set(key, entry);
+                        job.upsert.push(entry);
+                    }
+                } else if( old ) {
+                    /* Paintability changes alter the compact stage root order.
+                     * Rebuild it from the full tree instead of inventing an
+                     * incremental insertion/removal position. */
+                    restartFullStage(job);
+                } else if( box === null ) {
+                    /* A dirty live key disappearing from HostRuntime is a
+                     * generation/topology inconsistency, never a safe remove. */
+                    restartFullStage(job);
+                }
+                processed++;
+                continue;
+            }
+            if( job.phase === 'dirty-assemble' ) {
+                if( job.layoutIndex >= job.previousEntries.length ) {
+                    job.phase = 'finalize';
+                    continue;
+                }
+                const old = job.previousEntries[job.layoutIndex++];
+                const entry = job.dirtyProjected.get(old.key) || old;
+                job.nextEntries.push(entry);
+                if( !job.nextMap.has(entry.key) ) job.nextKeys.push(entry.key);
+                job.nextMap.set(entry.key, entry);
+                processed++;
+                continue;
+            }
             if( job.phase === 'project' ) {
                 if( job.layoutIndex >= job.layout.length ) {
                     if( job.nextEntries.length !== job.previousEntries.length )
@@ -187,7 +296,10 @@ export function createRuntimeWorkerEndpoint({
                 const index = job.layoutIndex++;
                 const box = job.layout[index];
                 if( paintableStageBox(box) ) {
-                    const entry = { key: stageBoxKey(box, index), box };
+                    const entry = {
+                        key: job.session.host.renderKey?.(box.ref) || stageBoxKey(box, index),
+                        box,
+                    };
                     const entryIndex = job.nextEntries.length;
                     if( !job.orderChanged &&
                         job.previousEntries[entryIndex]?.key !== entry.key )
@@ -299,8 +411,25 @@ export function createRuntimeWorkerEndpoint({
 
     function commitStageProjection(job) {
         job.session.stage = job.next;
+        job.session.treeRevision = job.treeDelta?.revision ?? job.session.host.commitRevision ??
+            job.session.treeRevision;
         job.session.lastViewportWidth = job.viewport.width;
         job.session.lastViewportHeight = job.viewport.height;
+    }
+
+    function restartFullStage(job) {
+        job.dirtyKeys = null;
+        job.phase = 'layout';
+        job.layout = null;
+        job.layoutIndex = 0;
+        job.nextEntries = [];
+        job.nextMap = new Map();
+        job.nextKeys = [];
+        job.removeIndex = 0;
+        job.upsert = [];
+        job.remove = [];
+        job.orderChanged = Boolean(job.reset);
+        job.dirtyProjected.clear();
     }
 
     async function initialize(message) {
@@ -314,18 +443,41 @@ export function createRuntimeWorkerEndpoint({
             host: null,
             wasm: null,
             mode: 'unavailable',
+            enginePlan: null,
             warnings: [],
             services: [],
             stage: null,
+            treeRevision: 0,
             lastViewportWidth: -1,
             lastViewportHeight: -1,
         };
         current = session;
         try {
+            const requestedEngine = workerEngineMode(config.engineMode ?? config.engine);
+            /* TypeScript/auto selection decodes and audits the entire declared
+             * hook closure before createHost can construct or mutate a tree.
+             * The production-default WASM path deliberately skips this
+             * migration preflight so incomplete TS decoding cannot regress C. */
+            session.enginePlan = config.program?.available !== false &&
+                Array.isArray(config.program?.scripts)
+                ? requestedEngine === 'wasm'
+                    ? defaultWasmEnginePlan()
+                    : await prepareEngine(config.program, {
+                        mode: requestedEngine,
+                        hookEntryScriptIds: staticIRHookScriptIds(config.ir),
+                    })
+                : null;
+            if( disposeStaleSession(session) ) return;
+            if( session.enginePlan?.backend === 'wasm' && requestedEngine === 'auto' ) {
+                const reason = session.enginePlan.reason === 'typescript-decode-failed'
+                    ? session.enginePlan.decodeFailure?.message || 'TypeScript decode failed'
+                    : 'the complete script closure is not reviewed for TypeScript';
+                warning(session, `TypeScript CS2 auto-selection used C/WASM: ${reason}`);
+            }
             const hostData = await loadHostData(config);
             if( disposeStaleSession(session) ) return;
             session.host = createHost(config.ir, {
-                state: config.state || {},
+                state: clientStateForRevision(config.program?.revision, config.state || {}),
                 viewport: config.viewport,
                 hostData,
                 recordChanges: false,
@@ -334,19 +486,29 @@ export function createRuntimeWorkerEndpoint({
                     if( !session.wasm ) return 0;
                     try { return session.wasm.invokeIntent(intent); }
                     catch( error ) {
-                        warning(session, `C CS2VM/WASM: ${error?.message || String(error)}`);
+                        /* The migration backend is selected only after a
+                         * fail-closed proof. A routing/execution miss means
+                         * that proof was wrong; never turn it into a plausible
+                         * zero result and commit a partially executed event. */
+                        if( session.mode === 'typescript' ) throw error;
+                        const engine = session.mode === 'typescript'
+                            ? 'TypeScript CS2VM' : 'C CS2VM/WASM';
+                        warning(session, `${engine}: ${error?.message || String(error)}`);
                         return 0;
                     }
                 },
             });
             if( config.program?.available !== false && Array.isArray(config.program?.scripts) ) {
-                session.wasm = await createWasm({
+                const factory = session.enginePlan?.backend === 'typescript'
+                    ? createTypeScript : createWasm;
+                session.wasm = await factory({
                     program: config.program,
                     host: session.host,
+                    plan: session.enginePlan,
                     moduleUrl: config.moduleUrl,
                     wasmUrl: config.wasmUrl,
                 });
-                session.mode = 'wasm';
+                session.mode = session.enginePlan?.backend || 'wasm';
             } else {
                 for( const message of config.program?.warnings || [] ) warning(session, message);
                 warning(session, 'Original CS2 bytecode is unavailable; scripts are not executed.');
@@ -354,12 +516,14 @@ export function createRuntimeWorkerEndpoint({
             }
             if( disposeStaleSession(session) ) return;
             const mounted = session.host.mount();
+            const mountedTreeDelta = session.host.consumeTreeDelta?.() || null;
             beginStageUpdate(session, {
-                reset: true,
+                reset: true, treeDelta: mountedTreeDelta,
                 onDone: () => {
                     if( current !== session ) return;
                     post('ready', session.id, {
                         mode: session.mode,
+                        engineSelection: publicEnginePlan(session.enginePlan),
                         warnings: [...session.warnings],
                         interaction: mounted.interaction,
                         services: session.services.splice(0),
@@ -367,27 +531,12 @@ export function createRuntimeWorkerEndpoint({
                     scheduleQueuedMessages();
                 },
                 onError: (error) => {
-                    if( current !== session ) return;
-                    warning(session, error);
-                    try { session.wasm?.destroy?.(); } catch { /* best effort */ }
-                    session.wasm = null;
-                    session.host = null;
-                    session.mode = 'unavailable';
-                    post('failed', session.id, {
-                        error: serializeError(error), warnings: [...session.warnings],
-                    });
+                    failSession(session, error);
                 },
             });
         } catch( error ) {
             if( disposeStaleSession(session) ) return;
-            warning(session, error);
-            try { session.wasm?.destroy?.(); } catch { /* best effort */ }
-            session.wasm = null;
-            session.host = null;
-            session.mode = 'unavailable';
-            post('failed', session.id, {
-                error: serializeError(error), warnings: [...session.warnings],
-            });
+            failSession(session, error);
         }
     }
 
@@ -465,13 +614,23 @@ export function createRuntimeWorkerEndpoint({
         const job = dispatchJob;
         if( !job || current !== job.session ) return;
         try {
+            const treeDelta = job.session.host.consumeTreeDelta?.() || null;
+            if( treeDelta?.projection === 'none' ) {
+                if( job.session.stage ) job.session.stage = {
+                    ...job.session.stage, version: Number(job.session.host.version) || 0,
+                };
+                job.session.treeRevision = treeDelta.revision;
+                finishDispatch();
+                return;
+            }
             beginStageUpdate(job.session, {
                 sequence: job.message.sequence,
+                treeDelta,
                 onDone: finishDispatch,
-                onError: (error) => {
-                    warning(job.session, error);
-                    finishDispatch();
-                },
+                /* A second failure after the bounded full retry is terminal.
+                 * Continuing would strand the already-consumed renderer
+                 * revision behind an observably stale React stage. */
+                onError: (error) => failSession(job.session, error),
             });
         } catch( error ) {
             warning(job.session, error);
@@ -591,6 +750,124 @@ async function loadHostData(config) {
         HOST_DATA_CACHE.set(url, pending);
     }
     return pending;
+}
+
+function workerEngineMode(value) {
+    const mode = value ?? 'wasm';
+    if( mode === 'wasm' || mode === 'typescript' || mode === 'auto' ) return mode;
+    const error = new Error(
+        `unknown CS2 engine mode ${String(value)}; expected wasm, typescript, or auto`);
+    error.code = 'BAD_ENGINE_MODE';
+    throw error;
+}
+
+function defaultWasmEnginePlan() {
+    return Object.freeze({
+        requestedMode: 'wasm', backend: 'wasm', reason: 'production-default',
+        registry: null, coverage: null, decodeFailure: null,
+    });
+}
+
+async function loadTypeScriptEngineModule() {
+    if( !typescriptEngineModulePromise )
+        typescriptEngineModulePromise = import(TYPESCRIPT_ENGINE_MODULE);
+    try { return await typescriptEngineModulePromise; }
+    catch( error ) {
+        typescriptEngineModulePromise = null;
+        throw error;
+    }
+}
+
+async function defaultPrepareEngine(program, options) {
+    const module = await loadTypeScriptEngineModule();
+    return module.prepareCS2EnginePlan(program, options);
+}
+
+async function defaultCreateTypeScript(options) {
+    const module = await loadTypeScriptEngineModule();
+    return module.createTypeScriptCS2Runtime(options);
+}
+
+function publicEnginePlan(plan) {
+    if( !plan ) return null;
+    const coverage = plan.coverage ? {
+        supported: Boolean(plan.coverage.supported),
+        dialect: plan.coverage.dialect,
+        programEntryScriptIds: [...(plan.coverage.programEntryScriptIds || [])],
+        hookEntryScriptIds: [...(plan.coverage.hookEntryScriptIds || [])],
+        entryScriptIds: [...plan.coverage.entryScriptIds],
+        scriptIds: [...plan.coverage.scriptIds],
+        unsupportedCoreOpcodes: [...plan.coverage.unsupportedCoreOpcodes],
+        unreviewedHostOpcodes: [...plan.coverage.unreviewedHostOpcodes],
+        unimplementedHostOpcodes: [...plan.coverage.unimplementedHostOpcodes],
+        unresolvedDynamicHookOpcodes:
+            [...(plan.coverage.unresolvedDynamicHookOpcodes || [])],
+        unresolvedDynamicHookSourceScriptIds:
+            [...(plan.coverage.unresolvedDynamicHookSourceScriptIds || [])],
+        unresolvedInterfaceGroupOpcodes:
+            [...(plan.coverage.unresolvedInterfaceGroupOpcodes || [])],
+        allReferencedInterfaceGroupsPreloaded:
+            Boolean(plan.coverage.allReferencedInterfaceGroupsPreloaded),
+        unknownOpcodes: [...plan.coverage.unknownOpcodes],
+        missingScriptIds: [...plan.coverage.missingScriptIds],
+        missingEntryPoints: Boolean(plan.coverage.missingEntryPoints),
+    } : null;
+    return {
+        requestedMode: plan.requestedMode,
+        backend: plan.backend,
+        reason: plan.reason,
+        coverage,
+        decodeFailure: plan.decodeFailure ? { ...plan.decodeFailure } : null,
+    };
+}
+
+/**
+ * Collect every cache/static hook which HostRuntime can invoke immediately
+ * after construction. Both imported `{script:{id}}` records and compact
+ * `{scriptId}` bindings occur in real IR. Null/sentinel hooks are inert; a
+ * malformed positive id is rejected before Host construction rather than
+ * silently escaping the whole-closure selector.
+ */
+function staticIRHookScriptIds(ir) {
+    const result = new Set();
+    for( const component of ir?.components || [] ) {
+        for( const bindings of [component?.hooks, component?.events] ) {
+            if( !bindings || typeof bindings !== 'object' ) continue;
+            for( const binding of Object.values(bindings) ) {
+                if( !binding || typeof binding !== 'object' ) continue;
+                const raw = binding.script?.id ?? binding.scriptId ?? binding.script_id;
+                if( raw === undefined || raw === null ) continue;
+                const id = Number(raw);
+                if( Number.isFinite(id) && id <= 0 ) continue;
+                if( !Number.isSafeInteger(id) || id > 0x7fffffff ) {
+                    const error = new Error(`invalid static hook clientscript id ${String(raw)}`);
+                    error.code = 'BAD_ENTRY_SCRIPT';
+                    throw error;
+                }
+                result.add(id);
+            }
+        }
+    }
+    return [...result].sort((left, right) => left - right);
+}
+
+function incrementalStageDirtyKeys(delta) {
+    if( delta?.schema !== 'cs2dom-tree-delta/1' || delta.projection !== 'dirty' ||
+        !delta.dirty || typeof delta.dirty !== 'object' ) return null;
+    const allowed = new Set(['paint', 'interaction']);
+    for( const [category, values] of Object.entries(delta.dirty) ) {
+        if( !Array.isArray(values) ) return null;
+        if( !allowed.has(category) && values.length ) return null;
+    }
+    const keys = [];
+    const seen = new Set();
+    for( const category of allowed ) for( const rawKey of delta.dirty[category] || [] ) {
+        const key = String(rawKey);
+        if( !key || seen.has(key) ) continue;
+        seen.add(key);
+        keys.push(key);
+    }
+    return keys;
 }
 
 function serializeError(error) {
