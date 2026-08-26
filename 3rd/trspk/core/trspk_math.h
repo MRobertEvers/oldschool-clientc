@@ -255,9 +255,11 @@ trspk_color_rgb_to_rgba(
     float alpha,
     float rgba[4])
 {
-    rgba[0] = (float)((color >> 16) & 0xFF) / 255.0f;
-    rgba[1] = (float)((color >> 8) & 0xFF) / 255.0f;
-    rgba[2] = (float)(color & 0xFF) / 255.0f;
+    /* Multiply by the reciprocal: /255.0f compiles to DIVSS, which does not
+     * pipeline on the Pentium 4 target. */
+    rgba[0] = (float)((color >> 16) & 0xFF) * (1.0f / 255.0f);
+    rgba[1] = (float)((color >> 8) & 0xFF) * (1.0f / 255.0f);
+    rgba[2] = (float)(color & 0xFF) * (1.0f / 255.0f);
     rgba[3] = alpha;
 }
 
@@ -268,10 +270,10 @@ trspk_color_argb_to_rgba(
 {
     if( (argb & 0xFF000000u) == 0u )
         argb |= 0xFF000000u;
-    rgba[0] = (float)((argb >> 16) & 0xFF) / 255.0f;
-    rgba[1] = (float)((argb >> 8) & 0xFF) / 255.0f;
-    rgba[2] = (float)(argb & 0xFF) / 255.0f;
-    rgba[3] = (float)((argb >> 24) & 0xFF) / 255.0f;
+    rgba[0] = (float)((argb >> 16) & 0xFF) * (1.0f / 255.0f);
+    rgba[1] = (float)((argb >> 8) & 0xFF) * (1.0f / 255.0f);
+    rgba[2] = (float)(argb & 0xFF) * (1.0f / 255.0f);
+    rgba[3] = (float)((argb >> 24) & 0xFF) * (1.0f / 255.0f);
 }
 
 /*

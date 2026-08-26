@@ -151,6 +151,37 @@ trspk_d3d9_pack_argb(
     return (ia << 24u) | (ir << 16u) | (ig << 8u) | ib;
 }
 
+/* Write a vertex whose colour is ALREADY the packed D3DCOLOR the format
+ * stores. A caller holding one should not have to widen it to four floats
+ * only for trspk_d3d9_pack_argb to narrow it straight back.
+ *
+ * Unlike the float writer this does NOT set the dirty flag. A bake writes
+ * hundreds of vertices into one buffer and the flag is idempotent, so the
+ * caller sets it once around the loop -- see d3d9_bake_pose_vertices. */
+static inline void
+trspk_vbo_write_vertex_d3d9_argb(
+    struct TRSPK_VBO* vbo,
+    uint32_t index,
+    float x,
+    float y,
+    float z,
+    uint32_t argb,
+    float u,
+    float v,
+    float tex_id)
+{
+    struct TRSPK_VertexD3D9* vertex = &vbo->vertices.as_d3d9[index];
+
+    vertex->position[0] = x;
+    vertex->position[1] = y;
+    vertex->position[2] = z;
+    vertex->color = argb;
+    vertex->texcoord[0] = u;
+    vertex->texcoord[1] = v;
+    vertex->texdata[0] = tex_id;
+    vertex->texdata[1] = 0.0f;
+}
+
 static inline void
 trspk_vbo_write_vertex_d3d9(
     struct TRSPK_VBO* vbo,

@@ -3469,12 +3469,17 @@ webgl1_bake_into_arena(
 
     const uint32_t base = model_slot->vertex_base;
 
+    /* Resolved once for the model, not once per corner. */
+    struct TRSPK_WorldPlacement placement;
+    trspk_toridraw_placement_init(&placement, world_position);
+
     for( uint32_t face_index = 0; face_index < tri_count; face_index++ )
     {
         const uint32_t vi = base + face_index * 3u;
         struct TRSPK_ToriDrawBakeFaceVerts face;
         if( !trspk_toridraw_bake_face_handle(
-                model_handle, face_index, world_position, ctx, true, &face) )
+                model_handle, face_index, &placement, ctx, true,
+                TRSPK_BAKE_COLOR_FLOAT, &face) )
             continue;
         {
             int const slot = webgl1_ensure_texture(renderer, face.tex_id);
@@ -4375,7 +4380,8 @@ webgl1_bake_widget_model(
 
             assert(ctx);
             if( !trspk_toridraw_bake_face_handle(
-                    model_handle, face_index, NULL, ctx, true, &face) )
+                    model_handle, face_index, &trspk_world_placement_identity, ctx,
+                    true, TRSPK_BAKE_COLOR_FLOAT, &face) )
                 continue;
             /* Soft3D never rasterizes HIDDEN / fully-transparent faces. Leave
              * the slot zeroed (alpha 0) so painter order cannot punch holes. */
