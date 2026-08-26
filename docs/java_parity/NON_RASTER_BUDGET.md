@@ -137,10 +137,35 @@ clear and a smaller present, and the clear half is already banked. What is left
 is the present (0.91 → ~0.57 over a 62%-of-canvas box) and the chrome outside
 that box (~half of 0.67).
 
-So **every lever known to exist, stacked, including the one that was removed on
-purpose and the two that cost visible quality, comes to −45%.** The target is
-not reachable on this bench by any combination of them. It would need a change
-to what the client draws, not to how it draws it.
+One more, found last and worth about −0.10: `struct ToriRS_RenderCommand` is
+**104 bytes** (measured, `sizeof`), and `ToriRS_FrameNextCommand` copies one out
+by value per call — roughly 208 KB a frame at ~2,000 commands. Returning a
+pointer into the frame's own storage would remove it, at the cost of an API
+change through the renderer. It is part of the ~1.05 ms that `RenderFrame`
+self-time, `Soft3D_Execute` and `FrameNextCommand` account for between them,
+most of which is the generator's real work rather than the copy.
+
+So **every lever known to exist, stacked — including the one that was removed on
+purpose, the two that cost visible quality, and the command-copy change — comes
+to about 3.79 ms, −47%.** The target is not reachable on this bench by any
+combination of them. It would need a change to what the client draws, not to how
+it draws it.
+
+### What "non-raster" contains, and why that matters to the target
+
+The metric is defined by `TORIRS_ABL_NORASTER=1`, which deletes the 3D triangle
+kernels and nothing else. So it counts, as "non-raster":
+
+- 3D model setup — face sort 1.15, painter bucket 0.47, projection 0.26,
+  cylinder bounds 0.21 = **2.09 ms, 36% of the metric**. This is per-model
+  per-frame work that the Java client does identically, and no drawing
+  optimisation removes it.
+- 2D rasterisation — chrome blit 0.67, glyphs 0.12.
+- Framebuffer traffic that is not rasterisation at all — clear, present.
+
+Halving the metric therefore requires halving work that neither client avoids.
+That is the arithmetic reason the target is unreachable, independent of any
+argument about dirty tracking.
 
 ## The conclusion
 
