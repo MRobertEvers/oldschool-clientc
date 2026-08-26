@@ -342,9 +342,22 @@ export function installClientOps(HostKernel) {
      */
     proto.coord = function () { this.calls++; return this.client.coord; };
 
+    /*
+     * `coordy` is the PLANE and `coordz` is the second tile axis.
+     *
+     * RuneScript names the axes x/y/z with y as the level, which is the
+     * opposite of what "z" suggests and the reason these two were swapped
+     * here: `CS2VM2_Op_CoordY` returns `(packed >> 28) & 0x3` and
+     * `CS2VM2_Op_CoordZ` returns `packed & 0x3fff`.
+     *
+     * It is not only about coordinates. Scripts pack a size into a coord and
+     * unpack it with this pair — `sailing_boat_cargohold` sizes a 33x36 sprite
+     * with `cc_setsize(coordx($c), coordz($c), ...)`, and reading the plane
+     * there made it 33x0.
+     */
     proto.coordx = function (coord) { this.calls++; return unpackCoord(coord).x; };
-    proto.coordy = function (coord) { this.calls++; return unpackCoord(coord).y; };
-    proto.coordz = function (coord) { this.calls++; return unpackCoord(coord).level; };
+    proto.coordy = function (coord) { this.calls++; return unpackCoord(coord).level; };
+    proto.coordz = function (coord) { this.calls++; return unpackCoord(coord).y; };
 
     /*
      * Named "visible", answers the VALUE. `rs_cs2_host.c` pushes

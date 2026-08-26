@@ -163,9 +163,13 @@ test('a packed coord unpacks to its three parts', () => {
 
     const { host } = harness({ coord: packed });
     assert.equal(host.coord(), packed);
+    /* RuneScript names the axes x/y/z with Y AS THE LEVEL, so `coordy` is the
+     * plane and `coordz` is the second tile axis — `CS2VM2_Op_CoordY` returns
+     * `(packed >> 28) & 0x3`. Scripts also pack a SIZE into a coord and read
+     * it back with this pair, which is where the swap showed. */
     assert.equal(host.coordx(packed), 3200);
-    assert.equal(host.coordy(packed), 3400);
-    assert.equal(host.coordz(packed), 1);
+    assert.equal(host.coordy(packed), 1);
+    assert.equal(host.coordz(packed), 3400);
 });
 
 test('the parts of "no coord" are -1, not the bits of -1', () => {
