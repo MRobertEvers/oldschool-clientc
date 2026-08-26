@@ -653,6 +653,22 @@ $('reload').addEventListener('click', () => { if( chrome.selected ) mount(chrome
 if( 'EventSource' in globalThis )
 {
   const events = new EventSource('/events');
+  /*
+   * A RESTARTED server means new code, and this document is holding the old.
+   *
+   * Its /src/... imports were fetched once and an ES module is cached for
+   * the life of the document, so a tab left open across a server restart runs
+   * the modules it started with -- a remount rebuilds the session out of the
+   * same stale painter and tree. Every runtime fix was invisible until the
+   * page itself was reloaded, which looks exactly like a fix that did not
+   * work.
+   */
+  let boot = null;
+  events.addEventListener('hello', (event) => {
+    if( boot === null ) { boot = event.data; return; }
+    if( boot !== event.data ) location.reload();
+  });
+  events.addEventListener('reload', () => location.reload());
   events.addEventListener('changed', () => { if( chrome.selected ) mount(chrome.selected); });
 }
 

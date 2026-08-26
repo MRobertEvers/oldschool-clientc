@@ -33,7 +33,7 @@ const MIME = {
 
 export function serveCanvas({
     root, contentDir, cache = null, revision = null, names = null,
-    cs2 = null, port = 4173, onListen = null,
+    cs2 = null, port = 4173, onListen = null, onAddressInUse = null,
 } = {}) {
     const state = {
         root: resolve(root),
@@ -49,6 +49,10 @@ export function serveCanvas({
          * they are remembered for the life of the process. */
         asts: new Map(),
         listeners: new Set(),
+        /* Identifies THIS process to a page that reconnects; see the event
+         * stream. `process.pid` alone repeats after a wrap, and the start
+         * time makes the pair unique for as long as anyone cares. */
+        boot: `${process.pid}:${Date.now()}`,
     };
 
     const server = createServer((request, response) => {
@@ -58,6 +62,24 @@ export function serveCanvas({
     });
 
     if( state.contentDir ) watchContent(state);
+    watchSource(state);
+
+    /*
+     * A port already taken is a QUESTION, not a crash.
+     *
+     * The thing holding it is almost always this same server from an earlier
+     * run, and the unhandled EADDRINUSE stack that came out instead said
+     * nothing about what to do next. The decision belongs to the caller --
+     * asking is only sensible on a terminal -- so the condition is handed
+     * out and the listen is retried once if the caller says it cleared it.
+     */
+    server.on('error', (error) => {
+        if( error.code !== 'EADDRINUSE' || !onAddressInUse ) throw error;
+        Promise.resolve(onAddressInUse(port, error)).then((cleared) => {
+            if( !cleared ) process.exit(1);
+            server.listen(port, () => onListen?.(`http://localhost:${port}`));
+        });
+    });
     server.listen(port, () => onListen?.(`http://localhost:${port}`));
     return server;
 }
@@ -496,16 +518,38 @@ function defaultCs2(root) {
 function watchContent(state) {
     const dir = join(state.contentDir, 'interfaces');
     if( !existsSync(dir) ) return;
-    let pending = null;
-    watch(dir, () => {
-        /* Coalesce: an editor save fires several events for one write, and
-         * remounting per event would restart the interface mid-mount. */
-        clearTimeout(pending);
-        pending = setTimeout(() => {
-            state.catalogue = null;
-            for( const listener of state.listeners ) listener();
-        }, 60);
+    watchDir(dir, true, () => {
+        state.catalogue = null;
+        announce(state, 'changed');
     });
+}
+
+/*
+ * The RUNTIME's own sources reload the page, they do not remount.
+ *
+ * A remount builds a new session out of the modules the document already
+ * imported, and an ES module is fetched once per document -- so editing the
+ * painter or the tree and remounting runs the OLD painter against a new
+ * tree, silently. Only a reload picks the new code up.
+ */
+function watchSource(state) {
+    const dir = join(state.root, 'src');
+    if( !existsSync(dir) ) return;
+    watchDir(dir, true, () => announce(state, 'reload'));
+}
+
+/* Coalesced: an editor save fires several events for one write, and acting
+ * per event would restart the interface mid-mount. */
+function watchDir(dir, recursive, changed) {
+    let pending = null;
+    watch(dir, { recursive }, () => {
+        clearTimeout(pending);
+        pending = setTimeout(changed, 60);
+    });
+}
+
+function announce(state, kind) {
+    for( const listener of state.listeners ) listener(kind);
 }
 
 function openEventStream(state, response) {
@@ -515,7 +559,17 @@ function openEventStream(state, response) {
         connection: 'keep-alive',
     });
     response.write('retry: 1000\n\n');
-    const notify = () => response.write('event: changed\ndata: 1\n\n');
+    /*
+     * The BOOT id, first thing.
+     *
+     * A tab reconnecting to a server that has restarted is holding modules
+     * from the old process: the page imports `/src/...` once and an ES module
+     * is cached for the document's life, so every runtime fix landed while a
+     * tab stayed open was invisible in it. A changed boot id means new code
+     * and the page reloads itself.
+     */
+    response.write(`event: hello\ndata: ${state.boot}\n\n`);
+    const notify = (kind) => response.write(`event: ${kind}\ndata: 1\n\n`);
     state.listeners.add(notify);
     response.on('close', () => state.listeners.delete(notify));
 }

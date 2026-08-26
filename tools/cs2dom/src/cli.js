@@ -20,7 +20,7 @@
 import { writeFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 
 import { build, loadProject } from './build.js';
 import { generate, DEFAULT_TABLES } from './cachegen.js';
@@ -157,6 +157,89 @@ function report(say, result, project, dryRun) {
     }
 }
 
+/*
+ * The port is taken: say by WHAT, and offer to end it.
+ *
+ * It is nearly always this same server left running from an earlier session,
+ * and killing it is what the user was going to do by hand anyway -- but it
+ * may also be something else entirely, so the process is named before the
+ * question is asked and nothing is killed without an answer. Without a
+ * terminal there is nobody to ask: the condition is reported and the run
+ * stops, which is what a script or a CI job needs.
+ */
+async function offerToKillPortHolder(port) {
+    const holder = portHolder(port);
+    if( !holder )
+    {
+        process.stderr.write(`cs2dom: port ${port} is in use and the holder could not be identified\n`);
+        return false;
+    }
+
+    process.stderr.write(`cs2dom: port ${port} is held by pid ${holder.pid} — ${holder.command}\n`);
+    if( !process.stdin.isTTY )
+    {
+        process.stderr.write(`cs2dom: not a terminal, so nothing was killed; use --port to pick another\n`);
+        return false;
+    }
+    if( !await confirm(`kill ${holder.pid} and take the port? [y/N] `) )
+        return false;
+
+    return killAndWait(holder.pid, port);
+}
+
+/** The pid and command line listening on `port`, or null. */
+function portHolder(port) {
+    try
+    {
+        const pid = execFileSync('lsof', ['-ti', `tcp:${port}`, '-sTCP:LISTEN'], { encoding: 'utf8' })
+            .split('\n')[0].trim();
+        if( !pid ) return null;
+        const command = execFileSync('ps', ['-p', pid, '-o', 'command='], { encoding: 'utf8' }).trim();
+        return { pid: Number(pid), command: command || '(unknown)' };
+    }
+    catch { return null; }
+}
+
+/** One yes/no on the terminal. */
+function confirm(question) {
+    return new Promise((answered) => {
+        process.stdout.write(question);
+        process.stdin.setEncoding('utf8');
+        process.stdin.once('data', (line) => {
+            process.stdin.pause();
+            answered(/^\s*y(es)?\s*$/i.test(line));
+        });
+        process.stdin.resume();
+    });
+}
+
+/*
+ * TERM, then wait for the port to actually free.
+ *
+ * Relisting immediately loses the race: the process is gone before the
+ * kernel has released the socket, and the retry fails with the same
+ * EADDRINUSE it was meant to clear. KILL is the fallback for a process that
+ * ignores TERM, and a port still held after that is reported rather than
+ * retried into another crash.
+ */
+async function killAndWait(pid, port) {
+    try { process.kill(pid, 'SIGTERM'); }
+    catch { return true; /* already gone */ }
+
+    for( let attempt = 0; attempt < 50; attempt++ )
+    {
+        await new Promise((tick) => setTimeout(tick, 100));
+        if( !portHolder(port) ) return true;
+        if( attempt === 20 )
+        {
+            try { process.kill(pid, 'SIGKILL'); }
+            catch { /* it exited between the check and the signal */ }
+        }
+    }
+    process.stderr.write(`cs2dom: pid ${pid} would not release port ${port}\n`);
+    return false;
+}
+
 /**
  * The JavaScript-native dev server.
  *
@@ -178,6 +261,7 @@ function commandDevCanvas(flags) {
             revision: project.revision ?? null,
             names: project.cs2Names ?? null,
             port: flags.port || 8099,
+            onAddressInUse: offerToKillPortHolder,
             onListen: (address) => {
                 process.stdout.write(`cs2dom: ${address}\n`);
                 if( !flags.noOpen ) openBrowser(address);
