@@ -86,7 +86,7 @@ export class HostKernel {
         this.clock = clock ?? new HostClock();
         this.config = config ?? new HostConfig();
         this.player = player ?? new HostPlayerState();
-        this.world = { members: false, world: 301, clientType: 0, ...(world ?? {}) };
+
         this.db = db ?? createDbState({});
         this.fonts = fonts;
         /*
@@ -99,7 +99,13 @@ export class HostKernel {
         this.intents = [];
         this.client = client ?? new ClientState();
         this.chat = chat ?? new ChatState();
-        this.world = worldState ?? new WorldState();
+        /*
+         * ONE world object. `members`, `world` and `clientType` used to live
+         * on a second one assigned a few lines above this, which this line
+         * then replaced — so `map_members` read `undefined` and answered no,
+         * whatever anyone passed in.
+         */
+        this.world = worldState ?? new WorldState(world ?? {});
         this.worldMap = worldMap ?? createWorldMapState({});
         this.loot = loot ?? createLootState({});
         this.overlays = overlays ?? createOverlayState({});

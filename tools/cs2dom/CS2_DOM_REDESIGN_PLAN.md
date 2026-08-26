@@ -210,13 +210,17 @@ Where it stands (commands emitted; `prefix` is how many agree from the top):
 
 | interface | C | this runtime | identical from the top | differences |
 |---|---|---|---|---|
-| 162 `chatbox` | 32 | **32** | **32** | **0 — exact** |
-| 600 `vm_kudos_info` | 158 | **158** | **158** | **0 — exact** |
-| 218 `magic_spellbook` | 79 | **79** | 69 | 34, all in one dynamically built tooltip |
-| 12 `bankmain` | 66 | 63 | 15 | 251; its tab strip is not built |
+| 12 `bankmain` | 66 | **66** | **66** | **0** |
+| 162 `chatbox` | 32 | **32** | **32** | **0** |
+| 218 `magic_spellbook` | 79 | **79** | **79** | **0** |
+| 600 `vm_kudos_info` | 158 | **158** | **158** | **0** |
 
-Two of the four reproduce the C client's draw list command for command, field
-for field. Three emit exactly the right number of commands.
+**All four are exact.** Every command, in order, with every field the dump
+carries: kind, component id, box, clip, colour, fill, transparency, tiling.
+The component ids include the DYNAMIC ones, which are runtime allocations —
+matching them means this runtime creates and reclaims the same components in
+the same order as the reference, not merely that it ends up drawing the same
+picture.
 
 Below the emit list, glyph antialiasing and blit compositing belong to toridraw
 and the browser, and this port does not claim them byte for byte.
@@ -248,6 +252,13 @@ silent — no throw, no log, a plausible wrong picture:
 | `_geometry` existed twice, and the surviving copy answered ABSOLUTE x and y | the reference answers them relative to the parent, which is what `cc_setposition` takes |
 | proc arguments were bound in SOURCE order | the VM pops each bank independently, so every argument after the first string landed one slot out |
 | an array handle reaches a call as a `pointer` node | classified an int, so a recursive sort passed its handle in the first int slot and `array_set` threw on a number |
+| a hook BINDING's arguments were not grouped either | a dispatch is a call; the spellbook's redraw re-sized its tooltip from the number 12 rather than from "Filters" |
+| `clienttype` answered 0 | the reference answers 10, and a family of layout scripts gates on it — `script9580` returned before unhiding bankmain's tab divider |
+| `cc_create`'s widget type is NOT the cache's | they agree for 3, 4, 5, 6, 9 and differ at ZERO, where the reference makes an item box and this made a LAYER — which clips its children |
+| every clipping layer became the enclosing SURFACE | the reference's clip OVERWRITES, clamping only to the surface; only a scroll viewport establishes one |
+| a transmit hook's TRIGGERS were read, not named | they are variable IDS; the bank's rebuild was armed watching varp 0 seven times |
+| `map_members` answered no | the C VM hard-codes yes, and `script3517` returns before building the equipment panel's stat-bonus buttons without it |
+| two `this.world` objects, one overwriting the other | `map_members` read `undefined` whatever anyone passed in |
 
 The last group is why `test/host_surface_arity_test.js` exists: it compares
 every implemented method's signature against the generated surface, which is
@@ -288,8 +299,8 @@ captured interfaces exercises it.
 **Parity covers four interfaces, not the corpus.** 218, 600, 162 and 12, out
 of 968. They were chosen one per shape the walk has to get right — a plain
 panel, a mass container rebuild, a scroll-and-clip case, a hover-variant grid
-— and four is enough to have found ten silent defects. It is not enough to
-claim the walk is correct.
+— and four exact matches is strong evidence for those shapes. It is not a
+claim about the other 964.
 
 **Host coverage is 736/736 methods that ANSWER, which is not 736 methods
 proven correct.** The surface gate says every operation the reference answers

@@ -46,9 +46,27 @@ export const MINIMENU_TYPE = Object.freeze({
  */
 const UIZOOM_DEFAULT = 100;
 
+/** What `clienttype` answers; see `host_client.js` for why it is 10. */
+const CLIENTTYPE_DEFAULT = 10;
+
 /** State the preview owns on behalf of the world. */
 export class WorldState {
-    constructor({ canvasWidth = 765, canvasHeight = 503, mouseX = 0, mouseY = 0 } = {}) {
+    constructor({
+        canvasWidth = 765, canvasHeight = 503, mouseX = 0, mouseY = 0,
+        members = true, world = 301, clientType = CLIENTTYPE_DEFAULT,
+    } = {}) {
+        /*
+         * `map_members` answers YES. The C VM hard-codes 1, and a members
+         * world is what every interface in this cache was authored against —
+         * the gate is not a preference, it is a whole branch of content.
+         * `script3517` opens with `if (map_members = ^false) { return; }` and
+         * builds the equipment panel's two stat-bonus buttons after it;
+         * answering no returned before either existed, and bankmain's whole
+         * dynamic-id sequence shifted by the twenty components they occupy.
+         */
+        this.members = members;
+        this.world = world;
+        this.clientType = clientType;
         this.canvasWidth = canvasWidth;
         this.canvasHeight = canvasHeight;
         this.mouseX = mouseX;
