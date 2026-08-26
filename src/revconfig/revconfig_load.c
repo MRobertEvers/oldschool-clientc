@@ -381,6 +381,10 @@ push_field_from_ini_kv(
         kind = RCFIELD_CACHE_ARCHIVE_ID;
     else if( strcmp(key, "archive") == 0 )
         kind = RCFIELD_CACHE_ARCHIVE;
+    /* `slot=` is only meaningful under `table=defaults`; it is the position in
+     * the defaults record, which is how the client addresses these sprites. */
+    else if( strcmp(key, "slot") == 0 )
+        kind = RCFIELD_CACHE_DEFAULTS_SLOT;
     else if( strcmp(key, "container") == 0 )
         kind = RCFIELD_CACHE_CONTAINER;
     else if( strcmp(key, "index") == 0 )

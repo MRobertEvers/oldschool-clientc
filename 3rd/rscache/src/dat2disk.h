@@ -122,6 +122,18 @@ enum RSCache_Dat2Table
     RSCACHE_DAT2_TABLE_VARBIT,
     RSCACHE_DAT2_TABLE_MATERIALS,
     RSCACHE_DAT2_TABLE_PARTICLES,
+
+    /**
+     * Client defaults — both epochs, not RS2 only.
+     *
+     * It stays at the end of the RS2-only block so that every value above keeps
+     * the number it had, but it does not belong to it: OldSchool ships this table
+     * at idx17 and RS2 at idx28. What they share is the *role* — a group-addressed
+     * record of engine-level ids — and not the id, and not the schema either
+     * (osrs239 group 3 is 83 bytes, rs727 group 3 is 3067 and starts on a
+     * different opcode). The tables at the top of this enum share an id; this one
+     * shares only a job.
+     */
     RSCACHE_DAT2_TABLE_DEFAULTS,
 
     RSCACHE_DAT2_TABLE_COUNT,
@@ -146,6 +158,19 @@ enum RSCache_Dat2OsrsDiskTable
     RSCACHE_DAT2_OSRS_TABLE_FONTS = 13,
     RSCACHE_DAT2_OSRS_TABLE_MUSIC_SAMPLES = 14,
     RSCACHE_DAT2_OSRS_TABLE_MUSIC_PATCHES = 15,
+    /**
+     * Client defaults: the handful of ids the engine needs before it can draw.
+     *
+     * Two groups, and the cache names neither — the reference table's name bit is
+     * clear (flags = 0x4, sizes only), so "defaults" is this tree's word for the
+     * table and not a name recovered from the cache. See
+     * docs/CACHE_INDEX_16_17.md for the record schema and what rev239 stores.
+     *
+     * There is no index 16 in this branch. idx255 lists 0..15, 17..22 and 24, and
+     * the client's own index register names that same set, so the gap at 16 is the
+     * cache's own and not an omission here.
+     */
+    RSCACHE_DAT2_OSRS_TABLE_DEFAULTS = 17,
     RSCACHE_DAT2_OSRS_TABLE_WORLDMAP_GEOGRAPHY = 18,
     RSCACHE_DAT2_OSRS_TABLE_WORLDMAP = 19,
     RSCACHE_DAT2_OSRS_TABLE_WORLDMAP_GROUND = 20,

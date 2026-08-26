@@ -5,6 +5,7 @@
 #include "bmp.h"
 #include "datatypes/clientscript.h"
 #include "datatypes/dat2_config_db.h"
+#include "datatypes/dat2_defaults.h"
 #include "datatypes/dat2_font_metrics.h"
 #include "datatypes/dat2_config_param.h"
 #include "datatypes/dat2_worldmap.h"
@@ -5076,3 +5077,598 @@ const struct CP_AssetCodec cp_codec_worldmapgeo = { "wmg", NULL, geo_write, geo_
 /* Also writes `.wmc` (compositemap) and `.wml` (labels); `ext2` holds the one
  * that shares the archive-level slot. */
 const struct CP_AssetCodec cp_codec_worldmap = { "wma", "wmc", worldmap_write, worldmap_read, 0 };
+
+/*
+ * The defaults table (OldSchool idx17, RS2 idx28).
+ *
+ * Two formats, because the table holds two unrelated shapes: group 3 is one
+ * record of engine ids and writes `.defaults`; group 1's members are colour
+ * stop lists and write `.colours`. The archive's *shape* picks between them --
+ * a multi-file archive is colours, a single-file one is tried as the record --
+ * rather than the group number, so a revision that moves them still works.
+ *
+ * Both are held to a byte-exact re-encode before anything is written. The
+ * ambiguity that makes that necessary is bigsmart width: an id under 32767 can
+ * legally be two bytes or four, and only the source bytes say which. Every
+ * record in cache.osrs239 re-encodes exactly; one that did not would land as
+ * raw bytes instead of being quietly rewritten.
+ *
+ * ## Everything here is keyed on position, and every name is a comment
+ *
+ * This is worth stating once because it was got wrong first time round. The
+ * record encodes eleven sprite ids and two model ids *positionally*, and no
+ * names at all -- index 17's reference table does not even have the name bit
+ * set. So the text form writes `sprite=0:169` and `model=0:57378`, and parses
+ * those back by slot. The trailing `// compass` is decoration.
+ *
+ * That is not fussiness about style; the two name sets have different and
+ * separately insufficient provenance:
+ *
+ *   sprites  index 8 *does* name its groups, and djb2 of all eleven matches its
+ *            stored hashes exactly -- so the names are real. But index 8 names
+ *            the sprite a slot points at, not the slot. They agree at rev239.
+ *            A cache that repointed a slot would still have a compass slot at 0
+ *            while the name described the new target, and keying on the name
+ *            would reject exactly that cache.
+ *
+ *   models   named nowhere at all. `pack/7_models.pack` has them as filler
+ *            `model_57378` / `model_57379`, because a model's name there is
+ *            recovered from the loc/obj/npc that references it and nothing
+ *            references these two but this record. Their names below are read
+ *            off what the client does with them and nothing else.
+ *
+ * ## What the two models are
+ *
+ * Both load via `class142.method4501(models, id, 0)` and are drawn into the
+ * world by `Statics.method1711(scene, angle, model)`, which places a model at a
+ * compass *bearing* at radius `max(512, 1400 - f(zoom))` from the player's tile.
+ * Both are gated on a 30-tick countdown (`client.field1144`), which is started
+ * in `class377` by a click on a widget of kind `class528.field6175`: that takes
+ * `atan2` of the click about the widget centre, subtracts camera yaw, quantises
+ * to 16 directions, stores the result in `client.field1088` and sends it to the
+ * server as one byte.
+ *
+ * Slot 1 draws at `field1088`, the bearing just chosen. Slot 0 draws at a
+ * bearing already queued (`field831.field6801[last]`, kind 60) and is suppressed
+ * while the countdown runs if the new choice equals it, so one bearing is never
+ * marked twice. Hence `bearing_marker_selected` and `bearing_marker_queued`.
+ *
+ * `3rd/rsprot` has a one-byte `SET_HEADING` at rev239 and the shape matches, but
+ * the deob gives this packet opcode 109 while our rev239 client table puts
+ * SET_HEADING at 44 and has no client 109 -- so which game system asks for the
+ * bearing is deliberately not claimed here. "bearing" describes the placement,
+ * which the draw math settles on its own.
+ */
+
+static void
+defaults_emit_record(FILE* out, const struct RSCache_Dat2Defaults* rec)
+{
+    fprintf(out,
+            "// Client defaults -- the ids the engine needs before it can draw.\n"
+            "//\n"
+            "// Read by class11.method235 in the deob. Nothing here is hardcoded in\n"
+            "// the client: its constructor sets every id to -1 and this record is\n"
+            "// what supplies them, `compass` included.\n"
+            "//\n"
+            "//   opcodes  the order the record's opcodes appeared, so a repack is\n"
+            "//            byte-exact. 2 and 6 carry the same eleven ids; which one\n"
+            "//            was used is part of the bytes and so is kept.\n"
+            "//   sprite   <slot>:<sprite id>. The slot is the position in the\n"
+            "//            record, which is the only thing opcode 2 actually\n"
+            "//            encodes -- it writes eleven integers and no names.\n"
+            "//            The trailing comment is what that id is called in\n"
+            "//            index 8, which is a different table: it names the\n"
+            "//            sprite the slot points at, not the slot.\n"
+            "//   ramp     <row>:<5 stops>, 24-bit RGB.\n"
+            "//   model    <slot>:<model id>. Same rule as sprite: the slot is\n"
+            "//            what opcode 5 encodes and the comment is ours. These\n"
+            "//            two models are named nowhere in the cache -- the model\n"
+            "//            pack has them as plain `model_<id>` because a model's\n"
+            "//            name there comes from the loc/obj/npc referencing it,\n"
+            "//            and nothing references these but this record. The names\n"
+            "//            describe where the client puts them: both are drawn in\n"
+            "//            the world at a 16-point compass bearing near the player\n"
+            "//            for 30 ticks after a bearing is chosen -- slot 1 at the\n"
+            "//            bearing just picked, slot 0 at one already queued.\n"
+            "//   legacy   opcode 1's value. The client reads it and throws it away.\n\n");
+    fprintf(out, "[defaults]\n");
+
+    fprintf(out, "opcodes=");
+    for( int i = 0; i < rec->opcode_count; i++ )
+        fprintf(out, "%s%d", i ? "," : "", rec->opcode_order[i]);
+    fprintf(out, "\n");
+
+    if( rec->has_legacy_value )
+        fprintf(out, "legacy=%06x\n", rec->legacy_value & 0xFFFFFF);
+
+    if( rec->sprite_opcode )
+    {
+        for( int i = 0; i < RSCACHE_DAT2_DEFAULTS_SPRITE_COUNT; i++ )
+            fprintf(out, "sprite=%d:%d  // %s\n", i, rec->sprite_ids[i],
+                    RSCache_Dat2DefaultsSpriteSlotNames[i]);
+        if( rec->sprite_opcode == 6 )
+            fprintf(out, "sprite_trailer=%d\n", rec->sprite_trailer);
+    }
+
+    if( rec->has_ramps )
+    {
+        for( int row = 0; row < RSCACHE_DAT2_DEFAULTS_RAMP_ROWS; row++ )
+        {
+            fprintf(out, "ramp=%d:", row);
+            for( int stop = 0; stop < RSCACHE_DAT2_DEFAULTS_RAMP_STOPS; stop++ )
+                fprintf(out, "%s%06x", stop ? "," : "", rec->ramps[row][stop] & 0xFFFFFF);
+            fprintf(out, "\n");
+        }
+    }
+
+    if( rec->has_models )
+    {
+        for( int i = 0; i < RSCACHE_DAT2_DEFAULTS_MODEL_COUNT; i++ )
+            fprintf(out, "model=%d:%d  // %s\n", i, rec->model_ids[i],
+                    RSCache_Dat2DefaultsModelSlotNames[i]);
+    }
+}
+
+static void
+defaults_emit_colours(FILE* out, const struct RSCache_Dat2DefaultsColours* col)
+{
+    fprintf(out,
+            "// A colour stop list: `stop` is 24-bit RGB, `gap` is the interval\n"
+            "// byte between the stops on either side of it. One stop and no gap\n"
+            "// is a flat colour, which is what nearly every record here is.\n"
+            "//\n"
+            "// Group 1 of the defaults table. rev239 ships it, preloads it, and\n"
+            "// never reads it -- see docs/CACHE_INDEX_16_17.md.\n\n");
+    fprintf(out, "[colours]\n");
+    fprintf(out, "stop=%06x\n", col->colours[0] & 0xFFFFFF);
+    for( int i = 1; i < col->stop_count; i++ )
+    {
+        fprintf(out, "gap=%d\n", col->intervals[i - 1]);
+        fprintf(out, "stop=%06x\n", col->colours[i] & 0xFFFFFF);
+    }
+}
+
+static int
+defaults_write(
+    struct CP_Ctx* ctx,
+    int record_id,
+    const uint8_t* payload,
+    int size,
+    const int* file_ids,
+    int file_count,
+    const char* path_stem)
+{
+    struct RSCache_FileList* files = NULL;
+    struct LC_Pack members;
+    char root_dir[1700];
+    const char* stem_name;
+    int wrote = 0;
+
+    (void)ctx;
+    (void)record_id;
+
+    /* A single-file archive is the record; anything with members is colours. */
+    if( file_count <= 1 )
+    {
+        struct RSCache_Dat2Defaults rec;
+        char path[1900];
+        FILE* out;
+
+        if( !RSCache_Dat2DefaultsDecode(payload, size, &rec) )
+            return 0;
+        if( !RSCache_Dat2DefaultsRoundTrips(&rec, payload, size) )
+            return 0;
+        snprintf(path, sizeof(path), "%s.defaults", path_stem);
+        out = fopen(path, "wb");
+        if( !out )
+            return 0;
+        defaults_emit_record(out, &rec);
+        fclose(out);
+        return 1;
+    }
+
+    files = RSCache_FileListNewFromDecode((char*)payload, size, file_count);
+    if( !files )
+        return 0;
+
+    snprintf(root_dir, sizeof(root_dir), "%s", path_stem);
+    {
+        char* cut = strrchr(root_dir, '/');
+        if( cut )
+            *cut = '\0';
+        else
+            snprintf(root_dir, sizeof(root_dir), ".");
+    }
+    stem_name = strrchr(path_stem, '/');
+    stem_name = stem_name ? stem_name + 1 : path_stem;
+    cp_member_pack_load(&members, path_stem, "filepack", "defaults");
+
+    for( int f = 0; f < files->file_count; f++ )
+    {
+        const uint8_t* bytes = (const uint8_t*)files->files[f];
+        int bytes_size = files->file_sizes[f];
+        int id = file_ids ? file_ids[f] : f;
+        struct RSCache_Dat2DefaultsColours col;
+        char path[1900];
+        char member[256];
+        char dir[1900];
+        FILE* out;
+
+        if( !RSCache_Dat2DefaultsColoursDecode(bytes, bytes_size, &col) )
+            goto give_up;
+        if( !RSCache_Dat2DefaultsColoursRoundTrips(&col, bytes, bytes_size) )
+            goto give_up;
+
+        snprintf(member, sizeof(member), "%s/%d.colours", stem_name, id);
+        snprintf(dir, sizeof(dir), "%s/%s", root_dir, stem_name);
+        ensure_dir_path(dir);
+        snprintf(path, sizeof(path), "%s/%s", root_dir, member);
+        out = fopen(path, "wb");
+        if( !out )
+            goto give_up;
+        defaults_emit_colours(out, &col);
+        fclose(out);
+        lc_pack_set(&members, id, member);
+        wrote++;
+    }
+
+    if( wrote )
+        cp_member_pack_save(&members, path_stem, "filepack");
+    lc_pack_free(&members);
+    RSCache_FileListFree(files);
+    return wrote > 0;
+
+give_up:
+    lc_pack_free(&members);
+    RSCache_FileListFree(files);
+    return 0;
+}
+
+/** Parse `.defaults` back into a record. 1 on success. */
+static int
+defaults_parse_record(const char* path, struct RSCache_Dat2Defaults* rec)
+{
+    struct CP_ConfigFile file;
+    int models_seen = 0;
+    int sprites_seen = 0;
+    int ok = 1;
+
+    if( !cp_config_file_load(&file, path) )
+        return 0;
+
+    memset(rec, 0, sizeof(*rec));
+    for( int i = 0; i < RSCACHE_DAT2_DEFAULTS_SPRITE_COUNT; i++ )
+        rec->sprite_ids[i] = -1;
+
+    for( int i = 0; i < file.count && ok; i++ )
+    {
+        const struct CP_Config* block = &file.configs[i];
+
+        for( int line = 0; line < block->count && ok; line++ )
+        {
+            const char* key = block->lines[line].key;
+            const char* value = block->lines[line].value;
+
+            if( strcmp(key, "opcodes") == 0 )
+            {
+                const char* p = value;
+
+                rec->opcode_count = 0;
+                while( *p )
+                {
+                    int op = atoi(p);
+
+                    if( rec->opcode_count >= RSCACHE_DAT2_DEFAULTS_MAX_OPCODES )
+                    {
+                        ok = 0;
+                        break;
+                    }
+                    rec->opcode_order[rec->opcode_count++] = (uint8_t)op;
+                    if( op == 2 || op == 6 )
+                        rec->sprite_opcode = op;
+                    while( *p && *p != ',' )
+                        p++;
+                    if( *p == ',' )
+                        p++;
+                }
+            }
+            else if( strcmp(key, "legacy") == 0 )
+            {
+                rec->legacy_value = (int)strtol(value, NULL, 16);
+                rec->has_legacy_value = 1;
+            }
+            else if( strcmp(key, "sprite") == 0 )
+            {
+                int slot = -1;
+                int id = 0;
+
+                /*
+                 * Keyed on the slot index, not on the name in the comment.
+                 *
+                 * The name is index 8's name for whatever sprite this slot
+                 * currently points at -- verified against that table's own hash,
+                 * but a fact about the *target*, not about the slot. Parsing on
+                 * it would make a cross-table, revision-specific coincidence
+                 * load-bearing, and would reject a cache that pointed a slot
+                 * somewhere new. The record encodes a position; so does this.
+                 *
+                 * sscanf stops at the spaces before `//`, which is how the font
+                 * codec's commented `advance=` lines round-trip too.
+                 */
+                if( sscanf(value, "%d:%d", &slot, &id) != 2 || slot < 0 ||
+                    slot >= RSCACHE_DAT2_DEFAULTS_SPRITE_COUNT )
+                {
+                    ok = 0;
+                    break;
+                }
+                rec->sprite_ids[slot] = id;
+                sprites_seen++;
+            }
+            else if( strcmp(key, "sprite_trailer") == 0 )
+                rec->sprite_trailer = atoi(value);
+            else if( strcmp(key, "ramp") == 0 )
+            {
+                const char* colon = strchr(value, ':');
+                const char* p;
+                int row;
+
+                if( !colon )
+                {
+                    ok = 0;
+                    break;
+                }
+                row = atoi(value);
+                if( row < 0 || row >= RSCACHE_DAT2_DEFAULTS_RAMP_ROWS )
+                {
+                    ok = 0;
+                    break;
+                }
+                p = colon + 1;
+                for( int stop = 0; stop < RSCACHE_DAT2_DEFAULTS_RAMP_STOPS; stop++ )
+                {
+                    rec->ramps[row][stop] = (int)strtol(p, NULL, 16);
+                    while( *p && *p != ',' )
+                        p++;
+                    if( *p == ',' )
+                        p++;
+                }
+                rec->has_ramps = 1;
+            }
+            else if( strcmp(key, "model") == 0 )
+            {
+                int slot = -1;
+                int id = 0;
+
+                /* Slot-keyed for the same reason `sprite` is: the position is
+                 * what opcode 5 encodes, and the name beside it is ours. */
+                if( sscanf(value, "%d:%d", &slot, &id) != 2 || slot < 0 ||
+                    slot >= RSCACHE_DAT2_DEFAULTS_MODEL_COUNT )
+                {
+                    ok = 0;
+                    break;
+                }
+                rec->model_ids[slot] = id;
+                models_seen++;
+                rec->has_models = 1;
+            }
+            else
+                ok = 0;
+        }
+    }
+    cp_config_file_free(&file);
+
+    /* The opcode list is what the encode replays, so a record that claims an
+     * opcode it did not describe would encode zeroes into the cache. */
+    /* A slot-keyed list can be short without looking wrong, and a missing line
+     * would encode a zero id rather than fail — so count them. */
+    if( ok && rec->sprite_opcode && sprites_seen != RSCACHE_DAT2_DEFAULTS_SPRITE_COUNT )
+        ok = 0;
+    if( ok && rec->has_models && models_seen != RSCACHE_DAT2_DEFAULTS_MODEL_COUNT )
+        ok = 0;
+    if( ok )
+    {
+        for( int i = 0; i < rec->opcode_count; i++ )
+        {
+            int op = rec->opcode_order[i];
+
+            if( op == 1 && !rec->has_legacy_value )
+                ok = 0;
+            else if( (op == 2 || op == 6) && !rec->sprite_opcode )
+                ok = 0;
+            else if( op == 3 && !rec->has_ramps )
+                ok = 0;
+            else if( op == 5 && !rec->has_models )
+                ok = 0;
+        }
+    }
+    return ok;
+}
+
+/** Parse a `.colours` member. 1 on success. */
+static int
+defaults_parse_colours(const char* path, struct RSCache_Dat2DefaultsColours* col)
+{
+    struct CP_ConfigFile file;
+    int stops = 0;
+    int gaps = 0;
+    int ok = 1;
+
+    if( !cp_config_file_load(&file, path) )
+        return 0;
+
+    memset(col, 0, sizeof(*col));
+    for( int i = 0; i < file.count && ok; i++ )
+    {
+        const struct CP_Config* block = &file.configs[i];
+
+        for( int line = 0; line < block->count && ok; line++ )
+        {
+            const char* key = block->lines[line].key;
+            const char* value = block->lines[line].value;
+
+            if( strcmp(key, "stop") == 0 )
+            {
+                if( stops >= RSCACHE_DAT2_DEFAULTS_COLOUR_MAX_STOPS )
+                    ok = 0;
+                else
+                    col->colours[stops++] = (int)strtol(value, NULL, 16);
+            }
+            else if( strcmp(key, "gap") == 0 )
+            {
+                if( gaps >= RSCACHE_DAT2_DEFAULTS_COLOUR_MAX_STOPS - 1 )
+                    ok = 0;
+                else
+                    col->intervals[gaps++] = atoi(value);
+            }
+            else
+                ok = 0;
+        }
+    }
+    cp_config_file_free(&file);
+
+    /* n stops and n-1 gaps, or the encoded size would not be 4n-1. */
+    if( stops < 1 || gaps != stops - 1 )
+        return 0;
+    col->stop_count = stops;
+    return ok;
+}
+
+static uint8_t*
+defaults_read(
+    struct CP_Ctx* ctx,
+    int record_id,
+    const char* path_stem,
+    int** out_file_ids,
+    int* out_file_count,
+    int* out_size)
+{
+    char root_dir[1700];
+    char path[1900];
+    struct LC_Pack members;
+    struct RSCache_FileList list;
+    int* ids = NULL;
+    uint8_t* payload = NULL;
+    int capacity;
+
+    (void)ctx;
+    (void)record_id;
+
+    /* The single-file record first: if `<stem>.defaults` is there, that is what
+     * this archive is, and there is no member list to rebuild.
+     *
+     * Probed by opening rather than by handing the path to the config loader,
+     * because the loader reports a missing file — and for the colours group the
+     * file is *expected* to be missing, so that report would be one spurious
+     * error line per archive on every run. */
+    snprintf(path, sizeof(path), "%s.defaults", path_stem);
+    {
+        struct RSCache_Dat2Defaults rec;
+        FILE* probe = fopen(path, "rb");
+
+        if( probe )
+            fclose(probe);
+        if( probe && defaults_parse_record(path, &rec) )
+        {
+            uint32_t bound = RSCache_Dat2DefaultsEncodeBound(&rec);
+            uint32_t written;
+
+            payload = (uint8_t*)malloc(bound);
+            assert(payload);
+            written = RSCache_Dat2DefaultsEncode(&rec, payload, bound);
+            if( written == 0 )
+            {
+                free(payload);
+                return NULL;
+            }
+            *out_size = (int)written;
+            return payload;
+        }
+    }
+
+    snprintf(root_dir, sizeof(root_dir), "%s", path_stem);
+    {
+        char* cut = strrchr(root_dir, '/');
+        if( cut )
+            *cut = '\0';
+        else
+            snprintf(root_dir, sizeof(root_dir), ".");
+    }
+    cp_member_pack_load(&members, path_stem, "filepack", "defaults");
+    if( members.max <= 0 )
+    {
+        lc_pack_free(&members);
+        return NULL;
+    }
+
+    memset(&list, 0, sizeof(list));
+    capacity = members.max + 1;
+    list.files = (char**)calloc((size_t)capacity, sizeof(char*));
+    list.file_sizes = (int*)calloc((size_t)capacity, sizeof(int));
+    ids = (int*)calloc((size_t)capacity, sizeof(int));
+    assert(list.files);
+    assert(list.file_sizes);
+    assert(ids);
+
+    for( int id = 0; id < capacity; id++ )
+    {
+        char member_path[1900];
+        struct RSCache_Dat2DefaultsColours col;
+        uint8_t* bytes;
+        uint32_t bound, written;
+
+        if( id >= members.capacity || !members.names || !members.names[id] )
+            continue;
+        snprintf(member_path, sizeof(member_path), "%s/%s", root_dir, members.names[id]);
+        if( !defaults_parse_colours(member_path, &col) )
+            goto done;
+
+        bound = RSCache_Dat2DefaultsColoursEncodeBound(&col);
+        bytes = (uint8_t*)malloc(bound);
+        assert(bytes);
+        written = RSCache_Dat2DefaultsColoursEncode(&col, bytes, bound);
+        if( written == 0 )
+        {
+            free(bytes);
+            goto done;
+        }
+        list.files[list.file_count] = (char*)bytes;
+        list.file_sizes[list.file_count] = (int)written;
+        ids[list.file_count] = id;
+        list.file_count++;
+    }
+
+    if( list.file_count == 0 )
+        goto done;
+    {
+        uint32_t bound = RSCache_FileListEncodeBound(&list);
+        uint32_t written;
+
+        payload = (uint8_t*)malloc(bound ? bound : 1);
+        assert(payload);
+        written = RSCache_FileListEncode(&list, payload, bound);
+        if( written == 0 )
+        {
+            free(payload);
+            payload = NULL;
+            goto done;
+        }
+        *out_size = (int)written;
+        *out_file_count = list.file_count;
+        *out_file_ids = ids;
+        ids = NULL;
+    }
+
+done:
+    for( int i = 0; i < list.file_count; i++ )
+        free(list.files[i]);
+    free(list.files);
+    free(list.file_sizes);
+    free(ids);
+    lc_pack_free(&members);
+    return payload;
+}
+
+/* `.defaults` is the group-3 record and `.colours` its group-1 members; `ext2`
+ * carries the second so it is visible to the uniqueness check. */
+const struct CP_AssetCodec cp_codec_defaults = { "defaults", "colours", defaults_write,
+                                                 defaults_read, 0 };

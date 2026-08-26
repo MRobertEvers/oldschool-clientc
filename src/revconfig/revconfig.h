@@ -154,6 +154,7 @@ enum RevConfigFieldKind
     RCFIELD_CACHE_CROP_HEIGHT,
     RCFIELD_CACHE_FONT_NAME,
     RCFIELD_CACHE_FONT_ID,
+    RCFIELD_CACHE_DEFAULTS_SLOT,
     RCFIELD_CACHEREF_ID,
     RCFIELD_UICOMPONENT_TYPE,
     RCFIELD_UICOMPONENT_SPRITE,
@@ -495,6 +496,22 @@ struct RevConfigCacheItem
      * Dat2 sprites-table archive id; required for Dat2 load. Unused by Dat1 jagfile decode.
      */
     int archive_id;
+
+    /*
+     * INI: slot=  (default -1 when section opens)
+     *
+     * Position in the defaults record, for `table=defaults`. This is how the
+     * client itself reaches these sprites: index 17 group 3 stores eleven ids
+     * positionally and the engine loads each by id, so a slot is an address and
+     * not a label. `table=sprites` with `archive=` is the other path — hash the
+     * name, walk index 8 — and stays supported for caches with no defaults
+     * table, dat1 among them.
+     *
+     * The two agree at rev239 (slot 0 and `archive=compass` both resolve to
+     * sprite 169) and would part company the moment a revision repointed a
+     * slot, because only the record says which sprite is the compass.
+     */
+    int defaults_slot;
 };
 
 /*

@@ -712,6 +712,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CACHE_ARCHIVE";
     case RCFIELD_CACHE_ARCHIVE_ID:
         return "RCFIELD_CACHE_ARCHIVE_ID";
+    case RCFIELD_CACHE_DEFAULTS_SLOT:
+        return "RCFIELD_CACHE_DEFAULTS_SLOT";
     case RCFIELD_CACHE_CONTAINER:
         return "RCFIELD_CACHE_CONTAINER";
     case RCFIELD_CACHE_INDEX_FILENAME:
@@ -1094,6 +1096,7 @@ revconfig_item_begin(
     {
         item->kind = RCITEM_CACHE_SPRITE;
         item->u.cache.archive_id = -1;
+        item->u.cache.defaults_slot = -1;
     }
     else if( strcmp(type_value, "font") == 0 )
     {
@@ -1174,6 +1177,9 @@ revconfig_item_apply_cache_field(
         break;
     case RCFIELD_CACHE_ARCHIVE_ID:
         cache->archive_id = revconfig_parse_int(value);
+        break;
+    case RCFIELD_CACHE_DEFAULTS_SLOT:
+        cache->defaults_slot = revconfig_parse_int(value);
         break;
     case RCFIELD_CACHE_CONTAINER:
         strncpy(cache->container, value, sizeof(cache->container) - 1);

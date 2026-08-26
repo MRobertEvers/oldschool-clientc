@@ -264,6 +264,16 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_SpriteLoadByName)(
         struct CacheProvider* provider,
         char const* archive_name);
+    /**
+     * Resolve + load a graphic-defaults sprite by SLOT, out of the defaults
+     * table, the way the client does. NULL for a cache format that has no such
+     * table -- dat1 among them -- in which case the slot stays unbound, exactly
+     * as an era-absent archive does on the name path.
+     */
+    struct ToriRS_Task* (*Task_DefaultsSpriteLoad)(
+        struct CacheProvider* provider,
+        int slot,
+        char const* name);
     /** Dat1: load a named media-jagfile sprite; id assigned + name-mapped. NULL for dat2. */
     struct ToriRS_Task* (*Task_SpriteLoadFromSource)(
         struct CacheProvider* provider,
@@ -1201,6 +1211,19 @@ CreateTask_SpriteLoadByName(
     if( !provider->vtable || !provider->vtable->Task_SpriteLoadByName )
         return NULL;
     return provider->vtable->Task_SpriteLoadByName(provider, archive_name);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_DefaultsSpriteLoad(
+    struct CacheProvider* provider,
+    int slot,
+    char const* name)
+{
+    assert(provider);
+    assert(name);
+    if( !provider->vtable || !provider->vtable->Task_DefaultsSpriteLoad )
+        return NULL;
+    return provider->vtable->Task_DefaultsSpriteLoad(provider, slot, name);
 }
 
 static inline struct ToriRS_Task*

@@ -196,6 +196,7 @@ add_sprite(
     strncpy(s->index_filename, cache->index_filename, sizeof(s->index_filename) - 1);
     strncpy(s->table, cache->table, sizeof(s->table) - 1);
     strncpy(s->archive, cache->archive, sizeof(s->archive) - 1);
+    s->defaults_slot = cache->defaults_slot;
     s->crop_x = cache->crop_x;
     s->crop_y = cache->crop_y;
     s->crop_width = cache->crop_width;

@@ -16,6 +16,9 @@ struct UIBuilderSpriteReq
     char index_filename[64];
     char table[32];
     char archive[32];
+    /* `table=defaults`: position in the defaults record, or -1. See
+     * RevConfigCacheItem::defaults_slot. */
+    int defaults_slot;
     int crop_x;
     int crop_y;
     int crop_width;

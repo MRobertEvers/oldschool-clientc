@@ -96,6 +96,20 @@ CreateTask_Dat2SpriteLoadByName(
     struct CacheProvider* provider,
     char const* archive_name);
 
+/**
+ * Resolve a graphic-defaults sprite by SLOT, out of the defaults table, the way
+ * the client does — rather than by hashing a name and walking index 8.
+ *
+ * `name` is the profile's section name, which the resolved id is bound to so
+ * later lookups can keep using the one spelling C knows. See the task's own
+ * file for why both paths exist and when they disagree.
+ */
+struct ToriRS_Task*
+CreateTask_Dat2DefaultsSpriteLoad(
+    struct CacheProvider* provider,
+    int slot,
+    char const* name);
+
 struct ToriRS_Task*
 CreateTask_Dat2FontLoad(
     struct CacheProvider* provider,
