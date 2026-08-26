@@ -101,19 +101,19 @@ HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
 (async () => {
   const fail = (m) => { console.error(`FAIL: ${m}`); process.exit(1); };
 
-  const px = L.PlatformX_IO_New();
+  const px = L.PlatformWeb_IO_New();
   const dir = brk; brk += 64;
   Buffer.from('script\0', 'utf8').forEach((b, i) => { HEAPU8[dir + i] = b; });
-  L.PlatformX_IO_InitScriptPath(px, dir);
+  L.PlatformWeb_IO_InitScriptPath(px, dir);
 
   // Process must NOT block.
   const t0 = Date.now();
-  L.PlatformX_IO_Process(px, IO_PTR);
+  L.PlatformWeb_IO_Process(px, IO_PTR);
   if (Date.now() - t0 > 50) fail('Process blocked');
 
   // Active list consumed, item outstanding.
   if (HEAP32[(IO_PTR + IO.activeCount) >> 2] !== 0) fail('active list not reset');
-  if (L.PlatformX_IO_Pending(px, IO_PTR) !== 1) fail('Pending should be 1 while in flight');
+  if (L.PlatformWeb_IO_Pending(px, IO_PTR) !== 1) fail('Pending should be 1 while in flight');
   if (HEAP32[(itemPtr + ITEM.error) >> 2] !== 0) fail('outstanding item must not look failed');
   if (served[0] !== 'script/plugins/plugins.ini') fail(`wrong path: ${served[0]}`);
 
@@ -122,7 +122,7 @@ HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
   resolveRead(new Uint8Array(payload));
   await new Promise(r => setImmediate(r));
 
-  if (L.PlatformX_IO_Pending(px, IO_PTR) !== 0) fail('Pending should be 0 once answered');
+  if (L.PlatformWeb_IO_Pending(px, IO_PTR) !== 0) fail('Pending should be 0 once answered');
   if (HEAP32[(itemPtr + ITEM.error) >> 2] !== 0) fail('answered item should not be an error');
   const size = HEAP32[(itemPtr + ITEM.dataSize) >> 2];
   const ptr = HEAP32[(itemPtr + ITEM.data) >> 2];
@@ -137,10 +137,10 @@ HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
   HEAP32[(IO_PTR + IO.active) >> 2] = 5;
   HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
   ctx.Module.torirsHostIO.readFile = () => Promise.reject(new Error('404'));
-  L.PlatformX_IO_Process(px, IO_PTR);
+  L.PlatformWeb_IO_Process(px, IO_PTR);
   await new Promise(r => setImmediate(r));
   if (HEAP32[(item2 + ITEM.error) >> 2] !== -1) fail('a failed read must be error -1');
-  if (L.PlatformX_IO_ServerReachable(px) !== 1) fail('a 404 must NOT read as unreachable');
+  if (L.PlatformWeb_IO_ServerReachable(px) !== 1) fail('a 404 must NOT read as unreachable');
 
   // Only an explicitly-unreachable error is an outage.
   const item3 = IO_PTR + IO.slots + 6 * ITEM.size;
@@ -151,13 +151,13 @@ HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
   ctx.Module.torirsHostIO.readFile = () => {
     const e = new Error('nothing answered'); e.torirsUnreachable = true; return Promise.reject(e);
   };
-  L.PlatformX_IO_Process(px, IO_PTR);
+  L.PlatformWeb_IO_Process(px, IO_PTR);
   await new Promise(r => setImmediate(r));
-  if (L.PlatformX_IO_ServerReachable(px) !== 0) fail('an unreachable transport must read as down');
+  if (L.PlatformWeb_IO_ServerReachable(px) !== 0) fail('an unreachable transport must read as down');
 
   // Two queues must not see each other's pending.
   const IO_B = 0x8000;
-  if (L.PlatformX_IO_Pending(px, IO_B) !== 0) fail('pending must be per-queue');
+  if (L.PlatformWeb_IO_Pending(px, IO_B) !== 0) fail('pending must be per-queue');
 
   // --- cache reads go through the C decode API ----------------------------
   const KIND_CACHE = 1, KIND_REFTABLE = 4;
@@ -176,8 +176,8 @@ HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
     fill(p);
     HEAP32[(IO_PTR + IO.active) >> 2] = slotN;
     HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
-    L.PlatformX_IO_Process(px, IO_PTR);
-    while (L.PlatformX_IO_Pending(px, IO_PTR) > 0) await new Promise(r => setImmediate(r));
+    L.PlatformWeb_IO_Process(px, IO_PTR);
+    while (L.PlatformWeb_IO_Pending(px, IO_PTR) > 0) await new Promise(r => setImmediate(r));
     return p;
   };
 

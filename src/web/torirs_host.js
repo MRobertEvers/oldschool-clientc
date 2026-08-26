@@ -1076,7 +1076,12 @@
    * missing script should not take the page down before it can say so.
    */
   if (typeof window.ToriRS_CreateHostIO === 'function') {
-    Module.torirsHostIO = window.ToriRS_CreateHostIO(store, bootUrl);
+    /* The generation these archives belong to, so a browser holding two caches
+     * never answers one's read out of the other's records. `store.cacheKey` is
+     * set by the JS5 barrier below before main() runs; the provider reads it
+     * lazily, on the first request, which is well after that. */
+    Module.torirsHostIO = window.ToriRS_CreateHostIO(
+      () => store.cacheKey, bootUrl);
   }
 
   // ------------------------------------------------------- the JS5 barrier

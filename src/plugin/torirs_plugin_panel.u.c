@@ -1076,7 +1076,7 @@ app_plugin_chrome_font(void* ud, int cache_font_id)
  *
  * Every desktop lane answers "reachable" always -- there is no server between
  * the client and its disk -- so nothing below this line ever fires there. See
- * PlatformX_IO_ServerReachable.
+ * Platform_IO_ServerReachable.
  */
 static int
 app_plugin_io_down(struct App const* app)
@@ -1084,7 +1084,7 @@ app_plugin_io_down(struct App const* app)
     assert(app);
     if( !app->runner.px )
         return 0;
-    return !PlatformX_IO_ServerReachable(app->runner.px);
+    return !Platform_IO_ServerReachable(app->runner.px);
 }
 
 /** Is the button we added still in the tree? A gameframe rebuild takes it, and

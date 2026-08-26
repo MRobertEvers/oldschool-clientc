@@ -10,7 +10,7 @@
  * with two chances to disagree about what an item says.
  *
  * So this is an emscripten JS library (--js-library): the functions below ARE
- * the definitions of the PlatformX_IO_* symbols the client calls. C declares
+ * the definitions of the PlatformWeb_IO_* symbols the client calls. C declares
  * them, the linker resolves them here, and nothing about the call site changes.
  *
  * ## Reading the queue
@@ -51,10 +51,11 @@ mergeInto(LibraryManager.library, {
     abi: null,
 
     /* handle id -> executor instance. The client holds an opaque
-     * `struct PlatformX_IO*` it never dereferences (the type is incomplete
-     * outside platform_x_io.c), so a small integer is a legal handle here and
-     * saves pretending to be a struct this file does not have. Ids start at 1
-     * so a handle is never a false-y pointer to the C side. */
+     * `struct PlatformWeb_IO*` it never dereferences -- the type is declared
+     * and never defined, precisely because the state is here -- so a small
+     * integer is a legal handle and saves pretending to be a struct this file
+     * does not have. Ids start at 1 so a handle is never a false-y pointer on
+     * the C side. */
     instances: new Map(),
     nextHandle: 1,
 
@@ -434,10 +435,10 @@ mergeInto(LibraryManager.library, {
     },
   },
 
-  // ------------------------------------------------------ PlatformX_IO_*
+  // ------------------------------------------------------ PlatformWeb_IO_*
 
-  PlatformX_IO_New__deps: ['$TORIRS_WEB_IO'],
-  PlatformX_IO_New: function () {
+  PlatformWeb_IO_New__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_New: function () {
     const S = TORIRS_WEB_IO;
     const handle = S.nextHandle++;
     S.instances.set(handle, {
@@ -467,8 +468,8 @@ mergeInto(LibraryManager.library, {
     return handle;
   },
 
-  PlatformX_IO_Free__deps: ['$TORIRS_WEB_IO'],
-  PlatformX_IO_Free: function (px) {
+  PlatformWeb_IO_Free__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_Free: function (px) {
     if (!px) { return; }
     TORIRS_WEB_IO.instances.delete(px);
   },
@@ -476,17 +477,17 @@ mergeInto(LibraryManager.library, {
   /* The browser has no cache directory and no disk handle to be given. These
    * exist so the client's boot reads the same on every platform; a browser
    * simply has nothing to record. */
-  PlatformX_IO_InitDat2Disk: function (px, disk) {},
-  PlatformX_IO_InitDat1Disk: function (px, disk) {},
-  PlatformX_IO_InitCacheId: function (px, epoch, game, revision, quirks, dir) {},
+  PlatformWeb_IO_InitDat2Disk: function (px, disk) {},
+  PlatformWeb_IO_InitDat1Disk: function (px, disk) {},
+  PlatformWeb_IO_InitCacheId: function (px, epoch, game, revision, quirks, dir) {},
 
-  PlatformX_IO_InitConfigPath__deps: ['$TORIRS_WEB_IO'],
-  PlatformX_IO_InitConfigPath: function (px, path) {
+  PlatformWeb_IO_InitConfigPath__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_InitConfigPath: function (px, path) {
     TORIRS_WEB_IO.instances.get(px).configDir = UTF8ToString(path);
   },
 
-  PlatformX_IO_InitScriptPath__deps: ['$TORIRS_WEB_IO'],
-  PlatformX_IO_InitScriptPath: function (px, path) {
+  PlatformWeb_IO_InitScriptPath__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_InitScriptPath: function (px, path) {
     TORIRS_WEB_IO.instances.get(px).scriptDir = UTF8ToString(path);
   },
 
@@ -499,7 +500,7 @@ mergeInto(LibraryManager.library, {
    * event loop. Here every answer is an await, so refusing is the truthful
    * reply and Process is the only way in.
    */
-  PlatformX_IO_LoadItem: function (px, item) {
+  PlatformWeb_IO_LoadItem: function (px, item) {
     return -1;
   },
 
@@ -511,8 +512,8 @@ mergeInto(LibraryManager.library, {
    * frozen tab this whole design exists to avoid. Each item runs on its own,
    * and Pending is how the caller learns when one is finished.
    */
-  PlatformX_IO_Process__deps: ['$TORIRS_WEB_IO'],
-  PlatformX_IO_Process: function (px, io) {
+  PlatformWeb_IO_Process__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_Process: function (px, io) {
     const S = TORIRS_WEB_IO;
     const a = S.layout();
     const inst = S.instances.get(px);
@@ -532,13 +533,28 @@ mergeInto(LibraryManager.library, {
     return activeCount;
   },
 
-  PlatformX_IO_Pending__deps: ['$TORIRS_WEB_IO'],
-  PlatformX_IO_Pending: function (px, io) {
+  PlatformWeb_IO_Pending__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_Pending: function (px, io) {
     return TORIRS_WEB_IO.inflight.get(io) || 0;
   },
 
-  PlatformX_IO_ServerReachable__deps: ['$TORIRS_WEB_IO'],
-  PlatformX_IO_ServerReachable: function (px) {
+  /*
+   * Everything outstanding, across every queue.
+   *
+   * The frame loop uses this for PACING (platform_web_host.h): while reads are
+   * in flight it runs from the event loop rather than requestAnimationFrame.
+   * Answered here because what is outstanding is exactly what this executor is
+   * still awaiting -- nothing else in the process knows.
+   */
+  PlatformWeb_PendingTotal__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_PendingTotal: function () {
+    let total = 0;
+    TORIRS_WEB_IO.inflight.forEach(n => { total += n; });
+    return total;
+  },
+
+  PlatformWeb_IO_ServerReachable__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_ServerReachable: function (px) {
     const inst = TORIRS_WEB_IO.instances.get(px);
     return inst && inst.transportDown ? 0 : 1;
   },

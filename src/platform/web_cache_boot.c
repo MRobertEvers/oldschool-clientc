@@ -315,8 +315,107 @@ torirs_web_cache_prime_step(void)
             (unsigned)progress.references_ready,
             (unsigned long long)progress.bytes_received);
 
-    web_cache_boot_release_primer();
+    /*
+     * The client is KEPT, not released.
+     *
+     * It was torn down here when the disk it filled was opened again by
+     * App_Init a moment later and platform_x_io.c drove a second JS5 client of
+     * its own. Nothing does that now: the platform executor is JavaScript, it
+     * does not attach producers, and this is the only JS5 client in the
+     * process. Freeing it would leave the cache with no way to grow, so every
+     * group not already resident would be a permanent miss.
+     *
+     * Only the failure path lets go, because a client that could not reach its
+     * server will not answer a demand either.
+     */
+    if( g_boot.status < 0 )
+        web_cache_boot_release_primer();
     return g_boot.status;
+}
+
+/* --- the on-demand producer ---------------------------------------------- */
+/*
+ * How a group that is not in the database gets there.
+ *
+ * The executor reads the record database and nothing else -- archives have
+ * their own transport, and this is it. On a miss the host asks here, drives
+ * Tick until Status answers, and reads the database again; what JS5 downloads
+ * lands there on the way through (Js5RscacheStorage -> the disk -> the store).
+ *
+ * Three calls rather than one blocking one, because the JavaScript side is
+ * where the waiting belongs: a WebSocket delivers between turns of the event
+ * loop, so anything that waited in C would be waiting for a message that cannot
+ * arrive until it returns.
+ */
+EMSCRIPTEN_KEEPALIVE int
+ToriRS_WebApi_Js5Request(int table, int archive)
+{
+    if( !g_boot.prime )
+        return -1;
+    if( PlatformXIOJs5Cache_GroupReady(g_boot.prime, table, archive) )
+        return 1;
+    switch( PlatformXIOJs5Cache_RequestGroup(g_boot.prime, table, archive) )
+    {
+    case JS5_REQUEST_ALREADY_READY:
+        return 1;
+    case JS5_REQUEST_ERROR:
+        return -1;
+    default:
+        return 0;
+    }
+}
+
+/** Give the producer a turn. Driven by the page; see the comment above. */
+EMSCRIPTEN_KEEPALIVE int
+ToriRS_WebApi_Js5Tick(void)
+{
+    if( !g_boot.prime )
+        return -1;
+    return PlatformXIOJs5Cache_Tick(g_boot.prime, PlatformSDL2_Ticks64());
+}
+
+/** 1 resident, 0 still coming, -1 the producer gave up on this group. */
+EMSCRIPTEN_KEEPALIVE int
+ToriRS_WebApi_Js5Status(int table, int archive)
+{
+    if( !g_boot.prime )
+        return -1;
+    if( PlatformXIOJs5Cache_GroupReady(g_boot.prime, table, archive) )
+        return 1;
+    if( PlatformXIOJs5Cache_GroupFailed(g_boot.prime, table, archive) )
+        return -1;
+    return 0;
+}
+
+/* --- the frame loop's host-facing calls ---------------------------------- */
+/*
+ * These used to live in the wire backend and in platform_x_io.c, one copy
+ * each. Neither file is built for a browser any more -- the executor is
+ * JavaScript and platform_x_io.c is the desktop's -- but their contract was
+ * never about where bytes come from: "give the asynchronous side a turn", and
+ * "may a read block the frame". So they belong with the thing that IS
+ * asynchronous here, which is the producer above.
+ *
+ * The pacing one matters: while JS5 has reads in flight the loop must run from
+ * the event loop rather than from requestAnimationFrame, because a WebSocket
+ * delivers between turns of the event loop and a display-rate loop would cap
+ * the download at one round trip per frame.
+ */
+void
+PlatformWeb_Pump(void)
+{
+    if( g_boot.prime )
+        PlatformXIOJs5Cache_Tick(g_boot.prime, PlatformSDL2_Ticks64());
+}
+
+/*
+ * Nothing to answer. There is no synchronous read anywhere on this platform to
+ * suppress: every answer arrives after an await, which is the whole design.
+ */
+void
+PlatformWeb_SetBlockingReads(int allowed)
+{
+    (void)allowed;
 }
 
 /*

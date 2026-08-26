@@ -8,9 +8,6 @@
 
 #include "asyncio.h"
 
-#if defined(TORIRS_WEB_CACHE_IDB)
-#include "platform/dat2_web_store.h"
-#endif
 
 #include <assert.h>
 #include <rscache.h>
@@ -103,14 +100,6 @@ struct PlatformX_IO
     int transport_down;
 };
 
-#if defined(TORIRS_WEB_CACHE_IDB)
-/* The frame loop reaches the two host calls below without a handle (they stand
- * in for the wire backend's, which is a singleton for the same reason: the JS
- * side has no place to carry a context pointer). App owns exactly one
- * PlatformX_IO and shares it between both pipelines, so this is not a
- * restriction the design would otherwise have avoided. */
-static struct PlatformX_IO* g_web_px = NULL;
-#endif
 
 /* TORIRS_DAT2_ARCHIVE_SLOTS narrows the LRU without a rebuild. An unusable
  * value falls back to the compiled default rather than asserting: this reads a
@@ -136,9 +125,6 @@ PlatformX_IO_New(void)
     assert(px);
     memset(px, 0, sizeof(struct PlatformX_IO));
     px->archive_cache_slots = dat2_archive_cache_slots();
-#if defined(TORIRS_WEB_CACHE_IDB)
-    g_web_px = px;
-#endif
     return px;
 }
 
@@ -219,10 +205,6 @@ PlatformX_IO_Free(struct PlatformX_IO* px)
         RSCache_Dat2DiskArchiveFree(px->archive_cache[i].archive);
     free(px->config_dir);
     free(px->script_dir);
-#if defined(TORIRS_WEB_CACHE_IDB)
-    if( g_web_px == px )
-        g_web_px = NULL;
-#endif
     free(px);
 }
 
@@ -358,31 +340,6 @@ read_client_file_item(struct ToriRS_IOItem* item)
     void* data = NULL;
     int data_size = 0;
 
-#if defined(TORIRS_WEB_CACHE_IDB)
-    /*
-     * The browser's filesystem is MEMFS: it exists for the life of the tab and
-     * nothing more. A client file is the player's saved options, which is
-     * precisely the thing that must outlive a reload — writing it to MEMFS
-     * reproduces the "the music setting does not save" defect rs_prefs.c was
-     * written to fix, one layer lower down. So on this host the durable store
-     * answers, and the virtual filesystem is not consulted at all.
-     */
-    {
-        uint8_t* bytes = NULL;
-        int size = 0;
-        int found = Dat2WebStore_FileRead(item->u.file.path, &bytes, &size);
-
-        if( found != 1 )
-        {
-            item->error_code = -1;
-            return -1;
-        }
-        item->data = bytes;
-        item->data_size = size;
-        item->error_code = 0;
-        return 0;
-    }
-#endif
 
     if( read_whole_file(item->u.file.path, &data, &data_size) != 0 )
     {
@@ -451,16 +408,6 @@ write_client_file_item(struct ToriRS_IOItem* item)
         return -1;
     }
 
-#if defined(TORIRS_WEB_CACHE_IDB)
-    /* See read_client_file_item. The write-then-rename below buys durability
-     * against an interrupted write; a single keyed put is already atomic, so
-     * the store replaces the whole dance rather than emulating it. */
-    item->error_code = Dat2WebStore_FileWrite(
-                           item->u.file.path, (const uint8_t*)item->data, item->data_size) == 0
-                           ? 0
-                           : -1;
-    return item->error_code;
-#endif
 
     mkdir_parent(item->u.file.path);
     snprintf(temp, sizeof(temp), "%s.tmp", item->u.file.path);
@@ -551,45 +498,12 @@ stored_file_read(
     else
         snprintf(resolved, sizeof(resolved), "%s", path);
 
-#if defined(TORIRS_WEB_CACHE_IDB)
-    {
-        uint8_t* bytes = NULL;
-        int size = 0;
-
-        if( Dat2WebStore_FileRead(resolved, &bytes, &size) == 1 )
-        {
-            *out_data = bytes;
-            *out_size = size;
-            return 0;
-        }
-    }
-    {
-        uint8_t* bytes = NULL;
-        int size = 0;
-        int const got = Dat2WebStore_FileFetch(resolved, &bytes, &size);
-
-        /*
-         * Reachability is decided here and nowhere else, because this is the
-         * only place that learns it: a file the server says it does not have
-         * (0) proves the server is THERE, and clears the flag exactly as bytes
-         * would. Only "nothing answered" raises it.
-         */
-        px->transport_down = got < 0;
-        if( got == 1 )
-        {
-            *out_data = bytes;
-            *out_size = size;
-            return 0;
-        }
-    }
-#else
     /* No leg 2 here, so nothing on this lane reads `px` once the assert above
      * is compiled out. Named rather than left to -Wunused-parameter, which is
      * an error in some of the lanes this file builds in. */
     (void)px;
     if( read_whole_file(resolved, out_data, out_size) == 0 )
         return 0;
-#endif
 
     return -1;
 }
@@ -1291,50 +1205,3 @@ PlatformXIO_Js5GetProgress(
 }
 #endif
 
-#if defined(TORIRS_WEB_CACHE_IDB)
-/*
- * The frame loop's host-facing calls.
- *
- * They are declared in platform_x_io_web.h and implemented by the wire backend
- * on the other web lane. Their contract is about the *host*, not about where
- * the bytes come from — "give the asynchronous side a turn", "how many reads
- * are outstanding", "may a read block the frame" — so this backend answers them
- * too, and frame_loop_step needs no idea which cache source it was built
- * against.
- *
- * The pacing one matters more here than on the wire lane. While JS5 has reads
- * in flight the loop must run from the event loop rather than from
- * requestAnimationFrame: a WebSocket delivers between turns of the event loop,
- * so a display-rate loop would cap the download at one round trip per frame.
- */
-void
-PlatformXIO_Web_Pump(void)
-{
-    if( g_web_px && g_web_px->js5 )
-        PlatformXIO_Js5Pump(g_web_px, PlatformSDL2_Ticks64());
-}
-
-int
-PlatformXIO_Web_PendingTotal(void)
-{
-    int count = 0;
-
-    if( !g_web_px )
-        return 0;
-    for( int i = 0; i < JS5_PENDING_SLOTS; i++ )
-        if( g_web_px->js5_pending[i].in_use )
-            count++;
-    return count;
-}
-
-/*
- * Nothing to answer here. This lane has no synchronous read to suppress: JS5
- * arrives over a WebSocket, which cannot deliver inside the call that asked for
- * it, so every read on this backend is already the non-blocking kind.
- */
-void
-PlatformXIO_Web_SetBlockingReads(int allowed)
-{
-    (void)allowed;
-}
-#endif

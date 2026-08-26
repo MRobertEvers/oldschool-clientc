@@ -25,7 +25,7 @@
 #include "game/rs_ui_slots.h"
 #include "input/torirs_input.h"
 #include "inv/inv_manager.h"
-#include "platform/platform_x_io.h"
+#include "platform/platform_io.h"
 #include "plugin/torirs_plugin_host.h"
 #include "ui/uitree_frame.h"
 #include "ui/uitree_role.h"
