@@ -1910,16 +1910,21 @@ bucket_sort_by_average_depth_small(
         return 0;
 
     /*
-     * TORIDRAW_SPAN_RATIO=1: faces bucketed vs depth levels walked to get them
-     * back out again.
+     * TORIDRAW_SPAN_RATIO=<path>: faces bucketed vs depth levels walked to get
+     * them back out again.
      *
      * Every consumer of this table is a loop over [min_d, max_d] reading two
      * ints per level -- the prefix sum below, the cursor seed, the priority
-     * partition, the restore. If a model's depth span is much wider than its
-     * face count, that is four passes over a range whose length has nothing to
-     * do with how much work the model represents, and the bucket sort is being
-     * paid for a resolution it is not using. This counter is what says whether
-     * that is happening or whether the span is tight.
+     * partition, the restore. If a model's depth span were much wider than its
+     * face count, that would be four passes over a range whose length has
+     * nothing to do with how much work the model represents.
+     *
+     * It is not. Measured on an in-world frame: 33.3 faces/model against
+     * 58.2 depth levels/model, 1.7x span-per-face. The bucket sort is well
+     * matched to its data, and replacing it with a comparison sort over ~33
+     * elements would not obviously win. Kept because that is a load-bearing
+     * negative result -- the face sort is the largest single item in the
+     * non-raster profile and it will be proposed again.
      */
     {
         static char const* out_path = NULL;

@@ -11,9 +11,6 @@ struct ToriRS_Frame;
 
 #define TORIRS_SOFT3D_BG 0xFF202428
 
-/** Matches APP_DAMAGE_RECT_MAX; the renderer does not include app.h. */
-#define TORIRS_SOFT3D_DAMAGE_RECT_MAX 4
-
 struct ToriRS_Soft3D
 {
     struct ToriDraw_Scene* scene;
@@ -42,30 +39,6 @@ struct ToriRS_Soft3D
     int pick_mouse_x; /* canvas coords */
     int pick_mouse_y;
     struct ToriRS_PickHits pick_hits;
-
-    /* Damage rectangle for this frame, half-open [x0,x1) x [y0,y1), or
-     * damage_valid == 0 for "the whole canvas". When set, the frame clears
-     * only this box and every draw is clipped to it, leaving the rest of the
-     * buffer holding the pixels the previous frame left there.
-     *
-     * The renderer does not decide this and cannot check it: whether last
-     * frame's pixels are still correct is a fact about the UI tree, which
-     * lives in App. @see App::damage_valid. */
-    int damage_valid;
-    int damage_x0;
-    int damage_y0;
-    int damage_x1;
-    int damage_y1;
-    /* The same damage as separate rectangles, used by the CLEAR only. The clip
-     * above stays the bounding box because a ViewPort holds one rectangle;
-     * the clear has no such constraint and skipping the strip between the
-     * world viewport and the minimap is most of what damage buys here.
-     *
-     * Safe because of what a retained frame means: outside the live rects
-     * nothing changed, so the pixels already there are the pixels the frame
-     * wants. Chrome redrawn over them lands on its own previous output. */
-    int damage_rect_count;
-    int damage_rects[TORIRS_SOFT3D_DAMAGE_RECT_MAX][4];
 };
 
 void
@@ -83,33 +56,6 @@ ToriRS_Soft3D_SetPick(
     struct ToriRS_Soft3D* soft,
     int mouse_x,
     int mouse_y);
-
-/**
- * Restrict the next RenderFrame to a damage box: only this rectangle is
- * cleared, and every draw is clipped to it. Pixels outside are left as the
- * previous frame wrote them, so the caller must be able to prove they are
- * still correct -- see App::damage_valid for what that proof consists of.
- *
- * Not calling this leaves the frame full-canvas, which is always correct.
- */
-void
-ToriRS_Soft3D_SetDamage(
-    struct ToriRS_Soft3D* soft,
-    int x,
-    int y,
-    int w,
-    int h);
-
-/**
- * Narrow the CLEAR to these rectangles instead of the damage box. Must be
- * called after ToriRS_Soft3D_SetDamage, whose box must still cover them --
- * the draw clip keeps using the box. Passing 0 rects leaves the box clear.
- */
-void
-ToriRS_Soft3D_SetDamageClearRects(
-    struct ToriRS_Soft3D* soft,
-    int const (*rects)[4],
-    int count);
 
 /** Clear framebuffer to Soft3D background, then drain frame commands. */
 void

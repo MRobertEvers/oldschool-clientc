@@ -589,42 +589,6 @@ interactive_render_present(
 #endif
 
     App_Render(app, PlatformSDL2_Pixels(sdl), UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    {
-        /* Present only what the render actually wrote. Off unless damage
-         * drawing is armed, in which case App_Render already left the rest of
-         * the buffer holding last frame's pixels -- so this is not an
-         * optimisation layered on top of a full render, it is the other half
-         * of one decision. */
-        int dx;
-        int dy;
-        int dw;
-        int dh;
-
-        if( App_PresentDamage(app, &dx, &dy, &dw, &dh) )
-        {
-            struct App_DamageRect const* dr;
-            int n;
-
-            PlatformSDL2_SetPresentDamage(sdl, dx, dy, dw, dh);
-            n = App_DamageRects(app, &dr);
-            if( n > 0 )
-            {
-                int rects[PLATFORM_PRESENT_DAMAGE_RECT_MAX][4];
-
-                if( n > PLATFORM_PRESENT_DAMAGE_RECT_MAX )
-                    n = PLATFORM_PRESENT_DAMAGE_RECT_MAX;
-                for( int i = 0; i < n; i++ )
-                {
-                    rects[i][0] = dr[i].x;
-                    rects[i][1] = dr[i].y;
-                    rects[i][2] = dr[i].w;
-                    rects[i][3] = dr[i].h;
-                }
-                PlatformSDL2_SetPresentDamageRects(
-                    sdl, (int const(*)[4])rects, n);
-            }
-        }
-    }
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
     {
         PlatformSDL2_Present(sdl);

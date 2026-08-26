@@ -72,27 +72,6 @@ viewport_from_scissor(
     vp.clip_top = scissor_y < 0 ? 0 : scissor_y;
     vp.clip_right = right > soft->width ? soft->width : right;
     vp.clip_bottom = bottom > soft->height ? soft->height : bottom;
-    /*
-     * Damage clipping rides the same choke point, which is the whole reason it
-     * is cheap to add and impossible to forget: a draw kind added later cannot
-     * escape it without also escaping the canvas bound above.
-     *
-     * It only ever SHRINKS a clip, so the worst a wrong damage rect can do is
-     * fail to draw -- it can never let a kernel write outside the buffer. A
-     * command entirely outside the damage collapses to an empty viewport, which
-     * every kernel already treats as a no-op.
-     */
-    if( soft->damage_valid )
-    {
-        if( vp.clip_left < soft->damage_x0 )
-            vp.clip_left = soft->damage_x0;
-        if( vp.clip_top < soft->damage_y0 )
-            vp.clip_top = soft->damage_y0;
-        if( vp.clip_right > soft->damage_x1 )
-            vp.clip_right = soft->damage_x1;
-        if( vp.clip_bottom > soft->damage_y1 )
-            vp.clip_bottom = soft->damage_y1;
-    }
     /* An entirely off-canvas box collapses to empty rather than inverting. */
     if( vp.clip_right < vp.clip_left )
         vp.clip_right = vp.clip_left;
@@ -1161,66 +1140,6 @@ ToriRS_Soft3D_Init(
     soft->stride = width;
 }
 
-/* A/B for the damage clear's store kind; see the call site. Read once. */
-static int
-soft3d_damage_clear_nt(void)
-{
-    static int armed = -1;
-    if( armed < 0 )
-        armed = getenv("TORIRS_DAMAGE_CLEAR_PLAIN") ? 0 : 1;
-    return armed;
-}
-
-void
-ToriRS_Soft3D_SetDamage(
-    struct ToriRS_Soft3D* soft,
-    int x,
-    int y,
-    int w,
-    int h)
-{
-    assert(soft);
-    assert(w > 0);
-    assert(h > 0);
-
-    soft->damage_x0 = x < 0 ? 0 : x;
-    soft->damage_y0 = y < 0 ? 0 : y;
-    soft->damage_x1 = x + w > soft->width ? soft->width : x + w;
-    soft->damage_y1 = y + h > soft->height ? soft->height : y + h;
-    soft->damage_valid =
-        (soft->damage_x1 > soft->damage_x0 && soft->damage_y1 > soft->damage_y0);
-    soft->damage_rect_count = 0;
-}
-
-void
-ToriRS_Soft3D_SetDamageClearRects(
-    struct ToriRS_Soft3D* soft,
-    int const (*rects)[4],
-    int count)
-{
-    assert(soft);
-    assert(rects);
-    assert(count > 0);
-    assert(soft->damage_valid);
-
-    if( count > TORIRS_SOFT3D_DAMAGE_RECT_MAX )
-        count = TORIRS_SOFT3D_DAMAGE_RECT_MAX;
-    for( int i = 0; i < count; i++ )
-    {
-        /* The box is the clip; a clear rect outside it would clear pixels no
-         * draw can then repaint. */
-        assert(rects[i][0] >= soft->damage_x0);
-        assert(rects[i][1] >= soft->damage_y0);
-        assert(rects[i][0] + rects[i][2] <= soft->damage_x1);
-        assert(rects[i][1] + rects[i][3] <= soft->damage_y1);
-        soft->damage_rects[i][0] = rects[i][0];
-        soft->damage_rects[i][1] = rects[i][1];
-        soft->damage_rects[i][2] = rects[i][2];
-        soft->damage_rects[i][3] = rects[i][3];
-    }
-    soft->damage_rect_count = count;
-}
-
 void
 ToriRS_Soft3D_SetPick(
     struct ToriRS_Soft3D* soft,
@@ -1814,66 +1733,7 @@ ToriRS_Soft3D_RenderFrame(
 #else
         uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
 #endif
-        if( soft->damage_valid )
-        {
-            /*
-             * Row-at-a-time: the damage box is a sub-rectangle, so the one long
-             * contiguous run the non-temporal clear wants does not exist.
-             *
-             * The non-temporal clear keeps its job here, which is not what was
-             * expected: a 717-pixel row is 2.8 KB, and the guess was that
-             * filling and tearing down the write-combine buffer 335 times a
-             * frame would cost more than the NT store saves, since the measured
-             * 2.4x for this clear was taken on one long run. Both arms,
-             * measured, same binary:
-             *
-             *              fps   CPU ms/frame
-             *   plain     40.9          13.18
-             *   NT        43.9          12.43
-             *
-             * The guess was wrong by 0.75 ms/frame. A row is still write-only
-             * and never read back, so the plain stores pay read-for-ownership
-             * on every line they touch and the NT stores do not -- and that
-             * costs more than the per-row buffer teardown saves.
-             * TORIRS_DAMAGE_CLEAR_PLAIN=1 selects the losing arm.
-             */
-            int nt = soft3d_damage_clear_nt();
-            int nrects = soft->damage_rect_count;
-            int r;
-
-            for( r = 0; r < (nrects > 0 ? nrects : 1); r++ )
-            {
-                int rx = nrects > 0 ? soft->damage_rects[r][0] : soft->damage_x0;
-                int ry = nrects > 0 ? soft->damage_rects[r][1] : soft->damage_y0;
-                int rw = nrects > 0 ? soft->damage_rects[r][2]
-                                    : soft->damage_x1 - soft->damage_x0;
-                int rh = nrects > 0 ? soft->damage_rects[r][3]
-                                    : soft->damage_y1 - soft->damage_y0;
-
-                for( int y = ry; y < ry + rh; y++ )
-                {
-                    uint32_t* row = p + (size_t)y * soft->stride + rx;
-                    if( nt )
-                    {
-                        TORIDRAW_FB_CLEAR32(row, (size_t)rw, bg);
-                    }
-                    else
-                    {
-                        int i = 0;
-                        for( ; i + 4 <= rw; i += 4 )
-                        {
-                            row[i] = bg;
-                            row[i + 1] = bg;
-                            row[i + 2] = bg;
-                            row[i + 3] = bg;
-                        }
-                        for( ; i < rw; i++ )
-                            row[i] = bg;
-                    }
-                }
-            }
-        }
-        else if( ToriDraw_FrameAbArm() )
+        if( ToriDraw_FrameAbArm() )
         {
             TORIDRAW_FB_CLEAR32(p, n, bg);
         }
