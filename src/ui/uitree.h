@@ -624,6 +624,10 @@ struct UITreeComponent
      * frame_hidden so either declaration may release without revealing a
      * subtree the other still owns. Cache scripts never write this flag. */
     uint8_t replacement_hidden;
+    /** Camera projection temporarily rejected this scripted entity-overlay
+     * layer (for example, its subject crossed behind the near plane). Kept
+     * separate from `behavior.hide`, which remains script-owned. */
+    uint8_t projection_hidden;
     /** enum UITreeSlotTag — nonzero marks this node as a mount region. */
     uint8_t slot_tag;
     /**
@@ -1579,6 +1583,127 @@ UITree_CollectDynamicChildIndices(
     int start_index,
     int* out_indices,
     int out_cap);
+
+/**
+ * Typed runtime mutation API for callers that already hold a component-array
+ * index.  These setters own all cache invalidation implied by their property:
+ * callers must not write the corresponding UITreeComponent fields and then
+ * try to reproduce the dirty/layout bookkeeping themselves.
+ *
+ * A repeated value is a successful no-op.  False means the index is not a live
+ * component, or (where applicable) has the wrong component type.  The
+ * corresponding component-id UITree_Apply* entry points below are lookup
+ * wrappers around these functions.
+ */
+bool
+UITree_SetHideAt(struct UITree* tree, int32_t idx, int hide);
+
+/** Publish one cached CS1 active result as a visual mutation. */
+bool
+UITree_SetCS1ActiveAt(struct UITree* tree, int32_t idx, int active);
+
+/** Publish one cached CS1 placeholder value as a visual mutation. */
+bool
+UITree_SetCS1ValueAt(struct UITree* tree, int32_t idx, int value_index, int value);
+
+/** Set frame-layout suppression with unfiltered reachability invalidation. */
+bool
+UITree_SetFrameHiddenAt(struct UITree* tree, int32_t idx, int hidden);
+
+/** Set camera-owned visibility of a scripted entity-overlay layer. */
+bool
+UITree_SetProjectionHiddenAt(struct UITree* tree, int32_t idx, int hidden);
+
+bool
+UITree_SetTextAt(struct UITree* tree, int32_t idx, char const* text);
+
+bool
+UITree_SetGraphicAt(
+    struct UITree* tree,
+    int32_t idx,
+    int scene_id,
+    int atlas_index);
+
+bool
+UITree_SetColourAt(struct UITree* tree, int32_t idx, int colour);
+
+bool
+UITree_SetFillColourAt(struct UITree* tree, int32_t idx, int colour);
+
+/** Set the component's 0..255 transparency value (0 is opaque). */
+bool
+UITree_SetTransparencyAt(struct UITree* tree, int32_t idx, int transparency);
+
+/** Set the resolved scene-font id used by the builtin minimenu expansion. */
+bool
+UITree_SetMinimenuFontAt(struct UITree* tree, int32_t idx, int font_id);
+
+/** Set a RS_ARC widget's 65536-per-turn start and end angles. */
+bool
+UITree_SetArcAnglesAt(struct UITree* tree, int32_t idx, int arc_start, int arc_end);
+
+/** Replace the scene model drawn by a RS_MODEL widget. */
+bool
+UITree_SetModelAt(struct UITree* tree, int32_t idx, int model_id);
+
+/**
+ * Set all fields written by IF/CC_SETMODELANGLE in one paint mutation.  A
+ * non-positive zoom preserves the current zoom, matching the opcode contract.
+ */
+bool
+UITree_SetModelPoseAt(
+    struct UITree* tree,
+    int32_t idx,
+    int x_offset,
+    int y_offset,
+    int x_angle,
+    int y_angle,
+    int z_angle,
+    int zoom);
+
+bool
+UITree_SetPositionAt(struct UITree* tree, int32_t idx, int x, int y);
+
+/** Replace a node's complete explicit XY box in one geometry mutation. */
+bool
+UITree_SetXYBoxAt(
+    struct UITree* tree,
+    int32_t idx,
+    int x,
+    int y,
+    int width,
+    int height);
+
+bool
+UITree_SetSizeAt(struct UITree* tree, int32_t idx, int width, int height);
+
+bool
+UITree_SetPositionModesAt(
+    struct UITree* tree,
+    int32_t idx,
+    int x,
+    int y,
+    int x_mode,
+    int y_mode);
+
+bool
+UITree_SetSizeModesAt(
+    struct UITree* tree,
+    int32_t idx,
+    int width,
+    int height,
+    int width_mode,
+    int height_mode);
+
+bool
+UITree_SetScrollSizeAt(
+    struct UITree* tree,
+    int32_t idx,
+    int scroll_width,
+    int scroll_height);
+
+bool
+UITree_SetScrollPosAt(struct UITree* tree, int32_t idx, int scroll_x, int scroll_y);
 
 bool
 UITree_ApplyHide(

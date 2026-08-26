@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include "log/torirs_log.h"
 
 #ifdef _WIN32
 #include <direct.h>
@@ -448,7 +449,7 @@ write_client_file_item(struct ToriRS_IOItem* item)
     fp = fopen(temp, "wb");
     if( !fp )
     {
-        fprintf(stderr, "io: cannot write %s\n", temp);
+        TORIRS_ERR("io: cannot write %s\n", temp);
         item->error_code = -1;
         return -1;
     }
@@ -473,7 +474,7 @@ write_client_file_item(struct ToriRS_IOItem* item)
     if( rename(temp, item->u.file.path) != 0 )
 #endif
     {
-        fprintf(stderr, "io: cannot replace %s\n", item->u.file.path);
+        TORIRS_ERR("io: cannot replace %s\n", item->u.file.path);
         remove(temp);
         item->error_code = -1;
         return -1;
@@ -597,9 +598,7 @@ load_cache_item_dat2(
 
     if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT )
     {
-        fprintf(
-            stderr,
-            "dat2: logical table %d has no table in this cache's branch (game %s)\n",
+        TORIRS_LOG("dat2: logical table %d has no table in this cache's branch (game %s)\n",
             logical_table,
             RSCache_GameName(px->dat2_disk->profile.game));
         item->error_code = -1;
@@ -611,7 +610,7 @@ load_cache_item_dat2(
         if( trace_enabled < 0 )
             trace_enabled = getenv("TORIRS_IO_TRACE") != NULL;
         if( trace_enabled )
-            fprintf(stderr, "io_trace: dat2 table=%d archive=%d\n", table_id, archive_id);
+            TORIRS_LOG("io_trace: dat2 table=%d archive=%d\n", table_id, archive_id);
     }
 
     {
@@ -659,9 +658,7 @@ load_cache_item_dat2(
     if( !RSCache_Dat2DiskArchiveInitMetadataFromTable(
             RSCache_Dat2DiskReferenceTable(px->dat2_disk, table_id), archive) )
     {
-        fprintf(
-            stderr,
-            "dat2 archive %d in table %d absent from reference table\n",
+        TORIRS_LOG("dat2 archive %d in table %d absent from reference table\n",
             archive_id,
             table_id);
         RSCache_Dat2DiskArchiveFree(archive);
@@ -718,7 +715,7 @@ js5_queue_cache_item(
     pending = js5_pending_alloc(px);
     if( !pending )
     {
-        fprintf(stderr, "js5: pending IO table full, failing %d/%d\n", archive, group);
+        TORIRS_ERR("js5: pending IO table full, failing %d/%d\n", archive, group);
         item->error_code = -1;
         return -1;
     }

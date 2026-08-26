@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * The clientscript index's reference table.
@@ -46,7 +47,7 @@ Task_Dat2ClientScriptTableLoad_Run(
     table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
     if( !table )
     {
-        fprintf(stderr, "Failed to load clientscript reference table\n");
+        TORIRS_ERR("Failed to load clientscript reference table\n");
         PT_EXIT(&task->pt);
     }
     dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_CLIENTSCRIPT, table);

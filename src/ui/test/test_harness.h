@@ -50,6 +50,11 @@ struct TestHostState
      * builtin emits nothing. */
     struct UITreeEntityOverlay const* entity_overlays;
     int entity_overlay_count;
+    struct UITreeEntityOverlay const* canvas_overlays;
+    int canvas_overlay_count;
+    struct UITreeEntityOverlay const* frame_overlays;
+    int frame_overlay_count;
+    int request_count[UITREE_HOST_REQUEST_COUNT];
     int entity_overlay_clip_x;
     int entity_overlay_clip_y;
     int entity_overlay_clip_w;
@@ -86,6 +91,8 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
     if( !st )
         return 0;
     assert(req);
+    if( req->kind >= 0 && req->kind < UITREE_HOST_REQUEST_COUNT )
+        st->request_count[req->kind]++;
 
     switch( req->kind )
     {
@@ -144,6 +151,16 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
         st->role_clip.clip_w = req->u.set_role_overlay_clip.clip_w;
         st->role_clip.clip_h = req->u.set_role_overlay_clip.clip_h;
         return 1;
+    case UITREE_HOST_GET_CANVAS_OVERLAYS:
+        if( !st->canvas_overlays || !req->u.get_entity_overlays.out_items )
+            return 0;
+        *req->u.get_entity_overlays.out_items = st->canvas_overlays;
+        return st->canvas_overlay_count;
+    case UITREE_HOST_GET_FRAME_OVERLAYS:
+        if( !st->frame_overlays || !req->u.get_entity_overlays.out_items )
+            return 0;
+        *req->u.get_entity_overlays.out_items = st->frame_overlays;
+        return st->frame_overlay_count;
     case UITREE_HOST_GET_MINIMAP_HIDDEN:
         return st->minimap_hidden;
     case UITREE_HOST_GET_MINIMAP_STATE:

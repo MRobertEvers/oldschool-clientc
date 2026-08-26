@@ -645,6 +645,19 @@ enum AppMinimapState
  */
 #define APP_PREFS_SAVE_SETTLE_TICKS 25
 
+/** Live regions of a retained frame. Four is above the two an in-world frame
+ *  actually produces (world, minimap); past that the bounding box is used
+ *  instead, which is always correct and only ever does more work. */
+#define APP_DAMAGE_RECT_MAX 4
+
+struct App_DamageRect
+{
+    int x;
+    int y;
+    int w;
+    int h;
+};
+
 struct App
 {
     struct AppConfig cfg;
@@ -895,6 +908,56 @@ struct App
     struct World_PickSet world_pickset;
     struct UITreeEmitDesc world_emit_desc;
     int world_view_valid;
+    /** Set when this frame reused the previous command list unchanged (PR #49's
+     *  retain gate). The chrome pixels are then identical to what is already on
+     *  screen, which is what a damaged-rect present needs to know. */
+    int ui_retained_frame;
+    /**
+     * Damage rectangle: the union of every region whose pixels can change
+     * while the emit list stays byte-identical, in canvas coordinates.
+     * `damage_valid` is 0 when the whole canvas must be treated as damaged.
+     *
+     * The retain gate proves the *command list* is unchanged. It does not
+     * prove the *pixels* are, and the difference is exactly three things:
+     *
+     *  - the WORLD viewport, where models animate and the camera drifts under
+     *    a list that never mentions either;
+     *  - the MINIMAP, rebuilt from a rotating source every frame;
+     *  - every desc holding a host-owned pointer (minimap dots, entity
+     *    overlays, worldmap tiles, debug prims), whose desc bytes are stable
+     *    while the buffer behind them is refilled -- the same descs
+     *    `UITreeEmitBuffer::volatile_refs` counts, for the same reason.
+     *
+     * Everything else in a retained frame is already on screen, so it needs
+     * neither clearing, nor redrawing, nor presenting. Membership is decided
+     * by testing the pointers rather than by listing the kinds that set them,
+     * so a kind added later cannot quietly opt itself out. @see
+     * app_compute_damage.
+     */
+    int damage_valid;
+    int damage_x;
+    int damage_y;
+    int damage_w;
+    int damage_h;
+    /**
+     * The same damage as a small list of rectangles instead of their bounding
+     * box, which is what the clear and the present actually want.
+     *
+     * The box is what the draw clip has to use -- a ToriDraw_ViewPort holds one
+     * rectangle, so clipping to a union would mean running each draw once per
+     * rect, and the polygon and model commands carry accumulation state that
+     * cannot simply be replayed. The clear and the present have no such
+     * constraint: both just touch pixels.
+     *
+     * It matters because the two live regions are the world viewport and the
+     * minimap, which sit at opposite ends of the same rows. Their bounding box
+     * swallows the sidebar strip between them and is 240,195 px against the
+     * 193,901 px the two rects actually cover. For reference the Java client,
+     * which keeps a separate PixMap per region, clears 170,048 px and presents
+     * 196,880 px per frame (Client.gameDraw / Client.java:5122).
+     */
+    struct App_DamageRect damage_rects[APP_DAMAGE_RECT_MAX];
+    int damage_rect_count;
     /**
      * The component the last MODAL sub-interface was mounted on, or -1.
      *
@@ -1423,6 +1486,10 @@ struct App
     /* Phase 5: frame state. */
     struct UITreeHost ui_host;
     struct UITreeEmitBuffer emit;
+    /** Previous publication identity for the retained-emit gate. Per-App (not
+     * function statics) so a second client or a reinitialized App cannot inherit
+     * another tree's quiet verdict. */
+    struct UITreeEmitRetainGate emit_gate;
     struct UIInteraction interact;
     struct SeqLoadTracker seq_loads;
     struct InterfaceOpenStats open_stats;
@@ -3188,6 +3255,31 @@ App_Render(
     int* pixels,
     int width,
     int height);
+
+/**
+ * Region the last App_Render actually wrote, for a presenter that can copy
+ * less than the whole buffer. Returns 0 when the whole canvas must be
+ * presented, which is every frame unless damage drawing is on and the frame
+ * was retained. @see App::damage_valid.
+ */
+int
+App_PresentDamage(
+    struct App const* app,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h);
+
+/**
+ * The same damage as separate rectangles, for a caller that can act on each
+ * one independently (the clear, the present). Returns the count and points
+ * `out_rects` at them, or 0 when there is no usable list and the single box
+ * from App_PresentDamage should be used instead.
+ */
+int
+App_DamageRects(
+    struct App const* app,
+    struct App_DamageRect const** out_rects);
 
 /**
  * Build a ToriRS_Frame for the current emit/world state (no rasterization).

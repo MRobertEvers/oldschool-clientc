@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* --- login-driver dispatch: rev->login vtable (xrsps) vs classic loginproto.c.
  * Every login touch point below goes through these so the drive/drain loops are
@@ -242,7 +243,7 @@ ToriRS_Network_SendRaw(
     if( len > 0 && data )
     {
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(stderr, "net: -> %d bytes (first 0x%02x)\n", len, data[0]);
+            TORIRS_LOG("net: -> %d bytes (first 0x%02x)\n", len, data[0]);
         push_out(net, TORIRS_NET_OUT_SEND_DATA, data, len);
     }
 }
@@ -391,9 +392,7 @@ net_process_packets(struct ToriRS_Network* net)
 
         memset(&packet, 0, sizeof(packet));
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "net: <- wire=%d name=%d size=%d\n",
+            TORIRS_LOG("net: <- wire=%d name=%d size=%d\n",
                 wire,
                 (int)name,
                 packetbuffer_size(&net->packet_buffer));
@@ -409,8 +408,7 @@ net_process_packets(struct ToriRS_Network* net)
             if( wire >= 0 && wire < 256 && !warned[wire] )
             {
                 warned[wire] = 1;
-                fprintf(
-                    stderr, "net: no decoder for wire opcode %d (%s) — dropped\n",
+                TORIRS_LOG("net: no decoder for wire opcode %d (%s) — dropped\n",
                     wire, net->rev->name);
             }
         }

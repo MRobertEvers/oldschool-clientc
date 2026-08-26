@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * The tree's slot enum and the plugin contract's are one enum written twice.
@@ -363,9 +364,7 @@ frame_collect_slots(
             n = fl->slot_node_count[s];
             if( n >= UITREE_FRAME_SLOT_NODES_MAX )
             {
-                fprintf(
-                    stderr,
-                    "frame: role %d has more than %d nodes; the rest keep the "
+                TORIRS_LOG("frame: role %d has more than %d nodes; the rest keep the "
                     "lane's own geometry\n",
                     s,
                     UITREE_FRAME_SLOT_NODES_MAX);
@@ -641,10 +640,7 @@ UITree_FrameApply(
             frame_hidden_has(&next, idx, incarnation) )
             continue;
         if( tree->components[idx].frame_hidden )
-        {
-            tree->components[idx].frame_hidden = 0;
-            UITree_MarkNodeVisibilityDirty(tree, idx);
-        }
+            (void)UITree_SetFrameHiddenAt(tree, idx, 0);
     }
     for( int i = 0; i < next.hidden_count; i++ )
     {
@@ -654,10 +650,7 @@ UITree_FrameApply(
             frame_hidden_has(fl, idx, incarnation) )
             continue;
         if( !tree->components[idx].frame_hidden )
-        {
-            tree->components[idx].frame_hidden = 1;
-            UITree_MarkNodeVisibilityDirty(tree, idx);
-        }
+            (void)UITree_SetFrameHiddenAt(tree, idx, 1);
     }
 
     /* Geometry and skin are sparse effective layers. Mark both the outgoing
@@ -703,10 +696,7 @@ UITree_FrameRelease(struct UITree* tree)
         if( !frame_node_same(tree, idx, fl->hidden_incarnation[i]) )
             continue;
         if( tree->components[idx].frame_hidden )
-        {
-            tree->components[idx].frame_hidden = 0;
-            UITree_MarkNodeVisibilityDirty(tree, idx);
-        }
+            (void)UITree_SetFrameHiddenAt(tree, idx, 0);
     }
 
     frame_mark_bound_nodes(tree, fl);

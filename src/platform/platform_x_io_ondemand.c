@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -261,9 +262,7 @@ od_http_get(
         goto done;
     if( memcmp(buffer + 9, "200", 3) != 0 )
     {
-        fprintf(
-            stderr,
-            "ondemand: %s%s answered %.3s, not 200\n",
+        TORIRS_LOG("ondemand: %s%s answered %.3s, not 200\n",
             od->host,
             route,
             buffer + 9);
@@ -451,9 +450,7 @@ od_fetch_file_once(
          * misframed. Drop the connection rather than decode noise. */
         if( chunk_archive != archive || chunk_file != file )
         {
-            fprintf(
-                stderr,
-                "ondemand: expected %d/%d, server sent %d/%d\n",
+            TORIRS_ERR("ondemand: expected %d/%d, server sent %d/%d\n",
                 archive,
                 file,
                 chunk_archive,
@@ -683,9 +680,7 @@ PlatformXIOOnDemand_New(
      * has to be a handle that can answer. */
     if( od_jag_route(od, RSCACHE_DAT1_CONFIG_VERSION_LIST, route, sizeof(route)) != 0 )
     {
-        fprintf(
-            stderr,
-            "ondemand: no checksums from http://%s:%d/crc -- is the LostCity "
+        TORIRS_LOG("ondemand: no checksums from http://%s:%d/crc -- is the LostCity "
             "server running?\n",
             od->host,
             od->web_port);
@@ -696,9 +691,7 @@ PlatformXIOOnDemand_New(
     versionlist = od_http_get(od, route, &versionlist_size);
     if( !versionlist || versionlist_size <= 0 )
     {
-        fprintf(
-            stderr,
-            "ondemand: no versionlist from http://%s:%d%s -- is the LostCity "
+        TORIRS_LOG("ondemand: no versionlist from http://%s:%d%s -- is the LostCity "
             "server running?\n",
             od->host,
             od->web_port,
@@ -712,16 +705,14 @@ PlatformXIOOnDemand_New(
     free(versionlist);
     if( !od->map_squares )
     {
-        fprintf(stderr, "ondemand: the versionlist archive carries no map_index\n");
+        TORIRS_LOG("ondemand: the versionlist archive carries no map_index\n");
         free(od);
         return NULL;
     }
 
     if( od_open_files(od) != 0 )
     {
-        fprintf(
-            stderr,
-            "ondemand: cannot open the file connection to %s:%d\n",
+        TORIRS_ERR("ondemand: cannot open the file connection to %s:%d\n",
             od->host,
             od->game_port);
         RSCache_MapSquaresFree(od->map_squares);
@@ -798,9 +789,7 @@ PlatformXIOOnDemand_ArchiveLoad(
          * decompresses at the same point, so callers above see one shape. */
         if( !RSCache_ArchiveDecompressDat(&raw, format) )
         {
-            fprintf(
-                stderr,
-                "ondemand: table %d file %d did not decompress (%d bytes)\n",
+            TORIRS_LOG("ondemand: table %d file %d did not decompress (%d bytes)\n",
                 table_id,
                 archive_id,
                 raw.data_size);

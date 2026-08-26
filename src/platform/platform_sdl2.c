@@ -1885,6 +1885,37 @@ PlatformSDL2_PollCommands(
 }
 
 void
+PlatformSDL2_SetPresentDamage(
+    struct PlatformSDL2* platform,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    /* Accepted and ignored. This backend hands the buffer to a texture upload
+     * and a GPU present, where a partial copy is a different mechanism
+     * (SDL_UpdateTexture sub-rects) and the win is not the same one. Ignoring
+     * it presents more than asked, which is always correct. */
+    assert(platform);
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+}
+
+void
+PlatformSDL2_SetPresentDamageRects(
+    struct PlatformSDL2* platform,
+    int const (*rects)[4],
+    int count)
+{
+    /* Accepted and ignored, for the same reason as the box above. */
+    assert(platform);
+    (void)rects;
+    (void)count;
+}
+
+void
 PlatformSDL2_Present(struct PlatformSDL2* platform)
 {
     int* pix_write = NULL;

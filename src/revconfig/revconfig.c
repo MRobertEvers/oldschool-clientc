@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #if defined(_WIN32)
 #define strcasecmp _stricmp
@@ -680,12 +681,12 @@ revconfig_parse_int(char const* str)
 
     if( !revconfig_num_parse(str, &end, &value, &error) )
     {
-        fprintf(stderr, "revconfig: '%s' is not a number: %s\n", str, error);
+        TORIRS_ERR("revconfig: '%s' is not a number: %s\n", str, error);
         return 0;
     }
     if( *revconfig_skip_space(end) != '\0' )
     {
-        fprintf(stderr, "revconfig: '%s' is not a number: trailing text '%s'\n", str, end);
+        TORIRS_LOG("revconfig: '%s' is not a number: trailing text '%s'\n", str, end);
         return 0;
     }
     return value;
@@ -1341,7 +1342,7 @@ revconfig_parse_minimenu_action(char const* str)
     if( revconfig_parse_int_expr(str, &end, &v) && *revconfig_skip_space(end) == '\0' && v > 0 )
         return v;
 
-    fprintf(stderr, "revconfig_parse_minimenu_action: unknown action '%s'\n", str);
+    TORIRS_ERR("revconfig_parse_minimenu_action: unknown action '%s'\n", str);
     assert(false && "unknown minimenu action in revconfig");
     return 0;
 }
@@ -1734,9 +1735,7 @@ revconfig_item_apply_camera_field(
         if( revconfig_parse_camera_zoom(value, camera) )
             camera->has_zoom = 1;
         else
-            fprintf(
-                stderr,
-                "revconfig: [camera] zoom must be fixed:<height> or "
+            TORIRS_ERR("revconfig: [camera] zoom must be fixed:<height> or "
                 "clamped:[<min>,<max>], got '%s'\n",
                 value);
         break;
@@ -1749,9 +1748,7 @@ revconfig_item_apply_camera_field(
             camera->has_controls = 1;
         }
         else
-            fprintf(
-                stderr,
-                "revconfig: [camera] controls must be a comma list of "
+            TORIRS_LOG("revconfig: [camera] controls must be a comma list of "
                 "mmb|arrow_keys, got '%s'\n",
                 value);
         break;
@@ -1765,9 +1762,7 @@ revconfig_item_apply_camera_field(
             camera->has_wheel_step = 1;
         }
         else
-            fprintf(
-                stderr,
-                "revconfig: [camera] wheel_step must be a positive eye-height "
+            TORIRS_LOG("revconfig: [camera] wheel_step must be a positive eye-height "
                 "step, got '%s'\n",
                 value);
         break;
@@ -1847,9 +1842,7 @@ revconfig_item_apply_chrome_field(
                 : 0;
         if( n < floor_value )
         {
-            fprintf(
-                stderr,
-                "revconfig: [chrome] %s must be >= %d, got '%s'\n",
+            TORIRS_LOG("revconfig: [chrome] %s must be >= %d, got '%s'\n",
                 revconfig_chrome_key_str(kind),
                 floor_value,
                 value);
@@ -2367,6 +2360,6 @@ revconfig_parse_role_matcher(char const* str, struct RevConfigRoleMatcher* out)
     return 1;
 
 malformed:
-    fprintf(stderr, "revconfig: unrecognised role matcher '%s'\n", str);
+    TORIRS_LOG("revconfig: unrecognised role matcher '%s'\n", str);
     return 0;
 }

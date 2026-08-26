@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2SpriteLoad
 {
@@ -36,7 +37,7 @@ Task_Dat2SpriteLoad_Run(
     archive = RSCache_IO_Dat2SpriteDecode(io, 0);
     if( !archive )
     {
-        fprintf(stderr, "Failed to decode dat2 sprite archive %d\n", task->sprite_id);
+        TORIRS_ERR("Failed to decode dat2 sprite archive %d\n", task->sprite_id);
         PT_EXIT(&task->pt);
     }
 
@@ -44,7 +45,7 @@ Task_Dat2SpriteLoad_Run(
         archive, task->sprite_id, CacheProvider_Profile(&task->bc->base));
     if( !sprite )
     {
-        fprintf(stderr, "Failed to convert dat2 sprite %d\n", task->sprite_id);
+        TORIRS_ERR("Failed to convert dat2 sprite %d\n", task->sprite_id);
         PT_EXIT(&task->pt);
     }
 
@@ -147,7 +148,7 @@ Task_Dat2SpriteLoadByName_Run(
         table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
         if( !table )
         {
-            fprintf(stderr, "Failed to load sprites reference table\n");
+            TORIRS_ERR("Failed to load sprites reference table\n");
             PT_EXIT(&task->pt);
         }
         dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_SPRITES, table);
@@ -159,9 +160,7 @@ Task_Dat2SpriteLoadByName_Run(
     task->sprite_id = dat2_resolve_sprite_archive_by_name(table, task->archive_name);
     if( task->sprite_id < 0 )
     {
-        fprintf(
-            stderr,
-            "Dat2SpriteLoadByName: archive '%s' not found in sprites table\n",
+        TORIRS_ERR("Dat2SpriteLoadByName: archive '%s' not found in sprites table\n",
             task->archive_name);
         CacheProvider_SpriteNameMapPut(
             &task->bc->base, task->archive_name, CACHE_PROVIDER_SPRITE_ABSENT);
@@ -178,7 +177,7 @@ Task_Dat2SpriteLoadByName_Run(
         archive = RSCache_IO_Dat2SpriteDecode(io, 0);
         if( !archive )
         {
-            fprintf(stderr, "Failed to decode dat2 sprite archive %d\n", task->sprite_id);
+            TORIRS_ERR("Failed to decode dat2 sprite archive %d\n", task->sprite_id);
             PT_EXIT(&task->pt);
         }
 
@@ -186,7 +185,7 @@ Task_Dat2SpriteLoadByName_Run(
         archive, task->sprite_id, CacheProvider_Profile(&task->bc->base));
         if( !sprite )
         {
-            fprintf(stderr, "Failed to convert dat2 sprite %d\n", task->sprite_id);
+            TORIRS_ERR("Failed to convert dat2 sprite %d\n", task->sprite_id);
             PT_EXIT(&task->pt);
         }
 

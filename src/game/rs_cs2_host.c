@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include "log/torirs_log.h"
 
 static int clamp_percent(int value);
 
@@ -230,9 +231,7 @@ rs_cs2_yield_if_group_missing(
         return CS2VM_EXECNO_OK;
 
     if( getenv("TORIRS_CS2_MOUNT_DEBUG") )
-        fprintf(
-            stderr,
-            "cs2-automount: group %d requested via component 0x%08x (req kind=%d)\n",
+        TORIRS_LOG("cs2-automount: group %d requested via component 0x%08x (req kind=%d)\n",
             group_id,
             (unsigned)component_id,
             (int)request->kind);
@@ -426,9 +425,7 @@ rs_cs2_apply_op(
     if( ops_debug < 0 )
         ops_debug = getenv("TORIRS_OPS_DEBUG") != NULL;
     if( ops_debug )
-        fprintf(
-            stderr,
-            "cs2 setop com=0x%08x (%d|%d) op%d=\"%s\"\n",
+        TORIRS_LOG("cs2 setop com=0x%08x (%d|%d) op%d=\"%s\"\n",
             (unsigned)component_id,
             (component_id >> 16) & 0xFFFF,
             component_id & 0xFFFF,
@@ -1010,7 +1007,7 @@ RS_CS2Host_NotifyVarChanged(
     host->var_change_serial++;
     host->var_transmit_dirty = 1;
     if( torirs_cc_debug() )
-        fprintf(stderr, "VAR_CHANGED id=%d serial=%u\n", var_id, host->var_change_serial);
+        TORIRS_LOG("VAR_CHANGED id=%d serial=%u\n", var_id, host->var_change_serial);
 
     /* Remember which id changed so the dispatch can skip hooks that do not list
      * it as a trigger. An unknown id (< 0) or a full set means "re-run
@@ -1078,9 +1075,7 @@ RS_CS2Host_NotifyInvChanged(
     host->inv_change_serial++;
     host->inv_transmit_dirty = 1;
     if( torirs_cc_debug() )
-        fprintf(
-            stderr,
-            "INV_CHANGED container=%d serial=%u\n",
+        TORIRS_LOG("INV_CHANGED container=%d serial=%u\n",
             container_id,
             host->inv_change_serial);
 
@@ -1200,9 +1195,7 @@ rs_cs2_social_send_push(
         /* Dropping the newest keeps the earlier requests of the same tick,
          * which is the order the script issued them in. Say so: a friend add
          * that silently never reached the server reads as a server bug. */
-        fprintf(
-            stderr,
-            "cs2: social send queue full (%d), dropped kind=%d\n",
+        TORIRS_LOG("cs2: social send queue full (%d), dropped kind=%d\n",
             RS_CS2_HOST_SOCIAL_SEND_MAX,
             send->kind);
         return;
@@ -1241,9 +1234,7 @@ rs_cs2_call_on_resize_push(
         /* A dropped one is a panel that never builds itself, and a blank panel
          * has no other symptom — so it says so rather than reading as a missing
          * packet. */
-        fprintf(
-            stderr,
-            "cs2: if_callonresize queue full (%d), dropped component 0x%08x\n",
+        TORIRS_LOG("cs2: if_callonresize queue full (%d), dropped component 0x%08x\n",
             RS_CS2_HOST_CALL_ON_RESIZE_MAX,
             (unsigned)component_id);
         return;
@@ -1282,9 +1273,7 @@ rs_cs2_trigger_op_push(
     assert(host);
     if( host->trigger_op_count >= RS_CS2_HOST_TRIGGER_OP_MAX )
     {
-        fprintf(
-            stderr,
-            "cs2: cc_triggerop queue full (%d), dropped component 0x%08x op %d\n",
+        TORIRS_LOG("cs2: cc_triggerop queue full (%d), dropped component 0x%08x op %d\n",
             RS_CS2_HOST_TRIGGER_OP_MAX,
             (unsigned)component_id,
             op_index);
@@ -1315,9 +1304,7 @@ rs_cs2_sound_push(
     assert(host);
     if( host->sound_count >= RS_CS2_HOST_SOUND_MAX )
     {
-        fprintf(
-            stderr,
-            "cs2: sound queue full (%d), dropped kind %d id %d\n",
+        TORIRS_LOG("cs2: sound queue full (%d), dropped kind %d id %d\n",
             RS_CS2_HOST_SOUND_MAX,
             kind,
             id);
@@ -1417,7 +1404,7 @@ RS_CS2Host_ScriptStarted(
         /* Never awaited, unlike STRUCT_PARAM's own handler: the panel read this
          * struct's title and description out of the cache to draw the row that
          * was just clicked, so a miss here is not a cold cache. */
-        fprintf(stderr, "settings: colour row struct %d is not loaded\n", struct_id);
+        TORIRS_LOG("settings: colour row struct %d is not loaded\n", struct_id);
         return;
     }
 
@@ -1427,7 +1414,7 @@ RS_CS2Host_ScriptStarted(
     if( !rs_cs2_struct_param_lookup(
             setting, RS_CS2_PARAM_SETTING_ID, NULL, &req->setting_id, NULL) )
     {
-        fprintf(stderr, "settings: colour row struct %d carries no setting id\n", struct_id);
+        TORIRS_LOG("settings: colour row struct %d carries no setting id\n", struct_id);
         return;
     }
     (void)rs_cs2_struct_param_lookup(
@@ -1448,9 +1435,7 @@ RS_CS2Host_ScriptStarted(
     req->colour = value > 0 ? value - 1 : req->default_colour;
 
     if( torirs_cc_debug() )
-        fprintf(
-            stderr,
-            "SETTINGS_COLOUR click setting=%d varp=%d colour=%06X default=%06X "
+        TORIRS_LOG("SETTINGS_COLOUR click setting=%d varp=%d colour=%06X default=%06X "
             "com=%d group=%d \"%s\"\n",
             req->setting_id,
             req->varp_id,
@@ -1843,9 +1828,7 @@ rs_cs2_triggeroplocal_push(
     assert(host);
     if( host->triggeroplocal_count >= RS_CS2_HOST_TRIGGEROPLOCAL_MAX )
     {
-        fprintf(
-            stderr,
-            "cs2: if_triggeroplocal queue full (%d), dropped component 0x%08x sub %d\n",
+        TORIRS_LOG("cs2: if_triggeroplocal queue full (%d), dropped component 0x%08x sub %d\n",
             RS_CS2_HOST_TRIGGEROPLOCAL_MAX,
             (unsigned)component_id,
             sub);
@@ -2055,7 +2038,7 @@ exec_push_script(
         {
             /* No degrade possible: the caller expects this script's return
              * values on the stack and we cannot synthesise them. */
-            fprintf(stderr, "RS_CS2Host: script %d failed to load\n", script_id);
+            TORIRS_ERR("RS_CS2Host: script %d failed to load\n", script_id);
             return CS2VM_EXECNO_ERROR;
         }
         return rs_cs2_yield_load(host, thread, exact_request, script_id, -1);
@@ -2100,7 +2083,7 @@ exec_para_height(
             if( para_debug < 0 )
                 para_debug = getenv("TORIRS_PARA_DEBUG") != NULL;
             if( para_debug )
-                fprintf(stderr, "para%s: font=%d max_w=%d lh=%d -> %d  \"%s\"\n",
+                TORIRS_LOG("para%s: font=%d max_w=%d lh=%d -> %d  \"%s\"\n",
                         is_width ? "width" : "height", font_id, max_width,
                         font->line_height, result, text);
         }
@@ -2165,9 +2148,7 @@ rs_cs2_settings_note_colour_varp(
         if( !reported )
         {
             reported = 1;
-            fprintf(
-                stderr,
-                "settings: colour-row table full at %d; setting %d cannot be picked\n",
+            TORIRS_ERR("settings: colour-row table full at %d; setting %d cannot be picked\n",
                 RS_CS2_HOST_SETTINGS_COLOURS_MAX,
                 setting_id);
         }
@@ -2486,7 +2467,7 @@ exec_worldmap(
         return CS2VM2_PushInt(thread, map->event_coord2);
 
     default:
-        fprintf(stderr, "exec_worldmap: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_worldmap: unhandled opcode %d\n", opcode);
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -2527,7 +2508,7 @@ exec_mec(
     case CS2_OP_MEC_SPRITE:
         return CS2VM2_PushInt(thread, element->sprite_id);
     default:
-        fprintf(stderr, "exec_mec: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_mec: unhandled opcode %d\n", opcode);
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -2567,9 +2548,7 @@ minimenu_find(struct RS_CS2Host* host, enum RS_ClientOpKind kind, int menu_type)
     }
     RS_ClientOpActiveSet(&host->clientop, kind, &host->clientop.mouseover);
     if( getenv("TORIRS_CLIENTOP_DEBUG") )
-        fprintf(
-            stderr,
-            "minimenu_find: %s latched uid=%d type=%d '%s'\n",
+        TORIRS_LOG("minimenu_find: %s latched uid=%d type=%d '%s'\n",
             RS_ClientOpKindName(kind),
             host->clientop.mouseover.uid,
             host->clientop.mouseover.type,
@@ -2678,13 +2657,11 @@ exec_minimenu(
             return CS2VM2_PushInt(thread, 0);
         CS2VM2_SetActiveAndDotComponentId(thread, host->clientop.mouseover_component);
         if( getenv("TORIRS_CLIENTOP_DEBUG") )
-            fprintf(
-                stderr,
-                "minimenu_find: component latched %d\n",
+            TORIRS_LOG("minimenu_find: component latched %d\n",
                 host->clientop.mouseover_component);
         return CS2VM2_PushInt(thread, 1);
     default:
-        fprintf(stderr, "exec_minimenu: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_minimenu: unhandled opcode %d\n", opcode);
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -2793,7 +2770,7 @@ exec_client_option(
         return CS2VM2_PushInt(thread, max);
     }
     default:
-        fprintf(stderr, "exec_client_option: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_client_option: unhandled opcode %d\n", opcode);
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -2820,7 +2797,7 @@ exec_local_notification(
     case CS2_OP_LOCAL_NOTIFICATION_CANCELALL:
         return CS2VM_EXECNO_OK;
     default:
-        fprintf(stderr, "exec_local_notification: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_local_notification: unhandled opcode %d\n", opcode);
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -2849,7 +2826,7 @@ exec_minimap(
     case CS2_OP_MINIMAP_SETICONZOOMLIMIT:
         return CS2VM_EXECNO_OK;
     default:
-        fprintf(stderr, "exec_minimap: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_minimap: unhandled opcode %d\n", opcode);
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -2971,9 +2948,7 @@ exec_viewport(
         host->viewport_zoom_near = rs_cs2_viewport_zoom_decode(args[0]);
         host->viewport_zoom_far = rs_cs2_viewport_zoom_decode(args[1]);
         if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
-            fprintf(
-                stderr,
-                "wedge: VIEWPORT_SETFOV raw=%d,%d decoded near=%d far=%d\n",
+            TORIRS_ERR("wedge: VIEWPORT_SETFOV raw=%d,%d decoded near=%d far=%d\n",
                 args[0], args[1],
                 host->viewport_zoom_near, host->viewport_zoom_far);
         return CS2VM_EXECNO_OK;
@@ -3058,7 +3033,7 @@ exec_viewport(
         return CS2VM2_PushInt(thread, height);
     }
     default:
-        fprintf(stderr, "exec_viewport: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_viewport: unhandled opcode %d\n", opcode);
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -3097,7 +3072,7 @@ exec_uizoom(
     case CS2_OP_UIZOOM_GETDEFAULT:
         return CS2VM2_PushInt(thread, RS_CS2_UIZOOM_DEFAULT);
     default:
-        fprintf(stderr, "exec_uizoom: unhandled opcode %d\n", opcode);
+        TORIRS_ERR("exec_uizoom: unhandled opcode %d\n", opcode);
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -3365,7 +3340,7 @@ exec_safearea(
     case CS2_OP_SAFEAREA_GETMAXY_ALT:
         return CS2VM2_PushInt(thread, thread->canvas_h);
     default:
-        fprintf(stderr, "exec_safearea: unhandled opcode %d\n", opcode);
+        TORIRS_LOG("exec_safearea: unhandled opcode %d\n", opcode);
         return CS2VM_EXECNO_ERROR;
     }
 }
@@ -4042,9 +4017,7 @@ exec_set_graphic(
     if( objicon_debug < 0 )
         objicon_debug = getenv("TORIRS_OBJICON_DEBUG") != NULL;
     if( objicon_debug )
-        fprintf(
-            stderr,
-            "GFXDBG: com=0x%08x gfx=%d\n",
+        TORIRS_LOG("GFXDBG: com=0x%08x gfx=%d\n",
             (unsigned)component_id,
             graphic_id);
 
@@ -4064,9 +4037,7 @@ exec_set_graphic(
         if( host->bridge && graphic_id >= 0 && graphic_id < 1000000 )
             scene_id = UITreeSceneBridge_EnsureSprite(host->bridge, graphic_id);
 #if UITREE_CLICK_DEBUG
-        fprintf(
-            stderr,
-            "uitree_click: SETGRAPHIC component_id=%d graphic_id=%d scene_id=%d\n",
+        TORIRS_LOG("uitree_click: SETGRAPHIC component_id=%d graphic_id=%d scene_id=%d\n",
             component_id,
             graphic_id,
             scene_id);
@@ -4092,9 +4063,7 @@ exec_set_object(
     int atlas_index = 0;
     (void)thread;
     if( getenv("TORIRS_OBJICON_DEBUG") )
-        fprintf(
-            stderr,
-            "OBJICON: enter com=0x%08x obj=%d count=%d bridge=%d prov=%d needs=%d\n",
+        TORIRS_LOG("OBJICON: enter com=0x%08x obj=%d count=%d bridge=%d prov=%d needs=%d\n",
             (unsigned)component_id,
             obj_id,
             count,
@@ -4105,9 +4074,7 @@ exec_set_object(
     if( obj_id <= 0 )
     {
 #if UITREE_CLICK_DEBUG
-        fprintf(
-            stderr,
-            "uitree_click: SETOBJECT component_id=%d obj_id=%d count=%d (clear)\n",
+        TORIRS_LOG("uitree_click: SETOBJECT component_id=%d obj_id=%d count=%d (clear)\n",
             component_id,
             obj_id,
             count);
@@ -4228,9 +4195,7 @@ exec_set_object(
         (void)rs_cs2_resolve_obj_icon(host, obj_id, &scene_id, &atlas_index);
 
 #if UITREE_CLICK_DEBUG
-    fprintf(
-        stderr,
-        "uitree_click: SETOBJECT component_id=%d obj_id=%d count=%d scene_id=%d\n",
+    TORIRS_LOG("uitree_click: SETOBJECT component_id=%d obj_id=%d count=%d scene_id=%d\n",
         component_id,
         obj_id,
         count,
@@ -4239,9 +4204,7 @@ exec_set_object(
     if( getenv("TORIRS_OBJICON_DEBUG") )
     {
         int32_t dbg = UITree_FindByComponentId(tree, component_id);
-        fprintf(
-            stderr,
-            "OBJICON: apply com=0x%08x obj=%d scene=%d idx=%d type=%d\n",
+        TORIRS_LOG("OBJICON: apply com=0x%08x obj=%d scene=%d idx=%d type=%d\n",
             (unsigned)component_id,
             obj_id,
             scene_id,
@@ -4437,10 +4400,10 @@ exec_entity_overlay(
 
     if( getenv("TORIRS_OVERLAY_SCRIPT_DEBUG") )
     {
-        fprintf(stderr, "overlay: op %d args", opcode);
+        TORIRS_LOG("overlay: op %d args", opcode);
         for( int i = 0; i < arg_count; i++ )
-            fprintf(stderr, " %d", a[i]);
-        fprintf(stderr, "\n");
+            TORIRS_LOG(" %d", a[i]);
+        TORIRS_LOG("\n");
     }
 
     switch( opcode )
@@ -4593,7 +4556,7 @@ exec_entity_overlay(
         break;
     }
 
-    fprintf(stderr, "cs2: opcode %d is not a scripted-entity-overlay op\n", opcode);
+    TORIRS_LOG("cs2: opcode %d is not a scripted-entity-overlay op\n", opcode);
     return CS2VM_EXECNO_ERROR;
 }
 
@@ -4699,9 +4662,7 @@ exec_cc_create(
      * parent slot (that thickens obj-icon outlines). */
 
     if( torirs_cc_debug() )
-        fprintf(
-            stderr,
-            "CC_CREATE parent=%d|%d sub=%d -> com=0x%08x script=%d\n",
+        TORIRS_LOG("CC_CREATE parent=%d|%d sub=%d -> com=0x%08x script=%d\n",
             (parent_id >> 16) & 0xffff,
             parent_id & 0xffff,
             child_index,
@@ -4711,9 +4672,7 @@ exec_cc_create(
                 : -1);
 
 #if UITREE_CLICK_DEBUG
-    fprintf(
-        stderr,
-        "uitree_click: CC_CREATE parent_id=%d child_id=%d type=%d idx=%d size=%dx%d\n",
+    TORIRS_LOG("uitree_click: CC_CREATE parent_id=%d child_id=%d type=%d idx=%d size=%dx%d\n",
         parent_id,
         tree->components[child_idx].component_id,
         component_type,
@@ -4855,9 +4814,7 @@ exec_widget_set_model_kind(
     int model_id)
 {
 #if UITREE_CLICK_DEBUG
-    fprintf(
-        stderr,
-        "uitree_click: SET_MODEL_KIND component_id=%d kind=%d model_id=%d\n",
+    TORIRS_LOG("uitree_click: SET_MODEL_KIND component_id=%d kind=%d model_id=%d\n",
         component_id,
         (int)model_kind,
         model_id);
@@ -4907,9 +4864,7 @@ exec_widget_set_model_kind(
                 applied = UITree_ApplyModel(
                     rs_cs2_tree(host), component_id, scene_model);
             if( getenv("TORIRS_NPC_HEAD_DEBUG") )
-                fprintf(
-                    stderr,
-                    "npc_head: npc=%d resolved=%d component=0x%08x scene=%d applied=%d\n",
+                TORIRS_LOG("npc_head: npc=%d resolved=%d component=0x%08x scene=%d applied=%d\n",
                     model_id,
                     resolved_npc_id,
                     (unsigned)component_id,
@@ -5071,9 +5026,7 @@ exec_widget_set_arc(
     idx = UITree_FindByComponentId(tree, component_id);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_ARC )
         return CS2VM_EXECNO_OK;
-    tree->components[idx].u.rs_arc.arc_start = arc_start;
-    tree->components[idx].u.rs_arc.arc_end = arc_end;
-    UITree_MarkNodeDirty(tree, idx);
+    (void)UITree_SetArcAnglesAt(tree, idx, arc_start, arc_end);
     return CS2VM_EXECNO_OK;
 }
 
@@ -5097,14 +5050,15 @@ exec_widget_set_model_angle(
     idx = UITree_FindByComponentId(tree, component_id);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
         return CS2VM_EXECNO_OK;
-    tree->components[idx].u.rs_model.x_offset = offset_x;
-    tree->components[idx].u.rs_model.y_offset = offset_y;
-    tree->components[idx].u.rs_model.xan = angle_x;
-    tree->components[idx].u.rs_model.yan = angle_y;
-    tree->components[idx].u.rs_model.zan = angle_z;
-    if( zoom > 0 )
-        tree->components[idx].u.rs_model.zoom = zoom;
-    UITree_MarkNodeDirty(tree, idx);
+    (void)UITree_SetModelPoseAt(
+        tree,
+        idx,
+        offset_x,
+        offset_y,
+        angle_x,
+        angle_y,
+        angle_z,
+        zoom);
     return CS2VM_EXECNO_OK;
 }
 
@@ -5206,8 +5160,7 @@ rs_cs2_acquire_inv_transmit_hook(
         if( !warned )
         {
             warned = 1;
-            fprintf(stderr,
-                    "cs2 host: inv-transmit hooks full (%d); component 0x%08x will "
+            TORIRS_LOG("cs2 host: inv-transmit hooks full (%d); component 0x%08x will "
                     "never update\n",
                     RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX, (unsigned)component_id);
         }
@@ -5278,8 +5231,7 @@ rs_cs2_acquire_var_transmit_hook(
         if( !warned )
         {
             warned = 1;
-            fprintf(stderr,
-                    "cs2 host: var-transmit hooks full (%d); component 0x%08x will "
+            TORIRS_LOG("cs2 host: var-transmit hooks full (%d); component 0x%08x will "
                     "never update\n",
                     RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX, (unsigned)component_id);
         }
@@ -5544,9 +5496,7 @@ exec_set_on_inv_transmit(
         /* Two ways to get here now, and only one is a defect: the registry is
          * full, or this was a disarm of a component that had no hook. */
         if( script_id > 0 )
-            fprintf(
-                stderr,
-                "rs_cs2_host: inv_transmit_hooks full (%d), dropping script_id=%d "
+            TORIRS_LOG("rs_cs2_host: inv_transmit_hooks full (%d), dropping script_id=%d "
                 "component_id=%d\n",
                 RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX,
                 script_id,
@@ -5572,9 +5522,7 @@ exec_set_on_inv_transmit(
     if( trigger_ids && hook->trigger_count > 0 )
         memcpy(hook->trigger_ids, trigger_ids, (size_t)hook->trigger_count * sizeof(int));
 #if UITREE_CLICK_DEBUG
-    fprintf(
-        stderr,
-        "uitree_click: SETON IF_SETONINVTRANSMIT component_id=%d script_id=%d argc=%d "
+    TORIRS_LOG("uitree_click: SETON IF_SETONINVTRANSMIT component_id=%d script_id=%d argc=%d "
         "triggers=%d",
         component_id,
         script_id,
@@ -5583,11 +5531,11 @@ exec_set_on_inv_transmit(
     {
         int ti;
         for( ti = 0; ti < hook->trigger_count; ti++ )
-            fprintf(stderr, "%s%d", ti == 0 ? " [" : ",", hook->trigger_ids[ti]);
+            TORIRS_LOG("%s%d", ti == 0 ? " [" : ",", hook->trigger_ids[ti]);
         if( hook->trigger_count > 0 )
-            fprintf(stderr, "]");
+            TORIRS_LOG("]");
     }
-    fprintf(stderr, "\n");
+    TORIRS_LOG("\n");
 #endif
     return CS2VM_EXECNO_OK;
 }
@@ -5654,8 +5602,7 @@ rs_cs2_acquire_stat_transmit_hook(
         if( !warned )
         {
             warned = 1;
-            fprintf(stderr,
-                    "cs2 host: stat-transmit hooks full (%d); component 0x%08x will "
+            TORIRS_LOG("cs2 host: stat-transmit hooks full (%d); component 0x%08x will "
                     "never update\n",
                     RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX, (unsigned)component_id);
         }
@@ -6012,15 +5959,13 @@ exec_set_on_var_transmit(
     if( getenv("TORIRS_VAR_HOOK_DEBUG") )
     {
         int t;
-        fprintf(
-            stderr,
-            "VARHOOKSET com=0x%08x script=%d triggers=%d[",
+        TORIRS_LOG("VARHOOKSET com=0x%08x script=%d triggers=%d[",
             (unsigned)component_id,
             script_id,
             trigger_count);
         for( t = 0; t < trigger_count && t < 32; t++ )
-            fprintf(stderr, "%s%d", t ? "," : "", trigger_ids[t]);
-        fprintf(stderr, "]\n");
+            TORIRS_LOG("%s%d", t ? "," : "", trigger_ids[t]);
+        TORIRS_LOG("]\n");
     }
     hook = rs_cs2_acquire_var_transmit_hook(host, component_id, script_id > 0);
     if( !hook )
@@ -6079,9 +6024,7 @@ exec_set_on_cc_transmit(
             /* Full, or a disarm of a component that had no hook — see
              * exec_set_on_inv_transmit. */
             if( script_id > 0 )
-                fprintf(
-                    stderr,
-                    "rs_cs2_host: inv_transmit_hooks full (%d), dropping cc script_id=%d "
+                TORIRS_LOG("rs_cs2_host: inv_transmit_hooks full (%d), dropping cc script_id=%d "
                     "component_id=%d\n",
                     RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX,
                     script_id,
@@ -6384,9 +6327,7 @@ exec_set_on_if_event(
         return CS2VM_EXECNO_OK;
 
 #if UITREE_CLICK_DEBUG
-    fprintf(
-        stderr,
-        "uitree_click: SETON %s component_id=%d script_id=%d argc=%d\n",
+    TORIRS_LOG("uitree_click: SETON %s component_id=%d script_id=%d argc=%d\n",
         rs_cs2_seton_kind_str(kind),
         component_id,
         script_id,
@@ -6446,9 +6387,7 @@ exec_set_on_cc_event(
         return CS2VM_EXECNO_OK;
 
 #if UITREE_CLICK_DEBUG
-    fprintf(
-        stderr,
-        "uitree_click: SETON %s component_id=%d script_id=%d argc=%d\n",
+    TORIRS_LOG("uitree_click: SETON %s component_id=%d script_id=%d argc=%d\n",
         rs_cs2_seton_kind_str(kind),
         component_id,
         script_id,
@@ -7285,9 +7224,7 @@ exec_loot(
             loot, request_name ? request_name : "", obj_id, qty, cost, event_id);
         if( getenv("TORIRS_LOOT_TRACE") )
         {
-            fprintf(
-                stderr,
-                "loot-add: \"%s\" obj=%d qty=%d event=%d\n",
+            TORIRS_LOG("loot-add: \"%s\" obj=%d qty=%d event=%d\n",
                 request_name ? request_name : "",
                 obj_id,
                 qty,
@@ -7692,15 +7629,13 @@ exec_highlight_request(
 
     if( debug )
     {
-        fprintf(
-            stderr,
-            "highlight: op %d (%s)",
+        TORIRS_LOG("highlight: op %d (%s)",
             opcode,
             known ? RS_HighlightKindName(kind) : "?");
         for( int i = 0; i < arg_count; i++ )
-            fprintf(stderr, " %d", args[i]);
+            TORIRS_LOG(" %d", args[i]);
         if( name )
-            fprintf(stderr, " '%s'", name);
+            TORIRS_LOG(" '%s'", name);
     }
 
     handled = RS_HighlightApply(
@@ -7708,13 +7643,11 @@ exec_highlight_request(
     if( debug )
     {
         if( known )
-            fprintf(
-                stderr,
-                " -> %d %s",
+            TORIRS_LOG(" -> %d %s",
                 kind == RS_HIGHLIGHT_PLAYER ? host->highlight.named_count
                                             : host->highlight.member_count[kind],
                 RS_HighlightKindName(kind));
-        fprintf(stderr, "\n");
+        TORIRS_LOG("\n");
     }
     if( !handled )
     {
@@ -7722,9 +7655,7 @@ exec_highlight_request(
         if( !announced )
         {
             announced = true;
-            fprintf(
-                stderr,
-                "cs2: HIGHLIGHT opcode %d is not recorded -- nothing in this "
+            TORIRS_LOG("cs2: HIGHLIGHT opcode %d is not recorded -- nothing in this "
                 "cache names a subject for its family\n",
                 opcode);
         }
@@ -7742,18 +7673,14 @@ exec_clientop_request(
     char const* label)
 {
     if( getenv("TORIRS_CLIENTOP_DEBUG") )
-        fprintf(
-            stderr,
-            "clientop: op %d %s slot %d script %d '%s'\n",
+        TORIRS_LOG("clientop: op %d %s slot %d script %d '%s'\n",
             opcode,
             is_set ? "set" : "del",
             slot,
             script_id,
             label ? label : "");
     if( !RS_ClientOpApply(&host->clientop, opcode, is_set, slot, label, script_id) )
-        fprintf(
-            stderr,
-            "cs2: CLIENTOP opcode %d is not in the 6700..6709 family\n",
+        TORIRS_LOG("cs2: CLIENTOP opcode %d is not in the 6700..6709 family\n",
             opcode);
     return CS2VM_EXECNO_OK;
 }
@@ -7772,7 +7699,7 @@ exec_clientop_context_request(
         running = vm->frames[0]->script->script_id;
     if( !RS_ClientOpContextRead(&host->clientop, opcode, running, &value, &text) )
     {
-        fprintf(stderr, "cs2: opcode %d is not a client-op context getter\n", opcode);
+        TORIRS_LOG("cs2: opcode %d is not a client-op context getter\n", opcode);
         return CS2VM_EXECNO_ERROR;
     }
     if( opcode == CS2_OP__6950 && value < 0 )
@@ -7837,13 +7764,11 @@ exec_active_player_request(
         break;
     }
     default:
-        fprintf(stderr, "cs2: opcode %d is not an active-player getter\n", opcode);
+        TORIRS_LOG("cs2: opcode %d is not an active-player getter\n", opcode);
         return CS2VM_EXECNO_ERROR;
     }
     if( getenv("TORIRS_HIGHLIGHT_DEBUG") )
-        fprintf(
-            stderr,
-            "activeplayer: op %d (uid %d, index %d) -> %d\n",
+        TORIRS_LOG("activeplayer: op %d (uid %d, index %d) -> %d\n",
             opcode,
             uid,
             index,
@@ -7879,9 +7804,7 @@ exec_widget_set_hide(
     if( !tree )
         return CS2VM_EXECNO_OK;
 #if UITREE_CLICK_DEBUG
-    fprintf(
-        stderr,
-        "uitree_click: IF_SETHIDE component_id=%d hide=%d\n",
+    TORIRS_LOG("uitree_click: IF_SETHIDE component_id=%d hide=%d\n",
         component_id,
         hidden ? 1 : 0);
 #endif
@@ -7894,9 +7817,7 @@ exec_widget_set_hide(
             int const g = (component_id >> 16) & 0xffff;
             if( g == 149 || g == 320 || g == 218 ||
                 (g == 161 && (component_id & 0xffff) >= 73) )
-                fprintf(
-                    stderr,
-                    "sethide: component 0x%08x (%d|%d) hide=%d found=%d\n",
+                TORIRS_LOG("sethide: component 0x%08x (%d|%d) hide=%d found=%d\n",
                     (unsigned)component_id,
                     g,
                     component_id & 0xffff,
@@ -7951,9 +7872,7 @@ exec_widget_set_size(
         {
             int const group = (component_id >> 16) & 0xffff;
             if( group == setsize_want )
-                fprintf(
-                    stderr,
-                    "SETSIZE com=0x%08x (%d|%d) %dx%d modes=%d,%d\n",
+                TORIRS_LOG("SETSIZE com=0x%08x (%d|%d) %dx%d modes=%d,%d\n",
                     (unsigned)component_id,
                     group,
                     component_id & 0xffff,
@@ -7964,9 +7883,7 @@ exec_widget_set_size(
         }
     }
 #if UITREE_CLICK_DEBUG
-    fprintf(
-        stderr,
-        "uitree_click: SETSIZE component_id=%d size=%dx%d modes=%d,%d\n",
+    TORIRS_LOG("uitree_click: SETSIZE component_id=%d size=%dx%d modes=%d,%d\n",
         component_id,
         width,
         height,
@@ -8001,9 +7918,7 @@ exec_widget_set_scroll_pos(
         if( scroll_y > max_y )
             scroll_y = max_y;
         if( torirs_trace_drag() )
-            fprintf(
-                stderr,
-                "TORIRS_TRACE_DRAG setscrollpos id=%d req_sy=%d max_y=%d applied_sy=%d "
+            TORIRS_LOG("TORIRS_TRACE_DRAG setscrollpos id=%d req_sy=%d max_y=%d applied_sy=%d "
                 "scroll_h=%d abs_h=%d\n",
                 component_id,
                 requested_y,
@@ -8014,9 +7929,7 @@ exec_widget_set_scroll_pos(
         (void)UITree_ApplyScrollPos(tree, component_id, scroll_x, scroll_y);
     }
     else if( torirs_trace_drag() )
-        fprintf(
-            stderr,
-            "TORIRS_TRACE_DRAG setscrollpos SKIP id=%d node=%p type=%d req_sy=%d\n",
+        TORIRS_LOG("TORIRS_TRACE_DRAG setscrollpos SKIP id=%d node=%p type=%d req_sy=%d\n",
             component_id,
             (void*)node,
             node ? (int)node->type : -1,
@@ -8037,8 +7950,12 @@ exec_widget_set_scroll_size(
         struct UITreeComponent* node = rs_cs2_node(host, component_id);
         if( node && node->type == UIELEM_RS_LAYER )
         {
+            int32_t const idx = rs_cs2_find_node(host, component_id);
+            int scroll_x;
+            int scroll_y;
             UITree_EnsureLayout(tree);
-            UITree_ScrollClampComponent(node);
+            UITree_ScrollGetClamped(node, &scroll_x, &scroll_y);
+            (void)UITree_SetScrollPosAt(tree, idx, scroll_x, scroll_y);
         }
     }
     return CS2VM_EXECNO_OK;
@@ -8067,9 +7984,7 @@ exec_widget_set_text(
     char const* text)
 {
 #if UITREE_CLICK_DEBUG
-    fprintf(
-        stderr,
-        "uitree_click: SETTEXT component_id=%d text=\"%.48s\"\n",
+    TORIRS_LOG("uitree_click: SETTEXT component_id=%d text=\"%.48s\"\n",
         component_id,
         text ? text : "");
 #endif
@@ -8140,12 +8055,7 @@ exec_widget_set_trans(
     int trans)
 {
     struct UITree* tree = rs_cs2_tree(host);
-    struct UITreeComponent* node = rs_cs2_node(host, component_id);
-    if( node && node->trans != trans )
-    {
-        node->trans = trans;
-        UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, component_id));
-    }
+    (void)UITree_SetTransparencyAt(tree, rs_cs2_find_node(host, component_id), trans);
     return CS2VM_EXECNO_OK;
 }
 
@@ -9618,7 +9528,7 @@ rs_cs2_host_exec_dispatch(
         int cid = request->u.IF_GETHEIGHT.component_id;
         int h = tree ? UITree_GetLayoutHeight(tree, cid) : 0;
         if( torirs_trace_drag() )
-            fprintf(stderr, "TORIRS_TRACE_DRAG if_getheight id=%d -> %d\n", cid, h);
+            TORIRS_LOG("TORIRS_TRACE_DRAG if_getheight id=%d -> %d\n", cid, h);
         return CS2VM2_PushInt(vm, h);
     }
 
@@ -9693,9 +9603,7 @@ rs_cs2_host_exec_dispatch(
         if( node && node->type == UIELEM_RS_LAYER )
             sh = node->u.rs_layer.scroll_height;
         if( torirs_trace_drag() )
-            fprintf(
-                stderr,
-                "TORIRS_TRACE_DRAG if_getscrollheight id=%d type=%d -> %d\n",
+            TORIRS_LOG("TORIRS_TRACE_DRAG if_getscrollheight id=%d type=%d -> %d\n",
                 cid,
                 node ? (int)node->type : -1,
                 sh);
@@ -9730,9 +9638,7 @@ rs_cs2_host_exec_dispatch(
         if( hassub_debug < 0 )
             hassub_debug = getenv("TORIRS_HASSUB_DEBUG") != NULL;
         if( hassub_debug )
-            fprintf(
-                stderr,
-                "hassub: query 0x%08x (%d|%d) -> %d  (parent_count=%d)\n",
+            TORIRS_LOG("hassub: query 0x%08x (%d|%d) -> %d  (parent_count=%d)\n",
                 (unsigned)cid,
                 (cid >> 16) & 0xffff,
                 cid & 0xffff,
@@ -10721,7 +10627,7 @@ rs_cs2_host_exec_dispatch(
 #undef RS_CS2_UNMODELED_INPUT_CASE
 
     default:
-        fprintf(stderr, "RS_CS2Host_Exec: UNHANDLED request kind %d\n", (int)request->kind);
+        TORIRS_LOG("RS_CS2Host_Exec: UNHANDLED request kind %d\n", (int)request->kind);
         return CS2VM_EXECNO_ERROR;
     }
 }

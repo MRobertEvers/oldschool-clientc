@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat1SpriteLoadFromSource
 {
@@ -53,8 +54,7 @@ Task_Dat1SpriteLoadFromSource_Run(
         media_jagfile = RSCache_IO_Dat1JagfileDecode(io, 0, RSCACHE_DAT1_CONFIG_MEDIA_2D);
         if( !media_jagfile )
         {
-            fprintf(
-                stderr, "Failed to decode dat1 media jagfile for sprite %s\n", task->name);
+            TORIRS_ERR("Failed to decode dat1 media jagfile for sprite %s\n", task->name);
             PT_EXIT(&task->pt);
         }
 
@@ -70,7 +70,7 @@ Task_Dat1SpriteLoadFromSource_Run(
         task->atlas_count);
     if( !sprite )
     {
-        fprintf(stderr, "Failed to decode dat1 sprite %s (%s)\n", task->name, task->data_filename);
+        TORIRS_ERR("Failed to decode dat1 sprite %s (%s)\n", task->name, task->data_filename);
         PT_EXIT(&task->pt);
     }
 

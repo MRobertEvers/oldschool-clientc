@@ -6,13 +6,12 @@
 #include "rs_idk_design.h"
 #include "rs_social.h"
 #include "ui/uitree.h"
-#include "ui/uitree_layout.h"
 
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* Set a node's text in place (ownership matches UITree_ApplyText: heap copy).
  * Compares first so a per-tick pass does not churn allocations or force
@@ -32,14 +31,7 @@ set_node_text(
     if( strcmp(current, text) == 0 )
         return 0;
 
-    {
-        char* copy = strdup(text);
-        assert(copy);
-        free((void*)c->u.rs_text.text);
-        c->u.rs_text.text = copy;
-    }
-    UITree_MarkNodeDirty(tree, idx);
-    return 1;
+    return UITree_SetTextAt(tree, idx, text) ? 1 : 0;
 }
 
 static int
@@ -58,20 +50,20 @@ set_button_type(
 static int
 set_list_scroll_height(
     struct UITree* tree,
-    struct UITreeComponent* c,
+    int32_t idx,
     int count)
 {
+    struct UITreeComponent const* c = &tree->components[idx];
     int scroll_height = count * 15 + 20;
     int box_h = c->position.height;
     if( scroll_height <= box_h )
         scroll_height = box_h + 1;
     if( c->type != UIELEM_RS_LAYER || c->u.rs_layer.scroll_height == scroll_height )
         return 0;
-    c->u.rs_layer.scroll_height = scroll_height;
-    /* A layer's scroll extent is the box its children lay out against, so this
-     * is a layout input like any position field (see UITree::layout_stale). */
-    UITree_LayoutInvalidate(tree);
-    return 1;
+    return UITree_SetScrollSizeAt(
+               tree, idx, c->u.rs_layer.scroll_width, scroll_height)
+               ? 1
+               : 0;
 }
 
 static int
@@ -229,9 +221,7 @@ design_preview_rebuild(struct App* app)
     design->redraw = 0;
     design->load_requested_count = 0;
     if( getenv("TORIRS_ANIM_DEBUG") )
-        fprintf(
-            stderr,
-            "design_preview: rebuilt gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] "
+        TORIRS_LOG("design_preview: rebuilt gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] "
             "colours=[%d,%d,%d,%d,%d]\n",
             design->gender,
             design->parts[0], design->parts[1], design->parts[2], design->parts[3],
@@ -468,21 +458,27 @@ RS_ClientCode_Tick(
         else if( cc == RS_CC_FRIENDS_SIZE )
             changed |= set_list_scroll_height(
                 tree,
-                c,
+                (int32_t)i,
                 social->server_status == RS_SOCIAL_SERVER_CONNECTED ? social->friend_count : 0);
         else if( cc >= RS_CC_IGNORES_START && cc <= RS_CC_IGNORES_END )
             changed |= ignores_row_tick(tree, (int32_t)i, social, cc);
         else if( cc == RS_CC_IGNORES_SIZE )
-            changed |= set_list_scroll_height(tree, c, social->ignore_count);
+            changed |= set_list_scroll_height(tree, (int32_t)i, social->ignore_count);
         else if( cc == RS_CC_DESIGN_PREVIEW && c->type == UIELEM_RS_MODEL )
         {
             /* Reference: modelXAn=150, modelYAn=sin(loop/40)*256 wrapped. */
             int yan = ((int)(sin((double)loop_cycle / 40.0) * 256.0)) & 0x7ff;
-            c->u.rs_model.xan = 150;
-            if( c->u.rs_model.yan != yan )
+            if( c->u.rs_model.xan != 150 || c->u.rs_model.yan != yan )
             {
-                c->u.rs_model.yan = yan;
-                UITree_MarkNodeDirty(tree, (int32_t)i);
+                (void)UITree_SetModelPoseAt(
+                    tree,
+                    (int32_t)i,
+                    c->u.rs_model.x_offset,
+                    c->u.rs_model.y_offset,
+                    150,
+                    yan,
+                    c->u.rs_model.zan,
+                    0);
                 changed = 1;
             }
             if( app->idk_design.redraw && design_preview_rebuild(app) )
@@ -519,7 +515,7 @@ RS_ClientCode_Button(
     {
     case RS_CC_LOGOUT:
         /* Reference sets logoutTimer=250 and notifies the server. */
-        fprintf(stderr, "clientcode: logout requested\n");
+        TORIRS_LOG("clientcode: logout requested\n");
         return 1;
     case RS_CC_ACCEPT_DESIGN:
         /* Reference sends IDK_SAVEDESIGN and returns true, so the plain

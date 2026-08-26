@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static int
 parse_debug(void)
@@ -21,7 +22,7 @@ parse_debug(void)
     do                                 \
     {                                  \
         if( parse_debug() )            \
-            fprintf(stderr, __VA_ARGS__); \
+            TORIRS_LOG(__VA_ARGS__); \
     } while( 0 )
 
 /*

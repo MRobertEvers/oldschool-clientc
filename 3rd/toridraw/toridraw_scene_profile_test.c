@@ -1,7 +1,9 @@
 /* Scratch-buffer profile allocation and API contract. */
 #include "toridraw.h"
+#include "toridraw_font.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 static int failures;
 
@@ -135,6 +137,99 @@ check_selectable_depth_capacity(void)
     ToriDraw_SceneFree(deep);
 }
 
+static struct ToriDraw_Sprite**
+one_pixel_sprite_array(uint32_t color)
+{
+    uint32_t* pixels = malloc(sizeof(*pixels));
+    struct ToriDraw_Sprite** sprites = malloc(sizeof(*sprites));
+    CHECK(pixels != NULL);
+    CHECK(sprites != NULL);
+    if( !pixels || !sprites )
+    {
+        free(pixels);
+        free(sprites);
+        return NULL;
+    }
+    pixels[0] = color;
+    sprites[0] = ToriDraw_SpriteNewFromArgbOwned(pixels, 1, 1);
+    CHECK(sprites[0] != NULL);
+    if( !sprites[0] )
+    {
+        free(sprites);
+        return NULL;
+    }
+    return sprites;
+}
+
+/* Map counts cannot distinguish replacement under an existing scene id. The
+ * UI-facing revision must, especially for font metrics consumed by MEASURE_TEXT. */
+static void
+check_ui_asset_revision(void)
+{
+    struct ToriDraw_Scene* scene =
+        ToriDraw_SceneNew(TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    struct ToriDraw_Sprite** sprites;
+    struct ToriDraw_Font* font;
+    struct ToriDraw_ModelHandle model = { .kind = TORIDRAWMK_NONE };
+    uint64_t revision;
+    uint32_t count;
+
+    CHECK(scene != NULL);
+    if( !scene )
+        return;
+
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    sprites = one_pixel_sprite_array(0xff112233u);
+    if( sprites )
+        ToriDraw_SceneSpriteAdd(scene, 17, sprites, 1);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+    count = ToriDraw_MapCount(scene->sprites_hmap);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    sprites = one_pixel_sprite_array(0xff445566u);
+    if( sprites )
+        ToriDraw_SceneSpriteAdd(scene, 17, sprites, 1);
+    CHECK(ToriDraw_MapCount(scene->sprites_hmap) == count);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    ToriDraw_SceneSpriteRemove(scene, 17);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    ToriDraw_SceneSpriteRemove(scene, 17);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) == revision);
+
+    font = calloc(1, sizeof(*font));
+    CHECK(font != NULL);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    if( font )
+        ToriDraw_SceneFontAdd(scene, 9, font);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+    count = ToriDraw_MapCount(scene->fonts_hmap);
+    font = calloc(1, sizeof(*font));
+    CHECK(font != NULL);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    if( font )
+        ToriDraw_SceneFontAdd(scene, 9, font);
+    CHECK(ToriDraw_MapCount(scene->fonts_hmap) == count);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    ToriDraw_SceneModelAdd(scene, 23, model);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+    count = ToriDraw_MapCount(scene->models_hmap);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    ToriDraw_SceneModelAdd(scene, 23, model);
+    CHECK(ToriDraw_MapCount(scene->models_hmap) == count);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    (void)ToriDraw_SceneModelRemove(scene, 23);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    (void)ToriDraw_SceneModelRemove(scene, 23);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) == revision);
+
+    ToriDraw_SceneFree(scene);
+}
+
 int
 main(void)
 {
@@ -152,6 +247,7 @@ main(void)
         check_profile(&profiles[i]);
 
     check_selectable_depth_capacity();
+    check_ui_asset_revision();
 
     low_bytes = ToriDraw_SceneSize(
         TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);

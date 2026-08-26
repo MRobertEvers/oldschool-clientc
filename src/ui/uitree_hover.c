@@ -98,7 +98,7 @@ find_hovered_recursive(
      * tooltips stay correct: the visible cell redirects via over_layer_id;
      * the hidden tooltip layer never needs to self-report. */
     if( component->behavior.hide || component->frame_hidden ||
-        component->replacement_hidden )
+        component->replacement_hidden || component->projection_hidden )
         return;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit
@@ -171,12 +171,13 @@ find_hovered_recursive(
     }
     if( component->type == UIELEM_RS_LAYER )
     {
-        /* Canonical scroll offset lives on the component (emit + CS2 opcodes
-         * and the scrollbar hit path all read it). */
+        int effective_scroll_x;
+        int effective_scroll_y;
+        UITree_ScrollGetClamped(component, &effective_scroll_x, &effective_scroll_y);
         if( UITree_ScrollLayerNeedsHorizontal(component) )
-            child_scroll_x += component->scroll_x;
+            child_scroll_x += effective_scroll_x;
         if( UITree_ScrollLayerNeedsVertical(component) )
-            child_scroll_y += component->scroll_y;
+            child_scroll_y += effective_scroll_y;
     }
 
     /* Rendering visits InterfaceParent roots after ordinary children and does

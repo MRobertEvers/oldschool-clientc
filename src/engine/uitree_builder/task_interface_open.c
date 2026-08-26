@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "log/torirs_log.h"
 
 /* Standard human idle sequence for the player preview (clientCode 327/328). */
 
@@ -110,7 +111,7 @@ open_resolve_sprite(
         return -1;
     scene_id = UITreeSceneBridge_EnsureSprite(self->bridge, graphic_id);
     if( scene_id < 0 )
-        fprintf(stderr, "InterfaceOpen: RS sprite %d not in scene\n", graphic_id);
+        TORIRS_LOG("InterfaceOpen: RS sprite %d not in scene\n", graphic_id);
     return scene_id;
 }
 
@@ -145,9 +146,7 @@ upload_model_nodes(
             continue;
         cache_id = c->u.rs_model.gamecache_model_id;
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "upload_model_nodes: com=0x%x cache_id=%d client_code=%d\n",
+            TORIRS_LOG("upload_model_nodes: com=0x%x cache_id=%d client_code=%d\n",
                 (unsigned)c->component_id,
                 cache_id,
                 c->behavior.client_code);
@@ -158,10 +157,10 @@ upload_model_nodes(
             {
                 scene_id = UITreeSceneBridge_EnsurePlayerModel(bridge);
                 if( getenv("TORIRS_ANIM_DEBUG") )
-                    fprintf(stderr, "  EnsurePlayerModel -> %d\n", scene_id);
+                    TORIRS_LOG("  EnsurePlayerModel -> %d\n", scene_id);
                 if( scene_id >= 0 )
                 {
-                    c->u.rs_model.gamecache_model_id = scene_id;
+                    (void)UITree_SetModelAt(tree, i, scene_id);
                     /* Pose the preview. The server appearance's readyanim is not
                      * decoded here, so use the standard human ready sequence; the
                      * tick driver loads it and disables gracefully if absent.
@@ -178,7 +177,7 @@ upload_model_nodes(
         }
         scene_id = UITreeSceneBridge_EnsureModel(bridge, cache_id);
         if( scene_id >= 0 )
-            c->u.rs_model.gamecache_model_id = scene_id;
+            (void)UITree_SetModelAt(tree, i, scene_id);
     }
 }
 
@@ -272,7 +271,7 @@ collect_onloads(
         struct InterfaceOpenOnLoad* hook = Task_InterfaceOpen_PushOnLoad(self);
         if( !hook )
         {
-            fprintf(stderr, "InterfaceOpen: onload list full at %d\n", self->onload_count);
+            TORIRS_LOG("InterfaceOpen: onload list full at %d\n", self->onload_count);
             break;
         }
         hook->component_id = src->id;
@@ -280,9 +279,7 @@ collect_onloads(
         hook->argc = on_load->argc;
         if( hook->argc > INTERFACE_OPEN_ONLOAD_ARGV_MAX )
         {
-            fprintf(
-                stderr,
-                "InterfaceOpen: onload argc %d truncated to %d (component 0x%x)\n",
+            TORIRS_ERR("InterfaceOpen: onload argc %d truncated to %d (component 0x%x)\n",
                 hook->argc,
                 INTERFACE_OPEN_ONLOAD_ARGV_MAX,
                 (unsigned)src->id);
@@ -351,9 +348,7 @@ collect_seed_objs(struct Task_InterfaceOpen* self)
                 /* Prefetch only — the per-slot EnsureObjIcon pass below still
                  * loads whatever the seed list misses, so drop the tail rather
                  * than kill the client. */
-                fprintf(
-                    stderr,
-                    "InterfaceOpen: seed obj list full (%d); skipping prefetch of obj %d\n",
+                TORIRS_LOG("InterfaceOpen: seed obj list full (%d); skipping prefetch of obj %d\n",
                     INTERFACE_OPEN_SEED_OBJ_MAX,
                     oid);
                 return;
@@ -431,14 +426,8 @@ mount_pack_under_target(struct Task_InterfaceOpen* self)
             continue;
         if( c->behavior.hide_unmounted )
         {
-            c->behavior.hide = 0;
             c->behavior.hide_unmounted = 0;
-            /* Unhiding makes this node reachable by the emit walk when it was
-             * not before, which is exactly the transition the retention gate
-             * has to see (Opt 11). It cannot go through UITree_MarkNodeDirty:
-             * that filters by the last walk's reachability, and by definition
-             * this node was unreachable then. Bump directly. */
-            self->tree->dirty_gen++;
+            (void)UITree_SetHideAt(self->tree, i, 0);
         }
         if( c->parent == mount_idx )
             continue;
@@ -469,9 +458,7 @@ collect_sub_change_hooks(struct Task_InterfaceOpen* self)
         if( slot->script_id <= 0 )
             continue;
         if( getenv("TORIRS_ONSUBCHANGE_DEBUG") )
-            fprintf(
-                stderr,
-                "onsubchange-collect: sub-iface=%d component 0x%08x (%d|%d) script=%d\n",
+            TORIRS_LOG("onsubchange-collect: sub-iface=%d component 0x%08x (%d|%d) script=%d\n",
                 self->interface_id,
                 (unsigned)c->component_id,
                 (c->component_id >> 16) & 0xffff,
@@ -480,7 +467,7 @@ collect_sub_change_hooks(struct Task_InterfaceOpen* self)
         dst = Task_InterfaceOpen_PushRuntimeHook(self);
         if( !dst )
         {
-            fprintf(stderr, "InterfaceOpen: runtime-hook list full at %d\n",
+            TORIRS_LOG("InterfaceOpen: runtime-hook list full at %d\n",
                     self->runtime_hook_count);
             break;
         }
@@ -532,9 +519,7 @@ Task_InterfaceOpen_Run(
     PT_TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->interface_id));
     if( !CacheProvider_ComponentPackHas(self->provider, self->interface_id) )
     {
-        fprintf(
-            stderr,
-            "interface open: pack %d missing from cache; skipping mount\n",
+        TORIRS_ERR("interface open: pack %d missing from cache; skipping mount\n",
             self->interface_id);
         PT_EXIT(&self->pt);
     }
@@ -604,9 +589,7 @@ Task_InterfaceOpen_Run(
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_BAKE_REUSE, 1);
             UITreeIfaceStats_NoteBakeReuse(self->interface_id);
             if( getenv("TORIRS_NET_DEBUG") )
-                fprintf(
-                    stderr,
-                    "interface open: group %d already baked; reusing it\n",
+                TORIRS_LOG("interface open: group %d already baked; reusing it\n",
                     self->interface_id);
         }
         else
@@ -683,11 +666,8 @@ Task_InterfaceOpen_Run(
                 continue;
             if( c->behavior.hide_unmounted )
             {
-                c->behavior.hide = 0;
                 c->behavior.hide_unmounted = 0;
-                /* See the mount sweep above: an unhide is a reachability
-                 * change the retention gate must not miss. */
-                self->tree->dirty_gen++;
+                (void)UITree_SetHideAt(self->tree, idx, 0);
             }
         }
     }

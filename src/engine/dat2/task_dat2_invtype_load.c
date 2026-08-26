@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Load one inventory type capacity lazily.
@@ -69,9 +70,7 @@ Task_Dat2InvtypeLoad_Run(
             RSCache_Dat2ConfigInvDecodeInplace(
                 &entry, task->group->filelist->files[pos], task->group->filelist->file_sizes[pos]);
             if( entry._consumed != task->group->filelist->file_sizes[pos] )
-                fprintf(
-                    stderr,
-                    "invtype %d: decode consumed %d of %d bytes\n",
+                TORIRS_LOG("invtype %d: decode consumed %d of %d bytes\n",
                     task->inv_id,
                     entry._consumed,
                     task->group->filelist->file_sizes[pos]);
@@ -81,7 +80,7 @@ Task_Dat2InvtypeLoad_Run(
     }
     else
     {
-        fprintf(stderr, "Failed to decode dat2 inventory type group for inv %d\n", task->inv_id);
+        TORIRS_ERR("Failed to decode dat2 inventory type group for inv %d\n", task->inv_id);
     }
 
     CacheProvider_InvtypeAdd(&task->bc->base, task->inv_id, size);

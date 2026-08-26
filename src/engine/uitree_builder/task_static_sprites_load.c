@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_StaticSpritesLoad
 {
@@ -58,15 +59,14 @@ Task_StaticSpritesLoad_Run(
         {
             /* Era-absent or undeclared: leave the slot unbound. */
             if( getenv("TORIRS_STATIC_SPRITE_DEBUG") )
-                fprintf(stderr, "static_sprite: '%s' unresolved\n", name);
+                TORIRS_LOG("static_sprite: '%s' unresolved\n", name);
             continue;
         }
 
         scene_id = UITreeSceneBridge_EnsureStaticSprite(
             self->bridge, (enum StaticSpriteSlot)self->slot, sprite_id);
         if( getenv("TORIRS_STATIC_SPRITE_DEBUG") )
-            fprintf(
-                stderr, "static_sprite: '%s' sprite=%d scene=%d\n", name, sprite_id, scene_id);
+            TORIRS_LOG("static_sprite: '%s' sprite=%d scene=%d\n", name, sprite_id, scene_id);
     }
 
     PT_END(&self->pt);

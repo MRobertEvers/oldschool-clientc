@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Put a line in the chatbox.
@@ -129,15 +130,13 @@ exec_update_inv_full(
         RS_CS2Host_NotifyInvChanged(&ctx->app->host, container);
     if( getenv("TORIRS_INV_DEBUG") )
     {
-        fprintf(
-            stderr,
-            "inv-full: container=%d (com 0x%08x) size=%d\n",
+        TORIRS_LOG("inv-full: container=%d (com 0x%08x) size=%d\n",
             container,
             (unsigned)p->component_id,
             p->size);
         for( int i = 0; i < p->size; i++ )
             if( p->obj_ids[i] > 0 )
-                fprintf(stderr, "  slot %2d obj=%d x%d\n", i, p->obj_ids[i], p->obj_counts[i]);
+                TORIRS_LOG("  slot %2d obj=%d x%d\n", i, p->obj_ids[i], p->obj_counts[i]);
     }
 }
 
@@ -154,9 +153,7 @@ exec_update_inv_partial(
     if( src < 0 )
         return;
     if( getenv("TORIRS_INV_DEBUG") )
-        fprintf(
-            stderr,
-            "inv-partial: container=%d (com 0x%08x) slots=%d\n",
+        TORIRS_LOG("inv-partial: container=%d (com 0x%08x) slots=%d\n",
             container,
             (unsigned)p->component_id,
             p->count);
@@ -175,9 +172,7 @@ exec_update_inv_partial(
         slot.scene_id = INV_MANAGER_NO_SCENE_ID;
         InvManager_SetSlot(ctx->invs, src, p->entries[i].slot, &slot);
         if( getenv("TORIRS_INV_DEBUG") )
-            fprintf(
-                stderr,
-                "  slot %2d obj=%d x%d\n",
+            TORIRS_LOG("  slot %2d obj=%d x%d\n",
                 p->entries[i].slot,
                 slot.obj_id,
                 slot.obj_count);
@@ -362,7 +357,7 @@ zone_pending_push(
 
     if( app->pending_zone_count >= cap )
     {
-        fprintf(stderr, "gameproto_exec: pending-zone queue full, dropping pkt %d\n", (int)name);
+        TORIRS_LOG("gameproto_exec: pending-zone queue full, dropping pkt %d\n", (int)name);
         return;
     }
     entry = &app->pending_zone[app->pending_zone_count];
@@ -488,9 +483,7 @@ exec_zone_sub_packet_at(
             app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3,
             pkt->op_flags, pkt->ops);
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "gameproto_exec: LOC_ADD_CHANGE loc=%d shape=%d angle=%d at %d,%d,l%d\n",
+            TORIRS_LOG("gameproto_exec: LOC_ADD_CHANGE loc=%d shape=%d angle=%d at %d,%d,l%d\n",
                 pkt->loc_id,
                 pkt->info >> 2,
                 pkt->info & 0x3,
@@ -955,7 +948,7 @@ RS_GameProto_Exec(
             break;
         if( top == cur )
             break;
-        fprintf(stderr, "if-opentop: switching root %d -> %d\n", cur, top);
+        TORIRS_LOG("if-opentop: switching root %d -> %d\n", cur, top);
         /*
          * The arming goes with the old root, and that is not tidiness.
          *
@@ -976,9 +969,7 @@ RS_GameProto_Exec(
     }
     case PKT_NAME_IF_OPENSUB:
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "if-opensub: iface=%d target=0x%08x (%d<<16|%d) type=%d\n",
+            TORIRS_LOG("if-opensub: iface=%d target=0x%08x (%d<<16|%d) type=%d\n",
                 packet->_if_opensub.interface_id,
                 (unsigned)packet->_if_opensub.target_uid,
                 (packet->_if_opensub.target_uid >> 16) & 0xffff,
@@ -1134,7 +1125,7 @@ RS_GameProto_Exec(
             char const* quiet = getenv("TORIRS_MES");
 
             if( !quiet || strcmp(quiet, "0") != 0 )
-                fprintf(stderr, "message_game: %s\n", packet->_message_game.text);
+                TORIRS_LOG("message_game: %s\n", packet->_message_game.text);
         }
         break;
 
@@ -1144,9 +1135,7 @@ RS_GameProto_Exec(
         /* Handled inside Task_GameProtoExec (world-load await + MAP_BUILD_
          * COMPLETE ack); reaching here means no app context. */
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "gameproto_exec: %s zone=%d,%d (no app ctx)\n",
+            TORIRS_LOG("gameproto_exec: %s zone=%d,%d (no app ctx)\n",
                 packet->_map_rebuild.zones ? "REBUILD_REGION" : "REBUILD_NORMAL",
                 packet->_map_rebuild.zonex,
                 packet->_map_rebuild.zonez);
@@ -1156,9 +1145,7 @@ RS_GameProto_Exec(
         /* Normally consumed by Task_GameProtoExec's awaited entity-info
          * tasks; reaching here means no world is active (packet dropped). */
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "gameproto_exec: entity info packet %d dropped (no active world)\n",
+            TORIRS_LOG("gameproto_exec: entity info packet %d dropped (no active world)\n",
                 packet->packet_type);
         break;
 
@@ -1724,7 +1711,7 @@ RS_GameProto_Exec(
 
     default:
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(stderr, "gameproto_exec: unhandled packet %d\n", packet->packet_type);
+            TORIRS_LOG("gameproto_exec: unhandled packet %d\n", packet->packet_type);
         break;
     }
 }

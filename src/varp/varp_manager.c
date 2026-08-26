@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct DatCursor
 {
@@ -389,9 +390,7 @@ VarPManager_LoadVarbitDat(
      * rather than fail: the types read so far are still usable.
      */
     if( c.pos != size )
-        fprintf(
-            stderr,
-            "varbit.dat: decoded %d types but consumed %zu of %zu bytes\n",
+        TORIRS_LOG("varbit.dat: decoded %d types but consumed %zu of %zu bytes\n",
             count,
             c.pos,
             size);

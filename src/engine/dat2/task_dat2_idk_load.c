@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2IdkLoad
 {
@@ -41,8 +42,7 @@ Task_Dat2IdkLoad_Run(
         archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_IDENTKIT);
         if( !archive )
         {
-            fprintf(
-                stderr, "Failed to decode dat2 identkit config group for idk %d\n", task->idk_id);
+            TORIRS_ERR("Failed to decode dat2 identkit config group for idk %d\n", task->idk_id);
             PT_EXIT(&task->pt);
         }
 
@@ -53,14 +53,14 @@ Task_Dat2IdkLoad_Run(
     rscache_idk = dat2_buildcache_identkit_get(task->bc, task->idk_id);
     if( !rscache_idk )
     {
-        fprintf(stderr, "Failed to load dat2 idk %d\n", task->idk_id);
+        TORIRS_ERR("Failed to load dat2 idk %d\n", task->idk_id);
         PT_EXIT(&task->pt);
     }
 
     torirs_idk = ToriRS_IdkFromRSCacheDat2(task->idk_id, rscache_idk);
     if( !torirs_idk )
     {
-        fprintf(stderr, "Failed to convert dat2 idk %d\n", task->idk_id);
+        TORIRS_ERR("Failed to convert dat2 idk %d\n", task->idk_id);
         PT_EXIT(&task->pt);
     }
 

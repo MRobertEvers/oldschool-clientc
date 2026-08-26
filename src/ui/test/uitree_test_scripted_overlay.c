@@ -187,6 +187,44 @@ test_scripted_entity_overlay(void)
                 "the sprite follows the updated camera projection");
     }
 
+    /* A subject behind the near plane has no valid screen projection. Camera
+     * suppression must remove the subtree instead of leaving its last valid
+     * sprite frozen in place, then reveal it again without borrowing the
+     * script-owned behavior.hide bit. */
+    {
+        uint32_t dirty_before = tree->dirty_gen;
+
+        TEST_ASSERT(
+            UITree_SetProjectionHiddenAt(tree, layer, 1),
+            "failed camera projection suppresses its overlay layer");
+        TEST_ASSERT(
+            tree->components[layer].projection_hidden &&
+                tree->components[layer].behavior.hide == 0 && tree->dirty_gen != dirty_before,
+            "projection visibility is independent and invalidates retention");
+        emit.count = 0;
+        UITree_EmitWalk(tree, &host, &emit, -1);
+        child_at = -1;
+        for( int i = 0; i < emit.count; i++ )
+            if( emit.cmds[i].component_id == child_com )
+                child_at = i;
+        TEST_ASSERT(child_at < 0, "an unprojectable overlay leaves no stale sprite");
+
+        dirty_before = tree->dirty_gen;
+        TEST_ASSERT(
+            UITree_SetProjectionHiddenAt(tree, layer, 0),
+            "valid camera projection reveals its overlay layer");
+        TEST_ASSERT(
+            !tree->components[layer].projection_hidden && tree->dirty_gen != dirty_before,
+            "projection reveal invalidates old reachability");
+        emit.count = 0;
+        UITree_EmitWalk(tree, &host, &emit, -1);
+        child_at = -1;
+        for( int i = 0; i < emit.count; i++ )
+            if( emit.cmds[i].component_id == child_com )
+                child_at = i;
+        TEST_ASSERT(child_at >= 0, "the overlay returns at its current projected position");
+    }
+
     /* Clipped to the world, not to the canvas. */
     /*
      * Clipped INSIDE the world, not to the canvas.
@@ -197,6 +235,7 @@ test_scripted_entity_overlay(void)
      * nothing the overlay draws can land outside the viewport, and that is
      * containment.
      */
+    if( child_at >= 0 )
     {
         struct UITreeEmitClip const clip = emit.cmds[child_at].clip;
         TEST_ASSERT(

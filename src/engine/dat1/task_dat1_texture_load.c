@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Dat1 textures live in the CONFIGS "textures" jagfile as "<id>.dat" images
@@ -112,9 +113,7 @@ task_dat1_texture_decode(struct Task_Dat1TextureLoad* task)
     dat1_texture_anim_params(task->texture_id, &animation_direction, &animation_speed);
 
     if( getenv("TORIRS_TEX_DEBUG") )
-        fprintf(
-            stderr,
-            "dat1_tex: id=%d %dx%d crop=%dx%d at %d,%d palette=%d dest=%d\n",
+        TORIRS_LOG("dat1_tex: id=%d %dx%d crop=%dx%d at %d,%d palette=%d dest=%d\n",
             task->texture_id,
             pix8->width,
             pix8->height,
@@ -167,9 +166,7 @@ Task_Dat1TextureLoad_Run(
         jagfile = RSCache_IO_Dat1JagfileDecode(io, 0, RSCACHE_DAT1_CONFIG_TEXTURES);
         if( !jagfile )
         {
-            fprintf(
-                stderr,
-                "Failed to decode dat1 textures jagfile for texture %d\n",
+            TORIRS_ERR("Failed to decode dat1 textures jagfile for texture %d\n",
                 task->texture_id);
             PT_EXIT(&task->pt);
         }
@@ -180,7 +177,7 @@ Task_Dat1TextureLoad_Run(
     torirs_texture = task_dat1_texture_decode(task);
     if( !torirs_texture )
     {
-        fprintf(stderr, "Failed to decode dat1 texture %d\n", task->texture_id);
+        TORIRS_ERR("Failed to decode dat1 texture %d\n", task->texture_id);
         PT_EXIT(&task->pt);
     }
 

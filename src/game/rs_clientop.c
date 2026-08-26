@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static char const* const KIND_NAME[RS_CLIENTOP_KIND_COUNT] = {
     "npc", "loc", "obj", "player", "tile"
@@ -185,9 +186,7 @@ clientop_slot_ok(int slot, char const* what)
     /* Not an assert: the number comes from a cache script, and a cache asking
      * for slot 12 is one whose slot this client should refuse rather than die
      * on. */
-    fprintf(
-        stderr,
-        "clientop: %s named slot %d, which is outside 0..%d -- ignored\n",
+    TORIRS_LOG("clientop: %s named slot %d, which is outside 0..%d -- ignored\n",
         what,
         slot,
         RS_CLIENTOP_SLOT_MAX - 1);

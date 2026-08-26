@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2StructLoad
 {
@@ -49,15 +50,14 @@ Task_Dat2StructLoad_Run(
 
     if( !task->group )
     {
-        fprintf(
-            stderr, "Failed to decode dat2 struct config group for struct %d\n", task->struct_id);
+        TORIRS_ERR("Failed to decode dat2 struct config group for struct %d\n", task->struct_id);
         PT_EXIT(&task->pt);
     }
 
     pos = Dat2Group_IndexOf(task->group, task->struct_id);
     if( pos < 0 )
     {
-        fprintf(stderr, "Failed to find dat2 struct %d in config group\n", task->struct_id);
+        TORIRS_ERR("Failed to find dat2 struct %d in config group\n", task->struct_id);
         PT_EXIT(&task->pt);
     }
 
@@ -69,7 +69,7 @@ Task_Dat2StructLoad_Run(
     if( !torirs )
     {
         RSCache_Dat2ConfigStructFreeInplace(&entry);
-        fprintf(stderr, "Failed to convert dat2 struct %d\n", task->struct_id);
+        TORIRS_ERR("Failed to convert dat2 struct %d\n", task->struct_id);
         PT_EXIT(&task->pt);
     }
 

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct CS2VM2_StrPoolBlock
 {
@@ -54,9 +55,7 @@ CS2VM2_StrPool_Reset(struct CS2VM2_StrPool* pool)
     assert(pool);
 
     if( strpool_debug() && pool->alloc_count > 0 )
-        fprintf(
-            stderr,
-            "CS2 strpool reset: %d strings, %zu bytes in %d block(s) (peak %zu)\n",
+        TORIRS_LOG("CS2 strpool reset: %d strings, %zu bytes in %d block(s) (peak %zu)\n",
             pool->alloc_count,
             pool->bytes_used,
             pool->block_count,

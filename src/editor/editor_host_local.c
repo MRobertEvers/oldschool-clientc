@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include "log/torirs_log.h"
 
 #ifdef _WIN32
 #include <direct.h>
@@ -127,25 +128,25 @@ write_file_atomic(
     file = fopen(temp_path, "wb");
     if( !file )
     {
-        fprintf(stderr, "editor: cannot open %s: %s\n", temp_path, strerror(errno));
+        TORIRS_ERR("editor: cannot open %s: %s\n", temp_path, strerror(errno));
         return EDITOR_HOST_IO_ERROR;
     }
     if( length > 0 && fwrite(text, 1, length, file) != length )
     {
-        fprintf(stderr, "editor: short write to %s\n", temp_path);
+        TORIRS_LOG("editor: short write to %s\n", temp_path);
         fclose(file);
         remove(temp_path);
         return EDITOR_HOST_IO_ERROR;
     }
     if( fclose(file) != 0 )
     {
-        fprintf(stderr, "editor: cannot close %s: %s\n", temp_path, strerror(errno));
+        TORIRS_ERR("editor: cannot close %s: %s\n", temp_path, strerror(errno));
         remove(temp_path);
         return EDITOR_HOST_IO_ERROR;
     }
     if( rename(temp_path, path) != 0 )
     {
-        fprintf(stderr, "editor: cannot rename onto %s: %s\n", path, strerror(errno));
+        TORIRS_ERR("editor: cannot rename onto %s: %s\n", path, strerror(errno));
         remove(temp_path);
         return EDITOR_HOST_IO_ERROR;
     }
@@ -245,7 +246,7 @@ local_square_save(
 
     if( host->lock_path[0] == '\0' )
     {
-        fprintf(stderr, "editor: refusing to save without the session lock\n");
+        TORIRS_ERR("editor: refusing to save without the session lock\n");
         return EDITOR_HOST_LOCKED;
     }
 
@@ -282,7 +283,7 @@ local_bake(
 
     if( host->repo_root[0] == '\0' )
     {
-        fprintf(stderr, "editor: baking is disabled for this session\n");
+        TORIRS_LOG("editor: baking is disabled for this session\n");
         return EDITOR_HOST_BAKE_FAILED;
     }
 
@@ -386,7 +387,7 @@ local_spawn_save(
 
     if( host->lock_path[0] == '\0' )
     {
-        fprintf(stderr, "editor: refusing to save without the session lock\n");
+        TORIRS_ERR("editor: refusing to save without the session lock\n");
         return EDITOR_HOST_LOCKED;
     }
 
@@ -402,7 +403,7 @@ local_spawn_save(
             snprintf(dir, sizeof(dir), "%s/%s", host->content_dir, legs[i]);
             if( editor_mkdir(dir) != 0 && errno != EEXIST )
             {
-                fprintf(stderr, "editor: cannot create %s\n", dir);
+                TORIRS_ERR("editor: cannot create %s\n", dir);
                 return EDITOR_HOST_IO_ERROR;
             }
         }

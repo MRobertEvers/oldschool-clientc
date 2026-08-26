@@ -10,6 +10,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "log/torirs_log.h"
 
 /* Rev-239 Statics.method6312: radians to the 2048-step yaw unit.  Keep the
  * gamepack's full double precision; the dated Client-TS value maps north/east
@@ -671,7 +672,7 @@ World_StepAnimationTrack(
     if( count <= 0 )
     {
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(stderr, "anim: seq %d has no frames; held at frame 0\n", seq);
+            TORIRS_LOG("anim: seq %d has no frames; held at frame 0\n", seq);
         return 0;
     }
 

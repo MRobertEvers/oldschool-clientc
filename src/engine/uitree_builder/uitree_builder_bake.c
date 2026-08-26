@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static enum UITreeComponentType
 type_from_string(char const* type)
@@ -99,7 +100,7 @@ slot_tag_from_string(char const* slot)
         return UITREE_SLOT_CHAT;
     if( strcmp(slot, "tut") == 0 )
         return UITREE_SLOT_TUT;
-    fprintf(stderr, "revconfig: unknown slot tag '%s'\n", slot);
+    TORIRS_ERR("revconfig: unknown slot tag '%s'\n", slot);
     return UITREE_SLOT_NONE;
 }
 
@@ -250,7 +251,7 @@ resolve_chrome_sprite(struct UITreeBuilder* builder, char const* ref, int* out_a
      * missing skin: the profile spelled something, and the only outcomes are
      * the right picture or a silently blank control.
      */
-    fprintf(stderr, "uitree_builder_bake: no chrome skin slot named '%s'\n", slot_name);
+    TORIRS_LOG("uitree_builder_bake: no chrome skin slot named '%s'\n", slot_name);
     assert(0 && "unknown chrome: sprite slot");
     return -1;
 }
@@ -303,7 +304,7 @@ resolve_chrome_font(struct UITreeBuilder* builder, char const* ref)
         return UITreeSceneBridge_EnsureDebugFont1x(builder->bridge, SLOT[i].slot);
     }
 
-    fprintf(stderr, "uitree_builder_bake: no chrome font named '%s'\n", slot_name);
+    TORIRS_LOG("uitree_builder_bake: no chrome font named '%s'\n", slot_name);
     assert(0 && "unknown chrome: font slot");
     return -1;
 }
@@ -324,9 +325,7 @@ resolve_sprite_required(
         return resolve_chrome_sprite(builder, ref, out_atlas);
     if( !find_sprite_entry(builder, ref) )
     {
-        fprintf(
-            stderr,
-            "uitree_builder_bake: missing sprite '%s' (registered=%d)\n",
+        TORIRS_ERR("uitree_builder_bake: missing sprite '%s' (registered=%d)\n",
             ref,
             builder->sprite_count);
         assert(0 && "required sprite name missing after assets load");
@@ -350,7 +349,7 @@ bake_resolve_sprite(void* ud, int graphic_id)
     if( !CacheProvider_SpriteHas(builder->provider, graphic_id) )
     {
         /* Pack-internal sprites are not always prefetched yet — leave unbound. */
-        fprintf(stderr, "uitree_builder_bake: RS sprite %d not loaded\n", graphic_id);
+        TORIRS_LOG("uitree_builder_bake: RS sprite %d not loaded\n", graphic_id);
         return -1;
     }
     if( builder->bridge )
@@ -526,9 +525,7 @@ uitree_builder_bake_pack_under_owner(
             if( scene_id >= 0 )
                 node->u.rs_model.gamecache_model_id = scene_id;
             else if( getenv("TORIRS_ANIM_DEBUG") )
-                fprintf(
-                    stderr,
-                    "bake: model widget com=0x%x cache_id=%d not loadable\n",
+                TORIRS_LOG("bake: model widget com=0x%x cache_id=%d not loadable\n",
                     (unsigned)node->component_id,
                     cache_id);
         }
@@ -1135,9 +1132,7 @@ uitree_builder_hide_unmounted_spillover(
         /* Kept: this is exactly the print that identified the bug above, and
          * "which root did the tree just hide" is invisible from anywhere else. */
         if( getenv("TORIRS_SPILLOVER_DEBUG") )
-            fprintf(
-                stderr,
-                "spillover: hiding root group %d (opening %d, target %d:%d)\n",
+            TORIRS_LOG("spillover: hiding root group %d (opening %d, target %d:%d)\n",
                 group,
                 opening_group,
                 (target_uid >> 16) & 0xffff,

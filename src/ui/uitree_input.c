@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* Screen click (px,py) landed on one of an RS_INV grid's slot rects. Inventory
  * components carry cols/rows in their base width/height (4x7 for the backpack),
@@ -227,6 +228,25 @@ UITree_ComponentIsPassThrough(
  * caller already tests that separately, and folding the two would make a
  * hovered chat line block the wheel.
  */
+/*
+ * TORIRS_HIT_TRACE, read once.
+ *
+ * It used to be a getenv() per node, and the hit walk runs over the whole tree
+ * twice a frame (app_world_mouse_gate asks PointBlocksWorld and then
+ * HitTestInteractive at the same point). getenv on Windows is a linear scan of
+ * the environment block, so an off-by-default trace was costing a scan per
+ * component per walk per frame -- 14.3% of non-raster work on an in-world
+ * frame, all of it spent deciding not to print.
+ */
+static int
+hit_trace_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_HIT_TRACE") ? 1 : 0;
+    return armed;
+}
+
 static int32_t
 hit_test_interactive_recursive(
     struct UITree const* tree,
@@ -258,7 +278,7 @@ hit_test_interactive_recursive(
 
     /* Match emit: hidden subtrees are not interactive. */
     if( component->behavior.hide || component->frame_hidden ||
-        component->replacement_hidden )
+        component->replacement_hidden || component->projection_hidden )
         return -1;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST, exactly like the
@@ -293,10 +313,8 @@ hit_test_interactive_recursive(
     bool const point_in_self =
         UITree_PointInScrolledBounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y);
 
-    if( getenv("TORIRS_HIT_TRACE") && component->component_id > 0 )
-        fprintf(
-            stderr,
-            "hit: idx=%d com=%d type=%d box=%d,%d %dx%d in_self=%d passthru=%d vis=%d\n",
+    if( hit_trace_armed() && component->component_id > 0 )
+        TORIRS_LOG("hit: idx=%d com=%d type=%d box=%d,%d %dx%d in_self=%d passthru=%d vis=%d\n",
             node_index,
             component->component_id,
             (int)component->type,
@@ -346,12 +364,13 @@ hit_test_interactive_recursive(
     }
     if( component->type == UIELEM_RS_LAYER )
     {
-        /* Canonical scroll offset lives on the component (emit + CS2 opcodes
-         * and the scrollbar hit path all read it). */
+        int effective_scroll_x;
+        int effective_scroll_y;
+        UITree_ScrollGetClamped(component, &effective_scroll_x, &effective_scroll_y);
         if( UITree_ScrollLayerNeedsHorizontal(component) )
-            child_scroll_x += component->scroll_x;
+            child_scroll_x += effective_scroll_x;
         if( UITree_ScrollLayerNeedsVertical(component) )
-            child_scroll_y += component->scroll_y;
+            child_scroll_y += effective_scroll_y;
     }
 
     /* The physical tree reparents mounted interface roots under their host, but
@@ -438,7 +457,7 @@ UITree_HitTestRecursive(
 
     /* Match emit: hidden subtrees are not interactive. */
     if( component->behavior.hide || component->frame_hidden ||
-        component->replacement_hidden )
+        component->replacement_hidden || component->projection_hidden )
         return -1;
 
     int32_t hit = -1;
@@ -518,7 +537,7 @@ collect_nodes_recursive(
     struct UITreeComponent const* component = &tree->components[node_index];
 
     if( component->behavior.hide || component->frame_hidden ||
-        component->replacement_hidden )
+        component->replacement_hidden || component->projection_hidden )
         return;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit
@@ -600,10 +619,13 @@ collect_nodes_recursive(
     }
     if( component->type == UIELEM_RS_LAYER )
     {
+        int effective_scroll_x;
+        int effective_scroll_y;
+        UITree_ScrollGetClamped(component, &effective_scroll_x, &effective_scroll_y);
         if( UITree_ScrollLayerNeedsHorizontal(component) )
-            child_scroll_x += component->scroll_x;
+            child_scroll_x += effective_scroll_x;
         if( UITree_ScrollLayerNeedsVertical(component) )
-            child_scroll_y += component->scroll_y;
+            child_scroll_y += effective_scroll_y;
     }
 
     /* Keep menu traversal in the same mount-last order and coordinate space as
@@ -804,7 +826,8 @@ role_boundary_walk_node(
     if( node < 0 || (uint32_t)node >= tree->component_count )
         return;
     component = &tree->components[node];
-    if( component->freed || component->frame_hidden || component->behavior.hide )
+    if( component->freed || component->frame_hidden || component->projection_hidden ||
+        component->behavior.hide )
         return;
 
     /* Same selected-tab pruning as emit and interactive hit testing. */
@@ -918,10 +941,13 @@ role_boundary_walk_node(
     }
     if( component->type == UIELEM_RS_LAYER )
     {
+        int effective_scroll_x;
+        int effective_scroll_y;
+        UITree_ScrollGetClamped(component, &effective_scroll_x, &effective_scroll_y);
         if( UITree_ScrollLayerNeedsHorizontal(component) )
-            child_scroll_x += component->scroll_x;
+            child_scroll_x += effective_scroll_x;
         if( UITree_ScrollLayerNeedsVertical(component) )
-            child_scroll_y += component->scroll_y;
+            child_scroll_y += effective_scroll_y;
     }
 
     {

@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #define FONT_ADVANCE_ONLY_GLYPH TORIRS_FONT_GLYPH_COUNT
 
@@ -196,8 +197,7 @@ ToriRS_FontFromDat1Jagfile(
     index_file_idx = RSCache_FileListDatFindFileByName(title_jagfile, "index.dat");
     if( data_file_idx == -1 || index_file_idx == -1 )
     {
-        fprintf(
-            stderr, "ToriRS_FontFromDat1Jagfile: missing %s/index.dat in title jagfile\n",
+        TORIRS_ERR("ToriRS_FontFromDat1Jagfile: missing %s/index.dat in title jagfile\n",
             data_filename);
         return NULL;
     }

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 bool
 ToriRS_AudioTraceEnabled(void)
@@ -18,7 +19,7 @@ ToriRS_AudioTraceEnabled(void)
     do                                                                                             \
     {                                                                                              \
         if( ToriRS_AudioTraceEnabled() )                                                           \
-            fprintf(stderr, __VA_ARGS__);                                                          \
+            TORIRS_LOG(__VA_ARGS__);                                                          \
     } while( 0 )
 
 void

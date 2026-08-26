@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #define SCRIPT_CACHE_BUFFER_SIZE 65536
 
@@ -222,7 +223,7 @@ Task_CS2ScriptExec_Run(
     {
         if( status == CS2VM2_THREAD_YIELDED )
         {
-            printf("CS2VM2_THREAD_YIELDED\n");
+            TORIRS_LOG("CS2VM2_THREAD_YIELDED\n");
             if( exec->host.request.kind == CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS )
             {
                 exec->script_id =

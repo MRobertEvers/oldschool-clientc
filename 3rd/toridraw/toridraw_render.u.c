@@ -1909,6 +1909,56 @@ bucket_sort_by_average_depth_small(
     if( min_d > max_d )
         return 0;
 
+    /*
+     * TORIDRAW_SPAN_RATIO=1: faces bucketed vs depth levels walked to get them
+     * back out again.
+     *
+     * Every consumer of this table is a loop over [min_d, max_d] reading two
+     * ints per level -- the prefix sum below, the cursor seed, the priority
+     * partition, the restore. If a model's depth span is much wider than its
+     * face count, that is four passes over a range whose length has nothing to
+     * do with how much work the model represents, and the bucket sort is being
+     * paid for a resolution it is not using. This counter is what says whether
+     * that is happening or whether the span is tight.
+     */
+    {
+        static char const* out_path = NULL;
+        static int armed = -1;
+        static long long faces_total;
+        static long long span_total;
+        static long long models;
+
+        if( armed < 0 )
+        {
+            out_path = getenv("TORIDRAW_SPAN_RATIO");
+            armed = (out_path && out_path[0]) ? 1 : 0;
+        }
+        if( armed )
+        {
+            faces_total += num_faces;
+            span_total += (max_d - min_d + 1);
+            models++;
+            /* Rewritten in place every so often rather than dumped at exit:
+             * the measurement harness ends an arm with taskkill /F, and an
+             * end-of-run dump is a dump that never happens. */
+            if( models % 20000 == 0 )
+            {
+                FILE* f = fopen(out_path, "wb");
+                if( f )
+                {
+                    fprintf(f,
+                        "models=%lld faces/model=%.1f span/model=%.1f "
+                        "span-per-face=%.1fx\n",
+                        models,
+                        (double)faces_total / (double)models,
+                        (double)span_total / (double)models,
+                        (double)span_total / (double)(faces_total ? faces_total : 1));
+                    fclose(f);
+                }
+            }
+        }
+    }
+
     /* Prefix sum over the model's span only. Buckets outside it are zero and
      * stay zero; no consumer reads them, because every consumer is bounded by
      * the same [min_d, max_d] this returns. */

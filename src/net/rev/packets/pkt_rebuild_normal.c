@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * REBUILD_NORMAL wire (RSProt RebuildNormalEncoder.encode):
@@ -47,9 +48,7 @@ pkt_rebuild_normal_read(uint8_t const* data, int len, struct RevPacket* out)
     }
 
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "pkt_rebuild_normal: zoneX=%d zoneZ=%d keys=%d\n",
+        TORIRS_LOG("pkt_rebuild_normal: zoneX=%d zoneZ=%d keys=%d\n",
             zone_x,
             zone_z,
             key_count);

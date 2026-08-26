@@ -36,6 +36,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Layout, in interface pixels. The gameframe's own scale applies on top.
@@ -1221,7 +1222,7 @@ cs2_rebuild(struct ChromeCs2* s)
         if( s->mount < 0 )
         {
             if( getenv("TORIRS_CHROME_DEBUG") )
-                fprintf(stderr, "chrome-cs2: mount %x not in tree, waiting\n", s->mount_com_id);
+                TORIRS_LOG("chrome-cs2: mount %x not in tree, waiting\n", s->mount_com_id);
             return;
         }
     }
@@ -1324,8 +1325,7 @@ cs2_rebuild(struct ChromeCs2* s)
     s->built_w = panel_w;
     s->built_h = panel_h;
     if( getenv("TORIRS_CHROME_DEBUG") )
-        fprintf(
-            stderr, "chrome-cs2: rebuild mount=%d box=%dx%d assets=%d\n", s->mount, panel_w,
+        TORIRS_LOG("chrome-cs2: rebuild mount=%d box=%dx%d assets=%d\n", s->mount, panel_w,
             panel_h, s->assets_ok);
 
     /* The tab strip, pinned above the rows -- the same rule the in-canvas
@@ -1930,7 +1930,7 @@ chrome_cs2_begin(void* user)
     assert(s);
     if( !s->tree )
     {
-        fprintf(stderr, "chrome: no interface tree to build the plugin window in\n");
+        TORIRS_LOG("chrome: no interface tree to build the plugin window in\n");
         return 0;
     }
     ToriRSChromeMirror_Init(&s->mirror);

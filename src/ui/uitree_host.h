@@ -13,6 +13,44 @@ struct UIMinimenu;
 struct UIHoverText;
 struct UIChatView;
 
+/**
+ * Coarse external inputs read by UITree host requests while building an emit
+ * list. These are deliberately domains, not per-node subscriptions: a full
+ * emit records the union of the domains it actually read, then the retention
+ * gate compares only those epochs on the next frame.
+ *
+ * The host owns the epochs. Code which changes an authoritative input calls
+ * `UITree_HostInputsChanged`; callers never need to know which nodes happened
+ * to consume it. A later partial-emission implementation can reuse the same
+ * vocabulary with a stamp per retained span.
+ */
+enum UITreeHostInputDomain
+{
+    /** CS1/varp/skill state, selected tabs, chat, and server widget state. */
+    UITREE_HOST_INPUT_CLIENT_STATE = 0,
+    /** Camera yaw/pivot and camera-derived map projection. */
+    UITREE_HOST_INPUT_CAMERA,
+    /** Pointer feedback: hover text, menus, crosshair, and drag offsets. */
+    UITREE_HOST_INPUT_POINTER,
+    /** Inventory contents, selection, and inventory-derived CS1 state. */
+    UITREE_HOST_INPUT_INVENTORY,
+    /** Asynchronously available sprites, fonts, models, and obj metadata. */
+    UITREE_HOST_INPUT_ASSETS,
+    /** World/session presentation such as minimap, multiway, and world map. */
+    UITREE_HOST_INPUT_WORLD,
+    /** Clock/cycle-driven presentation such as flashes and cross animation. */
+    UITREE_HOST_INPUT_ANIMATION,
+    /** Host-built entity, plugin, and developer overlay display lists. */
+    UITREE_HOST_INPUT_OVERLAYS,
+    UITREE_HOST_INPUT_DOMAIN_COUNT,
+};
+
+typedef uint32_t UITreeHostInputMask;
+
+#define UITREE_HOST_INPUT_BIT(domain) ((UITreeHostInputMask)1u << (domain))
+#define UITREE_HOST_INPUT_ALL                                                                    \
+    ((UITreeHostInputMask)((1u << UITREE_HOST_INPUT_DOMAIN_COUNT) - 1u))
+
 /** Minimap overlay dot (reference minimapDrawDot output), host-computed and
  * already rotated: sprite top-left goes at (box_center_x + dx,
  * box_center_y + dy), drawn w*h. scene_id <= 0 draws a filled rect of
@@ -338,6 +376,7 @@ enum UITreeHostRequestKind
      * the server arms `chatmenu:options`.
      */
     UITREE_HOST_GET_IF_EVENTS,
+    UITREE_HOST_REQUEST_COUNT,
 };
 
 /*
@@ -550,6 +589,24 @@ struct UITreeHost
 {
     void* user;
     int (*request)(void* user, struct UITreeHostRequest* req);
+    /** Monotonic versions of the external input domains above. */
+    uint64_t input_epoch[UITREE_HOST_INPUT_DOMAIN_COUNT];
+    /** Last semantic signature published by each authoritative source.  These
+     * let source owners compare before invalidating without duplicating epoch
+     * bookkeeping or keeping a parallel snapshot beside every UITreeHost. */
+    uint64_t input_signature[UITREE_HOST_INPUT_DOMAIN_COUNT];
+    UITreeHostInputMask input_signature_valid;
+    /** Optional read observer. UITree_EmitWalk sets this only on a shallow
+     * copy of the host, so ordinary host calls pay one predictable null test. */
+    UITreeHostInputMask* observed_input_mask;
+};
+
+/** Snapshot of the host inputs consumed by one completed emit walk. */
+struct UITreeHostInputStamp
+{
+    struct UITreeHost const* source;
+    UITreeHostInputMask dependencies;
+    uint64_t epoch[UITREE_HOST_INPUT_DOMAIN_COUNT];
 };
 
 void
@@ -557,6 +614,42 @@ UITree_HostInit(struct UITreeHost* host);
 
 int
 UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req);
+
+/** Map a request to the external inputs which can change its answer.
+ * Invalid/unrecognised kinds return UITREE_HOST_INPUT_ALL, preserving
+ * correctness when a request is added before its precise classification. */
+UITreeHostInputMask
+UITree_HostRequestInputMask(enum UITreeHostRequestKind kind);
+
+/** Advance the authoritative versions for the supplied input domains. */
+void
+UITree_HostInputsChanged(struct UITreeHost* host, UITreeHostInputMask changed);
+
+/** Publish one domain's current semantic signature.  The first publication
+ * and every changed signature advance that domain's epoch; an unchanged
+ * signature is a no-op.  Returns true when the epoch advanced.
+ *
+ * This is a convenience for sources whose state is assembled from several
+ * ordinary fields at a frame publication fence.  Event-driven sources may
+ * continue to call `UITree_HostInputsChanged` directly. */
+bool
+UITree_HostPublishInputSignature(
+    struct UITreeHost* host,
+    enum UITreeHostInputDomain domain,
+    uint64_t signature);
+
+/** Capture the selected input domains for retained-output validation. */
+void
+UITree_HostInputStampCapture(
+    struct UITreeHost const* host,
+    UITreeHostInputMask dependencies,
+    struct UITreeHostInputStamp* out);
+
+/** True only while every input version recorded in `stamp` is current. */
+bool
+UITree_HostInputStampIsCurrent(
+    struct UITreeHostInputStamp const* stamp,
+    struct UITreeHost const* host);
 
 bool
 UITree_ComponentVisibleHost(

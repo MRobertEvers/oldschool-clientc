@@ -109,6 +109,7 @@ static int g_wb_env_strip_tex = -1;
 #include "world_collision.u.c"
 #include "world_scenery.u.c"
 #include "world_sharelight.u.c"
+#include "log/torirs_log.h"
 // clang-format on
 
 static void
@@ -199,17 +200,14 @@ world_builder_claim_element(
         return;
     if( id >= TORIDRAW_SCENE_MAX_ELEMENTS || !ToriDraw_SceneElementIsLive(scene, id) )
     {
-        fprintf(
-            stderr, "world_builder: entity %#x referenced dead element %d - cleared\n",
+        TORIRS_LOG("world_builder: entity %#x referenced dead element %d - cleared\n",
             owner_tag, id);
         *element_id_field = -1;
         return;
     }
     if( claimed_by[id] >= 0 )
     {
-        fprintf(
-            stderr,
-            "world_builder: element %d claimed by entities %#x and %#x - the second is "
+        TORIRS_LOG("world_builder: element %d claimed by entities %#x and %#x - the second is "
             "cleared (they would fight over its model, animation and position)\n",
             id, claimed_by[id], owner_tag);
         *element_id_field = -1;
@@ -461,9 +459,7 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
     }
 
     if( WB_ENV_SCENERY_DEBUG() )
-        fprintf(
-            stderr,
-            "scenery: map=%d,%d instances=%d no_config=%d no_resolve=%d oob=%d added=%d "
+        TORIRS_LOG("scenery: map=%d,%d instances=%d no_config=%d no_resolve=%d oob=%d added=%d "
             "scene_elements=%d\n",
             mapx,
             mapz,
@@ -476,14 +472,14 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
 
     if( WB_ENV_SCENERY_DEBUG() )
     {
-        fprintf(stderr, "  levels:");
+        TORIRS_LOG("  levels:");
         for( int lv = 0; lv < 4; lv++ )
-            fprintf(stderr, " %d:%d", lv, dbg_level[lv]);
-        fprintf(stderr, "\n  shapes:");
+            TORIRS_LOG(" %d:%d", lv, dbg_level[lv]);
+        TORIRS_LOG("\n  shapes:");
         for( int sh = 0; sh < 32; sh++ )
             if( dbg_shape[sh] )
-                fprintf(stderr, " %d:%d", sh, dbg_shape[sh]);
-        fprintf(stderr, "\n");
+                TORIRS_LOG(" %d:%d", sh, dbg_shape[sh]);
+        TORIRS_LOG("\n");
     }
 }
 
@@ -660,7 +656,7 @@ WorldBuilder_RebuildInstance(
     ToriDraw_SceneBatchEnd(builder->scene);
 
     if( wb_timing_on() )
-        fprintf(stderr, "rebuild_timing: instance total=%.1fms\n", wb_now_ms() - t0);
+        TORIRS_LOG("rebuild_timing: instance total=%.1fms\n", wb_now_ms() - t0);
 }
 
 /* Minimap sibling to the geometry push-down in RebuildCenterzoneEnd: for each
@@ -931,9 +927,7 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
     if( wb_timing_on() )
     {
         double te1 = wb_now_ms();
-        fprintf(
-            stderr,
-            "rebuild_timing: end=%.1fms collision=%.1f contour=%.1f minimap_bridge=%.1f "
+        TORIRS_LOG("rebuild_timing: end=%.1fms collision=%.1f contour=%.1f minimap_bridge=%.1f "
             "terrain_mesh=%.1f lighting=%.1f occluders_free=%.1f | scenery models: n=%d "
             "srcs=%d convert=%.1fms transform=%.1fms\n",
             te1 - te0,
@@ -952,9 +946,7 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
     if( wb_census_on() )
     {
         size_t const kept = g_wb_census_proto_b + g_wb_census_unique_b;
-        fprintf(
-            stderr,
-            "scenery_census: total=%.2fMB kept=%.2fMB dup=%.2fMB | protos n=%d %.2fMB "
+        TORIRS_LOG("scenery_census: total=%.2fMB kept=%.2fMB dup=%.2fMB | protos n=%d %.2fMB "
             "| dup_placements n=%d %.2fMB | unique n=%d %.2fMB\n",
             (double)(kept + g_wb_census_dup_b) / (1024.0 * 1024.0),
             (double)kept / (1024.0 * 1024.0),
@@ -1021,9 +1013,7 @@ WorldBuilder_RebuildCenterzone(
     if( wb_timing_on() )
     {
         double t_batch = wb_now_ms();
-        fprintf(
-            stderr,
-            "rebuild_timing: total=%.1fms begin=%.1f terrain=%.1f scenery=%.1f end=%.1f "
+        TORIRS_LOG("rebuild_timing: total=%.1fms begin=%.1f terrain=%.1f scenery=%.1f end=%.1f "
             "batch_flush=%.1f\n",
             t_batch - t0,
             t_begin - t0,

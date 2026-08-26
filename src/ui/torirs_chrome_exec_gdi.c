@@ -56,6 +56,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
 
@@ -3028,7 +3029,7 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
         s->tabs_dirty = 0;
         if( s->mirror.intent_overflow )
         {
-            fprintf(stderr, "chrome: gdi intent queue overflowed; input was dropped\n");
+            TORIRS_ERR("chrome: gdi intent queue overflowed; input was dropped\n");
             s->mirror.intent_overflow = 0;
         }
         return;

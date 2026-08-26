@@ -1,4 +1,5 @@
 #include "painters.h"
+#include "log/torirs_log.h"
 
 #include "painters_i.h"
 #include "scene_occluders.h"
@@ -755,8 +756,7 @@ painter_tile_set_bridge(
 {
     if( sx == 34 && sz == 98 )
     {
-        printf(
-            "bridge_tile_sx: %d, bridge_tile_sz: %d, bridge_tile_slevel: %d\n",
+        TORIRS_LOG("bridge_tile_sx: %d, bridge_tile_sz: %d, bridge_tile_slevel: %d\n",
             bridge_tile_sx,
             bridge_tile_sz,
             bridge_tile_slevel);
@@ -1373,7 +1373,7 @@ push_command_entity(
 #if defined(__APPLE__) && !defined(NDEBUG)
     if( count == g_trap_command )
     {
-        printf("TRAP: %d\n", count);
+        TORIRS_LOG("TRAP: %d\n", count);
         __builtin_debugtrap(); // triggers debugger on macOS/Clang
     }
 #endif
@@ -1399,7 +1399,7 @@ push_command_terrain(
 #if defined(__APPLE__) && !defined(NDEBUG)
     if( count == g_trap_command )
     {
-        printf("TRAP: %d\n", count);
+        TORIRS_LOG("TRAP: %d\n", count);
         __builtin_debugtrap(); // triggers debugger on macOS/Clang
     }
 #endif
@@ -1768,8 +1768,7 @@ painter_dump_command_order(
             if( only_sx >= 0 && (el->sx != (uint16_t)only_sx || el->sz != (uint16_t)only_sz) )
                 break;
 
-            printf(
-                "PDUMP cmd=%d tile=(%d,%d,L%d) %s entity=%d elem=%d\n",
+            TORIRS_LOG("PDUMP cmd=%d tile=(%d,%d,L%d) %s entity=%d elem=%d\n",
                 ci,
                 (int)el->sx,
                 (int)el->sz,

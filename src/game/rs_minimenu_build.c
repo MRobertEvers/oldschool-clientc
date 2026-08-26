@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* Row text below is display-only (dispatch runs on the separate action/pick
  * fields) and safely clipped by snprintf if a name/verb is unusually long, so
@@ -398,8 +399,7 @@ add_obj_cell_rows(
         /* The three things that decide an item cell's rows, in one line —
          * which container the wire will name, and whether its verbs are live. */
         if( getenv("TORIRS_MINIMENU_DEBUG") )
-            fprintf(
-                stderr, "objcell: com=%d|%d events=0x%x ops_node=%d onop=%d target=\"%s\"\n",
+            TORIRS_LOG("objcell: com=%d|%d events=0x%x ops_node=%d onop=%d target=\"%s\"\n",
                 (cell->component_id >> 16) & 0xFFFF, cell->component_id & 0xFFFF, ev,
                 (int)cell->ops_node_index, has_on_op, target_verb);
         if( !has_on_op )

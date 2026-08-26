@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Dat1 map chunk loads. Unlike dat2 there is no reference table to consult:
@@ -45,9 +46,7 @@ Task_Dat1MapTerrainLoad_Run(
     rscache_terrain = RSCache_IO_Dat1MapTerrainDecode(io, 0, task->map_x, task->map_z);
     if( !rscache_terrain )
     {
-        fprintf(
-            stderr,
-            "Failed to load dat1 terrain for map (%d,%d)\n",
+        TORIRS_ERR("Failed to load dat1 terrain for map (%d,%d)\n",
             task->map_x,
             task->map_z);
         PT_EXIT(&task->pt);
@@ -79,9 +78,7 @@ Task_Dat1MapSceneryLoad_Run(
     rscache_locs = RSCache_IO_Dat1MapSceneryDecode(io, 0);
     if( !rscache_locs )
     {
-        fprintf(
-            stderr,
-            "Failed to load dat1 scenery for map (%d,%d)\n",
+        TORIRS_ERR("Failed to load dat1 scenery for map (%d,%d)\n",
             task->map_x,
             task->map_z);
         PT_EXIT(&task->pt);

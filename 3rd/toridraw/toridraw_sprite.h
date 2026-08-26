@@ -38,6 +38,14 @@ struct ToriDraw_Pix32
     int stride_y;
 };
 
+/** @see ToriDraw_SpriteAlphaClass. */
+enum
+{
+    TORIDRAW_SPRITE_ALPHA_UNKNOWN = 0,
+    TORIDRAW_SPRITE_ALPHA_MIXED,
+    TORIDRAW_SPRITE_ALPHA_ALL_OPAQUE,
+};
+
 struct ToriDraw_Sprite
 {
     uint32_t* pixels_argb;
@@ -48,7 +56,29 @@ struct ToriDraw_Sprite
     int crop_y;
     int crop_width;
     int crop_height;
+    /* Cached "is every pixel a==255", and the buffer it was computed for.
+     * @see ToriDraw_SpriteAlphaClass. */
+    unsigned char alpha_class;
+    uint32_t const* alpha_class_src;
 };
+
+/**
+ * Is every pixel of this sprite fully opaque? Computed once, then cached.
+ *
+ * The blit already walks runs of a==255 and hands each to memcpy, which is the
+ * right shape for an icon. But it re-derives that structure on EVERY draw, and
+ * the derivation is a scalar load/shift/compare per pixel that runs ahead of a
+ * vectorised copy. For chrome — panels, backgrounds, the gameframe borders,
+ * which are the large sprites and so most of the blitted area — the answer is
+ * always "all of it", and the scan is pure overhead paid fifty times a second
+ * to re-learn a property of a static asset.
+ *
+ * Keyed on the pixel pointer, not just computed once: the outline and shadow
+ * builders hand a sprite a different buffer, and a stale "all opaque" on a
+ * sprite that grew a transparent border would blit its surround as black.
+ */
+unsigned char
+ToriDraw_SpriteAlphaClass(struct ToriDraw_Sprite* sprite);
 
 struct ToriDraw_Sprite*
 ToriDraw_SpriteNewFromPix8(

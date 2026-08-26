@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "rsprot_buffer.h"
+#include "log/torirs_log.h"
 
 /*
  * The byte cursor and its six readers used to live here: a private
@@ -288,9 +289,7 @@ osrs230_parse(
                 &cur, &out->_update_inv_full.obj_ids[i], &out->_update_inv_full.obj_counts[i]);
         if( cur.err )
         {
-            fprintf(
-                stderr,
-                "osrs230: UPDATE_INV_FULL inv=%d capacity=%d overran %d bytes; dropped\n",
+            TORIRS_LOG("osrs230: UPDATE_INV_FULL inv=%d capacity=%d overran %d bytes; dropped\n",
                 out->_update_inv_full.inv_id,
                 capacity,
                 len);
@@ -337,9 +336,7 @@ osrs230_parse(
         }
         if( cur.err || cur.rpos != len )
         {
-            fprintf(
-                stderr,
-                "osrs230: UPDATE_INV_PARTIAL inv=%d did not consume its %d-byte frame "
+            TORIRS_LOG("osrs230: UPDATE_INV_PARTIAL inv=%d did not consume its %d-byte frame "
                 "(stopped at %d after %d slots); dropped\n",
                 out->_update_inv_partial.inv_id,
                 len,

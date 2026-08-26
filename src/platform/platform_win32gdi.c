@@ -68,6 +68,17 @@ struct PlatformSDL2
     int     width;
     int     height;
     int     gdi_frame_valid; /* the DIB contains one complete Soft3D frame    */
+    /* One-shot damage box for the next present; w == 0 means the whole DIB.
+     * @see PlatformSDL2_SetPresentDamage. */
+    int     present_dmg_x;
+    int     present_dmg_y;
+    int     present_dmg_w;
+    int     present_dmg_h;
+    /* Optional finer breakdown of that box. BitBlt bills per pixel far more
+     * than per call, so two blits covering 193,901 px beat one covering the
+     * 240,195 px their bounding box spans. */
+    int     present_dmg_rects[PLATFORM_PRESENT_DAMAGE_RECT_MAX][4];
+    int     present_dmg_rect_count;
     int     timing_active;
 
     int     quit;
@@ -233,6 +244,17 @@ gdi_fill_black(HDC dc, int left, int top, int right, int bottom)
     FillRect(dc, &rect, (HBRUSH)GetStockObject(BLACK_BRUSH));
 }
 
+/* ABLATION SUPPORT (measurement only) -- see the TORIRS_ABL_PRESENT_VP arm in
+ * gdi_paint_latest. Read once; off is one predicted branch. */
+static int
+gdi_abl_present_vp(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_ABL_PRESENT_VP") ? 1 : 0;
+    return armed;
+}
+
 static void
 gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
 {
@@ -258,6 +280,64 @@ gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
     image_right = box.left + box.right;
     image_bottom = box.top + box.bottom;
 
+    /*
+     * Consume the one-shot damage box, whoever is painting. Taking it here
+     * rather than in Present is what makes a WM_PAINT repair safe: a repair
+     * arrives with no damage set and therefore copies everything, and a repair
+     * that lands between a SetPresentDamage and its Present takes the box,
+     * paints that much, and leaves the following Present to do the rest.
+     */
+    {
+        int dmg_x = p->present_dmg_x;
+        int dmg_y = p->present_dmg_y;
+        int dmg_w = p->present_dmg_w;
+        int dmg_h = p->present_dmg_h;
+
+        p->present_dmg_w = 0;
+        p->present_dmg_h = 0;
+
+        /* Only the unscaled path can honour it: under StretchBlt a destination
+         * pixel samples a source area the box does not bound. */
+        if( dmg_w > 0 && dmg_h > 0 && box.right == p->width &&
+            box.bottom == p->height )
+        {
+            int nrects = p->present_dmg_rect_count;
+
+            p->present_dmg_rect_count = 0;
+            if( nrects > 0 )
+            {
+                for( int i = 0; i < nrects; i++ )
+                    BitBlt(
+                        dc,
+                        box.left + p->present_dmg_rects[i][0],
+                        box.top + p->present_dmg_rects[i][1],
+                        p->present_dmg_rects[i][2],
+                        p->present_dmg_rects[i][3],
+                        p->mem_dc,
+                        p->present_dmg_rects[i][0],
+                        p->present_dmg_rects[i][1],
+                        SRCCOPY);
+            }
+            else
+            {
+                BitBlt(
+                    dc,
+                    box.left + dmg_x,
+                    box.top + dmg_y,
+                    dmg_w,
+                    dmg_h,
+                    p->mem_dc,
+                    dmg_x,
+                    dmg_y,
+                    SRCCOPY);
+            }
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PRESENT_BLIT_1TO1, 1);
+            /* The letterbox bars are unchanged for the same reason the chrome
+             * is: nothing drew there. */
+            return;
+        }
+    }
+
     /* Never clear the image rectangle. Clearing the full client and then
      * blitting exposed an observable black frame between the two GDI calls. */
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT_FILL)
@@ -275,7 +355,28 @@ gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
     {
         if( box.right == p->width && box.bottom == p->height )
         {
-            BitBlt(dc, box.left, box.top, p->width, p->height, p->mem_dc, 0, 0, SRCCOPY);
+            int blit_w = p->width;
+            int blit_h = p->height;
+
+            /* ABLATION (TORIRS_ABL_PRESENT_VP=1, measurement only): present
+             * only a world-viewport-sized 512x334 region instead of the whole
+             * 765x503 DIB.
+             *
+             * This bounds what damaged-rect presentation could recover from the
+             * per-frame GDI BitBlt: in an idle in-world steady state the world
+             * viewport is the region that genuinely changes, so a damage system
+             * cannot blit less than this. The origin is deliberately (0,0) --
+             * the kernel cost tracks the area copied, not where it lands, and
+             * using the true viewport origin would only make the wrong image
+             * look more plausible. */
+            if( gdi_abl_present_vp() )
+            {
+                if( blit_w > 512 )
+                    blit_w = 512;
+                if( blit_h > 334 )
+                    blit_h = 334;
+            }
+            BitBlt(dc, box.left, box.top, blit_w, blit_h, p->mem_dc, 0, 0, SRCCOPY);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PRESENT_BLIT_1TO1, 1);
         }
         else
@@ -866,6 +967,66 @@ PlatformSDL2_PollCommands(struct PlatformSDL2* p, struct ToriRS_CmdBus* bus)
         CmdBus_PushWindowResize(bus, p->pending_resize_w, p->pending_resize_h);
 
     p->poll_bus = NULL;
+}
+
+void
+PlatformSDL2_SetPresentDamage(
+    struct PlatformSDL2* p,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    assert(p);
+
+    if( w <= 0 || h <= 0 || x < 0 || y < 0 || x + w > p->width ||
+        y + h > p->height )
+    {
+        /* Out of range is treated as "present everything" rather than
+         * asserted: a caller's damage box is a claim about what it drew, and
+         * the safe response to a claim this code cannot honour is to copy more
+         * than asked, never less. */
+        p->present_dmg_w = 0;
+        p->present_dmg_h = 0;
+        p->present_dmg_rect_count = 0;
+        return;
+    }
+    p->present_dmg_x = x;
+    p->present_dmg_y = y;
+    p->present_dmg_w = w;
+    p->present_dmg_h = h;
+    p->present_dmg_rect_count = 0;
+}
+
+void
+PlatformSDL2_SetPresentDamageRects(
+    struct PlatformSDL2* p,
+    int const (*rects)[4],
+    int count)
+{
+    assert(p);
+    assert(rects);
+    assert(count > 0);
+
+    /* Only refines a box that is already set; the box is what bounds the
+     * region the renderer promised to have written. */
+    if( p->present_dmg_w <= 0 || p->present_dmg_h <= 0 )
+        return;
+    if( count > PLATFORM_PRESENT_DAMAGE_RECT_MAX )
+        return;
+    for( int i = 0; i < count; i++ )
+    {
+        if( rects[i][2] <= 0 || rects[i][3] <= 0 ||
+            rects[i][0] < p->present_dmg_x || rects[i][1] < p->present_dmg_y ||
+            rects[i][0] + rects[i][2] > p->present_dmg_x + p->present_dmg_w ||
+            rects[i][1] + rects[i][3] > p->present_dmg_y + p->present_dmg_h )
+            return; /* not inside the box -- present the box instead */
+        p->present_dmg_rects[i][0] = rects[i][0];
+        p->present_dmg_rects[i][1] = rects[i][1];
+        p->present_dmg_rects[i][2] = rects[i][2];
+        p->present_dmg_rects[i][3] = rects[i][3];
+    }
+    p->present_dmg_rect_count = count;
 }
 
 void

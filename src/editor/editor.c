@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 int
 Editor_OpenHost(
@@ -34,9 +35,7 @@ Editor_OpenHost(
 
     editor->writable = Editor_HostMapEdWritable(&editor->host);
     if( !editor->writable )
-        fprintf(
-            stderr,
-            "editor: another server holds %s — opening read-only\n",
+        TORIRS_LOG("editor: another server holds %s — opening read-only\n",
             label);
 
     return 1;
@@ -105,9 +104,7 @@ seed_provider(
     }
     if( !Editor_SquareDeriveTerrain(square, editor->doc.profile, terrain) )
     {
-        fprintf(
-            stderr,
-            "editor: cannot derive terrain for %d,%d\n",
+        TORIRS_ERR("editor: cannot derive terrain for %d,%d\n",
             square->map_x,
             square->map_z);
         return 0;
@@ -150,7 +147,7 @@ Editor_LoadSquare(
     square = Editor_DocOpenSquare(&editor->doc, map_x, map_z);
     if( !square )
     {
-        fprintf(stderr, "editor: no room for another square\n");
+        TORIRS_ERR("editor: no room for another square\n");
         return 0;
     }
     if( square->loaded )
@@ -163,16 +160,14 @@ Editor_LoadSquare(
         &editor->host, map_x, map_z, &jm2, &jl2, &dirty_map, &dirty_loc);
     if( status != EDITOR_HOST_OK )
     {
-        fprintf(stderr, "editor: cannot read square %d,%d\n", map_x, map_z);
+        TORIRS_ERR("editor: cannot read square %d,%d\n", map_x, map_z);
         return 0;
     }
 
     result = Editor_Jm2Parse(square, jm2.data, jm2.size);
     if( result.status != EDITOR_PARSE_OK )
     {
-        fprintf(
-            stderr,
-            "editor: m%d_%d.jm2 line %d: parse error %d\n",
+        TORIRS_ERR("editor: m%d_%d.jm2 line %d: parse error %d\n",
             map_x,
             map_z,
             result.line,
@@ -189,9 +184,7 @@ Editor_LoadSquare(
         result = Editor_Jl2Parse(square, jl2.data, jl2.size);
         if( result.status != EDITOR_PARSE_OK )
         {
-            fprintf(
-                stderr,
-                "editor: m%d_%d.jl2 line %d: parse error %d\n",
+            TORIRS_ERR("editor: m%d_%d.jl2 line %d: parse error %d\n",
                 map_x,
                 map_z,
                 result.line,
@@ -214,9 +207,7 @@ Editor_LoadSquare(
     /* Says which squares the world is showing from the content tree rather
      * than from the bake — the one fact that distinguishes an editor boot from
      * a normal one, and the first thing to check when an edit does not appear. */
-    fprintf(
-        stderr,
-        "editor: seeded m%d_%d from text (%d locs)\n",
+    TORIRS_LOG("editor: seeded m%d_%d from text (%d locs)\n",
         map_x,
         map_z,
         square->loc_count);
@@ -285,9 +276,7 @@ mirror_on_cmd(
      * repeated seq is a true fault.
      */
     if( editor->last_cmd_seq != 0 && seq <= editor->last_cmd_seq )
-        fprintf(
-            stderr,
-            "editor: maped command seq went backwards (%u after %u) — this mirror "
+        TORIRS_LOG("editor: maped command seq went backwards (%u after %u) — this mirror "
             "may have diverged; re-open the square to re-sync\n",
             seq,
             editor->last_cmd_seq);

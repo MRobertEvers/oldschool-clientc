@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 void
 UITreeBuilder_Init(
@@ -165,9 +166,7 @@ UITreeBuilder_AddOnLoad(
     e->script_id = script_id;
     if( argc > UITREE_BUILDER_ONLOAD_ARGV_MAX )
     {
-        fprintf(
-            stderr,
-            "UITreeBuilder: onload argc %d truncated to %d (component 0x%x)\n",
+        TORIRS_ERR("UITreeBuilder: onload argc %d truncated to %d (component 0x%x)\n",
             argc,
             UITREE_BUILDER_ONLOAD_ARGV_MAX,
             (unsigned)component_id);
@@ -215,7 +214,7 @@ UITreeBuilder_ResolveSpriteRef(
         char const* end = NULL;
         if( !revconfig_parse_int_expr(bracket + 1, &end, &atlas) || *end != ']' )
         {
-            fprintf(stderr, "uitree_builder: bad atlas index in sprite ref '%s'\n", ref);
+            TORIRS_ERR("uitree_builder: bad atlas index in sprite ref '%s'\n", ref);
             atlas = -1;
         }
     }
