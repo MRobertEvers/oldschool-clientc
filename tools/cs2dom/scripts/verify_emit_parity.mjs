@@ -43,6 +43,7 @@ import { FontStore, SpriteStore } from '../src/assets.js';
 import { createContentAssets } from '../src/content_assets.js';
 import { createDriver, ScriptRegistry } from '../src/cs2_driver.js';
 import { attachLayout } from '../src/layout.js';
+import { createHitTester } from '../src/hit_test.js';
 import { attachTransmitPump } from '../src/transmit_pump.js';
 import { createEmitter } from '../src/emit.js';
 import { compareEmit, normalizeJsCommands } from '../src/emit_parity.js';
@@ -68,6 +69,19 @@ const verbose = args.includes('--verbose');
 /* The C client renders at this size; laying out against anything else moves
  * every proportional box and makes the comparison meaningless. */
 const ROOT = { x: 0, y: 0, width: 765, height: 503 };
+
+/*
+ * Where the pointer is, and it is NOT nowhere.
+ *
+ * A headless SDL client still has a mouse, and it sits at the origin. That is
+ * observable: `cr_ui`'s eight resize handles arm
+ * `cc_setonmouserepeat("cc_settrans(event_com, event_comsubid, 200, -1)")`,
+ * the top-left one covers (-1,-1)..(4,4), and the reference fades it in every
+ * frame. Comparing against a run with no pointer at all left that handle at
+ * its authored trans=255 and drew nothing where the reference draws one
+ * command.
+ */
+const MOUSE = { x: 0, y: 0 };
 
 /* The captured reference is frame 60 of the C client; see `run`. */
 const TICKS = flag('--ticks') ? Number(flag('--ticks')) : null;
@@ -517,6 +531,14 @@ async function run(reference) {
 
     driver.loader = createLoader(tree, driver, closure);
     const layout = attachLayout(host, { root: ROOT });
+    const hits = createHitTester({ tree, layout });
+    let hovered = -1;
+    const dispatchMouse = (componentId, slot) => {
+        if( componentId < 0 ) return;
+        const node = tree.findByComponentId(componentId);
+        const binding = node?.hooks?.[slot];
+        if( binding ) driver.dispatchHook(binding, { reason: 'mouse', componentId });
+    };
     driver.resolveLayout = () => layout.resolve();
     const emitter = createEmitter({ tree, layout });
 
@@ -606,6 +628,22 @@ async function run(reference) {
          */
         clock.advance();
         pump.tick();
+        /*
+         * Then the pointer, after the timers — the order the reference's trace
+         * shows. Enter and leave fire on a change; repeat fires every frame
+         * the pointer is still over the same component.
+         */
+        {
+            const target = hits.hoverTarget(MOUSE.x, MOUSE.y,
+                { hoveredComponentId: hovered });
+            if( target !== hovered )
+            {
+                dispatchMouse(hovered, 'onMouseLeave');
+                hovered = target;
+                dispatchMouse(hovered, 'onMouseOver');
+            }
+            dispatchMouse(hovered, 'onMouseRepeat');
+        }
         /* `if_callonresize` is queued from inside a running script — there is
          * no runner to nest a second one on — so the queue is drained here,
          * which is where the C host drains its own. */
@@ -620,7 +658,7 @@ async function run(reference) {
     }
 
     layout.resolve();
-    emitter.walk({ force: true });
+    emitter.walk({ force: true, hoveredComponentId: hovered });
 
     if( process.env.PARITY_FIND_NODE )
     {
