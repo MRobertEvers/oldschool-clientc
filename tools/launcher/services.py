@@ -71,10 +71,29 @@ class Service:
         }
 
 
+def built_binary(repo_root, candidate):
+    """The built file for a makefile target path, or None if it is not there.
+
+    The makefile names its targets without a suffix and the linker adds one, so
+    `src/build/io_server` is `src/build/io_server.exe` on Windows. Asking for
+    the bare name there is asking for a file that never exists -- which reads
+    as "not built yet" every single time, and had the launcher relink a current
+    io_server before every web run.
+
+    Returns the path as it exists on disk, so a caller can stat it. What goes
+    in argv stays the bare name: CreateProcess appends the suffix itself, and
+    the two Unix lanes have no suffix to append.
+    """
+    path = os.path.join(repo_root, candidate)
+    for full in (path, path + ".exe"):
+        if os.path.isfile(full) and os.access(full, os.X_OK):
+            return full
+    return None
+
+
 def _first_existing(repo_root, candidates):
     for candidate in candidates:
-        path = os.path.join(repo_root, candidate)
-        if os.path.isfile(path) and os.access(path, os.X_OK):
+        if built_binary(repo_root, candidate):
             return candidate
     return candidates[0] if candidates else None
 

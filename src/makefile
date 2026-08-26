@@ -168,9 +168,32 @@ endif
 #              the assert ruling it out is gone, which is why the entity pool
 #              and the intrusive list have asserting *At() accessors alongside
 #              the NULL-returning *Get().
+#
+# LTO IS OFF ON THE WEB LANE, and not as a preference.
+#
+# emcc resolves --js-library dependencies after LTO codegen has run. Two of
+# ours (platform/platform_web_io.js) pull ntohs and htonl, so wasm-ld reaches
+# for libc *late* -- and with -flto it reaches into the LTO sysroot, whose
+# members are bitcode. That is the one thing it cannot accept at that point:
+#
+#   wasm-ld: error: .../lib/wasm32-emscripten/lto/libc.a(ntohs.o):
+#            attempt to add bitcode file after LTO (ntohs)
+#
+# It names neither our code nor the flag that caused it, and it is not
+# recoverable from inside the build: dropping the flag at link alone is not
+# enough, because -flto in CFLAGS is what selects the bitcode sysroot in the
+# first place. So both go, together, for PLATFORM=web only.
+#
+# What that costs is cross-TU inlining on the wasm module. What it buys is a
+# web lane that links -- it did not, before this.
 ifeq ($(OPT),1)
+ifeq ($(PLATFORM),web)
+OPT_RELEASE_CFLAGS  = -DNDEBUG
+OPT_RELEASE_LDFLAGS =
+else
 OPT_RELEASE_CFLAGS  = -DNDEBUG -flto=auto
 OPT_RELEASE_LDFLAGS = -flto=auto
+endif
 else
 OPT_RELEASE_CFLAGS  =
 OPT_RELEASE_LDFLAGS =

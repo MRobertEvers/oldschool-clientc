@@ -336,7 +336,8 @@ osrs239_new(struct ToriRS_Network* net, char const* username, char const* passwo
      * index field (the server is handing back a session, not opening one), so
      * losing it here would leave PLAYER_INFO v5 keyed on -1.
      */
-    h->reconnect = net->reconnect && net->has_prev_seed;
+    h->reconnect = net->reconnect && net->has_prev_seed &&
+                   net->rev->reconnect_kind == NET_RECONNECT_SEED;
     if( h->reconnect )
     {
         memcpy(h->prev_seed, net->prev_seed, sizeof(h->prev_seed));
@@ -344,9 +345,13 @@ osrs239_new(struct ToriRS_Network* net, char const* username, char const* passwo
     }
     else if( net->reconnect )
     {
-        /* Asked to reconnect with no prior session to present. Fall back to a
-         * fresh GAMELOGIN rather than sending an unauthenticable block. */
-        TORIRS_LOG("osrs239 login: no previous seed; reconnecting as a fresh login\n");
+        /* Asked to reconnect with nothing to present: either no prior session,
+         * so no seed to authenticate with, or a table that does not claim the
+         * seed flavour. Fall back to a fresh GAMELOGIN rather than sending a
+         * block the server cannot authenticate. */
+        TORIRS_LOG("osrs239 login: %s; reconnecting as a fresh login\n",
+                net->has_prev_seed ? "revision does not use the seed reconnect"
+                                   : "no previous seed");
     }
     if( net->seed_fn )
         net->seed_fn(net->seed_user, h->seed);

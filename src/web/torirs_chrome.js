@@ -283,9 +283,9 @@
 
       /*
        * The open list: the box the button wears, hung off its bottom edge and
-       * as wide as it is, its rows a little taller than a settings row -- the
-       * geometry in torirs_chrome_metrics.h, so this list and the one the
-       * in-canvas chrome draws are the same list.
+       * at least as wide as it is, its rows a little taller than a settings row
+       * -- the geometry in torirs_chrome_metrics.h, so this list and the one
+       * the in-canvas chrome draws are the same list.
        *
        * Placed against the window root rather than the row, because the rows
        * scroll inside an `overflow-y:auto` body and a list inside that would
@@ -674,6 +674,12 @@
       /* The listeners an open list owns, so shutting it can take them off
        * again: a dismisser left on the document outlives the list it was for. */
       this.dropOff = null;
+      /* The chrome face's advance, measured once per document -- see charW.
+       * Zero means "not measured yet", not "zero wide". */
+      this.charAdvance = 0;
+      /* The widest row the PAGE laid out, in CSS pixels, and the model's own
+       * idea of the same thing. @see fitPanel. */
+      this.wantWidth = 0;
     }
 
     mountFrame(page) {
@@ -1263,6 +1269,169 @@
         const shown = !w.hidden && (w.tab < 0 || w.tab === active);
         w.row.classList.toggle('hidden', !shown);
       }
+      /* Which rows are up decides how wide the window has to be, so the fit
+       * belongs here rather than at each caller: a tab switch changes the
+       * widest row as surely as an add does. */
+      this.fitPanel();
+    }
+
+    /* ---- how wide the window has to be ---------------------------------------
+     *
+     * MEASURED HERE, not taken from the model.
+     *
+     * PANEL_RECT carries the width the chrome laid its rows out at, and that
+     * number is not this window's width, for two independent reasons.
+     *
+     * It is in the MODEL's scale -- ui->scale, which follows the display's
+     * density and is 1 on an ordinary monitor -- while every metric in this
+     * sheet is multiplied by K. A page that took it raw put a 208px label
+     * column inside a 240px window, and the fields either side of it collapsed
+     * to the width of their own arrow: that is the squashed dropdown this
+     * measurement exists to fix.
+     *
+     * And it was measured in the GAME's face, against advances the browser does
+     * not have. Even at matching scales it is a width for a different picture.
+     *
+     * So the page measures its own rows. The model's number is kept as a FLOOR
+     * rather than dropped -- at 2x the two agree, and a floor can only ever ask
+     * for more room than the rows need, never less.
+     */
+
+    /**
+     * The advance of one character in the chrome's face, in CSS pixels.
+     *
+     * One character is enough because the face is MONOSPACE: `font` names three
+     * fixed-pitch families and falls back to the generic one, so a string's
+     * width is its length times this. Measured through a canvas, which is the
+     * only way a page reads a font's metrics, and cached: the face never
+     * changes, and measuring per row would be a text-layout pass per row.
+     *
+     * The fallback is 0.6em, Lucida Console's own ratio. A document with no
+     * canvas -- or a canvas with no 2D context -- then gets a window sized to
+     * within a few percent instead of one sized to nothing.
+     */
+    charW() {
+      if (this.charAdvance > 0) return this.charAdvance;
+      this.charAdvance = 0.6 * 8 * K;
+      try {
+        const cv = this.doc && this.doc.createElement && this.doc.createElement('canvas');
+        const ctx = cv && cv.getContext && cv.getContext('2d');
+        if (ctx && typeof ctx.measureText === 'function') {
+          const probe = '0000000000';
+          let m;
+          ctx.font = `${8 * K}px "Lucida Console",Menlo,Consolas,monospace`;
+          m = ctx.measureText(probe);
+          if (m && m.width > 0) this.charAdvance = m.width / probe.length;
+        }
+      } catch (e) {
+        /* A canvas that throws is a canvas this page has not got. The 0.6em
+         * above already stands, so there is nothing to do but keep it. */
+      }
+      return this.charAdvance;
+    }
+
+    /** `text` set in the chrome's face, in CSS pixels. */
+    textW(text) {
+      return (text ? String(text).length : 0) * this.charW();
+    }
+
+    /**
+     * The natural width of one row, in CSS pixels.
+     *
+     * The shape dbg_widget_width computes for the in-canvas chrome, in the
+     * page's own units: a labelled row is the fixed caption column plus its
+     * field, and a field is sized to the widest string it will EVER hold rather
+     * than the one it holds now -- a dropdown that resized its panel when an
+     * option was chosen would move the row out from under the cursor.
+     */
+    rowWidth(w) {
+      const m = METRICS;
+      /* A field box's own furniture: the pad either side of the text, and the
+       * two rules of the frame around it. */
+      const box = 2 * m.fieldPadX * K + 2 * K;
+      switch (w.kind) {
+        case W.CHECKBOX:
+          return (this.checkStyle ? m.boxSquare : m.box) * K + m.checkGap * K +
+                 this.textW(w.labelText);
+        case W.LISTROW:
+          return this.textW(w.labelText) + m.rowNameGap * K +
+                 (w.rowAction ? (m.rowIcon + m.rowIconGap) * K : 0) +
+                 (w.rowLocked ? 0 : m.toggleW * K);
+        case W.DROPDOWN:
+          /* The arrow sits inside the box with the field's inset beside it --
+           * the room span.dd reserves with its own padding-right. */
+          return m.labelW * K + w.optWidest + box + (m.dropArrow + m.fieldInset) * K;
+        case W.TEXTINPUT:
+          return m.labelW * K + this.textW(w.control && w.control.value) + box;
+        case W.COLORPICK:
+          /* Seven characters, always: the hex is a fixed width, so the column
+           * does not twitch as the value changes under the cursor. */
+          return m.labelW * K + 7 * this.charW() + (m.swatch + m.swatchGap) * K + box;
+        case W.TEXTAREA:
+          /* Wrapped, so there is no width at which it stops wanting one. What
+           * it does want is enough room to be worth wrapping into, which is the
+           * caption column it does not use spent on the box instead. */
+          return m.labelW * K * 2;
+        case W.TABSTRIP:
+        case W.SEPARATOR:
+        case W.FREE:
+          /* The strip is compressed rather than clipped -- see renderTabs --
+           * and the other two have no contents to be wide for. */
+          return 0;
+        default:
+          return m.labelW * K + this.textW(w.labelText) + box;
+      }
+    }
+
+    /**
+     * Size the window to the widest row showing in it.
+     *
+     * Lands on whatever owns the width -- the IFRAME when docked, because the
+     * root fills it and widening the root inside a narrower frame would do
+     * nothing but clip. A popped-out tab is the user's to size and is left
+     * alone, which is the rule PANEL_RECT already kept.
+     */
+    fitPanel() {
+      const m = METRICS;
+      let content = 0;
+
+      if (this.popup || !this.root) return;
+      for (const handle in this.widgets) {
+        if (!Object.prototype.hasOwnProperty.call(this.widgets, handle)) continue;
+        const w = this.widgets[handle];
+        let width;
+        if (w.row.classList.contains('hidden')) continue;
+        width = this.rowWidth(w);
+        if (width > content) content = width;
+      }
+      /* Nothing to fit to. Not 240 -- the window is mounted at a width before
+       * the first command arrives, and a panel that snapped to the minimum in
+       * the gap between opening and its first row would be a visible flinch. */
+      if (content <= 0 && this.wantWidth <= 0) return;
+      if (content > 0) {
+        /* The body's own padding, and the bar a long panel grows: a roster that
+         * scrolls must not have its switches slide under the scrollbar, which
+         * is a control the user can no longer reach. */
+        content += 2 * m.pad * K + m.scrollW * K;
+      }
+      this.setWidth(Math.max(content, this.wantWidth));
+    }
+
+    /** The one place the window's width is written. Clamped: a panel that wants
+     *  1200px still may not have it, and one that wants nothing still needs
+     *  enough to be a window. */
+    setWidth(want) {
+      const width = Math.max(240, Math.min(Math.round(want), 720));
+      if (this.frame) {
+        if (this.frame.style.width === `${width}px`) return;
+        this.frame.style.width = `${width}px`;
+        this.publishDockWidth();
+      } else if (this.root) {
+        if (this.root.style.width === `${width}px`) return;
+        this.root.style.width = `${width}px`;
+      }
+      /* An open list hangs off a button that has just moved. */
+      if (this.dropOpen >= 0) this.placeDropdown();
     }
 
     renderTabs() {
@@ -1396,12 +1565,36 @@
       let height;
       let below;
       let above;
+      let width;
+      let left;
 
       if (!w || !list || !this.root) return;
       root = this.root.getBoundingClientRect();
       here = w.control.getBoundingClientRect();
-      list.style.left = `${here.left - root.left}px`;
-      list.style.width = `${here.width}px`;
+
+      /*
+       * WIDER than the button when the options need it.
+       *
+       * The button shows one value and can be narrow enough for it; the list
+       * shows every option at once, and one clipped to the button turns
+       * "Normal (2 tiles)" into "mal (" -- which is not a choice anybody can
+       * make. So it takes the width of its own widest row, and the button's
+       * only as a floor, exactly as a native <select> menu does.
+       *
+       * Capped at the root, because this window is often an IFRAME: a list
+       * wider than the document it is in is CUT at the edge, and the rows past
+       * the cut are unreachable with nothing on screen to say so. Then pulled
+       * back left by however much it overhangs, so the cap is reached by
+       * sliding rather than by cropping.
+       */
+      width = Math.max(here.width, w.optWidest + 2 * m.dropListPad * K + 2 * K);
+      if (width > root.width && root.width > 0) width = root.width;
+      left = here.left - root.left;
+      if (left + width > root.width && root.width > 0) left = root.width - width;
+      if (left < 0) left = 0;
+
+      list.style.left = `${left}px`;
+      list.style.width = `${width}px`;
       list.style.top = `${here.bottom - root.top}px`;
       /* Measured after the width lands: the height depends on how the rows wrap
        * into it, and reading it before is a height for the wrong box. */
@@ -1502,7 +1695,15 @@
 
       const entry = {
         row, kind: cmd.v, panel: cmd.p, tab: cmd.tab,
-        hidden: false, control: null, options: []
+        hidden: false, control: null, options: [],
+        /* The caption, kept as a string beside the node that shows it: the
+         * window is sized from its rows (see rowWidth) and reading every label
+         * back out of the DOM to do it would be a layout read per row. */
+        labelText: cmd.label || '',
+        /* The widest option a dropdown holds, in CSS pixels, maintained as they
+         * arrive rather than by walking the array: a palette's options run to
+         * thousands and each one of them arrives as its own command. */
+        optWidest: 0
       };
 
       function labelled(control) {
@@ -1687,6 +1888,10 @@
            */
           const locked = (cmd.cw & ROW.LOCKED) !== 0;
           const name = doc.createElement('span');
+          /* Kept on the entry as well as acted on below: what furniture a row
+           * carries is what its natural width is made of. */
+          entry.rowLocked = locked;
+          entry.rowAction = (cmd.cw & ROW.ACTION) !== 0;
           name.className = 'rowname';
           name.textContent = cmd.label || '';
           row.appendChild(name);
@@ -1788,6 +1993,9 @@
            * changes art and box in one repaint. */
           this.checkStyle = cmd.v;
           this.applySkinClass();
+          /* The two arts are a pixel apart, which is a pixel every checkbox
+           * row's natural width moves by. */
+          this.fitPanel();
           break;
 
         case CMD.PANEL_OPEN:
@@ -1820,6 +2028,9 @@
             delete this.widgets[handle];
           }
           if (this.tabPanel === cmd.p) { this.tabPanel = -1; this.renderTabs(); }
+          /* The rows that sized the window have gone with it. */
+          this.wantWidth = 0;
+          this.fitPanel();
           break;
 
         case CMD.PANEL_TITLE:
@@ -1841,23 +2052,16 @@
            * Width is different: it is the one dimension the model sizes to its
            * CONTENT (the widest row it laid out), so ignoring it is what made a
            * panel of long plugin names sit in a 340px column and ellipsise.
-           * Clamped, because a model that wants 1200px still may not have it.
            *
-           * It lands on whatever owns the width. Docked that is the IFRAME --
-           * the root fills it, so widening the root inside a 340px frame would
-           * do nothing but clip. Popped out nothing does: the tab is the user's
-           * to size, and a window that resized itself under them every rebuild
-           * would be a window fighting the drag.
+           * A FLOOR rather than the answer, though -- see the note above
+           * fitPanel. The number is in the model's scale and measured in the
+           * game's face, so the page fits its own rows and takes whichever is
+           * wider.
            */
           panel = this.panels[cmd.p];
           if (panel && cmd.cw > 0 && !this.popup) {
-            const want = Math.max(240, Math.min(cmd.cw + 24, 560));
-            if (this.frame) {
-              this.frame.style.width = `${want}px`;
-              this.publishDockWidth();
-            } else if (this.root) {
-              this.root.style.width = `${want}px`;
-            }
+            this.wantWidth = cmd.cw + 24;
+            this.fitPanel();
           }
           break;
 
@@ -1880,15 +2084,20 @@
             if (this.dropOpen === cmd.w) this.closeDropdown();
             if (w.row.parentNode) w.row.parentNode.removeChild(w.row);
             delete this.widgets[cmd.w];
+            this.fitPanel();
           }
           break;
 
         case CMD.WIDGET_LABEL:
-          if (w && w.labelNode) w.labelNode.textContent = cmd.label;
-          else if (w) {
+          if (!w) break;
+          w.labelText = cmd.label || '';
+          if (w.labelNode) w.labelNode.textContent = cmd.label;
+          else {
             const lbl = w.row.querySelector('span.lbl');
             if (lbl) lbl.textContent = cmd.label;
           }
+          /* A renamed row can be the widest one, or stop being it. */
+          this.fitPanel();
           break;
 
         case CMD.WIDGET_TEXT:
@@ -1909,6 +2118,7 @@
           } else if (w.control) {
             w.control.textContent = cmd.text;
           }
+          this.fitPanel();
           break;
 
         case CMD.WIDGET_CHECKED:
@@ -1960,6 +2170,9 @@
           if (!w) break;
           w.options = [];
           w.optionsWanted = cmd.v;
+          /* The widest is a running maximum over the list that is being thrown
+           * away, so it goes with it. */
+          w.optWidest = 0;
           /* A list being restated is not the list the open one is showing, and
            * a row index into the old one means nothing against the new. */
           if (w.kind === W.DROPDOWN && this.dropOpen === cmd.w) this.closeDropdown();
@@ -1971,6 +2184,9 @@
           if (w.kind === W.TABSTRIP) {
             panel = this.panels[w.panel];
             if (panel) { panel.tabs[cmd.v] = cmd.text; this.renderTabs(); }
+          } else if (w.kind === W.DROPDOWN) {
+            const ow = this.textW(cmd.text);
+            if (ow > w.optWidest) { w.optWidest = ow; this.fitPanel(); }
           }
           /* A DROPDOWN's options are held and nothing else: the rows are built
            * when the list opens, out of exactly this array. */

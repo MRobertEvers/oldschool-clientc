@@ -67,6 +67,65 @@ def signals_ignored():
                 pass
 
 
+IS_WINDOWS = os.name == "nt"
+
+# Windows has none of the POSIX process model this file is written against:
+# no session to reap, no process group to signal, no SIGTERM. What it has is a
+# handle you can ask whether a process is still running, and a tool that walks
+# a process tree. These two functions are that, and they are kept beside their
+# POSIX counterparts rather than in a platform module so the two readings of
+# "is it alive" and "make it stop" stay legible as one pair.
+_STILL_ACTIVE = 259
+_PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+_ERROR_ACCESS_DENIED = 5
+
+
+def _win_pid_alive(pid):
+    """Liveness by handle, because os.kill(pid, 0) is not a probe here.
+
+    On Windows os.kill maps to TerminateProcess, and signal 0 is not a
+    no-op sentinel -- it is an exit code, and the call fails with WinError 87
+    before it can even mean anything. Asking the kernel for a handle is the
+    real question, and refusing to open one for lack of rights still answers
+    it: the process is there.
+    """
+    import ctypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    handle = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        # Alive but not ours reads the same as EPERM does on POSIX: a process
+        # somebody else owns is not the one we started.
+        return ctypes.get_last_error() == _ERROR_ACCESS_DENIED
+    try:
+        code = ctypes.c_ulong()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return False
+        return code.value == _STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def _win_stop_tree(pid, force):
+    """taskkill /T, which is this platform's spelling of killpg.
+
+    The tree, not the pid, for the reason stop_pid gives: a server that spawned
+    a child and is signalled alone leaves that child holding the port. /F is
+    the second pass -- without it taskkill asks a console process to close,
+    which these do honour, and asking first is what makes the grace period
+    mean something.
+    """
+    argv = ["taskkill", "/T", "/PID", str(pid)]
+    if force:
+        argv.append("/F")
+    try:
+        subprocess.run(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                       check=False)
+        return True
+    except OSError:
+        return False
+
+
 def pid_alive(pid):
     """Is this pid a live process we may signal?
 
@@ -82,6 +141,8 @@ def pid_alive(pid):
     """
     if pid <= 0:
         return False
+    if IS_WINDOWS:
+        return _win_pid_alive(pid)
     try:
         if os.waitpid(pid, os.WNOHANG)[0] == pid:
             return False
@@ -212,7 +273,13 @@ def start_service(repo_root, profile_name, service, env=None, settle=1.5):
                 stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL,
                 env=process_env,
-                start_new_session=True,
+                # A group of its own on both platforms, so stop_pid can take
+                # the service and its children together. start_new_session is
+                # POSIX-only and silently ignored on Windows, where the
+                # equivalent is a creation flag -- and without it taskkill /T
+                # has no group to walk and Ctrl-C in the foreground would
+                # reach these children as well as the launcher.
+                **_spawn_group_kwargs(),
             )
 
         with open(pidfile_path(repo_root, profile_name, service.name), "w",
@@ -238,6 +305,12 @@ def start_service(repo_root, profile_name, service, env=None, settle=1.5):
     return proc.pid, ""
 
 
+def _spawn_group_kwargs():
+    if IS_WINDOWS:
+        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+    return {"start_new_session": True}
+
+
 def log_tail(repo_root, profile_name, service_name, lines=12):
     """The last few log lines, for reporting a failure where it happened."""
     path = logfile_path(repo_root, profile_name, service_name)
@@ -259,13 +332,17 @@ def stop_pid(pid, grace=4.0):
     """
     if not pid or not pid_alive(pid):
         return False
-    try:
-        os.killpg(os.getpgid(pid), signal.SIGTERM)
-    except OSError:
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except OSError:
+    if IS_WINDOWS:
+        if not _win_stop_tree(pid, force=False):
             return False
+    else:
+        try:
+            os.killpg(os.getpgid(pid), signal.SIGTERM)
+        except OSError:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                return False
 
     deadline = time.time() + grace
     while time.time() < deadline:
@@ -273,13 +350,16 @@ def stop_pid(pid, grace=4.0):
             return True
         time.sleep(0.1)
 
-    try:
-        os.killpg(os.getpgid(pid), signal.SIGKILL)
-    except OSError:
+    if IS_WINDOWS:
+        _win_stop_tree(pid, force=True)
+    else:
         try:
-            os.kill(pid, signal.SIGKILL)
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
         except OSError:
-            pass
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
     time.sleep(0.2)
     return not pid_alive(pid)
 

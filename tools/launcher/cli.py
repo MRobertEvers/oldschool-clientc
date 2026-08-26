@@ -417,7 +417,9 @@ def _ensure_services_built(plan):
         if not service.build_target:
             continue
         binary = service.binary_candidates[0] if service.binary_candidates else None
-        if binary and os.path.isfile(os.path.join(REPO_ROOT, binary)):
+        # services_mod.built_binary, not os.path.isfile: the candidate is a
+        # makefile target path and the linker adds the platform's suffix.
+        if binary and services_mod.built_binary(REPO_ROOT, binary):
             continue
         say("building %s (%s)" % (service.name, service.build_target))
         if _run_make(service.build_target, []) != 0:

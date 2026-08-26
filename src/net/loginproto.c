@@ -173,8 +173,7 @@ login_opcode(struct LoginProto* loginproto)
     if( loginproto->rev->reconnect_kind != NET_RECONNECT_CREDS )
     {
         TORIRS_LOG(
-            "loginproto: %s has no reconnect handshake; re-establishing as a fresh login
-",
+            "loginproto: %s has no reconnect handshake; re-establishing as a fresh login\n",
             loginproto->rev->name);
         return LOGINPROTO_OP_GAMELOGIN;
     }

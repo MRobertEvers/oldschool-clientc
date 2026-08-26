@@ -49,6 +49,10 @@ static struct GameProtoRevTable k_rev_lc254 = {
     .packetin_code = rev_packetin_code,
     .packetin_wire = rev_packetin_wire,
     .packetout_code = rev_packetout_code,
+
+    /* LostCity re-establishes a session with opcode 18 and an otherwise
+     * identical block; the answer is a bare 15 (Client-TS Client.ts). */
+    .reconnect_kind = NET_RECONNECT_CREDS,
 };
 
 struct GameProtoRevTable const*

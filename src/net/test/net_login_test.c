@@ -51,17 +51,38 @@ build_server_hello(uint8_t* buf, uint64_t server_seed)
         buf[9 + i] = (uint8_t)(server_seed >> (56 - i * 8));
 }
 
+/*
+ * The login block the machine put on the wire, captured out of the flush.
+ *
+ * Its first byte is the whole of what separates a reconnect from a fresh
+ * login on this wire, so a test that only watches the state machine reach
+ * SUCCESS cannot see the difference at all -- both do.
+ */
+struct LoginBlockCapture
+{
+    uint8_t data[512];
+    int len;
+};
+
 static int
-run_login(int fragment_bytes, int response_byte, struct LoginProto** out_lp)
+run_login_rev(
+    int fragment_bytes,
+    int response_byte,
+    struct GameProtoRevTable const* rev,
+    int reconnect,
+    struct LoginBlockCapture* capture,
+    struct LoginProto** out_lp)
 {
     struct rsa rsa;
     struct Isaac* rin = isaac_new(NULL, 0);
     struct Isaac* rout = isaac_new(NULL, 0);
     TEST_CHECK(rsa_init(&rsa, TEST_RSA_E, TEST_RSA_N) == 0);
 
-    struct LoginProto* lp =
-        loginproto_new(rin, rout, &rsa, GameProtoRev_LC245_2(), "testuser", "testpass");
+    struct LoginProto* lp = loginproto_new(rin, rout, &rsa, rev, "testuser", "testpass");
     loginproto_set_seed_fn(lp, fixed_seed, NULL);
+    loginproto_set_reconnect(lp, reconnect);
+    if( capture )
+        capture->len = 0;
 
     uint8_t hello[17];
     build_server_hello(hello, 0xDEADBEEFCAFEF00DULL);
@@ -75,10 +96,20 @@ run_login(int fragment_bytes, int response_byte, struct LoginProto** out_lp)
     {
         state = loginproto_poll(lp);
 
-        /* Flush outbound. */
+        /* Flush outbound. The credentials block is the flush that leaves the
+         * machine waiting on the response byte; the earlier one is the 2-byte
+         * connect. */
         int avail = (int)ringbuf_used(lp->out);
         if( avail > 0 )
-            loginproto_send(lp, outbuf, sizeof(outbuf));
+        {
+            int sent = loginproto_send(lp, outbuf, sizeof(outbuf));
+            if( capture && lp->state == LOGINPROTO_LOGIN_RESPONSE && sent > 0 &&
+                sent <= (int)sizeof(capture->data) )
+            {
+                memcpy(capture->data, outbuf, (size_t)sent);
+                capture->len = sent;
+            }
+        }
 
         if( state == LOGINPROTO_SUCCESS )
         {
@@ -128,6 +159,13 @@ run_login(int fragment_bytes, int response_byte, struct LoginProto** out_lp)
     return 0;
 }
 
+static int
+run_login(int fragment_bytes, int response_byte, struct LoginProto** out_lp)
+{
+    return run_login_rev(
+        fragment_bytes, response_byte, GameProtoRev_LC245_2(), /* reconnect */ 0, NULL, out_lp);
+}
+
 static void
 test_login_success(void)
 {
@@ -151,6 +189,59 @@ test_login_fragmented(void)
     assert(lp && lp->state == LOGINPROTO_SUCCESS);
     loginproto_free(lp);
     printf("ok - login success, 1-byte-fragmented delivery (response 15)\n");
+}
+
+/*
+ * The reconnect opcode, and the fact that it is the ONLY thing that changes.
+ *
+ * LostCity's client writes `reconnect ? 18 : 16` and then an identical block
+ * either way (Client-TS Client.ts login()), so byte 0 differing and bytes 1..n
+ * matching is the whole compatibility claim -- a reconnect that also perturbed
+ * the length byte or the CRCs would be read out of position by a server that
+ * decodes both with one decoder.
+ */
+static void
+test_reconnect_opcode_creds(void)
+{
+    struct LoginProto* lp = NULL;
+    struct LoginBlockCapture fresh;
+    struct LoginBlockCapture again;
+
+    TEST_CHECK(run_login_rev(17, 2, GameProtoRev_LC245_2(), /* reconnect */ 0, &fresh, &lp));
+    loginproto_free(lp);
+    lp = NULL;
+    TEST_CHECK(run_login_rev(17, 15, GameProtoRev_LC245_2(), /* reconnect */ 1, &again, &lp));
+    loginproto_free(lp);
+
+    TEST_CHECK(fresh.len > 1 && fresh.len == again.len);
+    TEST_CHECK(fresh.data[0] == 16);
+    TEST_CHECK(again.data[0] == 18);
+    TEST_CHECK(memcmp(fresh.data + 1, again.data + 1, (size_t)fresh.len - 1) == 0);
+    printf("ok - reconnect sends GAMERECONNECT with an otherwise identical block\n");
+}
+
+/*
+ * A revision that does not declare a reconnect gets a fresh GAMELOGIN.
+ *
+ * Not a cosmetic fallback: a server that has never heard of opcode 18 drops
+ * the connection on the first byte, which surfaces as "the reconnect never
+ * connected" rather than as a rejected login -- so the table, not the caller,
+ * is what may put an 18 on the wire.
+ */
+static void
+test_reconnect_opcode_none(void)
+{
+    struct GameProtoRevTable rev = *GameProtoRev_LC245_2();
+    struct LoginProto* lp = NULL;
+    struct LoginBlockCapture block;
+
+    rev.reconnect_kind = NET_RECONNECT_NONE;
+    TEST_CHECK(run_login_rev(17, 2, &rev, /* reconnect */ 1, &block, &lp));
+    loginproto_free(lp);
+
+    TEST_CHECK(block.len > 1);
+    TEST_CHECK(block.data[0] == 16);
+    printf("ok - a revision without a reconnect re-establishes as a fresh login\n");
 }
 
 static void
@@ -377,6 +468,8 @@ main(void)
     test_login_success();
     test_login_fragmented();
     test_login_rejected();
+    test_reconnect_opcode_creds();
+    test_reconnect_opcode_none();
     test_packet_framing();
     test_packet_varu16();
     test_osrs239_partial_empty_slot();
