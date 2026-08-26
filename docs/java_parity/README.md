@@ -14,9 +14,7 @@
 > | Java | 31.0 | 50.3 | **16.23** |
 >
 > **Per frame we already use less CPU than the Java client.** We burn more total
-> because we render 61 % more frames. Java's pacer targets ~50 fps and cannot
-> reach it: with all three `Pix3D` rasterisers ablated it jumps to **49.5 fps at
-> 4.8 % CPU**, so it is raster-bound down to 31.
+> because we render more frames.
 >
 > Consequences for everything below:
 > * Compare **CPU ms per frame**, never CPU %.
@@ -24,6 +22,54 @@
 >   is missing its frame cap absorbs the saving as frame time rather than CPU:
 >   removing Java's gouraud raster drops its pixels 41 % and its CPU by *zero*.
 > * `docs/java_parity/PLAN.md` §9–12 were written before this was known.
+
+> ## ⚠ CORRECTION (2026-08-26): it is not raster-bound down to 31 — it is sleeping
+>
+> This block previously concluded "**it is raster-bound down to 31**", on the
+> strength of the ablated arm reaching 49.5 fps. That inference was wrong, and
+> the 50.3 % CPU figure above should have given it away: a client that is
+> raster-**bound** does not leave half a core idle.
+>
+> `GameShell.run()` was instrumented directly (it is the only place that knows
+> how long an iteration took, and `mainredraw()` runs exactly once per
+> iteration, so iterations/sec *is* the frame rate). In-world the frame splits:
+>
+> | bucket | ms/frame |
+> |---|---|
+> | **`Thread.sleep`, requested 1.00 ms** | **17.9** |
+> | raster | 19–22 |
+> | blit + `consumerSetPixels` | 3.2 |
+> | logic | 0.6 |
+> | **period** | **43.4 (23.0 fps)** |
+>
+> The pacer asks for its `mindel` floor of 1 ms on **100 % of in-world frames**
+> (it only computes a real `del` in the branch where it is *meeting* budget;
+> otherwise `del` falls through to its initialiser and stays there) — and the OS
+> charges ~16 ms for it. The sleep histogram piles up at 15.6 ms and 31.25 ms:
+> one and two ticks of this box's 15.625 ms clock.
+>
+> Three arms, same jar, same scene, one variable:
+>
+> | arm | sleep requested | sleep actual | fps | CPU |
+> |---|---|---|---|---|
+> | control | 1.00 ms | **17.9 ms** | 23.0 | 37.3 % |
+> | `timeBeginPeriod(1)` held by another process | 1.00 ms | **1.9 ms** | ~32 | — |
+> | sleep forced to 0 | 1.00 ms | 0.01 ms | **43.4** | 89.9 % |
+>
+> The middle arm changed **nothing in the client**. So: raster-bound to ~44,
+> then sleep-bound the rest of the way.
+>
+> **Why ours does not have this.** `PlatformWin32Timing_SleepUntilMs` requests
+> `timeBeginPeriod(1)` itself, waits toward an *absolute deadline* in a loop, and
+> hands the final millisecond to `Sleep(0)`. Java calls `Thread.sleep(1)` and
+> takes what it gets. Same OS call underneath.
+>
+> **Measurement hazard:** the timer period is global and refcounted, so *running
+> our client speeds the Java client up*. Never benchmark the two concurrently.
+>
+> **And the per-frame number moves in our favour.** Java's 16.23 CPU ms/frame was
+> averaged over a frame that is 41 % sleep. Running flat out it spends **20.7 CPU
+> ms/frame** against our 14.96.
 
 
 

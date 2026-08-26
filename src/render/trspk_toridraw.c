@@ -386,6 +386,9 @@ trspk_toridraw_face_count(struct ToriDraw_ModelHandle model_handle)
     switch( model_handle.kind )
     {
     case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
         return model_handle.u.model.model ? model_handle.u.model.model->face_count : 0;
     case TORIDRAWMK_GROUND:
         return model_handle.u.model.ground ? model_handle.u.model.ground->face_count : 0;
@@ -407,6 +410,9 @@ trspk_toridraw_bake_face_handle(
     switch( model_handle.kind )
     {
     case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
         assert(model_handle.u.model.model);
         trspk_toridraw_bake_face(
             model_handle.u.model.model,
