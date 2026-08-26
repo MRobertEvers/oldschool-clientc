@@ -39,6 +39,17 @@ struct ToriRS_Soft3D
     int pick_mouse_x; /* canvas coords */
     int pick_mouse_y;
     struct ToriRS_PickHits pick_hits;
+
+    /* Clear scope for this frame, or w == 0 for the whole buffer.
+     *
+     * NOT a damage rect: every draw still runs unclipped and every pixel
+     * outside this rect is still written by whatever chrome owns it. This says
+     * only WHERE THE CLEAR IS NEEDED -- the world pass leaves gaps its own
+     * geometry does not cover, and the chrome does not. */
+    int clear_x;
+    int clear_y;
+    int clear_w;
+    int clear_h;
 };
 
 void
@@ -56,6 +67,25 @@ ToriRS_Soft3D_SetPick(
     struct ToriRS_Soft3D* soft,
     int mouse_x,
     int mouse_y);
+
+/**
+ * Restrict this frame's CLEAR to one rectangle. Drawing is unaffected: every
+ * command still runs with its own clip, so this is not a damage rect and
+ * cannot leave a stale pixel behind a draw that did happen.
+ *
+ * What it does assume is that everything outside the rectangle is fully
+ * repainted by the commands that own it. That is the same assumption the Java
+ * client makes -- it cls()es only `areaGame` per frame (Client.java:5122) and
+ * never clears the chrome PixMaps at all, because each region overwrites
+ * itself completely.
+ */
+void
+ToriRS_Soft3D_SetClearRect(
+    struct ToriRS_Soft3D* soft,
+    int x,
+    int y,
+    int w,
+    int h);
 
 /** Clear framebuffer to Soft3D background, then drain frame commands. */
 void

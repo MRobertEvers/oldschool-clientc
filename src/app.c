@@ -29020,6 +29020,16 @@ App_PickFinish(
     app_world_pick_finish(app, hits);
 }
 
+/* See the SetClearRect call in App_Render. Read once. */
+static int
+app_clear_viewport_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_CLEAR_VIEWPORT") ? 1 : 0;
+    return armed;
+}
+
 void
 App_Render(
     struct App* app,
@@ -29059,6 +29069,71 @@ App_Render(
     }
 
     ToriRS_Soft3D_Init(&soft, app->scene, pixels, width, height);
+
+    /*
+     * TORIRS_CLEAR_VIEWPORT=1: clear only the world viewport, not the canvas.
+     *
+     * The clear exists for the world pass, which leaves gaps its own geometry
+     * does not cover -- sky, and the holes between terrain and scenery. The
+     * chrome does not need it: every chrome pixel is written by the command
+     * that owns it, every frame, whether or not it was cleared first. Clearing
+     * it too is 384,795 px where 170,048 would do.
+     *
+     * This is what the Java client does. Client.java:5122 cls()es with
+     * `areaGame` bound and nothing else per frame; the chrome PixMaps are
+     * cls()ed once at construction and never again.
+     *
+     * Not a damage rect: every draw still runs, unclipped, in the same order.
+     * The only thing that changes is which pixels are pre-filled with the
+     * background colour.
+     */
+    /* Both descs, not just the world one. Until the minimap desc publishes,
+     * narrowing to the viewport leaves the minimap box holding whatever the
+     * DIB had -- 15,893 pixels of it, measured, for the handful of boot frames
+     * before the emit walk first reaches it. Clearing the whole canvas until
+     * then costs nothing that matters and removes the transient. */
+    if( app_clear_viewport_armed() && app->world_view_valid &&
+        app->minimap_view_valid && app->world_emit_desc.w > 0 &&
+        app->world_emit_desc.h > 0 )
+    {
+        int x0 = app->world_emit_desc.x;
+        int y0 = app->world_emit_desc.y;
+        int x1 = x0 + app->world_emit_desc.w;
+        int y1 = y0 + app->world_emit_desc.h;
+
+        /*
+         * The minimap needs the clear too, and it was not obvious: 80 pixels
+         * of it are written by no draw command at all. Found by rendering the
+         * same frame into a fresh zeroed buffer both ways and diffing -- a
+         * pixel that differs is one nothing repaints. Inside the viewport
+         * 3,886 pixels depend on the clear (the sky and the gaps between
+         * terrain and scenery, which is what the clear is for); outside it,
+         * exactly those 80, all inside the minimap box at x 606..684,
+         * y 22..130.
+         *
+         * Their bounding box rather than two rects: two rects cover 192,094 px
+         * against the box's 240,195, but a separate 146-pixel-wide clear was
+         * already measured losing 1.18 ms/frame in the reverted damage work --
+         * short rows do not amortise the non-temporal store. One rect at 62% of
+         * the canvas beats two at 50% here.
+         */
+        if( app->minimap_view_valid && app->minimap_emit_desc.w > 0 &&
+            app->minimap_emit_desc.h > 0 )
+        {
+            int mx1 = app->minimap_emit_desc.x + app->minimap_emit_desc.w;
+            int my1 = app->minimap_emit_desc.y + app->minimap_emit_desc.h;
+
+            if( app->minimap_emit_desc.x < x0 )
+                x0 = app->minimap_emit_desc.x;
+            if( app->minimap_emit_desc.y < y0 )
+                y0 = app->minimap_emit_desc.y;
+            if( mx1 > x1 )
+                x1 = mx1;
+            if( my1 > y1 )
+                y1 = my1;
+        }
+        ToriRS_Soft3D_SetClearRect(&soft, x0, y0, x1 - x0, y1 - y0);
+    }
 
     /* World hittest rides the render: each visible model is tested against
      * the mouse point right after it projects (the only window where the

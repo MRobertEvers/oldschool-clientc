@@ -1140,6 +1140,103 @@ ToriRS_Soft3D_Init(
     soft->stride = width;
 }
 
+/*
+ * TORIRS_CLEAR_VERIFY=1: prove the clear rect is big enough, in one frame.
+ *
+ * Fill the whole canvas with a colour the palette cannot produce, clear only
+ * the rect, run the frame, then scan. A pixel still holding the poison is one
+ * that no draw wrote AND the clear did not cover -- exactly the failure the
+ * narrowed clear risks, and the only one it can cause.
+ *
+ * One frame, one process: comparing two BMPs from two runs cannot do this,
+ * because the minimap dots and the NPCs move between them and every moving
+ * pixel reads as a difference. That test was tried first and reported 80
+ * "unsafe" pixels centred on the minimap dots.
+ */
+#define CLEAR_VERIFY_POISON 0xFF17E5A3u
+
+static int
+soft3d_clear_verify_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_CLEAR_VERIFY") ? 1 : 0;
+    return armed;
+}
+
+static void
+soft3d_clear_verify_scan(struct ToriRS_Soft3D const* soft)
+{
+    static long long frames;
+    static long long worst;
+    static int bx0 = 1 << 30, by0 = 1 << 30, bx1 = -1, by1 = -1;
+    uint32_t const* p = (uint32_t const*)soft->pixels;
+    long long live = 0;
+
+    frames++;
+    for( int y = 0; y < soft->height; y++ )
+    {
+        uint32_t const* row = p + (size_t)y * soft->stride;
+        for( int x = 0; x < soft->width; x++ )
+        {
+            if( row[x] != CLEAR_VERIFY_POISON )
+                continue;
+            live++;
+            if( x < bx0 )
+                bx0 = x;
+            if( x > bx1 )
+                bx1 = x;
+            if( y < by0 )
+                by0 = y;
+            if( y > by1 )
+                by1 = y;
+        }
+    }
+    if( live > worst )
+        worst = live;
+    /* Periodic, not atexit: the measurement harness ends an arm with
+     * taskkill /F.
+     *
+     * `last` as well as `worst`, because the two answer different questions
+     * and the first version printed only the second: `worst` and the bbox are
+     * cumulative over every frame including the boot ones, where the emit list
+     * has not yet published a minimap desc and the clear rect is therefore
+     * only the viewport. A steady-state hole shows up in `last`; a boot
+     * transient does not. */
+    if( frames % 200 == 0 )
+    {
+        if( bx1 < 0 )
+            TORIRS_REPORT(
+                "[clear-verify] %lld frames, last %lld uncovered, worst %lld, bbox none\n",
+                frames, live, worst);
+        else
+            TORIRS_REPORT(
+                "[clear-verify] %lld frames, last %lld uncovered, worst %lld, "
+                "bbox x %d..%d y %d..%d\n",
+                frames, live, worst, bx0, bx1, by0, by1);
+    }
+}
+
+void
+ToriRS_Soft3D_SetClearRect(
+    struct ToriRS_Soft3D* soft,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    assert(soft);
+    assert(w > 0);
+    assert(h > 0);
+
+    soft->clear_x = x < 0 ? 0 : x;
+    soft->clear_y = y < 0 ? 0 : y;
+    soft->clear_w = (x + w > soft->width ? soft->width : x + w) - soft->clear_x;
+    soft->clear_h = (y + h > soft->height ? soft->height : y + h) - soft->clear_y;
+    if( soft->clear_w <= 0 || soft->clear_h <= 0 )
+        soft->clear_w = 0; /* degenerate -- fall back to the whole buffer */
+}
+
 void
 ToriRS_Soft3D_SetPick(
     struct ToriRS_Soft3D* soft,
@@ -1733,7 +1830,27 @@ ToriRS_Soft3D_RenderFrame(
 #else
         uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
 #endif
-        if( ToriDraw_FrameAbArm() )
+        if( soft->clear_w > 0 && soft3d_clear_verify_armed() )
+        {
+            /* Poison everything the narrowed clear will NOT cover, so the scan
+             * after the frame can find whatever nothing repainted. */
+            for( size_t i = 0; i < n; i++ )
+                p[i] = CLEAR_VERIFY_POISON;
+        }
+        if( soft->clear_w > 0 )
+        {
+            /* Row at a time over the clear rect. Non-temporal, like the whole
+             * buffer path: a row is write-only and never read back, so plain
+             * stores would pay read-for-ownership on every line they touch --
+             * measured at 0.75 ms/frame worse when this was tried the other
+             * way round. */
+            for( int y = soft->clear_y; y < soft->clear_y + soft->clear_h; y++ )
+                TORIDRAW_FB_CLEAR32(
+                    p + (size_t)y * soft->stride + soft->clear_x,
+                    (size_t)soft->clear_w,
+                    bg);
+        }
+        else if( ToriDraw_FrameAbArm() )
         {
             TORIDRAW_FB_CLEAR32(p, n, bg);
         }
@@ -1796,6 +1913,8 @@ ToriRS_Soft3D_RenderFrame(
             soft3d_execute_measured(soft, &cmd);
     }
     ToriRS_FrameEnd(frame);
+    if( soft->clear_w > 0 && soft3d_clear_verify_armed() )
+        soft3d_clear_verify_scan(soft);
 #if defined(TORIDRAW_FB_POISON) && TORIDRAW_FB_POISON
     fb_poison_scan(soft);
 #endif
