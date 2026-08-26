@@ -1376,9 +1376,12 @@ World_SceneryRegister(
     if( element_id < 0 || loc_id < 0 )
         return -1;
 
+    /* The slot IS the element index, so the lookup below is an identity
+     * check and not a search. Same arrangement the terrain pool already
+     * uses (World_TerrainRegister, via a tile index). */
     struct World_EntityPool* pool = &world->entities.scenery;
-    int idx = World_EntityPoolAlloc(pool);
-    if( idx < 0 )
+    int idx = ToriDraw_ElementIndexOfRaw(element_id);
+    if( idx < 0 || !World_EntityPoolEnsureSlot(pool, idx) )
         return -1;
 
     struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, idx);
@@ -1418,15 +1421,22 @@ World_SceneryGetByElementId(
     struct World* world,
     int element_id)
 {
-    assert(world);
     struct World_EntityPool* pool = &world->entities.scenery;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
-    {
-        struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, i);
-        if( scenery && scenery->element_id == element_id )
-            return scenery;
-    }
-    return NULL;
+    struct WorldEntity_Scenery* scenery;
+    int const idx = ToriDraw_ElementIndexOfRaw(element_id);
+
+    assert(world);
+
+    /* The scenery pool is indexed by the element index, so this is an
+     * identity check: is that slot live, and is the entity in it still
+     * the one this id names? A freed-and-reused slot fails the second
+     * test, which is why both are here rather than just the first. */
+    if( idx < 0 || idx >= pool->count || !World_EntityPoolIsActive(pool, idx) )
+        return NULL;
+    scenery = World_EntityPoolGet(pool, idx);
+    if( !scenery || scenery->element_id != element_id )
+        return NULL;
+    return scenery;
 }
 
 struct WorldEntity_NPC*
