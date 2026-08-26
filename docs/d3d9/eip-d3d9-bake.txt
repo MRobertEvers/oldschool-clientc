@@ -1,0 +1,37 @@
+dump          : C:/Users/mrobe/.claude/jobs/6a36cf9a/tmp/out_eipbake/E1-d3d9.eip.txt
+binary        : dist/win32/torirs.exe
+module base   : 0x00400000   (nm range 0x00401000-0x0083f9b0)
+samples       : 8157 over 27.1 s (302 Hz), 5859 in image (71.8%), 0 suspend failures
+
+=== inside the executable ===
+  samples   share   at  18.4ms  symbol
+------------------------------------------------------------------------------
+     1084   13.29%    2.441 ms  _ToriDraw_ComputeProjectedFaceOrderSmall.lto_priv.0
+      478    5.86%    1.076 ms  _painter_paint_bucket.constprop.0.isra.0
+      419    5.14%    0.944 ms  _d3d9_ui_draw_sprite.lto_priv.0
+      284    3.48%    0.640 ms  _app_plugin_highlights_rebuild_pools
+      255    3.13%    0.574 ms  _ToriDraw_AnimApplyTransform
+      255    3.13%    0.574 ms  _emit_walk_node
+      254    3.11%    0.572 ms  _toridraw_project_vertices_noclip_portable.isra.0
+      250    3.06%    0.563 ms  _d3d9_draw_retained
+      230    2.82%    0.518 ms  _ToriRS_FrameNextCommand
+      222    2.72%    0.500 ms  _ToriDraw_Project.lto_priv.0
+      208    2.55%    0.468 ms  _scene_occluders_ground_tile_hidden
+      172    2.11%    0.387 ms  _trspk_toridraw_bake_face.constprop.0
+      164    2.01%    0.369 ms  _d3d9_draw_model.lto_priv.0
+      156    1.91%    0.351 ms  _World_CycleRegisterPainterDynamics.lto_priv.0
+      155    1.90%    0.349 ms  _ToriDraw_CalculateCylinderAabb8point.isra.0
+       75    0.92%    0.169 ms  _d3d9_bake_pose_vertices
+
+=== outside the executable (64 KB pages, DLL granularity) ===
+  samples   share   at  18.4ms  symbol
+------------------------------------------------------------------------------
+     1432   17.56%    3.225 ms  ntdll.dll
+      694    8.51%    1.563 ms  msvcrt.dll
+      144    1.77%    0.324 ms  d3d9.dll
+       16    0.20%    0.036 ms  kernel32.dll
+        5    0.06%    0.011 ms  GDI32.dll
+        2    0.02%    0.005 ms  mswsock.dll
+        2    0.02%    0.005 ms  USER32.dll
+        2    0.02%    0.005 ms  d3d8thk.dll
+        1    0.01%    0.002 ms  WS2_32.dll
