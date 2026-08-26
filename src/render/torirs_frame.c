@@ -46,6 +46,48 @@ frame_take_queued(
  * stream.  Static models and all of their animation poses must be baked before
  * DRAW; texture loads must also reach a retained VBO after asynchronous cache
  * loading.  Soft3D safely ignores the resource-only commands. */
+/*
+ * Hand an emitter a command it is about to fill.
+ *
+ * `kind` is the only field a reader may consult before the emitter has
+ * chosen an arm, and a reader never looks at an arm other than the one
+ * `kind` names.  So wiping all 128 bytes bought nothing but the appearance
+ * that an unassigned field reads as 0 -- and at 1,621 world DRAW_MODELs a
+ * frame that appearance cost ~207 KB of stores per frame.
+ *
+ * What each emitter does after calling this is deliberately not uniform,
+ * because the emitters are not:
+ *
+ *   - try_emit_world_draw_model assigns every field of the model arm, so it
+ *     needs nothing further.  It is the one that runs 1,621 times a frame,
+ *     and it is the whole reason this exists.
+ *   - the single-arm helpers (fill_rect_cmd, sprite_cmd, sprite_tiled_cmd)
+ *     zero THEIR ARM, 40 or 100 bytes rather than the union's 120.  The
+ *     sprite pair genuinely leaves seventeen optional fields implicit and
+ *     spelling them out per call site would be worse than saying so once.
+ *   - the two switch emitters (frame_translate_scene_event,
+ *     translate_ui_cmd) still zero the union: they pick an arm per case and
+ *     the cases disagree about which fields they set, so dropping it would
+ *     need a per-case audit worth more than they cost.
+ *
+ * The implicit zero is the hazard, so a checked build POISONS the union
+ * here: an emitter that starts leaning on one renders visibly wrong under
+ * OPT=0 instead of correctly here and wrongly in the shipping lane.  A
+ * deliberate behaviour difference between builds -- it exists to make an
+ * untested assumption fail where it is cheap to notice.  It caught two
+ * while this was written: the model arm's pick_terrain/pick_only on the
+ * non-terrain branch, and anim_index.
+ */
+static void
+frame_command_reset(struct ToriRS_RenderCommand* out)
+{
+    assert(out);
+    out->kind = TORIRSRC_NONE;
+#ifndef NDEBUG
+    memset(&out->u, 0xCD, sizeof(out->u));
+#endif
+}
+
 static bool
 frame_translate_scene_event(
     struct ToriDraw_Scene* scene,
@@ -55,7 +97,13 @@ frame_translate_scene_event(
     struct ToriDraw_SceneElement* element;
     assert(ev);
     assert(out);
-    memset(out, 0, sizeof(*out));
+    /* This emitter chooses its arm in a switch below, and the cases do not
+     * agree on which of that arm's fields they set -- so unlike the single-
+     * arm emitters it cannot drop the zero without an audit of every case.
+     * It is off the per-model path, which is where the 128 bytes were being
+     * paid 1,621 times a frame. */
+    frame_command_reset(out);
+    memset(&out->u, 0, sizeof(out->u));
     switch( ev->kind )
     {
     case TORIDRAW_EVENT_MODEL_LOAD:
@@ -194,7 +242,7 @@ frame_emit_begin_2d(
 {
     assert(frame);
     assert(out);
-    memset(out, 0, sizeof(*out));
+    frame_command_reset(out);
     out->kind = TORIRSRC_BEGIN_2D;
     frame->pass = TORIRS_FRAME_PASS_2D;
 }
@@ -206,7 +254,7 @@ frame_emit_end_2d(
 {
     assert(frame);
     assert(out);
-    memset(out, 0, sizeof(*out));
+    frame_command_reset(out);
     out->kind = TORIRSRC_END_2D;
     frame->pass = TORIRS_FRAME_PASS_NONE;
 }
@@ -218,7 +266,7 @@ frame_emit_end_3d(
 {
     assert(frame);
     assert(out);
-    memset(out, 0, sizeof(*out));
+    frame_command_reset(out);
     out->kind = TORIRSRC_END_3D;
     frame->pass = TORIRS_FRAME_PASS_NONE;
     frame->in_world = false;
@@ -269,7 +317,11 @@ fill_rect_cmd(
     int argb,
     struct UITreeEmitClip const* clip)
 {
-    memset(out, 0, sizeof(*out));
+    /* One arm, and a reader only ever looks at the arm `kind` names,
+     * so this is exactly as safe as wiping the union and costs 40
+     * bytes instead of 120. */
+    frame_command_reset(out);
+    memset(&out->u.fill_rect, 0, sizeof(out->u.fill_rect));
     out->kind = TORIRSRC_FILL_RECT;
     out->u.fill_rect.x = x;
     out->u.fill_rect.y = y;
@@ -374,7 +426,13 @@ sprite_cmd(
     int src_cx = w / 2;
     int src_cy = h / 2;
 
-    memset(out, 0, sizeof(*out));
+    /* Unlike the emitters around it this one leaves the sprite arm's
+     * optional half -- rotation, mask, flip, outline, tiling -- to the
+     * zero rather than spelling out seventeen fields per call site.  So it
+     * zeroes, but only the arm it is about to write (100 bytes), not the
+     * whole command; and it is chrome, not the per-model path. */
+    frame_command_reset(out);
+    memset(&out->u.sprite, 0, sizeof(out->u.sprite));
     out->kind = TORIRSRC_SPRITE;
     out->u.sprite.scene_id = scene_id;
     out->u.sprite.atlas_index = atlas;
@@ -412,7 +470,13 @@ sprite_tiled_cmd(
     int h,
     struct UITreeEmitClip const* clip)
 {
-    memset(out, 0, sizeof(*out));
+    /* Unlike the emitters around it this one leaves the sprite arm's
+     * optional half -- rotation, mask, flip, outline, tiling -- to the
+     * zero rather than spelling out seventeen fields per call site.  So it
+     * zeroes, but only the arm it is about to write (100 bytes), not the
+     * whole command; and it is chrome, not the per-model path. */
+    frame_command_reset(out);
+    memset(&out->u.sprite, 0, sizeof(out->u.sprite));
     out->kind = TORIRSRC_SPRITE;
     out->u.sprite.scene_id = scene_id;
     out->u.sprite.atlas_index = 0;
@@ -931,7 +995,13 @@ translate_ui_cmd(
     assert(out);
     assert(frame->scene);
 
-    memset(out, 0, sizeof(*out));
+    /* This emitter chooses its arm in a switch below, and the cases do not
+     * agree on which of that arm's fields they set -- so unlike the single-
+     * arm emitters it cannot drop the zero without an audit of every case.
+     * It is off the per-model path, which is where the 128 bytes were being
+     * paid 1,621 times a frame. */
+    frame_command_reset(out);
+    memset(&out->u, 0, sizeof(out->u));
 
     switch( desc->kind )
     {
@@ -2078,7 +2148,7 @@ try_emit_world_draw_model(
             }
         }
 
-        memset(out, 0, sizeof(*out));
+        frame_command_reset(out);
         out->kind = TORIRSRC_DRAW_MODEL;
         out->u.model.model = el->model;
         out->u.model.position = rel;
@@ -2087,6 +2157,11 @@ try_emit_world_draw_model(
         out->u.model.animation = el->animation;
         out->u.model.anim_frame = el->anim_frame;
         out->u.model.dynamic = el->dynamic;
+        /* Primary pose track.  Assigned rather than left to a zeroed
+         * command: this is the one field on the 1,621-per-frame path
+         * that used to arrive as 0 by accident rather than on
+         * purpose. */
+        out->u.model.anim_index = 0;
         out->u.model.pickable = true;
         out->u.model.pick_aabb = el->pick_aabb;
         if( cmd->_bf_kind == PNTR_CMD_TERRAIN ||
@@ -2100,6 +2175,11 @@ try_emit_world_draw_model(
         }
         else
         {
+            /* Both were reached as zero from the blanket command wipe.
+             * They are the model arm's last two implicit fields, and
+             * this is the branch every non-terrain model takes. */
+            out->u.model.pick_terrain = false;
+            out->u.model.pick_only = false;
             out->u.model.pick_tile_x = -1;
             out->u.model.pick_tile_z = -1;
             out->u.model.pick_tile_level = -1;
@@ -2258,7 +2338,7 @@ again:
     {
         if( !frame->world_begun )
         {
-            memset(out, 0, sizeof(*out));
+            frame_command_reset(out);
             out->kind = TORIRSRC_BEGIN_3D;
             out->u.begin_3d = frame->pending_begin_3d;
             frame->pass = TORIRS_FRAME_PASS_3D;
