@@ -16,6 +16,11 @@ struct Net_BitBuffer
     int size_bytes;
     int byte_position;
     int bit_offset; /* 0..7 within the current byte */
+    /** Set when a read was refused because it would have run past the end of
+     *  the packet. Every read after that returns 0, so a decode driven off the
+     *  end produces empty values rather than whatever follows the buffer. The
+     *  decoded result is not trustworthy once this is set. */
+    int overrun;
 };
 
 void
