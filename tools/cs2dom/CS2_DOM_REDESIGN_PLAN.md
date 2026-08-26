@@ -208,14 +208,15 @@ target teaches people to ignore a red build.
 
 Where it stands (commands emitted; `prefix` is how many agree from the top):
 
-| interface | C | this runtime | prefix | note |
+| interface | C | this runtime | identical from the top | differences |
 |---|---|---|---|---|
-| 218 `magic_spellbook` | 79 | **79** | **69** | the last 10 are one dynamically built tooltip |
-| 600 `vm_kudos_info` | 158 | **158** | 14 | the border matches; the scrollbar's thumb is sized from a different scroll extent |
-| 162 `chatbox` | 32 | **32** | 1 | the tab strip sits 2px left of the reference's |
-| 12 `bankmain` | 66 | 64 | 1 | |
+| 162 `chatbox` | 32 | **32** | **32** | **0 — exact** |
+| 600 `vm_kudos_info` | 158 | **158** | **158** | **0 — exact** |
+| 218 `magic_spellbook` | 79 | **79** | 69 | 34, all in one dynamically built tooltip |
+| 12 `bankmain` | 66 | 63 | 15 | 251; its tab strip is not built |
 
-Three of the four now emit exactly the right number of draw commands.
+Two of the four reproduce the C client's draw list command for command, field
+for field. Three emit exactly the right number of commands.
 
 Below the emit list, glyph antialiasing and blit compositing belong to toridraw
 and the browser, and this port does not claim them byte for byte.
@@ -238,6 +239,15 @@ silent — no throw, no log, a plausible wrong picture:
 | `if_input_setcursorwidth` took the component as a weight | caught by the arity gate, not by anything failing |
 | the driver refused a script that re-parked on the same enum | a loop walking an enum key by key is progress, not a spin |
 | `if_close(componentId)`, `array_new(size,type)`, `if_getcomponentparam(param,com)`, `highlight_*(id)` | all transposed or short against their call sites |
+| the harness ran frame 1 against the reference's frame 60 | no mount transmit pass, no timer ticks, no on-demand interface mounts — every hook the reference had run since read as a difference |
+| `cc_create` had no replace-in-slot | a rebuild script GREW its container: the kudos list went 43 stripes to 86 the first time its transmit hook fired |
+| an UNKNOWN child-key ceiling was tightened by an insert | the lookup then answered "no such child" above the ceiling without walking, so any remove-then-add could report a live child as missing |
+| `paraheight` answered pixels | it is a wrap LINE COUNT, and the scripts supply their own per-line step; the kudos list's scroll extent came out 19,320 against ~2,040 |
+| `<br>` was stripped as markup before measuring | it is a line break; every two-line kudos row measured as one |
+| the `.`-prefixed commands moved BOTH cursors | they are exclusive; a stripe drawn behind a text row measured itself instead of the row |
+| `_geometry` existed twice, and the surviving copy answered ABSOLUTE x and y | the reference answers them relative to the parent, which is what `cc_setposition` takes |
+| proc arguments were bound in SOURCE order | the VM pops each bank independently, so every argument after the first string landed one slot out |
+| an array handle reaches a call as a `pointer` node | classified an int, so a recursive sort passed its handle in the first int slot and `array_set` threw on a number |
 
 The last group is why `test/host_surface_arity_test.js` exists: it compares
 every implemented method's signature against the generated surface, which is
