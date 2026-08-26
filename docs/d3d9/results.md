@@ -195,3 +195,65 @@ box; `test-pick-level`, `test-minimenu-world`, `test-painters-occluders`,
 * **The compass does not render.** Present in the baseline binary and in the
   *software* exit BMP as well as the live D3D9 capture, so it is neither a
   D3D9 bug nor anything these changes caused. Separate issue.
+
+---
+
+## The missing compass: a stale deployed manifest, not a renderer bug
+
+Root cause, confirmed on the box. Nothing in the client is at fault and no
+repo file is wrong.
+
+The compass never reached a renderer at all. `uitree_emit.c`'s
+`UIELEM_BUILTIN_COMPASS` case ends in
+
+```c
+if( out->scene_id <= 0 )
+    out->scene_id = host_static_sprite_scene(host, UITREE_STATIC_SPRITE_COMPASS);
+if( out->scene_id <= 0 )
+    return false;          /* <- this fired, every frame */
+```
+
+so the command was dropped one level *above* the renderer split. That is
+exactly why it was missing in `--soft3d` and `--d3d9` alike — the observation
+that ruled out D3D9 is the observation that identifies the layer.
+
+`host_static_sprite_scene` returned -1 because
+`CacheProvider_SpriteIdByName("compass")` had nothing to resolve:
+`[sprite:compass]` is declared in `revconfig/osrs239/osrs239_dat2_cache.ini`,
+and the box's boot manifest never loaded it.
+
+`build/manifests/osrs239-xp-js5.ini` on the box is a **generated** copy
+(`./launch` writes it from `profiles/osrs239-xp-js5.ini` +
+`manifests/manifest_osrs239.ini`). The deployed copy predates `c84650c87`
+"re-organize revconfig" — the commit that created
+`revconfig/osrs239/osrs239_dat2_cache.ini` and added `revconfig_cache=` to
+eight manifests — so it carries no `revconfig_cache=` line at all. The box had
+been given the *new* `osrs239_dat2_cache.ini` (byte-identical to the repo's)
+but not a regenerated manifest to point at it: a half-deploy.
+
+**Fix applied on the box**, in `build/manifests/osrs239-xp-js5.ini`, beside the
+copy of the revconfig it names:
+
+```ini
+revconfig_cache=osrs239_dat2_cache.ini
+```
+
+**Verified**, instrumented build, same scene, before -> after:
+
+| probe | before | after |
+|---|---|---|
+| compass emit | `scene=-1 mask=2` (dropped) | `scene=1 mask=13 box=805,5 35x35` |
+| soft3d masked rotated blit calls | 0 | 622 |
+| d3d9 rotmask dispatch | minimap only | `entered scene=1 mask=13 box=805,5 35x35`, no drops |
+
+and visually: the compass renders at the top-left of the minimap in a live
+`--d3d9-zbuffer` frame captured off the box.
+
+The repo needs no change — `manifests/manifest_osrs239.ini:66` already carries
+the line. The lesson for the XP lane is that the deployed boot manifest is a
+build artifact, not content: when repo manifests change, it has to be
+regenerated and re-pushed, not just the files it references.
+
+Note this was fixed *after* the Round B numbers above were taken, so those
+runs were measured with the compass still being dropped. It is one 35x35
+masked rotated blit per frame; it does not move the totals.
