@@ -184,6 +184,37 @@ export class BitmapFont {
         return this.advances[code] ?? 0;
     }
 
+    /**
+     * The glyph extents the reference's vertical alignment is computed from.
+     *
+     * NOT lines*lineHeight: the C client (font_get_vertical_metrics, itself
+     * AbstractFont.drawLines) measures how far the tallest glyph rises above
+     * the baseline and the deepest one hangs below it, and centres THAT
+     * block. The two disagree by a pixel on almost every centred label —
+     * pirate_combilock's UNLOCK sat one row low for exactly this reason.
+     */
+    verticalMetrics() {
+        if( this._metrics ) return this._metrics;
+        const fallback = this.lineHeight > 0 ? this.lineHeight : 1;
+        let minOffset = 0;
+        let maxBottom = 0;
+        let any = false;
+        for( const glyph of this.glyphs.values() )
+        {
+            const top = glyph.offsetY | 0;
+            const bottom = top + (glyph.height | 0);
+            if( !any || top < minOffset ) minOffset = top;
+            if( !any || bottom > maxBottom ) maxBottom = bottom;
+            any = true;
+        }
+        if( !any ) return (this._metrics = { maxAscent: fallback, maxDescent: 0 });
+        let maxAscent = fallback - minOffset;
+        let maxDescent = maxBottom - fallback;
+        if( maxAscent <= 0 ) maxAscent = fallback;
+        if( maxDescent < 0 ) maxDescent = 0;
+        return (this._metrics = { maxAscent, maxDescent });
+    }
+
     glyphOf(code) {
         return this.glyphs.get(code) ?? null;
     }
@@ -294,20 +325,39 @@ export class BitmapFont {
         x, y, width, height, colour = null, alpha = 1,
         halign = 0, valign = 0, lineHeight = 0, shadowed = false,
     }) {
-        const step = lineHeight > 0 ? lineHeight : this.lineHeight;
+        const step = lineHeight > 0 ? lineHeight
+            : (this.lineHeight > 0 ? this.lineHeight : 1);
         const lines = this.wrap(text, width);
-        const blockHeight = lines.length * step;
 
-        let cursorY = y;
-        if( valign === 1 ) cursorY += ((height - blockHeight) / 2) | 0;
-        else if( valign === 2 ) cursorY += height - blockHeight;
+        /*
+         * The reference's vertical placement, term for term
+         * (ToriDraw2D_DrawStringBox, itself AbstractFont.drawLines): the
+         * block being aligned spans maxAscent above the first baseline to
+         * maxDescent below the last, each line's draw origin is its baseline
+         * minus the font ascent, and the divisions truncate toward zero as
+         * C's do. lines*lineHeight is a DIFFERENT block, one pixel taller or
+         * shorter than this one on most fonts, and every centred label paid
+         * for the difference.
+         */
+        const { maxAscent, maxDescent } = this.verticalMetrics();
+        const fontAscent = this.lineHeight > 0 ? this.lineHeight : step;
+        const blockHeight = step * (lines.length - 1) + maxAscent + maxDescent;
+        const boxHeight = height > 0 ? height : blockHeight;
+        const boxWidth = width > 0 ? width : 1;
+        let baseY = maxAscent;
+        if( valign === 1 )
+            baseY = maxAscent
+                + (((boxHeight - maxAscent - maxDescent - step * (lines.length - 1)) / 2) | 0);
+        else if( valign === 2 )
+            baseY = boxHeight - maxDescent - step * (lines.length - 1);
 
+        let cursorY = y + baseY - fontAscent;
         for( const line of lines )
         {
             const lineWidth = this.runWidth(line);
             let cursorX = x;
-            if( halign === 1 ) cursorX += ((width - lineWidth) / 2) | 0;
-            else if( halign === 2 ) cursorX += width - lineWidth;
+            if( halign === 1 ) cursorX += (((boxWidth - lineWidth) / 2) | 0);
+            else if( halign === 2 ) cursorX += boxWidth - lineWidth;
 
             /* The shadow is the same glyphs one pixel down and right, in
              * black, drawn FIRST — drawing it after would put it over the

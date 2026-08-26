@@ -242,7 +242,15 @@ function captureExpression(refBase64) {
 
   const appData = app.getImageData(0, 0, W, H).data;
   const refData = ref.getImageData(0, 0, W, H).data;
-  let differing = 0, maxDelta = 0;
+  /*
+   * Two counts. differing is every unequal pixel; beyond is unequal by
+   * more than 2, which excludes the blend-rounding floor (the C client's
+   * integer div255 against the canvas's float compositing lands the same
+   * translucent fill one unit apart). A panel behind one translucent rect
+   * carries 300k delta-1 pixels, and ranking by the raw count buries a
+   * 300-pixel text defect under them.
+   */
+  let differing = 0, beyond = 0, maxDelta = 0;
   let minX = W, minY = H, maxX = -1, maxY = -1;
   const diff = document.createElement('canvas');
   diff.width = W; diff.height = H;
@@ -262,24 +270,34 @@ function captureExpression(refBase64) {
       if( delta > ${tolerance} )
       {
         differing++;
+        if( delta > 2 )
+        {
+          beyond++;
+          if( x < minX ) minX = x;
+          if( x > maxX ) maxX = x;
+          if( y < minY ) minY = y;
+          if( y > maxY ) maxY = y;
+          diffImage.data[i] = 255; diffImage.data[i + 1] = 0; diffImage.data[i + 2] = 0;
+        }
+        else
+        {
+          /* The rounding floor, visible but not shouting. */
+          diffImage.data[i] = 160; diffImage.data[i + 1] = 120; diffImage.data[i + 2] = 0;
+        }
         if( delta > maxDelta ) maxDelta = delta;
-        if( x < minX ) minX = x;
-        if( x > maxX ) maxX = x;
-        if( y < minY ) minY = y;
-        if( y > maxY ) maxY = y;
-        diffImage.data[i] = 255; diffImage.data[i + 1] = 0; diffImage.data[i + 2] = 0;
       }
     }
   diffContext.putImageData(diffImage, 0, 0);
 
   const result = {
-    differing, maxDelta, missingPerPaint,
+    differing, beyond, maxDelta, missingPerPaint,
     ticks: session.stats.ticks, painted: session.stats.painted,
     log: document.getElementById('log').textContent.slice(0, 2000),
   };
+  if( beyond > 0 )
+    result.bbox = { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
   if( differing > 0 )
   {
-    result.bbox = { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
     result.appPng = runtime.canvas.toDataURL('image/png');
     result.refPng = ref.canvas.toDataURL('image/png');
     result.diffPng = diff.toDataURL('image/png');
@@ -325,7 +343,7 @@ const chrome = await launchChrome({
 const results = [];
 try
 {
-    const page = await openPage(chrome);
+    let page = await openPage(chrome);
     let done = 0;
     for( const entry of entries )
     {
@@ -338,9 +356,30 @@ try
         const refBase64 = readFileSync(bmpPath).toString('base64');
         try
         {
-            await navigate(page,
-                `${base}/?open=${encodeURIComponent(entry.name)}&paused=1`);
-            const outcome = await evaluate(page, captureExpression(refBase64));
+            /*
+             * A renderer that DIES mid-capture (the 23MB host-data bundle
+             * per navigation makes a long sequential run heavy) surfaces as
+             * "target navigated or closed". That is the tab's death, not the
+             * interface's failure — take a fresh tab and try the interface
+             * once more before recording anything against it.
+             */
+            let outcome;
+            try
+            {
+                await navigate(page,
+                    `${base}/?open=${encodeURIComponent(entry.name)}&paused=1`);
+                outcome = await evaluate(page, captureExpression(refBase64));
+            }
+            catch( error )
+            {
+                if( !/navigated or closed|[Tt]arget closed|detached/.test(error.message) )
+                    throw error;
+                try { await page.close(); } catch { /* already gone */ }
+                page = await openPage(chrome);
+                await navigate(page,
+                    `${base}/?open=${encodeURIComponent(entry.name)}&paused=1`);
+                outcome = await evaluate(page, captureExpression(refBase64));
+            }
             if( outcome.differing > 0 )
             {
                 for( const [kind, dataUrl] of [
@@ -371,17 +410,20 @@ finally
 
 const matching = results.filter((row) => !row.error && row.differing === 0);
 /*
- * A maxDelta of 1-2 is the BLEND-ROUNDING FLOOR, not a defect to chase: the
+ * Δ≤2 everywhere is the BLEND-ROUNDING FLOOR, not a defect to chase: the
  * C client blends translucent fills with an integer round-to-nearest div255
  * while canvas compositing works in float, and the two round the same pixel
  * apart. It is reported separately so the actionable list is the actionable
  * list — but it is still reported, because a change that turns Δ2 into Δ20
- * must not hide in a bucket nobody reads.
+ * must not hide in a bucket nobody reads. The actionable list is RANKED BY
+ * `beyond`, the pixels past that floor: a panel behind one translucent rect
+ * carries 300k Δ1 pixels, and ranking by the raw count buried a 300-pixel
+ * text defect under them.
  */
-const rounding = results.filter((row) => !row.error && row.differing > 0 && row.maxDelta <= 2)
+const rounding = results.filter((row) => !row.error && row.differing > 0 && !row.beyond)
     .sort((a, b) => b.differing - a.differing);
-const differing = results.filter((row) => !row.error && row.differing > 0 && row.maxDelta > 2)
-    .sort((a, b) => b.differing - a.differing);
+const differing = results.filter((row) => !row.error && row.beyond > 0)
+    .sort((a, b) => b.beyond - a.beyond);
 const failed = results.filter((row) => row.error);
 
 writeFileSync(join(outDir, 'report.json'), `${JSON.stringify({
@@ -401,7 +443,7 @@ console.log(`pixel parity: ${matching.length} matching, `
     + `(frames=${frames} ticks=${ticks} tolerance=${tolerance})`);
 for( const row of differing )
     console.log(`  DIFF ${String(row.interfaceId).padStart(4)} ${row.name}: `
-        + `${row.differing}px (max Δ${row.maxDelta}`
+        + `${row.beyond}px past rounding (${row.differing}px total, max Δ${row.maxDelta}`
         + `${row.missingPerPaint ? `, ${row.missingPerPaint} assets missing` : ''}) `
         + `bbox ${row.bbox.width}x${row.bbox.height}@${row.bbox.x},${row.bbox.y}`);
 for( const row of rounding )
