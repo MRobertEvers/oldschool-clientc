@@ -1690,6 +1690,20 @@ struct App
 
     struct ToriRS_PluginHighlightItem plugin_highlights[APP_PLUGIN_HIGHLIGHTS_MAX];
     int plugin_highlight_count;
+    /* Resolved LOC highlights, kept across frames.
+     *
+     * The loc pass is the expensive one: it walks the whole scenery pool
+     * -- ~23k entities -- testing each against the highlight member lists,
+     * and in an ordinary session that produces nothing at all. Unlike npcs
+     * and players, a loc does not move: its position comes from
+     * grid_position, so the answer only changes when the highlight state
+     * changes or when the set of scenery does. Those are exactly the two
+     * keys below. See app_plugin_highlights_rebuild_pools. */
+    struct ToriRS_PluginHighlightItem plugin_highlight_loc[APP_PLUGIN_HIGHLIGHTS_MAX];
+    int plugin_highlight_loc_count;
+    int plugin_highlight_loc_revision;
+    unsigned int plugin_highlight_loc_epoch;
+    bool plugin_highlight_loc_valid;
     /** Plugin-owned world objects, indexed by the handle the plugin holds. */
     struct AppPluginObject plugin_objects[APP_PLUGIN_OBJECTS_MAX];
     /** Plugin-authored meshes, indexed by the handle the plugin holds. */

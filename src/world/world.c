@@ -1377,6 +1377,12 @@ World_SceneryRegister(
         return -1;
 
     struct WorldEntity_Scenery* scenery = World_EntityPoolAt(pool, idx);
+    /* EnsureSlot only bumps the pool epoch when it ACTIVATES a slot, and
+     * re-registering an already-live element (a loc that morphs, or a
+     * region reload writing over the same index) changes what the entity
+     * IS without changing the live set. Anything caching a pass over this
+     * pool has to see that, so say so here. */
+    pool->epoch++;
     memset(scenery, 0, sizeof(*scenery));
     scenery->element_id = element_id;
     scenery->loc_id = loc_id;

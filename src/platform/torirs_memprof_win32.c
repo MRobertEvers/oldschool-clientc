@@ -441,6 +441,28 @@ memprof_site_cmp(const void* a, const void* b)
 }
 
 /*
+ * The other question this data answers: not what is HELD, but what CHURNS.
+ *
+ * Ranking by live bytes cannot see it. A site that allocates and frees on
+ * every frame holds nothing at any instant, so it sorts to the bottom and
+ * falls off the end of a top-N table -- while still being the reason a
+ * quarter of the frame is spent inside the allocator. Ranking the same
+ * sites by how many times they allocated puts exactly that site first.
+ */
+static int
+memprof_site_cmp_count(const void* a, const void* b)
+{
+    const struct MemProf_Site* sa = *(const struct MemProf_Site* const*)a;
+    const struct MemProf_Site* sb = *(const struct MemProf_Site* const*)b;
+
+    if( sa->total_count < sb->total_count )
+        return 1;
+    if( sa->total_count > sb->total_count )
+        return -1;
+    return 0;
+}
+
+/*
  * Runtime address -> the address the linker gave the same instruction, which is
  * what addr2line wants.
  *
@@ -575,6 +597,34 @@ memprof_dump(const char* suffix, const char* label)
         i,
         (double)reported / (1024.0 * 1024.0),
         (double)g_live_bytes / (1024.0 * 1024.0));
+
+    /* Same sites, ranked by how often they allocated rather than by what
+     * they still hold -- see memprof_site_cmp_count. */
+    qsort(ranked, ranked_count, sizeof(ranked[0]), memprof_site_cmp_count);
+    fprintf(out, "memprof: === allocation COUNT by call site (%s) ===\n", label);
+    {
+        int64_t total_allocs = 0;
+        uint32_t k;
+
+        for( k = 0; k < ranked_count; k++ )
+            total_allocs += ranked[k]->total_count;
+        fprintf(out, "memprof: %lld allocations total\n", (long long)total_allocs);
+        for( k = 0; k < ranked_count && k < (uint32_t)memprof_report_sites(); k++ )
+        {
+            const struct MemProf_Site* site = ranked[k];
+
+            if( site->total_count == 0 )
+                break;
+            fprintf(
+                out,
+                "memprof: #%-2u %10lld allocs  %8lld live  %9.2f MB ever  0x%llx\n",
+                k,
+                (long long)site->total_count,
+                (long long)site->live_count,
+                (double)site->total_bytes / (1024.0 * 1024.0),
+                (unsigned long long)((uintptr_t)site->ra + bias));
+        }
+    }
     fprintf(out, "memprof: === end ===\n");
 
     fflush(out);

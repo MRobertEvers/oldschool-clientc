@@ -25,6 +25,16 @@ struct World_EntityPool
     int head;
     int tail;
     int free_head;
+    /** Bumped whenever the LIVE SET changes -- an entity activated,
+     *  released, or the whole pool reset.
+     *
+     *  A per-frame pass that walks a pool only to test its entities against
+     *  some other list can cache its answer against this and skip the walk
+     *  entirely while the set is unchanged. It deliberately does NOT track
+     *  mutations to an entity's own fields, so a cache keyed on it must
+     *  either be about entities that do not move (scenery) or fold in
+     *  whatever else it depends on. */
+    unsigned int epoch;
 };
 
 void

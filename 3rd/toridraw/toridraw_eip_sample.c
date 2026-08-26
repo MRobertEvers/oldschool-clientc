@@ -16,16 +16,28 @@
  *  that a 16 MB image costs a 4 MB table. */
 #define EIP_BIN_SHIFT 4
 
-/** Samples outside the main image are attributed per 64 KB page. That names
- *  the DLL, which is all that is worth knowing about them here. */
-#define EIP_PAGE_SHIFT 16
-#define EIP_OTHER_MAX 512
+/** Samples outside the main image are binned by address.
+ *
+ * 64 KB (shift 16) names the DLL and no more, which is all that is usually
+ * worth knowing. But when a quarter of the frame is inside ntdll, "it is
+ * inside ntdll" is the beginning of the question rather than the answer --
+ * so the shift is tunable, and at 6 (64-byte bins) the dump carries enough
+ * offset to name the function against the DLL export table.
+ *
+ * The slot table is a linear scan per sample, so a finer shift needs more
+ * slots: one page of ntdll at 64-byte bins is up to 1024 of them. Only the
+ * bins that are actually hit take a slot. */
+#define EIP_PAGE_SHIFT_DEFAULT 16
+#define EIP_OTHER_MAX 4096
 
 struct EipOther
 {
     uint32_t page;
     uint32_t count;
 };
+
+/* Resolved once, before the sampling thread starts. */
+static unsigned int g_eip_other_shift = EIP_PAGE_SHIFT_DEFAULT;
 
 /*
  * Call-stack capture, on top of the flat EIP histogram.
@@ -110,7 +122,7 @@ eip_record(struct EipSampler* s, uintptr_t eip)
         return;
     }
 
-    page = (uint32_t)(eip >> EIP_PAGE_SHIFT);
+    page = (uint32_t)(eip >> g_eip_other_shift);
     for( i = 0; i < s->other_used; i++ )
     {
         if( s->other[i].page == page )
@@ -262,6 +274,21 @@ eip_init(void)
     g_eip.enabled = (v && atoi(v) != 0);
     if( !g_eip.enabled )
         return;
+
+    /* Bin width for samples OUTSIDE the main image, as a shift. The default
+     * names the DLL; a smaller value keeps enough offset to name the
+     * function it landed in. Clamped so a typo cannot turn every sample
+     * into its own slot and overflow the table on the first frame. */
+    v = getenv("TORIDRAW_EIP_OTHER_SHIFT");
+    if( v )
+    {
+        int shift = atoi(v);
+        if( shift < 4 )
+            shift = 4;
+        if( shift > 16 )
+            shift = 16;
+        g_eip_other_shift = (unsigned int)shift;
+    }
 
 #if !defined(_WIN64)
     /* Stacks are opt-in on top of the histogram: they cost 3.7 MB of buffer
@@ -457,6 +484,7 @@ ToriDraw_EipSampleStop(const char* label)
     fprintf(f, "module_base 0x%08lx\n", (unsigned long)g_eip.base);
     fprintf(f, "image_size 0x%08lx\n", (unsigned long)g_eip.image_size);
     fprintf(f, "bin_bytes %d\n", 1 << EIP_BIN_SHIFT);
+    fprintf(f, "other_bin_bytes %lu\n", (unsigned long)(1ul << g_eip_other_shift));
     fprintf(f, "seconds %.3f\n", secs);
     fprintf(f, "samples_total %lu\n", (unsigned long)g_eip.total);
     fprintf(f, "samples_in_image %lu\n", (unsigned long)g_eip.in_image);
@@ -477,7 +505,7 @@ ToriDraw_EipSampleStop(const char* label)
     }
     for( i = 0; i < g_eip.other_used; i++ )
         fprintf(f, "M %08lx %lu\n",
-                (unsigned long)(g_eip.other[i].page << EIP_PAGE_SHIFT),
+                (unsigned long)(g_eip.other[i].page << g_eip_other_shift),
                 (unsigned long)g_eip.other[i].count);
 
     eip_dump_modules(f);
