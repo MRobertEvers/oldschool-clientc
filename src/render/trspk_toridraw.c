@@ -302,7 +302,16 @@ trspk_toridraw_bake_face(
         }
     }
 
-    trspk_toridraw_uv_pnm_face(&out->uv, model, face_index);
+    /* UVs only mean something to a textured face. Every consumer -- both
+     * D3D9 paths and the GL fragment shader -- returns the vertex colour
+     * without sampling when there is no texture, so for an untextured face
+     * the two reciprocals and ~50 multiply-adds below were computed and then
+     * thrown away, and untextured faces are the majority of a scene's faces.
+     * Zeroed rather than left undefined, so the bake stays deterministic. */
+    if( tex_id >= 0 )
+        trspk_toridraw_uv_pnm_face(&out->uv, model, face_index);
+    else
+        memset(&out->uv, 0, sizeof(out->uv));
 
     trspk_toridraw_world_vertex(
         placement,
@@ -369,27 +378,31 @@ trspk_toridraw_bake_face_ground(
         }
     }
 
-    /* Ground has no textured_p/m/n — UV from face vertices. */
-    uv_pnm_compute(
-        &out->uv,
-        (float)ground->vertices_x[face_a],
-        (float)ground->vertices_y[face_a],
-        (float)ground->vertices_z[face_a],
-        (float)ground->vertices_x[face_b],
-        (float)ground->vertices_y[face_b],
-        (float)ground->vertices_z[face_b],
-        (float)ground->vertices_x[face_c],
-        (float)ground->vertices_y[face_c],
-        (float)ground->vertices_z[face_c],
-        (float)ground->vertices_x[face_a],
-        (float)ground->vertices_y[face_a],
-        (float)ground->vertices_z[face_a],
-        (float)ground->vertices_x[face_b],
-        (float)ground->vertices_y[face_b],
-        (float)ground->vertices_z[face_b],
-        (float)ground->vertices_x[face_c],
-        (float)ground->vertices_y[face_c],
-        (float)ground->vertices_z[face_c]);
+    /* Ground has no textured_p/m/n -- UV from face vertices, and only for a
+     * textured face; see the model bake above for why. */
+    if( out->tex_id < 0 )
+        memset(&out->uv, 0, sizeof(out->uv));
+    else
+        uv_pnm_compute(
+            &out->uv,
+            (float)ground->vertices_x[face_a],
+            (float)ground->vertices_y[face_a],
+            (float)ground->vertices_z[face_a],
+            (float)ground->vertices_x[face_b],
+            (float)ground->vertices_y[face_b],
+            (float)ground->vertices_z[face_b],
+            (float)ground->vertices_x[face_c],
+            (float)ground->vertices_y[face_c],
+            (float)ground->vertices_z[face_c],
+            (float)ground->vertices_x[face_a],
+            (float)ground->vertices_y[face_a],
+            (float)ground->vertices_z[face_a],
+            (float)ground->vertices_x[face_b],
+            (float)ground->vertices_y[face_b],
+            (float)ground->vertices_z[face_b],
+            (float)ground->vertices_x[face_c],
+            (float)ground->vertices_y[face_c],
+            (float)ground->vertices_z[face_c]);
 
     trspk_toridraw_world_vertex(
         placement,

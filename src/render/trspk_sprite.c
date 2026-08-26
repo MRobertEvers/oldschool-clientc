@@ -1,6 +1,7 @@
 #include "render/trspk_sprite.h"
 #include <assert.h>
 
+#include "core/trspk_swizzle_simd.h"
 #include "toridraw_math.h"
 #include "toridraw_sprite.h"
 
@@ -13,15 +14,7 @@ trspk_sprite_argb_to_rgba(
     uint32_t* dst,
     size_t count)
 {
-    for( size_t i = 0; i < count; i++ )
-    {
-        uint32_t const pix = src[i];
-        uint8_t const a_hi = (uint8_t)((pix >> 24) & 0xFFu);
-        uint32_t const rgb = pix & 0x00FFFFFFu;
-        uint8_t const a = (a_hi != 0u) ? a_hi : (rgb != 0u ? 0xFFu : 0u);
-        dst[i] = (uint32_t)((pix >> 16) & 0xFFu) | ((uint32_t)((pix >> 8) & 0xFFu) << 8) |
-                 ((uint32_t)(pix & 0xFFu) << 16) | ((uint32_t)a << 24);
-    }
+    trspk_swizzle_argb_to_abgr(src, dst, count);
 }
 
 uint32_t const*
