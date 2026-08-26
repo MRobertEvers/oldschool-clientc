@@ -77,7 +77,7 @@ export class HostKernel {
         config = null, player = null, world = null, db = null, fonts = null,
         client = null, chat = null, worldState = null, worldMap = null,
         loot = null, overlays = null, overlayAdapters = null,
-        randomSeed = 0x2545f491,
+        randomSeed = 1,
         fakeUnimplemented = false, onUnimplemented = null,
     } = {}) {
         this.tree = tree;

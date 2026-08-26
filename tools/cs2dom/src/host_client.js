@@ -516,18 +516,26 @@ export function packCoord(level, x, y) {
 }
 
 /**
- * A deterministic generator.
+ * The C library's `rand()`, and the same one.
  *
- * xorshift32, seeded: a preview that renders differently on every reload
- * cannot be compared against a reference, and the C client's particular
- * sequence is not something any script observes.
+ * `CS2VM2_Op_Random` is `rand() % max` and nothing in the tree calls `srand`,
+ * so the reference runs from the default seed of 1 and its sequence is fixed:
+ * 16807, 282475249, 1622650073, ... — the Lehmer minimal standard,
+ * `seed = seed * 16807 mod 2147483647`. It IS observed: `bees_init` arms its
+ * timer with `calc(random(6) - 3)` for each of two axes, so the beehive's two
+ * swarms sit where the first four draws of that sequence put them, and any
+ * other generator puts them somewhere else.
+ *
+ * Schrage's trick keeps the product inside 32 bits, so this needs no BigInt
+ * and stays exact.
  */
-export function createRandom(seed = 0x2545f491) {
-    let state = seed >>> 0 || 1;
+export function createRandom(seed = 1) {
+    let state = (seed >>> 0) % 2147483647 || 1;
     return (bound) => {
-        state ^= state << 13; state >>>= 0;
-        state ^= state >>> 17;
-        state ^= state << 5; state >>>= 0;
+        const hi = Math.floor(state / 127773);
+        const lo = state % 127773;
+        state = 16807 * lo - 2836 * hi;
+        if( state <= 0 ) state += 2147483647;
         return state % bound;
     };
 }
