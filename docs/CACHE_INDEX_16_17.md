@@ -191,21 +191,73 @@ it would renumber every value above it for no gain.
   Every existing enum value keeps its number.
 - `3rd/rscache/src/dat2disk.c` — the OldSchool map sends
   `RSCACHE_DAT2_TABLE_DEFAULTS` to 17 instead of `ABSENT`.
+- `3rd/rscache/src/datatypes/dat2_defaults.{c,h}` — the record codec: decode,
+  encode, and a round-trip check for both shapes.
+- `3rd/rscache/rscache_unity.c` — the new TU.
+- `3rd/rscache/test/test_dat2_defaults.c` — 50 checks over the real bytes.
 - `3rd/rscache/tools/cachepack/cachepack.h` — `CP_ASSET_DEFAULTS`.
 - `3rd/rscache/tools/cachepack/cp_assets.c` — the register row.
+- `3rd/rscache/tools/cachepack/cp_decode.c` — `cp_codec_defaults`.
 
-The row carries `CP_ASSET_SPLIT` and no codec. Split because its two groups are
-opposite shapes: group 3 is one record and lands as a bare
-`defaults/defaults_3.dflt`, while group 1's 3164 files land as
-`defaults/defaults_1/<id>.dflt` plus a `defaults_1.filepack`. That is the
+The row carries `CP_ASSET_SPLIT` because its two groups are opposite shapes:
+group 3 is one record and lands as a bare file, while group 1's 3164 members
+land as a directory plus a `defaults_1.filepack`. That is the
 worldmap-geography shape exactly.
 
-No codec, deliberately. Group 3's schema is written out above and we could
-render it as text — but knowing a schema is not the same as proving a
-byte-exact round-trip for it, and the only thing a wrong codec buys is a cache
-that repacks to different bytes than it unpacked. The two revisions we hold
-disagree on the format, so a codec should be tested against both before it
-becomes the default. Raw payload until then.
+### The readable form
+
+Group 3 unpacks to `defaults/defaults_3.defaults`:
+
+```ini
+[defaults]
+opcodes=1,2,3,5
+legacy=000139
+sprite=compass:169
+sprite=mapedge:424
+sprite=mapscene:317
+sprite=headicons_pk:439
+sprite=headicons_prayer:440
+sprite=headicons_hint:441
+sprite=mapmarker:422
+sprite=cross:299
+sprite=mapdots:300
+sprite=scrollbar:316
+sprite=mod_icons:423
+ramp=0:000000,ff0000,ffff00,ffffff,ffffff
+ramp=1:000000,00ff00,00ffff,ffffff,ffffff
+ramp=2:000000,0000ff,ff00ff,ffffff,ffffff
+model=57378
+model=57379
+```
+
+`opcodes` is there because the repack has to be byte-exact and the opcode order
+is part of the bytes — as is *which* opcode carried the ids, since 2 and 6 write
+the same eleven. Slot names place the ids, so their order in the file does not
+matter; an unknown slot name is refused rather than dropped.
+
+Group 1's members unpack to `defaults/defaults_1/<id>.colours`:
+
+```ini
+[colours]
+stop=ff0000
+gap=7
+stop=f6a1fd
+```
+
+### Why a codec here needed a round-trip gate
+
+Bigsmart is ambiguous on the way out: an id below 32767 can legally be written
+two bytes or four, and only the source bytes say which. So both codecs decode,
+**re-encode, and compare against the bytes they came from**, and write the raw
+payload instead when that fails. Every record in `cache.osrs239` passes.
+
+That gate is also what makes the RS2 half safe. `rs727`'s idx28 is the same
+table with a different schema, and it opens on opcode 3 — which this record
+*does* have — so the decoder gets 45 bytes in before the disagreement surfaces,
+at a byte holding 142, which is not an opcode here. It declines. A decoder that
+limped on would have written a misread 3,067-byte RS2 record into an
+OldSchool-shaped struct and cachepack would have believed it.
+`test_dat2_defaults.c` pins that decline against the real 47 leading bytes.
 
 Unpack writes `pack/17_defaults.pack`:
 
@@ -221,17 +273,30 @@ Both lines are filler names, because — see above — the cache names neither.
 ```sh
 export PATH=toolchains/mingw64/bin:$PATH
 export CC=gcc
-make -C 3rd/rscache/tools cachepack
 
+# the record codec, against the real bytes of both revisions
+make -C 3rd/rscache build/test_dat2_defaults
+3rd/rscache/build/test_dat2_defaults
+
+# the whole path, cache -> text -> cache
+make -C 3rd/rscache/tools cachepack
 3rd/rscache/tools/cachepack/cachepack.exe unpack \
   --cache cache.osrs239 --rev osrs239 --src /tmp/t --assets=defaults
 3rd/rscache/tools/cachepack/cachepack.exe verify \
   --cache cache.osrs239 --rev osrs239 --src /tmp/t --assets=defaults --tmp /tmp/v
 ```
 
-Current result — both groups reproduce byte-for-byte:
+Current result — both groups go through the codec (`codec` = 2, `declin` = 0)
+and both reproduce byte-for-byte:
 
 ```
+dat2 defaults: 50 checks passed
+
   table                records    exact same-len   differ    codec declin unread
-  defaults                   2        2        0        0        0      0      0
+  defaults                   2        2        0        0        2      0      0
 ```
+
+Note that `cachepack unpack` against `cache.rs727_preeoc` segfaults during the
+*config* pass, long before it reaches any asset. That is pre-existing on that
+lane and not related to this table — `--assets=binary` crashes identically —
+which is why the RS2 decline is pinned by the unit test rather than by a run.

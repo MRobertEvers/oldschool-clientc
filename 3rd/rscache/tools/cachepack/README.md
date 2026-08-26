@@ -148,7 +148,7 @@ spelling and only the reader's knowledge told them apart.
 | `binary` | `binary/binary_0.jpg` | — one payload |
 | `worldmapground` | `worldmap/ground/worldmapground_10016.png` | — one payload |
 | `animaya` | `animayas/animaya_0.animaya` | — one payload |
-| `defaults` | `defaults/defaults_3.dflt` — one record | `defaults_1.filepack` (multi-file only) |
+| `defaults` | `defaults/defaults_3.defaults` — one record as text; `defaults_1/<id>.colours` — one colour stop list per member | `defaults_1.filepack` (multi-file only) |
 
 "one payload" means the archive is stored whole, so there is no member list to
 index and nothing between the bytes on disk and the bytes in the cache. That is the
@@ -157,6 +157,15 @@ default and it applies to sixteen of the twenty-one tables.
 `defaults` is OldSchool idx17 / RS2 idx28: the ids the engine needs before it can
 draw, `compass` among them. Neither the index nor its two groups is named by the
 cache — its reference table has the name bit clear — so both pack lines are filler.
+
+It is the one codec here whose two extensions are two *formats* rather than two
+layers of one: `.defaults` is the group-3 record (sprite ids, colour ramps, model
+ids) and `.colours` is a group-1 member. The archive's shape picks between them,
+not its group number, so a revision that moves them still works. Both decode,
+re-encode and compare before writing — bigsmart lets an id under 32767 be two
+bytes or four, so only the source bytes settle it — and decline to the raw
+payload when that fails, which is how RS2's differently-shaped idx28 stays out.
+
 See `docs/CACHE_INDEX_16_17.md` for the record schema, and for why there is no
 OldSchool index 16 to add alongside it.
 
