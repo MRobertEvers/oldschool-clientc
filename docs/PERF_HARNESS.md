@@ -429,6 +429,94 @@ TORIRS_PKT_SLOW_MS=<n> print `pkt_slow: type=<id> <ms> cycle=<n>` for any server
                        src/net/rev/pktnames.h.
 ```
 
+## Which pacer the frame uses
+
+`--pacer gameshell|deadline`, or `TORIRS_PACER` (the flag wins). An unknown name
+exits rather than falling back, because a knob whose whole purpose is A/B
+measurement must not silently run the other arm. The client logs the choice at
+startup: `pacer: <name> (period N ms, mindel N ms)`.
+
+```
+gameshell   (default) Jagex GameShell.run(), transcribed. A ten-iteration ring
+            estimates the achieved rate; that estimate sets how many logic ticks
+            run per draw; the wait is a DURATION with a floor of `mindel`.
+deadline    Logic ticks from the wall clock, wait to an ABSOLUTE deadline. An
+            early wakeup is retried and a deadline already past costs nothing.
+```
+
+Both hold logic at 50 ticks/s and let the draw rate float; they differ in how
+they measure and in what they wait on. The deadline pacer recovers the time an
+overrun cost and the GameShell pacer cannot, and the GameShell rate estimate
+lags ten frames.
+
+On paper that makes the deadline pacer the better of the two. **On the XP box it
+is not**, which is why gameshell is the default. Measured on the rev-289
+LostCity lane, same binary, `--soft3d`, 25 s in-world windows, two runs each:
+
+| pacer | fps | CPU % of one core | **CPU ms per FRAME** |
+|---|---|---|---|
+| gameshell | 49.88 / 49.01 | 78.6 / 76.3 | **15.75 / 15.56** |
+| deadline | 40.90 / 42.07 | 63.6 / 64.6 | **15.56 / 15.37** |
+
+Cost per frame is the same within ~2 %; what differs is that gameshell holds the
+50 fps cap and the deadline pacer misses it by ~8 fps. The higher CPU % is 20 %
+more frames, not waste — which is exactly the trap the java_parity work fell
+into, so compare the last column and never the middle one.
+
+Why the deadline pacer undershoots its own cap here is not yet explained and is
+worth a look: it waits to `frame_start + 20 ms`, so it should hit 50 whenever the
+frame's work fits, and 15.6 CPU ms of work does fit. Suspect the wait itself —
+`SleepUntilMs` sleeps `remaining - 1` and re-checks, and on a single-core P4
+every one of those returns late.
+
+### Why this client does not throttle to 31 fps the way the Java one does
+
+It is the same pacer, so the question is fair, and the answer is that **we are
+never in the regime where the floor binds.** `TORIRS_PACER_TRACE=1` reports it
+directly — on the XP box, in-world:
+
+```
+[pacer] gameshell fps=48.90 period=20.45 work=11.14 wait=9.30 (req 7.03) ratio=256 atmin=0% budget=20ms
+```
+
+`ratio=256` and `atmin=0%` mean on budget: ~12 ms of work against 20 ms, so
+`del` is recomputed every frame (6–7 ms) and `mindel` never applies. GameShell
+only collapses when `del` falls through to its initialiser, which needs work to
+exceed the budget — and the Java client's does (~22–25 ms/frame) while ours does
+not (~12 ms).
+
+The mechanism is wired correctly and fires when it should. The world-load sample
+from the same run:
+
+```
+[pacer] gameshell fps=25.44 period=39.31 work=30.65 wait=8.67 (req 5.92) ratio=173 atmin=41% budget=20ms
+```
+
+Work 30.65 ms over a 20 ms budget → ratio 173, the floor binding on 41 % of
+frames, 25.4 fps. That is the Java shape, arriving exactly when the budget is
+blown.
+
+Note `wait` 8.2 ms against a `req` of 6.5 ms: **~1.7 ms of overshoot, not ~15.**
+Even when behind, this client waits `work + ~2 ms`, never Java's `work + 16 ms`
+— which is why porting the pacer was never going to port the throttle. The
+throttle never lived in the pacer.
+
+So a trace showing `atmin` near 0 means the cap is being met and the floor is
+irrelevant; `atmin` high with `ratio` well under 256 is the shape worth chasing.
+
+`TORIRS_PACER_MINDEL=<n>` sets GameShell's wait floor in ms (default 1, the
+reference's). **0 is the interesting arm and is our one deliberate divergence
+from the reference**, which hard-codes 1 there and can only raise it: on the XP
+target that floor is what costs the *Java* client 41 % of its frame (a 1 ms
+request charged ~16 ms, because nothing in that process holds the Windows timer
+period down and the wait rounds up to a 15.625 ms tick). We do not inherit the
+16 ms — `PlatformWin32Timing_SleepUntilMs` requests `timeBeginPeriod(1)` itself
+— but the floor is still a floor. See `docs/java_parity/README.md`.
+
+**The timer period is global and refcounted**, so this client running raises the
+resolution for every process on the box, the Java client included. Never
+benchmark the two concurrently.
+
 ## Historical Soft3D baseline (measured 2026-08-03, rev `9175a425`)
 
 Build: `-O0` client + `TORIDRAW_OPT=1` Soft3D, `EMBED_SERVER=1`,

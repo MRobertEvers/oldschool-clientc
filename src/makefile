@@ -484,7 +484,8 @@ endif
 
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
-SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) \
+SRCS = main.c executor_config.c app.c pacer.c \
+	$(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) \
 	platform/platform_memory.c \
 	platform/platform_sdl2_renderer_soft3d.c \
 	$(ASAN_COMPAT_SRC) \
@@ -1310,6 +1311,12 @@ test-cs2-opcode-groups: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_opcode_group_test \
 		cs2vm2/test/opcode_group_test.c cs2vm2/cs2_opcode_meta.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_opcode_group_test
+
+.PHONY: test-pacer
+test-pacer: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/pacer_test$(PLATFORM_EXE_SUFFIX) \
+		test/pacer_test.c pacer.c $(LDFLAGS)
+	./$(OBJ_DIR)/pacer_test$(PLATFORM_EXE_SUFFIX)
 
 .PHONY: test-cs2-host-request-kinds
 test-cs2-host-request-kinds: $(OBJ_DIR)
