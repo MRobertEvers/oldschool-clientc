@@ -439,7 +439,6 @@ scenery_register_sharelight(
     int size_x,
     int size_z)
 {
-    struct World* world = builder->world;
 
     /* Prototype-cacheable locs were lit when their model was built
      * (scenery_load_model) — the End-batch defaultlight pass would only
@@ -632,7 +631,7 @@ scenery_debug_record(
     struct WorldEntity_Scenery* scenery,
     struct ToriRS_MapLoc* map_tile,
     struct ToriRS_Location* config_loc,
-    struct ToriDraw_Model* model,
+    const struct ToriDraw_Model* model,
     int element_id,
     int pool_idx,
     int size_x,
@@ -987,7 +986,13 @@ scenery_load_model(
     int size_z)
 {
     struct World* world = builder->world;
-    struct ToriDraw_Model* model = NULL;
+    /* Two pointers because the two paths differ in ownership, not just in where
+     * the model came from: a cache hit borrows a shared model nothing here may
+     * write, a fresh build owns a writable one. `built` is the writable half;
+     * `model` is what the read-only tail below looks at, and is const so the
+     * borrow cannot be written through by accident. */
+    const struct ToriDraw_Model* model = NULL;
+    struct ToriDraw_Model* built = NULL;
     /* The placement's model AND who owns its geometry. Both stores answer in
      * this type, so the one fact that distinguishes a cache hit from a fresh
      * build cannot be dropped on the way to ToriDraw_SceneElementSetModel. */
@@ -1044,27 +1049,28 @@ scenery_load_model(
     }
     else
     {
-        model = scenery_build_loc_model(builder, config_loc, shape_select, rotation);
-        if( !model )
+        built = scenery_build_loc_model(builder, config_loc, shape_select, rotation);
+        if( !built )
             return -1;
+        model = built;
 
         if( proto_shareable )
         {
-            if( ToriDraw_ModelIsLightable(model) )
+            if( ToriDraw_ModelIsLightable(built) )
             {
                 struct ToriDraw_ModelHandle light_hnd = {
                     .kind = TORIDRAWMK_MODEL,
-                    .u.model.model = model,
+                    .u.model.model = built,
                 };
                 ToriDraw_LightModelScene(light_hnd, config_loc->contrast, config_loc->ambient);
-                ToriDraw_ModelFreeNormals(model);
+                ToriDraw_ModelFreeNormals(built);
             }
             /* Hand the freshly built model to the store and take it straight
              * back as this placement's copy -- the same object, now shared,
              * with this placement as its first holder and a handle that says
              * so. */
             hnd = ToriDraw_SharedModelStorePublish(
-                ToriDraw_SceneSharedModels(builder->scene), proto_key, model);
+                ToriDraw_SceneSharedModels(builder->scene), proto_key, built);
         }
         else if( config_loc->seq_id == -1 )
         {
@@ -1097,13 +1103,13 @@ scenery_load_model(
             hnd = ToriDraw_SharedFacesStoreBorrow(
                 ToriDraw_SceneSharedFaces(builder->scene),
                 scenery_model_key(config_loc->id, shape_select, rotation),
-                model);
+                built);
         }
         else
         {
             /* Nothing shared: animated, or shareable neither whole nor in
              * half. This placement owns every array it just built. */
-            hnd = ToriDraw_ModelHandleOwned(model);
+            hnd = ToriDraw_ModelHandleOwned(built);
         }
     }
 
@@ -2512,7 +2518,6 @@ scenery_add(
     int scene_x,
     int scene_z)
 {
-    struct World* world = builder->world;
     switch( map_loc->shape_select )
     {
     case RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE:

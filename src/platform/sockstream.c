@@ -268,6 +268,7 @@ sockstream_connect(
 int
 sockstream_lasterror(struct SockStream* stream)
 {
+    (void)stream;
     assert(stream);
 #ifdef _WIN32
     int error = WSAGetLastError();

@@ -3294,6 +3294,10 @@ main(
     int const use_d3d9 = arg_state.use_d3d9;
     int const d3d9_zbuffer = arg_state.d3d9_zbuffer;
     int const gl3_zbuffer = arg_state.gl3_zbuffer;
+    /* Only the TORIRS_HAVE_GL3 arm reads this one, and the win64/d3d9 lane is
+     * built without it. Kept out here with its siblings rather than moved under
+     * the #if, so the flag is parsed and rejected identically in every lane. */
+    (void)gl3_zbuffer;
 
     /* Cache identity is required. Prefer the manifest; otherwise resolve --rev
      * through the named-profile registry. Bare --dat1/--dat2 is not enough. */

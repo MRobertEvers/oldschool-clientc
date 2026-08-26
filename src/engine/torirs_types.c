@@ -553,12 +553,12 @@ ToriRS_ModelAssertPnmTextureInvariant(struct ToriRS_Model const* model)
         if( render_type != 0 )
             continue;
 
-        const int p = model->textured_p_coordinate[texture_face];
-        const int m = model->textured_m_coordinate[texture_face];
-        const int n = model->textured_n_coordinate[texture_face];
-        assert(p >= 0 && p < model->vertex_count);
-        assert(m >= 0 && m < model->vertex_count);
-        assert(n >= 0 && n < model->vertex_count);
+        assert(model->textured_p_coordinate[texture_face] >= 0);
+        assert(model->textured_p_coordinate[texture_face] < model->vertex_count);
+        assert(model->textured_m_coordinate[texture_face] >= 0);
+        assert(model->textured_m_coordinate[texture_face] < model->vertex_count);
+        assert(model->textured_n_coordinate[texture_face] >= 0);
+        assert(model->textured_n_coordinate[texture_face] < model->vertex_count);
     }
 }
 

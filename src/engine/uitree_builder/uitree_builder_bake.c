@@ -152,7 +152,16 @@ copy_menu_options(
     memset(dst, 0, sizeof(*dst));
     strncpy(dst->option, op->option, sizeof(dst->option) - 1);
     dst->option_action = op->option_action;
-    for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+    /* The two sides do not agree on a slot count: the manifest op carries
+     * REVCONFIG_MENU_OPTION_SLOTS (5), the runtime widget UITREE_MENU_OPTION_SLOTS
+     * (10). Walk the *source's* count -- running to the destination's read five
+     * entries off the end of op->ops, which GCC reports as
+     * -Waggressive-loop-optimizations and is free to miscompile. The memset above
+     * already leaves the surplus destination slots empty. */
+    _Static_assert(
+        REVCONFIG_MENU_OPTION_SLOTS <= UITREE_MENU_OPTION_SLOTS,
+        "manifest menu ops must fit the runtime widget's slots");
+    for( int i = 0; i < REVCONFIG_MENU_OPTION_SLOTS; i++ )
     {
         strncpy(dst->ops[i], op->ops[i], sizeof(dst->ops[i]) - 1);
         dst->op_actions[i] = op->op_actions[i];

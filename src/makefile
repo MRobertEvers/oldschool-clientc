@@ -145,11 +145,15 @@ endif
 # command line, so the numbers on record describe flags no `make OPT=1` could
 # reproduce. Both belong in the release configuration itself.
 #
-#   -flto      The client is built as a handful of large unity TUs plus a few
+#   -flto=auto The client is built as a handful of large unity TUs plus a few
 #              hundred ordinary ones. Cross-TU inlining is exactly what the
 #              unity files exist to fake, and LTO does it without the
 #              #include-a-.c arrangement. Wants matching flags at link, which
 #              PLATFORM_LDFLAGS already supplies for this lane (-O3 -g0).
+#              `=auto` rather than bare `-flto`: with no job count lto-wrapper
+#              runs all ~66 LTRANS partitions one after another and says so
+#              ("using serial compilation of N LTRANS jobs"), which is both the
+#              slowest way to link this and a warning in every OPT=1 build.
 #
 #   -DNDEBUG   Compiles out assert(). Note this contradicts CLAUDE.md, which
 #              states asserts stay live in every configuration including OPT=1
@@ -161,8 +165,8 @@ endif
 #              vanishes with the macro. What it does cost is the loud abort:
 #              an assert()ed malloc becomes an unchecked one.
 ifeq ($(OPT),1)
-OPT_RELEASE_CFLAGS  = -DNDEBUG -flto
-OPT_RELEASE_LDFLAGS = -flto
+OPT_RELEASE_CFLAGS  = -DNDEBUG -flto=auto
+OPT_RELEASE_LDFLAGS = -flto=auto
 else
 OPT_RELEASE_CFLAGS  =
 OPT_RELEASE_LDFLAGS =
@@ -1677,9 +1681,17 @@ $(OBJ_DIR)/ini.o: $(INI_SRC) | $(OBJ_DIR)
 # Lua 5.5, one object with its own flags (see plugin/lua_unity.c for what is
 # deliberately left out of it). -w because a vendored library's warnings are
 # not ours to fix and would drown the tree's own.
+#
+# -fno-lto for the same reason, and it is not redundant with -w: under OPT=1
+# this object would otherwise carry GCC IR into the link, where lto1 re-runs the
+# analyses with the LINK line's flags and -w no longer applies. That is where
+# Lua's known str_gsub/luaL_addlstring -Wstringop-overflow false positive comes
+# back (lto1 follows the resl == CAP_POSITION branch it cannot correlate). Lua
+# is already a single translation unit and talks to the client only through its
+# C API, so the cross-module inlining given up here is close to nothing.
 LUA_CFLAGS = -std=c99 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) $(OPT_RELEASE_CFLAGS) $(PLATFORM_BASE_CFLAGS) -I$(LUA_DIR)
 $(OBJ_DIR)/lua_unity.o: $(SRC_DIR)/plugin/lua_unity.c | $(OBJ_DIR)
-	$(CC) $(LUA_CFLAGS) -w -c $(SRC_DIR)/plugin/lua_unity.c -o $@
+	$(CC) $(LUA_CFLAGS) -w -fno-lto -c $(SRC_DIR)/plugin/lua_unity.c -o $@
 
 # The one TU that includes lua.h. Everything else in src/plugin/ is written
 # against the plugin contract alone and needs no Lua on its include path.

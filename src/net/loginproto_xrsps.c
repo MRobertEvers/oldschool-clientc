@@ -227,6 +227,7 @@ xr_recv(void* handle, uint8_t const* data, int size)
 static int
 xr_send(void* handle, uint8_t* out, int out_size)
 {
+    (void)out_size;
     struct XrLogin* h = handle;
     if( h->frame_idx >= h->frame_count )
         return 0;

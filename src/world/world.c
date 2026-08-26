@@ -597,8 +597,7 @@ World_TerrainSet(
     if( !World_EntityPoolEnsureSlot(pool, idx) )
         return;
 
-    struct WorldEntity_Terrain* terrain = World_EntityPoolGet(pool, idx);
-    assert(terrain);
+    struct WorldEntity_Terrain* terrain = World_EntityPoolAt(pool, idx);
 
     terrain->element_id = element_id;
     terrain->grid_position.level = level;
@@ -782,8 +781,7 @@ World_PlayerDespawn(
     if( !World_EntityPoolIsActive(pool, idx) )
         return;
 
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
-    assert(player);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     World_EmitEntityRemoved(world, player->element_id);
     World_EntityPoolRelease(pool, idx);
 }
@@ -852,8 +850,7 @@ World_NpcDespawn(
     if( !World_EntityPoolIsActive(pool, idx) )
         return;
 
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
-    assert(npc);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     World_EmitEntityRemoved(world, npc->element_id);
     World_EntityPoolRelease(pool, idx);
 }
@@ -920,8 +917,7 @@ World_ProjectileDespawn(
     if( !World_EntityPoolIsActive(pool, idx) )
         return;
 
-    struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, idx);
-    assert(p);
+    struct WorldEntity_Projectile* p = World_EntityPoolAt(pool, idx);
     World_EmitEntityRemoved(world, p->element_id);
     World_EntityPoolRelease(pool, idx);
 }
@@ -1008,8 +1004,7 @@ World_SpotanimDespawn(
     if( !World_EntityPoolIsActive(pool, idx) )
         return;
 
-    struct WorldEntity_Spotanim* s = World_EntityPoolGet(pool, idx);
-    assert(s);
+    struct WorldEntity_Spotanim* s = World_EntityPoolAt(pool, idx);
     World_EmitEntityRemoved(world, s->element_id);
     World_EntityPoolRelease(pool, idx);
 }
@@ -1037,8 +1032,7 @@ World_PluginObjectSpawn(
     int idx = World_EntityPoolAlloc(pool);
     assert(idx >= 0);
 
-    struct WorldEntity_PluginObject* obj = World_EntityPoolGet(pool, idx);
-    assert(obj);
+    struct WorldEntity_PluginObject* obj = World_EntityPoolAt(pool, idx);
     *obj = (struct WorldEntity_PluginObject){
         .element_id = element_id,
         .level = level,
@@ -1066,8 +1060,7 @@ World_PluginObjectDespawn(
     if( !World_EntityPoolIsActive(pool, idx) )
         return;
 
-    struct WorldEntity_PluginObject* obj = World_EntityPoolGet(pool, idx);
-    assert(obj);
+    struct WorldEntity_PluginObject* obj = World_EntityPoolAt(pool, idx);
     World_EmitEntityRemoved(world, obj->element_id);
     World_EntityPoolRelease(pool, idx);
 }
@@ -1084,8 +1077,7 @@ World_PluginObjectSetActive(
     if( !World_EntityPoolIsActive(pool, idx) )
         return;
 
-    struct WorldEntity_PluginObject* obj = World_EntityPoolGet(pool, idx);
-    assert(obj);
+    struct WorldEntity_PluginObject* obj = World_EntityPoolAt(pool, idx);
     obj->active = active;
 }
 
@@ -1381,8 +1373,7 @@ World_SceneryRegister(
     if( idx < 0 )
         return -1;
 
-    struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, idx);
-    assert(scenery);
+    struct WorldEntity_Scenery* scenery = World_EntityPoolAt(pool, idx);
     memset(scenery, 0, sizeof(*scenery));
     scenery->element_id = element_id;
     scenery->loc_id = loc_id;
@@ -1573,7 +1564,7 @@ World_PlayerPathPushStep(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     World_EntityPathingPushStep(&player->pathing, step_type, direction);
 }
 
@@ -1587,7 +1578,7 @@ World_NpcPathPushStep(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     World_EntityPathingPushStep(&npc->pathing, step_type, direction);
 }
 
@@ -1602,7 +1593,7 @@ World_PlayerPathJump(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     World_PathJumpEntity(
         &player->pathing, &player->draw_position, &player->grid_position, 1, force_teleport, x, z);
 }
@@ -1620,7 +1611,7 @@ World_PlayerPathJumpCollisionAware(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     enum World_PathingJump jump = World_EntityPathingJumpCollisionAware(
         &player->pathing, collision, force_teleport, x, z, step_type);
     if( jump == WORLD_PATHING_JUMP_TELEPORT )
@@ -1642,7 +1633,7 @@ World_NpcPathJump(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     int size = npc->size > 0 ? npc->size : 1;
     World_PathJumpEntity(
         &npc->pathing, &npc->draw_position, &npc->grid_position, size, force_teleport, x, z);
@@ -1668,7 +1659,7 @@ World_PlayerFaceEntityDetailed(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     player->facing.entity_id = entity_id;
     player->facing.fallback_angle = fallback_angle;
     player->facing.instant = instant;
@@ -1694,7 +1685,7 @@ World_NpcFaceEntityDetailed(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     npc->facing.entity_id = entity_id;
     npc->facing.fallback_angle = fallback_angle;
     npc->facing.instant = instant;
@@ -1723,7 +1714,7 @@ World_PlayerBeginModernFacing(
     assert(world);
     assert(World_EntityPoolIsActive(&world->entities.player, idx));
     struct WorldEntity_Player* player =
-        World_EntityPoolGet(&world->entities.player, idx);
+        World_EntityPoolAt(&world->entities.player, idx);
     World_BeginModernFacing(&player->facing, movement_mode);
 }
 
@@ -1735,7 +1726,7 @@ World_NpcBeginModernFacing(
 {
     assert(world);
     assert(World_EntityPoolIsActive(&world->entities.npc, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, idx);
     World_BeginModernFacing(&npc->facing, movement_mode);
 }
 
@@ -1749,7 +1740,7 @@ World_PlayerFaceCoord(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     player->facing.square_x = square_x;
     player->facing.square_z = square_z;
 }
@@ -1764,7 +1755,7 @@ World_NpcFaceCoord(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     npc->facing.square_x = square_x;
     npc->facing.square_z = square_z;
 }
@@ -1780,7 +1771,7 @@ World_PlayerFaceAngle(
 
     assert(world);
     assert(World_EntityPoolIsActive(&world->entities.player, idx));
-    player = World_EntityPoolGet(&world->entities.player, idx);
+    player = World_EntityPoolAt(&world->entities.player, idx);
     player->facing.direct_angle = angle & 0x7ff;
     player->facing.instant = instant;
 }
@@ -1796,7 +1787,7 @@ World_NpcFaceAngle(
 
     assert(world);
     assert(World_EntityPoolIsActive(&world->entities.npc, idx));
-    npc = World_EntityPoolGet(&world->entities.npc, idx);
+    npc = World_EntityPoolAt(&world->entities.npc, idx);
     npc->facing.direct_angle = angle & 0x7ff;
     npc->facing.instant = instant;
 }
@@ -1835,7 +1826,7 @@ World_PlayerSetAnimation(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     World_SetAnimationTrack(&player->animation, animation_id, animation_type);
 }
 
@@ -1849,7 +1840,7 @@ World_NpcSetAnimation(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     World_SetAnimationTrack(&npc->animation, animation_id, animation_type);
 }
 
@@ -2094,7 +2085,7 @@ World_PlayerSetPrimaryAnimation(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     world_apply_primary_animation(
         world,
         &player->animation,
@@ -2114,7 +2105,7 @@ World_NpcSetPrimaryAnimation(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     world_apply_primary_animation(
         world,
         &npc->animation,
@@ -2157,7 +2148,7 @@ World_PlayerSetExactMoveDetailed(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
 
     player->exact_move.start_x = (uint8_t)start_x;
     player->exact_move.start_z = (uint8_t)start_z;
@@ -2205,7 +2196,7 @@ World_NpcSetExactMoveDetailed(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
 
     npc->exact_move.start_x = (uint8_t)start_x;
     npc->exact_move.start_z = (uint8_t)start_z;
@@ -2346,7 +2337,7 @@ World_PlayerSetSpotanim(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     world_set_entity_spotanim(world, &player->spotanim, spotanim_id, height, cycle_delay);
 }
 
@@ -2361,7 +2352,7 @@ World_NpcSetSpotanim(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     world_set_entity_spotanim(world, &npc->spotanim, spotanim_id, height, cycle_delay);
 }
 
@@ -2376,7 +2367,7 @@ World_NpcSetType(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
 
     npc->npc_id = npc_id;
     npc->size = size > 0 ? size : 1;
@@ -2423,7 +2414,7 @@ World_PlayerSetAppearance(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
 
     if( slots )
         memcpy(player->appearance.slots, slots, sizeof(player->appearance.slots));
@@ -2482,7 +2473,7 @@ World_PlayerAddHitmarkTimed(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     World_EntityAddHitmark(
         player->combat.damage_values,
         player->combat.damage_types,
@@ -2792,7 +2783,7 @@ World_NpcAddHitmarkTimed(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     World_EntityAddHitmark(
         npc->combat.damage_values,
         npc->combat.damage_types,
@@ -2871,7 +2862,7 @@ World_PlayerSetChat(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     world_entity_set_chat(&player->chat, message, colour, effect);
 }
 
@@ -2886,6 +2877,6 @@ World_NpcSetChat(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     world_entity_set_chat(&npc->chat, message, colour, effect);
 }

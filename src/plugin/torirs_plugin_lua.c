@@ -3065,6 +3065,7 @@ PluginLua_Shutdown(void)
 static void
 lua_adapter_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
 {
+    (void)ctx;
     assert(ctx);
     assert(api);
     assert(api->abi_version == TORIRS_PLUGIN_ABI);

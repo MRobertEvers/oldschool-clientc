@@ -13,6 +13,7 @@ next_op(
     struct PktPlayerInfoOp* ops,
     int ops_capacity)
 {
+    (void)ops_capacity;
     assert(reader->current_op < ops_capacity);
     struct PktPlayerInfoOp* op = &ops[reader->current_op++];
     memset(op, 0, sizeof(*op));

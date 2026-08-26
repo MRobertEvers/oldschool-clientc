@@ -6007,6 +6007,7 @@ exec_set_on_cc_transmit(
     int str_arg_count,
     char const str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN])
 {
+    (void)vm;
     assert(host);
     assert(vm);
 
@@ -6365,6 +6366,7 @@ exec_set_on_cc_event(
     int str_arg_count,
     char const str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN])
 {
+    (void)vm;
     struct UITree* tree;
     struct UITreeComponent* node;
     struct UITreeRuntimeScriptHook* slot;
@@ -8301,14 +8303,15 @@ RS_CS2Host_Exec(
     struct CS2VM2_Thread* vm,
     struct CS2VM_HostRequest* request)
 {
-    struct RS_CS2Host* host;
     int result;
 
     assert(vm);
     assert(request);
 
-    host = (struct RS_CS2Host*)CS2VM_USER(vm);
-    assert(host && "CS2VM_USER(thread) must be RS_CS2Host*");
+    /* Asserted, not bound: nothing here dereferences the host, the dispatch
+     * below fetches it again. A local would be dead once -DNDEBUG drops the
+     * assert. */
+    assert(CS2VM_USER(vm) && "CS2VM_USER(thread) must be RS_CS2Host*");
 
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_HOST_OPS, 1);
     /* Depth-guarded because a handler may re-enter the VM and reach this

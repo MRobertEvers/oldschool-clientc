@@ -85,6 +85,7 @@ lc289_next_player_op(
     struct PktPlayerInfoOp* ops,
     int ops_capacity)
 {
+    (void)ops_capacity;
     assert(dec->current_op < ops_capacity);
     struct PktPlayerInfoOp* op = &ops[dec->current_op++];
     memset(op, 0, sizeof(*op));
@@ -478,6 +479,7 @@ lc289_next_npc_op(
     struct PktNpcInfoOp* ops,
     int ops_capacity)
 {
+    (void)ops_capacity;
     assert(dec->current_op < ops_capacity);
     struct PktNpcInfoOp* op = &ops[dec->current_op++];
     memset(op, 0, sizeof(*op));
