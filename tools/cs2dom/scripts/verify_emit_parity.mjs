@@ -416,7 +416,8 @@ async function run(reference) {
         const allocate = tree.allocateDynamicComponentId.bind(tree);
         tree.allocateDynamicComponentId = (group) => {
             const uid = allocate(group);
-            console.error(`alloc 0x${(uid >>> 0).toString(16)}`);
+            console.error(`${driverRef.driver?.running?.scriptId ?? '-'} `
+                + `${(uid >>> 0).toString(16)}`);
             return uid;
         };
     }
@@ -424,6 +425,9 @@ async function run(reference) {
     if( !baked ) return { id, name, skipped: 'no .if in the content tree' };
     const { onLoad } = baked;
 
+    /* Filled in below; the alloc trace needs the driver that does not exist
+     * until the tree is baked. */
+    const driverRef = {};
     const closure = createClosure();
     const { registry, missing } = closure;
     closure.extend([...onLoad.map((entry) => entry.scriptId), ...treeHookScripts(tree)]);
@@ -539,6 +543,7 @@ async function run(reference) {
         driver.dispatchCounts = counts;
     }
 
+    driverRef.driver = driver;
     driver.loader = createLoader(tree, driver, closure);
     const layout = attachLayout(host, { root: ROOT });
     const hits = createHitTester({ tree, layout });

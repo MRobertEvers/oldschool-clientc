@@ -203,6 +203,12 @@ export class CS2Driver {
             task = { generator: fn(this.host, ...args), request: next };
             this.stats.invocations++;
         }
+        /* Which dispatch is on the stack right now. Debug plumbing only: a
+         * difference in what a run BUILT is always traced back to the script
+         * that built it, and nothing else can name that script. */
+        this.running = task.request;
+        {
+        }
 
         let lastServiced = null;
         let lastServicedConsumed = -1;
