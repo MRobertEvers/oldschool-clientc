@@ -1,16 +1,19 @@
 /*
- * Half-shared placements: what one of them writes must not reach the others.
+ * Half-shared placements: the loan must not cover what the world build writes.
  *
- * ToriDraw_SharedModelStoreBorrowTopology hands every placement of one loc the
- * SAME face arrays, which is most of a built model's bytes. That is safe only
- * while nothing writes them afterwards, and one pass does: World.shareLight
- * hides the seam faces where two placements meet by setting face_infos to 2.
- * Through the loan, that hid the seam at every placement of the loc -- a run of
- * identical wall segments losing the faces of the one segment that happened to
- * butt against a neighbour, which reads on screen as a wall you can see
- * straight through. ToriDraw_ModelUnborrowTopology is the door such a write
- * goes through, and this pins both halves of it: the arrays really are shared
- * until someone un-borrows, and after that the write is private.
+ * ToriDraw_SharedFacesStoreBorrow hands every placement of one loc the SAME
+ * face arrays, which is most of a built model's bytes. One pass writes a face
+ * array afterwards: World.shareLight hides the seam faces where two placements
+ * of a sharelight loc meet, by setting face_infos to 2. Lending face_infos hid
+ * the seam at every placement of the loc -- a run of identical wall segments
+ * losing the faces of the one segment that happened to butt against a
+ * neighbour, which reads on screen as a wall you can see straight through from
+ * one side and not the other.
+ *
+ * Both reference clients draw the line in the same place -- `Model(sharelight,
+ * 0, proto, hillskew)` in the deob, `Model.hillSkewCopy(model, hillskew,
+ * sharelight)` in Client-TS -- so this pins that ours does too: twelve arrays
+ * lent, face_infos always the placement's own.
  */
 #include "toridraw_model.h"
 #include "toridraw_shared_model.h"
@@ -64,92 +67,72 @@ make_placement(void)
 }
 
 /*
- * Two placements of one loc, and the seam hide the sharelight pass performs on
- * exactly one of them.
+ * A sharelight loc: two placements of one wall, and the seam hide the
+ * neighbour merge performs on exactly one of them.
  */
 static void
-test_hide_does_not_reach_the_sibling(void)
+test_seam_hide_does_not_reach_the_sibling(void)
 {
-    struct ToriDraw_SharedModelStore* store = ToriDraw_SharedModelStoreNew();
+    struct ToriDraw_SharedFacesStore* store = ToriDraw_SharedFacesStoreNew();
     struct ToriDraw_Model* first = make_placement();
     struct ToriDraw_Model* second = make_placement();
     int64_t const key = 1234;
 
     CHECK(store);
-    ToriDraw_SharedModelStoreBorrowTopology(store, key, first);
-    ToriDraw_SharedModelStoreBorrowTopology(store, key, second);
+    ToriDraw_SharedFacesStoreBorrow(store, key, first);
+    ToriDraw_SharedFacesStoreBorrow(store, key, second);
 
-    /* The loan itself: one array, two placements, vertices still their own. */
-    CHECK(first->borrowed_topology != NULL);
-    CHECK(second->borrowed_topology != NULL);
-    CHECK(first->face_infos == second->face_infos);
+    /* Twelve arrays on loan, vertices and face_infos each placement's own. */
+    CHECK(first->shared_faces != NULL);
+    CHECK(second->shared_faces != NULL);
     CHECK(first->face_indices_a == second->face_indices_a);
+    CHECK(first->face_colors == second->face_colors);
     CHECK(first->vertices_x != second->vertices_x);
-    CHECK(ToriDraw_SharedModelStoreCount(store) == 1);
+    CHECK(first->face_infos != second->face_infos);
+    CHECK(first->shared_faces == second->shared_faces);
+    CHECK(ToriDraw_SharedFacesStoreCount(store) == 1);
 
-    /* What the seam hide does, through the door it has to use. */
-    ToriDraw_ModelUnborrowTopology(second);
-    CHECK(second->borrowed_topology == NULL);
-    CHECK(second->face_infos != first->face_infos);
-    CHECK(second->face_indices_a != first->face_indices_a);
-    CHECK(second->face_colors[1] == first->face_colors[1]);
+    /* What the seam hide does. */
     second->face_infos[0] = 2;
-
     CHECK(second->face_infos[0] == 2);
     CHECK(first->face_infos[0] == 0);
 
     ToriDraw_ModelFree(second);
-    /* `first` still holds the donor; the store empties only on the last one. */
-    CHECK(ToriDraw_SharedModelStoreCount(store) == 1);
+    /* `first` is still a lender; the set goes only with the last one. */
+    CHECK(ToriDraw_SharedFacesStoreCount(store) == 1);
     ToriDraw_ModelFree(first);
-    CHECK(ToriDraw_SharedModelStoreCount(store) == 0);
-    ToriDraw_SharedModelStoreFree(store);
+    CHECK(ToriDraw_SharedFacesStoreCount(store) == 0);
+    ToriDraw_SharedFacesStoreFree(store);
 }
 
-/* The lone placement is the interesting one for lifetime: un-borrowing drops
- * the donor's last holder, so the copy must already have been taken. */
+/* The lone lender: releasing it takes the set with it, and the placement's own
+ * face_infos was never in it to be freed twice. */
 static void
-test_unborrow_of_the_only_holder(void)
+test_single_lender_owns_its_face_infos(void)
 {
-    struct ToriDraw_SharedModelStore* store = ToriDraw_SharedModelStoreNew();
+    struct ToriDraw_SharedFacesStore* store = ToriDraw_SharedFacesStoreNew();
     struct ToriDraw_Model* only = make_placement();
+    int* const infos = only->face_infos;
 
     CHECK(store);
-    ToriDraw_SharedModelStoreBorrowTopology(store, 77, only);
-    CHECK(ToriDraw_SharedModelStoreCount(store) == 1);
+    ToriDraw_SharedFacesStoreBorrow(store, 77, only);
+    CHECK(only->face_infos == infos);
+    CHECK(ToriDraw_SharedFacesStoreCount(store) == 1);
 
-    ToriDraw_ModelUnborrowTopology(only);
-    CHECK(only->borrowed_topology == NULL);
-    CHECK(ToriDraw_SharedModelStoreCount(store) == 0);
-    /* Reads the copy, not the donor's freed array. */
-    CHECK(only->face_colors[1] == (hsl16_t)(0x4B40 + 1));
-    CHECK(only->face_indices_c[1] == 3);
     only->face_infos[1] = 2;
     CHECK(only->face_infos[1] == 2);
+    CHECK(only->face_colors[1] == (hsl16_t)(0x4B40 + 1));
 
     ToriDraw_ModelFree(only);
-    ToriDraw_SharedModelStoreFree(store);
-}
-
-/* Nothing to hand back is not an error: the pass calls this without knowing. */
-static void
-test_unborrow_is_a_no_op_when_private(void)
-{
-    struct ToriDraw_Model* m = make_placement();
-    int* const infos = m->face_infos;
-
-    ToriDraw_ModelUnborrowTopology(m);
-    CHECK(m->face_infos == infos);
-    CHECK(m->borrowed_topology == NULL);
-    ToriDraw_ModelFree(m);
+    CHECK(ToriDraw_SharedFacesStoreCount(store) == 0);
+    ToriDraw_SharedFacesStoreFree(store);
 }
 
 int
 main(void)
 {
-    test_hide_does_not_reach_the_sibling();
-    test_unborrow_of_the_only_holder();
-    test_unborrow_is_a_no_op_when_private();
+    test_seam_hide_does_not_reach_the_sibling();
+    test_single_lender_owns_its_face_infos();
 
     if( g_fail )
     {

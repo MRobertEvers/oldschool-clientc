@@ -4,7 +4,6 @@
 
 #include <assert.h>
 #include <stdlib.h>
-#include <string.h>
 
 /*
  * Chained buckets, fixed width. A scene settles at a few hundred distinct loc
@@ -163,122 +162,183 @@ ToriDraw_SharedModelRelease(struct ToriDraw_SharedModel* shared)
 }
 
 /*
- * The privatise list below spells out one entry per topology field, because
- * each one needs its own element size and count, and the counting typedef is
- * what stops the two lists drifting apart: add a field to
- * TORIDRAW_TOPOLOGY_FIELDS without adding it here and this fails to compile,
- * rather than leaving one array still aliasing the donor.
+ * The lendable face buffers and the store that indexes them.
+ *
+ * Deliberately a separate store from the whole-model one rather than a second
+ * key space inside it: two things with different types and different lifetimes
+ * were being told apart by a tag bit in the key that both callers had to
+ * remember to set. Two stores cannot collide.
  */
+struct ToriDraw_SharedFaces
+{
+    faceint_t* face_indices_a;
+    faceint_t* face_indices_b;
+    faceint_t* face_indices_c;
+    hsl16_t* face_colors;
+    faceint_t* face_textures;
+    alphaint_t* face_alphas;
+    uint8_t* face_priorities;
+    faceint_t* textured_p_coordinate;
+    faceint_t* textured_m_coordinate;
+    faceint_t* textured_n_coordinate;
+    uint8_t* texture_render_types;
+    faceint_t* face_texture_coords;
+
+    /* What the arrays above are dimensioned by. A lender whose counts differ
+     * is not a placement of the same loc, whatever its key says. */
+    int face_count;
+    int textured_face_count;
+
+    /* Bookkeeping. The store this set belongs to, so a release can unlink
+     * itself without every call site passing a store it has no other reason to
+     * know about; and the lenders, which the store is not one of. */
+    struct ToriDraw_SharedFacesStore* store;
+    struct ToriDraw_SharedFaces* next;
+    int64_t key;
+    int lenders;
+};
+
+/* The member list above is spelled out because each one needs its own type, so
+ * this is what stops it drifting from TORIDRAW_SHARED_FACE_FIELDS: add a field
+ * to the macro and forget the member and this fails to compile, rather than
+ * leaving one array still aliasing a freed set. */
 enum
 {
-    TORIDRAW_TOPOLOGY_FIELD_COUNT = 0
-#define TORIDRAW_TOPOLOGY_COUNT_ONE(field) +1
-    TORIDRAW_TOPOLOGY_FIELDS(TORIDRAW_TOPOLOGY_COUNT_ONE)
-#undef TORIDRAW_TOPOLOGY_COUNT_ONE
+    TORIDRAW_SHARED_FACE_FIELD_COUNT = 0
+#define TORIDRAW_SHARED_FACES_COUNT_ONE(field) +1
+    TORIDRAW_SHARED_FACE_FIELDS(TORIDRAW_SHARED_FACES_COUNT_ONE)
+#undef TORIDRAW_SHARED_FACES_COUNT_ONE
 };
-typedef char toridraw_topology_privatise_covers_every_field
-    [TORIDRAW_TOPOLOGY_FIELD_COUNT == 13 ? 1 : -1];
+typedef char toridraw_shared_faces_has_a_member_per_field
+    [TORIDRAW_SHARED_FACE_FIELD_COUNT == 12 ? 1 : -1];
 
-static void*
-shared_model_dup(const void* src, size_t nbytes)
+struct ToriDraw_SharedFacesStore
 {
-    void* copy;
+    struct ToriDraw_SharedFaces* buckets[TORIDRAW_SHARED_MODEL_BUCKETS];
+    int count;
+};
 
-    assert(src);
-    copy = malloc(nbytes ? nbytes : 1);
-    assert(copy);
-    memcpy(copy, src, nbytes);
-    return copy;
+struct ToriDraw_SharedFacesStore*
+ToriDraw_SharedFacesStoreNew(void)
+{
+    struct ToriDraw_SharedFacesStore* store = calloc(1, sizeof(*store));
+
+    assert(store);
+    return store;
 }
 
 void
-ToriDraw_ModelUnborrowTopology(struct ToriDraw_Model* model)
+ToriDraw_SharedFacesStoreFree(struct ToriDraw_SharedFacesStore* store)
 {
-    struct ToriDraw_SharedModel* donor;
-
-    assert(model);
-    if( !model->borrowed_topology )
+    if( !store )
         return;
+    /* Sets are removed by their last lender, so an occupied store here means a
+     * placement outlived the scene that placed it. */
+    assert(store->count == 0);
+    free(store);
+}
 
-    /*
-     * Copy first, release second. This placement may be the donor's last
-     * holder, and the release frees the very arrays being copied out of.
-     */
-#define TORIDRAW_TOPOLOGY_PRIVATISE(field, count, type)                                              \
-    if( model->field )                                                                             \
-        model->field = shared_model_dup(model->field, (size_t)(count) * sizeof(type));
+int
+ToriDraw_SharedFacesStoreCount(const struct ToriDraw_SharedFacesStore* store)
+{
+    assert(store);
+    return store->count;
+}
 
-    TORIDRAW_TOPOLOGY_PRIVATISE(face_indices_a, model->face_count, faceint_t)
-    TORIDRAW_TOPOLOGY_PRIVATISE(face_indices_b, model->face_count, faceint_t)
-    TORIDRAW_TOPOLOGY_PRIVATISE(face_indices_c, model->face_count, faceint_t)
-    TORIDRAW_TOPOLOGY_PRIVATISE(face_colors, model->face_count, hsl16_t)
-    TORIDRAW_TOPOLOGY_PRIVATISE(face_textures, model->face_count, faceint_t)
-    TORIDRAW_TOPOLOGY_PRIVATISE(face_alphas, model->face_count, alphaint_t)
-    TORIDRAW_TOPOLOGY_PRIVATISE(face_infos, model->face_count, int)
-    TORIDRAW_TOPOLOGY_PRIVATISE(face_texture_coords, model->face_count, faceint_t)
-    TORIDRAW_TOPOLOGY_PRIVATISE(textured_p_coordinate, model->textured_face_count, faceint_t)
-    TORIDRAW_TOPOLOGY_PRIVATISE(textured_m_coordinate, model->textured_face_count, faceint_t)
-    TORIDRAW_TOPOLOGY_PRIVATISE(textured_n_coordinate, model->textured_face_count, faceint_t)
-    TORIDRAW_TOPOLOGY_PRIVATISE(texture_render_types, model->textured_face_count, uint8_t)
-#undef TORIDRAW_TOPOLOGY_PRIVATISE
+static struct ToriDraw_SharedFaces*
+shared_faces_find(struct ToriDraw_SharedFacesStore* store, int64_t key)
+{
+    struct ToriDraw_SharedFaces* faces;
 
-    /* Two 4-bit priorities per byte, not one element per face. */
-    if( model->face_priorities )
-        model->face_priorities = shared_model_dup(
-            model->face_priorities, (size_t)((model->face_count + 1) / 2));
-
-    donor = model->borrowed_topology;
-    model->borrowed_topology = NULL;
-    ToriDraw_SharedModelRelease(donor);
+    for( faces = store->buckets[shared_model_bucket(key)]; faces; faces = faces->next )
+    {
+        if( faces->key == key )
+            return faces;
+    }
+    return NULL;
 }
 
 struct ToriDraw_Model*
-ToriDraw_SharedModelStoreBorrowTopology(
-    struct ToriDraw_SharedModelStore* store,
+ToriDraw_SharedFacesStoreBorrow(
+    struct ToriDraw_SharedFacesStore* store,
     int64_t key,
     struct ToriDraw_Model* model)
 {
-    struct ToriDraw_SharedModel* entry;
-    struct ToriDraw_Model* donor;
+    struct ToriDraw_SharedFaces* faces;
+    size_t bucket;
 
     assert(store);
     assert(model);
     assert(!model->shared_owner);
-    assert(!model->borrowed_topology);
+    assert(!model->shared_faces);
 
-    donor = ToriDraw_SharedModelStoreAcquire(store, key);
-    if( donor )
+    faces = shared_faces_find(store, key);
+    if( faces )
     {
         /*
-         * The donor was cut from a model built from the same loc config at the
+         * The set was cut from a model built from the same loc config at the
          * same rotation, so it describes the faces this build just produced.
          * A disagreement here means the key does not identify the topology,
          * and every placement past this one would draw the wrong faces.
          */
-        assert(donor->face_count == model->face_count);
-        assert(donor->textured_face_count == model->textured_face_count);
+        assert(faces->face_count == model->face_count);
+        assert(faces->textured_face_count == model->textured_face_count);
 
-#define TORIDRAW_TOPOLOGY_ADOPT(field)                                                                 free(model->field);                                                                                model->field = donor->field;
-        TORIDRAW_TOPOLOGY_FIELDS(TORIDRAW_TOPOLOGY_ADOPT)
-#undef TORIDRAW_TOPOLOGY_ADOPT
+#define TORIDRAW_SHARED_FACES_ADOPT(field)                                                         \
+    free(model->field);                                                                            \
+    model->field = faces->field;
+        TORIDRAW_SHARED_FACE_FIELDS(TORIDRAW_SHARED_FACES_ADOPT)
+#undef TORIDRAW_SHARED_FACES_ADOPT
 
-        model->borrowed_topology = donor->shared_owner;
+        faces->lenders++;
+        model->shared_faces = faces;
         return model;
     }
 
-    /*
-     * First placement of this topology. The donor is a shell with no vertices:
-     * it exists to own the face arrays and to be counted, and the store's
-     * holder bookkeeping frees it when the last placement lets go.
-     */
-    donor = ToriDraw_ModelNew(0, model->face_count, 0);
-    donor->textured_face_count = model->textured_face_count;
+    /* First placement of this topology: its arrays move into the set, and it
+     * keeps aliases to them like every later lender. */
+    faces = calloc(1, sizeof(*faces));
+    assert(faces);
+    faces->face_count = model->face_count;
+    faces->textured_face_count = model->textured_face_count;
+#define TORIDRAW_SHARED_FACES_TAKE(field) faces->field = model->field;
+    TORIDRAW_SHARED_FACE_FIELDS(TORIDRAW_SHARED_FACES_TAKE)
+#undef TORIDRAW_SHARED_FACES_TAKE
 
-#define TORIDRAW_TOPOLOGY_STEAL(field) donor->field = model->field;
-    TORIDRAW_TOPOLOGY_FIELDS(TORIDRAW_TOPOLOGY_STEAL)
-#undef TORIDRAW_TOPOLOGY_STEAL
+    bucket = shared_model_bucket(key);
+    faces->store = store;
+    faces->key = key;
+    faces->lenders = 1;
+    faces->next = store->buckets[bucket];
+    store->buckets[bucket] = faces;
+    store->count++;
 
-    entry = ToriDraw_SharedModelStorePublish(store, key, donor)->shared_owner;
-    model->borrowed_topology = entry;
+    model->shared_faces = faces;
     return model;
+}
+
+void
+ToriDraw_SharedFacesRelease(struct ToriDraw_SharedFaces* faces)
+{
+    struct ToriDraw_SharedFacesStore* store;
+    struct ToriDraw_SharedFaces** link;
+
+    assert(faces);
+    assert(faces->lenders > 0);
+
+    if( --faces->lenders > 0 )
+        return;
+
+    store = faces->store;
+    link = &store->buckets[shared_model_bucket(faces->key)];
+    while( *link && *link != faces )
+        link = &(*link)->next;
+    assert(*link == faces);
+    *link = faces->next;
+    store->count--;
+
+#define TORIDRAW_SHARED_FACES_FREE(field) free(faces->field);
+    TORIDRAW_SHARED_FACE_FIELDS(TORIDRAW_SHARED_FACES_FREE)
+#undef TORIDRAW_SHARED_FACES_FREE
+    free(faces);
 }

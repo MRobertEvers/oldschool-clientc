@@ -3,6 +3,7 @@
 
 #include "toridraw_types.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /*
@@ -72,51 +73,65 @@ ToriDraw_SharedModelStorePublish(
     struct ToriDraw_Model* model);
 
 /**
- * Lend `model` the face arrays that placements of the same loc have in common,
- * or make it the donor if it is the first to ask for `key`.
+ * The lendable face buffers, as a thing that can be owned.
  *
  * For the locs that CANNOT share a whole model. A tree contoured to the ground
  * or a wall lit from its neighbour gets its own vertices and its own per-corner
  * colours at every placement, but the faces indexing those vertices are
  * identical -- and the faces are the larger half of a built loc model.
  *
- * Nothing is copied either way. The first placement has its face arrays cut out
- * into a donor shell that the store publishes and lends straight back; every
- * later one frees the arrays its own build just produced and points at the
- * donor's instead. The build runs in full regardless, because it is the build
- * that decides what the topology IS -- the saving is in what is kept, not in
- * what is done.
+ * This used to be a `struct ToriDraw_Model` with `vertex_count == 0` standing
+ * in as a donor, which is a model that would be a corrupt answer to every
+ * question a model is asked. It is its own type now, and an opaque one: the
+ * arrays it owns are named in its definition and reached nowhere else. A
+ * borrowing placement carries plain aliases to them, as it always did, so the
+ * render path is unchanged.
  *
- * `key` must live in its own namespace: a donor holds faces without vertices
- * and would be a corrupt answer to a whole-model Acquire.
+ * Note which arrays these are: TORIDRAW_SHARED_FACE_FIELDS, which excludes
+ * face_infos on purpose. See that macro for why.
+ */
+struct ToriDraw_SharedFaces;
+struct ToriDraw_SharedFacesStore;
+
+struct ToriDraw_SharedFacesStore*
+ToriDraw_SharedFacesStoreNew(void);
+
+/** Frees the store. Every buffer set it lends must have been released first. */
+void
+ToriDraw_SharedFacesStoreFree(struct ToriDraw_SharedFacesStore* store);
+
+/** Live buffer sets, for the world-build census. */
+int
+ToriDraw_SharedFacesStoreCount(const struct ToriDraw_SharedFacesStore* store);
+
+/**
+ * Point `model` at the face buffers published under `key`, or publish its own
+ * and become the first lender.
  *
- * Takes no ownership. Returns `model`, now carrying a `borrowed_topology`.
+ * Nothing is copied either way. The first placement has its face arrays moved
+ * into a buffer set that the store owns and keeps aliases to them; every later
+ * one frees the arrays its own build just produced and adopts the published
+ * ones. The build runs in full regardless, because it is the build that decides
+ * what the topology IS -- the saving is in what is kept, not in what is done.
+ *
+ * Takes no ownership of `model`. Returns it, now carrying a `shared_faces`.
  */
 struct ToriDraw_Model*
-ToriDraw_SharedModelStoreBorrowTopology(
-    struct ToriDraw_SharedModelStore* store,
+ToriDraw_SharedFacesStoreBorrow(
+    struct ToriDraw_SharedFacesStore* store,
     int64_t key,
     struct ToriDraw_Model* model);
 
 /**
- * Take a placement's borrowed face arrays private, so it can be written to.
+ * Drop one lender of a buffer set, freeing it at the last.
  *
- * A no-op on a model that is not borrowing. Otherwise every array in
- * TORIDRAW_TOPOLOGY_FIELDS is duplicated into geometry this model owns and the
- * loan is handed back -- the model pointer itself does not move, which is what
- * makes this usable from a pass that is already holding the model and its
- * neighbour (World.shareLight's seam hide) rather than an element id.
- *
- * The copy is the point, not a cost to avoid: hiding a seam face through the
- * loan hides it at every other placement of the same loc, which is a run of
- * identical walls losing the faces of the one segment that met a neighbour.
- *
- * Not for a WHOLE-shared model (`shared_owner`) -- that one has no private
- * half at all, and its writer wants ToriDraw_SceneElementModelForWrite.
+ * Callers reach this through ToriDraw_ModelFree, which routes any model
+ * carrying a `shared_faces` here; it is exposed for that one use.
  */
 void
-ToriDraw_ModelUnborrowTopology(struct ToriDraw_Model* model);
+ToriDraw_SharedFacesRelease(struct ToriDraw_SharedFaces* faces);
 
+/** Live entries, for the world-build census. */
 /** Live entries, for the world-build census. */
 int
 ToriDraw_SharedModelStoreCount(const struct ToriDraw_SharedModelStore* store);

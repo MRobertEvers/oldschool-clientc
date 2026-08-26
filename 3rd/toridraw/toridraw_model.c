@@ -461,14 +461,20 @@ ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
     free(m->original_vertices_z);
     free(m->original_face_alphas);
 
-    /* The face half is either ours or on loan; the caller (ToriDraw_ModelFree)
-     * is what drops the holder, because this runs for the HD shell too. */
-    if( !m->borrowed_topology )
+    /* The lendable face arrays are either ours or on loan; the caller
+     * (ToriDraw_ModelFree) is what drops the lender, because this runs for the
+     * HD shell too. face_infos is never lent, so it is always ours to free --
+     * see TORIDRAW_SHARED_FACE_FIELDS for why it is the one that is not. */
+#define TORIDRAW_FACE_FREE(field) free(m->field);
+    if( m->shared_faces )
     {
-#define TORIDRAW_TOPOLOGY_FREE(field) free(m->field);
-        TORIDRAW_TOPOLOGY_FIELDS(TORIDRAW_TOPOLOGY_FREE)
-#undef TORIDRAW_TOPOLOGY_FREE
+        TORIDRAW_FACE_FREE(face_infos)
     }
+    else
+    {
+        TORIDRAW_MODEL_FACE_FIELDS(TORIDRAW_FACE_FREE)
+    }
+#undef TORIDRAW_FACE_FREE
     ToriDraw_NormalsFree(m->normals);
     ToriDraw_NormalsFree(m->merged_normals);
     ToriDraw_BonesFree(m->vertex_bones);
@@ -504,7 +510,7 @@ ToriDraw_ModelHDFromModel(struct ToriDraw_Model* model)
      * going through ToriDraw_ModelFree, so a borrowed-topology holder would be
      * duplicated into the HD model and never dropped. No HD model is built from
      * a scene placement today; this is what says so. */
-    assert(!model->borrowed_topology);
+    assert(!model->shared_faces);
 
     /* By value: the arrays are pointers and move with the struct, so freeing
      * the shell afterwards must not go through ToriDraw_ModelFree — that would
@@ -540,8 +546,8 @@ ToriDraw_ModelFree(struct ToriDraw_Model* model)
         return;
     }
     ToriDraw_ModelFree_arrays(model);
-    if( model->borrowed_topology )
-        ToriDraw_SharedModelRelease(model->borrowed_topology);
+    if( model->shared_faces )
+        ToriDraw_SharedFacesRelease(model->shared_faces);
     free(model);
 }
 

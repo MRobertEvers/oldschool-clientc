@@ -166,53 +166,15 @@ ToriDraw_ModelFaceInfosEnsureZero(struct ToriDraw_Model* model)
     return model->face_infos;
 }
 
-/** Does any face of `model` have all three corners merged in this pass? */
-static bool
-model_has_merged_face(
-    const struct ToriDraw_Model* model,
-    const int* vertex_merge_index)
-{
-    int face_count;
-    faceint_t const* fa;
-    faceint_t const* fb;
-    faceint_t const* fc;
-    int face;
-
-    assert(model);
-    assert(vertex_merge_index);
-
-    face_count = model->face_count;
-    fa = model->face_indices_a;
-    fb = model->face_indices_b;
-    fc = model->face_indices_c;
-
-    for( face = 0; face < face_count; face++ )
-    {
-        if( vertex_merge_index[fa[face]] == g_merge_index &&
-            vertex_merge_index[fb[face]] == g_merge_index &&
-            vertex_merge_index[fc[face]] == g_merge_index )
-            return true;
-    }
-    return false;
-}
-
 /**
  * Hide the seam: every face whose three corners all landed on the neighbour
  * stops being drawn, because the neighbour's own face is there instead.
  *
- * The write lands in face_infos, and face_infos is one of the arrays a
- * placement may be BORROWING from a donor shared with every other placement of
- * the same loc (ToriDraw_SharedModelStoreBorrowTopology). Writing it through
- * the loan hides the face at all of them -- a run of identical wall segments
- * losing the faces of the one segment that happened to butt against a
- * neighbour, which is a wall you can see straight through from one side and
- * not the other. So the geometry goes private BEFORE the write.
- *
- * Split in two passes on purpose. The un-borrow costs this placement a copy of
- * its face arrays, which is the saving the loan existed for, and the great
- * majority of merges hide nothing at all -- so the first pass asks whether
- * there is anything to hide while the arrays are still shared, and only a
- * placement that really has a seam pays.
+ * This is the write the topology loan is shaped around. face_infos is the one
+ * face array a sharelight placement does NOT borrow, and the only reason it
+ * does not is this loop -- lend it and one segment's seam disappears at every
+ * placement of the same wall in the scene. The assert is what says so at the
+ * write rather than three rooms away.
  */
 static void
 hide_merged_faces(
@@ -228,26 +190,27 @@ hide_merged_faces(
 
     assert(model);
     assert(vertex_merge_index);
+    ToriDraw_ModelAssertFaceInfosWritable(model);
 
-    if( !model_has_merged_face(model, vertex_merge_index) )
-        return;
-
-    ToriDraw_ModelUnborrowTopology(model);
-
-    /* Re-read after the un-borrow: it replaces the face arrays. */
     face_count = model->face_count;
     fa = model->face_indices_a;
     fb = model->face_indices_b;
     fc = model->face_indices_c;
-    infos = ToriDraw_ModelFaceInfosEnsureZero(model);
-    assert(infos);
+    infos = NULL;
 
     for( face = 0; face < face_count; face++ )
     {
-        if( vertex_merge_index[fa[face]] == g_merge_index &&
-            vertex_merge_index[fb[face]] == g_merge_index &&
-            vertex_merge_index[fc[face]] == g_merge_index )
-            infos[face] = 2;
+        if( vertex_merge_index[fa[face]] != g_merge_index ||
+            vertex_merge_index[fb[face]] != g_merge_index ||
+            vertex_merge_index[fc[face]] != g_merge_index )
+            continue;
+
+        if( !infos )
+        {
+            infos = ToriDraw_ModelFaceInfosEnsureZero(model);
+            assert(infos);
+        }
+        infos[face] = 2;
     }
 }
 
