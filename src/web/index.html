@@ -352,6 +352,59 @@ window.torirsOpenPanelTab = () => {
 
 /** A second view of the world, in its own tab and its own wasm instance. */
 window.torirsOpenCanvasTab = () => !!window.torirsChannelHost.openCanvasTab('./index.html', 'torirs-canvas-2');
+
+/*
+ * The inbound half: a page that EMBEDDED this client driving it.
+ *
+ * The channel above is the client opening a panel of its own. This is the
+ * reverse and it needs no handshake, because there is no state to mirror -- an
+ * embedder (tools/cs2dom's dev page, a test harness) posts a batch of cmdbus
+ * frames and they go on the same ring the keyboard and the socket use. What
+ * arrives is bytes in cmdring.h's layout, which the client already validates;
+ * this listener's whole job is to get them to the module.
+ *
+ * WHY A LISTENER AND NOT A CALL. A cross-origin iframe cannot be reached into,
+ * and even same-origin it should not be: postMessage is the seam that works in
+ * both arrangements and in a popup, so the embedder does not have to know which
+ * one it got.
+ *
+ * Frames that arrive before the runtime is up are DROPPED, and loudly. Queueing
+ * them would mean an interface that opens seconds later for reasons the caller
+ * cannot see; the embedder is waiting for a ready signal anyway (below), and
+ * the honest answer is that it sent too early.
+ */
+window.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data || data.type !== 'torirs-cmdbus' || !data.buffer) return;
+  const push = window.Module && window.Module._torirs_cmdbus_push_bytes;
+  if (typeof push !== 'function') {
+    console.warn('[torirs] cmdbus frames arrived before the client was running');
+    return;
+  }
+  const bytes = new Uint8Array(data.buffer);
+  const at = window.Module._malloc(bytes.length);
+  try {
+    window.Module.HEAPU8.set(bytes, at);
+    const accepted = push(at, bytes.length);
+    if (accepted < 0) console.warn('[torirs] the client refused a cmdbus batch');
+  } finally {
+    window.Module._free(at);
+  }
+});
+
+/*
+ * "The client is running" -- the one fact an embedder cannot work out for itself.
+ *
+ * A page can see the iframe load and the canvas appear long before the module
+ * is far enough in to take a command, and every harness that guessed at that
+ * gap guessed wrong somewhere. So the client says so, once, to whoever opened
+ * it. Fire-and-forget in both directions: no embedder means no listener, which
+ * costs a postMessage into nothing.
+ */
+window.torirsAnnounceReady = () => {
+  const to = window.parent !== window ? window.parent : window.opener;
+  if (to) to.postMessage({ type: 'torirs-ready' }, '*');
+};
 </script>
 <script src="torirs_host.js"></script>
 <script src="torirs.js"></script>

@@ -16,7 +16,7 @@ RSCACHE := $(REPO_ROOT)/3rd/rscache
 	generated generated-check test-aot corpus-aot bench-rebuild bench-phase6 \
 	roundtrip-if roundtrip-chain \
 	emit-reference emit-parity emit-reference-all emit-parity-all \
-	host-coverage dev-canvas
+	host-coverage dev-canvas client-web verify-cmd-wire smoke-client
 
 all: test
 
@@ -58,13 +58,30 @@ generated-check: $(PARK_TABLE) $(HOST_SURFACE)
 	$(PYTHON) scripts/gen_host_park.py --check
 	$(PYTHON) scripts/gen_host_surface.py --check
 
-# The dev server: canvas preview, one thread, no worker.
-dev-canvas: node_modules generated $(CS2)
+# The dev server. The preview is the official client compiled to WebAssembly,
+# so the client is a build dependency rather than a thing to remember: a server
+# that comes up and serves a blank iframe is a worse failure than one that says
+# what to build.
+CLIENT_WASM := $(REPO_ROOT)/build-web/torirs.wasm
+IO_SERVER := $(REPO_ROOT)/src/build/io_server
+
+$(CLIENT_WASM):
+	$(MAKE) -C $(REPO_ROOT)/src web
+
+$(IO_SERVER):
+	$(MAKE) -C $(REPO_ROOT)/src io-server
+
+# Rebuild the client from this directory when its sources moved.
+client-web:
+	$(MAKE) -C $(REPO_ROOT)/src web
+
+dev-canvas: node_modules generated $(CS2) $(CLIENT_WASM) $(IO_SERVER)
 	$(NODE) bin/cs2dom.js dev-canvas --project $(PROJECT)
 
 # The AOT back end's own suites. No cache and no browser needed.
 test-aot: generated
 	$(NODE) test/cs2_js_emit_test.js
+	$(NODE) test/cmd_frames_test.js
 	$(NODE) test/uitree_test.js
 	$(NODE) test/host_services_test.js
 	$(NODE) test/transmit_pump_test.js
@@ -176,6 +193,26 @@ emit-reference-all: $(TORIRS)
 emit-parity-all: generated $(CS2)
 	$(NODE) scripts/verify_emit_parity.mjs --content $(CONTENT) --cache $(CACHE) \
 		--rev $(REV) --cs2 $(CS2) --reference $(EMIT_ALL_DIR)
+
+# ---- the client, as the preview -----------------------------------------
+#
+# Two gates on the seam between this tool and the client, both needing a built
+# client and therefore not part of `make test`.
+#
+# verify-cmd-wire answers "does C read the frames this tool writes?" -- the
+# encoder here and CmdBus_Push* in the client are two implementations of one
+# byte layout, and test/cmd_frames_test.js can only check one of them against
+# octets someone typed. This hands the real bytes to the real client.
+#
+# smoke-client answers "does the preview draw?" -- it replaces the emit and
+# pixel parity harnesses, which existed to check a renderer this tool no longer
+# has. It is a LIVENESS check, deliberately: correctness belongs to the client
+# now, and a second opinion about it here would be the mistake being undone.
+verify-cmd-wire: $(TORIRS)
+	$(NODE) scripts/verify_cmd_wire.mjs --client $(TORIRS) --cache $(CACHE) --rev $(REV)
+
+smoke-client: node_modules $(CLIENT_WASM) $(IO_SERVER)
+	$(NODE) scripts/smoke_client.mjs --cache $(CACHE) --rev $(REV) --content $(CONTENT)
 
 # What the host answers, measured against what the REFERENCE answers rather
 # than against the whole decompiler surface. See the script's header for why

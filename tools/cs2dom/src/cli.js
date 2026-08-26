@@ -56,10 +56,11 @@ function usage(code) {
         '      scripts/<name>.cs2 into the content tree, and allocate ids in the pack\n' +
         '      files. Bake afterwards with: make -C src torirsserver-cache\n\n' +
         '  cs2dom dev [--project DIR] [--cache DIR --rev NAME] [--port N] [--no-open]\n' +
-        '      Open an interface in the browser and run it: cache CS2 compiled to\n' +
-        '      JavaScript, executed against a ported UITree on one thread, drawn to\n' +
-        '      one canvas. Three panes — the interface, the host state it reads as\n' +
-        '      controls, and the .if / .cs2 / JavaScript records it compiles to.\n\n' +
+        '      Open an interface in the browser and run it in the REAL client —\n' +
+        '      build-web/torirs.wasm, drawing with toridraw and hit-testing with its\n' +
+        '      own code. Three panes: the client, the state to drive it with, and the\n' +
+        '      .if / .compack / .cs2 / JavaScript it compiles to.\n\n' +
+        '      Needs the client built first: make -C src web\n' +
         '      --cache opens a Dat2 cache directly; --rev names its cachepack profile.\n\n' +
         '  cs2dom cachegen [--project DIR] [--out FILE]\n' +
         '      Regenerate cache.gen.ts — sprite, font, varp, varbit and interface ids\n' +
@@ -250,11 +251,12 @@ async function killAndWait(pid, port) {
 }
 
 /**
- * The JavaScript-native dev server.
+ * The dev server.
  *
- * One canvas, no worker and no WASM: the runtime the browser loads is the same
- * code the Node suites drive. The server's whole job is to hand it a
- * catalogue, an interface's records and the modules it imports.
+ * The preview is the official client compiled to WebAssembly; this server hands
+ * the browser that build, an io_server to answer its cache reads, and the two
+ * things the client has no opinion about — which interface to open, and what
+ * that interface compiles to.
  */
 function commandDevCanvas(flags) {
     const project = loadProject(flags.project);
@@ -262,8 +264,8 @@ function commandDevCanvas(flags) {
     if( flags.rev ) project.revision = flags.rev;
     /* Imported here rather than at the top: a build should not pay for the
      * server, and the server should not pay for the compiler. */
-    return import('./dev_canvas.js').then(({ serveCanvas }) => {
-        serveCanvas({
+    return import('./dev_client.js').then(({ serveClient }) => {
+        serveClient({
             root: resolve(fileURLToPath(new URL('..', import.meta.url))),
             contentDir: project.content ?? null,
             cache: project.cache ?? null,

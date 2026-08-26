@@ -687,6 +687,19 @@ EM_JS(void, web_mark_frame_event, (const char* label), {
         performance.mark(s);
     console.warn('[torirs] ' + s);
 });
+
+/* Tell whoever embedded this page that the module will take commands now.
+ *
+ * An embedder can see the iframe load and the canvas appear well before the
+ * runtime is far enough in to accept a cmdbus frame, and a harness that guesses
+ * at that gap guesses wrong. Called once, where the loop begins: the exports
+ * exist, the ring exists, and anything pushed from here on drains on the next
+ * iteration. A page with no such hook is the ordinary case and costs the call.
+ */
+EM_JS(void, web_announce_ready, (void), {
+    if( typeof window !== 'undefined' && typeof window.torirsAnnounceReady === 'function' )
+        window.torirsAnnounceReady();
+});
 #endif
 
 static struct App app;
@@ -5001,6 +5014,10 @@ main(
          * drives frame_loop_step from here on, and the stack below this point
          * is unwound (which is why the loop's state is at file scope).
          * Shutdown happens in frame_loop_tick when the step says stop. */
+#if defined(TORIRS_PLATFORM_WEB)
+        /* Before the unwind, not after: there is no "after". */
+        web_announce_ready();
+#endif
         emscripten_set_main_loop(frame_loop_tick, 0, 1);
         return 0;
 #else
