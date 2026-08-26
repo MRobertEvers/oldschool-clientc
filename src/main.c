@@ -2402,13 +2402,20 @@ frame_loop_teardown(void)
                     continue;
                 if( filter_group >= 0 && group != filter_group )
                     continue;
+                /* The model pose rides at the END of the line: the parity
+                 * parser (cs2dom's emit_parity.js) matches an unanchored
+                 * prefix, so trailing fields are additive. A pixel diff on a
+                 * model widget is unexplainable without the angles. */
                 fprintf(
                     stderr,
                     "EMIT_EXIT[%d] kind=%d com=0x%08x (%d|%d) x=%d y=%d w=%d h=%d scene=%d model=%d "
-                    "color=0x%06x filled=%d trans=%d tiled=%d clip=%d,%d %dx%d\n",
+                    "color=0x%06x filled=%d trans=%d tiled=%d clip=%d,%d %dx%d "
+                    "mzoom=%d mxan=%d myan=%d mzan=%d mox=%d moy=%d\n",
                     i, (int)d->kind, d->component_id, group, d->component_id & 0xFFFF,
                     d->x, d->y, d->w, d->h, d->scene_id, d->model_id, d->color, d->filled, d->trans,
-                    d->tiled, d->clip.x, d->clip.y, d->clip.w, d->clip.h);
+                    d->tiled, d->clip.x, d->clip.y, d->clip.w, d->clip.h,
+                    d->model_zoom, d->model_xan, d->model_yan, d->model_zan,
+                    d->model_x_offset, d->model_y_offset);
             }
         }
         if( getenv("TORIRS_NET_DEBUG") && app.tree )
