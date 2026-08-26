@@ -3246,8 +3246,13 @@ main_parse_argument_layer(
         }
         if( positional == 1 && argv[argi][0] != '-' )
         {
-            cfg.interface_id = atoi(argv[argi]);
-            if( cfg.interface_id <= 0 )
+            /* strtol with the end pointer, not atoi: 0 is a REAL interface
+             * (100guide_eggs_overlay), and atoi's 0-on-garbage made it
+             * indistinguishable from a typo. Only non-numeric input and
+             * negative ids are invalid. */
+            char* id_end = NULL;
+            cfg.interface_id = (int)strtol(argv[argi], &id_end, 10);
+            if( id_end == argv[argi] || *id_end != '\0' || cfg.interface_id < 0 )
             {
                 fprintf(stderr, "invalid interface id: %s\n", argv[argi]);
                 return 0;
