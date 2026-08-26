@@ -117,9 +117,21 @@ export class AssetLoader {
         {
         case 'sprite': return this.sprites ? !!(await this.sprites.load(id)) : false;
         case 'font': return this.fonts ? !!(await this.fonts.load(id)) : false;
-        /* A model park carries no pose — the widget's pose is read at paint
-         * time, and the park is only about the model record existing. */
-        case 'model': return this.models ? !!(await this.models.load(id, extra ?? {})) : false;
+        /*
+         * A model PARK carries no pose, and a pose is what a render needs.
+         *
+         * The host is only asking whether the record exists so its call can
+         * complete; the PAINT is what renders one, with the widget's real
+         * size, zoom, angles and animation frame. Sending the park to the
+         * renderer asked for a 0x0 image at zoom 0 -- which the rasteriser
+         * refuses outright -- so every model on the page reported "model
+         * widget render failed" while nothing was wrong with any of them.
+         */
+        case 'model':
+            if( !this.models ) return false;
+            if( !(extra?.width > 0 && extra?.height > 0) )
+                return this.models.has?.(id) ?? true;
+            return !!(await this.models.load(id, extra));
         case 'component': return this.interfaces
             ? !!(await this.interfaces.mount(id)) : false;
         case 'script': return this.scripts ? !!(await this.scripts.load(id)) : false;

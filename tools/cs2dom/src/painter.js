@@ -30,6 +30,7 @@
  */
 
 import { EMIT_KIND, effectiveText, variantOf } from './emit.js';
+import { poseKey } from './assets.js';
 
 /** Transparency is 0 (opaque) to 255 (invisible), as the cache means it. */
 function alphaOf(trans) {
@@ -57,7 +58,17 @@ export class Painter {
         this.models = models;
         this.stats = { frames: 0, commands: 0, skipped: 0, missingAssets: 0 };
         /** Assets a frame wanted and did not have, for the caller to load. */
-        this.wanted = { sprites: new Set(), fonts: new Set(), models: new Set() };
+        /*
+         * `models` is the id set, which is what a report wants; `modelPoses`
+         * is what a LOAD wants. A model is rendered for one pose -- size,
+         * zoom, three angles, two offsets, an animation frame -- and asking
+         * for the id alone renders a 0x0 image at zoom 0, which the
+         * rasteriser refuses outright.
+         */
+        this.wanted = {
+            sprites: new Set(), fonts: new Set(),
+            models: new Set(), modelPoses: new Map(),
+        };
     }
 
     /**
@@ -281,7 +292,19 @@ export class Painter {
     _model(command) {
         const id = command.props.model | 0;
         if( id < 0 ) return;
-        const surfaceForModel = this.models?.get(id, {
+        const clip = command.clip;
+        const pose = {
+            /*
+             * The render canvas is the CLIP, not the widget box.
+             *
+             * The reference rasteriser draws the model centred on the widget
+             * box and scissors it by the component's clip — nothing else.
+             * pirate_combilock's dials are 31x32 boxes drawing ~90-pixel
+             * models; rendering into the box cropped every one of them to a
+             * sliver. The widget box rides along as the projection centre.
+             */
+            canvasWidth: clip.width, canvasHeight: clip.height,
+            widgetX: command.x - clip.x, widgetY: command.y - clip.y,
             width: command.width, height: command.height,
             zoom: command.props.modelZoom | 0,
             angleX: command.props.modelAngleX | 0,
@@ -290,14 +313,16 @@ export class Painter {
             offsetX: command.props.modelOffsetX | 0,
             offsetY: command.props.modelOffsetY | 0,
             anim: command.props.modelAnim ?? -1,
-        });
+        };
+        const surfaceForModel = this.models?.get(id, pose);
         if( !surfaceForModel )
         {
             this.wanted.models.add(id);
+            this.wanted.modelPoses.set(poseKey(id, pose), { id, pose });
             this.stats.missingAssets++;
             return;
         }
-        this.surface.drawImage(surfaceForModel, command.x, command.y,
+        this.surface.drawImage(surfaceForModel, clip.x, clip.y,
             alphaOf(command.trans), {});
     }
 

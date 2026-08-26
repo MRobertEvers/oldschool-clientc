@@ -188,6 +188,8 @@ import { mountInterface } from '/src/browser_runtime.js';
 import { ScriptRegistry } from '/src/cs2_driver.js';
 import { bakeInterface } from '/src/if_to_tree.js';
 import { HostConfig } from '/src/host_config.js';
+import { createModelRenderController } from '/src/model_render_controller.js';
+import { createModelSource } from '/src/model_source.js';
 
 /*
  * Stamped into the status line so a screenshot says which code produced it.
@@ -197,6 +199,17 @@ import { HostConfig } from '/src/host_config.js';
  * broken" and "still running last week's page" look identical in a picture.
  */
 const BUILD = new URL(import.meta.url).searchParams.get('v') ?? 'dev';
+
+/*
+ * ?paused=1: mount but do not start the frame loop.
+ *
+ * The pixel-parity harness drives session.frame() itself with a clock it
+ * controls, because a real requestAnimationFrame clock ticks the timers a
+ * nondeterministic number of times before the capture — and a spinning model
+ * whose pose moves every tick can never be caught by an async renderer that
+ * is always one pose behind. A frozen clock makes the wanted set finite.
+ */
+const PAUSED = new URLSearchParams(location.search).get('paused') === '1';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('surface');
@@ -281,10 +294,14 @@ async function mountStages(key) {
    * record the script that placed it read. */
   const config = new HostConfig();
   runtime = mountInterface({
-    canvas, scripts, config,
+    canvas, scripts, config, models: modelSource(),
     onWarning: (message) => { log.textContent += \`\${message}\\n\`; },
     onFrame: (painted, session) => { if( painted ) metrics(session); },
   });
+  /* The C host opens the interface with client_clock already at 100
+   * (RS_CS2Host), and scripts read it -- a fade scheduled at clientclock+3
+   * lands three cycles later only if the start agrees. */
+  runtime.session.host.clock.cycles = 100;
   chrome.size = { width: detail.width ?? 765, height: detail.height ?? 503 };
   runtime.resize(chrome.size.width, chrome.size.height);
   fit();
@@ -335,7 +352,7 @@ async function mountStages(key) {
 
   hideSpillover(tree, detail.interfaceId);
 
-  runtime.start();
+  if( !PAUSED ) runtime.start();
   renderState(detail.state ?? []);
   status(detail.name + ' · ' + detail.interfaceId
     + ' — root ' + chrome.size.width + 'x' + chrome.size.height
@@ -392,6 +409,40 @@ async function mountGroup(session, scripts, sources, id) {
   });
   hideGroupRoots(session.host.tree, id);
   return true;
+}
+
+/*
+ * Widget models, rendered by toridraw in a worker.
+ *
+ * A model widget is not the emitter's business: the draw list says "model
+ * 7748 at this pose" and something has to raster it. Nothing did here, so
+ * every model box drew empty -- 442 of the 878 interfaces with a draw list
+ * are part models and about twenty are nothing else. pirate_combilock is
+ * fifteen models and one line of text, so it rendered the word UNLOCK on
+ * black and looked broken rather than unimplemented.
+ *
+ * One per MOUNT, because the runtime disposes what it was given, and a
+ * shared worker torn down by the first remount is worse than a second one.
+ */
+function modelSource() {
+  if( typeof Worker === 'undefined' ) return null;
+  try
+  {
+    const controller = createModelRenderController({
+      workerUrl: '/src/model_render_worker.js',
+    });
+    return createModelSource({
+      controller,
+      modelUrl: (id) => '/api/model?id=' + (id | 0),
+      animationUrl: (seq) => (seq >= 0 ? '/api/seq?id=' + (seq | 0) : null),
+      onWarning: (message) => { log.textContent += message + '\\n'; },
+    });
+  }
+  catch( error )
+  {
+    log.textContent += 'models unavailable: ' + error.message + '\\n';
+    return null;
+  }
 }
 
 /* park kind -> the HostConfig table it lands in. */
@@ -701,9 +752,30 @@ function setPanels(on) {
 panels.addEventListener('click', () => setPanels(document.body.dataset.panels === 'off'));
 setPanels(innerWidth >= 765 + 32 + 280 + 340);
 
+/*
+ * A deep link, and the pixel-parity harness's door.
+ *
+ * ?open=NAME or ?open=ID mounts that interface as soon as the catalogue
+ * arrives. The harness (scripts/verify_pixel_parity.mjs) drives this instead
+ * of the picker DOM, then polls window.__cs2dev and the status line to know
+ * when the mount settled.
+ */
+function openFromUrl() {
+  const wanted = new URLSearchParams(location.search).get('open');
+  if( !wanted ) return;
+  const id = Number(wanted);
+  const entry = catalogue.find((candidate) => candidate.name === wanted)
+    ?? (Number.isInteger(id)
+      ? catalogue.find((candidate) => candidate.interfaceId === id) : null);
+  if( !entry ) { status('no interface named ' + wanted, 'bad'); return; }
+  chrome.selected = entry.key;
+  pick.value = entry.name;
+  mount(entry.key);
+}
+
 fetch('/api/catalogue')
   .then((response) => response.json())
-  .then((entries) => { catalogue = entries; })
+  .then((entries) => { catalogue = entries; openFromUrl(); })
   .catch(() => { log.textContent = 'could not load the interface catalogue'; });
 `;
 }

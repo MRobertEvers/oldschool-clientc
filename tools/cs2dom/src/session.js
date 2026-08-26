@@ -179,22 +179,39 @@ export class InterfaceSession {
     _serveWanted() {
         if( !this.loader ) return;
         const wanted = this.painter.wanted;
-        const kinds = [['sprite', wanted.sprites], ['font', wanted.fonts], ['model', wanted.models]];
-        for( const [kind, ids] of kinds )
+        for( const [kind, ids] of [['sprite', wanted.sprites], ['font', wanted.fonts]] )
         {
             if( ids.size === 0 ) continue;
             const pending = [...ids];
             ids.clear();
-            for( const id of pending )
-            {
-                const key = `${kind}:${id}`;
-                if( this.assetsRequested.has(key) ) continue;
-                this.assetsRequested.add(key);
-                Promise.resolve(this.loader.load(kind, id, null))
-                    .then((produced) => { if( produced ) this.repaintWanted = true; })
-                    .catch(() => {});
-            }
+            for( const id of pending ) this._request(kind, `${kind}:${id}`, id, null);
         }
+
+        /*
+         * A model is asked for BY POSE, not by id.
+         *
+         * The image is rendered for one size, zoom, orientation and animation
+         * frame; requesting the bare id renders a 0x0 picture at zoom 0,
+         * which the rasteriser refuses -- every model widget on the page then
+         * reported "model widget render failed" while the model itself was
+         * perfectly fine.
+         */
+        if( wanted.modelPoses.size )
+        {
+            const poses = [...wanted.modelPoses];
+            wanted.modelPoses.clear();
+            wanted.models.clear();
+            for( const [key, { id, pose }] of poses )
+                this._request('model', `model:${key}`, id, pose);
+        }
+    }
+
+    _request(kind, key, id, extra) {
+        if( this.assetsRequested.has(key) ) return;
+        this.assetsRequested.add(key);
+        Promise.resolve(this.loader.load(kind, id, extra))
+            .then((produced) => { if( produced ) this.repaintWanted = true; })
+            .catch(() => {});
     }
 
     /**

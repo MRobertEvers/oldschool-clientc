@@ -436,6 +436,11 @@ function poseKey(id, pose = {}) {
         id | 0, pose.width | 0, pose.height | 0, pose.zoom | 0,
         pose.angleX | 0, pose.angleY | 0, pose.angleZ | 0,
         pose.offsetX | 0, pose.offsetY | 0, pose.anim ?? -1,
+        /* The canvas the model overflows into, and where the widget box sits
+         * inside it. The same pose against a different clip is a different
+         * picture — the overhang is cropped differently. */
+        pose.canvasWidth | 0, pose.canvasHeight | 0,
+        pose.widgetX | 0, pose.widgetY | 0,
     ].join(':');
 }
 

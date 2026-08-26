@@ -105,8 +105,15 @@ export class ToridrawModelSource {
                 token: `${id}:${pose.anim ?? -1}`,
                 modelUrl: this.modelUrl(id),
                 animationUrl: this.animationUrl(pose.anim ?? -1),
-                width: pose.width | 0, height: pose.height | 0,
-                widgetX: 0, widgetY: 0,
+                /*
+                 * The canvas is the widget's CLIP and the widget box sits
+                 * inside it — the reference draws the model centred on the
+                 * box and scissored by the clip, so the overhang is part of
+                 * the picture. A caller with no clip (a test) gets the box.
+                 */
+                width: (pose.canvasWidth ?? pose.width) | 0,
+                height: (pose.canvasHeight ?? pose.height) | 0,
+                widgetX: pose.widgetX | 0, widgetY: pose.widgetY | 0,
                 widgetWidth: pose.width | 0, widgetHeight: pose.height | 0,
                 zoom: pose.zoom | 0,
                 xAngle: pose.angleX | 0, yAngle: pose.angleY | 0, zAngle: pose.angleZ | 0,
@@ -128,8 +135,8 @@ export class ToridrawModelSource {
             this.stats.rendered++;
             const bitmap = result.bitmap ?? result.image;
             return {
-                width: result.width ?? pose.width | 0,
-                height: result.height ?? pose.height | 0,
+                width: result.width ?? (pose.canvasWidth ?? pose.width) | 0,
+                height: result.height ?? (pose.canvasHeight ?? pose.height) | 0,
                 offsetX: 0, offsetY: 0,
                 bitmap,
             };
@@ -153,9 +160,15 @@ export class ToridrawModelSource {
  * Deliberately NOT the full pose. The store keys images by pose, which is
  * about caching; this key is about supersession, and a spinning model has to
  * be one owner across every angle it passes through.
+ *
+ * PLACEMENT is part of the widget's identity, not of the pose:
+ * pirate_combilock draws the same dial model in three columns, and an owner
+ * of id+size alone made each column's request supersede the other two — two
+ * of every three dials were forever "still rendering".
  */
 function poseOwner(id, pose) {
-    return `${id | 0}:${pose.width | 0}x${pose.height | 0}`;
+    return `${id | 0}:${pose.widgetX | 0},${pose.widgetY | 0}:`
+        + `${pose.width | 0}x${pose.height | 0}`;
 }
 
 export { poseOwner };

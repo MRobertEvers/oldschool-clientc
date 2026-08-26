@@ -21,6 +21,9 @@ import { emitScript } from './cs2_js_emit.js';
 import { parseIf, parseCompack } from './if_record.js';
 import { createContentAssets } from './content_assets.js';
 import { createContentConfigs } from './content_configs.js';
+import {
+    modelAssets, modelIndex, rawModel, requestModel, startModelServer,
+} from './model.js';
 import { encodePng } from './png.js';
 
 const MIME = {
@@ -53,6 +56,21 @@ export function serveCanvas({
          * stream. `process.pid` alone repeats after a wrap, and the start
          * time makes the pair unique for as long as anyone cares. */
         boot: `${process.pid}:${Date.now()}`,
+        /*
+         * The MODEL half.
+         *
+         * A widget model is toridraw's, not the emitter's -- the draw list
+         * says "model 7748 at this pose" and something has to raster it. The
+         * entity viewer already owns that renderer, so the dev server starts
+         * it on a private port and hands the browser the same WASM the entity
+         * viewer's page uses. Without it, 442 of the 878 interfaces with a
+         * draw list are missing part of their picture and 20 of them are
+         * missing all of it -- `pirate_combilock` is 15 models and one line
+         * of text, so it drew the text and nothing else.
+         */
+        renderer: null,
+        rendererAssets: modelAssets(),
+        modelIndex: null,
     };
 
     const server = createServer((request, response) => {
@@ -63,6 +81,12 @@ export function serveCanvas({
 
     if( state.contentDir ) watchContent(state);
     watchSource(state);
+
+    /* One port up, exactly as the older dev server does it. */
+    state.renderer = startModelServer(
+        { cache, revision, content: contentDir, unpackedContent: contentDir },
+        port + 1,
+        (line) => process.stderr.write(`${line}\n`));
 
     /*
      * A port already taken is a QUESTION, not a crash.
@@ -101,6 +125,24 @@ function route(state, url, request, response) {
         return sendGroup(state, Number(url.searchParams.get('id')), response);
     case '/api/config':
         return sendConfig(state, url.searchParams, response);
+    case '/api/model':
+        return sendModel(state, Number(url.searchParams.get('id')), response);
+    case '/api/seq':
+        return sendSequence(state, Number(url.searchParams.get('id')), response);
+    /* The worker asks for `/model/textures.bin?ids=...`; the name is its
+     * own and changing it there would only move the coupling. */
+    case '/model/textures.bin':
+        return sendTextures(state, url.search, response);
+    case '/toridraw/ev_wasm.js':
+        return sendRendererFile(state.rendererAssets.javascript,
+            'text/javascript; charset=utf-8', response);
+    case '/toridraw/ev_wasm_module.js':
+        /* The entity viewer ships a classic script; the worker imports it as
+         * a MODULE, and the only difference is the export. */
+        return sendRendererFile(state.rendererAssets.javascript,
+            'text/javascript; charset=utf-8', response, '\nexport { EVModule };\n');
+    case '/toridraw/ev_wasm.wasm':
+        return sendRendererFile(state.rendererAssets.wasm, 'application/wasm', response);
     case '/api/sprite':
         return sendSprite(state, url.searchParams, response);
     case '/api/font':
@@ -291,6 +333,58 @@ function sendConfig(state, params, response) {
      * host has a documented miss answer for every config op and needs the
      * load to have COMPLETED to reach it. A 404 would be retried. */
     send(response, 200, MIME['.json'], JSON.stringify({ kind, table, id, record: record ?? null }));
+}
+
+/* -------------------------------------------------------------------------
+ * Models
+ * ---------------------------------------------------------------------- */
+
+/*
+ * One widget model, prepared.
+ *
+ * The bytes go to the renderer's `/api/widgetmodel`, which decodes the model
+ * archive and applies the UI asset profile -- classic model, non-SD textures
+ * dropped, scene lighting with the reference adjustments. That is the exact
+ * model the C client draws, which is the only reason a comparison against it
+ * means anything.
+ */
+function sendModel(state, id, response) {
+    if( !Number.isInteger(id) || !state.contentDir )
+        return send(response, 400, 'text/plain', 'no id');
+    if( !state.modelIndex ) state.modelIndex = modelIndex(state.contentDir);
+    const body = rawModel(state.contentDir, state.modelIndex, id);
+    if( !body ) return send(response, 404, 'text/plain', `no model ${id}`);
+    relay(state, { method: 'POST', path: '/api/widgetmodel', body }, response);
+}
+
+function sendSequence(state, id, response) {
+    if( !Number.isInteger(id) || id < 0 ) return send(response, 404, 'text/plain', 'no sequence');
+    relay(state, { path: `/api/seq/${id}.anim` }, response);
+}
+
+function sendTextures(state, search, response) {
+    relay(state, { path: `/api/textures.bin${search}` }, response);
+}
+
+function relay(state, options, response) {
+    requestModel(state.renderer, options)
+        .then((result) => {
+            response.writeHead(result.status, {
+                'content-type': result.headers['content-type'] || 'application/octet-stream',
+                'cache-control': 'no-store',
+            });
+            response.end(result.body);
+        })
+        .catch((error) => send(response, 502, 'text/plain',
+            `model renderer: ${error.message}`));
+}
+
+/* A file from the entity viewer's web directory, optionally with a tail. */
+function sendRendererFile(path, type, response, tail = '') {
+    if( !path || !existsSync(path) )
+        return send(response, 404, 'text/plain', 'the model renderer is not built');
+    const body = readFileSync(path);
+    send(response, 200, type, tail ? Buffer.concat([body, Buffer.from(tail)]) : body);
 }
 
 /** name -> group id, from the interface pack. */
