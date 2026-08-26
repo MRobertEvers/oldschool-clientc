@@ -919,9 +919,12 @@ painter_add_normal_scenery_ex(
     int model_height,
     uint8_t flags)
 {
-    /* Scene ids are 0..TORIDRAW_SCENE_MAX_ELEMENTS-1 (65535); the command
-     * word packs entity in 16 bits, so the full uint16 range is legal. */
-    assert(entity >= 0 && entity <= UINT16_MAX);
+    /* Scene ids are 0..TORIDRAW_SCENE_MAX_ELEMENTS-1 (65535), and the
+     * command word packs that index in 16 bits. The id may also carry a
+     * kind above it, which travels in its own field, so the bound is on
+     * the INDEX and not on the whole id. */
+    assert(entity >= 0);
+    assert(ElementId_Index(ElementId_FromRaw(entity)) <= UINT16_MAX);
     /* Loc configs can yield 0 (bad cache/orientation swap); spans require positive footprint. */
     if( size_x < 1 )
         size_x = 1;
@@ -1382,7 +1385,8 @@ push_command_entity(
     buffer->commands[count] = (struct PaintersElementCommand){
         ._entity = {
             ._bf_kind = PNTR_CMD_ELEMENT,
-            ._bf_entity = entity,
+            ._bf_entity = (uint32_t)ElementId_Index(ElementId_FromRaw(entity)),
+            ._bf_entity_kind = (uint32_t)ElementId_Kind(ElementId_FromRaw(entity)),
         },
     };
 }
@@ -1763,7 +1767,7 @@ painter_dump_command_order(
             default: continue;
             }
 
-            if( entity != (int)cmd->_entity._bf_entity )
+            if( entity != painter_command_element_id(cmd) )
                 continue;
             if( only_sx >= 0 && (el->sx != (uint16_t)only_sx || el->sz != (uint16_t)only_sz) )
                 break;

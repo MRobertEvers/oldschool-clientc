@@ -1,5 +1,6 @@
 #include "torirs_pick.h"
 
+#include "toridraw_element_id.h"
 #include "world/world.h"
 #include "world/world_pickset.h"
 
@@ -12,6 +13,20 @@
 /* Entity picks report the entity's own tile. Players (including local) are
  * pickable so a tile-occupancy winner can expand co-located stackmates into
  * the minimenu (Client-TS addViewportOptions); local rows are skipped later. */
+/*
+ * Which entity is this, and where is it standing?
+ *
+ * This used to try the npc pool, then players, then scenery, then
+ * objstacks, and each of those is a linear walk of a pool's active list
+ * chasing World_EntityPoolNext -- so a frame paid O(hits x scene) to answer
+ * a question the emitter already knew the answer to. The element id now
+ * carries its kind (see toridraw_element_id.h), so this asks one pool.
+ *
+ * An untagged id is kind NONE and still falls through to the old search:
+ * ids reach here from paths that predate the tag (a plugin-placed object,
+ * anything a test builds by hand), and reading NONE as "no entity" would
+ * silently stop those picking.
+ */
 static bool
 pick_classify_element(
     struct World* world,
@@ -21,57 +36,78 @@ pick_classify_element(
     int* out_tile_z,
     int* out_tile_level)
 {
-    struct WorldEntity_NPC* npc = World_NpcGetByElementId(world, element_id, NULL);
-    if( npc )
-    {
-        *out_type = WORLD_PICK_NPC;
-        *out_tile_x = npc->grid_position.x;
-        *out_tile_z = npc->grid_position.z;
-        *out_tile_level = npc->grid_position.level;
-        return true;
-    }
+    enum ToriDraw_ElementKind const kind =
+        ElementId_Kind(ElementId_FromRaw(element_id));
 
-    struct WorldEntity_Player* player = World_PlayerGetByElementId(world, element_id);
-    if( player )
+    if( kind == TORIDRAW_ELEMENT_KIND_NPC || kind == TORIDRAW_ELEMENT_KIND_NONE )
     {
-        *out_type = WORLD_PICK_PLAYER;
-        *out_tile_x = player->grid_position.x;
-        *out_tile_z = player->grid_position.z;
-        *out_tile_level = player->grid_position.level;
-        return true;
-    }
-
-    struct WorldEntity_Scenery* scenery = World_SceneryGetByElementId(world, element_id);
-    if( scenery )
-    {
-        /* LocType.active gate: the reference negates a non-active loc's
-         * typecode, and Model.draw only records hits for `typecode > 0`
-         * (Model.ts:1758) — so walls, gravel and floor decor never produce a
-         * menu row. Without this every unnamed loc surfaced as
-         * "Examine @cya@Scenery".
-         *
-         * The loc-inspection tools lift the gate, because the locs worth
-         * inspecting for a placement bug are overwhelmingly the inactive ones —
-         * a wall, a fence or a patch of ground decor on the wrong square is
-         * invisible to a menu that refuses to pick them, and so is its
-         * footprint. See WorldEntity_SceneryPickInactive. */
-        if( !scenery->interactive && !WorldEntity_SceneryPickInactive() )
+        struct WorldEntity_NPC* npc = World_NpcGetByElementId(world, element_id, NULL);
+        if( npc )
+        {
+            *out_type = WORLD_PICK_NPC;
+            *out_tile_x = npc->grid_position.x;
+            *out_tile_z = npc->grid_position.z;
+            *out_tile_level = npc->grid_position.level;
+            return true;
+        }
+        if( kind == TORIDRAW_ELEMENT_KIND_NPC )
             return false;
-        *out_type = WORLD_PICK_SCENERY;
-        *out_tile_x = scenery->grid_position.x;
-        *out_tile_z = scenery->grid_position.z;
-        *out_tile_level = scenery->grid_position.level;
-        return true;
     }
 
-    struct WorldEntity_ObjStack* stack = World_ObjStackGetByElementId(world, element_id);
-    if( stack )
+    if( kind == TORIDRAW_ELEMENT_KIND_PLAYER || kind == TORIDRAW_ELEMENT_KIND_NONE )
     {
-        *out_type = WORLD_PICK_OBJSTACK;
-        *out_tile_x = stack->grid_position.x;
-        *out_tile_z = stack->grid_position.z;
-        *out_tile_level = stack->grid_position.level;
-        return true;
+        struct WorldEntity_Player* player = World_PlayerGetByElementId(world, element_id);
+        if( player )
+        {
+            *out_type = WORLD_PICK_PLAYER;
+            *out_tile_x = player->grid_position.x;
+            *out_tile_z = player->grid_position.z;
+            *out_tile_level = player->grid_position.level;
+            return true;
+        }
+        if( kind == TORIDRAW_ELEMENT_KIND_PLAYER )
+            return false;
+    }
+
+    if( kind == TORIDRAW_ELEMENT_KIND_SCENERY || kind == TORIDRAW_ELEMENT_KIND_NONE )
+    {
+        struct WorldEntity_Scenery* scenery = World_SceneryGetByElementId(world, element_id);
+        if( scenery )
+        {
+            /* LocType.active gate: the reference negates a non-active loc's
+             * typecode, and Model.draw only records hits for `typecode > 0`
+             * (Model.ts:1758) -- so walls, gravel and floor decor never
+             * produce a menu row. Without this every unnamed loc surfaced as
+             * "Examine @cya@Scenery".
+             *
+             * The loc-inspection tools lift the gate, because the locs worth
+             * inspecting for a placement bug are overwhelmingly the inactive
+             * ones -- a wall, a fence or a patch of ground decor on the wrong
+             * square is invisible to a menu that refuses to pick them, and so
+             * is its footprint. See WorldEntity_SceneryPickInactive. */
+            if( !scenery->interactive && !WorldEntity_SceneryPickInactive() )
+                return false;
+            *out_type = WORLD_PICK_SCENERY;
+            *out_tile_x = scenery->grid_position.x;
+            *out_tile_z = scenery->grid_position.z;
+            *out_tile_level = scenery->grid_position.level;
+            return true;
+        }
+        if( kind == TORIDRAW_ELEMENT_KIND_SCENERY )
+            return false;
+    }
+
+    if( kind == TORIDRAW_ELEMENT_KIND_OBJSTACK || kind == TORIDRAW_ELEMENT_KIND_NONE )
+    {
+        struct WorldEntity_ObjStack* stack = World_ObjStackGetByElementId(world, element_id);
+        if( stack )
+        {
+            *out_type = WORLD_PICK_OBJSTACK;
+            *out_tile_x = stack->grid_position.x;
+            *out_tile_z = stack->grid_position.z;
+            *out_tile_level = stack->grid_position.level;
+            return true;
+        }
     }
 
     return false;

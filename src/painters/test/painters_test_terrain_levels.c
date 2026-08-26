@@ -137,7 +137,7 @@ entity_emits(
         struct PaintersElementCommand* c = &buf->commands[i];
         if( c->_bf_kind != PNTR_CMD_ELEMENT )
             continue;
-        if( (int)c->_entity._bf_entity != entity )
+        if( painter_command_element_id(c) != entity )
             continue;
         if( first_index && *first_index < 0 )
             *first_index = i;

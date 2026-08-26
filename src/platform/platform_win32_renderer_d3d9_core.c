@@ -16,6 +16,7 @@
  */
 
 #include "platform/platform_win32_renderer_d3d9_core.h"
+#include "toridraw_element_id.h"
 #include <assert.h>
 
 #include "core/trspk_drawrangeex.h"
@@ -4523,7 +4524,7 @@ d3d9_pose_element_is_retained(
     if( element_id < 0 )
         return false;
     assert(renderer);
-    element_index = (uint32_t)element_id;
+    element_index = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
     for( track = 0; track < TRSPK_POSE_TRACK_COUNT; track++ )
         if( renderer->poses.elements &&
             element_index < renderer->poses.element_count &&
@@ -4542,7 +4543,7 @@ d3d9_pose_track_is_retained(
     if( !renderer || element_id < 0 || anim_index < 0 ||
         anim_index >= TRSPK_POSE_TRACK_COUNT )
         return false;
-    element_index = (uint32_t)element_id;
+    element_index = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
     return renderer->poses.elements && element_index < renderer->poses.element_count &&
         renderer->poses.elements[element_index].tracks[anim_index].pose_count > 0u;
 }

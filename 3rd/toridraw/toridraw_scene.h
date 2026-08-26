@@ -2,6 +2,7 @@
 #define TORIDRAW_SCENE_H
 
 #include "toridraw_types.h"
+#include "toridraw_element_id.h"
 #include <assert.h>
 
 #include <stdbool.h>

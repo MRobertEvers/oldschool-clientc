@@ -2035,7 +2035,7 @@ try_emit_world_draw_model(
         struct ToriDraw_Position rel;
 
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
-            element_id = (int)cmd->_entity._bf_entity;
+            element_id = painter_command_element_id(cmd);
         else if( cmd->_bf_kind == PNTR_CMD_TERRAIN ||
                  cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
             element_id = World_TerrainElementAt(

@@ -24,6 +24,7 @@
  */
 
 #include "platform/platform_win32_renderer_d3d9_core.h"
+#include "toridraw_element_id.h"
 #include <assert.h>
 
 #include "perf/torirs_perf.h"
@@ -292,7 +293,7 @@ d3d9_material_table_set(
     if( !table || element_id < 0 || anim_index < 0 ||
         anim_index >= TRSPK_POSE_TRACK_COUNT || pose_id < 0 )
         return false;
-    needed = (uint32_t)element_id + 1u;
+    needed = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id) + 1u;
     if( needed > table->element_capacity )
     {
         uint32_t capacity = table->element_capacity ? table->element_capacity : 64u;
@@ -313,7 +314,7 @@ d3d9_material_table_set(
     }
     if( table->element_count < needed )
         table->element_count = needed;
-    track = &table->elements[element_id].tracks[anim_index];
+    track = &table->elements[ToriDraw_ElementIndexOfRaw(element_id)].tracks[anim_index];
     needed = (uint32_t)pose_id + 1u;
     if( needed > track->pose_capacity )
     {
@@ -348,10 +349,10 @@ d3d9_material_table_get(
 {
     const struct D3D9MaterialTrack* track;
     if( !table || !table->elements || element_id < 0 ||
-        (uint32_t)element_id >= table->element_count || anim_index < 0 ||
+        (uint32_t)ToriDraw_ElementIndexOfRaw(element_id) >= table->element_count || anim_index < 0 ||
         anim_index >= TRSPK_POSE_TRACK_COUNT || pose_id < 0 )
         return NULL;
-    track = &table->elements[element_id].tracks[anim_index];
+    track = &table->elements[ToriDraw_ElementIndexOfRaw(element_id)].tracks[anim_index];
     if( !track->poses || (uint32_t)pose_id >= track->pose_count ||
         !track->poses[pose_id].face_passes )
         return NULL;
@@ -366,10 +367,10 @@ d3d9_material_table_remove_track(
 {
     struct D3D9MaterialTrack* track;
     if( !table || !table->elements || element_id < 0 ||
-        (uint32_t)element_id >= table->element_count || anim_index < 0 ||
+        (uint32_t)ToriDraw_ElementIndexOfRaw(element_id) >= table->element_count || anim_index < 0 ||
         anim_index >= TRSPK_POSE_TRACK_COUNT )
         return;
-    track = &table->elements[element_id].tracks[anim_index];
+    track = &table->elements[ToriDraw_ElementIndexOfRaw(element_id)].tracks[anim_index];
     for( uint32_t pose = 0u; pose < track->pose_count; pose++ )
         d3d9_material_pose_clear(&track->poses[pose]);
     track->pose_count = 0u;
