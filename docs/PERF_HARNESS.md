@@ -449,6 +449,26 @@ they measure and in what they wait on. The deadline pacer recovers the time an
 overrun cost and the GameShell pacer cannot, and the GameShell rate estimate
 lags ten frames.
 
+On paper that makes the deadline pacer the better of the two. **On the XP box it
+is not**, which is why gameshell is the default. Measured on the rev-289
+LostCity lane, same binary, `--soft3d`, 25 s in-world windows, two runs each:
+
+| pacer | fps | CPU % of one core | **CPU ms per FRAME** |
+|---|---|---|---|
+| gameshell | 49.88 / 49.01 | 78.6 / 76.3 | **15.75 / 15.56** |
+| deadline | 40.90 / 42.07 | 63.6 / 64.6 | **15.56 / 15.37** |
+
+Cost per frame is the same within ~2 %; what differs is that gameshell holds the
+50 fps cap and the deadline pacer misses it by ~8 fps. The higher CPU % is 20 %
+more frames, not waste — which is exactly the trap the java_parity work fell
+into, so compare the last column and never the middle one.
+
+Why the deadline pacer undershoots its own cap here is not yet explained and is
+worth a look: it waits to `frame_start + 20 ms`, so it should hit 50 whenever the
+frame's work fits, and 15.6 CPU ms of work does fit. Suspect the wait itself —
+`SleepUntilMs` sleeps `remaining - 1` and re-checks, and on a single-core P4
+every one of those returns late.
+
 `TORIRS_PACER_MINDEL=<n>` sets GameShell's wait floor in ms (default 1, the
 reference's). **0 is the interesting arm and is our one deliberate divergence
 from the reference**, which hard-codes 1 there and can only raise it: on the XP
