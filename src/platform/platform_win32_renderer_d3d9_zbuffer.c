@@ -408,60 +408,6 @@ d3d9_material_table_free(struct D3D9MaterialTable* table)
 }
 
 static bool
-d3d9_world_face_front_facing(
-    struct ToriDraw_ModelHandle handle,
-    const struct ToriDraw_Scene* scene,
-    uint32_t face)
-{
-    const faceint_t* face_a;
-    const faceint_t* face_b;
-    const faceint_t* face_c;
-    uint32_t vertex_count;
-    uint32_t a;
-    uint32_t b;
-    uint32_t c;
-    int64_t dx1;
-    int64_t dy1;
-    int64_t dx2;
-    int64_t dy2;
-    assert(scene);
-    if( !scene->screen_vertices_x || !scene->screen_vertices_y )
-        return false;
-    if( ToriDraw_ModelKindIsFull(handle.kind) && handle.u.model.model )
-    {
-        struct ToriDraw_Model* model = handle.u.model.model;
-        if( face >= (uint32_t)model->face_count )
-            return false;
-        face_a = model->face_indices_a;
-        face_b = model->face_indices_b;
-        face_c = model->face_indices_c;
-        vertex_count = (uint32_t)model->vertex_count;
-    }
-    else if( handle.kind == TORIDRAWMK_GROUND && handle.u.model.ground )
-    {
-        struct ToriDraw_ModelGround* ground = handle.u.model.ground;
-        if( face >= (uint32_t)ground->face_count )
-            return false;
-        face_a = ground->face_indices_a;
-        face_b = ground->face_indices_b;
-        face_c = ground->face_indices_c;
-        vertex_count = (uint32_t)ground->vertex_count;
-    }
-    else
-        return false;
-    a = (uint32_t)face_a[face];
-    b = (uint32_t)face_b[face];
-    c = (uint32_t)face_c[face];
-    if( a >= vertex_count || b >= vertex_count || c >= vertex_count )
-        return false;
-    dx1 = (int64_t)scene->screen_vertices_x[a] - scene->screen_vertices_x[b];
-    dy1 = (int64_t)scene->screen_vertices_y[a] - scene->screen_vertices_y[b];
-    dx2 = (int64_t)scene->screen_vertices_x[c] - scene->screen_vertices_x[b];
-    dy2 = (int64_t)scene->screen_vertices_y[c] - scene->screen_vertices_y[b];
-    return dx1 * dy2 - dy1 * dx2 > 0;
-}
-
-static bool
 d3d9_queue_alpha_submission(
     struct D3D9ZBufferWorld* world,
     uint32_t binding,
@@ -961,11 +907,49 @@ d3d9_zbuffer_end_pass(struct ToriRS_D3D9* renderer)
         d3d9_draw_retained(renderer, world->alpha_ibo_chain, true);
 }
 
+/* Which way round the GPU culls.
+ *
+ * CW, established by looking at the frame rather than by deriving it: with
+ * CW the scene is pixel-for-pixel what no culling at all produces, and it
+ * costs ~7% less cpu over the same window (6.25 vs 6.70 cpu-seconds), which
+ * is only possible if it is discarding real back faces. Deriving the sign
+ * from the projection's handedness would have been an argument; this is a
+ * measurement.
+ *
+ * TORIRS_D3D9_CULL overrides it -- `ccw`, `cw`, or `none` to draw both
+ * sides, which is the useful one when a model looks inside out and the
+ * question is whether culling is why. */
+static DWORD
+d3d9_zbuffer_cull_mode(void)
+{
+    static int mode = -1;
+
+    if( mode < 0 )
+    {
+        const char* v = getenv("TORIRS_D3D9_CULL");
+        if( v && (v[0] == 'n' || v[0] == 'N') )
+            mode = (int)D3DCULL_NONE;
+        else if( v && (v[0] == 'c' || v[0] == 'C') && (v[1] == 'c' || v[1] == 'C') )
+            mode = (int)D3DCULL_CCW;
+        else
+            mode = (int)D3DCULL_CW;
+    }
+    return (DWORD)mode;
+}
+
 void
 d3d9_zbuffer_apply_world_states(struct ToriRS_D3D9* renderer)
 {
     IDirect3DDevice9_SetRenderState(renderer->device, D3DRS_ZENABLE, D3DZB_TRUE);
     IDirect3DDevice9_SetRenderState(renderer->device, D3DRS_ZWRITEENABLE, TRUE);
+    /* The GPU does the front-facing test. It is a fixed-function feature we
+     * were paying for on the CPU, once per face of every model, out of the
+     * software projection's scattered vertex arrays.
+     *
+     * TORIRS_D3D9_CULL overrides the handedness for a bisect: `cw`, `ccw`,
+     * or `none` to draw both sides. */
+    IDirect3DDevice9_SetRenderState(
+        renderer->device, D3DRS_CULLMODE, (DWORD)d3d9_zbuffer_cull_mode());
 }
 
 void
@@ -1019,16 +1003,23 @@ d3d9_zbuffer_emit_model(
     if( !material || material->face_count != (uint32_t)placement->face_count )
         return;
 
-    /* Opaque and binary-cutout faces are depth-order independent. Preserve
-     * natural face order and perform only the projected front-face test that
-     * used to be fused into RenderModel2SortFaces. */
+    /* Opaque and binary-cutout faces are depth-order independent, so they go
+     * out in natural face order.
+     *
+     * No winding test. This lane has a DEPTH BUFFER -- that is the whole
+     * point of it -- and a back face loses the depth test to the front face
+     * in front of it without anyone having to decide which is which. The
+     * test that used to be here re-derived screen-space winding from the
+     * software projection for every face of every model, three scattered
+     * vertex reads apiece, to discard triangles the z-buffer was going to
+     * discard anyway. It is culling, and culling is the painter lane's
+     * problem, not this one's. */
     for( i = 0; i < placement->face_count; i++ )
     {
         uint32_t face = (uint32_t)i;
         uint32_t base;
         if( (material->face_passes[face] != D3D9_WORLD_FACE_OPAQUE &&
              material->face_passes[face] != D3D9_WORLD_FACE_CUTOUT) ||
-            !d3d9_world_face_front_facing(command->model, renderer->scene, face) ||
             face > (UINT32_MAX - local_base - 2u) / 3u )
             continue;
         base = local_base + face * 3u;
