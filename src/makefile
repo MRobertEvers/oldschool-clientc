@@ -155,15 +155,19 @@ endif
 #              ("using serial compilation of N LTRANS jobs"), which is both the
 #              slowest way to link this and a warning in every OPT=1 build.
 #
-#   -DNDEBUG   Compiles out assert(). Note this contradicts CLAUDE.md, which
-#              states asserts stay live in every configuration including OPT=1
-#              -- the convention there makes assert() the error handling, not a
-#              debug aid. It is safe in the narrow mechanical sense: all 45
-#              assert() sites in src/ and 3rd/toridraw that wrap a call wrap a
-#              pure predicate (World_EntityPoolIsActive, td_scene_element_valid,
+#   -DNDEBUG   Compiles out assert(). This is the shipping lane, so asserts are
+#              a debug-build check and CLAUDE.md says so. It is safe in the
+#              narrow mechanical sense: all 45 assert() sites in src/ and
+#              3rd/toridraw that wrap a call wrap a pure predicate
+#              (World_EntityPoolIsActive, td_scene_element_valid,
 #              ToriDraw_SceneHasZBuffer, ...), so nothing with a side effect
 #              vanishes with the macro. What it does cost is the loud abort:
-#              an assert()ed malloc becomes an unchecked one.
+#              an assert()ed malloc becomes an unchecked one. It also costs the
+#              optimizer what the assert proved -- an accessor that returns NULL
+#              for a bad index reads to LTO as a genuinely reachable NULL once
+#              the assert ruling it out is gone, which is why the entity pool
+#              and the intrusive list have asserting *At() accessors alongside
+#              the NULL-returning *Get().
 ifeq ($(OPT),1)
 OPT_RELEASE_CFLAGS  = -DNDEBUG -flto=auto
 OPT_RELEASE_LDFLAGS = -flto=auto
