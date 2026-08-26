@@ -17,6 +17,23 @@ struct Task_ObjModelLoad
     int* counts;
     int n;
     int i;
+    /*
+     * The item being loaded, on the TASK and not on the C stack.
+     *
+     * A protothread's locals do not survive a yield -- `PT_BEGIN` re-enters
+     * through a switch, and everything below it is re-initialised garbage. The
+     * loop below awaits an objtype before it resolves the count variant and
+     * the inventory model, so holding either in a local made both reads
+     * undefined for exactly the items whose objtype was not already resident.
+     *
+     * That is precisely the FIRST item of any run: its ObjLoad is the one that
+     * actually yields, so it alone came back with a garbage obj id, resolved
+     * no model, and drew as an empty cell. Every later item found the objtype
+     * already in the provider, skipped the await, and worked -- which is why
+     * this looked like a load race rather than a lifetime bug.
+     */
+    int obj_id;
+    int count;
     int count_obj_id;
     int render_obj_id;
     int model_id;
@@ -283,30 +300,31 @@ Task_ObjModelLoad_Run(
 
     for( self->i = 0; self->i < self->n; self->i++ )
     {
-        int obj_id = self->obj_ids[self->i];
-        int count = self->counts ? self->counts[self->i] : 1;
+        self->obj_id = self->obj_ids[self->i];
+        self->count = self->counts ? self->counts[self->i] : 1;
 
-        if( obj_id <= 0 )
+        if( self->obj_id <= 0 )
             continue;
 
-        PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, obj_id));
+        PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->obj_id));
 
-        self->count_obj_id = obj_model_resolve_count_obj_id(self->provider, obj_id, count);
+        self->count_obj_id =
+            obj_model_resolve_count_obj_id(self->provider, self->obj_id, self->count);
         if( self->count_obj_id > 0 )
             PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->count_obj_id));
 
         /* Bank note: pull in the cert template objtype whose model it borrows
          * (base obj/count obj are resident now, so render-id resolves). */
         self->render_obj_id = obj_model_render_obj_id(
-            self->provider, self->count_obj_id > 0 ? self->count_obj_id : obj_id);
-        if( self->render_obj_id > 0 && self->render_obj_id != obj_id &&
+            self->provider, self->count_obj_id > 0 ? self->count_obj_id : self->obj_id);
+        if( self->render_obj_id > 0 && self->render_obj_id != self->obj_id &&
             self->render_obj_id != self->count_obj_id )
             PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->render_obj_id));
 
         /* Bank note: also load the base item (cert_link) objtype + its model +
          * textures — the icon composites the base's icon over the note paper. */
         self->base_obj_id = obj_model_cert_link_id(
-            self->provider, self->count_obj_id > 0 ? self->count_obj_id : obj_id);
+            self->provider, self->count_obj_id > 0 ? self->count_obj_id : self->obj_id);
         if( self->base_obj_id > 0 )
         {
             PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->base_obj_id));
@@ -326,8 +344,8 @@ Task_ObjModelLoad_Run(
             }
         }
 
-        self->model_id =
-            obj_model_resolve_inventory_model_id(self->provider, obj_id, self->count_obj_id);
+        self->model_id = obj_model_resolve_inventory_model_id(
+            self->provider, self->obj_id, self->count_obj_id);
         if( self->model_id > 0 )
             PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->model_id));
 
