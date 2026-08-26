@@ -1294,16 +1294,11 @@ test_frame_slot_overlay_follows_target_subtree(void)
     TEST_ASSERT(
         shell >= 0 && root >= 0 && button >= 0 && child >= 0 && sibling >= 0,
         "slot-overlay fixture builds");
-    snprintf(
-        UITree_ChatButton(&tree->components[button])->label,
-        sizeof(UITree_ChatButton(&tree->components[button])->label),
-        "%s",
-        "Public chat");
-    snprintf(
-        UITree_ChatButton(&tree->components[button])->mode_label[0],
-        sizeof(UITree_ChatButton(&tree->components[button])->mode_label[0]),
-        "%s",
-        "On");
+    {
+        struct UITreeChatButtonConfig* cfg = UITree_ChatButtonMut(&tree->components[button]);
+        snprintf(cfg->label, sizeof(cfg->label), "%s", "Public chat");
+        snprintf(cfg->mode_label[0], sizeof(cfg->mode_label[0]), "%s", "On");
+    }
 
     memset(slots, 0, sizeof(slots));
     slots[UITREE_FRAME_SLOT_CHAT].all =

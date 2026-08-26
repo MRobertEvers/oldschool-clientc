@@ -23949,9 +23949,26 @@ app_minimenu_ui_pick_live(
         if( pick->node_index < 0 ||
             (uint32_t)pick->node_index >= app->tree->component_count ||
             app->tree->components[pick->node_index].freed ||
-            app->tree->components[pick->node_index].incarnation != pick->node_incarnation ||
-            (pick->id >= 0 &&
-             app->tree->components[pick->node_index].component_id != pick->id) )
+            app->tree->components[pick->node_index].incarnation != pick->node_incarnation )
+            return 0;
+        /*
+         * `pick->id` names the stamped node itself only for a UI pick.
+         *
+         * An INV_SLOT pick carries the CONTAINER's id (pick_inv_slot is handed
+         * UITreeObjCell::component_id, which is dynamic_parent_component_id)
+         * while node_index is the cell inside it -- and a rev-239 item cell is
+         * a CC_CREATEd dynamic child that UITree_CcCreate gave a component id
+         * of its own out of UITree_AllocateDynamicComponentId. The two never
+         * match, so this equality rejected every dynamic inventory row: the
+         * left-click default op returned before it ran, and one dead row in an
+         * open popup made app_minimenu_close_if_stale hide the whole menu, so
+         * a right click on the backpack drew nothing at all.
+         *
+         * The INV_SLOT kinds are identified below instead, on their own terms:
+         * re-resolve (container, slot) and require the same node back.
+         */
+        if( pick->kind == UI_MINIMENU_PICK_UI && pick->id >= 0 &&
+            app->tree->components[pick->node_index].component_id != pick->id )
             return 0;
         if( pick->allow_own_replacement_hidden
                 ? UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
