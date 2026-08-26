@@ -420,9 +420,34 @@ const matching = results.filter((row) => !row.error && row.differing === 0);
  * carries 300k Δ1 pixels, and ranking by the raw count buried a 300-pixel
  * text defect under them.
  */
-const rounding = results.filter((row) => !row.error && row.differing > 0 && !row.beyond)
+/*
+ * An interface whose reference frame contains the WORLD is out of the canvas
+ * engine's scope: the C client boots a 3D scene behind the gameframe and the
+ * page deliberately has none. The classification comes from the reference's
+ * own emit kinds (WORLD/MINIMAP/COMPASS/ENTITY_OVERLAY/WORLDMAP), captured as
+ * a sidecar next to the BMPs.
+ */
+const WORLD_KINDS = ['10', '11', '12', '13', '14'];
+const emitDir = join(outDir, 'emit');
+const drawsWorld = (row) => {
+    const path = join(emitDir, `${row.interfaceId}.json`);
+    if( !existsSync(path) ) return false;
+    try
+    {
+        const kinds = JSON.parse(readFileSync(path, 'utf8'));
+        return WORLD_KINDS.some((kind) => kind in kinds);
+    }
+    catch { return false; }
+};
+
+const world = results.filter((row) => !row.error && row.differing > 0 && drawsWorld(row))
+    .sort((a, b) => (b.beyond ?? 0) - (a.beyond ?? 0));
+const worldIds = new Set(world.map((row) => row.interfaceId));
+const rounding = results.filter((row) => !row.error && row.differing > 0 && !row.beyond
+        && !worldIds.has(row.interfaceId))
     .sort((a, b) => b.differing - a.differing);
-const differing = results.filter((row) => !row.error && row.beyond > 0)
+const differing = results.filter((row) => !row.error && row.beyond > 0
+        && !worldIds.has(row.interfaceId))
     .sort((a, b) => b.beyond - a.beyond);
 const failed = results.filter((row) => row.error);
 
@@ -433,12 +458,14 @@ writeFileSync(join(outDir, 'report.json'), `${JSON.stringify({
     matching: matching.length,
     differing: differing.map(({ appPng, refPng, diffPng, ...row }) => row),
     rounding: rounding.map(({ appPng, refPng, diffPng, ...row }) => row),
+    world: world.map(({ appPng, refPng, diffPng, ...row }) => row),
     failed,
     captureFailures: captureFailures.map((entry) => entry.interfaceId),
 }, null, 1)}\n`);
 
 console.log(`pixel parity: ${matching.length} matching, `
     + `${differing.length} differing, ${rounding.length} blend-rounding only (Δ≤2), `
+    + `${world.length} out of scope (draw the world), `
     + `${failed.length} failed of ${results.length} `
     + `(frames=${frames} ticks=${ticks} tolerance=${tolerance})`);
 for( const row of differing )
@@ -449,6 +476,9 @@ for( const row of differing )
 for( const row of rounding )
     console.log(`  ROUND ${String(row.interfaceId).padStart(4)} ${row.name}: `
         + `${row.differing}px (max Δ${row.maxDelta})`);
+for( const row of world )
+    console.log(`  WORLD ${String(row.interfaceId).padStart(4)} ${row.name}: `
+        + `${row.differing}px (the reference draws the 3D world; the canvas engine has none)`);
 for( const row of failed )
     console.log(`  FAIL ${String(row.interfaceId).padStart(4)} ${row.name}: ${row.error}`);
 process.exit(differing.length + failed.length > 0 ? 1 : 0);
