@@ -282,10 +282,15 @@ export class InterfaceSession {
             this.hoveredComponentId = hovered;
             this._dispatchOn(hovered, 'onMouseOver', event);
         }
-        else if( hovered >= 0 )
-        {
+        /*
+         * Repeat fires on the ENTER tick too, not only from the second one.
+         * That is the reference's cadence: its per-frame pointer pass runs
+         * enter and repeat in the same frame, and a fade armed by
+         * cc_setonmouserepeat starts one frame late — one visible step
+         * behind the C client's — when the first repeat is withheld.
+         */
+        if( hovered >= 0 )
             this._dispatchOn(hovered, 'onMouseRepeat', event);
-        }
     }
 
     _pointerDown(event) {
