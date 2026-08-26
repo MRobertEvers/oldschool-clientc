@@ -200,15 +200,28 @@ function portHolder(port) {
     catch { return null; }
 }
 
-/** One yes/no on the terminal. */
+/*
+ * One yes/no on the terminal.
+ *
+ * `end` answers NO. A terminal whose input has already closed -- a pipe that
+ * delivered its line before this ran, a job put in the background -- never
+ * delivers `data`, and waiting on it alone hangs the start with a prompt on
+ * screen and nothing able to answer it.
+ */
 function confirm(question) {
     return new Promise((answered) => {
         process.stdout.write(question);
         process.stdin.setEncoding('utf8');
-        process.stdin.once('data', (line) => {
+        const done = (value) => {
+            process.stdin.off('data', onData);
+            process.stdin.off('end', onEnd);
             process.stdin.pause();
-            answered(/^\s*y(es)?\s*$/i.test(line));
-        });
+            answered(value);
+        };
+        const onData = (line) => done(/^\s*y(es)?\s*$/i.test(line));
+        const onEnd = () => { process.stdout.write('\n'); done(false); };
+        process.stdin.once('data', onData);
+        process.stdin.once('end', onEnd);
         process.stdin.resume();
     });
 }
