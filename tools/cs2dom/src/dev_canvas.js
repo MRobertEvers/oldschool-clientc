@@ -20,6 +20,7 @@ import { execFileSync } from 'node:child_process';
 import { emitScript } from './cs2_js_emit.js';
 import { parseIf, parseCompack } from './if_record.js';
 import { createContentAssets } from './content_assets.js';
+import { createContentConfigs } from './content_configs.js';
 import { encodePng } from './png.js';
 
 const MIME = {
@@ -74,6 +75,10 @@ function route(state, url, request, response) {
         return send(response, 200, MIME['.json'], JSON.stringify(catalogue(state)));
     case '/api/interface':
         return sendInterface(state, url.searchParams.get('key'), response);
+    case '/api/group':
+        return sendGroup(state, Number(url.searchParams.get('id')), response);
+    case '/api/config':
+        return sendConfig(state, url.searchParams, response);
     case '/api/sprite':
         return sendSprite(state, url.searchParams, response);
     case '/api/font':
@@ -190,13 +195,98 @@ function sendInterface(state, key, response) {
 
     send(response, 200, MIME['.json'], JSON.stringify({
         name,
+        interfaceId: groupIds(state).get(name) ?? -1,
         width: 765, height: 503,
         records: { if: ifText, cs2: cs2Source, js: Object.values(scripts).join('\n\n') },
+        /* The page BAKES: an interface is its `.if` plus the `.compack` that
+         * gives every block a component id, and without the second the tree
+         * cannot be built at all. */
+        ifText,
+        compackText: existsSync(compackPath) ? readFileSync(compackPath, 'utf8') : '',
         scripts,
         onLoad: onLoadEntries(record, compack, name),
         state: stateSlices(record),
         errors,
     }));
+}
+
+/**
+ * One interface by GROUP ID, for a mount the running scripts asked for.
+ *
+ * A script reaching a component in a group that is not in the tree is not an
+ * error -- it is a mount, and the client answers it by loading that interface.
+ * The page cannot read the content tree, so the bake inputs and the new
+ * group's own script closure come from here, in one round trip.
+ */
+function sendGroup(state, id, response) {
+    if( !Number.isInteger(id) || id < 0 )
+        return send(response, 400, MIME['.json'], '{"error":"no id"}');
+    const name = groupNames(state).get(id);
+    if( !name || !state.contentDir )
+        return send(response, 404, MIME['.json'], `{"error":"no interface ${id}"}`);
+
+    const ifPath = join(state.contentDir, 'interfaces', `${name}.if`);
+    if( !existsSync(ifPath) )
+        return send(response, 404, MIME['.json'], `{"error":"no ${name}.if"}`);
+    const compackPath = join(state.contentDir, 'interfaces', `${name}.compack`);
+    const ifText = readFileSync(ifPath, 'utf8');
+    const { scripts, errors } = lowerClosure(state, hookScriptIds(parseIf(ifText)));
+
+    send(response, 200, MIME['.json'], JSON.stringify({
+        id, name, ifText,
+        compackText: existsSync(compackPath) ? readFileSync(compackPath, 'utf8') : '',
+        scripts, errors,
+    }));
+}
+
+/*
+ * One config record.
+ *
+ * The tables are read whole on first use -- they are one text file each and
+ * the process keeps them -- but they are SENT one record at a time, because
+ * the object table alone is tens of megabytes and an interface touches a
+ * handful of rows. A park names exactly the row it wants, so the round trip
+ * carries no more than that.
+ */
+const CONFIG_TABLES = {
+    enum: 'enums', struct: 'structs', obj: 'objects', npc: 'npcs',
+    loc: 'locs', inv: 'inventories', mapelement: 'mapElements',
+    param: 'params',
+};
+
+function sendConfig(state, params, response) {
+    const kind = params.get('kind');
+    const id = Number(params.get('id'));
+    const table = CONFIG_TABLES[kind];
+    if( !table || !Number.isInteger(id) )
+        return send(response, 400, MIME['.json'], '{"error":"bad kind or id"}');
+    if( !state.contentDir )
+        return send(response, 404, MIME['.json'], '{"error":"no content"}');
+
+    if( !state.configs ) state.configs = createContentConfigs(state.contentDir);
+    const record = state.configs.get(table, id);
+    /* A row that is genuinely absent is a 200 with no record, not a 404: the
+     * host has a documented miss answer for every config op and needs the
+     * load to have COMPLETED to reach it. A 404 would be retried. */
+    send(response, 200, MIME['.json'], JSON.stringify({ kind, table, id, record: record ?? null }));
+}
+
+/** name -> group id, from the interface pack. */
+function groupIds(state) {
+    if( !state.groupIds )
+        state.groupIds = state.contentDir
+            ? readPack(join(state.contentDir, 'pack', '3_interfaces.pack')) : new Map();
+    return state.groupIds;
+}
+
+/** group id -> name, the same pack read the other way. */
+function groupNames(state) {
+    if( !state.groupNames )
+    {
+        state.groupNames = new Map();
+        for( const [name, id] of groupIds(state) ) state.groupNames.set(id, name);
+    }
+    return state.groupNames;
 }
 
 function splitKey(key) {

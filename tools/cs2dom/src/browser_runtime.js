@@ -242,11 +242,25 @@ export class BrowserRuntime {
 
     _attach() {
         const canvas = this.canvas;
+        /*
+         * A pointer lands in ROOT coordinates, not in laid-out ones.
+         *
+         * The canvas may be displayed at any CSS size — a preview pane scales
+         * it down to fit rather than re-laying the interface out, because the
+         * cache authored its positions against a fixed root — so the box on
+         * screen and the root the tree was laid out in are two different
+         * sizes. Dividing by the ratio between them is what keeps a click on
+         * a widget landing on that widget.
+         */
         const point = (event) => {
             const box = canvas.getBoundingClientRect();
+            const width = canvas.width / this.ratio;
+            const height = canvas.height / this.ratio;
+            const scaleX = box.width > 0 ? width / box.width : 1;
+            const scaleY = box.height > 0 ? height / box.height : 1;
             return {
-                x: Math.floor(event.clientX - box.left),
-                y: Math.floor(event.clientY - box.top),
+                x: Math.floor((event.clientX - box.left) * scaleX),
+                y: Math.floor((event.clientY - box.top) * scaleY),
             };
         };
 

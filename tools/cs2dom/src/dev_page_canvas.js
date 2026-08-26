@@ -62,7 +62,9 @@ input, select, button {
 }
 button { cursor: pointer; }
 button:hover { border-color: var(--accent); }
-main { display: grid; grid-template-columns: 1fr 300px 380px; overflow: hidden; }
+/* The PREVIEW gets the room. A floor under its column keeps a narrow
+   window from squeezing it to a thumbnail beside two fixed panels. */
+main { display: grid; grid-template-columns: minmax(360px, 1fr) 280px 340px; overflow: hidden; }
 section { overflow: auto; border-left: 1px solid var(--line); }
 section:first-child { border-left: 0; }
 h2 {
@@ -108,6 +110,11 @@ pre.empty { color: var(--dim); font-style: italic; }
 }
 .pickgroup:hover { background: none; color: var(--dim); }
 #log { padding: 6px 12px; font: 11px var(--mono); color: var(--bad); white-space: pre-wrap; }
+#status {
+  padding: 6px 12px; font: 11px var(--mono); color: var(--dim); white-space: pre-wrap;
+}
+#status[data-state=busy] { color: var(--accent); }
+#status[data-state=bad] { color: var(--bad); }
 </style>
 </head>
 <body>
@@ -128,6 +135,7 @@ pre.empty { color: var(--dim); font-style: italic; }
   <section>
     <h2>Preview</h2>
     <div id="stage"><canvas id="surface" width="765" height="503"></canvas></div>
+    <div id="status">select an interface</div>
     <div id="log"></div>
   </section>
   <section>
@@ -159,10 +167,23 @@ export function canvasDevClient() {
     return `/* cs2dom dev page. Chrome only — the runtime lives in browser_runtime.js. */
 import { mountInterface } from '/src/browser_runtime.js';
 import { ScriptRegistry } from '/src/cs2_driver.js';
+import { bakeInterface } from '/src/if_to_tree.js';
+import { HostConfig } from '/src/host_config.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('surface');
 const log = $('log');
+const statusLine = $('status');
+
+/* Mounting an interface is not instant -- 200-odd scripts are fetched and
+ * compiled before the first frame -- and a mount that dies mid-way used to
+ * leave the previous picture (or a black canvas) with nothing said. Every
+ * stage reports here, so "nothing happened" is always distinguishable from
+ * "still working" and from "it failed at stage N". */
+function status(text, state = 'busy') {
+  statusLine.textContent = text;
+  statusLine.dataset.state = state;
+}
 
 /* ------------------------------------------------------------------
  * State that survives a remount
@@ -173,6 +194,8 @@ const log = $('log');
  * ------------------------------------------------------------------ */
 const chrome = {
   selected: null,
+  /* The ROOT the interface is laid out in — fixed, never the pane's size. */
+  size: { width: 765, height: 503 },
   drafts: new Map(),
   pane: 'if',
   records: { if: '', cs2: '', js: '' },
@@ -187,43 +210,291 @@ let catalogue = [];
 
 async function mount(key) {
   runtime?.dispose();
+  runtime = null;
   log.textContent = '';
+  status('loading ' + key + '…');
 
+  try
+  {
+    await mountStages(key);
+  }
+  catch( error )
+  {
+    status('mount failed: ' + (error?.message ?? error), 'bad');
+    log.textContent += (error?.stack ?? String(error)) + '\\n';
+  }
+}
+
+async function mountStages(key) {
+  status('fetching ' + key + '…');
   const detail = await fetch(\`/api/interface?key=\${encodeURIComponent(key)}\`)
-    .then((response) => response.json())
-    .catch((error) => ({ error: String(error) }));
-  if( detail.error ) { log.textContent = detail.error; return; }
+    .then((response) => response.json());
+  if( detail.error ) { status(detail.error, 'bad'); log.textContent = detail.error; return; }
+  if( !(detail.interfaceId >= 0) )
+  {
+    status(detail.name + ' has no id in 3_interfaces.pack', 'bad');
+    return;
+  }
 
   chrome.records = detail.records ?? { if: '', cs2: '', js: '' };
   renderRecords();
 
   const scripts = new ScriptRegistry();
-  for( const [id, source] of Object.entries(detail.scripts ?? {}) )
-  {
-    try { scripts.addModule(await import(/* @vite-ignore */ toModuleUrl(source))); }
-    catch( error ) { log.textContent += \`script \${id}: \${error.message}\\n\`; }
-  }
+  const sources = new Map();
 
+  status('compiling ' + Object.keys(detail.scripts ?? {}).length + ' scripts…');
+  await installScripts(scripts, sources, detail.scripts ?? {});
+
+  status('mounting…');
+  /* The config tables are the page's, so the host and the asset source share
+   * one growing view of them -- a widget drawing an obj icon reads the same
+   * record the script that placed it read. */
+  const config = new HostConfig();
   runtime = mountInterface({
-    canvas, scripts,
+    canvas, scripts, config,
     onWarning: (message) => { log.textContent += \`\${message}\\n\`; },
     onFrame: (painted, session) => { if( painted ) metrics(session); },
   });
-  runtime.resize(detail.width ?? 765, detail.height ?? 503);
+  chrome.size = { width: detail.width ?? 765, height: detail.height ?? 503 };
+  runtime.resize(chrome.size.width, chrome.size.height);
+  fit();
+
+  const session = runtime.session;
+  const tree = session.host.tree;
+
+  /*
+   * A group a running script reaches into is a MOUNT, not an error.
+   *
+   * The client answers a component park by loading that interface, so the
+   * loader has to be able to bake one. Without this the very first cross-group
+   * reference parks forever: the loader answered "not loaded" every frame, the
+   * driver never settled, and the session painted nothing at all while looking
+   * perfectly healthy — 700 frames, 700 parks, no error.
+   */
+  runtime.loader.interfaces = {
+    hasGroup: (id) => tree.hasGroup(id),
+    mount: (id) => mountGroup(session, scripts, sources, id),
+  };
+  runtime.loader.configs = configSource(config);
+
+  status('baking ' + detail.name + '…');
+  const baked = bakeInterface({
+    tree,
+    ifText: detail.ifText ?? detail.records?.if ?? '',
+    compackText: detail.compackText ?? '',
+    interfaceId: detail.interfaceId,
+  });
 
   /* Drafts are applied BEFORE onLoad runs, so the first paint is against the
    * state the developer chose rather than against zero. */
-  for( const [id, value] of chrome.drafts ) applyDraft(runtime.session, id, value);
+  for( const [id, value] of chrome.drafts ) applyDraft(session, id, value);
 
-  for( const entry of detail.onLoad ?? [] )
-    runtime.session.driver.dispatch(entry.scriptId, entry.args ?? [], { reason: 'onload' });
+  /* The bake's own bindings, in pack order and each carrying the component it
+   * belongs to — the server's onLoad list knows neither. */
+  status('running ' + baked.onLoad.length + ' onload hooks…');
+  for( const entry of baked.onLoad )
+    session.driver.dispatch(entry.scriptId, entry.args ?? [],
+      { reason: 'onload', componentId: entry.componentId });
+  await session.driver.settle({ wait: false });
+
+  /* The mount transmit pass the reference runs: a cache-authored transmit
+   * hook is the only thing that ever paints some widgets, and at mount
+   * nothing has changed yet, so the ordinary filtered pump fires none. */
+  session.pump.dispatchAll();
+  await session.driver.settle({ wait: false });
+
+  hideSpillover(tree, detail.interfaceId);
 
   runtime.start();
   renderState(detail.state ?? []);
+  status(detail.name + ' · ' + detail.interfaceId, 'ok');
+
+  /* A handle for the browser console and for headless probes. */
+  window.__cs2dev = { runtime, detail, scripts, baked };
 }
 
+/**
+ * Every script the session has, as ONE module.
+ *
+ * A CS2 script calls its callees by the bare emitted name (cs2_1972), so a
+ * per-script module puts each callee outside the caller's scope and the first
+ * cross-script call dies with "cs2_1972 is not defined" — after the import
+ * succeeded, so nothing is logged and the canvas just stays blank. A mount
+ * that brings new scripts therefore recompiles the whole accumulated set
+ * rather than adding a second module beside the first.
+ */
+async function installScripts(scripts, sources, incoming) {
+  let added = 0;
+  for( const [id, source] of Object.entries(incoming) )
+    if( !sources.has(id) ) { sources.set(id, source); added++; }
+  if( !added ) return 0;
+  try { scripts.addModule(await import(/* @vite-ignore */ toModuleUrl([...sources.values()].join('\\n\\n')))); }
+  catch( error ) { log.textContent += \`scripts: \${error.message}\\n\`; }
+  return added;
+}
+
+/**
+ * Bake a group the runtime asked for, and hide it.
+ *
+ * Baked, NOT opened: a cc_find or if_getlayer naming another group brings
+ * the PACK into the tree and nothing more, so its onload does not run and its
+ * roots stay hidden until something opens them. Running them here created
+ * widgets the reference never had, and every later dynamic id came out wrong.
+ */
+async function mountGroup(session, scripts, sources, id) {
+  const payload = await fetch(\`/api/group?id=\${id | 0}\`)
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null);
+  if( !payload || payload.error )
+  {
+    log.textContent += \`mount \${id}: \${payload?.error ?? 'not served'}\\n\`;
+    return false;
+  }
+
+  await installScripts(scripts, sources, payload.scripts ?? {});
+  bakeInterface({
+    tree: session.host.tree,
+    ifText: payload.ifText,
+    compackText: payload.compackText ?? '',
+    interfaceId: id,
+  });
+  hideGroupRoots(session.host.tree, id);
+  return true;
+}
+
+/* park kind -> the HostConfig table it lands in. */
+const CONFIG_TABLES = {
+  enum: 'enums', struct: 'structs', obj: 'objects', npc: 'npcs',
+  loc: 'locs', inv: 'inventories', mapelement: 'mapElements',
+  param: 'params',
+};
+
+/* The kinds whose park carries a PARAM id in its second slot. */
+const PARAM_PARKS = new Set(['obj', 'npc', 'loc', 'struct']);
+
+/*
+ * Config rows, one round trip each.
+ *
+ * A row the content tree does not have is a MISS, not a failure: the host has
+ * a documented answer for every config op against an absent id and needs the
+ * load to have completed to reach it. The miss is remembered so the same id
+ * is not fetched once per park -- a spellbook walking an enum parks on it
+ * every iteration.
+ */
+function configSource(config) {
+  const misses = new Set();
+
+  async function fetchRow(kind, table, id) {
+    const key = kind + ':' + id;
+    if( config.has(table, id) ) return true;
+    if( misses.has(key) ) return false;
+    const payload = await fetch('/api/config?kind=' + kind + '&id=' + (id | 0))
+      .then((response) => (response.ok ? response.json() : null))
+      .catch(() => null);
+    if( !payload || payload.error || !payload.record ) { misses.add(key); return false; }
+    config[table][String(id)] = payload.record;
+    return true;
+  }
+
+  return {
+    hasSync(kind, id) {
+      const table = CONFIG_TABLES[kind];
+      if( !table ) return false;
+      return config.has(table, id) || misses.has(kind + ':' + id);
+    },
+    async load(kind, id, extra = null) {
+      const table = CONFIG_TABLES[kind];
+      if( !table ) return false;
+      /*
+       * oc_param parks on the OBJ and wants two rows: the object and the
+       * param it is being asked for. Fetching only the first leaves the
+       * second missing, so the retry parks again on the same pair and the
+       * driver never settles -- which is a hang, not a slow frame.
+       */
+      const wantParam = PARAM_PARKS.has(kind) && Number.isInteger(extra) && extra >= 0;
+      const rows = await Promise.all([
+        fetchRow(kind, table, id),
+        wantParam ? fetchRow('param', 'params', extra) : true,
+      ]);
+      return rows[0] && rows[1];
+    },
+  };
+}
+
+/** Hide every root of group. */
+function hideGroupRoots(tree, group) {
+  for( const node of tree.nodes )
+  {
+    if( node.freed || node.parent >= 0 || node.componentId < 0 ) continue;
+    if( ((node.componentId >>> 16) & 0xffff) !== (group & 0xffff) ) continue;
+    tree.setHidden(node.index, true);
+  }
+}
+
+/**
+ * Hide every root that is not the interface being previewed.
+ *
+ * task_interface_open sweeps spillover as its LAST step, after onload and
+ * after the transmit pass — because a script that reached into another group
+ * may have un-hidden its root in between, and left standing that group paints
+ * over the one actually being looked at.
+ */
+function hideSpillover(tree, group) {
+  for( const node of tree.nodes )
+  {
+    if( node.freed || node.parent >= 0 || node.componentId < 0 ) continue;
+    if( ((node.componentId >>> 16) & 0xffff) === (group & 0xffff) ) continue;
+    tree.setHidden(node.index, true);
+  }
+}
+
+/*
+ * A lowered script is a FRAGMENT, not a module.
+ *
+ * emitScript leaves three names free -- H, K and PARK -- because the emitter
+ * has no business knowing where the host and the intrinsics live, and because
+ * the AOT harness supplies them through new Function('K', 'PARK', ...) where an
+ * import statement would be a syntax error.
+ *
+ * The browser has no such enclosing scope, so the two module-level names are
+ * imported here. Missing them does not fail the import: an unresolved free
+ * identifier in an ES module throws when the LINE runs, so a script whose
+ * executed path happened not to reach K. worked and one that did died with
+ * "ReferenceError: K is not defined" from inside the frame loop, with the
+ * canvas simply staying blank.
+ *
+ * A blob: URL is opaque, so it is NOT a base any relative or root-absolute
+ * specifier can resolve against -- "/src/cs2_intrinsics.js" fails with
+ * "Invalid relative url or base scheme isn't hierarchical". The specifiers are
+ * therefore made fully absolute against the serving origin.
+ */
+const SCRIPT_MODULE_PREAMBLE =
+  "import * as K from '" + location.origin + "/src/cs2_intrinsics.js';\\n" +
+  "import { HOST_PARK as PARK } from '" + location.origin + "/src/generated/cs2_host_park.js';\\n";
+
 function toModuleUrl(source) {
-  return URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+  return URL.createObjectURL(
+    new Blob([SCRIPT_MODULE_PREAMBLE, source], { type: 'text/javascript' }));
+}
+
+/*
+ * Fit the canvas to its pane by SCALING it, never by resizing the root.
+ *
+ * The cache authored every position against a fixed root — 765x503 is what
+ * the reference client runs and what the parity captures were taken at — so
+ * handing the interface the pane's size instead lays it out at a size no
+ * reference ever had. The bank window came out at half width in a narrow
+ * pane, which looks like a drawing bug and is a measurement one.
+ */
+function fit() {
+  if( !runtime ) return;
+  const { width, height } = chrome.size;
+  const scale = Math.max(0.1, Math.min(
+    1,
+    (stage.clientWidth - 32) / width,
+    (stage.clientHeight - 32) / height));
+  canvas.style.width = Math.floor(width * scale) + 'px';
+  canvas.style.height = Math.floor(height * scale) + 'px';
 }
 
 function applyDraft(session, id, value) {
@@ -356,16 +627,8 @@ if( 'EventSource' in globalThis )
   events.addEventListener('changed', () => { if( chrome.selected ) mount(chrome.selected); });
 }
 
-/* Fit the canvas to its pane, without laying the interface out in device
- * pixels — the cache's coordinates are CSS pixels and scaling them would make
- * every authored position wrong by the ratio. */
 const stage = $('stage');
-new ResizeObserver(() => {
-  if( !runtime ) return;
-  const width = Math.max(320, Math.floor(stage.clientWidth - 32));
-  const height = Math.max(240, Math.floor(stage.clientHeight - 32));
-  runtime.resize(width, height);
-}).observe(stage);
+new ResizeObserver(fit).observe(stage);
 
 fetch('/api/catalogue')
   .then((response) => response.json())
