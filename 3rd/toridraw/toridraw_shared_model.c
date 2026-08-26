@@ -89,8 +89,11 @@ struct ToriDraw_ModelHandle
 ToriDraw_SharedModelStorePublish(
     struct ToriDraw_SharedModelStore* store,
     int64_t key,
-    struct ToriDraw_Model* model)
+    struct ToriDraw_ModelHandle owned)
 {
+    /* Only a handle that owns its geometry can hand it over, and the accessor
+     * is what says so -- there is no way to reach this with a shared one. */
+    struct ToriDraw_Model* model = ToriDraw_ModelWrite(owned);
     struct ToriDraw_SharedModel* entry;
     size_t bucket;
 
@@ -247,8 +250,9 @@ struct ToriDraw_ModelHandle
 ToriDraw_SharedFacesStoreBorrow(
     struct ToriDraw_SharedFacesStore* store,
     int64_t key,
-    struct ToriDraw_Model* model)
+    struct ToriDraw_ModelHandle owned)
 {
+    struct ToriDraw_Model* model = ToriDraw_ModelWrite(owned);
     struct ToriDraw_ModelLentFaces* lent;
     struct ToriDraw_SharedFaces* faces;
     size_t bucket;

@@ -70,9 +70,12 @@ ToriDraw_SharedModelStoreAcquire(
 /**
  * Hand `model` to the store under `key` and borrow it straight back.
  *
- * Takes ownership. The returned handle addresses the same object, now shared,
- * with the caller as its first holder -- and says TORIDRAWMO_SHARED, because
- * from this call on the caller is a reader of geometry it no longer owns.
+ * Takes ownership, which is why it takes a handle that OWNS: only
+ * TORIDRAWMK_MODEL can be handed over, and the caller's handle is spent on
+ * return. What comes back addresses the same geometry as a
+ * TORIDRAWMK_MODEL_SHARED, with the caller as its first holder -- from this
+ * call on it is a reader of geometry it no longer owns.
+ *
  * `key` must not already be published; a caller publishes only after Acquire
  * came back TORIDRAWMK_NONE.
  */
@@ -80,7 +83,7 @@ struct ToriDraw_ModelHandle
 ToriDraw_SharedModelStorePublish(
     struct ToriDraw_SharedModelStore* store,
     int64_t key,
-    struct ToriDraw_Model* model);
+    struct ToriDraw_ModelHandle owned);
 
 /**
  * The lendable face buffers, as a thing that can be owned.
@@ -124,16 +127,16 @@ ToriDraw_SharedFacesStoreCount(const struct ToriDraw_SharedFacesStore* store);
  * ones. The build runs in full regardless, because it is the build that decides
  * what the topology IS -- the saving is in what is kept, not in what is done.
  *
- * Takes no ownership of `model`. Returns a handle onto it, now carrying a
- * `shared_faces` and saying TORIDRAWMO_LENT_FACES -- which is the half-shared
- * permission: write the vertices, the per-corner colours and face_infos, not
- * the twelve arrays now on loan.
+ * Takes a handle that OWNS and spends it: what comes back is a
+ * TORIDRAWMK_MODEL_LENT_FACES addressing the same vertices, which is the
+ * half-shared permission -- write the vertices, the per-corner colours and
+ * face_infos, not the twelve arrays now on loan.
  */
 struct ToriDraw_ModelHandle
 ToriDraw_SharedFacesStoreBorrow(
     struct ToriDraw_SharedFacesStore* store,
     int64_t key,
-    struct ToriDraw_Model* model);
+    struct ToriDraw_ModelHandle owned);
 
 /**
  * Drop one lender of a buffer set, freeing it at the last.

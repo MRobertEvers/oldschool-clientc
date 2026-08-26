@@ -987,13 +987,12 @@ scenery_load_model(
     int size_z)
 {
     struct World* world = builder->world;
-    struct ToriDraw_Model* model = NULL;
-    /* The placement's geometry, read back out of the handle once a store has
-     * taken ownership of `model`. */
-    const struct ToriDraw_Model* geom = NULL;
-    /* The placement's model AND who owns its geometry. Both stores answer in
-     * this type, so the one fact that distinguishes a cache hit from a fresh
-     * build cannot be dropped on the way to ToriDraw_SceneElementSetModel. */
+    /*
+     * The placement's geometry AND who owns it, for the whole function. Both
+     * stores take and return this, so there is never a raw ToriDraw_Model* here
+     * outliving the build that produced it -- which is what let a spent shell
+     * be read after Publish freed it.
+     */
     struct ToriDraw_ModelHandle hnd = { 0 };
     int64_t proto_key = 0;
     bool from_cache = false;
@@ -1035,9 +1034,6 @@ scenery_load_model(
 
     if( hnd.kind != TORIDRAWMK_NONE )
     {
-        /* A hit means the store owns this geometry; there is no writable
-         * pointer to it and this placement does not need one. */
-        geom = ToriDraw_ModelRead(hnd);
         from_cache = true;
         /* Deferred draw-time rotation is an animated-loc mechanism, and
          * animated locs are never shareable — a non-zero value here means the
@@ -1045,31 +1041,32 @@ scenery_load_model(
         assert(builder->scenery_deferred_angle == 0);
         /* The wants registry outlives any one model; re-report from the copy
          * exactly as a fresh build reports from its final face_textures. */
-        ToriDraw_ModelNoteTextureWants(geom);
+        ToriDraw_ModelNoteTextureWants(ToriDraw_ModelRead(hnd));
     }
     else
     {
-        model = scenery_build_loc_model(builder, config_loc, shape_select, rotation);
-        if( !model )
+        struct ToriDraw_Model* built =
+            scenery_build_loc_model(builder, config_loc, shape_select, rotation);
+        if( !built )
             return -1;
+
+        /* Owned from here, and it says so. Whichever store takes it below
+         * spends this handle and returns one of its own kind. */
+        hnd = ToriDraw_ModelHandleOwned(built);
 
         if( proto_shareable )
         {
-            if( ToriDraw_ModelIsLightable(model) )
+            if( ToriDraw_ModelIsLightable(built) )
             {
-                struct ToriDraw_ModelHandle light_hnd = {
-                    .kind = TORIDRAWMK_MODEL,
-                    .u.model.model = model,
-                };
-                ToriDraw_LightModelScene(light_hnd, config_loc->contrast, config_loc->ambient);
-                ToriDraw_ModelFreeNormals(model);
+                ToriDraw_LightModelScene(hnd, config_loc->contrast, config_loc->ambient);
+                ToriDraw_ModelFreeNormals(built);
             }
             /* Hand the freshly built model to the store and take it straight
              * back as this placement's copy -- the same object, now shared,
              * with this placement as its first holder and a handle that says
              * so. */
             hnd = ToriDraw_SharedModelStorePublish(
-                ToriDraw_SceneSharedModels(builder->scene), proto_key, model);
+                ToriDraw_SceneSharedModels(builder->scene), proto_key, hnd);
         }
         else if( config_loc->seq_id == -1 )
         {
@@ -1102,27 +1099,13 @@ scenery_load_model(
             hnd = ToriDraw_SharedFacesStoreBorrow(
                 ToriDraw_SceneSharedFaces(builder->scene),
                 scenery_model_key(config_loc->id, shape_select, rotation),
-                model);
+                hnd);
         }
-        else
-        {
-            /* Nothing shared: animated, or shareable neither whole nor in
-             * half. This placement owns every array it just built. */
-            hnd = ToriDraw_ModelHandleOwned(model);
-        }
+        /* else: nothing shared -- animated, or shareable neither whole nor in
+         * half -- and `hnd` already says this placement owns what it built. */
     }
 
-    /*
-     * `model` is SPENT from here on. Both stores consume what they are given --
-     * the shell is freed and its arrays live inside a ToriDraw_SharedModel or a
-     * ToriDraw_ModelLentFaces now -- so everything below reads the geometry
-     * back out of the handle instead. Holding the old pointer across those
-     * calls is a use-after-free, and a quiet one: it reads a freed shell's
-     * vertex_count and walks whatever it finds.
-     */
-    if( !geom )
-        geom = ToriDraw_ModelRead(hnd);
-    assert(geom);
+    assert(ToriDraw_ModelKindIsFull(hnd.kind));
 
     if( wb_census_on() )
     {
@@ -1131,7 +1114,7 @@ scenery_load_model(
          * the size of the saving. Actual retained bytes are the proto line
          * alone: a key with N placements now holds one model, built on the
          * miss below. */
-        size_t const bytes = ToriDraw_ModelHeapBytes(geom);
+        size_t const bytes = ToriDraw_ModelHeapBytes(ToriDraw_ModelRead(hnd));
         if( from_cache )
         {
             g_wb_census_dup_n++;
@@ -1231,8 +1214,8 @@ scenery_load_model(
                 if( builder->scenery_runtime_spawn )
                     sc->runtime_spawn = 1;
                 scenery_debug_record(
-                    builder, sc, map_tile, config_loc, geom, element_id, pool_idx, size_x,
-                    size_z);
+                    builder, sc, map_tile, config_loc, ToriDraw_ModelRead(hnd), element_id,
+                    pool_idx, size_x, size_z);
             }
         }
     }
@@ -1254,11 +1237,12 @@ scenery_load_model(
          (shape_select >= RSCACHE_LOC_SHAPE_ROOF_SLOPED &&
           shape_select <= RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER)) )
     {
+        const struct ToriDraw_Model* m = ToriDraw_ModelRead(hnd);
         int raise = 0;
         int level = map_tile->chunk_pos_level;
-        for( int v = 0; v < geom->vertex_count; v++ )
+        for( int v = 0; v < m->vertex_count; v++ )
         {
-            int h = -(int)geom->vertices_y[v];
+            int h = -(int)m->vertices_y[v];
             if( h > raise )
                 raise = h;
         }

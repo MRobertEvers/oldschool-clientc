@@ -84,8 +84,8 @@ test_seam_hide_does_not_reach_the_sibling(void)
     /* Borrow CONSUMES what it is given: a model that owns everything goes in,
      * a placement that borrows its faces comes out, and the caller's pointer is
      * spent. That is the type change, and it is why these are handles. */
-    h1 = ToriDraw_SharedFacesStoreBorrow(store, key, make_placement());
-    h2 = ToriDraw_SharedFacesStoreBorrow(store, key, make_placement());
+    h1 = ToriDraw_SharedFacesStoreBorrow(store, key, ToriDraw_ModelHandleOwned(make_placement()));
+    h2 = ToriDraw_SharedFacesStoreBorrow(store, key, ToriDraw_ModelHandleOwned(make_placement()));
 
     CHECK(h1.kind == TORIDRAWMK_MODEL_LENT_FACES);
     CHECK(h2.kind == TORIDRAWMK_MODEL_LENT_FACES);
@@ -125,7 +125,7 @@ test_single_lender_owns_its_face_infos(void)
     struct ToriDraw_Model* priv;
 
     CHECK(store);
-    h = ToriDraw_SharedFacesStoreBorrow(store, 77, make_placement());
+    h = ToriDraw_SharedFacesStoreBorrow(store, 77, ToriDraw_ModelHandleOwned(make_placement()));
     CHECK(h.kind == TORIDRAWMK_MODEL_LENT_FACES);
     CHECK(ToriDraw_SharedFacesStoreCount(store) == 1);
 
@@ -156,7 +156,7 @@ test_acquire_hands_back_a_shared_handle(void)
     miss = ToriDraw_SharedModelStoreAcquire(store, 900);
     CHECK(miss.kind == TORIDRAWMK_NONE);
 
-    published = ToriDraw_SharedModelStorePublish(store, 900, make_placement());
+    published = ToriDraw_SharedModelStorePublish(store, 900, ToriDraw_ModelHandleOwned(make_placement()));
     CHECK(published.kind == TORIDRAWMK_MODEL_SHARED);
 
     acquired = ToriDraw_SharedModelStoreAcquire(store, 900);
