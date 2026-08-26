@@ -140,6 +140,8 @@ export function installTextMeasureOps(HostKernel) {
      */
     proto.parawidth = function (text, width, fontId) {
         this.calls++;
+        /* Same empty-string guard as `paraheight` — see it. */
+        if( !text ) return 0;
         if( !this.fonts || !this.fonts.has(fontId) )
         {
             if( fontId >= 0 && !this._awaitSpent('font', fontId) )
@@ -151,6 +153,18 @@ export function installTextMeasureOps(HostKernel) {
 
     proto.paraheight = function (text, width, fontId) {
         this.calls++;
+        /*
+         * An EMPTY string is zero lines, not one.
+         *
+         * `exec_para_height` guards its whole body with `if( text[0] != '\0' )`
+         * and leaves the result at 0 — it never asks the wrapper, so the empty
+         * line the wrapper would report does not exist. The difference is
+         * load-bearing: `mourning_deathalter_list` sizes its scroll extent as
+         * `paraheight(...) * 12 + 5`, and one phantom line made the extent 17
+         * where the reference has 5, which is a scrollbar thumb three times
+         * the size.
+         */
+        if( !text ) return 0;
         if( !this.fonts || !this.fonts.has(fontId) )
         {
             if( fontId >= 0 && !this._awaitSpent('font', fontId) )
