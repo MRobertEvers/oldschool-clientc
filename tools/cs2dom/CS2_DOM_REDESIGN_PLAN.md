@@ -263,6 +263,32 @@ silently, and it is the only item here that is a judgement rather than a task.
 lowering and the bake are all in place and gated end to end, on the real tree
 and a real cache.
 
+**One place this runtime is deliberately MORE correct than the oracle.**
+`oc_cert` / `oc_uncert` read the cache's note linkage here (`certlink` +
+`certtemplate`, the same two-field shape as the placeholder pair). The C
+client routes both through `exec_oc_int_param`, which has no field for
+either — so it answers the input id, i.e. "this obj has no noted form",
+always. The real client answers the link.
+
+Being right against a wrong oracle is still a difference the parity run will
+report, and it is recorded here so a future difference on an interface that
+notes items has an explanation rather than an investigation. None of the four
+captured interfaces exercises it.
+
+**Parity covers four interfaces, not the corpus.** 218, 600, 162 and 12, out
+of 968. They were chosen one per shape the walk has to get right — a plain
+panel, a mass container rebuild, a scroll-and-clip case, a hover-variant grid
+— and four is enough to have found ten silent defects. It is not enough to
+claim the walk is correct.
+
+**Host coverage is 736/736 methods that ANSWER, which is not 736 methods
+proven correct.** The surface gate says every operation the reference answers
+has an implementation with the right arity; the parity run is the only thing
+that tests what those implementations return, and it reaches four interfaces.
+The families that model a system a preview does not have — the social lists,
+the minimenu, the acting subject — answer the reference's "nothing" values and
+have never been exercised against a client that has a world.
+
 **A screenshot oracle is still not captured.** The emit comparison above is the
 better one for this boundary and it is running; a screenshot comparison remains
 worth having on top of it, for the things only pixels show.
