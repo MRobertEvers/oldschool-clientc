@@ -372,7 +372,8 @@ try
             }
             catch( error )
             {
-                if( !/navigated or closed|[Tt]arget closed|detached/.test(error.message) )
+                if( !/navigated or closed|[Tt]arget closed|detached|evaluate timeout/
+                    .test(error.message) )
                     throw error;
                 try { await page.close(); } catch { /* already gone */ }
                 page = await openPage(chrome);

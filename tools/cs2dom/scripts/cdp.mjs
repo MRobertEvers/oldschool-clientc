@@ -110,10 +110,20 @@ export async function navigate(page, url) {
  * harness that turns exceptions into `undefined` reports every bug as "the
  * canvas was blank".
  */
-export async function evaluate(page, expression) {
-    const reply = await page.send('Runtime.evaluate', {
-        expression, returnByValue: true, awaitPromise: true,
-    });
+export async function evaluate(page, expression, { timeoutMs = 120000 } = {}) {
+    /*
+     * Bounded, because a hung renderer hangs the whole run. The page-side
+     * scripts carry their own deadlines, but a tab that has stopped
+     * scheduling JavaScript at all never reaches them — a corpus run sat 39
+     * minutes on one interface that way. The caller gets an error naming the
+     * timeout and decides whether a fresh tab is worth a retry.
+     */
+    const reply = await Promise.race([
+        page.send('Runtime.evaluate', {
+            expression, returnByValue: true, awaitPromise: true,
+        }),
+        delay(timeoutMs).then(() => { throw new Error(`evaluate timeout after ${timeoutMs}ms`); }),
+    ]);
     if( reply.exceptionDetails )
     {
         const detail = reply.exceptionDetails;
