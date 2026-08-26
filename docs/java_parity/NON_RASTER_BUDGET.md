@@ -120,6 +120,28 @@ The best case that does not reinstate dirty tracking is about −36%, and two of
 its four terms are not free: one drops depth resolution and one drops colour
 depth. −50% is not on this list.
 
+### Nor is it reachable by giving up the constraint
+
+Adding dirty tracking back on top of all of it, which is the thing the goal was
+in tension with:
+
+| | ms/frame | vs original |
+|---|---|---|
+| all non-dirty-tracking levers (above) | ~4.56 | −35.8% |
+| + damage drawing reinstated | ~3.89 | **−45.2%** |
+| target | 3.55 | −50% |
+
+Damage's incremental value is only about −0.67 ms once the clear is already
+narrowed, because the two overlap: what damage mostly bought was a smaller
+clear and a smaller present, and the clear half is already banked. What is left
+is the present (0.91 → ~0.57 over a 62%-of-canvas box) and the chrome outside
+that box (~half of 0.67).
+
+So **every lever known to exist, stacked, including the one that was removed on
+purpose and the two that cost visible quality, comes to −45%.** The target is
+not reachable on this bench by any combination of them. It would need a change
+to what the client draws, not to how it draws it.
+
 ## The conclusion
 
 Every remaining route to −50% is a variant of the same idea: *do not redo work
