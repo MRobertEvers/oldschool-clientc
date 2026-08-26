@@ -315,7 +315,20 @@ function findRows(state, packedColumn, typeTag, requestedValue) {
     for( let position = first; position <= last; position++ ) {
         const found = [];
         for( const rowId of rows ) {
-            const column = state.data.dbRows[rowId]?.columns?.[decoded.columnId];
+            /*
+             * A row that STATES nothing for the column is still a row with
+             * that column's DEFAULT value, and the cache's inverted index
+             * indexes it under that value.
+             *
+             * The music list is the case: `db_find_with_count(music:hidden, 0)`
+             * asks for every unhidden track, `hidden` is a boolean defaulting
+             * to 0, and no track states it — so scanning the rows alone found
+             * nothing and the panel built 0 of its 857 rows. Nine other list
+             * panels (quests, hiscores, minigames, the recipe books) are the
+             * same shape.
+             */
+            const column = state.data.dbRows[rowId]?.columns?.[decoded.columnId]
+                ?? tableColumn;
             if( !column || position >= column.types.length ) continue;
             const fieldIsString = isStringType(column.types[position]);
             if( fieldIsString !== wantsString ) continue;
