@@ -286,6 +286,20 @@ export class UITree {
         node.childIndexAmbiguous = false;
         node.hidden = false;
         node.props = { ...props };
+        /*
+         * if3 is INHERITED by a script-created child.
+         *
+         * `UITree_CcCreate` copies the parent's flag onto the new component
+         * because the flag decides whether a graphic is stretched to the box
+         * the script just gave it or drawn at the sprite's own size -- an
+         * if3=0 cell ignores its own cc_setsize. A dynamic child built under
+         * an if3 parent with the flag dropped drew every icon unscaled.
+         */
+        if( node.props.if3 === undefined && parentIndex >= 0 )
+        {
+            const parent = this.nodes[parentIndex];
+            if( parent && !parent.freed && parent.props.if3 ) node.props.if3 = true;
+        }
         node.ops = null;
         node.hooks = null;
         node.params = null;

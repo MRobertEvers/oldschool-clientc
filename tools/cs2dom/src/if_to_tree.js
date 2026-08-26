@@ -50,6 +50,16 @@ const FIELD_PROPS = new Map(Object.entries({
     widthmode: ['widthMode', int], heightmode: ['heightMode', int],
     xmode: ['xMode', int], ymode: ['yMode', int],
     hidden: ['hidden', flag],
+    /*
+     * if3 is a DRAWING rule, not a decode marker.
+     *
+     * `soft3d_draw_sprite` scales an if3 graphic to its laid-out box and
+     * draws a non-if3 one at the sprite's own size. Dropping the field made
+     * every stretched graphic paint at native size: the bank's scrollbar
+     * track is a 16x347 box over a short sprite, and it came out as a stub
+     * under the arrow with 340 empty pixels below it.
+     */
+    if3: ['if3', flag],
     trans: ['trans', int],
     colour: ['colour', int],
     fill: ['filled', flag],

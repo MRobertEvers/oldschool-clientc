@@ -168,6 +168,44 @@ export class Painter {
             this._tile(image, command, alpha);
             return;
         }
+        const options = {
+            flipH: !!command.props.flipH,
+            flipV: !!command.props.flipV,
+            /* IF3 sprite angle is 65536 to a full turn — NOT the 2048-per-turn
+             * scale the compass and minimap use. Mixing them is a silent 32x. */
+            angle: command.props.spriteAngle | 0,
+        };
+        /*
+         * AN IF3 GRAPHIC IS STRETCHED TO ITS BOX. A cache one is not.
+         *
+         * `soft3d_draw_sprite` branches on the component's `if3` flag: an if3
+         * sprite is composed onto its nominal canvas and that canvas is
+         * scaled to the laid-out width and height, while a non-if3 sprite is
+         * blitted at the sprite's own size and only OFFSET by the crop.
+         *
+         * Drawing everything at native size is not a subtle difference. The
+         * bank's scrollbar track is a 16x347 box over a short sprite, and it
+         * painted as a stub under the up arrow with 340 empty pixels beneath
+         * — which reads as a broken scrollbar, not as a missing scale.
+         */
+        if( command.props.if3 )
+        {
+            const width = command.width > 0 ? command.width : image.width;
+            const height = command.height > 0 ? command.height : image.height;
+            /* The offset scales WITH the box: it is a position inside the
+             * nominal canvas, not a margin in destination pixels. */
+            const scaleX = image.width > 0 ? width / image.width : 1;
+            const scaleY = image.height > 0 ? height / image.height : 1;
+            const bitmap = image.bitmap ?? image;
+            this.surface.drawImage(image,
+                command.x + (image.offsetX | 0) * scaleX,
+                command.y + (image.offsetY | 0) * scaleY, alpha, {
+                ...options,
+                width: (bitmap.width ?? image.width) * scaleX,
+                height: (bitmap.height ?? image.height) * scaleY,
+            });
+            return;
+        }
         /*
          * The bitmap sits at (offsetX, offsetY) INSIDE the sprite's canvas,
          * and the widget is positioned against the canvas. Drawing the bitmap
@@ -176,13 +214,7 @@ export class Painter {
          * image at (7, 11) on a 40x40 canvas.
          */
         this.surface.drawImage(image,
-            command.x + (image.offsetX | 0), command.y + (image.offsetY | 0), alpha, {
-            flipH: !!command.props.flipH,
-            flipV: !!command.props.flipV,
-            /* IF3 sprite angle is 65536 to a full turn — NOT the 2048-per-turn
-             * scale the compass and minimap use. Mixing them is a silent 32x. */
-            angle: command.props.spriteAngle | 0,
-        });
+            command.x + (image.offsetX | 0), command.y + (image.offsetY | 0), alpha, options);
     }
 
     /**
@@ -341,8 +373,14 @@ export function createCanvasSurface(context) {
             context.fillStyle = colour;
             context.fillRect(x, y, width, height);
         },
-        drawImage(image, x, y, alpha, { flipH = false, flipV = false, angle = 0, tint = null } = {}) {
+        drawImage(image, x, y, alpha, {
+            flipH = false, flipV = false, angle = 0, tint = null,
+            width = 0, height = 0,
+        } = {}) {
             context.globalAlpha = alpha;
+            const bitmap = image.bitmap ?? image;
+            const drawWidth = width > 0 ? width : (bitmap.width ?? image.width);
+            const drawHeight = height > 0 ? height : (bitmap.height ?? image.height);
             /*
              * A tinted glyph is drawn through a scratch canvas rather than
              * with a composite mode on the main one: `source-atop` would tint
@@ -353,15 +391,15 @@ export function createCanvasSurface(context) {
             if( tint ) { drawTinted(context, image, x, y, tint); return; }
             if( !flipH && !flipV && !angle )
             {
-                context.drawImage(image.bitmap ?? image, x, y);
+                context.drawImage(bitmap, x, y, drawWidth, drawHeight);
                 return;
             }
             context.save();
-            context.translate(x + image.width / 2, y + image.height / 2);
+            context.translate(x + drawWidth / 2, y + drawHeight / 2);
             /* 65536 to a full turn, the IF3 scale — see the note in _sprite. */
             if( angle ) context.rotate((angle / 65536) * Math.PI * 2);
             context.scale(flipH ? -1 : 1, flipV ? -1 : 1);
-            context.drawImage(image.bitmap ?? image, -image.width / 2, -image.height / 2);
+            context.drawImage(bitmap, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
             context.restore();
         },
     };
