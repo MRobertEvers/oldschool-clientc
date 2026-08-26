@@ -49,6 +49,49 @@ enum NetTransportKind
     NET_TRANSPORT_EMBED = 2,
 };
 
+/**
+ * How a revision re-establishes a session that was lost.
+ *
+ * Two shapes exist in this tree and they are not interchangeable, because the
+ * opcode is what tells the server which body follows. Announcing
+ * GAMERECONNECT to a server that decodes the classic credential block, or
+ * writing that block behind an opcode that promises a cipher key, does not
+ * fail the version check -- it reads the rest of the login block out of
+ * position and rejects the login for a reason that points at the RSA key.
+ */
+enum NetReconnectKind
+{
+    /**
+     * No reconnect handshake: a lost session is re-established with an
+     * ordinary GAMELOGIN (16).
+     *
+     * That still gets the character back from any server that persists it on
+     * disconnect -- the difference is a password round trip, not an outcome --
+     * so this is the honest default for a revision whose server side is
+     * unknown, not a degraded mode.
+     */
+    NET_RECONNECT_NONE = 0,
+    /**
+     * LostCity: GAMERECONNECT (18) carrying the SAME block a GAMELOGIN
+     * carries, credentials and all. The reference client branches on the
+     * opcode byte and nothing else (Client-TS Client.ts login(), the
+     * `reconnect ? 18 : 16` at the head of the block), and the answer is a
+     * bare 15 with no tail and no REBUILD_LOGIN behind it.
+     */
+    NET_RECONNECT_CREDS = 1,
+    /**
+     * RSProt: GAMERECONNECT (18) whose authentication section is the previous
+     * session's four-int cipher seed, in place of the OTP block, the auth type
+     * and the password (GameReconnectDecoder). The answer is RECONNECT_OK,
+     * which carries the player-info init block a fresh login would have
+     * received inside REBUILD_LOGIN.
+     *
+     * The block is a different shape, so a revision that selects this needs a
+     * login vtable that writes it; the classic loginproto.c machine cannot.
+     */
+    NET_RECONNECT_SEED = 2,
+};
+
 /* Forward decls: the generation-module slots below take pointers only. */
 struct RevPacket;
 struct PktPlayerInfoOp;
@@ -128,6 +171,17 @@ struct GameProtoRevTable
 
     /** Login handshake driver. NULL = the classic loginproto.c state machine. */
     struct NetLoginVTable const* login;
+
+    /**
+     * enum NetReconnectKind. 0 = the revision has no reconnect handshake, so
+     * ToriRS_Network_Reconnect re-dials as an ordinary GAMELOGIN.
+     *
+     * This is the ONLY statement of which flavour a revision speaks: both the
+     * classic machine and the 239 driver read it rather than inferring one
+     * from their own generation, so a table that says nothing gets the safe
+     * shape instead of whichever one its driver happens to implement.
+     */
+    int reconnect_kind;
 
     /** Per-rev packet parse override; NULL = shared gameproto_parse. A non-NULL
      * hook may return <0 to signal "not mine, fall back to gameproto_parse". */

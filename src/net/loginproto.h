@@ -12,6 +12,7 @@
  *   SEND_CONNECT      -> p1(14) p1(login_server = base37(user)>>16 & 0x1f)
  *   SEND_CREDENTIALS  <- 9 ignored bytes + g8 server seed
  *                     -> outer p1(16|18) p1(len) p1(version) p1(lowmem)
+ *                        (18 = GAMERECONNECT, same block; see reconnect_kind)
  *                        9x p4(jag CRC) + RSA[p1(10) 4x p4(seed) p4(uid)
  *                        pjstr(user) pjstr(pass)]
  *                        then ISAAC out=seed, in=seed+50 per word
@@ -64,6 +65,16 @@ struct LoginProto
     loginproto_seed_fn seed_fn;
     void* seed_user;
 
+    /**
+     * Announce this handshake as GAMERECONNECT (18) rather than GAMELOGIN
+     * (16).
+     *
+     * A request, not a decision: `rev->reconnect_kind` settles whether the
+     * revision has the opcode at all, and a revision that does not gets a
+     * fresh login instead. See the opcode helper in loginproto.c.
+     */
+    int reconnect;
+
     uint8_t tempout[512];
     uint8_t tempin[512];
     uint8_t tempencrypt[512];
@@ -83,6 +94,17 @@ loginproto_set_seed_fn(
     struct LoginProto* loginproto,
     loginproto_seed_fn seed_fn,
     void* user);
+
+/**
+ * Ask for this handshake to be a reconnect (see LoginProto.reconnect).
+ *
+ * Must be called before the first poll, since the block is built there and
+ * the opcode is its first byte.
+ */
+void
+loginproto_set_reconnect(
+    struct LoginProto* loginproto,
+    int reconnect);
 
 void
 loginproto_free(struct LoginProto* loginproto);

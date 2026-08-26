@@ -166,6 +166,9 @@ connect_login(
         assert(net->loginproto);
         if( net->seed_fn )
             loginproto_set_seed_fn(net->loginproto, net->seed_fn, net->seed_user);
+        /* Whether the opcode actually changes is the revision's call, not this
+         * one's -- see rev->reconnect_kind. */
+        loginproto_set_reconnect(net->loginproto, net->reconnect);
     }
 
     net->state = TORIRS_NET_LOGIN;

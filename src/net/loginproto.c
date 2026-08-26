@@ -82,6 +82,15 @@ loginproto_set_seed_fn(
 }
 
 void
+loginproto_set_reconnect(
+    struct LoginProto* loginproto,
+    int reconnect)
+{
+    assert(loginproto);
+    loginproto->reconnect = reconnect;
+}
+
+void
 loginproto_free(struct LoginProto* loginproto)
 {
     if( !loginproto )
@@ -126,6 +135,50 @@ loginproto_send(
 {
     assert(out_size >= ringbuf_avail(loginproto->out));
     return ringbuf_read(loginproto->out, out, out_size);
+}
+
+enum
+{
+    LOGINPROTO_OP_GAMELOGIN = 16,
+    LOGINPROTO_OP_GAMERECONNECT = 18,
+};
+
+/*
+ * The first byte of the login block, which is the whole of what separates a
+ * reconnect from a fresh login on the wire at every revision this machine
+ * drives: LostCity's client writes `reconnect ? 18 : 16` and then the same
+ * bytes either way (Client-TS Client.ts login()), and its server reads the
+ * block with one decoder and branches on the opcode to decide whether the
+ * character it already has is handed back or logged in from a save.
+ *
+ * Announcing it is therefore free where the revision has it, and not free
+ * where it doesn't -- a server that does not know opcode 18 drops the
+ * connection on the first byte, which presents as "the reconnect never
+ * connected" rather than as a rejected login. So the table decides.
+ */
+static int
+login_opcode(struct LoginProto* loginproto)
+{
+    if( !loginproto->reconnect )
+        return LOGINPROTO_OP_GAMELOGIN;
+
+    /*
+     * The seed flavour is not this machine's block to write: it replaces the
+     * authentication section wholesale, and a revision that wants it brings a
+     * login vtable that does (loginproto_osrs239.c). A table that selects it
+     * and leaves `->login` NULL is a table bug, not a runtime state.
+     */
+    assert(loginproto->rev->reconnect_kind != NET_RECONNECT_SEED);
+
+    if( loginproto->rev->reconnect_kind != NET_RECONNECT_CREDS )
+    {
+        TORIRS_LOG(
+            "loginproto: %s has no reconnect handshake; re-establishing as a fresh login
+",
+            loginproto->rev->name);
+        return LOGINPROTO_OP_GAMELOGIN;
+    }
+    return LOGINPROTO_OP_GAMERECONNECT;
 }
 
 int
@@ -196,8 +249,7 @@ loginproto_poll(struct LoginProto* loginproto)
             int low_memory = 0;
             RSCache_BufferInit(&out, loginproto->tempout, sizeof(loginproto->tempout));
 
-            /* 18 = reconnect (not implemented), 16 = fresh login. */
-            p1(&out, 16);
+            p1(&out, login_opcode(loginproto));
 
             /* The revision is one byte, with 255 as the escape to a two-byte
              * one. Builds past 254 (LostCity's 274 and 289 branches) cannot
@@ -264,7 +316,17 @@ loginproto_poll(struct LoginProto* loginproto)
             }
             if( reply_byte == 15 )
             {
-                /* Reconnect handoff: single byte, no tail. */
+                /*
+                 * The reconnect verdict: a single byte, no tail, and no
+                 * REBUILD_LOGIN behind it -- the server is handing back a
+                 * session rather than opening one, so it restates neither the
+                 * staff level nor the mouse-tracking flag that a `2` carries.
+                 *
+                 * Accepted on a fresh login too, because the reference does
+                 * (Client-TS `response === 15`): a server that answers a 16
+                 * with a 15 has decided the character is already in the world,
+                 * and the stream that follows is a game stream either way.
+                 */
                 loginproto->state = LOGINPROTO_SUCCESS;
                 return LOGINPROTO_SUCCESS;
             }

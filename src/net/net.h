@@ -144,11 +144,12 @@ ToriRS_Network_ConnectLogin(
  * session back instead of logging it in again. Callers own the client-side
  * reset; this touches only the connection.
  *
- * Only revision 239 has the reconnect handshake wired up. On every other
- * revision the login driver ignores the flag and sends an ordinary
- * GAMELOGIN — which re-establishes the session all the same, because a server
- * that persists a character on disconnect hands the same one back. The
- * difference is a password round trip, not an outcome.
+ * Which handshake that is, is the revision's to state: `rev->reconnect_kind`
+ * picks between LostCity's credential block behind opcode 18, RSProt's
+ * cipher-seed block behind the same opcode, and having no reconnect at all.
+ * The last of those still re-establishes the session — it sends an ordinary
+ * GAMELOGIN, and a server that persists a character on disconnect hands the
+ * same one back. The difference is a password round trip, not an outcome.
  *
  * Returns 0 when there is nothing to reconnect to (no prior ConnectLogin).
  */

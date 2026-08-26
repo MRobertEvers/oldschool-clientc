@@ -133,17 +133,38 @@
   const asBuffer = (bytes) => bytes.slice().buffer;
 
   window.ToriRS_IDB = {
-    groupKey: (cacheKey, table, archive) => `${cacheKey}|${table}|${archive}`,
+    /*
+     * A container's address, and `flags` is part of it.
+     *
+     * Not decoration: on dat1 a map square's TERRAIN and its LOCS are asked
+     * for with the same table and the same archive id -- the square's --
+     * and are told apart by the flags alone (RSCache_IO_Dat1MapTerrainLoad and
+     * RSCache_IO_Dat1MapSceneryLoad both pass RSCache_MapSquareId). The
+     * server resolves that pair to two different archives through its
+     * versionlist; on this side they are two records, and a key without the
+     * flags makes them one.
+     *
+     * What that looked like: terrain was fetched first and stored, the locs
+     * read for the same square hit that record, and the loc decoder was handed
+     * terrain bytes -- which it reads as a square with nothing on it. Every
+     * tile drawn, not one scenery object, and no error anywhere, because
+     * "this square has no locs" is a legitimate thing for a cache to say.
+     *
+     * dat2 passes 0 here and is unaffected; its two are already different
+     * archives.
+     */
+    groupKey: (cacheKey, table, archive, flags) =>
+      `${cacheKey}|${table}|${archive}|${flags | 0}`,
 
-    async groupGet(cacheKey, table, archive) {
-      const row = await get('groups', this.groupKey(cacheKey, table, archive));
+    async groupGet(cacheKey, table, archive, flags) {
+      const row = await get('groups', this.groupKey(cacheKey, table, archive, flags));
       return row ? asBytes(row.d) : null;
     },
 
-    async groupPut(cacheKey, table, archive, bytes) {
+    async groupPut(cacheKey, table, archive, flags, bytes) {
       await put('groups', {
-        k: this.groupKey(cacheKey, table, archive),
-        c: cacheKey, t: table, a: archive, d: asBuffer(bytes),
+        k: this.groupKey(cacheKey, table, archive, flags),
+        c: cacheKey, t: table, a: archive, f: flags | 0, d: asBuffer(bytes),
       });
     },
 

@@ -156,7 +156,10 @@
        */
       async readArchive(table, archive, flags) {
         const key = cacheKey();
-        const held = await idb.groupGet(key, table, archive);
+        /* `flags` addresses the record as well as choosing the producer: on
+         * dat1 a square's terrain and its locs share a table and an archive id
+         * and differ only here. See ToriRS_IDB.groupKey. */
+        const held = await idb.groupGet(key, table, archive, flags);
         if (held) { return held; }
 
         const producer = isDat1(flags) ? onDemand() : js5();
@@ -173,7 +176,7 @@
 
         /* Persisted before it is returned, so the next read of the same
          * container is local and the next SESSION starts warm. */
-        await idb.groupPut(key, table, archive, bytes);
+        await idb.groupPut(key, table, archive, flags, bytes);
         return bytes;
       },
 
