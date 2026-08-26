@@ -197,7 +197,29 @@ long g_torirs_frame_no = 0;
 enum
 {
     APP_LOGIC_TICK_MS = 20,
-    APP_MAX_CATCHUP_TICKS = 5,
+    /*
+     * Most logic ticks one frame may replay after a stall, and the reference's
+     * own number rather than a guess.
+     *
+     * GameShell.run() does not carry a tick count; it carries a rate. Each
+     * iteration computes `ratio = deltime * 2560 / (now - otim[i])` -- 256 x
+     * the ideal time for ten ticks over the wall time the last ten iterations
+     * actually took -- then replays ticks with
+     *
+     *     while (acc < 256) { mainloop(); acc += ratio; }
+     *
+     * `ratio` is floored at 25, so the slowest the loop will ever admit to
+     * running is 25/256 of real time, and the accumulator then steps
+     * 0, 25, ... 250 before crossing 256: eleven ticks. That floor is the
+     * ceiling, expressed the other way round.
+     *
+     * This was 5, with no reason recorded. The difference shows up only after
+     * a stall longer than 100 ms, where 5 silently drops game time the server
+     * still believes happened and the desync is larger than the reference's
+     * would be. It costs nothing while frames are on time, because `ticks` is
+     * 1 and the clamp never fires.
+     */
+    APP_MAX_CATCHUP_TICKS = 11,
     /*
      * Connection-loss thresholds. See the `net_lost` block in app.h.
      *
