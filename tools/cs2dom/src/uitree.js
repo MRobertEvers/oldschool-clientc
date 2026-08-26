@@ -303,8 +303,26 @@ export class UITree {
     _link(node, parentIndex) {
         if( parentIndex < 0 )
         {
-            if( this.rootIndex < 0 ) this.rootIndex = node.index;
-            else this.nodes[this.lastRootIndex].nextSibling = node.index;
+            if( this.rootIndex < 0 )
+            {
+                this.rootIndex = node.index;
+            }
+            else
+            {
+                /* The tail hint can be stale — `_unlink` drops it when the last
+                 * root is the node it removes, which `reparent` does for every
+                 * non-root component of a freshly baked pack. Walking is the
+                 * fallback, not the path. */
+                let tail = this.lastRootIndex;
+                if( tail < 0 || this.nodes[tail].nextSibling !== -1
+                    || this.nodes[tail].freed )
+                {
+                    tail = this.rootIndex;
+                    while( this.nodes[tail].nextSibling >= 0 )
+                        tail = this.nodes[tail].nextSibling;
+                }
+                this.nodes[tail].nextSibling = node.index;
+            }
             this.lastRootIndex = node.index;
             return;
         }
@@ -409,6 +427,34 @@ export class UITree {
         this.generation++;
         this.layoutStale = true;
         return true;
+    }
+
+    /**
+     * Move a live node under a new parent, appended last.
+     *
+     * The bake needs it: a component's parent may sit LATER in the pack than
+     * the component does, so the reference allocates every component in pack
+     * order unlinked and only then runs a second pass of `UITree_Reparent`.
+     * Hoisting a parent to the position of its first child instead — the
+     * obvious one-pass version — reorders siblings, and sibling order IS draw
+     * order. `notification_display` is the case: its `title` layer is file 6
+     * and its text is file 4, so the one-pass bake drew the title panel before
+     * the background it is supposed to sit on.
+     *
+     * Appended, never inserted: that is what the second pass does, and it is
+     * what makes pack order come out as child order.
+     */
+    reparent(index, parentIndex) {
+        const node = this.at(index);
+        if( !node ) throw new UITreeError(`node ${index} is not live`);
+        if( node.parent === parentIndex ) return;
+        this._unlink(node);
+        node.nextSibling = -1;
+        node.parent = -1;
+        this._link(node, parentIndex);
+        this.generation++;
+        this.layoutStale = true;
+        this.markDirty(index, DIRTY.TOPOLOGY);
     }
 
     /**

@@ -77,9 +77,28 @@ export function pow(a, b) {
     return Math.trunc(Math.pow(a, b)) | 0;
 }
 
-export function invpow(a, b) {
-    if( a === 0 ) return 0;
-    return Math.trunc(Math.log(b) / Math.log(a)) | 0;
+/*
+ * `invpow(base, exponent)` — the exponent-th integer ROOT of base, not a
+ * power and not a logarithm. `CS2VM2_Op_InvPow` special-cases the first five
+ * exponents so the common roots come out of `sqrt`/`cbrt` rather than `pow`,
+ * and the truncation is part of the answer.
+ *
+ * It read as a logarithm here, which is 0 for every argument these scripts
+ * pass: `script5147` eases a model's position with `invpow(height - 334, 2)`,
+ * so the seed in `pog_tele_seed_breaking` sat 24 pixels above where the
+ * reference draws it, in three interfaces.
+ */
+export function invpow(base, exponent) {
+    if( base === 0 ) return 0;
+    switch( exponent )
+    {
+    case 0: return 2147483647;
+    case 1: return base | 0;
+    case 2: return Math.trunc(Math.sqrt(base)) | 0;
+    case 3: return Math.trunc(Math.cbrt(base)) | 0;
+    case 4: return Math.trunc(Math.sqrt(Math.sqrt(base))) | 0;
+    default: return Math.trunc(Math.pow(base, 1 / exponent)) | 0;
+    }
 }
 
 export function min(a, b) {

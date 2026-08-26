@@ -188,21 +188,20 @@ export function bakeInterface({ tree = null, ifText, compackText = '', interface
     }
 
     /*
-     * Push parents before children, keeping FILE ORDER among siblings.
-     * A child pushed before its parent has nowhere to attach; siblings pushed
-     * out of order draw in the wrong sequence, and which widget covers which
-     * is the whole difference.
+     * TWO passes, both in pack order, exactly as `uitree_build.c` does it:
+     * allocate every component unlinked, then reparent.
+     *
+     * The one-pass version — recurse to a row's parent, push it, then push the
+     * row — looks equivalent and is not. It hoists a parent to the position of
+     * its FIRST CHILD, and sibling order is draw order.
+     * `notification_display` holds its `title` layer at file 6 and the text
+     * inside it at file 4, so hoisting drew the title panel before the
+     * background it is meant to sit on.
      */
-    const pushed = new Set();
-    const onLoad = [];
-
-    const push = (row) => {
-        if( pushed.has(row) ) return;
-        pushed.add(row);
-        if( row.parentIndex ) push(row.parentIndex);
-
+    for( const row of rows )
+    {
         const index = target.push({
-            parentIndex: row.parentIndex ? row.parentIndex.index : -1,
+            parentIndex: -1,
             componentId: row.componentId,
             subId: row.fileId,
             type: treeType(row.type),
@@ -213,12 +212,30 @@ export function bakeInterface({ tree = null, ifText, compackText = '', interface
 
         for( const [slot, binding] of Object.entries(row.hooks) )
         {
-            if( slot === 'onLoad' ) { onLoad.push({ ...binding, componentId: row.componentId }); continue; }
+            /* onLoad is collected below, in PACK order — see there. */
+            if( slot === 'onLoad' ) continue;
             target.setHook(index, slot, binding);
         }
-    };
+    }
 
-    for( const row of rows ) push(row);
+    for( const row of rows )
+        if( row.parentIndex ) target.reparent(row.index, row.parentIndex.index);
+
+    /*
+     * onLoad runs in PACK order — by file id — not in tree order.
+     *
+     * `collect_onloads` walks `pack->components[i]` straight through, and the
+     * two orders differ whenever a component's parent sits later in the file
+     * than it does. `tob_midway_stores` is that shape: `frame` is file 0 and
+     * its layer is `universe`, file 2, so pushing parents first runs
+     * `universe`'s builder before `frame`'s border. Both still ran, and both
+     * still built the same widgets — but the dynamic ids came out in the other
+     * order, so every component in the draw list was named wrong.
+     */
+    const onLoad = [];
+    for( const row of [...rows].sort((a, b) => a.fileId - b.fileId) )
+        if( row.hooks.onLoad )
+            onLoad.push({ ...row.hooks.onLoad, componentId: row.componentId });
 
     return { tree: target, rows, onLoad, record, compack };
 }
