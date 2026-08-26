@@ -2167,8 +2167,12 @@ test-cs1: $(OBJ_DIR)
 		cs1vm/test/cs1_integration_test.c -lm
 	./$(OBJ_DIR)/cs1_integration_test
 
+# -UNDEBUG because assert() is how this suite checks: OPT=1 puts -DNDEBUG in
+# CFLAGS (see the note above OPT_RELEASE_CFLAGS), which compiled every
+# assertion in the file out and left it passing on values it was asserting
+# against. TEST_CHECK survived, the payload comparisons did not.
 test-cmdbus: $(OBJ_DIR) cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cmdbus_test cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/cmdbus_test cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
 	./$(OBJ_DIR)/cmdbus_test
 
 # Login handshake + packet framing, deterministic (fixed seed + tommath RSA).

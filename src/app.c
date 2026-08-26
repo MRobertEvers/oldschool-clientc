@@ -25573,6 +25573,82 @@ App_DrainCommands(
                     app, app_ui_scaled_axis(app, cmd->width), app_ui_scaled_axis(app, cmd->height));
             }
             break;
+        /*
+         * Host commands. Each is the same call the equivalent TORIRS_SIM_*
+         * harness makes, reached from the drain instead of from a pre-loop
+         * environment read, so an embedded client can be driven after boot and
+         * on the web lane at all (docs/web_build.md: the SIM harnesses call
+         * App_BootWait, which never returns against an async IO backend).
+         *
+         * A short frame is a producer bug — every one of these is written by
+         * CmdBus_Push*, which sizes it — so the length is asserted rather than
+         * quietly skipped. It is the same reasoning as anywhere else here: a
+         * dropped command surfaces later as an interface that did not open.
+         */
+        case TORIRS_CMD_UI_OPEN_ROOT:
+        {
+            struct ToriRS_CmdUiOpenRoot const* cmd =
+                (struct ToriRS_CmdUiOpenRoot const*)payload;
+            assert(header.length >= sizeof(*cmd));
+            App_OpenRootInterface(app, cmd->interface_id);
+            break;
+        }
+        case TORIRS_CMD_UI_SET_VARP:
+        case TORIRS_CMD_UI_SET_VARBIT:
+        {
+            struct ToriRS_CmdUiSetVar const* cmd = (struct ToriRS_CmdUiSetVar const*)payload;
+            assert(header.length >= sizeof(*cmd));
+            /* Optimistic, which is what a panel's own write is: the value
+             * stands until the server says otherwise, and offline it never
+             * does. A varbit notifies with -1 because the transmit pump keys on
+             * the BASE varp, which the caller does not know. */
+            if( header.type == TORIRS_CMD_UI_SET_VARP )
+            {
+                VarPManager_SetVarpOptimistic(&app->varps, cmd->id, cmd->value);
+                RS_CS2Host_NotifyVarChanged(&app->host, cmd->id);
+            }
+            else
+            {
+                VarPManager_SetVarbitOptimistic(&app->varps, cmd->id, cmd->value);
+                RS_CS2Host_NotifyVarChanged(&app->host, -1);
+            }
+            break;
+        }
+        case TORIRS_CMD_UI_RUNSCRIPT:
+        {
+            struct ToriRS_CmdUiRunScript const* cmd =
+                (struct ToriRS_CmdUiRunScript const*)payload;
+            assert(header.length >= offsetof(struct ToriRS_CmdUiRunScript, args));
+            assert(cmd->argc >= 0);
+            assert(cmd->argc <= TORIRS_CMD_UI_RUNSCRIPT_MAX_ARGS);
+            assert(header.length >= CmdBus_UiRunScriptBytes(cmd->argc));
+            RS_CS2_RunScript(
+                &app->host,
+                &app->runner,
+                cmd->script_id,
+                cmd->argc > 0 ? cmd->args : NULL,
+                cmd->argc,
+                0,
+                NULL,
+                0);
+            break;
+        }
+        case TORIRS_CMD_EXEC_TEXT:
+        {
+            /* Not NUL-terminated on the wire; the header's length is the
+             * string's. App_SendCommand answers false until the connection
+             * reaches TORIRS_NET_GAME — a debugproc is a server-side script
+             * call, so before login there is nothing to send it to, and saying
+             * so is more use than a silent drop. */
+            char text[TORIRS_CMD_MAX_PAYLOAD + 1];
+            size_t length = header.length;
+            assert(length <= TORIRS_CMD_MAX_PAYLOAD);
+            memcpy(text, payload, length);
+            text[length] = '\0';
+            if( !App_SendCommand(app, text) )
+                fprintf(stderr, "cmdbus: exec_text '%s' dropped, not in game yet\n", text);
+            break;
+        }
         default:
             fprintf(stderr, "cmdbus: unhandled command type %u\n", header.type);
             break;

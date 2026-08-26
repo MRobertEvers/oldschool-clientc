@@ -16,8 +16,15 @@
 
 #include "cmdring.h"
 
+#include <assert.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+
+/* RUNCLIENTSCRIPT's own headless harness (TORIRS_SIM_RUNSCRIPT) carries four,
+ * and the packet path is variadic. Four covers every call a host has needed;
+ * raising it costs only frame bytes. */
+#define TORIRS_CMD_UI_RUNSCRIPT_MAX_ARGS 4
 
 enum ToriRS_CmdType
 {
@@ -49,6 +56,27 @@ enum ToriRS_CmdType
      * input that happened around it — a replay of a session that was resized
      * mid-way must resize at the same frame. */
     TORIRS_CMD_WINDOW_RESIZE = 48, /* struct ToriRS_CmdWindowResize */
+
+    /* -> App, from a HOST rather than from a device.
+     *
+     * The client is embedded — in a browser tab, under an editor, under a test
+     * — and the thing embedding it wants to say "open interface 600" or "set
+     * varp 300 to 100", which no sequence of clicks expresses. The TORIRS_SIM_*
+     * environment harnesses answer the same need for a native run, but they are
+     * read once before the loop and several of them call App_BootWait, which
+     * spins on TaskRunner_Step and never returns against an asynchronous IO
+     * backend (docs/web_build.md). A host that is still there after boot needs a
+     * seam that is drained per iteration, and this ring already is one.
+     *
+     * On the bus rather than as direct calls for the reason WINDOW_RESIZE is:
+     * the ring's byte layout is the record format, so a host-driven session
+     * records and replays with its commands interleaved with the input around
+     * them, at the same frames. */
+    TORIRS_CMD_UI_OPEN_ROOT = 64,  /* struct ToriRS_CmdUiOpenRoot */
+    TORIRS_CMD_UI_SET_VARP = 65,   /* struct ToriRS_CmdUiSetVar */
+    TORIRS_CMD_UI_SET_VARBIT = 66, /* struct ToriRS_CmdUiSetVar */
+    TORIRS_CMD_UI_RUNSCRIPT = 67,  /* struct ToriRS_CmdUiRunScript */
+    TORIRS_CMD_EXEC_TEXT = 68,     /* debugproc text, no leading "::", not NUL-terminated */
 };
 
 #pragma pack(push, 1)
@@ -104,7 +132,38 @@ struct ToriRS_CmdWindowResize
     int32_t width;
     int32_t height;
 };
+
+struct ToriRS_CmdUiOpenRoot
+{
+    int32_t interface_id;
+};
+
+/** Both UI_SET_VARP and UI_SET_VARBIT: same shape, different id space. */
+struct ToriRS_CmdUiSetVar
+{
+    int32_t id;
+    int32_t value;
+};
+
+/* RUNCLIENTSCRIPT's shape, minus the strings: a script id and its int
+ * arguments. `argc` is how many of `args` are meant; the frame is sized to
+ * carry exactly that many, so a four-argument call costs no more than four. */
+struct ToriRS_CmdUiRunScript
+{
+    int32_t script_id;
+    int32_t argc;
+    int32_t args[TORIRS_CMD_UI_RUNSCRIPT_MAX_ARGS];
+};
 #pragma pack(pop)
+
+/** Bytes of a run-script frame carrying `argc` arguments. */
+static inline uint16_t
+CmdBus_UiRunScriptBytes(int argc)
+{
+    assert(argc >= 0);
+    assert(argc <= TORIRS_CMD_UI_RUNSCRIPT_MAX_ARGS);
+    return (uint16_t)(offsetof(struct ToriRS_CmdUiRunScript, args) + (size_t)argc * sizeof(int32_t));
+}
 
 struct ToriRS_CmdBus
 {
@@ -237,5 +296,34 @@ int
 CmdBus_PushNetStatus(
     struct ToriRS_CmdBus* bus,
     int32_t status);
+
+/* ---- host commands ------------------------------------------------------ */
+
+int
+CmdBus_PushUiOpenRoot(
+    struct ToriRS_CmdBus* bus,
+    int32_t interface_id);
+
+/** `type` is TORIRS_CMD_UI_SET_VARP or TORIRS_CMD_UI_SET_VARBIT. */
+int
+CmdBus_PushUiSetVar(
+    struct ToriRS_CmdBus* bus,
+    uint32_t type,
+    int32_t id,
+    int32_t value);
+
+/** `args` may be NULL only when argc is 0. */
+int
+CmdBus_PushUiRunScript(
+    struct ToriRS_CmdBus* bus,
+    int32_t script_id,
+    int32_t const* args,
+    int argc);
+
+/** `text` is the command WITHOUT the leading "::", matching App_SendCommand. */
+int
+CmdBus_PushExecText(
+    struct ToriRS_CmdBus* bus,
+    char const* text);
 
 #endif

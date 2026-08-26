@@ -438,7 +438,7 @@ else ifeq ($(PLATFORM),web)
                       -sENVIRONMENT=web \
                       -sMODULARIZE=0 \
                       -sEXPORTED_RUNTIME_METHODS='["ccall","cwrap","HEAPU8","HEAP32","callMain","FS","FS_readFile"$(WEB_CACHE_RUNTIME)]' \
-                      -sEXPORTED_FUNCTIONS='["_main","_malloc","_free"$(WEB_CACHE_EXPORTS)]'
+                      -sEXPORTED_FUNCTIONS='["_main","_malloc","_free","_torirs_cmdbus_push_bytes"$(WEB_CACHE_EXPORTS)]'
   # emcc strips at the wasm level; there is no ld flag to add here.
   PLATFORM_STRIP_LDFLAGS :=
   # emscripten's musl only routes these four through --wrap; reallocf and

@@ -725,6 +725,99 @@ static long sim_sound_next;
 static long max_frames;
 static long frame_count;
 
+#if defined(TORIRS_PLATFORM_WEB)
+/*
+ * The host's way in: a batch of cmdbus frames, straight from the page.
+ *
+ * The client is embedded — a dev tool, an editor, a test page — and the host
+ * wants to say "open interface 600" or "set varp 300", which no synthesised
+ * click expresses. The TORIRS_SIM_* harnesses answer that natively but are read
+ * once before the loop, and several call App_BootWait, which spins on
+ * TaskRunner_Step and never returns against this lane's asynchronous IO. So the
+ * seam has to be the thing that is already drained once per iteration.
+ *
+ * The wire is src/web/torirs_channel.js's, which is cmdring.h's, which is the
+ * record-file format: [u32 type][u16 length][payload], little-endian, several
+ * concatenated. A host-driven session therefore records and replays like any
+ * other, with its commands at the frames the input around them landed on.
+ *
+ * VALIDATED, NOT ASSERTED. Everywhere else in this file a malformed frame would
+ * be a bug in our own producer and would assert. These bytes are written by a
+ * separate implementation in another language, and OPT=1 compiles asserts out
+ * anyway (src/makefile's -DNDEBUG note), so a truncated batch has to be caught
+ * here or it walks the heap. Refusing is not a silent failure: it returns the
+ * count accepted and says what it rejected.
+ *
+ * Returns frames accepted, or -1 if the batch was malformed (frames before the
+ * bad header are still accepted — the ring took them and the drain will run
+ * them). A full ring also stops the walk; the count says how far it got.
+ */
+EMSCRIPTEN_KEEPALIVE int
+torirs_cmdbus_push_bytes(const uint8_t* data, int length)
+{
+    /* cmdring.h's header, restated as offsets rather than as the struct,
+     * because what crosses is a byte layout and reading it as one is what makes
+     * the two implementations agree. */
+    enum
+    {
+        HEADER_BYTES = 6
+    };
+    int offset = 0;
+    int accepted = 0;
+
+    if( !data || length < 0 )
+    {
+        fprintf(stderr, "cmdbus: push_bytes given no batch\n");
+        return -1;
+    }
+
+    while( offset < length )
+    {
+        uint32_t type;
+        uint32_t payload_length;
+
+        if( length - offset < HEADER_BYTES )
+        {
+            fprintf(
+                stderr,
+                "cmdbus: push_bytes truncated header at %d of %d, %d frames in\n",
+                offset,
+                length,
+                accepted);
+            return -1;
+        }
+        type = (uint32_t)data[offset] | ((uint32_t)data[offset + 1] << 8)
+               | ((uint32_t)data[offset + 2] << 16) | ((uint32_t)data[offset + 3] << 24);
+        payload_length = (uint32_t)data[offset + 4] | ((uint32_t)data[offset + 5] << 8);
+        offset += HEADER_BYTES;
+
+        if( payload_length > TORIRS_CMD_MAX_PAYLOAD
+            || payload_length > (uint32_t)(length - offset) )
+        {
+            fprintf(
+                stderr,
+                "cmdbus: push_bytes frame type %u claims %u bytes, %d remain\n",
+                type,
+                payload_length,
+                length - offset);
+            return -1;
+        }
+
+        if( !CmdBus_Push(&bus, type, data + offset, (uint16_t)payload_length) )
+        {
+            /* The ring is full. Not an error in the batch: the host is ahead of
+             * the frame loop, and the frames it already gave us will drain. */
+            fprintf(
+                stderr, "cmdbus: push_bytes ring full, %d of the batch accepted\n", accepted);
+            return accepted;
+        }
+        offset += (int)payload_length;
+        accepted++;
+    }
+    return accepted;
+}
+#endif
+
 /**
  * @brief Frame at which EIP sampling begins; see the call site for why.
  *
