@@ -22,13 +22,31 @@
 import { HOST_PARK } from './generated/cs2_host_park.js';
 import * as K from './cs2_intrinsics.js';
 
+/**
+ * What `clienttype` answers.
+ *
+ * TEN, which is what `CS2VM2_Op_ClientType` pushes. The cache's own
+ * `clienttype` names only go up to 4 (`desktop`, `android`, `ios`,
+ * `enhanced`), so 10 looks arbitrary until you read what the scripts do with
+ * it: `[clientscript,duel_options_exclamations]` gates on
+ * `clienttype = ^clienttype_enhanced | clienttype = 5 | clienttype = 10`, and
+ * a whole family of layout scripts hangs off that answer.
+ *
+ * Zero is not a neutral default here — it is "none of the above". The bank
+ * is the case: `script9580` opens with `if (~script100 = 0) { return; }`,
+ * `~script100` is that clienttype gate, and with 0 the script returned before
+ * unhiding the divider beside the tab strip or building the first tab. Three
+ * of bankmain's sixty-six draw commands simply did not exist.
+ */
+const CLIENTTYPE_DEFAULT = 10;
+
 /** Interface mount types, as `if_openwidget` numbers them. */
 export const MOUNT_TYPE = Object.freeze({ MODAL: 0, OVERLAY: 1, TAB: 3 });
 
 /** Where a preview's client-side state lives. */
 export class ClientState {
     constructor({
-        windowMode = 1, defaultWindowMode = 1, clientType = 0,
+        windowMode = 1, defaultWindowMode = 1, clientType = CLIENTTYPE_DEFAULT,
         options = new Map(), coord = -1, world = 301,
         runEnergy = 0, runWeight = 0, mobile = false,
     } = {}) {

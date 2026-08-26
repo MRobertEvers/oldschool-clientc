@@ -8,7 +8,7 @@
  * the ones where the obvious implementation is wrong.
  */
 
-import { DIRTY, WIDGET_TYPE } from './uitree.js';
+import { DIRTY, WIDGET_TYPE, widgetTypeFromScript } from './uitree.js';
 import { HOST_PARK } from './generated/cs2_host_park.js';
 
 export function installWidgetOps(HostKernel) {
@@ -999,7 +999,8 @@ export function installWidgetOps(HostKernel) {
         if( !parent ) return undefined;
         this.tree.reclaimDynamicChild(parent.index, subId);
         const index = this.tree.push({
-            parentIndex: parent.index, type, subId, dynamic: true,
+            parentIndex: parent.index, type: widgetTypeFromScript(type), subId,
+            dynamic: true,
             componentId: this.tree.allocateDynamicComponentId(parent.componentId >>> 16),
         });
         select(index);
@@ -1017,7 +1018,8 @@ export function installWidgetOps(HostKernel) {
         if( !node ) return undefined;
         this.tree.reclaimDynamicChild(node.parent, subId);
         const index = this.tree.push({
-            parentIndex: node.parent, type, subId, dynamic: true,
+            parentIndex: node.parent, type: widgetTypeFromScript(type), subId,
+            dynamic: true,
             componentId: this.tree.allocateDynamicComponentId(node.componentId >>> 16),
         });
         select(index);

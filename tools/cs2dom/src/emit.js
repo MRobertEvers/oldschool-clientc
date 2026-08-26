@@ -180,9 +180,26 @@ export class Emitter {
         if( drawable && (node.props.trans | 0) < 255 )
             this._emitSelf(node, box, context, { dragDx, dragDy, inDrag });
 
-        /* Children: clip to this node's box intersected with the enclosing
-         * surface, NEVER compounded with an ancestor layer's clip. The same
-         * helper decides hit-testing, so pixels and hitboxes agree. */
+        /*
+         * Children: clip to this node's box intersected with the enclosing
+         * SURFACE, never compounded with an ancestor layer's clip — the
+         * reference's `Pix2D.setClipping` OVERWRITES, clamping only to the
+         * surface. The same helper decides hit-testing, so pixels and
+         * hitboxes agree.
+         *
+         * A plain nested layer therefore does NOT become the surface for what
+         * is under it. Making it one is compounding by another name, and it
+         * is what put bankmain's last tab under a 40-pixel clip where the
+         * reference gives it the 420 of the panel it really sits in.
+         *
+         * Only a SCROLL VIEWPORT establishes a surface (and, in the C client,
+         * the builtin chat and sidebar, which this tree has no equivalent
+         * for). That exception is not symmetry: an IF3 scroll area is a
+         * viewport layer holding a content layer sized to the SCROLL EXTENT,
+         * so the content's own box is taller than what may be shown, and
+         * without the viewport as its surface it clips only to the screen and
+         * spills out of the panel.
+         */
         let clip = context.clip;
         let surface = context.surface;
         if( clipsChildren(node) )
@@ -191,8 +208,8 @@ export class Emitter {
             const clipY = box.y - context.scrollY + (inDrag ? dragDy : 0);
             const own = { x: clipX, y: clipY, width: box.width, height: box.height };
             clip = intersect(own, surface);
-            surface = clip;
             if( clip.width <= 0 || clip.height <= 0 ) return;
+            if( establishesSurface(node, box) ) surface = clip;
         }
 
         let scrollX = context.scrollX;
@@ -328,6 +345,19 @@ export function shouldPrune(node, hoveredComponentId = -1) {
     return false;
 }
 
+/**
+ * Does this node establish a SURFACE for everything beneath it?
+ *
+ * Only a scroll viewport: a layer whose content is bigger than its box on
+ * either axis. Everything else clips its own children and leaves the surface
+ * where it was — see the walk for why that distinction is the whole rule.
+ */
+export function establishesSurface(node, box) {
+    if( node.type !== TYPE_LAYER ) return false;
+    return (node.props.scrollWidth | 0) > box.width
+        || (node.props.scrollHeight | 0) > box.height;
+}
+
 /** Types that clip their children to their own box. */
 export function clipsChildren(node) {
     return node.type === TYPE_LAYER;
@@ -341,7 +371,13 @@ function emitKindOf(node) {
     case TYPE_GRAPHIC: return EMIT_KIND.SPRITE;
     case TYPE_MODEL: return EMIT_KIND.MODEL;
     case TYPE_LINE: return EMIT_KIND.LINE;
-    /* A layer draws nothing of its own; it exists to clip and to group. */
+    /*
+     * A layer draws nothing of its own; it exists to clip and to group. An
+     * OBJ box and an ARC draw nothing HERE for a different reason: the C
+     * client emits them as its own `CC_OBJ` and `ARC` kinds, which this
+     * preview does not host, and the parity oracle filters both out of the
+     * reference for exactly that reason.
+     */
     default: return null;
     }
 }

@@ -38,12 +38,44 @@
 /** What kind of thing a component draws. Mirrors enum UITreeComponentType. */
 export const WIDGET_TYPE = Object.freeze({
     LAYER: 0,
+    /* An item box: what a script gets from `cc_create` until `cc_setobject`
+     * fills it. It draws an obj icon, not a layer, and it does NOT clip. */
+    OBJ: 2,
     RECTANGLE: 3,
     TEXT: 4,
     GRAPHIC: 5,
     MODEL: 6,
     LINE: 9,
+    ARC: 10,
 });
+
+/**
+ * `cc_create`'s widget-type argument is NOT the cache's component type.
+ *
+ * They agree for 3, 4, 5, 6 and 9, which is exactly why this is easy to miss.
+ * They differ at ZERO: a cache component of type 0 is a LAYER, but
+ * `cc_create(parent, 0, …)` has no case at all in `UITree_CcCreate` and falls
+ * to its default — "type 2 (INV) and any unknown: item box until SETOBJECT
+ * fills it".
+ *
+ * Treating it as a layer gives the created node a layer's two powers, and the
+ * second one is invisible: it CLIPS ITS CHILDREN. Bankmain's tab builder
+ * (`script9582`) makes one of these and hangs the tab sprite and its icon
+ * inside it, so both were clipped to a 41x40 box where the reference clips
+ * them to the 40x420 panel they really sit in.
+ */
+export function widgetTypeFromScript(type) {
+    switch( type | 0 )
+    {
+    case WIDGET_TYPE.RECTANGLE: return WIDGET_TYPE.RECTANGLE;
+    case WIDGET_TYPE.TEXT: return WIDGET_TYPE.TEXT;
+    case WIDGET_TYPE.GRAPHIC: return WIDGET_TYPE.GRAPHIC;
+    case WIDGET_TYPE.MODEL: return WIDGET_TYPE.MODEL;
+    case WIDGET_TYPE.LINE: return WIDGET_TYPE.LINE;
+    case WIDGET_TYPE.ARC: return WIDGET_TYPE.ARC;
+    default: return WIDGET_TYPE.OBJ;
+    }
+}
 
 /** Sub-id sentinels, mirroring UITREE_CHILD_KEY_*. */
 const CHILD_KEY_NONE = -0x80000000 + 1;

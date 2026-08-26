@@ -650,7 +650,7 @@ class ScriptEmitter {
          * transmit pass re-sized the spellbook's tooltip from the number 12.
          */
         const args = this.procArgList(node.arguments || []);
-        const triggers = this.argList(node.triggers || []);
+        const triggers = this.triggerList(node.triggers || []);
         const binding = `K.hook(${node.scriptId}, [${args}], [${triggers}])`;
         const target = node.component ? `, ${this.expr(node.component)}` : '';
         return `H.${method}(${binding}${target})`;
@@ -670,6 +670,27 @@ class ScriptEmitter {
      * expression returns an array here, so spreading it is both the correct
      * lowering and the one that keeps evaluation order.
      */
+    /**
+     * A transmit hook's TRIGGER list: the ids it watches.
+     *
+     * A trigger that names a variable is that variable's ID, not a read of
+     * its value. The tree spells it as a `pointer`, the same node kind an
+     * array handle arrives as, and `expr` resolves a pointer by READING —
+     * which for `if_setonvartransmit(…){var304, var115, var867, …}` produced
+     * seven zeros, because none of those varps had a value yet.
+     *
+     * A hook that watches varp 0 seven times is a hook that never fires: the
+     * bank's rebuild is armed exactly this way, and it went from watching
+     * seven real varps to watching nothing.
+     */
+    triggerList(triggers) {
+        return triggers.map((trigger) => {
+            const variable = trigger && trigger.variable;
+            if( variable && !variable.local ) return String(variable.id | 0);
+            return this.expr(trigger);
+        }).join(', ');
+    }
+
     /**
      * A PROC's argument list, grouped by stack bank.
      *

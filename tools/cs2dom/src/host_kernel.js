@@ -52,7 +52,7 @@ import {
 import { ClientState, createRandom, installClientOps } from './host_client.js';
 import { ChatState, installChatOps } from './host_chat.js';
 import { WorldState, installWorldOps } from './host_world.js';
-import { DIRTY, DYNAMIC_SUB_ID_BASE, UITree } from './uitree.js';
+import { DIRTY, DYNAMIC_SUB_ID_BASE, UITree, widgetTypeFromScript } from './uitree.js';
 
 export { HOST_PARK, HostConfig, HostPlayerState, ClientState, ChatState, WorldState };
 
@@ -365,7 +365,8 @@ export class HostKernel {
          * tree. See `reclaimDynamicChild`. */
         this.tree.reclaimDynamicChild(parent.index, subId);
         const index = this.tree.push({
-            parentIndex: parent.index, type, subId, dynamic: true,
+            parentIndex: parent.index, type: widgetTypeFromScript(type), subId,
+            dynamic: true,
             componentId: this.tree.allocateDynamicComponentId(group),
         });
         select(index);

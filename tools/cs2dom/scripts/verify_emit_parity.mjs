@@ -308,7 +308,7 @@ async function run(reference) {
         host[method] = (...args) => {
             const answer = original(...args);
             const where = process.env.PARITY_TRACE_WHERE
-                ? `\n${new Error().stack.split('\n').slice(2, 6).join('\n')}` : '';
+                ? `\n${new Error().stack.split('\n').slice(2, 14).join('\n')}` : '';
             console.error(`${method}(${args.map((a) => JSON.stringify(a)).join(', ')})`
                 + ` = ${String(answer)}${where}`);
             return answer;
@@ -347,6 +347,19 @@ async function run(reference) {
             if( process.env.PARITY_SHOW_ERRORS ) console.error(`abort in ${request.scriptId}: ${error.stack}`);
         },
     });
+    if( process.env.PARITY_TRACE_DISPATCH )
+    {
+        const original = driver.dispatch.bind(driver);
+        const counts = new Map();
+        driver.dispatch = (scriptId, dispatchArgs, options) => {
+            counts.set(`${scriptId}:${options?.reason}`,
+                (counts.get(`${scriptId}:${options?.reason}`) ?? 0) + 1);
+            process.on('exit', () => {});
+            return original(scriptId, dispatchArgs, options);
+        };
+        driver.dispatchCounts = counts;
+    }
+
     driver.loader = createLoader(tree, driver);
     const layout = attachLayout(host, { root: ROOT });
     driver.resolveLayout = () => layout.resolve();
@@ -382,6 +395,15 @@ async function run(reference) {
      * paints some widgets, and at mount nothing has changed yet — so the
      * trigger filter would dispatch none of them.
      */
+    /*
+     * ONE mount pass, not a fixed point.
+     *
+     * Iterating it until nothing new appears is the tempting version and it
+     * is wrong: the reference dispatches once at mount and lets the ordinary
+     * filtered pump handle everything after. Repeating it re-ran hooks whose
+     * serial had not moved, and interface 600 went from an exact match to 144
+     * differences.
+     */
     if( MOUNT_TRANSMIT ) pump.dispatchAll();
     await driver.settle({ wait: false });
 
@@ -415,6 +437,21 @@ async function run(reference) {
     layout.resolve();
     emitter.walk({ force: true });
 
+    if( process.env.PARITY_FIND_NODE )
+    {
+        const [w, h] = process.env.PARITY_FIND_NODE.split('x').map(Number);
+        for( const node of tree.nodes )
+        {
+            if( node.freed ) continue;
+            if( (node.props.width | 0) !== w || (node.props.height | 0) !== h ) continue;
+            const parent = node.parent >= 0 ? tree.at(node.parent) : null;
+            console.error(`com=${node.componentId} sub=${node.subId} dyn=${node.dynamic}`
+                + ` hidden=${node.hidden} type=${node.type}`
+                + ` layout=${JSON.stringify(node.layout)} parent=${parent?.componentId}`
+                + ` props=${JSON.stringify(node.props)}`.slice(0, 160));
+        }
+    }
+
     if( process.env.PARITY_DUMP_NODES )
     {
         for( const uid of process.env.PARITY_DUMP_NODES.split(',') )
@@ -432,7 +469,8 @@ async function run(reference) {
     if( process.env.PARITY_DUMP_FROM )
     {
         const from = Number(process.env.PARITY_DUMP_FROM);
-        emitter.commands.slice(from, from + 12).forEach((command, offset) => {
+        const count = Number(process.env.PARITY_DUMP_COUNT ?? 12);
+        emitter.commands.slice(from, from + count).forEach((command, offset) => {
             const node = tree.at(command.node);
             console.error(`[${from + offset}] ${command.kind} com=${command.componentId} `
                 + `box=${command.x},${command.y} ${command.width}x${command.height} `
@@ -451,6 +489,28 @@ async function run(reference) {
         const group = command.componentId >= 0 ? (command.componentId >>> 16) & 0xffff : -1;
         byGroup[group] = (byGroup[group] ?? 0) + 1;
     }
+
+    if( process.env.PARITY_HOOKS )
+    {
+        const counts = new Map();
+        for( const node of tree.nodes )
+        {
+            if( node.freed || !node.hooks ) continue;
+            for( const [slot, binding] of Object.entries(node.hooks) )
+            {
+                if( !binding || binding.scriptId <= 0 ) continue;
+                const key = `${binding.scriptId}:${slot}`;
+                counts.set(key, (counts.get(key) ?? 0) + 1);
+            }
+        }
+        console.error([...counts].filter(([k]) => /Transmit|Timer/.test(k))
+            .sort((a, b) => b[1] - a[1]).slice(0, 16)
+            .map(([k, n]) => `${k} x${n}`).join('\n'));
+    }
+
+    if( driver.dispatchCounts )
+        console.error([...driver.dispatchCounts].sort((a, b) => b[1] - a[1])
+            .slice(0, 20).map(([key, n]) => `${key} x${n}`).join('\n'));
 
     let visible = 0;
     const byType = {};
