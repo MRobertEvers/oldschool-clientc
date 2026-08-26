@@ -356,8 +356,22 @@ export function createRecordingSurface() {
  */
 export function createCanvasSurface(context) {
     return {
+        /*
+         * Clear in the CURRENT transform, do not reset it.
+         *
+         * `resize` sets a devicePixelRatio scale so the interface is laid out
+         * in CSS pixels and drawn into a backing store that many times
+         * larger. Resetting the transform here threw that away on the first
+         * frame: every subsequent draw went in at 1:1, so on a 2x display the
+         * whole interface painted into the top-left QUARTER of the canvas and
+         * the browser then scaled the oversized store down to the element's
+         * box -- a half-size picture in a large black field, with every
+         * pointer coordinate landing at twice the distance it should.
+         *
+         * The width and height are the ROOT's, which under the scale covers
+         * the store exactly.
+         */
         begin(width, height) {
-            context.setTransform(1, 0, 0, 1, 0, 0);
             context.clearRect(0, 0, width, height);
         },
         end() {},

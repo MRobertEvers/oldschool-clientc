@@ -150,8 +150,18 @@ test('the page has one canvas and no per-widget markup', () => {
 
 test('the page loads its client as a module rather than inlining it', () => {
     const html = canvasDevPage({});
-    assert.match(html, /<script type="module" src="\/dev-client\.js">/);
+    assert.match(html, /<script type="module" src="\/dev-client\.js\?v=[^"]*">/);
     assert.doesNotMatch(html, /<script>[^<]{200,}/, 'no giant inline script');
+});
+
+test('the page carries the serving build, so a stale tab is identifiable', () => {
+    /*
+     * The stamp is the only thing that tells a screenshot of an old tab from
+     * a screenshot of a broken fix: both show the same wrong picture, and
+     * the client reads it back out of its own module URL.
+     */
+    assert.match(canvasDevPage({ build: '1234:5678' }),
+        /<script type="module" src="\/dev-client\.js\?v=1234:5678">/);
 });
 
 test('the client keeps selection, drafts and focus outside the mount', () => {
