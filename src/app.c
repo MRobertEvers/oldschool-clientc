@@ -29095,6 +29095,35 @@ App_Render(
         return;
     }
 
+    /*
+     * TORIRS_MODEL_CENSUS=1: how many models the painter submits per frame.
+     *
+     * Per-model 3D setup -- face sort, painter bucket, projection, cylinder
+     * bounds -- is 2.09 ms, 36% of non-raster work, and it scales with this
+     * number and nothing else. Whether that number is large depends on how much
+     * of the scene a viewer can actually see, which is a culling question and
+     * therefore outside the drawing system entirely. Pair with
+     * TORIDRAW_SPAN_RATIO, which counts the models that survive CULL_VISIBLE
+     * and reach the sort: the gap between the two is projection spent on models
+     * that are then thrown away.
+     */
+    {
+        static int armed = -1;
+        static long long frames;
+        static long long submitted;
+
+        if( armed < 0 )
+            armed = getenv("TORIRS_MODEL_CENSUS") ? 1 : 0;
+        if( armed && frame.painters )
+        {
+            frames++;
+            submitted += frame.painters->command_count;
+            if( frames % 200 == 0 )
+                TORIRS_REPORT("[models] %lld frames, submitted/frame=%.1f\n",
+                    frames, (double)submitted / (double)frames);
+        }
+    }
+
     ToriRS_Soft3D_Init(&soft, app->scene, pixels, width, height);
 
     /*

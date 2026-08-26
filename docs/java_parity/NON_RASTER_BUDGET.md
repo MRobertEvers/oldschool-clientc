@@ -170,6 +170,33 @@ to about 3.79 ms, −47%.** The target is not reachable on this bench by any
 combination of them. It would need a change to what the client draws, not to how
 it draws it.
 
+### Is the per-model work large because we draw too many models?
+
+The 2.09 ms of per-model setup scales with the model count and nothing else, so
+the last question is whether that count is inflated — a culling problem, which
+would sit outside the drawing system entirely.
+
+`TORIRS_MODEL_CENSUS=1` alongside `TORIDRAW_SPAN_RATIO`:
+
+| | per frame |
+|---|---|
+| models submitted by the painter | **925.6** |
+| models surviving `CULL_VISIBLE` and reaching the sort | ~462 |
+| faces sorted | ~15,600 |
+
+So half of what is submitted is culled after projection — culling is working,
+not absent. The wasted work is the projection of the 463 that get thrown away,
+which at 0.26 ms for the whole projection stage is about 0.13 ms.
+
+And the surviving count is not inflated relative to the reference: the face
+census already put our drawn pixel count at **0.96×** the Java client's on the
+same scene, and our rasterisation measures 6.40 ms/frame against Java's 15.26.
+A client drawing substantially more geometry than Java could not be 2.4× faster
+at drawing it. The model count is legitimate scene content.
+
+Reducing it further means drawing less of the world — shorter draw distance,
+more aggressive occlusion — which is a visual change, not an optimisation.
+
 ### What "non-raster" contains, and why that matters to the target
 
 The metric is defined by `TORIRS_ABL_NORASTER=1`, which deletes the 3D triangle
