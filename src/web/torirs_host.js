@@ -835,6 +835,30 @@
     // count.
     transportDown: 0,
 
+    // Tell the CLIENT what this object already knows.
+    //
+    // The client disables the parts of its UI that cannot work without the
+    // server behind them — the plugin launcher, whose scripts, assets and
+    // settings all arrive over /io — and it can only do that if the verdict
+    // reaches it. Mirroring rather than exporting a second opinion: the page
+    // is the only thing that ever sees a request fail to leave, so its own
+    // counter is the source of truth and this just forwards the boolean.
+    //
+    // Guarded on the export existing so an older module (or the IndexedDB
+    // lane, which has no wire at all) keeps working untouched.
+    mirrorTransport(down) {
+      if (!this.ready || typeof Module._torirs_io_transport_down !== 'function') { return; }
+      try { Module._torirs_io_transport_down(down ? 1 : 0); } catch (err) { /* module gone */ }
+    },
+
+    // A batch came back. Whatever it says about the archives inside it, the
+    // transport is alive — which is the one thing mirrorTransport reports.
+    transportAlive() {
+      if (this.transportDown) { log('io: the IO server is answering again'); }
+      this.transportDown = 0;
+      this.mirrorTransport(false);
+    },
+
     // Take whatever the client queued and put it on the wire.
     //
     // Called from two places, and it has to be safe in both: once per client
@@ -890,7 +914,7 @@
         this.record(elapsed, 0, 0, true);
         return true;
       }
-      this.transportDown = 0;
+      this.transportAlive();
       this.batches++;
       this.deliver(reply);
       this.record(elapsed, reply.length, 0, false);
@@ -902,6 +926,7 @@
     // what it usually means, then keep a count rather than repeating it.
     reportTransportFailure(message) {
       this.transportDown++;
+      this.mirrorTransport(true);
       if (this.transportDown === 1) {
         log(`io: cannot reach the IO server at ${this.endpoint} — ${message}`, true);
         log('io: it was serving until now, so it has most likely stopped. Every ' +
@@ -945,7 +970,7 @@
         })
         .then(buffer => {
           this.inflight--;
-          this.transportDown = 0;
+          this.transportAlive();
           const bytes = new Uint8Array(buffer);
           this.deliver(bytes);
           this.record(performance.now() - started, bytes.length,

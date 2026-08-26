@@ -958,6 +958,20 @@ PlatformX_IO_Pending(
 #endif
 }
 
+/*
+ * Always yes, and see the header for why that is an answer rather than a stub.
+ *
+ * This backend reads a disk (or, on the IndexedDB lane, the record store the
+ * page hydrated before main). Both are the store itself: a read either finds
+ * the file or does not, and neither outcome is a transport that went away.
+ */
+int
+PlatformX_IO_ServerReachable(struct PlatformX_IO* px)
+{
+    assert(px);
+    return 1;
+}
+
 int
 PlatformX_IO_Process(
     struct PlatformX_IO* px,

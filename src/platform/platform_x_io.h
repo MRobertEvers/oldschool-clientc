@@ -82,4 +82,23 @@ PlatformX_IO_Pending(
     struct PlatformX_IO* px,
     struct ToriRS_IO* io);
 
+/**
+ * Can this backend still reach whatever answers its reads?
+ *
+ * Only the wire backend can answer no. The synchronous ones ARE the store — a
+ * disk, or the record database — so there is nothing between them and the bytes
+ * to be unreachable, and they say yes always. That is not a stub standing in
+ * for an unimplemented check: a lane with no server has no server to be down,
+ * and a caller that read "no server" as "server down" would switch off half the
+ * client on every desktop build.
+ *
+ * This reports the TRANSPORT, not the file. A read that fails because the
+ * server has no such path leaves this at yes, which is exactly the distinction
+ * the plugin lane needs — a missing plugin manifest is the ordinary case for a
+ * client with no scripts installed (see task_plugin_io.c) and must never read
+ * as an outage.
+ */
+int
+PlatformX_IO_ServerReachable(struct PlatformX_IO* px);
+
 #endif

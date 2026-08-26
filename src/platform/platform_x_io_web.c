@@ -121,6 +121,18 @@ struct PlatformX_IO
     int stat_cache_hits;
     int stat_completed;
     int stat_failed;
+
+    /*
+     * The page's verdict on the transport, mirrored here so the CLIENT can act
+     * on it -- see torirs_io_transport_down.
+     *
+     * Deliberately not derived from the failure counter beside it. A failed
+     * item and a failed BATCH are different things: the server answering "no
+     * such archive" fails an item while the transport is perfectly healthy, and
+     * a UI that hid itself on that would flicker off every time a plugin asked
+     * for an asset that is simply not installed.
+     */
+    int transport_down;
 };
 
 /*
@@ -775,6 +787,43 @@ torirs_io_fail_pending(void)
     }
     if( failed )
         fprintf(stderr, "web io: failed %d outstanding request(s)\n", failed);
+}
+
+/**
+ * The page reporting whether it can still reach the IO server.
+ *
+ * Set from the two places the harness already decides this for itself -- a
+ * batch that came back with no answer raises it, a batch that came back at all
+ * clears it -- so the client and the page's own "cannot reach the IO server"
+ * banner can never disagree about the state of the transport.
+ *
+ * Separate from torirs_io_fail_pending, which the harness also calls when the
+ * wasm heap could not take a response it DID receive. That is this process
+ * running out of memory, not the server going away, and reporting it as an
+ * outage would blame the wrong machine.
+ */
+EMSCRIPTEN_KEEPALIVE void
+torirs_io_transport_down(int down)
+{
+    if( !g_web_io )
+        return;
+    g_web_io->transport_down = down ? 1 : 0;
+}
+
+/*
+ * The client's side of the flag above.
+ *
+ * Reachable until the page says otherwise, which is the right default for the
+ * frames before the first batch: nothing has failed yet, and a client that
+ * started up with its plugin UI switched off waiting for proof of life would
+ * never get it -- the proof is a batch, and the boot's first batch is what
+ * carries it.
+ */
+int
+PlatformX_IO_ServerReachable(struct PlatformX_IO* px)
+{
+    assert(px);
+    return !px->transport_down;
 }
 
 /** requests, cache hits, completions, failures, in-flight — for the page HUD. */

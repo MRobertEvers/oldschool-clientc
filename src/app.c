@@ -7074,6 +7074,7 @@ app_debug_overlay_init(struct App* app)
     app->plugin_ui = app->dbg_ui;
     app->plugin_panel = -1;
     app->plugin_button_node = -1;
+    app->plugin_button_disabled = 0;
     app->plugin_panel_built_for = -1;
     app->plugin_panel_built_rev = -1;
     /* No executor has been reported yet, and BUFFER is a real answer. */
@@ -22531,6 +22532,7 @@ app_hover_text_update(
                 .click_in_world = click_in_world != 0,
                 .locedit_active = app->locedit_visible != 0,
                 .mapedit_select_active = app_mapedit_select_active(app),
+                .plugin_io_down = app_plugin_io_down(app) != 0,
             };
             UIMinimenu_Reset(&scratch);
             scratch.font_id = app->hover_text.font_id;
@@ -22948,6 +22950,7 @@ app_minimenu_open(
         .click_in_world = click_in_world != 0,
         .locedit_active = app->locedit_visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
+        .plugin_io_down = app_plugin_io_down(app) != 0,
     };
     struct UIMinimenu* menu = &app->interact.minimenu;
     struct UIMinimenuLayout layout;
@@ -23421,6 +23424,7 @@ app_run_default_ui_row(
         .click_in_world = false,
         .locedit_active = app->locedit_visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
+        .plugin_io_down = app_plugin_io_down(app) != 0,
     };
     struct UIMinimenu scratch;
     int default_idx;
@@ -26366,6 +26370,7 @@ App_RunOnce(
             .selection = app_minimenu_selection(app),
             .locedit_active = app->locedit_visible != 0,
             .mapedit_select_active = app_mapedit_select_active(app),
+            .plugin_io_down = app_plugin_io_down(app) != 0,
         };
         struct UIMinimenu scratch;
         int default_idx;
@@ -26486,6 +26491,7 @@ App_RunOnce(
             .selection = app_minimenu_selection(app),
             .locedit_active = app->locedit_visible != 0,
             .mapedit_select_active = app_mapedit_select_active(app),
+            .plugin_io_down = app_plugin_io_down(app) != 0,
         };
         struct UIMinimenu scratch;
         int default_idx;

@@ -371,7 +371,7 @@ else ifeq ($(PLATFORM),web)
                          platform/platform_sdl2_renderer_webgl1zb.c
     JS5_SRCS          :=
     WEB_CACHE_CFLAGS  :=
-    WEB_CACHE_EXPORTS := ,"_torirs_io_request_len","_torirs_io_request_ptr","_torirs_io_request_taken","_torirs_io_response_alloc","_torirs_io_response_submit","_torirs_io_fail_pending","_torirs_io_stats"
+    WEB_CACHE_EXPORTS := ,"_torirs_io_request_len","_torirs_io_request_ptr","_torirs_io_request_taken","_torirs_io_response_alloc","_torirs_io_response_submit","_torirs_io_fail_pending","_torirs_io_transport_down","_torirs_io_stats"
     WEB_CACHE_RUNTIME :=
   else
     $(error unknown CACHE '$(WEB_CACHE)' for PLATFORM=web — expected wire or idb)

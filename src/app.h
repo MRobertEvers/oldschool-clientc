@@ -1575,6 +1575,16 @@ struct App
     /** Tree node of the sidebar Plugin button, or -1. Rechecked rather than
      *  trusted: a tree rebuild takes it, and the index alone cannot say so. */
     int32_t plugin_button_node;
+    /**
+     * Whether that button is currently switched off because the plugin lane's
+     * server is unreachable (app_plugin_io_down).
+     *
+     * Held so the hide/show is applied on the EDGE. The reachability test runs
+     * every frame and the tree apply marks the whole tree dirty, so reapplying
+     * it unconditionally would cost a full UI redraw per frame for as long as
+     * the server stayed down -- and equally for as long as it stayed up.
+     */
+    int plugin_button_disabled;
     /** The window's panel handle in plugin_ui, or -1 before it is built. */
     int plugin_panel;
     int plugin_panel_visible;
