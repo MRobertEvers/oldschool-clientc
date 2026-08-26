@@ -91,6 +91,16 @@ struct PlatformX_IO
      * beside it. */
     struct PlatformXIOOnDemand* dat1_on_demand;
 #endif
+
+    /*
+     * Set when stored_file_read's second leg found nobody home.
+     *
+     * Only the browser lane can ever raise it: the desktop has no second leg,
+     * so it stays zero there for the life of the process and this backend
+     * answers "reachable" always -- which is the truth, not a stub. See
+     * PlatformX_IO_ServerReachable.
+     */
+    int transport_down;
 };
 
 #if defined(TORIRS_WEB_CACHE_IDB)
@@ -333,6 +343,14 @@ read_whole_file(
  * Absent is not an error the platform reports differently from unreadable —
  * both are error_code -1 and an empty answer. Whether "no file" means a first
  * launch or a problem is the caller's judgement, not the disk layer's.
+ *
+ * LOCAL ONLY, deliberately, and this is the one read that does not get
+ * stored_file_read's second leg. These are the player's own files — saved
+ * options, a plugin's saved assets — and asking a server for one would put a
+ * single shared copy in front of every browser that machine answers, then read
+ * back settings its user never chose. io_server refuses them by KIND for the
+ * same reason (io_server_main.c), so the two ends agree: this is the client's,
+ * and it never leaves.
  */
 static int
 read_client_file_item(struct ToriRS_IOItem* item)
@@ -483,8 +501,98 @@ write_client_file_item(struct ToriRS_IOItem* item)
     return 0;
 }
 
+/*
+ * One file under one root, LOCAL STORE FIRST AND SERVER SECOND.
+ *
+ * Both legs are here, in one function, because the order between them is the
+ * policy and splitting it per lane is how the two drifted apart before: the
+ * browser lane had a store and no second leg, the desktop lane had a file and
+ * no second leg, and neither could say why a file it did not have was missing.
+ *
+ * LEG 1 -- the local store. On the desktop that is the filesystem; on the
+ * browser it is the record database, which is the same thing for this
+ * purpose: a durable local copy the read can be answered from without leaving
+ * the process. Keyed by the WHOLE joined path, never by (dir, name) -- a key
+ * that dropped the root would collide the moment two roots held a file of the
+ * same name, and the page has to be able to spell the key too.
+ *
+ * LEG 2 -- the server, for a path leg 1 did not have. The page stages what it
+ * can name in advance (torirs_host.js: `boot.load`, `plugins.load`) and that
+ * covers the manifest, the INIs it points at and the scripts it lists. It
+ * cannot cover a plugin's ASSETS: those are named by the plugin, at runtime,
+ * in code the page never reads. Without this leg they were unreachable in the
+ * browser by construction, however healthy the server -- the plugin was
+ * loaded, its data simply had no route.
+ *
+ * Bytes that arrive are written into the store on the way through, so a path
+ * costs at most one round trip per session and the next read is leg 1 again.
+ *
+ * The desktop has no leg 2 and needs none: nothing sits between it and its
+ * disk. The read either finds the file or does not, which is exactly what the
+ * caller is told.
+ */
+static int
+stored_file_read(
+    struct PlatformX_IO* px,
+    const char* base_dir,
+    const char* path,
+    void** out_data,
+    int* out_size)
+{
+    char resolved[TORIRS_IOITEM_MAX_PATH * 2];
+
+    assert(px);
+    assert(path);
+    assert(out_data);
+    assert(out_size);
+
+    if( base_dir && base_dir[0] )
+        snprintf(resolved, sizeof(resolved), "%s/%s", base_dir, path);
+    else
+        snprintf(resolved, sizeof(resolved), "%s", path);
+
+#if defined(TORIRS_WEB_CACHE_IDB)
+    {
+        uint8_t* bytes = NULL;
+        int size = 0;
+
+        if( Dat2WebStore_FileRead(resolved, &bytes, &size) == 1 )
+        {
+            *out_data = bytes;
+            *out_size = size;
+            return 0;
+        }
+    }
+    {
+        uint8_t* bytes = NULL;
+        int size = 0;
+        int const got = Dat2WebStore_FileFetch(resolved, &bytes, &size);
+
+        /*
+         * Reachability is decided here and nowhere else, because this is the
+         * only place that learns it: a file the server says it does not have
+         * (0) proves the server is THERE, and clears the flag exactly as bytes
+         * would. Only "nothing answered" raises it.
+         */
+        px->transport_down = got < 0;
+        if( got == 1 )
+        {
+            *out_data = bytes;
+            *out_size = size;
+            return 0;
+        }
+    }
+#else
+    if( read_whole_file(resolved, out_data, out_size) == 0 )
+        return 0;
+#endif
+
+    return -1;
+}
+
 static int
 load_file_item(
+    struct PlatformX_IO* px,
     struct ToriRS_IOItem* item,
     const char* base_dir,
     const char* path)
@@ -492,10 +600,7 @@ load_file_item(
     void* data = NULL;
     int data_size = 0;
 
-    char resolved_path[TORIRS_IOITEM_MAX_PATH];
-    snprintf(resolved_path, sizeof(resolved_path), "%s/%s", base_dir, path);
-
-    if( read_whole_file(resolved_path, &data, &data_size) != 0 )
+    if( stored_file_read(px, base_dir, path, &data, &data_size) != 0 )
     {
         item->error_code = -1;
         return -1;
@@ -508,50 +613,16 @@ load_file_item(
 }
 
 /*
- * A plugin script, or the manifest that names them.
+ * A plugin script, the manifest that names them, or a shipped plugin asset.
  *
- * Same split as read_client_file_item, and for the same reason: on the browser
- * lane the "filesystem" is MEMFS, which starts empty and forgets everything
- * when the tab closes. A script read against it fails, task_plugin_io.c
- * deliberately treats a missing manifest as the ordinary case, and the plugin
- * roster quietly shows only the statically linked C plugins -- which is
- * exactly how this was found.
- *
- * So the durable store answers instead. The page puts the manifest and every
- * script it names there before main() (torirs_host.js: `plugins.load`), keyed
- * by the SAME joined path this builds, so the two cannot disagree about where
- * a script lives. Nothing is baked into the module and nothing is opened by
- * name; the request still arrives through the IO queue exactly as it does on
- * the desktop.
+ * No lane split left to make: stored_file_read is local-then-server on the
+ * browser and local-only on the desktop, which is the whole of what this used
+ * to spell out twice.
  */
 static int
 read_script_item(struct PlatformX_IO* px, struct ToriRS_IOItem* item)
 {
-#if defined(TORIRS_WEB_CACHE_IDB)
-    char path[TORIRS_IOITEM_MAX_PATH * 2];
-    uint8_t* bytes = NULL;
-    int size = 0;
-
-    /* The store is keyed by the whole path, not by (dir, name): a key that
-     * dropped the root would collide the moment two roots held a file of the
-     * same name, and the page has to be able to spell the key too. */
-    if( px->script_dir && px->script_dir[0] )
-        snprintf(path, sizeof(path), "%s/%s", px->script_dir, item->u.script.path);
-    else
-        snprintf(path, sizeof(path), "%s", item->u.script.path);
-
-    if( Dat2WebStore_FileRead(path, &bytes, &size) != 1 )
-    {
-        item->error_code = -1;
-        return -1;
-    }
-    item->data = bytes;
-    item->data_size = size;
-    item->error_code = 0;
-    return 0;
-#else
-    return load_file_item(item, px->script_dir, item->u.script.path);
-#endif
+    return load_file_item(px, item, px->script_dir, item->u.script.path);
 }
 
 
@@ -920,7 +991,7 @@ PlatformX_IO_LoadItem(
     case TORIRS_IOK_CACHE:
         return load_cache_item(px, item);
     case TORIRS_IOK_CONFIG_FILE:
-        return load_file_item(item, px->config_dir, item->u.config_file.path);
+        return load_file_item(px, item, px->config_dir, item->u.config_file.path);
     case TORIRS_IOK_SCRIPT:
         return read_script_item(px, item);
     case TORIRS_IOK_REFERENCE_TABLE:
@@ -959,17 +1030,24 @@ PlatformX_IO_Pending(
 }
 
 /*
- * Always yes, and see the header for why that is an answer rather than a stub.
+ * Whatever stored_file_read's second leg last found.
  *
- * This backend reads a disk (or, on the IndexedDB lane, the record store the
- * page hydrated before main). Both are the store itself: a read either finds
- * the file or does not, and neither outcome is a transport that went away.
+ * On the desktop there is no second leg, so this is yes for the life of the
+ * process -- see the header for why that is an answer and not a stub. On the
+ * browser lane it is the page's server, and the flag moves only on evidence: a
+ * request that went unanswered raises it, and any answer at all -- bytes, or
+ * an honest "no such file" -- clears it.
+ *
+ * Yes until proven otherwise, which is the right default for the frames before
+ * anything has been asked for. A client that started with its plugin UI
+ * switched off waiting for proof of life would never get it: the proof is a
+ * request, and the requests are made by the things that UI leads to.
  */
 int
 PlatformX_IO_ServerReachable(struct PlatformX_IO* px)
 {
     assert(px);
-    return 1;
+    return !px->transport_down;
 }
 
 int

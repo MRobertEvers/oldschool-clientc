@@ -96,4 +96,25 @@ Dat2WebStore_FileRead(const char* path, uint8_t** data, int* size);
 int
 Dat2WebStore_FileWrite(const char* path, const uint8_t* data, int size);
 
+/*
+ * The same file, asked of the SERVER because the database did not have it.
+ *
+ * The page stages what it can name in advance -- the manifest, the INIs it
+ * points at, the scripts it lists. It cannot name a plugin's assets: those are
+ * chosen by the plugin, at runtime, in code the page never reads. So the miss
+ * has to be able to become a request, and this is it.
+ *
+ * Synchronous, because it stands in for a call that must answer before
+ * PlatformX_IO_LoadItem returns and this lane has no ASYNCIFY. Bytes that
+ * arrive are written into the database on the way through, so a given path
+ * costs at most one round trip per session.
+ *
+ * Returns 1 and a malloc'd buffer, 0 when the server answered and has no such
+ * file, -1 when nothing answered at all. That last distinction is the point:
+ * "not there" is an ordinary answer, "no server" is an outage, and the client
+ * switches parts of its UI off for the second but not the first.
+ */
+int
+Dat2WebStore_FileFetch(const char* path, uint8_t** data, int* size);
+
 #endif

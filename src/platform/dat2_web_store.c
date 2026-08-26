@@ -106,6 +106,21 @@ EM_JS(int, torirs_web_file_put, (const char* path_ptr, const uint8_t* data, int 
                                       HEAPU8.slice(data, data + size)) ? 0 : -1;
 });
 
+/* 1 = bytes, 0 = the server has no such file, -1 = nothing answered,
+ * -2 = this page cannot fetch at all. See Dat2WebStore_FileFetch. */
+EM_JS(int, torirs_web_file_fetch, (const char* path_ptr, uint8_t** data_out, int* size_out), {
+    if( !Module.torirsStore || !Module.torirsStore.fileFetch ) { return -2; }
+    var r = Module.torirsStore.fileFetch(UTF8ToString(path_ptr));
+    if( !r || r.status === 0 ) { return -1; }
+    if( !r.bytes ) { return 0; }
+    var ptr = _malloc(r.bytes.length ? r.bytes.length : 1);
+    if( !ptr ) { return -1; }
+    HEAPU8.set(r.bytes, ptr);
+    setValue(data_out, ptr, '*');
+    setValue(size_out, r.bytes.length, 'i32');
+    return 1;
+});
+
 /* clang-format on */
 
 struct Dat2WebStore
@@ -249,4 +264,31 @@ Dat2WebStore_FileWrite(
     if( !path || (!data && size > 0) || size < 0 )
         return -1;
     return torirs_web_file_put(path, data, size);
+}
+
+int
+Dat2WebStore_FileFetch(
+    const char* path,
+    uint8_t** data,
+    int* size)
+{
+    int status;
+
+    assert(path);
+    assert(data);
+    assert(size);
+    *data = NULL;
+    *size = 0;
+
+    status = torirs_web_file_fetch(path, data, size);
+    /*
+     * A page with no fetch facility is one that cannot ask, not one whose
+     * server is down -- an older torirs_host.js, or a harness of some other
+     * kind. Reported as "absent" so it behaves exactly as this lane did before
+     * the second leg existed, instead of putting the client into an outage it
+     * has no way out of.
+     */
+    if( status == -2 )
+        return 0;
+    return status;
 }
