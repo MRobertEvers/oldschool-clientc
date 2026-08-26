@@ -639,7 +639,17 @@ class ScriptEmitter {
         this.hostOps.add(method);
         if( node.scriptId !== -1 ) this.hooks.add(node.scriptId);
 
-        const args = this.argList(node.arguments || []);
+        /*
+         * A hook's stored arguments are re-supplied to a generated function
+         * when it fires, so they are grouped by bank for exactly the reason a
+         * proc call's are — the dispatch is the call.
+         *
+         * `if_setoninvtransmit("magic_spellbook_redraw($int2, …, $string0,
+         * $string1, $int12){inv}")` is the case: source order puts `$string0`
+         * in the last int parameter, so the redraw that fires on the mount
+         * transmit pass re-sized the spellbook's tooltip from the number 12.
+         */
+        const args = this.procArgList(node.arguments || []);
         const triggers = this.argList(node.triggers || []);
         const binding = `K.hook(${node.scriptId}, [${args}], [${triggers}])`;
         const target = node.component ? `, ${this.expr(node.component)}` : '';

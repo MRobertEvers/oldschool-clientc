@@ -259,11 +259,30 @@ function readHooks(record, block) {
         if( scriptId < 0 ) continue;
         hooks[slot] = {
             scriptId,
-            args: parts.slice(1).map(hookArgument),
+            /*
+             * GROUPED BY BANK, not left in file order.
+             *
+             * `task_cs2_run` fills the callee's int locals from the int
+             * arguments in order and its string locals from the string ones,
+             * independently — the `str_mask` is exactly that split — and a
+             * generated function takes every int parameter and then every
+             * string one. A cache hook whose strings are not last therefore
+             * has to be regrouped here, or every argument after the first
+             * string arrives one slot out.
+             */
+            args: bankedHookArgs(parts.slice(1).map(hookArgument)),
             triggers: triggers.get(slot) ?? [],
         };
     }
     return hooks;
+}
+
+/** Ints first, then strings, each keeping its own order. */
+function bankedHookArgs(args) {
+    return [
+        ...args.filter((value) => typeof value !== 'string'),
+        ...args.filter((value) => typeof value === 'string'),
+    ];
 }
 
 function hookArgument(part) {
