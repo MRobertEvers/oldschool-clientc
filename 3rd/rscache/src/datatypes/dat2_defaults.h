@@ -37,6 +37,15 @@
 
 struct RSCache_Buffer;
 
+/**
+ * Group ids inside the table. The client's own register (`class9` in the deob)
+ * declares exactly these two and nothing else.
+ */
+#define RSCACHE_DAT2_DEFAULTS_GROUP_COLOURS 1
+#define RSCACHE_DAT2_DEFAULTS_GROUP_RECORD 3
+/** Group 3 holds a single file, at file id 0. */
+#define RSCACHE_DAT2_DEFAULTS_RECORD_FILE 0
+
 /** The graphic-defaults sprite ids, in the order opcode 2 writes them. */
 #define RSCACHE_DAT2_DEFAULTS_SPRITE_COUNT 11
 #define RSCACHE_DAT2_DEFAULTS_RAMP_ROWS 3

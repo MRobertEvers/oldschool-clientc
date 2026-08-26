@@ -579,6 +579,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/dat2/task_dat2_flotype_load.c engine/dat2/task_dat2_underlay_load.c \
 	engine/dat2/task_dat2_texture_load.c \
 	engine/dat2/task_dat2_sprite_load.c engine/dat2/task_dat2_font_load.c \
+	engine/dat2/task_dat2_defaults_sprite_load.c \
 	engine/dat2/task_dat2_enum_load.c engine/dat2/task_dat2_struct_load.c \
 	engine/dat2/task_dat2_param_load.c engine/dat2/task_dat2_invtype_load.c \
 	engine/dat2/task_dat2_varbit_load.c engine/dat2/task_dat2_varp_load.c \

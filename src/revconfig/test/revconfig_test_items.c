@@ -137,9 +137,21 @@ test_items_build(void)
     push(fields, RCFIELD_HOTKEY_EFFECT, "select_tab");
     push(fields, RCFIELD_ITEMDONE, "");
 
+    /*
+     * `table=defaults slot=N`: the graphic-defaults path, which addresses a
+     * sprite by its position in the defaults record rather than by hashing a
+     * name. Appended last so the indices above keep their meaning.
+     */
+    push(fields, RCFIELD_ITEMTYPE, "sprite");
+    push(fields, RCFIELD_ITEMNAME, "compass");
+    push(fields, RCFIELD_CACHE_TABLE, "defaults");
+    push(fields, RCFIELD_CACHE_DEFAULTS_SLOT, "0");
+    push(fields, RCFIELD_CACHE_ARCHIVE, "compass");
+    push(fields, RCFIELD_ITEMDONE, "");
+
     revconfig_items_build(fields, items);
 
-    TEST_ASSERT(items->item_count == 13, "item_count");
+    TEST_ASSERT(items->item_count == 14, "item_count");
 
     struct RevConfigItem const* invback = &items->items[0];
     TEST_ASSERT(invback->kind == RCITEM_CACHE_SPRITE, "invback kind");
@@ -153,6 +165,18 @@ test_items_build(void)
     TEST_ASSERT(cross->kind == RCITEM_CACHE_SPRITE, "cross kind");
     TEST_ASSERT(cross->u.cache.archive_id == 297, "dat2 archive_id");
     TEST_ASSERT(cross->u.cache.atlas_count == 2, "atlas_count");
+    /* Absent slot= must read as "not a defaults section", not as slot 0 --
+     * otherwise every name-keyed sprite would claim the compass slot. */
+    TEST_ASSERT(cross->u.cache.defaults_slot == -1, "defaults_slot default");
+
+    struct RevConfigItem const* defaults_compass = &items->items[13];
+    TEST_ASSERT(defaults_compass->kind == RCITEM_CACHE_SPRITE, "defaults sprite kind");
+    TEST_ASSERT(strcmp(defaults_compass->u.cache.table, "defaults") == 0, "defaults table");
+    TEST_ASSERT(defaults_compass->u.cache.defaults_slot == 0, "defaults slot");
+    /* archive= may sit alongside slot= as documentation of what the slot
+     * resolved to; it must not disturb the slot. */
+    TEST_ASSERT(
+        strcmp(defaults_compass->u.cache.archive, "compass") == 0, "defaults archive kept");
 
     struct RevConfigItem const* b12 = &items->items[2];
     TEST_ASSERT(b12->kind == RCITEM_CACHE_FONT, "b12 kind");

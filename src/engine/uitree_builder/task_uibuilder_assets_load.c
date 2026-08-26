@@ -89,6 +89,24 @@ Task_UIBuilderAssetsLoad_Run(
         {
             PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->builder->provider, req->archive_id));
         }
+        else if( req->defaults_slot >= 0 && strcmp(req->table, "defaults") == 0 )
+        {
+            /*
+             * `table=defaults slot=<n>`: read the id out of the defaults record,
+             * which is what the client does. Index 17 group 3 stores eleven
+             * sprite ids positionally and the engine loads each by id — it never
+             * looks a sprite up by name — so a slot is an address rather than a
+             * label, and this path does not depend on index 8 still shipping
+             * name hashes.
+             *
+             * Checked before the name path so a section may carry both: a
+             * profile can name `archive=` as documentation of what the slot
+             * resolved to at the revision it was written for, without that name
+             * being what the client acts on.
+             */
+            PT_TASK_AWAITSELF_IF(CreateTask_DefaultsSpriteLoad(
+                self->builder->provider, req->defaults_slot, req->name));
+        }
         else if( req->archive[0] != '\0' && req->data_filename[0] == '\0' )
         {
             /* Dat2 name-keyed sprite: `table=sprites archive=<name>`. The
