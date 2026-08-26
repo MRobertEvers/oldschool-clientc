@@ -2257,6 +2257,17 @@ UITree_Push(
             font_id = 1;
         component->u.rs_text.font_id = font_id;
         component->u.rs_text.color = spec->u.rs_text.color;
+        /*
+         * The GENERIC colour too, and for the same reason on the three types
+         * below: `IF_GETCOLOUR` answers `node->colour`, which until now only
+         * `UITree_ApplyColour` ever wrote — so a script asking a
+         * cache-authored component for its colour got 0.
+         *
+         * `brew_tools_init` opens with `if_getcolour($component21)` and hands
+         * the answer to all ten of its buttons, so every label was drawn black
+         * instead of the authored grey.
+         */
+        component->colour = spec->u.rs_text.color;
         component->u.rs_text.center = spec->u.rs_text.center;
         component->u.rs_text.y_align = spec->u.rs_text.y_align;
         component->u.rs_text.line_height = spec->u.rs_text.line_height;
@@ -2285,11 +2296,13 @@ UITree_Push(
 
     case UIELEM_RS_RECT:
         component->u.rs_rect.color = spec->u.rs_rect.color;
+        component->colour = spec->u.rs_rect.color;
         component->u.rs_rect.filled = spec->u.rs_rect.filled;
         break;
 
     case UIELEM_RS_ARC:
         component->u.rs_arc.color = spec->u.rs_arc.color;
+        component->colour = spec->u.rs_arc.color;
         component->u.rs_arc.filled = spec->u.rs_arc.filled;
         component->u.rs_arc.line_width =
             spec->u.rs_arc.line_width > 0 ? spec->u.rs_arc.line_width : 1;
@@ -2372,6 +2385,7 @@ UITree_Push(
 
     case UIELEM_RS_LINE:
         component->u.rs_line.color = spec->u.rs_line.color;
+        component->colour = spec->u.rs_line.color;
         component->u.rs_line.line_width =
             spec->u.rs_line.line_width > 0 ? spec->u.rs_line.line_width : 1;
         component->u.rs_line.horizontal = spec->u.rs_line.horizontal ? 1 : 0;

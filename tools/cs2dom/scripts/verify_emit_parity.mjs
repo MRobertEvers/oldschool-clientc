@@ -692,7 +692,8 @@ async function run(reference) {
             const node = tree.findByComponentId(Number(uid));
             if( !node ) { console.error(`${uid}: absent`); continue; }
             const parent = node.parent >= 0 ? tree.at(node.parent) : null;
-            console.error(`${uid} type=${node.type} layout=${JSON.stringify(node.layout)}`
+            console.error(`${uid} type=${node.type} hidden=${node.hidden}`
+                + ` layout=${JSON.stringify(node.layout)}`
                 + ` parent=${parent ? parent.componentId : -1}`
                 + ` parentLayout=${JSON.stringify(parent?.layout)}`
                 + ` props=${JSON.stringify(node.props)}`);
