@@ -8459,8 +8459,25 @@ App_Init(
      * under 1%% occupancy; the CSR form scales with max_faces (~1MB) and its
      * per-model passes are windowed to the model's depth span, so the draw
      * cost stays proportional to the model like the dense path. */
+    /*
+     * ABLATION (TORIRS_DEPTH_REFERENCE=1, measurement only): drop DEPTH_16K
+     * and take the reference 1,500 depth levels instead.
+     *
+     * The question is cache residency, not resolution. The CSR sorter's
+     * sm_depth_offset table is depth_levels + 1 ints -- 64 KB at 16K, 6 KB at
+     * the reference value -- and every model walks a ~58-entry window of it
+     * four times (prefix sum, cursor seed, priority partition, restore) at an
+     * offset its own depth decides. 64 KB cannot stay in a P4's L1D, so those
+     * are four strolls through memory per model; 6 KB can.
+     *
+     * The face sort is the largest single item in the non-raster profile at
+     * 1.15 ms, and this is the only axis of it that is neither refuted nor
+     * dirty tracking. It changes depth resolution, so it is an ablation to
+     * price the win first, not a change to make on its own.
+     */
     app->scene = ToriDraw_SceneNew(
-        TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
+        TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_MODEL_ZBUFFER |
+            (getenv("TORIRS_DEPTH_REFERENCE") ? 0u : TORIDRAW_SCENE_DEPTH_16K),
         TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
     assert(app->scene);
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);

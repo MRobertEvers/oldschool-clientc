@@ -33,7 +33,7 @@ profile nobody had taken on an in-world scene.
 
 | item | ms | status |
 |---|---|---|
-| face sort | 1.15 | **structurally sound.** `TORIDRAW_SPAN_RATIO` census: 33.3 faces/model against 58.2 depth levels, 1.7× span-per-face, so the bucket sort is matched to its data and a comparison sort over ~33 elements would not obviously win. It is also already gated — `sd_render_with_kernel_painter` skips it unless `ToriDraw_RenderModel1Project` returns `TORIDRAW_CULL_VISIBLE`. |
+| face sort | 1.15 | **structurally sound, one axis left.** `TORIDRAW_SPAN_RATIO` census: 33.3 faces/model against 58.2 depth levels, 1.7× span-per-face, so the bucket sort is matched to its data and a comparison sort over ~33 elements would not obviously win. It is also already gated — `sd_render_with_kernel_painter` skips it unless `ToriDraw_RenderModel1Project` returns `TORIDRAW_CULL_VISIBLE`. The one axis that is neither refuted nor dirty tracking is cache residency: see below. |
 | present | 0.91 | **bandwidth-bound.** The desktop is 32bpp (`GetDeviceCaps` BITSPIXEL), so `BitBlt` out of the 32bpp DIB is a straight copy, not a per-pixel format conversion. Marginal cost measured at **2.37 ns/px** with `TORIRS_ABL_PRESENT_VP` (blit 170,048 instead of 384,795 px: 5.79 → 5.28). |
 | chrome blit | 0.67 | **refuted by experiment.** A cached all-opaque fast path aimed at 69.4% of blitted pixels changed nothing (15.25 → 15.24). Chrome blitting does not get cheaper per pixel. |
 | clear | 0.34 | **already narrowed** to 240,195 px from 384,795, and verified at 0 uncovered pixels over 1,600 frames. See the floor below. |
@@ -68,6 +68,23 @@ Two things follow:
   the clear rect anyway, for ~0.10 ms, because a region rebuild that leaves the
   minimap sprite unready has not been tested.
 
+### The face sort's cache axis, measured
+
+The client asks for `TORIDRAW_SCENE_DEPTH_16K` (`app.c`), so the CSR sorter's
+`sm_depth_offset` table is 16,385 ints — **64 KB**. Every model walks a
+~58-entry window of it four times (prefix sum, cursor seed, priority partition,
+restore) at an offset its own depth decides. 64 KB cannot stay resident in a
+P4's L1D; the reference 1,500 levels would be 6 KB and could.
+
+`TORIRS_DEPTH_REFERENCE=1` prices it: **5.79 → 5.57 ms, −0.22**. Real, but
+smaller than the table size suggests, because the CSR sorter's per-model
+windowing already keeps the working set to a few lines.
+
+Left as an ablation, not shipped: it drops depth resolution from 16,384 levels
+to 1,500. That is the reference client's own value, so it may well be the more
+faithful setting, but `DEPTH_16K` was chosen deliberately and validating the
+change is a rendering-quality question, not a performance one.
+
 ## Pricing 16bpp without building it
 
 The measured 2.37 ns/px makes this arithmetic rather than speculation. Halving
@@ -84,6 +101,24 @@ the bytes per pixel halves everything that moves pixels:
 That lands at **4.78 ms, −32.7%** from the original. A full 16bpp conversion —
 a 16bpp variant of every raster kernel, plus colour banding — **still does not
 halve non-raster on this bench.**
+
+## Everything on the table at once
+
+Stacking every non-dirty-tracking lever found, including the two that carry a
+cost of their own:
+
+| | ms/frame | vs original |
+|---|---|---|
+| original | 7.10 | — |
+| memoisation sweep (shipped) | 5.98 | −15.8% |
+| + narrowed clear (flag) | 5.79 | −18.5% |
+| + reference depth levels (ablation, costs resolution) | 5.57 | −21.5% |
+| + full 16bpp conversion (priced, not built) | ~4.56 | **−35.8%** |
+| target | 3.55 | −50% |
+
+The best case that does not reinstate dirty tracking is about −36%, and two of
+its four terms are not free: one drops depth resolution and one drops colour
+depth. −50% is not on this list.
 
 ## The conclusion
 
