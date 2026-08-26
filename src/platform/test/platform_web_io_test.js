@@ -42,11 +42,27 @@ const HEAP32 = new Int32Array(buffer);
 let brk = 0x10000;                       // bump allocator, well clear of the queue
 const allocations = new Set();
 
+const calls = { decode: [], metadata: [], reftable: [] };
+
 const ctx = {
   console,
   HEAPU8, HEAP32,
   _malloc(n) { const p = brk; brk += (n + 7) & ~7; allocations.add(p); return p; },
   _free(p) { allocations.delete(p); },
+  /* The cache format's C API. Stubbed to record its calls: what is being
+   * tested here is that the executor uses it correctly, not that rscache
+   * decodes (which its own C tests cover). */
+  _ToriRS_WebApi_ArchiveDecode(ptr, size, table, archive, xtea) {
+    calls.decode.push({ size, table, archive, xtea });
+    return 0xA000 + calls.decode.length;
+  },
+  _ToriRS_WebApi_ArchiveApplyMetadata(a, t) { calls.metadata.push({ a, t }); return 1; },
+  _ToriRS_WebApi_ReferenceTableFromContainer(ptr, size, table) {
+    calls.reftable.push({ size, table });
+    return 0xB000 + calls.reftable.length;
+  },
+  _ToriRS_WebApi_ArchiveStructSize: () => 28,
+  _ToriRS_WebApi_ReferenceTableStructSize: () => 64,
   _ToriRS_IO_DescribeAbiCount: () => ABI.length,
   _ToriRS_IO_DescribeAbi(ptr) { for (let i = 0; i < ABI.length; i++) HEAP32[(ptr >> 2) + i] = ABI[i]; },
   UTF8ToString(p) { let e = p; while (HEAPU8[e]) e++; return Buffer.from(HEAPU8.slice(p, e)).toString('utf8'); },
@@ -143,6 +159,67 @@ HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
   const IO_B = 0x8000;
   if (L.PlatformX_IO_Pending(px, IO_B) !== 0) fail('pending must be per-queue');
 
+  // --- cache reads go through the C decode API ----------------------------
+  const KIND_CACHE = 1, KIND_REFTABLE = 4;
+  const reftableReads = [];
+  ctx.Module.torirsHostIO.readArchive = (t, a) => Promise.resolve(new Uint8Array([1, 2, 3, 4]));
+  ctx.Module.torirsHostIO.xteaKey = () => Promise.resolve(null);
+  ctx.Module.torirsHostIO.readReferenceTable = (t) => {
+    reftableReads.push(t);
+    return Promise.resolve(new Uint8Array([9, 9]));
+  };
+
+  const runOne = async (slotN, kind, fill) => {
+    const p = IO_PTR + IO.slots + slotN * ITEM.size;
+    HEAPU8.fill(0, p, p + ITEM.size);
+    HEAP32[(p + ITEM.kind) >> 2] = kind;
+    fill(p);
+    HEAP32[(IO_PTR + IO.active) >> 2] = slotN;
+    HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
+    L.PlatformX_IO_Process(px, IO_PTR);
+    while (L.PlatformX_IO_Pending(px, IO_PTR) > 0) await new Promise(r => setImmediate(r));
+    return p;
+  };
+
+  const cache1 = await runOne(8, KIND_CACHE, p => {
+    HEAP32[(p + ITEM.u + 4) >> 2] = 7;    // table_id
+    HEAP32[(p + ITEM.u + 8) >> 2] = 42;   // archive_id
+  });
+  if (calls.decode.length !== 1) fail('cache read must call the C decoder');
+  if (calls.decode[0].table !== 7 || calls.decode[0].archive !== 42)
+    fail('the decoder got the wrong table/archive');
+  if (calls.decode[0].xtea !== 0) fail('a null key must reach C as 0');
+  if (calls.metadata.length !== 1) fail('metadata must be applied to a decoded group');
+  if (HEAP32[(cache1 + ITEM.dataSize) >> 2] !== 28)
+    fail('a cache answer carries the archive STRUCT size');
+  if (HEAP32[(cache1 + ITEM.error) >> 2] !== 0) fail('cache read should have succeeded');
+
+  // A second group in the same table must not re-fetch the reference table.
+  await runOne(9, KIND_CACHE, p => {
+    HEAP32[(p + ITEM.u + 4) >> 2] = 7;
+    HEAP32[(p + ITEM.u + 8) >> 2] = 43;
+  });
+  if (reftableReads.length !== 1) fail('the reference table must be fetched once per table');
+
+  // A REFERENCE_TABLE item must get its OWN decode -- the client frees it, so
+  // handing out the executor's cached pointer would be a use-after-free.
+  const before = calls.reftable.length;
+  const rt = await runOne(10, KIND_REFTABLE, p => { HEAP32[(p + ITEM.u) >> 2] = 7; });
+  if (calls.reftable.length !== before + 1)
+    fail('a REFERENCE_TABLE request must decode a fresh table, not reuse the cached one');
+  const handedOut = HEAP32[(rt + ITEM.data) >> 2];
+  const ownedByExecutor = 0xB000 + before; // the one metadata used
+  if (handedOut === ownedByExecutor)
+    fail('the client was handed the executor-owned table (use-after-free)');
+  if (HEAP32[(rt + ITEM.dataSize) >> 2] !== 64) fail('reference table struct size');
+
+  // A group whose bytes are missing is a failed read, not a crash.
+  ctx.Module.torirsHostIO.readArchive = () => Promise.resolve(null);
+  const gone = await runOne(11, KIND_CACHE, p => { HEAP32[(p + ITEM.u + 4) >> 2] = 7; });
+  if (HEAP32[(gone + ITEM.error) >> 2] !== -1) fail('a missing group must be error -1');
+
   console.log('PASS: Process non-blocking, Pending truthful, slot filled, ' +
-              '404 != outage, unreachable == outage, pending is per-queue');
+              '404 != outage, unreachable == outage, pending is per-queue, ' +
+              'cache decode via the C API, reference table fetched once, ' +
+              'handed-out table is a fresh decode, missing group fails cleanly');
 })();

@@ -165,32 +165,99 @@ mergeInto(LibraryManager.library, {
     },
 
     /*
-     * Answer an item: bytes, or a failure.
+     * Answer an item.
      *
-     * `bytes` null means the read failed, which the queue spells as
-     * error_code -1 and an empty payload -- the same answer the desktop gives
-     * for a file that is not there. The buffer handed over is a fresh _malloc:
-     * the C side owns it from here and frees it through IOITEM_FREE_DATA.
+     * `result` is one of three things, matching what the queue's kinds
+     * actually carry:
+     *
+     *   null            the read failed -- error_code -1 and an empty payload,
+     *                   the same answer the desktop gives for an absent file
+     *   a Uint8Array    bytes, copied into a fresh _malloc the C side then owns
+     *   {ptr, size}     something already IN wasm memory that C allocated -- a
+     *                   decoded archive or reference table. Stored as-is: it is
+     *                   a pointer to a struct, not a buffer to copy, and its
+     *                   `size` is the struct's size because that is what the
+     *                   platform has always written there.
+     *
+     * Either way the client owns what it receives and frees it as it always
+     * has; nothing here is freed by the executor once it is placed.
      */
-    answer: function (item, bytes) {
+    answer: function (item, result) {
       const a = this.layout();
-      if (!bytes) {
+      if (!result) {
         HEAP32[(item + a.dataOff) >> 2] = 0;
         HEAP32[(item + a.dataSizeOff) >> 2] = 0;
         HEAP32[(item + a.errorOff) >> 2] = -1;
         return;
       }
-      const ptr = _malloc(bytes.length ? bytes.length : 1);
+      if (result.ptr !== undefined) {
+        HEAP32[(item + a.dataOff) >> 2] = result.ptr;
+        HEAP32[(item + a.dataSizeOff) >> 2] = result.size;
+        HEAP32[(item + a.errorOff) >> 2] = 0;
+        return;
+      }
+      const ptr = _malloc(result.length ? result.length : 1);
       if (!ptr) {
         /* Out of wasm memory is not a read failure and must not be reported as
          * one -- a caller told "no such file" would carry on with a plausible
          * empty result. */
-        throw new Error(`torirs: out of memory answering a ${bytes.length} byte read`);
+        throw new Error(`torirs: out of memory answering a ${result.length} byte read`);
       }
-      HEAPU8.set(bytes, ptr);
+      HEAPU8.set(result, ptr);
       HEAP32[(item + a.dataOff) >> 2] = ptr;
-      HEAP32[(item + a.dataSizeOff) >> 2] = bytes.length;
+      HEAP32[(item + a.dataSizeOff) >> 2] = result.length;
       HEAP32[(item + a.errorOff) >> 2] = 0;
+    },
+
+    /*
+     * A reference table's raw container, fetched once per table id.
+     *
+     * The BYTES are what is cached, never a decoded table. Every group in a
+     * table needs its metadata, so re-fetching would be a download per model;
+     * but a decoded table handed to the client becomes the client's to free
+     * (the queue's consumer frees `data`), and a cache of pointers it had
+     * already freed would be a use-after-free on the next request. Bytes have
+     * no such problem: each decode below produces a fresh object with a single
+     * owner.
+     *
+     * A table the cache does not ship is remembered as null rather than
+     * retried, so a miss costs one fetch and not one per group.
+     */
+    refTableBytes: async function (inst, table) {
+      if (inst.refTableBytes.has(table)) { return inst.refTableBytes.get(table); }
+      const bytes = (await inst.host.readReferenceTable(table)) || null;
+      inst.refTableBytes.set(table, bytes);
+      return bytes;
+    },
+
+    /* One decode of that container. Every call returns a NEW table, owned by
+     * whoever asked. */
+    refTableDecode: async function (inst, table) {
+      const bytes = await this.refTableBytes(inst, table);
+      if (!bytes) { return 0; }
+
+      const scratch = _malloc(bytes.length);
+      if (!scratch) { throw new Error('torirs: out of memory for a reference table'); }
+      try {
+        HEAPU8.set(bytes, scratch);
+        return _ToriRS_WebApi_ReferenceTableFromContainer(scratch, bytes.length, table);
+      } finally {
+        _free(scratch);
+      }
+    },
+
+    /*
+     * The executor's OWN copy, for attaching metadata to groups.
+     *
+     * Kept apart from the one handed out above precisely because the lifetimes
+     * differ: this one belongs to the executor for as long as the queue lives
+     * and is never given to anybody, which is what makes caching it safe.
+     */
+    refTableForMetadata: async function (inst, table) {
+      if (inst.refTablesOwned.has(table)) { return inst.refTablesOwned.get(table); }
+      const ptr = await this.refTableDecode(inst, table);
+      inst.refTablesOwned.set(table, ptr || null);
+      return ptr || null;
     },
 
     // ---------------------------------------------------------- execution
@@ -231,7 +298,45 @@ mergeInto(LibraryManager.library, {
           bytes: HEAPU8.slice(ptr, ptr + size),
         };
       }
+      if (kind === K.CACHE) {
+        const c = this.itemCache(item);
+        return { kind: kind, table: c.table, archive: c.archive, flags: c.flags, epoch: c.epoch };
+      }
+      if (kind === K.REFERENCE_TABLE) {
+        return { kind: kind, table: HEAP32[(item + a.uOff + a.refTableOff) >> 2] };
+      }
       return { kind: kind };
+    },
+
+    /*
+     * Hand raw container bytes to the cache format's own decoder.
+     *
+     * The decode is C (platform_web_api.c -> 3rd/rscache) and deliberately so:
+     * container framing, bzip2, gzip and XTEA have one implementation in this
+     * tree and this is not the place to grow a second. A wrong decode does not
+     * throw, it yields a plausible archive, so a JavaScript reimplementation
+     * would be wrong in ways nothing downstream could catch.
+     *
+     * Bytes cross by copy into a scratch buffer rather than by view, because
+     * the decoder owns and reallocates what it is given.
+     */
+    decodeArchive: function (bytes, table, archive, xteaKey) {
+      const scratch = _malloc(bytes.length);
+      if (!scratch) { throw new Error(`torirs: out of memory for a ${bytes.length} byte container`); }
+
+      let keyPtr = 0;
+      try {
+        HEAPU8.set(bytes, scratch);
+        if (xteaKey) {
+          keyPtr = _malloc(16);
+          if (!keyPtr) { throw new Error('torirs: out of memory for an XTEA key'); }
+          for (let i = 0; i < 4; i++) { HEAP32[(keyPtr >> 2) + i] = xteaKey[i] | 0; }
+        }
+        return _ToriRS_WebApi_ArchiveDecode(scratch, bytes.length, table, archive, keyPtr);
+      } finally {
+        _free(scratch);
+        if (keyPtr) { _free(keyPtr); }
+      }
     },
 
     /*
@@ -257,17 +362,49 @@ mergeInto(LibraryManager.library, {
         await inst.host.writeClientFile(req.path, req.bytes);
         return null;
       }
+
+      if (req.kind === K.CACHE) {
+        /*
+         * Two awaits, and the order matters only in that both must finish
+         * before the decode: the group's bytes, and the key the cache profile
+         * says this table needs (null for everything but encrypted maps -- the
+         * host decides, because that is a property of the profile and not of
+         * these bytes).
+         */
+        const [bytes, xtea] = await Promise.all([
+          inst.host.readArchive(req.table, req.archive, req.flags),
+          inst.host.xteaKey(req.table, req.archive),
+        ]);
+        if (!bytes) { return null; }
+
+        const ptr = this.decodeArchive(bytes, req.table, req.archive, xtea);
+        if (!ptr) { return null; }
+
+        /* Metadata is a separate fetch, and a group whose table has no entry
+         * for it is a missing archive rather than a failure -- the same
+         * judgement the desktop makes. The executor's own table, never the
+         * client's: see refTableForMetadata. */
+        const table = await this.refTableForMetadata(inst, req.table);
+        if (table) { _ToriRS_WebApi_ArchiveApplyMetadata(ptr, table); }
+
+        return { ptr: ptr, size: _ToriRS_WebApi_ArchiveStructSize() };
+      }
+
+      if (req.kind === K.REFERENCE_TABLE) {
+        /* A FRESH decode, because this one is handed over and freed by whoever
+         * asked for it. */
+        const table = await this.refTableDecode(inst, req.table);
+        if (!table) { return null; }
+        return { ptr: table, size: _ToriRS_WebApi_ReferenceTableStructSize() };
+      }
+
       /*
-       * Not executable by this executor yet.
-       *
-       * Loud rather than a failed read: a cache item answered "not found"
-       * would surface far away as a blank model or a missing config, and the
-       * thing that went wrong -- an executor that cannot do its job -- would
+       * Loud rather than a failed read: an item answered "not found" would
+       * surface far away as a blank model or a missing config, and the thing
+       * that went wrong -- an executor handed a kind it does not know -- would
        * not appear anywhere in the report.
        */
-      throw new Error(
-        `torirs: the web IO executor cannot execute kind ${req.kind} yet ` +
-        `(cache reads still to move across the seam)`);
+      throw new Error(`torirs: the web IO executor cannot execute kind ${req.kind}`);
     },
 
     /*
@@ -308,6 +445,10 @@ mergeInto(LibraryManager.library, {
       configDir: '',
       scriptDir: '',
       transportDown: false,
+      /* Raw reference-table containers, and the executor's own decoded copies.
+       * Two maps because the two have different owners -- see refTableBytes. */
+      refTableBytes: new Map(),
+      refTablesOwned: new Map(),
       /* Mirrors of enum ToriRS_IOKind. Not read from the ABI: the ABI
        * describes the LAYOUT, and these are values -- appending a kind does
        * not move a field, so the two change for different reasons. */
