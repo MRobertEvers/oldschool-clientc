@@ -22,17 +22,23 @@
  * misread queue dispatches an item on a `kind` decoded out of the middle of a
  * path.
  *
- * ## Why async is the natural shape here, and what "pending" means
+ * ## Plain async/await, and what "pending" means
  *
  * A browser cannot read anything synchronously without freezing the tab, so
- * every real answer arrives after an await. The queue already has the concept
- * that makes that fine: an item may be left OUTSTANDING. Process starts the
- * work and returns; Pending reports how many items for that queue have not been
- * answered yet, which is what stops the task runner resuming a task against an
- * empty slot; the await completes and writes the bytes into the slot it was
- * started for. That is the same contract a JS5 miss has always used on the
- * desktop, so nothing above the queue has to know which side of the seam it is
- * talking to.
+ * every real answer arrives after an await. This file therefore writes an
+ * ORDINARY async function -- `execute` below awaits its host call the way any
+ * other JavaScript would, with no callback bookkeeping and no hand-rolled
+ * continuation table. There was a version of this that registered `.then()`
+ * handlers against a table of parked entries; it did by hand exactly what the
+ * language does for free, and it is not what the queue asks for either.
+ *
+ * What the queue asks for is only this: while an item has not been answered,
+ * say so. Process kicks off the async loop and returns immediately, Pending
+ * reports how many items for that queue are still in flight (which is what
+ * stops the task runner resuming a task against an empty slot), and the loop
+ * fills each slot in as its await resolves. The C side needs no ASYNCIFY --
+ * a forbidden flag on this lane (platform_check.mk) -- because nothing in C is
+ * ever suspended: C hands the work over and asks later whether it is done.
  */
 
 mergeInto(LibraryManager.library, {
@@ -52,10 +58,23 @@ mergeInto(LibraryManager.library, {
     instances: new Map(),
     nextHandle: 1,
 
-    /* Outstanding work, one entry per item this executor has started and not
-     * yet answered: {io, slot, handle}. Keyed by nothing -- it is scanned, and
-     * it is at most TORIRS_IO_MAX_ITEMS long per queue. */
-    pending: [],
+    /*
+     * How many items are still in flight, per queue pointer.
+     *
+     * A COUNT, not a table of parked entries. The async loop below already
+     * knows which slot it is filling -- that is what a local variable in an
+     * async function is -- so the only thing left for anyone else to ask is
+     * "are you done?", and a number answers it. Per-io because the app runs
+     * two pipelines over one executor and one being blocked must not stall the
+     * other.
+     */
+    inflight: new Map(),
+
+    addInflight: function (io, delta) {
+      const now = (this.inflight.get(io) || 0) + delta;
+      if (now > 0) { this.inflight.set(io, now); }
+      else { this.inflight.delete(io); }
+    },
 
     init: function () {
       /* Nothing to do until the module is running; the ABI is fetched lazily
@@ -177,69 +196,104 @@ mergeInto(LibraryManager.library, {
     // ---------------------------------------------------------- execution
 
     /*
-     * Start one item.
+     * Everything the host needs to know about one item, read BEFORE any await.
      *
-     * Returns true when the item is now outstanding -- an await is running and
-     * the slot must not be touched until it finishes. Returns false when the
-     * item was answered here and now, which for this executor means it failed
-     * before any IO started.
+     * Read up front on purpose. Once this function awaits, the wasm heap may
+     * have grown and moved -- every HEAPU8/HEAP32 view taken before the await
+     * is detached afterwards -- so reading the request out of the queue late
+     * is a use-after-move. The pointer arithmetic is re-done after the await
+     * instead (itemPtr), which is cheap and always current.
+     *
+     * FILE_WRITE's payload is copied here for a second reason as well: the
+     * queue only LENDS those bytes for the duration of the request, and the
+     * task may reuse the buffer the moment Process returns.
      */
-    start: function (inst, io, slot) {
-      const item = this.itemPtr(io, slot);
+    describe: function (inst, item) {
+      const a = this.layout();
       const kind = this.itemKind(item);
       const K = inst.kinds;
 
-      let promise = null;
       if (kind === K.CONFIG_FILE) {
-        promise = inst.host.readFile(inst.join(inst.configDir, this.itemPath(item, this.layout().configPathOff)));
-      } else if (kind === K.SCRIPT) {
-        promise = inst.host.readFile(inst.join(inst.scriptDir, this.itemPath(item, this.layout().scriptPathOff)));
-      } else if (kind === K.FILE_READ) {
-        /* The player's own file, and it never leaves this browser -- see
-         * host.readClientFile. */
-        promise = inst.host.readClientFile(this.itemPath(item, this.layout().filePathOff));
-      } else if (kind === K.FILE_WRITE) {
-        const a = this.layout();
+        return { kind: kind, path: inst.join(inst.configDir, this.itemPath(item, a.configPathOff)) };
+      }
+      if (kind === K.SCRIPT) {
+        return { kind: kind, path: inst.join(inst.scriptDir, this.itemPath(item, a.scriptPathOff)) };
+      }
+      if (kind === K.FILE_READ) {
+        return { kind: kind, path: this.itemPath(item, a.filePathOff) };
+      }
+      if (kind === K.FILE_WRITE) {
         const ptr = HEAP32[(item + a.dataOff) >> 2];
         const size = HEAP32[(item + a.dataSizeOff) >> 2];
-        /* Copied before the await: the queue lends these bytes for the
-         * duration of the request and the task may reuse them the moment
-         * Process returns. */
-        const bytes = HEAPU8.slice(ptr, ptr + size);
-        promise = inst.host
-          .writeClientFile(this.itemPath(item, a.filePathOff), bytes)
-          .then(() => null);
-      } else {
-        /*
-         * Not executable by this executor yet.
-         *
-         * Loud rather than a failed read: a cache item answered "not found"
-         * would surface far away as a blank model or a missing config, and the
-         * thing that went wrong -- an executor that cannot do its job -- would
-         * not appear anywhere in the report.
-         */
-        throw new Error(
-          `torirs: the web IO executor cannot execute kind ${kind} yet ` +
-          `(cache reads still to move across the seam)`);
+        return {
+          kind: kind,
+          path: this.itemPath(item, a.filePathOff),
+          bytes: HEAPU8.slice(ptr, ptr + size),
+        };
       }
+      return { kind: kind };
+    },
 
-      const entry = { io: io, slot: slot, handle: inst.handle };
-      this.pending.push(entry);
+    /*
+     * Execute one item. An ordinary async function: it awaits the host and
+     * returns the bytes, or null when there are none.
+     *
+     * The host interface is deliberately small -- read a file, read or write
+     * one of the player's own -- because that is the whole of what a platform
+     * executor does. Everything else in this file is queue mechanics.
+     */
+    execute: async function (inst, req) {
+      const K = inst.kinds;
 
-      promise
-        .then(bytes => { this.answer(this.itemPtr(io, slot), bytes); })
-        .catch(err => {
-          /* A transport that answered nothing is a different fact from a file
-           * that is not there, and only the first is an outage. */
-          if (err && err.torirsUnreachable) { inst.transportDown = true; }
-          this.answer(this.itemPtr(io, slot), null);
-        })
-        .then(() => {
-          const at = this.pending.indexOf(entry);
-          if (at >= 0) { this.pending.splice(at, 1); }
-        });
+      if (req.kind === K.CONFIG_FILE || req.kind === K.SCRIPT) {
+        return await inst.host.readFile(req.path);
+      }
+      if (req.kind === K.FILE_READ) {
+        /* The player's own file, and it never leaves this browser -- see
+         * host.readClientFile. */
+        return await inst.host.readClientFile(req.path);
+      }
+      if (req.kind === K.FILE_WRITE) {
+        await inst.host.writeClientFile(req.path, req.bytes);
+        return null;
+      }
+      /*
+       * Not executable by this executor yet.
+       *
+       * Loud rather than a failed read: a cache item answered "not found"
+       * would surface far away as a blank model or a missing config, and the
+       * thing that went wrong -- an executor that cannot do its job -- would
+       * not appear anywhere in the report.
+       */
+      throw new Error(
+        `torirs: the web IO executor cannot execute kind ${req.kind} yet ` +
+        `(cache reads still to move across the seam)`);
+    },
 
-      return true;
+    /*
+     * Run one item to completion and fill its slot in.
+     *
+     * Kicked off by Process and never awaited by it -- that is what makes the
+     * item outstanding rather than blocking the frame. The count is adjusted
+     * around the whole thing so Pending is accurate from the instant Process
+     * returns to the instant the slot is filled.
+     */
+    run: async function (inst, io, slot) {
+      const req = this.describe(inst, this.itemPtr(io, slot));
+      this.addInflight(io, 1);
+      try {
+        const bytes = await this.execute(inst, req);
+        /* itemPtr recomputed AFTER the await: see describe. */
+        this.answer(this.itemPtr(io, slot), bytes);
+      } catch (err) {
+        /* A transport that answered nothing is a different fact from a file
+         * that is not there, and only the first is an outage. */
+        if (err && err.torirsUnreachable) { inst.transportDown = true; }
+        else { err && console.error(`torirs io: ${err.message}`); }
+        this.answer(this.itemPtr(io, slot), null);
+      } finally {
+        this.addInflight(io, -1);
+      }
     },
   },
 
@@ -308,17 +362,23 @@ mergeInto(LibraryManager.library, {
     return -1;
   },
 
+  /*
+   * Hand this pass's items to the executor and return.
+   *
+   * Deliberately NOT async and deliberately not awaited: Process is called
+   * from the frame loop, and a Process that waited for its reads would be the
+   * frozen tab this whole design exists to avoid. Each item runs on its own,
+   * and Pending is how the caller learns when one is finished.
+   */
   PlatformX_IO_Process__deps: ['$TORIRS_WEB_IO'],
   PlatformX_IO_Process: function (px, io) {
     const S = TORIRS_WEB_IO;
     const a = S.layout();
     const inst = S.instances.get(px);
     const activeCount = HEAP32[(io + a.activeCountOff) >> 2];
-    let started = 0;
 
     for (let i = 0; i < activeCount; i++) {
-      const slot = HEAP32[(io + a.activeOff + i * 4) >> 2];
-      if (S.start(inst, io, slot)) { started++; }
+      S.run(inst, io, HEAP32[(io + a.activeOff + i * 4) >> 2]);
     }
 
     /* ToriRS_IO_ResetActive, done here because the queue expects Process to
@@ -328,17 +388,12 @@ mergeInto(LibraryManager.library, {
     HEAPU8.fill(0, io + a.activeOff, io + a.activeOff + activeCount * 4);
     HEAP32[(io + a.activeCountOff) >> 2] = 0;
 
-    return started;
+    return activeCount;
   },
 
   PlatformX_IO_Pending__deps: ['$TORIRS_WEB_IO'],
   PlatformX_IO_Pending: function (px, io) {
-    const S = TORIRS_WEB_IO;
-    let count = 0;
-    for (let i = 0; i < S.pending.length; i++) {
-      if (S.pending[i].io === io) { count++; }
-    }
-    return count;
+    return TORIRS_WEB_IO.inflight.get(io) || 0;
   },
 
   PlatformX_IO_ServerReachable__deps: ['$TORIRS_WEB_IO'],
