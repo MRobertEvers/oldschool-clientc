@@ -222,7 +222,7 @@ const send = (...frames) => post(concatFrames(frames));
  * rather than booting empty and then commanding it open costs nothing and
  * means the first frame drawn is already the right one.
  */
-function bootClient(entry) {
+function bootClient(entry, { resetCache = false } = {}) {
     clientReady = false;
     pending = [];
     metric('m-client', 'booting');
@@ -239,23 +239,38 @@ function bootClient(entry) {
      */
     const args = [CACHE_DIR, '--rev', REVISION, String(entry.interfaceId)];
     const query = args.map((a) => \`arg=\${encodeURIComponent(a)}\`).join('&');
-    /* Cache-busted so a reboot is a real reboot: the same src would leave the
-     * old wasm instance running and nothing would happen. */
-    frame.src = \`/client/index.html?\${query}&io=/io&fullcanvas=1&t=\${Date.now()}\`;
+    /*
+     * Two different caches have to be busted, and missing either one makes an
+     * edit look like it did nothing.
+     *
+     * "t=" is the IFRAME's: without it the same src leaves the old wasm
+     * instance running and the reboot never happens.
+     *
+     * "cache_reset=1" is the CLIENT's: it keeps every archive it has read in
+     * IndexedDB, so a rebooted client reads the bytes it saw the first time,
+     * from before the bake. This cost an hour -- a fresh Chrome profile showed
+     * the edit and a warm one did not, with the bake, the io_server restart and
+     * the reboot all provably happening.
+     *
+     * Only after a bake, because dropping the store means re-fetching the whole
+     * cache over the wire and that is most of the boot.
+     */
+    const reset = resetCache ? '&cache_reset=1' : '';
+    frame.src = \`/client/index.html?\${query}&io=/io&fullcanvas=1\${reset}&t=\${Date.now()}\`;
 }
 
 /* ---------------------------------------------------------------------- *
  * Choosing an interface
  * ---------------------------------------------------------------------- */
 
-async function open(entry) {
+async function open(entry, options = {}) {
     if( !entry ) return;
     current = entry;
     $('pick').value = entry.name;
     say(\`opening \${entry.name}…\`, 'busy');
     if( entry.interfaceId < 0 )
         return say(\`\${entry.name} has no id in 3_interfaces.pack; the client cannot open it\`, 'bad');
-    bootClient(entry);
+    bootClient(entry, options);
     await loadRecords(entry);
 }
 
@@ -491,6 +506,29 @@ function listen() {
         boot = event.data;
     });
     events.addEventListener('reload', () => location.reload());
+    /*
+     * An edit landed and was packed into the cache the client reads. The client
+     * caches everything it has loaded, so seeing the new bytes means booting it
+     * again -- there is no "reload group" it will honour from out here.
+     */
+    events.addEventListener('baked', async () => {
+        $('log').textContent = '';
+        await loadCatalogue();
+        /* The bake changed the bytes; the client must forget the ones it kept. */
+        if( current ) open(current, { resetCache: true });
+        else say('baked');
+    });
+    /*
+     * A failed bake must NOT reboot. The cache still holds the last good bytes,
+     * so the client would come back showing the previous interface and the edit
+     * would look like it did nothing at all.
+     */
+    events.addEventListener('bake-failed', async () => {
+        const why = await (await fetch('/api/bake')).json();
+        say('the bake failed; the preview is the last good version', 'bad');
+        $('log').textContent = why.error ?? 'cachepack failed';
+    });
+    /* No preview cache to bake into: the catalogue still moved. */
     events.addEventListener('changed', async () => {
         await loadCatalogue();
         if( current ) open(current);

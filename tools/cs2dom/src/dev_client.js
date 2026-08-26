@@ -34,11 +34,12 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, watch } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, watch } from 'node:fs';
 import { createServer, request as httpRequest } from 'node:http';
 import { extname, join, relative as relativePath, resolve } from 'node:path';
 
 import { lowerClosure, hookScriptIds } from './dev_records.js';
+import { packCache } from './export.js';
 import { parseIf } from './if_record.js';
 
 const MIME = {
@@ -85,16 +86,39 @@ export function serveClient({
         boot: `${process.pid}:${Date.now()}`,
         io: null,
         ioPort: ioPort ?? port + 1,
+        cachepack: join(repoRoot, '3rd', 'rscache', 'tools', 'cachepack', 'cachepack'),
+        /* The cache the client actually reads: a copy of `cache` with this
+         * content tree packed over it. Null when there is no content tree, and
+         * then the real cache is read directly and nothing is written. */
+        previewCache: null,
+        baking: false,
+        bakeAgain: false,
+        bakeError: null,
+        /* When the last successful bake finished. The smoke and edit-loop
+         * harnesses wait on this rather than on a duration. */
+        bakedAt: 0,
         log,
     };
 
     requireClientBuild(state);
+    state.previewCache = ensurePreviewCache(state);
 
     const server = createServer((request, response) => {
         const url = new URL(request.url, 'http://localhost');
         try { route(state, url, request, response); }
         catch( error ) { send(response, 500, 'text/plain', String(error.stack ?? error)); }
     });
+
+    /*
+     * Bake ONCE at startup, and do it BEFORE io_server opens the cache.
+     *
+     * Without a startup bake the preview cache holds whatever the last session
+     * packed into it -- days old, or someone's half-finished edit -- and the
+     * page shows it with complete confidence. Doing it here rather than after
+     * io_server starts also means no restart and no reboot: nothing has read
+     * the cache yet, so there is nothing holding stale bytes.
+     */
+    if( state.previewCache ) packOnce(state);
 
     if( state.contentDir ) watchContent(state);
     watchSource(state);
@@ -150,14 +174,17 @@ function requireClientBuild(state) {
  * it is started rather than reimplemented -- the same shape the old server used
  * for the entity viewer.
  */
-function startIoServer(state) {
+function startIoServer(state, { quiet = false } = {}) {
     const binary = join(state.repoRoot, 'src', 'build', 'io_server');
     if( !existsSync(binary) )
     {
         state.log(`  cache     io_server not built -- make -C src io-server`);
         return null;
     }
-    if( !state.cache || !existsSync(state.cache) )
+    /* The PREVIEW cache when there is one -- the client must read the bytes an
+     * edit produces, not the ones the tree shipped with. */
+    const served = state.previewCache ?? state.cache;
+    if( !served || !existsSync(served) )
     {
         state.log('  cache     no cache configured; the client will have nothing to read');
         return null;
@@ -170,10 +197,10 @@ function startIoServer(state) {
      * an absolute one is a path it will not be talked into opening. That makes
      * the child's working directory part of the argument, not an incidental.
      */
-    const relative = relativePath(state.repoRoot, state.cache);
+    const relative = relativePath(state.repoRoot, served);
     if( relative.startsWith('..') )
     {
-        state.log(`  cache     ${state.cache} is outside ${state.repoRoot}; io_server will not open it`);
+        state.log(`  cache     ${served} is outside ${state.repoRoot}; io_server will not open it`);
         return null;
     }
     /* The page needs this exact spelling: it is the client's first positional
@@ -206,8 +233,53 @@ function startIoServer(state) {
         for( const line of tail.trim().split('\n').slice(-4) )
             if( line ) state.log(`            ${line}`);
     });
-    state.log(`  cache     io_server on ${state.ioPort} (${state.revision} @ ${relative})`);
+    if( !quiet )
+        state.log(`  cache     io_server on ${state.ioPort} (${state.revision} @ ${relative})`);
     return child;
+}
+
+/**
+ * Replace the io_server child with one that has not read the cache yet.
+ *
+ * Synchronous in effect rather than in fact: the old child is signalled and the
+ * new one spawned immediately, and the first request the new one gets will be
+ * from a client that is still booting. The port is the same, so nothing that
+ * points at it has to be told.
+ */
+async function restartIoServer(state) {
+    const previous = state.io;
+    state.io = null;
+    if( previous )
+    {
+        previous.removeAllListeners('exit');
+        try { previous.kill(); } catch { /* already gone */ }
+    }
+    state.io = startIoServer(state, { quiet: true });
+
+    /*
+     * Wait for it to bind before anyone is told the bake is done. The page
+     * reboots the client the moment it hears, and a client whose first cache
+     * read lands in the gap between the old process dying and the new one
+     * listening fails its boot for a reason that has nothing to do with the
+     * edit.
+     */
+    for( let attempt = 0; attempt < 100; attempt++ )
+    {
+        if( await ioAnswers(state) ) return;
+        await new Promise((wake) => setTimeout(wake, 50));
+    }
+    state.log('  cache     io_server did not come back after the bake');
+}
+
+/** Does the child answer on its port yet? */
+function ioAnswers(state) {
+    return new Promise((resolve) => {
+        const probe = httpRequest(
+            { host: '127.0.0.1', port: state.ioPort, method: 'GET', path: '/stats' },
+            (response) => { response.resume(); resolve(true); });
+        probe.on('error', () => resolve(false));
+        probe.end();
+    });
 }
 
 /**
@@ -254,6 +326,12 @@ function route(state, url, request, response) {
         return send(response, 200, MIME['.json'], JSON.stringify(catalogue(state)));
     case '/api/records':
         return sendRecords(state, url.searchParams.get('key'), response);
+    case '/api/bake':
+        return send(response, 200, MIME['.json'], JSON.stringify({
+            baking: state.baking,
+            bakedAt: state.bakedAt,
+            error: state.bakeError,
+        }));
     case '/api/project':
         return send(response, 200, MIME['.json'], JSON.stringify({
             revision: state.revision,
@@ -391,13 +469,136 @@ function sendRecords(state, key, response) {
  * Watching
  * ---------------------------------------------------------------------- */
 
+/*
+ * The edit loop.
+ *
+ * An edit to a `.if` or a `.cs2` is an edit to a TEXT tree, and the client
+ * reads a packed cache. Something has to do the packing, and it has to be
+ * cachepack -- the same tool the real bake uses -- or the preview would be
+ * showing bytes no bake will ever produce, which is the whole failure this
+ * rework exists to stop repeating at a different altitude.
+ *
+ *     edit  ->  cachepack pack --asset-only  ->  preview cache  ->  reboot
+ *
+ * `--asset-only` writes tables 3 and 12 into a cache that already exists and
+ * leaves every other record alone, so the preview cache is a copy of the real
+ * one with this tree's interfaces and scripts written over it.
+ */
 function watchContent(state) {
-    const dir = join(state.contentDir, 'interfaces');
-    if( !existsSync(dir) ) return;
-    watchDir(dir, true, () => {
-        state.catalogue = null;
-        announce(state, 'changed');
-    });
+    for( const sub of ['interfaces', 'scripts'] )
+    {
+        const dir = join(state.contentDir, sub);
+        if( !existsSync(dir) ) continue;
+        watchDir(dir, true, () => {
+            state.catalogue = null;
+            bake(state).catch((error) => state.log(`  bake      ${error.message}`));
+        });
+    }
+}
+
+/**
+ * The preview cache: a copy of the real one, written into rather than over.
+ *
+ * Copied rather than packed from scratch because a cache is 218MB of records
+ * this tool has no opinion about, and copied ONCE rather than per-boot because
+ * that is several seconds every time you start the server. Refreshed only when
+ * the real cache is newer than the copy.
+ *
+ * That it is a copy is also the safety property: no edit in this tool can reach
+ * the cache the rest of the repo builds against.
+ */
+function ensurePreviewCache(state) {
+    if( !state.cache || !state.contentDir ) return null;
+    const preview = join(state.root, 'build', 'preview-cache');
+    const stamp = join(preview, 'main_file_cache.dat2');
+    const source = join(state.cache, 'main_file_cache.dat2');
+    if( !existsSync(source) ) return null;
+
+    const fresh = existsSync(stamp)
+        && statSync(stamp).mtimeMs >= statSync(source).mtimeMs;
+    if( !fresh )
+    {
+        state.log(`  cache     copying ${state.cache} -> build/preview-cache (once)`);
+        mkdirSync(preview, { recursive: true });
+        cpSync(state.cache, preview, { recursive: true });
+    }
+    return preview;
+}
+
+/**
+ * Pack the content tree into the preview cache and tell the page to reboot.
+ *
+ * Serialised on `state.baking`: an editor save fires several writes and a
+ * second cachepack over the same output while the first is still writing it
+ * produces a cache that is neither version.
+ */
+function packOnce(state) {
+    const started = Date.now();
+    let result;
+    try
+    {
+        result = packCache({
+            cachepack: state.cachepack,
+            contentDir: state.contentDir,
+            out: state.previewCache,
+            revision: state.revision,
+            assets: 'interfaces,scripts',
+        });
+    }
+    catch( error ) { result = { status: 1, output: String(error.message) }; }
+
+    if( result.status !== 0 )
+    {
+        state.bakeError = lastLines(result.output, 6);
+        state.log(`  bake      failed\n${state.bakeError}`);
+    }
+    else
+    {
+        state.bakeError = null;
+        state.bakedAt = Date.now();
+        state.log(`  bake      ${Date.now() - started}ms`);
+    }
+    return result.status === 0;
+}
+
+async function bake(state) {
+    if( !state.previewCache ) { announce(state, 'changed'); return; }
+    if( state.baking ) { state.bakeAgain = true; return; }
+    state.baking = true;
+
+    const ok = packOnce(state);
+    state.baking = false;
+
+    if( !ok )
+    {
+        /* The page shows this: a bake that failed and reloaded anyway would
+         * show the PREVIOUS interface and look like the edit did nothing. */
+        announce(state, 'bake-failed');
+    }
+    else
+    {
+        /*
+         * RESTART io_server before telling anyone.
+         *
+         * It opened the cache when it started and holds it open, with its own
+         * decoded records behind that -- so a cachepack that rewrote the dat2
+         * underneath it changes nothing that it will say. The client rebooted
+         * happily against the old bytes and the edit looked like it had not
+         * happened, with the bake reporting success 3.2 seconds earlier.
+         *
+         * Cheap: the cache is opened lazily and the process is small. Doing it
+         * here, before the announcement, is what makes the page's reboot land
+         * on a server that will answer with the new bytes.
+         */
+        await restartIoServer(state);
+        announce(state, 'baked');
+    }
+
+    if( state.bakeAgain ) { state.bakeAgain = false; await bake(state); }
+}
+
+function lastLines(text, count) {
+    return String(text ?? '').trim().split('\n').slice(-count).join('\n');
 }
 
 /*

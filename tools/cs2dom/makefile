@@ -16,7 +16,7 @@ RSCACHE := $(REPO_ROOT)/3rd/rscache
 	generated generated-check test-aot corpus-aot bench-rebuild bench-phase6 \
 	roundtrip-if roundtrip-chain \
 	emit-reference emit-parity emit-reference-all emit-parity-all \
-	host-coverage dev-canvas client-web verify-cmd-wire smoke-client
+	host-coverage dev-canvas client-web verify-cmd-wire smoke-client verify-edit-loop
 
 all: test
 
@@ -213,6 +213,13 @@ verify-cmd-wire: $(TORIRS)
 
 smoke-client: node_modules $(CLIENT_WASM) $(IO_SERVER)
 	$(NODE) scripts/smoke_client.mjs --cache $(CACHE) --rev $(REV) --content $(CONTENT)
+
+# The loop itself: edit a record, and see the client draw the change. Every
+# other check can be green while this is broken -- "the client read the cache we
+# packed into" is not something any of them assert. Edits a real interface in
+# place and restores it, verifying the restore by hash.
+verify-edit-loop: node_modules $(CLIENT_WASM) $(IO_SERVER)
+	$(NODE) scripts/verify_edit_loop.mjs --cache $(CACHE) --rev $(REV) --content $(CONTENT)
 
 # What the host answers, measured against what the REFERENCE answers rather
 # than against the whole decompiler surface. See the script's header for why
