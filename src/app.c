@@ -29045,6 +29045,68 @@ app_damage_armed(void)
 /* Set for one frame by the damage report to dump the descs it unions. */
 static int g_damage_trace;
 
+/*
+ * TORIRS_DAMAGE_RECTS=1: clear and present the live rectangles separately
+ * instead of their bounding box.
+ *
+ * Off, because it measured slower -- see App::damage_rects. Kept switchable
+ * rather than deleted so the arm that produced that number still exists.
+ */
+static int
+app_damage_rects_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_DAMAGE_RECTS") ? 1 : 0;
+    return armed;
+}
+
+/* Add one live region to the rect list, folding it into a rect it already
+ * touches rather than appending a second copy. Entity overlays carry exactly
+ * the world viewport's box, so without this the list is full of duplicates
+ * before it reaches the two rects that matter. Overflow is not an error: the
+ * caller falls back to the bounding box, which is always correct. */
+static void
+app_damage_rect_add(struct App* app, int x, int y, int w, int h)
+{
+    assert(app);
+    if( w <= 0 || h <= 0 )
+        return;
+
+    for( int i = 0; i < app->damage_rect_count; i++ )
+    {
+        struct App_DamageRect* r = &app->damage_rects[i];
+        int rx1 = r->x + r->w;
+        int ry1 = r->y + r->h;
+
+        if( x < rx1 && x + w > r->x && y < ry1 && y + h > r->y )
+        {
+            int nx = x < r->x ? x : r->x;
+            int ny = y < r->y ? y : r->y;
+            int nx1 = x + w > rx1 ? x + w : rx1;
+            int ny1 = y + h > ry1 ? y + h : ry1;
+
+            r->x = nx;
+            r->y = ny;
+            r->w = nx1 - nx;
+            r->h = ny1 - ny;
+            return;
+        }
+    }
+    if( app->damage_rect_count >= APP_DAMAGE_RECT_MAX )
+    {
+        app->damage_rect_count = -1; /* poisoned: too many, use the box */
+        return;
+    }
+    if( app->damage_rect_count < 0 )
+        return;
+    app->damage_rects[app->damage_rect_count].x = x;
+    app->damage_rects[app->damage_rect_count].y = y;
+    app->damage_rects[app->damage_rect_count].w = w;
+    app->damage_rects[app->damage_rect_count].h = h;
+    app->damage_rect_count++;
+}
+
 /* Grow the frame's damage box to cover [x, x+w) x [y, y+h). */
 static void
 app_damage_add(struct App* app, int x, int y, int w, int h)
@@ -29102,6 +29164,7 @@ app_compute_damage(struct App* app, int width, int height)
     assert(app);
 
     app->damage_valid = 0;
+    app->damage_rect_count = 0;
     if( !app_damage_armed() || !app->ui_retained_frame )
         return;
 
@@ -29150,6 +29213,7 @@ app_compute_damage(struct App* app, int width, int height)
             if( cy1 < y1 )
                 y1 = cy1;
             app_damage_add(app, x0, y0, x1 - x0, y1 - y0);
+            app_damage_rect_add(app, x0, y0, x1 - x0, y1 - y0);
         }
     }
     g_damage_trace = 0;
@@ -29179,6 +29243,54 @@ app_compute_damage(struct App* app, int width, int height)
      * every draw, nor the second BitBlt path. */
     if( app->damage_valid && app->damage_w >= width && app->damage_h >= height )
         app->damage_valid = 0;
+
+    if( !app->damage_valid || app->damage_rect_count <= 0 ||
+        !app_damage_rects_armed() )
+    {
+        app->damage_rect_count = 0;
+        return;
+    }
+
+    /* Clamp each rect the same way the box was, and drop the whole list if any
+     * of it falls outside -- the box still covers those pixels, so the frame
+     * stays correct, it just does the larger amount of work. */
+    for( int i = 0; i < app->damage_rect_count; i++ )
+    {
+        struct App_DamageRect* r = &app->damage_rects[i];
+
+        if( r->x < 0 )
+        {
+            r->w += r->x;
+            r->x = 0;
+        }
+        if( r->y < 0 )
+        {
+            r->h += r->y;
+            r->y = 0;
+        }
+        if( r->x + r->w > width )
+            r->w = width - r->x;
+        if( r->y + r->h > height )
+            r->h = height - r->y;
+        if( r->w <= 0 || r->h <= 0 )
+        {
+            app->damage_rect_count = 0;
+            return;
+        }
+    }
+}
+
+int
+App_DamageRects(
+    struct App const* app,
+    struct App_DamageRect const** out_rects)
+{
+    assert(app);
+    assert(out_rects);
+    if( !app->damage_valid || app->damage_rect_count <= 0 )
+        return 0;
+    *out_rects = app->damage_rects;
+    return app->damage_rect_count;
 }
 
 /*
@@ -29320,8 +29432,24 @@ App_Render(
     app_compute_damage(app, width, height);
     app_damage_note(app, width, height);
     if( app->damage_valid )
+    {
         ToriRS_Soft3D_SetDamage(
             &soft, app->damage_x, app->damage_y, app->damage_w, app->damage_h);
+        if( app->damage_rect_count > 0 )
+        {
+            int rects[APP_DAMAGE_RECT_MAX][4];
+
+            for( int i = 0; i < app->damage_rect_count; i++ )
+            {
+                rects[i][0] = app->damage_rects[i].x;
+                rects[i][1] = app->damage_rects[i].y;
+                rects[i][2] = app->damage_rects[i].w;
+                rects[i][3] = app->damage_rects[i].h;
+            }
+            ToriRS_Soft3D_SetDamageClearRects(
+                &soft, (int const(*)[4])rects, app->damage_rect_count);
+        }
+    }
 
     /* World hittest rides the render: each visible model is tested against
      * the mouse point right after it projects (the only window where the

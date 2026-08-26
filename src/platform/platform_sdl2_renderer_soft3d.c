@@ -1189,6 +1189,36 @@ ToriRS_Soft3D_SetDamage(
     soft->damage_y1 = y + h > soft->height ? soft->height : y + h;
     soft->damage_valid =
         (soft->damage_x1 > soft->damage_x0 && soft->damage_y1 > soft->damage_y0);
+    soft->damage_rect_count = 0;
+}
+
+void
+ToriRS_Soft3D_SetDamageClearRects(
+    struct ToriRS_Soft3D* soft,
+    int const (*rects)[4],
+    int count)
+{
+    assert(soft);
+    assert(rects);
+    assert(count > 0);
+    assert(soft->damage_valid);
+
+    if( count > TORIRS_SOFT3D_DAMAGE_RECT_MAX )
+        count = TORIRS_SOFT3D_DAMAGE_RECT_MAX;
+    for( int i = 0; i < count; i++ )
+    {
+        /* The box is the clip; a clear rect outside it would clear pixels no
+         * draw can then repaint. */
+        assert(rects[i][0] >= soft->damage_x0);
+        assert(rects[i][1] >= soft->damage_y0);
+        assert(rects[i][0] + rects[i][2] <= soft->damage_x1);
+        assert(rects[i][1] + rects[i][3] <= soft->damage_y1);
+        soft->damage_rects[i][0] = rects[i][0];
+        soft->damage_rects[i][1] = rects[i][1];
+        soft->damage_rects[i][2] = rects[i][2];
+        soft->damage_rects[i][3] = rects[i][3];
+    }
+    soft->damage_rect_count = count;
 }
 
 void
@@ -1807,27 +1837,39 @@ ToriRS_Soft3D_RenderFrame(
              * costs more than the per-row buffer teardown saves.
              * TORIRS_DAMAGE_CLEAR_PLAIN=1 selects the losing arm.
              */
-            int rw = soft->damage_x1 - soft->damage_x0;
             int nt = soft3d_damage_clear_nt();
-            for( int y = soft->damage_y0; y < soft->damage_y1; y++ )
+            int nrects = soft->damage_rect_count;
+            int r;
+
+            for( r = 0; r < (nrects > 0 ? nrects : 1); r++ )
             {
-                uint32_t* row = p + (size_t)y * soft->stride + soft->damage_x0;
-                if( nt )
+                int rx = nrects > 0 ? soft->damage_rects[r][0] : soft->damage_x0;
+                int ry = nrects > 0 ? soft->damage_rects[r][1] : soft->damage_y0;
+                int rw = nrects > 0 ? soft->damage_rects[r][2]
+                                    : soft->damage_x1 - soft->damage_x0;
+                int rh = nrects > 0 ? soft->damage_rects[r][3]
+                                    : soft->damage_y1 - soft->damage_y0;
+
+                for( int y = ry; y < ry + rh; y++ )
                 {
-                    TORIDRAW_FB_CLEAR32(row, (size_t)rw, bg);
-                }
-                else
-                {
-                    int i = 0;
-                    for( ; i + 4 <= rw; i += 4 )
+                    uint32_t* row = p + (size_t)y * soft->stride + rx;
+                    if( nt )
                     {
-                        row[i] = bg;
-                        row[i + 1] = bg;
-                        row[i + 2] = bg;
-                        row[i + 3] = bg;
+                        TORIDRAW_FB_CLEAR32(row, (size_t)rw, bg);
                     }
-                    for( ; i < rw; i++ )
-                        row[i] = bg;
+                    else
+                    {
+                        int i = 0;
+                        for( ; i + 4 <= rw; i += 4 )
+                        {
+                            row[i] = bg;
+                            row[i + 1] = bg;
+                            row[i + 2] = bg;
+                            row[i + 3] = bg;
+                        }
+                        for( ; i < rw; i++ )
+                            row[i] = bg;
+                    }
                 }
             }
         }

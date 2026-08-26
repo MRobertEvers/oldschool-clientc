@@ -74,6 +74,11 @@ struct PlatformSDL2
     int     present_dmg_y;
     int     present_dmg_w;
     int     present_dmg_h;
+    /* Optional finer breakdown of that box. BitBlt bills per pixel far more
+     * than per call, so two blits covering 193,901 px beat one covering the
+     * 240,195 px their bounding box spans. */
+    int     present_dmg_rects[PLATFORM_PRESENT_DAMAGE_RECT_MAX][4];
+    int     present_dmg_rect_count;
     int     timing_active;
 
     int     quit;
@@ -296,16 +301,36 @@ gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
         if( dmg_w > 0 && dmg_h > 0 && box.right == p->width &&
             box.bottom == p->height )
         {
-            BitBlt(
-                dc,
-                box.left + dmg_x,
-                box.top + dmg_y,
-                dmg_w,
-                dmg_h,
-                p->mem_dc,
-                dmg_x,
-                dmg_y,
-                SRCCOPY);
+            int nrects = p->present_dmg_rect_count;
+
+            p->present_dmg_rect_count = 0;
+            if( nrects > 0 )
+            {
+                for( int i = 0; i < nrects; i++ )
+                    BitBlt(
+                        dc,
+                        box.left + p->present_dmg_rects[i][0],
+                        box.top + p->present_dmg_rects[i][1],
+                        p->present_dmg_rects[i][2],
+                        p->present_dmg_rects[i][3],
+                        p->mem_dc,
+                        p->present_dmg_rects[i][0],
+                        p->present_dmg_rects[i][1],
+                        SRCCOPY);
+            }
+            else
+            {
+                BitBlt(
+                    dc,
+                    box.left + dmg_x,
+                    box.top + dmg_y,
+                    dmg_w,
+                    dmg_h,
+                    p->mem_dc,
+                    dmg_x,
+                    dmg_y,
+                    SRCCOPY);
+            }
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PRESENT_BLIT_1TO1, 1);
             /* The letterbox bars are unchanged for the same reason the chrome
              * is: nothing drew there. */
@@ -963,12 +988,45 @@ PlatformSDL2_SetPresentDamage(
          * than asked, never less. */
         p->present_dmg_w = 0;
         p->present_dmg_h = 0;
+        p->present_dmg_rect_count = 0;
         return;
     }
     p->present_dmg_x = x;
     p->present_dmg_y = y;
     p->present_dmg_w = w;
     p->present_dmg_h = h;
+    p->present_dmg_rect_count = 0;
+}
+
+void
+PlatformSDL2_SetPresentDamageRects(
+    struct PlatformSDL2* p,
+    int const (*rects)[4],
+    int count)
+{
+    assert(p);
+    assert(rects);
+    assert(count > 0);
+
+    /* Only refines a box that is already set; the box is what bounds the
+     * region the renderer promised to have written. */
+    if( p->present_dmg_w <= 0 || p->present_dmg_h <= 0 )
+        return;
+    if( count > PLATFORM_PRESENT_DAMAGE_RECT_MAX )
+        return;
+    for( int i = 0; i < count; i++ )
+    {
+        if( rects[i][2] <= 0 || rects[i][3] <= 0 ||
+            rects[i][0] < p->present_dmg_x || rects[i][1] < p->present_dmg_y ||
+            rects[i][0] + rects[i][2] > p->present_dmg_x + p->present_dmg_w ||
+            rects[i][1] + rects[i][3] > p->present_dmg_y + p->present_dmg_h )
+            return; /* not inside the box -- present the box instead */
+        p->present_dmg_rects[i][0] = rects[i][0];
+        p->present_dmg_rects[i][1] = rects[i][1];
+        p->present_dmg_rects[i][2] = rects[i][2];
+        p->present_dmg_rects[i][3] = rects[i][3];
+    }
+    p->present_dmg_rect_count = count;
 }
 
 void

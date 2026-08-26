@@ -396,6 +396,21 @@ PlatformSDL2_SetPresentDamage(
     int w,
     int h);
 
+/** Matches APP_DAMAGE_RECT_MAX. */
+#define PLATFORM_PRESENT_DAMAGE_RECT_MAX 4
+
+/**
+ * Refine the box set by SetPresentDamage into separate rectangles, so the
+ * present copies their area rather than their bounding box. Each must lie
+ * inside the box; anything else is ignored and the box is presented, which is
+ * always correct and only ever copies more.
+ */
+void
+PlatformSDL2_SetPresentDamageRects(
+    struct PlatformSDL2* platform,
+    int const (*rects)[4],
+    int count);
+
 void
 PlatformSDL2_Present(struct PlatformSDL2* platform);
 

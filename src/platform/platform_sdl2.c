@@ -1904,6 +1904,18 @@ PlatformSDL2_SetPresentDamage(
 }
 
 void
+PlatformSDL2_SetPresentDamageRects(
+    struct PlatformSDL2* platform,
+    int const (*rects)[4],
+    int count)
+{
+    /* Accepted and ignored, for the same reason as the box above. */
+    assert(platform);
+    (void)rects;
+    (void)count;
+}
+
+void
 PlatformSDL2_Present(struct PlatformSDL2* platform)
 {
     int* pix_write = NULL;

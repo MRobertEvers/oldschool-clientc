@@ -645,6 +645,19 @@ enum AppMinimapState
  */
 #define APP_PREFS_SAVE_SETTLE_TICKS 25
 
+/** Live regions of a retained frame. Four is above the two an in-world frame
+ *  actually produces (world, minimap); past that the bounding box is used
+ *  instead, which is always correct and only ever does more work. */
+#define APP_DAMAGE_RECT_MAX 4
+
+struct App_DamageRect
+{
+    int x;
+    int y;
+    int w;
+    int h;
+};
+
 struct App
 {
     struct AppConfig cfg;
@@ -926,6 +939,25 @@ struct App
     int damage_y;
     int damage_w;
     int damage_h;
+    /**
+     * The same damage as a small list of rectangles instead of their bounding
+     * box, which is what the clear and the present actually want.
+     *
+     * The box is what the draw clip has to use -- a ToriDraw_ViewPort holds one
+     * rectangle, so clipping to a union would mean running each draw once per
+     * rect, and the polygon and model commands carry accumulation state that
+     * cannot simply be replayed. The clear and the present have no such
+     * constraint: both just touch pixels.
+     *
+     * It matters because the two live regions are the world viewport and the
+     * minimap, which sit at opposite ends of the same rows. Their bounding box
+     * swallows the sidebar strip between them and is 240,195 px against the
+     * 193,901 px the two rects actually cover. For reference the Java client,
+     * which keeps a separate PixMap per region, clears 170,048 px and presents
+     * 196,880 px per frame (Client.gameDraw / Client.java:5122).
+     */
+    struct App_DamageRect damage_rects[APP_DAMAGE_RECT_MAX];
+    int damage_rect_count;
     /**
      * The component the last MODAL sub-interface was mounted on, or -1.
      *
@@ -3237,6 +3269,17 @@ App_PresentDamage(
     int* out_y,
     int* out_w,
     int* out_h);
+
+/**
+ * The same damage as separate rectangles, for a caller that can act on each
+ * one independently (the clear, the present). Returns the count and points
+ * `out_rects` at them, or 0 when there is no usable list and the single box
+ * from App_PresentDamage should be used instead.
+ */
+int
+App_DamageRects(
+    struct App const* app,
+    struct App_DamageRect const** out_rects);
 
 /**
  * Build a ToriRS_Frame for the current emit/world state (no rasterization).
