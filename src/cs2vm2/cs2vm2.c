@@ -509,12 +509,22 @@ CS2VM2_ClearYieldHalt(struct CS2VM2_Thread* vm)
     vm->yield_halt_script_id = 0;
     vm->yield_halt_pc = -1;
     vm->yield_halt_count = 0;
+    vm->yield_halt_awaited_kind = (enum CS2VM_HostRequestKind)0;
+    vm->yield_halt_awaited_id = 0;
+    vm->yield_halt_awaited_id2 = 0;
 }
 
 /**
- * One opcode, one yield: the host must load everything a request needs in that
- * single round-trip and complete on the retry (with defaults if a load failed).
- * A second yield at the same site means a host handler broke that contract.
+ * One opcode, one yield PER RESOURCE.
+ *
+ * The host must load everything a request needs and complete on the retry
+ * (with defaults if a load failed), and a second yield at the same site for
+ * the SAME resource means a host handler broke that contract. A second yield
+ * for a DIFFERENT one is progress: `DB_GETFIELD` wants the row first and then
+ * that row's table index, and it cannot know which table until the row is
+ * resident. Counting by site alone aborted the script at the second wait, and
+ * with it the two panels that read a DB row inside a builder -- `jigsaw` and
+ * `event_rewards` built 2 and 16 components instead of 24 and 161.
  */
 static bool
 CS2VM2_CheckYieldHalt(
@@ -529,13 +539,18 @@ CS2VM2_CheckYieldHalt(
     int script_id = frame->script->script_id;
 
     if( vm->yield_halt_frame_sp == vm->frame_sp && vm->yield_halt_script_id == script_id &&
-        vm->yield_halt_pc == op_pc )
+        vm->yield_halt_pc == op_pc && vm->yield_halt_awaited_kind == vm->awaited_kind &&
+        vm->yield_halt_awaited_id == vm->awaited_id &&
+        vm->yield_halt_awaited_id2 == vm->awaited_id2 )
         vm->yield_halt_count++;
     else
     {
         vm->yield_halt_frame_sp = vm->frame_sp;
         vm->yield_halt_script_id = script_id;
         vm->yield_halt_pc = op_pc;
+        vm->yield_halt_awaited_kind = vm->awaited_kind;
+        vm->yield_halt_awaited_id = vm->awaited_id;
+        vm->yield_halt_awaited_id2 = vm->awaited_id2;
         vm->yield_halt_count = 1;
     }
 

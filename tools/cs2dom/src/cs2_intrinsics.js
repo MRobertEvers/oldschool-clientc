@@ -31,6 +31,21 @@ export class CS2RuntimeError extends Error {
  * ---------------------------------------------------------------------- */
 
 /** Truncate to signed 32 bits, the width every CS2 int has. */
+/*
+ * `POP_INT_LOCAL` — and it POPS THE INT STACK.
+ *
+ * A string reaching an int slot means the value went to the other bank, so the
+ * int stack is empty and the reference's VM fails the op and unwinds the whole
+ * call chain (`Task_CS2Run: script N failed at opcode 34`). Coercing instead
+ * lets a script run on past a point the client stops at, which is a difference
+ * in what gets BUILT, not just in what a number reads as.
+ */
+export function popInt(value) {
+    if( typeof value === 'string' )
+        throw new CS2RuntimeError('pop_int_local: the value is on the string stack');
+    return value;
+}
+
 export function i32(value) {
     return value | 0;
 }

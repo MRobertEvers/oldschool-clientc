@@ -499,7 +499,21 @@ class ScriptEmitter {
                 this.hostOps.add(accessor.set);
                 return `H.${accessor.set}(${variable.id}, ${valueCode});`;
             }
-            return `${this.names.get(variableKey(variable))} = ${valueCode};`;
+            /*
+             * An INT local cannot hold a string, and the reference does not
+             * merely coerce it — `POP_INT_LOCAL` pops the INT stack, finds it
+             * empty because the value went to the string bank, and the whole
+             * call chain aborts.
+             *
+             * `jigsaw` is the case: `script7962` reads a DB field the table
+             * types as a string into a slot it hands to `if_setmodel`, so the
+             * reference builds two components and stops where an unchecked
+             * runtime builds twenty-four.
+             */
+            const name = this.names.get(variableKey(variable));
+            if( localBank(variable.kind) === 'int' )
+                return `${name} = K.popInt(${valueCode});`;
+            return `${name} = ${valueCode};`;
         }
         throw new Cs2EmitError(`cannot assign to '${def.kind}'`, this.ast.id);
     }

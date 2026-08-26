@@ -205,7 +205,9 @@ test('a returned tuple is destructured through a temporary', () => {
               stackTypes: ['int', 'int'] })]),
     }));
     assert.match(result.code, /const t0 = \(yield\* cs2_9\(H\)\);/);
-    assert.match(result.code, /\$int0 = t0\[0\];/);
+    /* Through `K.popInt`, which is `POP_INT_LOCAL` refusing a value that is on
+     * the string bank rather than coercing it. */
+    assert.match(result.code, /\$int0 = K\.popInt\(t0\[0\]\);/);
     assert.match(result.code, /H\.setVarp\(5, t0\[1\]\);/);
 });
 
