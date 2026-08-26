@@ -68,6 +68,25 @@ Two things follow:
   the clear rect anyway, for ~0.10 ms, because a region rebuild that leaves the
   minimap sprite unready has not been tested.
 
+### The face sort is compute-bound, not memory-bound
+
+The last hypothesis about it: the counting pass gathers `vx`/`vy`/`vz` for three
+vertex indices per face — nine loads across three separate arrays, because the
+projected vertices are stored SoA. That is up to nine cache lines per face, and
+it would make interleaving the projected vertices (AoS) worth a large refactor
+that would also speed projection and raster.
+
+Probed by prefetching the next face's vertices four iterations ahead:
+
+| | ms/frame |
+|---|---|
+| baseline | 5.79 |
+| + prefetch | 5.91 |
+
+**Worse by 0.12.** The prefetches are pure added instructions, so the loop is not
+waiting on memory — it is compute-bound, and the AoS refactor would not pay.
+That closes the last open question about the largest item in the profile.
+
 ### The face sort's cache axis, measured
 
 The client asks for `TORIDRAW_SCENE_DEPTH_16K` (`app.c`), so the CSR sorter's
