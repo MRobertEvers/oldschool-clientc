@@ -3275,6 +3275,17 @@ typedef int (*App_FrameSupplier)(void* user, int* pixels, int width, int height)
  * frame -- see the fallback's own comment for why that is a substitute and not
  * an equivalent.
  */
+/** Ask for a picture of the next frame, taken from the renderer that is
+ *  actually drawing -- see App_RequestScreenshot in app.c for why
+ *  TORIRS_EXIT_BMP is not that. Writes PNG. */
+int
+App_RequestScreenshot(
+    struct App* app,
+    char const* dir,
+    char const* name,
+    char* out_path,
+    int out_path_size);
+
 void
 App_DrawComplete(
     struct App* app,

@@ -20439,6 +20439,41 @@ app_plugin_screenshot(
     char const* dir,
     char const* name,
     char* out_path,
+    int out_path_size);
+
+/*
+ * Ask for a picture of the NEXT frame, from whatever is drawing it.
+ *
+ * This is the only capture worth the name. TORIRS_EXIT_BMP renders a fresh
+ * frame with App_Render into a malloc'd buffer -- that is the SOFTWARE
+ * rasteriser, whatever --d3d9-zbuffer or --gl3 says on the command line --
+ * so it can never show what a GPU lane actually put on the screen, and a
+ * capture taken that way is silently useless for any question about GPU
+ * state. A request made here is fulfilled in App_DrawComplete out of the
+ * renderer's own read-back: glReadPixels on the GL lanes,
+ * GetRenderTargetData on D3D9, the canvas itself on soft3d.
+ *
+ * Returns 0 and leaves out_path empty when every slot is taken or writing
+ * files is refused.
+ */
+int
+App_RequestScreenshot(
+    struct App* app,
+    char const* dir,
+    char const* name,
+    char* out_path,
+    int out_path_size)
+{
+    return app_plugin_screenshot(app, "client", dir, name, out_path, out_path_size);
+}
+
+static int
+app_plugin_screenshot(
+    void* user,
+    char const* plugin,
+    char const* dir,
+    char const* name,
+    char* out_path,
     int out_path_size)
 {
     struct App* app = (struct App*)user;
