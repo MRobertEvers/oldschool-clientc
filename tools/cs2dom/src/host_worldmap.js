@@ -453,11 +453,23 @@ export function handleWorldMapRequest(state, request = {}) {
         area = areaById(state, requestInteger(request, 0, 'mapId', 'map_id'));
         result = area?.externalName ?? '';
         break;
-    case 'WORLDMAP_SETMAP':
-        area = areaById(state, requestInteger(request, 0, 'mapId', 'map_id'));
-        if( !area ) throw new RangeError('WORLDMAP_SETMAP map id is not loaded');
-        selectArea(state, area);
+    case 'WORLDMAP_SETMAP': {
+        /*
+         * RECORDS the id, whether or not an area with it is loaded.
+         *
+         * `RS_WorldMap_SetCurrentMapId(map, arg0)` is the whole handler — the
+         * reference has a separate `WORLDMAP_ISLOADED` for the other question,
+         * and `WORLDMAP_GETCURRENTMAP` reads back exactly what was set.
+         *
+         * Refusing an unknown id aborted the script that asked, and with it
+         * everything after: `worldmap` built 329 components instead of 352.
+         */
+        const mapId = requestInteger(request, 0, 'mapId', 'map_id');
+        area = areaById(state, mapId);
+        if( area ) selectArea(state, area);
+        else state.currentMapId = mapId;
         break;
+    }
     case 'WORLDMAP_GETZOOM':
         result = state.zoomPercentage;
         break;

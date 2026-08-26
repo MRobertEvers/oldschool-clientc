@@ -48,6 +48,7 @@ import { attachTransmitPump } from '../src/transmit_pump.js';
 import { createEmitter } from '../src/emit.js';
 import { compareEmit, normalizeJsCommands } from '../src/emit_parity.js';
 import { createDbState, parseDbTextData } from '../src/host_db.js';
+import { createWorldMapState, parseWorldMapFiles } from '../src/host_worldmap.js';
 import { emitScript } from '../src/cs2_js_emit.js';
 import * as K from '../src/cs2_intrinsics.js';
 import { HOST_PARK } from '../src/generated/cs2_host_park.js';
@@ -105,6 +106,25 @@ const configs = createContentConfigs(contentDir);
  * the reference draws with 914 commands drew with 57. The quest list, the
  * hiscores, the minigame list and the recipe books are all the same shape.
  */
+/*
+ * The world map's own tables, because the panel is BUILT from them.
+ *
+ * `worldmap` labels its area button with `worldmap_getmapname(...)` and sizes
+ * the button from the measured label, so an empty map list gave a 52-wide
+ * button where the reference draws a 204-wide one -- and every command after
+ * it moved.
+ */
+const worldMapData = (() => {
+    const read = (name) => {
+        const path = join(contentDir, 'worldmap', 'areas', name);
+        return existsSync(path) ? readFileSync(path, 'latin1') : '';
+    };
+    return parseWorldMapFiles(read('details.wma'), read('compositemap.wmc'), {
+        detailsCompack: read('details.compack'),
+        compositeCompack: read('compositemap.compack'),
+    });
+})();
+
 const dbData = (() => {
     const read = (name) => {
         const path = join(contentDir, 'configs', name);
@@ -483,6 +503,7 @@ async function run(reference) {
     const host = createHostKernel({
         tree, state, config: configs, fonts, clock,
         db: createDbState(dbData),
+        worldMap: createWorldMapState(worldMapData),
         assets: new StoreAssetSource({ sprites, fonts, config: configs }),
         fakeUnimplemented: true,
         onUnimplemented: (method) => fakedOps.add(method),
