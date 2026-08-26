@@ -7,6 +7,7 @@
 #endif
 
 #include "asyncio.h"
+#include "platform/platform_http.h"
 
 
 #include <assert.h>
@@ -90,13 +91,21 @@ struct PlatformX_IO
 #endif
 
     /*
-     * Set when stored_file_read's second leg found nobody home.
+     * Where stored_file_read's second leg asks, or "" for a client that has no
+     * io_server and should not go looking for one.
      *
-     * Only the browser lane can ever raise it: the desktop has no second leg,
-     * so it stays zero there for the life of the process and this backend
-     * answers "reachable" always -- which is the truth, not a stub. See
-     * PlatformX_IO_ServerReachable.
+     * From TORIRS_IO_SERVER (`host` or `host:port`). An environment variable
+     * rather than a manifest key because it is a property of the DEPLOYMENT --
+     * the same manifest is run from a full tree on a developer's machine and
+     * from a bare binary beside a server -- and those two want different
+     * answers from one file.
      */
+    char io_server_host[256];
+    int io_server_port;
+
+    /* Set when that second leg found nobody home. Stays zero for a client with
+     * no io_server configured, which then answers "reachable" always -- true,
+     * because it has nothing it could fail to reach. */
     int transport_down;
 };
 
@@ -122,9 +131,38 @@ struct PlatformX_IO*
 PlatformX_IO_New(void)
 {
     struct PlatformX_IO* px = malloc(sizeof(struct PlatformX_IO));
+    char const* server = getenv("TORIRS_IO_SERVER");
+
     assert(px);
     memset(px, 0, sizeof(struct PlatformX_IO));
     px->archive_cache_slots = dat2_archive_cache_slots();
+
+    /* `host` or `host:port`; the port defaults to io_server's own. Parsed here
+     * rather than at each use so an unparseable value fails once, visibly, at
+     * startup instead of once per read. */
+    px->io_server_port = 8088;
+    if( server && server[0] )
+    {
+        char const* colon = strrchr(server, ':');
+        if( colon && colon[1] )
+        {
+            int port = atoi(colon + 1);
+            size_t host_len = (size_t)(colon - server);
+            if( port > 0 && port <= 65535 && host_len < sizeof(px->io_server_host) )
+            {
+                memcpy(px->io_server_host, server, host_len);
+                px->io_server_host[host_len] = '\0';
+                px->io_server_port = port;
+            }
+        }
+        else
+            snprintf(px->io_server_host, sizeof(px->io_server_host), "%s", server);
+
+        if( px->io_server_host[0] )
+            TORIRS_LOG("io: files not found locally will be asked of %s:%d\n",
+                px->io_server_host,
+                px->io_server_port);
+    }
     return px;
 }
 
@@ -498,12 +536,48 @@ stored_file_read(
     else
         snprintf(resolved, sizeof(resolved), "%s", path);
 
-    /* No leg 2 here, so nothing on this lane reads `px` once the assert above
-     * is compiled out. Named rather than left to -Wunused-parameter, which is
-     * an error in some of the lanes this file builds in. */
-    (void)px;
     if( read_whole_file(resolved, out_data, out_size) == 0 )
         return 0;
+
+    /*
+     * LEG 2: ask io_server for what this disk did not have.
+     *
+     * The desktop has a filesystem, which is why leg 1 is a real answer here
+     * and not a formality -- but "has a filesystem" is not the same as "has the
+     * file". A client run from somewhere other than the tree it was built in,
+     * or a deployment that ships the binary without the script/ and config/
+     * trees beside it, misses every one of these and has no way to recover:
+     * a missing plugin manifest is deliberately silent (task_plugin_io.c), so
+     * the roster comes up holding only the statically linked C plugins with
+     * nothing anywhere saying why.
+     *
+     * So the desktop gets the same second leg the browser has, for the same
+     * reason and against the same route. Off unless TORIRS_IO_SERVER names one:
+     * a client with a local tree must not start dialling, and a client without
+     * one should not start guessing.
+     */
+    if( px->io_server_host[0] )
+    {
+        char route[TORIRS_IOITEM_MAX_PATH * 2 + 8];
+        char* body;
+        int size = 0;
+        int status = 0;
+
+        snprintf(route, sizeof(route), "/boot/%s", resolved);
+        body = Platform_HttpGetStatus(
+            px->io_server_host, px->io_server_port, route, &size, &status);
+
+        /* Reachability is decided here and nowhere else, because this is the
+         * only place that learns it: a server answering 404 proves it is THERE
+         * and clears the flag exactly as bytes would. Only silence raises it. */
+        px->transport_down = status == 0;
+        if( body )
+        {
+            *out_data = body;
+            *out_size = size;
+            return 0;
+        }
+    }
 
     return -1;
 }
@@ -533,9 +607,8 @@ load_file_item(
 /*
  * A plugin script, the manifest that names them, or a shipped plugin asset.
  *
- * No lane split left to make: stored_file_read is local-then-server on the
- * browser and local-only on the desktop, which is the whole of what this used
- * to spell out twice.
+ * Nothing to decide here: stored_file_read is local-first and io_server-second
+ * for every file kind, which is the whole of what this used to spell out twice.
  */
 static int
 read_script_item(struct PlatformX_IO* px, struct ToriRS_IOItem* item)

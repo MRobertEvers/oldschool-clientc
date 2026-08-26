@@ -1065,6 +1065,7 @@ IO_SERVER_FLAVOR = PLATFORM=native OPT=0 MEMTRACE=0 ENABLE_ASAN=0 ENABLE_UBSAN=0
 # that naming an executor does not drag the whole ui/ layer in here.
 IO_SERVER_SRCS = ioserver/io_server_main.c ioserver/http_server.c \
 	platform/io_wire.c platform/platform_x_io.c \
+	platform/platform_http.c platform/sockstream.c \
 	bootmanifest/bootmanifest.c features/features.c \
 	ui/torirs_chrome_exec_kind.c $(INI_SRC)
 # http_server.c talks Winsock directly (see JS5_SOCKET_LIBS below for the same
