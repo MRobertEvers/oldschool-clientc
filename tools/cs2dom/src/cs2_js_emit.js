@@ -942,7 +942,29 @@ function stackBanks(node) {
      * int, so `magic_spellbook_sort`'s recursive call passed its handle in the
      * first int slot and the callee's first `array_set` threw on a number.
      */
-    if( node.variable ) return [localBank(node.variable.kind)];
+    /*
+     * A LOCAL is classified by its kind, a GLOBAL by its stack type.
+     *
+     * They are different words for different things. A local's kind IS its
+     * bank — 'int', 'string', or 'array', which lives on the string bank at
+     * this revision — and that is why keying on kind worked for every local.
+     * A global's kind is its FAMILY: `localBank('varcstring')` is not
+     * 'string', it is the default. So a `%varcstring` argument counted as an
+     * int, the ints-then-strings regrouping left it where the source wrote it,
+     * and `script6583` received it in a `component` parameter — `toa_hud` then
+     * called `cc_find("")` eight times and hid none of the eight party rows
+     * the reference hides.
+     *
+     * Reading `stackType` for locals too is the tempting simplification and it
+     * is wrong: an int ARRAY's stack type is 'int' while its handle rides the
+     * string bank, so it moves every argument after it.
+     */
+    if( node.variable )
+    {
+        const variable = node.variable;
+        return [localBank(variable.local ? variable.kind
+            : (variable.stackType ?? variable.kind))];
+    }
     switch( node.kind )
     {
     case 'operation':
