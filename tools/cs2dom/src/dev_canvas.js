@@ -116,7 +116,7 @@ function route(state, url, request, response) {
 
 async function sendPage(state, response) {
     const { canvasDevPage } = await import('./dev_page_canvas.js');
-    send(response, 200, MIME['.html'], canvasDevPage({}));
+    send(response, 200, MIME['.html'], canvasDevPage({ build: state.boot }));
 }
 
 async function sendClient(response) {

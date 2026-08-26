@@ -24,7 +24,7 @@
  * state drafts and the keyboard focus all live in the chrome and survive.
  */
 
-export function canvasDevPage({ title = 'cs2dom' } = {}) {
+export function canvasDevPage({ title = 'cs2dom', build = 'dev' } = {}) {
     return `<!doctype html>
 <html lang="en">
 <head>
@@ -171,7 +171,7 @@ pre.empty { color: var(--dim); font-style: italic; }
     <pre id="records" class="empty">select an interface</pre>
   </section>
 </main>
-<script type="module" src="/dev-client.js"></script>
+<script type="module" src="/dev-client.js?v=${build}"></script>
 </body>
 </html>`;
 }
@@ -188,6 +188,15 @@ import { mountInterface } from '/src/browser_runtime.js';
 import { ScriptRegistry } from '/src/cs2_driver.js';
 import { bakeInterface } from '/src/if_to_tree.js';
 import { HostConfig } from '/src/host_config.js';
+
+/*
+ * Stamped into the status line so a screenshot says which code produced it.
+ *
+ * A dev server started before an edit keeps serving the module it imported
+ * at boot, and a tab left open keeps the client it loaded -- so "still
+ * broken" and "still running last week's page" look identical in a picture.
+ */
+const BUILD = new URL(import.meta.url).searchParams.get('v') ?? 'dev';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('surface');
@@ -328,7 +337,9 @@ async function mountStages(key) {
 
   runtime.start();
   renderState(detail.state ?? []);
-  status(detail.name + ' · ' + detail.interfaceId, 'ok');
+  status(detail.name + ' · ' + detail.interfaceId
+    + ' — root ' + chrome.size.width + 'x' + chrome.size.height
+    + ' @ ' + zoom.textContent + ' — build ' + BUILD, 'ok');
 
   /* A handle for the browser console and for headless probes. */
   window.__cs2dev = { runtime, detail, scripts, baked };
