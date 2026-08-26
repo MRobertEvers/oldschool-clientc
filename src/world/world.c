@@ -447,6 +447,9 @@ World_ResetSceneAlloc(
      * relocates them (Client-TS keeps entity slots across a rebuild). */
     World_EntityPoolReset(&world->entities.scenery);
     world->scenery_pick_count = 0;
+    /* "What changed" is "all of it"; no list can say that usefully. */
+    world->scenery_changed_count = 0;
+    world->scenery_changed_overflow = true;
     /* Pending EntityRemoved must be drained (SceneElementRemove) before a
      * scene reset — wiping the queue here would orphan DYNAMIC elements. */
     assert(world->event_count == 0 && "drain EntityRemoved before World_ResetSceneAlloc");
@@ -1347,6 +1350,31 @@ World_CopyMenuActions(
     }
 }
 
+/*
+ * Record that one scenery element changed.
+ *
+ * Appends rather than de-duplicates: a repeat costs the consumer one
+ * redundant re-test of a single entity, and scanning the list to avoid it
+ * would cost more than that. Overflow is not an error -- it downgrades the
+ * consumer to the full pass it used to do unconditionally.
+ */
+void
+World_SceneryNoteChanged(
+    struct World* world,
+    int element_id)
+{
+    assert(world);
+
+    if( element_id < 0 )
+        return;
+    if( world->scenery_changed_count >= WORLD_SCENERY_CHANGED_MAX )
+    {
+        world->scenery_changed_overflow = true;
+        return;
+    }
+    world->scenery_changed[world->scenery_changed_count++] = element_id;
+}
+
 int
 World_SceneryRegister(
     struct World* world,
@@ -1383,6 +1411,7 @@ World_SceneryRegister(
      * IS without changing the live set. Anything caching a pass over this
      * pool has to see that, so say so here. */
     pool->epoch++;
+    World_SceneryNoteChanged(world, element_id);
     memset(scenery, 0, sizeof(*scenery));
     scenery->element_id = element_id;
     scenery->loc_id = loc_id;
@@ -2757,6 +2786,7 @@ World_SceneryRemove(
     if( !World_EntityPoolIsActive(pool, idx) )
         return;
     scenery = World_EntityPoolGet(pool, idx);
+    World_SceneryNoteChanged(world, scenery->element_id);
     World_EmitEntityRemoved(world, scenery->element_id);
     World_EntityPoolRelease(pool, idx);
 }

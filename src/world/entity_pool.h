@@ -28,12 +28,12 @@ struct World_EntityPool
     /** Bumped whenever the LIVE SET changes -- an entity activated,
      *  released, or the whole pool reset.
      *
-     *  A per-frame pass that walks a pool only to test its entities against
-     *  some other list can cache its answer against this and skip the walk
-     *  entirely while the set is unchanged. It deliberately does NOT track
-     *  mutations to an entity's own fields, so a cache keyed on it must
-     *  either be about entities that do not move (scenery) or fold in
-     *  whatever else it depends on. */
+     *  Says THAT the set changed and never WHICH entity, so it can only
+     *  invalidate a cached pass, not maintain one -- and invalidating means
+     *  walking the pool again, which for scenery is the 23k-entity walk the
+     *  caching was for. Where that matters, World::scenery_changed carries
+     *  the identities instead. Kept because "did anything change at all" is
+     *  a cheap question with no other answer. */
     unsigned int epoch;
 };
 

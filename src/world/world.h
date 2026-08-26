@@ -20,6 +20,9 @@ struct ToriDraw_Scene;
  * next ClearPool(STATIC) and starves the element free list. */
 #define WORLD_MAX_EVENTS 8192
 #define WORLD_SCENERY_PICK_MAX 4096
+/* Bounded on purpose: past this, re-walking the pool is cheaper than
+ * tracking every change, and the overflow flag says to do exactly that. */
+#define WORLD_SCENERY_CHANGED_MAX 256
 #define WORLD_LOC_CHANGE_MAX 256
 
 #define WORLD_MAP_TERRAIN_X 64
@@ -268,6 +271,26 @@ struct World
 
     struct World_SceneryPick scenery_picks[WORLD_SCENERY_PICK_MAX];
     int scenery_pick_count;
+
+    /* Which scenery elements changed, so a pass over the pool can be
+     * MAINTAINED rather than redone.
+     *
+     * A consumer that tests every loc against some list -- the plugin
+     * highlight resolve is the one that exists -- does not need to walk
+     * ~23k entities again because one door opened. It needs to know which
+     * one. Element ids, appended by World_SceneryRegister and
+     * World_SceneryRemove.
+     *
+     * `overflow` is set when the list would have run over, and by a scene
+     * reset, where "what changed" is "all of it". A consumer that sees it
+     * falls back to a full pass, which is always correct and merely slow.
+     *
+     * SINGLE CONSUMER: whoever reads this clears it. A second reader would
+     * find it already drained and silently miss changes. */
+    int scenery_changed[WORLD_SCENERY_CHANGED_MAX];
+    int scenery_changed_count;
+    bool scenery_changed_overflow;
+    /* Declared here so the field block above reads with its writer. */
 
     World_HeightFn height_fn;
     void* height_userdata;

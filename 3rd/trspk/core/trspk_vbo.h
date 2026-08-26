@@ -23,6 +23,18 @@ struct TRSPK_VBO
     uint32_t flags;
 
     enum TRSPK_VertexFormat format;
+
+    /* Which vertices changed since the last upload.
+     *
+     * The dirty FLAG says the buffer needs uploading; this says how much
+     * of it. A retained buffer holds every static model in the scene, so
+     * one loc morphing used to re-copy the whole thing -- megabytes to
+     * the GPU because a door opened. Half-open [first, end); first >= end
+     * means nothing is dirty, and a caller that cannot say which range it
+     * touched marks the whole buffer, which is exactly the old behaviour. */
+    uint32_t dirty_first;
+    uint32_t dirty_end;
+
     union
     {
         struct TRSPK_VertexWebGL1* as_webgl1;
@@ -58,16 +70,48 @@ trspk_vbo_is_dirty(const struct TRSPK_VBO* vbo)
     return trspk_flags_test(vbo->flags, TRSPK_VBO_FLAG_DIRTY);
 }
 
+/* Mark the WHOLE buffer dirty. The honest answer whenever the caller does
+ * not know what it touched -- a device reset, a wholesale rebuild. */
 static inline void
 trspk_vbo_set_dirty(struct TRSPK_VBO* vbo)
 {
     trspk_flags_set(&vbo->flags, TRSPK_VBO_FLAG_DIRTY);
+    vbo->dirty_first = 0u;
+    vbo->dirty_end = vbo->capacity;
+}
+
+/* Mark [first, first + count) dirty, widening whatever is already marked.
+ * Several models can bake between two uploads, so the range is a union and
+ * never a replacement. */
+static inline void
+trspk_vbo_mark_dirty_range(
+    struct TRSPK_VBO* vbo,
+    uint32_t first,
+    uint32_t count)
+{
+    uint32_t end = first + count;
+
+    if( count == 0u )
+        return;
+    if( !trspk_flags_test(vbo->flags, TRSPK_VBO_FLAG_DIRTY) )
+    {
+        vbo->dirty_first = first;
+        vbo->dirty_end = end;
+        trspk_flags_set(&vbo->flags, TRSPK_VBO_FLAG_DIRTY);
+        return;
+    }
+    if( first < vbo->dirty_first )
+        vbo->dirty_first = first;
+    if( end > vbo->dirty_end )
+        vbo->dirty_end = end;
 }
 
 static inline void
 trspk_vbo_clear_dirty(struct TRSPK_VBO* vbo)
 {
     trspk_flags_clear(&vbo->flags, TRSPK_VBO_FLAG_DIRTY);
+    vbo->dirty_first = 0u;
+    vbo->dirty_end = 0u;
 }
 
 static inline void
