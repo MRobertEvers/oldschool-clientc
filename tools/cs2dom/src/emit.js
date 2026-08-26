@@ -332,6 +332,10 @@ export class Emitter {
              * placeholder art the reference has no command for at all.
              */
             if( CONTENT_CLIENT_CODES.has(node.props.clientCode | 0) ) return;
+            /* Hitbox only: a cache graphic that names no art draws nothing,
+             * whatever a script has since put on it. The C tests this before
+             * it looks at the scene id at all. */
+            if( node.props.graphicHitboxOnly ) return;
             const hovered = node.componentId >= 0
                 && node.componentId === context.hoveredComponentId;
             if( effectiveSprite(node.props, hovered) < 0

@@ -211,6 +211,23 @@ export function bakeInterface({ tree = null, ifText, compackText = '', interface
         row.index = index;
         if( row.props.hidden ) target.setHidden(index, true);
         if( row.ops ) target.at(index).ops = [...row.ops];
+        /*
+         * A cache GRAPHIC that names no sprite at all is HITBOX ONLY.
+         *
+         * `torirs_component_apply_graphic_hitbox_only` sets the flag when both
+         * `graphic=` and `activegraphic=` are absent, and `uitree_emit.c`
+         * returns false for it BEFORE it looks at the scene id — so such a
+         * component never draws, not even when a script has since given it an
+         * item icon. `hosidius_servery_hud` has four of these, each carrying a
+         * `cc_setobject`, and the reference draws none of them.
+         *
+         * A DYNAMIC component created by `cc_create` is not marked: the spec
+         * is zeroed, which is why script-built item cells draw. `cc_setgraphic`
+         * clears the flag, exactly as `UITree_ApplyGraphic` does.
+         */
+        if( treeType(row.type) === WIDGET_TYPE.GRAPHIC
+            && row.props.sprite === undefined && row.props.spriteOver === undefined )
+            target.setProp(index, 'graphicHitboxOnly', true);
 
         for( const [slot, binding] of Object.entries(row.hooks) )
         {

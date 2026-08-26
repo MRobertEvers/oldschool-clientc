@@ -656,6 +656,11 @@ export class HostKernel {
             return this._park(kind, id | 0);
         if( !node ) return undefined;
         this.tree.setProp(node.index, field, id | 0);
+        /* `UITree_ApplyGraphic` clears `graphic_hitbox_only`: a component the
+         * cache left without art becomes a drawable one the moment a script
+         * gives it some. See the flag's note in if_to_tree.js. */
+        if( field === 'sprite' && node.props.graphicHitboxOnly )
+            this.tree.setProp(node.index, 'graphicHitboxOnly', false);
         return undefined;
     }
 
