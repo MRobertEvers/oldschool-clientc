@@ -2571,6 +2571,7 @@ is_build_equipment(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginObjInfo con
 static enum ToriRS_PluginVerdict
 is_on_menu_build(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 {
+    (void)ctx;
     struct ToriRS_PluginEvMenuBuild* ev = (struct ToriRS_PluginEvMenuBuild*)event;
 
     (void)userdata;

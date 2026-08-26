@@ -4,7 +4,7 @@
  *
  * Tasks rather than fopen calls for the reason every other loader here is one:
  * the platform owns the disk, the IO queue is how anything asks it for work,
- * and the browser lane has no synchronous read at all -- PlatformX_IO_LoadItem
+ * and the browser lane has no synchronous read at all -- Platform_IO_LoadItem
  * fails loudly there rather than pretending. A plugin system built on fopen
  * would be a native-only plugin system.
  *

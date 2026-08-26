@@ -5884,6 +5884,14 @@ d3d9_dispatch(
         }
         break;
     }
+    case TORIRSRC_POLYGON_BEGIN:
+    case TORIRSRC_POLYGON_POINT:
+    case TORIRSRC_POLYGON_END:
+        /* Filled polygon runs are a gl3/webgl1/soft3d feature; this backend has
+         * no path for them and drops the run rather than drawing it wrong.
+         * Listed one by one so adding a command to the enum keeps failing the
+         * -Wswitch check here instead of falling silently into a default. */
+        break;
     case TORIRSRC_NONE:
         break;
     }

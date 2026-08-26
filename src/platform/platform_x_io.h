@@ -82,4 +82,24 @@ PlatformX_IO_Pending(
     struct PlatformX_IO* px,
     struct ToriRS_IO* io);
 
+/**
+ * Can this backend still reach whatever answers its reads?
+ *
+ * Every browser lane can answer no — the wire one because every read crosses to
+ * the IO server, the IndexedDB one because a read the local database misses
+ * goes on to ask the same server for it. The desktop answers yes always, and
+ * that is not a stub standing in for an unimplemented check: nothing sits
+ * between it and its disk, so it has no server to be down, and a caller that
+ * read "no server" as "server down" would switch off half the client on every
+ * desktop build.
+ *
+ * This reports the TRANSPORT, not the file. A read that fails because the
+ * server has no such path leaves this at yes — it proves the server is there —
+ * which is exactly the distinction the plugin lane needs: a missing plugin
+ * manifest is the ordinary case for a client with no scripts installed (see
+ * task_plugin_io.c) and must never read as an outage.
+ */
+int
+PlatformX_IO_ServerReachable(struct PlatformX_IO* px);
+
 #endif

@@ -1847,6 +1847,7 @@ api_menu_add(
     char const* text,
     uint32_t tag)
 {
+    (void)menu;
     assert(ctx);
     assert(menu);
     assert(text);
@@ -2301,6 +2302,7 @@ api_screenshot(
 static int
 api_datestamp(struct ToriRS_PluginCtx* ctx, char* out, int out_size)
 {
+    (void)ctx;
     time_t now;
     struct tm local;
 
@@ -2873,6 +2875,7 @@ plugin_draw_allow(struct ToriRS_PluginCtx* ctx, void* surface)
 static void
 plugin_draw_require_world(struct ToriRS_PluginCtx* ctx)
 {
+    (void)ctx;
     assert(ctx);
     assert(
         ctx->host->draw_canvas == PLUGIN_DRAW_SURFACE_WORLD &&

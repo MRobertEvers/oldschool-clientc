@@ -4,8 +4,18 @@
 
 A function that is handed something it cannot accept must **abort loudly**, not
 return a neutral value and let the caller carry on. Use `assert()` from
-`<assert.h>`. `NDEBUG` is never defined in this tree, so asserts are live in
-every configuration, `OPT=1` included.
+`<assert.h>`.
+
+Asserts are a debug-build check, not a release one: the optimized lane
+(`OPT=1`) compiles `-DNDEBUG`, so every `assert()` below is gone from a
+production binary. The rule still stands as written — a neutral return hides
+the caller's bug in *every* build, an assert catches it in the ones that check.
+But it does mean two things when you write one. What is left after the macro
+disappears has to still be correct on its own, so never put work, a side
+effect, or the only bounds test on data that reaches a release build inside an
+`assert()`. And a local or parameter that exists only to be asserted becomes
+unused under `-DNDEBUG`: inline the expression into the assert, or mark it
+`(void)x;`.
 
 ```c
 /* NO — the caller's bug becomes a silent no-op, surfacing later as a

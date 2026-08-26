@@ -356,17 +356,24 @@ raster_zbuf_screen_ordered(
     struct ToriDraw_ZbufRowStep d;
     struct ToriDraw_TexturePlane32 texture_plane;
 
+    /* Read once. The branch that fills texture_plane and the branch that reads
+     * it back are the same test, but through `tri->` they are two loads the
+     * compiler cannot prove equal across the writes in between -- so it treats
+     * the read as reachable without the write and reports texture_plane as
+     * maybe-uninitialised. One local settles it, and saves the reloads. */
+    int const mode = tri->mode;
+
     memset(&s, 0, sizeof(s));
     memset(&d, 0, sizeof(d));
 
-    s.mode = tri->mode;
+    s.mode = mode;
     s.tex_kind = tri->tex_kind;
     s.alpha = tri->alpha;
     /* A translucent surface must not occlude what is drawn after it, and a
      * per-texel-alpha material is translucent texel by texel. Both test,
      * neither writes. */
     s.depth_write =
-        tri->alpha == 0xFF && !(tri->mode == TORIDRAW_ZBUF_MODE_TEXTURE &&
+        tri->alpha == 0xFF && !(mode == TORIDRAW_ZBUF_MODE_TEXTURE &&
                                 tri->tex_kind == TORIDRAW_ZBUF_TEX_ALPHA);
 
     /*
@@ -386,7 +393,7 @@ raster_zbuf_screen_ordered(
         s.key_at_x0 = (float)((double)tri->key[0] - (double)s.key_step_dx * (double)x0);
     }
 
-    if( tri->mode == TORIDRAW_ZBUF_MODE_GOURAUD )
+    if( mode == TORIDRAW_ZBUF_MODE_GOURAUD )
     {
         int const d_hsl_AB = tri->shade[1] - tri->shade[0];
         int const d_hsl_AC = tri->shade[2] - tri->shade[0];
@@ -400,11 +407,15 @@ raster_zbuf_screen_ordered(
             toridraw_wrap_add(s.hsl_step_dx_ish8, tri->shade[0] << 8),
             toridraw_wrap_mul(x0, s.hsl_step_dx_ish8));
     }
-    else if( tri->mode == TORIDRAW_ZBUF_MODE_FLAT )
+    else if( mode == TORIDRAW_ZBUF_MODE_FLAT )
     {
         s.rgb = g_hsl16_to_rgb_table[tri->shade[0] & 0xFFFF];
     }
-    else
+    /* Spelled as the positive test rather than a bare `else`, so it is the same
+     * condition that gates the read of texture_plane further down. `mode` is a
+     * plain int, so under an `else` the compiler cannot tell the two apart and
+     * reports texture_plane as maybe-uninitialised. */
+    else if( mode == TORIDRAW_ZBUF_MODE_TEXTURE )
     {
         /* Perspective uv basis, straight out of the texture kernels: three
          * homogeneous numerator planes whose ratios are u and v. */
@@ -449,6 +460,15 @@ raster_zbuf_screen_ordered(
         d.au_dy = texture_plane.term[0].y;
         d.bv_dy = texture_plane.term[1].y;
         d.cw_dy = texture_plane.term[2].y;
+        /* Take the bases here too, where the plane is known to be built, rather
+         * than reading texture_plane again after the clipping below. Nothing
+         * touches s.au/bv/cw in between, so the row walk further down only has
+         * to add its dy term. Keeping the one read here is also what stops the
+         * compiler reporting texture_plane as maybe-uninitialised: it cannot
+         * carry `mode == TEXTURE` across that much intervening control flow. */
+        s.au = texture_plane.term[0].base;
+        s.bv = texture_plane.term[1].base;
+        s.cw = texture_plane.term[2].base;
 
         d.shade8_dy_ish8 = ((dx_AC * dshade_ab - dx_AB * dshade_ac) << 9) / sarea_abc;
         s.step_shade8_dx_ish8 = ((dy_AB * dshade_ac - dy_AC * dshade_ab) << 9) / sarea_abc;
@@ -515,15 +535,15 @@ raster_zbuf_screen_ordered(
         y1 = 0;
     }
 
-    if( tri->mode == TORIDRAW_ZBUF_MODE_TEXTURE )
+    if( mode == TORIDRAW_ZBUF_MODE_TEXTURE )
     {
         /* The numerators are stated at the screen centre in both axes; walk the
          * vertical one down to the first row drawn. */
         int const dy = y0 - (screen_height >> 1);
 
-        s.au = texture_plane.term[0].base + d.au_dy * dy;
-        s.bv = texture_plane.term[1].base + d.bv_dy * dy;
-        s.cw = texture_plane.term[2].base + d.cw_dy * dy;
+        s.au += d.au_dy * dy;
+        s.bv += d.bv_dy * dy;
+        s.cw += d.cw_dy * dy;
     }
 
     int offset = y0 * stride;

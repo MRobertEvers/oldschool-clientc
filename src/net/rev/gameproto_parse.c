@@ -201,6 +201,9 @@ gameproto_parse(
     struct RevPacket* packet)
 {
     struct RSCache_Buffer buffer;
+    /* Stated once here so the `buffer.position < (uint32_t)data_size` walks
+     * below are reading a length, not a wrapped negative. */
+    assert(data_size >= 0);
     RSCache_BufferInit(&buffer, data, data_size);
 
     packet->packet_type = pkt_name;
@@ -446,7 +449,7 @@ gameproto_parse(
         enc->count = 0;
         enc->entries = malloc(cap * sizeof(*enc->entries));
 
-        while( buffer.position < data_size )
+        while( buffer.position < (uint32_t)data_size )
         {
             int wire = g1(&buffer);
             enum GameProtoPktName sub = (enum GameProtoPktName)rev->packetin_code(wire);
@@ -659,7 +662,7 @@ gameproto_parse(
         packet->_update_inv_partial.entries =
             (struct PktUpdateInvPartialEntry*)malloc(max_entries * sizeof(struct PktUpdateInvPartialEntry));
         int n = 0;
-        while( buffer.position < data_size )
+        while( buffer.position < (uint32_t)data_size )
         {
             /* Smart, not a plain byte (reference `gsmart`, encoder `psmart`):
              * a bank slot of 128 or more goes out as two bytes, and reading one

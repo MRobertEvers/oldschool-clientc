@@ -2880,6 +2880,7 @@ emit_plugin_frame_pass(
     struct UITreeHost const* host,
     struct UITreeEmitBuffer* out)
 {
+    (void)tree;
     struct UITreeEmitDesc desc;
     struct UITreeHostRequest req;
     int world = -1;

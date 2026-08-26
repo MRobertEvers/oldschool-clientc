@@ -439,7 +439,6 @@ scenery_register_sharelight(
     int size_x,
     int size_z)
 {
-    struct World* world = builder->world;
 
     /* Prototype-cacheable locs were lit when their model was built
      * (scenery_load_model) — the End-batch defaultlight pass would only
@@ -2512,7 +2511,6 @@ scenery_add(
     int scene_x,
     int scene_z)
 {
-    struct World* world = builder->world;
     switch( map_loc->shape_select )
     {
     case RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE:

@@ -245,6 +245,14 @@ struct PktPlayerInfoReader
     uint16_t extended_queue[2048];
     int extended_count;
     int current_op;
+    /** Set when the packet asked for more ops than the caller's array holds.
+     *  The ops decoded up to that point are still valid; everything after is
+     *  discarded, so the extended-info blocks no longer line up with the list
+     *  positions they address and the packet should be treated as junk. */
+    int overflowed;
+    /** Where a write goes once the array is full, so a packet claiming more ops
+     *  than fit cannot reach past the end of it. See next_op in the .c. */
+    struct PktPlayerInfoOp op_sink;
 };
 
 /** Decode the raw command stream into `ops`. Returns the op count. */

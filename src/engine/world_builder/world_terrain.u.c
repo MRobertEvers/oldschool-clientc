@@ -40,6 +40,10 @@ world_apply_shade(
     int zmin,
     int zmax)
 {
+    (void)xboundmax;
+    (void)xboundmin;
+    (void)zboundmax;
+    (void)zboundmin;
     assert(builder->shademap);
 
     assert(xboundmin <= xmin);

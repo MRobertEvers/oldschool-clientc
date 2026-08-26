@@ -739,6 +739,7 @@ CS2VM2_JumpRelative(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)vm;
     assert(vm);
     assert(frame);
 
@@ -805,6 +806,7 @@ CS2VM2_SetIntFrameLocal(
     int idx,
     int value)
 {
+    (void)vm;
     assert(vm);
     assert(frame);
     *cs2vm2_frame_int_local_ref(frame, idx) = value;
@@ -995,6 +997,7 @@ CS2VM2_Op_PushVar(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -1016,6 +1019,7 @@ CS2VM2_Op_PushVarbit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -1047,6 +1051,7 @@ CS2VM2_Op_KeyQuery(
     struct CS2VM2_Frame* frame,
     enum CS2VM_HostRequestKind kind)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -1079,6 +1084,7 @@ CS2VM2_Op_PushVarcInt(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -1100,6 +1106,7 @@ CS2VM2_Op_PopVarcInt(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -1127,6 +1134,7 @@ CS2VM2_Op_PushVarcString(
     int operand,
     int opcode)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -1160,6 +1168,7 @@ CS2VM2_Op_PopVarcString(
     int operand,
     int opcode)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -1211,6 +1220,7 @@ CS2VM2_Op_PushConstantInt(
     struct CS2VM2_Frame* frame,
     int value)
 {
+    (void)frame;
     assert(vm);
     return CS2VM2_PushInt(vm, value);
 }
@@ -1265,6 +1275,7 @@ CS2VM2_Op_JoinString(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -1320,6 +1331,7 @@ CS2VM2_Op_ToString(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -1519,6 +1531,7 @@ CS2VM2_Op_Append(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -1541,6 +1554,7 @@ CS2VM2_Op_AppendNum(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -1561,6 +1575,7 @@ CS2VM2_Op_AppendSignNum(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -1582,6 +1597,7 @@ CS2VM2_Op_AppendChar(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -1608,6 +1624,7 @@ CS2VM2_Op_StringLength(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -1625,6 +1642,7 @@ CS2VM2_Op_ParaHeight(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -1660,6 +1678,7 @@ CS2VM2_Op_FromDate(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -1681,6 +1700,7 @@ CS2VM2_Op_ParaWidth(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -1749,7 +1769,6 @@ CS2VM2_Op_GosubWithParams(
         return result;
 
     struct CS2VM2_Frame* callee = CS2VM_FRAME(vm);
-    int argc = callee->script->int_argument_count + callee->script->string_argument_count;
     int str_args = callee->script->string_argument_count;
     int int_args = callee->script->int_argument_count;
 
@@ -1774,6 +1793,7 @@ CS2VM2_Op_CC_DeleteAll(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -1802,6 +1822,7 @@ CS2VM2_Op_CC_Copy(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -1831,6 +1852,7 @@ CS2VM2_Op_CC_Find(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -1911,6 +1933,7 @@ CS2VM2_Op_CC_SetPosition(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -1947,6 +1970,7 @@ CS2VM2_Op_CC_SetSize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -1983,6 +2007,7 @@ CS2VM2_Op_CC_SetGraphic(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2010,6 +2035,7 @@ CS2VM2_Op_CC_SetGraphic2(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2037,6 +2063,7 @@ CS2VM2_Op_CC_SetTiling(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2063,6 +2090,7 @@ CS2VM2_Op_CC_SetOutline(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2089,6 +2117,7 @@ CS2VM2_Op_CC_SetGraphicShadow(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2115,6 +2144,7 @@ CS2VM2_Op_IF_SetTiling(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -2144,6 +2174,7 @@ CS2VM2_Op_IF_SetGraphicShadow(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -2173,6 +2204,7 @@ CS2VM2_Op_CC_SetColour(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2199,6 +2231,7 @@ CS2VM2_Op_IF_SetColour(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -2228,6 +2261,7 @@ CS2VM2_Op_CC_SetFill(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2254,6 +2288,7 @@ CS2VM2_Op_IF_SetFill(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -2283,6 +2318,7 @@ CS2VM2_Op_CC_SetTrans(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2467,6 +2503,7 @@ CS2VM2_Op_CC_TriggerOp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2500,6 +2537,7 @@ CS2VM2_Op_IF_TriggerOpLocal(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -2556,6 +2594,7 @@ CS2VM2_Op_IF_SetTrans(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -2585,6 +2624,7 @@ CS2VM2_Op_CC_SetNoClickThrough(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2611,6 +2651,7 @@ CS2VM2_Op_CC_SetText(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2637,6 +2678,7 @@ CS2VM2_Op_CC_SetTextFont(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2663,6 +2705,7 @@ CS2VM2_Op_IF_SetTextFont(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -2692,6 +2735,7 @@ CS2VM2_Op_CC_SetTextAlign(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2724,6 +2768,7 @@ CS2VM2_Op_IF_SetTextAlign(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -2759,6 +2804,7 @@ CS2VM2_Op_CC_SetTextShadow(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2785,6 +2831,7 @@ CS2VM2_Op_IF_SetTextShadow(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -2814,6 +2861,7 @@ CS2VM2_Op_CC_SetDraggable(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2845,6 +2893,7 @@ CS2VM2_Op_CC_SetDraggableBehavior(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2871,6 +2920,7 @@ CS2VM2_Op_CC_SetDragDeadZone(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2897,6 +2947,7 @@ CS2VM2_Op_CC_SetDragDeadTime(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2924,6 +2975,7 @@ CS2VM2_Op_CC_SetObject(
     int operand,
     int num_mode)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -2971,6 +3023,7 @@ CS2VM2_Op_IF_SetObject(
     int operand,
     int num_mode)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -3019,6 +3072,7 @@ CS2VM2_Op_IF_SetGraphic(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -3055,6 +3109,7 @@ CS2VM2_Op_IF_SetGraphic2(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -3081,6 +3136,7 @@ CS2VM2_Op_IF_SetText(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -3112,6 +3168,7 @@ CS2VM2_Op_CC_SetOp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -3143,6 +3200,7 @@ CS2VM2_Op_CC_SetOpBase(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -3169,6 +3227,7 @@ CS2VM2_Op_CC_SetTargetVerb(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     char* text;
 
     assert(vm);
@@ -3203,6 +3262,7 @@ CS2VM2_Op_SetOpKey(
     int is_if,
     int is_typed)
 {
+    (void)frame;
     struct CS2VM_HostRequest request;
     int raw[2 * CS2VM_OPKEY_PAIR_MAX];
     int available_pairs = (!is_if && !is_typed) ? CS2VM_OPKEY_PAIR_MAX : 1;
@@ -3288,6 +3348,7 @@ CS2VM2_Op_SetOpKeyRate(
     int is_typed,
     int is_ignore_held)
 {
+    (void)frame;
     struct CS2VM_HostRequest request;
     int component_id = 0;
     int op_index = CS2VM_OPKEY_TYPED_SLOT;
@@ -3502,6 +3563,7 @@ CS2VM2_Op_CC_SetHide(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -3812,6 +3874,7 @@ CS2VM2_Op_IF_GetWidth(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -3838,6 +3901,7 @@ CS2VM2_Op_IF_GetHeight(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -3890,6 +3954,7 @@ CS2VM2_Op_IF_GetHide(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -3919,6 +3984,7 @@ CS2VM2_Op_IF_HasSub(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -3999,6 +4065,7 @@ CS2VM2_Op_IF_HasChild(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -4025,6 +4092,7 @@ CS2VM2_Op_IF_GetY(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -4051,6 +4119,7 @@ CS2VM2_Op_IF_GetLayer(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -4077,6 +4146,7 @@ CS2VM2_Op_IF_GetTop(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -4098,6 +4168,7 @@ CS2VM2_Op_IF_GetScrollX(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -4124,6 +4195,7 @@ CS2VM2_Op_IF_GetScrollY(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -4150,6 +4222,7 @@ CS2VM2_Op_IF_GetScrollHeight(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -4176,6 +4249,7 @@ CS2VM2_Op_IF_SetScrollPos(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -4212,6 +4286,7 @@ CS2VM2_Op_IF_SetScrollSize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -4248,6 +4323,7 @@ CS2VM2_Op_IF_SetPosition(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -4288,6 +4364,7 @@ CS2VM2_Op_IF_SetOutline(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -4317,6 +4394,7 @@ CS2VM2_Op_IF_SetSize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -4357,6 +4435,8 @@ CS2VM2_Op_IF_SetHide(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
+    (void)operand;
     assert(vm);
     assert(frame);
 
@@ -4402,6 +4482,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
     struct CS2VM2_Frame* frame,
     enum CS2VM_HostRequestKind kind)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -4583,6 +4664,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
     int operand,
     enum CS2VM_HostRequestKind kind)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -4991,6 +5073,7 @@ CS2VM2_Op_IF_SetDraggable(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -5022,6 +5105,7 @@ CS2VM2_Op_IF_SetDraggableBehavior(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -5099,6 +5183,7 @@ CS2VM2_Op_SetAntiDrag(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -5151,6 +5236,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -5594,6 +5680,8 @@ CS2VM2_Op_IF_SetOp(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
+    (void)operand;
     assert(vm);
     assert(frame);
 
@@ -5629,6 +5717,7 @@ CS2VM2_Op_IF_SetOpBase(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -5659,6 +5748,7 @@ CS2VM2_Op_IF_SetTargetVerb(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     int component_id;
     char* text;
 
@@ -5682,6 +5772,7 @@ CS2VM2_Op_IF_SetOpSubmenu(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -5718,6 +5809,7 @@ CS2VM2_Op_IF_SetTargetPriority(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -5747,6 +5839,8 @@ CS2VM2_Op_IF_ClearOps(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
+    (void)operand;
     assert(vm);
     assert(frame);
 
@@ -5784,6 +5878,7 @@ CS2VM2_Op_IF_CallOnResize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -5806,6 +5901,8 @@ CS2VM2_Op_Add(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
+    (void)operand;
     assert(vm);
     assert(frame);
     int intpop_a, intpop_b;
@@ -5824,6 +5921,8 @@ CS2VM2_Op_Sub(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
+    (void)operand;
     assert(vm);
     assert(frame);
     int intpop_a, intpop_b;
@@ -5842,6 +5941,8 @@ CS2VM2_Op_Mul(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
+    (void)operand;
     (void)vm;
     assert(vm);
     assert(frame);
@@ -5864,6 +5965,7 @@ CS2VM2_Op_And(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -5882,6 +5984,7 @@ CS2VM2_Op_Min(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -5900,6 +6003,7 @@ CS2VM2_Op_Max(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -5921,6 +6025,7 @@ CS2VM2_Op_AddPercent(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -5939,6 +6044,7 @@ CS2VM2_Op_BitCount(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -5982,6 +6088,7 @@ CS2VM2_Op_ToggleBit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6009,6 +6116,7 @@ CS2VM2_Op_SetBitRange(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6029,6 +6137,7 @@ CS2VM2_Op_ClearBitRange(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6049,6 +6158,7 @@ CS2VM2_Op_GetBitRange(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6071,6 +6181,7 @@ CS2VM2_Op_SetBitRangeValue(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6096,6 +6207,7 @@ CS2VM2_Op_Div(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6119,6 +6231,7 @@ CS2VM2_Op_Mod(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6141,6 +6254,7 @@ CS2VM2_Op_Scale(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6167,6 +6281,7 @@ CS2VM2_Op_Pow(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6235,6 +6350,7 @@ CS2VM2_Op_Enum(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6274,6 +6390,7 @@ CS2VM2_Op_EnumString(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6301,6 +6418,7 @@ CS2VM2_Op_EnumGetOutputCount(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6366,6 +6484,8 @@ CS2VM2_Op_IsMapMembers(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
+    (void)operand;
     assert(vm);
     assert(frame);
 
@@ -6380,6 +6500,7 @@ CS2VM2_Op_OnMobile(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6395,6 +6516,7 @@ CS2VM2_Op_LoginInt24(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6408,6 +6530,7 @@ CS2VM2_Op_GetCanvasSize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6423,6 +6546,7 @@ CS2VM2_Op_GetWindowMode(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6442,6 +6566,7 @@ CS2VM2_Op_GetDefaultWindowMode(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6496,6 +6621,7 @@ CS2VM2_Op_Coord(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     struct CS2VM_HostRequest request;
 
     assert(vm);
@@ -6529,6 +6655,7 @@ CS2VM2_Op_CoordX(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6545,6 +6672,7 @@ CS2VM2_Op_CoordY(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6564,6 +6692,7 @@ CS2VM2_Op_CoordZ(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6580,6 +6709,7 @@ CS2VM2_Op_MoveCoord(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6606,6 +6736,7 @@ CS2VM2_Op_ClientType(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6619,6 +6750,7 @@ CS2VM2_Op_RunWeightVisible(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -6839,6 +6971,8 @@ CS2VM2_Op_TestBit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
+    (void)operand;
     assert(vm);
     assert(frame);
 
@@ -6867,6 +7001,7 @@ CS2VM2_Op_PopVar(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -6889,6 +7024,7 @@ CS2VM2_Op_PopVarbit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -7584,6 +7720,7 @@ CS2VM2_Op_CC_ChildrenFindCount(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -7715,6 +7852,7 @@ CS2VM2_Op_SetBit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -7735,6 +7873,7 @@ CS2VM2_Op_ClearBit(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -7755,6 +7894,7 @@ CS2VM2_Op_Or(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -7775,6 +7915,7 @@ CS2VM2_Op_InvPow(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -7822,6 +7963,7 @@ CS2VM2_Op_Random(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -7856,6 +7998,7 @@ CS2VM2_Op_RandomInc(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -7876,6 +8019,7 @@ CS2VM2_Op_Interpolate(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -7911,6 +8055,7 @@ CS2VM2_Op_Compare(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -7943,6 +8088,7 @@ CS2VM2_Op_Substring(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -7977,6 +8123,7 @@ CS2VM2_Op_StringIndexOfString(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -8014,6 +8161,7 @@ CS2VM2_Op_StringIndexOfChar(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -9358,6 +9506,8 @@ CS2VM2_Op_OC_Param(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
+    (void)operand;
     assert(vm);
     assert(frame);
 
@@ -9445,6 +9595,7 @@ CS2VM2_Op_OC_Name(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -9471,6 +9622,7 @@ CS2VM2_Op_NC_Name(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -9497,6 +9649,7 @@ CS2VM2_Op_OC_Unplaceholder(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -10231,6 +10384,7 @@ CS2VM2_Op_Return(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame)
 {
+    (void)frame;
     (void)vm;
     assert(vm);
     assert(frame);
@@ -10243,6 +10397,8 @@ CS2VM2_Op_InvSize(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
+    (void)operand;
     assert(vm);
     assert(frame);
 
@@ -10269,6 +10425,8 @@ CS2VM2_Op_InvGetObj(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
+    (void)operand;
     assert(vm);
     assert(frame);
 
@@ -10302,6 +10460,7 @@ CS2VM2_Op_InvGetNum(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -10331,6 +10490,7 @@ CS2VM2_Op_InvTotal(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -10897,13 +11057,18 @@ CS2VM2_Op_IF_InputInt(
 }
 
 /* Fills *int_args / *str_args with the stack values this opcode pops.
- * Returns 0 for a fixed count, 1 when the count is variable (e.g. GOSUB). */
+ * Returns 0 for a fixed count, 1 when the count is variable (e.g. GOSUB).
+ * Only CS2VM2_DebugPrintOpCode wants this, and its body is compiled out with
+ * CS2VM2_DEBUG_OPS -- so the table follows the same switch, or it is a static
+ * with no callers left. */
+#if CS2VM2_DEBUG_OPS
 static int
 CS2VM2_OpArgCounts(
     int opcode,
     int operand,
     int* int_args,
     int* str_args);
+#endif
 
 int
 CS2VM2_RunOp(
@@ -10915,10 +11080,6 @@ CS2VM2_RunOp(
 {
     assert(vm);
     assert(frame);
-    int intpop_a;
-    int intpop_b;
-    char* strpop_a;
-    char* strpop_b;
 
     /*
      * An id in the RS2 overlay names a *different command* under RS2 than the
@@ -12666,6 +12827,7 @@ CS2VM2_RunOp(
     }
 }
 
+#if CS2VM2_DEBUG_OPS
 /* Fills *int_args / *str_args with the stack values this opcode pops.
  * Returns 0 for a fixed count, 1 when the count is variable (e.g. GOSUB). */
 static int
@@ -12761,6 +12923,7 @@ CS2VM2_OpArgCounts(
         return 0;
     }
 }
+#endif /* CS2VM2_DEBUG_OPS */
 
 static void
 CS2VM2_DebugPrintOpCode(
@@ -12770,6 +12933,11 @@ CS2VM2_DebugPrintOpCode(
     int operand,
     char const* str_operand)
 {
+    (void)frame;
+    (void)opcode;
+    (void)operand;
+    (void)str_operand;
+    (void)vm;
 #if CS2VM2_DEBUG_OPS
     TORIRS_LOG("pc=%d %s (op %d)", frame->pc, CS2_OpCode_String(opcode), opcode);
 
@@ -13318,6 +13486,7 @@ CS2VM2_Op_CC_ChildrenFindNextId(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -13340,6 +13509,7 @@ CS2VM2_Op_CC_ChildrenFindNext(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -13368,6 +13538,7 @@ CS2VM2_Op_IF_ChildrenFind(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -13402,6 +13573,7 @@ CS2VM2_Op_CC_CreateChild(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -13431,6 +13603,7 @@ CS2VM2_Op_CC_CreateSibling(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -13460,6 +13633,7 @@ CS2VM2_Op_StructParam(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -13497,6 +13671,7 @@ CS2VM2_Op_CC_GetParam(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -13607,6 +13782,7 @@ CS2VM2_Op_IF_GetComponentParam(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -13680,6 +13856,7 @@ CS2VM2_Op_IF_Find(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
 
@@ -13702,6 +13879,7 @@ CS2VM2_Op_IF_GetX(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -13724,6 +13902,7 @@ CS2VM2_Op_IF_GetText(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -13746,6 +13925,7 @@ CS2VM2_Op_IF_GetScrollWidth(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;
@@ -13770,6 +13950,7 @@ CS2VM2_Op_OC_IntParam(
     enum CS2VM_OC_IntField field,
     int opcode)
 {
+    (void)frame;
     assert(vm);
     assert(frame);
     (void)operand;

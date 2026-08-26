@@ -1060,6 +1060,33 @@ app_plugin_chrome_font(void* ud, int cache_font_id)
     return scene_id;
 }
 
+/*
+ * Can the plugin system still be reached at all?
+ *
+ * The whole plugin lane -- the manifest, every script it names, every shipped
+ * asset -- rides the same transport a cache read does (TORIRS_IOK_SCRIPT, see
+ * task_plugin_io.c). When that transport is down the panel can list nothing,
+ * load nothing and save nothing, so the ways INTO it are switched off rather
+ * than left to open an empty window.
+ *
+ * Asked of the platform every time rather than latched, because it recovers:
+ * the operator restarts the io server, the next batch lands, and the launcher
+ * has to come back on its own. A latched flag would need a second mechanism to
+ * clear it, and the platform already tracks exactly this.
+ *
+ * Every desktop lane answers "reachable" always -- there is no server between
+ * the client and its disk -- so nothing below this line ever fires there. See
+ * Platform_IO_ServerReachable.
+ */
+static int
+app_plugin_io_down(struct App const* app)
+{
+    assert(app);
+    if( !app->runner.px )
+        return 0;
+    return !Platform_IO_ServerReachable(app->runner.px);
+}
+
 /** Is the button we added still in the tree? A gameframe rebuild takes it, and
  *  the node index alone cannot say so. */
 static int
@@ -1080,10 +1107,45 @@ app_plugin_button_sync(struct App* app)
     int32_t buttons;
     int32_t node;
     int icon;
+    int const down = app_plugin_io_down(app);
 
     if( !app->tree || !ToriRSChrome_TreeAcceptsChrome(app->tree) )
         return;
+
+    /*
+     * A launcher already in the strip follows the transport up and down.
+     *
+     * HIDDEN, not merely unclickable. The strip's art has no greyed variant of
+     * the wrench, so a disabled button that still looks exactly like a live one
+     * is a button people press and get nothing from -- the same trade this file
+     * already refuses a few lines below, where a launcher that "exists and is
+     * unclickable" is called worse than absent. Its row is suppressed
+     * independently (RS_MinimenuBuildCtx::plugin_io_down), so neither the click
+     * nor the right-click menu can reach the panel while it is gone.
+     *
+     * The click mask goes with it, rather than relying on a hidden component
+     * being unhittable: the two are separate pieces of state and this does not
+     * need to know how the hit walk treats the first.
+     */
     if( app_plugin_button_alive(app) )
+    {
+        if( down != app->plugin_button_disabled )
+        {
+            UITree_ApplyHide(app->tree, TORIRS_CHROME_PLUGIN_BUTTON_ID, down);
+            UITree_ApplyClickMask(app->tree, TORIRS_CHROME_PLUGIN_BUTTON_ID, !down);
+            app->plugin_button_disabled = down;
+            UITree_MarkAllDirty(app->tree);
+        }
+        return;
+    }
+
+    /*
+     * Not built at all while the lane is down, so a gameframe that mounts its
+     * strip during an outage does not get a launcher that has to be hidden a
+     * frame later. This runs every frame, so it is built the moment the server
+     * answers again.
+     */
+    if( down )
         return;
 
     /*
@@ -1149,6 +1211,10 @@ app_plugin_button_sync(struct App* app)
         return;
 
     app->plugin_button_node = node;
+    /* Freshly built means freshly enabled -- `down` is false to have got here.
+     * Recording it is what keeps the edge test above from reading a stale
+     * "disabled" left over from the last gameframe's button. */
+    app->plugin_button_disabled = 0;
     UITree_ApplyClickMask(app->tree, TORIRS_CHROME_PLUGIN_BUTTON_ID, 1);
     UITree_MarkAllDirty(app->tree);
 }

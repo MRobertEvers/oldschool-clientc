@@ -334,6 +334,7 @@ bucket_emit_entity(
     struct PaintersElementCommand* end,
     int entity)
 {
+    (void)end;
     assert(*cur < end);
     **cur = (struct PaintersElementCommand){
         ._entity = {
@@ -352,6 +353,7 @@ bucket_emit_terrain(
     int sz,
     int slevel)
 {
+    (void)end;
     assert(*cur < end);
     **cur = (struct PaintersElementCommand){
         ._terrain = {
@@ -372,6 +374,7 @@ bucket_emit_terrain_pick_only(
     int sz,
     int slevel)
 {
+    (void)end;
     assert(*cur < end);
     **cur = (struct PaintersElementCommand){
         ._terrain = {

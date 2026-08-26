@@ -43,6 +43,7 @@ uitree_builder_inv_seed(
 
         int ok = InvManager_ApplyFull(invs, container_id, seed->obj_ids, counts, seed->item_count);
         assert(ok);
+        (void)ok; /* assert-only: the OPT=1 lane compiles with -DNDEBUG */
     }
 }
 

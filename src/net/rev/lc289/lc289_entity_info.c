@@ -65,6 +65,18 @@ struct Lc289EntityDecode
     uint16_t extended_queue[2048];
     int extended_count;
     int current_op;
+    /** Set when the packet asked for more ops than the caller's array holds.
+     *  Everything past that point is discarded, so the extended-info blocks no
+     *  longer line up with the list positions they address. */
+    int overflowed;
+    /** Where a write goes once the array is full, so a packet claiming more ops
+     *  than fit cannot reach past the end of it. One decode runs at a time, so
+     *  the two op shapes share it. */
+    union
+    {
+        struct PktPlayerInfoOp player;
+        struct PktNpcInfoOp npc;
+    } op_sink;
 };
 
 static void
@@ -85,7 +97,18 @@ lc289_next_player_op(
     struct PktPlayerInfoOp* ops,
     int ops_capacity)
 {
-    assert(dec->current_op < ops_capacity);
+    /* A guard, not an assert -- the op count is the server's choice, so running
+     * out of room is hostile input rather than a caller bug, and the extended
+     * loop below checks capacity once per entry then emits one op per bit of a
+     * server-supplied mask. The shipping lane compiles -DNDEBUG, so an assert
+     * here is no bounds check at all. See next_op in pkt_player_info.c. */
+    assert(ops_capacity > 0);
+    if( dec->current_op >= ops_capacity )
+    {
+        dec->overflowed = 1;
+        memset(&dec->op_sink.player, 0, sizeof(dec->op_sink.player));
+        return &dec->op_sink.player;
+    }
     struct PktPlayerInfoOp* op = &ops[dec->current_op++];
     memset(op, 0, sizeof(*op));
     return op;
@@ -478,7 +501,14 @@ lc289_next_npc_op(
     struct PktNpcInfoOp* ops,
     int ops_capacity)
 {
-    assert(dec->current_op < ops_capacity);
+    /* A guard, not an assert -- see lc289_next_player_op above. */
+    assert(ops_capacity > 0);
+    if( dec->current_op >= ops_capacity )
+    {
+        dec->overflowed = 1;
+        memset(&dec->op_sink.npc, 0, sizeof(dec->op_sink.npc));
+        return &dec->op_sink.npc;
+    }
     struct PktNpcInfoOp* op = &ops[dec->current_op++];
     memset(op, 0, sizeof(*op));
     return op;
