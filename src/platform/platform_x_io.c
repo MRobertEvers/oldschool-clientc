@@ -583,6 +583,10 @@ stored_file_read(
         }
     }
 #else
+    /* No leg 2 here, so nothing on this lane reads `px` once the assert above
+     * is compiled out. Named rather than left to -Wunused-parameter, which is
+     * an error in some of the lanes this file builds in. */
+    (void)px;
     if( read_whole_file(resolved, out_data, out_size) == 0 )
         return 0;
 #endif
@@ -654,6 +658,89 @@ dat2_resolve_table(
         return RSCACHE_DAT2_DISK_TABLE_ABSENT;
     return RSCache_Dat2DiskTableId(px->dat2_disk, (enum RSCache_Dat2Table)logical_table);
 }
+
+/*
+ * Where a cache item's bytes come from.
+ *
+ * There are two remote backings and they are PEERS: each is a cache living on
+ * a server instead of on this machine, one per container format. They did not
+ * read as peers, because they were added at different depths -- JS5 intercepted
+ * up in Process, before LoadItem was even called, while the dat1 on-demand
+ * handle was tested four calls further down, inside the dat1 loader's archive
+ * read. "Is this read local?" therefore had two answers in two places, and
+ * neither function was in a position to state the rule.
+ *
+ * Naming the source makes the rule one line, and leaves exactly one real
+ * difference between the two backings: whether the answer can be given
+ * synchronously. That is what cache_source_parks reports, and it is a property
+ * OF THE SOURCE rather than a special case in the caller.
+ */
+enum CacheSource
+{
+    /** The open disk on this machine answers -- dat2 or dat1. */
+    CACHE_SOURCE_DISK,
+    /** dat2 groups from a JS5 server, into the disk that client fills. */
+    CACHE_SOURCE_JS5,
+    /** dat1 archives from a LostCity server, 2004 on-demand protocol. */
+    CACHE_SOURCE_ON_DEMAND,
+};
+
+/* Which container this item is phrased in. The dat2 case is every flag that is
+ * not one of the three dat1 ones (asyncio.h defines exactly four). */
+static int
+cache_item_is_dat1(struct ToriRS_IOItem const* item)
+{
+    return item->u.cache.flags == TORIRS_IO_CACHE_DAT1 ||
+           item->u.cache.flags == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN ||
+           item->u.cache.flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY;
+}
+
+/*
+ * One rule, both containers: a remote backing answers when one is configured.
+ *
+ * Configuring one excludes the matching local disk, which is what makes this a
+ * choice rather than a preference -- PlatformXIO_Dat1OnDemandEnable refuses if
+ * a dat1 disk is already open, and the JS5 client is handed the dat2 disk it
+ * fills, so there is never a second opinion to reconcile.
+ *
+ * A build with no JS5 has neither handle to test and every read is local, so
+ * this collapses to a constant rather than carrying a dead branch.
+ */
+static enum CacheSource
+cache_source_for(
+    struct PlatformX_IO* px,
+    struct ToriRS_IOItem const* item)
+{
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+    if( cache_item_is_dat1(item) )
+        return px->dat1_on_demand ? CACHE_SOURCE_ON_DEMAND : CACHE_SOURCE_DISK;
+    return px->js5 ? CACHE_SOURCE_JS5 : CACHE_SOURCE_DISK;
+#else
+    (void)px;
+    (void)item;
+    return CACHE_SOURCE_DISK;
+#endif
+}
+
+/*
+ * Must the caller park on this source rather than be answered inside LoadItem?
+ *
+ * The one asymmetry left between the two remote backings, and a real one: JS5
+ * pulls a group over several frames and the task has to wait, while the
+ * on-demand handle blocks until its archive arrives and so behaves exactly
+ * like a disk from here. Asking this instead of testing for JS5 by hand is
+ * what lets Process talk about sources; the day the dat1 handle grows the same
+ * behaviour, it answers yes here and nothing else moves.
+ */
+/* Only compiled where a source can park. A build with no JS5 has no such
+ * source, so Process never asks and the question would be dead code. */
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+static int
+cache_source_parks(enum CacheSource source)
+{
+    return source == CACHE_SOURCE_JS5;
+}
+#endif
 
 static int
 load_cache_item_dat2(
@@ -837,16 +924,22 @@ static int
 dat1_map_archive_id(
     struct PlatformX_IO* px,
     int map_square_id,
-    int want_scenery)
+    int want_scenery,
+    enum CacheSource source)
 {
-    struct RSCache_MapSquares* squares = px->dat1_disk ? px->dat1_disk->map_squares : NULL;
+    struct RSCache_MapSquares* squares = NULL;
 
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
     /* Same table, other source: the server's versionlist, decoded when the
-     * on-demand handle opened. */
-    if( !squares && px->dat1_on_demand )
+     * on-demand handle opened. Selected by source rather than by falling back
+     * off a NULL disk, so this reads the same way the archive load below does. */
+    if( source == CACHE_SOURCE_ON_DEMAND )
         squares = PlatformXIOOnDemand_MapSquares(px->dat1_on_demand);
+    else
+#else
+    (void)source;
 #endif
+        squares = px->dat1_disk ? px->dat1_disk->map_squares : NULL;
 
     if( !squares )
         return -1;
@@ -863,25 +956,25 @@ dat1_map_archive_id(
 static int
 load_cache_item_dat1(
     struct PlatformX_IO* px,
-    struct ToriRS_IOItem* item)
+    struct ToriRS_IOItem* item,
+    enum CacheSource source)
 {
     int table_id = item->u.cache.table_id;
     int archive_id = item->u.cache.archive_id;
     int flags = item->u.cache.flags;
     struct RSCache_Dat1DiskArchive* archive = NULL;
 
-    /* Exactly one dat1 source is configured; InitDat1OnDemand asserts the
-     * other is absent. Reading through a NULL disk is what this catches. */
-#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
-    assert(px->dat1_disk || px->dat1_on_demand);
-#else
-    assert(px->dat1_disk);
-#endif
+    /* Exactly one dat1 source is configured, so a source that is not the
+     * on-demand handle must be a disk. Reading through a NULL disk is what
+     * this catches, and it now says so without a per-build spelling: the
+     * on-demand arm is only reachable when that handle exists, because that is
+     * the only way cache_source_for names it. */
+    assert(source == CACHE_SOURCE_ON_DEMAND || px->dat1_disk);
 
     if( flags == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN || flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY )
     {
         archive_id = dat1_map_archive_id(
-            px, archive_id, flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY);
+            px, archive_id, flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY, source);
         if( archive_id < 0 )
         {
             item->error_code = -1;
@@ -898,7 +991,7 @@ load_cache_item_dat1(
     }
 
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
-    if( px->dat1_on_demand )
+    if( source == CACHE_SOURCE_ON_DEMAND )
         archive = PlatformXIOOnDemand_ArchiveLoad(px->dat1_on_demand, table_id, archive_id);
     else
 #endif
@@ -915,16 +1008,41 @@ load_cache_item_dat1(
     return 0;
 }
 
+/*
+ * One cache read, dispatched on its source.
+ *
+ * Both remote backings appear here, at the same level, which is the whole
+ * point of the enum: the container split that used to be the only thing this
+ * function said is now one arm of it rather than the shape of it.
+ */
 static int
 load_cache_item(
     struct PlatformX_IO* px,
     struct ToriRS_IOItem* item)
 {
-    if( item->u.cache.flags == TORIRS_IO_CACHE_DAT1 ||
-        item->u.cache.flags == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN ||
-        item->u.cache.flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY )
-        return load_cache_item_dat1(px, item);
-    return load_cache_item_dat2(px, item);
+    enum CacheSource const source = cache_source_for(px, item);
+
+    switch( source )
+    {
+    case CACHE_SOURCE_JS5:
+        /*
+         * Only ever reached for a group that is already resident: Process
+         * parks everything else on the JS5 client and resumes it here once the
+         * bytes have landed in the disk. So this is a disk read, and it is the
+         * same one CACHE_SOURCE_DISK does -- what differs is who filled it.
+         */
+        return load_cache_item_dat2(px, item);
+    case CACHE_SOURCE_ON_DEMAND:
+        return load_cache_item_dat1(px, item, source);
+    case CACHE_SOURCE_DISK:
+        return cache_item_is_dat1(item) ? load_cache_item_dat1(px, item, source)
+                                        : load_cache_item_dat2(px, item);
+    }
+
+    /* No default above, so a source added without an arm is a compiler
+     * warning rather than a silent fall-through to the wrong container. */
+    item->error_code = -1;
+    return -1;
 }
 
 static int
@@ -1073,8 +1191,12 @@ PlatformX_IO_Process(
         item->error_code = 0;
 
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
-        if( px->js5 && item->kind == TORIRS_IOK_CACHE &&
-            item->u.cache.flags == TORIRS_IO_CACHE_DAT2 )
+        /* A source that parks is the only reason this loop does anything other
+         * than call LoadItem. Asked as a question about the SOURCE, so the
+         * on-demand backing is covered by the same sentence rather than being
+         * handled somewhere LoadItem cannot see. */
+        if( item->kind == TORIRS_IOK_CACHE &&
+            cache_source_parks(cache_source_for(px, item)) )
         {
             if( js5_queue_cache_item(px, io, slot) == 0 )
                 processed++;
