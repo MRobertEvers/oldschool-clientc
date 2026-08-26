@@ -190,6 +190,8 @@ import { bakeInterface } from '/src/if_to_tree.js';
 import { HostConfig } from '/src/host_config.js';
 import { createModelRenderController } from '/src/model_render_controller.js';
 import { createModelSource } from '/src/model_source.js';
+import { createDbState } from '/src/host_db.js';
+import { createWorldMapState } from '/src/host_bridge.js';
 
 /*
  * Stamped into the status line so a screenshot says which code produced it.
@@ -268,6 +270,20 @@ async function mount(key) {
   }
 }
 
+/*
+ * The host-data bundle: the DB, the world map, and every table a query
+ * surface reads. Fetched once per page — the quest list, music player and
+ * hiscores are BUILT from db_find, and a session whose db is empty renders
+ * "there are no quests" against a reference that lists them.
+ */
+let hostDataPromise = null;
+function hostData() {
+  hostDataPromise ??= fetch('/api/hostdata')
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null);
+  return hostDataPromise;
+}
+
 async function mountStages(key) {
   status('fetching ' + key + '…');
   const detail = await fetch(\`/api/interface?key=\${encodeURIComponent(key)}\`)
@@ -293,8 +309,23 @@ async function mountStages(key) {
    * one growing view of them -- a widget drawing an obj icon reads the same
    * record the script that placed it read. */
   const config = new HostConfig();
+  const data = await hostData();
   runtime = mountInterface({
     canvas, scripts, config, models: modelSource(),
+    /* Fresh states per MOUNT: the db find iterator and worldmap request
+     * queue are session state, and sharing them across remounts would leak
+     * one interface's cursor into the next. */
+    db: data ? createDbState({ dbTables: data.dbTables, dbRows: data.dbRows }) : null,
+    worldMap: data?.worldMap ? createWorldMapState(data.worldMap) : null,
+    /*
+     * Unimplemented host operations are FAKED, as the reference VM fakes
+     * unknown opcodes (CS2VM2_Op_StackMetaStub: pop the arguments, push
+     * zeros, announce once). Throwing instead aborts the whole mount over
+     * one clan op in an unrelated hook — and the faked call is still
+     * named in the log, never silent.
+     */
+    fakeUnimplemented: true,
+    onUnimplemented: (method) => { log.textContent += 'faked host op: ' + method + '\\n'; },
     onWarning: (message) => { log.textContent += \`\${message}\\n\`; },
     onFrame: (painted, session) => { if( painted ) metrics(session); },
   });
@@ -302,6 +333,9 @@ async function mountStages(key) {
    * (RS_CS2Host), and scripts read it -- a fade scheduled at clientclock+3
    * lands three cycles later only if the start agrees. */
   runtime.session.host.clock.cycles = 100;
+  /* The boot varbit the client seeds before any script runs: interface
+   * resizing (17772) is optimistically 1, and scripts branch on it. */
+  runtime.session.host.state.setVarbit(17772, 1);
   chrome.size = { width: detail.width ?? 765, height: detail.height ?? 503 };
   runtime.resize(chrome.size.width, chrome.size.height);
   fit();
@@ -731,7 +765,11 @@ if( 'EventSource' in globalThis )
     if( boot !== event.data ) location.reload();
   });
   events.addEventListener('reload', () => location.reload());
-  events.addEventListener('changed', () => { if( chrome.selected ) mount(chrome.selected); });
+  events.addEventListener('changed', () => {
+    /* The content changed, so yesterday's bundle may describe it wrongly. */
+    hostDataPromise = null;
+    if( chrome.selected ) mount(chrome.selected);
+  });
 }
 
 const stage = $('stage');

@@ -44,6 +44,8 @@ export class InterfaceSession {
         root = DEFAULT_ROOT, surface = null, scripts = null, loader = null,
         state = null, config = null, player = null, assets = null,
         sprites = null, fonts = null, models = null, onWarning = null,
+        db = null, worldMap = null,
+        fakeUnimplemented = false, onUnimplemented = null,
     } = {}) {
         this.tree = createUITree();
         /*
@@ -55,6 +57,7 @@ export class InterfaceSession {
          */
         this.host = createHostKernel({
             tree: this.tree, state: state ?? new HostState(), config, player, fonts,
+            db, worldMap, fakeUnimplemented, onUnimplemented,
             assets: assets ?? new StoreAssetSource({ sprites, fonts, models, config }),
         });
         this.scripts = scripts ?? new ScriptRegistry();

@@ -133,6 +133,7 @@ export class BrowserRuntime {
     constructor({
         canvas, cache, scripts = null, state = null, config = null, player = null,
         models = null, onFrame = null, onWarning = null, devicePixelRatio = null,
+        db = null, worldMap = null, fakeUnimplemented = false, onUnimplemented = null,
     } = {}) {
         if( !canvas ) throw new TypeError('a browser runtime needs a canvas');
         this.canvas = canvas;
@@ -163,6 +164,7 @@ export class BrowserRuntime {
             sprites: this.sprites, fonts: this.fonts, models: this.models,
             loader: this.loader, scripts: scripts ?? new ScriptRegistry(),
             state, config, player, onWarning,
+            db, worldMap, fakeUnimplemented, onUnimplemented,
             root: { x: 0, y: 0, width: canvas.width, height: canvas.height },
         });
 

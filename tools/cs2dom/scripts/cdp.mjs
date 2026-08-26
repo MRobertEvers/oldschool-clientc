@@ -29,6 +29,15 @@ export async function launchChrome({ profileDir }) {
         '--no-first-run', '--no-default-browser-check',
         '--disable-background-timer-throttling',
         '--disable-renderer-backgrounding',
+        /*
+         * Software canvas, not SwiftShader-GPU. Under the GPU path a page
+         * that repaints a large canvas in a tight driven loop LOSES the
+         * backing store mid-run — isContextLost() still answers false while
+         * fills stop landing and every readback returns transparent black.
+         * The third forced repaint of the quest list came back empty that
+         * way, deterministically, with the painter blameless.
+         */
+        '--disable-gpu',
         '--hide-scrollbars',
         'about:blank',
     ], { stdio: ['ignore', 'ignore', 'pipe'] });

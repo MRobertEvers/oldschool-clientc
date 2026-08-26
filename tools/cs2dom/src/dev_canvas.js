@@ -21,6 +21,7 @@ import { emitScript } from './cs2_js_emit.js';
 import { parseIf, parseCompack } from './if_record.js';
 import { createContentAssets } from './content_assets.js';
 import { createContentConfigs } from './content_configs.js';
+import { contentHostData } from './host_data.js';
 import {
     modelAssets, modelIndex, rawModel, requestModel, startModelServer,
 } from './model.js';
@@ -125,6 +126,8 @@ function route(state, url, request, response) {
         return sendGroup(state, Number(url.searchParams.get('id')), response);
     case '/api/config':
         return sendConfig(state, url.searchParams, response);
+    case '/api/hostdata':
+        return sendHostData(state, response);
     case '/api/model':
         return sendModel(state, Number(url.searchParams.get('id')), response);
     case '/api/seq':
@@ -333,6 +336,23 @@ function sendConfig(state, params, response) {
      * host has a documented miss answer for every config op and needs the
      * load to have COMPLETED to reach it. A 404 would be retried. */
     send(response, 200, MIME['.json'], JSON.stringify({ kind, table, id, record: record ?? null }));
+}
+
+/*
+ * The whole host-data bundle, in one fetch.
+ *
+ * The DB is the part that matters: ten list panels — the quest list, the
+ * music player, the hiscores — are BUILT from a db_find query, and a page
+ * whose db is empty renders "there are no quests" against a reference that
+ * lists them. Per-row fetching makes no sense for a query surface, so the
+ * page takes the bundle once, exactly as the emit-parity runner does.
+ */
+function sendHostData(state, response) {
+    if( !state.contentDir )
+        return send(response, 404, MIME['.json'], '{"error":"no content"}');
+    if( !state.hostDataJson )
+        state.hostDataJson = JSON.stringify(contentHostData(state.contentDir));
+    send(response, 200, MIME['.json'], state.hostDataJson);
 }
 
 /* -------------------------------------------------------------------------
@@ -614,6 +634,7 @@ function watchContent(state) {
     if( !existsSync(dir) ) return;
     watchDir(dir, true, () => {
         state.catalogue = null;
+        state.hostDataJson = null;
         announce(state, 'changed');
     });
 }
