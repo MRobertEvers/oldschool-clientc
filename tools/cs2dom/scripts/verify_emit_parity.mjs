@@ -705,6 +705,19 @@ async function run(reference) {
         }
     }
 
+    /* PARITY_FIND_PROP=name=value lists every live node carrying it. */
+    if( process.env.PARITY_FIND_PROP )
+    {
+        const [key, want] = process.env.PARITY_FIND_PROP.split('=');
+        for( const node of tree.nodes )
+        {
+            if( node.freed ) continue;
+            if( String(node.props[key]) !== want ) continue;
+            console.error(`${node.componentId} sub=${node.subId} dyn=${node.dynamic}`
+                + ` hidden=${node.hidden} props=${JSON.stringify(node.props)}`);
+        }
+    }
+
     if( process.env.PARITY_DUMP_NODES )
     {
         for( const uid of process.env.PARITY_DUMP_NODES.split(',') )

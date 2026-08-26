@@ -556,8 +556,17 @@ class ScriptEmitter {
         case 'event':
             return eventSentinel(node.property, this.ast.id);
         case 'compound':
-            /* A compound in value position is a tuple of stack slots. */
-            return `[${node.children.map((child) => this.expr(child)).join(', ')}]`;
+            /*
+             * A compound in value position is a tuple of STACK SLOTS, so a
+             * member that leaves several contributes several — the same rule
+             * an argument list follows, and for the same reason.
+             *
+             * `patchy` is the case: `$int8, $int9, $int10 = db_getfield(a),
+             * db_getfield(b)` is three slots from two calls, and nesting the
+             * second call's pair inside one element left `$int10` undefined
+             * and put the wrong item in the second cell.
+             */
+            return `[${node.children.map((child) => this.argSlot(child)).join(', ')}]`;
         case 'operation':
             return this.operation(node);
         case 'proc':
