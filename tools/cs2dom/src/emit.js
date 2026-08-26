@@ -204,11 +204,23 @@ export class Emitter {
         let surface = context.surface;
         if( clipsChildren(node) )
         {
+            /*
+             * A clipping layer culls its subtree when its OWN BOX is
+             * degenerate — `UITree_LayerCullsChildren(c, w, h)` is
+             * `clips_children && (w <= 0 || h <= 0)` — and NOT when its clip
+             * comes out empty against the surface.
+             *
+             * The two are different questions. A 600x600 layer parked at
+             * y=600 on a 503-tall canvas intersects to nothing, and the
+             * reference still walks it and still emits its children with that
+             * empty clip; the painter is what draws none of them. Culling on
+             * the intersection lost twelve of `snow_heavy`'s sixteen tiles.
+             */
+            if( box.width <= 0 || box.height <= 0 ) return;
             const clipX = box.x - context.scrollX + (inDrag ? dragDx : 0);
             const clipY = box.y - context.scrollY + (inDrag ? dragDy : 0);
             const own = { x: clipX, y: clipY, width: box.width, height: box.height };
             clip = intersect(own, surface);
-            if( clip.width <= 0 || clip.height <= 0 ) return;
             if( establishesSurface(node, box) ) surface = clip;
         }
 
@@ -303,8 +315,8 @@ export class Emitter {
 
         const x = box.x - context.scrollX + (drag.inDrag ? drag.dragDx : 0);
         const y = box.y - context.scrollY + (drag.inDrag ? drag.dragDy : 0);
+        /* An empty clip is a command all the same — see the cull note above. */
         const clip = context.clip;
-        if( clip.width <= 0 || clip.height <= 0 ) return;
 
         this.commands.push({
             kind,
