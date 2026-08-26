@@ -1,4 +1,5 @@
 #include "world_builder.h"
+#include "toridraw_element_id.h"
 
 #include "blendmap.h"
 #include "collision_map.h"
@@ -157,7 +158,7 @@ world_builder_mark_element_keep(
     int element_id)
 {
     if( element_id >= 0 && element_id < TORIDRAW_SCENE_MAX_ELEMENTS )
-        keep[element_id] = 1;
+        keep[ToriDraw_ElementIndexOfRaw(element_id)] = 1;
 }
 
 /*

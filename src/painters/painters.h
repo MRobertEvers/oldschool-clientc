@@ -2,6 +2,7 @@
 #define PAINTERS_H
 
 #include "graphics/projection.h"
+#include "toridraw_element_id.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -252,7 +253,7 @@ enum PaintersSceneryFlags
 
 struct NormalScenery
 {
-    uint16_t entity;
+    uint32_t entity;
     /*
      * Tile footprint, 1..PAINTER_SCENERY_MAX_SIZE.
      *
@@ -276,7 +277,7 @@ struct NormalScenery
 
 struct GroundObject
 {
-    uint16_t entity;
+    uint32_t entity;
 };
 
 enum WallSide
@@ -293,7 +294,7 @@ enum WallSide
 
 struct Wall
 {
-    uint16_t entity;
+    uint32_t entity;
 
     uint8_t side;
 };
@@ -319,7 +320,7 @@ enum ThroughWallFlags
 
 struct WallDecor
 {
-    uint16_t entity;
+    uint32_t entity;
 
     // For throughwall, this specifies which side is the "outside".
     // enum WallSide side;
@@ -401,7 +402,13 @@ struct PaintersElementCommand
         struct
         {
             uint32_t _bf_kind : 4;
+            /* The scene index and the element KIND, side by side rather
+             * than as one tagged id: a tagged id is 32 bits wide (the kind
+             * sits at bit 28) and would not fit beside _bf_kind here. The
+             * word was using 20 of its 32 bits, so the kind is free.
+             * painter_command_element_id() puts the two back together. */
             uint32_t _bf_entity : 16;
+            uint32_t _bf_entity_kind : 4;
         } _entity;
 
         struct
@@ -413,6 +420,15 @@ struct PaintersElementCommand
         } _terrain;
     };
 };
+
+/** The tagged element id a PNTR_CMD_ELEMENT command names. */
+static inline int
+painter_command_element_id(struct PaintersElementCommand const* cmd)
+{
+    return ElementId_Raw(ElementId_Make(
+        (enum ToriDraw_ElementKind)cmd->_entity._bf_entity_kind,
+        (int)cmd->_entity._bf_entity));
+}
 
 struct Painter;
 

@@ -15609,7 +15609,7 @@ app_world_paint(struct App* app)
                 struct WorldEntity_Scenery* sc;
                 if( c->_bf_kind != PNTR_CMD_ELEMENT )
                     continue;
-                sc = World_SceneryGetByElementId(app->world, (int)c->_entity._bf_entity);
+                sc = World_SceneryGetByElementId(app->world, painter_command_element_id(c));
                 if( !sc )
                     continue;
                 if( sc->grid_position.x < x0 - 8 || sc->grid_position.x > x1 + 8 ||
@@ -16888,13 +16888,18 @@ enum
 static int
 app_world_scene_element_create(
     struct App* app,
+    enum ToriDraw_ElementKind kind,
     struct ToriDraw_Model* model,
     int world_x,
     int world_y,
     int world_z)
 {
     struct ToriDraw_ModelHandle hnd;
-    int element_id = ToriDraw_SceneElementAddPool(app->scene, TORIDRAW_SCENE_POOL_DYNAMIC);
+    /* Tagged here, where the caller still knows what it is making. Every
+     * reader downstream would otherwise have to ask the world, and the
+     * pick classifier asked by trying all four pools in turn. */
+    int element_id = ElementId_Raw(ElementId_Make(
+        kind, ToriDraw_SceneElementAddPool(app->scene, TORIDRAW_SCENE_POOL_DYNAMIC)));
 
     if( element_id < 0 )
     {
@@ -17564,7 +17569,7 @@ app_world_spawn_player_now(
     ToriDraw_ModelCaptureOriginalVertices(copy);
 
     world_y = app_world_height(app, world_x, world_z, level);
-    element_id = app_world_scene_element_create(app, copy, world_x, world_y, world_z);
+    element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_PLAYER, copy, world_x, world_y, world_z);
     if( element_id < 0 )
         return -1;
     app_world_apply_seq(app, element_id, APP_PLAYER_SEQ_READY);
@@ -17843,7 +17848,7 @@ app_world_spawn_npc_now(
     world_z = tile_z * 128 + size * 64;
     world_y = app_world_height(app, world_x, world_z, level);
     bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
-    element_id = app_world_scene_element_create(app, model, world_x, world_y, world_z);
+    element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_NPC, model, world_x, world_y, world_z);
     if( element_id < 0 )
         return -1;
     {
@@ -18005,7 +18010,7 @@ app_world_spawn_projectile_now(
         range = abs(tile_z - src_tile_z);
     t2 = 60 + range * 5; /* ticks: base flight + per-tile stretch */
 
-    element_id = app_world_scene_element_create(app, model, src_x, src_y, src_z);
+    element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_PROJECTILE, model, src_x, src_y, src_z);
     if( element_id < 0 )
         return;
 
@@ -18095,7 +18100,7 @@ app_world_spawn_projectile_spot_now(
     /* World y is negative-up: reference y = getAvH(src) - h1, h1 = src_height*4. */
     src_y = app_world_height(app, src_x, src_z, src_level) - src_height * 4;
 
-    element_id = app_world_scene_element_create(app, model, src_x, src_y, src_z);
+    element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_PROJECTILE, model, src_x, src_y, src_z);
     if( element_id < 0 )
         return;
 
@@ -18224,7 +18229,7 @@ app_world_spawn_spotanim_now(
      * raises the effect above the ground by `height`. */
     world_y = app_world_height(app, world_x, world_z, level) - height;
 
-    element_id = app_world_scene_element_create(app, model, world_x, world_y, world_z);
+    element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_SPOTANIM, model, world_x, world_y, world_z);
     if( element_id < 0 )
         return;
 
@@ -18738,7 +18743,7 @@ app_plugin_object_materialize_now(struct App* app, int handle)
     if( !model )
         return;
 
-    element_id = app_world_scene_element_create(app, model, world_x, world_y, world_z);
+    element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_NONE, model, world_x, world_y, world_z);
     if( element_id < 0 )
         return;
     /* The element carries the yaw, not the entity: the painter is handed an
@@ -28296,7 +28301,7 @@ App_WorldObjStackAdd(
      * the stack onto the table (Client-TS objs.y - objs.height). */
     world_y = app_world_height(app, world_x, world_z, level) -
               World_ObjRaiseGet(app->world, scene_x, scene_z, level);
-    element_id = app_world_scene_element_create(app, model, world_x, world_y, world_z);
+    element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_OBJSTACK, model, world_x, world_y, world_z);
     if( element_id < 0 )
         return -1;
 

@@ -694,6 +694,8 @@ PlatformSDL2_Init(struct PlatformSDL2* p, int width, int height, char const* tit
 {
     RECT r;
     HDC screen;
+    DWORD style;
+    int fullscreen;
 
     assert(p);
     assert(width > 0 && height > 0);
@@ -703,16 +705,34 @@ PlatformSDL2_Init(struct PlatformSDL2* p, int width, int height, char const* tit
     if( !register_class() )
         return false;
 
+    /* TORIRS_WIN32_FULLSCREEN=1: a borderless window at the desktop origin,
+     * so the client area IS the screen.
+     *
+     * The ordinary window is WS_OVERLAPPEDWINDOW, and asking that for a
+     * client area the size of the screen produces an outer window LARGER than
+     * the screen -- the caption sits at y=0 and the bottom rows of the canvas
+     * fall off the desktop. The client would then be rendering pixels the
+     * desktop never shows, which is exactly the wrong thing to hand a renderer
+     * benchmark: soft3d's blit shrinks with the visible area while D3D9's
+     * backbuffer does not, so the two lanes would stop drawing the same frame.
+     * WS_POPUP has no non-client area at all, so the client area asked for is
+     * the client area obtained.
+     *
+     * This decides the window's STYLE, not its size -- the caller still owns
+     * that, and fills the screen by passing the screen's own resolution. */
+    fullscreen = getenv("TORIRS_WIN32_FULLSCREEN") ? 1 : 0;
+    style = fullscreen ? WS_POPUP : WS_OVERLAPPEDWINDOW;
+
     r.left = 0;
     r.top = 0;
     r.right = width;
     r.bottom = height;
-    AdjustWindowRect(&r, WS_OVERLAPPEDWINDOW, FALSE);
+    AdjustWindowRect(&r, style, FALSE);
 
     p->hwnd = CreateWindowExA(
         0, RPD_WNDCLASS, title ? title : "ToriRS",
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT,
+        style,
+        fullscreen ? 0 : CW_USEDEFAULT, fullscreen ? 0 : CW_USEDEFAULT,
         r.right - r.left, r.bottom - r.top,
         NULL, NULL, GetModuleHandle(NULL), NULL);
     if( !p->hwnd )

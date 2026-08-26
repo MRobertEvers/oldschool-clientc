@@ -200,7 +200,7 @@ render_scene(
 
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
         {
-            element_id = (int)cmd->_entity._bf_entity;
+            element_id = painter_command_element_id(cmd);
         }
         else if( cmd->_bf_kind == PNTR_CMD_TERRAIN )
         {

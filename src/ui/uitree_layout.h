@@ -34,6 +34,15 @@ UITree_MulShift14(int a, int b)
 void
 UITree_LayoutInvalidate(struct UITree* tree);
 
+/** Same, but naming the node whose own layout inputs changed.
+ *
+ *  Prefer this wherever the caller knows the node: it lets the next resolve
+ *  walk that node and its descendants instead of every component in the
+ *  tree. UITree_LayoutInvalidateBoxes is the same thing without a node, and
+ *  costs a full sweep. */
+void
+UITree_LayoutInvalidateNode(struct UITree* tree, int32_t idx);
+
 /** Mark every node's resolved box as possibly out of date, in O(1). Every write
  *  to a layout input must call this (or UITree_LayoutInvalidate, which also
  *  clears the per-node resolved flags), because UITree_LayoutResolve skips the

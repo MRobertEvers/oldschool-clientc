@@ -1,0 +1,58 @@
+dump          : C:/Users/mrobe/.claude/jobs/6a36cf9a/tmp/out_eip3/E0-soft3d.eip.txt
+binary        : C:/Users/mrobe/Documents/git_repos/oldschool-clientc/.claude/worktrees/d3d9-profile/dist/win32/torirs.exe
+module base   : 0x00400000   (nm range 0x00401000-0x0083c570)
+samples       : 15512 over 43.5 s (357 Hz), 13416 in image (86.5%), 0 suspend failures
+
+=== inside the executable ===
+  samples   share   at  34.6ms  symbol
+------------------------------------------------------------------------------
+     2355   15.18%    5.260 ms  _toridraw_gouraud_tri_opaque_s4_asm
+     1708   11.01%    3.815 ms  _toridraw_textri_opaque_lerp8_v3_asm
+     1119    7.21%    2.500 ms  _ToriDraw_ComputeProjectedFaceOrderSmall.lto_priv.0
+     1035    6.67%    2.312 ms  _draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered.lto_priv.0
+      875    5.64%    1.955 ms  _ToriDraw2D_BlitArgbTiledAlpha.part.0
+      657    4.24%    1.468 ms  _ToriRS_Soft3D_RenderFrame
+      479    3.09%    1.070 ms  _painter_paint_bucket.constprop.0.isra.0
+      426    2.75%    0.952 ms  _ToriDraw_Project.lto_priv.0
+      424    2.73%    0.947 ms  _ToriDraw_RasterPainter.isra.0
+      322    2.08%    0.719 ms  _ToriDraw2D_BlitArgbAlpha.part.0
+      305    1.97%    0.681 ms  _ToriRS_Soft3D_Execute
+      302    1.95%    0.675 ms  _ToriRS_FrameNextCommand
+      286    1.84%    0.639 ms  _ToriDraw_AnimApplyTransform
+      281    1.81%    0.628 ms  _app_plugin_highlights_rebuild_pools
+      276    1.78%    0.617 ms  _toridraw_stock_branching_gouraud
+      256    1.65%    0.572 ms  _emit_walk_node
+      212    1.37%    0.474 ms  _raster_flat_screen_opaque_branching_s4_ordered.lto_priv.0
+      161    1.04%    0.360 ms  _scene_occluders_ground_tile_hidden
+      157    1.01%    0.351 ms  _ToriDraw_CalculateCylinderAabb8point.isra.0
+      153    0.99%    0.342 ms  _World_CycleRegisterPainterDynamics.lto_priv.0
+       84    0.54%    0.188 ms  _raster_texshadeblend_persp_textrans_branching_lerp8_v3_ordered
+       77    0.50%    0.172 ms  _CS2VM2_RunOp
+       74    0.48%    0.165 ms  _app_world_frame.constprop.0
+       72    0.46%    0.161 ms  _font_draw_glyph_pixels.isra.0
+       68    0.44%    0.152 ms  _hit_test_interactive_recursive.constprop.0
+       59    0.38%    0.132 ms  _cs2vm2_run_script_body
+       56    0.36%    0.125 ms  _PlatformXIOJs5Cache_Tick
+       45    0.29%    0.101 ms  _UITree_FindByComponentId
+       39    0.25%    0.087 ms  _app_ui_host_publish_inputs.constprop.0
+       39    0.25%    0.087 ms  _toridraw_stock_branching_textured_gouraud.lto_priv.0
+       32    0.21%    0.071 ms  _ToriDraw_TriangleFaceTextureBlendOpaqueImpl.isra.0
+       29    0.19%    0.065 ms  _toridraw_texplane_prepare32_asm
+       26    0.17%    0.058 ms  _toridraw_projected_model_hit_face.isra.0
+       25    0.16%    0.056 ms  _toridraw_stock_branching_flat
+       25    0.16%    0.056 ms  ___umoddi3
+       24    0.15%    0.054 ms  _Task_CS2Run_Run.lto_priv.0
+       23    0.15%    0.051 ms  _ToriDraw_ModelAnimateFrame
+       23    0.15%    0.051 ms  _UITree_LayerChildClip
+       21    0.14%    0.047 ms  _hmap_search.constprop.0
+       21    0.14%    0.047 ms  _UITree_EmitWalk
+
+=== outside the executable (64 KB pages, DLL granularity) ===
+  samples   share   at  34.6ms  symbol
+------------------------------------------------------------------------------
+     1546    9.97%    3.453 ms  ntdll.dll
+      515    3.32%    1.150 ms  msvcrt.dll
+       30    0.19%    0.067 ms  kernel32.dll
+        3    0.02%    0.007 ms  WS2_32.dll
+        1    0.01%    0.002 ms  USER32.dll
+        1    0.01%    0.002 ms  mswsock.dll
