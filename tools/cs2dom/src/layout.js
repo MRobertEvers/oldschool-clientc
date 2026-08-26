@@ -199,7 +199,23 @@ export class Layout {
             this.stats.nodesVisited++;
 
             const parent = parentBox(tree, node.parent, this.root);
-            const { width, height } = computeSize(node.props, parent.width, parent.height);
+            let { width, height } = computeSize(node.props, parent.width, parent.height);
+            /*
+             * A ROOT that resolves to nothing takes the canvas:
+             *
+             *     if( c->parent < 0 && w == 0 && h == 0 ) { w = pw; h = ph; }
+             *
+             * A pack's toplevel often declares no size at all — it is the
+             * mount that gives it one — and without this its whole subtree
+             * collapses to a zero box and the interface draws nothing.
+             * `membership_benefits_prompt` had twenty visible components and
+             * an empty draw list.
+             */
+            if( node.parent < 0 && width === 0 && height === 0 )
+            {
+                width = parent.width;
+                height = parent.height;
+            }
             const x = axisFromPositionMode(
                 node.props.xMode | 0, node.props.x | 0, parent.x, parent.width, width);
             const y = axisFromPositionMode(

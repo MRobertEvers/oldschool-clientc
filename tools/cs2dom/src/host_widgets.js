@@ -348,6 +348,39 @@ export function installWidgetOps(HostKernel) {
          * were invisible here.
          */
         if( (objId | 0) > 0 && node.hidden ) tree.setHidden(node.index, false);
+        /*
+         * A type-6 cell draws the obj in 3D, not as its 32x32 icon.
+         *
+         * `IfType.getModel` prefers `objectId` over `modelId`, so the
+         * reference builds the objtype's inventory model here and stamps the
+         * objtype's own 2D composition over the CC_CREATE defaults —
+         * `xan2d`/`yan2d`/`zoom2d`/`yof2d`, because zoom 100 is a camera
+         * roughly twenty times too close and a model at its own orientation is
+         * not the shape a player recognises.
+         *
+         * Without it a MODEL node with an object set has no model at all, and
+         * the emit walk's "an absent model draws nothing" rule is right to
+         * skip it: `membership_benefits_prompt` has thirteen of these and drew
+         * an empty box.
+         *
+         * `xof2d` is deliberately not carried: the widget transform has no X
+         * translation, so it would tilt rather than shift. The stack-variant
+         * model a big count selects is not modelled either — this is the base
+         * inventory model, as `EnsureObjModel` takes no count.
+         */
+        if( (objId | 0) > 0 && node.type === WIDGET_TYPE.MODEL )
+        {
+            const objtype = this.config?.get('objects', objId | 0);
+            if( objtype && (objtype.model | 0) >= 0 )
+            {
+                tree.setProp(node.index, 'model', objtype.model | 0);
+                tree.setProp(node.index, 'modelAngleX', objtype.xan2d | 0);
+                tree.setProp(node.index, 'modelAngleY', objtype.yan2d | 0);
+                tree.setProp(node.index, 'modelZoom',
+                    (objtype.zoom2d | 0) > 0 ? objtype.zoom2d | 0 : 2000);
+                tree.setProp(node.index, 'modelOffsetY', objtype.yof2d | 0);
+            }
+        }
         return undefined;
     };
 

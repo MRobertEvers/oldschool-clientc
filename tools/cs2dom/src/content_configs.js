@@ -92,6 +92,23 @@ export function createContentConfigs(contentDir, { overrides = {} } = {}) {
             certTemplate: record.names.get(get('certtemplate')) ?? -1,
             examine: get('desc') ?? '',
             weight: int(get('weight')),
+            /*
+             * The 2D presentation, which a type-6 widget draws the obj WITH.
+             *
+             * `cc_setobject` on a MODEL node does not set an icon: the
+             * reference builds the objtype's inventory model and then stamps
+             * `xan2d`/`yan2d`/`zoom2d`/`yof2d` over whatever the CC_CREATE
+             * defaults were, because an item drawn at its model's own
+             * orientation and at zoom 100 is not the shape a player
+             * recognises. The defaults are `dat2_config_obj.c`'s.
+             */
+            model: get('model') === undefined
+                ? -1 : (record.names.get(get('model')) ?? int(get('model'))),
+            zoom2d: get('2dzoom') === undefined ? 2000 : int(get('2dzoom')),
+            xan2d: int(get('2dxan')),
+            yan2d: int(get('2dyan')),
+            zan2d: int(get('2dzan')),
+            yof2d: int(get('2dyof')),
             /* Three equip slots; -1 is "not equippable", and 0 is a real
              * slot (the head), so an absent field cannot read as zero. */
             wearpos: get('wearpos') === undefined ? -1 : int(get('wearpos')),

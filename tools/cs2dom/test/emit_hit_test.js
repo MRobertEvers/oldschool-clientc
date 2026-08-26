@@ -114,10 +114,24 @@ test('a child is clipped to its layer, not to an ancestor', () => {
 
 test('a collapsed clipping layer removes its whole subtree', () => {
     const { tree, emitter, settle } = harness();
-    const layer = box(tree, { type: WIDGET_TYPE.LAYER, width: 0, height: 0 });
+    /* Under a sized root, because a ROOT that resolves to 0x0 takes the canvas
+     * instead of collapsing — `if( c->parent < 0 && w == 0 && h == 0 )` in
+     * uitree_layout.c. The rule under test is the child one. */
+    const root = box(tree, { type: WIDGET_TYPE.LAYER, width: 200, height: 200 });
+    const layer = box(tree, { parent: root, type: WIDGET_TYPE.LAYER, width: 0, height: 0 });
     box(tree, { parent: layer, type: WIDGET_TYPE.RECTANGLE, width: 50, height: 50 });
     settle();
     assert.equal(emitter.commands.length, 0);
+});
+
+test('a root that resolves to nothing takes the canvas', () => {
+    const { tree, emitter, settle } = harness();
+    const root = box(tree, { type: WIDGET_TYPE.LAYER, width: 0, height: 0 });
+    box(tree, { parent: root, type: WIDGET_TYPE.RECTANGLE, width: 50, height: 50 });
+    settle();
+    /* A pack's toplevel usually declares no size — the mount gives it one — so
+     * collapsing it would take the whole interface with it. */
+    assert.equal(emitter.commands.length, 1);
 });
 
 test('a clip rect never exceeds the surface', () => {
