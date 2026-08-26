@@ -75,12 +75,21 @@ body[data-panels=off] #panel-records { display: none; }
 #panels[aria-pressed=false] { color: var(--dim); }
 section { overflow: auto; border-left: 1px solid var(--line); }
 section:first-child { border-left: 0; }
+/*
+ * The preview section is a ROWS grid so #stage has a height of its own.
+ *
+ * Left to size itself, #stage is exactly as tall as the canvas inside it —
+ * so measuring it to decide how much the canvas may grow reads back the
+ * canvas's current size, and the zoom can never rise above whatever it
+ * already is. It was pinned at 1x on every display for that reason.
+ */
+#panel-preview { display: grid; grid-template-rows: auto 1fr auto auto; overflow: hidden; }
 h2 {
   font: 600 10px var(--mono); letter-spacing: .12em; text-transform: uppercase;
   color: var(--dim); margin: 0; padding: 8px 12px;
   border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel);
 }
-#stage { display: grid; place-items: center; padding: 16px; min-height: 0; }
+#stage { display: grid; place-items: center; padding: 16px; min-height: 0; overflow: auto; }
 /* The canvas is the whole preview. Pixel art, so no smoothing anywhere in
    the chain — the context disables it too, but a CSS upscale would undo it. */
 canvas {
@@ -142,7 +151,7 @@ pre.empty { color: var(--dim); font-style: italic; }
   <div class="metric" id="m-draws">draws <b>—</b></div>
 </header>
 <main>
-  <section>
+  <section id="panel-preview">
     <h2>Preview</h2>
     <div id="stage"><canvas id="surface" width="765" height="503"></canvas></div>
     <div id="status">select an interface</div>
@@ -497,11 +506,12 @@ function toModuleUrl(source) {
  * handing the interface the pane's size instead lays it out at a size no
  * reference ever had.
  *
- * The scale SNAPS TO AN INTEGER once there is room for 1:1. This is pixel
- * art: at 2x every source pixel is exactly four, and at 2.7x some are three
- * screen pixels wide and some are two, which shows up as uneven strokes on
- * every glyph. Below 1:1 there is nothing to snap to, so the pane's own
- * ratio is used and the picture is merely small.
+ * The canvas then FILLS the pane, fractional scales included. Snapping to
+ * an integer is kinder to pixel art -- at 2x every source pixel is exactly
+ * four -- but it also threw away half the room whenever the pane held 1.9
+ * copies of the interface, and a picture at 1x in a pane with space for 1.9
+ * reads as broken rather than as principled. The zoom is reported in the
+ * header so the number is never a mystery.
  */
 function fit() {
   if( !runtime ) return;
@@ -509,11 +519,11 @@ function fit() {
   const room = Math.min(
     (stage.clientWidth - 32) / width,
     (stage.clientHeight - 32) / height);
-  const scale = room >= 1 ? Math.floor(room) : Math.max(0.1, room);
+  const scale = Math.max(0.1, room);
   chrome.scale = scale;
   canvas.style.width = Math.floor(width * scale) + 'px';
   canvas.style.height = Math.floor(height * scale) + 'px';
-  zoom.textContent = scale >= 1 ? scale + 'x' : Math.round(scale * 100) + '%';
+  zoom.textContent = scale.toFixed(2).replace(/\\.?0+$/, '') + 'x';
 }
 
 function applyDraft(session, id, value) {
