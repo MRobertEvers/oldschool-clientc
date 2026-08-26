@@ -120,6 +120,50 @@ This is the graphic-defaults set, and it is **our own
 dat1-era entries we carry that rev239 does not have here (`mapfunction`,
 `headicons`, `hitmarks`) and the two agree exactly, entry for entry.
 
+### Where the client reads them, and what that corroborates
+
+One block, `Statics.java:37160`–`:37299`, and it reads **all thirteen** — the
+eleven sprites and opcode 5's two models. It counts them: `if (var69 < 13)`,
+with `var69 * 100 / 14` driving the loading bar.
+
+| slot | field | id | name | loader | → field |
+| ---- | ----- | -- | ---- | ------ | ------- |
+| 0  | `field65` | 169 | compass          | `method9593` — one sprite  | `field2579` |
+| 1  | `field66` | 424 | mapedge          | `method9593` — one sprite  | `field4024` |
+| 2  | `field63` | 317 | mapscene         | `method6590`+`method5456`  | `field5200` |
+| 3  | `field75` | 439 | headicons_pk     | `method6840` — array       | `field6362` |
+| 4  | `field69` | 440 | headicons_prayer | `method6840`               | `field703`  |
+| 5  | `field67` | 441 | headicons_hint   | `method6840`               | `field692`  |
+| 6  | `field71` | 422 | mapmarker        | `method6840`               | `field1211` |
+| 7  | `field72` | 299 | cross            | `method6840`               | `field4579` |
+| 8  | `field73` | 300 | mapdots          | `method6840`               | `field5235` |
+| 9  | `field74` | 316 | scrollbar        | `method6590`+`method5456`  | `field2374` |
+| 10 | `field68` | 423 | mod_icons        | `method6590`+`method5456`  | `field1625` |
+| —  | `field76` | 57378 | —              | `class142.method4501`      | `field4180` |
+| —  | `field77` | 57379 | —              | `class142.method4501`      | `field3090` |
+
+The loader kinds are a check on the names that does not go through the sprite
+table at all. There are three distinct load paths, and every name lands in the
+one it should: the two single images (`compass`, `mapedge`) take the single-
+sprite call, the six multi-frame sets (`headicons_*`, `mapmarker`, `cross`,
+`mapdots`) take the `class657[]` array loader, and the three palette-indexed
+sheets (`mapscene`, `scrollbar`, `mod_icons`) take the `class670[]` one.
+Nothing is in the wrong bucket.
+
+Two draw sites settle their slots on their own:
+
+- **slot 7, `cross`.** `client.java:9983` draws `field4579[timer / 100]` at
+  `(mouseX - 8, mouseY - 8)` and `:9986` draws `[timer / 100 + 4]` — two
+  four-frame banks at the cursor, centred on a 16x16. That is the red/yellow
+  click cross.
+- **slot 2, `mapscene`.** On completion the block calls
+  `method10602(field5200[0], r±10, g±10, b±10)` seeded from `Math.random()` —
+  the per-session map-scenery tint jitter.
+
+So four independent things agree: the deob gives the ordering, index 17 gives
+the ids, index 8 gives the names, and the loader shapes and draw sites say the
+three line up.
+
 Worth stating plainly, because it is the practical consequence: the official
 client resolves `compass` to sprite group 169 by reading *this record*.
 `CacheProvider_SpriteIdByName("compass")` is our own inversion — it hashes the
