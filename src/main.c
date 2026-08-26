@@ -52,6 +52,7 @@ struct ToriRS_D3D9;
 #include "toridraw_eip_sample.h"
 #include "toridraw_frame_ab.h"
 #include "toridraw_math.h"
+#include "pacer.h"
 #include "ui/uitree_hover.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_snapshot.h"
@@ -774,16 +775,40 @@ static int uncapped;
 static int pace_spin;
 
 /*
+ * How the frame is paced. `--pacer=NAME` or TORIRS_PACER, NAME being
+ * `gameshell` (default) or `deadline`; see src/pacer.h for what each
+ * one does and what it costs.
+ *
+ * The flag wins over the environment: an env var is ambient and a flag is a
+ * decision made for this run.
+ */
+static struct ToriRS_Pacer frame_pacer;
+static char const* pacer_name_opt;
+
+/*
  * Milliseconds per drawn frame. 20 (50 fps) unless TORIRS_FRAME_MS says otherwise.
  *
  * This is a knob because the frame rate is not comparable between clients and
- * was assumed to be. The Java client on the XP target renders **31 fps**, not
- * 50: its GameShell paces `mainloop()` (logic) against `deltime` and lets
- * `mainredraw()` run once per iteration with only a 1 ms sleep, so its DRAW rate
- * floats to whatever the machine manages. Ours pins the draw at 20 ms and hits
- * it. Comparing "% of one core" between a client doing 50 draws a second and one
- * doing 31 measures the frame rate, not the renderer -- per frame we are the
- * cheaper of the two (14.96 ms against 16.23 ms).
+ * was assumed to be. The Java client on the XP target renders far below 50: its
+ * GameShell paces `mainloop()` (logic) against `deltime` and lets `mainredraw()`
+ * run once per iteration with only a 1 ms sleep. Ours pins the draw at 20 ms and
+ * hits it. Comparing "% of one core" between a client doing 50 draws a second
+ * and one doing 23 measures the frame rate, not the renderer.
+ *
+ * That 1 ms sleep is NOT free, which is where the earlier reading of this went
+ * wrong: it concluded the Java draw rate "floats to whatever the machine
+ * manages" and that the client was raster-bound down to 31. Instrumenting
+ * GameShell's own loop on the box says otherwise -- in-world it asks for its
+ * 1 ms floor on 100 % of frames and the OS charges it ~16 ms, 41 % of a 43 ms
+ * frame, because nothing in that process holds the Windows timer period down
+ * and the wait rounds up to a 15.625 ms tick. Removing only the floor, with the
+ * raster work untouched, takes it 23.0 fps -> 43.4 fps. It is raster-bound to
+ * ~44 and then sleep-bound the rest of the way.
+ *
+ * Per frame we are still the cheaper client, and by more than was thought: when
+ * the Java client is actually running rather than idling it spends 20.7 CPU ms
+ * per frame against our 14.96. The 16.23 ms once recorded here was an average
+ * over a frame that is 41 % sleep.
  *
  * So this exists to hold the draw rate fixed while comparing, and to let the
  * deployed cap be set deliberately rather than by a literal buried in the pacer.
@@ -802,6 +827,61 @@ frame_period_ms(void)
     }
     return cached;
 }
+
+/*
+ * GameShell's `mindel`: the floor under the wait, in ms. 1 is the reference's
+ * value. 0 is the arm that removes the floor entirely -- on the XP target that
+ * is worth 23.0 -> 43.4 fps in the Java client, so it is the first thing to
+ * reach for when this pacer looks slow.
+ */
+static int
+pacer_mindel_ms(void)
+{
+    char const* v = getenv("TORIRS_PACER_MINDEL");
+    int ms;
+    if( !v || !*v )
+        return 1;
+    ms = atoi(v);
+    return ms > 0 ? ms : 0;
+}
+
+static enum ToriRS_PacerKind
+pacer_kind_selected(void)
+{
+#if defined(TORIRS_PLATFORM_WEB)
+    /*
+     * The browser paces us -- requestAnimationFrame decides when a frame runs
+     * and there is no wait here to own. A rate estimator that cannot act on its
+     * estimate would only skew the logic clock, so web always takes the
+     * wall-clock pacer regardless of what was asked for.
+     */
+    return TORIRS_PACER_DEADLINE;
+#else
+    char const* name = pacer_name_opt;
+    int ok = 0;
+    enum ToriRS_PacerKind kind;
+
+    if( !name || !*name )
+        name = getenv("TORIRS_PACER");
+    if( !name || !*name )
+        return TORIRS_PACER_GAMESHELL;
+
+    kind = ToriRS_Pacer_KindFromName(name, &ok);
+    if( !ok )
+    {
+        /* Naming a pacer that does not exist is a typo, and silently running
+         * the default would hide it for the whole run -- which, for a knob
+         * whose entire purpose is A/B measurement, invalidates the arm. */
+        fprintf(
+            stderr,
+            "torirs: unknown pacer '%s' (expected 'gameshell' or 'deadline')\n",
+            name);
+        exit(2);
+    }
+    return kind;
+#endif
+}
+
 /* Frame start of the previous loop iteration, for the `period` stage. */
 static uint64_t prev_frame_start_us;
 #if defined(TORIRS_PLATFORM_WEB)
@@ -974,6 +1054,14 @@ frame_loop_step(void)
     }
 
     uint64_t now;
+    /*
+     * The clock App_RunOnce derives its logic tick count from. Equal to `now`
+     * under the deadline pacer; under the GameShell pacer it is the pacer's own
+     * clock, advanced by exactly the ticks its `ratio` owes this iteration.
+     * Nothing else in the frame may use it -- input stamps, plugin frame starts
+     * and animation all want real time.
+     */
+    uint64_t logic_now;
     int app_redraw;
     uint64_t frame_start_us;
 #if !defined(__EMSCRIPTEN__)
@@ -1246,12 +1334,20 @@ frame_loop_step(void)
         if( !CmdReplay_PumpFrame(replay, &bus, &replay_now) )
             return 0; /* recording exhausted */
         now = replay_now;
+        /* A recording carries its own clock and is not paced at all (the wait
+         * below is skipped for `replay`). Feeding those timestamps to a rate
+         * estimator would have it measure the recording rather than the
+         * machine, and would make replay depend on which pacer was selected. */
+        logic_now = now;
     }
     else
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INPUT_PREP)
         {
             now = PlatformSDL2_Ticks64();
+            /* Once per iteration, before any frame work: this is the sample
+             * point the GameShell pacer's ten-iteration ring is built on. */
+            logic_now = ToriRS_Pacer_BeginFrame(&frame_pacer, now);
             CmdBus_PushFrame(&bus, now);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PLATFORM_POLL)
             {
@@ -2139,7 +2235,7 @@ frame_loop_step(void)
     app_redraw = 0;
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_APP_RUN)
     {
-        app_redraw = App_RunOnce(&app, now, input);
+        app_redraw = App_RunOnce(&app, logic_now, input);
     }
     input_frame_pending =
         app.app_state == APP_STATE_READY && !App_InputFrameConsumed(&app);
@@ -2307,12 +2403,16 @@ frame_loop_step(void)
      * requestAnimationFrame, and a blocking sleep here would stall the page's
      * whole main thread rather than yield it. */
 #if !defined(__EMSCRIPTEN__)
-    /* 50 fps cap: wait to an absolute deadline so early wakeups are retried
-     * and the frame's complete workload counts against its 20 ms budget.
-     * --uncapped is a true profiling mode and performs no artificial wait. */
+    /* The frame cap. The selected pacer owns where the wait ends: the deadline
+     * pacer returns an absolute deadline, so an early wakeup is retried and the
+     * frame's complete workload counts against its 20 ms budget; the GameShell
+     * pacer returns now-plus-`del`, which is a duration and cannot recover the
+     * time an overrun cost. --uncapped performs no artificial wait at all. */
     if( !replay && !uncapped )
     {
         uint64_t pace_begin_us = PlatformSDL2_TicksUs();
+        uint64_t wait_until_ms =
+            ToriRS_Pacer_WaitDeadline(&frame_pacer, frame_start_ms, PlatformSDL2_Ticks64());
 
         if( pace_spin )
         {
@@ -2320,11 +2420,11 @@ frame_loop_step(void)
              * sleeping. Diagnostic only — it pins a core at 100% — but it is the
              * only way to separate the cap's own cost from the cost of resuming
              * a CPU that Windows parked during the sleep. */
-            while( PlatformSDL2_Ticks64() < frame_start_ms + frame_period_ms() )
+            while( PlatformSDL2_Ticks64() < wait_until_ms )
                 ;
         }
         else
-            PlatformSDL2_SleepUntil(frame_start_ms + frame_period_ms());
+            PlatformSDL2_SleepUntil(wait_until_ms);
 
         TORIRS_PERF_CARRY(
             TORIRS_PERF_STAGE_PACE, (PlatformSDL2_TicksUs() - pace_begin_us) * 1000u);
@@ -2874,6 +2974,7 @@ main_print_usage(char const* program)
         "[--pass P] [--rev lc254|lc245_2|xrsps233] "
         "[--js5|--no-js5] [--js5-host H] [--js5-port N] "
         "[--js5-fallback-port N] [--js5-revision N] [--uncapped] "
+        "[--pacer gameshell|deadline] "
         "[--windowmode fixed|resizable] [--window WxH] "
         "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|--d3d9|"
         "--d3d9-zbuffer|--soft3d]\n",
@@ -3021,6 +3122,27 @@ main_parse_argument_layer(
         if( strcmp(argv[argi], "--uncapped") == 0 )
         {
             uncapped = 1;
+            continue;
+        }
+        if( strcmp(argv[argi], "--pacer") == 0 && argi + 1 < argc )
+        {
+            /* Rejected here rather than at pacer init, which does not run until
+             * the cache and manifest are up: a typo would otherwise take a full
+             * boot to surface, and for a knob whose only purpose is A/B
+             * measurement, silently running the other arm is the worst outcome
+             * there is. TORIRS_PACER is checked again at init, because the
+             * environment does not come through here. */
+            int pacer_ok = 0;
+            pacer_name_opt = argv[++argi];
+            ToriRS_Pacer_KindFromName(pacer_name_opt, &pacer_ok);
+            if( !pacer_ok )
+            {
+                fprintf(
+                    stderr,
+                    "torirs: --pacer takes gameshell|deadline (got '%s')\n",
+                    pacer_name_opt);
+                return 0;
+            }
             continue;
         }
         if( strcmp(argv[argi], "--windowmode") == 0 && argi + 1 < argc )
@@ -4747,6 +4869,17 @@ main(
 
         /* TORIRS_PACE_SPIN=1: spin the 50 fps wait rather than sleeping it. */
         pace_spin = getenv("TORIRS_PACE_SPIN") && atoi(getenv("TORIRS_PACE_SPIN")) != 0;
+
+        ToriRS_Pacer_Init(
+            &frame_pacer, pacer_kind_selected(), frame_period_ms(), pacer_mindel_ms());
+        /* REPORT, not LOG: TORIRS_LOG compiles out under NDEBUG, which is
+         * exactly the optimized build every measurement is taken on. An arm
+         * that cannot say which pacer it ran is not a result. */
+        TORIRS_REPORT(
+            "pacer: %s (period %d ms, mindel %d ms)\n",
+            ToriRS_Pacer_KindName(frame_pacer.kind),
+            frame_period_ms(),
+            pacer_mindel_ms());
 
         /* Socket transport is created only when --connect enabled networking;
          * it bridges the net subsystem's out ring to a TCP socket and pushes

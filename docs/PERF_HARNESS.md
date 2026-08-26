@@ -429,6 +429,39 @@ TORIRS_PKT_SLOW_MS=<n> print `pkt_slow: type=<id> <ms> cycle=<n>` for any server
                        src/net/rev/pktnames.h.
 ```
 
+## Which pacer the frame uses
+
+`--pacer gameshell|deadline`, or `TORIRS_PACER` (the flag wins). An unknown name
+exits rather than falling back, because a knob whose whole purpose is A/B
+measurement must not silently run the other arm. The client logs the choice at
+startup: `pacer: <name> (period N ms, mindel N ms)`.
+
+```
+gameshell   (default) Jagex GameShell.run(), transcribed. A ten-iteration ring
+            estimates the achieved rate; that estimate sets how many logic ticks
+            run per draw; the wait is a DURATION with a floor of `mindel`.
+deadline    Logic ticks from the wall clock, wait to an ABSOLUTE deadline. An
+            early wakeup is retried and a deadline already past costs nothing.
+```
+
+Both hold logic at 50 ticks/s and let the draw rate float; they differ in how
+they measure and in what they wait on. The deadline pacer recovers the time an
+overrun cost and the GameShell pacer cannot, and the GameShell rate estimate
+lags ten frames.
+
+`TORIRS_PACER_MINDEL=<n>` sets GameShell's wait floor in ms (default 1, the
+reference's). **0 is the interesting arm and is our one deliberate divergence
+from the reference**, which hard-codes 1 there and can only raise it: on the XP
+target that floor is what costs the *Java* client 41 % of its frame (a 1 ms
+request charged ~16 ms, because nothing in that process holds the Windows timer
+period down and the wait rounds up to a 15.625 ms tick). We do not inherit the
+16 ms — `PlatformWin32Timing_SleepUntilMs` requests `timeBeginPeriod(1)` itself
+— but the floor is still a floor. See `docs/java_parity/README.md`.
+
+**The timer period is global and refcounted**, so this client running raises the
+resolution for every process on the box, the Java client included. Never
+benchmark the two concurrently.
+
 ## Historical Soft3D baseline (measured 2026-08-03, rev `9175a425`)
 
 Build: `-O0` client + `TORIDRAW_OPT=1` Soft3D, `EMBED_SERVER=1`,
