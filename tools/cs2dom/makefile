@@ -16,7 +16,8 @@ RSCACHE := $(REPO_ROOT)/3rd/rscache
 
 .PHONY: all install test test-wasm-core wasm react-runtime browser-runtime dev build build-dry check cachegen ops bake ship clean \
 	generated test-aot corpus-aot bench-rebuild bench-phase6 roundtrip-if roundtrip-chain \
-	emit-reference emit-parity host-coverage dev-canvas dev-legacy test-legacy
+	emit-reference emit-parity emit-reference-all emit-parity-all \
+	host-coverage dev-canvas dev-legacy test-legacy
 
 all: test
 
@@ -156,6 +157,30 @@ $(TORIRS):
 emit-reference: $(TORIRS)
 	$(NODE) scripts/capture_emit_reference.mjs --cache $(CACHE) --rev $(REV) \
 		--client $(TORIRS) --interfaces $(EMIT_INTERFACES)
+
+# The whole pack, which is the number that means anything: 881 interfaces
+# produce a draw list (the other 88 are meant to be mounted inside another).
+#
+# Two steps, because the first needs the C client and a cache and the second
+# does not. The capture is reproducible — a bounded run ticks its game logic
+# once per frame — so it only has to be redone when the CLIENT changes.
+#
+#   make emit-reference-all        # ~50s, writes EMIT_ALL_DIR
+#   make emit-parity-all           # ~6s, prints `matching` and `differing`
+#
+# `--jobs` is how many clients run at once; lower it on a small machine.
+EMIT_ALL_DIR ?= build/emit-reference
+EMIT_ALL_JOBS ?= 10
+EMIT_ALL_FRAMES ?= 3
+
+emit-reference-all: $(TORIRS)
+	$(NODE) scripts/capture_emit_reference.mjs --cache $(CACHE) --rev $(REV) \
+		--client $(TORIRS) --all --frames $(EMIT_ALL_FRAMES) \
+		--jobs $(EMIT_ALL_JOBS) --out $(EMIT_ALL_DIR)
+
+emit-parity-all: generated $(CS2)
+	$(NODE) scripts/verify_emit_parity.mjs --content $(CONTENT) --cache $(CACHE) \
+		--rev $(REV) --cs2 $(CS2) --reference $(EMIT_ALL_DIR)
 
 # What the host answers, measured against what the REFERENCE answers rather
 # than against the whole decompiler surface. See the script's header for why
