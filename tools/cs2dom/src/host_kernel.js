@@ -552,11 +552,29 @@ export class HostKernel {
      */
     _geometry(node, field) {
         this.calls++;
-        if( !node ) return -1;
+        /*
+         * A MISS answers 0, not -1.
+         *
+         * Every one of these getters ends `if( idx < 0 ) return 0;`, and the
+         * difference is load-bearing rather than cosmetic: `script7809` places
+         * the collection log at `if_getx(<a component of the toplevel>)`, and
+         * the toplevel is not mounted in a single-interface run. Answering -1
+         * put the whole panel one pixel up and left of the reference's.
+         */
+        if( !node ) return 0;
         if( this.tree.layoutStale ) this.onLayoutNeeded?.();
         const box = node.layout;
         if( !box ) return this.tree.getProp(node.index, field, 0);
-        if( field === 'width' || field === 'height' ) return box[field] | 0;
+        if( field === 'width' || field === 'height' )
+        {
+            /* `pos->layout_resolved && pos->abs_w > 0 ? abs_w : (width > 0 ?
+             * width : 0)` — a resolved box that came out zero or negative
+             * reads back as the AUTHORED size, and never below zero. */
+            const resolved = box[field] | 0;
+            if( resolved > 0 ) return resolved;
+            const authored = this.tree.getProp(node.index, field, 0) | 0;
+            return authored > 0 ? authored : 0;
+        }
         if( field === 'x' || field === 'y' )
         {
             const parent = node.parent >= 0 ? this.tree.at(node.parent) : null;

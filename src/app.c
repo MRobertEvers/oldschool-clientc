@@ -191,6 +191,9 @@ int g_torirs_painter_force = 0;
  * frame_count, which only advances when TORIRS_MAX_FRAMES bounded the run;
  * a camera path has to keep moving in an unbounded session too. */
 long g_torirs_frame_no = 0;
+/* TORIRS_MAX_FRAMES, mirrored here from main.c so the logic pacer can see it.
+ * Zero in an ordinary session. See the pacer for what it changes. */
+long g_torirs_max_frames = 0;
 
 enum
 {
@@ -25896,6 +25899,23 @@ App_RunOnce(
          */
         uint64_t elapsed_ms = now_ms > app->last_logic_ms ? now_ms - app->last_logic_ms : 0;
         int ticks = (int)((elapsed_ms + APP_LOGIC_TICK_MS / 2) / APP_LOGIC_TICK_MS);
+        /*
+         * A bounded headless run ticks ONCE per frame, on the frame and not on
+         * the wall clock.
+         *
+         * TORIRS_MAX_FRAMES=N exists to produce a comparable artefact -- a
+         * screenshot, an emit dump -- and wall-clock pacing makes that artefact
+         * non-reproducible for anything that reads `clientclock`. Two runs of
+         * `ge_pricechecker` at three frames landed on cycle 102 and cycle 104,
+         * so its pulsing overlay dumped a different transparency each time and
+         * no comparison against it could ever be exact. One tick per frame
+         * makes "three frames" mean the same three cycles every run.
+         */
+        if( g_torirs_max_frames > 0 )
+        {
+            ticks = 1;
+            app->last_logic_ms = now_ms;
+        }
         if( ticks > 0 )
         {
             app->last_logic_ms += (uint64_t)ticks * APP_LOGIC_TICK_MS;

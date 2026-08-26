@@ -3288,7 +3288,8 @@ UITree_ApplyColour(
     int const colour_now_matches =
         c->colour == colour &&
         (c->type != UIELEM_RS_TEXT || c->u.rs_text.color == colour) &&
-        (c->type != UIELEM_RS_RECT || c->u.rs_rect.color == colour);
+        (c->type != UIELEM_RS_RECT || c->u.rs_rect.color == colour) &&
+        (c->type != UIELEM_RS_LINE || c->u.rs_line.color == colour);
     if( colour_now_matches )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
@@ -3301,6 +3302,12 @@ UITree_ApplyColour(
         c->u.rs_rect.color = colour;
     else if( c->type == UIELEM_RS_ARC )
         c->u.rs_arc.color = colour;
+    /* A LINE keeps its own copy too, and the emit arm reads THAT
+     * (`out->color = component->u.rs_line.color`). Missing it here meant
+     * `cc_setcolour` on a line was accepted, stored in the generic field and
+     * then never drawn: every script-built divider rule came out black. */
+    else if( c->type == UIELEM_RS_LINE )
+        c->u.rs_line.color = colour;
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }

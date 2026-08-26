@@ -147,6 +147,43 @@ export class Cs2EmitError extends Error {
  * calls, `hooks` the scripts it installs, `hostOps` every host method it
  * reaches. `functionName` is what the source declares itself as.
  */
+/*
+ * `event_com` and its siblings are CONSTANTS, not reads.
+ *
+ * The compiler pushes a sentinel (`INT_MIN + n`, see `cs2_events` in
+ * cs2_ir.c) and the client substitutes it when it DISPATCHES the hook the
+ * value was written into — that is the whole mechanism by which
+ * `cc_setontimer("script811(event_com, event_comsubid, ...)")` names the
+ * component the timer will later land on.
+ *
+ * Reading the current event context here instead evaluated them at
+ * REGISTRATION time, where there is no event: every such hook was stored with
+ * `event_com = -1`, so `ge_offers_side`'s four fading arrows computed the
+ * right transparency and applied it to component -1.
+ *
+ * `event_opbase` is a string and carries its own literal name rather than a
+ * numeric sentinel; the substitution point treats it the same way.
+ */
+const EVENT_SENTINEL = new Map(Object.entries({
+    mousex: -2147483647,
+    mousey: -2147483646,
+    com: -2147483645,
+    opindex: -2147483644,
+    comsubid: -2147483643,
+    drop: -2147483642,
+    dropsubid: -2147483641,
+    key: -2147483640,
+    keychar: -2147483639,
+}));
+
+function eventSentinel(property, scriptId) {
+    if( property === 'opbase' ) return "'event_opbase'";
+    const sentinel = EVENT_SENTINEL.get(property);
+    if( sentinel === undefined )
+        throw new Cs2EmitError(`no sentinel for event_${property}`, scriptId);
+    return String(sentinel);
+}
+
 export function emitScript(ast) {
     if( !ast || ast.schema !== AST_SCHEMA )
         throw new Cs2EmitError(`expected ${AST_SCHEMA}, got ${ast && ast.schema}`);
@@ -503,8 +540,7 @@ class ScriptEmitter {
         case 'pointer':
             return this.read(node.variable);
         case 'event':
-            this.hostOps.add('event');
-            return `H.event(${JSON.stringify(node.property)})`;
+            return eventSentinel(node.property, this.ast.id);
         case 'compound':
             /* A compound in value position is a tuple of stack slots. */
             return `[${node.children.map((child) => this.expr(child)).join(', ')}]`;

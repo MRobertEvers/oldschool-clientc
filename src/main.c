@@ -4771,6 +4771,13 @@ main(
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */
         max_frames = getenv("TORIRS_MAX_FRAMES") ? atol(getenv("TORIRS_MAX_FRAMES")) : 0;
         frame_count = 0;
+        {
+            /* The logic pacer needs this too: a bounded run ticks once per
+             * frame rather than on the wall clock, so `clientclock` lands on
+             * the same cycle every run and an emit dump is reproducible. */
+            extern long g_torirs_max_frames;
+            g_torirs_max_frames = max_frames;
+        }
 
         /* TORIRS_PACE_SPIN=1: spin the 50 fps wait rather than sleeping it. */
         pace_spin = getenv("TORIRS_PACE_SPIN") && atoi(getenv("TORIRS_PACE_SPIN")) != 0;

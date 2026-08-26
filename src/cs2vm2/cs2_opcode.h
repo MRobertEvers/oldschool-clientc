@@ -54,13 +54,13 @@
  * notes: pc += operand
  */
 #define CS2_OP_BRANCH 6
-/* BRANCH_NOT — Branch if false.
+/* BRANCH_NOT — Branch if not equal.
  * operand: branch offset
- * int stack in:   cond
+ * int stack in:   a, b  (b = top)
  * str stack in:   -
  * int stack out:  -
  * str stack out:  -
- * notes: pc += operand if cond == 0
+ * notes: pc += operand if a != b
  */
 #define CS2_OP_BRANCH_NOT 7
 /* BRANCH_EQUALS — Branch if equal.
@@ -91,7 +91,7 @@
  */
 #define CS2_OP_BRANCH_GREATER_THAN 10
 /* RETURN — Return from script.
- * int stack in:   return value (optional)
+ * int stack in:   -
  * str stack in:   -
  * int stack out:  -
  * str stack out:  -
@@ -2266,7 +2266,7 @@
  * str stack in:   -
  * int stack out:  a / b
  * str stack out:  -
- * notes: 0 if b == 0
+ * notes: VM error if b == 0; otherwise truncates toward zero
  */
 #define CS2_OP_DIV 4003
 /* RANDOM — Random exclusive.
@@ -2318,7 +2318,7 @@
  * str stack in:   -
  * int stack out:  a % b
  * str stack out:  -
- * notes: 0 if b == 0
+ * notes: VM error if b == 0; remainder has the dividend's sign
  */
 #define CS2_OP_MOD 4011
 #define CS2_OP_POW 4012

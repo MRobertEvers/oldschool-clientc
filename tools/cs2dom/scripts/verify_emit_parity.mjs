@@ -400,9 +400,21 @@ async function run(reference) {
      * difference after that point would be an artefact of the comparison.
      */
     const fakedOps = new Set();
-    /* Frame-for-frame with the capture; see the settle loop. */
+    /*
+     * Frame-for-frame with the capture; see the settle loop.
+     *
+     * The clock starts at 100, which is where `RS_CS2Host` starts its own
+     * (`host->client_clock = 100`), and the interface opens BEFORE the first
+     * tick. Three frames therefore run the timers at 101, 102, 103 — the exact
+     * sequence a bounded headless client now produces, once its logic pacer
+     * ticks per frame instead of per wall clock.
+     *
+     * Scripts read this value directly, so it is not a free choice:
+     * `ge_offers_side` schedules four fades at `clientclock + 3 - 2i` and
+     * compares against `clientclock` on every tick.
+     */
     const frames = Math.max(1, reference.frames | 0);
-    const clock = new HostClock(0);
+    const clock = new HostClock(100);
     const host = createHostKernel({
         tree, state: new HostState(), config: configs, fonts, clock,
         assets: new StoreAssetSource({ sprites, fonts, config: configs }),
