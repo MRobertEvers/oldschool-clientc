@@ -29020,6 +29020,16 @@ App_PickFinish(
     app_world_pick_finish(app, hits);
 }
 
+/* ABLATION (measurement only): see the TORIRS_CLEAR_PROBE arm in App_Render. */
+static int
+app_clear_probe_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_CLEAR_PROBE") ? 1 : 0;
+    return armed;
+}
+
 /* See the SetClearRect call in App_Render. Read once. */
 static int
 app_clear_viewport_armed(void)
@@ -29132,7 +29142,23 @@ App_Render(
             if( my1 > y1 )
                 y1 = my1;
         }
-        ToriRS_Soft3D_SetClearRect(&soft, x0, y0, x1 - x0, y1 - y0);
+        /*
+         * TORIRS_CLEAR_PROBE=1: shrink the clear to nothing and let
+         * TORIRS_CLEAR_VERIFY report what survives.
+         *
+         * The rect above is the region that MAY need clearing (the world
+         * viewport plus the minimap). This asks the different question: which
+         * pixels actually DO. Everything the world pass paints over does not
+         * need the clear at all, and if the ones that do turn out to sit in a
+         * small band -- a sky strip, say -- the clear could shrink to that
+         * instead of to the whole viewport.
+         *
+         * Renders a wrong image on purpose. Measurement only.
+         */
+        if( app_clear_probe_armed() )
+            ToriRS_Soft3D_SetClearRect(&soft, x0, y0, 1, 1);
+        else
+            ToriRS_Soft3D_SetClearRect(&soft, x0, y0, x1 - x0, y1 - y0);
     }
 
     /* World hittest rides the render: each visible model is tested against

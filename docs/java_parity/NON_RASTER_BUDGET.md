@@ -36,8 +36,37 @@ profile nobody had taken on an in-world scene.
 | face sort | 1.15 | **structurally sound.** `TORIDRAW_SPAN_RATIO` census: 33.3 faces/model against 58.2 depth levels, 1.7× span-per-face, so the bucket sort is matched to its data and a comparison sort over ~33 elements would not obviously win. It is also already gated — `sd_render_with_kernel_painter` skips it unless `ToriDraw_RenderModel1Project` returns `TORIDRAW_CULL_VISIBLE`. |
 | present | 0.91 | **bandwidth-bound.** The desktop is 32bpp (`GetDeviceCaps` BITSPIXEL), so `BitBlt` out of the 32bpp DIB is a straight copy, not a per-pixel format conversion. Marginal cost measured at **2.37 ns/px** with `TORIRS_ABL_PRESENT_VP` (blit 170,048 instead of 384,795 px: 5.79 → 5.28). |
 | chrome blit | 0.67 | **refuted by experiment.** A cached all-opaque fast path aimed at 69.4% of blitted pixels changed nothing (15.25 → 15.24). Chrome blitting does not get cheaper per pixel. |
-| clear | 0.34 | **already narrowed** to 240,195 px from 384,795, and verified at 0 uncovered pixels over 1,600 frames. |
-| tail | 2.72 | nothing above 0.5. |
+| clear | 0.34 | **already narrowed** to 240,195 px from 384,795, and verified at 0 uncovered pixels over 1,600 frames. See the floor below. |
+| everything else | 1.30 | `ToriDraw_Project` 0.26, `Soft3D_Execute` 0.25, `FrameNextCommand` 0.22, `CalculateCylinderAabb8point` 0.21, glyphs 0.12, `AnimApplyTransform` 0.06, then nothing above 0.11%. |
+
+The five items above the line are **75% of non-raster work**. There is no hidden
+pool: the profile's named leaves account for 3,668 of 3,722 work samples, and
+everything past the top twenty is under 0.11% each.
+
+`ToriRS_Soft3D_RenderFrame`'s 1.12 ms is not all clear. Narrowing the clear by
+56% saved 0.30 ms, which puts the clear itself at ~0.54 ms and leaves ~0.58 ms
+of command-dispatch self time that LTO has inlined into the same symbol.
+
+### The clear's floor, measured
+
+`TORIRS_CLEAR_PROBE=1` shrinks the clear to 1×1 and lets `TORIRS_CLEAR_VERIFY=1`
+report what survives — i.e. which pixels a frame actually depends on the clear
+for, rather than which ones it might.
+
+    1600 frames, last 21511 uncovered, worst 31541, bbox x 4..515 y 4..120
+
+Two things follow:
+
+- Only ~21,500 px of the viewport's 170,048 genuinely need clearing (12.6%),
+  and under this camera they sit in the top 117 rows, where sky and ceiling show
+  through. The bottom 218 rows are fully painted by terrain. The band is a
+  function of camera pitch, though, so it cannot be hardcoded — look up and it
+  grows.
+- **The minimap needs no clear in steady state.** It is fully covered by its own
+  draws. The 15,893 uncovered minimap pixels seen earlier were entirely the boot
+  transient before the emit walk first publishes a minimap desc. It is kept in
+  the clear rect anyway, for ~0.10 ms, because a region rebuild that leaves the
+  minimap sprite unready has not been tested.
 
 ## Pricing 16bpp without building it
 
