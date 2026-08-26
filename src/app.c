@@ -7171,6 +7171,19 @@ App_NoteFrameTime(
         app->dbg_frame_count++;
 }
 
+uint64_t
+App_LastFrameUs(struct App const* app)
+{
+    assert(app);
+
+    if( app->dbg_frame_count <= 0 )
+        return 0;
+    /* dbg_frame_head is where the NEXT sample lands, so the newest is the slot
+     * before it, wrapping. */
+    return app->dbg_frame_us
+        [(app->dbg_frame_head + APP_DEBUG_FRAME_SAMPLES - 1) % APP_DEBUG_FRAME_SAMPLES];
+}
+
 bool
 App_SendCommand(
     struct App* app,

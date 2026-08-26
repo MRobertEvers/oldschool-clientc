@@ -3162,6 +3162,22 @@ App_NoteFrameTime(
     uint64_t frame_us);
 
 /**
+ * The most recent frame time reported to App_NoteFrameTime, in microseconds.
+ *
+ * The newest sample, not the overlay's mean: a caller that wants a window
+ * keeps its own, and one that wants the last frame cannot recover it from a
+ * mean. 0 before the host has reported anything.
+ *
+ * This is the frame's WORK, with the pacing sleep excluded -- see
+ * App_NoteFrameTime. It is the only frame duration in the client that is not
+ * just the frame cap read back, which is what makes it the one worth asking
+ * for: divided into a second it says what the client could sustain uncapped,
+ * where a wall-clock period says only what it was allowed to deliver.
+ */
+uint64_t
+App_LastFrameUs(struct App const* app);
+
+/**
  * Send a `::` command as if it had been typed into the chatbox.
  *
  * The debug procs a content lane defines — `[debugproc,rs2012qbd]` and friends

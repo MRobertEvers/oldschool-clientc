@@ -398,6 +398,14 @@ lua_api_frame_ms(lua_State* L)
 }
 
 static int
+lua_api_frame_work_us(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    lua_pushinteger(L, (lua_Integer)g_api->frame_work_us(script->cur_ctx));
+    return 1;
+}
+
+static int
 lua_api_memory_bytes(lua_State* L)
 {
     uint64_t bytes = 0;
@@ -1984,6 +1992,7 @@ lua_build_api_table(struct LuaScript* script)
         { "log", lua_api_log },
         { "world_cycle", lua_api_world_cycle },
         { "frame_ms", lua_api_frame_ms },
+        { "frame_work_us", lua_api_frame_work_us },
         { "memory_bytes", lua_api_memory_bytes },
         { "local_player", lua_api_local_player },
         { "npcs", lua_api_npcs },

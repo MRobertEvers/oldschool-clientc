@@ -1406,6 +1406,23 @@ struct ToriRS_PluginApi
     int (*world_cycle)(struct ToriRS_PluginCtx* ctx);
     uint64_t (*frame_ms)(struct ToriRS_PluginCtx* ctx);
 
+    /**
+     * How long the last frame's WORK took, in microseconds.
+     *
+     * The pacing sleep is not in it. That is the whole point of having this
+     * next to frame_ms: two frame_ms stamps subtract to the frame's wall-clock
+     * period, and under a frame cap that period is the cap -- a client with
+     * 4 ms of work in a 20 ms budget and one with 19 ms of work both measure
+     * 20 ms, and neither number moves until the client can no longer keep up.
+     * This one moves the whole time, and a second divided by it is the rate
+     * the client could sustain if nothing held it back.
+     *
+     * The newest sample, not an average. A plugin that wants a window keeps
+     * its own; one that wants this frame could not get it back out of a mean.
+     * 0 before any frame has been measured.
+     */
+    uint64_t (*frame_work_us)(struct ToriRS_PluginCtx* ctx);
+
     /* -- world queries; 1 = filled, 0 = absent -- */
 
     int (*local_player)(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginPlayerSnap* out);
