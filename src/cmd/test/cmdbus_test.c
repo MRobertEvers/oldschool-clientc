@@ -234,9 +234,104 @@ test_replay_rejects_bad_magic(void)
     remove(TEST_RECORD_PATH);
 }
 
+/*
+ * The host command family: an embedder saying "open interface 600" rather than
+ * a device saying "the mouse moved". They ride this ring so that a host-driven
+ * session records and replays like any other, which is what these check —
+ * round-trip through the ring, and the variable-length run-script frame in
+ * particular, whose size is the whole reason argc is carried rather than
+ * implied.
+ */
+static void
+test_host_commands_roundtrip(void)
+{
+    struct ToriRS_CmdBus bus;
+    struct ToriRS_CmdHeader h;
+    static uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
+    int32_t const args[3] = { 11, -22, 33 };
+
+    CmdBus_Init(&bus);
+    TEST_CHECK(CmdBus_PushUiOpenRoot(&bus, 600));
+    TEST_CHECK(CmdBus_PushUiSetVar(&bus, TORIRS_CMD_UI_SET_VARP, 300, 100));
+    TEST_CHECK(CmdBus_PushUiSetVar(&bus, TORIRS_CMD_UI_SET_VARBIT, 6440, 1));
+    TEST_CHECK(CmdBus_PushUiRunScript(&bus, 3967, args, 3));
+    TEST_CHECK(CmdBus_PushExecText(&bus, "setlevel attack 99"));
+
+    TEST_CHECK(CmdBus_Pop(&bus, &h, payload));
+    assert(h.type == TORIRS_CMD_UI_OPEN_ROOT);
+    {
+        struct ToriRS_CmdUiOpenRoot open;
+        assert(h.length == sizeof(open));
+        memcpy(&open, payload, sizeof(open));
+        assert(open.interface_id == 600);
+    }
+
+    TEST_CHECK(CmdBus_Pop(&bus, &h, payload));
+    assert(h.type == TORIRS_CMD_UI_SET_VARP);
+    {
+        struct ToriRS_CmdUiSetVar var;
+        assert(h.length == sizeof(var));
+        memcpy(&var, payload, sizeof(var));
+        assert(var.id == 300 && var.value == 100);
+    }
+
+    TEST_CHECK(CmdBus_Pop(&bus, &h, payload));
+    assert(h.type == TORIRS_CMD_UI_SET_VARBIT);
+    {
+        struct ToriRS_CmdUiSetVar var;
+        memcpy(&var, payload, sizeof(var));
+        assert(var.id == 6440 && var.value == 1);
+    }
+
+    TEST_CHECK(CmdBus_Pop(&bus, &h, payload));
+    assert(h.type == TORIRS_CMD_UI_RUNSCRIPT);
+    {
+        struct ToriRS_CmdUiRunScript rs;
+        /* Sized to the arguments it carries, not to the maximum: three args
+         * cost three ints, and the drain bounds its read by argc. */
+        assert(h.length == CmdBus_UiRunScriptBytes(3));
+        assert(h.length < sizeof(rs));
+        memset(&rs, 0, sizeof(rs));
+        memcpy(&rs, payload, h.length);
+        assert(rs.script_id == 3967);
+        assert(rs.argc == 3);
+        assert(rs.args[0] == 11 && rs.args[1] == -22 && rs.args[2] == 33);
+    }
+
+    TEST_CHECK(CmdBus_Pop(&bus, &h, payload));
+    assert(h.type == TORIRS_CMD_EXEC_TEXT);
+    /* No NUL on the wire; the header's length is the string's, as NET_CONNECT
+     * has it. A drain that trusted a terminator would read past the frame. */
+    assert(h.length == strlen("setlevel attack 99"));
+    assert(memcmp(payload, "setlevel attack 99", h.length) == 0);
+
+    TEST_CHECK(!CmdBus_Pop(&bus, &h, payload));
+}
+
+/** A no-argument script frame carries no argument bytes at all. */
+static void
+test_runscript_without_args(void)
+{
+    struct ToriRS_CmdBus bus;
+    struct ToriRS_CmdHeader h;
+    static uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
+    struct ToriRS_CmdUiRunScript rs;
+
+    CmdBus_Init(&bus);
+    TEST_CHECK(CmdBus_PushUiRunScript(&bus, 915, NULL, 0));
+    TEST_CHECK(CmdBus_Pop(&bus, &h, payload));
+    assert(h.type == TORIRS_CMD_UI_RUNSCRIPT);
+    assert(h.length == CmdBus_UiRunScriptBytes(0));
+    memset(&rs, 0, sizeof(rs));
+    memcpy(&rs, payload, h.length);
+    assert(rs.script_id == 915 && rs.argc == 0);
+}
+
 int
 main(void)
 {
+    RUN_TEST(test_host_commands_roundtrip);
+    RUN_TEST(test_runscript_without_args);
     RUN_TEST(test_push_pop_roundtrip);
     RUN_TEST(test_zero_length_payload);
     RUN_TEST(test_wraparound);

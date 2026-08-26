@@ -120,10 +120,10 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         notes="pc += operand",
     ),
     "BRANCH_NOT": OpcodeDoc(
-        summary="Branch if false",
-        int_in=("cond",),
+        summary="Branch if not equal",
+        int_in=("a", "b"),
         operand="branch offset",
-        notes="pc += operand if cond == 0",
+        notes="pc += operand if a != b",
     ),
     "BRANCH_EQUALS": OpcodeDoc(
         summary="Branch if equal",
@@ -179,13 +179,13 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Integer divide",
         int_in=("a", "b"),
         int_out=("a / b",),
-        notes="0 if b == 0",
+        notes="VM error if b == 0; otherwise truncates toward zero",
     ),
     "MOD": OpcodeDoc(
         summary="Integer modulo",
         int_in=("a", "b"),
         int_out=("a % b",),
-        notes="0 if b == 0",
+        notes="VM error if b == 0; remainder has the dividend's sign",
     ),
     "AND": OpcodeDoc(
         summary="Bitwise and",
@@ -232,7 +232,6 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     ),
     "RETURN": OpcodeDoc(
         summary="Return from script",
-        int_in=("return value (optional)",),
         notes="pops frame",
     ),
     # --- Host widget create/find (cs2_host_ui.c) ---

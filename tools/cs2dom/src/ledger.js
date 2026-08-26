@@ -19,11 +19,14 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { splitPackName } from './pack.js';
+
 export class PackFile {
     constructor(path) {
         this.path = path;
         this.byName = new Map();
         this.byId = new Map();
+        this.suffixById = new Map();
         this.header = [];
         this.dirty = false;
 
@@ -36,10 +39,11 @@ export class PackFile {
                 const split = line.indexOf('=');
                 if( split < 0 ) continue;
                 const id = Number.parseInt(line.slice(0, split), 10);
-                const name = line.slice(split + 1).trim();
+                const { name, suffix } = splitPackName(line.slice(split + 1));
                 if( Number.isNaN(id) ) continue;
                 this.byName.set(name, id);
                 this.byId.set(id, name);
+                if( suffix ) this.suffixById.set(id, suffix);
             }
         }
     }
@@ -66,7 +70,8 @@ export class PackFile {
     write() {
         if( !this.dirty ) return false;
         const ids = [...this.byId.keys()].sort((a, b) => a - b);
-        const body = ids.map((id) => `${id}=${this.byId.get(id)}`).join('\n');
+        const body = ids.map((id) =>
+            `${id}=${this.byId.get(id)}${this.suffixById.get(id) || ''}`).join('\n');
         writeFileSync(this.path, (this.header.length ? this.header.join('\n') + '\n' : '') + body + '\n');
         return true;
     }

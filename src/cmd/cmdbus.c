@@ -223,3 +223,64 @@ CmdBus_PushNetStatus(
     struct ToriRS_CmdNetStatus cmd = { status };
     return CmdBus_Push(bus, TORIRS_CMD_NET_STATUS, &cmd, sizeof(cmd));
 }
+
+/* ---- host commands ------------------------------------------------------ */
+
+int
+CmdBus_PushUiOpenRoot(
+    struct ToriRS_CmdBus* bus,
+    int32_t interface_id)
+{
+    struct ToriRS_CmdUiOpenRoot cmd = { interface_id };
+    return CmdBus_Push(bus, TORIRS_CMD_UI_OPEN_ROOT, &cmd, sizeof(cmd));
+}
+
+int
+CmdBus_PushUiSetVar(
+    struct ToriRS_CmdBus* bus,
+    uint32_t type,
+    int32_t id,
+    int32_t value)
+{
+    struct ToriRS_CmdUiSetVar cmd = { id, value };
+    assert(type == TORIRS_CMD_UI_SET_VARP || type == TORIRS_CMD_UI_SET_VARBIT);
+    return CmdBus_Push(bus, type, &cmd, sizeof(cmd));
+}
+
+int
+CmdBus_PushUiRunScript(
+    struct ToriRS_CmdBus* bus,
+    int32_t script_id,
+    int32_t const* args,
+    int argc)
+{
+    struct ToriRS_CmdUiRunScript cmd;
+
+    assert(argc >= 0);
+    assert(argc <= TORIRS_CMD_UI_RUNSCRIPT_MAX_ARGS);
+    if( argc > 0 )
+        assert(args);
+
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.script_id = script_id;
+    cmd.argc = argc;
+    if( argc > 0 )
+        memcpy(cmd.args, args, (size_t)argc * sizeof(cmd.args[0]));
+    return CmdBus_Push(bus, TORIRS_CMD_UI_RUNSCRIPT, &cmd, CmdBus_UiRunScriptBytes(argc));
+}
+
+int
+CmdBus_PushExecText(
+    struct ToriRS_CmdBus* bus,
+    char const* text)
+{
+    size_t length;
+
+    assert(text);
+    /* Not NUL-terminated on the wire, like NET_CONNECT: the header's length is
+     * the string's length, so the drain must bound its copy by it. */
+    length = strlen(text);
+    if( length > TORIRS_CMD_MAX_PAYLOAD )
+        return 0;
+    return CmdBus_Push(bus, TORIRS_CMD_EXEC_TEXT, text, (uint16_t)length);
+}

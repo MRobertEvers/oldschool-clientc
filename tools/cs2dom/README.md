@@ -58,57 +58,60 @@ Then `make -C src torirsserver-cache` bakes it, and the client boots it.
 
 ```sh
 cd tools/cs2dom
-npm install          # one dependency: typescript
-make -C ../../src torirs
-make -C ../../3rd/rscache/tools cachepack
-make wasm           # compile the existing C cs2vm2 for the browser
-npm start            # dev server + browser, watching example/ui/*.tsx
+npm install                       # TypeScript
+make -C ../../3rd/rscache/tools cs2 cachepack
+make -C ../../src web             # the client, for the browser
+make dev                          # dev server + browser, watching example/ui/*.tsx
 ```
 
-`npm start` opens a page with three panes: the interface, its runtime tree and
-host-state controls, and the `.if` and `.cs2` records. Save a file and the page
-redraws — no full cache bake and nothing written to the content tree. "New
-component" writes a starter `.tsx` and the watcher picks it up.
+`make dev` opens a page with three panes: the client, the state to drive it
+with, and the `.if` / `.compack` / `.cs2` / JavaScript the interface compiles to.
+Save a record and the preview follows.
 
-The interface picker also contains every readable interface under the configured
-content tree. Choosing one under **OSRS-Content** opens its `.if` and `.compack`
-on demand, rebuilds the parent/child component tree into cs2dom's React-style IR,
-and shows a read-only decompiled `.tsx` view beside the original records. The
-records are never copied into `ui/` or modified.
+The preview **is the game client**. `build-web/torirs.wasm` is the same C client
+built from the same sources by `make -C src web`; it renders with the real
+toridraw, runs the real CS2 VM against the real UITree, and hit-tests with its
+own code. The dev page hosts it in an iframe and drives it over the command bus
+(`src/cmd/cmdbus.h`), the same serializable frame ring the native client's
+keyboard, mouse and network input already travel on.
 
-For presentation, cs2dom mounts that IR into a browser-owned HostRuntime. The
-preview remains a normal React/DOM-style component tree: cache scripts mutate
-the same components synchronously, conditional hooks can create and delete
-children, cache bitmap fonts and sprites paint into their boxes, and models use
-the toridraw WASM component. Script execution is not reimplemented in
-JavaScript: Emscripten compiles the repository's existing `src/cs2vm2` C VM to
-WASM. Each C HOST request crosses a synchronous bridge to the JavaScript
-HostRuntime, which owns and updates the React-style tree. The production C
-client remains available as a reference oracle, but its framebuffer is not the
-interactive UI.
+That is a deliberate reversal. cs2dom used to carry its own port of the client's
+interface runtime — tree, layout, emit walk, hit tests and a canvas painter —
+checked against the C client command for command. It reached 881 of 881
+interfaces matching, and still drew the wrong picture, because an emit list
+cannot see a painter. `CS2_DOM_CLIENT_PLAN.md` has the full argument. The short
+version: there is already a renderer that is right by construction.
 
-The same browser can open a Dat2 cache without an OSRS-Content checkout:
+## The edit loop
+
+An edit is to a text tree and the client reads a packed cache, so something has
+to pack — and it is `cachepack`, the same tool the real bake uses. A preview
+showing bytes no bake would produce is the failure this whole tool was rebuilt to
+stop repeating.
+
+```
+edit a .if or .cs2  ->  cachepack --asset-only  ->  preview cache  ->  reboot
+```
+
+The preview cache is a **copy** of the real one, under `build/preview-cache`,
+with this content tree's interfaces and scripts written over it. Copied because
+nothing here should be able to reach the cache the rest of the repo builds
+against; copied once because it is 218MB.
+
+Three things have to happen together or the edit silently does not appear, and
+all three are in `verify-edit-loop`: io_server is restarted (it holds the cache
+open, and its own records behind that), the client is rebooted with
+`cache_reset=1` (it keeps every archive it has read in IndexedDB), and a failed
+bake does **not** reboot — the cache still holds the last good bytes, so the
+client would come back showing the previous interface.
 
 ```sh
 node bin/cs2dom.js dev --project example \
   --cache ../../cache.osrs239 --rev osrs239
 ```
 
-`--rev` is the cachepack profile name; cache formats are revision-sensitive, so it
-is stated rather than guessed. On first open, cs2dom asks the repository's
-`cachepack` to decode interfaces, readable clientscripts, sprites, fonts and
-models into a read-only tree under the OS temporary directory, and retains the
-original clientscript bytes for the C CS2VM compiled to WASM. That derived tree
-supplies the searchable catalog, live React tree and records pane. It is keyed
-by every cache file, the revision and cachepack build, so subsequent opens reuse
-it and a changed cache invalidates it automatically. The disposable
-`cs2dom-dat2` directory may be removed from the OS temporary directory at any
-time.
-
-When the project has `content` and a Dat2 cache is supplied as above, the picker
-shows both **OSRS-Content** and **Dat2 cache** groups. The same interface may appear
-in both; its `.if`, scripts, sprites and models are always read from the group selected,
-which makes comparing an edited content record with the binary cache straightforward.
+`--rev` is the cachepack profile name; cache formats are revision-sensitive, so
+it is stated rather than guessed.
 
 Then, when it looks right:
 
@@ -117,11 +120,35 @@ npm run build        # write the content tree and allocate ids
 npm run bake         # make -C src torirsserver-cache
 ```
 
-`npm run ship` does both. Other scripts: `test`, `test:native` (production-C
-pixel/state/tree regression), `check` (type-check),
-`cachegen` (regenerate the cache bindings), `ops` (print the vocabulary),
-`build:dry` (render and verify, write nothing), `verify` (build the CS2 tool,
-then run the tests).
+`npm run ship` does both.
+
+## What CS2 becomes
+
+Scripts are translated, not interpreted. `cs2 decompile --emit ast-json` hands
+the C decompiler's own structured tree to `src/cs2_js_emit.js`, which lowers each
+script to one JavaScript generator function — parking on an asset load becomes a
+`yield`, and a `gosub` becomes a `yield*`, so a park propagates through call
+frames the way the client's yield planner has it. Arithmetic goes through
+`src/cs2_intrinsics.js`, whose signed-32 behaviour is pinned to the C VM's
+handlers rather than to JavaScript's operators.
+
+All 9,724 decompilable scripts in the corpus lower, parse and declare every
+local. `make corpus-aot` is that gate.
+
+The reverse direction, `src/js_to_cs2.js`, deliberately accepts a narrower
+subset and **refuses by name** rather than approximating: a construct it cannot
+represent is an error naming the construct, never quietly different CS2.
+
+## Interfaces round-trip
+
+`src/tsx_import.js` turns a cache interface into editable TSX and back. Fields
+the element vocabulary does not model ride a `raw` prop; hook bindings stay
+binding records so sentinels survive. `src/if_record.js` reads and writes `.if`
+byte-identically.
+
+All 968 interfaces and their 968 `.compack` files survive a parse-and-write
+unchanged — 1,936 identical, 0 differing. `make roundtrip-if` is that gate, and
+it is what makes a diff after an edit show the edit and nothing else.
 
 ## Why it is shaped this way
 
@@ -131,9 +158,10 @@ diff, step through in the decompiler's dialect, and patch by hand. Every script
 this tool generates is handed to the real compiler (`3rd/rscache/tools/cs2/cs2`)
 *before* anything is written, so a tree never holds source that cannot bake.
 
-**React runs at build time, not in the client.** There is no reconciler in the
-game. The compiler renders the component once, splits every prop into two piles,
-and the split is the whole reactivity model:
+**React is a build-time language, not a runtime.** There is no React reconciler
+in the game client and none in the preview. The compiler renders the authored
+component once, splits every prop into two piles, and the split is the shipping
+reactivity model:
 
 - a prop holding a plain value becomes a **field in the `.if`** and costs nothing
   at runtime;
@@ -176,54 +204,14 @@ A varbit's trigger is its **varp**, not its own id; `cachegen` reads
 
 Everything a script reads that is not a component — `CS2VM_HOST_REQUEST_*` in
 `src/cs2vm2/cs2vm2_host.h` — is described in `src/host.js` as a set of slices.
-Each slice declares three things:
+Each slice declares the range its ids live in, so `useStat(40)` is a build error
+naming the range (`0..22`) rather than a component that silently never updates.
+Ranges come from the content tree where the tree states them, and from the client
+where they are fixed.
 
-- **the range its ids live in**, so `useStat(40)` is a build error naming the
-  range (`0..22`) rather than a component that silently never updates. Ranges
-  come from the content tree where the tree states them and from the client where
-  they are fixed;
-- **how the preview answers a read**, against state the dev page owns;
-- **what control the page offers**, because a slice nobody can move is a slice
-  that cannot be tested. Variables and stats get sliders; an inventory gets an
-  item/count editor, since `inv_getnum` asks about contents rather than a number.
-
-Cache enums, objects, NPCs, locations, map elements, parameters, structs, DB
-tables/rows, world-map definitions and font metrics are loaded once per selected
-source for synchronous HOST lookups. Bounded client-owned services mirror the C
-client's deterministic state as well: highlights and client-op slots, chat
-history and filters, seeded friend/ignore lists, loot records, entity overlays,
-active subjects/routes and the world-map session.
-
-Actions which the production client hands to another service are kept honest.
-For example, friend-list edits and outgoing chat update the local state where the
-C client does, then emit a bounded service intent through HostRuntime's callback;
-logout and audio requests are recorded in the same way. They do not pretend that
-a server accepted the operation. Live account/network answers (such as real
-friend presence or hiscores results) and live-world entity/projection answers
-remain unavailable unless the caller supplies seed data or a synchronous scene
-provider. Those paths use the desktop client's empty, offline or no-target
-result, or remain visibly unsupported, rather than fabricating data.
-
-`GOSUB_WITH_PARAMS` is present in the generated request-name manifest for ABI
-bookkeeping, but the C VM resolves it internally against its own script registry.
-It is not a JavaScript HOST call and its out-of-scope classification is not a
-missing browser service.
-
-## Preview fidelity
-
-**Authored TSX**, **OSRS-Content** and **Dat2 cache** selections all use the same
-live browser component runtime. `src/preview.js` ports the C layout and clipping
-rules; HostRuntime implements the component and input host API; cache bitmap
-fonts and sprites use their original assets; models use toridraw WASM. Imported
-hooks run during mount and every mouse, keyboard, transmit and timer event can
-mutate the tree before it is repainted.
-
-State that normally comes from a logged-in server starts at explicit preview
-defaults. The controls seed supported varp, varbit, varc and stat values before
-HostRuntime mounts `onLoad`; they do not invent an account, inventory or world
-scene that was never supplied. Editing state is a draft until **Save** is
-pressed, and hot reload replaces only the preview/tree/records so that draft and
-keyboard focus survive source changes.
+The dev page's state controls write into the client through the command bus:
+varps, varbits, a script to run, or a `::` command. What answers the read is the
+client's own host, so there is no second implementation of it to keep honest.
 
 ## Commands
 
@@ -262,14 +250,13 @@ profile:
 ```
 
 `dev` supports that form directly. `build` still requires an unpacked `content`
-tree because writing generated source back into a binary cache is a separate bake
-operation.
+tree, because writing generated source back into a binary cache is a separate
+bake operation.
 
 Source CS2 with symbolic RuneStar names also needs the RuneStar name-table
 directory. Set `CACHEPACK_CS2_NAMES`, or add a project-relative `"cs2Names"`
 path in `cs2dom.json`; the usual sibling `cs2` checkout is discovered
-automatically. A selected script that cannot compile fails visibly instead of
-silently retaining stale bytecode from the base cache.
+automatically.
 
 `varcPool` is the id range `useState` allocates from — client-side scratch
 variables the cache does not define. `cachegen` picks which tables land in
@@ -293,18 +280,23 @@ would be authoring something the format does not have.
   yet** (only `CC_TRIGGEROP` is wired; `IF_TRIGGEROP` is open). The cache record
   is correct; the click will not reach the server until the client catches up.
   The build prints this as a warning rather than letting it look like it works.
-- Cache-authored `name=` and target hooks are dropped on the way to this client's
+- Cache-authored `name=` and target hooks are dropped on the way to the client's
   runtime, so those props are written correctly but do not arrive.
 - No common-subexpression elimination — an expression used by two props of one
   component is emitted twice.
-- If no original or compiled `.cs2b` is available, the preview says that scripts
-  are not running. There is no JavaScript bytecode VM or silent engine switch;
-  original Dat2 clientscript bytes run directly in the C CS2VM/WASM runtime.
 
 ## Layout of the source
 
 | file | what it holds |
 |---|---|
+| `src/cs2_js_emit.js` | CS2 syntax trees → generator-function JavaScript |
+| `src/cs2_intrinsics.js` | signed-32 arithmetic, pinned to the C VM's handlers |
+| `src/js_to_cs2.js` | JavaScript → CS2 source, a stated subset that refuses by name |
+| `src/verify.js` | handing generated CS2 to the real compiler before it is written |
+| `src/generated/cs2_host_surface.js` | the host method signatures, from the decompiler's command table |
+| `src/generated/cs2_host_park.js` | which opcodes can park, from the client's own yield planner |
+| `src/tsx_import.js` | cache interface ⇄ editable TSX |
+| `src/if_record.js` | byte-identical `.if` read and write |
 | `src/expr.js` | symbolic expressions; the operator helpers |
 | `src/transform.js` | TypeScript → executable module, with operators rewritten |
 | `src/loader.js` | runs a component in a `vm` context to find out what it draws |
@@ -314,29 +306,37 @@ would be authoring something the format does not have.
 | `src/ir.js` | lowering: the static/dynamic split, hooks, scripts |
 | `src/emit_if.js` | `.if` and `.compack` |
 | `src/emit_cs2.js` | CS2 source |
-| `src/host.js` | host state slices, ranges, preview controls |
-| `src/eval.js` | evaluating the IR against made-up state |
-| `src/preview.js` | the client's IF3 layout, ported |
-| `src/content.js` | `.if`/`.compack` → preview IR and read-only React-style TSX |
-| `src/bytecode.js` | original/compiled `.cs2b` program transport for the C VM |
-| `src/wasm_runtime.js` | browser adapter for the C VM ABI and synchronous HOST bridge |
-| `src/host_runtime.js`, `src/host_data.js` | JavaScript HOST implementation over the live React-style tree |
-| `src/host_activity.js`, `src/host_chat_social.js` | bounded highlight/client-op and chat/social state plus service intents |
-| `src/host_db.js`, `src/host_worldmap.js` | cache-backed DB iterators and world-map state |
-| `src/host_loot.js`, `src/host_overlay.js`, `src/host_subject.js` | loot, dynamic overlay and live-subject state with optional scene adapters |
-| `wasm/` | narrow Emscripten ABI around the existing `src/cs2vm2` implementation |
-| `src/cache_runtime.js` | bounded source analysis used while importing readable records |
-| `src/model.js` | cache model records → entity-viewer wire bridge for toridraw/WASM |
-| `src/dat2.js` | selective, cached Dat2 → read-only content source |
-| `src/native_overlay.js` | selected `.if` + reachable CS2 → keyed COW Dat2 overlay |
-| `src/native_preview.js` | bounded production-client framebuffer bridge |
-| `src/native_tree.js` | validated live UITree snapshot → inspector metadata |
-| `src/dev.js`, `src/dev_page.js` | the dev server and its page |
+| `src/host.js` | host state slices and the id ranges a build checks against |
+| `src/cmd_frames.js` | host commands as cmdbus bytes, for driving the preview |
+| `src/dev_client.js` | the dev server: the client, an io_server, and the bake |
+| `src/dev_page_client.js` | the dev page: the client in an iframe, state, records |
+| `src/dev_records.js` | an interface's script closure, lowered for the records pane |
 | `src/ledger.js` | id allocation through the pack files |
-| `src/verify.js` | handing generated CS2 to the real compiler |
+| `src/export.js` | edits → content tree → cachepack |
 
-`npm test`, `make test` and `node test/run_all_tests.js` run every focused HOST
-parity suite followed by the central compiler/runtime suite. The latter remains
-available directly as `node test/run_tests.js`; it includes a gate that compiles
-one probe per command in the vocabulary, so an argument order that drifts fails
-there rather than in the client.
+## Gates
+
+| gate | command | number |
+|---|---|---|
+| the translation suites and the `.if` round trip | `make test` | 1,936 identical, 0 differing |
+| every decompilable script lowers | `make corpus-aot` | 9,724 / 9,724 |
+| the generated tables match their sources | `make generated-check` | — |
+| the whole chain, edit to packed bytes | `make roundtrip-chain` | — |
+
+Three more need a built client, so they are not part of `make test`:
+
+| gate | command | asks |
+|---|---|---|
+| the wire | `make verify-cmd-wire` | does C read the frames this tool writes? |
+| the preview | `make smoke-client` | does the client boot, draw, and take a command? |
+| the loop | `make verify-edit-loop` | does an edit reach the screen? |
+
+The last one is the only check that can catch a preview reading a cache nobody
+is writing to — every other gate stays green through it.
+
+## Plans
+
+`CS2_DOM_CLIENT_PLAN.md` is the current one. `CS2_DOM_REDESIGN_PLAN.md` and
+`CS2_DOM_ARCHITECTURE_PLAN.md` are superseded, and are kept for their
+measurements and for their record of what a from-scratch interface renderer has
+to get right.
