@@ -2426,8 +2426,11 @@ frame_loop_step(void)
         else
             PlatformSDL2_SleepUntil(wait_until_ms);
 
-        TORIRS_PERF_CARRY(
-            TORIRS_PERF_STAGE_PACE, (PlatformSDL2_TicksUs() - pace_begin_us) * 1000u);
+        {
+            uint64_t const pace_end_us = PlatformSDL2_TicksUs();
+            TORIRS_PERF_CARRY(TORIRS_PERF_STAGE_PACE, (pace_end_us - pace_begin_us) * 1000u);
+            ToriRS_Pacer_NoteFrame(&frame_pacer, pace_end_us, pace_end_us - pace_begin_us);
+        }
     }
 #endif
     return 1;

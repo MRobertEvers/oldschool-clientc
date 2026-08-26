@@ -59,6 +59,22 @@ struct ToriRS_Pacer
     int seeded;
 
     int last_logic_ticks;
+
+    /*
+     * TORIRS_PACER_TRACE=1. Answers the one question fps cannot: WHICH REGIME
+     * the pacer is in. A frame that fits its budget and a frame that is behind
+     * but waiting only `mindel` produce nearly the same frame rate, and only
+     * one of them is the shape that collapses the Java client.
+     */
+    int trace;
+    uint64_t trace_start_us;
+    uint64_t trace_prev_us;
+    uint64_t trace_wait_us;
+    uint64_t trace_period_us;
+    uint64_t trace_del_us;
+    uint64_t trace_ratio_sum;
+    uint64_t trace_frames;
+    uint64_t trace_at_mindel;
 };
 
 /*
@@ -102,5 +118,15 @@ uint64_t ToriRS_Pacer_WaitDeadline(
 
 /* Logic ticks the last ToriRS_Pacer_BeginFrame asked for. */
 int ToriRS_Pacer_LastLogicTicks(struct ToriRS_Pacer const* pacer);
+
+/*
+ * Close one iteration for the trace: `now_us` is the clock after the wait, and
+ * `wait_us` is what the wait actually cost. No-op unless TORIRS_PACER_TRACE=1.
+ *
+ * `wait_us` is measured, not assumed. The whole Java finding was a requested
+ * sleep costing sixteen times what it asked for, and a trace that prints the
+ * request back to itself would have missed it.
+ */
+void ToriRS_Pacer_NoteFrame(struct ToriRS_Pacer* pacer, uint64_t now_us, uint64_t wait_us);
 
 #endif /* PACER_H */

@@ -1,6 +1,9 @@
 #include "pacer.h"
 
+#include "log/torirs_log.h"
+
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 void
@@ -21,6 +24,82 @@ ToriRS_Pacer_Init(
     pacer->del_ms = mindel_ms < 1 ? 0 : 1;
     pacer->count = 0;
     pacer->last_logic_ticks = 0;
+    pacer->trace = getenv("TORIRS_PACER_TRACE") &&
+                   atoi(getenv("TORIRS_PACER_TRACE")) != 0;
+}
+
+void
+ToriRS_Pacer_NoteFrame(struct ToriRS_Pacer* pacer, uint64_t now_us, uint64_t wait_us)
+{
+    assert(pacer);
+
+    if( !pacer->trace )
+        return;
+
+    if( pacer->trace_prev_us != 0 )
+        pacer->trace_period_us += now_us - pacer->trace_prev_us;
+    pacer->trace_prev_us = now_us;
+    if( pacer->trace_start_us == 0 )
+    {
+        pacer->trace_start_us = now_us;
+        return;
+    }
+
+    pacer->trace_wait_us += wait_us;
+    pacer->trace_del_us += (uint64_t)(pacer->del_ms > 0 ? pacer->del_ms : 0) * 1000u;
+    pacer->trace_ratio_sum += (uint64_t)pacer->ratio;
+    pacer->trace_frames++;
+    if( pacer->del_ms <= pacer->mindel_ms )
+        pacer->trace_at_mindel++;
+
+    if( now_us - pacer->trace_start_us >= 2000000u && pacer->trace_frames > 0 )
+    {
+        double n = (double)pacer->trace_frames;
+        double win_ms = (double)(now_us - pacer->trace_start_us) / 1000.0;
+        double period = pacer->trace_period_us / 1000.0 / n;
+        double wait = pacer->trace_wait_us / 1000.0 / n;
+        double req = pacer->trace_del_us / 1000.0 / n;
+
+        /*
+         * `work` is what is left of the period once the wait is taken out, and
+         * it is the number that says which regime this is. Work under the
+         * budget with a wait filling the rest means the cap is being met; work
+         * at or over the budget with the wait pinned to mindel is the shape
+         * that costs the Java client 41% of its frame.
+         */
+        if( pacer->kind == TORIRS_PACER_GAMESHELL )
+            TORIRS_REPORT(
+                "[pacer] gameshell fps=%.2f period=%.2f work=%.2f wait=%.2f "
+                "(req %.2f) ratio=%.0f atmin=%.0f%% budget=%dms\n",
+                n * 1000.0 / win_ms,
+                period,
+                period - wait,
+                wait,
+                req,
+                (double)pacer->trace_ratio_sum / n,
+                100.0 * (double)pacer->trace_at_mindel / n,
+                pacer->period_ms);
+        else
+            /* No del and no ratio on this pacer -- it waits to a deadline and
+             * lets App_RunOnce count the ticks -- so printing either would be
+             * printing an Init value back. */
+            TORIRS_REPORT(
+                "[pacer] deadline fps=%.2f period=%.2f work=%.2f wait=%.2f "
+                "budget=%dms\n",
+                n * 1000.0 / win_ms,
+                period,
+                period - wait,
+                wait,
+                pacer->period_ms);
+
+        pacer->trace_start_us = now_us;
+        pacer->trace_wait_us = 0;
+        pacer->trace_period_us = 0;
+        pacer->trace_del_us = 0;
+        pacer->trace_ratio_sum = 0;
+        pacer->trace_frames = 0;
+        pacer->trace_at_mindel = 0;
+    }
 }
 
 enum ToriRS_PacerKind
