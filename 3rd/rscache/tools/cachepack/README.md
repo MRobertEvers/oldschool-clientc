@@ -148,10 +148,17 @@ spelling and only the reader's knowledge told them apart.
 | `binary` | `binary/binary_0.jpg` | — one payload |
 | `worldmapground` | `worldmap/ground/worldmapground_10016.png` | — one payload |
 | `animaya` | `animayas/animaya_0.animaya` | — one payload |
+| `defaults` | `defaults/defaults_3.dflt` — one record | `defaults_1.filepack` (multi-file only) |
 
 "one payload" means the archive is stored whole, so there is no member list to
 index and nothing between the bytes on disk and the bytes in the cache. That is the
-default and it applies to sixteen of the twenty tables.
+default and it applies to sixteen of the twenty-one tables.
+
+`defaults` is OldSchool idx17 / RS2 idx28: the ids the engine needs before it can
+draw, `compass` among them. Neither the index nor its two groups is named by the
+cache — its reference table has the name bit clear — so both pack lines are filler.
+See `docs/CACHE_INDEX_16_17.md` for the record schema, and for why there is no
+OldSchool index 16 to add alongside it.
 
 ### The world map is laid out kind by kind
 

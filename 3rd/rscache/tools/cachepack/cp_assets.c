@@ -161,6 +161,23 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
         CP_ASSET_SPLIT, -1, &cp_codec_dbindex },
     [CP_ASSET_ANIMAYA] = {
         "animayas", "22_animayas", "animaya", "animaya", RSCACHE_DAT2_TABLE_ANIMAYAS, 0, -1, NULL },
+    /*
+     * The defaults table — OldSchool idx17, RS2 idx28. See docs/CACHE_INDEX_16_17.md.
+     *
+     * `CP_ASSET_SPLIT` because its two groups are opposite shapes and the table is
+     * too small to justify a third: osrs239 group 3 is a single 83-byte record and
+     * lands as a bare `.dflt`, while group 1 holds ~4,000 opaque files and lands as
+     * a directory plus a filepack. That is the worldmap-geography shape exactly.
+     *
+     * No codec. Group 3 has a readable schema and this tree knows it — but knowing
+     * a schema is not the same as proving a byte-exact round-trip for it, and the
+     * only thing a wrong one buys is a cache that repacks to different bytes than
+     * it unpacked. Raw payload until a codec is tested against every revision we
+     * hold, which today is two and they disagree on the format.
+     */
+    [CP_ASSET_DEFAULTS] = {
+        "defaults", "17_defaults", "defaults", "dflt", RSCACHE_DAT2_TABLE_DEFAULTS,
+        CP_ASSET_SPLIT, -1, NULL },
 };
 /* clang-format on */
 
