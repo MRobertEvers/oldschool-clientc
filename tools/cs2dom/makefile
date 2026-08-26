@@ -62,6 +62,7 @@ generated-check: $(PARK_TABLE) $(HOST_SURFACE)
 # what to build.
 CLIENT_WASM := $(REPO_ROOT)/build-web/torirs.wasm
 IO_SERVER := $(REPO_ROOT)/src/build/io_server
+CACHEPACK := $(RSCACHE)/tools/cachepack/cachepack
 
 $(CLIENT_WASM):
 	$(MAKE) -C $(REPO_ROOT)/src web
@@ -69,11 +70,16 @@ $(CLIENT_WASM):
 $(IO_SERVER):
 	$(MAKE) -C $(REPO_ROOT)/src io-server
 
+# The bake needs it on the FIRST edit, not at startup, so a missing cachepack
+# would otherwise surface minutes into a session as a failed save.
+$(CACHEPACK):
+	$(MAKE) -C $(RSCACHE)/tools cachepack
+
 # Rebuild the client from this directory when its sources moved.
 client-web:
 	$(MAKE) -C $(REPO_ROOT)/src web
 
-dev-canvas: node_modules generated $(CS2) $(CLIENT_WASM) $(IO_SERVER)
+dev-canvas: node_modules generated $(CS2) $(CACHEPACK) $(CLIENT_WASM) $(IO_SERVER)
 	$(NODE) bin/cs2dom.js dev-canvas --project $(PROJECT)
 
 # The translation suites. No cache, no client, no browser.

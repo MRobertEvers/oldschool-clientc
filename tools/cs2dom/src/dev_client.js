@@ -33,7 +33,7 @@
  * traffic is proxied on to the process that owns the cache.
  */
 
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, watch } from 'node:fs';
 import { createServer, request as httpRequest } from 'node:http';
 import { extname, join, relative as relativePath, resolve } from 'node:path';
@@ -102,6 +102,15 @@ export function serveClient({
 
     requireClientBuild(state);
     state.previewCache = ensurePreviewCache(state);
+    /*
+     * A FREE port for io_server, not blindly port+1.
+     *
+     * Nothing points at that port from outside -- the page reaches the cache
+     * through this server's /io proxy -- so which one it gets does not matter,
+     * and insisting on one that a leftover from an earlier run still holds
+     * bought nothing but a child that exited on startup.
+     */
+    state.ioPort = firstFreePort(state.ioPort);
 
     const server = createServer((request, response) => {
         const url = new URL(request.url, 'http://localhost');
@@ -214,7 +223,10 @@ function startIoServer(state, { quiet = false } = {}) {
         '--root', state.clientDir,
         '--boot-root', state.repoRoot,
     ];
-    const child = spawn(binary, args, { cwd: state.repoRoot, stdio: ['ignore', 'ignore', 'pipe'] });
+    /* Both pipes, not just stderr: io_server reports a failed bind on STDOUT,
+     * so discarding it turned "port 8100 is taken" into a bare exit code and a
+     * dev server that answered 503 to every cache read without saying why. */
+    const child = spawn(binary, args, { cwd: state.repoRoot, stdio: ['ignore', 'pipe', 'pipe'] });
 
     /*
      * Keep the last of its output and print it if it DIES, rather than
@@ -224,7 +236,9 @@ function startIoServer(state, { quiet = false } = {}) {
      * to everything it proxied.
      */
     let tail = '';
-    child.stderr.on('data', (chunk) => { tail = (tail + chunk).slice(-2000); });
+    const keep = (chunk) => { tail = (tail + chunk).slice(-2000); };
+    child.stdout.on('data', keep);
+    child.stderr.on('data', keep);
     child.on('error', (error) => state.log(`  cache     ${error.message}`));
     child.on('exit', (code, signal) => {
         state.io = null;
@@ -269,6 +283,28 @@ async function restartIoServer(state) {
         await new Promise((wake) => setTimeout(wake, 50));
     }
     state.log('  cache     io_server did not come back after the bake');
+}
+
+/**
+ * The first port from `start` that nothing is listening on.
+ *
+ * Synchronous because it runs before the server is up and the answer decides
+ * how the child is spawned; `lsof` rather than a bind-and-close because a port
+ * that is free for one instant is not the question -- a listener that is there
+ * now is.
+ */
+function firstFreePort(start) {
+    for( let port = start; port < start + 50; port++ )
+    {
+        try
+        {
+            const held = execFileSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN'],
+                { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+            if( !held.trim() ) return port;
+        }
+        catch { return port; /* lsof exits non-zero when nothing holds it */ }
+    }
+    return start;
 }
 
 /** Does the child answer on its port yet? */
