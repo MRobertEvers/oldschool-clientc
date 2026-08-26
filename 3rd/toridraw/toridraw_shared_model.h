@@ -98,6 +98,25 @@ ToriDraw_SharedModelStoreBorrowTopology(
     int64_t key,
     struct ToriDraw_Model* model);
 
+/**
+ * Take a placement's borrowed face arrays private, so it can be written to.
+ *
+ * A no-op on a model that is not borrowing. Otherwise every array in
+ * TORIDRAW_TOPOLOGY_FIELDS is duplicated into geometry this model owns and the
+ * loan is handed back -- the model pointer itself does not move, which is what
+ * makes this usable from a pass that is already holding the model and its
+ * neighbour (World.shareLight's seam hide) rather than an element id.
+ *
+ * The copy is the point, not a cost to avoid: hiding a seam face through the
+ * loan hides it at every other placement of the same loc, which is a run of
+ * identical walls losing the faces of the one segment that met a neighbour.
+ *
+ * Not for a WHOLE-shared model (`shared_owner`) -- that one has no private
+ * half at all, and its writer wants ToriDraw_SceneElementModelForWrite.
+ */
+void
+ToriDraw_ModelUnborrowTopology(struct ToriDraw_Model* model);
+
 /** Live entries, for the world-build census. */
 int
 ToriDraw_SharedModelStoreCount(const struct ToriDraw_SharedModelStore* store);

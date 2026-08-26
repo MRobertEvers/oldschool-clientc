@@ -68,6 +68,24 @@ def flavor_make_args(flavors, embed):
     return make_args, binary, target
 
 
+def _no_asan_on_windows(profile, flavors):
+    """Why the asan flavor cannot run here, and the two ways to say so."""
+    keep = [name for name in flavors if name != "asan"] or ["opt"]
+    return "\n".join([
+        "flavor 'asan' cannot be built on Windows: the lane is MinGW, and GCC",
+        "ships no sanitizer runtime for that target (the link fails on a",
+        "missing libsanitizer.spec). ASan and UBSan are macOS/Linux flavors.",
+        "",
+        "  run this world uninstrumented, once:",
+        "    ./launch run %s --flavor %s" % (profile.name, ",".join(keep)),
+        "",
+        "  or make that the standing Windows answer, in %s:"
+        % os.path.relpath(profile.path, REPO_ROOT),
+        "    [profile@windows]",
+        "    flavor=%s" % ",".join(keep),
+    ])
+
+
 def asan_env():
     return {
         "ASAN_OPTIONS": os.environ.get(
@@ -212,6 +230,14 @@ def build_plan(profile, client_override=None, flavor_override=None,
     # Native Windows uses the repository's explicit modern-Windows lane and
     # produces a PE executable with a different name from the Unix SDL build.
     if host.IS_WINDOWS and client in ("native", "headless"):
+        # The Windows lanes are MinGW, and GCC has no sanitizer runtime for
+        # that target at all -- not in the repository's toolchain, not in any
+        # other. The flags compile and then the link dies on a missing
+        # libsanitizer.spec. Refuse the flavor by name here rather than quietly
+        # dropping it: a run that says "asan" and hands back an uninstrumented
+        # binary reports "no ASan errors" for the wrong reason.
+        if "asan" in flavors:
+            raise LaunchError(_no_asan_on_windows(profile, flavors))
         binary = "src/torirs_win64.exe"
         target = "win64-debug" if "debug" in flavors else "win64"
         make_args = [arg for arg in make_args if arg != "OPT=0"]

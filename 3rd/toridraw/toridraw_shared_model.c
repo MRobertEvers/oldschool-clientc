@@ -4,6 +4,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 /*
  * Chained buckets, fixed width. A scene settles at a few hundred distinct loc
@@ -159,6 +160,76 @@ ToriDraw_SharedModelRelease(struct ToriDraw_SharedModel* shared)
     model->shared_owner = NULL;
     free(shared);
     ToriDraw_ModelFree(model);
+}
+
+/*
+ * The privatise list below spells out one entry per topology field, because
+ * each one needs its own element size and count, and the counting typedef is
+ * what stops the two lists drifting apart: add a field to
+ * TORIDRAW_TOPOLOGY_FIELDS without adding it here and this fails to compile,
+ * rather than leaving one array still aliasing the donor.
+ */
+enum
+{
+    TORIDRAW_TOPOLOGY_FIELD_COUNT = 0
+#define TORIDRAW_TOPOLOGY_COUNT_ONE(field) +1
+    TORIDRAW_TOPOLOGY_FIELDS(TORIDRAW_TOPOLOGY_COUNT_ONE)
+#undef TORIDRAW_TOPOLOGY_COUNT_ONE
+};
+typedef char toridraw_topology_privatise_covers_every_field
+    [TORIDRAW_TOPOLOGY_FIELD_COUNT == 13 ? 1 : -1];
+
+static void*
+shared_model_dup(const void* src, size_t nbytes)
+{
+    void* copy;
+
+    assert(src);
+    copy = malloc(nbytes ? nbytes : 1);
+    assert(copy);
+    memcpy(copy, src, nbytes);
+    return copy;
+}
+
+void
+ToriDraw_ModelUnborrowTopology(struct ToriDraw_Model* model)
+{
+    struct ToriDraw_SharedModel* donor;
+
+    assert(model);
+    if( !model->borrowed_topology )
+        return;
+
+    /*
+     * Copy first, release second. This placement may be the donor's last
+     * holder, and the release frees the very arrays being copied out of.
+     */
+#define TORIDRAW_TOPOLOGY_PRIVATISE(field, count, type)                                              \
+    if( model->field )                                                                             \
+        model->field = shared_model_dup(model->field, (size_t)(count) * sizeof(type));
+
+    TORIDRAW_TOPOLOGY_PRIVATISE(face_indices_a, model->face_count, faceint_t)
+    TORIDRAW_TOPOLOGY_PRIVATISE(face_indices_b, model->face_count, faceint_t)
+    TORIDRAW_TOPOLOGY_PRIVATISE(face_indices_c, model->face_count, faceint_t)
+    TORIDRAW_TOPOLOGY_PRIVATISE(face_colors, model->face_count, hsl16_t)
+    TORIDRAW_TOPOLOGY_PRIVATISE(face_textures, model->face_count, faceint_t)
+    TORIDRAW_TOPOLOGY_PRIVATISE(face_alphas, model->face_count, alphaint_t)
+    TORIDRAW_TOPOLOGY_PRIVATISE(face_infos, model->face_count, int)
+    TORIDRAW_TOPOLOGY_PRIVATISE(face_texture_coords, model->face_count, faceint_t)
+    TORIDRAW_TOPOLOGY_PRIVATISE(textured_p_coordinate, model->textured_face_count, faceint_t)
+    TORIDRAW_TOPOLOGY_PRIVATISE(textured_m_coordinate, model->textured_face_count, faceint_t)
+    TORIDRAW_TOPOLOGY_PRIVATISE(textured_n_coordinate, model->textured_face_count, faceint_t)
+    TORIDRAW_TOPOLOGY_PRIVATISE(texture_render_types, model->textured_face_count, uint8_t)
+#undef TORIDRAW_TOPOLOGY_PRIVATISE
+
+    /* Two 4-bit priorities per byte, not one element per face. */
+    if( model->face_priorities )
+        model->face_priorities = shared_model_dup(
+            model->face_priorities, (size_t)((model->face_count + 1) / 2));
+
+    donor = model->borrowed_topology;
+    model->borrowed_topology = NULL;
+    ToriDraw_SharedModelRelease(donor);
 }
 
 struct ToriDraw_Model*
