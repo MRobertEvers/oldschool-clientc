@@ -327,7 +327,15 @@ def generate_resolved_manifest(profile, out_dir):
         """
         if not value or os.path.isabs(value):
             return value
-        return os.path.relpath(manifest.resolve_path(value), out_dir)
+        # Forward slashes, even on Windows. This copy is read by the WEB
+        # client too, which does not fopen these paths -- it asks io_server
+        # for them, as `GET /boot/<the value>`. That server's sanitize_path
+        # takes a URL path and rejects a backslash outright (400), so an
+        # os.sep-joined `..\..\revconfig\x.ini` is not merely ugly there,
+        # it is unservable. Nothing on the native side minds: Windows fopen
+        # takes either separator.
+        return os.path.relpath(
+            manifest.resolve_path(value), out_dir).replace(os.sep, "/")
 
     pending = {}
     for section, items in override_blocks:

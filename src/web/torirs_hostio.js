@@ -162,8 +162,12 @@
         const producer = isDat1(flags) ? onDemand() : js5();
         if (!producer) { return null; }
 
+        /* The dat1 producer is handed the FLAGS as well as the address. A
+         * map read names a square rather than an archive, and only the server
+         * holding the versionlist can turn one into the other -- so the
+         * distinction has to survive the trip rather than be flattened here. */
         const bytes = isDat1(flags)
-          ? await producer.file(table, archive)
+          ? await producer.file(table, archive, flags)
           : await producer.group(table, archive);
         if (!bytes) { return null; }
 

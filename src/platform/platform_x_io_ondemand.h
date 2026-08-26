@@ -63,10 +63,11 @@ struct PlatformXIOOnDemand;
  * answered over a socket is not their business.
  *
  * `px` owns the client once enabled and frees it with itself, so the caller
- * holds no handle. Unavailable in a TORIRS_PLATFORM_X_IO_NO_JS5 build: that
- * flag names every networked cache source, not just the dat2 one, and its two
- * callers (io_server, the io-wire test) hold their own open cache and link no
- * socket layer.
+ * holds no handle. Unavailable in a TORIRS_PLATFORM_X_IO_NO_ONDEMAND build --
+ * its own flag, separate from the dat2 side's TORIRS_PLATFORM_X_IO_NO_JS5,
+ * because io_server wants exactly one of the two: it PROXIES a LostCity cache
+ * to the browser, so the dat1 source is the point of it linking this file at
+ * all, while the JS5 pump and the SDL2 clock it is paced by are not.
  */
 
 /**
@@ -98,6 +99,37 @@ int
 PlatformXIO_Dat1OnDemandJagChecksums(
     struct PlatformX_IO* px,
     int32_t out[9]);
+
+/**
+ * Raw container bytes for one dat1 cache read, for a caller that will hand
+ * them to somebody else's decoder rather than decode them here.
+ *
+ * This is the proxy's entry point. io_server answers a browser's dat1 read
+ * with it: the page has no socket to a LostCity server and no HTTP origin it
+ * is allowed to read one from, so the bytes come through this process. What
+ * crosses is the container exactly as the server serves it -- the jag file for
+ * table 0, the STORED (still compressed) file for tables 1..4 -- because the
+ * browser's IndexedDB holds raw containers for dat2 already and one shape for
+ * both is what keeps the executor's decode step honest.
+ *
+ * `flags` is the item's, so a map read is resolved through the versionlist the
+ * same way a local one is; see the implementation for why that cannot be left
+ * to the caller. `*out_format` receives the enum RSCache_ArchiveFormat those
+ * bytes are in, which is the one thing a later decode cannot recover from the
+ * bytes themselves.
+ *
+ * malloc'd, caller frees. NULL when no on-demand source is enabled, when the
+ * square is not one this world ships, or when the server does not have it --
+ * all three legitimate runtime states rather than contract violations.
+ */
+uint8_t*
+PlatformXIO_Dat1OnDemandContainerFetch(
+    struct PlatformX_IO* px,
+    int table_id,
+    int archive_id,
+    int flags,
+    int* out_format,
+    int* out_size);
 
 /**
  * Open both wires and decode the versionlist's map_index.
@@ -141,6 +173,27 @@ PlatformXIOOnDemand_ArchiveLoad(
     struct PlatformXIOOnDemand* od,
     int table_id,
     int archive_id);
+
+/**
+ * The same fetch as ArchiveLoad, stopping one step earlier.
+ *
+ * ArchiveLoad decompresses tables 1..4 on the way past, because its caller
+ * wants an archive. This one hands back the container as the server serves it,
+ * because ITS caller is a proxy and the decode belongs to whoever finally
+ * reads the bytes -- doing it here would mean deciding, on this side of a
+ * socket, what a client on the other side is going to need.
+ *
+ * `*out_format` receives the enum RSCache_ArchiveFormat the bytes are in
+ * (DAT_MULTIFILE for the table-0 jag archives, DAT for the rest). malloc'd,
+ * caller frees. NULL when the server does not have it.
+ */
+uint8_t*
+PlatformXIOOnDemand_ContainerFetch(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id,
+    int* out_format,
+    int* out_size);
 
 /**
  * The nine jag checksums the login block must echo, from `GET /crc`.

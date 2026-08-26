@@ -13,7 +13,23 @@
  *
  *   POST /io          an IOWire request batch -> an IOWire response batch
  *   GET  /boot/<path>  a manifest or RevConfig INI, under --boot-root
+ *   GET  /cache/dat1/<table>/<archive>[?flags=N]
+ *                     one raw dat1 container, proxied off a LostCity server
  *   GET  /...          a file under --root (default build-web/), "/" -> index.html
+ *
+ * ## Why the dat1 proxy is here and not in the page
+ *
+ * A dat1 cache lives on the LostCity server, and a browser cannot read it.
+ * Half of it is the 2004 on-demand protocol on the game port -- raw TCP,
+ * which a page has no way to speak -- and the other half is eight jag
+ * archives served over HTTP with no Access-Control-Allow-Origin, so a page
+ * on this server's origin gets an opaque response it cannot read a byte of.
+ * Neither is a gap in the page; both are what that server is.
+ *
+ * So this process holds the on-demand client and the page asks it. What
+ * crosses is the container exactly as the server serves it, undecoded: the
+ * browser stores raw containers for dat2 already, and one shape for both is
+ * what keeps a single decode step at the far end.
  *
  * Usage:
  *   src/build/io_server --manifest manifests/manifest_rs254lc.ini [--port 8088]
@@ -23,8 +39,10 @@
 #include "http_server.h"
 
 #include "bootmanifest/bootmanifest.h"
+#include "asyncio.h"
 #include "platform/io_wire.h"
 #include "platform/platform_x_io.h"
+#include "platform/platform_x_io_ondemand.h"
 
 #include <assert.h>
 #include <rscache.h>
@@ -67,6 +85,18 @@ struct IoServer
      */
     struct CacheSlot caches[IO_SERVER_MAX_CACHES];
     int cache_count;
+
+    /*
+     * The LostCity proxy, or NULL.
+     *
+     * Not one of the slots above, because there is nothing to key it on. A
+     * disk cache is identified by its directory and a batch names the one it
+     * means; an on-demand cache IS the server named in the manifest's
+     * [net:boot], so there is exactly one per process and it is settled at
+     * startup rather than opened on first use.
+     */
+    struct PlatformX_IO* ondemand;
+    char ondemand_describe[192];
     char root[512];
     /* Where GET /boot/<path> reads from: the tree the manifests live in, and
      * the root the caches themselves are resolved against. */
@@ -622,6 +652,95 @@ handle_boot_file(
     serve_file(server, full, req, res);
 }
 
+/*
+ * GET /cache/dat1/<table>/<archive>[?flags=N] -- one raw dat1 container.
+ *
+ * The page's dat1 producer, on the other side of this route, is a fetch and
+ * nothing more: every decision about what a read MEANS is made here, by the
+ * same code the native client runs. `flags` is the item's cache flags, and
+ * it is on the wire because a map read names a SQUARE -- resolving it to an
+ * archive needs the server's versionlist, which is on this side.
+ *
+ * 404 is an answer, not a failure: a built world has holes at its edges, and
+ * the client already treats an absent archive as one. 503 is the outage --
+ * no on-demand source configured at all -- and says so separately so a page
+ * cannot read "this world has no such map" out of "you did not point me at
+ * a server".
+ */
+static void
+handle_ondemand_container(
+    struct IoServer* server,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    char const* cursor = req->path + 12;
+    char* end = NULL;
+    long table_id;
+    long archive_id;
+    long flags = TORIRS_IO_CACHE_DAT1;
+    char const* query;
+    uint8_t* bytes;
+    int format = 0;
+    int size = 0;
+
+    assert(server);
+    assert(req);
+    assert(res);
+
+    if( !server->ondemand )
+    {
+        res->status = 503;
+        return;
+    }
+
+    table_id = strtol(cursor, &end, 10);
+    if( end == cursor || *end != '/' )
+    {
+        res->status = 400;
+        return;
+    }
+    cursor = end + 1;
+    archive_id = strtol(cursor, &end, 10);
+    if( end == cursor )
+    {
+        res->status = 400;
+        return;
+    }
+    if( table_id < 0 || archive_id < 0 )
+    {
+        res->status = 400;
+        return;
+    }
+
+    query = strstr(end, "flags=");
+    if( query )
+        flags = strtol(query + 6, NULL, 10);
+
+    bytes = PlatformXIO_Dat1OnDemandContainerFetch(
+        server->ondemand, (int)table_id, (int)archive_id, (int)flags, &format, &size);
+    if( !bytes || size <= 0 )
+    {
+        free(bytes);
+        server->failed++;
+        res->status = 404;
+        return;
+    }
+
+    /* The format is NOT sent. It is a function of the table -- the jag
+     * archives are DAT_MULTIFILE and everything else is DAT -- so the far
+     * side derives it from the read it already made, and there is no header
+     * for the two ends to disagree about. Read here only to keep the
+     * out-parameter honest. */
+    (void)format;
+
+    server->served++;
+    server->bytes_out += size;
+    res->status = 200;
+    res->body = bytes;
+    res->body_len = size;
+    res->owns_body = 1;
+}
+
 static void
 io_server_handler(
     void* user,
@@ -647,6 +766,11 @@ io_server_handler(
         if( strncmp(req->path, "/boot/", 6) == 0 )
         {
             handle_boot_file(server, req, res);
+            return;
+        }
+        if( strncmp(req->path, "/cache/dat1/", 12) == 0 )
+        {
+            handle_ondemand_container(server, req, res);
             return;
         }
         if( strcmp(req->path, "/stats") == 0 )
@@ -718,6 +842,7 @@ main(
     char const* rev_name = NULL;
     int port = IO_SERVER_DEFAULT_PORT;
     int have_preopen = 0;
+    int want_ondemand = 0;
 
     memset(&server, 0, sizeof(server));
     memset(&preopen, 0, sizeof(preopen));
@@ -737,7 +862,11 @@ main(
             preopen.revision = manifest.cache_revision;
             preopen.quirks = manifest.cache_quirks;
             snprintf(preopen.dir, sizeof(preopen.dir), "%s", manifest.cache_dir);
-            have_preopen = 1;
+            /* source=ondemand names no directory, and opening one would be
+             * opening a cache this boot said it does not have. The wire to
+             * the server replaces it; see want_ondemand below. */
+            want_ondemand = manifest.cache_on_demand;
+            have_preopen = !want_ondemand && preopen.dir[0] != 0;
             continue;
         }
         if( strcmp(argv[i], "--rev") == 0 && i + 1 < argc )
@@ -811,6 +940,42 @@ main(
         return 1;
     }
 
+    /*
+     * The manifest asked for the server's own cache, so open the wire to it
+     * now rather than on the first read. Failing here names the reason --
+     * almost always that LostCity is not started yet -- where a tab would
+     * only show a client that decodes nothing.
+     */
+    if( want_ondemand )
+    {
+        int enabled;
+
+        server.ondemand = PlatformX_IO_New();
+        assert(server.ondemand);
+        enabled = PlatformXIO_Dat1OnDemandEnable(
+            server.ondemand,
+            manifest.host[0] ? manifest.host : "localhost",
+            manifest.port,
+            manifest.ws_port);
+        if( enabled != 0 )
+        {
+            fprintf(stderr,
+                "io_server: [cache:boot] source=ondemand, but %s is not serving a "
+                "cache (game port %d, web port %d)\n",
+                manifest.host[0] ? manifest.host : "localhost",
+                manifest.port > 0 ? manifest.port : 43594,
+                manifest.ws_port > 0 ? manifest.ws_port : 80);
+            return 1;
+        }
+        snprintf(server.ondemand_describe, sizeof(server.ondemand_describe),
+            "%s:%d (dat1 on demand, web port %d)",
+            manifest.host[0] ? manifest.host : "localhost",
+            manifest.port > 0 ? manifest.port : 43594,
+            manifest.ws_port > 0 ? manifest.ws_port : 80);
+        printf("io_server: proxying %s\n", server.ondemand_describe);
+        fflush(stdout);
+    }
+
     signal(SIGINT, on_signal);
     signal(SIGTERM, on_signal);
 
@@ -831,5 +996,6 @@ main(
         RSCache_Dat1DiskFree(server.caches[i].dat1_disk);
         RSCache_Dat2DiskFree(server.caches[i].dat2_disk);
     }
+    PlatformX_IO_Free(server.ondemand);
     return 0;
 }

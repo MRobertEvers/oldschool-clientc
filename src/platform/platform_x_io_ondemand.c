@@ -745,6 +745,60 @@ PlatformXIOOnDemand_MapSquares(struct PlatformXIOOnDemand* od)
     return od->map_squares;
 }
 
+uint8_t*
+PlatformXIOOnDemand_ContainerFetch(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id,
+    int* out_format,
+    int* out_size)
+{
+    assert(od);
+    assert(out_format);
+    assert(out_size);
+    assert(table_id >= 0);
+    assert(archive_id >= 0);
+
+    *out_size = 0;
+
+    /*
+     * Table 0 is not on the socket at all, and that asymmetry is the server's,
+     * not a shortcut here. The eight jag archives are HTTP resources whose
+     * path carries the checksum the server last packed them with; the on-demand
+     * protocol serves the OTHER tables, and numbers them from zero, which is
+     * where the -1 below comes from.
+     */
+    if( table_id == RSCACHE_DAT1_DISK_TABLE_CONFIGS )
+    {
+        char route[OD_JAG_ROUTE_MAX];
+        char* data;
+
+        if( archive_id <= 0 || archive_id >= OD_JAG_ROUTE_COUNT )
+            return NULL;
+        if( od_jag_route(od, archive_id, route, sizeof(route)) != 0 )
+            return NULL;
+
+        data = od_http_get(od, route, out_size);
+        if( !data )
+            return NULL;
+        *out_format = RSCACHE_ARCHIVE_FORMAT_DAT_MULTIFILE;
+        return (uint8_t*)data;
+    }
+
+    if( table_id > RSCACHE_DAT1_DISK_TABLE_MAPS )
+        return NULL;
+
+    {
+        char* data = od_fetch_file(od, table_id - 1, archive_id, out_size);
+        if( !data )
+            return NULL;
+        /* Stored as served: still gzipped. The decode is the reader's, which
+         * is the whole difference between this and ArchiveLoad. */
+        *out_format = RSCACHE_ARCHIVE_FORMAT_DAT;
+        return (uint8_t*)data;
+    }
+}
+
 struct RSCache_Dat1DiskArchive*
 PlatformXIOOnDemand_ArchiveLoad(
     struct PlatformXIOOnDemand* od,

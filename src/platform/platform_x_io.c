@@ -1,9 +1,19 @@
 #include "platform_x_io.h"
+/*
+ * Two remote cache backings, two flags, because two callers want different
+ * halves. JS5 is the dat2 one and drags in the SDL2 clock its pump is paced
+ * by; on-demand is the dat1 one and needs nothing but a socket. io_server
+ * wants the second without the first -- it PROXIES a LostCity cache to the
+ * browser, which is the whole reason it links this file -- so a single flag
+ * naming "every networked source" cannot express what it is asking for.
+ */
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
 #include "platform_x_io_js5.h"
 #include "platform_x_io_js5_cache.h"
-#include "platform_x_io_ondemand.h"
 #include "platform_sdl2.h"
+#endif
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+#include "platform_x_io_ondemand.h"
 #endif
 
 #include "asyncio.h"
@@ -84,6 +94,8 @@ struct PlatformX_IO
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
     struct PlatformXIOJs5Cache* js5;
     struct Js5PendingItem js5_pending[JS5_PENDING_SLOTS];
+#endif
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
     /* The dat1 counterpart of dat2's js5 client: the cache lives on a LostCity
      * server rather than on this machine. Set instead of dat1_disk, never
      * beside it. */
@@ -183,7 +195,7 @@ PlatformX_IO_InitDat1Disk(
 {
     assert(px);
     assert(disk);
-#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
     /* One dat1 source. The remote one refuses an open disk from its side;
      * this is the same rule read the other way round. */
     assert(!px->dat1_on_demand);
@@ -237,6 +249,8 @@ PlatformX_IO_Free(struct PlatformX_IO* px)
 
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
     PlatformXIOJs5Cache_Free(px->js5);
+#endif
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
     PlatformXIOOnDemand_Free(px->dat1_on_demand);
 #endif
     for( int i = 0; i < DAT2_ARCHIVE_CACHE_SLOTS; i++ )
@@ -698,15 +712,17 @@ cache_source_for(
     struct PlatformX_IO* px,
     struct ToriRS_IOItem const* item)
 {
-#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
     if( cache_item_is_dat1(item) )
         return px->dat1_on_demand ? CACHE_SOURCE_ON_DEMAND : CACHE_SOURCE_DISK;
-    return px->js5 ? CACHE_SOURCE_JS5 : CACHE_SOURCE_DISK;
-#else
+#endif
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+    if( !cache_item_is_dat1(item) )
+        return px->js5 ? CACHE_SOURCE_JS5 : CACHE_SOURCE_DISK;
+#endif
     (void)px;
     (void)item;
     return CACHE_SOURCE_DISK;
-#endif
 }
 
 /*
@@ -916,7 +932,7 @@ dat1_map_archive_id(
 {
     struct RSCache_MapSquares* squares = NULL;
 
-#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
     /* Same table, other source: the server's versionlist, decoded when the
      * on-demand handle opened. Selected by source rather than by falling back
      * off a NULL disk, so this reads the same way the archive load below does. */
@@ -977,7 +993,7 @@ load_cache_item_dat1(
         return -1;
     }
 
-#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
     if( source == CACHE_SOURCE_ON_DEMAND )
         archive = PlatformXIOOnDemand_ArchiveLoad(px->dat1_on_demand, table_id, archive_id);
     else
@@ -1214,33 +1230,6 @@ PlatformXIO_Js5Enable(
 }
 
 int
-PlatformXIO_Dat1OnDemandEnable(
-    struct PlatformX_IO* px,
-    const char* host,
-    int game_port,
-    int web_port)
-{
-    assert(px);
-    assert(host);
-    if( px->dat1_disk || px->dat1_on_demand )
-        return -1;
-    px->dat1_on_demand = PlatformXIOOnDemand_New(host, game_port, web_port);
-    return px->dat1_on_demand ? 0 : -1;
-}
-
-int
-PlatformXIO_Dat1OnDemandJagChecksums(
-    struct PlatformX_IO* px,
-    int32_t out[9])
-{
-    assert(px);
-    assert(out);
-    if( !px->dat1_on_demand )
-        return -1;
-    return PlatformXIOOnDemand_JagChecksums(px->dat1_on_demand, out);
-}
-
-int
 PlatformXIO_Js5Pump(
     struct PlatformX_IO* px,
     uint64_t now_ms)
@@ -1278,3 +1267,65 @@ PlatformXIO_Js5GetProgress(
 }
 #endif
 
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+int
+PlatformXIO_Dat1OnDemandEnable(
+    struct PlatformX_IO* px,
+    const char* host,
+    int game_port,
+    int web_port)
+{
+    assert(px);
+    assert(host);
+    if( px->dat1_disk || px->dat1_on_demand )
+        return -1;
+    px->dat1_on_demand = PlatformXIOOnDemand_New(host, game_port, web_port);
+    return px->dat1_on_demand ? 0 : -1;
+}
+
+int
+PlatformXIO_Dat1OnDemandJagChecksums(
+    struct PlatformX_IO* px,
+    int32_t out[9])
+{
+    assert(px);
+    assert(out);
+    if( !px->dat1_on_demand )
+        return -1;
+    return PlatformXIOOnDemand_JagChecksums(px->dat1_on_demand, out);
+}
+
+uint8_t*
+PlatformXIO_Dat1OnDemandContainerFetch(
+    struct PlatformX_IO* px,
+    int table_id,
+    int archive_id,
+    int flags,
+    int* out_format,
+    int* out_size)
+{
+    assert(px);
+    assert(out_format);
+    assert(out_size);
+    if( !px->dat1_on_demand )
+        return NULL;
+
+    /*
+     * The same resolution load_cache_item_dat1 does, and deliberately the same
+     * code: a map read names a SQUARE and the archive holding it is a fact
+     * only the server's versionlist knows. A proxy that skipped this would
+     * pass the square id through as an archive id and serve the wrong file --
+     * silently, because any archive decodes into something.
+     */
+    if( flags == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN || flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY )
+    {
+        archive_id = dat1_map_archive_id(
+            px, archive_id, flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY, CACHE_SOURCE_ON_DEMAND);
+        if( archive_id < 0 )
+            return NULL;
+    }
+
+    return PlatformXIOOnDemand_ContainerFetch(
+        px->dat1_on_demand, table_id, archive_id, out_format, out_size);
+}
+#endif

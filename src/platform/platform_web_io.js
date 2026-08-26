@@ -56,7 +56,7 @@ mergeInto(LibraryManager.library, {
      * integer is a legal handle and saves pretending to be a struct this file
      * does not have. Ids start at 1 so a handle is never a false-y pointer on
      * the C side. */
-    instances: new Map(),
+    instances: null,
     nextHandle: 1,
 
     /*
@@ -69,7 +69,7 @@ mergeInto(LibraryManager.library, {
      * two pipelines over one executor and one being blocked must not stall the
      * other.
      */
-    inflight: new Map(),
+    inflight: null,
 
     addInflight: function (io, delta) {
       const now = (this.inflight.get(io) || 0) + delta;
@@ -78,9 +78,21 @@ mergeInto(LibraryManager.library, {
     },
 
     init: function () {
-      /* Nothing to do until the module is running; the ABI is fetched lazily
-       * because a postset runs before main() has necessarily set anything up.
-       * Kept as a hook so the shape is obvious to the next person. */
+      /* The two Maps are built HERE rather than in the object literal above,
+       * and that is not a style choice. emscripten emits a --js-library `$name`
+       * object by SERIALIZING it -- the generated module carries the literal's
+       * data as JSON, so a `new Map()` written up there arrives as `{}`, a
+       * plain object whose `.set` is not a function. The symptom is main()
+       * refusing to start with "S.instances.set is not a function", which names
+       * neither this file nor the reason.
+       *
+       * __postset runs this at module init, before any executor exists, which
+       * is the earliest point at which a real object can be made.
+       *
+       * The ABI is still fetched lazily: a postset runs before main() has
+       * necessarily set anything up. */
+      this.instances = new Map();
+      this.inflight = new Map();
     },
 
     /*
@@ -341,6 +353,44 @@ mergeInto(LibraryManager.library, {
     },
 
     /*
+     * Which container space an item is phrased in.
+     *
+     * Mirrors of the queue's cache flags (asyncio.h), and the same values
+     * torirs_hostio.js routes producers by -- the two read the one field for
+     * the two halves of the same decision: who can FETCH this, and who can
+     * DECODE it.
+     */
+    dat1Flags: { DAT1: 1, MAP_TERRAIN: 2, MAP_SCENERY: 3 },
+
+    isDat1: function (flags) {
+      const f = this.dat1Flags;
+      return flags === f.DAT1 || flags === f.MAP_TERRAIN || flags === f.MAP_SCENERY;
+    },
+
+    /*
+     * The dat1 counterpart of decodeArchive.
+     *
+     * Separate because the two produce different TYPES -- a Dat1DiskArchive
+     * and a Dat2DiskArchive -- and the item's data_size is what tells the
+     * client which it was handed. A single "decode" that returned whichever
+     * would leave the size to be guessed here, which is the one thing this
+     * layer must never do.
+     *
+     * No XTEA and no reference table: nothing in the dat1 era is encrypted,
+     * and an archive's file count comes out of the archive itself.
+     */
+    decodeDat1Archive: function (bytes, table, archive) {
+      const scratch = _malloc(bytes.length);
+      if (!scratch) { throw new Error(`torirs: out of memory for a ${bytes.length} byte container`); }
+      try {
+        HEAPU8.set(bytes, scratch);
+        return _ToriRS_WebApi_Dat1ArchiveDecode(scratch, bytes.length, table, archive);
+      } finally {
+        _free(scratch);
+      }
+    },
+
+    /*
      * Execute one item. An ordinary async function: it awaits the host and
      * returns the bytes, or null when there are none.
      *
@@ -377,6 +427,27 @@ mergeInto(LibraryManager.library, {
           inst.host.xteaKey(req.table, req.archive),
         ]);
         if (!bytes) { return null; }
+
+        /*
+         * WHICH DECODER, decided here, from the flags the item carries.
+         *
+         * The two containers are not variants of one format: a dat2 group is a
+         * compression byte and two lengths, a dat1 archive is a gzip stream or
+         * a jag file, and each has its own decoder in rscache. Handing dat1
+         * bytes to the dat2 one does not fail cleanly -- it reads the first
+         * byte as a compression method and reports "Unknown compression
+         * method: 31", a number that appears nowhere in the cache and names
+         * nothing about what actually went wrong.
+         *
+         * The flags decide it, not the table id: a table number means
+         * different things in the two container spaces, while the flags are
+         * what the client already sets to say which space it is asking in.
+         */
+        if (this.isDat1(req.flags)) {
+          const dat1 = this.decodeDat1Archive(bytes, req.table, req.archive);
+          if (!dat1) { return null; }
+          return { ptr: dat1, size: _ToriRS_WebApi_Dat1ArchiveStructSize() };
+        }
 
         const ptr = this.decodeArchive(bytes, req.table, req.archive, xtea);
         if (!ptr) { return null; }

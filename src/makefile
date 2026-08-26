@@ -1072,8 +1072,14 @@ IO_SERVER_FLAVOR = PLATFORM=native OPT=0 MEMTRACE=0 ENABLE_ASAN=0 ENABLE_UBSAN=0
 # ui/torirs_chrome_exec_kind.c: `[chrome] executor` is resolved by name the same
 # way, and the kind table is split out of ui/torirs_chrome_exec.c precisely so
 # that naming an executor does not drag the whole ui/ layer in here.
+# platform_x_io_ondemand.c is here because io_server PROXIES a LostCity
+# cache to the browser: a page has no socket to the game port and no
+# CORS-permitted origin for the jag routes, so the dat1 source runs in this
+# process. It brings in neither SDL2 nor js5 -- see the two separate NO_
+# flags on the link below.
 IO_SERVER_SRCS = ioserver/io_server_main.c ioserver/http_server.c \
 	platform/io_wire.c platform/platform_x_io.c \
+	platform/platform_x_io_ondemand.c \
 	platform/platform_x_http.c platform/sockstream.c \
 	bootmanifest/bootmanifest.c features/features.c \
 	ui/torirs_chrome_exec_kind.c $(INI_SRC)
@@ -1105,7 +1111,7 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) \
 # and assert the decoded item matches field for field.
 test-io-wire: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -DTORIRS_PLATFORM_X_IO_NO_JS5=1 -o $(OBJ_DIR)/io_wire_test \
+	$(CC) $(CFLAGS) -DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_ONDEMAND=1 -o $(OBJ_DIR)/io_wire_test \
 		platform/io_wire.c platform/platform_x_io.c platform/test/io_wire_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm

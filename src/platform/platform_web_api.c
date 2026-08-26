@@ -166,6 +166,79 @@ ToriRS_WebApi_ReferenceTableStructSize(void)
 }
 
 /**
+ * Decode one raw dat1 container into the archive the queue expects.
+ *
+ * The dat1 counterpart of ToriRS_WebApi_ArchiveDecode, and a separate entry
+ * point rather than a branch inside it because the two produce DIFFERENT
+ * TYPES: a dat2 read fills the item with a Dat2DiskArchive and a dat1 read
+ * with a Dat1DiskArchive, and the item's data_size says which. One function
+ * returning "whichever" would leave the caller to guess the size, which is
+ * exactly the thing the executor must not do.
+ *
+ * `container`/`size` are the bytes the server serves for (table, archive):
+ * the jag file for the config table, and the STORED -- still compressed --
+ * file for every other. The format is derived here rather than sent, because
+ * it is a function of the table and a wire field would be a second statement
+ * of the same fact, free to disagree with the first.
+ *
+ * Returns NULL when the container does not decode. A read failure, not a
+ * crash: a truncated download and a mis-addressed archive both land here, and
+ * the client recovers by failing the one item.
+ */
+EMSCRIPTEN_KEEPALIVE struct RSCache_Dat1DiskArchive*
+ToriRS_WebApi_Dat1ArchiveDecode(
+    uint8_t* container,
+    int size,
+    int table_id,
+    int archive_id)
+{
+    struct RSCache_Dat1DiskArchive* archive;
+    struct RSCache_Dat2DiskArchive raw = { 0 };
+    enum RSCache_ArchiveFormat format;
+
+    if( !container || size <= 0 )
+        return NULL;
+
+    format = table_id == RSCACHE_DAT1_DISK_TABLE_CONFIGS ? RSCACHE_ARCHIVE_FORMAT_DAT_MULTIFILE
+                                                         : RSCACHE_ARCHIVE_FORMAT_DAT;
+
+    /* Decompression works in place and replaces `data`, so it is handed a copy
+     * it may own -- borrowing the JS-side buffer would hand rscache a pointer
+     * it is entitled to free. */
+    raw.data = malloc((size_t)size);
+    assert(raw.data);
+    memcpy(raw.data, container, (size_t)size);
+    raw.data_size = size;
+    raw.table_id = table_id;
+    raw.archive_id = archive_id;
+
+    /* A jag archive is not compressed at this layer -- its files are, and the
+     * jag reader above unpacks them. Everything else arrives gzipped. */
+    if( format != RSCACHE_ARCHIVE_FORMAT_DAT_MULTIFILE &&
+        !RSCache_ArchiveDecompressDat(&raw, format) )
+    {
+        free(raw.data);
+        return NULL;
+    }
+
+    archive = malloc(sizeof(*archive));
+    assert(archive);
+    memset(archive, 0, sizeof(*archive));
+    archive->data = raw.data;
+    archive->data_size = raw.data_size;
+    archive->archive_id = archive_id;
+    archive->table_id = table_id;
+    archive->format = format;
+    return archive;
+}
+
+EMSCRIPTEN_KEEPALIVE int
+ToriRS_WebApi_Dat1ArchiveStructSize(void)
+{
+    return (int)sizeof(struct RSCache_Dat1DiskArchive);
+}
+
+/**
  * Free a decoded archive.
  *
  * For the executor's own error paths only -- an archive that reached the queue

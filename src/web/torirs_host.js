@@ -99,26 +99,37 @@
   const ioUrl = params.get('io') || '/io';
   const bootUrl = ioUrl.replace(/\/io$/, '/boot');
   const statsUrl = ioUrl.replace(/\/io$/, '/stats');
+  /* io_server's origin, which is also where the dat1 proxy answers. Derived
+   * from the one endpoint the page was given rather than configured again, so
+   * all four routes are the same server by construction. */
+  const cacheBase = ioUrl.replace(/\/io$/, '');
 
   // Where the IndexedDB build reaches JS5. Defaults to this page's host, which
   // is right when the client and the cache server are served from one machine
   // (the usual local setup) and overridable when they are not.
   const js5Host = params.get('js5_host') || window.location.hostname || 'localhost';
   const js5Port = parseInt(params.get('js5_port') || '43594', 10);
-  /* dat1's producer talks to the GAME port: the 2004 protocol multiplexes file
-   * service onto the connection the client logs in over, so it is not js5Port
-   * and is not derivable from it. */
-  const onDemandPort = parseInt(params.get('ondemand_port') || '43594', 10);
+  /*
+   * There is no dat1 endpoint to configure here, and that is the point.
+   *
+   * A page cannot reach a LostCity cache: the on-demand protocol is raw TCP on
+   * the game port, and the jag archives are HTTP with no CORS. io_server holds
+   * that client on the page's behalf and answers over its own origin, so where
+   * the SERVER is stays where it belongs -- the manifest's `[net:boot]`, read
+   * by io_server, which is also the process that has to reach it.
+   */
 
   /*
    * Which cache this manifest names, and which generation it is.
    *
    * Read here rather than asked of C, because there is no longer any C to ask:
-   * the JS5 producer is JavaScript and the metadata barrier it needed is gone.
-   * These two keep the records addressable -- the cache key separates one
-   * generation's groups from another's in the database, and the revision is
-   * what the JS5 handshake announces (a mismatch is answered with status 6, so
-   * guessing it is not an option).
+   * both producers are JavaScript and the metadata barrier they needed is
+   * gone. The cache key separates one generation's groups from another's in
+   * the database; the revision is what the JS5 handshake announces (a mismatch
+   * is answered with status 6, so guessing it is not an option).
+   *
+   * Nothing about the SERVER is read here. Where a dat1 cache comes from is
+   * io_server's business, off the same manifest -- see onDemandProducer.
    *
    * The manifest is fetched by boot.load below in any case, so this is a second
    * read of bytes the page already has rather than a second request.
@@ -126,7 +137,7 @@
   let cacheKey = '';
   let cacheRevision = 0;
 
-  function readCacheIdentity(bytes) {
+  function readBootIdentity(bytes) {
     const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
     let section = '';
     text.split('\n').forEach(raw => {
@@ -355,7 +366,7 @@
             /* Which cache, and which generation. Both are needed before the
              * first read: the key addresses the records, the revision is what
              * the JS5 handshake announces. */
-            readCacheIdentity(bytes);
+            readBootIdentity(bytes);
             const dir = value.includes('/') ? value.replace(/\/[^/]*$/, '/') : '';
             for (const rel of this.revconfigPaths(bytes)) { await take(dir + rel); }
             // Additional CLI paths keep CLI/CWD semantics; unlike typed
@@ -459,6 +470,87 @@
 
   // --------------------------------------------------------------- Module
 
+  /*
+   * The object the emscripten runtime reads.
+   *
+   * torirs.js is a plain script (-sMODULARIZE=0), and its first act is to
+   * adopt a `Module` global if one is already there. This file is loaded
+   * before it for exactly that reason, so defining it is this file's job --
+   * every hook below hangs off this object.
+   */
+  const Module = {};
+  window.Module = Module;
+
+  /*
+   * main() is this file's to start, and the flag saying so has to be set HERE.
+   *
+   * Everything main() opens by name -- the boot manifest, the RevConfig INIs it
+   * names -- is staged into MEMFS asynchronously by clientBoot.start, so the
+   * runtime must init and then STOP, leaving main() to be called once the
+   * staging is done.
+   *
+   * Not in preRun, which is where this used to be and where it does nothing.
+   * The generated runtime reads the flag at module scope, before run():
+   *
+   *     var shouldRunNow = true;
+   *     if (Module["noInitialRun"]) shouldRunNow = false;
+   *     run();                       // <- preRun executes in here
+   *
+   * so a preRun assignment lands after the decision it is trying to make.
+   * main() then ran with an empty filesystem, printed "bootmanifest: cannot
+   * open", and booted an unconfigured client -- no [net:boot], therefore not
+   * networked, therefore the offline default of map 50,50 loaded and the
+   * gameframe mounted against nothing. That is what a manifest-less boot looks
+   * like, and it looks nothing like the missing flag that caused it. Worse,
+   * clientBoot.start then called callMain a second time, so a run that
+   * appeared to work was two mains deep.
+   */
+  Module.noInitialRun = true;
+
+  /*
+   * The two cache producers, built on the first read that needs one.
+   *
+   * Lazy, not eager: a boot uses exactly one of them -- which one is decided
+   * by the container the client phrases its read in (dat2 -> JS5, dat1 -> the
+   * 2004 on-demand protocol) -- and building both up front would open a
+   * second WebSocket to a port nothing is listening on, whose failure reads
+   * as an outage rather than as the unused half it is.
+   */
+  let js5Client = null;
+  let onDemandClient = null;
+
+  const js5Producer = () => {
+    if (!js5Client) {
+      js5Client = window.ToriRS_CreateJs5(js5Host, js5Port, js5Revision());
+    }
+    return js5Client;
+  };
+
+  const onDemandProducer = () => {
+    if (!onDemandClient) {
+      onDemandClient = window.ToriRS_CreateOnDemand(cacheBase);
+    }
+    return onDemandClient;
+  };
+
+  /*
+   * Where the platform IO executor gets its bytes
+   * (platform/platform_web_io.js reads it as Module.torirsHostIO).
+   *
+   * This file supplies the deployment knowledge -- which database, which
+   * server, which producer -- and torirs_hostio.js supplies the queue
+   * mechanics. Guarded so the page still loads, and can still say what is
+   * wrong, when torirs_hostio.js was not included.
+   *
+   * cacheKey is passed as a function: the provider is built here, while the
+   * page is still assembling Module, and which generation the archives belong
+   * to is not read until boot.load parses the manifest.
+   */
+  if (typeof window.ToriRS_CreateHostIO === 'function') {
+    Module.torirsHostIO = window.ToriRS_CreateHostIO(
+      () => cacheKey, bootUrl, { js5: js5Producer, onDemand: onDemandProducer });
+  }
+
   Module.arguments = args;
   Module.canvas = (() => {
     const canvas = document.getElementById('canvas');
@@ -474,18 +566,11 @@
   Module.print = text => { log(text, false); };
   Module.printErr = text => { log(text, true); };
 
+  /* The environment, which is all preRun is for here: it runs before
+   * initRuntime, so nothing in it may call into wasm, and the one flag that
+   * used to live here had to move -- see Module.noInitialRun above. */
   Module.preRun = [() => {
     readEnv().forEach(pair => { ENV[pair[0]] = pair[1]; });
-    /*
-     * Take main() off the runtime's hands, on both lanes.
-     *
-     * Everything main() needs to find — the manifest, the RevConfig INIs — now
-     * comes from a store that has to be opened asynchronously first, and
-     * nothing here may call into wasm anyway: preRun runs before initRuntime.
-     * So the whole boot sequence moves after runtime init and ends by calling
-     * main() itself. See js5.begin.
-     */
-    Module.noInitialRun = true;
   }];
 
   /* Nothing to flush on the way out. Records are written straight through to
