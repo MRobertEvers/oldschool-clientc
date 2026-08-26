@@ -212,25 +212,21 @@ export class Layout {
 /**
  * Give a kernel a layout, and make its geometry getters read resolved values.
  *
- * The kernel's `_geometry` already calls `onLayoutNeeded` before reading —
- * that is the barrier — so installing a layout is all that is needed for a
- * script to see the width it just set.
+ * Installing a layout is ALL that is needed. The kernel's `_geometry` already
+ * calls `onLayoutNeeded` before reading — that is the barrier — and already
+ * knows that x and y are answered relative to the parent while width and
+ * height are answered absolute.
+ *
+ * This function used to install a second `_geometry` on the instance, which
+ * shadowed the kernel's and returned the ABSOLUTE x and y. Two copies of one
+ * rule is how they came to disagree: the kudos list's scrollbar caps were
+ * positioned from a `.cc_gety` that answered 71 where the reference answers
+ * 16, and landed 55 pixels below the thumb they cap.
  */
 export function attachLayout(host, { root = DEFAULT_ROOT } = {}) {
     const layout = createLayout({ tree: host.tree, root });
     host.layout = layout;
     host.onLayoutNeeded = () => layout.resolve();
-
-    /* Geometry getters answer from the RESOLVED box, not the authored value.
-     * A script reading `if_getwidth` after `if_setsize(0, 18, ^setsize_minus,
-     * …)` wants the pixels, not the -0 it wrote. */
-    host._geometry = function (node, field) {
-        this.calls++;
-        if( !node ) return -1;
-        if( this.tree.layoutStale ) this.onLayoutNeeded();
-        if( node.layout && field in node.layout ) return node.layout[field];
-        return this.tree.getProp(node.index, field, 0);
-    };
     return layout;
 }
 

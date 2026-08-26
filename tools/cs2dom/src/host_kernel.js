@@ -525,10 +525,37 @@ export class HostKernel {
     cc_getwidth() { return this._geometry(this.activeNode(), 'width'); }
     cc_getheight() { return this._geometry(this.activeNode(), 'height'); }
 
+    /**
+     * A geometry getter answers the LAID-OUT value, not the authored prop.
+     *
+     * Reading the prop makes the whole barrier pointless: `cc_setsize(0, 0,
+     * ^setsize_minus, ^setsize_minus)` stores zeros, and a script asking
+     * `cc_getheight` right after wants the height that mode RESOLVED to, not
+     * the zero it wrote. The reference calls `UITree_GetLayoutWidth` /
+     * `GetRelativeY` here, and both resolve layout first.
+     *
+     * x and y are RELATIVE TO THE PARENT — `abs_y - parent.abs_y` — because
+     * that is the number a script feeds straight back into `cc_setposition`,
+     * which is itself parent-relative. Answering the absolute value makes
+     * every "put this beside that" add the parent's origin twice: the kudos
+     * list's scrollbar caps landed 55 pixels below the thumb they cap.
+     *
+     * A node with no resolved layout falls back to its authored value, which
+     * is the reference's own `!position.layout_resolved` arm.
+     */
     _geometry(node, field) {
         this.calls++;
         if( !node ) return -1;
         if( this.tree.layoutStale ) this.onLayoutNeeded?.();
+        const box = node.layout;
+        if( !box ) return this.tree.getProp(node.index, field, 0);
+        if( field === 'width' || field === 'height' ) return box[field] | 0;
+        if( field === 'x' || field === 'y' )
+        {
+            const parent = node.parent >= 0 ? this.tree.at(node.parent) : null;
+            const origin = parent && parent.layout ? parent.layout[field] | 0 : 0;
+            return (box[field] | 0) - origin;
+        }
         return this.tree.getProp(node.index, field, 0);
     }
 

@@ -160,6 +160,18 @@ export function installTextMeasureOps(HostKernel) {
  */
 export function stripMarkup(text) {
     return String(text ?? '')
+        /*
+         * `<br>` is a LINE BREAK, not markup to drop. It has to survive as one
+         * before the rest of the tags go, because the wrapper counts lines and
+         * a stripped `<br>` silently joins two of them.
+         *
+         * The kudos list is the witness: its rows are
+         * `"<str=ffffff><title><br><str=ffffff><detail>"`, two lines each. With
+         * the break stripped every row measured as one, the list's scroll
+         * extent came out short by 15 pixels per row, and the scrollbar thumb
+         * was sized against a content height that did not exist.
+         */
+        .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<[^>]*>/g, '')
         .replace(/@[a-z]{3}@/gi, '');
 }

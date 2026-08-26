@@ -414,6 +414,20 @@ async function run(reference) {
     layout.resolve();
     emitter.walk({ force: true });
 
+    if( process.env.PARITY_DUMP_NODES )
+    {
+        for( const uid of process.env.PARITY_DUMP_NODES.split(',') )
+        {
+            const node = tree.findByComponentId(Number(uid));
+            if( !node ) { console.error(`${uid}: absent`); continue; }
+            const parent = node.parent >= 0 ? tree.at(node.parent) : null;
+            console.error(`${uid} type=${node.type} layout=${JSON.stringify(node.layout)}`
+                + ` parent=${parent ? parent.componentId : -1}`
+                + ` parentLayout=${JSON.stringify(parent?.layout)}`
+                + ` props=${JSON.stringify(node.props)}`);
+        }
+    }
+
     if( process.env.PARITY_DUMP_FROM )
     {
         const from = Number(process.env.PARITY_DUMP_FROM);
