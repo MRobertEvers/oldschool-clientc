@@ -60,13 +60,34 @@ export class HostConfig {
     }
 }
 
+/**
+ * The stat a skill has before a server has said otherwise.
+ *
+ * `RS_PlayerStats_Init` seeds a fresh client at level 1 in everything and 10
+ * hitpoints, which is what a new account has and what every orb, tab and
+ * tooltip reads before login. Zero is not a neutral placeholder for it: the
+ * minimap's hitpoints orb colours itself by current/base, so a 0/0 read
+ * painted the number red and the orb empty where the reference has it green
+ * and full, in four `orbs*` interfaces.
+ */
+const STAT_COUNT = 25;
+const SKILL_HITPOINTS = 3;
+
+function defaultStats() {
+    const stats = new Map();
+    for( let index = 0; index < STAT_COUNT; index++ )
+        stats.set(index, { level: 1, base: 1, xp: 0 });
+    stats.set(SKILL_HITPOINTS, { level: 10, base: 10, xp: 1154 });
+    return stats;
+}
+
 /** Live inventory contents and stat levels — server state, not cache tables. */
 export class HostPlayerState {
-    constructor({ inventories = new Map(), stats = new Map() } = {}) {
+    constructor({ inventories = new Map(), stats = null } = {}) {
         /** inv id -> [{ obj, count }], sparse by slot. */
         this.inventories = new Map(inventories);
         /** stat index -> { level, base, xp }. */
-        this.stats = new Map(stats);
+        this.stats = stats ? new Map(stats) : defaultStats();
     }
 
     slots(invId) { return this.inventories.get(invId) ?? []; }

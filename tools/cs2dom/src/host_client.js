@@ -48,7 +48,7 @@ export class ClientState {
     constructor({
         windowMode = 1, defaultWindowMode = 1, clientType = CLIENTTYPE_DEFAULT,
         options = new Map(), coord = -1, world = 301,
-        runEnergy = 0, runWeight = 0, mobile = false,
+        runEnergy = 100, runWeight = 0, mobile = false,
     } = {}) {
         this.windowMode = windowMode;
         this.defaultWindowMode = defaultWindowMode;
@@ -61,8 +61,12 @@ export class ClientState {
         /*
          * `runenergy_visible` / `runweight_visible` read the PLAYER'S VALUE
          * despite their names — `rs_cs2_host.c` answers `stats->run_energy`
-         * and `stats->run_weight`, not a visibility flag. Zero with no player,
-         * which is the reference's own answer when it has no stats block.
+         * and `stats->run_weight`, not a visibility flag.
+         *
+         * A HUNDRED before a server says otherwise, which is what
+         * `RS_PlayerStats_Init` seeds: a client that has not logged in has a
+         * full energy globe, not an empty one. Zero coloured the minimap's
+         * run orb red and picked its empty filler sprite.
          */
         this.runEnergy = runEnergy;
         /** Display toggles a script sets and a renderer reads. */
