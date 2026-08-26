@@ -1,5 +1,6 @@
 #include "render/trspk_toridraw.h"
 
+#include "core/trspk_color_simd.h"
 #include "core/trspk_uv_pnm.h"
 #include "core/trspk_vbo.h"
 #include "toridraw.h"
@@ -9,9 +10,6 @@
 #include "toridraw_scene.h"
 
 #include <assert.h>
-#if defined(__SSE2__)
-#include <emmintrin.h>
-#endif
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -38,28 +36,7 @@ trspk_toridraw_hsl16_to_rgba(
     float rgba[4])
 {
     const uint32_t rgb = (uint32_t)ToriDraw_Hsl16ToRgb(hsl16);
-#if defined(__SSE2__)
-    /* Four lanes, one reciprocal multiply. Dividing by 255 compiled to four
-     * DIVSS, which on the Pentium 4 target is ~30 cycles apiece and does not
-     * pipeline -- twelve of them per face made this the most expensive thing
-     * in the bake. The reciprocal is close enough that the round trip back
-     * through (x * 255 + 0.5) truncation still returns the same byte. */
-    _mm_storeu_ps(
-        rgba,
-        _mm_mul_ps(
-            _mm_cvtepi32_ps(_mm_setr_epi32(
-                (int)((rgb >> 16) & 0xFFu),
-                (int)((rgb >> 8) & 0xFFu),
-                (int)(rgb & 0xFFu),
-                (int)alpha)),
-            _mm_set1_ps(1.0f / 255.0f)));
-#else
-    const float inv255 = 1.0f / 255.0f;
-    rgba[0] = (float)((rgb >> 16) & 0xFFu) * inv255;
-    rgba[1] = (float)((rgb >> 8) & 0xFFu) * inv255;
-    rgba[2] = (float)(rgb & 0xFFu) * inv255;
-    rgba[3] = (float)alpha * inv255;
-#endif
+    trspk_color_unpack_rgb_alpha(rgb, alpha, rgba);
 }
 
 float
