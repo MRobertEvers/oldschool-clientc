@@ -25927,29 +25927,50 @@ App_RunOnce(
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LOGIC)
     {
         /*
-         * Snapping, not truncating.
+         * One clock, and it pays out in whole ticks while keeping the change.
          *
-         * The frame pacer aims at 20ms and the logic tick is 20ms, so the two
-         * beat against each other: a frame that lands at 19.6ms elapsed
-         * divides to 0 ticks, the next lands at 39.2ms and divides to 2. The
-         * world then advances twice in one frame and not at all in the other,
-         * and since the renderer does not interpolate between ticks that reads
-         * as a visible hitch even though no frame was late. Round to the
-         * nearest tick instead of flooring: anything within half a tick of the
-         * boundary counts as one tick, and genuine stalls still divide out to
-         * the real count and take the bounded catch-up path below.
+         * The simulation runs at a fixed 50 Hz. The frame's elapsed time goes
+         * into an accumulator; whole 20 ms cycles are drawn out of it and the
+         * remainder is carried. That is what makes the rate exactly 50 Hz no
+         * matter how fast frames arrive -- an uncapped frame rate cannot run
+         * the world faster than real time, because time it did not spend stays
+         * in the accumulator instead of being rounded into a tick.
          *
-         * Rounding up pushes last_logic_ms past now_ms, so the next frame's
-         * subtraction must not be done in unsigned -- it would wrap to ~2^64
-         * and clamp straight to APP_MAX_CATCHUP_TICKS every frame.
+         * This replaces a round-to-nearest divide. That existed to stop a
+         * 19.6ms frame beating 0,2,0,2 against a 20ms tick, and it did -- but
+         * it bought that by counting a short frame as a whole cycle, which is
+         * time the simulation was given and had not elapsed. The accumulator
+         * fixes the beat properly: 19.6ms pays 1,1,1... once the remainder
+         * carries, and never pays more than really elapsed.
+         *
+         * `frame_cycles` for the movers is taken from the SAME elapsed value
+         * below. Two clocks with different rounding and different clamps is
+         * how an npc's legs get ahead of where its body actually is.
          */
         uint64_t elapsed_ms = now_ms > app->last_logic_ms ? now_ms - app->last_logic_ms : 0;
-        int ticks = (int)((elapsed_ms + APP_LOGIC_TICK_MS / 2) / APP_LOGIC_TICK_MS);
+        int ticks = 0;
+
+        app->last_logic_ms = now_ms;
+        /* One clamp, shared: a stall must cost the movers and the animations
+         * the same amount of time, or they resume out of step. */
+        if( elapsed_ms > (uint64_t)APP_MAX_CATCHUP_TICKS * APP_LOGIC_TICK_MS )
+        {
+            elapsed_ms = (uint64_t)APP_MAX_CATCHUP_TICKS * APP_LOGIC_TICK_MS;
+            /* Dropped on the floor rather than owed: catching up a long stall
+             * at full speed is the lurch the bound exists to prevent. */
+            app->cycle_accum_ms = 0.0;
+        }
+        app->cycle_accum_ms += (double)elapsed_ms;
+        while( app->cycle_accum_ms >= (double)APP_LOGIC_TICK_MS &&
+               ticks < APP_MAX_CATCHUP_TICKS )
+        {
+            app->cycle_accum_ms -= (double)APP_LOGIC_TICK_MS;
+            ticks++;
+        }
+        app->logic_frame_ms = elapsed_ms;
+        int const ticks_paid = ticks;
         if( ticks > 0 )
         {
-            app->last_logic_ms += (uint64_t)ticks * APP_LOGIC_TICK_MS;
-            if( ticks > APP_MAX_CATCHUP_TICKS )
-                ticks = APP_MAX_CATCHUP_TICKS;
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_LOGIC_TICKS, ticks);
             for( int t = 0; t < ticks; t++ )
             {
@@ -25985,28 +26006,28 @@ App_RunOnce(
                     }
                 }
             }
+            /* The settle fence above can stop the catch-up part way through.
+             * The accumulator has already been charged for every tick it paid
+             * out, so hand back the ones that did not run -- otherwise a frame
+             * that stopped at the fence silently swallows simulation time and
+             * the world falls behind the clock it is supposed to keep. */
+            if( ticks < ticks_paid )
+                app->cycle_accum_ms +=
+                    (double)(ticks_paid - ticks) * (double)APP_LOGIC_TICK_MS;
         }
         else
         {
             ticks = 0;
         }
 
-        /* World sim cycles == client 20ms ticks (v1 world_cycle cadence); the
-         * movers get the frame's real elapsed time in the same unit. Clamped
-         * to the logic catch-up budget so a stalled frame does not fling
-         * every actor down its route in one step. */
-        {
-            uint64_t frame_ms = now_ms > app->last_mover_ms ? now_ms - app->last_mover_ms : 0;
-            float frame_cycles;
-
-            if( app->last_mover_ms == 0 )
-                frame_ms = 0; /* first frame has no elapsed time to spend */
-            else if( frame_ms > APP_MAX_CATCHUP_TICKS * APP_LOGIC_TICK_MS )
-                frame_ms = APP_MAX_CATCHUP_TICKS * APP_LOGIC_TICK_MS;
-            app->last_mover_ms = now_ms;
-            frame_cycles = (float)frame_ms / (float)APP_LOGIC_TICK_MS;
-            app_world_frame(app, ticks, frame_cycles);
-        }
+        /* The movers interpolate the same elapsed time the tick accumulator
+         * was just given -- already clamped, and measured off the same clock.
+         * They read the fraction where the logic reads whole cycles, which is
+         * the only difference between the two that should exist. */
+        app_world_frame(
+            app,
+            ticks,
+            (float)app->logic_frame_ms / (float)APP_LOGIC_TICK_MS);
     }
 
     /* Resume a parked packet pipeline at frame rate, not tick rate. A packet

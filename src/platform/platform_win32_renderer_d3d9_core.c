@@ -5038,6 +5038,16 @@ d3d9_begin_3d(
     renderer->cur_3d = *command;
     renderer->has_3d = true;
     renderer->in3d = true;
+    /* Publish the prepared camera block.
+     *
+     * The SSE2 projection kernels are gated on
+     * `scene->projection_prepared_camera_source == camera`, and only the SDL2
+     * soft3d renderer ever published it -- so on this lane the pointer was
+     * always NULL, the gate was always false, and every model in every frame
+     * took the scalar fallback. The pointer has to be the same one the
+     * projection is called with, which is &renderer->cur_3d.camera below. */
+    if( renderer->scene )
+        ToriDraw_ScenePrepareProjectionCamera(renderer->scene, &renderer->cur_3d.camera);
     viewport = &renderer->cur_3d.view_port;
     pass_w = viewport->width > 0 ? viewport->width : renderer->width;
     pass_h = viewport->height > 0 ? viewport->height : renderer->height;
@@ -5630,6 +5640,10 @@ d3d9_end_3d(struct ToriRS_D3D9* renderer)
 {
     uint32_t active_pages = 0u;
     uint32_t page;
+    /* The prepared block describes a camera that is about to go out of scope;
+     * unpublishing it is what stops a later pass reading a stale one. */
+    if( renderer->scene )
+        ToriDraw_SceneClearProjectionCamera(renderer->scene);
     if( !renderer->has_3d )
         goto done;
     if( trspk_atlas_is_dirty(&renderer->atlas) && !d3d9_upload_atlas(renderer) )
