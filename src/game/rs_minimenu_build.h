@@ -148,6 +148,31 @@ struct RS_MinimenuBuildCtx
      * than by name, since the map editor's tile tools care which layer they
      * would be affecting, not which loc it is. */
     bool mapedit_select_active;
+
+    /*
+     * The plugin lane's server is unreachable, so no "Manage Plugins" row is
+     * offered at all.
+     *
+     * Every file the plugin system needs after the module itself -- the
+     * manifest, each script it names, each shipped asset -- arrives over the
+     * same transport as a cache read (TORIRS_IOK_SCRIPT, task_plugin_io.c).
+     * With that transport down the panel can list nothing, load nothing and
+     * save nothing, so a row that opens it is a row that leads to an empty
+     * window and no explanation.
+     *
+     * Dropped here rather than refused in the dispatcher because the row is
+     * AUTHORED: a profile puts `op0_action=PLUGIN_PANEL` on whatever component
+     * it likes, so the client does not know which component to grey and cannot
+     * reach it even if it did. Suppressing by ACTION covers every one of them,
+     * on every gameframe, including the launcher this client builds itself --
+     * and it takes the left-click default with it, since a row that is not
+     * there cannot be chosen (RS_Minimenu_ActionIsDefaultable).
+     *
+     * Sense is deliberately "down", not "available": false is the pre-existing
+     * behaviour, so every build path that predates this -- the standalone
+     * minimenu tests included -- keeps offering the row exactly as it did.
+     */
+    bool plugin_io_down;
 };
 
 /* Custom, client-only minimenu action id: never sent to a server, and picked

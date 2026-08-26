@@ -3,7 +3,7 @@
 
 #include "asyncio.h"
 #include "perf/torirs_perf.h"
-#include "platform/platform_x_io.h"
+#include "platform/platform_io.h"
 
 #include <assert.h>
 
@@ -12,7 +12,7 @@
  * async work done goes through one of these two calls instead of hand-rolling
  * a Run/Process loop.
  *
- * Native: PlatformX_IO_Process satisfies IO synchronously, so each Step makes
+ * Native: Platform_IO_Process satisfies IO synchronously, so each Step makes
  * forward progress and Drain terminates within the call.
  * WASM (future shell): Process only initiates fetches; Step returns PENDING
  * and the browser loop resumes us next frame — Drain must not be used there.
@@ -22,7 +22,7 @@ struct TaskRunner
 {
     struct ToriRS_TaskQueue* queue;
     struct ToriRS_IO* io;
-    struct PlatformX_IO* px;
+    Platform_IO* px;
     /* A CS2 task has joined this queue and the tree/display list must not be
      * published until its whole host follow-up fixed point has settled. */
     int frame_settle_pending;
@@ -55,7 +55,7 @@ TaskRunner_Step(struct TaskRunner* runner)
         int pending = 0;
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
         {
-            pending = PlatformX_IO_Pending(runner->px, runner->io);
+            pending = Platform_IO_Pending(runner->px, runner->io);
         }
         if( pending )
             return TASK_RUNNER_PENDING;
@@ -71,7 +71,7 @@ TaskRunner_Step(struct TaskRunner* runner)
          * list's lifetime identical on both exits. */
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
         {
-            PlatformX_IO_Process(runner->px, runner->io);
+            Platform_IO_Process(runner->px, runner->io);
         }
         return TASK_RUNNER_BLOCKED;
     }
@@ -79,7 +79,7 @@ TaskRunner_Step(struct TaskRunner* runner)
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
         {
-            PlatformX_IO_Process(runner->px, runner->io);
+            Platform_IO_Process(runner->px, runner->io);
         }
         return TASK_RUNNER_PENDING;
     }
@@ -127,7 +127,7 @@ TaskRunner_SettleFrame(struct TaskRunner* runner)
             break;
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
         {
-            pending = PlatformX_IO_Pending(runner->px, runner->io);
+            pending = Platform_IO_Pending(runner->px, runner->io);
         }
         if( pending )
             break;

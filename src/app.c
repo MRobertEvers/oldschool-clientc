@@ -1,11 +1,6 @@
 #include "app.h"
 #include "log/torirs_log.h"
 
-#if defined(TORIRS_WEB_CACHE_IDB)
-#include "platform/dat2_web_store.h"
-#include "platform/web_cache_boot.h"
-#endif
-
 #include "bmp.h"
 /* Screenshot encoding. Already linked for the cache codecs; the PNG writer
  * rides along, so a plugin capture costs no new dependency. */
@@ -7074,6 +7069,7 @@ app_debug_overlay_init(struct App* app)
     app->plugin_ui = app->dbg_ui;
     app->plugin_panel = -1;
     app->plugin_button_node = -1;
+    app->plugin_button_disabled = 0;
     app->plugin_panel_built_for = -1;
     app->plugin_panel_built_rev = -1;
     /* No executor has been reported yet, and BUFFER is a real answer. */
@@ -8309,7 +8305,7 @@ App_Init(
      * other phase loads through. */
     app->runner.io = ToriRS_IO_New();
     app->runner.queue = ToriRS_TaskQueue_New();
-    app->runner.px = PlatformX_IO_New();
+    app->runner.px = Platform_IO_New();
     assert(app->runner.px != NULL);
 
     /* Serial game-action pipeline: own queue + io slots, SHARED platform
@@ -8318,42 +8314,18 @@ App_Init(
     app->exec_runner.queue = ToriRS_TaskQueue_New();
     app->exec_runner.px = app->runner.px;
 
-#if defined(TORIRS_WEB_CACHE_IDB)
+#if defined(TORIRS_PLATFORM_WEB)
     /*
-     * The browser has no cache *directory*, but on this lane it does have a
-     * cache: a keyed record store the page hydrated from IndexedDB, wearing a
-     * dat2 face (see platform/dat2_web_store.h). So the disk opens normally and
-     * everything below this point — table id resolution, the map XTEA gate,
-     * reference tables, the archive decode path — is the code the desktop build
-     * runs, against the same struct.
+     * A browser opens no cache here, and that is the architecture rather than a
+     * gap.
      *
-     * The store was opened before main() by the JS5 metadata barrier, which had
-     * to run first: this constructor decodes reference tables, and it is not a
-     * tolerant reader.
+     * The platform IO executor answers cache reads on this lane
+     * (platform/platform_web_io.js): it reads the record database the cache
+     * producers fill and decodes through the format's own C API. Nothing above
+     * the queue needs a disk handle, so leaving both NULL is what keeps that
+     * honest -- anything that tried to read locally would fault rather than
+     * quietly answer out of an empty cache.
      */
-    {
-        struct Dat2WebStore* store = WebCacheBoot_Store();
-        struct RSCache_Dat2Store ops;
-
-        if( !store )
-        {
-            TORIRS_LOG("app: no browser record store for %s — the JS5 prime did not run\n",
-                cfg->cache_dir ? cfg->cache_dir : "(unnamed cache)");
-        }
-        assert(store != NULL);
-        ops = Dat2WebStore_Ops(store);
-        app->dat2_disk = RSCache_Dat2DiskNewFromStore(cfg->cache_dir, &ops);
-        assert(app->dat2_disk != NULL);
-        PlatformX_IO_InitDat2Disk(app->runner.px, app->dat2_disk);
-    }
-#elif defined(TORIRS_PLATFORM_WEB)
-    /* The browser has no cache directory to open. Every read the disk layer
-     * would have answered goes to the IO server instead, which holds the real
-     * cache and therefore also the things only an open cache can answer:
-     * logical-table resolution, the map XTEA gate, and the dat1 versionlist
-     * map_index. Leaving both disk handles NULL is what keeps that honest —
-     * anything here that tried to read locally would fault rather than quietly
-     * answer from an empty cache. */
     (void)cfg->cache_dir;
 #else
     if( cfg->cache_kind == APP_CACHE_DAT1 && cfg->cache_on_demand )
@@ -8383,7 +8355,7 @@ App_Init(
                 "js5 cache)\n",
                 cfg->cache_dir);
         assert(app->dat1_disk != NULL);
-        PlatformX_IO_InitDat1Disk(app->runner.px, app->dat1_disk);
+        Platform_IO_InitDat1Disk(app->runner.px, app->dat1_disk);
         /* No xtea step: dat1 archives are not encrypted. */
     }
     else
@@ -8414,20 +8386,20 @@ App_Init(
                 TORIRS_LOG("app: map archives are unencrypted at this revision\n");
             }
         }
-        PlatformX_IO_InitDat2Disk(app->runner.px, app->dat2_disk);
+        Platform_IO_InitDat2Disk(app->runner.px, app->dat2_disk);
     }
 #endif
     /* What the boot manifest said about the cache. A local backend ignores it
      * (it has the disk); a remote one needs it to know what to open. */
-    PlatformX_IO_InitCacheId(
+    Platform_IO_InitCacheId(
         app->runner.px,
         cfg->cache_epoch,
         cfg->cache_game,
         cfg->cache_revision,
         cfg->cache_quirks,
         cfg->cache_dir);
-    PlatformX_IO_InitConfigPath(app->runner.px, cfg->config_dir);
-    PlatformX_IO_InitScriptPath(app->runner.px, cfg->script_dir);
+    Platform_IO_InitConfigPath(app->runner.px, cfg->config_dir);
+    Platform_IO_InitScriptPath(app->runner.px, cfg->script_dir);
 
     /* Phase 2: asset pipeline (provider is a view over the build cache). */
     if( cfg->cache_kind == APP_CACHE_DAT1 )
@@ -9126,7 +9098,7 @@ app_prefs_flush(struct App* app)
     memset(&io, 0, sizeof(io));
     task = CreateTask_PrefsSave(&app->prefs, app->prefs_path);
     while( task_run(task, &io) == PT_YIELDED && guard++ < 8 )
-        PlatformX_IO_Process(app->runner.px, &io);
+        Platform_IO_Process(app->runner.px, &io);
     task_free(task);
 }
 
@@ -9191,7 +9163,7 @@ App_Shutdown(struct App* app)
         dat2_buildcache_free(app->dat2_bc);
     if( app->dat1_bc )
         dat1_buildcache_free(app->dat1_bc);
-    PlatformX_IO_Free(app->runner.px);
+    Platform_IO_Free(app->runner.px);
     if( app->dat2_disk )
         RSCache_Dat2DiskFree(app->dat2_disk);
     if( app->dat1_disk )
@@ -12826,7 +12798,7 @@ app_pump_net_packets(struct App* app)
                     (int)stat,
                     head ? head->name : "(none)",
                     head ? head->blocked : -1,
-                    PlatformX_IO_Pending(app->exec_runner.px, app->exec_runner.io),
+                    Platform_IO_Pending(app->exec_runner.px, app->exec_runner.io),
                     (int)app->logic_cycle);
             }
             app->exec_runner_had_work = 1;
@@ -22531,6 +22503,7 @@ app_hover_text_update(
                 .click_in_world = click_in_world != 0,
                 .locedit_active = app->locedit_visible != 0,
                 .mapedit_select_active = app_mapedit_select_active(app),
+                .plugin_io_down = app_plugin_io_down(app) != 0,
             };
             UIMinimenu_Reset(&scratch);
             scratch.font_id = app->hover_text.font_id;
@@ -22948,6 +22921,7 @@ app_minimenu_open(
         .click_in_world = click_in_world != 0,
         .locedit_active = app->locedit_visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
+        .plugin_io_down = app_plugin_io_down(app) != 0,
     };
     struct UIMinimenu* menu = &app->interact.minimenu;
     struct UIMinimenuLayout layout;
@@ -23421,6 +23395,7 @@ app_run_default_ui_row(
         .click_in_world = false,
         .locedit_active = app->locedit_visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
+        .plugin_io_down = app_plugin_io_down(app) != 0,
     };
     struct UIMinimenu scratch;
     int default_idx;
@@ -26366,6 +26341,7 @@ App_RunOnce(
             .selection = app_minimenu_selection(app),
             .locedit_active = app->locedit_visible != 0,
             .mapedit_select_active = app_mapedit_select_active(app),
+            .plugin_io_down = app_plugin_io_down(app) != 0,
         };
         struct UIMinimenu scratch;
         int default_idx;
@@ -26486,6 +26462,7 @@ App_RunOnce(
             .selection = app_minimenu_selection(app),
             .locedit_active = app->locedit_visible != 0,
             .mapedit_select_active = app_mapedit_select_active(app),
+            .plugin_io_down = app_plugin_io_down(app) != 0,
         };
         struct UIMinimenu scratch;
         int default_idx;

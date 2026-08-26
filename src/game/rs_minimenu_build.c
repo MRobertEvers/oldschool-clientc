@@ -1069,6 +1069,37 @@ RS_Minimenu_Build(
             add_component_rows(ctx, node, ctx->selection.mode, out);
     }
 
+    /*
+     * Drop the plugin launcher's row when its server is gone. See
+     * RS_MinimenuBuildCtx::plugin_io_down for why this is by action id.
+     *
+     * After the walk and before the sort: the row can come from an authored
+     * component op or from the launcher this client builds itself, and this is
+     * the one point both have passed through. A compaction rather than a flag
+     * on the option, because everything downstream -- the sort, the width
+     * measure, the default-row scan -- counts rows, and a row that is present
+     * but ignored would have to be taught to each of them separately.
+     *
+     * Only the launcher. A plugin's own canvas-region rows are its FEATURES,
+     * not a way into the panel, and one already running off assets it loaded
+     * before the outage keeps working; taking its orb's rows away would break
+     * a plugin that is fine.
+     */
+    if( ctx->plugin_io_down )
+    {
+        int kept = 0;
+
+        for( int i = 0; i < out->option_count; i++ )
+        {
+            if( out->options[i].action == RS_MINIMENU_ACTION_PLUGIN_PANEL )
+                continue;
+            if( kept != i )
+                out->options[kept] = out->options[i];
+            kept++;
+        }
+        out->option_count = kept;
+    }
+
     UIMinimenu_SortPriorityActions(out);
 }
 

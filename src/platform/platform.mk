@@ -75,6 +75,7 @@ ifneq ($(filter $(PLATFORM),macos linux),)
   PLATFORM_SRCS     := platform/platform_x_io.c \
                        platform/platform_x_io_js5_cache.c \
                        platform/platform_x_io_ondemand.c \
+                       platform/platform_x_http.c \
                        platform/platform_audio_sdl2.c \
                        platform/platform_sdl2_renderer_gl3.c \
                        platform/platform_sdl2_renderer_gl3zb.c
@@ -163,6 +164,7 @@ else ifeq ($(PLATFORM),win32)
   PLATFORM_SRCS     := platform/platform_x_io.c \
                        platform/platform_x_io_js5_cache.c \
                        platform/platform_x_io_ondemand.c \
+                       platform/platform_x_http.c \
                        platform/platform_audio_null.c \
                        platform/platform_win32_timing.c \
                        platform/platform_win32_renderer_d3d9_core.c \
@@ -266,6 +268,7 @@ else ifeq ($(PLATFORM),win64)
   PLATFORM_SRCS     := platform/platform_x_io.c \
                        platform/platform_x_io_js5_cache.c \
                        platform/platform_x_io_ondemand.c \
+                       platform/platform_x_http.c \
                        platform/platform_audio_null.c \
                        platform/platform_win32_timing.c \
                        platform/platform_win32_renderer_d3d9_core.c \
@@ -315,67 +318,84 @@ else ifeq ($(PLATFORM),web)
   # machines this lane runs on is none.
   PLATFORM_EXE_SUFFIX :=
 
-  # --- Where a browser's cache reads come from -----------------------------
+  # --- How a browser answers the IO queue ----------------------------------
   #
-  # Two answers, and they are genuinely different architectures rather than a
-  # flag, which is why each owns an object directory:
+  # ONE web lane, and its platform IO executor is JavaScript.
   #
-  #   CACHE=wire (default)  There is no cache in the browser. Every item goes
-  #                         over a socket to io_server, which runs the real
-  #                         PlatformX_IO_LoadItem against a real cache. Needs
-  #                         that process; nothing persists in the browser.
+  # The architecture is [game -> IO Queue] :> [platform IO executor]. The game
+  # queues items; the platform executes them. On the desktop that executor is
+  # platform_x_io.c, which has a filesystem and sockets. A browser has neither
+  # and cannot read anything synchronously without freezing the tab, so its
+  # executor is platform/platform_web_io.js, linked with --js-library so that
+  # its functions ARE the definitions of the PlatformX_IO_* symbols the client
+  # calls. No C shim stands in between: one would be a second executor inside
+  # the seam, reading the queue twice, in two languages, with two chances to
+  # disagree about what an item says.
   #
-  #   CACHE=idb             The browser HAS a cache: archive records in
-  #                         IndexedDB behind a dat2 facade (dat2_web_store.h),
-  #                         filled incrementally over JS5. The client runs the
-  #                         same platform_x_io.c the desktop does, and the page
-  #                         needs no io_server at all.
+  # WHERE EACH KIND'S BYTES COME FROM:
   #
-  # They cannot coexist in one module -- both define PlatformX_IO -- and the
-  # choice is made at link time rather than at run time for exactly that
-  # reason.
-  WEB_CACHE ?= $(if $(CACHE),$(CACHE),wire)
-  ifeq ($(WEB_CACHE),idb)
-    PLATFORM_OBJ_BASE := build_web_idb
-    # The desktop IO backend, its JS5 attachment, the IndexedDB record store,
-    # and the pre-main() metadata barrier the page drives.
-    PLATFORM_SRCS     := platform/platform_x_io.c \
-                         platform/platform_x_io_js5_cache.c \
-                         platform/platform_x_io_ondemand.c \
-                         platform/dat2_web_store.c \
-                         platform/web_cache_boot.c \
-                         platform/platform_audio_wasm.c \
-                         platform/platform_sdl2_renderer_webgl1.c \
-                         platform/platform_sdl2_renderer_webgl1zb.c
-    JS5_SRCS          := $(wildcard js5/*.c)
-    WEB_CACHE_CFLAGS  := -DTORIRS_WEB_CACHE_IDB=1
-    # The page drives the metadata barrier, so those three entry points have to
-    # survive dead-code elimination. There is no _torirs_io_* here: this lane
-    # has no wire, and naming a symbol that does not exist is a link error.
-    WEB_CACHE_EXPORTS := ,"_torirs_web_cache_key","_torirs_web_cache_prime_begin","_torirs_web_cache_prime_step","_torirs_web_cache_prime_stats"
-    # The store's EM_JS bodies call these from JavaScript. Without them on the
-    # list the runtime may drop them, and the failure is a page that loads and
-    # then throws "setValue is not defined" on the first cache read.
-    # setValue/UTF8ToString are called from the store's EM_JS bodies. Without
-    # them on the list the runtime may drop them, and the failure is a page
-    # that loads and then throws on the first cache read.
-    WEB_CACHE_RUNTIME := ,"setValue","UTF8ToString"
-  else ifeq ($(WEB_CACHE),wire)
-    PLATFORM_OBJ_BASE := build_web
-    # The GPU renderer builds here too, against WebGL1 rather than desktop GL --
-    # same file, see TORIRS_GL_ES2 below. IO is asynchronous, audio is WebAudio.
-    PLATFORM_SRCS     := platform/platform_x_io_web.c \
-                         platform/io_wire.c \
-                         platform/platform_audio_wasm.c \
-                         platform/platform_sdl2_renderer_webgl1.c \
-                         platform/platform_sdl2_renderer_webgl1zb.c
-    JS5_SRCS          :=
-    WEB_CACHE_CFLAGS  :=
-    WEB_CACHE_EXPORTS := ,"_torirs_io_request_len","_torirs_io_request_ptr","_torirs_io_request_taken","_torirs_io_response_alloc","_torirs_io_response_submit","_torirs_io_fail_pending","_torirs_io_stats"
-    WEB_CACHE_RUNTIME :=
-  else
-    $(error unknown CACHE '$(WEB_CACHE)' for PLATFORM=web — expected wire or idb)
-  endif
+  #   CACHE / REFERENCE_TABLE   the record database, which the cache PRODUCERS
+  #                             fill -- JS5 for dat2, the 2004 on-demand
+  #                             protocol for dat1. Those already have servers of
+  #                             their own and do their own CRC and version
+  #                             checks, so the executor reads what they wrote
+  #                             and never fetches an archive itself.
+  #
+  #   CONFIG_FILE / SCRIPT      the database, then io_server's /boot/ route.
+  #                             These are the ones that had no route at all
+  #                             before, which is why a plugin's assets were
+  #                             unreachable in a browser however healthy the
+  #                             server was.
+  #
+  #   FILE_READ / FILE_WRITE    the database and nothing else. They are the
+  #                             player's own, and io_server refuses them by kind
+  #                             for the same reason.
+  #
+  # WHAT IS STILL C, and why that is not a compromise:
+  #
+  #   asyncio_abi.c        the queue reporting its own layout, so the executor
+  #                        reads offsets it was given rather than offsets it
+  #                        assumed. A wrong offset does not fail -- it decodes
+  #                        `kind` out of the middle of a path.
+  #
+  #   platform_web_api.c   the cache format. Container framing, bzip2, gzip,
+  #                        XTEA and the reference table have exactly one
+  #                        implementation in this tree (3rd/rscache), and a
+  #                        second one in JavaScript would be wrong in ways
+  #                        nothing downstream could catch: a bad decode does not
+  #                        throw, it yields a plausible archive. DECODE IS NOT
+  #                        IO, so it was never the executor's job.
+  #
+  # There is deliberately no second lane. A "wire" lane once existed in which
+  # the browser had no cache at all and every item crossed a socket to
+  # io_server; it needed its own C backend (platform_x_io_web.c), its own wire
+  # codec, and a duplicate of every decision this one makes. One executor that
+  # reads a local store and falls back to the server covers both deployments:
+  # with no server the database answers, with an empty database the server does.
+  PLATFORM_OBJ_BASE := build_web
+  PLATFORM_SRCS     := platform/platform_web_api.c \
+                       platform/platform_audio_wasm.c \
+                       platform/platform_sdl2_renderer_webgl1.c \
+                       platform/platform_sdl2_renderer_webgl1zb.c
+  # The queue's ABI reporter. Not in PLATFORM_SRCS because it belongs to the
+  # QUEUE, not to any platform: a second non-C executor would need the same
+  # numbers, and putting it beside the platform that reads it today would make
+  # the next one copy it.
+  PLATFORM_EXTRA_SRCS := asyncio_abi.c
+  # No JS5 here: the producer is JavaScript (src/web/torirs_js5.js), and so
+  # is the dat1 one. Nothing in this module speaks either protocol.
+  JS5_SRCS          :=
+  WEB_CACHE_CFLAGS  :=
+  # The executor is a link input: a change to it must relink the module, because
+  # it is as much a part of the program as any object file.
+  PLATFORM_JS_LIBRARY := $(SRC_DIR)/platform/platform_web_io.js
+  # Everything JavaScript calls into. Without these on the list the runtime may
+  # drop them, and the failure is a page that loads and then throws on the first
+  # read rather than a link error naming the symbol.
+  WEB_CACHE_EXPORTS := ,"_ToriRS_IO_DescribeAbi","_ToriRS_IO_DescribeAbiCount","_ToriRS_WebApi_ArchiveDecode","_ToriRS_WebApi_ArchiveApplyMetadata","_ToriRS_WebApi_ReferenceTableFromContainer","_ToriRS_WebApi_ArchiveStructSize","_ToriRS_WebApi_ReferenceTableStructSize","_ToriRS_WebApi_ArchiveFree"
+  # UTF8ArrayToString/UTF8ToString read paths out of the queue; setValue is used
+  # by the store's EM_JS bodies and the ABI read.
+  WEB_CACHE_RUNTIME := ,"setValue","UTF8ToString","UTF8ArrayToString"
 
   # TORIRS_PLATFORM_WEB is the source-level switch (there is no local disk, so
   # App_Init must not open one). -sUSE_SDL=2 must be a *compile* flag too: it
@@ -438,7 +458,8 @@ else ifeq ($(PLATFORM),web)
                       -sENVIRONMENT=web \
                       -sMODULARIZE=0 \
                       -sEXPORTED_RUNTIME_METHODS='["ccall","cwrap","HEAPU8","HEAP32","callMain","FS","FS_readFile"$(WEB_CACHE_RUNTIME)]' \
-                      -sEXPORTED_FUNCTIONS='["_main","_malloc","_free"$(WEB_CACHE_EXPORTS)]'
+                      -sEXPORTED_FUNCTIONS='["_main","_malloc","_free"$(WEB_CACHE_EXPORTS)]' \
+                      --js-library $(PLATFORM_JS_LIBRARY)
   # emcc strips at the wasm level; there is no ld flag to add here.
   PLATFORM_STRIP_LDFLAGS :=
   # emscripten's musl only routes these four through --wrap; reallocf and

@@ -353,6 +353,13 @@ window.torirsOpenPanelTab = () => {
 /** A second view of the world, in its own tab and its own wasm instance. */
 window.torirsOpenCanvasTab = () => !!window.torirsChannelHost.openCanvasTab('./index.html', 'torirs-canvas-2');
 </script>
+<!-- All four before torirs_host.js, which reaches for them while building the
+     Module object the runtime reads. Order matters only in that the database
+     comes before the two producers and the provider that use it. -->
+<script src="torirs_idb.js"></script>
+<script src="torirs_js5.js"></script>
+<script src="torirs_ondemand.js"></script>
+<script src="torirs_hostio.js"></script>
 <script src="torirs_host.js"></script>
 <script src="torirs.js"></script>
 </body>
