@@ -262,6 +262,30 @@ export class Emitter {
                 && node.componentId === context.hoveredComponentId;
             if( effectiveModel(node.props, hovered) < 0 ) return;
         }
+        /*
+         * A graphic with nothing to show is the same rule, and it is the one
+         * this walk was missing. `uitree_emit.c` ends its RS_GRAPHIC branch
+         * with `if( out->scene_id <= 0 ) return false;`, and a component whose
+         * cache record declares neither `graphic=` nor `activegraphic=` never
+         * gets a scene at all (`torirs_component_apply_graphic_hitbox_only`
+         * marks it, and the same branch returns false for that too).
+         *
+         * Sprite id 0 is a real sprite — the ref is built from `graphic >= 0`
+         * — so the test is `< 0`, not falsy. An item overlay counts as
+         * something to show whatever the sprite says: `cc_setobject` on a
+         * type-5 draws the icon through the same command.
+         *
+         * Without this, `ge_pricechecker` drew its empty `otheritem` cell,
+         * which the reference does not, and 60-odd interfaces carried a
+         * placeholder graphic the C client prunes.
+         */
+        if( kind === EMIT_KIND.SPRITE )
+        {
+            const hovered = node.componentId >= 0
+                && node.componentId === context.hoveredComponentId;
+            if( effectiveSprite(node.props, hovered) < 0
+                && (node.props.obj | 0) <= 0 ) return;
+        }
 
         const x = box.x - context.scrollX + (drag.inDrag ? drag.dragDx : 0);
         const y = box.y - context.scrollY + (drag.inDrag ? drag.dragDy : 0);
@@ -324,6 +348,12 @@ export function effectiveText(props, hovered) {
 export function effectiveModel(props, hovered) {
     const model = variantOf(props, hovered, 'model');
     return model === undefined || model === null ? -1 : model | 0;
+}
+
+/** The sprite a widget shows, or -1 for "none". */
+export function effectiveSprite(props, hovered) {
+    const sprite = variantOf(props, hovered, 'sprite');
+    return sprite === undefined || sprite === null ? -1 : sprite | 0;
 }
 
 /**

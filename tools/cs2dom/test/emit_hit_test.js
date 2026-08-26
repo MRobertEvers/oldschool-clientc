@@ -291,14 +291,15 @@ test('whatever the draw walk prunes, the hit tests prune too', () => {
         const { tree, hits, emitter, settle } = harness();
         /*
          * Content appropriate to the type, because presence is not decided by
-         * the type alone: an EMPTY text and an ABSENT model emit nothing even
-         * when visible, which is the reference's own rule. Without this the
-         * "and it was reachable before hiding" guard below fires, and the test
-         * would be proving nothing for two of the six types.
+         * the type alone: an EMPTY text, an ABSENT model and an ABSENT sprite
+         * each emit nothing even when visible, which is the reference's own
+         * rule. Without this the "and it was reachable before hiding" guard
+         * below fires, and the test would be proving nothing for three of the
+         * six types.
          */
         const node = box(tree, {
             type, componentId: 0x60001, width: 100, height: 100,
-            text: 'x', model: 7,
+            text: 'x', model: 7, sprite: 3,
         });
         tree.setHook(node, 'onClick', { scriptId: 1, args: [], triggers: [] });
         tree.setHook(node, 'onMouseRepeat', { scriptId: 2, args: [], triggers: [] });

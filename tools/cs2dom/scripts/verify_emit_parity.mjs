@@ -37,7 +37,7 @@ import { bakeInterface } from '../src/if_to_tree.js';
 import { createUITree } from '../src/uitree.js';
 import { createContentConfigs } from '../src/content_configs.js';
 import {
-    createHostKernel, HostState, StoreAssetSource, UnimplementedHostOp,
+    createHostKernel, HostState, HostClock, StoreAssetSource, UnimplementedHostOp,
 } from '../src/host_kernel.js';
 import { FontStore, SpriteStore } from '../src/assets.js';
 import { createContentAssets } from '../src/content_assets.js';
@@ -61,6 +61,7 @@ const revision = flag('--rev') ?? 'osrs239';
 const names = flag('--names') ?? join(REPO, '..', 'cs2', 'src', 'main', 'resources', 'org', 'runestar', 'cs2');
 const cs2Tool = flag('--cs2') ?? join(REPO, '3rd', 'rscache', 'tools', 'cs2', 'cs2');
 const only = flag('--interface') ? Number(flag('--interface')) : null;
+const astDir = resolve(flag('--ast') ?? join(HERE, '..', 'build', 'ast'));
 const verbose = args.includes('--verbose');
 
 /* The C client renders at this size; laying out against anything else moves
@@ -68,7 +69,7 @@ const verbose = args.includes('--verbose');
 const ROOT = { x: 0, y: 0, width: 765, height: 503 };
 
 /* The captured reference is frame 60 of the C client; see `run`. */
-const TICKS = Number(flag('--ticks') ?? 60);
+const TICKS = flag('--ticks') ? Number(flag('--ticks')) : null;
 const MOUNT_TRANSMIT = !args.includes('--no-mount-transmit');
 
 /*
@@ -107,7 +108,7 @@ const sprites = new SpriteStore({ decode: async (id) => contentAssets.sprite(id)
  * on the driver rather than run here, for the same reason the target
  * interface's are: they must not execute against a half-built tree.
  */
-function createLoader(tree, driver) {
+function createLoader(tree, driver, closure) {
     return {
     loadSync(kind, id) {
         if( kind === 'component' )
@@ -115,9 +116,25 @@ function createLoader(tree, driver) {
             if( tree.hasGroup(id) ) return true;
             const group = bakeGroup(tree, id);
             if( !group ) return false;
-            for( const entry of group.onLoad )
-                driver.dispatch(entry.scriptId, entry.args,
-                    { reason: 'onload', componentId: entry.componentId });
+            /* The new group's own hooks, before anything can dispatch one. */
+            closure.extend([...group.onLoad.map((entry) => entry.scriptId),
+                ...treeHookScripts(tree)]);
+            /*
+             * Baked, NOT opened — its onload does not run here.
+             *
+             * A `cc_find`/`cc_create`/`if_getlayer` that names a component in
+             * another group is a cross-interface reference, and all the
+             * reference does for one is bring the PACK into the tree. Opening
+             * is a separate act (`if_openwidget`), and only opening runs
+             * onload.
+             *
+             * Running it here mounted whatever the reference had merely
+             * loaded: `mm_overlay` reaches into `interface_163` for the
+             * private-message overlay, so this ran `pm_init`, which created 20
+             * dynamic components the reference never had. The dynamic-uid
+             * cursor is tree-global, so every later id in 882 came out 20
+             * high and the whole draw list mismatched on componentId.
+             */
             return true;
         }
         try
@@ -180,8 +197,41 @@ function readPack(path) {
 
 const astCache = new Map();
 
+/**
+ * An on-disk syntax-tree directory, indexed by script id.
+ *
+ * `make corpus-aot` already writes every tree the decompiler can produce into
+ * `build/ast`, and reading one is a thousand times cheaper than shelling out
+ * to `cs2 decompile` for it. The files are named by SCRIPT NAME, so the index
+ * is built once by reading each file's `"id"` — 9,724 small reads, which is
+ * still far less than one decompile.
+ */
+const astIndex = (() => {
+    const index = new Map();
+    if( !existsSync(astDir) ) return index;
+    for( const file of readdirSync(astDir) )
+    {
+        if( !file.endsWith('.json') ) continue;
+        const head = readFileSync(join(astDir, file), 'utf8').slice(0, 400);
+        const match = /"id"\s*:\s*(\d+)/.exec(head);
+        if( match ) index.set(Number(match[1]), join(astDir, file));
+    }
+    return index;
+})();
+
 function syntaxTree(id) {
     if( astCache.has(id) ) return astCache.get(id);
+    const cached = astIndex.get(id);
+    if( cached )
+    {
+        try
+        {
+            const tree = JSON.parse(readFileSync(cached, 'utf8'));
+            astCache.set(id, tree);
+            return tree;
+        }
+        catch { /* fall through to the decompiler */ }
+    }
     let tree = null;
     if( existsSync(cs2Tool) && existsSync(cache) )
     {
@@ -201,33 +251,51 @@ function syntaxTree(id) {
     return tree;
 }
 
-/** Lower every script reachable from `roots` into one registry. */
-function lowerClosure(roots) {
+/**
+ * Lower every script reachable from a set of roots into one registry.
+ *
+ * Incremental, because the roots are not all known at the start. `extend` is
+ * called again for each group the loader bakes on demand, and a group brings
+ * its own cache-authored hooks with it.
+ */
+function createClosure() {
     const registry = new ScriptRegistry();
-    const sources = [];
     const missing = [];
     const seen = new Set();
-    const queue = [...roots];
+    /*
+     * Every source lowered so far, and the whole set is recompiled whenever
+     * the set grows.
+     *
+     * The generated code calls its dependencies by bare name (`cs2_900(...)`),
+     * which resolves in the module scope it was compiled in. Compiling each
+     * batch as its own `new Function` therefore leaves batch 2 unable to see
+     * batch 1 — `ReferenceError: cs2_900 is not defined`, thrown from inside a
+     * running script, which the harness reports as an aborted script and not
+     * as the packaging mistake it is.
+     */
+    const sources = [];
 
-    while( queue.length )
-    {
-        const id = queue.shift();
-        if( seen.has(id) ) continue;
-        seen.add(id);
-        const ast = syntaxTree(id);
-        if( !ast ) { missing.push(id); continue; }
-        try
+    function extend(roots) {
+        const before = sources.length;
+        const queue = [...roots];
+        while( queue.length )
         {
-            const result = emitScript(ast);
-            sources.push(result.code);
-            for( const dependency of [...result.procs, ...result.hooks] )
-                if( !seen.has(dependency) ) queue.push(dependency);
+            const id = queue.shift();
+            if( !(id > 0) || seen.has(id) ) continue;
+            seen.add(id);
+            const ast = syntaxTree(id);
+            if( !ast ) { missing.push(id); continue; }
+            try
+            {
+                const result = emitScript(ast);
+                sources.push(result.code);
+                for( const dependency of [...result.procs, ...result.hooks] )
+                    if( !seen.has(dependency) ) queue.push(dependency);
+            }
+            catch { missing.push(id); }
         }
-        catch { missing.push(id); }
-    }
+        if( sources.length === before ) return;
 
-    if( sources.length )
-    {
         const body = sources.map((source) => source.replace(/^export function\*/m, 'function*'))
             .join('\n');
         const exported = [...body.matchAll(/function\* (cs2_\d+)/g)].map((match) => match[1]);
@@ -235,7 +303,29 @@ function lowerClosure(roots) {
         const factory = new Function('K', 'PARK', `${body}\nreturn { ${exported.join(', ')} };`);
         registry.addModule(factory(K, HOST_PARK));
     }
-    return { registry, missing };
+
+    return { registry, missing, extend };
+}
+
+/**
+ * Every script the baked tree has a hook bound to.
+ *
+ * The closure cannot be seeded from `onload` alone. A cache record carries
+ * `ontimer`, `onvartransmit`, `onop` and the rest as well, and nothing in an
+ * onload script's body mentions them — `ge_pricechecker`'s pulsing overlay is
+ * `ontimer=i:811` on the component and appears nowhere else, so the timer
+ * dispatched into an empty registry and the widget kept its authored
+ * `trans=255` forever, which reads as one missing sprite in the draw list.
+ */
+function treeHookScripts(tree) {
+    const ids = [];
+    for( const node of tree.nodes )
+    {
+        if( node.freed || !node.hooks ) continue;
+        for( const binding of Object.values(node.hooks) )
+            if( binding && binding.scriptId > 0 ) ids.push(binding.scriptId);
+    }
+    return ids;
 }
 
 /* -------------------------------------------------------------------------
@@ -269,11 +359,26 @@ async function run(reference) {
     if( !name ) return { id, skipped: 'not in the interface pack' };
 
     const tree = createUITree();
+    /* PARITY_CREATES=1 prints the dynamic uid the tree handed out, in order.
+     * Diff it against the reference's `TORIRS_CS2_TRACE=1 | grep CC_CREATE`
+     * column: the first uid that differs names the extra (or missing) build,
+     * and the C trace's `script=` at that line names who ran it. */
+    if( process.env.PARITY_CREATES )
+    {
+        const allocate = tree.allocateDynamicComponentId.bind(tree);
+        tree.allocateDynamicComponentId = (group) => {
+            const uid = allocate(group);
+            console.error(`alloc 0x${(uid >>> 0).toString(16)}`);
+            return uid;
+        };
+    }
     const baked = bakeGroup(tree, id);
     if( !baked ) return { id, name, skipped: 'no .if in the content tree' };
     const { onLoad } = baked;
 
-    const { registry, missing } = lowerClosure(onLoad.map((entry) => entry.scriptId));
+    const closure = createClosure();
+    const { registry, missing } = closure;
+    closure.extend([...onLoad.map((entry) => entry.scriptId), ...treeHookScripts(tree)]);
     /*
      * Operations neither this host nor the reference implements are FAKED,
      * because that is what the reference did during the capture: its stack
@@ -283,8 +388,11 @@ async function run(reference) {
      * difference after that point would be an artefact of the comparison.
      */
     const fakedOps = new Set();
+    /* Frame-for-frame with the capture; see the settle loop. */
+    const frames = Math.max(1, reference.frames | 0);
+    const clock = new HostClock(0);
     const host = createHostKernel({
-        tree, state: new HostState(), config: configs, fonts,
+        tree, state: new HostState(), config: configs, fonts, clock,
         assets: new StoreAssetSource({ sprites, fonts, config: configs }),
         fakeUnimplemented: true,
         onUnimplemented: (method) => fakedOps.add(method),
@@ -360,7 +468,7 @@ async function run(reference) {
         driver.dispatchCounts = counts;
     }
 
-    driver.loader = createLoader(tree, driver);
+    driver.loader = createLoader(tree, driver, closure);
     const layout = attachLayout(host, { root: ROOT });
     driver.resolveLayout = () => layout.resolve();
     const emitter = createEmitter({ tree, layout });
@@ -409,17 +517,28 @@ async function run(reference) {
 
 
     /*
-     * Then run ticks until the tree stops changing, bounded.
+     * Then exactly as many ticks as the capture ran frames.
      *
-     * Bounded rather than fixed at 60: a tree that has stopped changing is
-     * settled by definition, and a run that never stops is a script re-arming
-     * itself — which is a defect to report, not to out-wait. The captured
-     * reference is 60 frames, so the cap matches it.
+     * Not "until the tree stops changing". The reference client's frame loop
+     * IS its settle loop — `TORIRS_MAX_FRAMES=3` is all it got — so running
+     * longer here compares a settled tree against an unsettled one. It is not
+     * a theoretical difference: an animating widget never settles at all, and
+     * `ge_pricechecker`'s pulse read `clientclock` 60 where the reference read
+     * 3. Frame for frame is both simpler and closer: it took the corpus from
+     * 711 exact to 715.
      */
     let ticks = 0;
-    for( ; ticks < TICKS; ticks++ )
+    for( ; ticks < (TICKS ?? frames); ticks++ )
     {
-        const before = tree.dirtyGeneration;
+        /*
+         * The clock moves with the tick. `clientclock` is not an
+         * implementation detail this runtime may leave at zero: scripts read
+         * it. `ge_pricechecker`'s overlay is a pulse — `script811` recomputes
+         * its transparency from `clientclock % 100` on every timer tick — so a
+         * clock stuck at 0 held it at trans=100 where the reference, three
+         * frames in, had 109.
+         */
+        clock.advance();
         pump.tick();
         /* `if_callonresize` is queued from inside a running script — there is
          * no runner to nest a second one on — so the queue is drained here,
@@ -432,7 +551,6 @@ async function run(reference) {
         }
         // eslint-disable-next-line no-await-in-loop
         await driver.settle({ wait: false });
-        if( tree.dirtyGeneration === before ) break;
     }
 
     layout.resolve();
@@ -525,7 +643,22 @@ async function run(reference) {
         byType[key] = (byType[key] ?? 0) + 1;
     }
 
-    const result = compareEmit(reference.commands, normalizeJsCommands(emitter.commands));
+    const jsCommands = normalizeJsCommands(emitter.commands);
+    /* PARITY_DUMP=1 prints both lists side by side — the whole draw, not only
+     * the fields that differ, which is what you need when a command is absent
+     * on one side and everything after it slides. */
+    if( process.env.PARITY_DUMP )
+    {
+        const line = (c) => c
+            ? `${c.kind}#${c.componentId} @${c.x},${c.y} ${c.width}x${c.height} `
+              + `scene=${c.scene} colour=${c.colour} trans=${c.trans}`
+            : '-';
+        const n = Math.max(reference.commands.length, jsCommands.length);
+        for( let i = 0; i < n; i++ )
+            console.error(`${String(i).padStart(3)}  C ${line(reference.commands[i])}`
+                + `\n     J ${line(jsCommands[i])}`);
+    }
+    const result = compareEmit(reference.commands, jsCommands);
     return {
         id, name,
         /* Counted because "no commands" has two very different causes: a tree
@@ -574,7 +707,18 @@ const references = readdirSync(referenceDir)
     .sort((a, b) => a.interface - b.interface);
 
 const results = [];
-for( const reference of references ) results.push(await run(reference));
+for( const reference of references )
+{
+    /*
+     * One interface at a time, and each in a try: a corpus run must report
+     * what the run FOUND, and an exception on interface 300 that took the
+     * other 967 with it reports nothing at all.
+     */
+    try { results.push(await run(reference)); }
+    catch( error ) { results.push({ id: reference.interface, threw: error.message }); }
+    if( references.length > 8 && results.length % 50 === 0 )
+        process.stderr.write(`compared ${results.length}/${references.length}\n`);
+}
 
 if( verbose )
     for( const result of results )
@@ -582,8 +726,37 @@ if( verbose )
             console.error(`${result.id} [${difference.at}] ${difference.field}: `
                 + `C=${difference.expected} JS=${difference.actual}`);
 
-console.log(JSON.stringify({
+const matching = results.filter((result) => result.matches).length;
+const summary = {
     references: references.length,
-    results: results.map(({ _differences, ...rest }) => rest),
-    matching: results.filter((result) => result.matches).length,
-}, null, 2));
+    matching,
+    /* Named, because "how many matched" is the headline and "which did not"
+     * is the work. A corpus run prints the second as a list of ids with their
+     * difference counts rather than the full per-interface report. */
+    ...(references.length > 8
+        ? {
+            skipped: results.filter((result) => result.skipped).length,
+            threw: results.filter((result) => result.threw).map((r) => r.id),
+            /* What KIND of difference, across the whole corpus. One systemic
+             * cause shows up here as a field with a large count; chasing
+             * interfaces one at a time hides that. */
+            fields: Object.fromEntries(Object.entries(results.reduce((totals, result) => {
+                for( const entry of result.summary ?? [] )
+                    totals[entry.field] = (totals[entry.field] ?? 0) + entry.count;
+                return totals;
+            }, {})).sort((a, b) => b[1] - a[1])),
+            differing: results.filter((result) => !result.matches && !result.skipped
+                && !result.threw)
+                .sort((a, b) => a.differences - b.differences)
+                .map((result) => ({
+                    id: result.id, name: result.name,
+                    c: result.cCommands, js: result.jsCommands,
+                    prefix: result.alignment?.prefix, differences: result.differences,
+                    top: result.summary?.[0]?.field,
+                    example: result.summary?.[0]?.example,
+                    faked: result.hostFaked?.length ? result.hostFaked : undefined,
+                })),
+        }
+        : { results: results.map(({ _differences, ...rest }) => rest) }),
+};
+console.log(JSON.stringify(summary, null, 2));

@@ -47,6 +47,9 @@ const TRANSMIT_KINDS = Object.freeze({
     chat: { slot: 'onChatTransmit', filtered: false },
 });
 
+/** The channels `dispatchAll` fires, in the reference's order. See it. */
+const MOUNT_TRANSMIT_KINDS = Object.freeze(['inv', 'var']);
+
 export const TRANSMIT_SLOTS = Object.freeze(
     Object.values(TRANSMIT_KINDS).map((kind) => kind.slot));
 
@@ -167,12 +170,26 @@ export class TransmitPump {
      * The trigger filter is deliberately bypassed: at mount nothing has
      * changed yet, so filtering would dispatch nothing at all. Every hook's
      * serial is left where it is, so an actual change still re-runs it.
+     *
+     * Only the INV and VAR channels, and inv first. That is not a
+     * simplification, it is the reference's step 9 verbatim:
+     *
+     *     PT_TASK_AWAITSELF_IF(CreateTask_CS2InvTransmitDispatch(host, -1));
+     *     PT_TASK_AWAITSELF_IF(CreateTask_CS2VarTransmitDispatch(host, -1));
+     *
+     * The other four channels have no mount dispatch at all — stat runs only
+     * on a real skill change or an unhide, misc/friend/chat only on their own
+     * value changes. Firing them here ran a component's handler an extra time:
+     * `mm_overlay`'s builder is registered on BOTH onVarTransmit and
+     * onStatTransmit, so a six-channel mount pass rebuilt its ten children
+     * twice, and every dynamic uid in the group came out ten higher than the
+     * reference's.
      */
     dispatchAll() {
         let dispatched = 0;
-        for( const [kind, { slot }] of Object.entries(TRANSMIT_KINDS) )
+        for( const kind of MOUNT_TRANSMIT_KINDS )
         {
-            void kind;
+            const { slot } = TRANSMIT_KINDS[kind];
             for( const index of this.tree.nodesWithHook(slot) )
             {
                 const node = this.tree.at(index);
