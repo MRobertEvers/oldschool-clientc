@@ -1,6 +1,7 @@
 # CS2 DOM: the official client is the preview
 
-Status: **Phase 0 landed** (the retired stack is deleted); Phases 1–4 open.
+Status: **Phases 0 and 1 landed** — the retired stack is deleted and the command
+channel is in the client, proved by replay. Phases 2–4 open.
 Scope: `tools/cs2dom`, plus `src/cmd`, `src/main.c` and `src/web` in the client.
 Supersedes `CS2_DOM_REDESIGN_PLAN.md` and, through it,
 `CS2_DOM_ARCHITECTURE_PLAN.md`. Both are kept for their measurements.
@@ -192,8 +193,15 @@ round-trip gates.
 ## Phases
 
 - **Phase 0 — clear the dead weight.** *Landed.*
-- **Phase 1 — the channel, C side.** Bus frames, drain, export, `platform.mk`,
-  `cmdbus_test.c`, and the native `.trscmd` replay proof.
+- **Phase 1 — the channel, C side.** *Landed.* `TORIRS_CMD_UI_OPEN_ROOT`,
+  `UI_SET_VARP`, `UI_SET_VARBIT`, `UI_RUNSCRIPT` and `EXEC_TEXT` on the bus,
+  drained in `App_DrainCommands` onto the `App_*` calls their SIM harnesses
+  already use; `torirs_cmdbus_push_bytes` exported from the web lane, validating
+  its batch rather than asserting it, because those bytes are written by another
+  implementation and `OPT=1` compiles asserts out. Proved by a `.trscmd` replay:
+  interface 600 renders in full, and a varp frame reads back its value. The same
+  work found `test-cmdbus` passing vacuously — `assert()` is how it checks and
+  `-DNDEBUG` was compiling every check out — now fixed with `-UNDEBUG`.
 - **Phase 2 — the preview.** New dev server and page; the iframe boots offline
   and the state pane reaches the bus. README rewrite lands here.
 - **Phase 3 — the edit loop.** Watch, bake, compile, pack, bump, reload.
