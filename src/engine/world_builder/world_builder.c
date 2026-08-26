@@ -157,8 +157,10 @@ world_builder_mark_element_keep(
     uint8_t* keep,
     int element_id)
 {
-    if( element_id >= 0 && element_id < TORIDRAW_SCENE_MAX_ELEMENTS )
-        keep[ToriDraw_ElementIndexOfRaw(element_id)] = 1;
+    int const index = ToriDraw_ElementIndexOfRaw(element_id);
+
+    if( index >= 0 && index < TORIDRAW_SCENE_MAX_ELEMENTS )
+        keep[index] = 1;
 }
 
 /*
@@ -196,25 +198,35 @@ world_builder_claim_element(
     int owner_tag)
 {
     int const id = *element_id_field;
+    /*
+     * claimed_by[] and keep[] are indexed by the SCENE index, and the id
+     * carries its kind in the top four bits -- so both the bound test and the
+     * two subscripts have to mask. Testing the raw id against the element
+     * count instead read every tagged id as out of range, and a player's id is
+     * 0x3xxxxxxx: on the first map rebuild every player and npc was declared
+     * to reference a dead element and had its element_id cleared, which is
+     * "the movers vanished on a rebuild".
+     */
+    int const index = ToriDraw_ElementIndexOfRaw(id);
 
     if( id < 0 )
         return;
-    if( id >= TORIDRAW_SCENE_MAX_ELEMENTS || !ToriDraw_SceneElementIsLive(scene, id) )
+    if( index >= TORIDRAW_SCENE_MAX_ELEMENTS || !ToriDraw_SceneElementIsLive(scene, id) )
     {
         TORIRS_LOG("world_builder: entity %#x referenced dead element %d - cleared\n",
             owner_tag, id);
         *element_id_field = -1;
         return;
     }
-    if( claimed_by[id] >= 0 )
+    if( claimed_by[index] >= 0 )
     {
         TORIRS_LOG("world_builder: element %d claimed by entities %#x and %#x - the second is "
             "cleared (they would fight over its model, animation and position)\n",
-            id, claimed_by[id], owner_tag);
+            id, claimed_by[index], owner_tag);
         *element_id_field = -1;
         return;
     }
-    claimed_by[id] = owner_tag;
+    claimed_by[index] = owner_tag;
     world_builder_mark_element_keep(keep, id);
 }
 
