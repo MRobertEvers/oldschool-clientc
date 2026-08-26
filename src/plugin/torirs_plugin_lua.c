@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * The Lua adapter.
@@ -237,7 +238,7 @@ lua_script_fault(struct LuaScript* script, char const* what)
 {
     char msg[160];
     snprintf(msg, sizeof(msg), "%s", what ? what : "error");
-    fprintf(stderr, "plugin: lua script '%s' disabled: %s\n", script->name, msg);
+    TORIRS_LOG("plugin: lua script '%s' disabled: %s\n", script->name, msg);
     if( script->plugin_index >= 0 )
     {
         PluginHost_SetError(script->host, script->plugin_index, msg);
@@ -368,12 +369,12 @@ lua_api_log(lua_State* L)
     struct LuaScript* script = lua_upvalue_script(L);
     int const argc = lua_gettop(L);
 
-    fprintf(stderr, "[%s]", script->name);
+    TORIRS_LOG("[%s]", script->name);
     for( int i = 1; i <= argc; i++ )
     {
         size_t len = 0;
         char const* s = luaL_tolstring(L, i, &len);
-        fprintf(stderr, " %s", s);
+        TORIRS_LOG(" %s", s);
         lua_pop(L, 1);
     }
     fputc('\n', stderr);
@@ -2822,7 +2823,7 @@ lua_script_build(struct LuaScript* script, char const* name, char const* source,
     L = lua_newstate(lua_script_alloc, script, 0);
     if( !L )
     {
-        fprintf(stderr, "plugin: lua state for '%s' would not start\n", name);
+        TORIRS_LOG("plugin: lua state for '%s' would not start\n", name);
         return false;
     }
     script->L = L;
@@ -2835,7 +2836,7 @@ lua_script_build(struct LuaScript* script, char const* name, char const* source,
         lua_pcall(L, 0, 1, 0) != LUA_OK )
     {
         char const* err = lua_tostring(L, -1);
-        fprintf(stderr, "plugin: lua script '%s' failed to load: %s\n", name, err ? err : "?");
+        TORIRS_ERR("plugin: lua script '%s' failed to load: %s\n", name, err ? err : "?");
         lua_disarm_budget(script);
         lua_script_release(script);
         return false;
@@ -2844,9 +2845,7 @@ lua_script_build(struct LuaScript* script, char const* name, char const* source,
 
     if( !lua_istable(L, -1) )
     {
-        fprintf(
-            stderr,
-            "plugin: lua script '%s' must return its plugin table (got %s)\n",
+        TORIRS_LOG("plugin: lua script '%s' must return its plugin table (got %s)\n",
             name,
             luaL_typename(L, -1));
         lua_script_release(script);
@@ -2888,9 +2887,7 @@ lua_script_build(struct LuaScript* script, char const* name, char const* source,
          * nothing connecting the two. */
         if( n > PLUGIN_LUA_MAX_CONFIG )
         {
-            fprintf(
-                stderr,
-                "plugin: lua script '%s' declares %d config items; the limit "
+            TORIRS_ERR("plugin: lua script '%s' declares %d config items; the limit "
                 "is %d. Refusing it rather than dropping the last %d in "
                 "silence.\n",
                 name,
@@ -2984,7 +2981,7 @@ PluginLua_AddScript(
 
     if( g_script_count >= PLUGIN_LUA_MAX_SCRIPTS )
     {
-        fprintf(stderr, "plugin: lua script table full, refusing '%s'\n", name);
+        TORIRS_ERR("plugin: lua script table full, refusing '%s'\n", name);
         return -1;
     }
 

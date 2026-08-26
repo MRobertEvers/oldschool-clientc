@@ -156,6 +156,37 @@ test_scroll_hit(void)
                 "hidden scrollbar release is fenced from plugin regions");
             TEST_ASSERT(!out.left_click_miss, "hidden scrollbar release cannot reach world");
         }
+        tree->components[layer].frame_hidden = 0;
+    }
+
+    /* A raw offset can become out of range when the viewport is resized before
+     * the next canonical write. Every render-space consumer must still use the
+     * same effective clamp as emit; the typed setter then publishes that clamp
+     * when a script writes the offset explicitly. */
+    {
+        int32_t const bottom =
+            UITree_TestPushXy(tree, layer, UIELEM_RS_RECT, TUID(9), 10, 350, 60, 30);
+        struct UITreeScrollbarHitInfo sb;
+
+        tree->components[bottom].behavior.button_type = 1;
+        tree->components[bottom].behavior.over_color = 0xFFFFFF;
+        UITree_TestResolve(tree);
+        tree->components[layer].scroll_y = 999;
+        TEST_ASSERT(
+            UITree_HitTestInteractive(tree, &host, 20, 60) == bottom,
+            "hit testing clamps the same out-of-range offset as emit");
+        TEST_ASSERT(
+            UITree_FindHoveredComponentIdForRegion(
+                tree, &host, tree->root_index, 20, 60, 0, 0, 400, 300) == TUID(9),
+            "hover uses the effective clamped offset");
+        TEST_ASSERT(
+            UITree_FindScrollbarAt(tree, &host, 108, 75, &sb) &&
+                sb.kind == UITREE_SCROLLBAR_V_GRIP,
+            "scrollbar grip hit math uses the effective clamped offset");
+        TEST_ASSERT(
+            UITree_ApplyScrollPos(tree, TUID(3), 0, 999) &&
+                tree->components[layer].scroll_y == 300,
+            "typed scroll publication stores a canonical offset");
     }
 
     UITree_Free(tree);

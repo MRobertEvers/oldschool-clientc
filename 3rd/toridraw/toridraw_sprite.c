@@ -128,6 +128,35 @@ ToriDraw_SpriteNewFromArgbOwned(
     return sprite;
 }
 
+unsigned char
+ToriDraw_SpriteAlphaClass(struct ToriDraw_Sprite* sprite)
+{
+    size_t n;
+    size_t i;
+
+    assert(sprite);
+    if( !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
+        return TORIDRAW_SPRITE_ALPHA_MIXED;
+
+    if( sprite->alpha_class != TORIDRAW_SPRITE_ALPHA_UNKNOWN &&
+        sprite->alpha_class_src == sprite->pixels_argb )
+        return sprite->alpha_class;
+
+    n = (size_t)sprite->width * (size_t)sprite->height;
+    for( i = 0; i < n; i++ )
+    {
+        if( (sprite->pixels_argb[i] >> 24) != 255u )
+        {
+            sprite->alpha_class = TORIDRAW_SPRITE_ALPHA_MIXED;
+            sprite->alpha_class_src = sprite->pixels_argb;
+            return sprite->alpha_class;
+        }
+    }
+    sprite->alpha_class = TORIDRAW_SPRITE_ALPHA_ALL_OPAQUE;
+    sprite->alpha_class_src = sprite->pixels_argb;
+    return sprite->alpha_class;
+}
+
 void
 ToriDraw_Pix8Free(struct ToriDraw_Pix8* pix8)
 {

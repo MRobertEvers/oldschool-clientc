@@ -27,11 +27,40 @@ struct EipOther
     uint32_t count;
 };
 
+/*
+ * Call-stack capture, on top of the flat EIP histogram.
+ *
+ * The histogram answers "which address was executing", which is self time and
+ * nothing else. It cannot say who called it, so a cost that is spread over many
+ * callers -- a span fill, a memcpy, a palette lookup -- shows up as one hot
+ * address with no way to tell which pass is responsible. That is exactly the
+ * question a flamegraph answers, and it needs stacks.
+ *
+ * Walked off the frame-pointer chain, which is free here: on i386
+ * CONTEXT_CONTROL already carries Ebp alongside Eip, so the suspend the
+ * histogram is already paying for yields the whole walk. It does require the
+ * build to keep frame pointers -- see TORIDRAW_EIP_STACKS in the makefile.
+ *
+ * Raw addresses are dumped and symbolised offline. Doing it in-process would
+ * mean loading dbghelp and resolving symbols while the render thread is
+ * suspended, which is the one thing this file is careful never to do.
+ */
+#define EIP_STACK_DEPTH 24
+/* 30 s at ~1 kHz. Preallocated at start: the sampler thread must not allocate
+ * while the target is suspended. Overflow stops recording rather than wrapping,
+ * so a truncated capture is short but not a mixture of two time windows. */
+#define EIP_STACK_MAX 40000
+
 struct EipSampler
 {
     int inited;
     int enabled;
     int running;
+    int want_stacks;
+
+    uint32_t* stack_buf; /* EIP_STACK_MAX * EIP_STACK_DEPTH, 0-terminated rows */
+    uint32_t stack_used;
+    uint32_t stack_lost;
 
     HANDLE target;
     HANDLE thread;
@@ -100,6 +129,66 @@ eip_record(struct EipSampler* s, uintptr_t eip)
     s->other_lost++;
 }
 
+#if !defined(_WIN64)
+/*
+ * Walk the frame-pointer chain of the suspended target.
+ *
+ * Every read is bounded by the thread's own stack region, queried once per
+ * sample from Esp: a frame pointer that has been clobbered, or a frame in a
+ * function compiled without one, otherwise sends this straight into unmapped
+ * memory. VirtualQuery gives the committed range, so a pointer inside it is
+ * mapped by construction and no SEH or IsBadReadPtr guess is needed.
+ *
+ * The chain must walk STRICTLY upward. Stacks grow down, so a caller's frame
+ * always sits at a higher address; anything else is a corrupt or hostile chain
+ * and ends the walk rather than looping.
+ */
+static void
+eip_walk_stack(struct EipSampler* s, const CONTEXT* ctx)
+{
+    MEMORY_BASIC_INFORMATION mbi;
+    uintptr_t lo;
+    uintptr_t hi;
+    uintptr_t ebp;
+    uint32_t* row;
+    int n = 0;
+
+    if( s->stack_used >= EIP_STACK_MAX )
+    {
+        s->stack_lost++;
+        return;
+    }
+    if( !VirtualQuery((LPCVOID)(uintptr_t)ctx->Esp, &mbi, sizeof(mbi)) )
+        return;
+    lo = (uintptr_t)mbi.BaseAddress;
+    hi = lo + (uintptr_t)mbi.RegionSize;
+
+    row = s->stack_buf + (size_t)s->stack_used * EIP_STACK_DEPTH;
+    row[n++] = (uint32_t)ctx->Eip;
+
+    ebp = (uintptr_t)ctx->Ebp;
+    while( n < EIP_STACK_DEPTH - 1 )
+    {
+        uintptr_t ret;
+        uintptr_t next;
+
+        /* Both slots of the frame must be inside the region, and aligned. */
+        if( ebp < lo || ebp + 8 > hi || (ebp & 3u) )
+            break;
+        next = *(uintptr_t const*)ebp;
+        ret = *(uintptr_t const*)(ebp + sizeof(uintptr_t));
+        if( ret == 0 )
+            break;
+        row[n++] = (uint32_t)ret;
+        if( next <= ebp )
+            break; /* not strictly upward: end of chain, or a bad frame */
+        ebp = next;
+    }
+    row[n] = 0;
+    s->stack_used++;
+}
+#endif
+
 static DWORD WINAPI
 eip_thread(LPVOID arg)
 {
@@ -108,6 +197,22 @@ eip_thread(LPVOID arg)
 
     while( InterlockedCompareExchange(&s->stop, 0, 0) == 0 )
     {
+        /*
+         * Sleep(1), and accept what it gives.
+         *
+         * Under timeBeginPeriod(1) this delivers about 500 Hz on the XP target,
+         * not the 1000 the interval nominally asks for -- the scheduler rounds
+         * up. That is fine: 500 Hz over 40 s is 20,000 samples, which resolves
+         * a function at well under a percent.
+         *
+         * It is deliberately NOT paced on a deadline against
+         * QueryPerformanceCounter. That was tried: at 1 kHz the period is 1 ms,
+         * so any wait short enough to hit the deadline degenerates into
+         * Sleep(0), and on a SINGLE-CORE box a yield loop competes with the very
+         * thread it is sampling. The client dropped below its frame cap and
+         * never finished the run. A sampler that changes the workload is worse
+         * than a slow one.
+         */
         Sleep(1);
 
         if( SuspendThread(s->target) == (DWORD)-1 )
@@ -124,11 +229,15 @@ eip_thread(LPVOID arg)
         memset(&ctx, 0, sizeof(ctx));
         ctx.ContextFlags = CONTEXT_CONTROL;
         if( GetThreadContext(s->target, &ctx) )
+        {
 #if defined(_WIN64)
             eip_record(s, (uintptr_t)ctx.Rip);
 #else
             eip_record(s, (uintptr_t)ctx.Eip);
+            if( s->want_stacks && s->stack_buf )
+                eip_walk_stack(s, &ctx);
 #endif
+        }
         else
             s->failed++;
 
@@ -153,6 +262,19 @@ eip_init(void)
     g_eip.enabled = (v && atoi(v) != 0);
     if( !g_eip.enabled )
         return;
+
+#if !defined(_WIN64)
+    /* Stacks are opt-in on top of the histogram: they cost 3.7 MB of buffer
+     * and are only meaningful in a build that kept frame pointers. */
+    v = getenv("TORIDRAW_EIP_STACKS");
+    g_eip.want_stacks = (v && atoi(v) != 0);
+    if( g_eip.want_stacks )
+    {
+        g_eip.stack_buf = (uint32_t*)calloc(
+            (size_t)EIP_STACK_MAX * EIP_STACK_DEPTH, sizeof(uint32_t));
+        assert(g_eip.stack_buf);
+    }
+#endif
 
     mod = GetModuleHandleA(NULL);
     assert(mod);
@@ -290,6 +412,39 @@ ToriDraw_EipSampleStop(const char* label)
     QueryPerformanceFrequency(&freq);
     secs = (double)(g_eip.t1.QuadPart - g_eip.t0.QuadPart)
            / (double)freq.QuadPart;
+
+#if !defined(_WIN64)
+    /*
+     * Stacks go to their own file, one sample per line, leaf first, as raw
+     * hex module-relative addresses. Kept separate from the histogram dump so
+     * the folded-stack conversion is a plain read rather than a parse of two
+     * interleaved formats, and symbolised offline against the -g binary.
+     */
+    if( g_eip.want_stacks && g_eip.stack_buf )
+    {
+        const char* sp = getenv("TORIDRAW_EIP_STACKS_FILE");
+        FILE* sf;
+
+        if( !sp )
+            sp = "eipstacks.txt";
+        sf = fopen(sp, "w");
+        assert(sf);
+        fprintf(sf, "# base=%08lx size=%lu samples=%lu lost=%lu secs=%.3f\n",
+                (unsigned long)g_eip.base, (unsigned long)g_eip.image_size,
+                (unsigned long)g_eip.stack_used, (unsigned long)g_eip.stack_lost,
+                secs);
+        for( uint32_t i = 0; i < g_eip.stack_used; i++ )
+        {
+            const uint32_t* row = g_eip.stack_buf + (size_t)i * EIP_STACK_DEPTH;
+            for( int j = 0; j < EIP_STACK_DEPTH && row[j]; j++ )
+                fprintf(sf, "%s%08lx", j ? " " : "", (unsigned long)row[j]);
+            fputc('\n', sf);
+        }
+        fclose(sf);
+        free(g_eip.stack_buf);
+        g_eip.stack_buf = NULL;
+    }
+#endif
 
     path = getenv("TORIDRAW_EIP_SAMPLE_FILE");
     if( !path )

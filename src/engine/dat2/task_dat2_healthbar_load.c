@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Load every healthbar type, once, at boot.
@@ -68,7 +69,7 @@ Task_Dat2HealthbarLoad_Run(
         RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
     if( !filelist || !archive->file_ids )
     {
-        fprintf(stderr, "healthbar: failed to split the config group\n");
+        TORIRS_ERR("healthbar: failed to split the config group\n");
         RSCache_FileListFree(filelist);
         RSCache_Dat2DiskArchiveFree(archive);
         PT_EXIT(&task->pt);
@@ -103,7 +104,7 @@ Task_Dat2HealthbarLoad_Run(
         RSCache_Dat2ConfigHealthbarDecodeInplace(
             &entry, filelist->files[i], filelist->file_sizes[i]);
         if( entry._consumed != filelist->file_sizes[i] )
-            fprintf(stderr, "healthbar %d: decode consumed %d of %d bytes\n", id,
+            TORIRS_LOG("healthbar %d: decode consumed %d of %d bytes\n", id,
                     entry._consumed, filelist->file_sizes[i]);
         types[id].front_sprite = entry.front_sprite_id;
         types[id].back_sprite = entry.back_sprite_id;
@@ -127,7 +128,7 @@ Task_Dat2HealthbarLoad_Run(
         free(types);
         PT_EXIT(&task->pt);
     }
-    printf("healthbar load: %d types (%d records)\n", count, decoded);
+    TORIRS_LOG("healthbar load: %d types (%d records)\n", count, decoded);
 
     /* Both halves of every pair, for the reason in the file comment. Roughly
      * 170 small sprites at boot, once. */

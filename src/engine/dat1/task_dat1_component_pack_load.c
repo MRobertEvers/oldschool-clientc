@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat1ComponentPackLoad
 {
@@ -37,9 +38,7 @@ dat1_pack_resolve_sprite_refs(
             component->graphic =
                 dat1_buildcache_sprite_ref_acquire(dat1_buildcache, component->sprite_ref);
             if( component->graphic < 0 && getenv("TORIRS_IF_DEBUG") )
-                fprintf(
-                    stderr,
-                    "dat1 pack: sprite ref '%s' unresolved (com %d)\n",
+                TORIRS_LOG("dat1 pack: sprite ref '%s' unresolved (com %d)\n",
                     component->sprite_ref,
                     component->id);
         }
@@ -78,9 +77,7 @@ Task_Dat1ComponentPackLoad_Run(
         media_jagfile = RSCache_IO_Dat1JagfileDecode(io, 0, RSCACHE_DAT1_CONFIG_MEDIA_2D);
         if( !media_jagfile )
         {
-            fprintf(
-                stderr,
-                "Failed to decode dat1 media jagfile for component pack %d\n",
+            TORIRS_ERR("Failed to decode dat1 media jagfile for component pack %d\n",
                 task->iface_id);
             PT_EXIT(&task->pt);
         }
@@ -100,14 +97,14 @@ Task_Dat1ComponentPackLoad_Run(
         interfaces_jagfile = RSCache_IO_Dat1JagfileDecode(io, 0, RSCACHE_DAT1_CONFIG_INTERFACES);
         if( !interfaces_jagfile )
         {
-            fprintf(stderr, "Failed to decode dat1 interfaces jagfile\n");
+            TORIRS_ERR("Failed to decode dat1 interfaces jagfile\n");
             PT_EXIT(&task->pt);
         }
 
         data_file_idx = RSCache_FileListDatFindFileByName(interfaces_jagfile, "data");
         if( data_file_idx == -1 )
         {
-            fprintf(stderr, "dat1 interfaces jagfile has no \"data\" file\n");
+            TORIRS_LOG("dat1 interfaces jagfile has no \"data\" file\n");
             RSCache_FileListDatFree(interfaces_jagfile);
             PT_EXIT(&task->pt);
         }
@@ -118,7 +115,7 @@ Task_Dat1ComponentPackLoad_Run(
         RSCache_FileListDatFree(interfaces_jagfile);
         if( !interfaces_list )
         {
-            fprintf(stderr, "Failed to decode dat1 interfaces list\n");
+            TORIRS_ERR("Failed to decode dat1 interfaces list\n");
             PT_EXIT(&task->pt);
         }
 
@@ -137,9 +134,7 @@ Task_Dat1ComponentPackLoad_Run(
                     last_null = i;
                 }
             }
-            fprintf(
-                stderr,
-                "dat1 interfaces: count=%d nulls=%d first_null=%d last_null=%d\n",
+            TORIRS_ERR("dat1 interfaces: count=%d nulls=%d first_null=%d last_null=%d\n",
                 interfaces_list->components_count,
                 nulls,
                 first_null,
@@ -153,9 +148,7 @@ Task_Dat1ComponentPackLoad_Run(
     {
         struct RSCache_Dat1ConfigComponentList* dbg_list =
             dat1_buildcache_get_interfaces_list(task->bc);
-        fprintf(
-            stderr,
-            "Failed to convert dat1 component pack %d (list count=%d entry=%s)\n",
+        TORIRS_ERR("Failed to convert dat1 component pack %d (list count=%d entry=%s)\n",
             task->iface_id,
             dbg_list ? dbg_list->components_count : -1,
             dbg_list && task->iface_id >= 0 && task->iface_id < dbg_list->components_count &&

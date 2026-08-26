@@ -180,9 +180,14 @@ UITree_ScrollMaxX(struct UITreeComponent const* layer);
 int
 UITree_ScrollMaxY(struct UITreeComponent const* layer);
 
-/** Clamp UITreeComponent.scroll_x/y into valid range for an IF1 scroll layer. */
+/** Compute the canonical in-range scroll position without mutating the layer.
+ * Runtime owners publish the result through `UITree_SetScrollPosAt`; emit and
+ * hit testing may use the local result directly. */
 void
-UITree_ScrollClampComponent(struct UITreeComponent* layer);
+UITree_ScrollGetClamped(
+    struct UITreeComponent const* layer,
+    int* out_x,
+    int* out_y);
 
 void
 UITree_ScrollIntersectClip(
@@ -244,7 +249,7 @@ UITree_FindScrollbarAt(
 
 bool
 UITree_ScrollbarHandle(
-    struct UITree const* tree,
+    struct UITree* tree,
     struct UITreeScrollbarHitInfo const* hit,
     int px,
     int py,

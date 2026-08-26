@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "log/torirs_log.h"
 #ifdef TORIRS_EMBED_SERVER
 
 /* Inside the guard: a build without the embedded server pulls in neither the
@@ -98,7 +99,7 @@ embed_poll(
                 self->embed = ToriRSServer_EmbedStart(self->rev_name);
                 if( !self->embed )
                 {
-                    fprintf(stderr, "net: embedded server failed to start\n");
+                    TORIRS_ERR("net: embedded server failed to start\n");
                     emit_status(self, bus, TORIRS_NET_STATUS_FAILED);
                     return;
                 }
@@ -250,8 +251,7 @@ NetTransport_NewEmbed(int default_port, char const* rev_name)
 {
     (void)default_port;
     (void)rev_name;
-    fprintf(stderr,
-            "net: this build has no embedded server — rebuild with "
+    TORIRS_LOG("net: this build has no embedded server — rebuild with "
             "`make -C src torirs EMBED_SERVER=1`\n");
     return NULL;
 }

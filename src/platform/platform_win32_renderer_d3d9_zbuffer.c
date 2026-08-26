@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 enum D3D9WorldFacePass
 {
@@ -792,8 +793,7 @@ d3d9_zbuffer_report_memory(struct ToriRS_D3D9* renderer)
     if( world->alpha_ibo_chain )
         alpha_chain_bytes =
             d3d9_ibochain_bytes(world->alpha_ibo_chain, &alpha_chain_nodes);
-    printf(
-        "d3d9_mem: zb_materials          %10.2f MB\n"
+    TORIRS_LOG("d3d9_mem: zb_materials          %10.2f MB\n"
         "d3d9_mem: zb_batch_materials    %10.2f MB\n"
         "d3d9_mem: zb_alpha_arena        %10.2f MB\n"
         "d3d9_mem: zb_alpha_chain        %10.2f MB (%u nodes)\n"

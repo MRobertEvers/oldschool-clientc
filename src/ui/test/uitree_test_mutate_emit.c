@@ -1,9 +1,601 @@
 #include "test_harness.h"
 
+enum RefreshMutationKind
+{
+    REFRESH_MUTATION_NONE,
+    REFRESH_MUTATION_HOST,
+    REFRESH_MUTATION_LAYOUT,
+    REFRESH_MUTATION_HOVER,
+};
+
+struct RefreshMutationProbe
+{
+    struct UITree* tree;
+    struct UITreeHost* host;
+    int* hovered_component_id;
+    enum RefreshMutationKind mutation;
+    int armed;
+};
+
+static int
+find_emit_desc(
+    struct UITreeEmitBuffer const* buf,
+    int component_id)
+{
+    for( int i = 0; i < buf->count; i++ )
+        if( buf->cmds[i].component_id == component_id )
+            return i;
+    return -1;
+}
+
+static int
+refresh_mutation_request(void* user, struct UITreeHostRequest* req)
+{
+    struct RefreshMutationProbe* probe = (struct RefreshMutationProbe*)user;
+
+    if( probe->armed && req->kind == UITREE_HOST_BEGIN_OVERLAYS )
+    {
+        probe->armed = 0;
+        switch( probe->mutation )
+        {
+        case REFRESH_MUTATION_HOST:
+            UITree_HostInputsChanged(
+                probe->host,
+                UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_OVERLAYS));
+            break;
+        case REFRESH_MUTATION_LAYOUT:
+            UITree_LayoutInvalidateBoxes(probe->tree);
+            break;
+        case REFRESH_MUTATION_HOVER:
+            *probe->hovered_component_id = 680;
+            break;
+        case REFRESH_MUTATION_NONE:
+            break;
+        }
+    }
+    return UITree_Host(NULL, req);
+}
+
+static void
+test_emit_retain_gate(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct UITree* other_tree = UITree_New(1);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    struct UITreeEmitBuffer emit;
+    struct UITreeEmitBuffer other_emit;
+    struct UITreeEmitRetainGate gate = { 0 };
+    UITreeHostInputMask const camera = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CAMERA);
+    UITreeHostInputMask const overlays = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_OVERLAYS);
+    int32_t rect;
+
+    printf("TEST: production retained-emit gate identity\n");
+    TEST_ASSERT(tree != NULL, "retain-gate tree allocation");
+    if( !tree )
+    {
+        UITree_Free(other_tree);
+        return;
+    }
+    TEST_ASSERT(other_tree != NULL, "retain-gate second tree allocation");
+
+    UITree_TestHostInit(&host, &hs);
+    rect = UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 680, 5, 6, 40, 30);
+    TEST_ASSERT(rect >= 0, "retain-gate fixture component");
+    UITree_TestResolve(tree);
+    UITree_EmitBufferInit(&emit);
+    UITree_EmitBufferInit(&other_emit);
+    UITree_EmitWalk(tree, &host, &emit, -1);
+
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "an unprimed gate never retains");
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    TEST_ASSERT(
+        UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "a freshly captured settled frame is reusable");
+    other_emit.host_input_stamp = emit.host_input_stamp;
+    other_emit.publication_seq = emit.publication_seq;
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &other_emit, -1, &gate),
+        "a gate cannot authorize a different buffer with matching source stamps");
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "a gate cannot authorize a newer uncaptured buffer publication");
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    if( other_tree )
+    {
+        struct UITreeEmitRetainGate wrong_owner = gate;
+        wrong_owner.source_tree = other_tree;
+        TEST_ASSERT(
+            !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &wrong_owner),
+            "a captured identity cannot be reused by a different tree instance");
+    }
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, 680, &gate),
+        "hover identity participates in retention");
+
+    /* Camera state was not read by this fixture; changing an unrelated host
+     * domain must not manufacture a full walk. The unconditional empty overlay
+     * request was read, so that domain must reject the same retained buffer. */
+    UITree_HostInputsChanged(&host, camera);
+    TEST_ASSERT(
+        UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "an unread host domain does not reject retention");
+    UITree_HostInputsChanged(&host, overlays);
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "a consumed host domain rejects retention");
+
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    TEST_ASSERT(
+        UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "a full walk refreshes host dependency identity");
+
+    UITree_LayoutInvalidateBoxes(tree);
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "pending layout work rejects retention before its sequence advances");
+    UITree_EnsureLayout(tree);
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "a completed new layout sequence rejects the old buffer");
+
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    TEST_ASSERT(UITree_ApplyColour(tree, 680, 0x123456), "mutate retain-gate fixture");
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "a visible component mutation rejects retention");
+
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    TEST_ASSERT(
+        UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 681, 0, 0, 1, 1) >= 0,
+        "topology mutation fixture");
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "tree topology participates in retention");
+
+    /* Volatile requests execute arbitrary host/plugin callbacks. A callback
+     * which changes any term of the original publication identity must make
+     * the retained refresh fall back to a full walk, even when dirty_gen stays
+     * unchanged. */
+    {
+        struct RefreshMutationProbe probe = {
+            .tree = tree,
+            .host = &host,
+        };
+        int hovered = -1;
+
+        probe.hovered_component_id = &hovered;
+        host.user = &probe;
+        host.request = refresh_mutation_request;
+        UITree_EnsureLayout(tree);
+        emit.count = 0;
+        UITree_EmitWalk(tree, &host, &emit, hovered);
+        UITree_EmitRetainGateCapture(tree, &emit, hovered, &gate);
+        TEST_ASSERT(emit.volatile_refs > 0, "refresh-mutation fixture is volatile");
+        TEST_ASSERT(
+            !emit.volatile_unrefreshable,
+            "refresh-mutation fixture permits a retained refresh");
+        TEST_ASSERT(
+            UITree_EmitRetainGateRefreshVolatile(
+                tree, &host, &emit, &hovered, &gate),
+            "an unchanged volatile refresh remains reusable");
+        TEST_ASSERT(
+            !UITree_EmitRetainGateQuiet(tree, &host, &emit, hovered, &gate),
+            "a successful refresh advances the exact buffer publication");
+        UITree_EmitRetainGateCapture(tree, &emit, hovered, &gate);
+        TEST_ASSERT(
+            UITree_EmitRetainGateQuiet(tree, &host, &emit, hovered, &gate),
+            "capturing a successful refresh publishes its new buffer identity");
+
+        probe.mutation = REFRESH_MUTATION_HOST;
+        probe.armed = 1;
+        TEST_ASSERT(
+            !UITree_EmitRetainGateRefreshVolatile(
+                tree, &host, &emit, &hovered, &gate),
+            "a host epoch changed inside refresh rejects the retained frame");
+
+        emit.count = 0;
+        UITree_EmitWalk(tree, &host, &emit, hovered);
+        UITree_EmitRetainGateCapture(tree, &emit, hovered, &gate);
+        probe.mutation = REFRESH_MUTATION_LAYOUT;
+        probe.armed = 1;
+        TEST_ASSERT(
+            !UITree_EmitRetainGateRefreshVolatile(
+                tree, &host, &emit, &hovered, &gate),
+            "layout invalidated inside refresh rejects the retained frame");
+
+        UITree_EnsureLayout(tree);
+        emit.count = 0;
+        UITree_EmitWalk(tree, &host, &emit, hovered);
+        UITree_EmitRetainGateCapture(tree, &emit, hovered, &gate);
+        probe.mutation = REFRESH_MUTATION_HOVER;
+        probe.armed = 1;
+        TEST_ASSERT(
+            !UITree_EmitRetainGateRefreshVolatile(
+                tree, &host, &emit, &hovered, &gate),
+            "hover changed inside refresh rejects the retained frame");
+    }
+
+    UITree_EmitBufferFree(&other_emit);
+    UITree_EmitBufferFree(&emit);
+    UITree_Free(other_tree);
+    UITree_Free(tree);
+}
+
+static void
+test_drag_retain_gate(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    struct UITreeEmitBuffer emit;
+    struct UITreeEmitRetainGate gate = { 0 };
+    int32_t rect;
+    int at;
+
+    printf("TEST: retained emit rejects drag start / move / release\n");
+    TEST_ASSERT(tree != NULL, "drag retain-gate tree allocation");
+    if( !tree )
+        return;
+
+    UITree_TestHostInit(&host, &hs);
+    rect = UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 690, 5, 6, 40, 30);
+    TEST_ASSERT(rect >= 0, "drag retain-gate fixture component");
+    tree->components[rect].drag_behavior = 0; /* deferred picked-up drag */
+    UITree_TestResolve(tree);
+    UITree_EmitBufferInit(&emit);
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    at = find_emit_desc(&emit, 690);
+    TEST_ASSERT(
+        at >= 0 && emit.cmds[at].x == 5 && emit.cmds[at].y == 6,
+        "drag retain-gate baseline command");
+    TEST_ASSERT(
+        UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "drag retain-gate baseline is reusable");
+
+    {
+        uint32_t const dirty_before = tree->dirty_gen;
+        UITree_SetComponentDragActive(tree, rect, 1);
+        tree->components[rect].drag_visual_x = 55;
+        tree->components[rect].drag_visual_y = 66;
+        tree->components[rect].drag_visual_trans = 128;
+        TEST_ASSERT(
+            tree->dirty_gen != dirty_before,
+            "drag activation enters retained-list identity");
+    }
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "drag start cannot reuse the pre-drag command list");
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    at = find_emit_desc(&emit, 690);
+    TEST_ASSERT(
+        at >= 0 && emit.cmds[at].x == 55 && emit.cmds[at].y == 66,
+        "drag-start walk publishes the picked-up position");
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "an active drag is never considered retainable");
+
+    /* Production drag ticks update these visual-only coordinates directly.
+     * The active-drag gate must therefore reject retention even without a new
+     * dirty generation. */
+    {
+        uint32_t const dirty_before = tree->dirty_gen;
+        tree->components[rect].drag_visual_x = 75;
+        tree->components[rect].drag_visual_y = 86;
+        TEST_ASSERT(
+            tree->dirty_gen == dirty_before,
+            "drag movement fixture isolates the active-drag retain guard");
+    }
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "drag movement cannot reuse stale visual coordinates");
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    at = find_emit_desc(&emit, 690);
+    TEST_ASSERT(
+        at >= 0 && emit.cmds[at].x == 75 && emit.cmds[at].y == 86,
+        "drag-move walk publishes the latest visual coordinates");
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+
+    {
+        uint32_t const dirty_before = tree->dirty_gen;
+        UITree_SetComponentDragActive(tree, rect, 0);
+        tree->components[rect].drag_visual_trans = -1;
+        TEST_ASSERT(
+            tree->dirty_gen != dirty_before,
+            "drag release enters retained-list identity");
+    }
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "drag release cannot reuse the last dragged command list");
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    at = find_emit_desc(&emit, 690);
+    TEST_ASSERT(
+        at >= 0 && emit.cmds[at].x == 5 && emit.cmds[at].y == 6,
+        "release walk restores the component's layout position");
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    TEST_ASSERT(
+        UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "settled post-release list is reusable again");
+
+    UITree_EmitBufferFree(&emit);
+    UITree_Free(tree);
+}
+
+static void
+test_host_input_epochs(void)
+{
+    struct UITreeHost host;
+    struct TestHostState hs;
+    struct UITreeHostInputStamp stamp;
+    UITreeHostInputMask const camera = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CAMERA);
+    UITreeHostInputMask const pointer = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_POINTER);
+    UITreeHostInputMask const inventory = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY);
+    UITreeHostInputMask const client = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE);
+    UITreeHostInputMask const assets = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_ASSETS);
+    UITreeHostInputMask const world = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_WORLD);
+    UITreeHostInputMask const animation = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_ANIMATION);
+    UITreeHostInputMask const overlays = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_OVERLAYS);
+    UITreeHostInputMask const expected[UITREE_HOST_REQUEST_COUNT] = {
+        [UITREE_HOST_IS_ACTIVE] = client | inventory,
+        [UITREE_HOST_APPLY_BUTTON_CLICK] = 0,
+        [UITREE_HOST_EVAL_TEXT_PLACEHOLDER] = client | inventory,
+        [UITREE_HOST_GET_SELECTED_TAB] = client,
+        [UITREE_HOST_SET_SELECTED_TAB] = 0,
+        [UITREE_HOST_GET_CAMERA_YAW] = camera,
+        [UITREE_HOST_GET_CROSS_ACTIVE] = pointer | animation,
+        [UITREE_HOST_GET_CROSS_ATLAS_FRAME] = pointer | animation,
+        [UITREE_HOST_GET_CROSS_POSITION] = pointer | animation,
+        [UITREE_HOST_GET_MINIMENU_VISIBLE] = pointer | client,
+        [UITREE_HOST_GET_MINIMENU_STATE] = pointer | client,
+        [UITREE_HOST_GET_HOVERTEXT_STATE] = pointer | client,
+        [UITREE_HOST_MEASURE_TEXT] = assets,
+        [UITREE_HOST_SCENE_SPRITE_HAS] = assets,
+        [UITREE_HOST_SCENE_FONT_HAS] = assets,
+        [UITREE_HOST_SCENE_MODEL_HAS] = assets,
+        [UITREE_HOST_GET_INV_SOURCE_SLOT] = inventory,
+        [UITREE_HOST_SET_INV_SOURCE_SLOT] = 0,
+        [UITREE_HOST_GET_SCROLLBAR_SCENE] = assets,
+        [UITREE_HOST_GET_STATIC_SPRITE_SCENE] = assets,
+        [UITREE_HOST_GET_MINIMAP_STATE] = camera | world | assets,
+        [UITREE_HOST_GET_MINIMAP_HIDDEN] = client | world,
+        [UITREE_HOST_GET_MULTIWAY] = world,
+        [UITREE_HOST_GET_REBOOT_TIMER] = client | animation,
+        [UITREE_HOST_GET_MINIMAP_DOTS] = camera | world | overlays,
+        [UITREE_HOST_GET_ENTITY_OVERLAYS] = camera | world | overlays,
+        [UITREE_HOST_GET_CANVAS_OVERLAYS] = overlays,
+        [UITREE_HOST_BEGIN_OVERLAYS] = 0,
+        [UITREE_HOST_GET_ROLE_OVERLAY_GROUPS] = overlays,
+        [UITREE_HOST_SET_ROLE_OVERLAY_CLIP] = 0,
+        [UITREE_HOST_GET_FRAME_OVERLAYS] = overlays,
+        [UITREE_HOST_GET_WORLDMAP_TILES] = camera | world | assets | overlays,
+        [UITREE_HOST_GET_WORLDMAP_OVERVIEW] = camera | world | assets | overlays,
+        [UITREE_HOST_GET_TAB_ENABLED] = client,
+        [UITREE_HOST_GET_TAB_FLASH_HIDDEN] = client | animation,
+        [UITREE_HOST_GET_CHAT_FILTER_MODE] = client,
+        [UITREE_HOST_CYCLE_CHAT_FILTER_MODE] = 0,
+        [UITREE_HOST_GET_CHAT_STATE] = client,
+        [UITREE_HOST_GET_OBJ_NAME] = assets,
+        [UITREE_HOST_GET_INV_DRAG] = pointer | inventory,
+        [UITREE_HOST_GET_INV_COUNT_FONT] = assets,
+        [UITREE_HOST_GET_INV_SELECT_ICON] = inventory | assets,
+        [UITREE_HOST_GET_INV_SELECTION] = inventory,
+        [UITREE_HOST_GET_OBJ_ICON_PLAIN] = assets,
+        [UITREE_HOST_GET_OBJ_ICON_BORDERED] = assets,
+        [UITREE_HOST_GET_DEBUG_OVERLAY] = overlays | assets,
+        [UITREE_HOST_GET_IF_EVENTS] = client,
+    };
+
+    printf("TEST: retained emit host-input epochs\n");
+
+    /* Every current request is deliberately classified. This exact table is a
+     * tripwire for additions: an unclassified new kind safely returns ALL in
+     * production and fails here until its real dependencies are documented. */
+    for( int i = 0; i < UITREE_HOST_REQUEST_COUNT; i++ )
+    {
+        enum UITreeHostRequestKind const kind = (enum UITreeHostRequestKind)i;
+        UITreeHostInputMask const mask = UITree_HostRequestInputMask(kind);
+
+        TEST_ASSERT(!(mask & ~UITREE_HOST_INPUT_ALL), "host request input mask is in range");
+        TEST_ASSERT(mask == expected[i], "host request has its documented input dependencies");
+    }
+    TEST_ASSERT(
+        UITree_HostRequestInputMask((enum UITreeHostRequestKind)(UITREE_HOST_REQUEST_COUNT + 17)) ==
+            UITREE_HOST_INPUT_ALL,
+        "unknown host request conservatively reads every input domain");
+
+    UITree_TestHostInit(&host, &hs);
+    TEST_ASSERT(
+        UITree_HostPublishInputSignature(&host, UITREE_HOST_INPUT_CAMERA, 0x1234),
+        "first semantic source signature advances its domain");
+    TEST_ASSERT(
+        !UITree_HostPublishInputSignature(&host, UITREE_HOST_INPUT_CAMERA, 0x1234),
+        "unchanged semantic source signature is a no-op");
+    {
+        uint64_t const epoch = host.input_epoch[UITREE_HOST_INPUT_CAMERA];
+        TEST_ASSERT(
+            UITree_HostPublishInputSignature(&host, UITREE_HOST_INPUT_CAMERA, 0x5678),
+            "changed semantic source signature advances its domain");
+        TEST_ASSERT(
+            host.input_epoch[UITREE_HOST_INPUT_CAMERA] == epoch + 1,
+            "signature publication advances exactly one epoch");
+        TEST_ASSERT(
+            !UITree_HostPublishInputSignature(
+                &host, (enum UITreeHostInputDomain)UITREE_HOST_INPUT_DOMAIN_COUNT, 1),
+            "invalid signature domain is rejected");
+    }
+    UITree_HostInputStampCapture(&host, camera | inventory, &stamp);
+    TEST_ASSERT(UITree_HostInputStampIsCurrent(&stamp, &host), "fresh host stamp is current");
+
+    UITree_HostInputsChanged(&host, pointer);
+    TEST_ASSERT(
+        UITree_HostInputStampIsCurrent(&stamp, &host),
+        "unobserved host input does not invalidate a stamp");
+
+    UITree_HostInputsChanged(&host, camera);
+    TEST_ASSERT(
+        !UITree_HostInputStampIsCurrent(&stamp, &host),
+        "observed host input invalidates a stamp");
+
+    /* A real walk records only the host domains it reads. The unconditional
+     * canvas-overlay query also proves that a zero-result request is tracked:
+     * a later plugin overlay can add a descriptor where none existed before. */
+    {
+        struct UITree* tree = UITree_New(8);
+        struct UITreeEmitBuffer emit;
+        struct UITreeComponent cached_active = { 0 };
+        struct UITreeEmitDesc cached_desc;
+        int32_t const compass =
+            UITree_TestPushXy(tree, -1, UIELEM_BUILTIN_COMPASS, 700, 0, 0, 32, 32);
+
+        TEST_ASSERT(compass >= 0, "push camera-dependent compass");
+        tree->components[compass].u.sprite.scene_id = 1;
+        cached_active.type = UIELEM_RS_RECT;
+        cached_active.u.rs_rect.color = 0xFF0000;
+        cached_active.u.rs_rect.filled = 1;
+        cached_active.behavior.active_color = 0x123456;
+        cached_active.cs1_active = 1;
+        memset(hs.request_count, 0, sizeof(hs.request_count));
+        TEST_ASSERT(
+            UITree_EmitFill(tree, &host, &cached_active, -1, -1, &cached_desc) &&
+                cached_desc.color == 0x123456,
+            "emit consumes the typed tree-owned CS1 active publication");
+        TEST_ASSERT(
+            hs.request_count[UITREE_HOST_IS_ACTIVE] == 0,
+            "emit does not round-trip cached CS1 active state through the host");
+        memset(&cached_active, 0, sizeof(cached_active));
+        cached_active.type = UIELEM_RS_TEXT;
+        cached_active.behavior.scripts_count = 1;
+        cached_active.u.rs_text.text = "%1";
+        cached_active.u.rs_text.font_id = 1;
+        cached_active.cs1_values[0] = 42;
+        TEST_ASSERT(
+            UITree_EmitFill(tree, &host, &cached_active, -1, -1, &cached_desc) &&
+                strcmp(cached_desc.text_formatted, "42") == 0,
+            "emit formats typed tree-owned CS1 placeholder values");
+        TEST_ASSERT(
+            hs.request_count[UITREE_HOST_EVAL_TEXT_PLACEHOLDER] == 0,
+            "emit does not round-trip cached CS1 placeholder values through the host");
+        UITree_EmitBufferInit(&emit);
+        memset(hs.request_count, 0, sizeof(hs.request_count));
+        UITree_EmitWalk(tree, &host, &emit, -1);
+        TEST_ASSERT(
+            !(emit.host_input_dependencies & (client | inventory)),
+            "cached CS1 active state does not manufacture ambient dependencies");
+        TEST_ASSERT(
+            emit.host_input_dependencies & camera,
+            "emit walk observes the compass camera read");
+        TEST_ASSERT(
+            emit.host_input_dependencies &
+                UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_OVERLAYS),
+            "emit walk observes a zero-result overlay read");
+        TEST_ASSERT(
+            !(emit.host_input_dependencies & pointer),
+            "emit walk does not subscribe to an unread pointer domain");
+        TEST_ASSERT(
+            UITree_EmitBufferHostInputsCurrent(&emit, &host),
+            "completed emit records current host inputs");
+
+        UITree_HostInputsChanged(&host, pointer);
+        TEST_ASSERT(
+            UITree_EmitBufferHostInputsCurrent(&emit, &host),
+            "unread pointer change leaves compass emit reusable");
+        UITree_HostInputsChanged(&host, camera);
+        TEST_ASSERT(
+            !UITree_EmitBufferHostInputsCurrent(&emit, &host),
+            "camera change rejects retained compass emit");
+
+        /* Same pointer vocabulary, three different host producers. Retained
+         * refresh must preserve that provenance rather than replacing plugin
+         * frame/canvas output with the world entity list. */
+        {
+            struct UITreeEntityOverlay item = { 0 };
+            struct UITreeEmitBuffer refresh;
+            int32_t const overlay =
+                UITree_TestPushXy(tree, -1, UIELEM_BUILTIN_ENTITY_OVERLAY, 701, 0, 0, 1, 1);
+            int32_t const world =
+                UITree_TestPushXy(tree, -1, UIELEM_BUILTIN_WORLD, 702, 0, 0, 1, 1);
+            uint8_t const all_overlay_sources =
+                (uint8_t)((1u << UITREE_EMIT_OVERLAY_ENTITY) |
+                          (1u << UITREE_EMIT_OVERLAY_CANVAS) |
+                          (1u << UITREE_EMIT_OVERLAY_FRAME));
+            int source_count[UITREE_EMIT_OVERLAY_FRAME + 1] = { 0 };
+
+            TEST_ASSERT(overlay >= 0 && world >= 0, "push retained overlay fixture");
+            hs.entity_overlays = &item;
+            hs.canvas_overlays = &item;
+            hs.frame_overlays = &item;
+            hs.entity_overlay_count = 0;
+            hs.canvas_overlay_count = 0;
+            hs.frame_overlay_count = 0;
+            UITree_TestResolve(tree);
+            UITree_EmitBufferInit(&refresh);
+            UITree_EmitWalk(tree, &host, &refresh, -1);
+            TEST_ASSERT(
+                (refresh.volatile_overlay_seen & all_overlay_sources) == all_overlay_sources,
+                "zero-count overlay sources retain standing refresh records");
+            TEST_ASSERT(
+                !(refresh.volatile_overlay_nonempty & all_overlay_sources),
+                "zero-count standing records do not expose renderer commands");
+
+            memset(hs.request_count, 0, sizeof(hs.request_count));
+            hs.entity_overlay_count = 1;
+            hs.canvas_overlay_count = 1;
+            hs.frame_overlay_count = 1;
+            TEST_ASSERT(
+                UITree_EmitRefreshVolatile(tree, &host, &refresh),
+                "standing overlay records refresh across zero-to-nonzero transitions");
+            TEST_ASSERT(
+                hs.request_count[UITREE_HOST_GET_ENTITY_OVERLAYS] == 1,
+                "world overlay refresh reissues the world request once");
+            TEST_ASSERT(
+                hs.request_count[UITREE_HOST_GET_CANVAS_OVERLAYS] == 1,
+                "canvas overlay refresh preserves canvas provenance");
+            TEST_ASSERT(
+                hs.request_count[UITREE_HOST_GET_FRAME_OVERLAYS] == 1,
+                "frame overlay refresh preserves frame provenance");
+            for( int i = 0; i < refresh.count; i++ )
+            {
+                int const source = refresh.cmds[i].entity_overlay_source;
+                if( source >= UITREE_EMIT_OVERLAY_ENTITY &&
+                    source <= UITREE_EMIT_OVERLAY_FRAME )
+                    source_count[source]++;
+            }
+            TEST_ASSERT(
+                source_count[UITREE_EMIT_OVERLAY_ENTITY] == 1 &&
+                    source_count[UITREE_EMIT_OVERLAY_CANVAS] == 1 &&
+                    source_count[UITREE_EMIT_OVERLAY_FRAME] == 1,
+                "refresh inserts one command with each original overlay source");
+            UITree_EmitBufferFree(&refresh);
+        }
+
+        UITree_EmitBufferFree(&emit);
+        UITree_Free(tree);
+    }
+}
+
 void
 test_mutate_emit(void)
 {
     printf("TEST: mutate / emit / hide\n");
+
+    test_emit_retain_gate();
+    test_drag_retain_gate();
+    test_host_input_epochs();
 
     struct UITree* tree = UITree_New(16);
     struct TestHostState hs;
@@ -180,6 +772,15 @@ test_mutate_emit(void)
         TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[layer], layer, -1, &desc),
                     "scrollbar emit with scroll_y");
         TEST_ASSERT(desc.scroll_off_y == 50, "scroll_off_y from component");
+
+        tree->components[layer].scroll_y = 500;
+        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[layer], layer, -1, &desc),
+                    "scrollbar emit locally clamps an out-of-range value");
+        TEST_ASSERT(desc.scroll_off_y == 200, "emit uses the clamped scrollbar offset");
+        TEST_ASSERT(
+            tree->components[layer].scroll_y == 500,
+            "emit does not mutate canonical scroll state during a read");
+        TEST_ASSERT(UITree_SetScrollPosAt(tree, layer, 0, 50), "restore scroll through typed setter");
     }
 
     TEST_ASSERT(UITree_ApplyColour(tree, 501, 0x99), "apply colour");

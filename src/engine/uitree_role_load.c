@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * The revconfig matcher kinds and the ui ones are deliberately the same set,
@@ -48,9 +49,7 @@ role_matcher_to_tree(
         int slot = UITree_RoleSlotFromName(src->slot);
         if( slot < 0 )
         {
-            fprintf(
-                stderr,
-                "revconfig: [role:%s] slot(%s) names no frame slot\n",
+            TORIRS_LOG("revconfig: [role:%s] slot(%s) names no frame slot\n",
                 role_name,
                 src->slot);
             return 0;
@@ -62,9 +61,7 @@ role_matcher_to_tree(
             int member = UITree_RoleSlotMemberFromName(slot, src->member);
             if( member < 0 )
             {
-                fprintf(
-                    stderr,
-                    "revconfig: [role:%s] slot(%s, %s) names no member of that slot\n",
+                TORIRS_LOG("revconfig: [role:%s] slot(%s, %s) names no member of that slot\n",
                     role_name,
                     src->slot,
                     src->member);
@@ -95,9 +92,7 @@ role_matcher_to_tree(
             int group = RevConfigRefs_Get(refs, "iface", src->ref.name);
             if( group < 0 )
             {
-                fprintf(
-                    stderr,
-                    "revconfig: [role:%s] iface(%s) is not declared by this profile\n",
+                TORIRS_LOG("revconfig: [role:%s] iface(%s) is not declared by this profile\n",
                     role_name,
                     src->ref.name);
                 return 0;
@@ -172,9 +167,7 @@ UITreeRoleLoad_AddItems(
                     &item->u.role.matchers[m], refs, item->u.role.name, &matcher) )
                 continue;
             if( !UITree_RoleAddMatcher(table, id, &matcher) )
-                fprintf(
-                    stderr,
-                    "revconfig: [role:%s] has more than %d match= lines; the rest are dropped\n",
+                TORIRS_LOG("revconfig: [role:%s] has more than %d match= lines; the rest are dropped\n",
                     item->u.role.name,
                     UITREE_ROLE_MAX_MATCHERS);
         }

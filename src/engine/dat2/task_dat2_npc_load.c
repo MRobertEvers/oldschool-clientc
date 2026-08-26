@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2NpcLoad
 {
@@ -116,7 +117,7 @@ Task_Dat2NpcLoad_Run(
 
     if( !task->group )
     {
-        fprintf(stderr, "Failed to decode dat2 npc group for npc %d\n", task->npc_id);
+        TORIRS_ERR("Failed to decode dat2 npc group for npc %d\n", task->npc_id);
         PT_EXIT(&task->pt);
     }
 
@@ -136,7 +137,7 @@ Task_Dat2NpcLoad_Run(
 
     if( !task->npc )
     {
-        fprintf(stderr, "Failed to load dat2 npc %d\n", task->npc_id);
+        TORIRS_ERR("Failed to load dat2 npc %d\n", task->npc_id);
         PT_EXIT(&task->pt);
     }
 
@@ -151,9 +152,7 @@ Task_Dat2NpcLoad_Run(
         archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_BAS);
         if( !archive )
         {
-            fprintf(
-                stderr,
-                "Failed to decode dat2 bas group for npc %d bas %d\n",
+            TORIRS_ERR("Failed to decode dat2 bas group for npc %d bas %d\n",
                 task->npc_id,
                 task->bas_type_id);
         }
@@ -171,9 +170,7 @@ Task_Dat2NpcLoad_Run(
         if( bas )
             npc_apply_bas(task->npc, bas);
         else
-            fprintf(
-                stderr,
-                "Failed to load bas %d for npc %d\n",
+            TORIRS_ERR("Failed to load bas %d for npc %d\n",
                 task->bas_type_id,
                 task->npc_id);
     }
@@ -181,7 +178,7 @@ Task_Dat2NpcLoad_Run(
     torirs_npc = ToriRS_NpctypeFromRSCacheDat2(task->npc_id, task->npc);
     if( !torirs_npc )
     {
-        fprintf(stderr, "Failed to convert dat2 npc %d\n", task->npc_id);
+        TORIRS_ERR("Failed to convert dat2 npc %d\n", task->npc_id);
         PT_EXIT(&task->pt);
     }
 

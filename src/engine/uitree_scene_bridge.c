@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* #region agent log — texture publish trace, defined in app.c. */
 int
@@ -146,6 +147,36 @@ bridge_hmap_free(struct HMap* map)
     free(hmap_free(map));
 }
 
+static void
+bridge_assets_changed(struct UITreeSceneBridge* bridge)
+{
+    assert(bridge);
+    bridge->asset_revision++;
+    if( bridge->asset_revision == 0 )
+        bridge->asset_revision++;
+}
+
+static void
+bridge_set_scene_id(
+    struct UITreeSceneBridge* bridge,
+    int* slot,
+    int scene_id)
+{
+    assert(bridge);
+    assert(slot);
+    if( *slot == scene_id )
+        return;
+    *slot = scene_id;
+    bridge_assets_changed(bridge);
+}
+
+uint64_t
+UITreeSceneBridge_AssetRevision(struct UITreeSceneBridge const* bridge)
+{
+    assert(bridge);
+    return bridge->asset_revision;
+}
+
 void
 UITreeSceneBridge_Init(
     struct UITreeSceneBridge* bridge,
@@ -216,16 +247,28 @@ bridge_map_get(
 
 static void
 bridge_map_put(
+    struct UITreeSceneBridge* bridge,
     struct HMap* map,
     int cache_id,
     int scene_id)
 {
     struct MapEntry_BridgeId* entry;
+    assert(bridge);
     assert(map);
+    entry = (struct MapEntry_BridgeId*)hmap_search(map, &cache_id, HMAP_FIND);
+    if( entry )
+    {
+        if( entry->scene_id == scene_id )
+            return;
+        entry->scene_id = scene_id;
+        bridge_assets_changed(bridge);
+        return;
+    }
     entry = (struct MapEntry_BridgeId*)hmap_search(map, &cache_id, HMAP_INSERT);
     assert(entry);
     entry->cache_id = cache_id;
     entry->scene_id = scene_id;
+    bridge_assets_changed(bridge);
 }
 
 int
@@ -288,7 +331,7 @@ UITreeSceneBridge_EnsureSprite(
 
     scene_id = bridge->next_scene_id++;
     ToriDraw_SceneSpriteAdd(bridge->scene, scene_id, sprites, count);
-    bridge_map_put(bridge->sprite_map, cache_graphic_id, scene_id);
+    bridge_map_put(bridge, bridge->sprite_map, cache_graphic_id, scene_id);
     return scene_id;
 }
 
@@ -307,7 +350,7 @@ UITreeSceneBridge_EnsureStaticSprite(
 
     scene_id = UITreeSceneBridge_EnsureSprite(bridge, cache_graphic_id);
     if( scene_id > 0 )
-        bridge->static_sprite_scene[slot] = scene_id;
+        bridge_set_scene_id(bridge, &bridge->static_sprite_scene[slot], scene_id);
     return scene_id;
 }
 
@@ -639,7 +682,7 @@ UITreeSceneBridge_EnsureModel(
 
     if( ToriDraw_SceneModelHas(bridge->scene, cache_model_id) )
     {
-        bridge_map_put(bridge->model_map, cache_model_id, cache_model_id);
+        bridge_map_put(bridge, bridge->model_map, cache_model_id, cache_model_id);
         return cache_model_id;
     }
 
@@ -669,7 +712,7 @@ UITreeSceneBridge_EnsureModel(
     /* Rest-pose snapshot enables IF/CC_SETMODELANIM sequence playback on widgets. */
     ToriDraw_ModelCaptureOriginalVertices(model);
     ToriDraw_SceneModelAdd(bridge->scene, cache_model_id, hnd);
-    bridge_map_put(bridge->model_map, cache_model_id, cache_model_id);
+    bridge_map_put(bridge, bridge->model_map, cache_model_id, cache_model_id);
     return cache_model_id;
 }
 
@@ -739,7 +782,7 @@ UITreeSceneBridge_BuildPlayerDesignModel(
     }
 
     ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_PLAYER_MODEL_ID, hnd);
-    bridge->player_scene_id = UITREE_SCENE_PLAYER_MODEL_ID;
+    bridge_set_scene_id(bridge, &bridge->player_scene_id, UITREE_SCENE_PLAYER_MODEL_ID);
     return bridge->player_scene_id;
 }
 
@@ -754,14 +797,14 @@ UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge)
         return bridge->player_scene_id;
     if( ToriDraw_SceneModelHas(bridge->scene, UITREE_SCENE_PLAYER_MODEL_ID) )
     {
-        bridge->player_scene_id = UITREE_SCENE_PLAYER_MODEL_ID;
+        bridge_set_scene_id(bridge, &bridge->player_scene_id, UITREE_SCENE_PLAYER_MODEL_ID);
         return bridge->player_scene_id;
     }
 
     {
         int resolved = PlayerAppearance_ResolveDefaultMale(bridge->provider, &app);
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(stderr, "EnsurePlayerModel: resolved=%d kits=[%d,%d,%d,%d,%d,%d,%d]\n",
+            TORIRS_LOG("EnsurePlayerModel: resolved=%d kits=[%d,%d,%d,%d,%d,%d,%d]\n",
                 resolved, app.kits[0], app.kits[1], app.kits[2], app.kits[3],
                 app.kits[4], app.kits[5], app.kits[6]);
         if( resolved <= 0 )
@@ -803,7 +846,8 @@ UITreeSceneBridge_BuildLocalPlayerModel(
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = merged;
     ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_LOCAL_PLAYER_MODEL_ID, hnd);
-    bridge->local_player_scene_id = UITREE_SCENE_LOCAL_PLAYER_MODEL_ID;
+    bridge_set_scene_id(
+        bridge, &bridge->local_player_scene_id, UITREE_SCENE_LOCAL_PLAYER_MODEL_ID);
     return bridge->local_player_scene_id;
 }
 
@@ -915,7 +959,7 @@ UITreeSceneBridge_EnsureNpcHead(
 
     scene_id = (int)(UITREE_SCENE_NPC_HEAD_BASE | (unsigned)npc_id);
     ToriDraw_SceneModelAdd(bridge->scene, scene_id, hnd);
-    bridge_map_put(bridge->npc_head_map, npc_id, scene_id);
+    bridge_map_put(bridge, bridge->npc_head_map, npc_id, scene_id);
     return scene_id;
 }
 
@@ -935,7 +979,7 @@ UITreeSceneBridge_EnsurePlayerHead(
         return bridge->player_head_scene_id;
     if( ToriDraw_SceneModelHas(bridge->scene, UITREE_SCENE_PLAYER_HEAD_ID) )
     {
-        bridge->player_head_scene_id = UITREE_SCENE_PLAYER_HEAD_ID;
+        bridge_set_scene_id(bridge, &bridge->player_head_scene_id, UITREE_SCENE_PLAYER_HEAD_ID);
         return bridge->player_head_scene_id;
     }
 
@@ -971,7 +1015,7 @@ UITreeSceneBridge_EnsurePlayerHead(
         ToriDraw_LightModelScene(hnd, 0, 0);
     }
     ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_PLAYER_HEAD_ID, hnd);
-    bridge->player_head_scene_id = UITREE_SCENE_PLAYER_HEAD_ID;
+    bridge_set_scene_id(bridge, &bridge->player_head_scene_id, UITREE_SCENE_PLAYER_HEAD_ID);
     return bridge->player_head_scene_id;
 }
 
@@ -1278,6 +1322,7 @@ bridge_ensure_obj_icon(
     entry->obj_id = obj_id;
     entry->count = count;
     entry->scene_id = scene_id;
+    bridge_assets_changed(bridge);
     return scene_id;
 }
 
@@ -1334,7 +1379,7 @@ UITreeSceneBridge_EnsureObjModel(
 
     scene_id = (int)(UITREE_SCENE_OBJ_MODEL_BASE | (unsigned)obj_id);
     ToriDraw_SceneModelAdd(bridge->scene, scene_id, hnd);
-    bridge_map_put(bridge->obj_model_map, obj_id, scene_id);
+    bridge_map_put(bridge, bridge->obj_model_map, obj_id, scene_id);
     return scene_id;
 }
 
@@ -1495,7 +1540,7 @@ UITreeSceneBridge_PublishTextures(
         if( texture_id < 0 || texture_id >= 2048 )
         {
             if( app_tex_trace_enabled() )
-                fprintf(stderr, "tex_trace: publish id=%d -> rejected (out of range)\n", texture_id);
+                TORIRS_ERR("tex_trace: publish id=%d -> rejected (out of range)\n", texture_id);
             continue;
         }
 
@@ -1504,7 +1549,7 @@ UITreeSceneBridge_PublishTextures(
         {
             bridge->texture_failed[texture_id] = 1;
             if( app_tex_trace_enabled() )
-                fprintf(stderr, "tex_trace: publish id=%d -> FAILED (no provider entry)\n", texture_id);
+                TORIRS_ERR("tex_trace: publish id=%d -> FAILED (no provider entry)\n", texture_id);
             continue;
         }
 
@@ -1513,9 +1558,7 @@ UITreeSceneBridge_PublishTextures(
         {
             bridge->texture_failed[texture_id] = 1;
             if( app_tex_trace_enabled() )
-                fprintf(
-                    stderr,
-                    "tex_trace: publish id=%d -> FAILED (convert: texels=%p %dx%d)\n",
+                TORIRS_ERR("tex_trace: publish id=%d -> FAILED (convert: texels=%p %dx%d)\n",
                     texture_id,
                     (void*)rs->texels,
                     rs->width,
@@ -1525,9 +1568,7 @@ UITreeSceneBridge_PublishTextures(
 
         ToriDraw_SceneSetTexture(bridge->scene, texture_id, texture);
         if( app_tex_trace_enabled() )
-            fprintf(
-                stderr,
-                "tex_trace: publish id=%d -> %s (%dx%d opaque=%d)\n",
+            TORIRS_LOG("tex_trace: publish id=%d -> %s (%dx%d opaque=%d)\n",
                 texture_id,
                 UITreeSceneBridge_TextureResident(bridge, texture_id) ? "resident"
                                                                       : "SET BUT NOT RESIDENT",

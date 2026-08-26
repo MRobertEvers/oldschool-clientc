@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <xteas.h>
+#include "log/torirs_log.h"
 
 /*
  * The handshake, as a state machine, because two of its steps can be reordered
@@ -216,7 +217,7 @@ build_login_block(struct Osrs239Login* h)
     int enclen = rsa_crypt(&h->net->rsa, rsabuf, rbuf.position, enc, sizeof(enc));
     if( enclen <= 0 )
     {
-        fprintf(stderr, "osrs239 login: rsa encrypt failed\n");
+        TORIRS_ERR("osrs239 login: rsa encrypt failed\n");
         return 0;
     }
 
@@ -281,7 +282,7 @@ answer_proof_of_work(struct Osrs239Login* h, uint8_t const* payload, int len)
     int type = g1(&b);
     if( type != 0 )
     {
-        fprintf(stderr, "osrs239 login: unknown proof-of-work type %d\n", type);
+        TORIRS_ERR("osrs239 login: unknown proof-of-work type %d\n", type);
         return 0;
     }
     int version = g1(&b);
@@ -300,8 +301,7 @@ answer_proof_of_work(struct Osrs239Login* h, uint8_t const* payload, int len)
     uint64_t result = 0;
     if( !pow_sha256_solve(version, difficulty, salt, OSRS239_POW_MAX_ATTEMPTS, &result) )
     {
-        fprintf(stderr,
-                "osrs239 login: proof of work unsolved (v=%d difficulty=%d) after %llu "
+        TORIRS_LOG("osrs239 login: proof of work unsolved (v=%d difficulty=%d) after %llu "
                 "attempts\n",
                 version, difficulty, (unsigned long long)OSRS239_POW_MAX_ATTEMPTS);
         return 0;
@@ -314,7 +314,7 @@ answer_proof_of_work(struct Osrs239Login* h, uint8_t const* payload, int len)
     p8(&o, (int64_t)result);
     h->out_len = (int)o.position;
     h->out_off = 0;
-    fprintf(stderr, "osrs239 login: proof of work solved (difficulty %d) -> %llu\n",
+    TORIRS_LOG("osrs239 login: proof of work solved (difficulty %d) -> %llu\n",
             difficulty, (unsigned long long)result);
     return 1;
 }
@@ -346,7 +346,7 @@ osrs239_new(struct ToriRS_Network* net, char const* username, char const* passwo
     {
         /* Asked to reconnect with no prior session to present. Fall back to a
          * fresh GAMELOGIN rather than sending an unauthenticable block. */
-        fprintf(stderr, "osrs239 login: no previous seed; reconnecting as a fresh login\n");
+        TORIRS_LOG("osrs239 login: no previous seed; reconnecting as a fresh login\n");
     }
     if( net->seed_fn )
         net->seed_fn(net->seed_user, h->seed);
@@ -396,7 +396,7 @@ osrs239_recv(void* handle, uint8_t const* data, int size)
             uint64_t sid = (uint64_t)g8(&rbuf);
             if( status != 0 )
             {
-                fprintf(stderr, "osrs239 login: connect rejected status=%d\n", status);
+                TORIRS_ERR("osrs239 login: connect rejected status=%d\n", status);
                 h->state = OSRS239_ERR;
                 return off;
             }
@@ -459,7 +459,7 @@ osrs239_recv(void* handle, uint8_t const* data, int size)
                 (void)g1(&rbuf); /* playerMod */
                 int index = g2(&rbuf);
                 h->local_index = index;
-                fprintf(stderr, "osrs239 login: OK, local player index %d\n", index);
+                TORIRS_LOG("osrs239 login: OK, local player index %d\n", index);
                 h->state = OSRS239_DONE;
                 publish_seed(h);
                 {
@@ -488,7 +488,7 @@ osrs239_recv(void* handle, uint8_t const* data, int size)
                 len = (h->in[1] << 8) | h->in[2];
                 if( len < 0 || 3 + len > (int)sizeof(h->in) )
                 {
-                    fprintf(stderr, "osrs239 login: RECONNECT_OK payload too large (%d)\n", len);
+                    TORIRS_ERR("osrs239 login: RECONNECT_OK payload too large (%d)\n", len);
                     h->state = OSRS239_ERR;
                     return off;
                 }
@@ -496,8 +496,7 @@ osrs239_recv(void* handle, uint8_t const* data, int size)
                     break;
                 h->reconnect_block_off = 3;
                 h->reconnect_block_len = len;
-                fprintf(stderr,
-                        "osrs239 login: RECONNECT_OK, %d byte player-info init, index %d\n",
+                TORIRS_LOG("osrs239 login: RECONNECT_OK, %d byte player-info init, index %d\n",
                         len, h->local_index);
                 h->state = OSRS239_DONE;
                 publish_seed(h);
@@ -510,7 +509,7 @@ osrs239_recv(void* handle, uint8_t const* data, int size)
                     return off - extra;
                 }
             }
-            fprintf(stderr, "osrs239 login: rejected reply=%d\n", reply);
+            TORIRS_ERR("osrs239 login: rejected reply=%d\n", reply);
             h->state = OSRS239_ERR;
             break;
         }

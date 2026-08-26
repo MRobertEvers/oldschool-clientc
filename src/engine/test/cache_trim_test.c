@@ -11,6 +11,8 @@
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/torirs_types.h"
+#include "engine/uitree_scene_bridge.h"
+#include "toridraw_scene.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -53,6 +55,157 @@ fake_sprite(void)
     struct ToriRS_Sprite* sprite = calloc(1, sizeof(*sprite));
     assert(sprite);
     return sprite;
+}
+
+static struct ToriRS_Sprite*
+fake_drawable_sprite(void)
+{
+    struct ToriRS_Sprite* sprite = calloc(1, sizeof(*sprite));
+    assert(sprite);
+    sprite->frames = calloc(1, sizeof(*sprite->frames));
+    assert(sprite->frames);
+    sprite->frame_count = 1;
+    sprite->frames[0].pixels_argb = malloc(sizeof(*sprite->frames[0].pixels_argb));
+    assert(sprite->frames[0].pixels_argb);
+    sprite->frames[0].pixels_argb[0] = 0xff55aa33u;
+    sprite->frames[0].width = 1;
+    sprite->frames[0].height = 1;
+    sprite->frames[0].crop_width = 1;
+    sprite->frames[0].crop_height = 1;
+    return sprite;
+}
+
+static struct ToriRS_Objtype*
+fake_objtype(char const* name)
+{
+    struct ToriRS_Objtype* obj = calloc(1, sizeof(*obj));
+    assert(obj);
+    obj->cert_link = -1;
+    obj->cert_template = -1;
+    obj->placeholder_link = -1;
+    obj->placeholder_template = -1;
+    strncpy(obj->name, name, sizeof(obj->name) - 1);
+    return obj;
+}
+
+/* A provider arrival has to invalidate retained host answers before the bridge
+ * has consumed it. Same-key publication and lazy genCert synthesis are equally
+ * semantic even though their map cardinality does not change. */
+static void
+test_ui_asset_revision_tracks_provider_answers(void)
+{
+    struct CacheProvider provider = { 0 };
+    struct ToriRS_Objtype* obj;
+    struct ToriRS_Objtype* base;
+    struct ToriRS_Objtype* note;
+    uint64_t revision;
+    size_t objtype_count;
+
+    CacheProvider_InitEngineCaches(&provider);
+    revision = CacheProvider_UIAssetRevision(&provider);
+    CHECK(CacheProvider_ObjtypeGet(&provider, 42) == NULL, "missing objtype should stay missing");
+    CHECK(
+        CacheProvider_UIAssetRevision(&provider) == revision,
+        "a provider miss must not mutate the UI asset revision");
+
+    obj = fake_objtype("Trout");
+    CacheProvider_ObjtypeAdd(&provider, 42, obj);
+    CHECK(
+        CacheProvider_UIAssetRevision(&provider) != revision,
+        "objtype arrival did not advance UI asset revision");
+    revision = CacheProvider_UIAssetRevision(&provider);
+    CHECK(CacheProvider_ObjtypeGet(&provider, 42) == obj, "resident objtype lookup failed");
+    CHECK(
+        CacheProvider_UIAssetRevision(&provider) == revision,
+        "ordinary resident lookup advanced UI asset revision");
+
+    objtype_count = provider.objtype_cache->size;
+    strncpy(obj->name, "Salmon", sizeof(obj->name) - 1);
+    CacheProvider_ObjtypeAdd(&provider, 42, obj);
+    CHECK(
+        provider.objtype_cache->size == objtype_count,
+        "same-key objtype publication changed map cardinality");
+    CHECK(
+        CacheProvider_UIAssetRevision(&provider) != revision,
+        "same-key objtype publication did not advance revision");
+
+    base = fake_objtype("Apple");
+    note = fake_objtype("null");
+    note->cert_link = 100;
+    note->cert_template = 1;
+    CacheProvider_ObjtypeAdd(&provider, 100, base);
+    CacheProvider_ObjtypeAdd(&provider, 101, note);
+    revision = CacheProvider_UIAssetRevision(&provider);
+    CHECK(CacheProvider_ObjtypeGet(&provider, 101) == note, "note objtype lookup failed");
+    CHECK(strcmp(note->name, "Apple") == 0, "lazy genCert did not publish linked name");
+    CHECK(note->stackable == 1, "lazy genCert did not publish stackability");
+    CHECK(
+        CacheProvider_UIAssetRevision(&provider) != revision,
+        "lazy genCert synthesis did not advance revision");
+    revision = CacheProvider_UIAssetRevision(&provider);
+    (void)CacheProvider_ObjtypeGet(&provider, 101);
+    CHECK(
+        CacheProvider_UIAssetRevision(&provider) == revision,
+        "settled genCert lookup advanced revision again");
+
+    revision = CacheProvider_UIAssetRevision(&provider);
+    CacheProvider_ModelAdd(&provider, 7, fake_model());
+    CHECK(
+        CacheProvider_UIAssetRevision(&provider) != revision,
+        "model arrival did not advance UI asset revision");
+    revision = CacheProvider_UIAssetRevision(&provider);
+    CacheProvider_FontAdd(&provider, 3, calloc(1, sizeof(struct ToriRS_Font)));
+    CHECK(
+        CacheProvider_UIAssetRevision(&provider) != revision,
+        "font arrival did not advance UI asset revision");
+
+    CacheProvider_FreeEngineCaches(&provider);
+}
+
+static void
+test_ui_asset_revision_tracks_bridge_publication(void)
+{
+    struct CacheProvider provider = { 0 };
+    struct UITreeSceneBridge bridge;
+    struct ToriDraw_Scene* scene;
+    uint64_t revision;
+    int scene_id;
+
+    CacheProvider_InitEngineCaches(&provider);
+    CacheProvider_SpriteAdd(&provider, 77, fake_drawable_sprite());
+    scene = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    assert(scene);
+    UITreeSceneBridge_Init(&bridge, scene, &provider);
+
+    revision = UITreeSceneBridge_AssetRevision(&bridge);
+    scene_id = UITreeSceneBridge_EnsureSprite(&bridge, 77);
+    CHECK(scene_id > 0, "bridge did not publish provider sprite");
+    CHECK(
+        UITreeSceneBridge_AssetRevision(&bridge) != revision,
+        "bridge sprite publication did not advance revision");
+    revision = UITreeSceneBridge_AssetRevision(&bridge);
+    CHECK(
+        UITreeSceneBridge_EnsureSprite(&bridge, 77) == scene_id,
+        "memoized bridge sprite changed scene id");
+    CHECK(
+        UITreeSceneBridge_AssetRevision(&bridge) == revision,
+        "memoized bridge sprite advanced revision");
+
+    CHECK(
+        UITreeSceneBridge_EnsureStaticSprite(&bridge, STATIC_SPRITE_SCROLLBAR, 77) == scene_id,
+        "static sprite slot did not bind existing scene id");
+    CHECK(
+        UITreeSceneBridge_AssetRevision(&bridge) != revision,
+        "static sprite slot publication did not advance revision");
+    revision = UITreeSceneBridge_AssetRevision(&bridge);
+    (void)UITreeSceneBridge_EnsureStaticSprite(&bridge, STATIC_SPRITE_SCROLLBAR, 77);
+    CHECK(
+        UITreeSceneBridge_AssetRevision(&bridge) == revision,
+        "memoized static sprite slot advanced revision");
+
+    UITreeSceneBridge_Free(&bridge);
+    ToriDraw_SceneFree(scene);
+    CacheProvider_FreeEngineCaches(&provider);
 }
 
 /*
@@ -215,6 +368,8 @@ main(void)
     test_trim_below_threshold_is_a_noop();
     test_repeated_trim_is_stable();
     test_sprite_lru_independent_of_models();
+    test_ui_asset_revision_tracks_provider_answers();
+    test_ui_asset_revision_tracks_bridge_publication();
 
     if( g_failures )
     {

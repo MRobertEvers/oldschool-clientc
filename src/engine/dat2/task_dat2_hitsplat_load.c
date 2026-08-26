@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Load every hitsplat type's sprite id, once, at boot.
@@ -70,7 +71,7 @@ Task_Dat2HitsplatLoad_Run(
         RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
     if( !filelist || !archive->file_ids )
     {
-        fprintf(stderr, "hitsplat: failed to split the config group\n");
+        TORIRS_ERR("hitsplat: failed to split the config group\n");
         RSCache_FileListFree(filelist);
         RSCache_Dat2DiskArchiveFree(archive);
         PT_EXIT(&task->pt);
@@ -131,7 +132,7 @@ Task_Dat2HitsplatLoad_Run(
             (unsigned)RSCache_Dat2ConfigHitsplatFlags(
                 CacheProvider_Profile(&task->bc->base)));
         if( entry._consumed != filelist->file_sizes[i] )
-            fprintf(stderr, "hitsplat %d: decode consumed %d of %d bytes\n", id,
+            TORIRS_LOG("hitsplat %d: decode consumed %d of %d bytes\n", id,
                     entry._consumed, filelist->file_sizes[i]);
         sprite_ids[id] = entry.sprite_id;
         durations[id] = entry.duration;
@@ -187,7 +188,7 @@ Task_Dat2HitsplatLoad_Run(
      * on screen: settings 5 and 279 simply stop having anything to switch. It
      * was 0 here for as long as the baked cache carried that export.
      */
-    printf("hitsplat load: %d types (%d records, %d var selectors)\n", count, decoded, selectors);
+    TORIRS_LOG("hitsplat load: %d types (%d records, %d var selectors)\n", count, decoded, selectors);
 
     /*
      * Bring the sprites themselves into residence.

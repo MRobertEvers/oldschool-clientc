@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* Entity picks report the entity's own tile. Players (including local) are
  * pickable so a tile-occupancy winner can expand co-located stackmates into
@@ -148,7 +149,7 @@ pick_debug_dump(
         return;
     last_sig = sig;
 
-    fprintf(stderr, "pickset: %d hit(s)\n", pickset->count);
+    TORIRS_LOG("pickset: %d hit(s)\n", pickset->count);
     for( int i = 0; i < pickset->count; i++ )
     {
         struct World_Picked const* p = &pickset->items[i];
@@ -162,9 +163,7 @@ pick_debug_dump(
             if( sc )
                 loc_id = sc->loc_id;
         }
-        fprintf(
-            stderr,
-            "  [%d] %-10s el=%-5d tile=(%d,%d) lvl=%d%s",
+        TORIRS_LOG("  [%d] %-10s el=%-5d tile=(%d,%d) lvl=%d%s",
             i,
             p->type <= WORLD_PICK_PLAYER ? kind[p->type] : "?",
             p->element_id,
@@ -173,7 +172,7 @@ pick_debug_dump(
             p->tile_level,
             loc_id >= 0 ? "" : "\n");
         if( loc_id >= 0 )
-            fprintf(stderr, " loc=%d\n", loc_id);
+            TORIRS_LOG(" loc=%d\n", loc_id);
     }
 }
 

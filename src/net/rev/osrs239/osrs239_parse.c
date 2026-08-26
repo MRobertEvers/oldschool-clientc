@@ -27,6 +27,7 @@
 #include "packets/obj_add.h"
 #include "packets/obj_enabled_ops.h"
 #include "packets/sound_area.h"
+#include "log/torirs_log.h"
 
 /*
  * Revision-239 parse (server -> this client).
@@ -1359,9 +1360,7 @@ osrs239_parse(
             }
             if( !osrs239_read_zone_sub(&c, sub, &enc->entries[enc->count]) )
             {
-                fprintf(
-                    stderr,
-                    "osrs239: ZONE_ENCLOSED unknown sub-ordinal %d at %d/%d\n",
+                TORIRS_ERR("osrs239: ZONE_ENCLOSED unknown sub-ordinal %d at %d/%d\n",
                     ordinal,
                     c.rpos,
                     len);

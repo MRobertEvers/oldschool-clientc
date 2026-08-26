@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #ifndef UITREE_CLICK_DEBUG
 #define UITREE_CLICK_DEBUG 0
@@ -428,9 +429,7 @@ task_cs2_bake_pack(struct Task_CS2Run* self)
 
     if( !CacheProvider_ComponentPackHas(self->provider, self->await_id) )
     {
-        fprintf(
-            stderr,
-            "Task_CS2Run: component pack %d missing after load (script %d)\n",
+        TORIRS_ERR("Task_CS2Run: component pack %d missing after load (script %d)\n",
             self->await_id,
             self->script_id);
         return;
@@ -486,10 +485,7 @@ task_cs2_bake_pack(struct Task_CS2Run* self)
         struct UITreeComponent* root = &tree->components[pack_root_idx];
         if( !root->behavior.hide )
             root->behavior.hide_unmounted = 1;
-        root->behavior.hide = 1;
-        /* Closing a pack changes the emit list; the retention gate reads
-         * dirty_gen and this path does not go through MarkNodeDirty. */
-        tree->dirty_gen++;
+        (void)UITree_SetHideAt(tree, pack_root_idx, 1);
     }
 
     UITree_LayoutResolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -510,7 +506,7 @@ task_cs2_bake_pack(struct Task_CS2Run* self)
                 int sid = UITreeSceneBridge_EnsureModel(
                     self->host->bridge, c->u.rs_model.gamecache_model_id);
                 if( sid >= 0 )
-                    c->u.rs_model.gamecache_model_id = sid;
+                    (void)UITree_SetModelAt(tree, idx, sid);
             }
         }
     }
@@ -801,16 +797,13 @@ task_cs2_plan_widget_set_model_kind(struct Task_CS2Run* self)
     {
         /* No appearance compositor yet — do not abort; let the script continue
          * (e.g. IF_SETTEXT for equipment bonuses). clientCode 328 emit handles preview. */
-        fprintf(
-            stderr,
-            "Task_CS2Run: player model kind %d no-op (script %d)\n",
+        TORIRS_LOG("Task_CS2Run: player model kind %d no-op (script %d)\n",
             (int)kind,
             self->script_id);
         self->yield_plan = TASK_CS2_YIELD_NONE;
         return;
     }
-    fprintf(
-        stderr, "Task_CS2Run: unhandled model kind %d (script %d)\n", (int)kind, self->script_id);
+    TORIRS_LOG("Task_CS2Run: unhandled model kind %d (script %d)\n", (int)kind, self->script_id);
     self->yield_plan = TASK_CS2_YIELD_ABORT;
 }
 
@@ -1168,9 +1161,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         break;
 
     default:
-        fprintf(
-            stderr,
-            "Task_CS2Run: unhandled yield kind %d (script %d)\n",
+        TORIRS_LOG("Task_CS2Run: unhandled yield kind %d (script %d)\n",
             (int)self->pending->kind,
             self->script_id);
         self->yield_plan = TASK_CS2_YIELD_ABORT;
@@ -1197,7 +1188,7 @@ Task_CS2Run_Run(
 
     if( !self->script && self->script_id <= 0 )
     {
-        fprintf(stderr, "Task_CS2Run: no script to run\n");
+        TORIRS_LOG("Task_CS2Run: no script to run\n");
         PT_EXIT(&self->pt);
     }
 
@@ -1211,7 +1202,7 @@ Task_CS2Run_Run(
         self->script = CacheProvider_ClientScriptGet(self->provider, self->script_id);
         if( !self->script )
         {
-            fprintf(stderr, "Task_CS2Run: failed to resolve script %d\n", self->script_id);
+            TORIRS_ERR("Task_CS2Run: failed to resolve script %d\n", self->script_id);
             PT_EXIT(&self->pt);
         }
     }
@@ -1314,13 +1305,11 @@ Task_CS2Run_Run(
                 if( d )
                 {
                     s_dumped = 1;
-                    fprintf(stderr, "== DUMP script %d (ops=%d int_args=%d str_args=%d local_ints=%d) ==\n",
+                    TORIRS_LOG("== DUMP script %d (ops=%d int_args=%d str_args=%d local_ints=%d) ==\n",
                         d->script_id, d->op_count, d->int_argument_count, d->string_argument_count,
                         d->local_int_count);
                     for( int p = 0; p < d->op_count; p++ )
-                        fprintf(
-                            stderr,
-                            "  pc=%d op=%d %s operand=%d str=%s\n",
+                        TORIRS_ERR("  pc=%d op=%d %s operand=%d str=%s\n",
                             p, d->opcodes[p], CS2_OpCode_String(d->opcodes[p]),
                             d->int_operands ? d->int_operands[p] : 0,
                             (d->string_operands && d->string_operands[p]) ? d->string_operands[p]
@@ -1338,9 +1327,7 @@ Task_CS2Run_Run(
             break;
         if( status == CS2VM2_THREAD_ERROR )
         {
-            fprintf(
-                stderr,
-                "Task_CS2Run: script %d failed at opcode %d pc %d "
+            TORIRS_ERR("Task_CS2Run: script %d failed at opcode %d pc %d "
                 "(invoked as script %d for component 0x%x)\n",
                 thread->last_error_script_id,
                 thread->last_error_opcode,
@@ -1351,9 +1338,7 @@ Task_CS2Run_Run(
              * FULL stack, not a bad operand, and the leak is always in a caller
              * — without these two lines the report names the innocent script
              * that happened to need one more slot. */
-            fprintf(
-                stderr,
-                "  stack: ints=%d/%d strs=%d/%d frames=%d\n",
+            TORIRS_LOG("  stack: ints=%d/%d strs=%d/%d frames=%d\n",
                 thread->ints_stack_top,
                 CS2VM_STACK_MAX,
                 thread->strs_stack_top,
@@ -1362,9 +1347,7 @@ Task_CS2Run_Run(
             for( int fi = thread->frame_sp - 1; fi >= 0; fi-- )
             {
                 struct CS2VM2_Frame* fr = thread->frames[fi];
-                fprintf(
-                    stderr,
-                    "  frame[%d]: script %d pc %d\n",
+                TORIRS_LOG("  frame[%d]: script %d pc %d\n",
                     fi,
                     (fr && fr->script) ? fr->script->script_id : -1,
                     fr ? fr->pc : -1);
@@ -1377,9 +1360,7 @@ Task_CS2Run_Run(
                 if( dbg )
                 {
                     int pci;
-                    fprintf(
-                        stderr,
-                        "  script %d: int_args=%d str_args=%d int_locals=%d str_locals=%d "
+                    TORIRS_LOG("  script %d: int_args=%d str_args=%d int_locals=%d str_locals=%d "
                         "ops=%d\n",
                         dbg->script_id,
                         dbg->int_argument_count,
@@ -1395,9 +1376,7 @@ Task_CS2Run_Run(
                     if( pci < 0 )
                         pci = 0;
                     for( ; pci < dbg->op_count && pci <= pc_hi; pci++ )
-                        fprintf(
-                            stderr,
-                            "  pc=%d op=%d %s operand=%d str=%s\n",
+                        TORIRS_ERR("  pc=%d op=%d %s operand=%d str=%s\n",
                             pci,
                             dbg->opcodes[pci],
                             CS2_OpCode_String(dbg->opcodes[pci]),
@@ -1414,7 +1393,7 @@ Task_CS2Run_Run(
             break;
         if( !self->host->has_pending )
         {
-            fprintf(stderr, "Task_CS2Run: yield without pending host request\n");
+            TORIRS_LOG("Task_CS2Run: yield without pending host request\n");
             CS2VM2_ResetRuntime(thread);
             break;
         }
@@ -1729,9 +1708,7 @@ task_cs2_run_new(
         {
             if( warned_count < (int)(sizeof(warned_script) / sizeof(warned_script[0])) )
                 warned_script[warned_count++] = script_id;
-            fprintf(
-                stderr,
-                "cs2: clientscript %d passed %d string arguments; only the first %d are "
+            TORIRS_LOG("cs2: clientscript %d passed %d string arguments; only the first %d are "
                 "kept and the rest arrive as \"\" (TASK_CS2_RUN_STR_ARGS_MAX)\n",
                 script_id,
                 str_arg_count,
@@ -1765,9 +1742,7 @@ task_cs2_run_new(
     if( cc_debug < 0 )
         cc_debug = getenv("TORIRS_CC_DEBUG") != NULL;
     if( cc_debug )
-        fprintf(
-            stderr,
-            "CS2RUN script=%d com=%d|%d\n",
+        TORIRS_LOG("CS2RUN script=%d com=%d|%d\n",
             script_id,
             (active_component_id >> 16) & 0xffff,
             active_component_id & 0xffff);
@@ -1927,9 +1902,7 @@ Task_CS2InvTransmitDispatch_Run(
         hook->pending_unhide = 0;
 
 #if UITREE_CLICK_DEBUG
-        fprintf(
-            stderr,
-            "uitree_click: InvTransmitDispatch script_id=%d component_id=%d argc=%d "
+        TORIRS_LOG("uitree_click: InvTransmitDispatch script_id=%d component_id=%d argc=%d "
             "container_filter=%d\n",
             hook->script_id,
             hook->component_id,
@@ -2087,21 +2060,17 @@ Task_CS2VarTransmitDispatch_Run(
         if( var_hook_debug_on() )
         {
             int t;
-            fprintf(
-                stderr,
-                "VARHOOK com=0x%08x script=%d unhide_only=%d triggers=%d[",
+            TORIRS_LOG("VARHOOK com=0x%08x script=%d unhide_only=%d triggers=%d[",
                 (unsigned)hook->component_id,
                 hook->script_id,
                 self->unhide_only,
                 hook->trigger_count);
             for( t = 0; t < hook->trigger_count; t++ )
-                fprintf(stderr, "%s%d", t ? "," : "", hook->trigger_ids[t]);
-            fprintf(stderr, "] changed=%d[", self->var_count);
+                TORIRS_LOG("%s%d", t ? "," : "", hook->trigger_ids[t]);
+            TORIRS_LOG("] changed=%d[", self->var_count);
             for( t = 0; t < self->var_count; t++ )
-                fprintf(stderr, "%s%d", t ? "," : "", self->var_ids[t]);
-            fprintf(
-                stderr,
-                "] match=%d hidden=%d\n",
+                TORIRS_LOG("%s%d", t ? "," : "", self->var_ids[t]);
+            TORIRS_LOG("] match=%d hidden=%d\n",
                 RS_CS2_VarTransmitTriggersMatch(hook, self->var_ids, self->var_count),
                 UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id));
         }
@@ -2274,8 +2243,7 @@ stat_dispatch_trace(
         on = getenv("TORIRS_STAT_DEBUG") ? 1 : 0;
     if( !on )
         return;
-    fprintf(
-        stderr, "statdisp: %-16s hook %d/%d com=0x%x script=%d triggers=%d serial=%u\n", what,
+    TORIRS_LOG("statdisp: %-16s hook %d/%d com=0x%x script=%d triggers=%d serial=%u\n", what,
         hook_index, host->stat_transmit_hook_count, hook->component_id, hook->script_id,
         hook->trigger_count, host->stat_change_serial);
 }

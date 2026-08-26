@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /** Guards against a component whose loads never satisfy it. */
 #define TASK_CS1_RETRY_MAX 4
@@ -88,8 +89,7 @@ task_cs1_eval_component(struct Task_CS1Eval* self)
 
     if( component->cs1_active != (active ? 1 : 0) )
     {
-        component->cs1_active = active ? 1 : 0;
-        component->is_dirty = 1;
+        (void)UITree_SetCS1ActiveAt(self->host->tree, self->cursor, active ? 1 : 0);
         self->host->eval_dirty = true;
     }
 
@@ -105,8 +105,7 @@ task_cs1_eval_component(struct Task_CS1Eval* self)
 
         if( component->cs1_values[i] != value )
         {
-            component->cs1_values[i] = value;
-            component->is_dirty = 1;
+            (void)UITree_SetCS1ValueAt(self->host->tree, self->cursor, i, value);
             self->host->eval_dirty = true;
         }
     }
@@ -165,7 +164,7 @@ Task_CS1Eval_Run(
 
             if( !self->host->has_pending )
             {
-                fprintf(stderr, "Task_CS1Eval: yield without pending host request\n");
+                TORIRS_LOG("Task_CS1Eval: yield without pending host request\n");
                 break;
             }
 

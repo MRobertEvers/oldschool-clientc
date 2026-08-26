@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* Current [type:name] header `type` for keyval dispatch (component, layout, inv, sprite, …). */
 static char s_ini_item_type[64];
@@ -146,7 +147,7 @@ push_field_from_ini_kv(
         else if( strcmp(key, "painter_draw_distance") == 0 )
             kind = RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE;
         else
-            fprintf(stderr, "revconfig: [features] has no key '%s'\n", key);
+            TORIRS_LOG("revconfig: [features] has no key '%s'\n", key);
         if( kind != RCFIELD_NONE )
             push_field(vec, kind, value);
         return;
@@ -160,7 +161,7 @@ push_field_from_ini_kv(
         else if( strcmp(key, "wheel_step") == 0 )
             kind = RCFIELD_CAMERA_WHEEL_STEP;
         else
-            fprintf(stderr, "revconfig: [camera] has no key '%s'\n", key);
+            TORIRS_LOG("revconfig: [camera] has no key '%s'\n", key);
         if( kind != RCFIELD_NONE )
             push_field(vec, kind, value);
         return;
@@ -184,7 +185,7 @@ push_field_from_ini_kv(
         else if( strcmp(key, "plugin_layout_script") == 0 )
             kind = RCFIELD_CHROME_PLUGIN_LAYOUT_SCRIPT;
         else
-            fprintf(stderr, "revconfig: [chrome] has no key '%s'\n", key);
+            TORIRS_LOG("revconfig: [chrome] has no key '%s'\n", key);
         if( kind != RCFIELD_NONE )
             push_field(vec, kind, value);
         return;
@@ -467,8 +468,7 @@ revconfig_load_fields_from_ini_bytes_prefixed(
     s_ini_section_skipped = 0;
     if( parse_result != TORI_INI_ERR_NONE || reader.state != INI_READER_STATE_DONE )
     {
-        fprintf(stderr,
-            "revconfig_load_fields_from_ini_bytes: parse failed result=%d state=%d "
+        TORIRS_ERR("revconfig_load_fields_from_ini_bytes: parse failed result=%d state=%d "
             "offset=%u size=%u\n",
             parse_result,
             (int)reader.state,

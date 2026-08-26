@@ -1,4 +1,5 @@
 #include "app.h"
+#include "log/torirs_log.h"
 
 #if defined(TORIRS_WEB_CACHE_IDB)
 #include "platform/dat2_web_store.h"
@@ -104,6 +105,7 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
+#include "render/torirs_world_projection.h"
 #include "toridraw.h"
 #include "toridraw_model_transform.h"
 #include "ui/uitree_build.h"
@@ -749,9 +751,7 @@ App_IfEventsSet(
     app->if_event_cap = replacement_cap;
 
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "if_setevents: com=%d (%d:%d) slots=%d..%d events=0x%x\n",
+        TORIRS_LOG("if_setevents: com=%d (%d:%d) slots=%d..%d events=0x%x\n",
             com_id,
             (com_id >> 16) & 0xffff,
             com_id & 0xffff,
@@ -1359,9 +1359,7 @@ app_worldmap_build_tiles(
             {
                 int dx, dy;
                 RS_WorldMap_DisplayPosition(map, &dx, &dy);
-                fprintf(
-                    stderr,
-                    "worldmap FORCE_MAP id=%d name=%s display=%d,%d "
+                TORIRS_ERR("worldmap FORCE_MAP id=%d name=%s display=%d,%d "
                     "regions x=%d..%d y=%d..%d sources=%d sections=%d zoom=%d\n",
                     area->id,
                     area->internal_name ? area->internal_name : "?",
@@ -1376,7 +1374,7 @@ app_worldmap_build_tiles(
                     RS_WorldMap_Zoom(map));
             }
             else
-                fprintf(stderr, "worldmap FORCE_MAP id=%d: Area() returned NULL\n", map_id);
+                TORIRS_ERR("worldmap FORCE_MAP id=%d: Area() returned NULL\n", map_id);
         }
     }
 
@@ -1658,9 +1656,7 @@ app_worldmap_build_tiles(
              task && queued < 100000;
              task = task->next )
             queued++;
-        fprintf(
-            stderr,
-            "worldmap frame: display=%d,%d zoom=%d bake_scale=%d region_px=%d "
+        TORIRS_ERR("worldmap frame: display=%d,%d zoom=%d bake_scale=%d region_px=%d "
             "regions x=%d..%d y=%d..%d blits=%d queued_tasks=%d\n",
             display_x,
             display_y,
@@ -1873,9 +1869,7 @@ app_worldmap_click(
         return;
     ToriRS_WorldMapUnpackCoord(source, &plane, &abs_x, &abs_z);
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "worldmap_click: screen=%d,%d display=%d,%d -> %d,%d,%d\n",
+        TORIRS_LOG("worldmap_click: screen=%d,%d display=%d,%d -> %d,%d,%d\n",
             mouse_x,
             mouse_y,
             map_x,
@@ -2204,18 +2198,6 @@ app_minimenu_font_scene_id(struct App* app);
  * hitsplats and overhead chat all landing 512/scale times too far from the
  * viewport centre.
  */
-static int
-app_world_proj_scale(struct App* app)
-{
-    struct ToriDraw_Camera const* cam = &app->world_camera;
-    int scale;
-    if( cam->proj_mode == TORIDRAW_PROJ_MODE_FOV )
-        scale = toridraw_proj_scale_from_fov(cam->fov_rpi2048);
-    else
-        scale = cam->proj_scale;
-    return scale > 0 ? scale : TORIDRAW_PROJ_SCALE_DEFAULT;
-}
-
 /* Project a world point at an ABSOLUTE height. The height-above-ground
  * spelling below samples terrain per point, which is right for entities but
  * wrong for anything that must stay coplanar — a footprint outline on sloped
@@ -2229,39 +2211,26 @@ app_world_project_at(
     int* out_x,
     int* out_y)
 {
-    int dx, dy, dz, tmp;
-    int sin_pitch, cos_pitch, sin_yaw, cos_yaw;
-    int scale;
-
     if( !app->world || !app->world_view_valid )
         return 0;
     if( fine_x < 128 || fine_z < 128 )
         return 0;
-
-    dx = fine_x - app->world_camera_pos.x;
-    dy = world_y - app->world_camera_pos.y;
-    dz = fine_z - app->world_camera_pos.z;
-
-    sin_pitch = ToriDraw_Sin(app->world_camera.pitch);
-    cos_pitch = ToriDraw_Cos(app->world_camera.pitch);
-    sin_yaw = ToriDraw_Sin(app->world_camera.yaw);
-    cos_yaw = ToriDraw_Cos(app->world_camera.yaw);
-
-    tmp = (dz * sin_yaw + dx * cos_yaw) >> 16;
-    dz = (dz * cos_yaw - dx * sin_yaw) >> 16;
-    dx = tmp;
-
-    tmp = (dy * cos_pitch - dz * sin_pitch) >> 16;
-    dz = (dy * sin_pitch + dz * cos_pitch) >> 16;
-    dy = tmp;
-
-    if( dz < 50 )
-        return 0;
-
-    scale = app_world_proj_scale(app);
-    *out_x = app->world_emit_desc.x + app->world_emit_desc.w / 2 + (dx * scale / dz);
-    *out_y = app->world_emit_desc.y + app->world_emit_desc.h / 2 + (dy * scale / dz);
-    return 1;
+    /* Keep the reference's overlay near plane at 50. The renderer camera may
+     * be lowered experimentally, but accepting a point closer than the overlay
+     * contract did before this extraction would be an appearance change. */
+    return ToriRS_WorldProjectPoint(
+        &app->world_camera,
+        &app->world_camera_pos,
+        app->world_emit_desc.x,
+        app->world_emit_desc.y,
+        app->world_emit_desc.w,
+        app->world_emit_desc.h,
+        50,
+        fine_x,
+        world_y,
+        fine_z,
+        out_x,
+        out_y);
 }
 
 static int
@@ -3431,9 +3400,7 @@ app_overlay_outline_scenery(
          * projection dropped some (behind the camera), and hull < corners is
          * the interior points being discarded, which is the point. */
         if( getenv("TORIRS_HULL_DEBUG") )
-            fprintf(
-                stderr,
-                "hull: loc %d footprint %dx%d corners=%d hull=%d\n",
+            TORIRS_LOG("hull: loc %d footprint %dx%d corners=%d hull=%d\n",
                 scenery->loc_id,
                 size_x,
                 size_z,
@@ -4256,9 +4223,7 @@ app_client_trigger_debug(
 {
     if( !getenv("TORIRS_TRIGGER_DEBUG") )
         return;
-    fprintf(
-        stderr,
-        "trigger: %s %d (subject=%d category=%d) -> script %d\n",
+    TORIRS_LOG("trigger: %s %d (subject=%d category=%d) -> script %d\n",
         what,
         trigger,
         subject,
@@ -4274,9 +4239,7 @@ app_client_trigger_debug_coord(char const* what, int trigger, int subject, int c
 {
     if( !getenv("TORIRS_TRIGGER_DEBUG") )
         return;
-    fprintf(
-        stderr,
-        "trigger: %s %d subject=%d coord=%d\n",
+    TORIRS_LOG("trigger: %s %d subject=%d coord=%d\n",
         what,
         trigger,
         subject,
@@ -4794,23 +4757,14 @@ app_entity_overlay_layout(struct App* app)
      * the rect. A tree whose world has not been emitted yet has no rect and so
      * no overlays -- which is right, because there is nothing to anchor to. */
     {
-        struct UITreeElemPosition* pos = &app->tree->components[parent].position;
+        struct UITreeElemPosition const* pos = &app->tree->components[parent].position;
         int const w = app->world_view_valid ? app->world_emit_desc.w : 0;
         int const h = app->world_view_valid ? app->world_emit_desc.h : 0;
         int const x = app->world_view_valid ? app->world_emit_desc.x : 0;
         int const y = app->world_view_valid ? app->world_emit_desc.y : 0;
         if( pos->kind != UIPOS_XY || pos->x != x || pos->y != y || pos->width != w ||
             pos->height != h )
-        {
-            pos->kind = UIPOS_XY;
-            pos->x = x;
-            pos->y = y;
-            pos->width = w;
-            pos->height = h;
-            pos->layout_resolved = 0;
-            UITree_MarkNodeDirty(app->tree, parent);
-            UITree_LayoutInvalidateBoxes(app->tree);
-        }
+            (void)UITree_SetXYBoxAt(app->tree, parent, x, y, w, h);
     }
 
     /* Band 1 stacks upward and band 2 downward, per subject -- two overlays on
@@ -4834,9 +4788,7 @@ app_entity_overlay_layout(struct App* app)
              * and the script that made the overlay gets no event to tell it so.
              */
             if( getenv("TORIRS_OVERLAY_SCRIPT_DEBUG") )
-                fprintf(
-                    stderr,
-                    "overlay: reap #%d anchor=%d uid=%d coord=%d slot=%d\n",
+                TORIRS_LOG("overlay: reap #%d anchor=%d uid=%d coord=%d slot=%d\n",
                     i,
                     item->anchor,
                     item->uid,
@@ -4845,8 +4797,6 @@ app_entity_overlay_layout(struct App* app)
             RS_CS2Host_OverlayReap(&app->host, i);
             continue;
         }
-        if( !anchor.ok )
-            continue; /* live, just not on screen this frame. */
 
         int32_t const node = UITree_FindByComponentId(app->tree, item->component_id);
         if( node < 0 )
@@ -4857,6 +4807,15 @@ app_entity_overlay_layout(struct App* app)
             app->client_trigger_refire_pending = 1;
             continue;
         }
+        /* Projection failure is camera-owned visibility, not script-owned
+         * `hide`. Leaving the old layer visible here freezes an overlay at its
+         * last valid coordinates when its subject crosses the near plane. */
+        if( !anchor.ok )
+        {
+            (void)UITree_SetProjectionHiddenAt(app->tree, node, 1);
+            continue;
+        }
+        (void)UITree_SetProjectionHiddenAt(app->tree, node, 0);
 
         struct UITreeComponent* c = &app->tree->components[node];
         int const w = c->position.width;
@@ -4894,9 +4853,7 @@ app_entity_overlay_layout(struct App* app)
             int kids = 0;
             for( int32_t k = c->first_child; k >= 0; k = app->tree->components[k].next_sibling )
                 kids++;
-            fprintf(
-                stderr,
-                "overlay: #%d anchor=%d slot=%d band=%d com=0x%08x box=%d,%d %dx%d kids=%d hide=%d\n",
+            TORIRS_LOG("overlay: #%d anchor=%d slot=%d band=%d com=0x%08x box=%d,%d %dx%d kids=%d hide=%d\n",
                 i,
                 item->anchor,
                 item->slot,
@@ -4986,9 +4943,7 @@ app_build_frame_overlays(
      * suppression, and there is no other way to tell them apart.
      */
     if( getenv("TORIRS_FRAME_DEBUG") )
-        fprintf(
-            stderr,
-            "frameoverlay: %d items, canvas %dx%d, hid %d chrome, roles "
+        TORIRS_LOG("frameoverlay: %d items, canvas %dx%d, hid %d chrome, roles "
             "world=%d map=%d compass=%d chat=%d side=%d modal=%d\n",
             app->frame_overlay_count,
             UITREE_LAYOUT_ROOT_W,
@@ -5142,9 +5097,7 @@ app_build_entity_overlays(
      * reason a hit lands but nothing is drawn. */
     if( getenv("TORIRS_OVERLAY_DEBUG") && app->entity_overlay_count > 0 )
     {
-        fprintf(
-            stderr,
-            "overlay: %d items font=%d hitmarks=%d\n",
+        TORIRS_LOG("overlay: %d items font=%d hitmarks=%d\n",
             app->entity_overlay_count,
             font_id,
             hitmarks_scene);
@@ -5154,9 +5107,7 @@ app_build_entity_overlays(
             /* scene/clip/trans are printed because a SPRITE primitive carries
              * no w/h -- it blits at the sprite's own size -- so without them a
              * health bar's line says nothing about how wide it came out. */
-            fprintf(
-                stderr,
-                "  overlay[%d] kind=%d at %d,%d %dx%d scene=%d clip=%d,%d %dx%d "
+            TORIRS_LOG("  overlay[%d] kind=%d at %d,%d %dx%d scene=%d clip=%d,%d %dx%d "
                 "trans=%d \"%s\"\n",
                 i,
                 item->kind,
@@ -5617,6 +5568,301 @@ app_host_request(
     }
 }
 
+/* ---- Retained UITree host-input publication --------------------------- *
+ *
+ * Host requests copy ambient App state into otherwise-retainable descriptors.
+ * The emit walk records which coarse domains it actually read; this publication
+ * fence gives those domains semantic versions without making each state writer
+ * know which nodes (or even which open interface) consumed it.
+ *
+ * These hashes are not render caches. They are compact compare-before-bump
+ * snapshots of the values host requests can expose. Event-driven sources such
+ * as InvManager also bump their domain directly, while the snapshot closes
+ * over local selection state which is not owned by that manager. */
+#define APP_UI_INPUT_HASH_OFFSET 1469598103934665603ull
+#define APP_UI_INPUT_HASH_PRIME 1099511628211ull
+
+static uint64_t
+app_ui_input_hash_bytes(
+    uint64_t hash,
+    void const* data,
+    size_t size)
+{
+    unsigned char const* bytes = (unsigned char const*)data;
+
+    for( size_t i = 0; i < size; i++ )
+    {
+        hash ^= bytes[i];
+        hash *= APP_UI_INPUT_HASH_PRIME;
+    }
+    return hash;
+}
+
+static uint64_t
+app_ui_input_hash_int(
+    uint64_t hash,
+    int value)
+{
+    return app_ui_input_hash_bytes(hash, &value, sizeof(value));
+}
+
+static uint64_t
+app_ui_input_hash_u64(
+    uint64_t hash,
+    uint64_t value)
+{
+    return app_ui_input_hash_bytes(hash, &value, sizeof(value));
+}
+
+static uint64_t
+app_ui_input_hash_string(
+    uint64_t hash,
+    char const* value)
+{
+    size_t length = value ? strlen(value) : 0;
+
+    hash = app_ui_input_hash_bytes(hash, &length, sizeof(length));
+    if( length )
+        hash = app_ui_input_hash_bytes(hash, value, length);
+    return hash;
+}
+
+static void
+app_ui_host_publish_inputs(struct App* app)
+{
+    uint64_t signature[UITREE_HOST_INPUT_DOMAIN_COUNT];
+    struct WorldEntity_Player const* local;
+    struct UIMinimenu const* menu;
+    int menu_count;
+    int ghosting;
+
+    assert(app);
+    for( int domain = 0; domain < UITREE_HOST_INPUT_DOMAIN_COUNT; domain++ )
+        signature[domain] = app_ui_input_hash_int(APP_UI_INPUT_HASH_OFFSET, domain + 1);
+
+    /* CAMERA: everything used by yaw-based chrome and world projection. The
+     * local player is the minimap anchor when present; free camera position is
+     * the fallback. */
+    signature[UITREE_HOST_INPUT_CAMERA] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_CAMERA], ToriDraw_NormalizeAngle(app->world_camera.yaw));
+    signature[UITREE_HOST_INPUT_CAMERA] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera.pitch);
+    signature[UITREE_HOST_INPUT_CAMERA] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.x);
+    signature[UITREE_HOST_INPUT_CAMERA] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.y);
+    signature[UITREE_HOST_INPUT_CAMERA] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.z);
+    local = app_local_player(app);
+    signature[UITREE_HOST_INPUT_CAMERA] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], local != NULL);
+    if( local )
+    {
+        signature[UITREE_HOST_INPUT_CAMERA] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_CAMERA], (int)local->draw_position.x);
+        signature[UITREE_HOST_INPUT_CAMERA] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_CAMERA], (int)local->draw_position.z);
+    }
+
+    /* POINTER: hash only visible/observable phases. Inactive cross/menu/hover
+     * scratch may move without changing a descriptor and should not defeat a
+     * quiet retained frame. */
+    signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_POINTER], UICross_IsActive(&app->cross));
+    if( UICross_IsActive(&app->cross) )
+    {
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->cross.x);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->cross.y);
+        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_POINTER], UICross_AtlasFrame(&app->cross));
+    }
+    menu = &app->interact.minimenu;
+    signature[UITREE_HOST_INPUT_POINTER] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->visible);
+    if( menu->visible )
+    {
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->x);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->y);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->width);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->height);
+        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_POINTER], menu->hovered_option);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->font_id);
+        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+            signature[UITREE_HOST_INPUT_POINTER], &menu->layout, sizeof(menu->layout));
+        menu_count = menu->option_count;
+        if( menu_count < 0 )
+            menu_count = 0;
+        if( menu_count > UITREE_MINIMENU_MAX_OPTIONS )
+            menu_count = UITREE_MINIMENU_MAX_OPTIONS;
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu_count);
+        for( int i = 0; i < menu_count; i++ )
+        {
+            struct UIMinimenuOption const* option = &menu->options[i];
+            signature[UITREE_HOST_INPUT_POINTER] =
+                app_ui_input_hash_string(signature[UITREE_HOST_INPUT_POINTER], option->text);
+            signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+                signature[UITREE_HOST_INPUT_POINTER],
+                &option->action,
+                sizeof(option->action));
+            signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+                signature[UITREE_HOST_INPUT_POINTER],
+                &option->action_index,
+                sizeof(option->action_index));
+            signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+                signature[UITREE_HOST_INPUT_POINTER], &option->pick, sizeof(option->pick));
+        }
+    }
+    signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_POINTER], app->hover_text.visible);
+    if( app->hover_text.visible )
+    {
+        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+            signature[UITREE_HOST_INPUT_POINTER],
+            &app->hover_text.x,
+            sizeof(app->hover_text.x) * 5);
+        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_string(
+            signature[UITREE_HOST_INPUT_POINTER], app->hover_text.text);
+    }
+    ghosting = app_inv_drag_ghosting(app);
+    signature[UITREE_HOST_INPUT_POINTER] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], ghosting);
+    if( ghosting )
+    {
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_com_id);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_source_id);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_from_slot);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_dx);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_dy);
+    }
+
+    /* CLIENT_STATE: selected/available tabs, chat presentation and the server
+     * IF_SETEVENTS overrides copied into host-produced menu descriptors. */
+    signature[UITREE_HOST_INPUT_CLIENT_STATE] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_CLIENT_STATE], &app->slots, sizeof(app->slots));
+    signature[UITREE_HOST_INPUT_CLIENT_STATE] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_CLIENT_STATE], &app->chat_view, sizeof(app->chat_view));
+    signature[UITREE_HOST_INPUT_CLIENT_STATE] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_CLIENT_STATE], app->if_event_count);
+    if( app->if_event_count > 0 )
+        signature[UITREE_HOST_INPUT_CLIENT_STATE] = app_ui_input_hash_bytes(
+            signature[UITREE_HOST_INPUT_CLIENT_STATE],
+            app->if_events,
+            (size_t)app->if_event_count * sizeof(*app->if_events));
+
+    /* INVENTORY: container contents publish through the InvManager callback;
+     * selection and drag addressing live on App and need this small snapshot. */
+    signature[UITREE_HOST_INPUT_INVENTORY] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_INVENTORY],
+        &app->invs.selection,
+        sizeof(app->invs.selection));
+    signature[UITREE_HOST_INPUT_INVENTORY] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_INVENTORY], &app->objsel, sizeof(app->objsel));
+    signature[UITREE_HOST_INPUT_INVENTORY] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_INVENTORY],
+        &app->inv_drag_com_id,
+        sizeof(app->inv_drag_com_id) * 4);
+
+    /* ASSETS: owner-side mutation revisions catch arrivals before a skipped
+     * host request gets another chance to publish them, plus same-id registry
+     * replacements which map cardinality cannot see. Provider model/sprite
+     * streaming may conservatively cause an extra full UI walk; three scalar
+     * reads are still cheaper and more reliable than scanning the registries. */
+    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_u64(
+        signature[UITREE_HOST_INPUT_ASSETS],
+        app->provider ? CacheProvider_UIAssetRevision(app->provider) : 0);
+    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_u64(
+        signature[UITREE_HOST_INPUT_ASSETS], UITreeSceneBridge_AssetRevision(&app->bridge));
+    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_u64(
+        signature[UITREE_HOST_INPUT_ASSETS],
+        app->scene ? ToriDraw_SceneUIAssetRevision(app->scene) : 0);
+
+    signature[UITREE_HOST_INPUT_WORLD] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->minimap_state);
+    signature[UITREE_HOST_INPUT_WORLD] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->multiway);
+    signature[UITREE_HOST_INPUT_WORLD] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->world_map_scene_id);
+    signature[UITREE_HOST_INPUT_WORLD] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->world_map_w);
+    signature[UITREE_HOST_INPUT_WORLD] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->world_map_h);
+    signature[UITREE_HOST_INPUT_WORLD] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_WORLD], app->world && app->world->load_complete);
+    if( app->world && app->world->minimap )
+    {
+        signature[UITREE_HOST_INPUT_WORLD] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_WORLD], app->world->minimap->width);
+        signature[UITREE_HOST_INPUT_WORLD] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_WORLD], app->world->minimap->height);
+    }
+
+    /* Hash visible animation phases, not raw clocks: an inactive cross and a
+     * non-flashing tab do not change their descriptors as cycles advance. */
+    signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_ANIMATION], UICross_IsActive(&app->cross));
+    if( UICross_IsActive(&app->cross) )
+        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_ANIMATION], UICross_AtlasFrame(&app->cross));
+    signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_ANIMATION], app->reboot_timer != 0);
+    if( app->reboot_timer != 0 )
+        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_ANIMATION],
+            app->reboot_timer / APP_LOGIC_CYCLES_PER_SECOND);
+    signature[UITREE_HOST_INPUT_ANIMATION] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_ANIMATION], app->slots.flash_tab);
+    if( app->slots.flash_tab >= 0 )
+        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_ANIMATION],
+            RS_UISlots_TabFlashHidden(&app->slots, app->slots.flash_tab, app->logic_cycle));
+
+    /* Same-frame world/plugin overlay arrays are refreshed by source-tagged
+     * standing records, including sources currently returning zero items.
+     * Chrome is retained data, so its exact build serials participate here. */
+    signature[UITREE_HOST_INPUT_OVERLAYS] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_OVERLAYS],
+        &app->dbg_ui.build_serial,
+        sizeof(app->dbg_ui.build_serial));
+    signature[UITREE_HOST_INPUT_OVERLAYS] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_OVERLAYS],
+        &app->plugin_ui.build_serial,
+        sizeof(app->plugin_ui.build_serial));
+    signature[UITREE_HOST_INPUT_OVERLAYS] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_OVERLAYS],
+        app->plugins ? PluginHost_WinRevision(app->plugins) : 0);
+
+    for( int domain = 0; domain < UITREE_HOST_INPUT_DOMAIN_COUNT; domain++ )
+        (void)UITree_HostPublishInputSignature(
+            &app->ui_host, (enum UITreeHostInputDomain)domain, signature[domain]);
+}
+
+static void
+app_inv_ui_host_change(
+    void* userdata,
+    int container_id)
+{
+    struct App* app = (struct App*)userdata;
+    (void)container_id;
+
+    UITree_HostInputsChanged(
+        &app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY));
+    app->need_redraw = 1;
+}
+
 /* ---- Inventory obj-icon reconcile ------------------------------------- *
  *
  * Server UPDATE_INV_FULL/PARTIAL (rs_gameproto_exec.c) write item ids into the
@@ -5663,6 +5909,7 @@ struct Task_InvIconReconcile
     int obj_ids[APP_INV_ICON_BATCH_MAX];
     int counts[APP_INV_ICON_BATCH_MAX];
     int n;
+    int published_change;
 };
 
 static int
@@ -5676,6 +5923,7 @@ Task_InvIconReconcile_Run(
 
     PT_BEGIN(&self->pt);
 
+    self->published_change = 0;
     /* Collect the batch that still needs a model load (bounded; leftovers are
      * caught by the next tick's scan once this pass stamps its slots). */
     self->n = 0;
@@ -5740,6 +5988,7 @@ Task_InvIconReconcile_Run(
             {
                 slot->scene_id = scene_id;
                 slot->atlas_index = 0;
+                self->published_change = 1;
                 continue;
             }
             /* Could not build it *yet*: leave the slot pending so the next
@@ -5749,9 +5998,15 @@ Task_InvIconReconcile_Run(
                 continue;
             slot->scene_id = APP_INV_ICON_SCENE_FAILED;
             slot->atlas_index = 0;
+            self->published_change = 1;
         }
     }
 
+    if( self->published_change )
+        UITree_HostInputsChanged(
+            &app->ui_host,
+            UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY) |
+                UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_ASSETS));
     app->inv_icon_reconcile_inflight = 0;
     app->need_redraw = 1;
     PT_END(&self->pt);
@@ -5890,10 +6145,10 @@ app_sync_textures(struct App* app)
         return;
     if( getenv("TORIRS_TEX_DEBUG") )
     {
-        fprintf(stderr, "tex_wants drained %d:", id_count);
+        TORIRS_LOG("tex_wants drained %d:", id_count);
         for( int i = 0; i < id_count; i++ )
-            fprintf(stderr, " %d", ids[i]);
-        fprintf(stderr, "\n");
+            TORIRS_LOG(" %d", ids[i]);
+        TORIRS_LOG("\n");
     }
 
     for( int i = 0; i < id_count; i++ )
@@ -5904,13 +6159,13 @@ app_sync_textures(struct App* app)
         if( id >= 0 && id < 2048 && app->bridge.texture_failed[id] )
         {
             if( app_tex_trace_enabled() )
-                fprintf(stderr, "tex_trace: want id=%d -> skip (already failed)\n", id);
+                TORIRS_ERR("tex_trace: want id=%d -> skip (already failed)\n", id);
             continue;
         }
         if( UITreeSceneBridge_TextureResident(&app->bridge, id) )
         {
             if( app_tex_trace_enabled() )
-                fprintf(stderr, "tex_trace: want id=%d -> skip (already resident)\n", id);
+                TORIRS_LOG("tex_trace: want id=%d -> skip (already resident)\n", id);
             continue;
         }
 
@@ -5927,7 +6182,7 @@ app_sync_textures(struct App* app)
         if( already_pending )
         {
             if( app_tex_trace_enabled() )
-                fprintf(stderr, "tex_trace: want id=%d -> skip (already pending)\n", id);
+                TORIRS_LOG("tex_trace: want id=%d -> skip (already pending)\n", id);
             continue;
         }
 
@@ -5941,7 +6196,7 @@ app_sync_textures(struct App* app)
         if( CacheProvider_TextureHas(app->provider, id) && app->bridge.scene )
         {
             if( app_tex_trace_enabled() )
-                fprintf(stderr, "tex_trace: want id=%d -> already in provider\n", id);
+                TORIRS_LOG("tex_trace: want id=%d -> already in provider\n", id);
             ready[ready_count++] = id;
             continue;
         }
@@ -5951,25 +6206,21 @@ app_sync_textures(struct App* app)
             if( task )
                 ToriRS_TaskQueue_Add(app->runner.queue, task);
             if( app_tex_trace_enabled() )
-                fprintf(
-                    stderr,
-                    "tex_trace: want id=%d -> load task %s\n",
+                TORIRS_ERR("tex_trace: want id=%d -> load task %s\n",
                     id,
                     task ? "queued" : "REFUSED (provider returned no task)");
         }
         if( app->tex_pending_count < 512 )
             app->tex_pending[app->tex_pending_count++] = id;
         else if( app_tex_trace_enabled() )
-            fprintf(stderr, "tex_trace: want id=%d -> DROPPED (pending list full)\n", id);
+            TORIRS_LOG("tex_trace: want id=%d -> DROPPED (pending list full)\n", id);
     }
 
     if( ready_count > 0 )
     {
         int published = UITreeSceneBridge_PublishTextures(&app->bridge, ready, ready_count);
         if( app_tex_trace_enabled() )
-            fprintf(
-                stderr,
-                "tex_trace: immediate publish %d ready -> %d published\n",
+            TORIRS_LOG("tex_trace: immediate publish %d ready -> %d published\n",
                 ready_count,
                 published);
         if( published )
@@ -5998,13 +6249,13 @@ app_sync_textures_poll(struct App* app)
         if( id < 0 || id >= 2048 || app->bridge.texture_failed[id] )
         {
             if( app_tex_trace_enabled() )
-                fprintf(stderr, "tex_trace: poll id=%d -> dropped (failed/out of range)\n", id);
+                TORIRS_ERR("tex_trace: poll id=%d -> dropped (failed/out of range)\n", id);
             continue;
         }
         if( UITreeSceneBridge_TextureResident(&app->bridge, id) )
         {
             if( app_tex_trace_enabled() )
-                fprintf(stderr, "tex_trace: poll id=%d -> dropped (resident)\n", id);
+                TORIRS_LOG("tex_trace: poll id=%d -> dropped (resident)\n", id);
             continue;
         }
         if( CacheProvider_TextureHas(app->provider, id) )
@@ -6022,9 +6273,7 @@ app_sync_textures_poll(struct App* app)
         {
             app->bridge.texture_failed[id] = 1;
             if( app_tex_trace_enabled() )
-                fprintf(
-                    stderr,
-                    "tex_trace: poll id=%d -> MARKED FAILED (queue idle, not in provider)\n",
+                TORIRS_ERR("tex_trace: poll id=%d -> MARKED FAILED (queue idle, not in provider)\n",
                     id);
         }
         else
@@ -6038,9 +6287,7 @@ app_sync_textures_poll(struct App* app)
     {
         int published = UITreeSceneBridge_PublishTextures(&app->bridge, ready, ready_count);
         if( app_tex_trace_enabled() )
-            fprintf(
-                stderr,
-                "tex_trace: publish %d ready -> %d published (%d still pending)\n",
+            TORIRS_LOG("tex_trace: publish %d ready -> %d published (%d still pending)\n",
                 ready_count,
                 published,
                 app->tex_pending_count);
@@ -6482,6 +6729,9 @@ app_varp_change(
 {
     struct App* app = (struct App*)userdata;
 
+    UITree_HostInputsChanged(
+        &app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE));
+    app->need_redraw = 1;
     app_varp_refresh_loc_transforms(app, varp_id);
     app_varp_refresh_npc_transforms(app, varp_id);
     /* Modern audio slider clicks call GAMEOPTION/DEVICEOPTION directly, while
@@ -6580,8 +6830,7 @@ app_provider_set_cache_profile(
 
     char quirks_buf[32];
     RSCache_QuirksName(profile.quirks, quirks_buf, (int)sizeof(quirks_buf));
-    printf(
-        "app: cache profile epoch=%s game=%s revision=%d quirks=%s\n",
+    TORIRS_LOG("app: cache profile epoch=%s game=%s revision=%d quirks=%s\n",
         RSCache_EpochName(profile.epoch),
         RSCache_GameName(profile.game),
         profile.revision,
@@ -6798,9 +7047,7 @@ app_debug_overlay_init(struct App* app)
             else if( pick && strcmp(pick, "tick") == 0 )
                 style = TORIRS_CHROME_CHECK_STYLE_TICK;
             else if( pick )
-                fprintf(
-                    stderr,
-                    "chrome: TORIRS_CHROME_CHECKBOX must be tick|box, got '%s'\n",
+                TORIRS_LOG("chrome: TORIRS_CHROME_CHECKBOX must be tick|box, got '%s'\n",
                     pick);
             ToriRSChrome_SetCheckStyle(&app->dbg_ui, style);
         }
@@ -7496,7 +7743,7 @@ app_loc_editor_tick(
     {
         app->hover_footprint = app->hover_footprint ? 0 : app->hover_footprint_mode;
         app->need_redraw = 1;
-        fprintf(stderr, "hover_footprint: %d\n", app->hover_footprint);
+        TORIRS_LOG("hover_footprint: %d\n", app->hover_footprint);
     }
 
     /* Map editor panel. Gated on the session existing, so binding this key in a
@@ -7839,9 +8086,7 @@ app_settings_colour_open(struct App* app, struct RS_CS2SettingsColourRequest con
         /* The read hub never named a varp for this row, so there is nowhere to
          * put an answer. Said out loud rather than opening a picker whose
          * every move would be discarded. */
-        fprintf(
-            stderr,
-            "settings: colour row %d (%s) has no varp; not opening a picker\n",
+        TORIRS_LOG("settings: colour row %d (%s) has no varp; not opening a picker\n",
             req->setting_id,
             req->label[0] ? req->label : "unnamed");
         return;
@@ -8092,9 +8337,7 @@ App_Init(
 
         if( !store )
         {
-            fprintf(
-                stderr,
-                "app: no browser record store for %s — the JS5 prime did not run\n",
+            TORIRS_LOG("app: no browser record store for %s — the JS5 prime did not run\n",
                 cfg->cache_dir ? cfg->cache_dir : "(unnamed cache)");
         }
         assert(store != NULL);
@@ -8124,9 +8367,7 @@ App_Init(
         int enabled = PlatformXIO_Dat1OnDemandEnable(
             app->runner.px, host, cfg->connect_port, cfg->web_port);
         if( enabled != 0 )
-            fprintf(
-                stderr,
-                "app: [cache:boot] source=ondemand, but %s is not serving a cache "
+            TORIRS_LOG("app: [cache:boot] source=ondemand, but %s is not serving a cache "
                 "(game port %d, web port %d)\n",
                 host,
                 cfg->connect_port > 0 ? cfg->connect_port : 43594,
@@ -8138,9 +8379,7 @@ App_Init(
     {
         app->dat1_disk = RSCache_Dat1DiskNewFromDirectory(cfg->cache_dir);
         if( !app->dat1_disk )
-            fprintf(
-                stderr,
-                "app: no dat1 cache at %s (expected main_file_cache.dat; pass --dat2 for a "
+            TORIRS_ERR("app: no dat1 cache at %s (expected main_file_cache.dat; pass --dat2 for a "
                 "js5 cache)\n",
                 cfg->cache_dir);
         assert(app->dat1_disk != NULL);
@@ -8153,9 +8392,7 @@ App_Init(
          * and decoding the rest at open cost several MB it never looked at. */
         app->dat2_disk = RSCache_Dat2DiskNewFromDirectoryLazyTables(cfg->cache_dir);
         if( !app->dat2_disk )
-            fprintf(
-                stderr,
-                "app: no dat2 cache at %s (expected main_file_cache.dat2; pass --dat1 for a "
+            TORIRS_ERR("app: no dat2 cache at %s (expected main_file_cache.dat2; pass --dat1 for a "
                 "317-era cache)\n",
                 cfg->cache_dir);
         assert(app->dat2_disk != NULL);
@@ -8170,11 +8407,11 @@ App_Init(
                 char xtea_path[1024];
                 snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cfg->cache_dir);
                 if( RSCache_XteaConfigLoadKeys(xtea_path) <= 0 )
-                    fprintf(stderr, "app: no xtea keys at %s (world maps may fail)\n", xtea_path);
+                    TORIRS_ERR("app: no xtea keys at %s (world maps may fail)\n", xtea_path);
             }
             else
             {
-                printf("app: map archives are unencrypted at this revision\n");
+                TORIRS_LOG("app: map archives are unencrypted at this revision\n");
             }
         }
         PlatformX_IO_InitDat2Disk(app->runner.px, app->dat2_disk);
@@ -8420,6 +8657,7 @@ App_Init(
     UITree_HostInit(&app->ui_host);
     app->ui_host.user = app;
     app->ui_host.request = app_host_request;
+    InvManager_SetChangeCallback(&app->invs, app_inv_ui_host_change, app);
     UIInteraction_Init(&app->interact);
     UIHoverText_Reset(&app->hover_text);
     app_debug_overlay_init(app);
@@ -8449,14 +8687,12 @@ App_Init(
         {
             era_name = rc_features->era;
             if( era_name[0] && !ToriRS_Features_ByName(era_name) )
-                fprintf(
-                    stderr,
-                    "app: [features] era must be lostcity|osrs|server_routed, got '%s'\n",
+                TORIRS_LOG("app: [features] era must be lostcity|osrs|server_routed, got '%s'\n",
                     era_name);
         }
         app->features = era_name && era_name[0] ? ToriRS_Features_ByName(era_name) : NULL;
         if( era_name && era_name[0] && !app->features )
-            fprintf(stderr, "app: unknown features era '%s', deriving from cache\n", era_name);
+            TORIRS_ERR("app: unknown features era '%s', deriving from cache\n", era_name);
         /* Audio behaviour is era-dependent too: monophonic effects are a 2004
          * client property, not a general one. */
         if( !app->features )
@@ -8485,9 +8721,7 @@ App_Init(
             {
                 model = ToriRS_Features_NearestModelByName(rc_features->ground_click_nearest);
                 if( model < 0 )
-                    fprintf(
-                        stderr,
-                        "app: [features] ground_click_nearest must be "
+                    TORIRS_LOG("app: [features] ground_click_nearest must be "
                         "ring3|box10_rect|none, got '%s'\n",
                         rc_features->ground_click_nearest);
             }
@@ -8497,9 +8731,7 @@ App_Init(
             {
                 int from_env = ToriRS_Features_NearestModelByName(env);
                 if( from_env < 0 )
-                    fprintf(
-                        stderr,
-                        "app: TORIRS_GROUND_CLICK_NEAREST must be "
+                    TORIRS_LOG("app: TORIRS_GROUND_CLICK_NEAREST must be "
                         "ring3|box10_rect|none, got '%s'\n",
                         env);
                 else
@@ -8535,9 +8767,7 @@ App_Init(
         {
             if( rc_features->painter_draw_distance < TORIRS_PAINTER_DRAW_DISTANCE_MIN ||
                 rc_features->painter_draw_distance > TORIRS_PAINTER_DRAW_DISTANCE_MAX )
-                fprintf(
-                    stderr,
-                    "app: [features] painter_draw_distance must be %d..%d, got %d\n",
+                TORIRS_LOG("app: [features] painter_draw_distance must be %d..%d, got %d\n",
                     TORIRS_PAINTER_DRAW_DISTANCE_MIN,
                     TORIRS_PAINTER_DRAW_DISTANCE_MAX,
                     rc_features->painter_draw_distance);
@@ -8567,9 +8797,7 @@ App_Init(
             {
                 model = ToriRS_Features_MoverModelByName(rc_features->mover);
                 if( model < 0 )
-                    fprintf(
-                        stderr,
-                        "app: [features] mover must be cycle|frame, got '%s'\n",
+                    TORIRS_LOG("app: [features] mover must be cycle|frame, got '%s'\n",
                         rc_features->mover);
             }
             if( cfg->features_mover_model_set )
@@ -8580,9 +8808,7 @@ App_Init(
                 {
                     int from_env = ToriRS_Features_MoverModelByName(env);
                     if( from_env < 0 )
-                        fprintf(
-                            stderr,
-                            "app: unknown TORIRS_MOVER_MODEL '%s' "
+                        TORIRS_ERR("app: unknown TORIRS_MOVER_MODEL '%s' "
                             "(cycle|frame)\n",
                             env);
                     else
@@ -8594,9 +8820,7 @@ App_Init(
         }
 
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "app: features era=%s ground_click_nearest=%s "
+            TORIRS_LOG("app: features era=%s ground_click_nearest=%s "
                 "unbounded=%d offmap=%d painter_draw_distance=%d\n",
                 app->features->name,
                 ToriRS_Features_NearestModelName(app->features->ground_click_nearest_model),
@@ -8611,9 +8835,7 @@ App_Init(
          * after the overrides above for the same reason. */
         World_SetFeatures(app->world, app->features);
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "app: world mover=%s\n",
+            TORIRS_LOG("app: world mover=%s\n",
                 ToriRS_Features_MoverModelName(World_MoverModel(app->world)));
 
         /* Model lighting: era defaults for the two xrsps-vs-Client-TS
@@ -8739,9 +8961,7 @@ App_Init(
          * an editor whose every operation would fail one at a time. */
         if( !editor_ok )
         {
-            fprintf(
-                stderr,
-                "app: cannot reach ToriRSMapEd at %s — the map editor is disabled "
+            TORIRS_ERR("app: cannot reach ToriRSMapEd at %s — the map editor is disabled "
                 "this session\n",
                 editor_label);
             goto editor_skipped;
@@ -8756,9 +8976,7 @@ App_Init(
             CacheProvider_Profile(app->provider));
         /* The Client id is printed because it is the handle another PROCESS
          * needs to join this session: `torirsmapedctl --client <id>`. */
-        fprintf(
-            stderr,
-            "app: map editor over %s (%s, client %u)\n",
+        TORIRS_LOG("app: map editor over %s (%s, client %u)\n",
             editor_label,
             app->editor->writable ? "writable" : "read-only, another server holds it",
             Editor_HostMapEdClientId(&app->editor->host));
@@ -8825,7 +9043,7 @@ App_Init(
             rev_name && rev_name[0] ? GameProtoRev_ByName(rev_name) : GameProtoRev_LC254();
         if( !rev )
         {
-            fprintf(stderr, "app: unknown protocol rev '%s', using lc254\n", rev_name);
+            TORIRS_ERR("app: unknown protocol rev '%s', using lc254\n", rev_name);
             rev = GameProtoRev_LC254();
         }
 
@@ -8845,9 +9063,7 @@ App_Init(
             if( PlatformXIO_Dat1OnDemandJagChecksums(app->runner.px, crc) == 0 )
                 GameProtoRev_SetJagChecksums(rev, crc);
             else
-                fprintf(
-                    stderr,
-                    "app: could not read /crc from the cache server; login will be "
+                TORIRS_ERR("app: could not read /crc from the cache server; login will be "
                     "refused as out of date\n");
         }
 #endif
@@ -8929,7 +9145,7 @@ App_Shutdown(struct App* app)
          * a save is something the user asks for, and silently flushing on exit
          * would put edits on disk that were abandoned on purpose. */
         if( Editor_DocHasUnsaved(&app->editor->doc) )
-            fprintf(stderr, "app: map editor closing with unsaved edits\n");
+            TORIRS_LOG("app: map editor closing with unsaved edits\n");
         Editor_Close(app->editor);
         free(app->editor);
         app->editor = NULL;
@@ -9431,9 +9647,7 @@ app_rebuild_world_map(
     if( getenv("TORIRS_MINIMAP_BMP") )
     {
         bmp_write_file(getenv("TORIRS_MINIMAP_BMP"), (int*)argb, pixel_w, pixel_h);
-        fprintf(
-            stderr,
-            "minimap: wrote %s (%dx%d level=%d)\n",
+        TORIRS_LOG("minimap: wrote %s (%dx%d level=%d)\n",
             getenv("TORIRS_MINIMAP_BMP"),
             pixel_w,
             pixel_h,
@@ -9599,9 +9813,7 @@ app_world_load_begin(
             }
             else
             {
-                fprintf(
-                    stderr,
-                    "TORIRS_WORLD_MAP must be \"x,z\", or up to %d such squares "
+                TORIRS_LOG("TORIRS_WORLD_MAP must be \"x,z\", or up to %d such squares "
                     "separated by ';', got '%s' - using %d,%d\n",
                     APP_WORLD_MAP_SQUARE_MAX,
                     env,
@@ -9739,9 +9951,7 @@ app_map_editor_world_click(
     if( app->interact.minimenu.visible || app->interact.swallow_left_click )
     {
         if( getenv("TORIRS_EDIT_DEBUG") && input->curr.mouse_button_up[TORIRSM_LEFT] )
-            fprintf(
-                stderr,
-                "edit: click belongs to the minimenu (visible=%d swallow=%d)\n",
+            TORIRS_LOG("edit: click belongs to the minimenu (visible=%d swallow=%d)\n",
                 app->interact.minimenu.visible,
                 app->interact.swallow_left_click);
         return;
@@ -9749,15 +9959,13 @@ app_map_editor_world_click(
     if( app->input_frame_consumed )
     {
         if( getenv("TORIRS_EDIT_DEBUG") && input->curr.mouse_button_up[TORIRSM_LEFT] )
-            fprintf(stderr, "edit: click swallowed (input_frame_consumed)\n");
+            TORIRS_LOG("edit: click swallowed (input_frame_consumed)\n");
         return;
     }
     if( !input->curr.mouse_button_up[TORIRSM_LEFT] )
         return;
     if( getenv("TORIRS_EDIT_DEBUG") )
-        fprintf(
-            stderr,
-            "edit: click tool=%d consumed=%d hover=%d,%d\n",
+        TORIRS_LOG("edit: click tool=%d consumed=%d hover=%d,%d\n",
             (int)app->editor_panel.tool,
             app->input_frame_consumed,
             app->world_hover_tile_x,
@@ -10414,7 +10622,7 @@ app_map_editor_open_pending_square(struct App* app)
 
     chunks[0] = app->editor_panel.sq_open_x;
     chunks[1] = app->editor_panel.sq_open_z;
-    fprintf(stderr, "editor: opening m%d_%d\n", chunks[0], chunks[1]);
+    TORIRS_LOG("editor: opening m%d_%d\n", chunks[0], chunks[1]);
     app_world_load_begin(app, chunks, 1);
 }
 
@@ -10591,7 +10799,7 @@ App_WorldLoadFinish(struct App* app)
     else
     {
         app->world_load_server_driven = 0;
-        fprintf(stderr, "app: world load incomplete\n");
+        TORIRS_LOG("app: world load incomplete\n");
     }
     app->need_redraw = 1;
 }
@@ -10671,10 +10879,10 @@ app_debug_height_profile(struct App* app)
         return;
     for( int z = z1; z >= z0; z-- )
     {
-        fprintf(stderr, "hprof L%d z=%3d:", lvl, z);
+        TORIRS_LOG("hprof L%d z=%3d:", lvl, z);
         for( int x = x0; x <= x1; x++ )
-            fprintf(stderr, " %5d", app_world_height(app, x * 128 + 64, z * 128 + 64, lvl));
-        fprintf(stderr, "\n");
+            TORIRS_LOG(" %5d", app_world_height(app, x * 128 + 64, z * 128 + 64, lvl));
+        TORIRS_LOG("\n");
     }
 }
 
@@ -10706,9 +10914,7 @@ app_debug_tile_flags(struct App* app)
                 {
                     n_vis++;
                     if( n_vis <= 400 )
-                        fprintf(
-                            stderr,
-                            "tflags L%d tile=%d,%d VIS_BELOW (0x%02x) terrain_element=%d\n",
+                        TORIRS_LOG("tflags L%d tile=%d,%d VIS_BELOW (0x%02x) terrain_element=%d\n",
                             lv,
                             x,
                             z,
@@ -10718,7 +10924,7 @@ app_debug_tile_flags(struct App* app)
                 if( f & RSCACHE_FLOFLAG_LINK_BELOW )
                     n_link++;
             }
-        fprintf(stderr, "tflags L%d: vis_below=%d link_below=%d\n", lv, n_vis, n_link);
+        TORIRS_LOG("tflags L%d: vis_below=%d link_below=%d\n", lv, n_vis, n_link);
     }
 }
 
@@ -10743,7 +10949,7 @@ app_debug_tile_project(struct App* app)
         {
             int sx = 0, sy = 0;
             if( app_world_project(app, x * 128 + 64, z * 128 + 64, 0, &sx, &sy) )
-                fprintf(stderr, "tproj tile=%d,%d screen=%d,%d\n", x, z, sx, sy);
+                TORIRS_LOG("tproj tile=%d,%d screen=%d,%d\n", x, z, sx, sy);
         }
 }
 
@@ -10771,9 +10977,7 @@ app_debug_log_bridges(struct App* app)
             count++;
             if( count > 40 )
                 continue;
-            fprintf(
-                stderr,
-                "bridge: scene=%d,%d abs=%d,%d y0=%d y1=%d\n",
+            TORIRS_LOG("bridge: scene=%d,%d abs=%d,%d y0=%d y1=%d\n",
                 x,
                 z,
                 app->world->_base_tile_x + x,
@@ -10782,7 +10986,7 @@ app_debug_log_bridges(struct App* app)
                 heightmap_get_interpolated(app->world->heightmap, x * 128 + 64, z * 128 + 64, 1));
         }
     }
-    fprintf(stderr, "bridge: %d link-below columns in scene\n", count);
+    TORIRS_LOG("bridge: %d link-below columns in scene\n", count);
 }
 
 /*
@@ -10883,9 +11087,7 @@ app_apply_wedge_scale(struct App* app)
             if( !logged )
             {
                 logged = 1;
-                fprintf(
-                    stderr,
-                    "wedge: fov mode fov_rpi2048=%d -> realised scale %d\n",
+                TORIRS_LOG("wedge: fov mode fov_rpi2048=%d -> realised scale %d\n",
                     fov_override,
                     toridraw_proj_scale_from_cot16(toridraw_proj_cot16_from_fov(fov_override)));
             }
@@ -10923,9 +11125,7 @@ app_apply_wedge_scale(struct App* app)
             if( !logged )
             {
                 logged = 1;
-                fprintf(
-                    stderr,
-                    "wedge: fixed camera -> constant scale=%d (no viewport "
+                TORIRS_LOG("wedge: fixed camera -> constant scale=%d (no viewport "
                     "recompute)\n",
                     TORIDRAW_PROJ_SCALE_DEFAULT);
             }
@@ -10987,9 +11187,7 @@ app_apply_wedge_scale(struct App* app)
         if( scale != last )
         {
             last = scale;
-            fprintf(
-                stderr,
-                "wedge: scale mode=%d vp_h=%d zoom(near=%d far=%d)=%d -> scale=%d "
+            TORIRS_ERR("wedge: scale mode=%d vp_h=%d zoom(near=%d far=%d)=%d -> scale=%d "
                 "realised=%d\n",
                 mode,
                 vp_h,
@@ -11021,14 +11219,12 @@ app_update_world_viewport(struct App* app)
         for( int i = 0; i < app->emit.count; i++ )
             if( app->emit.cmds[i].kind >= 0 && app->emit.cmds[i].kind < 24 )
                 kinds[app->emit.cmds[i].kind]++;
-        fprintf(
-            stderr,
-            "worldview: node_index=%d emit_count=%d kinds:",
+        TORIRS_LOG("worldview: node_index=%d emit_count=%d kinds:",
             App_WorldNodeIndex(app),
             app->emit.count);
         for( int k = 0; k < 24; k++ )
             if( kinds[k] )
-                fprintf(stderr, " %d:%d", k, kinds[k]);
+                TORIRS_LOG(" %d:%d", k, kinds[k]);
         int wx = 0, wy = 0, ww = 0, wh = 0, widx = -1;
         for( int i = 0; i < app->emit.count; i++ )
             if( app->emit.cmds[i].kind == UITREE_EMIT_WORLD )
@@ -11039,7 +11235,7 @@ app_update_world_viewport(struct App* app)
                 wh = app->emit.cmds[i].h;
                 widx = i;
             }
-        fprintf(stderr, " WORLDRECT=%d,%d %dx%d idx=%d\n", wx, wy, ww, wh, widx);
+        TORIRS_LOG(" WORLDRECT=%d,%d %dx%d idx=%d\n", wx, wy, ww, wh, widx);
         /* Anything drawn after the world that covers a meaningful slice of it. */
         for( int i = widx + 1; i < app->emit.count; i++ )
         {
@@ -11049,9 +11245,7 @@ app_update_world_viewport(struct App* app)
             int ey = (d->y + d->h) < (wy + wh) ? (d->y + d->h) : (wy + wh);
             int area = (ex - ox) > 0 && (ey - oy) > 0 ? (ex - ox) * (ey - oy) : 0;
             if( area > (ww * wh) / 20 )
-                fprintf(
-                    stderr,
-                    "  occluder idx=%d kind=%d comp=%d node=%d rect=%d,%d %dx%d trans=%d "
+                TORIRS_LOG("  occluder idx=%d kind=%d comp=%d node=%d rect=%d,%d %dx%d trans=%d "
                     "overlap=%d%%\n",
                     i,
                     d->kind,
@@ -11311,9 +11505,7 @@ Task_AppBoot_Run(
         app->prefs_dirty_cycle = 0;
     }
     if( getenv("TORIRS_AUDIO_TRACE") || getenv("TORIRS_AUDIO_DEBUG") )
-        fprintf(
-            stderr,
-            "audio: seeded volume varps master(%d)=%d music(%d)=%d "
+        TORIRS_LOG("audio: seeded volume varps master(%d)=%d music(%d)=%d "
             "sfx(%d)=%d area(%d)=%d\n",
             RS_CS2_VARP_MASTER_VOLUME,
             VarPManager_GetVarp(&app->varps, RS_CS2_VARP_MASTER_VOLUME),
@@ -11357,7 +11549,7 @@ Task_AppBoot_Run(
         for( int i = 0; i < app->cfg.varc_seed_count; i++ )
             VarCManager_SetInt(
                 &app->varcs, app->cfg.varc_seeds[i].id, app->cfg.varc_seeds[i].value);
-        printf("varc: seeded %d client vars from the manifest\n", app->cfg.varc_seed_count);
+        TORIRS_LOG("varc: seeded %d client vars from the manifest\n", app->cfg.varc_seed_count);
     }
 
     /* A CS2Dom native preview seeds the actual client stores after cache types
@@ -11381,9 +11573,9 @@ Task_AppBoot_Run(
             state_error,
             sizeof(state_error));
         if( app->preview_state_failed )
-            fprintf(stderr, "preview_state: %s\n", state_error);
+            TORIRS_ERR("preview_state: %s\n", state_error);
         else
-            fprintf(stderr, "preview_state: applied %d records\n", applied);
+            TORIRS_LOG("preview_state: applied %d records\n", applied);
     }
 
     /* One root-build path. A manifest that names no RevConfig at all still comes
@@ -11414,8 +11606,7 @@ Task_AppBoot_Run(
         UITree_LayoutResolve(
             app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     }
-    printf(
-        "RevConfigBuild done: iface=%d ui=%s inline=%s tree_components=%u sprites=%d "
+    TORIRS_LOG("RevConfigBuild done: iface=%d ui=%s inline=%s tree_components=%u sprites=%d "
         "fonts=%d onloads=%d inv_hooks=%d var_hooks=%d mounts=%d\n",
         app->boot_interface_id,
         app->cfg.revconfig_ui_ini ? app->cfg.revconfig_ui_ini : "-",
@@ -11449,9 +11640,7 @@ Task_AppBoot_Run(
             struct UITreeComponent const* node = &app->tree->components[i];
             if( node->freed || node->type != UIELEM_RS_MODEL )
                 continue;
-            fprintf(
-                stderr,
-                "anim_debug: com=0x%x model=%d seq=%d\n",
+            TORIRS_LOG("anim_debug: com=0x%x model=%d seq=%d\n",
                 node->component_id,
                 node->u.rs_model.gamecache_model_id,
                 node->u.rs_model.anim_seq_id);
@@ -11484,8 +11673,7 @@ Task_AppBoot_Run(
             App_OpenSubInterface(
                 app, (parent << 16) | (mount->component & 0xFFFF), mount->interface_id, 0);
         }
-        printf(
-            "gameframe: queued %d sub-interface mounts under iface %d\n",
+        TORIRS_LOG("gameframe: queued %d sub-interface mounts under iface %d\n",
             app->cfg.gameframe_mount_count,
             app->boot_interface_id);
     }
@@ -11651,9 +11839,7 @@ Task_OpenSubRefresh_Run(
     TASK_AWAIT_STATE(base, &self->pt, app->app_state != APP_STATE_BOOTING);
     if( self->interface_id > 0 && UITree_FindByComponentId(app->tree, self->target_uid) < 0 )
     {
-        fprintf(
-            stderr,
-            "if-opensub: target 0x%08x missing after boot (iface=%d); skip\n",
+        TORIRS_ERR("if-opensub: target 0x%08x missing after boot (iface=%d); skip\n",
             (unsigned)self->target_uid,
             self->interface_id);
         PT_EXIT(&self->pt);
@@ -11794,9 +11980,7 @@ App_OpenSubInterface(
 {
     assert(app);
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "if-opensub: mount iface=%d under uid=0x%08x (%d<<16|%d) type=%d\n",
+        TORIRS_LOG("if-opensub: mount iface=%d under uid=0x%08x (%d<<16|%d) type=%d\n",
             interface_id,
             (unsigned)target_uid,
             (target_uid >> 16) & 0xffff,
@@ -11817,9 +12001,7 @@ App_CloseSubInterface(
 {
     assert(app);
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "if-closesub: unmount uid=0x%08x (%d<<16|%d)\n",
+        TORIRS_LOG("if-closesub: unmount uid=0x%08x (%d<<16|%d)\n",
             (unsigned)target_uid,
             (target_uid >> 16) & 0xffff,
             target_uid & 0xffff);
@@ -11846,9 +12028,7 @@ App_MoveSubInterface(
     group_id = app->tree->interface_parents[idx].group_id;
     type = app->tree->interface_parents[idx].type;
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "if-movesub: group=%d type=%d src=0x%08x dest=0x%08x\n",
+        TORIRS_LOG("if-movesub: group=%d type=%d src=0x%08x dest=0x%08x\n",
             group_id,
             type,
             (unsigned)source_uid,
@@ -11908,9 +12088,7 @@ App_RunClientScript(
     assert(app);
     assert(request);
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "runclientscript: script=%d argc=%d str_mask=0x%x (held for tick fence)\n",
+        TORIRS_LOG("runclientscript: script=%d argc=%d str_mask=0x%x (held for tick fence)\n",
             request->script_id,
             request->argc,
             (unsigned)request->str_mask);
@@ -12048,7 +12226,7 @@ app_async_polls(struct App* app)
      * App_WorldLoadFinish itself at its synchronous tail (via on_done, or the
      * REBUILD_NORMAL path's inline call after it awaits the load). */
     if( app_tex_trace_enabled() )
-        fprintf(stderr, "tex_trace: --- frame %d ---\n", ++g_tex_trace_frame);
+        TORIRS_LOG("tex_trace: --- frame %d ---\n", ++g_tex_trace_frame);
     app_world_map_poll(app);
     app_sync_textures_poll(app);
     app_world_bind_pending_seqs(app);
@@ -12087,7 +12265,7 @@ App_BootWait(struct App* app)
             break;
     }
     if( guard <= 0 )
-        fprintf(stderr, "app: boot wait exceeded step guard\n");
+        TORIRS_LOG("app: boot wait exceeded step guard\n");
 }
 
 /* Defined below with the other interface-model binders; driven from the tick
@@ -12319,7 +12497,7 @@ app_net_lost(
     if( !app->net || app->net_lost )
         return;
 
-    fprintf(stderr, "net: connection lost (%s) — attempting to reestablish\n", why);
+    TORIRS_LOG("net: connection lost (%s) — attempting to reestablish\n", why);
     app->net_lost = 1;
     app->net_reconnect_attempts = 0;
     app->net_reconnect_failed = 0;
@@ -12423,9 +12601,7 @@ app_net_link_watch(
     /* Re-established: the handshake reached the game stream again. */
     if( app->net->state == TORIRS_NET_GAME )
     {
-        fprintf(
-            stderr,
-            "net: session re-established after %d attempt(s)\n",
+        TORIRS_LOG("net: session re-established after %d attempt(s)\n",
             app->net_reconnect_attempts);
         app->net_lost = 0;
         app->net_reconnect_attempts = 0;
@@ -12444,8 +12620,7 @@ app_net_link_watch(
         return;
     if( app->net_reconnect_attempts >= APP_NET_RECONNECT_MAX_ATTEMPTS )
     {
-        fprintf(
-            stderr, "net: giving up after %d reconnect attempts\n", app->net_reconnect_attempts);
+        TORIRS_LOG("net: giving up after %d reconnect attempts\n", app->net_reconnect_attempts);
         app->net_reconnect_failed = 1;
         app->need_redraw = 1;
         return;
@@ -12453,7 +12628,7 @@ app_net_link_watch(
 
     app->net_reconnect_attempts++;
     app->net_reconnect_at_ms = now_ms + APP_NET_RECONNECT_DELAY_MS;
-    fprintf(stderr, "net: reconnect attempt %d\n", app->net_reconnect_attempts);
+    TORIRS_LOG("net: reconnect attempt %d\n", app->net_reconnect_attempts);
     if( !ToriRS_Network_Reconnect(app->net) )
     {
         app->net_reconnect_failed = 1;
@@ -12571,8 +12746,7 @@ app_xpdrop_debug_tick(struct App* app)
         return;
     snprintf(last, sizeof(last), "%s", line);
     last_print_cycle = (int)app->logic_cycle;
-    fprintf(
-        stderr, "xpdrop: t=%d clock=%d %s\n", (int)app->logic_cycle, app->host.client_clock, line);
+    TORIRS_LOG("xpdrop: t=%d clock=%d %s\n", (int)app->logic_cycle, app->host.client_clock, line);
 }
 
 /* Settle the serial game-action pipeline, then pop the next packet.  Wire
@@ -12636,9 +12810,7 @@ app_pump_net_packets(struct App* app)
             {
                 uint64_t dt = PlatformSDL2_TicksUs() - t0;
                 if( dt >= (uint64_t)slow_ms * 1000u )
-                    fprintf(
-                        stderr,
-                        "pkt_slow: type=%d %.2f ms cycle=%llu\n",
+                    TORIRS_LOG("pkt_slow: type=%d %.2f ms cycle=%llu\n",
                         last_exec_packet_type,
                         dt / 1000.0,
                         (unsigned long long)app->logic_cycle);
@@ -12650,9 +12822,7 @@ app_pump_net_packets(struct App* app)
             if( getenv("TORIRS_FRAME_LATCH") )
             {
                 struct ToriRS_Task* head = app->exec_runner.queue->head;
-                fprintf(
-                    stderr,
-                    "frame_latch: exec parked stat=%d head=%s blocked=%d io_pending=%d cycle=%d\n",
+                TORIRS_LOG("frame_latch: exec parked stat=%d head=%s blocked=%d io_pending=%d cycle=%d\n",
                     (int)stat,
                     head ? head->name : "(none)",
                     head ? head->blocked : -1,
@@ -12712,9 +12882,7 @@ app_pump_net_packets(struct App* app)
                 {
                     app->server_tick_open_cycle = app->logic_cycle;
                     if( getenv("TORIRS_FRAME_LATCH") )
-                        fprintf(
-                            stderr,
-                            "frame_latch: tick opened by packet %d at cycle %d\n",
+                        TORIRS_LOG("frame_latch: tick opened by packet %d at cycle %d\n",
                             (int)packet.packet_type,
                             (int)app->logic_cycle);
                 }
@@ -13285,9 +13453,7 @@ app_logic_tick(struct App* app)
                 if( subject != app->highlight_last_mouseover )
                 {
                     app->highlight_last_mouseover = subject;
-                    fprintf(
-                        stderr,
-                        "mouseover: type=%d kind=%d uid=%d id=%d com=%d '%s'\n",
+                    TORIRS_LOG("mouseover: type=%d kind=%d uid=%d id=%d com=%d '%s'\n",
                         minimenu_type,
                         mo.kind,
                         mo.uid,
@@ -13678,9 +13844,7 @@ app_logic_tick(struct App* app)
             int area = (settings.area_sounds * TORIRS_AUDIO_VOLUME_MAX + 50) / 100;
 
             if( getenv("TORIRS_AUDIO_TRACE") || getenv("TORIRS_AUDIO_DEBUG") )
-                fprintf(
-                    stderr,
-                    "audio settings: master %d%%, music %d%%, effects %d%%, area %d%% "
+                TORIRS_LOG("audio settings: master %d%%, music %d%%, effects %d%%, area %d%% "
                     "-> buses %d/%d/%d\n",
                     settings.master,
                     settings.music,
@@ -13893,9 +14057,7 @@ app_logic_tick(struct App* app)
                 if( com_id >= 0 && UITree_ComponentOrAncestorHidden(app->tree, com_id) )
                     timers_hidden++;
             }
-            fprintf(
-                stderr,
-                "torirs_stats: tick=%d components=%u live=%u hidden=%u freed=%u "
+            TORIRS_LOG("torirs_stats: tick=%d components=%u live=%u hidden=%u freed=%u "
                 "free_head=%d inv_hooks=%d var_hooks=%d timers=%d timers_hidden=%d "
                 "iface_parents=%d\n",
                 stats_tick,
@@ -13926,9 +14088,7 @@ app_logic_tick(struct App* app)
                     continue;
                 if( node->u.rs_model.anim_seq_id < 0 )
                     continue;
-                fprintf(
-                    stderr,
-                    "anim_tick t=%d com=0x%x seq=%d frame=%d gen=%u\n",
+                TORIRS_LOG("anim_tick t=%d com=0x%x seq=%d frame=%d gen=%u\n",
                     anim_dbg_tick,
                     node->component_id,
                     node->u.rs_model.anim_seq_id,
@@ -13994,8 +14154,7 @@ app_world_sync_positions(struct App* app)
         int wz = (int)player->draw_position.z;
         int wy = app_world_height(app, wx, wz, local_level);
         if( npcpos_debug )
-            fprintf(
-                stderr, "plrpos: tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d\n",
+            TORIRS_LOG("plrpos: tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d\n",
                 player->grid_position.x, player->grid_position.z,
                 player->grid_position.level, local_level, wx, wz, wy);
         ToriDraw_SceneElementSetPosition(
@@ -14017,9 +14176,7 @@ app_world_sync_positions(struct App* app)
         int wz = (int)npc->draw_position.z;
         int wy = app_world_height(app, wx, wz, local_level);
         if( npcpos_debug )
-            fprintf(
-                stderr,
-                "npcpos: id=%d tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d size=%d "
+            TORIRS_LOG("npcpos: id=%d tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d size=%d "
                 "h0=%d h1=%d h2=%d lb=%d\n",
                 npc->npc_id, npc->grid_position.x, npc->grid_position.z,
                 npc->grid_position.level, local_level, wx, wz, wy, npc->size,
@@ -14726,9 +14883,7 @@ app_update_painter_cull(
             cm, app->world_camera.pitch, app->world_camera.yaw);
         if( slice_n <= 0 )
         {
-            fprintf(
-                stderr,
-                "painter_cullmap: bake empty for pitch=%d yaw=%d near=%d %dx%d "
+            TORIRS_LOG("painter_cullmap: bake empty for pitch=%d yaw=%d near=%d %dx%d "
                 "(%.2f ms) — keeping nocull\n",
                 app->world_camera.pitch,
                 app->world_camera.yaw,
@@ -14749,9 +14904,7 @@ app_update_painter_cull(
             return;
         }
 
-        fprintf(
-            stderr,
-            "painter_cullmap: baked radius=%d near=%d %dx%d slice_vis=%d in %.2f ms\n",
+        TORIRS_LOG("painter_cullmap: baked radius=%d near=%d %dx%d slice_vis=%d in %.2f ms\n",
             radius,
             near_z,
             vw,
@@ -15139,9 +15292,7 @@ app_world_paint(struct App* app)
                     /* Once, at resolve time, never per frame. Loud because the
                      * alternative is a mistyped route silently measuring a
                      * still camera and reporting a number that looks fine. */
-                    fprintf(
-                        stderr,
-                        "TORIRS_WEDGE_CAM_PATH: cannot parse, camera not "
+                    TORIRS_ERR("TORIRS_WEDGE_CAM_PATH: cannot parse, camera not "
                         "moving: %s\n",
                         wp);
             }
@@ -15328,9 +15479,7 @@ app_world_paint(struct App* app)
                         else
                             n_wall++;
                     }
-                    fprintf(
-                        stderr,
-                        "occluders: top=%d built_wall=%d built_floor=%d active=%d "
+                    TORIRS_LOG("occluders: top=%d built_wall=%d built_floor=%d active=%d "
                         "eye=(%d,%d,%d) cam_tile=(%d,%d)\n",
                         top_level,
                         n_wall,
@@ -15388,9 +15537,7 @@ app_world_paint(struct App* app)
         int by_kind[16] = { 0 };
         for( int i = 0; i < app->painter_buffer->command_count; i++ )
             by_kind[app->painter_buffer->commands[i]._bf_kind & 0xF]++;
-        fprintf(
-            stderr,
-            "paint: cam=%d,%d campos=(%d,%d,%d) pitch=%d yaw=%d level_mask=0x%x roof=%d "
+        TORIRS_LOG("paint: cam=%d,%d campos=(%d,%d,%d) pitch=%d yaw=%d level_mask=0x%x roof=%d "
             "commands=%d kinds:",
             cam_sx,
             cam_sz,
@@ -15404,8 +15551,8 @@ app_world_paint(struct App* app)
             app->painter_buffer->command_count);
         for( int k = 0; k < 16; k++ )
             if( by_kind[k] )
-                fprintf(stderr, " %d:%d", k, by_kind[k]);
-        fprintf(stderr, "\n");
+                TORIRS_LOG(" %d:%d", k, by_kind[k]);
+        TORIRS_LOG("\n");
     }
 
     /* TORIRS_TILETABLE=x0,x1,z0,z1: one row per (tile, cache level) joining
@@ -15439,7 +15586,7 @@ app_world_paint(struct App* app)
             sscanf(env, "%d,%d,%d,%d", &x0, &x1, &z0, &z1) == 4 )
         {
             done = 1;
-            fprintf(stderr, "tile     lvl flags elem  set order\n");
+            TORIRS_LOG("tile     lvl flags elem  set order\n");
             for( int z = z0; z <= z1; z++ )
                 for( int x = x0; x <= x1; x++ )
                     for( int lv = 0; lv < WORLD_MAP_TERRAIN_LEVELS; lv++ )
@@ -15464,9 +15611,7 @@ app_world_paint(struct App* app)
                                 order = i;
                             order_count++;
                         }
-                        fprintf(
-                            stderr,
-                            "%3d,%-3d  L%d  0x%02x %5d 0x%x ",
+                        TORIRS_LOG("%3d,%-3d  L%d  0x%02x %5d 0x%x ",
                             x,
                             z,
                             lv,
@@ -15474,18 +15619,18 @@ app_world_paint(struct App* app)
                             World_TerrainElementAt(app->world, x, z, lv),
                             painter_tile_get_terrain_levels(app->world->painter, x, z, lv));
                         if( order < 0 )
-                            fprintf(stderr, "-\n");
+                            TORIRS_LOG("-\n");
                         else if( order_count > 1 )
-                            fprintf(stderr, "%d  DRAWN %dx\n", order, order_count);
+                            TORIRS_LOG("%d  DRAWN %dx\n", order, order_count);
                         else
-                            fprintf(stderr, "%d\n", order);
+                            TORIRS_LOG("%d\n", order);
                     }
             /* The other half of the comparison. A terrain order is only
              * meaningful against the scenery it is supposed to be behind, and
              * both have to be read off the SAME buffer — the render-command
              * sequence TORIRS_DRAW_ORDER prints is a filtered renumbering, so
              * the two cannot be lined up across tools. */
-            fprintf(stderr, "locs overlapping the rect (same numbering)\n");
+            TORIRS_LOG("locs overlapping the rect (same numbering)\n");
             for( int i = 0; i < app->painter_buffer->command_count; i++ )
             {
                 struct PaintersElementCommand* c = &app->painter_buffer->commands[i];
@@ -15498,9 +15643,7 @@ app_world_paint(struct App* app)
                 if( sc->grid_position.x < x0 - 8 || sc->grid_position.x > x1 + 8 ||
                     sc->grid_position.z < z0 - 8 || sc->grid_position.z > z1 + 8 )
                     continue;
-                fprintf(
-                    stderr,
-                    "  order %5d loc=%-6d slot=%d,%d L%d size=%dx%d\n",
+                TORIRS_LOG("  order %5d loc=%-6d slot=%d,%d L%d size=%dx%d\n",
                     i,
                     sc->loc_id,
                     sc->grid_position.x,
@@ -15689,9 +15832,7 @@ app_world_nearest_ground_tile(
     if( best_d2 == LLONG_MAX )
         return 0;
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "groundfallback: click=%d,%d -> scene=%d,%d l%d dist2=%lld\n",
+        TORIRS_LOG("groundfallback: click=%d,%d -> scene=%d,%d l%d dist2=%lld\n",
             click_x,
             click_y,
             *out_x,
@@ -15777,9 +15918,7 @@ app_try_move(
             int clamped_x = (px * over + dst_x * clamp) / (over + clamp);
             int clamped_z = (pz * over + dst_z * clamp) / (over + clamp);
             if( getenv("TORIRS_NET_DEBUG") )
-                fprintf(
-                    stderr,
-                    "groundclamp: %d,%d -> %d,%d (player %d,%d; %d tiles past %d)\n",
+                TORIRS_LOG("groundclamp: %d,%d -> %d,%d (player %d,%d; %d tiles past %d)\n",
                     dst_x,
                     dst_z,
                     clamped_x,
@@ -15833,9 +15972,7 @@ app_try_move(
         return 0;
 
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "trymove: type=%d src=%d,%d dst=%d,%d route_len=%d nearest=%d dest=%d,%d\n",
+        TORIRS_LOG("trymove: type=%d src=%d,%d dst=%d,%d route_len=%d nearest=%d dest=%d,%d\n",
             type,
             player->pathing.route_x[0],
             player->pathing.route_z[0],
@@ -16215,9 +16352,7 @@ app_minimap_click(
         return 0;
 
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "minimap: click=%d,%d rel=%d,%d scene=%d,%d abs=%d,%d\n",
+        TORIRS_LOG("minimap: click=%d,%d rel=%d,%d scene=%d,%d abs=%d,%d\n",
             center_x,
             center_y,
             rel_x,
@@ -16257,9 +16392,7 @@ app_world_pick_finish(
 
     if( getenv("TORIRS_WORLD_PICK_DEBUG") )
     {
-        fprintf(
-            stderr,
-            "world_pick: mouse=%d,%d count=%d hover_tile=%d,%d,%d\n",
+        TORIRS_LOG("world_pick: mouse=%d,%d count=%d hover_tile=%d,%d,%d\n",
             app->world_mouse_x,
             app->world_mouse_y,
             app->world_pickset.count,
@@ -16273,9 +16406,7 @@ app_world_pick_finish(
              * separate 1x1 loc one tile nearer than the statue". */
             struct WorldEntity_Scenery* scenery =
                 World_SceneryGetByElementId(app->world, app->world_pickset.items[i].element_id);
-            fprintf(
-                stderr,
-                "world_pick:  [%d] element=%d type=%d tile=%d,%d,%d loc=%d size=%dx%d "
+            TORIRS_LOG("world_pick:  [%d] element=%d type=%d tile=%d,%d,%d loc=%d size=%dx%d "
                 "origin=%d,%d,%d '%s'\n",
                 i,
                 app->world_pickset.items[i].element_id,
@@ -16339,9 +16470,7 @@ app_world_camera_keys(
          app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_LESS) ||
          app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_MORE_100) ||
          app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_LESS_100)) )
-        fprintf(
-            stderr,
-            "camera_keys: paint-cap key seen; world_active=%d view_valid=%d "
+        TORIRS_LOG("camera_keys: paint-cap key seen; world_active=%d view_valid=%d "
             "chat=%d/%d/%d iface_input=%d\n",
             app->world_active,
             app->world_view_valid,
@@ -16424,7 +16553,7 @@ app_world_camera_keys(
     if( app_debug_key_down(app, input, APP_DEBUG_HOTKEY_CAMERA_UNLOCK) )
     {
         app->camera_unlocked = !app->camera_unlocked;
-        fprintf(stderr, "camera: %s\n", app->camera_unlocked ? "UNLOCKED" : "locked");
+        TORIRS_LOG("camera: %s\n", app->camera_unlocked ? "UNLOCKED" : "locked");
         app->need_redraw = 1;
     }
 
@@ -16492,7 +16621,7 @@ app_world_camera_keys(
         if( (toggled || !stepping) && ToriRS_Frame_PaintLimitGet() != logged )
         {
             logged = ToriRS_Frame_PaintLimitGet();
-            fprintf(stderr, "paintlimit: %d\n", logged);
+            TORIRS_LOG("paintlimit: %d\n", logged);
         }
     }
 }
@@ -16596,9 +16725,7 @@ app_ui_hotkeys(
             app->hotkey_consumed[binding->osrs_key] = 1;
             app->need_redraw = 1;
             if( getenv("TORIRS_HOTKEY_DEBUG") )
-                fprintf(
-                    stderr,
-                    "hotkey: osrs_key=%d node=%d effect=select_tab tab=%d\n",
+                TORIRS_LOG("hotkey: osrs_key=%d node=%d effect=select_tab tab=%d\n",
                     binding->osrs_key,
                     binding->node_index,
                     tabno);
@@ -16631,9 +16758,7 @@ app_debug_log_camera(
 {
     if( !getenv("TORIRS_CAM_DEBUG") )
         return;
-    fprintf(
-        stderr,
-        "cam_%s: %s yaw=%d pitch=%d height=%d eye=%d,%d,%d\n",
+    TORIRS_LOG("cam_%s: %s yaw=%d pitch=%d height=%d eye=%d,%d,%d\n",
         what,
         follow_cam ? "orbit" : "free",
         follow_cam ? app->orbit_yaw : app->world_camera.yaw,
@@ -16959,9 +17084,7 @@ app_world_try_bind_seq(
              * sequence that was never sent. */
             struct ToriDraw_Model const* m =
                 (el && el->model.kind == TORIDRAWMK_MODEL) ? el->model.u.model.model : NULL;
-            fprintf(
-                stderr,
-                "seq_bind: element=%d seq=%d frames=%d skeletal=%d start=%d now=%d "
+            TORIRS_LOG("seq_bind: element=%d seq=%d frames=%d skeletal=%d start=%d now=%d "
                 "frame=%d cycle=%d kind=%d vbones=%d fbones=%d falpha=%d\n",
                 element_id,
                 seq_id,
@@ -16978,9 +17101,7 @@ app_world_try_bind_seq(
         }
     }
     else if( getenv("TORIRS_ANIM_DEBUG") )
-        fprintf(
-            stderr,
-            "seq_bind: element=%d seq=%d UNBINDABLE (anim=%p frames=%d)\n",
+        TORIRS_LOG("seq_bind: element=%d seq=%d UNBINDABLE (anim=%p frames=%d)\n",
             element_id,
             seq_id,
             (void*)anim,
@@ -17458,7 +17579,7 @@ app_world_spawn_player_now(
     scene_model_id = UITreeSceneBridge_EnsurePlayerModel(&app->bridge);
     if( scene_model_id <= 0 )
     {
-        fprintf(stderr, "spawn_player: player model unavailable\n");
+        TORIRS_LOG("spawn_player: player model unavailable\n");
         return -1;
     }
     reg = ToriDraw_SceneModelGet(app->scene, scene_model_id);
@@ -17499,9 +17620,7 @@ app_world_spawn_player_now(
         if( player )
             player->server_pid = -1;
     }
-    fprintf(
-        stderr,
-        "spawn_player: element=%d tile=%d,%d level=%d\n",
+    TORIRS_LOG("spawn_player: element=%d tile=%d,%d level=%d\n",
         element_id,
         tile_x,
         tile_z,
@@ -17688,7 +17807,7 @@ app_world_spawn_npc_now(
          * write costs milliseconds -- see the spawn narration below. Which ids
          * are unavailable is the whole diagnostic; the repeat count is not. */
         if( !app_warn_once_npc(npc_id) )
-            fprintf(stderr, "spawn_npc: npc %d unavailable\n", npc_id);
+            TORIRS_LOG("spawn_npc: npc %d unavailable\n", npc_id);
         return -1;
     }
 
@@ -17733,7 +17852,7 @@ app_world_spawn_npc_now(
          * failure -- large multi-part npcs like QBD are the most exposed --
          * so register an empty placeholder and keep going; that degrades to
          * an invisible npc instead of erasing it outright. */
-        fprintf(stderr, "spawn_npc: npc %d models failed to load\n", npc_id);
+        TORIRS_ERR("spawn_npc: npc %d models failed to load\n", npc_id);
         model = ToriDraw_ModelNew(0, 0, 0);
         if( model )
             ToriDraw_ModelSetBoundsCylinder(model);
@@ -17822,9 +17941,7 @@ app_world_spawn_npc_now(
      * switch so the cost stays measurable (spawn_bd's `log` column). */
     bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
     if( spawn_log )
-        fprintf(
-            stderr,
-            "spawn_npc: npc=%d element=%d tile=%d,%d level=%d size=%d recolors=%d "
+        TORIRS_LOG("spawn_npc: npc=%d element=%d tile=%d,%d level=%d size=%d recolors=%d "
             "retextures=%d\n",
             npc_id,
             element_id,
@@ -17846,9 +17963,7 @@ app_world_spawn_npc_now(
         bd_tex = PlatformSDL2_TicksUs() - bd_t;
         total = PlatformSDL2_TicksUs() - bd_t0;
         if( total >= (uint64_t)bd_us )
-            fprintf(
-                stderr,
-                "spawn_bd: npc=%d total %llu model %llu elem %llu world %llu seq %llu "
+            TORIRS_LOG("spawn_bd: npc=%d total %llu model %llu elem %llu world %llu seq %llu "
                 "log %llu tex %llu (us)\n",
                 npc_id,
                 (unsigned long long)total,
@@ -17902,7 +18017,7 @@ app_world_spawn_projectile_now(
     model = app_world_build_model(app, model_ids, 1, NULL, 128, 128, APP_LIGHT_ACTOR, 0, 0);
     if( !model )
     {
-        fprintf(stderr, "spawn_projectile: model %d failed to load\n", model_id);
+        TORIRS_ERR("spawn_projectile: model %d failed to load\n", model_id);
         return;
     }
 
@@ -17944,9 +18059,7 @@ app_world_spawn_projectile_now(
      * why the element is marked anim_loop. */
     ToriDraw_SceneElementSetAnimLoop(app->scene, element_id, true);
     app_world_apply_seq(app, element_id, seq_id);
-    fprintf(
-        stderr,
-        "spawn_projectile: element=%d %d,%d -> %d,%d t2=%d target=%d\n",
+    TORIRS_LOG("spawn_projectile: element=%d %d,%d -> %d,%d t2=%d target=%d\n",
         element_id,
         src_tile_x,
         src_tile_z,
@@ -17990,16 +18103,14 @@ app_world_spawn_projectile_spot_now(
     spot = CacheProvider_SpotanimtypeGet(app->provider, spotanim_id);
     if( !spot )
     {
-        fprintf(stderr, "spawn_projectile_spot: spotanim %d not resident\n", spotanim_id);
+        TORIRS_LOG("spawn_projectile_spot: spotanim %d not resident\n", spotanim_id);
         return;
     }
 
     model = app_world_build_spotanim_model(app, spot);
     if( !model )
     {
-        fprintf(
-            stderr,
-            "spawn_projectile_spot: spotanim %d model %d failed\n",
+        TORIRS_ERR("spawn_projectile_spot: spotanim %d model %d failed\n",
             spotanim_id,
             spot->model);
         return;
@@ -18046,9 +18157,7 @@ app_world_spawn_projectile_spot_now(
     app_world_apply_seq(app, element_id, spot->seq);
 
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "spawn_projectile_spot: element=%d spotanim=%d model=%d seq=%d "
+        TORIRS_LOG("spawn_projectile_spot: element=%d spotanim=%d model=%d seq=%d "
             "%d,%d -> %d,%d t1=%d t2=%d target=%d\n",
             element_id,
             spotanim_id,
@@ -18126,14 +18235,14 @@ app_world_spawn_spotanim_now(
     spot = CacheProvider_SpotanimtypeGet(app->provider, spotanim_id);
     if( !spot )
     {
-        fprintf(stderr, "spawn_spotanim: spotanim %d not resident\n", spotanim_id);
+        TORIRS_LOG("spawn_spotanim: spotanim %d not resident\n", spotanim_id);
         return;
     }
 
     model = app_world_build_spotanim_model(app, spot);
     if( !model )
     {
-        fprintf(stderr, "spawn_spotanim: spotanim %d model %d failed\n", spotanim_id, spot->model);
+        TORIRS_ERR("spawn_spotanim: spotanim %d model %d failed\n", spotanim_id, spot->model);
         return;
     }
 
@@ -18174,9 +18283,7 @@ app_world_spawn_spotanim_now(
         }
     }
 
-    fprintf(
-        stderr,
-        "spawn_spotanim: id=%d element=%d tile=%d,%d level=%d model=%d seq=%d "
+    TORIRS_LOG("spawn_spotanim: id=%d element=%d tile=%d,%d level=%d model=%d seq=%d "
         "life=%d delay=%d\n",
         spotanim_id,
         element_id,
@@ -18895,7 +19002,7 @@ Task_AppSpawn_Run(
             App_WorldObjStackAdd(app, self->tile_x, self->tile_z, self->level, self->obj_id, 1);
         }
         else
-            fprintf(stderr, "spawn_obj: obj %d has no inventory model\n", self->obj_id);
+            TORIRS_LOG("spawn_obj: obj %d has no inventory model\n", self->obj_id);
     }
     else if( self->kind == APP_SPAWN_SPOTANIM )
     {
@@ -19299,9 +19406,7 @@ Task_AppIfHead_Run(
     if( scene_id >= 0 )
         app->need_redraw = 1;
     else if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "if-head: component=0x%x kind=%d could not composite head (npc=%d)\n",
+        TORIRS_LOG("if-head: component=0x%x kind=%d could not composite head (npc=%d)\n",
             (unsigned)self->component_id,
             (int)self->kind,
             self->npc_id);
@@ -19803,9 +19908,7 @@ app_if_head_poll(struct App* app)
              * It makes a composed-but-currently-tab-hidden portrait observable
              * without changing its render or visibility state. */
             if( first_apply && head->kind == APP_IFHEAD_NPC && getenv("TORIRS_NPC_HEAD_DEBUG") )
-                fprintf(
-                    stderr,
-                    "npc_head: npc=%d component=0x%08x scene=%d applied=1\n",
+                TORIRS_LOG("npc_head: npc=%d component=0x%08x scene=%d applied=1\n",
                     head->npc_id,
                     (unsigned)head->com_id,
                     scene_id);
@@ -19827,9 +19930,7 @@ app_if_head_poll(struct App* app)
             head->applied_gen = app->tree->generation;
         }
         else if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "if-head: reapply com=%d npc=%d gen=%u missed (node not mounted?)\n",
+            TORIRS_LOG("if-head: reapply com=%d npc=%d gen=%u missed (node not mounted?)\n",
                 head->com_id,
                 head->npc_id,
                 app->tree->generation);
@@ -19857,9 +19958,7 @@ app_if_player_model_poll(struct App* app)
             model->applied_gen = app->tree->generation;
         }
         else if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "if-player-model: reapply com=%d scene=%d gen=%u missed\n",
+            TORIRS_LOG("if-player-model: reapply com=%d scene=%d gen=%u missed\n",
                 model->com_id,
                 model->scene_id,
                 app->tree->generation);
@@ -19975,17 +20074,24 @@ app_player_model_poll(struct App* app)
             continue;
         if( node->behavior.client_code != UITREE_CLIENT_CODE_LOCAL_PLAYER_MODEL )
             continue;
+        int const anim_changed =
+            node->u.rs_model.anim_frame != seq_frame || node->u.rs_model.anim_seq_id != seq_id;
         if( node->u.rs_model.gamecache_model_id != scene_id || node->u.rs_model.xan != 150 ||
             node->u.rs_model.yan != yan || node->u.rs_model.zan != 0 ||
-            node->u.rs_model.anim_frame != seq_frame || node->u.rs_model.anim_seq_id != seq_id )
-        {
-            UITree_MarkNodeDirty(app->tree, i);
+            anim_changed )
             app->need_redraw = 1;
-        }
-        node->u.rs_model.gamecache_model_id = scene_id;
-        node->u.rs_model.xan = 150;
-        node->u.rs_model.yan = yan;
-        node->u.rs_model.zan = 0;
+        (void)UITree_SetModelAt(app->tree, i, scene_id);
+        (void)UITree_SetModelPoseAt(
+            app->tree,
+            i,
+            node->u.rs_model.x_offset,
+            node->u.rs_model.y_offset,
+            150,
+            yan,
+            0,
+            0);
+        if( anim_changed )
+            UITree_MarkNodeDirty(app->tree, i);
         node->u.rs_model.anim_seq_id = seq_id;
         /* Frame comes from the entity, so anim_hold is what keeps
          * UITreeAnim_Advance from running a second, independent clock on it. */
@@ -19996,9 +20102,7 @@ app_player_model_poll(struct App* app)
     }
 
     if( changed && getenv("TORIRS_ANIM_DEBUG") )
-        fprintf(
-            stderr,
-            "player_model: rebuilt cycle=%llu scene=%d seq=%d frame=%d bound=%d\n",
+        TORIRS_LOG("player_model: rebuilt cycle=%llu scene=%d seq=%d frame=%d bound=%d\n",
             (unsigned long long)app->logic_cycle,
             scene_id,
             seq_id,
@@ -20280,9 +20384,7 @@ app_plugin_asset_write(void* user, char const* plugin, char const* name, void co
         /* Persistence is switched off for this run. Refusing loudly rather
          * than inventing a path: a client told not to write files must not
          * start writing them because a plugin asked. */
-        fprintf(
-            stderr,
-            "plugin: %s cannot save asset '%s'; plugin persistence is off for "
+        TORIRS_ERR("plugin: %s cannot save asset '%s'; plugin persistence is off for "
             "this run (TORIRS_PLUGIN_PREFS is empty)\n",
             plugin,
             name);
@@ -20400,9 +20502,7 @@ app_plugin_screenshot(
             app, shot->plugin, shot->dir, shot->name, shot->path, sizeof(shot->path));
         if( !shot->path[0] )
         {
-            fprintf(
-                stderr,
-                "plugin: %s cannot save screenshot '%s'; plugin persistence is off for "
+            TORIRS_ERR("plugin: %s cannot save screenshot '%s'; plugin persistence is off for "
                 "this run (TORIRS_PLUGIN_PREFS is empty), so there is no folder to put it "
                 "under and the destination is not an absolute path\n",
                 shot->plugin,
@@ -20415,9 +20515,7 @@ app_plugin_screenshot(
         return 1;
     }
 
-    fprintf(
-        stderr,
-        "plugin: %s asked for more than %d screenshots in one frame; '%s' was dropped\n",
+    TORIRS_LOG("plugin: %s asked for more than %d screenshots in one frame; '%s' was dropped\n",
         plugin,
         APP_PLUGIN_SCREENSHOTS_MAX,
         name);
@@ -20736,8 +20834,7 @@ app_plugin_mesh_create(void* user)
         mesh->revision = 1;
         return i;
     }
-    fprintf(
-        stderr, "plugin: mesh table full (%d); mesh_create refused\n", APP_PLUGIN_MESHES_MAX);
+    TORIRS_ERR("plugin: mesh table full (%d); mesh_create refused\n", APP_PLUGIN_MESHES_MAX);
     return -1;
 }
 
@@ -20789,9 +20886,7 @@ app_plugin_mesh_vertex(void* user, int handle, int x, int y, int z)
         return -1;
     if( mesh->vertex_count >= TORIRS_PLUGIN_MESH_VERTICES_MAX )
     {
-        fprintf(
-            stderr,
-            "plugin: mesh %d is at its %d vertex ceiling; mesh_vertex refused\n",
+        TORIRS_ERR("plugin: mesh %d is at its %d vertex ceiling; mesh_vertex refused\n",
             handle,
             TORIRS_PLUGIN_MESH_VERTICES_MAX);
         return -1;
@@ -20827,9 +20922,7 @@ app_plugin_mesh_face(void* user, int handle, int a, int b, int c, int hsl, int a
         return -1;
     if( mesh->face_count >= TORIRS_PLUGIN_MESH_FACES_MAX )
     {
-        fprintf(
-            stderr,
-            "plugin: mesh %d is at its %d face ceiling; mesh_face refused\n",
+        TORIRS_ERR("plugin: mesh %d is at its %d face ceiling; mesh_face refused\n",
             handle,
             TORIRS_PLUGIN_MESH_FACES_MAX);
         return -1;
@@ -20880,9 +20973,7 @@ app_plugin_object_create(void* user)
         obj->built_model_id = -1;
         return i;
     }
-    fprintf(
-        stderr,
-        "plugin: world-object table full (%d); object_create refused\n",
+    TORIRS_ERR("plugin: world-object table full (%d); object_create refused\n",
         APP_PLUGIN_OBJECTS_MAX);
     return -1;
 }
@@ -20931,9 +21022,7 @@ app_plugin_object_recolor(void* user, int handle, int hsl_from, int hsl_to)
         return;
     if( obj->recolor_count >= TORIRS_PLUGIN_OBJECT_RECOLORS_MAX )
     {
-        fprintf(
-            stderr,
-            "plugin: world object %d already carries %d recolour pairs; "
+        TORIRS_LOG("plugin: world object %d already carries %d recolour pairs; "
             "the extra one is dropped\n",
             handle,
             TORIRS_PLUGIN_OBJECT_RECOLORS_MAX);
@@ -21394,14 +21483,14 @@ app_world_spawn_projectile(
         app->proj_src_tile_x = tile_x;
         app->proj_src_tile_z = tile_z;
         app->proj_src_tile_level = level;
-        fprintf(stderr, "spawn_projectile: source latched at %d,%d\n", tile_x, tile_z);
+        TORIRS_LOG("spawn_projectile: source latched at %d,%d\n", tile_x, tile_z);
         return;
     }
     if( app->proj_src_tile_x == tile_x && app->proj_src_tile_z == tile_z )
     {
         app->proj_src_tile_x = -1;
         app->proj_src_tile_z = -1;
-        fprintf(stderr, "spawn_projectile: latch cleared\n");
+        TORIRS_LOG("spawn_projectile: latch cleared\n");
         return;
     }
 
@@ -21796,8 +21885,7 @@ app_world_camera_cinema(struct App* app)
 
     /* TORIRS_CAM_DEBUG=1: trace the scripted camera. */
     if( getenv("TORIRS_CAM_DEBUG") )
-        printf(
-            "cam eye=%d,%d,%d pitch=%d yaw=%d -> move=%d,%d h=%d look=%d,%d h=%d "
+        TORIRS_LOG("cam eye=%d,%d,%d pitch=%d yaw=%d -> move=%d,%d h=%d look=%d,%d h=%d "
             "shake=%d%d%d%d%d\n",
             app->world_camera_pos.x,
             app->world_camera_pos.y,
@@ -21825,8 +21913,8 @@ app_world_camera_cinema(struct App* app)
  *
  * The follow camera's `pitch * 3 + 600` is a FIXED-VIEWPORT distance: the
  * reference then scales it by an endpoint pair interpolated over the world
- * viewport HEIGHT, exactly the way the projection scale is (app_world_proj_scale
- * / class159.method5357), and over the same `height - 334` in [0,100] band:
+ * viewport HEIGHT, exactly the way the projection scale is
+ * (class159.method5357), and over the same `height - 334` in [0,100] band:
  *
  *     zoom = (far - near) * clamp(vpH - 334, 0, 100) / 100 + near
  *     distance = (pitch * 3 + 600) * zoom / 256
@@ -21873,8 +21961,6 @@ app_world_camera_follow(struct App* app)
     struct WorldEntity_Player* player;
     int target_x, target_y, target_z;
     int pitch, yaw, distance;
-    int inv_pitch, inv_yaw;
-    int off_x, off_y, off_z;
 
     /* U unlocked the camera: the follow update stands down and the W/A/S/D +
      * R/F debug keys own world_camera_pos until U relocks. Without this gate
@@ -22056,10 +22142,6 @@ app_world_camera_follow(struct App* app)
     distance = pitch * 3 + app->world_cam_height;
     if( app->revconfig_profile.camera.zoom_mode != REVCONFIG_CAMERA_ZOOM_FIXED )
         distance = distance * app_world_cam_dist_zoom(app) / 256;
-    off_x = 0;
-    off_y = 0;
-    off_z = distance;
-
     /* Look-at height: the reference samples the ground under the ACTOR (not
      * under the eased anchor), takes the minimum over its footprint, then
      * drops 8, then the camera's own 50 — client.method1605:
@@ -22071,28 +22153,14 @@ app_world_camera_follow(struct App* app)
     target_x = (int)app->orbit_x;
     target_z = (int)app->orbit_z;
 
-    inv_pitch = (2048 - pitch) & 0x7ff;
-    inv_yaw = (2048 - yaw) & 0x7ff;
-    if( inv_pitch != 0 )
-    {
-        int sin = ToriDraw_Sin(inv_pitch);
-        int cos = ToriDraw_Cos(inv_pitch);
-        int tmp = (off_y * cos - distance * sin) >> 16;
-        off_z = (off_y * sin + distance * cos) >> 16;
-        off_y = tmp;
-    }
-    if( inv_yaw != 0 )
-    {
-        int sin = ToriDraw_Sin(inv_yaw);
-        int cos = ToriDraw_Cos(inv_yaw);
-        int tmp = (off_z * sin + off_x * cos) >> 16;
-        off_z = (off_z * cos - off_x * sin) >> 16;
-        off_x = tmp;
-    }
-
-    app->world_camera_pos.x = target_x - off_x;
-    app->world_camera_pos.y = target_y - off_y;
-    app->world_camera_pos.z = target_z - off_z;
+    ToriRS_OrbitCameraEye(
+        target_x,
+        target_y,
+        target_z,
+        pitch,
+        yaw,
+        distance,
+        &app->world_camera_pos);
     app->world_camera.pitch = pitch;
     app->world_camera.yaw = yaw;
 
@@ -22102,9 +22170,7 @@ app_world_camera_follow(struct App* app)
      * circle while you rotate, which reads as "the camera orbits the tile".
      * This is the number that says whether it does: settled, it must go to 0. */
     if( getenv("TORIRS_ORBIT_DEBUG") )
-        fprintf(
-            stderr,
-            "orbit: anchor=(%.3f,%.3f) player=(%d,%d) residual=(%.3f,%.3f) "
+        TORIRS_LOG("orbit: anchor=(%.3f,%.3f) player=(%d,%d) residual=(%.3f,%.3f) "
             "pitch=%d yaw=%d dist=%d look_y=%d eye=(%d,%d,%d)\n",
             (double)app->orbit_x,
             (double)app->orbit_z,
@@ -22287,9 +22353,7 @@ app_world_frame(
                 if( el < 0 || el >= (int)(sizeof(seen_element) / sizeof(seen_element[0])) )
                     continue;
                 if( seen_element[el] == stamp )
-                    fprintf(
-                        stderr,
-                        "element_alias: element=%d claimed by TWO live entities "
+                    TORIRS_LOG("element_alias: element=%d claimed by TWO live entities "
                         "(kinds %d and %d) -- position/model/anim will fight\n",
                         el,
                         seen_kind[el],
@@ -22800,9 +22864,7 @@ app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
     }
 
     if( getenv("TORIRS_CLIENTOP_DEBUG") )
-        fprintf(
-            stderr,
-            "clientop: %s slot %d '%s' -> script %d (uid=%d type=%d coord=%d '%s')\n",
+        TORIRS_LOG("clientop: %s slot %d '%s' -> script %d (uid=%d type=%d coord=%d '%s')\n",
             RS_ClientOpKindName((enum RS_ClientOpKind)kind),
             slot,
             op->label,
@@ -22918,9 +22980,7 @@ app_minimenu_open(
         {
             struct WorldEntity_Player* lp =
                 app->world ? World_PlayerGetByServerPid(app->world, app->world->local_pid) : NULL;
-            fprintf(
-                stderr,
-                "minimenu: open at %d,%d in_world=%d picks=%d attackopt player=%d npc=%d "
+            TORIRS_LOG("minimenu: open at %d,%d in_world=%d picks=%d attackopt player=%d npc=%d "
                 "mylevel=%d\n",
                 click_x,
                 click_y,
@@ -22934,9 +22994,7 @@ app_minimenu_open(
             for( int i = 0; i < app->world_pickset.count; i++ )
             {
                 struct World_Picked const* picked = &app->world_pickset.items[i];
-                fprintf(
-                    stderr,
-                    "  pick[%d] type=%d element=%d tile=%d,%d,%d\n",
+                TORIRS_LOG("  pick[%d] type=%d element=%d tile=%d,%d,%d\n",
                     i,
                     (int)picked->type,
                     picked->element_id,
@@ -22945,9 +23003,7 @@ app_minimenu_open(
                     picked->tile_level);
             }
         for( int i = 0; i < menu->option_count; i++ )
-            fprintf(
-                stderr,
-                "  row[%d] action=%d op=%d kind=%d id=%d \"%s\"\n",
+            TORIRS_LOG("  row[%d] action=%d op=%d kind=%d id=%d \"%s\"\n",
                 i,
                 menu->options[i].action,
                 menu->options[i].action_index,
@@ -22973,7 +23029,7 @@ app_minimenu_open(
                     if( !app->tree->components[i].freed &&
                         app->tree->components[i].type == UIELEM_BUILTIN_MINIMENU )
                     {
-                        app->tree->components[i].u.minimenu.font_id = resolved;
+                        (void)UITree_SetMinimenuFontAt(app->tree, (int32_t)i, resolved);
                         break;
                     }
                 font = ToriDraw_SceneFontGet(app->scene, resolved);
@@ -22990,9 +23046,7 @@ app_minimenu_open(
         /* Geometry beside the rows: a popup too narrow for its own text is a
          * measure that returned nothing, and this line is what says so. */
         if( getenv("TORIRS_MINIMENU_DEBUG") )
-            fprintf(
-                stderr,
-                "minimenu: font=%d line_box=%d content_w=%d width=%d height=%d\n",
+            TORIRS_LOG("minimenu: font=%d line_box=%d content_w=%d width=%d height=%d\n",
                 menu->font_id,
                 line_box,
                 content_w,
@@ -23095,7 +23149,7 @@ app_selection_clear(struct App* app)
      * "Use was never armed" produce the same screen, and the outline is script
      * -painted, so the state itself has to say so. */
     if( getenv("TORIRS_CLICK_DEBUG") )
-        fprintf(stderr, "selclear: obj=%d tgt=%d\n", app->objsel.active, app->targetsel.active);
+        TORIRS_LOG("selclear: obj=%d tgt=%d\n", app->objsel.active, app->targetsel.active);
     app->objsel.active = 0;
     app_targetsel_clear(app);
     app->need_redraw = 1;
@@ -23263,7 +23317,7 @@ app_minimenu_inv_action(
             (int)sizeof(app->objsel.name) - 1,
             obj && obj->name[0] ? obj->name : "item");
         if( getenv("TORIRS_CLICK_DEBUG") )
-            fprintf(stderr, "selarm: obj '%s' slot=%d com=0x%x\n", app->objsel.name, slot, com_id);
+            TORIRS_LOG("selarm: obj '%s' slot=%d com=0x%x\n", app->objsel.name, slot, com_id);
         app->need_redraw = 1;
         return 1;
     }
@@ -23391,9 +23445,7 @@ app_run_default_ui_row(
      */
     if( getenv("TORIRS_CLICK_DEBUG") )
     {
-        fprintf(
-            stderr,
-            "invclick: at %d,%d rows=%d default=%d selmode=%d mask=0x%x\n",
+        TORIRS_LOG("invclick: at %d,%d rows=%d default=%d selmode=%d mask=0x%x\n",
             click_x,
             click_y,
             scratch.option_count,
@@ -23401,9 +23453,7 @@ app_run_default_ui_row(
             (int)mctx.selection.mode,
             (unsigned)mctx.selection.target_mask);
         for( int i = 0; i < scratch.option_count; i++ )
-            fprintf(
-                stderr,
-                "  row[%d] '%s' action=%d\n",
+            TORIRS_LOG("  row[%d] '%s' action=%d\n",
                 i,
                 scratch.options[i].text,
                 scratch.options[i].action);
@@ -24385,9 +24435,7 @@ app_minimenu_run_option(
             }
         }
         if( getenv("TORIRS_CLICK_DEBUG") )
-            fprintf(
-                stderr,
-                "selarm: tgt com=0x%x mask=0x%x op='%s'\n",
+            TORIRS_LOG("selarm: tgt com=0x%x mask=0x%x op='%s'\n",
                 app->targetsel.component_id,
                 (unsigned)app->targetsel.mask,
                 app->targetsel.op);
@@ -24618,9 +24666,7 @@ app_minimenu_run_option(
                  * a component the server never armed produces a perfectly good menu
                  * row and sends nothing. */
                 if( getenv("TORIRS_CLICK_DEBUG") )
-                    fprintf(
-                        stderr,
-                        "clickdbg: op%d on com=0x%x events=0x%x net=%d\n",
+                    TORIRS_LOG("clickdbg: op%d on com=0x%x events=0x%x net=%d\n",
                         op_num,
                         opt.pick.id,
                         events,
@@ -24632,9 +24678,7 @@ app_minimenu_run_option(
 
                     app_if_button_target(app, opt.pick.id, &target, &sub);
                     if( getenv("TORIRS_CLICK_DEBUG") )
-                        fprintf(
-                            stderr,
-                            "clickdbg: send op%d target=0x%x sub=%d state=%d\n",
+                        TORIRS_LOG("clickdbg: send op%d target=0x%x sub=%d state=%d\n",
                             op_num,
                             target,
                             sub,
@@ -24669,9 +24713,7 @@ app_minimenu_run_option(
                     if( sub >= 0 )
                     {
                         if( getenv("TORIRS_CLICK_DEBUG") )
-                            fprintf(
-                                stderr,
-                                "clickdbg: EVENT_CLICK choice target=0x%x sub=%d\n",
+                            TORIRS_LOG("clickdbg: EVENT_CLICK choice target=0x%x sub=%d\n",
                                 target,
                                 sub);
                         APP_NET_SEND(
@@ -24701,9 +24743,7 @@ app_minimenu_run_option(
                  * the sink once networking attaches). */
                 if( RS_IF1_ApplyButtonClick(app, opt.pick.id, opt.action) )
                     return 0;
-                fprintf(
-                    stderr,
-                    "minimenu: no hook for com=0x%x action=%d op=%d\n",
+                TORIRS_LOG("minimenu: no hook for com=0x%x action=%d op=%d\n",
                     opt.pick.id,
                     opt.action,
                     opt.action_index);
@@ -24724,9 +24764,7 @@ app_minimenu_run_option(
          * waypoints; no local prediction — the PLAYER_INFO echo moves the
          * player. */
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "minimenu: walk-click scene=%d,%d abs=%d,%d\n",
+            TORIRS_LOG("minimenu: walk-click scene=%d,%d abs=%d,%d\n",
                 opt.pick.secondary_id,
                 opt.pick.tertiary_id,
                 app->world ? app->world->_base_tile_x + opt.pick.secondary_id : -1,
@@ -24907,7 +24945,7 @@ app_minimenu_run_option(
          * unhandled kind, so it must not warn. */
         return 0;
     default:
-        fprintf(stderr, "minimenu: unhandled pick kind %d\n", (int)opt.pick.kind);
+        TORIRS_LOG("minimenu: unhandled pick kind %d\n", (int)opt.pick.kind);
         return 0;
     }
 }
@@ -24949,7 +24987,7 @@ App_PlaySound(
 {
     assert(app);
     if( getenv("TORIRS_SOUND_DEBUG") )
-        fprintf(stderr, "sound: synth=%d loops=%d delay=%d\n", sound_id, loops, delay);
+        TORIRS_LOG("sound: synth=%d loops=%d delay=%d\n", sound_id, loops, delay);
     RS_Audio_Synth(&app->audio, sound_id, loops, delay);
 }
 
@@ -25126,8 +25164,7 @@ App_SetCanvasSize(
         resize_before_count =
             UITree_SnapshotResizeHooks(app->tree, resize_before, APP_RESIZE_HOOK_MAX);
         if( app->tree->resize_hooks.count > APP_RESIZE_HOOK_MAX )
-            fprintf(
-                stderr, "resize: more than %d onResize hooks; truncating\n", APP_RESIZE_HOOK_MAX);
+            TORIRS_ERR("resize: more than %d onResize hooks; truncating\n", APP_RESIZE_HOOK_MAX);
     }
 
     UITree_LayoutSetRootSize(width, height);
@@ -25155,7 +25192,7 @@ App_SetCanvasSize(
 
     app->need_redraw = 1;
     if( getenv("TORIRS_RESIZE_DEBUG") )
-        fprintf(stderr, "canvas: %dx%d\n", width, height);
+        TORIRS_LOG("canvas: %dx%d\n", width, height);
     return 1;
 }
 
@@ -25187,6 +25224,27 @@ component_hidden_or_orphaned(
 int
 App_MeasureRightChromeStripWidth(struct App const* app)
 {
+    /*
+     * Memo, keyed on the tree publication this answer was read from.
+     *
+     * The scan below is over every component -- 7,142 in a logged-in frame --
+     * and App_SyncFixedChromeInset asks for it once per frame from the main
+     * loop, so it ran in full on every frame whether or not anything had moved.
+     * An EIP profile of an in-world frame put it at 4.1% of non-raster work.
+     *
+     * The three key terms are the ones the scan actually reads: `dirty_gen`
+     * covers the hide/free flags, `layout_resolve_seq` covers the resolved
+     * boxes (a re-layout moves them without touching dirty_gen -- the same
+     * reason the emit retain gate needs both), and `component_count` covers a
+     * tree that grew or was rebuilt. Keyed on the tree pointer too, so two
+     * trees cannot read each other's answer.
+     */
+    static struct UITree const* memo_tree = NULL;
+    static uint32_t memo_dirty_gen;
+    static uint32_t memo_layout_seq;
+    static uint32_t memo_count;
+    static int memo_value;
+
     int canvas_w;
     int canvas_h;
     int best;
@@ -25195,6 +25253,11 @@ App_MeasureRightChromeStripWidth(struct App const* app)
     assert(app);
     if( !app->tree || app->tree->component_count == 0 )
         return 0;
+
+    if( memo_tree == app->tree && memo_dirty_gen == app->tree->dirty_gen &&
+        memo_layout_seq == app->tree->layout_resolve_seq &&
+        memo_count == app->tree->component_count )
+        return memo_value;
 
     canvas_w = UITREE_LAYOUT_ROOT_W;
     canvas_h = UITREE_LAYOUT_ROOT_H;
@@ -25245,6 +25308,12 @@ App_MeasureRightChromeStripWidth(struct App const* app)
             continue;
         best = w;
     }
+
+    memo_tree = app->tree;
+    memo_dirty_gen = app->tree->dirty_gen;
+    memo_layout_seq = app->tree->layout_resolve_seq;
+    memo_count = app->tree->component_count;
+    memo_value = best;
     return best;
 }
 
@@ -25571,7 +25640,7 @@ App_DrainCommands(
             }
             break;
         default:
-            fprintf(stderr, "cmdbus: unhandled command type %u\n", header.type);
+            TORIRS_LOG("cmdbus: unhandled command type %u\n", header.type);
             break;
         }
     }
@@ -25639,7 +25708,7 @@ app_frame_latch_note(struct App* app, char const* reason)
             (int)app->logic_cycle - logic_at_open);
         for( int i = 0; i < nreasons && n < (int)sizeof line; i++ )
             n += snprintf(line + n, sizeof line - n, " %s=%d", reasons[i], counts[i]);
-        fprintf(stderr, "%s\n", line);
+        TORIRS_LOG("%s\n", line);
         frames = 0;
     }
 }
@@ -25753,7 +25822,7 @@ App_RunOnce(
                 break;
             }
             if( getenv("TORIRS_SETTINGS_DEBUG") )
-                fprintf(stderr, "settings: mirror varbit %d = %d -> server\n", mirror_varbit,
+                TORIRS_LOG("settings: mirror varbit %d = %d -> server\n", mirror_varbit,
                         mirror_value);
         }
     }
@@ -26130,17 +26199,13 @@ App_RunOnce(
          */
         if( getenv("TORIRS_PLUGIN_REGION_DEBUG") )
         {
-            fprintf(
-                stderr,
-                "region: click %d,%d -> %d of %d\n",
+            TORIRS_LOG("region: click %d,%d -> %d of %d\n",
                 input->last_click_x[TORIRSM_LEFT],
                 input->last_click_y[TORIRSM_LEFT],
                 region,
                 app->plugin_region_count);
             for( int i = 0; i < app->plugin_region_count; i++ )
-                fprintf(
-                    stderr,
-                    "  region[%d] plugin=%d %d,%d %dx%d ops=%d '%s'\n",
+                TORIRS_LOG("  region[%d] plugin=%d %d,%d %dx%d ops=%d '%s'\n",
                     i,
                     app->plugin_regions[i].plugin,
                     app->plugin_regions[i].x,
@@ -26323,16 +26388,12 @@ App_RunOnce(
          */
         if( getenv("TORIRS_CLICK_DEBUG") )
         {
-            fprintf(
-                stderr,
-                "clickdbg: com=0x%x rows=%d default=%d\n",
+            TORIRS_LOG("clickdbg: com=0x%x rows=%d default=%d\n",
                 out.clicked_com_id,
                 scratch.option_count,
                 default_idx);
             for( int i = 0; i < scratch.option_count; i++ )
-                fprintf(
-                    stderr,
-                    "  row[%d] '%s' action=%d idx=%d pick=%d id=0x%x\n",
+                TORIRS_LOG("  row[%d] '%s' action=%d idx=%d pick=%d id=0x%x\n",
                     i,
                     scratch.options[i].text,
                     scratch.options[i].action,
@@ -26385,9 +26446,7 @@ App_RunOnce(
      * entry from world rows only — Walk here / nearest entity op (reference
      * chooseDefaultMenuEntry over the last rendered frame's pickset). */
     if( getenv("TORIRS_NET_DEBUG") && (out.left_click_miss || out.clicked_com_id >= 0) )
-        fprintf(
-            stderr,
-            "click: miss=%d (%d,%d) com=0x%x gate=%d drawable=%d picks=%d\n",
+        TORIRS_LOG("click: miss=%d (%d,%d) com=0x%x gate=%d drawable=%d picks=%d\n",
             out.left_click_miss,
             out.left_click_miss_x,
             out.left_click_miss_y,
@@ -26657,9 +26716,7 @@ App_RunOnce(
             RS_CS2_SetEventKey(
                 &app->host, out.key_events[e].key_typed, out.key_events[e].key_pressed);
             if( getenv("TORIRS_KEY_DEBUG") )
-                fprintf(
-                    stderr,
-                    "key_dispatch: com=0x%08x script=%d typed=%d pressed=%d\n",
+                TORIRS_LOG("key_dispatch: com=0x%08x script=%d typed=%d pressed=%d\n",
                     target->component_id,
                     UITree_Hooks(&app->tree->components[idx])->on_key.script_id,
                     out.key_events[e].key_typed,
@@ -26712,9 +26769,7 @@ App_RunOnce(
                     &app->host, out.key_mouse_x - target->abs_x, out.key_mouse_y - target->abs_y);
                 RS_CS2_SetEventKey(&app->host, codes[e], 0);
                 if( getenv("TORIRS_KEY_DEBUG") )
-                    fprintf(
-                        stderr,
-                        "key_%s_dispatch: com=0x%08x script=%d key=%d\n",
+                    TORIRS_LOG("key_%s_dispatch: com=0x%08x script=%d key=%d\n",
                         down ? "down" : "up",
                         target->component_id,
                         hook->script_id,
@@ -27103,9 +27158,7 @@ App_RunOnce(
                 bool ok =
                     UITree_ApplyText(app->tree, app->if_texts[i].com_id, app->if_texts[i].text);
                 if( !ok && getenv("TORIRS_NET_DEBUG") )
-                    fprintf(
-                        stderr,
-                        "if_settext: reapply com=%d gen=%u missed\n",
+                    TORIRS_LOG("if_settext: reapply com=%d gen=%u missed\n",
                         app->if_texts[i].com_id,
                         app->tree->generation);
             }
@@ -27118,9 +27171,7 @@ App_RunOnce(
                 bool ok =
                     UITree_ApplyHide(app->tree, app->if_hides[i].com_id, app->if_hides[i].hide);
                 if( !ok && getenv("TORIRS_NET_DEBUG") )
-                    fprintf(
-                        stderr,
-                        "if_sethide: reapply com=%d gen=%u missed\n",
+                    TORIRS_LOG("if_sethide: reapply com=%d gen=%u missed\n",
                         app->if_hides[i].com_id,
                         app->tree->generation);
             }
@@ -27133,9 +27184,7 @@ App_RunOnce(
                 bool ok = UITree_ApplyColour(
                     app->tree, app->if_colours[i].com_id, app->if_colours[i].colour);
                 if( !ok && getenv("TORIRS_NET_DEBUG") )
-                    fprintf(
-                        stderr,
-                        "if_setcolour: reapply com=%d gen=%u missed\n",
+                    TORIRS_LOG("if_setcolour: reapply com=%d gen=%u missed\n",
                         app->if_colours[i].com_id,
                         app->tree->generation);
             }
@@ -27156,7 +27205,7 @@ App_RunOnce(
                 int want = (int)strtol(force_show, NULL, 0);
                 int32_t idx = UITree_FindByComponentId(app->tree, want);
                 if( idx >= 0 )
-                    app->tree->components[idx].behavior.hide = 0;
+                    (void)UITree_SetHideAt(app->tree, idx, 0);
             }
         }
         /* Interaction hooks and the persistent-state rebinds above can run a
@@ -27177,6 +27226,7 @@ App_RunOnce(
         {
             UITree_EnsureLayout(app->tree);
         }
+        app_ui_host_publish_inputs(app);
         /* Opt 11 retention, SHADOW MODE: work out whether this walk could have
          * been skipped, but always run it anyway, and check the verdict against
          * the byte compare below. `emit_gen_unsound` counts frames the gate
@@ -27184,49 +27234,49 @@ App_RunOnce(
          * have served a stale list. It is the safety proof for turning the skip
          * on, and it must be 0 over a full replay.
          *
-         * The tree half is `dirty_gen`; the host half is not covered yet, so a
-         * nonzero unsound count here names the host inputs still unaccounted
-         * for rather than condemning the approach. */
+         * The tree half is `dirty_gen`; the host half is the dependency stamp
+         * captured by the previous full walk and published immediately above. */
         int gate_quiet = 0;
-        {
-            static uint32_t prev_dirty_gen = 0;
-            static uint32_t prev_layout_seq = 0;
-            static uint32_t prev_tree_generation = 0;
-            static int prev_hover = -2;
-            static int primed = 0;
 
-            /* Topology, resolved layout, visible writes, and hover all belong
-             * to the retained list's identity. `dirty_gen` covers writes that
-             * claim to
+        /* Per-frame, and cleared here rather than after the render: everything
+         * downstream reads it as "THIS frame retained", and a flag that only
+         * ever latches true would make every later frame claim a retention it
+         * did not get. */
+        app->ui_retained_frame = 0;
+        {
+            /* Three terms, not two. `dirty_gen` covers writes that claim to
              * change what a node draws; it does NOT cover layout re-resolving,
              * which moves resolved boxes (and therefore emitted clips) off
              * `layout_stale` / `layout_force_full` / a changed root box without
              * raising anyone's `is_dirty`. That is the one hole the unsound
              * counter found: emit #5 of a 2,000-frame run, clip.w 765 -> 807 on
              * the group-548 root, gate quiet, list changed. */
-            gate_quiet = primed && !app->tree->layout_stale &&
-                         app->tree->generation == prev_tree_generation &&
-                         app->tree->dirty_gen == prev_dirty_gen &&
-                         app->tree->layout_resolve_seq == prev_layout_seq &&
-                         app->hover_com_id == prev_hover;
+            /* A pending invalidation precedes the resolver sequence bump.  It
+             * is therefore part of the identity itself: comparing only the
+             * last completed sequence can otherwise retain stale geometry in
+             * the frame between UITree_LayoutInvalidate and EmitWalk's
+             * UITree_EnsureLayout. */
+            gate_quiet = UITree_EmitRetainGateQuiet(
+                app->tree,
+                &app->ui_host,
+                &app->emit,
+                app->hover_com_id,
+                &app->emit_gate);
             /* Every dirty_gen source was measured bursty (creates, hide flips,
              * child link/unlink — all interface-open work), so on a steady-state
              * frame the tree term should hold and the gate should fire. It fires
              * twice in 2,000 frames. These two counters say which term is
              * actually failing instead of assuming it is the tree one. */
-            if( primed && app->tree->dirty_gen == prev_dirty_gen )
+            if( app->emit_gate.primed &&
+                app->tree->dirty_gen == app->emit_gate.dirty_gen )
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GATE_TREE_QUIET, 1);
-            if( primed && app->hover_com_id == prev_hover )
+            if( app->emit_gate.primed &&
+                app->hover_com_id == app->emit_gate.hovered_component_id )
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GATE_HOVER_QUIET, 1);
-            if( primed )
+            if( app->emit_gate.primed )
                 TORIRS_PERF_COUNT(
                     TORIRS_PERF_CTR_EMIT_DIRTY_BUMPS,
-                    (int)(app->tree->dirty_gen - prev_dirty_gen));
-            prev_dirty_gen = app->tree->dirty_gen;
-            prev_layout_seq = app->tree->layout_resolve_seq;
-            prev_tree_generation = app->tree->generation;
-            prev_hover = app->hover_com_id;
-            primed = 1;
+                    (int)(app->tree->dirty_gen - app->emit_gate.dirty_gen));
         }
         /* Opt 11/12/14, emit half: nothing the walk reads has moved, so the list
          * it would produce is the one already in the buffer. Reuse it in place —
@@ -27265,12 +27315,20 @@ App_RunOnce(
 
             if( retain )
             {
-                int reusable = 1;
-                if( app->emit.volatile_refs )
-                    reusable = UITree_EmitRefreshVolatile(
-                        app->tree, &app->ui_host, &app->emit);
+                int reusable = UITree_EmitRetainGateRefreshVolatile(
+                    app->tree,
+                    &app->ui_host,
+                    &app->emit,
+                    &app->hover_com_id,
+                    &app->emit_gate);
                 if( reusable )
+                {
                     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAINED, 1);
+                    /* The command list is the one already on screen, so the
+                     * chrome pixels are unchanged and only the live regions
+                     * need presenting. See App_PresentDamage. */
+                    app->ui_retained_frame = 1;
+                }
                 else
                 {
                     /* Defensive fallback for a volatile source that could not
@@ -27295,6 +27353,12 @@ App_RunOnce(
                 }
             }
         }
+        /* Publish the identity after either the retained volatile refresh or
+         * the full walk. A host callback or EnsureLayout inside those paths may
+         * advance an input/tree epoch; capturing before publication would make
+         * the next frame conservatively rebuild despite a settled result. */
+        UITree_EmitRetainGateCapture(
+            app->tree, &app->emit, app->hover_com_id, &app->emit_gate);
         /* DIAGNOSTIC (Opt 11 scoping, temporary): retaining the emit list only
          * pays if the list repeats, so measure the repeat rate before building
          * anything that could retain it. Every desc is memset before fill, so
@@ -27334,8 +27398,7 @@ App_RunOnce(
                      * field with pahole / offsetof. */
                     if( prev_count != n )
                     {
-                        fprintf(
-                            stderr, "[emit-unsound] count %d -> %d\n", prev_count, n);
+                        TORIRS_LOG("[emit-unsound] count %d -> %d\n", prev_count, n);
                     }
                     else
                     {
@@ -27350,9 +27413,7 @@ App_RunOnce(
                             {
                                 if( a[k] == b[k] )
                                     continue;
-                                fprintf(
-                                    stderr,
-                                    "[emit-unsound] emit#%d desc %d/%d kind %d "
+                                TORIRS_LOG("[emit-unsound] emit#%d desc %d/%d kind %d "
                                     "com %d node %d first diff at byte %zu  "
                                     "clip.w %d -> %d\n",
                                     emit_seq, u, n, (int)app->emit.cmds[u].kind,
@@ -27426,9 +27487,7 @@ App_SendIdkDesign(
 {
     assert(app && kits && colours);
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "idk_savedesign: gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] colours=[%d,%d,%d,%d,%d]\n",
+        TORIRS_LOG("idk_savedesign: gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] colours=[%d,%d,%d,%d,%d]\n",
             gender,
             kits[0],
             kits[1],
@@ -27477,9 +27536,7 @@ App_IfTextSet(
     {
         bool applied = UITree_ApplyText(app->tree, com_id, text);
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "if_settext: com=%d text='%s' applied=%d\n",
+            TORIRS_LOG("if_settext: com=%d text='%s' applied=%d\n",
                 com_id,
                 text ? text : "",
                 (int)applied);
@@ -27514,8 +27571,7 @@ App_IfColourSet(
     {
         bool applied = UITree_ApplyColour(app->tree, com_id, colour);
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr, "if_setcolour: com=%d colour=%06x applied=%d\n", com_id, colour,
+            TORIRS_LOG("if_setcolour: com=%d colour=%06x applied=%d\n", com_id, colour,
                 (int)applied);
     }
     app->need_redraw = 1;
@@ -27548,7 +27604,7 @@ App_IfHideSet(
     {
         bool applied = UITree_ApplyHide(app->tree, com_id, hide);
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(stderr, "if_sethide: com=%d hide=%d applied=%d\n", com_id, hide, (int)applied);
+            TORIRS_LOG("if_sethide: com=%d hide=%d applied=%d\n", com_id, hide, (int)applied);
     }
     app->need_redraw = 1;
 }
@@ -27568,7 +27624,7 @@ app_send_if_button(
      * pair, which is IF_BUTTON1 with the sub-id, not plain IF_BUTTON. */
     app_if_button_target(app, com_id, &target, &sub);
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(stderr, "if_button: com=%d target=%d sub=%d\n", com_id, target, sub);
+        TORIRS_LOG("if_button: com=%d target=%d sub=%d\n", com_id, target, sub);
     if( sub >= 0 )
     {
         APP_NET_SEND(
@@ -27596,7 +27652,7 @@ app_send_resume_pausebutton(
      * in this client, so resolve it at the wire boundary. */
     app_if_button_target(app, com_id, &target, &sub);
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(stderr, "resume_pausebutton: com=%d target=%d sub=%d\n", com_id, target, sub);
+        TORIRS_LOG("resume_pausebutton: com=%d target=%d sub=%d\n", com_id, target, sub);
     APP_NET_SEND(
         app,
         net_out_resume_pausebutton(
@@ -28064,9 +28120,7 @@ app_world_sync_one_entity_spotanim(
         entry->applied_frame = frame;
         app->need_redraw = 1;
         if( first_combine && getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "entity_spotanim: combine id=%d element=%d seq=%d frame=%d height=%d\n",
+            TORIRS_LOG("entity_spotanim: combine id=%d element=%d seq=%d frame=%d height=%d\n",
                 spot->id,
                 element_id,
                 type->seq,
@@ -28270,9 +28324,7 @@ App_WorldObjStackAdd(
         return -1;
 
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "objstack: obj=%d tile=%d,%d,%d element=%d\n",
+        TORIRS_LOG("objstack: obj=%d tile=%d,%d,%d element=%d\n",
             obj_id,
             scene_x,
             scene_z,
@@ -28390,7 +28442,7 @@ App_WorldRebuildShift(
     app->world_map_level = -1;
 
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(stderr, "rebuild_shift: dx=%d dz=%d\n", base_dx, base_dz);
+        TORIRS_LOG("rebuild_shift: dx=%d dz=%d\n", base_dx, base_dz);
     /* Projectiles/spotanims/far stacks queued EntityRemoved above — free their
      * DYNAMIC scene elements now so the next frame does not race a full queue. */
     App_WorldDrainEntityRemoved(app);
@@ -28619,9 +28671,7 @@ App_WorldApplyNpcType(
      * See app_npc_entity_facts. */
     app_npc_entity_facts(app, base_npc_type, npctype, &facts);
     if( getenv("TORIRS_ANIM_DEBUG") )
-        fprintf(
-            stderr,
-            "npc_retype: world_idx=%d element=%d type=%d\n",
+        TORIRS_LOG("npc_retype: world_idx=%d element=%d type=%d\n",
             world_idx,
             element_id,
             npc_type);
@@ -28649,7 +28699,7 @@ App_WorldApplyNpcType(
              * QBD that needed a same-packet TRANSFORMATION to reach its real
              * id) -- which reads in-game as "the npc never rendered" with no
              * trace of why. Log it so that's diagnosable. */
-            fprintf(stderr, "npc_retype: npc %d models failed to load\n", npc_type);
+            TORIRS_ERR("npc_retype: npc %d models failed to load\n", npc_type);
     }
     /* The depth-test opt-in is a property of the npc TYPE, so a retype has to
      * re-decide it against the new type -- exactly as the spawn path does. */
@@ -28751,9 +28801,7 @@ App_WorldApplyNpcType(
                 PluginHost_NpcRetype(app->plugins, &retyped);
             }
             if( getenv("TORIRS_NET_DEBUG") )
-                fprintf(
-                    stderr,
-                    "entity_sync: npc type replacement=%d element=%d tile=%d,%d size=%d "
+                TORIRS_ERR("entity_sync: npc type replacement=%d element=%d tile=%d,%d size=%d "
                     "model=%s\n",
                     npc_type,
                     element_id,
@@ -28982,6 +29030,363 @@ App_PickFinish(
     app_world_pick_finish(app, hits);
 }
 
+/* Damage drawing is off unless asked for, so the A/B is a process restart and
+ * every measurement below is against a binary that also contains the other
+ * arm. Read once; off is one predicted branch. */
+static int
+app_damage_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_DAMAGE") ? 1 : 0;
+    return armed;
+}
+
+/* Set for one frame by the damage report to dump the descs it unions. */
+static int g_damage_trace;
+
+/*
+ * TORIRS_DAMAGE_RECTS=1: clear and present the live rectangles separately
+ * instead of their bounding box.
+ *
+ * Off, because it measured slower -- see App::damage_rects. Kept switchable
+ * rather than deleted so the arm that produced that number still exists.
+ */
+static int
+app_damage_rects_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_DAMAGE_RECTS") ? 1 : 0;
+    return armed;
+}
+
+/* Add one live region to the rect list, folding it into a rect it already
+ * touches rather than appending a second copy. Entity overlays carry exactly
+ * the world viewport's box, so without this the list is full of duplicates
+ * before it reaches the two rects that matter. Overflow is not an error: the
+ * caller falls back to the bounding box, which is always correct. */
+static void
+app_damage_rect_add(struct App* app, int x, int y, int w, int h)
+{
+    assert(app);
+    if( w <= 0 || h <= 0 )
+        return;
+
+    for( int i = 0; i < app->damage_rect_count; i++ )
+    {
+        struct App_DamageRect* r = &app->damage_rects[i];
+        int rx1 = r->x + r->w;
+        int ry1 = r->y + r->h;
+
+        if( x < rx1 && x + w > r->x && y < ry1 && y + h > r->y )
+        {
+            int nx = x < r->x ? x : r->x;
+            int ny = y < r->y ? y : r->y;
+            int nx1 = x + w > rx1 ? x + w : rx1;
+            int ny1 = y + h > ry1 ? y + h : ry1;
+
+            r->x = nx;
+            r->y = ny;
+            r->w = nx1 - nx;
+            r->h = ny1 - ny;
+            return;
+        }
+    }
+    if( app->damage_rect_count >= APP_DAMAGE_RECT_MAX )
+    {
+        app->damage_rect_count = -1; /* poisoned: too many, use the box */
+        return;
+    }
+    if( app->damage_rect_count < 0 )
+        return;
+    app->damage_rects[app->damage_rect_count].x = x;
+    app->damage_rects[app->damage_rect_count].y = y;
+    app->damage_rects[app->damage_rect_count].w = w;
+    app->damage_rects[app->damage_rect_count].h = h;
+    app->damage_rect_count++;
+}
+
+/* Grow the frame's damage box to cover [x, x+w) x [y, y+h). */
+static void
+app_damage_add(struct App* app, int x, int y, int w, int h)
+{
+    int x1;
+    int y1;
+
+    assert(app);
+    if( w <= 0 || h <= 0 )
+        return;
+    x1 = x + w;
+    y1 = y + h;
+    if( !app->damage_valid )
+    {
+        app->damage_x = x;
+        app->damage_y = y;
+        app->damage_w = w;
+        app->damage_h = h;
+        app->damage_valid = 1;
+        return;
+    }
+    if( x < app->damage_x )
+    {
+        app->damage_w += app->damage_x - x;
+        app->damage_x = x;
+    }
+    if( y < app->damage_y )
+    {
+        app->damage_h += app->damage_y - y;
+        app->damage_y = y;
+    }
+    if( x1 > app->damage_x + app->damage_w )
+        app->damage_w = x1 - app->damage_x;
+    if( y1 > app->damage_y + app->damage_h )
+        app->damage_h = y1 - app->damage_y;
+}
+
+/*
+ * Decide what this frame is allowed to leave untouched. @see App::damage_valid.
+ *
+ * A single box, not a region list: the three live areas of an in-world frame
+ * (viewport, minimap, the overlays inside them) are adjacent, so a region list
+ * would carry per-rect bookkeeping into every draw for a couple of percent of
+ * area, and BitBlt bills per call as well as per pixel.
+ *
+ * A desc contributes its box UNION its clip rather than their intersection.
+ * Which of the two becomes the raster scissor differs by kind, and the union
+ * is the bound that is correct without knowing which -- an intersection would
+ * be tighter and occasionally wrong, and being wrong here means stale pixels
+ * that never repair.
+ */
+static void
+app_compute_damage(struct App* app, int width, int height)
+{
+    assert(app);
+
+    app->damage_valid = 0;
+    app->damage_rect_count = 0;
+    if( !app_damage_armed() || !app->ui_retained_frame )
+        return;
+
+    for( int i = 0; i < app->emit.count; i++ )
+    {
+        struct UITreeEmitDesc const* d = &app->emit.cmds[i];
+        int live = (d->kind == UITREE_EMIT_WORLD || d->kind == UITREE_EMIT_MINIMAP);
+
+        /* Same predicate as the emitter's volatile count, and deliberately a
+         * pointer test: a desc whose bytes are stable while a host buffer
+         * behind it is refilled is exactly the thing a retained frame cannot
+         * assume it has already drawn. */
+        if( !live &&
+            (d->minimap_dots || d->entity_overlays || d->worldmap_tiles ||
+             d->debug_prims) )
+            live = 1;
+        if( !live )
+            continue;
+
+        if( g_damage_trace )
+            TORIRS_REPORT("[damage] live kind=%d box=%d,%d %dx%d clip=%d,%d %dx%d\n",
+                (int)d->kind, d->x, d->y, d->w, d->h,
+                d->clip.x, d->clip.y, d->clip.w, d->clip.h);
+
+        /* Box INTERSECT clip. A desc draws inside its own box and is then
+         * further restricted by the enclosing scissor, so the pixels it can
+         * touch are in both.
+         *
+         * The union of the two was tried first, on the theory that it was the
+         * bound that stayed correct without knowing which one becomes the
+         * raster scissor. It is correct and it is useless: WORLD and MINIMAP
+         * both carry the root box as their clip, so the union is the whole
+         * canvas and the damage rect never bounded anything -- measured at
+         * 93% of frames retained and 0% of frames damaged, which is what a
+         * bound that is always the screen looks like from the outside. */
+        {
+            int x0 = d->x > d->clip.x ? d->x : d->clip.x;
+            int y0 = d->y > d->clip.y ? d->y : d->clip.y;
+            int x1 = d->x + d->w;
+            int y1 = d->y + d->h;
+            int cx1 = d->clip.x + d->clip.w;
+            int cy1 = d->clip.y + d->clip.h;
+
+            if( cx1 < x1 )
+                x1 = cx1;
+            if( cy1 < y1 )
+                y1 = cy1;
+            app_damage_add(app, x0, y0, x1 - x0, y1 - y0);
+            app_damage_rect_add(app, x0, y0, x1 - x0, y1 - y0);
+        }
+    }
+    g_damage_trace = 0;
+
+    if( !app->damage_valid )
+        return;
+
+    /* Clamp to the canvas; an emitted box may hang off an edge. */
+    if( app->damage_x < 0 )
+    {
+        app->damage_w += app->damage_x;
+        app->damage_x = 0;
+    }
+    if( app->damage_y < 0 )
+    {
+        app->damage_h += app->damage_y;
+        app->damage_y = 0;
+    }
+    if( app->damage_x + app->damage_w > width )
+        app->damage_w = width - app->damage_x;
+    if( app->damage_y + app->damage_h > height )
+        app->damage_h = height - app->damage_y;
+    if( app->damage_w <= 0 || app->damage_h <= 0 )
+        app->damage_valid = 0;
+
+    /* A box that covers the canvas anyway is not worth the extra clip test in
+     * every draw, nor the second BitBlt path. */
+    if( app->damage_valid && app->damage_w >= width && app->damage_h >= height )
+        app->damage_valid = 0;
+
+    if( !app->damage_valid || app->damage_rect_count <= 0 ||
+        !app_damage_rects_armed() )
+    {
+        app->damage_rect_count = 0;
+        return;
+    }
+
+    /* Clamp each rect the same way the box was, and drop the whole list if any
+     * of it falls outside -- the box still covers those pixels, so the frame
+     * stays correct, it just does the larger amount of work. */
+    for( int i = 0; i < app->damage_rect_count; i++ )
+    {
+        struct App_DamageRect* r = &app->damage_rects[i];
+
+        if( r->x < 0 )
+        {
+            r->w += r->x;
+            r->x = 0;
+        }
+        if( r->y < 0 )
+        {
+            r->h += r->y;
+            r->y = 0;
+        }
+        if( r->x + r->w > width )
+            r->w = width - r->x;
+        if( r->y + r->h > height )
+            r->h = height - r->y;
+        if( r->w <= 0 || r->h <= 0 )
+        {
+            app->damage_rect_count = 0;
+            return;
+        }
+    }
+}
+
+int
+App_DamageRects(
+    struct App const* app,
+    struct App_DamageRect const** out_rects)
+{
+    assert(app);
+    assert(out_rects);
+    if( !app->damage_valid || app->damage_rect_count <= 0 )
+        return 0;
+    *out_rects = app->damage_rects;
+    return app->damage_rect_count;
+}
+
+/*
+ * TORIRS_DAMAGE_REPORT=1: how much of the canvas damage drawing actually
+ * saved, printed once at exit.
+ *
+ * Here because "damage is on" and "damage is doing anything" are different
+ * claims, and the frame rate cannot tell them apart: a gate that never fires
+ * and a box that always covers the screen both read as no change. The two
+ * numbers below separate them.
+ */
+static struct
+{
+    int64_t frames;
+    int64_t retained;
+    int64_t damaged;
+    int64_t damaged_area;
+    int64_t canvas_area;
+} g_damage_stats;
+
+static void
+app_damage_report_dump(void)
+{
+    double area_pct;
+
+    if( g_damage_stats.frames == 0 )
+        return;
+    area_pct = g_damage_stats.damaged > 0
+                   ? 100.0 * (double)g_damage_stats.damaged_area /
+                         (double)g_damage_stats.canvas_area
+                   : 100.0;
+    TORIRS_REPORT("[damage] frames=%lld retained=%lld (%.1f%%) damaged=%lld (%.1f%%)\n",
+        (long long)g_damage_stats.frames,
+        (long long)g_damage_stats.retained,
+        100.0 * (double)g_damage_stats.retained / (double)g_damage_stats.frames,
+        (long long)g_damage_stats.damaged,
+        100.0 * (double)g_damage_stats.damaged / (double)g_damage_stats.frames);
+    TORIRS_REPORT("[damage] mean box on damaged frames: %.1f%% of canvas\n", area_pct);
+}
+
+static void
+app_damage_note(struct App const* app, int width, int height)
+{
+    static int armed = -1;
+
+    /* Periodic, not atexit: the measurement harness ends an arm with
+     * taskkill /F, which runs no atexit handler, so an end-of-run dump is a
+     * dump that never appears. */
+    if( armed < 0 )
+        armed = getenv("TORIRS_DAMAGE_REPORT") ? 1 : 0;
+    if( !armed )
+        return;
+
+    g_damage_stats.frames++;
+    if( app->ui_retained_frame )
+        g_damage_stats.retained++;
+    if( app->damage_valid )
+    {
+        g_damage_stats.damaged++;
+        g_damage_stats.damaged_area += (int64_t)app->damage_w * app->damage_h;
+        g_damage_stats.canvas_area += (int64_t)width * height;
+    }
+    if( g_damage_stats.frames % 600 == 0 )
+    {
+        app_damage_report_dump();
+        TORIRS_REPORT("[damage] box: %d,%d %dx%d valid=%d\n",
+            app->damage_x, app->damage_y, app->damage_w, app->damage_h,
+            app->damage_valid);
+        /* Dump the contributing descs on the NEXT frame -- this one has
+         * already unioned them. */
+        g_damage_trace = 1;
+    }
+}
+
+int
+App_PresentDamage(
+    struct App const* app,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    assert(app);
+    assert(out_x);
+    assert(out_y);
+    assert(out_w);
+    assert(out_h);
+    if( !app->damage_valid )
+        return 0;
+    *out_x = app->damage_x;
+    *out_y = app->damage_y;
+    *out_w = app->damage_w;
+    *out_h = app->damage_h;
+    return 1;
+}
+
 void
 App_Render(
     struct App* app,
@@ -29022,6 +29427,30 @@ App_Render(
 
     ToriRS_Soft3D_Init(&soft, app->scene, pixels, width, height);
 
+    /* Must follow BuildFrame: the emit list it publishes is what says which
+     * regions are live this frame. */
+    app_compute_damage(app, width, height);
+    app_damage_note(app, width, height);
+    if( app->damage_valid )
+    {
+        ToriRS_Soft3D_SetDamage(
+            &soft, app->damage_x, app->damage_y, app->damage_w, app->damage_h);
+        if( app->damage_rect_count > 0 )
+        {
+            int rects[APP_DAMAGE_RECT_MAX][4];
+
+            for( int i = 0; i < app->damage_rect_count; i++ )
+            {
+                rects[i][0] = app->damage_rects[i].x;
+                rects[i][1] = app->damage_rects[i].y;
+                rects[i][2] = app->damage_rects[i].w;
+                rects[i][3] = app->damage_rects[i].h;
+            }
+            ToriRS_Soft3D_SetDamageClearRects(
+                &soft, (int const(*)[4])rects, app->damage_rect_count);
+        }
+    }
+
     /* World hittest rides the render: each visible model is tested against
      * the mouse point right after it projects (the only window where the
      * scene scratch holds its projection), then the raw hits classify into
@@ -29046,9 +29475,7 @@ App_Render(
         app_draw_connection_lost_overlay(app, pixels, width, height);
 
     if( getenv("TORIRS_FRAME_DEBUG") )
-        fprintf(
-            stderr,
-            "frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
+        TORIRS_LOG("frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
             frame.dbg_emit_element,
             frame.dbg_emit_terrain,
             frame.dbg_drop_not_live,

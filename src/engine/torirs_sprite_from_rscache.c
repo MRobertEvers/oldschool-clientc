@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static struct ToriRS_SpriteFrame
 sprite_frame_from_dat2_sprite(
@@ -216,9 +217,7 @@ ToriRS_SpriteFromDat1Jagfile(
     index_file_idx = RSCache_FileListDatFindFileByName(media_jagfile, (char*)index_filename);
     if( data_file_idx == -1 || index_file_idx == -1 )
     {
-        fprintf(
-            stderr,
-            "ToriRS_SpriteFromDat1Jagfile: missing %s/%s in media jagfile\n",
+        TORIRS_ERR("ToriRS_SpriteFromDat1Jagfile: missing %s/%s in media jagfile\n",
             data_filename,
             index_filename);
         return NULL;

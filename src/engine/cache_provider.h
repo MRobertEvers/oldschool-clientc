@@ -33,6 +33,13 @@ struct CacheProvider
      *  as long as a session runs. */
     uint64_t derived_clock;
 
+    /** Monotonic version of provider assets which can change a UITree host
+     *  answer before the asset has been published through UITreeSceneBridge.
+     *  This deliberately covers only models, sprites, fonts and objtypes: a
+     *  broader cache-wide counter would make unrelated config/network traffic
+     *  defeat retained UI emission. */
+    uint64_t ui_asset_revision;
+
     struct HMap* model_cache;
     struct HMap* sprite_cache;
     struct HMap* font_cache;
@@ -337,6 +344,10 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider);
 
 void
 CacheProvider_FreeEngineCaches(struct CacheProvider* provider);
+
+/** Version of provider-resident assets observable by UITree host requests. */
+uint64_t
+CacheProvider_UIAssetRevision(struct CacheProvider const* provider);
 
 void
 CacheProvider_ModelAdd(

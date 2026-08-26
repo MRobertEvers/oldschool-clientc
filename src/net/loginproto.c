@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static int
 rsbuf_rsaenc(
@@ -267,7 +268,7 @@ loginproto_poll(struct LoginProto* loginproto)
                 loginproto->state = LOGINPROTO_SUCCESS;
                 return LOGINPROTO_SUCCESS;
             }
-            fprintf(stderr, "loginproto: login rejected, reply=%d\n", reply_byte);
+            TORIRS_ERR("loginproto: login rejected, reply=%d\n", reply_byte);
             loginproto->state = LOGINPROTO_ERROR;
             return LOGINPROTO_AWAIT_RECV;
         }

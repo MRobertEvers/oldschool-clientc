@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Soft3D is stack-allocated and re-Init'd every App_Render, so persistent
@@ -71,6 +72,27 @@ viewport_from_scissor(
     vp.clip_top = scissor_y < 0 ? 0 : scissor_y;
     vp.clip_right = right > soft->width ? soft->width : right;
     vp.clip_bottom = bottom > soft->height ? soft->height : bottom;
+    /*
+     * Damage clipping rides the same choke point, which is the whole reason it
+     * is cheap to add and impossible to forget: a draw kind added later cannot
+     * escape it without also escaping the canvas bound above.
+     *
+     * It only ever SHRINKS a clip, so the worst a wrong damage rect can do is
+     * fail to draw -- it can never let a kernel write outside the buffer. A
+     * command entirely outside the damage collapses to an empty viewport, which
+     * every kernel already treats as a no-op.
+     */
+    if( soft->damage_valid )
+    {
+        if( vp.clip_left < soft->damage_x0 )
+            vp.clip_left = soft->damage_x0;
+        if( vp.clip_top < soft->damage_y0 )
+            vp.clip_top = soft->damage_y0;
+        if( vp.clip_right > soft->damage_x1 )
+            vp.clip_right = soft->damage_x1;
+        if( vp.clip_bottom > soft->damage_y1 )
+            vp.clip_bottom = soft->damage_y1;
+    }
     /* An entirely off-canvas box collapses to empty rather than inverting. */
     if( vp.clip_right < vp.clip_left )
         vp.clip_right = vp.clip_left;
@@ -250,6 +272,54 @@ soft3d_scale_pixel_alpha(
     }
 }
 
+/* --- sprite opacity census (TORIRS_SPRITE_CENSUS=1) ---------------------- */
+static double g_spr_opaque_n, g_spr_opaque_px, g_spr_mixed_n, g_spr_mixed_px;
+
+static void
+soft3d_sprite_census_dump(void)
+{
+    double n = g_spr_opaque_n + g_spr_mixed_n;
+    double px = g_spr_opaque_px + g_spr_mixed_px;
+    if( n <= 0.0 )
+        return;
+    TORIRS_REPORT(
+        "\n=== sprite opacity census ===\n"
+        "all-opaque : %10.0f blits (%5.1f%%)  %12.0f px (%5.1f%%)\n"
+        "mixed      : %10.0f blits (%5.1f%%)  %12.0f px (%5.1f%%)\n",
+        g_spr_opaque_n, 100.0 * g_spr_opaque_n / n, g_spr_opaque_px,
+        px > 0 ? 100.0 * g_spr_opaque_px / px : 0.0,
+        g_spr_mixed_n, 100.0 * g_spr_mixed_n / n, g_spr_mixed_px,
+        px > 0 ? 100.0 * g_spr_mixed_px / px : 0.0);
+}
+
+static int
+soft3d_sprite_census_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+    {
+        armed = getenv("TORIRS_SPRITE_CENSUS") ? 1 : 0;
+        if( armed )
+            atexit(soft3d_sprite_census_dump);
+    }
+    return armed;
+}
+
+static void
+soft3d_sprite_census_note(int opaque, int px)
+{
+    if( opaque )
+    {
+        g_spr_opaque_n += 1.0;
+        g_spr_opaque_px += (double)px;
+    }
+    else
+    {
+        g_spr_mixed_n += 1.0;
+        g_spr_mixed_px += (double)px;
+    }
+}
+
 static void
 soft3d_draw_sprite(
     struct ToriRS_Soft3D* soft,
@@ -389,6 +459,14 @@ soft3d_draw_sprite(
         }
         if( !cmd->if3 )
         {
+            /* TORIRS_SPRITE_CENSUS=1: how often does the opaque precondition
+             * actually hold, and over how much area? A fast path is worth only
+             * what its precondition is worth, and that has to be counted rather
+             * than assumed -- this one measured as no change at all. */
+            if( soft3d_sprite_census_armed() )
+                soft3d_sprite_census_note(
+                    ToriDraw_SpriteAlphaClass(spr) == TORIDRAW_SPRITE_ALPHA_ALL_OPAQUE,
+                    sw * sh);
             ToriDraw2D_BlitArgbAlpha(
                 &vp,
                 cmd->x + ox,
@@ -899,6 +977,25 @@ draw_trace_min_vertices(void)
     return cached;
 }
 
+/* See the two arms in soft3d_draw_model. Read once; off is a predicted branch. */
+static int
+soft3d_abl_noraster(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_ABL_NORASTER") ? 1 : 0;
+    return armed;
+}
+
+static int
+soft3d_abl_nomodels(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_ABL_NOMODELS") ? 1 : 0;
+    return armed;
+}
+
 static void
 soft3d_draw_model(
     struct ToriRS_Soft3D* soft,
@@ -914,6 +1011,16 @@ soft3d_draw_model(
     if( !soft->has_3d )
         return;
     if( cmd->model.kind == TORIDRAWMK_NONE )
+        return;
+
+    /* ABLATION (TORIRS_ABL_NOMODELS=1, measurement only): drop the whole 3D
+     * model pass -- projection, hittest, face sort and raster alike.
+     *
+     * With TORIRS_ABL_NORASTER below, this decomposes `render` by deletion
+     * rather than by instrumentation. TORIRS_PERF is ~69% of the frame on this
+     * box, so its own split of r_project / r_sort / r_raster cannot be read as
+     * absolute time; three runs of a build that simply does less can. */
+    if( soft3d_abl_nomodels() )
         return;
 
     if( cmd->animation && cmd->element_id >= 0 )
@@ -950,9 +1057,7 @@ soft3d_draw_model(
     {
         struct ToriDraw_Model const* m = cmd->model.u.model.model;
         struct ToriDraw_BoundsCylinder const* bc = m->bounds_cylinder;
-        fprintf(
-            stderr,
-            "draw_trace: element=%d vc=%d faces=%d CULL %d -> %d (0=visible) pos=(%d,%d,%d) "
+        TORIRS_LOG("draw_trace: element=%d vc=%d faces=%d CULL %d -> %d (0=visible) pos=(%d,%d,%d) "
             "radius=%d min_y=%d max_y=%d bias=%d after %d drawn frames\n",
             cmd->element_id, m->vertex_count, m->face_count, g_draw_trace_last_cull, (int)cull,
             position.x, position.y, position.z, bc ? bc->radius : -1, bc ? bc->min_y : 0,
@@ -1002,8 +1107,7 @@ soft3d_draw_model(
          * a model that keeps drawing is noise. */
         if( trace_this && ((sorted <= 0) != (g_draw_trace_last_sorted <= 0)) )
         {
-            fprintf(
-                stderr, "draw_trace: element=%d SORTED %d -> %d %s after %d frames\n",
+            TORIRS_LOG("draw_trace: element=%d SORTED %d -> %d %s after %d frames\n",
                 cmd->element_id, g_draw_trace_last_sorted, sorted,
                 sorted <= 0 ? "(RASTERIZES NOTHING - invisible but still clickable)"
                             : "(drawing again)",
@@ -1023,6 +1127,13 @@ soft3d_draw_model(
             return;
         }
     }
+    /* ABLATION (TORIRS_ABL_NORASTER=1, measurement only): keep the projection,
+     * the hittest and the face sort; write no pixels. The difference against
+     * the baseline is what rasterisation actually costs, and the difference
+     * against TORIRS_ABL_NOMODELS is what deciding-what-to-draw costs. */
+    if( soft3d_abl_noraster() )
+        return;
+
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_RASTER)
     {
         ToriDraw_RenderModel3Raster(
@@ -1048,6 +1159,66 @@ ToriRS_Soft3D_Init(
     soft->width = width;
     soft->height = height;
     soft->stride = width;
+}
+
+/* A/B for the damage clear's store kind; see the call site. Read once. */
+static int
+soft3d_damage_clear_nt(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_DAMAGE_CLEAR_PLAIN") ? 0 : 1;
+    return armed;
+}
+
+void
+ToriRS_Soft3D_SetDamage(
+    struct ToriRS_Soft3D* soft,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    assert(soft);
+    assert(w > 0);
+    assert(h > 0);
+
+    soft->damage_x0 = x < 0 ? 0 : x;
+    soft->damage_y0 = y < 0 ? 0 : y;
+    soft->damage_x1 = x + w > soft->width ? soft->width : x + w;
+    soft->damage_y1 = y + h > soft->height ? soft->height : y + h;
+    soft->damage_valid =
+        (soft->damage_x1 > soft->damage_x0 && soft->damage_y1 > soft->damage_y0);
+    soft->damage_rect_count = 0;
+}
+
+void
+ToriRS_Soft3D_SetDamageClearRects(
+    struct ToriRS_Soft3D* soft,
+    int const (*rects)[4],
+    int count)
+{
+    assert(soft);
+    assert(rects);
+    assert(count > 0);
+    assert(soft->damage_valid);
+
+    if( count > TORIRS_SOFT3D_DAMAGE_RECT_MAX )
+        count = TORIRS_SOFT3D_DAMAGE_RECT_MAX;
+    for( int i = 0; i < count; i++ )
+    {
+        /* The box is the clip; a clear rect outside it would clear pixels no
+         * draw can then repaint. */
+        assert(rects[i][0] >= soft->damage_x0);
+        assert(rects[i][1] >= soft->damage_y0);
+        assert(rects[i][0] + rects[i][2] <= soft->damage_x1);
+        assert(rects[i][1] + rects[i][3] <= soft->damage_y1);
+        soft->damage_rects[i][0] = rects[i][0];
+        soft->damage_rects[i][1] = rects[i][1];
+        soft->damage_rects[i][2] = rects[i][2];
+        soft->damage_rects[i][3] = rects[i][3];
+    }
+    soft->damage_rect_count = count;
 }
 
 void
@@ -1408,6 +1579,42 @@ soft3d_pixowner_end(void)
  * Two clock reads per command is not free when perf is enabled; `r_cmds` is
  * the divisor that says how much was added. Read the split as a ratio between
  * the classes. With perf off this costs one predicted branch per command. */
+/* ABLATION SUPPORT (measurement only) -- see the TORIRS_ABL_NOCHROME arm in
+ * ToriRS_Soft3D_RenderFrame. Read once; off is one predicted branch. */
+static int
+soft3d_abl_nochrome(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_ABL_NOCHROME") ? 1 : 0;
+    return armed;
+}
+
+
+/* True for the command kinds that put pixels in the framebuffer, as opposed to
+ * state transitions and resource loads. Kept beside the dispatcher's switch so
+ * the two cannot drift apart. */
+static int
+soft3d_cmd_is_draw(enum ToriRS_RenderCommandKind kind)
+{
+    switch( kind )
+    {
+    case TORIRSRC_DRAW_MODEL:
+    case TORIRSRC_DRAW_MODEL_WIDGET:
+    case TORIRSRC_SPRITE:
+    case TORIRSRC_FONT:
+    case TORIRSRC_LINE:
+    case TORIRSRC_CLEAR_RECT:
+    case TORIRSRC_FILL_RECT:
+    case TORIRSRC_POLYGON_BEGIN:
+    case TORIRSRC_POLYGON_POINT:
+    case TORIRSRC_POLYGON_END:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 static void
 soft3d_execute_measured(
     struct ToriRS_Soft3D* soft,
@@ -1607,7 +1814,66 @@ ToriRS_Soft3D_RenderFrame(
 #else
         uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
 #endif
-        if( ToriDraw_FrameAbArm() )
+        if( soft->damage_valid )
+        {
+            /*
+             * Row-at-a-time: the damage box is a sub-rectangle, so the one long
+             * contiguous run the non-temporal clear wants does not exist.
+             *
+             * The non-temporal clear keeps its job here, which is not what was
+             * expected: a 717-pixel row is 2.8 KB, and the guess was that
+             * filling and tearing down the write-combine buffer 335 times a
+             * frame would cost more than the NT store saves, since the measured
+             * 2.4x for this clear was taken on one long run. Both arms,
+             * measured, same binary:
+             *
+             *              fps   CPU ms/frame
+             *   plain     40.9          13.18
+             *   NT        43.9          12.43
+             *
+             * The guess was wrong by 0.75 ms/frame. A row is still write-only
+             * and never read back, so the plain stores pay read-for-ownership
+             * on every line they touch and the NT stores do not -- and that
+             * costs more than the per-row buffer teardown saves.
+             * TORIRS_DAMAGE_CLEAR_PLAIN=1 selects the losing arm.
+             */
+            int nt = soft3d_damage_clear_nt();
+            int nrects = soft->damage_rect_count;
+            int r;
+
+            for( r = 0; r < (nrects > 0 ? nrects : 1); r++ )
+            {
+                int rx = nrects > 0 ? soft->damage_rects[r][0] : soft->damage_x0;
+                int ry = nrects > 0 ? soft->damage_rects[r][1] : soft->damage_y0;
+                int rw = nrects > 0 ? soft->damage_rects[r][2]
+                                    : soft->damage_x1 - soft->damage_x0;
+                int rh = nrects > 0 ? soft->damage_rects[r][3]
+                                    : soft->damage_y1 - soft->damage_y0;
+
+                for( int y = ry; y < ry + rh; y++ )
+                {
+                    uint32_t* row = p + (size_t)y * soft->stride + rx;
+                    if( nt )
+                    {
+                        TORIDRAW_FB_CLEAR32(row, (size_t)rw, bg);
+                    }
+                    else
+                    {
+                        int i = 0;
+                        for( ; i + 4 <= rw; i += 4 )
+                        {
+                            row[i] = bg;
+                            row[i + 1] = bg;
+                            row[i + 2] = bg;
+                            row[i + 3] = bg;
+                        }
+                        for( ; i < rw; i++ )
+                            row[i] = bg;
+                    }
+                }
+            }
+        }
+        else if( ToriDraw_FrameAbArm() )
         {
             TORIDRAW_FB_CLEAR32(p, n, bg);
         }
@@ -1638,6 +1904,31 @@ ToriRS_Soft3D_RenderFrame(
             soft3d_pixowner_after_command(soft, &cmd);
         }
         soft3d_pixowner_end();
+    }
+    else if( soft3d_abl_nochrome() )
+    {
+        /* ABLATION (TORIRS_ABL_NOCHROME=1, measurement only): execute the 3D
+         * pass and every state/resource command, and drop the 2D *drawing*
+         * outside it -- the sidebar, chatback, minimap, compass and every
+         * sprite and glyph composing them.
+         *
+         * This deliberately renders a wrong image. Its only purpose is to put
+         * an upper bound on what damage-gated chrome rasterisation could
+         * recover, by deleting all of it: a damage system that never redrew a
+         * single chrome pixel could not beat this number. Loads/unloads and
+         * BEGIN/END still run, or the scene state diverges from the command
+         * stream and the 3D pass stops being comparable. */
+        int depth_3d = 0;
+        while( ToriRS_FrameNextCommand(frame, &cmd) )
+        {
+            if( cmd.kind == TORIRSRC_BEGIN_3D )
+                depth_3d++;
+            else if( cmd.kind == TORIRSRC_END_3D && depth_3d > 0 )
+                depth_3d--;
+            else if( depth_3d == 0 && soft3d_cmd_is_draw(cmd.kind) )
+                continue;
+            soft3d_execute_measured(soft, &cmd);
+        }
     }
     else
     {

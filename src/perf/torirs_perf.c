@@ -1,4 +1,5 @@
 #include "perf/torirs_perf.h"
+#include "log/torirs_log.h"
 
 #ifndef TORIRS_PERF_DISABLE
 
@@ -502,14 +503,14 @@ window_csv_open(void)
     g_window_csv = fopen(path, "w");
     if( !g_window_csv )
     {
-        fprintf(stderr, "torirs_perf: failed to open window csv %s\n", path);
+        TORIRS_ERR("torirs_perf: failed to open window csv %s\n", path);
         return;
     }
     fprintf(
         g_window_csv,
         "kind,name,mean_ns,p50_ns,p95_ns,max_ns,total,per_frame,window\n");
     g_window_csv_header_written = 1;
-    fprintf(stderr, "torirs_perf: window=%d writing %s\n", g_window_frames, path);
+    TORIRS_REPORT("torirs_perf: window=%d writing %s\n", g_window_frames, path);
 }
 
 static int
@@ -849,9 +850,7 @@ window_flush(void)
 
     /* Brief stderr slope line for interactive runs. */
     stage_stats_tail(TORIRS_PERF_STAGE_FRAME, n, &mean, &p50, &p95, &mx);
-    fprintf(
-        stderr,
-        "torirs_perf: window=%d frame_p95=%.2fms\n",
+    TORIRS_REPORT("torirs_perf: window=%d frame_p95=%.2fms\n",
         g_window_index,
         (double)p95 / 1e6);
 
@@ -939,9 +938,7 @@ TorirsPerf_Init(int enabled)
     }
 
     if( g_torirs_perf_enabled )
-        fprintf(
-            stderr,
-            "torirs_perf: enabled (ring=%d window=%d budget=20ms cpu_clock=%s)%s%s\n",
+        TORIRS_REPORT("torirs_perf: enabled (ring=%d window=%d budget=20ms cpu_clock=%s)%s%s\n",
             TORIRS_PERF_RING,
             g_window_frames,
             torirs_perf_main_thread_cpu_clock_name(),
@@ -1185,7 +1182,7 @@ TorirsPerf_Report(void)
 
     if( g_ring_count <= 0 )
     {
-        fprintf(stderr, "torirs_perf: no frames captured\n");
+        TORIRS_REPORT("torirs_perf: no frames captured\n");
         return;
     }
 
@@ -1214,23 +1211,20 @@ TorirsPerf_Report(void)
                 &frame_max);
     fps = frame_mean > 0 ? 1e9 / (double)frame_mean : 0.0;
 
-    fprintf(stderr, "\n=== torirs_perf report ===\n");
-    fprintf(stderr, "frames=%llu ring=%d over_20ms=%llu (%.1f%%) eff_fps=%.1f\n",
+    TORIRS_REPORT("\n=== torirs_perf report ===\n");
+    TORIRS_REPORT("frames=%llu ring=%d over_20ms=%llu (%.1f%%) eff_fps=%.1f\n",
             (unsigned long long)g_total_frames, g_ring_count,
             (unsigned long long)g_frames_over_budget,
             g_total_frames
                 ? 100.0 * (double)g_frames_over_budget / (double)g_total_frames
                 : 0.0,
             fps);
-    fprintf(stderr,
-            "frame_ns mean=%llu p50=%llu p95=%llu max=%llu  (budget=20000000)\n",
+    TORIRS_REPORT("frame_ns mean=%llu p50=%llu p95=%llu max=%llu  (budget=20000000)\n",
             (unsigned long long)frame_mean, (unsigned long long)frame_p50,
             (unsigned long long)frame_p95, (unsigned long long)frame_max);
 
     main_thread_cpu_stats(&cpu);
-    fprintf(
-        stderr,
-        "main_thread_cpu_ns mean=%llu p50=%llu p95=%llu max=%llu  "
+    TORIRS_REPORT("main_thread_cpu_ns mean=%llu p50=%llu p95=%llu max=%llu  "
         "(clock=%s distribution=%s raw_total=%llu)\n",
         (unsigned long long)cpu.mean_ns,
         (unsigned long long)cpu.p50_ns,
@@ -1241,20 +1235,20 @@ TorirsPerf_Report(void)
                                       : torirs_perf_cpu_direct_distribution_name(),
         (unsigned long long)cpu.raw_total_ns);
 
-    fprintf(stderr, "\n%-12s %10s %10s %10s %10s\n", "stage", "mean_ns", "p50_ns",
+    TORIRS_REPORT("\n%-12s %10s %10s %10s %10s\n", "stage", "mean_ns", "p50_ns",
             "p95_ns", "max_ns");
     for( i = 1; i < TORIRS_PERF_STAGE_COUNT; i++ )
     {
         stage_stats((enum TorirsPerfStage)i, &mean, &p50, &p95, &mx);
         attributed += mean;
-        fprintf(stderr, "%-12s %10llu %10llu %10llu %10llu\n", g_stage_names[i],
+        TORIRS_REPORT("%-12s %10llu %10llu %10llu %10llu\n", g_stage_names[i],
                 (unsigned long long)mean, (unsigned long long)p50,
                 (unsigned long long)p95, (unsigned long long)mx);
     }
-    fprintf(stderr, "%-12s %10lld  (frame_mean - attributed stages)\n",
+    TORIRS_REPORT("%-12s %10lld  (frame_mean - attributed stages)\n",
             "residual", (long long)((int64_t)frame_mean - (int64_t)attributed));
 
-    fprintf(stderr, "\n%-32s %12s %12s\n", "counter", "total", "per_frame");
+    TORIRS_REPORT("\n%-32s %12s %12s\n", "counter", "total", "per_frame");
     for( i = 0; i < TORIRS_PERF_CTR_COUNT; i++ )
     {
         int64_t total;
@@ -1262,7 +1256,7 @@ TorirsPerf_Report(void)
         ctr_totals((enum TorirsPerfCounter)i, &total, &per);
         if( total == 0 )
             continue;
-        fprintf(stderr, "%-32s %12lld %12.2f\n", g_ctr_names[i],
+        TORIRS_REPORT("%-32s %12lld %12.2f\n", g_ctr_names[i],
                 (long long)total, per);
     }
 
@@ -1271,7 +1265,7 @@ TorirsPerf_Report(void)
         csv = fopen(g_csv_path, "w");
         if( !csv )
         {
-            fprintf(stderr, "torirs_perf: failed to open csv %s\n", g_csv_path);
+            TORIRS_ERR("torirs_perf: failed to open csv %s\n", g_csv_path);
         }
         else
         {
@@ -1320,10 +1314,10 @@ TorirsPerf_Report(void)
                         (long long)total, per);
             }
             fclose(csv);
-            fprintf(stderr, "\ntorirs_perf: wrote %s\n", g_csv_path);
+            TORIRS_REPORT("\ntorirs_perf: wrote %s\n", g_csv_path);
         }
     }
-    fprintf(stderr, "=== end torirs_perf ===\n\n");
+    TORIRS_REPORT("=== end torirs_perf ===\n\n");
 }
 
 #endif /* TORIRS_PERF_DISABLE */

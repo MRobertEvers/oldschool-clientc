@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat1ModelLoad
 {
@@ -37,7 +38,7 @@ Task_Dat1ModelLoad_Run(
     rscache_model = RSCache_IO_Dat1ModelDecode(io, 0);
     if( !rscache_model )
     {
-        fprintf(stderr, "Failed to decode dat1 model %d\n", task->model_id);
+        TORIRS_ERR("Failed to decode dat1 model %d\n", task->model_id);
         PT_EXIT(&task->pt);
     }
 

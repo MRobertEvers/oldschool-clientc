@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #define IFACE_STATS_MAX 128
 
@@ -192,13 +193,11 @@ UITreeIfaceStats_Tick(
         }
     }
 
-    fprintf(stderr, "torirs_iface_stats: tick=%d groups=%d\n", tick, g_stat_count);
+    TORIRS_LOG("torirs_iface_stats: tick=%d groups=%d\n", tick, g_stat_count);
     for( g = 0; g < g_stat_count; g++ )
     {
         struct IfaceGroupStat const* s = &g_stats[g];
-        fprintf(
-            stderr,
-            "  group=%d opens=%d closes=%d bakes=%d reuse=%d "
+        TORIRS_LOG("  group=%d opens=%d closes=%d bakes=%d reuse=%d "
             "live=%u hidden=%u hooks=%u hook_bytes=%u\n",
             s->group_id,
             s->opens,

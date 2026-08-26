@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* The imported rev-727 lane keeps its incompatible index-14 setup here and
  * assigns recorded effects only in this high namespace. Ordinary OSRS effects
@@ -67,7 +68,7 @@ Task_Dat2SoundLoad_Run(
         if( task->sound_id < RS2012_SAMPLE_ID_MIN )
         {
             if( getenv("TORIRS_AUDIO_DEBUG") )
-                fprintf(stderr, "dat2 sound: no archive for effect %d\n", task->sound_id);
+                TORIRS_LOG("dat2 sound: no archive for effect %d\n", task->sound_id);
             PT_EXIT(&task->pt);
         }
 
@@ -87,8 +88,7 @@ Task_Dat2SoundLoad_Run(
             }
             if( !task->bc->rs2012_vorbis_setup )
             {
-                fprintf(stderr,
-                        "dat2 sound: rev-727 Vorbis setup index 14:%d is absent or invalid\n",
+                TORIRS_ERR("dat2 sound: rev-727 Vorbis setup index 14:%d is absent or invalid\n",
                         RS2012_SAMPLE_SETUP_ID);
                 PT_EXIT(&task->pt);
             }
@@ -100,8 +100,7 @@ Task_Dat2SoundLoad_Run(
         archive = RSCache_IO_Dat2MusicDecode(io, 0, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES);
         if( !archive )
         {
-            fprintf(stderr,
-                    "dat2 sound: high id %d is absent from effects and rev-727 samples\n",
+            TORIRS_LOG("dat2 sound: high id %d is absent from effects and rev-727 samples\n",
                     task->sound_id);
             PT_EXIT(&task->pt);
         }
@@ -111,7 +110,7 @@ Task_Dat2SoundLoad_Run(
         archive = NULL;
         if( !sample )
         {
-            fprintf(stderr, "dat2 sound: rev-727 sample %d did not decode\n", task->sound_id);
+            TORIRS_LOG("dat2 sound: rev-727 sample %d did not decode\n", task->sound_id);
             PT_EXIT(&task->pt);
         }
         sound = ToriRS_SoundFromRSCacheSample(task->sound_id, sample);
@@ -119,13 +118,12 @@ Task_Dat2SoundLoad_Run(
         sample = NULL;
         if( !sound )
         {
-            fprintf(stderr, "dat2 sound: rev-727 sample %d decoded empty\n", task->sound_id);
+            TORIRS_LOG("dat2 sound: rev-727 sample %d decoded empty\n", task->sound_id);
             PT_EXIT(&task->pt);
         }
         CacheProvider_SoundAdd(&task->bc->base, task->sound_id, sound);
         if( getenv("TORIRS_AUDIO_DEBUG") )
-            fprintf(stderr,
-                    "dat2 sound: rev-727 sample %d decoded exactly, %d samples @ %d Hz\n",
+            TORIRS_LOG("dat2 sound: rev-727 sample %d decoded exactly, %d samples @ %d Hz\n",
                     task->sound_id, sound->sample_count, sound->sample_rate);
         PT_EXIT(&task->pt);
     }
@@ -148,9 +146,7 @@ Task_Dat2SoundLoad_Run(
     if( RSCache_SoundIsSampleBlob(record, record_size) )
     {
         if( getenv("TORIRS_AUDIO_DEBUG") )
-            fprintf(
-                stderr,
-                "dat2 sound: effect %d is a compressed sample, not decoded\n",
+            TORIRS_LOG("dat2 sound: effect %d is a compressed sample, not decoded\n",
                 task->sound_id);
         goto done;
     }
@@ -159,13 +155,11 @@ Task_Dat2SoundLoad_Run(
         CacheProvider_Profile(&task->bc->base), record, record_size);
     if( !effect )
     {
-        fprintf(stderr, "dat2 sound: effect %d did not decode\n", task->sound_id);
+        TORIRS_LOG("dat2 sound: effect %d did not decode\n", task->sound_id);
         goto done;
     }
     if( effect->_consumed != record_size )
-        fprintf(
-            stderr,
-            "dat2 sound: effect %d consumed %d of %d bytes\n",
+        TORIRS_LOG("dat2 sound: effect %d consumed %d of %d bytes\n",
             task->sound_id,
             effect->_consumed,
             record_size);
@@ -176,16 +170,14 @@ Task_Dat2SoundLoad_Run(
     {
         CacheProvider_SoundAdd(&task->bc->base, task->sound_id, sound);
         if( getenv("TORIRS_AUDIO_DEBUG") )
-            fprintf(
-                stderr,
-                "dat2 sound: effect %d rendered, %d samples, delay %d ticks\n",
+            TORIRS_LOG("dat2 sound: effect %d rendered, %d samples, delay %d ticks\n",
                 task->sound_id,
                 sound->sample_count,
                 sound->queue_delay);
     }
     else if( getenv("TORIRS_AUDIO_DEBUG") )
     {
-        fprintf(stderr, "dat2 sound: effect %d has no audible tone\n", task->sound_id);
+        TORIRS_LOG("dat2 sound: effect %d has no audible tone\n", task->sound_id);
     }
 
 done:

@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static void
 torirs_copy_menu_actions(
@@ -55,7 +56,7 @@ torirs_component_type_from_raw(int type)
     case TORIRS_COMPONENT_LINE:
         return TORIRS_COMPONENT_LINE;
     default:
-        fprintf(stderr, "torirs_component_type_from_raw: unknown dat2 type=%d\n", type);
+        TORIRS_ERR("torirs_component_type_from_raw: unknown dat2 type=%d\n", type);
         assert(false && "unknown dat2 component type");
         return TORIRS_COMPONENT_LAYER;
     }

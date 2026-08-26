@@ -377,6 +377,40 @@ PlatformSDL2_PollCommands(
     struct PlatformSDL2* platform,
     struct ToriRS_CmdBus* bus);
 
+/**
+ * Restrict the NEXT Present to a sub-rectangle of the pixel buffer; the rest
+ * of the window keeps what the last present put there. Applies once, and the
+ * present clears it, so a caller that forgets to set it gets a full present
+ * rather than a stale one.
+ *
+ * `w <= 0 || h <= 0` means "the whole buffer", which is what the backend
+ * falls back to whenever it cannot honour a partial copy (a scaled window --
+ * every destination pixel then depends on a source area that a damage box
+ * does not bound, and a repair paint has no damage box at all).
+ */
+void
+PlatformSDL2_SetPresentDamage(
+    struct PlatformSDL2* platform,
+    int x,
+    int y,
+    int w,
+    int h);
+
+/** Matches APP_DAMAGE_RECT_MAX. */
+#define PLATFORM_PRESENT_DAMAGE_RECT_MAX 4
+
+/**
+ * Refine the box set by SetPresentDamage into separate rectangles, so the
+ * present copies their area rather than their bounding box. Each must lie
+ * inside the box; anything else is ignored and the box is presented, which is
+ * always correct and only ever copies more.
+ */
+void
+PlatformSDL2_SetPresentDamageRects(
+    struct PlatformSDL2* platform,
+    int const (*rects)[4],
+    int count);
+
 void
 PlatformSDL2_Present(struct PlatformSDL2* platform);
 

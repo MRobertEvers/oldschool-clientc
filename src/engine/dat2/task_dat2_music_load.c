@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #define RS2012_QBD_SONG_ID 1118
 #define RS2012_AWOKEN_SONG_ID 1119
@@ -226,7 +227,7 @@ Task_Dat2MusicLoad_Run(
     RSCache_Dat2DiskArchiveFree(archive);
     if( !task->song )
     {
-        fprintf(stderr, "music: song %d did not unpack\n", task->song_id);
+        TORIRS_LOG("music: song %d did not unpack\n", task->song_id);
         task->failed = true;
         goto done;
     }
@@ -247,8 +248,7 @@ Task_Dat2MusicLoad_Run(
         }
         if( !task->player->rs2012_vorbis_setup )
         {
-            fprintf(stderr,
-                    "music: rev-727 setup index 14:%d is absent or invalid for QBD song %d\n",
+            TORIRS_ERR("music: rev-727 setup index 14:%d is absent or invalid for QBD song %d\n",
                     RS2012_SAMPLE_SETUP_ID, task->song_id);
             task->failed = true;
             goto done;
@@ -266,7 +266,7 @@ Task_Dat2MusicLoad_Run(
             RSCache_Dat2DiskArchiveFree(archive);
         }
         if( !task->player->vorbis_setup )
-            fprintf(stderr, "music: no Vorbis setup (index 14 archive 0); samples will be absent\n");
+            TORIRS_LOG("music: no Vorbis setup (index 14 archive 0); samples will be absent\n");
     }
 
     /* 3 and 4. Each patch, then each sample its used notes reference. */
@@ -336,8 +336,7 @@ Task_Dat2MusicLoad_Run(
                 bool added = add_music_sample(task, archive, task->pending_sample_id);
                 if( task->rs2012_audio && !added )
                 {
-                    fprintf(stderr,
-                            "music: rev-727 QBD sample %d is absent or invalid\n",
+                    TORIRS_ERR("music: rev-727 QBD sample %d is absent or invalid\n",
                             task->pending_sample_id);
                     task->failed = true;
                 }

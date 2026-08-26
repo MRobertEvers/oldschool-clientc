@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat1NpcLoad
 {
@@ -40,7 +41,7 @@ Task_Dat1NpcLoad_Run(
         config_jagfile = RSCache_IO_Dat1ConfigJagfileDecode(io, 0);
         if( !config_jagfile )
         {
-            fprintf(stderr, "Failed to decode dat1 config jagfile for npc %d\n", task->npc_id);
+            TORIRS_ERR("Failed to decode dat1 config jagfile for npc %d\n", task->npc_id);
             PT_EXIT(&task->pt);
         }
 
@@ -50,14 +51,14 @@ Task_Dat1NpcLoad_Run(
     rscache_npc = dat1_buildcache_npc_load_from_config_jagfile(task->bc, task->npc_id);
     if( !rscache_npc )
     {
-        fprintf(stderr, "Failed to load dat1 npc %d\n", task->npc_id);
+        TORIRS_ERR("Failed to load dat1 npc %d\n", task->npc_id);
         PT_EXIT(&task->pt);
     }
 
     torirs_npc = ToriRS_NpctypeFromRSCacheDat1(task->npc_id, rscache_npc);
     if( !torirs_npc )
     {
-        fprintf(stderr, "Failed to convert dat1 npc %d\n", task->npc_id);
+        TORIRS_ERR("Failed to convert dat1 npc %d\n", task->npc_id);
         PT_EXIT(&task->pt);
     }
 

@@ -43,7 +43,7 @@ ToriDraw_TriangleGouraudImpl(
         x1, y1,
         x2, y2,
         x3, y3,
-        screen_width * screen_height);
+        screen_width, screen_height);
 
     if( scanline )
     {
@@ -180,7 +180,7 @@ ToriDraw_TriangleGouraudS1Impl(
         x1, y1,
         x2, y2,
         x3, y3,
-        screen_width * screen_height);
+        screen_width, screen_height);
 
     if( scanline )
     {

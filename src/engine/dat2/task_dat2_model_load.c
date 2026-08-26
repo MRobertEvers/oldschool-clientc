@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2ModelLoad
 {
@@ -37,14 +38,12 @@ Task_Dat2ModelLoad_Run(
     rscache_model = RSCache_IO_Dat2ModelDecode(io, 0);
     if( !rscache_model )
     {
-        fprintf(stderr, "Failed to decode dat2 model %d\n", task->model_id);
+        TORIRS_ERR("Failed to decode dat2 model %d\n", task->model_id);
         PT_EXIT(&task->pt);
     }
 
     if( getenv("TORIRS_MODEL_FMT_DEBUG") )
-        fprintf(
-            stderr,
-            "model_fmt: id=%d format_version=%d verts=%d\n",
+        TORIRS_LOG("model_fmt: id=%d format_version=%d verts=%d\n",
             task->model_id,
             rscache_model->format_version,
             rscache_model->vertex_count);

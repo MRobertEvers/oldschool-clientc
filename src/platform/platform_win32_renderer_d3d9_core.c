@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static void d3d9_set_no_texture(IDirect3DDevice9* device);
 static void d3d9_disable_texture_transform(IDirect3DDevice9* device);
@@ -50,7 +51,7 @@ static void d3d9_map_animated_uv(float* u, float* v);
 static void
 d3d9_log_hr(const char* where, HRESULT hr)
 {
-    fprintf(stderr, "D3D9: %s failed (HRESULT 0x%08lx)\n", where, (unsigned long)hr);
+    TORIRS_ERR("D3D9: %s failed (HRESULT 0x%08lx)\n", where, (unsigned long)hr);
 }
 
 static UINT
@@ -3520,7 +3521,7 @@ d3d9_texture_slot(struct ToriRS_D3D9* renderer, int tex_id)
         static bool warned;
         if( !warned )
         {
-            fprintf(stderr, "D3D9: the 2048x2048 world texture atlas is full\n");
+            TORIRS_LOG("D3D9: the 2048x2048 world texture atlas is full\n");
             warned = true;
         }
         return -1;
@@ -4702,9 +4703,7 @@ d3d9_bake_into_arena(
     vertex_count = (uint32_t)face_count * 3u;
     if( vertex_count > TRSPK_BATCH16_MAX_VERTICES )
     {
-        fprintf(
-            stderr,
-            "D3D9: model has %lu vertices and cannot fit a 16-bit TRSPK page\n",
+        TORIRS_ERR("D3D9: model has %lu vertices and cannot fit a 16-bit TRSPK page\n",
             (unsigned long)vertex_count);
         return UINT32_MAX;
     }
@@ -6187,8 +6186,7 @@ d3d9_report_retained_memory(struct ToriRS_D3D9* renderer)
     }
     if( renderer->ibo_chain )
         chain_bytes = d3d9_core_ibochain_bytes(renderer->ibo_chain, &chain_nodes);
-    printf(
-        "d3d9_mem: === retained memory report ===\n"
+    TORIRS_LOG("d3d9_mem: === retained memory report ===\n"
         "d3d9_mem: batch16_cpu_vertices  %10.2f MB (%u chunks)\n"
         "d3d9_mem: batch16_cpu_configs   %10.2f MB\n"
         "d3d9_mem: static_vbo_default    %10.2f MB (%u pages; DEFAULT pool, no mirror)\n"
@@ -6333,7 +6331,7 @@ ToriRS_D3D9_Init(
     renderer->d3d = Direct3DCreate9(D3D_SDK_VERSION);
     if( !renderer->d3d )
     {
-        fprintf(stderr, "D3D9: Direct3DCreate9 failed\n");
+        TORIRS_ERR("D3D9: Direct3DCreate9 failed\n");
         return false;
     }
     memset(&renderer->caps, 0, sizeof(renderer->caps));
@@ -6342,9 +6340,7 @@ ToriRS_D3D9_Init(
     if( renderer->caps.MaxTextureWidth < D3D9_ATLAS_DIM ||
         renderer->caps.MaxTextureHeight < D3D9_ATLAS_DIM )
     {
-        fprintf(
-            stderr,
-            "D3D9: adapter texture cap %lux%lu is below the required 2048x2048 atlas\n",
+        TORIRS_LOG("D3D9: adapter texture cap %lux%lu is below the required 2048x2048 atlas\n",
             (unsigned long)renderer->caps.MaxTextureWidth,
             (unsigned long)renderer->caps.MaxTextureHeight);
         return false;

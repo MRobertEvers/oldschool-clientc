@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* One slot, one item, no overlap: each of these tasks issues a single request
  * and parks on it. */
@@ -117,7 +118,7 @@ Task_PrefsSave_Run(
 
     task->item = &io->io_slots[PREFS_IO_SLOT];
     if( IOITEM_ERROR_CODE(task->item) != 0 )
-        fprintf(stderr, "prefs: could not write %s\n", task->path);
+        TORIRS_LOG("prefs: could not write %s\n", task->path);
     ToriRS_IO_ClearItem(task->item);
 
     PT_END(&task->pt);
@@ -156,7 +157,7 @@ CreateTask_PrefsSave(
     snprintf(task->path, sizeof(task->path), "%s", path);
     /* Encoded now, while the caller's snapshot is the one it asked to save. */
     if( !RS_Prefs_Encode(prefs, &task->data, &task->size) )
-        fprintf(stderr, "prefs: could not encode settings for %s\n", path);
+        TORIRS_LOG("prefs: could not encode settings for %s\n", path);
     PT_INIT(&task->pt);
     return &task->task;
 }

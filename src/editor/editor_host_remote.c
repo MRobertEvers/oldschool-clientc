@@ -49,6 +49,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #if !defined(_WIN32)
 #include <errno.h>
@@ -218,7 +219,7 @@ take_frame(
     length = ToriRSMapEd_ReadU32(head + 4);
     if( length > TORIRSMAPED_PAYLOAD_MAX )
     {
-        fprintf(stderr, "editor: maped answered a corrupt frame\n");
+        TORIRS_ERR("editor: maped answered a corrupt frame\n");
         return NULL;
     }
     if( ToriRSMapEd_BufAvailable(&remote->in)
@@ -293,9 +294,7 @@ await_reply(
                 frame_done(remote, *out_length);
                 continue;
             }
-            fprintf(
-                stderr,
-                "editor: maped answered frame %u where %u was expected\n",
+            TORIRS_ERR("editor: maped answered frame %u where %u was expected\n",
                 *out_type,
                 want_a);
             frame_done(remote, *out_length);
@@ -305,7 +304,7 @@ await_reply(
         int got = link_fill(remote, 500);
         if( got < 0 )
         {
-            fprintf(stderr, "editor: maped server is gone\n");
+            TORIRS_LOG("editor: maped server is gone\n");
             return NULL;
         }
         if( got == 0 )
@@ -313,7 +312,7 @@ await_reply(
             waited_ms += 500;
             if( waited_ms >= timeout_ms )
             {
-                fprintf(stderr, "editor: maped did not answer within %d ms\n", timeout_ms);
+                TORIRS_LOG("editor: maped did not answer within %d ms\n", timeout_ms);
                 return NULL;
             }
         }
@@ -755,9 +754,7 @@ hello(
     frame_done(remote, fact_length);
     if( version != TORIRSMAPED_PROTO_VERSION )
     {
-        fprintf(
-            stderr,
-            "editor: maped speaks protocol %u, this client %d\n",
+        TORIRS_LOG("editor: maped speaks protocol %u, this client %d\n",
             version,
             TORIRSMAPED_PROTO_VERSION);
         return 0;
@@ -823,7 +820,7 @@ Editor_HostOpenMapEdEmbedPeer(
     client_id = ToriRSMapEd_EmbedConnect(peer_remote->embed);
     if( client_id < 0 )
     {
-        fprintf(stderr, "editor: the embedded maped has no free connection\n");
+        TORIRS_LOG("editor: the embedded maped has no free connection\n");
         return 0;
     }
 
@@ -877,7 +874,7 @@ Editor_HostOpenMapEdTcp(
     snprintf(port_text, sizeof(port_text), "%d", port);
     if( getaddrinfo(server_host, port_text, &hints, &found) != 0 || !found )
     {
-        fprintf(stderr, "editor: cannot resolve maped host %s\n", server_host);
+        TORIRS_ERR("editor: cannot resolve maped host %s\n", server_host);
         return 0;
     }
     for( struct addrinfo* cursor = found; cursor; cursor = cursor->ai_next )
@@ -893,8 +890,7 @@ Editor_HostOpenMapEdTcp(
     freeaddrinfo(found);
     if( fd < 0 )
     {
-        fprintf(
-            stderr, "editor: cannot connect to maped at %s:%d\n", server_host, port);
+        TORIRS_ERR("editor: cannot connect to maped at %s:%d\n", server_host, port);
         return 0;
     }
 
@@ -920,7 +916,7 @@ Editor_HostOpenMapEdTcp(
     (void)port;
     (void)role;
     (void)join_group;
-    fprintf(stderr, "editor: server=tcp is not built for this platform yet\n");
+    TORIRS_LOG("editor: server=tcp is not built for this platform yet\n");
     return 0;
 #endif
 }
@@ -1114,7 +1110,7 @@ deliver_fact(
         if( length != 8 + TORIRSMAPED_CMD_WIRE
             || !ToriRSMapEd_CmdDecode(body + 8, TORIRSMAPED_CMD_WIRE, &command) )
         {
-            fprintf(stderr, "editor: dropping a malformed FACT_CMD\n");
+            TORIRS_LOG("editor: dropping a malformed FACT_CMD\n");
             return;
         }
         if( sink->on_cmd )
@@ -1208,9 +1204,7 @@ Editor_HostMapEdDrainFacts(
             delivered++;
         }
         else
-            fprintf(
-                stderr,
-                "editor: dropping unsolicited maped frame %u outside a request\n",
+            TORIRS_LOG("editor: dropping unsolicited maped frame %u outside a request\n",
                 type);
         frame_done(remote, length);
     }

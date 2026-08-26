@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* ------------------------------------------------------------------ */
 /* Server lifecycle                                                    */
@@ -46,9 +47,7 @@ ToriRSMapEd_Open(
     maped->writable =
         maped->files.vtable->session(maped->files.user_data, 1) == EDITOR_HOST_OK;
     if( !maped->writable )
-        fprintf(
-            stderr,
-            "torirsmaped: another server holds %s — serving read-only\n",
+        TORIRS_LOG("torirsmaped: another server holds %s — serving read-only\n",
             content_dir);
 }
 
@@ -469,9 +468,7 @@ handle_square_open(
             struct Editor_ParseResult result = Editor_Jm2Parse(square, jm2.data, jm2.size);
             if( result.status != EDITOR_PARSE_OK )
             {
-                fprintf(
-                    stderr,
-                    "torirsmaped: m%d_%d.jm2 line %d: parse error %d\n",
+                TORIRS_ERR("torirsmaped: m%d_%d.jm2 line %d: parse error %d\n",
                     map_x,
                     map_z,
                     result.line,
@@ -483,9 +480,7 @@ handle_square_open(
                 result = Editor_Jl2Parse(square, jl2.data, jl2.size);
                 if( result.status != EDITOR_PARSE_OK )
                 {
-                    fprintf(
-                        stderr,
-                        "torirsmaped: m%d_%d.jl2 line %d: parse error %d\n",
+                    TORIRS_ERR("torirsmaped: m%d_%d.jl2 line %d: parse error %d\n",
                         map_x,
                         map_z,
                         result.line,
@@ -667,9 +662,7 @@ handle_save_all(
 
         if( status != EDITOR_HOST_OK )
         {
-            fprintf(
-                stderr,
-                "torirsmaped: save failed for %d,%d\n",
+            TORIRS_ERR("torirsmaped: save failed for %d,%d\n",
                 square->map_x,
                 square->map_z);
             continue;
@@ -824,9 +817,7 @@ handle_frame(
                     (int32_t)ToriRSMapEd_ReadU32(body + 8 + i * 4);
         }
         else
-            fprintf(
-                stderr,
-                "torirsmaped: state store full — key %u relayed but not stored\n",
+            TORIRS_LOG("torirsmaped: state store full — key %u relayed but not stored\n",
                 key);
 
         maped->seq++;
@@ -868,7 +859,7 @@ handle_frame(
         session->alive = 0;
         return;
     default:
-        fprintf(stderr, "torirsmaped: unknown frame type %u — closing\n", type);
+        TORIRS_ERR("torirsmaped: unknown frame type %u — closing\n", type);
         session->alive = 0;
         return;
     }
@@ -914,9 +905,7 @@ ToriRSMapEd_SessionPump(struct ToriRSMapEdSession* session)
 
         if( length > TORIRSMAPED_PAYLOAD_MAX )
         {
-            fprintf(
-                stderr,
-                "torirsmaped: frame length %u exceeds the %d byte bound — closing\n",
+            TORIRS_LOG("torirsmaped: frame length %u exceeds the %d byte bound — closing\n",
                 length,
                 TORIRSMAPED_PAYLOAD_MAX);
             session->alive = 0;

@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* This revision's own PLAYER_INFO / NPC_INFO bit streams (lc289_entity_info.c).
  * Declared here rather than in a header of their own: the rev table is the only
@@ -97,9 +98,7 @@ GameProtoRev_LC289(void)
             for( char* tok = strtok(buf, ","); tok && i < 9; tok = strtok(NULL, ",") )
                 k_rev_lc289.jag_checksum[i++] = (int32_t)strtol(tok, NULL, 10);
             if( i != 9 )
-                fprintf(
-                    stderr,
-                    "lc289: TORIRS_JAG_CRC had %d of 9 values; login CRCs incomplete\n",
+                TORIRS_LOG("lc289: TORIRS_JAG_CRC had %d of 9 values; login CRCs incomplete\n",
                     i);
         }
     }
