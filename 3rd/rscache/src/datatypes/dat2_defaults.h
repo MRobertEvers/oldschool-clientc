@@ -71,6 +71,51 @@ struct RSCache_Buffer;
  */
 extern const char* const RSCache_Dat2DefaultsSpriteSlotNames[RSCACHE_DAT2_DEFAULTS_SPRITE_COUNT];
 
+/**
+ * What each of opcode 5's two model slots draws. Commentary only, like the
+ * sprite names above — and on weaker footing, so read where it comes from.
+ *
+ * The cache does not name these models. `pack/7_models.pack` has them as
+ * `model_57378` and `model_57379`, plain filler, while both their neighbours
+ * are named (`loc/fai_falador_roof_edge_short1z`, `obj/huntguide_moonlight_moth`)
+ * — because a model's name there is recovered from the loc/obj/npc that
+ * references it, and nothing references these two except this record. So unlike
+ * the sprite slots, there is no name in any table to check against; the names
+ * here are read off what the client does with them.
+ *
+ * What it does, all of which is in the deob and none of which is in doubt:
+ *
+ * - Both load through `class142.method4501(models, id, 0)` and are drawn into
+ *   the world by `Statics.method1711(scene, angle, model)`, which places a model
+ *   at a compass *bearing* `angle`, at radius `max(512, 1400 - f(zoom))` from the
+ *   player's tile.
+ * - Both are gated on `client.field1144 > 0`, a 30-tick countdown.
+ * - That countdown and `client.field1088` are set together in `class377`, on a
+ *   click on a widget of kind `class528.field6175`: it takes `atan2` of the click
+ *   about the widget's centre, subtracts camera yaw, and quantises to 16
+ *   directions. So `field1088` is a 16-point bearing, and the click also sends it
+ *   to the server as a one-byte packet.
+ * - Slot 1 draws at `field1088` — the bearing just chosen.
+ * - Slot 0 draws at `field831.field6801[last] * 128` when that entry's kind is
+ *   60 — a bearing already queued — and is suppressed while the countdown runs
+ *   if the new choice equals it, so the same bearing is never drawn twice.
+ *
+ * Hence "queued" and "selected". Both names describe placement, which is what
+ * the draw math proves.
+ *
+ * What is NOT established: that this is the Sailing helm. `3rd/rsprot` has a
+ * `SET_HEADING` (one byte, `heading`) at rev239 and the shape matches exactly,
+ * but the deob gives this packet opcode 109 while our rev239 client table puts
+ * SET_HEADING at 44 and has no client 109 at all. Either the table and this jar
+ * are different sub-revisions or the packet match is wrong, and until that is
+ * settled the word "heading" here means the bearing the model is placed at and
+ * claims nothing about which game system asked for it.
+ */
+#define RSCACHE_DAT2_DEFAULTS_MODEL_SLOT_QUEUED 0
+#define RSCACHE_DAT2_DEFAULTS_MODEL_SLOT_SELECTED 1
+
+extern const char* const RSCache_Dat2DefaultsModelSlotNames[RSCACHE_DAT2_DEFAULTS_MODEL_COUNT];
+
 struct RSCache_Dat2Defaults
 {
     /** Sprite ids, or -1 for a slot the record leaves unset. */

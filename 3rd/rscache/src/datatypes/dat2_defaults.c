@@ -26,6 +26,13 @@ const char* const RSCache_Dat2DefaultsSpriteSlotNames[RSCACHE_DAT2_DEFAULTS_SPRI
     "mapmarker", "cross",  "mapdots",  "scrollbar",    "mod_icons",
 };
 
+/* Named for where the client places them, not for what they depict — see the
+ * header. Nothing in any table names these two models. */
+const char* const RSCache_Dat2DefaultsModelSlotNames[RSCACHE_DAT2_DEFAULTS_MODEL_COUNT] = {
+    "bearing_marker_queued",
+    "bearing_marker_selected",
+};
+
 /** Bytes left to read. */
 static uint32_t
 remaining(const struct RSCache_Buffer* buffer)

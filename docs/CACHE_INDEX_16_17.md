@@ -182,10 +182,41 @@ row 2: 000000 0000ff ff00ff ffffff ffffff
 
 Black to a primary, through its secondary, to white — one ramp per primary.
 
-**Opcode 5's two model ids** are 57378 and 57379. They are loaded from the
-models archive and drawn into the scene through `method1711`, gated on a client
-counter. *What they depict is not resolved here* — the draw sites
-(`Statics.java:46924` and `:47598`) show how they are used, not what they are.
+**Opcode 5's two model ids** are 57378 and 57379, and they are the one part of
+this record the cache names nowhere. `pack/7_models.pack` has them as filler
+`model_57378` / `model_57379` while both their neighbours are named
+(`loc/fai_falador_roof_edge_short1z`, `obj/huntguide_moonlight_moth`) — a
+model's name in that pack is recovered from the loc/obj/npc that references it,
+and nothing references these two except this record, which nothing was reading.
+So the draw sites are the only evidence there is.
+
+They say this much, and it is not in doubt:
+
+- Both load through `class142.method4501(models, id, 0)` and are drawn into the
+  world by `Statics.method1711(scene, angle, model)`, which places a model at a
+  compass **bearing**, at radius `max(512, 1400 - f(zoom))` from the player's
+  tile.
+- Both are gated on `client.field1144 > 0`, a **30-tick countdown**.
+- That countdown and `client.field1088` are set together in `class377`, by a
+  click on a widget of kind `class528.field6175`: it takes `atan2` of the click
+  about the widget's centre, subtracts camera yaw, and quantises to **16
+  directions**. The result is stored and sent to the server as one byte.
+- **57379** draws at `field1088` — the bearing just chosen.
+- **57378** draws at `field831.field6801[last] * 128` where that entry's kind is
+  60 — a bearing already queued — and is suppressed while the countdown runs if
+  the new choice equals it, so one bearing is never marked twice.
+
+So they are a pair of bearing markers placed out in the world, and the tree
+calls them `bearing_marker_selected` (57379) and `bearing_marker_queued`
+(57378). Both names describe placement, which the draw math settles by itself.
+
+**What is deliberately not claimed:** that this is the Sailing helm.
+`3rd/rsprot` carries a one-byte `SET_HEADING` at rev239 whose shape matches this
+packet exactly — but the deob gives the packet opcode **109**, while our rev239
+client table puts `SET_HEADING` at **44** and has no client 109 at all. Either
+the generated table and this jar are different sub-revisions, or the packet
+match is wrong. Until that is settled, "bearing" here means the angle the model
+is placed at and says nothing about which system asked for it.
 
 ### Group 1: shipped, preloaded, and never read
 
@@ -270,8 +301,8 @@ sprite=10:423 // mod_icons
 ramp=0:000000,ff0000,ffff00,ffffff,ffffff
 ramp=1:000000,00ff00,00ffff,ffffff,ffffff
 ramp=2:000000,0000ff,ff00ff,ffffff,ffffff
-model=57378
-model=57379
+model=0:57378  // bearing_marker_queued
+model=1:57379  // bearing_marker_selected
 ```
 
 `opcodes` is there because the repack has to be byte-exact and the opcode order

@@ -5092,6 +5092,52 @@ const struct CP_AssetCodec cp_codec_worldmap = { "wma", "wmc", worldmap_write, w
  * legally be two bytes or four, and only the source bytes say which. Every
  * record in cache.osrs239 re-encodes exactly; one that did not would land as
  * raw bytes instead of being quietly rewritten.
+ *
+ * ## Everything here is keyed on position, and every name is a comment
+ *
+ * This is worth stating once because it was got wrong first time round. The
+ * record encodes eleven sprite ids and two model ids *positionally*, and no
+ * names at all -- index 17's reference table does not even have the name bit
+ * set. So the text form writes `sprite=0:169` and `model=0:57378`, and parses
+ * those back by slot. The trailing `// compass` is decoration.
+ *
+ * That is not fussiness about style; the two name sets have different and
+ * separately insufficient provenance:
+ *
+ *   sprites  index 8 *does* name its groups, and djb2 of all eleven matches its
+ *            stored hashes exactly -- so the names are real. But index 8 names
+ *            the sprite a slot points at, not the slot. They agree at rev239.
+ *            A cache that repointed a slot would still have a compass slot at 0
+ *            while the name described the new target, and keying on the name
+ *            would reject exactly that cache.
+ *
+ *   models   named nowhere at all. `pack/7_models.pack` has them as filler
+ *            `model_57378` / `model_57379`, because a model's name there is
+ *            recovered from the loc/obj/npc that references it and nothing
+ *            references these two but this record. Their names below are read
+ *            off what the client does with them and nothing else.
+ *
+ * ## What the two models are
+ *
+ * Both load via `class142.method4501(models, id, 0)` and are drawn into the
+ * world by `Statics.method1711(scene, angle, model)`, which places a model at a
+ * compass *bearing* at radius `max(512, 1400 - f(zoom))` from the player's tile.
+ * Both are gated on a 30-tick countdown (`client.field1144`), which is started
+ * in `class377` by a click on a widget of kind `class528.field6175`: that takes
+ * `atan2` of the click about the widget centre, subtracts camera yaw, quantises
+ * to 16 directions, stores the result in `client.field1088` and sends it to the
+ * server as one byte.
+ *
+ * Slot 1 draws at `field1088`, the bearing just chosen. Slot 0 draws at a
+ * bearing already queued (`field831.field6801[last]`, kind 60) and is suppressed
+ * while the countdown runs if the new choice equals it, so one bearing is never
+ * marked twice. Hence `bearing_marker_selected` and `bearing_marker_queued`.
+ *
+ * `3rd/rsprot` has a one-byte `SET_HEADING` at rev239 and the shape matches, but
+ * the deob gives this packet opcode 109 while our rev239 client table puts
+ * SET_HEADING at 44 and has no client 109 -- so which game system asks for the
+ * bearing is deliberately not claimed here. "bearing" describes the placement,
+ * which the draw math settles on its own.
  */
 
 static void
@@ -5114,7 +5160,16 @@ defaults_emit_record(FILE* out, const struct RSCache_Dat2Defaults* rec)
             "//            index 8, which is a different table: it names the\n"
             "//            sprite the slot points at, not the slot.\n"
             "//   ramp     <row>:<5 stops>, 24-bit RGB.\n"
-            "//   model    a model id, in record order.\n"
+            "//   model    <slot>:<model id>. Same rule as sprite: the slot is\n"
+            "//            what opcode 5 encodes and the comment is ours. These\n"
+            "//            two models are named nowhere in the cache -- the model\n"
+            "//            pack has them as plain `model_<id>` because a model's\n"
+            "//            name there comes from the loc/obj/npc referencing it,\n"
+            "//            and nothing references these but this record. The names\n"
+            "//            describe where the client puts them: both are drawn in\n"
+            "//            the world at a 16-point compass bearing near the player\n"
+            "//            for 30 ticks after a bearing is chosen -- slot 1 at the\n"
+            "//            bearing just picked, slot 0 at one already queued.\n"
             "//   legacy   opcode 1's value. The client reads it and throws it away.\n\n");
     fprintf(out, "[defaults]\n");
 
@@ -5149,7 +5204,8 @@ defaults_emit_record(FILE* out, const struct RSCache_Dat2Defaults* rec)
     if( rec->has_models )
     {
         for( int i = 0; i < RSCACHE_DAT2_DEFAULTS_MODEL_COUNT; i++ )
-            fprintf(out, "model=%d\n", rec->model_ids[i]);
+            fprintf(out, "model=%d:%d  // %s\n", i, rec->model_ids[i],
+                    RSCache_Dat2DefaultsModelSlotNames[i]);
     }
 }
 
@@ -5380,12 +5436,19 @@ defaults_parse_record(const char* path, struct RSCache_Dat2Defaults* rec)
             }
             else if( strcmp(key, "model") == 0 )
             {
-                if( models_seen >= RSCACHE_DAT2_DEFAULTS_MODEL_COUNT )
+                int slot = -1;
+                int id = 0;
+
+                /* Slot-keyed for the same reason `sprite` is: the position is
+                 * what opcode 5 encodes, and the name beside it is ours. */
+                if( sscanf(value, "%d:%d", &slot, &id) != 2 || slot < 0 ||
+                    slot >= RSCACHE_DAT2_DEFAULTS_MODEL_COUNT )
                 {
                     ok = 0;
                     break;
                 }
-                rec->model_ids[models_seen++] = atoi(value);
+                rec->model_ids[slot] = id;
+                models_seen++;
                 rec->has_models = 1;
             }
             else
@@ -5396,7 +5459,11 @@ defaults_parse_record(const char* path, struct RSCache_Dat2Defaults* rec)
 
     /* The opcode list is what the encode replays, so a record that claims an
      * opcode it did not describe would encode zeroes into the cache. */
+    /* A slot-keyed list can be short without looking wrong, and a missing line
+     * would encode a zero id rather than fail — so count them. */
     if( ok && rec->sprite_opcode && sprites_seen != RSCACHE_DAT2_DEFAULTS_SPRITE_COUNT )
+        ok = 0;
+    if( ok && rec->has_models && models_seen != RSCACHE_DAT2_DEFAULTS_MODEL_COUNT )
         ok = 0;
     if( ok )
     {
