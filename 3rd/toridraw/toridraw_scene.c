@@ -319,6 +319,9 @@ td_scene_element_valid(
     int element_id)
 {
     assert(scene);
+    /* The id may carry a kind in its top bits; the list is indexed by the
+     * bottom ones. Untagged ids are kind NONE and mask to themselves. */
+    element_id = ToriDraw_ElementIndexOfRaw(element_id);
     if( element_id < 0 || element_id >= TORIDRAW_SCENE_MAX_ELEMENTS )
         return false;
     return ToriDraw_IntrusiveListIsLive(&scene->elements, element_id);
@@ -331,7 +334,8 @@ td_scene_element_ptr(
 {
     if( !td_scene_element_valid(scene, element_id) )
         return NULL;
-    return (struct ToriDraw_SceneElement*)ToriDraw_IntrusiveListGet(&scene->elements, element_id);
+    return (struct ToriDraw_SceneElement*)ToriDraw_IntrusiveListGet(
+        &scene->elements, ToriDraw_ElementIndexOfRaw(element_id));
 }
 
 static void

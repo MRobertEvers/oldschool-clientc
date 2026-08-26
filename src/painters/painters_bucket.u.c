@@ -339,7 +339,8 @@ bucket_emit_entity(
     **cur = (struct PaintersElementCommand){
         ._entity = {
             ._bf_kind = PNTR_CMD_ELEMENT,
-            ._bf_entity = (uint32_t)entity,
+            ._bf_entity = (uint32_t)ElementId_Index(ElementId_FromRaw(entity)),
+            ._bf_entity_kind = (uint32_t)ElementId_Kind(ElementId_FromRaw(entity)),
         },
     };
     (*cur)++;

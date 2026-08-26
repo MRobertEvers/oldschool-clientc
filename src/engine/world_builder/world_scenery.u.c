@@ -1131,7 +1131,7 @@ scenery_load_model(
         }
     }
 
-    int element_id = ToriDraw_SceneElementAdd(builder->scene);
+    int element_id = ElementId_Raw(ElementId_Make(TORIDRAW_ELEMENT_KIND_SCENERY, ToriDraw_SceneElementAdd(builder->scene)));
     assert(element_id >= 0 && "world_load_scenery_model: invalid element_id");
 
     /* ToriRS actions are [5][64]; the entity facet stores [5][32]. Repack at

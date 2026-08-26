@@ -1507,6 +1507,7 @@ UITree_Free(struct UITree* tree)
     free(tree->layout_order);
     free(tree->layout_depth);
     free(tree->layout_changed);
+    free(tree->layout_dirty);
     free(tree->emit_visited);
     uitree_all_sets_free(tree);
     UITree_FrameForget(tree);
@@ -1628,7 +1629,7 @@ uitree_note_mutation(
     else if( impacts & UITREE_IMPACT_LAYOUT_SELF )
     {
         tree->components[idx].position.layout_resolved = 0;
-        UITree_LayoutInvalidateBoxes(tree);
+        UITree_LayoutInvalidateNode(tree, idx);
     }
 
     if( impacts & UITREE_IMPACT_EMIT_SELF )
@@ -2257,7 +2258,10 @@ UITree_Push(
          * behind; the resolve treats a set flag as "box is already correct". */
         component->position.layout_resolved = 0;
     }
-    UITree_LayoutInvalidateBoxes(tree);
+    /* Only the new node is unresolved. A box is a pure function of the
+     * node's own fields and its PARENT's box, so gaining a child moves
+     * neither the parent nor the new node's siblings. */
+    UITree_LayoutInvalidateNode(tree, idx);
 
     switch( spec->type )
     {

@@ -9,6 +9,7 @@
  */
 
 #include "platform/platform_sdl2_renderer_gl3zb.h"
+#include "toridraw_element_id.h"
 #include <assert.h>
 
 #include "platform/platform_sdl2_renderer_gl3_internal.h"
@@ -140,10 +141,10 @@ gl3_material_table_get(
 {
     const struct GL3MaterialTrack* track;
     if( !table || !table->elements || element_id < 0 ||
-        (uint32_t)element_id >= table->element_count || anim_index < 0 ||
+        (uint32_t)ToriDraw_ElementIndexOfRaw(element_id) >= table->element_count || anim_index < 0 ||
         anim_index >= TRSPK_POSE_TRACK_COUNT || pose_id < 0 )
         return NULL;
-    track = &table->elements[element_id].tracks[anim_index];
+    track = &table->elements[ToriDraw_ElementIndexOfRaw(element_id)].tracks[anim_index];
     if( !track->poses || (uint32_t)pose_id >= track->pose_count ||
         !track->poses[pose_id].face_passes )
         return NULL;
@@ -165,7 +166,7 @@ gl3_material_table_set(
     if( !table || element_id < 0 || anim_index < 0 ||
         anim_index >= TRSPK_POSE_TRACK_COUNT || pose_id < 0 )
         return NULL;
-    needed = (uint32_t)element_id + 1u;
+    needed = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id) + 1u;
     if( needed > table->element_capacity )
     {
         uint32_t capacity = table->element_capacity ? table->element_capacity : 64u;
@@ -185,7 +186,7 @@ gl3_material_table_set(
     if( table->element_count < needed )
         table->element_count = needed;
 
-    track = &table->elements[element_id].tracks[anim_index];
+    track = &table->elements[ToriDraw_ElementIndexOfRaw(element_id)].tracks[anim_index];
     needed = (uint32_t)pose_id + 1u;
     if( needed > track->pose_capacity )
     {
@@ -238,11 +239,11 @@ GL3ZB_ForgetElement(
     struct GL3MaterialTable* table;
     assert(renderer);
     table = &renderer->materials;
-    if( !table->elements || element_id < 0 || (uint32_t)element_id >= table->element_count )
+    if( !table->elements || element_id < 0 || (uint32_t)ToriDraw_ElementIndexOfRaw(element_id) >= table->element_count )
         return;
     for( int t = 0; t < TRSPK_POSE_TRACK_COUNT; t++ )
     {
-        struct GL3MaterialTrack* track = &table->elements[element_id].tracks[t];
+        struct GL3MaterialTrack* track = &table->elements[ToriDraw_ElementIndexOfRaw(element_id)].tracks[t];
         for( uint32_t i = 0u; i < track->pose_count; i++ )
             gl3_material_pose_clear(&track->poses[i]);
         free(track->poses);
@@ -262,10 +263,10 @@ GL3ZB_ForgetTrack(
     struct GL3MaterialTrack* track;
     assert(renderer);
     table = &renderer->materials;
-    if( !table->elements || element_id < 0 || (uint32_t)element_id >= table->element_count ||
+    if( !table->elements || element_id < 0 || (uint32_t)ToriDraw_ElementIndexOfRaw(element_id) >= table->element_count ||
         anim_index < 0 || anim_index >= TRSPK_POSE_TRACK_COUNT )
         return;
-    track = &table->elements[element_id].tracks[anim_index];
+    track = &table->elements[ToriDraw_ElementIndexOfRaw(element_id)].tracks[anim_index];
     for( uint32_t i = 0u; i < track->pose_count; i++ )
         gl3_material_pose_clear(&track->poses[i]);
     free(track->poses);

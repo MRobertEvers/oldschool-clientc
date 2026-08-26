@@ -53,7 +53,7 @@ command_index_of_entity(
     for( int i = 0; i < buffer->command_count; i++ )
     {
         const struct PaintersElementCommand* cmd = &buffer->commands[i];
-        if( cmd->_bf_kind == PNTR_CMD_ELEMENT && (int)cmd->_entity._bf_entity == entity )
+        if( cmd->_bf_kind == PNTR_CMD_ELEMENT && painter_command_element_id(cmd) == entity )
             return i;
     }
     return -1;
