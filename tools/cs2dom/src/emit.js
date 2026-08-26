@@ -280,8 +280,23 @@ export class Emitter {
              * idle_anim` keeps it on the idle sequence. So the widget draws
              * whether or not the record names a model, and `equipment`'s
              * 136x168 preview was missing from the draw list entirely.
+             *
+             * `modelSource` is the same case for a COMPOSED model — an npc
+             * head, a loc, a player's own body. `cc_setnpchead` gives the
+             * reference a bridge handle where it gives this runtime a
+             * (kind, id) to resolve later, and a widget with one is a widget
+             * that draws: `fossil_driftnet_store`'s shopkeeper head is one.
+             *
+             * The PLAYER-derived sources are the exception, and not by
+             * omission: a player model is composed from the appearance the
+             * server sent, so before login there is nothing to compose and the
+             * reference's `getModel` returns null. `makeover`'s head preview is
+             * `cc_setplayerhead_self` on an ordinary node and draws nothing;
+             * the clientCode 327/328 slots above are the ones the client fills
+             * in regardless.
              */
             if( effectiveModel(node.props, hovered) < 0
+                && !composesAModel(node.props.modelSource)
                 && !PLAYER_PREVIEW_CLIENT_CODES.has(node.props.clientCode | 0) ) return;
         }
         /*
@@ -437,6 +452,14 @@ const CONTENT_CLIENT_CODES = new Set([1337, 1338, 1339]);
  *  player. Both are drawn from an appearance the client composes, not from a
  *  model the cache names. */
 const PLAYER_PREVIEW_CLIENT_CODES = new Set([327, 328]);
+
+/** Composed-model sources that need the local player's appearance, and so
+ *  resolve to nothing until a server has sent one. */
+const PLAYER_MODEL_SOURCES = new Set(['playerHeadSelf', 'playerSelf', 'playerChatHead']);
+
+function composesAModel(source) {
+    return !!source && !PLAYER_MODEL_SOURCES.has(source.kind);
+}
 
 function emitKindOf(node) {
     switch( node.type )
