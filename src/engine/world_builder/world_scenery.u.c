@@ -1208,11 +1208,11 @@ scenery_load_model(
         }
     }
 
-    struct ToriDraw_ModelHandle hnd = {
-        .kind = TORIDRAWMK_MODEL,
-        .u.model.model = model,
-    };
-    ToriDraw_SceneElementSetModel(builder->scene, element_id, hnd);
+    /* Derived, not stamped: this is the one producer whose model may have come
+     * back from either store, and a hand-written TORIDRAWMK_MODEL here would
+     * tell every later holder it may write geometry it does not own. */
+    ToriDraw_SceneElementSetModel(
+        builder->scene, element_id, ToriDraw_ModelHandleFor(model));
 
     /* LocType.raiseobject: stamp model minY (max of -vy) onto every tile of the
      * sprite footprint so later zone OBJ_ADD stacks can sit on the table

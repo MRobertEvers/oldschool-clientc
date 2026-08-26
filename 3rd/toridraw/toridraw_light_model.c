@@ -60,7 +60,11 @@ ToriDraw_LightModelParams(
     if( hnd.kind != TORIDRAWMK_MODEL )
         return;
 
-    struct ToriDraw_Model* model = ToriDraw_ModelAsFull(hnd);
+    /* Lighting writes the per-corner colours and the normals, which are the
+     * placement-private half -- legal on a model whose FACES are on loan, and
+     * not on one that is shared whole, where it would relight every placement
+     * of the loc at once. The accessor is the one that says so. */
+    struct ToriDraw_Model* model = ToriDraw_ModelAsPlacementWritable(hnd);
     assert(model);
 
     int light_magnitude =

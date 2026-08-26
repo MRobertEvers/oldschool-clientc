@@ -423,6 +423,9 @@ ToriDraw_SceneElementModelForWrite(
      * for being copied here than it would have been built unshared. */
     element->model.u.model.model = ToriDraw_ModelCopy(model);
     ToriDraw_ModelFree(model);
+    /* The copy owns everything, so the element's handle has to stop saying
+     * otherwise -- this function exists precisely to change the regime. */
+    element->model.owns = ToriDraw_ModelOwnershipOf(element->model.u.model.model);
     return element->model.u.model.model;
 }
 
@@ -1489,6 +1492,14 @@ ToriDraw_SceneElementSetModel(
 
     element = td_scene_element_ptr(scene, element_id);
     assert(element);
+
+    /* `owns` is a claim about who owns the geometry, and the model itself is
+     * the authority on it. A handle that disagrees would hand every later
+     * holder the wrong write permission -- and since TORIDRAWMO_OWNED is what a
+     * designated initialiser leaves behind, the disagreement to expect is a
+     * shared placement mounted as if it owned itself. */
+    if( ToriDraw_ModelKindIsFull(model.kind) && model.u.model.model )
+        assert(model.owns == ToriDraw_ModelOwnershipOf(model.u.model.model));
 
     /*
      * Mounting a model is the last moment it is guaranteed to be at its bind

@@ -276,6 +276,8 @@ struct ToriDraw_ModelGround
     faceint_t* face_textures;
 };
 
+/** What a handle points at: which struct is behind the pointer. Orthogonal to
+ *  who owns its geometry -- that is enum ToriDraw_ModelOwnership. */
 enum ToriDraw_ModelKind
 {
     TORIDRAWMK_NONE = 0,
@@ -284,6 +286,39 @@ enum ToriDraw_ModelKind
     /** A ToriDraw_ModelHD. Its `base` is a plain model, so everything that
      *  takes a TORIDRAWMK_MODEL works unchanged — see ToriDraw_ModelAsFull. */
     TORIDRAWMK_MODEL_HD = 3,
+};
+
+/**
+ * Who owns the geometry behind a model handle, and therefore what a holder may
+ * write to it.
+ *
+ * The second axis, and it really is a second one: an HD model can be shared and
+ * a plain model can be lent its faces, so this is not a longer list of kinds.
+ * Folding the two together was tried and is wrong -- sixty live tests spell
+ * `kind == TORIDRAWMK_MODEL` to mean "a plain model", and every one of them
+ * would have started skipping exactly the placements that share, which is the
+ * bug this distinction exists to prevent rather than cause.
+ *
+ * OWNED is zero so a handle built with a designated initialiser -- which is
+ * most of the hundred-odd in the tree, all of them building models that own
+ * their geometry -- is right by default. The one producer whose model may come
+ * back from a store derives it instead; see ToriDraw_ModelHandleFor.
+ *
+ *   OWNED       every array is this model's. Write anything.
+ *   SHARED      the whole model belongs to a ToriDraw_SharedModelStore and N
+ *               placements point at THIS object. It has no private half, so
+ *               writing it moves every fence in the county.
+ *               ToriDraw_SceneElementModelForWrite is the way out.
+ *   LENT_FACES  the twelve arrays in TORIDRAW_SHARED_FACE_FIELDS belong to a
+ *               ToriDraw_SharedFaces shared with the other placements of this
+ *               loc; the vertices, the per-corner colours and face_infos are
+ *               this placement's own. Write those, not the faces.
+ */
+enum ToriDraw_ModelOwnership
+{
+    TORIDRAWMO_OWNED = 0,
+    TORIDRAWMO_SHARED = 1,
+    TORIDRAWMO_LENT_FACES = 2,
 };
 
 /**
@@ -325,6 +360,9 @@ struct ToriDraw_ModelHD
 struct ToriDraw_ModelHandle
 {
     enum ToriDraw_ModelKind kind;
+    /** Who owns the geometry; see enum ToriDraw_ModelOwnership. Zero
+     *  (TORIDRAWMO_OWNED) is the default and the common case. */
+    enum ToriDraw_ModelOwnership owns;
     union
     {
         struct
