@@ -773,7 +773,19 @@ class ScriptEmitter {
             }
             slots.push({ arg, banks });
         }
-        if( !reorder ) return this.argList(args);
+        /*
+         * A MULTI-SLOT argument has to be spread, whether or not the banks
+         * need reordering.
+         *
+         * A proc that returns two values fills two of the callee's parameters
+         * — the stack does not know they came from one call. Passing the
+         * expression through as a single JS argument hands the callee the
+         * TUPLE where it wants the first value: `poll_placeholder_pulse` then
+         * received `[8, 35]` as its `obj` and drew an empty cell where the
+         * reference draws item 35.
+         */
+        const spread = slots.some(({ banks }) => banks.length !== 1);
+        if( !reorder && !spread ) return this.argList(args);
 
         const values = [];
         for( const { arg, banks } of slots )
@@ -781,7 +793,8 @@ class ScriptEmitter {
             const temp = this.newTemp();
             this.prelude.push(`let ${temp};`);
             this.prelude.push(`${temp} = ${this.expr(arg)};`);
-            if( banks.length === 1 ) values.push({ code: temp, bank: banks[0] });
+            if( dynamicArity(arg) ) values.push({ code: `...K.tuple(${temp})`, bank: 'int' });
+            else if( banks.length === 1 ) values.push({ code: temp, bank: banks[0] });
             else banks.forEach((bank, index) =>
                 values.push({ code: `${temp}[${index}]`, bank }));
         }
@@ -792,9 +805,13 @@ class ScriptEmitter {
     }
 
     argList(args) {
-        return args
-            .map((arg) => (stackSlotCount(arg) === 1 ? this.expr(arg) : `...(${this.expr(arg)})`))
-            .join(', ');
+        return args.map((arg) => this.argSlot(arg)).join(', ');
+    }
+
+    /** One argument, spread when it fills more than one stack slot. */
+    argSlot(arg) {
+        if( dynamicArity(arg) ) return `...K.tuple(${this.expr(arg)})`;
+        return stackSlotCount(arg) === 1 ? this.expr(arg) : `...(${this.expr(arg)})`;
     }
 
     /** Run `build`, collecting any statements it needed alongside its code. */
@@ -952,6 +969,22 @@ function bankSuffix(kind) {
  * under one name and pass an undeclared variable under the other, which is
  * silent at emit time and a ReferenceError on the first sort.
  */
+/*
+ * Ops whose result arity is DECIDED AT RUNTIME.
+ *
+ * `db_getfield` reads a whole column and pushes one value per field, and how
+ * many fields a column has depends on the ROW — the decompiler's static type
+ * says one where a quest row's `requirement_stats` pushes two. Getting the
+ * count wrong shifts every argument after it: `sailing_bt_selection` handed
+ * `poll_placeholder_pulse` the pair `[8, 35]` in its `obj` parameter and drew
+ * an empty cell where the reference draws item 35.
+ */
+const DYNAMIC_ARITY_OPCODES = new Set([7502]);
+
+function dynamicArity(node) {
+    return !!node && node.kind === 'operation' && DYNAMIC_ARITY_OPCODES.has(node.opcode);
+}
+
 function localBank(kind) {
     return kind === 'string' || kind === 'array' ? 'string' : 'int';
 }

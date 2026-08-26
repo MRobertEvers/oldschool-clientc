@@ -43,6 +43,20 @@ export class CS2RuntimeError extends Error {
 export function popInt(value) {
     if( typeof value === 'string' )
         throw new CS2RuntimeError('pop_int_local: the value is on the string stack');
+    /*
+     * A pop takes the TOP of the stack, so several values arriving where one
+     * slot waits means the earlier ones LEAK — which is what the reference
+     * does, harmlessly, because the frame ends.
+     *
+     * `db_getfield` is where this shows: its arity is the row's, and the
+     * decompiler types it from the table. A quest row's `requirement_stats`
+     * pushes two ints into an assignment typed for one, and the value the
+     * script goes on to use is the SECOND. `sailing_bt_selection` reads item
+     * 35 out of the pair (8, 35) and draws it; taking the pair, or its first
+     * element, drew nothing.
+     */
+    if( Array.isArray(value) && !isArrayHandle(value) )
+        return value.length > 0 ? value[value.length - 1] : -1;
     return value;
 }
 
@@ -446,6 +460,26 @@ const STRING_BANK = Symbol('cs2ArrayIsString');
 
 function isStringArray(array) {
     return array?.[STRING_BANK] === true;
+}
+
+/** An array made by `defineArray` — a HANDLE, not a tuple of stack slots. */
+function isArrayHandle(value) {
+    return Array.isArray(value) && STRING_BANK in value;
+}
+
+/*
+ * One value, or the several a DYNAMIC-arity op pushed.
+ *
+ * `db_getfield` reads a whole column, and how many fields that is depends on
+ * the ROW — a static lowering cannot know. So its result is spread through
+ * this at the call site: a tuple contributes one argument per field, exactly
+ * as the two stacks would, and a scalar contributes itself.
+ *
+ * An array HANDLE must never be spread: it is one value that happens to be an
+ * array, and splicing it would hand the callee its elements instead.
+ */
+export function tuple(value) {
+    return Array.isArray(value) && !isArrayHandle(value) ? value : [value];
 }
 
 export function defineArray(size, stackType) {

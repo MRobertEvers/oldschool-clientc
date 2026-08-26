@@ -243,10 +243,27 @@ function setIterator(state, rows) {
     state.iterator.cursor = 0;
 }
 
+/*
+ * The column, with the TABLE's arity even when the row states fewer fields.
+ *
+ * A column's shape is the table's — `columndef=8:a,b,c,d,e` is five fields
+ * whatever any one row bothered to write — and the reference pushes one value
+ * per declared field, filling the rest from the column's defaults. Taking the
+ * row's own length instead pushed fewer values than the script pops, and the
+ * whole argument list after it shifted: `sailing_bt_selection` read a 5-tuple
+ * that arrived as two, and its rank rows drew someone else's item.
+ */
 function columnRecord(state, row, tableId, columnId) {
+    const tableColumn = state.data.dbTables[tableId]?.columns?.[columnId] ?? null;
     const rowColumn = row?.columns?.[columnId];
-    if( rowColumn ) return rowColumn;
-    return state.data.dbTables[tableId]?.columns?.[columnId] ?? null;
+    if( !rowColumn ) return tableColumn;
+    if( !tableColumn || tableColumn.types.length <= rowColumn.types.length ) return rowColumn;
+    return {
+        ...rowColumn,
+        types: tableColumn.types,
+        values: rowColumn.values.map((tuple) =>
+            tableColumn.types.map((type, field) => tuple[field] ?? typedDefault(type))),
+    };
 }
 
 function selectedTypes(column, tupleIndex) {
