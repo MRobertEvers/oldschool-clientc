@@ -5,6 +5,8 @@
 #include "uitree_frame.h"
 
 #include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -21,11 +23,99 @@ UITree_LayoutSetRootSize(int width, int height)
         UITree_LayoutRootHeight = height;
 }
 
+/*
+ * Who invalidated the layout, and how often did it cost a walk?
+ *
+ * TORIRS_LAYOUT_BLAME=1 only. The question this answers is not "how many
+ * invalidations happen" -- redundant ones are free, because the second
+ * invalidation of a frame costs nothing. It is "which call site raised
+ * layout_stale from 0, i.e. which one is responsible for the full-tree walk
+ * that follows". So the histogram keys on the 0->1 transition and nothing
+ * else.
+ *
+ * The caller is identified by return address rather than by threading a
+ * __LINE__ through every setter: the interesting invalidators all funnel
+ * through uitree_note_mutation, which does not know which typed setter called
+ * it, and the ones that do not funnel are reached from a dozen places. Build
+ * this at OPT=0 to read it -- with LTO the frame that returns here is often
+ * not the frame you wanted named.
+ */
+#define UITREE_LAYOUT_BLAME_SLOTS 512
+
+static struct
+{
+    void* ra;
+    uint32_t count;
+} g_layout_blame[UITREE_LAYOUT_BLAME_SLOTS];
+
+static uint32_t g_layout_blame_total;
+static uint32_t g_layout_blame_lost;
+static int g_layout_blame_on = -1;
+
+static void
+uitree_layout_blame_dump(void)
+{
+    uint32_t i;
+    fprintf(stderr, "layout-blame: %u stale 0->1 transitions", g_layout_blame_total);
+    if( g_layout_blame_lost )
+        fprintf(stderr, ", %u unattributed (table full)", g_layout_blame_lost);
+    fprintf(stderr, "\n");
+    for( i = 0; i < UITREE_LAYOUT_BLAME_SLOTS; i++ )
+    {
+        if( !g_layout_blame[i].count )
+            continue;
+        fprintf(stderr, "layout-blame: %8u  anchor%+lld\n",
+            g_layout_blame[i].count,
+            (long long)((char*)g_layout_blame[i].ra
+                        - (char*)(void*)uitree_layout_blame_dump));
+    }
+}
+
+static void
+uitree_layout_blame(void* ra)
+{
+    uintptr_t h;
+    uint32_t i;
+
+    if( g_layout_blame_on < 0 )
+    {
+        g_layout_blame_on = getenv("TORIRS_LAYOUT_BLAME") ? 1 : 0;
+        if( g_layout_blame_on )
+            atexit(uitree_layout_blame_dump);
+    }
+    if( !g_layout_blame_on )
+        return;
+
+    g_layout_blame_total++;
+    h = (uintptr_t)ra;
+    h = (h >> 4) ^ (h >> 12);
+    for( i = 0; i < 64; i++ )
+    {
+        uint32_t slot = (uint32_t)((h + i) & (UITREE_LAYOUT_BLAME_SLOTS - 1));
+        if( g_layout_blame[slot].ra == ra )
+        {
+            g_layout_blame[slot].count++;
+            return;
+        }
+        if( !g_layout_blame[slot].ra )
+        {
+            g_layout_blame[slot].ra = ra;
+            g_layout_blame[slot].count = 1;
+            return;
+        }
+    }
+    g_layout_blame_lost++;
+}
+
+/* The 0->1 transition is the whole signal; see uitree_layout_blame. */
+#define UITREE_LAYOUT_BLAME_HERE(tree)     do     {         if( !(tree)->layout_stale )             uitree_layout_blame(__builtin_return_address(0));     } while( 0 )
+
 void
 UITree_LayoutInvalidate(struct UITree* tree)
 {
     assert(tree);
 
+    UITREE_LAYOUT_BLAME_HERE(tree);
     for( uint32_t i = 0; i < tree->component_count; i++ )
         tree->components[i].position.layout_resolved = 0;
     tree->layout_stale = 1;
@@ -36,6 +126,7 @@ void
 UITree_LayoutInvalidateBoxes(struct UITree* tree)
 {
     assert(tree);
+    UITREE_LAYOUT_BLAME_HERE(tree);
     tree->layout_stale = 1;
     tree->layout_resolved_valid = 0;
 }

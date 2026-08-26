@@ -300,7 +300,7 @@ kernel wins anyone has chased on this box.
 
 | target | ms | note |
 |---|---|---|
-| `UITree_LayoutResolve` | 2.7-3.0 | full relayout every frame at 1024x768; incremental/cached layout |
+| `UITree_LayoutResolve` | 2.7-3.0 | ~1 walk/frame sweeping ~6,900 nodes to recompute ~80; see [hotspot-plan.md](hotspot-plan.md) §1 |
 | ntdll (DP2 flush) | 2.2-3.3 | fewer submissions; the per-(binding,page) clustering work |
 | `msvcrt` memcpy/heap | 1.4-1.8 | vertex staging traffic |
 | `d3d9_draw_model` (zb only) | 1.85 | per-face material classification, re-derived per pose |
