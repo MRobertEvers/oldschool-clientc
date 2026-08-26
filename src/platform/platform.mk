@@ -75,7 +75,7 @@ ifneq ($(filter $(PLATFORM),macos linux),)
   PLATFORM_SRCS     := platform/platform_x_io.c \
                        platform/platform_x_io_js5_cache.c \
                        platform/platform_x_io_ondemand.c \
-                       platform/platform_http.c \
+                       platform/platform_x_http.c \
                        platform/platform_audio_sdl2.c \
                        platform/platform_sdl2_renderer_gl3.c \
                        platform/platform_sdl2_renderer_gl3zb.c
@@ -164,7 +164,7 @@ else ifeq ($(PLATFORM),win32)
   PLATFORM_SRCS     := platform/platform_x_io.c \
                        platform/platform_x_io_js5_cache.c \
                        platform/platform_x_io_ondemand.c \
-                       platform/platform_http.c \
+                       platform/platform_x_http.c \
                        platform/platform_audio_null.c \
                        platform/platform_win32_timing.c \
                        platform/platform_win32_renderer_d3d9_core.c \
@@ -268,7 +268,7 @@ else ifeq ($(PLATFORM),win64)
   PLATFORM_SRCS     := platform/platform_x_io.c \
                        platform/platform_x_io_js5_cache.c \
                        platform/platform_x_io_ondemand.c \
-                       platform/platform_http.c \
+                       platform/platform_x_http.c \
                        platform/platform_audio_null.c \
                        platform/platform_win32_timing.c \
                        platform/platform_win32_renderer_d3d9_core.c \

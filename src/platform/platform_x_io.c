@@ -7,7 +7,7 @@
 #endif
 
 #include "asyncio.h"
-#include "platform/platform_http.h"
+#include "platform/platform_x_http.h"
 
 
 #include <assert.h>
@@ -564,7 +564,7 @@ stored_file_read(
         int status = 0;
 
         snprintf(route, sizeof(route), "/boot/%s", resolved);
-        body = Platform_HttpGetStatus(
+        body = PlatformX_HttpGetStatus(
             px->io_server_host, px->io_server_port, route, &size, &status);
 
         /* Reachability is decided here and nowhere else, because this is the

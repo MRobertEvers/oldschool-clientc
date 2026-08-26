@@ -1,9 +1,9 @@
 /*
- * See platform_http.h. Lifted out of platform_x_io_ondemand.c, which had the
+ * See platform_x_http.h. Lifted out of platform_x_io_ondemand.c, which had the
  * only copy, once a second caller wanted the same thing.
  */
 
-#include "platform/platform_http.h"
+#include "platform/platform_x_http.h"
 
 #include "platform/sockstream.h"
 #include "log/torirs_log.h"
@@ -93,7 +93,7 @@ http_write_all(struct SockStream* stream, const char* data, int size)
 }
 
 char*
-Platform_HttpGetStatus(
+PlatformX_HttpGetStatus(
     const char* host,
     int port,
     const char* route,
@@ -260,11 +260,11 @@ done:
 }
 
 char*
-Platform_HttpGet(
+PlatformX_HttpGet(
     const char* host,
     int port,
     const char* route,
     int* out_size)
 {
-    return Platform_HttpGetStatus(host, port, route, out_size, NULL);
+    return PlatformX_HttpGetStatus(host, port, route, out_size, NULL);
 }
