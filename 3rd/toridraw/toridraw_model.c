@@ -306,6 +306,14 @@ ToriDraw_AnimApplyTransform(
         }
         break;
     }
+    /*
+     * 4 is unused; 6 never arrives (the framemap loader folds it into ROTATE --
+     * see toridraw_animation_from_rscache.c, which carries the full wire table).
+     * 7 (LIGHT, a per-face HSL shift) and 8/9/10 (rev-727 billboard translate /
+     * rotate / scale) are unimplemented: 8/9/10 index a model's billboard list
+     * rather than its vertex or face bone groups, so there is nothing here to
+     * apply them to. Dropping them loses the op, not the pose.
+     */
     default:
         break;
     }

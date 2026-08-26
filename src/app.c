@@ -188,6 +188,9 @@ int g_torirs_painter_force = 0;
  * frame_count, which only advances when TORIRS_MAX_FRAMES bounded the run;
  * a camera path has to keep moving in an unbounded session too. */
 long g_torirs_frame_no = 0;
+/* TORIRS_MAX_FRAMES, mirrored here from main.c so the logic pacer can see it.
+ * Zero in an ordinary session. See the pacer for what it changes. */
+long g_torirs_max_frames = 0;
 
 enum
 {
@@ -25649,6 +25652,82 @@ App_DrainCommands(
                     app, app_ui_scaled_axis(app, cmd->width), app_ui_scaled_axis(app, cmd->height));
             }
             break;
+        /*
+         * Host commands. Each is the same call the equivalent TORIRS_SIM_*
+         * harness makes, reached from the drain instead of from a pre-loop
+         * environment read, so an embedded client can be driven after boot and
+         * on the web lane at all (docs/web_build.md: the SIM harnesses call
+         * App_BootWait, which never returns against an async IO backend).
+         *
+         * A short frame is a producer bug — every one of these is written by
+         * CmdBus_Push*, which sizes it — so the length is asserted rather than
+         * quietly skipped. It is the same reasoning as anywhere else here: a
+         * dropped command surfaces later as an interface that did not open.
+         */
+        case TORIRS_CMD_UI_OPEN_ROOT:
+        {
+            struct ToriRS_CmdUiOpenRoot const* cmd =
+                (struct ToriRS_CmdUiOpenRoot const*)payload;
+            assert(header.length >= sizeof(*cmd));
+            App_OpenRootInterface(app, cmd->interface_id);
+            break;
+        }
+        case TORIRS_CMD_UI_SET_VARP:
+        case TORIRS_CMD_UI_SET_VARBIT:
+        {
+            struct ToriRS_CmdUiSetVar const* cmd = (struct ToriRS_CmdUiSetVar const*)payload;
+            assert(header.length >= sizeof(*cmd));
+            /* Optimistic, which is what a panel's own write is: the value
+             * stands until the server says otherwise, and offline it never
+             * does. A varbit notifies with -1 because the transmit pump keys on
+             * the BASE varp, which the caller does not know. */
+            if( header.type == TORIRS_CMD_UI_SET_VARP )
+            {
+                VarPManager_SetVarpOptimistic(&app->varps, cmd->id, cmd->value);
+                RS_CS2Host_NotifyVarChanged(&app->host, cmd->id);
+            }
+            else
+            {
+                VarPManager_SetVarbitOptimistic(&app->varps, cmd->id, cmd->value);
+                RS_CS2Host_NotifyVarChanged(&app->host, -1);
+            }
+            break;
+        }
+        case TORIRS_CMD_UI_RUNSCRIPT:
+        {
+            struct ToriRS_CmdUiRunScript const* cmd =
+                (struct ToriRS_CmdUiRunScript const*)payload;
+            assert(header.length >= offsetof(struct ToriRS_CmdUiRunScript, args));
+            assert(cmd->argc >= 0);
+            assert(cmd->argc <= TORIRS_CMD_UI_RUNSCRIPT_MAX_ARGS);
+            assert(header.length >= CmdBus_UiRunScriptBytes(cmd->argc));
+            RS_CS2_RunScript(
+                &app->host,
+                &app->runner,
+                cmd->script_id,
+                cmd->argc > 0 ? cmd->args : NULL,
+                cmd->argc,
+                0,
+                NULL,
+                0);
+            break;
+        }
+        case TORIRS_CMD_EXEC_TEXT:
+        {
+            /* Not NUL-terminated on the wire; the header's length is the
+             * string's. App_SendCommand answers false until the connection
+             * reaches TORIRS_NET_GAME — a debugproc is a server-side script
+             * call, so before login there is nothing to send it to, and saying
+             * so is more use than a silent drop. */
+            char text[TORIRS_CMD_MAX_PAYLOAD + 1];
+            size_t length = header.length;
+            assert(length <= TORIRS_CMD_MAX_PAYLOAD);
+            memcpy(text, payload, length);
+            text[length] = '\0';
+            if( !App_SendCommand(app, text) )
+                fprintf(stderr, "cmdbus: exec_text '%s' dropped, not in game yet\n", text);
+            break;
+        }
         default:
             TORIRS_LOG("cmdbus: unhandled command type %u\n", header.type);
             break;
@@ -25998,6 +26077,29 @@ App_RunOnce(
             ticks++;
         }
         app->logic_frame_ms = elapsed_ms;
+        /*
+         * A bounded headless run ticks ONCE per frame, on the frame and not on
+         * the wall clock.
+         *
+         * TORIRS_MAX_FRAMES=N exists to produce a comparable artefact -- a
+         * screenshot, an emit dump -- and wall-clock pacing makes that artefact
+         * non-reproducible for anything that reads `clientclock`. Two runs of
+         * `ge_pricechecker` at three frames landed on cycle 102 and cycle 104,
+         * so its pulsing overlay dumped a different transparency each time and
+         * no comparison against it could ever be exact. One tick per frame
+         * makes "three frames" mean the same three cycles every run.
+         *
+         * The accumulator is emptied rather than carried: leaving a remainder
+         * would let a later frame pay a second tick and put the run back on
+         * the wall clock this exists to leave. The movers are handed exactly
+         * that one tick for the same reason.
+         */
+        if( g_torirs_max_frames > 0 )
+        {
+            ticks = 1;
+            app->cycle_accum_ms = 0.0;
+            app->logic_frame_ms = APP_LOGIC_TICK_MS;
+        }
         int const ticks_paid = ticks;
         if( ticks > 0 )
         {

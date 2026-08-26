@@ -42,7 +42,15 @@ app_tex_trace_enabled(void);
  */
 #define BRIDGE_SPRITE_MAP_CAP 2048
 #define BRIDGE_MODEL_MAP_CAP 256
-#define BRIDGE_OBJ_ICON_MAP_CAP 256
+/*
+ * NOT tens. tournament_supplies (interface 100) builds an icon per PvP-world
+ * supply item and blew straight through 256 — hmap_search(HMAP_INSERT)
+ * answered NULL and the entry write was a null store, which the OPT build's
+ * disabled assert turned into a segfault instead of a message. The pvp_arena
+ * supply interfaces (757, 758) die the same way. Sized for the largest icon
+ * roster an interface actually opens, with slack for the map's load factor.
+ */
+#define BRIDGE_OBJ_ICON_MAP_CAP 2048
 
 static struct ToriDraw_Texture*
 bridge_texture_from_torirs(const struct ToriRS_Texture* rs);

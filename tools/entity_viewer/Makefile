@@ -374,6 +374,16 @@ ev_widget_render_test: $(BUILD)/ev_widget_render_test.o $(BUILD)/ev_render.o \
 		$(BUILD)/toridraw_model_sprite.o $(BUILD)/bmp.o
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
+# The widget raster on wasm's exact inputs, natively — one diff answers
+# whether a pixel divergence is emcc-vs-cc codegen or the feed upstream.
+$(BUILD)/ev_widget_ab_probe.o: test/ev_widget_ab_probe.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_widget_ab_probe: $(BUILD)/ev_widget_ab_probe.o $(BUILD)/ev_render.o \
+		$(BUILD)/ev_wire.o $(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o \
+		$(BUILD)/toridraw_model_sprite.o $(BUILD)/bmp.o
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
 ev_export: $(BUILD)/ev_export.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
