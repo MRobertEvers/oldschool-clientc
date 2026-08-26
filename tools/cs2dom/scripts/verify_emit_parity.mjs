@@ -344,6 +344,7 @@ async function run(reference) {
         onScriptError: (error, request) => {
             if( error instanceof UnimplementedHostOp ) hostGaps.add(error.op);
             failedScripts.push({ script: request.scriptId, error: error.message });
+            if( process.env.PARITY_SHOW_ERRORS ) console.error(`abort in ${request.scriptId}: ${error.stack}`);
         },
     });
     driver.loader = createLoader(tree, driver);

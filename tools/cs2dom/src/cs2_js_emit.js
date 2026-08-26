@@ -190,7 +190,30 @@ class ScriptEmitter {
 
     run() {
         const lines = [];
-        const args = this.ast.arguments.map((variable) => this.names.get(variableKey(variable)));
+        /*
+         * PARAMETERS ARE GROUPED BY BANK: every int, then every string.
+         *
+         * Not the declaration order. `CS2VM2_Op_GosubWithParams` pops the
+         * callee's string arguments off the STRING stack and its int
+         * arguments off the INT stack, each in reverse declaration order —
+         * two banks, filled independently — so a declaration that interleaves
+         * them still binds ints to ints and strings to strings.
+         *
+         * `[proc,magic_spellbook_sort](intarray $intarray0, int $int0, int
+         * $int1, enum $enum2)` is the case that proves it: the array handle is
+         * declared FIRST and lives on the string bank, so it is the LAST
+         * parameter a generated function takes. Following the declaration
+         * order made the callee read the handle out of an int slot, where it
+         * arrived as the number 0 and the first `array_set` on it threw.
+         *
+         * An ARRAY is a string-bank value here; `localBank` is the one place
+         * that rule is written down.
+         */
+        const ordered = [
+            ...this.ast.arguments.filter((v) => localBank(v.kind) !== 'string'),
+            ...this.ast.arguments.filter((v) => localBank(v.kind) === 'string'),
+        ];
+        const args = ordered.map((variable) => this.names.get(variableKey(variable)));
         for( const variable of this.ast.arguments )
             this.arguments.add(variableKey(variable));
 
@@ -601,7 +624,7 @@ class ScriptEmitter {
 
     procCall(node) {
         this.procs.add(node.scriptId);
-        const args = this.argList(node.arguments || []);
+        const args = this.procArgList(node.arguments || []);
         /*
          * `yield*` rather than a call: a proc is a generator too, so its own
          * parking suspends this frame as well. That is the C behaviour — a
@@ -637,6 +660,59 @@ class ScriptEmitter {
      * expression returns an array here, so spreading it is both the correct
      * lowering and the one that keeps evaluation order.
      */
+    /**
+     * A PROC's argument list, grouped by stack bank.
+     *
+     * The CS2 calling convention is two banks, not one list: ints fill the
+     * callee's int locals in order, strings fill its string locals in order,
+     * INDEPENDENTLY. A generated function takes all its int parameters and
+     * then all its string ones, so an argument list whose strings are not last
+     * has to be regrouped or every argument after the first string lands one
+     * slot out.
+     *
+     * `~magic_spellbook_redraw(..., $string0, $string1, $int12)` is the case:
+     * eleven ints, two strings, and the eleventh int written AFTER the
+     * strings. Passed in source order, `$string0` arrives in the last int
+     * parameter and `$int12` arrives in `$string0` — the spellbook then
+     * measured the number 12 instead of "Filters" and sized its tooltip to
+     * fit the text "0".
+     *
+     * Evaluation order is the SOURCE order regardless: when regrouping is
+     * needed every argument is evaluated into a temporary first, so a call
+     * with side effects still runs them left to right.
+     */
+    procArgList(args) {
+        const slots = [];
+        let reorder = false;
+        let seenString = false;
+        for( const arg of args )
+        {
+            const banks = stackBanks(arg);
+            for( const bank of banks )
+            {
+                if( bank === 'string' ) seenString = true;
+                else if( seenString ) reorder = true;
+            }
+            slots.push({ arg, banks });
+        }
+        if( !reorder ) return this.argList(args);
+
+        const values = [];
+        for( const { arg, banks } of slots )
+        {
+            const temp = this.newTemp();
+            this.prelude.push(`let ${temp};`);
+            this.prelude.push(`${temp} = ${this.expr(arg)};`);
+            if( banks.length === 1 ) values.push({ code: temp, bank: banks[0] });
+            else banks.forEach((bank, index) =>
+                values.push({ code: `${temp}[${index}]`, bank }));
+        }
+        return [
+            ...values.filter((value) => value.bank !== 'string'),
+            ...values.filter((value) => value.bank === 'string'),
+        ].map((value) => value.code).join(', ');
+    }
+
     argList(args) {
         return args
             .map((arg) => (stackSlotCount(arg) === 1 ? this.expr(arg) : `...(${this.expr(arg)})`))
@@ -782,6 +858,47 @@ function collectVariables(node, out) {
  * This is the number the CS2 stack machine counted; the tree's node count is
  * a different number that usually happens to agree.
  */
+/**
+ * Which STACK each of an expression's values lives on: 'int' or 'string'.
+ *
+ * One entry per slot, so a multi-valued call contributes several. Only
+ * `RSCACHE_CS2_TYPE_STRING` is a string; `char`, `coord`, `mes` and the rest
+ * are ints with a domain.
+ */
+function stackBanks(node) {
+    if( !node ) return [];
+    /*
+     * ANY node that carries a variable is classified by that variable's bank,
+     * whatever the node kind is. `access` is the common one; `pointer` is how
+     * an ARRAY HANDLE is passed, and it was the one that got away — with no
+     * case of its own it fell through to the constant branch and was called an
+     * int, so `magic_spellbook_sort`'s recursive call passed its handle in the
+     * first int slot and the callee's first `array_set` threw on a number.
+     */
+    if( node.variable ) return [localBank(node.variable.kind)];
+    switch( node.kind )
+    {
+    case 'operation':
+    case 'proc':
+        /* Through `localBank`, like every other case here: an ARRAY handle is
+         * on the string bank at this revision, so a call that returns one
+         * contributes a string slot and not an int. Classifying it as an int
+         * moves every argument after it — and the handle then arrives at the
+         * callee as the number 0, where the first `array_set` on it throws
+         * "cannot create property on number". */
+        return (node.stackTypes || []).map((type) => localBank(type));
+    case 'compound':
+        return (node.children || []).flatMap((child) => stackBanks(child));
+    case 'clientscript':
+        return [];
+    case 'string':
+        return ['string'];
+    default:
+        return [node.stackType ? localBank(node.stackType)
+            : (typeof node.value === 'string' ? 'string' : 'int')];
+    }
+}
+
 function stackSlotCount(node) {
     if( !node ) return 0;
     switch( node.kind )

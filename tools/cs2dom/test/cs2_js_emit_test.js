@@ -336,6 +336,73 @@ test('an array index past the end reads 0 and drops the write', () => {
     assert.deepEqual(array, [-1, -1]);
 });
 
+test('a proc call groups its arguments by STACK BANK, not source order', () => {
+    /*
+     * `CS2VM2_Op_GosubWithParams` pops the callee's string arguments off the
+     * STRING stack and its int arguments off the INT stack, each in reverse
+     * declaration order — two banks, filled independently. So a call whose
+     * strings are not last still binds ints to ints, and a generated function
+     * takes every int parameter and then every string one.
+     *
+     * `~magic_spellbook_redraw(..., $string0, $string1, $int12)` is the case:
+     * eleven ints with the last one written AFTER the strings. In source
+     * order `$string0` arrives in the last int parameter and `$int12` in
+     * `$string0`.
+     */
+    const emitted = emitScript({
+        schema: 'rscache-cs2-ast/1', id: 90001, name: '[proc,caller]',
+        arguments: [], returns: [], frame: { localInts: 1, localStrings: 1 },
+        body: { kind: 'seq', instructions: [{
+            kind: 'assignment', definitions: [],
+            expression: {
+                kind: 'proc', scriptId: 90002, stackTypes: [],
+                arguments: [
+                    { kind: 'constant', stackType: 'int', value: 1, type: 'int' },
+                    { kind: 'constant', stackType: 'string', value: 'a', type: 'string' },
+                    { kind: 'constant', stackType: 'int', value: 2, type: 'int' },
+                ],
+            },
+        }] },
+    });
+    const call = emitted.code.split('\n').find((line) => line.includes('cs2_90002'));
+    assert.match(call, /cs2_90002\(H, \w+, \w+, \w+\)/);
+    /* The two ints first, then the string — whatever order they were written. */
+    const order = emitted.code.match(/t\d+ = [^;]+;/g).map((line) => line.split(' = ')[1]);
+    assert.deepEqual(order, ['1;', '"a";', '2;'],
+        'evaluation stays in SOURCE order; only the binding is regrouped');
+});
+
+test('an ARRAY handle is a string-bank value, however the tree spells it', () => {
+    /*
+     * An array lives on the string stack at this revision, and the tree hands
+     * one over as a `pointer` node rather than an `access`. Classifying it by
+     * node kind rather than by its VARIABLE called it an int, and
+     * `magic_spellbook_sort`'s recursive call then passed its handle in the
+     * first int slot — the callee's first `array_set` threw on a number.
+     */
+    const emitted = emitScript({
+        schema: 'rscache-cs2-ast/1', id: 90003, name: '[proc,caller]',
+        arguments: [], returns: [], frame: { localInts: 1, localStrings: 1 },
+        body: { kind: 'seq', instructions: [{
+            kind: 'assignment', definitions: [],
+            expression: {
+                kind: 'proc', scriptId: 90004, stackTypes: [],
+                arguments: [
+                    { kind: 'pointer',
+                      variable: { kind: 'array', id: 0, local: true, type: 'int' } },
+                    { kind: 'constant', stackType: 'int', value: 7, type: 'int' },
+                ],
+            },
+        }] },
+    });
+    const call = emitted.code.split('\n').find((line) => line.includes('cs2_90004'));
+    const [, first, second] = /cs2_90004\(H, (\w+), (\w+)\)/.exec(call);
+    const assignments = Object.fromEntries(
+        emitted.code.match(/t\d+ = [^;]+;/g).map((line) => line.split(' = ')));
+    assert.equal(assignments[second].trim(), '$array0;', 'the handle is passed LAST');
+    assert.equal(assignments[first].trim(), '7;');
+});
+
 test('array_sort_all permutes the secondary in lockstep', () => {
     const names = ['c', 'a', 'b'];
     const ids = [30, 10, 20];
