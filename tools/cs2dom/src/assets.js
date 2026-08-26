@@ -244,9 +244,30 @@ export class BitmapFont {
         return widest;
     }
 
-    /** Total height, which is what `paraheight` answers. */
+    /**
+     * How many LINES the string wraps to — which is what `paraheight` answers.
+     *
+     * A LINE COUNT, not a pixel height. `rs_cs2_host.c` calls
+     * `rs_cs2_font_wrap_line_count` for this opcode, and the scripts read it
+     * that way: script 1982 builds the kudos list with
+     * `$int8 = paraheight(...)` and then `cc_setsize(20, 18 * $int8)` and
+     * `$int7 = $int7 + 15 * $int8 + 5` — eighteen and fifteen pixels PER LINE.
+     *
+     * Answering pixels multiplies both by the line height. The kudos list's
+     * scroll extent came out 19,320 against the reference's ~2,040, which
+     * sized its scrollbar thumb at 10 pixels instead of 73 and moved every
+     * command below it.
+     *
+     * `measureBlockHeight` is the pixel figure, for the renderer that needs it.
+     */
     measureHeight(text, maxWidth) {
-        return this.wrap(text, maxWidth).length * this.lineHeight;
+        return this.wrap(text, maxWidth).length;
+    }
+
+    /** The pixel height of the wrapped block — what the PAINTER needs. */
+    measureBlockHeight(text, maxWidth, lineHeight = 0) {
+        const step = lineHeight > 0 ? lineHeight : this.lineHeight;
+        return this.wrap(text, maxWidth).length * step;
     }
 
     /**

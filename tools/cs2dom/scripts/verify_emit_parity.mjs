@@ -307,8 +307,10 @@ async function run(reference) {
         const original = host[method].bind(host);
         host[method] = (...args) => {
             const answer = original(...args);
+            const where = process.env.PARITY_TRACE_WHERE
+                ? `\n${new Error().stack.split('\n').slice(2, 6).join('\n')}` : '';
             console.error(`${method}(${args.map((a) => JSON.stringify(a)).join(', ')})`
-                + ` = ${String(answer)}`);
+                + ` = ${String(answer)}${where}`);
             return answer;
         };
     }

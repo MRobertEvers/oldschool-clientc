@@ -164,11 +164,9 @@ export function installWidgetOps(HostKernel) {
         return param.string ? 0 : (param.defaultInt ?? 0);
     };
 
+    /* The two cursors are EXCLUSIVE; see `_create` in host_kernel.js. */
     proto.dot_cc_copy = function (parentId, srcSubId, dstSubId) {
-        const result = this.cc_copy(parentId, srcSubId, dstSubId);
-        if( result === HOST_PARK ) return result;
-        this.dot = this.active;
-        return undefined;
+        return this._copy(parentId, srcSubId, dstSubId, (index) => this.setDot(index));
     };
 
     proto._read = function (node, field, fallback) {
@@ -975,21 +973,27 @@ export function installWidgetOps(HostKernel) {
      * The remaining creation forms
      * ----------------------------------------------------------- */
 
-    /* `cc_createchild` differs from `cc_create` only in that the parent is the
-     * active component rather than a named one. */
+    /*
+     * `cc_createchild` differs from `cc_create` only in that the parent is the
+     * active component rather than a named one — and the DOT form still reads
+     * its parent from the active cursor while selecting only the dot. Both
+     * halves matter: the parent comes from one cursor, the selection goes to
+     * the other, and collapsing them is what makes a script that builds two
+     * things at once build one thing twice.
+     */
     proto.dot_cc_createchild = function (type, subId, nested = 0) {
-        this.cc_createchild(type, subId, nested);
-        this.dot = this.active;
-        return undefined;
+        return this._createChild(type, subId, (index) => this.setDot(index));
     };
 
     proto.dot_cc_createsibling = function (type, subId, nested = 0) {
-        this.cc_createsibling(type, subId, nested);
-        this.dot = this.active;
-        return undefined;
+        return this._createSibling(type, subId, (index) => this.setDot(index));
     };
 
     proto.cc_createchild = function (type, subId, nested = 0) {
+        return this._createChild(type, subId, (index) => this.setActive(index));
+    };
+
+    proto._createChild = function (type, subId, select) {
         this.calls++;
         const parent = this.activeNode();
         if( !parent ) return undefined;
@@ -998,12 +1002,16 @@ export function installWidgetOps(HostKernel) {
             parentIndex: parent.index, type, subId, dynamic: true,
             componentId: this.tree.allocateDynamicComponentId(parent.componentId >>> 16),
         });
-        this.setActive(index);
+        select(index);
         return undefined;
     };
 
     /* `cc_createsibling` attaches beside the active component instead. */
     proto.cc_createsibling = function (type, subId, nested = 0) {
+        return this._createSibling(type, subId, (index) => this.setActive(index));
+    };
+
+    proto._createSibling = function (type, subId, select) {
         this.calls++;
         const node = this.activeNode();
         if( !node ) return undefined;
@@ -1012,7 +1020,7 @@ export function installWidgetOps(HostKernel) {
             parentIndex: node.parent, type, subId, dynamic: true,
             componentId: this.tree.allocateDynamicComponentId(node.componentId >>> 16),
         });
-        this.setActive(index);
+        select(index);
         return undefined;
     };
 
@@ -1025,6 +1033,10 @@ export function installWidgetOps(HostKernel) {
      * made, collapsing the whole strip onto the last iteration's x.
      */
     proto.cc_copy = function (parentId, srcSubId, dstSubId) {
+        return this._copy(parentId, srcSubId, dstSubId, (index) => this.setActive(index));
+    };
+
+    proto._copy = function (parentId, srcSubId, dstSubId, select) {
         this.calls++;
         const parent = this.tree.findByComponentId(parentId);
         if( !parent ) return undefined;
@@ -1043,8 +1055,7 @@ export function installWidgetOps(HostKernel) {
         copy.hidden = source.hidden;
         if( source.ops ) copy.ops = [...source.ops];
         if( source.hooks ) copy.hooks = { ...source.hooks };
-        this.setActive(index);
-        this.setDot(index);
+        select(index);
         return undefined;
     };
 
@@ -1122,9 +1133,12 @@ export function installWidgetOps(HostKernel) {
         return undefined;
     };
     proto.dot_if_children_find = function (startIndex, componentId) {
-        const result = this.if_children_find(startIndex, componentId);
-        if( result === HOST_PARK ) return result;
-        this.dot = this.active;
+        this.calls++;
+        const group = componentId >= 0 ? (componentId >>> 16) & 0xffff : -1;
+        if( group >= 0 && !this.tree.hasGroup(group) ) return this._park('component', group);
+        fillChildIterator(this, componentId, startIndex);
+        const parent = this.tree.findByComponentId(componentId);
+        if( parent ) this.setDot(parent.index);
         return undefined;
     };
 

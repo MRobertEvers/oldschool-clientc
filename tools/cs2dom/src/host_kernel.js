@@ -335,6 +335,25 @@ export class HostKernel {
      * child is not-found, and parking on the child instead loops forever.
      */
     cc_create(parentId, type, subId, nested = 0) {
+        return this._create(parentId, type, subId, (index) => this.setActive(index));
+    }
+
+    /*
+     * The dot form selects ONLY the dot. The two cursors are EXCLUSIVE —
+     * `CS2VM2_SetTargetComponentId` writes one or the other, never both — and
+     * that exclusivity is the whole reason there are two.
+     *
+     * Script 1982 is the case: it sizes a text row, then
+     * `.cc_create(...)` a stripe rectangle behind it and gives the stripe
+     * `cc_gety` and `cc_getheight` — the NON-dot getters, which must still be
+     * reading the row. Moving the active cursor with the dot made the stripe
+     * measure itself, so all 43 came out zero-height at one y.
+     */
+    dot_cc_create(parentId, type, subId, nested = 0) {
+        return this._create(parentId, type, subId, (index) => this.setDot(index));
+    }
+
+    _create(parentId, type, subId, select) {
         this.calls++;
         const group = groupOf(parentId);
         if( group >= 0 && !this.tree.hasGroup(group) ) return this._park('component', group);
@@ -349,14 +368,7 @@ export class HostKernel {
             parentIndex: parent.index, type, subId, dynamic: true,
             componentId: this.tree.allocateDynamicComponentId(group),
         });
-        this.setActive(index);
-        return undefined;
-    }
-
-    dot_cc_create(parentId, type, subId, nested = 0) {
-        const result = this.cc_create(parentId, type, subId, nested);
-        if( result === HOST_PARK ) return result;
-        this.dot = this.active;
+        select(index);
         return undefined;
     }
 
@@ -387,13 +399,14 @@ export class HostKernel {
     }
 
     dot_if_find(componentId) {
-        const result = this.if_find(componentId);
-        if( result === HOST_PARK ) return result;
-        this.dot = this.active;
-        return result;
+        return this._find(componentId, (index) => this.setDot(index));
     }
 
     if_find(componentId) {
+        return this._find(componentId, (index) => this.setActive(index));
+    }
+
+    _find(componentId, select) {
         this.calls++;
         const group = groupOf(componentId);
         if( group >= 0 && !this.tree.hasGroup(group) ) return this._park('component', group);

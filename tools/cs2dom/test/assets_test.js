@@ -109,7 +109,11 @@ test('a zero width does not wrap', () => {
 test('<br> forces a break wherever it appears', () => {
     const font = testFont();
     assert.deepEqual(font.wrap('a<br>b', 0), ['a', 'b']);
-    assert.equal(font.measureHeight('a<br>b', 0), 24, 'two lines at lineHeight 12');
+    /* A LINE COUNT, not pixels: `paraheight` is `wrap_line_count` in the C
+     * host, and the scripts multiply it by their own per-line step. */
+    assert.equal(font.measureHeight('a<br>b', 0), 2, 'two lines');
+    assert.equal(font.measureBlockHeight('a<br>b', 0), 24,
+        'and the pixel figure is the painter\'s, at lineHeight 12');
 });
 
 /* -------------------------------------------------------------------------
