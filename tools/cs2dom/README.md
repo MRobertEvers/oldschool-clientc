@@ -64,10 +64,9 @@ make -C ../../src web             # the client, for the browser
 make dev                          # dev server + browser, watching example/ui/*.tsx
 ```
 
-`make dev` opens a page with three panes: the interface, the host state it reads
-as controls, and the `.if` / `.cs2` / JavaScript records it compiles to. Save a
-file and the preview follows — no full cache bake and nothing written to the
-content tree.
+`make dev` opens a page with three panes: the client, the state to drive it
+with, and the `.if` / `.compack` / `.cs2` / JavaScript the interface compiles to.
+Save a record and the preview follows.
 
 The preview **is the game client**. `build-web/torirs.wasm` is the same C client
 built from the same sources by `make -C src web`; it renders with the real
@@ -83,7 +82,28 @@ interfaces matching, and still drew the wrong picture, because an emit list
 cannot see a painter. `CS2_DOM_CLIENT_PLAN.md` has the full argument. The short
 version: there is already a renderer that is right by construction.
 
-The same page can open a Dat2 cache without an OSRS-Content checkout:
+## The edit loop
+
+An edit is to a text tree and the client reads a packed cache, so something has
+to pack — and it is `cachepack`, the same tool the real bake uses. A preview
+showing bytes no bake would produce is the failure this whole tool was rebuilt to
+stop repeating.
+
+```
+edit a .if or .cs2  ->  cachepack --asset-only  ->  preview cache  ->  reboot
+```
+
+The preview cache is a **copy** of the real one, under `build/preview-cache`,
+with this content tree's interfaces and scripts written over it. Copied because
+nothing here should be able to reach the cache the rest of the repo builds
+against; copied once because it is 218MB.
+
+Three things have to happen together or the edit silently does not appear, and
+all three are in `verify-edit-loop`: io_server is restarted (it holds the cache
+open, and its own records behind that), the client is rebooted with
+`cache_reset=1` (it keeps every archive it has read in IndexedDB), and a failed
+bake does **not** reboot — the cache still holds the last good bytes, so the
+client would come back showing the previous interface.
 
 ```sh
 node bin/cs2dom.js dev --project example \
@@ -91,11 +111,7 @@ node bin/cs2dom.js dev --project example \
 ```
 
 `--rev` is the cachepack profile name; cache formats are revision-sensitive, so
-it is stated rather than guessed. The repository's `cachepack` decodes
-interfaces, clientscripts, sprites, fonts and models into a read-only tree under
-the OS temporary directory, keyed by every cache file plus the revision and
-cachepack build — so a changed cache invalidates it automatically and the
-disposable `cs2dom-dat2` directory can be deleted at any time.
+it is stated rather than guessed.
 
 Then, when it looks right:
 
@@ -290,11 +306,11 @@ would be authoring something the format does not have.
 | `src/ir.js` | lowering: the static/dynamic split, hooks, scripts |
 | `src/emit_if.js` | `.if` and `.compack` |
 | `src/emit_cs2.js` | CS2 source |
-| `src/host.js` | host state slices, ranges, preview controls |
-| `src/eval.js` | evaluating the IR against made-up state |
-| `src/content.js` | `.if`/`.compack` → IR and read-only TSX |
-| `src/dat2.js` | selective, cached Dat2 → read-only content source |
-| `src/cache_runtime.js` | bounded source analysis used while importing readable records |
+| `src/host.js` | host state slices and the id ranges a build checks against |
+| `src/cmd_frames.js` | host commands as cmdbus bytes, for driving the preview |
+| `src/dev_client.js` | the dev server: the client, an io_server, and the bake |
+| `src/dev_page_client.js` | the dev page: the client in an iframe, state, records |
+| `src/dev_records.js` | an interface's script closure, lowered for the records pane |
 | `src/ledger.js` | id allocation through the pack files |
 | `src/export.js` | edits → content tree → cachepack |
 
@@ -302,10 +318,21 @@ would be authoring something the format does not have.
 
 | gate | command | number |
 |---|---|---|
-| the unit suites and the `.if` round trip | `make test` | 1,936 identical, 0 differing |
+| the translation suites and the `.if` round trip | `make test` | 1,936 identical, 0 differing |
 | every decompilable script lowers | `make corpus-aot` | 9,724 / 9,724 |
 | the generated tables match their sources | `make generated-check` | — |
 | the whole chain, edit to packed bytes | `make roundtrip-chain` | — |
+
+Three more need a built client, so they are not part of `make test`:
+
+| gate | command | asks |
+|---|---|---|
+| the wire | `make verify-cmd-wire` | does C read the frames this tool writes? |
+| the preview | `make smoke-client` | does the client boot, draw, and take a command? |
+| the loop | `make verify-edit-loop` | does an edit reach the screen? |
+
+The last one is the only check that can catch a preview reading a cache nobody
+is writing to — every other gate stays green through it.
 
 ## Plans
 

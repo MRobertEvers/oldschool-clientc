@@ -1,7 +1,8 @@
 # CS2 DOM: the official client is the preview
 
-Status: **Phases 0 and 1 landed** — the retired stack is deleted and the command
-channel is in the client, proved by replay. Phases 2–4 open.
+Status: **Landed.** All five phases are in. The retired stack and the JavaScript
+engine are deleted, the command channel is in the client, and the preview is the
+official client compiled to WebAssembly with a working edit loop.
 Scope: `tools/cs2dom`, plus `src/cmd`, `src/main.c` and `src/web` in the client.
 Supersedes `CS2_DOM_REDESIGN_PLAN.md` and, through it,
 `CS2_DOM_ARCHITECTURE_PLAN.md`. Both are kept for their measurements.
@@ -202,20 +203,45 @@ round-trip gates.
   interface 600 renders in full, and a varp frame reads back its value. The same
   work found `test-cmdbus` passing vacuously — `assert()` is how it checks and
   `-DNDEBUG` was compiling every check out — now fixed with `-UNDEBUG`.
-- **Phase 2 — the preview.** New dev server and page; the iframe boots offline
-  and the state pane reaches the bus. README rewrite lands here.
-- **Phase 3 — the edit loop.** Watch, bake, compile, pack, bump, reload.
-- **Phase 4 — delete the JavaScript engine.** The rest of the sweep.
+- **Phase 2 — the preview.** *Landed.* `src/dev_client.js` serves `build-web/`,
+  spawns an io_server and proxies its cache traffic so the iframe stays
+  same-origin; `src/dev_page_client.js` is the three-pane page. `cmd_frames.js`
+  encodes bus frames, `test/cmd_frames_test.js` pins their octets, and
+  `verify_cmd_wire.mjs` proves C reads them. `smoke_client.mjs` replaced both
+  parity harnesses.
+
+  Three bugs, all the same shape — something failed without saying so. io_server
+  refuses an absolute cache directory outright, exited, and my stderr filter kept
+  only lines matching /error|failed/ so the one sentence explaining it was
+  dropped. The client's cache directory is its first positional and omitting it
+  slid the interface id into its place, booting against a cache named "600". And
+  the smoke test failed a healthy boot on console.error, because the client is a
+  C program and its stderr arrives that way.
+
+- **Phase 3 — the edit loop.** *Landed.* Watch → cachepack `--asset-only` into a
+  copied preview cache → restart io_server → reboot the client with
+  `cache_reset=1`. Every one of those three is load-bearing: io_server holds the
+  cache open, the client keeps archives in IndexedDB, and a failed bake must not
+  reboot or the last good bytes look like the edit. `verify_edit_loop.mjs` is the
+  only gate that can catch a preview reading a cache nobody writes to.
+
+- **Phase 4 — delete the JavaScript engine.** *Landed.* The tree went from ~78
+  modules to 26 and from 21 test files to 5. Gone: `uitree`, `layout`, `emit`,
+  `hit_test`, `painter`, `assets`, `asset_loader`, `session`, `browser_runtime`,
+  the model-render chain, `cs2_driver`, `transmit_pump`, every `host_*`, the old
+  dev server and page, the content/asset readers that fed them, both parity
+  harnesses and the benches that measured them.
 
 ## Gates
 
-| gate | command |
-|---|---|
-| the AOT suites and the `.if` round trip | `make -C tools/cs2dom test` |
-| every decompilable script lowers | `make -C tools/cs2dom corpus-aot` |
-| the bus frames | `make -C src test-cmdbus` |
-| the browser channel codec | `make -C src test-web-channel` |
-| the preview actually draws | `scripts/smoke_client.mjs` (Phase 2) |
+| gate | command | asks |
+|---|---|---|
+| the translation suites and the `.if` round trip | `make -C tools/cs2dom test` | 1,936 identical, 0 differing |
+| every decompilable script lowers | `make -C tools/cs2dom corpus-aot` | 9,724 / 9,724 |
+| the bus frames | `make -C src test-cmdbus` | 9 passed |
+| does C read what JavaScript writes | `make -C tools/cs2dom verify-cmd-wire` | the wire |
+| does the preview boot and draw | `make -C tools/cs2dom smoke-client` | liveness |
+| does an edit reach the screen | `make -C tools/cs2dom verify-edit-loop` | the loop |
 
 The smoke test replaces both parity harnesses: start the dev server, open an
 interface, wait for the boot fact, screenshot the canvas, and assert that

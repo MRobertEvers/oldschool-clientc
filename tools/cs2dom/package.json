@@ -14,21 +14,21 @@
     "dev": "make dev-canvas",
     "pretest": "make generated",
     "test": "make test",
-    "test:native": "node test/native_preview_test.js",
     "build": "node bin/cs2dom.js build --project example",
     "build:dry": "node bin/cs2dom.js build --project example --dry-run",
-    "precheck": "make src/cs2_host_requests.js src/generated/cs2_host.ts",
     "check": "node bin/cs2dom.js check --project example",
     "cachegen": "node bin/cs2dom.js cachegen --project example",
     "ops": "node bin/cs2dom.js ops",
     "cs2": "make -C ../../3rd/rscache/tools cs2",
     "bake": "make -C ../../src torirsserver-cache",
     "ship": "npm run build && npm run bake",
-    "verify": "npm run cs2 && npm test && npm run test:native",
+    "verify": "npm run cs2 && npm test",
     "generated": "make generated",
     "test:aot": "make test-aot",
     "test:corpus": "make corpus-aot",
-    "bench:rebuild": "make bench-rebuild"
+    "smoke": "make smoke-client",
+    "edit-loop": "make verify-edit-loop",
+    "wire": "make verify-cmd-wire"
   },
   "dependencies": {
     "typescript": "^5.6.0"

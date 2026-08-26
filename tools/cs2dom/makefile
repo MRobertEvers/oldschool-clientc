@@ -13,10 +13,8 @@ CS2 := $(REPO_ROOT)/3rd/rscache/tools/cs2/cs2
 RSCACHE := $(REPO_ROOT)/3rd/rscache
 
 .PHONY: all install test dev build build-dry check cachegen ops bake ship clean \
-	generated generated-check test-aot corpus-aot bench-rebuild bench-phase6 \
-	roundtrip-if roundtrip-chain \
-	emit-reference emit-parity emit-reference-all emit-parity-all \
-	host-coverage dev-canvas client-web verify-cmd-wire smoke-client verify-edit-loop
+	generated generated-check test-aot corpus-aot roundtrip-if roundtrip-chain \
+	dev-canvas client-web verify-cmd-wire smoke-client verify-edit-loop
 
 all: test
 
@@ -78,29 +76,18 @@ client-web:
 dev-canvas: node_modules generated $(CS2) $(CLIENT_WASM) $(IO_SERVER)
 	$(NODE) bin/cs2dom.js dev-canvas --project $(PROJECT)
 
-# The AOT back end's own suites. No cache and no browser needed.
+# The translation suites. No cache, no client, no browser.
+#
+# Five files where there were twenty-one: the other sixteen tested an interface
+# runtime this tool no longer contains. What is left is what the tool is -- CS2
+# to JavaScript and back, interfaces to TSX and back, and the wire the preview
+# is driven over.
 test-aot: generated
 	$(NODE) test/cs2_js_emit_test.js
 	$(NODE) test/cmd_frames_test.js
-	$(NODE) test/uitree_test.js
-	$(NODE) test/host_services_test.js
-	$(NODE) test/transmit_pump_test.js
-	$(NODE) test/layout_test.js
-	$(NODE) test/emit_hit_test.js
-	$(NODE) test/painter_test.js
-	$(NODE) test/session_test.js
-	$(NODE) test/assets_test.js
-	$(NODE) test/asset_loader_test.js
 	$(NODE) test/round_trip_test.js
-	$(NODE) test/dev_canvas_test.js
-	$(NODE) test/content_assets_test.js
 	$(NODE) test/export_test.js
 	$(NODE) test/tsx_import_test.js
-	$(NODE) test/model_source_test.js
-	$(NODE) test/emit_parity_test.js
-	$(NODE) test/host_surface_arity_test.js
-	$(NODE) test/host_client_test.js
-	$(NODE) test/cs2_end_to_end_test.js
 
 # The standing corpus gate: every script the decompiler can describe must lower
 # to JavaScript the engine accepts, with no undeclared local. Needs a cache.
@@ -145,54 +132,13 @@ roundtrip-chain: $(CS2)
 	mkdir -p $(CHAIN_SCRATCH)
 	$(NODE) scripts/verify_chain.mjs $(CHAIN_SCRATCH)
 
-# ---- parity against the C client ----------------------------------------
-#
-# `emit-reference` runs the headless client over a set of interfaces and stores
-# each one's draw list under test/fixtures/emit. `emit-parity` bakes the same
-# interfaces here, runs their onload closures, lays out, walks emit and diffs.
-#
-# Two targets rather than one because they have different costs and different
-# dependencies: the capture needs a built client and a cache and takes seconds
-# per interface, and the comparison needs neither. The reference is checked in,
-# so the comparison is the one you run.
-#
-# NEITHER is part of `make test`. The comparison is not green — it is a
-# MEASUREMENT, and the numbers it prints are the state of the port. Wiring an
-# unfinished measurement into the default target teaches people to ignore a red
-# build, and the day it finally matters nobody looks.
+# The native client: the oracle for the wire gate below, and nothing else now.
+# The emit-parity and pixel-parity harnesses that used to live here are gone
+# with the renderer they checked (see CS2_DOM_CLIENT_PLAN.md).
 TORIRS ?= $(REPO_ROOT)/src/torirs
-EMIT_INTERFACES ?= 600,12,162,218
 
 $(TORIRS):
 	$(MAKE) -C $(REPO_ROOT)/src torirs
-
-emit-reference: $(TORIRS)
-	$(NODE) scripts/capture_emit_reference.mjs --cache $(CACHE) --rev $(REV) \
-		--client $(TORIRS) --interfaces $(EMIT_INTERFACES)
-
-# The whole pack, which is the number that means anything: 881 interfaces
-# produce a draw list (the other 88 are meant to be mounted inside another).
-#
-# Two steps, because the first needs the C client and a cache and the second
-# does not. The capture is reproducible — a bounded run ticks its game logic
-# once per frame — so it only has to be redone when the CLIENT changes.
-#
-#   make emit-reference-all        # ~50s, writes EMIT_ALL_DIR
-#   make emit-parity-all           # ~6s, prints `matching` and `differing`
-#
-# `--jobs` is how many clients run at once; lower it on a small machine.
-EMIT_ALL_DIR ?= build/emit-reference
-EMIT_ALL_JOBS ?= 10
-EMIT_ALL_FRAMES ?= 3
-
-emit-reference-all: $(TORIRS)
-	$(NODE) scripts/capture_emit_reference.mjs --cache $(CACHE) --rev $(REV) \
-		--client $(TORIRS) --all --frames $(EMIT_ALL_FRAMES) \
-		--jobs $(EMIT_ALL_JOBS) --out $(EMIT_ALL_DIR)
-
-emit-parity-all: generated $(CS2)
-	$(NODE) scripts/verify_emit_parity.mjs --content $(CONTENT) --cache $(CACHE) \
-		--rev $(REV) --cs2 $(CS2) --reference $(EMIT_ALL_DIR)
 
 # ---- the client, as the preview -----------------------------------------
 #
@@ -220,25 +166,6 @@ smoke-client: node_modules $(CLIENT_WASM) $(IO_SERVER)
 # place and restores it, verifying the restore by hash.
 verify-edit-loop: node_modules $(CLIENT_WASM) $(IO_SERVER)
 	$(NODE) scripts/verify_edit_loop.mjs --cache $(CACHE) --rev $(REV) --content $(CONTENT)
-
-# What the host answers, measured against what the REFERENCE answers rather
-# than against the whole decompiler surface. See the script's header for why
-# the second number is the misleading one.
-host-coverage: generated
-	$(NODE) scripts/host_coverage_report.mjs
-
-emit-parity: generated $(CS2)
-	$(NODE) scripts/verify_emit_parity.mjs --content $(CONTENT) --cache $(CACHE) \
-		--rev $(REV) --cs2 $(CS2)
-
-bench-rebuild: generated
-	$(NODE) scripts/bench_mass_rebuild.mjs
-	$(NODE) scripts/bench_full_frame.mjs
-
-# Phase 6 of the plan is gated on a profile: "add only if profiles still
-# identify interpreter dispatch as material". This is that profile.
-bench-phase6: generated
-	$(NODE) scripts/bench_dispatch_share.mjs
 
 dev: dev-canvas
 
