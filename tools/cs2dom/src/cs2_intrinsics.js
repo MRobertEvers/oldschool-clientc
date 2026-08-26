@@ -247,8 +247,8 @@ export function appendNum(text, value) {
 /*
  * windows-1252, both directions.
  *
- * The strings this runtime carries are DECODED — the bytecode decoder maps
- * byte 0x80 to U+20AC and so on (`CP1252_C1` in cs2_bytecode_decoder.ts) — but
+ * The strings this runtime carries are DECODED — the decompiler maps
+ * byte 0x80 to U+20AC and so on — but
  * the C handlers work on the bytes. Anything that compares or searches by
  * ordinal has to go back through the table, and `& 0xff` is not that mapping:
  * U+20AC & 0xff is 0x14.

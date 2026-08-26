@@ -1,7 +1,17 @@
 # CS2 DOM Architecture Plan
 
-Status: implementation in progress (transactional renderer and reviewed
-TypeScript execution slices landed; whole-interface cutover remains gated)  
+> **SUPERSEDED (2026-08-26), twice over.** `CS2_DOM_REDESIGN_PLAN.md` replaced
+> this plan's C/WASM bridge and React-DOM renderer with a JavaScript-native
+> engine; `CS2_DOM_CLIENT_PLAN.md` then replaced that engine with the official C
+> client compiled to WebAssembly. Every file this plan describes has been
+> deleted — the bridge, the engine router, the TypeScript interpreter, the
+> worker protocol, the tree store and the React renderers.
+>
+> Kept for its measurements: the 10.7–12.1 ms bridged transaction against 3.9 ms
+> unbridged, and the 22,622 packed mutations per tick that explained it.
+
+Status: **Superseded.** (Historical: transactional renderer and reviewed
+TypeScript execution slices landed; whole-interface cutover never happened.)  
 Scope: `tools/cs2dom`, `src/cs2vm2`, and the CS2 opcode generators  
 Primary objective: execute cache CS2 accurately and quickly against an in-memory UI tree, then publish settled changes to a real React renderer.
 

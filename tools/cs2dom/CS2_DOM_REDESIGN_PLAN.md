@@ -1,7 +1,27 @@
 # CS2 DOM Redesign Plan
 
-Status: **Phases 0–5 landed; Phase 6 closed by its own profile gate (1.8%)** (see *Implementation status* below) —
-supersedes `CS2_DOM_ARCHITECTURE_PLAN.md` (kept for its measurements and its
+> **SUPERSEDED (2026-08-26) by `CS2_DOM_CLIENT_PLAN.md`.**
+>
+> This plan built a second interface engine in JavaScript — a ported UITree,
+> layout, emit walk and canvas painter — and proved it against the C client
+> command-for-command. The emit gate went green at 881/881 and the picture was
+> still wrong, because an emit list cannot see a painter: the device-pixel
+> transform, the model clip rectangle, the assets only the painter knows it
+> needs, and the IF3-versus-cache sprite stretch were all invisible to it. The
+> answer was a second, pixel-level harness; the conclusion was that maintaining
+> a parallel renderer costs more than it returns.
+>
+> The preview is now the official C client compiled to WebAssembly, driven over
+> the command bus. cs2dom keeps what this plan got right — the AOT CS2 →
+> JavaScript compiler, the TSX ⇄ cache round trip, and their gates — and drops
+> the engine, the painter and both parity harnesses.
+>
+> Kept for its measurements and for its inventory of defects, which is the
+> record of what a from-scratch interface renderer has to get right.
+
+Status: **Superseded.** (Historical: Phases 0–5 landed; Phase 6 closed by its own
+profile gate at 1.8%; see *Implementation status* below.) Superseded
+`CS2_DOM_ARCHITECTURE_PLAN.md` in its turn (kept for its measurements and its
 record of what the incremental migration learned).
 Scope: `tools/cs2dom`, plus generators in `tools/cs2_gen_opcodes` and the
 build-time C tools (`cachepack`, `cs2`).

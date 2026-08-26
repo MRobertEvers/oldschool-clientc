@@ -14,14 +14,8 @@
     "dev": "make dev-canvas",
     "pretest": "make generated",
     "test": "make test",
-    "pretest:bank": "make wasm",
-    "test:bank": "node test/bankmain_wasm_stress_test.js",
-    "pretest:ca-tasks": "make browser-runtime",
-    "test:ca-tasks": "node test/ca_tasks_typescript_differential_test.js",
     "test:native": "node test/native_preview_test.js",
     "build": "node bin/cs2dom.js build --project example",
-    "build:react-runtime": "node scripts/build_react_runtime.js",
-    "audit:ts-backend": "node scripts/audit_ts_backend.js",
     "build:dry": "node bin/cs2dom.js build --project example --dry-run",
     "precheck": "make src/cs2_host_requests.js src/generated/cs2_host.ts",
     "check": "node bin/cs2dom.js check --project example",
@@ -34,19 +28,10 @@
     "generated": "make generated",
     "test:aot": "make test-aot",
     "test:corpus": "make corpus-aot",
-    "bench:rebuild": "make bench-rebuild",
-    "dev:legacy": "make dev-legacy",
-    "test:legacy": "make test-legacy"
+    "bench:rebuild": "make bench-rebuild"
   },
   "dependencies": {
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
     "typescript": "^5.6.0"
-  },
-  "devDependencies": {
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "esbuild": "^0.25.12"
   },
   "engines": {
     "node": ">=20"

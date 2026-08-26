@@ -38,7 +38,6 @@ export function main(argv) {
     switch( command ) {
         case 'build': return commandBuild(flags);
         case 'dev-canvas': case 'dev': case 'start': return commandDevCanvas(flags);
-        case 'dev-legacy': return commandDev(flags);
         case 'cachegen': return commandCacheGen(flags);
         case 'check': return commandCheck(flags);
         case 'ops': return commandOps();
@@ -62,9 +61,6 @@ function usage(code) {
         '      one canvas. Three panes — the interface, the host state it reads as\n' +
         '      controls, and the .if / .cs2 / JavaScript records it compiles to.\n\n' +
         '      --cache opens a Dat2 cache directly; --rev names its cachepack profile.\n\n' +
-        '  cs2dom dev-legacy [--project DIR] …\n' +
-        '      The retiring C/WASM + React-DOM runtime. Nothing in the default build\n' +
-        '      path reaches it; it is here while its files are.\n\n' +
         '  cs2dom cachegen [--project DIR] [--out FILE]\n' +
         '      Regenerate cache.gen.ts — sprite, font, varp, varbit and interface ids\n' +
         '      as typed constants, read from the content tree.\n\n' +
@@ -291,19 +287,6 @@ function openBrowser(address) {
         : process.platform === 'win32' ? 'start' : 'xdg-open';
     try { spawn(command, [address], { stdio: 'ignore', detached: true }).unref(); }
     catch { /* nothing to do about it */ }
-}
-
-/** The retiring C/WASM + React-DOM server, while its files are still here. */
-function commandDev(flags) {
-    const project = loadProject(flags.project);
-    if( flags.cache ) project.cache = resolve(flags.cache);
-    if( flags.rev ) project.revision = flags.rev;
-    /* Imported here rather than at the top: a build should not pay for the server. */
-    return import('./dev.js').then(({ serve }) => {
-        serve(project, { port: flags.port || 8099, open: !flags.noOpen });
-        /* The server owns the process from here; there is no exit code to give. */
-        return new Promise(() => {});
-    });
 }
 
 function commandCacheGen(flags) {
