@@ -421,6 +421,21 @@ async function run(reference) {
             return uid;
         };
     }
+    /* PARITY_WATCH_HIDE=<uid> prints a stack every time that component's hide
+     * flag is written. "Why is this not drawn" is otherwise a needle in a few
+     * thousand `cc_sethide` calls, none of which names its target. */
+    if( process.env.PARITY_WATCH_HIDE )
+    {
+        const watched = Number(process.env.PARITY_WATCH_HIDE);
+        const setHidden = tree.setHidden.bind(tree);
+        tree.setHidden = (index, hidden) => {
+            const node = tree.at(index);
+            if( node && node.componentId === watched )
+                console.error(`setHidden(${watched}, ${hidden})\n`
+                    + new Error().stack.split('\n').slice(2, 8).join('\n'));
+            return setHidden(index, hidden);
+        };
+    }
     const baked = bakeGroup(tree, id);
     if( !baked ) return { id, name, skipped: 'no .if in the content tree' };
     const { onLoad } = baked;

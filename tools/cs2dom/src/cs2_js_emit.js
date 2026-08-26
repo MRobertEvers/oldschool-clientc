@@ -583,10 +583,7 @@ class ScriptEmitter {
 
         /* Short-circuit operators: JS has them, with the same semantics. */
         if( node.opcode === OP_SS_AND || node.opcode === OP_SS_OR )
-        {
-            const operator = node.opcode === OP_SS_AND ? '&&' : '||';
-            return `(${args.map((a) => this.expr(a)).join(` ${operator} `)})`;
-        }
+            return this.shortCircuit(node, args);
 
         /* Comparisons. Both sides are already 32-bit, so the JS operator is
          * exact — unlike arithmetic, which never becomes an operator here. */
@@ -801,6 +798,54 @@ class ScriptEmitter {
     }
 
     /** Run `build`, collecting any statements it needed alongside its code. */
+    /*
+     * `&` and `|`, and the operands after the first must not RUN unless the
+     * chain reaches them.
+     *
+     * The bytecode is a branch chain, so it short-circuits; `&&` and `||`
+     * short-circuit too, and for an operand that lowers to a plain expression
+     * that is the whole story. It is not the whole story for an operand that
+     * PARKS: a parking call cannot sit inside an expression, so it is hoisted
+     * into the prelude — and the prelude runs before the condition it belongs
+     * to, unconditionally.
+     *
+     * That is not a lost optimisation, it is a side effect happening that
+     * should not. `script958` is guarded by `clientclock % 250 = 0`, and its
+     * second term is `cc_find(...)`, which MOVES THE WIDGET CURSOR. Running it
+     * on every tick left the cursor on the wrong pair of components, and a
+     * later `cc_sethide` in `toplevel_osm` hid an orb overlay the reference
+     * draws.
+     *
+     * So when a later operand needs a prelude, the whole chain is lowered into
+     * statements instead: evaluate into a temporary, and guard each following
+     * operand's prelude with the temporary's value.
+     */
+    shortCircuit(node, args) {
+        const isAnd = node.opcode === OP_SS_AND;
+        const parts = args.map((arg) => this.capture(() => this.expr(arg)));
+
+        /* Nothing after the first needs statements: the plain operator is
+         * exact, and its own short-circuiting does the rest. */
+        if( parts.slice(1).every((part) => part.prelude.length === 0) )
+        {
+            this.prelude.push(...parts[0].prelude);
+            return `(${parts.map((part) => part.code).join(isAnd ? ' && ' : ' || ')})`;
+        }
+
+        const temp = this.newTemp();
+        this.prelude.push(`let ${temp};`);
+        this.prelude.push(...parts[0].prelude);
+        this.prelude.push(`${temp} = ${parts[0].code};`);
+        for( const part of parts.slice(1) )
+        {
+            this.prelude.push(`if (${isAnd ? '' : '!'}${temp}) {`);
+            this.prelude.push(...indent(part.prelude, 1));
+            this.prelude.push(`    ${temp} = ${part.code};`);
+            this.prelude.push('}');
+        }
+        return temp;
+    }
+
     capture(build) {
         const saved = this.prelude;
         this.prelude = [];

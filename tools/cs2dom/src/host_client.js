@@ -358,6 +358,22 @@ export function installClientOps(HostKernel) {
      * reason: this is not a mobile client. */
     proto.on_mobile = function () { this.calls++; return this.client.mobile ? 1 : 0; };
 
+    /*
+     * The mobile device queries, answered the way a desktop client answers
+     * them: full battery, on mains, unmetered connection.
+     *
+     * Not placeholders — the reference pushes these constants
+     * (`CS2_OP_MOBILE_BATTERYLEVEL` and its siblings) and scripts branch on
+     * them. `script1506` hides the minimap's charging bolt unless
+     * `mobile_batterycharging` is true, so leaving it unimplemented removed a
+     * command `toplevel_osm` draws.
+     */
+    proto.mobile_batterylevel = function () { this.calls++; return 100; };
+    proto.mobile_batterycharging = function () { this.calls++; return 1; };
+    proto.mobile_wifiavailable = function () { this.calls++; return 1; };
+    /* No soft keyboard to hide. */
+    proto.mobile_keyboardhide = function () { this.calls++; };
+
     proto.map_world = function () { this.calls++; return this.client.world; };
     proto.clienttype = function () { this.calls++; return this.client.clientType; };
 
