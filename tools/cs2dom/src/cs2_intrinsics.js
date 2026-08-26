@@ -72,9 +72,21 @@ export function scale(a, b, c) {
     return Number(product / BigInt(b)) | 0;
 }
 
-/* `(int)pow(double, double)`, including its truncation toward zero. */
+/*
+ * `(int)pow(double, double)`, including its truncation toward zero AND its
+ * saturation: converting an out-of-range double to int on this target clamps
+ * to INT_MIN/INT_MAX, where `| 0` would wrap it. pow(10, 10) is 2147483647,
+ * not 1410065408.
+ */
 export function pow(a, b) {
-    return Math.trunc(Math.pow(a, b)) | 0;
+    return doubleToInt(Math.pow(a, b));
+}
+
+function doubleToInt(value) {
+    if( Number.isNaN(value) ) return 0;
+    if( value >= 2147483647 ) return 2147483647;
+    if( value <= -2147483648 ) return -2147483648;
+    return Math.trunc(value) | 0;
 }
 
 /*
@@ -118,8 +130,12 @@ export function interpolate(a, b, c, d, e) {
     return (a + ((mul / denom) | 0)) | 0;
 }
 
+/* The product is 64-bit on purpose — `CS2VM2_Op_AddPercent` casts to int64_t
+ * so it cannot overflow, and `Math.imul` is exactly the wrap it avoids:
+ * addpercent(200000000, 50) came out 214100654 instead of 300000000. */
 export function addpercent(value, percent) {
-    return (value + ((Math.imul(value, percent) / 100) | 0)) | 0;
+    const scaled = Number(BigInt(value | 0) * BigInt(percent | 0) / 100n);
+    return (value + (scaled | 0)) | 0;
 }
 
 export function abs(value) {
@@ -199,8 +215,39 @@ export function appendNum(text, value) {
     return `${text ?? ''}${value | 0}`;
 }
 
+/*
+ * windows-1252, both directions.
+ *
+ * The strings this runtime carries are DECODED — the bytecode decoder maps
+ * byte 0x80 to U+20AC and so on (`CP1252_C1` in cs2_bytecode_decoder.ts) — but
+ * the C handlers work on the bytes. Anything that compares or searches by
+ * ordinal has to go back through the table, and `& 0xff` is not that mapping:
+ * U+20AC & 0xff is 0x14.
+ */
+const CP1252_C1 = Object.freeze([
+    0x20ac, 0x0081, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021,
+    0x02c6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008d, 0x017d, 0x008f,
+    0x0090, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014,
+    0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x009d, 0x017e, 0x0178,
+]);
+
+/** The character a cp1252 BYTE decodes to. */
+function cp1252Char(byte) {
+    const value = byte & 0xff;
+    return String.fromCharCode(value >= 0x80 && value < 0xa0
+        ? CP1252_C1[value - 0x80] : value);
+}
+
+/** The cp1252 byte a character encodes to, or -1 when it has none. */
+function cp1252Byte(code) {
+    if( code < 0x80 || (code >= 0xa0 && code <= 0xff) ) return code;
+    const index = CP1252_C1.indexOf(code);
+    return index >= 0 ? 0x80 + index : -1;
+}
+
 export function appendChar(text, code) {
-    return `${text ?? ''}${String.fromCharCode(code & 0xff)}`;
+    /* `(char)chr` in the C: the low byte, then whatever cp1252 says it is. */
+    return `${text ?? ''}${cp1252Char(code)}`;
 }
 
 export function tostring(value) {
@@ -217,9 +264,23 @@ export function compare(a, b) {
     if( a === b ) return 0;
     if( a === null || a === undefined ) return b === null || b === undefined ? 0 : -1;
     if( b === null || b === undefined ) return 1;
-    /* Codepoint order, which is what strcmp gives for these bytes; the default
-     * JS comparison is already codepoint order for BMP characters. */
-    return a < b ? -1 : a > b ? 1 : 0;
+    /*
+     * BYTE order, not codepoint order.
+     *
+     * `strcmp` compares cp1252 bytes, and the two orders disagree across the
+     * whole C1 range: byte 0x80 is the euro sign, which sorts BEFORE every
+     * accented letter for the C client and after all of them by codepoint.
+     * Sorted name lists are where it shows.
+     */
+    const length = Math.min(a.length, b.length);
+    for( let i = 0; i < length; i++ )
+    {
+        const left = cp1252Byte(a.charCodeAt(i));
+        const right = cp1252Byte(b.charCodeAt(i));
+        if( left !== right ) return left < right ? -1 : 1;
+    }
+    if( a.length === b.length ) return 0;
+    return a.length < b.length ? -1 : 1;
 }
 
 export function substring(text, start, end) {
@@ -230,11 +291,17 @@ export function substring(text, start, end) {
 }
 
 export function stringIndexofChar(text, code) {
-    return (text ?? '').indexOf(String.fromCharCode(code & 0xff));
+    /* The C compares `(unsigned char)haystack[i]` against `(unsigned char)ch`,
+     * so the needle is a cp1252 BYTE. */
+    return (text ?? '').indexOf(cp1252Char(code));
 }
 
 export function stringIndexofString(haystack, needle, from) {
-    return (haystack ?? '').indexOf(needle ?? '', Math.max(0, from | 0));
+    /* An EMPTY needle is "not found", not "found at 0": the C guards the whole
+     * search with `needle[0] != '\0'` and leaves the result at -1. Every
+     * `= -1` not-found test inverts on a needle that happens to be empty. */
+    if( !needle ) return -1;
+    return (haystack ?? '').indexOf(needle, Math.max(0, from | 0));
 }
 
 export function lowercase(text) {
@@ -255,8 +322,11 @@ export function removetags(text) {
     for( let i = 0; i < source.length; i++ )
     {
         const ch = source[i];
+        /* `>` closes a tag only when one is OPEN. The C guards its branch with
+         * `in_tag`, so a bare `>` is ordinary text: removetags("5 > 3") keeps
+         * its `>`. Dropping it unconditionally ate the character. */
         if( ch === '<' ) { inTag = true; continue; }
-        if( ch === '>' ) { inTag = false; continue; }
+        if( inTag && ch === '>' ) { inTag = false; continue; }
         if( !inTag ) out += ch;
     }
     return out;
@@ -277,24 +347,45 @@ export function escape(text) {
     return (text ?? '').replace(/[<>]/g, (ch) => (ch === '<' ? '<lt>' : '<gt>'));
 }
 
+/*
+ * The character predicates take the code UNMASKED.
+ *
+ * `CS2VM2_Op_CharClass` tests `chr` itself, so 304 is not a digit however its
+ * low byte reads; masking made it one.
+ */
 export function charIsalphanumeric(code) {
-    const ch = code & 0xff;
-    return (ch >= 48 && ch <= 57) || (ch >= 65 && ch <= 90) || (ch >= 97 && ch <= 122) ? 1 : 0;
+    return (code >= 48 && code <= 57) || (code >= 65 && code <= 90)
+        || (code >= 97 && code <= 122) ? 1 : 0;
 }
 
 export function charIsnumeric(code) {
-    const ch = code & 0xff;
-    return ch >= 48 && ch <= 57 ? 1 : 0;
+    return code >= 48 && code <= 57 ? 1 : 0;
 }
 
+/*
+ * Printable is a TABLE, not a range: ASCII 32..126, latin-1 160..255, and five
+ * scattered points the cp1252 C1 range decodes to. This filters keyboard
+ * input, so a wrong answer silently eats or admits keystrokes — 127..159 were
+ * printable here and are not, and the em dash was not and is.
+ */
 export function charIsprintable(code) {
-    const ch = code & 0xff;
-    return ch >= 32 && ch !== 127 ? 1 : 0;
+    return (code >= 32 && code <= 126) || (code >= 160 && code <= 255)
+        || code === 0x20ac || code === 0x0152 || code === 0x2014
+        || code === 0x0153 || code === 0x0178 ? 1 : 0;
 }
 
+/*
+ * STRING_TO_INT answers -1 for anything that is not a whole number, and -1 is
+ * not a value `parseInt` can produce by accident: the C rejects an empty
+ * string, a non-numeric one, AND a numeric prefix with trailing garbage
+ * (`*end != '\0'`). Answering 0 for those made "not a number" read as zero,
+ * and "12abc" read as twelve.
+ */
 export function stringToInt(text) {
-    const parsed = Number.parseInt(text ?? '', 10);
-    return Number.isNaN(parsed) ? 0 : parsed | 0;
+    const source = text ?? '';
+    if( source === '' || !/^[+-]?\d+$/.test(source) ) return -1;
+    const parsed = Number.parseInt(source, 10);
+    return Number.isNaN(parsed) ? -1 : parsed | 0;
 }
 
 /** JOIN_STRING: concatenate the parts in push order. */
@@ -328,11 +419,28 @@ export const ARRAY_CAPACITY_MAX = 5000;
  * branch on iteration zero and returns, and three tabs of a panel that
  * mounted perfectly draw nothing — with nothing logged.
  */
+/*
+ * Which bank an array's cells live on, carried on the array itself.
+ *
+ * `arraySetlength` and an out-of-range `arrayGet` both have to answer with the
+ * bank's empty value — `""` for strings, -1/0 for ints — and an empty array
+ * cannot be asked what it holds. The C keeps `array->is_string` beside the
+ * cells; this is the same field, hidden from iteration and from JSON.
+ */
+const STRING_BANK = Symbol('cs2ArrayIsString');
+
+function isStringArray(array) {
+    return array?.[STRING_BANK] === true;
+}
+
 export function defineArray(size, stackType) {
-    const count = size | 0;
-    if( count < 0 || count > ARRAY_CAPACITY_MAX )
-        throw new CS2RuntimeError(`define_array size ${count} outside 0..${ARRAY_CAPACITY_MAX}`);
-    return new Array(count).fill(stackType === 'string' ? '' : -1);
+    /* CLAMPED, not rejected: `cs2vm2_array_begin` pins the size into
+     * 0..CS2VM2_ARRAY_CAPACITY and the script runs on. Throwing here aborted a
+     * script the reference would have carried through with a short array. */
+    const count = Math.max(0, Math.min(ARRAY_CAPACITY_MAX, size | 0));
+    const array = new Array(count).fill(stackType === 'string' ? '' : -1);
+    Object.defineProperty(array, STRING_BANK, { value: stackType === 'string' });
+    return array;
 }
 
 /*
@@ -345,7 +453,9 @@ export function defineArray(size, stackType) {
  */
 export function arrayGet(array, index) {
     const at = index | 0;
-    if( at < 0 || at >= array.length ) return 0;
+    /* Past the end reads the BANK's empty value: `CS2VM2_Op_ArrayGet` pushes
+     * `CS2VM2_StrEmpty` for a string array, so a 0 here concatenated as "0". */
+    if( at < 0 || at >= array.length ) return isStringArray(array) ? '' : 0;
     return array[at];
 }
 
@@ -359,9 +469,18 @@ export function arrayLength(array) {
     return array.length;
 }
 
+/*
+ * Growing fills with the bank's NULL, which for ints is -1 and not 0.
+ *
+ * Same sentinel argument as `defineArray`: -1 is `null` for every
+ * reference-typed base type, so a script that grows an array and then guards
+ * each slot with `= null` reads a zeroed cell as a real dbrow, component or
+ * obj id. The C initialises both arms explicitly for exactly this reason.
+ */
 export function arraySetlength(array, length) {
     const want = Math.max(0, Math.min(ARRAY_CAPACITY_MAX, length | 0));
-    while( array.length < want ) array.push(0);
+    const empty = isStringArray(array) ? '' : -1;
+    while( array.length < want ) array.push(empty);
     array.length = want;
     return array;
 }
@@ -371,8 +490,9 @@ export function arraySetlength(array, length) {
  * already been popped by the time it reaches here, so the selector says
  * nothing this array does not already know. */
 export function arrayAppend(array, value, _baseType) {
-    if( array.length >= ARRAY_CAPACITY_MAX )
-        throw new CS2RuntimeError(`array_append past ${ARRAY_CAPACITY_MAX}`);
+    /* Past the ceiling is a silent no-op, not an abort: `cs2vm2_array_reserve`
+     * fails and `CS2VM2_Op_ArrayAppend` still returns OK. */
+    if( array.length >= ARRAY_CAPACITY_MAX ) return array;
     array.push(value);
     return array;
 }
@@ -396,10 +516,17 @@ export function arraySortAll(primary, secondary) {
     });
     const sortedPrimary = order.map((index) => primary[index]);
     for( let i = 0; i < primary.length; i++ ) primary[i] = sortedPrimary[i];
-    if( secondary )
+    /*
+     * The secondary moves only when it is at least as long as the primary.
+     * `int const paired = secondary && secondary->size >= primary->size;` —
+     * a shorter one is left ALONE, where permuting it by the primary's order
+     * both reorders it wrongly and writes `undefined` into the cells whose
+     * source index is past its end.
+     */
+    if( secondary && secondary.length >= primary.length )
     {
         const sortedSecondary = order.map((index) => secondary[index]);
-        for( let i = 0; i < secondary.length && i < sortedSecondary.length; i++ )
+        for( let i = 0; i < sortedSecondary.length; i++ )
             secondary[i] = sortedSecondary[i];
     }
 }

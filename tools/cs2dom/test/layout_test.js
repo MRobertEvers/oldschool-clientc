@@ -69,12 +69,26 @@ test('every position mode anchors where it says', () => {
     assert.equal(axisFromPositionMode(5, 8192, parentOrigin, parentDim, selfDim), 70);
 });
 
-test('a size is never negative', () => {
-    /* Mode 1 with a base larger than the parent would otherwise go negative,
-     * and a negative width propagates into every child's centring. */
+test('a size goes negative, and only the aspect path floors it', () => {
+    /*
+     * `setsize_minus` with a base larger than the parent really does produce a
+     * negative, and the reference keeps it: `uitree_layout.c` takes
+     * `dim_from_parent_mode` straight, and only `UITree_If3ComputeSize` — which
+     * it calls solely when an axis is in aspect mode — clamps at zero.
+     *
+     * It is observable, not academic: a centred axis divides `parent - self`
+     * by two, so flooring the size moves the box as well as resizing it. Twelve
+     * interfaces drew a 36x-18 sprite nine pixels below where they should.
+     */
     const { width } = computeSize({ widthMode: 1, width: 900, heightMode: 0, height: 10 },
         500, 500);
-    assert.equal(width, 0);
+    assert.equal(width, -400);
+
+    const aspect = computeSize(
+        { widthMode: 4, width: 0, heightMode: 1, height: 900, aspectWidth: 1, aspectHeight: 1 },
+        500, 500);
+    assert.equal(aspect.height, 0);
+    assert.equal(aspect.width, 0);
 });
 
 test('an aspect mode derives one axis from the other', () => {

@@ -101,9 +101,23 @@ export function computeSize(props, parentWidth, parentHeight) {
     let width = dimFromParentMode(widthMode, props.width | 0, parentWidth);
     let height = dimFromParentMode(heightMode, props.height | 0, parentHeight);
 
-    if( widthMode === 4 ) width = divTruncate(aspectW * height, aspectH);
-    if( heightMode === 4 ) height = divTruncate(aspectH * width, aspectW);
+    if( widthMode !== 4 && heightMode !== 4 )
+        return { width, height };
 
+    width = widthMode === 4 ? divTruncate(aspectW * height, aspectH) : width;
+    height = heightMode === 4 ? divTruncate(aspectH * width, aspectW) : height;
+
+    /*
+     * The floor at zero belongs to the ASPECT path only.
+     *
+     * `UITree_If3ComputeSize` clamps, and the layout calls it only when one of
+     * the two axes is in aspect mode; the ordinary path in `uitree_layout.c`
+     * takes `dim_from_parent_mode` straight and lets a negative through. They
+     * do occur: `setsize_minus` on a widget wider than its parent is how
+     * `boardgames_challenge` gets a 36x-18 sprite, and a negative height moves
+     * the box too, because a centred axis divides `parent - self` by two. A
+     * blanket clamp put those two sprites 9 pixels high in twelve interfaces.
+     */
     return { width: Math.max(0, width), height: Math.max(0, height) };
 }
 

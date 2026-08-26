@@ -134,7 +134,19 @@ function createLoader(tree, driver, closure) {
              * dynamic components the reference never had. The dynamic-uid
              * cursor is tree-global, so every later id in 882 came out 20
              * high and the whole draw list mismatched on componentId.
+             *
+             * And its roots are HIDDEN, which is `hide_unmounted_spillover`:
+             * a pack the runtime baked ahead of a mount that never came is
+             * spillover, and the reference sweeps every root whose group is
+             * not the one being opened. Left visible, `toplevel_osrs_stretch`
+             * painted its whole tab strip over seven unrelated interfaces.
              */
+            for( const node of tree.nodes )
+            {
+                if( node.freed || node.parent >= 0 ) continue;
+                if( ((node.componentId >>> 16) & 0xffff) !== (id & 0xffff) ) continue;
+                tree.setHidden(node.index, true);
+            }
             return true;
         }
         try
