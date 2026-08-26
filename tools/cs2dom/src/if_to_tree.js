@@ -160,7 +160,20 @@ export function bakeInterface({ tree = null, ifText, compackText = '', interface
     for( const block of record.blocks )
     {
         const fileId = compack.byName.get(block.name);
-        if( fileId === undefined ) continue;
+        /*
+         * A block the compack does not name has no component id, and there is
+         * nothing sensible to do with it — but SKIPPING it is the worst of the
+         * options, because the hole is invisible: its children keep their
+         * `layer=` pointing at an id nothing built, so they silently become
+         * roots and lay out at the canvas origin.
+         *
+         * That is how `combat_interface` came to draw its four attack-style
+         * slots stacked at (0,0): a hand-edit gave the compack readable names
+         * for four components and left the `.if` blocks called `0`..`3`, and
+         * the two layers of the namespace stopped agreeing.
+         */
+        if( fileId === undefined )
+            throw new Error(`${block.name} in interface ${interfaceId} has no compack id`);
         const componentId = ((interfaceId & 0xffff) << 16) | (fileId & 0xffff);
         const row = {
             block: block.name,
