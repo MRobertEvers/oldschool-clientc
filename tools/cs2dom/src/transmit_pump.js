@@ -150,6 +150,44 @@ export class TransmitPump {
         return dispatched;
     }
 
+    /**
+     * Fire every registered transmit hook ONCE, whatever its trigger list says.
+     *
+     * This is the mount pass, and it is the reference's own:
+     * `RS_CS2_RegisterCacheTransmitHooks` is called from both bake paths
+     * "before their initial transmit dispatch, so a mount paints from the
+     * cache hook on the same pass a CS2-registered one would".
+     *
+     * It matters because a cache-authored transmit hook is the ONLY thing that
+     * ever paints some widgets. The combat tab's auto-retaliate button is the
+     * standing example — `onload=i:325`, `onvarptransmit=i:325`,
+     * `varptriggers=172` — and without the mount pass a widget whose handler
+     * lives entirely in a transmit hook shows its authored value forever.
+     *
+     * The trigger filter is deliberately bypassed: at mount nothing has
+     * changed yet, so filtering would dispatch nothing at all. Every hook's
+     * serial is left where it is, so an actual change still re-runs it.
+     */
+    dispatchAll() {
+        let dispatched = 0;
+        for( const [kind, { slot }] of Object.entries(TRANSMIT_KINDS) )
+        {
+            void kind;
+            for( const index of this.tree.nodesWithHook(slot) )
+            {
+                const node = this.tree.at(index);
+                const binding = node?.hooks?.[slot];
+                if( !binding || binding.scriptId <= 0 ) continue;
+                if( this.tree.hiddenByAncestor(index) ) continue;
+                this.driver.dispatchHook(binding,
+                    { reason: 'mount-transmit', componentId: node.componentId });
+                dispatched++;
+            }
+        }
+        this.stats.dispatched += dispatched;
+        return dispatched;
+    }
+
     _pumpKind(kind, slot, filtered) {
         const serial = this.serials[kind];
         const changed = this.changedIds[kind];
@@ -193,7 +231,14 @@ export class TransmitPump {
 
             this._lastSeen.set(key, serial);
             this._pendingUnhide.delete(key);
-            this.driver.dispatchHook(binding, { reason: `${kind}-transmit` });
+            /* The BOUND COMPONENT travels with the dispatch: the event
+             * locals in a hook's argument list — `event_com`, `event_comsubid`
+             * — are resolved against it, and a transmit hook whose script
+             * starts with a bare `cc_settext` writes to whatever the dispatch
+             * selected. Without it a cache-authored hook re-registers against
+             * component -1 and paints nothing. */
+            this.driver.dispatchHook(binding,
+                { reason: `${kind}-transmit`, componentId: node.componentId });
             dispatched++;
         }
         return dispatched;
@@ -227,7 +272,8 @@ export class TransmitPump {
             const binding = node.hooks?.onTimer;
             if( !binding || binding.scriptId <= 0 ) continue;
             if( this.tree.hiddenByAncestor(index) ) continue;
-            this.driver.dispatchHook(binding, { reason: 'timer' });
+            this.driver.dispatchHook(binding,
+                { reason: 'timer', componentId: node.componentId });
             dispatched++;
         }
         return dispatched;

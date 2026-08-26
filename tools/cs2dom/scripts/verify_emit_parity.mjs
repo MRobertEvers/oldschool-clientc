@@ -34,6 +34,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
 import { bakeInterface } from '../src/if_to_tree.js';
+import { createUITree } from '../src/uitree.js';
 import { createContentConfigs } from '../src/content_configs.js';
 import {
     createHostKernel, HostState, StoreAssetSource, UnimplementedHostOp,
@@ -42,6 +43,7 @@ import { FontStore, SpriteStore } from '../src/assets.js';
 import { createContentAssets } from '../src/content_assets.js';
 import { createDriver, ScriptRegistry } from '../src/cs2_driver.js';
 import { attachLayout } from '../src/layout.js';
+import { attachTransmitPump } from '../src/transmit_pump.js';
 import { createEmitter } from '../src/emit.js';
 import { compareEmit, normalizeJsCommands } from '../src/emit_parity.js';
 import { emitScript } from '../src/cs2_js_emit.js';
@@ -65,6 +67,10 @@ const verbose = args.includes('--verbose');
  * every proportional box and makes the comparison meaningless. */
 const ROOT = { x: 0, y: 0, width: 765, height: 503 };
 
+/* The captured reference is frame 60 of the C client; see `run`. */
+const TICKS = Number(flag('--ticks') ?? 60);
+const MOUNT_TRANSMIT = !args.includes('--no-mount-transmit');
+
 /*
  * The cache tables, read once for the whole run.
  *
@@ -87,8 +93,33 @@ const contentAssets = createContentAssets(contentDir);
 const fonts = new FontStore({ decode: async (id) => contentAssets.font(id) });
 const sprites = new SpriteStore({ decode: async (id) => contentAssets.sprite(id) });
 
-const loader = {
+/**
+ * The loader, which also BAKES.
+ *
+ * A script reaching a component in a group that is not in the tree is not an
+ * error — it is a mount, and the client answers it by loading that interface.
+ * The chatbox's own var-transmit hook (script 924) reaches interface 163 on
+ * its first run; refusing it left the driver parking on a group nothing would
+ * ever supply, which its spin guard correctly reported as a hang.
+ *
+ * Baking on demand is what makes the comparison follow the same mount graph
+ * the reference walked. The onload bindings of a newly baked group are queued
+ * on the driver rather than run here, for the same reason the target
+ * interface's are: they must not execute against a half-built tree.
+ */
+function createLoader(tree, driver) {
+    return {
     loadSync(kind, id) {
+        if( kind === 'component' )
+        {
+            if( tree.hasGroup(id) ) return true;
+            const group = bakeGroup(tree, id);
+            if( !group ) return false;
+            for( const entry of group.onLoad )
+                driver.dispatch(entry.scriptId, entry.args,
+                    { reason: 'onload', componentId: entry.componentId });
+            return true;
+        }
         try
         {
             if( kind === 'font' )
@@ -114,7 +145,8 @@ const loader = {
         return true;
     },
     async load(kind, id) { return this.loadSync(kind, id); },
-};
+    };
+}
 
 function flag(name) {
     const index = args.indexOf(name);
@@ -210,20 +242,36 @@ function lowerClosure(roots) {
  * One interface
  * ---------------------------------------------------------------------- */
 
+/**
+ * Bake one interface group into `tree`, if the content tree has it.
+ *
+ * Returns its onload bindings; the CALLER dispatches them, because running
+ * them here would execute scripts against a tree that is only half built when
+ * the first of them fires.
+ */
+function bakeGroup(tree, groupId) {
+    const name = interfaceNames.get(groupId);
+    if( !name ) return null;
+    const ifPath = join(contentDir, 'interfaces', `${name}.if`);
+    if( !existsSync(ifPath) ) return null;
+    const compackPath = join(contentDir, 'interfaces', `${name}.compack`);
+    return bakeInterface({
+        tree,
+        ifText: readFileSync(ifPath, 'utf8'),
+        compackText: existsSync(compackPath) ? readFileSync(compackPath, 'utf8') : '',
+        interfaceId: groupId,
+    });
+}
+
 async function run(reference) {
     const id = reference.interface;
     const name = interfaceNames.get(id);
     if( !name ) return { id, skipped: 'not in the interface pack' };
 
-    const ifPath = join(contentDir, 'interfaces', `${name}.if`);
-    const compackPath = join(contentDir, 'interfaces', `${name}.compack`);
-    if( !existsSync(ifPath) ) return { id, name, skipped: 'no .if in the content tree' };
-
-    const { tree, onLoad } = bakeInterface({
-        ifText: readFileSync(ifPath, 'utf8'),
-        compackText: existsSync(compackPath) ? readFileSync(compackPath, 'utf8') : '',
-        interfaceId: id,
-    });
+    const tree = createUITree();
+    const baked = bakeGroup(tree, id);
+    if( !baked ) return { id, name, skipped: 'no .if in the content tree' };
+    const { onLoad } = baked;
 
     const { registry, missing } = lowerClosure(onLoad.map((entry) => entry.scriptId));
     /*
@@ -288,15 +336,31 @@ async function run(reference) {
          * actually arrived. That is the honest shape: the load is DONE, and a
          * record still absent afterwards is absent from the source.
          */
-        loader,
+        /* Filled in below: the loader queues onload bindings on the driver,
+         * and the driver needs the loader to service a park. */
+        loader: null,
         onScriptError: (error, request) => {
             if( error instanceof UnimplementedHostOp ) hostGaps.add(error.op);
             failedScripts.push({ script: request.scriptId, error: error.message });
         },
     });
+    driver.loader = createLoader(tree, driver);
     const layout = attachLayout(host, { root: ROOT });
     driver.resolveLayout = () => layout.resolve();
     const emitter = createEmitter({ tree, layout });
+
+    /*
+     * The pump, because the REFERENCE ran one.
+     *
+     * The captured draw list is frame 60 of a real client: its transmit hooks
+     * had fired, its timers had ticked, and every `if_callonresize` a script
+     * queued had been drained. Dispatching onload once and settling reproduces
+     * frame 1, and comparing frame 1 against frame 60 reports every hook that
+     * has run since as a difference — which is how the chatbox's tab strip
+     * came to sit two pixels left of the reference's, and why interface 600's
+     * scrollbar was sized from a scroll extent nothing had recomputed.
+     */
+    const pump = attachTransmitPump(driver, tree);
 
     for( const entry of onLoad )
     {
@@ -308,6 +372,42 @@ async function run(reference) {
             { reason: 'onload', componentId: entry.componentId });
     }
     await driver.settle({ wait: false });
+
+    /*
+     * The MOUNT transmit pass, which the reference runs and a bake-then-settle
+     * does not. A cache-authored transmit hook is the only thing that ever
+     * paints some widgets, and at mount nothing has changed yet — so the
+     * trigger filter would dispatch none of them.
+     */
+    if( MOUNT_TRANSMIT ) pump.dispatchAll();
+    await driver.settle({ wait: false });
+
+    /*
+     * Then run ticks until the tree stops changing, bounded.
+     *
+     * Bounded rather than fixed at 60: a tree that has stopped changing is
+     * settled by definition, and a run that never stops is a script re-arming
+     * itself — which is a defect to report, not to out-wait. The captured
+     * reference is 60 frames, so the cap matches it.
+     */
+    let ticks = 0;
+    for( ; ticks < TICKS; ticks++ )
+    {
+        const before = tree.dirtyGeneration;
+        pump.tick();
+        /* `if_callonresize` is queued from inside a running script — there is
+         * no runner to nest a second one on — so the queue is drained here,
+         * which is where the C host drains its own. */
+        for( const componentId of host.pendingResize.splice(0) )
+        {
+            const node = tree.findByComponentId(componentId);
+            const binding = node?.hooks?.onResize;
+            if( binding ) driver.dispatchHook(binding, { reason: 'resize', componentId });
+        }
+        // eslint-disable-next-line no-await-in-loop
+        await driver.settle({ wait: false });
+        if( tree.dirtyGeneration === before ) break;
+    }
 
     layout.resolve();
     emitter.walk({ force: true });
@@ -322,6 +422,17 @@ async function run(reference) {
                 + `sub=${node.subId} dyn=${node.dynamic} `
                 + `props=${JSON.stringify(node.props)}`);
         });
+    }
+
+    /* Which interface GROUPS the draw list came from. The reference's list for
+     * every captured interface holds exactly one group, so a second group
+     * appearing here means this run mounted something the reference did not —
+     * a difference in what was built, not in how it was laid out. */
+    const byGroup = {};
+    for( const command of emitter.commands )
+    {
+        const group = command.componentId >= 0 ? (command.componentId >>> 16) & 0xffff : -1;
+        byGroup[group] = (byGroup[group] ?? 0) + 1;
     }
 
     let visible = 0;
@@ -341,9 +452,10 @@ async function run(reference) {
         id, name,
         /* Counted because "no commands" has two very different causes: a tree
          * that was never built, and a tree whose nodes are all hidden. */
-        nodes: tree.liveCount, visible, dynamic, byType,
+        nodes: tree.liveCount, visible, dynamic, byType, byGroup,
         onLoad: onLoad.length,
         ran: driver.stats.invocations,
+        ticks,
         cCommands: result.expectedCount,
         jsCommands: result.actualCount,
         /* `prefix` commands identical from the top; `matched` identical once

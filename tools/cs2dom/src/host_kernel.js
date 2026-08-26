@@ -341,6 +341,10 @@ export class HostKernel {
 
         const parent = this.tree.findByComponentId(parentId);
         if( !parent ) return undefined;
+        /* Replace-in-slot, BEFORE the uid is allocated so the freed slot and
+         * uid are immediately reusable and a rebuild script does not grow the
+         * tree. See `reclaimDynamicChild`. */
+        this.tree.reclaimDynamicChild(parent.index, subId);
         const index = this.tree.push({
             parentIndex: parent.index, type, subId, dynamic: true,
             componentId: this.tree.allocateDynamicComponentId(group),

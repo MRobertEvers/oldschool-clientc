@@ -308,6 +308,20 @@ export class UITree {
 
     _noteChildKey(parent, child) {
         if( child.subId === CHILD_KEY_NONE ) return;
+        /*
+         * An UNKNOWN ceiling stays unknown. One insert cannot tighten it: the
+         * real maximum is at least whatever the surviving siblings already
+         * carry, and only a walk can say what that is.
+         *
+         * Setting it to the new child's sub-id instead makes the ceiling
+         * REJECT children that are there. A rebuild script is where it shows:
+         * remove-then-add row 0 pins the ceiling at 0, so the lookup for row 1
+         * answers "no such child" above the ceiling without walking, the
+         * replace-in-slot never happens, and the container doubles. Interface
+         * 600's kudos list went from 43 stripes to 85 that way — 85 and not
+         * 86, because row 0 alone was replaced.
+         */
+        if( parent.childKeyMax === CHILD_KEY_UNKNOWN ) return;
         if( parent.childKeyMax === CHILD_KEY_NONE || child.subId > parent.childKeyMax )
             parent.childKeyMax = child.subId;
 
@@ -333,6 +347,36 @@ export class UITree {
             return;
         }
         bucket.set(child.subId, child.index);
+    }
+
+    /**
+     * Reclaim an existing DYNAMIC child with this sub-id, if there is one.
+     *
+     * Replace-in-slot: `cc_create` on a sub-id that is already taken replaces
+     * that child rather than adding a second one with the same key. Without
+     * it a rebuild script GROWS the tree every time it runs — interface 600's
+     * kudos list went from 43 stripes to 86 the first time its transmit hook
+     * fired, and every hook after that would have added 43 more.
+     *
+     * Static children are left alone: a cache-built widget is not something a
+     * script created, and reclaiming one would leave a hole nothing fills.
+     */
+    reclaimDynamicChild(parentIndex, subId) {
+        const existing = this.findChildBySubId(parentIndex, subId);
+        if( !existing || !existing.dynamic ) return false;
+        this._unlink(existing);
+        this._reclaimSubtree(existing.index);
+        const parent = this.at(parentIndex);
+        if( parent )
+        {
+            parent.lastChildHint = -1;
+            parent.childKeyMax = CHILD_KEY_UNKNOWN;
+            parent.childIndex = null;
+            parent.childIndexAmbiguous = false;
+        }
+        this.generation++;
+        this.layoutStale = true;
+        return true;
     }
 
     /**

@@ -993,6 +993,7 @@ export function installWidgetOps(HostKernel) {
         this.calls++;
         const parent = this.activeNode();
         if( !parent ) return undefined;
+        this.tree.reclaimDynamicChild(parent.index, subId);
         const index = this.tree.push({
             parentIndex: parent.index, type, subId, dynamic: true,
             componentId: this.tree.allocateDynamicComponentId(parent.componentId >>> 16),
@@ -1006,6 +1007,7 @@ export function installWidgetOps(HostKernel) {
         this.calls++;
         const node = this.activeNode();
         if( !node ) return undefined;
+        this.tree.reclaimDynamicChild(node.parent, subId);
         const index = this.tree.push({
             parentIndex: node.parent, type, subId, dynamic: true,
             componentId: this.tree.allocateDynamicComponentId(node.componentId >>> 16),
@@ -1028,6 +1030,7 @@ export function installWidgetOps(HostKernel) {
         if( !parent ) return undefined;
         const source = this.tree.findChildBySubId(parent.index, srcSubId);
         if( !source ) return undefined;
+        this.tree.reclaimDynamicChild(parent.index, dstSubId);
         const index = this.tree.push({
             parentIndex: parent.index, type: source.type, subId: dstSubId,
             dynamic: true, props: source.props,

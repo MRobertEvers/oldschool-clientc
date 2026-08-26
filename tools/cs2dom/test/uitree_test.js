@@ -152,6 +152,68 @@ test('cc_deleteall clears the DYNAMIC children and keeps the node', () => {
     assert.equal(tree.findChildBySubId(parent, 2), null);
 });
 
+test('creating a sub-id that is taken REPLACES it', () => {
+    /*
+     * Replace-in-slot. `cc_create` on a sub-id an existing DYNAMIC child
+     * already has reclaims that child first, so a rebuild script does not grow
+     * the tree — the reference reclaims before it allocates the new uid, so
+     * the freed slot and uid are immediately reusable.
+     *
+     * Interface 600's kudos list is the witness: its transmit hook rebuilds
+     * the stripe rows, and without this the list went from 43 rectangles to
+     * 86 the first time the hook fired.
+     */
+    const tree = createUITree();
+    const parent = tree.push({ componentId: 0x10000 });
+    const first = tree.push({ parentIndex: parent, subId: 4, dynamic: true });
+    /* Through a REF, because storage is not identity: the reclaimed slot is
+     * the first thing the free list hands back, so `at(first)` resolves to the
+     * replacement and would prove nothing. */
+    const reference = tree.ref(first);
+
+    assert.equal(tree.reclaimDynamicChild(parent, 4), true);
+    const second = tree.push({ parentIndex: parent, subId: 4, dynamic: true });
+
+    assert.equal(tree.resolve(reference), null, 'the old row is reclaimed');
+    assert.equal(tree.children(parent).length, 1, 'and not left beside the new one');
+    assert.equal(tree.findChildBySubId(parent, 4).index, second);
+});
+
+test('a static child in the slot is left alone', () => {
+    const tree = createUITree();
+    const parent = tree.push({ componentId: 0x10000 });
+    const baked = tree.push({ parentIndex: parent, subId: 4 });
+    assert.equal(tree.reclaimDynamicChild(parent, 4), false);
+    assert.ok(tree.at(baked), 'a cache-built widget is not a script\'s to replace');
+});
+
+test('an UNKNOWN child-key ceiling stays unknown across an insert', () => {
+    /*
+     * One insert cannot tighten a ceiling that is unknown: the real maximum is
+     * at least whatever the surviving siblings carry, and only a walk can say
+     * what that is.
+     *
+     * Setting it to the new child's sub-id instead makes the ceiling REJECT
+     * children that are there — the lookup answers "no such child" ABOVE the
+     * ceiling without walking. A rebuild is where it shows: remove-then-add
+     * row 0 pins the ceiling at 0, every later row is then unfindable, the
+     * replace-in-slot above never happens and the container doubles.
+     */
+    const tree = createUITree();
+    const parent = tree.push({ componentId: 0x10000 });
+    for( let subId = 0; subId < 8; subId++ )
+        tree.push({ parentIndex: parent, subId, dynamic: true });
+
+    /* Reclaiming row 0 drops the ceiling to unknown; re-adding row 0 must not
+     * pin it there. */
+    tree.reclaimDynamicChild(parent, 0);
+    tree.push({ parentIndex: parent, subId: 0, dynamic: true });
+
+    for( let subId = 1; subId < 8; subId++ )
+        assert.ok(tree.findChildBySubId(parent, subId),
+            `row ${subId} became unfindable above a pinned ceiling`);
+});
+
 test('cc_deleteall leaves the cache-built children alone', () => {
     /*
      * The rule, not a refinement of it. A static child is not something a
