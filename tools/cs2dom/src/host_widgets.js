@@ -543,7 +543,10 @@ export function installWidgetOps(HostKernel) {
         const node = this.dotNode();
         if( node ) this.pendingDragPickup = { componentId: node.componentId, x: x | 0, y: y | 0 };
     };
-    proto.if_dragpickup = function (componentId, x, y) {
+    /* `if_dragpickup(x, y, component)` — the component is LAST, as it is on
+     * every `if_` form: `CS2VM2_Op_DragPickup` pops component, then y, then x,
+     * so push order puts it at the end. */
+    proto.if_dragpickup = function (x, y, componentId) {
         this.calls++;
         this.pendingDragPickup = { componentId: componentId | 0, x: x | 0, y: y | 0 };
     };
@@ -920,7 +923,18 @@ export function installWidgetOps(HostKernel) {
         this.calls++;
         return opText(this.dotNode(), index);
     };
-    proto.if_getop = function (componentId, index) {
+    /*
+     * `if_getop(index, component)`, in that order.
+     *
+     * `CS2VM2_Op_IF_GetOp` pops the component first and the one-based index
+     * second, so push order is index-then-component — the same shape as every
+     * other `if_` form, whose component is its last argument. Taking them the
+     * other way round asked the OP-INDEX-th component for its component-id-th
+     * option, which answers "" for every call: `raids_storage_side` and
+     * `sailing_boat_cargohold_side` label their dismiss button with one of
+     * these and drew a blank.
+     */
+    proto.if_getop = function (index, componentId) {
         this.calls++;
         return opText(this._target(componentId), index);
     };

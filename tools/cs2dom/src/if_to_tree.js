@@ -169,6 +169,7 @@ export function bakeInterface({ tree = null, ifText, compackText = '', interface
             type: int(record.get(block.name, 'type')),
             layer: record.get(block.name, 'layer'),
             props: readProps(record, block),
+            ops: readOps(block),
             hooks: readHooks(record, block),
         };
         rows.push(row);
@@ -209,6 +210,7 @@ export function bakeInterface({ tree = null, ifText, compackText = '', interface
         });
         row.index = index;
         if( row.props.hidden ) target.setHidden(index, true);
+        if( row.ops ) target.at(index).ops = [...row.ops];
 
         for( const [slot, binding] of Object.entries(row.hooks) )
         {
@@ -249,6 +251,29 @@ function readProps(record, block) {
         props[mapping[0]] = mapping[1](entries[0].value);
     }
     return props;
+}
+
+/**
+ * `op1=` .. `op10=` — the right-click options a component is AUTHORED with.
+ *
+ * Not decoration: scripts read them back. `raids_storage_side` labels the
+ * button it builds with `cc_settext(if_getop(1, $component))`, so a tree that
+ * dropped the cache's options drew a blank where the reference draws
+ * "Dismiss". One-based in the source and stored zero-based, the same way
+ * `cc_setop` stores them.
+ */
+const OP_FIELD = /^op([1-9]|10)$/;
+
+function readOps(block) {
+    let ops = null;
+    for( const [field, entries] of block.fields )
+    {
+        const match = OP_FIELD.exec(field);
+        if( !match || entries.length === 0 ) continue;
+        if( !ops ) ops = [];
+        ops[Number(match[1]) - 1] = String(entries[0].value ?? '');
+    }
+    return ops;
 }
 
 function readHooks(record, block) {
