@@ -411,6 +411,12 @@ ToriDraw_SceneElementModelForWrite(
 struct ToriDraw_SharedModelStore*
 ToriDraw_SceneSharedModels(struct ToriDraw_Scene* scene);
 
+/** The scene's store of lendable face buffers, built on the first ask. Separate
+ *  from the whole-model store because they hold different types with different
+ *  lifetimes; see ToriDraw_SharedFacesStoreBorrow. */
+struct ToriDraw_SharedFacesStore*
+ToriDraw_SceneSharedFaces(struct ToriDraw_Scene* scene);
+
 void
 ToriDraw_SceneElementSetModel(
     struct ToriDraw_Scene* scene,

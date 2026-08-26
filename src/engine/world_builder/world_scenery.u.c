@@ -411,23 +411,21 @@ scenery_loc_model_shareable(const struct ToriRS_Location* loc)
  * lighting and animation, and those are exactly what
  * scenery_loc_model_shareable rules out.
  *
- * `space` separates the two things stored under this key. A whole-model
- * prototype and a faces-only donor can exist for the same loc -- the predicate
- * is per-config, but nothing guarantees that forever -- and a donor returned to
- * a whole-model Acquire would be a model with no vertices.
+ * One key, two stores. A whole-model prototype and a lendable face-buffer set
+ * can exist for the same loc, and they used to be told apart by a tag bit in
+ * this key that both callers had to remember to set -- with a faces-only entry
+ * returned to a whole-model Acquire being a model with no vertices. They are
+ * different types in different stores now (ToriDraw_SceneSharedModels,
+ * ToriDraw_SceneSharedFaces) and cannot collide.
  */
-#define SCENERY_KEY_SPACE_PROTO 0
-#define SCENERY_KEY_SPACE_TOPOLOGY 1
-
 static int64_t
 scenery_model_key(
-    int space,
     int loc_id,
     int shape_select,
     int rotation)
 {
-    return ((int64_t)space << 62) | ((int64_t)loc_id << 9) |
-           ((int64_t)(shape_select & 0x1F) << 4) | (int64_t)(rotation & 0xF);
+    return ((int64_t)loc_id << 9) | ((int64_t)(shape_select & 0x1F) << 4) |
+           (int64_t)(rotation & 0xF);
 }
 
 static void
@@ -1023,8 +1021,7 @@ scenery_load_model(
      */
     if( proto_shareable )
     {
-        proto_key = scenery_model_key(
-            SCENERY_KEY_SPACE_PROTO, config_loc->id, shape_select, rotation);
+        proto_key = scenery_model_key(config_loc->id, shape_select, rotation);
         model = ToriDraw_SharedModelStoreAcquire(
             ToriDraw_SceneSharedModels(builder->scene), proto_key);
     }
@@ -1076,18 +1073,24 @@ scenery_load_model(
              *
              * Safe HERE and not earlier: the build's recolour, retexture and
              * mirror all write the face arrays, so the loan can only be taken
-             * once they have finished. Everything past this point --
-             * contouring, the End-batch defaultlight pass, sharelight --
-             * touches vertices and per-corner colours, which stay private.
+             * once they have finished. Past this point, contouring and the
+             * End-batch defaultlight pass touch vertices and per-corner
+             * colours, and sharelight touches face_infos -- none of which the
+             * loan covers.
              *
              * Animated locs are excluded rather than handled: an alpha
              * transform (ToriDraw_ModelAnimateFrame op 5) writes face_alphas in
              * place every frame, and they are 150 placements out of the 6915.
+             *
+             * face_infos is not in the lendable set at all, because that is
+             * the array the neighbour merge writes: World.shareLight hides the
+             * seam faces where two of these meet, and lending it would hide
+             * them at every placement of the loc. See
+             * TORIDRAW_SHARED_FACE_FIELDS.
              */
-            model = ToriDraw_SharedModelStoreBorrowTopology(
-                ToriDraw_SceneSharedModels(builder->scene),
-                scenery_model_key(
-                    SCENERY_KEY_SPACE_TOPOLOGY, config_loc->id, shape_select, rotation),
+            model = ToriDraw_SharedFacesStoreBorrow(
+                ToriDraw_SceneSharedFaces(builder->scene),
+                scenery_model_key(config_loc->id, shape_select, rotation),
                 model);
         }
     }

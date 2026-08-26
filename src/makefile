@@ -377,6 +377,27 @@ COMPRESS_CFLAGS += $(OPT_RELEASE_CFLAGS)
 TORIDRAW_CFLAGS += $(OPT_RELEASE_CFLAGS)
 LDFLAGS         += $(OPT_RELEASE_LDFLAGS)
 
+# Neither sanitizer exists on the Windows lanes, and that is not a matter of
+# picking a better toolchain: GCC's libsanitizer has no *-w64-mingw32 entry in
+# its configure.tgt, so no MinGW build -- the repository's included -- ships
+# libasan, libubsan, or the libsanitizer.spec the driver reads. The flags
+# COMPILE there; it is the LINK that dies, after every object in the tree, with
+# "cannot read spec file 'libsanitizer.spec'" -- a message naming neither the
+# flag that asked for it nor the lane that cannot have it. Say it here, at
+# parse time, before anything is built.
+ifneq ($(filter $(PLATFORM),win32 win64),)
+ifeq ($(ENABLE_ASAN),1)
+$(error ENABLE_ASAN=1 is impossible on PLATFORM=$(PLATFORM): GCC has no \
+sanitizer runtime for MinGW. Use MEMPROF=1 or MEMTRACE=1 for heap work on \
+this lane, or run the ASan flavor on the macOS/Linux lane)
+endif
+ifeq ($(ENABLE_UBSAN),1)
+$(error ENABLE_UBSAN=1 is impossible on PLATFORM=$(PLATFORM): GCC has no \
+sanitizer runtime for MinGW, so -fsanitize=undefined has no libubsan to link. \
+Run the UBSan flavor on the macOS/Linux lane)
+endif
+endif
+
 ifeq ($(ENABLE_ASAN),1)
 CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
 RSCACHE_CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
@@ -4398,6 +4419,12 @@ test-bootmanifest: $(OBJ_DIR)
 		$(RSCACHE_DIR)/build/bzip_encode.o $(RSCACHE_DIR)/build/miniz.o \
 		$(RSCACHE_DIR)/build/xteas.o
 	./$(OBJ_DIR)/bootmanifest_test
+
+# Half-shared placements: the seam hide one placement performs must not reach
+# its siblings through the borrowed face arrays.
+test-shared-model: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/shared_model_test 		$(TORIDRAW_DIR)/toridraw_shared_model_test.c $(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/shared_model_test
 
 # Actor vs scene model-light regimes (toridraw profiles + LightSetProfiles).
 test-light-model: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)

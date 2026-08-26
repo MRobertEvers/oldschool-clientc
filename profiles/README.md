@@ -92,6 +92,9 @@ description=one line, shown by `./launch list`
 world=manifests/manifest_osrs239.ini
 client=native | web | web-idb | runelite | headless
 flavor=opt                       ; comma list: opt,debug,asan,memtrace,nosimd,tdo
+                                 ; asan is macOS/Linux only -- GCC has no
+                                 ; sanitizer runtime for MinGW, so state a
+                                 ; [profile@windows] flavor= for that host
 services=torirsserver, io_server ; explicit, in START order; empty = none
 
 [service:torirsserver]           ; per-service config, one section each

@@ -7,6 +7,7 @@
 #include "toridraw_lighting.h"
 #include "toridraw_model.h"
 #include "toridraw_scene.h"
+#include "toridraw_shared_model.h"
 #include "world_builder.h"
 
 #include <assert.h>
@@ -158,8 +159,59 @@ ToriDraw_ModelFaceInfosEnsureZero(struct ToriDraw_Model* model)
 {
     assert(model);
     if( !model->face_infos && model->face_count > 0 )
+    {
         model->face_infos = calloc((size_t)model->face_count, sizeof(int));
+        assert(model->face_infos);
+    }
     return model->face_infos;
+}
+
+/**
+ * Hide the seam: every face whose three corners all landed on the neighbour
+ * stops being drawn, because the neighbour's own face is there instead.
+ *
+ * This is the write the topology loan is shaped around. face_infos is the one
+ * face array a sharelight placement does NOT borrow, and the only reason it
+ * does not is this loop -- lend it and one segment's seam disappears at every
+ * placement of the same wall in the scene. The assert is what says so at the
+ * write rather than three rooms away.
+ */
+static void
+hide_merged_faces(
+    struct ToriDraw_Model* model,
+    const int* vertex_merge_index)
+{
+    int face_count;
+    faceint_t const* fa;
+    faceint_t const* fb;
+    faceint_t const* fc;
+    int* infos;
+    int face;
+
+    assert(model);
+    assert(vertex_merge_index);
+    ToriDraw_ModelAssertFaceInfosWritable(model);
+
+    face_count = model->face_count;
+    fa = model->face_indices_a;
+    fb = model->face_indices_b;
+    fc = model->face_indices_c;
+    infos = NULL;
+
+    for( face = 0; face < face_count; face++ )
+    {
+        if( vertex_merge_index[fa[face]] != g_merge_index ||
+            vertex_merge_index[fb[face]] != g_merge_index ||
+            vertex_merge_index[fc[face]] != g_merge_index )
+            continue;
+
+        if( !infos )
+        {
+            infos = ToriDraw_ModelFaceInfosEnsureZero(model);
+            assert(infos);
+        }
+        infos[face] = 2;
+    }
 }
 
 static void
@@ -268,36 +320,8 @@ merge_normals(
     if( merged_vertex_count < 3 || !hide_faces )
         return;
 
-    int m_fc = model->face_count;
-    faceint_t* m_fa = model->face_indices_a;
-    faceint_t* m_fb = model->face_indices_b;
-    faceint_t* m_fci = model->face_indices_c;
-    for( int face = 0; face < m_fc; face++ )
-    {
-        if( g_vertex_a_merge_index[m_fa[face]] == g_merge_index &&
-            g_vertex_a_merge_index[m_fb[face]] == g_merge_index &&
-            g_vertex_a_merge_index[m_fci[face]] == g_merge_index )
-        {
-            int* infos = ToriDraw_ModelFaceInfosEnsureZero(model);
-            if( infos )
-                infos[face] = 2;
-        }
-    }
-    int o_fc = other_model->face_count;
-    faceint_t* o_fa = other_model->face_indices_a;
-    faceint_t* o_fb = other_model->face_indices_b;
-    faceint_t* o_fci = other_model->face_indices_c;
-    for( int face = 0; face < o_fc; face++ )
-    {
-        if( g_vertex_b_merge_index[o_fa[face]] == g_merge_index &&
-            g_vertex_b_merge_index[o_fb[face]] == g_merge_index &&
-            g_vertex_b_merge_index[o_fci[face]] == g_merge_index )
-        {
-            int* infos = ToriDraw_ModelFaceInfosEnsureZero(other_model);
-            if( infos )
-                infos[face] = 2;
-        }
-    }
+    hide_merged_faces(model, g_vertex_a_merge_index);
+    hide_merged_faces(other_model, g_vertex_b_merge_index);
 }
 
 /*

@@ -3,6 +3,7 @@
 
 #include "toridraw_animation.h"
 #include "toridraw_types.h"
+#include "toridraw_shared_model.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -50,13 +51,54 @@ ToriDraw_BufCopy(
  * face names vertex slots, not positions, so contouring a placement to the
  * ground or relighting it from a neighbour moves the vertices underneath
  * without renumbering anything here. That is what makes the set loanable
- * between placements; see ToriDraw_Model::borrowed_topology.
+ * between placements; see ToriDraw_Model::shared_faces.
  *
- * Kept as one list so the free path, the steal and the adopt cannot drift out
- * of step -- a field added to the model and forgotten here would be freed twice
- * or leaked, and neither shows up near its cause.
+ * Kept as a list so the free path, the steal and the adopt cannot drift out of
+ * step -- a field added to the model and forgotten here would be freed twice or
+ * leaked, and neither shows up near its cause. It is TWO lists only because one
+ * of the arrays is not loanable to every loc; see below.
  */
-#define TORIDRAW_TOPOLOGY_FIELDS(X)                                                                    X(face_indices_a)                                                                                  X(face_indices_b)                                                                                  X(face_indices_c)                                                                                  X(face_colors)                                                                                     X(face_textures)                                                                                   X(face_alphas)                                                                                     X(face_infos)                                                                                      X(face_priorities)                                                                                 X(textured_p_coordinate)                                                                           X(textured_m_coordinate)                                                                           X(textured_n_coordinate)                                                                           X(texture_render_types)                                                                            X(face_texture_coords)
+/**
+ * The face arrays that are safe to LEND, which is all of them but one.
+ *
+ * face_infos is the exception and is deliberately absent: it is the array
+ * World.shareLight writes, hiding the seam faces where two placements of a
+ * sharelight loc meet. Lending it hid one segment's seam at every placement of
+ * the loc -- a run of identical walls with the same faces missing, which reads
+ * on screen as a wall you can see straight through from one side only.
+ *
+ * Both reference clients draw the line in the same place. The deob's
+ * `Model(sharelight, 0, proto, hillskew)` and Client-TS's
+ * `Model.hillSkewCopy(model, hillskew, sharelight)` give a sharelight placement
+ * its OWN faceRenderType -- allocating and zeroing one even when the prototype
+ * had none, precisely so the removal always has somewhere to write -- while
+ * every other face array keeps pointing at the prototype. Neither client
+ * disables the face removal; they make it safe by not sharing what it writes.
+ *
+ * Kept out of the loan unconditionally rather than per-loc, so the type says
+ * the rule and no flag has to agree with it. It costs an int per face on a
+ * borrowing placement that a per-loc test would have saved on the contoured
+ * ones, and buys a shape in which the bug cannot be expressed.
+ */
+#define TORIDRAW_SHARED_FACE_FIELDS(X)                                                             \
+    X(face_indices_a)                                                                              \
+    X(face_indices_b)                                                                              \
+    X(face_indices_c)                                                                              \
+    X(face_colors)                                                                                 \
+    X(face_textures)                                                                               \
+    X(face_alphas)                                                                                 \
+    X(face_priorities)                                                                             \
+    X(textured_p_coordinate)                                                                       \
+    X(textured_m_coordinate)                                                                       \
+    X(textured_n_coordinate)                                                                       \
+    X(texture_render_types)                                                                        \
+    X(face_texture_coords)
+
+/** Every face array a model has: the lendable set plus the one that is always
+ *  its own. The free path walks this; the loan walks the set above. */
+#define TORIDRAW_MODEL_FACE_FIELDS(X)                                                              \
+    TORIDRAW_SHARED_FACE_FIELDS(X)                                                                 \
+    X(face_infos)
 
 static inline struct ToriDraw_Model*
 ToriDraw_ModelNew(
@@ -138,7 +180,24 @@ ToriDraw_ModelAssertTopologyWritable(const struct ToriDraw_Model* model)
 {
     assert(model);
     assert(!model->shared_owner && "in-place write to a shared model");
-    assert(!model->borrowed_topology && "in-place write to borrowed topology");
+    assert(!model->shared_faces && "in-place write to lent face arrays");
+    (void)model;
+}
+
+/**
+ * Abort if writing this model's face_infos would be writing through a loan.
+ *
+ * Narrower than ToriDraw_ModelAssertTopologyWritable, which a model borrowing
+ * its faces fails on principle: face_infos is never in the loan
+ * (TORIDRAW_SHARED_FACE_FIELDS), so the seam hide in World.shareLight
+ * legitimately writes it on a placement that is borrowing the other twelve.
+ * A whole-shared model has no private half at all and still fails.
+ */
+static inline void
+ToriDraw_ModelAssertFaceInfosWritable(const struct ToriDraw_Model* model)
+{
+    assert(model);
+    assert(!model->shared_owner && "in-place write to a shared model");
     (void)model;
 }
 

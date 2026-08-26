@@ -381,6 +381,15 @@ td_scene_allocate_element_id(
     return id;
 }
 
+struct ToriDraw_SharedFacesStore*
+ToriDraw_SceneSharedFaces(struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    if( !scene->shared_faces )
+        scene->shared_faces = ToriDraw_SharedFacesStoreNew();
+    return scene->shared_faces;
+}
+
 struct ToriDraw_SharedModelStore*
 ToriDraw_SceneSharedModels(struct ToriDraw_Scene* scene)
 {
@@ -406,7 +415,7 @@ ToriDraw_SceneElementModelForWrite(
     if( !element || element->model.kind != TORIDRAWMK_MODEL )
         return NULL;
     model = element->model.u.model.model;
-    if( !model || (!model->shared_owner && !model->borrowed_topology) )
+    if( !model || (!model->shared_owner && !model->shared_faces) )
         return model;
 
     /* Give this element geometry it can edit and hand the loan back. The copy

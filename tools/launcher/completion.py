@@ -119,7 +119,7 @@ FLAVORS = {
     "nosimd": "TORIDRAW_NO_SIMD=1",
     "tdo": "TORIDRAW_OPT=1",
     "memtrace": "MEMTRACE=1, links src/torirs_mt",
-    "asan": "ASan+UBSan in their own objdir",
+    "asan": "ASan+UBSan in their own objdir (macOS/Linux only)",
 }
 
 SHELLS = {"bash": "bash completion function", "zsh": "zsh compdef function"}

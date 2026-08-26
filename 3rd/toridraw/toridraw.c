@@ -582,6 +582,7 @@ ToriDraw_SceneFree(struct ToriDraw_Scene* scene)
     /* After the shutdown, not before: disposing the elements is what returns
      * the models they borrowed, and the store asserts it is empty. */
     ToriDraw_SharedModelStoreFree(scene->shared_models);
+    ToriDraw_SharedFacesStoreFree(scene->shared_faces);
     ToriDraw_SceneFreeBuffers(scene);
     td_scene_free_aligned(scene);
 }
