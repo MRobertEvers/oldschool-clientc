@@ -177,6 +177,25 @@ ToriDraw_AnimApplyTransform(
         if( !vertex_bones || !vertex_bones->bones )
             return;
 
+        /* The rotation is the same for every vertex this transform touches,
+         * so resolving it -- three angle reductions and up to six trig table
+         * reads -- belongs here and not in the innermost loop. The pivot is
+         * hoisted with it: the loop writes through vertices_*, which the
+         * compiler cannot always prove does not alias `transform`, so it was
+         * re-loading the origin on every vertex as well. */
+        int const pitch = (arg_x & 255) * 8;
+        int const yaw = (arg_y & 255) * 8;
+        int const roll = (arg_z & 255) * 8;
+        int const sin_roll = roll != 0 ? ToriDraw_Sin(roll) : 0;
+        int const cos_roll = roll != 0 ? ToriDraw_Cos(roll) : 0;
+        int const sin_pitch = pitch != 0 ? ToriDraw_Sin(pitch) : 0;
+        int const cos_pitch = pitch != 0 ? ToriDraw_Cos(pitch) : 0;
+        int const sin_yaw = yaw != 0 ? ToriDraw_Sin(yaw) : 0;
+        int const cos_yaw = yaw != 0 ? ToriDraw_Cos(yaw) : 0;
+        int const origin_x = transform->origin_x;
+        int const origin_y = transform->origin_y;
+        int const origin_z = transform->origin_z;
+
         for( int i = 0; i < bone_group_length; i++ )
         {
             int bone_index = bone_group[i];
@@ -189,12 +208,9 @@ ToriDraw_AnimApplyTransform(
             for( int j = 0; j < bone_length; j++ )
             {
                 int vertex_index = bone[j];
-                int x = (int)vertices_x[vertex_index] - transform->origin_x;
-                int y = (int)vertices_y[vertex_index] - transform->origin_y;
-                int z = (int)vertices_z[vertex_index] - transform->origin_z;
-                int pitch = (arg_x & 255) * 8;
-                int yaw = (arg_y & 255) * 8;
-                int roll = (arg_z & 255) * 8;
+                int x = (int)vertices_x[vertex_index] - origin_x;
+                int y = (int)vertices_y[vertex_index] - origin_y;
+                int z = (int)vertices_z[vertex_index] - origin_z;
                 int var17;
 
                 /* 32-bit hazard: these coordinates are relative to
@@ -205,8 +221,6 @@ ToriDraw_AnimApplyTransform(
                  * guard by range once per model, not by widening every vertex. */
                 if( roll != 0 )
                 {
-                    int sin_roll = ToriDraw_Sin(roll);
-                    int cos_roll = ToriDraw_Cos(roll);
                     var17 = (sin_roll * y + cos_roll * x) >> 16;
                     y = (cos_roll * y - sin_roll * x) >> 16;
                     x = var17;
@@ -214,8 +228,6 @@ ToriDraw_AnimApplyTransform(
 
                 if( pitch != 0 )
                 {
-                    int sin_pitch = ToriDraw_Sin(pitch);
-                    int cos_pitch = ToriDraw_Cos(pitch);
                     var17 = (cos_pitch * y - sin_pitch * z) >> 16;
                     z = (sin_pitch * y + cos_pitch * z) >> 16;
                     y = var17;
@@ -223,16 +235,14 @@ ToriDraw_AnimApplyTransform(
 
                 if( yaw != 0 )
                 {
-                    int sin_yaw = ToriDraw_Sin(yaw);
-                    int cos_yaw = ToriDraw_Cos(yaw);
                     var17 = (sin_yaw * z + cos_yaw * x) >> 16;
                     z = (cos_yaw * z - sin_yaw * x) >> 16;
                     x = var17;
                 }
 
-                vertices_x[vertex_index] = ToriDraw_AnimVertexintClamp(x + transform->origin_x);
-                vertices_y[vertex_index] = ToriDraw_AnimVertexintClamp(y + transform->origin_y);
-                vertices_z[vertex_index] = ToriDraw_AnimVertexintClamp(z + transform->origin_z);
+                vertices_x[vertex_index] = ToriDraw_AnimVertexintClamp(x + origin_x);
+                vertices_y[vertex_index] = ToriDraw_AnimVertexintClamp(y + origin_y);
+                vertices_z[vertex_index] = ToriDraw_AnimVertexintClamp(z + origin_z);
             }
         }
         break;

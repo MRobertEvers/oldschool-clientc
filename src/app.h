@@ -1690,6 +1690,19 @@ struct App
 
     struct ToriRS_PluginHighlightItem plugin_highlights[APP_PLUGIN_HIGHLIGHTS_MAX];
     int plugin_highlight_count;
+    /* Resolved LOC highlights, kept across frames.
+     *
+     * The loc pass is the expensive one: it walks the whole scenery pool
+     * -- ~23k entities -- testing each against the highlight member lists,
+     * and in an ordinary session that produces nothing at all. Unlike npcs
+     * and players, a loc does not move: its position comes from
+     * grid_position, so the answer only changes when the highlight state
+     * changes or when the set of scenery does. Those are exactly the two
+     * keys below. See app_plugin_highlights_rebuild_pools. */
+    struct ToriRS_PluginHighlightItem plugin_highlight_loc[APP_PLUGIN_HIGHLIGHTS_MAX];
+    int plugin_highlight_loc_count;
+    int plugin_highlight_loc_revision;
+    bool plugin_highlight_loc_valid;
     /** Plugin-owned world objects, indexed by the handle the plugin holds. */
     struct AppPluginObject plugin_objects[APP_PLUGIN_OBJECTS_MAX];
     /** Plugin-authored meshes, indexed by the handle the plugin holds. */
@@ -1818,11 +1831,21 @@ struct App
     int hover_footprint;
     int hover_footprint_mode;
     uint64_t last_logic_ms;
-    /* Wall clock of the previous rendered frame, for the per-frame actor mover
-     * (World_MoversAdvance). Distinct from last_logic_ms, which is snapped to
-     * the 20ms grid and so cannot measure a frame, and from last_frame_ms,
-     * which App_RunOnce overwrites with `now` before the world runs. */
-    uint64_t last_mover_ms;
+    /** Unspent simulation time, in milliseconds, carried between frames.
+     *
+     *  The client simulates at a fixed 50 Hz. A frame hands its elapsed
+     *  time to this accumulator, which pays out whole 20 ms cycles and
+     *  keeps the change -- so the tick rate is exactly 50 Hz however fast
+     *  or slow frames arrive, and an uncapped frame rate cannot run the
+     *  simulation faster than real time. Both the whole cycles the logic
+     *  steps and the fraction the movers interpolate come out of the same
+     *  elapsed value, which is what stops animation and movement drifting
+     *  apart. */
+    double cycle_accum_ms;
+    /** The clamped elapsed time of the frame the tick accumulator just took,
+     *  in milliseconds. The movers interpolate this; the logic steps whole
+     *  cycles out of it. Same number, so they cannot disagree. */
+    uint64_t logic_frame_ms;
     /** Ctrl held as of the last input pump (reference keyHeld[5]). Latched per
      *  frame because the minimenu action path has no LibToriRS_Input in hand,
      *  and the reference reads it inside tryMove — i.e. for ground, minimap AND

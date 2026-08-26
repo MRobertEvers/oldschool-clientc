@@ -3955,21 +3955,54 @@ d3d9_upload_group(struct ToriRS_D3D9* renderer, struct D3D9ModelGroup* group)
             return false;
         }
         group->gpu_capacity = capacity;
+        /* Nothing is in a buffer that did not exist a moment ago, so the
+         * dirty range is not the question -- all of it has to go up. */
+        trspk_vbo_set_dirty(group->vbo_cpu);
     }
-    byte_count = (UINT)(vertex_count * sizeof(struct TRSPK_VertexD3D9));
-    hr = IDirect3DVertexBuffer9_Lock(
-        group->vbo_gpu,
-        0u,
-        byte_count,
-        &locked,
-        group->reset_each_frame ? D3DLOCK_DISCARD : 0u);
-    if( FAILED(hr) )
+
+    /* Upload only what changed.
+     *
+     * The static group is one buffer holding every retained model in the
+     * scene, and its dirty flag is set by any one of them re-baking -- so a
+     * single loc morphing used to re-copy the entire scene to the GPU. The
+     * bake records which vertices it wrote; this sends that span and no more.
+     *
+     * The DYNAMIC group is exempt: D3DLOCK_DISCARD hands back a fresh buffer
+     * whose other contents are undefined, so a partial write there would
+     * leave garbage. It is re-baked wholesale every frame anyway. */
     {
-        d3d9_log_hr("Lock(vertex buffer)", hr);
-        return false;
+        uint32_t first = 0u;
+        uint32_t end = vertex_count;
+
+        if( !group->reset_each_frame && group->vbo_cpu->dirty_end > group->vbo_cpu->dirty_first )
+        {
+            first = group->vbo_cpu->dirty_first;
+            end = group->vbo_cpu->dirty_end;
+            if( end > vertex_count )
+                end = vertex_count;
+            if( first > end )
+                first = end;
+        }
+        byte_count = (UINT)((end - first) * sizeof(struct TRSPK_VertexD3D9));
+        if( byte_count == 0u )
+        {
+            trspk_vbo_clear_dirty(group->vbo_cpu);
+            return true;
+        }
+        hr = IDirect3DVertexBuffer9_Lock(
+            group->vbo_gpu,
+            (UINT)(first * sizeof(struct TRSPK_VertexD3D9)),
+            byte_count,
+            &locked,
+            group->reset_each_frame ? D3DLOCK_DISCARD : 0u);
+        if( FAILED(hr) )
+        {
+            d3d9_log_hr("Lock(vertex buffer)", hr);
+            return false;
+        }
+        memcpy(locked, &group->vbo_cpu->vertices.as_d3d9[first], byte_count);
+        IDirect3DVertexBuffer9_Unlock(group->vbo_gpu);
     }
-    memcpy(locked, group->vbo_cpu->vertices.as_d3d9, byte_count);
-    IDirect3DVertexBuffer9_Unlock(group->vbo_gpu);
     if( group->reset_each_frame )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_DYNAMIC_VBO_UPLOAD_BYTES, byte_count);
@@ -4705,9 +4738,10 @@ d3d9_bake_pose_vertices(
             tex_id_f);
     }
 
-    /* The flag is idempotent, so it is set once for the model instead of
-     * three times per face. */
-    trspk_vbo_set_dirty(vbo);
+    /* Once for the model rather than three times per face -- and as a
+     * RANGE, because this model is the only part of a shared retained
+     * buffer that changed. */
+    trspk_vbo_mark_dirty_range(vbo, vertex_base, (uint32_t)face_count * 3u);
     return true;
 }
 static uint32_t
@@ -5004,6 +5038,16 @@ d3d9_begin_3d(
     renderer->cur_3d = *command;
     renderer->has_3d = true;
     renderer->in3d = true;
+    /* Publish the prepared camera block.
+     *
+     * The SSE2 projection kernels are gated on
+     * `scene->projection_prepared_camera_source == camera`, and only the SDL2
+     * soft3d renderer ever published it -- so on this lane the pointer was
+     * always NULL, the gate was always false, and every model in every frame
+     * took the scalar fallback. The pointer has to be the same one the
+     * projection is called with, which is &renderer->cur_3d.camera below. */
+    if( renderer->scene )
+        ToriDraw_ScenePrepareProjectionCamera(renderer->scene, &renderer->cur_3d.camera);
     viewport = &renderer->cur_3d.view_port;
     pass_w = viewport->width > 0 ? viewport->width : renderer->width;
     pass_h = viewport->height > 0 ? viewport->height : renderer->height;
@@ -5596,6 +5640,10 @@ d3d9_end_3d(struct ToriRS_D3D9* renderer)
 {
     uint32_t active_pages = 0u;
     uint32_t page;
+    /* The prepared block describes a camera that is about to go out of scope;
+     * unpublishing it is what stops a later pass reading a stale one. */
+    if( renderer->scene )
+        ToriDraw_SceneClearProjectionCamera(renderer->scene);
     if( !renderer->has_3d )
         goto done;
     if( trspk_atlas_is_dirty(&renderer->atlas) && !d3d9_upload_atlas(renderer) )

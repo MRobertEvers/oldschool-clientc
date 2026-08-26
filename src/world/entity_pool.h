@@ -25,6 +25,16 @@ struct World_EntityPool
     int head;
     int tail;
     int free_head;
+    /** Bumped whenever the LIVE SET changes -- an entity activated,
+     *  released, or the whole pool reset.
+     *
+     *  Says THAT the set changed and never WHICH entity, so it can only
+     *  invalidate a cached pass, not maintain one -- and invalidating means
+     *  walking the pool again, which for scenery is the 23k-entity walk the
+     *  caching was for. Where that matters, World::scenery_changed carries
+     *  the identities instead. Kept because "did anything change at all" is
+     *  a cheap question with no other answer. */
+    unsigned int epoch;
 };
 
 void

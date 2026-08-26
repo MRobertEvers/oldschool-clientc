@@ -473,6 +473,283 @@ app_plugin_highlight_pools_wanted(
  * every pool, which is what the debug cross-check in the caller compares
  * against.
  */
+/*
+ * Is the cached LOC answer still the right one?
+ *
+ * Two inputs, and nothing else. `revision` covers the member lists AND the
+ * styles -- a SETUP writes the style and bumps it in the same breath. The
+ * pool epoch covers which scenery exists and what it is, including a loc
+ * that morphs, because re-registering an element bumps it too.
+ *
+ * What deliberately is NOT an input is time: a loc does not move. That is
+ * the whole reason this pool can be cached when the npc and player pools
+ * cannot -- their draw positions change every frame with nothing said.
+ */
+static bool
+app_plugin_highlight_loc_cache_needs_full(struct App const* app)
+{
+    assert(app);
+    assert(app->world);
+
+    return !app->plugin_highlight_loc_valid ||
+        app->plugin_highlight_loc_revision != app->host.highlight.revision ||
+        app->world->scenery_changed_overflow;
+}
+
+/* Push one resolved loc into the cache. Bounded by the same cap as the live
+ * list, so a cache that fills cannot outrun what the list could hold. */
+static struct ToriRS_PluginHighlightItem*
+app_plugin_highlight_loc_cache_push(
+    struct App* app,
+    struct ToriRS_PluginHighlightItem const* proto)
+{
+    struct ToriRS_PluginHighlightItem* item;
+
+    if( app->plugin_highlight_loc_count >= APP_PLUGIN_HIGHLIGHTS_MAX )
+        return NULL;
+    item = &app->plugin_highlight_loc[app->plugin_highlight_loc_count++];
+    *item = *proto;
+    return item;
+}
+
+/*
+ * Does this one loc match anything highlighted? If so, cache it.
+ *
+ * The single definition of the test, shared by the full walk and the
+ * incremental update, so the two can never drift into disagreeing about
+ * what counts as a match.
+ */
+static void
+app_plugin_highlight_loc_resolve_one(
+    struct App* app,
+    struct WorldEntity_Scenery* loc)
+{
+    struct RS_HighlightState const* hl = &app->host.highlight;
+    struct ToriRS_PluginHighlightItem proto;
+    /* Asked once per entity here rather than once per pool walk, because an
+     * incremental update has no pool walk to hoist it out of. It is a scan of
+     * a list that is empty in every ordinary session. */
+    bool const has_opgroup = app_plugin_highlight_named_any(hl, RS_HIGHLIGHT_OPGROUP);
+
+    assert(app);
+    assert(app->world);
+    assert(loc);
+
+    int tile_x;
+    int tile_z;
+    int coord;
+
+    if( !loc || loc->element_id < 0 )
+        return;
+    tile_x = app->world->_base_tile_x + loc->grid_position.x;
+    tile_z = app->world->_base_tile_z + loc->grid_position.z;
+    coord = RS_HIGHLIGHT_COORD(loc->grid_position.level, tile_x, tile_z);
+
+    for( int kind = 0; kind < 2; kind++ )
+    {
+        enum RS_HighlightKind const k =
+            kind == 0 ? RS_HIGHLIGHT_LOCTYPE : RS_HIGHLIGHT_LOC;
+        for( int i = 0; i < hl->member_count[k]; i++ )
+        {
+            struct RS_HighlightMember const* m = &hl->member[k][i];
+            if( m->key != loc->loc_id )
+                return;
+            /* The placed form pins a coord as well as a type; the type
+             * form marks every instance. */
+            if( k == RS_HIGHLIGHT_LOC && m->coord != coord )
+                return;
+            if( !app_plugin_highlight_begin(app, k, m->group, &proto) )
+                return;
+            proto.kind = TORIRS_PLUGIN_HL_LOC;
+            proto.element_id = loc->element_id;
+            proto.overhead_height = app_plugin_element_height(app, loc->element_id);
+            proto.fine_x = (loc->grid_position.x * 128) + 64;
+            proto.fine_z = (loc->grid_position.z * 128) + 64;
+            snprintf(proto.name, sizeof(proto.name), "%s", loc->info->name);
+            proto.tile_x = tile_x;
+            proto.tile_z = tile_z;
+            proto.level = loc->grid_position.level;
+            proto.size_x = loc->size_x > 0 ? loc->size_x : 1;
+            proto.size_z = loc->size_z > 0 ? loc->size_z : 1;
+            proto.flags |= m->flags;
+            if( !app_plugin_highlight_loc_cache_push(app, &proto) )
+                return;
+        }
+    }
+
+    {
+        int const group =
+                has_opgroup ? app_plugin_opgroup_group(hl, loc->info->name) : -1;
+        if( group >= 0 &&
+            app_plugin_highlight_begin(app, RS_HIGHLIGHT_OPGROUP, group, &proto) )
+        {
+            proto.kind = TORIRS_PLUGIN_HL_LOC;
+            proto.element_id = loc->element_id;
+            proto.overhead_height = app_plugin_element_height(app, loc->element_id);
+            proto.fine_x = (loc->grid_position.x * 128) + 64;
+            proto.fine_z = (loc->grid_position.z * 128) + 64;
+            snprintf(proto.name, sizeof(proto.name), "%s", loc->info->name);
+            proto.tile_x = tile_x;
+            proto.tile_z = tile_z;
+            proto.level = loc->grid_position.level;
+            proto.size_x = loc->size_x > 0 ? loc->size_x : 1;
+            proto.size_z = loc->size_z > 0 ? loc->size_z : 1;
+            if( !app_plugin_highlight_loc_cache_push(app, &proto) )
+                return;
+        }
+    }
+}
+
+/* Drop every cached entry for one element. A re-registered loc is removed
+ * and then re-tested, so this runs for changes as well as removals. */
+static void
+app_plugin_highlight_loc_cache_forget(
+    struct App* app,
+    int element_id)
+{
+    int out = 0;
+    int i;
+
+    for( i = 0; i < app->plugin_highlight_loc_count; i++ )
+    {
+        if( app->plugin_highlight_loc[i].element_id == element_id )
+            continue;
+        if( out != i )
+            app->plugin_highlight_loc[out] = app->plugin_highlight_loc[i];
+        out++;
+    }
+    app->plugin_highlight_loc_count = out;
+}
+
+/*
+ * Bring the cache up to date from the world's list of changed scenery.
+ *
+ * This is the point of the cache: the resolved list is MAINTAINED as locs
+ * come and go, not recomputed by walking every entity in the pool. The cost
+ * is proportional to what changed -- usually nothing, and a handful of
+ * entities while moving -- instead of to the size of the scene. Without it a
+ * cache keyed on "did the scenery change" would thrash: one door opening
+ * would buy back the whole 23k walk, and walking around opens a lot of doors.
+ *
+ * Each changed element is forgotten and then re-tested, which covers all
+ * three cases in one shape: an element that appeared is absent from the cache
+ * and gets added; one that vanished is dropped and fails the active test; one
+ * that morphed is dropped and re-tested against its new loc_id.
+ */
+static void
+app_plugin_highlight_loc_cache_apply(struct App* app)
+{
+    struct World_EntityPool* pool;
+    int n;
+    int i;
+
+    assert(app);
+    assert(app->world);
+
+    n = app->world->scenery_changed_count;
+    if( n <= 0 )
+        return;
+    pool = &app->world->entities.scenery;
+
+    for( i = 0; i < n; i++ )
+    {
+        int const element_id = app->world->scenery_changed[i];
+        int const idx = ToriDraw_ElementIndexOfRaw(element_id);
+        struct WorldEntity_Scenery* loc;
+
+        app_plugin_highlight_loc_cache_forget(app, element_id);
+
+        if( idx < 0 || !World_EntityPoolIsActive(pool, idx) )
+            continue;
+        loc = World_EntityPoolGet(pool, idx);
+        if( !loc || loc->element_id != element_id )
+            continue;
+        app_plugin_highlight_loc_resolve_one(app, loc);
+    }
+}
+
+/* Both defined below; the audit sits next to what it audits rather than
+ * next to its dependencies. */
+static bool
+app_plugin_highlight_debug(void);
+static void
+app_plugin_highlight_loc_cache_build(struct App* app);
+
+/*
+ * Under TORIRS_HIGHLIGHT_DEBUG, check the maintained list against a full
+ * rebuild and say so when they disagree.
+ *
+ * An incrementally maintained cache fails silently. It does not crash; it
+ * just quietly stops drawing a highlight, or keeps drawing one that should
+ * be gone, and from outside that is indistinguishable from the plugin never
+ * asking for it. The only honest check is to do the work the long way and
+ * compare, which is what the gate check in app_plugin_highlights_rebuild
+ * already does for its own question.
+ *
+ * The REBUILT list is what is left in place: if the two ever disagree the
+ * drawn frame stays correct and only the log says anything.
+ */
+static void
+app_plugin_highlight_loc_cache_audit(struct App* app)
+{
+    int incremental_count;
+    int incremental_sum = 0;
+    int rebuilt_sum = 0;
+    int i;
+
+    if( !app_plugin_highlight_debug() )
+        return;
+
+    incremental_count = app->plugin_highlight_loc_count;
+    for( i = 0; i < incremental_count; i++ )
+        incremental_sum += app->plugin_highlight_loc[i].element_id;
+
+    app_plugin_highlight_loc_cache_build(app);
+    for( i = 0; i < app->plugin_highlight_loc_count; i++ )
+        rebuilt_sum += app->plugin_highlight_loc[i].element_id;
+
+    if( incremental_count != app->plugin_highlight_loc_count ||
+        incremental_sum != rebuilt_sum )
+        fprintf(
+            stderr,
+            "highlight-loc-cache: MISMATCH incremental=%d (sum %d) rebuilt=%d (sum %d)\n",
+            incremental_count,
+            incremental_sum,
+            app->plugin_highlight_loc_count,
+            rebuilt_sum);
+}
+
+/*
+ * Resolve every LOC highlight in the scene, from scratch.
+ *
+ * The whole scenery pool -- ~23k entities in an ordinary map square -- tested
+ * against the loc and loctype member lists. Runs only when the QUESTION
+ * changes (a highlight turned on, off or restyled), or when the world says it
+ * stopped tracking which locs changed. Ordinary scene churn is handled
+ * incrementally by app_plugin_highlight_loc_cache_apply.
+ */
+static void
+app_plugin_highlight_loc_cache_build(struct App* app)
+{
+    struct World_EntityPool* pool;
+
+    assert(app);
+    assert(app->world);
+
+    app->plugin_highlight_loc_count = 0;
+
+    pool = &app->world->entities.scenery;
+    for( int at = World_EntityPoolHead(pool); at != WORLD_ENTITY_NIL;
+         at = World_EntityPoolNext(pool, at) )
+    {
+        struct WorldEntity_Scenery* loc = World_EntityPoolGet(pool, at);
+
+        if( !loc || loc->element_id < 0 )
+            continue;
+        app_plugin_highlight_loc_resolve_one(app, loc);
+    }
+}
+
 static void
 app_plugin_highlights_rebuild_pools(
     struct App* app,
@@ -493,6 +770,15 @@ app_plugin_highlights_rebuild_pools(
     bool const want_player = want[APP_PLUGIN_HL_POOL_PLAYER];
     bool const want_loc = want[APP_PLUGIN_HL_POOL_LOC];
     bool const want_obj = want[APP_PLUGIN_HL_POOL_OBJ];
+
+    /* Asked ONCE, not once per entity.
+     *
+     * app_plugin_opgroup_group is a linear scan of the named list, and every
+     * pass called it for every entity it walked -- so the cost was
+     * entities x named, paid to discover that the list holds no OPGROUP at
+     * all, which is its normal state (nothing in this cache calls the
+     * family's ON). Hoisted, the per-entity cost is one predictable branch. */
+    bool const has_opgroup = app_plugin_highlight_named_any(hl, RS_HIGHLIGHT_OPGROUP);
 
     /* ---- tiles: the member IS the thing, no pool to walk. ---- */
     for( int i = 0; i < hl->member_count[RS_HIGHLIGHT_TILE]; i++ )
@@ -572,7 +858,8 @@ app_plugin_highlights_rebuild_pools(
 
             /* ...and by right-click NAME, which is the OP GROUP kind. */
             {
-                int const group = app_plugin_opgroup_group(hl, npc->name);
+                int const group =
+                    has_opgroup ? app_plugin_opgroup_group(hl, npc->name) : -1;
                 if( group >= 0 &&
                     app_plugin_highlight_begin(app, RS_HIGHLIGHT_OPGROUP, group, &proto) )
                 {
@@ -633,76 +920,38 @@ app_plugin_highlights_rebuild_pools(
         }
     }
 
-    /* ---- locs: by type anywhere, or by type at one coord. ---- */
+    /* ---- locs: by type anywhere, or by type at one coord.
+     *
+     * Answered from the cache. The walk itself is in
+     * app_plugin_highlight_loc_cache_build and runs only when the highlight
+     * state or the scenery set has changed. ---- */
     if( want_loc )
     {
-        struct World_EntityPool* pool = &app->world->entities.scenery;
-        for( int at = World_EntityPoolHead(pool); at != WORLD_ENTITY_NIL;
-             at = World_EntityPoolNext(pool, at) )
+        if( app_plugin_highlight_loc_cache_needs_full(app) )
         {
-            struct WorldEntity_Scenery* loc = World_EntityPoolGet(pool, at);
-            int tile_x;
-            int tile_z;
-            int coord;
-
-            if( !loc || loc->element_id < 0 )
-                continue;
-            tile_x = app->world->_base_tile_x + loc->grid_position.x;
-            tile_z = app->world->_base_tile_z + loc->grid_position.z;
-            coord = RS_HIGHLIGHT_COORD(loc->grid_position.level, tile_x, tile_z);
-
-            for( int kind = 0; kind < 2; kind++ )
-            {
-                enum RS_HighlightKind const k =
-                    kind == 0 ? RS_HIGHLIGHT_LOCTYPE : RS_HIGHLIGHT_LOC;
-                for( int i = 0; i < hl->member_count[k]; i++ )
-                {
-                    struct RS_HighlightMember const* m = &hl->member[k][i];
-                    if( m->key != loc->loc_id )
-                        continue;
-                    /* The placed form pins a coord as well as a type; the type
-                     * form marks every instance. */
-                    if( k == RS_HIGHLIGHT_LOC && m->coord != coord )
-                        continue;
-                    if( !app_plugin_highlight_begin(app, k, m->group, &proto) )
-                        continue;
-                    proto.kind = TORIRS_PLUGIN_HL_LOC;
-                    proto.element_id = loc->element_id;
-                    proto.overhead_height = app_plugin_element_height(app, loc->element_id);
-                    proto.fine_x = (loc->grid_position.x * 128) + 64;
-                    proto.fine_z = (loc->grid_position.z * 128) + 64;
-                    snprintf(proto.name, sizeof(proto.name), "%s", loc->info->name);
-                    proto.tile_x = tile_x;
-                    proto.tile_z = tile_z;
-                    proto.level = loc->grid_position.level;
-                    proto.size_x = loc->size_x > 0 ? loc->size_x : 1;
-                    proto.size_z = loc->size_z > 0 ? loc->size_z : 1;
-                    proto.flags |= m->flags;
-                    if( !app_plugin_highlight_push(app, &proto) )
-                        return;
-                }
-            }
-
-            {
-                int const group = app_plugin_opgroup_group(hl, loc->info->name);
-                if( group >= 0 &&
-                    app_plugin_highlight_begin(app, RS_HIGHLIGHT_OPGROUP, group, &proto) )
-                {
-                    proto.kind = TORIRS_PLUGIN_HL_LOC;
-                    proto.element_id = loc->element_id;
-                    proto.overhead_height = app_plugin_element_height(app, loc->element_id);
-                    proto.fine_x = (loc->grid_position.x * 128) + 64;
-                    proto.fine_z = (loc->grid_position.z * 128) + 64;
-                    snprintf(proto.name, sizeof(proto.name), "%s", loc->info->name);
-                    proto.tile_x = tile_x;
-                    proto.tile_z = tile_z;
-                    proto.level = loc->grid_position.level;
-                    proto.size_x = loc->size_x > 0 ? loc->size_x : 1;
-                    proto.size_z = loc->size_z > 0 ? loc->size_z : 1;
-                    if( !app_plugin_highlight_push(app, &proto) )
-                        return;
-                }
-            }
+            app_plugin_highlight_loc_cache_build(app);
+            app->plugin_highlight_loc_revision = hl->revision;
+            app->plugin_highlight_loc_valid = true;
+        }
+        else
+        {
+            app_plugin_highlight_loc_cache_apply(app);
+            app_plugin_highlight_loc_cache_audit(app);
+        }
+        /* Drained either way: the full walk has just seen everything, and the
+         * incremental pass has just applied it. */
+        app->world->scenery_changed_count = 0;
+        app->world->scenery_changed_overflow = false;
+        for( int i = 0; i < app->plugin_highlight_loc_count; i++ )
+        {
+            struct ToriRS_PluginHighlightItem* out =
+                app_plugin_highlight_push(app, &app->plugin_highlight_loc[i]);
+            if( !out )
+                return;
+            /* Recomputed rather than cached: a loc's model can finish loading
+             * after the highlight resolved, and the height would otherwise stay
+             * pinned at whatever it was while nothing was loaded yet. */
+            out->overhead_height = app_plugin_element_height(app, out->element_id);
         }
     }
 
@@ -753,7 +1002,8 @@ app_plugin_highlights_rebuild_pools(
             }
 
             {
-                int const group = app_plugin_opgroup_group(hl, stack->name);
+                int const group =
+                    has_opgroup ? app_plugin_opgroup_group(hl, stack->name) : -1;
                 if( group >= 0 &&
                     app_plugin_highlight_begin(app, RS_HIGHLIGHT_OPGROUP, group, &proto) )
                 {

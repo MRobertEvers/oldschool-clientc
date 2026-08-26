@@ -127,6 +127,7 @@ World_EntityPoolAlloc(struct World_EntityPool* pool)
         pool->head = index;
     pool->tail = index;
     pool->active_count++;
+    pool->epoch++;
 
     return index;
 }
@@ -163,6 +164,7 @@ World_EntityPoolRelease(
     pool->nodes[index].next = pool->free_head;
     pool->free_head = index;
     pool->active_count--;
+    pool->epoch++;
 }
 
 bool
@@ -196,6 +198,7 @@ World_EntityPoolEnsureSlot(
         pool->head = index;
     pool->tail = index;
     pool->active_count++;
+    pool->epoch++;
 
     memset(World_EntityPoolGet(pool, index), 0, (size_t)pool->element_size);
     return true;
@@ -252,4 +255,5 @@ World_EntityPoolReset(struct World_EntityPool* pool)
     pool->free_head = WORLD_ENTITY_NIL;
     pool->active_count = 0;
     pool->count = 0;
+    pool->epoch++;
 }
