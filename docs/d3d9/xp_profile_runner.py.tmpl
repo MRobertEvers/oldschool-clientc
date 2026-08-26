@@ -1,0 +1,322 @@
+# -*- coding: utf-8 -*-
+# Box-side d3d9/soft3d profile runner.  WINDOWS XP, PYTHON 3.2.
+# No f-strings, no subprocess.run/DEVNULL, no os.replace, no capture_output.
+#
+# The HTTP shim times a script out at 120 s, so this relaunches itself
+# detached and the host polls for the result file.
+import ctypes
+import json
+import os
+import subprocess
+import sys
+import time
+
+JOB = json.loads(r'''@@JOB@@''')
+
+ROOT = r'C:\dev\oldschool-clientc'
+OUT = os.path.join(ROOT, 'd3d9prof')
+RESULT = os.path.join(OUT, JOB['job_id'] + '.result.json')
+PROGRESS = os.path.join(OUT, JOB['job_id'] + '.progress.json')
+
+
+class _FILETIME(ctypes.Structure):
+    _fields_ = [('lo', ctypes.c_ulong), ('hi', ctypes.c_ulong)]
+
+
+class _PMC(ctypes.Structure):
+    _fields_ = [('cb', ctypes.c_ulong),
+                ('PageFaultCount', ctypes.c_ulong),
+                ('PeakWorkingSetSize', ctypes.c_size_t),
+                ('WorkingSetSize', ctypes.c_size_t),
+                ('QuotaPeakPagedPoolUsage', ctypes.c_size_t),
+                ('QuotaPagedPoolUsage', ctypes.c_size_t),
+                ('QuotaPeakNonPagedPoolUsage', ctypes.c_size_t),
+                ('QuotaNonPagedPoolUsage', ctypes.c_size_t),
+                ('PagefileUsage', ctypes.c_size_t),
+                ('PeakPagefileUsage', ctypes.c_size_t)]
+
+
+def _v(f):
+    return (f.hi << 32) | f.lo
+
+
+def cpu_seconds(handle):
+    """Kernel+user cpu this process actually received.
+
+    Wall time on this box is the client's cost divided by whatever share of
+    the single cpu it won against everything else awake, and the desktop
+    streamer that hosts the remote API works harder exactly when the client
+    repaints more.  Cpu time cannot be stolen, so it is the axis a renderer
+    comparison has to be argued on.
+    """
+    c, e, k, u = _FILETIME(), _FILETIME(), _FILETIME(), _FILETIME()
+    ok = ctypes.windll.kernel32.GetProcessTimes(
+        handle, ctypes.byref(c), ctypes.byref(e),
+        ctypes.byref(k), ctypes.byref(u))
+    if not ok:
+        return None
+    return (_v(k) + _v(u)) / 1e7
+
+
+def working_set_mb(handle):
+    pmc = _PMC()
+    pmc.cb = ctypes.sizeof(_PMC)
+    ok = ctypes.windll.psapi.GetProcessMemoryInfo(
+        handle, ctypes.byref(pmc), ctypes.sizeof(_PMC))
+    if not ok:
+        return None
+    return pmc.WorkingSetSize / (1024.0 * 1024.0)
+
+
+def alive(handle):
+    code = ctypes.c_ulong(0)
+    ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+    return code.value == 259  # STILL_ACTIVE
+
+
+def kill_strays():
+    """A leftover client contaminates every measurement after it, and the
+    world holds its character, so the next login is refused as duplicate."""
+    killed = []
+    try:
+        p = subprocess.Popen(['tasklist'], stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT)
+        out = p.communicate()[0].decode('ascii', 'replace')
+    except Exception:
+        return killed
+    for line in out.splitlines():
+        tok = line.split()
+        if not tok:
+            continue
+        name = tok[0]
+        low = name.lower()
+        if low.startswith('torirs') and low.endswith('.exe'):
+            try:
+                q = subprocess.Popen(['taskkill', '/F', '/IM', name],
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT)
+                q.communicate()
+                killed.append(name)
+            except Exception:
+                pass
+    return killed
+
+
+def find_pid(exe_name):
+    """PID of a running image, by name. tasklist's second column is the pid."""
+    try:
+        p = subprocess.Popen(['tasklist'], stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT)
+        out = p.communicate()[0].decode('ascii', 'replace')
+    except Exception:
+        return None
+    for line in out.splitlines():
+        tok = line.split()
+        if len(tok) >= 2 and tok[0].lower() == exe_name.lower():
+            try:
+                return int(tok[1])
+            except ValueError:
+                pass
+    return None
+
+
+def open_for_query(pid):
+    # 0x0400 PROCESS_QUERY_INFORMATION
+    return ctypes.windll.kernel32.OpenProcess(0x0400, False, pid)
+
+
+def child_env(extra):
+    e = dict(os.environ)
+    e['PYTHONIOENCODING'] = 'utf-8'
+    # The bracket profiler is ~69% of this box's frame.  UNSET, not =0 -- a
+    # stray CSV var re-arms the brackets and the measurement stops being
+    # about the renderer at all.
+    for k in list(e.keys()):
+        if k.startswith('TORIRS_PERF'):
+            del e[k]
+    for k in ('TORIRS_FB_CLEAR', 'TORIRS_WIN32_HIDDEN',
+              'TORIDRAW_RASTER_SCANLINE'):
+        if k in e:
+            del e[k]
+    for k in sorted(extra.keys()):
+        e[str(k)] = str(extra[k])
+    return e
+
+
+def parse_fps(path):
+    out = []
+    try:
+        f = open(path, 'rb')
+        blob = f.read()
+        f.close()
+    except Exception:
+        return out
+    for line in blob.decode('ascii', 'replace').splitlines():
+        if line.startswith('[fps] '):
+            try:
+                out.append(float(line[6:].strip()))
+            except ValueError:
+                pass
+    return out
+
+
+def run_one(run):
+    tag = run['tag']
+    log_path = os.path.join(OUT, tag + '.log')
+    env = dict(run.get('env', {}))
+    env['TORIRS_FPS_REPORT'] = '1'
+    env['TORIRS_EXIT_BMP'] = os.path.join(OUT, tag + '.bmp')
+
+    strays = kill_strays()
+    # The world holds a hard-killed character for a while; logging back in
+    # inside that window gets reply=5 and silently measures the login screen.
+    time.sleep(float(JOB.get('settle_seconds', 12)))
+
+    f = open(log_path, 'wb')
+    t0 = time.time()
+    p = subprocess.Popen([os.path.join(ROOT, run['exe'])] + run['args'],
+                         cwd=ROOT, env=child_env(env),
+                         stdout=f, stderr=subprocess.STDOUT)
+    handle = int(p._handle)
+
+    # The desktop streamer that hosts this very API is the other big consumer
+    # of the box's one cpu, and it works harder exactly when the client
+    # repaints more. Charge its cpu explicitly rather than leaving it inside
+    # "wall time minus client cpu", which is where it would be invisible.
+    rpd_pid = find_pid('rpdxp.exe')
+    rpd_handle = open_for_query(rpd_pid) if rpd_pid else None
+    rpd_cpu0 = None
+
+    ws = []
+    ready_at = None
+    ready_mb = float(JOB.get('ready_mb', 90))
+    limit = float(run.get('run_seconds', 120))
+    boot_cap = float(run.get('boot_cap_seconds', 180))
+    deadline = t0 + boot_cap
+    win_t0 = None
+    win_cpu0 = None
+    fps_at_ready = 0
+
+    while True:
+        now = time.time()
+        if not alive(handle):
+            break
+        m = working_set_mb(handle)
+        if m is not None:
+            ws.append((round(now - t0, 2), round(m, 1)))
+        if ready_at is None and m is not None and m >= ready_mb:
+            ready_at = now - t0
+            # Let the first in-world frames settle -- scene load-in is cold
+            # caches and model building, and charging those to the renderer
+            # is the misattribution this whole exercise exists to avoid.
+            time.sleep(float(JOB.get('settle_inworld', 10)))
+            win_t0 = time.time()
+            win_cpu0 = cpu_seconds(handle)
+            if rpd_handle:
+                rpd_cpu0 = cpu_seconds(rpd_handle)
+            fps_at_ready = len(parse_fps(log_path))
+            deadline = win_t0 + limit
+        if now >= deadline:
+            break
+        time.sleep(0.5)
+
+    win_cpu1 = cpu_seconds(handle)
+    rpd_cpu1 = cpu_seconds(rpd_handle) if rpd_handle else None
+    win_t1 = time.time()
+    rc = None
+    if alive(handle):
+        try:
+            subprocess.Popen(['taskkill', '/F', '/PID', str(p.pid)],
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT).communicate()
+        except Exception:
+            pass
+    try:
+        rc = p.wait()
+    except Exception:
+        pass
+    total_cpu = cpu_seconds(handle)
+    f.close()
+
+    fps = parse_fps(log_path)
+    steady = fps[fps_at_ready:] if ready_at is not None else []
+    rec = {
+        'tag': tag,
+        'exe': run['exe'],
+        'args': run['args'],
+        'env': env,
+        'rc': rc,
+        'strays_killed': strays,
+        't0': t0,
+        'wall_total_s': round(win_t1 - t0, 3),
+        'ready_at_s': ready_at,
+        'window_s': round(win_t1 - win_t0, 3) if win_t0 else None,
+        'window_cpu_s': (round(win_cpu1 - win_cpu0, 3)
+                         if (win_cpu0 is not None and win_cpu1 is not None)
+                         else None),
+        'total_cpu_s': total_cpu,
+        'rpdxp_pid': rpd_pid,
+        'rpdxp_window_cpu_s': (round(rpd_cpu1 - rpd_cpu0, 3)
+                               if (rpd_cpu0 is not None and rpd_cpu1 is not None)
+                               else None),
+        'fps_all': fps,
+        'fps_steady': steady,
+        'ws_series': ws[-400:],
+        'ws_peak_mb': max([x[1] for x in ws]) if ws else None,
+        'log': os.path.basename(log_path),
+        'bmp': os.path.basename(env['TORIRS_EXIT_BMP']),
+    }
+    if steady:
+        s = sorted(steady)
+        rec['fps_median'] = s[len(s) // 2]
+        rec['fps_best'] = s[-1]
+        rec['ms_per_frame_wall'] = round(1000.0 / rec['fps_median'], 3)
+        if rec['window_cpu_s'] and rec['window_s']:
+            share = rec['window_cpu_s'] / rec['window_s']
+            rec['cpu_share'] = round(share, 4)
+            rec['ms_per_frame_cpu'] = round(rec['ms_per_frame_wall'] * share, 3)
+        if rec['rpdxp_window_cpu_s'] and rec['window_s']:
+            rec['rpdxp_share'] = round(
+                rec['rpdxp_window_cpu_s'] / rec['window_s'], 4)
+    return rec
+
+
+def main():
+    results = []
+    for i, run in enumerate(JOB['runs']):
+        g = open(PROGRESS, 'w')
+        g.write(json.dumps({'done': i, 'total': len(JOB['runs']),
+                            'current': run['tag']}))
+        g.close()
+        results.append(run_one(run))
+        g = open(RESULT + '.partial', 'w')
+        g.write(json.dumps({'runs': results}, indent=1, sort_keys=True))
+        g.close()
+    kill_strays()
+    g = open(RESULT + '.tmp', 'w')
+    g.write(json.dumps({'job_id': JOB['job_id'], 'runs': results},
+                       indent=1, sort_keys=True))
+    g.close()
+    if os.path.exists(RESULT):
+        os.remove(RESULT)
+    os.rename(RESULT + '.tmp', RESULT)
+
+
+if not os.path.isdir(OUT):
+    os.makedirs(OUT)
+
+if os.environ.get('D3D9PROF_CHILD') == '1':
+    main()
+else:
+    # Relaunch detached; the shim would time this out at 120 s.  The child
+    # needs an explicit env carrying PYTHONIOENCODING -- without it Python
+    # 3.2's console-encoding probe kills it before it executes a line,
+    # silently, because stdout is devnull.
+    env = dict(os.environ)
+    env['D3D9PROF_CHILD'] = '1'
+    env['PYTHONIOENCODING'] = 'utf-8'
+    boot = open(os.path.join(OUT, JOB['job_id'] + '.boot.log'), 'wb')
+    subprocess.Popen([sys.executable, os.path.abspath(__file__)],
+                     env=env, stdout=boot, stderr=subprocess.STDOUT,
+                     cwd=ROOT)
+    print('detached: ' + JOB['job_id'])
