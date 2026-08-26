@@ -388,16 +388,25 @@ check(got.length === 1 && got[0].k === INTENT.TAB && got[0].v === 0, 'a tab clic
 /*
  * PANEL_RECT was dropped entirely, so a panel the model sized to its content
  * still rendered in the page's fixed 340px column and ellipsised every name
- * that did not fit. Width is honoured and clamped; position is not, because
- * this window is a corner overlay rather than something laid out in canvas
- * coordinates.
+ * that did not fit. Position is still dropped, because this window is a corner
+ * overlay rather than something laid out in canvas coordinates.
+ *
+ * The width is honoured as a FLOOR under the page's own fit rather than as the
+ * answer -- see the note above fitPanel, and the squashed dropdown below.
  */
 apply(cmd(CMD.PANEL_RECT, { p: 0, x: 30, y: 40, cw: 420, ch: 900 }));
 check(root().style.width === '444px', "a panel's width reaches the page, plus its padding");
 apply(cmd(CMD.PANEL_RECT, { p: 0, x: 30, y: 40, cw: 4000, ch: 900 }));
-check(root().style.width === '560px', 'and is clamped rather than taking the screen');
+check(root().style.width === '720px', 'and is clamped rather than taking the screen');
+/*
+ * A floor BELOW what the rows need does not pull the window down onto them.
+ * That is not a hypothetical: the model's number arrives in the model's scale,
+ * which is 1 on an ordinary display, and this sheet lays every row out at 2 --
+ * so honouring it literally is exactly how a 208px label column ended up inside
+ * a 240px window.
+ */
 apply(cmd(CMD.PANEL_RECT, { p: 0, x: 30, y: 40, cw: 10, ch: 900 }));
-check(root().style.width === '240px', 'clamped at the bottom too');
+check(parseFloat(root().style.width) > 240, 'a floor under the fit, never a cap on it');
 
 /* ---- the kinds the page used to have no branch for ------------------------ */
 
@@ -710,6 +719,49 @@ press(ddBtn);
 apply(cmd(CMD.WIDGET_REMOVE, { w: 40 }));
 check(!ddList(), 'and so does removing it');
 check(document.listenerCount('mousedown') === 0, 'with no listener left behind');
+ADD_ORDER.pop();
+
+/* ---- a window wide enough for what it holds --------------------------------
+ *
+ * THE SQUASHED DROPDOWN.
+ *
+ * A window sized from PANEL_RECT alone was half the width its own rows were
+ * laid out in -- the number is in the model's scale and this sheet doubles
+ * every metric it reads. The 208px label column then took the whole row: every
+ * field either side of it collapsed to the width of its own arrow, and the list
+ * one of them opened was clipped to that, so "Normal (2 tiles)" read as "mal (".
+ *
+ * Both halves of the fix are pinned here. The WINDOW grows to fit the widest
+ * option a row can show, and the LIST is sized to its own rows rather than to
+ * the button it hangs off.
+ */
+
+/* The host's fallback advance: this document's canvas measures nothing, which
+ * is the branch a browser without a 2D context takes as well. */
+const CHAR = 0.6 * 8 * 2;
+const LONG = 'Highest (16 tiles of scenery)';
+
+const wasWide = parseFloat(root().style.width);
+apply(cmd(CMD.WIDGET_ADD, { w: 41, v: W.DROPDOWN, tab: -1, label: 'Draw distance' }));
+apply(cmd(CMD.WIDGET_OPTIONS, { w: 41, v: 2 }));
+apply(cmd(CMD.WIDGET_OPTION, { w: 41, v: 0, text: 'Off' }));
+apply(cmd(CMD.WIDGET_OPTION, { w: 41, v: 1, text: LONG }));
+apply(cmd(CMD.WIDGET_SELECTED, { w: 41, v: 0, text: 'Off' }));
+apply(cmd(CMD.WIDGET_TEXT, { w: 41, text: 'Off' }));
+
+check(parseFloat(root().style.width) > wasWide, 'a long option widens the window');
+check(
+  parseFloat(root().style.width) >= 104 * 2 + LONG.length * CHAR,
+  'past the label column by at least the option itself');
+
+const fitRow = addedRow(41);
+const fitBtn = fitRow.children.filter(c => c.classList.contains('dd'))[0];
+press(fitBtn);
+check(
+  parseFloat(ddList().style.width) >= LONG.length * CHAR,
+  'and the list it opens is as wide as its own widest row');
+document.fire('mousedown');
+apply(cmd(CMD.WIDGET_REMOVE, { w: 41 }));
 ADD_ORDER.pop();
 
 /* ---- the way out ----------------------------------------------------------- */

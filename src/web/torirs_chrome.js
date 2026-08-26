@@ -231,8 +231,14 @@
       '.torirs-chrome-tabs button.on{background:transparent;color:', C.text, '}',
 
       /* The rows take whatever height is left in a framed window and scroll
-       * inside it; in a floating one they grow to the cap above. */
-      '.torirs-chrome-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding:', px(m.pad), '}',
+       * inside it; in a floating one they grow to the cap above.
+       *
+       * SIDEWAYS as well as down. The window fits itself to its widest row
+       * (see fitPanel), so this is not how a row normally gets its width -- it
+       * is what happens in the one case the fit cannot reach, a popped-out tab
+       * the user has dragged narrower than the rows in it. A row that overflows
+       * can then be scrolled to; one that was merely clipped could not. */
+      '.torirs-chrome-body{flex:1 1 auto;min-height:0;overflow:auto;padding:', px(m.pad), '}',
 
       /* One row height for every kind of row, whatever it holds -- see
        * TORIRS_CHROME_M_ROW_H. A column whose rows are each as tall as their
@@ -256,7 +262,19 @@
       'box-shadow:inset 0 0 0 ', px(1), ' ', C.frameInset, ';',
       'color:', C.text, ';font:inherit;text-shadow:inherit;padding:0 ', px(m.fieldPadX), ';',
       'outline:0;border-radius:0}',
-      '.torirs-chrome-row input[type=text],.torirs-chrome-row span.dd{flex:1 1 auto;min-width:0}',
+      /*
+       * A field shrinks, but not to nothing.
+       *
+       * At `min-width:0` a row narrower than its label column left the field
+       * with the width of its own arrow and no more: the value was gone, and
+       * the list it opened was sized to that. The floor is eight characters --
+       * `ch` is the advance of "0", which in a monospace face is the advance of
+       * everything -- plus the room the arrow is inset in. Below that the row
+       * overflows and the body scrolls to it, which is a field you can still
+       * read.
+       */
+      '.torirs-chrome-row input[type=text],.torirs-chrome-row span.dd{flex:1 1 auto;',
+      'min-width:calc(8ch + ', px(m.dropArrow + m.fieldInset), ')}',
       '.torirs-chrome-row input[type=text]:focus,.torirs-chrome-row span.dd:focus{',
       'box-shadow:inset 0 0 0 ', px(1), ' ', C.accent, '}',
 
@@ -1372,14 +1390,24 @@
            * it does want is enough room to be worth wrapping into, which is the
            * caption column it does not use spent on the box instead. */
           return m.labelW * K * 2;
+        case W.BUTTON:
+        case W.MENUITEM:
+          /* The label column's width, not the caption's, so a row of buttons is
+           * not ragged -- the same rule button.act is sized by. */
+          return m.labelW * K;
         case W.TABSTRIP:
         case W.SEPARATOR:
         case W.FREE:
           /* The strip is compressed rather than clipped -- see renderTabs --
            * and the other two have no contents to be wide for. */
           return 0;
+        case W.LABEL:
+        case W.MODELVIEW:
         default:
-          return m.labelW * K + this.textW(w.labelText) + box;
+          /* Whatever the row put in its one node. A LABEL's string arrives as
+           * the command's TEXT and a MODELVIEW's placeholder is written here,
+           * so neither is `labelText`. */
+          return this.textW(w.control && w.control.textContent);
       }
     }
 

@@ -251,8 +251,15 @@ BUILDERS = {
 
 
 # ------------------------------------------------------------ validation
-def required_services(profile, manifest):
+def required_services(profile, manifest, client=None):
     """Services without which this frontend structurally cannot run.
+
+    `client` is the EFFECTIVE frontend -- what this run resolved to, which is
+    not always what the profile declares: `./launch run rs289lc --client web`
+    is a native profile being run in a browser. Reading profile.client here
+    instead let that override past the check entirely, and a `--client web` run
+    of a profile with no io_server started nothing, said "services up", and
+    handed over a URL nothing was serving.
 
     Deliberately a SHORT list. A declared service is the only thing that gets
     started; this exists so a true impossibility is reported as a sentence
@@ -264,7 +271,7 @@ def required_services(profile, manifest):
     one would refuse to launch a configuration that works. That case is an
     advisory instead; see advisory_services().
     """
-    client = profile.client
+    client = client or profile.client
     required = {}
     if client in ("web", "web-idb"):
         required["io_server"] = (
@@ -272,14 +279,16 @@ def required_services(profile, manifest):
     return required
 
 
-def advisory_services(profile, manifest, declared):
+def advisory_services(profile, manifest, declared, client=None):
     """Services this run probably wants but has not declared, as {name: why}.
+
+    `client` is the effective frontend, for the reason required_services gives.
 
     Reported as a note, and only when nothing is already listening on the port
     — so a server you started yourself, or one an external project runs, stays
     silent rather than being nagged about.
     """
-    client = profile.client
+    client = client or profile.client
     transport = (manifest.transport or "").strip()
     advisory = {}
 

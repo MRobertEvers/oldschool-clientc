@@ -114,7 +114,7 @@ def _expected_port(service_name, profile, manifest):
     return None
 
 
-def _check_declared_services(profile, manifest, service_list):
+def _check_declared_services(profile, manifest, service_list, client):
     """Refuse a profile whose declared services cannot run its frontend.
 
     Services are declared, never inferred — but an omission must not be left to
@@ -127,7 +127,7 @@ def _check_declared_services(profile, manifest, service_list):
     # Advisory: probably wanted, but a server somebody else runs is a normal
     # setup here, so this only speaks up when the port is genuinely silent.
     for name, why in services_mod.advisory_services(
-            profile, manifest, declared).items():
+            profile, manifest, declared, client).items():
         expected = _expected_port(name, profile, manifest)
         if expected and supervisor.port_listening(expected):
             continue
@@ -136,20 +136,39 @@ def _check_declared_services(profile, manifest, service_list):
 
     missing = [
         (name, why)
-        for name, why in services_mod.required_services(profile, manifest).items()
+        for name, why in services_mod.required_services(
+            profile, manifest, client).items()
         if name not in declared]
     if not missing:
         return
+    # The EFFECTIVE client in the headline, not profile.client: the whole
+    # reason this fires may be a --client override, and naming the declared
+    # frontend there reads as a contradiction of the line under it.
     lines = [
-        "profile '%s' declares services=%s, which cannot run client=%s:"
-        % (profile.name, ", ".join(profile.services) or "(none)", profile.client)]
+        "profile '%s' declares services=%s, which cannot run client=%s%s:"
+        % (profile.name,
+           ", ".join(profile.services) or "(none)",
+           client,
+           " (--client override; the profile declares %s)" % profile.client
+           if client != profile.client else "")]
     for name, why in missing:
         lines.append("    missing %-14s %s" % (name, why))
     complete = list(profile.services) + [name for name, _ in missing]
     lines.append("")
-    lines.append("  add to [profile] in %s:"
-                 % os.path.relpath(profile.path, REPO_ROOT))
-    lines.append("    services=%s" % ", ".join(complete))
+    if client != profile.client:
+        # Editing the native profile to carry a browser's services would be
+        # the wrong fix: the frontend is not the only thing a web run needs
+        # differently. Point at the pattern this tree already uses instead.
+        lines.append("  --client is a frontend override, and a browser run "
+                     "needs more than a frontend")
+        lines.append("  (transport=ws, a ws_port a browser can reach, "
+                     "chrome=web). Run the profile that")
+        lines.append("  states all of it, or add one beside this profile:")
+        lines.append("    ./launch list        # look for a -web sibling")
+    else:
+        lines.append("  add to [profile] in %s:"
+                     % os.path.relpath(profile.path, REPO_ROOT))
+        lines.append("    services=%s" % ", ".join(complete))
     raise LaunchError("\n".join(lines))
 
 
@@ -257,7 +276,7 @@ def build_plan(profile, client_override=None, flavor_override=None,
         # native client would have opened.
         service_list = services_mod.build_services(
             profile, manifest, manifest_rel, REPO_ROOT)
-        _check_declared_services(profile, manifest, service_list)
+        _check_declared_services(profile, manifest, service_list, client)
 
     session = profile.session
     user = session.get("user") or manifest.user or "asdf"
