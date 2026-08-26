@@ -25,9 +25,19 @@ export function installWidgetOps(HostKernel) {
     function idOf(host, node) {
         host.calls++;
         if( !node ) return -1;
-        /* A dynamic child has no cache id of its own; the reference reports
-         * its sub-id, which is what a `cc_find` would look it up by. */
-        return node.componentId >= 0 ? node.componentId : node.subId;
+        /*
+         * The SUB-ID of a dynamic child, and -1 for anything else:
+         *
+         *     return CS2VM2_PushInt(vm, node->dynamic ? node->dynamic_child_index : -1);
+         *
+         * A dynamic child does have a uid — the tree allocates one — but that
+         * is storage, not the handle a script passes around: every reader of
+         * `cc_getid` feeds it straight back to `cc_find(parent, id)`. Returning
+         * the uid made every such round trip miss. `steelborder` hands its
+         * title's id back to its caller, so `clan_info_draw` could never find
+         * the title it was meant to write, in eleven interfaces.
+         */
+        return node.dynamic ? node.subId : -1;
     }
 
     /**
@@ -327,6 +337,17 @@ export function installWidgetOps(HostKernel) {
         tree.setProp(node.index, 'obj', objId | 0);
         tree.setProp(node.index, 'objCount', count | 0);
         tree.setProp(node.index, 'objNumMode', numMode);
+        /*
+         * An item UN-HIDES its cell.
+         *
+         * `UITree_ApplyObject` ends its obj_id > 0 arm with
+         * `if( c->behavior.hide ) { c->behavior.hide = 0; ... }`, and scripts
+         * lean on it: `itemsets_side_draw` hides an empty slot and then calls
+         * `cc_setobject(obj_6512, 1)` on the same node in the same breath, so
+         * all 28 cells of four side panels are visible in the reference and
+         * were invisible here.
+         */
+        if( (objId | 0) > 0 && node.hidden ) tree.setHidden(node.index, false);
         return undefined;
     };
 
