@@ -272,7 +272,17 @@ export class Emitter {
         {
             const hovered = node.componentId >= 0
                 && node.componentId === context.hoveredComponentId;
-            if( effectiveModel(node.props, hovered) < 0 ) return;
+            /*
+             * ...unless it is a PLAYER PREVIEW slot. clientCode 327 (the design
+             * preview) and 328 (the live local player) carry `model=-1` in the
+             * cache and are filled in by the client — the scene bridge hands
+             * them a composed appearance, and `uitree_builder_reassert_player_
+             * idle_anim` keeps it on the idle sequence. So the widget draws
+             * whether or not the record names a model, and `equipment`'s
+             * 136x168 preview was missing from the draw list entirely.
+             */
+            if( effectiveModel(node.props, hovered) < 0
+                && !PLAYER_PREVIEW_CLIENT_CODES.has(node.props.clientCode | 0) ) return;
         }
         /*
          * A graphic with nothing to show is the same rule, and it is the one
@@ -422,6 +432,11 @@ export function clipsChildren(node) {
 /** `enum UITreeClientCode`'s content slots: world 1337, minimap 1338,
  *  compass 1339. Each is a builtin draw this preview does not host. */
 const CONTENT_CLIENT_CODES = new Set([1337, 1338, 1339]);
+
+/** The two player-preview slots: 327 the design preview, 328 the live local
+ *  player. Both are drawn from an appearance the client composes, not from a
+ *  model the cache names. */
+const PLAYER_PREVIEW_CLIENT_CODES = new Set([327, 328]);
 
 function emitKindOf(node) {
     switch( node.type )

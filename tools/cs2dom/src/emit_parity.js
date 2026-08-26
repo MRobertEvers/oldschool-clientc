@@ -121,7 +121,14 @@ export function normalizeJsCommands(commands) {
         x: command.x, y: command.y,
         width: command.width, height: command.height,
         colour: command.props.colour ?? -1,
-        filled: command.props.filled ? 1 : 0,
+        /*
+         * `filled` belongs to a RECT and to nothing else. The C descriptor is
+         * zeroed per command and only `case UIELEM_RS_RECT` writes the field,
+         * so a SPRITE whose component happens to carry `fill=yes` reports 0
+         * there. Reporting the prop for every kind made `dt2_warmind_puzzle`
+         * differ on all 141 commands over a field the reference never set.
+         */
+        filled: command.kind === EMIT_KIND.RECT && command.props.filled ? 1 : 0,
         trans: command.trans | 0,
         tiled: command.props.tiled ? 1 : 0,
         clip: { ...command.clip },
