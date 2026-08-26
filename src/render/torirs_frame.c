@@ -1049,7 +1049,7 @@ translate_ui_cmd(
         if( desc->model_id < 0 )
             return false;
         hnd = ToriDraw_SceneModelGet(frame->scene, desc->model_id);
-        if( hnd.kind != TORIDRAWMK_MODEL || !hnd.u.model.model )
+        if( !ToriDraw_ModelKindIsFull(hnd.kind) || !hnd.u.model.model )
             return false;
         out->kind = TORIRSRC_DRAW_MODEL_WIDGET;
         out->u.model_widget.model = hnd;
@@ -1801,7 +1801,7 @@ emit:
      * Reported here rather than from the build-time capture because anything
      * that rewrote vertices after the build (animation frames, contour ground)
      * is already applied by now. */
-    if( el->model.kind == TORIDRAWMK_MODEL && el->model.u.model.model )
+    if( ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model )
     {
         struct ToriDraw_Model const* m = el->model.u.model.model;
         if( m->vertex_count > 0 )

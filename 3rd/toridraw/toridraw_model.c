@@ -447,7 +447,7 @@ ToriDraw_BonesCopy(const struct ToriDraw_Bones* src)
     return dst;
 }
 
-static void
+void
 ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
 {
     free(m->vertices_x);
@@ -461,19 +461,12 @@ ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
     free(m->original_vertices_z);
     free(m->original_face_alphas);
 
-    /* The lendable face arrays are either ours or on loan; the caller
-     * (ToriDraw_ModelFree) is what drops the lender, because this runs for the
-     * HD shell too. face_infos is never lent, so it is always ours to free --
-     * see TORIDRAW_SHARED_FACE_FIELDS for why it is the one that is not. */
+    /* Every array is this model's -- that is what the type means now. A
+     * placement borrowing its faces is a ToriDraw_ModelLentFaces, which NULLs
+     * the twelve aliases before calling this and then drops its share of the
+     * loan; see ToriDraw_ModelLentFacesFree. */
 #define TORIDRAW_FACE_FREE(field) free(m->field);
-    if( m->shared_faces )
-    {
-        TORIDRAW_FACE_FREE(face_infos)
-    }
-    else
-    {
-        TORIDRAW_MODEL_FACE_FIELDS(TORIDRAW_FACE_FREE)
-    }
+    TORIDRAW_MODEL_FACE_FIELDS(TORIDRAW_FACE_FREE)
 #undef TORIDRAW_FACE_FREE
     ToriDraw_NormalsFree(m->normals);
     ToriDraw_NormalsFree(m->merged_normals);
@@ -510,7 +503,7 @@ ToriDraw_ModelHDFromModel(struct ToriDraw_Model* model)
      * going through ToriDraw_ModelFree, so a borrowed-topology holder would be
      * duplicated into the HD model and never dropped. No HD model is built from
      * a scene placement today; this is what says so. */
-    assert(!model->shared_faces);
+
 
     /* By value: the arrays are pointers and move with the struct, so freeing
      * the shell afterwards must not go through ToriDraw_ModelFree — that would
@@ -536,18 +529,13 @@ ToriDraw_ModelHDFree(struct ToriDraw_ModelHD* hd)
 void
 ToriDraw_ModelFree(struct ToriDraw_Model* model)
 {
+    /* A ToriDraw_Model owns everything, so this frees everything. The shared
+     * regimes are other types and have their own release paths, reached through
+     * ToriDraw_ModelHandleFree -- which is why nothing here has to ask what
+     * kind of model this is. */
     if( !model )
         return;
-    if( model->shared_owner )
-    {
-        /* Not ours to free. The store's last holder comes back through here
-         * with the back-pointer already cleared. */
-        ToriDraw_SharedModelRelease(model->shared_owner);
-        return;
-    }
     ToriDraw_ModelFree_arrays(model);
-    if( model->shared_faces )
-        ToriDraw_SharedFacesRelease(model->shared_faces);
     free(model);
 }
 
@@ -665,7 +653,6 @@ ToriDraw_ModelFreeNormals(struct ToriDraw_Model* model)
 void
 ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
 {
-    ToriDraw_ModelAssertWritable(model);
     size_t const vc = (size_t)model->vertex_count;
 
     /*
@@ -757,7 +744,6 @@ ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
 void
 ToriDraw_ModelAnimateReset(struct ToriDraw_Model* model)
 {
-    ToriDraw_ModelAssertWritable(model);
     if( !model->original_vertices_x )
         return;
 

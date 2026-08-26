@@ -48,13 +48,21 @@ void
 ToriDraw_SharedModelStoreFree(struct ToriDraw_SharedModelStore* store);
 
 /**
- * Borrow the model published under `key`, or NULL if there is none.
+ * Borrow the model published under `key`, as a handle that says it is shared.
  *
- * The caller becomes a holder and must eventually ToriDraw_ModelFree what it
- * gets back (a scene element does this for itself when the element is removed).
- * The result is shared: read it, place it, but do not write to it.
+ * A handle and not a bare pointer, because "shared" is the only interesting
+ * thing about what comes back and a `struct ToriDraw_Model*` cannot carry it:
+ * the result reads and places exactly like a model the caller built, and the
+ * one thing the caller must not do to it -- write -- looks identical in the
+ * source either way. The returned handle is TORIDRAWMO_SHARED, so every
+ * accessor that gates a write refuses it and
+ * ToriDraw_SceneElementSetModel cannot be told otherwise.
+ *
+ * TORIDRAWMK_NONE when there is no such key. The caller becomes a holder and
+ * must eventually ToriDraw_ModelFree the model (a scene element does this for
+ * itself when the element is removed).
  */
-struct ToriDraw_Model*
+struct ToriDraw_ModelHandle
 ToriDraw_SharedModelStoreAcquire(
     struct ToriDraw_SharedModelStore* store,
     int64_t key);
@@ -62,11 +70,13 @@ ToriDraw_SharedModelStoreAcquire(
 /**
  * Hand `model` to the store under `key` and borrow it straight back.
  *
- * Takes ownership; the returned pointer is the same one, now shared, with the
- * caller as its first holder. `key` must not already be published -- a caller
- * publishes only after Acquire came back empty.
+ * Takes ownership. The returned handle addresses the same object, now shared,
+ * with the caller as its first holder -- and says TORIDRAWMO_SHARED, because
+ * from this call on the caller is a reader of geometry it no longer owns.
+ * `key` must not already be published; a caller publishes only after Acquire
+ * came back TORIDRAWMK_NONE.
  */
-struct ToriDraw_Model*
+struct ToriDraw_ModelHandle
 ToriDraw_SharedModelStorePublish(
     struct ToriDraw_SharedModelStore* store,
     int64_t key,
@@ -114,9 +124,12 @@ ToriDraw_SharedFacesStoreCount(const struct ToriDraw_SharedFacesStore* store);
  * ones. The build runs in full regardless, because it is the build that decides
  * what the topology IS -- the saving is in what is kept, not in what is done.
  *
- * Takes no ownership of `model`. Returns it, now carrying a `shared_faces`.
+ * Takes no ownership of `model`. Returns a handle onto it, now carrying a
+ * `shared_faces` and saying TORIDRAWMO_LENT_FACES -- which is the half-shared
+ * permission: write the vertices, the per-corner colours and face_infos, not
+ * the twelve arrays now on loan.
  */
-struct ToriDraw_Model*
+struct ToriDraw_ModelHandle
 ToriDraw_SharedFacesStoreBorrow(
     struct ToriDraw_SharedFacesStore* store,
     int64_t key,

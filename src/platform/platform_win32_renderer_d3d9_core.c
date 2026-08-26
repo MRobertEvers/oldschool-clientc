@@ -3139,7 +3139,7 @@ d3d9_ui_draw_model_widget(
     uint32_t pending_vertices = 0u;
     int order_index;
     if( !renderer->in2d || !renderer->scene || !renderer->ui_batch.vertices ||
-        command->model.kind != TORIDRAWMK_MODEL ||
+        !ToriDraw_ModelKindIsFull(command->model.kind) ||
         !(model = command->model.u.model.model) || command->w <= 0 || command->h <= 0 )
         return;
     if( !d3d9_ui_scissor_rect(
@@ -4834,7 +4834,7 @@ d3d9_animation_load(
     int frame;
     if( !command || command->element_id < 0 || !command->animation ||
         command->animation->frame_count <= 0 ||
-        command->model.kind != TORIDRAWMK_MODEL || !command->model.u.model.model )
+        !ToriDraw_ModelKindIsFull(command->model.kind) || !command->model.u.model.model )
         return;
     animation = command->animation;
     skeletal = animation->skeletal;

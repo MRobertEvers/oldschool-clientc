@@ -776,7 +776,7 @@ UITreeSceneBridge_BuildPlayerDesignModel(
     {
         struct ToriDraw_ModelHandle old =
             ToriDraw_SceneModelGet(bridge->scene, UITREE_SCENE_PLAYER_MODEL_ID);
-        if( old.kind == TORIDRAWMK_MODEL && old.u.model.model &&
+        if( ToriDraw_ModelKindIsFull(old.kind) && old.u.model.model &&
             old.u.model.model != merged )
             ToriDraw_ModelFree(old.u.model.model);
     }
@@ -838,7 +838,7 @@ UITreeSceneBridge_BuildLocalPlayerModel(
     {
         struct ToriDraw_ModelHandle old =
             ToriDraw_SceneModelGet(bridge->scene, UITREE_SCENE_LOCAL_PLAYER_MODEL_ID);
-        if( old.kind == TORIDRAWMK_MODEL && old.u.model.model && old.u.model.model != merged )
+        if( ToriDraw_ModelKindIsFull(old.kind) && old.u.model.model && old.u.model.model != merged )
             ToriDraw_ModelFree(old.u.model.model);
     }
 
@@ -870,7 +870,7 @@ UITreeSceneBridge_BuildInterfacePlayerModel(
         return -1;
 
     old = ToriDraw_SceneModelGet(bridge->scene, scene_id);
-    if( old.kind == TORIDRAWMK_MODEL && old.u.model.model && old.u.model.model != merged )
+    if( ToriDraw_ModelKindIsFull(old.kind) && old.u.model.model && old.u.model.model != merged )
         ToriDraw_ModelFree(old.u.model.model);
 
     memset(&hnd, 0, sizeof(hnd));
@@ -1465,7 +1465,7 @@ UITreeSceneBridge_CollectMissingTextures(
         if( !ToriDraw_SceneElementIsLive(bridge->scene, element_id) )
             continue;
         el = ToriDraw_SceneElementGet(bridge->scene, element_id);
-        if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
+        if( !el || !ToriDraw_ModelKindIsFull(el->model.kind) || !el->model.u.model.model )
             continue;
         model = el->model.u.model.model;
         if( !model->face_textures )

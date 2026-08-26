@@ -292,7 +292,7 @@ ToriDraw_ModelHeapBytes(const struct ToriDraw_Model* model)
 }
 
 struct ToriDraw_Model*
-ToriDraw_ModelCopy(struct ToriDraw_Model* src)
+ToriDraw_ModelCopy(const struct ToriDraw_Model* src)
 {
     assert(src);
 
@@ -751,7 +751,6 @@ ToriDraw_ModelRecolor(
     int color_src,
     int color_dst)
 {
-    ToriDraw_ModelAssertTopologyWritable(model);
     ToriDraw_ModelRecolorHslArray(model->face_colors, model->face_count, color_src, color_dst);
     ToriDraw_ModelRecolorHslArray(model->face_colors_a, model->face_count, color_src, color_dst);
     ToriDraw_ModelRecolorHslArray(model->face_colors_b, model->face_count, color_src, color_dst);
@@ -764,7 +763,6 @@ ToriDraw_ModelRetexture(
     int texture_src,
     int texture_dst)
 {
-    ToriDraw_ModelAssertTopologyWritable(model);
     if( !model->face_textures )
         return;
     for( int i = 0; i < model->face_count; i++ )
@@ -778,7 +776,6 @@ void
 ToriDraw_ModelMirror(struct ToriDraw_Model* model)
 {
     /* Swaps two of the three face indices, so it writes the borrowed half. */
-    ToriDraw_ModelAssertTopologyWritable(model);
     for( int v = 0; v < model->vertex_count; v++ )
         model->vertices_z[v] = (vertexint_t)(-model->vertices_z[v]);
     for( int f = 0; f < model->face_count; f++ )
@@ -794,7 +791,6 @@ ToriDraw_ModelOrient(
     struct ToriDraw_Model* model,
     int orientation)
 {
-    ToriDraw_ModelAssertWritable(model);
     orientation &= 3;
     while( orientation-- > 0 )
     {
@@ -814,7 +810,6 @@ ToriDraw_ModelScale(
     int z,
     int height)
 {
-    ToriDraw_ModelAssertWritable(model);
     for( int i = 0; i < model->vertex_count; i++ )
     {
         model->vertices_x[i] = (vertexint_t)((int)model->vertices_x[i] * x / 128);
@@ -895,7 +890,6 @@ ToriDraw_ModelTranslate(
     int y,
     int z)
 {
-    ToriDraw_ModelAssertWritable(model);
     for( int i = 0; i < model->vertex_count; i++ )
     {
         model->vertices_x[i] = (vertexint_t)((int)model->vertices_x[i] + x);

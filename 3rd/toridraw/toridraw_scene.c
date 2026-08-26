@@ -412,29 +412,34 @@ ToriDraw_SceneElementModelForWrite(
     if( element_id < 0 || !ToriDraw_SceneElementIsLive(scene, element_id) )
         return NULL;
     element = ToriDraw_SceneElementGet(scene, element_id);
-    if( !element || element->model.kind != TORIDRAWMK_MODEL )
+    if( !element || !ToriDraw_ModelKindIsFull(element->model.kind) )
         return NULL;
-    model = element->model.u.model.model;
-    if( !model || (!model->shared_owner && !model->shared_faces) )
-        return model;
+    /* Already ours: nothing to un-share. */
+    if( element->model.kind == TORIDRAWMK_MODEL || element->model.kind == TORIDRAWMK_MODEL_HD )
+        return element->model.u.model.model;
 
     /* Give this element geometry it can edit and hand the loan back. The copy
      * carries the bind pose, so an element about to be animated is no worse off
-     * for being copied here than it would have been built unshared. */
-    element->model.u.model.model = ToriDraw_ModelCopy(model);
-    ToriDraw_ModelFree(model);
-    /* The copy owns everything, so the element's handle has to stop saying
-     * otherwise -- this function exists precisely to change the regime. */
-    element->model.owns = ToriDraw_ModelOwnershipOf(element->model.u.model.model);
-    return element->model.u.model.model;
+     * for being copied here than it would have been built unshared.
+     *
+     * The element changes TYPE here -- ToriDraw_ModelCopy reads the shared
+     * geometry and returns one that owns itself -- which is the whole job of
+     * this function, and is now a fact about its handle rather than about two
+     * fields nobody had to look at. */
+    model = ToriDraw_ModelCopy(ToriDraw_ModelRead(element->model));
+    ToriDraw_ModelHandleFree(element->model);
+    element->model = ToriDraw_ModelHandleOwned(model);
+    return model;
 }
 
 static void
 td_scene_dispose_element_model(struct ToriDraw_SceneElement* element)
 {
     assert(element);
-    if( element->model.kind == TORIDRAWMK_MODEL && element->model.u.model.model )
-        ToriDraw_ModelFree(element->model.u.model.model);
+    /* Whatever the element holds, by its kind: an owned model outright, a
+     * shared one by dropping a holder, a lent-faces one by dropping its own
+     * arrays and its share of the loan. */
+    ToriDraw_ModelHandleFree(element->model);
     element->model.kind = TORIDRAWMK_NONE;
     element->model.u.model.model = NULL;
 }
@@ -461,7 +466,7 @@ td_scene_free_element_id(
                 element_id,
                 0,
                 0,
-                element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+                ToriDraw_ModelKindIsFull(element->model.kind) ? &element->model : NULL,
                 NULL,
                 NULL);
         }
@@ -483,8 +488,7 @@ td_scene_free_models_map(struct ToriDraw_Map* map)
     struct MapEntry_ToriModel* entry = NULL;
     while( (entry = (struct MapEntry_ToriModel*)ToriDraw_MapIterNext(iter)) )
     {
-        if( entry->model.kind == TORIDRAWMK_MODEL )
-            ToriDraw_ModelFree(entry->model.u.model.model);
+        ToriDraw_ModelHandleFree(entry->model);
     }
     ToriDraw_MapIterFree(iter);
 }
@@ -1016,7 +1020,7 @@ ToriDraw_SceneModelHas(
     struct ToriDraw_Scene* scene,
     int model_id)
 {
-    return ToriDraw_SceneModelGet(scene, model_id).kind == TORIDRAWMK_MODEL;
+    return ToriDraw_ModelKindIsFull(ToriDraw_SceneModelGet(scene, model_id).kind);
 }
 
 struct ToriDraw_ModelHandle
@@ -1196,7 +1200,7 @@ ToriDraw_SceneClear(struct ToriDraw_Scene* scene)
                 i,
                 0,
                 0,
-                element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+                ToriDraw_ModelKindIsFull(element->model.kind) ? &element->model : NULL,
                 NULL,
                 NULL);
         }
@@ -1207,7 +1211,7 @@ ToriDraw_SceneClear(struct ToriDraw_Scene* scene)
             i,
             0,
             0,
-            element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+            ToriDraw_ModelKindIsFull(element->model.kind) ? &element->model : NULL,
             NULL,
             NULL);
         td_scene_dispose_element_model(element);
@@ -1254,7 +1258,7 @@ ToriDraw_SceneClearPool(
                 i,
                 0,
                 0,
-                element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+                ToriDraw_ModelKindIsFull(element->model.kind) ? &element->model : NULL,
                 NULL,
                 NULL);
         }
@@ -1266,7 +1270,7 @@ ToriDraw_SceneClearPool(
                 i,
                 0,
                 0,
-                element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+                ToriDraw_ModelKindIsFull(element->model.kind) ? &element->model : NULL,
                 NULL,
                 NULL);
         td_scene_dispose_element_model(element);
@@ -1334,7 +1338,7 @@ ToriDraw_SceneElementRemove(
         element_id,
         0,
         0,
-        element && element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+        element && ToriDraw_ModelKindIsFull(element->model.kind) ? &element->model : NULL,
         NULL,
         NULL);
 
@@ -1430,7 +1434,7 @@ td_scene_element_assign_model(
     struct ToriDraw_SceneElement* element;
 
     assert(scene);
-    assert(model.kind == TORIDRAWMK_MODEL);
+    assert(ToriDraw_ModelKindIsFull(model.kind));
     assert(td_scene_element_valid(scene, element_id));
 
     element = td_scene_element_ptr(scene, element_id);
@@ -1492,14 +1496,6 @@ ToriDraw_SceneElementSetModel(
 
     element = td_scene_element_ptr(scene, element_id);
     assert(element);
-
-    /* `owns` is a claim about who owns the geometry, and the model itself is
-     * the authority on it. A handle that disagrees would hand every later
-     * holder the wrong write permission -- and since TORIDRAWMO_OWNED is what a
-     * designated initialiser leaves behind, the disagreement to expect is a
-     * shared placement mounted as if it owned itself. */
-    if( ToriDraw_ModelKindIsFull(model.kind) && model.u.model.model )
-        assert(model.owns == ToriDraw_ModelOwnershipOf(model.u.model.model));
 
     /*
      * Mounting a model is the last moment it is guaranteed to be at its bind

@@ -157,72 +157,41 @@ ToriDraw_ModelFree(struct ToriDraw_Model* model);
  * loc moving, fading or animating together, which is a long way from its
  * cause.
  */
-/**
- * Who owns `model`'s geometry, read off the model rather than declared.
- *
- * Every producer of a handle onto a possibly-shared model goes through here
- * (ToriDraw_ModelHandleFor) so the handle cannot disagree with the two
- * back-pointers that decide it. Hand-stamping TORIDRAWMO_OWNED on a placement
- * that is sharing its geometry is exactly the mistake this exists to catch, and
- * it would be undetectable.
- */
-static inline enum ToriDraw_ModelOwnership
-ToriDraw_ModelOwnershipOf(const struct ToriDraw_Model* model)
-{
-    assert(model);
-    /* A whole-shared model is shared outright; whether it also carries a
-     * face loan is not a distinction any holder can act on. */
-    if( model->shared_owner )
-        return TORIDRAWMO_SHARED;
-    if( model->shared_faces )
-        return TORIDRAWMO_LENT_FACES;
-    return TORIDRAWMO_OWNED;
-}
+/** Free every array a fully-owned model holds, leaving the shell. Exposed for
+ *  the two shared types, whose `base` is embedded rather than allocated. */
+void
+ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m);
 
-static inline void
-ToriDraw_ModelAssertWritable(const struct ToriDraw_Model* model)
-{
-    assert(
-        ToriDraw_ModelOwnershipOf(model) != TORIDRAWMO_SHARED &&
-        "in-place write to a shared model");
-    (void)model;
-}
+/** Release a lent-faces placement: its own arrays, then its share of the loan. */
+void
+ToriDraw_ModelLentFacesFree(struct ToriDraw_ModelLentFaces* lent);
 
 /**
- * Abort if `model` would be writing through a loan, for the mutators that touch
- * the FACE arrays rather than the vertices.
+ * Release whatever this handle addresses, by its kind.
  *
- * Stricter than ToriDraw_ModelAssertWritable because a half-shared model passes
- * that one: its vertices really are private, so moving, scaling and mirroring
- * the corners is fine, and only a recolour or a retexture reaches into the
- * borrowed half. Splitting the two keeps the vertex mutators usable on a
- * placement that borrowed its topology instead of asserting on the common case.
+ * The one free that callers holding a handle should use: an owned model frees
+ * outright, a shared one drops a holder, a lent-faces one drops its arrays and
+ * its share of the loan. Getting that dispatch wrong used to be possible --
+ * every regime was the same type and ToriDraw_ModelFree guessed from two
+ * nullable fields.
  */
 static inline void
-ToriDraw_ModelAssertTopologyWritable(const struct ToriDraw_Model* model)
+ToriDraw_ModelHandleFree(struct ToriDraw_ModelHandle hnd)
 {
-    assert(
-        ToriDraw_ModelOwnershipOf(model) == TORIDRAWMO_OWNED &&
-        "in-place write to geometry this model does not own");
-    (void)model;
-}
-
-/**
- * Abort if writing this model's face_infos would be writing through a loan.
- *
- * Narrower than ToriDraw_ModelAssertTopologyWritable, which a model borrowing
- * its faces fails on principle: face_infos is never in the loan
- * (TORIDRAW_SHARED_FACE_FIELDS), so the seam hide in World.shareLight
- * legitimately writes it on a placement that is borrowing the other twelve.
- * A whole-shared model has no private half at all and still fails.
- */
-static inline void
-ToriDraw_ModelAssertFaceInfosWritable(const struct ToriDraw_Model* model)
-{
-    assert(
-        ToriDraw_ModelOwnershipOf(model) != TORIDRAWMO_SHARED &&
-        "in-place write to a shared model");
-    (void)model;
+    switch( hnd.kind )
+    {
+    case TORIDRAWMK_NONE:
+        return;
+    case TORIDRAWMK_MODEL_SHARED:
+        ToriDraw_SharedModelRelease(hnd.u.shared);
+        return;
+    case TORIDRAWMK_MODEL_LENT_FACES:
+        ToriDraw_ModelLentFacesFree(hnd.u.lent);
+        return;
+    default:
+        ToriDraw_ModelFree(hnd.u.model.model);
+        return;
+    }
 }
 
 void
@@ -277,57 +246,84 @@ ToriDraw_ModelIsLightable(const struct ToriDraw_Model* model)
  * widening those tests would claim support that has not been built. This
  * predicate marks the paths that genuinely handle both.
  */
-static inline int
-ToriDraw_ModelKindIsFull(enum ToriDraw_ModelKind kind)
-{
-    return kind == TORIDRAWMK_MODEL || kind == TORIDRAWMK_MODEL_HD;
-}
-
-static inline struct ToriDraw_Model*
+/** The long-standing spelling of ToriDraw_ModelRead, kept because two dozen
+ *  render paths use it and every one of them only reads. */
+static inline const struct ToriDraw_Model*
 ToriDraw_ModelAsFull(struct ToriDraw_ModelHandle hnd)
 {
-    /* An HD model's `base` is the first member and is a plain model, so both
-     * kinds answer this the same way and nothing downstream has to care.
-     * Ownership does not enter: reading is legal however the geometry is
-     * owned, and it is writing that the accessors below gate. */
-    assert(hnd.kind == TORIDRAWMK_MODEL || hnd.kind == TORIDRAWMK_MODEL_HD);
+    return ToriDraw_ModelRead(hnd);
+}
+
+/**
+ * The model, writable, because this handle says the caller owns all of it.
+ *
+ * The ONLY way to get a non-const `struct ToriDraw_Model*` out of a handle, and
+ * it refuses every kind that does not own its geometry outright. That is what
+ * makes the bare type mean something: hold one and it is yours.
+ */
+static inline struct ToriDraw_Model*
+ToriDraw_ModelWrite(struct ToriDraw_ModelHandle hnd)
+{
+    assert(
+        (hnd.kind == TORIDRAWMK_MODEL || hnd.kind == TORIDRAWMK_MODEL_HD) &&
+        "write to geometry this handle does not own");
     return hnd.u.model.model;
 }
 
-/** A handle onto `model`, carrying the ownership its own fields say it has. */
+/**
+ * The private half of a lent-faces placement: its vertices, its per-corner
+ * colours, its face_infos.
+ *
+ * Returns the whole base because C cannot hand back "every member but twelve",
+ * so this is a promise the caller keeps rather than one the compiler enforces:
+ * do not touch TORIDRAW_SHARED_FACE_FIELDS through it. What it does enforce is
+ * the kind -- a whole-shared model has no private half and does not come back
+ * from here at all.
+ *
+ * This is what contouring, the End-batch lighting and the World.shareLight seam
+ * hide are entitled to.
+ */
+static inline struct ToriDraw_Model*
+ToriDraw_ModelLentFacesPrivate(struct ToriDraw_ModelHandle hnd)
+{
+    assert(hnd.kind == TORIDRAWMK_MODEL_LENT_FACES);
+    return &hnd.u.lent->base;
+}
+
+/** A handle onto a model that owns itself. */
 static inline struct ToriDraw_ModelHandle
-ToriDraw_ModelHandleFor(struct ToriDraw_Model* model)
+ToriDraw_ModelHandleOwned(struct ToriDraw_Model* model)
 {
     struct ToriDraw_ModelHandle hnd = { 0 };
 
     assert(model);
     hnd.kind = TORIDRAWMK_MODEL;
-    hnd.owns = ToriDraw_ModelOwnershipOf(model);
     hnd.u.model.model = model;
     return hnd;
 }
 
-/**
- * The model, for a caller that writes only the placement-private half: the
- * vertices, the per-corner colours, face_infos.
- *
- * A lent-faces model passes -- that half really is its own, which is the whole
- * point of lending only the other twelve arrays. A whole-shared model does not.
- * This is what the contour pass, the sharelight seam hide and the End-batch
- * lighting are entitled to.
- *
- * There is deliberately no handle accessor for an UNRESTRICTED write. Nothing
- * that takes a handle does one -- the mutators that touch the face arrays
- * (Recolor, Retexture, Mirror) take a raw model and guard with
- * ToriDraw_ModelAssertTopologyWritable -- and an accessor with no caller is a
- * claim about the API that nothing keeps honest.
- */
-static inline struct ToriDraw_Model*
-ToriDraw_ModelAsPlacementWritable(struct ToriDraw_ModelHandle hnd)
+/** A handle onto a model the scene shares whole. */
+static inline struct ToriDraw_ModelHandle
+ToriDraw_ModelHandleShared(struct ToriDraw_SharedModel* shared)
 {
-    assert(ToriDraw_ModelKindIsFull(hnd.kind));
-    assert(hnd.owns != TORIDRAWMO_SHARED && "write to a whole-shared model");
-    return hnd.u.model.model;
+    struct ToriDraw_ModelHandle hnd = { 0 };
+
+    assert(shared);
+    hnd.kind = TORIDRAWMK_MODEL_SHARED;
+    hnd.u.shared = shared;
+    return hnd;
+}
+
+/** A handle onto a placement that borrows its face arrays. */
+static inline struct ToriDraw_ModelHandle
+ToriDraw_ModelHandleLentFaces(struct ToriDraw_ModelLentFaces* lent)
+{
+    struct ToriDraw_ModelHandle hnd = { 0 };
+
+    assert(lent);
+    hnd.kind = TORIDRAWMK_MODEL_LENT_FACES;
+    hnd.u.lent = lent;
+    return hnd;
 }
 
 /**

@@ -190,7 +190,6 @@ hide_merged_faces(
 
     assert(model);
     assert(vertex_merge_index);
-    ToriDraw_ModelAssertFaceInfosWritable(model);
 
     face_count = model->face_count;
     fa = model->face_indices_a;
@@ -368,7 +367,7 @@ defaultlight_build(struct WorldBuilder* builder)
 
                     scene_element =
                         ToriDraw_SceneElementGet(builder->scene, map_element->element_idx);
-                    if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
+                    if( !scene_element || !ToriDraw_ModelKindIsFull(scene_element->model.kind) ||
                         !scene_element->model.u.model.model )
                         continue;
 
@@ -426,7 +425,7 @@ alloc_normals_for_column(
             {
                 map_element = &builder->sharelight_map->pool[pi].element;
                 scene_element = ToriDraw_SceneElementGet(builder->scene, map_element->element_idx);
-                if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
+                if( !scene_element || !ToriDraw_ModelKindIsFull(scene_element->model.kind) ||
                     !scene_element->model.u.model.model )
                     continue;
                 sharelight_ensure_normals(scene_element->model.u.model.model);
@@ -472,7 +471,7 @@ merge_column(
             {
                 map_element = &builder->sharelight_map->pool[pi].element;
                 scene_element = ToriDraw_SceneElementGet(builder->scene, map_element->element_idx);
-                if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
+                if( !scene_element || !ToriDraw_ModelKindIsFull(scene_element->model.kind) ||
                     !scene_element->model.u.model.model )
                     continue;
 
@@ -505,7 +504,7 @@ merge_column(
                         adjacent_scene_element = ToriDraw_SceneElementGet(
                             builder->scene, adjacent_map_element->element_idx);
                         if( !adjacent_scene_element ||
-                            adjacent_scene_element->model.kind != TORIDRAWMK_MODEL ||
+                            !ToriDraw_ModelKindIsFull(adjacent_scene_element->model.kind) ||
                             !adjacent_scene_element->model.u.model.model )
                             continue;
 
@@ -588,7 +587,7 @@ apply_and_free_column(
             {
                 map_element = &builder->sharelight_map->pool[pi].element;
                 scene_element = ToriDraw_SceneElementGet(builder->scene, map_element->element_idx);
-                if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
+                if( !scene_element || !ToriDraw_ModelKindIsFull(scene_element->model.kind) ||
                     !scene_element->model.u.model.model )
                     continue;
 

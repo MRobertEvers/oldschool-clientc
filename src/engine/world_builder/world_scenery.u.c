@@ -459,7 +459,7 @@ scenery_register_sharelight(
     if( builder->scenery_runtime_spawn )
     {
         struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(builder->scene, element_id);
-        if( el && el->model.kind == TORIDRAWMK_MODEL && el->model.u.model.model &&
+        if( el && ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model &&
             ToriDraw_ModelIsLightable(el->model.u.model.model) )
         {
             struct ToriDraw_ModelHandle hnd = {
@@ -988,6 +988,10 @@ scenery_load_model(
 {
     struct World* world = builder->world;
     struct ToriDraw_Model* model = NULL;
+    /* The placement's model AND who owns its geometry. Both stores answer in
+     * this type, so the one fact that distinguishes a cache hit from a fresh
+     * build cannot be dropped on the way to ToriDraw_SceneElementSetModel. */
+    struct ToriDraw_ModelHandle hnd = { 0 };
     int64_t proto_key = 0;
     bool from_cache = false;
     bool const proto_shareable = scenery_loc_model_shareable(config_loc);
@@ -1022,12 +1026,13 @@ scenery_load_model(
     if( proto_shareable )
     {
         proto_key = scenery_model_key(config_loc->id, shape_select, rotation);
-        model = ToriDraw_SharedModelStoreAcquire(
+        hnd = ToriDraw_SharedModelStoreAcquire(
             ToriDraw_SceneSharedModels(builder->scene), proto_key);
     }
 
-    if( model )
+    if( hnd.kind != TORIDRAWMK_NONE )
     {
+        model = ToriDraw_ModelAsFull(hnd);
         from_cache = true;
         /* Deferred draw-time rotation is an animated-loc mechanism, and
          * animated locs are never shareable — a non-zero value here means the
@@ -1055,9 +1060,10 @@ scenery_load_model(
                 ToriDraw_ModelFreeNormals(model);
             }
             /* Hand the freshly built model to the store and take it straight
-             * back as this placement's copy -- the same pointer, now shared,
-             * with this placement as its first holder. */
-            model = ToriDraw_SharedModelStorePublish(
+             * back as this placement's copy -- the same object, now shared,
+             * with this placement as its first holder and a handle that says
+             * so. */
+            hnd = ToriDraw_SharedModelStorePublish(
                 ToriDraw_SceneSharedModels(builder->scene), proto_key, model);
         }
         else if( config_loc->seq_id == -1 )
@@ -1088,10 +1094,16 @@ scenery_load_model(
              * them at every placement of the loc. See
              * TORIDRAW_SHARED_FACE_FIELDS.
              */
-            model = ToriDraw_SharedFacesStoreBorrow(
+            hnd = ToriDraw_SharedFacesStoreBorrow(
                 ToriDraw_SceneSharedFaces(builder->scene),
                 scenery_model_key(config_loc->id, shape_select, rotation),
                 model);
+        }
+        else
+        {
+            /* Nothing shared: animated, or shareable neither whole nor in
+             * half. This placement owns every array it just built. */
+            hnd = ToriDraw_ModelHandleOwned(model);
         }
     }
 
@@ -1208,11 +1220,11 @@ scenery_load_model(
         }
     }
 
-    /* Derived, not stamped: this is the one producer whose model may have come
-     * back from either store, and a hand-written TORIDRAWMK_MODEL here would
-     * tell every later holder it may write geometry it does not own. */
-    ToriDraw_SceneElementSetModel(
-        builder->scene, element_id, ToriDraw_ModelHandleFor(model));
+    /* `hnd` came from whichever store served this placement, or from
+     * ToriDraw_ModelHandleOwned when none did -- so the type it carries was
+     * never a claim this function made up. */
+    assert(ToriDraw_ModelAsFull(hnd) == model);
+    ToriDraw_SceneElementSetModel(builder->scene, element_id, hnd);
 
     /* LocType.raiseobject: stamp model minY (max of -vy) onto every tile of the
      * sprite footprint so later zone OBJ_ADD stacks can sit on the table

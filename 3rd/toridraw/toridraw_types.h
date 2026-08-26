@@ -7,6 +7,7 @@
 #include "toridraw_texture_mapping.h"
 
 #include <stdbool.h>
+#include <assert.h>
 #include <stdint.h>
 
 typedef int16_t faceint_t;
@@ -138,40 +139,23 @@ struct ToriDraw_Bones
  */
 #define TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY ((uint8_t)(1u << 1))
 
+/**
+ * A model that owns every array reachable from it.
+ *
+ * That is not a description, it is the invariant. Geometry a placement does NOT
+ * own lives in one of the two types below, each of which embeds one of these as
+ * its first member -- so a `struct ToriDraw_Model*` you can write through is
+ * always yours, and the only way to obtain one is a handle whose kind says
+ * TORIDRAWMK_MODEL. The shared regimes yield a `const struct ToriDraw_Model*`
+ * instead; see ToriDraw_ModelRead / ToriDraw_ModelWrite.
+ *
+ * The alternative -- one struct with a couple of nullable "actually this bit
+ * belongs to someone else" back-pointers -- is what this replaced, and it made
+ * every write site look identical whether or not it was legal. One of them was
+ * not, and the wall it deleted took a day to find.
+ */
 struct ToriDraw_Model
 {
-    /*
-     * Set when this model is not ours: it belongs to a shared-model store and
-     * is on loan to however many placements point at it. NULL -- what every
-     * constructor here leaves, since they all calloc the shell -- means an
-     * ordinary privately owned model.
-     *
-     * See toridraw_shared_model.h for why the arrangement exists and what it
-     * costs. What it means HERE is three things: ToriDraw_ModelFree drops a
-     * holder instead of freeing, ToriDraw_ModelAssertWritable refuses an
-     * in-place write, and ToriDraw_SceneElementModelForWrite is how a
-     * placement that must write gets geometry of its own.
-     */
-    struct ToriDraw_SharedModel* shared_owner;
-
-    /*
-     * When set, every array in TORIDRAW_SHARED_FACE_FIELDS belongs to this
-     * buffer set and not to this model: the face arrays are aliases into
-     * geometry that placements of the same loc share, while the vertices, the
-     * per-corner colours and face_infos beside them stay private.
-     *
-     * This is the half-shared case. A loc that is contoured to the ground or
-     * takes its lighting from a neighbour cannot share a whole model -- its
-     * vertices and colours are placement-dependent -- but its faces index those
-     * vertices identically at every placement, and the faces are the larger
-     * half. See ToriDraw_SharedFacesStoreBorrow.
-     *
-     * ToriDraw_ModelFree_arrays skips the lent arrays and drops a lender
-     * instead, and ToriDraw_SceneElementModelForWrite treats a model with one
-     * of these exactly as it treats a fully shared one: copy first, then write.
-     */
-    struct ToriDraw_SharedFaces* shared_faces;
-
     uint8_t flags;
     int vertex_count;
     int face_count;
@@ -276,49 +260,30 @@ struct ToriDraw_ModelGround
     faceint_t* face_textures;
 };
 
-/** What a handle points at: which struct is behind the pointer. Orthogonal to
- *  who owns its geometry -- that is enum ToriDraw_ModelOwnership. */
+/**
+ * Which struct is behind a handle -- and for the three model types, that is the
+ * same question as who owns the geometry, because each regime is its own type.
+ *
+ *   MODEL             struct ToriDraw_Model. Owns every array. Writable.
+ *   MODEL_HD          struct ToriDraw_ModelHD. Owns everything too; the HD tail
+ *                     is the difference.
+ *   MODEL_SHARED      struct ToriDraw_SharedModel. Owned by a store, N holders,
+ *                     no private half. Read only.
+ *   MODEL_LENT_FACES  struct ToriDraw_ModelLentFaces. Vertices, per-corner
+ *                     colours and face_infos are the placement's; the twelve
+ *                     face arrays are on loan.
+ *
+ * All four embed or ARE a ToriDraw_Model at offset zero, so reading is uniform
+ * (ToriDraw_ModelRead). Writing is not, which is the entire point.
+ */
 enum ToriDraw_ModelKind
 {
     TORIDRAWMK_NONE = 0,
     TORIDRAWMK_MODEL = 1,
     TORIDRAWMK_GROUND = 2,
-    /** A ToriDraw_ModelHD. Its `base` is a plain model, so everything that
-     *  takes a TORIDRAWMK_MODEL works unchanged — see ToriDraw_ModelAsFull. */
     TORIDRAWMK_MODEL_HD = 3,
-};
-
-/**
- * Who owns the geometry behind a model handle, and therefore what a holder may
- * write to it.
- *
- * The second axis, and it really is a second one: an HD model can be shared and
- * a plain model can be lent its faces, so this is not a longer list of kinds.
- * Folding the two together was tried and is wrong -- sixty live tests spell
- * `kind == TORIDRAWMK_MODEL` to mean "a plain model", and every one of them
- * would have started skipping exactly the placements that share, which is the
- * bug this distinction exists to prevent rather than cause.
- *
- * OWNED is zero so a handle built with a designated initialiser -- which is
- * most of the hundred-odd in the tree, all of them building models that own
- * their geometry -- is right by default. The one producer whose model may come
- * back from a store derives it instead; see ToriDraw_ModelHandleFor.
- *
- *   OWNED       every array is this model's. Write anything.
- *   SHARED      the whole model belongs to a ToriDraw_SharedModelStore and N
- *               placements point at THIS object. It has no private half, so
- *               writing it moves every fence in the county.
- *               ToriDraw_SceneElementModelForWrite is the way out.
- *   LENT_FACES  the twelve arrays in TORIDRAW_SHARED_FACE_FIELDS belong to a
- *               ToriDraw_SharedFaces shared with the other placements of this
- *               loc; the vertices, the per-corner colours and face_infos are
- *               this placement's own. Write those, not the faces.
- */
-enum ToriDraw_ModelOwnership
-{
-    TORIDRAWMO_OWNED = 0,
-    TORIDRAWMO_SHARED = 1,
-    TORIDRAWMO_LENT_FACES = 2,
+    TORIDRAWMK_MODEL_SHARED = 4,
+    TORIDRAWMK_MODEL_LENT_FACES = 5,
 };
 
 /**
@@ -357,12 +322,51 @@ struct ToriDraw_ModelHD
     struct ToriDraw_TexMapping* texture_mappings;
 };
 
+/**
+ * A model the scene shares whole: one object, N placements pointing at it.
+ *
+ * `base` first and by value, so the read view is a plain model and every
+ * consumer keeps working -- but only through a const pointer, because this
+ * model has no private half at all and a write moves every fence in the county.
+ * ToriDraw_SceneElementModelForWrite is the way to geometry you may edit.
+ *
+ * The tail is the store's bookkeeping and nothing outside toridraw_shared_model.c
+ * touches it.
+ */
+struct ToriDraw_SharedModel
+{
+    struct ToriDraw_Model base;
+
+    struct ToriDraw_SharedModelStore* store;
+    struct ToriDraw_SharedModel* next;
+    int64_t key;
+    /** Placements holding this model. The store is not one of them. */
+    int holders;
+};
+
+/**
+ * A placement that owns its vertices and borrows its faces.
+ *
+ * The half-shared case, and the larger population: a loc contoured to the
+ * ground or lit from its neighbour needs its own vertices, per-corner colours
+ * and face_infos, but the faces indexing those vertices are identical at every
+ * placement of it and are most of the bytes.
+ *
+ * `base`'s twelve TORIDRAW_SHARED_FACE_FIELDS pointers alias `faces`; every
+ * other array in it is this placement's own. That is why the read view is const
+ * here too even though half of it really is writable -- C has no way to say
+ * "these twelve members are not yours", so the write goes through
+ * ToriDraw_ModelLentFacesPrivate, which names what it is handing over.
+ */
+struct ToriDraw_ModelLentFaces
+{
+    struct ToriDraw_Model base;
+    struct ToriDraw_SharedFaces* faces;
+};
+
 struct ToriDraw_ModelHandle
 {
     enum ToriDraw_ModelKind kind;
-    /** Who owns the geometry; see enum ToriDraw_ModelOwnership. Zero
-     *  (TORIDRAWMO_OWNED) is the default and the common case. */
-    enum ToriDraw_ModelOwnership owns;
     union
     {
         struct
@@ -370,8 +374,43 @@ struct ToriDraw_ModelHandle
             struct ToriDraw_Model* model;
             struct ToriDraw_ModelGround* ground;
         } model;
+        /** kind == TORIDRAWMK_MODEL_SHARED */
+        struct ToriDraw_SharedModel* shared;
+        /** kind == TORIDRAWMK_MODEL_LENT_FACES */
+        struct ToriDraw_ModelLentFaces* lent;
     } u;
 };
+
+static inline int
+ToriDraw_ModelKindIsFull(enum ToriDraw_ModelKind kind)
+{
+    return kind == TORIDRAWMK_MODEL || kind == TORIDRAWMK_MODEL_HD ||
+           kind == TORIDRAWMK_MODEL_SHARED || kind == TORIDRAWMK_MODEL_LENT_FACES;
+}
+
+/**
+ * The geometry, for reading, whoever owns it.
+ *
+ * All four model types put a ToriDraw_Model at offset zero -- MODEL is one,
+ * the other three embed one as their first member -- so this is the uniform
+ * view every consumer wants and the only one most of them need. Const because
+ * three of the four are not the caller's to write; the two accessors below are
+ * how a caller that has earned the right says so.
+ */
+static inline const struct ToriDraw_Model*
+ToriDraw_ModelRead(struct ToriDraw_ModelHandle hnd)
+{
+    assert(ToriDraw_ModelKindIsFull(hnd.kind));
+    switch( hnd.kind )
+    {
+    case TORIDRAWMK_MODEL_SHARED:
+        return &hnd.u.shared->base;
+    case TORIDRAWMK_MODEL_LENT_FACES:
+        return &hnd.u.lent->base;
+    default:
+        return hnd.u.model.model;
+    }
+}
 
 struct ToriDraw_Position
 {

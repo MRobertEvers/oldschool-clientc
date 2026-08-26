@@ -64,7 +64,7 @@ ToriDraw_LightModelParams(
      * placement-private half -- legal on a model whose FACES are on loan, and
      * not on one that is shared whole, where it would relight every placement
      * of the loc at once. The accessor is the one that says so. */
-    struct ToriDraw_Model* model = ToriDraw_ModelAsPlacementWritable(hnd);
+    struct ToriDraw_Model* model = ToriDraw_ModelWrite(hnd);
     assert(model);
 
     int light_magnitude =

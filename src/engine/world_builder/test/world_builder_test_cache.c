@@ -147,7 +147,7 @@ strip_scene_face_textures(struct ToriDraw_Scene* scene)
         if( !ToriDraw_SceneElementIsLive(scene, element_id) )
             continue;
         struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(scene, element_id);
-        if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
+        if( !el || !ToriDraw_ModelKindIsFull(el->model.kind) || !el->model.u.model.model )
             continue;
         struct ToriDraw_Model* model = el->model.u.model.model;
         if( !model->face_textures )
@@ -591,9 +591,9 @@ test_world_builder_cache_render(void)
                         ToriDraw_SceneElementGet(scene, re->element_id);
                     int lit = 0;
                     TEST_ASSERT(
-                        el && el->model.kind == TORIDRAWMK_MODEL && el->model.u.model.model,
+                        el && ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model,
                         "respawned loc has a scene model");
-                    if( el && el->model.kind == TORIDRAWMK_MODEL && el->model.u.model.model )
+                    if( el && ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model )
                     {
                         struct ToriDraw_Model* dm = el->model.u.model.model;
                         for( int f = 0; f < dm->face_count && !lit; f++ )
@@ -762,7 +762,7 @@ test_world_builder_bench(void)
             if( !sc )
                 continue;
             struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(scene, sc->element_id);
-            if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
+            if( !el || !ToriDraw_ModelKindIsFull(el->model.kind) || !el->model.u.model.model )
                 continue;
             struct ToriDraw_Model* dm = el->model.u.model.model;
             for( int f = 0; f < dm->face_count; f++ )

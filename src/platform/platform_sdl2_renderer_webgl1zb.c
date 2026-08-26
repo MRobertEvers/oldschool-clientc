@@ -43,7 +43,7 @@ webgl1_world_face_pass(
     struct ToriDraw_ModelHandle handle,
     uint32_t face)
 {
-    if( handle.kind == TORIDRAWMK_MODEL )
+    if( ToriDraw_ModelKindIsFull(handle.kind) )
     {
         struct ToriDraw_Model* model = handle.u.model.model;
         int raw_type;
@@ -321,7 +321,7 @@ webgl1_world_face_front_facing(
     assert(scene);
     if( !scene->screen_vertices_x || !scene->screen_vertices_y )
         return false;
-    if( handle.kind == TORIDRAWMK_MODEL && handle.u.model.model )
+    if( ToriDraw_ModelKindIsFull(handle.kind) && handle.u.model.model )
     {
         struct ToriDraw_Model* model = handle.u.model.model;
         if( face >= (uint32_t)model->face_count )

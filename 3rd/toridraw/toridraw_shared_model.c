@@ -15,22 +15,6 @@
  */
 #define TORIDRAW_SHARED_MODEL_BUCKETS 1024
 
-struct ToriDraw_SharedModel
-{
-    struct ToriDraw_Model* model;
-    /* The store this entry belongs to. A model reaches its owner through
-     * `shared_owner` and the owner has to be able to unlink itself, so the
-     * entry carries the way back rather than making every release site pass a
-     * store it has no other reason to know about. */
-    struct ToriDraw_SharedModelStore* store;
-    struct ToriDraw_SharedModel* next;
-    int64_t key;
-    /* Placements holding this model. The store is not one of them: it indexes
-     * what is live, it does not retain anything, so the last release takes the
-     * entry out with it. */
-    int holders;
-};
-
 struct ToriDraw_SharedModelStore
 {
     struct ToriDraw_SharedModel* buckets[TORIDRAW_SHARED_MODEL_BUCKETS];
@@ -80,11 +64,12 @@ ToriDraw_SharedModelStoreCount(const struct ToriDraw_SharedModelStore* store)
     return store->count;
 }
 
-struct ToriDraw_Model*
+struct ToriDraw_ModelHandle
 ToriDraw_SharedModelStoreAcquire(
     struct ToriDraw_SharedModelStore* store,
     int64_t key)
 {
+    struct ToriDraw_ModelHandle hnd = { 0 };
     struct ToriDraw_SharedModel* entry;
 
     assert(store);
@@ -94,12 +79,13 @@ ToriDraw_SharedModelStoreAcquire(
         if( entry->key != key )
             continue;
         entry->holders++;
-        return entry->model;
+        return ToriDraw_ModelHandleShared(entry);
     }
-    return NULL;
+    /* TORIDRAWMK_NONE: no such key. */
+    return hnd;
 }
 
-struct ToriDraw_Model*
+struct ToriDraw_ModelHandle
 ToriDraw_SharedModelStorePublish(
     struct ToriDraw_SharedModelStore* store,
     int64_t key,
@@ -110,17 +96,19 @@ ToriDraw_SharedModelStorePublish(
 
     assert(store);
     assert(model);
-    /* Publishing a model that already belongs to a store would leave one of the
-     * two entries owning geometry it can never free. */
-    assert(!model->shared_owner);
 
     bucket = shared_model_bucket(key);
     for( entry = store->buckets[bucket]; entry; entry = entry->next )
         assert(entry->key != key && "key already published");
 
+    /* The shared model IS the entry: `base` by value at offset zero, so the
+     * arrays move across with the shell and the caller's ToriDraw_Model is
+     * spent. Taking ownership is the whole transaction -- there is no moment
+     * afterwards at which a plain ToriDraw_Model* to this geometry exists. */
     entry = calloc(1, sizeof(*entry));
     assert(entry);
-    entry->model = model;
+    entry->base = *model;
+    free(model);
     entry->store = store;
     entry->key = key;
     entry->holders = 1;
@@ -128,8 +116,7 @@ ToriDraw_SharedModelStorePublish(
     store->buckets[bucket] = entry;
     store->count++;
 
-    model->shared_owner = entry;
-    return model;
+    return ToriDraw_ModelHandleShared(entry);
 }
 
 void
@@ -137,7 +124,6 @@ ToriDraw_SharedModelRelease(struct ToriDraw_SharedModel* shared)
 {
     struct ToriDraw_SharedModelStore* store;
     struct ToriDraw_SharedModel** link;
-    struct ToriDraw_Model* model;
 
     assert(shared);
     assert(shared->holders > 0);
@@ -153,12 +139,11 @@ ToriDraw_SharedModelRelease(struct ToriDraw_SharedModel* shared)
     *link = shared->next;
     store->count--;
 
-    /* Clear the back-pointer first: ToriDraw_ModelFree routes any model that
-     * still has one straight back into this function. */
-    model = shared->model;
-    model->shared_owner = NULL;
+    /* The base is embedded, so its arrays go here and the shell goes with it.
+     * ToriDraw_ModelFree is not the right call: it would free a shell this
+     * struct does not have. */
+    ToriDraw_ModelFree_arrays(&shared->base);
     free(shared);
-    ToriDraw_ModelFree(model);
 }
 
 /*
@@ -258,19 +243,28 @@ shared_faces_find(struct ToriDraw_SharedFacesStore* store, int64_t key)
     return NULL;
 }
 
-struct ToriDraw_Model*
+struct ToriDraw_ModelHandle
 ToriDraw_SharedFacesStoreBorrow(
     struct ToriDraw_SharedFacesStore* store,
     int64_t key,
     struct ToriDraw_Model* model)
 {
+    struct ToriDraw_ModelLentFaces* lent;
     struct ToriDraw_SharedFaces* faces;
     size_t bucket;
 
     assert(store);
     assert(model);
-    assert(!model->shared_owner);
-    assert(!model->shared_faces);
+
+    /* The placement changes type here: what the caller built owns everything,
+     * and what comes back owns its vertices and borrows its faces. `base` is at
+     * offset zero and copied by value, so the arrays move with the shell and
+     * the caller's ToriDraw_Model is spent -- there is no moment afterwards at
+     * which a plain, writable pointer to this geometry exists. */
+    lent = calloc(1, sizeof(*lent));
+    assert(lent);
+    lent->base = *model;
+    free(model);
 
     faces = shared_faces_find(store, key);
     if( faces )
@@ -281,27 +275,25 @@ ToriDraw_SharedFacesStoreBorrow(
          * A disagreement here means the key does not identify the topology,
          * and every placement past this one would draw the wrong faces.
          */
-        assert(faces->face_count == model->face_count);
-        assert(faces->textured_face_count == model->textured_face_count);
+        assert(faces->face_count == lent->base.face_count);
+        assert(faces->textured_face_count == lent->base.textured_face_count);
 
-#define TORIDRAW_SHARED_FACES_ADOPT(field)                                                         \
-    free(model->field);                                                                            \
-    model->field = faces->field;
+#define TORIDRAW_SHARED_FACES_ADOPT(field)                                                             free(lent->base.field);                                                                            lent->base.field = faces->field;
         TORIDRAW_SHARED_FACE_FIELDS(TORIDRAW_SHARED_FACES_ADOPT)
 #undef TORIDRAW_SHARED_FACES_ADOPT
 
         faces->lenders++;
-        model->shared_faces = faces;
-        return model;
+        lent->faces = faces;
+        return ToriDraw_ModelHandleLentFaces(lent);
     }
 
     /* First placement of this topology: its arrays move into the set, and it
      * keeps aliases to them like every later lender. */
     faces = calloc(1, sizeof(*faces));
     assert(faces);
-    faces->face_count = model->face_count;
-    faces->textured_face_count = model->textured_face_count;
-#define TORIDRAW_SHARED_FACES_TAKE(field) faces->field = model->field;
+    faces->face_count = lent->base.face_count;
+    faces->textured_face_count = lent->base.textured_face_count;
+#define TORIDRAW_SHARED_FACES_TAKE(field) faces->field = lent->base.field;
     TORIDRAW_SHARED_FACE_FIELDS(TORIDRAW_SHARED_FACES_TAKE)
 #undef TORIDRAW_SHARED_FACES_TAKE
 
@@ -313,8 +305,31 @@ ToriDraw_SharedFacesStoreBorrow(
     store->buckets[bucket] = faces;
     store->count++;
 
-    model->shared_faces = faces;
-    return model;
+    lent->faces = faces;
+    return ToriDraw_ModelHandleLentFaces(lent);
+}
+
+/**
+ * Release a lent-faces placement: its own arrays, then its share of the loan.
+ *
+ * The private half and the borrowed half are freed by different rules, and the
+ * type is what says which is which -- there is no flag to read and no way to
+ * ask a plain model the question, because a plain model is never in this state.
+ */
+void
+ToriDraw_ModelLentFacesFree(struct ToriDraw_ModelLentFaces* lent)
+{
+    if( !lent )
+        return;
+
+    /* The twelve lent arrays are the set's; drop the alias without freeing. */
+#define TORIDRAW_SHARED_FACES_DISOWN(field) lent->base.field = NULL;
+    TORIDRAW_SHARED_FACE_FIELDS(TORIDRAW_SHARED_FACES_DISOWN)
+#undef TORIDRAW_SHARED_FACES_DISOWN
+
+    ToriDraw_ModelFree_arrays(&lent->base);
+    ToriDraw_SharedFacesRelease(lent->faces);
+    free(lent);
 }
 
 void

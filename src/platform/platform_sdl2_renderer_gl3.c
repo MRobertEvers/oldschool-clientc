@@ -3580,7 +3580,7 @@ gl3_ev_anim_load(
     if( !animation || animation->frame_count <= 0 ||
         (!skeletal && (!animation->base || !animation->frames)) ||
         anim_index < 0 || anim_index >= TRSPK_POSE_TRACK_COUNT ||
-        base_handle->kind != TORIDRAWMK_MODEL ||
+        !ToriDraw_ModelKindIsFull(base_handle->kind) ||
         !base_handle->u.model.model )
         return;
 

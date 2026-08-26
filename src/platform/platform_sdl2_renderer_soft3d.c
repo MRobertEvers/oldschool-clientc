@@ -921,7 +921,7 @@ soft3d_draw_model_widget(
 
     assert(soft);
     assert(cmd);
-    if( cmd->model.kind != TORIDRAWMK_MODEL || !cmd->model.u.model.model )
+    if( !ToriDraw_ModelKindIsFull(cmd->model.kind) || !cmd->model.u.model.model )
         return;
 
     (void)ToriDraw_RenderModelExtentsAtWidget(
@@ -1043,7 +1043,7 @@ soft3d_draw_model(
      *        exactly the invisible-but-clickable state.
      */
     trace_min = draw_trace_min_vertices();
-    trace_this = trace_min > 0 && cmd->model.kind == TORIDRAWMK_MODEL &&
+    trace_this = trace_min > 0 && ToriDraw_ModelKindIsFull(cmd->model.kind) &&
                  cmd->model.u.model.model &&
                  cmd->model.u.model.model->vertex_count >= trace_min;
 

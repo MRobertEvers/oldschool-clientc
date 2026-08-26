@@ -2300,7 +2300,7 @@ app_entity_model_height(
     if( element_id < 0 || !app->scene || !ToriDraw_SceneElementIsLive(app->scene, element_id) )
         return 0;
     el = ToriDraw_SceneElementGet(app->scene, element_id);
-    if( !el || el->model.kind != TORIDRAWMK_MODEL )
+    if( !el || !ToriDraw_ModelKindIsFull(el->model.kind) )
         return 0;
     bounds = ToriDraw_ModelGetBoundsCylinder(el->model);
     return bounds ? -bounds->min_y : 0;
@@ -10218,7 +10218,7 @@ app_map_editor_ghost_update(struct App* app)
             struct WorldEntity_Scenery* scenery =
                 World_EntityPoolGet(&app->world->entities.scenery, idx);
             /* ForWrite, not Get: placements of one loc share a single model
-             * (ToriDraw_Model::shared_owner), and fading it in place would
+             * (a ToriDraw_SharedModel), and fading it in place would
              * ghost every other one of the same fence on screen. It also
              * answers the tagged-union question -- only a full model carries
              * faces to fade, and a sprite billboard comes back NULL. */
@@ -17083,7 +17083,7 @@ app_world_try_bind_seq(
              * here without these three numbers — it looks exactly like a
              * sequence that was never sent. */
             struct ToriDraw_Model const* m =
-                (el && el->model.kind == TORIDRAWMK_MODEL) ? el->model.u.model.model : NULL;
+                (el && ToriDraw_ModelKindIsFull(el->model.kind)) ? el->model.u.model.model : NULL;
             TORIRS_LOG("seq_bind: element=%d seq=%d frames=%d skeletal=%d start=%d now=%d "
                 "frame=%d cycle=%d kind=%d vbones=%d fbones=%d falpha=%d\n",
                 element_id,
@@ -17583,7 +17583,7 @@ app_world_spawn_player_now(
         return -1;
     }
     reg = ToriDraw_SceneModelGet(app->scene, scene_model_id);
-    if( reg.kind != TORIDRAWMK_MODEL || !reg.u.model.model )
+    if( !ToriDraw_ModelKindIsFull(reg.kind) || !reg.u.model.model )
         return -1;
     copy = ToriDraw_ModelCopy(reg.u.model.model);
     if( !copy )
@@ -28051,7 +28051,7 @@ app_world_sync_one_entity_spotanim(
     if( !ToriDraw_SceneElementIsLive(app->scene, element_id) )
         return;
     el = ToriDraw_SceneElementGet(app->scene, element_id);
-    if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
+    if( !el || !ToriDraw_ModelKindIsFull(el->model.kind) || !el->model.u.model.model )
         return;
 
     /* Snapshot the pristine body. Also re-snapshot when the element's model
@@ -28623,7 +28623,7 @@ app_world_scenery_anim_apply(
              * Config-animated locs already arrive in this representation;
              * their yaw is the desired value and the guard leaves them alone.
              */
-            if( element && element->model.kind == TORIDRAWMK_MODEL &&
+            if( element && ToriDraw_ModelKindIsFull(element->model.kind) &&
                 element->model.u.model.model &&
                 (loc_shape == RSCACHE_LOC_SHAPE_SCENERY ||
                  loc_shape == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL) )

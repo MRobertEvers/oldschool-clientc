@@ -74,58 +74,103 @@ static void
 test_seam_hide_does_not_reach_the_sibling(void)
 {
     struct ToriDraw_SharedFacesStore* store = ToriDraw_SharedFacesStoreNew();
-    struct ToriDraw_Model* first = make_placement();
-    struct ToriDraw_Model* second = make_placement();
+    struct ToriDraw_ModelHandle h1;
+    struct ToriDraw_ModelHandle h2;
+    struct ToriDraw_Model* p1;
+    struct ToriDraw_Model* p2;
     int64_t const key = 1234;
 
     CHECK(store);
-    ToriDraw_SharedFacesStoreBorrow(store, key, first);
-    ToriDraw_SharedFacesStoreBorrow(store, key, second);
+    /* Borrow CONSUMES what it is given: a model that owns everything goes in,
+     * a placement that borrows its faces comes out, and the caller's pointer is
+     * spent. That is the type change, and it is why these are handles. */
+    h1 = ToriDraw_SharedFacesStoreBorrow(store, key, make_placement());
+    h2 = ToriDraw_SharedFacesStoreBorrow(store, key, make_placement());
+
+    CHECK(h1.kind == TORIDRAWMK_MODEL_LENT_FACES);
+    CHECK(h2.kind == TORIDRAWMK_MODEL_LENT_FACES);
+    CHECK(h1.u.lent->faces == h2.u.lent->faces);
+    CHECK(ToriDraw_SharedFacesStoreCount(store) == 1);
+
+    /* The private half is reachable only through the accessor that names it. */
+    p1 = ToriDraw_ModelLentFacesPrivate(h1);
+    p2 = ToriDraw_ModelLentFacesPrivate(h2);
 
     /* Twelve arrays on loan, vertices and face_infos each placement's own. */
-    CHECK(first->shared_faces != NULL);
-    CHECK(second->shared_faces != NULL);
-    CHECK(first->face_indices_a == second->face_indices_a);
-    CHECK(first->face_colors == second->face_colors);
-    CHECK(first->vertices_x != second->vertices_x);
-    CHECK(first->face_infos != second->face_infos);
-    CHECK(first->shared_faces == second->shared_faces);
-    CHECK(ToriDraw_SharedFacesStoreCount(store) == 1);
+    CHECK(p1->face_indices_a == p2->face_indices_a);
+    CHECK(p1->face_colors == p2->face_colors);
+    CHECK(p1->vertices_x != p2->vertices_x);
+    CHECK(p1->face_infos != p2->face_infos);
 
     /* What the seam hide does. */
-    second->face_infos[0] = 2;
-    CHECK(second->face_infos[0] == 2);
-    CHECK(first->face_infos[0] == 0);
+    p2->face_infos[0] = 2;
+    CHECK(p2->face_infos[0] == 2);
+    CHECK(p1->face_infos[0] == 0);
 
-    ToriDraw_ModelFree(second);
-    /* `first` is still a lender; the set goes only with the last one. */
+    ToriDraw_ModelHandleFree(h2);
+    /* h1 is still a lender; the set goes only with the last one. */
     CHECK(ToriDraw_SharedFacesStoreCount(store) == 1);
-    ToriDraw_ModelFree(first);
+    ToriDraw_ModelHandleFree(h1);
     CHECK(ToriDraw_SharedFacesStoreCount(store) == 0);
     ToriDraw_SharedFacesStoreFree(store);
 }
 
-/* The lone lender: releasing it takes the set with it, and the placement's own
- * face_infos was never in it to be freed twice. */
+/* The lone lender: releasing it takes the set with it, and its own face_infos
+ * was never in the loan to be freed twice. */
 static void
 test_single_lender_owns_its_face_infos(void)
 {
     struct ToriDraw_SharedFacesStore* store = ToriDraw_SharedFacesStoreNew();
-    struct ToriDraw_Model* only = make_placement();
-    int* const infos = only->face_infos;
+    struct ToriDraw_ModelHandle h;
+    struct ToriDraw_Model* priv;
 
     CHECK(store);
-    ToriDraw_SharedFacesStoreBorrow(store, 77, only);
-    CHECK(only->face_infos == infos);
+    h = ToriDraw_SharedFacesStoreBorrow(store, 77, make_placement());
+    CHECK(h.kind == TORIDRAWMK_MODEL_LENT_FACES);
     CHECK(ToriDraw_SharedFacesStoreCount(store) == 1);
 
-    only->face_infos[1] = 2;
-    CHECK(only->face_infos[1] == 2);
-    CHECK(only->face_colors[1] == (hsl16_t)(0x4B40 + 1));
+    priv = ToriDraw_ModelLentFacesPrivate(h);
+    priv->face_infos[1] = 2;
+    CHECK(priv->face_infos[1] == 2);
+    CHECK(priv->face_colors[1] == (hsl16_t)(0x4B40 + 1));
 
-    ToriDraw_ModelFree(only);
+    ToriDraw_ModelHandleFree(h);
     CHECK(ToriDraw_SharedFacesStoreCount(store) == 0);
     ToriDraw_SharedFacesStoreFree(store);
+}
+
+/* The whole-model store: what comes back is a ToriDraw_SharedModel, and the
+ * handle is what says so. There is no moment at which a writable
+ * ToriDraw_Model* to this geometry exists -- Publish consumed the one the
+ * caller built. */
+static void
+test_acquire_hands_back_a_shared_handle(void)
+{
+    struct ToriDraw_SharedModelStore* store = ToriDraw_SharedModelStoreNew();
+    struct ToriDraw_ModelHandle miss;
+    struct ToriDraw_ModelHandle published;
+    struct ToriDraw_ModelHandle acquired;
+
+    CHECK(store);
+
+    miss = ToriDraw_SharedModelStoreAcquire(store, 900);
+    CHECK(miss.kind == TORIDRAWMK_NONE);
+
+    published = ToriDraw_SharedModelStorePublish(store, 900, make_placement());
+    CHECK(published.kind == TORIDRAWMK_MODEL_SHARED);
+
+    acquired = ToriDraw_SharedModelStoreAcquire(store, 900);
+    CHECK(acquired.kind == TORIDRAWMK_MODEL_SHARED);
+    CHECK(acquired.u.shared == published.u.shared);
+    CHECK(ToriDraw_ModelRead(acquired) == &published.u.shared->base);
+    CHECK(ToriDraw_SharedModelStoreCount(store) == 1);
+
+    /* Two holders: the publisher and the acquirer. */
+    ToriDraw_ModelHandleFree(acquired);
+    CHECK(ToriDraw_SharedModelStoreCount(store) == 1);
+    ToriDraw_ModelHandleFree(published);
+    CHECK(ToriDraw_SharedModelStoreCount(store) == 0);
+    ToriDraw_SharedModelStoreFree(store);
 }
 
 int
@@ -133,6 +178,7 @@ main(void)
 {
     test_seam_hide_does_not_reach_the_sibling();
     test_single_lender_owns_its_face_infos();
+    test_acquire_hands_back_a_shared_handle();
 
     if( g_fail )
     {

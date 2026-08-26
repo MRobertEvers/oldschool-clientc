@@ -4,7 +4,7 @@
 #include "toridraw_types.h"
 
 struct ToriDraw_Model*
-ToriDraw_ModelCopy(struct ToriDraw_Model* src);
+ToriDraw_ModelCopy(const struct ToriDraw_Model* src);
 
 /**
  * Heap bytes this model owns: the shell plus every array reachable from it.

@@ -148,7 +148,7 @@ UITreeAnim_Advance(
         }
 
         hnd = ToriDraw_SceneModelGet(scene, model_id);
-        if( hnd.kind != TORIDRAWMK_MODEL || !hnd.u.model.model )
+        if( !ToriDraw_ModelKindIsFull(hnd.kind) || !hnd.u.model.model )
             continue;
 
         {
