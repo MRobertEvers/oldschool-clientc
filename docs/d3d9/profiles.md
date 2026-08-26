@@ -11,6 +11,13 @@ D3D9 frame is not rendering at all: it is `UITree_LayoutResolve`, at 12-14%.
 
 ![the d3d9-zbuffer lane, fullscreen at 1024x768](fullscreen-d3d9zb-1024x768.jpg)
 
+> **Superseded in part.** These are the numbers for `v3` @ `3d0390d46`.
+> Three fixes have since landed and been re-measured on the same box --
+> soft3d 41.95 -> 35.23 ms, d3d9 23.08 -> 20.58, d3d9-zbuffer 21.46 ->
+> 20.18, and `UITree_LayoutResolve` is gone from every arm. See
+> [results.md](results.md). The method, the harness and section 2 below
+> still stand.
+
 ---
 
 ## 1. What was measured
