@@ -353,6 +353,9 @@ window.torirsOpenPanelTab = () => {
 /** A second view of the world, in its own tab and its own wasm instance. */
 window.torirsOpenCanvasTab = () => !!window.torirsChannelHost.openCanvasTab('./index.html', 'torirs-canvas-2');
 </script>
+<!-- Before torirs_host.js, which asks for ToriRS_CreateHostIO while building
+     the Module object the runtime reads. -->
+<script src="torirs_hostio.js"></script>
 <script src="torirs_host.js"></script>
 <script src="torirs.js"></script>
 </body>

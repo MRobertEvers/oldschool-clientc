@@ -972,6 +972,7 @@ $(TARGET): $(OBJS) $(ASAN_DYLD_SHIM)
 # With MEMTRACE=1 the standalone trace viewer is copied in beside them, so the
 # .bin the page downloads can be opened without leaving build-web/.
 WEB_ASSETS = $(SRC_DIR)/web/index.html $(SRC_DIR)/web/torirs_host.js \
+	$(SRC_DIR)/web/torirs_hostio.js \
 	$(SRC_DIR)/web/torirs_chrome.js \
 	$(SRC_DIR)/web/torirs_channel.js $(SRC_DIR)/web/panel.html
 ifeq ($(MEMTRACE),1)
@@ -4531,6 +4532,7 @@ clean:
 	rm -f $(REPO_ROOT)/build-web/torirs.js $(REPO_ROOT)/build-web/torirs.wasm \
 		$(REPO_ROOT)/build-web/torirs.data $(REPO_ROOT)/build-web/torirs.wasm.map \
 		$(REPO_ROOT)/build-web/index.html $(REPO_ROOT)/build-web/torirs_host.js \
+		$(REPO_ROOT)/build-web/torirs_hostio.js \
 		$(REPO_ROOT)/build-web/torirs_channel.js $(REPO_ROOT)/build-web/panel.html \
 		$(REPO_ROOT)/build-web/viewer.html
 

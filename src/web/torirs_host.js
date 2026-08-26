@@ -739,67 +739,6 @@
       return true;
     },
 
-    /* Paths the server has already said it does not have, so a plugin that
-     * asks for the same absent asset every frame costs one round trip and not
-     * one per frame. Session-lived and never cleared: the shipped tree does
-     * not grow under a running client, and a genuinely new file arrives the
-     * way every other config change does -- on the next boot. */
-    missing: new Set(),
-
-    /*
-     * The store MISSED, so ask the server -- the C side's second leg.
-     *
-     * This is the same two-route, revalidating request boot.fetch and
-     * plugins.take already make, and it exists because those two only cover
-     * what the page can NAME in advance: the manifest, the INIs it points at,
-     * the scripts it lists. A plugin's assets are named by the plugin, at
-     * runtime, in code the page never reads -- so the only thing that can ask
-     * for one is the client, at the moment it wants it, through here.
-     *
-     * SYNCHRONOUS, and it has to be: this lane has no ASYNCIFY and it stands
-     * in for a call that must answer before PlatformX_IO_LoadItem returns (the
-     * same constraint that put the cache records in this object rather than in
-     * the wasm heap). The cost is bounded by what it is used for -- a handful
-     * of small files at plugin boot, each one written into the store on
-     * arrival so it is never asked for twice.
-     *
-     * Three outcomes, and the third is the one the client acts on:
-     *   {status:200} the bytes, from the server or revalidated against it
-     *   {status:404} the server answered, and does not have it
-     *   {status:0}   nothing answered -- the server is gone, which is a
-     *                different thing from a file being absent
-     */
-    fileFetch(path) {
-      if (this.missing.has(path)) { return { status: 404, bytes: null }; }
-
-      const held = this.fileGet(path);
-      const tag = held ? this.fileEtag(path) : null;
-      let result = xhrSync('GET', `${bootUrl}/${path}`, null, tag);
-
-      if (result.status === 404 || result.status === 0) {
-        const direct = xhrSync('GET', `/${path}`, null, tag);
-        if (direct.status === 200 || direct.status === 304) {
-          result = direct;
-        } else if (result.status === 0 && direct.status !== 0) {
-          result = direct;
-        }
-      }
-
-      if (result.status === 200) {
-        this.filePut(path, result.bytes, result.etag);
-        return { status: 200, bytes: result.bytes };
-      }
-      /* Unchanged since the copy already held -- which is the answer, and the
-       * reason the validator went out at all. */
-      if (result.status === 304 && held) { return { status: 200, bytes: held }; }
-      /* Never the negative cache on a transport failure: the file may well be
-       * there, and remembering "absent" would outlive the outage. */
-      if (result.status === 0) { return { status: 0, bytes: null }; }
-
-      this.missing.add(path);
-      return { status: 404, bytes: null };
-    },
-
     // --- write-behind -----------------------------------------------------
 
     scheduleFlush() {
@@ -1121,6 +1060,24 @@
   window.Module = Module;
   Module.torirsIO = io;
   Module.torirsStore = store;
+
+  /*
+   * Where the platform IO executor gets its bytes
+   * (platform/platform_web_io.js, via src/web/torirs_hostio.js).
+   *
+   * This file supplies the deployment knowledge -- which database, which
+   * server, which URL -- and the executor supplies the queue mechanics. The
+   * executor reads the queue and decodes through the cache format's C API; it
+   * never learns where a page keeps its files, which is what lets a different
+   * page answer these six functions differently without touching the platform.
+   *
+   * Guarded so this file still loads for a page that has not included
+   * torirs_hostio.js: the wire lane does not use the executor at all yet, and a
+   * missing script should not take the page down before it can say so.
+   */
+  if (typeof window.ToriRS_CreateHostIO === 'function') {
+    Module.torirsHostIO = window.ToriRS_CreateHostIO(store, bootUrl);
+  }
 
   // ------------------------------------------------------- the JS5 barrier
   //
