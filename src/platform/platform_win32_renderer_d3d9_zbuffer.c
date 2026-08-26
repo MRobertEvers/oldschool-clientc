@@ -407,16 +407,69 @@ d3d9_material_table_free(struct D3D9MaterialTable* table)
     memset(table, 0, sizeof(*table));
 }
 
-static bool
-d3d9_world_face_front_facing(
-    struct ToriDraw_ModelHandle handle,
-    const struct ToriDraw_Scene* scene,
-    uint32_t face)
+/* Everything the winding test needs that is the same for every face of a
+ * model. Resolving it per face -- a branch on the model kind, four pointer
+ * loads and two null checks -- was the loop-invariant part of a test that
+ * runs on every face of every model in every frame. */
+struct D3D9FaceWinding
 {
     const faceint_t* face_a;
     const faceint_t* face_b;
     const faceint_t* face_c;
+    const int* screen_x;
+    const int* screen_y;
     uint32_t vertex_count;
+    uint32_t face_count;
+};
+
+/* False when this model has no usable winding data at all, in which case no
+ * face of it can be tested and the caller skips the whole loop. */
+static bool
+d3d9_face_winding_begin(
+    struct D3D9FaceWinding* w,
+    struct ToriDraw_ModelHandle handle,
+    const struct ToriDraw_Scene* scene)
+{
+    assert(w);
+    assert(scene);
+
+    if( !scene->screen_vertices_x || !scene->screen_vertices_y )
+        return false;
+    if( ToriDraw_ModelKindIsFull(handle.kind) && handle.u.model.model )
+    {
+        struct ToriDraw_Model* model = handle.u.model.model;
+        w->face_a = model->face_indices_a;
+        w->face_b = model->face_indices_b;
+        w->face_c = model->face_indices_c;
+        w->vertex_count = (uint32_t)model->vertex_count;
+        w->face_count = (uint32_t)model->face_count;
+    }
+    else if( handle.kind == TORIDRAWMK_GROUND && handle.u.model.ground )
+    {
+        struct ToriDraw_ModelGround* ground = handle.u.model.ground;
+        w->face_a = ground->face_indices_a;
+        w->face_b = ground->face_indices_b;
+        w->face_c = ground->face_indices_c;
+        w->vertex_count = (uint32_t)ground->vertex_count;
+        w->face_count = (uint32_t)ground->face_count;
+    }
+    else
+        return false;
+    w->screen_x = scene->screen_vertices_x;
+    w->screen_y = scene->screen_vertices_y;
+    return true;
+}
+
+/* The screen-space winding of one face. Three scattered reads into the
+ * projected vertex arrays, which is what makes this memory-bound rather
+ * than arithmetic-bound. int64 is kept deliberately: a vertex behind the
+ * near plane projects through a near-zero divisor and the coordinate is
+ * not bounded by the screen, so the cross product is not safely 32-bit. */
+static bool
+d3d9_face_winding_front_facing(
+    const struct D3D9FaceWinding* w,
+    uint32_t face)
+{
     uint32_t a;
     uint32_t b;
     uint32_t c;
@@ -424,41 +477,58 @@ d3d9_world_face_front_facing(
     int64_t dy1;
     int64_t dx2;
     int64_t dy2;
-    assert(scene);
-    if( !scene->screen_vertices_x || !scene->screen_vertices_y )
+
+    if( face >= w->face_count )
         return false;
-    if( ToriDraw_ModelKindIsFull(handle.kind) && handle.u.model.model )
-    {
-        struct ToriDraw_Model* model = handle.u.model.model;
-        if( face >= (uint32_t)model->face_count )
-            return false;
-        face_a = model->face_indices_a;
-        face_b = model->face_indices_b;
-        face_c = model->face_indices_c;
-        vertex_count = (uint32_t)model->vertex_count;
-    }
-    else if( handle.kind == TORIDRAWMK_GROUND && handle.u.model.ground )
-    {
-        struct ToriDraw_ModelGround* ground = handle.u.model.ground;
-        if( face >= (uint32_t)ground->face_count )
-            return false;
-        face_a = ground->face_indices_a;
-        face_b = ground->face_indices_b;
-        face_c = ground->face_indices_c;
-        vertex_count = (uint32_t)ground->vertex_count;
-    }
-    else
+    a = (uint32_t)w->face_a[face];
+    b = (uint32_t)w->face_b[face];
+    c = (uint32_t)w->face_c[face];
+    if( a >= w->vertex_count || b >= w->vertex_count || c >= w->vertex_count )
         return false;
-    a = (uint32_t)face_a[face];
-    b = (uint32_t)face_b[face];
-    c = (uint32_t)face_c[face];
-    if( a >= vertex_count || b >= vertex_count || c >= vertex_count )
-        return false;
-    dx1 = (int64_t)scene->screen_vertices_x[a] - scene->screen_vertices_x[b];
-    dy1 = (int64_t)scene->screen_vertices_y[a] - scene->screen_vertices_y[b];
-    dx2 = (int64_t)scene->screen_vertices_x[c] - scene->screen_vertices_x[b];
-    dy2 = (int64_t)scene->screen_vertices_y[c] - scene->screen_vertices_y[b];
+    dx1 = (int64_t)w->screen_x[a] - w->screen_x[b];
+    dy1 = (int64_t)w->screen_y[a] - w->screen_y[b];
+    dx2 = (int64_t)w->screen_x[c] - w->screen_x[b];
+    dy2 = (int64_t)w->screen_y[c] - w->screen_y[b];
     return dx1 * dy2 - dy1 * dx2 > 0;
+}
+
+/*
+ * Should the GPU do the backface cull instead of us?
+ *
+ * The test above is a screen-space winding test, which is exactly what
+ * fixed-function D3D9 performs in hardware -- and the device is currently
+ * set to D3DCULL_NONE, so we pay for it on the CPU, three scattered vertex
+ * reads per face, on every face of every model.
+ *
+ * Whether the two AGREE is an empirical question and not one to assume:
+ * this test reads toridraw's own software projection, while the GPU culls
+ * on the result of the view/projection matrices, and if the handedness
+ * disagrees the cull keeps the wrong half and every model turns inside out.
+ * So it is a switch, off by default, and the box decides:
+ *
+ *   TORIRS_D3D9_GPU_CULL=ccw   let the GPU cull counter-clockwise faces
+ *   TORIRS_D3D9_GPU_CULL=cw    the other handedness
+ *   unset                      CPU test, as before
+ *
+ * Compare the exit BMPs: if one setting matches the CPU-culled image, that
+ * is the handedness, and the CPU test can go.
+ */
+static int
+d3d9_gpu_cull_mode(void)
+{
+    static int mode = -1;
+
+    if( mode < 0 )
+    {
+        const char* v = getenv("TORIRS_D3D9_GPU_CULL");
+        if( v && (v[0] == 'c' || v[0] == 'C') && (v[1] == 'c' || v[1] == 'C') )
+            mode = (int)D3DCULL_CCW;
+        else if( v && (v[0] == 'c' || v[0] == 'C') )
+            mode = (int)D3DCULL_CW;
+        else
+            mode = (int)D3DCULL_NONE;
+    }
+    return mode;
 }
 
 static bool
@@ -966,6 +1036,9 @@ d3d9_zbuffer_apply_world_states(struct ToriRS_D3D9* renderer)
 {
     IDirect3DDevice9_SetRenderState(renderer->device, D3DRS_ZENABLE, D3DZB_TRUE);
     IDirect3DDevice9_SetRenderState(renderer->device, D3DRS_ZWRITEENABLE, TRUE);
+    /* Off unless asked for; see d3d9_gpu_cull_mode. */
+    IDirect3DDevice9_SetRenderState(
+        renderer->device, D3DRS_CULLMODE, (DWORD)d3d9_gpu_cull_mode());
 }
 
 void
@@ -1022,13 +1095,23 @@ d3d9_zbuffer_emit_model(
     /* Opaque and binary-cutout faces are depth-order independent. Preserve
      * natural face order and perform only the projected front-face test that
      * used to be fused into RenderModel2SortFaces. */
+    {
+        struct D3D9FaceWinding winding;
+        bool const gpu_culls = d3d9_gpu_cull_mode() != (int)D3DCULL_NONE;
+        /* Resolved once for the model; false means nothing here can be
+         * tested, so no opaque face of it is emitted. */
+        bool const can_test =
+            d3d9_face_winding_begin(&winding, command->model, renderer->scene);
+
+        if( !gpu_culls && !can_test )
+            goto blended;
     for( i = 0; i < placement->face_count; i++ )
     {
         uint32_t face = (uint32_t)i;
         uint32_t base;
         if( (material->face_passes[face] != D3D9_WORLD_FACE_OPAQUE &&
              material->face_passes[face] != D3D9_WORLD_FACE_CUTOUT) ||
-            !d3d9_world_face_front_facing(command->model, renderer->scene, face) ||
+            (!gpu_culls && !d3d9_face_winding_front_facing(&winding, face)) ||
             face > (UINT32_MAX - local_base - 2u) / 3u )
             continue;
         base = local_base + face * 3u;
@@ -1038,6 +1121,8 @@ d3d9_zbuffer_emit_model(
         renderer->model_indices[written++] = (uint16_t)(base + 1u);
         renderer->model_indices[written++] = (uint16_t)(base + 2u);
     }
+    }
+blended:
     if( written > 0u )
         d3d9_queue_opaque_indices(
             world,
