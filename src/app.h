@@ -900,6 +900,33 @@ struct App
      *  screen, which is what a damaged-rect present needs to know. */
     int ui_retained_frame;
     /**
+     * Damage rectangle: the union of every region whose pixels can change
+     * while the emit list stays byte-identical, in canvas coordinates.
+     * `damage_valid` is 0 when the whole canvas must be treated as damaged.
+     *
+     * The retain gate proves the *command list* is unchanged. It does not
+     * prove the *pixels* are, and the difference is exactly three things:
+     *
+     *  - the WORLD viewport, where models animate and the camera drifts under
+     *    a list that never mentions either;
+     *  - the MINIMAP, rebuilt from a rotating source every frame;
+     *  - every desc holding a host-owned pointer (minimap dots, entity
+     *    overlays, worldmap tiles, debug prims), whose desc bytes are stable
+     *    while the buffer behind them is refilled -- the same descs
+     *    `UITreeEmitBuffer::volatile_refs` counts, for the same reason.
+     *
+     * Everything else in a retained frame is already on screen, so it needs
+     * neither clearing, nor redrawing, nor presenting. Membership is decided
+     * by testing the pointers rather than by listing the kinds that set them,
+     * so a kind added later cannot quietly opt itself out. @see
+     * app_compute_damage.
+     */
+    int damage_valid;
+    int damage_x;
+    int damage_y;
+    int damage_w;
+    int damage_h;
+    /**
      * The component the last MODAL sub-interface was mounted on, or -1.
      *
      * Recorded because "where does a modal open" is a question with no static
@@ -3196,6 +3223,20 @@ App_Render(
     int* pixels,
     int width,
     int height);
+
+/**
+ * Region the last App_Render actually wrote, for a presenter that can copy
+ * less than the whole buffer. Returns 0 when the whole canvas must be
+ * presented, which is every frame unless damage drawing is on and the frame
+ * was retained. @see App::damage_valid.
+ */
+int
+App_PresentDamage(
+    struct App const* app,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h);
 
 /**
  * Build a ToriRS_Frame for the current emit/world state (no rasterization).

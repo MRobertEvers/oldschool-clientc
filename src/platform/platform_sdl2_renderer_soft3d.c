@@ -72,6 +72,27 @@ viewport_from_scissor(
     vp.clip_top = scissor_y < 0 ? 0 : scissor_y;
     vp.clip_right = right > soft->width ? soft->width : right;
     vp.clip_bottom = bottom > soft->height ? soft->height : bottom;
+    /*
+     * Damage clipping rides the same choke point, which is the whole reason it
+     * is cheap to add and impossible to forget: a draw kind added later cannot
+     * escape it without also escaping the canvas bound above.
+     *
+     * It only ever SHRINKS a clip, so the worst a wrong damage rect can do is
+     * fail to draw -- it can never let a kernel write outside the buffer. A
+     * command entirely outside the damage collapses to an empty viewport, which
+     * every kernel already treats as a no-op.
+     */
+    if( soft->damage_valid )
+    {
+        if( vp.clip_left < soft->damage_x0 )
+            vp.clip_left = soft->damage_x0;
+        if( vp.clip_top < soft->damage_y0 )
+            vp.clip_top = soft->damage_y0;
+        if( vp.clip_right > soft->damage_x1 )
+            vp.clip_right = soft->damage_x1;
+        if( vp.clip_bottom > soft->damage_y1 )
+            vp.clip_bottom = soft->damage_y1;
+    }
     /* An entirely off-canvas box collapses to empty rather than inverting. */
     if( vp.clip_right < vp.clip_left )
         vp.clip_right = vp.clip_left;
@@ -1141,6 +1162,26 @@ ToriRS_Soft3D_Init(
 }
 
 void
+ToriRS_Soft3D_SetDamage(
+    struct ToriRS_Soft3D* soft,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    assert(soft);
+    assert(w > 0);
+    assert(h > 0);
+
+    soft->damage_x0 = x < 0 ? 0 : x;
+    soft->damage_y0 = y < 0 ? 0 : y;
+    soft->damage_x1 = x + w > soft->width ? soft->width : x + w;
+    soft->damage_y1 = y + h > soft->height ? soft->height : y + h;
+    soft->damage_valid =
+        (soft->damage_x1 > soft->damage_x0 && soft->damage_y1 > soft->damage_y0);
+}
+
+void
 ToriRS_Soft3D_SetPick(
     struct ToriRS_Soft3D* soft,
     int mouse_x,
@@ -1733,7 +1774,19 @@ ToriRS_Soft3D_RenderFrame(
 #else
         uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
 #endif
-        if( ToriDraw_FrameAbArm() )
+        if( soft->damage_valid )
+        {
+            /* Row-at-a-time: the damage box is a sub-rectangle, so the one
+             * long contiguous run the non-temporal clear wants does not exist.
+             * Each row is still contiguous and still write-only, which is
+             * enough for it -- a 512-pixel row is 2 KB, well past the
+             * write-combine buffer's fill length. */
+            int rw = soft->damage_x1 - soft->damage_x0;
+            for( int y = soft->damage_y0; y < soft->damage_y1; y++ )
+                TORIDRAW_FB_CLEAR32(p + (size_t)y * soft->stride + soft->damage_x0,
+                    (size_t)rw, bg);
+        }
+        else if( ToriDraw_FrameAbArm() )
         {
             TORIDRAW_FB_CLEAR32(p, n, bg);
         }

@@ -68,6 +68,12 @@ struct PlatformSDL2
     int     width;
     int     height;
     int     gdi_frame_valid; /* the DIB contains one complete Soft3D frame    */
+    /* One-shot damage box for the next present; w == 0 means the whole DIB.
+     * @see PlatformSDL2_SetPresentDamage. */
+    int     present_dmg_x;
+    int     present_dmg_y;
+    int     present_dmg_w;
+    int     present_dmg_h;
     int     timing_active;
 
     int     quit;
@@ -268,6 +274,44 @@ gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
     letterbox_dst(p->width, p->height, win_w, win_h, &box);
     image_right = box.left + box.right;
     image_bottom = box.top + box.bottom;
+
+    /*
+     * Consume the one-shot damage box, whoever is painting. Taking it here
+     * rather than in Present is what makes a WM_PAINT repair safe: a repair
+     * arrives with no damage set and therefore copies everything, and a repair
+     * that lands between a SetPresentDamage and its Present takes the box,
+     * paints that much, and leaves the following Present to do the rest.
+     */
+    {
+        int dmg_x = p->present_dmg_x;
+        int dmg_y = p->present_dmg_y;
+        int dmg_w = p->present_dmg_w;
+        int dmg_h = p->present_dmg_h;
+
+        p->present_dmg_w = 0;
+        p->present_dmg_h = 0;
+
+        /* Only the unscaled path can honour it: under StretchBlt a destination
+         * pixel samples a source area the box does not bound. */
+        if( dmg_w > 0 && dmg_h > 0 && box.right == p->width &&
+            box.bottom == p->height )
+        {
+            BitBlt(
+                dc,
+                box.left + dmg_x,
+                box.top + dmg_y,
+                dmg_w,
+                dmg_h,
+                p->mem_dc,
+                dmg_x,
+                dmg_y,
+                SRCCOPY);
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PRESENT_BLIT_1TO1, 1);
+            /* The letterbox bars are unchanged for the same reason the chrome
+             * is: nothing drew there. */
+            return;
+        }
+    }
 
     /* Never clear the image rectangle. Clearing the full client and then
      * blitting exposed an observable black frame between the two GDI calls. */
@@ -898,6 +942,33 @@ PlatformSDL2_PollCommands(struct PlatformSDL2* p, struct ToriRS_CmdBus* bus)
         CmdBus_PushWindowResize(bus, p->pending_resize_w, p->pending_resize_h);
 
     p->poll_bus = NULL;
+}
+
+void
+PlatformSDL2_SetPresentDamage(
+    struct PlatformSDL2* p,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    assert(p);
+
+    if( w <= 0 || h <= 0 || x < 0 || y < 0 || x + w > p->width ||
+        y + h > p->height )
+    {
+        /* Out of range is treated as "present everything" rather than
+         * asserted: a caller's damage box is a claim about what it drew, and
+         * the safe response to a claim this code cannot honour is to copy more
+         * than asked, never less. */
+        p->present_dmg_w = 0;
+        p->present_dmg_h = 0;
+        return;
+    }
+    p->present_dmg_x = x;
+    p->present_dmg_y = y;
+    p->present_dmg_w = w;
+    p->present_dmg_h = h;
 }
 
 void
