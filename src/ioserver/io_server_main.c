@@ -62,6 +62,10 @@
  * decompressed-archive LRU inside it correct rather than a hazard: a group
  * archive cached for one cache must never answer a read against another.
  */
+/* Long enough for a full-length cache directory plus the profile tail, so a
+ * slot's log line never comes out cut in half. */
+#define IO_SERVER_DESCRIBE_MAX (IOWIRE_CACHE_DIR_MAX + 128)
+
 struct CacheSlot
 {
     char dir[IOWIRE_CACHE_DIR_MAX];
@@ -69,7 +73,7 @@ struct CacheSlot
     struct PlatformX_IO* px;
     struct RSCache_Dat1Disk* dat1_disk;
     struct RSCache_Dat2Disk* dat2_disk;
-    char describe[192];
+    char describe[IO_SERVER_DESCRIBE_MAX];
     int failed_open; /* remember a refusal so it is reported once, not per read */
 };
 
@@ -96,7 +100,7 @@ struct IoServer
      * startup rather than opened on first use.
      */
     struct PlatformX_IO* ondemand;
-    char ondemand_describe[192];
+    char ondemand_describe[IO_SERVER_DESCRIBE_MAX];
     char root[512];
     /* Where GET /boot/<path> reads from: the tree the manifests live in, and
      * the root the caches themselves are resolved against. */
@@ -230,7 +234,7 @@ io_server_cache_for(
         slot->describe,
         sizeof(slot->describe),
         "%s (%s %s rev %d quirks %s)",
-        slot->dir,
+        dir,
         RSCache_EpochName(slot->profile.epoch),
         RSCache_GameName(slot->profile.game),
         slot->profile.revision,
@@ -861,7 +865,15 @@ main(
             preopen.game = manifest.cache_game;
             preopen.revision = manifest.cache_revision;
             preopen.quirks = manifest.cache_quirks;
-            snprintf(preopen.dir, sizeof(preopen.dir), "%s", manifest.cache_dir);
+            if( snprintf(preopen.dir, sizeof(preopen.dir), "%s", manifest.cache_dir) >=
+                (int)sizeof(preopen.dir) )
+            {
+                fprintf(
+                    stderr,
+                    "io_server: cache directory too long: %s\n",
+                    manifest.cache_dir);
+                return 1;
+            }
             /* source=ondemand names no directory, and opening one would be
              * opening a cache this boot said it does not have. The wire to
              * the server replaces it; see want_ondemand below. */
