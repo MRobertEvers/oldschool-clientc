@@ -38,9 +38,20 @@ export function installDbOps(HostKernel) {
      */
     proto.db_getfield = function (rowId, column, tupleIndex) {
         this.calls++;
-        return handleDbRequest(this.db, 'DB_GETFIELD', {
+        /*
+         * UNWRAPPED. `handleDbRequest` answers `{pattern, values}` because the
+         * WASM bridge needs to know which stack each value goes on; a script
+         * expression wants the value itself, and a whole-tuple read wants the
+         * tuple as the compound the emitter models a multi-slot result with.
+         *
+         * Handing the record through put "[object Object]" into every text a
+         * DB row supplies — the music list's 857 track names among them.
+         */
+        const answer = handleDbRequest(this.db, 'DB_GETFIELD', {
             rowId, column, index: tupleIndex,
         });
+        if( !answer || !Array.isArray(answer.values) ) return answer;
+        return answer.values.length === 1 ? answer.values[0] : answer.values;
     };
 
     proto.db_getfieldcount = function (rowId, column) {
