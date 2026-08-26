@@ -1171,7 +1171,11 @@ painter_add_wall(
         tile->wall_b = element;
         break;
     default:
+        /* abort(), not just assert(false): the OPT=1 lane defines NDEBUG, and
+         * without a noreturn here `kind` reaches the initialiser below
+         * uninitialised rather than the caller's bad wall_ab stopping. */
         assert(false);
+        abort();
     }
 
     painter->elements[element] = (struct PaintersElement){
@@ -1394,9 +1398,10 @@ push_command_terrain(
     int sz,
     int slevel)
 {
-    int count = buffer->command_count;
-
 #if defined(__APPLE__) && !defined(NDEBUG)
+    /* Declared inside the guard: unlike push_command_entity above, nothing out
+     * here reads the index. */
+    int const count = buffer->command_count;
     if( count == g_trap_command )
     {
         TORIRS_LOG("TRAP: %d\n", count);

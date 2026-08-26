@@ -344,7 +344,6 @@ merge_normals(
 static void
 defaultlight_build(struct WorldBuilder* builder)
 {
-    struct World* world = builder->world;
     struct ToriDraw_SceneElement* scene_element = NULL;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
@@ -408,7 +407,6 @@ alloc_normals_for_column(
     struct WorldBuilder* builder,
     int sx)
 {
-    struct World* world = builder->world;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
     struct ToriDraw_SceneElement* scene_element = NULL;
@@ -569,7 +567,6 @@ apply_and_free_column(
     struct WorldBuilder* builder,
     int sx)
 {
-    struct World* world = builder->world;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
     struct ToriDraw_SceneElement* scene_element = NULL;

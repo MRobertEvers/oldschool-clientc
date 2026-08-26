@@ -661,6 +661,7 @@ add_chat_button_rows(
     struct UITreeComponent const* node,
     struct UIMinimenu* menu)
 {
+    (void)ctx;
     struct UITreeChatButtonConfig const* cfg = UITree_ChatButton(node);
     int const filter = (int)cfg->filter;
     int const modes = RS_UISlots_ChatFilterModeCount(filter);

@@ -52,6 +52,26 @@ ToriDraw_IntrusiveListGet(
     return list->nodes[index].data;
 }
 
+/** The same node as ToriDraw_IntrusiveListGet, for callers holding an index the
+ *  list itself handed them -- a free_head, or one already checked with
+ *  ToriDraw_IntrusiveListIsLive. An out-of-range index is the caller's bug and
+ *  stops here, so the result is never NULL.
+ *
+ *  Get's NULL return outlives inlining, and the OPT=1 lane defines NDEBUG,
+ *  which erases the assert that would have ruled it out; the optimizer then
+ *  treats writes through the result as writes through a null pointer. */
+static inline void*
+ToriDraw_IntrusiveListAt(
+    const struct ToriDraw_IntrusiveList* list,
+    int index)
+{
+    assert(list);
+    assert(index >= 0);
+    assert(index < list->count);
+    assert(list->nodes[index].data);
+    return list->nodes[index].data;
+}
+
 static inline bool
 ToriDraw_IntrusiveListIsLive(
     const struct ToriDraw_IntrusiveList* list,

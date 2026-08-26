@@ -37,8 +37,7 @@ RSCache_IO_Dat2ModelLoad(
     int model_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT2_TABLE_MODELS, model_id, TORIRS_IO_CACHE_DAT2);
 }
@@ -80,8 +79,7 @@ RSCache_IO_Dat1ModelLoad(
     int model_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT1_DISK_TABLE_MODELS, model_id, TORIRS_IO_CACHE_DAT1);
 }
@@ -140,8 +138,7 @@ RSCache_IO_Dat2ComponentPackLoad(
     int component_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT2_TABLE_INTERFACES, component_id, TORIRS_IO_CACHE_DAT2);
 }
@@ -198,8 +195,7 @@ RSCache_IO_ClientScriptLoad(
     int script_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT2_TABLE_CLIENTSCRIPT, script_id, TORIRS_IO_CACHE_DAT2);
 }
@@ -267,8 +263,7 @@ RSCache_IO_Dat1JagfileLoad(
     int jag_archive_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT1_DISK_TABLE_CONFIGS, jag_archive_id, TORIRS_IO_CACHE_DAT1);
 }
@@ -286,6 +281,7 @@ RSCache_IO_Dat1JagfileDecode(
     assert(item->kind == TORIRS_IOK_CACHE);
     assert(item->u.cache.table_id == RSCACHE_DAT1_DISK_TABLE_CONFIGS);
     assert(item->u.cache.archive_id == expected_archive_id);
+    (void)expected_archive_id; /* assert-only: the OPT=1 lane compiles with -DNDEBUG */
     assert(item->u.cache.flags == TORIRS_IO_CACHE_DAT1);
 
     archive = item->data;
@@ -319,8 +315,7 @@ RSCache_IO_Dat1MapTerrainLoad(
     int map_z)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io,
         slot_id,
@@ -367,8 +362,7 @@ RSCache_IO_Dat1MapSceneryLoad(
     int map_z)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io,
         slot_id,
@@ -410,8 +404,7 @@ RSCache_IO_Dat1AnimBaseFramesLoad(
     int animbaseframes_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io,
         slot_id,
@@ -479,8 +472,7 @@ RSCache_IO_Dat2RecordGroupLoad(
     int group_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(io, slot_id, 0, table_id, group_id, TORIRS_IO_CACHE_DAT2);
 }
 
@@ -494,6 +486,7 @@ RSCache_IO_Dat2RecordGroupDecode(
     struct ToriRS_IOItem* item = &io->io_slots[slot_id];
     assert(item->kind == TORIRS_IOK_CACHE);
     assert(item->u.cache.table_id == table_id);
+    (void)table_id; /* assert-only: the OPT=1 lane compiles with -DNDEBUG */
 
     struct RSCache_Dat2DiskArchive* archive = item->data;
     item->data = NULL;
@@ -509,8 +502,7 @@ RSCache_IO_Dat2ConfigGroupLoad(
     int config_kind)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT2_TABLE_CONFIGS, config_kind, TORIRS_IO_CACHE_DAT2);
 }
@@ -527,6 +519,7 @@ RSCache_IO_Dat2ConfigGroupDecode(
     assert(item->kind == TORIRS_IOK_CACHE);
     assert(item->u.cache.table_id == RSCACHE_DAT2_TABLE_CONFIGS);
     assert(item->u.cache.archive_id == expected_config_kind);
+    (void)expected_config_kind; /* assert-only: the OPT=1 lane compiles with -DNDEBUG */
     assert(item->u.cache.flags == TORIRS_IO_CACHE_DAT2);
 
     archive = item->data;
@@ -550,8 +543,7 @@ RSCache_IO_Dat2ReferenceTableLoad(
     int table_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueReferenceTable(io, slot_id, table_id);
 }
 
@@ -579,8 +571,7 @@ RSCache_IO_Dat2MapArchiveLoad(
     int archive_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT2_TABLE_MAPS, archive_id, TORIRS_IO_CACHE_DAT2);
 }
@@ -621,8 +612,7 @@ RSCache_IO_Dat2WorldMapGeographyLoad(
     int group_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY, group_id, TORIRS_IO_CACHE_DAT2);
 }
@@ -656,8 +646,7 @@ RSCache_IO_Dat2WorldMapGroundLoad(
     int group_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT2_TABLE_WORLDMAP_GROUND, group_id, TORIRS_IO_CACHE_DAT2);
 }
@@ -688,8 +677,7 @@ RSCache_IO_Dat2WorldMapArchiveLoad(
     int archive_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT2_TABLE_WORLDMAP, archive_id, TORIRS_IO_CACHE_DAT2);
 }
@@ -727,8 +715,7 @@ RSCache_IO_Dat2DbTableIndexLoad(
     int table_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT2_TABLE_DBTABLE_INDEX, table_id, TORIRS_IO_CACHE_DAT2);
 }
@@ -763,8 +750,7 @@ RSCache_IO_Dat2TextureGroupLoad(
     int slot_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(io, slot_id, 0, RSCACHE_DAT2_TABLE_TEXTURES, 0, TORIRS_IO_CACHE_DAT2);
 }
 
@@ -807,8 +793,7 @@ RSCache_IO_Dat2MaterialTableLoad(
     int slot_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT2_TABLE_MATERIALS, 0, TORIRS_IO_CACHE_DAT2);
 }
@@ -838,8 +823,7 @@ RSCache_IO_Dat2ProcTextureLoad(
     int texture_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT2_TABLE_TEXTURES, texture_id, TORIRS_IO_CACHE_DAT2);
 }
@@ -869,8 +853,7 @@ RSCache_IO_Dat2SpriteLoad(
     int sprite_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT2_TABLE_SPRITES, sprite_id, TORIRS_IO_CACHE_DAT2);
 }
@@ -917,8 +900,7 @@ RSCache_IO_Dat2MusicLoad(
     int archive_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(io, slot_id, 0, table_id, archive_id, TORIRS_IO_CACHE_DAT2);
 }
 
@@ -936,6 +918,7 @@ RSCache_IO_Dat2MusicDecode(
     struct ToriRS_IOItem* item = &io->io_slots[slot_id];
     assert(item->kind == TORIRS_IOK_CACHE);
     assert(item->u.cache.table_id == table_id);
+    (void)table_id; /* assert-only: the OPT=1 lane compiles with -DNDEBUG */
     assert(item->u.cache.flags == TORIRS_IO_CACHE_DAT2);
 
     archive = item->data;
@@ -960,8 +943,7 @@ RSCache_IO_Dat2SoundLoad(
     int sound_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT2_TABLE_SOUND_EFFECTS, sound_id, TORIRS_IO_CACHE_DAT2);
 }
@@ -1000,8 +982,7 @@ RSCache_IO_Dat2FontLoad(
     int font_id)
 {
     assert(io);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
-    assert(item->kind == TORIRS_IOK_NONE);
+    assert(io->io_slots[slot_id].kind == TORIRS_IOK_NONE);
     ToriRS_IO_QueueCache(
         io, slot_id, 0, RSCACHE_DAT2_TABLE_FONTS, font_id, TORIRS_IO_CACHE_DAT2);
 }

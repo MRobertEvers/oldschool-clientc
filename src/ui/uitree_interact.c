@@ -663,6 +663,7 @@ interact_cancel_hidden_scrollbar_capture(
     struct UITree const* tree,
     struct LibToriRS_Input* input)
 {
+    (void)input;
     assert(interact);
     assert(tree);
     assert(input);

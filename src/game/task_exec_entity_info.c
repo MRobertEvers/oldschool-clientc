@@ -328,6 +328,10 @@ struct Task_ExecPlayerInfo
 
     int cur_pid; /* server slot the following ops target; -1 = none */
     int need_ensure;
+    /* Decided before the need_ensure awaits and read after them, so it cannot
+     * be a local: the protothread resumes into a `case __LINE__:` in the loop
+     * body and never re-runs the initialiser. */
+    int op_consumed;
 
     struct PktPlayerAppearance app_decoded;
     int cfg_i;
@@ -582,8 +586,9 @@ player_apply_op(
                 : WORLD_PATHSTEP_WALK;
         struct CollisionMap* collision = NULL;
 
+        /* `level` is a uint8_t, so only the upper bound is a real test. */
         if( player && player->grid_position.level == op->_local_xz_level.level &&
-            op->_local_xz_level.level >= 0 && op->_local_xz_level.level < COLLISION_LEVELS )
+            op->_local_xz_level.level < COLLISION_LEVELS )
             collision = world->collision_maps[op->_local_xz_level.level];
 
         World_PlayerPathJumpCollisionAware(
@@ -885,7 +890,7 @@ Task_ExecPlayerInfo_Run(
 
     for( self->op_i = 0; self->op_i < self->op_count; self->op_i++ )
     {
-        int consumed = player_target_op(self, &self->ops[self->op_i]);
+        self->op_consumed = player_target_op(self, &self->ops[self->op_i]);
 
         if( self->need_ensure )
         {
@@ -895,7 +900,7 @@ Task_ExecPlayerInfo_Run(
             player_ensure_now(self);
         }
 
-        if( !consumed )
+        if( !self->op_consumed )
         {
             int need = player_apply_op(self, &self->ops[self->op_i]);
             if( need == PLAYER_NEED_APPEARANCE )
@@ -1413,7 +1418,7 @@ npc_apply_op(
             if( op->_face_coord.instant )
             {
                 struct WorldEntity_NPC* npc =
-                    World_EntityPoolGet(&world->entities.npc, idx);
+                    World_EntityPoolAt(&world->entities.npc, idx);
                 npc->facing.instant = true;
             }
             entity_debug_log(
@@ -1474,7 +1479,7 @@ npc_apply_op(
         if( idx >= 0 )
         {
             struct WorldEntity_NPC* npc =
-                World_EntityPoolGet(&world->entities.npc, idx);
+                World_EntityPoolAt(&world->entities.npc, idx);
             int sx = op->_exactmove.start_x;
             int sz = op->_exactmove.start_z;
             int ex = op->_exactmove.end_x;
@@ -1504,7 +1509,7 @@ npc_apply_op(
         if( idx >= 0 )
         {
             struct WorldEntity_NPC* npc =
-                World_EntityPoolGet(&world->entities.npc, idx);
+                World_EntityPoolAt(&world->entities.npc, idx);
             if( op->_face_angle.modern )
                 World_NpcBeginModernFacing(world, idx, op->_face_angle.movement_mode);
             int angle = op->_face_angle.spawn && npc->facing.turn_speed == 0
@@ -1517,7 +1522,7 @@ npc_apply_op(
         if( idx >= 0 )
         {
             struct WorldEntity_NPC* npc =
-                World_EntityPoolGet(&world->entities.npc, idx);
+                World_EntityPoolAt(&world->entities.npc, idx);
             npc->spawn_cycle = (uint32_t)op->_bitvalue;
         }
         break;
@@ -1525,7 +1530,7 @@ npc_apply_op(
         if( idx >= 0 )
         {
             struct WorldEntity_NPC* npc =
-                World_EntityPoolGet(&world->entities.npc, idx);
+                World_EntityPoolAt(&world->entities.npc, idx);
             npc->visible_ops = (uint8_t)op->_bitvalue;
         }
         break;
@@ -1533,7 +1538,7 @@ npc_apply_op(
         if( idx >= 0 && op->_name_change.name )
         {
             struct WorldEntity_NPC* npc =
-                World_EntityPoolGet(&world->entities.npc, idx);
+                World_EntityPoolAt(&world->entities.npc, idx);
             strncpy(npc->name, op->_name_change.name, sizeof(npc->name) - 1);
             npc->name[sizeof(npc->name) - 1] = '\0';
         }
@@ -1542,7 +1547,7 @@ npc_apply_op(
         if( idx >= 0 )
         {
             struct WorldEntity_NPC* npc =
-                World_EntityPoolGet(&world->entities.npc, idx);
+                World_EntityPoolAt(&world->entities.npc, idx);
             npc->combat_level = (int)(uint32_t)op->_bitvalue;
         }
         break;
@@ -1550,7 +1555,7 @@ npc_apply_op(
         if( idx >= 0 )
         {
             struct WorldEntity_NPC* npc =
-                World_EntityPoolGet(&world->entities.npc, idx);
+                World_EntityPoolAt(&world->entities.npc, idx);
             uint32_t mask = op->_bas_change.mask;
 
             if( mask & (1u << 0) ) npc->idle_animations.turnanim = op->_bas_change.turnanim;

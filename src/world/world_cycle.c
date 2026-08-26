@@ -270,9 +270,11 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
      * and only retirement. */
     if( x == dstX && z == dstZ )
     {
-        info->pathing->route_length--;
-        if( info->pathing->route_length < 0 )
-            info->pathing->route_length = 0;
+        /* route_length is a uint8_t: decrementing it at 0 wraps to 255, and the
+         * `< 0` clamp this used to carry could never fire. Guard the decrement,
+         * the way preanim_route_length below already does. */
+        if( info->pathing->route_length > 0 )
+            info->pathing->route_length--;
         info->grid_position->x = info->pathing->route_x[0];
         info->grid_position->z = info->pathing->route_z[0];
         if( info->animation->preanim_route_length > 0 )

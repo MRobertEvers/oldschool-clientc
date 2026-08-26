@@ -101,10 +101,10 @@ test_player_local_teleport(void)
 
     struct PktPlayerInfoOp const* tp =
         find_player_op(ops, n, PKT_PLAYER_INFO_OP_LOCAL_XZLEVEL);
-    assert(tp);
-    assert(tp->_local_xz_level.x == 40);
-    assert(tp->_local_xz_level.z == 52);
-    assert(tp->_local_xz_level.level == 0);
+    TEST_CHECK(tp);
+    TEST_CHECK(tp->_local_xz_level.x == 40);
+    TEST_CHECK(tp->_local_xz_level.z == 52);
+    TEST_CHECK(tp->_local_xz_level.level == 0);
     pkt_player_info_ops_free(ops, n);
     printf("ok - player local teleport block\n");
 }
@@ -139,9 +139,9 @@ test_player_new_walk_with_seq(void)
         find_player_op(ops, n, PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID);
     struct PktPlayerInfoOp const* delta = find_player_op(ops, n, PKT_PLAYER_INFO_OP_DELTA_XZ);
     struct PktPlayerInfoOp const* seq = find_player_op(ops, n, PKT_PLAYER_INFO_OP_SEQUENCE);
-    assert(add && add->_bitvalue == 5);
-    assert(delta && delta->_delta_xz.dx == 1 && delta->_delta_xz.dz == -1);
-    assert(seq && seq->_sequence.sequence_id == 42 && seq->_sequence.delay == 3);
+    TEST_CHECK(add && add->_bitvalue == 5);
+    TEST_CHECK(delta && delta->_delta_xz.dx == 1 && delta->_delta_xz.dz == -1);
+    TEST_CHECK(seq && seq->_sequence.sequence_id == 42 && seq->_sequence.delay == 3);
     pkt_player_info_ops_free(ops, n);
     printf("ok - player new-add + walk-delta + sequence mask\n");
 }
@@ -186,13 +186,13 @@ test_player_exact_move_and_chat_skip(void)
 
     struct PktPlayerInfoOp const* chat = find_player_op(ops, n, PKT_PLAYER_INFO_OP_CHAT);
     struct PktPlayerInfoOp const* em = find_player_op(ops, n, PKT_PLAYER_INFO_OP_EXACT_MOVE);
-    assert(chat && chat->_chat.length == 3);
+    TEST_CHECK(chat && chat->_chat.length == 3);
     /* The exact-move must have decoded — proving the CHAT payload was
      * consumed and did not desync the stream (the v0 bug this fixes). */
-    assert(em);
-    assert(em->_exactmove.start_x == 10 && em->_exactmove.end_z == 13);
-    assert(em->_exactmove.end_cycle_delta == 5 && em->_exactmove.start_cycle_delta == 9);
-    assert(em->_exactmove.facing == 2);
+    TEST_CHECK(em);
+    TEST_CHECK(em->_exactmove.start_x == 10 && em->_exactmove.end_z == 13);
+    TEST_CHECK(em->_exactmove.end_cycle_delta == 5 && em->_exactmove.start_cycle_delta == 9);
+    TEST_CHECK(em->_exactmove.facing == 2);
     pkt_player_info_ops_free(ops, n);
     printf("ok - player CHAT-skip fix + EXACT_MOVE byte order\n");
 }
@@ -245,10 +245,10 @@ test_npc_add_change_type_spotanim(void)
     struct PktNpcInfoOp const* type = find_npc_op(ops, n, PKT_NPC_INFO_OPBITS_NPCTYPE);
     struct PktNpcInfoOp const* change = find_npc_op(ops, n, PKT_NPC_INFO_OP_CHANGE_TYPE);
     struct PktNpcInfoOp const* spot = find_npc_op(ops, n, PKT_NPC_INFO_OP_SPOTANIM);
-    assert(add && add->_bitvalue == 3);
-    assert(type && type->_bitvalue == 100);
-    assert(change && change->_change_type.npc_type == 200);
-    assert(spot && spot->_spotanim.spotanim_id == 55);
+    TEST_CHECK(add && add->_bitvalue == 3);
+    TEST_CHECK(type && type->_bitvalue == 100);
+    TEST_CHECK(change && change->_change_type.npc_type == 200);
+    TEST_CHECK(spot && spot->_spotanim.spotanim_id == 55);
     pkt_npc_info_ops_free(ops, n);
     printf("ok - npc add + CHANGE_TYPE + SPOTANIM\n");
 }
@@ -280,10 +280,10 @@ test_npc_type_width(void)
     bw_bits(&w, 0, 32);
 
     pkt_npc_info_reader_init(&reader, 14, 14);
-    assert(reader.slot_bits == 14 && reader.type_bits == 14);
+    TEST_CHECK(reader.slot_bits == 14 && reader.type_bits == 14);
     n = pkt_npc_info_reader_read(&reader, w.buf, bw_len(&w), ops, 64);
     type = find_npc_op(ops, n, PKT_NPC_INFO_OPBITS_NPCTYPE);
-    assert(type && type->_bitvalue == 3106);
+    TEST_CHECK(type && type->_bitvalue == 3106);
     pkt_npc_info_ops_free(ops, n);
 
     /* The same bytes through the classic 11-bit reader take the top 11 bits of
@@ -293,13 +293,13 @@ test_npc_type_width(void)
     pkt_npc_info_reader_init(&reader, 14, 11);
     n = pkt_npc_info_reader_read(&reader, w.buf, bw_len(&w), ops, 64);
     type = find_npc_op(ops, n, PKT_NPC_INFO_OPBITS_NPCTYPE);
-    assert(type && type->_bitvalue == (3106 >> 3));
+    TEST_CHECK(type && type->_bitvalue == (3106 >> 3));
     pkt_npc_info_ops_free(ops, n);
 
     /* An unstated width falls back to classic, never to zero bits. */
     pkt_npc_info_reader_init(&reader, 0, 0);
-    assert(reader.slot_bits == PKT_NPC_INFO_SLOT_BITS_CLASSIC);
-    assert(reader.type_bits == PKT_NPC_INFO_TYPE_BITS_CLASSIC);
+    TEST_CHECK(reader.slot_bits == PKT_NPC_INFO_SLOT_BITS_CLASSIC);
+    TEST_CHECK(reader.type_bits == PKT_NPC_INFO_TYPE_BITS_CLASSIC);
 
     printf("ok - npc type width is per-revision (3106 at 14 bits, %d at 11)\n", 3106 >> 3);
 }
@@ -341,14 +341,14 @@ test_appearance_decode(void)
 
     struct PktPlayerAppearance app;
     int ok = PktPlayerAppearance_Decode(&app, w.buf, bw_len(&w));
-    assert(ok);
-    assert(app.gender == 0);
+    TEST_CHECK(ok);
+    TEST_CHECK(app.gender == 0);
     /* The wire's tag becomes the canonical slot, not the number on the wire. */
-    assert(app.slots[2] == Appearance_PackKit(18));
-    assert(app.colors[3] == 3);
-    assert(app.readyanim == 808);
-    assert(app.turnanim == -1);
-    assert(app.combat_level == 42);
+    TEST_CHECK(app.slots[2] == Appearance_PackKit(18));
+    TEST_CHECK(app.colors[3] == 3);
+    TEST_CHECK(app.readyanim == 808);
+    TEST_CHECK(app.turnanim == -1);
+    TEST_CHECK(app.combat_level == 42);
     printf("ok - appearance blob decode\n");
 }
 
@@ -460,21 +460,21 @@ test_appearance_v5_decode(void)
     TEST_CHECK(PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, w.buf, bw_len(&w)));
 
     /* Both tags land in the canonical vocabulary, not on the wire's numbers. */
-    assert(app.slots[FIXTURE_KIT_SLOT] == Appearance_PackKit(FIXTURE_KIT_ID));
-    assert(app.slots[FIXTURE_OBJ_SLOT] == Appearance_PackObj(FIXTURE_OBJ_ID));
-    assert(Appearance_SlotObj(app.slots[FIXTURE_OBJ_SLOT]) == FIXTURE_OBJ_ID);
-    assert(app.identkit[FIXTURE_KIT_SLOT] == Appearance_PackKit(FIXTURE_KIT_ID));
-    assert(app.identkit[FIXTURE_OBJ_SLOT] == 0);
-    assert(app.skull_icon == -1);
-    assert(app.headicon == 0);
-    assert(app.colors[3] == 3);
-    assert(app.readyanim == FIXTURE_READY_ANIM);
-    assert(app.turnanim == -1);
-    assert(strcmp(app.name, "test") == 0);
-    assert(app.combat_level == FIXTURE_COMBAT_LEVEL);
-    assert(app.skill_level == 99);
-    assert(app.hidden == 0);
-    assert(app.npc_id == -1);
+    TEST_CHECK(app.slots[FIXTURE_KIT_SLOT] == Appearance_PackKit(FIXTURE_KIT_ID));
+    TEST_CHECK(app.slots[FIXTURE_OBJ_SLOT] == Appearance_PackObj(FIXTURE_OBJ_ID));
+    TEST_CHECK(Appearance_SlotObj(app.slots[FIXTURE_OBJ_SLOT]) == FIXTURE_OBJ_ID);
+    TEST_CHECK(app.identkit[FIXTURE_KIT_SLOT] == Appearance_PackKit(FIXTURE_KIT_ID));
+    TEST_CHECK(app.identkit[FIXTURE_OBJ_SLOT] == 0);
+    TEST_CHECK(app.skull_icon == -1);
+    TEST_CHECK(app.headicon == 0);
+    TEST_CHECK(app.colors[3] == 3);
+    TEST_CHECK(app.readyanim == FIXTURE_READY_ANIM);
+    TEST_CHECK(app.turnanim == -1);
+    TEST_CHECK(strcmp(app.name, "test") == 0);
+    TEST_CHECK(app.combat_level == FIXTURE_COMBAT_LEVEL);
+    TEST_CHECK(app.skill_level == 99);
+    TEST_CHECK(app.hidden == 0);
+    TEST_CHECK(app.npc_id == -1);
     printf("ok - 239 appearance block decode\n");
 }
 
@@ -494,14 +494,14 @@ test_appearance_encoding_independent(void)
 
     /* Two blocks of different length, different field order and different tags
      * describing one player: everything the client renders from must match. */
-    assert(bw_len(&classic) != bw_len(&v5));
-    assert(memcmp(a_classic.slots, a_v5.slots, sizeof(a_classic.slots)) == 0);
-    assert(memcmp(a_classic.colors, a_v5.colors, sizeof(a_classic.colors)) == 0);
-    assert(a_classic.gender == a_v5.gender);
-    assert(a_classic.readyanim == a_v5.readyanim);
-    assert(a_classic.turnanim == a_v5.turnanim);
-    assert(a_classic.combat_level == a_v5.combat_level);
-    assert(a_classic.headicon == a_v5.headicon);
+    TEST_CHECK(bw_len(&classic) != bw_len(&v5));
+    TEST_CHECK(memcmp(a_classic.slots, a_v5.slots, sizeof(a_classic.slots)) == 0);
+    TEST_CHECK(memcmp(a_classic.colors, a_v5.colors, sizeof(a_classic.colors)) == 0);
+    TEST_CHECK(a_classic.gender == a_v5.gender);
+    TEST_CHECK(a_classic.readyanim == a_v5.readyanim);
+    TEST_CHECK(a_classic.turnanim == a_v5.turnanim);
+    TEST_CHECK(a_classic.combat_level == a_v5.combat_level);
+    TEST_CHECK(a_classic.headicon == a_v5.headicon);
     printf("ok - classic and 239 blocks decode to the same appearance\n");
 }
 
@@ -519,8 +519,8 @@ test_appearance_tag_is_per_encoding(void)
      */
     build_v5_blob(&w, APPEARANCE_WIRE_OBJ_TAG_CLASSIC, 0);
     TEST_CHECK(PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, w.buf, bw_len(&w)));
-    assert(Appearance_SlotKind(app.slots[FIXTURE_OBJ_SLOT]) == APPEARANCE_SLOT_KIT);
-    assert(Appearance_SlotObj(app.slots[FIXTURE_OBJ_SLOT]) == -1);
+    TEST_CHECK(Appearance_SlotKind(app.slots[FIXTURE_OBJ_SLOT]) == APPEARANCE_SLOT_KIT);
+    TEST_CHECK(Appearance_SlotObj(app.slots[FIXTURE_OBJ_SLOT]) == -1);
     printf("ok - the worn-obj tag is per-encoding (classic tag reads as a kit at 239)\n");
 }
 
@@ -584,26 +584,112 @@ test_appearance_transmog(void)
     bw_byte(&w, 0);
 
     n = pkt_appearance_read(APPEARANCE_ENC_V5, w.buf, bw_len(&w), ops, PKT_APPEARANCE_OPS_MAX);
-    assert(n > 0);
+    TEST_CHECK(n > 0);
     for( int i = 0; i < n; i++ )
     {
         if( ops[i].kind == PKT_APPEARANCE_OP_TRANSMOG )
         {
             saw_transmog = 1;
-            assert(ops[i]._value == 3106);
+            TEST_CHECK(ops[i]._value == 3106);
         }
         if( ops[i].kind == PKT_APPEARANCE_OP_SLOT &&
             ops[i]._slot.layer == APPEARANCE_LAYER_VISIBLE )
             visible_slots++;
     }
-    assert(saw_transmog);
-    assert(visible_slots == 0);
+    TEST_CHECK(saw_transmog);
+    TEST_CHECK(visible_slots == 0);
     printf("ok - 239 transmog ends the equipment array\n");
+}
+
+/*
+ * The op array is sized by the CALLER; how many ops a packet asks for is chosen
+ * by the SERVER. next_op used to bound the two with an assert, which the
+ * shipping lane compiles out (-DNDEBUG), and the extended-info loop tests
+ * capacity once per entry and then emits one op per bit of a server-supplied
+ * mask -- so a full mask wrote past the end of the array by the width of the
+ * mask. Runs the same stream as the test above into an array too small for it,
+ * with a canary behind it.
+ */
+static void
+test_npc_ops_capacity_is_a_guard_not_an_assert(void)
+{
+    struct BitWriter w = { 0 };
+    bw_bits(&w, 0, 8);
+    bw_bits(&w, 3, 14);
+    bw_bits(&w, 100, 11);
+    bw_bits(&w, 2, 5);
+    bw_bits(&w, 0, 5);
+    bw_bits(&w, 1, 1);
+    bw_bits(&w, 16383, 14);
+    /* Every mask bit this revision has, so the entry emits as many ops as it
+     * possibly can from the single capacity test at the top of the loop. */
+    bw_byte(&w, 0xff);
+    bw_byte(&w, 0xff);
+    for( int i = 0; i < 64; i++ )
+        bw_byte(&w, 0x00);
+
+    enum
+    {
+        OPS_CAP = 3
+    };
+    struct
+    {
+        struct PktNpcInfoOp ops[OPS_CAP];
+        unsigned char canary[64];
+    } probe;
+    struct PktNpcInfoReader reader;
+    int n;
+
+    memset(&probe, 0, sizeof(probe));
+    memset(probe.canary, 0xA5, sizeof(probe.canary));
+
+    pkt_npc_info_reader_init(&reader, 0, 0);
+    n = pkt_npc_info_reader_read(&reader, w.buf, bw_len(&w), probe.ops, OPS_CAP);
+
+    TEST_CHECK(n <= OPS_CAP);
+    TEST_CHECK(reader.overflowed);
+    for( size_t i = 0; i < sizeof(probe.canary); i++ )
+        TEST_CHECK(probe.canary[i] == 0xA5);
+
+    pkt_npc_info_ops_free(probe.ops, n);
+    printf("ok - npc op overflow stays inside the caller's array\n");
+}
+
+/*
+ * Same shape one layer down: the bit cursor is walked by counts the packet
+ * supplies, so a short packet ran it off the end of the buffer. That bound was
+ * an assert too, i.e. absent from the shipping build.
+ */
+static void
+test_bitbuffer_refuses_reads_past_the_end(void)
+{
+    uint8_t data[2] = { 0xAB, 0xCD };
+    struct Net_BitBuffer buf;
+
+    Net_BitBufferInit(&buf, data, (int)sizeof(data));
+    TEST_CHECK(!buf.overrun);
+    TEST_CHECK(Net_BitBufferGbits(&buf, 16) == 0xABCD);
+    TEST_CHECK(!buf.overrun);
+
+    /* One bit past the end: refused, reported, and zero rather than whatever
+     * follows the buffer. */
+    TEST_CHECK(Net_BitBufferGbits(&buf, 1) == 0);
+    TEST_CHECK(buf.overrun);
+
+    /* A read that straddles the end is refused whole, not partially served. */
+    Net_BitBufferInit(&buf, data, (int)sizeof(data));
+    TEST_CHECK(Net_BitBufferGbits(&buf, 12) == 0xABC);
+    TEST_CHECK(Net_BitBufferGbits(&buf, 8) == 0);
+    TEST_CHECK(buf.overrun);
+
+    printf("ok - bit reads past the packet end are refused\n");
 }
 
 int
 main(void)
 {
+    test_npc_ops_capacity_is_a_guard_not_an_assert();
+    test_bitbuffer_refuses_reads_past_the_end();
     test_player_local_teleport();
     test_player_new_walk_with_seq();
     test_player_exact_move_and_chat_skip();

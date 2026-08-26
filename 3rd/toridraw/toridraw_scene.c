@@ -355,17 +355,22 @@ td_scene_allocate_element_id(
     assert(scene);
 
     if( scene->elements.free_head != TORIDRAW_INTRUSIVE_NIL )
-        element = (struct ToriDraw_SceneElement*)ToriDraw_IntrusiveListGet(
+    {
+        element = (struct ToriDraw_SceneElement*)ToriDraw_IntrusiveListAt(
             &scene->elements, scene->elements.free_head);
+        td_scene_reset_element(element);
+    }
     else
     {
         if( scene->elements.count >= TORIDRAW_SCENE_MAX_ELEMENTS )
             return -1;
+        /* calloc already hands back the zeroed state td_scene_reset_element
+         * would write, and scene_id is assigned below on both paths, so only
+         * the one non-zero default is left to set. */
         element = calloc(1, sizeof(struct ToriDraw_SceneElement));
         assert(element);
+        element->anim_seq_id = -1;
     }
-
-    td_scene_reset_element(element);
 
     id = ToriDraw_IntrusiveListAlloc(&scene->elements, element);
     if( id < 0 )
