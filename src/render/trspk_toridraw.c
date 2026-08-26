@@ -1,5 +1,6 @@
 #include "render/trspk_toridraw.h"
 
+#include "core/trspk_color_simd.h"
 #include "core/trspk_uv_pnm.h"
 #include "core/trspk_vbo.h"
 #include "toridraw.h"
@@ -34,11 +35,8 @@ trspk_toridraw_hsl16_to_rgba(
     uint8_t alpha,
     float rgba[4])
 {
-    const uint32_t rgb = ToriDraw_Hsl16ToRgb(hsl16);
-    rgba[0] = (float)((rgb >> 16) & 0xFFu) / 255.0f;
-    rgba[1] = (float)((rgb >> 8) & 0xFFu) / 255.0f;
-    rgba[2] = (float)(rgb & 0xFFu) / 255.0f;
-    rgba[3] = (float)alpha / 255.0f;
+    const uint32_t rgb = (uint32_t)ToriDraw_Hsl16ToRgb(hsl16);
+    trspk_color_unpack_rgb_alpha(rgb, alpha, rgba);
 }
 
 float
@@ -119,9 +117,40 @@ trspk_toridraw_uv_pnm_face(
         (float)model->vertices_z[face_c]);
 }
 
+const struct TRSPK_WorldPlacement trspk_world_placement_identity = { 0, 0, 0, 0, 0, 0, 0, false, false };
+
+void
+trspk_toridraw_placement_init(
+    struct TRSPK_WorldPlacement* out,
+    const struct ToriDraw_Position* world_position)
+{
+    assert(out);
+
+    if( !world_position )
+    {
+        memset(out, 0, sizeof(*out));
+        return;
+    }
+
+    {
+        const int pitch = ToriDraw_NormalizeAngle(world_position->pitch);
+        const int yaw = ToriDraw_NormalizeAngle(world_position->yaw);
+
+        out->has_pitch = pitch != 0;
+        out->cos_pitch = out->has_pitch ? ToriDraw_Cos(pitch) : 0;
+        out->sin_pitch = out->has_pitch ? ToriDraw_Sin(pitch) : 0;
+        out->has_yaw = yaw != 0;
+        out->cos_yaw = out->has_yaw ? ToriDraw_Cos(yaw) : 0;
+        out->sin_yaw = out->has_yaw ? ToriDraw_Sin(yaw) : 0;
+        out->offset_x = world_position->x;
+        out->offset_y = world_position->y;
+        out->offset_z = world_position->z;
+    }
+}
+
 void
 trspk_toridraw_world_vertex(
-    const struct ToriDraw_Position* world_position,
+    const struct TRSPK_WorldPlacement* placement,
     int vx,
     int vy,
     int vz,
@@ -129,41 +158,47 @@ trspk_toridraw_world_vertex(
     float* out_y,
     float* out_z)
 {
-    if( !world_position )
-    {
-        *out_x = (float)vx;
-        *out_y = (float)vy;
-        *out_z = (float)vz;
-        return;
-    }
-
-    const int pitch = ToriDraw_NormalizeAngle(world_position->pitch);
-    const int yaw = ToriDraw_NormalizeAngle(world_position->yaw);
+    assert(placement);
 
     int x_rotated = vx;
     int y_rotated = vy;
     int z_rotated = vz;
 
-    if( pitch != 0 )
+    if( placement->has_pitch )
     {
-        const int cp = ToriDraw_Cos(pitch);
-        const int sp = ToriDraw_Sin(pitch);
+        const int cp = placement->cos_pitch;
+        const int sp = placement->sin_pitch;
         y_rotated = (vy * cp - vz * sp) >> 16;
         z_rotated = (vy * sp + vz * cp) >> 16;
     }
 
-    if( yaw != 0 )
+    if( placement->has_yaw )
     {
-        const int cy = ToriDraw_Cos(yaw);
-        const int sy = ToriDraw_Sin(yaw);
+        const int cy = placement->cos_yaw;
+        const int sy = placement->sin_yaw;
         const int x_yaw = (x_rotated * cy + z_rotated * sy) >> 16;
         z_rotated = (z_rotated * cy - x_rotated * sy) >> 16;
         x_rotated = x_yaw;
     }
 
-    *out_x = (float)(x_rotated + world_position->x);
-    *out_y = (float)(y_rotated + world_position->y);
-    *out_z = (float)(z_rotated + world_position->z);
+    *out_x = (float)(x_rotated + placement->offset_x);
+    *out_y = (float)(y_rotated + placement->offset_y);
+    *out_z = (float)(z_rotated + placement->offset_z);
+}
+
+/* hsl16 -> the packed 0xAARRGGBB a D3D9 vertex stores.
+ *
+ * ToriDraw_Hsl16ToRgb already hands back 0x00RRGGBB, so this is a shift and
+ * an or. The float form below reaches the same 32 bits by way of four
+ * divisions by 255 and four multiplications back up again, every one of
+ * which the D3D9 vertex writer then discards. */
+static inline uint32_t
+trspk_toridraw_hsl16_to_argb(
+    hsl16_t hsl16,
+    uint8_t alpha)
+{
+    return ((uint32_t)alpha << 24) |
+        ((uint32_t)ToriDraw_Hsl16ToRgb(hsl16) & 0x00FFFFFFu);
 }
 
 static void
@@ -172,50 +207,53 @@ trspk_toridraw_face_colors(
     hsl16_t color_b_hsl16,
     hsl16_t color_c_hsl16,
     uint8_t alpha,
-    float color_a[4],
-    float color_b[4],
-    float color_c[4])
+    enum TRSPK_BakeColorForm color_form,
+    struct TRSPK_ToriDrawBakeFaceVerts* out)
 {
+    /* HIDDEN and FLAT both collapse the face onto corner A's shade; HIDDEN
+     * additionally forces it transparent. Resolving that here leaves one
+     * conversion site per colour form instead of one per branch. */
+    bool flat = true;
     if( color_c_hsl16 == TORIDRAWHSL16_HIDDEN )
-    {
         alpha = 0u;
-        trspk_toridraw_hsl16_to_rgba(color_a_hsl16, alpha, color_a);
-        color_b[0] = color_a[0];
-        color_b[1] = color_a[1];
-        color_b[2] = color_a[2];
-        color_b[3] = color_a[3];
-        color_c[0] = color_a[0];
-        color_c[1] = color_a[1];
-        color_c[2] = color_a[2];
-        color_c[3] = color_a[3];
-    }
-    else if( color_c_hsl16 == TORIDRAWHSL16_FLAT )
+    else if( color_c_hsl16 != TORIDRAWHSL16_FLAT )
+        flat = false;
+
+    if( color_form == TRSPK_BAKE_COLOR_ARGB )
     {
-        trspk_toridraw_hsl16_to_rgba(color_a_hsl16, alpha, color_a);
-        color_b[0] = color_a[0];
-        color_b[1] = color_a[1];
-        color_b[2] = color_a[2];
-        color_b[3] = color_a[3];
-        color_c[0] = color_a[0];
-        color_c[1] = color_a[1];
-        color_c[2] = color_a[2];
-        color_c[3] = color_a[3];
+        out->argb_a = trspk_toridraw_hsl16_to_argb(color_a_hsl16, alpha);
+        if( flat )
+        {
+            out->argb_b = out->argb_a;
+            out->argb_c = out->argb_a;
+        }
+        else
+        {
+            out->argb_b = trspk_toridraw_hsl16_to_argb(color_b_hsl16, alpha);
+            out->argb_c = trspk_toridraw_hsl16_to_argb(color_c_hsl16, alpha);
+        }
+        return;
     }
-    else
+
+    trspk_toridraw_hsl16_to_rgba(color_a_hsl16, alpha, out->color_a);
+    if( flat )
     {
-        trspk_toridraw_hsl16_to_rgba(color_a_hsl16, alpha, color_a);
-        trspk_toridraw_hsl16_to_rgba(color_b_hsl16, alpha, color_b);
-        trspk_toridraw_hsl16_to_rgba(color_c_hsl16, alpha, color_c);
+        memcpy(out->color_b, out->color_a, sizeof(out->color_b));
+        memcpy(out->color_c, out->color_a, sizeof(out->color_c));
+        return;
     }
+    trspk_toridraw_hsl16_to_rgba(color_b_hsl16, alpha, out->color_b);
+    trspk_toridraw_hsl16_to_rgba(color_c_hsl16, alpha, out->color_c);
 }
 
 void
 trspk_toridraw_bake_face(
     struct ToriDraw_Model* model,
     uint32_t face_index,
-    const struct ToriDraw_Position* world_position,
+    const struct TRSPK_WorldPlacement* placement,
     struct ToriDraw_Scene* ctx,
     bool invert_face_alpha,
+    enum TRSPK_BakeColorForm color_form,
     struct TRSPK_ToriDrawBakeFaceVerts* out)
 {
     const uint32_t face_a = (uint32_t)model->face_indices_a[face_index];
@@ -243,9 +281,8 @@ trspk_toridraw_bake_face(
         model->face_colors_b[face_index],
         model->face_colors_c[face_index],
         alpha,
-        out->color_a,
-        out->color_b,
-        out->color_c);
+        color_form,
+        out);
 
     out->tex_id = tex_id;
     struct ToriDraw_Texture* tex = NULL;
@@ -265,10 +302,19 @@ trspk_toridraw_bake_face(
         }
     }
 
-    trspk_toridraw_uv_pnm_face(&out->uv, model, face_index);
+    /* UVs only mean something to a textured face. Every consumer -- both
+     * D3D9 paths and the GL fragment shader -- returns the vertex colour
+     * without sampling when there is no texture, so for an untextured face
+     * the two reciprocals and ~50 multiply-adds below were computed and then
+     * thrown away, and untextured faces are the majority of a scene's faces.
+     * Zeroed rather than left undefined, so the bake stays deterministic. */
+    if( tex_id >= 0 )
+        trspk_toridraw_uv_pnm_face(&out->uv, model, face_index);
+    else
+        memset(&out->uv, 0, sizeof(out->uv));
 
     trspk_toridraw_world_vertex(
-        world_position,
+        placement,
         model->vertices_x[face_a],
         model->vertices_y[face_a],
         model->vertices_z[face_a],
@@ -276,7 +322,7 @@ trspk_toridraw_bake_face(
         &out->wy_a,
         &out->wz_a);
     trspk_toridraw_world_vertex(
-        world_position,
+        placement,
         model->vertices_x[face_b],
         model->vertices_y[face_b],
         model->vertices_z[face_b],
@@ -284,7 +330,7 @@ trspk_toridraw_bake_face(
         &out->wy_b,
         &out->wz_b);
     trspk_toridraw_world_vertex(
-        world_position,
+        placement,
         model->vertices_x[face_c],
         model->vertices_y[face_c],
         model->vertices_z[face_c],
@@ -297,8 +343,9 @@ static void
 trspk_toridraw_bake_face_ground(
     struct ToriDraw_ModelGround* ground,
     uint32_t face_index,
-    const struct ToriDraw_Position* world_position,
+    const struct TRSPK_WorldPlacement* placement,
     struct ToriDraw_Scene* ctx,
+    enum TRSPK_BakeColorForm color_form,
     struct TRSPK_ToriDrawBakeFaceVerts* out)
 {
     const uint32_t face_a = (uint32_t)ground->face_indices_a[face_index];
@@ -310,9 +357,8 @@ trspk_toridraw_bake_face_ground(
         ground->face_colors_b[face_index],
         ground->face_colors_c[face_index],
         0xFFu,
-        out->color_a,
-        out->color_b,
-        out->color_c);
+        color_form,
+        out);
 
     out->tex_id = ground->face_textures ? (int)ground->face_textures[face_index] : -1;
     struct ToriDraw_Texture* tex = NULL;
@@ -332,30 +378,34 @@ trspk_toridraw_bake_face_ground(
         }
     }
 
-    /* Ground has no textured_p/m/n — UV from face vertices. */
-    uv_pnm_compute(
-        &out->uv,
-        (float)ground->vertices_x[face_a],
-        (float)ground->vertices_y[face_a],
-        (float)ground->vertices_z[face_a],
-        (float)ground->vertices_x[face_b],
-        (float)ground->vertices_y[face_b],
-        (float)ground->vertices_z[face_b],
-        (float)ground->vertices_x[face_c],
-        (float)ground->vertices_y[face_c],
-        (float)ground->vertices_z[face_c],
-        (float)ground->vertices_x[face_a],
-        (float)ground->vertices_y[face_a],
-        (float)ground->vertices_z[face_a],
-        (float)ground->vertices_x[face_b],
-        (float)ground->vertices_y[face_b],
-        (float)ground->vertices_z[face_b],
-        (float)ground->vertices_x[face_c],
-        (float)ground->vertices_y[face_c],
-        (float)ground->vertices_z[face_c]);
+    /* Ground has no textured_p/m/n -- UV from face vertices, and only for a
+     * textured face; see the model bake above for why. */
+    if( out->tex_id < 0 )
+        memset(&out->uv, 0, sizeof(out->uv));
+    else
+        uv_pnm_compute(
+            &out->uv,
+            (float)ground->vertices_x[face_a],
+            (float)ground->vertices_y[face_a],
+            (float)ground->vertices_z[face_a],
+            (float)ground->vertices_x[face_b],
+            (float)ground->vertices_y[face_b],
+            (float)ground->vertices_z[face_b],
+            (float)ground->vertices_x[face_c],
+            (float)ground->vertices_y[face_c],
+            (float)ground->vertices_z[face_c],
+            (float)ground->vertices_x[face_a],
+            (float)ground->vertices_y[face_a],
+            (float)ground->vertices_z[face_a],
+            (float)ground->vertices_x[face_b],
+            (float)ground->vertices_y[face_b],
+            (float)ground->vertices_z[face_b],
+            (float)ground->vertices_x[face_c],
+            (float)ground->vertices_y[face_c],
+            (float)ground->vertices_z[face_c]);
 
     trspk_toridraw_world_vertex(
-        world_position,
+        placement,
         ground->vertices_x[face_a],
         ground->vertices_y[face_a],
         ground->vertices_z[face_a],
@@ -363,7 +413,7 @@ trspk_toridraw_bake_face_ground(
         &out->wy_a,
         &out->wz_a);
     trspk_toridraw_world_vertex(
-        world_position,
+        placement,
         ground->vertices_x[face_b],
         ground->vertices_y[face_b],
         ground->vertices_z[face_b],
@@ -371,7 +421,7 @@ trspk_toridraw_bake_face_ground(
         &out->wy_b,
         &out->wz_b);
     trspk_toridraw_world_vertex(
-        world_position,
+        placement,
         ground->vertices_x[face_c],
         ground->vertices_y[face_c],
         ground->vertices_z[face_c],
@@ -401,9 +451,10 @@ bool
 trspk_toridraw_bake_face_handle(
     struct ToriDraw_ModelHandle model_handle,
     uint32_t face_index,
-    const struct ToriDraw_Position* world_position,
+    const struct TRSPK_WorldPlacement* placement,
     struct ToriDraw_Scene* ctx,
     bool invert_face_alpha,
+    enum TRSPK_BakeColorForm color_form,
     struct TRSPK_ToriDrawBakeFaceVerts* out)
 {
     assert(out);
@@ -417,15 +468,21 @@ trspk_toridraw_bake_face_handle(
         trspk_toridraw_bake_face(
             model_handle.u.model.model,
             face_index,
-            world_position,
+            placement,
             ctx,
             invert_face_alpha,
+            color_form,
             out);
         return true;
     case TORIDRAWMK_GROUND:
         assert(model_handle.u.model.ground);
         trspk_toridraw_bake_face_ground(
-            model_handle.u.model.ground, face_index, world_position, ctx, out);
+            model_handle.u.model.ground,
+            face_index,
+            placement,
+            ctx,
+            color_form,
+            out);
         return true;
     default:
         return false;

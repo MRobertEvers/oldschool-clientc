@@ -935,6 +935,7 @@ endif
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
+.PHONY: bench-trspk-bake test-trspk-color-simd test-trspk-swizzle-simd test-trspk-modelarena-index
 .PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
 .PHONY: torirsserver-scripts-lanes torirsserver-lanes
 
@@ -2836,6 +2837,34 @@ test-rotate-blit: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/rotate_blit_test \
 		render/test/rotate_blit_test.c render/trspk_sprite.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/rotate_blit_test
+
+# The indexed arena find must answer what the old linear scan answered.
+test-trspk-modelarena-index: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_modelarena_index_test \
+		render/test/trspk_modelarena_index_test.c $(TRSPK_UNITY_SRC)
+	./$(OBJ_DIR)/trspk_modelarena_index_test
+
+# The SSE2 sprite swizzle must reproduce the per-pixel rule bit for bit.
+test-trspk-swizzle-simd: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_swizzle_simd_test \
+		render/test/trspk_swizzle_simd_test.c
+	./$(OBJ_DIR)/trspk_swizzle_simd_test
+
+# The SSE2 colour kernel must reproduce the scalar one exactly.
+test-trspk-color-simd: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_color_simd_test \
+		render/test/trspk_color_simd_test.c
+	./$(OBJ_DIR)/trspk_color_simd_test
+
+# Vertex-bake microbenchmark: the inner loop of d3d9_bake_pose_vertices.
+# It drives the REAL bake functions, never a copy, so a change to the
+# shipping path is what moves this number. Run it with OPT=1 -- the frame
+# it stands in for is an OPT=1 frame.
+bench-trspk-bake: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_bake_bench \
+		render/test/trspk_bake_bench.c render/trspk_toridraw.c $(TRSPK_UNITY_SRC) \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(PLATFORM_STRIP_LDFLAGS) -lm
+	./$(OBJ_DIR)/trspk_bake_bench
 
 # Packet exec seam against bare managers (no cache/disk). Links the app
 # object set (exec calls into RS_UISlots which references App) minus main.

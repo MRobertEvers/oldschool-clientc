@@ -80,6 +80,116 @@ move_triangles(
         tri_count * sizeof(int));
 }
 
+/*
+ * The (element_id, pose_id) index.
+ *
+ * trspk_modelarena_find is called once per model bake and used to scan every
+ * slot in the arena, so a frame that rebakes N models did O(N^2) slot visits.
+ * The index is a bucket table of slot indices chained through the slots'
+ * own lookup_next field: one word per slot, no per-entry allocation, and
+ * nothing to keep in step when the arena compacts, because compaction sorts
+ * pointers and never changes a slot's index or its keys.
+ */
+
+static uint32_t
+lookup_hash(int element_id, int pose_id)
+{
+    /* Both keys are small non-negative integers and pose_id varies fastest,
+     * so they are mixed rather than concatenated -- otherwise every pose of
+     * one element lands in a handful of adjacent buckets. */
+    uint32_t h = (uint32_t)element_id * 2654435761u;
+    h ^= (uint32_t)pose_id * 2246822519u;
+    h ^= h >> 15;
+    return h;
+}
+
+static void
+lookup_rebuild(struct TRSPK_ModelArena* arena, uint32_t min_buckets)
+{
+    uint32_t buckets = arena->lookup_bucket_count ? arena->lookup_bucket_count : 64u;
+    uint32_t i;
+
+    while( buckets < min_buckets )
+        buckets *= 2u;
+
+    if( buckets != arena->lookup_bucket_count || arena->lookup_buckets == NULL )
+    {
+        uint32_t* grown =
+            (uint32_t*)realloc(arena->lookup_buckets, buckets * sizeof(uint32_t));
+        assert(grown != NULL);
+        arena->lookup_buckets = grown;
+        arena->lookup_bucket_count = buckets;
+    }
+
+    for( i = 0u; i < arena->lookup_bucket_count; ++i )
+        arena->lookup_buckets[i] = TRSPK_MODELSLOT_NULL_IDX;
+
+    for( i = 0u; i < arena->slot_count; ++i )
+    {
+        struct TRSPK_ModelSlot* slot = &arena->slots[i];
+        uint32_t bucket;
+        if( !trspk_modelslot_is_alive(slot) )
+        {
+            slot->lookup_next = TRSPK_MODELSLOT_NULL_IDX;
+            continue;
+        }
+        bucket = lookup_hash(slot->element_id, slot->pose_id) &
+            (arena->lookup_bucket_count - 1u);
+        slot->lookup_next = arena->lookup_buckets[bucket];
+        arena->lookup_buckets[bucket] = i;
+    }
+}
+
+static void
+lookup_insert(struct TRSPK_ModelArena* arena, uint32_t slot_index)
+{
+    struct TRSPK_ModelSlot* slot = &arena->slots[slot_index];
+    uint32_t bucket;
+
+    /* Keep the table at no more than one entry per bucket on average; the
+     * chains stay short and find stays a couple of probes. */
+    if( arena->lookup_bucket_count == 0u || arena->slot_count > arena->lookup_bucket_count )
+    {
+        lookup_rebuild(arena, arena->slot_count * 2u);
+        return; /* the rebuild inserted every live slot, this one included */
+    }
+
+    bucket = lookup_hash(slot->element_id, slot->pose_id) &
+        (arena->lookup_bucket_count - 1u);
+    slot->lookup_next = arena->lookup_buckets[bucket];
+    arena->lookup_buckets[bucket] = slot_index;
+}
+
+static void
+lookup_remove(struct TRSPK_ModelArena* arena, uint32_t slot_index)
+{
+    struct TRSPK_ModelSlot* slot = &arena->slots[slot_index];
+    uint32_t bucket;
+    uint32_t cur;
+    uint32_t prev = TRSPK_MODELSLOT_NULL_IDX;
+
+    if( arena->lookup_bucket_count == 0u )
+        return;
+
+    bucket = lookup_hash(slot->element_id, slot->pose_id) &
+        (arena->lookup_bucket_count - 1u);
+    cur = arena->lookup_buckets[bucket];
+    while( cur != TRSPK_MODELSLOT_NULL_IDX )
+    {
+        if( cur == slot_index )
+        {
+            if( prev == TRSPK_MODELSLOT_NULL_IDX )
+                arena->lookup_buckets[bucket] = slot->lookup_next;
+            else
+                arena->slots[prev].lookup_next = slot->lookup_next;
+            slot->lookup_next = TRSPK_MODELSLOT_NULL_IDX;
+            return;
+        }
+        prev = cur;
+        cur = arena->slots[cur].lookup_next;
+    }
+}
+
 static void
 ensure_slot_capacity(
     struct TRSPK_ModelArena* arena,
@@ -123,6 +233,9 @@ free_slot(
     assert(slot_index < arena->slot_count);
 
     struct TRSPK_ModelSlot* slot = &arena->slots[slot_index];
+    /* Before the flags are cleared: the bucket is derived from the keys,
+     * and a dead slot must not stay reachable from the index. */
+    lookup_remove(arena, slot_index);
     slot->flags = 0u;
     slot->next_free = arena->free_head;
     arena->free_head = slot_index;
@@ -241,6 +354,7 @@ trspk_modelarena_free(struct TRSPK_ModelArena* arena)
     if( arena == NULL )
         return;
 
+    free(arena->lookup_buckets);
     free(arena->slots);
     free(arena);
 }
@@ -298,6 +412,8 @@ trspk_modelarena_load(
     slot->pose_id = pose_id;
     slot->flags = TRSPK_MODELSLOT_FLAG_ALIVE;
     slot->next_free = TRSPK_MODELSLOT_NULL_IDX;
+    slot->lookup_next = TRSPK_MODELSLOT_NULL_IDX;
+    lookup_insert(arena, slot_index);
 
     return slot_index;
 }
@@ -353,12 +469,22 @@ trspk_modelarena_find(
 {
     assert(arena != NULL);
 
-    for( uint32_t i = 0u; i < arena->slot_count; ++i )
+    if( arena->lookup_bucket_count == 0u )
+        return TRSPK_MODELSLOT_NULL_IDX;
+
     {
-        const struct TRSPK_ModelSlot* slot = &arena->slots[i];
-        if( trspk_modelslot_is_alive(slot) && slot->element_id == element_id &&
-            slot->pose_id == pose_id )
-            return i;
+        const uint32_t bucket = lookup_hash(element_id, pose_id) &
+            (arena->lookup_bucket_count - 1u);
+        uint32_t cur = arena->lookup_buckets[bucket];
+
+        while( cur != TRSPK_MODELSLOT_NULL_IDX )
+        {
+            const struct TRSPK_ModelSlot* slot = &arena->slots[cur];
+            if( trspk_modelslot_is_alive(slot) && slot->element_id == element_id &&
+                slot->pose_id == pose_id )
+                return cur;
+            cur = slot->lookup_next;
+        }
     }
 
     return TRSPK_MODELSLOT_NULL_IDX;
@@ -372,6 +498,14 @@ trspk_modelarena_clear(struct TRSPK_ModelArena* arena)
     arena->slot_count = 0u;
     arena->free_head = TRSPK_MODELSLOT_NULL_IDX;
     arena->write_cursor = 0u;
+
+    /* Every bucket head names a slot that no longer exists. Leaving them
+     * would let find hand back a slot index from the previous scene. */
+    {
+        uint32_t i;
+        for( i = 0u; i < arena->lookup_bucket_count; ++i )
+            arena->lookup_buckets[i] = TRSPK_MODELSLOT_NULL_IDX;
+    }
 
     if( arena->vbo_chain != NULL )
         trspk_vbochain16_reset(arena->vbo_chain);

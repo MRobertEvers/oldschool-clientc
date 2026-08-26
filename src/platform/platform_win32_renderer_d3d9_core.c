@@ -3201,9 +3201,10 @@ d3d9_ui_draw_model_widget(
         if( !trspk_toridraw_bake_face_handle(
                 command->model,
                 (uint32_t)face_index,
-                NULL,
+                &trspk_world_placement_identity,
                 renderer->scene,
                 true,
+                TRSPK_BAKE_COLOR_FLOAT,
                 &face) ||
             (face.color_a[3] <= (1.0f / 255.0f) &&
              face.color_b[3] <= (1.0f / 255.0f) &&
@@ -3648,13 +3649,44 @@ d3d9_unload_texture(struct ToriRS_D3D9* renderer, int tex_id)
     }
 }
 
+/* Where a slot's tile starts in the atlas.
+ *
+ * Resolving it costs a division and a modulo, and it is the SAME for all
+ * three corners of a face -- so a face loop resolves it once and maps three
+ * corners against it, rather than re-deriving the tile per corner. */
+struct D3D9AtlasTileUV
+{
+    float origin_u;
+    float origin_v;
+    /** No slot at all: every corner collapses onto the tile centre. */
+    bool untextured;
+};
+
 static void
-d3d9_map_atlas_uv(int slot, float local_u, float local_v, float* out_u, float* out_v)
+d3d9_atlas_tile_uv_begin(int slot, struct D3D9AtlasTileUV* tile)
 {
     const float cell = (float)TRSPK_ATLAS_TILE / (float)D3D9_ATLAS_DIM;
-    if( slot < 0 )
+    unsigned int index;
+    tile->untextured = slot < 0;
+    index = tile->untextured ? 0u : (unsigned int)slot;
+    /* The grid is a power of two wide, so the row and column are a shift
+     * and a mask. Signed / and %% would have made the compiler emit the
+     * sign-correcting sequence for a value that is never negative. */
+    tile->origin_u = (float)(index & (D3D9_ATLAS_COLS - 1u)) * cell;
+    tile->origin_v = (float)(index / D3D9_ATLAS_COLS) * cell;
+}
+
+static void
+d3d9_atlas_tile_uv_map(
+    const struct D3D9AtlasTileUV* tile,
+    float local_u,
+    float local_v,
+    float* out_u,
+    float* out_v)
+{
+    const float cell = (float)TRSPK_ATLAS_TILE / (float)D3D9_ATLAS_DIM;
+    if( tile->untextured )
     {
-        slot = 0;
         local_u = 0.5f;
         local_v = 0.5f;
     }
@@ -3670,8 +3702,16 @@ d3d9_map_atlas_uv(int slot, float local_u, float local_v, float* out_u, float* o
         local_v = 0.008f;
     else if( local_v > 0.992f )
         local_v = 0.992f;
-    *out_u = (float)(slot % (int)D3D9_ATLAS_COLS) * cell + local_u * cell;
-    *out_v = (float)(slot / (int)D3D9_ATLAS_COLS) * cell + local_v * cell;
+    *out_u = tile->origin_u + local_u * cell;
+    *out_v = tile->origin_v + local_v * cell;
+}
+
+static void
+d3d9_map_atlas_uv(int slot, float local_u, float local_v, float* out_u, float* out_v)
+{
+    struct D3D9AtlasTileUV tile;
+    d3d9_atlas_tile_uv_begin(slot, &tile);
+    d3d9_atlas_tile_uv_map(&tile, local_u, local_v, out_u, out_v);
 }
 
 static void
@@ -4557,6 +4597,7 @@ d3d9_bake_pose_vertices(
     struct ToriDraw_ModelHandle model_handle,
     const struct ToriDraw_Position* world_position)
 {
+    struct TRSPK_WorldPlacement placement;
     int face_count;
     uint32_t face_index;
 
@@ -4566,27 +4607,36 @@ d3d9_bake_pose_vertices(
     if( face_count <= 0 )
         return false;
 
+    /* Every vertex of this model is placed by the same rotation, so it is
+     * resolved here rather than inside the per-corner transform. */
+    trspk_toridraw_placement_init(&placement, world_position);
+
     for( face_index = 0u; face_index < (uint32_t)face_count; face_index++ )
     {
         struct TRSPK_ToriDrawBakeFaceVerts face;
+        struct D3D9AtlasTileUV tile;
         uint32_t vertex = vertex_base + face_index * 3u;
-        float ua = 0.5f;
-        float va = 0.5f;
-        float ub = 0.5f;
-        float vb = 0.5f;
-        float uc = 0.5f;
-        float vc = 0.5f;
+        float ua;
+        float va;
+        float ub;
+        float vb;
+        float uc;
+        float vc;
+        float tex_id_f;
         int triangle_config = TRSPK_TRIANGLES_ATLAS;
         int slot = 0;
         bool missing_texture_slot = false;
 
-        memset(&face, 0, sizeof(face));
+        /* No memset: bake_face_handle either fills every field this loop
+         * reads, or returns false and the face is skipped. Zeroing 128 bytes
+         * per face to then overwrite all of them is pure cost. */
         if( !trspk_toridraw_bake_face_handle(
                 model_handle,
                 face_index,
-                world_position,
+                &placement,
                 renderer->scene,
                 true,
+                TRSPK_BAKE_COLOR_ARGB,
                 &face) )
             continue;
 
@@ -4621,12 +4671,12 @@ d3d9_bake_pose_vertices(
                 else
                     missing_texture_slot = true;
             }
-            d3d9_map_atlas_uv(
-                face.tex_id >= 0 ? slot : -1, face.uv.u1, face.uv.v1, &ua, &va);
-            d3d9_map_atlas_uv(
-                face.tex_id >= 0 ? slot : -1, face.uv.u2, face.uv.v2, &ub, &vb);
-            d3d9_map_atlas_uv(
-                face.tex_id >= 0 ? slot : -1, face.uv.u3, face.uv.v3, &uc, &vc);
+            /* One tile for the whole face; the three corners only clamp and
+             * scale into it. */
+            d3d9_atlas_tile_uv_begin(face.tex_id >= 0 ? slot : -1, &tile);
+            d3d9_atlas_tile_uv_map(&tile, face.uv.u1, face.uv.v1, &ua, &va);
+            d3d9_atlas_tile_uv_map(&tile, face.uv.u2, face.uv.v2, &ub, &vb);
+            d3d9_atlas_tile_uv_map(&tile, face.uv.u3, face.uv.v3, &uc, &vc);
         }
 
         if( missing_texture_slot )
@@ -4634,50 +4684,32 @@ d3d9_bake_pose_vertices(
             /* Slot zero is intentionally opaque white for genuinely
              * untextured faces.  An invalid/full textured face must not use it
              * as a visible fallback. */
-            face.color_a[3] = 0.0f;
-            face.color_b[3] = 0.0f;
-            face.color_c[3] = 0.0f;
+            face.argb_a &= 0x00FFFFFFu;
+            face.argb_b &= 0x00FFFFFFu;
+            face.argb_c &= 0x00FFFFFFu;
         }
 
+        tex_id_f = (float)face.tex_id;
         trspk_triangles_set(
             triangles,
             trspk_triangles_index_from_vertex(vertex),
             triangle_config);
-        trspk_vbo_write_vertex_d3d9(
-            vbo,
-            vertex,
-            face.wx_a,
-            face.wy_a,
-            face.wz_a,
-            face.color_a,
-            ua,
-            va,
-            (float)face.tex_id);
-        trspk_vbo_write_vertex_d3d9(
-            vbo,
-            vertex + 1u,
-            face.wx_b,
-            face.wy_b,
-            face.wz_b,
-            face.color_b,
-            ub,
-            vb,
-            (float)face.tex_id);
-        trspk_vbo_write_vertex_d3d9(
-            vbo,
-            vertex + 2u,
-            face.wx_c,
-            face.wy_c,
-            face.wz_c,
-            face.color_c,
-            uc,
-            vc,
-            (float)face.tex_id);
+        trspk_vbo_write_vertex_d3d9_argb(
+            vbo, vertex, face.wx_a, face.wy_a, face.wz_a, face.argb_a, ua, va,
+            tex_id_f);
+        trspk_vbo_write_vertex_d3d9_argb(
+            vbo, vertex + 1u, face.wx_b, face.wy_b, face.wz_b, face.argb_b, ub, vb,
+            tex_id_f);
+        trspk_vbo_write_vertex_d3d9_argb(
+            vbo, vertex + 2u, face.wx_c, face.wy_c, face.wz_c, face.argb_c, uc, vc,
+            tex_id_f);
     }
 
+    /* The flag is idempotent, so it is set once for the model instead of
+     * three times per face. */
+    trspk_vbo_set_dirty(vbo);
     return true;
 }
-
 static uint32_t
 d3d9_bake_into_arena(
     struct ToriRS_D3D9* renderer,
