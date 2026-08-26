@@ -1562,6 +1562,8 @@ ToriDraw_ComputeProjectedFaceOrder(
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
     {
         struct ToriDraw_Model* m = model_as_full(hnd);
         fia = m->face_indices_a;
@@ -2171,6 +2173,8 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
     {
         struct ToriDraw_Model* m = model_as_full(hnd);
         fia = m->face_indices_a;
@@ -3451,6 +3455,8 @@ toridraw_projected_model_hit_face(
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
     {
         struct ToriDraw_Model* m = model_as_full(hnd);
         fia = m->face_indices_a;

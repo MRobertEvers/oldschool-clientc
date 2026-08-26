@@ -1061,6 +1061,8 @@ context_from_handle(
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
     {
         struct ToriDraw_Model* m = model_as_full(hnd);
         ctx->num_faces = m->face_count;
@@ -1281,6 +1283,8 @@ ToriDraw_RasterPainter(
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
         toridraw_raster_context_init(
             scene,
             hnd,
@@ -1319,6 +1323,8 @@ ToriDraw_RasterZ(
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
         toridraw_raster_context_init(
             scene,
             hnd,

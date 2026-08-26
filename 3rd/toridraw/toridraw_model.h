@@ -380,6 +380,8 @@ ToriDraw_ModelGetBoundsCylinder(struct ToriDraw_ModelHandle hnd)
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
         if( !hnd.u.model.model )
             return NULL;
         return hnd.u.model.model->bounds_cylinder;
@@ -453,6 +455,8 @@ ToriDraw_ModelHasTextures(struct ToriDraw_ModelHandle hnd)
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
         return hnd.u.model.model->textured_face_count > 0;
     default:
         return false;
@@ -466,6 +470,8 @@ ToriDraw_ModelGetFaceCount(struct ToriDraw_ModelHandle hnd)
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
         return hnd.u.model.model->face_count;
     default:
         return 0;
@@ -479,6 +485,8 @@ ToriDraw_ModelGetVertexCount(struct ToriDraw_ModelHandle hnd)
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
         return hnd.u.model.model->vertex_count;
     default:
         return 0;
@@ -492,6 +500,8 @@ ToriDraw_ModelGetVerticesX(struct ToriDraw_ModelHandle hnd)
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
         return hnd.u.model.model->vertices_x;
     default:
         return NULL;
@@ -505,6 +515,8 @@ ToriDraw_ModelGetVerticesY(struct ToriDraw_ModelHandle hnd)
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
         return hnd.u.model.model->vertices_y;
     default:
         return NULL;
@@ -518,6 +530,8 @@ ToriDraw_ModelGetVerticesZ(struct ToriDraw_ModelHandle hnd)
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
         return hnd.u.model.model->vertices_z;
     default:
         return NULL;

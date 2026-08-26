@@ -632,7 +632,7 @@ scenery_debug_record(
     struct WorldEntity_Scenery* scenery,
     struct ToriRS_MapLoc* map_tile,
     struct ToriRS_Location* config_loc,
-    struct ToriDraw_Model* model,
+    const struct ToriDraw_Model* model,
     int element_id,
     int pool_idx,
     int size_x,
@@ -988,6 +988,9 @@ scenery_load_model(
 {
     struct World* world = builder->world;
     struct ToriDraw_Model* model = NULL;
+    /* The placement's geometry, read back out of the handle once a store has
+     * taken ownership of `model`. */
+    const struct ToriDraw_Model* geom = NULL;
     /* The placement's model AND who owns its geometry. Both stores answer in
      * this type, so the one fact that distinguishes a cache hit from a fresh
      * build cannot be dropped on the way to ToriDraw_SceneElementSetModel. */
@@ -1032,7 +1035,9 @@ scenery_load_model(
 
     if( hnd.kind != TORIDRAWMK_NONE )
     {
-        model = ToriDraw_ModelAsFull(hnd);
+        /* A hit means the store owns this geometry; there is no writable
+         * pointer to it and this placement does not need one. */
+        geom = ToriDraw_ModelRead(hnd);
         from_cache = true;
         /* Deferred draw-time rotation is an animated-loc mechanism, and
          * animated locs are never shareable — a non-zero value here means the
@@ -1040,7 +1045,7 @@ scenery_load_model(
         assert(builder->scenery_deferred_angle == 0);
         /* The wants registry outlives any one model; re-report from the copy
          * exactly as a fresh build reports from its final face_textures. */
-        ToriDraw_ModelNoteTextureWants(model);
+        ToriDraw_ModelNoteTextureWants(geom);
     }
     else
     {
@@ -1107,6 +1112,18 @@ scenery_load_model(
         }
     }
 
+    /*
+     * `model` is SPENT from here on. Both stores consume what they are given --
+     * the shell is freed and its arrays live inside a ToriDraw_SharedModel or a
+     * ToriDraw_ModelLentFaces now -- so everything below reads the geometry
+     * back out of the handle instead. Holding the old pointer across those
+     * calls is a use-after-free, and a quiet one: it reads a freed shell's
+     * vertex_count and walks whatever it finds.
+     */
+    if( !geom )
+        geom = ToriDraw_ModelRead(hnd);
+    assert(geom);
+
     if( wb_census_on() )
     {
         /* Duplicates are counted at what they WOULD cost unshared -- the
@@ -1114,7 +1131,7 @@ scenery_load_model(
          * the size of the saving. Actual retained bytes are the proto line
          * alone: a key with N placements now holds one model, built on the
          * miss below. */
-        size_t const bytes = ToriDraw_ModelHeapBytes(model);
+        size_t const bytes = ToriDraw_ModelHeapBytes(geom);
         if( from_cache )
         {
             g_wb_census_dup_n++;
@@ -1214,7 +1231,7 @@ scenery_load_model(
                 if( builder->scenery_runtime_spawn )
                     sc->runtime_spawn = 1;
                 scenery_debug_record(
-                    builder, sc, map_tile, config_loc, model, element_id, pool_idx, size_x,
+                    builder, sc, map_tile, config_loc, geom, element_id, pool_idx, size_x,
                     size_z);
             }
         }
@@ -1223,7 +1240,6 @@ scenery_load_model(
     /* `hnd` came from whichever store served this placement, or from
      * ToriDraw_ModelHandleOwned when none did -- so the type it carries was
      * never a claim this function made up. */
-    assert(ToriDraw_ModelAsFull(hnd) == model);
     ToriDraw_SceneElementSetModel(builder->scene, element_id, hnd);
 
     /* LocType.raiseobject: stamp model minY (max of -vy) onto every tile of the
@@ -1240,9 +1256,9 @@ scenery_load_model(
     {
         int raise = 0;
         int level = map_tile->chunk_pos_level;
-        for( int v = 0; v < model->vertex_count; v++ )
+        for( int v = 0; v < geom->vertex_count; v++ )
         {
-            int h = -(int)model->vertices_y[v];
+            int h = -(int)geom->vertices_y[v];
             if( h > raise )
                 raise = h;
         }
