@@ -75,10 +75,16 @@ test('a decode that throws settles rather than rejecting', async () => {
  * Through a running session
  * ---------------------------------------------------------------------- */
 
-function harness({ loader }) {
+/*
+ * `sprites`/`fonts` are parameters because the PAINTER reads them.
+ *
+ * A caller that builds a store, hands it to the loader and lets the harness
+ * make a second empty one for the session has a painter that can draw
+ * nothing — it then asks the loader for all of it, which is the opposite of
+ * what a test about "no awaited loads" is measuring.
+ */
+function harness({ loader, sprites = new SpriteStore(), fonts = new FontStore() }) {
     const surface = createRecordingSurface();
-    const fonts = new FontStore();
-    const sprites = new SpriteStore();
     const session = createSession({
         surface, loader, sprites, fonts, onWarning: () => {},
         root: { x: 0, y: 0, width: 400, height: 300 },
@@ -152,7 +158,7 @@ test('a mass rebuild whose assets are present never suspends', async () => {
     const sprites = new SpriteStore();
     for( let id = 0; id < 64; id++ ) sprites.put(id, { width: 4, height: 4 });
     const loader = createLoader({ sprites });
-    const { session } = harness({ loader });
+    const { session } = harness({ loader, sprites });
 
     const container = session.tree.push({
         componentId: 0x30001, type: WIDGET_TYPE.LAYER,
@@ -169,7 +175,13 @@ test('a mass rebuild whose assets are present never suspends', async () => {
 
     assert.equal(await session.frame(0), true, 'settled and painted in one frame');
     assert.equal(loader.stats.async, 0, 'nothing was awaited');
-    assert.ok(loader.stats.sync > 0, 'and the synchronous path did the work');
+    /*
+     * And every one of the 500 graphics DREW. A store the painter cannot see
+     * makes the frame settle just as fast while painting nothing, so the
+     * timing assertion above passes for a session that shows an empty panel;
+     * this is the half that says the rebuild produced pixels.
+     */
+    assert.equal(session.painter.stats.missingAssets, 0, 'every graphic had its sprite');
     assert.equal(session.tree.children(container).length, 500);
 });
 

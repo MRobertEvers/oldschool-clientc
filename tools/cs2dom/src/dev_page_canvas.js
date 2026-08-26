@@ -135,6 +135,7 @@ pre.empty { color: var(--dim); font-style: italic; }
   <button id="reload" title="Re-run the interface from scratch">Remount</button>
   <button id="panels" title="Show or hide the side panels">Panels</button>
   <div class="spacer"></div>
+  <div class="metric" id="m-zoom">1x</div>
   <div class="metric" id="m-frame">frame <b>—</b></div>
   <div class="metric" id="m-calls">host <b>—</b></div>
   <div class="metric" id="m-nodes">nodes <b>—</b></div>
@@ -183,6 +184,7 @@ const $ = (id) => document.getElementById(id);
 const canvas = $('surface');
 const log = $('log');
 const statusLine = $('status');
+const zoom = $('m-zoom');
 
 /* Mounting an interface is not instant -- 200-odd scripts are fetched and
  * compiled before the first frame -- and a mount that dies mid-way used to
@@ -205,6 +207,7 @@ const chrome = {
   selected: null,
   /* The ROOT the interface is laid out in — fixed, never the pane's size. */
   size: { width: 765, height: 503 },
+  scale: 1,
   drafts: new Map(),
   pane: 'if',
   records: { if: '', cs2: '', js: '' },
@@ -492,18 +495,25 @@ function toModuleUrl(source) {
  * The cache authored every position against a fixed root — 765x503 is what
  * the reference client runs and what the parity captures were taken at — so
  * handing the interface the pane's size instead lays it out at a size no
- * reference ever had. The bank window came out at half width in a narrow
- * pane, which looks like a drawing bug and is a measurement one.
+ * reference ever had.
+ *
+ * The scale SNAPS TO AN INTEGER once there is room for 1:1. This is pixel
+ * art: at 2x every source pixel is exactly four, and at 2.7x some are three
+ * screen pixels wide and some are two, which shows up as uneven strokes on
+ * every glyph. Below 1:1 there is nothing to snap to, so the pane's own
+ * ratio is used and the picture is merely small.
  */
 function fit() {
   if( !runtime ) return;
   const { width, height } = chrome.size;
-  const scale = Math.max(0.1, Math.min(
-    1,
+  const room = Math.min(
     (stage.clientWidth - 32) / width,
-    (stage.clientHeight - 32) / height));
+    (stage.clientHeight - 32) / height);
+  const scale = room >= 1 ? Math.floor(room) : Math.max(0.1, room);
+  chrome.scale = scale;
   canvas.style.width = Math.floor(width * scale) + 'px';
   canvas.style.height = Math.floor(height * scale) + 'px';
+  zoom.textContent = scale >= 1 ? scale + 'x' : Math.round(scale * 100) + '%';
 }
 
 function applyDraft(session, id, value) {

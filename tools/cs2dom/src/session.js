@@ -75,6 +75,17 @@ export class InterfaceSession {
         this.painter = surface
             ? createPainter({ surface, sprites, fonts, models })
             : null;
+        /*
+         * The loader, kept for the PAINTER's wants as well as the driver's.
+         *
+         * A park is a script asking for something. A cache component's
+         * `graphic=` is never read by a script, so nothing ever parks on it —
+         * the only thing that knows the sprite is needed is the paint that
+         * tried to draw it and found the store empty.
+         */
+        this.loader = loader;
+        this.assetsRequested = new Set();
+        this.repaintWanted = false;
 
         /*
          * Input is QUEUED, not handled.
@@ -137,8 +148,14 @@ export class InterfaceSession {
         }
 
         this.layout.resolve();
+        /*
+         * An asset that ARRIVED is a reason to paint even though the tree did
+         * not change: the walk is about the tree, and the bank's button icons
+         * land seconds after the widgets that draw them.
+         */
         const changed = this.emitter.walk({ hoveredComponentId: this.hoveredComponentId });
-        if( !changed ) return false;
+        if( !changed && !this.repaintWanted ) return false;
+        this.repaintWanted = false;
 
         if( this.painter )
         {
@@ -146,8 +163,38 @@ export class InterfaceSession {
                 width: this.layout.root.width, height: this.layout.root.height,
             });
             this.stats.painted++;
+            this._serveWanted();
         }
         return true;
+    }
+
+    /**
+     * Load what the paint could not draw.
+     *
+     * Each id is requested ONCE — a sprite the content tree does not have
+     * would otherwise be re-requested every frame forever — and an arrival
+     * asks for one more paint, because the tree it belongs to has not changed
+     * and the walk would report nothing to do.
+     */
+    _serveWanted() {
+        if( !this.loader ) return;
+        const wanted = this.painter.wanted;
+        const kinds = [['sprite', wanted.sprites], ['font', wanted.fonts], ['model', wanted.models]];
+        for( const [kind, ids] of kinds )
+        {
+            if( ids.size === 0 ) continue;
+            const pending = [...ids];
+            ids.clear();
+            for( const id of pending )
+            {
+                const key = `${kind}:${id}`;
+                if( this.assetsRequested.has(key) ) continue;
+                this.assetsRequested.add(key);
+                Promise.resolve(this.loader.load(kind, id, null))
+                    .then((produced) => { if( produced ) this.repaintWanted = true; })
+                    .catch(() => {});
+            }
+        }
     }
 
     /**
