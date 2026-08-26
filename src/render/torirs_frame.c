@@ -1560,6 +1560,17 @@ translate_ui_cmd(
     return false;
 }
 
+/* TORIRS_VP_DEBUG, read once -- this runs once per frame, so the getenv was
+ * cheap, but leaving one live getenv on the frame path invites the next one. */
+static int
+vp_debug_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_VP_DEBUG") ? 1 : 0;
+    return armed;
+}
+
 void
 ToriRS_Frame_BuildWorldViewPort(
     struct UITreeEmitDesc const* desc,
@@ -1617,7 +1628,7 @@ ToriRS_Frame_BuildWorldViewPort(
     }
     /* TORIRS_VP_DEBUG=1: the raster/texture origin is the clip-rect center;
      * it must land on x_center/y_center or textured faces skew. */
-    if( getenv("TORIRS_VP_DEBUG") )
+    if( vp_debug_armed() )
         TORIRS_LOG("world_vp: desc=(%d,%d %dx%d) clip=(%d,%d %dx%d) canvas=%dx%d "
             "-> w=%d h=%d center=(%d,%d) raster_origin=(%d,%d)\n",
             desc->x, desc->y, desc->w, desc->h,

@@ -2253,6 +2253,18 @@ emit_role_overlay_groups(
     }
 }
 
+/* TORIRS_MODEL_CLIP_DEBUG, read once -- it sits on a per-model-desc path in
+ * the emit walk, where a getenv() per frame per model is a linear scan of the
+ * environment block to decide not to print. */
+static int
+model_clip_debug_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_MODEL_CLIP_DEBUG") ? 1 : 0;
+    return armed;
+}
+
 static void
 emit_walk_node(
     struct UITree const* tree,
@@ -2648,7 +2660,7 @@ emit_walk_node(
          * scissored to — the model overflows its box and is only bounded by
          * this clip (the enclosing interface layer ∩ surface). A clip narrower
          * than the widget's own right edge is what crops a chathead. */
-        if( desc.kind == UITREE_EMIT_MODEL && getenv("TORIRS_MODEL_CLIP_DEBUG") )
+        if( desc.kind == UITREE_EMIT_MODEL && model_clip_debug_armed() )
             TORIRS_LOG("model com=0x%08x box=%d,%d %dx%d (right=%d) clip=%d,%d %dx%d (right=%d)\n",
                 desc.component_id, desc.x, desc.y, desc.w, desc.h, desc.x + desc.w,
                 desc.clip.x, desc.clip.y, desc.clip.w, desc.clip.h,
