@@ -721,9 +721,19 @@ torirs_component_pack_apply_layout(
         if( !rs )
             continue;
 
-        int rel_x = rs->if3 ? rs->baseX : rs->x;
-        int rel_y = rs->if3 ? rs->baseY : rs->y;
-        ToriRS_ComponentApplyWalkLayout(dst, rs->layer, rel_x, rel_y);
+        /*
+         * `baseX`/`baseY` for BOTH formats. `x`/`y` on the decoded component
+         * are the reference's RUNTIME position — a field the server writes —
+         * and the dat2 decoder never populates them: every one of its three
+         * paths, IF1 included, reads the authored position into `baseX`.
+         *
+         * Reading `x` for an if3=0 component therefore read a zero, and every
+         * IF1 component in the cache laid out at its parent's origin. It is
+         * quiet because the legacy interfaces are few and mostly small:
+         * `messagescroll`'s scroll model sat at (0,0) instead of (220,166),
+         * and 65 interfaces in the corpus were wrong the same way.
+         */
+        ToriRS_ComponentApplyWalkLayout(dst, rs->layer, rs->baseX, rs->baseY);
         if( rs->baseWidth > 0 )
             dst->width = rs->baseWidth;
         if( rs->baseHeight > 0 )

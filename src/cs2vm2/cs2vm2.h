@@ -262,6 +262,12 @@ struct CS2VM2_Thread
     int yield_halt_script_id;
     int yield_halt_pc;
     int yield_halt_count;
+    /* Which RESOURCE the halt count is counting yields for. An opcode may need
+     * two different loads -- DB_GETFIELD wants the row and then its table
+     * index -- and those are progress, not a spin. See CS2VM2_CheckYieldHalt. */
+    enum CS2VM_HostRequestKind yield_halt_awaited_kind;
+    int yield_halt_awaited_id;
+    int yield_halt_awaited_id2;
 
     /* Cache-load retry identity belongs to the executing thread, not the
      * shared game host. Several Task_CS2Run instances can be parked at once;

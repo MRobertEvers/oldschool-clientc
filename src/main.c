@@ -692,6 +692,19 @@ EM_JS(void, web_mark_frame_event, (const char* label), {
         performance.mark(s);
     console.warn('[torirs] ' + s);
 });
+
+/* Tell whoever embedded this page that the module will take commands now.
+ *
+ * An embedder can see the iframe load and the canvas appear well before the
+ * runtime is far enough in to accept a cmdbus frame, and a harness that guesses
+ * at that gap guesses wrong. Called once, where the loop begins: the exports
+ * exist, the ring exists, and anything pushed from here on drains on the next
+ * iteration. A page with no such hook is the ordinary case and costs the call.
+ */
+EM_JS(void, web_announce_ready, (void), {
+    if( typeof window !== 'undefined' && typeof window.torirsAnnounceReady === 'function' )
+        window.torirsAnnounceReady();
+});
 #endif
 
 static struct App app;
@@ -729,6 +742,99 @@ static int sim_sound_every;
 static long sim_sound_next;
 static long max_frames;
 static long frame_count;
+
+#if defined(TORIRS_PLATFORM_WEB)
+/*
+ * The host's way in: a batch of cmdbus frames, straight from the page.
+ *
+ * The client is embedded — a dev tool, an editor, a test page — and the host
+ * wants to say "open interface 600" or "set varp 300", which no synthesised
+ * click expresses. The TORIRS_SIM_* harnesses answer that natively but are read
+ * once before the loop, and several call App_BootWait, which spins on
+ * TaskRunner_Step and never returns against this lane's asynchronous IO. So the
+ * seam has to be the thing that is already drained once per iteration.
+ *
+ * The wire is src/web/torirs_channel.js's, which is cmdring.h's, which is the
+ * record-file format: [u32 type][u16 length][payload], little-endian, several
+ * concatenated. A host-driven session therefore records and replays like any
+ * other, with its commands at the frames the input around them landed on.
+ *
+ * VALIDATED, NOT ASSERTED. Everywhere else in this file a malformed frame would
+ * be a bug in our own producer and would assert. These bytes are written by a
+ * separate implementation in another language, and OPT=1 compiles asserts out
+ * anyway (src/makefile's -DNDEBUG note), so a truncated batch has to be caught
+ * here or it walks the heap. Refusing is not a silent failure: it returns the
+ * count accepted and says what it rejected.
+ *
+ * Returns frames accepted, or -1 if the batch was malformed (frames before the
+ * bad header are still accepted — the ring took them and the drain will run
+ * them). A full ring also stops the walk; the count says how far it got.
+ */
+EMSCRIPTEN_KEEPALIVE int
+torirs_cmdbus_push_bytes(const uint8_t* data, int length)
+{
+    /* cmdring.h's header, restated as offsets rather than as the struct,
+     * because what crosses is a byte layout and reading it as one is what makes
+     * the two implementations agree. */
+    enum
+    {
+        HEADER_BYTES = 6
+    };
+    int offset = 0;
+    int accepted = 0;
+
+    if( !data || length < 0 )
+    {
+        fprintf(stderr, "cmdbus: push_bytes given no batch\n");
+        return -1;
+    }
+
+    while( offset < length )
+    {
+        uint32_t type;
+        uint32_t payload_length;
+
+        if( length - offset < HEADER_BYTES )
+        {
+            fprintf(
+                stderr,
+                "cmdbus: push_bytes truncated header at %d of %d, %d frames in\n",
+                offset,
+                length,
+                accepted);
+            return -1;
+        }
+        type = (uint32_t)data[offset] | ((uint32_t)data[offset + 1] << 8)
+               | ((uint32_t)data[offset + 2] << 16) | ((uint32_t)data[offset + 3] << 24);
+        payload_length = (uint32_t)data[offset + 4] | ((uint32_t)data[offset + 5] << 8);
+        offset += HEADER_BYTES;
+
+        if( payload_length > TORIRS_CMD_MAX_PAYLOAD
+            || payload_length > (uint32_t)(length - offset) )
+        {
+            fprintf(
+                stderr,
+                "cmdbus: push_bytes frame type %u claims %u bytes, %d remain\n",
+                type,
+                payload_length,
+                length - offset);
+            return -1;
+        }
+
+        if( !CmdBus_Push(&bus, type, data + offset, (uint16_t)payload_length) )
+        {
+            /* The ring is full. Not an error in the batch: the host is ahead of
+             * the frame loop, and the frames it already gave us will drain. */
+            fprintf(
+                stderr, "cmdbus: push_bytes ring full, %d of the batch accepted\n", accepted);
+            return accepted;
+        }
+        offset += (int)payload_length;
+        accepted++;
+    }
+    return accepted;
+}
+#endif
 
 /**
  * @brief Frame at which EIP sampling begins; see the call site for why.
@@ -2547,11 +2653,18 @@ frame_loop_teardown(void)
                     continue;
                 if( filter_group >= 0 && group != filter_group )
                     continue;
+                /* The model pose rides at the END of the line: the parity
+                 * parser (cs2dom's emit_parity.js) matches an unanchored
+                 * prefix, so trailing fields are additive. A pixel diff on a
+                 * model widget is unexplainable without the angles. */
                 TORIRS_LOG("EMIT_EXIT[%d] kind=%d com=0x%08x (%d|%d) x=%d y=%d w=%d h=%d scene=%d model=%d "
-                    "color=0x%06x filled=%d trans=%d tiled=%d clip=%d,%d %dx%d\n",
+                    "color=0x%06x filled=%d trans=%d tiled=%d clip=%d,%d %dx%d "
+                    "mzoom=%d mxan=%d myan=%d mzan=%d mox=%d moy=%d\n",
                     i, (int)d->kind, d->component_id, group, d->component_id & 0xFFFF,
                     d->x, d->y, d->w, d->h, d->scene_id, d->model_id, d->color, d->filled, d->trans,
-                    d->tiled, d->clip.x, d->clip.y, d->clip.w, d->clip.h);
+                    d->tiled, d->clip.x, d->clip.y, d->clip.w, d->clip.h,
+                    d->model_zoom, d->model_xan, d->model_yan, d->model_zan,
+                    d->model_x_offset, d->model_y_offset);
             }
         }
         if( getenv("TORIRS_NET_DEBUG") && app.tree )
@@ -3222,8 +3335,13 @@ main_parse_argument_layer(
         }
         if( positional == 1 && argv[argi][0] != '-' )
         {
-            cfg.interface_id = atoi(argv[argi]);
-            if( cfg.interface_id <= 0 )
+            /* strtol with the end pointer, not atoi: 0 is a REAL interface
+             * (100guide_eggs_overlay), and atoi's 0-on-garbage made it
+             * indistinguishable from a typo. Only non-numeric input and
+             * negative ids are invalid. */
+            char* id_end = NULL;
+            cfg.interface_id = (int)strtol(argv[argi], &id_end, 10);
+            if( id_end == argv[argi] || *id_end != '\0' || cfg.interface_id < 0 )
             {
                 TORIRS_ERR("invalid interface id: %s\n", argv[argi]);
                 return 0;
@@ -4824,6 +4942,13 @@ main(
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */
         max_frames = getenv("TORIRS_MAX_FRAMES") ? atol(getenv("TORIRS_MAX_FRAMES")) : 0;
         frame_count = 0;
+        {
+            /* The logic pacer needs this too: a bounded run ticks once per
+             * frame rather than on the wall clock, so `clientclock` lands on
+             * the same cycle every run and an emit dump is reproducible. */
+            extern long g_torirs_max_frames;
+            g_torirs_max_frames = max_frames;
+        }
 
         /* TORIRS_PACE_SPIN=1: spin the 50 fps wait rather than sleeping it. */
         pace_spin = getenv("TORIRS_PACE_SPIN") && atoi(getenv("TORIRS_PACE_SPIN")) != 0;
@@ -4952,6 +5077,10 @@ main(
          * drives frame_loop_step from here on, and the stack below this point
          * is unwound (which is why the loop's state is at file scope).
          * Shutdown happens in frame_loop_tick when the step says stop. */
+#if defined(TORIRS_PLATFORM_WEB)
+        /* Before the unwind, not after: there is no "after". */
+        web_announce_ready();
+#endif
         emscripten_set_main_loop(frame_loop_tick, 0, 1);
         return 0;
 #else

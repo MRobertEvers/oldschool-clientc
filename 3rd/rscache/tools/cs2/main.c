@@ -330,6 +330,10 @@ struct options
      * is a bytecode difference, and the only way to read one is to disassemble
      * both sides — which `--raw` mode already does, given the bytes. */
     const char* dump_directory;
+    /* `decompile --emit ast-json` writes the structured syntax tree instead of
+     * source text. Same pipeline, same failures; a different back end reads it.
+     * The default stays `cs2` because that is what a content tree holds. */
+    bool emit_json;
     bool quiet;
     int* ids;
     int id_count;
@@ -341,7 +345,8 @@ usage(void)
     fprintf(
         stderr,
         "usage:\n"
-        "  cs2 decompile (--cache DIR | --raw DIR) [--names DIR] [--out DIR] [id ...]\n"
+        "  cs2 decompile (--cache DIR | --raw DIR) [--names DIR] [--out DIR]\n"
+        "                [--emit (cs2|ast-json)] [id ...]\n"
         "  cs2 compile   --src (DIR|FILE) [--raw DIR] [--names DIR] [--out DIR] [id ...]\n"
         "  cs2 roundtrip (--cache DIR | --raw DIR) [--names DIR] [--dump DIR] [id ...]\n"
         "  cs2 codec     (--cache DIR | --raw DIR) [--dump DIR] [id ...]\n"
@@ -519,8 +524,12 @@ run_decompile(struct options* options, struct script_store* store, int* ids, int
             fprintf(stderr, "script %d\n", ids[i]);
         char error[512] = { 0 };
         char* name = NULL;
-        char* source = RSCache_CS2_Decompile(ids[i], &decompile_options, &name, error,
-                                             (int)sizeof(error));
+        char* source =
+            options->emit_json
+                ? RSCache_CS2_DecompileJson(ids[i], &decompile_options, &name, error,
+                                            (int)sizeof(error))
+                : RSCache_CS2_Decompile(ids[i], &decompile_options, &name, error,
+                                        (int)sizeof(error));
         if( !source )
         {
             failed++;
@@ -535,7 +544,8 @@ run_decompile(struct options* options, struct script_store* store, int* ids, int
             char file_name[600];
             char path[2048];
             name_to_file(name ? name : "script", file_name, (int)sizeof(file_name));
-            snprintf(path, sizeof(path), "%s/%s.cs2", options->out_directory, file_name);
+            snprintf(path, sizeof(path), "%s/%s%s", options->out_directory, file_name,
+                     options->emit_json ? ".json" : ".cs2");
             if( !write_file(path, source, strlen(source)) )
                 fprintf(stderr, "could not write %s\n", path);
         }
@@ -1537,6 +1547,19 @@ main(int argc, char** argv)
             options.out_directory = argv[++i];
         else if( strcmp(argv[i], "--dump") == 0 && i + 1 < argc )
             options.dump_directory = argv[++i];
+        else if( strcmp(argv[i], "--emit") == 0 && i + 1 < argc )
+        {
+            const char* emit = argv[++i];
+            if( strcmp(emit, "ast-json") == 0 )
+            {
+                options.emit_json = true;
+            }
+            else if( strcmp(emit, "cs2") != 0 )
+            {
+                fprintf(stderr, "unknown --emit '%s' (want cs2 or ast-json)\n", emit);
+                return 2;
+            }
+        }
         else if( strcmp(argv[i], "--rev") == 0 && i + 1 < argc )
             options.revision_name = argv[++i];
         else if( strcmp(argv[i], "--override") == 0 && i + 1 < argc )

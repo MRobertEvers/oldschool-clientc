@@ -20,6 +20,7 @@
 import { writeFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawn, execFileSync } from 'node:child_process';
 
 import { build, loadProject } from './build.js';
 import { generate, DEFAULT_TABLES } from './cachegen.js';
@@ -36,7 +37,7 @@ export function main(argv) {
 
     switch( command ) {
         case 'build': return commandBuild(flags);
-        case 'dev': case 'start': return commandDev(flags);
+        case 'dev-canvas': case 'dev': case 'start': return commandDevCanvas(flags);
         case 'cachegen': return commandCacheGen(flags);
         case 'check': return commandCheck(flags);
         case 'ops': return commandOps();
@@ -55,12 +56,12 @@ function usage(code) {
         '      scripts/<name>.cs2 into the content tree, and allocate ids in the pack\n' +
         '      files. Bake afterwards with: make -C src torirsserver-cache\n\n' +
         '  cs2dom dev [--project DIR] [--cache DIR --rev NAME] [--port N] [--no-open]\n' +
-        '      Watch ui/*.tsx, rebuild on save and show the result in a browser: the\n' +
-        '      authored components, OSRS-Content and Dat2 interfaces through the same\n' +
-        '      live DOM/React runtime. Includes searchable\n' +
-        '      records, runtime-tree inspection and host-state controls.\n\n' +
-        '      --cache opens a Dat2 cache directly; --rev names its cachepack profile.\n' +
-        '      The selective decode is cached in the OS temporary directory.\n\n' +
+        '      Open an interface in the browser and run it in the REAL client —\n' +
+        '      build-web/torirs.wasm, drawing with toridraw and hit-testing with its\n' +
+        '      own code. Three panes: the client, the state to drive it with, and the\n' +
+        '      .if / .compack / .cs2 / JavaScript it compiles to.\n\n' +
+        '      Needs the client built first: make -C src web\n' +
+        '      --cache opens a Dat2 cache directly; --rev names its cachepack profile.\n\n' +
         '  cs2dom cachegen [--project DIR] [--out FILE]\n' +
         '      Regenerate cache.gen.ts — sprite, font, varp, varbit and interface ids\n' +
         '      as typed constants, read from the content tree.\n\n' +
@@ -153,16 +154,141 @@ function report(say, result, project, dryRun) {
     }
 }
 
-function commandDev(flags) {
+/*
+ * The port is taken: say by WHAT, and offer to end it.
+ *
+ * It is nearly always this same server left running from an earlier session,
+ * and killing it is what the user was going to do by hand anyway -- but it
+ * may also be something else entirely, so the process is named before the
+ * question is asked and nothing is killed without an answer. Without a
+ * terminal there is nobody to ask: the condition is reported and the run
+ * stops, which is what a script or a CI job needs.
+ */
+async function offerToKillPortHolder(port) {
+    const holder = portHolder(port);
+    if( !holder )
+    {
+        process.stderr.write(`cs2dom: port ${port} is in use and the holder could not be identified\n`);
+        return false;
+    }
+
+    process.stderr.write(`cs2dom: port ${port} is held by pid ${holder.pid} — ${holder.command}\n`);
+    if( !process.stdin.isTTY )
+    {
+        process.stderr.write(`cs2dom: not a terminal, so nothing was killed; use --port to pick another\n`);
+        return false;
+    }
+    if( !await confirm(`kill ${holder.pid} and take the port? [y/N] `) )
+        return false;
+
+    return killAndWait(holder.pid, port);
+}
+
+/** The pid and command line listening on `port`, or null. */
+function portHolder(port) {
+    try
+    {
+        const pid = execFileSync('lsof', ['-ti', `tcp:${port}`, '-sTCP:LISTEN'], { encoding: 'utf8' })
+            .split('\n')[0].trim();
+        if( !pid ) return null;
+        const command = execFileSync('ps', ['-p', pid, '-o', 'command='], { encoding: 'utf8' }).trim();
+        return { pid: Number(pid), command: command || '(unknown)' };
+    }
+    catch { return null; }
+}
+
+/*
+ * One yes/no on the terminal.
+ *
+ * `end` answers NO. A terminal whose input has already closed -- a pipe that
+ * delivered its line before this ran, a job put in the background -- never
+ * delivers `data`, and waiting on it alone hangs the start with a prompt on
+ * screen and nothing able to answer it.
+ */
+function confirm(question) {
+    return new Promise((answered) => {
+        process.stdout.write(question);
+        process.stdin.setEncoding('utf8');
+        const done = (value) => {
+            process.stdin.off('data', onData);
+            process.stdin.off('end', onEnd);
+            process.stdin.pause();
+            answered(value);
+        };
+        const onData = (line) => done(/^\s*y(es)?\s*$/i.test(line));
+        const onEnd = () => { process.stdout.write('\n'); done(false); };
+        process.stdin.once('data', onData);
+        process.stdin.once('end', onEnd);
+        process.stdin.resume();
+    });
+}
+
+/*
+ * TERM, then wait for the port to actually free.
+ *
+ * Relisting immediately loses the race: the process is gone before the
+ * kernel has released the socket, and the retry fails with the same
+ * EADDRINUSE it was meant to clear. KILL is the fallback for a process that
+ * ignores TERM, and a port still held after that is reported rather than
+ * retried into another crash.
+ */
+async function killAndWait(pid, port) {
+    try { process.kill(pid, 'SIGTERM'); }
+    catch { return true; /* already gone */ }
+
+    for( let attempt = 0; attempt < 50; attempt++ )
+    {
+        await new Promise((tick) => setTimeout(tick, 100));
+        if( !portHolder(port) ) return true;
+        if( attempt === 20 )
+        {
+            try { process.kill(pid, 'SIGKILL'); }
+            catch { /* it exited between the check and the signal */ }
+        }
+    }
+    process.stderr.write(`cs2dom: pid ${pid} would not release port ${port}\n`);
+    return false;
+}
+
+/**
+ * The dev server.
+ *
+ * The preview is the official client compiled to WebAssembly; this server hands
+ * the browser that build, an io_server to answer its cache reads, and the two
+ * things the client has no opinion about — which interface to open, and what
+ * that interface compiles to.
+ */
+function commandDevCanvas(flags) {
     const project = loadProject(flags.project);
     if( flags.cache ) project.cache = resolve(flags.cache);
     if( flags.rev ) project.revision = flags.rev;
-    /* Imported here rather than at the top: a build should not pay for the server. */
-    return import('./dev.js').then(({ serve }) => {
-        serve(project, { port: flags.port || 8099, open: !flags.noOpen });
-        /* The server owns the process from here; there is no exit code to give. */
+    /* Imported here rather than at the top: a build should not pay for the
+     * server, and the server should not pay for the compiler. */
+    return import('./dev_client.js').then(({ serveClient }) => {
+        serveClient({
+            root: resolve(fileURLToPath(new URL('..', import.meta.url))),
+            contentDir: project.content ?? null,
+            cache: project.cache ?? null,
+            revision: project.revision ?? null,
+            names: project.cs2Names ?? null,
+            port: flags.port || 8099,
+            onAddressInUse: offerToKillPortHolder,
+            onListen: (address) => {
+                process.stdout.write(`cs2dom: ${address}\n`);
+                if( !flags.noOpen ) openBrowser(address);
+            },
+        });
+        /* The server owns the process from here; there is no exit code. */
         return new Promise(() => {});
     });
+}
+
+/** Open the page, or carry on: a server that cannot is still a server. */
+function openBrowser(address) {
+    const command = process.platform === 'darwin' ? 'open'
+        : process.platform === 'win32' ? 'start' : 'xdg-open';
+    try { spawn(command, [address], { stdio: 'ignore', detached: true }).unref(); }
+    catch { /* nothing to do about it */ }
 }
 
 function commandCacheGen(flags) {
