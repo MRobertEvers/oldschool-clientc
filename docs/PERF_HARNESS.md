@@ -469,6 +469,41 @@ frame's work fits, and 15.6 CPU ms of work does fit. Suspect the wait itself —
 `SleepUntilMs` sleeps `remaining - 1` and re-checks, and on a single-core P4
 every one of those returns late.
 
+### Why this client does not throttle to 31 fps the way the Java one does
+
+It is the same pacer, so the question is fair, and the answer is that **we are
+never in the regime where the floor binds.** `TORIRS_PACER_TRACE=1` reports it
+directly — on the XP box, in-world:
+
+```
+[pacer] gameshell fps=48.90 period=20.45 work=11.14 wait=9.30 (req 7.03) ratio=256 atmin=0% budget=20ms
+```
+
+`ratio=256` and `atmin=0%` mean on budget: ~12 ms of work against 20 ms, so
+`del` is recomputed every frame (6–7 ms) and `mindel` never applies. GameShell
+only collapses when `del` falls through to its initialiser, which needs work to
+exceed the budget — and the Java client's does (~22–25 ms/frame) while ours does
+not (~12 ms).
+
+The mechanism is wired correctly and fires when it should. The world-load sample
+from the same run:
+
+```
+[pacer] gameshell fps=25.44 period=39.31 work=30.65 wait=8.67 (req 5.92) ratio=173 atmin=41% budget=20ms
+```
+
+Work 30.65 ms over a 20 ms budget → ratio 173, the floor binding on 41 % of
+frames, 25.4 fps. That is the Java shape, arriving exactly when the budget is
+blown.
+
+Note `wait` 8.2 ms against a `req` of 6.5 ms: **~1.7 ms of overshoot, not ~15.**
+Even when behind, this client waits `work + ~2 ms`, never Java's `work + 16 ms`
+— which is why porting the pacer was never going to port the throttle. The
+throttle never lived in the pacer.
+
+So a trace showing `atmin` near 0 means the cap is being met and the floor is
+irrelevant; `atmin` high with `ratio` well under 256 is the shape worth chasing.
+
 `TORIRS_PACER_MINDEL=<n>` sets GameShell's wait floor in ms (default 1, the
 reference's). **0 is the interesting arm and is our one deliberate divergence
 from the reference**, which hard-codes 1 there and can only raise it: on the XP
