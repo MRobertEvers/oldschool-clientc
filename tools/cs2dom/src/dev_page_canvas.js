@@ -62,9 +62,17 @@ input, select, button {
 }
 button { cursor: pointer; }
 button:hover { border-color: var(--accent); }
-/* The PREVIEW gets the room. A floor under its column keeps a narrow
-   window from squeezing it to a thumbnail beside two fixed panels. */
+/* The PREVIEW gets the room.
+   A 765-wide interface and two fixed panels do not fit in a 800px window,
+   and the loser is always the preview -- it is the only column that can
+   shrink, so it scales down to a thumbnail and the interface looks wrong
+   when it is merely small. The panels collapse instead, by hand or by
+   default on a narrow window. */
 main { display: grid; grid-template-columns: minmax(360px, 1fr) 280px 340px; overflow: hidden; }
+body[data-panels=off] main { grid-template-columns: 1fr; }
+body[data-panels=off] #panel-state,
+body[data-panels=off] #panel-records { display: none; }
+#panels[aria-pressed=false] { color: var(--dim); }
 section { overflow: auto; border-left: 1px solid var(--line); }
 section:first-child { border-left: 0; }
 h2 {
@@ -125,6 +133,7 @@ pre.empty { color: var(--dim); font-style: italic; }
     <div class="pickmenu" id="pickmenu"></div>
   </div>
   <button id="reload" title="Re-run the interface from scratch">Remount</button>
+  <button id="panels" title="Show or hide the side panels">Panels</button>
   <div class="spacer"></div>
   <div class="metric" id="m-frame">frame <b>—</b></div>
   <div class="metric" id="m-calls">host <b>—</b></div>
@@ -138,11 +147,11 @@ pre.empty { color: var(--dim); font-style: italic; }
     <div id="status">select an interface</div>
     <div id="log"></div>
   </section>
-  <section>
+  <section id="panel-state">
     <h2>Host state</h2>
     <div id="state"></div>
   </section>
-  <section>
+  <section id="panel-records">
     <h2>Records</h2>
     <div class="tabs" id="tabs">
       <button data-pane="if" aria-selected="true">.if</button>
@@ -629,6 +638,21 @@ if( 'EventSource' in globalThis )
 
 const stage = $('stage');
 new ResizeObserver(fit).observe(stage);
+
+/*
+ * The side panels start collapsed on a window too narrow to hold the
+ * preview at 1:1. Scaling the canvas is honest -- the geometry is the
+ * reference's either way -- but a half-size interface reads as a rendering
+ * bug, and the panels are the part of the page that can afford to go.
+ */
+const panels = $('panels');
+function setPanels(on) {
+  document.body.dataset.panels = on ? 'on' : 'off';
+  panels.setAttribute('aria-pressed', String(on));
+  fit();
+}
+panels.addEventListener('click', () => setPanels(document.body.dataset.panels === 'off'));
+setPanels(innerWidth >= 765 + 32 + 280 + 340);
 
 fetch('/api/catalogue')
   .then((response) => response.json())
