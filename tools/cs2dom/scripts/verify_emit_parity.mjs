@@ -451,8 +451,18 @@ async function run(reference) {
      */
     const frames = Math.max(1, reference.frames | 0);
     const clock = new HostClock(100);
+    /*
+     * The boot varbit the client seeds before any script runs.
+     *
+     * `App_...` sets `features->varbit_interface_resizing` (17772) to 1
+     * optimistically at boot, and scripts branch on it: `script7925` returns 0
+     * without it, so `league_tasks` keeps its 512-wide default instead of the
+     * 350 the resizable path computes.
+     */
+    const state = new HostState();
+    state.setVarbit(17772, 1);
     const host = createHostKernel({
-        tree, state: new HostState(), config: configs, fonts, clock,
+        tree, state, config: configs, fonts, clock,
         db: createDbState(dbData),
         assets: new StoreAssetSource({ sprites, fonts, config: configs }),
         fakeUnimplemented: true,

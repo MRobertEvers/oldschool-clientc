@@ -46,7 +46,11 @@ export const MOUNT_TYPE = Object.freeze({ MODAL: 0, OVERLAY: 1, TAB: 3 });
 /** Where a preview's client-side state lives. */
 export class ClientState {
     constructor({
-        windowMode = 1, defaultWindowMode = 1, clientType = CLIENTTYPE_DEFAULT,
+        /* RESIZABLE (2), which is what `RS_CS2Host` comes up in. Scripts
+         * branch on it and take a different layout entirely: `script7925`
+         * returns 0 for fixed mode, and `league_tasks` then keeps its 512-wide
+         * default instead of the 350 the resizable path computes. */
+        windowMode = 2, defaultWindowMode = 2, clientType = CLIENTTYPE_DEFAULT,
         options = new Map(), coord = -1, world = 301,
         runEnergy = 100, runWeight = 0, mobile = false,
     } = {}) {
