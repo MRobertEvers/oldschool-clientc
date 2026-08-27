@@ -20,6 +20,42 @@ login_is_active(struct ToriRS_Network* net)
     return net->rev->login ? net->login_generic != NULL : net->loginproto != NULL;
 }
 
+/*
+ * Carry the server's rejection byte across as soon as the handshake has
+ * read it.
+ *
+ * Not on the poll that returns LOGINPROTO_ERROR, which is where this used
+ * to happen: a server that rejects and closes in the same breath gets its
+ * status-driven disconnect in first, and the code is still sitting on the
+ * handshake handle when the login screen goes looking for it. What the
+ * player then reads is "error connecting to server" over a server that
+ * said exactly why -- reply 6, say, which means the client is out of date
+ * and no amount of retrying will help.
+ *
+ * The revisions with their own handshake (osrs239 and friends) never set
+ * the generic field at all, so before this they had no way to reach the
+ * reply table: every refusal they met read as a transport failure.
+ *
+ * Only ever overwrites with a real code, so the CONNECT_FAILED assumption
+ * that connect_login arms stands until a server actually answers.
+ */
+static void
+login_reply_latch(struct ToriRS_Network* net)
+{
+    int code = -1;
+
+    if( net->rev->login )
+    {
+        if( net->rev->login->reply_code && net->login_generic )
+            code = net->rev->login->reply_code(net->login_generic);
+    }
+    else if( net->loginproto )
+        code = net->loginproto->reply_code;
+
+    if( code >= 0 )
+        net->login_reply = code;
+}
+
 static int
 login_poll(struct ToriRS_Network* net)
 {
@@ -287,6 +323,7 @@ loginproto_drive(struct ToriRS_Network* net)
         return;
 
     poll_result = login_poll(net);
+    login_reply_latch(net);
 
     while( (bytes = login_send(net, scratch, sizeof(scratch))) > 0 )
         ToriRS_Network_SendRaw(net, scratch, bytes);
@@ -352,10 +389,6 @@ loginproto_drive(struct ToriRS_Network* net)
     }
     else if( poll_result == LOGINPROTO_ERROR )
     {
-        /* Carried out of the protocol before its state is dropped: the screen
-         * that has to explain this reads it after the transition. */
-        if( net->loginproto )
-            net->login_reply = net->loginproto->reply_code;
         net->reconnect = 0;
         net->state = TORIRS_NET_DISCONNECTED;
     }
@@ -550,7 +583,12 @@ ToriRS_Network_HandleCmd(
             net->conn_status = status;
             if( status == TORIRS_NET_STATUS_DISCONNECTED ||
                 status == TORIRS_NET_STATUS_FAILED )
+            {
+                /* The transport lost the connection. If the handshake had
+                 * already read a verdict, that is the better explanation. */
+                login_reply_latch(net);
                 net->state = TORIRS_NET_DISCONNECTED;
+            }
         }
         break;
     case TORIRS_CMD_NET_CONNECT:
