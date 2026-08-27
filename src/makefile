@@ -2677,6 +2677,15 @@ test-title-flames: $(OBJ_DIR)
 # The login-reply table, read from the shipped profile: a rejection the profile
 # has no words for shows a blank box, which is the one failure a login screen
 # cannot afford.
+# The loading screen's work list, read from the profiles that ship: the bar
+# never moves backwards, every caption names a string that exists, and each
+# lane names work its own machinery can do.
+test-preload: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_preload_test \
+		game/test/rs_preload_test.c game/rs_preload.c game/rs_login_replies.c \
+		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC)
+	./$(OBJ_DIR)/rs_preload_test
+
 test-login-replies: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_login_replies_test \
 		game/test/rs_login_replies_test.c game/rs_login_replies.c \
