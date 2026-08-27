@@ -277,6 +277,10 @@ enum MobileImage
     /** The grey button the 2004 interfaces use for logout and the settings
      *  toggles -- `miscgraphics2` frame 0. The chat switch wears it. */
     IMG_SWITCH,
+    /** `backbase1` and `backbase2`: the base plates the four chat buttons are
+     *  regions OF on the 2004 frame. @see mobile_compose_chat_button. */
+    IMG_CHAT_PLATE,
+    IMG_CHAT_PLATE_END,
     /** The three redstone shapes, in the order the classic frame's own stone
      *  index numbers them. @see MOBILE_TAB_STONE. */
     IMG_REDSTONE_0,
@@ -358,6 +362,8 @@ static char const* const MOBILE_IMAGE_FILE[MOBILE_IMG_COUNT] = {
     [IMG_STONE] = "stone.png",
     [IMG_PLATE] = "rail_back_top_cleaned.png",
     [IMG_SWITCH] = "switch.png",
+    [IMG_CHAT_PLATE] = "chat_plate.png",
+    [IMG_CHAT_PLATE_END] = "chat_plate_end.png",
     [IMG_REDSTONE_0] = "highlight1.png",
     [IMG_REDSTONE_1] = "highlight2.png",
     [IMG_REDSTONE_2] = "highlight3.png",
@@ -400,9 +406,9 @@ enum MobileComposed
      * close enough to fourteen that a table keyed by the thing the draw pass
      * actually has in its hand is simpler than one it has to look up.
      */
-    /** The grey interface button, stretched to a chat filter button's width.
-     *  @see mobile_compose_button. */
-    ART_CHAT_BUTTON,
+    /** The four chat filter buttons, cut out of the base plates at the boxes
+     *  the 2004 frame gives them. @see mobile_compose_chat_button. */
+    ART_CHAT_BUTTON_0,
     /** The two backing plates, turned: one whole column each. */
     ART_PLATE_0,
     ART_PLATE_1,
@@ -415,7 +421,7 @@ enum MobileComposed
      * selection had to be picked out by shade. The plate is what the other
      * thirteen stand on, which is what the desktop frame does too.
      */
-    ART_STONE_0,
+    ART_STONE_0 = ART_CHAT_BUTTON_0 + MOBILE_CHAT_BUTTON_COUNT,
 
     MOBILE_ART_COUNT = ART_STONE_0 + MOBILE_TAB_COUNT
 };
@@ -1080,77 +1086,115 @@ mobile_build_masks(struct ToriRS_PluginCtx* ctx)
 }
 
 /*
- * The grey button, stretched to a width it was never cut for.
+ * Where each chat button sits on the base plates, and how wide.
  *
- * `miscgraphics2` frame 0 is 36 wide and a chat filter button is 100, and the
- * button cannot simply be scaled: its two ends carry the rounded corners and
- * the bevel, and stretching those turns a crisp edge into a smear. So the ends
- * are COPIED at their own size and only the straight middle is stretched --
- * which is safe precisely because the middle is a smooth vertical gradient with
- * no detail along its length to distort.
+ * The 2004 frame's own boxes: `backbase1` is blitted at 0,453 and the four
+ * buttons at y=467, so each is 14 rows down that plate, at x 6, 135, 273 and
+ * 408, a hundred wide and thirty-two tall.
  *
- * The 2004 client does the same thing to the same art; this is that, at the one
- * width this frame needs.
+ * Report abuse is the awkward one. It starts at 408 and is a hundred wide, so
+ * its last twelve columns are past `backbase1`'s 496 and land on `backbase2`,
+ * the corner plate beside it -- which the revconfig's own comment about the
+ * frame corner at x=496 is describing from the other side. So that button is
+ * cut from BOTH plates, and the second is blitted at 496,466, one row above the
+ * first, which is where the extra row comes from.
  */
-#define MOBILE_BUTTON_CAP 10
+#define MOBILE_CHAT_PLATE_Y 14
+#define MOBILE_CHAT_PLATE_END_X 496
+#define MOBILE_CHAT_PLATE_END_DY 1
+static int const MOBILE_CHAT_BUTTON_SRC[MOBILE_CHAT_BUTTON_COUNT] = { 6, 135, 273, 408 };
 
+/*
+ * Cut one chat button out of the base plates.
+ *
+ * The 2004 chat buttons have no sprite of their own -- the revconfig declares
+ * them as a label, a font and four mode colours and nothing else -- because on
+ * the desktop frame they are simply REGIONS of the plate they stand on. So this
+ * frame's buttons are those regions, lifted out at the boxes the frame gives
+ * them: the same stone, the same weathering, in the same four places, but each
+ * one now a button that can float on its own.
+ *
+ * Which is why they are cut rather than stretched from an interface button. An
+ * interface button is a different object with a bevel and rounded ends; four of
+ * those in a row is a frame this cache never had.
+ */
 static int
-mobile_compose_button(
+mobile_compose_chat_button(
     struct ToriRS_PluginCtx* ctx,
     char const* name,
-    int src,
-    int width)
+    int index)
 {
-    uint32_t* px;
+    uint32_t* plate;
+    uint32_t* tail;
     uint32_t* out;
-    int src_w = 0;
-    int src_h = 0;
+    int plate_w = 0;
+    int plate_h = 0;
+    int tail_w = 0;
+    int tail_h = 0;
     int handle;
-    int body;
+    int const from = MOBILE_CHAT_BUTTON_SRC[index];
 
     assert(ctx);
     assert(name);
-    if( src < 0 )
+    assert(index >= 0);
+    assert(index < MOBILE_CHAT_BUTTON_COUNT);
+
+    if( !g_api->image_size(ctx, g_image[IMG_CHAT_PLATE], &plate_w, &plate_h) || plate_w <= 0 )
         return -1;
-    if( !g_api->image_size(ctx, src, &src_w, &src_h) || src_w <= 0 || src_h <= 0 )
-        return -1;
-    if( width < (2 * MOBILE_BUTTON_CAP) + 1 || src_w < (2 * MOBILE_BUTTON_CAP) + 1 )
+    if( !g_api->image_size(ctx, g_image[IMG_CHAT_PLATE_END], &tail_w, &tail_h) || tail_w <= 0 )
         return -1;
 
-    px = malloc((size_t)src_w * (size_t)src_h * sizeof(*px));
-    assert(px);
-    if( g_api->image_pixels(ctx, src, px, src_w * src_h) != src_w * src_h )
+    plate = malloc((size_t)plate_w * (size_t)plate_h * sizeof(*plate));
+    assert(plate);
+    if( g_api->image_pixels(ctx, g_image[IMG_CHAT_PLATE], plate, plate_w * plate_h) !=
+        plate_w * plate_h )
     {
-        free(px);
+        free(plate);
         return -1;
     }
-    out = malloc((size_t)width * (size_t)src_h * sizeof(*out));
-    assert(out);
-    body = src_w - (2 * MOBILE_BUTTON_CAP);
-    for( int row = 0; row < src_h; row++ )
+    tail = malloc((size_t)tail_w * (size_t)tail_h * sizeof(*tail));
+    assert(tail);
+    if( g_api->image_pixels(ctx, g_image[IMG_CHAT_PLATE_END], tail, tail_w * tail_h) !=
+        tail_w * tail_h )
     {
-        for( int col = 0; col < width; col++ )
-        {
-            int from;
+        free(plate);
+        free(tail);
+        return -1;
+    }
 
-            if( col < MOBILE_BUTTON_CAP )
-                from = col;
-            else if( col >= width - MOBILE_BUTTON_CAP )
-                from = src_w - (width - col);
+    out = malloc(
+        (size_t)MOBILE_CHAT_BUTTON_W * (size_t)MOBILE_CHAT_BUTTON_H * sizeof(*out));
+    assert(out);
+    for( int row = 0; row < MOBILE_CHAT_BUTTON_H; row++ )
+    {
+        for( int col = 0; col < MOBILE_CHAT_BUTTON_W; col++ )
+        {
+            int const src_x = from + col;
+            int const src_y = MOBILE_CHAT_PLATE_Y + row;
+            uint32_t pixel = 0x00000000u;
+
+            if( src_x < plate_w )
+            {
+                if( src_y < plate_h )
+                    pixel = plate[(src_y * plate_w) + src_x];
+            }
             else
             {
-                /* Walk the straight middle proportionally, so a 20-column body
-                 * covers 80 columns without repeating a seam. */
-                int const into = col - MOBILE_BUTTON_CAP;
-                int const span = width - (2 * MOBILE_BUTTON_CAP);
+                /* Past the first plate: the corner plate carries on, one row
+                 * higher because it is blitted one row higher. */
+                int const tail_x = src_x - MOBILE_CHAT_PLATE_END_X;
+                int const tail_y = src_y + MOBILE_CHAT_PLATE_END_DY;
 
-                from = MOBILE_BUTTON_CAP + ((into * body) / span);
+                if( tail_x < tail_w && tail_y < tail_h )
+                    pixel = tail[(tail_y * tail_w) + tail_x];
             }
-            out[(row * width) + col] = px[(row * src_w) + from];
+            out[(row * MOBILE_CHAT_BUTTON_W) + col] = pixel;
         }
     }
-    handle = g_api->image_compose(ctx, name, width, src_h, out);
-    free(px);
+    handle = g_api->image_compose(
+        ctx, name, MOBILE_CHAT_BUTTON_W, MOBILE_CHAT_BUTTON_H, out);
+    free(plate);
+    free(tail);
     free(out);
     return handle;
 }
@@ -1173,6 +1217,10 @@ mobile_build_art(struct ToriRS_PluginCtx* ctx)
     if( !g_api->image_size(ctx, g_image[IMG_PLATE], NULL, NULL) )
         return;
     if( !g_api->image_size(ctx, g_image[IMG_SWITCH], NULL, NULL) )
+        return;
+    if( !g_api->image_size(ctx, g_image[IMG_CHAT_PLATE], NULL, NULL) )
+        return;
+    if( !g_api->image_size(ctx, g_image[IMG_CHAT_PLATE_END], NULL, NULL) )
         return;
 
     for( int tab = 0; tab < MOBILE_TAB_COUNT; tab++ )
@@ -1201,8 +1249,13 @@ mobile_build_art(struct ToriRS_PluginCtx* ctx)
      * why the left plate reads (1,1) and the right, being the mirrored one,
      * reads (1,0).
      */
-    g_art[ART_CHAT_BUTTON] = mobile_compose_button(
-        ctx, "chat_button.png", g_image[IMG_SWITCH], MOBILE_CHAT_BUTTON_W);
+    for( int i = 0; i < MOBILE_CHAT_BUTTON_COUNT; i++ )
+    {
+        char name[32];
+
+        snprintf(name, sizeof(name), "chat_button_%d.png", i);
+        g_art[ART_CHAT_BUTTON_0 + i] = mobile_compose_chat_button(ctx, name, i);
+    }
     g_art[ART_PLATE_0] =
         mobile_compose_turned(ctx, "plate_l.png", g_image[IMG_PLATE], 1, 1, /*dim=*/0);
     g_art[ART_PLATE_1] =
@@ -1472,7 +1525,7 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
      */
     for( int i = 0; i < MOBILE_CHAT_BUTTON_COUNT; i++ )
         mobile_blit(
-            g_art[ART_CHAT_BUTTON],
+            g_art[ART_CHAT_BUTTON_0 + i],
             MOBILE_CHAT_BUTTON_X(i),
             strip_y + MOBILE_CHAT_BUTTON_LIFT);
 
