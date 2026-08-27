@@ -2312,6 +2312,11 @@ webgl1_ev_begin_2d(
     (void)command;
     renderer->in2d = true;
     glDisable(GL_DEPTH_TEST);
+    /* Off for 2D. GL state is global and sticky, and the z-buffer world
+     * pass turns culling ON -- a UI quad wound the other way would vanish.
+     * The D3D9 lane gets this for free because d3d9_ui_set_states sets
+     * D3DCULL_NONE outright; here it has to be said. */
+    glDisable(GL_CULL_FACE);
     glDisable(GL_STENCIL_TEST);
     glDisable(GL_SCISSOR_TEST);
     glEnable(GL_BLEND);
@@ -2915,10 +2920,12 @@ webgl1_bind_world_draw_state(struct ToriRS_GL3* renderer)
     else
     {
         /* Painter order: the submission order IS the depth order, so the test
-         * must never reject. */
+         * must never reject. And no culling: the painter sorts faces and has
+         * its own reasons to see every one of them. */
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_ALWAYS);
         glDepthMask(GL_FALSE);
+        glDisable(GL_CULL_FACE);
     }
 }
 
