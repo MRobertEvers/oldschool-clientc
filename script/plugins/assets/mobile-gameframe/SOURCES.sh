@@ -18,16 +18,22 @@
 # used for something the 2004 client never used them for and the old names would
 # describe the wrong thing:
 #
-#   stone        = backvmid2, the surround's vertical strip. TILED here, as the
-#                  backing for the tab rail and the chat switch. The 2004 frame
-#                  never needed a backing -- its stones sit on a surround that
-#                  is already stone -- so a floating rail brings its own, and
-#                  this is the piece whose texture tiles without a seam.
-#   highlight    = redstone1, the pressed-tab highlight, at the exact 34x36 the
-#                  rail's cell is sized to.
+#   highlight    = redstone1, the 2004 pressed-tab stone. The frame's WORKHORSE:
+#                  the plugin turns it a quarter turn at runtime and lays
+#                  fourteen of them edge to edge to build the tab rail, plus a
+#                  dimmed copy for the cells that are not open. It is 34x36, so
+#                  a rail cell is 36x34.
+#   stone        = backvmid2, the surround's vertical strip, tiled to make the
+#                  bar the chat filter buttons stand on. It backs nothing else:
+#                  the rail used to be tiled out of this and seamed every 37
+#                  columns, because it is a piece cut for a different job.
 #   drawer       = invback, the side panel, which the drawer IS.
-#   chat_sheet   = chatback, and chat_strip = backbase1, the strip the four
-#                  filter buttons stand on.
+#   chat_sheet   = chatback. The bar under it is NOT a cut of backbase1: that is
+#                  a shaped corner plate, 496 wide against the sheet's 479 and
+#                  cut to mate with a surround this frame does not have, so
+#                  floated on the scene it reads as a notch and a ragged seam.
+#                  Tiled `stone` at the sheet's own width keeps the block one
+#                  clean rectangle.
 #   map_housing  = mapback. The minimap and compass holes are at the offsets the
 #                  classic [layout:fixed] gives them (25,5 and 0,0), which is
 #                  what mobile_gameframe.c's MOBILE_MAP_HOLE_* repeat.
@@ -35,10 +41,15 @@
 #                  fourteen tabs: the 2004 atlas has none for tab 7, so the
 #                  plugin's table is shifted from tab 8 on.
 #
-# There is deliberately no switch.png. The chat switch is the `stone` texture
-# tiled to 68x36 with the client's own font over it, because no 2004 cache has a
-# chat glyph anywhere in it and a bubble drawn here would be art this plugin
-# invented for a frame whose whole claim is that it did not.
+# Four pictures are NOT here because they are shapes rather than art, and a
+# shape is the one thing a cut cannot be: the turned stone and its dimmed twin,
+# and the two round alpha cut-outs that make the minimap and the compass round.
+# The plugin rasterises all four itself. @see mobile_build_art.
+#
+# There is deliberately no switch.png either. The chat switch is two turned
+# stones with the client's own font over them, because no 2004 cache has a chat
+# glyph anywhere in it and a bubble drawn here would be art this plugin invented
+# for a frame whose whole claim is that it did not.
 set -e
 cd "$(dirname "$0")/../../../.."
 OUT=script/plugins/assets/mobile-gameframe
@@ -49,6 +60,5 @@ DUMP=tools/dump_sprites/dump_sprites
   highlight=redstone1.dat \
   drawer=invback.dat \
   chat_sheet=chatback.dat \
-  chat_strip=backbase1.dat \
   map_housing=mapback.dat \
   sideicon=sideicons.dat:0-12

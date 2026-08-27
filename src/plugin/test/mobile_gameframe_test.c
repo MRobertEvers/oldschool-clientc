@@ -515,25 +515,29 @@ slot_is(int slot, int x, int y, int w, int h)
  * numbers the LAYOUT is specified to produce.
  */
 #define M_MARGIN 4
-#define M_RAIL_W 68
-#define M_RAIL_H 252
-#define M_STONE_W 34
-#define M_STONE_H 36
+#define M_RAIL_W 90
+#define M_RAIL_H 249
+#define M_COL_W 45
+#define M_COL0_W M_COL_W
+#define M_COL1_W M_COL_W
 #define M_PANEL_W 190
 #define M_PANEL_H 261
-#define M_MAP_W 172
-#define M_MAP_H 156
-#define M_MAP_HOLE_X 25
-#define M_MAP_HOLE_Y 5
+#define M_MAP_W 233
+#define M_MAP_H 168
+/** The claim floor allows for the TALLER of the two housings, not the default
+ *  one, so either can be worn without the canvas floor moving. */
+#define M_MAP_FLOOR_H 168
+#define M_MAP_HOLE_X 42
+#define M_MAP_HOLE_Y 8
 #define M_CHAT_W 479
 #define M_CHAT_H 96
-#define M_STRIP_W 496
-#define M_STRIP_H 50
-#define M_TOGGLE_H 36
+#define M_STRIP_W 479
+#define M_STRIP_H 36
+#define M_TOGGLE_H 38
 #define M_MODAL_W 512
 #define M_MODAL_H 334
 #define M_MIN_W 640
-#define M_MIN_H (M_MARGIN + M_MAP_H + M_PANEL_H + M_MARGIN)
+#define M_MIN_H (M_MARGIN + M_MAP_FLOOR_H + M_PANEL_H + M_MARGIN)
 
 #define M_TAG_TAB 0x70b0000u
 #define M_TAG_CHAT 0x0c40000u
@@ -695,10 +699,18 @@ main(void)
             M_MARGIN + M_MAP_HOLE_Y,
             146,
             151),
-        "the minimap is in the housing's hole, at the classic frame's offsets");
+        "the minimap sits in the housing's big window");
+    /*
+     * The ring's two windows are READ OFF THE ART, and the boxes here are the
+     * fallbacks the layout uses until the picture lands -- which is the state
+     * this harness declares in, since it never runs a frame. The derived path
+     * is the one the client takes; what this pins is that the fallback is a
+     * real box and not zero, so a frame declared early is still a frame.
+     */
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_COMPASS, M_W - M_MARGIN - M_MAP_W, M_MARGIN, 33, 33),
-        "the compass is on the housing's top-left corner, as 2004 puts it");
+        slot_is(
+            TORIRS_PLUGIN_SLOT_COMPASS, M_W - M_MARGIN - M_MAP_W + 17, M_MARGIN + 3, 33, 33),
+        "and the compass in its small one");
     CHECK(
         g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
             g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == M_W - M_MARGIN - M_MAP_W &&
@@ -772,20 +784,54 @@ main(void)
             int const x = g_frame.region_x[i];
             int const y = g_frame.region_y[i];
 
+            /*
+             * The left column is the classic TOP row turned, the right column
+             * its BOTTOM row -- so the columns are the frame's own two groups
+             * of seven, and a cell's y is the sum of the box widths above it
+             * rather than its index times a stride.
+             */
+            /*
+             * A cell's y is its offset ALONG its plate (classic x less the
+             * plate's), and its x is `plate_w - across - thickness` in from the
+             * plate's left edge -- the turn maps the row's y to the column's x,
+             * reversed. Stated as those expressions rather than as a stride,
+             * because the row is not evenly spaced: there is a gap in the
+             * middle where the surround shows through, and the whole point of
+             * placing rather than stacking is that the gap survives.
+             */
+            /*
+             * The plates are on their heads, so a stone's place is measured
+             * from the plate's far end: `COL_H - along - extent` down, and the
+             * inset taken from the opposite edge. Tab 0's own numbers are
+             * along 22, extent 38, across 10, thickness 36.
+             */
             if( tag == (M_TAG_TAB | 0u) )
-                CHECK(x == rail_x && y == rail_y, "tab 0 is the rail's top-left cell");
-            if( tag == (M_TAG_TAB | 1u) )
                 CHECK(
-                    x == rail_x + M_STONE_W && y == rail_y,
-                    "tab 1 is beside it, not under it -- the rail fills across");
-            if( tag == (M_TAG_TAB | 2u) )
+                    x == rail_x + 10 && y == rail_y + M_RAIL_H - 22 - 38,
+                    "tab 0 sits at its own offset up the left plate");
+            if( tag == (M_TAG_TAB | 3u) )
                 CHECK(
-                    x == rail_x && y == rail_y + M_STONE_H,
-                    "tab 2 starts the second row");
+                    y == rail_y + M_RAIL_H - 110 - 33,
+                    "and tab 3 at its own, after the row's gap");
+            if( tag == (M_TAG_TAB | 4u) )
+                CHECK(
+                    y == rail_y + M_RAIL_H - 153 - 33,
+                    "tab 4 before it -- 43 apart, not 33, which is the gap");
+            if( tag == (M_TAG_TAB | 6u) )
+                CHECK(
+                    y == rail_y + M_RAIL_H - 209 - 38, "tab 6 heads the left plate");
+            /* The right column is the same plate MIRRORED, so it measures its
+             * inset from the other edge -- and being the same plate, its tabs
+             * sit at the same offsets down it as the left column's. */
+            if( tag == (M_TAG_TAB | 7u) )
+                CHECK(
+                    x == rail_x + M_COL_W + M_COL_W - 10 - 36 &&
+                        y == rail_y + M_RAIL_H - 22 - 38,
+                    "tab 7 matches it on the right plate, inset from the other edge");
             if( tag == (M_TAG_TAB | 13u) )
                 CHECK(
-                    x == rail_x + M_STONE_W && y == rail_y + (6 * M_STONE_H),
-                    "tab 13 is the bottom-right cell");
+                    y == rail_y + M_RAIL_H - 209 - 38,
+                    "and tab 13 sits level with tab 6");
             if( tag == M_TAG_CHAT )
                 CHECK(
                     x == M_MARGIN &&

@@ -3,6 +3,8 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -81,61 +83,123 @@
 #define MOBILE_TAB_COUNT 14
 
 /*
- * The rail: two columns of seven, filled left to right and then down.
+ * The rail is the 2004 frame's TWO TAB ROWS, each stood on its end.
  *
- * Two columns because that is what the modern mobile frame uses and what a
- * thumb can cross without moving the hand; seven rows because fourteen tabs
- * over two columns is seven, and a rail that scrolled would put a gesture
- * between the player and the inventory.
+ * The classic frame carries fourteen tabs as two horizontal rows of seven, one
+ * above the inventory and one below it, and each row is a run of redstones laid
+ * edge to edge -- three shapes, mirrored between the halves, in a rhythm of
+ * wide-narrow-wide that is the row's own. That run is the thing the eye reads
+ * as "the tab strip", and it is what this rail is: the TOP row turned a quarter
+ * turn to make the left column, and the BOTTOM row turned to make the right.
+ * Seven tabs a column, fourteen in all, and the two groups stay the two groups
+ * the frame has always had.
  *
- * The cell is `classic_redstone1`'s own 34x36, so the highlight fills its cell
- * exactly rather than being centred in a box of some other size.
+ * Turning rather than restacking is what keeps the stones' bevels running along
+ * the rail. They were cut lit from one side for a horizontal row; stood upright
+ * the light runs across every cell instead of down the strip, and fourteen
+ * stones that should close into one piece read as fourteen loose buttons.
+ *
+ * So a cell's HEIGHT is the classic box's width, and the rhythm survives the
+ * turn -- which is why the two columns are not the same length and neither is
+ * a multiple of anything. Those sums are the row's own.
  */
 #define MOBILE_RAIL_COLS 2
 #define MOBILE_RAIL_ROWS 7
-#define MOBILE_STONE_W 34
-#define MOBILE_STONE_H 36
-#define MOBILE_RAIL_W (MOBILE_STONE_W * MOBILE_RAIL_COLS)
-#define MOBILE_RAIL_H (MOBILE_STONE_H * MOBILE_RAIL_ROWS)
+/*
+ * Both columns are the SAME plate, mirrored against each other.
+ *
+ * The rail used to be the top row's plate beside the bottom row's, which are
+ * different lengths (249 against 269) and different depths (45 against 37) --
+ * so the two columns ended at different heights and their stones sat at
+ * different insets. Two copies of one plate, back to back, close into a single
+ * slab: same length, same depth, and the mirror puts a finished outer edge on
+ * each side with the two inner edges meeting up the middle.
+ */
+#define MOBILE_RAIL_COL_W 45
+#define MOBILE_RAIL_COL_H 249
+#define MOBILE_RAIL_COL0_W MOBILE_RAIL_COL_W
+#define MOBILE_RAIL_COL1_W MOBILE_RAIL_COL_W
+#define MOBILE_RAIL_W (MOBILE_RAIL_COL_W * MOBILE_RAIL_COLS)
+#define MOBILE_RAIL_H MOBILE_RAIL_COL_H
 
 /** `classic_invback`, at its own size. The drawer is the 2004 side panel. */
 #define MOBILE_PANEL_W 190
 #define MOBILE_PANEL_H 261
 
 /*
- * `classic_mapback` and the two holes cut in it.
+ * The map housing: a RING, with the scene showing through everywhere it is not.
  *
- * The offsets are the classic frame's own: `[layout:fixed]` puts mapback at
- * 550,4, the minimap at 575,9 and the compass at 550,4, so within the housing
- * the map hole is at 25,5 and the compass sits on its top-left corner. Taken
- * from there rather than measured off the picture, because they are the numbers
- * the art was cut against.
+ * Not the 2004 `mapback`, which is an opaque plate with a round window punched
+ * in it. A plate is right for a frame that fills the screen and wrong for one
+ * that floats on it: its square corners sit on the world, and the 2004 compass
+ * hangs off its top-left as a square of its own because the plate is what used
+ * to hide the corners. A ring has no corners to hide.
+ *
+ * The two holes are NOT given as numbers here. They are read off the art at
+ * load time -- the ring states where its windows are and what shape they are,
+ * and a constant beside it is a second copy of that which can only ever drift.
+ * @see mobile_build_holes. These are the fallbacks used for the one declaration
+ * that may happen before the picture has landed.
  */
-#define MOBILE_MAP_W 172
-#define MOBILE_MAP_H 156
-#define MOBILE_MAP_HOLE_X 25
-#define MOBILE_MAP_HOLE_Y 5
-#define MOBILE_MAP_HOLE_W 146
-#define MOBILE_MAP_HOLE_H 151
-#define MOBILE_COMPASS_W 33
+#define MOBILE_MAP_W 233
+#define MOBILE_MAP_H 168
+#define MOBILE_MAP_HOLE_X 24
+#define MOBILE_MAP_HOLE_Y 8
+#define MOBILE_MAP_HOLE_W 152
+#define MOBILE_MAP_HOLE_H 152
+#define MOBILE_COMPASS_X 5
+#define MOBILE_COMPASS_Y 5
+#define MOBILE_COMPASS_W 35
 
-/** `classic_chatback` over `classic_backbase1`: the sheet and the strip its
- *  filter buttons stand on. */
+/*
+ * The chat block: `chat_sheet` with a stone bar under it, and ONE rectangle
+ * between them.
+ *
+ * The bar used to be `backbase1`, the 2004 frame's bottom-left base plate, and
+ * it is the wrong shape for a floating sheet twice over: it is 496 wide against
+ * the sheet's 479, and its top edge is CUT rather than straight -- it is a
+ * corner piece, shaped to mate with the surround above and beside it. Floated
+ * on the scene with nothing to mate with, those two facts read as one: a chat
+ * box with a notch out of its side and a ragged seam across it.
+ *
+ * So the bar is the plain stone strip tiled to the sheet's own width. Both
+ * pieces are 479 wide and stacked flush, which makes the whole block one clean
+ * rectangle -- the shape a floating panel has to be, because it has no frame
+ * around it to explain any other one.
+ */
 #define MOBILE_CHAT_W 479
 #define MOBILE_CHAT_H 96
-#define MOBILE_STRIP_W 496
-#define MOBILE_STRIP_H 50
-/** The 2004 filter buttons, at the offsets the classic frame gives them: a
- *  100x32 box each, fourteen rows down the 50-tall strip. */
+#define MOBILE_STRIP_W MOBILE_CHAT_W
+#define MOBILE_STRIP_H 36
+/*
+ * The four filter buttons, spread evenly across the bar.
+ *
+ * Evenly, and not at the classic frame's own 6/135/273/408: those are measured
+ * against a 496-wide plate and the last of them ends at 508, so on a 479-wide
+ * bar the Report button would hang off the end. An even spread is a LAYOUT
+ * decision the moment the bar stops being the one the numbers came from.
+ */
 #define MOBILE_CHAT_BUTTON_COUNT 4
 #define MOBILE_CHAT_BUTTON_W 100
 #define MOBILE_CHAT_BUTTON_H 32
-#define MOBILE_CHAT_BUTTON_LIFT 14
-static int const MOBILE_CHAT_BUTTON_X[MOBILE_CHAT_BUTTON_COUNT] = { 6, 135, 273, 408 };
+#define MOBILE_CHAT_BUTTON_CELL (MOBILE_STRIP_W / MOBILE_CHAT_BUTTON_COUNT)
+#define MOBILE_CHAT_BUTTON_X(i) \
+    ((i) * MOBILE_CHAT_BUTTON_CELL + ((MOBILE_CHAT_BUTTON_CELL - MOBILE_CHAT_BUTTON_W) / 2))
+/** Centred in the bar's own height rather than dropped fourteen rows down a
+ *  50-tall plate that no longer exists. */
+#define MOBILE_CHAT_BUTTON_LIFT ((MOBILE_STRIP_H - MOBILE_CHAT_BUTTON_H) / 2)
 
-/** The chat switch: two stone cells wide, so the word fits on it. */
-#define MOBILE_TOGGLE_W (MOBILE_STONE_W * 2)
-#define MOBILE_TOGGLE_H MOBILE_STONE_H
+/*
+ * The chat switch: the top row's two END stones, side by side.
+ *
+ * Two, because one turned stone is 36 columns and the word does not fit on it;
+ * the ends specifically, because those are the pair the 2004 frame cut with an
+ * outer edge on each side -- tab 0's and tab 6's, the second being the first
+ * mirrored. Any two middle stones would butt two inner edges together and leave
+ * the switch looking like a piece torn out of a longer strip.
+ */
+#define MOBILE_TOGGLE_W (MOBILE_RAIL_COL_W * 2)
+#define MOBILE_TOGGLE_H 38
 
 /** What a bank or a dialogue is authored for. The cache's own interfaces are
  *  built against this box, so it is placed and never resized -- only moved. */
@@ -166,15 +230,78 @@ _Static_assert(
 
 enum MobileImage
 {
+    /** The two map housings the `housing` setting chooses between. */
     IMG_MAPBACK = 0,
+    IMG_MAPBACK_RING,
     IMG_INVBACK,
     IMG_CHATBACK,
-    IMG_BACKBASE1,
     IMG_STONE,
-    IMG_REDSTONE,
+    /** The plate under a classic tab row, cleaned up. Both columns are this
+     *  one picture, the second mirrored. @see MOBILE_RAIL_COL_W. */
+    IMG_PLATE,
+    /** The three redstone shapes, in the order the classic frame's own stone
+     *  index numbers them. @see MOBILE_TAB_STONE. */
+    IMG_REDSTONE_0,
+    IMG_REDSTONE_1,
+    IMG_REDSTONE_2,
     IMG_SIDEICON_0,
 
     MOBILE_IMG_COUNT = IMG_SIDEICON_0 + MOBILE_TAB_COUNT
+};
+
+/*
+ * Which stone each tab wears, and which way round -- the classic frame's own
+ * table, copied.
+ *
+ * `stone` indexes the three redstone shapes, `flip_h`/`flip_v` are the mirrors
+ * the 2004 frame applies (the right half of each row is the left half mirrored,
+ * and the bottom row is the top row upside down), and `extent` is the classic
+ * box's WIDTH -- which after the quarter turn is the cell's height.
+ *
+ * Copied from revconfig/rs245_2lc's `[layout:fixed]` by way of gameframe.c's
+ * classic_fixed, and copied rather than re-derived for the same reason that one
+ * is: the rhythm of wide and narrow stones is what the row looks like, and a
+ * uniform stride is a different picture that happens to have fourteen cells.
+ */
+struct MobileTabStone
+{
+    unsigned char stone;
+    unsigned char flip_h;
+    unsigned char flip_v;
+    /** The classic box's width, which after the turn is the cell's HEIGHT. */
+    unsigned char extent;
+    /** Where the box starts ALONG its plate -- classic x minus the plate's x.
+     *  After the turn this is the cell's y down the column, which is why the
+     *  stones are placed rather than stacked: the row has a gap in the middle
+     *  and stacking would close it. */
+    unsigned char along;
+    /** And ACROSS it -- classic y minus the plate's y -- with the box's own
+     *  height, which after the turn are the cell's x and width. */
+    unsigned char across;
+    unsigned char thickness;
+};
+
+/*
+ * Plate origins: `backhmid1` is blitted at 516,160 and `backbase2` at 496,466,
+ * so `along` and `across` below are each tab's classic x,y less those.
+ */
+static struct MobileTabStone const MOBILE_TAB_STONE[MOBILE_TAB_COUNT] = {
+    /* the top row, on backhmid1, which becomes the left column */
+    { 0, 0, 0, 38, 22, 10, 36 },
+    { 1, 0, 0, 33, 54, 8, 36 },
+    { 1, 0, 0, 38, 82, 8, 36 },
+    { 2, 0, 0, 33, 110, 8, 36 },
+    { 1, 1, 0, 33, 153, 8, 36 },
+    { 1, 1, 0, 33, 181, 8, 36 },
+    { 0, 1, 0, 38, 209, 9, 36 },
+    /* the bottom row, on backbase2, which becomes the right column */
+    { 0, 0, 1, 34, 42, 0, 36 },
+    { 1, 0, 1, 30, 74, 0, 37 },
+    { 1, 0, 1, 30, 102, 0, 37 },
+    { 2, 0, 1, 44, 130, 1, 35 },
+    { 1, 1, 1, 30, 173, 0, 37 },
+    { 1, 1, 1, 30, 201, 0, 37 },
+    { 0, 1, 1, 34, 229, 0, 36 },
 };
 
 /*
@@ -187,11 +314,14 @@ enum MobileImage
  */
 static char const* const MOBILE_IMAGE_FILE[MOBILE_IMG_COUNT] = {
     [IMG_MAPBACK] = "map_housing.png",
+    [IMG_MAPBACK_RING] = "map_housing_ring.png",
     [IMG_INVBACK] = "drawer.png",
     [IMG_CHATBACK] = "chat_sheet.png",
-    [IMG_BACKBASE1] = "chat_strip.png",
     [IMG_STONE] = "stone.png",
-    [IMG_REDSTONE] = "highlight.png",
+    [IMG_PLATE] = "rail_back_top_cleaned.png",
+    [IMG_REDSTONE_0] = "highlight1.png",
+    [IMG_REDSTONE_1] = "highlight2.png",
+    [IMG_REDSTONE_2] = "highlight3.png",
     [IMG_SIDEICON_0 + 0] = "sideicon_0.png",
     [IMG_SIDEICON_0 + 1] = "sideicon_1.png",
     [IMG_SIDEICON_0 + 2] = "sideicon_2.png",
@@ -208,10 +338,126 @@ static char const* const MOBILE_IMAGE_FILE[MOBILE_IMG_COUNT] = {
     [IMG_SIDEICON_0 + 13] = "sideicon_12.png",
 };
 
-/* ------------------------------------------------------------------ state */
+/*
+ * The four pictures the plugin RASTERISES for itself.
+ *
+ * Everything above is a file. These four are shapes, and a shape is the one
+ * thing the shipped art cannot be: a quarter turn is not a crop, and a circle
+ * is not a rectangle with a picture in it. @see image_compose, which exists for
+ * exactly the second case.
+ */
+enum MobileComposed
+{
+    /** The two alpha cut-outs, read off the housing. Transparent is the window
+     *  and opaque is clipped away -- the polarity plugin masks use on every
+     *  cache era. @see mobile_build_masks. */
+    ART_MINIMAP_MASK,
+    ART_COMPASS_MASK,
+    /**
+     * One turned stone per tab, and a dimmed twin of each.
+     *
+     * Per TAB rather than per shape, because a tab's stone is a shape AND two
+     * mirrors, and there are ten distinct combinations across the fourteen --
+     * close enough to fourteen that a table keyed by the thing the draw pass
+     * actually has in its hand is simpler than one it has to look up.
+     */
+    /** The two backing plates, turned: one whole column each. */
+    ART_PLATE_0,
+    ART_PLATE_1,
+    /**
+     * One turned stone per tab, drawn ONLY on the tab that is open.
+     *
+     * There is no dimmed twin. The redstone is the 2004 frame's PRESSED
+     * highlight -- red is what "this one is open" looks like -- so a rail whose
+     * every cell wore one said fourteen tabs were open at once, and the real
+     * selection had to be picked out by shade. The plate is what the other
+     * thirteen stand on, which is what the desktop frame does too.
+     */
+    ART_STONE_0,
+
+    MOBILE_ART_COUNT = ART_STONE_0 + MOBILE_TAB_COUNT
+};
+
+/*
+ * A map housing: the art, and how big it is.
+ *
+ * The WINDOWS are not here. They are read off the picture at load time -- see
+ * mobile_build_masks -- because a housing's windows are wherever that picture's
+ * windows were drawn, and a box written down beside it is a second copy of that
+ * which can only drift. The size is here because the layout needs it before the
+ * read completes, to put the housing in the corner at all.
+ */
+struct MobileHousing
+{
+    int art;
+    int width;
+    int height;
+};
+
+/** The two choices, in the order the `housing` setting lists them. */
+static struct MobileHousing const MOBILE_HOUSING[] = {
+    { IMG_MAPBACK,      233, 168 },
+    { IMG_MAPBACK_RING, 182, 166 },
+};
+
+/** One window in the housing, in the housing's own pixels. */
+struct MobileHole
+{
+    int x;
+    int y;
+    int w;
+    int h;
+    int area;
+};
+
+/*
+ * Where the chosen housing's windows are, and how big it turned out to be.
+ *
+ * Seeded with the default housing's measurements so the one declaration that
+ * can happen before the picture lands still puts a map in the corner, and
+ * replaced by what the read actually found the moment it does.
+ */
+static struct MobileHole g_hole_map = { 42, 8, 146, 151, 0 };
+static struct MobileHole g_hole_compass = { 17, 3, 33, 33, 0 };
+static int g_map_w = 233;
+static int g_map_h = 168;
+/** Set once the windows have been read and the two masks composed. */
+static int g_masks_ready;
 
 static struct ToriRS_PluginApi const* g_api;
+
 static int g_image[MOBILE_IMG_COUNT];
+static int g_art[MOBILE_ART_COUNT];
+static int g_art_built;
+
+/*
+ * Which map housing to wear.
+ *
+ * Read as a STRING and resolved two ways, because a config enum is stored as
+ * its LABEL: the settings panel writes back whichever dropdown row was chosen,
+ * and reading that as a number gives atoi("Ring") == 0 and silently pins the
+ * first choice. The index form is still accepted -- plugin_prefs.ini is a file
+ * people edit, and `housing=1` is the obvious thing to write in it.
+ * @see gameframe.c's frame_layout_from_config, which had this exact bug.
+ */
+static char const* const MOBILE_HOUSING_NAME[] = { "Lizards", "Ring" };
+
+static struct MobileHousing const*
+mobile_housing(struct ToriRS_PluginCtx* ctx)
+{
+    char const* value = g_api->cfg_str(ctx, "housing");
+    int choice = 0;
+
+    assert(ctx);
+    if( value && value[0] )
+    {
+        if( value[0] >= '0' && value[0] <= '9' )
+            choice = atoi(value) == 1 ? 1 : 0;
+        else if( strcmp(value, MOBILE_HOUSING_NAME[1]) == 0 )
+            choice = 1;
+    }
+    return &MOBILE_HOUSING[choice];
+}
 
 /*
  * The drawer, and the sheet.
@@ -294,6 +540,554 @@ static struct
     int declared;
 } g_frame;
 
+/* -------------------------------------------------------- composing the art */
+
+/*
+ * The redstone through a quarter turn, optionally dimmed.
+ *
+ * `image_pixels` out, turn, `image_compose` back in -- the two halves of the
+ * image api meeting, which is what lets a plugin build art out of art it
+ * shipped without carrying a decoder.
+ *
+ * CLOCKWISE, and the direction is not cosmetic: it is what keeps the row's
+ * left-to-right order running top-to-bottom down the column. Turning the other
+ * way reverses it, and the rail comes out with Music at the top and Combat at
+ * the bottom -- every tab where the muscle memory says the opposite one is.
+ */
+static int
+mobile_compose_turned(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name,
+    int src,
+    int flip_h,
+    int flip_v,
+    int dim)
+{
+    uint32_t* px;
+    uint32_t* out;
+    int src_w = 0;
+    int src_h = 0;
+    int handle;
+
+    assert(ctx);
+    assert(name);
+    if( src < 0 )
+        return -1;
+    if( !g_api->image_size(ctx, src, &src_w, &src_h) || src_w <= 0 || src_h <= 0 )
+        return -1;
+
+    px = malloc((size_t)src_w * (size_t)src_h * sizeof(*px));
+    assert(px);
+    if( g_api->image_pixels(ctx, src, px, src_w * src_h) != src_w * src_h )
+    {
+        free(px);
+        return -1;
+    }
+    /* The turned picture is the source transposed: its width is the source's
+     * height, and nothing here assumes the stone is square. */
+    out = malloc((size_t)src_w * (size_t)src_h * sizeof(*out));
+    assert(out);
+    for( int row = 0; row < src_w; row++ )
+    {
+        for( int col = 0; col < src_h; col++ )
+        {
+            /* Mirror FIRST, in the source's own axes, then turn -- the flips
+             * are the 2004 frame's own and are stated about the upright stone,
+             * so applying them after the turn would swap which one is which.
+             * Clockwise: dest(col,row) reads src(row, src_h-1-col). */
+            int src_x = row;
+            int src_y = src_h - 1 - col;
+            uint32_t pixel;
+
+            if( flip_h )
+                src_x = src_w - 1 - src_x;
+            if( flip_v )
+                src_y = src_h - 1 - src_y;
+            pixel = px[(src_y * src_w) + src_x];
+
+            if( dim )
+            {
+                /* Scale the COLOUR and keep the alpha: a dimmed stone has to
+                 * stay the same shape, and scaling alpha would let the world
+                 * through the rail instead of darkening it. */
+                uint32_t const alpha = pixel & 0xff000000u;
+                uint32_t const red = ((pixel >> 16) & 0xffu) * 5 / 8;
+                uint32_t const green = ((pixel >> 8) & 0xffu) * 5 / 8;
+                uint32_t const blue = (pixel & 0xffu) * 5 / 8;
+
+                pixel = alpha | (red << 16) | (green << 8) | blue;
+            }
+            out[(row * src_h) + col] = pixel;
+        }
+    }
+    handle = g_api->image_compose(ctx, name, src_h, src_w, out);
+    free(px);
+    free(out);
+    return handle;
+}
+
+/*
+ * How far the ring is sealed shut before its windows are looked for.
+ *
+ * The DRAIN is the reason this number exists. A map surround is not a closed
+ * ring: the lizard one has a gap at the bottom between the two tails, and the
+ * transparent middle runs out through it to the edge of the picture. A plain
+ * flood inward from the border therefore reaches the middle, calls it outside,
+ * and finds no windows at all -- which is exactly what happened, and why the
+ * compass drew square over a mask that had never been built.
+ *
+ * A hard-edged ring needs none of it -- the lizard surround derives the same
+ * two windows at a radius of zero -- so this is insurance rather than the
+ * mechanism, and it is small on purpose: every pixel of seal is a pixel the
+ * window is grown back by afterwards, and a large one would start rounding off
+ * the corners of a window that genuinely has them.
+ */
+#define MOBILE_SEAL 2
+
+static void
+mobile_dilate(
+    unsigned char* mask,
+    unsigned char* scratch,
+    int width,
+    int height,
+    int radius);
+
+/*
+ * The enclosed windows of a sealed ring, with each grown back to the shape the
+ * artist drew.
+ *
+ * `sealed` is the ring dilated shut, `solid` the ring as drawn. The flood runs
+ * over `sealed` so the drain cannot leak, and the windows are then grown back
+ * by the same radius and clipped to `solid` -- which recovers the pixels the
+ * sealing ate without ever crossing the ring itself.
+ *
+ * `window` comes back holding 1 for every pixel of every window found, which is
+ * what mobile_compose_window cuts each mask out of.
+ */
+static int
+mobile_hole_scan(
+    unsigned char const* sealed,
+    unsigned char const* solid,
+    unsigned char* window,
+    int width,
+    int height,
+    unsigned char* seen,
+    int* stack,
+    struct MobileHole* out,
+    int out_max)
+{
+    int const pixels = width * height;
+    int found = 0;
+    int top = 0;
+
+    assert(sealed);
+    assert(solid);
+    assert(window);
+    assert(seen);
+    assert(stack);
+    assert(out);
+
+    /* Flood the outside in from every border pixel, over the SEALED ring. */
+    for( int i = 0; i < pixels; i++ )
+        seen[i] = sealed[i] ? 2 : 0;
+    /*
+     * Marked as it is PUSHED, never as it is popped.
+     *
+     * Marking at pop lets the same pixel be pushed once per neighbour that
+     * reaches it before it comes off, so the stack can hold several entries per
+     * pixel -- and this one is sized at one per pixel. It overran and took the
+     * client with it. Marking at push makes "on the stack" and "seen" the same
+     * statement, and the bound is then a pixel each by construction.
+     */
+    for( int col = 0; col < width; col++ )
+    {
+        int const bottom = ((height - 1) * width) + col;
+
+        if( !seen[col] )
+        {
+            seen[col] = 1;
+            stack[top++] = col;
+        }
+        if( !seen[bottom] )
+        {
+            seen[bottom] = 1;
+            stack[top++] = bottom;
+        }
+    }
+    for( int row = 0; row < height; row++ )
+    {
+        int const left = row * width;
+        int const right = left + width - 1;
+
+        if( !seen[left] )
+        {
+            seen[left] = 1;
+            stack[top++] = left;
+        }
+        if( !seen[right] )
+        {
+            seen[right] = 1;
+            stack[top++] = right;
+        }
+    }
+    while( top > 0 )
+    {
+        int const at = stack[--top];
+        int const col = at % width;
+        int const row = at / width;
+
+        if( col > 0 && !seen[at - 1] )
+        {
+            seen[at - 1] = 1;
+            stack[top++] = at - 1;
+        }
+        if( col < width - 1 && !seen[at + 1] )
+        {
+            seen[at + 1] = 1;
+            stack[top++] = at + 1;
+        }
+        if( row > 0 && !seen[at - width] )
+        {
+            seen[at - width] = 1;
+            stack[top++] = at - width;
+        }
+        if( row < height - 1 && !seen[at + width] )
+        {
+            seen[at + width] = 1;
+            stack[top++] = at + width;
+        }
+    }
+
+    /* Whatever the flood could not reach is an enclosed window -- eroded by the
+     * sealing, so grow it back and clip it to the ring as drawn. */
+    for( int i = 0; i < pixels; i++ )
+        window[i] = (unsigned char)(seen[i] == 0);
+    {
+        unsigned char* grow_scratch = seen;
+
+        mobile_dilate(window, grow_scratch, width, height, MOBILE_SEAL);
+        for( int i = 0; i < pixels; i++ )
+            window[i] = (unsigned char)(window[i] && !solid[i]);
+    }
+
+    /* Then measure each one. `seen` is reused as the visited map. */
+    memset(seen, 0, (size_t)width * (size_t)height);
+    for( int start = 0; start < pixels && found < out_max; start++ )
+    {
+        struct MobileHole* hole;
+
+        if( !window[start] || seen[start] )
+            continue;
+        hole = &out[found];
+        hole->x = start % width;
+        hole->y = start / width;
+        hole->w = 1;
+        hole->h = 1;
+        hole->area = 0;
+        top = 0;
+        stack[top++] = start;
+        seen[start] = 1;
+        while( top > 0 )
+        {
+            int const at = stack[--top];
+            int const col = at % width;
+            int const row = at / width;
+            int const right = hole->x + hole->w - 1;
+            int const bottom = hole->y + hole->h - 1;
+
+            hole->area++;
+            if( col < hole->x )
+            {
+                hole->w += hole->x - col;
+                hole->x = col;
+            }
+            else if( col > right )
+                hole->w = col - hole->x + 1;
+            if( row < hole->y )
+            {
+                hole->h += hole->y - row;
+                hole->y = row;
+            }
+            else if( row > bottom )
+                hole->h = row - hole->y + 1;
+
+            if( col > 0 && window[at - 1] && !seen[at - 1] )
+            {
+                seen[at - 1] = 1;
+                stack[top++] = at - 1;
+            }
+            if( col < width - 1 && window[at + 1] && !seen[at + 1] )
+            {
+                seen[at + 1] = 1;
+                stack[top++] = at + 1;
+            }
+            if( row > 0 && window[at - width] && !seen[at - width] )
+            {
+                seen[at - width] = 1;
+                stack[top++] = at - width;
+            }
+            if( row < height - 1 && window[at + width] && !seen[at + width] )
+            {
+                seen[at + width] = 1;
+                stack[top++] = at + width;
+            }
+        }
+        /* A few stray pixels along the ring's outline are not a window. */
+        if( hole->area >= 64 )
+            found++;
+    }
+    return found;
+}
+
+/**
+ * Cut one window out as an alpha mask: transparent where the window is, opaque
+ * everywhere else, at the window's own box.
+ *
+ * The polarity is the plugin mask convention -- transparent is the WINDOW and
+ * opaque is clipped away -- and the SIZE matters as much as the shape, because
+ * the renderer takes the mask's dimensions as the surface's draw box, centred
+ * in the node box. A mask cut to the window is therefore also what sizes the
+ * minimap and the compass.
+ */
+static int
+mobile_compose_window(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name,
+    unsigned char const* window,
+    int width,
+    struct MobileHole const* hole)
+{
+    uint32_t* out;
+    int handle;
+
+    assert(ctx);
+    assert(name);
+    assert(window);
+    assert(hole);
+
+    out = malloc((size_t)hole->w * (size_t)hole->h * sizeof(*out));
+    assert(out);
+    for( int row = 0; row < hole->h; row++ )
+        for( int col = 0; col < hole->w; col++ )
+        {
+            int const at = ((hole->y + row) * width) + hole->x + col;
+
+            out[(row * hole->w) + col] = window[at] ? 0x00000000u : 0xff000000u;
+        }
+    handle = g_api->image_compose(ctx, name, hole->w, hole->h, out);
+    free(out);
+    return handle;
+}
+
+/*
+ * Grow `mask` outward by `radius` pixels, four-connected. `scratch` is a second
+ * buffer of the same size, swapped through rather than allocated per pass.
+ */
+static void
+mobile_dilate(
+    unsigned char* mask,
+    unsigned char* scratch,
+    int width,
+    int height,
+    int radius)
+{
+    assert(mask);
+    assert(scratch);
+
+    for( int pass = 0; pass < radius; pass++ )
+    {
+        memcpy(scratch, mask, (size_t)width * (size_t)height);
+        for( int row = 0; row < height; row++ )
+        {
+            for( int col = 0; col < width; col++ )
+            {
+                int const at = (row * width) + col;
+
+                if( mask[at] )
+                    continue;
+                if( (col > 0 && mask[at - 1]) || (col < width - 1 && mask[at + 1]) ||
+                    (row > 0 && mask[at - width]) || (row < height - 1 && mask[at + width]) )
+                    scratch[at] = 1;
+            }
+        }
+        memcpy(mask, scratch, (size_t)width * (size_t)height);
+    }
+}
+
+
+/*
+ * Read the housing's windows off the housing, and cut a mask for each.
+ *
+ * Seal the ring, flood the outside in from the border, and whatever transparent
+ * pixels the flood cannot reach are the enclosed windows. Then grow those back
+ * by the same amount they were sealed by, clipped to the ring, so each window
+ * is the shape the artist drew rather than one eroded by the sealing.
+ *
+ * Derived rather than shipped as a mask pair per housing, so the mask and the
+ * art agree BY CONSTRUCTION: a new ring dropped into the folder is measured,
+ * not described, and there is no second file to keep in step with it.
+ */
+static void
+mobile_build_masks(struct ToriRS_PluginCtx* ctx)
+{
+    struct MobileHousing const* housing = mobile_housing(ctx);
+    struct MobileHole hole[4];
+    uint32_t* argb;
+    unsigned char* solid;
+    unsigned char* sealed;
+    unsigned char* scratch;
+    unsigned char* seen;
+    int* stack;
+    int width = 0;
+    int height = 0;
+    int count;
+    int pixels;
+    int map = 0;
+    int compass = 0;
+
+    assert(ctx);
+    if( !g_api->image_size(ctx, g_image[housing->art], &width, &height) || width <= 0 ||
+        height <= 0 )
+        return;
+    pixels = width * height;
+
+    argb = malloc((size_t)pixels * sizeof(*argb));
+    assert(argb);
+    if( g_api->image_pixels(ctx, g_image[housing->art], argb, pixels) != pixels )
+    {
+        free(argb);
+        return;
+    }
+    solid = malloc((size_t)pixels);
+    assert(solid);
+    sealed = malloc((size_t)pixels);
+    assert(sealed);
+    scratch = malloc((size_t)pixels);
+    assert(scratch);
+    seen = malloc((size_t)pixels);
+    assert(seen);
+    stack = malloc((size_t)pixels * sizeof(*stack));
+    assert(stack);
+
+    /*
+     * Half-lit counts as background, not as ring.
+     *
+     * The housings are cut with hard edges -- their alpha is 0 or 255 and
+     * nothing between -- so this threshold does not fall in the middle of any
+     * real pixel. It matters anyway, because art that came through a resize or
+     * an export with a soft halo has a fringe of alpha 1..20 all round it, and
+     * treating that fringe as ring drags the window's edge a pixel or two
+     * inward everywhere the halo is one-sided.
+     */
+    for( int i = 0; i < pixels; i++ )
+    {
+        solid[i] = (unsigned char)((argb[i] >> 24) >= 128);
+        sealed[i] = solid[i];
+    }
+    mobile_dilate(sealed, scratch, width, height, MOBILE_SEAL);
+
+    count = mobile_hole_scan(sealed, solid, scratch, width, height, seen, stack, hole, 4);
+    if( count < 2 )
+    {
+        /* Said rather than guessed at: a ring this code has not been read
+         * against is worth a line, and an unmasked map is a better failure than
+         * a mask cut around the wrong shape. */
+        g_api->log(ctx, "map housing has %d window(s); expected 2, leaving it unmasked", count);
+    }
+    else
+    {
+        /* By AREA, not by position: which corner the compass boss sits in is a
+         * property of the picture, and the one thing true of every ring is that
+         * the map's window is far the larger. */
+        for( int i = 1; i < count; i++ )
+            if( hole[i].area > hole[map].area )
+                map = i;
+        compass = map == 0 ? 1 : 0;
+        for( int i = 0; i < count; i++ )
+            if( i != map && hole[i].area > hole[compass].area )
+                compass = i;
+
+        g_map_w = width;
+        g_map_h = height;
+        g_hole_map = hole[map];
+        g_hole_compass = hole[compass];
+        g_art[ART_MINIMAP_MASK] =
+            mobile_compose_window(ctx, "minimap_mask.png", scratch, width, &hole[map]);
+        g_art[ART_COMPASS_MASK] =
+            mobile_compose_window(ctx, "compass_mask.png", scratch, width, &hole[compass]);
+        g_masks_ready = 1;
+        g_api->log(
+            ctx,
+            "map windows read: %dx%d at %d,%d and %dx%d at %d,%d",
+            hole[map].w,
+            hole[map].h,
+            hole[map].x,
+            hole[map].y,
+            hole[compass].w,
+            hole[compass].h,
+            hole[compass].x,
+            hole[compass].y);
+    }
+
+    free(argb);
+    free(solid);
+    free(sealed);
+    free(scratch);
+    free(seen);
+    free(stack);
+}
+
+static void
+mobile_build_art(struct ToriRS_PluginCtx* ctx)
+{
+    static int const SHAPE[3] = { IMG_REDSTONE_0, IMG_REDSTONE_1, IMG_REDSTONE_2 };
+
+    assert(ctx);
+    if( g_art_built )
+        return;
+    /* Every one or none, and re-tried from the layout pass until they are all
+     * resident: an image crosses the IO queue like any other asset, so a rail
+     * built from whichever had landed would wear the wrong stones. */
+    for( int i = 0; i < 3; i++ )
+        if( !g_api->image_size(ctx, g_image[SHAPE[i]], NULL, NULL) )
+            return;
+
+    if( !g_api->image_size(ctx, g_image[IMG_PLATE], NULL, NULL) )
+        return;
+
+    for( int tab = 0; tab < MOBILE_TAB_COUNT; tab++ )
+    {
+        struct MobileTabStone const* stone = &MOBILE_TAB_STONE[tab];
+        char name[32];
+
+        snprintf(name, sizeof(name), "stone_%d.png", tab);
+        /* The same half turn the plates take: a stone sits in a socket, and a
+         * socket that turned over wants the bevel that turned over with it. */
+        g_art[ART_STONE_0 + tab] = mobile_compose_turned(
+            ctx,
+            name,
+            g_image[SHAPE[stone->stone]],
+            !stone->flip_h,
+            !stone->flip_v,
+            /*dim=*/0);
+    }
+    /*
+     * The plate takes the same quarter turn as the stones standing on it, and
+     * the right-hand column takes it mirrored so the two sit back to back.
+     *
+     * Both then take a further half turn, so the plates face the way the rail
+     * wants rather than the way the desktop row did. A half turn commutes with
+     * the quarter turn, so it is simply both source flips inverted -- which is
+     * why the left plate reads (1,1) and the right, being the mirrored one,
+     * reads (1,0).
+     */
+    g_art[ART_PLATE_0] =
+        mobile_compose_turned(ctx, "plate_l.png", g_image[IMG_PLATE], 1, 1, /*dim=*/0);
+    g_art[ART_PLATE_1] =
+        mobile_compose_turned(ctx, "plate_r.png", g_image[IMG_PLATE], 1, 0, /*dim=*/0);
+    g_art_built = 1;
+}
+
 /* ---------------------------------------------------------------- helpers */
 
 static void
@@ -370,7 +1164,8 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
      * in the same corner. */
     int const panel_x = rail_x - MOBILE_PANEL_W;
     int const panel_y = canvas_h - MOBILE_MARGIN - MOBILE_PANEL_H;
-    int const map_x = canvas_w - MOBILE_MARGIN - MOBILE_MAP_W;
+    struct MobileHousing const* housing = mobile_housing(ctx);
+    int const map_x = canvas_w - MOBILE_MARGIN - g_map_w;
     int const map_y = MOBILE_MARGIN;
     int const strip_y = canvas_h - MOBILE_STRIP_H;
     int const chat_y = strip_y - MOBILE_CHAT_H;
@@ -390,30 +1185,54 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
      * it paints immediately under that one live surface instead of over the
      * whole frame. */
     g_api->layout_slot_overlay(
-        ctx, TORIRS_PLUGIN_SLOT_MINIMAP, g_image[IMG_MAPBACK], map_x, map_y, /*trans=*/0);
+        ctx,
+        TORIRS_PLUGIN_SLOT_MINIMAP,
+        g_image[housing->art],
+        map_x,
+        map_y,
+        /*trans=*/0);
     g_frame.anchored_count++;
+    /* Both surfaces go in the windows the RING says it has, at the boxes the
+     * housing states. @see MobileHousing. */
     g_api->layout_slot(
         ctx,
         TORIRS_PLUGIN_SLOT_MINIMAP,
-        map_x + MOBILE_MAP_HOLE_X,
-        map_y + MOBILE_MAP_HOLE_Y,
-        MOBILE_MAP_HOLE_W,
-        MOBILE_MAP_HOLE_H);
-    /* On its top-left corner, as the classic frame puts it -- the compass
-     * overhangs the housing there and that overhang is part of the shape. */
+        map_x + g_hole_map.x,
+        map_y + g_hole_map.y,
+        g_hole_map.w,
+        g_hole_map.h);
     g_api->layout_slot(
-        ctx, TORIRS_PLUGIN_SLOT_COMPASS, map_x, map_y, MOBILE_COMPASS_W, MOBILE_COMPASS_W);
-
-    /* The rail's own stone, before the stones and icons that stand on it. */
-    mobile_blit_tiled(g_image[IMG_STONE], rail_x, rail_y, MOBILE_RAIL_W, MOBILE_RAIL_H);
+        ctx,
+        TORIRS_PLUGIN_SLOT_COMPASS,
+        map_x + g_hole_compass.x,
+        map_y + g_hole_compass.y,
+        g_hole_compass.w,
+        g_hole_compass.h);
+    /*
+     * And the shape each of them is cut to.
+     *
+     * Both surfaces are LIVE -- the minimap is baked from the world and the
+     * compass turns with the camera -- so neither can be blitted into a round
+     * hole; a housing has to state where its holes are AND what shape they are,
+     * and stating only the first leaves a square map in a round window. That is
+     * what was on screen: the compass drew its four corners over the housing's
+     * rounded one, and the map filled its box out to the edges.
+     *
+     * The compass keeps the LANE's art (-1). It is the 2004 rose already, and
+     * the only thing wrong with it was the shape it was cut to.
+     */
+    g_api->layout_slot_skin(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, -1, g_art[ART_MINIMAP_MASK]);
+    g_api->layout_slot_skin(ctx, TORIRS_PLUGIN_SLOT_COMPASS, -1, g_art[ART_COMPASS_MASK]);
 
     if( g_drawer_open )
         mobile_blit(g_image[IMG_INVBACK], panel_x, panel_y);
 
+    /* Sheet and bar are the same width and stacked flush, so the two read as
+     * one rectangle. @see MOBILE_STRIP_W. */
     if( chat_visible )
     {
         mobile_blit(g_image[IMG_CHATBACK], 0, chat_y);
-        mobile_blit(g_image[IMG_BACKBASE1], 0, strip_y);
+        mobile_blit_tiled(g_image[IMG_STONE], 0, strip_y, MOBILE_STRIP_W, MOBILE_STRIP_H);
     }
 
     /* The switch sits directly above whatever is in that corner: the sheet when
@@ -421,12 +1240,25 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
      * operates rather than to a coordinate, so it never floats away from it. */
     g_frame.toggle_x = MOBILE_MARGIN;
     g_frame.toggle_y = (chat_visible ? chat_y : canvas_h) - MOBILE_MARGIN - MOBILE_TOGGLE_H;
+    /*
+     * A piece of the same plate the rail stands on, with the redstone over it
+     * only while the chat is up.
+     *
+     * The same rule the tabs follow, and for the same reason: red is what
+     * "open" looks like on this frame, so a switch that were always red would
+     * be saying the chat is up when it is not. Cut from the plate rather than
+     * given art of its own so it belongs to the same frame as the rail.
+     */
     mobile_blit_tiled(
-        g_image[IMG_STONE],
-        g_frame.toggle_x,
-        g_frame.toggle_y,
-        MOBILE_TOGGLE_W,
-        MOBILE_TOGGLE_H);
+        g_art[ART_PLATE_0], g_frame.toggle_x, g_frame.toggle_y, MOBILE_TOGGLE_W, MOBILE_TOGGLE_H);
+    if( g_chat_open )
+    {
+        mobile_blit(g_art[ART_STONE_0 + 0], g_frame.toggle_x, g_frame.toggle_y);
+        mobile_blit(
+            g_art[ART_STONE_0 + 6],
+            g_frame.toggle_x + MOBILE_TOGGLE_W - MOBILE_TAB_STONE[6].thickness,
+            g_frame.toggle_y);
+    }
 
     /*
      * The ROLE, and then its members.
@@ -441,38 +1273,78 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
         g_api->layout_slot(
             ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, panel_x, panel_y, MOBILE_PANEL_W, MOBILE_PANEL_H);
 
-    for( int i = 0; i < MOBILE_TAB_COUNT; i++ )
+    /*
+     * The two columns, each a turned row stacked from its own top.
+     *
+     * The running offset is the point: a cell's height is the classic box's
+     * width and those differ down the column, so a cell's place is the sum of
+     * everything above it and not its index times a stride. A tab this cache
+     * lacks still takes its place in that sum -- the rhythm belongs to the ROW,
+     * and closing the gap would shift every stone under it onto a neighbour's.
+     */
+    for( int col = 0; col < MOBILE_RAIL_COLS; col++ )
     {
-        int const col = i % MOBILE_RAIL_COLS;
-        int const row = i / MOBILE_RAIL_COLS;
-        int const x = rail_x + (col * MOBILE_STONE_W);
-        int const y = rail_y + (row * MOBILE_STONE_H);
-        struct MobileTab* t;
+        int const first = col * MOBILE_RAIL_ROWS;
+        int const plate_x = rail_x + (col * MOBILE_RAIL_COL_W);
 
-        /*
-         * The mount is placed only while the drawer is open, and the ANSWER is
-         * what is kept: the same call states where the panel goes and reports
-         * whether this cache has that tab at all. @see g_tab_present.
-         */
-        if( g_drawer_open )
-            g_tab_present[i] = g_api->layout_slot_at(
-                ctx,
-                TORIRS_PLUGIN_SLOT_SIDEBAR,
-                i,
-                panel_x,
-                panel_y,
-                MOBILE_PANEL_W,
-                MOBILE_PANEL_H);
-        if( !g_tab_present[i] )
-            continue;
+        /* The plate first, then the stones that stand on it. Both columns are
+         * pinned to the rail's top, and being one picture twice they end
+         * level. */
+        mobile_blit(g_art[col == 0 ? ART_PLATE_0 : ART_PLATE_1], plate_x, rail_y);
 
-        t = &g_frame.tab[g_frame.tab_count++];
-        t->x = x;
-        t->y = y;
-        t->w = MOBILE_STONE_W;
-        t->h = MOBILE_STONE_H;
-        t->tabno = i;
-        t->icon = g_image[IMG_SIDEICON_0 + i];
+        for( int row = 0; row < MOBILE_RAIL_ROWS; row++ )
+        {
+            int const tab = first + row;
+            /*
+             * The PLACEMENT comes from the top row for both columns, because
+             * both columns are now the top row's plate and the bottom row's
+             * offsets are measured against a plate 20 columns longer than the
+             * one that is actually there. The tab's own STONE is still its
+             * own; the draw pass looks that up by tab number.
+             */
+            struct MobileTabStone const* place = &MOBILE_TAB_STONE[row];
+            /* Placed at its own offset along the plate, not stacked: the row
+             * has a gap in the middle and stacking would close it. */
+            int const cell_h = place->extent;
+            /* Measured from the plate's far end, because the plate is on its
+             * head: what was `along` from the start is now `along + extent`
+             * from the finish. */
+            int const cell_y = rail_y + MOBILE_RAIL_COL_H - place->along - place->extent;
+            /* And across it: the turn maps the row's y to the column's x
+             * reversed, so the left column measures its inset from its right
+             * edge -- and the mirrored right column measures from its left. */
+            int const cell_x = col == 0
+                                   ? plate_x + place->across
+                                   : plate_x + MOBILE_RAIL_COL_W - place->across -
+                                         place->thickness;
+            int const cell_w = place->thickness;
+            struct MobileTab* entry;
+            /*
+             * The mount is placed only while the drawer is open, and the ANSWER
+             * is what is kept: the same call states where the panel goes and
+             * reports whether this cache has that tab at all.
+             * @see g_tab_present.
+             */
+            if( g_drawer_open )
+                g_tab_present[tab] = g_api->layout_slot_at(
+                    ctx,
+                    TORIRS_PLUGIN_SLOT_SIDEBAR,
+                    tab,
+                    panel_x,
+                    panel_y,
+                    MOBILE_PANEL_W,
+                    MOBILE_PANEL_H);
+            if( !g_tab_present[tab] )
+                continue;
+
+            entry = &g_frame.tab[g_frame.tab_count++];
+            entry->x = cell_x;
+            entry->y = cell_y;
+            entry->w = cell_w;
+            entry->h = cell_h;
+            entry->tabno = tab;
+            entry->icon = g_image[IMG_SIDEICON_0 + tab];
+        }
     }
 
     /*
@@ -510,7 +1382,7 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
             ctx,
             TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
             i,
-            MOBILE_CHAT_BUTTON_X[i],
+            MOBILE_CHAT_BUTTON_X(i),
             strip_y + MOBILE_CHAT_BUTTON_LIFT,
             MOBILE_CHAT_BUTTON_W,
             MOBILE_CHAT_BUTTON_H);
@@ -529,6 +1401,8 @@ mobile_on_layout(
     (void)userdata;
     assert(ctx);
     assert(ev);
+
+    mobile_build_art(ctx);
 
     g_frame.canvas_w = ev->width;
     g_frame.canvas_h = ev->height;
@@ -648,17 +1522,22 @@ mobile_on_draw(
         int ih = 0;
 
         /*
-         * The highlight goes on the open tab, and only while the drawer IS
-         * open: the client goes on having a selected tab when the panel is
-         * shut, and a lit stone over a drawer that is not there says the panel
-         * is open when it is not.
+         * The redstone goes on the OPEN tab and nowhere else.
+         *
+         * It is the 2004 frame's pressed highlight: red means this panel is
+         * showing. The other thirteen cells are the plate the layout already
+         * blitted, which is exactly what the desktop frame puts under them.
+         *
+         * And only while the drawer IS open: the client goes on having a
+         * selected tab when the panel is shut, so a lit stone over a drawer
+         * that is not there would say the panel is open when it is not.
          */
         if( g_drawer_open && t->tabno == active )
             g_api->draw_image(
-                ctx, ev->surface, g_image[IMG_REDSTONE], t->x, t->y, 0, 0, 0, 0, 0);
+                ctx, ev->surface, g_art[ART_STONE_0 + t->tabno], t->x, t->y, 0, 0, 0, 0, 0);
         /* Centred in the cell rather than blitted at its corner: the 2004 icons
          * are each a different size (20x19 up to 30x29) and the cell is a
-         * uniform 34x36, so a corner blit puts every one of them somewhere
+         * uniform 36x34, so a corner blit puts every one of them somewhere
          * different within its own stone. */
         if( t->icon >= 0 && g_api->image_size(ctx, t->icon, &iw, &ih) )
             g_api->draw_image(
@@ -692,6 +1571,43 @@ mobile_on_draw(
 
 static void
 mobile_claim(struct ToriRS_PluginCtx* ctx);
+
+/*
+ * Wait for the art, then say the frame again.
+ *
+ * A SKIN is part of the declaration, not something drawn each frame: it is
+ * stated in EV_LAYOUT and stands until the next one. And the windows this frame
+ * masks with are read off a PNG that crosses the IO queue, so the first
+ * declaration almost always happens before there is anything to state -- after
+ * which nothing asks again, because a declaration only follows a claim, a resize
+ * or a rebuild. That is why the compass stayed square: the mask was correct, and
+ * it was correct one frame too late for anyone to have asked for it.
+ *
+ * So the moment the picture lands and the windows are known, re-claim. The claim
+ * is idempotent for the holder and marks the frame as needing a fresh EV_LAYOUT,
+ * which is the same call the drawer and the chat switch make. Once only -- the
+ * flags latch, so this costs one image_size call per frame until the read
+ * completes and nothing after it.
+ */
+static enum ToriRS_PluginVerdict
+mobile_on_frame(
+    struct ToriRS_PluginCtx* ctx,
+    void* payload,
+    void* userdata)
+{
+    (void)payload;
+    (void)userdata;
+    assert(ctx);
+
+    if( g_art_built && g_masks_ready )
+        return TORIRS_PLUGIN_PASS;
+    if( !g_masks_ready )
+        mobile_build_masks(ctx);
+    mobile_build_art(ctx);
+    if( g_art_built && g_masks_ready )
+        mobile_claim(ctx);
+    return TORIRS_PLUGIN_PASS;
+}
 
 static enum ToriRS_PluginVerdict
 mobile_on_click(
@@ -777,6 +1693,10 @@ mobile_on_start(
     memset(&g_frame, 0, sizeof(g_frame));
     g_drawer_open = 0;
     g_chat_open = 1;
+    g_art_built = 0;
+    g_masks_ready = 0;
+    for( int i = 0; i < MOBILE_ART_COUNT; i++ )
+        g_art[i] = -1;
     /* Present until the first open declaration says otherwise, so a rail
      * declared before the drawer has ever been opened still wears its icons.
      * @see g_tab_present. */
@@ -814,7 +1734,42 @@ mobile_on_stop(
             g_api->image_release(ctx, g_image[i]);
         g_image[i] = -1;
     }
+    /* The composed pictures are handles like any other and are this plugin's to
+     * drop -- a turned stone that outlived the frame would be a handle nothing
+     * could reach and nothing would free. */
+    for( int i = 0; i < MOBILE_ART_COUNT; i++ )
+    {
+        if( g_art[i] >= 0 )
+            g_api->image_release(ctx, g_art[i]);
+        g_art[i] = -1;
+    }
+    g_art_built = 0;
+    g_masks_ready = 0;
     g_frame.declared = 0;
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
+mobile_on_config(
+    struct ToriRS_PluginCtx* ctx,
+    void* payload,
+    void* userdata)
+{
+    struct ToriRS_PluginEvConfig const* ev = payload;
+
+    (void)userdata;
+    /* Nothing here calls through ctx, and assert() is gone under NDEBUG. */
+    (void)ctx;
+    assert(ctx);
+    assert(ev);
+
+    if( !ev->key || strcmp(ev->key, "housing") != 0 )
+        return TORIRS_PLUGIN_PASS;
+    /* The masks are cut from the housing, so a different housing is a different
+     * pair of masks and a different set of window boxes. Dropping the latch is
+     * what makes the frame handler read them again; it re-claims once they are
+     * cut, which is what restates the frame. */
+    g_masks_ready = 0;
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -864,10 +1819,33 @@ mobile_init(
     }
     api->subscribe(ctx, TORIRS_PLUGIN_EV_START, mobile_on_start, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, mobile_on_stop, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_FRAME_START, mobile_on_frame, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_LAYOUT, mobile_on_layout, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_FRAME, mobile_on_draw, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CANVAS_CLICK, mobile_on_click, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_CONFIG_CHANGED, mobile_on_config, NULL);
 }
+
+/*
+ * The default is the LABEL and not "0", so that the value this ships with has
+ * the same shape as the value the settings panel writes back. Two spellings of
+ * one choice in a file is how a reader ends up believing one is special.
+ */
+static struct ToriRS_PluginConfigItem const MOBILE_CONFIG[] = {
+    { "housing",
+     TORIRS_PLUGIN_CFG_ENUM,
+     "Map housing",
+     "Lizards",
+     0,
+     1,
+     "Lizards|Ring",
+     0 },
+    { NULL, TORIRS_PLUGIN_CFG_BOOL, NULL, NULL, 0, 0, NULL, 0 },
+};
+
+_Static_assert(
+    sizeof(MOBILE_HOUSING_NAME) / sizeof(MOBILE_HOUSING_NAME[0]) == 2,
+    "the housing name table and the schema's choices= are the same list");
 
 struct ToriRS_PluginDef const TORIRS_PLUGIN_MOBILE_GAMEFRAME = {
     .name = "mobile-gameframe",
@@ -881,7 +1859,7 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_MOBILE_GAMEFRAME = {
      * over the map housing rather than behind it.
      */
     .draw_order = -100,
-    .config = NULL,
+    .config = MOBILE_CONFIG,
     /*
      * OFF until asked for. This plugin does not add something to the screen, it
      * REPLACES the screen -- and it replaces it with a frame authored for a
