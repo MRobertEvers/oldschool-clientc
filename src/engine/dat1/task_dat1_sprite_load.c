@@ -1,6 +1,7 @@
 #include "engine/cache_provider.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat1/dat1_tasks.h"
+#include "engine/title_panel.h"
 #include "engine/torirs_sprite_from_rscache.h"
 #include "engine/torirs_types.h"
 
@@ -96,14 +97,36 @@ Task_Dat1SpriteLoadFromSource_Run(
         dat1_buildcache_set_media_2d_graphics_jagfile(task->bc, media_jagfile);
     }
 
-    sprite = ToriRS_SpriteFromDat1Jagfile(
-        task->from_title_archive ? dat1_buildcache_get_title_fonts_jagfile(task->bc)
-                                 : dat1_buildcache_get_media_2d_graphics_jagfile(task->bc),
-        task->format,
-        task->data_filename,
-        task->index_filename,
-        task->atlas_index,
-        task->atlas_count);
+    if( strcmp(task->format, TORIRS_TITLE_PANEL_FORMAT) == 0 )
+    {
+        /* One more decoder behind `format=`, beside pix8 and pix32: this
+         * member is a JPEG holding half the title screen, and the panel is
+         * that half plus its mirror. @see engine/title_panel.h. */
+        struct RSCache_FileListDat* jagfile =
+            task->from_title_archive ? dat1_buildcache_get_title_fonts_jagfile(task->bc)
+                                     : dat1_buildcache_get_media_2d_graphics_jagfile(task->bc);
+        int member = RSCache_FileListDatFindFileByName(jagfile, task->data_filename);
+        if( member < 0 )
+        {
+            TORIRS_ERR("dat1 sprite %s: no member '%s' in the archive\n",
+                task->name,
+                task->data_filename);
+            PT_EXIT(&task->pt);
+        }
+        sprite =
+            ToriRS_TitlePanelFromJpeg(jagfile->files[member], jagfile->file_sizes[member]);
+    }
+    else
+    {
+        sprite = ToriRS_SpriteFromDat1Jagfile(
+            task->from_title_archive ? dat1_buildcache_get_title_fonts_jagfile(task->bc)
+                                     : dat1_buildcache_get_media_2d_graphics_jagfile(task->bc),
+            task->format,
+            task->data_filename,
+            task->index_filename,
+            task->atlas_index,
+            task->atlas_count);
+    }
     if( !sprite )
     {
         TORIRS_ERR("Failed to decode dat1 sprite %s (%s)\n", task->name, task->data_filename);

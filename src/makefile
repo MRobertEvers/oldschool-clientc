@@ -566,7 +566,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/torirs_enum_from_rscache.c engine/torirs_struct_from_rscache.c \
 	engine/torirs_paramtype_from_rscache.c engine/torirs_db.c \
 	engine/torirs_worldmap_from_rscache.c \
-	engine/png_decode.c engine/jpeg_decode.c \
+	engine/png_decode.c engine/jpeg_decode.c engine/title_panel.c \
 	engine/uitree_from_component.c engine/texture_palette_bake.c \
 	engine/dat1/dat1_buildcache.c engine/dat1/task_dat1_model_load.c \
 	engine/dat1/task_dat1_component_pack_load.c engine/dat1/task_dat1_clientscript_load.c \
