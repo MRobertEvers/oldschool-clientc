@@ -135,6 +135,29 @@ World_DrawPositionSet(
     draw_position->fz = (float)z;
 }
 
+/**
+ * Which world view actually DRAWS this actor, and where it stands in that
+ * view's own scene-local fine coordinates (SAILING_PLAN C5.1).
+ *
+ * The actor record itself never leaves the world that owns it — the server
+ * reports every player in root coordinates, projected onto the hull if they
+ * are aboard — so `grid_position`/`draw_position` stay authoritative and this
+ * facet is purely the rendering answer to "whose deck is under their feet".
+ *
+ * `view_id` 0 is the root, and then `x`/`z` are simply `draw_position`, which
+ * is why an all-zero facet is the correct default for an actor spawned before
+ * any boat exists. A non-zero id means the actor's scene element is tagged
+ * TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(view_id) and is registered with THAT view's
+ * painter at (x >> 7, z >> 7); the descent transform carries it back into root
+ * space at emit time.
+ */
+struct WorldEntityFacet_ViewPlacement
+{
+    int view_id;
+    int x;
+    int z;
+};
+
 struct WorldEntityFacet_OrientationPYR
 {
     uint16_t pitch;

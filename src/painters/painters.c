@@ -136,10 +136,6 @@ distmetric_ctx_init(struct Painter* painter);
 static void
 distmetric_ctx_free(struct Painter* painter);
 
-static struct Painter* s_scenery_sort_painter;
-static int s_scenery_sort_camera_sx;
-static int s_scenery_sort_camera_sz;
-
 static int
 scenery_min_dist_sq_cam(
     const struct PaintersElement* el,
@@ -161,13 +157,11 @@ scenery_min_dist_sq_cam(
     return min_dist_sq;
 }
 
-static int
-scenery_min_dist_sq(const struct PaintersElement* el)
-{
-    return scenery_min_dist_sq_cam(el, s_scenery_sort_camera_sx, s_scenery_sort_camera_sz);
-}
-
-/* Same ordering as qsort(..., scenery_distance_compare): ascending min corner dist^2. */
+/* Ascending min corner dist^2 - farthest first (painter's algorithm). This is
+ * the only scenery order left: the qsort variant it replaced needed three
+ * file-scope statics to smuggle the painter and camera into the comparator,
+ * and a suspended outer paint would have found them rewritten by the inner one
+ * the moment the descent (PNTR_CMD_BEGIN_WORLD) landed. */
 static void
 scenery_queue_insertion_sort(
     int* queue,
@@ -191,20 +185,6 @@ scenery_queue_insertion_sort(
         }
         queue[j + 1] = val;
     }
-}
-
-static int
-scenery_distance_compare(
-    const void* a,
-    const void* b)
-{
-    int elem_a = *(const int*)a;
-    int elem_b = *(const int*)b;
-    struct PaintersElement* el_a = &s_scenery_sort_painter->elements[elem_a];
-    struct PaintersElement* el_b = &s_scenery_sort_painter->elements[elem_b];
-    int dist_sq_a = scenery_min_dist_sq(el_a);
-    int dist_sq_b = scenery_min_dist_sq(el_b);
-    return dist_sq_a - dist_sq_b; /* farthest first (painter's algorithm) */
 }
 
 static inline int
@@ -960,6 +940,67 @@ painter_add_normal_scenery_ex(
         },
     };
     return element;
+}
+
+void
+painter_set_world_entity_view(
+    struct Painter* painter,
+    int view_id,
+    struct Painter* view_painter,
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel)
+{
+    assert(painter);
+    assert(view_painter);
+    assert(view_id > 0);
+    assert(view_id < PAINTER_MAX_WORLD_VIEWS);
+    assert(view_painter != painter);
+    painter->world_entity_views[view_id] = (struct PainterWorldEntityView){
+        .painter = view_painter,
+        .camera_sx = camera_sx,
+        .camera_sz = camera_sz,
+        .camera_slevel = camera_slevel,
+        .active = 1,
+    };
+}
+
+void
+painter_clear_world_entity_views(struct Painter* painter)
+{
+    assert(painter);
+    memset(painter->world_entity_views, 0x00, sizeof(painter->world_entity_views));
+}
+
+int
+painter_add_world_entity(
+    struct Painter* painter,
+    int level,
+    int sx,
+    int sz,
+    int view_id,
+    int model_height,
+    int size_x,
+    int size_z)
+{
+    assert(painter);
+    assert(view_id > 0);
+    assert(view_id < PAINTER_MAX_WORLD_VIEWS);
+    assert(size_x > 0);
+    assert(size_z > 0);
+    /* size_x/size_z land in uint8_t fields; the largest hull is 13 zones. */
+    assert(size_x <= 255);
+    assert(size_z <= 255);
+    return painter_add_normal_scenery_ex(
+        painter,
+        sx,
+        sz,
+        level,
+        view_id,
+        size_x,
+        size_z,
+        model_height,
+        PNTR_SCENERY_WORLDENTITY);
 }
 
 int
@@ -1884,6 +1925,36 @@ static inline int
 painter_wedgelog_armed(void)
 {
     return g_wedgelog.armed;
+}
+
+/**
+ * Close the log for the duration of a paint that is not the bound painter's.
+ *
+ * Every row the log writes indexes `g_wedgelog.painter->tiles[]`, so a paint
+ * context running over a DIFFERENT painter — the descent into a nested world
+ * view — must emit no rows at all: its tile indices are meaningless against
+ * the bound array, and out of bounds whenever that array is smaller.
+ *
+ * Disarming for the duration is how that is enforced, rather than a per-row
+ * "is this the bound painter" test. The emit helpers already check `armed`,
+ * and the drain runs them thousands of times per paint from an always-inlined
+ * body; adding a second condition there cost ~5% of the paint stage with the
+ * log switched off, which is every frame anyone ships.
+ *
+ * Pair with painter_wedgelog_resume() on every exit from the nested run.
+ */
+static inline int
+painter_wedgelog_suspend(void)
+{
+    int saved = g_wedgelog.armed;
+    g_wedgelog.armed = 0;
+    return saved;
+}
+
+static inline void
+painter_wedgelog_resume(int saved)
+{
+    g_wedgelog.armed = saved;
 }
 
 /* Opens the sink on the requested paint call and writes the `#frame` /

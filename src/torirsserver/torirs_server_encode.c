@@ -151,6 +151,11 @@ enum
     OP_AMBIENTSOUND_START = PKT_NAME_AMBIENTSOUND_START,
     OP_AMBIENTSOUND_STOP = PKT_NAME_AMBIENTSOUND_STOP,
     OP_TRIGGER_ONDIALOGABORT = PKT_NAME_TRIGGER_ONDIALOGABORT,
+    /* Sailing (docs/SAILING_PLAN.md S2). Revision 230 has no such packets at
+     * all, so `ToriRSServer_WireOpcode` answers -1 there and the send is
+     * dropped — the refusal the wire convention wants. */
+    OP_REBUILD_WORLDENTITY = PKT_NAME_REBUILD_WORLDENTITY,
+    OP_WORLDENTITY_INFO = PKT_NAME_WORLDENTITY_INFO,
 };
 /* One packet's worth of scratch. Reset per send; sized for the largest packet
  * the mock produces (a full REBUILD_NORMAL key block). */
@@ -446,17 +451,33 @@ flush(struct ToriRSServerPlayer* player, struct RSAreaBuf* buf, int opcode, int 
  * chamber black even though the local tracker reports the right coordinate.
  */
 void
-ToriRSServer_SendSetActiveWorld(struct ToriRSServerPlayer* player)
+ToriRSServer_SendSetActiveWorldId(
+    struct ToriRSServerPlayer* player,
+    int world_id,
+    int level)
 {
     struct RSAreaBuf buf;
     const struct ToriRSServerWire* wire = wire_for(player);
 
+    assert(player);
+    /* 0 is the root; 1..15 are the world-entity registry. An id outside that
+     * is a server bug, and the client asserts on it (rs_gameproto_exec.c
+     * WorldviewRegistry_Get) — stop here instead. */
+    assert(world_id >= 0);
+    assert(world_id <= TORIRSSERVER_WEV_VIEW_MAX);
+
     if( !wire || wire->revision < 239 )
         return;
     open_packet(&buf, 3);
-    rsab_p2(&buf, 0); /* WorldEntityInfo.ROOT_WORLD */
-    rsab_p1(&buf, player->level & 3);
+    rsab_p2(&buf, world_id);
+    rsab_p1(&buf, level & 3);
     flush(player, &buf, OP_SET_ACTIVE_WORLD, 0);
+}
+
+void
+ToriRSServer_SendSetActiveWorld(struct ToriRSServerPlayer* player)
+{
+    ToriRSServer_SendSetActiveWorldId(player, 0, player->level);
 }
 
 /* ------------------------------------------------------------------ */
@@ -866,18 +887,18 @@ send_rebuild_normal_at(
 void
 ToriRSServer_SendRebuildNormal(struct ToriRSServerPlayer* player)
 {
-    struct ToriRSServer* srv = player->world;
-
-    send_rebuild_normal_at(player, srv->zone_x, srv->zone_z, 1);
+    /* The player's own window origin: the scene this client holds is the one
+     * their movement is judged against, whoever else is online. */
+    send_rebuild_normal_at(player, player->zone_x, player->zone_z, 1);
 }
 
 /*
  * A normal-world scene centred somewhere other than the authoritative player.
  *
  * Construction's scrying pool is the caller. It must load the destination's
- * terrain for one client without moving the player, changing the world's
- * shared scene/collision origin, or re-seeding the already-live player-info
- * table. The remote-view lifetime and restoration are owned by
+ * terrain for one client without moving the player, changing the player's
+ * own scene/collision window origin, or re-seeding the already-live
+ * player-info table. The remote-view lifetime and restoration are owned by
  * ToriRSServer_WorldRemoteView_*; this encoder is deliberately only the packet.
  */
 void
@@ -924,7 +945,7 @@ ToriRSServer_SendRebuildRegion(struct ToriRSServerPlayer* player)
     struct ToriRSServerMapInstanceWindow window;
     int key_count = 0;
 
-    ToriRSServer_MapInstanceWindow(srv->zone_x, srv->zone_z, &window);
+    ToriRSServer_MapInstanceWindow(player->zone_x, player->zone_z, &window);
 
     open_packet(&buf, 8192);
     {
@@ -932,13 +953,13 @@ ToriRSServer_SendRebuildRegion(struct ToriRSServerPlayer* player)
         if( pl && pl->rebuild_region )
         {
             /* V2 has no worldArea field and adds `reload`; zoneZ comes first. */
-            pl->rebuild_region(&buf, srv->zone_x, srv->zone_z, 0);
+            pl->rebuild_region(&buf, player->zone_x, player->zone_z, 0);
         }
         else
         {
             rsab_p2(&buf, 0);
-            rsab_p2_alt2(&buf, srv->zone_x);
-            rsab_p2(&buf, srv->zone_z);
+            rsab_p2_alt2(&buf, player->zone_x);
+            rsab_p2(&buf, player->zone_z);
         }
     }
 
@@ -1027,8 +1048,8 @@ ToriRSServer_SendRebuildRegion(struct ToriRSServerPlayer* player)
         fprintf(
             stderr,
             "torirsserver: rebuild region zone=%d,%d source zones=%d squares=%d\n",
-            srv->zone_x,
-            srv->zone_z,
+            player->zone_x,
+            player->zone_z,
             window.set_count,
             key_count);
 }
@@ -1048,6 +1069,412 @@ ToriRSServer_SendRebuild(struct ToriRSServerPlayer* player)
         ToriRSServer_SendRebuildRegion(player);
     else
         ToriRSServer_SendRebuildNormal(player);
+}
+
+/* ------------------------------------------------------------------ */
+/* Sailing: REBUILD_WORLDENTITY_V4 and WORLDENTITY_INFO_V7             */
+/* ------------------------------------------------------------------ */
+
+/*
+ * REBUILD_WORLDENTITY_V4 (op 109) — the deck map of one world entity.
+ *
+ * Structurally REBUILD_REGION with three differences, all of them silent when
+ * wrong: the header is the deck's SW *tile* rather than its centre zone, the
+ * descriptor grid is the VIEW's zone extent rather than a fixed 13x13, and
+ * there is no key block. The packet names no view: the target is whatever
+ * SET_ACTIVE_WORLD last selected, so it only means anything inside a sandwich
+ * (`wev_flush_deck_rebuild`).
+ *
+ * The client re-strides the compact grid onto its own 13x13 array
+ * (PktRebuildWev_DecodeZones) and asserts full consumption — a grid written at
+ * the wrong extent is a hard stop there, which is the behaviour wanted: the
+ * two ends disagreeing about a view's size cannot be walked past.
+ */
+void
+ToriRSServer_SendRebuildWorldEntity(
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerVessel* vessel)
+{
+    struct RSAreaBuf buf;
+    struct ToriRSServerMapInstanceWindow window;
+    int base_tile_x = 0;
+    int base_tile_z = 0;
+    int zones_x = 0;
+    int zones_z = 0;
+    int square_count = 0;
+    int seen_x[TORIRSSERVER_MAPINSTANCE_LEVELS * TORIRSSERVER_MAPINSTANCE_SCENE_ZONES *
+               TORIRSSERVER_MAPINSTANCE_SCENE_ZONES];
+    int seen_z[sizeof(seen_x) / sizeof(*seen_x)];
+
+    assert(player);
+    assert(vessel);
+    assert(vessel->in_use);
+    assert(vessel->instance > 0);
+
+    if( !wire_is_v5(player) )
+        return;
+    /* A dead instance handle is the vessel and the pool disagreeing, which the
+     * deck's own lifetime rules out — VesselFree releases both together. */
+    if( !ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z) )
+        return;
+    ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
+
+    /*
+     * `MapInstanceWindow` is centred (its SW zone is centre - 6), so asking for
+     * the deck's base zone + 6 lands the deck's own zone (0,0) on window index
+     * (0,0). Reading only the deck's extent out of it is safe even with other
+     * reservations inside the 13x13: instances never overlap in tile space, so
+     * an index inside this deck's rectangle can only be this deck's.
+     */
+    ToriRSServer_MapInstanceWindow(
+        (base_tile_x >> 3) + 6, (base_tile_z >> 3) + 6, &window);
+
+    for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
+        for( int zx = 0; zx < zones_x; zx++ )
+            for( int zz = 0; zz < zones_z; zz++ )
+            {
+                const struct ToriRSServerMapInstanceZone* zone = &window.zones[level][zx][zz];
+                int map_x;
+                int map_z;
+                int dup = 0;
+
+                if( !zone->set )
+                    continue;
+                map_x = zone->src_zone_x >> 3;
+                map_z = zone->src_zone_z >> 3;
+                for( int i = 0; i < square_count && !dup; i++ )
+                    if( seen_x[i] == map_x && seen_z[i] == map_z )
+                        dup = 1;
+                if( dup )
+                    continue;
+                seen_x[square_count] = map_x;
+                seen_z[square_count] = map_z;
+                square_count++;
+            }
+
+    open_packet(&buf, 8192);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+        /* No fallback arm: a revision without this writer has no such packet,
+         * and `flush` drops it at the opcode lookup rather than framing some
+         * other revision's bytes. */
+        if( !pl || !pl->rebuild_worldentity )
+            return;
+        pl->rebuild_worldentity(&buf, base_tile_x, base_tile_z, square_count);
+    }
+
+    rsab_bits(&buf);
+    for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
+        for( int zx = 0; zx < zones_x; zx++ )
+            for( int zz = 0; zz < zones_z; zz++ )
+            {
+                const struct ToriRSServerMapInstanceZone* zone = &window.zones[level][zx][zz];
+
+                if( !zone->set )
+                {
+                    rsab_pbit(&buf, 1, 0);
+                    continue;
+                }
+                rsab_pbit(&buf, 1, 1);
+                rsab_pbit(&buf, 26,
+                          ((zone->rotation & 3) << 1) | ((zone->src_zone_z & 0x7ff) << 3) |
+                              ((zone->src_zone_x & 0x3ff) << 14) |
+                              ((zone->src_level & 3) << 24));
+            }
+    rsab_bytes(&buf);
+
+    flush(player, &buf, OP_REBUILD_WORLDENTITY, 2);
+}
+
+/*
+ * WORLDENTITY_INFO's per-axis delta: a 2-bit code selecting nothing / i8 /
+ * i16 BE / i32 BE, LSB-first across dx, dy, dz, dangle. The code is chosen
+ * from the value, so an idle boat costs one mask byte and nothing else.
+ */
+static int
+wev_delta_code(int v)
+{
+    if( v == 0 )
+        return 0;
+    if( v >= -128 && v <= 127 )
+        return 1;
+    if( v >= -32768 && v <= 32767 )
+        return 2;
+    return 3;
+}
+
+static void
+wev_put_delta(
+    struct RSAreaBuf* buf,
+    int code,
+    int v)
+{
+    switch( code & 3 )
+    {
+    case 0:
+        break;
+    case 1:
+        rsab_p1(buf, v & 0xff);
+        break;
+    case 2:
+        rsab_p2(buf, v & 0xffff);
+        break;
+    default:
+        rsab_p4(buf, v);
+        break;
+    }
+}
+
+/** The four-axis bitfield and its payload, the shape both the update records
+ *  and the spawn trailer's absolute transform use. */
+static void
+wev_put_transform(
+    struct RSAreaBuf* buf,
+    int dx,
+    int dy,
+    int dz,
+    int dangle)
+{
+    int cx = wev_delta_code(dx);
+    int cy = wev_delta_code(dy);
+    int cz = wev_delta_code(dz);
+    int ca = wev_delta_code(dangle);
+
+    rsab_p1(buf, cx | (cy << 2) | (cz << 4) | (ca << 6));
+    wev_put_delta(buf, cx, dx);
+    wev_put_delta(buf, cy, dy);
+    wev_put_delta(buf, cz, dz);
+    wev_put_delta(buf, ca, dangle);
+}
+
+/*
+ * The shortest signed arc from `from` to `to` in 2048-space.
+ *
+ * The client applies the delta by addition and masks to 0x7FF, so 1900 and
+ * -148 land on the same angle — but they interpolate the long way round and
+ * the short way round respectively, and the boat visibly spins. This is the
+ * server half of the client's own shortest-arc rule (SAILING.md §5.5, the
+ * 1024 threshold).
+ */
+static int
+wev_angle_delta(int from, int to)
+{
+    int d = ((to - from) & 0x7ff);
+
+    if( d > 1024 )
+        d -= 2048;
+    return d;
+}
+
+/** Where this observer's tracked list holds `view_id`, or -1. */
+static int
+wev_tracked_index(
+    const struct ToriRSServerPlayer* player,
+    int view_id)
+{
+    for( int i = 0; i < player->wev_tracked_count; i++ )
+        if( player->wev_view_ids[i] == view_id )
+            return i;
+    return -1;
+}
+
+/*
+ * WORLDENTITY_INFO_V7 (op 122), plus the deck rebuilds any spawn in it owes.
+ *
+ * Written as the exact inverse of the committed client decoder
+ * (src/net/rev/osrs239/osrs239_parse.c) — the only statement of this layout
+ * that exists on both ends, since RSProt's generator excludes the info family.
+ *
+ * The records are POSITIONAL: record `i` addresses entry `i` of the client's
+ * own per-view list, so this observer's `wev_view_ids` has to mirror that list
+ * in the same order. Op 0 removes an entry and the client compacts its list;
+ * this array is compacted the same way, in the same pass, or every record
+ * after the removal addresses the wrong boat from the next tick on.
+ *
+ * Nothing is sent when the observer tracks nothing and nothing is spawning:
+ * a 1-byte "count = 0" every tick to every client would be pure noise, and the
+ * existing packet-sequence selftests pin its absence.
+ */
+void
+ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServer* srv;
+    struct RSAreaBuf buf;
+    struct ToriRSServerVessel* spawning[TORIRSSERVER_WEV_VIEW_MAX];
+    int spawning_count = 0;
+    int kept_ids[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_serials[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_x[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_z[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_angle[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_count = 0;
+    const struct ToriRSServerWirePayload* pl;
+
+    assert(player);
+    srv = player->world;
+    if( !srv || !wire_is_v5(player) )
+        return;
+    pl = wire_payload(player);
+    if( !pl || !pl->wev_spawn_scalars )
+        return;
+
+    /* Everything live with a view id, lowest first, that this observer is not
+     * already tracking. S2 publishes every hull to every client: culling by
+     * range is a despawn/respawn policy, and the interpolator would have to be
+     * re-seeded on every re-entry — C4's problem, not this one's.
+     *
+     * "Already tracking" is a SERIAL match, not a view-id match: a hull that
+     * sank and one that took its view id in the same tick share every number
+     * except that one, and treating the second as the first sends the client a
+     * move where it needs a respawn. */
+    for( int view = 1; view <= TORIRSSERVER_WEV_VIEW_MAX; view++ )
+    {
+        struct ToriRSServerVessel* vessel = ToriRSServer_VesselByView(srv, view);
+        int at;
+
+        if( !vessel )
+            continue;
+        at = wev_tracked_index(player, view);
+        if( at >= 0 && player->wev_serials[at] == vessel->serial )
+            continue;
+        spawning[spawning_count++] = vessel;
+    }
+    if( player->wev_tracked_count == 0 && spawning_count == 0 )
+        return;
+
+    open_packet(&buf, 1024);
+    rsab_p1(&buf, player->wev_tracked_count);
+    for( int i = 0; i < player->wev_tracked_count; i++ )
+    {
+        int view = player->wev_view_ids[i];
+        struct ToriRSServerVessel* vessel = ToriRSServer_VesselByView(srv, view);
+        int dx;
+        int dz;
+        int dangle;
+
+        /* A different serial under the same view id is a DIFFERENT HULL, and
+         * the only record that can say so is the despawn: the config id and the
+         * deck size live in the spawn trailer, which the loop above has already
+         * queued this hull for. The client applies collected despawns before
+         * the trailer's spawns, so both land in this one packet. */
+        if( !vessel || player->wev_serials[i] != vessel->serial )
+        {
+            /* Op 0 carries no flags byte at all — the deob's `if (op != 0)`
+             * guards every remaining read of the record. The entry is dropped
+             * from `kept`, which is the compaction the client performs. */
+            rsab_p1(&buf, 0);
+            continue;
+        }
+
+        dx = vessel->fine_x - player->wev_last_fine_x[i];
+        dz = vessel->fine_z - player->wev_last_fine_z[i];
+        dangle = wev_angle_delta(player->wev_last_angle[i], vessel->angle);
+        if( dx == 0 && dz == 0 && dangle == 0 )
+        {
+            /* Op 1 is the flags-only record: the slot has to be described
+             * (the count addresses it positionally) and there is nothing to
+             * say about it. A zero flags byte says exactly that. */
+            rsab_p1(&buf, 1);
+            rsab_p1(&buf, 0);
+        }
+        else
+        {
+            /*
+             * Op 2 = enqueue: the client interpolates over its 30-cycle
+             * window, which is what a hull under way wants.
+             *
+             * Op 3 (snap) is decoded by the client and deliberately has no
+             * producer here. It is the answer to a hull whose transform jumped
+             * — and the vessel module offers no way to make one jump: every
+             * mutation of `fine_x`/`fine_z`/`angle` after spawn goes through
+             * the mover, which is speed- and turn-rate-capped by construction.
+             * The one discontinuity that IS reachable, a view id changing
+             * hulls, needs a respawn rather than a snap (the config and deck
+             * size change with it), and is handled as one above. When S3 adds
+             * a vessel teleport this is the branch it turns on.
+             */
+            rsab_p1(&buf, 2);
+            wev_put_transform(&buf, dx, 0, dz, dangle);
+            rsab_p1(&buf, 0); /* updateFlags: no op-mask change, no seq */
+        }
+        kept_ids[kept_count] = view;
+        kept_serials[kept_count] = vessel->serial;
+        kept_x[kept_count] = vessel->fine_x;
+        kept_z[kept_count] = vessel->fine_z;
+        kept_angle[kept_count] = vessel->angle;
+        kept_count++;
+    }
+
+    /* --- the spawn trailer, read by the client "while bytes remain" --- */
+    for( int i = 0; i < spawning_count; i++ )
+    {
+        struct ToriRSServerVessel* vessel = spawning[i];
+        int zones_x = 0;
+        int zones_z = 0;
+
+        ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
+        /* The nibbles are ZONE counts and the client multiplies each by 8; a
+         * deck wider than 15 zones cannot be named at all. VesselSpawn's own
+         * reservation is bounded well below that. */
+        assert(zones_x >= 1);
+        assert(zones_x <= 15);
+        assert(zones_z >= 1);
+        assert(zones_z <= 15);
+
+        rsab_p2(&buf, vessel->view_id);
+        /* updateFlags: bit 0x2 carries the op mask. Sent on every spawn so the
+         * entity's right-click ops are stated once, at the only point the
+         * client has nothing to fall back on. */
+        rsab_p1(&buf, 0x2);
+        pl->wev_spawn_scalars(
+            &buf, ((zones_x & 0xf) << 4) | (zones_z & 0xf), vessel->priority,
+            vessel->config_id);
+        /* The absolute transform is the same 4-axis bitfield applied to
+         * (0,0,0,0), so the "delta" here is the position itself. */
+        wev_put_transform(&buf, vessel->fine_x, 0, vessel->fine_z, vessel->angle & 0x7ff);
+        pl->wev_op_mask(&buf, TORIRSSERVER_WEV_OP_MASK_ALL);
+
+        kept_ids[kept_count] = vessel->view_id;
+        kept_serials[kept_count] = vessel->serial;
+        kept_x[kept_count] = vessel->fine_x;
+        kept_z[kept_count] = vessel->fine_z;
+        kept_angle[kept_count] = vessel->angle;
+        kept_count++;
+    }
+
+    flush(player, &buf, OP_WORLDENTITY_INFO, 2);
+
+    for( int i = 0; i < kept_count; i++ )
+    {
+        player->wev_view_ids[i] = kept_ids[i];
+        player->wev_serials[i] = kept_serials[i];
+        player->wev_last_fine_x[i] = kept_x[i];
+        player->wev_last_fine_z[i] = kept_z[i];
+        player->wev_last_angle[i] = kept_angle[i];
+    }
+    player->wev_tracked_count = kept_count;
+
+    /*
+     * The deck maps, each inside a SET_ACTIVE_WORLD sandwich addressed to its
+     * own view (docs/SAILING_PLAN.md S2.3). After the info packet, never
+     * before it: the client asserts that the id names a live view, and the
+     * spawn above is what makes it live.
+     *
+     * The root is re-selected at the end because the cursor persists until
+     * SERVER_TICK_END, and everything after this — PLAYER_INFO's placement,
+     * the zone flush — is root-world.
+     */
+    if( spawning_count > 0 )
+    {
+        for( int i = 0; i < spawning_count; i++ )
+        {
+            ToriRSServer_SendSetActiveWorldId(
+                player, spawning[i]->view_id, spawning[i]->level);
+            ToriRSServer_SendRebuildWorldEntity(player, spawning[i]);
+        }
+        ToriRSServer_SendSetActiveWorld(player);
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -2147,8 +2574,9 @@ ToriRSServer_SendCamMoveto(
             pl->cam_moveto(&buf, world_x, world_z, height, rate, rate2);
         else
         {
-            rsab_p1(&buf, world_x - ToriRSServer_SceneBaseX());
-            rsab_p1(&buf, world_z - ToriRSServer_SceneBaseZ());
+            /* Local to the RECEIVING player's own scene window. */
+            rsab_p1(&buf, world_x - ToriRSServer_SceneOrigin(player->zone_x));
+            rsab_p1(&buf, world_z - ToriRSServer_SceneOrigin(player->zone_z));
             rsab_p2(&buf, height);
             rsab_p1(&buf, rate);
             rsab_p1(&buf, rate2);
@@ -2175,8 +2603,9 @@ ToriRSServer_SendCamLookat(
             pl->cam_lookat(&buf, world_x, world_z, height, rate, rate2);
         else
         {
-            rsab_p1(&buf, world_x - ToriRSServer_SceneBaseX());
-            rsab_p1(&buf, world_z - ToriRSServer_SceneBaseZ());
+            /* Local to the RECEIVING player's own scene window. */
+            rsab_p1(&buf, world_x - ToriRSServer_SceneOrigin(player->zone_x));
+            rsab_p1(&buf, world_z - ToriRSServer_SceneOrigin(player->zone_z));
             rsab_p2(&buf, height);
             rsab_p1(&buf, rate);
             rsab_p1(&buf, rate2);
@@ -2638,8 +3067,9 @@ ToriRSServer_SendSetMapFlag(struct ToriRSServerPlayer* player, int local_x, int 
     {
         const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->set_map_flag )
-            pl->set_map_flag(&buf, player->level, ToriRSServer_SceneOrigin(player->world->zone_x) + local_x,
-                             ToriRSServer_SceneOrigin(player->world->zone_z) + local_z);
+            pl->set_map_flag(&buf, player->level,
+                             ToriRSServer_SceneOrigin(player->zone_x) + local_x,
+                             ToriRSServer_SceneOrigin(player->zone_z) + local_z);
         else
         {
             rsab_p1(&buf, local_x & 0xff);
@@ -3253,10 +3683,13 @@ put_player_extended(
          * mask word above is written before any field, so a bit set with no
          * body does not drop a field — it eats the next player's block and
          * corrupts everything after it in the stream.
+         *
+         * Scene-local to the RECIPIENT's window: the tiles are decoded
+         * against the scene the watching client holds, which is the
+         * recipient's own, not the moving player's.
          */
-        struct ToriRSServer* srv = player->world;
-        int origin_x = ToriRSServer_SceneOrigin(srv->zone_x);
-        int origin_z = ToriRSServer_SceneOrigin(srv->zone_z);
+        int origin_x = ToriRSServer_SceneOrigin(recipient->zone_x);
+        int origin_z = ToriRSServer_SceneOrigin(recipient->zone_z);
 
         rsab_p1(buf, (player->exact_start_x - origin_x) & 0xff);
         rsab_p1(buf, (player->exact_start_z - origin_z) & 0xff);
@@ -3323,15 +3756,17 @@ put_player_extended(
  *                           encode, however many clients stand in the zone.
  */
 
+/* Against the RECEIVING player's own window origin: a zone header is
+ * scene-local to the scene that client holds, and each client holds its own. */
 static int
 zone_base(
-    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
     int zone_x,
     int zone_z,
     int* base_z)
 {
-    *base_z = (zone_z * TORIRSSERVER_ZONE_TILES) - ToriRSServer_SceneOrigin(srv->zone_z);
-    return (zone_x * TORIRSSERVER_ZONE_TILES) - ToriRSServer_SceneOrigin(srv->zone_x);
+    *base_z = (zone_z * TORIRSSERVER_ZONE_TILES) - ToriRSServer_SceneOrigin(player->zone_z);
+    return (zone_x * TORIRSSERVER_ZONE_TILES) - ToriRSServer_SceneOrigin(player->zone_x);
 }
 
 /*
@@ -3353,7 +3788,7 @@ ToriRSServer_SendZoneHeader(
 {
     struct RSAreaBuf buf;
     int base_z;
-    int base_x = zone_base(player->world, zone_x, zone_z, &base_z);
+    int base_x = zone_base(player, zone_x, zone_z, &base_z);
 
     open_packet(&buf, 8);
     {
@@ -3668,7 +4103,7 @@ ToriRSServer_SendZoneEnclosed(
 {
     struct RSAreaBuf buf;
     int base_z;
-    int base_x = zone_base(player->world, zone_x, zone_z, &base_z);
+    int base_x = zone_base(player, zone_x, zone_z, &base_z);
 
     if( len <= 0 )
         return;
@@ -3706,17 +4141,42 @@ player_in_view(
     int dx;
     int dz;
 
-    if( !other->active || other == player || other->level != player->level )
+    if( !other->active || other == player || other->obs_level != player->obs_level )
         return 0;
     /* A player mid-handshake has no ciphers and no position worth reporting;
      * `place_dirty` is set by ToriRSServer_WorldPlayerInit, so the first tick after
      * login is the first tick they can be seen on. */
     if( !other->world )
         return 0;
-    dx = other->x - player->x;
-    dz = other->z - player->z;
+    /*
+     * Observation coordinates, not feet (docs/SAILING_PLAN.md S2.4). For
+     * everyone not on a vessel deck `obs_*` IS x/z/level, so a world with no
+     * vessels asks exactly the question this function always asked; for a deck
+     * player it is their tile projected back into root-world coordinates,
+     * which is the only frame a shore observer and a deck player share.
+     */
+    dx = other->obs_x - player->obs_x;
+    dz = other->obs_z - player->obs_z;
     return dx >= -TORIRSSERVER_PLAYER_VIEW_TILES && dx <= TORIRSSERVER_PLAYER_VIEW_TILES &&
            dz >= -TORIRSSERVER_PLAYER_VIEW_TILES && dz <= TORIRSSERVER_PLAYER_VIEW_TILES;
+}
+
+/*
+ * The same question, asked from outside this file.
+ *
+ * A wrapper rather than a copy, deliberately: the world selftest's cross-world
+ * rows exist to prove that the admission test reads OBSERVATION coordinates,
+ * and a test carrying its own +/-15 box would keep passing after the encoder
+ * stopped doing so.
+ */
+int
+ToriRSServer_PlayerObservable(
+    const struct ToriRSServerPlayer* observer,
+    const struct ToriRSServerPlayer* other)
+{
+    assert(observer);
+    assert(other);
+    return player_in_view(observer, other);
 }
 
 /*
@@ -3745,8 +4205,9 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
 {
     struct ToriRSServer* srv = player->world;
     struct RSAreaBuf buf;
-    int local_x = player->x - ToriRSServer_SceneOrigin(srv->zone_x);
-    int local_z = player->z - ToriRSServer_SceneOrigin(srv->zone_z);
+    /* This player's own window origin — the scene their client holds. */
+    int local_x = player->x - ToriRSServer_SceneOrigin(player->zone_x);
+    int local_z = player->z - ToriRSServer_SceneOrigin(player->zone_z);
     int extended = player->masks != 0;
     /* Who gets an extended block, in bit-section order. `player` itself is
      * spelled as its own pointer rather than as a pid, because the local player
@@ -4134,7 +4595,20 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
          * into this pid" and reads the new occupant as an ordinary
          * continuation of the old one.
          */
-        if( (other->place_dirty && !glide_steps) || !player_in_view(player, other) ||
+        /*
+         * `obs_jumped` is plan risk R1's answer. This section describes a
+         * tracked player as WALK STEPS, so the client's copy advances by the
+         * steps sent and by nothing else — a boat carrying a standing player,
+         * a boarding, a disembark and a plane change all move the observed
+         * position with no step to describe it. Every one of them is funnelled
+         * into the one thing the section CAN say: remove here, and the
+         * entering-view loop below re-adds at the projected tile in the same
+         * packet, exactly as a teleport's `place_dirty` does. The v5 delta
+         * state stays coherent because a projected jump is never encoded as a
+         * step.
+         */
+        if( (other->place_dirty && !glide_steps) || other->obs_jumped ||
+            !player_in_view(player, other) ||
             other->login_generation != player->tracked_player_generation[i] )
         {
             /* Op 3 on a tracked player is "remove". It is the one op that does
@@ -4198,6 +4672,33 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
      */
     nearby_count = ToriRSServer_PlayerzonemapPlayers(player, TORIRSSERVER_PLAYER_VIEW_TILES, nearby,
                                         TORIRSSERVER_PLAYER_MAX);
+    /*
+     * Cross-world candidates (docs/SAILING_PLAN.md S2.4).
+     *
+     * The zonemap is keyed on where a player's FEET are, and a deck player's
+     * feet are hundreds of squares away in the map-instance pool — so the
+     * zonemap can never offer one to a shore observer, however close the boat
+     * has sailed. Anyone carrying a projection offset is appended here
+     * instead; `player_in_view` still decides, over observation coordinates.
+     *
+     * A flat scan rather than a second index because it only runs when a hull
+     * is actually carrying someone, and TORIRSSERVER_PLAYER_MAX bounds it.
+     */
+    for( int pid = 0; pid < srv->player_count && nearby_count < TORIRSSERVER_PLAYER_MAX; pid++ )
+    {
+        struct ToriRSServerPlayer* other = &srv->players[pid];
+        int already = 0;
+
+        if( !other->active || other == player )
+            continue;
+        if( other->obs_off_x == 0 && other->obs_off_z == 0 && other->obs_off_level == 0 )
+            continue;
+        for( int i = 0; i < nearby_count && !already; i++ )
+            if( nearby[i] == pid )
+                already = 1;
+        if( !already )
+            nearby[nearby_count++] = pid;
+    }
     for( int i = 0; i < nearby_count; i++ )
     {
         int pid = nearby[i];
@@ -4210,8 +4711,11 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
         if( player->player_tracked[pid] || !player_in_view(player, other) )
             continue;
 
-        dx = other->x - player->x;
-        dz = other->z - player->z;
+        /* Both sides projected, so the pair is described in one frame. A
+         * deck player enters a shore observer's list at the root tile the
+         * hull is carrying them over, not at their pool coordinate. */
+        dx = other->obs_x - player->obs_x;
+        dz = other->obs_z - player->obs_z;
         rsab_pbit(&buf, 11, pid);
         rsab_pbit(&buf, 5, dx & 0x1f);
         rsab_pbit(&buf, 5, dz & 0x1f);
@@ -4973,6 +5477,18 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
      * held one, which encoded the first player's npc set — deltas and all — for
      * whoever the packet was addressed to.
      */
+    /*
+     * Deliberately on the player's OWN coordinates, not `obs_*`
+     * (docs/SAILING_PLAN.md S2.4).
+     *
+     * No npc carries a vessel transform in S2, so an npc's projection is the
+     * identity and its coordinate is its tile. Projecting only the observer
+     * would therefore move the observer out of the frame the npcs are in — and
+     * the npcs physically nearest a deck player are the ones standing on the
+     * deck instance with them, which would be exactly the set that vanished.
+     * Deck npcs get a transform in a later phase; until they do, feet are the
+     * one frame in which both ends of this stream agree.
+     */
     struct ToriRSServer* srv = player->world;
     struct RSAreaBuf buf;
     /* Extended blocks are appended in the order the bit section queued them,
@@ -5090,8 +5606,10 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
          * moves the build area under a stationary player.
          */
         open_packet(&buf, 4);
-        rsab_p1(&buf, player->x - ToriRSServer_SceneBaseX());
-        rsab_p1(&buf, player->z - ToriRSServer_SceneBaseZ());
+        /* Local to this player's OWN window — the build area their client
+         * holds, not whichever window happens to be bound. */
+        rsab_p1(&buf, player->x - ToriRSServer_SceneOrigin(player->zone_x));
+        rsab_p1(&buf, player->z - ToriRSServer_SceneOrigin(player->zone_z));
         flush(player, &buf, OP_SET_NPC_UPDATE_ORIGIN, 0);
 
         open_packet(&buf, 4096);
@@ -5119,11 +5637,23 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
              * an ordinary continuation of the old one.
              */
             in_range = npc->active && ToriRSServer_WorldNpcVisibleTo(srv, npc, player) &&
-                       npc->level == player->level &&
+                       npc->obs_level == player->obs_level &&
                        npc->generation == player->tracked_generation[i] &&
                        view_dx <= view_tiles && view_dz <= view_tiles;
 
-            if( !in_range || npc->tele )
+            /*
+             * `obs_jumped` joins `tele` here, and for the identical reason
+             * (docs/sailing_coverage.csv SAIL-50).
+             *
+             * This section can only say STEP. A deck npc whose hull sailed or
+             * turned has moved in root coordinates without taking one, so
+             * there is nothing truthful to encode — and a step is not merely
+             * imprecise, it desynchronises the client's copy permanently,
+             * since every later delta is measured from a position that never
+             * happened. Remove and re-add restates it absolutely, which is the
+             * same answer PLAYER_INFO reaches for a carried player.
+             */
+            if( !in_range || npc->tele || npc->obs_jumped )
             {
                 rsab_pbit(&buf, 1, 1);
                 rsab_pbit(&buf, 2, 3); /* remove */
@@ -5140,12 +5670,14 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
                 player->npc_tracked[slot] = 0;
                 ToriRSServer_SlotMapReleaseWhy(
                     player, slot,
-                    !npc->active            ? "npc inactive"
-                    : npc->level != player->level ? "level changed"
+                    !npc->active                            ? "npc inactive"
+                    : npc->obs_level != player->obs_level   ? "observed plane changed"
                     : npc->generation != player->tracked_generation[i]
                         ? "generation changed (slot reused by a different npc)"
-                    : !in_range ? "out of view range"
-                                : "tele (teleport forces re-add)");
+                    : !in_range  ? "out of view range"
+                    : npc->tele  ? "tele (teleport forces re-add)"
+                                 : "projection jumped (its hull sailed or turned "
+                                   "under it — no step can describe that)");
                 continue;
             }
             kept_generation[kept_count] = npc->generation;
@@ -5197,6 +5729,24 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
          * coordinate that does not exist for it. */
         nearby_count = ToriRSServer_PlayerzonemapNpcs(player, view_tiles, nearby,
                                          TORIRSSERVER_TRACKED_NPC_MAX);
+        /*
+         * Plus the npcs no zonemap walk could have offered
+         * (docs/sailing_coverage.csv SAIL-50).
+         *
+         * A vessel deck is a map instance in the pool and it is in nobody's
+         * subscription but its riders', so the query above cannot return a
+         * deckhand to a player on the shore however close the boat is. Before
+         * this line every boat in the world sailed past with an empty deck,
+         * and nothing in the packet was malformed while it did.
+         *
+         * Appended rather than merged: the two sets are disjoint (an npc is
+         * filed in exactly one zone, and the observer's own hull is skipped),
+         * and in a world with no live vessel this returns 0 without touching a
+         * zone, so the ordinary case is the ordinary case.
+         */
+        nearby_count += ToriRSServer_PlayerCrossFrameNpcs(
+            player, view_tiles, nearby + nearby_count,
+            TORIRSSERVER_TRACKED_NPC_MAX - nearby_count);
         for( int i = 0; i < nearby_count; i++ )
         {
             int slot = nearby[i];
@@ -5209,8 +5759,12 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
             if( !npc->active || !ToriRSServer_WorldNpcVisibleTo(srv, npc, player) ||
                 player->npc_tracked[slot] )
                 continue;
-            dx = npc->x - player->x;
-            dz = npc->z - player->z;
+            /* Observed against observed. For everything off a deck these are
+             * x/z and this is the arithmetic that was always here; for a
+             * deckhand it is the projected tile, which is the only position
+             * the shore player's build area has a square for. */
+            dx = npc->obs_x - player->obs_x;
+            dz = npc->obs_z - player->obs_z;
             ToriRSServer_NpcViewDeltas(npc, player, &view_dx, &view_dz);
             /*
              * The SAME radius and the SAME measure the high-resolution loop
@@ -5222,8 +5776,10 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
             /* The plane, here rather than in the candidate set. The area is a
              * *subscription* and it spans all four on purpose — a loc change
              * one storey up still has to reach this client — so the entity
-             * streams, which are single-plane, filter at the point of use. */
-            if( npc->level != player->level )
+             * streams, which are single-plane, filter at the point of use.
+             * The OBSERVED plane: a deckhand's own level is a pool storey and
+             * means nothing to a shore player — the hull's is what they share. */
+            if( npc->obs_level != player->obs_level )
                 continue;
             if( view_dx > view_tiles || view_dz > view_tiles )
                 continue;
@@ -5240,7 +5796,7 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
                 fprintf(stderr,
                         "torirsserver: npc %d (type %d, size %d) is in view at %d,%d but its "
                         "origin delta %d,%d does not fit the v5 add; not sent\n",
-                        slot, npc->type, npc->size, npc->x, npc->z, dx, dz);
+                        slot, npc->type, npc->size, npc->obs_x, npc->obs_z, dx, dz);
                 continue;
             }
             if( kept_count >= TORIRSSERVER_TRACKED_NPC_MAX )
@@ -5256,8 +5812,11 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
             int slot = adds[i];
             int client_slot = ToriRSServer_SlotMapAcquire(player, slot);
             struct ToriRSServerNpc* npc = &srv->npcs[slot];
-            int dx = npc->x - player->x;
-            int dz = npc->z - player->z;
+            /* The same measure the range test above admitted it on, and it has
+             * to be — see the candidate query. Observed, so a deckhand is
+             * placed where the hull carries it rather than in the pool. */
+            int dx = npc->obs_x - player->obs_x;
+            int dz = npc->obs_z - player->obs_z;
 
             int const force_type = npc_add_requires_transformation(npc);
             int const extended = npc_extended_pending_v5(player, npc, 1) || force_type;

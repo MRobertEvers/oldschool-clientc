@@ -1985,7 +1985,7 @@ only_loc_init(void)
 
 static bool
 frame_only_loc_allows(
-    struct ToriRS_Frame* frame,
+    struct World* world,
     int cmd_kind,
     int element_id)
 {
@@ -1996,13 +1996,176 @@ frame_only_loc_allows(
         return true;
     if( cmd_kind != PNTR_CMD_ELEMENT )
         return false; /* terrain and pick-only commands */
-    sc = World_SceneryGetByElementId(frame->world, element_id);
+    sc = World_SceneryGetByElementId(world, element_id);
     if( !sc )
         return false;
     for( int i = 0; i < g_only_loc_count; i++ )
         if( sc->loc_id == g_only_loc[i] )
             return true;
     return false;
+}
+
+/* --- SAILING_PLAN C3: the descent stack -------------------------------- */
+
+/**
+ * `TORIRS_WEV_DEBUG=1` — print the composed transform for every view the drain
+ * descends into.
+ *
+ * A hull at the wrong place and a hull that is not drawn at all look identical
+ * from outside; this is where the difference is legible, because the offset it
+ * prints can be read against the camera. It is how the deck was caught floating
+ * 600 units up — the terrain sample had run at the wrong level.
+ *
+ * Read once, not per view: this is on the per-frame drain path.
+ * @see app_wev_debug_enabled
+ */
+static int
+frame_wev_debug_enabled(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_WEV_DEBUG");
+
+        cached = (v && v[0] && v[0] != '0') ? 1 : 0;
+    }
+    return cached;
+}
+
+/**
+ * PNTR_CMD_BEGIN_WORLD: compose this view's transform onto the stack top.
+ *
+ * With the parent already reduced to `root = R(Y) * p + O`, one more level of
+ * `p -> R(y) * (local + recenter) + translate` gives
+ *   Y' = Y + y
+ *   O' = R(Y) * (R(y) * recenter + translate) + O
+ * which is why an element pays one rotate no matter how deeply it nests. The
+ * vertical axis never rotates, so O'.y is a plain sum.
+ */
+static void
+frame_view_push(
+    struct ToriRS_Frame* frame,
+    int view_id)
+{
+    const struct ToriRS_FrameViewXform* xf;
+    int depth;
+    int parent_yaw;
+    int rx;
+    int rz;
+    int cs;
+    int sn;
+    int px;
+    int pz;
+
+    assert(frame);
+    assert(view_id > 0);
+    assert(view_id < TORIRS_FRAME_MAX_VIEWS);
+    /* The painter caps its own descent at PAINTER_MAX_WORLD_VIEWS, which is the
+     * same 16, so a deeper stack than this is a corrupt command stream. */
+    assert(frame->view_depth + 1 < TORIRS_FRAME_MAX_VIEWS);
+
+    depth = frame->view_depth;
+    parent_yaw = frame->view_stack[depth].yaw;
+    xf = &frame->views[view_id];
+
+    frame->view_depth = depth + 1;
+    frame->dbg_view_traced = false;
+    if( !xf->live )
+    {
+        /* The painter descended into a view the App never bound this frame.
+         * Carry the parent's transform through so the stack still balances and
+         * the geometry lands somewhere sane rather than at the origin. */
+        frame->view_stack[depth + 1] = frame->view_stack[depth];
+        frame->view_stack[depth + 1].view_id = view_id;
+        return;
+    }
+
+    /* R(yaw) * recenter */
+    cs = ToriDraw_Cos(xf->yaw);
+    sn = ToriDraw_Sin(xf->yaw);
+    rx = (xf->recenter_x * cs + xf->recenter_z * sn) >> 16;
+    rz = (xf->recenter_z * cs - xf->recenter_x * sn) >> 16;
+    rx += xf->translate_x;
+    rz += xf->translate_z;
+
+    /* R(parent_yaw) * that */
+    cs = ToriDraw_Cos(parent_yaw);
+    sn = ToriDraw_Sin(parent_yaw);
+    px = (rx * cs + rz * sn) >> 16;
+    pz = (rz * cs - rx * sn) >> 16;
+
+    frame->view_stack[depth + 1].world = xf->world ? xf->world : frame->view_stack[depth].world;
+    frame->view_stack[depth + 1].off_x = frame->view_stack[depth].off_x + px;
+    frame->view_stack[depth + 1].off_z = frame->view_stack[depth].off_z + pz;
+    frame->view_stack[depth + 1].off_y =
+        frame->view_stack[depth].off_y + xf->translate_y + xf->flatten_y_offset;
+    frame->view_stack[depth + 1].yaw = (parent_yaw + xf->yaw) & 0x7ff;
+    frame->view_stack[depth + 1].view_id = view_id;
+
+    if( frame_wev_debug_enabled() )
+        fprintf(
+            stderr,
+            "wev: XFORM view %d recenter %d,%d translate %d,%d,%d yaw %d -> "
+            "off %d,%d,%d (cam %d,%d,%d)\n",
+            view_id,
+            xf->recenter_x,
+            xf->recenter_z,
+            xf->translate_x,
+            xf->translate_y,
+            xf->translate_z,
+            xf->yaw,
+            frame->view_stack[depth + 1].off_x,
+            frame->view_stack[depth + 1].off_y,
+            frame->view_stack[depth + 1].off_z,
+            frame->cam_x,
+            frame->cam_y,
+            frame->cam_z);
+}
+
+/** PNTR_CMD_END_WORLD. A close at depth 0 is an unbalanced command stream. */
+static void
+frame_view_pop(
+    struct ToriRS_Frame* frame,
+    int view_id)
+{
+    assert(frame);
+    assert(view_id > 0);
+    assert(view_id < TORIRS_FRAME_MAX_VIEWS);
+    assert(frame->view_depth > 0);
+    assert(frame->view_stack[frame->view_depth].view_id == view_id);
+    /* Only the asserts above read it; NDEBUG drops them. */
+    (void)view_id;
+    frame->view_depth--;
+}
+
+/** Deck-local -> root space. Element yaw composes additively with the stack. */
+static struct ToriDraw_Position
+frame_view_apply(
+    const struct ToriRS_Frame* frame,
+    const struct ToriDraw_Position* local)
+{
+    struct ToriDraw_Position out = *local;
+    int depth;
+    int yaw;
+    int cs;
+    int sn;
+
+    assert(frame);
+    assert(local);
+
+    depth = frame->view_depth;
+    if( depth == 0 )
+        return out;
+
+    yaw = frame->view_stack[depth].yaw;
+    cs = ToriDraw_Cos(yaw);
+    sn = ToriDraw_Sin(yaw);
+    out.x = ((local->x * cs + local->z * sn) >> 16) + frame->view_stack[depth].off_x;
+    out.z = ((local->z * cs - local->x * sn) >> 16) + frame->view_stack[depth].off_z;
+    out.y = local->y + frame->view_stack[depth].off_y;
+    out.yaw = ToriDraw_NormalizeAngle(local->yaw + yaw);
+    return out;
 }
 
 static bool
@@ -2033,13 +2196,33 @@ try_emit_world_draw_model(
         int element_id = -1;
         struct ToriDraw_SceneElement* el;
         struct ToriDraw_Position rel;
+        struct ToriDraw_Position abs_pos;
+        struct World* view_world;
+
+        /* The descent markers are bookkeeping, not draws: they move the view
+         * stack and are consumed here, ahead of every filter below, so a
+         * TORIRS_ONLY_LOC or TORIRS_PAINT_LIMIT run cannot desync the stack. */
+        if( cmd->_bf_kind == PNTR_CMD_BEGIN_WORLD )
+        {
+            frame_view_push(frame, (int)cmd->_entity._bf_entity);
+            continue;
+        }
+        if( cmd->_bf_kind == PNTR_CMD_END_WORLD )
+        {
+            frame_view_pop(frame, (int)cmd->_entity._bf_entity);
+            continue;
+        }
+
+        assert(frame->view_depth >= 0);
+        assert(frame->view_depth < TORIRS_FRAME_MAX_VIEWS);
+        view_world = frame->view_stack[frame->view_depth].world;
 
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
             element_id = painter_command_element_id(cmd);
         else if( cmd->_bf_kind == PNTR_CMD_TERRAIN ||
                  cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
             element_id = World_TerrainElementAt(
-                frame->world,
+                view_world,
                 (int)cmd->_terrain._bf_terrain_x,
                 (int)cmd->_terrain._bf_terrain_z,
                 (int)cmd->_terrain._bf_terrain_y);
@@ -2065,7 +2248,7 @@ try_emit_world_draw_model(
             continue;
         }
 
-        if( !frame_only_loc_allows(frame, cmd->_bf_kind, element_id) )
+        if( !frame_only_loc_allows(view_world, cmd->_bf_kind, element_id) )
             continue;
 
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
@@ -2073,10 +2256,39 @@ try_emit_world_draw_model(
         else
             frame->dbg_emit_terrain++;
 
-        rel = el->world_position;
+        /* Deck-local -> root space through the composed descent transform, then
+         * camera-relative. At depth 0 the transform is the identity and this is
+         * the plain camera subtract it has always been. */
+        abs_pos = frame_view_apply(frame, &el->world_position);
+        rel = abs_pos;
         rel.x -= frame->cam_x;
         rel.y -= frame->cam_y;
         rel.z -= frame->cam_z;
+
+        /* The first draw inside each descent, in all three spaces. "The
+         * transform looks sane" and "the geometry lands in front of the
+         * camera" are different claims, and only this one answers the second:
+         * a deck-local position that was never deck-local, or a `rel` a
+         * hundred thousand units off, both read as "nothing composited". */
+        if( frame->view_depth > 0 && !frame->dbg_view_traced && frame_wev_debug_enabled() )
+        {
+            frame->dbg_view_traced = true;
+            fprintf(
+                stderr,
+                "wev: DRAW view %d element %d local %d,%d,%d -> abs %d,%d,%d "
+                "-> rel %d,%d,%d\n",
+                frame->view_stack[frame->view_depth].view_id,
+                element_id,
+                el->world_position.x,
+                el->world_position.y,
+                el->world_position.z,
+                abs_pos.x,
+                abs_pos.y,
+                abs_pos.z,
+                rel.x,
+                rel.y,
+                rel.z);
+        }
 
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
             emit_loc_debug(frame, el, &rel, element_id);
@@ -2106,7 +2318,7 @@ try_emit_world_draw_model(
                 {
                     struct WorldEntity_Scenery* sc =
                         cmd->_bf_kind == PNTR_CMD_ELEMENT
-                            ? World_SceneryGetByElementId(frame->world, element_id) : NULL;
+                            ? World_SceneryGetByElementId(view_world, element_id) : NULL;
                     /* cmd= is the painters_index of this command — the unit
                      * TORIRS_PAINT_LIMIT caps at, so a cap of cmd+1 draws up
                      * to and including this line. */
@@ -2130,7 +2342,7 @@ try_emit_world_draw_model(
                          * loc almost always has an npc on the other side of it,
                          * and "loc=-1" cannot answer which npc. */
                         struct WorldEntity_NPC* npc =
-                            World_NpcGetByElementId(frame->world, element_id, NULL);
+                            World_NpcGetByElementId(view_world, element_id, NULL);
                         if( npc )
                             TORIRS_LOG("order %4d cmd=%4d NPC npc=%d tile=%d,%d L%d size=%d "
                                     "draw=%d,%d\n",
@@ -2152,7 +2364,9 @@ try_emit_world_draw_model(
         out->kind = TORIRSRC_DRAW_MODEL;
         out->u.model.model = el->model;
         out->u.model.position = rel;
-        out->u.model.world_position = el->world_position;
+        /* Root space, not deck space: picking and the debug dumps both read
+         * this as "where the thing is in the world". */
+        out->u.model.world_position = abs_pos;
         out->u.model.element_id = element_id;
         out->u.model.animation = el->animation;
         out->u.model.anim_frame = el->anim_frame;
@@ -2286,6 +2500,55 @@ ToriRS_FrameSetWorld(
         memset(&frame->world_camera, 0, sizeof(frame->world_camera));
         frame->has_world_camera = false;
     }
+    /* Slot 0 is the root view and is the identity by construction: the descent
+     * stack starts there, so every un-nested element takes the plain camera
+     * subtract it always has. */
+    frame->views[0] = (struct ToriRS_FrameViewXform){
+        .world = world,
+        .flatten_scale_q16 = 65536,
+        .flat_hsl = -1,
+        .live = true,
+    };
+}
+
+void
+ToriRS_FrameClearViewXforms(struct ToriRS_Frame* frame)
+{
+    assert(frame);
+    for( int i = 1; i < TORIRS_FRAME_MAX_VIEWS; i++ )
+        memset(&frame->views[i], 0, sizeof(frame->views[i]));
+}
+
+void
+ToriRS_FrameSetViewXform(
+    struct ToriRS_Frame* frame,
+    int view_id,
+    struct World* world,
+    int recenter_x,
+    int recenter_z,
+    int translate_x,
+    int translate_y,
+    int translate_z,
+    int yaw)
+{
+    assert(frame);
+    assert(world);
+    assert(view_id > 0);
+    assert(view_id < TORIRS_FRAME_MAX_VIEWS);
+    frame->views[view_id] = (struct ToriRS_FrameViewXform){
+        .world = world,
+        .recenter_x = recenter_x,
+        .recenter_z = recenter_z,
+        .translate_x = translate_x,
+        .translate_y = translate_y,
+        .translate_z = translate_z,
+        .yaw = yaw & 0x7ff,
+        /* C4 fills these; identity keeps the compose arithmetic uniform. */
+        .flatten_scale_q16 = 65536,
+        .flatten_y_offset = 0,
+        .flat_hsl = -1,
+        .live = true,
+    };
 }
 
 void
@@ -2306,6 +2569,10 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     frame->pass = TORIRS_FRAME_PASS_NONE;
     frame->emit_index = 0;
     frame->painters_index = 0;
+    /* Depth 0 is the root: identity transform, frame->world for terrain. */
+    frame->view_depth = 0;
+    memset(&frame->view_stack[0], 0, sizeof(frame->view_stack[0]));
+    frame->view_stack[0].world = frame->world;
     frame->scrollbar_step = 0;
     frame->event_index = 0;
     frame->in_world = false;
@@ -2411,6 +2678,10 @@ again:
             frame->in_world = true;
             frame->world_begun = false;
             frame->painters_index = 0;
+            /* The painter walk restarts here, so the descent stack does too. */
+            frame->view_depth = 0;
+            memset(&frame->view_stack[0], 0, sizeof(frame->view_stack[0]));
+            frame->view_stack[0].world = frame->world;
 
             if( frame->pass == TORIRS_FRAME_PASS_2D )
             {

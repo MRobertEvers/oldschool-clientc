@@ -404,6 +404,39 @@ World_SetHeightFn(
 }
 
 void
+World_SetWorldEntityRegisterFn(
+    struct World* world,
+    World_WorldEntityRegisterFn fn,
+    void* userdata)
+{
+    assert(world);
+    world->world_entity_register_fn = fn;
+    world->world_entity_register_userdata = userdata;
+}
+
+void
+World_SetForeignActorRegisterFn(
+    struct World* world,
+    World_ForeignActorRegisterFn fn,
+    void* userdata)
+{
+    assert(world);
+    world->foreign_actor_register_fn = fn;
+    world->foreign_actor_register_userdata = userdata;
+}
+
+void
+World_SetForeignDynamicClaimFn(
+    struct World* world,
+    World_ForeignDynamicClaimFn fn,
+    void* userdata)
+{
+    assert(world);
+    world->foreign_dynamic_claim_fn = fn;
+    world->foreign_dynamic_claim_userdata = userdata;
+}
+
+void
 World_SetLoadComplete(
     struct World* world,
     bool complete)

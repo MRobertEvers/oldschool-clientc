@@ -1306,7 +1306,8 @@ World_CycleUpdateSpotanims(
 }
 
 #define WORLD_PROJECTILE_PAINTER_PADDING 60
-#define WORLD_MOVER_PAINTER_PADDING 60
+/* WORLD_MOVER_PAINTER_PADDING is in world.h: a foreign-actor registrar outside
+ * this file has to pad an actor the same way its native pass would. */
 
 /* A mover draws between tiles, so it registers over the tile span its
  * padded fine position covers rather than a single grid cell (Client-TS
@@ -1453,6 +1454,12 @@ world_dyn_register_players(struct World* world, bool only_local, int local_level
         bool is_local = world->local_pid >= 0 && player->server_pid == world->local_pid;
         if( is_local != only_local )
             continue;
+        /* Aboard a boat (SAILING_PLAN C5.1): this world owns the record, but
+         * the view under their feet draws them. That view's own registration
+         * pass picks them up through World_ForeignActorRegisterFn, at
+         * deck-local coordinates the descent transform carries back here. */
+        if( player->view_placement.view_id != 0 )
+            continue;
         int grid_x = player->grid_position.x;
         int grid_z = player->grid_position.z;
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
@@ -1492,6 +1499,9 @@ world_dyn_register_npcs(struct World* world, bool alwaysontop, int local_level)
         if( !npc || npc->multinpc_hidden || npc->element_id < 0 )
             continue;
         if( npc->alwaysontop != alwaysontop )
+            continue;
+        /* @see the same skip in world_dyn_register_players. */
+        if( npc->view_placement.view_id != 0 )
             continue;
         int size = npc->size > 0 ? npc->size : 1;
         int grid_x = npc->grid_position.x;
@@ -1591,6 +1601,13 @@ World_CycleRegisterPainterDynamics(struct World* world)
                 (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, sc->element_id) : 0));
     }
 
+    /* World entities (boats) go in with the runtime-spawn locs: the reference
+     * inserts each one as a temporary radius-60 GameObject in the parent scene,
+     * so it is a loc for ordering purposes and must land in the loc tier, ahead
+     * of ground items and actors. */
+    if( world->world_entity_register_fn )
+        world->world_entity_register_fn(world->world_entity_register_userdata, world);
+
     /* Ground items render below entities (reference tile.groundObject draws in
      * the tile's base step, before any dynamic sprite). Only the local plane —
      * reference keeps objStacks[minusedlevel] only. Registered first so
@@ -1626,6 +1643,13 @@ World_CycleRegisterPainterDynamics(struct World* world)
     world_dyn_register_npcs(world, /*alwaysontop=*/true, local_level);
     world_dyn_register_players(world, /*only_local=*/false, local_level);
     world_dyn_register_npcs(world, /*alwaysontop=*/false, local_level);
+
+    /* Actors standing on THIS world that another world owns the records for —
+     * i.e. this world is a boat deck and someone has boarded it. Last of the
+     * actor tier and ahead of projectiles, so a deck player sorts against deck
+     * locs and deck graphics exactly as a mainland player sorts on land. */
+    if( world->foreign_actor_register_fn )
+        world->foreign_actor_register_fn(world->foreign_actor_register_userdata, world);
 
     pool = &world->entities.projectile;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
@@ -1798,6 +1822,34 @@ World_MoversAdvance(
             }
         }
     }
+}
+
+void
+World_CycleRegisterDynamics(struct World* world)
+{
+    assert(world);
+    /* Same gate World_Cycle uses: a world whose scene has not landed has no
+     * painter grid to register against. */
+    if( !world->load_complete )
+        return;
+    World_CycleRegisterPainterDynamics(world);
+}
+
+void
+World_RegisterForeignActor(
+    struct World* world,
+    int element_id,
+    int level,
+    int deck_x,
+    int deck_z,
+    int padding,
+    int yaw,
+    int forward_padding)
+{
+    assert(world);
+    assert(element_id >= 0);
+    world_dyn_register_mover(
+        world, element_id, level, deck_x, deck_z, padding, yaw, forward_padding);
 }
 
 void

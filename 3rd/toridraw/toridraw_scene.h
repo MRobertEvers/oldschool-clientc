@@ -288,12 +288,35 @@ ToriDraw_SceneSoundsReemitLoads(struct ToriDraw_Scene* scene);
 #define TORIDRAW_SCENE_POOL_STATIC 0
 #define TORIDRAW_SCENE_POOL_DYNAMIC 1
 
+/*
+ * One scene, many world views. Element ids are scene-global and the painter
+ * stores bare ids, so a client that draws several worlds at once (the OSRS
+ * sailing views: the mainland plus up to 15 boat decks — src/world/worldview.h)
+ * keeps them all in ONE scene and tells them apart by pool: every view owns a
+ * STATIC/DYNAMIC pair, so a boat's rebuild frees its own deck and sweeps its
+ * own entities and the mainland's elements never move.
+ *
+ * View 0's pair IS the historic {STATIC, DYNAMIC}, so a single-world client is
+ * byte-for-byte what it was. Only view 0's STATIC clear touches the retained
+ * batch arena, which is why only view 0's geometry may be batched — see
+ * ToriDraw_SceneClearPool.
+ */
+#define TORIDRAW_SCENE_POOL_VIEW_STRIDE 2
+#define TORIDRAW_SCENE_POOL_STATIC_VIEW(view_id)                                                   \
+    ((view_id)*TORIDRAW_SCENE_POOL_VIEW_STRIDE + TORIDRAW_SCENE_POOL_STATIC)
+#define TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(view_id)                                                  \
+    ((view_id)*TORIDRAW_SCENE_POOL_VIEW_STRIDE + TORIDRAW_SCENE_POOL_DYNAMIC)
+/** Views a pool pair can be minted for: the tag is one byte per element. */
+#define TORIDRAW_SCENE_POOL_VIEW_MAX (256 / TORIDRAW_SCENE_POOL_VIEW_STRIDE)
+
 void
 ToriDraw_SceneClear(struct ToriDraw_Scene* scene);
 
 /** Free only the elements tagged with `pool`. Freed ids return to the shared
  *  free list; live elements in other pools are untouched. Clearing the
- *  STATIC pool also resets batch bookkeeping (batches are static-only). */
+ *  STATIC pool (view 0's static half) also resets batch bookkeeping and drops
+ *  the retained batch arena — batches are that pool's alone; every other pool
+ *  is unloaded element by element instead. */
 void
 ToriDraw_SceneClearPool(
     struct ToriDraw_Scene* scene,
@@ -308,6 +331,28 @@ int
 ToriDraw_SceneElementAddPool(
     struct ToriDraw_Scene* scene,
     int pool);
+
+/**
+ * Retag a live element into another pool. The element keeps its id, its model,
+ * its position and every other field — only which clear/sweep owns it changes.
+ *
+ * This is what an entity crossing a view boundary needs (the OSRS sailing case:
+ * a player walking onto a boat's deck, SAILING_PLAN C5). Free-and-reallocate
+ * cannot serve there: the element id is stored on the entity record and on the
+ * painter's scenery chains, and the model would have to be rebuilt for what is
+ * a bookkeeping move.
+ */
+void
+ToriDraw_SceneElementSetPool(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int pool);
+
+/** The pool tag of a live element, or -1 when `element_id` names no element. */
+int
+ToriDraw_SceneElementPool(
+    struct ToriDraw_Scene* scene,
+    int element_id);
 
 int
 ToriDraw_SceneElementRemove(

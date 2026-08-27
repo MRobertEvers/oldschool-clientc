@@ -337,6 +337,75 @@ main(void)
         printf("ok - revision-239 zone header planes retained\n");
     }
 
+    /* SET_ACTIVE_WORLD off the wire: SetActiveWorldV2Encoder writes p2 the
+     * world-entity id big-endian, then p1 the plane — the layout the server's
+     * SendSetActiveWorld emits. A mis-sized or reordered read shows up here. */
+    {
+        struct GameProtoRevTable const* rev = GameProtoRev_OSRS239();
+        struct RevPacket p;
+
+        uint8_t const wire[3] = { 0x02, 0x9A, 0x01 };
+        memset(&p, 0, sizeof(p));
+        assert(gameproto_parse(rev, PKT_NAME_SET_ACTIVE_WORLD, (uint8_t*)wire, 3, &p));
+        assert(p._set_active_world.world_id == 666);
+        assert(p._set_active_world.level == 1);
+
+        /* Root re-select, the id every SERVER_TICK_END implies. */
+        uint8_t const root_wire[3] = { 0x00, 0x00, 0x00 };
+        memset(&p, 0, sizeof(p));
+        assert(gameproto_parse(rev, PKT_NAME_SET_ACTIVE_WORLD, (uint8_t*)root_wire, 3, &p));
+        assert(p._set_active_world.world_id == 0);
+        assert(p._set_active_world.level == 0);
+        printf("ok - SET_ACTIVE_WORLD decodes id then plane\n");
+    }
+
+    /* Exec half: the packet arms the worldview cursor (id AND plane), and the
+     * tick fence disarms it back to the root. The registry holds dummy
+     * world/builder pointers — the handler only checks liveness, and nothing
+     * here dereferences or frees them. */
+    {
+        struct App* app = calloc(1, sizeof(*app));
+        struct RevPacket p;
+        static char dummy_world[1];
+        static char dummy_builder[1];
+
+        assert(app);
+        WorldviewRegistry_Init(&app->worldviews);
+        WorldviewRegistry_RegisterRoot(
+            &app->worldviews,
+            (struct World*)dummy_world,
+            (struct WorldBuilder*)dummy_builder);
+        WorldviewRegistry_Register(
+            &app->worldviews,
+            3,
+            (struct World*)dummy_world,
+            (struct WorldBuilder*)dummy_builder,
+            6400,
+            6400,
+            8,
+            8,
+            WORLDVIEW_ROOT);
+        ctx.app = app;
+
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
+        p._set_active_world.world_id = 3;
+        p._set_active_world.level = 1;
+        RS_GameProto_Exec(&ctx, &p);
+        assert(app->active_world == 3);
+        assert(app->active_world_level == 1);
+
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_SERVER_TICK_END;
+        RS_GameProto_Exec(&ctx, &p);
+        assert(app->active_world == WORLDVIEW_ROOT);
+        assert(app->active_world_level == 0);
+
+        ctx.app = NULL;
+        free(app);
+        printf("ok - SET_ACTIVE_WORLD arms the cursor and the fence resets it\n");
+    }
+
     /* SET_MAP_FLAG: wire tiles are classic-scene local = our-scene tiles. */
     {
         struct App* app = calloc(1, sizeof(*app));

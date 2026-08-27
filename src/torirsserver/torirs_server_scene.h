@@ -284,12 +284,78 @@ ToriRSServer_SceneFindLocId(
     int loc_id);
 
 /* ------------------------------------------------------------------ */
+/* Scene windows                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * One 104x104 collision window. The pool holds one ROOT window (index 0 — the
+ * anchor world logic with no player in hand queries through) plus one window
+ * per player slot (index 1 + pid). Opaque: the world addresses windows through
+ * the functions below and the scene keeps overlapping windows coherent, so any
+ * built window covering a tile gives the same answer for it.
+ *
+ * Every build, loc-slot lookup and loc mutation in this module acts on the
+ * BOUND window; the stateless queries (routes, LoS, occupancy, tile flags)
+ * resolve their own window per call and only prefer the bound one.
+ */
+struct ToriRSServerSceneWindow;
+
+/** 1 root + one per player slot. torirs_server_scene.h cannot include
+ *  torirs_server.h, so this restates 1 + TORIRSSERVER_PLAYER_MAX; the scene
+ *  module holds the two to the same value at compile time. */
+#define TORIRSSERVER_SCENE_WINDOW_MAX 9
+
+/** The world's root window — the default binding, and what a fresh process is
+ *  bound to before anything is built. */
+struct ToriRSServerSceneWindow*
+ToriRSServer_SceneWindowRoot(void);
+
+/** Window by pool index (0 = root, 1 + pid = that player's). Aborts on an
+ *  index outside the pool — there is no "maybe" window. */
+struct ToriRSServerSceneWindow*
+ToriRSServer_SceneWindowByIndex(int index);
+
+/** Direct every bound-window operation (builds, loc slots, mutations, the
+ *  legacy accessors) at `window` until the next bind. */
+void
+ToriRSServer_SceneBindWindow(struct ToriRSServerSceneWindow* window);
+
+struct ToriRSServerSceneWindow*
+ToriRSServer_SceneBoundWindow(void);
+
+/** 1 once a build has given the window an origin; 0 for a fresh or released
+ *  window (and for a build that found no cache). */
+int
+ToriRSServer_SceneWindowBuilt(const struct ToriRSServerSceneWindow* window);
+
+/** Inside THIS window's built bounds — as against ToriRSServer_SceneContains,
+ *  which asks whether ANY window covers the tile. */
+int
+ToriRSServer_SceneWindowContains(
+    const struct ToriRSServerSceneWindow* window,
+    int x,
+    int z);
+
+/** Some built window containing the absolute tile — the bound one when it
+ *  qualifies — or NULL when the tile is outside every built window. */
+struct ToriRSServerSceneWindow*
+ToriRSServer_SceneWindowFind(
+    int x,
+    int z);
+
+/** Free a window's collision and locs and mark it unbuilt. A deallocator —
+ *  NULL is accepted. Releasing the bound window rebinds the root. */
+void
+ToriRSServer_SceneWindowRelease(struct ToriRSServerSceneWindow* window);
+
+/* ------------------------------------------------------------------ */
 /* Collision                                                           */
 /* ------------------------------------------------------------------ */
 
 /**
  * Load the map squares covering the scene at `zone_x`/`zone_z` and build
- * collision for all four levels.
+ * collision for all four levels — into the BOUND window, replacing whatever it
+ * held. The other windows and the shared loc configs are untouched.
  *
  * Returns 1 on success, 0 when the cache or its XTEA keys are unavailable — in
  * which case every tile stays walkable and the mock behaves exactly as it did
@@ -321,10 +387,13 @@ ToriRSServer_SceneBuildInstance(
     int zone_z,
     const struct ToriRSServerMapInstanceWindow* window);
 
+/** Whole-module teardown as one scene: releases the BOUND window and drops the
+ *  shared loc configs. The world releases its other windows itself, through
+ *  ToriRSServer_SceneWindowRelease. */
 void
 ToriRSServer_SceneFree(void);
 
-/** Scene-local (0..103) collision map for a level, or NULL. */
+/** The BOUND window's scene-local (0..103) collision map for a level, or NULL. */
 struct CollisionMap*
 ToriRSServer_SceneCollision(int level);
 

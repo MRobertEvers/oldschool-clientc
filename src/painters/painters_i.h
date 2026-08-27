@@ -137,6 +137,10 @@ struct Painter
     /** Planar occluders for this scene; owned by the painter when set via
      * painter_set_occluders. NULL = occlusion disabled. */
     struct SceneOccluders* occluders;
+
+    /** Nested world views reachable from this painter, indexed by view id.
+     *  Rebuilt per frame; entry 0 is never active (view 0 is the root). */
+    struct PainterWorldEntityView world_entity_views[PAINTER_MAX_WORLD_VIEWS];
 };
 
 /**
@@ -193,6 +197,18 @@ static inline int
 scenery_is_raised(const struct PaintersElement* el)
 {
     return el->kind == PNTRELEM_SCENERY && (el->_scenery.flags & PNTR_SCENERY_RAISED) != 0;
+}
+
+/**
+ * True when el is a world-entity pseudo-loc. Its `entity` field is a VIEW ID,
+ * never a scene element: the painter descends into that view instead of
+ * emitting a model command. @see PNTR_SCENERY_WORLDENTITY.
+ */
+static inline int
+scenery_is_world_entity(const struct PaintersElement* el)
+{
+    return el->kind == PNTRELEM_SCENERY &&
+           (el->_scenery.flags & PNTR_SCENERY_WORLDENTITY) != 0;
 }
 
 /**

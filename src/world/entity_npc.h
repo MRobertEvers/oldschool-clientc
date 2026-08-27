@@ -10,6 +10,7 @@ struct WorldEntity_NPC
     int element_id;
     struct WorldEntityFacet_GridPosition grid_position;
     struct WorldEntityFacet_DrawPosition draw_position;
+    struct WorldEntityFacet_ViewPlacement view_placement;
     struct WorldEntityFacet_Orientation orientation;
     struct WorldEntityFacet_Pathing pathing;
     /** Type named by the server. For a multiNpc this remains the wrapper while

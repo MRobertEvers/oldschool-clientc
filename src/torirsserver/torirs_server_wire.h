@@ -244,6 +244,40 @@ struct ToriRSServerWirePayload
     /** REBUILD_REGION's header. The zone descriptor grid follows and is written
      *  by the caller, which already knows how to bit-pack it. */
     void (*rebuild_region)(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload);
+
+    /**
+     * REBUILD_WORLDENTITY_V4's header (op 109, revision 237+): the SW tile of
+     * the view being rebuilt, then the distinct source-square count. The zone
+     * descriptor grid follows and is bit-packed by the caller, exactly as for
+     * REBUILD_REGION — and unlike the classic packet there is no XTEA key
+     * block at all (map archives are stored plain from 237).
+     *
+     * The packet carries no view id: the view is whichever SET_ACTIVE_WORLD
+     * last selected, which is why the encoder sends this inside a sandwich.
+     */
+    void (*rebuild_worldentity)(
+        struct RSAreaBuf* buf,
+        int base_x,
+        int base_z,
+        int source_squares);
+
+    /**
+     * WORLDENTITY_INFO_V7's spawn-trailer scalars (op 122), the three that use
+     * RS alt transforms: the size nibble byte through `(-b) & 0xFF`, the
+     * priority group through `(b - 128) & 0xFF`, and the config id as a SIGNED
+     * little-endian u16. Split out from the rest of the record because these
+     * three are the whole per-revision claim — the id, the flag byte and the
+     * transform bitfield are plain.
+     */
+    void (*wev_spawn_scalars)(
+        struct RSAreaBuf* buf,
+        int size_byte,
+        int priority_group,
+        int config_id);
+
+    /** WORLDENTITY_INFO_V7's updateFlags payload: the 5-bit op mask through
+     *  `(128 - b) & 0xFF`. Only written when flag bit 0x2 is set. */
+    void (*wev_op_mask)(struct RSAreaBuf* buf, int op_mask);
     void (*rebuild_normal)(
         struct RSAreaBuf* buf,
         int world_area,
