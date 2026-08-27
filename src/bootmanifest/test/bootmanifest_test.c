@@ -467,6 +467,78 @@ test_migrated_spawn_actions(void)
     }
 }
 
+
+/*
+ * Where an ondemand world hydrates.
+ *
+ * The assertions are deliberately about SHAPE rather than an exact string.
+ * Recomputing the expected path here would mean reimplementing
+ * bm_user_home in the test, which tests nothing: the two copies would
+ * agree with each other and both be wrong together. What is worth pinning is
+ * what the caller depends on -- that a default appears, that it is anchored
+ * rather than relative to the manifest, that it names this world, and that the
+ * two ways of overriding it both still work.
+ */
+static void
+test_cache_dir_default(void)
+{
+    struct BootManifest bm;
+
+    /* Silence defaults to <home>/torirs_cache/<game>/<world>. */
+    CHECK(BootManifest_LoadFile(
+              &bm, "bootmanifest/test/fixture_cache_default.ini") == 0);
+    CHECK(bm.cache_on_demand == 1);
+    CHECK(bm.cache_dir_stated == 0);
+    CHECK(bm.cache_dir[0] != '\0');
+    /* The 239 client's shape -- ~/jagexcache/<game>/<mode>/ -- under our name:
+     * <home>/torirs_cache/<game>/<world>/. */
+    CHECK(strstr(bm.cache_dir, "torirs_cache") != NULL);
+    /* Segmented by game, so a dat1 cache and a dat2 cache never meet. The
+     * fixture states game=rs2. */
+    CHECK(strstr(bm.cache_dir, "rs2") != NULL);
+    /* ...and by world, so two ondemand manifests do not share a directory and
+     * wipe each other's contents on every alternating boot. */
+    CHECK(strstr(bm.cache_dir, "fixture_cache_default") != NULL);
+    /* Under the home, not at the very start of it: something precedes it. */
+    CHECK(strstr(bm.cache_dir, "torirs_cache") > bm.cache_dir);
+    /* Anchored, not joined onto the manifest's directory. */
+    CHECK(strstr(bm.cache_dir, "bootmanifest/test") == NULL);
+    CHECK(bm.cache_dir[0] == '/' || bm.cache_dir[0] == '\\'
+          || bm.cache_dir[1] == ':');
+
+    /* An empty dir= is the opt-out and must not be defaulted over. */
+    CHECK(BootManifest_LoadFile(
+              &bm, "bootmanifest/test/fixture_cache_optout.ini") == 0);
+    CHECK(bm.cache_on_demand == 1);
+    CHECK(bm.cache_dir_stated == 1);
+    CHECK(bm.cache_dir[0] == '\0');
+
+    /* `~/x` is the home directory, not a directory named "~". */
+    CHECK(BootManifest_LoadFile(
+              &bm, "bootmanifest/test/fixture_cache_home.ini") == 0);
+    CHECK(bm.cache_dir_stated == 1);
+    CHECK(strchr(bm.cache_dir, '~') == NULL);
+    CHECK(strstr(bm.cache_dir, "torirs-fixture/cache") != NULL);
+    CHECK(strstr(bm.cache_dir, "bootmanifest/test") == NULL);
+
+    /* An idb: location is a database name, not a path: it survives parsing
+     * byte for byte rather than being joined onto the manifest's directory. */
+    CHECK(BootManifest_LoadFile(
+              &bm, "bootmanifest/test/fixture_cache_idb.ini") == 0);
+    CHECK(bm.cache_dir_stated == 1);
+    CHECK(strcmp(bm.cache_dir, "idb:torirs_cache/rs2/my-world") == 0);
+    CHECK(BootManifest_CacheLocationIsIdb(bm.cache_dir) == 1);
+    /* And a real directory is not mistaken for one. */
+    CHECK(BootManifest_CacheLocationIsIdb("some/cache") == 0);
+
+    /* A stated dir= still wins over the default, and a DISK world is left
+     * alone entirely -- there, cache_dir is a cache to read, and inventing one
+     * would point the client at an empty directory instead of failing. */
+    CHECK(BootManifest_LoadFile(&bm, FIXTURE) == 0);
+    CHECK(bm.cache_on_demand == 0);
+    CHECK(strcmp(bm.cache_dir, "bootmanifest/test/some/cache") == 0);
+}
+
 int
 main(void)
 {
@@ -479,6 +551,7 @@ main(void)
     test_required_identity_keys();
     test_exact_manifest_tokens_preserved();
     test_migrated_spawn_actions();
+    test_cache_dir_default();
 
     if( g_fail )
     {

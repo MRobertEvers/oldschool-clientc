@@ -246,6 +246,10 @@ struct BootManifest
     int cache_quirks_set; /* 1 when quirks= was present */
     int cache_kind;      /* enum AppCacheKind derived from epoch; -1 = unset */
     char cache_dir[512]; /* resolved against manifest dir */
+    /* Whether [cache] dir= appeared at all. Distinguishes "stream every boot,
+     * write nothing down" (dir= stated empty) from silence, which defaults to
+     * <home>/torirs_cache/<game>/<world>. */
+    int cache_dir_stated;
     /* [cache:boot] source — 0 = disk (the default), 1 = ondemand: read the
      * cache off the LostCity server named by [net:boot] instead. */
     int cache_on_demand;
@@ -500,6 +504,19 @@ struct BootManifest
  * required [cache:boot] identity key (a stderr line names the problem). */
 int
 BootManifest_LoadFile(struct BootManifest* bm, char const* path);
+
+/**
+ * @brief Does this cache location name an IndexedDB database, not a directory?
+ *
+ * `[cache:boot] dir=` holds a cache LOCATION, and on the web that is a
+ * database name (`idb:<name>`) because there is no filesystem to hold a
+ * directory. Callers that would join, create or open the value as a path must
+ * ask this first; the answer is the same on every platform, so a native tool
+ * reading a web manifest recognises the value rather than turning it into a
+ * relative directory.
+ */
+int
+BootManifest_CacheLocationIsIdb(char const* value);
 
 /* Copy the manifest's set fields into cfg. Only fields the manifest actually
  * provided are written, so calling this before CLI flag parsing lets explicit

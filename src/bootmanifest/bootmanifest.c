@@ -15,21 +15,166 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
+#ifndef _WIN32
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
+
 _Static_assert(
     BOOTMANIFEST_DEBUG_HOTKEY_MAX <= APP_DEBUG_HOTKEY_MAX,
     "AppConfig must hold every manifest debug-hotkey binding");
 
-/* Join a manifest-relative value onto the manifest's directory. Absolute
- * values (leading '/') and empty base copy through unchanged. */
+/*
+ * Is this path already anchored, or is it relative to the manifest?
+ *
+ * The test used to be a leading '/', which is every anchored path on POSIX and
+ * only some of them on Windows: `C:\\cache` begins with a letter, so it read as
+ * relative and was joined onto the manifest's directory to produce
+ * `build/manifests/C:\\cache`. The drive form and the UNC form are both named
+ * here. Both are recognised on every platform -- a manifest is not necessarily
+ * read on the machine that wrote it, and a path that is anchored somewhere is
+ * never something to join a directory onto.
+ */
+static int
+bm_path_is_absolute(char const* value)
+{
+    if( value[0] == '/' || value[0] == '\\' )
+        return 1;
+    if( value[0] != '\0' && value[1] == ':'
+        && (value[2] == '/' || value[2] == '\\') )
+        return 1;
+    return 0;
+}
+
+/*
+ * The user's home, resolved the way the 239 client resolves its own.
+ *
+ * That client tries, in order: the `jagex.userhome` system property, the
+ * `user.home` property, then the environment -- USERPROFILE on Windows and
+ * HOME everywhere else. TORIRS_USERHOME is the first of those; the middle one
+ * is a JVM concept with no C analogue, and on every platform this tree builds
+ * for it is derived from the same environment variable the third step reads,
+ * so the two collapse into one.
+ *
+ * Returns 0 when the environment does not say. That is a real state -- a
+ * service account, a stripped container -- and the caller falls back to
+ * streaming rather than inventing a path to write the user's cache into.
+ */
+static int
+bm_user_home(char* dst, size_t cap)
+{
+    char const* home = getenv("TORIRS_USERHOME");
+    if( home && home[0] )
+    {
+        snprintf(dst, cap, "%s", home);
+        return 1;
+    }
+    home = getenv(
+#ifdef _WIN32
+        "USERPROFILE"
+#else
+        "HOME"
+#endif
+    );
+    if( home && home[0] )
+    {
+        snprintf(dst, cap, "%s", home);
+        return 1;
+    }
+#ifdef _WIN32
+    {
+        /* The pair NT sets when USERPROFILE does not survive -- a service, or
+         * a shell started without the user's environment. */
+        char const* drive = getenv("HOMEDRIVE");
+        char const* path = getenv("HOMEPATH");
+        if( drive && drive[0] && path && path[0] )
+        {
+            snprintf(dst, cap, "%s%s", drive, path);
+            return 1;
+        }
+    }
+#endif
+    return 0;
+}
+
+/*
+ * Is this cache location a browser database rather than a directory?
+ *
+ * `idb:<name>` names an IndexedDB database. The web build has no filesystem to
+ * put a cache directory in, so its cache location is a database name, and the
+ * two have to be tellable apart by everything that handles the value -- a
+ * database name joined onto a manifest's directory would be nonsense, and so
+ * would one handed to mkdir.
+ *
+ * Recognised on every platform, not only the web one. A manifest is read by
+ * whatever tool is pointed at it, and a value that means "a database" must not
+ * quietly become a relative directory in a build that cannot use it.
+ */
+int
+BootManifest_CacheLocationIsIdb(char const* value)
+{
+    assert(value);
+    return strncmp(value, "idb:", 4) == 0;
+}
+
+/* Join a manifest-relative value onto the manifest's directory. An anchored
+ * value and an empty base copy through unchanged, a leading `~/` is the user's
+ * home rather than a directory named "~", and an `idb:` database name is not a
+ * path at all. */
 static void
 bm_join_path(char* dst, size_t cap, char const* manifest_dir, char const* value)
 {
-    if( value[0] == '/' || manifest_dir[0] == '\0' )
+    if( BootManifest_CacheLocationIsIdb(value) )
+    {
+        snprintf(dst, cap, "%s", value);
+        return;
+    }
+    if( value[0] == '~' && (value[1] == '/' || value[1] == '\\') )
+    {
+        char home[512];
+        if( bm_user_home(home, sizeof(home)) )
+        {
+            snprintf(dst, cap, "%s/%s", home, value + 2);
+            return;
+        }
+        /* No home to expand against. Fall through and treat it literally,
+         * which fails visibly at open time rather than silently writing the
+         * cache into a directory called "~" beside the manifest. */
+    }
+    if( bm_path_is_absolute(value) || manifest_dir[0] == '\0' )
     {
         snprintf(dst, cap, "%s", value);
         return;
     }
     snprintf(dst, cap, "%s/%s", manifest_dir, value);
+}
+
+/* The manifest's filename without directory or extension -- `rs289lc-xp` from
+ * `build/manifests/rs289lc-xp.ini`. It is what a person calls this world, so
+ * it is what names the world's cache on disk. */
+static void
+bm_basename_stem(char* dst, size_t cap, char const* path)
+{
+    char const* base = path;
+    for( char const* p = path; *p; p++ )
+        if( *p == '/' || *p == '\\' )
+            base = p + 1;
+
+    size_t n = strlen(base);
+    char const* dot = strrchr(base, '.');
+    if( dot && dot != base )
+        n = (size_t)(dot - base);
+    if( n >= cap )
+        n = cap - 1;
+
+    memcpy(dst, base, n);
+    dst[n] = '\0';
+
+    /* Whatever ends up in a directory name has to be safe to put in one. */
+    for( char* p = dst; *p; p++ )
+        if( *p == ':' || *p == '*' || *p == '?' || *p == '"' || *p == '<'
+            || *p == '>' || *p == '|' )
+            *p = '_';
 }
 
 /* Parse "a,b,c,..." (9 int32s) into out. Returns 1 on exactly-9 success. */
@@ -445,6 +590,16 @@ bm_set_kv(
         }
         if( strcmp(key, "dir") == 0 )
         {
+            /* Stating it at all opts out of the default below, INCLUDING
+             * stating it empty. `dir=` with nothing after it is the way a
+             * world says "stream every boot, write nothing down" now that
+             * saying nothing means the opposite. */
+            bm->cache_dir_stated = 1;
+            if( value[0] == '\0' )
+            {
+                bm->cache_dir[0] = '\0';
+                return;
+            }
             bm_join_path(bm->cache_dir, sizeof(bm->cache_dir), manifest_dir, value);
             return;
         }
@@ -1143,6 +1298,86 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
             (int)reader.state,
             reader.offset);
         return -1;
+    }
+
+    /*
+     * Where a streamed cache is written down, when the manifest does not say.
+     *
+     * An ondemand world reads its cache off the server, and `dir=` is the
+     * directory it HYDRATES into -- not a cache to read instead of the server.
+     * The client still asks the server for its nine checksums every boot and
+     * wipes the directory if they disagree, so a stale copy can never be
+     * served; what the directory buys is not re-streaming what has not
+     * changed. Absent, every launch re-streamed the world -- measured at 494
+     * containers and 721,091 bytes for a boot to the design screen, none of it
+     * asked for twice within a session and all of it asked for again on the
+     * next one.
+     *
+     * ## The shape is the 239 client's, under our name
+     *
+     *     ~/jagexcache/oldschool/LIVE/     the reference client
+     *     ~/torirs_cache/rs2/rs289lc-xp/   this one
+     *
+     * Same three decisions, and worth taking the same way rather than
+     * inventing a layout: the cache belongs to the USER (so it survives a
+     * rebuild, a branch switch, a deleted worktree, and a redeployed client
+     * directory -- none of which a path beside the binary survives); it is
+     * segmented by which game's cache format it holds; and then by which world
+     * it came from.
+     *
+     * Both segments are load-bearing. The per-world one is what stops two
+     * worlds evicting each other: the checksum stamp guards CORRECTNESS, so a
+     * shared directory would still never serve the wrong bytes -- it would
+     * wipe itself on every alternating boot, which is the re-streaming this
+     * default exists to stop. The per-game one keeps a dat1 cache and a dat2
+     * cache from meeting, which the stamp does not cover because the two carry
+     * different file layouts, not different contents.
+     *
+     * <home> is resolved as the reference client resolves it; see
+     * bm_user_home. On the web there is no home and no filesystem, so the
+     * default is an IndexedDB database named on the same axes.
+     *
+     * A manifest that states `dir=` wins, and so does one that states it
+     * empty. Only silence is defaulted.
+     */
+    if( bm->cache_on_demand && !bm->cache_dir[0] && !bm->cache_dir_stated )
+    {
+        char stem[128];
+        char const* game = RSCache_GameName(bm->cache_game);
+
+        bm_basename_stem(stem, sizeof(stem), path);
+        if( !stem[0] )
+            snprintf(stem, sizeof(stem), "world");
+        /* RSCache_GameName answers NULL for an unset game. The manifest is
+         * required to state one, so this is belt and braces rather than a case
+         * that reaches a user -- but a NULL here would format as "(null)" and
+         * make a directory by that name. */
+        if( !game || !game[0] )
+            game = "unknown";
+
+#if defined(TORIRS_PLATFORM_WEB)
+        /* No filesystem, no home. The location is a database name, and it is
+         * segmented on the same axes a native path is -- a browser holding two
+         * worlds keeps two databases, for the same reason two worlds get two
+         * directories. */
+        snprintf(bm->cache_dir, sizeof(bm->cache_dir), "idb:torirs_cache/%s/%s",
+            game, stem);
+#else
+        {
+            char home[512];
+            if( bm_user_home(home, sizeof(home)) )
+                snprintf(bm->cache_dir, sizeof(bm->cache_dir),
+                    "%s/torirs_cache/%s/%s", home, game, stem);
+            else
+                /* Nothing named a home. The client streams from the server
+                 * exactly as it did before this default existed: slower, and
+                 * correct. Inventing a path would put the user's cache
+                 * somewhere they did not choose and cannot find. */
+                TORIRS_LOG("bootmanifest: no home directory (TORIRS_USERHOME, "
+                    "USERPROFILE, HOME all unset); the streamed cache will not "
+                    "be written down\n");
+        }
+#endif
     }
 
     for( int i = 0; i < bm->debug_action_count; i++ )
