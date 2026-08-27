@@ -2,6 +2,35 @@
 #define GOURAUD_TRI_ASM_H
 
 /*
+ * DOOR NAMING -- the same scheme in flat/, gouraudhsllightness/ and texture/.
+ *
+ * Two independent axes: WHO PUT THE VERTICES IN Y ORDER, and HOW MANY
+ * TRIANGLES ARRIVE PER CALL. Three of the four cells exist. There is no
+ * self-sorting run door and there should not be: a run only ever comes from
+ * the depth sort, which ordered it on the way past.
+ *
+ *   suffix              vertices arrive   per call   runs the y-sort ladder
+ *   ------------------  ----------------  ---------  ----------------------
+ *   _sorting_asm        any order         one        YES
+ *   _presorted_asm      already ordered   one        no
+ *   _presorted_run_asm  already ordered   a run      no
+ *
+ * The old names hid the axis that matters. `_tri_` and a bare `_asm` said
+ * "one triangle" and left out that this is the only door that sorts;
+ * `_batch_` said "several triangles" and left out that a run is ALWAYS
+ * presorted -- so nothing in the name told you that the run door and the
+ * presorted door share a body, or that "batched" and "presorted" were never
+ * alternatives to choose between.
+ *
+ * All the doors of a family converge on one body, so they cannot draw
+ * different triangles. What differs is only what each pays to reach it:
+ * sorting pays the six-way compare ladder, which is up to six unpredictable
+ * branches on a part that costs twenty pipeline stages for a mispredict; a
+ * single-triangle door pays the cdecl marshal, the call, and the callee-saved
+ * registers once per triangle where a run pays them once per run.
+ */
+
+/*
  * Routes the opaque gouraud triangle to gouraud_tri_i686.S where the makefile
  * has built it, and to the C everywhere else.
  *
@@ -33,7 +62,7 @@
 
 #include "graphics/shared_tables.h"
 
-void toridraw_gouraud_tri_opaque_s4_asm(
+void toridraw_gouraud_opaque_s4_sorting_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -48,19 +77,19 @@ void toridraw_gouraud_tri_opaque_s4_asm(
     int color1_hsl16,
     int color2_hsl16);
 
-#define TORIDRAW_GOURAUD_TRI_OPAQUE_S4 toridraw_gouraud_tri_opaque_s4_asm
+#define TORIDRAW_GOURAUD_TRI_OPAQUE_S4 toridraw_gouraud_opaque_s4_sorting_asm
 
 /*
  * The same kernel entered once for a RUN of triangles instead of once each.
  *
- * `rows` is `count` records of TORIDRAW_GOURAUD_BATCH_ROW_INTS ints, 16-byte
+ * `rows` is `count` records of TORIDRAW_GOURAUD_RUN_ROW_INTS ints, 16-byte
  * aligned, laid out x0,x1,x2,pad / y0,y1,y2,pad / c0,c1,c2,pad -- the screen
  * coordinates with offset_x/offset_y already folded in, and the three hsl16
  * vertex colours. The kernel walks them in order, so a painter's draw order
  * survives a batch; see toridraw_raster.u.c for the flushing rule that keeps
  * it that way.
  */
-void toridraw_gouraud_batch_opaque_s4_asm(
+void toridraw_gouraud_opaque_s4_presorted_run_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -73,7 +102,7 @@ void toridraw_gouraud_batch_opaque_s4_asm(
  * spare. A run may mix opacities, and there is no reason for the batcher to
  * split one that does.
  */
-void toridraw_gouraud_batch_alpha_s4_asm(
+void toridraw_gouraud_alpha_s4_presorted_run_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -81,7 +110,7 @@ void toridraw_gouraud_batch_alpha_s4_asm(
     const int* rows,
     int count);
 
-void toridraw_gouraud_tri_alpha_s4_asm(
+void toridraw_gouraud_alpha_s4_sorting_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -98,8 +127,8 @@ void toridraw_gouraud_tri_alpha_s4_asm(
     int alpha);
 
 /* Sixteen bytes per group, three groups. Must match ROWBYTES in the .S. */
-#define TORIDRAW_GOURAUD_BATCH_ROW_INTS 12
-#define TORIDRAW_GOURAUD_BATCH 1
+#define TORIDRAW_GOURAUD_RUN_ROW_INTS 12
+#define TORIDRAW_GOURAUD_PRESORTED_RUN 1
 
 #else
 

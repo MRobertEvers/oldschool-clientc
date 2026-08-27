@@ -1,4 +1,33 @@
 /*
+ * DOOR NAMING -- the same scheme in flat/, gouraudhsllightness/ and texture/.
+ *
+ * Two independent axes: WHO PUT THE VERTICES IN Y ORDER, and HOW MANY
+ * TRIANGLES ARRIVE PER CALL. Three of the four cells exist. There is no
+ * self-sorting run door and there should not be: a run only ever comes from
+ * the depth sort, which ordered it on the way past.
+ *
+ *   suffix              vertices arrive   per call   runs the y-sort ladder
+ *   ------------------  ----------------  ---------  ----------------------
+ *   _sorting_asm        any order         one        YES
+ *   _presorted_asm      already ordered   one        no
+ *   _presorted_run_asm  already ordered   a run      no
+ *
+ * The old names hid the axis that matters. `_tri_` and a bare `_asm` said
+ * "one triangle" and left out that this is the only door that sorts;
+ * `_batch_` said "several triangles" and left out that a run is ALWAYS
+ * presorted -- so nothing in the name told you that the run door and the
+ * presorted door share a body, or that "batched" and "presorted" were never
+ * alternatives to choose between.
+ *
+ * All the doors of a family converge on one body, so they cannot draw
+ * different triangles. What differs is only what each pays to reach it:
+ * sorting pays the six-way compare ladder, which is up to six unpredictable
+ * branches on a part that costs twenty pipeline stages for a mispredict; a
+ * single-triangle door pays the cdecl marshal, the call, and the callee-saved
+ * registers once per triangle where a run pays them once per run.
+ */
+
+/*
  * The gouraud triangle, entire, in handrolled i686 SSE2 assembly.
  *
  * WHY THE WHOLE FUNCTION AND NOT JUST THE SPAN
@@ -653,7 +682,7 @@
 .endm
 
 /*
- * void toridraw_gouraud_batch_opaque_s4_asm(
+ * void toridraw_gouraud_opaque_s4_presorted_run_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, const int* rows, int count);
  *
@@ -674,8 +703,8 @@
  * face it cannot take appears. A painter has no depth buffer, so a batch that
  * reordered anything would be wrong however fast it was.
  */
-	.globl	_toridraw_gouraud_batch_opaque_s4_asm
-_toridraw_gouraud_batch_opaque_s4_asm:
+	.globl	_toridraw_gouraud_opaque_s4_presorted_run_asm
+_toridraw_gouraud_opaque_s4_presorted_run_asm:
 	ENTER
 	movl	A(5), %eax
 	testl	%eax, %eax
@@ -686,7 +715,7 @@ _toridraw_gouraud_batch_opaque_s4_asm:
 	jmp	Lo_face
 
 /*
- * void toridraw_gouraud_tri_opaque_s4_asm(
+ * void toridraw_gouraud_opaque_s4_sorting_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, int x0, int x1, int x2, int y0, int y1, int y2,
  *     int color0_hsl16, int color1_hsl16, int color2_hsl16);
@@ -702,8 +731,8 @@ _toridraw_gouraud_batch_opaque_s4_asm:
  * batched and unbatched paths cannot drift apart, and the bit-exactness the
  * existing test pins for one of them is inherited by the other.
  */
-	.globl	_toridraw_gouraud_tri_opaque_s4_asm
-_toridraw_gouraud_tri_opaque_s4_asm:
+	.globl	_toridraw_gouraud_opaque_s4_sorting_asm
+_toridraw_gouraud_opaque_s4_sorting_asm:
 	ENTER
 	movl	A(4), %eax
 	movl	%eax, V_RBX0(%esp)
@@ -729,7 +758,7 @@ _toridraw_gouraud_tri_opaque_s4_asm:
 	jmp	Lo_ysort
 
 /*
- * void toridraw_gouraud_batch_alpha_s4_asm(
+ * void toridraw_gouraud_alpha_s4_presorted_run_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, const int* rows, int count);
  *
@@ -742,8 +771,8 @@ _toridraw_gouraud_tri_opaque_s4_asm:
  * and the same per-face call the batch exists to delete, so leaving it out
  * would have meant a face class that still cut every run in half.
  */
-	.globl	_toridraw_gouraud_batch_alpha_s4_asm
-_toridraw_gouraud_batch_alpha_s4_asm:
+	.globl	_toridraw_gouraud_alpha_s4_presorted_run_asm
+_toridraw_gouraud_alpha_s4_presorted_run_asm:
 	ENTER
 	movl	A(5), %eax
 	testl	%eax, %eax
@@ -754,13 +783,13 @@ _toridraw_gouraud_batch_alpha_s4_asm:
 	jmp	La_face
 
 /*
- * void toridraw_gouraud_tri_alpha_s4_asm(
+ * void toridraw_gouraud_alpha_s4_sorting_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, int x0, int x1, int x2, int y0, int y1, int y2,
  *     int color0_hsl16, int color1_hsl16, int color2_hsl16, int alpha);
  */
-	.globl	_toridraw_gouraud_tri_alpha_s4_asm
-_toridraw_gouraud_tri_alpha_s4_asm:
+	.globl	_toridraw_gouraud_alpha_s4_sorting_asm
+_toridraw_gouraud_alpha_s4_sorting_asm:
 	ENTER
 	movl	A(4), %eax
 	movl	%eax, V_RBX0(%esp)

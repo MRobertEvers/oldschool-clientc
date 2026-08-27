@@ -312,7 +312,7 @@ main(int argc, char** argv)
             t.shade[0], t.shade[1], t.shade[2],
             texels, t.texture_width);
 
-        toridraw_textri_opaque_lerp8_v3_asm(
+        toridraw_textri_opaque_lerp8_v3_sorting_asm(
             fb_a + GUARD, STRIDE, W, H, COT16,
             t.x[0], t.x[1], t.x[2],
             t.y[0], t.y[1], t.y[2],

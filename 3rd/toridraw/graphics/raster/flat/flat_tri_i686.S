@@ -1,4 +1,33 @@
 /*
+ * DOOR NAMING -- the same scheme in flat/, gouraudhsllightness/ and texture/.
+ *
+ * Two independent axes: WHO PUT THE VERTICES IN Y ORDER, and HOW MANY
+ * TRIANGLES ARRIVE PER CALL. Three of the four cells exist. There is no
+ * self-sorting run door and there should not be: a run only ever comes from
+ * the depth sort, which ordered it on the way past.
+ *
+ *   suffix              vertices arrive   per call   runs the y-sort ladder
+ *   ------------------  ----------------  ---------  ----------------------
+ *   _sorting_asm        any order         one        YES
+ *   _presorted_asm      already ordered   one        no
+ *   _presorted_run_asm  already ordered   a run      no
+ *
+ * The old names hid the axis that matters. `_tri_` and a bare `_asm` said
+ * "one triangle" and left out that this is the only door that sorts;
+ * `_batch_` said "several triangles" and left out that a run is ALWAYS
+ * presorted -- so nothing in the name told you that the run door and the
+ * presorted door share a body, or that "batched" and "presorted" were never
+ * alternatives to choose between.
+ *
+ * All the doors of a family converge on one body, so they cannot draw
+ * different triangles. What differs is only what each pays to reach it:
+ * sorting pays the six-way compare ladder, which is up to six unpredictable
+ * branches on a part that costs twenty pipeline stages for a mispredict; a
+ * single-triangle door pays the cdecl marshal, the call, and the callee-saved
+ * registers once per triangle where a run pays them once per run.
+ */
+
+/*
  * The flat triangle, entire, in handrolled i686 SSE2 assembly -- opaque and
  * alpha, batched and single.
  *
@@ -813,7 +842,7 @@
 /* ---- entries ---------------------------------------------------------- */
 
 /*
- * void toridraw_flat_batch_opaque_s4_asm(
+ * void toridraw_flat_opaque_s4_presorted_run_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, const int* rows, int count);
  *
@@ -823,8 +852,8 @@
  * and no register save/restore per triangle. Draw order is preserved by the
  * caller, which flushes the batch the moment a face it cannot take appears.
  */
-	.globl	_toridraw_flat_batch_opaque_s4_asm
-_toridraw_flat_batch_opaque_s4_asm:
+	.globl	_toridraw_flat_opaque_s4_presorted_run_asm
+_toridraw_flat_opaque_s4_presorted_run_asm:
 	FENTER
 	movl	A(5), %eax
 	testl	%eax, %eax
@@ -835,7 +864,7 @@ _toridraw_flat_batch_opaque_s4_asm:
 	jmp	Lo_face
 
 /*
- * void toridraw_flat_tri_opaque_s4_asm(
+ * void toridraw_flat_opaque_s4_sorting_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, int x0, int x1, int x2, int y0, int y1, int y2,
  *     int color_hsl16);
@@ -843,23 +872,23 @@ _toridraw_flat_batch_opaque_s4_asm:
  * The one-triangle door. It stages its arguments into a single row and walks
  * the same body, so the two cannot diverge.
  */
-	.globl	_toridraw_flat_tri_opaque_s4_asm
-_toridraw_flat_tri_opaque_s4_asm:
+	.globl	_toridraw_flat_opaque_s4_sorting_asm
+_toridraw_flat_opaque_s4_sorting_asm:
 	FENTER
 	FSTAGE1
 
 	FLATBODY Lo_, FSETUP_OPAQUE, FILLOPAQUE
 
 /*
- * void toridraw_flat_batch_alpha_s4_asm(
+ * void toridraw_flat_alpha_s4_presorted_run_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, const int* rows, int count);
  *
  * As above, blending instead of storing. The per-row alpha is in the staged
  * row, so a run may mix opacities.
  */
-	.globl	_toridraw_flat_batch_alpha_s4_asm
-_toridraw_flat_batch_alpha_s4_asm:
+	.globl	_toridraw_flat_alpha_s4_presorted_run_asm
+_toridraw_flat_alpha_s4_presorted_run_asm:
 	FENTER
 	movl	A(5), %eax
 	testl	%eax, %eax
@@ -870,13 +899,13 @@ _toridraw_flat_batch_alpha_s4_asm:
 	jmp	La_face
 
 /*
- * void toridraw_flat_tri_alpha_s4_asm(
+ * void toridraw_flat_alpha_s4_sorting_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, int x0, int x1, int x2, int y0, int y1, int y2,
  *     int color_hsl16, int alpha);
  */
-	.globl	_toridraw_flat_tri_alpha_s4_asm
-_toridraw_flat_tri_alpha_s4_asm:
+	.globl	_toridraw_flat_alpha_s4_sorting_asm
+_toridraw_flat_alpha_s4_sorting_asm:
 	FENTER
 	FSTAGE1
 	movl	A(11), %eax

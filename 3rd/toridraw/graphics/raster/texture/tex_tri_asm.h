@@ -2,6 +2,35 @@
 #define TEX_TRI_ASM_H
 
 /*
+ * DOOR NAMING -- the same scheme in flat/, gouraudhsllightness/ and texture/.
+ *
+ * Two independent axes: WHO PUT THE VERTICES IN Y ORDER, and HOW MANY
+ * TRIANGLES ARRIVE PER CALL. Three of the four cells exist. There is no
+ * self-sorting run door and there should not be: a run only ever comes from
+ * the depth sort, which ordered it on the way past.
+ *
+ *   suffix              vertices arrive   per call   runs the y-sort ladder
+ *   ------------------  ----------------  ---------  ----------------------
+ *   _sorting_asm        any order         one        YES
+ *   _presorted_asm      already ordered   one        no
+ *   _presorted_run_asm  already ordered   a run      no
+ *
+ * The old names hid the axis that matters. `_tri_` and a bare `_asm` said
+ * "one triangle" and left out that this is the only door that sorts;
+ * `_batch_` said "several triangles" and left out that a run is ALWAYS
+ * presorted -- so nothing in the name told you that the run door and the
+ * presorted door share a body, or that "batched" and "presorted" were never
+ * alternatives to choose between.
+ *
+ * All the doors of a family converge on one body, so they cannot draw
+ * different triangles. What differs is only what each pays to reach it:
+ * sorting pays the six-way compare ladder, which is up to six unpredictable
+ * branches on a part that costs twenty pipeline stages for a mispredict; a
+ * single-triangle door pays the cdecl marshal, the call, and the callee-saved
+ * registers once per triangle where a run pays them once per run.
+ */
+
+/*
  * Hand-written perspective-textured triangle kernel.
  *
  * The C twin, raster_texshadeblend_persp_texopaque_branching_lerp8_v3 in
@@ -45,7 +74,7 @@ extern "C" {
 
 /** Bit-exact hand-written twin of
  *  raster_texshadeblend_persp_texopaque_branching_lerp8_v3, sort included. */
-void toridraw_textri_opaque_lerp8_v3_asm(
+void toridraw_textri_opaque_lerp8_v3_sorting_asm(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -79,7 +108,7 @@ void toridraw_textri_opaque_lerp8_v3_asm(
  *  The test is on the RAW texel, before the shade, because a dark texel under
  *  a low shade blends to zero too and skipping it would drop a pixel the
  *  reference draws. */
-void toridraw_textri_trans_lerp8_v3_asm(
+void toridraw_textri_trans_lerp8_v3_sorting_asm(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -119,7 +148,7 @@ void toridraw_textri_trans_lerp8_v3_asm(
  * statement than it sounds: it means the flat and blend arms of a textured
  * model are the same rasteriser and tile against each other exactly.
  */
-void toridraw_textri_flat_opaque_lerp8_v3_asm(
+void toridraw_textri_flat_opaque_lerp8_v3_sorting_asm(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -146,7 +175,7 @@ void toridraw_textri_flat_opaque_lerp8_v3_asm(
     int* texels,
     int texture_width);
 
-void toridraw_textri_flat_trans_lerp8_v3_asm(
+void toridraw_textri_flat_trans_lerp8_v3_sorting_asm(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -190,24 +219,24 @@ void toridraw_textri_flat_trans_lerp8_v3_asm(
  * the call, four register saves and restores, and the five screen constants
  * re-read out of the incoming frame.
  */
-void toridraw_textri_opaque_lerp8_v3_batch_asm(
+void toridraw_textri_opaque_lerp8_v3_presorted_run_asm(
     int* pixel_buffer, int stride, int screen_width, int screen_height,
     int camera_cot16, const int* rows, int count);
 
-void toridraw_textri_trans_lerp8_v3_batch_asm(
+void toridraw_textri_trans_lerp8_v3_presorted_run_asm(
     int* pixel_buffer, int stride, int screen_width, int screen_height,
     int camera_cot16, const int* rows, int count);
 
-void toridraw_textri_flat_opaque_lerp8_v3_batch_asm(
+void toridraw_textri_flat_opaque_lerp8_v3_presorted_run_asm(
     int* pixel_buffer, int stride, int screen_width, int screen_height,
     int camera_cot16, const int* rows, int count);
 
-void toridraw_textri_flat_trans_lerp8_v3_batch_asm(
+void toridraw_textri_flat_trans_lerp8_v3_presorted_run_asm(
     int* pixel_buffer, int stride, int screen_width, int screen_height,
     int camera_cot16, const int* rows, int count);
 
 /* The batched pipeline can take a textured face only when these exist. */
-#define TORIDRAW_TEXTRI_BATCH 1
+#define TORIDRAW_TEXTRI_PRESORTED_RUN 1
 
 /*
  * The one piece of the triangle that stays in C, and the reason it does.
@@ -240,10 +269,10 @@ int toridraw_texplane_prepare32_asm(
  * The dispatch macro, so the call site names one thing and the build decides
  * which thing it is. Same shape as TORIDRAW_GOURAUD_TRI_OPAQUE_S4 next door.
  */
-#define TORIDRAW_TEX_TRI_PERSP_OPAQUE      toridraw_textri_opaque_lerp8_v3_asm
-#define TORIDRAW_TEX_TRI_PERSP_TRANS       toridraw_textri_trans_lerp8_v3_asm
-#define TORIDRAW_TEX_TRI_PERSP_FLAT_OPAQUE toridraw_textri_flat_opaque_lerp8_v3_asm
-#define TORIDRAW_TEX_TRI_PERSP_FLAT_TRANS  toridraw_textri_flat_trans_lerp8_v3_asm
+#define TORIDRAW_TEX_TRI_PERSP_OPAQUE      toridraw_textri_opaque_lerp8_v3_sorting_asm
+#define TORIDRAW_TEX_TRI_PERSP_TRANS       toridraw_textri_trans_lerp8_v3_sorting_asm
+#define TORIDRAW_TEX_TRI_PERSP_FLAT_OPAQUE toridraw_textri_flat_opaque_lerp8_v3_sorting_asm
+#define TORIDRAW_TEX_TRI_PERSP_FLAT_TRANS  toridraw_textri_flat_trans_lerp8_v3_sorting_asm
 
 #else
 

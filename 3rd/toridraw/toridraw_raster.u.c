@@ -1280,7 +1280,7 @@ toridraw_raster_context_init(
  * staging buffer sized to max_faces would not be.
  */
 #define TORIDRAW_RASTER_BATCH_ROWS 64
-#define TORIDRAW_RASTER_BATCH_ROW_INTS TORIDRAW_GOURAUD_BATCH_ROW_INTS
+#define TORIDRAW_RASTER_BATCH_ROW_INTS TORIDRAW_GOURAUD_RUN_ROW_INTS
 
 enum ToriDraw_RasterBatchClass
 {
@@ -1367,51 +1367,51 @@ toridraw_raster_batch_flush(
         switch( batch->kind )
         {
         case TORIDRAW_RASTER_BATCH_GOURAUD:
-            toridraw_gouraud_batch_opaque_s4_asm(
+            toridraw_gouraud_opaque_s4_presorted_run_asm(
                 ctx->pixel_buffer, ctx->stride, ctx->screen_width,
                 ctx->screen_height, g_toridraw_raster_batch, batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_GOURAUD_ALPHA:
-            toridraw_gouraud_batch_alpha_s4_asm(
+            toridraw_gouraud_alpha_s4_presorted_run_asm(
                 ctx->pixel_buffer, ctx->stride, ctx->screen_width,
                 ctx->screen_height, g_toridraw_raster_batch, batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_FLAT_OPAQUE:
-            toridraw_flat_batch_opaque_s4_asm(
+            toridraw_flat_opaque_s4_presorted_run_asm(
                 ctx->pixel_buffer, ctx->stride, ctx->screen_width,
                 ctx->screen_height, g_toridraw_raster_batch, batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_FLAT_ALPHA:
-            toridraw_flat_batch_alpha_s4_asm(
+            toridraw_flat_alpha_s4_presorted_run_asm(
                 ctx->pixel_buffer, ctx->stride, ctx->screen_width,
                 ctx->screen_height, g_toridraw_raster_batch, batch->count);
             break;
-#ifdef TORIDRAW_TEXTRI_BATCH
+#ifdef TORIDRAW_TEXTRI_PRESORTED_RUN
         case TORIDRAW_RASTER_BATCH_TEX_OPAQUE:
-            toridraw_textri_opaque_lerp8_v3_batch_asm(
+            toridraw_textri_opaque_lerp8_v3_presorted_run_asm(
                 ctx->pixel_buffer, ctx->stride, ctx->screen_width,
                 ctx->screen_height, ctx->camera_cot16,
                 g_toridraw_raster_texbatch, batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_TEX_TRANS:
-            toridraw_textri_trans_lerp8_v3_batch_asm(
+            toridraw_textri_trans_lerp8_v3_presorted_run_asm(
                 ctx->pixel_buffer, ctx->stride, ctx->screen_width,
                 ctx->screen_height, ctx->camera_cot16,
                 g_toridraw_raster_texbatch, batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_TEX_FLAT_OPAQUE:
-            toridraw_textri_flat_opaque_lerp8_v3_batch_asm(
+            toridraw_textri_flat_opaque_lerp8_v3_presorted_run_asm(
                 ctx->pixel_buffer, ctx->stride, ctx->screen_width,
                 ctx->screen_height, ctx->camera_cot16,
                 g_toridraw_raster_texbatch, batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_TEX_FLAT_TRANS:
-            toridraw_textri_flat_trans_lerp8_v3_batch_asm(
+            toridraw_textri_flat_trans_lerp8_v3_presorted_run_asm(
                 ctx->pixel_buffer, ctx->stride, ctx->screen_width,
                 ctx->screen_height, ctx->camera_cot16,
                 g_toridraw_raster_texbatch, batch->count);
             break;
-#endif /* TORIDRAW_TEXTRI_BATCH */
+#endif /* TORIDRAW_TEXTRI_PRESORTED_RUN */
         default:
             assert(0 && "a staged batch with no kernel to draw it");
             break;
@@ -1458,7 +1458,7 @@ toridraw_raster_batch_flush(
  * picks it up hits rather than misses, and the two walks agree about what the
  * cache contains at every point in the model.
  */
-#ifdef TORIDRAW_TEXTRI_BATCH
+#ifdef TORIDRAW_TEXTRI_PRESORTED_RUN
 static enum ToriDraw_RasterBatchClass
 toridraw_raster_batch_classify_textured(
     struct ToriDrawModelRasterContext* ctx,
@@ -1573,7 +1573,7 @@ toridraw_raster_batch_classify_textured(
     return texture_opaque ? TORIDRAW_RASTER_BATCH_TEX_OPAQUE
                           : TORIDRAW_RASTER_BATCH_TEX_TRANS;
 }
-#endif /* TORIDRAW_TEXTRI_BATCH */
+#endif /* TORIDRAW_TEXTRI_PRESORTED_RUN */
 
 static enum ToriDraw_RasterBatchClass
 toridraw_raster_batch_classify(
@@ -1601,7 +1601,7 @@ toridraw_raster_batch_classify(
     texture_id = ctx->face_textures ? ctx->face_textures[face] : -1;
     if( texture_id != -1 )
     {
-#ifdef TORIDRAW_TEXTRI_BATCH
+#ifdef TORIDRAW_TEXTRI_PRESORTED_RUN
         return toridraw_raster_batch_classify_textured(
             ctx, face, texture_id, color_c, out);
 #else
@@ -1654,7 +1654,7 @@ static const unsigned char g_toridraw_raster_batch_order[6][3] = {
  * agrees: VSORT permutes x, y and shade, and copies the frame straight
  * through.
  */
-#ifdef TORIDRAW_TEXTRI_BATCH
+#ifdef TORIDRAW_TEXTRI_PRESORTED_RUN
 static void
 toridraw_raster_batch_append_textured(
     struct ToriDrawModelRasterContext* ctx,
@@ -1715,7 +1715,7 @@ toridraw_raster_batch_append_textured(
     batch->kind = kind;
     batch->count++;
 }
-#endif /* TORIDRAW_TEXTRI_BATCH */
+#endif /* TORIDRAW_TEXTRI_PRESORTED_RUN */
 
 static void
 toridraw_raster_batch_append(
@@ -1774,6 +1774,72 @@ toridraw_raster_batch_append(
 }
 
 /*
+ * How much of the frame actually reaches a presorted kernel.
+ *
+ * See the note on toridraw_raster_batch_stats_report. These are plain statics
+ * rather than raster_debug fields because raster_debug DISABLES batching --
+ * asking the debug path what the batched path does would answer about a walk
+ * that never ran.
+ */
+static long g_toridraw_batch_staged;
+static long g_toridraw_batch_fell_drawn;
+static long g_toridraw_batch_fell_culled;
+
+/* A face the per-face path will not draw at all costs nothing when the batcher
+ * refuses it: there is no second sort because there is no second anything.
+ * Separating these from the real fallthrough is the difference between a
+ * number that means something and one that flatters or alarms. */
+static int
+toridraw_raster_batch_face_is_drawn(
+    struct ToriDrawModelRasterContext* ctx,
+    int face)
+{
+    int raw_type = ctx->face_infos ? ctx->face_infos[face] : 0;
+    if( raw_type == 2 || raw_type < 0 || raw_type > 3 )
+        return 0;
+    if( ctx->colors_c[face] == TORIDRAWHSL16_HIDDEN )
+        return 0;
+    if( ctx->face_textures && ctx->face_textures[face] != -1 )
+        return 1;             /* textured faces ignore authored alpha */
+    if( ctx->face_alphas_nullable &&
+        (0xFF - ctx->face_alphas_nullable[face]) <= 1 )
+        return 0;
+    return 1;
+}
+
+static void toridraw_raster_batch_stats_report(void);
+
+/* Registered from atexit rather than called by the client, so nothing in the
+ * shutdown path has to know this counter exists. Registration happens on the
+ * first probe, which is before any face is classified. */
+static int
+toridraw_raster_batch_stats_enabled(void)
+{
+    static int on = -1;
+    if( on < 0 )
+    {
+        on = getenv("TORIDRAW_BATCH_STATS") ? 1 : 0;
+        if( on )
+            atexit(toridraw_raster_batch_stats_report);
+    }
+    return on;
+}
+
+static void
+toridraw_raster_batch_stats_report(void)
+{
+    long const drawn = g_toridraw_batch_staged + g_toridraw_batch_fell_drawn;
+    fprintf(stderr,
+            "batch_stats: staged=%ld fell_drawn=%ld fell_culled=%ld "
+            "presorted=%.3f%%\n",
+            g_toridraw_batch_staged,
+            g_toridraw_batch_fell_drawn,
+            g_toridraw_batch_fell_culled,
+            drawn ? 100.0 * (double)g_toridraw_batch_staged / (double)drawn
+                  : 0.0);
+}
+
+/*
  * The batched walk. Chosen only when every assumption it rests on holds:
  *
  *   - the kernel really is the stock BRANCHING one, since the scanline and
@@ -1789,6 +1855,7 @@ toridraw_raster_draw_faces_batched(
     struct ToriDrawModelRasterContext* ctx)
 {
     struct ToriDraw_RasterBatch batch;
+    int const stats = toridraw_raster_batch_stats_enabled();
     int i;
 
     assert(scene);
@@ -1816,7 +1883,7 @@ toridraw_raster_draw_faces_batched(
              * what is staged was sorted BEFORE this face. */
             if( batch.count > 0 && batch.kind != kind )
                 toridraw_raster_batch_flush(ctx, &batch);
-#ifdef TORIDRAW_TEXTRI_BATCH
+#ifdef TORIDRAW_TEXTRI_PRESORTED_RUN
             if( TORIDRAW_RASTER_BATCH_IS_TEX(kind) )
                 toridraw_raster_batch_append_textured(
                     ctx, face, kind, &info, &batch);
@@ -1826,7 +1893,17 @@ toridraw_raster_draw_faces_batched(
                     ctx, face, kind, info.alpha, &batch);
             if( batch.count == cap )
                 toridraw_raster_batch_flush(ctx, &batch);
+            if( stats )
+                g_toridraw_batch_staged++;
             continue;
+        }
+
+        if( stats )
+        {
+            if( toridraw_raster_batch_face_is_drawn(ctx, face) )
+                g_toridraw_batch_fell_drawn++;
+            else
+                g_toridraw_batch_fell_culled++;
         }
 
         toridraw_raster_batch_flush(ctx, &batch);

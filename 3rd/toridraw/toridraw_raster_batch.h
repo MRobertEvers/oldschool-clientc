@@ -18,7 +18,7 @@
 #include "graphics/raster/gouraudhsllightness/gouraud_tri_asm.h"
 #include "graphics/raster/flat/flat_tri_asm.h"
 
-#if defined(TORIDRAW_GOURAUD_BATCH) && defined(TORIDRAW_FLAT_BATCH)
+#if defined(TORIDRAW_GOURAUD_PRESORTED_RUN) && defined(TORIDRAW_FLAT_PRESORTED_RUN)
 #define TORIDRAW_RASTER_BATCH 1
 #endif
 

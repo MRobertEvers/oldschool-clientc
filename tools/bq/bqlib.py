@@ -53,8 +53,8 @@ MAX_ATTEMPTS = 2
 # all four, and a binary missing them is not comparable to one that has them.
 REQUIRED_SYMS = (
     '_toridraw_texspan_opaque_lerp8_v3_asm',
-    '_toridraw_gouraud_tri_opaque_s4_asm',
-    '_toridraw_textri_opaque_lerp8_v3_asm',
+    '_toridraw_gouraud_opaque_s4_sorting_asm',
+    '_toridraw_textri_opaque_lerp8_v3_sorting_asm',
     '_toridraw_fb_clear32_nt_asm',
 )
 
