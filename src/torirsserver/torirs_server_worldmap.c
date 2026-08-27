@@ -78,6 +78,25 @@ pack_coord(
     return ((level & 0x3) << 28) | ((abs_x & 0x3fff) << 14) | (abs_z & 0x3fff);
 }
 
+/* The tile the world map should mark and open on. A rider's own x/z are deck-
+ * instance pool tiles (the off-map staging band) at a deck plane — nonsense on
+ * the world map — so the marker is their scene anchor: the deck tile projected
+ * through the hull into the real world, the same seam every other vessel
+ * consumer reads. Level 0 for a rider: the anchor is open water. */
+static int
+worldmap_marker_coord(struct ToriRSServer* srv)
+{
+    struct ToriRSServerPlayer* player = srv->active_player;
+    int x = player->x;
+    int z = player->z;
+    int level = player->level;
+
+    ToriRSServer_PlayerSceneAnchor(srv, player, &x, &z);
+    if( x != player->x || z != player->z )
+        level = 0;
+    return pack_coord(level, x, z);
+}
+
 /* Push the player's tile into varcint 188, which is what the map's own scripts
  * read for "you are here" and for choosing which area to open on. Sent on every
  * open and then once per tick while the map is up, because the marker is stale
@@ -85,10 +104,9 @@ pack_coord(
 static void
 send_worldmap_tile(struct ToriRSServer* srv)
 {
-    struct ToriRSServerPlayer* player = srv->active_player;
     int args[1];
 
-    args[0] = pack_coord(player->level, player->x, player->z);
+    args[0] = worldmap_marker_coord(srv);
     ToriRSServer_SendRunClientscript(srv->active_player, TORIRSSERVER_SCRIPT_WORLDMAP_TRANSMITDATA, args, 1);
 }
 
@@ -123,7 +141,7 @@ ToriRSServer_WorldMapOpen(struct ToriRSServer* srv)
         ToriRSServer_Ids()->iface_worldmap,
         1);
     srv->active_player->worldmap_open = 1;
-    srv->active_player->worldmap_tile_sent = pack_coord(srv->active_player->level, srv->active_player->x, srv->active_player->z);
+    srv->active_player->worldmap_tile_sent = worldmap_marker_coord(srv);
     if( srv->verbose )
         fprintf(stderr, "torirsserver: world map opened\n");
 }
@@ -191,7 +209,7 @@ ToriRSServer_WorldMapTick(struct ToriRSServer* srv)
 
     if( !srv->active_player->worldmap_open )
         return;
-    packed = pack_coord(srv->active_player->level, srv->active_player->x, srv->active_player->z);
+    packed = worldmap_marker_coord(srv);
     if( packed == srv->active_player->worldmap_tile_sent )
         return;
     srv->active_player->worldmap_tile_sent = packed;

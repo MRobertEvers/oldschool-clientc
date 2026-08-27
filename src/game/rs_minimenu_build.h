@@ -61,6 +61,8 @@ struct RS_MinimenuSelection
     int target_mask_held_bit;
 };
 
+struct Wevs;
+
 struct RS_MinimenuBuildCtx
 {
     struct UITree* tree;
@@ -113,6 +115,15 @@ struct RS_MinimenuBuildCtx
     struct World* world;
     struct World_PickSet const* world_pickset;
     bool click_in_world;
+    /* Live world entities (sailing hulls), for the config's right-click op
+     * rows on a picked hull (SAILING_PLAN C5.2). NULL = no hull rows. */
+    struct Wevs const* wevs;
+    /* Resolve a live world-entity view's own World, for SCENERY picks whose
+     * view_id is non-zero (a deck loc classifies through the VIEW world's
+     * tables — the root cannot see it). NULL when set, or fn NULL, drops
+     * such rows; root picks never consult it. */
+    struct World* (*view_world_fn)(void* user, int view_id);
+    void* view_world_user;
 
     /*
      * Destination for "Walk here" when the click hit no terrain at all — the

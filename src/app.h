@@ -2964,6 +2964,14 @@ App_WevDespawn(
  * REBUILD_WORLDENTITY yet) never match; the per-tick routing pass re-tests, so
  * an absolute op that raced the deck rebuild heals a tick later.
  */
+/** Drop view_id's flatten bake (C4): its deck geometry changed, so the merged
+ * flat-colour stand-in no longer matches. Rebuilt lazily the next time the
+ * hull flattens. No-op for a view with no live entity. */
+void
+App_WevFlatInvalidate(
+    struct App* app,
+    int view_id);
+
 int
 App_WevHomeViewForAbsTile(
     struct App* app,

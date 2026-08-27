@@ -87,7 +87,10 @@ struct WevConfig
      * (13424..13428) are < 32768 so a u16 read cannot be told apart from a
      * bigsmart; confirm against the deob if a cache ever exceeds it. */
     int anim_id;
-    int op26;     /* op 26, u16; undocumented, seq-id-like (7288..7292) */
+    /** Op 26, u16: the MINIMAP SPRITE id (deob class387.field4866, drawn by
+     * client.method1819 rotated by the hull's yaw). 7288/7289/7290 are the
+     * raft/skiff/sloop icons, 7291 the npc ships, 7292 the Zenith. */
+    int minimap_sprite_id;
     int flat_hsl; /* op 27, u16; default WEV_FLAT_HSL_DEFAULT */
 
     /**
@@ -196,6 +199,8 @@ _Static_assert(
  * field5694 with. Mirrors PKT_WEV_OP_MASK_ALL on the wire side. */
 #define WEV_OP_MASK_ALL 31
 
+struct ToriDraw_Model;
+
 struct WevTarget
 {
     int x; /* fine units */
@@ -286,9 +291,52 @@ struct Wev
     unsigned op_mask;
 
     /* Seq state (updateFlags bit 0x1 payload). -1 = none/cleared (65535 on
-     * the wire clears). */
+     * the wire clears). The wire seq is a ONE-SHOT override of the config's
+     * looping idle anim (deob client.java:9218-9241: on completion it clears
+     * and the config anim restarts at frame 0); seq_delay holds the seq
+     * frozen for that many 20 ms client ticks first. */
     int seq_id;
     int seq_delay;
+    /**
+     * The bob (deob class467.method10419 / class112.method4034): the active
+     * animaya seq's ROOT-BONE pose matrix is multiplied into the whole
+     * sub-scene transform every frame. The seqs the cache authors here
+     * (13424..13428, sailing_worldentity_boat_*_idle/sink) are pure animaya;
+     * this engine's minimum-honest rendering extracts the bone-0 Y
+     * translation (negated — the deob flips its Y-up pose into the engine's
+     * Y-down) and adds it to the descent transform's Y, which bobs the deck,
+     * its locs and everyone standing aboard together. Pitch/roll, which the
+     * full 4x4 permits, would need a wider descent transform — deferred.
+     *
+     * bob_y is this frame's offset in model fine units, written by
+     * app_wev_advance_bobs (app-side: seq resolution needs the provider) and
+     * read by app_wev_bind_frame_xforms. The two cycle stamps are the
+     * cursors: cycles count 20 ms client ticks (the Wevs clock), one animaya
+     * frame per cycle.
+     */
+    int bob_y;
+    double anim_start_cycle; /* config idle loop's frame-0 cycle */
+    double seq_start_cycle;  /* wire one-shot's frame-0 cycle (delay applied) */
+
+    /*
+     * C4 flatten state (docs/SAILING.md §5.3), app-owned.
+     *
+     * The deob's flatten is a degenerate re-render of the same sub-scene (Y
+     * scale 0.01, offset -1200, flat HSL, no actors, no picking). A software
+     * painter cannot re-render with a matrix without touching the pinned
+     * raster, so this engine takes the plan's sanctioned equivalent: a baked
+     * MERGED copy of the deck's static geometry, squashed and recoloured at
+     * bake time, drawn as one ordinary model instead of descending. The
+     * output is the same flat-colour silhouette; what is lost is only the
+     * live animation of a flattened deck, which the deob also mostly hides.
+     */
+    /** This frame's decision (aboard hull never; budget/overlap flatten). */
+    bool flattened;
+    /** The squashed flat-colour bake; NULL until first needed, freed on deck
+     * rebuild and despawn (the geometry it merged is gone either way). */
+    struct ToriDraw_Model* flat_model;
+    /** Root-pool dynamic scene element carrying flat_model; -1 = none. */
+    int flat_element;
 };
 
 /**

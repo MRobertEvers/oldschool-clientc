@@ -136,6 +136,17 @@ struct ToriRSServerVessel
     /** Owning player uid, or 0 for a world-owned vessel. */
     int owner_uid;
 
+    /**
+     * One-shot wire seq (WORLDENTITY_INFO updateFlags 0x1) — the cache's
+     * `sailing_worldentity_boat_*_sink_01` family. Content sets the pair and
+     * bumps seq_stamp (::vesselseq); the encoder sends it once per stamp per
+     * observer (player->wev_seq_stamps). seq_id -1 = nothing pending; 65535
+     * is the wire's explicit clear.
+     */
+    int seq_id;
+    int seq_delay;
+    int seq_stamp;
+
     /** Root-world transform: plane, fine-unit position of the hull's CENTER,
      *  and the yaw in 2048-space. */
     int level;
@@ -148,6 +159,17 @@ struct ToriRSServerVessel
     enum ToriRSServerVesselState state;
     int heading;
     int speed_tier;
+    /**
+     * The launch-model controls (docs/SAILING.md §7, OSRS wiki "Sailing"):
+     * `sails_set` is the instant go/stop gate — a HEADING command turns the
+     * hull with sails down, but it only translates once the sails are set.
+     * `reversing` nudges the hull BACKWARD at the base 0.5 tiles/tick and is
+     * only honoured with the sails un-set, the wiki's "reverse the boat if
+     * stationary with the sails un-set". TARGET sails ignore both: a targeted
+     * sail is a harness/scripted move, not a helm.
+     */
+    int sails_set;
+    int reversing;
     /** Max angle units turned per tick (shortest arc, clamped to this). */
     int turn_rate;
     /** TARGET state's destination, fine units (already quantum-aligned). */
@@ -289,6 +311,14 @@ ToriRSServer_VesselSetSpeed(
 /** Drop the movement command; state -> IDLE. Position and angle keep. */
 void
 ToriRSServer_VesselStop(struct ToriRSServerVessel* vessel);
+
+/** The 16-point compass heading whose angle points closest along (dx, dz)
+ *  under the mover's own convention (heading angle A moves dx = -sin(A),
+ *  dz = -cos(A)). The steering click's quantizer. */
+int
+ToriRSServer_VesselHeadingToward(
+    int dx,
+    int dz);
 
 /* ------------------------------------------------------------------ */
 /* Mover                                                               */

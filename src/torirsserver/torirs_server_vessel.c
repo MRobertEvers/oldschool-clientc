@@ -71,9 +71,16 @@ vessel_trig_init(void)
 
     if( s_sin16_ready )
         return;
+    /* Truncation toward zero, NOT lround: this table must be byte-identical
+     * to the client's (3rd/toridraw shared_tables.c builds its sin table
+     * with a plain cast), because the deck→root projection below must land
+     * on the same tile the client's Wev_ParentFromDeck computes. With
+     * lround here and truncation there, the two ends disagreed by 1-2 fine
+     * units at the twelve non-cardinal headings — enough to flap the
+     * rider's projected shadow across a tile boundary. */
     for( i = 0; i < TORIRSSERVER_VESSEL_ANGLE_UNITS; i++ )
         s_sin16[i] =
-            (int32_t)lround(sin((double)i * k_two_pi / TORIRSSERVER_VESSEL_ANGLE_UNITS) * 65536.0);
+            (int32_t)(sin((double)i * k_two_pi / TORIRSSERVER_VESSEL_ANGLE_UNITS) * 65536.0);
     s_sin16_ready = 1;
 }
 
@@ -92,7 +99,9 @@ vessel_cos(int angle)
 }
 
 /** Rotate a deck-local fine offset by yaw into a root-space offset. The bow
- *  direction (0, -1) lands on (-sin, -cos), agreeing with the mover. */
+ *  direction (0, -1) lands on (-sin, -cos), agreeing with the mover.
+ *  Floor shift, no rounding term: the client's Wev_ParentFromDeck floors,
+ *  and the observer projection must land on the tile the client draws. */
 static void
 vessel_rotate_forward(
     int angle,
@@ -104,12 +113,13 @@ vessel_rotate_forward(
     int64_t c = vessel_cos(angle);
     int64_t s = vessel_sin(angle);
 
-    *out_rx = (int)(((int64_t)lx * c + (int64_t)lz * s + 32768) >> 16);
-    *out_rz = (int)(((int64_t)lz * c - (int64_t)lx * s + 32768) >> 16);
+    *out_rx = (int)(((int64_t)lx * c + (int64_t)lz * s) >> 16);
+    *out_rz = (int)(((int64_t)lz * c - (int64_t)lx * s) >> 16);
 }
 
-/** The transposed rotation — vessel_rotate_forward's inverse (exact up to the
- *  16.16 rounding). */
+/** The transposed rotation — vessel_rotate_forward's inverse (exact up to
+ *  the 16.16 floor). Floor shift like the forward, matching the client's
+ *  Wev_DeckFromParent so both ends map a root point to the same deck tile. */
 static void
 vessel_rotate_inverse(
     int angle,
@@ -121,8 +131,8 @@ vessel_rotate_inverse(
     int64_t c = vessel_cos(angle);
     int64_t s = vessel_sin(angle);
 
-    *out_lx = (int)(((int64_t)rx * c - (int64_t)rz * s + 32768) >> 16);
-    *out_lz = (int)(((int64_t)rz * c + (int64_t)rx * s + 32768) >> 16);
+    *out_lx = (int)(((int64_t)rx * c - (int64_t)rz * s) >> 16);
+    *out_lz = (int)(((int64_t)rz * c + (int64_t)rx * s) >> 16);
 }
 
 /* ------------------------------------------------------------------ */
@@ -281,6 +291,12 @@ ToriRSServer_VesselSpawn(
      * same "check your handle" answer map_instance_alloc gives. */
     zone_w = (size_x_tiles + 7) / 8;
     zone_h = (size_z_tiles + 7) / 8;
+    /* 13 zones is the client's hard grid stride (REBUILD_WORLDENTITY decodes
+     * onto the 13x13 instance array, gameproto_parse.c) — and 14+ would also
+     * index the encoder's own zones[4][13][13] out of bounds. The instance
+     * pool accepts 16, so refuse here, where the size is still a request. */
+    if( zone_w > 13 || zone_h > 13 )
+        return 0;
     instance = ToriRSServer_MapInstanceAlloc(ToriRSServer_WorldCacheDir(), zone_w, zone_h);
     if( instance == 0 )
         return 0;
@@ -297,6 +313,7 @@ ToriRSServer_VesselSpawn(
      * is not the hull you were told about", when a free and a spawn land in
      * the same tick and both recycle the same numbers. */
     vessel->serial = ++g_vessel_serial;
+    vessel->seq_id = -1;
     /* Lowest free world-view id. 0 when all 15 are taken: the hull still sails,
      * it just has no name the wire can say — see the field's comment. */
     for( int view = 1; view <= TORIRSSERVER_WEV_VIEW_MAX; view++ )
@@ -532,6 +549,14 @@ vessel_heading_toward(
     return ((angle + TORIRSSERVER_VESSEL_HEADING_STEP / 2) / TORIRSSERVER_VESSEL_HEADING_STEP) & 15;
 }
 
+int
+ToriRSServer_VesselHeadingToward(
+    int dx,
+    int dz)
+{
+    return vessel_heading_toward(dx, dz);
+}
+
 /** Round a fine displacement to the nearest 32-unit quantum (half rounds up;
  *  the arithmetic shift makes that hold for negatives too). */
 static int
@@ -656,6 +681,21 @@ vessel_tick(struct ToriRSServerVessel* vessel)
     vessel->angle = (vessel->angle + arc) & TORIRSSERVER_VESSEL_ANGLE_MASK;
 
     speed = vessel->speed_tier * 64;
+
+    /*
+     * The launch controls (docs/SAILING.md §7): with the sails un-set a
+     * HEADING command still TURNS the hull — the arc above has already run —
+     * but it does not translate; setting the sails is the instant "go".
+     * Reversing is the wiki's stationary nudge: backward at the base half
+     * tile per tick, only ever with the sails down. A TARGET sail is a
+     * scripted move and ignores the sails entirely.
+     */
+    if( vessel->state == TORIRSSERVER_VESSEL_HEADING && !vessel->sails_set )
+    {
+        if( !vessel->reversing )
+            return;
+        speed = -64;
+    }
 
     if( vessel->state == TORIRSSERVER_VESSEL_TARGET )
     {

@@ -38249,6 +38249,9 @@ ToriRSServer_WorldSelftest(void)
             vessel->fine_z = patch_z * 128 + 64;
             ToriRSServer_VesselSetSpeed(vessel, 1);
             ToriRSServer_VesselSetHeading(vessel, 8);
+            /* These rows test the MOVER; the launch-model sail gate
+             * (vessel.sails_set) is the helm's concern, so hoist it. */
+            vessel->sails_set = 1;
 
             /* South to north is a half turn: 1024 units at the default cap of
              * 128 per tick is exactly eight ticks, every intermediate angle a
@@ -38620,6 +38623,7 @@ ToriRSServer_WorldSelftest(void)
                  * without turning and stays inside the stamped water. */
                 ToriRSServer_VesselSetHeading(boat, 0);
                 ToriRSServer_VesselSetSpeed(boat, 1);
+                boat->sails_set = 1;
                 for( int tick = 0; tick < 3; tick++ )
                 {
                     int index;
@@ -38875,6 +38879,7 @@ ToriRSServer_WorldSelftest(void)
                      */
                     ToriRSServer_VesselSetHeading(boat, 0);
                     ToriRSServer_VesselSetSpeed(boat, 1);
+                    boat->sails_set = 1;
                     for( int tick = 0; tick < sail_ticks; tick++ )
                     {
                         int hull_fine_x = boat->fine_x;

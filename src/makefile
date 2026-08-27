@@ -2403,6 +2403,7 @@ test-pick-level: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 		render/test/pick_level_test.c render/torirs_pick.c \
 		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
+		world/worldview.c \
 		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
 		engine/world_builder/minimap.c painters/painters.c painters/scene_occluders.c \
 		features/features.c \

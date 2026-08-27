@@ -5,6 +5,7 @@
 #include "rs_attack_option.h"
 #include "world/entity_player.h"
 #include "world/world.h"
+#include "world/wev.h"
 #include "world/world_pickset.h"
 
 #include <datatypes/dat2_config_loc.h>
@@ -566,6 +567,7 @@ add_scenery_rows(
         .secondary_id = scenery->loc_id,
         .tertiary_id = picked->tile_x,
         .quaternary_id = picked->tile_z,
+        .view_id = picked->view_id,
     };
 
     if( add_world_select_row(
@@ -1026,8 +1028,12 @@ RS_Minimenu_AddWorldRows(
              * helpers above. The local player's fine position stays last
              * because it is the field most often read against a loc's own
              * draw position on the row below. */
-            if( WorldEntity_SceneryDebugEnabled() )
+            if( WorldEntity_SceneryDebugEnabled() && terrain->view_id == 0 )
             {
+                /* Root tiles only: a view pick's tiles are DECK-LOCAL, and
+                 * every lookup below (settings, mesh levels, base rebasing)
+                 * reads the ROOT world — the readout would be confidently
+                 * wrong. The view tile keeps the plain row below. */
                 struct WorldEntity_Player* lp =
                     World_PlayerGetByServerPid(ctx->world, ctx->world->local_pid);
                 char text[UITREE_MINIMENU_OPTION_LEN];
@@ -1100,6 +1106,49 @@ RS_Minimenu_AddWorldRows(
         }
     }
 
+    /*
+     * A picked HULL's config ops (SAILING_PLAN C5.2 / deob menu-hash type 4):
+     * a click that landed on a boat's own sub-scene carries the view id, and
+     * the WevConfig's five op strings — gated by the wire's 5-bit op mask —
+     * become rows against that hull ("Board" on the Zenith). One hull per
+     * click, the nearest (last) picked, matching the deob's one-boat-menu
+     * rule; flattened hulls never pick, so they never reach here.
+     */
+    if( sel->mode == RS_MINIMENU_SELECT_NONE && ctx->wevs )
+    {
+        struct World_Picked const* hull_pick = NULL;
+
+        for( int i = 0; i < picks->count; i++ )
+            if( picks->items[i].view_id != 0 )
+                hull_pick = &picks->items[i];
+        if( hull_pick && Wevs_IsLive(ctx->wevs, hull_pick->view_id) )
+        {
+            struct Wev const* wev = Wevs_Get((struct Wevs*)ctx->wevs, hull_pick->view_id);
+
+            if( wev->config )
+                for( int op = 0; op < WEV_CONFIG_OPS; op++ )
+                {
+                    struct UIMinimenuPick pick = {
+                        .kind = UI_MINIMENU_PICK_WEV,
+                        .id = hull_pick->view_id,
+                        .secondary_id = op,
+                    };
+                    char text[UITREE_MINIMENU_OPTION_LEN];
+
+                    if( !wev->config->ops[op] || !(wev->op_mask & (1u << op)) )
+                        continue;
+                    snprintf(
+                        text,
+                        sizeof(text),
+                        "%s @cya@%s",
+                        wev->config->ops[op],
+                        wev->config->name ? wev->config->name : "Boat");
+                    UIMinimenu_AddOption(menu, text, oploc_action_for_slot(op), op, pick);
+                }
+        }
+    }
+
+
     for( int i = 0; i < picks->count; i++ )
     {
         struct World_Picked const* picked = &picks->items[i];
@@ -1123,12 +1172,24 @@ RS_Minimenu_AddWorldRows(
         }
         case WORLD_PICK_SCENERY:
         {
-            struct WorldEntity_Scenery* scenery =
-                World_SceneryGetByElementId(ctx->world, picked->element_id);
-            if( scenery )
-                add_scenery_rows(
-                    menu, sel, ctx->world, scenery, picked, ctx->locedit_active,
-                    ctx->mapedit_select_active);
+            /* A deck loc's record lives in its VIEW's world (SAILING_PLAN
+             * C5.2) — resolve the pick against the world that owns it. The
+             * view world's base is the staging base, so the debug rows'
+             * absolute-tile math reads correctly there too. */
+            struct World* pick_world = ctx->world;
+            if( picked->view_id != 0 )
+                pick_world = ctx->view_world_fn
+                                 ? ctx->view_world_fn(ctx->view_world_user, picked->view_id)
+                                 : NULL;
+            if( pick_world )
+            {
+                struct WorldEntity_Scenery* scenery =
+                    World_SceneryGetByElementId(pick_world, picked->element_id);
+                if( scenery )
+                    add_scenery_rows(
+                        menu, sel, pick_world, scenery, picked, ctx->locedit_active,
+                        ctx->mapedit_select_active);
+            }
             break;
         }
         case WORLD_PICK_OBJSTACK:
@@ -1145,6 +1206,7 @@ RS_Minimenu_AddWorldRows(
         }
         case WORLD_PICK_TERRAIN:    /* Walk here only (above). */
         case WORLD_PICK_PROJECTILE: /* Not clickable (v1 parity). */
+        case WORLD_PICK_WEV:        /* Hull op rows only (above). */
             break;
         }
     }

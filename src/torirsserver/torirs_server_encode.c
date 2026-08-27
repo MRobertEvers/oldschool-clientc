@@ -1314,6 +1314,7 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
     int kept_x[TORIRSSERVER_WEV_VIEW_MAX];
     int kept_z[TORIRSSERVER_WEV_VIEW_MAX];
     int kept_angle[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_seq_stamps[TORIRSSERVER_WEV_VIEW_MAX];
     int kept_count = 0;
     const struct ToriRSServerWirePayload* pl;
 
@@ -1376,13 +1377,22 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         dx = vessel->fine_x - player->wev_last_fine_x[i];
         dz = vessel->fine_z - player->wev_last_fine_z[i];
         dangle = wev_angle_delta(player->wev_last_angle[i], vessel->angle);
+        /* updateFlags bit 0x1: the one-shot wire seq (the sink family), sent
+         * once per seq_stamp bump per observer. Bit 0x2 (op mask) stays
+         * spawn-only. */
+        {
+            int flags = 0;
+
+            if( vessel->seq_id >= 0 &&
+                player->wev_seq_stamps[i] != vessel->seq_stamp )
+                flags |= 0x1;
         if( dx == 0 && dz == 0 && dangle == 0 )
         {
             /* Op 1 is the flags-only record: the slot has to be described
              * (the count addresses it positionally) and there is nothing to
-             * say about it. A zero flags byte says exactly that. */
+             * say about it. */
             rsab_p1(&buf, 1);
-            rsab_p1(&buf, 0);
+            rsab_p1(&buf, flags);
         }
         else
         {
@@ -1402,13 +1412,22 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
              */
             rsab_p1(&buf, 2);
             wev_put_transform(&buf, dx, 0, dz, dangle);
-            rsab_p1(&buf, 0); /* updateFlags: no op-mask change, no seq */
+            rsab_p1(&buf, flags);
+        }
+        if( flags & 0x1 )
+        {
+            /* Same shape the client reads: seq u16 BE (65535 clears), then
+             * the delay byte in 20 ms client ticks. */
+            rsab_p2(&buf, vessel->seq_id & 0xFFFF);
+            rsab_p1(&buf, vessel->seq_delay & 0xFF);
+        }
         }
         kept_ids[kept_count] = view;
         kept_serials[kept_count] = vessel->serial;
         kept_x[kept_count] = vessel->fine_x;
         kept_z[kept_count] = vessel->fine_z;
         kept_angle[kept_count] = vessel->angle;
+        kept_seq_stamps[kept_count] = vessel->seq_stamp;
         kept_count++;
     }
 
@@ -1446,6 +1465,9 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         kept_x[kept_count] = vessel->fine_x;
         kept_z[kept_count] = vessel->fine_z;
         kept_angle[kept_count] = vessel->angle;
+        /* Recorded unsent: a client that just learned of the hull has no
+         * business replaying a sink already in progress. */
+        kept_seq_stamps[kept_count] = vessel->seq_stamp;
         kept_count++;
     }
 
@@ -1458,6 +1480,7 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         player->wev_last_fine_x[i] = kept_x[i];
         player->wev_last_fine_z[i] = kept_z[i];
         player->wev_last_angle[i] = kept_angle[i];
+        player->wev_seq_stamps[i] = kept_seq_stamps[i];
     }
     player->wev_tracked_count = kept_count;
 

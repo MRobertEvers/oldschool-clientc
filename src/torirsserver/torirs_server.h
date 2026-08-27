@@ -2970,6 +2970,12 @@ struct ToriRSServerPlayer
     int wev_last_fine_x[TORIRSSERVER_WEV_VIEW_MAX];
     int wev_last_fine_z[TORIRSSERVER_WEV_VIEW_MAX];
     int wev_last_angle[TORIRSSERVER_WEV_VIEW_MAX];
+    /** Per tracked entity, the vessel seq_stamp this client last heard — the
+     *  one-shot wire seq (updateFlags 0x1) goes out once per stamp bump per
+     *  observer. A newly tracked hull records the current stamp unsent: the
+     *  sink is transient, and a client that spawned the hull mid-anim has no
+     *  frame history to play it against. */
+    int wev_seq_stamps[TORIRSSERVER_WEV_VIEW_MAX];
 
     /*
      * Observation coordinates: where this player is to be SEEN, which is not
@@ -3018,6 +3024,38 @@ struct ToriRSServerPlayer
      * tweak to this flag.
      */
     int obs_jumped;
+
+    /**
+     * Vessel handle this player is NAVIGATING (took the helm), 0 = none.
+     *
+     * While set, an ordinary ground click stops being a walk request and
+     * becomes a STEERING order: handle_move quantizes the clicked tile's
+     * bearing from the hull into the 16-point heading and hands it to the
+     * vessel — the launch model's "white arrow toward the cursor, click to
+     * set the boat's direction" (docs/SAILING.md §7), reinterpreted server-
+     * side so the wire needs no new packet. Cleared by ::helm again, by
+     * stepping/teleporting off the deck, and by the vessel being freed.
+     */
+    int navigating_vessel;
+
+    /**
+     * The navigated vessel's serial (struct ToriRSServerVessel::serial),
+     * captured when the helm was taken. Vessel slot handles recycle within a
+     * tick, so the handle alone can silently come to name a DIFFERENT hull —
+     * every helm consumer must check the serial still matches and drop the
+     * helm if it does not, or a stranger's boat steers by this player's
+     * clicks. Meaningless while navigating_vessel == 0.
+     */
+    int navigating_vessel_serial;
+
+    /**
+     * Serial of the vessel whose DECK ZONES this player last flushed
+     * (SAILING_PLAN S2.3, torirs_server_zone.c deck_zone_flush). 0 = not
+     * aboard. A change is the boarding edge: the deck's zones get a FULL
+     * state resync before events flow, so a door opened before this player
+     * boarded is not invisible to them.
+     */
+    int deck_zone_serial;
 
     /*
      * The world this player is in, and where its bytes go.

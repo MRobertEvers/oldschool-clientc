@@ -4746,6 +4746,12 @@ ToriRSServer_ScriptCommand(
             player->x = coord_x(coord);
             player->z = coord_z(coord);
             player->level = coord_level(coord);
+            /* A teleport is how every path leaves a vessel deck (the gunwale
+             * blocks walking off), and a gangplank script disembarks with
+             * exactly this op — so it must drop the helm the way
+             * ToriRSServer_WorldTeleport does, or the ex-rider's ground
+             * clicks keep steering a boat they are no longer on. */
+            player->navigating_vessel = 0;
             /* The next PLAYER_INFO has to carry an absolute placement rather
              * than a step direction, and the scene may need re-centring around
              * the new position — both of which the tick handles off
@@ -9827,7 +9833,17 @@ ToriRSServer_ScriptCommand(
             return 1;
         vessel = ToriRSServer_VesselGet(srv, handle);
         if( vessel && heading >= 0 && heading < 16 )
+        {
             ToriRSServer_VesselSetHeading(vessel, heading);
+            /* A scripted heading means "sail there", not "point there": the
+             * launch-model sail gate (vessel.sails_set) is a helm control,
+             * and content driving a hull by opcode expects it to move.
+             * Forward, specifically — a navigator who was reversing when the
+             * script fired must not creep backward again the moment the sails
+             * come down (the ::sails toggle only clears reversing on set). */
+            vessel->sails_set = 1;
+            vessel->reversing = 0;
+        }
         return 1;
     }
 

@@ -2376,6 +2376,10 @@ advance_player(struct ToriRSServer* srv)
                         steps_clear(player);
                         player->dest_x = -1;
                         player->dest_z = -1;
+                        /* The route is abandoned, so the arrival block below
+                         * never fires — take down the destination flag here or
+                         * it sits on the shore tile until the next click. */
+                        player->clear_map_flag = 1;
                         break;
                     }
                 }
@@ -4991,6 +4995,33 @@ ToriRSServer_WorldGroundSlot(
 /* ------------------------------------------------------------------ */
 
 /*
+ * The vessel this player is navigating, or NULL — the ONE place the helm
+ * handle is trusted. Vessel slot handles recycle (that is what
+ * ToriRSServerVessel::serial exists for), so a bare VesselGet on the stored
+ * handle can come to name a DIFFERENT hull spawned into the freed slot; a
+ * serial mismatch here means the navigated hull died, and the helm silently
+ * ends instead of steering a stranger's boat. Clears the handle on the way
+ * out so later ticks skip the lookup.
+ */
+static struct ToriRSServerVessel*
+player_helm_vessel(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServerVessel* vessel;
+
+    assert(srv);
+    assert(player);
+    if( player->navigating_vessel == 0 )
+        return NULL;
+    vessel = ToriRSServer_VesselGet(srv, player->navigating_vessel);
+    if( !vessel || vessel->serial != player->navigating_vessel_serial )
+    {
+        player->navigating_vessel = 0;
+        return NULL;
+    }
+    return vessel;
+}
+
+/*
  * MOVE_GAMECLICK / MOVE_MINIMAPCLICK.
  *
  * osrs230 MOVE_GAMECLICK is a fixed 5-byte destination body
@@ -5038,6 +5069,42 @@ handle_move(
     {
         player->run_toggle = 1;
         ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("option_run"), 1);
+    }
+
+    /*
+     * At the helm, a click is a STEERING order, not a walk (docs/SAILING.md
+     * §7 — the launch model's heading selector: the white arrow follows the
+     * cursor and a click sets the boat's direction; the boat turns toward it
+     * and translates only once the sails are set). The clicked tile arrives
+     * in ABSOLUTE root coordinates, so its bearing from the hull is exactly
+     * the direction the navigator pointed at.
+     */
+    if( player->navigating_vessel != 0 )
+    {
+        struct ToriRSServerVessel* vessel = player_helm_vessel(srv, player);
+
+        if( vessel )
+        {
+            int hull_x = vessel->fine_x >> 7;
+            int hull_z = vessel->fine_z >> 7;
+            int heading;
+
+            /* A click ON the hull's own tile has no bearing to quantize. */
+            if( start_x == hull_x && start_z == hull_z )
+                return;
+            heading =
+                ToriRSServer_VesselHeadingToward(start_x - hull_x, start_z - hull_z);
+            ToriRSServer_VesselSetHeading(vessel, heading);
+            if( srv->verbose )
+                fprintf(
+                    stderr,
+                    "torirsserver: <- MOVE as steering: click %d,%d hull %d,%d "
+                    "-> heading %d/16\n",
+                    start_x, start_z, hull_x, hull_z, heading);
+            return;
+        }
+        /* The hull is gone (helm_vessel cleared the handle); fall through to
+         * an ordinary walk. */
     }
 
     /* Reference MoveClickHandler: reject clicks whose first waypoint is more
@@ -7578,6 +7645,12 @@ handle_cheat(
          * sailable, and invisible.
          */
         int angle = 0;
+        /* Wire priority group (spawn-trailer ownerTypeIndex; draw order
+         * 2,0,1 and the C4 group-1 flatten rules). Spawn-time because the
+         * update records carry no flags — a hull's group cannot change after
+         * the client hears the spawn. Exists so the group-1 overlap arm has
+         * a live fixture at all (docs/sailing_coverage.csv SAIL-32). */
+        int prio = 0;
         int handle;
         struct ToriRSServerVessel* vessel;
         int zones_x = 0;
@@ -7586,12 +7659,24 @@ handle_cheat(
         int base_tile_z = 0;
 
         if( sscanf(
-                text, "vesselspawnat %d %d %d %d %d %d %d %d", &at_x, &at_z, &size_x,
-                &size_z, &config_id, &src_x, &src_z, &angle) < 2 )
+                text, "vesselspawnat %d %d %d %d %d %d %d %d %d", &at_x, &at_z, &size_x,
+                &size_z, &config_id, &src_x, &src_z, &angle, &prio) < 2 )
         {
             say(srv,
                 "Usage: ::vesselspawnat <x> <z> [size_x] [size_z] [config] "
-                "[src_x] [src_z] [angle 0-2047]");
+                "[src_x] [src_z] [angle 0-2047] [prio 0-2]");
+            return;
+        }
+        if( prio < 0 )
+            prio = 0;
+        if( prio > 2 )
+            prio = 2;
+        /* Cheat text is runtime input, and VesselSpawn's / the deck fill's
+         * contracts assert on these — guard here, at the call site that
+         * knows the data is typed. */
+        if( at_x < 0 || at_z < 0 || config_id < 0 || src_x < 0 || src_z < 0 )
+        {
+            say(srv, "Coordinates, config and deck source must be non-negative.");
             return;
         }
         if( size_x < 1 )
@@ -7619,6 +7704,7 @@ handle_cheat(
             return;
         }
         vessel = ToriRSServer_VesselGet(srv, handle);
+        vessel->priority = prio;
         if( vessel->view_id == 0 )
         {
             say(srv, "Vessel %d spawned, but all 15 world-view ids are taken; "
@@ -7651,26 +7737,43 @@ handle_cheat(
     if( strncmp(text, "vesselspawn", 11) == 0 )
     {
         /*
-         * `::vesselspawn [size_x] [size_z] [config] [src_x] [src_z]` — a
-         * hull beside the player, on stamped water, with a real deck under it.
+         * `::vesselspawn [tier]` — one of the three PLAYER boats beside the
+         * player, on stamped water, with a real deck under it. Tier 1 is the
+         * raft (config 1, 1x3), 2 the skiff (config 2, 2x5), 3 the sloop
+         * (config 3, 3x10) — the archive-72 records whose bounds match the
+         * wiki's Raft/Skiff/Sloop deck sizes exactly, each with its own
+         * minimap sprite (7288/7289/7290). Default is the skiff, the hull
+         * every capture in docs/sailing_coverage.csv already films.
          *
-         * Config 9 is "The Zenith" and is a real archive-72 record in
-         * cache.osrs239 (src/world/test/wev_test.c pins its name and its
-         * "Board" op). The client asserts the id is in its config table, so a
-         * made-up default here would abort the client rather than draw a boat.
+         * The long form `::vesselspawn <size_x> <size_z> <config> <src_x>
+         * <src_z>` is kept for harnesses that need an arbitrary hull (the
+         * 16x24 "The Zenith" is config 9 from the ship template at
+         * VESSEL_DECK_TEMPLATE_X,_Z). Sizes are TILES; the wire's size
+         * nibbles are ZONES, so a 2x3-tile ask still reserves an 8x8 deck
+         * box.
          *
-         * The deck is sourced from the ship template at
-         * VESSEL_DECK_TEMPLATE_X,_Z, and the default size is the template's own
-         * 16x24. These sizes are TILES; the wire's size nibbles are ZONES, so
-         * `2 3` asks for a 2x3-TILE hull under an 8x8-tile client deck box —
-         * the mismatch that made an earlier capture look like a floating slab.
-         * Whole-zone sizes keep the two in agreement.
+         * Deck sources are zones of the staging squares m60_99/m60_100 —
+         * found by probing (the square is a grid of parked hulls): the log
+         * raft at 3872,6456, the rowboat at 3840,6448, the wide hull at
+         * 3880,6432.
          */
-        int size_x = 16;
-        int size_z = 24;
-        int config_id = 9;
-        int src_x = VESSEL_DECK_TEMPLATE_X;
-        int src_z = VESSEL_DECK_TEMPLATE_Z;
+        static const struct
+        {
+            int config_id;
+            int size_x;
+            int size_z;
+            int src_x;
+            int src_z;
+        } k_tiers[] = {
+            { 1, 1, 3, 3872, 6456 },  /* raft */
+            { 2, 2, 5, 3840, 6448 },  /* skiff */
+            { 3, 3, 10, 3880, 6432 }, /* sloop */
+        };
+        int size_x = -1;
+        int size_z = -1;
+        int config_id = -1;
+        int src_x = -1;
+        int src_z = -1;
         int tile_x;
         int tile_z;
         int handle;
@@ -7679,10 +7782,37 @@ handle_cheat(
         int zones_z = 0;
         int base_tile_x = 0;
         int base_tile_z = 0;
-
-        sscanf(
+        int argc = sscanf(
             text, "vesselspawn %d %d %d %d %d", &size_x, &size_z, &config_id, &src_x,
             &src_z);
+
+        if( argc < 3 )
+        {
+            /* Tier form: zero args = skiff, one arg = that tier. */
+            int tier = argc == 1 ? size_x : 2;
+
+            if( tier < 1 || tier > 3 )
+            {
+                say(srv, "Usage: ::vesselspawn [tier 1-3] — 1 raft, 2 skiff, "
+                         "3 sloop; or the long form <size_x> <size_z> <config> "
+                         "<src_x> <src_z>.");
+                return;
+            }
+            config_id = k_tiers[tier - 1].config_id;
+            size_x = k_tiers[tier - 1].size_x;
+            size_z = k_tiers[tier - 1].size_z;
+            src_x = k_tiers[tier - 1].src_x;
+            src_z = k_tiers[tier - 1].src_z;
+        }
+        else
+        {
+            if( config_id < 0 )
+                config_id = 9;
+            if( src_x < 0 )
+                src_x = VESSEL_DECK_TEMPLATE_X;
+            if( src_z < 0 )
+                src_z = VESSEL_DECK_TEMPLATE_Z;
+        }
         if( size_x < 1 )
             size_x = 1;
         if( size_z < 1 )
@@ -7780,6 +7910,10 @@ handle_cheat(
         }
         ToriRSServer_VesselSetHeading(vessel, heading & 15);
         ToriRSServer_VesselSetSpeed(vessel, tier < 1 ? 1 : (tier > 4 ? 4 : tier));
+        /* "Under way" includes the sails: this cheat predates the launch-model
+         * sail gate and every harness that calls it expects motion. */
+        vessel->sails_set = 1;
+        vessel->reversing = 0;
         say(srv, "Vessel %d sailing heading %d at tier %d.", vessel->index,
             heading & 15, tier);
         return;
@@ -7833,6 +7967,188 @@ handle_cheat(
         say(srv, "Boarded vessel %d at %d,%d level %d.", vessel->index,
             base_tile_x + vessel->size_x_tiles / 2,
             base_tile_z + vessel->size_z_tiles / 2, level);
+        return;
+    }
+
+    if( strncmp(text, "vesselop", 8) == 0 )
+    {
+        /*
+         * `vesselop <view> <op>` — a hull's right-click config op, sent by
+         * the client's minimenu (SAILING_PLAN C5.2). The archive-72 op
+         * strings are client-side labels; what an op DOES is content's to
+         * bind. The engine answers the one op the cache actually authors —
+         * "Board", slot 0 on "The Zenith" — by boarding, and says so for the
+         * rest rather than silently eating a click.
+         */
+        int view = 0;
+        int op = 0;
+        struct ToriRSServerVessel* vessel;
+        int base_tile_x = 0;
+        int base_tile_z = 0;
+
+        if( sscanf(text, "vesselop %d %d", &view, &op) != 2 )
+        {
+            say(srv, "Usage: vesselop <view> <op>");
+            return;
+        }
+        vessel = ToriRSServer_VesselByView(srv, view);
+        if( !vessel )
+        {
+            say(srv, "That vessel is gone.");
+            return;
+        }
+        if( op == 0 &&
+            ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z) )
+        {
+            /* A rider stands at their OWN plane inside the boat's world, so
+             * boarding must land on the plane the walkable deck is authored
+             * at. Content owns that per gangplank; the one cache-authored
+             * "Board" is config 9 ("The Zenith"), whose main deck is plane 1
+             * (see ::vesselboard above). */
+            int deck_level = vessel->config_id == 9 ? 1 : 0;
+
+            ToriRSServer_WorldTeleport(
+                srv, deck_level, base_tile_x + vessel->size_x_tiles / 2,
+                base_tile_z + vessel->size_z_tiles / 2);
+            say(srv, "You board the vessel.");
+            return;
+        }
+        say(srv, "Nothing interesting happens.");
+        return;
+    }
+
+    if( strncmp(text, "vesselseq", 9) == 0 )
+    {
+        /*
+         * `::vesselseq <view> <seq> [delay]` — play a one-shot seq on a hull
+         * (WORLDENTITY_INFO updateFlags 0x1; the cache's sink anims are
+         * 13425/13427/13429 for the raft/skiff/sloop). 65535 is the wire's
+         * explicit clear. Content's handle onto the same field once a real
+         * sinking exists.
+         */
+        int view = 0;
+        int seq = -1;
+        int delay = 0;
+        struct ToriRSServerVessel* vessel;
+
+        if( sscanf(text, "vesselseq %d %d %d", &view, &seq, &delay) < 2 )
+        {
+            say(srv, "Usage: ::vesselseq <view> <seq> [delay ticks]");
+            return;
+        }
+        if( seq < 0 || seq > 65535 || delay < 0 || delay > 255 )
+        {
+            say(srv, "Seq must be 0-65535 (65535 clears), delay 0-255.");
+            return;
+        }
+        vessel = ToriRSServer_VesselByView(srv, view);
+        if( !vessel )
+        {
+            say(srv, "That vessel is gone.");
+            return;
+        }
+        vessel->seq_id = seq;
+        vessel->seq_delay = delay;
+        vessel->seq_stamp++;
+        say(srv, "Vessel %d plays seq %d (delay %d).", vessel->index, seq, delay);
+        return;
+    }
+
+    if( strncmp(text, "helm", 4) == 0 )
+    {
+        /*
+         * `::helm` — take (or leave) the helm of the vessel under your feet.
+         *
+         * The launch model's "click the helm at the back of your boat →
+         * navigate" (docs/SAILING.md §7), as a command because the deck's
+         * helm LOC is not clickable yet (C5.2's non-terrain half). While
+         * navigating, ground clicks steer (see handle_move) and the
+         * sails/speed/reverse commands below are live.
+         */
+        struct ToriRSServerVessel* vessel =
+            ToriRSServer_VesselAtTile(srv, player->x, player->z);
+
+        if( player->navigating_vessel != 0 )
+        {
+            player->navigating_vessel = 0;
+            say(srv, "You step away from the helm.");
+            return;
+        }
+        if( !vessel )
+        {
+            say(srv, "You are not aboard a vessel.");
+            return;
+        }
+        player->navigating_vessel = vessel->index;
+        player->navigating_vessel_serial = vessel->serial;
+        /* Hold the current heading so turning and reversing act immediately —
+         * entering navigation is not a movement order in itself. */
+        ToriRSServer_VesselSetHeading(
+            vessel,
+            ((vessel->angle + TORIRSSERVER_VESSEL_HEADING_STEP / 2) /
+             TORIRSSERVER_VESSEL_HEADING_STEP) &
+                15);
+        say(srv, "You take the helm of vessel %d. Click the water to steer; "
+                 "::sails, ::speedup, ::speeddown, ::reverse.",
+            vessel->index);
+        return;
+    }
+
+    if( strncmp(text, "sails", 5) == 0 )
+    {
+        /* `::sails` — the instant go/stop toggle (docs/SAILING.md §7). */
+        struct ToriRSServerVessel* vessel = player_helm_vessel(srv, player);
+
+        if( !vessel )
+        {
+            say(srv, "You are not at a helm. ::helm first.");
+            return;
+        }
+        vessel->sails_set = !vessel->sails_set;
+        if( vessel->sails_set )
+            vessel->reversing = 0;
+        say(srv, "Sails %s.", vessel->sails_set ? "set" : "un-set");
+        return;
+    }
+
+    if( strncmp(text, "speedup", 7) == 0 || strncmp(text, "speeddown", 9) == 0 )
+    {
+        /* The speed stepper: 0.5 tiles/tick per notch, hull-capped at the
+         * tier ceiling (docs/SAILING.md §7). */
+        struct ToriRSServerVessel* vessel = player_helm_vessel(srv, player);
+        int up = text[5] == 'u';
+
+        if( !vessel )
+        {
+            say(srv, "You are not at a helm. ::helm first.");
+            return;
+        }
+        if( up && vessel->speed_tier < TORIRSSERVER_VESSEL_SPEED_TIER_MAX )
+            vessel->speed_tier++;
+        else if( !up && vessel->speed_tier > TORIRSSERVER_VESSEL_SPEED_TIER_MIN )
+            vessel->speed_tier--;
+        say(srv, "Speed %d.%d tiles per tick.", vessel->speed_tier / 2,
+            (vessel->speed_tier % 2) ? 5 : 0);
+        return;
+    }
+
+    if( strncmp(text, "reverse", 7) == 0 )
+    {
+        /* Only with the sails un-set — the wiki's stationary nudge. */
+        struct ToriRSServerVessel* vessel = player_helm_vessel(srv, player);
+
+        if( !vessel )
+        {
+            say(srv, "You are not at a helm. ::helm first.");
+            return;
+        }
+        if( vessel->sails_set )
+        {
+            say(srv, "Un-set the sails before reversing.");
+            return;
+        }
+        vessel->reversing = !vessel->reversing;
+        say(srv, "%s.", vessel->reversing ? "Reversing" : "Holding");
         return;
     }
 
@@ -7903,6 +8219,10 @@ ToriRSServer_WorldTeleport(
     struct ToriRSServerPlayer* player = srv->active_player;
 
     steps_clear(player);
+    /* A teleport is how every path leaves a deck; whoever held the helm has
+     * left it. Harmless when the destination is the same deck — ::helm
+     * re-takes it in one command. */
+    player->navigating_vessel = 0;
     player->level = level;
     player->x = abs_x;
     player->z = abs_z;

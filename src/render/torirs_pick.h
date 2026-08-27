@@ -5,6 +5,7 @@
 
 struct World;
 struct World_PickSet;
+struct WorldviewRegistry;
 
 /**
  * Render-time world hittest: the pickset is expensive to build standalone, so
@@ -63,10 +64,16 @@ ToriRS_PickHitsAdd(
  * Only hits on player_level are kept: the player can never interact with
  * scenery/NPCs/tiles on a level other than the one they stand on, even though
  * lower levels are still rendered (and hittested) under them. Pass a negative
- * player_level to disable the filter (e.g. no local player resolved yet). */
+ * player_level to disable the filter (e.g. no local player resolved yet).
+ *
+ * `views` (optional, NULL to disable) resolves world-entity views so a
+ * non-terrain hit inside a view can classify against that view's OWN world —
+ * a deck loc becomes a SCENERY pick carrying the view id and deck-local
+ * tiles. Without it every non-actor view hit stays a hull (WEV) pick. */
 void
 ToriRS_PickHitsClassify(
     struct World* world,
+    struct WorldviewRegistry* views,
     struct ToriRS_PickHits const* hits,
     int player_level,
     struct World_PickSet* out_pickset,

@@ -28,6 +28,7 @@
 /* For the deck rectangle a cross-frame candidate scan walks — the pool base
  * behind a vessel's instance handle. */
 #include "torirs_server_mapinstance.h"
+#include "torirs_server_vessel.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -1693,6 +1694,125 @@ build_shared(
     }
 }
 
+/*
+ * SAILING_PLAN S2.3, the deck half of the zone flush.
+ *
+ * A rider's zonemap is anchored under the hull in the ROOT world and never
+ * subscribes the deck's pool zones — but an obj dropped on the deck, a deck
+ * door swung by a script, a graphic played on a deck tile are all queued to
+ * exactly those zones, and without this pass they had zero subscribers: the
+ * event happened, the tick was well-formed, and no client ever heard.
+ *
+ * Everything here is addressed to the vessel's VIEW through the
+ * SET_ACTIVE_WORLD sandwich, the same shape the spawn-time deck rebuild uses
+ * (torirs_server_encode.c) — the client's zone applicators then resolve the
+ * absolute deck-zone coordinates against the view's world, whose base is the
+ * instance base. The sandwich opens lazily so a quiet deck costs nothing.
+ *
+ * Boarding is the resync edge: the deck's state may have moved since its
+ * spawn-time REBUILD staged the template (a door opened before this player
+ * boarded). player->deck_zone_serial tracks whose deck was last flushed; on
+ * change every present deck zone gets FULL_FOLLOWS + state and that tick's
+ * events are skipped, the same both-or-neither rule the root loop follows.
+ */
+static void
+deck_zone_flush(struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServer* srv = player->world;
+    struct ToriRSServerVessel* deck;
+    int base_x = 0;
+    int base_z = 0;
+    int zones_x = 0;
+    int zones_z = 0;
+    int fresh;
+    int sandwich_open = 0;
+
+    deck = ToriRSServer_VesselAtTile(srv, player->x, player->z);
+    if( !deck || deck->view_id == 0 )
+    {
+        player->deck_zone_serial = 0;
+        return;
+    }
+    fresh = player->deck_zone_serial != deck->serial;
+    player->deck_zone_serial = deck->serial;
+    if( !ToriRSServer_MapInstanceBase(deck->instance, &base_x, &base_z) )
+        return;
+    ToriRSServer_VesselDeckZones(deck, &zones_x, &zones_z);
+
+    for( int level = 0; level < 4; level++ )
+        for( int zx = 0; zx < zones_x; zx++ )
+            for( int zz = 0; zz < zones_z; zz++ )
+            {
+                int zone_x = base_x / 8 + zx;
+                int zone_z = base_z / 8 + zz;
+                struct ToriRSServerZone* zone = zone_find(srv, zone_x, zone_z, level);
+
+                if( fresh )
+                {
+                    /* The rider's own plane always gets its FULL (it may need
+                     * to UNDO client-held objs); other planes only when the
+                     * zone actually holds something — the root loop's rule. */
+                    if( !zone && level != player->level )
+                        continue;
+                    if( !sandwich_open )
+                    {
+                        ToriRSServer_SendSetActiveWorldId(player, deck->view_id, deck->level);
+                        sandwich_open = 1;
+                    }
+                    ToriRSServer_SendZoneHeader(player, zone_x, zone_z, level, 1);
+                    if( zone )
+                        write_state(player, zone);
+                    continue;
+                }
+
+                if( !zone || zone->event_count == 0 )
+                    continue;
+
+                build_shared(srv, zone);
+                if( zone->shared_len > 0 )
+                {
+                    if( !sandwich_open )
+                    {
+                        ToriRSServer_SendSetActiveWorldId(player, deck->view_id, deck->level);
+                        sandwich_open = 1;
+                    }
+                    ToriRSServer_SendZoneEnclosed(
+                        player, zone_x, zone_z, level, zone->shared, zone->shared_len);
+                }
+
+                for( int e = 0; e < zone->event_count; e++ )
+                {
+                    const struct ToriRSServerZoneEvent* event = &zone->events[e];
+
+                    if( event->receiver_pid < 0 || event->receiver_pid != player->pid )
+                        continue;
+                    if( !sandwich_open )
+                    {
+                        ToriRSServer_SendSetActiveWorldId(player, deck->view_id, deck->level);
+                        sandwich_open = 1;
+                    }
+                    if( ToriRSServer_ZoneSubStandalone(srv->wire, event->kind) )
+                    {
+                        ToriRSServer_SendZoneHeader(player, zone_x, zone_z, level, 0);
+                        ToriRSServer_SendZoneSub(player, event);
+                        continue;
+                    }
+                    {
+                        uint8_t one[256];
+                        int written = ToriRSServer_EncodeZoneSub(
+                            srv->wire, one, (int)sizeof(one), event);
+
+                        if( written > 0 )
+                            ToriRSServer_SendZoneEnclosed(
+                                player, zone_x, zone_z, level, one, written);
+                    }
+                }
+            }
+
+    if( sandwich_open )
+        ToriRSServer_SendSetActiveWorld(player);
+}
+
 void
 ToriRSServer_ZoneUpdatePlayer(struct ToriRSServerPlayer* player)
 {
@@ -1842,6 +1962,8 @@ ToriRSServer_ZoneUpdatePlayer(struct ToriRSServerPlayer* player)
             }
         }
     }
+
+    deck_zone_flush(player);
 }
 
 void
@@ -1851,4 +1973,7 @@ ToriRSServer_ZonePlayerReset(struct ToriRSServerPlayer* player)
      * `zone_index` latch are dropped together — a reset that cleared the zones
      * and left the latch would rebuild nothing. */
     ToriRSServer_PlayerzonemapClear(player);
+    /* The deck flush's boarding latch too: the client's zone memory just
+     * reset, so an aboard player needs their deck's FULL resync again. */
+    player->deck_zone_serial = 0;
 }

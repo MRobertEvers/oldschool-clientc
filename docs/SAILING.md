@@ -309,6 +309,86 @@ terrain height under the boat.
 | 512/128/32 vs 8/8/1 | top-level vs sub-view actor/entity capacity |
 | bit 19; bits 52–63 | menu hash: "not interactive"; world-view id |
 
+## 7. Launch controls (wiki, Nov 19 2025) — and this engine's mapping
+
+Sailing launched 19 Nov 2025. The **beta-era click-to-move-the-boat scheme**
+(2023 blog, May-2024 Milestone 1: "click a tile, the boat navigates there")
+was replaced before launch by a heading-and-throttle model. What the wiki
+documents at launch ([Sailing](https://oldschool.runescape.wiki/w/Sailing),
+[Helm](https://oldschool.runescape.wiki/w/Helm),
+[Sailing Options](https://oldschool.runescape.wiki/w/Sailing_Options),
+[Hull](https://oldschool.runescape.wiki/w/Hull),
+[Boat](https://oldschool.runescape.wiki/w/Boat),
+[Mooring point](https://oldschool.runescape.wiki/w/Mooring_point)):
+
+- **Taking control**: board via a gangplank/mooring point (boarding swaps the
+  Combat Options tab for Sailing Options), then **click the helm** at the
+  stern — ops "navigate" / "escape". Navigate flips the control scheme from
+  click-pathing-the-player to a heading selector for the boat.
+- **Steering**: a **white arrow** appears around the boat pointing at the
+  cursor; **clicking sets the boat's intended direction**. The boat **rotates
+  toward it** (an arc, not a snap — 2023 figures: 2/4/6 ticks per 90° by hull
+  class), including on the spot while stationary.
+- **Throttle**: speed **up/down arrows** step the speed in **0.5 tile/tick
+  increments** (2023 blog's units); the hull sets base speed and cap
+  (1.5–3.0 base, 2.5–3.5 cap by material/tier). The **set/un-set sails
+  toggle starts or stops movement instantly**. **Reverse** is allowed only
+  "if stationary with the sails un-set".
+- **Wind**: launch keeps only the **gust-trim** mechanic (a gust appears
+  ~every 49 ticks; trim within 12 s for a ~20-tick speed boost + Sailing xp).
+  Persistent wind-direction speed modifiers from the 2023 design blog are not
+  documented on the live pages.
+- **Stopping/docking**: no anchor exists — un-set sails is the stop. Docking
+  = sail to a gangplank/mooring point and click it (56+ points, each with a
+  Sailing level requirement). Boat HP 0 = capsize (teleport to the last
+  gangplank, cargo lost).
+- **Boats**: the three player tiers are the **Raft (tiny, 1×3)**, **Skiff
+  (small, 2×5)** and **Sloop (medium, 3×10)** — exactly the bounds of
+  archive-72 configs 1/2/3 in cache.osrs239, whose minimap sprites are
+  7288/7289/7290 (config opcode 26).
+- **Crew**: passengers walk the deck normally; NPC crew can hold the helm and
+  auto-trim, but heading clicks and the speed icons stay manual.
+- **Collisions**: no boat-vs-boat collision (overlaps render as flattened
+  "shadow" hulls); land blocks (a launch patch fixed boats becoming stuck);
+  named hazard waters slow/damage rather than shallow-water mechanics.
+- **Minimap**: undocumented by the wiki; the deob's answer is §5's — the
+  config's op-26 sprite rotated by hull yaw, actor dots pushed through the
+  boat transform.
+
+### This engine's mapping (implemented)
+
+| Launch control | Here |
+|---|---|
+| Click the helm → navigate | `::helm` toggle; sets `player->navigating_vessel` and holds the current heading. The hull itself right-clicks (C5.2): an unclassifiable pick inside a view is `WORLD_PICK_WEV` and `rs_minimenu_world.c` adds the config's masked type-4 op rows below Walk here — picking one sends `::vesselop <view> <op>` (op 0 boards). Deck LOCS are clickable end-to-end too: an interactive deck loc classifies through the VIEW world's tables (SCENERY pick carrying the view id + deck-local tile), builds its own op/Examine rows, and dispatch sends OPLOC at `view.base + local` — the server finds the loc in the vessel's pinned deck window and runs `[oploc<n>]` content. What is still missing is CONTENT: a rev-239 cache authors no helm loc on any deck template, so `::helm` remains the stand-in until a content pack places one and binds its op |
+| White-arrow heading click | While navigating, an ordinary ground click is reinterpreted server-side in `handle_move`: the clicked ABSOLUTE tile's bearing from the hull quantizes to the 16-point heading (`ToriRSServer_VesselHeadingToward`) — no new wire packet; the white cursor arrow itself is not drawn yet |
+| Set/un-set sails | `::sails` — `vessel->sails_set` gates translation in `vessel_tick`; turning still happens with sails down (rotate toward the heading in place) |
+| Speed up/down arrows | `::speedup` / `::speeddown` — `speed_tier` 1..4 = 0.5..2.0 tiles/tick (the wiki's 0.5 steps; per-hull caps are content data we don't carry yet) |
+| Reverse (stationary, sails down) | `::reverse` — moves backward at 0.5 t/t only while `!sails_set` |
+| Escape / capsize teleport | `ToriRSServer_VesselFree`'s rider disembark (SAIL-54) is the same shape; mooring content is S3 |
+| Gust trimming, boat HP, hazards | Content (S3), not engine — not implemented |
+
+`::vesselsail` (harness) and the `vessel_setheading` script op set the sails
+themselves — they mean "sail there", and predate the gate.
+
+Distance flattening (C4) is implemented, unlike vanilla's no-bake (§5.3): over
+the budget, `app_wev_decide_flatten` picks victims by priority group (2/0/1,
+first-placed wins overlap) and `app_wev_flat_ensure` bakes the deck's models
+into one merged flat-colour model (Y scaled to 0.01, offset −1200), drawn as
+plain scenery — no actors, no picking. `App_WevFlatInvalidate` drops the bake
+when a REBUILD lands. `TORIRS_WEV_BUDGET` forces the budget for testing.
+
+The bob is implemented too (deob class467.method10419 → class112.method4034:
+the active animaya seq's root-bone pose matrix multiplies the whole sub-scene
+transform). Config op 25 names the looping idle (13424/13426/13428 — the
+kandarin raft/skiff/sloop, 240 frames = 4.8 s); the wire's updateFlags-0x1
+seq is a one-shot override (the sink family, 13425/27/29, 180 frames) whose
+completion restarts the idle at frame 0. This engine samples the baked
+skeletal palette's bone-0 Y translation (negated, per the deob's Y flip) into
+the descent transform's Y (`app_wev_advance_bobs` →
+`app_wev_bind_frame_xforms`), so deck, locs and everyone aboard bob together;
+pitch/roll from the full 4×4 needs a wider descent transform and is deferred.
+`::vesselseq <view> <seq> [delay]` plays a one-shot from the server.
+
 ## Sources
 
 - [World entity — OSRS Wiki](https://oldschool.runescape.wiki/w/World_entity)

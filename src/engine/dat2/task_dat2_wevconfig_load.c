@@ -95,6 +95,11 @@ Task_Dat2WevConfigLoad_Run(
 
         if( id < 0 || id >= count || filelist->file_sizes[i] <= 0 )
             continue;
+        /* A duplicate file id re-decodes into the same entry; Decode Inits
+         * (memsets) the struct, which would leak the first decode's heap
+         * strings. Every entry was Init'd above, so this is free(NULL) on
+         * the normal path. */
+        WevConfig_FreeContents(&entries[id]);
         if( !WevConfig_Decode(
                 &entries[id],
                 id,
