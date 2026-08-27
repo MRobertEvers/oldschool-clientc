@@ -81,6 +81,14 @@ test_shipped_table(void)
         RS_LoginReplies_String(&table, "no_such_string") == NULL,
         "an undeclared string is absent, not empty");
 
+    /* The boot bar's captions. Without these the longest wait a player meets
+     * -- the gameframe bake after a successful login -- is a silent black
+     * screen, which reads as a hang. */
+    TEST_ASSERT(
+        RS_LoginReplies_String(&table, "entering_world") != NULL,
+        "the post-login load has a caption");
+    TEST_ASSERT(RS_LoginReplies_String(&table, "loading") != NULL, "the boot load has a caption");
+
     RS_LoginReplies_Free(&table);
 }
 

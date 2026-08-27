@@ -5478,6 +5478,28 @@ app_title_state_changed(struct App* app)
 }
 
 /*
+ * Publish a boot step to the title screen's loading bar.
+ *
+ * The percentage is the client's; the words are the profile's, looked up by
+ * name. A revision that declares no such string gets the bar with no caption
+ * rather than an English sentence it never chose.
+ */
+static void
+app_title_progress(
+    struct App* app,
+    int percent,
+    char const* string_key)
+{
+    assert(app);
+    assert(string_key);
+    RS_Title_SetProgress(
+        &app->title, percent, RS_LoginReplies_String(&app->login_replies, string_key));
+    if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
+        app_title_state_changed(app);
+}
+
+
+/*
  * Compose one credential line: prefix, the value (masked if the widget asked),
  * and the caret when this field has focus and the blink is showing.
  *
@@ -12797,6 +12819,7 @@ Task_AppBoot_Run(
     PT_BEGIN(&self->pt);
 
     app->boot_progress = 10;
+    app_title_progress(app, 10, "loading_config");
 
     /*
      * Varbit types, before anything that can run a script.
@@ -13116,6 +13139,7 @@ Task_AppBoot_Run(
         app->tree->interface_parent_count);
 
     app->boot_progress = 60;
+    app_title_progress(app, 60, "loading_interfaces");
 
     /* Shared b12 fallback before configured overlay models are bound. Normally
      * already resident — the RevConfig assets pass loads every declared
@@ -13128,6 +13152,7 @@ Task_AppBoot_Run(
             : NULL);
 
     app->boot_progress = 75;
+    app_title_progress(app, 75, "loading_media");
 
     if( getenv("TORIRS_ANIM_DEBUG") )
     {
@@ -13202,6 +13227,9 @@ Task_AppBoot_Run(
     app_update_world_viewport(app);
 
     app->boot_progress = 100;
+    /* Cleared, not filled: a bar left at 100 keeps the loading group in
+     * front of the login form it was covering. */
+    RS_Title_SetProgress(&app->title, -1, NULL);
     app->app_state = APP_STATE_READY;
     /* A freshly baked title tree shows every screen's group at once until it is
      * told which one is current. */
@@ -31841,6 +31869,8 @@ App_Render(
         int bar_y = (height - bar_h) / 2;
         int fill_w = bar_w * (app->boot_progress < 0 ? 0 : app->boot_progress) / 100;
 
+        char const* caption = NULL;
+
         for( int i = 0; i < width * height; i++ )
             pixels[i] = 0x000000;
         for( int y = bar_y - 1; y <= bar_y + bar_h; y++ )
@@ -31852,6 +31882,25 @@ App_Render(
                 int filled = !border && (x - bar_x) < fill_w;
                 pixels[y * width + x] = border ? 0x8b0000 : (filled ? 0x8b0000 : 0x000000);
             }
+
+        /*
+         * A caption, once there is a font to draw one with.
+         *
+         * The bar itself stays font-free on purpose -- it has to work while
+         * the asset pipelines are the thing still loading. But the longest
+         * wait a player meets is the gameframe bake AFTER a successful login,
+         * and by then the title screen has long since loaded the fonts. A
+         * silent black screen there reads as a hang; the same screen with
+         * "Loading - please wait." reads as a client doing its job.
+         *
+         * The words are the profile's. A revision that declares none gets the
+         * bare bar, which is what it had before.
+         */
+        caption = RS_LoginReplies_String(
+            &app->login_replies,
+            app->screen == APP_SCREEN_GAME ? "entering_world" : "loading");
+        if( caption && caption[0] )
+            app_draw_viewport_message(app, pixels, width, height, caption, NULL, /*fill_black=*/0);
         return;
     }
 

@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "log/torirs_log.h"
 
 #ifdef _WIN32
@@ -21,8 +22,35 @@
 
 #define OD_DEFAULT_GAME_PORT 43594
 #define OD_DEFAULT_WEB_PORT 80
+/*
+ * How long a wire is given to do each of the three things it does.
+ *
+ * These are enforced HERE and nowhere below: sockstream_connect takes a
+ * connect timeout and discards it (`(void)timeout_sec`), and
+ * sockstream_poll_connect selects with a zero timeout. A caller that just
+ * spins on the poll therefore has no deadline at all -- it has a busy-wait
+ * that ends whenever the OS gives up on the SYN, at 100% of a core, with the
+ * frame thread inside it.
+ */
 #define OD_CONNECT_TIMEOUT_SEC 10
 #define OD_READ_TIMEOUT_SEC 30
+#define OD_WRITE_TIMEOUT_SEC 30
+/*
+ * How long an endpoint that timed out is left alone for.
+ *
+ * Every read here happens on the frame thread inside a task drain, so a
+ * timeout is a frame that long. One is survivable. What is not is that nothing
+ * above asks for one archive: a world rebuild asks for dozens, each fetch
+ * redials and re-reads, and an unreachable server therefore charges its full
+ * timeout once PER FILE. Ten seconds of connect plus thirty of read, times
+ * fifty archives, is the client gone for half an hour -- which is not a slow
+ * load, it is a hang, and it is what gets the process killed.
+ *
+ * The shutter makes an unreachable server cost ONE timeout. What comes back
+ * instead is a scene with squares missing and a line in the log saying so, and
+ * a client still running to draw it.
+ */
+#define OD_ENDPOINT_SHUTTER_SEC 5
 #define OD_HOST_MAX 128
 
 /* The on-demand payload cap the server slices to (OnDemandThread.ts). Not a
@@ -70,36 +98,98 @@ struct PlatformXIOOnDemand
      * in the login code that also asks for it. */
     int32_t jag_crc[9];
     int jag_crc_valid;
+
+    /*
+     * When each endpoint may be dialled again, or 0 for "now".
+     *
+     * Per endpoint and not per handle because the two wires fail
+     * independently: the files are the game port and the jag archives are HTTP
+     * on the web port, and a server can perfectly well be serving one and not
+     * the other. @see OD_ENDPOINT_SHUTTER_SEC.
+     */
+    time_t files_shutter;
+    time_t web_shutter;
 };
+
+/*
+ * What a read stopped for -- the question od_fetch_file's retry turns on, and
+ * the two answers want opposite treatment.
+ *
+ * DEAD is ROUTINE here. A LostCity server hangs up on an idle client
+ * (`s.setTimeout(30000)` in TcpServer.ts) and says nothing about it, so the
+ * first fetch after a quiet spell always finds a dead socket. That is what the
+ * retry below exists for, and it costs nothing, because a closed socket fails
+ * at once.
+ *
+ * TIMEOUT is not routine and must not be retried. The connection is open and
+ * the server is simply not answering, so the retry buys a second full read
+ * timeout and the redial after it buys a third. @see OD_ENDPOINT_SHUTTER_SEC
+ * for what that multiplies out to.
+ */
+enum
+{
+    OD_IO_OK = 0,
+    OD_IO_DEAD = -1,
+    OD_IO_TIMEOUT = -2,
+};
+
+/* od_fetch_file_once's `*out_size` where there is no file to size: the server
+ * looked and has none, or one of the two transport failures above. */
+#define OD_FETCH_ABSENT 0
+#define OD_FETCH_DEAD -1
+#define OD_FETCH_TIMEOUT -2
 
 /* ------------------------------------------------------------------ socket */
 
+/**
+ * Sleep until the socket can be read (or written), or the timeout runs out.
+ *
+ * Nonzero means something happened -- readable, writable, or failed -- and the
+ * caller should look; zero means the deadline passed with the socket silent.
+ *
+ * The point of it is the SLEEP. sockstream is non-blocking, so every retry
+ * loop over it is a busy-wait unless something parks the thread in between,
+ * and this is that something for all three of connect, read and write.
+ */
 static int
-od_wait_readable(
+od_wait(
     struct SockStream* stream,
+    int for_write,
     int timeout_sec)
 {
     struct timeval tv;
-    fd_set readable;
+    fd_set ready;
+    fd_set failed;
     intptr_t fd = sockstream_get_fd(stream);
-    int ready;
+    int result;
 
     if( fd < 0 )
         return 0;
 
-    FD_ZERO(&readable);
+    FD_ZERO(&ready);
+    FD_ZERO(&failed);
 #ifdef _WIN32
-    FD_SET((SOCKET)fd, &readable);
+    FD_SET((SOCKET)fd, &ready);
+    FD_SET((SOCKET)fd, &failed);
 #else
     if( fd >= FD_SETSIZE )
         return 0;
-    FD_SET((int)fd, &readable);
+    FD_SET((int)fd, &ready);
+    FD_SET((int)fd, &failed);
 #endif
     tv.tv_sec = timeout_sec;
     tv.tv_usec = 0;
 
-    ready = select((int)fd + 1, &readable, NULL, NULL, &tv);
-    return ready > 0;
+    /* The exception set rides along with the write wait because that is the
+     * one a connect in flight uses, and on Windows a refused connect raises
+     * the exception fd rather than the write fd. Without it the dial below
+     * would sit out its whole timeout against a server that had already said
+     * no. */
+    if( for_write )
+        result = select((int)fd + 1, NULL, &ready, &failed, &tv);
+    else
+        result = select((int)fd + 1, &ready, NULL, NULL, &tv);
+    return result > 0;
 }
 
 /**
@@ -110,6 +200,9 @@ od_wait_readable(
  * socket the server hung up on stays readable forever under select(), so
  * treating a close as a retry would busy-loop until the timeout instead of
  * reporting the disconnect.
+ *
+ * Fails as OD_IO_DEAD or OD_IO_TIMEOUT, which are not the same news: see the
+ * enum for why only one of the two is worth asking again.
  */
 static int
 od_read_exact(
@@ -128,11 +221,11 @@ od_read_exact(
             continue;
         }
         if( got != SOCKSTREAM_ERROR_NODATA && got != SOCKSTREAM_ERROR_WOULDBLOCK )
-            return -1;
-        if( !od_wait_readable(stream, OD_READ_TIMEOUT_SEC) )
-            return -1;
+            return OD_IO_DEAD;
+        if( !od_wait(stream, /* for_write */ 0, OD_READ_TIMEOUT_SEC) )
+            return OD_IO_TIMEOUT;
     }
-    return 0;
+    return OD_IO_OK;
 }
 
 static int
@@ -152,31 +245,83 @@ od_write_all(
             continue;
         }
         if( sent != SOCKSTREAM_ERROR_NODATA && sent != SOCKSTREAM_ERROR_WOULDBLOCK )
-            return -1;
+            return OD_IO_DEAD;
+        /* The same wait its reading twin does, and for a stronger reason: a
+         * peer that has stopped draining leaves send() answering WOULDBLOCK
+         * for as long as it stays that way, and retrying on the spot was a
+         * tight loop with no wait in it and no deadline on it at all -- the
+         * frame thread pinned until the process was killed. */
+        if( !od_wait(stream, /* for_write */ 1, OD_WRITE_TIMEOUT_SEC) )
+            return OD_IO_TIMEOUT;
     }
-    return 0;
+    return OD_IO_OK;
 }
 
+/**
+ * One endpoint of this server, dialled with a deadline and a memory.
+ *
+ * Both halves of that are the point. sockstream_connect takes the timeout and
+ * throws it away, and sockstream_poll_connect selects with a zero timeout, so
+ * the loop that used to be here polled as fast as the CPU allowed for as long
+ * as the OS kept the SYN alive -- a core at 100% and a frame that never ended,
+ * which is what a wedged host (as opposed to a refused port, which fails at
+ * once) looks like from in here. The wait below is what makes
+ * OD_CONNECT_TIMEOUT_SEC a real number.
+ *
+ * `shutter` is this endpoint's field on the handle. @see
+ * OD_ENDPOINT_SHUTTER_SEC: a dial that timed out is remembered, because the
+ * caller above is a loop over archives and would otherwise pay for it once per
+ * archive.
+ */
 static struct SockStream*
 od_dial(
-    const char* host,
-    int port)
+    struct PlatformXIOOnDemand* od,
+    int port,
+    time_t* shutter)
 {
-    struct SockStream* stream = sockstream_new();
+    struct SockStream* stream;
+    time_t deadline;
+    int state = SOCKSTREAM_CONNECT_FAILED;
 
+    assert(od);
+    assert(shutter);
+
+    if( *shutter != 0 && time(NULL) < *shutter )
+        return NULL;
+
+    stream = sockstream_new();
     if( !stream )
         return NULL;
 
-    sockstream_connect(stream, host, port, OD_CONNECT_TIMEOUT_SEC);
+    sockstream_connect(stream, od->host, port, OD_CONNECT_TIMEOUT_SEC);
+    deadline = time(NULL) + OD_CONNECT_TIMEOUT_SEC;
     for( ;; )
     {
-        int state = sockstream_poll_connect(stream);
-        if( state == SOCKSTREAM_CONNECT_SUCCESS )
-            return stream;
-        if( state == SOCKSTREAM_CONNECT_FAILED )
+        state = sockstream_poll_connect(stream);
+        if( state != SOCKSTREAM_CONNECT_INFLIGHT )
             break;
+        if( time(NULL) >= deadline )
+        {
+            TORIRS_ERR("ondemand: %s:%d did not answer in %ds\n",
+                od->host,
+                port,
+                OD_CONNECT_TIMEOUT_SEC);
+            state = SOCKSTREAM_CONNECT_FAILED;
+            break;
+        }
+        /* A second at a time rather than the whole remaining budget, so the
+         * poll -- which is what actually classifies success and failure --
+         * runs again promptly once the socket moves. */
+        od_wait(stream, /* for_write */ 1, 1);
     }
 
+    if( state == SOCKSTREAM_CONNECT_SUCCESS )
+    {
+        *shutter = 0;
+        return stream;
+    }
+
+    *shutter = time(NULL) + OD_ENDPOINT_SHUTTER_SEC;
     sockstream_close(stream);
     sockstream_free(stream);
     return NULL;
@@ -216,7 +361,7 @@ od_http_get(
     assert(route);
     assert(out_size);
 
-    stream = od_dial(od->host, od->web_port);
+    stream = od_dial(od, od->web_port, &od->web_shutter);
     if( !stream )
         return NULL;
 
@@ -254,8 +399,14 @@ od_http_get(
             break;
         if( got != SOCKSTREAM_ERROR_NODATA && got != SOCKSTREAM_ERROR_WOULDBLOCK )
             goto done;
-        if( !od_wait_readable(stream, OD_READ_TIMEOUT_SEC) )
+        if( !od_wait(stream, /* for_write */ 0, OD_READ_TIMEOUT_SEC) )
+        {
+            /* Same reasoning as the file wire's: a web port that accepted the
+             * request and then went quiet must not be asked again for the next
+             * archive. @see OD_ENDPOINT_SHUTTER_SEC. */
+            od->web_shutter = time(NULL) + OD_ENDPOINT_SHUTTER_SEC;
             goto done;
+        }
     }
 
     if( length < 12 || memcmp(buffer, "HTTP/1.", 7) != 0 )
@@ -375,7 +526,7 @@ od_open_files(struct PlatformXIOOnDemand* od)
         od->files = NULL;
     }
 
-    od->files = od_dial(od->host, od->game_port);
+    od->files = od_dial(od, od->game_port, &od->files_shutter);
     if( !od->files )
         return -1;
 
@@ -394,8 +545,9 @@ od_open_files(struct PlatformXIOOnDemand* od)
 /**
  * One attempt at one file. Returns NULL both for "the server does not have it"
  * (a zero-length header, a legitimate answer at the edges of a built world) and
- * for a transport failure; `*out_size` distinguishes them -- 0 for the former,
- * -1 for the latter -- which is what lets od_fetch_file retry only the second.
+ * for a transport failure; `*out_size` distinguishes them -- OD_FETCH_ABSENT
+ * for the former, and for the latter the two failures the retry has to tell
+ * apart, OD_FETCH_DEAD and OD_FETCH_TIMEOUT.
  */
 static char*
 od_fetch_file_once(
@@ -408,13 +560,17 @@ od_fetch_file_once(
     char* data = NULL;
     int total = -1;
     int received = 0;
+    /* Only a read that ran out of time sets this. The other ways out of the
+     * loop below are a misframed stream, which is a dead connection by another
+     * name and is retried like one. */
+    int timed_out = 0;
 
     assert(od);
     assert(archive >= 0);
     assert(archive <= 3);
     assert(out_size);
 
-    *out_size = -1;
+    *out_size = OD_FETCH_DEAD;
     if( file < 0 || file > 0xFFFF )
         return NULL;
     if( od_open_files(od) != 0 )
@@ -436,9 +592,14 @@ od_fetch_file_once(
         int part;
         int offset;
         int count;
+        int io;
 
-        if( od_read_exact(od->files, header, 6) != 0 )
+        io = od_read_exact(od->files, header, 6);
+        if( io != OD_IO_OK )
+        {
+            timed_out = io == OD_IO_TIMEOUT;
             goto failed;
+        }
 
         chunk_archive = header[0];
         chunk_file = (header[1] << 8) | header[2];
@@ -483,8 +644,12 @@ od_fetch_file_once(
         if( count > OD_CHUNK_PAYLOAD )
             count = OD_CHUNK_PAYLOAD;
 
-        if( od_read_exact(od->files, data + offset, count) != 0 )
+        io = od_read_exact(od->files, data + offset, count);
+        if( io != OD_IO_OK )
+        {
+            timed_out = io == OD_IO_TIMEOUT;
             goto failed;
+        }
         received += count;
         if( received >= total )
             break;
@@ -498,6 +663,21 @@ failed:
     sockstream_close(od->files);
     sockstream_free(od->files);
     od->files = NULL;
+    /* A server that held the connection open and then said nothing is the one
+     * failure worth remembering: asking again costs another full read timeout,
+     * and the caller above is about to ask for the next of fifty archives.
+     * @see OD_ENDPOINT_SHUTTER_SEC. */
+    if( timed_out )
+    {
+        TORIRS_ERR("ondemand: %s:%d went quiet mid-file (%d/%d); shuttering it for %ds\n",
+            od->host,
+            od->game_port,
+            archive,
+            file,
+            OD_ENDPOINT_SHUTTER_SEC);
+        *out_size = OD_FETCH_TIMEOUT;
+        od->files_shutter = time(NULL) + OD_ENDPOINT_SHUTTER_SEC;
+    }
     return NULL;
 }
 
@@ -517,7 +697,12 @@ failed:
  * for never arrives. That is what "Failed to decode dat1 model 63" was, on
  * bytes the server sends perfectly well.
  *
- * Only a TRANSPORT failure is retried. A zero-length answer means the server
+ * Only a DEAD socket is retried. A read that ran out of time is not the same
+ * failure and is not asked again: the connection is up and the server is not
+ * answering on it, so a second attempt is a second full timeout spent on the
+ * frame thread to hear the same silence. @see OD_ENDPOINT_SHUTTER_SEC.
+ *
+ * A zero-length answer means the server
  * looked and has no such file; asking a second time would just be a slower way
  * to hear the same thing.
  */
@@ -530,7 +715,7 @@ od_fetch_file(
 {
     char* data = od_fetch_file_once(od, archive, file, out_size);
 
-    if( data || *out_size == 0 )
+    if( data || *out_size != OD_FETCH_DEAD )
         return data;
 
     /* od_fetch_file_once has already dropped the socket, so this reconnects. */
