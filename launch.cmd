@@ -24,7 +24,7 @@ rem The manifests are already composed -- generated on the dev host from
 rem profiles/ and copied across -- so the fallback reads build\manifests\ and
 rem never needs to understand a profile at all.
 
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
 rem ---------------------------------------------------------------- python --
@@ -90,11 +90,19 @@ if exist "torirs.exe"     set "EXE=torirs.exe"
 if not defined EXE if exist "src\torirs.exe" set "EXE=src\torirs.exe"
 if not defined EXE goto :no_exe
 
-rem Everything after the profile goes to the client untouched, so --soft3d,
-rem --d3d9, --user and the rest work exactly as they do on the dev host. No
-rem --user/--pass are added: the manifest states its own, and inventing a
-rem default here is how the two Windows launchers used to disagree about which
-rem account a self-contained manifest logs in as.
+rem The profile's own client arguments, written beside the manifest by
+rem deploy_xp.py. Without these the fallback launched with no renderer selected
+rem while the dev host launched with --soft3d -- the same command, the same
+rem profile, two different results, and the box's was a window full of clear
+rem colour with nothing to say why.
+set "PROFILE_ARGS="
+if exist "build\manifests\%PROFILE%.args" (
+    for /f "usebackq delims=" %%A in ("build\manifests\%PROFILE%.args") do (
+        set "PROFILE_ARGS=!PROFILE_ARGS! %%A"
+    )
+)
+
+rem Typed arguments come after the profile's, so they win a repeated flag.
 set "EXTRA="
 :collect
 if "%~1"=="" goto :collected
@@ -103,8 +111,8 @@ shift
 goto :collect
 :collected
 
-echo launch: %EXE% --manifest %MANIFEST%%EXTRA%
-"%EXE%" --manifest "%MANIFEST%"%EXTRA%
+echo launch: %EXE% --manifest %MANIFEST%!PROFILE_ARGS!%EXTRA%
+"%EXE%" --manifest "%MANIFEST%"!PROFILE_ARGS!%EXTRA%
 endlocal
 exit /b %errorlevel%
 

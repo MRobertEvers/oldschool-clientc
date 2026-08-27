@@ -129,6 +129,32 @@ def compose(profile_name):
     return path
 
 
+def write_args_file(profile_name, manifest_path):
+    """Emit <profile>.args beside the manifest: the profile's client arguments.
+
+    The manifest cannot carry these -- [args] and [session] are profile-level,
+    and the manifest is a world description shared by every profile that names
+    it. Without this the box's fallback launcher starts the client with no
+    renderer selected, which on that machine is a window full of clear colour
+    and nothing else.
+    """
+    from tools.launcher import profiles as profiles_mod
+    profile = profiles_mod.load_profile(REPO, profile_name)
+
+    lines = list(profile.client_args)
+    session = profile.session
+    if session.get('user'):
+        lines += ['--user', session['user']]
+    if session.get('pass'):
+        lines += ['--pass', session['pass']]
+
+    out = os.path.splitext(manifest_path)[0] + '.args'
+    with open(out, 'w', encoding='utf-8', newline='\r\n') as handle:
+        for line in lines:
+            handle.write(line + '\n')
+    return os.path.relpath(out, REPO).replace('/', BS).replace(os.sep, BS)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('profile', help='an XP profile, e.g. rs289lc-xp')
@@ -146,7 +172,11 @@ def main():
     manifest_rel = os.path.relpath(manifest, REPO).replace('/', BS).replace(os.sep, BS)
     print('composed %s' % manifest_rel)
 
-    items = [(manifest_rel, manifest_rel), ('launch.cmd', 'launch.cmd')]
+    args_rel = write_args_file(args.profile, manifest)
+    print('composed %s' % args_rel)
+
+    items = [(manifest_rel, manifest_rel), (args_rel, args_rel),
+             ('launch.cmd', 'launch.cmd')]
     for base, _sub, files in os.walk('revconfig'):
         for fn in files:
             local = os.path.join(base, fn)
