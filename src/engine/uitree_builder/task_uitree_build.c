@@ -129,6 +129,10 @@ Task_UITreeBuild_Run(
         src.inline_ini_path =
             self->builder->inline_ini_path[0] ? self->builder->inline_ini_path : NULL;
         src.root_interface_id = self->builder->root_interface_id;
+        src.layout_group =
+            self->builder->layout_group[0] ? self->builder->layout_group : NULL;
+        src.layout_group_exclude =
+            self->builder->layout_group_exclude[0] ? self->builder->layout_group_exclude : NULL;
         uibuilder_manifest_from_sources(&self->manifest, &src);
     }
 

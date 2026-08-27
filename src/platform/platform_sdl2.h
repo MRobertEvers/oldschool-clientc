@@ -317,6 +317,18 @@ PlatformSDL2_SetTitle(
  * it owns, so the canvas — not the window — is what the backbuffer must match;
  * the caller reconciles them with PlatformSDL2_Resize after draining the bus.
  */
+/**
+ * Turn the on-screen keyboard on or off.
+ *
+ * SDL's text-input mode is the same switch on every backend that HAS a soft
+ * keyboard: starting it raises the keyboard on Android, iOS and emscripten, and
+ * stopping it puts it away. On a desktop backend it governs only whether
+ * SDL_TEXTINPUT events arrive, which is why the shell starts it at boot and
+ * nothing ever turned it off -- there was nothing to put away.
+ */
+void
+PlatformSDL2_SetTextInput(struct PlatformSDL2* platform, int on);
+
 void
 PlatformSDL2_SetCanvasFollowsWindow(
     struct PlatformSDL2* platform,

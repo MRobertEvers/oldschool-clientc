@@ -2958,6 +2958,19 @@ app_plugin_click_node(struct App* app, int32_t node, int op)
     return 1;
 }
 
+static void
+app_plugin_text_input(void* user, int on)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    /* Raised as a pending flag rather than acted on: the App has no platform,
+     * and the shell already drains statements like this beside the window-mode
+     * change. @see App_TakeTextInputChange. */
+    app->text_input_on = on ? 1 : 0;
+    app->text_input_dirty = 1;
+}
+
 static int
 app_plugin_if_click(void* user, int component_id, int op)
 {
@@ -4129,6 +4142,7 @@ app_plugin_engine(struct App* app)
     engine.draw_image = app_plugin_draw_image;
     engine.hit_region = app_plugin_hit_region;
     engine.if_click = app_plugin_if_click;
+    engine.text_input = app_plugin_text_input;
     engine.mouse_pos = app_plugin_mouse_pos;
     engine.minimap_rect = app_plugin_minimap_rect;
     engine.slot_rect = app_plugin_slot_rect;

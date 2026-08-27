@@ -881,6 +881,23 @@ PlatformSDL2_SetTitle(struct PlatformSDL2* p, char const* title)
         SetWindowTextA(p->hwnd, title);
 }
 
+/*
+ * No keyboard to raise.
+ *
+ * This lane is a Win32 desktop window and its keyboard is the physical one --
+ * there is nothing to show and nothing to put away. The entry point exists so
+ * that a plugin asking for a keyboard is answered the same way on every lane:
+ * on the backends that HAVE a soft keyboard (SDL2 on Android and iOS, and
+ * emscripten in a mobile browser) the SDL implementation raises it, and here it
+ * is a no-op rather than a link error.
+ */
+void
+PlatformSDL2_SetTextInput(struct PlatformSDL2* p, int on)
+{
+    (void)p;
+    (void)on;
+}
+
 void
 PlatformSDL2_SetCanvasFollowsWindow(
     struct PlatformSDL2* p, struct ToriRS_CmdBus* bus, bool follow, int min_w, int min_h)

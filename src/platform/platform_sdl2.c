@@ -1589,6 +1589,19 @@ PlatformSDL2_SetInterfaceScaleMode(
 }
 
 void
+PlatformSDL2_SetTextInput(struct PlatformSDL2* platform, int on)
+{
+    assert(platform);
+    (void)platform;
+    /* Asked every time rather than tracked: SDL already tracks it, and a second
+     * copy here could only disagree. Both calls are idempotent. */
+    if( on )
+        SDL_StartTextInput();
+    else
+        SDL_StopTextInput();
+}
+
+void
 PlatformSDL2_SetCanvasFollowsWindow(
     struct PlatformSDL2* platform,
     struct ToriRS_CmdBus* bus,

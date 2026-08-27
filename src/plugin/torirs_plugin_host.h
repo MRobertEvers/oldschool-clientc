@@ -338,6 +338,8 @@ struct ToriRS_PluginEngine
         uint32_t tag);
     /** Press an interface button. @see ToriRS_PluginApi::if_click. */
     int (*if_click)(void* user, int component_id, int op);
+    /** @see ToriRS_PluginApi::text_input. */
+    void (*text_input)(void* user, int on);
     /** Blit a published image. @see ToriRS_PluginApi::draw_image. */
     int (*draw_image)(
         void* user,
