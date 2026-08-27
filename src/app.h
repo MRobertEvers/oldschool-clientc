@@ -12,6 +12,7 @@
 #include "features/features.h"
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
+#include "engine/title_flames.h"
 #include "game/rs_login_replies.h"
 #include "game/rs_title.h"
 #include "net/rev/revpacket.h"
@@ -1505,6 +1506,16 @@ struct App
     /** What each login rejection means, in this revision's words. Loaded from
      *  the profile beside RevConfigRefs and alive for the whole session. */
     struct RS_LoginReplyTable login_replies;
+    /**
+     * The title screen's two braziers, or NULL when none is burning.
+     *
+     * A pointer because the simulation carries four 128 KB buffers and the
+     * session only wants them while the title screen is up; it is freed the
+     * moment the gameframe roots.
+     */
+    struct TitleFlames* flames;
+    /** Wall clock the fire was last advanced against. */
+    uint64_t flames_last_ms;
     /** Frames the left button has been held over the chat scrollbar (reference
      *  scrollCycle); drives arrow-scroll acceleration and gates grip drag. */
     int chat_scroll_cycle;

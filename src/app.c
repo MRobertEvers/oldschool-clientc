@@ -5263,6 +5263,153 @@ app_title_caret_blink(struct App const* app)
 }
 
 /*
+ * Light the braziers, once the title tree's art is resident.
+ *
+ * The fire burns in front of two 128-wide columns of the backdrop, so it needs
+ * the composited panel before it can start -- which is also why this is not
+ * done at bake time: the sprite arrives through the same async asset pass
+ * everything else does.
+ *
+ * A profile with no backdrop gets no fire rather than a fire over black. That
+ * is the undeclared-means-absent contract again, and it is the honest answer:
+ * the flames are a lighting effect on a picture, and without the picture they
+ * are just two glowing rectangles.
+ */
+static void
+app_title_flames_start(struct App* app)
+{
+    struct ToriRS_Sprite* runes;
+    struct ToriDraw_Sprite** panel_frames;
+    struct ToriDraw_Sprite const* panel;
+    uint32_t* column[TORIRS_FLAME_SIDES] = { NULL, NULL };
+    uint32_t const* pair[TORIRS_FLAME_SIDES];
+    int sprite_id;
+    int scene_id;
+    int frame_count = 0;
+    int col_h;
+
+    assert(app);
+    if( app->flames || !app->provider || !app->scene )
+        return;
+
+    sprite_id = CacheProvider_SpriteIdByName(app->provider, "title_background");
+    if( sprite_id < 0 )
+        return;
+
+    /*
+     * Read the backdrop out of the SCENE, not the provider.
+     *
+     * Uploading a sprite hands its pixels to the scene and leaves the
+     * provider's copy empty -- the client deliberately does not keep two of
+     * every image. The scene is therefore where the picture actually is by the
+     * time anything wants to look at it.
+     */
+    scene_id = UITreeSceneBridge_EnsureSprite(&app->bridge, sprite_id);
+    if( scene_id < 0 )
+        return;
+    panel_frames = ToriDraw_SceneSpriteGet(app->scene, scene_id, &frame_count);
+    if( !panel_frames || frame_count < 1 || !panel_frames[0] )
+        return;
+    panel = panel_frames[0];
+    if( !panel->pixels_argb || panel->width < TORIRS_FLAME_W * 2 )
+        return;
+
+    col_h = panel->height < TORIRS_FLAME_H ? panel->height : TORIRS_FLAME_H;
+
+    /* The two strips the reference burns in: hard against each edge of the
+     * panel, which is where the braziers are painted. */
+    for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
+    {
+        int src_x = side == TORIRS_FLAME_LEFT ? 0 : panel->width - TORIRS_FLAME_W;
+        column[side] = malloc((size_t)TORIRS_FLAME_W * col_h * sizeof(*column[side]));
+        assert(column[side]);
+        for( int y = 0; y < col_h; y++ )
+            memcpy(
+                &column[side][(size_t)y * TORIRS_FLAME_W],
+                &panel->pixels_argb[(size_t)y * panel->width + src_x],
+                (size_t)TORIRS_FLAME_W * sizeof(*column[side]));
+        pair[side] = column[side];
+    }
+
+    /* Runes are optional: without them the cooling map carries no glyphs and
+     * the fire is a plain one, which is what a revision with no rune pack
+     * honestly has. */
+    sprite_id = CacheProvider_SpriteIdByName(app->provider, "runes");
+    runes = sprite_id >= 0 ? CacheProvider_SpriteGet(app->provider, sprite_id) : NULL;
+
+    app->flames = calloc(1, sizeof(*app->flames));
+    assert(app->flames);
+    TitleFlames_Init(app->flames, pair, TORIRS_FLAME_W, col_h, runes);
+    app->flames_last_ms = 0;
+
+    for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
+        free(column[side]);
+}
+
+static void
+app_title_flames_stop(struct App* app)
+{
+    assert(app);
+    if( !app->flames )
+        return;
+    TitleFlames_Free(app->flames);
+    free(app->flames);
+    app->flames = NULL;
+}
+
+/* One frame of fire, uploaded into the two reserved scene slots. */
+static void
+app_title_flames_tick(
+    struct App* app,
+    uint64_t now_ms)
+{
+    static int const k_slot[TORIRS_FLAME_SIDES] = {
+        UITREE_SCENE_TITLE_FLAME_LEFT_ID,
+        UITREE_SCENE_TITLE_FLAME_RIGHT_ID,
+    };
+    int elapsed;
+
+    assert(app);
+    if( !app->flames || !app->scene )
+        return;
+
+    elapsed = app->flames_last_ms == 0 ? 0 : (int)(now_ms - app->flames_last_ms);
+    app->flames_last_ms = now_ms;
+    if( !TitleFlames_Advance(app->flames, elapsed) )
+        return;
+
+    for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
+    {
+        size_t bytes =
+            (size_t)app->flames->width * app->flames->height * sizeof(uint32_t);
+        uint32_t* copy = malloc(bytes);
+        struct ToriDraw_Sprite* sprite;
+        struct ToriDraw_Sprite** sprites;
+
+        assert(copy);
+        memcpy(copy, TitleFlames_Pixels(app->flames, (enum TitleFlameSide)side), bytes);
+        sprite = ToriDraw_SpriteNewFromArgbOwned(
+            copy, app->flames->width, app->flames->height);
+        if( !sprite )
+        {
+            free(copy);
+            continue;
+        }
+        sprites = malloc(sizeof(*sprites));
+        assert(sprites);
+        sprites[0] = sprite;
+        /* Adding over a live id frees what was there and re-emits the load, so
+         * the GPU lanes pick the new pixels up; the soft lane reads the scene
+         * directly. */
+        if( ToriDraw_SceneSpriteHas(app->scene, k_slot[side]) )
+            ToriDraw_SceneSpriteRemove(app->scene, k_slot[side]);
+        ToriDraw_SceneSpriteAdd(app->scene, k_slot[side], sprites, 1);
+    }
+
+    app->need_redraw = 1;
+}
+
+/*
  * Show the group belonging to the current title screen, hide the rest.
  *
  * The title tree carries every screen at once -- menu, form, info, loading --
@@ -5570,6 +5717,18 @@ app_host_request(
         *req->u.get_title_progress.out_percent = app->title.progress_percent;
         *req->u.get_title_progress.out_text = app->title.progress_text;
         return app->title.progress_percent >= 0;
+    case UITREE_HOST_GET_TITLE_FLAMES:
+    {
+        int side = req->u.get_title_flames.side;
+        assert(req->u.get_title_flames.out_scene_id);
+        if( !app->flames || side < 0 || side >= TORIRS_FLAME_SIDES )
+            return 0;
+        *req->u.get_title_flames.out_scene_id = side == TORIRS_FLAME_LEFT
+                                                    ? UITREE_SCENE_TITLE_FLAME_LEFT_ID
+                                                    : UITREE_SCENE_TITLE_FLAME_RIGHT_ID;
+        return ToriDraw_SceneSpriteHas(
+            app->scene, *req->u.get_title_flames.out_scene_id);
+    }
     case UITREE_HOST_TITLE_ACTION:
         if( RS_Title_HandleAction(&app->title, (enum RS_TitleAction)req->u.title_action.action) )
         {
@@ -13047,7 +13206,10 @@ Task_AppBoot_Run(
     /* A freshly baked title tree shows every screen's group at once until it is
      * told which one is current. */
     if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
+    {
         app_title_sync_groups(app);
+        app_title_flames_start(app);
+    }
     app->pending_tree_refresh = 1;
     app->need_redraw = 1;
 
@@ -13172,6 +13334,9 @@ App_OpenRootInterface(
 {
     assert(app);
     app->screen = APP_SCREEN_GAME;
+    /* Half a megabyte of simulation buffers that only the title screen wants,
+     * and the tree that drew them is about to be cleared. */
+    app_title_flames_stop(app);
     app_open_tree(app, interface_id, NULL, APP_TITLE_LAYOUT_GROUP);
 }
 
@@ -14477,6 +14642,9 @@ app_logic_tick(struct App* app)
 
     if( app_title_tick(app) )
         redraw = 1;
+    if( app->flames )
+        app_title_flames_tick(
+            app, (uint64_t)app->logic_cycle * (1000 / APP_LOGIC_CYCLES_PER_SECOND));
 
     /*
      * System-update countdown (reference gameLoop: `if (rebootTimer > 1)

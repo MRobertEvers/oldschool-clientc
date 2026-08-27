@@ -2021,7 +2021,7 @@ revconfig_item_apply_field(
         if( kind == RCFIELD_STRING_TEXT )
         {
             strncpy(item->u.string.text, value, sizeof(item->u.string.text) - 1);
-            item->u.string.text[sizeof(item->u.string.text) - 1] = ' ';
+            item->u.string.text[sizeof(item->u.string.text) - 1] = '\0';
         }
         break;
     case RCITEM_LOGIN_REPLY:
@@ -2040,7 +2040,7 @@ revconfig_item_apply_field(
                 item->u.login_reply.line[line],
                 value,
                 sizeof(item->u.login_reply.line[line]) - 1);
-            item->u.login_reply.line[line][sizeof(item->u.login_reply.line[line]) - 1] = ' ';
+            item->u.login_reply.line[line][sizeof(item->u.login_reply.line[line]) - 1] = '\0';
         }
         break;
     case RCITEM_ROLE:

@@ -842,7 +842,10 @@ struct RevConfigUIComponentItem
      * revision ships one as widget data -- so it is built from client widgets
      * whose every appearance decision is stated here rather than in C.
      *
-     * INI: field= — which credential a login_input edits: username | password.
+     * INI: field=
+     * Which of a paired widget this one is: `username`/`password` for a
+     * login_input, `left`/`right` for a title_flames brazier. One key rather
+     * than two near-identical ones, because it answers the same question.
      */
     char title_field[16];
 

@@ -566,7 +566,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/torirs_enum_from_rscache.c engine/torirs_struct_from_rscache.c \
 	engine/torirs_paramtype_from_rscache.c engine/torirs_db.c \
 	engine/torirs_worldmap_from_rscache.c \
-	engine/png_decode.c engine/jpeg_decode.c engine/title_panel.c \
+	engine/png_decode.c engine/jpeg_decode.c engine/title_panel.c engine/title_flames.c \
 	engine/uitree_from_component.c engine/texture_palette_bake.c \
 	engine/dat1/dat1_buildcache.c engine/dat1/task_dat1_model_load.c \
 	engine/dat1/task_dat1_component_pack_load.c engine/dat1/task_dat1_clientscript_load.c \
@@ -2654,6 +2654,13 @@ test-rs-title: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_title_test \
 		game/test/rs_title_test.c game/rs_title.c
 	./$(OBJ_DIR)/rs_title_test
+
+# The title screen's fire. Deterministic by construction (private seeded LCG),
+# so these are assertions about how it burns rather than eyeballing.
+test-title-flames: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/title_flames_test \
+		engine/test/title_flames_test.c engine/title_flames.c -lm
+	./$(OBJ_DIR)/title_flames_test
 
 # The login-reply table, read from the shipped profile: a rejection the profile
 # has no words for shows a blank box, which is the one failure a login screen

@@ -1320,6 +1320,8 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "title_progress";
     case UIELEM_BUILTIN_TITLE_PROGRESS_TEXT:
         return "title_progress_text";
+    case UIELEM_BUILTIN_TITLE_FLAMES:
+        return "title_flames";
     case UIELEM_BUILTIN_MINIMENU:
         return "minimenu";
     case UIELEM_BUILTIN_HOVERTEXT:
@@ -2361,6 +2363,10 @@ UITree_Push(
     case UIELEM_BUILTIN_TITLE_PROGRESS:
         component->u.title_progress.color = spec->u.title_progress.color;
         component->u.title_progress.px_per_percent = spec->u.title_progress.px_per_percent;
+        break;
+
+    case UIELEM_BUILTIN_TITLE_FLAMES:
+        component->u.title_flames.side = spec->u.title_flames.side;
         break;
 
     case UIELEM_BUILTIN_TITLE_PROGRESS_TEXT:

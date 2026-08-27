@@ -131,6 +131,10 @@ enum UITreeComponentType
     UIELEM_BUILTIN_TITLE_PROGRESS = 34,
     /** The loading bar's status line. */
     UIELEM_BUILTIN_TITLE_PROGRESS_TEXT = 35,
+    /** One of the two burning braziers. The fire is simulated host-side and
+     *  arrives as a scene sprite reuploaded per frame; the widget says which
+     *  side it is and where it goes. */
+    UIELEM_BUILTIN_TITLE_FLAMES = 36,
     UIELEM_RS_TEXT = 14,     /* TYPE_TEXT */
     UIELEM_RS_GRAPHIC = 15,  /* TYPE_GRAPHIC */
     UIELEM_RS_MODEL = 16,    /* TYPE_MODEL */
@@ -950,6 +954,11 @@ struct UITreeComponent
         } title_progress;
         struct
         {
+            /** enum TitleFlameSide; ui/ stays a leaf so it travels as an int. */
+            int side;
+        } title_flames;
+        struct
+        {
             int font_id;
             int color;
             int center;
@@ -1557,6 +1566,11 @@ struct UITreeNodeSpec
             int center;
             int shadowed;
         } title_progress_text;
+        struct
+        {
+            /** enum TitleFlameSide; ui/ stays a leaf so it travels as an int. */
+            int side;
+        } title_flames;
         struct UITreeDebugOverlayConfig debug_overlay;
         struct UITreeChatConfig chat;
         struct UITreeChatButtonConfig chat_button;

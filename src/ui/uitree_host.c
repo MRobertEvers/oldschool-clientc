@@ -112,6 +112,9 @@ UITree_HostRequestInputMask(enum UITreeHostRequestKind kind)
     case UITREE_HOST_GET_TITLE_FIELD:
         return client | animation;
 
+    case UITREE_HOST_GET_TITLE_FLAMES:
+        return animation | assets;
+
     case UITREE_HOST_GET_MINIMAP_DOTS:
     case UITREE_HOST_GET_ENTITY_OVERLAYS:
         return camera | world | overlays;
@@ -257,6 +260,7 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_TITLE_FIELD:
     case UITREE_HOST_GET_TITLE_MESSAGE:
     case UITREE_HOST_GET_TITLE_PROGRESS:
+    case UITREE_HOST_GET_TITLE_FLAMES:
     case UITREE_HOST_TITLE_ACTION:
     case UITREE_HOST_GET_MINIMAP_DOTS:
     case UITREE_HOST_BEGIN_OVERLAYS:

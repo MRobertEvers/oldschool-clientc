@@ -147,6 +147,17 @@ connect_login(
     assert(net);
 
     net->reconnect = reconnect;
+    /*
+     * Assume the socket is the thing that failed, until the protocol says
+     * otherwise.
+     *
+     * A handshake that reaches a server and is refused overwrites this with
+     * the server's own byte. One that never gets that far leaves it standing,
+     * which is the only way the screen can tell "your password is wrong" from
+     * "there was nothing at that address" -- and the second is the one a
+     * player is far more likely to hit.
+     */
+    net->login_reply = TORIRS_NET_LOGIN_REPLY_CONNECT_FAILED;
     strncpy(net->host, host ? host : "", sizeof(net->host) - 1);
     strncpy(net->username, username ? username : "", sizeof(net->username) - 1);
     strncpy(net->password, password ? password : "", sizeof(net->password) - 1);

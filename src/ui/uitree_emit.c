@@ -927,6 +927,26 @@ UITree_EmitFill(
         return true;
     }
 
+    case UIELEM_BUILTIN_TITLE_FLAMES:
+    {
+        /* The fire is the host's simulation and arrives as a scene sprite it
+         * reuploads each frame. Nothing about this desc changes as it burns,
+         * which is exactly why the node is always_dirty: the pixels move under
+         * a byte-identical command. */
+        int scene_id = -1;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TITLE_FLAMES,
+            .u.get_title_flames.side = component->u.title_flames.side,
+            .u.get_title_flames.out_scene_id = &scene_id,
+        };
+        if( !UITree_Host(host, &req) || scene_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = scene_id;
+        out->atlas_index = 0;
+        return true;
+    }
+
     case UIELEM_BUILTIN_TAB_ICONS:
     {
         /* Icons draw only for tabs with an interface assigned (reference

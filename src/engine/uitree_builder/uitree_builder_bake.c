@@ -50,6 +50,8 @@ type_from_string(char const* type)
         return UIELEM_BUILTIN_TITLE_PROGRESS;
     if( strcmp(type, "title_progress_text") == 0 )
         return UIELEM_BUILTIN_TITLE_PROGRESS_TEXT;
+    if( strcmp(type, "title_flames") == 0 )
+        return UIELEM_BUILTIN_TITLE_FLAMES;
     if( strcmp(type, "minimenu") == 0 )
         return UIELEM_BUILTIN_MINIMENU;
     if( strcmp(type, "minimap") == 0 )
@@ -815,6 +817,14 @@ push_builtin_op(
         spec.u.title_progress_text.shadowed = op->shadowed;
         spec.u.title_progress_text.font_id = bake_op_font_id(builder, op);
         assert(spec.u.title_progress_text.font_id >= 0 && "title_progress_text font missing");
+        break;
+    case UIELEM_BUILTIN_TITLE_FLAMES:
+        /* always_dirty is not optional here. The desc never changes as the
+         * fire burns -- same scene id, same box -- so a retained emit list
+         * would keep drawing a sprite whose pixels have moved on, and the fire
+         * would stop dead while still looking like a fire. */
+        spec.always_dirty = 1;
+        spec.u.title_flames.side = strcmp(op->title_field, "right") == 0 ? 1 : 0;
         break;
     case UIELEM_BUILTIN_ENTITY_OVERLAY:
         spec.always_dirty = 1;

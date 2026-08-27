@@ -256,6 +256,15 @@ enum UITreeHostRequestKind
      */
     UITREE_HOST_TITLE_ACTION,
     /**
+     * The scene sprite one brazier's fire is currently in
+     * (u.get_title_flames.side selects which), written to out_scene_id.
+     *
+     * The simulation is the host's -- it owns the clock the fire burns on --
+     * and it hands over a sprite id rather than pixels so the widget draws it
+     * exactly like any other sprite. Returns nonzero while there is a fire.
+     */
+    UITREE_HOST_GET_TITLE_FLAMES,
+    /**
      * Writes a pointer to the host-computed minimap overlay dots (valid only
      * for the current frame) to u.get_minimap_dots.out_dots; returns the
      * count (0 = no overlay).
@@ -567,6 +576,12 @@ struct UITreeHostRequest
             /** Resolved RS_TitleAction. */
             int action;
         } title_action;
+        struct
+        {
+            /** enum TitleFlameSide. */
+            int side;
+            int* out_scene_id;
+        } get_title_flames;
         struct
         {
             struct UITreeMinimapDot const** out_dots;

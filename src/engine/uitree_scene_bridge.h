@@ -145,6 +145,10 @@ struct UITreeSceneBridge
 #define UITREE_SCENE_CHROME_SKIN_ID 0x40000009
 /** The editor catalog's model preview: one slot, re-rendered per pick. */
 #define UITREE_SCENE_EDITOR_PREVIEW_ID 0x4000000A
+/** The two title-screen braziers: one slot each, reuploaded every frame the
+ *  fire advances. @see engine/title_flames.h. */
+#define UITREE_SCENE_TITLE_FLAME_LEFT_ID 0x4000000B
+#define UITREE_SCENE_TITLE_FLAME_RIGHT_ID 0x4000000C
 
 /**
  * Base of the reserved scene-sprite range for PLUGIN IMAGES: art a plugin
