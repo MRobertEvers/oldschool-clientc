@@ -58,6 +58,7 @@
 #define Platform_IO_InitDat1Disk PlatformX_IO_InitDat1Disk
 #define Platform_IO_InitConfigPath PlatformX_IO_InitConfigPath
 #define Platform_IO_InitScriptPath PlatformX_IO_InitScriptPath
+#define Platform_IO_InitIoServer PlatformX_IO_InitIoServer
 #define Platform_IO_InitCacheId PlatformX_IO_InitCacheId
 #define Platform_IO_LoadItem PlatformX_IO_LoadItem
 #define Platform_IO_Process PlatformX_IO_Process

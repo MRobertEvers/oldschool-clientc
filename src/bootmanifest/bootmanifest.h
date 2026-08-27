@@ -245,6 +245,12 @@ struct BootManifest
     uint32_t cache_quirks;
     int cache_quirks_set; /* 1 when quirks= was present */
     int cache_kind;      /* enum AppCacheKind derived from epoch; -1 = unset */
+    /* [io:boot] -- the file server that answers GET /boot/<path> for anything
+     * not on this disk: the plugin manifest, the plugin scripts, and each
+     * shipped plugin asset as a plugin asks for it. Empty host = no fallback,
+     * which is a client that must find everything locally. */
+    char io_host[256];
+    int io_port;
     char cache_dir[512]; /* resolved against manifest dir */
     /* Whether [cache] dir= appeared at all. Distinguishes "stream every boot,
      * write nothing down" (dir= stated empty) from silence, which defaults to

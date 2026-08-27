@@ -8451,6 +8451,9 @@ App_Init(
         cfg->cache_dir);
     Platform_IO_InitConfigPath(app->runner.px, cfg->config_dir);
     Platform_IO_InitScriptPath(app->runner.px, cfg->script_dir);
+    /* After the script path, because it is the fallback FOR it: a stored file
+     * is looked for under script_dir first and asked of this server second. */
+    Platform_IO_InitIoServer(app->runner.px, cfg->io_host, cfg->io_port);
 
     /* Phase 2: asset pipeline (provider is a view over the build cache). */
     if( cfg->cache_kind == APP_CACHE_DAT1 )

@@ -57,6 +57,12 @@ test_load_fields(void)
     CHECK(bm.spawn_x == 12);
     CHECK(bm.spawn_z == 34);
 
+    /* [io:boot] -- where stored files this disk lacks are fetched from. Its
+     * own section rather than a key on [net:boot]: this is not the game server
+     * and does not move with it. */
+    CHECK(strcmp(bm.io_host, "io.example.com") == 0);
+    CHECK(bm.io_port == 8099);
+
     CHECK(strcmp(bm.rev_name, "xrsps233") == 0);
     CHECK(strcmp(bm.transport, "ws") == 0);
     CHECK(strcmp(bm.host, "example.com") == 0);

@@ -327,6 +327,7 @@ enum bm_section
     BM_SECTION_CACHE,
     BM_SECTION_NET,
     BM_SECTION_JS5,
+    BM_SECTION_IO,
     BM_SECTION_UI,
     BM_SECTION_UI_GAMEFRAME,
     BM_SECTION_UI_VARC,
@@ -355,6 +356,8 @@ bm_section_of(char const* header)
         return BM_SECTION_NET;
     if( strncmp(header, "js5:", 4) == 0 )
         return BM_SECTION_JS5;
+    if( strncmp(header, "io:", 3) == 0 )
+        return BM_SECTION_IO;
     if( strcmp(header, "ui:gameframe") == 0 )
         return BM_SECTION_UI_GAMEFRAME;
     if( strcmp(header, "ui:varc") == 0 )
@@ -733,6 +736,39 @@ bm_set_kv(
             return;
         }
         break;
+
+    case BM_SECTION_IO:
+        /*
+         * The file server this client falls back to.
+         *
+         * Not the game server and not the cache server -- this one answers
+         * GET /boot/<path> for anything the client would otherwise fopen and
+         * not find: the plugin manifest, the plugin scripts it names, and each
+         * shipped plugin asset AS A PLUGIN ASKS FOR IT. Nothing is fetched up
+         * front, so a client that never opens a plugin never pays for one.
+         *
+         * Stating it is what makes a client usable away from the tree it was
+         * built in. Without it a deployment has to carry script/ beside the
+         * binary, and a deployment that forgets comes up holding only the
+         * statically linked C plugins -- with no orbs on the minimap, no
+         * gameframe tabs and nothing anywhere saying why, because a missing
+         * plugin manifest is deliberately silent.
+         *
+         * TORIRS_IO_SERVER still wins; it is the older spelling and the one a
+         * one-off debugging run reaches for.
+         */
+        if( strcmp(key, "host") == 0 )
+        {
+            snprintf(bm->io_host, sizeof(bm->io_host), "%s", value);
+            return;
+        }
+        if( strcmp(key, "port") == 0 )
+        {
+            bm->io_port = atoi(value);
+            return;
+        }
+        TORIRS_LOG("bootmanifest: [io] ignoring unknown key '%s'\n", key);
+        return;
 
     case BM_SECTION_JS5:
         if( strcmp(key, "enabled") == 0 )
@@ -1513,6 +1549,10 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->cache_kind = (enum AppCacheKind)bm->cache_kind;
     if( bm->cache_dir[0] )
         cfg->cache_dir = bm->cache_dir;
+    if( bm->io_host[0] )
+        snprintf(cfg->io_host, sizeof(cfg->io_host), "%s", bm->io_host);
+    if( bm->io_port > 0 )
+        cfg->io_port = bm->io_port;
     cfg->cache_on_demand = bm->cache_on_demand;
     /* ws_port is the server's HTTP endpoint, which for LostCity also serves
      * the jag archives and /crc. The on-demand cache source is the only native
