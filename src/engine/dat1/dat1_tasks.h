@@ -125,4 +125,19 @@ CreateTask_Dat1SequenceLoad(
     struct ToriDraw_Scene* scene,
     int seq_id);
 
+struct RS_PreloadTable;
+struct RS_LoginReplyTable;
+/**
+ * Fetch the jag archives the profile's [preload:] list names, showing the
+ * bar move as each is requested.
+ *
+ * NULL when the profile names none this client holds whole -- an absent
+ * list is a revision that does not preload, not an error.
+ */
+struct ToriRS_Task*
+CreateTask_Dat1Preload(
+    struct CacheProvider* provider,
+    struct RS_PreloadTable const* steps,
+    struct RS_LoginReplyTable const* strings);
+
 #endif

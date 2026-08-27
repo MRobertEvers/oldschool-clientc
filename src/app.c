@@ -12898,7 +12898,7 @@ Task_AppBoot_Run(
      * one. The modern lane's boot is numbered by the deob and continues
      * from where its cache-index steps left off; a lane that names no
      * such step keeps the client's own position. */
-    if( !app_preload_announce(app, "update_list") )
+    if( !app_preload_announce(app, "boot_config") )
         app_title_progress(app, 10, "loading_config");
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
@@ -13190,7 +13190,7 @@ Task_AppBoot_Run(
      * one. The modern lane's boot is numbered by the deob and continues
      * from where its cache-index steps left off; a lane that names no
      * such step keeps the client's own position. */
-    if( !app_preload_announce(app, "sound_engine") )
+    if( !app_preload_announce(app, "boot_tree") )
         app_title_progress(app, 30, "loaded_config");
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
@@ -13244,7 +13244,7 @@ Task_AppBoot_Run(
      * one. The modern lane's boot is numbered by the deob and continues
      * from where its cache-index steps left off; a lane that names no
      * such step keeps the client's own position. */
-    if( !app_preload_announce(app, "fonts") )
+    if( !app_preload_announce(app, "boot_interfaces") )
         app_title_progress(app, 60, "loading_interfaces");
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
@@ -13267,7 +13267,7 @@ Task_AppBoot_Run(
      * one. The modern lane's boot is numbered by the deob and continues
      * from where its cache-index steps left off; a lane that names no
      * such step keeps the client's own position. */
-    if( !app_preload_announce(app, "title") )
+    if( !app_preload_announce(app, "boot_media") )
         app_title_progress(app, 75, "loading_media");
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
@@ -13345,7 +13345,7 @@ Task_AppBoot_Run(
      * one. The modern lane's boot is numbered by the deob and continues
      * from where its cache-index steps left off; a lane that names no
      * such step keeps the client's own position. */
-    if( !app_preload_announce(app, "engine") )
+    if( !app_preload_announce(app, "boot_ready") )
         app_title_progress(app, 90, "preparing");
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
@@ -13493,9 +13493,16 @@ app_open_tree(
      */
     if( app->provider )
     {
+        /* One of the two answers, never both: a profile lists cache indices
+         * or jag archives, and each constructor returns NULL for the list
+         * that is not its own. The epoch is not tested here because the
+         * profile already decides it by what it declares. */
         struct ToriRS_Task* preload =
             CreateTask_Dat2Preload(app->provider, &app->preload, &app->login_replies);
 
+        if( !preload )
+            preload =
+                CreateTask_Dat1Preload(app->provider, &app->preload, &app->login_replies);
         if( preload )
             ToriRS_TaskQueue_Add(app->runner.queue, preload);
     }
