@@ -50,6 +50,57 @@ void toridraw_gouraud_tri_opaque_s4_asm(
 
 #define TORIDRAW_GOURAUD_TRI_OPAQUE_S4 toridraw_gouraud_tri_opaque_s4_asm
 
+/*
+ * The same kernel entered once for a RUN of triangles instead of once each.
+ *
+ * `rows` is `count` records of TORIDRAW_GOURAUD_BATCH_ROW_INTS ints, 16-byte
+ * aligned, laid out x0,x1,x2,pad / y0,y1,y2,pad / c0,c1,c2,pad -- the screen
+ * coordinates with offset_x/offset_y already folded in, and the three hsl16
+ * vertex colours. The kernel walks them in order, so a painter's draw order
+ * survives a batch; see toridraw_raster.u.c for the flushing rule that keeps
+ * it that way.
+ */
+void toridraw_gouraud_batch_opaque_s4_asm(
+    toripixel_t* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    const int* rows,
+    int count);
+
+/*
+ * The blending twin, taking the opacity per row -- lane 11, the colour group's
+ * spare. A run may mix opacities, and there is no reason for the batcher to
+ * split one that does.
+ */
+void toridraw_gouraud_batch_alpha_s4_asm(
+    toripixel_t* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    const int* rows,
+    int count);
+
+void toridraw_gouraud_tri_alpha_s4_asm(
+    toripixel_t* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int x0,
+    int x1,
+    int x2,
+    int y0,
+    int y1,
+    int y2,
+    int color0_hsl16,
+    int color1_hsl16,
+    int color2_hsl16,
+    int alpha);
+
+/* Sixteen bytes per group, three groups. Must match ROWBYTES in the .S. */
+#define TORIDRAW_GOURAUD_BATCH_ROW_INTS 12
+#define TORIDRAW_GOURAUD_BATCH 1
+
 #else
 
 #define TORIDRAW_GOURAUD_TRI_OPAQUE_S4 \

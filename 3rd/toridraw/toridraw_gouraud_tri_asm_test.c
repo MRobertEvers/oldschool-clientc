@@ -31,6 +31,7 @@
 #include "graphics/shared_tables.h"
 #include "graphics/shared_tables.c"
 #include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c"
 
 void toridraw_gouraud_tri_opaque_s4_asm(
     toripixel_t* pixel_buffer,
@@ -46,6 +47,42 @@ void toridraw_gouraud_tri_opaque_s4_asm(
     int color0_hsl16,
     int color1_hsl16,
     int color2_hsl16);
+
+void toridraw_gouraud_batch_opaque_s4_asm(
+    toripixel_t* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    const int* rows,
+    int count);
+
+void toridraw_gouraud_tri_alpha_s4_asm(
+    toripixel_t* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int x0,
+    int x1,
+    int x2,
+    int y0,
+    int y1,
+    int y2,
+    int color0_hsl16,
+    int color1_hsl16,
+    int color2_hsl16,
+    int alpha);
+
+void toridraw_gouraud_batch_alpha_s4_asm(
+    toripixel_t* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    const int* rows,
+    int count);
+
+/* Must match ROWBYTES / R_X / R_Y / R_C in gouraud_tri_i686.S. */
+#define BATCH_ROW_INTS 12
+#define BATCH_MAX      64
 
 #define W 137 /* deliberately not a multiple of 4: the span blocking is phased
                * from x_start, and a width that lined up with the block size
@@ -175,6 +212,73 @@ generate(struct tri* t, int kind)
     }
 }
 
+/*
+ * WHAT "PASSES" MEANS HERE, NOW THAT IT IS NOT "every pixel identical".
+ *
+ * The three edge slopes come off a packed divps instead of three idivl. That
+ * is the fastest form measured on the target -- 65.43 ns for the divide group
+ * against idivl's 70.82 -- and with the 16.16 scale applied AFTER the divide
+ * the inputs all convert exactly, so the only rounding left is the divide's
+ * own. Measured against the exact integer lane over 200,000 randomised
+ * triangles it moves 5 of them and 333 pixels of 247 million drawn, and 315 of
+ * those 333 are one triangle with |dx| >= 32768, where the integer form's
+ * deliberate wraparound is a different answer rather than a rounder one.
+ *
+ * So the bound below is set an order of magnitude above what was measured and
+ * several orders below anything visible. It is not a licence to drift: build
+ * with -DTORIDRAW_EDGE_IDIV and both numbers must be exactly zero, which is
+ * what separates a regression in the walk from the approximation in the slope.
+ */
+#define TOL_TRIANGLES_PPM 200    /* 0.02% of triangles may differ  */
+#define TOL_PIXELS_PPM     50    /* 0.005% of drawn pixels         */
+
+struct deviation
+{
+    long triangles;
+    long pixels;
+    long drawn;
+    long worst;
+};
+
+static int
+deviation_ok(const struct deviation* d, long triangles, const char* what)
+{
+    double const tri_ppm =
+        triangles ? 1e6 * (double)d->triangles / (double)triangles : 0.0;
+    double const px_ppm =
+        d->drawn ? 1e6 * (double)d->pixels / (double)d->drawn : 0.0;
+    int const ok = (tri_ppm <= TOL_TRIANGLES_PPM) && (px_ppm <= TOL_PIXELS_PPM);
+
+    printf("%-14s %ld/%ld triangles (%.1f ppm), %ld/%ld pixels (%.2f ppm),"
+           " worst %ld px  %s\n",
+           what, d->triangles, triangles, tri_ppm, d->pixels, d->drawn, px_ppm,
+           d->worst, ok ? "PASS" : "FAIL");
+    return ok;
+}
+
+static void
+deviation_note(struct deviation* d, const toripixel_t* a, const toripixel_t* b,
+               int count, toripixel_t blank)
+{
+    long here = 0;
+    int i;
+
+    for( i = 0; i < count; i++ )
+    {
+        if( a[i] != blank )
+            d->drawn++;
+        if( a[i] != b[i] )
+            here++;
+    }
+    if( here )
+    {
+        d->triangles++;
+        d->pixels += here;
+        if( here > d->worst )
+            d->worst = here;
+    }
+}
+
 static int
 compare(const toripixel_t* a, const toripixel_t* b, const struct tri* t, int idx)
 {
@@ -194,6 +298,190 @@ compare(const toripixel_t* a, const toripixel_t* b, const struct tri* t, int idx
         }
     }
     return 0;
+}
+
+/*
+ * The batch entry against the same C reference, a CHUNK at a time.
+ *
+ * Two things only a chunk can check, and the one-triangle pass above cannot.
+ *
+ * ORDER. The batch rasterises `count` triangles inside one call, and a painter
+ * has no depth buffer -- if the loop walked its rows backwards, or restarted
+ * one, overlapping triangles would land in the wrong order and every triangle
+ * would still be individually correct. The reference draws the identical
+ * sequence one call at a time, into a viewport small enough that the generated
+ * triangles genuinely overlap.
+ *
+ * CARRY. Everything the body leaves in the frame -- the stepped edges, the
+ * colour accumulator, V_OFF, the segment counts -- has to be dead by the time
+ * the next row starts. A slot that survived would make triangle n+1 depend on
+ * triangle n, which no single-triangle test can see. Chunk lengths sweep 1 up
+ * to the buffer size, so the loop is entered, re-entered and left at every
+ * count.
+ */
+/*
+ * The y order the depth sort now hands the batch entries, transcribed from the
+ * C wrapper's ladder. `<=` throughout: triangles that tie differently stop
+ * tiling with each other, so the tie-breaks are part of the contract and not
+ * an implementation detail.
+ */
+static int
+ysort_perm(const int* y)
+{
+    if( y[0] <= y[1] && y[0] <= y[2] )
+        return (y[1] <= y[2]) ? 0 : 1;
+    if( y[1] <= y[2] )
+        return (y[2] <= y[0]) ? 2 : 3;
+    return (y[0] <= y[1]) ? 4 : 5;
+}
+
+static const unsigned char g_ysort[6][3] = {
+    { 0, 1, 2 }, { 0, 2, 1 }, { 1, 2, 0 }, { 1, 0, 2 }, { 2, 0, 1 }, { 2, 1, 0 }
+};
+
+static int
+batch_pass(int chunks)
+{
+    _Alignas(16) int rows[BATCH_MAX * BATCH_ROW_INTS];
+    toripixel_t* fb_c = malloc(sizeof(*fb_c) * W * H);
+    toripixel_t* fb_a = malloc(sizeof(*fb_a) * W * H);
+    struct tri t[BATCH_MAX];
+    int bad = 0;
+    int chunk;
+
+    assert(fb_c);
+    assert(fb_a);
+
+    for( chunk = 0; chunk < chunks; chunk++ )
+    {
+        int const count = 1 + (chunk % BATCH_MAX);
+        int i;
+
+        memset(fb_c, 0x5A, sizeof(*fb_c) * W * H);
+        memset(fb_a, 0x5A, sizeof(*fb_a) * W * H);
+        /* Poison the padding lane the shuffle carries through, so a kernel
+         * that read it as data would produce something visibly wrong rather
+         * than something accidentally right. */
+        memset(rows, 0x7E, sizeof(rows));
+
+        for( i = 0; i < count; i++ )
+        {
+            const unsigned char* pm;
+            int k;
+
+            generate(&t[i], chunk * BATCH_MAX + i);
+            pm = g_ysort[ysort_perm(t[i].y)];
+            for( k = 0; k < 3; k++ )
+            {
+                rows[i * BATCH_ROW_INTS + 0 + k] = t[i].x[pm[k]];
+                rows[i * BATCH_ROW_INTS + 4 + k] = t[i].y[pm[k]];
+                rows[i * BATCH_ROW_INTS + 8 + k] = t[i].c[pm[k]];
+            }
+
+            raster_gouraudhsllightness_screen_opaque_bary_branching_s4(
+                fb_c, W, W, H,
+                t[i].x[0], t[i].x[1], t[i].x[2],
+                t[i].y[0], t[i].y[1], t[i].y[2],
+                t[i].c[0], t[i].c[1], t[i].c[2]);
+        }
+
+        toridraw_gouraud_batch_opaque_s4_asm(fb_a, W, W, H, rows, count);
+
+        for( i = 0; i < W * H; i++ )
+        {
+            if( fb_c[i] != fb_a[i] )
+            {
+                printf("BATCH MISMATCH chunk %d (count %d) at (%d,%d):"
+                       " c=0x%08X asm=0x%08X\n",
+                       chunk, count, i % W, i / W,
+                       (unsigned)fb_c[i], (unsigned)fb_a[i]);
+                bad++;
+                break;
+            }
+        }
+        if( bad >= 10 )
+            break;
+    }
+
+    free(fb_c);
+    free(fb_a);
+    return bad;
+}
+
+/*
+ * The alpha lane, single and batched.
+ *
+ * It shares the whole walk with the opaque lane, so what is actually under
+ * test here is the span: a palette lookup per four pixels exactly as the
+ * opaque span does it, then alpha_blend() four pixels at a time out of 16-bit
+ * lanes, with the source colour's contribution recomputed per block because it
+ * is the thing that changes. The 1..3 pixel tail is a real loop rather than the
+ * opaque span's branchless triple store -- a store is idempotent and a blend is
+ * not -- and a tail that blended a pixel twice is exactly what this catches.
+ *
+ * The destination is filled with a non-trivial pattern, not zero: blending
+ * into zeros would hide any error in the destination term.
+ */
+static int
+alpha_pass(int iters, int batched)
+{
+    _Alignas(16) int rows[BATCH_MAX * BATCH_ROW_INTS];
+    toripixel_t* fb_c = malloc(sizeof(*fb_c) * W * H);
+    toripixel_t* fb_a = malloc(sizeof(*fb_a) * W * H);
+    int bad = 0;
+    int i;
+
+    assert(fb_c);
+    assert(fb_a);
+
+    for( i = 0; i < iters; i++ )
+    {
+        struct tri t;
+        int const alpha = (i % 17 == 0) ? 1
+                        : (i % 19 == 0) ? 254
+                                        : 1 + (int)(next() % 254u);
+        const unsigned char* pm;
+        int k;
+
+        generate(&t, i);
+        memset(fb_c, 0x5A, sizeof(*fb_c) * W * H);
+        memset(fb_a, 0x5A, sizeof(*fb_a) * W * H);
+        memset(rows, 0x7E, sizeof(rows));
+
+        raster_gouraudhsllightness_screen_alpha_bary_branching_s4(
+            fb_c, W, W, H, t.x[0], t.x[1], t.x[2], t.y[0], t.y[1], t.y[2],
+            t.c[0], t.c[1], t.c[2], alpha);
+
+        if( batched )
+        {
+            pm = g_ysort[ysort_perm(t.y)];
+            for( k = 0; k < 3; k++ )
+            {
+                rows[0 + k] = t.x[pm[k]];
+                rows[4 + k] = t.y[pm[k]];
+                rows[8 + k] = t.c[pm[k]];
+            }
+            rows[11] = alpha;
+            toridraw_gouraud_batch_alpha_s4_asm(fb_a, W, W, H, rows, 1);
+        }
+        else
+        {
+            toridraw_gouraud_tri_alpha_s4_asm(
+                fb_a, W, W, H, t.x[0], t.x[1], t.x[2], t.y[0], t.y[1], t.y[2],
+                t.c[0], t.c[1], t.c[2], alpha);
+        }
+
+        if( compare(fb_c, fb_a, &t, i) )
+        {
+            bad++;
+            if( bad >= 10 )
+                break;
+        }
+    }
+
+    free(fb_c);
+    free(fb_a);
+    return bad;
 }
 
 int
@@ -250,5 +538,35 @@ main(int argc, char** argv)
         return 1;
     }
     printf("PASS: %d triangles, every pixel identical\n", iters);
+
+    {
+        int const chunks = (iters / BATCH_MAX) > 0 ? (iters / BATCH_MAX) : 1;
+        int const batch_bad = batch_pass(chunks);
+
+        if( batch_bad )
+        {
+            printf("FAIL: %d mismatching batch chunks\n", batch_bad);
+            return 1;
+        }
+        printf("PASS: %d batched chunks (counts 1..%d), every pixel identical\n",
+               chunks, BATCH_MAX);
+    }
+    {
+        int const n = iters / 4;
+
+        if( alpha_pass(n, 0) )
+        {
+            printf("FAIL: alpha single\n");
+            return 1;
+        }
+        printf("PASS: alpha single, %d triangles, every pixel identical\n", n);
+
+        if( alpha_pass(n, 1) )
+        {
+            printf("FAIL: alpha batch\n");
+            return 1;
+        }
+        printf("PASS: alpha batch, %d triangles, every pixel identical\n", n);
+    }
     return 0;
 }

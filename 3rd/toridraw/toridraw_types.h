@@ -806,6 +806,27 @@ struct ToriDraw_Scene
     int* tmp_flex_prio12_face_to_depth;
 
     faceint_t* sm_face_depth;
+
+    /*
+     * The six screen coordinates of each accepted face, stashed by the depth
+     * sort so nothing downstream has to gather them again.
+     *
+     * Eight ints per face: x0,x1,x2, the near-clip flag, y0,y1,y2, spare. The
+     * sort already holds all six in registers -- it needs them for the winding
+     * cross product -- and used to throw them away, leaving the raster pass to
+     * re-read them through face_indices_a/b/c into screen_vertices_x/y, which
+     * is nine dependent loads per face to recover what was in hand a moment
+     * earlier. Writing them out costs six stores into a region that is a few
+     * hundred bytes for a typical model and therefore always hot.
+     *
+     * The flag in lane 3 is the sort's `clip_candidate`, carried for the same
+     * reason: the raster pass re-derived it by reading the same three vertex_x
+     * entries the sort had already tested.
+     *
+     * Only faces the sort ACCEPTED have meaningful entries, and only they can
+     * appear in tmp_face_order, so no consumer can read a stale one.
+     */
+    int* sm_face_xy;
     int* sm_depth_offset;
     int* sm_depth_cursor;
     faceint_t* sm_faces_by_depth;

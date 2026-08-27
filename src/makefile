@@ -827,6 +827,31 @@ GOURAUD_TRI_ASM_OBJ := $(OBJ_DIR)/gouraud_tri_asm.o
 TORIDRAW_CFLAGS     += -DTORIDRAW_GOURAUD_TRI_ASM=1
 endif
 
+# --- Hand-written flat triangle kernels -----------------------------------
+# The whole flat triangle, opaque and alpha, batched and single. A flat face is
+# a gouraud face with three equal vertex colours and the gouraud kernel draws
+# it identically -- measured over 200,000 triangles and 246 million pixels --
+# but it does so carrying a colour gradient that is zero, an accumulator that
+# never moves, and a palette lookup every four pixels instead of one for the
+# triangle. Once the colour is constant the span becomes a store loop, which is
+# the one shape on this target where a wide aligned SSE2 store is the right
+# answer rather than the wrong one.
+#
+# i686 only, and withdrawn from a probe build, for the same two reasons as the
+# gouraud kernel: no win64 twin is worth writing, and the census and ablation
+# counters live in the C.
+FLAT_TRI_ASM_SRC :=
+ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
+ifeq ($(PLATFORM),win32)
+FLAT_TRI_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/flat/flat_tri_i686.S
+endif
+endif
+
+ifneq ($(FLAT_TRI_ASM_SRC),)
+FLAT_TRI_ASM_OBJ := $(OBJ_DIR)/flat_tri_asm.o
+TORIDRAW_CFLAGS  += -DTORIDRAW_FLAT_TRI_ASM=1
+endif
+
 # --- Hand-written perspective-textured triangle kernel ---------------------
 # The WHOLE opaque textured triangle, in the same sense as the gouraud one
 # above: sort, plane build, edge divides, both trapezoid walks, and the span
@@ -882,7 +907,7 @@ EIP_SAMPLE_OBJ := $(OBJ_DIR)/toridraw_eip_sample.o
 # the Apple arm64 projection kernel and the x86 Windows texture span, each empty
 # on the lanes that do not have one. Naming the set once is what keeps a target
 # from silently reaching the C through a unity object compiled to call the asm.
-TORIDRAW_UNITY_LINK_OBJS = $(OBJ_DIR)/toridraw_unity.o $(TORIDRAW_PROJECTION_ASM_OBJ) $(TEXSPAN_ASM_OBJ) $(GOURAUD_TRI_ASM_OBJ) $(TEXTRI_ASM_OBJ) $(FB_CLEAR_ASM_OBJ) $(FRAME_AB_OBJ) $(EIP_SAMPLE_OBJ)
+TORIDRAW_UNITY_LINK_OBJS = $(OBJ_DIR)/toridraw_unity.o $(TORIDRAW_PROJECTION_ASM_OBJ) $(TEXSPAN_ASM_OBJ) $(GOURAUD_TRI_ASM_OBJ) $(TEXTRI_ASM_OBJ) $(FLAT_TRI_ASM_OBJ) $(FB_CLEAR_ASM_OBJ) $(FRAME_AB_OBJ) $(EIP_SAMPLE_OBJ)
 # Objects derived from SRCS (one .o per source, flat in OBJ_DIR) plus the
 # out-of-tree/unity extras that have their own rules below. The world_builder
 # pipeline ($(WB_OBJS), incl. wb_minimap.o â the Minimap world.h is written
@@ -1825,7 +1850,13 @@ endif
 # built out of macros) and PLATFORM_BASE_CFLAGS stays out (its -include of a C
 # header would reach the assembler as a few hundred bad instructions).
 ifneq ($(GOURAUD_TRI_ASM_SRC),)
-$(GOURAUD_TRI_ASM_OBJ): $(GOURAUD_TRI_ASM_SRC) | $(OBJ_DIR)
+$(GOURAUD_TRI_ASM_OBJ): $(GOURAUD_TRI_ASM_SRC) $(TORIDRAW_DIR)/graphics/raster/edge_slopes_i686.inc | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
+endif
+
+# Same again for the flat pair.
+ifneq ($(FLAT_TRI_ASM_SRC),)
+$(FLAT_TRI_ASM_OBJ): $(FLAT_TRI_ASM_SRC) $(TORIDRAW_DIR)/graphics/raster/edge_slopes_i686.inc | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
 endif
 
@@ -2738,6 +2769,25 @@ else
 	$(CC) -I$(TORIDRAW_DIR) -c $(GOURAUD_TRI_ASM_SRC) -o $(OBJ_DIR)/gouraud_tri_asm_test_kernel.o
 	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function 		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/gouraud_tri_asm_test 		$(TORIDRAW_DIR)/toridraw_gouraud_tri_asm_test.c 		$(OBJ_DIR)/gouraud_tri_asm_test_kernel.o -lm
 	./$(OBJ_DIR)/gouraud_tri_asm_test
+endif
+
+# The hand-written flat triangle kernels against the C twins they replace --
+# all four entries, because each can fail in a way the others cannot: the
+# single walk, the blend, the batch's draw order, and the batch's per-row
+# alpha. Same split-compile argument as test-gouraud-tri-asm.
+#
+# i686 only; anywhere else there is nothing to score.
+test-flat-tri-asm: $(OBJ_DIR)
+ifeq ($(FLAT_TRI_ASM_SRC),)
+	@echo "test-flat-tri-asm: no kernel for PLATFORM=$(PLATFORM) -- nothing to score"
+else
+	$(CC) -I$(TORIDRAW_DIR) -c $(FLAT_TRI_ASM_SRC) -o $(OBJ_DIR)/flat_tri_asm_test_kernel.o
+	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function \
+		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/flat_tri_asm_test \
+		$(TORIDRAW_DIR)/toridraw_flat_tri_asm_test.c \
+		$(OBJ_DIR)/flat_tri_asm_test_kernel.o -lm
+	./$(OBJ_DIR)/flat_tri_asm_test
 endif
 
 # The hand-written perspective-textured triangle against the C twin it

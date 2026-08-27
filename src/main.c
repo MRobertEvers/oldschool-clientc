@@ -1712,12 +1712,19 @@ frame_loop_step(void)
              * to be in the world rather than on the loading bar. */
             {
                 static int shot_done = 0;
+                /* Its own counter. frame_count only advances when
+                 * TORIRS_MAX_FRAMES is set -- the ++ sits behind that
+                 * short-circuit at the top of the loop -- so keying off it
+                 * made this silently never fire in a time-bounded run. */
+                static long shot_frames = 0;
                 char const* shot_name = getenv("TORIRS_SCREENSHOT");
+
+                shot_frames++;
                 if( !shot_done && shot_name && *shot_name )
                 {
                     char const* at = getenv("TORIRS_SCREENSHOT_FRAME");
                     long shot_frame = at ? strtol(at, NULL, 0) : 400;
-                    if( frame_count >= shot_frame )
+                    if( shot_frames >= shot_frame )
                     {
                         char path[512];
                         shot_done = 1;

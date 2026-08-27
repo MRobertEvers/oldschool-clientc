@@ -15,6 +15,7 @@
 #include "graphics/raster/flat/flat.screen.alpha.sort.s4.u.c"
 #include "graphics/raster/flat/flat.screen.opaque.branching.s4.c"
 #include "graphics/raster/flat/flat.screen.alpha.branching.s4.c"
+#include "graphics/raster/flat/flat_tri_asm.h"
 #include "graphics/raster/face_census.h"
 // clang-format on
 
@@ -87,12 +88,12 @@ ToriDraw_TriangleFlatBranching(
 
     if( alpha == 0xFF )
     {
-        raster_flat_screen_opaque_branching_s4(
+        TORIDRAW_FLAT_TRI_OPAQUE_S4(
             pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color);
     }
     else
     {
-        raster_flat_screen_alpha_branching_s4(
+        TORIDRAW_FLAT_TRI_ALPHA_S4(
             pixel_buffer,
             stride,
             screen_width,
