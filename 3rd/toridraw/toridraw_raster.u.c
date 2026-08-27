@@ -1830,8 +1830,9 @@ toridraw_raster_batch_stats_report(void)
 {
     long const drawn = g_toridraw_batch_staged + g_toridraw_batch_fell_drawn;
     fprintf(stderr,
-            "batch_stats: staged=%ld fell_drawn=%ld fell_culled=%ld "
-            "presorted=%.3f%%\n",
+            "batch_stats: presort_models=%ld staged=%ld fell_drawn=%ld "
+            "fell_culled=%ld presorted=%.3f%%\n",
+            g_toridraw_presort_models,
             g_toridraw_batch_staged,
             g_toridraw_batch_fell_drawn,
             g_toridraw_batch_fell_culled,
@@ -1946,8 +1947,12 @@ toridraw_raster_draw_faces(
         if( skip_faces )
             return;
 #ifdef TORIDRAW_RASTER_BATCH
+        /* sm_face_xy_valid, and not toridraw_raster_batch_armed() again: the
+         * sort is the only thing that knows whether it actually filled the
+         * buffer. It declines for a full-mode scene, where sm_face_xy is not
+         * even allocated, and for a caller that used the plain sort entry. */
         if( ctx->kernel.vtable == &g_stock_branching_vtable && !ctx->raster_debug &&
-            toridraw_raster_batch_armed() )
+            scene->sm_face_xy_valid )
         {
             toridraw_raster_draw_faces_batched(scene, ctx);
             return;

@@ -827,6 +827,16 @@ struct ToriDraw_Scene
      * appear in tmp_face_order, so no consumer can read a stale one.
      */
     int* sm_face_xy;
+    /*
+     * Whether the LAST sort actually filled sm_face_xy, which is not the same
+     * question as whether the build can. Three things have to hold -- the
+     * caller asked (ToriDraw_RenderModel2SortFacesPresorted rather than the
+     * plain entry), the batched kernels are armed, and this is a small-mode
+     * scene, since sm_face_xy is allocated nowhere else. The batched raster
+     * walk requires this rather than re-deriving it, so the side that writes
+     * the buffer and the side that reads it cannot disagree.
+     */
+    int sm_face_xy_valid;
     int* sm_depth_offset;
     int* sm_depth_cursor;
     faceint_t* sm_faces_by_depth;

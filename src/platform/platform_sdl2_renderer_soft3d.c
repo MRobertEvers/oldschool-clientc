@@ -1100,7 +1100,13 @@ soft3d_draw_model(
         int sorted = 0;
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_SORT)
         {
-            sorted = ToriDraw_RenderModel2SortFaces(cmd->model, soft->scene);
+            /* Presorted: this model goes on to ToriDraw_RenderModel3Raster
+             * and the stock branching kernels below, which is the batched
+             * walk's only door. The D3D9 and GL renderers use the plain
+             * entry next door -- they sort for the GPU and never read the
+             * store. */
+            sorted =
+                ToriDraw_RenderModel2SortFacesPresorted(cmd->model, soft->scene);
         }
         /* Only the transitions matter: went-to-zero is the invisible-but-
          * clickable state, came-back is the recovery. A drifting face count on

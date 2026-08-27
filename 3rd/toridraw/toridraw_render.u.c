@@ -1549,8 +1549,15 @@ toridraw_dbg_check_face_order(
 static inline void
 ToriDraw_ComputeProjectedFaceOrder(
     struct ToriDraw_Scene* scene,
-    struct ToriDraw_ModelHandle hnd)
+    struct ToriDraw_ModelHandle hnd,
+    bool presort)
 {
+    /* Full mode has no sm_face_xy to fill: the buffer is allocated only
+     * for a small-mode scene (toridraw.c), and only the small sorter
+     * stamps it. Saying so here is what stops the batched walk reading a
+     * NULL pointer, or a stash left behind by an earlier small model. */
+    (void)presort;
+    scene->sm_face_xy_valid = 0;
     struct ToriDraw_FaceSortDebugStats debug_stats_storage;
     struct ToriDraw_FaceSortDebugStats* debug_stats = NULL;
     faceint_t* fia = NULL;
@@ -1804,10 +1811,14 @@ sm_depth_offset_restore(struct ToriDraw_Scene* scene, int min_depth, int max_dep
         (size_t)(max_depth - min_depth + 2) * sizeof(int));
 }
 
+/* Models whose sort left the y ordering behind; see the increment below. */
+static long g_toridraw_presort_models;
+
 static inline int
 bucket_sort_by_average_depth_small(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_FaceSortDebugStats* debug_stats,
+    bool presort,
     bool near_clipped,
     int model_min_depth,
     int num_faces,
@@ -1821,8 +1832,27 @@ bucket_sort_by_average_depth_small(
     const int depth_levels = scene->depth_levels;
     int min_d = depth_levels;
     int max_d = 0;
-    /* Hoisted: one getenv-cached read for the model, not one per face. */
-    int const stash_xy = toridraw_raster_batch_armed();
+    /*
+     * Hoisted: one getenv-cached read for the model, not one per face.
+     *
+     * `presort` is the caller's, and it is the half that matters. The stash
+     * has exactly one consumer -- the batched software raster walk -- and a
+     * caller that will not run it (every D3D9 renderer sorts back-to-front on
+     * the CPU and then hands the faces to the GPU) would otherwise pay seven
+     * stores and a six-way compare per drawn face to fill a buffer nobody
+     * loads.
+     */
+    int const stash_xy = presort && toridraw_raster_batch_armed();
+
+    /* Recorded, not re-derived downstream: the walk that reads sm_face_xy
+     * asks this rather than asking the same three questions again and
+     * possibly answering one of them differently. */
+    scene->sm_face_xy_valid = stash_xy;
+    /* Reported by TORIDRAW_BATCH_STATS. A GPU lane must show zero here: it
+     * sorts for the GPU and never reads the store, so a non-zero count is
+     * exactly the regression this split exists to prevent. */
+    if( stash_xy )
+        g_toridraw_presort_models++;
 
     /* No clear here, and none of depth_levels width anywhere below. The
      * counting pass only touches buckets in this model's depth span, so the
@@ -2237,7 +2267,8 @@ sort_face_draw_order_small(
 static inline void
 ToriDraw_ComputeProjectedFaceOrderSmall(
     struct ToriDraw_Scene* scene,
-    struct ToriDraw_ModelHandle hnd)
+    struct ToriDraw_ModelHandle hnd,
+    bool presort)
 {
     struct ToriDraw_FaceSortDebugStats debug_stats_storage;
     struct ToriDraw_FaceSortDebugStats* debug_stats = NULL;
@@ -2292,6 +2323,7 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
     int bounds = bucket_sort_by_average_depth_small(
         scene,
         debug_stats,
+        presort,
         scene->near_clipped,
         model_min_depth,
         face_count,
