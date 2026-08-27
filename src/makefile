@@ -286,6 +286,7 @@ BMP_DIR      := $(REPO_ROOT)/3rd/bmp
 HMAP_DIR     := $(REPO_ROOT)/3rd/hmap
 RSAREABUF_DIR := $(REPO_ROOT)/3rd/rsareabuf
 LUA_DIR      := $(REPO_ROOT)/3rd/lua
+STB_DIR      := $(REPO_ROOT)/3rd/stb
 
 # -Werror=incompatible-pointer-types: passing a `T**` where a `T*` is wanted is
 # not a style question, it is a wrong pointer that compiles. It bit twice while
@@ -304,6 +305,7 @@ CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -Wall -Wextra \
 	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) -I$(RSAREABUF_DIR) \
 	-I$(REPO_ROOT)/3rd/miniz \
 	-I$(REPO_ROOT)/3rd/xteas \
+	-I$(STB_DIR) \
 	$(RSPROT_HDR_INCLUDES)
 
 # Just the two directories holding rsprot's headers, for the main build.
@@ -563,7 +565,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/torirs_enum_from_rscache.c engine/torirs_struct_from_rscache.c \
 	engine/torirs_paramtype_from_rscache.c engine/torirs_db.c \
 	engine/torirs_worldmap_from_rscache.c \
-	engine/png_decode.c \
+	engine/png_decode.c engine/jpeg_decode.c \
 	engine/uitree_from_component.c engine/texture_palette_bake.c \
 	engine/dat1/dat1_buildcache.c engine/dat1/task_dat1_model_load.c \
 	engine/dat1/task_dat1_component_pack_load.c engine/dat1/task_dat1_clientscript_load.c \
@@ -937,6 +939,7 @@ OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 	$(OBJ_DIR)/tommath.o $(OBJ_DIR)/lua_unity.o \
+	$(OBJ_DIR)/stb_image_impl.o \
 	$(WB_OBJS))
 
 # World builder pipeline objects (compiled as standalone objects; world_builder.c is a single
@@ -1761,6 +1764,12 @@ $(OBJ_DIR)/torirs_plugin_lua.o: $(SRC_DIR)/plugin/torirs_plugin_lua.c | $(OBJ_DI
 
 $(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(RSCACHE_CFLAGS) -w -c $(RSCACHE_UNITY_SRC) -o $@
+
+# stb_image, JPEG only. -w for the same reason rscache_unity gets it: vendored
+# code is not ours to make -Wall -Wextra clean, and keeping it in its own object
+# is what lets engine/jpeg_decode.c keep every warning the build asks for.
+$(OBJ_DIR)/stb_image_impl.o: $(STB_DIR)/stb_image_impl.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -w -c $(STB_DIR)/stb_image_impl.c -o $@
 
 $(OBJ_DIR)/rsprot_unity.o: $(RSPROT_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(RSPROT_CFLAGS) -w -c $(RSPROT_UNITY_SRC) -o $@
@@ -2637,6 +2646,18 @@ test-uitree-builder: $(OBJ_DIR)
 		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC) \
 		engine/uitree_builder/test/uitree_builder_test_manifest.c
 	./$(OBJ_DIR)/uitree_builder_test
+
+# JPEG decode over the real title backgrounds on disk. Skips a cache that is
+# not checked out; the point is the RS caches' corrupted SOI byte, not stb.
+test-jpeg-decode: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/stb_image_impl.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/jpeg_decode_test \
+		engine/test/jpeg_decode_test.c engine/jpeg_decode.c \
+		$(OBJ_DIR)/stb_image_impl.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+	./$(OBJ_DIR)/jpeg_decode_test
 
 test-minimap: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/minimap -I$(BMP_DIR) -o $(OBJ_DIR)/minimap_test \
