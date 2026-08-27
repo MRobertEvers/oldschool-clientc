@@ -166,6 +166,48 @@ static const struct ToriRSServerSymbolRef k_refs[] = {
         { TORIRSSERVER_PACK_VARBIT, "bank_hidedepositworn", &g_ids.varbit_bank_hidedepositworn },
         { TORIRSSERVER_PACK_VARBIT, "bank_side_slot_ignoreinvlocks", &g_ids.varbit_bank_side_slot_ignore },
         { TORIRSSERVER_PACK_VARBIT, "stamina_active", &g_ids.varbit_stamina_active },
+        /* The combat tab's sailing switch (cache cs2 8583 reads it as
+         * %varbit19153): 1 while the player stands on a vessel deck, which is
+         * what makes interface 593's `switch_button` appear. Synced by
+         * ToriRSServer_WorldRefreshObservation. */
+        { TORIRSSERVER_PACK_VARBIT, "sailing_sidepanel_visible_from_combat_tab",
+          &g_ids.varbit_sailing_switch },
+        /* The sidepanel's data feed, synced beside the switch: the cache's
+         * own onload (cs2 8712/8757/8724) reads these to name the boat and
+         * fill the hull bar, and live-updates on their carriers' transmit. */
+        { TORIRSSERVER_PACK_VARBIT, "sailing_player_is_on_player_boat",
+          &g_ids.varbit_sailing_on_boat },
+        { TORIRSSERVER_PACK_VARBIT, "sailing_boarded_boat_type",
+          &g_ids.varbit_sailing_boat_type },
+        { TORIRSSERVER_PACK_VARBIT, "sailing_sidepanel_boat_hp_max",
+          &g_ids.varbit_sailing_hull_hp_max },
+        { TORIRSSERVER_PACK_VARBIT, "sailing_sidepanel_boat_hp",
+          &g_ids.varbit_sailing_hull_hp },
+        { TORIRSSERVER_PACK_VARBIT, "sailing_boarded_boat_name_2",
+          &g_ids.varbit_sailing_name_descriptor },
+        { TORIRSSERVER_PACK_VARBIT, "sailing_boarded_boat_name_3",
+          &g_ids.varbit_sailing_name_noun },
+        /* The facilities tab: varp 5117 holds the boat's `sailing_boat`
+         * DBROW (cs2 9026 indexes its option columns through it), and the
+         * three slot varbits hold 1-based picks into those columns. */
+        { TORIRSSERVER_PACK_VARP, "sailing_sidepanel_boat_type",
+          &g_ids.varp_sailing_boat_row },
+        { TORIRSSERVER_PACK_VARBIT, "sailing_sidepanel_facility_sail",
+          &g_ids.varbit_sailing_facility_sail },
+        { TORIRSSERVER_PACK_VARBIT, "sailing_sidepanel_facility_helm",
+          &g_ids.varbit_sailing_facility_helm },
+        { TORIRSSERVER_PACK_VARBIT, "sailing_sidepanel_facility_hull",
+          &g_ids.varbit_sailing_facility_hull },
+        { TORIRSSERVER_PACK_DBROW, "sailing_boat_raft", &g_ids.dbrow_sailing_boat_raft },
+        { TORIRSSERVER_PACK_DBROW, "sailing_boat_skiff", &g_ids.dbrow_sailing_boat_skiff },
+        { TORIRSSERVER_PACK_DBROW, "sailing_boat_sloop", &g_ids.dbrow_sailing_boat_sloop },
+        /* The Stats tab's movement block (cs2 9034 cases 1..4): values are
+         * FINE UNITS PER TICK, shown /128 as tiles — the vessel mover's own
+         * unit (speed_tier * 64). */
+        { TORIRSSERVER_PACK_VARBIT, "sailing_sidepanel_boat_basespeed",
+          &g_ids.varbit_sailing_base_speed },
+        { TORIRSSERVER_PACK_VARBIT, "sailing_sidepanel_boat_speedcap",
+          &g_ids.varbit_sailing_speed_cap },
 };
 
 const struct ToriRSServerSymbolRef*

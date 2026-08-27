@@ -13533,6 +13533,78 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
         player->obs_jumped = player->obs_off_x != prev_off_x ||
                              player->obs_off_z != prev_off_z ||
                              player->obs_off_level != prev_off_level;
+
+        /* The sailing UI's aboard state follows this loop's own VesselAtTile
+         * answer, so the flags and the projection cannot disagree about being
+         * aboard. Each is written only on change (the carriers transmit on
+         * write, and the sidepanel's onvartransmit hooks redraw on them):
+         *   - the combat tab's switch (varbit 19153, cs2 8583 shows 593:46);
+         *   - the sidepanel's own aboard flag (19104 — 8757's "Not on boat"
+         *     gate), the boarded boat TYPE (19137 — the panel's name-table
+         *     key, fed the hull's config id), and the hull HP bar
+         *     (19181/19177, from the vessel's own integrity). */
+        {
+            const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+            struct
+            {
+                int varbit;
+                int want;
+            } sync[] = {
+                { ids->varbit_sailing_switch, vessel != NULL },
+                { ids->varbit_sailing_on_boat, vessel != NULL },
+                { ids->varbit_sailing_boat_type, vessel ? vessel->config_id : 0 },
+                { ids->varbit_sailing_hull_hp_max, vessel ? vessel->hp_max : 0 },
+                { ids->varbit_sailing_hull_hp, vessel ? vessel->hp : 0 },
+                { ids->varbit_sailing_name_descriptor,
+                  vessel ? vessel->name_descriptor : 0 },
+                { ids->varbit_sailing_name_noun, vessel ? vessel->name_noun : 0 },
+                /* Facilities: every player hull carries its tier's first
+                 * option in each slot (regular sail, bronze steering,
+                 * regular hull) until customisation content exists — the
+                 * value is a 1-based pick into the boat row's option
+                 * columns, resolved client-side (cs2 9026). */
+                { ids->varbit_sailing_facility_sail, vessel ? 1 : 0 },
+                { ids->varbit_sailing_facility_helm, vessel ? 1 : 0 },
+                { ids->varbit_sailing_facility_hull, vessel ? 1 : 0 },
+                /* Stats tab, movement block — the mover's own numbers, fine
+                 * units per tick (tier * 64; the panel shows /128 as tiles).
+                 * Live: ::speedup/::speeddown change the tier and the next
+                 * tick's sync moves the readout. */
+                { ids->varbit_sailing_base_speed,
+                  vessel ? vessel->speed_tier * 64 : 0 },
+                { ids->varbit_sailing_speed_cap,
+                  vessel ? TORIRSSERVER_VESSEL_SPEED_TIER_MAX * 64 : 0 },
+            };
+            /* The boat's own sailing_boat DBROW rides a whole varp (5117):
+             * the panel indexes every facility option column through it.
+             * Player tiers 1..3 map to raft/skiff/sloop; anything else (the
+             * wire-sized capture hulls) has no row and clears it. */
+            int boat_row = 0;
+
+            if( vessel && vessel->config_id == 1 )
+                boat_row = ids->dbrow_sailing_boat_raft;
+            else if( vessel && vessel->config_id == 2 )
+                boat_row = ids->dbrow_sailing_boat_skiff;
+            else if( vessel && vessel->config_id == 3 )
+                boat_row = ids->dbrow_sailing_boat_sloop;
+            if( boat_row < 0 )
+                boat_row = 0;
+            if( ids->varp_sailing_boat_row >= 0 &&
+                player->varps[ids->varp_sailing_boat_row] != boat_row )
+                ToriRSServer_WorldSetVarpOn(srv, player, ids->varp_sailing_boat_row,
+                                            boat_row);
+
+            for( size_t i = 0; i < sizeof(sync) / sizeof(sync[0]); i++ )
+            {
+                if( sync[i].varbit < 0 ||
+                    ToriRSServer_VarbitGet(player, sync[i].varbit) == sync[i].want )
+                    continue;
+                ToriRSServer_VarbitSetOn(srv, player, sync[i].varbit, sync[i].want);
+                if( srv->verbose )
+                    fprintf(stderr, "torirsserver: sailing varbit %d -> %d\n",
+                            sync[i].varbit, sync[i].want);
+            }
+        }
     }
 
     /*

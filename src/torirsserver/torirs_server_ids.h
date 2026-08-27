@@ -340,6 +340,30 @@ struct ToriRSServerIds
     int varbit_bank_showincinerator;
     int varbit_bank_hidedepositworn;
     int varbit_bank_side_slot_ignore;
+    /** 1 while standing on a vessel deck — shows the combat tab's sailing
+     *  switch (cache varbit 19153, cs2 8583). */
+    int varbit_sailing_switch;
+    /** The sailing sidepanel's data: aboard flag (19104), boarded boat type
+     *  (19137 — the panel's name-table key), hull HP bar (19181/19177). */
+    int varbit_sailing_on_boat;
+    int varbit_sailing_boat_type;
+    int varbit_sailing_hull_hp_max;
+    int varbit_sailing_hull_hp;
+    /** Boat name picks (19149/19150) — see ToriRSServerVessel.name_*. */
+    int varbit_sailing_name_descriptor;
+    int varbit_sailing_name_noun;
+    /** Facilities tab: the boat's sailing_boat dbrow (varp 5117) and the
+     *  three facility slot picks (sail/helm/hull). */
+    int varp_sailing_boat_row;
+    int varbit_sailing_facility_sail;
+    int varbit_sailing_facility_helm;
+    int varbit_sailing_facility_hull;
+    int dbrow_sailing_boat_raft;
+    int dbrow_sailing_boat_skiff;
+    int dbrow_sailing_boat_sloop;
+    /** Stats tab movement block: fine units per tick (shown /128 tiles). */
+    int varbit_sailing_base_speed;
+    int varbit_sailing_speed_cap;
     /** The stamina potion's 70% run-drain cut — read by `run_energy_tick`,
      *  written only by content (`%stamina_active`). Here rather than looked up
      *  per tick, and a varbit rather than a varp: the varp lookup it used to go

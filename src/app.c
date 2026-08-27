@@ -26959,11 +26959,22 @@ app_minimenu_run_option(
                  * a component the server never armed produces a perfectly good menu
                  * row and sends nothing. */
                 if( getenv("TORIRS_CLICK_DEBUG") )
-                    TORIRS_LOG("clickdbg: op%d on com=0x%x events=0x%x net=%d\n",
+                {
+                    int dbg_target;
+                    int dbg_sub;
+
+                    app_if_button_target(app, opt.pick.id, &dbg_target, &dbg_sub);
+                    TORIRS_LOG("clickdbg: op%d on com=0x%x events=0x%x net=%d "
+                        "target=0x%x (%d:%d) sub=%d\n",
                         op_num,
                         opt.pick.id,
                         events,
-                        app->net ? 1 : 0);
+                        app->net ? 1 : 0,
+                        dbg_target,
+                        (dbg_target >> 16) & 0xffff,
+                        dbg_target & 0xffff,
+                        dbg_sub);
+                }
                 if( events & (1u << op_num) )
                 {
                     int target;

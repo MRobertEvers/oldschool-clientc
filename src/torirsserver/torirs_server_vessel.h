@@ -127,6 +127,22 @@ struct ToriRSServerVessel
     int size_x_tiles;
     int size_z_tiles;
 
+    /** Hull integrity, the sailing sidepanel's HP bar (varbits
+     *  `sailing_sidepanel_boat_hp[_max]`). Spawned full; nothing damages a
+     *  hull yet, but the state is the vessel's so content can when it does. */
+    int hp;
+    int hp_max;
+
+    /** The boat's name, as the cache composes it: 1-based picks into the
+     *  `sailing_boat_name_options` descriptor and noun tables (varbits
+     *  19149/19150 on varp `sailing_boarded_boat_name`; the prefix table
+     *  ships no options). 0/0 = unnamed, which the panel shows as the noun
+     *  table's default, "Boat". Spawn picks a deterministic pair so every
+     *  hull reads as a named ship until shipyard content lets players
+     *  choose. */
+    int name_descriptor;
+    int name_noun;
+
     /** Deck map-instance handle (1-based), owned by this vessel: spawned with
      *  it, released by ToriRSServer_VesselFree. */
     int instance;

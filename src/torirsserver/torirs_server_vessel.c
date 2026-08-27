@@ -332,6 +332,22 @@ ToriRSServer_VesselSpawn(
     vessel->config_id = config_id;
     vessel->size_x_tiles = size_x_tiles;
     vessel->size_z_tiles = size_z_tiles;
+    /* Full hull, scaled by footprint: the bar reads as the boat's bulk and a
+     * bigger hull has more of it. Values are arbitrary until hull damage
+     * exists; the SHAPE (hp == hp_max at spawn, both nonzero) is what the
+     * sidepanel's 0/0 placeholder needed. */
+    vessel->hp_max = 50 * (size_x_tiles > 0 ? size_x_tiles : 1) *
+                     (size_z_tiles > 0 ? size_z_tiles : 1);
+    vessel->hp = vessel->hp_max;
+    /* Deterministic per slot, small enough for the shortest option table:
+     * the composed name is stable across respawns of the same slot, and two
+     * hulls afloat at once read differently. */
+    {
+        int slot = (int)(vessel - srv->vessels);
+
+        vessel->name_descriptor = 1 + (slot * 7) % 20;
+        vessel->name_noun = 1 + (slot * 13 + 5) % 20;
+    }
     vessel->instance = instance;
     vessel->level = level;
     vessel->fine_x = tile_x * TORIRSSERVER_VESSEL_FINE_PER_TILE + 64;
