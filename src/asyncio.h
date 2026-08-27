@@ -22,6 +22,12 @@
  * TASK_AWAIT_STATE). Nothing this queue can do will unblock it, so the caller
  * must hand control back to the frame loop instead of stepping again. */
 #define TORIRS_ASYNCIO_STAT_BLOCKED 2
+/* The head task asked for a frame to be drawn before it is resumed, and
+ * said what should be on it. Distinct from YIELD because a yield is not a
+ * frame boundary -- the runner settles as many of those as it likes -- and
+ * distinct from BLOCKED because this task is not waiting on anything. It is
+ * the only way a long load can show its own progress. */
+#define TORIRS_ASYNCIO_STAT_RENDER 3
 
 #define TORIRS_IO_CACHE_DAT2 0
 #define TORIRS_IO_CACHE_DAT1 1
@@ -121,6 +127,36 @@ struct ToriRS_IO
     int active_count;
 };
 
+/*
+ * What a task wants on screen while it works.
+ *
+ * The render step cannot guess: during boot there is no tree to draw, and
+ * once there is one, drawing it is wrong until the assets behind it have
+ * landed. So the task that knows what stage it is at says what to draw and
+ * what to say, and the frame loop obeys rather than deciding.
+ *
+ * `caption` is borrowed. It has to outlive the frame it is drawn on, which
+ * in practice means a string table's storage or a literal -- never a task
+ * local, which is gone the moment the protothread suspends.
+ */
+enum ToriRS_RenderIntent
+{
+    /** Nothing asked for; the frame loop draws whatever it would anyway. */
+    TORIRS_RENDER_NONE = 0,
+    /** The startup bar, for work that runs before any asset exists. */
+    TORIRS_RENDER_BOOT_BAR,
+    /** The title tree, for work that runs behind an already-built screen. */
+    TORIRS_RENDER_TITLE
+};
+
+struct ToriRS_RenderRequest
+{
+    int intent;
+    /** 0..100, or -1 for a screen that carries no bar. */
+    int percent;
+    char const* caption;
+};
+
 struct ToriRS_TaskVTable;
 
 struct ToriRS_Task
@@ -132,6 +168,13 @@ struct ToriRS_Task
      * waiting on state only some OTHER queue can change. Cleared on every
      * resume, so it always describes the yield that just happened. */
     int blocked;
+
+    /* Set by PT_TASK_YIELD_TO_RENDER for the duration of one yield: this
+     * task wants a frame published before it is resumed, and `render` says
+     * what should be on it. Cleared on every resume, exactly like
+     * `blocked` -- a request describes one yield, never a standing mode. */
+    int wants_render;
+    struct ToriRS_RenderRequest render;
 
     struct ToriRS_Task* next;
     struct ToriRS_Task* prev;
@@ -170,6 +213,7 @@ task_run(
     assert(task->vtable->run);
 
     task->blocked = 0;
+    task->wants_render = 0;
     return task->vtable->run(task, io);
 }
 
@@ -194,6 +238,29 @@ task_run(
             (task)->blocked = 1;                                                                   \
             PT_YIELD(pt);                                                                          \
         }                                                                                          \
+    } while( 0 )
+
+/*
+ * Suspend so the frame loop can draw, and say what it should draw.
+ *
+ * Opt-in on purpose. The default remains that a task yields as often as it
+ * likes and the runner settles all of it before publishing anything, which
+ * is what keeps an ordinary frame from being torn into pieces by whatever
+ * incidental IO a task happens to do. A task that wants the screen updated
+ * mid-work has to say so here, and has to say what goes on it.
+ *
+ * PT_ prefix for the reason every other one has it: control leaves here and
+ * comes back an unbounded amount of client activity later. See
+ * PT_TASK_AWAITSELF for what that costs you.
+ */
+#define TASK_YIELD_TO_RENDER(task, pt, intent_, percent_, caption_)                            \
+    do                                                                                         \
+    {                                                                                          \
+        (task)->wants_render = 1;                                                              \
+        (task)->render.intent = (intent_);                                                     \
+        (task)->render.percent = (percent_);                                                   \
+        (task)->render.caption = (caption_);                                                   \
+        PT_YIELD(pt);                                                                          \
     } while( 0 )
 
 static inline void
@@ -470,6 +537,11 @@ ToriRS_TaskQueue_Run(
              * the frame loop. Everything behind it stays queued in order. */
             if( task->blocked )
                 return TORIRS_ASYNCIO_STAT_BLOCKED;
+            /* Head asked for a frame. Unwind with the request intact so the
+             * caller can read it off the head task, which is still queued
+             * and resumes exactly here on the next pass. */
+            if( task->wants_render )
+                return TORIRS_ASYNCIO_STAT_RENDER;
             /* Head is blocked on IO — hand control back so the platform can
              * satisfy the request; the next pass resumes this task. */
             return TORIRS_ASYNCIO_STAT_YIELD;
@@ -594,6 +666,13 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
  * creature had inherited those indices in the meantime.
  */
 #define PT_TASK_AWAITSELF(expr) TASK_AWAITEX(&(self->pt), io, expr)
+
+/**
+ * Publish a frame showing `intent` at `percent` saying `caption`, then
+ * carry on. @see TASK_YIELD_TO_RENDER.
+ */
+#define PT_TASK_YIELD_TO_RENDER(intent_, percent_, caption_)                                   \
+    TASK_YIELD_TO_RENDER(&(self->task), &(self->pt), (intent_), (percent_), (caption_))
 
 /**
  * Like PT_TASK_AWAITSELF, but skip when child_expr evaluates to NULL

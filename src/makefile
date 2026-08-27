@@ -546,7 +546,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	game/rs_ui_slots.c game/rs_social.c game/rs_loot_store.c game/rs_clientcode.c game/rs_if1_buttons.c \
 	game/rs_idk_design.c \
 	game/rs_chat.c game/rs_gameproto_exec.c \
-	game/rs_title.c game/rs_login_replies.c \
+	game/rs_title.c game/rs_login_replies.c game/rs_preload.c \
 	game/rs_game_events.c \
 	game/rs_worldmap.c \
 	game/rs_worldmap_render.c \
@@ -2724,9 +2724,15 @@ test-runclientscript: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/rsprot_buf.o -lm
 	./$(OBJ_DIR)/runclientscript_test
 
+# A task can interrupt the settle loop to have the screen drawn, and says
+# what should be on it. Opt-in: a plain yield still settles straight through.
+test-task-render-yield: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/task_render_yield_test game/test/task_render_yield_test.c perf/torirs_perf.c -lm
+	./$(OBJ_DIR)/task_render_yield_test
+
 # Serial-FIFO ordering guarantee (head-only task execution across IO yields).
 test-task-order: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/task_order_test game/test/task_order_test.c -lm
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/task_order_test game/test/task_order_test.c perf/torirs_perf.c -lm
 	./$(OBJ_DIR)/task_order_test
 
 # CS2 visual transactions: ready work drains past the old per-frame caps, while

@@ -14,6 +14,7 @@
 #include "game/rs_chat.h"
 #include "engine/title_flames.h"
 #include "game/rs_login_replies.h"
+#include "game/rs_preload.h"
 #include "game/rs_title.h"
 #include "net/rev/revpacket.h"
 #include "game/rs_cs1_host.h"
@@ -1506,6 +1507,9 @@ struct App
     /** What each login rejection means, in this revision's words. Loaded from
      *  the profile beside RevConfigRefs and alive for the whole session. */
     struct RS_LoginReplyTable login_replies;
+    /* What this revision loads before the title screen: the profile's own
+     * [preload:] list, in order. @see RS_PreloadTable. */
+    struct RS_PreloadTable preload;
     /**
      * The title screen's two braziers, or NULL when none is burning.
      *

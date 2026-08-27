@@ -314,6 +314,27 @@ push_field_from_ini_kv(
      * the whole point of the section, so the type disambiguates as usual. */
     else if( strcmp(key, "text") == 0 && strcmp(s_ini_item_type, "string") == 0 )
         kind = RCFIELD_STRING_TEXT;
+    /* The loading screen's own list. Every key is scoped to [preload:] so
+     * names as generic as `id` and `kind` cannot collide with a component's. */
+    else if( strcmp(s_ini_item_type, "preload") == 0 )
+    {
+        if( strcmp(key, "kind") == 0 )
+            kind = RCFIELD_PRELOAD_KIND;
+        if( strcmp(key, "archive") == 0 )
+            kind = RCFIELD_PRELOAD_ARCHIVE;
+        if( strcmp(key, "id") == 0 )
+            kind = RCFIELD_PRELOAD_ID;
+        if( strcmp(key, "percent") == 0 )
+            kind = RCFIELD_PRELOAD_PERCENT;
+        if( strcmp(key, "say") == 0 )
+            kind = RCFIELD_PRELOAD_SAY;
+        if( strcmp(key, "weight") == 0 )
+            kind = RCFIELD_PRELOAD_WEIGHT;
+        if( strcmp(key, "render") == 0 )
+            kind = RCFIELD_PRELOAD_RENDER;
+        if( strcmp(key, "order") == 0 )
+            kind = RCFIELD_PRELOAD_ORDER;
+    }
     else if( strcmp(s_ini_item_type, "login_reply") == 0 )
     {
         if( strcmp(key, "screen") == 0 )

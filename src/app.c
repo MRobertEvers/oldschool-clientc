@@ -5494,6 +5494,49 @@ app_title_state_changed(struct App* app)
  * name. A revision that declares no such string gets the bar with no caption
  * rather than an English sentence it never chose.
  */
+/*
+ * Announce one step of the profile's preload list.
+ *
+ * The percentage and the words are both the step's, so a revision that
+ * counts its boot differently -- and the two here do; one steps through
+ * positions while the other sums weights -- says so in its profile rather
+ * than in this function. A step the profile does not declare announces
+ * nothing and the bar stays where it was, which is the same
+ * undeclared-means-absent rule the rest of revconfig runs on.
+ *
+ * Returns the step so the caller can see whether it asked to be rendered.
+ */
+static struct RS_PreloadStep const*
+app_preload_announce(
+    struct App* app,
+    char const* step_name)
+{
+    struct RS_PreloadStep const* step = NULL;
+
+    assert(app);
+    assert(step_name);
+    for( int i = 0; i < app->preload.count; i++ )
+    {
+        if( strcmp(app->preload.steps[i].name, step_name) == 0 )
+        {
+            step = &app->preload.steps[i];
+            break;
+        }
+    }
+    if( !step )
+        return NULL;
+
+    if( step->percent >= 0 )
+        app->boot_progress = step->percent;
+    RS_Title_SetProgress(
+        &app->title,
+        step->percent,
+        step->say[0] ? RS_LoginReplies_String(&app->login_replies, step->say) : NULL);
+    if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
+        app_title_state_changed(app);
+    return step;
+}
+
 static void
 app_title_progress(
     struct App* app,
@@ -8717,6 +8760,15 @@ App_Init(
     RS_LoginReplies_Init(&app->login_replies);
     RS_LoginReplies_LoadSources(
         &app->login_replies,
+        app->cfg.revconfig_ui_ini,
+        app->cfg.revconfig_cache_ini,
+        app->cfg.revconfig_inline_ini);
+    /* And the loading screen's own work list, from the same three sources.
+     * What this revision fetches before it can show a title, in its order,
+     * with the percentage and the sentence each step carries. */
+    RS_Preload_Init(&app->preload);
+    RS_Preload_LoadSources(
+        &app->preload,
         app->cfg.revconfig_ui_ini,
         app->cfg.revconfig_cache_ini,
         app->cfg.revconfig_inline_ini);
@@ -12843,6 +12895,10 @@ Task_AppBoot_Run(
 
     app->boot_progress = 10;
     app_title_progress(app, 10, "loading_config");
+    /* Let the frame loop draw the bar where it now stands before the
+     * next stretch of work begins. Without this the whole boot settles
+     * inside one frame and the bar only ever appears at 100. */
+    PT_TASK_YIELD_TO_RENDER(TORIRS_RENDER_BOOT_BAR, 10, app->title.progress_text);
 
     /*
      * Varbit types, before anything that can run a script.
@@ -13125,6 +13181,10 @@ Task_AppBoot_Run(
      * (Client-TS "Requesting interface", the deob "Loading interfaces"). */
     app->boot_progress = 30;
     app_title_progress(app, 30, "loaded_config");
+    /* Let the frame loop draw the bar where it now stands before the
+     * next stretch of work begins. Without this the whole boot settles
+     * inside one frame and the bar only ever appears at 100. */
+    PT_TASK_YIELD_TO_RENDER(TORIRS_RENDER_BOOT_BAR, 30, app->title.progress_text);
 
     /* One root-build path. A manifest that names no RevConfig at all still comes
      * through here: the builder synthesises the single rs_iface mount of
@@ -13169,6 +13229,10 @@ Task_AppBoot_Run(
 
     app->boot_progress = 60;
     app_title_progress(app, 60, "loading_interfaces");
+    /* Let the frame loop draw the bar where it now stands before the
+     * next stretch of work begins. Without this the whole boot settles
+     * inside one frame and the bar only ever appears at 100. */
+    PT_TASK_YIELD_TO_RENDER(TORIRS_RENDER_BOOT_BAR, 60, app->title.progress_text);
 
     /* Shared b12 fallback before configured overlay models are bound. Normally
      * already resident — the RevConfig assets pass loads every declared
@@ -13182,6 +13246,10 @@ Task_AppBoot_Run(
 
     app->boot_progress = 75;
     app_title_progress(app, 75, "loading_media");
+    /* Let the frame loop draw the bar where it now stands before the
+     * next stretch of work begins. Without this the whole boot settles
+     * inside one frame and the bar only ever appears at 100. */
+    PT_TASK_YIELD_TO_RENDER(TORIRS_RENDER_BOOT_BAR, 75, app->title.progress_text);
 
     if( getenv("TORIRS_ANIM_DEBUG") )
     {
@@ -13250,6 +13318,10 @@ Task_AppBoot_Run(
 
     app->boot_progress = 90;
     app_title_progress(app, 90, "preparing");
+    /* Let the frame loop draw the bar where it now stands before the
+     * next stretch of work begins. Without this the whole boot settles
+     * inside one frame and the bar only ever appears at 100. */
+    PT_TASK_YIELD_TO_RENDER(TORIRS_RENDER_BOOT_BAR, 90, app->title.progress_text);
 
     app_chat_build_view(app);
     app->emit.count = 0;
@@ -28155,6 +28227,13 @@ App_RunOnce(
                 stat = TaskRunner_Step(&app->runner);
                 if( stat == TASK_RUNNER_IDLE )
                     break;
+                /* A task asked for the screen. Stop stepping and let this
+                 * frame out: spending the rest of the budget here is
+                 * exactly the behaviour the request exists to interrupt,
+                 * and it is why the whole boot used to land in one frame
+                 * with the bar never drawn below 100. */
+                if( stat == TASK_RUNNER_RENDER )
+                    break;
             }
         }
         if( booting )
@@ -31953,9 +32032,26 @@ App_Render(
          * panel's own bar takes over, so the only bar drawn here is the
          * centred one.
          */
-        char const* caption;
+        char const* caption = NULL;
+        int percent = app->boot_progress;
 
-        BootBar_Draw((uint32_t*)pixels, width, height, app->boot_progress);
+        /*
+         * What the boot task asked for, when it asked for anything.
+         *
+         * The render step does not decide what a load looks like: the task
+         * that knows which stage it is at says so, and this obeys. That is
+         * the whole point of the opt-in -- a task which never asks keeps the
+         * old behaviour of settling silently, and one which does asks for a
+         * specific picture rather than merely for a frame.
+         */
+        if( app->runner.render.intent == TORIRS_RENDER_BOOT_BAR )
+        {
+            percent = app->runner.render.percent;
+            if( app->runner.render.caption && app->runner.render.caption[0] )
+                caption = app->runner.render.caption;
+        }
+
+        BootBar_Draw((uint32_t*)pixels, width, height, percent);
 
         /*
          * The caption, once there is a font to draw one with.
@@ -31969,9 +32065,11 @@ App_Render(
          * Centred on the track and sitting on its baseline, where both
          * references put it, rather than in the middle of the canvas.
          */
-        caption = RS_LoginReplies_String(
-            &app->login_replies,
-            app->screen == APP_SCREEN_GAME ? "entering_world" : "loading");
+        if( app->runner.render.intent != TORIRS_RENDER_BOOT_BAR ||
+            !app->runner.render.caption || !app->runner.render.caption[0] )
+            caption = RS_LoginReplies_String(
+                &app->login_replies,
+                app->screen == APP_SCREEN_GAME ? "entering_world" : "loading");
         if( caption && caption[0] )
             app_boot_bar_caption(
                 app,

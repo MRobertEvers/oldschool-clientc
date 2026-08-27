@@ -26,6 +26,9 @@ struct TaskRunner
     /* A CS2 task has joined this queue and the tree/display list must not be
      * published until its whole host follow-up fixed point has settled. */
     int frame_settle_pending;
+    /* What the head task asked to be drawn, valid only while the last Step
+     * returned TASK_RUNNER_RENDER. */
+    struct ToriRS_RenderRequest render;
 };
 
 enum TaskRunnerStat
@@ -37,6 +40,11 @@ enum TaskRunnerStat
      * frame" — every caller tests against IDLE — but unlike PENDING it must
      * end the settle loop rather than extend it. */
     TASK_RUNNER_BLOCKED,
+    /* The head task asked for a frame before it is resumed, and said what
+     * should be on it (runner->render). Work remains, so like PENDING every
+     * caller keeps the frame alive -- but the settle loop must STOP, since
+     * the whole point is that this frame reaches the screen. */
+    TASK_RUNNER_RENDER,
 };
 
 /** One scheduler pass: run the queue until it yields for IO, then hand the IO
@@ -75,6 +83,20 @@ TaskRunner_Step(struct TaskRunner* runner)
         }
         return TASK_RUNNER_BLOCKED;
     }
+    if( stat == TORIRS_ASYNCIO_STAT_RENDER )
+    {
+        /* The head is still queued and still parked on its yield, so its
+         * request is intact; copy it out before anything else touches the
+         * queue. Any IO an earlier task in this pass left queued is drained
+         * here, exactly as the other two exits do. */
+        assert(runner->queue->head);
+        runner->render = runner->queue->head->render;
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
+        {
+            Platform_IO_Process(runner->px, runner->io);
+        }
+        return TASK_RUNNER_RENDER;
+    }
     if( stat == TORIRS_ASYNCIO_STAT_YIELD )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
@@ -95,9 +117,17 @@ TaskRunner_Step(struct TaskRunner* runner)
 static inline void
 TaskRunner_Drain(struct TaskRunner* runner)
 {
-    while( TaskRunner_Step(runner) == TASK_RUNNER_PENDING )
+    enum TaskRunnerStat stat;
+
+    /* A render request is honoured as a plain yield here: a blocking drain
+     * has no frame loop to hand the screen to, and stopping for one would
+     * leave the queue half-run. The task still gets stepped again, which is
+     * all it actually needs; only the picture is lost, and in a drain there
+     * is nobody to show it to. */
+    do
     {
-    }
+        stat = TaskRunner_Step(runner);
+    } while( stat == TASK_RUNNER_PENDING || stat == TASK_RUNNER_RENDER );
 }
 
 /** Settle every task that can make progress before a frame is published.
@@ -123,6 +153,10 @@ TaskRunner_SettleFrame(struct TaskRunner* runner)
     {
         int pending = 0;
         stat = TaskRunner_Step(runner);
+        /* RENDER ends the loop for the opposite reason to BLOCKED: not
+         * because nothing more can be done, but because the task asked for
+         * this frame to be seen. Settling past it would draw the finished
+         * state and the request would have achieved nothing. */
         if( stat != TASK_RUNNER_PENDING )
             break;
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)

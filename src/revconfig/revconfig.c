@@ -1120,6 +1120,9 @@ revconfig_item_set_name(
     case RCITEM_STRING:
         strncpy(item->u.string.name, value, sizeof(item->u.string.name) - 1);
         break;
+    case RCITEM_PRELOAD:
+        strncpy(item->u.preload.name, value, sizeof(item->u.preload.name) - 1);
+        break;
     case RCITEM_LOGIN_REPLY:
         /* The section name IS the code, except for the two names that stand
          * for cases the protocol has no byte for. */
@@ -1179,6 +1182,14 @@ revconfig_item_begin(
         item->kind = RCITEM_ROLE;
     else if( strcmp(type_value, "string") == 0 )
         item->kind = RCITEM_STRING;
+    else if( strcmp(type_value, "preload") == 0 )
+    {
+        item->kind = RCITEM_PRELOAD;
+        /* Unstated is not zero for these two: id 0 is a real cache index,
+         * and a step with no percent must leave the bar where it was. */
+        item->u.preload.id = -1;
+        item->u.preload.percent = -1;
+    }
     else if( strcmp(type_value, "login_reply") == 0 )
     {
         item->kind = RCITEM_LOGIN_REPLY;
@@ -2047,6 +2058,40 @@ revconfig_item_apply_field(
         {
             strncpy(item->u.string.text, value, sizeof(item->u.string.text) - 1);
             item->u.string.text[sizeof(item->u.string.text) - 1] = '\0';
+        }
+        break;
+    case RCITEM_PRELOAD:
+        switch( kind )
+        {
+        case RCFIELD_PRELOAD_KIND:
+            strncpy(item->u.preload.kind, value, sizeof(item->u.preload.kind) - 1);
+            break;
+        case RCFIELD_PRELOAD_ARCHIVE:
+            strncpy(item->u.preload.archive, value, sizeof(item->u.preload.archive) - 1);
+            break;
+        case RCFIELD_PRELOAD_SAY:
+            strncpy(item->u.preload.say, value, sizeof(item->u.preload.say) - 1);
+            break;
+        case RCFIELD_PRELOAD_ID:
+            item->u.preload.id = revconfig_parse_int(value);
+            break;
+        case RCFIELD_PRELOAD_PERCENT:
+            item->u.preload.percent = revconfig_parse_int(value);
+            break;
+        case RCFIELD_PRELOAD_WEIGHT:
+            item->u.preload.weight = revconfig_parse_int(value);
+            break;
+        case RCFIELD_PRELOAD_ORDER:
+            item->u.preload.order = revconfig_parse_int(value);
+            break;
+        case RCFIELD_PRELOAD_RENDER:
+            item->u.preload.render = (strcmp(value, "true") == 0 ||
+                                      strcmp(value, "yes") == 0 || strcmp(value, "1") == 0)
+                                         ? 1
+                                         : 0;
+            break;
+        default:
+            break;
         }
         break;
     case RCITEM_LOGIN_REPLY:

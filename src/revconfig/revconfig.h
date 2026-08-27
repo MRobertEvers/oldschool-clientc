@@ -198,6 +198,14 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_FLAME_ROW,
     RCFIELD_UICOMPONENT_TEXT_BASELINE,
     RCFIELD_STRING_TEXT,
+    RCFIELD_PRELOAD_KIND,
+    RCFIELD_PRELOAD_ARCHIVE,
+    RCFIELD_PRELOAD_ID,
+    RCFIELD_PRELOAD_PERCENT,
+    RCFIELD_PRELOAD_SAY,
+    RCFIELD_PRELOAD_WEIGHT,
+    RCFIELD_PRELOAD_RENDER,
+    RCFIELD_PRELOAD_ORDER,
     RCFIELD_LOGIN_REPLY_SCREEN,
     RCFIELD_LOGIN_REPLY_LINE1,
     RCFIELD_LOGIN_REPLY_LINE2,
@@ -308,6 +316,7 @@ enum RevConfigItemKind
     RCITEM_ROLE,
     RCITEM_STRING,
     RCITEM_LOGIN_REPLY,
+    RCITEM_PRELOAD,
 };
 
 /**
@@ -317,6 +326,53 @@ enum RevConfigItemKind
  * The client legitimately knows WHEN to say something ("we are connecting
  * now"); what it says, and in which revision's wording, is the profile's.
  */
+/**
+ * One `[preload:<name>]` -- a single step of the loading screen.
+ *
+ * WHAT a revision fetches before it can show a title screen is the
+ * revision's business, and the two eras disagree about all of it. The 2004
+ * client pulls nine jag archives over HTTP in a fixed order and unpacks
+ * them one at a time; OldSchool 239 opens eight cache indices at once and
+ * watches them complete, weighting each one's contribution to the
+ * percentage (sound effects alone are 53% of its bar). Neither list is
+ * derivable from the other, and neither belongs in C.
+ *
+ * `kind` says which machinery loads it, because that IS the client's part:
+ * it knows how to pull a jagfile and how to open an index, and the profile
+ * says which ones and in what order.
+ *
+ * `percent`/`say` are what the bar shows while the step runs -- `say` names
+ * a [string:] entry, so the words stay the revision's too. `weight` is the
+ * deob's model, where the bar is a weighted sum of several concurrent
+ * loads rather than a position in a queue; a profile that states no weights
+ * gets the 2004 model, where each step simply owns its percent.
+ *
+ * `render` is the opt-in: a step that sets it publishes a frame before it
+ * runs, which is the only way a long fetch shows its own progress. A step
+ * that does not sets nothing on screen and costs nothing.
+ */
+struct RevConfigPreloadItem
+{
+    char name[64];
+    /** INI: kind= -- jagfile | index | ondemand | unpack */
+    char kind[24];
+    /** INI: archive= -- the jagfile stem or the cache index/table name. */
+    char archive[64];
+    /** INI: id= -- the numeric index/table, where the era addresses by
+     *  number rather than by name. -1 when unstated. */
+    int id;
+    /** INI: percent= -- the bar position while this step runs. */
+    int percent;
+    /** INI: say= -- a [string:] name, drawn under the bar. */
+    char say[64];
+    /** INI: weight= -- share of the bar this step owns, deob-style. */
+    int weight;
+    /** INI: render= -- publish a frame before running this step. */
+    int render;
+    /** INI: order= -- ascending; ties keep file order. */
+    int order;
+};
+
 struct RevConfigStringItem
 {
     char name[64];
@@ -1280,6 +1336,7 @@ struct RevConfigItem
         struct RevConfigRoleItem role;
         struct RevConfigStringItem string;
         struct RevConfigLoginReplyItem login_reply;
+        struct RevConfigPreloadItem preload;
     } u;
 };
 
