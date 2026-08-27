@@ -1,4 +1,4 @@
-# The one dependency is TypeScript, installed with `npm install` here.
+# TypeScript, React, and the local browser bundler are installed here.
 # package-lock.json is committed, so a checkout builds against the same version.
 node_modules/
 

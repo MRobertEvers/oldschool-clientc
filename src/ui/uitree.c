@@ -2341,6 +2341,17 @@ UITree_Push(
             font_id = 1;
         component->u.rs_text.font_id = font_id;
         component->u.rs_text.color = spec->u.rs_text.color;
+        /*
+         * The GENERIC colour too, and for the same reason on the three types
+         * below: `IF_GETCOLOUR` answers `node->colour`, which until now only
+         * `UITree_ApplyColour` ever wrote — so a script asking a
+         * cache-authored component for its colour got 0.
+         *
+         * `brew_tools_init` opens with `if_getcolour($component21)` and hands
+         * the answer to all ten of its buttons, so every label was drawn black
+         * instead of the authored grey.
+         */
+        component->colour = spec->u.rs_text.color;
         component->u.rs_text.center = spec->u.rs_text.center;
         component->u.rs_text.y_align = spec->u.rs_text.y_align;
         component->u.rs_text.line_height = spec->u.rs_text.line_height;
@@ -2369,11 +2380,13 @@ UITree_Push(
 
     case UIELEM_RS_RECT:
         component->u.rs_rect.color = spec->u.rs_rect.color;
+        component->colour = spec->u.rs_rect.color;
         component->u.rs_rect.filled = spec->u.rs_rect.filled;
         break;
 
     case UIELEM_RS_ARC:
         component->u.rs_arc.color = spec->u.rs_arc.color;
+        component->colour = spec->u.rs_arc.color;
         component->u.rs_arc.filled = spec->u.rs_arc.filled;
         component->u.rs_arc.line_width =
             spec->u.rs_arc.line_width > 0 ? spec->u.rs_arc.line_width : 1;
@@ -2456,6 +2469,7 @@ UITree_Push(
 
     case UIELEM_RS_LINE:
         component->u.rs_line.color = spec->u.rs_line.color;
+        component->colour = spec->u.rs_line.color;
         component->u.rs_line.line_width =
             spec->u.rs_line.line_width > 0 ? spec->u.rs_line.line_width : 1;
         component->u.rs_line.horizontal = spec->u.rs_line.horizontal ? 1 : 0;
@@ -3463,7 +3477,8 @@ UITree_SetColourAt(
         c->colour == colour &&
         (c->type != UIELEM_RS_TEXT || c->u.rs_text.color == colour) &&
         (c->type != UIELEM_RS_RECT || c->u.rs_rect.color == colour) &&
-        (c->type != UIELEM_RS_ARC || c->u.rs_arc.color == colour);
+        (c->type != UIELEM_RS_ARC || c->u.rs_arc.color == colour) &&
+        (c->type != UIELEM_RS_LINE || c->u.rs_line.color == colour);
     if( colour_now_matches )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
@@ -3476,6 +3491,12 @@ UITree_SetColourAt(
         c->u.rs_rect.color = colour;
     else if( c->type == UIELEM_RS_ARC )
         c->u.rs_arc.color = colour;
+    /* A LINE keeps its own copy too, and the emit arm reads THAT
+     * (`out->color = component->u.rs_line.color`). Missing it here meant
+     * `cc_setcolour` on a line was accepted, stored in the generic field and
+     * then never drawn: every script-built divider rule came out black. */
+    else if( c->type == UIELEM_RS_LINE )
+        c->u.rs_line.color = colour;
     uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
     return true;
 }

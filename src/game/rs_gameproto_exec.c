@@ -235,14 +235,17 @@ exec_trigger_on_dialog_abort(struct RS_GameProtoCtx const* ctx)
     app->need_redraw = 1;
 }
 
-/* Where a zone sub-packet applies: base + packed nibbles, at `level`. The
- * base/level pair is captured by the caller — live packets use the app's
- * current state, replayed ones the state as of arrival. */
+/* Where a zone sub-packet applies: base + packed nibbles, at `level`, in the
+ * world view `view`. All of it is captured by the caller — live packets use
+ * the app's current state, replayed ones the state as of arrival (a queued
+ * packet outlives the SET_ACTIVE_WORLD that addressed it; the tick fence
+ * resets the live cursor). */
 struct ZoneAt
 {
     int base_x;
     int base_z;
     int level;
+    int view;
 };
 
 static void
@@ -272,7 +275,7 @@ zone_tile_at(
  */
 static void
 zone_loc_tile_at(
-    struct App const* app,
+    struct App* app,
     struct ZoneAt const* at,
     int pos,
     int* out_x,
@@ -280,7 +283,8 @@ zone_loc_tile_at(
     int* out_level)
 {
     zone_tile_at(at, pos, out_x, out_z, out_level);
-    *out_level = World_LocCacheLevel(app->world, *out_x, *out_z, *out_level);
+    *out_level = World_LocCacheLevel(
+        App_ActiveWorldview(app)->world, *out_x, *out_z, *out_level);
 }
 
 /* Copy one zone sub-packet payload into a PktZoneSubPacket by name. Returns 0
@@ -366,6 +370,7 @@ zone_pending_push(
     entry->base_x = app->zone_base_x;
     entry->base_z = app->zone_base_z;
     entry->level = app->zone_level;
+    entry->view = app->active_world;
     app->pending_zone_count++;
 }
 
@@ -373,14 +378,20 @@ void
 RS_GameProto_FlushPendingZone(struct RS_GameProtoCtx const* ctx)
 {
     struct App* app = ctx->app;
+    struct World* world;
     int i;
 
-    if( !app || !app->world || !app->world->load_complete )
+    /* `app->world` doubles as "the view registry has its root": a harness App
+     * with no world never registered one, so resolving would assert. */
+    if( !app || !app->world )
+        return;
+    world = App_ActiveWorldview(app)->world;
+    if( !world->load_complete )
         return;
     for( i = 0; i < app->pending_zone_count; i++ )
     {
         struct AppPendingZonePkt const* entry = &app->pending_zone[i];
-        struct ZoneAt at = { entry->base_x, entry->base_z, entry->level };
+        struct ZoneAt at = { entry->base_x, entry->base_z, entry->level, entry->view };
         exec_zone_sub_packet_at(ctx, entry->pkt.name, &entry->pkt._loc_add_change, &at);
     }
     app->pending_zone_count = 0;
@@ -395,9 +406,10 @@ exec_zone_sub_packet(
     struct App* app = ctx->app;
     struct ZoneAt at;
 
+    /* Same root-registered sentinel as RS_GameProto_FlushPendingZone. */
     if( !app || !app->world )
         return;
-    if( !app->world->load_complete )
+    if( !App_ActiveWorldview(app)->world->load_complete )
     {
         zone_pending_push(app, name, payload);
         return;
@@ -410,6 +422,7 @@ exec_zone_sub_packet(
     at.base_x = app->zone_base_x;
     at.base_z = app->zone_base_z;
     at.level = app->zone_level;
+    at.view = app->active_world;
     exec_zone_sub_packet_at(ctx, name, payload, &at);
 }
 
@@ -422,6 +435,15 @@ exec_zone_sub_packet_at(
 {
     struct App* app = ctx->app;
     int tile_x, tile_z, level;
+    int prev_view = app->active_world;
+
+    /* Apply under the cursor AS OF ARRIVAL. A replayed pending packet was
+     * queued behind a SET_ACTIVE_WORLD the tick fence has since reset, so the
+     * live cursor is the wrong view for it; the applicators below (and the
+     * spawn tasks they enqueue, which capture the cursor) all resolve their
+     * (world, builder) through App_ActiveWorldview. Restored on the way out —
+     * for a live packet this round-trips the same value. */
+    app->active_world = at->view;
 
     switch( name )
     {
@@ -597,6 +619,8 @@ exec_zone_sub_packet_at(
     default:
         break;
     }
+
+    app->active_world = prev_view;
 }
 
 /*
@@ -652,6 +676,106 @@ exec_open_welcome_screen(struct App* app)
      * established there is no viewport modal for the server to hear about. */
     RS_UISlots_CloseModal(app);
     RS_UISlots_OpenMain(app, iface_id);
+}
+
+/*
+ * WORLDENTITY_INFO (SAILING_PLAN C1, deob Statics.method977): the packet is
+ * per view — its `count` ops walk the ACTIVE view's server-ordered entity
+ * list in list order, so op i addresses list slot i, not entity id i. The
+ * count exceeding the list is the server and client disagreeing about how
+ * many boats exist, which is a protocol violation, not a state to walk past
+ * — the deob throws a RuntimeException on it, so the assert is faithful. A
+ * count SHORT of the list is the opposite: the tail is being despawned.
+ *
+ * Despawns are collected before being swept: removing a slot renumbers the
+ * indices the remaining ops address.
+ */
+static void
+exec_worldentity_info(
+    struct App* app,
+    struct PktWorldEntityInfo const* pkt)
+{
+    int view;
+    int despawn_ids[WORLDVIEW_MAX];
+    int despawn_count = 0;
+
+    assert(app);
+    assert(pkt);
+    view = app->active_world;
+    assert(pkt->count <= Wevs_ViewListCount(&app->wevs, view));
+
+    /*
+     * A count SHORTER than the list is the server truncating it: every entity
+     * from `count` on is gone (deob Statics.method977's leading
+     * `for (i = count; i < list.size(); i++) remove`). Without this a boat
+     * that sails out of range never despawns — it keeps its view, its scene
+     * elements and its slot in the registry for the rest of the session.
+     *
+     * Collect first, despawn after: Wevs_Despawn compacts the list, so
+     * removing while indexing it walks past live entries.
+     */
+    for( int i = pkt->count; i < Wevs_ViewListCount(&app->wevs, view); i++ )
+        despawn_ids[despawn_count++] = Wevs_ViewListAt(&app->wevs, view, i)->id;
+    for( int i = 0; i < despawn_count; i++ )
+        App_WevDespawn(app, despawn_ids[i]);
+    despawn_count = 0;
+
+    for( int i = 0; i < pkt->count; i++ )
+    {
+        struct PktWevUpdate const* up = &pkt->updates[i];
+        struct Wev* wev = Wevs_ViewListAt(&app->wevs, view, i);
+
+        if( up->op == PKT_WEV_OP_DESPAWN )
+        {
+            despawn_ids[despawn_count++] = wev->id;
+            continue;
+        }
+        if( up->op == PKT_WEV_OP_ENQUEUE || up->op == PKT_WEV_OP_SNAP )
+            Wev_ApplyMove(
+                wev,
+                up->dx,
+                up->dy,
+                up->dz,
+                up->dangle,
+                up->op == PKT_WEV_OP_SNAP,
+                app->wevs.clock);
+        /* Only a bit-0x2 payload replaces the op mask; the flags byte on its
+         * own says nothing about which right-click ops are enabled, and
+         * writing it here would blank every op on any flagless update. */
+        if( up->has_op_mask )
+            wev->op_mask = (unsigned)up->op_mask;
+        if( up->has_seq )
+        {
+            wev->seq_id = up->seq_id;
+            wev->seq_delay = up->seq_delay;
+        }
+    }
+
+    for( int i = 0; i < despawn_count; i++ )
+        App_WevDespawn(app, despawn_ids[i]);
+
+    for( int i = 0; i < pkt->spawn_count; i++ )
+    {
+        struct PktWevSpawn const* sp = &pkt->spawns[i];
+        struct Wev* wev = App_WevSpawn(
+            app,
+            sp->id,
+            sp->config_id,
+            sp->size_x_tiles,
+            sp->size_z_tiles,
+            sp->priority_group,
+            sp->x,
+            sp->z,
+            sp->angle,
+            (unsigned)sp->op_mask);
+
+        if( sp->has_seq )
+        {
+            wev->seq_id = sp->seq_id;
+            wev->seq_delay = sp->seq_delay;
+        }
+    }
+    app->need_redraw = 1;
 }
 
 void
@@ -1691,6 +1815,27 @@ RS_GameProto_Exec(
             ctx->app->npc_update_origin_valid = 1;
         }
         break;
+    case PKT_NAME_SET_ACTIVE_WORLD:
+        /* Points the zone/rebuild applicators at a world view until the tick
+         * fence resets it (deob class100 activeWorld). Get() asserts the id
+         * names a live view — the deob throws on a despawned entity too, so a
+         * server bug stops here instead of mutating the wrong world. */
+        if( ctx->app )
+        {
+            (void)WorldviewRegistry_Get(
+                &ctx->app->worldviews, packet->_set_active_world.world_id);
+            ctx->app->active_world = packet->_set_active_world.world_id;
+            /* The deob snapshots the plane alongside the id; nothing consumes
+             * it at C0 but dropping it here would strand the wire field. */
+            ctx->app->active_world_level = packet->_set_active_world.level;
+        }
+        break;
+    case PKT_NAME_WORLDENTITY_INFO:
+        /* App-less harnesses have no registry or scene to spawn into; the
+         * ops-address-the-active-view walk lives in the helper above. */
+        if( ctx->app )
+            exec_worldentity_info(ctx->app, &packet->_worldentity_info);
+        break;
     case PKT_NAME_SERVER_TICK_END:
         /* The fence. Every packet of this tick has been applied, so the scripts
          * the tick pushed can now repaint against the state the server meant
@@ -1699,6 +1844,11 @@ RS_GameProto_Exec(
         {
             ctx->app->server_tick_fence_seen = 1;
             ctx->app->server_tick_open = 0;
+            /* SET_ACTIVE_WORLD only lasts until the fence: the deob resets
+             * the cursor to the root view at end-of-tick, so a tick that
+             * never re-arms it cannot leak zone updates into a boat. */
+            ctx->app->active_world = WORLDVIEW_ROOT;
+            ctx->app->active_world_level = 0;
             App_FlushPendingClientScripts(ctx->app);
             /* The 600ms cadence a plugin actually wants: every packet of this
              * server tick is now in world state, so a snapshot read here

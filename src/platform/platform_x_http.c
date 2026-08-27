@@ -92,6 +92,66 @@ http_write_all(struct SockStream* stream, const char* data, int size)
     return 0;
 }
 
+/*
+ * Where the header block ends, or -1 while it is still arriving.
+ *
+ * memmem is not portable and the header block is small, so this is a scan --
+ * resumed from `*scan_from` rather than restarted, because it runs once per
+ * recv and a restart would make reading a large body quadratic.
+ */
+static int
+http_header_size(const char* buf, int len, int* scan_from)
+{
+    int i = *scan_from;
+
+    assert(buf);
+    assert(scan_from);
+
+    for( ; i + 4 <= len; i++ )
+    {
+        if( memcmp(buf + i, "\r\n\r\n", 4) == 0 )
+            return i + 4;
+    }
+    /* The terminator may straddle this recv and the next, so back up over the
+     * three bytes a partial match could occupy. */
+    *scan_from = i > 3 ? i - 3 : 0;
+    return -1;
+}
+
+/*
+ * How the response framed itself: Content-Length, or -1 when it did not frame
+ * itself at all and the body is "everything until the socket closes".
+ */
+static int
+http_framed_length(const char* buf, int header_size, int* out_chunked)
+{
+    char* headers = malloc((size_t)header_size + 1);
+    char* found;
+    int content_length = -1;
+
+    assert(buf);
+    assert(out_chunked);
+    assert(headers);
+
+    /* Header names are case-insensitive on the wire. Lowercase a copy of the
+     * header block rather than the whole response -- the body is binary and
+     * must not be touched. */
+    for( int i = 0; i < header_size; i++ )
+    {
+        char c = buf[i];
+        headers[i] = (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : c;
+    }
+    headers[header_size] = '\0';
+
+    found = strstr(headers, "\r\ncontent-length:");
+    if( found )
+        content_length = atoi(found + strlen("\r\ncontent-length:"));
+    found = strstr(headers, "\r\ntransfer-encoding:");
+    *out_chunked = found && strstr(found, "chunked") ? 1 : 0;
+    free(headers);
+    return content_length;
+}
+
 char*
 PlatformX_HttpGetStatus(
     const char* host,
@@ -106,8 +166,8 @@ PlatformX_HttpGetStatus(
     int capacity = 0;
     int length = 0;
     char* body = NULL;
-    char* header_end = NULL;
-    int header_size = 0;
+    int header_size = -1;
+    int header_scan = 0;
     int body_size = 0;
     int content_length = -1;
     int chunked = 0;
@@ -128,7 +188,8 @@ PlatformX_HttpGetStatus(
     snprintf(
         request,
         sizeof(request),
-        "GET %s HTTP/1.0\r\nHost: %s:%d\r\nUser-Agent: torirs\r\nAccept: */*\r\n\r\n",
+        "GET %s HTTP/1.0\r\nHost: %s:%d\r\nUser-Agent: torirs\r\nAccept: */*\r\n"
+        "Connection: close\r\n\r\n",
         route,
         host,
         port);
@@ -153,14 +214,39 @@ PlatformX_HttpGetStatus(
         if( got > 0 )
         {
             length += got;
+            if( header_size < 0 )
+            {
+                header_size = http_header_size(buffer, length, &header_scan);
+                if( header_size > 0 )
+                    content_length = http_framed_length(buffer, header_size, &chunked);
+            }
+            /*
+             * A response that FRAMED itself is complete the moment its body is,
+             * and waiting past that point is not a formality -- it is the whole
+             * read timeout, spent waiting for a close that a keep-alive server
+             * will never send, ending in a discarded response. io_server
+             * answers `Connection: keep-alive` to every request including this
+             * HTTP/1.0 one, so before this every desktop read of a config file,
+             * a plugin script or a plugin asset stalled ten seconds and then
+             * returned nothing.
+             *
+             * Chunked has no length to compare against and still reads to the
+             * close below; nothing this client talks to sends one.
+             */
+            if( header_size > 0 && !chunked && content_length >= 0 &&
+                length - header_size >= content_length )
+                break;
             continue;
         }
         if( got == SOCKSTREAM_ERROR_CLOSED )
             break;
         if( got != SOCKSTREAM_ERROR_NODATA && got != SOCKSTREAM_ERROR_WOULDBLOCK )
             goto done;
+        /* A timeout keeps what arrived rather than dropping it: an unframed
+         * response that stopped short is still framed below, where a short body
+         * is refused on its own terms. */
         if( !http_wait_readable(stream, HTTP_READ_TIMEOUT_SEC) )
-            goto done;
+            break;
     }
 
     if( length < 12 || memcmp(buffer, "HTTP/1.", 7) != 0 )
@@ -173,44 +259,21 @@ PlatformX_HttpGetStatus(
     if( memcmp(buffer + 9, "200", 3) != 0 )
         goto done;
 
-    /* memmem is not portable; the header block is small enough to scan. */
-    for( int i = 0; i + 4 <= length; i++ )
+    /* Both may already be known -- the loop needs them to decide when to stop.
+     * A response that arrived in one recv, or one that never framed itself, is
+     * measured here instead. */
+    if( header_size < 0 )
     {
-        if( memcmp(buffer + i, "\r\n\r\n", 4) == 0 )
-        {
-            header_end = buffer + i;
-            header_size = i + 4;
-            break;
-        }
+        header_scan = 0;
+        header_size = http_header_size(buffer, length, &header_scan);
+        if( header_size > 0 )
+            content_length = http_framed_length(buffer, header_size, &chunked);
     }
-    if( !header_end )
+    if( header_size < 0 )
         goto done;
 
     body = buffer + header_size;
     body_size = length - header_size;
-
-    {
-        /* Header names are case-insensitive on the wire. Lowercase a copy of
-         * the header block rather than the whole response -- the body is binary
-         * and must not be touched. */
-        char* headers = malloc((size_t)header_size + 1);
-        char* found;
-        assert(headers);
-        for( int i = 0; i < header_size; i++ )
-        {
-            char c = buffer[i];
-            headers[i] = (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : c;
-        }
-        headers[header_size] = '\0';
-
-        found = strstr(headers, "\r\ncontent-length:");
-        if( found )
-            content_length = atoi(found + strlen("\r\ncontent-length:"));
-        found = strstr(headers, "\r\ntransfer-encoding:");
-        if( found && strstr(found, "chunked") )
-            chunked = 1;
-        free(headers);
-    }
 
     if( chunked )
     {

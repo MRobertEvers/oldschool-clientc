@@ -21,6 +21,7 @@ main(void)
     test_minimap_push_down();
     test_minimap_push_down_colourless_deck();
     test_builder_lifecycle();
+    test_rebuild_keeps_tagged_entity_elements();
     test_prerotate_placement();
 
     printf("== world_builder cache render test ==\n");

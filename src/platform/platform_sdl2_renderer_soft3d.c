@@ -1092,7 +1092,8 @@ soft3d_draw_model(
             cmd->pick_terrain,
             cmd->pick_tile_x,
             cmd->pick_tile_z,
-            cmd->pick_tile_level);
+            cmd->pick_tile_level,
+            cmd->pick_view);
 
     if( cmd->pick_only )
         return;

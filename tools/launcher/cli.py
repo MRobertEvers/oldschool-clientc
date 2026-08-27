@@ -513,16 +513,69 @@ def _dying_is_an_exception():
                 pass
 
 
+def _resolve_running_services(profile, live, args):
+    """This profile's services are already up. Restart them, or stop here.
+
+    Re-running a profile that is already running is the ordinary way to pick up
+    a change, so the answer is nearly always "restart" -- which is why this
+    asks instead of refusing. It refuses only where it cannot ask: a
+    non-interactive run (CI, a script, a pipe) must not block on a prompt, and
+    must not quietly kill a process the caller did not mention either, so there
+    it keeps the old behaviour and names the flag that says yes in advance.
+
+    Returns True when the caller may proceed.
+    """
+    listing = ", ".join("%s(pid %s)" % (row["name"], row["pid"]) for row in live)
+    say("this profile already has services running: %s" % listing)
+
+    if args.restart:
+        answer = "y"
+    elif not _stdin_is_interactive():
+        say("stop them first:  ./launch stop %s" % profile.name)
+        say("or pass --restart to stop and start them in one step")
+        return False
+    else:
+        try:
+            answer = input("launch: stop them and start again? [Y/n] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            # A Ctrl-C or a closed stdin at the prompt is "no", and the run has
+            # started nothing yet, so there is nothing to unwind.
+            print("")
+            return False
+
+    if answer not in ("", "y", "yes"):
+        say("left running:  ./launch stop %s" % profile.name)
+        return False
+
+    for service_name, outcome in supervisor.stop_run_now(REPO_ROOT, profile.name):
+        say("  %-14s %s" % (service_name, outcome))
+
+    still = [row for row in supervisor.run_status(REPO_ROOT, profile.name)["services"]
+             if row["state"] == "running"]
+    if still:
+        # Reported rather than pressed on with: starting a second copy over a
+        # service that would not die is how a port conflict gets blamed on the
+        # wrong process.
+        say("could not stop: %s"
+            % ", ".join("%s(pid %s)" % (row["name"], row["pid"]) for row in still))
+        return False
+    return True
+
+
+def _stdin_is_interactive():
+    try:
+        return sys.stdin is not None and sys.stdin.isatty()
+    except (AttributeError, ValueError):
+        return False
+
+
 def cmd_run(args):
     profile = load_profile(REPO_ROOT, args.profile)
     plan = build_plan(profile, args.client, args.flavor, args.args)
 
     existing = supervisor.run_status(REPO_ROOT, profile.name)
     live = [row for row in existing["services"] if row["state"] == "running"]
-    if live:
-        say("this profile already has services running: %s"
-            % ", ".join("%s(pid %s)" % (row["name"], row["pid"]) for row in live))
-        say("stop them first:  ./launch stop %s" % profile.name)
+    if live and not _resolve_running_services(profile, live, args):
         return 1
 
     # From here down this process OWNS whatever it starts, and every exit path
@@ -1040,6 +1093,9 @@ def main(argv=None):
                      help="start the services and stop there")
     run.add_argument("--detach", action="store_true",
                      help="leave services running after this command exits")
+    run.add_argument("--restart", action="store_true",
+                     help="if this profile's services are already running, "
+                          "stop them and start again without asking")
     run.add_argument("--no-open", action="store_true",
                      help="print the URL instead of opening a browser")
     run.add_argument("args", nargs="*", help="extra client arguments")

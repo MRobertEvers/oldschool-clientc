@@ -15,13 +15,19 @@ struct ToriRS_Task;
  * chunks_xz is (mapx,mapz) pairs, copied into the task — used for the asset
  * prefetch regardless of rebuild shape.
  *
- * zone_center_x/z (>= 0): rebuild via WorldBuilder_RebuildCenterzone with a
- * classic 104x104 scene based at (zone-6)*8 — the REBUILD_NORMAL path.
- * zone_center_x < 0: rebuild via WorldBuilder_RebuildChunklist (offline /
- * hotkey loads that name an explicit square list).
+ * zone_center_x/z (>= 0): rebuild via WorldBuilder_RebuildCenterzone — the
+ * REBUILD_NORMAL path. zone_center_x < 0: rebuild via
+ * WorldBuilder_RebuildChunklist (offline / hotkey loads that name an explicit
+ * square list), which derives its own scene size from the square bounds.
+ *
+ * scene_size: side of the square scene the centerzone/instance rebuilds
+ * allocate, in tiles (a multiple of 8; the scene is based at
+ * (zone_center - scene_size/16) * 8). 104 is the classic root scene; a boat
+ * view passes its own 8..104. Ignored by the chunklist path.
  *
  * zones (non-NULL): rebuild via WorldBuilder_RebuildInstance instead — the
- * REBUILD_REGION path. PKT_MAP_REBUILD_ZONES descriptors, copied into the task.
+ * REBUILD_REGION / REBUILD_WORLDENTITY path. PKT_MAP_REBUILD_ZONES
+ * descriptors, copied into the task.
  * chunks_xz then names the *source* squares the descriptors read from, since the
  * destination squares are unused map and have nothing to prefetch.
  *
@@ -39,6 +45,7 @@ CreateTask_WorldLoad(
     int chunk_count,
     int zone_center_x,
     int zone_center_z,
+    int scene_size,
     const int32_t* zones,
     void (*on_done)(void*),
     void* on_done_ud);

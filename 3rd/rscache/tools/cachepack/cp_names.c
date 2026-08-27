@@ -1702,6 +1702,174 @@ emit_gameval_archive(
     return 1;
 }
 
+/**
+ * Does the flat emit below write gameval archive `archive_id`?
+ *
+ * 10 and 14 are mapped but refused — keyed and nested records a flat write
+ * would destroy — and 11 (songs + jingles in one id space) is mapped by
+ * nothing. Everything the flat emit does not write rides as raw bytes, which
+ * is what `cp_names_export_raw_gamevals` and the passthrough in the emit
+ * agree on through this one predicate.
+ */
+static int
+gameval_archive_emitted(int archive_id)
+{
+    if( archive_id == 10 || archive_id == 14 )
+        return 0;
+    for( int t = 0; t < CP_TYPE_COUNT; t++ )
+        if( cp_type(t)->gameval_archive == archive_id )
+            return 1;
+    for( int a = 0; a < CP_ASSET_COUNT; a++ )
+        if( cp_asset(a)->gameval_archive == archive_id )
+            return 1;
+    return 0;
+}
+
+/** Member ids from `<stem>.memberpack` — malloc'd, ascending; NULL when none. */
+static int*
+raw_gameval_member_ids(
+    const char* stem,
+    int* out_count)
+{
+    struct LC_Pack members;
+    int* file_ids = NULL;
+    int count = 0;
+
+    *out_count = 0;
+    cp_member_pack_load(&members, stem, "memberpack", "record");
+    if( members.max > 0 )
+    {
+        file_ids = malloc((size_t)members.max * sizeof(int));
+        if( !file_ids )
+        {
+            lc_pack_free(&members);
+            return NULL;
+        }
+        for( int member = 0; member < members.max; member++ )
+            if( members.names && members.names[member] )
+                file_ids[count++] = member;
+    }
+    lc_pack_free(&members);
+    *out_count = count;
+    return file_ids;
+}
+
+int
+cp_names_export_raw_gamevals(struct CP_Ctx* ctx)
+{
+    int table_id;
+    struct RSCache_ReferenceTable* rt;
+    char dir[1300];
+    char stem[1400];
+    struct LC_Pack index;
+    int written = 0;
+
+    if( !ctx->cache_open )
+        return 1;
+    table_id = RSCache_Dat2DiskTableId(ctx->cache.disk, RSCACHE_DAT2_TABLE_GAMEVALS);
+    if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+        return 1;
+    rt = ctx->cache.disk->tables[table_id];
+    if( !rt )
+        return 1;
+
+    snprintf(dir, sizeof(dir), "%s/gamevals", ctx->srcdir);
+    snprintf(stem, sizeof(stem), "%s/gamevals", dir);
+    cp_mkdir(dir);
+    cp_member_pack_load(&index, stem, "filepack", "gameval");
+
+    for( int a = 0; a < rt->id_count; a++ )
+    {
+        int archive_id = rt->ids[a];
+        const char* name;
+        char filler[32];
+        int size = 0;
+        uint8_t* raw;
+        char path[1600];
+        FILE* out;
+
+        if( gameval_archive_emitted(archive_id) )
+            continue;
+
+        name = archive_id < index.max && index.names ? index.names[archive_id] : NULL;
+        if( !name )
+        {
+            snprintf(filler, sizeof(filler), "gameval_%d", archive_id);
+            if( !lc_pack_set(&index, archive_id, filler) )
+            {
+                lc_pack_free(&index);
+                return 0;
+            }
+            name = index.names[archive_id];
+        }
+
+        raw = cp_binary_read_raw(ctx, table_id, archive_id, &size);
+        if( !raw || size <= 0 )
+        {
+            free(raw);
+            fprintf(stderr, "cachepack: gameval archive %d is indexed but unreadable\n",
+                    archive_id);
+            lc_pack_free(&index);
+            return 0;
+        }
+        snprintf(path, sizeof(path), "%s/%s.bin", dir, name);
+        out = fopen(path, "wb");
+        if( !out || fwrite(raw, 1, (size_t)size, out) != (size_t)size )
+        {
+            if( out )
+                fclose(out);
+            free(raw);
+            fprintf(stderr, "cachepack: cannot write %s\n", path);
+            lc_pack_free(&index);
+            return 0;
+        }
+        fclose(out);
+        free(raw);
+
+        /* The member ids, beside the bytes — a from-scratch import has no
+         * reference-table entry to inherit a child list from. */
+        if( RSCache_ReferenceTableHasArchive(rt, archive_id) &&
+            rt->archives[archive_id].children.count > 0 )
+        {
+            const struct RSCache_ReferenceTableArchive* entry = &rt->archives[archive_id];
+            struct LC_Pack members;
+            char member_stem[1700];
+
+            snprintf(member_stem, sizeof(member_stem), "%s/%s", dir, name);
+            memset(&members, 0, sizeof(members));
+            snprintf(members.type, sizeof(members.type), "record");
+            for( int c = 0; c < entry->children.count; c++ )
+            {
+                int file_id = RSCache_ReferenceTableChildId(entry, c);
+                char member_filler[32];
+                snprintf(member_filler, sizeof(member_filler), "record_%d", file_id);
+                if( !lc_pack_set(&members, file_id, member_filler) )
+                {
+                    lc_pack_free(&members);
+                    lc_pack_free(&index);
+                    return 0;
+                }
+            }
+            int saved = cp_member_pack_save(&members, member_stem, "memberpack");
+            lc_pack_free(&members);
+            if( !saved )
+            {
+                lc_pack_free(&index);
+                return 0;
+            }
+        }
+        written++;
+    }
+
+    int ok = cp_member_pack_save(&index, stem, "filepack");
+    lc_pack_free(&index);
+    if( !ok )
+        return 0;
+    if( written )
+        printf("  gamevals       %6d nested/keyed archive(s) as raw bytes\n", written);
+    return 1;
+}
+
 int
 cp_names_emit_gamevals(
     struct CP_Ctx* ctx,
@@ -1784,6 +1952,78 @@ cp_names_emit_gamevals(
         }
         archives += emit_gameval_archive(ctx, out_cache_dir, table_id, asset->gameval_archive,
                                          asset->pack, &ctx->names.asset_packs[a], &dirty);
+    }
+
+    /*
+     * The archives the flat emit cannot regenerate, from the raw passthrough.
+     *
+     * `gamevals/gamevals.filepack` indexes them and `unpack` wrote the bytes
+     * beside it, so a pack with no --base still lands a complete idx24. A tree
+     * from before the passthrough existed simply has no filepack, and this
+     * whole block is a no-op — the two skip messages above are then the final
+     * word, exactly as they were.
+     */
+    {
+        char stem[1300];
+        struct LC_Pack raw_index;
+
+        snprintf(stem, sizeof(stem), "%s/gamevals/gamevals", ctx->srcdir);
+        cp_member_pack_load(&raw_index, stem, "filepack", "gameval");
+        for( int id = 0; id < raw_index.max; id++ )
+        {
+            const char* name = raw_index.names ? raw_index.names[id] : NULL;
+            char path[1600];
+            char member_stem[1600];
+            uint8_t* data;
+            long size;
+            FILE* in;
+
+            if( !name || gameval_archive_emitted(id) )
+                continue;
+            snprintf(path, sizeof(path), "%s/gamevals/%s.bin", ctx->srcdir, name);
+            in = fopen(path, "rb");
+            if( !in )
+            {
+                fprintf(stderr,
+                        "cachepack: gamevals/%s is indexed and in the cache, but no file is "
+                        "on disk\n",
+                        name);
+                continue;
+            }
+            fseek(in, 0, SEEK_END);
+            size = ftell(in);
+            fseek(in, 0, SEEK_SET);
+            data = size > 0 ? malloc((size_t)size) : NULL;
+            if( !data || fread(data, 1, (size_t)size, in) != (size_t)size )
+            {
+                free(data);
+                fclose(in);
+                fprintf(stderr, "cachepack: failed to read %s\n", path);
+                lc_pack_free(&raw_index);
+                return 0;
+            }
+            fclose(in);
+
+            if( RSCache_Dat2DiskWriteArchive(out_cache_dir, table_id, id, data, (int)size) !=
+                0 )
+            {
+                free(data);
+                fprintf(stderr, "cachepack: gameval archive %d (%s) failed to write\n", id,
+                        name);
+                lc_pack_free(&raw_index);
+                return 0;
+            }
+            snprintf(member_stem, sizeof(member_stem), "%s/gamevals/%s", ctx->srcdir, name);
+            int file_count = 0;
+            int* file_ids = raw_gameval_member_ids(member_stem, &file_count);
+            cp_reference_sync(ctx, table_id, id, data, (int)size, file_ids, file_count,
+                              &dirty);
+            free(file_ids);
+            free(data);
+            printf("  %-11s raw bytes -> gameval archive %d\n", name, id);
+            archives++;
+        }
+        lc_pack_free(&raw_index);
     }
 
     if( dirty && !cp_reference_write(ctx, out_cache_dir, table_id) )

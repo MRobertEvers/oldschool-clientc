@@ -20,6 +20,41 @@ enum ToriRS_FramePassKind
     TORIRS_FRAME_PASS_3D,
 };
 
+/** Views the frame can hold transforms for; matches PAINTER_MAX_WORLD_VIEWS
+ * and WORLDVIEW_MAX, and doubles as the descent depth cap. */
+#define TORIRS_FRAME_MAX_VIEWS 16
+
+/**
+ * One world view's descent transform (SAILING_PLAN C3, SAILING.md §5.2).
+ *
+ * Applied to every element of the view, in this order, before the camera
+ * subtract: deck-local → pivot recenter → [flatten scale + y offset] →
+ * [animation bob/roll] → yaw rotate → entity translate → parent space.
+ *
+ * The bracketed steps are RESERVED, not implemented: `flatten_scale_q16` is
+ * 65536 and `flatten_y_offset` 0 until C4 fills them, `flat_hsl` is -1 (no
+ * override), and the animation matrix is deferred with no slot spent yet.
+ */
+struct ToriRS_FrameViewXform
+{
+    /** Terrain commands inside this view resolve through its own World. */
+    struct World* world;
+    /** -size_tiles*64 - cfgPivot, per axis: recenters on the rotation pivot. */
+    int recenter_x;
+    int recenter_z;
+    /** The entity pose in its PARENT view's scene-local fine units. */
+    int translate_x;
+    int translate_y;
+    int translate_z;
+    /** Entity heading, 0..2047; composes additively down the stack. */
+    int yaw;
+    /* Reserved for C4 — identity values today. */
+    int flatten_scale_q16;
+    int flatten_y_offset;
+    int flat_hsl;
+    bool live;
+};
+
 /**
  * Greedy frame emitter: one GFX command per ToriRS_FrameNextCommand call.
  * Translates UITreeEmitBuffer; WORLD opens a 3D pass and walks PaintersBuffer
@@ -33,6 +68,27 @@ struct ToriRS_Frame
 
     struct World* world;
     struct PaintersBuffer* painters;
+    /** Slot 0 is the root (identity, world == frame->world); 1.. are entities.
+     * Rebuilt every frame by the App; a cleared table means no boats. */
+    struct ToriRS_FrameViewXform views[TORIRS_FRAME_MAX_VIEWS];
+    /**
+     * The descent stack the BEGIN_WORLD / END_WORLD commands drive, holding the
+     * transform COMPOSED from the root down — `root = R(yaw) * local + off` —
+     * so an element costs one rotate regardless of how deep it is nested.
+     */
+    struct
+    {
+        struct World* world;
+        int off_x;
+        int off_y;
+        int off_z;
+        int yaw;
+        /** Which view opened this level; slot 0 (the root) is 0. Kept so a
+         *  close that names a different view than the open is caught here
+         *  rather than resolving terrain against the wrong world. */
+        int view_id;
+    } view_stack[TORIRS_FRAME_MAX_VIEWS];
+    int view_depth;
     struct ToriDraw_Camera world_camera;
     int cam_x;
     int cam_y;
@@ -50,6 +106,9 @@ struct ToriRS_Frame
     int dbg_emit_terrain;
     int dbg_drop_not_live;
     int dbg_drop_no_model;
+    /** One-shot latch so the wev trace reports the FIRST draw of each descent
+     * and not all hundred of them. Cleared by frame_view_push. */
+    bool dbg_view_traced;
     /** Sub-step within UITREE_EMIT_SCROLLBAR_V/H expansion (0 = not mid-bar). */
     int scrollbar_step;
     /**
@@ -128,6 +187,32 @@ ToriRS_FrameSetWorld(
     int cam_x,
     int cam_y,
     int cam_z);
+
+/**
+ * Drop every world-entity transform, keeping the root. Called once per frame
+ * before the entity walk: a despawned boat must not leave a stale World here.
+ */
+void
+ToriRS_FrameClearViewXforms(struct ToriRS_Frame* frame);
+
+/**
+ * Bind one world entity's view (SAILING_PLAN C3). `view_id` is 1..15 — view 0
+ * is the root and is set by ToriRS_FrameSetWorld. `translate_*` is the entity
+ * pose in its PARENT view's scene-local fine units; `recenter_*` is
+ * `-size_tiles*64 - cfgPivot`. The reserved flatten/HSL slots are set to
+ * identity here; C4 grows the setter rather than the caller.
+ */
+void
+ToriRS_FrameSetViewXform(
+    struct ToriRS_Frame* frame,
+    int view_id,
+    struct World* world,
+    int recenter_x,
+    int recenter_z,
+    int translate_x,
+    int translate_y,
+    int translate_z,
+    int yaw);
 
 void
 ToriRS_FrameBegin(struct ToriRS_Frame* frame);

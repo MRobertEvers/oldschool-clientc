@@ -573,12 +573,29 @@ player_apply_op(
         /* The v5 stream's world coordinate, brought into the scene the same way
          * the projectile and map-flag decoders do: the scene's south-west
          * corner is the rebuild's centre zone less the six zones of margin the
-         * client keeps on each side. */
+         * client keeps on each side.
+         *
+         * Unless the coordinate is inside a live view's STAGING rectangle — a
+         * rider aboard a hull, whose tiles are deck-instance squares hundreds
+         * of zones off this scene. Those rebase into the view's own space
+         * (deob: actors carry view-local coordinates), because root-relative
+         * they overflow every uint8_t in the route queue. `home_view` is what
+         * tells the routing pass the stored coordinates' frame. */
         struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
         int origin_x = (app->rebuild_zone_x - 6) * 8;
         int origin_z = (app->rebuild_zone_z - 6) * 8;
-        int next_x = op->_local_xz_level.x - origin_x;
-        int next_z = op->_local_xz_level.z - origin_z;
+        int next_x;
+        int next_z;
+        int home_view = App_WevHomeViewForAbsTile(
+            app, op->_local_xz_level.x, op->_local_xz_level.z, &next_x, &next_z);
+
+        if( home_view == 0 )
+        {
+            next_x = op->_local_xz_level.x - origin_x;
+            next_z = op->_local_xz_level.z - origin_z;
+        }
+        if( player )
+            player->view_placement.home_view = home_view;
         int step_type =
             op->_local_xz_level.has_move_speed &&
                     op->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_RUN
@@ -586,8 +603,12 @@ player_apply_op(
                 : WORLD_PATHSTEP_WALK;
         struct CollisionMap* collision = NULL;
 
-        /* `level` is a uint8_t, so only the upper bound is a real test. */
-        if( player && player->grid_position.level == op->_local_xz_level.level &&
+        /* `level` is a uint8_t, so only the upper bound is a real test. A
+         * homed actor's coordinates are view-local — the root collision map
+         * cannot route between them, so the run-route smoothing (cosmetic)
+         * sits out and the endpoint is queued bare. */
+        if( home_view == 0 && player &&
+            player->grid_position.level == op->_local_xz_level.level &&
             op->_local_xz_level.level < COLLISION_LEVELS )
             collision = world->collision_maps[op->_local_xz_level.level];
 

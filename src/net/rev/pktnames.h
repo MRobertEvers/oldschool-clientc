@@ -212,6 +212,27 @@ enum GameProtoPktName
      */
     PKT_NAME_SET_ACTIVE_WORLD,
 
+    /**
+     * Per-view world-entity (sailing boat) sync: movement ops against the
+     * active view's entity list in list order, then a spawn trailer for new
+     * entities (rev 239+, WORLDENTITY_INFO_V7). SAILING.md §5.4 — RSProt
+     * carries no decoder for the info family, so the layout is transcribed
+     * from the deob's Statics.method977.
+     */
+    PKT_NAME_WORLDENTITY_INFO,
+
+    /**
+     * Rebuild the ACTIVE view's deck map (rev 237+, REBUILD_WORLDENTITY_V4):
+     * u16 baseX, u16 baseZ (absolute root-world tiles of the view's SW
+     * staging corner — deob Statics.method6693 stores them straight into
+     * field1405/field1395), then the same source-square count + bit-packed
+     * zone-descriptor grid REBUILD_REGION carries, except the grid's
+     * dimensions are the active view's spawn-time size and are not on the
+     * wire. V3+ dropped V2's leading view-id field: the target is always the
+     * SET_ACTIVE_WORLD cursor (deob field5861).
+     */
+    PKT_NAME_REBUILD_WORLDENTITY,
+
     PKT_NAME_COUNT
 };
 

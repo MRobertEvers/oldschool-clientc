@@ -514,10 +514,18 @@
 #define SS_OP_MAP_INSTANCE_LINGER 11085
 #define SS_OP_MAP_INSTANCE_SETLINGERGROUP 11086
 #define SS_OP_NPC_SETMAXHP 11087
+/* Vessels — the sailing hulls (docs/SAILING_PLAN.md S1). Deliberately small:
+ * spawn/steer/query/free; S3 grows the surface. */
+#define SS_OP_VESSEL_SPAWN 11088
+#define SS_OP_VESSEL_SETTARGET 11089
+#define SS_OP_VESSEL_SETHEADING 11090
+#define SS_OP_VESSEL_SETSPEED 11091
+#define SS_OP_VESSEL_POS 11092
+#define SS_OP_VESSEL_FREE 11093
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11088
+#define SS_OPCODE_MAX 11094
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 492
+#define SS_OPCODE_COUNT 498
 
 #endif

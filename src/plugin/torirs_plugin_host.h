@@ -108,6 +108,7 @@ struct ToriRS_PluginEngine
 
     int (*world_cycle)(void* user);
     uint64_t (*frame_ms)(void* user);
+    uint64_t (*frame_work_us)(void* user);
 
     int (*local_player)(void* user, struct ToriRS_PluginPlayerSnap* out);
     int (*npc_next)(void* user, int iter, struct ToriRS_PluginNpcSnap* out);

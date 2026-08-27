@@ -826,8 +826,19 @@ UITree_EmitFill(
     }
 
     case UIELEM_BUILTIN_REDSTONE_TAB:
+    {
         /* ShouldEmit already gated on this being the selected tab; the node
          * carries both variants and the highlight is the active one. */
+        /* Like the icons above, the highlight draws only when the selected tab
+         * has an interface assigned (reference gates the redstone plot on
+         * sideOverlayId[sideTab] !== -1) — the tutorial hides tabs by leaving
+         * them unassigned, and the redstone must not glow over an empty slot. */
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TAB_ENABLED,
+            .u.tab_enabled.tabno = component->u.redstone_tab.tabno,
+        };
+        if( host && !UITree_Host(host, &req) )
+            return false;
         out->kind = UITREE_EMIT_SPRITE;
         out->scene_id = component->u.redstone_tab.scene_id_active > 0
                             ? component->u.redstone_tab.scene_id_active
@@ -838,6 +849,7 @@ UITree_EmitFill(
         if( out->scene_id <= 0 )
             return false;
         return true;
+    }
 
     case UIELEM_BUILTIN_SIDEBAR:
     case UIELEM_BUILTIN_CHAT:

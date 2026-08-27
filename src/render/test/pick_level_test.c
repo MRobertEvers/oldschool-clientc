@@ -81,7 +81,7 @@ terrain_hit_survives(
     struct ToriRS_PickResult result;
 
     ToriRS_PickHitsReset(&hits);
-    ToriRS_PickHitsAdd(&hits, /* element_id */ 7, /* is_terrain */ true, x, z, mesh_level);
+    ToriRS_PickHitsAdd(&hits, /* element_id */ 7, /* is_terrain */ true, x, z, mesh_level, 0);
     ToriRS_PickHitsClassify(world, &hits, player_level, &pickset, &result);
     return pickset.count == 1 && pickset.items[0].type == WORLD_PICK_TERRAIN &&
            pickset.items[0].tile_x == x && pickset.items[0].tile_z == z;
@@ -162,7 +162,7 @@ main(void)
               "the fixture wall registers");
 
         ToriRS_PickHitsReset(&hits);
-        ToriRS_PickHitsAdd(&hits, 70, /* is_terrain */ false, -1, -1, -1);
+        ToriRS_PickHitsAdd(&hits, 70, /* is_terrain */ false, -1, -1, -1, 0);
         ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
         CHECK(pickset.count == 0, "an inactive loc is not picked by default");
 
@@ -199,7 +199,7 @@ main(void)
               "the fixture upper-storey loc registers");
 
         ToriRS_PickHitsReset(&hits);
-        ToriRS_PickHitsAdd(&hits, 71, /* is_terrain */ false, -1, -1, -1);
+        ToriRS_PickHitsAdd(&hits, 71, /* is_terrain */ false, -1, -1, -1, 0);
         ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
         CHECK(pickset.count == 1 && pickset.items[0].type == WORLD_PICK_SCENERY,
               "a loc on the deck under your feet is clickable from level 0");
@@ -208,7 +208,7 @@ main(void)
         CHECK(pickset.count == 0, "and is not reachable from the level it was authored on");
 
         ToriRS_PickHitsReset(&hits);
-        ToriRS_PickHitsAdd(&hits, 72, /* is_terrain */ false, -1, -1, -1);
+        ToriRS_PickHitsAdd(&hits, 72, /* is_terrain */ false, -1, -1, -1, 0);
         ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
         CHECK(pickset.count == 0, "a loc on a genuine upper storey stays unreachable from below");
         ToriRS_PickHitsClassify(world, &hits, /* player_level */ 1, &pickset, &result);

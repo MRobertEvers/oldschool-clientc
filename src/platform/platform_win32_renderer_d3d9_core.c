@@ -5169,7 +5169,8 @@ d3d9_draw_model(
             command->pick_terrain,
             command->pick_tile_x,
             command->pick_tile_z,
-            command->pick_tile_level);
+            command->pick_tile_level,
+            command->pick_view);
 
     if( command->pick_only )
         return;

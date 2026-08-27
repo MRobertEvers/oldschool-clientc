@@ -707,20 +707,12 @@ painter_paint_distancemetric(
 
         if( tile_paint->step == PAINT_STEP_LOCS )
         {
-            if( (cheb_opts & CHEB_OPT_SCENERY_INSERTION_SORT) != 0 )
-                scenery_queue_insertion_sort(
-                    scenery_queue, scenery_queue_length, painter, camera_sx, camera_sz);
-            else
-            {
-                s_scenery_sort_painter = painter;
-                s_scenery_sort_camera_sx = camera_sx;
-                s_scenery_sort_camera_sz = camera_sz;
-                qsort(
-                    scenery_queue,
-                    (size_t)scenery_queue_length,
-                    sizeof(scenery_queue[0]),
-                    scenery_distance_compare);
-            }
+            /* Always the insertion sort. The qsort branch this replaced parked
+             * the painter and camera in file-scope statics for its comparator
+             * (portable qsort has no user-data argument); the orders are
+             * identical, and the statics could not survive a suspended paint. */
+            scenery_queue_insertion_sort(
+                scenery_queue, scenery_queue_length, painter, camera_sx, camera_sz);
 
             for( int j = 0; j < scenery_queue_length; j++ )
             {

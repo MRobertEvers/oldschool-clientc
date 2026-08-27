@@ -262,9 +262,12 @@ design_gender_button_tick(
     if( design->button_scene_id[0] < 0 || design->button_scene_id[1] < 0 )
         return 0;
 
+    /* Reference: the SELECTED gender's button wears graphic2 (button2), the
+     * other one the plain graphic — `if (idkDesignGender) com.graphic =
+     * idkDesignButton2` on the male button, mirrored on the female one. */
     want = ((client_code == RS_CC_SWITCH_TO_MALE) == (design->gender == 0))
-               ? design->button_scene_id[0]
-               : design->button_scene_id[1];
+               ? design->button_scene_id[1]
+               : design->button_scene_id[0];
     if( c->u.rs_graphic.scene_id == want )
         return 0;
     c->u.rs_graphic.scene_id = want;

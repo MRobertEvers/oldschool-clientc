@@ -23,6 +23,9 @@ struct ToriRS_PickHit
     int tile_x; /* terrain tile; -1 for non-terrain */
     int tile_z;
     int tile_level;
+    /** World-entity view the draw came out of; 0 = root scene. Non-zero
+     *  terrain hits carry the VIEW's own (deck-local) tiles. */
+    int view_id;
 };
 
 #define TORIRS_PICK_HITS_MAX 256
@@ -52,7 +55,8 @@ ToriRS_PickHitsAdd(
     bool is_terrain,
     int tile_x,
     int tile_z,
-    int tile_level);
+    int tile_level,
+    int view_id);
 
 /** Classify raw render-order hits (back-to-front) into out_pickset (reset
  * first); the last terrain hit — the nearest — becomes the hover tile.

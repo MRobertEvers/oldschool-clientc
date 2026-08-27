@@ -9782,6 +9782,41 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_SOUND_CASE(SOUND_SONG_WITHSECONDARY, RS_CS2_SOUND_SONG_WITHSECONDARY);
 
+    /*
+     * `fromdate(runeday)` — "d MMMM yyyy" from a day count.
+     *
+     * Day 0 is 1 January 2002, the epoch the game's own timestamps count from.
+     * Computed, not fetched: the answer must not depend on today's date, and
+     * the reference's own format has no leading zero on the day.
+     *
+     * Unhandled, this aborted the script that asked -- `clan_events_create`
+     * builds its Date and Time rows through `script4421`, so both rows came
+     * out blank and four of the panel's commands were missing.
+     */
+    case CS2VM_HOST_REQUEST_FROMDATE:
+    {
+        static char const* const months[12] = {
+            "January", "February", "March",     "April",   "May",      "June",
+            "July",    "August",   "September", "October", "November", "December"
+        };
+        /* Civil-from-days (Howard Hinnant's), with the era shifted so day 0 is
+         * 2002-01-01: 11688 days from the 1970 epoch. */
+        int64_t z = (int64_t)request->u.FROMDATE.day + 11688 + 719468;
+        int64_t era = (z >= 0 ? z : z - 146096) / 146097;
+        unsigned doe = (unsigned)(z - era * 146097);
+        unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+        int64_t y = (int64_t)yoe + era * 400;
+        unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        unsigned mp = (5 * doy + 2) / 153;
+        unsigned d = doy - (153 * mp + 2) / 5 + 1;
+        unsigned m = mp < 10 ? mp + 3 : mp - 9;
+        char text[64];
+        snprintf(
+            text, sizeof(text), "%u %s %lld", d, months[m - 1],
+            (long long)(y + (m <= 2 ? 1 : 0)));
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, text));
+    }
+
     case CS2VM_HOST_REQUEST_CLIENTCLOCK:
         (void)request->u.CLIENTCLOCK._unused;
         return CS2VM2_PushInt(vm, host->client_clock);

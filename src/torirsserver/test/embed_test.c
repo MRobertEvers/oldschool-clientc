@@ -711,17 +711,29 @@ pump(
 
     ToriRSServer_EmbedPump(embed, run_tick);
 
-    /* The scene's south-west corner, which is what the zone packets' bases are
-     * relative to. Read after the tick, because the tick is what can move it. */
     world = ToriRSServer_EmbedWorld(embed);
-    origin_x = world ? ToriRSServer_SceneOrigin(world->zone_x) : 0;
-    origin_z = world ? ToriRSServer_SceneOrigin(world->zone_z) : 0;
 
     /* server -> clients */
     for( int p = 0; p < peer_count; p++ )
     {
         struct Peer* peer = &peers[p];
         struct RevPacket packet;
+
+        /* The south-west corner of THIS peer's scene, which is what the zone
+         * packets' bases are relative to — each client holds its own window
+         * now, so the origin is per player, read off the peer's pid. Read
+         * after the tick, because the tick is what can move it. Before
+         * UPDATE_PID has named the pid the peer has received no rebuild
+         * either, so the world's root zone stands in harmlessly. */
+        origin_x = world ? ToriRSServer_SceneOrigin(world->zone_x) : 0;
+        origin_z = world ? ToriRSServer_SceneOrigin(world->zone_z) : 0;
+        if( world && peer->my_pid >= 0 && peer->my_pid < TORIRSSERVER_PLAYER_MAX )
+        {
+            const struct ToriRSServerPlayer* self = &world->players[peer->my_pid];
+
+            origin_x = ToriRSServer_SceneOrigin(self->zone_x);
+            origin_z = ToriRSServer_SceneOrigin(self->zone_z);
+        }
 
         while( (got = ToriRSServer_EmbedRead(embed, peer->client_id, inbound,
                                          (int)sizeof(inbound))) > 0 )
@@ -1079,7 +1091,7 @@ main(void)
 
         memset(&state, 0, sizeof(state));
         state.env = world->script_env;
-        world->active_player = alice;
+        ToriRSServer_WorldSetActive(world, alice);
 
         check(SSVM_PushInt(&state, synth_id), "pushed the sound id");
         check(SSVM_PushInt(&state, synth_loops), "pushed loops");
@@ -1152,7 +1164,7 @@ main(void)
 
             memset(&state, 0, sizeof(state));
             state.env = world->script_env;
-            world->active_player = alice;
+            ToriRSServer_WorldSetActive(world, alice);
 
             check(SSVM_PushInt(&state, jingle_id), "pushed the jingle id");
             check(ToriRSServer_ScriptCommand(&state, SS_OP_MIDI_JINGLE, 0),
@@ -1222,7 +1234,7 @@ main(void)
 
         memset(&state, 0, sizeof(state));
         state.env = world->script_env;
-        world->active_player = alice;
+        ToriRSServer_WorldSetActive(world, alice);
 
         check(SSVM_PushInt(&state, ToriRSServer_CoordPack(alice->level, from_x, from_z)),
               "pushed the exactmove start coord");

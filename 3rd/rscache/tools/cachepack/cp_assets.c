@@ -12,6 +12,7 @@ extern const struct CP_AssetCodec cp_codec_worldmap;
 extern const struct CP_AssetCodec cp_codec_worldmapgeo;
 extern const struct CP_AssetCodec cp_codec_dbindex;
 extern const struct CP_AssetCodec cp_codec_font;
+extern const struct CP_AssetCodec cp_codec_defaults;
 
 #include "archive.h"
 #include "checksum.h"
@@ -161,6 +162,31 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
         CP_ASSET_SPLIT, -1, &cp_codec_dbindex },
     [CP_ASSET_ANIMAYA] = {
         "animayas", "22_animayas", "animaya", "animaya", RSCACHE_DAT2_TABLE_ANIMAYAS, 0, -1, NULL },
+    /*
+     * The defaults table — OldSchool idx17, RS2 idx28. See docs/CACHE_INDEX_16_17.md.
+     *
+     * `CP_ASSET_SPLIT` because its two groups are opposite shapes and the table is
+     * too small to justify a third: osrs239 group 3 is a single 83-byte record and
+     * lands as a bare `.dflt`, while group 1 holds ~4,000 opaque files and lands as
+     * a directory plus a filepack. That is the worldmap-geography shape exactly.
+     *
+     * The codec writes both shapes — `.defaults` for the record, `.colours` for a
+     * group-1 member — and declines to the raw payload for anything it cannot
+     * re-encode byte-for-byte. That check is what makes a codec safe here at all:
+     * bigsmart lets an id under 32767 be written two bytes or four, and only the
+     * source bytes say which, so a record that does not round-trip is written raw
+     * rather than quietly rewritten.
+     *
+     * rs727's idx28 is the same table with a different schema, and declining is
+     * the right answer there rather than a gap: its group 3 opens on opcode 3,
+     * and 45 bytes later the next byte is 142, which is not an opcode this record
+     * has. See test_dat2_defaults.c, which pins that decline — a decoder that
+     * limped on instead would write 3,067 bytes of misread RS2 record into an
+     * OldSchool-shaped struct.
+     */
+    [CP_ASSET_DEFAULTS] = {
+        "defaults", "17_defaults", "defaults", "dflt", RSCACHE_DAT2_TABLE_DEFAULTS,
+        CP_ASSET_SPLIT, -1, &cp_codec_defaults },
 };
 /* clang-format on */
 
@@ -1331,6 +1357,44 @@ export_one(
             {
                 written++;
                 bytes += payload_size;
+            }
+
+            /*
+             * The member ids, beside the bytes, when they are not the single
+             * file 0 a minted reference entry defaults to (cp_reference_sync).
+             *
+             * A whole payload carries its chunk table but not its file ids —
+             * those live only in the reference table — and a pack with no
+             * --base has no donor entry to inherit them from. Animsets are the
+             * big case: 10,855 of osrs239's 10,902 list sparse frame ids, up
+             * to 295 per archive. The single-file tables write nothing here,
+             * which is why models do not grow 61,615 sidecars.
+             */
+            int plain_single = archive->file_count == 1 &&
+                               (!archive->file_ids || archive->file_ids[0] == 0);
+            if( archive->file_count > 0 && !plain_single )
+            {
+                struct LC_Pack members;
+                char stem[1600];
+
+                snprintf(stem, sizeof(stem), "%s/%s", root, name);
+                memset(&members, 0, sizeof(members));
+                snprintf(members.type, sizeof(members.type), "record");
+                int member_ok = 1;
+                for( int f = 0; f < archive->file_count && member_ok; f++ )
+                {
+                    int file_id = archive->file_ids ? archive->file_ids[f] : f;
+                    char filler[32];
+                    snprintf(filler, sizeof(filler), "record_%d", file_id);
+                    member_ok = lc_pack_set(&members, file_id, filler);
+                }
+                if( !member_ok || !cp_member_pack_save(&members, stem, "memberpack") )
+                {
+                    lc_pack_free(&members);
+                    RSCache_Dat2DiskArchiveFree(archive);
+                    return -1;
+                }
+                lc_pack_free(&members);
             }
         }
 

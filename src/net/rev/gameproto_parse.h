@@ -27,4 +27,22 @@ gameproto_parse(
 void
 gameproto_free(struct RevPacket* packet);
 
+/**
+ * Decode a REBUILD_WORLDENTITY raw grid against the target view's zone counts
+ * (view size in tiles / 8 per axis — spawn-time state the wire omits, which
+ * is why this cannot run in the parse arm). Fills out_zones with
+ * PKT_MAP_REBUILD_ZONES ints at the same [level*13*13 + zx*13 + zz] stride
+ * REBUILD_REGION uses; destination zones past the view's counts stay 0 =
+ * void. Returns 1 on a clean, fully-consumed bitstream; 0 when it is short
+ * or has trailing bytes — with the dimensions known, that means client and
+ * server disagree about the view's size, a protocol violation the caller
+ * stops on.
+ */
+int
+PktRebuildWev_DecodeZones(
+    struct PktRebuildWev const* p,
+    int zones_x,
+    int zones_z,
+    int32_t* out_zones);
+
 #endif

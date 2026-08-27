@@ -859,6 +859,42 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # reaches the engine instead of living only in a content var.
     "NPC_SETMAXHP": (11087, 1, 0, 0, 0),
 
+    # vessel_spawn(config, size_x, size_z, coord, angle)(int)
+    #
+    # The sailing hulls (docs/SAILING_PLAN.md S1). LostCity predates sailing by
+    # two decades, so like the map-instance band above these are engine-only
+    # commands: the engine gets the mechanism (a hull that turns, moves and
+    # collides against water), content keeps the decisions (which boat, where,
+    # how fast). `size_x`/`size_z` are the hull footprint in tiles — a config-72
+    # reader is S3's; until then content states the footprint it authored.
+    # `coord` is the tile the hull centers on; `angle` is yaw in 2048-space.
+    # Returns the vessel handle, or 0 when the deck-instance pool is exhausted —
+    # the same "check your handle" contract as map_instance_alloc.
+    "VESSEL_SPAWN": (11088, 5, 0, 1, 0),
+
+    # vessel_settarget(handle, coord)
+    # Sail toward the center of a tile, re-deriving the 16-point heading every
+    # tick; the hull parks on arrival or on a blocked step.
+    "VESSEL_SETTARGET": (11089, 2, 0, 0, 0),
+
+    # vessel_setheading(handle, heading)
+    # Sail on a 16-point compass heading (0..15, heading*128 in angle space)
+    # until told otherwise.
+    "VESSEL_SETHEADING": (11090, 2, 0, 0, 0),
+
+    # vessel_setspeed(handle, tier)
+    # Speed tier 1..4 -> 64/128/192/256 fine units per tick (0.5..2 tiles).
+    "VESSEL_SETSPEED": (11091, 2, 0, 0, 0),
+
+    # vessel_pos(handle)(coord)
+    # The tile the hull currently centers on, as a packed coord; coord 0 for a
+    # dead handle — the same "nowhere" map_instance_coord answers with.
+    "VESSEL_POS": (11092, 1, 0, 1, 0),
+
+    # vessel_free(handle)
+    # Release the hull and its deck instance.
+    "VESSEL_FREE": (11093, 1, 0, 0, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses

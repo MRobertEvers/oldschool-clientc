@@ -395,7 +395,7 @@ test_local_player_pick_expands_stacked_npcs(void)
 
     struct World_PickSet picks;
     World_PickSetReset(&picks);
-    World_PickSetAdd(&picks, 100, WORLD_PICK_PLAYER, 25, 25, 0);
+    World_PickSetAdd(&picks, 100, WORLD_PICK_PLAYER, 25, 25, 0, 0);
 
     char player_ops[5][40];
     int player_ops_primary[5] = { 0 };
@@ -450,7 +450,7 @@ test_other_player_stack_rows(void)
     struct World_PickSet picks;
     World_PickSetReset(&picks);
     /* Local wins draw — pick is local; expansion still lists Bob. */
-    World_PickSetAdd(&picks, 200, WORLD_PICK_PLAYER, 30, 30, 0);
+    World_PickSetAdd(&picks, 200, WORLD_PICK_PLAYER, 30, 30, 0, 0);
 
     char player_ops[5][40];
     int player_ops_primary[5] = { 1, 0, 0, 0, 0 };
@@ -516,7 +516,7 @@ test_local_player_pick_expands_ground_items(void)
 
     struct World_PickSet picks;
     World_PickSetReset(&picks);
-    World_PickSetAdd(&picks, 400, WORLD_PICK_PLAYER, 22, 22, 0);
+    World_PickSetAdd(&picks, 400, WORLD_PICK_PLAYER, 22, 22, 0, 0);
 
     struct RS_MinimenuBuildCtx ctx = {
         .selection = { .mode = RS_MINIMENU_SELECT_NONE },
@@ -551,7 +551,7 @@ test_obj_pick_expands_siblings(void)
 
     struct World_PickSet picks;
     World_PickSetReset(&picks);
-    World_PickSetAdd(&picks, 501, WORLD_PICK_OBJSTACK, 15, 15, 0);
+    World_PickSetAdd(&picks, 501, WORLD_PICK_OBJSTACK, 15, 15, 0, 0);
 
     struct RS_MinimenuBuildCtx ctx = {
         .selection = { .mode = RS_MINIMENU_SELECT_NONE },
@@ -591,7 +591,7 @@ test_obj_stack_beyond_old_cap(void)
 
     struct World_PickSet picks;
     World_PickSetReset(&picks);
-    World_PickSetAdd(&picks, 600, WORLD_PICK_OBJSTACK, 15, 15, 0);
+    World_PickSetAdd(&picks, 600, WORLD_PICK_OBJSTACK, 15, 15, 0, 0);
 
     struct RS_MinimenuBuildCtx ctx = {
         .selection = { .mode = RS_MINIMENU_SELECT_NONE },
@@ -626,7 +626,7 @@ test_local_alone_no_player_ops(void)
 
     struct World_PickSet picks;
     World_PickSetReset(&picks);
-    World_PickSetAdd(&picks, 300, WORLD_PICK_PLAYER, 40, 40, 0);
+    World_PickSetAdd(&picks, 300, WORLD_PICK_PLAYER, 40, 40, 0, 0);
 
     char player_ops[5][40];
     int player_ops_primary[5] = { 0 };
@@ -718,7 +718,7 @@ test_walk_here_ground_fallback(void)
 
     /* A pickset that DOES hold terrain is untouched by the fallback: the
      * clicked tile wins, never the nearest one. */
-    World_PickSetAdd(&picks, 1, WORLD_PICK_TERRAIN, 51, 52, 0);
+    World_PickSetAdd(&picks, 1, WORLD_PICK_TERRAIN, 51, 52, 0, 0);
     UIMinimenu_Reset(&menu);
     RS_Minimenu_AddWorldRows(&ctx, &menu);
     walk = menu_walk_row(&menu);
@@ -784,7 +784,7 @@ attack_fixture_init(struct AttackFixture* fx, int local_level, int other_level, 
     }
 
     World_PickSetReset(&fx->picks);
-    World_PickSetAdd(&fx->picks, 201, npc ? WORLD_PICK_NPC : WORLD_PICK_PLAYER, 30, 30, 0);
+    World_PickSetAdd(&fx->picks, 201, npc ? WORLD_PICK_NPC : WORLD_PICK_PLAYER, 30, 30, 0, 0);
 }
 
 static void

@@ -357,6 +357,10 @@ td_scene_allocate_element_id(
     int id;
 
     assert(scene);
+    /* The pool tag is one byte on the element; a view pool past the end would
+     * wrap onto another view's elements and free them on that view's clear. */
+    assert(pool >= 0);
+    assert(pool < 256);
 
     if( scene->elements.free_head != TORIDRAW_INTRUSIVE_NIL )
     {
@@ -1247,6 +1251,12 @@ ToriDraw_SceneClearPool(
     bool clear_retained_batch;
 
     assert(scene);
+    assert(pool >= 0);
+    assert(pool < 256);
+    /* Only view 0's static geometry goes into the retained batch arena, so
+     * only its clear may drop the arena wholesale; every other pool (a boat
+     * deck's static half, any view's entities) is unloaded element by element
+     * so the arena — and with it the mainland — is left alone. */
     clear_retained_batch = pool == TORIDRAW_SCENE_POOL_STATIC;
 
     for( i = scene->elements.head; i != TORIDRAW_INTRUSIVE_NIL; i = next )
@@ -1325,6 +1335,37 @@ ToriDraw_SceneElementAddPool(
 {
     assert(scene);
     return td_scene_allocate_element_id(scene, pool);
+}
+
+void
+ToriDraw_SceneElementSetPool(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int pool)
+{
+    struct ToriDraw_SceneElement* element;
+
+    assert(scene);
+    /* Same bound as the allocator: the tag is one byte, and a pool past the end
+     * would wrap onto another view's elements and be freed on that view's
+     * clear. */
+    assert(pool >= 0);
+    assert(pool < 256);
+    assert(td_scene_element_valid(scene, element_id));
+
+    element = td_scene_element_ptr(scene, element_id);
+    element->pool = (uint8_t)pool;
+}
+
+int
+ToriDraw_SceneElementPool(
+    struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    assert(scene);
+    if( !td_scene_element_valid(scene, element_id) )
+        return -1;
+    return (int)td_scene_element_ptr(scene, element_id)->pool;
 }
 
 int

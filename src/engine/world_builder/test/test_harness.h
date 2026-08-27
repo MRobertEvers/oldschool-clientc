@@ -21,6 +21,7 @@ void test_painters_tile_order(void);
 void test_minimap_push_down(void);
 void test_minimap_push_down_colourless_deck(void);
 void test_builder_lifecycle(void);
+void test_rebuild_keeps_tagged_entity_elements(void);
 void test_prerotate_placement(void);
 
 /* Cache-backed render integration test (skips if cache dir missing). */

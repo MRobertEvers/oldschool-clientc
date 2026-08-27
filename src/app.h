@@ -49,7 +49,9 @@
 #include "game/rs_hitsplat.h"
 #include "game/rs_soundscape.h"
 #include "varp/varp_manager.h"
+#include "world/wev.h"
 #include "world/world_pickset.h"
+#include "world/worldview.h"
 
 struct ToriRS_Frame;
 struct ToriRS_PickHits;
@@ -749,6 +751,59 @@ struct App
      * World references assets and scene elements by integer id only). */
     struct World* world;
     struct WorldBuilder* world_builder;
+    /**
+     * Multi-world view registry (OSRS world entities / sailing — worldview.h).
+     * Slot 0 is the root view and BORROWS `world`/`world_builder` above, so
+     * the hundreds of existing app->world call sites stay valid; views spawned
+     * by WORLDENTITY_INFO (later phase) own their pairs and free them on
+     * despawn.
+     */
+    struct WorldviewRegistry worldviews;
+    /**
+     * Live world entities (sailing boats) + each view's server-ordered entity
+     * list, fed by WORLDENTITY_INFO and advanced by Wevs_Frame every frame
+     * (wev.h). An entity's id doubles as its view id in `worldviews`.
+     */
+    struct Wevs wevs;
+    /** WorldEntityConfig table (config archive 72), loaded once at boot by
+     * CreateTask_Dat2WevConfigLoad. Empty on a pre-sailing cache. */
+    struct WevConfigTable wev_configs;
+    /**
+     * Packet-apply cursor: the view id the current tick's zone/entity packets
+     * address. SET_ACTIVE_WORLD flips it; SERVER_TICK_END resets it to
+     * WORLDVIEW_ROOT. Zone applicators resolve their (world, builder) through
+     * App_ActiveWorldview, never through `world` above directly; async spawn
+     * tasks and the pending-zone queue capture the cursor at enqueue time,
+     * because they outlive it (SERVER_TICK_END resets it before they run).
+     */
+    int active_world;
+    /**
+     * The view the LOCAL player is standing in, recomputed every tick from
+     * geometry (SAILING_PLAN C5.1 — "local player aboard iff inside a non-zero
+     * view"). WORLDVIEW_ROOT when ashore, which is also its value in every
+     * build with no world entities.
+     *
+     * Distinct from `active_world`, which is a packet-decode cursor the server
+     * drives; this one is a fact about where the avatar is. Nothing steers off
+     * it yet: the camera deliberately keeps following the local player's ROOT
+     * position, which the server keeps projected onto the hull, so an aboard
+     * player's eye tracks the moving boat without an aboard camera existing.
+     * The deob's scene-mode flip and deck-height focus are what will read it.
+     */
+    int aboard_view;
+
+    /** `TORIRS_WEV_DEBUG=1` latch: the last `aboard_view` a trace line named,
+     *  so the per-tick routing pass prints only when the answer changes.
+     *  Seeded to WORLDVIEW_ROOT by App_Init, which is also the value the first
+     *  routing pass computes, so a client that boards nothing never prints. */
+    int dbg_aboard_view;
+    /**
+     * Plane the last SET_ACTIVE_WORLD said the addressed view draws (the deob
+     * snapshots the active WorldView's plane beside the cursor). Nothing
+     * consumes it at C0 — C1's view-local zone decode does. Reset to 0 with
+     * the cursor at the tick fence.
+     */
+    int active_world_level;
     struct PaintersBuffer* painter_buffer;
     /** Selected only after the platform renderer has initialized successfully. */
     enum ToriRS_WorldRenderMode world_render_mode;
@@ -2129,6 +2184,10 @@ struct App
         int base_x; /* app->zone_base_* as of arrival */
         int base_z;
         int level; /* zone header plane as of arrival */
+        /* Packet-apply cursor as of arrival: a queued packet can be replayed
+         * ticks later, after SERVER_TICK_END has reset the live cursor, so
+         * resolving it at replay time would land a boat's zones in the root. */
+        int view;
     } pending_zone[256];
     int pending_zone_count;
     /** Last REBUILD_NORMAL centre zone (deob field1192/field474 /
@@ -2849,6 +2908,71 @@ App_WorldRebuildShift(
     int base_dz);
 
 /**
+ * The view the active-world packet cursor addresses (worldview.h). This is the
+ * one seam between the packet-apply layer and the multi-world registry: zone
+ * applicators and the rebuild path take their (world, builder) from here, so a
+ * SET_ACTIVE_WORLD naming a boat view routes them without touching the call
+ * sites again. Asserts the cursor names a live view — id 0 always is once the
+ * root registers at world creation.
+ */
+struct Worldview*
+App_ActiveWorldview(struct App* app);
+
+/**
+ * Spawn one world entity from the WORLDENTITY_INFO new-entity trailer
+ * (SAILING_PLAN C1): builds the entity's own (World, WorldBuilder) pair over
+ * the App's shared scene, registers it as view `id` under the active-world
+ * cursor's view, and creates the Wev at the trailer's absolute transform
+ * (fine units / 0..2047). `config_id` must name a loaded WevConfig — a spawn
+ * for a config the cache does not carry is a protocol violation and asserts.
+ * Requires a fully-booted App (scene + provider live); a harness App without
+ * them asserts rather than half-spawning.
+ */
+struct Wev*
+App_WevSpawn(
+    struct App* app,
+    int id,
+    int config_id,
+    int size_x_tiles,
+    int size_z_tiles,
+    int priority_group,
+    int x,
+    int z,
+    int angle,
+    unsigned op_mask);
+
+/**
+ * Despawn world entity `id`: removes the Wev from its parent's list and
+ * releases its Worldview (freeing the owned world/builder pair). Any nested
+ * entities must have been despawned first — the server sends leaves first.
+ */
+void
+App_WevDespawn(
+    struct App* app,
+    int id);
+
+/**
+ * The live view whose STAGING rectangle contains the absolute tile, or 0.
+ *
+ * This is the deob's geometric membership rule from the wire's side
+ * (docs/SAILING.md §5.1): a rider aboard a hull carries deck-instance
+ * coordinates — tiles inside the view's base rectangle, hundreds of squares
+ * off the real map — and the entity-info executor calls this to rebase them
+ * view-locally instead of producing a root-scene-local tile no uint8_t route
+ * queue can carry. On a match, `out_local_x`/`out_local_z` are the tile
+ * relative to the view's base. Views whose base is still unknown (no
+ * REBUILD_WORLDENTITY yet) never match; the per-tick routing pass re-tests, so
+ * an absolute op that raced the deck rebuild heals a tick later.
+ */
+int
+App_WevHomeViewForAbsTile(
+    struct App* app,
+    int abs_tile_x,
+    int abs_tile_z,
+    int* out_local_x,
+    int* out_local_z);
+
+/**
  * REBUILD_NORMAL (Client-TS / deob method3310): early-out when the centre
  * zone is unchanged and a world is active; otherwise queue a classic 104x104
  * zone-centred load. The packet task awaits the load, then shifts entities
@@ -2871,9 +2995,16 @@ App_WorldRebuildBegin(
 
 /** Drain WorldEventKind_EntityRemoved into ToriDraw_SceneElementRemove.
  *  Required before a scene rebuild begins (ResetSceneAlloc asserts the queue
- *  is empty) and after bulk despawns. */
+ *  is empty) and after bulk despawns. The root wrapper no-ops before the
+ *  first world exists; the For variant takes any view's World — a boat view
+ *  drains its own queue through it before its deck rebuild (C2 drain rule). */
 void
 App_WorldDrainEntityRemoved(struct App* app);
+
+void
+App_WorldDrainEntityRemovedFor(
+    struct App* app,
+    struct World* world);
 
 /** Post-load wiring (height fn, texture sync, minimap bake, and the
  * server ack for a REBUILD_NORMAL-driven load). Runs at the tail of the world
@@ -3160,6 +3291,22 @@ void
 App_NoteFrameTime(
     struct App* app,
     uint64_t frame_us);
+
+/**
+ * The most recent frame time reported to App_NoteFrameTime, in microseconds.
+ *
+ * The newest sample, not the overlay's mean: a caller that wants a window
+ * keeps its own, and one that wants the last frame cannot recover it from a
+ * mean. 0 before the host has reported anything.
+ *
+ * This is the frame's WORK, with the pacing sleep excluded -- see
+ * App_NoteFrameTime. It is the only frame duration in the client that is not
+ * just the frame cap read back, which is what makes it the one worth asking
+ * for: divided into a second it says what the client could sustain uncapped,
+ * where a wall-clock period says only what it was allowed to deliver.
+ */
+uint64_t
+App_LastFrameUs(struct App const* app);
 
 /**
  * Send a `::` command as if it had been typed into the chatbox.

@@ -72,6 +72,13 @@ EMBED_SERVER ?= 0
 REPO_ROOT    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 SRC_DIR      := $(REPO_ROOT)/src
 
+# Every text file in this tree is UTF-8, and the python3 check/generate scripts
+# read them with the interpreter's default encoding. On Windows that default is
+# the ANSI codepage (cp1252), which dies on the first curly quote in a docs
+# file. Force UTF-8 mode for every python this make spawns; on POSIX hosts the
+# default is UTF-8 already and this is a no-op.
+export PYTHONUTF8 := 1
+
 # Every recipe here is POSIX sh (rm -rf, mkdir -p, cp, `for` loops). On Windows
 # GNU make looks for sh.exe on PATH and falls back to cmd.exe when it cannot
 # find one; SHELL is then left as the unresolved literal `sh.exe`, and the first
@@ -579,6 +586,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/dat2/task_dat2_flotype_load.c engine/dat2/task_dat2_underlay_load.c \
 	engine/dat2/task_dat2_texture_load.c \
 	engine/dat2/task_dat2_sprite_load.c engine/dat2/task_dat2_font_load.c \
+	engine/dat2/task_dat2_defaults_sprite_load.c \
 	engine/dat2/task_dat2_enum_load.c engine/dat2/task_dat2_struct_load.c \
 	engine/dat2/task_dat2_param_load.c engine/dat2/task_dat2_invtype_load.c \
 	engine/dat2/task_dat2_varbit_load.c engine/dat2/task_dat2_varp_load.c \
@@ -652,6 +660,8 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	revconfig/revconfig_profile.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
+	world/worldview.c \
+	world/wev.c world/wev_deck.c engine/dat2/task_dat2_wevconfig_load.c \
 	engine/world_builder/task_world_load.c \
 	editor/editor.c editor/editor_doc.c editor/editor_jm2.c \
 	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \
@@ -731,7 +741,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_ids.c \
 	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
 	torirsserver/torirs_server_embed.c content/content_register.c content/content_fields.c $(INI_SRC) \
-	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c \
+	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
 	torirsserver/torirs_server_zone.c torirsserver/torirs_server_zone_index.c torirsserver/torirs_server_worldmap.c torirsserver/torirs_server_varbit.c \
 	engine/world_builder/collision_map.c features/features.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c $(SS_SRCS)
@@ -963,6 +973,7 @@ endif
 .PHONY: bench-trspk-bake test-trspk-color-simd test-trspk-swizzle-simd test-trspk-modelarena-index
 .PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
 .PHONY: torirsserver-scripts-lanes torirsserver-lanes
+.PHONY: test-wev test-wev-rebuild test-painters-world-entity
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -2279,8 +2290,12 @@ test-cs1: $(OBJ_DIR)
 		cs1vm/test/cs1_integration_test.c -lm
 	./$(OBJ_DIR)/cs1_integration_test
 
+# -UNDEBUG because assert() is how this suite checks: OPT=1 puts -DNDEBUG in
+# CFLAGS (see the note above OPT_RELEASE_CFLAGS), which compiled every
+# assertion in the file out and left it passing on values it was asserting
+# against. TEST_CHECK survived, the payload comparisons did not.
 test-cmdbus: $(OBJ_DIR) cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cmdbus_test cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/cmdbus_test cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
 	./$(OBJ_DIR)/cmdbus_test
 
 # Login handshake + packet framing, deterministic (fixed seed + tommath RSA).
@@ -2457,6 +2472,27 @@ test-painters-ground-decor: $(OBJ_DIR)
 		perf/torirs_perf.c \
 		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/painters_test_ground_decor_dynamic
+
+# Painter descent into nested world views (sailing, SAILING_PLAN C3): a boat's
+# painter run to completion between BEGIN_WORLD/END_WORLD, in the PARENT
+# painter's draw order (a loc behind the boat before the pair, a loc in front
+# after it), plus the two refusals that must still balance the marker stream
+# (unbound view, A -> B -> A cycle), nesting to the 16-view registry bound on
+# the explicit stack, and zero-boat parity. Bare painter, no cache, no world.
+#
+# C5 extends the same family to actors: an actor routed onto a deck emits
+# between that boat's markers and one left ashore does not, plus the deck <->
+# parent transform and the half-open footprint that decide which of the two an
+# actor is (world/wev_deck.c -- pure arithmetic, still no cache and no world).
+test-painters-world-entity: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
+		-o $(OBJ_DIR)/painters_test_world_entity \
+		painters/test/painters_test_world_entity.c \
+		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
+		world/wev_deck.c \
+		perf/torirs_perf.c \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
+	./$(OBJ_DIR)/painters_test_world_entity
 
 # The model tests link no platform, so they are a build with no NATIVE chrome
 # executor -- a real and supported configuration, and the one every lane falls
@@ -2923,6 +2959,30 @@ test-net-exec: $(OBJ_DIR) $(OBJS)
 		game/test/rs_gameproto_exec_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/net_exec_test
+
+# World entities (sailing, SAILING_PLAN C1): the WORLDENTITY_INFO delta
+# reader, the class458 interpolator (incl. the 2047->1 wraparound arc), the
+# footprint corner bake, and the archive-72 WevConfig decode against the real
+# cache at ../cache.osrs239 (loud SKIP when absent).
+test-wev: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/wev_test \
+		world/test/wev_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/wev_test
+
+# World entities (sailing, SAILING_PLAN C2): REBUILD_WORLDENTITY_V4 (op 109)
+# — the raw-carry parse arm, the view-sized bit-grid decode (13x13 stride,
+# whole-stream rejection), and a 1-zone raft deck rebuilt through
+# CreateTask_WorldLoad into a boat world sharing the root's ToriDraw scene,
+# height-checked against a real root Lumbridge rebuild. Also the per-view
+# element pools that make one shared scene safe: each view rebuilt with the
+# other already built, plus the despawn sweep. Cache-backed against
+# ../cache.osrs239 (loud SKIP when absent; the parse/decode/pool checks run).
+test-wev-rebuild: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/wev_rebuild_test \
+		world/test/wev_rebuild_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/wev_rebuild_test
 
 # The CLIENT half of friends / ignore / private chat: the store, the CS2 host
 # ops, the friend-transmit registration, and the generated stack shapes. The

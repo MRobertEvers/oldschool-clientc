@@ -1226,6 +1226,11 @@
       this.panels = {};
       this.widgets = {};
       this.tabPanel = -1;
+      /* The floor belonged to the panel that has gone. Left standing it would
+       * be the width of the LAST window every time a narrower one opens. The
+       * measured advance is not reset with it: the face is the same one in all
+       * three documents this window is built in. */
+      this.wantWidth = 0;
     }
 
     push(intent) {
@@ -1615,7 +1620,12 @@
        * back left by however much it overhangs, so the cap is reached by
        * sliding rather than by cropping.
        */
-      width = Math.max(here.width, w.optWidest + 2 * m.dropListPad * K + 2 * K);
+      width = w.optWidest + 2 * m.dropListPad * K + 2 * K;
+      /* A list longer than it shows grows a bar of its own, and a bar takes its
+       * width out of the rows -- which would clip the very option the width was
+       * measured from. */
+      if (w.options.length > m.dropListRows) width += m.scrollW * K;
+      width = Math.max(here.width, width);
       if (width > root.width && root.width > 0) width = root.width;
       left = here.left - root.left;
       if (left + width > root.width && root.width > 0) left = root.width - width;

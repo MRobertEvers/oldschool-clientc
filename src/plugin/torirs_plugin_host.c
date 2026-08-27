@@ -586,6 +586,13 @@ api_frame_ms(struct ToriRS_PluginCtx* ctx)
     return ctx->host->engine.frame_ms(ctx->host->engine.user);
 }
 
+static uint64_t
+api_frame_work_us(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    return ctx->host->engine.frame_work_us(ctx->host->engine.user);
+}
+
 static int
 api_local_player(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginPlayerSnap* out)
 {
@@ -3401,6 +3408,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine);
     assert(engine->world_cycle);
     assert(engine->frame_ms);
+    assert(engine->frame_work_us);
     assert(engine->layout_set);
     assert(engine->layout_begin);
     assert(engine->layout_end);
@@ -3514,6 +3522,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .notify = api_notify,
         .world_cycle = api_world_cycle,
         .frame_ms = api_frame_ms,
+        .frame_work_us = api_frame_work_us,
         .local_player = api_local_player,
         .npc_next = api_npc_next,
         .npc_by_slot = api_npc_by_slot,

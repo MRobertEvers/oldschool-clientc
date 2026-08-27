@@ -18,6 +18,10 @@ struct World_Picked
     int tile_x;
     int tile_z;
     int tile_level;
+    /** World-entity view the pick came out of; 0 = root. A non-zero terrain
+     *  pick's tiles are that view's OWN (deck-local) coordinates and resolve
+     *  against the view's staging base (worldview.h base_x/base_z). */
+    int view_id;
 };
 
 #define WORLD_PICKSET_MAX 256
@@ -38,6 +42,7 @@ World_PickSetAdd(
     enum World_PickType type,
     int tile_x,
     int tile_z,
-    int tile_level);
+    int tile_level,
+    int view_id);
 
 #endif

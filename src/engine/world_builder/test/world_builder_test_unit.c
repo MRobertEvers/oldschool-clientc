@@ -6,12 +6,14 @@
 #include "engine/world_builder/world_builder.h"
 #include "painters/painters.h"
 #include "varp/varp_manager.h"
+#include "world/entity_pool.h"
 #include "world/world.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <toridraw.h>
+#include <toridraw_element_id.h>
 #include <toridraw_scene.h>
 
 void
@@ -229,6 +231,95 @@ test_builder_lifecycle(void)
     World_Free(world);
     /* ToriDraw_SceneFree pulls in ToriDraw_FontFree, which is not part of the current
      * toridraw build; the scene is reclaimed at process exit. */
+    VarPManager_Free(&varp);
+    dat2_buildcache_free(bc);
+}
+
+/*
+ * A map rebuild must not disown the movers' scene elements.
+ *
+ * The rebuild clears the STATIC pool and then re-claims every entity's element
+ * (world_builder_reconcile_dynamic_elements), so a DYNAMIC element survives
+ * only if its owner is found holding it. Element ids carry their kind in the
+ * top four bits, and the claim tested the RAW id against the scene's element
+ * count -- which every tagged id exceeds. So the reconcile declared every
+ * player and npc to be pointing at a dead element, cleared their element_id
+ * and then swept the elements themselves: the movers vanished on the first
+ * REBUILD_NORMAL and never came back.
+ *
+ * The whole point is that the id here is TAGGED, so build it exactly the way
+ * app_world_scene_element_create does rather than using a bare index.
+ */
+void
+test_rebuild_keeps_tagged_entity_elements(void)
+{
+    ToriDraw_Init();
+
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    TEST_ASSERT(scene != NULL, "ToriDraw_SceneNew");
+
+    struct World* world = World_New();
+    TEST_ASSERT(world != NULL, "World_New");
+
+    struct VarPManager varp;
+    VarPManager_Init(&varp);
+
+    struct Dat2BuildCache* bc = dat2_buildcache_new();
+    struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
+    TEST_ASSERT(provider != NULL, "dat2_buildcache_as_provider");
+
+    struct WorldBuilder* builder = WorldBuilder_New(world, provider, scene, &varp);
+    TEST_ASSERT(builder != NULL, "WorldBuilder_New");
+
+    int const player_element = ElementId_Raw(ElementId_Make(
+        TORIDRAW_ELEMENT_KIND_PLAYER,
+        ToriDraw_SceneElementAddPool(scene, TORIDRAW_SCENE_POOL_DYNAMIC)));
+    int const npc_element = ElementId_Raw(ElementId_Make(
+        TORIDRAW_ELEMENT_KIND_NPC,
+        ToriDraw_SceneElementAddPool(scene, TORIDRAW_SCENE_POOL_DYNAMIC)));
+
+    /* If these ever stop being tagged the test still passes but proves
+     * nothing, so say what it is relying on. */
+    TEST_ASSERT(
+        player_element >= TORIDRAW_SCENE_MAX_ELEMENTS,
+        "the player element id carries its kind above the scene index");
+    TEST_ASSERT(
+        npc_element >= TORIDRAW_SCENE_MAX_ELEMENTS,
+        "the npc element id carries its kind above the scene index");
+
+    int const player_slot = World_EntityPoolAlloc(&world->entities.player);
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, player_slot);
+    TEST_ASSERT(player != NULL, "player slot");
+    if( player )
+        player->element_id = player_element;
+
+    int const npc_slot = World_EntityPoolAlloc(&world->entities.npc);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, npc_slot);
+    TEST_ASSERT(npc != NULL, "npc slot");
+    if( npc )
+        npc->element_id = npc_element;
+
+    WorldBuilder_RebuildCenterzoneBegin(builder, 50, 50, 104);
+
+    TEST_ASSERT(
+        player && player->element_id == player_element,
+        "the rebuild left the player holding its element");
+    TEST_ASSERT(
+        npc && npc->element_id == npc_element,
+        "the rebuild left the npc holding its element");
+    TEST_ASSERT(
+        ToriDraw_SceneElementIsLive(scene, player_element),
+        "the player's element survived the rebuild's sweep");
+    TEST_ASSERT(
+        ToriDraw_SceneElementIsLive(scene, npc_element),
+        "the npc's element survived the rebuild's sweep");
+
+    WorldBuilder_RebuildCenterzoneEnd(builder);
+
+    WorldBuilder_Free(builder);
+    World_Free(world);
+    /* Same as test_builder_lifecycle: ToriDraw_SceneFree is not linked here,
+     * so the scene is reclaimed at process exit. */
     VarPManager_Free(&varp);
     dat2_buildcache_free(bc);
 }

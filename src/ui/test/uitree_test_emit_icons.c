@@ -58,10 +58,13 @@ test_emit_icons(void)
     tree->components[grid].u.rs_inv.rows = 7;
     tree->components[grid].u.rs_inv.margin_x = 0;
     tree->components[grid].u.rs_inv.margin_y = 0;
-    tree->components[grid].u.rs_inv.inv_slot_offset_x[1] = 5;
-    tree->components[grid].u.rs_inv.inv_slot_offset_y[1] = 3;
-    for( int i = 0; i < UI_INV_SLOT_OFFSET_MAX; i++ )
-        tree->components[grid].u.rs_inv.inv_slot_bg_scene_id[i] = -1;
+    {
+        struct UITreeInvSlots* slots = UITree_InvSlotsMut(&tree->components[grid]);
+        slots->offset_x[1] = 5;
+        slots->offset_y[1] = 3;
+        for( int i = 0; i < UI_INV_SLOT_OFFSET_MAX; i++ )
+            slots->bg_scene_id[i] = -1;
+    }
 
     hs.inv_source_id = 1;
     hs.inv_slots[1].obj_id = 995;

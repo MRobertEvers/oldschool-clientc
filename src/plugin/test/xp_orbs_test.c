@@ -180,6 +180,12 @@ fake_frame_ms(void* u)
     (void)u;
     return g_now_ms;
 }
+static uint64_t
+fake_frame_work_us(void* u)
+{
+    (void)u;
+    return 4000;
+}
 static int
 fake_local_player(void* u, struct ToriRS_PluginPlayerSnap* out)
 {
@@ -1243,6 +1249,7 @@ main(void)
     memset(&e, 0, sizeof(e));
     e.world_cycle = fake_world_cycle;
     e.frame_ms = fake_frame_ms;
+    e.frame_work_us = fake_frame_work_us;
     e.local_player = fake_local_player;
     e.npc_next = fake_npc_next;
     e.npc_by_slot = fake_npc_by_slot;

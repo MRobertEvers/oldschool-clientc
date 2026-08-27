@@ -72,9 +72,13 @@ struct Task_WorldLoad
     struct WorldBuilder* builder;
     int chunks_xz[WORLD_LOAD_MAX_CHUNKS * 2];
     int chunk_count;
-    /* >= 0: RebuildCenterzone(zone, 104). < 0: RebuildChunklist. */
+    /* >= 0: RebuildCenterzone(zone, scene_size). < 0: RebuildChunklist. */
     int zone_center_x;
     int zone_center_z;
+    /* Scene side in tiles for the centerzone/instance rebuilds (104 = the
+     * classic root scene; a boat view's own 8..104). The chunklist path
+     * derives its own size and ignores this. */
+    int scene_size;
     /* Non-zero `have_zones`: RebuildInstance from `zones` instead. Copied rather
      * than borrowed because the packet that carried them frees on task teardown,
      * and this task outlives the parse. */
@@ -396,10 +400,11 @@ Task_WorldLoad_Run(
      * (Client-TS / deob method3310); offline loads keep the chunk-list path. */
     if( self->have_zones )
         WorldBuilder_RebuildInstance(
-            self->builder, self->zone_center_x, self->zone_center_z, 104, self->zones);
+            self->builder, self->zone_center_x, self->zone_center_z, self->scene_size,
+            self->zones);
     else if( self->zone_center_x >= 0 )
         WorldBuilder_RebuildCenterzone(
-            self->builder, self->zone_center_x, self->zone_center_z, 104);
+            self->builder, self->zone_center_x, self->zone_center_z, self->scene_size);
     else
         WorldBuilder_RebuildChunklist(self->builder, self->chunks_xz, self->chunk_count);
     World_SetLoadComplete(self->builder->world, true);
@@ -439,6 +444,7 @@ CreateTask_WorldLoad(
     int chunk_count,
     int zone_center_x,
     int zone_center_z,
+    int scene_size,
     const int32_t* zones,
     void (*on_done)(void*),
     void* on_done_ud)
@@ -453,6 +459,10 @@ CreateTask_WorldLoad(
      * names at least one square. */
     assert(chunk_count >= 0 && chunk_count <= WORLD_LOAD_MAX_CHUNKS);
     assert((chunk_count > 0 || zones) && "a non-instanced load with no squares");
+    /* Whole zones only: World_ResetScene's base math and the instance grid
+     * both count in zones of 8 tiles. */
+    assert(scene_size > 0);
+    assert(scene_size % 8 == 0);
 
     task = calloc(1, sizeof(*task));
     assert(task);
@@ -462,6 +472,7 @@ CreateTask_WorldLoad(
     task->builder = builder;
     task->zone_center_x = zone_center_x;
     task->zone_center_z = zone_center_z;
+    task->scene_size = scene_size;
     if( zones )
     {
         task->have_zones = 1;

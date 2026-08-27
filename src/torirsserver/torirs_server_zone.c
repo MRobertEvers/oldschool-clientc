@@ -25,6 +25,10 @@
 
 #include "torirs_server.h"
 
+/* For the deck rectangle a cross-frame candidate scan walks — the pool base
+ * behind a vessel's instance handle. */
+#include "torirs_server_mapinstance.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1118,11 +1122,12 @@ ToriRSServer_PlayerzonemapFind(
     return NULL;
 }
 
-/** Is `index` in the 7x7 window centred on (centre_x, centre_z), clipped to the
- *  build area? The one place the window's shape is written down. */
+/** Is `index` in the 7x7 window centred on (centre_x, centre_z), clipped to
+ *  this player's own build area? The one place the window's shape is written
+ *  down. */
 static int
 window_holds(
-    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
     int centre_x,
     int centre_z,
     int index)
@@ -1136,14 +1141,15 @@ window_holds(
     if( zone_z < centre_z - TORIRSSERVER_ZONE_VIEW_RADIUS ||
         zone_z > centre_z + TORIRSSERVER_ZONE_VIEW_RADIUS )
         return 0;
-    /* Clipped to the build area, which is what a tile box is not and why
+    /* Clipped to the build area — the scene THIS client holds, centred on the
+     * player's own window origin — which is what a tile box is not and why
      * NPC_INFO used to name npcs outside the region the client has a scene
      * for. */
-    if( zone_x < srv->zone_x - TORIRSSERVER_ZONE_BUILD_RADIUS ||
-        zone_x > srv->zone_x + TORIRSSERVER_ZONE_BUILD_RADIUS )
+    if( zone_x < player->zone_x - TORIRSSERVER_ZONE_BUILD_RADIUS ||
+        zone_x > player->zone_x + TORIRSSERVER_ZONE_BUILD_RADIUS )
         return 0;
-    if( zone_z < srv->zone_z - TORIRSSERVER_ZONE_BUILD_RADIUS ||
-        zone_z > srv->zone_z + TORIRSSERVER_ZONE_BUILD_RADIUS )
+    if( zone_z < player->zone_z - TORIRSSERVER_ZONE_BUILD_RADIUS ||
+        zone_z > player->zone_z + TORIRSSERVER_ZONE_BUILD_RADIUS )
         return 0;
     return 1;
 }
@@ -1180,14 +1186,23 @@ ToriRSServer_PlayerzonemapMove(struct ToriRSServerPlayer* player)
 
     if( !srv )
         return;
-    here = ToriRSServer_ZoneIndex(player->x, player->z, player->level);
-    if( player->zone_index == here && player->zonemap.count > 0 &&
-        player->zonemap.built_zone_x == srv->zone_x &&
-        player->zonemap.built_zone_z == srv->zone_z )
-        return;
+    /* A rider's zones are the water's, not the pool's: the subscription
+     * window is centred where their scene is anchored (under the hull), or
+     * the clip against zone_x below would leave them subscribed to nothing.
+     * For everyone else the anchor IS their feet. */
+    {
+        int anchor_x = 0;
+        int anchor_z = 0;
 
-    centre_x = player->x >> 3;
-    centre_z = player->z >> 3;
+        ToriRSServer_PlayerSceneAnchor(srv, player, &anchor_x, &anchor_z);
+        here = ToriRSServer_ZoneIndex(anchor_x, anchor_z, player->level);
+        centre_x = anchor_x >> 3;
+        centre_z = anchor_z >> 3;
+    }
+    if( player->zone_index == here && player->zonemap.count > 0 &&
+        player->zonemap.built_zone_x == player->zone_x &&
+        player->zonemap.built_zone_z == player->zone_z )
+        return;
     for( int x = centre_x - TORIRSSERVER_ZONE_VIEW_RADIUS; x <= centre_x + TORIRSSERVER_ZONE_VIEW_RADIUS;
          x++ )
     {
@@ -1198,7 +1213,7 @@ ToriRSServer_PlayerzonemapMove(struct ToriRSServerPlayer* player)
             {
                 int index = ToriRSServer_ZoneIndex(x << 3, z << 3, level);
 
-                if( !window_holds(srv, centre_x, centre_z, index) )
+                if( !window_holds(player, centre_x, centre_z, index) )
                     continue;
                 if( wanted_count < TORIRSSERVER_ZONE_ACTIVE_MAX )
                     wanted[wanted_count++] = index;
@@ -1228,8 +1243,8 @@ ToriRSServer_PlayerzonemapMove(struct ToriRSServerPlayer* player)
     memcpy(player->zonemap.zones, kept, sizeof(kept[0]) * (size_t)kept_count);
     player->zonemap.count = kept_count;
     player->zone_index = here;
-    player->zonemap.built_zone_x = srv->zone_x;
-    player->zonemap.built_zone_z = srv->zone_z;
+    player->zonemap.built_zone_x = player->zone_x;
+    player->zonemap.built_zone_z = player->zone_z;
 }
 
 /* The gap to a npc's FOOTPRINT, per axis. See torirs_server_zone.h — the header
@@ -1244,15 +1259,42 @@ ToriRSServer_NpcViewDeltas(
     int size = npc->size > 0 ? npc->size : 1;
     int dx = 0;
     int dz = 0;
+    /*
+     * OBSERVED against OBSERVED, never one frame against the other
+     * (docs/sailing_coverage.csv SAIL-50).
+     *
+     * This used to read raw x/z on both sides, and an npc standing on a vessel
+     * deck stands in the map-instance pool — hundreds of squares off the real
+     * map. A deckhand two tiles from a shore player therefore measured as a
+     * hundred-tile gap, so it never entered the shore player's NPC_INFO set and
+     * the boat sailed past with a visibly empty deck. Measuring both through
+     * `obs_*` puts them in the one frame they share, and it fixes the mirror
+     * case in the same line: a player ON the deck measuring a dockside npc.
+     *
+     * Off a deck `obs_*` IS x/z, so every caller in a vessel-free world gets
+     * the identical answer to before — including the classic (pre-v5) encoder,
+     * which shares this helper and knows nothing about vessels.
+     *
+     * The footprint extent is still taken along the ROOT axes. Exact at
+     * headings 0 and 180, and off by at most `size - 1` tiles at 90 — a large
+     * npc on a beam-on deck enters view up to three tiles early or late. Left
+     * alone deliberately: the honest fix is to project both footprint corners,
+     * and a range test that is a few tiles generous is not what makes a deck
+     * look empty.
+     */
+    int npc_x = npc->obs_x;
+    int npc_z = npc->obs_z;
+    int player_x = player->obs_x;
+    int player_z = player->obs_z;
 
-    if( npc->x > player->x )
-        dx = npc->x - player->x;
-    else if( player->x > npc->x + size - 1 )
-        dx = player->x - (npc->x + size - 1);
-    if( npc->z > player->z )
-        dz = npc->z - player->z;
-    else if( player->z > npc->z + size - 1 )
-        dz = player->z - (npc->z + size - 1);
+    if( npc_x > player_x )
+        dx = npc_x - player_x;
+    else if( player_x > npc_x + size - 1 )
+        dx = player_x - (npc_x + size - 1);
+    if( npc_z > player_z )
+        dz = npc_z - player_z;
+    else if( player_z > npc_z + size - 1 )
+        dz = player_z - (npc_z + size - 1);
 
     *out_dx = dx;
     *out_dz = dz;
@@ -1367,6 +1409,139 @@ ToriRSServer_PlayerzonemapPlayers(
     int max)
 {
     return area_entities(player, radius, 1, out, max);
+}
+
+/* ------------------------------------------------------------------ */
+/* Cross-frame candidates (docs/sailing_coverage.csv SAIL-50)          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The npcs standing on one hull's deck that are in view of `player`.
+ *
+ * The deck is a rectangle of POOL tiles — `size_x_tiles` by `size_z_tiles`
+ * from the instance base — so its zones are computed rather than subscribed
+ * to. All four planes, because the instance base names a column and an npc may
+ * have been spawned on any storey of it; a deck is at most a couple of zones
+ * wide, so the extra three passes are cheaper than plumbing a plane through.
+ */
+static int
+deck_npcs_in_view(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    const struct ToriRSServerVessel* vessel,
+    int base_x,
+    int base_z,
+    int radius,
+    int* out,
+    int max)
+{
+    int count = 0;
+
+    for( int level = 0; level < 4 && count < max; level++ )
+    {
+        for( int zx = base_x >> 3; zx <= (base_x + vessel->size_x_tiles - 1) >> 3 && count < max;
+             zx++ )
+        {
+            for( int zz = base_z >> 3;
+                 zz <= (base_z + vessel->size_z_tiles - 1) >> 3 && count < max; zz++ )
+            {
+                struct ToriRSServerZone* zone = zone_find(srv, zx << 3, zz << 3, level);
+
+                if( !zone )
+                    continue;
+                for( int n = 0; n < zone->npc_count && count < max; n++ )
+                {
+                    struct ToriRSServerNpc* npc = &srv->npcs[zone->npcs[n]];
+                    int dx;
+                    int dz;
+
+                    if( !npc->active )
+                        continue;
+                    /* The projected gap, which is the only one that means
+                     * anything between two different frames. */
+                    ToriRSServer_NpcViewDeltas(npc, player, &dx, &dz);
+                    if( dx > radius || dz > radius )
+                        continue;
+                    out[count++] = zone->npcs[n];
+                }
+            }
+        }
+    }
+    return count;
+}
+
+/*
+ * THE MIRROR CASE — a rider looking at the shore — lands through the anchor.
+ *
+ * A rider's zonemap and wire origin are centred where their SCENE is anchored
+ * (ToriRSServer_PlayerSceneAnchor): under the hull, in root coordinates. A
+ * dockside npc is therefore an ordinary zonemap candidate for them, and the
+ * origin in SET_NPC_UPDATE_ORIGIN is in the same obs frame the add deltas are
+ * measured in, so it encodes in range. What moved OUT of their zonemap is
+ * their own deck — pool zones the anchor no longer subscribes — which is why
+ * the scan below no longer skips the hull the observer is aboard: it is the
+ * only path their own deckhands have left. Those deckhands come through at
+ * their PROJECTED tiles, so the rider's client draws them through the same
+ * footprint routing a shore observer uses (per-world NPC_INFO — deck-local
+ * coordinates for deck npcs — remains docs/SAILING_PLAN.md C4).
+ */
+
+int
+ToriRSServer_PlayerCrossFrameNpcs(
+    struct ToriRSServerPlayer* player,
+    int radius,
+    int* out,
+    int max)
+{
+    struct ToriRSServer* srv;
+    int count = 0;
+
+    assert(player);
+    assert(out);
+
+    srv = player->world;
+    assert(srv);
+
+    /* No hulls, no second frame. This is the ordinary world and the branch
+     * that has to cost nothing — with it, a vessel-free server does exactly
+     * the work it did before sailing existed. */
+    if( ToriRSServer_VesselLiveCount(srv) == 0 )
+        return 0;
+
+    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX && count < max; i++ )
+    {
+        struct ToriRSServerVessel* vessel = &srv->vessels[i];
+        int base_x = 0;
+        int base_z = 0;
+        int span;
+
+        if( !vessel->in_use )
+            continue;
+        /* The observer's own deck is scanned too: their zonemap is anchored
+         * under the hull (root zones), so their own deckhands — filed in pool
+         * zones — can only arrive through this query. Disjointness with the
+         * zonemap holds either way: an npc is filed in exactly one zone, and
+         * a deck's pool zones are never in an anchored zonemap. */
+        if( vessel->level != player->obs_level )
+            continue;
+        /*
+         * Reject at the HULL before touching a zone. The generous span — the
+         * radius plus both footprint axes — is deliberate: the deck rectangle
+         * rotates under the hull, so the tightest honest bound would need the
+         * rotated corners, and being a few tiles too willing here only costs
+         * the per-npc test that follows.
+         */
+        span = radius + vessel->size_x_tiles + vessel->size_z_tiles;
+        if( abs((vessel->fine_x >> 7) - player->obs_x) > span )
+            continue;
+        if( abs((vessel->fine_z >> 7) - player->obs_z) > span )
+            continue;
+        if( !ToriRSServer_MapInstanceBase(vessel->instance, &base_x, &base_z) )
+            continue;
+        count += deck_npcs_in_view(
+            srv, player, vessel, base_x, base_z, radius, out + count, max - count);
+    }
+    return count;
 }
 
 /**

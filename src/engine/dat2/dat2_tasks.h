@@ -96,6 +96,20 @@ CreateTask_Dat2SpriteLoadByName(
     struct CacheProvider* provider,
     char const* archive_name);
 
+/**
+ * Resolve a graphic-defaults sprite by SLOT, out of the defaults table, the way
+ * the client does — rather than by hashing a name and walking index 8.
+ *
+ * `name` is the profile's section name, which the resolved id is bound to so
+ * later lookups can keep using the one spelling C knows. See the task's own
+ * file for why both paths exist and when they disagree.
+ */
+struct ToriRS_Task*
+CreateTask_Dat2DefaultsSpriteLoad(
+    struct CacheProvider* provider,
+    int slot,
+    char const* name);
+
 struct ToriRS_Task*
 CreateTask_Dat2FontLoad(
     struct CacheProvider* provider,
@@ -150,6 +164,17 @@ struct ToriRS_Task*
 CreateTask_Dat2HitsplatLoad(
     struct CacheProvider* provider,
     struct RS_Hitsplats* hitsplats);
+
+/*
+ * WorldEntityConfig types (config group 72 — sailing boats, deob class387),
+ * whole-group and eager. OldSchool 239+ only; an absent group leaves the
+ * table empty, which is the pre-sailing world rather than an error.
+ */
+struct WevConfigTable;
+struct ToriRS_Task*
+CreateTask_Dat2WevConfigLoad(
+    struct CacheProvider* provider,
+    struct WevConfigTable* table);
 
 /*
  * Healthbar types (config group 33), whole-group and eager.

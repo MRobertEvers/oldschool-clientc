@@ -1212,6 +1212,18 @@ app_plugin_frame_ms(void* user)
     return app->last_frame_ms;
 }
 
+static uint64_t
+app_plugin_frame_work_us(void* user)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    /* The developer overlay's own measurement, which the shell closes before
+     * the pacing sleep. A host that never calls App_NoteFrameTime -- a test
+     * harness, a headless run -- reports 0 here, and a plugin reading it gets
+     * "not measured" rather than a fabricated frame rate. */
+    return App_LastFrameUs(app);
+}
+
 static int
 app_plugin_local_player(void* user, struct ToriRS_PluginPlayerSnap* out)
 {
@@ -4078,6 +4090,7 @@ app_plugin_engine(struct App* app)
     engine.user = app;
     engine.world_cycle = app_plugin_world_cycle;
     engine.frame_ms = app_plugin_frame_ms;
+    engine.frame_work_us = app_plugin_frame_work_us;
     engine.local_player = app_plugin_local_player;
     engine.npc_next = app_plugin_npc_next;
     engine.npc_by_slot = app_plugin_npc_by_slot;
