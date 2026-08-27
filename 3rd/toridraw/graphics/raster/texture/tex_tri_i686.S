@@ -706,30 +706,6 @@ _toridraw_textri_opaque_lerp8_v3_presorted_run_asm:
 	movl	%eax, P_DXBC(%esp)
 
 	/*
-	 * A flat face has one shade, so both deltas below are zero by
-	 * construction and both gradients with them. Writing the three values
-	 * straight down is not an approximation of the divide -- it is the
-	 * result the divide would produce, and T_SHADE's later
-	 * `- T_SHX * x0 + T_SHX` collapses for the same reason.
-	 */
-	cmpl	$0, P_FLAT(%esp)
-	je	.Lshade_grad
-	movl	$0, T_SHY(%esp)
-	movl	$0, T_SHX(%esp)
-	movl	P_S0(%esp), %eax
-	shll	$9, %eax
-	movl	%eax, T_SHADE(%esp)
-	jmp	.Lshade_done
-
-.Lshade_grad:
-	movl	P_S1(%esp), %eax
-	subl	P_S0(%esp), %eax
-	movl	%eax, P_DAB(%esp)
-	movl	P_S2(%esp), %eax
-	subl	P_S0(%esp), %eax
-	movl	%eax, P_DAC(%esp)
-
-	/*
 	 * The three edge slopes, all three at once, off ONE reciprocal.
 	 *
 	 * Each is (dx << 16) / dy when dy > 0 and zero otherwise -- three
@@ -856,6 +832,39 @@ _toridraw_textri_opaque_lerp8_v3_presorted_run_asm:
 	addl	$16, %esp
 	testl	%eax, %eax
 	je	.Lret
+
+	/*
+	 * A flat face has one shade, so both deltas below are zero by
+	 * construction and both gradients with them. Writing the three values
+	 * straight down is not an approximation of the divide -- it is the
+	 * result the divide would produce, and T_SHADE's later
+	 * `- T_SHX * x0 + T_SHX` collapses for the same reason.
+	 *
+	 * The shade is ALL this arm may skip, and the branch has to sit HERE,
+	 * below the plane, to skip only that. It used to sit above the edge
+	 * slopes -- which put the slopes, the nine cross products of the uv
+	 * plane and the prepare call itself on the far side of the jump. A
+	 * flat face then walked whatever edges and whatever texture frame the
+	 * previous triangle left in the frame, and on a model's first one that
+	 * is uninitialised stack. A stale T_SAC is a span from 0 to
+	 * screen_width on every row, which is the band across the viewport.
+	 */
+	cmpl	$0, P_FLAT(%esp)
+	je	.Lshade_grad
+	movl	$0, T_SHY(%esp)
+	movl	$0, T_SHX(%esp)
+	movl	P_S0(%esp), %eax
+	shll	$9, %eax
+	movl	%eax, T_SHADE(%esp)
+	jmp	.Lshade_done
+
+.Lshade_grad:
+	movl	P_S1(%esp), %eax
+	subl	P_S0(%esp), %eax
+	movl	%eax, P_DAB(%esp)
+	movl	P_S2(%esp), %eax
+	subl	P_S0(%esp), %eax
+	movl	%eax, P_DAC(%esp)
 
 	/* ---------------------------------------------------------------- */
 	/* Shade gradients. Cramer's rule over the same sarea, shifted up by  */

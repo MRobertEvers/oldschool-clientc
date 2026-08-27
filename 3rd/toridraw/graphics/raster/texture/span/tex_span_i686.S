@@ -127,7 +127,11 @@ _toridraw_texspan_opaque_lerp8_v3_asm:
 	ret
 
 .Lwidth128:
-	SPANBODY 7, 127, 0x3F80, LC_f127, 128, .Lret, 0
+	/* The trailing 0 is `flat`: this entry is the gradient-shaded span, so
+	 * it keeps the per-block broadcast off SHADE. The constant-shade arm is
+	 * reached only through tex_tri_i686.S, which primes xmm4 once per
+	 * triangle -- there is nowhere in a standalone span call to do that. */
+	SPANBODY 7, 127, 0x3F80, LC_f127, 128, .Lret, 0, 0
 
 .Lwidth64:
-	SPANBODY 6, 63, 0x0FC0, LC_f63, 64, .Lret, 0
+	SPANBODY 6, 63, 0x0FC0, LC_f63, 64, .Lret, 0, 0
