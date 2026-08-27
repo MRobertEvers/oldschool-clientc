@@ -602,6 +602,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/task_obj_model_load.c \
 	engine/uitree_scene_bridge.c \
 	engine/static_sprites.c \
+	engine/title_flames.c \
 	engine/uitree_builder/task_static_sprites_load.c \
 	engine/player_appearance.c \
 	engine/toridraw_animation_from_rscache.c \
@@ -1672,6 +1673,18 @@ audio-harness: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/bmp.o $(OBJ_DIR)/ini.o \
 		-lm
 	@echo "built $(OBJ_DIR)/audioharness"
+
+# Title-screen fire.
+#
+# Deliberately not $(OBJS) and deliberately no $(LDFLAGS): this links the module
+# against the test and nothing else. Having no dependencies is the point of
+# engine/title_flames.c, and a property like that decays silently unless
+# something fails when it stops holding. If a future edit reaches for a project
+# header or for libm, this target stops linking and says so.
+test-title-flames: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/title_flames_test \
+		engine/test/title_flames_test.c engine/title_flames.c
+	./$(OBJ_DIR)/title_flames_test
 
 # Derived-cache LRU eviction. Never fires during a boot (one scene is well under
 # the keep threshold), so it needs a test of its own or it ships unexercised.
