@@ -447,6 +447,17 @@ World_SetActorRootFrameFn(
     world->actor_root_frame_fn = fn;
     world->actor_root_frame_userdata = userdata;
 }
+
+void
+World_SetLocalPlaneFn(
+    struct World* world,
+    int (*fn)(void* userdata),
+    void* userdata)
+{
+    assert(world);
+    world->local_plane_fn = fn;
+    world->local_plane_userdata = userdata;
+}
 void
 World_SetLoadComplete(
     struct World* world,

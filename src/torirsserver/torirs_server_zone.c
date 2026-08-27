@@ -620,6 +620,33 @@ ToriRSServer_ZoneLocAnim(
     queue_event(srv, zone, &event);
 }
 
+/*
+ * A coordinate zone event authored on a vessel DECK cannot be delivered where
+ * it was authored. Deck tiles live in the staging reservation, hundreds of
+ * squares off every client's scene, and a zone header is a scene-local byte —
+ * emitted raw, the event wraps into garbage or lands in a zone no client
+ * holds, which is an INVISIBLE projectile or splash with nothing in a log.
+ *
+ * The deob's contract is that a projectile or graphic lives in exactly ONE
+ * world (each World owns its own `projectiles`/`graphicsObjects` deques, and
+ * updateGraphicsObjects draws them in that world's scene only). Until deck
+ * zones are wire-addressable (zone events inside a SET_ACTIVE_WORLD sandwich,
+ * like the deck rebuild), the world every zone event lives in is the ROOT —
+ * so a deck point is pushed through the hull transform on the way in, exactly
+ * as riders themselves are projected for observers. A shot fired on a moving
+ * hull draws at the position the deck tile had when it fired, which is the
+ * same approximation the multi-observer rider projection already makes.
+ */
+static void
+zone_root_point(
+    struct ToriRSServer* srv,
+    int* x,
+    int* z,
+    int* level)
+{
+    ToriRSServer_RootTile(srv, x, z, level);
+}
+
 void
 ToriRSServer_ZoneProjanim(
     struct ToriRSServer* srv,
@@ -639,8 +666,22 @@ ToriRSServer_ZoneProjanim(
 {
     struct ToriRSServerZone* zone;
     struct ToriRSServerZoneEvent event;
+    int dst_level;
 
     assert(srv);
+    /* Deck endpoints project to the root frame — see zone_root_point. The two
+     * ends project independently: a rider shooting the shore has a deck
+     * source and a root destination. Project the SOURCE first and seed the
+     * destination's level from the result: the caller only ever states the
+     * caster's level, and a rider's is the DECK plane — seeding the shore
+     * destination with plane 1 made the client sample the landing off the
+     * level-1 heightmap, and every arrow fired from a deck climbed to the
+     * wall-tops. After the source projection `level` is a ROOT plane
+     * whichever side of the gunwale the caster stood on, and a deck
+     * destination still overrides it with its own hull's level. */
+    zone_root_point(srv, &x, &z, &level);
+    dst_level = level;
+    zone_root_point(srv, &dst_x, &dst_z, &dst_level);
     zone = zone_at(srv, x, z, level);
     if( !zone )
         return;
@@ -678,7 +719,7 @@ ToriRSServer_ZoneProjanim(
     event.dz_offset = dst_z - z;
     event.dst_x = dst_x;
     event.dst_z = dst_z;
-    event.dst_level = level;
+    event.dst_level = dst_level;
     event.target = target;
     event.src_height = src_height;
     event.dst_height = dst_height;
@@ -703,6 +744,8 @@ ToriRSServer_ZoneMapanim(
     struct ToriRSServerZoneEvent event;
 
     assert(srv);
+    /* Deck points project to the root frame — see zone_root_point. */
+    zone_root_point(srv, &x, &z, &level);
     zone = zone_at(srv, x, z, level);
     if( !zone )
         return;

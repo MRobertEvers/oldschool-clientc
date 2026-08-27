@@ -2834,6 +2834,39 @@ ToriRSServer_PlayerSceneAnchor(
     player_scene_anchor(srv, player, out_x, out_z);
 }
 
+/*
+ * The coordinate-space rule every cross-frame consumer follows: a tile inside
+ * a vessel's DECK reservation projects through the hull transform into the
+ * root frame (level becomes the hull's); any other tile is already root and
+ * passes through unchanged. One implementation, used by the zone-event
+ * emitters and the script measurement ops — a measurement mixing frames
+ * (npc_range from a rider's deck coord to a shore npc) is meaningless until
+ * both ends are in the same frame.
+ */
+void
+ToriRSServer_RootTile(
+    struct ToriRSServer* srv,
+    int* x,
+    int* z,
+    int* level)
+{
+    struct ToriRSServerVessel* vessel;
+    int fine_x;
+    int fine_z;
+
+    assert(srv);
+    assert(x);
+    assert(z);
+    assert(level);
+    vessel = ToriRSServer_VesselAtTile(srv, *x, *z);
+    if( !vessel )
+        return;
+    ToriRSServer_VesselDeckTileToRoot(vessel, *x, *z, &fine_x, &fine_z);
+    *x = fine_x >> 7;
+    *z = fine_z >> 7;
+    *level = vessel->level;
+}
+
 void
 ToriRSServer_PlayerReachTile(
     struct ToriRSServer* srv,

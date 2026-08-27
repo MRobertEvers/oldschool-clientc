@@ -4981,13 +4981,31 @@ ToriRSServer_ScriptCommand(
     {
         int32_t first;
         int32_t second;
+        int fx;
+        int fz;
+        int fl;
+        int sx;
+        int sz;
+        int sl;
         int dx;
         int dz;
 
         if( !SSVM_PopInt(state, &second) || !SSVM_PopInt(state, &first) )
             return 1;
-        dx = coord_x(first) - coord_x(second);
-        dz = coord_z(first) - coord_z(second);
+        /* Both ends into the ROOT frame before measuring: a rider's `coord`
+         * is a deck-reservation tile hundreds of squares off the map, and a
+         * distance mixing frames is meaningless — it is what made every
+         * script flight-time computed from aboard overflow. */
+        fx = coord_x(first);
+        fz = coord_z(first);
+        fl = coord_level(first);
+        sx = coord_x(second);
+        sz = coord_z(second);
+        sl = coord_level(second);
+        ToriRSServer_RootTile(srv, &fx, &fz, &fl);
+        ToriRSServer_RootTile(srv, &sx, &sz, &sl);
+        dx = fx - sx;
+        dz = fz - sz;
         if( dx < 0 )
             dx = -dx;
         if( dz < 0 )
@@ -6662,6 +6680,18 @@ ToriRSServer_ScriptCommand(
         {
             SSVM_Abort(state, "npc_range with no active npc");
             return 1;
+        }
+        /* A rider's `coord` is a deck tile at a DECK plane — project it to
+         * the root frame first, or the plane test below answers "unreachable"
+         * (0x7fffffff) for a shore npc four tiles off the gunwale, and every
+         * flight time content multiplies from it overflows. */
+        {
+            int px = coord_x(coord);
+            int pz = coord_z(coord);
+            int pl = coord_level(coord);
+
+            ToriRSServer_RootTile(srv, &px, &pz, &pl);
+            coord = coord_pack(pl, px, pz);
         }
         if( npc->level != coord_level(coord) )
         {

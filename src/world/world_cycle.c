@@ -1177,6 +1177,9 @@ World_ProjectileTrackTarget(
     struct WorldEntity_Projectile* proj)
 {
     struct WorldEntityFacet_DrawPosition const* dst = NULL;
+    struct WorldEntityFacet_ViewPlacement const* placement = NULL;
+    int fx;
+    int fz;
 
     if( proj->target == WORLD_PROJECTILE_TARGET_NONE )
         return;
@@ -1185,23 +1188,45 @@ World_ProjectileTrackTarget(
     {
         struct WorldEntity_NPC* npc = World_NpcGetByServerSlot(world, proj->target - 1);
         if( npc )
+        {
             dst = &npc->draw_position;
+            placement = &npc->view_placement;
+        }
     }
     else
     {
         struct WorldEntity_Player* player = World_PlayerGetByServerPid(world, -proj->target - 1);
         if( player )
+        {
             dst = &player->draw_position;
+            placement = &player->view_placement;
+        }
     }
 
     if( !dst )
         return;
 
+    fx = (int)dst->x;
+    fz = (int)dst->z;
+    /* A target drawn by a world-entity view stands at a projected root
+     * position, and a HOMED rider's draw position is deck-local outright —
+     * both answered by the same root-frame hook the facing math uses. The
+     * projectile lives in the ROOT world (deob: one world per projectile), so
+     * the aim point must too; without this an arrow chasing a rider re-aims
+     * at deck-local numbers and flies at the map corner. */
+    if( placement && placement->view_id != 0 && world->actor_root_frame_fn )
+    {
+        int frame_yaw = 0;
+
+        world->actor_root_frame_fn(
+            world->actor_root_frame_userdata, placement, &fx, &fz, &frame_yaw);
+    }
+
     /* dst_level stays the projectile's own level: the reference samples the
      * target's height with getAvH(npc.x, npc.z, *proj.level*), not the
      * entity's level. */
-    proj->dst_x = (int)dst->x;
-    proj->dst_z = (int)dst->z;
+    proj->dst_x = fx;
+    proj->dst_z = fz;
 }
 
 static void
@@ -1430,6 +1455,12 @@ world_dyn_tile_claim(
 static int
 world_local_level(struct World* world)
 {
+    /* The hook answers the MAP plane when a rider's own grid level is a deck
+     * plane — reference minusedlevel is the plane of the map the client
+     * holds, and aboard that is the hull's root plane. Without it a level-0
+     * projectile is unlinked against the rider's plane-1 and never draws. */
+    if( world->local_plane_fn )
+        return world->local_plane_fn(world->local_plane_userdata);
     if( world->local_pid < 0 )
         return 0;
     struct World_EntityPool* pool = &world->entities.player;
@@ -1689,6 +1720,21 @@ World_CycleRegisterPainterDynamics(struct World* world)
          i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, i);
+        /* TORIRS_PROJ_DEBUG=1: narrate the paint gate — the difference between
+         * "no projectile exists" and "one exists and is being culled" is
+         * invisible on screen and has burned a session each way. */
+        {
+            static int proj_debug = -1;
+
+            if( proj_debug < 0 )
+                proj_debug = getenv("TORIRS_PROJ_DEBUG") != NULL;
+            if( proj_debug && p && p->element_id >= 0 )
+                fprintf(stderr,
+                        "proj paint: el=%d cycle=%d t1=%d t2=%d level=%d local=%d at %d,%d "
+                        "y=%d\n",
+                        p->element_id, p->cycle, p->t1, p->t2, p->level, local_level,
+                        (int)p->x >> 7, (int)p->z >> 7, (int)p->y);
+        }
         /* Reference addProjectiles: unlink when level !== minusedlevel. */
         if( !p || p->element_id < 0 || p->cycle < p->t1 || p->level != local_level )
             continue;

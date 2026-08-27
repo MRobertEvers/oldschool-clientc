@@ -1053,6 +1053,21 @@ app_wev_actor_root_fine(
     return 1;
 }
 
+/* World_LocalPlaneFn: the reference's minusedlevel — the plane of the MAP the
+ * client holds, which aboard is the hull's parent level, not the rider's deck
+ * plane. One authority: app_cinema_level (declared with the overlay helpers
+ * further down). */
+static int
+app_cinema_level(struct App* app);
+static int
+app_world_local_plane(void* userdata)
+{
+    struct App* app = (struct App*)userdata;
+
+    assert(app);
+    return app_cinema_level(app);
+}
+
 /*
  * World_ActorRootFrameFn: the facing math's cross-frame answer — an aboard
  * actor's position pushed out through the hull (app_wev_actor_root_fine) plus
@@ -2431,13 +2446,73 @@ app_world_project(
         return 0;
     if( fine_x < 128 || fine_z < 128 )
         return 0;
-    {
-        struct WorldEntity_Player* local = app_local_player(app);
-        if( local )
-            level = local->grid_position.level;
-    }
+    /* The effective ROOT plane, not the local player's own: aboard, the
+     * player's level is a DECK plane (the planking is authored at plane 1),
+     * and sampling root terrain there put every shore npc's health bar and
+     * hitsplat at the level-1 heightmap's idea of the ground. Ashore the two
+     * are the same number. Same authority as the movers and the minimap. */
+    level = app_cinema_level(app);
     ground_y = app_world_height(app, fine_x, fine_z, level);
     return app_world_project_at(app, fine_x, fine_z, ground_y - height_above_ground, out_x, out_y);
+}
+
+/* Defined with the world-entity helpers further down. */
+static int
+app_wev_deck_level(
+    struct App* app,
+    int view_id);
+
+/*
+ * Project an ACTOR's overlay anchor. A root actor is app_world_project
+ * verbatim. A HOMED rider's draw position is DECK-LOCAL fine units, so the
+ * root spelling composes the way the emit path does: the point out through
+ * the hull (Wev_ParentFromDeck) at the height the descent draws them — the
+ * deck world's heightmap at the actor's own plane, plus the hull's y and
+ * bob. The deob never converts at all: each world's actors project through
+ * that world's own composed transform (its 2D overlays anchor on the screen
+ * coordinates that projection produced), which is what makes a splat above a
+ * rider ride the hull. Projected (footprint-routed) actors keep root draw
+ * positions and take the root arm.
+ */
+static int
+app_world_project_actor(
+    struct App* app,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int actor_level,
+    int fine_x,
+    int fine_z,
+    int height_above_ground,
+    int* out_x,
+    int* out_y)
+{
+    struct Wev* wev;
+    struct Worldview* view;
+    struct WevDeckBox box;
+    int root_fx;
+    int root_fz;
+    int ground_y;
+    int deck_level;
+
+    if( !placement || placement->home_view == 0 ||
+        placement->home_view != placement->view_id ||
+        !Wevs_IsLive(&app->wevs, placement->view_id) ||
+        !WorldviewRegistry_IsLive(&app->worldviews, placement->view_id) )
+        return app_world_project(app, fine_x, fine_z, height_above_ground, out_x, out_y);
+    wev = Wevs_Get(&app->wevs, placement->view_id);
+    if( wev->parent_view_id != WORLDVIEW_ROOT )
+        return app_world_project(app, fine_x, fine_z, height_above_ground, out_x, out_y);
+    view = WorldviewRegistry_Get(&app->worldviews, placement->view_id);
+    app_wev_deck_box(app, wev, app->world, &box);
+    Wev_ParentFromDeck(&box, fine_x, fine_z, &root_fx, &root_fz);
+    deck_level = actor_level;
+    if( deck_level < 0 )
+        deck_level = app_wev_deck_level(app, placement->view_id);
+    if( deck_level >= COLLISION_LEVELS )
+        deck_level = COLLISION_LEVELS - 1;
+    ground_y =
+        wev->y + wev->bob_y + app_world_height_in(view->world, fine_x, fine_z, deck_level);
+    return app_world_project_at(
+        app, root_fx, root_fz, ground_y - height_above_ground, out_x, out_y);
 }
 
 /* Reference ClientEntity.height = model.minY, which Client-TS accumulates as
@@ -2722,6 +2797,8 @@ app_overlay_build_chat(
     int element_id,
     struct WorldEntityFacet_Chat const* chat,
     struct WorldEntityFacet_DrawPosition const* draw_position,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int actor_level,
     int font_id)
 {
     int height = app_entity_model_height(app, element_id);
@@ -2730,8 +2807,9 @@ app_overlay_build_chat(
     assert(chat);
     if( chat->timer <= 0 || chat->message[0] == '\0' || font_id < 0 )
         return;
-    if( !app_world_project(
-            app, (int)draw_position->x, (int)draw_position->z, height, &screen_x, &screen_y) )
+    if( !app_world_project_actor(
+            app, placement, actor_level, (int)draw_position->x, (int)draw_position->z, height,
+            &screen_x, &screen_y) )
         return;
 
     struct UITreeEntityOverlay shadow = {
@@ -2766,6 +2844,8 @@ app_overlay_build_player_headicons(
     int element_id,
     int headicons,
     struct WorldEntityFacet_DrawPosition const* draw_position,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int actor_level,
     int headicons_scene)
 {
     int height = app_entity_model_height(app, element_id);
@@ -2774,8 +2854,9 @@ app_overlay_build_player_headicons(
 
     if( headicons == 0 || headicons_scene <= 0 )
         return;
-    if( !app_world_project(
-            app, (int)draw_position->x, (int)draw_position->z, height + 15, &screen_x, &screen_y) )
+    if( !app_world_project_actor(
+            app, placement, actor_level, (int)draw_position->x, (int)draw_position->z,
+            height + 15, &screen_x, &screen_y) )
         return;
 
     for( int icon = 0; icon < 31; icon++ )
@@ -2833,6 +2914,10 @@ app_overlay_build_hint_arrow(struct App* app)
     int hint_scene;
     int screen_x, screen_y;
     int world_x, world_z, height;
+    /* A homed rider's draw position is deck-local; the arrow anchors through
+     * the same actor projection as their health bar. NULL = a root point. */
+    struct WorldEntityFacet_ViewPlacement const* placement = NULL;
+    int actor_level = -1;
 
     if( type <= 0 || !app->world )
         return;
@@ -2876,6 +2961,7 @@ app_overlay_build_hint_arrow(struct App* app)
             return;
         world_x = (int)npc->draw_position.x;
         world_z = (int)npc->draw_position.z;
+        placement = &npc->view_placement;
         height = app_entity_model_height(app, npc->element_id) + 15;
         break;
     }
@@ -2888,6 +2974,8 @@ app_overlay_build_hint_arrow(struct App* app)
             return;
         world_x = (int)player->draw_position.x;
         world_z = (int)player->draw_position.z;
+        placement = &player->view_placement;
+        actor_level = player->grid_position.level;
         height = app_entity_model_height(app, player->element_id) + 15;
         break;
     }
@@ -2898,7 +2986,8 @@ app_overlay_build_hint_arrow(struct App* app)
         return;
     }
 
-    if( !app_world_project(app, world_x, world_z, height, &screen_x, &screen_y) )
+    if( !app_world_project_actor(
+            app, placement, actor_level, world_x, world_z, height, &screen_x, &screen_y) )
         return;
 
     {
@@ -2974,6 +3063,7 @@ app_overlay_build_npc_headicon(
     int element_id,
     struct ToriRS_Npctype const* npctype,
     struct WorldEntityFacet_DrawPosition const* draw_position,
+    struct WorldEntityFacet_ViewPlacement const* placement,
     int prayer_scene,
     int prayer_group)
 {
@@ -2985,8 +3075,9 @@ app_overlay_build_npc_headicon(
     if( npctype->head_icon_group >= 0 && npctype->head_icon_group != prayer_group )
         return;
     height = app_entity_model_height(app, element_id);
-    if( !app_world_project(
-            app, (int)draw_position->x, (int)draw_position->z, height + 15, &screen_x, &screen_y) )
+    if( !app_world_project_actor(
+            app, placement, -1, (int)draw_position->x, (int)draw_position->z, height + 15,
+            &screen_x, &screen_y) )
         return;
 
     {
@@ -4110,6 +4201,8 @@ app_overlay_build_entity(
     int element_id,
     struct WorldEntityFacet_Combat const* combat,
     struct WorldEntityFacet_DrawPosition const* draw_position,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int actor_level,
     int font_id,
     int hitmarks_scene,
     int type_height)
@@ -4131,16 +4224,18 @@ app_overlay_build_entity(
      *     healthbar type spells as its persist window).
      */
     if( combat->healthbar_type >= 0 && combat->healthbar_end_cycle > cycle &&
-        app_world_project(
-            app, (int)draw_position->x, (int)draw_position->z, height + 15, &screen_x, &screen_y) )
+        app_world_project_actor(
+            app, placement, actor_level, (int)draw_position->x, (int)draw_position->z,
+            height + 15, &screen_x, &screen_y) )
     {
         app_overlay_build_healthbar(app, combat, screen_x, screen_y);
     }
     else if(
         combat->healthbar_type < 0 && combat->combat_cycle > cycle + 100 &&
         combat->total_health > 0 &&
-        app_world_project(
-            app, (int)draw_position->x, (int)draw_position->z, height + 15, &screen_x, &screen_y) )
+        app_world_project_actor(
+            app, placement, actor_level, (int)draw_position->x, (int)draw_position->z,
+            height + 15, &screen_x, &screen_y) )
     {
         int bar_width = RS_HEALTHBAR_DEFAULT_WIDTH;
         int filled = (combat->health * bar_width) / combat->total_health;
@@ -4199,8 +4294,10 @@ app_overlay_build_entity(
         if( splat_type < 0 )
             continue;
 
-        if( !app_world_project(
+        if( !app_world_project_actor(
                 app,
+                placement,
+                actor_level,
                 (int)draw_position->x,
                 (int)draw_position->z,
                 height / 2,
@@ -5189,6 +5286,8 @@ app_build_entity_overlays(
             npc->element_id,
             &npc->combat,
             &npc->draw_position,
+            &npc->view_placement,
+            -1,
             font_id,
             hitmarks_scene,
             npctype ? npctype->height : -1);
@@ -5197,6 +5296,7 @@ app_build_entity_overlays(
             npc->element_id,
             npctype,
             &npc->draw_position,
+            &npc->view_placement,
             headicons_scene,
             APP_HEADICONS_PRAYER_GROUP);
     }
@@ -5213,11 +5313,14 @@ app_build_entity_overlays(
             player->element_id,
             &player->combat,
             &player->draw_position,
+            &player->view_placement,
+            player->grid_position.level,
             font_id,
             hitmarks_scene,
             -1);
         app_overlay_build_player_headicons(
-            app, player->element_id, player->headicon, &player->draw_position, headicons_scene);
+            app, player->element_id, player->headicon, &player->draw_position,
+            &player->view_placement, player->grid_position.level, headicons_scene);
     }
 
     /* One arrow, after every entity, so it layers over the health bars and
@@ -5238,7 +5341,8 @@ app_build_entity_overlays(
             if( !npc || npc->multinpc_hidden || npc->element_id < 0 )
                 continue;
             app_overlay_build_chat(
-                app, npc->element_id, &npc->chat, &npc->draw_position, chat_font);
+                app, npc->element_id, &npc->chat, &npc->draw_position, &npc->view_placement,
+                -1, chat_font);
         }
 
         pool = &world->entities.player;
@@ -5249,7 +5353,8 @@ app_build_entity_overlays(
             if( !player || player->element_id < 0 )
                 continue;
             app_overlay_build_chat(
-                app, player->element_id, &player->chat, &player->draw_position, chat_font);
+                app, player->element_id, &player->chat, &player->draw_position,
+                &player->view_placement, player->grid_position.level, chat_font);
         }
     }
 
@@ -8689,6 +8794,7 @@ App_Init(
     /* Facing across the gunwale computes in the root frame — see
      * app_wev_actor_root_frame. */
     World_SetActorRootFrameFn(app->world, app_wev_actor_root_frame, app);
+    World_SetLocalPlaneFn(app->world, app_world_local_plane, app);
     app->painter_buffer = painter_buffer_new();
     assert(app->painter_buffer);
     /* v1 GameRunescape camera defaults; repositioned on world load complete. */
@@ -19947,6 +20053,75 @@ app_world_spawn_projectile_now(
     app->need_redraw = 1;
 }
 
+/*
+ * The ground under a ROOT-frame point, composed through a hull when one is
+ * there: a point over a live boat's deck answers the DECK's heightmap plus
+ * the hull's y and bob — the same composition the emit path and the overlay
+ * anchors use — and root terrain otherwise. A projectile fired from (or at)
+ * the deck must measure its height from the planking, not from the grass or
+ * water the hull happens to be sitting on: the deob never faces the question
+ * because its projectile lives in the boat's own world, where "ground" IS
+ * the deck; this is that answer for the root-world approximation.
+ */
+static int
+app_world_ground_composed(
+    struct App* app,
+    int fine_x,
+    int fine_z,
+    int level)
+{
+    for( int view_id = 1; view_id < WORLDVIEW_MAX; view_id++ )
+    {
+        struct Wev* wev;
+        struct WevDeckBox box;
+        int deck_x;
+        int deck_z;
+        int deck_level;
+        struct Worldview* view;
+
+        if( !Wevs_IsLive(&app->wevs, view_id) ||
+            !WorldviewRegistry_IsLive(&app->worldviews, view_id) )
+            continue;
+        wev = Wevs_Get(&app->wevs, view_id);
+        if( wev->parent_view_id != WORLDVIEW_ROOT )
+            continue;
+        /* Membership is the HULL's footprint — the gunwale rule. The deck box
+         * is the whole zone reservation and the templates carry walkable
+         * staging ground around the parked hull, so a shore tile beside the
+         * boat is inside the box but not on the planking; composing its
+         * ground from the deck template would bend a shot aimed past the
+         * rail. The footprint is the painter's own answer to "which root
+         * tiles does this hull cover", so the two cannot disagree; a config
+         * with no stated extent (the wire-sized Zenith) makes the footprint
+         * the whole box, which is the right fallback too. */
+        if( wev->config )
+        {
+            int min_tile_x;
+            int min_tile_z;
+            int size_x;
+            int size_z;
+            int abs_tile_x = (fine_x >> 7) + app->world->_base_tile_x;
+            int abs_tile_z = (fine_z >> 7) + app->world->_base_tile_z;
+
+            Wev_FootprintTiles(wev, 0, &min_tile_x, &min_tile_z, &size_x, &size_z);
+            if( abs_tile_x < min_tile_x || abs_tile_x >= min_tile_x + size_x ||
+                abs_tile_z < min_tile_z || abs_tile_z >= min_tile_z + size_z )
+                continue;
+        }
+        app_wev_deck_box(app, wev, app->world, &box);
+        Wev_DeckFromParent(&box, fine_x, fine_z, &deck_x, &deck_z);
+        if( !Wev_DeckContainsDeckPoint(&box, deck_x, deck_z) )
+            continue;
+        view = WorldviewRegistry_Get(&app->worldviews, view_id);
+        deck_level = app_wev_deck_level(app, view_id);
+        if( deck_level >= COLLISION_LEVELS )
+            deck_level = COLLISION_LEVELS - 1;
+        return wev->y + wev->bob_y +
+               app_world_height_in(view->world, deck_x, deck_z, deck_level);
+    }
+    return app_world_height(app, fine_x, fine_z, level);
+}
+
 /* Server-driven projectile (reference ClientProj / MAP_PROJANIM). Builds the
  * transformed spotanim model (recolour/resize/angle/lighting), spawns the world
  * projectile with the wire trajectory params, and binds the spotanim seq so the
@@ -19999,8 +20174,19 @@ app_world_spawn_projectile_spot_now(
     src_z = src_tile_z * 128 + 64;
     dst_x = dst_tile_x * 128 + 64;
     dst_z = dst_tile_z * 128 + 64;
-    /* World y is negative-up: reference y = getAvH(src) - h1, h1 = src_height*4. */
-    src_y = app_world_height(app, src_x, src_z, src_level) - src_height * 4;
+    /* World y is negative-up: reference y = getAvH(src) - h1, h1 = src_height*4.
+     * The SOURCE ground composes through a hull when the shooter stands on
+     * one — a bow fired from the deck leaves at deck + chest, not at the
+     * terrain the hull is parked over (a beached hull's planking can sit well
+     * below the bank beside it). The deob never faces this: its projectile
+     * lives in the boat's world, where ground IS the deck. The DESTINATION
+     * deliberately does NOT compose: the landing samples this world's own
+     * ground exactly as the deob's `getAvH(dst, proj.plane) - h2` does, and
+     * World re-aims a tracked target with that same rule every cycle — a
+     * composed one-shot correction here went stale the moment the target
+     * moved and bent the arc whenever the hull's footprint brushed the
+     * target's tile. */
+    src_y = app_world_ground_composed(app, src_x, src_z, src_level) - src_height * 4;
 
     element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_PROJECTILE, model, src_x, src_y, src_z);
     if( element_id < 0 )
@@ -20037,7 +20223,8 @@ app_world_spawn_projectile_spot_now(
 
     if( getenv("TORIRS_NET_DEBUG") )
         TORIRS_LOG("spawn_projectile_spot: element=%d spotanim=%d model=%d seq=%d "
-            "%d,%d -> %d,%d t1=%d t2=%d target=%d\n",
+            "%d,%d -> %d,%d lvl=%d/%d t1=%d t2=%d target=%d src_y=%d ground=%d "
+            "dst_ground=%d h1=%d h2=%d\n",
             element_id,
             spotanim_id,
             spot->model,
@@ -20046,9 +20233,16 @@ app_world_spawn_projectile_spot_now(
             src_tile_z,
             dst_tile_x,
             dst_tile_z,
+            src_level,
+            dst_level,
             start_delay,
             end_delay,
-            target);
+            target,
+            src_y,
+            app_world_ground_composed(app, src_x, src_z, src_level),
+            app_world_height(app, dst_x, dst_z, dst_level),
+            src_height * 4,
+            dst_height * 4);
     app_sync_textures(app);
     app->need_redraw = 1;
 }

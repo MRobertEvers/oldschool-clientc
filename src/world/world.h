@@ -375,6 +375,13 @@ struct World
     /** Optional; NULL when no actor can be aboard. @see World_ActorRootFrameFn. */
     World_ActorRootFrameFn actor_root_frame_fn;
     void* actor_root_frame_userdata;
+    /** Optional; NULL when no actor can be aboard. The local MAP plane
+     *  (reference minusedlevel): a rider's own grid level is a DECK plane,
+     *  and everything this world registers against "the local level" — the
+     *  projectile paint gate above all — means the ROOT plane under the hull.
+     *  @see World_SetLocalPlaneFn. */
+    int (*local_plane_fn)(void* userdata);
+    void* local_plane_userdata;
     void* foreign_dynamic_claim_userdata;
 
     struct Heightmap* heightmap;
@@ -713,6 +720,12 @@ void
 World_SetActorRootFrameFn(
     struct World* world,
     World_ActorRootFrameFn fn,
+    void* userdata);
+
+void
+World_SetLocalPlaneFn(
+    struct World* world,
+    int (*fn)(void* userdata),
     void* userdata);
 
 /**

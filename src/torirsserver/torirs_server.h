@@ -7411,6 +7411,16 @@ ToriRSServer_PlayerSceneAnchor(
  * root world, the same one the shore sees them at — which is what lets them
  * fish, shoot and cast over the gunwale.
  */
+/** A deck tile projected to the root frame (level becomes the hull's); any
+ *  other tile passes through unchanged. The shared cross-frame rule for zone
+ *  events and script measurement ops. */
+void
+ToriRSServer_RootTile(
+    struct ToriRSServer* srv,
+    int* x,
+    int* z,
+    int* level);
+
 void
 ToriRSServer_PlayerReachTile(
     struct ToriRSServer* srv,
