@@ -1925,6 +1925,20 @@ struct App
      * pending — the async pipeline being drip-fed a slice at a time. */
     int busy_frames;
     long busy_steps;
+
+    /*
+     * The async pipeline still had work when the last App_RunOnce returned.
+     *
+     * Read by the frame loop, which skips its pacing sleep while it is set.
+     * The frame cap exists to pace the SCREEN; sleeping through outstanding IO
+     * paces the download instead, and on a cold boot this client streams its
+     * whole world through that pipeline -- 516 containers for the rev-289
+     * world -- so the cap was deciding how fast the game could load.
+     *
+     * busy_frames next door has been counting the same situation for a while.
+     * This is the half that acts on it.
+     */
+    int async_pending;
     int boot_interface_id;
     /** Invalid TORIRS_PREVIEW_STATE packet; the headless caller turns this into
      * a non-zero process exit after the async boot task returns. */
@@ -3287,6 +3301,10 @@ App_DrainAudio(
  * residual of its 20 ms budget, and timing across that sleep reports the cap
  * back rather than the cost of the frame.
  */
+/** Whether the last App_RunOnce left async work queued. */
+int
+App_AsyncPending(const struct App* app);
+
 void
 App_NoteFrameTime(
     struct App* app,

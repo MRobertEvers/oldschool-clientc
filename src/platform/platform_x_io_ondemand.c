@@ -1,5 +1,6 @@
 #include "platform_x_io_ondemand.h"
 
+#include "platform_x_http.h"
 #include "sockstream.h"
 
 #include <assert.h>
@@ -7,6 +8,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <direct.h>
+#else
+#include <sys/stat.h>
+#endif
 #include "log/torirs_log.h"
 
 #ifdef _WIN32
@@ -58,6 +64,18 @@ struct PlatformXIOOnDemand
     struct SockStream* files;
 
     struct RSCache_MapSquares* map_squares;
+
+    /*
+     * The local hydration cache, or no directory and none of this happens.
+     *
+     * `disk` is opened lazily and may stay NULL on a first boot -- there is
+     * nothing to read until something has been written. `stamped` says the
+     * server's checksums have been compared against the directory's, which
+     * must happen before any read is trusted.
+     */
+    char cache_dir[512];
+    struct RSCache_Dat1Disk* cache_disk;
+    int cache_stamped;
 
     /* The nine jag checksums, cached after the first `GET /crc`.
      *
@@ -185,13 +203,19 @@ od_dial(
 /* -------------------------------------------------------------------- http */
 
 /**
- * Read a whole response body.
+ * Read a whole response body, through the client's one HTTP fetch.
  *
- * The request goes out as HTTP/1.0, which is what makes this small: the server
- * answers it with `Connection: close` and an unframed body, so "the body" is
- * "everything until the socket closes". Content-Length and chunked are still
- * honoured when present rather than assumed absent -- a response that framed
- * itself and was read to EOF anyway would silently gain the framing bytes.
+ * This used to be its own ninety-line copy of PlatformX_HttpGetTimed's loop,
+ * and the two drifted exactly as duplicated protocol does: the shared one
+ * learned to stop as soon as a Content-Length body was complete, and this one
+ * kept reading to the close -- while its docstring claimed otherwise, because
+ * it did read the header, just only to size the body afterwards. Every rev-289
+ * boot pulls nine jag archives through here, so that gap is where "Socket recv
+ * error: connection closed" kept coming from after the framing fix landed.
+ *
+ * The longer timeouts are this client's own and are passed rather than
+ * inherited: a cache stream against a remote server stutters where a config
+ * read must not hang the UI.
  */
 static char*
 od_http_get(
@@ -199,164 +223,19 @@ od_http_get(
     const char* route,
     int* out_size)
 {
-    struct SockStream* stream = NULL;
-    char request[512];
-    char* buffer = NULL;
-    int capacity = 0;
-    int length = 0;
-    char* body = NULL;
-    char* header_end = NULL;
-    int header_size = 0;
-    int body_size = 0;
-    int content_length = -1;
-    int chunked = 0;
-    char* result = NULL;
-
     assert(od);
     assert(route);
     assert(out_size);
 
-    stream = od_dial(od->host, od->web_port);
-    if( !stream )
-        return NULL;
-
-    snprintf(
-        request,
-        sizeof(request),
-        "GET %s HTTP/1.0\r\nHost: %s:%d\r\nUser-Agent: torirs\r\nAccept: */*\r\n\r\n",
-        route,
+    return PlatformX_HttpGetTimed(
         od->host,
-        od->web_port);
-    if( od_write_all(stream, request, (int)strlen(request)) != 0 )
-        goto done;
-
-    for( ;; )
-    {
-        int got;
-        if( length + 4096 > capacity )
-        {
-            int grown = capacity ? capacity * 2 : 65536;
-            char* bigger;
-            while( grown < length + 4096 )
-                grown *= 2;
-            bigger = realloc(buffer, (size_t)grown);
-            assert(bigger);
-            buffer = bigger;
-            capacity = grown;
-        }
-        got = sockstream_recv(stream, buffer + length, capacity - length);
-        if( got > 0 )
-        {
-            length += got;
-            continue;
-        }
-        if( got == SOCKSTREAM_ERROR_CLOSED )
-            break;
-        if( got != SOCKSTREAM_ERROR_NODATA && got != SOCKSTREAM_ERROR_WOULDBLOCK )
-            goto done;
-        if( !od_wait_readable(stream, OD_READ_TIMEOUT_SEC) )
-            goto done;
-    }
-
-    if( length < 12 || memcmp(buffer, "HTTP/1.", 7) != 0 )
-        goto done;
-    if( memcmp(buffer + 9, "200", 3) != 0 )
-    {
-        TORIRS_LOG("ondemand: %s%s answered %.3s, not 200\n",
-            od->host,
-            route,
-            buffer + 9);
-        goto done;
-    }
-
-    /* memmem is not portable; the header block is small enough to scan. */
-    for( int i = 0; i + 4 <= length; i++ )
-    {
-        if( memcmp(buffer + i, "\r\n\r\n", 4) == 0 )
-        {
-            header_end = buffer + i;
-            header_size = i + 4;
-            break;
-        }
-    }
-    if( !header_end )
-        goto done;
-
-    body = buffer + header_size;
-    body_size = length - header_size;
-
-    {
-        /* Header names are case-insensitive on the wire. Lowercase a copy of
-         * the header block rather than the whole response -- the body is
-         * binary and must not be touched. */
-        char* headers = malloc((size_t)header_size + 1);
-        char* found;
-        assert(headers);
-        for( int i = 0; i < header_size; i++ )
-        {
-            char c = buffer[i];
-            headers[i] = (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : c;
-        }
-        headers[header_size] = '\0';
-
-        found = strstr(headers, "\r\ncontent-length:");
-        if( found )
-            content_length = atoi(found + strlen("\r\ncontent-length:"));
-        found = strstr(headers, "\r\ntransfer-encoding:");
-        if( found && strstr(found, "chunked") )
-            chunked = 1;
-        free(headers);
-    }
-
-    if( chunked )
-    {
-        /* Decode in place: a chunk's data always starts further into the
-         * buffer than the byte it moves to, so the write cursor can never
-         * overtake the read cursor. */
-        char* read_at = body;
-        char* end = body + body_size;
-        int decoded = 0;
-        while( read_at < end )
-        {
-            long chunk_size = strtol(read_at, NULL, 16);
-            char* newline = memchr(read_at, '\n', (size_t)(end - read_at));
-            if( !newline )
-                goto done;
-            read_at = newline + 1;
-            if( chunk_size <= 0 )
-                break;
-            if( read_at + chunk_size > end )
-                goto done;
-            memmove(body + decoded, read_at, (size_t)chunk_size);
-            decoded += (int)chunk_size;
-            read_at += chunk_size + 2; /* trailing CRLF */
-        }
-        body_size = decoded;
-    }
-    else if( content_length >= 0 )
-    {
-        if( content_length > body_size )
-            goto done;
-        body_size = content_length;
-    }
-
-    result = malloc((size_t)(body_size ? body_size : 1));
-    assert(result);
-    memcpy(result, body, (size_t)body_size);
-    *out_size = body_size;
-
-done:
-    free(buffer);
-    if( stream )
-    {
-        sockstream_close(stream);
-        sockstream_free(stream);
-    }
-    return result;
+        od->web_port,
+        route,
+        out_size,
+        NULL,
+        OD_CONNECT_TIMEOUT_SEC,
+        OD_READ_TIMEOUT_SEC);
 }
-
-/* --------------------------------------------------------------- ondemand */
-
 static int
 od_open_files(struct PlatformXIOOnDemand* od)
 {
@@ -654,7 +533,8 @@ struct PlatformXIOOnDemand*
 PlatformXIOOnDemand_New(
     const char* host,
     int game_port,
-    int web_port)
+    int web_port,
+    const char* cache_dir)
 {
     struct PlatformXIOOnDemand* od = NULL;
     char* versionlist = NULL;
@@ -673,6 +553,8 @@ PlatformXIOOnDemand_New(
     snprintf(od->host, sizeof(od->host), "%s", host);
     od->game_port = game_port > 0 ? game_port : OD_DEFAULT_GAME_PORT;
     od->web_port = web_port > 0 ? web_port : OD_DEFAULT_WEB_PORT;
+    if( cache_dir && cache_dir[0] )
+        snprintf(od->cache_dir, sizeof(od->cache_dir), "%s", cache_dir);
 
     /* Prove both wires before anything above this depends on them, and get the
      * map_index out of the way while doing it: `dat1_map_archive_id` has no
@@ -726,6 +608,11 @@ PlatformXIOOnDemand_New(
 void
 PlatformXIOOnDemand_Free(struct PlatformXIOOnDemand* od)
 {
+    if( od && od->cache_disk )
+    {
+        RSCache_Dat1DiskFree(od->cache_disk);
+        od->cache_disk = NULL;
+    }
     if( !od )
         return;
 
@@ -743,6 +630,228 @@ PlatformXIOOnDemand_MapSquares(struct PlatformXIOOnDemand* od)
 {
     assert(od);
     return od->map_squares;
+}
+
+/* -- fetch tally (TORIRS_OD_STATS=1) ------------------------------------ */
+
+#define OD_TALLY_MAX 4096
+
+struct OdTallyEntry
+{
+    int table_id;
+    int archive_id;
+    int hits;
+    long bytes;
+};
+
+static struct OdTallyEntry g_od_tally[OD_TALLY_MAX];
+static int g_od_tally_used;
+static long g_od_fetches;
+static long g_od_bytes;
+static long g_od_refetches;
+static long g_od_refetch_bytes;
+
+static void
+od_tally_report(void)
+{
+    fprintf(stderr,
+            "od_stats: fetches=%ld distinct=%d refetches=%ld "
+            "bytes=%ld refetch_bytes=%ld\n",
+            g_od_fetches, g_od_tally_used, g_od_refetches,
+            g_od_bytes, g_od_refetch_bytes);
+    if( g_od_tally_used > 0 )
+    {
+        int worst = 0;
+        for( int i = 1; i < g_od_tally_used; i++ )
+            if( g_od_tally[i].hits > g_od_tally[worst].hits )
+                worst = i;
+        fprintf(stderr,
+                "od_stats: most re-fetched container table=%d archive=%d "
+                "x%d (%ld bytes each time)\n",
+                g_od_tally[worst].table_id,
+                g_od_tally[worst].archive_id,
+                g_od_tally[worst].hits,
+                g_od_tally[worst].hits ? g_od_tally[worst].bytes / g_od_tally[worst].hits : 0);
+    }
+}
+
+static int
+od_tally_on(void)
+{
+    static int on = -1;
+    if( on < 0 )
+    {
+        on = getenv("TORIRS_OD_STATS") ? 1 : 0;
+        if( on )
+            atexit(od_tally_report);
+    }
+    return on;
+}
+
+static void
+od_tally(int table_id, int archive_id, int size)
+{
+    if( !od_tally_on() )
+        return;
+    g_od_fetches++;
+    g_od_bytes += size;
+    for( int i = 0; i < g_od_tally_used; i++ )
+    {
+        if( g_od_tally[i].table_id == table_id &&
+            g_od_tally[i].archive_id == archive_id )
+        {
+            g_od_tally[i].hits++;
+            g_od_tally[i].bytes += size;
+            g_od_refetches++;
+            g_od_refetch_bytes += size;
+            return;
+        }
+    }
+    if( g_od_tally_used < OD_TALLY_MAX )
+    {
+        g_od_tally[g_od_tally_used].table_id = table_id;
+        g_od_tally[g_od_tally_used].archive_id = archive_id;
+        g_od_tally[g_od_tally_used].hits = 1;
+        g_od_tally[g_od_tally_used].bytes = size;
+        g_od_tally_used++;
+    }
+}
+
+/* -- the local hydration cache ------------------------------------------ */
+
+#define OD_STAMP_NAME "ondemand.stamp"
+
+/*
+ * Wipe the cached cache.
+ *
+ * Called when the server's checksums do not match the ones this directory was
+ * filled from, which means the server repacked. Reconciling would mean knowing
+ * WHICH archives moved, and the checksums do not say -- so the whole directory
+ * goes. It is a cache; the cost of being wrong here is a slow boot, and the
+ * cost of being wrong the other way is login reply 6 with nothing to explain
+ * it.
+ */
+static void
+od_cache_wipe(const char* dir)
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/main_file_cache.dat", dir);
+    remove(path);
+    for( int table = 0; table <= RSCACHE_DAT1_DISK_TABLE_MAPS; table++ )
+    {
+        snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", dir, table);
+        remove(path);
+    }
+    snprintf(path, sizeof(path), "%s/%s", dir, OD_STAMP_NAME);
+    remove(path);
+}
+
+/*
+ * Compare the server's nine jag checksums with the ones this directory holds,
+ * and make them agree -- by wiping, when they do not.
+ *
+ * These are the right stamp rather than a convenient one. They are fetched
+ * every boot regardless (the jag routes embed them), and they cover the whole
+ * cache: the versionlist that governs tables 1-4 is itself one of the nine, so
+ * a server that repacks a single map square changes a checksum here.
+ */
+/* The directory has to exist before RSCache_Dat1DiskWriteArchive can put a
+ * main_file_cache.dat in it, and a profile naming a hydration directory is
+ * asking for one rather than promising it already made it. Failure is
+ * ignored: the next write fails too, and a cache that cannot be created is a
+ * slow boot, not a broken one. */
+static void
+od_cache_mkdir(const char* dir)
+{
+#ifdef _WIN32
+    _mkdir(dir);
+#else
+    mkdir(dir, 0777);
+#endif
+}
+
+static void
+od_cache_stamp(struct PlatformXIOOnDemand* od)
+{
+    char path[1024];
+    FILE* f;
+    int32_t stored[9];
+    int match = 0;
+
+    if( od->cache_stamped || !od->cache_dir[0] )
+        return;
+    od->cache_stamped = 1;
+
+    if( od_jag_crc_load(od) != 0 )
+        return;
+
+    od_cache_mkdir(od->cache_dir);
+    snprintf(path, sizeof(path), "%s/%s", od->cache_dir, OD_STAMP_NAME);
+    f = fopen(path, "rb");
+    if( f )
+    {
+        match = fread(stored, sizeof(stored[0]), 9, f) == 9 &&
+                memcmp(stored, od->jag_crc, sizeof(stored)) == 0;
+        fclose(f);
+    }
+
+    if( !match )
+    {
+        if( f )
+            TORIRS_LOG("ondemand: %s was packed from different checksums; wiping\n",
+                od->cache_dir);
+        od_cache_wipe(od->cache_dir);
+        f = fopen(path, "wb");
+        if( f )
+        {
+            fwrite(od->jag_crc, sizeof(od->jag_crc[0]), 9, f);
+            fclose(f);
+        }
+    }
+
+    od->cache_disk = RSCache_Dat1DiskNewFromDirectory(od->cache_dir);
+}
+
+/* A cached copy, or NULL. The disk layer decompresses tables 1-4 on read, the
+ * same as the fetch path does, so a hit and a miss return the same shape. */
+static struct RSCache_Dat1DiskArchive*
+od_cache_load(struct PlatformXIOOnDemand* od, int table_id, int archive_id)
+{
+    if( !od->cache_dir[0] )
+        return NULL;
+    od_cache_stamp(od);
+    if( !od->cache_disk )
+        return NULL;
+    return RSCache_Dat1DiskArchiveNewLoad(od->cache_disk, table_id, archive_id);
+}
+
+/*
+ * Store what was just fetched.
+ *
+ * `data` must be the bytes AS SERVED -- still gzipped for tables 1-4 -- since
+ * that is what the disk layer stores and what it decompresses on the way back
+ * out. Handing it the decompressed form would make the next boot's hit differ
+ * from this boot's miss.
+ */
+static void
+od_cache_store(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id,
+    const void* data,
+    int size)
+{
+    if( !od->cache_dir[0] || size <= 0 )
+        return;
+    od_cache_stamp(od);
+    if( RSCache_Dat1DiskWriteArchive(
+            od->cache_dir, table_id, archive_id, (const uint8_t*)data, size) != 0 )
+        return;
+    /* Reopen so the write is visible to reads in THIS session too; the disk
+     * handle caches its index files. */
+    if( od->cache_disk )
+        RSCache_Dat1DiskFree(od->cache_disk);
+    od->cache_disk = RSCache_Dat1DiskNewFromDirectory(od->cache_dir);
 }
 
 uint8_t*
@@ -781,6 +890,7 @@ PlatformXIOOnDemand_ContainerFetch(
         data = od_http_get(od, route, out_size);
         if( !data )
             return NULL;
+        od_tally(table_id, archive_id, *out_size);
         *out_format = RSCACHE_ARCHIVE_FORMAT_DAT_MULTIFILE;
         return (uint8_t*)data;
     }
@@ -792,6 +902,7 @@ PlatformXIOOnDemand_ContainerFetch(
         char* data = od_fetch_file(od, table_id - 1, archive_id, out_size);
         if( !data )
             return NULL;
+        od_tally(table_id, archive_id, *out_size);
         /* Stored as served: still gzipped. The decode is the reader's, which
          * is the whole difference between this and ArchiveLoad. */
         *out_format = RSCACHE_ARCHIVE_FORMAT_DAT;
@@ -813,6 +924,12 @@ PlatformXIOOnDemand_ArchiveLoad(
     assert(table_id >= 0);
     assert(archive_id >= 0);
 
+    /* The local copy first. Nothing below runs on a hit -- no socket, no HTTP,
+     * no decompression -- which is the whole point of having one. */
+    archive = od_cache_load(od, table_id, archive_id);
+    if( archive )
+        return archive;
+
     if( table_id == RSCACHE_DAT1_DISK_TABLE_CONFIGS )
     {
         char route[OD_JAG_ROUTE_MAX];
@@ -827,6 +944,9 @@ PlatformXIOOnDemand_ArchiveLoad(
         raw.data = od_http_get(od, route, &raw.data_size);
         if( !raw.data )
             return NULL;
+        od_tally(table_id, archive_id, raw.data_size);
+        /* A jag archive is stored as it arrives. */
+        od_cache_store(od, table_id, archive_id, raw.data, raw.data_size);
     }
     else
     {
@@ -838,6 +958,11 @@ PlatformXIOOnDemand_ArchiveLoad(
         if( !raw.data )
             return NULL;
         raw.data_size = size;
+        od_tally(table_id, archive_id, size);
+
+        /* Stored BEFORE the decompress below: gzipped is the form the disk
+         * layer keeps and the form it decompresses on the way back out. */
+        od_cache_store(od, table_id, archive_id, raw.data, raw.data_size);
 
         /* Tables 1..4 are stored gzipped and served as stored. The disk layer
          * decompresses at the same point, so callers above see one shape. */
