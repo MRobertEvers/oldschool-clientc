@@ -51,14 +51,14 @@ http_wait_readable(struct SockStream* stream, int timeout_sec)
 }
 
 static struct SockStream*
-http_dial(const char* host, int port)
+http_dial(const char* host, int port, int connect_sec)
 {
     struct SockStream* stream = sockstream_new();
 
     if( !stream )
         return NULL;
 
-    sockstream_connect(stream, host, port, HTTP_CONNECT_TIMEOUT_SEC);
+    sockstream_connect(stream, host, port, connect_sec);
     for( ;; )
     {
         int state = sockstream_poll_connect(stream);
@@ -153,12 +153,14 @@ http_framed_length(const char* buf, int header_size, int* out_chunked)
 }
 
 char*
-PlatformX_HttpGetStatus(
+PlatformX_HttpGetTimed(
     const char* host,
     int port,
     const char* route,
     int* out_size,
-    int* out_status)
+    int* out_status,
+    int connect_sec,
+    int read_sec)
 {
     struct SockStream* stream = NULL;
     char request[512];
@@ -181,7 +183,7 @@ PlatformX_HttpGetStatus(
     if( out_status )
         *out_status = 0;
 
-    stream = http_dial(host, port);
+    stream = http_dial(host, port, connect_sec);
     if( !stream )
         return NULL;
 
@@ -245,7 +247,7 @@ PlatformX_HttpGetStatus(
         /* A timeout keeps what arrived rather than dropping it: an unframed
          * response that stopped short is still framed below, where a short body
          * is refused on its own terms. */
-        if( !http_wait_readable(stream, HTTP_READ_TIMEOUT_SEC) )
+        if( !http_wait_readable(stream, read_sec) )
             break;
     }
 
@@ -320,6 +322,21 @@ done:
         sockstream_free(stream);
     }
     return result;
+}
+
+/* The general timeouts: short, because a config or plugin read that hangs
+ * hangs the thing that asked for it. The cache client passes its own. */
+char*
+PlatformX_HttpGetStatus(
+    const char* host,
+    int port,
+    const char* route,
+    int* out_size,
+    int* out_status)
+{
+    return PlatformX_HttpGetTimed(
+        host, port, route, out_size, out_status,
+        HTTP_CONNECT_TIMEOUT_SEC, HTTP_READ_TIMEOUT_SEC);
 }
 
 char*

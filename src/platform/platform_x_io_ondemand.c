@@ -1,5 +1,6 @@
 #include "platform_x_io_ondemand.h"
 
+#include "platform_x_http.h"
 #include "sockstream.h"
 
 #include <assert.h>
@@ -185,13 +186,19 @@ od_dial(
 /* -------------------------------------------------------------------- http */
 
 /**
- * Read a whole response body.
+ * Read a whole response body, through the client's one HTTP fetch.
  *
- * The request goes out as HTTP/1.0, which is what makes this small: the server
- * answers it with `Connection: close` and an unframed body, so "the body" is
- * "everything until the socket closes". Content-Length and chunked are still
- * honoured when present rather than assumed absent -- a response that framed
- * itself and was read to EOF anyway would silently gain the framing bytes.
+ * This used to be its own ninety-line copy of PlatformX_HttpGetTimed's loop,
+ * and the two drifted exactly as duplicated protocol does: the shared one
+ * learned to stop as soon as a Content-Length body was complete, and this one
+ * kept reading to the close -- while its docstring claimed otherwise, because
+ * it did read the header, just only to size the body afterwards. Every rev-289
+ * boot pulls nine jag archives through here, so that gap is where "Socket recv
+ * error: connection closed" kept coming from after the framing fix landed.
+ *
+ * The longer timeouts are this client's own and are passed rather than
+ * inherited: a cache stream against a remote server stutters where a config
+ * read must not hang the UI.
  */
 static char*
 od_http_get(
@@ -199,164 +206,19 @@ od_http_get(
     const char* route,
     int* out_size)
 {
-    struct SockStream* stream = NULL;
-    char request[512];
-    char* buffer = NULL;
-    int capacity = 0;
-    int length = 0;
-    char* body = NULL;
-    char* header_end = NULL;
-    int header_size = 0;
-    int body_size = 0;
-    int content_length = -1;
-    int chunked = 0;
-    char* result = NULL;
-
     assert(od);
     assert(route);
     assert(out_size);
 
-    stream = od_dial(od->host, od->web_port);
-    if( !stream )
-        return NULL;
-
-    snprintf(
-        request,
-        sizeof(request),
-        "GET %s HTTP/1.0\r\nHost: %s:%d\r\nUser-Agent: torirs\r\nAccept: */*\r\n\r\n",
-        route,
+    return PlatformX_HttpGetTimed(
         od->host,
-        od->web_port);
-    if( od_write_all(stream, request, (int)strlen(request)) != 0 )
-        goto done;
-
-    for( ;; )
-    {
-        int got;
-        if( length + 4096 > capacity )
-        {
-            int grown = capacity ? capacity * 2 : 65536;
-            char* bigger;
-            while( grown < length + 4096 )
-                grown *= 2;
-            bigger = realloc(buffer, (size_t)grown);
-            assert(bigger);
-            buffer = bigger;
-            capacity = grown;
-        }
-        got = sockstream_recv(stream, buffer + length, capacity - length);
-        if( got > 0 )
-        {
-            length += got;
-            continue;
-        }
-        if( got == SOCKSTREAM_ERROR_CLOSED )
-            break;
-        if( got != SOCKSTREAM_ERROR_NODATA && got != SOCKSTREAM_ERROR_WOULDBLOCK )
-            goto done;
-        if( !od_wait_readable(stream, OD_READ_TIMEOUT_SEC) )
-            goto done;
-    }
-
-    if( length < 12 || memcmp(buffer, "HTTP/1.", 7) != 0 )
-        goto done;
-    if( memcmp(buffer + 9, "200", 3) != 0 )
-    {
-        TORIRS_LOG("ondemand: %s%s answered %.3s, not 200\n",
-            od->host,
-            route,
-            buffer + 9);
-        goto done;
-    }
-
-    /* memmem is not portable; the header block is small enough to scan. */
-    for( int i = 0; i + 4 <= length; i++ )
-    {
-        if( memcmp(buffer + i, "\r\n\r\n", 4) == 0 )
-        {
-            header_end = buffer + i;
-            header_size = i + 4;
-            break;
-        }
-    }
-    if( !header_end )
-        goto done;
-
-    body = buffer + header_size;
-    body_size = length - header_size;
-
-    {
-        /* Header names are case-insensitive on the wire. Lowercase a copy of
-         * the header block rather than the whole response -- the body is
-         * binary and must not be touched. */
-        char* headers = malloc((size_t)header_size + 1);
-        char* found;
-        assert(headers);
-        for( int i = 0; i < header_size; i++ )
-        {
-            char c = buffer[i];
-            headers[i] = (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : c;
-        }
-        headers[header_size] = '\0';
-
-        found = strstr(headers, "\r\ncontent-length:");
-        if( found )
-            content_length = atoi(found + strlen("\r\ncontent-length:"));
-        found = strstr(headers, "\r\ntransfer-encoding:");
-        if( found && strstr(found, "chunked") )
-            chunked = 1;
-        free(headers);
-    }
-
-    if( chunked )
-    {
-        /* Decode in place: a chunk's data always starts further into the
-         * buffer than the byte it moves to, so the write cursor can never
-         * overtake the read cursor. */
-        char* read_at = body;
-        char* end = body + body_size;
-        int decoded = 0;
-        while( read_at < end )
-        {
-            long chunk_size = strtol(read_at, NULL, 16);
-            char* newline = memchr(read_at, '\n', (size_t)(end - read_at));
-            if( !newline )
-                goto done;
-            read_at = newline + 1;
-            if( chunk_size <= 0 )
-                break;
-            if( read_at + chunk_size > end )
-                goto done;
-            memmove(body + decoded, read_at, (size_t)chunk_size);
-            decoded += (int)chunk_size;
-            read_at += chunk_size + 2; /* trailing CRLF */
-        }
-        body_size = decoded;
-    }
-    else if( content_length >= 0 )
-    {
-        if( content_length > body_size )
-            goto done;
-        body_size = content_length;
-    }
-
-    result = malloc((size_t)(body_size ? body_size : 1));
-    assert(result);
-    memcpy(result, body, (size_t)body_size);
-    *out_size = body_size;
-
-done:
-    free(buffer);
-    if( stream )
-    {
-        sockstream_close(stream);
-        sockstream_free(stream);
-    }
-    return result;
+        od->web_port,
+        route,
+        out_size,
+        NULL,
+        OD_CONNECT_TIMEOUT_SEC,
+        OD_READ_TIMEOUT_SEC);
 }
-
-/* --------------------------------------------------------------- ondemand */
-
 static int
 od_open_files(struct PlatformXIOOnDemand* od)
 {
