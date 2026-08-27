@@ -377,6 +377,129 @@ test_manifest_default_root_layout(void)
     uibuilder_manifest_free(&manifest);
 }
 
+/*
+ * Layout/asset groups. The title screen and the gameframe live in one pair of
+ * revconfig files and must not bake into each other's trees: the gameframe
+ * would otherwise carry the title's every-frame flame repaint for the whole
+ * session, and the title bake would pull the whole in-game atlas.
+ */
+static void
+build_grouped(
+    struct UIBuilderManifest* out,
+    char const* select,
+    char const* exclude)
+{
+    struct RevConfigBuffer* fields = revconfig_buffer_new(64);
+    struct RevConfigItemBuffer* items = revconfig_item_buffer_new(16);
+    TEST_ASSERT(fields && items, "alloc grouped");
+
+    /* Untagged sprite: wanted by every build. */
+    push_field(fields, RCFIELD_ITEMTYPE, "sprite");
+    push_field(fields, RCFIELD_ITEMNAME, "compass");
+    push_field(fields, RCFIELD_CACHE_ARCHIVE_ID, "169");
+    push_field(fields, RCFIELD_ITEMDONE, "");
+
+    /* Title-only sprite. */
+    push_field(fields, RCFIELD_ITEMTYPE, "sprite");
+    push_field(fields, RCFIELD_ITEMNAME, "titlebox");
+    push_field(fields, RCFIELD_CACHE_ARCHIVE_ID, "1000");
+    push_field(fields, RCFIELD_CACHE_GROUP, "title");
+    push_field(fields, RCFIELD_ITEMDONE, "");
+
+    /* Title-only font. */
+    push_field(fields, RCFIELD_ITEMTYPE, "font");
+    push_field(fields, RCFIELD_ITEMNAME, "q8");
+    push_field(fields, RCFIELD_CACHE_ARCHIVE_ID, "497");
+    push_field(fields, RCFIELD_CACHE_GROUP, "title");
+    push_field(fields, RCFIELD_ITEMDONE, "");
+
+    push_field(fields, RCFIELD_ITEMTYPE, "component");
+    push_field(fields, RCFIELD_ITEMNAME, "compass");
+    push_field(fields, RCFIELD_UICOMPONENT_TYPE, "compass");
+    push_field(fields, RCFIELD_ITEMDONE, "");
+
+    push_field(fields, RCFIELD_ITEMTYPE, "component");
+    push_field(fields, RCFIELD_ITEMNAME, "login_box");
+    push_field(fields, RCFIELD_UICOMPONENT_TYPE, "sprite");
+    push_field(fields, RCFIELD_ITEMDONE, "");
+
+    push_field(fields, RCFIELD_ITEMTYPE, "layout");
+    push_field(fields, RCFIELD_UILAYOUT_GROUP, "fixed");
+    push_field(fields, RCFIELD_UILAYOUT_NAME, "compass_slot");
+    push_field(fields, RCFIELD_UILAYOUT_COMPONENT, "compass");
+    push_field(fields, RCFIELD_ITEMDONE, "");
+
+    push_field(fields, RCFIELD_ITEMTYPE, "layout");
+    push_field(fields, RCFIELD_UILAYOUT_GROUP, "title");
+    push_field(fields, RCFIELD_UILAYOUT_NAME, "box");
+    push_field(fields, RCFIELD_UILAYOUT_COMPONENT, "login_box");
+    push_field(fields, RCFIELD_ITEMDONE, "");
+
+    revconfig_items_build(fields, items);
+    uibuilder_manifest_init(out);
+    TEST_ASSERT(
+        uibuilder_manifest_from_revconfig_grouped(out, items, -1, select, exclude) == 0,
+        "grouped build");
+
+    revconfig_item_buffer_free(items);
+    revconfig_buffer_free(fields);
+}
+
+static int
+manifest_has_sprite(struct UIBuilderManifest const* m, char const* name)
+{
+    for( int i = 0; i < m->sprite_count; i++ )
+    {
+        if( strcmp(m->sprites[i].name, name) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
+static int
+manifest_has_op(struct UIBuilderManifest const* m, char const* name)
+{
+    for( int i = 0; i < m->op_count; i++ )
+    {
+        if( strcmp(m->ops[i].name, name) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
+static void
+test_manifest_layout_groups(void)
+{
+    struct UIBuilderManifest manifest;
+
+    /* No selectors: every group, which is what every profile got before the
+     * key existed. */
+    build_grouped(&manifest, NULL, NULL);
+    TEST_ASSERT(manifest_has_op(&manifest, "compass_slot"), "ungrouped build takes fixed");
+    TEST_ASSERT(manifest_has_op(&manifest, "box"), "ungrouped build takes title");
+    TEST_ASSERT(manifest.sprite_count == 2, "ungrouped build takes both sprites");
+    TEST_ASSERT(manifest.font_count == 1, "ungrouped build takes the title font");
+    uibuilder_manifest_free(&manifest);
+
+    /* Title bake: the title layout plus every untagged asset. */
+    build_grouped(&manifest, "title", NULL);
+    TEST_ASSERT(!manifest_has_op(&manifest, "compass_slot"), "title build drops fixed");
+    TEST_ASSERT(manifest_has_op(&manifest, "box"), "title build takes title");
+    TEST_ASSERT(manifest_has_sprite(&manifest, "titlebox"), "title build takes titlebox");
+    TEST_ASSERT(manifest_has_sprite(&manifest, "compass"), "title build takes untagged sprite");
+    TEST_ASSERT(manifest.font_count == 1, "title build takes the title font");
+    uibuilder_manifest_free(&manifest);
+
+    /* Gameframe bake: everything except the title. */
+    build_grouped(&manifest, NULL, "title");
+    TEST_ASSERT(manifest_has_op(&manifest, "compass_slot"), "game build takes fixed");
+    TEST_ASSERT(!manifest_has_op(&manifest, "box"), "game build drops title");
+    TEST_ASSERT(!manifest_has_sprite(&manifest, "titlebox"), "game build drops titlebox");
+    TEST_ASSERT(manifest_has_sprite(&manifest, "compass"), "game build keeps untagged sprite");
+    TEST_ASSERT(manifest.font_count == 0, "game build drops the title font");
+    uibuilder_manifest_free(&manifest);
+}
+
 int
 main(void)
 {
@@ -384,6 +507,7 @@ main(void)
     test_manifest_from_hand_pushed_fields();
     test_manifest_from_inline_sources();
     test_manifest_default_root_layout();
+    test_manifest_layout_groups();
     test_viewport_widgets_from_shipped_revconfig();
     if( g_failures )
     {

@@ -75,6 +75,11 @@ struct UITreeBuilder
      *  interface, or whatever the server last re-rooted to. -1 = none, which is
      *  what UITreeBuilder_Init leaves behind. */
     int root_interface_id;
+    /** Which `[layout:<group>]` this bake takes, and which it refuses. Empty =
+     *  take everything / refuse nothing, the pre-title behaviour.
+     *  @see UIBuilderManifestSources::layout_group. */
+    char layout_group[32];
+    char layout_group_exclude[32];
 
     struct UIBuilderSpriteEntry* sprites;
     int sprite_count;

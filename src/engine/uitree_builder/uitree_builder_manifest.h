@@ -16,6 +16,8 @@ struct UIBuilderSpriteReq
     char index_filename[64];
     char table[32];
     char archive[32];
+    /* @see RevConfigCacheItem::group — empty means every build wants it. */
+    char group[32];
     /* `table=defaults`: position in the defaults record, or -1. See
      * RevConfigCacheItem::defaults_slot. */
     int defaults_slot;
@@ -34,6 +36,8 @@ struct UIBuilderFontReq
     int cache_font_id;
     /* dat1: title-jagfile stem (e.g. "b12"); defaults to the section name. */
     char font_name[64];
+    /* @see RevConfigCacheItem::group — empty means every build wants it. */
+    char group[32];
 };
 
 struct UIBuilderComponentReq
@@ -203,6 +207,20 @@ uibuilder_manifest_from_revconfig_rooted(
     struct RevConfigItemBuffer const* items,
     int root_interface_id);
 
+/**
+ * As above, keeping only the layouts and assets one group wants.
+ *
+ * @see uibuilder_manifest_group_wanted for what the two selectors mean; passing
+ * NULL for both is exactly uibuilder_manifest_from_revconfig_rooted.
+ */
+int
+uibuilder_manifest_from_revconfig_grouped(
+    struct UIBuilderManifest* out,
+    struct RevConfigItemBuffer const* items,
+    int root_interface_id,
+    char const* layout_group,
+    char const* layout_group_exclude);
+
 int
 uibuilder_manifest_from_revconfig_ini(
     struct UIBuilderManifest* out,
@@ -232,7 +250,32 @@ struct UIBuilderManifestSources
     /** File holding `[revconfig:…]` sections — in practice the manifest itself. */
     char const* inline_ini_path;
     int root_interface_id;
+    /**
+     * Take only `[layout:<group>]` records (and assets with a matching `group=`)
+     * from this group. NULL/empty takes every group, which is what a profile
+     * with one unnamed gameframe layout has always got.
+     */
+    char const* layout_group;
+    /**
+     * Drop this group even when `layout_group` would have taken it. The
+     * gameframe build names the title group here so the title screen's nodes —
+     * and its every-frame flame repaint — never enter the in-game tree.
+     */
+    char const* layout_group_exclude;
 };
+
+/**
+ * Does a record tagged `group` belong in a build selecting `select` and
+ * excluding `exclude`? Either selector may be NULL or empty.
+ *
+ * An untagged record (`group` empty) is in every build: that is what makes the
+ * key additive, so no existing profile changes meaning by our adding it.
+ */
+int
+uibuilder_manifest_group_wanted(
+    char const* group,
+    char const* select,
+    char const* exclude);
 
 int
 uibuilder_manifest_from_sources(
