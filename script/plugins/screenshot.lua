@@ -62,9 +62,15 @@
 --     resolved by role, the native control is suppressed, and this plugin's
 --     draw declarations are attached directly to that same paint boundary.
 --     The click that was Report abuse is Take Screenshot instead. Solid,
---     because a chat button is chrome and a half-transparent one would read as
---     disabled, and wearing the red plate that button wears -- @see
---     PLATE_RAMP, which is measured off it.
+--     because a chat button is chrome and a half-transparent one would read
+--     as disabled, and wearing what the button it stands in for wears ON THIS
+--     FRAME -- which is two different answers. An OldSchool chatbox's Report
+--     carries its own red plate, so suppressing the button takes the plate
+--     with it and this plugin puts one back (@see PLATE_RAMP). A 2004 privacy
+--     bar's buttons are lines of text over `backbase1`, which the frame drew
+--     and which is still there afterwards: the camera goes straight onto the
+--     bar it always had, and a plate painted there would be an OldSchool
+--     control dropped into a frame that has none of them (@see plate_wanted).
 --
 -- The art is `camera.png` and `camera_small.png`, both shipped in this
 -- plugin's asset folder and hand-authored in the options_icons palette --
@@ -173,6 +179,10 @@ local CAPTURE_OPS = { "Take Screenshot" }
 --- How far a corner button sits off the safe area's edges.
 local MARGIN = 6
 
+--- The report button's number in the chat_buttons role -- 0 public, 1 private,
+--- 2 trade, 3 report. The role's OWN numbering and not a position in a list.
+local CHAT_BUTTON_REPORT = 3
+
 --- The report button's own red, one entry per row from its top to its bottom.
 ---
 --- The plate is the visual half of replacing the button. role.replace removes
@@ -181,6 +191,9 @@ local MARGIN = 6
 --- frame's own measured size. This used to be a flat dark rect with a light
 --- outline: a grey square with corners, in a row of rounded plates, where a red
 --- button was. It read as a hole cut in the frame.
+---
+--- Only on the frames whose button OWNS its plate, which is not all of them
+--- -- @see plate_wanted.
 ---
 --- MEASURED off the button it stands in for rather than chosen, on both of the
 --- frames that draw one: the OldSchool chatbox's own `Report` (interface 162's
@@ -411,9 +424,35 @@ function plugin.on_key(api, ev)
     capture_now(api)
 end
 
+--- Does replacing this frame's report button take a plate away with it?
+---
+--- role.replace hides the role's own subtree and nothing else, and the two
+--- frames put the plate on opposite sides of that line. An OldSchool chatbox's
+--- Report abuse IS the plate: interface 162's component 31 holds the graphic
+--- (32) and the label (33) that make it, so suppressing the button leaves a
+--- gap in the chat strip and something has to be drawn back. A 2004 privacy
+--- bar's Report abuse is centred text over `backbase1` -- the bar is the
+--- FRAME's chrome, drawn under the tree and untouched by the suppression -- so
+--- what is left once the label goes is the button with its label off, which is
+--- the thing to put a camera on rather than something to cover up.
+---
+--- Asked as "does this frame number its own chat buttons?", which is that same
+--- question one level up rather than a proxy for it: the four filters are
+--- members of the chat_buttons role exactly where they are the frame's own
+--- builtins -- the 2004 privacy bar, on whatever lane draws one -- and where
+--- they are cache widgets instead the role has no members to number and this
+--- answers nil. Neither spelling is here, for the reason none of the rest of
+--- the button's geometry is.
+---
+--- Member 3 and not the role as a whole: the question is about the button this
+--- plugin is standing in, and a frame that numbered the other three and not
+--- that one would be answering about a different control.
+local function plate_wanted(api)
+    return api.layout.chat_buttons.rect(CHAT_BUTTON_REPORT) == nil
+end
+
 -- The box the button lives in this frame, and whether that box is a BUTTON --
--- the report placement, which wears a plate -- or a region to sit in a corner
--- of.
+-- the report placement -- or a region to sit in a corner of.
 --
 -- Measured EVERY frame and never cached, because every input is: the safe area
 -- moves when a window is resized or another plugin reserves an edge, and the
@@ -533,10 +572,15 @@ function plugin.on_draw_canvas(api, draw)
     local box, plated = button_box(api)
     if not box then return end
 
+    -- Whether the plate is this plugin's to draw, which is a fact about the
+    -- frame rather than about the placement.
+    local plate = plated and plate_wanted(api)
+
     -- The read has not landed. Ordinary for the first frames after a start.
     -- A corner has nothing useful to draw yet; a report-button replacement
-    -- still draws its plate and remains clickable so display:none never leaves
-    -- a transient hole in the chrome while the camera art is loading.
+    -- draws its plate where the plate is ours, and stays clickable either way,
+    -- so display:none never leaves a transient hole in the chrome while the
+    -- camera art is loading.
     local art = icon_that_fits(api, plated and box or nil)
     if not art and not plated then return end
 
@@ -596,14 +640,18 @@ function plugin.on_draw_canvas(api, draw)
         and my >= hover_y and my < hover_y + hover_h
 
     -- In the report button's place it is chrome, and chrome is solid: a
-    -- half-transparent chat button reads as a disabled one. It lights under
-    -- the pointer the way the button it replaces does -- the plate brightens,
-    -- not the camera, which is what a chat button does and what an orb does
-    -- not.
+    -- half-transparent chat button reads as a disabled one. A plate we drew
+    -- lights under the pointer the way the button it replaces does -- the
+    -- plate brightens, not the camera, which is what a chat button does and
+    -- what an orb does not. On the frame that kept its own bar there is
+    -- nothing of ours to brighten, and nothing is the right answer: a 2004
+    -- privacy button does not light under the pointer either.
     local trans = TRANS_RESTING
     if plated then
         trans = TRANS_HOVER
-        draw_plate(draw, box, hovered)
+        if plate then
+            draw_plate(draw, box, hovered)
+        end
     elseif hovered then
         trans = TRANS_HOVER
     end
