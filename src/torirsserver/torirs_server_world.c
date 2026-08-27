@@ -2343,6 +2343,44 @@ advance_player(struct ToriRSServer* srv)
                 break;
             }
 
+            /*
+             * The gunwale (docs/sailing_coverage.csv SAIL-45): a step that
+             * would leave the vessel deck the player stands on stops the
+             * route here. The pool land around a deck is cache-open ground,
+             * so collision alone lets a route march off the boat into
+             * coordinates that exist for no client; leaving a deck is a
+             * deliberate act — a gangplank script, a disembark teleport —
+             * never a walk step.
+             *
+             * The rectangle is the DECK-ZONE box (base + zones×8) — the same
+             * rectangle the client homes actors by — NOT the map-instance
+             * reservation, which is whole 64-tile squares and lets a rider
+             * stroll fifty tiles of empty pool before falling off the world.
+             */
+            {
+                struct ToriRSServerVessel* deck =
+                    ToriRSServer_VesselAtTile(srv, player->x, player->z);
+
+                if( deck )
+                {
+                    int deck_base_x = 0;
+                    int deck_base_z = 0;
+                    int zones_x = 0;
+                    int zones_z = 0;
+
+                    ToriRSServer_MapInstanceBase(deck->instance, &deck_base_x, &deck_base_z);
+                    ToriRSServer_VesselDeckZones(deck, &zones_x, &zones_z);
+                    if( next_x < deck_base_x || next_x >= deck_base_x + zones_x * 8 ||
+                        next_z < deck_base_z || next_z >= deck_base_z + zones_z * 8 )
+                    {
+                        steps_clear(player);
+                        player->dest_x = -1;
+                        player->dest_z = -1;
+                        break;
+                    }
+                }
+            }
+
             /* LostCity's walktrigger is one-shot and content re-arms it when
              * a policy remains active. Run it for each concrete tile, before
              * occupancy changes. A script vetoes with p_walk(coord), exactly
@@ -2514,6 +2552,11 @@ world_window_scene_build(
      * loc change. The durable record is the ZoneMap's; replay it onto the
      * window just built — the other windows still carry theirs. */
     world_locs_reapply_window(srv, window);
+    /* And every live hull's debug-water patch, which the cache also does not
+     * carry — without this the first window re-centre near a sailing hull
+     * rebuilds dry flags under it and the mover parks it (SAILING SAIL-33's
+     * boarding regression). */
+    ToriRSServer_VesselWaterRestampBound(srv);
     ToriRSServer_SceneBindWindow(bound);
 
     /* The entities' own collision, which the rebuilt map does not carry.
@@ -2532,15 +2575,75 @@ world_window_scene_build(
     world_static_npcs_sync(srv);
 }
 
-/* Build (or re-centre) one PLAYER's window on where they stand, moving their
- * wire origin with it. */
+/*
+ * Where a player's SCENE is anchored: their feet — unless those feet stand on
+ * a vessel's deck instance.
+ *
+ * A rider's own coordinates are deck-instance tiles in the pool, hundreds of
+ * squares off the real map, and a scene built there is the bare deck template
+ * in a black void with the hull itself unreachable ~5000 tiles away. What the
+ * rider's client must hold is the water the hull is ON, so their scene (and
+ * wire origin, and rebuild margins) follows the same projection every other
+ * observer already sees them through: the deck tile pushed through the hull
+ * transform into root space. Their own wire COORDINATE stays the deck tile —
+ * that is what the client's geometric view-membership keys on.
+ *
+ * Same projection as ToriRSServer_WorldRefreshObservation, computed on demand
+ * because the rebuild decisions run before phase_info's refresh on the tick a
+ * player boards.
+ */
+static void
+player_scene_anchor(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int* out_x,
+    int* out_z)
+{
+    struct ToriRSServerVessel* vessel =
+        ToriRSServer_VesselAtTile(srv, player->x, player->z);
+
+    if( vessel )
+    {
+        int fine_x = 0;
+        int fine_z = 0;
+
+        ToriRSServer_VesselDeckTileToRoot(vessel, player->x, player->z, &fine_x, &fine_z);
+        *out_x = fine_x >> 7;
+        *out_z = fine_z >> 7;
+        return;
+    }
+    *out_x = player->x;
+    *out_z = player->z;
+}
+
+void
+ToriRSServer_PlayerSceneAnchor(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int* out_x,
+    int* out_z)
+{
+    assert(srv);
+    assert(player);
+    assert(out_x);
+    assert(out_z);
+    player_scene_anchor(srv, player, out_x, out_z);
+}
+
+/* Build (or re-centre) one PLAYER's window on where they stand — or, for a
+ * rider, on the hull under them (see player_scene_anchor) — moving their wire
+ * origin with it. */
 static void
 world_player_scene_build(
     struct ToriRSServer* srv,
     struct ToriRSServerPlayer* player)
 {
-    player->zone_x = player->x >> 3;
-    player->zone_z = player->z >> 3;
+    int anchor_x;
+    int anchor_z;
+
+    player_scene_anchor(srv, player, &anchor_x, &anchor_z);
+    player->zone_x = anchor_x >> 3;
+    player->zone_z = anchor_z >> 3;
     /* Attempted, not necessarily built: cacheless the window stays unbuilt,
      * and maybe_rebuild's skip test must key off the attempt or it re-builds
      * every tick. See scene_build_attempted in torirs_server.h. */
@@ -2571,6 +2674,32 @@ ToriRSServer_WorldMapInstanceBuilt(
     struct ToriRSServer* srv,
     int handle)
 {
+    /*
+     * A vessel's deck gets its collision pinned in the vessel's own window.
+     *
+     * Every other instance is served by its occupants' windows — you stand in
+     * the house, your window sits on the house. A deck is the one instance
+     * whose occupants' windows are deliberately ELSEWHERE (under the hull,
+     * see player_scene_anchor), so without this window a rider's own steps
+     * would resolve against nothing and every walk request would be refused.
+     */
+    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; i++ )
+    {
+        struct ToriRSServerVessel* vessel = &srv->vessels[i];
+        int base_x = 0;
+        int base_z = 0;
+        int width = 0;
+        int height = 0;
+
+        if( !vessel->in_use || vessel->instance != handle || vessel->deck_window == 0 )
+            continue;
+        if( !ToriRSServer_MapInstanceBounds(vessel->instance, &base_x, &base_z, &width,
+                                            &height) )
+            continue;
+        world_window_scene_build(srv, ToriRSServer_SceneWindowByIndex(vessel->deck_window),
+                                 (base_x + width / 2) >> 3, (base_z + height / 2) >> 3);
+    }
+
     for( int i = 0; i < srv->player_count; i++ )
     {
         struct ToriRSServerPlayer* player = &srv->players[i];
@@ -2707,13 +2836,20 @@ maybe_rebuild(struct ToriRSServer* srv)
     for( int i = 0; i < srv->player_count; i++ )
     {
         struct ToriRSServerPlayer* player = &srv->players[i];
+        int anchor_x;
+        int anchor_z;
         int local_x;
         int local_z;
 
         if( !player->active )
             continue;
-        local_x = player->x - ToriRSServer_SceneOrigin(player->zone_x);
-        local_z = player->z - ToriRSServer_SceneOrigin(player->zone_z);
+        /* A rider's margins are measured where their SCENE is — under the
+         * hull — not where their deck-tile feet are (player_scene_anchor).
+         * This is also what keeps the hull's water inside SOME window while
+         * it sails: the rider's window chases it. */
+        player_scene_anchor(srv, player, &anchor_x, &anchor_z);
+        local_x = anchor_x - ToriRSServer_SceneOrigin(player->zone_x);
+        local_z = anchor_z - ToriRSServer_SceneOrigin(player->zone_z);
         /* The attempt flag, NOT the window's built bit: cacheless builds are a
          * documented fallback (no collision, window stays unbuilt), so keying
          * the skip off "built" re-attempted the build — and reset every
@@ -2757,7 +2893,7 @@ maybe_rebuild(struct ToriRSServer* srv)
             if( player->scene_build_attempted &&
                 local_x >= TORIRSSERVER_REBUILD_MARGIN && local_x < edge &&
                 local_z >= TORIRSSERVER_REBUILD_MARGIN && local_z < edge &&
-                ToriRSServer_MapInstanceFind(player->x, player->z) == window_handle &&
+                ToriRSServer_MapInstanceFind(anchor_x, anchor_z) == window_handle &&
                 zone_centre_generation(player->zone_x, player->zone_z) ==
                     player->scene_built_generation )
                 continue;
@@ -7561,32 +7697,6 @@ handle_cheat(
         tile_x = player->x + 3;
         tile_z = player->z + 3;
 
-        /*
-         * Water, stamped. In this cache only rivers and harbours carry the
-         * BLOCK setting that becomes COLL_FLAG_FLOOR — open ground reads a
-         * flag word of zero, which `ToriRSServer_VesselTileSailable` correctly
-         * refuses. Without a patch under the hull the mover's very first step
-         * is blocked and `::vesselsail` produces no deltas at all, which is
-         * the failure this command exists to avoid.
-         *
-         * The patch REPLACES the tile's collision rather than adding floor to
-         * it. Lumbridge is fences, walls and hedges: OR-ing FLOOR onto a tile
-         * that already carries COLL_FLAG_LOC leaves it blocked for every
-         * mover, so the hull turned on the spot and parked on its second tick
-         * against a loc bit it had supposedly just flooded.
-         */
-        {
-            struct CollisionMap* cm = ToriRSServer_SceneCollision(player->level);
-            int base_x = ToriRSServer_SceneBaseX();
-            int base_z = ToriRSServer_SceneBaseZ();
-
-            if( cm && base_x >= 0 )
-                for( int dx = -size_x - 8; dx <= size_x + 8; dx++ )
-                    for( int dz = -size_z - 8; dz <= size_z + 8; dz++ )
-                        collision_map_set_water(
-                            cm, tile_x + dx - base_x, tile_z + dz - base_z);
-        }
-
         handle = ToriRSServer_VesselSpawn(
             srv, config_id, size_x, size_z, player->level, tile_x, tile_z, 0);
         if( handle == 0 )
@@ -7595,6 +7705,33 @@ handle_cheat(
             return;
         }
         vessel = ToriRSServer_VesselGet(srv, handle);
+
+        /*
+         * Water, stamped — and DURABLY. In this cache only rivers and
+         * harbours carry the BLOCK setting that becomes COLL_FLAG_FLOOR —
+         * open ground reads a flag word of zero, which
+         * `ToriRSServer_VesselTileSailable` correctly refuses. Without a
+         * patch under the hull the mover's very first step is blocked and
+         * `::vesselsail` produces no deltas at all, which is the failure this
+         * command exists to avoid.
+         *
+         * The patch REPLACES the tile's collision rather than adding floor to
+         * it. Lumbridge is fences, walls and hedges: OR-ing FLOOR onto a tile
+         * that already carries COLL_FLAG_LOC leaves it blocked for every
+         * mover, so the hull turned on the spot and parked on its second tick
+         * against a loc bit it had supposedly just flooded.
+         *
+         * `water_stamp` on the vessel is what makes it durable: a one-shot
+         * write died with the first window re-centre (boarding is enough) and
+         * the hull parked on freshly rebuilt dry flags. Every window build now
+         * re-stamps this radius around the hull's CURRENT tile
+         * (ToriRSServer_VesselWaterRestampBound), and since a rider's window
+         * re-centres by chasing the hull, the patch follows it for as long as
+         * it sails. The radius outruns the ~36 tiles a hull can travel
+         * between one window re-centre and the next.
+         */
+        vessel->water_stamp = 48;
+        ToriRSServer_VesselWaterRestampBound(srv);
         if( vessel->view_id == 0 )
         {
             say(srv, "Vessel %d spawned, but all 15 world-view ids are taken; "
@@ -7684,6 +7821,30 @@ handle_cheat(
         say(srv, "Boarded vessel %d at %d,%d.", vessel->index,
             base_tile_x + vessel->size_x_tiles / 2,
             base_tile_z + vessel->size_z_tiles / 2);
+        return;
+    }
+
+    if( strncmp(text, "vesselstep", 10) == 0 )
+    {
+        /*
+         * `::vesselstep <dx> <dz>` — walk the caller a few tiles from where
+         * they stand, through the ordinary route machinery.
+         *
+         * Exists for the deck: a rider's tiles are pool coordinates and deck
+         * clicks are not wired client-side yet (SAILING_PLAN C5.2), so this is
+         * the only way to exercise "a rider walks the deck while the hull
+         * sails" end to end from a capture harness. On land it is just a walk.
+         */
+        int dx = 0;
+        int dz = 0;
+
+        if( sscanf(text, "vesselstep %d %d", &dx, &dz) < 2 )
+        {
+            say(srv, "Usage: ::vesselstep <dx> <dz>");
+            return;
+        }
+        ToriRSServer_WorldWalkTo(srv, player->x + dx, player->z + dz);
+        say(srv, "Stepping to %d,%d.", player->x + dx, player->z + dz);
         return;
     }
 

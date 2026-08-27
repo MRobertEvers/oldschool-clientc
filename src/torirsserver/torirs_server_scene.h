@@ -300,10 +300,19 @@ ToriRSServer_SceneFindLocId(
  */
 struct ToriRSServerSceneWindow;
 
-/** 1 root + one per player slot. torirs_server_scene.h cannot include
- *  torirs_server.h, so this restates 1 + TORIRSSERVER_PLAYER_MAX; the scene
- *  module holds the two to the same value at compile time. */
-#define TORIRSSERVER_SCENE_WINDOW_MAX 9
+/** 1 root + one per player slot + one per vessel-deck slot.
+ *  torirs_server_scene.h cannot include torirs_server.h, so this restates
+ *  1 + TORIRSSERVER_PLAYER_MAX + TORIRSSERVER_VESSEL_WINDOW_MAX; the scene
+ *  module holds the arithmetic to the same values at compile time.
+ *
+ *  The vessel slots exist because a rider needs TWO collision domains at
+ *  once: their own steps resolve against the deck instance (pool
+ *  coordinates), while their scene window follows the hull across the
+ *  water (observed coordinates). A vessel's deck window pins the former
+ *  while the rider's own window serves the latter. */
+#define TORIRSSERVER_SCENE_WINDOW_MAX 17
+#define TORIRSSERVER_SCENE_VESSEL_WINDOW_BASE 9
+#define TORIRSSERVER_SCENE_VESSEL_WINDOW_MAX 8
 
 /** The world's root window — the default binding, and what a fresh process is
  *  bound to before anything is built. */

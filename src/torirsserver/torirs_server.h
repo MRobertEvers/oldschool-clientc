@@ -7341,6 +7341,20 @@ void
 ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv);
 
 /**
+ * Where this player's scene, wire origin and zone window are anchored: their
+ * feet — unless those feet stand on a vessel deck, in which case the deck tile
+ * projected through the hull transform into root space (the same projection
+ * `obs_*` carries, computed on demand because rebuild decisions can run before
+ * the per-tick refresh). See player_scene_anchor in torirs_server_world.c.
+ */
+void
+ToriRSServer_PlayerSceneAnchor(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int* out_x,
+    int* out_z);
+
+/**
  * One npc's projection, out of band with the per-tick sweep.
  *
  * Called by that sweep, and by `npc_spawn`, which stands an npc on a tile no

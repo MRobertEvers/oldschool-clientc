@@ -2952,6 +2952,27 @@ App_WevDespawn(
     int id);
 
 /**
+ * The live view whose STAGING rectangle contains the absolute tile, or 0.
+ *
+ * This is the deob's geometric membership rule from the wire's side
+ * (docs/SAILING.md §5.1): a rider aboard a hull carries deck-instance
+ * coordinates — tiles inside the view's base rectangle, hundreds of squares
+ * off the real map — and the entity-info executor calls this to rebase them
+ * view-locally instead of producing a root-scene-local tile no uint8_t route
+ * queue can carry. On a match, `out_local_x`/`out_local_z` are the tile
+ * relative to the view's base. Views whose base is still unknown (no
+ * REBUILD_WORLDENTITY yet) never match; the per-tick routing pass re-tests, so
+ * an absolute op that raced the deck rebuild heals a tick later.
+ */
+int
+App_WevHomeViewForAbsTile(
+    struct App* app,
+    int abs_tile_x,
+    int abs_tile_z,
+    int* out_local_x,
+    int* out_local_z);
+
+/**
  * REBUILD_NORMAL (Client-TS / deob method3310): early-out when the centre
  * zone is unchanged and a world is active; otherwise queue a classic 104x104
  * zone-centred load. The packet task awaits the load, then shifts entities

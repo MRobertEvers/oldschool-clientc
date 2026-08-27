@@ -9909,6 +9909,46 @@ app_wev_deck_level(
     return level;
 }
 
+int
+App_WevHomeViewForAbsTile(
+    struct App* app,
+    int abs_tile_x,
+    int abs_tile_z,
+    int* out_local_x,
+    int* out_local_z)
+{
+    assert(app);
+    assert(out_local_x);
+    assert(out_local_z);
+
+    for( int id = 1; id < WORLDVIEW_MAX; id++ )
+    {
+        struct Worldview const* view;
+
+        if( !WorldviewRegistry_IsLive(&app->worldviews, id) )
+            continue;
+        view = WorldviewRegistry_Get(&app->worldviews, id);
+        /* base 0,0 is the registration default until REBUILD_WORLDENTITY
+         * names the staging square; a real deck base is never the map
+         * origin. Reservations do not overlap, so first match is only
+         * match. */
+        if( view->base_x == 0 && view->base_z == 0 )
+            continue;
+        if( view->size_x_tiles <= 0 || view->size_z_tiles <= 0 )
+            continue;
+        if( abs_tile_x < view->base_x || abs_tile_x >= view->base_x + view->size_x_tiles )
+            continue;
+        if( abs_tile_z < view->base_z || abs_tile_z >= view->base_z + view->size_z_tiles )
+            continue;
+        *out_local_x = abs_tile_x - view->base_x;
+        *out_local_z = abs_tile_z - view->base_z;
+        return id;
+    }
+    *out_local_x = abs_tile_x;
+    *out_local_z = abs_tile_z;
+    return 0;
+}
+
 /**
  * Membership, the deob's geometric rule (SAILING_PLAN C5.1): descend the view
  * tree from the root as long as some entity's base rectangle contains the
@@ -10051,13 +10091,33 @@ app_wev_route_actors(struct App* app)
 
         if( !player || player->element_id < 0 )
             continue;
-        app_wev_route_point(
-            app,
-            (int)player->draw_position.x,
-            (int)player->draw_position.z,
-            &view_id,
-            &x,
-            &z);
+        if( player->view_placement.home_view != 0 &&
+            !WorldviewRegistry_IsLive(&app->worldviews, player->view_placement.home_view) )
+            /* Their hull despawned. The stored view-local coordinates mean
+             * nothing now; the server always follows a vessel free with an
+             * absolute placement (VesselFree disembarks every rider), which
+             * re-homes them. Until it lands, park in the root. */
+            player->view_placement.home_view = 0;
+        if( player->view_placement.home_view != 0 )
+        {
+            /* Homed by the wire: the executor already rebased this actor's
+             * coordinates into the view's own space, so the draw position IS
+             * the deck placement — no footprint test, no inverse transform,
+             * and no per-tick wobble as the hull glides. */
+            view_id = player->view_placement.home_view;
+            x = (int)player->draw_position.x;
+            z = (int)player->draw_position.z;
+        }
+        else
+        {
+            app_wev_route_point(
+                app,
+                (int)player->draw_position.x,
+                (int)player->draw_position.z,
+                &view_id,
+                &x,
+                &z);
+        }
         app_wev_apply_placement(app, &player->view_placement, player->element_id, view_id, x, z);
         /* SAILING_PLAN C5.1's "one int": which view the local player is in.
          * Nothing steers off it yet — the camera still follows their ROOT
@@ -15123,8 +15183,14 @@ app_world_sync_placement(
     assert(wev);
 
     /* The element's yaw is composed with the hull's on the way out, so what
-     * goes on the element is the actor's heading RELATIVE to the deck. */
-    deck_yaw = (yaw - wev->angle) & 0x7ff;
+     * goes on the element is the actor's heading RELATIVE to the deck. A
+     * HOMED actor's whole frame is already the deck's — their movement, and
+     * so the yaw the mover derives from it, happens in view-local space — so
+     * their yaw goes on unrotated; only a projected (footprint-routed) actor
+     * carries a root-frame heading that needs the hull's yaw taken out. */
+    deck_yaw = placement->home_view == placement->view_id && placement->home_view != 0
+                   ? yaw & 0x7ff
+                   : (yaw - wev->angle) & 0x7ff;
     deck_y = app_world_height_in(
         view->world,
         placement->x,
@@ -15651,6 +15717,13 @@ app_world_roof_check(struct App* app)
     if( !player || !world || !world->tile_flags )
         return 3;
     level = player->grid_position.level;
+
+    /* Aboard, the player's coordinates are deck-local — the raster walk below
+     * would march toward a tile near the scene corner and read roof flags
+     * that are not over anyone. The deob flips to sub-view roof rules while
+     * aboard; a hull on open water has no roofs to remove, so show all. */
+    if( app->aboard_view != WORLDVIEW_ROOT )
+        return 3;
 
     /*
      * "Hide roofs" — game option 1, and the first thing both of the reference's
@@ -23106,6 +23179,8 @@ app_world_camera_follow(struct App* app)
     struct WorldEntity_Player* player;
     int target_x, target_y, target_z;
     int pitch, yaw, distance;
+    int aboard_y = 0;
+    int aboard_y_valid = 0;
 
     /* U unlocked the camera: the follow update stands down and the W/A/S/D +
      * R/F debug keys own world_camera_pos until U relocks. Without this gate
@@ -23182,6 +23257,45 @@ app_world_camera_follow(struct App* app)
 
     target_x = (int)player->draw_position.x;
     target_z = (int)player->draw_position.z;
+
+    /*
+     * Aboard (SAILING_PLAN C5.3): the player's own coordinates are deck-local,
+     * so the camera follows their deck position pushed through the hull
+     * transform into root scene space — recomputed every frame, which is what
+     * glues the focus to a gliding, turning hull. The look-at height composes
+     * the same way the emit path does: the hull's y (root terrain under the
+     * boat, kept by the interpolator) plus the deck's own height under the
+     * actor. Nested hulls would need the parent chain composed; the camera
+     * handles the root-parented case, which is every hull that exists today.
+     */
+    aboard_y_valid = 0;
+    if( app->aboard_view != WORLDVIEW_ROOT && Wevs_IsLive(&app->wevs, app->aboard_view) &&
+        WorldviewRegistry_IsLive(&app->worldviews, app->aboard_view) &&
+        player->view_placement.view_id == app->aboard_view )
+    {
+        struct Wev* wev = Wevs_Get(&app->wevs, app->aboard_view);
+
+        if( wev->parent_view_id == WORLDVIEW_ROOT )
+        {
+            struct Worldview* view = WorldviewRegistry_Get(&app->worldviews, app->aboard_view);
+            struct WevDeckBox box;
+            int parent_x;
+            int parent_z;
+
+            app_wev_deck_box(app, wev, app->world, &box);
+            Wev_ParentFromDeck(
+                &box, player->view_placement.x, player->view_placement.z, &parent_x,
+                &parent_z);
+            target_x = parent_x;
+            target_z = parent_z;
+            aboard_y =
+                wev->y + app_world_height_in(
+                             view->world, player->view_placement.x, player->view_placement.z,
+                             app_wev_deck_level(app, app->aboard_view)) -
+                8 - 50;
+            aboard_y_valid = 1;
+        }
+    }
 
     /* Anchor: snap when >500 units out (teleport), else ease 1/16 — in FLOAT,
      * per the reference's client.method1605 (rev-239 deob):
@@ -23294,7 +23408,10 @@ app_world_camera_follow(struct App* app)
      *   field753 = var14 - field999          (field999 defaults to 50)
      * method1569 degenerates to a single method1812 sample for a size-1
      * footprint, which the local player always has. */
-    target_y = app_world_height(app, target_x, target_z, player->grid_position.level) - 8 - 50;
+    target_y = aboard_y_valid
+                   ? aboard_y
+                   : app_world_height(app, target_x, target_z, player->grid_position.level) -
+                         8 - 50;
     target_x = (int)app->orbit_x;
     target_z = (int)app->orbit_z;
 

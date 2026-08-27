@@ -1217,7 +1217,11 @@ World_ShiftEntities(
          i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
-        if( player )
+        /* An actor homed to a world-entity view carries VIEW-LOCAL
+         * coordinates (entity_facets.h home_view) — its base did not move
+         * when the root scene re-based, so shifting it would drag it across
+         * the deck by the rebuild delta. */
+        if( player && player->view_placement.home_view == 0 )
             world_shift_mover(
                 &player->grid_position,
                 &player->draw_position,
@@ -1232,7 +1236,7 @@ World_ShiftEntities(
          i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
-        if( npc )
+        if( npc && npc->view_placement.home_view == 0 )
             world_shift_mover(
                 &npc->grid_position,
                 &npc->draw_position,

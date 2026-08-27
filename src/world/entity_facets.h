@@ -156,6 +156,19 @@ struct WorldEntityFacet_ViewPlacement
     int view_id;
     int x;
     int z;
+    /**
+     * The view whose STAGING rectangle the wire says this actor's absolute
+     * coordinates are inside, or 0 (root) — set by the entity-info executor
+     * when it rebases an absolute position, read by the per-tick routing pass.
+     *
+     * When non-zero, `grid_position`/`draw_position` and the route queue are
+     * VIEW-LOCAL (relative to that view's base) rather than root-scene-local:
+     * a rider's deck tiles live hundreds of squares off the map, and the
+     * uint8_t route arrays physically cannot carry them root-relative. The
+     * deob stores aboard actors view-locally for the same reason
+     * (docs/SAILING.md §5.1: actors carry view-local fine coordinates).
+     */
+    int home_view;
 };
 
 struct WorldEntityFacet_OrientationPYR

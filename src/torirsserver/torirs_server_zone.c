@@ -1186,14 +1186,23 @@ ToriRSServer_PlayerzonemapMove(struct ToriRSServerPlayer* player)
 
     if( !srv )
         return;
-    here = ToriRSServer_ZoneIndex(player->x, player->z, player->level);
+    /* A rider's zones are the water's, not the pool's: the subscription
+     * window is centred where their scene is anchored (under the hull), or
+     * the clip against zone_x below would leave them subscribed to nothing.
+     * For everyone else the anchor IS their feet. */
+    {
+        int anchor_x = 0;
+        int anchor_z = 0;
+
+        ToriRSServer_PlayerSceneAnchor(srv, player, &anchor_x, &anchor_z);
+        here = ToriRSServer_ZoneIndex(anchor_x, anchor_z, player->level);
+        centre_x = anchor_x >> 3;
+        centre_z = anchor_z >> 3;
+    }
     if( player->zone_index == here && player->zonemap.count > 0 &&
         player->zonemap.built_zone_x == player->zone_x &&
         player->zonemap.built_zone_z == player->zone_z )
         return;
-
-    centre_x = player->x >> 3;
-    centre_z = player->z >> 3;
     for( int x = centre_x - TORIRSSERVER_ZONE_VIEW_RADIUS; x <= centre_x + TORIRSSERVER_ZONE_VIEW_RADIUS;
          x++ )
     {
@@ -1462,27 +1471,19 @@ deck_npcs_in_view(
 }
 
 /*
- * WHY THERE IS NO MIRROR OF THE ABOVE — a rider looking at the shore.
+ * THE MIRROR CASE — a rider looking at the shore — lands through the anchor.
  *
- * It is the same defect pointing the other way and it is NOT fixed here, on
- * purpose. A rider's zonemap is centred on their POOL tile (`player->zone_x`
- * is both the collision window origin and the wire origin, and boarding moves
- * both), so a dockside npc is not a candidate for them either. Finding one is
- * easy — the zones around `obs_*`, the scan this comment replaces.
- *
- * SENDING it is the problem. The low-resolution deltas are relative to the
- * origin in SET_NPC_UPDATE_ORIGIN, which is the player's tile inside the build
- * area their client holds, and a rider's build area is the deck scene: a
- * couple of zones. An npc ten tiles off the bow would be placed ten tiles from
- * the rider *inside the deck scene*, which is off the end of it — a coordinate
- * that does not exist for that client, drawn nowhere, exactly the failure the
- * SET_NPC_UPDATE_ORIGIN comment in the encoder describes. A candidate set
- * cannot fix that; the fix is NPC_INFO encoded per active world, which is the
- * client-side worldview phase (docs/SAILING_PLAN.md C4, deferred).
- *
- * So the shore->deck direction lands and the deck->shore direction stays open
- * with its reason recorded, rather than shipping npcs to a scene that has no
- * room for them.
+ * A rider's zonemap and wire origin are centred where their SCENE is anchored
+ * (ToriRSServer_PlayerSceneAnchor): under the hull, in root coordinates. A
+ * dockside npc is therefore an ordinary zonemap candidate for them, and the
+ * origin in SET_NPC_UPDATE_ORIGIN is in the same obs frame the add deltas are
+ * measured in, so it encodes in range. What moved OUT of their zonemap is
+ * their own deck — pool zones the anchor no longer subscribes — which is why
+ * the scan below no longer skips the hull the observer is aboard: it is the
+ * only path their own deckhands have left. Those deckhands come through at
+ * their PROJECTED tiles, so the rider's client draws them through the same
+ * footprint routing a shore observer uses (per-world NPC_INFO — deck-local
+ * coordinates for deck npcs — remains docs/SAILING_PLAN.md C4).
  */
 
 int
@@ -1493,7 +1494,6 @@ ToriRSServer_PlayerCrossFrameNpcs(
     int max)
 {
     struct ToriRSServer* srv;
-    struct ToriRSServerVessel* aboard;
     int count = 0;
 
     assert(player);
@@ -1508,8 +1508,6 @@ ToriRSServer_PlayerCrossFrameNpcs(
     if( ToriRSServer_VesselLiveCount(srv) == 0 )
         return 0;
 
-    aboard = ToriRSServer_VesselAtTile(srv, player->x, player->z);
-
     for( int i = 0; i < TORIRSSERVER_VESSEL_MAX && count < max; i++ )
     {
         struct ToriRSServerVessel* vessel = &srv->vessels[i];
@@ -1519,10 +1517,11 @@ ToriRSServer_PlayerCrossFrameNpcs(
 
         if( !vessel->in_use )
             continue;
-        /* Their own deck is already in their zonemap — it is the frame they
-         * are filed in. Scanning it here would add every deckhand twice. */
-        if( vessel == aboard )
-            continue;
+        /* The observer's own deck is scanned too: their zonemap is anchored
+         * under the hull (root zones), so their own deckhands — filed in pool
+         * zones — can only arrive through this query. Disjointness with the
+         * zonemap holds either way: an npc is filed in exactly one zone, and
+         * a deck's pool zones are never in an anchored zonemap. */
         if( vessel->level != player->obs_level )
             continue;
         /*

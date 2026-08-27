@@ -1,4 +1,5 @@
 #include "cachepack.h"
+#include "cp_assets.h"
 #include "tool_posix_compat.h"
 
 #include "archive.h"
@@ -67,8 +68,8 @@ ensure_dir(const char* path)
  * `RSCache_Dat2DiskArchiveNewLoad` decompresses on the way out, which is what
  * every other caller wants and exactly what this one must not have.
  */
-static uint8_t*
-read_raw_container(
+uint8_t*
+cp_binary_read_raw(
     struct CP_Ctx* ctx,
     int table_id,
     int archive_id,
@@ -184,7 +185,7 @@ cp_binary_export(
         {
             int archive_id = rt->ids[a];
             int size = 0;
-            uint8_t* raw = read_raw_container(ctx, table_id, archive_id, &size);
+            uint8_t* raw = cp_binary_read_raw(ctx, table_id, archive_id, &size);
             if( !raw || size <= 0 )
             {
                 free(raw);
@@ -461,9 +462,13 @@ cp_reference_sync(
 
             memset(rt->archives + rt->archive_count, 0,
                    (size_t)(next - rt->archive_count) * sizeof(*rt->archives));
-            for( int i = rt->archive_count; i < next; i++ )
-                RSCache_ReferenceTableSetHasArchive(rt, i, false);
+            /* Count first: SetHasArchive sizes the present bitmap against
+             * archive_count and asserts the id is under it, so clearing the
+             * gap bits with the old count aborts on the first grown id. */
+            int first_gap = rt->archive_count;
             rt->archive_count = next;
+            for( int i = first_gap; i < next; i++ )
+                RSCache_ReferenceTableSetHasArchive(rt, i, false);
         }
 
         if( rt->id_count + 1 > rt->id_capacity )
@@ -749,4 +754,293 @@ cp_binary_import(
 
     printf("Imported %d binary archives.\n", total);
     return 1;
+}
+
+/* ---- raw config groups --------------------------------------------------- */
+
+/*
+ * The config groups no CP_Type decodes.
+ *
+ * A group with a decoder is text (`configs/all.<type>`); a group without one has
+ * no text form to take, and the tree used to hold nothing for it at all — so a
+ * pack with no --base simply did not write it, and the packed cache's idx2 was
+ * 20 groups where the original's was 41. The missing 21 are each a few hundred
+ * bytes of near-empty records, but "small" is not "absent": the client can ask
+ * for any group its revision ships.
+ *
+ * They ride as raw container bytes under the same two rules as everything else
+ * in the tree: the payload is a file in the table's own folder
+ * (`configs/<name>.bin`), and the id lives in the index — `pack/2_configs.pack`,
+ * the same file that names the decoded groups. A group that gains a decoder
+ * later simply stops being unclaimed: the type's text form takes over and the
+ * `.bin` becomes an orphan to delete, with no migration step.
+ */
+
+/** Is idx2 archive `archive_id` claimed by a config type's decoder? */
+static int
+raw_group_claimed(
+    struct CP_Ctx* ctx,
+    int config_table,
+    int archive_id)
+{
+    for( int t = 0; t < CP_TYPE_COUNT; t++ )
+    {
+        struct RSCache_RecordAddress addr =
+            RSCache_RecordAddressFor(&ctx->profile, cp_type(t)->rs_type);
+        if( addr.group_shift != 0 )
+            continue;
+        if( RSCache_Dat2DiskTableId(ctx->cache.disk, addr.table) != config_table )
+            continue;
+        if( addr.group == archive_id )
+            return 1;
+    }
+    return 0;
+}
+
+int
+cp_raw_groups_export(struct CP_Ctx* ctx)
+{
+    assert(ctx);
+    assert(ctx->cache_open);
+
+    int config_table = RSCache_Dat2DiskTableId(ctx->cache.disk, RSCACHE_DAT2_TABLE_CONFIGS);
+    if( config_table == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+        return 1;
+    struct RSCache_ReferenceTable* rt = ctx->cache.disk->tables[config_table];
+    if( !rt )
+        return 1;
+
+    char pack_path[1300];
+    snprintf(pack_path, sizeof(pack_path), "%s/pack/2_configs.pack", ctx->srcdir);
+    struct LC_Pack index;
+    if( !lc_pack_load(&index, pack_path, "configs", 1) )
+    {
+        fprintf(stderr, "cachepack: failed to read %s\n", pack_path);
+        return 0;
+    }
+
+    char dir[1300];
+    snprintf(dir, sizeof(dir), "%s/configs", ctx->srcdir);
+    if( ensure_dir(ctx->srcdir) != 0 || ensure_dir(dir) != 0 )
+    {
+        fprintf(stderr, "cachepack: cannot create %s\n", dir);
+        lc_pack_free(&index);
+        return 0;
+    }
+
+    int written = 0;
+    for( int a = 0; a < rt->id_count; a++ )
+    {
+        int archive_id = rt->ids[a];
+        if( raw_group_claimed(ctx, config_table, archive_id) )
+            continue;
+
+        /* A name someone gave the group survives; only an unnamed one gets
+         * filler. `config_`, not `configs_`: the sparse save elides
+         * `<type>_<id>` filler and these lines are the file's whole point. */
+        const char* name =
+            archive_id < index.max && index.names ? index.names[archive_id] : NULL;
+        char filler[32];
+        if( !name )
+        {
+            snprintf(filler, sizeof(filler), "config_%d", archive_id);
+            if( !lc_pack_set(&index, archive_id, filler) )
+            {
+                lc_pack_free(&index);
+                return 0;
+            }
+            name = index.names[archive_id];
+        }
+
+        int size = 0;
+        uint8_t* raw = cp_binary_read_raw(ctx, config_table, archive_id, &size);
+        if( !raw || size <= 0 )
+        {
+            free(raw);
+            fprintf(stderr, "cachepack: idx%d group %d is indexed but unreadable\n",
+                    config_table, archive_id);
+            lc_pack_free(&index);
+            return 0;
+        }
+        char path[1600];
+        snprintf(path, sizeof(path), "%s/%s.bin", dir, name);
+        FILE* out = fopen(path, "wb");
+        if( !out || fwrite(raw, 1, (size_t)size, out) != (size_t)size )
+        {
+            if( out )
+                fclose(out);
+            free(raw);
+            fprintf(stderr, "cachepack: cannot write %s\n", path);
+            lc_pack_free(&index);
+            return 0;
+        }
+        fclose(out);
+        free(raw);
+
+        /*
+         * The member ids, beside the bytes. A multi-file payload cannot be
+         * parsed without its child count, and the ids live only in the
+         * reference table — a raw import onto a from-scratch cache has no
+         * entry to inherit them from, which is the exact gap
+         * `<base>.memberpack` exists to state (see cp_assets_import).
+         */
+        if( RSCache_ReferenceTableHasArchive(rt, archive_id) &&
+            rt->archives[archive_id].children.count > 0 )
+        {
+            const struct RSCache_ReferenceTableArchive* entry = &rt->archives[archive_id];
+            struct LC_Pack members;
+            char stem[1600];
+
+            snprintf(stem, sizeof(stem), "%s/%s", dir, name);
+            memset(&members, 0, sizeof(members));
+            snprintf(members.type, sizeof(members.type), "record");
+            for( int c = 0; c < entry->children.count; c++ )
+            {
+                int file_id = RSCache_ReferenceTableChildId(entry, c);
+                char filler[32];
+                snprintf(filler, sizeof(filler), "record_%d", file_id);
+                if( !lc_pack_set(&members, file_id, filler) )
+                {
+                    lc_pack_free(&members);
+                    lc_pack_free(&index);
+                    return 0;
+                }
+            }
+            int saved = cp_member_pack_save(&members, stem, "memberpack");
+            lc_pack_free(&members);
+            if( !saved )
+            {
+                lc_pack_free(&index);
+                return 0;
+            }
+        }
+        written++;
+    }
+
+    int ok = lc_pack_save(&index, pack_path);
+    lc_pack_free(&index);
+    if( !ok )
+    {
+        fprintf(stderr, "cachepack: failed to write %s\n", pack_path);
+        return 0;
+    }
+    if( written )
+        printf("  configs        %6d undecoded group(s) as raw bytes\n", written);
+    return 1;
+}
+
+int
+cp_raw_groups_import(
+    struct CP_Ctx* ctx,
+    const char* out_cache_dir)
+{
+    assert(ctx);
+    assert(ctx->cache_open);
+
+    int config_table = RSCache_Dat2DiskTableId(ctx->cache.disk, RSCACHE_DAT2_TABLE_CONFIGS);
+    if( config_table == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+        return 1;
+
+    char pack_path[1300];
+    snprintf(pack_path, sizeof(pack_path), "%s/pack/2_configs.pack", ctx->srcdir);
+    struct LC_Pack index;
+    if( !lc_pack_load(&index, pack_path, "configs", 1) )
+    {
+        fprintf(stderr, "cachepack: failed to read %s\n", pack_path);
+        return 0;
+    }
+
+    int written = 0;
+    int missing = 0;
+    int dirty = 0;
+    for( int archive_id = 0; archive_id < index.max; archive_id++ )
+    {
+        const char* name = index.names ? index.names[archive_id] : NULL;
+        if( !name )
+            continue;
+        if( raw_group_claimed(ctx, config_table, archive_id) )
+            continue; /* the type's own encoder owns this group */
+
+        char path[1600];
+        snprintf(path, sizeof(path), "%s/configs/%s.bin", ctx->srcdir, name);
+        FILE* in = fopen(path, "rb");
+        if( !in )
+        {
+            /* The same sentence the asset import speaks, so the check-only bar
+             * greps one pattern for both. */
+            fprintf(stderr,
+                    "cachepack: configs/%s is indexed and in the cache, but no file is on "
+                    "disk\n",
+                    name);
+            missing++;
+            continue;
+        }
+        fseek(in, 0, SEEK_END);
+        long size = ftell(in);
+        fseek(in, 0, SEEK_SET);
+        uint8_t* data = size > 0 ? malloc((size_t)size) : NULL;
+        if( !data || fread(data, 1, (size_t)size, in) != (size_t)size )
+        {
+            free(data);
+            fclose(in);
+            fprintf(stderr, "cachepack: failed to read %s\n", path);
+            lc_pack_free(&index);
+            return 0;
+        }
+        fclose(in);
+
+        if( out_cache_dir )
+        {
+            if( RSCache_Dat2DiskWriteArchive(out_cache_dir, config_table, archive_id, data,
+                                             (int)size) != 0 )
+            {
+                free(data);
+                fprintf(stderr, "cachepack: failed to write idx%d group %d\n", config_table,
+                        archive_id);
+                lc_pack_free(&index);
+                return 0;
+            }
+
+            /* The member ids ride in `<name>.memberpack`; without them a
+             * from-scratch reference table holds a childless entry and the
+             * multi-file payload can never be parsed again. */
+            int* file_ids = NULL;
+            int file_count = 0;
+            {
+                struct LC_Pack members;
+                char stem[1600];
+
+                snprintf(stem, sizeof(stem), "%s/configs/%s", ctx->srcdir, name);
+                cp_member_pack_load(&members, stem, "memberpack", "record");
+                if( members.max > 0 )
+                {
+                    file_ids = malloc((size_t)members.max * sizeof(int));
+                    if( !file_ids )
+                    {
+                        lc_pack_free(&members);
+                        free(data);
+                        lc_pack_free(&index);
+                        return 0;
+                    }
+                    for( int member = 0; member < members.max; member++ )
+                        if( members.names && members.names[member] )
+                            file_ids[file_count++] = member;
+                }
+                lc_pack_free(&members);
+            }
+            cp_reference_sync(ctx, config_table, archive_id, data, (int)size, file_ids,
+                              file_count, &dirty);
+            free(file_ids);
+        }
+        free(data);
+        written++;
+    }
+    lc_pack_free(&index);
+
+    if( dirty && !cp_reference_write(ctx, out_cache_dir, config_table) )
+        return 0;
+    if( written || missing )
+        printf("%s %d raw config group(s), %d indexed but missing.\n",
+               out_cache_dir ? "Imported" : "Checked", written, missing);
+    return missing == 0;
 }

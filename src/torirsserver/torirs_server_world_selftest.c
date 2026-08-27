@@ -38408,6 +38408,18 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(boat != NULL, "a 6x12 hull spawns in the arena");
             if( boat )
             {
+                /*
+                 * The arena stamp above went into the MAIN player's window,
+                 * once. Boarding now re-anchors the rider's own window onto
+                 * the hull (player_scene_anchor), and that freshly built
+                 * window covers the arena with the cache's dry flags —
+                 * `window_containing` may resolve the sailable query through
+                 * it, parking the hull the rows below sail. The durable
+                 * stamp is the same answer ::vesselspawn uses: every window
+                 * build re-stamps this radius around the hull's current
+                 * tile.
+                 */
+                boat->water_stamp = 8;
                 ToriRSServer_VesselDeckZones(boat, &zones_x, &zones_z);
                 SELFTEST_CHECK(zones_x == 1 && zones_z == 2,
                                "whose deck reserves 1x2 zones, got %dx%d", zones_x, zones_z);

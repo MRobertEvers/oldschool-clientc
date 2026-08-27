@@ -608,8 +608,17 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                     minimap_foreground_rgb = 0;
                 }
 
+                /* Reference bakes the underlay's minimap colour at a FIXED
+                 * lightness -- colourTable[getUCol(hsl, 96)] -- not the blend's
+                 * own. The overlay branch above already scales by 96; the
+                 * underlay was the one taking the raw blended hsl, which is
+                 * 128/96 too bright. Same in the official deob (rl4.method10634,
+                 * getUCol) as in Client-TS's ClientBuild.
+                 * (The reference also jitters hue/lightness per build --
+                 * t1RandColour -- which averages to this; not ported.) */
                 if( underlay_hsl != TERRAIN_UNDERLAY_HSL_NONE )
-                    minimap_background_rgb = ToriDraw_Hsl16ToRgb((uint16_t)underlay_hsl);
+                    minimap_background_rgb = ToriDraw_Hsl16ToRgb(
+                        (uint16_t)terrain_adjust_lightness((int)underlay_hsl, 96));
 
                 /* Every level, not just 0: the bake picks the player's level
                  * and composites the VisBelow layer above it (reference

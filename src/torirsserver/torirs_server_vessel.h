@@ -159,6 +159,31 @@ struct ToriRSServerVessel
      *  the commanded path instead of drifting off the diagonal. */
     int residual_x;
     int residual_z;
+
+    /**
+     * Debug-water radius in tiles, 0 = none. Set by `::vesselspawn`, whose
+     * water patch used to be a one-shot write into whichever collision window
+     * happened to be bound — the first window re-centre (a rider boarding is
+     * enough) rebuilt that window from the cache and the hull parked on dry
+     * flags. A non-zero radius here is re-stamped around the hull's CURRENT
+     * tile into every window build that covers it
+     * (ToriRSServer_SceneVesselWaterRestamp), so the patch follows the hull
+     * for as long as it sails.
+     */
+    int water_stamp;
+
+    /**
+     * Scene-window pool index holding this vessel's DECK collision, or 0 for
+     * none (the pool ran out — the hull still sails, but a rider whose own
+     * window has followed the hull away from the pool cannot walk the deck).
+     *
+     * A rider needs two collision domains at once — deck tiles under their
+     * feet, water under the hull — and their own per-player window can only
+     * be one of them. This window pins the deck's; it is built when the deck
+     * instance is (ToriRSServer_WorldMapInstanceBuilt) and released with the
+     * vessel.
+     */
+    int deck_window;
 };
 
 /* ------------------------------------------------------------------ */
@@ -296,6 +321,15 @@ ToriRSServer_VesselTileSailable(
     int level,
     int tile_x,
     int tile_z);
+
+/**
+ * Re-apply every live vessel's debug-water patch (`water_stamp`) into the
+ * BOUND scene window, around each hull's CURRENT tile, skipping map-instance
+ * reservations. Called from every window build so the patch survives window
+ * re-centres and follows the hull — see the field's comment.
+ */
+void
+ToriRSServer_VesselWaterRestampBound(struct ToriRSServer* srv);
 
 /* ------------------------------------------------------------------ */
 /* Deck <-> root projection                                            */

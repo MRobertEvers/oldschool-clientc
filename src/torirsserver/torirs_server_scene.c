@@ -102,8 +102,13 @@ struct ToriRSServerSceneWindow
 
 /* torirs_server_scene.h cannot include torirs_server.h, so the pool size is
  * restated there; hold the two headers to the same arithmetic here. */
-typedef char scene_window_pool_is_root_plus_players
-    [TORIRSSERVER_SCENE_WINDOW_MAX == 1 + TORIRSSERVER_PLAYER_MAX ? 1 : -1];
+typedef char scene_window_pool_is_root_plus_players_plus_vessels
+    [TORIRSSERVER_SCENE_WINDOW_MAX ==
+             1 + TORIRSSERVER_PLAYER_MAX + TORIRSSERVER_SCENE_VESSEL_WINDOW_MAX
+         ? 1
+         : -1];
+typedef char scene_vessel_window_base_is_root_plus_players
+    [TORIRSSERVER_SCENE_VESSEL_WINDOW_BASE == 1 + TORIRSSERVER_PLAYER_MAX ? 1 : -1];
 
 static struct ToriRSServerSceneWindow g_windows[TORIRSSERVER_SCENE_WINDOW_MAX];
 static struct ToriRSServerSceneWindow* g_bound;

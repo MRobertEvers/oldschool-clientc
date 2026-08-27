@@ -20,6 +20,7 @@
 #include "torirs_server_ids.h"
 #include "torirs_server_mapinstance.h"
 #include "torirs_server_session.h"
+#include "torirs_server_vessel.h"
 #include "mock239_runclientscript.h"
 #include "mock239_appearance.h"
 #include "mock239_facing.h"
@@ -1065,7 +1066,12 @@ ToriRSServer_SendRebuildRegion(struct ToriRSServerPlayer* player)
 void
 ToriRSServer_SendRebuild(struct ToriRSServerPlayer* player)
 {
-    if( ToriRSServer_MapInstanceFind(player->x, player->z) != 0 )
+    /* A rider stands in an instance, but their SCENE is not the instance:
+     * their window (and zone_x) is anchored under the hull, on the normal
+     * map, and that is the rebuild their client is owed
+     * (player_scene_anchor). */
+    if( ToriRSServer_MapInstanceFind(player->x, player->z) != 0 &&
+        !ToriRSServer_VesselAtTile(player->world, player->x, player->z) )
         ToriRSServer_SendRebuildRegion(player);
     else
         ToriRSServer_SendRebuildNormal(player);
@@ -5607,9 +5613,20 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
          */
         open_packet(&buf, 4);
         /* Local to this player's OWN window — the build area their client
-         * holds, not whichever window happens to be bound. */
-        rsab_p1(&buf, player->x - ToriRSServer_SceneOrigin(player->zone_x));
-        rsab_p1(&buf, player->z - ToriRSServer_SceneOrigin(player->zone_z));
+         * holds, not whichever window happens to be bound. The ANCHOR, not
+         * raw feet: a rider's build area follows the hull while their feet
+         * stay on deck tiles in the pool, and the add deltas below are
+         * measured from obs — the origin has to be the same frame or every
+         * npc lands offset by the pool gap. Off a deck the anchor IS the
+         * feet. */
+        {
+            int anchor_x = 0;
+            int anchor_z = 0;
+
+            ToriRSServer_PlayerSceneAnchor(srv, player, &anchor_x, &anchor_z);
+            rsab_p1(&buf, anchor_x - ToriRSServer_SceneOrigin(player->zone_x));
+            rsab_p1(&buf, anchor_z - ToriRSServer_SceneOrigin(player->zone_z));
+        }
         flush(player, &buf, OP_SET_NPC_UPDATE_ORIGIN, 0);
 
         open_packet(&buf, 4096);

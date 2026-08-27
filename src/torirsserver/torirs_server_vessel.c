@@ -147,6 +147,62 @@ ToriRSServer_VesselTileSailable(
     return collision_can_move(COLL_TYPE_BLOCKED, flags, COLL_FLAG_WALK_BLOCKED);
 }
 
+static int
+vessel_debug_enabled(void);
+
+void
+ToriRSServer_VesselWaterRestampBound(struct ToriRSServer* srv)
+{
+    int base_x;
+    int base_z;
+
+    assert(srv);
+    base_x = ToriRSServer_SceneBaseX();
+    base_z = ToriRSServer_SceneBaseZ();
+    /* Cacheless builds leave the bound window unbuilt — a documented fallback,
+     * not a caller bug. Nothing to stamp into. */
+    if( base_x < 0 )
+        return;
+
+    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; i++ )
+    {
+        struct ToriRSServerVessel* vessel = &srv->vessels[i];
+        struct CollisionMap* cm;
+        int tile_x;
+        int tile_z;
+        int r;
+
+        if( !vessel->in_use || vessel->water_stamp <= 0 )
+            continue;
+        cm = ToriRSServer_SceneCollision(vessel->level);
+        if( !cm )
+            continue;
+        tile_x = vessel->fine_x >> 7;
+        tile_z = vessel->fine_z >> 7;
+        r = vessel->water_stamp;
+        if( vessel_debug_enabled() )
+            fprintf(stderr,
+                    "vessel: restamp hull %d r=%d at tile %d,%d into window base %d,%d\n",
+                    vessel->index, r, tile_x, tile_z, base_x, base_z);
+        for( int dx = -r; dx <= r; dx++ )
+            for( int dz = -r; dz <= r; dz++ )
+            {
+                int x = tile_x + dx;
+                int z = tile_z + dz;
+
+                if( x < base_x || x >= base_x + TORIRSSERVER_SCENE_TILES ||
+                    z < base_z || z >= base_z + TORIRSSERVER_SCENE_TILES )
+                    continue;
+                /* Never stamp over a map-instance reservation: those squares
+                 * are somebody's deck, house or raid room, and water under a
+                 * rider's feet reads as "walk anywhere". */
+                if( ToriRSServer_MapInstanceFind(x, z) != 0 )
+                    continue;
+                collision_map_set_water(cm, x - base_x, z - base_z);
+            }
+    }
+}
+
 /**
  * Every tile the hull would cover at (fine_x, fine_z, angle) is sailable?
  *
@@ -273,6 +329,29 @@ ToriRSServer_VesselSpawn(
     vessel->speed_tier = TORIRSSERVER_VESSEL_SPEED_TIER_MIN;
     vessel->turn_rate = TORIRSSERVER_VESSEL_TURN_RATE_DEFAULT;
 
+    /* Lowest free deck-window slot (see the field's comment). 0 when all are
+     * taken: the hull still sails, riders of THIS hull just lose deck
+     * collision once their own window follows the hull away from the pool. */
+    for( int wi = 0; wi < TORIRSSERVER_SCENE_VESSEL_WINDOW_MAX; wi++ )
+    {
+        int pool_index = TORIRSSERVER_SCENE_VESSEL_WINDOW_BASE + wi;
+        int taken = 0;
+
+        for( int i = 0; i < TORIRSSERVER_VESSEL_MAX && !taken; i++ )
+            if( srv->vessels[i].in_use && srv->vessels[i].deck_window == pool_index )
+                taken = 1;
+        if( !taken )
+        {
+            vessel->deck_window = pool_index;
+            break;
+        }
+    }
+    if( vessel->deck_window == 0 )
+        fprintf(stderr,
+                "torirsserver: vessel %d spawned with no free deck window — "
+                "riders cannot walk this deck while it sails\n",
+                vessel->index);
+
     srv->vessel_count++;
     return vessel->index;
 }
@@ -332,6 +411,11 @@ ToriRSServer_VesselFree(
         }
         ToriRSServer_WorldSetActive(srv, was_active);
     }
+
+    /* The deck's pinned collision window goes with the deck. */
+    if( vessel->deck_window != 0 )
+        ToriRSServer_SceneWindowRelease(
+            ToriRSServer_SceneWindowByIndex(vessel->deck_window));
 
     /* The world-level release, not the bare registry one: the deck may hold
      * npcs, floor objects and loc changes, and the pool re-issues its squares
