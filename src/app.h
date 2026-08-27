@@ -2460,6 +2460,25 @@ int
 App_PluginLayoutFixedSize(struct App const* app, int* out_w, int* out_h);
 
 /**
+ * The smallest canvas a plugin layout can be declared against, or 0 when no
+ * plugin is arranging the frame.
+ *
+ * The floor App_SetCanvasSize clamps to, when this answers. APP_CANVAS_MIN_W/H
+ * is the REVCONFIG gameframe's floor and says so: a rev-230 frame's children
+ * are insets off 765x503, so a smaller canvas collapses them. A plugin layout
+ * is arithmetic on whatever canvas it is handed, so that reasoning does not
+ * reach it, and a frame authored for a phone is narrower than 765 without being
+ * broken. The claim carries the number because the plugin computing the frame
+ * is the only thing that knows how small it still computes.
+ *
+ * Only for a FOLLOW_WINDOW claim: a FIXED one is not clamped toward a minimum,
+ * it is pinned outright, and App_PluginLayoutFixedSize is that.
+ * Returns 1 when both outs were written.
+ */
+int
+App_PluginLayoutMinSize(struct App const* app, int* out_w, int* out_h);
+
+/**
  * Bring the frame up to date once per frame: re-declare it if the canvas or
  * the tree changed under the claim, and re-assert the chrome suppression the
  * declaration made.

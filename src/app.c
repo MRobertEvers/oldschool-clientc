@@ -26604,10 +26604,26 @@ App_SetCanvasSize(
 
     assert(app);
 
-    if( width < APP_CANVAS_MIN_W )
-        width = APP_CANVAS_MIN_W;
-    if( height < APP_CANVAS_MIN_H )
-        height = APP_CANVAS_MIN_H;
+    /*
+     * The floor is the FRAME's, and a plugin layout brings its own.
+     *
+     * APP_CANVAS_MIN_W/H is a fact about a revconfig gameframe -- its children
+     * are insets off 765x503 and a smaller canvas gives them zero-sized
+     * viewports -- so it is the right floor for exactly as long as that frame
+     * is the one on screen. While a plugin arranges the frame it is not, and
+     * clamping a phone-shaped layout up to a desktop canvas is how a mobile
+     * frame ends up letterboxed inside the size it was written to avoid.
+     */
+    {
+        int min_w = APP_CANVAS_MIN_W;
+        int min_h = APP_CANVAS_MIN_H;
+
+        App_PluginLayoutMinSize(app, &min_w, &min_h);
+        if( width < min_w )
+            width = min_w;
+        if( height < min_h )
+            height = min_h;
+    }
 
     /* All three copies are tested, not just the layout one: they are set
      * together here and nowhere else, so disagreement means somebody wrote one
@@ -26903,6 +26919,26 @@ App_PluginLayoutFixedSize(struct App const* app, int* out_w, int* out_h)
         return 0;
     if( app->plugin_layout_canvas != TORIRS_PLUGIN_CANVAS_FIXED )
         return 0;
+    if( app->plugin_layout_fixed_w <= 0 || app->plugin_layout_fixed_h <= 0 )
+        return 0;
+    if( out_w )
+        *out_w = app->plugin_layout_fixed_w;
+    if( out_h )
+        *out_h = app->plugin_layout_fixed_h;
+    return 1;
+}
+
+int
+App_PluginLayoutMinSize(struct App const* app, int* out_w, int* out_h)
+{
+    assert(app);
+    if( !app->plugin_layout_owned )
+        return 0;
+    if( app->plugin_layout_canvas != TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW )
+        return 0;
+    /* A claim that named no minimum gets the client's, rather than a floor of
+     * zero: "I did not say" and "any size at all" are different statements, and
+     * only one of them should be able to produce a 1x1 canvas. */
     if( app->plugin_layout_fixed_w <= 0 || app->plugin_layout_fixed_h <= 0 )
         return 0;
     if( out_w )

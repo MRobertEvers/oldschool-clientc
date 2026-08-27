@@ -682,6 +682,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	plugin/plugins/minimap_orbs.c \
 	plugin/plugins/xp_orbs.c \
 	plugin/plugins/gameframe.c \
+	plugin/plugins/mobile_gameframe.c \
 	plugin/plugins/item_stats.c \
 	plugin/plugins/nxt_highlight.c \
 	plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
@@ -2044,6 +2045,20 @@ test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/gameframe.
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/gameframe_test
+
+# The Stone Drawer mobile gameframe, same harness. What it asserts that the
+# desktop one cannot is the DRAWER: a role the declaration stops mentioning is
+# one the host hides, so "shut" has to be visible as a slot that was not placed.
+# Run from src/, where the shipped assets resolve.
+.PHONY: test-mobile-gameframe
+test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
+		plugin/plugins/mobile_gameframe.c plugin/test/mobile_gameframe_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mobile_gameframe_test \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
+		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c \
+		plugin/plugins/mobile_gameframe.c \
+		plugin/test/mobile_gameframe_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/mobile_gameframe_test
 
 test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c

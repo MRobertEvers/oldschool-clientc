@@ -760,8 +760,23 @@ api_layout_claim(
     host->layout_claim_epoch++;
     host->layout_owner = ctx->index;
     host->layout_canvas = canvas;
-    host->layout_fixed_w = canvas == TORIRS_PLUGIN_CANVAS_FIXED ? fixed_w : 0;
-    host->layout_fixed_h = canvas == TORIRS_PLUGIN_CANVAS_FIXED ? fixed_h : 0;
+    /*
+     * Kept for BOTH modes, and they mean different things in each: the pinned
+     * canvas for FIXED, the smallest canvas the layout can be declared against
+     * for FOLLOW_WINDOW. @see layout_claim.
+     *
+     * They used to be zeroed for FOLLOW_WINDOW, on the reasoning that a frame
+     * following the window has no size of its own to state. It has one: the
+     * size below which its own pieces stop fitting each other. Without it the
+     * engine has nothing to clamp to but the client's 765x503 -- the REVCONFIG
+     * gameframe's floor -- and a layout authored for a phone is clamped up to a
+     * desktop canvas and letterboxed into the shape it was written to avoid.
+     *
+     * A claim that names no minimum still passes zeroes, which the engine reads
+     * as "no opinion" and answers with its own floor.
+     */
+    host->layout_fixed_w = fixed_w > 0 ? fixed_w : 0;
+    host->layout_fixed_h = fixed_h > 0 ? fixed_h : 0;
     /*
      * Publishing the claim is the whole of it: the engine marks the frame
      * needing a declaration and raises EV_LAYOUT on its next layout pass, with
