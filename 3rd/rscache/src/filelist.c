@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "rscache_log.h"
 /*
  * Split a group's payload into its member files.
  *
@@ -113,7 +114,7 @@ filelist_new_from_decode(
         chunk_sizes[i] = malloc((size_t)num_files * sizeof(int));
         if( !chunk_sizes[i] )
         {
-            printf("Failed to allocate chunk sizes\n");
+            RSCACHE_LOG("Failed to allocate chunk sizes\n");
             goto error;
         }
     }

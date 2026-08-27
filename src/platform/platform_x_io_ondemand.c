@@ -824,10 +824,17 @@ static long g_od_fetches;
 static long g_od_bytes;
 static long g_od_refetches;
 static long g_od_refetch_bytes;
+static double g_od_fetch_ms;
+static double g_od_http_ms;
 
 static void
 od_tally_report(void)
 {
+    fprintf(stderr,
+            "od_stats: wire_ms=%.0f (file=%.0f http=%.0f) per_fetch=%.1fms\n",
+            g_od_fetch_ms + g_od_http_ms, g_od_fetch_ms, g_od_http_ms,
+            g_od_fetches ? (g_od_fetch_ms + g_od_http_ms) / (double)g_od_fetches
+                         : 0.0);
     fprintf(stderr,
             "od_stats: fetches=%ld distinct=%d refetches=%ld "
             "bytes=%ld refetch_bytes=%ld\n",
@@ -935,13 +942,51 @@ od_cache_wipe(const char* dir)
  * ignored: the next write fails too, and a cache that cannot be created is a
  * slow boot, not a broken one. */
 static void
-od_cache_mkdir(const char* dir)
+od_cache_mkdir_one(const char* dir)
 {
 #ifdef _WIN32
     _mkdir(dir);
 #else
     mkdir(dir, 0777);
 #endif
+}
+
+/*
+ * Every component, not just the leaf.
+ *
+ * One mkdir was enough while the directory sat beside the manifest and its
+ * parent was the checkout. The default is now <home>/torirs_cache/<game>/<world>,
+ * where `torirs` and `<world>` are both routinely missing, and a single mkdir
+ * fails on the first one and then fails again on the second.
+ *
+ * Each intermediate result is ignored for the same reason the whole function
+ * is: EEXIST is the common case and indistinguishable here from a permission
+ * failure that the next write reports anyway. A directory that cannot be
+ * created is a slow boot, not a broken one.
+ */
+static void
+od_cache_mkdir(const char* dir)
+{
+    char path[1024];
+    size_t n = strlen(dir);
+
+    if( n == 0 || n >= sizeof(path) )
+        return;
+    memcpy(path, dir, n + 1);
+
+    /* From 1: a leading separator is the root, not a component to create.
+     * A drive prefix is skipped for the same reason -- `C:` is not a
+     * directory, and asking to create it fails harmlessly but pointlessly. */
+    for( size_t i = (path[1] == ':' ? 3 : 1); i < n; i++ )
+    {
+        if( path[i] != '/' && path[i] != '\\' )
+            continue;
+        char const sep = path[i];
+        path[i] = '\0';
+        od_cache_mkdir_one(path);
+        path[i] = sep;
+    }
+    od_cache_mkdir_one(path);
 }
 
 static void
@@ -955,6 +1000,14 @@ od_cache_stamp(struct PlatformXIOOnDemand* od)
     if( od->cache_stamped || !od->cache_dir[0] )
         return;
     od->cache_stamped = 1;
+
+    /* An `idb:<name>` location is an IndexedDB database, which this file
+     * cannot write to and must not turn into a directory of that name. The web
+     * build stores its containers through the browser rather than here; a
+     * native build handed one streams instead, which is what it did before any
+     * location was stated at all. */
+    if( strncmp(od->cache_dir, "idb:", 4) == 0 )
+        return;
 
     if( od_jag_crc_load(od) != 0 )
         return;
@@ -981,6 +1034,35 @@ od_cache_stamp(struct PlatformXIOOnDemand* od)
             fwrite(od->jag_crc, sizeof(od->jag_crc[0]), 9, f);
             fclose(f);
         }
+    }
+
+    /*
+     * Only open a cache that is actually there.
+     *
+     * A hydrating directory has no main_file_cache.dat until the first archive
+     * is stored in it, and asking the disk layer to open one anyway made every
+     * first launch print "Failed to open dat file" and name the directory --
+     * which reads as a configuration error and is not one. It is the ordinary
+     * state of a cache nothing has filled yet, and it is now the state EVERY
+     * first launch is in, since the hydration directory defaults to one under
+     * the user's documents rather than one shipped beside the client.
+     *
+     * The message is left alone where it belongs: a `source=disk` world names
+     * a cache to READ, and a missing dat there is a genuine fault. Which one
+     * this is, is knowable only to the caller -- so it is tested here rather
+     * than softened in the library.
+     *
+     * Returning leaves cache_disk NULL, which od_cache_load already treats as
+     * a miss. The first store creates the dat and reopens.
+     */
+    {
+        char dat[1024];
+        FILE* probe;
+        snprintf(dat, sizeof(dat), "%s/main_file_cache.dat", od->cache_dir);
+        probe = fopen(dat, "rb");
+        if( !probe )
+            return;
+        fclose(probe);
     }
 
     od->cache_disk = RSCache_Dat1DiskNewFromDirectory(od->cache_dir);
@@ -1115,7 +1197,11 @@ PlatformXIOOnDemand_ArchiveLoad(
         if( od_jag_route(od, archive_id, route, sizeof(route)) != 0 )
             return NULL;
 
-        raw.data = od_http_get(od, route, &raw.data_size);
+        {
+            clock_t const t0 = clock();
+            raw.data = od_http_get(od, route, &raw.data_size);
+            g_od_http_ms += (double)(clock() - t0) * 1000.0 / CLOCKS_PER_SEC;
+        }
         if( !raw.data )
             return NULL;
         od_tally(table_id, archive_id, raw.data_size);
@@ -1128,7 +1214,11 @@ PlatformXIOOnDemand_ArchiveLoad(
         if( table_id > RSCACHE_DAT1_DISK_TABLE_MAPS )
             return NULL;
         format = RSCACHE_ARCHIVE_FORMAT_DAT;
-        raw.data = od_fetch_file(od, table_id - 1, archive_id, &size);
+        {
+            clock_t const t0 = clock();
+            raw.data = od_fetch_file(od, table_id - 1, archive_id, &size);
+            g_od_fetch_ms += (double)(clock() - t0) * 1000.0 / CLOCKS_PER_SEC;
+        }
         if( !raw.data )
             return NULL;
         raw.data_size = size;

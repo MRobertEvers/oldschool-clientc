@@ -1324,14 +1324,14 @@ frame_loop_step(void)
     if( boot_stats && !boot_reported && app.app_state == APP_STATE_READY )
     {
         boot_reported = 1;
-        TORIRS_LOG("boot: %llums  frames=%d steps=%ld capped=%d\n",
+        TORIRS_ERR("boot: %llums  frames=%d steps=%ld capped=%d\n",
             (unsigned long long)(PlatformSDL2_Ticks64() - boot_start_ms),
             app.boot_frames,
             app.boot_steps,
             app.boot_frames_budget_capped);
     }
     if( boot_stats && frame_count == max_frames - 1 )
-        TORIRS_LOG("post-boot: busy_frames=%d busy_steps=%ld (frames that used the "
+        TORIRS_ERR("post-boot: busy_frames=%d busy_steps=%ld (frames that used the "
             "whole budget with work still queued)\n",
             app.busy_frames,
             app.busy_steps);
@@ -2402,13 +2402,31 @@ frame_loop_step(void)
          * IO paces as it always did and reaches this with the deadline already
          * behind it.
          */
-        if( app_redraw && App_AsyncPending(&app) && !uncapped && !replay )
+        /*
+         * Two reasons the present skips a frame the loop just ran, and they
+         * share one deadline.
+         *
+         * The async one is above: a loop spinning to drain IO must not spend
+         * the time it saves on redraws.
+         *
+         * The other is a machine that cannot hold the frame rate. The pacer
+         * steps its DRAW budget down when frames stop fitting (pacer.c), and
+         * the present has to honour that or the step-down buys nothing -- the
+         * loop would draw every iteration exactly as before and the longer
+         * wait would never be reached. The world keeps ticking at period_ms
+         * either way; only the screen slows down.
+         */
+        if( app_redraw && !uncapped && !replay
+            && (App_AsyncPending(&app)
+                || ToriRS_Pacer_DrawPeriodMs(&frame_pacer)
+                       > frame_pacer.period_ms) )
         {
             uint64_t const draw_now = PlatformSDL2_Ticks64();
             if( draw_now < next_draw_ms )
                 app_redraw = 0;
             else
-                next_draw_ms = draw_now + (uint64_t)frame_pacer.period_ms;
+                next_draw_ms =
+                    draw_now + (uint64_t)ToriRS_Pacer_DrawPeriodMs(&frame_pacer);
         }
     }
     input_frame_pending =

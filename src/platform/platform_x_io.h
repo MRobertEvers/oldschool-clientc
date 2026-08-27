@@ -35,6 +35,20 @@ PlatformX_IO_InitScriptPath(
     const char* script_path);
 
 /**
+ * @brief Where to ask for a stored file this disk does not have.
+ *
+ * The second leg of every stored-file read: the plugin manifest, the plugin
+ * scripts it names, and each shipped plugin asset as a plugin asks for it.
+ * TORIRS_IO_SERVER takes precedence, and an empty host says nothing rather
+ * than turning the fallback off.
+ */
+void
+PlatformX_IO_InitIoServer(
+    struct PlatformX_IO* px,
+    const char* host,
+    int port);
+
+/**
  * Name the cache this client reads from: the identity a boot manifest states,
  * plus the directory it lives in.
  *

@@ -333,6 +333,12 @@ struct AppConfig
     char const* cache_dir;
     char const* config_dir;
     char const* script_dir;
+    /* [io:boot] -- the server asked for any stored file this disk lacks: the
+     * plugin manifest, the plugin scripts, and each shipped plugin asset as a
+     * plugin asks for it. Empty host leaves TORIRS_IO_SERVER (or nothing) in
+     * charge. */
+    char io_host[256];
+    int io_port;
     /** [editor:boot] content_dir — the content root whose `maps/` the world map
      *  editor edits. NULL = no editor this boot, which is every normal client
      *  run. Borrowed from the BootManifest, which outlives the App. */
