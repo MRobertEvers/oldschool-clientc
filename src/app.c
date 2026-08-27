@@ -5315,7 +5315,16 @@ app_title_flames_start(struct App* app)
     if( !panel->pixels_argb || panel->width < TORIRS_FLAME_W * 2 )
         return;
 
-    col_h = panel->height < TORIRS_FLAME_H ? panel->height : TORIRS_FLAME_H;
+    /*
+     * The column is taller than the heat field, and deliberately.
+     *
+     * The reference's surface is 128x265 while the fire it holds is
+     * 128x256: the fire is drawn nine rows down, so its base lands in the
+     * brazier bowl rather than at the bottom edge of the strip. Cutting the
+     * column to the fire's own height instead leaves the flame standing on
+     * the surface's edge, with a hard seam where the copied wall stops.
+     */
+    col_h = panel->height < TORIRS_FLAME_COLUMN_H ? panel->height : TORIRS_FLAME_COLUMN_H;
 
     /* The two strips the reference burns in: hard against each edge of the
      * panel, which is where the braziers are painted. */
@@ -5743,9 +5752,22 @@ app_host_request(
     case UITREE_HOST_GET_TITLE_FLAMES:
     {
         int side = req->u.get_title_flames.side;
+        struct TitleFlameGeometry geometry;
         assert(req->u.get_title_flames.out_scene_id);
         if( !app->flames || side < 0 || side >= TORIRS_FLAME_SIDES )
             return 0;
+
+        /*
+         * Where this era leans its fire, restated every frame because the
+         * node is the only thing that knows and the simulation is shared.
+         * Cheap -- four ints -- and it keeps the numbers in the profile
+         * where the two revisions disagree about them.
+         */
+        geometry.bias = req->u.get_title_flames.bias;
+        geometry.sway = req->u.get_title_flames.sway;
+        geometry.run = req->u.get_title_flames.run;
+        geometry.row = req->u.get_title_flames.row;
+        TitleFlames_SetGeometry(app->flames, (enum TitleFlameSide)side, &geometry);
         *req->u.get_title_flames.out_scene_id = side == TORIRS_FLAME_LEFT
                                                     ? UITREE_SCENE_TITLE_FLAME_LEFT_ID
                                                     : UITREE_SCENE_TITLE_FLAME_RIGHT_ID;

@@ -192,6 +192,10 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_TITLE_ACTION,
     RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX,
     RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT,
+    RCFIELD_UICOMPONENT_FLAME_BIAS,
+    RCFIELD_UICOMPONENT_FLAME_SWAY,
+    RCFIELD_UICOMPONENT_FLAME_RUN,
+    RCFIELD_UICOMPONENT_FLAME_ROW,
     RCFIELD_UICOMPONENT_TEXT_BASELINE,
     RCFIELD_STRING_TEXT,
     RCFIELD_LOGIN_REPLY_SCREEN,
@@ -911,6 +915,28 @@ struct RevConfigUIComponentItem
      * revision that sizes its bar differently from needing new C.
      */
     int title_px_per_percent;
+
+    /*
+     * INI: flame_bias= / flame_sway= / flame_run= / flame_row=
+     *
+     * Where a brazier's fire sits inside the 128-wide column it burns in.
+     * The column itself is blitted over the backdrop it was cut from, so
+     * these move the FIRE within it -- which is how both references lean
+     * the two flames outward without moving the strip of wall behind them.
+     *
+     * bias  destination column the run starts at, signed
+     * sway  which way the per-row wobble pushes: +1 or -1
+     * run   source columns drawn (the 2004 right brazier is 103 of 128)
+     * row   destination row the fire starts on
+     *
+     * Client-TS: left bias -22 sway -1 run 128 row 9; right bias 24
+     * sway +1 run 103 row 9. The deob leans both by 22 and starts a row
+     * higher, which is why these are the profile's numbers and not C's.
+     */
+    int flame_bias;
+    int flame_sway;
+    int flame_run;
+    int flame_row;
 
     /* INI: option= / op0=..op4= — minimenu row labels for static/builtin owners. */
     char option[REVCONFIG_MENU_OPTION_LEN];

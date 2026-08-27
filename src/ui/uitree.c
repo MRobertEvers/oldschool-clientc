@@ -2367,6 +2367,10 @@ UITree_Push(
 
     case UIELEM_BUILTIN_TITLE_FLAMES:
         component->u.title_flames.side = spec->u.title_flames.side;
+        component->u.title_flames.bias = spec->u.title_flames.bias;
+        component->u.title_flames.sway = spec->u.title_flames.sway;
+        component->u.title_flames.run = spec->u.title_flames.run;
+        component->u.title_flames.row = spec->u.title_flames.row;
         break;
 
     case UIELEM_BUILTIN_TITLE_PROGRESS_TEXT:

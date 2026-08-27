@@ -24,6 +24,14 @@ struct ToriRS_Sprite;
 #define TORIRS_FLAME_W 128
 #define TORIRS_FLAME_H 256
 #define TORIRS_FLAME_CELLS (TORIRS_FLAME_W * TORIRS_FLAME_H)
+/*
+ * The strip the fire is composited into, which is TALLER than the fire.
+ *
+ * Client-TS's surface is 128x265 (33920 pixels) holding a 128x256 heat
+ * field drawn nine rows down, so the flame's base sits in the brazier bowl
+ * instead of on the bottom edge of the strip.
+ */
+#define TORIRS_FLAME_COLUMN_H 265
 /** Rune glyphs the cooling map draws from (Client-TS: `runes`, 12 frames). */
 #define TORIRS_FLAME_RUNES 12
 /** Palettes, and the two the base one cross-fades to. */
@@ -31,6 +39,33 @@ struct ToriRS_Sprite;
 #define TORIRS_FLAME_PALETTE_ENTRIES 256
 /** Colour stops per palette; each is expanded across four bands of 64. */
 #define TORIRS_FLAME_PALETTE_STOPS 5
+
+/*
+ * Where one brazier's fire sits inside the column it burns in.
+ *
+ * The column is a copy of the wall behind it, blitted back over that same
+ * wall -- so moving the COLUMN drags the wall with it and duplicates a
+ * strip of brickwork. Both references move the fire within the column
+ * instead, which is what these four numbers do.
+ *
+ *   bias  destination column the run begins at, signed
+ *   sway  which way the per-row wobble pushes this side: +1 or -1
+ *   run   how many source columns are drawn
+ *   row   destination row the fire starts on
+ *
+ * Client-TS draws its left brazier from source column `offset + 22` onward
+ * into destination column 0, and its right one into column `24 + offset`
+ * for 103 columns, both starting at row 9. The deob leans both by 22 and
+ * starts a row higher. The numbers are the revision's, so they arrive from
+ * its profile rather than living here.
+ */
+struct TitleFlameGeometry
+{
+    int bias;
+    int sway;
+    int run;
+    int row;
+};
 
 enum TitleFlameSide
 {
@@ -82,6 +117,10 @@ struct TitleFlames
     int width;
     int height;
 
+    /* Per-side placement, and whether it was ever stated. */
+    struct TitleFlameGeometry geometry[TORIRS_FLAME_SIDES];
+    int has_geometry[TORIRS_FLAME_SIDES];
+
     /** Milliseconds not yet consumed by a fixed step. */
     int accum_ms;
     /** Private, seeded, and never rand(): a fire that differs run to run
@@ -108,6 +147,21 @@ TitleFlames_Init(
 
 void
 TitleFlames_Free(struct TitleFlames* flames);
+
+/**
+ * Place one side's fire within its column.
+ *
+ * Per side because the two braziers are not mirror images: the reference's
+ * right-hand fire is narrower than its left and starts further in. A side
+ * never given a geometry draws no fire at all, rather than drawing it in
+ * the wrong place -- an undeclared brazier is an absent one.
+ */
+void
+TitleFlames_SetGeometry(
+    struct TitleFlames* flames,
+    enum TitleFlameSide side,
+    struct TitleFlameGeometry const* geometry);
+
 
 /**
  * Set the three palettes from five 24-bit stops each, expanded across four

@@ -580,6 +580,13 @@ struct UITreeHostRequest
         {
             /** enum TitleFlameSide. */
             int side;
+            /* The node's own placement of the fire inside its column,
+             * carried across because the host owns the simulation but the
+             * profile owns where each era's flame leans. */
+            int bias;
+            int sway;
+            int run;
+            int row;
             int* out_scene_id;
         } get_title_flames;
         struct

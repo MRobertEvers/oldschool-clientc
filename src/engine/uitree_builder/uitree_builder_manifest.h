@@ -138,6 +138,11 @@ struct UIBuilderTreeOp
     char title_action[32];
     int title_message_index;
     int title_px_per_percent;
+    /** @see RevConfigUIComponentItem::flame_bias. */
+    int flame_bias;
+    int flame_sway;
+    int flame_run;
+    int flame_row;
     /** @see RevConfigUIComponentItem::text_baseline. */
     int text_baseline;
     int button_type;

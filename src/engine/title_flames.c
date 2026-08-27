@@ -294,21 +294,32 @@ flame_composite(struct TitleFlames* flames)
     {
         size_t bytes = (size_t)flames->width * flames->height * sizeof(uint32_t);
         uint32_t* out = flames->out[side];
+        struct TitleFlameGeometry const* geom = &flames->geometry[side];
+        int run;
 
         /* Restore first: the fire is translucent, and compositing onto the
          * previous frame's result would smear it into a solid smear. */
         memcpy(out, flames->background[side], bytes);
 
-        for( int y = 1; y < TORIRS_FLAME_H - 1 && y < flames->height; y++ )
+        /* A side the profile never placed burns nowhere. Drawing it at 0,0
+         * instead would put a fire in the middle of a wall. */
+        if( !flames->has_geometry[side] )
+            continue;
+
+        run = geom->run > 0 && geom->run < TORIRS_FLAME_W ? geom->run : TORIRS_FLAME_W;
+
+        for( int y = 1; y < TORIRS_FLAME_H - 1; y++ )
         {
             /* The sway fades out toward the top, so the flame leans at its
              * base and stands straight where it thins. */
             int offset = flames->line_offset[y] * (TORIRS_FLAME_H - y) / TORIRS_FLAME_H;
-            /* Mirrored, so the two braziers lean away from each other rather
-             * than both leaning the same way. */
-            int shift = side == TORIRS_FLAME_LEFT ? offset : -offset;
+            int shift = geom->bias + geom->sway * offset;
+            int out_y = y + geom->row;
 
-            for( int x = 0; x < TORIRS_FLAME_W && x < flames->width; x++ )
+            if( out_y < 0 || out_y >= flames->height )
+                continue;
+
+            for( int x = 0; x < run; x++ )
             {
                 int heat = flames->heat[y * TORIRS_FLAME_W + x];
                 int out_x = x + shift;
@@ -324,7 +335,7 @@ flame_composite(struct TitleFlames* flames)
                 if( out_x < 0 || out_x >= flames->width )
                     continue;
 
-                at = y * flames->width + out_x;
+                at = out_y * flames->width + out_x;
                 colour = flames->active_palette[heat];
                 under = out[at];
                 inv = 256 - heat;
@@ -412,6 +423,21 @@ TitleFlames_Init(
     generate_cooling_map(
         flames, flames->rune_count > 0 ? &flames->runes[0] : NULL);
     flames->inited = 1;
+}
+
+void
+TitleFlames_SetGeometry(
+    struct TitleFlames* flames,
+    enum TitleFlameSide side,
+    struct TitleFlameGeometry const* geometry)
+{
+    assert(flames);
+    assert(geometry);
+    assert(side >= 0);
+    assert(side < TORIRS_FLAME_SIDES);
+
+    flames->geometry[side] = *geometry;
+    flames->has_geometry[side] = 1;
 }
 
 void

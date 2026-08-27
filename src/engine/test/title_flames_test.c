@@ -31,6 +31,8 @@ static int g_checks;
 
 #define COL_W TORIRS_FLAME_W
 #define COL_H 265
+/* Client-TS draws the fire nine rows down its 265-tall column. */
+#define FLAME_ROW 9
 
 static uint32_t*
 flat_column(uint32_t colour)
@@ -81,6 +83,16 @@ init_flames(
     pair[TORIRS_FLAME_LEFT] = left;
     pair[TORIRS_FLAME_RIGHT] = right;
     TitleFlames_Init(flames, pair, COL_W, COL_H, NULL);
+    {
+        /* Client-TS's own placement: the left brazier leans out past the
+         * column's edge, the right one starts 24 in and is narrower. A
+         * profile states these; a test that skips them gets no fire, which
+         * is the contract test_unplaced_side_is_absent pins below. */
+        struct TitleFlameGeometry const left_geom = { -22, -1, COL_W, FLAME_ROW };
+        struct TitleFlameGeometry const right_geom = { 24, 1, 103, FLAME_ROW };
+        TitleFlames_SetGeometry(flames, TORIRS_FLAME_LEFT, &left_geom);
+        TitleFlames_SetGeometry(flames, TORIRS_FLAME_RIGHT, &right_geom);
+    }
     free(left);
     free(right);
 }
@@ -134,12 +146,20 @@ test_stays_in_its_column(void)
     run(&flames, 40);
 
     px = TitleFlames_Pixels(&flames, TORIRS_FLAME_LEFT);
-    /* Rows the simulation never touches stay pristine: the top row, and
-     * everything below the heat field's height. */
-    for( int x = 0; x < COL_W; x++ )
-        if( (px[x] & 0x00FFFFFFu) != 0u )
-            outside++;
-    for( int y = TORIRS_FLAME_H; y < COL_H; y++ )
+    /*
+     * Rows the fire never reaches stay pristine.
+     *
+     * The band is the geometry's, not the heat field's: the fire is drawn
+     * FLAME_ROW rows down the column, so it ends below the heat field's own
+     * height and the rows above it are the ones that must stay clean. This
+     * is the whole reason the column is taller than the simulation -- the
+     * flame's base belongs in the brazier bowl, not on the column's edge.
+     */
+    for( int y = 0; y < FLAME_ROW + 1; y++ )
+        for( int x = 0; x < COL_W; x++ )
+            if( (px[y * COL_W + x] & 0x00FFFFFFu) != 0u )
+                outside++;
+    for( int y = FLAME_ROW + TORIRS_FLAME_H - 1; y < COL_H; y++ )
         for( int x = 0; x < COL_W; x++ )
             if( (px[y * COL_W + x] & 0x00FFFFFFu) != 0u )
                 outside++;
@@ -170,6 +190,47 @@ test_is_reproducible(void)
 
     TitleFlames_Free(&a);
     TitleFlames_Free(&b);
+}
+
+/*
+ * A brazier the profile never placed draws no fire at all.
+ *
+ * The alternative -- falling back to 0,0 -- puts a fire in the middle of a
+ * wall on any revision that forgets the key, which is the sort of thing
+ * that reads as a rendering bug rather than a missing declaration.
+ */
+static void
+test_unplaced_side_is_absent(void)
+{
+    struct TitleFlames flames;
+    uint32_t const bg = 0xFF000000u;
+    struct TitleFlameGeometry const geom = { -22, -1, COL_W, FLAME_ROW };
+    uint32_t const* pair[TORIRS_FLAME_SIDES];
+    uint32_t* col[TORIRS_FLAME_SIDES];
+
+    for( int s = 0; s < TORIRS_FLAME_SIDES; s++ )
+    {
+        col[s] = malloc((size_t)COL_W * COL_H * sizeof(uint32_t));
+        TEST_ASSERT(col[s] != NULL, "column alloc");
+        for( int i = 0; i < COL_W * COL_H; i++ )
+            col[s][i] = bg;
+        pair[s] = col[s];
+    }
+    TitleFlames_Init(&flames, pair, COL_W, COL_H, NULL);
+    /* Only the left side is placed. */
+    TitleFlames_SetGeometry(&flames, TORIRS_FLAME_LEFT, &geom);
+    run(&flames, 40);
+
+    TEST_ASSERT(
+        count_lit(&flames, TORIRS_FLAME_LEFT, bg, 0, COL_H) > 0,
+        "the placed brazier burns");
+    TEST_ASSERT(
+        count_lit(&flames, TORIRS_FLAME_RIGHT, bg, 0, COL_H) == 0,
+        "the unplaced brazier is absent, not misplaced");
+
+    for( int s = 0; s < TORIRS_FLAME_SIDES; s++ )
+        free(col[s]);
+    TitleFlames_Free(&flames);
 }
 
 /* The two braziers must not be the same image side by side. */
@@ -242,6 +303,7 @@ main(void)
     test_stays_in_its_column();
     test_is_reproducible();
     test_sides_differ();
+    test_unplaced_side_is_absent();
     test_fixed_step();
     test_palette_is_configurable();
 

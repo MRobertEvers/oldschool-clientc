@@ -331,6 +331,10 @@ fill_tree_op_from_component(
     strncpy(op->title_action, comp->title_action, sizeof(op->title_action) - 1);
     op->title_message_index = comp->title_message_index;
     op->title_px_per_percent = comp->title_px_per_percent;
+    op->flame_bias = comp->flame_bias;
+    op->flame_sway = comp->flame_sway;
+    op->flame_run = comp->flame_run;
+    op->flame_row = comp->flame_row;
     op->text_baseline = comp->text_baseline;
     op->button_type = comp->button_type;
     op->client_code = comp->client_code;

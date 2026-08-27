@@ -300,6 +300,14 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX;
     else if( strcmp(key, "px_per_percent") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT;
+    else if( strcmp(key, "flame_bias") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_FLAME_BIAS;
+    else if( strcmp(key, "flame_sway") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_FLAME_SWAY;
+    else if( strcmp(key, "flame_run") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_FLAME_RUN;
+    else if( strcmp(key, "flame_row") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_FLAME_ROW;
     else if( strcmp(key, "baseline") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_TEXT_BASELINE;
     /* `text=` already means the literal of an rs_text; under [string:] it is

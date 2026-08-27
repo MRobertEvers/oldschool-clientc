@@ -956,6 +956,13 @@ struct UITreeComponent
         {
             /** enum TitleFlameSide; ui/ stays a leaf so it travels as an int. */
             int side;
+            /* Where the fire sits inside the column it burns in. The
+             * column is blitted over the wall it was cut from, so these
+             * lean the FIRE outward rather than the wall with it. */
+            int bias;
+            int sway;
+            int run;
+            int row;
         } title_flames;
         struct
         {
@@ -1570,6 +1577,13 @@ struct UITreeNodeSpec
         {
             /** enum TitleFlameSide; ui/ stays a leaf so it travels as an int. */
             int side;
+            /* Where the fire sits inside the column it burns in. The
+             * column is blitted over the wall it was cut from, so these
+             * lean the FIRE outward rather than the wall with it. */
+            int bias;
+            int sway;
+            int run;
+            int row;
         } title_flames;
         struct UITreeDebugOverlayConfig debug_overlay;
         struct UITreeChatConfig chat;

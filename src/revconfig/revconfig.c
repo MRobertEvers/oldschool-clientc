@@ -827,6 +827,14 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX";
     case RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT:
         return "RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT";
+    case RCFIELD_UICOMPONENT_FLAME_BIAS:
+        return "RCFIELD_UICOMPONENT_FLAME_BIAS";
+    case RCFIELD_UICOMPONENT_FLAME_SWAY:
+        return "RCFIELD_UICOMPONENT_FLAME_SWAY";
+    case RCFIELD_UICOMPONENT_FLAME_RUN:
+        return "RCFIELD_UICOMPONENT_FLAME_RUN";
+    case RCFIELD_UICOMPONENT_FLAME_ROW:
+        return "RCFIELD_UICOMPONENT_FLAME_ROW";
     case RCFIELD_UICOMPONENT_TEXT_BASELINE:
         return "RCFIELD_UICOMPONENT_TEXT_BASELINE";
     case RCFIELD_UICOMPONENT_OPTION:
@@ -1603,6 +1611,18 @@ revconfig_item_apply_uicomponent_field(
         break;
     case RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT:
         comp->title_px_per_percent = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_BIAS:
+        comp->flame_bias = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_SWAY:
+        comp->flame_sway = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_RUN:
+        comp->flame_run = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_ROW:
+        comp->flame_row = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_TEXT_BASELINE:
         comp->text_baseline = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;

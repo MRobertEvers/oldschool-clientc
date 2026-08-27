@@ -937,6 +937,10 @@ UITree_EmitFill(
         struct UITreeHostRequest req = {
             .kind = UITREE_HOST_GET_TITLE_FLAMES,
             .u.get_title_flames.side = component->u.title_flames.side,
+            .u.get_title_flames.bias = component->u.title_flames.bias,
+            .u.get_title_flames.sway = component->u.title_flames.sway,
+            .u.get_title_flames.run = component->u.title_flames.run,
+            .u.get_title_flames.row = component->u.title_flames.row,
             .u.get_title_flames.out_scene_id = &scene_id,
         };
         if( !UITree_Host(host, &req) || scene_id <= 0 )

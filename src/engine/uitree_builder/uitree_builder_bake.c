@@ -836,6 +836,10 @@ push_builtin_op(
          * would stop dead while still looking like a fire. */
         spec.always_dirty = 1;
         spec.u.title_flames.side = strcmp(op->title_field, "right") == 0 ? 1 : 0;
+        spec.u.title_flames.bias = op->flame_bias;
+        spec.u.title_flames.sway = op->flame_sway;
+        spec.u.title_flames.run = op->flame_run;
+        spec.u.title_flames.row = op->flame_row;
         break;
     case UIELEM_BUILTIN_ENTITY_OVERLAY:
         spec.always_dirty = 1;
