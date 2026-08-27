@@ -282,6 +282,16 @@ ToriRS_PickHitsClassify(
                 out_result->hover_tile_z = hit->tile_z;
                 out_result->hover_tile_level = hit->tile_level;
             }
+            else
+            {
+                /* The deck's own hover, in its own frame — see the field's
+                 * comment in torirs_pick.h. */
+                out_result->hover_view_valid = true;
+                out_result->hover_view = hit->view_id;
+                out_result->hover_view_x = hit->tile_x;
+                out_result->hover_view_z = hit->tile_z;
+                out_result->hover_view_level = hit->tile_level;
+            }
             World_PickSetAdd(
                 out_pickset,
                 hit->element_id,

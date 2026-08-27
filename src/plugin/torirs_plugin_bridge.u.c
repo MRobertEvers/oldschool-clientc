@@ -73,13 +73,28 @@ app_plugin_fill_player(
     struct WorldEntity_Player const* player,
     struct ToriRS_PluginPlayerSnap* out)
 {
-    int const base_x = app->world->_base_tile_x;
-    int const base_z = app->world->_base_tile_z;
+    int base_x = app->world->_base_tile_x;
+    int base_z = app->world->_base_tile_z;
 
     assert(player);
     assert(out);
 
     memset(out, 0, sizeof(*out));
+
+    /* A wire-homed rider's route/grid coordinates are DECK-LOCAL; their
+     * absolute address is the view's STAGING rectangle, not the root scene —
+     * root-base + deck-local names an unrelated corner of the map. draw_tile
+     * round-trips staging addresses through the boat's transform, so the
+     * true-tile marker lands on the planking. */
+    if( player->view_placement.home_view != 0 &&
+        WorldviewRegistry_IsLive(&app->worldviews, player->view_placement.home_view) )
+    {
+        struct Worldview const* view =
+            WorldviewRegistry_Get(&app->worldviews, player->view_placement.home_view);
+
+        base_x = view->base_x;
+        base_z = view->base_z;
+    }
 
     if( player->pathing.route_length > 0 )
     {
@@ -1374,6 +1389,30 @@ app_plugin_hover_tile(void* user, int* out_tile_x, int* out_tile_z, int* out_lev
 
     if( !app->world )
         return 0;
+
+    /* A hovered DECK tile outranks the root hover: the ray only reaches root
+     * ground by passing the hull, so the deck is the depth-nearer surface —
+     * the same preference the Walk-here row applies. Reported as the deck's
+     * STAGING-ABSOLUTE tile (view base + local), which is how deck tiles are
+     * addressed everywhere a plugin can hand one back (draw_tile detects the
+     * staging band and draws the marker through the boat's transform). */
+    if( app->world_hover_view != 0 &&
+        WorldviewRegistry_IsLive(&app->worldviews, app->world_hover_view) )
+    {
+        struct Worldview const* view =
+            WorldviewRegistry_Get(&app->worldviews, app->world_hover_view);
+
+        *out_tile_x = view->base_x + app->world_hover_view_x;
+        *out_tile_z = view->base_z + app->world_hover_view_z;
+        *out_level = view->world ? World_TerrainWalkLevel(
+                                       view->world,
+                                       app->world_hover_view_x,
+                                       app->world_hover_view_z,
+                                       app->world_hover_view_level)
+                                 : app->world_hover_view_level;
+        return 1;
+    }
+
     if( app->world_hover_tile_x < 0 || app->world_hover_tile_z < 0 )
         return 0;
 
@@ -2374,6 +2413,60 @@ app_plugin_draw_tile(
     if( !app->world )
         return 0;
 
+    /*
+     * A DECK tile first (SAILING: boat-aware markers). Deck tiles are
+     * addressed by their STAGING-ABSOLUTE coordinates — the view's base plus
+     * the deck-local tile, the same address every aboard seam speaks — and
+     * those never collide with root scene tiles, so the detection is the
+     * address itself. The quad is built in DECK space (the view world's own
+     * heightmap at the deck plane) and each corner is pushed through the
+     * hull's live transform — interpolated position, yaw and the bob —
+     * exactly the descent that draws the deck, so the marker rides the boat.
+     */
+    {
+        int local_x;
+        int local_z;
+        int view_id =
+            App_WevHomeViewForAbsTile(app, tile_x, tile_z, &local_x, &local_z);
+
+        if( view_id != 0 && Wevs_IsLive(&app->wevs, view_id) &&
+            WorldviewRegistry_IsLive(&app->worldviews, view_id) )
+        {
+            struct Wev* wev = Wevs_Get(&app->wevs, view_id);
+            struct Worldview* view = WorldviewRegistry_Get(&app->worldviews, view_id);
+            struct WevDeckBox box;
+
+            app_wev_deck_box(app, wev, app->world, &box);
+            plane_y =
+                (view->world
+                     ? app_world_height_in(view->world, local_x * 128, local_z * 128, level)
+                     : 0) +
+                wev->y + wev->bob_y;
+            for( int c = 0; c < 4; c++ )
+            {
+                int root_fx;
+                int root_fz;
+                int screen_x;
+                int screen_y;
+
+                Wev_ParentFromDeck(
+                    &box,
+                    (local_x + CORNER[c][0]) * 128,
+                    (local_z + CORNER[c][1]) * 128,
+                    &root_fx,
+                    &root_fz);
+                if( !app_world_project_at(app, root_fx, root_fz, plane_y, &screen_x, &screen_y) )
+                    continue;
+                px[count] = screen_x;
+                py[count] = screen_y;
+                count++;
+            }
+            if( count < 2 )
+                return 0;
+            goto emit;
+        }
+    }
+
     /* Back to scene-local: the projector works in the scene's frame, and a
      * plugin only ever speaks absolute. */
     scene_x = tile_x - app->world->_base_tile_x;
@@ -2408,6 +2501,8 @@ app_plugin_draw_tile(
     }
     if( count < 2 )
         return 0;
+
+emit:
 
     hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
     /* The wash is the caller's fill colour, which is not always the outline's

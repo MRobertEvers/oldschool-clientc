@@ -1401,6 +1401,73 @@ test_action_anim_hands_back_to_the_readyanim_loop_point(void)
  * visible casualty: content played her only death animation and retyped her to
  * her sleeping form together, and she snapped straight to the sleeping idle.
  */
+/* SAILING: facing across the gunwale computes in the ROOT frame and applies
+ * in the facer's own. The hook stands in for the app's hull transform: view 7
+ * projects the facer to a known root spot and reports the hull's yaw. */
+static int
+test_root_frame_hook(
+    void* userdata,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int* io_fine_x,
+    int* io_fine_z,
+    int* out_frame_yaw)
+{
+    (void)userdata;
+    if( placement->view_id != 7 )
+        return 0;
+    /* Projected: due EAST of tile (20,30)'s centre by 10 tiles. */
+    *io_fine_x = (20 + 10) * 128 + 64;
+    *io_fine_z = 30 * 128 + 64;
+    *out_frame_yaw = 512;
+    return 1;
+}
+
+void
+test_entity_face_across_frames(void)
+{
+    printf("TEST: facing across the hull frame (rider vs shore target)\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+
+    int ni = World_NpcSpawn(world, 2, 900, 0, 20, 30, 1, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+    int pi = World_PlayerSpawn(world, 1, 0, 4, 4, idle);
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+
+    npc->server_slot = 900;
+    player->server_pid = 7;
+    World_SetActorRootFrameFn(world, test_root_frame_hook, NULL);
+
+    /* The rider: deck-local coordinates, homed to view 7 — the hook projects
+     * them due EAST of the npc, so the ROOT facing is due west (dst = self −
+     * target = +east ⇒ yaw 1536, the same constant test_entity_face pins for
+     * east-west), and the DECK-frame yaw the element must carry is that
+     * minus the hull's 512. */
+    player->view_placement.view_id = 7;
+    player->view_placement.home_view = 7;
+    World_PlayerFaceEntity(world, pi, 900);
+    for( int t = 0; t < 64; t++ )
+        World_TestCycle(world, 1);
+    /* Self is EAST of the target, so the ROOT facing is due west — yaw 512
+     * in the atan2(self−target) convention (the east-facing pin above is the
+     * mirror, 1536) — and the DECK-frame yaw is that minus the hull's 512. */
+    TEST_ASSERT(player->orientation.dst_yaw == ((512 - 512) & 0x7ff),
+                "rider's element yaw is the root facing minus the hull yaw");
+
+    /* A root facer with the hook registered is untouched: identity frame. */
+    player->view_placement.view_id = 0;
+    player->view_placement.home_view = 0;
+    World_PlayerPathJump(world, pi, true, 30, 30);
+    World_PlayerFaceEntity(world, pi, 900);
+    for( int t = 0; t < 64; t++ )
+        World_TestCycle(world, 1);
+    TEST_ASSERT(player->orientation.dst_yaw == 512,
+                "a root facer keeps the plain root yaw");
+
+    World_Free(world);
+}
+
 void
 test_npc_retype_keeps_animation(void)
 {

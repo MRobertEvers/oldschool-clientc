@@ -394,6 +394,13 @@ ToriRSServer_VesselDeckToRoot(
 
 /** Root-world fine coords -> deck fine coords; exact inverse of the above up
  *  to the 16.16 rounding. */
+/** The plane a rider STANDS on aboard this hull — the config's deck plane
+ *  (archive-72 op 2), mirrored server-side like the pivots. Every real boat
+ *  authors its walkable planking at plane 1; plane 0 is the loc-built shell
+ *  whose collision is solid. */
+int
+ToriRSServer_VesselDeckPlane(const struct ToriRSServerVessel* vessel);
+
 void
 ToriRSServer_VesselRootToDeck(
     const struct ToriRSServerVessel* vessel,

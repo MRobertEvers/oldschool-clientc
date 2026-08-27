@@ -1010,6 +1010,14 @@ app_wev_deck_box(
     struct Wev const* wev,
     struct World const* parent_world,
     struct WevDeckBox* out_box);
+/* Defined with the world helpers further down; the plugin bridge (included
+ * mid-file) samples deck heights through it for boat-aware tile markers. */
+static int
+app_world_height_in(
+    struct World* world,
+    int world_x,
+    int world_z,
+    int level);
 
 /**
  * An aboard actor's position pushed out through its hull into ROOT scene-local
@@ -1042,6 +1050,36 @@ app_wev_actor_root_fine(
         return 0;
     app_wev_deck_box(app, wev, app->world, &box);
     Wev_ParentFromDeck(&box, placement->x, placement->z, out_fx, out_fz);
+    return 1;
+}
+
+/*
+ * World_ActorRootFrameFn: the facing math's cross-frame answer — an aboard
+ * actor's position pushed out through the hull (app_wev_actor_root_fine) plus
+ * the frame's yaw offset, the hull's live angle: a homed actor's element yaw
+ * is deck-frame and the descent adds the hull's yaw at draw, so a direction
+ * computed in the root must have it taken back out.
+ */
+static int
+app_wev_actor_root_frame(
+    void* userdata,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int* io_fine_x,
+    int* io_fine_z,
+    int* out_frame_yaw)
+{
+    struct App* app = (struct App*)userdata;
+
+    assert(app);
+    assert(placement);
+    assert(io_fine_x);
+    assert(io_fine_z);
+    assert(out_frame_yaw);
+
+    *out_frame_yaw = 0;
+    if( !app_wev_actor_root_fine(app, placement, io_fine_x, io_fine_z) )
+        return 0;
+    *out_frame_yaw = Wevs_Get(&app->wevs, placement->view_id)->angle & 0x7ff;
     return 1;
 }
 
@@ -2068,6 +2106,12 @@ app_worldmap_drag_tick(
     }
 }
 
+/* Defined with the world-map bake further down. */
+static int
+app_minimap_level(
+    struct App* app,
+    struct WorldEntity_Player const* local);
+
 /* Reference minimapDraw overlay: ground objs (yellow), NPCs, other players
  * (white), the destination flag, then the local-player 3x3 white square.
  * mapdots frames: 0 obj, 1 npc, 2 player, 3 friend; mapmarker frame 0 flag. */
@@ -2080,12 +2124,17 @@ App_MinimapBuildDots(
     struct World* world = app->world;
     struct World_EntityPool* pool;
     int px, pz;
+    int cull_level;
     int dots_scene, marker_scene;
 
     app->minimap_dot_count = 0;
     *out_dots = app->minimap_dots;
     if( !world || !world->load_complete || !local )
         return 0;
+    /* Aboard, the rider's own level is a deck plane — the ROOT things this
+     * map shows (icons, ground items, shore actors) cull against the hull's
+     * root level instead (see app_minimap_level). */
+    cull_level = app_minimap_level(app, local);
     px = (int)local->draw_position.x;
     pz = (int)local->draw_position.z;
     /* Aboard, the local player's own coordinates are deck-local; the minimap
@@ -2168,7 +2217,7 @@ App_MinimapBuildDots(
             for( int i = 0; i < world->mapfunc_count; i++ )
             {
                 struct World_MapFunctionIcon const* icon = &world->mapfuncs[i];
-                if( icon->level != local->grid_position.level )
+                if( icon->level != cull_level )
                     continue;
                 app_minimap_push_dot(
                     app,
@@ -2185,7 +2234,7 @@ App_MinimapBuildDots(
         {
             struct World_MapFunctionIcon const* icon = &world->mapfuncs[i];
             int scene_id;
-            if( icon->level != local->grid_position.level )
+            if( icon->level != cull_level )
                 continue;
             scene_id = app_mapfunction_scene_id(app, icon->func, NULL);
             if( scene_id <= 0 )
@@ -2202,7 +2251,7 @@ App_MinimapBuildDots(
              i = World_EntityPoolNext(pool, i) )
         {
             struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, i);
-            if( !stack || stack->grid_position.level != local->grid_position.level )
+            if( !stack || stack->grid_position.level != cull_level )
                 continue;
             app_minimap_push_dot(
                 app,
@@ -2241,7 +2290,7 @@ App_MinimapBuildDots(
                 int fz = (int)npc->draw_position.z;
 
                 if( !app_wev_actor_root_fine(app, &npc->view_placement, &fx, &fz) &&
-                    npc->grid_position.level != local->grid_position.level )
+                    npc->grid_position.level != cull_level )
                     continue;
                 app_minimap_push_dot(app, fx - px, fz - pz, dots_scene, 1);
             }
@@ -2258,7 +2307,7 @@ App_MinimapBuildDots(
                 int fz = (int)player->draw_position.z;
 
                 if( !app_wev_actor_root_fine(app, &player->view_placement, &fx, &fz) &&
-                    player->grid_position.level != local->grid_position.level )
+                    player->grid_position.level != cull_level )
                     continue;
                 app_minimap_push_dot(app, fx - px, fz - pz, dots_scene, 2);
             }
@@ -8637,6 +8686,9 @@ App_Init(
      * (root-dynamic, claimed by no root entity pool) — see the ROOT branch of
      * app_wev_claim_deck_actors. */
     World_SetForeignDynamicClaimFn(app->world, app_wev_claim_deck_actors, app);
+    /* Facing across the gunwale computes in the root frame — see
+     * app_wev_actor_root_frame. */
+    World_SetActorRootFrameFn(app->world, app_wev_actor_root_frame, app);
     app->painter_buffer = painter_buffer_new();
     assert(app->painter_buffer);
     /* v1 GameRunescape camera defaults; repositioned on world load complete. */
@@ -8661,6 +8713,7 @@ App_Init(
     app->world_hover_tile_x = -1;
     app->world_hover_tile_z = -1;
     app->world_hover_tile_level = 0;
+    app->world_hover_view = 0;
     /* -2, not -1: -1 is "no tile", a state the refreshers must still be run
      * for once, and seeding them equal to it would skip that first run. */
     app->highlight_last_hover_coord = -2;
@@ -10430,31 +10483,6 @@ app_wev_deck_box(
     out_box->size_z_tiles = view->size_z_tiles;
 }
 
-/**
- * The deck box at the hull's WIRE transform — queue slot 0, the newest
- * target, which is exactly the tick-state the server projected aboard
- * actors' root coordinates with.
- *
- * Routing (membership + recovered deck coordinates) must use this one, not
- * the interpolated draw transform: a footprint-routed deck npc's root
- * position was produced by the server's tick transform, and inverting it
- * through the mid-glide interpolated transform re-derives slightly different
- * deck coordinates every FRAME — the deck-npc wobble. Inverted through the
- * wire transform the recovery is frame-stable, and the actor then rides the
- * glide through the same interpolated descent the deck itself draws with.
- */
-static void
-app_wev_deck_box_wire(
-    struct App* app,
-    struct Wev const* wev,
-    struct World const* parent_world,
-    struct WevDeckBox* out_box)
-{
-    app_wev_deck_box(app, wev, parent_world, out_box);
-    out_box->pos_x = wev->queue[0].x - (parent_world->_base_tile_x << 7);
-    out_box->pos_z = wev->queue[0].z - (parent_world->_base_tile_z << 7);
-    out_box->angle = wev->queue[0].angle;
-}
 
 /**
  * The plane, inside a world entity's OWN world, that its deck is authored at.
@@ -10531,80 +10559,6 @@ App_WevHomeViewForAbsTile(
     return 0;
 }
 
-/**
- * Membership, the deob's geometric rule (SAILING_PLAN C5.1): descend the view
- * tree from the root as long as some entity's base rectangle contains the
- * point, carrying the point into each deck's space as we go. The result is the
- * DEEPEST view that owns it, so a passenger on a dinghy lashed to a galleon is
- * on the dinghy.
- *
- * The loop is bounded by WORLDVIEW_MAX rather than by "no entity matched": a
- * cycle in the view tree would otherwise spin here, and the painter already
- * refuses cycles at the descent, so refusing one here keeps the two agreeing.
- */
-static void
-app_wev_route_point(
-    struct App* app,
-    int root_x,
-    int root_z,
-    int* out_view_id,
-    int* out_x,
-    int* out_z)
-{
-    int view_id = WORLDVIEW_ROOT;
-    int x = root_x;
-    int z = root_z;
-
-    assert(app);
-    assert(out_view_id);
-    assert(out_x);
-    assert(out_z);
-
-    for( int step = 0; step < WORLDVIEW_MAX; step++ )
-    {
-        struct World* parent_world;
-        int count;
-        int descended = 0;
-
-        if( !WorldviewRegistry_IsLive(&app->worldviews, view_id) )
-            break;
-        parent_world = WorldviewRegistry_Get(&app->worldviews, view_id)->world;
-        assert(parent_world);
-
-        count = Wevs_ViewListCount(&app->wevs, view_id);
-        for( int i = 0; i < count; i++ )
-        {
-            struct Wev* wev = Wevs_ViewListAt(&app->wevs, view_id, i);
-            struct WevDeckBox box;
-            int deck_x;
-            int deck_z;
-
-            assert(wev);
-            if( !WorldviewRegistry_IsLive(&app->worldviews, wev->id) )
-                continue;
-            /* The WIRE box, not the interpolated one — see
-             * app_wev_deck_box_wire: the point being routed came from the
-             * server's tick transform. */
-            app_wev_deck_box_wire(app, wev, parent_world, &box);
-            Wev_DeckFromParent(&box, x, z, &deck_x, &deck_z);
-            if( !Wev_DeckContainsDeckPoint(&box, deck_x, deck_z) )
-                continue;
-            /* First containing entity wins. Hulls do not overlap on the
-             * server, and the deob does not arbitrate either. */
-            view_id = wev->id;
-            x = deck_x;
-            z = deck_z;
-            descended = 1;
-            break;
-        }
-        if( !descended )
-            break;
-    }
-
-    *out_view_id = view_id;
-    *out_x = x;
-    *out_z = z;
-}
 
 /**
  * Move one actor's scene element between view pools when its membership
@@ -10695,13 +10649,19 @@ app_wev_route_actors(struct App* app)
         }
         else
         {
-            app_wev_route_point(
-                app,
-                (int)player->draw_position.x,
-                (int)player->draw_position.z,
-                &view_id,
-                &x,
-                &z);
+            /* NOT aboard. Membership is the deob's STAGING-RECT test alone
+             * (field768 recomputed per tick from the wire coordinates) —
+             * never the hull's world-space footprint. Footprint capture used
+             * to route anyone standing where a hull was PARKED into the
+             * boat's view: a villager strolling under a land-spawned hull
+             * jumped to the deck template's terrain and height. A rider seen
+             * by ANOTHER client (wire coords projected, not staging) now
+             * draws at their projected root position instead of aboard —
+             * degraded but truthful, until the encoder sends riders' staging
+             * coordinates to every observer. */
+            view_id = WORLDVIEW_ROOT;
+            x = (int)player->draw_position.x;
+            z = (int)player->draw_position.z;
         }
         app_wev_apply_placement(app, &player->view_placement, player->element_id, view_id, x, z);
         /* SAILING_PLAN C5.1's "one int": which view the local player is in.
@@ -10735,15 +10695,17 @@ app_wev_route_actors(struct App* app)
          ni = World_EntityPoolNext(pool, ni) )
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
-        int view_id;
-        int x;
-        int z;
 
         if( !npc || npc->element_id < 0 )
             continue;
-        app_wev_route_point(
-            app, (int)npc->draw_position.x, (int)npc->draw_position.z, &view_id, &x, &z);
-        app_wev_apply_placement(app, &npc->view_placement, npc->element_id, view_id, x, z);
+        /* NPCs are never wire-homed (the mock projects deck npcs into root
+         * coordinates), so by the staging-rect rule they always belong to
+         * the root — see the player branch above for why the footprint test
+         * is gone. A server-spawned deck npc draws at its projected root
+         * position until per-world NPC_INFO exists. */
+        app_wev_apply_placement(
+            app, &npc->view_placement, npc->element_id, WORLDVIEW_ROOT,
+            (int)npc->draw_position.x, (int)npc->draw_position.z);
     }
 }
 
@@ -11424,6 +11386,21 @@ app_rebuild_world_map(
     app->world_map_level = level;
 }
 
+/* The level the minimap lives at: aboard, the rider's own level is a DECK
+ * plane (the planking is authored at plane 1) while the minimap is the ROOT
+ * world's — the deob renders it from the main world around the projected
+ * position. Bake and cull with the hull's root level, or a plane-1 rider
+ * gets the (empty) level-1 bake: a black map with floating icons. */
+static int
+app_minimap_level(
+    struct App* app,
+    struct WorldEntity_Player const* local)
+{
+    (void)local;
+    /* One authority for the effective root plane — see app_cinema_level. */
+    return app_cinema_level(app);
+}
+
 /* Reference checkMinimap/minimapBuildBuffer trigger (Client.ts:5331): rebake
  * whenever the level the map was baked for stops matching the player's, or a
  * runtime loc change edited the wall/door bits (world->minimap_seq — an opened
@@ -11439,11 +11416,11 @@ app_world_map_poll(struct App* app)
     local = app_local_player(app);
     if( !local )
         return;
-    if( local->grid_position.level == app->world_map_level &&
+    if( app_minimap_level(app, local) == app->world_map_level &&
         baked_minimap_seq == app->world->minimap_seq )
         return;
     baked_minimap_seq = app->world->minimap_seq;
-    app_rebuild_world_map(app, local->grid_position.level);
+    app_rebuild_world_map(app, app_minimap_level(app, local));
     app->need_redraw = 1;
 }
 
@@ -12540,7 +12517,7 @@ App_WorldLoadFinish(struct App* app)
         }
         {
             struct WorldEntity_Player* local = app_local_player(app);
-            app_rebuild_world_map(app, local ? local->grid_position.level : 0);
+            app_rebuild_world_map(app, app_minimap_level(app, local));
         }
 
         if( server_driven )
@@ -18244,7 +18221,11 @@ app_world_pick_finish(
 {
     struct ToriRS_PickResult result;
     struct WorldEntity_Player* player = app_local_player(app);
-    int player_level = player ? player->grid_position.level : -1;
+    /* The effective ROOT plane (aboard: the hull's, not the deck plane the
+     * rider stands at) — the reach filter compares root scenery/terrain
+     * levels against it, and the deck plane would filter the whole shore
+     * out of every click. */
+    int player_level = player ? app_cinema_level(app) : -1;
 
     ToriRS_PickHitsClassify(
         app->world, &app->worldviews, hits, player_level, &app->world_pickset, &result);
@@ -18259,6 +18240,15 @@ app_world_pick_finish(
         app->world_hover_tile_x = -1;
         app->world_hover_tile_z = -1;
     }
+    if( result.hover_view_valid )
+    {
+        app->world_hover_view = result.hover_view;
+        app->world_hover_view_x = result.hover_view_x;
+        app->world_hover_view_z = result.hover_view_z;
+        app->world_hover_view_level = result.hover_view_level;
+    }
+    else
+        app->world_hover_view = 0;
 
     if( getenv("TORIRS_WORLD_PICK_DEBUG") )
     {
@@ -23695,13 +23685,21 @@ app_world_hotkeys(
  * position sync, animation ticks. Runs every frame (cycles may be 0) so the
  * painter dynamic set stays fresh, and forces a redraw while active — but only
  * while a viewport is actually on screen; an unshown world does not tick. */
-/* The level cutscene heights are measured against (reference minusedlevel). */
+/* The level cutscene heights are measured against (reference minusedlevel) —
+ * and the plane every ROOT-world judgment about the local player uses: mover
+ * heights, the pick's reach filter, the minimap bake. ABOARD, the player's
+ * own level is a DECK plane (the planking is authored at plane 1) and means
+ * nothing to the root — the effective root plane is the HULL's. Without this
+ * a level-1 rider had every shore npc's height sampled from the level-1
+ * heightmap: the whole town floating on the wall tops. */
 static int
 app_cinema_level(struct App* app)
 {
     int world_idx;
     struct WorldEntity_Player* player;
 
+    if( app->aboard_view != WORLDVIEW_ROOT && Wevs_IsLive(&app->wevs, app->aboard_view) )
+        return Wevs_Get(&app->wevs, app->aboard_view)->parent_level;
     if( !RS_EntitySync_FindPlayer(
             &app->esync,
             app->esync.local_pid >= 0 ? app->esync.local_pid : 2047,
@@ -26934,6 +26932,34 @@ app_minimenu_run_option(
             UICross_Show(&app->cross, UI_CROSS_WALK, click_x, click_y);
             return 0;
         }
+        /* ABOARD, a ROOT ground click cannot gate on the client BFS below —
+         * the local router would flood from the rider's deck-local scene
+         * position through a world it does not stand in, fail, and send
+         * nothing. The server owns what the click MEANS (a steering order at
+         * the helm, or a walk to the rail tile nearest the click), so send
+         * the destination bare, exactly like a deck click. */
+        if( app->aboard_view != WORLDVIEW_ROOT && app->net && app->world )
+        {
+            int route_x[1] = { opt.pick.secondary_id };
+            int route_z[1] = { opt.pick.tertiary_id };
+
+            APP_NET_SEND(
+                app,
+                net_out_move_gameclick(
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    app->world->_base_tile_x,
+                    app->world->_base_tile_z,
+                    route_x,
+                    route_z,
+                    1,
+                    app->ctrl_held));
+            UICross_Show(&app->cross, UI_CROSS_WALK, click_x, click_y);
+            return 0;
+        }
+
         /* Walk here (reference tryMove type 0): BFS route + MOVE_GAMECLICK
          * waypoints; no local prediction — the PLAYER_INFO echo moves the
          * player. */
@@ -28490,6 +28516,7 @@ App_RunOnce(
     {
         app->world_hover_tile_x = -1;
         app->world_hover_tile_z = -1;
+        app->world_hover_view = 0;
         World_PickSetReset(&app->world_pickset);
     }
 

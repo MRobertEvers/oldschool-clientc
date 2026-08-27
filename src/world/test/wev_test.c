@@ -587,8 +587,8 @@ test_config_decode_cache(char const* cache_dir)
          * `::vesselspawn`'s defaults are chosen from. */
         if( getenv("TORIRS_WEV_DUMP") )
             printf(
-                "wev %2d: name=%-24s plane=%d bounds=%dx%d off=%d,%d minimap_sprite=%d "
-                "anim=%d ops=[%s|%s|%s|%s|%s]\n",
+                "wev %2d: name=%-24s plane=%d bounds=%dx%d off=%d,%d pivot=%d,%d "
+                "minimap_sprite=%d anim=%d ops=[%s|%s|%s|%s|%s]\n",
                 id,
                 cfg.name ? cfg.name : "(none)",
                 cfg.plane,
@@ -596,6 +596,8 @@ test_config_decode_cache(char const* cache_dir)
                 cfg.bounds_h / 128,
                 cfg.bounds_off_x,
                 cfg.bounds_off_z,
+                cfg.pivot_x,
+                cfg.pivot_z,
                 cfg.minimap_sprite_id,
                 cfg.anim_id,
                 cfg.ops[0] ? cfg.ops[0] : "-",

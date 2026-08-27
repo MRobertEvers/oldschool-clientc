@@ -436,6 +436,17 @@ World_SetForeignDynamicClaimFn(
     world->foreign_dynamic_claim_userdata = userdata;
 }
 
+
+void
+World_SetActorRootFrameFn(
+    struct World* world,
+    World_ActorRootFrameFn fn,
+    void* userdata)
+{
+    assert(world);
+    world->actor_root_frame_fn = fn;
+    world->actor_root_frame_userdata = userdata;
+}
 void
 World_SetLoadComplete(
     struct World* world,

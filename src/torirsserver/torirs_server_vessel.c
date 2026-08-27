@@ -790,6 +790,72 @@ ToriRSServer_VesselTickAll(struct ToriRSServer* srv)
 /* Deck <-> root projection                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The config's pivot (archive-72 opcodes 4/5), mirrored here because the
+ * server does not decode archive 72 and the projection must recenter with
+ * EXACTLY the client's terms — the client's descent places deck point d at
+ * hull + R(d − zone_tiles·64 − pivot), so a projection missing the pivot
+ * (or using the raw tile size where the client uses the zone-rounded one)
+ * draws every rider offset from where the server thinks they stand.
+ * Values from cache.osrs239 (wev_test TORIRS_WEV_DUMP=1). Unknown ids: 0,0.
+ */
+static void
+vessel_config_pivot(
+    int config_id,
+    int* out_px,
+    int* out_pz)
+{
+    static const int k_px[15] = { 0, -64, 0, -64, 0, -64, -64, -64, -64, -64, 0, 0, -64, -64, -64 };
+    static const int k_pz[15] = { 0, -64, -64, 0, 0, 512, 512, 512, 512, 192, -64, -64, 0, 0, 0 };
+
+    if( config_id >= 1 && config_id <= 14 )
+    {
+        *out_px = k_px[config_id];
+        *out_pz = k_pz[config_id];
+        return;
+    }
+    *out_px = 0;
+    *out_pz = 0;
+}
+
+/**
+ * The config's deck plane (archive-72 opcode 2), mirrored like the pivots:
+ * the plane a rider STANDS on. Every real boat in cache.osrs239 authors its
+ * walkable planking at plane 1 (the hull at plane 0 is the loc-built shell —
+ * solid collision, which is why boarding at level 0 could not walk a single
+ * tile); config 4 is the plane-0 oddity. Unknown ids: 0.
+ */
+int
+ToriRSServer_VesselDeckPlane(const struct ToriRSServerVessel* vessel)
+{
+    static const int k_plane[15] = { 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
+    assert(vessel);
+    if( vessel->config_id >= 1 && vessel->config_id <= 14 )
+        return k_plane[vessel->config_id];
+    return 0;
+}
+
+/** The recenter the CLIENT applies: half the ZONE-ROUNDED deck box (the wire
+ *  publishes zone counts, so the client's view is zones×8 tiles regardless of
+ *  the hull's own size) plus the config pivot. One helper so DeckToRoot and
+ *  RootToDeck cannot drift apart. */
+static void
+vessel_recenter_fine(
+    const struct ToriRSServerVessel* vessel,
+    int* out_cx,
+    int* out_cz)
+{
+    int px;
+    int pz;
+
+    vessel_config_pivot(vessel->config_id, &px, &pz);
+    *out_cx = ((vessel->size_x_tiles + 7) / 8) * 8 * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2) +
+              px;
+    *out_cz = ((vessel->size_z_tiles + 7) / 8) * 8 * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2) +
+              pz;
+}
+
 void
 ToriRSServer_VesselDeckToRoot(
     const struct ToriRSServerVessel* vessel,
@@ -798,6 +864,8 @@ ToriRSServer_VesselDeckToRoot(
     int* out_fine_x,
     int* out_fine_z)
 {
+    int cx;
+    int cz;
     int lx;
     int lz;
     int rx;
@@ -809,9 +877,9 @@ ToriRSServer_VesselDeckToRoot(
     assert(out_fine_x);
     assert(out_fine_z);
 
-    /* Pivot at the hull center; a config-supplied pivot is S3's concern. */
-    lx = deck_fine_x - vessel->size_x_tiles * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2);
-    lz = deck_fine_z - vessel->size_z_tiles * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2);
+    vessel_recenter_fine(vessel, &cx, &cz);
+    lx = deck_fine_x - cx;
+    lz = deck_fine_z - cz;
     vessel_rotate_forward(vessel->angle, lx, lz, &rx, &rz);
     *out_fine_x = vessel->fine_x + rx;
     *out_fine_z = vessel->fine_z + rz;
@@ -825,6 +893,8 @@ ToriRSServer_VesselRootToDeck(
     int* out_deck_fine_x,
     int* out_deck_fine_z)
 {
+    int cx;
+    int cz;
     int lx;
     int lz;
 
@@ -834,10 +904,11 @@ ToriRSServer_VesselRootToDeck(
     assert(out_deck_fine_x);
     assert(out_deck_fine_z);
 
+    vessel_recenter_fine(vessel, &cx, &cz);
     vessel_rotate_inverse(
         vessel->angle, root_fine_x - vessel->fine_x, root_fine_z - vessel->fine_z, &lx, &lz);
-    *out_deck_fine_x = lx + vessel->size_x_tiles * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2);
-    *out_deck_fine_z = lz + vessel->size_z_tiles * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2);
+    *out_deck_fine_x = lx + cx;
+    *out_deck_fine_z = lz + cz;
 }
 
 void

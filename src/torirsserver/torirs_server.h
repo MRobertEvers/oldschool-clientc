@@ -5142,6 +5142,16 @@ ToriRSServer_CombatEngage(
     struct ToriRSServer* srv,
     int slot);
 
+/** Is the claimed Attack ready to fire from range — weapon range and LoS
+ *  judged from the player's reach position (a rider's projected tile)? 1 =
+ *  treat the interaction as REACHED so the ordinary OP dispatch runs (the
+ *  fight lives in content's [opnpc] loop; the engine has no attack clock).
+ *  0 = fall through to the walk-to-adjacency path. */
+int
+ToriRSServer_CombatAtRangeReady(
+    struct ToriRSServer* srv,
+    int slot);
+
 /** True once TORIRSSERVER_AFK_COMBAT_TICKS have passed with no player input, which
  *  is when OldSchool stops the character fighting. See its definition. */
 int
@@ -7391,6 +7401,34 @@ ToriRSServer_PlayerSceneAnchor(
     const struct ToriRSServerPlayer* player,
     int* out_x,
     int* out_z);
+
+/**
+ * Where `player` stands for RANGE / LoS / adjacency judgments made against a
+ * point at (other_x, other_z) — the sailing reach seam. Identity for everyone
+ * ashore, and for a rider judged against something on their OWN deck (both
+ * live in deck space). A rider judged against anything OFF the deck answers
+ * with the PROJECTED tile — the deck tile pushed through the hull into the
+ * root world, the same one the shore sees them at — which is what lets them
+ * fish, shoot and cast over the gunwale.
+ */
+void
+ToriRSServer_PlayerReachTile(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int other_x,
+    int other_z,
+    int* out_x,
+    int* out_z);
+
+/** The LEVEL companion of ToriRSServer_PlayerReachTile: the rider's own level is
+ *  a deck plane (planking at plane 1), incomparable with root levels — reach
+ *  against an off-deck point answers the HULL's root level instead. */
+int
+ToriRSServer_PlayerReachLevel(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int other_x,
+    int other_z);
 
 /**
  * One npc's projection, out of band with the per-tick sweep.

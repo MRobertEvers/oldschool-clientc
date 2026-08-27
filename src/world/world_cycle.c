@@ -391,6 +391,7 @@ World_EntityFace(
     struct World* world,
     struct WorldEntityFacet_Facing* facing,
     struct WorldEntityFacet_DrawPosition const* draw_position,
+    struct WorldEntityFacet_ViewPlacement const* placement,
     struct WorldEntityFacet_Orientation* orientation,
     struct WorldEntityFacet_Pathing const* pathing,
     struct WorldEntityFacet_IdleAnimations const* idle,
@@ -398,10 +399,22 @@ World_EntityFace(
 {
     int dst_x;
     int dst_z;
+    /* Cross-frame facing (SAILING): all direction math below runs in the
+     * ROOT frame — an aboard facer's position is pushed out through the
+     * hull first — and the resulting yaw has the facer's FRAME yaw (the
+     * hull's angle) taken back out before it goes on the element, because a
+     * homed actor's element yaw is deck-frame and the descent adds the
+     * hull's yaw at draw. Root actors: identity, offset 0. */
+    int self_x = (int)draw_position->x;
+    int self_z = (int)draw_position->z;
+    int frame_yaw = 0;
     bool applied = false;
 
     if( facing->turn_speed == 0 )
         return -1;
+    if( world->actor_root_frame_fn && placement )
+        world->actor_root_frame_fn(
+            world->actor_root_frame_userdata, placement, &self_x, &self_z, &frame_yaw);
 
     /* class105.method3650 + method3537: a direct angle is one-shot, but mode
      * 0 defers it while walking whereas mode 1 permits it during a route. */
@@ -409,7 +422,7 @@ World_EntityFace(
         (facing->face_during_movement || pathing->route_length == 0 ||
          animation->anim_delay_move > 0) )
     {
-        orientation->dst_yaw = (uint16_t)(facing->direct_angle & 0x7ff);
+        orientation->dst_yaw = (uint16_t)((facing->direct_angle - frame_yaw) & 0x7ff);
         facing->direct_angle = -1;
         applied = true;
     }
@@ -422,14 +435,15 @@ World_EntityFace(
         (facing->face_during_movement || pathing->route_length == 0 ||
          animation->anim_delay_move > 0) )
     {
-        dst_x = (int)draw_position->x -
+        dst_x = self_x -
                 (facing->square_x - world->_base_tile_x - world->_base_tile_x) * 64;
-        dst_z = (int)draw_position->z -
+        dst_z = self_z -
                 (facing->square_z - world->_base_tile_z - world->_base_tile_z) * 64;
         if( dst_x != 0 || dst_z != 0 )
             orientation->dst_yaw =
-                (uint16_t)(((int)(atan2((double)dst_x, (double)dst_z) *
-                                        WORLD_YAW_FROM_RADIANS)) &
+                (uint16_t)((((int)(atan2((double)dst_x, (double)dst_z) *
+                                        WORLD_YAW_FROM_RADIANS)) -
+                            frame_yaw) &
                            0x7ff);
         facing->square_x = 0;
         facing->square_z = 0;
@@ -439,33 +453,50 @@ World_EntityFace(
     if( !applied && facing->entity_id != WORLD_FACING_ENTITY_NONE )
     {
         struct WorldEntityFacet_DrawPosition const* target = NULL;
+        struct WorldEntityFacet_ViewPlacement const* target_placement = NULL;
         if( facing->entity_id < WORLD_FACING_PLAYER_BASE )
         {
             struct WorldEntity_NPC* npc =
                 World_NpcGetByServerSlot(world, facing->entity_id);
             if( npc )
+            {
                 target = &npc->draw_position;
+                target_placement = &npc->view_placement;
+            }
         }
         else
         {
             struct WorldEntity_Player* player = World_PlayerGetByServerPid(
                 world, facing->entity_id - WORLD_FACING_PLAYER_BASE);
             if( player )
+            {
                 target = &player->draw_position;
+                target_placement = &player->view_placement;
+            }
         }
         if( target )
         {
-            dst_x = (int)draw_position->x - (int)target->x;
-            dst_z = (int)draw_position->z - (int)target->z;
+            int target_x = (int)target->x;
+            int target_z = (int)target->z;
+            int target_frame_yaw = 0;
+
+            if( world->actor_root_frame_fn && target_placement )
+                world->actor_root_frame_fn(
+                    world->actor_root_frame_userdata, target_placement, &target_x,
+                    &target_z, &target_frame_yaw);
+            dst_x = self_x - target_x;
+            dst_z = self_z - target_z;
             if( dst_x != 0 || dst_z != 0 )
                 orientation->dst_yaw =
-                    (uint16_t)(((int)(atan2((double)dst_x, (double)dst_z) *
-                                      WORLD_YAW_FROM_RADIANS)) &
+                    (uint16_t)((((int)(atan2((double)dst_x, (double)dst_z) *
+                                      WORLD_YAW_FROM_RADIANS)) -
+                                frame_yaw) &
                                0x7ff);
         }
         else if( facing->fallback_angle >= 0 )
         {
-            orientation->dst_yaw = (uint16_t)(facing->fallback_angle & 0x7ff);
+            orientation->dst_yaw =
+                (uint16_t)((facing->fallback_angle - frame_yaw) & 0x7ff);
         }
     }
 
@@ -1042,6 +1073,7 @@ World_CycleUpdatePlayers(
                     world,
                     &player->facing,
                     &player->draw_position,
+                    &player->view_placement,
                     &player->orientation,
                     &player->pathing,
                     &player->idle_animations,
@@ -1111,6 +1143,7 @@ World_CycleUpdateNpcs(
                     world,
                     &npc->facing,
                     &npc->draw_position,
+                    &npc->view_placement,
                     &npc->orientation,
                     &npc->pathing,
                     &npc->idle_animations,

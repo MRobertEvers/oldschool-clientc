@@ -43,6 +43,18 @@ struct ToriRS_PickResult
     int hover_tile_x;
     int hover_tile_z;
     int hover_tile_level;
+    /** The nearest hovered DECK tile, when the pointer is over a world
+     *  entity's own terrain: view id + the view's deck-local tile. Latched
+     *  separately from the root hover — the root latch feeds the click
+     *  cross and spawn hotkeys, which speak root scene tiles only — and a
+     *  consumer that wants "the tile under the pointer, boat included"
+     *  (the tile-indicator plugins) prefers this one when set: the deck is
+     *  always the depth-nearer surface on a ray that hits the hull. */
+    bool hover_view_valid;
+    int hover_view;
+    int hover_view_x;
+    int hover_view_z;
+    int hover_view_level;
 };
 
 void

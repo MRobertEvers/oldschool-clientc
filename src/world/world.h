@@ -103,6 +103,25 @@ typedef void (*World_ForeignActorRegisterFn)(void* userdata, struct World* world
  *
  * Writes at most `max` element ids into `out_element_ids` and returns how many.
  */
+/**
+ * Map an actor's draw position into the ROOT frame, for cross-frame geometry
+ * (SAILING: facing). An actor ABOARD a world entity carries view-local
+ * coordinates and its element yaw is applied in the DECK frame (the descent
+ * adds the hull's yaw on the way out); anything that computes a direction
+ * between two actors must therefore work in one shared frame and take the
+ * facer's frame yaw back out of the result. Returns 1 and fills the root
+ * fine position + the frame's yaw offset (the hull's angle) when the
+ * placement is aboard a live view; returns 0 (outputs untouched, offset 0)
+ * for a root actor. NULL fn = no world entities exist.
+ */
+struct WorldEntityFacet_ViewPlacement;
+typedef int (*World_ActorRootFrameFn)(
+    void* userdata,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int* io_fine_x,
+    int* io_fine_z,
+    int* out_frame_yaw);
+
 typedef int (*World_ForeignDynamicClaimFn)(
     void* userdata,
     struct World* world,
@@ -353,6 +372,9 @@ struct World
 
     /** Optional; NULL when no actor can be aboard. @see World_ForeignDynamicClaimFn. */
     World_ForeignDynamicClaimFn foreign_dynamic_claim_fn;
+    /** Optional; NULL when no actor can be aboard. @see World_ActorRootFrameFn. */
+    World_ActorRootFrameFn actor_root_frame_fn;
+    void* actor_root_frame_userdata;
     void* foreign_dynamic_claim_userdata;
 
     struct Heightmap* heightmap;
@@ -685,6 +707,12 @@ void
 World_SetForeignDynamicClaimFn(
     struct World* world,
     World_ForeignDynamicClaimFn fn,
+    void* userdata);
+
+void
+World_SetActorRootFrameFn(
+    struct World* world,
+    World_ActorRootFrameFn fn,
     void* userdata);
 
 /**

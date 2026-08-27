@@ -14,6 +14,10 @@
  * step, a safespot, a stall) is reasoning about that tile, not the one the
  * model happens to be sliding across.
  *
+ * Boat-aware for free: aboard a vessel the api reports deck tiles as
+ * STAGING-ABSOLUTE addresses and draw_tile draws that band through the
+ * hull's live transform, so the markers ride the boat with no code here.
+ *
  * The C twin of script/plugins/tile_indicator.lua: same events, same api,
  * same output. Keeping both is what proves the contract is language-agnostic
  * rather than Lua-shaped.

@@ -1002,9 +1002,25 @@ RS_Minimenu_AddWorldRows(
     if( sel->mode == RS_MINIMENU_SELECT_NONE )
     {
         struct World_Picked const* terrain = NULL;
+        struct World_Picked const* view_terrain = NULL;
+
         for( int i = 0; i < picks->count; i++ )
             if( picks->items[i].type == WORLD_PICK_TERRAIN )
+            {
                 terrain = &picks->items[i];
+                if( picks->items[i].view_id != 0 )
+                    view_terrain = &picks->items[i];
+            }
+        /* A DECK tile outranks every root tile in the same click: the ray
+         * only reaches root ground by passing the hull, so the deck is
+         * always the depth-nearer surface — the deob's per-view hovered-tile
+         * race resolves by depth, and paint order (our usual nearest proxy)
+         * misorders the deck against the near-side ground BELOW the hull.
+         * Without this, clicking the planking of a beached boat walked the
+         * grass underneath it, which the gunwale then refused: "pathing on
+         * the boat does not work". */
+        if( view_terrain )
+            terrain = view_terrain;
         if( terrain )
         {
             struct UIMinimenuPick pick = {
