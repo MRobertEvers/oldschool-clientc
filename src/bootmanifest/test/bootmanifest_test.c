@@ -539,6 +539,71 @@ test_cache_dir_default(void)
     CHECK(strcmp(bm.cache_dir, "bootmanifest/test/some/cache") == 0);
 }
 
+
+/* Two paths, equal if they differ only in which separator spells them. */
+static int
+paths_equal(char const* a, char const* b)
+{
+    for( ; *a && *b; a++, b++ )
+    {
+        char ca = (*a == '\\') ? '/' : *a;
+        char cb = (*b == '\\') ? '/' : *b;
+        if( ca != cb )
+            return 0;
+    }
+    return *a == *b;
+}
+
+/*
+ * The same manifest, named with the separator Windows tools produce.
+ *
+ * Every other test here spells FIXTURE with forward slashes, which is how this
+ * went unnoticed: bm_dirname searched for '/' alone, so a path spelled
+ * `bootmanifest\\test\\fixture_manifest.ini` -- what launch.cmd builds, and
+ * what any Windows caller would naturally pass -- yielded an EMPTY manifest
+ * directory. Every relative value then resolved against the process's working
+ * directory instead of the manifest's.
+ *
+ * That is not a cosmetic difference. `revconfig_ui` is stated relative to the
+ * manifest, so it landed outside the repository and the client booted with no
+ * gameframe layout at all -- a window with nothing in it but the fill colour,
+ * and no error, because a manifest naming a file that is not there is simply a
+ * manifest with no UI.
+ *
+ * Windows only: on POSIX a backslash is a legal character in a filename, and
+ * splitting on it there would break a validly-named file.
+ */
+static void
+test_backslash_manifest_path(void)
+{
+#if defined(_WIN32)
+    struct BootManifest fwd;
+    struct BootManifest back;
+
+    CHECK(BootManifest_LoadFile(&fwd, FIXTURE) == 0);
+    CHECK(BootManifest_LoadFile(
+              &back, "bootmanifest\\test\\fixture_manifest.ini") == 0);
+
+    /*
+     * Compared with separators normalised, not byte for byte. A
+     * backslash-spelled manifest yields a backslash-spelled directory, so the
+     * join produces `bootmanifest\\test/some/cache` -- mixed, and opened by
+     * every Windows API in this tree exactly like the all-forward-slash form.
+     * What must hold is that the directory was FOUND and prefixed; rewriting
+     * one separator into the other is not required and pinning it would fail
+     * a correct implementation.
+     */
+    CHECK(paths_equal(fwd.cache_dir, back.cache_dir));
+    CHECK(paths_equal(fwd.revconfig_ui, back.revconfig_ui));
+    CHECK(paths_equal(fwd.revconfig_cache, back.revconfig_cache));
+
+    /* And specifically: joined onto the manifest's directory, not left as the
+     * bare relative value the manifest states -- which is what happened, and
+     * what put revconfig_ui outside the repository. */
+    CHECK(paths_equal(back.cache_dir, "bootmanifest/test/some/cache"));
+#endif
+}
+
 int
 main(void)
 {
@@ -552,6 +617,7 @@ main(void)
     test_exact_manifest_tokens_preserved();
     test_migrated_spawn_actions();
     test_cache_dir_default();
+    test_backslash_manifest_path();
 
     if( g_fail )
     {

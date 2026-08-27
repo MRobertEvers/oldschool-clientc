@@ -35,6 +35,27 @@ _Static_assert(
  * read on the machine that wrote it, and a path that is anchored somewhere is
  * never something to join a directory onto.
  */
+/*
+ * Is this character a path separator?
+ *
+ * '/' everywhere, and '\\' on Windows as well. The distinction is not
+ * pedantry: on POSIX a backslash is an ordinary, legal character in a filename,
+ * so treating it as a separator there would split a validly-named file in two.
+ * On Windows both spellings name the same file to every API in this tree, and
+ * a caller has no reason to expect one to work and the other not.
+ */
+static int
+bm_is_sep(char c)
+{
+    if( c == '/' )
+        return 1;
+#ifdef _WIN32
+    if( c == '\\' )
+        return 1;
+#endif
+    return 0;
+}
+
 static int
 bm_path_is_absolute(char const* value)
 {
@@ -157,7 +178,7 @@ bm_basename_stem(char* dst, size_t cap, char const* path)
 {
     char const* base = path;
     for( char const* p = path; *p; p++ )
-        if( *p == '/' || *p == '\\' )
+        if( bm_is_sep(*p) )
             base = p + 1;
 
     size_t n = strlen(base);
@@ -1184,7 +1205,21 @@ bm_set_kv(
 static void
 bm_dirname(char* dir, size_t cap, char const* path)
 {
-    char const* slash = strrchr(path, '/');
+    /*
+     * The LAST separator of either kind, not the last '/'.
+     *
+     * A path that mixes them is normal on Windows and this tree produces both:
+     * launch.cmd passes `build\\manifests\\x.ini` and the benchmark harness
+     * passes `build/manifests/x.ini`. Searching for '/' alone returned no
+     * directory at all for the first, and every manifest-relative value --
+     * the revconfig layout among them -- then resolved against the working
+     * directory and was not there.
+     */
+    char const* slash = NULL;
+    for( char const* p = path; *p; p++ )
+        if( bm_is_sep(*p) )
+            slash = p;
+
     if( !slash )
     {
         dir[0] = '\0';
