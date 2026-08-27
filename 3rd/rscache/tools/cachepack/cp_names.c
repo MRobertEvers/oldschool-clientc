@@ -1954,6 +1954,78 @@ cp_names_emit_gamevals(
                                          asset->pack, &ctx->names.asset_packs[a], &dirty);
     }
 
+    /*
+     * The archives the flat emit cannot regenerate, from the raw passthrough.
+     *
+     * `gamevals/gamevals.filepack` indexes them and `unpack` wrote the bytes
+     * beside it, so a pack with no --base still lands a complete idx24. A tree
+     * from before the passthrough existed simply has no filepack, and this
+     * whole block is a no-op — the two skip messages above are then the final
+     * word, exactly as they were.
+     */
+    {
+        char stem[1300];
+        struct LC_Pack raw_index;
+
+        snprintf(stem, sizeof(stem), "%s/gamevals/gamevals", ctx->srcdir);
+        cp_member_pack_load(&raw_index, stem, "filepack", "gameval");
+        for( int id = 0; id < raw_index.max; id++ )
+        {
+            const char* name = raw_index.names ? raw_index.names[id] : NULL;
+            char path[1600];
+            char member_stem[1600];
+            uint8_t* data;
+            long size;
+            FILE* in;
+
+            if( !name || gameval_archive_emitted(id) )
+                continue;
+            snprintf(path, sizeof(path), "%s/gamevals/%s.bin", ctx->srcdir, name);
+            in = fopen(path, "rb");
+            if( !in )
+            {
+                fprintf(stderr,
+                        "cachepack: gamevals/%s is indexed and in the cache, but no file is "
+                        "on disk\n",
+                        name);
+                continue;
+            }
+            fseek(in, 0, SEEK_END);
+            size = ftell(in);
+            fseek(in, 0, SEEK_SET);
+            data = size > 0 ? malloc((size_t)size) : NULL;
+            if( !data || fread(data, 1, (size_t)size, in) != (size_t)size )
+            {
+                free(data);
+                fclose(in);
+                fprintf(stderr, "cachepack: failed to read %s\n", path);
+                lc_pack_free(&raw_index);
+                return 0;
+            }
+            fclose(in);
+
+            if( RSCache_Dat2DiskWriteArchive(out_cache_dir, table_id, id, data, (int)size) !=
+                0 )
+            {
+                free(data);
+                fprintf(stderr, "cachepack: gameval archive %d (%s) failed to write\n", id,
+                        name);
+                lc_pack_free(&raw_index);
+                return 0;
+            }
+            snprintf(member_stem, sizeof(member_stem), "%s/gamevals/%s", ctx->srcdir, name);
+            int file_count = 0;
+            int* file_ids = raw_gameval_member_ids(member_stem, &file_count);
+            cp_reference_sync(ctx, table_id, id, data, (int)size, file_ids, file_count,
+                              &dirty);
+            free(file_ids);
+            free(data);
+            printf("  %-11s raw bytes -> gameval archive %d\n", name, id);
+            archives++;
+        }
+        lc_pack_free(&raw_index);
+    }
+
     if( dirty && !cp_reference_write(ctx, out_cache_dir, table_id) )
     {
         fprintf(stderr, "cachepack: the gameval reference table failed to write\n");

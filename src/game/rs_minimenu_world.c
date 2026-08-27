@@ -1011,6 +1011,7 @@ RS_Minimenu_AddWorldRows(
                 .secondary_id = terrain->tile_x,
                 .tertiary_id = terrain->tile_z,
                 .quaternary_id = terrain->tile_level,
+                .view_id = terrain->view_id,
             };
             /* TORIRS_LOC_DEBUG: name the tile the pointer is actually over,
              * so a loc's slot can be read against the ground under it — and

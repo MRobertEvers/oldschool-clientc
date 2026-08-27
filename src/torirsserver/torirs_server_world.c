@@ -7788,7 +7788,7 @@ handle_cheat(
     if( strncmp(text, "vesselboard", 11) == 0 )
     {
         /*
-         * `::vesselboard [handle]` — stand the caller on the deck.
+         * `::vesselboard [handle] [level]` — stand the caller on the deck.
          *
          * A deck tile is an ordinary absolute tile inside the instance's
          * reservation, so boarding is a plain teleport: nothing about the
@@ -7796,13 +7796,25 @@ handle_cheat(
          * this player aboard" from the pool afterwards. The projection that
          * makes the shore see them is recomputed by
          * `ToriRSServer_WorldRefreshObservation` on the next tick.
+         *
+         * `level` because the client draws a rider at their OWN plane inside
+         * the boat's world (the deob's rule — the config's plane opcode is a
+         * click-plane selector, not a placement), so boarding a hull whose
+         * walkable deck is authored above plane 0 — config 9's main deck is
+         * plane 1 — is a teleport to THAT plane. Real content decides this
+         * per gangplank; the cheat takes it as an argument.
          */
         int handle = 0;
+        int level = 0;
         struct ToriRSServerVessel* vessel;
         int base_tile_x = 0;
         int base_tile_z = 0;
 
-        sscanf(text, "vesselboard %d", &handle);
+        sscanf(text, "vesselboard %d %d", &handle, &level);
+        if( level < 0 )
+            level = 0;
+        if( level > 3 )
+            level = 3;
         vessel = handle > 0 ? ToriRSServer_VesselGet(srv, handle)
                             : ToriRSServer_VesselByView(srv, 1);
         if( !vessel )
@@ -7816,11 +7828,11 @@ handle_cheat(
             return;
         }
         ToriRSServer_WorldTeleport(
-            srv, 0, base_tile_x + vessel->size_x_tiles / 2,
+            srv, level, base_tile_x + vessel->size_x_tiles / 2,
             base_tile_z + vessel->size_z_tiles / 2);
-        say(srv, "Boarded vessel %d at %d,%d.", vessel->index,
+        say(srv, "Boarded vessel %d at %d,%d level %d.", vessel->index,
             base_tile_x + vessel->size_x_tiles / 2,
-            base_tile_z + vessel->size_z_tiles / 2);
+            base_tile_z + vessel->size_z_tiles / 2, level);
         return;
     }
 

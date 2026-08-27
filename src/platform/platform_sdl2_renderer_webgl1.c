@@ -3772,7 +3772,8 @@ webgl1_ev_model_draw(
             mcmd->pick_terrain,
             mcmd->pick_tile_x,
             mcmd->pick_tile_z,
-            mcmd->pick_tile_level);
+            mcmd->pick_tile_level,
+            mcmd->pick_view);
     if( mcmd->pick_only )
         return;
     {

@@ -2180,6 +2180,75 @@ struct cp_cs2_state
 
 static struct cp_cs2_state g_cs2;
 
+static const struct RSCache_CS2_Script* cs2_load_script(void* user, int script_id);
+static enum RSCache_CS2_Type cs2_load_param_type(void* user, int param_id);
+
+/**
+ * Compile a callee from the tree when the cache cannot supply it.
+ *
+ * A hook's trailing arguments are typed by the invoked script's signature, so
+ * compiling one script means being able to load any other. During `pack` with
+ * no --base, `ctx->cache` is the *output* cache and a callee with a higher id
+ * than the caller has not been written yet — 14 of osrs239's scripts reference
+ * one and failed with "cannot determine the type of a callback argument",
+ * though every one of them compiles. The tree has the callee's source, and its
+ * compiled form answers the same signature question the cache's decode would.
+ *
+ * Cache first, tree second: at unpack the cache is the source cache and always
+ * answers, so this runs only where the old behaviour was a hard failure. A
+ * hook cycle bottoms out safely — `attempted` is set before any compile, so a
+ * callee that recurses into itself reads NULL and declines as before.
+ */
+static void
+cs2_compile_from_tree(
+    struct cp_cs2_state* state,
+    int script_id)
+{
+    const struct CP_Asset* asset = cp_asset(CP_ASSET_SCRIPT);
+    const struct LC_Pack* pack = &state->ctx->names.asset_packs[CP_ASSET_SCRIPT];
+    const char* file =
+        script_id < pack->max && pack->names ? pack->names[script_id] : NULL;
+
+    assert(asset);
+    assert(asset->codec);
+    if( !file )
+        return;
+
+    char path[1700];
+    snprintf(path, sizeof(path), "%s/%s/%s.%s", state->ctx->srcdir, asset->dir, file,
+             asset->codec->ext);
+    int source_size = 0;
+    char* source = (char*)slurp(path, &source_size);
+    if( !source )
+        return; /* bytecode-only (`.cs2b`), or a tree with no scripts */
+
+    struct RSCache_CS2_CompileOptions options;
+    memset(&options, 0, sizeof(options));
+    options.scripts.user = state;
+    options.scripts.load = cs2_load_script;
+    options.param_types.user = state;
+    options.param_types.load = cs2_load_param_type;
+    options.db_columns.user = state->db_columns;
+    options.db_columns.load = tool_db_columns_lookup;
+    options.names = state->names_loaded ? &state->names : NULL;
+
+    struct RSCache_ClientScript* compiled = calloc(1, sizeof(*compiled));
+    if( !compiled )
+    {
+        free(source);
+        return;
+    }
+    char error[512] = "";
+    if( !RSCache_CS2_Compile(source, &options, compiled, error, sizeof(error)) )
+    {
+        free(compiled);
+        free(source);
+        return;
+    }
+    free(source);
+    state->scripts[script_id] = compiled;
+}
+
 static const struct RSCache_CS2_Script*
 cs2_load_script(
     void* user,
@@ -2200,6 +2269,8 @@ cs2_load_script(
                 RSCache_ClientScriptFlags(&state->ctx->profile));
             RSCache_Dat2DiskArchiveFree(archive);
         }
+        if( !state->scripts[script_id] )
+            cs2_compile_from_tree(state, script_id);
     }
     return state->scripts[script_id] ? &state->scripts[script_id]->script : NULL;
 }
@@ -2313,6 +2384,15 @@ cs2_state_ready(struct CP_Ctx* ctx)
         return 0;
     struct RSCache_ReferenceTable* rt = ctx->cache.disk->tables[g_cs2.table];
     g_cs2.capacity = rt ? rt->archive_count : 0;
+    /* The tree can list scripts the open cache does not hold yet — a pack with
+     * no --base builds idx12 as it goes, and a callee's id may sit past the
+     * table's current end. Those load through cs2_compile_from_tree, which
+     * needs a slot to land in. */
+    {
+        const struct LC_Pack* spack = &ctx->names.asset_packs[CP_ASSET_SCRIPT];
+        if( spack->max > g_cs2.capacity )
+            g_cs2.capacity = spack->max;
+    }
     if( g_cs2.capacity <= 0 )
         return 0;
     g_cs2.scripts = calloc((size_t)g_cs2.capacity, sizeof(*g_cs2.scripts));
@@ -4227,6 +4307,29 @@ geo_write(
         geo_file_free(&decoded);
         if( files )
             lc_pack_set(&members, id, member);
+        else if( id != 0 )
+        {
+            /*
+             * A one-file archive has no filepack, but 425 of osrs239's 2,057
+             * single-file geography archives hold their one member at file id
+             * 1, not 0 — an id the `.wmg` itself never carries. State it in a
+             * memberpack, or the read side reports {0} and a cache packed with
+             * no --base loses the id.
+             */
+            struct LC_Pack single_member;
+            char filler[32];
+
+            memset(&single_member, 0, sizeof(single_member));
+            snprintf(single_member.type, sizeof(single_member.type), "record");
+            snprintf(filler, sizeof(filler), "record_%d", id);
+            if( !lc_pack_set(&single_member, id, filler) ||
+                !cp_member_pack_save(&single_member, path_stem, "memberpack") )
+            {
+                lc_pack_free(&single_member);
+                goto give_up;
+            }
+            lc_pack_free(&single_member);
+        }
         wrote++;
     }
 
@@ -4349,7 +4452,23 @@ geo_read(
         goto done;
     if( list.file_count == 1 )
     {
-        /* A single-file archive's payload is the file, with no FileList framing. */
+        /* A single-file archive's payload is the file, with no FileList framing.
+         * Its member id comes from `<stem>.memberpack` where the write side
+         * stated one — the 425 archives whose one member is file 1 — and
+         * defaults to 0, which is what every other single carries. */
+        if( members.max <= 0 )
+        {
+            struct LC_Pack single_member;
+
+            cp_member_pack_load(&single_member, path_stem, "memberpack", "record");
+            for( int m = 0; m < single_member.max; m++ )
+                if( single_member.names && single_member.names[m] )
+                {
+                    ids[0] = m;
+                    break;
+                }
+            lc_pack_free(&single_member);
+        }
         payload = (uint8_t*)list.files[0];
         *out_size = list.file_sizes[0];
         list.files[0] = NULL;

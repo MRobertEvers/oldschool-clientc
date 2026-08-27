@@ -2378,6 +2378,11 @@ try_emit_world_draw_model(
         out->u.model.anim_index = 0;
         out->u.model.pickable = true;
         out->u.model.pick_aabb = el->pick_aabb;
+        /* Which view this draw belongs to, off the descent stack: a deck
+         * tile's pick coords are the DECK's own tiles, and the click layer
+         * resolves them against that view's staging base (deob: each scene
+         * records its own hovered tile in its own local coordinates). */
+        out->u.model.pick_view = frame->view_stack[frame->view_depth].view_id;
         if( cmd->_bf_kind == PNTR_CMD_TERRAIN ||
             cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
         {

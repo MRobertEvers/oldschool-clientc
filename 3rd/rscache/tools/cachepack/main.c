@@ -469,6 +469,15 @@ main(int argc, char** argv)
         if( strcmp(command, "unpack") == 0 )
         {
             rc = cp_unpack_run(&ctx, &sel) ? 0 : 1;
+            /* The archives nothing decodes — undecoded config groups and the
+             * nested gameval records — as raw bytes, so a pack with no --base
+             * reproduces every archive the cache holds. Unconditional because
+             * they cost a few hundred KB and skipping them is how idx17 and 21
+             * config groups silently vanished from tree-only caches. */
+            if( rc == 0 && !cp_raw_groups_export(&ctx) )
+                rc = 1;
+            if( rc == 0 && !cp_names_export_raw_gamevals(&ctx) )
+                rc = 1;
             if( rc == 0 && want_assets )
                 rc = cp_assets_export(&ctx, asset_kinds) ? 0 : 1;
             if( rc == 0 && want_binary )
@@ -581,6 +590,15 @@ main(int argc, char** argv)
                             "--assets/--binary/--gamevals rather than writing them into a "
                             "cache with no config table\n");
 
+        /* The undecoded config groups, from their raw passthrough. Before the
+         * assets so a failure surfaces next to the config report it belongs
+         * with; skipped for --asset-only, whose target began as a complete
+         * cache and already holds them. */
+        if( !asset_only && ctx.cache_open && writable )
+        {
+            if( !cp_raw_groups_import(&ctx, check_only ? NULL : out_dir) )
+                rc = 1;
+        }
         if( want_assets && ctx.cache_open && writable )
         {
             if( !cp_assets_import(&ctx, check_only ? NULL : out_dir, asset_kinds,

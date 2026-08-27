@@ -140,12 +140,20 @@ rm -rf "$TMP.grow"
 if tools/cachepack/cachepack pack \
         --src "$SRC" --rev "$REV" --out "$TMP.grow" \
         --types hitsplat --assets=defaults,textures,fonts >"$TMP.grow.log" 2>&1; then
-    if [ -f "$TMP.grow/main_file_cache.idx17" ]; then
-        echo "   idx17 present; $(grep -c 'reference table updated' "$TMP.grow.log") table(s) grown"
-    else
+    if [ ! -f "$TMP.grow/main_file_cache.idx17" ]; then
         echo "cachepack-fidelity: FAILED — the tree-only pack wrote no idx17"
         exit 1
     fi
+    # The undecoded config groups ride as raw bytes (README, "Raw passthrough");
+    # a tree that indexes them must land every one, or the from-scratch cache is
+    # missing archives the client can ask for.
+    if grep -q "raw config group" "$TMP.grow.log" &&
+       ! grep -q "raw config group(s), 0 indexed but missing" "$TMP.grow.log"; then
+        echo "cachepack-fidelity: FAILED — an indexed raw config group has no file"
+        grep "raw config group" "$TMP.grow.log"
+        exit 1
+    fi
+    echo "   idx17 present; $(grep -c 'reference table updated' "$TMP.grow.log") table(s) grown; $(grep -o 'Imported [0-9]* raw config group' "$TMP.grow.log" | grep -o '[0-9]*' || echo 0) raw group(s)"
 else
     echo "cachepack-fidelity: FAILED — the tree-only pack did not complete"
     tail -5 "$TMP.grow.log"

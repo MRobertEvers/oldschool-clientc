@@ -1358,6 +1358,44 @@ export_one(
                 written++;
                 bytes += payload_size;
             }
+
+            /*
+             * The member ids, beside the bytes, when they are not the single
+             * file 0 a minted reference entry defaults to (cp_reference_sync).
+             *
+             * A whole payload carries its chunk table but not its file ids —
+             * those live only in the reference table — and a pack with no
+             * --base has no donor entry to inherit them from. Animsets are the
+             * big case: 10,855 of osrs239's 10,902 list sparse frame ids, up
+             * to 295 per archive. The single-file tables write nothing here,
+             * which is why models do not grow 61,615 sidecars.
+             */
+            int plain_single = archive->file_count == 1 &&
+                               (!archive->file_ids || archive->file_ids[0] == 0);
+            if( archive->file_count > 0 && !plain_single )
+            {
+                struct LC_Pack members;
+                char stem[1600];
+
+                snprintf(stem, sizeof(stem), "%s/%s", root, name);
+                memset(&members, 0, sizeof(members));
+                snprintf(members.type, sizeof(members.type), "record");
+                int member_ok = 1;
+                for( int f = 0; f < archive->file_count && member_ok; f++ )
+                {
+                    int file_id = archive->file_ids ? archive->file_ids[f] : f;
+                    char filler[32];
+                    snprintf(filler, sizeof(filler), "record_%d", file_id);
+                    member_ok = lc_pack_set(&members, file_id, filler);
+                }
+                if( !member_ok || !cp_member_pack_save(&members, stem, "memberpack") )
+                {
+                    lc_pack_free(&members);
+                    RSCache_Dat2DiskArchiveFree(archive);
+                    return -1;
+                }
+                lc_pack_free(&members);
+            }
         }
 
         RSCache_Dat2DiskArchiveFree(archive);

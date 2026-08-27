@@ -256,10 +256,10 @@ test_pickset(void)
     World_PickSetReset(&set);
     TEST_ASSERT(set.count == 0, "reset");
 
-    World_PickSetAdd(&set, 1, WORLD_PICK_TERRAIN, 0, 0, 0);
-    World_PickSetAdd(&set, 2, WORLD_PICK_SCENERY, 1, 2, 1);
-    World_PickSetAdd(&set, 3, WORLD_PICK_PROJECTILE, 3, 4, 2);
-    World_PickSetAdd(&set, 4, WORLD_PICK_NPC, 5, 6, 3);
+    World_PickSetAdd(&set, 1, WORLD_PICK_TERRAIN, 0, 0, 0, 0);
+    World_PickSetAdd(&set, 2, WORLD_PICK_SCENERY, 1, 2, 1, 0);
+    World_PickSetAdd(&set, 3, WORLD_PICK_PROJECTILE, 3, 4, 2, 0);
+    World_PickSetAdd(&set, 4, WORLD_PICK_NPC, 5, 6, 3, 0);
     TEST_ASSERT(set.count == 4, "pick count");
     TEST_ASSERT(set.items[1].type == WORLD_PICK_SCENERY && set.items[1].tile_x == 1, "scenery pick");
 

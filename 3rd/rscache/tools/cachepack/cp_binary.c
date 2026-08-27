@@ -501,6 +501,35 @@ cp_reference_sync(
         archive = &rt->archives[archive_id];
         memset(archive, 0, sizeof(*archive));
         RSCache_ReferenceTableSetHasArchive(rt, archive_id, true);
+
+        /*
+         * A minted entry defaults to the single member, file 0.
+         *
+         * Every archive in every measured cache lists at least one child, and
+         * `FileListNewFromDecode` takes its count from this list — the client
+         * passes it straight through, so a childless entry makes the payload
+         * unparseable however correctly its bytes were written. The from-scratch
+         * boot symptom was "Failed to convert dat2 font 494": metrics and glyphs
+         * both byte-exact, child count zero. Single-file-per-archive tables
+         * (models, scripts, fonts, songs — 12 of osrs239's 23) are exactly
+         * `{0}`, and a caller that knows better states `file_ids` and the
+         * children_differ block below replaces this.
+         *
+         * Minted entries only: an entry inherited from --base keeps its real
+         * list, which a default must never overwrite. Unconditional at the
+         * mint, because the children_differ block below replaces it whenever
+         * the caller states real ids — and a caller that states a *count* with
+         * no ids (font_read returns file_count 1 and leaves the ids NULL)
+         * must land on {0}, not on nothing.
+         */
+        {
+            archive->children.files = malloc(sizeof(*archive->children.files));
+            assert(archive->children.files);
+            archive->children.files[0].id = 0;
+            archive->children.name_hashes = NULL;
+            archive->children.count = 1;
+        }
+
         *out_dirty = 1;
         cp_warn(ctx, &ctx->warn_reference_added,
                 "idx%d archive %d added to the reference table", table_id, archive_id);

@@ -127,7 +127,8 @@ ToriRS_PickHitsAdd(
     bool is_terrain,
     int tile_x,
     int tile_z,
-    int tile_level)
+    int tile_level,
+    int view_id)
 {
     struct ToriRS_PickHit* hit;
 
@@ -141,6 +142,7 @@ ToriRS_PickHitsAdd(
     hit->tile_x = tile_x;
     hit->tile_z = tile_z;
     hit->tile_level = tile_level;
+    hit->view_id = view_id;
 }
 
 /*
@@ -256,24 +258,36 @@ ToriRS_PickHitsClassify(
              * on a deck that is one ABOVE the player standing on it. Comparing
              * it directly discarded every hit on a bridge — which is what made
              * the whole of the Theatre of Blood's corridors unclickable.
+             *
+             * A WORLD-ENTITY view's tiles are the view's own coordinates —
+             * this world's draw levels say nothing about them, so the guard
+             * does not apply; the view's walkable planes are the server's
+             * (deck collision) problem, exactly as the deob leaves per-view
+             * plane resolution to the menu layer (class108.method3786).
              */
-            if( player_level >= 0 &&
+            if( hit->view_id == 0 && player_level >= 0 &&
                 World_TerrainDrawLevel(world, hit->tile_x, hit->tile_z, hit->tile_level) >
                     player_level )
                 continue;
             /* Hits arrive in render order, back-to-front: the last terrain
-             * hit is nearest. */
-            out_result->hover_tile_valid = true;
-            out_result->hover_tile_x = hit->tile_x;
-            out_result->hover_tile_z = hit->tile_z;
-            out_result->hover_tile_level = hit->tile_level;
+             * hit is nearest. Only root tiles feed the hover latch — a
+             * deck-local coordinate drawn as a root-scene hover box lands in
+             * the wrong ocean. */
+            if( hit->view_id == 0 )
+            {
+                out_result->hover_tile_valid = true;
+                out_result->hover_tile_x = hit->tile_x;
+                out_result->hover_tile_z = hit->tile_z;
+                out_result->hover_tile_level = hit->tile_level;
+            }
             World_PickSetAdd(
                 out_pickset,
                 hit->element_id,
                 WORLD_PICK_TERRAIN,
                 hit->tile_x,
                 hit->tile_z,
-                hit->tile_level);
+                hit->tile_level,
+                hit->view_id);
         }
         else
         {
@@ -308,7 +322,11 @@ ToriRS_PickHitsClassify(
                     reach_level = World_LocPaintLevel(world, tile_x, tile_z, tile_level);
                 if( player_level >= 0 && reach_level != player_level )
                     continue;
-                World_PickSetAdd(out_pickset, hit->element_id, type, tile_x, tile_z, tile_level);
+                /* Non-terrain classification resolves through the ROOT world's
+                 * entity tables, so these are root picks by construction —
+                 * view-scene locs/actors do not classify here (yet). */
+                World_PickSetAdd(
+                    out_pickset, hit->element_id, type, tile_x, tile_z, tile_level, 0);
             }
         }
     }

@@ -109,6 +109,11 @@ struct ToriRS_RenderCommand_Model
     int pick_tile_x; /* -1 for non-terrain */
     int pick_tile_z;
     int pick_tile_level;
+    /** World-entity view this draw came out of, 0 for the root scene. For a
+     *  view draw, pick_tile_x/z are that view's OWN (deck-local) tiles — the
+     *  deob's per-view hovered tile — and a walk click resolves them against
+     *  the view's staging base, not the root scene's. */
+    int pick_view;
 };
 
 struct ToriRS_RenderCommand_ModelWidget

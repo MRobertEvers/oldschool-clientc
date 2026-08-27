@@ -56,6 +56,10 @@ struct UIMinimenuPick
     int secondary_id;
     int tertiary_id;
     int quaternary_id;
+    /** World-entity view a TERRAIN pick came out of; 0 = root. Deck tiles
+     *  carry the view's own coordinates and resolve against its staging
+     *  base at dispatch (the deob adds view.baseX at the menu-op layer). */
+    int view_id;
     /** Optional exact UITree occupant retained with a popup row. Component
      * ids and array slots can both be reused while the menu is open. */
     int has_node_identity;

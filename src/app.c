@@ -9489,6 +9489,14 @@ app_worldview_id_of(
     return -1;
 }
 
+struct WevDeckBox;
+static void
+app_wev_deck_box(
+    struct App* app,
+    struct Wev const* wev,
+    struct World const* parent_world,
+    struct WevDeckBox* out_box);
+
 /**
  * World_WorldEntityRegisterFn: every entity floating in `world` goes in as a
  * transient pseudo-loc covering its rotated footprint, flagged
@@ -9593,6 +9601,66 @@ app_wev_register_pseudo_locs(
         if( wev->config )
         {
             Wev_FootprintTiles(wev, 0, &fx, &fz, &fsx, &fsz);
+
+            /*
+             * Widen to the rotated DECK BOX. The config's authored bounds are
+             * the HULL's box, but the descent draws the whole sub-scene — the
+             * view's size_x*size_z tile rectangle — and the painter's span
+             * gate only defers the parent ground of tiles inside THIS box. A
+             * deck box larger than the config bounds (an oversized debug
+             * spawn, or simply deck geometry past the hull line) left the
+             * uncovered tiles' sea to draw AFTER the ship: tile-aligned water
+             * rectangles punched through the planking, staircase-edged,
+             * camera-angle dependent. Union, not replacement — the config box
+             * can also stick out of the deck box through bounds_off.
+             */
+            {
+                struct Worldview const* fpview =
+                    WorldviewRegistry_Get(&app->worldviews, id);
+                struct WevDeckBox box;
+                int min_ax = INT_MAX;
+                int min_az = INT_MAX;
+                int max_ax = INT_MIN;
+                int max_az = INT_MIN;
+
+                app_wev_deck_box(app, wev, world, &box);
+                for( int corner = 0; corner < 4; corner++ )
+                {
+                    int dx = (corner & 1) ? fpview->size_x_tiles * 128 : 0;
+                    int dz = (corner & 2) ? fpview->size_z_tiles * 128 : 0;
+                    int px;
+                    int pz;
+
+                    Wev_ParentFromDeck(&box, dx, dz, &px, &pz);
+                    /* Parent-scene fine -> absolute tiles, matching the
+                     * Wev_FootprintTiles output the union folds into. */
+                    px = (px >> 7) + world->_base_tile_x;
+                    pz = (pz >> 7) + world->_base_tile_z;
+                    if( px < min_ax )
+                        min_ax = px;
+                    if( px > max_ax )
+                        max_ax = px;
+                    if( pz < min_az )
+                        min_az = pz;
+                    if( pz > max_az )
+                        max_az = pz;
+                }
+                if( min_ax < fx )
+                {
+                    fsx += fx - min_ax;
+                    fx = min_ax;
+                }
+                if( min_az < fz )
+                {
+                    fsz += fz - min_az;
+                    fz = min_az;
+                }
+                if( max_ax + 1 > fx + fsx )
+                    fsx = max_ax + 1 - fx;
+                if( max_az + 1 > fz + fsz )
+                    fsz = max_az + 1 - fz;
+            }
+
             fx -= world->_base_tile_x;
             fz -= world->_base_tile_z;
             if( fx < 0 )
@@ -10218,15 +10286,25 @@ app_wev_register_deck_actors(
                     owner->local_pid >= 0 && player->server_pid == owner->local_pid ? 1 : 0;
                 if( is_local != want_local )
                     continue;
-                World_RegisterForeignActor(
-                    world,
-                    player->element_id,
-                    deck_level,
-                    player->view_placement.x,
-                    player->view_placement.z,
-                    WORLD_MOVER_PAINTER_PADDING,
-                    player->orientation.yaw,
-                    player->animation.needs_forward_draw_padding);
+                /* A player registers at their OWN wire plane, not the deck's
+                 * config plane — see app_world_sync_placement's rule. */
+                {
+                    int player_level = player->grid_position.level;
+
+                    if( player_level < 0 )
+                        player_level = 0;
+                    if( player_level >= COLLISION_LEVELS )
+                        player_level = COLLISION_LEVELS - 1;
+                    World_RegisterForeignActor(
+                        world,
+                        player->element_id,
+                        player_level,
+                        player->view_placement.x,
+                        player->view_placement.z,
+                        WORLD_MOVER_PAINTER_PADDING,
+                        player->orientation.yaw,
+                        player->animation.needs_forward_draw_padding);
+                }
             }
         }
         else
@@ -15157,7 +15235,8 @@ app_world_sync_placement(
     struct App* app,
     struct WorldEntityFacet_ViewPlacement const* placement,
     int element_id,
-    int yaw)
+    int yaw,
+    int actor_level)
 {
     struct Worldview* view;
     struct Wev const* wev;
@@ -15191,11 +15270,22 @@ app_world_sync_placement(
     deck_yaw = placement->home_view == placement->view_id && placement->home_view != 0
                    ? yaw & 0x7ff
                    : (yaw - wev->angle) & 0x7ff;
-    deck_y = app_world_height_in(
-        view->world,
-        placement->x,
-        placement->z,
-        app_wev_deck_level(app, placement->view_id));
+    /* The deck plane: a PLAYER stands at their own wire plane inside the
+     * boat's world — the deob copies the PLAYER_INFO coordinate's plane
+     * verbatim (class60.field552) and samples the sub-view's heights there;
+     * the config's plane opcode is only ever a menu/click plane selector.
+     * A caller passing -1 (npcs) gets the config plane, matching the deob's
+     * npc rule (class86 never overrides getPlane, so an npc reads the
+     * view's plane). Boarding at level 0 therefore KEEPS you at level 0. */
+    {
+        int deck_level = actor_level;
+
+        if( deck_level < 0 )
+            deck_level = app_wev_deck_level(app, placement->view_id);
+        if( deck_level >= COLLISION_LEVELS )
+            deck_level = COLLISION_LEVELS - 1;
+        deck_y = app_world_height_in(view->world, placement->x, placement->z, deck_level);
+    }
     ToriDraw_SceneElementSetPosition(
         app->scene, element_id, placement->x, deck_y, placement->z, deck_yaw);
     return 1;
@@ -15234,7 +15324,8 @@ app_world_sync_positions(struct App* app)
         int wz = (int)player->draw_position.z;
         int wy;
         if( app_world_sync_placement(app, &player->view_placement, player->element_id,
-                                     player->orientation.yaw) )
+                                     player->orientation.yaw,
+                                     player->grid_position.level) )
             continue;
         wy = app_world_height(app, wx, wz, local_level);
         if( npcpos_debug )
@@ -15259,8 +15350,10 @@ app_world_sync_positions(struct App* app)
         int wx = (int)npc->draw_position.x;
         int wz = (int)npc->draw_position.z;
         int wy;
+        /* -1: npcs take the deck's config plane, the deob's rule (class86
+         * does not override getPlane, so an npc reads its view's plane). */
         if( app_world_sync_placement(
-                app, &npc->view_placement, npc->element_id, npc->orientation.yaw) )
+                app, &npc->view_placement, npc->element_id, npc->orientation.yaw, -1) )
             continue;
         wy = app_world_height(app, wx, wz, local_level);
         if( npcpos_debug )
@@ -23288,11 +23381,21 @@ app_world_camera_follow(struct App* app)
                 &parent_z);
             target_x = parent_x;
             target_z = parent_z;
-            aboard_y =
-                wev->y + app_world_height_in(
-                             view->world, player->view_placement.x, player->view_placement.z,
-                             app_wev_deck_level(app, app->aboard_view)) -
-                8 - 50;
+            /* The rider's OWN plane, same rule as their placement — the
+             * camera plane in the deob is focus.getPlane(), the wire plane. */
+            {
+                int cam_level = player->grid_position.level;
+
+                if( cam_level < 0 )
+                    cam_level = 0;
+                if( cam_level >= COLLISION_LEVELS )
+                    cam_level = COLLISION_LEVELS - 1;
+                aboard_y =
+                    wev->y + app_world_height_in(
+                                 view->world, player->view_placement.x,
+                                 player->view_placement.z, cam_level) -
+                    8 - 50;
+            }
             aboard_y_valid = 1;
         }
     }
@@ -26078,6 +26181,46 @@ app_minimenu_run_option(
         return 1;
     }
     case UI_MINIMENU_PICK_TERRAIN:
+        /*
+         * A WORLD-ENTITY view's tile: the pick coordinates are the DECK's own,
+         * and the wire wants the view's staging base added — the deob's
+         * per-view walk send is exactly `baseX + localX` into MOVE_GAMECLICK
+         * (client.java:9294-9312), with no view id in the packet; the server
+         * re-derives the view geometrically, the way boarding itself does.
+         * No client-side route: the rider's collision is the deck instance,
+         * which only the server holds.
+         */
+        if( opt.pick.view_id != 0 &&
+            WorldviewRegistry_IsLive(&app->worldviews, opt.pick.view_id) && app->net )
+        {
+            struct Worldview const* pview =
+                WorldviewRegistry_Get(&app->worldviews, opt.pick.view_id);
+            int deck_route_x[1] = { opt.pick.secondary_id };
+            int deck_route_z[1] = { opt.pick.tertiary_id };
+
+            if( getenv("TORIRS_NET_DEBUG") )
+                TORIRS_LOG("minimenu: deck walk-click view=%d local=%d,%d abs=%d,%d\n",
+                    opt.pick.view_id,
+                    opt.pick.secondary_id,
+                    opt.pick.tertiary_id,
+                    pview->base_x + opt.pick.secondary_id,
+                    pview->base_z + opt.pick.tertiary_id);
+            APP_NET_SEND(
+                app,
+                net_out_move_gameclick(
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    pview->base_x,
+                    pview->base_z,
+                    deck_route_x,
+                    deck_route_z,
+                    1,
+                    app->ctrl_held));
+            UICross_Show(&app->cross, UI_CROSS_WALK, click_x, click_y);
+            return 0;
+        }
         /* Walk here (reference tryMove type 0): BFS route + MOVE_GAMECLICK
          * waypoints; no local prediction — the PLAYER_INFO echo moves the
          * player. */
