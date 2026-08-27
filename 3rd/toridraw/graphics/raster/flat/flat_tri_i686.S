@@ -636,11 +636,28 @@
 	testl	%eax, %eax
 	je	\p\()next
 
-	\setup
-
 	/* The three edge slopes, all three at once, off one reciprocal.
 	 * See edge_slopes_i686.inc. */
 	EDGESLOPES3 %esi, %edi, %ebx, %ebp, V_SXAC
+
+	/* AFTER the slopes, and that ordering is load-bearing rather than
+	 * stylistic. EDGESLOPES3 clobbers xmm0 through xmm5, and FSETUP_ALPHA
+	 * leaves three of its four constants LIVE in xmm3, xmm4 and xmm5 -- the
+	 * premultiplied source colour, the 0x00FFFFFF mask and the inverse
+	 * alpha. Running it first therefore handed the fill whatever the
+	 * reciprocal happened to leave behind: measured, 38,719 of 40,000
+	 * triangles wrong, with the red channel overflowing into the byte the
+	 * mask exists to keep clear.
+	 *
+	 * FSETUP_OPAQUE survived the same ordering only by accident -- it spills
+	 * its one xmm to V_COL4 immediately, so the clobber had nothing to
+	 * destroy. Sequencing both the same way removes the accident.
+	 *
+	 * Safe here: the slopes leave their results in V_SXAC and friends rather
+	 * than in registers, and the setup touches only eax, ecx and edx, which
+	 * the starting-edge block below reloads anyway.
+	 */
+	\setup
 
 	/* starting edges */
 	movl	V_X0(%esp), %eax
