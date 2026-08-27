@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -25,48 +26,91 @@
 #define HTTP_CONNECT_TIMEOUT_SEC 5
 #define HTTP_READ_TIMEOUT_SEC 10
 
+/**
+ * Sleep until the socket can be read (or written), or the timeout runs out.
+ *
+ * The point of it is the SLEEP. sockstream is non-blocking, so a retry loop
+ * over it is a busy-wait unless something parks the thread in between -- which
+ * is what the dial and the write below were, each in its own way.
+ */
 static int
-http_wait_readable(struct SockStream* stream, int timeout_sec)
+http_wait(struct SockStream* stream, int for_write, int timeout_sec)
 {
     struct timeval tv;
-    fd_set readable;
+    fd_set ready;
+    fd_set failed;
     intptr_t fd = sockstream_get_fd(stream);
-    int ready;
+    int result;
 
     if( fd < 0 )
         return 0;
 
-    FD_ZERO(&readable);
+    FD_ZERO(&ready);
+    FD_ZERO(&failed);
 #ifdef _WIN32
-    FD_SET((SOCKET)fd, &readable);
+    FD_SET((SOCKET)fd, &ready);
+    FD_SET((SOCKET)fd, &failed);
 #else
     if( fd >= FD_SETSIZE )
         return 0;
-    FD_SET((int)fd, &readable);
+    FD_SET((int)fd, &ready);
+    FD_SET((int)fd, &failed);
 #endif
     tv.tv_sec = timeout_sec;
     tv.tv_usec = 0;
-    ready = select((int)fd + 1, &readable, NULL, NULL, &tv);
-    return ready > 0;
+    /* The exception set rides along with the write wait because that is the
+     * one a connect in flight uses, and on Windows a refused connect raises
+     * the exception fd rather than the write fd. */
+    if( for_write )
+        result = select((int)fd + 1, NULL, &ready, &failed, &tv);
+    else
+        result = select((int)fd + 1, &ready, NULL, NULL, &tv);
+    return result > 0;
 }
 
+/**
+ * Connect, within `connect_sec`.
+ *
+ * That bound is this function's to keep and nobody else's: sockstream_connect
+ * takes the number and discards it (`(void)timeout_sec`), and
+ * sockstream_poll_connect selects with a zero timeout. The loop that used to
+ * be here therefore had no deadline at all -- it polled as fast as the CPU
+ * allowed for as long as the OS kept the SYN alive, which against a host that
+ * black-holes rather than refuses is a pinned core and a caller that never
+ * returns. Every config file, plugin script and jag archive on the remote
+ * lanes comes through here.
+ */
 static struct SockStream*
 http_dial(const char* host, int port, int connect_sec)
 {
     struct SockStream* stream = sockstream_new();
+    time_t deadline;
+    int state = SOCKSTREAM_CONNECT_FAILED;
 
     if( !stream )
         return NULL;
 
     sockstream_connect(stream, host, port, connect_sec);
+    deadline = time(NULL) + connect_sec;
     for( ;; )
     {
-        int state = sockstream_poll_connect(stream);
-        if( state == SOCKSTREAM_CONNECT_SUCCESS )
-            return stream;
-        if( state == SOCKSTREAM_CONNECT_FAILED )
+        state = sockstream_poll_connect(stream);
+        if( state != SOCKSTREAM_CONNECT_INFLIGHT )
             break;
+        if( time(NULL) >= deadline )
+        {
+            TORIRS_ERR("http: %s:%d did not answer in %ds\n", host, port, connect_sec);
+            state = SOCKSTREAM_CONNECT_FAILED;
+            break;
+        }
+        /* A second at a time rather than the whole remaining budget, so the
+         * poll -- which is what classifies success and failure -- runs again
+         * promptly once the socket moves. */
+        http_wait(stream, /* for_write */ 1, 1);
     }
+
+    if( state == SOCKSTREAM_CONNECT_SUCCESS )
+        return stream;
 
     sockstream_close(stream);
     sockstream_free(stream);
@@ -74,7 +118,7 @@ http_dial(const char* host, int port, int connect_sec)
 }
 
 static int
-http_write_all(struct SockStream* stream, const char* data, int size)
+http_write_all(struct SockStream* stream, const char* data, int size, int timeout_sec)
 {
     int written = 0;
 
@@ -87,6 +131,12 @@ http_write_all(struct SockStream* stream, const char* data, int size)
             continue;
         }
         if( sent != SOCKSTREAM_ERROR_NODATA && sent != SOCKSTREAM_ERROR_WOULDBLOCK )
+            return -1;
+        /* The same wait the read loop does. A peer that has stopped draining
+         * leaves send() answering WOULDBLOCK for as long as it stays that way,
+         * and retrying on the spot was a tight loop with no wait in it and no
+         * deadline on it at all. */
+        if( !http_wait(stream, /* for_write */ 1, timeout_sec) )
             return -1;
     }
     return 0;
@@ -195,7 +245,7 @@ PlatformX_HttpGetTimed(
         route,
         host,
         port);
-    if( http_write_all(stream, request, (int)strlen(request)) != 0 )
+    if( http_write_all(stream, request, (int)strlen(request), read_sec) != 0 )
         goto done;
 
     for( ;; )
@@ -247,7 +297,7 @@ PlatformX_HttpGetTimed(
         /* A timeout keeps what arrived rather than dropping it: an unframed
          * response that stopped short is still framed below, where a short body
          * is refused on its own terms. */
-        if( !http_wait_readable(stream, read_sec) )
+        if( !http_wait(stream, /* for_write */ 0, read_sec) )
             break;
     }
 
