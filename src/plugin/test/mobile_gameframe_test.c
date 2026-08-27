@@ -533,7 +533,7 @@ slot_is(int slot, int x, int y, int w, int h)
 #define M_CHAT_H 96
 #define M_STRIP_W 479
 #define M_STRIP_H 36
-#define M_TOGGLE_H 38
+#define M_TOGGLE_H 25
 #define M_MODAL_W 512
 #define M_MODAL_H 334
 #define M_MIN_W 640
@@ -800,37 +800,34 @@ main(void)
              * placing rather than stacking is that the gap survives.
              */
             /*
-             * The plates are on their heads, so a stone's place is measured
-             * from the plate's far end: `COL_H - along - extent` down, and the
-             * inset taken from the opposite edge. Tab 0's own numbers are
-             * along 22, extent 38, across 10, thickness 36.
+             * A cell is its ROCK: `COL_H - start - span` down the column, and
+             * inset by the plate's stone band -- from the near edge on the left
+             * plate and the far one on the right, the right being mirrored.
+             * The rocks are 28,28 / 56,28 / 84,26 / 110,37 / 147,33 / 180,28 /
+             * 208,28 along a 249 plate.
              */
             if( tag == (M_TAG_TAB | 0u) )
                 CHECK(
-                    x == rail_x + 10 && y == rail_y + M_RAIL_H - 22 - 38,
-                    "tab 0 sits at its own offset up the left plate");
+                    x == rail_x + 9 && y == rail_y + M_RAIL_H - 28 - 28,
+                    "tab 0 is centred on the first rock up the left plate");
             if( tag == (M_TAG_TAB | 3u) )
                 CHECK(
-                    y == rail_y + M_RAIL_H - 110 - 33,
-                    "and tab 3 at its own, after the row's gap");
+                    y == rail_y + M_RAIL_H - 110 - 37,
+                    "tab 3 on the long middle rock");
             if( tag == (M_TAG_TAB | 4u) )
                 CHECK(
-                    y == rail_y + M_RAIL_H - 153 - 33,
-                    "tab 4 before it -- 43 apart, not 33, which is the gap");
+                    y == rail_y + M_RAIL_H - 147 - 33,
+                    "tab 4 on the one after it");
             if( tag == (M_TAG_TAB | 6u) )
                 CHECK(
-                    y == rail_y + M_RAIL_H - 209 - 38, "tab 6 heads the left plate");
-            /* The right column is the same plate MIRRORED, so it measures its
-             * inset from the other edge -- and being the same plate, its tabs
-             * sit at the same offsets down it as the left column's. */
+                    y == rail_y + M_RAIL_H - 208 - 28, "tab 6 heads the left plate");
             if( tag == (M_TAG_TAB | 7u) )
                 CHECK(
-                    x == rail_x + M_COL_W + M_COL_W - 10 - 36 &&
-                        y == rail_y + M_RAIL_H - 22 - 38,
+                    x == rail_x + M_COL_W && y == rail_y + M_RAIL_H - 28 - 28,
                     "tab 7 matches it on the right plate, inset from the other edge");
             if( tag == (M_TAG_TAB | 13u) )
                 CHECK(
-                    y == rail_y + M_RAIL_H - 209 - 38,
+                    y == rail_y + M_RAIL_H - 208 - 28,
                     "and tab 13 sits level with tab 6");
             if( tag == M_TAG_CHAT )
                 CHECK(
