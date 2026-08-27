@@ -193,6 +193,11 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX,
     RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT,
     RCFIELD_UICOMPONENT_TEXT_BASELINE,
+    RCFIELD_STRING_TEXT,
+    RCFIELD_LOGIN_REPLY_SCREEN,
+    RCFIELD_LOGIN_REPLY_LINE1,
+    RCFIELD_LOGIN_REPLY_LINE2,
+    RCFIELD_LOGIN_REPLY_LINE3,
     RCFIELD_UICOMPONENT_OPTION,
     RCFIELD_UICOMPONENT_OPTION_ACTION,
     RCFIELD_UICOMPONENT_OP0,
@@ -296,6 +301,52 @@ enum RevConfigItemKind
     RCITEM_CAMERA,
     RCITEM_CHROME,
     RCITEM_ROLE,
+    RCITEM_STRING,
+    RCITEM_LOGIN_REPLY,
+};
+
+/**
+ * One `[string:<name>] text=` -- a line of UI prose, named here rather than
+ * spelled in C.
+ *
+ * The client legitimately knows WHEN to say something ("we are connecting
+ * now"); what it says, and in which revision's wording, is the profile's.
+ */
+struct RevConfigStringItem
+{
+    char name[64];
+    char text[256];
+};
+
+/**
+ * One `[login_reply:<code>]` -- what a login rejection means, in words.
+ *
+ * The CODE is protocol and belongs to net/; the SENTENCES are presentation and
+ * differ per revision, which is exactly the split revconfig exists for: the
+ * old lane answers codes 3..21 in two lines, the modern one -3..74 in three.
+ *
+ * `screen` carries the behavioural half -- some codes land on a dedicated
+ * screen rather than the generic error page -- so a revision can say that
+ * without new C.
+ *
+ * The section name is the code, or `default` for anything unlisted, or
+ * `connect_failed` for a socket that never reached a server.
+ */
+#define REVCONFIG_LOGIN_REPLY_DEFAULT_NAME "default"
+#define REVCONFIG_LOGIN_REPLY_CONNECT_FAILED_NAME "connect_failed"
+
+/* Out of the protocol's byte range so they cannot collide with a real code.
+ * Kept in step with TORIRS_NET_LOGIN_REPLY_CONNECT_FAILED by net/net.h. */
+#define REVCONFIG_LOGIN_REPLY_CODE_DEFAULT (-1000)
+#define REVCONFIG_LOGIN_REPLY_CODE_CONNECT_FAILED (-100)
+
+struct RevConfigLoginReplyItem
+{
+    /** The reply byte, or one of the sentinels below. */
+    int code;
+    /** RS_TitleScreen to land on; -1 leaves the screen alone. */
+    int screen;
+    char line[3][256];
 };
 
 /** Section types that build an RCITEM_CACHE_REF, i.e. a bare name -> cache id. */
@@ -1183,6 +1234,8 @@ struct RevConfigItem
         struct RevConfigCameraItem camera;
         struct RevConfigChromeItem chrome;
         struct RevConfigRoleItem role;
+        struct RevConfigStringItem string;
+        struct RevConfigLoginReplyItem login_reply;
     } u;
 };
 

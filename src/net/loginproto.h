@@ -60,6 +60,17 @@ struct LoginProto
     int await_recv_cnt;
     int staffmodlevel;
 
+    /**
+     * The server's rejection byte, or -1 while none has arrived.
+     *
+     * Kept because the code is the only thing that distinguishes "wrong
+     * password" from "world is full" from "you were just in another world",
+     * and a login screen that cannot tell them apart can only say that
+     * something went wrong. What each code MEANS in words is the profile's
+     * ([login_reply:<code>]), not this layer's.
+     */
+    int reply_code;
+
     int32_t seed[4];
 
     loginproto_seed_fn seed_fn;

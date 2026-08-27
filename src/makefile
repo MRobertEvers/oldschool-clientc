@@ -546,7 +546,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	game/rs_ui_slots.c game/rs_social.c game/rs_loot_store.c game/rs_clientcode.c game/rs_if1_buttons.c \
 	game/rs_idk_design.c \
 	game/rs_chat.c game/rs_gameproto_exec.c \
-	game/rs_title.c \
+	game/rs_title.c game/rs_login_replies.c \
 	game/rs_game_events.c \
 	game/rs_worldmap.c \
 	game/rs_worldmap_render.c \
@@ -2654,6 +2654,15 @@ test-rs-title: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_title_test \
 		game/test/rs_title_test.c game/rs_title.c
 	./$(OBJ_DIR)/rs_title_test
+
+# The login-reply table, read from the shipped profile: a rejection the profile
+# has no words for shows a blank box, which is the one failure a login screen
+# cannot afford.
+test-login-replies: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_login_replies_test \
+		game/test/rs_login_replies_test.c game/rs_login_replies.c \
+		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC)
+	./$(OBJ_DIR)/rs_login_replies_test
 
 # JPEG decode over the real title backgrounds on disk. Skips a cache that is
 # not checked out; the point is the RS caches' corrupted SOI byte, not stb.

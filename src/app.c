@@ -8507,6 +8507,15 @@ App_Init(
      * revision profile states about behaviour rather than about ids: the
      * feature table (consumed a few hundred lines below, where the era is
      * resolved) and the camera policy. */
+    /* Same three sources again, for the sentences a login failure needs. Here
+     * rather than in the builder because the builder's items are torn down
+     * after the bake and a rejection can arrive at any time. */
+    RS_LoginReplies_Init(&app->login_replies);
+    RS_LoginReplies_LoadSources(
+        &app->login_replies,
+        app->cfg.revconfig_ui_ini,
+        app->cfg.revconfig_cache_ini,
+        app->cfg.revconfig_inline_ini);
     RevConfigProfile_Init(&app->revconfig_profile);
     RevConfigProfile_LoadSources(
         &app->revconfig_profile,
@@ -14347,7 +14356,9 @@ app_title_submit(struct App* app)
     if( user[0] == '\0' )
         return;
 
-    RS_Title_SetMessages(&app->title, "", "Connecting to server...", "");
+    /* The client knows WHEN to say this; the revision says what. */
+    RS_Title_SetMessages(
+        &app->title, NULL, RS_LoginReplies_String(&app->login_replies, "connecting"), NULL);
     app->screen = APP_SCREEN_CONNECTING;
     app_title_state_changed(app);
     ToriRS_Network_ConnectLogin(app->net, app->connect_target, user, pass);
@@ -14418,6 +14429,38 @@ app_title_tick(struct App* app)
         app->net->state == TORIRS_NET_GAME )
     {
         App_OpenRootInterface(app, -1);
+        return 1;
+    }
+
+    /*
+     * The handshake failed. Back to the form, with what the server said.
+     *
+     * The reply code is the only thing separating "wrong password" from "this
+     * world is full" from "you have only just left another world", and the
+     * player is owed the difference. The words are the profile's; if it
+     * declares none, the code goes to the log and the screen says nothing
+     * rather than inventing a sentence.
+     */
+    if( app->screen == APP_SCREEN_CONNECTING && app->net &&
+        app->net->state == TORIRS_NET_DISCONNECTED )
+    {
+        struct RS_LoginReply const* reply =
+            RS_LoginReplies_Get(&app->login_replies, app->net->login_reply);
+
+        app->screen = APP_SCREEN_TITLE;
+        if( reply )
+        {
+            RS_Title_SetMessages(&app->title, reply->line[0], reply->line[1], reply->line[2]);
+            if( reply->screen >= 0 )
+                RS_Title_SetScreen(&app->title, (enum RS_TitleScreen)reply->screen);
+        }
+        else
+        {
+            TORIRS_ERR("login: rejected with reply=%d and the profile declares no text for it\n",
+                app->net->login_reply);
+            RS_Title_SetMessages(&app->title, NULL, NULL, NULL);
+        }
+        app_title_state_changed(app);
         return 1;
     }
 

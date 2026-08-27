@@ -302,6 +302,26 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT;
     else if( strcmp(key, "baseline") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_TEXT_BASELINE;
+    /* `text=` already means the literal of an rs_text; under [string:] it is
+     * the whole point of the section, so the type disambiguates as usual. */
+    else if( strcmp(key, "text") == 0 && strcmp(s_ini_item_type, "string") == 0 )
+        kind = RCFIELD_STRING_TEXT;
+    else if( strcmp(s_ini_item_type, "login_reply") == 0 )
+    {
+        if( strcmp(key, "screen") == 0 )
+            kind = RCFIELD_LOGIN_REPLY_SCREEN;
+        else if( strcmp(key, "line1") == 0 )
+            kind = RCFIELD_LOGIN_REPLY_LINE1;
+        else if( strcmp(key, "line2") == 0 )
+            kind = RCFIELD_LOGIN_REPLY_LINE2;
+        else if( strcmp(key, "line3") == 0 )
+            kind = RCFIELD_LOGIN_REPLY_LINE3;
+        else
+            TORIRS_LOG("revconfig: [login_reply:] has no key '%s'\n", key);
+        if( kind != RCFIELD_NONE )
+            push_field(vec, kind, value);
+        return;
+    }
     else if( strcmp(key, "option") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_OPTION;
     else if( strcmp(key, "option_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )

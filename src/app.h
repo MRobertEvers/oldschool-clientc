@@ -12,6 +12,7 @@
 #include "features/features.h"
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
+#include "game/rs_login_replies.h"
 #include "game/rs_title.h"
 #include "net/rev/revpacket.h"
 #include "game/rs_cs1_host.h"
@@ -1501,6 +1502,9 @@ struct App
      * password, which is exactly as bad as it sounds.
      */
     char title_field_line[RS_TITLE_FIELD_COUNT][RS_TITLE_FIELD_LEN + 64];
+    /** What each login rejection means, in this revision's words. Loaded from
+     *  the profile beside RevConfigRefs and alive for the whole session. */
+    struct RS_LoginReplyTable login_replies;
     /** Frames the left button has been held over the chat scrollbar (reference
      *  scrollCycle); drives arrow-scroll acceleration and gates grip drag. */
     int chat_scroll_cycle;

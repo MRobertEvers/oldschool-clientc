@@ -67,6 +67,7 @@ loginproto_new(
     loginproto->seed_user = NULL;
 
     loginproto->state = LOGINPROTO_SEND_CONNECT;
+    loginproto->reply_code = -1;
     return loginproto;
 }
 
@@ -330,6 +331,7 @@ loginproto_poll(struct LoginProto* loginproto)
                 return LOGINPROTO_SUCCESS;
             }
             TORIRS_ERR("loginproto: login rejected, reply=%d\n", reply_byte);
+            loginproto->reply_code = reply_byte;
             loginproto->state = LOGINPROTO_ERROR;
             return LOGINPROTO_AWAIT_RECV;
         }

@@ -1107,6 +1107,19 @@ revconfig_item_set_name(
     case RCITEM_ROLE:
         strncpy(item->u.role.name, value, sizeof(item->u.role.name) - 1);
         break;
+    case RCITEM_STRING:
+        strncpy(item->u.string.name, value, sizeof(item->u.string.name) - 1);
+        break;
+    case RCITEM_LOGIN_REPLY:
+        /* The section name IS the code, except for the two names that stand
+         * for cases the protocol has no byte for. */
+        if( strcmp(value, REVCONFIG_LOGIN_REPLY_DEFAULT_NAME) == 0 )
+            item->u.login_reply.code = REVCONFIG_LOGIN_REPLY_CODE_DEFAULT;
+        else if( strcmp(value, REVCONFIG_LOGIN_REPLY_CONNECT_FAILED_NAME) == 0 )
+            item->u.login_reply.code = REVCONFIG_LOGIN_REPLY_CODE_CONNECT_FAILED;
+        else
+            item->u.login_reply.code = revconfig_parse_int(value);
+        break;
     default:
         break;
     }
@@ -1154,6 +1167,15 @@ revconfig_item_begin(
         item->kind = RCITEM_UILAYOUT;
     else if( strcmp(type_value, "role") == 0 )
         item->kind = RCITEM_ROLE;
+    else if( strcmp(type_value, "string") == 0 )
+        item->kind = RCITEM_STRING;
+    else if( strcmp(type_value, "login_reply") == 0 )
+    {
+        item->kind = RCITEM_LOGIN_REPLY;
+        /* -1 = "leave the screen alone", which is what most codes want: the
+         * generic error page is already up by the time the lines are read. */
+        item->u.login_reply.screen = -1;
+    }
     else if( strcmp(type_value, "inv") == 0 )
         item->kind = RCITEM_INV;
     else if( strcmp(type_value, "hotkey") == 0 )
@@ -1994,6 +2016,32 @@ revconfig_item_apply_field(
     case RCITEM_CACHE_REF:
         if( kind == RCFIELD_CACHEREF_ID )
             item->u.cacheref.id = revconfig_parse_int(value);
+        break;
+    case RCITEM_STRING:
+        if( kind == RCFIELD_STRING_TEXT )
+        {
+            strncpy(item->u.string.text, value, sizeof(item->u.string.text) - 1);
+            item->u.string.text[sizeof(item->u.string.text) - 1] = ' ';
+        }
+        break;
+    case RCITEM_LOGIN_REPLY:
+        if( kind == RCFIELD_LOGIN_REPLY_SCREEN )
+        {
+            item->u.login_reply.screen = revconfig_parse_int(value);
+        }
+        else if(
+            kind == RCFIELD_LOGIN_REPLY_LINE1 || kind == RCFIELD_LOGIN_REPLY_LINE2 ||
+            kind == RCFIELD_LOGIN_REPLY_LINE3 )
+        {
+            int line = kind == RCFIELD_LOGIN_REPLY_LINE1   ? 0
+                       : kind == RCFIELD_LOGIN_REPLY_LINE2 ? 1
+                                                           : 2;
+            strncpy(
+                item->u.login_reply.line[line],
+                value,
+                sizeof(item->u.login_reply.line[line]) - 1);
+            item->u.login_reply.line[line][sizeof(item->u.login_reply.line[line]) - 1] = ' ';
+        }
         break;
     case RCITEM_ROLE:
         if( kind == RCFIELD_ROLE_MATCH &&

@@ -341,6 +341,10 @@ loginproto_drive(struct ToriRS_Network* net)
     }
     else if( poll_result == LOGINPROTO_ERROR )
     {
+        /* Carried out of the protocol before its state is dropped: the screen
+         * that has to explain this reads it after the transition. */
+        if( net->loginproto )
+            net->login_reply = net->loginproto->reply_code;
         net->reconnect = 0;
         net->state = TORIRS_NET_DISCONNECTED;
     }
