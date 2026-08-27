@@ -2315,6 +2315,25 @@ struct ToriRS_PluginApi
      *
      * @return 1 when a component with that id was found and dispatched.
      */
+    /**
+     * Show or hide the on-screen keyboard.
+     *
+     * The one verb a touch frame needs that a desktop one never did: a phone
+     * has no keys until something asks for them, and this client's chat input
+     * has always assumed a keyboard was simply there.
+     *
+     * It reaches SDL's text-input mode, which is the same switch on every
+     * backend that HAS a soft keyboard -- Android, iOS and emscripten alike --
+     * so a plugin asking for a keyboard gets one on a device and in a browser
+     * without knowing which it is running in. On a desktop backend it governs
+     * only whether SDL_TEXTINPUT events arrive, and the shell leaves that on,
+     * so asking there is harmless and shows nothing.
+     *
+     * Asking does NOT hand the chat the keyboard. What the typing reaches is
+     * whatever the client has focused, exactly as it is for a physical key.
+     */
+    void (*text_input)(struct ToriRS_PluginCtx* ctx, int on);
+
     int (*if_click)(struct ToriRS_PluginCtx* ctx, int component_id, int op);
 
     /**

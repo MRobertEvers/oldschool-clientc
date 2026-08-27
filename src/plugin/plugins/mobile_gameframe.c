@@ -235,6 +235,24 @@ static struct MobileRock const MOBILE_ROCK[MOBILE_RAIL_ROWS] = {
  */
 #define MOBILE_TOGGLE_W 36
 #define MOBILE_TOGGLE_H 25
+/** The gap between the chat switch and the keyboard switch beside it. */
+#define MOBILE_TOGGLE_GAP 4
+/*
+ * How much of its own size the CHAT glyph keeps.
+ *
+ * The atlas is cut for OldSchool Mobile's own 40-pixel buttons and these
+ * switches are 36x25, so the bubbles at full size hang over the plate on three
+ * sides. Two thirds fills the button and leaves a margin: 21x18 inside 36x25.
+ *
+ * Halving fitted too, and left them looking lost on the plate -- which is the
+ * hazard of picking a fraction for the arithmetic rather than for the picture.
+ * Two thirds is not a clean box filter the way a half is, but the scaler
+ * averages each destination pixel's whole footprint, so what it costs is a
+ * little softness at this size rather than the staircase a point sample would
+ * give.
+ */
+#define MOBILE_ICON_NUM 2
+#define MOBILE_ICON_DEN 3
 
 /** What a bank or a dialogue is authored for. The cache's own interfaces are
  *  built against this box, so it is placed and never resized -- only moved. */
@@ -277,10 +295,31 @@ enum MobileImage
     /** The grey button the 2004 interfaces use for logout and the settings
      *  toggles -- `miscgraphics2` frame 0. The chat switch wears it. */
     IMG_SWITCH,
-    /** `backbase1` and `backbase2`: the base plates the four chat buttons are
-     *  regions OF on the 2004 frame. @see mobile_compose_chat_button. */
-    IMG_CHAT_PLATE,
-    IMG_CHAT_PLATE_END,
+    /** The chat filter button, shipped at 295x97 and scaled to the box the
+     *  frame gives it. @see mobile_compose_scaled. */
+    IMG_CHAT_BUTTON,
+    /*
+     * The two switch glyphs, from OSRS-Content's own sprite set.
+     *
+     * The chat one is `options_icons` frame 5, the pair of speech bubbles --
+     * and it is the RIGHT one rather than a lookalike: interface 601's chat
+     * filter toggle sets exactly that graphic on itself
+     * (`cc_setgraphic("options_icons,5")` in torirs_osm_chatbox_bind), so this
+     * is the icon OldSchool Mobile puts on the button that does this job.
+     *
+     * The keyboard is the lower half of `osm_fn_mode_icons_2`, OldSchool
+     * Mobile's keyboard-mode icon. That sprite is a hand ABOVE a keyboard and
+     * the two do not touch -- row 13 of its 22 is empty -- so the keyboard is
+     * lifted out at rows 14..21, columns 1..19. Cutting a sprite at a seam its
+     * own artist left is not the same as drawing one: no atlas in this content
+     * has a hand-free keyboard, and every keyboard in it is this keyboard.
+     *
+     * It is shipped at that size and drawn at it. Only the CHAT glyph is
+     * scaled, because only the chat glyph is cut for a 40px mobile button and
+     * overhangs a 36x25 switch.
+     */
+    IMG_ICON_KEYBOARD,
+    IMG_ICON_CHAT,
     /** The three redstone shapes, in the order the classic frame's own stone
      *  index numbers them. @see MOBILE_TAB_STONE. */
     IMG_REDSTONE_0,
@@ -362,8 +401,9 @@ static char const* const MOBILE_IMAGE_FILE[MOBILE_IMG_COUNT] = {
     [IMG_STONE] = "stone.png",
     [IMG_PLATE] = "rail_back_top_cleaned.png",
     [IMG_SWITCH] = "switch.png",
-    [IMG_CHAT_PLATE] = "chat_plate.png",
-    [IMG_CHAT_PLATE_END] = "chat_plate_end.png",
+    [IMG_CHAT_BUTTON] = "chat_button.png",
+    [IMG_ICON_KEYBOARD] = "icon_keyboard.png",
+    [IMG_ICON_CHAT] = "icon_chat.png",
     [IMG_REDSTONE_0] = "highlight1.png",
     [IMG_REDSTONE_1] = "highlight2.png",
     [IMG_REDSTONE_2] = "highlight3.png",
@@ -406,9 +446,12 @@ enum MobileComposed
      * close enough to fourteen that a table keyed by the thing the draw pass
      * actually has in its hand is simpler than one it has to look up.
      */
-    /** The four chat filter buttons, cut out of the base plates at the boxes
-     *  the 2004 frame gives them. @see mobile_compose_chat_button. */
-    ART_CHAT_BUTTON_0,
+    /** The chat filter button at the size the frame gives it. All four wear
+     *  the same one. @see mobile_compose_scaled. */
+    ART_CHAT_BUTTON,
+    /** The chat glyph, scaled to fit the switch. The keyboard needs no scale:
+     *  it is 19x8 as cut. @see MOBILE_ICON_NUM. */
+    ART_ICON_CHAT,
     /** The two backing plates, turned: one whole column each. */
     ART_PLATE_0,
     ART_PLATE_1,
@@ -421,7 +464,7 @@ enum MobileComposed
      * selection had to be picked out by shade. The plate is what the other
      * thirteen stand on, which is what the desktop frame does too.
      */
-    ART_STONE_0 = ART_CHAT_BUTTON_0 + MOBILE_CHAT_BUTTON_COUNT,
+    ART_STONE_0,
 
     MOBILE_ART_COUNT = ART_STONE_0 + MOBILE_TAB_COUNT
 };
@@ -521,6 +564,16 @@ mobile_housing(struct ToriRS_PluginCtx* ctx)
  */
 static int g_drawer_open;
 static int g_chat_open = 1;
+/*
+ * Whether this frame has asked for the on-screen keyboard.
+ *
+ * The plugin's own belief, not the platform's: SDL owns the real state and
+ * there is no way to ask it, so what this tracks is what the switch last
+ * requested. That is enough for a toggle, and it is why tapping the chat asks
+ * for the keyboard rather than toggling it -- a tap on the chat means "I want
+ * to type", which is only ever a request to show.
+ */
+static int g_keyboard_on;
 
 /*
  * Which tabs this lane actually has, learned from the declaration.
@@ -579,6 +632,9 @@ static struct
      *  layout pass put the stone at rather than one of its own. */
     int toggle_x;
     int toggle_y;
+    /** Where the keyboard switch went. @see MOBILE_TAG_KEYS. */
+    int keys_x;
+    int keys_y;
     /** Where the drawer went, so the draw pass can claim its rectangle. */
     int panel_x;
     int panel_y;
@@ -1086,115 +1142,98 @@ mobile_build_masks(struct ToriRS_PluginCtx* ctx)
 }
 
 /*
- * Where each chat button sits on the base plates, and how wide.
+ * An image at a different size, averaged down.
  *
- * The 2004 frame's own boxes: `backbase1` is blitted at 0,453 and the four
- * buttons at y=467, so each is 14 rows down that plate, at x 6, 135, 273 and
- * 408, a hundred wide and thirty-two tall.
+ * The chat button ships at 295x97 and the box the frame gives it is 100x32 --
+ * near enough the same shape (3.04 against 3.13) that the scale is a resize
+ * rather than a distortion, but a third of the size in each direction, which is
+ * where the care goes. Point sampling a reduction that large throws away eight
+ * pixels in nine and keeps whichever one it landed on, so a stone edge comes
+ * back as a staircase and the speckle in the texture turns into noise. Taking
+ * the MEAN of each destination pixel's footprint keeps the edge.
  *
- * Report abuse is the awkward one. It starts at 408 and is a hundred wide, so
- * its last twelve columns are past `backbase1`'s 496 and land on `backbase2`,
- * the corner plate beside it -- which the revconfig's own comment about the
- * frame corner at x=496 is describing from the other side. So that button is
- * cut from BOTH plates, and the second is blitted at 496,466, one row above the
- * first, which is where the extra row comes from.
- */
-#define MOBILE_CHAT_PLATE_Y 14
-#define MOBILE_CHAT_PLATE_END_X 496
-#define MOBILE_CHAT_PLATE_END_DY 1
-static int const MOBILE_CHAT_BUTTON_SRC[MOBILE_CHAT_BUTTON_COUNT] = { 6, 135, 273, 408 };
-
-/*
- * Cut one chat button out of the base plates.
- *
- * The 2004 chat buttons have no sprite of their own -- the revconfig declares
- * them as a label, a font and four mode colours and nothing else -- because on
- * the desktop frame they are simply REGIONS of the plate they stand on. So this
- * frame's buttons are those regions, lifted out at the boxes the frame gives
- * them: the same stone, the same weathering, in the same four places, but each
- * one now a button that can float on its own.
- *
- * Which is why they are cut rather than stretched from an interface button. An
- * interface button is a different object with a bevel and rounded ends; four of
- * those in a row is a frame this cache never had.
+ * Averaged in premultiplied space, because the alternative is wrong at every
+ * edge: a transparent pixel still carries a colour, and mixing that colour in
+ * at full weight drags the rim of the button toward whatever the cut-out
+ * happened to be filled with -- black, here, so the button would come back with
+ * a dark fringe all round it.
  */
 static int
-mobile_compose_chat_button(
+mobile_compose_scaled(
     struct ToriRS_PluginCtx* ctx,
     char const* name,
-    int index)
+    int src,
+    int width,
+    int height)
 {
-    uint32_t* plate;
-    uint32_t* tail;
+    uint32_t* px;
     uint32_t* out;
-    int plate_w = 0;
-    int plate_h = 0;
-    int tail_w = 0;
-    int tail_h = 0;
+    int src_w = 0;
+    int src_h = 0;
     int handle;
-    int const from = MOBILE_CHAT_BUTTON_SRC[index];
 
     assert(ctx);
     assert(name);
-    assert(index >= 0);
-    assert(index < MOBILE_CHAT_BUTTON_COUNT);
-
-    if( !g_api->image_size(ctx, g_image[IMG_CHAT_PLATE], &plate_w, &plate_h) || plate_w <= 0 )
+    assert(width > 0);
+    assert(height > 0);
+    if( src < 0 )
         return -1;
-    if( !g_api->image_size(ctx, g_image[IMG_CHAT_PLATE_END], &tail_w, &tail_h) || tail_w <= 0 )
+    if( !g_api->image_size(ctx, src, &src_w, &src_h) || src_w <= 0 || src_h <= 0 )
         return -1;
 
-    plate = malloc((size_t)plate_w * (size_t)plate_h * sizeof(*plate));
-    assert(plate);
-    if( g_api->image_pixels(ctx, g_image[IMG_CHAT_PLATE], plate, plate_w * plate_h) !=
-        plate_w * plate_h )
+    px = malloc((size_t)src_w * (size_t)src_h * sizeof(*px));
+    assert(px);
+    if( g_api->image_pixels(ctx, src, px, src_w * src_h) != src_w * src_h )
     {
-        free(plate);
+        free(px);
         return -1;
     }
-    tail = malloc((size_t)tail_w * (size_t)tail_h * sizeof(*tail));
-    assert(tail);
-    if( g_api->image_pixels(ctx, g_image[IMG_CHAT_PLATE_END], tail, tail_w * tail_h) !=
-        tail_w * tail_h )
-    {
-        free(plate);
-        free(tail);
-        return -1;
-    }
-
-    out = malloc(
-        (size_t)MOBILE_CHAT_BUTTON_W * (size_t)MOBILE_CHAT_BUTTON_H * sizeof(*out));
+    out = malloc((size_t)width * (size_t)height * sizeof(*out));
     assert(out);
-    for( int row = 0; row < MOBILE_CHAT_BUTTON_H; row++ )
+    for( int row = 0; row < height; row++ )
     {
-        for( int col = 0; col < MOBILE_CHAT_BUTTON_W; col++ )
+        int const y0 = (row * src_h) / height;
+        int const y1 = (((row + 1) * src_h) / height) > y0 ? ((row + 1) * src_h) / height
+                                                           : y0 + 1;
+
+        for( int col = 0; col < width; col++ )
         {
-            int const src_x = from + col;
-            int const src_y = MOBILE_CHAT_PLATE_Y + row;
-            uint32_t pixel = 0x00000000u;
+            int const x0 = (col * src_w) / width;
+            int const x1 = (((col + 1) * src_w) / width) > x0 ? ((col + 1) * src_w) / width
+                                                              : x0 + 1;
+            unsigned long sum_a = 0;
+            unsigned long sum_r = 0;
+            unsigned long sum_g = 0;
+            unsigned long sum_b = 0;
+            unsigned long count = 0;
 
-            if( src_x < plate_w )
+            for( int sy = y0; sy < y1 && sy < src_h; sy++ )
             {
-                if( src_y < plate_h )
-                    pixel = plate[(src_y * plate_w) + src_x];
-            }
-            else
-            {
-                /* Past the first plate: the corner plate carries on, one row
-                 * higher because it is blitted one row higher. */
-                int const tail_x = src_x - MOBILE_CHAT_PLATE_END_X;
-                int const tail_y = src_y + MOBILE_CHAT_PLATE_END_DY;
+                for( int sx = x0; sx < x1 && sx < src_w; sx++ )
+                {
+                    uint32_t const pixel = px[(sy * src_w) + sx];
+                    unsigned long const alpha = (pixel >> 24) & 0xffu;
 
-                if( tail_x < tail_w && tail_y < tail_h )
-                    pixel = tail[(tail_y * tail_w) + tail_x];
+                    sum_a += alpha;
+                    sum_r += ((pixel >> 16) & 0xffu) * alpha;
+                    sum_g += ((pixel >> 8) & 0xffu) * alpha;
+                    sum_b += (pixel & 0xffu) * alpha;
+                    count++;
+                }
             }
-            out[(row * MOBILE_CHAT_BUTTON_W) + col] = pixel;
+            if( count == 0 || sum_a == 0 )
+            {
+                out[(row * width) + col] = 0x00000000u;
+                continue;
+            }
+            out[(row * width) + col] = (uint32_t)(((sum_a / count) & 0xffu) << 24) |
+                                       (uint32_t)(((sum_r / sum_a) & 0xffu) << 16) |
+                                       (uint32_t)(((sum_g / sum_a) & 0xffu) << 8) |
+                                       (uint32_t)((sum_b / sum_a) & 0xffu);
         }
     }
-    handle = g_api->image_compose(
-        ctx, name, MOBILE_CHAT_BUTTON_W, MOBILE_CHAT_BUTTON_H, out);
-    free(plate);
-    free(tail);
+    handle = g_api->image_compose(ctx, name, width, height, out);
+    free(px);
     free(out);
     return handle;
 }
@@ -1218,9 +1257,11 @@ mobile_build_art(struct ToriRS_PluginCtx* ctx)
         return;
     if( !g_api->image_size(ctx, g_image[IMG_SWITCH], NULL, NULL) )
         return;
-    if( !g_api->image_size(ctx, g_image[IMG_CHAT_PLATE], NULL, NULL) )
+    if( !g_api->image_size(ctx, g_image[IMG_CHAT_BUTTON], NULL, NULL) )
         return;
-    if( !g_api->image_size(ctx, g_image[IMG_CHAT_PLATE_END], NULL, NULL) )
+    if( !g_api->image_size(ctx, g_image[IMG_ICON_CHAT], NULL, NULL) )
+        return;
+    if( !g_api->image_size(ctx, g_image[IMG_ICON_KEYBOARD], NULL, NULL) )
         return;
 
     for( int tab = 0; tab < MOBILE_TAB_COUNT; tab++ )
@@ -1249,13 +1290,24 @@ mobile_build_art(struct ToriRS_PluginCtx* ctx)
      * why the left plate reads (1,1) and the right, being the mirrored one,
      * reads (1,0).
      */
-    for( int i = 0; i < MOBILE_CHAT_BUTTON_COUNT; i++ )
     {
-        char name[32];
+        int icon_w = 0;
+        int icon_h = 0;
 
-        snprintf(name, sizeof(name), "chat_button_%d.png", i);
-        g_art[ART_CHAT_BUTTON_0 + i] = mobile_compose_chat_button(ctx, name, i);
+        if( g_api->image_size(ctx, g_image[IMG_ICON_CHAT], &icon_w, &icon_h) )
+            g_art[ART_ICON_CHAT] = mobile_compose_scaled(
+                ctx,
+                "icon_chat_fit.png",
+                g_image[IMG_ICON_CHAT],
+                (icon_w * MOBILE_ICON_NUM) / MOBILE_ICON_DEN,
+                (icon_h * MOBILE_ICON_NUM) / MOBILE_ICON_DEN);
     }
+    g_art[ART_CHAT_BUTTON] = mobile_compose_scaled(
+        ctx,
+        "chat_button_fit.png",
+        g_image[IMG_CHAT_BUTTON],
+        MOBILE_CHAT_BUTTON_W,
+        MOBILE_CHAT_BUTTON_H);
     g_art[ART_PLATE_0] =
         mobile_compose_turned(ctx, "plate_l.png", g_image[IMG_PLATE], 1, 1, /*dim=*/0);
     g_art[ART_PLATE_1] =
@@ -1409,6 +1461,19 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
     g_frame.toggle_x = MOBILE_MARGIN;
     g_frame.toggle_y = (chat_visible ? chat_y : canvas_h) - MOBILE_MARGIN - MOBILE_TOGGLE_H;
     mobile_blit(g_image[IMG_SWITCH], g_frame.toggle_x, g_frame.toggle_y);
+    /*
+     * And the keyboard beside it.
+     *
+     * A frame the player reaches with a finger needs a way to ASK for the keys
+     * -- the client's chat input was written for a machine that always had
+     * them, so nothing in it ever raises a keyboard. Tapping the chat asks for
+     * one too, but a switch that is always in the same place is what makes it
+     * possible to put the keyboard AWAY again, which a tap on the chat can
+     * never mean.
+     */
+    g_frame.keys_x = g_frame.toggle_x + MOBILE_TOGGLE_W + MOBILE_TOGGLE_GAP;
+    g_frame.keys_y = g_frame.toggle_y;
+    mobile_blit(g_image[IMG_SWITCH], g_frame.keys_x, g_frame.keys_y);
 
     /*
      * The ROLE, and then its members.
@@ -1525,7 +1590,7 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
      */
     for( int i = 0; i < MOBILE_CHAT_BUTTON_COUNT; i++ )
         mobile_blit(
-            g_art[ART_CHAT_BUTTON_0 + i],
+            g_art[ART_CHAT_BUTTON],
             MOBILE_CHAT_BUTTON_X(i),
             strip_y + MOBILE_CHAT_BUTTON_LIFT);
 
@@ -1547,6 +1612,38 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
             strip_y + MOBILE_CHAT_BUTTON_LIFT,
             MOBILE_CHAT_BUTTON_W,
             MOBILE_CHAT_BUTTON_H);
+}
+
+/** One glyph, centred in a switch's box. */
+static void
+mobile_draw_icon(
+    struct ToriRS_PluginCtx* ctx,
+    void* surface,
+    int image,
+    int box_x,
+    int box_y,
+    int box_w,
+    int box_h)
+{
+    int iw = 0;
+    int ih = 0;
+
+    assert(ctx);
+    if( image < 0 )
+        return;
+    if( !g_api->image_size(ctx, image, &iw, &ih) || iw <= 0 || ih <= 0 )
+        return;
+    g_api->draw_image(
+        ctx,
+        surface,
+        image,
+        box_x + ((box_w - iw) / 2),
+        box_y + ((box_h - ih) / 2),
+        0,
+        0,
+        0,
+        0,
+        0);
 }
 
 /* ---------------------------------------------------------------- events */
@@ -1597,6 +1694,10 @@ mobile_on_layout(
 #define MOBILE_TAG_CHAT 0x0c40000u
 /** A rectangle that exists only to stop a tap falling through to the world. */
 #define MOBILE_TAG_BLOCK 0x0b10000u
+/** The keyboard switch. */
+#define MOBILE_TAG_KEYS 0x0e40000u
+/** The chat sheet, which asks for the keyboard when it is tapped. */
+#define MOBILE_TAG_CHATLOG 0x0c50000u
 
 static enum ToriRS_PluginVerdict
 mobile_on_draw(
@@ -1608,6 +1709,8 @@ mobile_on_draw(
     int const active = g_api->tab_active(ctx);
     static char const* const TAB_OP[1] = { "Open" };
     static char const* const CHAT_OP[1] = { "Chat" };
+    static char const* const KEYS_OP[1] = { "Keyboard" };
+    static char const* const TYPE_OP[1] = { "Type" };
 
     (void)userdata;
     assert(ctx);
@@ -1630,25 +1733,21 @@ mobile_on_draw(
             0);
 
     /*
-     * The switch wears a WORD and not an icon.
+     * The switches wear their GLYPHS.
      *
-     * There is no chat glyph anywhere in the 2004 media file -- the thirteen
-     * sideicons are the thirteen panels and none of them is a speech bubble --
-     * so the honest choices were an unlabelled stone or the client's own font.
-     * A stone that does not say what it does is a worse frame than one with a
-     * word on it, and inventing a bubble would put art in this plugin that no
-     * cache it runs on has ever shipped.
+     * A word is what these carried while nothing in the 2004 media file could
+     * stand for them -- it has no chat glyph and no keyboard, and inventing one
+     * would have put art in this plugin that no cache it runs on ships. The
+     * OldSchool content does have both: one outright, and one as the lower half
+     * of an icon that draws a hand over it. @see IMG_ICON_KEYBOARD.
      */
-    /* Lit while the sheet is up and grey while it is down -- the same yellow
-     * the client's own enabled text wears, so the switch reads as on or off
-     * without a second word for the state. */
-    g_api->draw_text(
-        ctx,
-        ev->surface,
-        g_frame.toggle_x + (MOBILE_TOGGLE_W / 2),
-        g_frame.toggle_y + (MOBILE_TOGGLE_H / 2) + 5,
-        "Chat",
-        g_frame.chat_placed ? 0xffff00u : 0xc8c8c8u);
+    mobile_draw_icon(
+        ctx, ev->surface, g_art[ART_ICON_CHAT], g_frame.toggle_x, g_frame.toggle_y,
+        MOBILE_TOGGLE_W, MOBILE_TOGGLE_H);
+    mobile_draw_icon(
+        ctx, ev->surface, g_image[IMG_ICON_KEYBOARD], g_frame.keys_x, g_frame.keys_y,
+        MOBILE_TOGGLE_W, MOBILE_TOGGLE_H);
+
     g_api->hit_region(
         ctx,
         ev->surface,
@@ -1659,6 +1758,17 @@ mobile_on_draw(
         CHAT_OP,
         1,
         MOBILE_TAG_CHAT);
+
+    g_api->hit_region(
+        ctx,
+        ev->surface,
+        g_frame.keys_x,
+        g_frame.keys_y,
+        MOBILE_TOGGLE_W,
+        MOBILE_TOGGLE_H,
+        KEYS_OP,
+        1,
+        MOBILE_TAG_KEYS);
 
     /*
      * The sheet and the drawer stop a tap reaching the world behind them.
@@ -1679,9 +1789,9 @@ mobile_on_draw(
             ev->height - MOBILE_STRIP_H - MOBILE_CHAT_H,
             MOBILE_CHAT_W,
             MOBILE_CHAT_H + MOBILE_STRIP_H,
-            NULL,
-            0,
-            MOBILE_TAG_BLOCK);
+            TYPE_OP,
+            1,
+            MOBILE_TAG_CHATLOG);
     if( g_drawer_open )
         g_api->hit_region(
             ctx,
@@ -1822,7 +1932,36 @@ mobile_on_click(
     if( ev->tag == MOBILE_TAG_CHAT )
     {
         g_chat_open = !g_chat_open;
+        /* Putting the sheet away takes the keyboard with it: there is nothing
+         * left on screen to type into, and a keyboard covering half a phone
+         * with no input line above it is the worst of both. */
+        if( !g_chat_open && g_keyboard_on )
+        {
+            g_keyboard_on = 0;
+            g_api->text_input(ctx, 0);
+        }
         mobile_claim(ctx);
+        return TORIRS_PLUGIN_PASS;
+    }
+
+    if( ev->tag == MOBILE_TAG_KEYS )
+    {
+        g_keyboard_on = !g_keyboard_on;
+        g_api->text_input(ctx, g_keyboard_on);
+        return TORIRS_PLUGIN_PASS;
+    }
+
+    if( ev->tag == MOBILE_TAG_CHATLOG )
+    {
+        /* A tap on the sheet is "I want to type", which is a request to SHOW
+         * and never to hide -- so it is not a toggle. It is also the reason
+         * this region carries an op at all: it was a bare swallow, and a
+         * swallow cannot tell the plugin it happened. */
+        if( !g_keyboard_on )
+        {
+            g_keyboard_on = 1;
+            g_api->text_input(ctx, 1);
+        }
         return TORIRS_PLUGIN_PASS;
     }
 
@@ -1891,6 +2030,7 @@ mobile_on_start(
     memset(&g_frame, 0, sizeof(g_frame));
     g_drawer_open = 0;
     g_chat_open = 1;
+    g_keyboard_on = 0;
     g_art_built = 0;
     g_masks_ready = 0;
     for( int i = 0; i < MOBILE_ART_COUNT; i++ )
@@ -1925,6 +2065,13 @@ mobile_on_stop(
     /* Explicitly, rather than leaving it to the teardown: the release is what
      * hands the lane's own chrome back, and doing it here means it has happened
      * before the images this frame was drawn from are dropped. */
+    /* Put the keyboard away with the frame that raised it: a disabled plugin
+     * must not leave a phone with half its screen covered. */
+    if( g_keyboard_on )
+    {
+        g_keyboard_on = 0;
+        g_api->text_input(ctx, 0);
+    }
     g_api->layout_release(ctx);
     for( int i = 0; i < MOBILE_IMG_COUNT; i++ )
     {

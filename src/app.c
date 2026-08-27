@@ -27059,6 +27059,18 @@ App_PluginLayoutTick(struct App* app)
 }
 
 int
+App_TakeTextInputChange(struct App* app, int* out_on)
+{
+    assert(app);
+    if( !app->text_input_dirty )
+        return 0;
+    app->text_input_dirty = 0;
+    if( out_on )
+        *out_on = app->text_input_on;
+    return 1;
+}
+
+int
 App_TakeWindowModeChange(
     struct App* app,
     int* out_mode)

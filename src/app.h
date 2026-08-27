@@ -2261,6 +2261,12 @@ struct App
      *  arrives. */
     int window_w;
     int window_h;
+
+    /** A plugin asked for the on-screen keyboard. Drained by the shell, which
+     *  is the only thing here with a platform to raise one on.
+     *  @see App_TakeTextInputChange. */
+    int text_input_on;
+    int text_input_dirty;
 };
 
 /** Smallest client canvas. The reference's resizable mode will not go below the
@@ -2503,6 +2509,17 @@ App_PluginLayoutTick(struct App* app);
  * the fixed canvas", or "start tracking it". Same split as
  * RS_CS2Host.close_modal_requested.
  */
+/**
+ * Drain a plugin's request to show or hide the on-screen keyboard.
+ *
+ * The same split as App_TakeWindowModeChange, and for the same reason: raising
+ * a keyboard is a statement about the PLATFORM, the App has none to make it
+ * with, and there is already one drain in the shell that turns statements like
+ * this into SDL calls. @return 1 when a request was pending.
+ */
+int
+App_TakeTextInputChange(struct App* app, int* out_on);
+
 int
 App_TakeWindowModeChange(
     struct App* app,

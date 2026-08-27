@@ -3403,6 +3403,15 @@ api_hit_region(
         ctx->host->engine.user, ctx->index, x, y, w, h, ops, op_count, tag);
 }
 
+static void
+api_text_input(struct ToriRS_PluginCtx* ctx, int on)
+{
+    assert(ctx);
+    if( !ctx->host->engine.text_input )
+        return;
+    ctx->host->engine.text_input(ctx->host->engine.user, on ? 1 : 0);
+}
+
 static int
 api_if_click(struct ToriRS_PluginCtx* ctx, int component_id, int op)
 {
@@ -3608,6 +3617,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .draw_image = api_draw_image,
         .hit_region = api_hit_region,
         .if_click = api_if_click,
+        .text_input = api_text_input,
         .asset_load = api_asset_load,
         .asset_data = api_asset_data,
         .asset_save = api_asset_save,

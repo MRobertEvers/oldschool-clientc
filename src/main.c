@@ -2440,6 +2440,11 @@ frame_loop_step(void)
      * mode flip is in the recorded stream and replays at the frame it happened.
      */
     {
+        int keyboard_on = 0;
+        if( App_TakeTextInputChange(&app, &keyboard_on) )
+            PlatformSDL2_SetTextInput(sdl, keyboard_on);
+    }
+    {
         int new_mode = 0;
         if( App_TakeWindowModeChange(&app, &new_mode) )
         {
