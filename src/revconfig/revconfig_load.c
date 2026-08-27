@@ -300,6 +300,8 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX;
     else if( strcmp(key, "px_per_percent") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT;
+    else if( strcmp(key, "baseline") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TEXT_BASELINE;
     else if( strcmp(key, "option") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_OPTION;
     else if( strcmp(key, "option_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )

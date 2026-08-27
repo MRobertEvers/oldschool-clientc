@@ -5263,6 +5263,57 @@ app_title_caret_blink(struct App const* app)
 }
 
 /*
+ * Show the group belonging to the current title screen, hide the rest.
+ *
+ * The title tree carries every screen at once -- menu, form, info, loading --
+ * because they share a panel and rebuilding the tree per screen would flash
+ * the whole backdrop. Which one is visible is the only thing that changes.
+ *
+ * Found by role, never by index: the tree is rebuilt whenever the window
+ * changes shape, and a remembered index would then point at whatever landed in
+ * that slot.
+ */
+static void
+app_title_sync_groups(struct App* app)
+{
+    static char const* const k_groups[] = {
+        "title_menu_group",
+        "title_form_group",
+        "title_info_group",
+        "title_progress_group",
+    };
+    /* Parallel to k_groups: which RS_TitleScreen each belongs to, and -1 for
+     * the loading bar, which answers to the boot progress instead. */
+    static int const k_screen[] = {
+        RS_TITLE_MAIN_MENU,
+        RS_TITLE_LOGIN_FORM,
+        RS_TITLE_INFO,
+        -1,
+    };
+    int showing_progress;
+
+    assert(app);
+    if( !app->tree )
+        return;
+
+    /* The bar owns the panel while there is one: the reference draws the
+     * loading screen INSTEAD of the login box, in the same 360x200 space. */
+    showing_progress = app->title.progress_percent >= 0;
+
+    for( size_t i = 0; i < sizeof(k_groups) / sizeof(k_groups[0]); i++ )
+    {
+        int32_t idx = UITree_RoleNodeByName(app->tree, &app->ui_roles, k_groups[i]);
+        int visible;
+
+        if( idx < 0 )
+            continue;
+        visible = k_screen[i] < 0 ? showing_progress
+                                  : (!showing_progress && k_screen[i] == (int)app->title.screen);
+        UITree_SetScreenHiddenAt(app->tree, idx, !visible);
+    }
+}
+
+/*
  * The title screen's state changed: redraw, and tell the retention gate.
  *
  * Both halves matter. Without the epoch bump the emit walk reuses last frame's
@@ -5273,6 +5324,7 @@ static void
 app_title_state_changed(struct App* app)
 {
     assert(app);
+    app_title_sync_groups(app);
     UITree_HostInputsChanged(
         &app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE));
     app->need_redraw = 1;
@@ -5327,8 +5379,8 @@ app_title_field_line(
         caret_showing = (int)(app->logic_cycle % (uint64_t)cfg->caret_blink) < cfg->caret_blink / 2;
 
     snprintf(
-        app->title_field_line,
-        sizeof(app->title_field_line),
+        app->title_field_line[cfg->field],
+        sizeof(app->title_field_line[cfg->field]),
         "%s%s%s",
         cfg->prefix,
         value,
@@ -5336,7 +5388,7 @@ app_title_field_line(
 
     if( req->u.get_title_field.out_focused )
         *req->u.get_title_field.out_focused = focused;
-    *req->u.get_title_field.out_text = app->title_field_line;
+    *req->u.get_title_field.out_text = app->title_field_line[cfg->field];
     return 1;
 }
 
@@ -12983,6 +13035,10 @@ Task_AppBoot_Run(
 
     app->boot_progress = 100;
     app->app_state = APP_STATE_READY;
+    /* A freshly baked title tree shows every screen's group at once until it is
+     * told which one is current. */
+    if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
+        app_title_sync_groups(app);
     app->pending_tree_refresh = 1;
     app->need_redraw = 1;
 

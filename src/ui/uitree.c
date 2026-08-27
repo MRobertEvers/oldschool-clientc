@@ -2420,6 +2420,7 @@ UITree_Push(
         component->colour = spec->u.rs_text.color;
         component->u.rs_text.center = spec->u.rs_text.center;
         component->u.rs_text.y_align = spec->u.rs_text.y_align;
+        component->u.rs_text.baseline = spec->u.rs_text.baseline;
         component->u.rs_text.line_height = spec->u.rs_text.line_height;
         component->u.rs_text.shadowed = spec->u.rs_text.shadowed;
         component->u.rs_text.text = text_owned;
@@ -3262,6 +3263,26 @@ UITree_SetFrameHiddenAt(
     if( c->frame_hidden == (uint8_t)hidden )
         return true;
     c->frame_hidden = (uint8_t)hidden;
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
+    return true;
+}
+
+bool
+UITree_SetScreenHiddenAt(
+    struct UITree* tree,
+    int32_t idx,
+    int hidden)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c )
+        return false;
+    hidden = hidden ? 1 : 0;
+    if( c->screen_hidden == (uint8_t)hidden )
+        return true;
+    c->screen_hidden = (uint8_t)hidden;
     uitree_note_mutation(
         tree,
         idx,
@@ -5265,6 +5286,7 @@ uitree_node_or_ancestor_hidden(
             if( tree->components[idx].behavior.hide ||
                 (include_plugin_hidden &&
                  (tree->components[idx].frame_hidden ||
+                  tree->components[idx].screen_hidden ||
                   tree->components[idx].projection_hidden ||
                   (tree->components[idx].replacement_hidden &&
                    idx != ignore_own_replacement))) )
@@ -5365,7 +5387,7 @@ drop_target_pick_in_subtree(
         return 0;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_DROP, 1);
     c = &tree->components[idx];
-    if( c->behavior.hide || c->frame_hidden || c->replacement_hidden ||
+    if( c->behavior.hide || c->frame_hidden || c->screen_hidden || c->replacement_hidden ||
         c->projection_hidden )
         return 0;
     if( c->component_id == exclude_component_id )
@@ -5468,6 +5490,7 @@ UITree_FindDropTargetNode(
     for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
         if( tree->components[root].behavior.hide || tree->components[root].frame_hidden ||
+            tree->components[root].screen_hidden ||
             tree->components[root].replacement_hidden ||
             tree->components[root].projection_hidden )
             continue;

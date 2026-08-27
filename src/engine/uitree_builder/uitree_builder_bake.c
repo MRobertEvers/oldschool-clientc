@@ -100,20 +100,6 @@ type_from_string(char const* type)
  * dat2 archive id the cache carried. -1 when neither resolves, which every
  * caller treats as a missing asset rather than a default.
  */
-static int
-bake_op_font_id(
-    struct UITreeBuilder const* builder,
-    struct UIBuilderTreeOp const* op)
-{
-    assert(builder);
-    assert(op);
-    if( op->has_font_ref && op->font_ref[0] )
-        return UITreeBuilder_ResolveFontName(builder, op->font_ref);
-    if( op->font >= 0 )
-        return UITreeBuilder_ResolveFontArchive(builder, op->font);
-    return -1;
-}
-
 static enum UITreeSlotTag
 slot_tag_from_string(char const* slot)
 {
@@ -394,6 +380,47 @@ bake_resolve_sprite(void* ud, int graphic_id)
     if( builder->bridge )
         return UITreeSceneBridge_EnsureSprite(builder->bridge, graphic_id);
     return graphic_id;
+}
+
+/*
+ * A component's font, uploaded into the scene as a side effect.
+ *
+ * The upload is the part that is easy to lose. Resolving a revconfig `font=`
+ * name yields a cache font id, and scene font ids ARE cache font ids -- so the
+ * id looks perfectly good while the scene has never been handed the glyphs,
+ * and every string drawn with it silently draws nothing. Only the
+ * cache-component path (bake_resolve_font) used to Ensure, so the first
+ * revconfig widget to name a font by name -- the login screen -- was the first
+ * to find out.
+ *
+ * chrome: names are a different id space entirely and must not be Ensured as
+ * cache fonts; resolve_chrome_font owns their upload.
+ */
+static int
+bake_op_font_id(
+    struct UITreeBuilder const* builder,
+    struct UIBuilderTreeOp const* op)
+{
+    int font_id = -1;
+
+    assert(builder);
+    assert(op);
+
+    if( op->has_font_ref && op->font_ref[0] )
+    {
+        font_id = resolve_chrome_font((struct UITreeBuilder*)builder, op->font_ref);
+        if( font_id >= 0 || strncmp(op->font_ref, "chrome:", 7) == 0 )
+            return font_id;
+        font_id = UITreeBuilder_ResolveFontName(builder, op->font_ref);
+    }
+    else if( op->font >= 0 )
+    {
+        font_id = UITreeBuilder_ResolveFontArchive(builder, op->font);
+    }
+
+    if( builder->bridge && font_id >= 0 )
+        UITreeSceneBridge_EnsureFont(builder->bridge, font_id);
+    return font_id;
 }
 
 static int
@@ -957,22 +984,13 @@ push_builtin_op(
         spec.u.rs_graphic.tiled = op->tiled ? 1 : 0;
         break;
     case UIELEM_RS_TEXT:
-        if( op->has_font_ref && op->font_ref[0] )
-        {
-            int font_id = resolve_chrome_font(builder, op->font_ref);
-            if( font_id < 0 && strncmp(op->font_ref, "chrome:", 7) != 0 )
-                font_id = UITreeBuilder_ResolveFontName(builder, op->font_ref);
-            assert(font_id >= 0 && "rs_text font missing");
-            spec.u.rs_text.font_id = font_id;
-        }
-        else
-        {
-            spec.u.rs_text.font_id = UITreeBuilder_ResolveFontArchive(builder, op->font);
-        }
+        spec.u.rs_text.font_id = bake_op_font_id(builder, op);
+        assert(spec.u.rs_text.font_id >= 0 && "rs_text font missing");
         spec.u.rs_text.color = op->color;
         spec.u.rs_text.center = op->center ? 1 : 0;
         spec.u.rs_text.y_align = op->valign;
         spec.u.rs_text.shadowed = op->shadowed ? 1 : 0;
+        spec.u.rs_text.baseline = op->text_baseline;
         spec.u.rs_text.text = op->text[0] ? op->text : NULL;
         break;
     case UIELEM_RS_RECT:

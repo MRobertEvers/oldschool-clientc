@@ -34,6 +34,23 @@ revconfig_strncpy_trimmed(
             src[len - 1] == '\n') )
         len--;
 
+    /*
+     * A quoted value keeps its inner whitespace.
+     *
+     * Trimming is right for almost everything a profile writes -- a stray
+     * space after `w=360` must not become part of the number -- but a
+     * DISPLAY string is different: the reference's login label is
+     * "Username: ", space included, and a trimmed one draws the value hard
+     * against the colon. Quotes are how an INI has always said "this
+     * whitespace is content", and no shipped profile had a quoted value
+     * before this, so nothing changes meaning by our reading them.
+     */
+    if( len >= 2 && src[0] == '"' && src[len - 1] == '"' )
+    {
+        src++;
+        len -= 2;
+    }
+
     if( len >= n )
         len = n - 1;
     memcpy(dest, src, len);
@@ -810,6 +827,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX";
     case RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT:
         return "RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT";
+    case RCFIELD_UICOMPONENT_TEXT_BASELINE:
+        return "RCFIELD_UICOMPONENT_TEXT_BASELINE";
     case RCFIELD_UICOMPONENT_OPTION:
         return "RCFIELD_UICOMPONENT_OPTION";
     case RCFIELD_UICOMPONENT_OPTION_ACTION:
@@ -1560,6 +1579,9 @@ revconfig_item_apply_uicomponent_field(
         break;
     case RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT:
         comp->title_px_per_percent = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_TEXT_BASELINE:
+        comp->text_baseline = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
         break;
     case RCFIELD_UICOMPONENT_OPTION:
         strncpy(comp->option, value, sizeof(comp->option) - 1);

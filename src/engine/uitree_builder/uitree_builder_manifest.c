@@ -331,6 +331,7 @@ fill_tree_op_from_component(
     strncpy(op->title_action, comp->title_action, sizeof(op->title_action) - 1);
     op->title_message_index = comp->title_message_index;
     op->title_px_per_percent = comp->title_px_per_percent;
+    op->text_baseline = comp->text_baseline;
     op->button_type = comp->button_type;
     op->client_code = comp->client_code;
     strncpy(op->option, comp->option, sizeof(op->option) - 1);

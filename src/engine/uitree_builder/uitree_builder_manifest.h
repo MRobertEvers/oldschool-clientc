@@ -136,6 +136,8 @@ struct UIBuilderTreeOp
     char title_action[32];
     int title_message_index;
     int title_px_per_percent;
+    /** @see RevConfigUIComponentItem::text_baseline. */
+    int text_baseline;
     int button_type;
     int client_code;
     char option[REVCONFIG_MENU_OPTION_LEN];

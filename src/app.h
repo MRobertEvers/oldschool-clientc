@@ -1491,10 +1491,16 @@ struct App
      *  its fields, and the reply lines the login response filled in.
      *  @see AppScreen for how it relates to the session as a whole. */
     struct RS_Title title;
-    /** Per-frame scratch the title host requests hand out. Frame-lifetime
-     *  pointers, the same contract as the hovertext and reboot-timer strings:
-     *  composed during the emit walk, read before the next one. */
-    char title_field_line[RS_TITLE_FIELD_LEN + 64];
+    /**
+     * Per-frame scratch the title host requests hand out, ONE SLOT PER FIELD.
+     *
+     * Frame-lifetime pointers, the same contract as the hovertext and
+     * reboot-timer strings -- but unlike those there are two live at once, and
+     * a single shared buffer makes the second compose overwrite the first
+     * while the emit list still points at it. Both rows then draw the
+     * password, which is exactly as bad as it sounds.
+     */
+    char title_field_line[RS_TITLE_FIELD_COUNT][RS_TITLE_FIELD_LEN + 64];
     /** Frames the left button has been held over the chat scrollbar (reference
      *  scrollCycle); drives arrow-scroll acceleration and gates grip drag. */
     int chat_scroll_cycle;

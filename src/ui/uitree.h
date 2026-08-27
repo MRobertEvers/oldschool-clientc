@@ -698,6 +698,19 @@ struct UITreeComponent
      * cannot be argued with.
      */
     uint8_t frame_hidden;
+    /**
+     * Suppressed because this title screen is not the one showing.
+     *
+     * Its own flag for the reason given above `frame_hidden`: `behavior.hide`
+     * belongs to the cache and its scripts, and -- decisively here --
+     * UITree_ComponentVisibleById reads a hidden node with NO component id as
+     * visible, which is every revconfig builtin. The login screen's groups are
+     * exactly that, so hiding them with `hide` would change nothing at all.
+     *
+     * Only the screen machine writes it, so it needs no re-asserting and no
+     * script can argue with it.
+     */
+    uint8_t screen_hidden;
     /** Suppressed by an owner-scoped semantic role replacement. Separate from
      * frame_hidden so either declaration may release without revealing a
      * subtree the other still owns. Cache scripts never write this flag. */
@@ -785,6 +798,12 @@ struct UITreeComponent
             int color;
             int center;
             int y_align;
+            /** revconfig `baseline=`: the layout row's y IS the text baseline,
+             *  which is how both references write every text coordinate
+             *  (font.drawString(s, x, y)). Without it a row has to carry the
+             *  box top instead, and the reference's own numbers stop being
+             *  usable as written. */
+            int baseline;
             int line_height;
             int shadowed;
             char const* text;
@@ -1384,6 +1403,12 @@ struct UITreeNodeSpec
             int color;
             int center;
             int y_align;
+            /** revconfig `baseline=`: the layout row's y IS the text baseline,
+             *  which is how both references write every text coordinate
+             *  (font.drawString(s, x, y)). Without it a row has to carry the
+             *  box top instead, and the reference's own numbers stop being
+             *  usable as written. */
+            int baseline;
             int line_height;
             int shadowed;
             char const* text;
@@ -1773,6 +1798,11 @@ UITree_SetCS1ValueAt(struct UITree* tree, int32_t idx, int value_index, int valu
 /** Set frame-layout suppression with unfiltered reachability invalidation. */
 bool
 UITree_SetFrameHiddenAt(struct UITree* tree, int32_t idx, int hidden);
+
+/** As above for `screen_hidden`: hide the subtree of a title screen that is
+ *  not the current one. */
+bool
+UITree_SetScreenHiddenAt(struct UITree* tree, int32_t idx, int hidden);
 
 /** Set camera-owned visibility of a scripted entity-overlay layer. */
 bool

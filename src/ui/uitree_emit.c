@@ -420,6 +420,7 @@ UITree_EmitFill(
         out->color = color;
         out->text_center = component->u.rs_text.center;
         out->text_y_align = component->u.rs_text.y_align;
+        out->text_baseline = component->u.rs_text.baseline;
         out->text_shadowed = component->u.rs_text.shadowed;
         out->text_line_height = component->u.rs_text.line_height;
         return true;
@@ -2450,7 +2451,7 @@ emit_walk_node(
     /* Native/script hiding outranks replacement art too: an anchor is local to
      * a target that is actually present in this frame, not a way to resurrect
      * a collapsed tab or a gameframe lane that suppressed the whole surface. */
-    if( c->frame_hidden || c->projection_hidden )
+    if( c->frame_hidden || c->screen_hidden || c->projection_hidden )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return;

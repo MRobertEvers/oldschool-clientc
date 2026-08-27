@@ -146,6 +146,10 @@ struct CacheProviderSpriteSource
     char const* format;         /* "pix8" | "pix32" */
     char const* data_filename;  /* "sideicons.dat" */
     char const* index_filename; /* "index.dat" */
+    /** revconfig `archive=`: "title" reads the title-and-fonts jagfile, which
+     *  is where the login screen's art lives. NULL/anything else means the
+     *  media jagfile, where every other dat1 sprite is. */
+    char const* archive;
     int atlas_index;
     int atlas_count; /* <= 0: single frame at atlas_index */
     int crop_x;

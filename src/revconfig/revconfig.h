@@ -192,6 +192,7 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_TITLE_ACTION,
     RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX,
     RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT,
+    RCFIELD_UICOMPONENT_TEXT_BASELINE,
     RCFIELD_UICOMPONENT_OPTION,
     RCFIELD_UICOMPONENT_OPTION_ACTION,
     RCFIELD_UICOMPONENT_OP0,
@@ -770,6 +771,16 @@ struct RevConfigUIComponentItem
 
     /* INI: shadowed= — text shadow for type=rs_text. */
     int shadowed;
+
+    /*
+     * INI: baseline=
+     * type=rs_text: the layout row's y is the text BASELINE rather than the top
+     * of its box. Both references write every text coordinate that way
+     * (font.drawString(s, x, y)), so without this a ported row has to carry a
+     * box top computed from the font's ascent and the reference's own numbers
+     * stop being usable as written.
+     */
+    int text_baseline;
 
     /* INI: text= — literal string for static type=rs_text owners (not cache-backed). */
     char text[256];

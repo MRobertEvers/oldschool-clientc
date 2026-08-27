@@ -127,6 +127,11 @@ Task_UIBuilderAssetsLoad_Run(
                 .format = req->format,
                 .data_filename = req->data_filename,
                 .index_filename = req->index_filename,
+                /* Which jagfile: "title" for the login screen's art, the media
+                 * archive for everything else. Distinguished from the dat2
+                 * reading of `archive=` above by this branch carrying
+                 * filename=, which a dat2 section never does. */
+                .archive = req->archive,
                 .atlas_index = req->atlas_index,
                 .atlas_count = req->atlas_count,
                 .crop_x = req->crop_x,
