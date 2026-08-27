@@ -1324,14 +1324,14 @@ frame_loop_step(void)
     if( boot_stats && !boot_reported && app.app_state == APP_STATE_READY )
     {
         boot_reported = 1;
-        TORIRS_LOG("boot: %llums  frames=%d steps=%ld capped=%d\n",
+        TORIRS_ERR("boot: %llums  frames=%d steps=%ld capped=%d\n",
             (unsigned long long)(PlatformSDL2_Ticks64() - boot_start_ms),
             app.boot_frames,
             app.boot_steps,
             app.boot_frames_budget_capped);
     }
     if( boot_stats && frame_count == max_frames - 1 )
-        TORIRS_LOG("post-boot: busy_frames=%d busy_steps=%ld (frames that used the "
+        TORIRS_ERR("post-boot: busy_frames=%d busy_steps=%ld (frames that used the "
             "whole budget with work still queued)\n",
             app.busy_frames,
             app.busy_steps);

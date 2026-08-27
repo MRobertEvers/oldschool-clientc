@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #ifdef _WIN32
 #include <direct.h>
 #else
@@ -650,10 +651,17 @@ static long g_od_fetches;
 static long g_od_bytes;
 static long g_od_refetches;
 static long g_od_refetch_bytes;
+static double g_od_fetch_ms;
+static double g_od_http_ms;
 
 static void
 od_tally_report(void)
 {
+    fprintf(stderr,
+            "od_stats: wire_ms=%.0f (file=%.0f http=%.0f) per_fetch=%.1fms\n",
+            g_od_fetch_ms + g_od_http_ms, g_od_fetch_ms, g_od_http_ms,
+            g_od_fetches ? (g_od_fetch_ms + g_od_http_ms) / (double)g_od_fetches
+                         : 0.0);
     fprintf(stderr,
             "od_stats: fetches=%ld distinct=%d refetches=%ld "
             "bytes=%ld refetch_bytes=%ld\n",
@@ -941,7 +949,11 @@ PlatformXIOOnDemand_ArchiveLoad(
         if( od_jag_route(od, archive_id, route, sizeof(route)) != 0 )
             return NULL;
 
-        raw.data = od_http_get(od, route, &raw.data_size);
+        {
+            clock_t const t0 = clock();
+            raw.data = od_http_get(od, route, &raw.data_size);
+            g_od_http_ms += (double)(clock() - t0) * 1000.0 / CLOCKS_PER_SEC;
+        }
         if( !raw.data )
             return NULL;
         od_tally(table_id, archive_id, raw.data_size);
@@ -954,7 +966,11 @@ PlatformXIOOnDemand_ArchiveLoad(
         if( table_id > RSCACHE_DAT1_DISK_TABLE_MAPS )
             return NULL;
         format = RSCACHE_ARCHIVE_FORMAT_DAT;
-        raw.data = od_fetch_file(od, table_id - 1, archive_id, &size);
+        {
+            clock_t const t0 = clock();
+            raw.data = od_fetch_file(od, table_id - 1, archive_id, &size);
+            g_od_fetch_ms += (double)(clock() - t0) * 1000.0 / CLOCKS_PER_SEC;
+        }
         if( !raw.data )
             return NULL;
         raw.data_size = size;

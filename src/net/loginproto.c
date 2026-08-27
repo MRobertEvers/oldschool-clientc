@@ -329,7 +329,37 @@ loginproto_poll(struct LoginProto* loginproto)
                 loginproto->state = LOGINPROTO_SUCCESS;
                 return LOGINPROTO_SUCCESS;
             }
-            TORIRS_ERR("loginproto: login rejected, reply=%d\n", reply_byte);
+            /*
+             * Reply 6 is the one worth spelling out. It means "client out of
+             * date", and the server decides it from the two things this block
+             * just sent -- the revision and the nine jag checksums -- so the
+             * number alone names neither. All-zero checksums are the failure
+             * that looks like a version problem and is not: an on-demand boot
+             * fills them from the server's own `GET /crc`, so zeros mean that
+             * fetch did not happen and the login was doomed before it was
+             * sent. Anything else is a genuine revision disagreement, and the
+             * value to compare against is the server's own engine.revision.
+             */
+            if( reply_byte == 6 )
+            {
+                int zero = 1;
+                for( int i = 0; i < 9; i++ )
+                    if( loginproto->rev->jag_checksum[i] != 0 )
+                        zero = 0;
+                TORIRS_ERR("loginproto: login rejected, reply=6 (client out of "
+                    "date). Sent revision %d and %s. %s\n",
+                    loginproto->rev->client_version,
+                    zero ? "nine ZERO jag checksums"
+                         : "nine non-zero jag checksums",
+                    zero ? "The checksums were never fetched -- see the /crc "
+                           "warning above; the server is unreachable or was "
+                           "not serving when this client booted."
+                         : "The checksums were read from the server, so this "
+                           "is the revision: check engine.revision in the "
+                           "server's data/config/world.json.");
+            }
+            else
+                TORIRS_ERR("loginproto: login rejected, reply=%d\n", reply_byte);
             loginproto->state = LOGINPROTO_ERROR;
             return LOGINPROTO_AWAIT_RECV;
         }
