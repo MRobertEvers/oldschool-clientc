@@ -117,6 +117,20 @@ struct PluginAsset
      * second asset_load of the same name joins the first rather than queuing
      * a duplicate read. */
     bool pending;
+    /*
+     * The read completed and the file was not there.
+     *
+     * Without this the slot records that a read HAPPENED but not what it
+     * found: data stays NULL and pending goes false, which is exactly what an
+     * untouched slot looks like, so the next asset_load starts the read again.
+     * A plugin that asks from its draw path -- item-stats asks for text.ini
+     * and bonuses.txt -- then pays a task, two IO round trips and a log line
+     * every tick, forever, for a file that is not going to appear.
+     *
+     * Cleared by api_asset_save, which writes the very file the load wanted,
+     * so this is a cached answer and not a permanent refusal.
+     */
+    bool missing;
 };
 
 #define TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX 64
@@ -2143,6 +2157,12 @@ api_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
      * and both callers see the bytes. */
     if( slot && slot->pending )
         return 0;
+    /* Already looked, already not there. The plugin was told the first time --
+     * PluginHost_AssetDeliver fires the event with NULL either way -- so
+     * re-reading tells it nothing it does not know and costs a task, two IO
+     * round trips and a log line for every tick it keeps asking. */
+    if( slot && slot->missing )
+        return 0;
 
     slot = plugin_asset_claim(host, ctx->index, name);
     if( !slot )
@@ -2360,6 +2380,10 @@ PluginHost_AssetDeliver(
     }
 
     slot->pending = false;
+    /* What the read FOUND, which is the half the slot used to drop. A miss
+     * that leaves data NULL and pending false is otherwise identical to a
+     * slot nobody has read yet. */
+    slot->missing = (data == NULL);
     if( data )
     {
         free(slot->data);
