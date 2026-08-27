@@ -86,7 +86,8 @@ PlatformXIO_Dat1OnDemandEnable(
     struct PlatformX_IO* px,
     const char* host,
     int game_port,
-    int web_port);
+    int web_port,
+    const char* cache_dir);
 
 /**
  * The nine login checksums from the server this IO is reading its cache from.
@@ -146,7 +147,8 @@ struct PlatformXIOOnDemand*
 PlatformXIOOnDemand_New(
     const char* host,
     int game_port,
-    int web_port);
+    int web_port,
+    const char* cache_dir);
 
 void
 PlatformXIOOnDemand_Free(struct PlatformXIOOnDemand* od);

@@ -1273,13 +1273,15 @@ PlatformXIO_Dat1OnDemandEnable(
     struct PlatformX_IO* px,
     const char* host,
     int game_port,
-    int web_port)
+    int web_port,
+    const char* cache_dir)
 {
     assert(px);
     assert(host);
     if( px->dat1_disk || px->dat1_on_demand )
         return -1;
-    px->dat1_on_demand = PlatformXIOOnDemand_New(host, game_port, web_port);
+    px->dat1_on_demand =
+        PlatformXIOOnDemand_New(host, game_port, web_port, cache_dir);
     return px->dat1_on_demand ? 0 : -1;
 }
 

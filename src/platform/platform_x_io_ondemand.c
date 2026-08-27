@@ -8,6 +8,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <direct.h>
+#else
+#include <sys/stat.h>
+#endif
 #include "log/torirs_log.h"
 
 #ifdef _WIN32
@@ -59,6 +64,18 @@ struct PlatformXIOOnDemand
     struct SockStream* files;
 
     struct RSCache_MapSquares* map_squares;
+
+    /*
+     * The local hydration cache, or no directory and none of this happens.
+     *
+     * `disk` is opened lazily and may stay NULL on a first boot -- there is
+     * nothing to read until something has been written. `stamped` says the
+     * server's checksums have been compared against the directory's, which
+     * must happen before any read is trusted.
+     */
+    char cache_dir[512];
+    struct RSCache_Dat1Disk* cache_disk;
+    int cache_stamped;
 
     /* The nine jag checksums, cached after the first `GET /crc`.
      *
@@ -516,7 +533,8 @@ struct PlatformXIOOnDemand*
 PlatformXIOOnDemand_New(
     const char* host,
     int game_port,
-    int web_port)
+    int web_port,
+    const char* cache_dir)
 {
     struct PlatformXIOOnDemand* od = NULL;
     char* versionlist = NULL;
@@ -535,6 +553,8 @@ PlatformXIOOnDemand_New(
     snprintf(od->host, sizeof(od->host), "%s", host);
     od->game_port = game_port > 0 ? game_port : OD_DEFAULT_GAME_PORT;
     od->web_port = web_port > 0 ? web_port : OD_DEFAULT_WEB_PORT;
+    if( cache_dir && cache_dir[0] )
+        snprintf(od->cache_dir, sizeof(od->cache_dir), "%s", cache_dir);
 
     /* Prove both wires before anything above this depends on them, and get the
      * map_index out of the way while doing it: `dat1_map_archive_id` has no
@@ -588,6 +608,11 @@ PlatformXIOOnDemand_New(
 void
 PlatformXIOOnDemand_Free(struct PlatformXIOOnDemand* od)
 {
+    if( od && od->cache_disk )
+    {
+        RSCache_Dat1DiskFree(od->cache_disk);
+        od->cache_disk = NULL;
+    }
     if( !od )
         return;
 
@@ -605,6 +630,228 @@ PlatformXIOOnDemand_MapSquares(struct PlatformXIOOnDemand* od)
 {
     assert(od);
     return od->map_squares;
+}
+
+/* -- fetch tally (TORIRS_OD_STATS=1) ------------------------------------ */
+
+#define OD_TALLY_MAX 4096
+
+struct OdTallyEntry
+{
+    int table_id;
+    int archive_id;
+    int hits;
+    long bytes;
+};
+
+static struct OdTallyEntry g_od_tally[OD_TALLY_MAX];
+static int g_od_tally_used;
+static long g_od_fetches;
+static long g_od_bytes;
+static long g_od_refetches;
+static long g_od_refetch_bytes;
+
+static void
+od_tally_report(void)
+{
+    fprintf(stderr,
+            "od_stats: fetches=%ld distinct=%d refetches=%ld "
+            "bytes=%ld refetch_bytes=%ld\n",
+            g_od_fetches, g_od_tally_used, g_od_refetches,
+            g_od_bytes, g_od_refetch_bytes);
+    if( g_od_tally_used > 0 )
+    {
+        int worst = 0;
+        for( int i = 1; i < g_od_tally_used; i++ )
+            if( g_od_tally[i].hits > g_od_tally[worst].hits )
+                worst = i;
+        fprintf(stderr,
+                "od_stats: most re-fetched container table=%d archive=%d "
+                "x%d (%ld bytes each time)\n",
+                g_od_tally[worst].table_id,
+                g_od_tally[worst].archive_id,
+                g_od_tally[worst].hits,
+                g_od_tally[worst].hits ? g_od_tally[worst].bytes / g_od_tally[worst].hits : 0);
+    }
+}
+
+static int
+od_tally_on(void)
+{
+    static int on = -1;
+    if( on < 0 )
+    {
+        on = getenv("TORIRS_OD_STATS") ? 1 : 0;
+        if( on )
+            atexit(od_tally_report);
+    }
+    return on;
+}
+
+static void
+od_tally(int table_id, int archive_id, int size)
+{
+    if( !od_tally_on() )
+        return;
+    g_od_fetches++;
+    g_od_bytes += size;
+    for( int i = 0; i < g_od_tally_used; i++ )
+    {
+        if( g_od_tally[i].table_id == table_id &&
+            g_od_tally[i].archive_id == archive_id )
+        {
+            g_od_tally[i].hits++;
+            g_od_tally[i].bytes += size;
+            g_od_refetches++;
+            g_od_refetch_bytes += size;
+            return;
+        }
+    }
+    if( g_od_tally_used < OD_TALLY_MAX )
+    {
+        g_od_tally[g_od_tally_used].table_id = table_id;
+        g_od_tally[g_od_tally_used].archive_id = archive_id;
+        g_od_tally[g_od_tally_used].hits = 1;
+        g_od_tally[g_od_tally_used].bytes = size;
+        g_od_tally_used++;
+    }
+}
+
+/* -- the local hydration cache ------------------------------------------ */
+
+#define OD_STAMP_NAME "ondemand.stamp"
+
+/*
+ * Wipe the cached cache.
+ *
+ * Called when the server's checksums do not match the ones this directory was
+ * filled from, which means the server repacked. Reconciling would mean knowing
+ * WHICH archives moved, and the checksums do not say -- so the whole directory
+ * goes. It is a cache; the cost of being wrong here is a slow boot, and the
+ * cost of being wrong the other way is login reply 6 with nothing to explain
+ * it.
+ */
+static void
+od_cache_wipe(const char* dir)
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/main_file_cache.dat", dir);
+    remove(path);
+    for( int table = 0; table <= RSCACHE_DAT1_DISK_TABLE_MAPS; table++ )
+    {
+        snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", dir, table);
+        remove(path);
+    }
+    snprintf(path, sizeof(path), "%s/%s", dir, OD_STAMP_NAME);
+    remove(path);
+}
+
+/*
+ * Compare the server's nine jag checksums with the ones this directory holds,
+ * and make them agree -- by wiping, when they do not.
+ *
+ * These are the right stamp rather than a convenient one. They are fetched
+ * every boot regardless (the jag routes embed them), and they cover the whole
+ * cache: the versionlist that governs tables 1-4 is itself one of the nine, so
+ * a server that repacks a single map square changes a checksum here.
+ */
+/* The directory has to exist before RSCache_Dat1DiskWriteArchive can put a
+ * main_file_cache.dat in it, and a profile naming a hydration directory is
+ * asking for one rather than promising it already made it. Failure is
+ * ignored: the next write fails too, and a cache that cannot be created is a
+ * slow boot, not a broken one. */
+static void
+od_cache_mkdir(const char* dir)
+{
+#ifdef _WIN32
+    _mkdir(dir);
+#else
+    mkdir(dir, 0777);
+#endif
+}
+
+static void
+od_cache_stamp(struct PlatformXIOOnDemand* od)
+{
+    char path[1024];
+    FILE* f;
+    int32_t stored[9];
+    int match = 0;
+
+    if( od->cache_stamped || !od->cache_dir[0] )
+        return;
+    od->cache_stamped = 1;
+
+    if( od_jag_crc_load(od) != 0 )
+        return;
+
+    od_cache_mkdir(od->cache_dir);
+    snprintf(path, sizeof(path), "%s/%s", od->cache_dir, OD_STAMP_NAME);
+    f = fopen(path, "rb");
+    if( f )
+    {
+        match = fread(stored, sizeof(stored[0]), 9, f) == 9 &&
+                memcmp(stored, od->jag_crc, sizeof(stored)) == 0;
+        fclose(f);
+    }
+
+    if( !match )
+    {
+        if( f )
+            TORIRS_LOG("ondemand: %s was packed from different checksums; wiping\n",
+                od->cache_dir);
+        od_cache_wipe(od->cache_dir);
+        f = fopen(path, "wb");
+        if( f )
+        {
+            fwrite(od->jag_crc, sizeof(od->jag_crc[0]), 9, f);
+            fclose(f);
+        }
+    }
+
+    od->cache_disk = RSCache_Dat1DiskNewFromDirectory(od->cache_dir);
+}
+
+/* A cached copy, or NULL. The disk layer decompresses tables 1-4 on read, the
+ * same as the fetch path does, so a hit and a miss return the same shape. */
+static struct RSCache_Dat1DiskArchive*
+od_cache_load(struct PlatformXIOOnDemand* od, int table_id, int archive_id)
+{
+    if( !od->cache_dir[0] )
+        return NULL;
+    od_cache_stamp(od);
+    if( !od->cache_disk )
+        return NULL;
+    return RSCache_Dat1DiskArchiveNewLoad(od->cache_disk, table_id, archive_id);
+}
+
+/*
+ * Store what was just fetched.
+ *
+ * `data` must be the bytes AS SERVED -- still gzipped for tables 1-4 -- since
+ * that is what the disk layer stores and what it decompresses on the way back
+ * out. Handing it the decompressed form would make the next boot's hit differ
+ * from this boot's miss.
+ */
+static void
+od_cache_store(
+    struct PlatformXIOOnDemand* od,
+    int table_id,
+    int archive_id,
+    const void* data,
+    int size)
+{
+    if( !od->cache_dir[0] || size <= 0 )
+        return;
+    od_cache_stamp(od);
+    if( RSCache_Dat1DiskWriteArchive(
+            od->cache_dir, table_id, archive_id, (const uint8_t*)data, size) != 0 )
+        return;
+    /* Reopen so the write is visible to reads in THIS session too; the disk
+     * handle caches its index files. */
+    if( od->cache_disk )
+        RSCache_Dat1DiskFree(od->cache_disk);
+    od->cache_disk = RSCache_Dat1DiskNewFromDirectory(od->cache_dir);
 }
 
 uint8_t*
@@ -643,6 +890,7 @@ PlatformXIOOnDemand_ContainerFetch(
         data = od_http_get(od, route, out_size);
         if( !data )
             return NULL;
+        od_tally(table_id, archive_id, *out_size);
         *out_format = RSCACHE_ARCHIVE_FORMAT_DAT_MULTIFILE;
         return (uint8_t*)data;
     }
@@ -654,6 +902,7 @@ PlatformXIOOnDemand_ContainerFetch(
         char* data = od_fetch_file(od, table_id - 1, archive_id, out_size);
         if( !data )
             return NULL;
+        od_tally(table_id, archive_id, *out_size);
         /* Stored as served: still gzipped. The decode is the reader's, which
          * is the whole difference between this and ArchiveLoad. */
         *out_format = RSCACHE_ARCHIVE_FORMAT_DAT;
@@ -675,6 +924,12 @@ PlatformXIOOnDemand_ArchiveLoad(
     assert(table_id >= 0);
     assert(archive_id >= 0);
 
+    /* The local copy first. Nothing below runs on a hit -- no socket, no HTTP,
+     * no decompression -- which is the whole point of having one. */
+    archive = od_cache_load(od, table_id, archive_id);
+    if( archive )
+        return archive;
+
     if( table_id == RSCACHE_DAT1_DISK_TABLE_CONFIGS )
     {
         char route[OD_JAG_ROUTE_MAX];
@@ -689,6 +944,9 @@ PlatformXIOOnDemand_ArchiveLoad(
         raw.data = od_http_get(od, route, &raw.data_size);
         if( !raw.data )
             return NULL;
+        od_tally(table_id, archive_id, raw.data_size);
+        /* A jag archive is stored as it arrives. */
+        od_cache_store(od, table_id, archive_id, raw.data, raw.data_size);
     }
     else
     {
@@ -700,6 +958,11 @@ PlatformXIOOnDemand_ArchiveLoad(
         if( !raw.data )
             return NULL;
         raw.data_size = size;
+        od_tally(table_id, archive_id, size);
+
+        /* Stored BEFORE the decompress below: gzipped is the form the disk
+         * layer keeps and the form it decompresses on the way back out. */
+        od_cache_store(od, table_id, archive_id, raw.data, raw.data_size);
 
         /* Tables 1..4 are stored gzipped and served as stored. The disk layer
          * decompresses at the same point, so callers above see one shape. */
