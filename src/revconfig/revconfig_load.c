@@ -414,6 +414,8 @@ push_field_from_ini_kv(
         kind = RCFIELD_UILAYOUT_BOTTOM;
     else if( strcmp(key, "dirty") == 0 && strcmp(s_ini_item_type, "layout") == 0 )
         kind = RCFIELD_UILAYOUT_DIRTY;
+    else if( strcmp(key, "xalign") == 0 && strcmp(s_ini_item_type, "layout") == 0 )
+        kind = RCFIELD_UILAYOUT_XALIGN;
     else if( (strcmp(key, "p") == 0 || strcmp(key, "parent") == 0) &&
              strcmp(s_ini_item_type, "layout") == 0 )
         kind = RCFIELD_UILAYOUT_PARENT;

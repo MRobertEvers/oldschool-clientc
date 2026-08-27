@@ -110,6 +110,8 @@ struct UIBuilderTreeOp
      *  into the builder's role table at bake. @see ui/uitree_role.h. */
     char role[64];
     int dirty;
+    /** @see RevConfigUILayoutItem::xalign_center. */
+    int xalign_center;
     int level_mask;
     /** Effect names this component advertises (revconfig hotkey= lines). */
     char hotkeys[REVCONFIG_COMPONENT_HOTKEY_MAX][64];

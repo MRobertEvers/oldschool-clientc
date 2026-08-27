@@ -130,7 +130,18 @@ apply_layout_position(
     assert(op && pos);
     memset(pos, 0, sizeof(*pos));
 
-    if( op->left || op->right || op->top || op->bottom )
+    if( op->xalign_center )
+    {
+        /* Centred horizontally, `y` from the top. resolve_relative already
+         * centres an axis carrying no edge flag, so this only has to say that
+         * the row is relative and that the vertical edge is the top one. */
+        pos->kind = UIPOS_RELATIVE;
+        pos->relative_flags = UITREE_RELATIVE_FLAG_TOP;
+        pos->top = op->y;
+        pos->width = op->width;
+        pos->height = op->height;
+    }
+    else if( op->left || op->right || op->top || op->bottom )
     {
         pos->kind = UIPOS_RELATIVE;
         pos->relative_flags = 0;

@@ -927,6 +927,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UILAYOUT_RIGHT";
     case RCFIELD_UILAYOUT_DIRTY:
         return "RCFIELD_UILAYOUT_DIRTY";
+    case RCFIELD_UILAYOUT_XALIGN:
+        return "RCFIELD_UILAYOUT_XALIGN";
     case RCFIELD_UILAYOUT_PARENT:
         return "RCFIELD_UILAYOUT_PARENT";
     case RCFIELD_UILAYOUT_NAME:
@@ -1779,6 +1781,9 @@ revconfig_item_apply_uilayout_field(
         break;
     case RCFIELD_UILAYOUT_DIRTY:
         layout->dirty = 1;
+        break;
+    case RCFIELD_UILAYOUT_XALIGN:
+        layout->xalign_center = strcmp(value, "center") == 0 || strcmp(value, "centre") == 0;
         break;
     case RCFIELD_UILAYOUT_PARENT:
         strncpy(layout->parent, value, sizeof(layout->parent) - 1);

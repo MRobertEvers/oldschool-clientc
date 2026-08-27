@@ -422,6 +422,7 @@ add_layout_op(
     op->bottom = layout->bottom;
     op->right = layout->right;
     op->dirty = layout->dirty;
+    op->xalign_center = layout->xalign_center;
 
     fill_tree_op_from_component(op, comp, root_interface_id);
 }

@@ -426,6 +426,18 @@ CacheProvider_SpriteHas(
  */
 #define CACHE_PROVIDER_SPRITE_ABSENT (-2)
 
+/*
+ * Ids for sprites the CLIENT builds rather than decodes.
+ *
+ * A dat2 sprite is keyed by its own archive id, so anything synthesised has to
+ * live outside that range or it silently takes some real archive's slot -- the
+ * title panel is assembled from a BINARY-table image, whose id 0 is a
+ * perfectly ordinary sprite archive id as well.
+ */
+#define CACHE_PROVIDER_SPRITE_SYNTHETIC_BASE 0x40010000
+/** The composited title backdrop. @see engine/title_panel.h. */
+#define CACHE_PROVIDER_SPRITE_TITLE_PANEL (CACHE_PROVIDER_SPRITE_SYNTHETIC_BASE + 0)
+
 void
 CacheProvider_SpriteNameMapPut(
     struct CacheProvider* provider,

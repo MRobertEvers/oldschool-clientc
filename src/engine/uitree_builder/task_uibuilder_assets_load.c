@@ -2,6 +2,8 @@
 #include "uitree_builder_manifest.h"
 
 #include "engine/cache_provider.h"
+#include "engine/dat2/dat2_tasks.h"
+#include "engine/title_panel.h"
 #include "engine/uitree_builder/task_pack_assets_load.h"
 
 #include <assert.h>
@@ -106,6 +108,16 @@ Task_UIBuilderAssetsLoad_Run(
              */
             PT_TASK_AWAITSELF_IF(CreateTask_DefaultsSpriteLoad(
                 self->builder->provider, req->defaults_slot, req->name));
+        }
+        else if(
+            strcmp(req->table, "binary") == 0 && req->archive[0] != '\0' &&
+            strcmp(req->format, TORIRS_TITLE_PANEL_FORMAT) == 0 )
+        {
+            /* The title backdrop, which OldSchool keeps in the BINARY table
+             * rather than among the sprites -- so it is addressed by table and
+             * name, and assembled by the same composite the dat1 lane uses. */
+            PT_TASK_AWAITSELF_IF(CreateTask_Dat2TitlePanelLoad(
+                self->builder->provider, req->archive, req->name));
         }
         else if( req->archive[0] != '\0' && req->data_filename[0] == '\0' )
         {

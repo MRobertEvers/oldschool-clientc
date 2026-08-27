@@ -91,6 +91,19 @@ CreateTask_Dat2SpriteLoad(
     struct CacheProvider* provider,
     int sprite_id);
 
+/**
+ * The title backdrop, from the BINARY table's `archive_name`.
+ *
+ * OldSchool keeps the title image there rather than in a jagfile, which is the
+ * one difference from the dat1 path; the half-and-mirror composite itself is
+ * shared. Registered under `sprite_name`. NULL when already loaded.
+ */
+struct ToriRS_Task*
+CreateTask_Dat2TitlePanelLoad(
+    struct CacheProvider* provider,
+    char const* archive_name,
+    char const* sprite_name);
+
 struct ToriRS_Task*
 CreateTask_Dat2SpriteLoadByName(
     struct CacheProvider* provider,

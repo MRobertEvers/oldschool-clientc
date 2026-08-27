@@ -249,8 +249,22 @@ UITreeBuilder_ResolveFontName(
     assert(name);
     for( int i = 0; i < builder->font_count; i++ )
     {
-        if( strcmp(builder->fonts[i].name, name) == 0 )
+        if( strcmp(builder->fonts[i].name, name) != 0 )
+            continue;
+        /*
+         * The two eras address a font differently, and both spellings are a
+         * scene slot.
+         *
+         * dat1 pins its four title-jagfile fonts into fixed slots 0-3 and says
+         * so with cache_font_id. dat2 has no such table: there the fonts-table
+         * ARCHIVE id is the slot, which is why an OldSchool [font:] section
+         * carries only archive_id -- and why resolving by name has to fall
+         * through to it. Returning cache_font_id alone answered -1 for every
+         * dat2 profile, so a widget naming a font by name drew nothing.
+         */
+        if( builder->fonts[i].cache_font_id >= 0 )
             return builder->fonts[i].cache_font_id;
+        return builder->fonts[i].archive_id;
     }
     return -1;
 }

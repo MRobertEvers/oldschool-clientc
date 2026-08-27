@@ -249,6 +249,7 @@ enum RevConfigFieldKind
     RCFIELD_UILAYOUT_BOTTOM,
     RCFIELD_UILAYOUT_RIGHT,
     RCFIELD_UILAYOUT_DIRTY,
+    RCFIELD_UILAYOUT_XALIGN,
     RCFIELD_UILAYOUT_PARENT,
     RCFIELD_UILAYOUT_NAME,
     RCFIELD_UILAYOUT_GROUP,
@@ -1010,6 +1011,20 @@ struct RevConfigUILayoutItem
 
     /* INI: dirty — presence flag; maps to UINodeSpec.always_dirty (redraw every frame). */
     int dirty;
+
+    /*
+     * INI: xalign=center
+     * Centre this row horizontally in its parent and take `y` as the distance
+     * from the parent's top.
+     *
+     * The modern title screen is a fixed 765-wide panel centred in whatever
+     * window the client has -- the deob computes `titleX = (canvasW - 765)/2`
+     * every frame -- and that is a layout RULE, not a coordinate, so it cannot
+     * be written as an x. The edge insets cannot express it either: they
+     * already centre an axis with no inset, but a row with all-zero insets is
+     * indistinguishable from one that simply never set any.
+     */
+    int xalign_center;
 };
 
 #define REVCONFIG_INV_MAX_ITEMS 32
