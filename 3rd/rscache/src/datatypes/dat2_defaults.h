@@ -138,7 +138,22 @@ struct RSCache_Dat2Defaults
     int legacy_value;
     int has_legacy_value;
 
-    /** Opcode 3: three 5-stop 24-bit RGB ramps. */
+    /**
+     * Opcode 3: the title screen's three flame palettes, as 5-stop 24-bit ramps.
+     *
+     * `class91` — the fire either side of the login box — takes this array whole
+     * and expands each row into a 256-entry palette (`method6856`, 64 steps
+     * interpolated between each adjacent pair, four segments), then cross-fades
+     * one palette into the next as the fire animates over its 128x256 buffers.
+     *
+     * Row order is part of the meaning: the client indexes rows 0, 1 and 2
+     * positionally, so a reorder is a re-skin that no size check would catch.
+     *
+     * The 317 client built these same three in code — black through red/yellow,
+     * green/cyan and blue/magenta, each ending white — and osrs239 stores byte
+     * for byte the same values here. What changed is where they live, not what
+     * they are. See docs/CACHE_INDEX_16_17.md.
+     */
     int ramps[RSCACHE_DAT2_DEFAULTS_RAMP_ROWS][RSCACHE_DAT2_DEFAULTS_RAMP_STOPS];
     int has_ramps;
 

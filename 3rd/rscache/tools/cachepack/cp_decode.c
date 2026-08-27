@@ -5159,7 +5159,20 @@ defaults_emit_record(FILE* out, const struct RSCache_Dat2Defaults* rec)
             "//            The trailing comment is what that id is called in\n"
             "//            index 8, which is a different table: it names the\n"
             "//            sprite the slot points at, not the slot.\n"
-            "//   ramp     <row>:<5 stops>, 24-bit RGB.\n"
+            "//   ramp     <row>:<5 stops>, 24-bit RGB. The title screen's three\n"
+            "//            flame palettes. class91 -- the fire that burns either\n"
+            "//            side of the login box -- takes this whole [3][5] array\n"
+            "//            in its constructor and hands each row to method6856,\n"
+            "//            which interpolates 64 steps between each adjacent pair\n"
+            "//            to fill a 256-entry palette. Three of them, cross-faded\n"
+            "//            one into the next as the fire animates.\n"
+            "//            Row order is load-bearing: class91 indexes the array\n"
+            "//            positionally, so reordering the rows re-skins the fire.\n"
+            "//            The 317 client built these same three in *code* --\n"
+            "//            black through red/yellow, green/cyan and blue/magenta,\n"
+            "//            each ending white (Client.ts:1643). osrs239 stores byte\n"
+            "//            for byte the same values here. The palette did not\n"
+            "//            change; it stopped being hardcoded and became content.\n"
             "//   model    <slot>:<model id>. Same rule as sprite: the slot is\n"
             "//            what opcode 5 encodes and the comment is ours. These\n"
             "//            two models are named nowhere in the cache -- the model\n"
@@ -5406,6 +5419,20 @@ defaults_parse_record(const char* path, struct RSCache_Dat2Defaults* rec)
             }
             else if( strcmp(key, "sprite_trailer") == 0 )
                 rec->sprite_trailer = atoi(value);
+            /*
+             * The title screen's three flame palettes, packed back in.
+             *
+             * `row` is written out rather than inferred from line order because
+             * the row index is what the client uses: class91 reads field1236[0],
+             * [1] and [2] positionally and expands each into a 256-entry palette
+             * (method6856, 64 interpolated steps per adjacent pair). Swap two
+             * rows here and the fire comes back a different colour, which is a
+             * change no length check would catch -- the record is the same size
+             * either way. Keyed rows make that mistake unwriteable.
+             *
+             * See docs/CACHE_INDEX_16_17.md; the 317 client hardcoded these
+             * three in source and osrs239 ships the identical values as content.
+             */
             else if( strcmp(key, "ramp") == 0 )
             {
                 const char* colon = strchr(value, ':');

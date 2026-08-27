@@ -182,6 +182,72 @@ row 2: 000000 0000ff ff00ff ffffff ffffff
 
 Black to a primary, through its secondary, to white — one ramp per primary.
 
+### They are the title screen's flame palettes
+
+The record hands the whole array to `class91`, at `Statics.java:24717`:
+
+```java
+field512  = method9263(var1, "runes", "", ...);   // the title archive's runes
+field4534 = new class91(field512, var2.field64);  // var2 is the class11 record
+```
+
+`class91` is the fire that burns either side of the login box. Its constructor
+expands each row into a 256-entry palette:
+
+```java
+this.field1246 = Statics.method6856(this.field1236[0][0], ... [0][4], ...);
+this.field1251 = Statics.method6856(this.field1236[1][0], ... [1][4], ...);
+this.field1243 = Statics.method6856(this.field1236[2][0], ... [2][4], ...);
+```
+
+`method6856` walks 64 interpolated steps between each adjacent pair of stops —
+four segments, 256 entries — where each step is a per-channel linear blend
+(`method4335`, `(b - a + 1) * t / 64 + a` on each of R, G and B).
+
+**So the palette itself is stored nowhere.** The cache holds 5 colours per row,
+15 in all; the 3x256 palettes are built at startup and never written back. The
+256 is not arbitrary either — it is the range of the fire simulation's own
+output: each pixel of the flame buffer is an intensity 0..255, and drawing it is
+a straight lookup, `field1245[intensity]` at `class91.java:379`.
+
+The three palettes are then cross-faded into that one working palette
+(`class91.java:325`–`332`, weighted 0..1024) as the fire animates over its
+`int[32768]` buffers — 128x256, the flame image's dimensions. So the full chain
+is: 15 colours in the cache → three 256-entry palettes → one blended palette →
+one lookup per pixel per frame.
+
+Row order is load-bearing: the rows are indexed positionally, so reordering them
+re-skins the fire and changes nothing about the record's size.
+
+`class11.field64` is read **only** here. It is the array's single consumer in
+the whole client.
+
+### The old client hardcoded exactly these
+
+This is the part worth keeping. The 317 client builds its three flame gradients
+in source — `Client-TS/src/client/Client.ts:1643`, our port of it:
+
+```ts
+for (let i = 0; i < 64; i++) this.flameGradient0[i]       = i * 262144;          // black -> red
+for (let i = 0; i < 64; i++) this.flameGradient0[i +  64] = i * 1024 + Colour.RED;    // -> yellow
+for (let i = 0; i < 64; i++) this.flameGradient0[i + 128] = i * 4 + Colour.YELLOW;    // -> white
+for (let i = 0; i < 64; i++) this.flameGradient0[i + 192] = Colour.WHITE;
+```
+
+…and `flameGradient1` the same through green and cyan, `flameGradient2` through
+blue and magenta. Same four 64-step segments, same endpoints, same order. Those
+are byte for byte the three rows osrs239 stores in this record.
+
+So the answer to "is the flame palette hardcoded?" is **it used to be, and it
+is not any more**. The values did not change — they stopped being source and
+became content, which is the same move opcode 2 makes for `compass` and the
+other ten sprite ids. That is what this whole table is: the things the engine
+used to know about itself, moved into the cache.
+
+A practical consequence for anyone reading unpacked output: if all three rows
+come back *identical*, that is not osrs239. osrs239's three are the distinct
+red, green and blue families above.
+
 **Opcode 5's two model ids** are 57378 and 57379, and they are the one part of
 this record the cache names nowhere. `pack/7_models.pack` has them as filler
 `model_57378` / `model_57379` while both their neighbours are named
