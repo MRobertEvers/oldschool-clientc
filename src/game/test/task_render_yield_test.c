@@ -207,6 +207,105 @@ test_the_request_does_not_persist(void)
     ToriRS_IO_Free(io);
 }
 
+/* A child awaited by a parent, which asks for the screen from down there. */
+struct ChildTask
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+};
+
+static int
+ChildTask_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
+{
+    struct ChildTask* self = (struct ChildTask*)base;
+    (void)io;
+    PT_BEGIN(&self->pt);
+    PT_TASK_YIELD_TO_RENDER(TORIRS_RENDER_BOOT_BAR, 42, "from the child");
+    PT_END(&self->pt);
+}
+
+static void
+ChildTask_Free(struct ToriRS_Task* task)
+{
+    free(task);
+}
+
+static struct ToriRS_TaskVTable k_child_vtable = {
+    .run = ChildTask_Run,
+    .free = ChildTask_Free,
+};
+
+static struct ToriRS_Task*
+make_child(void)
+{
+    struct ChildTask* child = calloc(1, sizeof(*child));
+    assert(child);
+    child->task.vtable = &k_child_vtable;
+    snprintf(child->task.name, sizeof(child->task.name), "child");
+    return &child->task;
+}
+
+struct ParentTask
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    int done;
+};
+
+static int
+ParentTask_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
+{
+    struct ParentTask* self = (struct ParentTask*)base;
+    PT_BEGIN(&self->pt);
+    PT_TASK_AWAITSELF(make_child());
+    self->done = 1;
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_parent_vtable = {
+    .run = ParentTask_Run,
+    .free = task_free_noop,
+};
+
+/*
+ * A request made by a child reaches the runner.
+ *
+ * Only the QUEUED task is ever looked at, and that is the parent -- so a
+ * child's request has to be carried up as the await unwinds. Without this a
+ * nested loader could ask for the screen as loudly as it liked and nothing
+ * would ever read it, which is precisely the shape the boot's own loaders
+ * have.
+ */
+static void
+test_a_child_can_ask_for_the_screen(void)
+{
+    struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
+    struct ToriRS_IO* io = ToriRS_IO_New();
+    static struct ParentTask parent;
+    int stat;
+
+    memset(&parent, 0, sizeof(parent));
+    parent.task.vtable = &k_parent_vtable;
+    snprintf(parent.task.name, sizeof(parent.task.name), "parent");
+    ToriRS_TaskQueue_Add(queue, &parent.task);
+
+    stat = ToriRS_TaskQueue_Run(queue, io);
+    TEST_ASSERT(stat == TORIRS_ASYNCIO_STAT_RENDER, "the child's request unwinds the queue");
+    TEST_ASSERT(
+        parent.task.render.percent == 42, "and arrives on the task the runner can see");
+    TEST_ASSERT(
+        strcmp(parent.task.render.caption, "from the child") == 0,
+        "with the child's own words");
+    TEST_ASSERT(parent.done == 0, "the parent has not run past the await");
+
+    TEST_ASSERT(
+        ToriRS_TaskQueue_Run(queue, io) == TORIRS_ASYNCIO_STAT_DONE, "then both finish");
+    TEST_ASSERT(parent.done == 1, "the parent ran on");
+
+    ToriRS_TaskQueue_Free(queue);
+    ToriRS_IO_Free(io);
+}
+
 int
 main(void)
 {
@@ -216,6 +315,7 @@ main(void)
     test_render_yield_stops_the_queue();
     test_a_plain_yield_still_settles_through();
     test_the_request_does_not_persist();
+    test_a_child_can_ask_for_the_screen();
 
     if( g_failures )
     {

@@ -595,7 +595,7 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
  * Drive a heap-allocated child Task to completion from a parent protothread.
  * child_expr is evaluated once and stored in (pt)->user across yields.
  */
-#define TASK_AWAITEX(pt, ctx, child_expr)                                                          \
+#define TASK_AWAITEX(task, pt, ctx, child_expr)                                                          \
     do                                                                                             \
     {                                                                                              \
         (pt)->lc = __LINE__;                                                                       \
@@ -607,7 +607,19 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
         struct ToriRS_Task* _child = (pt)->user;                                                   \
         int _await_res = task_run(_child, ctx);                                                    \
         if( _await_res != PT_ENDED && _await_res != PT_EXITED )                                    \
+        {                                                                                          \
+            /* A child that asked for the screen asked on its own behalf,                          \
+             * but only the QUEUED task is ever looked at -- so carry the                          \
+             * request up to the one the runner can see. Without this a                            \
+             * nested loader can never show progress, however loudly it                            \
+             * asks, because nothing ever reads the child. */                                      \
+            if( _child->wants_render )                                                             \
+            {                                                                                      \
+                (task)->wants_render = 1;                                                          \
+                (task)->render = _child->render;                                                   \
+            }                                                                                      \
             return _await_res;                                                                     \
+        }                                                                                          \
         task_free(_child);                                                                         \
         (pt)->user = NULL;                                                                         \
     }                                                                                              \
@@ -617,7 +629,7 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
  * Like TASK_AWAITEX, but skip when child_expr evaluates to NULL
  * (CreateTask_*Load returns NULL when already cached).
  */
-#define TASK_AWAITEX_IF(pt, ctx, expr)                                                             \
+#define TASK_AWAITEX_IF(task, pt, ctx, expr)                                                             \
     do                                                                                             \
     {                                                                                              \
         (pt)->lc = __LINE__;                                                                       \
@@ -631,7 +643,19 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
         {                                                                                          \
             int _await_res = task_run(_child, ctx);                                                \
             if( _await_res != PT_ENDED && _await_res != PT_EXITED )                                \
+            {                                                                                      \
+                /* A child that asked for the screen asked on its own behalf,                          \
+                 * but only the QUEUED task is ever looked at -- so carry the                          \
+                 * request up to the one the runner can see. Without this a                            \
+                 * nested loader can never show progress, however loudly it                            \
+                 * asks, because nothing ever reads the child. */                                      \
+                if( _child->wants_render )                                                             \
+                {                                                                                      \
+                    (task)->wants_render = 1;                                                          \
+                    (task)->render = _child->render;                                                   \
+                }                                                                                      \
                 return _await_res;                                                                 \
+            }                                                                                      \
             task_free(_child);                                                                     \
         }                                                                                          \
         (pt)->user = NULL;                                                                         \
@@ -665,7 +689,7 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
  * applied them after, so calling a slow-loading familiar re-placed whatever
  * creature had inherited those indices in the meantime.
  */
-#define PT_TASK_AWAITSELF(expr) TASK_AWAITEX(&(self->pt), io, expr)
+#define PT_TASK_AWAITSELF(expr) TASK_AWAITEX(&(self->task), &(self->pt), io, expr)
 
 /**
  * Publish a frame showing `intent` at `percent` saying `caption`, then
@@ -679,6 +703,6 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
  * (CreateTask_*Load returns NULL when already cached). Still a suspension
  * point whenever the expression is non-NULL -- see above.
  */
-#define PT_TASK_AWAITSELF_IF(expr) TASK_AWAITEX_IF(&(self->pt), io, expr)
+#define PT_TASK_AWAITSELF_IF(expr) TASK_AWAITEX_IF(&(self->task), &(self->pt), io, expr)
 
 #endif // ASYNCIO_H

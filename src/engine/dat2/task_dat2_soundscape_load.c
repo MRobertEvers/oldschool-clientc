@@ -175,6 +175,7 @@ Task_Dat2SoundscapeLoad_Run(
              task->preload_sub < task->soundscapes->entries[task->preload_index].loop_count;
              task->preload_sub++ )
             TASK_AWAITEX_IF(
+                &task->task,
                 &task->pt,
                 io,
                 CreateTask_SoundLoad(

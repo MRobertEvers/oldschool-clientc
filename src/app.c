@@ -12894,11 +12894,17 @@ Task_AppBoot_Run(
     PT_BEGIN(&self->pt);
 
     app->boot_progress = 10;
-    app_title_progress(app, 10, "loading_config");
+    /* This stage's place in the profile's own list, where it declares
+     * one. The modern lane's boot is numbered by the deob and continues
+     * from where its cache-index steps left off; a lane that names no
+     * such step keeps the client's own position. */
+    if( !app_preload_announce(app, "update_list") )
+        app_title_progress(app, 10, "loading_config");
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
      * inside one frame and the bar only ever appears at 100. */
-    PT_TASK_YIELD_TO_RENDER(TORIRS_RENDER_BOOT_BAR, 10, app->title.progress_text);
+    PT_TASK_YIELD_TO_RENDER(
+        TORIRS_RENDER_BOOT_BAR, app->title.progress_percent, app->title.progress_text);
 
     /*
      * Varbit types, before anything that can run a script.
@@ -13180,11 +13186,17 @@ Task_AppBoot_Run(
      * references both name it while it runs rather than leaving the bar still
      * (Client-TS "Requesting interface", the deob "Loading interfaces"). */
     app->boot_progress = 30;
-    app_title_progress(app, 30, "loaded_config");
+    /* This stage's place in the profile's own list, where it declares
+     * one. The modern lane's boot is numbered by the deob and continues
+     * from where its cache-index steps left off; a lane that names no
+     * such step keeps the client's own position. */
+    if( !app_preload_announce(app, "sound_engine") )
+        app_title_progress(app, 30, "loaded_config");
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
      * inside one frame and the bar only ever appears at 100. */
-    PT_TASK_YIELD_TO_RENDER(TORIRS_RENDER_BOOT_BAR, 30, app->title.progress_text);
+    PT_TASK_YIELD_TO_RENDER(
+        TORIRS_RENDER_BOOT_BAR, app->title.progress_percent, app->title.progress_text);
 
     /* One root-build path. A manifest that names no RevConfig at all still comes
      * through here: the builder synthesises the single rs_iface mount of
@@ -13228,11 +13240,17 @@ Task_AppBoot_Run(
         app->tree->interface_parent_count);
 
     app->boot_progress = 60;
-    app_title_progress(app, 60, "loading_interfaces");
+    /* This stage's place in the profile's own list, where it declares
+     * one. The modern lane's boot is numbered by the deob and continues
+     * from where its cache-index steps left off; a lane that names no
+     * such step keeps the client's own position. */
+    if( !app_preload_announce(app, "fonts") )
+        app_title_progress(app, 60, "loading_interfaces");
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
      * inside one frame and the bar only ever appears at 100. */
-    PT_TASK_YIELD_TO_RENDER(TORIRS_RENDER_BOOT_BAR, 60, app->title.progress_text);
+    PT_TASK_YIELD_TO_RENDER(
+        TORIRS_RENDER_BOOT_BAR, app->title.progress_percent, app->title.progress_text);
 
     /* Shared b12 fallback before configured overlay models are bound. Normally
      * already resident — the RevConfig assets pass loads every declared
@@ -13245,11 +13263,17 @@ Task_AppBoot_Run(
             : NULL);
 
     app->boot_progress = 75;
-    app_title_progress(app, 75, "loading_media");
+    /* This stage's place in the profile's own list, where it declares
+     * one. The modern lane's boot is numbered by the deob and continues
+     * from where its cache-index steps left off; a lane that names no
+     * such step keeps the client's own position. */
+    if( !app_preload_announce(app, "title") )
+        app_title_progress(app, 75, "loading_media");
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
      * inside one frame and the bar only ever appears at 100. */
-    PT_TASK_YIELD_TO_RENDER(TORIRS_RENDER_BOOT_BAR, 75, app->title.progress_text);
+    PT_TASK_YIELD_TO_RENDER(
+        TORIRS_RENDER_BOOT_BAR, app->title.progress_percent, app->title.progress_text);
 
     if( getenv("TORIRS_ANIM_DEBUG") )
     {
@@ -13317,11 +13341,17 @@ Task_AppBoot_Run(
         app_world_load_begin(app, NULL, 0);
 
     app->boot_progress = 90;
-    app_title_progress(app, 90, "preparing");
+    /* This stage's place in the profile's own list, where it declares
+     * one. The modern lane's boot is numbered by the deob and continues
+     * from where its cache-index steps left off; a lane that names no
+     * such step keeps the client's own position. */
+    if( !app_preload_announce(app, "engine") )
+        app_title_progress(app, 90, "preparing");
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
      * inside one frame and the bar only ever appears at 100. */
-    PT_TASK_YIELD_TO_RENDER(TORIRS_RENDER_BOOT_BAR, 90, app->title.progress_text);
+    PT_TASK_YIELD_TO_RENDER(
+        TORIRS_RENDER_BOOT_BAR, app->title.progress_percent, app->title.progress_text);
 
     app_chat_build_view(app);
     app->emit.count = 0;
@@ -13449,6 +13479,26 @@ app_open_tree(
      * every server sub-interface into it and treats a differing server
      * IF_OPENTOP as informational (see rs_gameproto_exec), so the two agree. */
     app->host.top_interface_id = interface_id;
+
+    /*
+     * The profile's own preload list first, as a SIBLING rather than a child.
+     *
+     * The queue runs its head to completion before anything behind it, so
+     * ordering is free -- and being the head is what lets its render
+     * requests reach the runner directly, which is the whole point of a task
+     * that exists to show the bar moving.
+     *
+     * NULL on a profile that names no cache indices, which is every dat1
+     * lane: their list is jag archives, loaded by other machinery.
+     */
+    if( app->provider )
+    {
+        struct ToriRS_Task* preload =
+            CreateTask_Dat2Preload(app->provider, &app->preload, &app->login_replies);
+
+        if( preload )
+            ToriRS_TaskQueue_Add(app->runner.queue, preload);
+    }
 
     task = calloc(1, sizeof(*task));
     assert(task);

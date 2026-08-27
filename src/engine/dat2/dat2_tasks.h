@@ -16,6 +16,21 @@ CreateTask_Dat2ComponentPackLoad(
 struct ToriRS_Task*
 CreateTask_Dat2ClientScriptTableLoad(struct CacheProvider* provider);
 
+struct RS_PreloadTable;
+struct RS_LoginReplyTable;
+/**
+ * Open the cache indices the profile's [preload:] list names, showing the
+ * bar move as each lands.
+ *
+ * NULL when the profile names no indices -- an absent list is a revision
+ * that does not preload, not an error.
+ */
+struct ToriRS_Task*
+CreateTask_Dat2Preload(
+    struct CacheProvider* provider,
+    struct RS_PreloadTable const* steps,
+    struct RS_LoginReplyTable const* strings);
+
 /** The clientscript group whose name hashes to `name_hash`, or -1 (which also
  *  covers "the reference table has not landed yet"). */
 int
