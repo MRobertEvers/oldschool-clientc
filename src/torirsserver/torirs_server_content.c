@@ -2424,6 +2424,12 @@ pack_kind_for_type(const char* name)
         { "obj", TORIRSSERVER_PACK_OBJ },         { "loc", TORIRSSERVER_PACK_LOC },
         { "seq", TORIRSSERVER_PACK_SEQ },         { "spotanim", TORIRSSERVER_PACK_SPOTANIM },
         { "4_soundeffects", TORIRSSERVER_PACK_SYNTH },
+        /* And the same namespace under the name a person writes. A sound param
+         * declared `type=int` has no namespace, so `obj_resolve_param_value`
+         * guesses — and it guesses seq, then obj, before synth, so
+         * `param=attack_sound_stance1,longbow` resolved to the longbow *item*
+         * and every bow in the game swung with the wrong noise. */
+        { "synth", TORIRSSERVER_PACK_SYNTH },
         { "inv", TORIRSSERVER_PACK_INV },         { "varp", TORIRSSERVER_PACK_VARP },
         { "varbit", TORIRSSERVER_PACK_VARBIT },
         { "interface", TORIRSSERVER_PACK_INTERFACE },

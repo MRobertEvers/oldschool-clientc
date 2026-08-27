@@ -18396,6 +18396,52 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(npc->def && npc->def->death_sound == 471,
                                "goblin_death should be 471, got %d",
                                npc->def ? npc->def->death_sound : -999);
+
+                /*
+                 * The weapon side of the same statement, and the namespace it
+                 * has to be read in.
+                 *
+                 * `configs/bas/attack_sounds.obj` spells a swing sound as its
+                 * name in `pack/4_soundeffects.pack`:
+                 * `param=attack_sound_stance1,longbow`. An obj param whose
+                 * `.param` block declares no namespace is *guessed* at
+                 * (`obj_resolve_param_value`), seq then obj then spotanim then
+                 * synth — and `longbow` is also an item. So 33 bows, the
+                 * twisted bow among them, resolved to obj 839 and swung with
+                 * whatever sound effect happens to sit at that id;
+                 * `crossbow`, `javelin`, `granite_maul` and
+                 * `dttd_bone_crossbow` collide the same way, 162 weapon rows in
+                 * all. `combat.param` declares `type=synth` for exactly this,
+                 * and a declared namespace resolves there and nowhere else.
+                 *
+                 * Both ids are named rather than one literal written down: the
+                 * failure this catches is the value coming back as the *item*,
+                 * so the item's id has to be in the check to be excluded by it.
+                 */
+                {
+                    int synth_longbow =
+                        ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_SYNTH, "longbow");
+                    int obj_longbow =
+                        ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "longbow");
+                    int stance1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM,
+                                                             "attack_sound_stance1");
+                    int tbow =
+                        ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "twisted_bow");
+                    const struct ToriRSServerObjParam* swing =
+                        (tbow > 0 && stance1 >= 0) ? ToriRSServer_ObjParam(tbow, stance1)
+                                                   : NULL;
+
+                    SELFTEST_CHECK(synth_longbow == 2700 && obj_longbow == 839,
+                                   "`longbow` names synth 2700 and obj 839, got %d and %d",
+                                   synth_longbow, obj_longbow);
+                    SELFTEST_CHECK(swing != NULL,
+                                   "the twisted bow should carry attack_sound_stance1");
+                    if( swing )
+                        SELFTEST_CHECK(swing->ival == synth_longbow,
+                                       "the twisted bow swings synth %d, got %d (obj "
+                                       "`longbow` is %d)",
+                                       synth_longbow, swing->ival, obj_longbow);
+                }
             }
 
             /*

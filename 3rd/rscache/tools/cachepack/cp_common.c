@@ -662,6 +662,17 @@ static const struct
     { 'I', "component", -1 },
     { 'c', "coord", -1 },
     { 'm', "model", -1 },
+    /*
+     * `synth` is not a cache param letter — 'P' is already `param` — so a sound
+     * param is stored as an int here, exactly as it was when it was spelled
+     * `type=int`. The word is listed anyway because the *server* reads the same
+     * `type=` for a second thing this table cannot express: the namespace a
+     * symbolic value resolves in. Spelled `int`, `param=attack_sound_stance1,
+     * longbow` was guessed at and came back as the longbow *item*. Listed after
+     * `int` so `cp_param_type_name('i')` still answers "int" and a re-pack of
+     * cachepack's own output reads back unchanged.
+     */
+    { 'i', "synth", -1 },
 };
 
 #define PARAM_TYPE_COUNT ((int)(sizeof(k_param_types) / sizeof(k_param_types[0])))
