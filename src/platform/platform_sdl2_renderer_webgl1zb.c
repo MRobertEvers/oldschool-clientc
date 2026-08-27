@@ -302,62 +302,6 @@ webgl1_material_table_free(struct WebGL1MaterialTable* table)
  * apart because the far side is genuinely behind.
  */
 static bool
-webgl1_world_face_front_facing(
-    struct ToriDraw_ModelHandle handle,
-    const struct ToriDraw_Scene* scene,
-    uint32_t face)
-{
-    const faceint_t* face_a;
-    const faceint_t* face_b;
-    const faceint_t* face_c;
-    uint32_t vertex_count;
-    uint32_t a;
-    uint32_t b;
-    uint32_t c;
-    int64_t dx1;
-    int64_t dy1;
-    int64_t dx2;
-    int64_t dy2;
-
-    assert(scene);
-    if( !scene->screen_vertices_x || !scene->screen_vertices_y )
-        return false;
-    if( ToriDraw_ModelKindIsFull(handle.kind) && handle.u.model.model )
-    {
-        struct ToriDraw_Model* model = handle.u.model.model;
-        if( face >= (uint32_t)model->face_count )
-            return false;
-        face_a = model->face_indices_a;
-        face_b = model->face_indices_b;
-        face_c = model->face_indices_c;
-        vertex_count = (uint32_t)model->vertex_count;
-    }
-    else if( handle.kind == TORIDRAWMK_GROUND && handle.u.model.ground )
-    {
-        struct ToriDraw_ModelGround* ground = handle.u.model.ground;
-        if( face >= (uint32_t)ground->face_count )
-            return false;
-        face_a = ground->face_indices_a;
-        face_b = ground->face_indices_b;
-        face_c = ground->face_indices_c;
-        vertex_count = (uint32_t)ground->vertex_count;
-    }
-    else
-        return false;
-
-    a = (uint32_t)face_a[face];
-    b = (uint32_t)face_b[face];
-    c = (uint32_t)face_c[face];
-    if( a >= vertex_count || b >= vertex_count || c >= vertex_count )
-        return false;
-    dx1 = (int64_t)scene->screen_vertices_x[a] - scene->screen_vertices_x[b];
-    dy1 = (int64_t)scene->screen_vertices_y[a] - scene->screen_vertices_y[b];
-    dx2 = (int64_t)scene->screen_vertices_x[c] - scene->screen_vertices_x[b];
-    dy2 = (int64_t)scene->screen_vertices_y[c] - scene->screen_vertices_y[b];
-    return dx1 * dy2 - dy1 * dx2 > 0;
-}
-
-static bool
 webgl1_reserve_model_indices(
     struct ToriRS_GL3* renderer,
     uint32_t count)
@@ -478,8 +422,6 @@ WEBGL1ZB_SubmitModel(
         uint32_t b;
 
         if( pass != WEBGL1_WORLD_FACE_OPAQUE && pass != WEBGL1_WORLD_FACE_CUTOUT )
-            continue;
-        if( !webgl1_world_face_front_facing(mcmd->model, ctx, face) )
             continue;
         b = vertex_base + face * 3u;
         renderer->model_indices[written++] = b;
@@ -772,4 +714,18 @@ WEBGL1ZB_BindDrawState(struct ToriRS_GL3* renderer)
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glDepthMask(GL_TRUE);
+    /* The GPU does the front-facing test, as it does on the D3D9 z-buffer
+     * lane. The software check this replaces re-derived screen-space
+     * winding from the projection for every face of every model.
+     *
+     * GL_CCW front + cull GL_BACK is the GL spelling of D3DCULL_CW, which
+     * is the handedness measured on the D3D9 lane. It is NOT verified
+     * here: these lanes do not run on the XP box, and a projection that
+     * flips Y would flip the winding with it. If a model looks inside
+     * out, that is the first thing to suspect -- glDisable(GL_CULL_FACE)
+     * restores the previous drawing, since the depth buffer never needed
+     * the cull to be correct. */
+    glFrontFace(GL_CCW);
+    glCullFace(GL_BACK);
+    glEnable(GL_CULL_FACE);
 }

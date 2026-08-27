@@ -1805,6 +1805,41 @@ frame_loop_step(void)
                     rs_frame = -1;
                 }
             }
+            /* TORIRS_SCREENSHOT=<name>: a picture of the frame from the
+             * renderer that is ACTUALLY drawing it -- glReadPixels on the GL
+             * lanes, GetRenderTargetData on D3D9, the canvas on soft3d.
+             *
+             * Distinct from TORIRS_EXIT_BMP, which re-renders through
+             * App_Render into a plain buffer: that is the software rasteriser
+             * no matter which renderer the run selected, so it cannot answer
+             * any question about GPU state and quietly looks like it can.
+             *
+             * TORIRS_SCREENSHOT_FRAME picks when; the default is late enough
+             * to be in the world rather than on the loading bar. */
+            {
+                static int shot_done = 0;
+                char const* shot_name = getenv("TORIRS_SCREENSHOT");
+                if( !shot_done && shot_name && *shot_name )
+                {
+                    char const* at = getenv("TORIRS_SCREENSHOT_FRAME");
+                    long shot_frame = at ? strtol(at, NULL, 0) : 400;
+                    if( frame_count >= shot_frame )
+                    {
+                        char path[512];
+                        shot_done = 1;
+                        if( App_RequestScreenshot(
+                                &app,
+                                getenv("TORIRS_SCREENSHOT_DIR"),
+                                shot_name,
+                                path,
+                                (int)sizeof(path)) &&
+                            path[0] )
+                            TORIRS_REPORT("screenshot: queued %s\n", path);
+                        else
+                            TORIRS_REPORT("screenshot: refused\n");
+                    }
+                }
+            }
             /* TORIRS_CS2_HARNESS=<cases.json>: run the cross-client case list
              * once the client is far enough in to have a cache, a host and a
              * runner, then leave. TORIRS_CS2_HARNESS_FRAME picks how far in;
