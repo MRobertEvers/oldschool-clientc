@@ -6,6 +6,7 @@
  * rides along, so a plugin capture costs no new dependency. */
 #include "miniz.h"
 #include "bootmanifest/bootmanifest.h"
+#include "engine/boot_bar.h"
 #include "revconfig/revconfig_load.h"
 #if !defined(TORIRS_PLATFORM_WEB)
 /* The dat1 cache source that is a LostCity server rather than a directory.
@@ -13097,6 +13098,12 @@ Task_AppBoot_Run(
             TORIRS_LOG("preview_state: applied %d records\n", applied);
     }
 
+    /* The config tables are in; the tree build below is the long one, and the
+     * references both name it while it runs rather than leaving the bar still
+     * (Client-TS "Requesting interface", the deob "Loading interfaces"). */
+    app->boot_progress = 30;
+    app_title_progress(app, 30, "loaded_config");
+
     /* One root-build path. A manifest that names no RevConfig at all still comes
      * through here: the builder synthesises the single rs_iface mount of
      * boot_interface_id, which is what the old open-the-interface-directly
@@ -13218,6 +13225,9 @@ Task_AppBoot_Run(
      * here would race it and clobber the rebuilt scene, so skip it. */
     if( App_WorldNodeIndex(app) >= 0 && !app->net_enabled )
         app_world_load_begin(app, NULL, 0);
+
+    app->boot_progress = 90;
+    app_title_progress(app, 90, "preparing");
 
     app_chat_build_view(app);
     app->emit.count = 0;
@@ -16390,6 +16400,57 @@ app_draw_viewport_message(
         (void)ToriDraw2D_DrawString(
             font, &vp, cx, cy + 15, line2_nullable, 0xffffff, true, false, pixels);
     }
+}
+
+/*
+ * The bar's caption, centred on `center_x` with its baseline at `baseline_y`.
+ *
+ * Best-effort by nature: the references have a system font and this has
+ * whatever the cache has handed over so far, which early in a boot is
+ * nothing. Drawing no caption is the honest outcome then -- the bar itself
+ * still says the client is working.
+ */
+static void
+app_boot_bar_caption(
+    struct App* app,
+    int* pixels,
+    int width,
+    int height,
+    int center_x,
+    int baseline_y,
+    char const* text)
+{
+    struct ToriDraw_Font* font;
+    struct ToriDraw_ViewPort vp;
+    int font_cache_id;
+    int scene_id;
+
+    assert(app);
+    assert(pixels);
+    assert(text);
+
+    font_cache_id = app_font_cache_id(app, APP_FONT_P12);
+    scene_id = font_cache_id >= 0 ? UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id) : -1;
+    if( scene_id < 0 )
+        scene_id = app_minimenu_font_scene_id(app);
+    if( scene_id < 0 )
+        return;
+    font = ToriDraw_SceneFontGet(app->scene, scene_id);
+    if( !font )
+        return;
+
+    vp.width = width;
+    vp.height = height;
+    vp.stride = width;
+    vp.x_center = width / 2;
+    vp.y_center = height / 2;
+    vp.clip_left = 0;
+    vp.clip_top = 0;
+    vp.clip_right = width;
+    vp.clip_bottom = height;
+
+    (void)ToriDraw2D_DrawString(
+        font, &vp, center_x, baseline_y, text, 0xFFFFFF, true, false, pixels);
 }
 
 /* deob method5761 / Client-TS REBUILD_NORMAL: while the scene rebuilds, the
@@ -31860,47 +31921,44 @@ App_Render(
 
     if( !App_BuildFrame(app, &frame, width, height) )
     {
-        /* Font-free loading screen: dark clear + centered progress bar.
-         * Deliberately independent of every asset pipeline (they are what is
-         * still loading). */
-        int bar_w = width / 3;
-        int bar_h = 12;
-        int bar_x = (width - bar_w) / 2;
-        int bar_y = (height - bar_h) / 2;
-        int fill_w = bar_w * (app->boot_progress < 0 ? 0 : app->boot_progress) / 100;
+        /*
+         * The startup progress bar. @see engine/boot_bar.h for why its
+         * geometry is the one screen here that is not revconfig's.
+         *
+         * The deob has a second placement, 50 pixels BELOW centre, for when
+         * the title screen is already up behind it. This client never needs
+         * it: once the title tree is baked App_BuildFrame succeeds and the
+         * panel's own bar takes over, so the only bar drawn here is the
+         * centred one.
+         */
+        char const* caption;
 
-        char const* caption = NULL;
-
-        for( int i = 0; i < width * height; i++ )
-            pixels[i] = 0x000000;
-        for( int y = bar_y - 1; y <= bar_y + bar_h; y++ )
-            for( int x = bar_x - 1; x <= bar_x + bar_w; x++ )
-            {
-                if( y < 0 || y >= height || x < 0 || x >= width )
-                    continue;
-                int border = (y < bar_y || y >= bar_y + bar_h || x < bar_x || x >= bar_x + bar_w);
-                int filled = !border && (x - bar_x) < fill_w;
-                pixels[y * width + x] = border ? 0x8b0000 : (filled ? 0x8b0000 : 0x000000);
-            }
+        BootBar_Draw((uint32_t*)pixels, width, height, app->boot_progress);
 
         /*
-         * A caption, once there is a font to draw one with.
+         * The caption, once there is a font to draw one with.
          *
-         * The bar itself stays font-free on purpose -- it has to work while
-         * the asset pipelines are the thing still loading. But the longest
-         * wait a player meets is the gameframe bake AFTER a successful login,
-         * and by then the title screen has long since loaded the fonts. A
-         * silent black screen there reads as a hang; the same screen with
-         * "Loading - please wait." reads as a client doing its job.
+         * The references have a system font (bold 13 Helvetica) and always
+         * have one; a software rasteriser has none until the cache hands it
+         * over. So the bar is complete without text and gains it when it can
+         * -- in time for the wait that matters, the gameframe bake after a
+         * successful login, where a silent black screen reads as a hang.
          *
-         * The words are the profile's. A revision that declares none gets the
-         * bare bar, which is what it had before.
+         * Centred on the track and sitting on its baseline, where both
+         * references put it, rather than in the middle of the canvas.
          */
         caption = RS_LoginReplies_String(
             &app->login_replies,
             app->screen == APP_SCREEN_GAME ? "entering_world" : "loading");
         if( caption && caption[0] )
-            app_draw_viewport_message(app, pixels, width, height, caption, NULL, /*fill_black=*/0);
+            app_boot_bar_caption(
+                app,
+                pixels,
+                width,
+                height,
+                BootBar_OriginX(width) + BOOT_BAR_W / 2,
+                BootBar_OriginY(height) + BOOT_BAR_TEXT_BASELINE,
+                caption);
         return;
     }
 

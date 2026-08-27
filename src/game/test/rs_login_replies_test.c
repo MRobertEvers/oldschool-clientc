@@ -12,6 +12,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stddef.h>
 
 static int g_failures;
 static int g_checks;
@@ -88,6 +89,18 @@ test_shipped_table(void)
         RS_LoginReplies_String(&table, "entering_world") != NULL,
         "the post-login load has a caption");
     TEST_ASSERT(RS_LoginReplies_String(&table, "loading") != NULL, "the boot load has a caption");
+
+    /* Every stage name app_title_progress publishes, checked as a set. A stage
+     * whose name is undeclared draws its bar with no caption at all, and the
+     * silence looks exactly like a stall -- so the profile owes one for each. */
+    {
+        static char const* const k_stages[] = { "loading_config",     "loaded_config",
+                                                "loading_interfaces", "loading_media",
+                                                "preparing" };
+        for( size_t i = 0; i < sizeof(k_stages) / sizeof(k_stages[0]); i++ )
+            TEST_ASSERT(
+                RS_LoginReplies_String(&table, k_stages[i]) != NULL, k_stages[i]);
+    }
 
     RS_LoginReplies_Free(&table);
 }

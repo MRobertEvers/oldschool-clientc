@@ -567,6 +567,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/torirs_paramtype_from_rscache.c engine/torirs_db.c \
 	engine/torirs_worldmap_from_rscache.c \
 	engine/png_decode.c engine/jpeg_decode.c engine/title_panel.c engine/title_flames.c \
+	engine/boot_bar.c \
 	engine/dat2/task_dat2_title_panel_load.c \
 	engine/uitree_from_component.c engine/texture_palette_bake.c \
 	engine/dat1/dat1_buildcache.c engine/dat1/task_dat1_model_load.c \
@@ -2655,6 +2656,14 @@ test-rs-title: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_title_test \
 		game/test/rs_title_test.c game/rs_title.c
 	./$(OBJ_DIR)/rs_title_test
+
+# The startup progress bar, against the references' own measurements. Asserted
+# rather than screenshotted: the exit-frame capture re-renders after boot, so
+# it cannot contain this bar at all.
+test-boot-bar: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/boot_bar_test \
+		engine/test/boot_bar_test.c engine/boot_bar.c
+	./$(OBJ_DIR)/boot_bar_test
 
 # The title screen's fire. Deterministic by construction (private seeded LCG),
 # so these are assertions about how it burns rather than eyeballing.
