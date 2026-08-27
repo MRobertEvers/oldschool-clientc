@@ -275,6 +275,7 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     free(scene->tmp_flex_prio11_face_to_depth);
     free(scene->tmp_flex_prio12_face_to_depth);
     free(scene->sm_face_depth);
+    free(scene->sm_face_xy);
     free(scene->sm_depth_offset);
     free(scene->sm_depth_cursor);
     free(scene->sm_faces_by_depth);
@@ -323,6 +324,11 @@ ToriDraw_SceneAllocBuffers(
     if( caps->small_mode )
     {
         scene->sm_face_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
+        /* Eight ints per face; see the field for the layout and for why the
+         * depth sort fills it. Capacity is max_faces, but the region actually
+         * touched is num_faces of whichever model is being drawn, which is a
+         * few hundred bytes for the median one. */
+        scene->sm_face_xy = malloc((size_t)caps->max_faces * 8 * sizeof(int));
         /* calloc, not malloc: the counting sort never clears this table whole.
          * Each sort re-zeroes only the [min, max + 1] window it dirtied after
          * its consumer has walked it, so the all-zero state is established
@@ -338,6 +344,7 @@ ToriDraw_SceneAllocBuffers(
             malloc((size_t)caps->flex_prio12 * sizeof(int));
 
         assert(scene->sm_face_depth);
+        assert(scene->sm_face_xy);
         assert(scene->sm_depth_offset);
         assert(scene->sm_depth_cursor);
         assert(scene->sm_faces_by_depth);

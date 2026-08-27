@@ -17,6 +17,8 @@
 #include "graphics/raster/texture/texshadeflat.persp.textrans.ordered.lerp8.scanline.u.c"
 #include "graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texshadeflat.persp.textrans.branching.lerp8.u.c"
+#include "graphics/raster/texture/tex_tri_asm.h"
+#include "graphics/raster/texture/tex_tri_asm_support.u.c"
 #include "graphics/raster/face_census.h"
 // clang-format on
 
@@ -95,7 +97,7 @@ ToriDraw_TriangleTextureBlendTransparentImpl(
         return;
     }
 
-    raster_texshadeblend_persp_textrans_branching_lerp8_v3(
+    TORIDRAW_TEX_TRI_PERSP_TRANS(
         pixel_buffer,
         stride,
         screen_width,
@@ -196,7 +198,8 @@ ToriDraw_TriangleTextureFlatTransparentImpl(
         return;
     }
 
-    raster_texshadeflat_persp_textrans_branching_lerp8(
+    /* One shade, in all three slots -- see the opaque twin for why. */
+    TORIDRAW_TEX_TRI_PERSP_FLAT_TRANS(
         pixel_buffer,
         stride,
         screen_width,
@@ -217,6 +220,8 @@ ToriDraw_TriangleTextureFlatTransparentImpl(
         orthographic_z0,
         orthographic_z1,
         orthographic_z2,
+        shade,
+        shade,
         shade,
         texels,
         texture_size);

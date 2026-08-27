@@ -247,9 +247,15 @@
  * row are independent computations that have to be summed, and neither folds
  * into the addressing mode. That is what costs s_v its register.
  */
-	.macro GATHER1 sh, twm1, vmask, dstx
+	.macro GATHER1 sh, twm1, vmask, dstx, gate
 	movl    %eax, %edx
 	sarl    $\sh, %edx
+	/* No u mask here either, keyed or not. The transparent C helper takes a
+	 * u_mask argument where the opaque one does not, which looks like it
+	 * matters and does not: both compute u identically, and the endpoints
+	 * QUOTU clamped make the mask a no-op for both. Masking only the keyed
+	 * lane made the two disagree where they should not -- measured at 693
+	 * differing triangles in 4,000 on a texture with no key texels at all. */
 	movl    %ecx, %ebp
 	andl    $\vmask, %ebp
 	addl    %ebp, %edx
@@ -257,32 +263,64 @@
 	.endm
 
 /* Four texels -> xmm0, advancing the scan by s_u (ebx) / s_v (frame). */
-	.macro GATHER4 sh, twm1, vmask
-	GATHER1 \sh, \twm1, \vmask, %xmm0
+	.macro GATHER4 sh, twm1, vmask, gate
+	GATHER1 \sh, \twm1, \vmask, %xmm0, \gate
 	addl    %ebx, %eax
 	addl    SV(%esp), %ecx
-	GATHER1 \sh, \twm1, \vmask, %xmm6
+	GATHER1 \sh, \twm1, \vmask, %xmm6, \gate
 	addl    %ebx, %eax
 	addl    SV(%esp), %ecx
 	punpckldq %xmm6, %xmm0
-	GATHER1 \sh, \twm1, \vmask, %xmm1
+	GATHER1 \sh, \twm1, \vmask, %xmm1, \gate
 	addl    %ebx, %eax
 	addl    SV(%esp), %ecx
-	GATHER1 \sh, \twm1, \vmask, %xmm6
+	GATHER1 \sh, \twm1, \vmask, %xmm6, \gate
 	addl    %ebx, %eax
 	addl    SV(%esp), %ecx
 	punpckldq %xmm6, %xmm1
 	punpcklqdq %xmm1, %xmm0
 	.endm
 
+/*
+ * Four blended texels into \off(%edi), honouring the colour key.
+ *
+ * \gate 0 stores them; \gate 1 keeps the destination wherever the RAW texel
+ * was zero. The test is on the raw value, not the blended one, and that is not
+ * fussiness: a dark texel under a low shade blends to zero too, and skipping
+ * it would drop a pixel the reference draws.
+ *
+ * xmm1 is free here -- GATHER4 finishes with its result in xmm0 -- and xmm2
+ * and xmm3 are BLEND4's own temporaries, dead once it returns. So the gate
+ * costs no register, which on this kernel is the binding constraint.
+ */
+	.macro STORE4 gate, off
+.if \gate == 0
+	movdqu  %xmm0, \off(%edi)
+.else
+	movdqa  %xmm0, %xmm1
+	BLEND4  %xmm0
+	pxor    %xmm3, %xmm3
+	pcmpeqd %xmm1, %xmm3            /* raw == 0 -> keep the destination */
+	movdqu  \off(%edi), %xmm2
+	pand    %xmm3, %xmm2
+	pandn   %xmm0, %xmm3
+	por     %xmm2, %xmm3
+	movdqu  %xmm3, \off(%edi)
+.endif
+	.endm
+
 /* The eight-pixel linear block, into edi. */
-	.macro FILL8 sh, twm1, vmask
-	GATHER4 \sh, \twm1, \vmask
+	.macro FILL8 sh, twm1, vmask, gate
+	GATHER4 \sh, \twm1, \vmask, \gate
+.if \gate == 0
 	BLEND4  %xmm0
-	movdqu  %xmm0, (%edi)
-	GATHER4 \sh, \twm1, \vmask
+.endif
+	STORE4  \gate, 0
+	GATHER4 \sh, \twm1, \vmask, \gate
+.if \gate == 0
 	BLEND4  %xmm0
-	movdqu  %xmm0, 16(%edi)
+.endif
+	STORE4  \gate, 16
 	.endm
 
 /*
@@ -317,7 +355,7 @@
  * Works from its own copies of au/bv/cw so the span accumulators are left
  * alone, and touches only eax/ecx/edx/ebx/ebp besides.
  */
-	.macro EXACTBLK sh, twm1
+	.macro EXACTBLK sh, twm1, gate
 	movl    AU(%esp), %eax
 	movl    %eax, EB_AU(%esp)
 	movl    BV(%esp), %eax
@@ -384,8 +422,18 @@
 	addl    %edx, %eax
 
 	movl    (%esi,%eax,4), %eax
+.if \gate == 0
 	SHADEBLEND %eax, %edx, EB_SH(%esp)
 	movl    %eax, (%edi,%ebx,4)
+.else
+	/* The colour key, on the raw texel, before the shade touches it. This is
+	 * the third and last place the span writes a pixel; the other two are the
+	 * eight-wide block and the tail loop. */
+	testl   %eax, %eax
+	je      2f
+	SHADEBLEND %eax, %edx, EB_SH(%esp)
+	movl    %eax, (%edi,%ebx,4)
+.endif
 2:
 	movl    ST_AU(%esp), %eax
 	addl    %eax, EB_AU(%esp)
@@ -422,7 +470,7 @@
  * every real quotient into [0, texture_width - 1], so -1 is unreachable
  * otherwise and one cmpl replaces the flag register this used to need.
  */
-	.macro SPANBODY sh, twm1, vmask, twm1f, tag, done
+	.macro SPANBODY sh, twm1, vmask, twm1f, tag, done, gate, flat
 
 	/* --- prime cur, the quotient pair for block 0 --- */
 	movl    CW(%esp), %ecx
@@ -540,22 +588,31 @@
 	movl    NXT_V(%esp), %edx
 	movl    %edx, CUR_V(%esp)
 
+.if \flat == 0
 	movl    SHADE(%esp), %edx
 	sarl    $8, %edx
 	movd    %edx, %xmm4
 	pshuflw $0, %xmm4, %xmm4
 	pshufd  $0, %xmm4, %xmm4
 	pxor    %xmm5, %xmm5
+.endif
+	/* \flat: xmm4 and xmm5 were primed once for the whole triangle. Nothing
+	 * between here and the next block writes either -- RECIP and RECIP7 use
+	 * xmm0/xmm1/xmm7, QUOTU and WRAPQ xmm2/xmm3, the gather xmm0/xmm1/xmm6,
+	 * BLEND4 and STORE4 xmm1..xmm3 -- so the broadcast survives the row and
+	 * the phase change with it. */
 
-	FILL8   \sh, \twm1, \vmask
+	FILL8   \sh, \twm1, \vmask, \gate
 	jmp     .Ladv\tag
 
 .Lexact8\tag:
+.if \flat == 0
 	movl    SHADE(%esp), %eax
 	sarl    $8, %eax
 	movl    %eax, EB_SH(%esp)
+.endif
 	movl    $8, EB_N(%esp)
-	EXACTBLK \sh, \twm1
+	EXACTBLK \sh, \twm1, \gate
 .Lrot\tag:
 	movl    NXT_U(%esp), %eax
 	movl    %eax, CUR_U(%esp)
@@ -572,8 +629,10 @@
 	addl    %eax, BV(%esp)
 	movl    ST_CW8(%esp), %eax
 	addl    %eax, CW(%esp)
+.if \flat == 0
 	movl    ST_SH8(%esp), %eax
 	addl    %eax, SHADE(%esp)
+.endif
 	addl    $32, %edi
 	decl    BLKN(%esp)
 	jne     .Lblk\tag
@@ -611,12 +670,14 @@
 	jbe     .Ltlerp\tag
 
 .Ltexact\tag:
+.if \flat == 0
 	movl    SHADE(%esp), %eax
 	sarl    $8, %eax
 	movl    %eax, EB_SH(%esp)
+.endif
 	movl    REMAIN(%esp), %eax
 	movl    %eax, EB_N(%esp)
-	EXACTBLK \sh, \twm1
+	EXACTBLK \sh, \twm1, \gate
 	jmp     \done
 
 .Ltlerp\tag:
@@ -634,9 +695,11 @@
 	andl    $\twm1, %ecx
 	shll    $\sh, %ecx
 
+.if \flat == 0
 	movl    SHADE(%esp), %edx
 	sarl    $8, %edx
 	movl    %edx, EB_SH(%esp)
+.endif
 	movl    REMAIN(%esp), %edx
 	movl    %edx, EB_N(%esp)
 .Ltloop\tag:
@@ -646,8 +709,17 @@
 	andl    $\vmask, %ebp
 	addl    %ebp, %edx
 	movl    (%esi,%edx,4), %edx
+.if \gate == 0
 	SHADEBLEND %edx, %ebp, EB_SH(%esp)
 	movl    %edx, (%edi)
+.else
+	/* The colour key, on the raw texel, before the shade touches it. */
+	testl   %edx, %edx
+	je      7f
+	SHADEBLEND %edx, %ebp, EB_SH(%esp)
+	movl    %edx, (%edi)
+7:
+.endif
 	addl    $4, %edi
 	addl    %ebx, %eax
 	addl    SV(%esp), %ecx
@@ -656,6 +728,15 @@
 	jmp     \done
 	.endm
 	.section .rdata,"dr"
+	.align 16
+/* Used by the packed edge-slope reciprocal in tex_tri_i686.S. Four lanes
+ * each, because that prologue has no 16-byte aligned frame to shuffle in.
+ */
+LC_two4:
+	.long 0x40000000, 0x40000000, 0x40000000, 0x40000000
+	.align 16
+LC_65536_4:
+	.long 0x47800000, 0x47800000, 0x47800000, 0x47800000
 	.align 16
 LC_absmask:
 	.long 0x7FFFFFFF

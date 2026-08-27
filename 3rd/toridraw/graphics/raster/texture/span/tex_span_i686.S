@@ -127,7 +127,7 @@ _toridraw_texspan_opaque_lerp8_v3_asm:
 	ret
 
 .Lwidth128:
-	SPANBODY 7, 127, 0x3F80, LC_f127, 128, .Lret
+	SPANBODY 7, 127, 0x3F80, LC_f127, 128, .Lret, 0
 
 .Lwidth64:
-	SPANBODY 6, 63, 0x0FC0, LC_f63, 64, .Lret
+	SPANBODY 6, 63, 0x0FC0, LC_f63, 64, .Lret, 0

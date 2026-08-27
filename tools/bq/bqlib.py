@@ -48,14 +48,26 @@ BOXSTATE = os.path.join(QUEUE_ROOT, 'boxstate.json')
 LEASE_SECONDS = 90
 MAX_ATTEMPTS = 2
 
-# The four handrolled kernels. TORIDRAW_ABLATE / TORIDRAW_SPAN_CENSUS /
+# The handrolled kernels. TORIDRAW_ABLATE / TORIDRAW_SPAN_CENSUS /
 # TORIDRAW_SPAN_TRACE in TORIDRAW_PROBE_CFLAGS trip a makefile gate that drops
-# all four, and a binary missing them is not comparable to one that has them.
+# them, and a binary missing them is not comparable to one that has them.
+#
+# Both DOORS of each family are named, not just one. The presorted-run doors
+# are what a default XP build actually executes -- the batched walk is on
+# unless TORIDRAW_RASTER_BATCH=0 asks for the old path -- so a binary that
+# still has the sorting doors but has quietly lost the run doors would pass a
+# one-door check while benchmarking a different pipeline entirely. Checking
+# both is what makes "the presorted build is the default" a property the
+# tooling enforces rather than one a reader has to take on trust.
 REQUIRED_SYMS = (
     '_toridraw_texspan_opaque_lerp8_v3_asm',
-    '_toridraw_gouraud_tri_opaque_s4_asm',
-    '_toridraw_textri_opaque_lerp8_v3_asm',
     '_toridraw_fb_clear32_nt_asm',
+    '_toridraw_gouraud_opaque_s4_sorting_asm',
+    '_toridraw_gouraud_opaque_s4_presorted_run_asm',
+    '_toridraw_flat_opaque_s4_presorted_run_asm',
+    '_toridraw_textri_opaque_lerp8_v3_sorting_asm',
+    '_toridraw_textri_opaque_lerp8_v3_presorted_run_asm',
+    '_toridraw_textri_flat_opaque_lerp8_v3_presorted_run_asm',
 )
 
 NM = os.environ.get(

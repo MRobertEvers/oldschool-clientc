@@ -6,6 +6,7 @@
 #include "graphics/winding.h"
 #include "toridraw_math.h"
 #include "toridraw_model_internal.h"
+#include "toridraw_raster_batch.h"
 #include "toridraw_types.h"
 
 #include <assert.h>
@@ -1820,6 +1821,8 @@ bucket_sort_by_average_depth_small(
     const int depth_levels = scene->depth_levels;
     int min_d = depth_levels;
     int max_d = 0;
+    /* Hoisted: one getenv-cached read for the model, not one per face. */
+    int const stash_xy = toridraw_raster_batch_armed();
 
     /* No clear here, and none of depth_levels width anywhere below. The
      * counting pass only touches buckets in this model's depth span, so the
@@ -1867,6 +1870,81 @@ bucket_sort_by_average_depth_small(
             {
                 scene->sm_face_depth[f] = (faceint_t)depth_avg;
                 scene->sm_depth_offset[depth_avg]++;
+
+                /*
+                 * Hand the raster pass what this loop already has.
+                 *
+                 * Every one of these six values was just loaded to compute the
+                 * winding, and every one of them used to be read a second time
+                 * further down the frame -- through face_indices_a/b/c into
+                 * screen_vertices_x/y, which is three loads to get an index and
+                 * six dependent loads to use it, per face, to recover what was
+                 * sitting in registers here. So does clip_candidate, which the
+                 * raster pass re-derived from the same three vertex_x entries
+                 * tested above.
+                 *
+                 * A clip candidate never had its coordinates read -- the
+                 * winding is skipped for it -- so only the flag is written, and
+                 * the flag is what stops anything reading the rest.
+                 *
+                 * Only when something will READ it. The batched walk is the
+                 * one consumer -- the per-face walk goes back to the index
+                 * arrays and gets its near-clip answer from vertex_x -- so
+                 * with the batcher disarmed this is seven stores and a
+                 * six-way compare per face, to fill a buffer nobody loads.
+                 * Leaving that in would put it in the A/B baseline, where it
+                 * would read as a cost of the OLD pipeline and be credited to
+                 * the new one.
+                 */
+                if( stash_xy )
+                {
+                int* const xy = &scene->sm_face_xy[(size_t)f * 8];
+                xy[3] = clip_candidate ? 1 : 0;
+                if( !clip_candidate )
+                {
+                    /*
+                     * ORDERED BY Y, here, once, for every kernel downstream.
+                     *
+                     * Every raster kernel used to open with a six-way compare
+                     * ladder to put the three vertices in y order, and then a
+                     * permuting copy to act on the answer. Both are deleted by
+                     * doing it here: these three y values are already in
+                     * registers -- the winding above needed them -- and the
+                     * ladder is a mispredict per triangle on a part that pays
+                     * twenty pipeline stages for one.
+                     *
+                     * The `<=` tie-breaks are transcribed exactly from the C
+                     * wrappers the kernels came from. Two triangles that tie
+                     * differently stop tiling with each other, so this is part
+                     * of the contract and not a comparison order to tidy up.
+                     */
+                    int const ya = vy[a];
+                    int const yb = vy[b];
+                    int const yc = vy[c];
+                    int const perm = (ya <= yb && ya <= yc)
+                                         ? ((yb <= yc) ? 0 : 1)
+                                     : (yb <= yc) ? ((yc <= ya) ? 2 : 3)
+                                                  : ((ya <= yb) ? 4 : 5);
+                    static const unsigned char order[6][3] = {
+                        { 0, 1, 2 }, { 0, 2, 1 }, { 1, 2, 0 },
+                        { 1, 0, 2 }, { 2, 0, 1 }, { 2, 1, 0 }
+                    };
+                    unsigned char const* const o = order[perm];
+                    int const px[3] = { vx[a], vx[b], vx[c] };
+                    int const py[3] = { ya, yb, yc };
+
+                    xy[0] = px[o[0]];
+                    xy[1] = px[o[1]];
+                    xy[2] = px[o[2]];
+                    xy[4] = py[o[0]];
+                    xy[5] = py[o[1]];
+                    xy[6] = py[o[2]];
+                    /* The permutation itself, for the consumers that carry
+                     * per-vertex data of their own -- gouraud's three colours,
+                     * and the texture frame's three vertex indices. */
+                    xy[7] = perm;
+                }
+                }
 
                 if( debug_stats )
                 {
