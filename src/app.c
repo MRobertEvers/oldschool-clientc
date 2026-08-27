@@ -12972,10 +12972,21 @@ static struct ToriRS_TaskVTable Task_AppBoot_VTable = {
     .free = Task_AppBoot_Free,
 };
 
-void
-App_OpenRootInterface(
+/*
+ * Rebuild the whole tree from RevConfig, taking one layout group.
+ *
+ * The body App_OpenRootInterface and App_OpenTitleScreen share. The only
+ * things that differ between a gameframe bake and a title bake are which
+ * [layout:] group is selected, which is refused, and whether there is a root
+ * interface to mount -- the title screen has none, because no revision ships
+ * one as interface data.
+ */
+static void
+app_open_tree(
     struct App* app,
-    int interface_id)
+    int interface_id,
+    char const* layout_group,
+    char const* layout_group_exclude)
 {
     struct Task_AppBoot* task;
 
