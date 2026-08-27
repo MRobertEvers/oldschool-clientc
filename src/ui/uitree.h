@@ -108,6 +108,29 @@ enum UITreeComponentType
      * and whether there is one.
      */
     UIELEM_BUILTIN_REBOOT_TIMER = 30,
+    /*
+     * Title-screen widgets, 31-35.
+     *
+     * Builtins for the same reason MULTIWAY and REBOOT_TIMER are: no revision
+     * ships the login screen as interface data, so there is no cache pack to
+     * mount and the client has to own the widgets. What it does NOT own is how
+     * they look -- position, font, colour, the caret string, the mask, the
+     * length caps and the charset all arrive from revconfig, which is what lets
+     * one set of widgets draw both a 2004 login box and a modern one.
+     */
+    /** One credential line: prefix, value (masked if asked), blinking caret. */
+    UIELEM_BUILTIN_LOGIN_INPUT = 31,
+    /** A clickable sprite carrying a resolved RS_TitleAction. Its hit box is
+     *  its own layout box, which is what keeps click and draw from drifting --
+     *  the references compute the two from different origins and only agree by
+     *  arithmetic coincidence. */
+    UIELEM_BUILTIN_LOGIN_BUTTON = 32,
+    /** One of the three server-supplied login message lines. */
+    UIELEM_BUILTIN_LOGIN_MESSAGE = 33,
+    /** The loading bar's filled part; the track and border are rs_rect. */
+    UIELEM_BUILTIN_TITLE_PROGRESS = 34,
+    /** The loading bar's status line. */
+    UIELEM_BUILTIN_TITLE_PROGRESS_TEXT = 35,
     UIELEM_RS_TEXT = 14,     /* TYPE_TEXT */
     UIELEM_RS_GRAPHIC = 15,  /* TYPE_GRAPHIC */
     UIELEM_RS_MODEL = 16,    /* TYPE_MODEL */
@@ -395,6 +418,61 @@ struct UITreeChatButtonConfig
     int shadowed;
     char mode_label[4][16];
     int mode_color[4];
+};
+
+/**
+ * Everything a login_input needs to draw and to bound one credential field.
+ *
+ * Heap-allocated and reached through a pointer, like the chat and debug-overlay
+ * configs beside it: a login screen has two of these, the component union is
+ * shared by every one of ~7000 nodes, and a 220-byte inline member would cost
+ * more than a megabyte to serve two widgets.
+ *
+ * The charset and maxlen live here rather than in the title model because they
+ * are per-revision facts the INI states; the app copies them onto the model
+ * once the tree is baked. @see RS_TitleFieldCfg.
+ */
+/*
+ * What a login_button's click asks the host to do.
+ *
+ * A restatement of game/rs_title.h's RS_TitleAction, not an include of it: ui/
+ * is a leaf of game/, the same reason revconfig.h restates the minimenu action
+ * ids. game/rs_title.c carries the static assertions that hold the two in step,
+ * so a value added to one and forgotten in the other fails to build.
+ */
+enum UITreeTitleAction
+{
+    UITREE_TITLE_ACTION_NONE = 0,
+    UITREE_TITLE_ACTION_EXISTING_USER = 1,
+    UITREE_TITLE_ACTION_NEW_USER = 2,
+    UITREE_TITLE_ACTION_LOGIN = 3,
+    UITREE_TITLE_ACTION_CANCEL = 4,
+    UITREE_TITLE_ACTION_FOCUS_USERNAME = 5,
+    UITREE_TITLE_ACTION_FOCUS_PASSWORD = 6,
+};
+
+struct UITreeLoginInputConfig
+{
+    /** Which credential: 0 username, 1 password. Mirrors RS_TitleField, kept
+     *  as an int so ui/ stays a leaf of game/. */
+    int field;
+    int font_id;
+    int color;
+    int center;
+    int shadowed;
+    /** Blink period in client cycles; the caret shows for the first half.
+     *  0 = never blink. */
+    int caret_blink;
+    /** Drawn before the value, on the same line and in the same string --
+     *  which is how the references measure and centre it. */
+    char prefix[32];
+    /** Appended while the caret is visible, in the era's own font markup
+     *  ("@yel@|" on dat1, "<col=ffff00>|" on dat2). */
+    char caret[24];
+    /** Shown instead of the value; empty shows the value. */
+    char mask[8];
+    int maxlen;
+    char charset[160];
 };
 
 /**
@@ -825,6 +903,39 @@ struct UITreeComponent
             /** revconfig color=; text colour of the countdown line. */
             int color;
         } reboot_timer;
+        /** NULL until a spec configures the field. Read through
+         *  UITree_LoginInput, never directly. */
+        struct UITreeLoginInputConfig* login_input;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+            /** Resolved RS_TitleAction; 0 = none, and a button with none is a
+             *  typo in an INI announcing itself by doing nothing. */
+            int action;
+        } login_button;
+        struct
+        {
+            /** Which of the three login message lines, 0-2. */
+            int index;
+            int font_id;
+            int color;
+            int center;
+            int shadowed;
+        } login_message;
+        struct
+        {
+            int color;
+            /** Bar pixels per percent; 0 means fill the box at 100. */
+            int px_per_percent;
+        } title_progress;
+        struct
+        {
+            int font_id;
+            int color;
+            int center;
+            int shadowed;
+        } title_progress_text;
         /** NULL until a spec configures the overlay. Read through
          *  UITree_DebugOverlay, never directly. */
         struct UITreeDebugOverlayConfig* debug_overlay;
@@ -865,6 +976,7 @@ extern struct UITreeInvSlots const uitree_inv_slots_none;
 extern struct UITreeChatConfig const uitree_chat_none;
 extern struct UITreeDebugOverlayConfig const uitree_debug_overlay_none;
 extern struct UITreeChatButtonConfig const uitree_chat_button_none;
+extern struct UITreeLoginInputConfig const uitree_login_input_none;
 
 /** The component's chrome block, or the "none" block. Never NULL. */
 struct UITreeChatConfig const*
@@ -873,6 +985,8 @@ struct UITreeDebugOverlayConfig const*
 UITree_DebugOverlay(struct UITreeComponent const* c);
 struct UITreeChatButtonConfig const*
 UITree_ChatButton(struct UITreeComponent const* c);
+struct UITreeLoginInputConfig const*
+UITree_LoginInput(struct UITreeComponent const* c);
 
 /** The component's chrome block, allocating it on first use. */
 struct UITreeChatConfig*
@@ -881,6 +995,8 @@ struct UITreeDebugOverlayConfig*
 UITree_DebugOverlayMut(struct UITreeComponent* c);
 struct UITreeChatButtonConfig*
 UITree_ChatButtonMut(struct UITreeComponent* c);
+struct UITreeLoginInputConfig*
+UITree_LoginInputMut(struct UITreeComponent* c);
 
 /** The component's per-slot data, or the "none" block. Never NULL. */
 struct UITreeInvSlots const*
@@ -1387,6 +1503,35 @@ struct UITreeNodeSpec
             /** revconfig color=; text colour of the countdown line. */
             int color;
         } reboot_timer;
+        /* By value in the spec, by pointer on the component: the spec is one
+         * short-lived stack struct, the component is one of thousands. */
+        struct UITreeLoginInputConfig login_input;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+            int action;
+        } login_button;
+        struct
+        {
+            int index;
+            int font_id;
+            int color;
+            int center;
+            int shadowed;
+        } login_message;
+        struct
+        {
+            int color;
+            int px_per_percent;
+        } title_progress;
+        struct
+        {
+            int font_id;
+            int color;
+            int center;
+            int shadowed;
+        } title_progress_text;
         struct UITreeDebugOverlayConfig debug_overlay;
         struct UITreeChatConfig chat;
         struct UITreeChatButtonConfig chat_button;

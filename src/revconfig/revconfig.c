@@ -790,6 +790,26 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_SHADOWED";
     case RCFIELD_UICOMPONENT_TEXT:
         return "RCFIELD_UICOMPONENT_TEXT";
+    case RCFIELD_UICOMPONENT_TITLE_FIELD:
+        return "RCFIELD_UICOMPONENT_TITLE_FIELD";
+    case RCFIELD_UICOMPONENT_TITLE_PREFIX:
+        return "RCFIELD_UICOMPONENT_TITLE_PREFIX";
+    case RCFIELD_UICOMPONENT_TITLE_CARET:
+        return "RCFIELD_UICOMPONENT_TITLE_CARET";
+    case RCFIELD_UICOMPONENT_TITLE_CARET_BLINK:
+        return "RCFIELD_UICOMPONENT_TITLE_CARET_BLINK";
+    case RCFIELD_UICOMPONENT_TITLE_MASK:
+        return "RCFIELD_UICOMPONENT_TITLE_MASK";
+    case RCFIELD_UICOMPONENT_TITLE_MAXLEN:
+        return "RCFIELD_UICOMPONENT_TITLE_MAXLEN";
+    case RCFIELD_UICOMPONENT_TITLE_CHARSET:
+        return "RCFIELD_UICOMPONENT_TITLE_CHARSET";
+    case RCFIELD_UICOMPONENT_TITLE_ACTION:
+        return "RCFIELD_UICOMPONENT_TITLE_ACTION";
+    case RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX:
+        return "RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX";
+    case RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT:
+        return "RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT";
     case RCFIELD_UICOMPONENT_OPTION:
         return "RCFIELD_UICOMPONENT_OPTION";
     case RCFIELD_UICOMPONENT_OPTION_ACTION:
@@ -1504,6 +1524,42 @@ revconfig_item_apply_uicomponent_field(
     case RCFIELD_UICOMPONENT_TEXT:
         strncpy(comp->text, value, sizeof(comp->text) - 1);
         comp->text[sizeof(comp->text) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_FIELD:
+        strncpy(comp->title_field, value, sizeof(comp->title_field) - 1);
+        comp->title_field[sizeof(comp->title_field) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_PREFIX:
+        strncpy(comp->title_prefix, value, sizeof(comp->title_prefix) - 1);
+        comp->title_prefix[sizeof(comp->title_prefix) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_CARET:
+        strncpy(comp->title_caret, value, sizeof(comp->title_caret) - 1);
+        comp->title_caret[sizeof(comp->title_caret) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_CARET_BLINK:
+        comp->title_caret_blink = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_MASK:
+        strncpy(comp->title_mask, value, sizeof(comp->title_mask) - 1);
+        comp->title_mask[sizeof(comp->title_mask) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_MAXLEN:
+        comp->title_maxlen = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_CHARSET:
+        strncpy(comp->title_charset, value, sizeof(comp->title_charset) - 1);
+        comp->title_charset[sizeof(comp->title_charset) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_ACTION:
+        strncpy(comp->title_action, value, sizeof(comp->title_action) - 1);
+        comp->title_action[sizeof(comp->title_action) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX:
+        comp->title_message_index = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT:
+        comp->title_px_per_percent = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_OPTION:
         strncpy(comp->option, value, sizeof(comp->option) - 1);

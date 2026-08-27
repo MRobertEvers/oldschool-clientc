@@ -10,6 +10,7 @@
 #include "engine/uitree_from_component.h"
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_cs2_host.h"
+#include "game/rs_title.h"
 #include "input/torirs_keymap.h"
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
@@ -39,6 +40,16 @@ type_from_string(char const* type)
         return UIELEM_BUILTIN_MULTIWAY;
     if( strcmp(type, "reboot_timer") == 0 )
         return UIELEM_BUILTIN_REBOOT_TIMER;
+    if( strcmp(type, "login_input") == 0 )
+        return UIELEM_BUILTIN_LOGIN_INPUT;
+    if( strcmp(type, "login_button") == 0 )
+        return UIELEM_BUILTIN_LOGIN_BUTTON;
+    if( strcmp(type, "login_message") == 0 )
+        return UIELEM_BUILTIN_LOGIN_MESSAGE;
+    if( strcmp(type, "title_progress") == 0 )
+        return UIELEM_BUILTIN_TITLE_PROGRESS;
+    if( strcmp(type, "title_progress_text") == 0 )
+        return UIELEM_BUILTIN_TITLE_PROGRESS_TEXT;
     if( strcmp(type, "minimenu") == 0 )
         return UIELEM_BUILTIN_MINIMENU;
     if( strcmp(type, "minimap") == 0 )
@@ -82,6 +93,25 @@ type_from_string(char const* type)
     if( strcmp(type, "rs_rect") == 0 )
         return UIELEM_RS_RECT;
     return UIELEM_BUILTIN_SPRITE;
+}
+
+/*
+ * A component's font: the revconfig `font=` name when it has one, else the
+ * dat2 archive id the cache carried. -1 when neither resolves, which every
+ * caller treats as a missing asset rather than a default.
+ */
+static int
+bake_op_font_id(
+    struct UITreeBuilder const* builder,
+    struct UIBuilderTreeOp const* op)
+{
+    assert(builder);
+    assert(op);
+    if( op->has_font_ref && op->font_ref[0] )
+        return UITreeBuilder_ResolveFontName(builder, op->font_ref);
+    if( op->font >= 0 )
+        return UITreeBuilder_ResolveFontArchive(builder, op->font);
+    return -1;
 }
 
 static enum UITreeSlotTag
@@ -706,6 +736,58 @@ push_builtin_op(
         {
             spec.u.reboot_timer.font_id = UITreeBuilder_ResolveFontArchive(builder, op->font);
         }
+        break;
+    /*
+     * Title-screen widgets. Every one is always_dirty: what they draw is the
+     * host's, and a blinking caret or a moving bar that the retention gate
+     * decided was unchanged is a frozen login screen.
+     */
+    case UIELEM_BUILTIN_LOGIN_INPUT:
+        spec.always_dirty = 1;
+        spec.u.login_input.field = strcmp(op->title_field, "password") == 0 ? 1 : 0;
+        spec.u.login_input.color = op->color;
+        spec.u.login_input.center = op->center;
+        spec.u.login_input.shadowed = op->shadowed;
+        spec.u.login_input.caret_blink = op->title_caret_blink;
+        spec.u.login_input.maxlen = op->title_maxlen;
+        strncpy(spec.u.login_input.prefix, op->title_prefix, sizeof(spec.u.login_input.prefix) - 1);
+        strncpy(spec.u.login_input.caret, op->title_caret, sizeof(spec.u.login_input.caret) - 1);
+        strncpy(spec.u.login_input.mask, op->title_mask, sizeof(spec.u.login_input.mask) - 1);
+        strncpy(
+            spec.u.login_input.charset, op->title_charset, sizeof(spec.u.login_input.charset) - 1);
+        spec.u.login_input.font_id = bake_op_font_id(builder, op);
+        assert(spec.u.login_input.font_id >= 0 && "login_input font missing");
+        break;
+    case UIELEM_BUILTIN_LOGIN_BUTTON:
+        spec.u.login_button.scene_id = sprite_id;
+        spec.u.login_button.atlas_index = atlas_index;
+        spec.u.login_button.action = RS_Title_ActionFromName(op->title_action);
+        /* A button whose action= did not resolve would sit there swallowing
+         * clicks and doing nothing, which is the hardest kind of INI typo to
+         * see. Name it here instead. */
+        assert(spec.u.login_button.action != 0 && "login_button action= unknown");
+        break;
+    case UIELEM_BUILTIN_LOGIN_MESSAGE:
+        spec.always_dirty = 1;
+        spec.u.login_message.index = op->title_message_index;
+        spec.u.login_message.color = op->color;
+        spec.u.login_message.center = op->center;
+        spec.u.login_message.shadowed = op->shadowed;
+        spec.u.login_message.font_id = bake_op_font_id(builder, op);
+        assert(spec.u.login_message.font_id >= 0 && "login_message font missing");
+        break;
+    case UIELEM_BUILTIN_TITLE_PROGRESS:
+        spec.always_dirty = 1;
+        spec.u.title_progress.color = op->color;
+        spec.u.title_progress.px_per_percent = op->title_px_per_percent;
+        break;
+    case UIELEM_BUILTIN_TITLE_PROGRESS_TEXT:
+        spec.always_dirty = 1;
+        spec.u.title_progress_text.color = op->color;
+        spec.u.title_progress_text.center = op->center;
+        spec.u.title_progress_text.shadowed = op->shadowed;
+        spec.u.title_progress_text.font_id = bake_op_font_id(builder, op);
+        assert(spec.u.title_progress_text.font_id >= 0 && "title_progress_text font missing");
         break;
     case UIELEM_BUILTIN_ENTITY_OVERLAY:
         spec.always_dirty = 1;

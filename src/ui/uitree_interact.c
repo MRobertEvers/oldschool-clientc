@@ -1425,6 +1425,37 @@ interact_click(
             out->need_redraw = 1;
             return;
         }
+        if( hit_c->type == UIELEM_BUILTIN_LOGIN_BUTTON )
+        {
+            /* Dispatched here rather than reported like the chat button: the
+             * title screen has no plugin layer that could own this rectangle,
+             * and the action is already resolved on the node. The hit box is
+             * the node's own layout box, which is what keeps click and draw
+             * from drifting -- both references compute the two from different
+             * origins and only agree by arithmetic coincidence. */
+            struct UITreeHostRequest action_req = {
+                .kind = UITREE_HOST_TITLE_ACTION,
+                .u.title_action.action = hit_c->u.login_button.action,
+            };
+            UITree_Host(ui_host, &action_req);
+            out->need_redraw = 1;
+            return;
+        }
+        if( hit_c->type == UIELEM_BUILTIN_LOGIN_INPUT )
+        {
+            /* Click-to-focus. The reference tests only the y band and never
+             * the x, so a click anywhere on the row lands -- reproduced by
+             * making the row's own box the target. */
+            struct UITreeHostRequest action_req = {
+                .kind = UITREE_HOST_TITLE_ACTION,
+                .u.title_action.action = UITree_LoginInput(hit_c)->field == 1
+                                             ? UITREE_TITLE_ACTION_FOCUS_PASSWORD
+                                             : UITREE_TITLE_ACTION_FOCUS_USERNAME,
+            };
+            UITree_Host(ui_host, &action_req);
+            out->need_redraw = 1;
+            return;
+        }
         if( hit_c->type == UIELEM_BUILTIN_MINIMAP )
         {
             /* Minimap click-to-walk: the widget has no component id, so it

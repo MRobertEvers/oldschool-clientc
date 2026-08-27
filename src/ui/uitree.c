@@ -645,6 +645,7 @@ UITree_InvSlotsMut(struct UITreeComponent* c)
 struct UITreeChatConfig const uitree_chat_none = { 0 };
 struct UITreeDebugOverlayConfig const uitree_debug_overlay_none = { 0 };
 struct UITreeChatButtonConfig const uitree_chat_button_none = { 0 };
+struct UITreeLoginInputConfig const uitree_login_input_none = { 0 };
 
 struct UITreeChatConfig const*
 UITree_Chat(struct UITreeComponent const* c)
@@ -704,6 +705,26 @@ UITree_ChatButtonMut(struct UITreeComponent* c)
         *c->u.chat_button = uitree_chat_button_none;
     }
     return c->u.chat_button;
+}
+
+struct UITreeLoginInputConfig const*
+UITree_LoginInput(struct UITreeComponent const* c)
+{
+    assert(c);
+    return c->u.login_input ? c->u.login_input : &uitree_login_input_none;
+}
+
+struct UITreeLoginInputConfig*
+UITree_LoginInputMut(struct UITreeComponent* c)
+{
+    assert(c);
+    if( !c->u.login_input )
+    {
+        c->u.login_input = malloc(sizeof(*c->u.login_input));
+        assert(c->u.login_input);
+        *c->u.login_input = uitree_login_input_none;
+    }
+    return c->u.login_input;
 }
 
 struct UITreeRuntimeHooks*
@@ -1289,6 +1310,16 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "compass";
     case UIELEM_BUILTIN_CROSS:
         return "cross";
+    case UIELEM_BUILTIN_LOGIN_INPUT:
+        return "login_input";
+    case UIELEM_BUILTIN_LOGIN_BUTTON:
+        return "login_button";
+    case UIELEM_BUILTIN_LOGIN_MESSAGE:
+        return "login_message";
+    case UIELEM_BUILTIN_TITLE_PROGRESS:
+        return "title_progress";
+    case UIELEM_BUILTIN_TITLE_PROGRESS_TEXT:
+        return "title_progress_text";
     case UIELEM_BUILTIN_MINIMENU:
         return "minimenu";
     case UIELEM_BUILTIN_HOVERTEXT:
@@ -1408,6 +1439,11 @@ uitree_component_free_owned(struct UITreeComponent* c)
     {
         free(c->u.chat_button);
         c->u.chat_button = NULL;
+    }
+    if( c->type == UIELEM_BUILTIN_LOGIN_INPUT )
+    {
+        free(c->u.login_input);
+        c->u.login_input = NULL;
     }
     free(c->child_key_index);
     c->child_key_index = NULL;
@@ -2302,6 +2338,36 @@ UITree_Push(
         *UITree_ChatButtonMut(component) = spec->u.chat_button;
         component->is_dirty = 1;
         uitree_topo_bump(tree, __LINE__);
+        break;
+
+    case UIELEM_BUILTIN_LOGIN_INPUT:
+        *UITree_LoginInputMut(component) = spec->u.login_input;
+        break;
+
+    case UIELEM_BUILTIN_LOGIN_BUTTON:
+        component->u.login_button.scene_id = spec->u.login_button.scene_id;
+        component->u.login_button.atlas_index = spec->u.login_button.atlas_index;
+        component->u.login_button.action = spec->u.login_button.action;
+        break;
+
+    case UIELEM_BUILTIN_LOGIN_MESSAGE:
+        component->u.login_message.index = spec->u.login_message.index;
+        component->u.login_message.font_id = spec->u.login_message.font_id;
+        component->u.login_message.color = spec->u.login_message.color;
+        component->u.login_message.center = spec->u.login_message.center;
+        component->u.login_message.shadowed = spec->u.login_message.shadowed;
+        break;
+
+    case UIELEM_BUILTIN_TITLE_PROGRESS:
+        component->u.title_progress.color = spec->u.title_progress.color;
+        component->u.title_progress.px_per_percent = spec->u.title_progress.px_per_percent;
+        break;
+
+    case UIELEM_BUILTIN_TITLE_PROGRESS_TEXT:
+        component->u.title_progress_text.font_id = spec->u.title_progress_text.font_id;
+        component->u.title_progress_text.color = spec->u.title_progress_text.color;
+        component->u.title_progress_text.center = spec->u.title_progress_text.center;
+        component->u.title_progress_text.shadowed = spec->u.title_progress_text.shadowed;
         break;
 
     case UIELEM_BUILTIN_REDSTONE_TAB:

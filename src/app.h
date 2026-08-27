@@ -12,6 +12,7 @@
 #include "features/features.h"
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
+#include "game/rs_title.h"
 #include "net/rev/revpacket.h"
 #include "game/rs_cs1_host.h"
 #include "game/rs_cs2_host.h"
@@ -565,6 +566,34 @@ enum AppState
 {
     APP_STATE_BOOTING = 0,
     APP_STATE_READY,
+};
+
+/**
+ * Which screen the session is on, orthogonal to AppState.
+ *
+ * AppState is a per-BAKE lifecycle -- it flips to BOOTING every time a tree is
+ * rebuilt and back when that build finishes -- so it cannot say whether the
+ * tree being built is the title screen or the gameframe. This says that, and
+ * the two run independently: a title tree can be BOOTING, and so can the
+ * gameframe that replaces it.
+ *
+ * The values are the deob's own gameState numbers, so a state lifted from that
+ * reference reads across without a translation table. Its 25 (map load), 40
+ * (connection lost) and 45 (world hop) are deliberately not here: this client
+ * already draws all three as overlays inside a live gameframe, which is what
+ * they are.
+ */
+enum AppScreen
+{
+    /** Engine coming up; no title tree rooted yet. deob 0/5. */
+    APP_SCREEN_BOOT = 0,
+    /** Title tree rooted; RS_Title says which of its screens shows. deob 10. */
+    APP_SCREEN_TITLE = 10,
+    /** Login handshake in flight. The title tree stays up and keeps drawing --
+     *  that is where "Connecting to server..." appears. deob 20. */
+    APP_SCREEN_CONNECTING = 20,
+    /** Gameframe rooted. deob 25/30. */
+    APP_SCREEN_GAME = 30,
 };
 
 /* One deferred element<->sequence binding (animation still loading). */
@@ -1449,6 +1478,14 @@ struct App
      *  model (the host hands chat_view to the emit walk). */
     struct RS_Chat chat;
     struct UIChatView chat_view;
+    /** Pre-game screen state: which title screen is up, what is typed into
+     *  its fields, and the reply lines the login response filled in.
+     *  @see AppScreen for how it relates to the session as a whole. */
+    struct RS_Title title;
+    /** Per-frame scratch the title host requests hand out. Frame-lifetime
+     *  pointers, the same contract as the hovertext and reboot-timer strings:
+     *  composed during the emit walk, read before the next one. */
+    char title_field_line[RS_TITLE_FIELD_LEN + 64];
     /** Frames the left button has been held over the chat scrollbar (reference
      *  scrollCycle); drives arrow-scroll acceleration and gates grip drag. */
     int chat_scroll_cycle;
@@ -1912,6 +1949,9 @@ struct App
 
     /* Async lifecycle state (no blocking IO outside the platform pump). */
     int app_state;     /* enum AppState */
+    /** enum AppScreen. Orthogonal to app_state: that says whether the current
+     *  tree has finished baking, this says which tree it is. */
+    int screen;
     int boot_progress; /* 0..100, drives the loading bar while BOOTING */
     /* Boot pump accounting (TORIRS_BOOT_STATS): how many frames the boot took,
      * how many scheduler steps ran in total, and how many of those frames hit

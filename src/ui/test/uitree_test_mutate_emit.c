@@ -375,6 +375,14 @@ test_host_input_epochs(void)
         [UITREE_HOST_GET_MINIMAP_HIDDEN] = client | world,
         [UITREE_HOST_GET_MULTIWAY] = world,
         [UITREE_HOST_GET_REBOOT_TIMER] = client | animation,
+        [UITREE_HOST_GET_TITLE_SCREEN] = client,
+        /* The caret's blink is the clock, so this line is animation too --
+         * without that bit the gate retains the frame the caret should have
+         * flipped on and the cursor freezes. */
+        [UITREE_HOST_GET_TITLE_FIELD] = client | animation,
+        [UITREE_HOST_GET_TITLE_MESSAGE] = client,
+        [UITREE_HOST_GET_TITLE_PROGRESS] = client,
+        [UITREE_HOST_TITLE_ACTION] = 0,
         [UITREE_HOST_GET_MINIMAP_DOTS] = camera | world | overlays,
         [UITREE_HOST_GET_ENTITY_OVERLAYS] = camera | world | overlays,
         [UITREE_HOST_GET_CANVAS_OVERLAYS] = overlays,

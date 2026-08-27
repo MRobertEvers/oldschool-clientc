@@ -277,6 +277,29 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_SHADOWED;
     else if( strcmp(key, "text") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_TEXT;
+    /* Title-screen widget keys. `field=`, `action=`, `index=` and `mask=` are
+     * ordinary words, so all of these are scoped to [component:…] the way the
+     * rest of the component vocabulary is. */
+    else if( strcmp(key, "field") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_FIELD;
+    else if( strcmp(key, "prefix") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_PREFIX;
+    else if( strcmp(key, "caret") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_CARET;
+    else if( strcmp(key, "caret_blink") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_CARET_BLINK;
+    else if( strcmp(key, "mask") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_MASK;
+    else if( strcmp(key, "maxlen") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_MAXLEN;
+    else if( strcmp(key, "charset") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_CHARSET;
+    else if( strcmp(key, "action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_ACTION;
+    else if( strcmp(key, "index") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX;
+    else if( strcmp(key, "px_per_percent") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT;
     else if( strcmp(key, "option") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_OPTION;
     else if( strcmp(key, "option_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )

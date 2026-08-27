@@ -182,6 +182,16 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_OVER_COLOR,
     RCFIELD_UICOMPONENT_SHADOWED,
     RCFIELD_UICOMPONENT_TEXT,
+    RCFIELD_UICOMPONENT_TITLE_FIELD,
+    RCFIELD_UICOMPONENT_TITLE_PREFIX,
+    RCFIELD_UICOMPONENT_TITLE_CARET,
+    RCFIELD_UICOMPONENT_TITLE_CARET_BLINK,
+    RCFIELD_UICOMPONENT_TITLE_MASK,
+    RCFIELD_UICOMPONENT_TITLE_MAXLEN,
+    RCFIELD_UICOMPONENT_TITLE_CHARSET,
+    RCFIELD_UICOMPONENT_TITLE_ACTION,
+    RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX,
+    RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT,
     RCFIELD_UICOMPONENT_OPTION,
     RCFIELD_UICOMPONENT_OPTION_ACTION,
     RCFIELD_UICOMPONENT_OP0,
@@ -763,6 +773,78 @@ struct RevConfigUIComponentItem
 
     /* INI: text= — literal string for static type=rs_text owners (not cache-backed). */
     char text[256];
+
+    /*
+     * Title-screen widgets (type=login_input / login_button / login_message /
+     * title_progress*). The title screen is not a cache interface -- no
+     * revision ships one as widget data -- so it is built from client widgets
+     * whose every appearance decision is stated here rather than in C.
+     *
+     * INI: field= — which credential a login_input edits: username | password.
+     */
+    char title_field[16];
+
+    /*
+     * INI: prefix=
+     * Drawn before the value on the same line, because the reference draws the
+     * label and the value as ONE string ("Username: bob") and centring or
+     * measuring them separately would not reproduce it.
+     */
+    char title_prefix[32];
+
+    /*
+     * INI: caret=
+     * What a focused field appends while the caret is visible. The two lanes
+     * spell the same idea differently -- "@yel@|" on dat1, "<col=ffff00>|" on
+     * dat2 -- because it is the era's own font-markup dialect, so it is a
+     * string here and not a colour plus a flag.
+     */
+    char title_caret[24];
+
+    /*
+     * INI: caret_blink=  (default 0 = never blink)
+     * Blink period in client cycles; the caret shows for the first half. Both
+     * references use 40, and both write it as a bare constant.
+     */
+    int title_caret_blink;
+
+    /*
+     * INI: mask=
+     * Character a login_input shows instead of its value. Empty means show the
+     * text. Only the first character is used.
+     */
+    char title_mask[8];
+
+    /* INI: maxlen= — characters the field accepts. @see RS_TitleFieldCfg. */
+    int title_maxlen;
+
+    /*
+     * INI: charset=
+     * Characters the field accepts; empty accepts anything printable. The old
+     * lane states the reference's 94-character set, because a glyph the
+     * revision's font lacks is one the player cannot see.
+     */
+    char title_charset[160];
+
+    /*
+     * INI: action=
+     * What a login_button does: existing_user | new_user | login | cancel |
+     * focus_username | focus_password. A name rather than a screen number, so
+     * the INI states an intent. @see RS_Title_ActionFromName.
+     */
+    char title_action[32];
+
+    /* INI: index= — which of the three login message lines a login_message
+     * draws (0-2). */
+    int title_message_index;
+
+    /*
+     * INI: px_per_percent=  (default 0 = fill the declared width at 100)
+     * Bar pixels per percent for title_progress. Both references write the fill
+     * as `percent * 3` over a 300-wide track, and stating the scale keeps a
+     * revision that sizes its bar differently from needing new C.
+     */
+    int title_px_per_percent;
 
     /* INI: option= / op0=..op4= — minimenu row labels for static/builtin owners. */
     char option[REVCONFIG_MENU_OPTION_LEN];

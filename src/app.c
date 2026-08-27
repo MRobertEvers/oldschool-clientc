@@ -5235,6 +5235,110 @@ app_reboot_timer_text(struct App* app)
     return app->reboot_timer_text;
 }
 
+/*
+ * The blink period the title tree's focused input asks for, or 0 when nothing
+ * on screen blinks.
+ *
+ * Read off the tree rather than kept on App because it is the widget's
+ * property: two revisions may spell the caret differently and time it
+ * differently, and both say so in their own INI.
+ */
+static int
+app_title_caret_blink(struct App const* app)
+{
+    assert(app);
+    if( !app->tree )
+        return 0;
+    for( uint32_t i = 0; i < app->tree->component_count; i++ )
+    {
+        struct UITreeComponent const* comp = &app->tree->components[i];
+        if( comp->freed || comp->type != UIELEM_BUILTIN_LOGIN_INPUT )
+            continue;
+        if( UITree_LoginInput(comp)->field != app->title.focus )
+            continue;
+        return UITree_LoginInput(comp)->caret_blink;
+    }
+    return 0;
+}
+
+/*
+ * The title screen's state changed: redraw, and tell the retention gate.
+ *
+ * Both halves matter. Without the epoch bump the emit walk reuses last frame's
+ * command buffer and the typed character never appears; without need_redraw
+ * the frame loop may not present at all.
+ */
+static void
+app_title_state_changed(struct App* app)
+{
+    assert(app);
+    UITree_HostInputsChanged(
+        &app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE));
+    app->need_redraw = 1;
+}
+
+/*
+ * Compose one credential line: prefix, the value (masked if the widget asked),
+ * and the caret when this field has focus and the blink is showing.
+ *
+ * The host composes it rather than the widget because the pieces belong to
+ * different owners -- the value and the focus are the model's, the blink is the
+ * client's clock, and the spelling of the prefix, the mask and the caret are
+ * the revision's. The reference draws exactly this, as one string, because
+ * centring or measuring the label separately from the value would not
+ * reproduce it (Client-TS titleScreenDraw, deob method8166).
+ *
+ * The returned pointer is App-owned and lives until the next call: the same
+ * frame lifetime the hovertext and reboot-timer strings have.
+ */
+static int
+app_title_field_line(
+    struct App* app,
+    struct UITreeHostRequest* req)
+{
+    struct UITreeLoginInputConfig const* cfg = req->u.get_title_field.config;
+    char const* value;
+    char masked[RS_TITLE_FIELD_LEN];
+    int focused;
+    int caret_showing = 0;
+
+    assert(app);
+    assert(cfg);
+
+    if( app->screen != APP_SCREEN_TITLE && app->screen != APP_SCREEN_CONNECTING )
+        return 0;
+    if( cfg->field < 0 || cfg->field >= RS_TITLE_FIELD_COUNT )
+        return 0;
+
+    value = RS_Title_FieldText(&app->title, (enum RS_TitleField)cfg->field);
+    if( cfg->mask[0] != '\0' )
+    {
+        size_t len = strlen(value);
+        if( len >= sizeof(masked) )
+            len = sizeof(masked) - 1;
+        memset(masked, cfg->mask[0], len);
+        masked[len] = '\0';
+        value = masked;
+    }
+
+    focused = app->title.focus == cfg->field;
+    if( focused && cfg->caret_blink > 0 )
+        caret_showing = (int)(app->logic_cycle % (uint64_t)cfg->caret_blink) < cfg->caret_blink / 2;
+
+    snprintf(
+        app->title_field_line,
+        sizeof(app->title_field_line),
+        "%s%s%s",
+        cfg->prefix,
+        value,
+        caret_showing ? cfg->caret : "");
+
+    if( req->u.get_title_field.out_focused )
+        *req->u.get_title_field.out_focused = focused;
+    *req->u.get_title_field.out_text = app->title_field_line;
+    return 1;
+}
+
 static int
 app_host_request(
     void* user,
@@ -5388,6 +5492,37 @@ app_host_request(
         assert(req->u.get_reboot_timer.out_text);
         *req->u.get_reboot_timer.out_text = app_reboot_timer_text(app);
         return *req->u.get_reboot_timer.out_text != NULL;
+    case UITREE_HOST_GET_TITLE_SCREEN:
+        /* -1 rather than 0: 0 is a real screen (the front menu), so "not on
+         * the title screen at all" needs a value of its own. */
+        if( app->screen != APP_SCREEN_TITLE && app->screen != APP_SCREEN_CONNECTING )
+            return -1;
+        return (int)app->title.screen;
+    case UITREE_HOST_GET_TITLE_FIELD:
+        assert(req->u.get_title_field.config);
+        assert(req->u.get_title_field.out_text);
+        return app_title_field_line(app, req);
+    case UITREE_HOST_GET_TITLE_MESSAGE:
+    {
+        int index = req->u.get_title_message.index;
+        assert(req->u.get_title_message.out_text);
+        if( index < 0 || index >= RS_TITLE_MESSAGE_LINES )
+            return 0;
+        *req->u.get_title_message.out_text = app->title.messages[index];
+        return app->title.messages[index][0] != '\0';
+    }
+    case UITREE_HOST_GET_TITLE_PROGRESS:
+        assert(req->u.get_title_progress.out_percent);
+        assert(req->u.get_title_progress.out_text);
+        *req->u.get_title_progress.out_percent = app->title.progress_percent;
+        *req->u.get_title_progress.out_text = app->title.progress_text;
+        return app->title.progress_percent >= 0;
+    case UITREE_HOST_TITLE_ACTION:
+        if( RS_Title_HandleAction(&app->title, (enum RS_TitleAction)req->u.title_action.action) )
+        {
+            app_title_state_changed(app);
+        }
+        return 0;
     case UITREE_HOST_GET_MINIMAP_DOTS:
         return App_MinimapBuildDots(app, req->u.get_minimap_dots.out_dots);
     case UITREE_HOST_GET_WORLDMAP_TILES:
@@ -5826,6 +5961,22 @@ app_ui_host_publish_inputs(struct App* app)
         signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
             signature[UITREE_HOST_INPUT_ANIMATION],
             app->reboot_timer / APP_LOGIC_CYCLES_PER_SECOND);
+    /*
+     * The login caret's blink phase, and only the phase.
+     *
+     * Hashing logic_cycle itself would bump the animation epoch every frame
+     * and the title screen would never retain anything; hashing the half of
+     * the period the caret is in flips the epoch exactly twice per blink,
+     * which is how often the screen actually changes. The period is the
+     * widget's (revconfig caret_blink=), so the client asks the tree for it.
+     */
+    if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
+    {
+        int blink = app_title_caret_blink(app);
+        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_ANIMATION],
+            blink > 0 ? (int)(app->logic_cycle % (uint64_t)blink) < blink / 2 : 0);
+    }
     signature[UITREE_HOST_INPUT_ANIMATION] =
         app_ui_input_hash_int(signature[UITREE_HOST_INPUT_ANIMATION], app->slots.flash_tab);
     if( app->slots.flash_tab >= 0 )
@@ -8587,6 +8738,7 @@ App_Init(
      * resolves the parts the first time the preview asks for a rebuild. */
     RS_IdkDesign_Init(&app->idk_design);
     RS_Chat_Init(&app->chat, "Player");
+    RS_Title_Init(&app->title);
     /* No hardcoded welcome line: the server sends the real "Welcome to
      * RuneScape." MESSAGE_GAME packet on login (reference has no client-side
      * welcome message; its only "Welcome to RuneScape" is the login title). */

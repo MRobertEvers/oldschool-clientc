@@ -125,6 +125,17 @@ struct UIBuilderTreeOp
     int over_color;
     int shadowed;
     char text[256];
+    /* Title-screen widgets; @see RevConfigUIComponentItem's title_* block. */
+    char title_field[16];
+    char title_prefix[32];
+    char title_caret[24];
+    int title_caret_blink;
+    char title_mask[8];
+    int title_maxlen;
+    char title_charset[160];
+    char title_action[32];
+    int title_message_index;
+    int title_px_per_percent;
     int button_type;
     int client_code;
     char option[REVCONFIG_MENU_OPTION_LEN];
