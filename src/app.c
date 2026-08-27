@@ -6,6 +6,7 @@
  * rides along, so a plugin capture costs no new dependency. */
 #include "miniz.h"
 #include "bootmanifest/bootmanifest.h"
+#include "revconfig/revconfig_load.h"
 #if !defined(TORIRS_PLATFORM_WEB)
 /* The dat1 cache source that is a LostCity server rather than a directory.
  * Native only: a browser build has no host cache to replace, and its reads
@@ -9239,11 +9240,38 @@ App_Init(
         app->button_sink.if_button = app_send_if_button;
         app->button_sink.resume_pausebutton = app_send_resume_pausebutton;
         app->button_sink.close_modal = app_send_close_modal;
-        ToriRS_Network_ConnectLogin(
-            app->net,
-            cfg->connect_target,
-            cfg->connect_user ? cfg->connect_user : "guest",
+        /*
+         * Dialling is NOT done here any more.
+         *
+         * It used to be: App_Init opened the socket with whatever credentials
+         * the command line carried, before a single frame had been drawn. That
+         * left no room for a login screen -- by the time anything could be
+         * shown, the handshake had already happened.
+         *
+         * The connect now happens on submit (app_title_submit), which is the
+         * one path a clicked Login, a pressed Enter and an autologin all take.
+         * A profile with no title screen still connects without one: see
+         * app_title_tick's autologin branch.
+         *
+         * Credentials are kept for that submit rather than passed here. The old
+         * "guest"/"" defaults are gone with the call: absent credentials now
+         * mean an interactive login form, which is the point.
+         */
+        snprintf(
+            app->autologin_user,
+            sizeof(app->autologin_user),
+            "%s",
+            cfg->connect_user ? cfg->connect_user : "");
+        snprintf(
+            app->autologin_pass,
+            sizeof(app->autologin_pass),
+            "%s",
             cfg->connect_pass ? cfg->connect_pass : "");
+        snprintf(
+            app->connect_target,
+            sizeof(app->connect_target),
+            "%s",
+            cfg->connect_target);
     }
 }
 
@@ -13035,6 +13063,18 @@ app_open_tree(
      * being asked to root to — the manifest's boot interface on the first call,
      * the server's IF_SETTOPLEVEL group on a display-mode remount. */
     app->builder.root_interface_id = interface_id;
+    /* Which [layout:] group this bake takes, and which it refuses. The
+     * gameframe refuses the title group so the title screen's widgets -- and
+     * their every-frame repaint -- never enter the in-game tree. */
+    app->builder.layout_group[0] = '\0';
+    app->builder.layout_group_exclude[0] = '\0';
+    if( layout_group )
+        strncpy(app->builder.layout_group, layout_group, sizeof(app->builder.layout_group) - 1);
+    if( layout_group_exclude )
+        strncpy(
+            app->builder.layout_group_exclude,
+            layout_group_exclude,
+            sizeof(app->builder.layout_group_exclude) - 1);
     /* Bake remaps sprite/font ids to scene ids so the tree renders directly. */
     app->builder.bridge = &app->bridge;
     /* Where a component's `role=` is interned. The table outlives the tree, so
@@ -13058,6 +13098,38 @@ app_open_tree(
     task->app = app;
     PT_INIT(&task->pt);
     ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+}
+
+void
+App_OpenRootInterface(
+    struct App* app,
+    int interface_id)
+{
+    assert(app);
+    app->screen = APP_SCREEN_GAME;
+    app_open_tree(app, interface_id, NULL, APP_TITLE_LAYOUT_GROUP);
+}
+
+int
+App_HasTitleScreen(struct App const* app)
+{
+    assert(app);
+    /* Undeclared means absent, the whole revconfig contract: a profile that
+     * names no [layout:title] has no title screen and must boot straight into
+     * the game, the way every offline and bench manifest here already does. */
+    return app->cfg.revconfig_ui_ini && app->cfg.revconfig_ui_ini[0] &&
+           revconfig_ini_has_layout_group(app->cfg.revconfig_ui_ini, APP_TITLE_LAYOUT_GROUP);
+}
+
+void
+App_OpenTitleScreen(struct App* app)
+{
+    assert(app);
+    /* No root interface: the title screen is client widgets over a cache
+     * background, and the gameframe the server will re-root to does not exist
+     * until a login succeeds. */
+    app->screen = APP_SCREEN_TITLE;
+    app_open_tree(app, -1, APP_TITLE_LAYOUT_GROUP, NULL);
 }
 
 /* IF_OPENSUB wrapper: mount a cache interface pack under a component slot of an
@@ -14192,6 +14264,110 @@ app_pump_net_packets(struct App* app)
     return redraw;
 }
 
+/*
+ * Submit whatever is in the login form.
+ *
+ * The one path a clicked Login, an Enter on the password and an autologin all
+ * take, which is what makes the scripted lanes exercise the login screen
+ * instead of going around it.
+ */
+static void
+app_title_submit(struct App* app)
+{
+    char const* user;
+    char const* pass;
+
+    assert(app);
+    app->title.submit_requested = 0;
+
+    if( !app->net_enabled || !app->net )
+        return;
+
+    user = RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME);
+    pass = RS_Title_FieldText(&app->title, RS_TITLE_FIELD_PASSWORD);
+    /* Nothing to send. Left on the form rather than dialled with an empty
+     * name, which every server answers with a rejection the player then has
+     * to read as if it meant something. */
+    if( user[0] == '\0' )
+        return;
+
+    RS_Title_SetMessages(&app->title, "", "Connecting to server...", "");
+    app->screen = APP_SCREEN_CONNECTING;
+    app_title_state_changed(app);
+    ToriRS_Network_ConnectLogin(app->net, app->connect_target, user, pass);
+}
+
+/*
+ * The title screen's own tick: autologin, submit, and the login result.
+ *
+ * Runs while the session is on the title screen or connecting through it. The
+ * frame loop keeps drawing throughout, which is where "Connecting to
+ * server..." appears -- the reference does the same, and it is the reason the
+ * connect had to come out of App_Init.
+ */
+static int
+app_title_tick(struct App* app)
+{
+    int redraw = 0;
+
+    assert(app);
+
+    /*
+     * A networked profile that declares no title screen still has to log in.
+     *
+     * Any manifest whose revconfig predates [layout:title] is in that
+     * position: it boots straight to the gameframe, so there is no screen to
+     * show progress on -- but the credentials still have to reach the server,
+     * which is what App_Init used to do before the connect moved to submit.
+     */
+    if( app->net_enabled && app->net && !app->autologin_done &&
+        app->screen == APP_SCREEN_GAME && app->autologin_user[0] )
+    {
+        app->autologin_done = 1;
+        ToriRS_Network_ConnectLogin(
+            app->net, app->connect_target, app->autologin_user, app->autologin_pass);
+        return 0;
+    }
+
+    if( app->screen != APP_SCREEN_TITLE && app->screen != APP_SCREEN_CONNECTING )
+        return 0;
+    /* Nothing to submit into until the title tree is up. */
+    if( app->app_state != APP_STATE_READY )
+        return 0;
+
+    /*
+     * Credentials from the command line or the manifest: prefill and submit
+     * once. Once, because a rejected login must land back on the form rather
+     * than dial again forever.
+     */
+    if( !app->autologin_done && app->autologin_user[0] && app->screen == APP_SCREEN_TITLE )
+    {
+        app->autologin_done = 1;
+        RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_USERNAME, app->autologin_user);
+        RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_PASSWORD, app->autologin_pass);
+        RS_Title_SetScreen(&app->title, RS_TITLE_LOGIN_FORM);
+        app->title.submit_requested = 1;
+        redraw = 1;
+    }
+
+    if( app->title.submit_requested )
+    {
+        app_title_submit(app);
+        redraw = 1;
+    }
+
+    /* The handshake finished: the server's IF_OPENTOP roots the gameframe,
+     * exactly as a networked boot used to do straight out of App_Init. */
+    if( app->screen == APP_SCREEN_CONNECTING && app->net &&
+        app->net->state == TORIRS_NET_GAME )
+    {
+        App_OpenRootInterface(app, -1);
+        return 1;
+    }
+
+    return redraw;
+}
+
 /* One 20ms client tick: clock, widget timers, animation loads + advance. */
 static int
 app_logic_tick(struct App* app)
@@ -14199,6 +14375,9 @@ app_logic_tick(struct App* app)
     int redraw = 0;
 
     app->logic_cycle++;
+
+    if( app_title_tick(app) )
+        redraw = 1;
 
     /*
      * System-update countdown (reference gameLoop: `if (rebootTimer > 1)
@@ -27419,6 +27598,9 @@ App_RunOnce(
     uint64_t now_ms,
     struct LibToriRS_Input* input)
 {
+    /* Set below: the login form drained this frame's keys, so the in-game
+     * key passes must not also act on them. */
+    int title_captures_keys = 0;
     struct UIInteractOut out;
     int ran_cs2 = 0;
     int plugin_pointer_owned = 0;
@@ -28536,7 +28718,30 @@ App_RunOnce(
      * Focus itself is not decided here: app_chat_focus_tick above owns it for
      * every revision, because a cache chatbox has a focus state too and only
      * its *typing* is a clientscript's. What is left below is the typing. */
-    if( app_chat_node_index(app) >= 0 && !app->locedit_visible )
+    /*
+     * The title screen takes every key, ahead of all the in-game routing.
+     *
+     * Ahead of it AND to the exclusion of it: the game's key passes are not
+     * merely irrelevant on a login form, they are wrong. The chat branch below
+     * would decline on its own (a title tree has no chat node), but the camera
+     * keys and the hotkey passes further down would happily act on a keystroke
+     * meant for a password.
+     */
+    title_captures_keys =
+        app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING;
+    if( title_captures_keys )
+    {
+        for( int e = 0; e < input->key_event_count; e++ )
+        {
+            if( RS_Title_HandleKey(
+                    &app->title,
+                    input->key_events[e].key_typed,
+                    input->key_events[e].key_pressed) )
+                app_title_state_changed(app);
+        }
+    }
+
+    if( !title_captures_keys && app_chat_node_index(app) >= 0 && !app->locedit_visible )
     {
         int chat_captures =
             app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open;
@@ -28776,14 +28981,19 @@ App_RunOnce(
         app->need_redraw = 1;
     }
 
-    app_world_camera_keys(app, input, &out);
-    app_world_camera_mouse(app, input, &out);
-    /* Before the debug world hotkeys: a configured binding claims its key so
-     * the same press cannot also spawn something. */
-    app_ui_hotkeys(app, input);
-    app_world_hotkeys(app, input, &out);
-    app_inv_drag_tick(app, input, plugin_pointer_consumed);
-    app_worldmap_drag_tick(app, input, plugin_pointer_consumed);
+    /* Every one of these reads the same key queue the login form just drained;
+     * none of them has anything to act on before a world exists. */
+    if( !title_captures_keys )
+    {
+        app_world_camera_keys(app, input, &out);
+        app_world_camera_mouse(app, input, &out);
+        /* Before the debug world hotkeys: a configured binding claims its key
+         * so the same press cannot also spawn something. */
+        app_ui_hotkeys(app, input);
+        app_world_hotkeys(app, input, &out);
+        app_inv_drag_tick(app, input, plugin_pointer_consumed);
+        app_worldmap_drag_tick(app, input, plugin_pointer_consumed);
+    }
 
     /* Idle timer (reference IDLE_TIMER after ~90s of no input). */
     if( input->key_event_count > 0 || input->curr.mouse_button_down[TORIRSM_LEFT] ||

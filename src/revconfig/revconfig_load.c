@@ -574,6 +574,42 @@ revconfig_load_fields_from_ini(
 }
 
 int
+revconfig_ini_has_layout_group(
+    const char* filename,
+    const char* group)
+{
+    char line[512];
+    char wanted[64];
+    int found = 0;
+    size_t wanted_len;
+    FILE* file;
+
+    assert(filename);
+    assert(group);
+    if( !filename[0] || !group[0] )
+        return 0;
+
+    snprintf(wanted, sizeof(wanted), "[layout:%s]", group);
+    wanted_len = strlen(wanted);
+
+    file = fopen(filename, "r");
+    if( !file )
+        return 0;
+
+    while( !found && fgets(line, sizeof(line), file) )
+    {
+        char const* scan = line;
+        while( *scan == ' ' || *scan == '\t' )
+            scan++;
+        if( strncmp(scan, wanted, wanted_len) == 0 )
+            found = 1;
+    }
+
+    fclose(file);
+    return found;
+}
+
+int
 revconfig_ini_has_prefixed_sections(
     const char* filename,
     const char* section_prefix)

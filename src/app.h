@@ -583,6 +583,15 @@ enum AppState
  * already draws all three as overlays inside a live gameframe, which is what
  * they are.
  */
+/**
+ * The [layout:] group holding the title screen.
+ *
+ * One string, in C, naming a group -- the same kind of knowledge as a slot tag
+ * or a role name. Every coordinate, sprite and string inside that group is
+ * the INI's.
+ */
+#define APP_TITLE_LAYOUT_GROUP "title"
+
 enum AppScreen
 {
     /** Engine coming up; no title tree rooted yet. deob 0/5. */
@@ -1504,6 +1513,21 @@ struct App
      *  pointer so app.h need not include the net headers. */
     struct ToriRS_Network* net;
     int net_enabled;
+    /**
+     * Credentials to submit, from --user/--pass or the manifest's [net:boot].
+     *
+     * Kept rather than dialled with: the connect happens on submit now, so
+     * these prefill the form and drive the one automatic submit. Empty means
+     * an interactive login -- the old "guest"/"" defaults went with the call
+     * that used them.
+     */
+    char autologin_user[64];
+    char autologin_pass[64];
+    /** [net:boot] address, kept for the same reason. */
+    char connect_target[256];
+    /** Cleared once the automatic submit has fired, so a failed login returns
+     *  to the form instead of retrying by itself forever. */
+    int autologin_done;
 
     /*
      * Connection loss and re-establishment (reference `lostCon`, Client-TS
@@ -2605,6 +2629,26 @@ void
 App_OpenRootInterface(
     struct App* app,
     int interface_id);
+
+/**
+ * Does this profile declare a title screen?
+ *
+ * Undeclared means absent, the standing revconfig contract: a profile with no
+ * [layout:title] boots straight into the game, which is what every offline,
+ * bench and map-editor manifest here wants.
+ */
+int
+App_HasTitleScreen(struct App const* app);
+
+/**
+ * Bake the title screen as the tree root and put the session on APP_SCREEN_TITLE.
+ *
+ * Same machinery as App_OpenRootInterface -- clear, rebuild, re-stamp roles --
+ * with the title [layout:] group selected and no root interface to mount,
+ * because no revision ships its login screen as interface data.
+ */
+void
+App_OpenTitleScreen(struct App* app);
 
 /** IF_OPENSUB (rev-230 openSubInterface): mount a cache interface group under a
  *  component slot of the open root. target_uid = packed (parent<<16|child) of
