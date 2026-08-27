@@ -143,6 +143,13 @@ struct ToriRSServerVessel
     int name_descriptor;
     int name_noun;
 
+    /** The template zone base this deck was filled from (absolute tiles;
+     *  -1,-1 before the deck is built). The facility dbrows state their
+     *  placements as template-absolute coords, so content's deck-furnishing
+     *  proc needs the base to rebase them onto the instance. */
+    int deck_src_x;
+    int deck_src_z;
+
     /** Deck map-instance handle (1-based), owned by this vessel: spawned with
      *  it, released by ToriRSServer_VesselFree. */
     int instance;

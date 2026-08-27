@@ -7228,6 +7228,27 @@ ToriRSServer_SendInvStopTransmit(
  *  otherwise UPDATE_ZONE_PARTIAL_FOLLOWS, which does not. Coordinates are in
  *  zone units. */
 void
+ToriRSServer_SendZoneHeaderAt(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int level,
+    int full,
+    int origin_tile_x,
+    int origin_tile_z);
+
+void
+ToriRSServer_SendZoneEnclosedAt(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int level,
+    const uint8_t* blob,
+    int len,
+    int origin_tile_x,
+    int origin_tile_z);
+
+void
 ToriRSServer_SendZoneHeader(
     struct ToriRSServerPlayer* player,
     int zone_x,

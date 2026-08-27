@@ -9922,6 +9922,85 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    case SS_OP_VESSEL_HERE:
+    {
+        struct ToriRSServerPlayer* player = srv->active_player;
+        struct ToriRSServerVessel* vessel =
+            player ? ToriRSServer_VesselAtTile(srv, player->x, player->z) : NULL;
+
+        SSVM_PushInt(state, vessel ? vessel->index : 0);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_SAILS:
+    {
+        int32_t handle;
+        int32_t set;
+        struct ToriRSServerVessel* vessel;
+
+        if( !SSVM_PopInt(state, &set) || !SSVM_PopInt(state, &handle) )
+            return 1;
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        if( vessel )
+        {
+            /* -1 toggles: the mast's one op is "work the sails", and content
+             * has no read-back to decide which way. */
+            vessel->sails_set = set < 0 ? !vessel->sails_set : set != 0;
+            /* Setting sail and holding position are exclusive states — the
+             * same rule the helm's own toggle keeps. */
+            if( vessel->sails_set )
+                vessel->reversing = 0;
+        }
+        SSVM_PushInt(state, vessel ? vessel->sails_set : 0);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_HELM:
+    {
+        int32_t handle;
+        struct ToriRSServerVessel* vessel;
+        struct ToriRSServerPlayer* player = srv->active_player;
+
+        if( !SSVM_PopInt(state, &handle) )
+            return 1;
+        if( !player )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        if( handle == 0 )
+        {
+            player->navigating_vessel = 0;
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        if( !vessel )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        if( player->navigating_vessel == vessel->index )
+        {
+            /* The helm's one op toggles: steering already, so step away. */
+            player->navigating_vessel = 0;
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        player->navigating_vessel = vessel->index;
+        player->navigating_vessel_serial = vessel->serial;
+        /* Hold the current heading so turning and reversing act immediately —
+         * taking the helm is not a movement order in itself (the ::helm
+         * cheat's rule, kept exactly). */
+        ToriRSServer_VesselSetHeading(
+            vessel,
+            ((vessel->angle + TORIRSSERVER_VESSEL_HEADING_STEP / 2) /
+             TORIRSSERVER_VESSEL_HEADING_STEP) &
+                15);
+        SSVM_PushInt(state, 1);
+        return 1;
+    }
+
     case SS_OP_NPC_SETRESPAWN:
     {
         int32_t delay;

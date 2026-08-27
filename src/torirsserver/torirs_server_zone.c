@@ -31,6 +31,7 @@
 #include "torirs_server_vessel.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -584,7 +585,12 @@ ToriRSServer_ZoneLocChanged(
      * keeping the record would make a tree that is felled and regrows every
      * thirty seconds accumulate one entry per cycle for the life of the world.
      */
-    if( loc->loc_id == loc->base_loc_id && loc->angle == loc->base_angle )
+    /* A customised MENU is a change even when the loc is not: `loc_add_op`
+     * over a map square's own loc (the deck facilities — the template parks
+     * the mast, the placement arms its "Work") must survive as a record, or
+     * the boarding resync replays a bare, unclickable baseline. */
+    if( loc->loc_id == loc->base_loc_id && loc->angle == loc->base_angle &&
+        ToriRSServer_LocOpsIsDefault(&loc->ops) )
     {
         int i = (int)(loc - zone->locs);
 
@@ -1601,7 +1607,9 @@ ToriRSServer_PlayerCrossFrameNpcs(
 static void
 write_state(
     struct ToriRSServerPlayer* player,
-    struct ToriRSServerZone* zone)
+    struct ToriRSServerZone* zone,
+    int origin_tile_x,
+    int origin_tile_z)
 {
     struct ToriRSServer* srv = player->world;
 
@@ -1629,8 +1637,15 @@ write_state(
             uint8_t one[256];
             int written = ToriRSServer_EncodeZoneSub(srv->wire, one, (int)sizeof(one), &event);
             if( written > 0 )
-                ToriRSServer_SendZoneEnclosed(player, obj->x >> 3, obj->z >> 3,
-                                            obj->level, one, written);
+            {
+                if( origin_tile_x == INT_MIN )
+                    ToriRSServer_SendZoneEnclosed(player, obj->x >> 3, obj->z >> 3,
+                                                obj->level, one, written);
+                else
+                    ToriRSServer_SendZoneEnclosedAt(player, obj->x >> 3, obj->z >> 3,
+                                                  obj->level, one, written,
+                                                  origin_tile_x, origin_tile_z);
+            }
         }
     }
     for( int i = 0; i < zone->loc_count; i++ )
@@ -1781,6 +1796,24 @@ deck_zone_flush(struct ToriRSServerPlayer* player)
     if( !ToriRSServer_MapInstanceBase(deck->instance, &base_x, &base_z) )
         return;
     ToriRSServer_VesselDeckZones(deck, &zones_x, &zones_z);
+    if( fresh && srv->verbose )
+    {
+        int loc_total = 0;
+
+        for( int level = 0; level < 4; level++ )
+            for( int zx = 0; zx < zones_x; zx++ )
+                for( int zz = 0; zz < zones_z; zz++ )
+                {
+                    struct ToriRSServerZone* z =
+                        zone_find(srv, base_x + zx * 8, base_z + zz * 8, level);
+
+                    if( z )
+                        loc_total += z->loc_count;
+                }
+        fprintf(stderr,
+                "torirsserver: deck flush fresh=%d view=%d base=%d,%d zones=%dx%d locs=%d\n",
+                fresh, deck->view_id, base_x, base_z, zones_x, zones_z, loc_total);
+    }
 
     for( int level = 0; level < 4; level++ )
         for( int zx = 0; zx < zones_x; zx++ )
@@ -1788,7 +1821,14 @@ deck_zone_flush(struct ToriRSServerPlayer* player)
             {
                 int zone_x = base_x / 8 + zx;
                 int zone_z = base_z / 8 + zz;
-                struct ToriRSServerZone* zone = zone_find(srv, zone_x, zone_z, level);
+                /* zone_find's contract is TILE coordinates (it shifts
+                 * internally, same as zone_at) — the root flush's own lookup
+                 * spells it `zx << 3`. Passing the zone number probed the
+                 * zone that CONTAINS tile (zone_x, zone_z), i.e. somewhere in
+                 * map square 100,1, and the whole boarding resync read empty
+                 * zones there while the deck's real records sat unqueried. */
+                struct ToriRSServerZone* zone =
+                    zone_find(srv, zone_x << 3, zone_z << 3, level);
 
                 if( fresh )
                 {
@@ -1802,9 +1842,14 @@ deck_zone_flush(struct ToriRSServerPlayer* player)
                         ToriRSServer_SendSetActiveWorldId(player, deck->view_id, deck->level);
                         sandwich_open = 1;
                     }
-                    ToriRSServer_SendZoneHeader(player, zone_x, zone_z, level, 1);
+                    /* View-relative: inside the sandwich the client resolves
+                     * the header against the deck view's world, whose base is
+                     * the instance base — the root-relative spelling wraps
+                     * its one-byte fields and files the state at garbage. */
+                    ToriRSServer_SendZoneHeaderAt(player, zone_x, zone_z, level, 1, base_x,
+                                                base_z);
                     if( zone )
-                        write_state(player, zone);
+                        write_state(player, zone, base_x, base_z);
                     continue;
                 }
 
@@ -1819,8 +1864,9 @@ deck_zone_flush(struct ToriRSServerPlayer* player)
                         ToriRSServer_SendSetActiveWorldId(player, deck->view_id, deck->level);
                         sandwich_open = 1;
                     }
-                    ToriRSServer_SendZoneEnclosed(
-                        player, zone_x, zone_z, level, zone->shared, zone->shared_len);
+                    ToriRSServer_SendZoneEnclosedAt(player, zone_x, zone_z, level,
+                                                  zone->shared, zone->shared_len, base_x,
+                                                  base_z);
                 }
 
                 for( int e = 0; e < zone->event_count; e++ )
@@ -1836,7 +1882,8 @@ deck_zone_flush(struct ToriRSServerPlayer* player)
                     }
                     if( ToriRSServer_ZoneSubStandalone(srv->wire, event->kind) )
                     {
-                        ToriRSServer_SendZoneHeader(player, zone_x, zone_z, level, 0);
+                        ToriRSServer_SendZoneHeaderAt(player, zone_x, zone_z, level, 0,
+                                                    base_x, base_z);
                         ToriRSServer_SendZoneSub(player, event);
                         continue;
                     }
@@ -1846,8 +1893,8 @@ deck_zone_flush(struct ToriRSServerPlayer* player)
                             srv->wire, one, (int)sizeof(one), event);
 
                         if( written > 0 )
-                            ToriRSServer_SendZoneEnclosed(
-                                player, zone_x, zone_z, level, one, written);
+                            ToriRSServer_SendZoneEnclosedAt(player, zone_x, zone_z, level,
+                                                          one, written, base_x, base_z);
                     }
                 }
             }
@@ -1936,7 +1983,7 @@ ToriRSServer_ZoneUpdatePlayer(struct ToriRSServerPlayer* player)
             {
                 ToriRSServer_SendZoneHeader(player, zone_x, zone_z, zone_level, 1);
                 if( zone )
-                    write_state(player, zone);
+                    write_state(player, zone, INT_MIN, INT_MIN);
             }
             entry->loaded = 1;
             continue;

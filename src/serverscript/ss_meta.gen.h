@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11094] = {
+static const char* const g_ss_opcode_names[11097] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -505,6 +505,9 @@ static const char* const g_ss_opcode_names[11094] = {
     [11091] = "VESSEL_SETSPEED",
     [11092] = "VESSEL_POS",
     [11093] = "VESSEL_FREE",
+    [11094] = "VESSEL_HERE",
+    [11095] = "VESSEL_SAILS",
+    [11096] = "VESSEL_HELM",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -514,7 +517,7 @@ static const char* const g_ss_opcode_names[11094] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11094] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11097] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -1013,6 +1016,9 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11094] = {
     [11091] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_SETSPEED */
     [11092] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_POS */
     [11093] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_FREE */
+    [11094] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_HERE */
+    [11095] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_SAILS */
+    [11096] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_HELM */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

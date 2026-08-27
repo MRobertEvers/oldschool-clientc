@@ -348,6 +348,8 @@ ToriRSServer_VesselSpawn(
         vessel->name_descriptor = 1 + (slot * 7) % 20;
         vessel->name_noun = 1 + (slot * 13 + 5) % 20;
     }
+    vessel->deck_src_x = -1;
+    vessel->deck_src_z = -1;
     vessel->instance = instance;
     vessel->level = level;
     vessel->fine_x = tile_x * TORIRSSERVER_VESSEL_FINE_PER_TILE + 64;

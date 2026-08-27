@@ -3807,6 +3807,43 @@ zone_base(
  * Both are fixed together: the window now spans all four planes
  * (`rebuild_active`), so this has to be told which one it is describing.
  */
+/* The sandwich form: a deck zone is addressed inside SET_ACTIVE_WORLD, and
+ * the client resolves its header against the VIEW's world — whose base is the
+ * instance base, not the receiving player's root scene origin. The one-byte
+ * wire fields wrap on anything else: a deck zone is thousands of tiles from
+ * every root origin, and the wrapped base filed the boarding resync's loc
+ * state at garbage tiles the view silently refused. */
+void
+ToriRSServer_SendZoneHeaderAt(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int level,
+    int full,
+    int origin_tile_x,
+    int origin_tile_z)
+{
+    struct RSAreaBuf buf;
+    int base_x = zone_x * TORIRSSERVER_ZONE_TILES - origin_tile_x;
+    int base_z = zone_z * TORIRSSERVER_ZONE_TILES - origin_tile_z;
+
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        int name = full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS;
+
+        if( pl && pl->zone_header )
+            pl->zone_header(&buf, name, base_x, base_z, level);
+        else
+        {
+            rsab_p1(&buf, base_x);
+            rsab_p1(&buf, base_z);
+        }
+    }
+    flush(player, &buf, full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS,
+          0);
+}
+
 void
 ToriRSServer_SendZoneHeader(
     struct ToriRSServerPlayer* player,
@@ -4121,6 +4158,42 @@ ToriRSServer_SendZoneSub(
 }
 
 /* `level` is the zone's plane — same reason as ToriRSServer_SendZoneHeader. */
+/* Enclosed batch with an explicit origin — the deck sandwich's spelling; see
+ * ToriRSServer_SendZoneHeaderAt. */
+void
+ToriRSServer_SendZoneEnclosedAt(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int level,
+    const uint8_t* blob,
+    int len,
+    int origin_tile_x,
+    int origin_tile_z)
+{
+    struct RSAreaBuf buf;
+    int base_x = zone_x * TORIRSSERVER_ZONE_TILES - origin_tile_x;
+    int base_z = zone_z * TORIRSSERVER_ZONE_TILES - origin_tile_z;
+
+    if( len <= 0 )
+        return;
+    open_packet(&buf, (size_t)len + 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+        if( pl && pl->zone_header )
+            pl->zone_header(&buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, base_x, base_z,
+                            level);
+        else
+        {
+            rsab_p1(&buf, base_x);
+            rsab_p1(&buf, base_z);
+        }
+    }
+    rsab_pdata(&buf, blob, (size_t)len);
+    flush(player, &buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, 2);
+}
+
 void
 ToriRSServer_SendZoneEnclosed(
     struct ToriRSServerPlayer* player,

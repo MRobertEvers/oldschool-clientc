@@ -7186,6 +7186,16 @@ cheat_npc_from_name(
  * deck (plane 1) and the quarterdeck (plane 2) are authored, and which of them
  * a client draws is `WevConfig.plane`'s answer, not this function's.
  */
+/* A packed coord at the DECK PLANE — the plane every real hull's walkable
+ * planking (and so every facility dbrow coord) is authored on. */
+static int32_t
+coord_pack_deck(
+    int tile_x,
+    int tile_z)
+{
+    return (int32_t)((1 << 28) | (tile_x << 14) | tile_z);
+}
+
 static void
 vessel_deck_fill_from(
     struct ToriRSServerVessel* vessel,
@@ -7200,6 +7210,8 @@ vessel_deck_fill_from(
     assert(src_z >= 0);
 
     ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
+    vessel->deck_src_x = src_x;
+    vessel->deck_src_z = src_z;
     for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
         for( int zx = 0; zx < zones_x; zx++ )
             for( int zz = 0; zz < zones_z; zz++ )
@@ -8244,6 +8256,22 @@ handle_cheat(
         vessel_deck_fill_from(vessel, src_x, src_z);
         ToriRSServer_MapInstanceBuild(vessel->instance);
         ToriRSServer_WorldMapInstanceBuilt(srv, vessel->instance);
+        /* The deck exists; content furnishes it. The facility dbrows state
+         * their placements as TEMPLATE-absolute coords, so the proc gets the
+         * instance base and the template base and rebases. Optional by
+         * construction — a pack without the proc pays one failed lookup and
+         * spawns a bare deck, exactly as before. */
+        {
+            int32_t args[4] = { (int32_t)handle, (int32_t)config_id,
+                                (int32_t)coord_pack_deck(base_tile_x, base_tile_z),
+                                (int32_t)coord_pack_deck(src_x, src_z) };
+
+            int ran = ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_deck_built]", args, 4);
+
+            if( srv->verbose )
+                fprintf(stderr, "torirsserver: sailing_deck_built ran=%d handle=%d config=%d\n",
+                        ran, handle, config_id);
+        }
 
         say(srv, "Vessel %d (config %d, view %d) at %d,%d; deck %d,%d.", handle,
             config_id, vessel->view_id, tile_x, tile_z, base_tile_x, base_tile_z);
