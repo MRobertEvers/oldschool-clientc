@@ -1637,9 +1637,22 @@ struct ToriRS_PluginApi
     /**
      * Claim the frame for this plugin.
      *
-     * `canvas` is enum ToriRS_PluginLayoutCanvas. `fixed_w`/`fixed_h` are read
-     * only for CANVAS_FIXED and are the pinned canvas; FOLLOW_WINDOW ignores
-     * them and takes the window's size.
+     * `canvas` is enum ToriRS_PluginLayoutCanvas. `fixed_w`/`fixed_h` are the
+     * pinned canvas for CANVAS_FIXED; for FOLLOW_WINDOW they are the SMALLEST
+     * canvas this layout can be declared against, and the window's size is used
+     * everywhere above it.
+     *
+     * A minimum rather than nothing, because the client's own floor is the
+     * classic frame's 765x503 and that floor is a statement about a REVCONFIG
+     * gameframe: every rev-230 child is authored as an inset off it, so a
+     * smaller canvas gives them zero-sized viewports. A plugin layout is
+     * authored as arithmetic on the canvas it is handed and has no such
+     * breaking point -- a phone-shaped frame is narrower than 765 and is not
+     * thereby broken. Whoever computes the frame is who knows how small it can
+     * be computed, so the claim is where that number belongs.
+     *
+     * Passing the classic frame's own size here is what a desktop layout should
+     * do, and it reproduces the client's floor exactly.
      *
      * Idempotent for the plugin that already holds it, which is what makes a
      * claim in the START handler and a re-claim after a config change the same
@@ -2302,6 +2315,25 @@ struct ToriRS_PluginApi
      *
      * @return 1 when a component with that id was found and dispatched.
      */
+    /**
+     * Show or hide the on-screen keyboard.
+     *
+     * The one verb a touch frame needs that a desktop one never did: a phone
+     * has no keys until something asks for them, and this client's chat input
+     * has always assumed a keyboard was simply there.
+     *
+     * It reaches SDL's text-input mode, which is the same switch on every
+     * backend that HAS a soft keyboard -- Android, iOS and emscripten alike --
+     * so a plugin asking for a keyboard gets one on a device and in a browser
+     * without knowing which it is running in. On a desktop backend it governs
+     * only whether SDL_TEXTINPUT events arrive, and the shell leaves that on,
+     * so asking there is harmless and shows nothing.
+     *
+     * Asking does NOT hand the chat the keyboard. What the typing reaches is
+     * whatever the client has focused, exactly as it is for a physical key.
+     */
+    void (*text_input)(struct ToriRS_PluginCtx* ctx, int on);
+
     int (*if_click)(struct ToriRS_PluginCtx* ctx, int component_id, int op);
 
     /**

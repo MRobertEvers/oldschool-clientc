@@ -275,6 +275,7 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     free(scene->tmp_flex_prio11_face_to_depth);
     free(scene->tmp_flex_prio12_face_to_depth);
     free(scene->sm_face_depth);
+    free(scene->sm_face_xy);
     free(scene->sm_depth_offset);
     free(scene->sm_depth_cursor);
     free(scene->sm_faces_by_depth);
@@ -323,6 +324,11 @@ ToriDraw_SceneAllocBuffers(
     if( caps->small_mode )
     {
         scene->sm_face_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
+        /* Eight ints per face; see the field for the layout and for why the
+         * depth sort fills it. Capacity is max_faces, but the region actually
+         * touched is num_faces of whichever model is being drawn, which is a
+         * few hundred bytes for the median one. */
+        scene->sm_face_xy = malloc((size_t)caps->max_faces * 8 * sizeof(int));
         /* calloc, not malloc: the counting sort never clears this table whole.
          * Each sort re-zeroes only the [min, max + 1] window it dirtied after
          * its consumer has walked it, so the all-zero state is established
@@ -338,6 +344,7 @@ ToriDraw_SceneAllocBuffers(
             malloc((size_t)caps->flex_prio12 * sizeof(int));
 
         assert(scene->sm_face_depth);
+        assert(scene->sm_face_xy);
         assert(scene->sm_depth_offset);
         assert(scene->sm_depth_cursor);
         assert(scene->sm_faces_by_depth);
@@ -840,8 +847,11 @@ sd_render_with_kernel_painter(
     if( cull != TORIDRAW_CULL_VISIBLE )
         return cull;
 
+    /* The one caller that goes on to raster in software through the stock
+     * branching kernels, which is the batched walk's only door. Everything
+     * else uses the plain sort next door. */
     if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
-        ToriDraw_RenderModel2SortFaces(hnd, scene);
+        ToriDraw_RenderModel2SortFacesPresorted(hnd, scene);
 
     return ToriDraw_RasterPainter(scene, hnd, view_port, camera, pixel_buffer, kernel)
                ? TORIDRAW_CULL_VISIBLE
@@ -981,15 +991,51 @@ ToriDraw_RenderModel1Project(
     return ToriDraw_Project(scene, hnd, position, view_port, camera);
 }
 
+/*
+ * Sort this model's faces back to front.
+ *
+ * This is the plain entry and it does NOT leave the pre-sort store behind. Use
+ * it whenever the faces are going anywhere except the batched software raster
+ * walk -- which is every D3D9 and GL renderer, the HD path, the sprite baker
+ * and the tests. They read the order out of tmp_face_order and nothing else,
+ * and filling sm_face_xy for them is seven stores and a six-way compare per
+ * drawn face into a buffer none of them loads.
+ */
 int
 ToriDraw_RenderModel2SortFaces(
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Scene* scene)
 {
     if( scene->flags & TORIDRAW_SCENE_SMALL )
-        ToriDraw_ComputeProjectedFaceOrderSmall(scene, hnd);
+        ToriDraw_ComputeProjectedFaceOrderSmall(scene, hnd, false);
     else
-        ToriDraw_ComputeProjectedFaceOrder(scene, hnd);
+        ToriDraw_ComputeProjectedFaceOrder(scene, hnd, false);
+    return scene->tmp_face_order_count;
+}
+
+/*
+ * The same sort, leaving the y ordering behind for the batched raster walk.
+ *
+ * The sort already holds all three y values -- it needed them for the winding
+ * test -- so ordering the triangle here costs a permuted copy and saves every
+ * kernel downstream a six-way compare ladder, which is up to six unpredictable
+ * branches on a part that pays twenty pipeline stages for a mispredict.
+ *
+ * Only worth calling if the batched walk will actually run on the result. It
+ * may decline: a full-mode scene has no sm_face_xy to fill, and
+ * TORIDRAW_RASTER_BATCH=0 asks for the old pipeline. Either way the sort
+ * records what it did in scene->sm_face_xy_valid and the walk reads that, so
+ * asking for the store and not getting it is safe rather than silent.
+ */
+int
+ToriDraw_RenderModel2SortFacesPresorted(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene)
+{
+    if( scene->flags & TORIDRAW_SCENE_SMALL )
+        ToriDraw_ComputeProjectedFaceOrderSmall(scene, hnd, true);
+    else
+        ToriDraw_ComputeProjectedFaceOrder(scene, hnd, true);
     return scene->tmp_face_order_count;
 }
 

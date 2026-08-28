@@ -806,6 +806,37 @@ struct ToriDraw_Scene
     int* tmp_flex_prio12_face_to_depth;
 
     faceint_t* sm_face_depth;
+
+    /*
+     * The six screen coordinates of each accepted face, stashed by the depth
+     * sort so nothing downstream has to gather them again.
+     *
+     * Eight ints per face: x0,x1,x2, the near-clip flag, y0,y1,y2, spare. The
+     * sort already holds all six in registers -- it needs them for the winding
+     * cross product -- and used to throw them away, leaving the raster pass to
+     * re-read them through face_indices_a/b/c into screen_vertices_x/y, which
+     * is nine dependent loads per face to recover what was in hand a moment
+     * earlier. Writing them out costs six stores into a region that is a few
+     * hundred bytes for a typical model and therefore always hot.
+     *
+     * The flag in lane 3 is the sort's `clip_candidate`, carried for the same
+     * reason: the raster pass re-derived it by reading the same three vertex_x
+     * entries the sort had already tested.
+     *
+     * Only faces the sort ACCEPTED have meaningful entries, and only they can
+     * appear in tmp_face_order, so no consumer can read a stale one.
+     */
+    int* sm_face_xy;
+    /*
+     * Whether the LAST sort actually filled sm_face_xy, which is not the same
+     * question as whether the build can. Three things have to hold -- the
+     * caller asked (ToriDraw_RenderModel2SortFacesPresorted rather than the
+     * plain entry), the batched kernels are armed, and this is a small-mode
+     * scene, since sm_face_xy is allocated nowhere else. The batched raster
+     * walk requires this rather than re-deriving it, so the side that writes
+     * the buffer and the side that reads it cannot disagree.
+     */
+    int sm_face_xy_valid;
     int* sm_depth_offset;
     int* sm_depth_cursor;
     faceint_t* sm_faces_by_depth;

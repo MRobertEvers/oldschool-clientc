@@ -12,6 +12,7 @@
 #include <string.h>
 #include <xteas.h>
 
+#include "rscache_log.h"
 #define NON_OSRS_PACKED_ARCHIVE_FORMAT 5
 
 static uint32_t
@@ -278,7 +279,7 @@ RSCache_ArchiveDecryptDecompress(
         break;
     }
     default:
-        printf("Unknown compression method: %d\n", compression);
+        RSCACHE_LOG("Unknown compression method: %d\n", compression);
         assert("Unknown compression method" && 0);
         return false;
     }

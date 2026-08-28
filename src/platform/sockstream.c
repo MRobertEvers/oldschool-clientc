@@ -363,8 +363,28 @@ sockstream_recv(
     else if( received == 0 )
     {
         // Connection closed
+        /*
+         * An ORDERLY close, which this layer cannot judge and must not narrate.
+         *
+         * recv() returning 0 means the peer shut its write side down. Whether
+         * that is a failure depends entirely on what the caller was reading,
+         * and every caller already decides: platform_x_http.c and
+         * platform_x_io_ondemand.c BREAK on it, because an HTTP/1.0 body ends
+         * exactly this way, while net_transport_ws.c and platform_socket.c
+         * treat it as a dead connection. The return code carries that
+         * distinction; a line of stderr from in here cannot.
+         *
+         * It was doing real damage. Booting the rev-289 world fetches nine jag
+         * archives over HTTP, so every SUCCESSFUL boot printed nine copies of
+         * "Socket recv error: connection closed" -- and TORIRS_ERR is compiled
+         * in even at OPT=1, so this was the optimized client's loudest output
+         * and it described a client that was working correctly. On the XP box
+         * a single stderr write has been measured at about 6 ms.
+         *
+         * The two branches below keep their logs: those are errno/WSA errors,
+         * which are failures wherever they happen.
+         */
         stream->status = SOCKSTREAM_STATUS_IDLE;
-        TORIRS_ERR("Socket recv error: connection closed\n");
         return SOCKSTREAM_ERROR_CLOSED;
     }
     else

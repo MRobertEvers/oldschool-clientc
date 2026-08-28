@@ -224,7 +224,8 @@ generate(struct tri* t, int kind)
 }
 
 static int
-compare(const int* a, const int* b, const struct tri* t, int idx)
+compare(const int* a, const int* b, const struct tri* t, int idx,
+        const char* door)
 {
     int i;
 
@@ -234,14 +235,14 @@ compare(const int* a, const int* b, const struct tri* t, int idx)
         {
             int p = i - GUARD;
             if( p < 0 || p >= PIXELS )
-                printf("MISMATCH tri %d OUTSIDE the framebuffer, %d pixels "
+                printf("MISMATCH [%s] tri %d OUTSIDE the framebuffer, %d pixels "
                        "%s the picture: c=0x%08X asm=0x%08X\n",
-                       idx, ( p < 0 ) ? -p : p - PIXELS + 1,
+                       door, idx, ( p < 0 ) ? -p : p - PIXELS + 1,
                        ( p < 0 ) ? "before" : "past",
                        (unsigned)a[i], (unsigned)b[i]);
             else
-                printf("MISMATCH tri %d at (%d,%d)%s: c=0x%08X asm=0x%08X\n",
-                       idx, p % STRIDE, p / STRIDE,
+                printf("MISMATCH [%s] tri %d at (%d,%d)%s: c=0x%08X asm=0x%08X\n",
+                       door, idx, p % STRIDE, p / STRIDE,
                        ( p % STRIDE >= W )
                            ? " -- PAST THE VIEWPORT, in the stride padding"
                            : "",
@@ -266,12 +267,14 @@ main(int argc, char** argv)
 {
     int iters = ( argc > 1 ) ? atoi(argv[1]) : 200000;
     int bad = 0;
+    int bad_flat = 0;
     int i;
     /* Coverage, not correctness. Two implementations that both draw nothing
      * agree on every pixel, so the comparison alone cannot tell a working
      * kernel from a pair of early returns; these count what was actually
      * rasterized and fail the run if the generators stopped producing work. */
     int drew = 0;
+    int flat_drew = 0;
     long pixels_drawn = 0;
     int* fb_c = malloc(sizeof(*fb_c) * ALLOC);
     int* fb_a = malloc(sizeof(*fb_a) * ALLOC);
@@ -312,7 +315,7 @@ main(int argc, char** argv)
             t.shade[0], t.shade[1], t.shade[2],
             texels, t.texture_width);
 
-        toridraw_textri_opaque_lerp8_v3_asm(
+        toridraw_textri_opaque_lerp8_v3_sorting_asm(
             fb_a + GUARD, STRIDE, W, H, COT16,
             t.x[0], t.x[1], t.x[2],
             t.y[0], t.y[1], t.y[2],
@@ -335,11 +338,94 @@ main(int argc, char** argv)
             }
         }
 
-        if( compare(fb_c, fb_a, &t, i) )
+        /* Counted always, printed for the first ten. Neither pass breaks the
+         * loop any more: each door carries its own tally, so a knowingly
+         * imprecise one cannot starve the other of samples. */
+        if( memcmp(fb_c, fb_a, sizeof(*fb_c) * ALLOC) != 0 )
         {
             bad++;
-            if( bad >= 10 )
-                break;
+            if( bad <= 10 )
+                compare(fb_c, fb_a, &t, i, "blend");
+        }
+    }
+
+
+    /*
+     * Kernels 7 and 8 -- the flat doors -- in a loop of their own.
+     *
+     * WHAT IS BEING COMPARED. The reference is the blend ASM at equal shades,
+     * which tex_tri_asm.h names as these kernels' reference, and not the C.
+     * The two asm doors share every approximation in the prologue -- the
+     * packed rcpps edge slopes above all -- so at s0 == s1 == s2 they owe
+     * each other every pixel, and one differing pixel is a difference in the
+     * walk. Held against the C, this pass would inherit the blend door's own
+     * slop, which the comparison above already spends its error budget on.
+     *
+     * WHY A SEPARATE LOOP, AND WHY THE FLAT DOOR GOES FIRST IN IT. Both
+     * doors build their frame at the same esp, so whichever runs second reads
+     * back whatever the first left there. Run the blend door on triangle i
+     * first and it leaves exactly the slopes and texture plane that a flat
+     * face is supposed to compute for itself -- so a flat door that skipped
+     * its entire prologue would inherit the right answer and pass. That is
+     * not hypothetical: it is what the first two drafts of this pass did, and
+     * both scored a broken kernel as correct. Replaying the same shapes from
+     * the same seed, with the flat door leading, puts triangle i-1 in that
+     * slot instead, which is what a run of faces hands it in the client.
+     *
+     * The bug this was written for: the flat doors set P_FLAT and branched
+     * around the shade gradients, but the branch landed past the edge
+     * divides, the nine cross products of the uv plane and the prepare call
+     * as well. A flat face walked the previous triangle's edges into the
+     * previous triangle's texture frame.
+     */
+    g_seed = 20260824u;
+    for( i = 0; i < iters; i++ )
+    {
+        struct tri t;
+
+        generate(&t, i);
+
+        memset(fb_c, 0x5A, sizeof(*fb_c) * ALLOC);
+        memset(fb_a, 0x5A, sizeof(*fb_a) * ALLOC);
+
+        toridraw_textri_flat_opaque_lerp8_v3_sorting_asm(
+            fb_a + GUARD, STRIDE, W, H, COT16,
+            t.x[0], t.x[1], t.x[2],
+            t.y[0], t.y[1], t.y[2],
+            t.ox[0], t.ox[1], t.ox[2],
+            t.oy[0], t.oy[1], t.oy[2],
+            t.oz[0], t.oz[1], t.oz[2],
+            t.shade[0], t.shade[0], t.shade[0],
+            texels, t.texture_width);
+
+        toridraw_textri_opaque_lerp8_v3_sorting_asm(
+            fb_c + GUARD, STRIDE, W, H, COT16,
+            t.x[0], t.x[1], t.x[2],
+            t.y[0], t.y[1], t.y[2],
+            t.ox[0], t.ox[1], t.ox[2],
+            t.oy[0], t.oy[1], t.oy[2],
+            t.oz[0], t.oz[1], t.oz[2],
+            t.shade[0], t.shade[0], t.shade[0],
+            texels, t.texture_width);
+
+        {
+            int p;
+            int n = 0;
+            for( p = 0; p < PIXELS; p++ )
+                if( fb_c[GUARD + p] != fb_hint )
+                    n++;
+            if( n )
+            {
+                flat_drew++;
+                pixels_drawn += n;
+            }
+        }
+
+        if( memcmp(fb_c, fb_a, sizeof(*fb_c) * ALLOC) != 0 )
+        {
+            bad_flat++;
+            if( bad_flat <= 10 )
+                compare(fb_c, fb_a, &t, i, "flat");
         }
     }
 
@@ -347,6 +433,13 @@ main(int argc, char** argv)
     free(fb_a);
     free(texels);
 
+    if( bad_flat )
+    {
+        printf("FAIL: %d triangles where the flat door disagreed with the "
+               "blend door at equal shades -- the two are the same walk, "
+               "so they owe each other every pixel\n", bad_flat);
+        return 1;
+    }
     if( bad )
     {
         printf("FAIL: %d mismatching triangles\n", bad);
@@ -359,7 +452,15 @@ main(int argc, char** argv)
                "two early returns proves nothing\n", drew, iters);
         return 1;
     }
-    printf("PASS: %d triangles, every pixel identical (%d drew, %ld pixels)\n",
-           iters, drew, pixels_drawn);
+    if( flat_drew * 4 < iters )
+    {
+        printf("FAIL: only %d of %d flat triangles drew anything -- the flat "
+               "door is being compared against an early return\n",
+               flat_drew, iters);
+        return 1;
+    }
+    printf("PASS: %d triangles x 2 doors, every pixel identical "
+           "(%d blend, %d flat, %ld pixels)\n",
+           iters, drew, flat_drew, pixels_drawn);
     return 0;
 }

@@ -23,6 +23,7 @@ extern struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MOBILE_GAMEFRAME;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_ITEM_STATS;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LUA;
 
@@ -60,6 +61,10 @@ static struct ToriRS_PluginDef const* const PLUGIN_TABLE[] = {
     &TORIRS_PLUGIN_MINIMAP_ORBS,
     &TORIRS_PLUGIN_XP_ORBS,
     &TORIRS_PLUGIN_GAMEFRAME,
+    /* Beside the desktop frame, because they are alternatives to each other:
+     * only one plugin can hold the gameframe, so whichever is switched on
+     * second is told the frame is taken and stands down. */
+    &TORIRS_PLUGIN_MOBILE_GAMEFRAME,
     &TORIRS_PLUGIN_ITEM_STATS,
     &TORIRS_PLUGIN_NXT_HIGHLIGHT,
     &TORIRS_PLUGIN_NXT_BIRD_NEST,

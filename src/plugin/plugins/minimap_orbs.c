@@ -757,6 +757,33 @@ orbs_draw(
     if( !g_api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, &map_x, &map_y, &map_w, &map_h) )
         return TORIRS_PLUGIN_PASS;
 
+    /*
+     * And drawn AS PART OF the minimap, not merely beside it.
+     *
+     * Reading the map's rectangle answers where to put the orbs; it says
+     * nothing about what they ARE, and without this declaration they are a
+     * global canvas overlay -- the topmost surface the client has, painted and
+     * hit-tested above every interface in the tree. That is wrong in the two
+     * places it shows: a modal or a sidebar panel drawn over the minimap gets
+     * four orbs floating on top of it, and a click meant for that panel lands
+     * on an orb instead. Neither is visible on a plain gameframe, which is why
+     * a column that reads its position from the map can look correct for a
+     * long time while belonging to nothing.
+     *
+     * Anchored to the same role the rectangle came from, so the two cannot
+     * disagree: the orbs emit immediately after the minimap's own subtree,
+     * under the minimap's PARENT clip -- which is what lets the column hang
+     * off the map's left edge and past its bottom while still being cut by the
+     * panel that houses the map -- and they inherit its fate. A gameframe that
+     * hides, moves or rebuilds its minimap hides, moves and rebuilds these.
+     *
+     * Zero means the role did not resolve for this pass. Every declaration
+     * after it would be dropped by the host anyway; returning here says so
+     * once instead of drawing nine images into a discard.
+     */
+    if( !g_api->role_anchor(ctx, "minimap") )
+        return TORIRS_PLUGIN_PASS;
+
     /* Asked for every frame, not only at start: an image that failed its read
      * on the first attempt is retried, and a plugin re-enabled after a reload
      * has no handles at all. Both are answered by the same line, and a handle

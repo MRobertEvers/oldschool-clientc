@@ -714,6 +714,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CACHE_ARCHIVE_ID";
     case RCFIELD_CACHE_DEFAULTS_SLOT:
         return "RCFIELD_CACHE_DEFAULTS_SLOT";
+    case RCFIELD_CACHE_GROUP:
+        return "RCFIELD_CACHE_GROUP";
     case RCFIELD_CACHE_CONTAINER:
         return "RCFIELD_CACHE_CONTAINER";
     case RCFIELD_CACHE_INDEX_FILENAME:
@@ -1181,6 +1183,9 @@ revconfig_item_apply_cache_field(
     case RCFIELD_CACHE_DEFAULTS_SLOT:
         cache->defaults_slot = revconfig_parse_int(value);
         break;
+    case RCFIELD_CACHE_GROUP:
+        strncpy(cache->group, value, sizeof(cache->group) - 1);
+        break;
     case RCFIELD_CACHE_CONTAINER:
         strncpy(cache->container, value, sizeof(cache->container) - 1);
         break;
@@ -1248,6 +1253,9 @@ revconfig_item_apply_font_field(
         break;
     case RCFIELD_CACHE_FONT_ID:
         font->cache_font_id = revconfig_parse_int(value);
+        break;
+    case RCFIELD_CACHE_GROUP:
+        strncpy(font->group, value, sizeof(font->group) - 1);
         break;
     default:
         break;

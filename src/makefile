@@ -286,6 +286,7 @@ BMP_DIR      := $(REPO_ROOT)/3rd/bmp
 HMAP_DIR     := $(REPO_ROOT)/3rd/hmap
 RSAREABUF_DIR := $(REPO_ROOT)/3rd/rsareabuf
 LUA_DIR      := $(REPO_ROOT)/3rd/lua
+STB_DIR      := $(REPO_ROOT)/3rd/stb
 
 # -Werror=incompatible-pointer-types: passing a `T**` where a `T*` is wanted is
 # not a style question, it is a wrong pointer that compiles. It bit twice while
@@ -304,6 +305,7 @@ CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -Wall -Wextra \
 	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) -I$(RSAREABUF_DIR) \
 	-I$(REPO_ROOT)/3rd/miniz \
 	-I$(REPO_ROOT)/3rd/xteas \
+	-I$(STB_DIR) \
 	$(RSPROT_HDR_INCLUDES)
 
 # Just the two directories holding rsprot's headers, for the main build.
@@ -533,6 +535,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	render/torirs_frame.c render/torirs_pick.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
+	input/torirs_touch.c \
 	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
 	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
 	cs2vm2/cs2vm2_strpool.c \
@@ -544,6 +547,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	game/rs_ui_slots.c game/rs_social.c game/rs_loot_store.c game/rs_clientcode.c game/rs_if1_buttons.c \
 	game/rs_idk_design.c \
 	game/rs_chat.c game/rs_gameproto_exec.c \
+	game/rs_title.c \
 	game/rs_game_events.c \
 	game/rs_worldmap.c \
 	game/rs_worldmap_render.c \
@@ -563,7 +567,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/torirs_enum_from_rscache.c engine/torirs_struct_from_rscache.c \
 	engine/torirs_paramtype_from_rscache.c engine/torirs_db.c \
 	engine/torirs_worldmap_from_rscache.c \
-	engine/png_decode.c \
+	engine/png_decode.c engine/jpeg_decode.c \
 	engine/uitree_from_component.c engine/texture_palette_bake.c \
 	engine/dat1/dat1_buildcache.c engine/dat1/task_dat1_model_load.c \
 	engine/dat1/task_dat1_component_pack_load.c engine/dat1/task_dat1_clientscript_load.c \
@@ -679,6 +683,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	plugin/plugins/minimap_orbs.c \
 	plugin/plugins/xp_orbs.c \
 	plugin/plugins/gameframe.c \
+	plugin/plugins/mobile_gameframe.c \
 	plugin/plugins/item_stats.c \
 	plugin/plugins/nxt_highlight.c \
 	plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
@@ -837,6 +842,31 @@ GOURAUD_TRI_ASM_OBJ := $(OBJ_DIR)/gouraud_tri_asm.o
 TORIDRAW_CFLAGS     += -DTORIDRAW_GOURAUD_TRI_ASM=1
 endif
 
+# --- Hand-written flat triangle kernels -----------------------------------
+# The whole flat triangle, opaque and alpha, batched and single. A flat face is
+# a gouraud face with three equal vertex colours and the gouraud kernel draws
+# it identically -- measured over 200,000 triangles and 246 million pixels --
+# but it does so carrying a colour gradient that is zero, an accumulator that
+# never moves, and a palette lookup every four pixels instead of one for the
+# triangle. Once the colour is constant the span becomes a store loop, which is
+# the one shape on this target where a wide aligned SSE2 store is the right
+# answer rather than the wrong one.
+#
+# i686 only, and withdrawn from a probe build, for the same two reasons as the
+# gouraud kernel: no win64 twin is worth writing, and the census and ablation
+# counters live in the C.
+FLAT_TRI_ASM_SRC :=
+ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
+ifeq ($(PLATFORM),win32)
+FLAT_TRI_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/flat/flat_tri_i686.S
+endif
+endif
+
+ifneq ($(FLAT_TRI_ASM_SRC),)
+FLAT_TRI_ASM_OBJ := $(OBJ_DIR)/flat_tri_asm.o
+TORIDRAW_CFLAGS  += -DTORIDRAW_FLAT_TRI_ASM=1
+endif
+
 # --- Hand-written perspective-textured triangle kernel ---------------------
 # The WHOLE opaque textured triangle, in the same sense as the gouraud one
 # above: sort, plane build, edge divides, both trapezoid walks, and the span
@@ -892,7 +922,7 @@ EIP_SAMPLE_OBJ := $(OBJ_DIR)/toridraw_eip_sample.o
 # the Apple arm64 projection kernel and the x86 Windows texture span, each empty
 # on the lanes that do not have one. Naming the set once is what keeps a target
 # from silently reaching the C through a unity object compiled to call the asm.
-TORIDRAW_UNITY_LINK_OBJS = $(OBJ_DIR)/toridraw_unity.o $(TORIDRAW_PROJECTION_ASM_OBJ) $(TEXSPAN_ASM_OBJ) $(GOURAUD_TRI_ASM_OBJ) $(TEXTRI_ASM_OBJ) $(FB_CLEAR_ASM_OBJ) $(FRAME_AB_OBJ) $(EIP_SAMPLE_OBJ)
+TORIDRAW_UNITY_LINK_OBJS = $(OBJ_DIR)/toridraw_unity.o $(TORIDRAW_PROJECTION_ASM_OBJ) $(TEXSPAN_ASM_OBJ) $(GOURAUD_TRI_ASM_OBJ) $(TEXTRI_ASM_OBJ) $(FLAT_TRI_ASM_OBJ) $(FB_CLEAR_ASM_OBJ) $(FRAME_AB_OBJ) $(EIP_SAMPLE_OBJ)
 # Objects derived from SRCS (one .o per source, flat in OBJ_DIR) plus the
 # out-of-tree/unity extras that have their own rules below. The world_builder
 # pipeline ($(WB_OBJS), incl. wb_minimap.o â the Minimap world.h is written
@@ -912,6 +942,7 @@ OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 	$(OBJ_DIR)/tommath.o $(OBJ_DIR)/lua_unity.o \
+	$(OBJ_DIR)/stb_image_impl.o \
 	$(WB_OBJS))
 
 # World builder pipeline objects (compiled as standalone objects; world_builder.c is a single
@@ -1737,6 +1768,12 @@ $(OBJ_DIR)/torirs_plugin_lua.o: $(SRC_DIR)/plugin/torirs_plugin_lua.c | $(OBJ_DI
 $(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(RSCACHE_CFLAGS) -w -c $(RSCACHE_UNITY_SRC) -o $@
 
+# stb_image, JPEG only. -w for the same reason rscache_unity gets it: vendored
+# code is not ours to make -Wall -Wextra clean, and keeping it in its own object
+# is what lets engine/jpeg_decode.c keep every warning the build asks for.
+$(OBJ_DIR)/stb_image_impl.o: $(STB_DIR)/stb_image_impl.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -w -c $(STB_DIR)/stb_image_impl.c -o $@
+
 $(OBJ_DIR)/rsprot_unity.o: $(RSPROT_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(RSPROT_CFLAGS) -w -c $(RSPROT_UNITY_SRC) -o $@
 
@@ -1836,7 +1873,13 @@ endif
 # built out of macros) and PLATFORM_BASE_CFLAGS stays out (its -include of a C
 # header would reach the assembler as a few hundred bad instructions).
 ifneq ($(GOURAUD_TRI_ASM_SRC),)
-$(GOURAUD_TRI_ASM_OBJ): $(GOURAUD_TRI_ASM_SRC) | $(OBJ_DIR)
+$(GOURAUD_TRI_ASM_OBJ): $(GOURAUD_TRI_ASM_SRC) $(TORIDRAW_DIR)/graphics/raster/edge_slopes_i686.inc | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
+endif
+
+# Same again for the flat pair.
+ifneq ($(FLAT_TRI_ASM_SRC),)
+$(FLAT_TRI_ASM_OBJ): $(FLAT_TRI_ASM_SRC) $(TORIDRAW_DIR)/graphics/raster/edge_slopes_i686.inc | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
 endif
 
@@ -2003,6 +2046,26 @@ test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/gameframe.
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/gameframe_test
+
+# The Stone Drawer mobile gameframe, same harness. What it asserts that the
+# desktop one cannot is the DRAWER: a role the declaration stops mentioning is
+# one the host hides, so "shut" has to be visible as a slot that was not placed.
+# Run from src/, where the shipped assets resolve.
+.PHONY: test-mobile-gameframe
+test-touch: $(OBJ_DIR) input/torirs_touch.c input/test/torirs_touch_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_touch_test \
+		input/torirs_touch.c cmd/cmdbus.c cmd/cmdring.c \
+		input/test/torirs_touch_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/torirs_touch_test
+
+test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
+		plugin/plugins/mobile_gameframe.c plugin/test/mobile_gameframe_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mobile_gameframe_test \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
+		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c \
+		plugin/plugins/mobile_gameframe.c \
+		plugin/test/mobile_gameframe_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/mobile_gameframe_test
 
 test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c
@@ -2608,6 +2671,25 @@ test-uitree-builder: $(OBJ_DIR)
 		engine/uitree_builder/test/uitree_builder_test_manifest.c
 	./$(OBJ_DIR)/uitree_builder_test
 
+# Title-screen model: typing, focus, submit, per-revision caps and charsets.
+# A leaf model, so this links two files and needs neither cache nor server.
+test-rs-title: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_title_test \
+		game/test/rs_title_test.c game/rs_title.c
+	./$(OBJ_DIR)/rs_title_test
+
+# JPEG decode over the real title backgrounds on disk. Skips a cache that is
+# not checked out; the point is the RS caches' corrupted SOI byte, not stb.
+test-jpeg-decode: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/stb_image_impl.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/jpeg_decode_test \
+		engine/test/jpeg_decode_test.c engine/jpeg_decode.c \
+		$(OBJ_DIR)/stb_image_impl.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+	./$(OBJ_DIR)/jpeg_decode_test
+
 test-minimap: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/minimap -I$(BMP_DIR) -o $(OBJ_DIR)/minimap_test \
 		engine/minimap/minimap.c engine/torirs_types.c $(BMP_DIR)/bmp.c \
@@ -2775,6 +2857,25 @@ else
 	$(CC) -I$(TORIDRAW_DIR) -c $(GOURAUD_TRI_ASM_SRC) -o $(OBJ_DIR)/gouraud_tri_asm_test_kernel.o
 	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function 		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/gouraud_tri_asm_test 		$(TORIDRAW_DIR)/toridraw_gouraud_tri_asm_test.c 		$(OBJ_DIR)/gouraud_tri_asm_test_kernel.o -lm
 	./$(OBJ_DIR)/gouraud_tri_asm_test
+endif
+
+# The hand-written flat triangle kernels against the C twins they replace --
+# all four entries, because each can fail in a way the others cannot: the
+# single walk, the blend, the batch's draw order, and the batch's per-row
+# alpha. Same split-compile argument as test-gouraud-tri-asm.
+#
+# i686 only; anywhere else there is nothing to score.
+test-flat-tri-asm: $(OBJ_DIR)
+ifeq ($(FLAT_TRI_ASM_SRC),)
+	@echo "test-flat-tri-asm: no kernel for PLATFORM=$(PLATFORM) -- nothing to score"
+else
+	$(CC) -I$(TORIDRAW_DIR) -c $(FLAT_TRI_ASM_SRC) -o $(OBJ_DIR)/flat_tri_asm_test_kernel.o
+	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function \
+		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/flat_tri_asm_test \
+		$(TORIDRAW_DIR)/toridraw_flat_tri_asm_test.c \
+		$(OBJ_DIR)/flat_tri_asm_test_kernel.o -lm
+	./$(OBJ_DIR)/flat_tri_asm_test
 endif
 
 # The hand-written perspective-textured triangle against the C twin it

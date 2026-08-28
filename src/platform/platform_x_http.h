@@ -65,4 +65,23 @@ PlatformX_HttpGetStatus(
     int* out_size,
     int* out_status);
 
+/**
+ * As PlatformX_HttpGetStatus, with the timeouts named.
+ *
+ * The on-demand cache client waits longer than the rest of the client does --
+ * 10s to connect and 30s to read, against 5 and 10 -- because a cache stream
+ * against a remote server stutters, while a config read that hangs hangs the
+ * UI that asked for it. That difference is the only thing that ever justified
+ * a second copy of this loop, and it is a parameter.
+ */
+char*
+PlatformX_HttpGetTimed(
+    const char* host,
+    int port,
+    const char* route,
+    int* out_size,
+    int* out_status,
+    int connect_sec,
+    int read_sec);
+
 #endif

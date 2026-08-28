@@ -199,7 +199,11 @@ ToriDraw_TriangleTextureFlatOpaqueImpl(
         return;
     }
 
-    raster_texshadeflat_persp_texopaque_branching_lerp8(
+    /* One shade, in all three slots. The kernel behind this macro reads only
+     * the first; the reference expansion is the blend kernel and reads all
+     * three, and they have to agree, so the caller says the same thing to
+     * both. */
+    TORIDRAW_TEX_TRI_PERSP_FLAT_OPAQUE(
         pixel_buffer,
         stride,
         screen_width,
@@ -220,6 +224,8 @@ ToriDraw_TriangleTextureFlatOpaqueImpl(
         orthographic_z0,
         orthographic_z1,
         orthographic_z2,
+        shade,
+        shade,
         shade,
         texels,
         texture_size);

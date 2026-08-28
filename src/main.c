@@ -1169,6 +1169,13 @@ frame_loop_step(void)
     uint64_t frame_start_us;
 #if !defined(__EMSCRIPTEN__)
     uint64_t frame_start_ms;
+    /* When the screen is next allowed to be redrawn.
+     *
+     * Only consulted while the async pipeline has work and the loop is
+     * therefore not sleeping: without it, a loop spinning to drain IO would
+     * present every iteration and spend on redraws exactly the time the spin
+     * exists to give back. */
+    static uint64_t next_draw_ms;
 #endif
 
     if( max_frames > 0 && frame_count++ >= max_frames )
@@ -1317,14 +1324,14 @@ frame_loop_step(void)
     if( boot_stats && !boot_reported && app.app_state == APP_STATE_READY )
     {
         boot_reported = 1;
-        TORIRS_LOG("boot: %llums  frames=%d steps=%ld capped=%d\n",
+        TORIRS_ERR("boot: %llums  frames=%d steps=%ld capped=%d\n",
             (unsigned long long)(PlatformSDL2_Ticks64() - boot_start_ms),
             app.boot_frames,
             app.boot_steps,
             app.boot_frames_budget_capped);
     }
     if( boot_stats && frame_count == max_frames - 1 )
-        TORIRS_LOG("post-boot: busy_frames=%d busy_steps=%ld (frames that used the "
+        TORIRS_ERR("post-boot: busy_frames=%d busy_steps=%ld (frames that used the "
             "whole budget with work still queued)\n",
             app.busy_frames,
             app.busy_steps);
@@ -1818,12 +1825,19 @@ frame_loop_step(void)
              * to be in the world rather than on the loading bar. */
             {
                 static int shot_done = 0;
+                /* Its own counter. frame_count only advances when
+                 * TORIRS_MAX_FRAMES is set -- the ++ sits behind that
+                 * short-circuit at the top of the loop -- so keying off it
+                 * made this silently never fire in a time-bounded run. */
+                static long shot_frames = 0;
                 char const* shot_name = getenv("TORIRS_SCREENSHOT");
+
+                shot_frames++;
                 if( !shot_done && shot_name && *shot_name )
                 {
                     char const* at = getenv("TORIRS_SCREENSHOT_FRAME");
                     long shot_frame = at ? strtol(at, NULL, 0) : 400;
-                    if( frame_count >= shot_frame )
+                    if( shot_frames >= shot_frame )
                     {
                         char path[512];
                         shot_done = 1;
@@ -2374,6 +2388,46 @@ frame_loop_step(void)
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_APP_RUN)
     {
         app_redraw = App_RunOnce(&app, logic_now, input);
+
+        /*
+         * While the async pipeline has work, this loop stops waiting out the
+         * frame cap (see the pacing block at the end) and iterates as fast as
+         * the work allows. The SCREEN must not follow it there -- redrawing
+         * every iteration would spend on presents exactly the time the spin
+         * exists to give back to the IO.
+         *
+         * So the present keeps the cap even when the loop does not: it is
+         * allowed through when its own deadline has passed, and otherwise the
+         * frame's work is done without drawing it. A frame with no outstanding
+         * IO paces as it always did and reaches this with the deadline already
+         * behind it.
+         */
+        /*
+         * Two reasons the present skips a frame the loop just ran, and they
+         * share one deadline.
+         *
+         * The async one is above: a loop spinning to drain IO must not spend
+         * the time it saves on redraws.
+         *
+         * The other is a machine that cannot hold the frame rate. The pacer
+         * steps its DRAW budget down when frames stop fitting (pacer.c), and
+         * the present has to honour that or the step-down buys nothing -- the
+         * loop would draw every iteration exactly as before and the longer
+         * wait would never be reached. The world keeps ticking at period_ms
+         * either way; only the screen slows down.
+         */
+        if( app_redraw && !uncapped && !replay
+            && (App_AsyncPending(&app)
+                || ToriRS_Pacer_DrawPeriodMs(&frame_pacer)
+                       > frame_pacer.period_ms) )
+        {
+            uint64_t const draw_now = PlatformSDL2_Ticks64();
+            if( draw_now < next_draw_ms )
+                app_redraw = 0;
+            else
+                next_draw_ms =
+                    draw_now + (uint64_t)ToriRS_Pacer_DrawPeriodMs(&frame_pacer);
+        }
     }
     input_frame_pending =
         app.app_state == APP_STATE_READY && !App_InputFrameConsumed(&app);
@@ -2432,6 +2486,11 @@ frame_loop_step(void)
      * Both go out as TORIRS_CMD_WINDOW_RESIZE rather than a direct call, so a
      * mode flip is in the recorded stream and replays at the frame it happened.
      */
+    {
+        int keyboard_on = 0;
+        if( App_TakeTextInputChange(&app, &keyboard_on) )
+            PlatformSDL2_SetTextInput(sdl, keyboard_on);
+    }
     {
         int new_mode = 0;
         if( App_TakeWindowModeChange(&app, &new_mode) )
@@ -2546,7 +2605,20 @@ frame_loop_step(void)
      * frame's complete workload counts against its 20 ms budget; the GameShell
      * pacer returns now-plus-`del`, which is a duration and cannot recover the
      * time an overrun cost. --uncapped performs no artificial wait at all. */
-    if( !replay && !uncapped )
+    /*
+     * The cap paces the screen, not the pipeline.
+     *
+     * App_RunOnce drains a bounded number of async steps per frame (32 once
+     * past boot), so sleeping out the rest of the frame while work is still
+     * queued caps the pipeline at budget-times-framerate -- which on a cold
+     * boot is the client's whole world download, and is why an uncapped run
+     * reached the world visibly sooner than a capped one on the same machine.
+     *
+     * There is no busy-wait here: the loop goes straight back into
+     * App_RunOnce, which does real work. When the queue drains, async_pending
+     * clears and the ordinary wait resumes on the very next frame.
+     */
+    if( !replay && !uncapped && !App_AsyncPending(&app) )
     {
         uint64_t pace_begin_us = PlatformSDL2_TicksUs();
         uint64_t wait_until_ms =

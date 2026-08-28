@@ -405,6 +405,13 @@ push_field_from_ini_kv(
         kind = RCFIELD_CACHE_CROP_WIDTH;
     else if( strcmp(key, "crop_height") == 0 )
         kind = RCFIELD_CACHE_CROP_HEIGHT;
+    /* `group=` is scoped to the asset sections: it says which [layout:<group>]
+     * builds load this sprite or font, and "group" is an ordinary enough word
+     * that a future [component:…] spelling must not silently land here. */
+    else if(
+        strcmp(key, "group") == 0 &&
+        (strcmp(s_ini_item_type, "sprite") == 0 || strcmp(s_ini_item_type, "font") == 0) )
+        kind = RCFIELD_CACHE_GROUP;
     else if( strcmp(key, "font_name") == 0 )
         kind = RCFIELD_CACHE_FONT_NAME;
     else if( strcmp(key, "cache_font_id") == 0 )

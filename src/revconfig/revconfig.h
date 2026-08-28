@@ -155,6 +155,7 @@ enum RevConfigFieldKind
     RCFIELD_CACHE_FONT_NAME,
     RCFIELD_CACHE_FONT_ID,
     RCFIELD_CACHE_DEFAULTS_SLOT,
+    RCFIELD_CACHE_GROUP,
     RCFIELD_CACHEREF_ID,
     RCFIELD_UICOMPONENT_TYPE,
     RCFIELD_UICOMPONENT_SPRITE,
@@ -448,6 +449,16 @@ struct RevConfigCacheItem
     char archive[64];
 
     /*
+     * INI: group=
+     * Which [layout:<group>] builds need this sprite. Empty (the default, and
+     * what every pre-existing section has) means every build loads it. A named
+     * group means only a build selecting that group does -- the title screen's
+     * art must not ride along in the gameframe's atlas, and vice versa.
+     * @see UIBuilderManifestSources::layout_group.
+     */
+    char group[32];
+
+    /*
      * INI: container=
      * Container type (typically jagfile); implies paired index + filename. Metadata only in src2.
      */
@@ -544,6 +555,9 @@ struct RevConfigFontItem
 
     /* INI: archive= — Dat1 jagfile archive within configs; metadata only in src2. */
     char archive[64];
+
+    /* INI: group= — as RevConfigCacheItem::group; empty means every build. */
+    char group[32];
 
     /*
      * INI: font_name=
@@ -802,7 +816,9 @@ struct RevConfigUILayoutItem
 
     /*
      * INI: [layout:<group>] section header (and re-applied on each '=' separator).
-     * Filtered at build time against InstanceRevConfigContext.layout_group (default "fixed").
+     * Filtered at build time against UIBuilderManifestSources::layout_group and
+     * ::layout_group_exclude -- a builder that selects no group takes every
+     * layout, which is what every gameframe-only profile relies on.
      */
     char layout_group[32];
 

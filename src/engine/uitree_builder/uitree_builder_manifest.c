@@ -196,6 +196,7 @@ add_sprite(
     strncpy(s->index_filename, cache->index_filename, sizeof(s->index_filename) - 1);
     strncpy(s->table, cache->table, sizeof(s->table) - 1);
     strncpy(s->archive, cache->archive, sizeof(s->archive) - 1);
+    strncpy(s->group, cache->group, sizeof(s->group) - 1);
     s->defaults_slot = cache->defaults_slot;
     s->crop_x = cache->crop_x;
     s->crop_y = cache->crop_y;
@@ -223,6 +224,7 @@ add_font(
         f->font_name,
         font->font_name[0] != '\0' ? font->font_name : font->name,
         sizeof(f->font_name) - 1);
+    strncpy(f->group, font->group, sizeof(f->group) - 1);
 }
 
 static void
@@ -414,6 +416,26 @@ add_layout_op(
 }
 
 int
+uibuilder_manifest_group_wanted(
+    char const* group,
+    char const* select,
+    char const* exclude)
+{
+    assert(group);
+
+    /* Untagged records belong to every build. Without this the key would be
+     * subtractive and adding it would change what every existing profile
+     * builds. */
+    if( group[0] == '\0' )
+        return 1;
+    if( exclude && exclude[0] != '\0' && strcmp(group, exclude) == 0 )
+        return 0;
+    if( select && select[0] != '\0' )
+        return strcmp(group, select) == 0;
+    return 1;
+}
+
+int
 uibuilder_manifest_from_revconfig(
     struct UIBuilderManifest* out,
     struct RevConfigItemBuffer const* items)
@@ -426,6 +448,17 @@ uibuilder_manifest_from_revconfig_rooted(
     struct UIBuilderManifest* out,
     struct RevConfigItemBuffer const* items,
     int root_interface_id)
+{
+    return uibuilder_manifest_from_revconfig_grouped(out, items, root_interface_id, NULL, NULL);
+}
+
+int
+uibuilder_manifest_from_revconfig_grouped(
+    struct UIBuilderManifest* out,
+    struct RevConfigItemBuffer const* items,
+    int root_interface_id,
+    char const* layout_group,
+    char const* layout_group_exclude)
 {
     assert(out);
     assert(items);
@@ -446,10 +479,14 @@ uibuilder_manifest_from_revconfig_rooted(
         switch( item->kind )
         {
         case RCITEM_CACHE_SPRITE:
-            add_sprite(out, &sprite_cap, &item->u.cache);
+            if( uibuilder_manifest_group_wanted(
+                    item->u.cache.group, layout_group, layout_group_exclude) )
+                add_sprite(out, &sprite_cap, &item->u.cache);
             break;
         case RCITEM_CACHE_FONT:
-            add_font(out, &font_cap, &item->u.font);
+            if( uibuilder_manifest_group_wanted(
+                    item->u.font.group, layout_group, layout_group_exclude) )
+                add_font(out, &font_cap, &item->u.font);
             break;
         case RCITEM_INV:
             add_inv(out, &inv_cap, &item->u.inv);
@@ -478,6 +515,9 @@ uibuilder_manifest_from_revconfig_rooted(
     for( uint32_t i = 0; i < items->item_count; i++ )
     {
         if( items->items[i].kind != RCITEM_UILAYOUT )
+            continue;
+        if( !uibuilder_manifest_group_wanted(
+                items->items[i].u.uilayout.layout_group, layout_group, layout_group_exclude) )
             continue;
         add_layout_op(out, &op_cap, items, &items->items[i].u.uilayout, root_interface_id);
     }
@@ -558,7 +598,8 @@ uibuilder_manifest_from_sources(
     assert(items);
     revconfig_items_build(fields, items);
 
-    int rc = uibuilder_manifest_from_revconfig_rooted(out, items, src->root_interface_id);
+    int rc = uibuilder_manifest_from_revconfig_grouped(
+        out, items, src->root_interface_id, src->layout_group, src->layout_group_exclude);
 
     revconfig_item_buffer_free(items);
     revconfig_buffer_free(fields);

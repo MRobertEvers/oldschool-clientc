@@ -224,6 +224,27 @@ class Profile:
         return [part.strip() for part in raw.split(",") if part.strip()]
 
     @property
+    def windows_lane(self):
+        """Which Windows build lane this profile wants: win64 or win32.
+
+        win32 is the XP lane -- a PE that runs on 5.1, built -march=pentium4
+        with SSE2 and no SSE3, producing src/torirs.exe. win64 is the ordinary
+        modern-Windows one, src/torirs_win64.exe, and stays the default so no
+        existing profile changes behaviour.
+
+        This exists because a profile could previously name the XP box's server
+        and still be handed a 64-bit binary. That failure is quiet: the client
+        starts and plays, and nothing says the thing running is not the thing
+        the profile is named after.
+        """
+        lane = (self.ini.get("profile", "windows_lane") or "win64").strip()
+        if lane not in ("win64", "win32"):
+            raise LaunchError(
+                "profile '%s': windows_lane must be win64 or win32 (got '%s')"
+                % (self.name, lane))
+        return lane
+
+    @property
     def session(self):
         return dict(self.ini.items("session"))
 
