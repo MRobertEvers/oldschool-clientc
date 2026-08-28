@@ -13,6 +13,8 @@
 #include <string.h>
 
 #define TORIRS_IOITEM_MAX_PATH 256
+/* The slot table's OPENING size. It grows past this on demand -- see
+ * ToriRS_IO_SlotReserve -- so this is a starting point, not a ceiling. */
 #define TORIRS_IO_MAX_ITEMS 32
 #define TORIRS_TASK_QUEUE_MAX_TASKS 32
 
@@ -139,21 +141,74 @@ struct ToriRS_IOItem
  * reads two and a half thousand groups paid two and a half thousand round
  * trips end to end.
  *
- * `slots_taken` is ownership, not busyness: a slot is taken from the moment
- * the runner gives it to a task until that task's read has been answered and
+ * `slot_owned` is ownership, not busyness: a slot is taken from the moment the
+ * runner gives it to a task until that task's read has been answered and
  * consumed. An item's `kind` cannot answer that question -- it is NONE both
  * before a read is queued and after it is decoded.
  */
 struct ToriRS_IO
 {
-    struct ToriRS_IOItem io_slots[TORIRS_IO_MAX_ITEMS];
-    int active[TORIRS_IO_MAX_ITEMS];
+    /*
+     * Grown, not fixed.
+     *
+     * There is no natural ceiling on how many reads a client legitimately
+     * wants outstanding -- a region rebuild names hundreds of models and every
+     * one of them is an independent request -- and a fixed table turns that
+     * into a queue behind an arbitrary number. So the slot table grows to fit
+     * whatever the runner hands out, and the only bound left is the work
+     * itself.
+     *
+     * All three arrays move together on a grow, and an item MAY move while its
+     * read is outstanding. That is safe because nothing holds an item pointer
+     * across a suspension: C tasks re-derive from `io` after every yield, and
+     * the browser executor recomputes its own pointer after every await (see
+     * platform_web_io.js, itemPtr) -- which it already had to do, because
+     * growing the wasm heap detaches its views.
+     */
+    struct ToriRS_IOItem* io_slots;
+    int* active;
+    /** Slot ownership, one byte per slot (see the note above). */
+    uint8_t* slot_owned;
+    /** How many slots the three arrays hold. */
+    int slot_capacity;
     int active_count;
-    /** Bit per slot; see the note above. */
-    uint32_t slots_taken;
     /** What a task's slot 0 currently addresses. */
     int slot_base;
 };
+
+/** Make room for `want` slots. Idempotent below the current capacity. */
+static inline void
+ToriRS_IO_SlotReserve(
+    struct ToriRS_IO* io,
+    int want)
+{
+    int cap;
+
+    assert(io != NULL);
+    if( want <= io->slot_capacity )
+        return;
+
+    cap = io->slot_capacity > 0 ? io->slot_capacity : TORIRS_IO_MAX_ITEMS;
+    while( cap < want )
+        cap *= 2;
+
+    io->io_slots = (struct ToriRS_IOItem*)realloc(
+        io->io_slots, (size_t)cap * sizeof(struct ToriRS_IOItem));
+    assert(io->io_slots);
+    io->active = (int*)realloc(io->active, (size_t)cap * sizeof(int));
+    assert(io->active);
+    io->slot_owned = (uint8_t*)realloc(io->slot_owned, (size_t)cap);
+    assert(io->slot_owned);
+
+    /* Zeroed rather than left as realloc found it: a slot's `kind` is what
+     * says whether a read is queued in it, and ownership is what says whether
+     * anyone may take it. Both mean "no" for a slot nobody has used yet. */
+    memset(io->io_slots + io->slot_capacity, 0,
+        (size_t)(cap - io->slot_capacity) * sizeof(struct ToriRS_IOItem));
+    memset(io->active + io->slot_capacity, 0, (size_t)(cap - io->slot_capacity) * sizeof(int));
+    memset(io->slot_owned + io->slot_capacity, 0, (size_t)(cap - io->slot_capacity));
+    io->slot_capacity = cap;
+}
 
 /**
  * The item a task means by `slot_id`, which is `slot_id` slots into the block
@@ -167,24 +222,35 @@ ToriRS_IO_TaskSlot(
     assert(io != NULL);
     assert(slot_id >= 0);
     assert(io->slot_base >= 0);
-    assert(io->slot_base + slot_id < TORIRS_IO_MAX_ITEMS);
+    assert(io->slot_base + slot_id < io->slot_capacity);
     return &io->io_slots[io->slot_base + slot_id];
 }
 
-/** Take a slot for a task, or -1 when every one is already owned. */
+/**
+ * Take a slot for a task.
+ *
+ * Never fails: the table grows rather than refusing, because a refusal here
+ * is not a bound on memory, it is a bound on how much of the client's work may
+ * be in flight -- and there is no number that is right for every scene.
+ */
 static inline int
 ToriRS_IO_SlotAlloc(struct ToriRS_IO* io)
 {
     assert(io != NULL);
-    for( int i = 0; i < TORIRS_IO_MAX_ITEMS; i++ )
+    for( int i = 0; i < io->slot_capacity; i++ )
     {
-        if( (io->slots_taken & (1u << i)) == 0 )
+        if( !io->slot_owned[i] )
         {
-            io->slots_taken |= (1u << i);
+            io->slot_owned[i] = 1;
             return i;
         }
     }
-    return -1;
+    {
+        int const slot = io->slot_capacity;
+        ToriRS_IO_SlotReserve(io, slot + 1);
+        io->slot_owned[slot] = 1;
+        return slot;
+    }
 }
 
 static inline void
@@ -194,9 +260,9 @@ ToriRS_IO_SlotRelease(
 {
     assert(io != NULL);
     assert(slot >= 0);
-    assert(slot < TORIRS_IO_MAX_ITEMS);
-    assert(io->slots_taken & (1u << slot));
-    io->slots_taken &= ~(1u << slot);
+    assert(slot < io->slot_capacity);
+    assert(io->slot_owned[slot]);
+    io->slot_owned[slot] = 0;
 }
 
 /*
@@ -354,12 +420,12 @@ push_active(
 {
     assert(io != NULL);
     assert(slot_id >= 0);
-    assert(slot_id < TORIRS_IO_MAX_ITEMS);
-    /* One entry per slot per pass is the most a queue can produce, and the
-     * list is as long as the slot table -- but a task that queues twice
-     * without yielding would push twice, and running off the end of this
-     * array is not something to discover from the symptom. */
-    assert(io->active_count < TORIRS_IO_MAX_ITEMS);
+    assert(slot_id < io->slot_capacity);
+    /* One entry per slot per pass is the most a queue can produce, so the list
+     * is as long as the slot table -- but a task that queues twice without
+     * yielding would push twice, and running off the end of this array is not
+     * something to discover from the symptom. */
+    ToriRS_IO_SlotReserve(io, io->active_count + 1);
     io->active[io->active_count++] = slot_id;
 }
 
@@ -369,7 +435,9 @@ ToriRS_IO_New(void)
     struct ToriRS_IO* io = malloc(sizeof(struct ToriRS_IO));
     assert(io != NULL);
     memset(io, 0, sizeof(struct ToriRS_IO));
-    io->active_count = 0;
+    /* An opening size, not a limit: enough that an ordinary frame never grows
+     * the table, and TORIRS_IO_MAX_ITEMS keeps its old value as that number. */
+    ToriRS_IO_SlotReserve(io, TORIRS_IO_MAX_ITEMS);
     return io;
 }
 
@@ -494,6 +562,9 @@ static inline void
 ToriRS_IO_Free(struct ToriRS_IO* io)
 {
     assert(io != NULL);
+    free(io->io_slots);
+    free(io->active);
+    free(io->slot_owned);
     free(io);
 }
 

@@ -82,7 +82,13 @@ enum
 
 /* Changes with the slot order above, so a reader built against a different
  * order refuses rather than misreads. */
-#define TORIRS_IO_ABI_MAGIC 0x494f4131 /* "IOA1" */
+/*
+ * IOA2, not IOA1: `io_slots` and `active` used to BE the arrays and are now
+ * POINTERS to them (the table grows on demand). A reader that indexes the old
+ * way would read the item table out of two pointers and a length -- so the
+ * magic changes, and a stale reader stops with a message instead.
+ */
+#define TORIRS_IO_ABI_MAGIC 0x494f4132 /* "IOA2" */
 
 /**
  * Fill `out` with TORIRS_IO_ABI_COUNT int32 values, in the order above.
@@ -105,6 +111,8 @@ ToriRS_IO_DescribeAbi(int32_t* out)
     out[TORIRS_IO_ABI_IO_ACTIVE_OFF] = (int32_t)offsetof(struct ToriRS_IO, active);
     out[TORIRS_IO_ABI_IO_ACTIVE_COUNT_OFF] =
         (int32_t)offsetof(struct ToriRS_IO, active_count);
+    /* The table's opening size, not a ceiling -- the reader takes the base
+     * pointer out of the struct on every access and never needs the length. */
     out[TORIRS_IO_ABI_MAX_ITEMS] = TORIRS_IO_MAX_ITEMS;
 
     out[TORIRS_IO_ABI_ITEM_SIZE] = (int32_t)sizeof(struct ToriRS_IOItem);

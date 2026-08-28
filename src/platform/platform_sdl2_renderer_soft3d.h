@@ -14,7 +14,7 @@ struct ToriRS_Frame;
 /** Matches APP_DAMAGE_RECT_MAX; the renderer does not include app.h. */
 #define TORIRS_SOFT3D_DAMAGE_RECT_MAX 4
 
-struct ToriDraw_RasterKernelSD;
+#include "toridraw_raster_kernel.h"
 
 struct ToriRS_Soft3D
 {
@@ -22,6 +22,17 @@ struct ToriRS_Soft3D
     /* Projection + face sort + raster, chosen once at init and passed to
      * every stage (toridraw.h, the *WithKernel entries). */
     const struct ToriDraw_RasterKernelSD* kernel;
+    /*
+     * The in-frame A/B (toridraw_frame_ab.h) with a kernel per arm. Under
+     * TORIDRAW_FRAME_AB=1, TORIDRAW_FRAME_AB_KERNELS=<A>,<B> names the face
+     * sort each arm runs (`bucket` | `flat`) and TORIDRAW_FRAME_AB_BATCH=<A>,<B>
+     * whether the batched presorted-run walk is armed (0 | 1); an unset
+     * knob leaves that stage the same in both arms. Every model of a frame
+     * draws through the frame's arm, so the two arms alternate ABBA inside
+     * one process and the run-to-run mode of the box subtracts out.
+     */
+    struct ToriDraw_RasterKernelSD kernel_ab[2];
+    int batch_ab[2];
     int* pixels;
     int width;
     int height;

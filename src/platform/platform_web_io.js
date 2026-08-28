@@ -130,7 +130,7 @@ mergeInto(LibraryManager.library, {
       if (this.abi) { return this.abi; }
 
       const count = _ToriRS_IO_DescribeAbiCount();
-      const EXPECTED_MAGIC = 0x494f4131; /* "IOA1", see asyncio_abi.c */
+      const EXPECTED_MAGIC = 0x494f4132; /* "IOA2", see asyncio_abi.c */
       const EXPECTED_COUNT = 21;
 
       if (count !== EXPECTED_COUNT) {
@@ -168,9 +168,13 @@ mergeInto(LibraryManager.library, {
 
     // ------------------------------------------------------- queue access
 
+    /* The slot table hangs OFF the queue rather than sitting inside it, and it
+     * moves when it grows -- so the base is re-read here on every access. That
+     * is the same discipline the awaits already needed: a pointer taken before
+     * one may be stale after it. */
     itemPtr: function (io, slot) {
       const a = this.layout();
-      return io + a.slotsOff + slot * a.itemSize;
+      return HEAP32[(io + a.slotsOff) >> 2] + slot * a.itemSize;
     },
 
     /* The `kind` field is an enum, which is an int in this ABI. */
@@ -671,14 +675,17 @@ mergeInto(LibraryManager.library, {
     const activeCount = HEAP32[(io + a.activeCountOff) >> 2];
 
     for (let i = 0; i < activeCount; i++) {
-      S.run(inst, io, HEAP32[(io + a.activeOff + i * 4) >> 2]);
+      S.run(inst, io, HEAP32[(HEAP32[(io + a.activeOff) >> 2] >> 2) + i]);
     }
 
     /* ToriRS_IO_ResetActive, done here because the queue expects Process to
      * have consumed the active list by the time it returns. The items
      * themselves stay outstanding -- the active list is what is new THIS pass,
      * not what is unanswered. */
-    HEAPU8.fill(0, io + a.activeOff, io + a.activeOff + activeCount * 4);
+    {
+      const activePtr = HEAP32[(io + a.activeOff) >> 2];
+      HEAPU8.fill(0, activePtr, activePtr + activeCount * 4);
+    }
     HEAP32[(io + a.activeCountOff) >> 2] = 0;
 
     return activeCount;

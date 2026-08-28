@@ -1006,10 +1006,14 @@ soft3d_draw_model(
     int trace_min;
     int trace_this;
 
+    const struct ToriDraw_RasterKernelSD* kernel;
+
     assert(soft);
     assert(cmd);
     if( !soft->has_3d )
         return;
+    kernel = ToriDraw_FrameAbEnabled() ? &soft->kernel_ab[ToriDraw_FrameAbArm()]
+                                       : soft->kernel;
     if( cmd->model.kind == TORIDRAWMK_NONE )
         return;
 
@@ -1052,7 +1056,7 @@ soft3d_draw_model(
     {
         cull = ToriDraw_RenderModel1ProjectWithKernel(
             cmd->model, soft->scene, &position, &soft->view_port_3d, &soft->camera_3d,
-            soft->kernel);
+            kernel);
     }
     if( trace_this && cull != g_draw_trace_last_cull )
     {
@@ -1108,7 +1112,7 @@ soft3d_draw_model(
              * entry next door -- they sort for the GPU and never read the
              * store. */
             sorted = ToriDraw_RenderModel2SortFacesPresortedWithKernel(
-                cmd->model, soft->scene, soft->kernel);
+                cmd->model, soft->scene, kernel);
         }
         /* Only the transitions matter: went-to-zero is the invisible-but-
          * clickable state, came-back is the recovery. A drifting face count on
@@ -1145,8 +1149,66 @@ soft3d_draw_model(
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_RASTER)
     {
         ToriDraw_RenderModel3RasterWithKernel(
-            soft->scene, &soft->view_port_3d, &soft->camera_3d, soft->pixels, soft->kernel);
+            soft->scene, &soft->view_port_3d, &soft->camera_3d, soft->pixels, kernel);
     }
+}
+
+/*
+ * The two arms of the in-frame A/B, from the environment. Each starts as a
+ * copy of the held kernel and takes a face-sort kernel by name and a batch
+ * setting, so an arm differs from the baseline in exactly what was named.
+ */
+static const struct ToriDraw_FaceCullSortKernel*
+soft3d_face_sort_kernel_by_name(const char* name, size_t len)
+{
+    if( len >= 1 && (name[0] == 'b' || name[0] == '0') )
+        return ToriDraw_FaceCullSortKernelGetBucket();
+    if( len >= 1 && (name[0] == 'f' || name[0] == '1') )
+        return ToriDraw_FaceCullSortKernelGetFlat();
+    return NULL;
+}
+
+static void
+soft3d_frame_ab_kernels_init(struct ToriRS_Soft3D* soft)
+{
+    const char* v;
+    int arm;
+
+    soft->batch_ab[0] = -1;
+    soft->batch_ab[1] = -1;
+    for( arm = 0; arm < 2; arm++ )
+        soft->kernel_ab[arm] = *soft->kernel;
+
+    v = getenv("TORIDRAW_FRAME_AB_KERNELS");
+    if( v )
+    {
+        const char* comma = strchr(v, ',');
+        const char* names[2] = { v, comma ? comma + 1 : v };
+        size_t lens[2] = { comma ? (size_t)(comma - v) : strlen(v),
+                           comma ? strlen(comma + 1) : strlen(v) };
+        for( arm = 0; arm < 2; arm++ )
+        {
+            const struct ToriDraw_FaceCullSortKernel* k =
+                soft3d_face_sort_kernel_by_name(names[arm], lens[arm]);
+            if( k )
+                soft->kernel_ab[arm].face_sort = k;
+        }
+    }
+    v = getenv("TORIDRAW_FRAME_AB_BATCH");
+    if( v )
+    {
+        const char* comma = strchr(v, ',');
+        soft->batch_ab[0] = v[0] == '1';
+        soft->batch_ab[1] = comma ? comma[1] == '1' : soft->batch_ab[0];
+    }
+    /* Init runs again on every relayout; say it once. */
+    static int announced;
+    if( ToriDraw_FrameAbEnabled() && !announced++ )
+        fprintf(stderr, "soft3d: frame A/B arms: A face_sort=%s batch=%d, B face_sort=%s batch=%d\n",
+                soft->kernel_ab[0].face_sort ? soft->kernel_ab[0].face_sort->name : "default",
+                soft->batch_ab[0],
+                soft->kernel_ab[1].face_sort ? soft->kernel_ab[1].face_sort->name : "default",
+                soft->batch_ab[1]);
 }
 
 void
@@ -1164,6 +1226,7 @@ ToriRS_Soft3D_Init(
     memset(soft, 0, sizeof(*soft));
     soft->scene = scene;
     soft->kernel = ToriDraw_RasterKernelSDGetStock(false);
+    soft3d_frame_ab_kernels_init(soft);
     soft->pixels = pixels;
     soft->width = width;
     soft->height = height;
@@ -1787,6 +1850,8 @@ ToriRS_Soft3D_RenderFrame(
      * disagree about which arm this frame was.
      */
     ToriDraw_FrameAbBegin();
+    if( ToriDraw_FrameAbEnabled() && soft->batch_ab[0] >= 0 )
+        ToriDraw_RasterBatchSetArmed(soft->batch_ab[ToriDraw_FrameAbArm()]);
 
     /*
      * Clear every frame. A census on the pinned bench found only 503 of
