@@ -169,26 +169,14 @@
          * map read names a square rather than an archive, and only the server
          * holding the versionlist can turn one into the other -- so the
          * distinction has to survive the trip rather than be flattened here. */
-        const _f0 = performance.now();
         const bytes = isDat1(flags)
           ? await producer.file(table, archive, flags)
           : await producer.group(table, archive);
-        window.__io_stats = window.__io_stats || { n: 0, put: 0, fetch: 0 };
-        window.__io_stats.fetch += performance.now() - _f0;
         if (!bytes) { return null; }
 
         /* Persisted before it is returned, so the next read of the same
          * container is local and the next SESSION starts warm. */
-        const _t0 = performance.now();
         await idb.groupPut(key, table, archive, flags, bytes);
-        const _t1 = performance.now();
-        window.__io_stats = window.__io_stats || { n: 0, put: 0, fetch: 0 };
-        window.__io_stats.n++;
-        window.__io_stats.put += _t1 - _t0;
-        if (window.__io_stats.n % 300 === 0) {
-          const s = window.__io_stats;
-          console.log(`iocost: groups=${s.n} avg_put=${(s.put / s.n).toFixed(2)}ms avg_fetch=${(s.fetch / s.n).toFixed(2)}ms`);
-        }
         return bytes;
       },
 

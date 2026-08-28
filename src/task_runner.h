@@ -40,6 +40,17 @@ struct TaskRunner
      * groups a login streams.
      */
     int parallel;
+    /*
+     * Did the last pass advance anything?
+     *
+     * The frame loop's question, not the queue's. With several reads in flight
+     * a pass almost always leaves something outstanding, so "is anything
+     * pending" stopped being a useful reason to end the frame -- it capped the
+     * client at one batch per frame while answers were arriving in under a
+     * millisecond. What actually means "nothing more can happen here" is a
+     * pass that ran nothing AND has reads outstanding.
+     */
+    int progressed;
     /* What the head task asked to be drawn, valid only while the last Step
      * returned TASK_RUNNER_RENDER. */
     struct ToriRS_RenderRequest render;
@@ -204,6 +215,8 @@ TaskRunner_Step(struct TaskRunner* runner)
     {
         Platform_IO_Process(runner->px, runner->io);
     }
+
+    runner->progressed = ran;
 
     if( render_task )
     {

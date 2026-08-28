@@ -29734,22 +29734,28 @@ App_RunOnce(
                  * the head -- every further pass returns BLOCKED again without
                  * running anything.
                  *
-                 * PENDING says so only together with the platform. An
+                 * PENDING says so only together with two other facts. An
                  * asynchronous backend answers a read after the host's next
-                 * turn, and until it does TaskRunner_Step returns PENDING
-                 * before it runs the queue at all. That is every browser read
-                 * (platform_web_io.js): the frame has to END for the answer to
-                 * arrive, so a boot that waited here span the whole budget on
-                 * a check and aborted as a task that would not converge. A
-                 * synchronous backend never has one outstanding at this point
-                 * and does not reach either break.
+                 * turn, so a frame that sat here waiting for one would spin the
+                 * whole budget and abort as a task that will not converge --
+                 * the frame has to END for the answer to arrive.
                  *
-                 * TaskRunner_SettleFrame draws the same two lines for the same
+                 * But "something is outstanding" is no longer the same as
+                 * "nothing can happen": the runner keeps a dozen reads in
+                 * flight now, and the ones that have LANDED are work this
+                 * frame can still do. Ending on the first outstanding read
+                 * capped the client at one batch per frame -- with answers
+                 * arriving in well under a millisecond, that is the difference
+                 * between draining a boot and dribbling it. So the frame ends
+                 * when a pass advanced NOTHING and is still waiting on the
+                 * platform, which is precisely "the answers are not here yet".
+                 *
+                 * TaskRunner_SettleFrame draws the same lines for the same
                  * reason.
                  */
                 if( stat == TASK_RUNNER_BLOCKED )
                     break;
-                if( stat == TASK_RUNNER_PENDING
+                if( stat == TASK_RUNNER_PENDING && !app->runner.progressed
                     && Platform_IO_Pending(app->runner.px, app->runner.io) )
                     break;
             }
