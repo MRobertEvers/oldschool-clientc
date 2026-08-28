@@ -1,6 +1,7 @@
 #include "engine/boot_bar.h"
 
 #include <assert.h>
+#include <stddef.h>
 
 /*
  * Written against the raw pixel buffer rather than through the renderer,
