@@ -846,6 +846,37 @@ UITree_EmitFill(
         return true;
     }
 
+    case UIELEM_BUILTIN_LOGIN_TOGGLE:
+    {
+        /* Which plate this frame wears is the host's answer, asked every
+         * frame rather than cached on the node: the state outlives the tree,
+         * and a tree rebuilt on a window resize would otherwise come back
+         * showing the wrong one. The label is a child rs_text, as with a
+         * login_button. */
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TITLE_TOGGLE,
+            .u.get_title_toggle.toggle = component->u.login_toggle.toggle,
+        };
+        int on = host ? UITree_Host(host, &req) : 0;
+        int scene_id = component->u.login_toggle.scene_id;
+        int atlas_index = component->u.login_toggle.atlas_index;
+
+        /* An `on` art the profile did not declare is not an error: a revision
+         * whose checkbox is one plate plus a drawn mark declares one sprite
+         * and both states wear it. */
+        if( on && component->u.login_toggle.scene_id_on > 0 )
+        {
+            scene_id = component->u.login_toggle.scene_id_on;
+            atlas_index = component->u.login_toggle.atlas_index_on;
+        }
+        if( scene_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = scene_id;
+        out->atlas_index = atlas_index;
+        return true;
+    }
+
     case UIELEM_BUILTIN_LOGIN_MESSAGE:
     {
         /* One of the three reply lines. An empty line emits nothing rather

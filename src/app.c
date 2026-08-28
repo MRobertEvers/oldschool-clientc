@@ -6107,6 +6107,13 @@ app_host_request(
         *req->u.get_title_message.out_text = app->title.messages[index];
         return app->title.messages[index][0] != '\0';
     }
+    case UITREE_HOST_GET_TITLE_TOGGLE:
+    {
+        int toggle = req->u.get_title_toggle.toggle;
+        if( toggle < 0 || toggle >= RS_TITLE_TOGGLE_COUNT )
+            return 0;
+        return app->title.toggles[toggle];
+    }
     case UITREE_HOST_GET_TITLE_PROGRESS:
         assert(req->u.get_title_progress.out_percent);
         assert(req->u.get_title_progress.out_text);
@@ -6142,11 +6149,25 @@ app_host_request(
             app->scene, *req->u.get_title_flames.out_scene_id);
     }
     case UITREE_HOST_TITLE_ACTION:
-        if( RS_Title_HandleAction(&app->title, (enum RS_TitleAction)req->u.title_action.action) )
+    {
+        enum RS_TitleAction action = (enum RS_TitleAction)req->u.title_action.action;
+        if( RS_Title_HandleAction(&app->title, action) )
         {
+            /* The form is greeted with a prompt rather than an empty box, and
+             * the words are the profile's -- this era invites an email as
+             * well as a display name, the 2004 one does not. A login reply
+             * replaces it afterwards, which is the reference's behaviour and
+             * why this is a message line rather than a static label. */
+            if( action == RS_TITLE_ACTION_EXISTING_USER )
+                RS_Title_SetMessages(
+                    &app->title,
+                    RS_LoginReplies_String(&app->login_replies, "enter_credentials"),
+                    NULL,
+                    NULL);
             app_title_state_changed(app);
         }
         return 0;
+    }
     case UITREE_HOST_GET_MINIMAP_DOTS:
         return App_MinimapBuildDots(app, req->u.get_minimap_dots.out_dots);
     case UITREE_HOST_GET_WORLDMAP_TILES:

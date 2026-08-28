@@ -28,6 +28,12 @@ _Static_assert(
 _Static_assert(
     (int)RS_TITLE_ACTION_FOCUS_PASSWORD == (int)UITREE_TITLE_ACTION_FOCUS_PASSWORD,
     "title action focus_password");
+_Static_assert(
+    (int)RS_TITLE_ACTION_TOGGLE_REMEMBER == (int)UITREE_TITLE_ACTION_TOGGLE_REMEMBER,
+    "title action toggle_remember");
+_Static_assert(
+    (int)RS_TITLE_ACTION_TOGGLE_HIDE == (int)UITREE_TITLE_ACTION_TOGGLE_HIDE,
+    "title action toggle_hide");
 
 void
 RS_Title_Init(struct RS_Title* title)
@@ -298,6 +304,15 @@ RS_Title_HandleAction(
         title->focus = RS_TITLE_FIELD_PASSWORD;
         return 1;
 
+    case RS_TITLE_ACTION_TOGGLE_REMEMBER:
+        title->toggles[RS_TITLE_TOGGLE_REMEMBER] =
+            !title->toggles[RS_TITLE_TOGGLE_REMEMBER];
+        return 1;
+
+    case RS_TITLE_ACTION_TOGGLE_HIDE:
+        title->toggles[RS_TITLE_TOGGLE_HIDE] = !title->toggles[RS_TITLE_TOGGLE_HIDE];
+        return 1;
+
     case RS_TITLE_ACTION_NONE:
         return 0;
     }
@@ -322,5 +337,9 @@ RS_Title_ActionFromName(char const* name)
         return RS_TITLE_ACTION_FOCUS_USERNAME;
     if( strcmp(name, "focus_password") == 0 )
         return RS_TITLE_ACTION_FOCUS_PASSWORD;
+    if( strcmp(name, "toggle_remember") == 0 )
+        return RS_TITLE_ACTION_TOGGLE_REMEMBER;
+    if( strcmp(name, "toggle_hide") == 0 )
+        return RS_TITLE_ACTION_TOGGLE_HIDE;
     return RS_TITLE_ACTION_NONE;
 }

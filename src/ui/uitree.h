@@ -135,6 +135,11 @@ enum UITreeComponentType
      *  arrives as a scene sprite reuploaded per frame; the widget says which
      *  side it is and where it goes. */
     UIELEM_BUILTIN_TITLE_FLAMES = 36,
+    /** A login-form checkbox ("Remember username", "Hide username"). Draws one
+     *  of two sprites depending on the host's answer for its toggle, and its
+     *  click flips that answer -- the same TITLE_ACTION path a login_button
+     *  takes. The LABEL beside it is a child rs_text, as with a button. */
+    UIELEM_BUILTIN_LOGIN_TOGGLE = 37,
     UIELEM_RS_TEXT = 14,     /* TYPE_TEXT */
     UIELEM_RS_GRAPHIC = 15,  /* TYPE_GRAPHIC */
     UIELEM_RS_MODEL = 16,    /* TYPE_MODEL */
@@ -453,6 +458,8 @@ enum UITreeTitleAction
     UITREE_TITLE_ACTION_CANCEL = 4,
     UITREE_TITLE_ACTION_FOCUS_USERNAME = 5,
     UITREE_TITLE_ACTION_FOCUS_PASSWORD = 6,
+    UITREE_TITLE_ACTION_TOGGLE_REMEMBER = 7,
+    UITREE_TITLE_ACTION_TOGGLE_HIDE = 8,
 };
 
 struct UITreeLoginInputConfig
@@ -937,6 +944,20 @@ struct UITreeComponent
              *  typo in an INI announcing itself by doing nothing. */
             int action;
         } login_button;
+        struct
+        {
+            /** Off and on art. `scene_id_on` may be -1: a revision whose
+             *  checkbox is one sprite plus a drawn mark says so by declaring
+             *  no sprite_active, and both states then draw the same plate. */
+            int scene_id;
+            int atlas_index;
+            int scene_id_on;
+            int atlas_index_on;
+            /** Resolved RS_TitleAction (one of the toggle members). */
+            int action;
+            /** Resolved RS_TitleToggle: which checkbox to ask the host about. */
+            int toggle;
+        } login_toggle;
         struct
         {
             /** Which of the three login message lines, 0-2. */
@@ -1555,6 +1576,15 @@ struct UITreeNodeSpec
             int atlas_index;
             int action;
         } login_button;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+            int scene_id_on;
+            int atlas_index_on;
+            int action;
+            int toggle;
+        } login_toggle;
         struct
         {
             int index;

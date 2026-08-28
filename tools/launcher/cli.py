@@ -289,8 +289,19 @@ def build_plan(profile, client_override=None, flavor_override=None,
         _check_declared_services(profile, manifest, service_list, client)
 
     session = profile.session
-    user = session.get("user") or manifest.user or "asdf"
-    password = session.get("pass") or manifest.password or "a"
+    user = session.get("user") or manifest.user
+    password = session.get("pass") or manifest.password
+
+    # No credentials declared anywhere is not an error and not a default:
+    # absent credentials mean an interactive login form (the client's own
+    # contract -- see app.c's autologin note). The flags are omitted rather
+    # than passed empty, so the client cannot tell this apart from a hand-run
+    # `torirs --manifest ...`.
+    credential_argv = []
+    if user:
+        credential_argv += ["--user", user]
+    if password:
+        credential_argv += ["--pass", password]
 
     client_argv = []
     url = None
@@ -300,9 +311,7 @@ def build_plan(profile, client_override=None, flavor_override=None,
         client_argv = [
             "./" + binary,
             "--manifest", manifest_rel,
-            "--user", user,
-            "--pass", password,
-        ] + list(profile.client_args) + list(extra_args)
+        ] + credential_argv + list(profile.client_args) + list(extra_args)
         if embed:
             env.setdefault("TORIRS_TRANSPORT", "embed")
         if client == "headless":
@@ -311,7 +320,7 @@ def build_plan(profile, client_override=None, flavor_override=None,
             env.setdefault("SDL_VIDEODRIVER", "dummy")
             env.setdefault("TORIRS_MAX_FRAMES", "60")
     elif client in ("web", "web-idb"):
-        args = ["--manifest", manifest_rel, "--user", user, "--pass", password]
+        args = ["--manifest", manifest_rel] + credential_argv
         args += list(profile.client_args) + list(extra_args)
         # The page is served by the io_server this profile declared, so the URL
         # takes that service's port rather than a second copy of the number.
@@ -369,7 +378,8 @@ def cmd_show(args):
     print("profile     %s" % profile.name)
     print("platform    %s" % profile.platform)
     print("description %s" % profile.description)
-    print("world       %s" % os.path.relpath(plan.base_manifest_path, REPO_ROOT))
+    print("world       %s" % os.path.relpath(
+        plan.base_manifest_path, REPO_ROOT))
     if plan.manifest_path != profile.world_path:
         print("resolved    %s  (overrides applied)"
               % os.path.relpath(plan.manifest_path, REPO_ROOT))
@@ -467,7 +477,8 @@ def _start_services(plan):
             REPO_ROOT, plan.profile.name, service, env=plan.env)
         if pid is None:
             say("%s did not come up: %s" % (service.name, reason))
-            tail = supervisor.log_tail(REPO_ROOT, plan.profile.name, service.name)
+            tail = supervisor.log_tail(
+                REPO_ROOT, plan.profile.name, service.name)
             if tail:
                 # Print the reason here rather than pointing at a file. These
                 # servers explain themselves clearly when they refuse to start,
@@ -535,7 +546,8 @@ def _resolve_running_services(profile, live, args):
 
     Returns True when the caller may proceed.
     """
-    listing = ", ".join("%s(pid %s)" % (row["name"], row["pid"]) for row in live)
+    listing = ", ".join("%s(pid %s)" %
+                        (row["name"], row["pid"]) for row in live)
     say("this profile already has services running: %s" % listing)
 
     if args.restart:
@@ -546,7 +558,8 @@ def _resolve_running_services(profile, live, args):
         return False
     else:
         try:
-            answer = input("launch: stop them and start again? [Y/n] ").strip().lower()
+            answer = input(
+                "launch: stop them and start again? [Y/n] ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             # A Ctrl-C or a closed stdin at the prompt is "no", and the run has
             # started nothing yet, so there is nothing to unwind.
@@ -867,7 +880,8 @@ def cmd_bench(args):
 
 
 def cmd_status(args):
-    names = [args.profile] if args.profile else supervisor.known_runs(REPO_ROOT)
+    names = [args.profile] if args.profile else supervisor.known_runs(
+        REPO_ROOT)
     if not names:
         print("no runs on record (build/run/ is empty)")
         return 0
@@ -990,7 +1004,8 @@ def cmd_doctor(args):
         for name in profile.services:
             port = profile.service_config(name).get("port")
             if port:
-                claims.setdefault(port, []).append("%s/%s" % (profile.name, name))
+                claims.setdefault(port, []).append(
+                    "%s/%s" % (profile.name, name))
     for port, owners in sorted(claims.items()):
         if len(owners) > 1:
             notes.append("port %s is claimed by %s — those profiles cannot run "
@@ -999,7 +1014,8 @@ def cmd_doctor(args):
             notes.append("port %s is in use right now (wanted by %s)"
                          % (port, ", ".join(owners)))
 
-    needs_web = any(profile.client in ("web", "web-idb") for profile in profiles)
+    needs_web = any(profile.client in ("web", "web-idb")
+                    for profile in profiles)
     if needs_web:
         module = os.path.join(REPO_ROOT, "build-web", "torirs.js")
         if os.path.isfile(module):
@@ -1014,7 +1030,8 @@ def cmd_doctor(args):
         vendored = os.path.join(
             REPO_ROOT, "toolchains", "java-toolchain-osrs239.zip")
         if os.path.isdir(toolchain) or os.path.isfile(vendored):
-            checks.append(("java toolchain", "available for the runelite lane"))
+            checks.append(
+                ("java toolchain", "available for the runelite lane"))
         else:
             problems.append(
                 "a runelite profile exists but neither toolchains/unpacked nor "
@@ -1157,7 +1174,8 @@ def main(argv=None):
 
     shell = sub.add_parser("completion",
                            help="print the shell tab-completion script")
-    shell.add_argument("shell", nargs="?", help="bash or zsh ($SHELL by default)")
+    shell.add_argument("shell", nargs="?",
+                       help="bash or zsh ($SHELL by default)")
 
     args = parser.parse_args(argv)
     if not args.command:

@@ -62,6 +62,19 @@ enum RS_TitleAction
     RS_TITLE_ACTION_CANCEL,
     RS_TITLE_ACTION_FOCUS_USERNAME,
     RS_TITLE_ACTION_FOCUS_PASSWORD,
+    /** The form's two checkboxes. Device-local state, like the reference's:
+     *  nothing sends either to a server. */
+    RS_TITLE_ACTION_TOGGLE_REMEMBER,
+    RS_TITLE_ACTION_TOGGLE_HIDE,
+};
+
+/** Which of the form's checkboxes a login_toggle is. Parallel to
+ *  RS_TitleAction's two toggle members, and the index into RS_Title::toggles. */
+enum RS_TitleToggle
+{
+    RS_TITLE_TOGGLE_REMEMBER = 0,
+    RS_TITLE_TOGGLE_HIDE,
+    RS_TITLE_TOGGLE_COUNT
 };
 
 /** Per-field limits, read off the baked login_input node. */
@@ -105,6 +118,15 @@ struct RS_Title
     /** 0-100, or -1 for "no bar showing". */
     int progress_percent;
     char progress_text[RS_TITLE_PROGRESS_TEXT_LEN];
+
+    /**
+     * The form's checkboxes, indexed by enum RS_TitleToggle.
+     *
+     * Device-local, exactly as in the reference: neither travels to a server,
+     * and "remember username" is a statement about THIS machine. Held here
+     * rather than in a varp for that reason.
+     */
+    int toggles[RS_TITLE_TOGGLE_COUNT];
 };
 
 /** Zero the model and put it on the front menu with no bar. */

@@ -44,6 +44,8 @@ type_from_string(char const* type)
         return UIELEM_BUILTIN_LOGIN_INPUT;
     if( strcmp(type, "login_button") == 0 )
         return UIELEM_BUILTIN_LOGIN_BUTTON;
+    if( strcmp(type, "login_toggle") == 0 )
+        return UIELEM_BUILTIN_LOGIN_TOGGLE;
     if( strcmp(type, "login_message") == 0 )
         return UIELEM_BUILTIN_LOGIN_MESSAGE;
     if( strcmp(type, "title_progress") == 0 )
@@ -806,6 +808,26 @@ push_builtin_op(
          * clicks and doing nothing, which is the hardest kind of INI typo to
          * see. Name it here instead. */
         assert(spec.u.login_button.action != 0 && "login_button action= unknown");
+        break;
+    case UIELEM_BUILTIN_LOGIN_TOGGLE:
+        /* Redrawn whenever its own state changes, and that state is the
+         * host's -- nothing about the node says it moved. */
+        spec.always_dirty = 1;
+        spec.u.login_toggle.scene_id = sprite_id;
+        spec.u.login_toggle.atlas_index = atlas_index;
+        spec.u.login_toggle.scene_id_on = sprite_active_id;
+        spec.u.login_toggle.atlas_index_on = atlas_active;
+        spec.u.login_toggle.action = RS_Title_ActionFromName(op->title_action);
+        /* Same reasoning as the button's: an unresolved action= is a widget
+         * that sits there eating clicks and doing nothing. */
+        assert(
+            (spec.u.login_toggle.action == RS_TITLE_ACTION_TOGGLE_REMEMBER ||
+             spec.u.login_toggle.action == RS_TITLE_ACTION_TOGGLE_HIDE) &&
+            "login_toggle action= must be toggle_remember or toggle_hide");
+        spec.u.login_toggle.toggle =
+            spec.u.login_toggle.action == RS_TITLE_ACTION_TOGGLE_HIDE
+                ? RS_TITLE_TOGGLE_HIDE
+                : RS_TITLE_TOGGLE_REMEMBER;
         break;
     case UIELEM_BUILTIN_LOGIN_MESSAGE:
         spec.always_dirty = 1;

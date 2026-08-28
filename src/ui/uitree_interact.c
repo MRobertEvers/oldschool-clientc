@@ -1425,6 +1425,18 @@ interact_click(
             out->need_redraw = 1;
             return;
         }
+        if( hit_c->type == UIELEM_BUILTIN_LOGIN_TOGGLE )
+        {
+            /* Same dispatch as the button below -- the action is resolved on
+             * the node and the host owns what it changes. */
+            struct UITreeHostRequest action_req = {
+                .kind = UITREE_HOST_TITLE_ACTION,
+                .u.title_action.action = hit_c->u.login_toggle.action,
+            };
+            UITree_Host(ui_host, &action_req);
+            out->need_redraw = 1;
+            return;
+        }
         if( hit_c->type == UIELEM_BUILTIN_LOGIN_BUTTON )
         {
             /* Dispatched here rather than reported like the chat button: the

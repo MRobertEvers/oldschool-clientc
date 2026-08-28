@@ -260,6 +260,15 @@ enum UITreeHostRequestKind
      */
     UITREE_HOST_TITLE_ACTION,
     /**
+     * Is one of the login form's checkboxes on? u.get_title_toggle.toggle is
+     * the RS_TitleToggle to ask about; returns nonzero for on.
+     *
+     * A question, unlike TITLE_ACTION above: it decides which of the widget's
+     * two sprites this frame draws. The state is the host's because it is
+     * device state that outlives the tree, not a property of the node.
+     */
+    UITREE_HOST_GET_TITLE_TOGGLE,
+    /**
      * The scene sprite one brazier's fire is currently in
      * (u.get_title_flames.side selects which), written to out_scene_id.
      *
@@ -580,6 +589,11 @@ struct UITreeHostRequest
             /** Resolved RS_TitleAction. */
             int action;
         } title_action;
+        struct
+        {
+            /** enum RS_TitleToggle. */
+            int toggle;
+        } get_title_toggle;
         struct
         {
             /** enum TitleFlameSide. */

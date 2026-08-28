@@ -1314,6 +1314,8 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "login_input";
     case UIELEM_BUILTIN_LOGIN_BUTTON:
         return "login_button";
+    case UIELEM_BUILTIN_LOGIN_TOGGLE:
+        return "login_toggle";
     case UIELEM_BUILTIN_LOGIN_MESSAGE:
         return "login_message";
     case UIELEM_BUILTIN_TITLE_PROGRESS:
@@ -2350,6 +2352,15 @@ UITree_Push(
         component->u.login_button.scene_id = spec->u.login_button.scene_id;
         component->u.login_button.atlas_index = spec->u.login_button.atlas_index;
         component->u.login_button.action = spec->u.login_button.action;
+        break;
+
+    case UIELEM_BUILTIN_LOGIN_TOGGLE:
+        component->u.login_toggle.scene_id = spec->u.login_toggle.scene_id;
+        component->u.login_toggle.atlas_index = spec->u.login_toggle.atlas_index;
+        component->u.login_toggle.scene_id_on = spec->u.login_toggle.scene_id_on;
+        component->u.login_toggle.atlas_index_on = spec->u.login_toggle.atlas_index_on;
+        component->u.login_toggle.action = spec->u.login_toggle.action;
+        component->u.login_toggle.toggle = spec->u.login_toggle.toggle;
         break;
 
     case UIELEM_BUILTIN_LOGIN_MESSAGE:
