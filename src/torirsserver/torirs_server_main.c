@@ -36,7 +36,6 @@
  *                       CLIENT_CHEAT path (default 0)
  */
 #include "torirs_server.h"
-#include <assert.h>
 
 #include "torirs_server_boot.h"
 #include "torirs_server_container.h"
@@ -66,7 +65,6 @@
 #define TORIRSSERVER_DEFAULT_PORT 43595
 #endif
 
-#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>

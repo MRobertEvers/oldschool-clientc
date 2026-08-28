@@ -509,6 +509,16 @@ bridge_input_to_uitree(
             .button = TORIRSM_LEFT,
         };
         last = UITree_InputUpdate(ui_state, tree, host, up);
+        /* TORIRS_LOGIN_DEBUG=1: where a click landed and what it hit.
+         *
+         * The pair of questions a dead button raises -- did the click reach
+         * the tree at all, and did the tree resolve it to a component -- and
+         * the only place both are answerable at once. `clicked` is -1 for a
+         * press the tree hit-tested to nothing, which is what a component that
+         * takes no clicks (a login field) reports too. */
+        if( getenv("TORIRS_LOGIN_DEBUG") )
+            fprintf(stderr, "ui_click: x=%d y=%d hovered=%d clicked=%d\n",
+                up.x, up.y, (int)last.hovered, (int)last.clicked);
     }
     else if( LibToriRS_Input_IsDragEnd(input, TORIRSM_LEFT) )
     {
@@ -1395,6 +1405,9 @@ interact_click(
     {
         struct UITreeComponent const* hit_c = &tree->components[ihit];
         int tabno = -1;
+        if( getenv("TORIRS_LOGIN_DEBUG") )
+            fprintf(stderr, "ui_hit: x=%d y=%d idx=%d type=%d com=0x%08x\n",
+                click_x, click_y, ihit, (int)hit_c->type, (unsigned)hit_c->component_id);
         if( hit_c->type == UIELEM_BUILTIN_TAB_ICONS )
             tabno = hit_c->u.tab_icon.tabno;
         else if( hit_c->type == UIELEM_BUILTIN_REDSTONE_TAB )

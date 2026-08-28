@@ -219,6 +219,10 @@ connect_login(
     }
 
     net->state = TORIRS_NET_LOGIN;
+    /* TORIRS_LOGIN_DEBUG=1: the client's side of a login attempt, printed
+     * before the socket is dialled -- so a login that never reaches a server
+     * is distinguishable from one that was never attempted. Paired with the
+     * ui_click trace in ui/uitree_interact.c. */
     if( getenv("TORIRS_LOGIN_DEBUG") )
         fprintf(stderr, "login_debug: connect host='%s' user='%s' (%d) pass=%d reconnect=%d\n",
             net->host, net->username, (int)strlen(net->username),

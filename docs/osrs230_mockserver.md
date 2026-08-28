@@ -12,7 +12,8 @@
 > handshake is a non-blocking state machine, packets and script opcodes dispatch
 > through tables, and the world holds a *pool* of players whose entity streams
 > are per-player — two clients in one process see each other move (§6.1 step 1),
-> though the socket server still accepts one connection at a time.
+> and the socket server holds every connection on one thread (§6.1 step 1,
+> `torirs_server_host.c`).
 
 A server that speaks enough of the rev-230 protocol to drive the real client:
 log in, load a scene, walk around, watch npcs roam, switch sidebar tabs, equip
@@ -5260,11 +5261,38 @@ unblocks the next:
    What is still single-player, deliberately and separately (the scene-origin
    entry is the one step 3 did *not* close, and is now the sharpest of them):
 
-   - **The socket server accepts one connection at a time.** `serve()` runs one
-     session to completion; a real one wants the non-blocking accept with
-     per-connection output buffering noted at the end of this section. The
-     embedded host (`ToriRSServer_EmbedConnect`) holds several, which is what the
-     test drives.
+   - ~~**The socket server accepts one connection at a time.**~~ — **done**,
+     in `torirs_server_host.c`. `serve()` used to run one session to completion
+     and own the world for its lifetime, with JS5 made to work beside it by
+     forking a child per cache download. What replaced it is the shape the
+     embedded host already had, on descriptors: one `select()` over the
+     listener and every connection, one world that outlives any session, and
+     one 600 ms tick. JS5 is a session state rather than a service, so it
+     shares the loop and the fork is gone — the server is genuinely
+     single-threaded now.
+
+     Three things had to stop blocking for that to be true, and each of them
+     stalls *the world* rather than one client if it does not: the accepted
+     socket is non-blocking (`ToriRSServer_ConnBegin`), the WebSocket upgrade
+     is a state machine (`ToriRSServer_ConnOpenStep`) rather than a read loop,
+     and output the kernel refuses is queued on the connection
+     (`ToriRSServer_ConnFlush`) rather than waited on. The queue needs a
+     bound, so the JS5 service consults `transport->pending` and stops
+     building answers half a megabyte ahead of the peer — the backpressure a
+     forked child used to get for free from a blocking write.
+
+     Login and logout are the work queue, drained at the top of a tick in
+     arrival order: both are discovered between ticks (a socket dies whenever
+     it dies) and neither may run while a tick is mid-flight, since one builds
+     a world and loads a save and the other runs `[logout]` and frees the
+     player's containers. That is the reference's logout and login phases,
+     hoisted to the host because that is where a socket's death is observed.
+
+     One latent bug fell out of the world outliving its last player, which had
+     never been possible before: `run_or_park` dereferenced
+     `srv->active_player` unconditionally, and the first tick after the last
+     logout runs `[ai_*]` triggers with nobody logged in. It died with no
+     message at all.
    - **One scene origin for the whole world.** `ToriRSServer_SceneBuild` is a
      singleton, so `maybe_rebuild` moves the origin for everybody and marks
      every player as owing a REBUILD_NORMAL. Two players more than ~70 tiles
@@ -5401,11 +5429,10 @@ from `torirs_server_pack.c` (retired on paper by §5.4, still present in the fil
 is Phase 0 of `PORTING_GUIDE.md` — it should precede the bulk content port so
 there is one load path to debug rather than two.
 
-Two smaller things that belong with step 1: the accepted socket is *blocking*,
-so the `select()` in `torirs_server_main.c` is load-bearing (see §3.13b) and a real
-server wants non-blocking accept with per-connection output buffering; and
-`TORIRSSERVER_VARP_COUNT` is a flat `int32_t[5000]` per player — 20 KB each — which
-wants to be sparse or sized from the cache.
+One smaller thing belongs with step 1: `TORIRSSERVER_VARP_COUNT` is a flat
+`int32_t[5000]` per player — 20 KB each — which wants to be sparse or sized from
+the cache. (The other used to be that the accepted socket was blocking; it is
+not any more, see step 1.)
 
 The player stream's 11-bit pid field is the same class of thing as §3.2 and has
 not been parameterised — it is 11 bits in every revision in the tree, so there
