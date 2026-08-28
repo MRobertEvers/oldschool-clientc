@@ -67,6 +67,7 @@ loginproto_new(
     loginproto->seed_user = NULL;
 
     loginproto->state = LOGINPROTO_SEND_CONNECT;
+    loginproto->reply_code = -1;
     return loginproto;
 }
 
@@ -371,6 +372,9 @@ loginproto_poll(struct LoginProto* loginproto)
             }
             else
                 TORIRS_ERR("loginproto: login rejected, reply=%d\n", reply_byte);
+            /* The code the login screen needs: [login_reply:6] is what a
+             * player is shown, and the prose above is what the log gets. */
+            loginproto->reply_code = reply_byte;
             loginproto->state = LOGINPROTO_ERROR;
             return LOGINPROTO_AWAIT_RECV;
         }

@@ -37,6 +37,7 @@ UITree_HostRequestInputMask(enum UITreeHostRequestKind kind)
     case UITREE_HOST_CYCLE_CHAT_FILTER_MODE:
     case UITREE_HOST_BEGIN_OVERLAYS:
     case UITREE_HOST_SET_ROLE_OVERLAY_CLIP:
+    case UITREE_HOST_TITLE_ACTION:
         return 0;
 
     /* CS1 can read both ordinary client variables and inventory counts. */
@@ -98,6 +99,21 @@ UITree_HostRequestInputMask(enum UITreeHostRequestKind kind)
     case UITREE_HOST_GET_REBOOT_TIMER:
     case UITREE_HOST_GET_TAB_FLASH_HIDDEN:
         return client | animation;
+
+    /* Which screen is up, what is typed and what the server replied are all
+     * client state; the caret's blink is the clock, which is why the field
+     * line also reads animation. Without that bit the gate retains a frame
+     * whose caret should have flipped and the cursor freezes. */
+    case UITREE_HOST_GET_TITLE_SCREEN:
+    case UITREE_HOST_GET_TITLE_MESSAGE:
+    case UITREE_HOST_GET_TITLE_PROGRESS:
+        return client;
+
+    case UITREE_HOST_GET_TITLE_FIELD:
+        return client | animation;
+
+    case UITREE_HOST_GET_TITLE_FLAMES:
+        return animation | assets;
 
     case UITREE_HOST_GET_MINIMAP_DOTS:
     case UITREE_HOST_GET_ENTITY_OVERLAYS:
@@ -238,6 +254,14 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_MINIMAP_HIDDEN:
     case UITREE_HOST_GET_MULTIWAY:
     case UITREE_HOST_GET_REBOOT_TIMER:
+    /* A tree with no session is not on the title screen, has nothing typed,
+     * no reply to show and no bar running -- all four are the honest answer
+     * rather than a placeholder, and each makes its widget draw nothing. */
+    case UITREE_HOST_GET_TITLE_FIELD:
+    case UITREE_HOST_GET_TITLE_MESSAGE:
+    case UITREE_HOST_GET_TITLE_PROGRESS:
+    case UITREE_HOST_GET_TITLE_FLAMES:
+    case UITREE_HOST_TITLE_ACTION:
     case UITREE_HOST_GET_MINIMAP_DOTS:
     case UITREE_HOST_BEGIN_OVERLAYS:
     case UITREE_HOST_GET_ENTITY_OVERLAYS:
@@ -270,6 +294,9 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_STATIC_SPRITE_SCENE:
     case UITREE_HOST_GET_MINIMAP_STATE:
     case UITREE_HOST_GET_INV_COUNT_FONT:
+    /* -1 is "not on the title screen", which 0 could not say: 0 is a real
+     * screen (the front menu). */
+    case UITREE_HOST_GET_TITLE_SCREEN:
         return -1;
     case UITREE_HOST_REQUEST_COUNT:
         return 0;

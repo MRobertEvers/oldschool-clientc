@@ -110,12 +110,33 @@ struct D3D9RotmaskVertex
     float mask_v;
 };
 
+/*
+ * One scene sprite id's place in the UI atlas.
+ *
+ * `tiles` is kept across an invalidate, and that is the point of it. The
+ * atlas is an append-only bin-packer with no reclamation, so a sprite that
+ * is REPLACED over a live id -- the title screen's fire redraws its column
+ * every 35 ms -- would consume a fresh tile on every upload and exhaust the
+ * sheet within seconds, after which inserts fail and the sprite stops
+ * drawing altogether. Holding the tile lets a replacement of the same size
+ * overwrite the pixels where they already are.
+ */
+struct D3D9UISpriteTile
+{
+    uint32_t x;
+    uint32_t y;
+    uint32_t w; /* padded, as inserted */
+    uint32_t h;
+    uint8_t valid;
+};
+
 struct D3D9UISpriteSlot
 {
     int scene_id;
     int count;
     float* uvs;
     uint8_t* loaded;
+    struct D3D9UISpriteTile* tiles;
 };
 
 struct D3D9UISpriteVariant

@@ -15,6 +15,7 @@
  * call.  See platform_win32_renderer_d3d9_core.h for the contract.
  */
 
+#include "engine/boot_bar.h"
 #include "platform/platform_win32_renderer_d3d9_core.h"
 #include "toridraw_element_id.h"
 #include <assert.h>
@@ -779,8 +780,13 @@ d3d9_ui_sprite_slot_index(struct ToriRS_D3D9* renderer, int scene_id, bool creat
     renderer->ui_sprite_slots[free_index].count = 0;
     free(renderer->ui_sprite_slots[free_index].uvs);
     free(renderer->ui_sprite_slots[free_index].loaded);
+    /* A slot being handed to a different scene id keeps none of the old
+     * one's atlas tiles: they belong to whatever sprite used to live here,
+     * and reusing them would overwrite it. */
+    free(renderer->ui_sprite_slots[free_index].tiles);
     renderer->ui_sprite_slots[free_index].uvs = NULL;
     renderer->ui_sprite_slots[free_index].loaded = NULL;
+    renderer->ui_sprite_slots[free_index].tiles = NULL;
     return free_index;
 }
 
@@ -793,9 +799,17 @@ d3d9_ui_sprite_invalidate(struct ToriRS_D3D9* renderer, int scene_id)
     if( slot_index >= 0 )
     {
         struct D3D9UISpriteSlot* slot = &renderer->ui_sprite_slots[slot_index];
-        free(slot->uvs);
-        free(slot->loaded);
-        memset(slot, 0, sizeof(*slot));
+
+        /*
+         * Mark the pixels stale; keep the slot and its tiles.
+         *
+         * Freeing them here is what made a replaced sprite consume a fresh
+         * atlas tile on every upload. The next draw re-uploads into the tile
+         * this slot already owns whenever the size is unchanged, which for a
+         * sprite being replaced in place it always is.
+         */
+        if( slot->loaded )
+            memset(slot->loaded, 0, (size_t)slot->count * sizeof(*slot->loaded));
     }
     for( i = 0u; i < D3D9_UI_VARIANT_CAP; i++ )
         if( renderer->ui_variants[i].valid &&
@@ -810,6 +824,7 @@ d3d9_ui_upload_sprite_pixels(
     const uint32_t* source,
     int width,
     int height,
+    struct D3D9UISpriteTile* tile_io,
     float out_uv[4])
 {
     struct TRSPK_AtlasTile tile;
@@ -847,16 +862,47 @@ d3d9_ui_upload_sprite_pixels(
                     source[(size_t)source_y * (size_t)width + (size_t)source_x]);
         }
     }
-    inserted = trspk_atlas_binpack_insert(
-        &renderer->ui_sprite_atlas,
-        (const uint8_t*)argb,
-        padded_width * 4u,
-        padded_width,
-        padded_height,
-        &tile);
+    /*
+     * Reuse the tile this sprite already holds when the replacement is the
+     * same size, and only ask the packer for a new one otherwise. Without
+     * this a sprite replaced every frame walks the sheet until inserts fail
+     * and it silently stops drawing.
+     */
+    if( tile_io && tile_io->valid && tile_io->w == padded_width &&
+        tile_io->h == padded_height )
+    {
+        inserted = trspk_atlas_update_rect(
+            &renderer->ui_sprite_atlas,
+            tile_io->x,
+            tile_io->y,
+            (const uint8_t*)argb,
+            padded_width * 4u,
+            padded_width,
+            padded_height);
+        tile.x = tile_io->x;
+        tile.y = tile_io->y;
+    }
+    else
+    {
+        inserted = trspk_atlas_binpack_insert(
+            &renderer->ui_sprite_atlas,
+            (const uint8_t*)argb,
+            padded_width * 4u,
+            padded_width,
+            padded_height,
+            &tile);
+    }
     free(argb);
     if( !inserted )
         return false;
+    if( tile_io )
+    {
+        tile_io->x = tile.x;
+        tile_io->y = tile.y;
+        tile_io->w = padded_width;
+        tile_io->h = padded_height;
+        tile_io->valid = 1u;
+    }
     out_uv[0] = (float)(tile.x + 1u) / (float)renderer->ui_sprite_atlas.width;
     out_uv[1] = (float)(tile.y + 1u) / (float)renderer->ui_sprite_atlas.height;
     out_uv[2] =
@@ -893,23 +939,33 @@ d3d9_ui_sprite_ensure_base(
     if( slot_index < 0 )
         return false;
     slot = &renderer->ui_sprite_slots[slot_index];
-    if( slot->count != count )
+    if( slot->count != count || !slot->tiles )
     {
         float* uvs = (float*)calloc((size_t)count * 4u, sizeof(float));
         uint8_t* loaded = (uint8_t*)calloc((size_t)count, sizeof(uint8_t));
+        struct D3D9UISpriteTile* tiles = (struct D3D9UISpriteTile*)calloc(
+            (size_t)count, sizeof(*tiles));
         assert(uvs);
         assert(loaded);
+        assert(tiles);
         free(slot->uvs);
         free(slot->loaded);
+        free(slot->tiles);
         slot->uvs = uvs;
         slot->loaded = loaded;
+        slot->tiles = tiles;
         slot->count = count;
     }
     if( !slot->loaded[atlas_index] )
     {
         float uv[4];
         if( !d3d9_ui_upload_sprite_pixels(
-                renderer, sprite->pixels_argb, sprite->width, sprite->height, uv) )
+                renderer,
+                sprite->pixels_argb,
+                sprite->width,
+                sprite->height,
+                &slot->tiles[atlas_index],
+                uv) )
             return false;
         memcpy(&slot->uvs[atlas_index * 4], uv, sizeof(uv));
         slot->loaded[atlas_index] = 1u;
@@ -1121,7 +1177,7 @@ d3d9_ui_sprite_ensure_variant(
             command->flip_h,
             command->flip_v,
             command->sprite_angle_r2pi65536);
-    if( !d3d9_ui_upload_sprite_pixels(renderer, pixels, width, height, out_uv) )
+    if( !d3d9_ui_upload_sprite_pixels(renderer, pixels, width, height, NULL, out_uv) )
     {
         free(pixels);
         return false;
@@ -6556,8 +6612,6 @@ ToriRS_D3D9_Execute(
 void
 ToriRS_D3D9_DrawBootBar(struct ToriRS_D3D9* renderer, int progress)
 {
-    int bar_w;
-    int bar_h = 12;
     int bar_x;
     int bar_y;
     int fill_w;
@@ -6566,16 +6620,32 @@ ToriRS_D3D9_DrawBootBar(struct ToriRS_D3D9* renderer, int progress)
         return;
     progress = d3d9_clampi(progress, 0, 100);
     d3d9_set_full_viewport(renderer);
-    bar_w = renderer->width / 3;
-    bar_x = (renderer->width - bar_w) / 2;
-    bar_y = (renderer->height - bar_h) / 2;
-    fill_w = bar_w * progress / 100;
-    d3d9_draw_solid_rect(renderer, bar_x - 1, bar_y - 1, bar_w + 2, bar_h + 2, 0xff8b0000u);
+
+    /*
+     * The references' bar, not one of ours. @see engine/boot_bar.h -- the
+     * constants are shared with the software lane so the same boot does not
+     * draw two different pictures depending on which renderer came up.
+     *
+     * Three rects reach what BootBar_Draw reaches with four operations: a
+     * filled red track, a black inset one pixel in that leaves the red as a
+     * border and blacks the unfilled remainder, then the fill itself two
+     * pixels in. The black ring between border and fill is the deob's, and
+     * it is what makes the bar look recessed.
+     */
+    bar_x = renderer->width / 2 - BOOT_BAR_W / 2;
+    bar_y = renderer->height / 2 - BOOT_BAR_ABOVE_CENTRE;
+    fill_w = progress * BOOT_BAR_PX_PER_PERCENT;
+    d3d9_draw_solid_rect(
+        renderer, bar_x, bar_y, BOOT_BAR_W, BOOT_BAR_H, 0xff000000u | BOOT_BAR_COLOR);
+    d3d9_draw_solid_rect(
+        renderer, bar_x + 1, bar_y + 1, BOOT_BAR_W - 2, BOOT_BAR_H - 2, 0xff000000u);
     if( fill_w > 0 )
-        d3d9_draw_solid_rect(renderer, bar_x, bar_y, fill_w, bar_h, 0xff8b0000u);
-    if( fill_w < bar_w )
-        d3d9_draw_solid_rect(
-            renderer, bar_x + fill_w, bar_y, bar_w - fill_w, bar_h, 0xff000000u);
+        d3d9_draw_solid_rect(renderer,
+                             bar_x + BOOT_BAR_INSET,
+                             bar_y + BOOT_BAR_INSET,
+                             fill_w,
+                             BOOT_BAR_FILL_H,
+                             0xff000000u | BOOT_BAR_COLOR);
     d3d9_end_frame_scene(renderer);
 }
 

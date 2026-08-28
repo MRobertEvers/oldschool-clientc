@@ -182,6 +182,35 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_OVER_COLOR,
     RCFIELD_UICOMPONENT_SHADOWED,
     RCFIELD_UICOMPONENT_TEXT,
+    RCFIELD_UICOMPONENT_TITLE_FIELD,
+    RCFIELD_UICOMPONENT_TITLE_PREFIX,
+    RCFIELD_UICOMPONENT_TITLE_CARET,
+    RCFIELD_UICOMPONENT_TITLE_CARET_BLINK,
+    RCFIELD_UICOMPONENT_TITLE_MASK,
+    RCFIELD_UICOMPONENT_TITLE_MAXLEN,
+    RCFIELD_UICOMPONENT_TITLE_CHARSET,
+    RCFIELD_UICOMPONENT_TITLE_ACTION,
+    RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX,
+    RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT,
+    RCFIELD_UICOMPONENT_FLAME_BIAS,
+    RCFIELD_UICOMPONENT_FLAME_SWAY,
+    RCFIELD_UICOMPONENT_FLAME_RUN,
+    RCFIELD_UICOMPONENT_FLAME_ROW,
+    RCFIELD_UICOMPONENT_FLAME_BLUR,
+    RCFIELD_UICOMPONENT_TEXT_BASELINE,
+    RCFIELD_STRING_TEXT,
+    RCFIELD_PRELOAD_KIND,
+    RCFIELD_PRELOAD_ARCHIVE,
+    RCFIELD_PRELOAD_ID,
+    RCFIELD_PRELOAD_PERCENT,
+    RCFIELD_PRELOAD_SAY,
+    RCFIELD_PRELOAD_WEIGHT,
+    RCFIELD_PRELOAD_RENDER,
+    RCFIELD_PRELOAD_ORDER,
+    RCFIELD_LOGIN_REPLY_SCREEN,
+    RCFIELD_LOGIN_REPLY_LINE1,
+    RCFIELD_LOGIN_REPLY_LINE2,
+    RCFIELD_LOGIN_REPLY_LINE3,
     RCFIELD_UICOMPONENT_OPTION,
     RCFIELD_UICOMPONENT_OPTION_ACTION,
     RCFIELD_UICOMPONENT_OP0,
@@ -233,6 +262,7 @@ enum RevConfigFieldKind
     RCFIELD_UILAYOUT_BOTTOM,
     RCFIELD_UILAYOUT_RIGHT,
     RCFIELD_UILAYOUT_DIRTY,
+    RCFIELD_UILAYOUT_XALIGN,
     RCFIELD_UILAYOUT_PARENT,
     RCFIELD_UILAYOUT_NAME,
     RCFIELD_UILAYOUT_GROUP,
@@ -285,6 +315,100 @@ enum RevConfigItemKind
     RCITEM_CAMERA,
     RCITEM_CHROME,
     RCITEM_ROLE,
+    RCITEM_STRING,
+    RCITEM_LOGIN_REPLY,
+    RCITEM_PRELOAD,
+};
+
+/**
+ * One `[string:<name>] text=` -- a line of UI prose, named here rather than
+ * spelled in C.
+ *
+ * The client legitimately knows WHEN to say something ("we are connecting
+ * now"); what it says, and in which revision's wording, is the profile's.
+ */
+/**
+ * One `[preload:<name>]` -- a single step of the loading screen.
+ *
+ * WHAT a revision fetches before it can show a title screen is the
+ * revision's business, and the two eras disagree about all of it. The 2004
+ * client pulls nine jag archives over HTTP in a fixed order and unpacks
+ * them one at a time; OldSchool 239 opens eight cache indices at once and
+ * watches them complete, weighting each one's contribution to the
+ * percentage (sound effects alone are 53% of its bar). Neither list is
+ * derivable from the other, and neither belongs in C.
+ *
+ * `kind` says which machinery loads it, because that IS the client's part:
+ * it knows how to pull a jagfile and how to open an index, and the profile
+ * says which ones and in what order.
+ *
+ * `percent`/`say` are what the bar shows while the step runs -- `say` names
+ * a [string:] entry, so the words stay the revision's too. `weight` is the
+ * deob's model, where the bar is a weighted sum of several concurrent
+ * loads rather than a position in a queue; a profile that states no weights
+ * gets the 2004 model, where each step simply owns its percent.
+ *
+ * `render` is the opt-in: a step that sets it publishes a frame before it
+ * runs, which is the only way a long fetch shows its own progress. A step
+ * that does not sets nothing on screen and costs nothing.
+ */
+struct RevConfigPreloadItem
+{
+    char name[64];
+    /** INI: kind= -- jagfile | index | ondemand | unpack */
+    char kind[24];
+    /** INI: archive= -- the jagfile stem or the cache index/table name. */
+    char archive[64];
+    /** INI: id= -- the numeric index/table, where the era addresses by
+     *  number rather than by name. -1 when unstated. */
+    int id;
+    /** INI: percent= -- the bar position while this step runs. */
+    int percent;
+    /** INI: say= -- a [string:] name, drawn under the bar. */
+    char say[64];
+    /** INI: weight= -- share of the bar this step owns, deob-style. */
+    int weight;
+    /** INI: render= -- publish a frame before running this step. */
+    int render;
+    /** INI: order= -- ascending; ties keep file order. */
+    int order;
+};
+
+struct RevConfigStringItem
+{
+    char name[64];
+    char text[256];
+};
+
+/**
+ * One `[login_reply:<code>]` -- what a login rejection means, in words.
+ *
+ * The CODE is protocol and belongs to net/; the SENTENCES are presentation and
+ * differ per revision, which is exactly the split revconfig exists for: the
+ * old lane answers codes 3..21 in two lines, the modern one -3..74 in three.
+ *
+ * `screen` carries the behavioural half -- some codes land on a dedicated
+ * screen rather than the generic error page -- so a revision can say that
+ * without new C.
+ *
+ * The section name is the code, or `default` for anything unlisted, or
+ * `connect_failed` for a socket that never reached a server.
+ */
+#define REVCONFIG_LOGIN_REPLY_DEFAULT_NAME "default"
+#define REVCONFIG_LOGIN_REPLY_CONNECT_FAILED_NAME "connect_failed"
+
+/* Out of the protocol's byte range so they cannot collide with a real code.
+ * Kept in step with TORIRS_NET_LOGIN_REPLY_CONNECT_FAILED by net/net.h. */
+#define REVCONFIG_LOGIN_REPLY_CODE_DEFAULT (-1000)
+#define REVCONFIG_LOGIN_REPLY_CODE_CONNECT_FAILED (-100)
+
+struct RevConfigLoginReplyItem
+{
+    /** The reply byte, or one of the sentinels below. */
+    int code;
+    /** RS_TitleScreen to land on; -1 leaves the screen alone. */
+    int screen;
+    char line[3][256];
 };
 
 /** Section types that build an RCITEM_CACHE_REF, i.e. a bare name -> cache id. */
@@ -761,8 +885,119 @@ struct RevConfigUIComponentItem
     /* INI: shadowed= — text shadow for type=rs_text. */
     int shadowed;
 
+    /*
+     * INI: baseline=
+     * type=rs_text: the layout row's y is the text BASELINE rather than the top
+     * of its box. Both references write every text coordinate that way
+     * (font.drawString(s, x, y)), so without this a ported row has to carry a
+     * box top computed from the font's ascent and the reference's own numbers
+     * stop being usable as written.
+     */
+    int text_baseline;
+
     /* INI: text= — literal string for static type=rs_text owners (not cache-backed). */
     char text[256];
+
+    /*
+     * Title-screen widgets (type=login_input / login_button / login_message /
+     * title_progress*). The title screen is not a cache interface -- no
+     * revision ships one as widget data -- so it is built from client widgets
+     * whose every appearance decision is stated here rather than in C.
+     *
+     * INI: field=
+     * Which of a paired widget this one is: `username`/`password` for a
+     * login_input, `left`/`right` for a title_flames brazier. One key rather
+     * than two near-identical ones, because it answers the same question.
+     */
+    char title_field[16];
+
+    /*
+     * INI: prefix=
+     * Drawn before the value on the same line, because the reference draws the
+     * label and the value as ONE string ("Username: bob") and centring or
+     * measuring them separately would not reproduce it.
+     */
+    char title_prefix[32];
+
+    /*
+     * INI: caret=
+     * What a focused field appends while the caret is visible. The two lanes
+     * spell the same idea differently -- "@yel@|" on dat1, "<col=ffff00>|" on
+     * dat2 -- because it is the era's own font-markup dialect, so it is a
+     * string here and not a colour plus a flag.
+     */
+    char title_caret[24];
+
+    /*
+     * INI: caret_blink=  (default 0 = never blink)
+     * Blink period in client cycles; the caret shows for the first half. Both
+     * references use 40, and both write it as a bare constant.
+     */
+    int title_caret_blink;
+
+    /*
+     * INI: mask=
+     * Character a login_input shows instead of its value. Empty means show the
+     * text. Only the first character is used.
+     */
+    char title_mask[8];
+
+    /* INI: maxlen= — characters the field accepts. @see RS_TitleFieldCfg. */
+    int title_maxlen;
+
+    /*
+     * INI: charset=
+     * Characters the field accepts; empty accepts anything printable. The old
+     * lane states the reference's 94-character set, because a glyph the
+     * revision's font lacks is one the player cannot see.
+     */
+    char title_charset[160];
+
+    /*
+     * INI: action=
+     * What a login_button does: existing_user | new_user | login | cancel |
+     * focus_username | focus_password. A name rather than a screen number, so
+     * the INI states an intent. @see RS_Title_ActionFromName.
+     */
+    char title_action[32];
+
+    /* INI: index= — which of the three login message lines a login_message
+     * draws (0-2). */
+    int title_message_index;
+
+    /*
+     * INI: px_per_percent=  (default 0 = fill the declared width at 100)
+     * Bar pixels per percent for title_progress. Both references write the fill
+     * as `percent * 3` over a 300-wide track, and stating the scale keeps a
+     * revision that sizes its bar differently from needing new C.
+     */
+    int title_px_per_percent;
+
+    /*
+     * INI: flame_bias= / flame_sway= / flame_run= / flame_row=
+     *
+     * Where a brazier's fire sits inside the 128-wide column it burns in.
+     * The column itself is blitted over the backdrop it was cut from, so
+     * these move the FIRE within it -- which is how both references lean
+     * the two flames outward without moving the strip of wall behind them.
+     *
+     * bias  destination column the run starts at, signed
+     * sway  which way the per-row wobble pushes: +1 or -1
+     * run   source columns drawn (the 2004 right brazier is 103 of 128)
+     * row   destination row the fire starts on
+     *
+     * Client-TS: left bias -22 sway -1 run 128 row 9; right bias 24
+     * sway +1 run 103 row 9. The deob leans both by 22 and starts a row
+     * higher, which is why these are the profile's numbers and not C's.
+     */
+    int flame_bias;
+    int flame_sway;
+    int flame_run;
+    int flame_row;
+    /* INI: flame_blur= -- `neighbour4` (Client-TS) or `box` (the deob).
+     * The single biggest difference in how the two eras' fire looks; see
+     * enum TitleFlameBlur. Unstated is the older one. */
+    char flame_blur[16];
 
     /* INI: option= / op0=..op4= — minimenu row labels for static/builtin owners. */
     char option[REVCONFIG_MENU_OPTION_LEN];
@@ -863,6 +1098,20 @@ struct RevConfigUILayoutItem
 
     /* INI: dirty — presence flag; maps to UINodeSpec.always_dirty (redraw every frame). */
     int dirty;
+
+    /*
+     * INI: xalign=center
+     * Centre this row horizontally in its parent and take `y` as the distance
+     * from the parent's top.
+     *
+     * The modern title screen is a fixed 765-wide panel centred in whatever
+     * window the client has -- the deob computes `titleX = (canvasW - 765)/2`
+     * every frame -- and that is a layout RULE, not a coordinate, so it cannot
+     * be written as an x. The edge insets cannot express it either: they
+     * already centre an axis with no inset, but a row with all-zero insets is
+     * indistinguishable from one that simply never set any.
+     */
+    int xalign_center;
 };
 
 #define REVCONFIG_INV_MAX_ITEMS 32
@@ -1090,6 +1339,9 @@ struct RevConfigItem
         struct RevConfigCameraItem camera;
         struct RevConfigChromeItem chrome;
         struct RevConfigRoleItem role;
+        struct RevConfigStringItem string;
+        struct RevConfigLoginReplyItem login_reply;
+        struct RevConfigPreloadItem preload;
     } u;
 };
 

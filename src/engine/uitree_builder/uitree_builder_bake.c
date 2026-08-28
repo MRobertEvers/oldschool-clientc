@@ -10,6 +10,7 @@
 #include "engine/uitree_from_component.h"
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_cs2_host.h"
+#include "game/rs_title.h"
 #include "input/torirs_keymap.h"
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
@@ -39,6 +40,18 @@ type_from_string(char const* type)
         return UIELEM_BUILTIN_MULTIWAY;
     if( strcmp(type, "reboot_timer") == 0 )
         return UIELEM_BUILTIN_REBOOT_TIMER;
+    if( strcmp(type, "login_input") == 0 )
+        return UIELEM_BUILTIN_LOGIN_INPUT;
+    if( strcmp(type, "login_button") == 0 )
+        return UIELEM_BUILTIN_LOGIN_BUTTON;
+    if( strcmp(type, "login_message") == 0 )
+        return UIELEM_BUILTIN_LOGIN_MESSAGE;
+    if( strcmp(type, "title_progress") == 0 )
+        return UIELEM_BUILTIN_TITLE_PROGRESS;
+    if( strcmp(type, "title_progress_text") == 0 )
+        return UIELEM_BUILTIN_TITLE_PROGRESS_TEXT;
+    if( strcmp(type, "title_flames") == 0 )
+        return UIELEM_BUILTIN_TITLE_FLAMES;
     if( strcmp(type, "minimenu") == 0 )
         return UIELEM_BUILTIN_MINIMENU;
     if( strcmp(type, "minimap") == 0 )
@@ -84,6 +97,11 @@ type_from_string(char const* type)
     return UIELEM_BUILTIN_SPRITE;
 }
 
+/*
+ * A component's font: the revconfig `font=` name when it has one, else the
+ * dat2 archive id the cache carried. -1 when neither resolves, which every
+ * caller treats as a missing asset rather than a default.
+ */
 static enum UITreeSlotTag
 slot_tag_from_string(char const* slot)
 {
@@ -112,7 +130,18 @@ apply_layout_position(
     assert(op && pos);
     memset(pos, 0, sizeof(*pos));
 
-    if( op->left || op->right || op->top || op->bottom )
+    if( op->xalign_center )
+    {
+        /* Centred horizontally, `y` from the top. resolve_relative already
+         * centres an axis carrying no edge flag, so this only has to say that
+         * the row is relative and that the vertical edge is the top one. */
+        pos->kind = UIPOS_RELATIVE;
+        pos->relative_flags = UITREE_RELATIVE_FLAG_TOP;
+        pos->top = op->y;
+        pos->width = op->width;
+        pos->height = op->height;
+    }
+    else if( op->left || op->right || op->top || op->bottom )
     {
         pos->kind = UIPOS_RELATIVE;
         pos->relative_flags = 0;
@@ -364,6 +393,47 @@ bake_resolve_sprite(void* ud, int graphic_id)
     if( builder->bridge )
         return UITreeSceneBridge_EnsureSprite(builder->bridge, graphic_id);
     return graphic_id;
+}
+
+/*
+ * A component's font, uploaded into the scene as a side effect.
+ *
+ * The upload is the part that is easy to lose. Resolving a revconfig `font=`
+ * name yields a cache font id, and scene font ids ARE cache font ids -- so the
+ * id looks perfectly good while the scene has never been handed the glyphs,
+ * and every string drawn with it silently draws nothing. Only the
+ * cache-component path (bake_resolve_font) used to Ensure, so the first
+ * revconfig widget to name a font by name -- the login screen -- was the first
+ * to find out.
+ *
+ * chrome: names are a different id space entirely and must not be Ensured as
+ * cache fonts; resolve_chrome_font owns their upload.
+ */
+static int
+bake_op_font_id(
+    struct UITreeBuilder const* builder,
+    struct UIBuilderTreeOp const* op)
+{
+    int font_id = -1;
+
+    assert(builder);
+    assert(op);
+
+    if( op->has_font_ref && op->font_ref[0] )
+    {
+        font_id = resolve_chrome_font((struct UITreeBuilder*)builder, op->font_ref);
+        if( font_id >= 0 || strncmp(op->font_ref, "chrome:", 7) == 0 )
+            return font_id;
+        font_id = UITreeBuilder_ResolveFontName(builder, op->font_ref);
+    }
+    else if( op->font >= 0 )
+    {
+        font_id = UITreeBuilder_ResolveFontArchive(builder, op->font);
+    }
+
+    if( builder->bridge && font_id >= 0 )
+        UITreeSceneBridge_EnsureFont(builder->bridge, font_id);
+    return font_id;
 }
 
 static int
@@ -707,6 +777,73 @@ push_builtin_op(
             spec.u.reboot_timer.font_id = UITreeBuilder_ResolveFontArchive(builder, op->font);
         }
         break;
+    /*
+     * Title-screen widgets. Every one is always_dirty: what they draw is the
+     * host's, and a blinking caret or a moving bar that the retention gate
+     * decided was unchanged is a frozen login screen.
+     */
+    case UIELEM_BUILTIN_LOGIN_INPUT:
+        spec.always_dirty = 1;
+        spec.u.login_input.field = strcmp(op->title_field, "password") == 0 ? 1 : 0;
+        spec.u.login_input.color = op->color;
+        spec.u.login_input.center = op->center;
+        spec.u.login_input.shadowed = op->shadowed;
+        spec.u.login_input.caret_blink = op->title_caret_blink;
+        spec.u.login_input.maxlen = op->title_maxlen;
+        strncpy(spec.u.login_input.prefix, op->title_prefix, sizeof(spec.u.login_input.prefix) - 1);
+        strncpy(spec.u.login_input.caret, op->title_caret, sizeof(spec.u.login_input.caret) - 1);
+        strncpy(spec.u.login_input.mask, op->title_mask, sizeof(spec.u.login_input.mask) - 1);
+        strncpy(
+            spec.u.login_input.charset, op->title_charset, sizeof(spec.u.login_input.charset) - 1);
+        spec.u.login_input.font_id = bake_op_font_id(builder, op);
+        assert(spec.u.login_input.font_id >= 0 && "login_input font missing");
+        break;
+    case UIELEM_BUILTIN_LOGIN_BUTTON:
+        spec.u.login_button.scene_id = sprite_id;
+        spec.u.login_button.atlas_index = atlas_index;
+        spec.u.login_button.action = RS_Title_ActionFromName(op->title_action);
+        /* A button whose action= did not resolve would sit there swallowing
+         * clicks and doing nothing, which is the hardest kind of INI typo to
+         * see. Name it here instead. */
+        assert(spec.u.login_button.action != 0 && "login_button action= unknown");
+        break;
+    case UIELEM_BUILTIN_LOGIN_MESSAGE:
+        spec.always_dirty = 1;
+        spec.u.login_message.index = op->title_message_index;
+        spec.u.login_message.color = op->color;
+        spec.u.login_message.center = op->center;
+        spec.u.login_message.shadowed = op->shadowed;
+        spec.u.login_message.font_id = bake_op_font_id(builder, op);
+        assert(spec.u.login_message.font_id >= 0 && "login_message font missing");
+        break;
+    case UIELEM_BUILTIN_TITLE_PROGRESS:
+        spec.always_dirty = 1;
+        spec.u.title_progress.color = op->color;
+        spec.u.title_progress.px_per_percent = op->title_px_per_percent;
+        break;
+    case UIELEM_BUILTIN_TITLE_PROGRESS_TEXT:
+        spec.always_dirty = 1;
+        spec.u.title_progress_text.color = op->color;
+        spec.u.title_progress_text.center = op->center;
+        spec.u.title_progress_text.shadowed = op->shadowed;
+        spec.u.title_progress_text.font_id = bake_op_font_id(builder, op);
+        assert(spec.u.title_progress_text.font_id >= 0 && "title_progress_text font missing");
+        break;
+    case UIELEM_BUILTIN_TITLE_FLAMES:
+        /* always_dirty is not optional here. The desc never changes as the
+         * fire burns -- same scene id, same box -- so a retained emit list
+         * would keep drawing a sprite whose pixels have moved on, and the fire
+         * would stop dead while still looking like a fire. */
+        spec.always_dirty = 1;
+        spec.u.title_flames.side = strcmp(op->title_field, "right") == 0 ? 1 : 0;
+        spec.u.title_flames.bias = op->flame_bias;
+        spec.u.title_flames.sway = op->flame_sway;
+        spec.u.title_flames.run = op->flame_run;
+        spec.u.title_flames.row = op->flame_row;
+        /* `box` is the deob's; anything else, including nothing, is the
+         * 2004 four-neighbour average. */
+        spec.u.title_flames.blur = strcmp(op->flame_blur, "box") == 0 ? 1 : 0;
+        break;
     case UIELEM_BUILTIN_ENTITY_OVERLAY:
         spec.always_dirty = 1;
         break;
@@ -875,22 +1012,13 @@ push_builtin_op(
         spec.u.rs_graphic.tiled = op->tiled ? 1 : 0;
         break;
     case UIELEM_RS_TEXT:
-        if( op->has_font_ref && op->font_ref[0] )
-        {
-            int font_id = resolve_chrome_font(builder, op->font_ref);
-            if( font_id < 0 && strncmp(op->font_ref, "chrome:", 7) != 0 )
-                font_id = UITreeBuilder_ResolveFontName(builder, op->font_ref);
-            assert(font_id >= 0 && "rs_text font missing");
-            spec.u.rs_text.font_id = font_id;
-        }
-        else
-        {
-            spec.u.rs_text.font_id = UITreeBuilder_ResolveFontArchive(builder, op->font);
-        }
+        spec.u.rs_text.font_id = bake_op_font_id(builder, op);
+        assert(spec.u.rs_text.font_id >= 0 && "rs_text font missing");
         spec.u.rs_text.color = op->color;
         spec.u.rs_text.center = op->center ? 1 : 0;
         spec.u.rs_text.y_align = op->valign;
         spec.u.rs_text.shadowed = op->shadowed ? 1 : 0;
+        spec.u.rs_text.baseline = op->text_baseline;
         spec.u.rs_text.text = op->text[0] ? op->text : NULL;
         break;
     case UIELEM_RS_RECT:

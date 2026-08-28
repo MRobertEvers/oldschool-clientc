@@ -220,6 +220,55 @@ enum UITreeHostRequestKind
      */
     UITREE_HOST_GET_REBOOT_TIMER,
     /**
+     * Which pre-game screen is showing, as an RS_TitleScreen value, or -1 when
+     * the client is not on the title screen at all.
+     *
+     * The title tree carries every screen's widgets at once and the app hides
+     * the groups that are not current, so this is what a widget belonging to
+     * one screen asks before drawing on another's.
+     */
+    UITREE_HOST_GET_TITLE_SCREEN,
+    /**
+     * One credential line, already composed: prefix, the value (masked if the
+     * widget asked), and the caret when this field has focus and the blink is
+     * in its visible half. Written to u.get_title_field.out_text with frame
+     * lifetime, like the hovertext and reboot-timer strings.
+     *
+     * Composed by the host rather than the widget because the caret's phase is
+     * the client's clock and the mask is a property of the value, but the
+     * widget hands over the spelling of both -- see UITreeLoginInputConfig.
+     * Returns nonzero when there is a line to draw.
+     */
+    UITREE_HOST_GET_TITLE_FIELD,
+    /**
+     * One of the three login message lines (u.get_title_message.index, 0-2),
+     * written to out_text with frame lifetime. Returns nonzero when that line
+     * is non-empty, so a two-line reply on a three-line layout draws two.
+     */
+    UITREE_HOST_GET_TITLE_MESSAGE,
+    /**
+     * The loading bar's state: percent 0-100 and the status line. Returns
+     * nonzero while a bar should show -- there is no bar once the title screen
+     * is idle, and drawing an empty one is not the same thing.
+     */
+    UITREE_HOST_GET_TITLE_PROGRESS,
+    /**
+     * A login_button was clicked; u.title_action.action is its resolved
+     * RS_TitleAction. A command, not a question: it contributes nothing to
+     * what the frame draws, and the host bumps its own epochs for whatever the
+     * action changed.
+     */
+    UITREE_HOST_TITLE_ACTION,
+    /**
+     * The scene sprite one brazier's fire is currently in
+     * (u.get_title_flames.side selects which), written to out_scene_id.
+     *
+     * The simulation is the host's -- it owns the clock the fire burns on --
+     * and it hands over a sprite id rather than pixels so the widget draws it
+     * exactly like any other sprite. Returns nonzero while there is a fire.
+     */
+    UITREE_HOST_GET_TITLE_FLAMES,
+    /**
      * Writes a pointer to the host-computed minimap overlay dots (valid only
      * for the current frame) to u.get_minimap_dots.out_dots; returns the
      * count (0 = no overlay).
@@ -505,6 +554,46 @@ struct UITreeHostRequest
         {
             char const** out_text;
         } get_reboot_timer;
+        struct
+        {
+            /** The widget's own config, so the host can compose the line the
+             *  way this field asked: its prefix, its mask, its caret spelling
+             *  and its blink period. */
+            struct UITreeLoginInputConfig const* config;
+            /** Nonzero out when this is the focused field, so the widget can
+             *  draw focus without asking a second question. */
+            int* out_focused;
+            char const** out_text;
+        } get_title_field;
+        struct
+        {
+            int index;
+            char const** out_text;
+        } get_title_message;
+        struct
+        {
+            int* out_percent;
+            char const** out_text;
+        } get_title_progress;
+        struct
+        {
+            /** Resolved RS_TitleAction. */
+            int action;
+        } title_action;
+        struct
+        {
+            /** enum TitleFlameSide. */
+            int side;
+            /* The node's own placement of the fire inside its column,
+             * carried across because the host owns the simulation but the
+             * profile owns where each era's flame leans. */
+            int bias;
+            int sway;
+            int run;
+            int row;
+            int blur;
+            int* out_scene_id;
+        } get_title_flames;
         struct
         {
             struct UITreeMinimapDot const** out_dots;

@@ -1,6 +1,7 @@
 #include "engine/cache_provider.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat1/dat1_tasks.h"
+#include "engine/title_panel.h"
 #include "engine/torirs_sprite_from_rscache.h"
 #include "engine/torirs_types.h"
 
@@ -31,6 +32,12 @@ struct Task_Dat1SpriteLoadFromSource
     int crop_height;
     char transform[4][64];
     int transform_count;
+    /** revconfig `archive=`: which dat1 jagfile holds the member. "title"
+     *  selects the title-and-fonts archive; anything else means the media
+     *  archive, which is where every sprite lived before the title screen. */
+    char archive[32];
+    /** Resolved from `archive` on the first step. */
+    int from_title_archive;
 };
 
 static int
@@ -44,7 +51,36 @@ Task_Dat1SpriteLoadFromSource_Run(
 
     PT_BEGIN(&task->pt);
 
-    if( !dat1_buildcache_get_media_2d_graphics_jagfile(task->bc) )
+    /*
+     * The title screen's art -- titlebox, titlebutton, the runes, the logo --
+     * lives in the title-and-fonts archive rather than the media one, and is
+     * the only reason `archive=` has ever had to mean anything here. That
+     * archive is normally already decoded and cached: the fonts come out of it
+     * and they load first, so this is a hit.
+     */
+    task->from_title_archive = strcmp(task->archive, "title") == 0;
+
+    if( task->from_title_archive )
+    {
+        if( !dat1_buildcache_get_title_fonts_jagfile(task->bc) )
+        {
+            struct RSCache_FileListDat* title_jagfile = NULL;
+
+            RSCache_IO_Dat1JagfileLoad(io, 0, RSCACHE_DAT1_CONFIG_TITLE_AND_FONTS);
+            PT_YIELD(&task->pt);
+
+            title_jagfile =
+                RSCache_IO_Dat1JagfileDecode(io, 0, RSCACHE_DAT1_CONFIG_TITLE_AND_FONTS);
+            if( !title_jagfile )
+            {
+                TORIRS_ERR("Failed to decode dat1 title jagfile for sprite %s\n", task->name);
+                PT_EXIT(&task->pt);
+            }
+
+            dat1_buildcache_set_title_fonts_jagfile(task->bc, title_jagfile);
+        }
+    }
+    else if( !dat1_buildcache_get_media_2d_graphics_jagfile(task->bc) )
     {
         struct RSCache_FileListDat* media_jagfile = NULL;
 
@@ -61,13 +97,36 @@ Task_Dat1SpriteLoadFromSource_Run(
         dat1_buildcache_set_media_2d_graphics_jagfile(task->bc, media_jagfile);
     }
 
-    sprite = ToriRS_SpriteFromDat1Jagfile(
-        dat1_buildcache_get_media_2d_graphics_jagfile(task->bc),
-        task->format,
-        task->data_filename,
-        task->index_filename,
-        task->atlas_index,
-        task->atlas_count);
+    if( strcmp(task->format, TORIRS_TITLE_PANEL_FORMAT) == 0 )
+    {
+        /* One more decoder behind `format=`, beside pix8 and pix32: this
+         * member is a JPEG holding half the title screen, and the panel is
+         * that half plus its mirror. @see engine/title_panel.h. */
+        struct RSCache_FileListDat* jagfile =
+            task->from_title_archive ? dat1_buildcache_get_title_fonts_jagfile(task->bc)
+                                     : dat1_buildcache_get_media_2d_graphics_jagfile(task->bc);
+        int member = RSCache_FileListDatFindFileByName(jagfile, task->data_filename);
+        if( member < 0 )
+        {
+            TORIRS_ERR("dat1 sprite %s: no member '%s' in the archive\n",
+                task->name,
+                task->data_filename);
+            PT_EXIT(&task->pt);
+        }
+        sprite =
+            ToriRS_TitlePanelFromJpeg(jagfile->files[member], jagfile->file_sizes[member]);
+    }
+    else
+    {
+        sprite = ToriRS_SpriteFromDat1Jagfile(
+            task->from_title_archive ? dat1_buildcache_get_title_fonts_jagfile(task->bc)
+                                     : dat1_buildcache_get_media_2d_graphics_jagfile(task->bc),
+            task->format,
+            task->data_filename,
+            task->index_filename,
+            task->atlas_index,
+            task->atlas_count);
+    }
     if( !sprite )
     {
         TORIRS_ERR("Failed to decode dat1 sprite %s (%s)\n", task->name, task->data_filename);
@@ -132,6 +191,8 @@ CreateTask_Dat1SpriteLoadFromSource(
         strncpy(task->index_filename, source->index_filename, sizeof(task->index_filename) - 1);
     else
         strcpy(task->index_filename, "index.dat");
+    if( source->archive )
+        strncpy(task->archive, source->archive, sizeof(task->archive) - 1);
     task->atlas_index = source->atlas_index;
     task->atlas_count = source->atlas_count;
     task->crop_x = source->crop_x;

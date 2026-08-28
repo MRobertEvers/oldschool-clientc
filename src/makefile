@@ -547,7 +547,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	game/rs_ui_slots.c game/rs_social.c game/rs_loot_store.c game/rs_clientcode.c game/rs_if1_buttons.c \
 	game/rs_idk_design.c \
 	game/rs_chat.c game/rs_gameproto_exec.c \
-	game/rs_title.c \
+	game/rs_title.c game/rs_login_replies.c game/rs_preload.c \
 	game/rs_game_events.c \
 	game/rs_worldmap.c \
 	game/rs_worldmap_render.c \
@@ -567,7 +567,9 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/torirs_enum_from_rscache.c engine/torirs_struct_from_rscache.c \
 	engine/torirs_paramtype_from_rscache.c engine/torirs_db.c \
 	engine/torirs_worldmap_from_rscache.c \
-	engine/png_decode.c engine/jpeg_decode.c \
+	engine/png_decode.c engine/jpeg_decode.c engine/title_panel.c engine/title_flames.c \
+	engine/boot_bar.c \
+	engine/dat2/task_dat2_title_panel_load.c \
 	engine/uitree_from_component.c engine/texture_palette_bake.c \
 	engine/dat1/dat1_buildcache.c engine/dat1/task_dat1_model_load.c \
 	engine/dat1/task_dat1_component_pack_load.c engine/dat1/task_dat1_clientscript_load.c \
@@ -589,6 +591,8 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/dat2/task_dat2_map_load.c engine/dat2/task_dat2_loc_load.c \
 	engine/dat2/task_dat2_flotype_load.c engine/dat2/task_dat2_underlay_load.c \
 	engine/dat2/task_dat2_texture_load.c \
+	engine/dat2/task_dat2_preload.c \
+	engine/dat1/task_dat1_preload.c \
 	engine/dat2/task_dat2_sprite_load.c engine/dat2/task_dat2_font_load.c \
 	engine/dat2/task_dat2_defaults_sprite_load.c \
 	engine/dat2/task_dat2_enum_load.c engine/dat2/task_dat2_struct_load.c \
@@ -2678,6 +2682,39 @@ test-rs-title: $(OBJ_DIR)
 		game/test/rs_title_test.c game/rs_title.c
 	./$(OBJ_DIR)/rs_title_test
 
+# The startup progress bar, against the references' own measurements. Asserted
+# rather than screenshotted: the exit-frame capture re-renders after boot, so
+# it cannot contain this bar at all.
+test-boot-bar: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/boot_bar_test \
+		engine/test/boot_bar_test.c engine/boot_bar.c
+	./$(OBJ_DIR)/boot_bar_test
+
+# The title screen's fire. Deterministic by construction (private seeded LCG),
+# so these are assertions about how it burns rather than eyeballing.
+test-title-flames: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/title_flames_test \
+		engine/test/title_flames_test.c engine/title_flames.c -lm
+	./$(OBJ_DIR)/title_flames_test
+
+# The login-reply table, read from the shipped profile: a rejection the profile
+# has no words for shows a blank box, which is the one failure a login screen
+# cannot afford.
+# The loading screen's work list, read from the profiles that ship: the bar
+# never moves backwards, every caption names a string that exists, and each
+# lane names work its own machinery can do.
+test-preload: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_preload_test \
+		game/test/rs_preload_test.c game/rs_preload.c game/rs_login_replies.c \
+		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC)
+	./$(OBJ_DIR)/rs_preload_test
+
+test-login-replies: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_login_replies_test \
+		game/test/rs_login_replies_test.c game/rs_login_replies.c \
+		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC)
+	./$(OBJ_DIR)/rs_login_replies_test
+
 # JPEG decode over the real title backgrounds on disk. Skips a cache that is
 # not checked out; the point is the RS caches' corrupted SOI byte, not stb.
 test-jpeg-decode: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
@@ -2721,9 +2758,15 @@ test-runclientscript: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/rsprot_buf.o -lm
 	./$(OBJ_DIR)/runclientscript_test
 
+# A task can interrupt the settle loop to have the screen drawn, and says
+# what should be on it. Opt-in: a plain yield still settles straight through.
+test-task-render-yield: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/task_render_yield_test game/test/task_render_yield_test.c perf/torirs_perf.c -lm
+	./$(OBJ_DIR)/task_render_yield_test
+
 # Serial-FIFO ordering guarantee (head-only task execution across IO yields).
 test-task-order: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/task_order_test game/test/task_order_test.c -lm
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/task_order_test game/test/task_order_test.c perf/torirs_perf.c -lm
 	./$(OBJ_DIR)/task_order_test
 
 # CS2 visual transactions: ready work drains past the old per-frame caps, while

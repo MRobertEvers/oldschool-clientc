@@ -1,9 +1,33 @@
 #include "game/rs_title.h"
 
 #include "input/torirs_keymap.h"
+#include "ui/uitree.h"
 
 #include <assert.h>
 #include <string.h>
+
+/*
+ * ui/ restates these because it is a leaf of game/ (see UITreeTitleAction).
+ * These are what stop the two copies from drifting: add a value to one and
+ * forget the other, and the build says so.
+ */
+_Static_assert(
+    (int)RS_TITLE_ACTION_NONE == (int)UITREE_TITLE_ACTION_NONE, "title action none");
+_Static_assert(
+    (int)RS_TITLE_ACTION_EXISTING_USER == (int)UITREE_TITLE_ACTION_EXISTING_USER,
+    "title action existing_user");
+_Static_assert(
+    (int)RS_TITLE_ACTION_NEW_USER == (int)UITREE_TITLE_ACTION_NEW_USER, "title action new_user");
+_Static_assert(
+    (int)RS_TITLE_ACTION_LOGIN == (int)UITREE_TITLE_ACTION_LOGIN, "title action login");
+_Static_assert(
+    (int)RS_TITLE_ACTION_CANCEL == (int)UITREE_TITLE_ACTION_CANCEL, "title action cancel");
+_Static_assert(
+    (int)RS_TITLE_ACTION_FOCUS_USERNAME == (int)UITREE_TITLE_ACTION_FOCUS_USERNAME,
+    "title action focus_username");
+_Static_assert(
+    (int)RS_TITLE_ACTION_FOCUS_PASSWORD == (int)UITREE_TITLE_ACTION_FOCUS_PASSWORD,
+    "title action focus_password");
 
 void
 RS_Title_Init(struct RS_Title* title)

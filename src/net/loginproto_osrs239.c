@@ -55,6 +55,10 @@ struct Osrs239Login
     char password[64];
     enum osrs239_login_state state;
 
+    /* The server's rejection byte, kept so the login screen can say which
+     * refusal this was. -1 until one arrives. */
+    int reply_code;
+
     int32_t seed[4];
     uint64_t session_id;
 
@@ -327,6 +331,7 @@ osrs239_new(struct ToriRS_Network* net, char const* username, char const* passwo
     struct Osrs239Login* h = calloc(1, sizeof(*h));
     assert(h);
     h->net = net;
+    h->reply_code = -1;
     snprintf(h->username, sizeof(h->username), "%s", username ? username : "");
     snprintf(h->password, sizeof(h->password), "%s", password ? password : "");
     h->state = OSRS239_SEND_CONNECT;
@@ -515,6 +520,7 @@ osrs239_recv(void* handle, uint8_t const* data, int size)
                 }
             }
             TORIRS_ERR("osrs239 login: rejected reply=%d\n", reply);
+            h->reply_code = reply;
             h->state = OSRS239_ERR;
             break;
         }
@@ -599,6 +605,14 @@ osrs239_reconnect_block(void* handle, int* out_len)
     return h->in + h->reconnect_block_off;
 }
 
+static int
+osrs239_reply_code(void* handle)
+{
+    struct Osrs239Login* h = handle;
+    assert(h);
+    return h->reply_code;
+}
+
 struct NetLoginVTable const g_osrs239_login_vtable = {
     .new_ = osrs239_new,
     .local_index = osrs239_local_index,
@@ -606,5 +620,6 @@ struct NetLoginVTable const g_osrs239_login_vtable = {
     .recv = osrs239_recv,
     .send = osrs239_send,
     .poll = osrs239_poll,
+    .reply_code = osrs239_reply_code,
     .free_ = osrs239_free,
 };

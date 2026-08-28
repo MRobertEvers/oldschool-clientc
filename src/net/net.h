@@ -58,9 +58,28 @@ enum ToriRS_NetOutType
     TORIRS_NET_OUT_DISCONNECT = 3,
 };
 
+/**
+ * The login screen could not reach a server at all.
+ *
+ * Outside the protocol's own byte range so it can share ToriRS_Network's
+ * login_reply, and negative so a profile spells it by name
+ * ([login_reply:connect_failed]) rather than by number.
+ */
+#define TORIRS_NET_LOGIN_REPLY_CONNECT_FAILED (-100)
+
 struct ToriRS_Network
 {
     enum ToriRS_NetState state;
+    /**
+     * The server's rejection byte from the last failed login, or -1.
+     *
+     * Survives the drop back to DISCONNECTED on purpose: that transition is
+     * how the login screen learns the attempt failed, and the code is the only
+     * thing that says WHY. TORIRS_NET_LOGIN_REPLY_CONNECT_FAILED is the
+     * transport's own answer for a socket that never got far enough to be
+     * refused.
+     */
+    int login_reply;
     struct GameProtoRevTable const* rev;
 
     struct Isaac* random_in;

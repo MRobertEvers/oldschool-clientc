@@ -146,6 +146,10 @@ struct CacheProviderSpriteSource
     char const* format;         /* "pix8" | "pix32" */
     char const* data_filename;  /* "sideicons.dat" */
     char const* index_filename; /* "index.dat" */
+    /** revconfig `archive=`: "title" reads the title-and-fonts jagfile, which
+     *  is where the login screen's art lives. NULL/anything else means the
+     *  media jagfile, where every other dat1 sprite is. */
+    char const* archive;
     int atlas_index;
     int atlas_count; /* <= 0: single frame at atlas_index */
     int crop_x;
@@ -421,6 +425,18 @@ CacheProvider_SpriteHas(
  * indistinguishable from the lookup's own "unknown".
  */
 #define CACHE_PROVIDER_SPRITE_ABSENT (-2)
+
+/*
+ * Ids for sprites the CLIENT builds rather than decodes.
+ *
+ * A dat2 sprite is keyed by its own archive id, so anything synthesised has to
+ * live outside that range or it silently takes some real archive's slot -- the
+ * title panel is assembled from a BINARY-table image, whose id 0 is a
+ * perfectly ordinary sprite archive id as well.
+ */
+#define CACHE_PROVIDER_SPRITE_SYNTHETIC_BASE 0x40010000
+/** The composited title backdrop. @see engine/title_panel.h. */
+#define CACHE_PROVIDER_SPRITE_TITLE_PANEL (CACHE_PROVIDER_SPRITE_SYNTHETIC_BASE + 0)
 
 void
 CacheProvider_SpriteNameMapPut(

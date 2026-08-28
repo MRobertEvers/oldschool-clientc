@@ -500,6 +500,118 @@ test_manifest_layout_groups(void)
     uibuilder_manifest_free(&manifest);
 }
 
+/*
+ * The shipped title screen, baked from the real revconfig.
+ *
+ * The gameframe and the title screen come out of one pair of files, so this
+ * pins the two halves of that: selecting the title group yields the login
+ * widgets and none of the gameframe, and the gameframe build yields the
+ * reverse. A title node loose in the in-game tree would repaint every frame
+ * for the whole session.
+ */
+static void
+test_title_group_from_shipped_revconfig(void)
+{
+    struct UIBuilderManifest manifest;
+    struct UIBuilderManifestSources src = { 0 };
+    int login_inputs = 0;
+    int login_buttons = 0;
+    int progress = 0;
+    int world = 0;
+
+    src.ui_ini_path = "../revconfig/rs245_2lc/rs245_2lc_dat1_ui.ini";
+    src.cache_ini_path = "../revconfig/rs245_2lc/rs245_2lc_dat1_cache.ini";
+    src.root_interface_id = 161;
+    src.layout_group = "title";
+
+    uibuilder_manifest_init(&manifest);
+    TEST_ASSERT(
+        uibuilder_manifest_from_sources(&manifest, &src) == 0, "title group parses");
+
+    for( int i = 0; i < manifest.op_count; i++ )
+    {
+        if( strcmp(manifest.ops[i].type, "login_input") == 0 )
+            login_inputs++;
+        else if( strcmp(manifest.ops[i].type, "login_button") == 0 )
+            login_buttons++;
+        else if( strcmp(manifest.ops[i].type, "title_progress") == 0 )
+            progress++;
+        else if( strcmp(manifest.ops[i].type, "world") == 0 )
+            world++;
+    }
+    TEST_ASSERT(login_inputs == 2, "title group has both credential fields");
+    TEST_ASSERT(login_buttons == 5, "title group has its five buttons");
+    TEST_ASSERT(progress == 1, "title group has the loading bar");
+    TEST_ASSERT(world == 0, "title group has no world viewport");
+    TEST_ASSERT(manifest_has_sprite(&manifest, "titlebox"), "title group loads titlebox");
+
+    /* The two credential rows must not collapse into one another's settings:
+     * a username field wearing the password's mask hides what the player is
+     * typing, and one wearing its prefix mislabels it. */
+    {
+        struct UIBuilderTreeOp const* user = NULL;
+        struct UIBuilderTreeOp const* pass = NULL;
+        for( int i = 0; i < manifest.op_count; i++ )
+        {
+            if( strcmp(manifest.ops[i].component_name, "login_username") == 0 )
+                user = &manifest.ops[i];
+            else if( strcmp(manifest.ops[i].component_name, "login_password") == 0 )
+                pass = &manifest.ops[i];
+        }
+        TEST_ASSERT(user && pass, "both credential rows present");
+        if( user && pass )
+        {
+            TEST_ASSERT(strcmp(user->title_field, "username") == 0, "username row is the username");
+            TEST_ASSERT(strcmp(pass->title_field, "password") == 0, "password row is the password");
+            TEST_ASSERT(user->title_mask[0] == 0, "username is not masked");
+            TEST_ASSERT(pass->title_mask[0] == '*', "password is masked");
+            TEST_ASSERT(user->title_maxlen == 12, "username cap");
+            TEST_ASSERT(pass->title_maxlen == 20, "password cap");
+            /* The trailing space is the reference's own label text, and it
+             * only survives because the value is quoted -- revconfig trims
+             * everything else. */
+            TEST_ASSERT(
+                strcmp(user->title_prefix, "Username: ") == 0, "username prefix keeps its space");
+            TEST_ASSERT(
+                strcmp(pass->title_prefix, "Password: ") == 0, "password prefix keeps its space");
+            TEST_ASSERT(user->title_charset[0] != 0, "username charset survived");
+        }
+    }
+
+    /* A centred row needs a box to centre in; without one it centres on the
+     * box's left edge and half the line falls outside the panel. */
+    for( int i = 0; i < manifest.op_count; i++ )
+    {
+        if( strcmp(manifest.ops[i].type, "login_message") != 0 &&
+            strcmp(manifest.ops[i].type, "title_progress_text") != 0 )
+            continue;
+        TEST_ASSERT(manifest.ops[i].width > 0, "centred title row has a width");
+    }
+
+    uibuilder_manifest_free(&manifest);
+
+    /* The gameframe half: the login widgets must not ride along. */
+    src.layout_group = NULL;
+    src.layout_group_exclude = "title";
+    login_inputs = 0;
+    world = 0;
+    uibuilder_manifest_init(&manifest);
+    TEST_ASSERT(
+        uibuilder_manifest_from_sources(&manifest, &src) == 0, "gameframe parses");
+    for( int i = 0; i < manifest.op_count; i++ )
+    {
+        if( strcmp(manifest.ops[i].type, "login_input") == 0 )
+            login_inputs++;
+        else if( strcmp(manifest.ops[i].type, "world") == 0 )
+            world++;
+    }
+    TEST_ASSERT(login_inputs == 0, "gameframe drops the credential fields");
+    TEST_ASSERT(world == 1, "gameframe keeps its world viewport");
+    TEST_ASSERT(!manifest_has_sprite(&manifest, "titlebox"), "gameframe drops titlebox");
+
+    uibuilder_manifest_free(&manifest);
+}
+
 int
 main(void)
 {
@@ -509,6 +621,7 @@ main(void)
     test_manifest_default_root_layout();
     test_manifest_layout_groups();
     test_viewport_widgets_from_shipped_revconfig();
+    test_title_group_from_shipped_revconfig();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

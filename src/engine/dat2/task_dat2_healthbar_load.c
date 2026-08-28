@@ -146,7 +146,7 @@ Task_Dat2HealthbarLoad_Run(
              * returns for a sprite already resident — and it clears its own child
              * pointer afterwards, which is what makes it safe inside a loop. */
             TASK_AWAITEX_IF(
-                &task->pt, io, CreateTask_SpriteLoad(&task->bc->base, sprite));
+                &task->task, &task->pt, io, CreateTask_SpriteLoad(&task->bc->base, sprite));
         }
     }
 

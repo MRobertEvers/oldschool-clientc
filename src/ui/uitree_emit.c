@@ -420,6 +420,7 @@ UITree_EmitFill(
         out->color = color;
         out->text_center = component->u.rs_text.center;
         out->text_y_align = component->u.rs_text.y_align;
+        out->text_baseline = component->u.rs_text.baseline;
         out->text_shadowed = component->u.rs_text.shadowed;
         out->text_line_height = component->u.rs_text.line_height;
         return true;
@@ -796,6 +797,158 @@ UITree_EmitFill(
          * what lets the revconfig row carry the reference's own coordinates
          * rather than a guess at where the top of the line would be. */
         out->text_baseline = 1;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_LOGIN_INPUT:
+    {
+        /* One credential line. The host composes the string because the caret's
+         * phase is the client's clock and the mask hides a value the widget
+         * must never be handed; the widget supplies the spelling of both, plus
+         * the font, the colour and the place. */
+        struct UITreeLoginInputConfig const* cfg = UITree_LoginInput(component);
+        char const* text = NULL;
+        int focused = 0;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TITLE_FIELD,
+            .u.get_title_field.config = cfg,
+            .u.get_title_field.out_focused = &focused,
+            .u.get_title_field.out_text = &text,
+        };
+        if( !UITree_Host(host, &req) || !text )
+            return false;
+        if( cfg->font_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_TEXT;
+        out->font_id = cfg->font_id;
+        out->color = cfg->color;
+        out->text = text;
+        out->text_center = cfg->center;
+        out->text_shadowed = cfg->shadowed;
+        /* The references draw these with font.drawString(s, x, y), so the
+         * layout row's y IS the baseline -- same reasoning as the reboot
+         * timer, and it is what lets a row carry the reference's own number. */
+        out->text_baseline = 1;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_LOGIN_BUTTON:
+    {
+        /* Just the sprite. The label is a child rs_text and the click is
+         * uitree_interact's: a button that drew its own label would need the
+         * label's font and offset here, which is one more thing the INI could
+         * then not move. */
+        if( component->u.login_button.scene_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = component->u.login_button.scene_id;
+        out->atlas_index = component->u.login_button.atlas_index;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_LOGIN_MESSAGE:
+    {
+        /* One of the three reply lines. An empty line emits nothing rather
+         * than an empty string, so a two-line reply on a three-line layout
+         * leaves the third row's space alone. */
+        char const* text = NULL;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TITLE_MESSAGE,
+            .u.get_title_message.index = component->u.login_message.index,
+            .u.get_title_message.out_text = &text,
+        };
+        if( !UITree_Host(host, &req) || !text || !text[0] )
+            return false;
+        if( component->u.login_message.font_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_TEXT;
+        out->font_id = component->u.login_message.font_id;
+        out->color = component->u.login_message.color;
+        out->text = text;
+        out->text_center = component->u.login_message.center;
+        out->text_shadowed = component->u.login_message.shadowed;
+        out->text_baseline = 1;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_TITLE_PROGRESS:
+    {
+        /* The filled part only: the track and its border are rs_rect rows in
+         * the layout, because they never change and the INI can then say what
+         * colour and how thick without asking C.
+         *
+         * px_per_percent is stated rather than derived, so a revision whose bar
+         * is not 300 wide needs no new code -- both references write the fill
+         * as `percent * 3`. Unset fills the declared box at 100. */
+        int percent = 0;
+        char const* text = NULL;
+        int scale;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TITLE_PROGRESS,
+            .u.get_title_progress.out_percent = &percent,
+            .u.get_title_progress.out_text = &text,
+        };
+        if( !UITree_Host(host, &req) )
+            return false;
+        if( percent < 0 )
+            percent = 0;
+        if( percent > 100 )
+            percent = 100;
+        scale = component->u.title_progress.px_per_percent;
+        out->kind = UITREE_EMIT_RECT;
+        out->color = component->u.title_progress.color;
+        out->filled = 1;
+        out->w = scale > 0 ? percent * scale : (w * percent) / 100;
+        if( out->w > w )
+            out->w = w;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_TITLE_PROGRESS_TEXT:
+    {
+        int percent = 0;
+        char const* text = NULL;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TITLE_PROGRESS,
+            .u.get_title_progress.out_percent = &percent,
+            .u.get_title_progress.out_text = &text,
+        };
+        if( !UITree_Host(host, &req) || !text || !text[0] )
+            return false;
+        if( component->u.title_progress_text.font_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_TEXT;
+        out->font_id = component->u.title_progress_text.font_id;
+        out->color = component->u.title_progress_text.color;
+        out->text = text;
+        out->text_center = component->u.title_progress_text.center;
+        out->text_shadowed = component->u.title_progress_text.shadowed;
+        out->text_baseline = 1;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_TITLE_FLAMES:
+    {
+        /* The fire is the host's simulation and arrives as a scene sprite it
+         * reuploads each frame. Nothing about this desc changes as it burns,
+         * which is exactly why the node is always_dirty: the pixels move under
+         * a byte-identical command. */
+        int scene_id = -1;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TITLE_FLAMES,
+            .u.get_title_flames.side = component->u.title_flames.side,
+            .u.get_title_flames.bias = component->u.title_flames.bias,
+            .u.get_title_flames.sway = component->u.title_flames.sway,
+            .u.get_title_flames.run = component->u.title_flames.run,
+            .u.get_title_flames.row = component->u.title_flames.row,
+            .u.get_title_flames.blur = component->u.title_flames.blur,
+            .u.get_title_flames.out_scene_id = &scene_id,
+        };
+        if( !UITree_Host(host, &req) || scene_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = scene_id;
+        out->atlas_index = 0;
         return true;
     }
 
@@ -2323,7 +2476,7 @@ emit_walk_node(
     /* Native/script hiding outranks replacement art too: an anchor is local to
      * a target that is actually present in this frame, not a way to resurrect
      * a collapsed tab or a gameframe lane that suppressed the whole surface. */
-    if( c->frame_hidden || c->projection_hidden )
+    if( c->frame_hidden || c->screen_hidden || c->projection_hidden )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return;

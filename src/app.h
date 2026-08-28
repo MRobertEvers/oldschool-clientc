@@ -12,6 +12,10 @@
 #include "features/features.h"
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
+#include "engine/title_flames.h"
+#include "game/rs_login_replies.h"
+#include "game/rs_preload.h"
+#include "game/rs_title.h"
 #include "net/rev/revpacket.h"
 #include "game/rs_cs1_host.h"
 #include "game/rs_cs2_host.h"
@@ -571,6 +575,43 @@ enum AppState
 {
     APP_STATE_BOOTING = 0,
     APP_STATE_READY,
+};
+
+/**
+ * Which screen the session is on, orthogonal to AppState.
+ *
+ * AppState is a per-BAKE lifecycle -- it flips to BOOTING every time a tree is
+ * rebuilt and back when that build finishes -- so it cannot say whether the
+ * tree being built is the title screen or the gameframe. This says that, and
+ * the two run independently: a title tree can be BOOTING, and so can the
+ * gameframe that replaces it.
+ *
+ * The values are the deob's own gameState numbers, so a state lifted from that
+ * reference reads across without a translation table. Its 25 (map load), 40
+ * (connection lost) and 45 (world hop) are deliberately not here: this client
+ * already draws all three as overlays inside a live gameframe, which is what
+ * they are.
+ */
+/**
+ * The [layout:] group holding the title screen.
+ *
+ * One string, in C, naming a group -- the same kind of knowledge as a slot tag
+ * or a role name. Every coordinate, sprite and string inside that group is
+ * the INI's.
+ */
+#define APP_TITLE_LAYOUT_GROUP "title"
+
+enum AppScreen
+{
+    /** Engine coming up; no title tree rooted yet. deob 0/5. */
+    APP_SCREEN_BOOT = 0,
+    /** Title tree rooted; RS_Title says which of its screens shows. deob 10. */
+    APP_SCREEN_TITLE = 10,
+    /** Login handshake in flight. The title tree stays up and keeps drawing --
+     *  that is where "Connecting to server..." appears. deob 20. */
+    APP_SCREEN_CONNECTING = 20,
+    /** Gameframe rooted. deob 25/30. */
+    APP_SCREEN_GAME = 30,
 };
 
 /* One deferred element<->sequence binding (animation still loading). */
@@ -1465,6 +1506,36 @@ struct App
      *  model (the host hands chat_view to the emit walk). */
     struct RS_Chat chat;
     struct UIChatView chat_view;
+    /** Pre-game screen state: which title screen is up, what is typed into
+     *  its fields, and the reply lines the login response filled in.
+     *  @see AppScreen for how it relates to the session as a whole. */
+    struct RS_Title title;
+    /**
+     * Per-frame scratch the title host requests hand out, ONE SLOT PER FIELD.
+     *
+     * Frame-lifetime pointers, the same contract as the hovertext and
+     * reboot-timer strings -- but unlike those there are two live at once, and
+     * a single shared buffer makes the second compose overwrite the first
+     * while the emit list still points at it. Both rows then draw the
+     * password, which is exactly as bad as it sounds.
+     */
+    char title_field_line[RS_TITLE_FIELD_COUNT][RS_TITLE_FIELD_LEN + 64];
+    /** What each login rejection means, in this revision's words. Loaded from
+     *  the profile beside RevConfigRefs and alive for the whole session. */
+    struct RS_LoginReplyTable login_replies;
+    /* What this revision loads before the title screen: the profile's own
+     * [preload:] list, in order. @see RS_PreloadTable. */
+    struct RS_PreloadTable preload;
+    /**
+     * The title screen's two braziers, or NULL when none is burning.
+     *
+     * A pointer because the simulation carries four 128 KB buffers and the
+     * session only wants them while the title screen is up; it is freed the
+     * moment the gameframe roots.
+     */
+    struct TitleFlames* flames;
+    /** Wall clock the fire was last advanced against. */
+    uint64_t flames_last_ms;
     /** Frames the left button has been held over the chat scrollbar (reference
      *  scrollCycle); drives arrow-scroll acceleration and gates grip drag. */
     int chat_scroll_cycle;
@@ -1483,6 +1554,21 @@ struct App
      *  pointer so app.h need not include the net headers. */
     struct ToriRS_Network* net;
     int net_enabled;
+    /**
+     * Credentials to submit, from --user/--pass or the manifest's [net:boot].
+     *
+     * Kept rather than dialled with: the connect happens on submit now, so
+     * these prefill the form and drive the one automatic submit. Empty means
+     * an interactive login -- the old "guest"/"" defaults went with the call
+     * that used them.
+     */
+    char autologin_user[64];
+    char autologin_pass[64];
+    /** [net:boot] address, kept for the same reason. */
+    char connect_target[256];
+    /** Cleared once the automatic submit has fired, so a failed login returns
+     *  to the form instead of retrying by itself forever. */
+    int autologin_done;
 
     /*
      * Connection loss and re-establishment (reference `lostCon`, Client-TS
@@ -1928,6 +2014,9 @@ struct App
 
     /* Async lifecycle state (no blocking IO outside the platform pump). */
     int app_state;     /* enum AppState */
+    /** enum AppScreen. Orthogonal to app_state: that says whether the current
+     *  tree has finished baking, this says which tree it is. */
+    int screen;
     int boot_progress; /* 0..100, drives the loading bar while BOOTING */
     /* Boot pump accounting (TORIRS_BOOT_STATS): how many frames the boot took,
      * how many scheduler steps ran in total, and how many of those frames hit
@@ -2631,6 +2720,26 @@ void
 App_OpenRootInterface(
     struct App* app,
     int interface_id);
+
+/**
+ * Does this profile declare a title screen?
+ *
+ * Undeclared means absent, the standing revconfig contract: a profile with no
+ * [layout:title] boots straight into the game, which is what every offline,
+ * bench and map-editor manifest here wants.
+ */
+int
+App_HasTitleScreen(struct App const* app);
+
+/**
+ * Bake the title screen as the tree root and put the session on APP_SCREEN_TITLE.
+ *
+ * Same machinery as App_OpenRootInterface -- clear, rebuild, re-stamp roles --
+ * with the title [layout:] group selected and no root interface to mount,
+ * because no revision ships its login screen as interface data.
+ */
+void
+App_OpenTitleScreen(struct App* app);
 
 /** IF_OPENSUB (rev-230 openSubInterface): mount a cache interface group under a
  *  component slot of the open root. target_uid = packed (parent<<16|child) of

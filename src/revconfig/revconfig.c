@@ -34,6 +34,23 @@ revconfig_strncpy_trimmed(
             src[len - 1] == '\n') )
         len--;
 
+    /*
+     * A quoted value keeps its inner whitespace.
+     *
+     * Trimming is right for almost everything a profile writes -- a stray
+     * space after `w=360` must not become part of the number -- but a
+     * DISPLAY string is different: the reference's login label is
+     * "Username: ", space included, and a trimmed one draws the value hard
+     * against the colon. Quotes are how an INI has always said "this
+     * whitespace is content", and no shipped profile had a quoted value
+     * before this, so nothing changes meaning by our reading them.
+     */
+    if( len >= 2 && src[0] == '"' && src[len - 1] == '"' )
+    {
+        src++;
+        len -= 2;
+    }
+
     if( len >= n )
         len = n - 1;
     memcpy(dest, src, len);
@@ -790,6 +807,38 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_SHADOWED";
     case RCFIELD_UICOMPONENT_TEXT:
         return "RCFIELD_UICOMPONENT_TEXT";
+    case RCFIELD_UICOMPONENT_TITLE_FIELD:
+        return "RCFIELD_UICOMPONENT_TITLE_FIELD";
+    case RCFIELD_UICOMPONENT_TITLE_PREFIX:
+        return "RCFIELD_UICOMPONENT_TITLE_PREFIX";
+    case RCFIELD_UICOMPONENT_TITLE_CARET:
+        return "RCFIELD_UICOMPONENT_TITLE_CARET";
+    case RCFIELD_UICOMPONENT_TITLE_CARET_BLINK:
+        return "RCFIELD_UICOMPONENT_TITLE_CARET_BLINK";
+    case RCFIELD_UICOMPONENT_TITLE_MASK:
+        return "RCFIELD_UICOMPONENT_TITLE_MASK";
+    case RCFIELD_UICOMPONENT_TITLE_MAXLEN:
+        return "RCFIELD_UICOMPONENT_TITLE_MAXLEN";
+    case RCFIELD_UICOMPONENT_TITLE_CHARSET:
+        return "RCFIELD_UICOMPONENT_TITLE_CHARSET";
+    case RCFIELD_UICOMPONENT_TITLE_ACTION:
+        return "RCFIELD_UICOMPONENT_TITLE_ACTION";
+    case RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX:
+        return "RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX";
+    case RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT:
+        return "RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT";
+    case RCFIELD_UICOMPONENT_FLAME_BIAS:
+        return "RCFIELD_UICOMPONENT_FLAME_BIAS";
+    case RCFIELD_UICOMPONENT_FLAME_SWAY:
+        return "RCFIELD_UICOMPONENT_FLAME_SWAY";
+    case RCFIELD_UICOMPONENT_FLAME_RUN:
+        return "RCFIELD_UICOMPONENT_FLAME_RUN";
+    case RCFIELD_UICOMPONENT_FLAME_ROW:
+        return "RCFIELD_UICOMPONENT_FLAME_ROW";
+    case RCFIELD_UICOMPONENT_FLAME_BLUR:
+        return "RCFIELD_UICOMPONENT_FLAME_BLUR";
+    case RCFIELD_UICOMPONENT_TEXT_BASELINE:
+        return "RCFIELD_UICOMPONENT_TEXT_BASELINE";
     case RCFIELD_UICOMPONENT_OPTION:
         return "RCFIELD_UICOMPONENT_OPTION";
     case RCFIELD_UICOMPONENT_OPTION_ACTION:
@@ -888,6 +937,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UILAYOUT_RIGHT";
     case RCFIELD_UILAYOUT_DIRTY:
         return "RCFIELD_UILAYOUT_DIRTY";
+    case RCFIELD_UILAYOUT_XALIGN:
+        return "RCFIELD_UILAYOUT_XALIGN";
     case RCFIELD_UILAYOUT_PARENT:
         return "RCFIELD_UILAYOUT_PARENT";
     case RCFIELD_UILAYOUT_NAME:
@@ -1068,6 +1119,22 @@ revconfig_item_set_name(
     case RCITEM_ROLE:
         strncpy(item->u.role.name, value, sizeof(item->u.role.name) - 1);
         break;
+    case RCITEM_STRING:
+        strncpy(item->u.string.name, value, sizeof(item->u.string.name) - 1);
+        break;
+    case RCITEM_PRELOAD:
+        strncpy(item->u.preload.name, value, sizeof(item->u.preload.name) - 1);
+        break;
+    case RCITEM_LOGIN_REPLY:
+        /* The section name IS the code, except for the two names that stand
+         * for cases the protocol has no byte for. */
+        if( strcmp(value, REVCONFIG_LOGIN_REPLY_DEFAULT_NAME) == 0 )
+            item->u.login_reply.code = REVCONFIG_LOGIN_REPLY_CODE_DEFAULT;
+        else if( strcmp(value, REVCONFIG_LOGIN_REPLY_CONNECT_FAILED_NAME) == 0 )
+            item->u.login_reply.code = REVCONFIG_LOGIN_REPLY_CODE_CONNECT_FAILED;
+        else
+            item->u.login_reply.code = revconfig_parse_int(value);
+        break;
     default:
         break;
     }
@@ -1115,6 +1182,23 @@ revconfig_item_begin(
         item->kind = RCITEM_UILAYOUT;
     else if( strcmp(type_value, "role") == 0 )
         item->kind = RCITEM_ROLE;
+    else if( strcmp(type_value, "string") == 0 )
+        item->kind = RCITEM_STRING;
+    else if( strcmp(type_value, "preload") == 0 )
+    {
+        item->kind = RCITEM_PRELOAD;
+        /* Unstated is not zero for these two: id 0 is a real cache index,
+         * and a step with no percent must leave the bar where it was. */
+        item->u.preload.id = -1;
+        item->u.preload.percent = -1;
+    }
+    else if( strcmp(type_value, "login_reply") == 0 )
+    {
+        item->kind = RCITEM_LOGIN_REPLY;
+        /* -1 = "leave the screen alone", which is what most codes want: the
+         * generic error page is already up by the time the lines are read. */
+        item->u.login_reply.screen = -1;
+    }
     else if( strcmp(type_value, "inv") == 0 )
         item->kind = RCITEM_INV;
     else if( strcmp(type_value, "hotkey") == 0 )
@@ -1505,6 +1589,60 @@ revconfig_item_apply_uicomponent_field(
         strncpy(comp->text, value, sizeof(comp->text) - 1);
         comp->text[sizeof(comp->text) - 1] = '\0';
         break;
+    case RCFIELD_UICOMPONENT_TITLE_FIELD:
+        strncpy(comp->title_field, value, sizeof(comp->title_field) - 1);
+        comp->title_field[sizeof(comp->title_field) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_PREFIX:
+        strncpy(comp->title_prefix, value, sizeof(comp->title_prefix) - 1);
+        comp->title_prefix[sizeof(comp->title_prefix) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_CARET:
+        strncpy(comp->title_caret, value, sizeof(comp->title_caret) - 1);
+        comp->title_caret[sizeof(comp->title_caret) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_CARET_BLINK:
+        comp->title_caret_blink = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_MASK:
+        strncpy(comp->title_mask, value, sizeof(comp->title_mask) - 1);
+        comp->title_mask[sizeof(comp->title_mask) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_MAXLEN:
+        comp->title_maxlen = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_CHARSET:
+        strncpy(comp->title_charset, value, sizeof(comp->title_charset) - 1);
+        comp->title_charset[sizeof(comp->title_charset) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_ACTION:
+        strncpy(comp->title_action, value, sizeof(comp->title_action) - 1);
+        comp->title_action[sizeof(comp->title_action) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX:
+        comp->title_message_index = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT:
+        comp->title_px_per_percent = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_BIAS:
+        comp->flame_bias = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_SWAY:
+        comp->flame_sway = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_RUN:
+        comp->flame_run = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_ROW:
+        comp->flame_row = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_BLUR:
+        strncpy(comp->flame_blur, value, sizeof(comp->flame_blur) - 1);
+        break;
+    case RCFIELD_UICOMPONENT_TEXT_BASELINE:
+        comp->text_baseline = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
+        break;
     case RCFIELD_UICOMPONENT_OPTION:
         strncpy(comp->option, value, sizeof(comp->option) - 1);
         comp->option[sizeof(comp->option) - 1] = '\0';
@@ -1679,6 +1817,9 @@ revconfig_item_apply_uilayout_field(
         break;
     case RCFIELD_UILAYOUT_DIRTY:
         layout->dirty = 1;
+        break;
+    case RCFIELD_UILAYOUT_XALIGN:
+        layout->xalign_center = strcmp(value, "center") == 0 || strcmp(value, "centre") == 0;
         break;
     case RCFIELD_UILAYOUT_PARENT:
         strncpy(layout->parent, value, sizeof(layout->parent) - 1);
@@ -1916,6 +2057,66 @@ revconfig_item_apply_field(
     case RCITEM_CACHE_REF:
         if( kind == RCFIELD_CACHEREF_ID )
             item->u.cacheref.id = revconfig_parse_int(value);
+        break;
+    case RCITEM_STRING:
+        if( kind == RCFIELD_STRING_TEXT )
+        {
+            strncpy(item->u.string.text, value, sizeof(item->u.string.text) - 1);
+            item->u.string.text[sizeof(item->u.string.text) - 1] = '\0';
+        }
+        break;
+    case RCITEM_PRELOAD:
+        switch( kind )
+        {
+        case RCFIELD_PRELOAD_KIND:
+            strncpy(item->u.preload.kind, value, sizeof(item->u.preload.kind) - 1);
+            break;
+        case RCFIELD_PRELOAD_ARCHIVE:
+            strncpy(item->u.preload.archive, value, sizeof(item->u.preload.archive) - 1);
+            break;
+        case RCFIELD_PRELOAD_SAY:
+            strncpy(item->u.preload.say, value, sizeof(item->u.preload.say) - 1);
+            break;
+        case RCFIELD_PRELOAD_ID:
+            item->u.preload.id = revconfig_parse_int(value);
+            break;
+        case RCFIELD_PRELOAD_PERCENT:
+            item->u.preload.percent = revconfig_parse_int(value);
+            break;
+        case RCFIELD_PRELOAD_WEIGHT:
+            item->u.preload.weight = revconfig_parse_int(value);
+            break;
+        case RCFIELD_PRELOAD_ORDER:
+            item->u.preload.order = revconfig_parse_int(value);
+            break;
+        case RCFIELD_PRELOAD_RENDER:
+            item->u.preload.render = (strcmp(value, "true") == 0 ||
+                                      strcmp(value, "yes") == 0 || strcmp(value, "1") == 0)
+                                         ? 1
+                                         : 0;
+            break;
+        default:
+            break;
+        }
+        break;
+    case RCITEM_LOGIN_REPLY:
+        if( kind == RCFIELD_LOGIN_REPLY_SCREEN )
+        {
+            item->u.login_reply.screen = revconfig_parse_int(value);
+        }
+        else if(
+            kind == RCFIELD_LOGIN_REPLY_LINE1 || kind == RCFIELD_LOGIN_REPLY_LINE2 ||
+            kind == RCFIELD_LOGIN_REPLY_LINE3 )
+        {
+            int line = kind == RCFIELD_LOGIN_REPLY_LINE1   ? 0
+                       : kind == RCFIELD_LOGIN_REPLY_LINE2 ? 1
+                                                           : 2;
+            strncpy(
+                item->u.login_reply.line[line],
+                value,
+                sizeof(item->u.login_reply.line[line]) - 1);
+            item->u.login_reply.line[line][sizeof(item->u.login_reply.line[line]) - 1] = '\0';
+        }
         break;
     case RCITEM_ROLE:
         if( kind == RCFIELD_ROLE_MATCH &&

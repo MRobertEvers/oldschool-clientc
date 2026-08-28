@@ -178,6 +178,15 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
             return 0;
         *req->u.get_reboot_timer.out_text = st->reboot_timer_text;
         return 1;
+    /* A harness tree is not on the title screen: -1 is the honest answer, and
+     * it is what makes every title widget draw nothing here. */
+    case UITREE_HOST_GET_TITLE_SCREEN:
+        return -1;
+    case UITREE_HOST_GET_TITLE_FIELD:
+    case UITREE_HOST_GET_TITLE_MESSAGE:
+    case UITREE_HOST_GET_TITLE_PROGRESS:
+    case UITREE_HOST_TITLE_ACTION:
+        return 0;
     case UITREE_HOST_IS_ACTIVE:
         return 0;
     case UITREE_HOST_SET_SELECTED_TAB:

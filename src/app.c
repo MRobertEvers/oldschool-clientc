@@ -6,6 +6,8 @@
  * rides along, so a plugin capture costs no new dependency. */
 #include "miniz.h"
 #include "bootmanifest/bootmanifest.h"
+#include "engine/boot_bar.h"
+#include "revconfig/revconfig_load.h"
 #if !defined(TORIRS_PLATFORM_WEB)
 /* The dat1 cache source that is a LostCity server rather than a directory.
  * Native only: a browser build has no host cache to replace, and its reads
@@ -5533,6 +5535,383 @@ app_reboot_timer_text(struct App* app)
     return app->reboot_timer_text;
 }
 
+/*
+ * The blink period the title tree's focused input asks for, or 0 when nothing
+ * on screen blinks.
+ *
+ * Read off the tree rather than kept on App because it is the widget's
+ * property: two revisions may spell the caret differently and time it
+ * differently, and both say so in their own INI.
+ */
+static int
+app_title_caret_blink(struct App const* app)
+{
+    assert(app);
+    if( !app->tree )
+        return 0;
+    for( uint32_t i = 0; i < app->tree->component_count; i++ )
+    {
+        struct UITreeComponent const* comp = &app->tree->components[i];
+        if( comp->freed || comp->type != UIELEM_BUILTIN_LOGIN_INPUT )
+            continue;
+        if( UITree_LoginInput(comp)->field != app->title.focus )
+            continue;
+        return UITree_LoginInput(comp)->caret_blink;
+    }
+    return 0;
+}
+
+/*
+ * Light the braziers, once the title tree's art is resident.
+ *
+ * The fire burns in front of two 128-wide columns of the backdrop, so it needs
+ * the composited panel before it can start -- which is also why this is not
+ * done at bake time: the sprite arrives through the same async asset pass
+ * everything else does.
+ *
+ * A profile with no backdrop gets no fire rather than a fire over black. That
+ * is the undeclared-means-absent contract again, and it is the honest answer:
+ * the flames are a lighting effect on a picture, and without the picture they
+ * are just two glowing rectangles.
+ */
+static void
+app_title_flames_start(struct App* app)
+{
+    struct ToriRS_Sprite* runes;
+    struct ToriDraw_Sprite** panel_frames;
+    struct ToriDraw_Sprite const* panel;
+    uint32_t* column[TORIRS_FLAME_SIDES] = { NULL, NULL };
+    uint32_t const* pair[TORIRS_FLAME_SIDES];
+    int sprite_id;
+    int scene_id;
+    int frame_count = 0;
+    int col_h;
+
+    assert(app);
+    if( app->flames || !app->provider || !app->scene )
+        return;
+
+    sprite_id = CacheProvider_SpriteIdByName(app->provider, "title_background");
+    if( sprite_id < 0 )
+        return;
+
+    /*
+     * Read the backdrop out of the SCENE, not the provider.
+     *
+     * Uploading a sprite hands its pixels to the scene and leaves the
+     * provider's copy empty -- the client deliberately does not keep two of
+     * every image. The scene is therefore where the picture actually is by the
+     * time anything wants to look at it.
+     */
+    scene_id = UITreeSceneBridge_EnsureSprite(&app->bridge, sprite_id);
+    if( scene_id < 0 )
+        return;
+    panel_frames = ToriDraw_SceneSpriteGet(app->scene, scene_id, &frame_count);
+    if( !panel_frames || frame_count < 1 || !panel_frames[0] )
+        return;
+    panel = panel_frames[0];
+    if( !panel->pixels_argb || panel->width < TORIRS_FLAME_W * 2 )
+        return;
+
+    /*
+     * The column is taller than the heat field, and deliberately.
+     *
+     * The reference's surface is 128x265 while the fire it holds is
+     * 128x256: the fire is drawn nine rows down, so its base lands in the
+     * brazier bowl rather than at the bottom edge of the strip. Cutting the
+     * column to the fire's own height instead leaves the flame standing on
+     * the surface's edge, with a hard seam where the copied wall stops.
+     */
+    col_h = panel->height < TORIRS_FLAME_COLUMN_H ? panel->height : TORIRS_FLAME_COLUMN_H;
+
+    /* The two strips the reference burns in: hard against each edge of the
+     * panel, which is where the braziers are painted. */
+    for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
+    {
+        int src_x = side == TORIRS_FLAME_LEFT ? 0 : panel->width - TORIRS_FLAME_W;
+        column[side] = malloc((size_t)TORIRS_FLAME_W * col_h * sizeof(*column[side]));
+        assert(column[side]);
+        for( int y = 0; y < col_h; y++ )
+            memcpy(
+                &column[side][(size_t)y * TORIRS_FLAME_W],
+                &panel->pixels_argb[(size_t)y * panel->width + src_x],
+                (size_t)TORIRS_FLAME_W * sizeof(*column[side]));
+        pair[side] = column[side];
+    }
+
+    /* Runes are optional: without them the cooling map carries no glyphs and
+     * the fire is a plain one, which is what a revision with no rune pack
+     * honestly has. */
+    sprite_id = CacheProvider_SpriteIdByName(app->provider, "runes");
+    runes = sprite_id >= 0 ? CacheProvider_SpriteGet(app->provider, sprite_id) : NULL;
+
+    app->flames = calloc(1, sizeof(*app->flames));
+    assert(app->flames);
+    TitleFlames_Init(app->flames, pair, TORIRS_FLAME_W, col_h, runes);
+    app->flames_last_ms = 0;
+
+    for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
+        free(column[side]);
+}
+
+static void
+app_title_flames_stop(struct App* app)
+{
+    assert(app);
+    if( !app->flames )
+        return;
+    TitleFlames_Free(app->flames);
+    free(app->flames);
+    app->flames = NULL;
+}
+
+/* One frame of fire, uploaded into the two reserved scene slots. */
+static void
+app_title_flames_tick(
+    struct App* app,
+    uint64_t now_ms)
+{
+    static int const k_slot[TORIRS_FLAME_SIDES] = {
+        UITREE_SCENE_TITLE_FLAME_LEFT_ID,
+        UITREE_SCENE_TITLE_FLAME_RIGHT_ID,
+    };
+    int elapsed;
+
+    assert(app);
+    if( !app->flames || !app->scene )
+        return;
+
+    elapsed = app->flames_last_ms == 0 ? 0 : (int)(now_ms - app->flames_last_ms);
+    app->flames_last_ms = now_ms;
+    if( !TitleFlames_Advance(app->flames, elapsed) )
+        return;
+
+    for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
+    {
+        size_t bytes =
+            (size_t)app->flames->width * app->flames->height * sizeof(uint32_t);
+        uint32_t* copy = malloc(bytes);
+        struct ToriDraw_Sprite* sprite;
+        struct ToriDraw_Sprite** sprites;
+
+        assert(copy);
+        memcpy(copy, TitleFlames_Pixels(app->flames, (enum TitleFlameSide)side), bytes);
+        sprite = ToriDraw_SpriteNewFromArgbOwned(
+            copy, app->flames->width, app->flames->height);
+        if( !sprite )
+        {
+            free(copy);
+            continue;
+        }
+        sprites = malloc(sizeof(*sprites));
+        assert(sprites);
+        sprites[0] = sprite;
+        /* Adding over a live id frees what was there and re-emits the load, so
+         * the GPU lanes pick the new pixels up; the soft lane reads the scene
+         * directly. */
+        if( ToriDraw_SceneSpriteHas(app->scene, k_slot[side]) )
+            ToriDraw_SceneSpriteRemove(app->scene, k_slot[side]);
+        ToriDraw_SceneSpriteAdd(app->scene, k_slot[side], sprites, 1);
+    }
+
+    app->need_redraw = 1;
+}
+
+/*
+ * Show the group belonging to the current title screen, hide the rest.
+ *
+ * The title tree carries every screen at once -- menu, form, info, loading --
+ * because they share a panel and rebuilding the tree per screen would flash
+ * the whole backdrop. Which one is visible is the only thing that changes.
+ *
+ * Found by role, never by index: the tree is rebuilt whenever the window
+ * changes shape, and a remembered index would then point at whatever landed in
+ * that slot.
+ */
+static void
+app_title_sync_groups(struct App* app)
+{
+    static char const* const k_groups[] = {
+        "title_menu_group",
+        "title_form_group",
+        "title_info_group",
+        "title_progress_group",
+    };
+    /* Parallel to k_groups: which RS_TitleScreen each belongs to, and -1 for
+     * the loading bar, which answers to the boot progress instead. */
+    static int const k_screen[] = {
+        RS_TITLE_MAIN_MENU,
+        RS_TITLE_LOGIN_FORM,
+        RS_TITLE_INFO,
+        -1,
+    };
+    int showing_progress;
+
+    assert(app);
+    if( !app->tree )
+        return;
+
+    /* The bar owns the panel while there is one: the reference draws the
+     * loading screen INSTEAD of the login box, in the same 360x200 space. */
+    showing_progress = app->title.progress_percent >= 0;
+
+    for( size_t i = 0; i < sizeof(k_groups) / sizeof(k_groups[0]); i++ )
+    {
+        int32_t idx = UITree_RoleNodeByName(app->tree, &app->ui_roles, k_groups[i]);
+        int visible;
+
+        if( idx < 0 )
+            continue;
+        visible = k_screen[i] < 0 ? showing_progress
+                                  : (!showing_progress && k_screen[i] == (int)app->title.screen);
+        UITree_SetScreenHiddenAt(app->tree, idx, !visible);
+    }
+}
+
+/*
+ * The title screen's state changed: redraw, and tell the retention gate.
+ *
+ * Both halves matter. Without the epoch bump the emit walk reuses last frame's
+ * command buffer and the typed character never appears; without need_redraw
+ * the frame loop may not present at all.
+ */
+static void
+app_title_state_changed(struct App* app)
+{
+    assert(app);
+    app_title_sync_groups(app);
+    UITree_HostInputsChanged(
+        &app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE));
+    app->need_redraw = 1;
+}
+
+/*
+ * Publish a boot step to the title screen's loading bar.
+ *
+ * The percentage is the client's; the words are the profile's, looked up by
+ * name. A revision that declares no such string gets the bar with no caption
+ * rather than an English sentence it never chose.
+ */
+/*
+ * Announce one step of the profile's preload list.
+ *
+ * The percentage and the words are both the step's, so a revision that
+ * counts its boot differently -- and the two here do; one steps through
+ * positions while the other sums weights -- says so in its profile rather
+ * than in this function. A step the profile does not declare announces
+ * nothing and the bar stays where it was, which is the same
+ * undeclared-means-absent rule the rest of revconfig runs on.
+ *
+ * Returns the step so the caller can see whether it asked to be rendered.
+ */
+static struct RS_PreloadStep const*
+app_preload_announce(
+    struct App* app,
+    char const* step_name)
+{
+    struct RS_PreloadStep const* step = NULL;
+
+    assert(app);
+    assert(step_name);
+    for( int i = 0; i < app->preload.count; i++ )
+    {
+        if( strcmp(app->preload.steps[i].name, step_name) == 0 )
+        {
+            step = &app->preload.steps[i];
+            break;
+        }
+    }
+    if( !step )
+        return NULL;
+
+    if( step->percent >= 0 )
+        app->boot_progress = step->percent;
+    RS_Title_SetProgress(
+        &app->title,
+        step->percent,
+        step->say[0] ? RS_LoginReplies_String(&app->login_replies, step->say) : NULL);
+    if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
+        app_title_state_changed(app);
+    return step;
+}
+
+static void
+app_title_progress(
+    struct App* app,
+    int percent,
+    char const* string_key)
+{
+    assert(app);
+    assert(string_key);
+    RS_Title_SetProgress(
+        &app->title, percent, RS_LoginReplies_String(&app->login_replies, string_key));
+    if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
+        app_title_state_changed(app);
+}
+
+
+/*
+ * Compose one credential line: prefix, the value (masked if the widget asked),
+ * and the caret when this field has focus and the blink is showing.
+ *
+ * The host composes it rather than the widget because the pieces belong to
+ * different owners -- the value and the focus are the model's, the blink is the
+ * client's clock, and the spelling of the prefix, the mask and the caret are
+ * the revision's. The reference draws exactly this, as one string, because
+ * centring or measuring the label separately from the value would not
+ * reproduce it (Client-TS titleScreenDraw, deob method8166).
+ *
+ * The returned pointer is App-owned and lives until the next call: the same
+ * frame lifetime the hovertext and reboot-timer strings have.
+ */
+static int
+app_title_field_line(
+    struct App* app,
+    struct UITreeHostRequest* req)
+{
+    struct UITreeLoginInputConfig const* cfg = req->u.get_title_field.config;
+    char const* value;
+    char masked[RS_TITLE_FIELD_LEN];
+    int focused;
+    int caret_showing = 0;
+
+    assert(app);
+    assert(cfg);
+
+    if( app->screen != APP_SCREEN_TITLE && app->screen != APP_SCREEN_CONNECTING )
+        return 0;
+    if( cfg->field < 0 || cfg->field >= RS_TITLE_FIELD_COUNT )
+        return 0;
+
+    value = RS_Title_FieldText(&app->title, (enum RS_TitleField)cfg->field);
+    if( cfg->mask[0] != '\0' )
+    {
+        size_t len = strlen(value);
+        if( len >= sizeof(masked) )
+            len = sizeof(masked) - 1;
+        memset(masked, cfg->mask[0], len);
+        masked[len] = '\0';
+        value = masked;
+    }
+
+    focused = app->title.focus == cfg->field;
+    if( focused && cfg->caret_blink > 0 )
+        caret_showing = (int)(app->logic_cycle % (uint64_t)cfg->caret_blink) < cfg->caret_blink / 2;
+
+    snprintf(
+        app->title_field_line[cfg->field],
+        sizeof(app->title_field_line[cfg->field]),
+        "%s%s%s",
+        cfg->prefix,
+        value,
+        caret_showing ? cfg->caret : "");
+
+    if( req->u.get_title_field.out_focused )
+        *req->u.get_title_field.out_focused = focused;
+    *req->u.get_title_field.out_text = app->title_field_line[cfg->field];
+    return 1;
+}
+
 static int
 app_host_request(
     void* user,
@@ -5690,6 +6069,65 @@ app_host_request(
         assert(req->u.get_reboot_timer.out_text);
         *req->u.get_reboot_timer.out_text = app_reboot_timer_text(app);
         return *req->u.get_reboot_timer.out_text != NULL;
+    case UITREE_HOST_GET_TITLE_SCREEN:
+        /* -1 rather than 0: 0 is a real screen (the front menu), so "not on
+         * the title screen at all" needs a value of its own. */
+        if( app->screen != APP_SCREEN_TITLE && app->screen != APP_SCREEN_CONNECTING )
+            return -1;
+        return (int)app->title.screen;
+    case UITREE_HOST_GET_TITLE_FIELD:
+        assert(req->u.get_title_field.config);
+        assert(req->u.get_title_field.out_text);
+        return app_title_field_line(app, req);
+    case UITREE_HOST_GET_TITLE_MESSAGE:
+    {
+        int index = req->u.get_title_message.index;
+        assert(req->u.get_title_message.out_text);
+        if( index < 0 || index >= RS_TITLE_MESSAGE_LINES )
+            return 0;
+        *req->u.get_title_message.out_text = app->title.messages[index];
+        return app->title.messages[index][0] != '\0';
+    }
+    case UITREE_HOST_GET_TITLE_PROGRESS:
+        assert(req->u.get_title_progress.out_percent);
+        assert(req->u.get_title_progress.out_text);
+        *req->u.get_title_progress.out_percent = app->title.progress_percent;
+        *req->u.get_title_progress.out_text = app->title.progress_text;
+        return app->title.progress_percent >= 0;
+    case UITREE_HOST_GET_TITLE_FLAMES:
+    {
+        int side = req->u.get_title_flames.side;
+        struct TitleFlameGeometry geometry;
+        assert(req->u.get_title_flames.out_scene_id);
+        if( !app->flames || side < 0 || side >= TORIRS_FLAME_SIDES )
+            return 0;
+
+        /*
+         * Where this era leans its fire, restated every frame because the
+         * node is the only thing that knows and the simulation is shared.
+         * Cheap -- four ints -- and it keeps the numbers in the profile
+         * where the two revisions disagree about them.
+         */
+        geometry.bias = req->u.get_title_flames.bias;
+        geometry.sway = req->u.get_title_flames.sway;
+        geometry.run = req->u.get_title_flames.run;
+        geometry.row = req->u.get_title_flames.row;
+        TitleFlames_SetGeometry(app->flames, (enum TitleFlameSide)side, &geometry);
+        /* Shared by both braziers -- the simulation is one field -- so the
+         * two nodes state the same value and either may set it. */
+        TitleFlames_SetBlur(app->flames, req->u.get_title_flames.blur);
+        *req->u.get_title_flames.out_scene_id = side == TORIRS_FLAME_LEFT
+                                                    ? UITREE_SCENE_TITLE_FLAME_LEFT_ID
+                                                    : UITREE_SCENE_TITLE_FLAME_RIGHT_ID;
+        return ToriDraw_SceneSpriteHas(
+            app->scene, *req->u.get_title_flames.out_scene_id);
+    }
+    case UITREE_HOST_TITLE_ACTION:
+        if( RS_Title_HandleAction(&app->title, (enum RS_TitleAction)req->u.title_action.action) )
+        {
+            app_title_state_changed(app);
+        }
+        return 0;
     case UITREE_HOST_GET_MINIMAP_DOTS:
         return App_MinimapBuildDots(app, req->u.get_minimap_dots.out_dots);
     case UITREE_HOST_GET_WORLDMAP_TILES:
@@ -6128,6 +6566,40 @@ app_ui_host_publish_inputs(struct App* app)
         signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
             signature[UITREE_HOST_INPUT_ANIMATION],
             app->reboot_timer / APP_LOGIC_CYCLES_PER_SECOND);
+    /*
+     * The login caret's blink phase, and only the phase.
+     *
+     * Hashing logic_cycle itself would bump the animation epoch every frame
+     * and the title screen would never retain anything; hashing the half of
+     * the period the caret is in flips the epoch exactly twice per blink,
+     * which is how often the screen actually changes. The period is the
+     * widget's (revconfig caret_blink=), so the client asks the tree for it.
+     */
+    if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
+    {
+        int blink = app_title_caret_blink(app);
+        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_ANIMATION],
+            blink > 0 ? (int)(app->logic_cycle % (uint64_t)blink) < blink / 2 : 0);
+    }
+    /*
+     * The fire's step counter, while there is a fire.
+     *
+     * always_dirty on the node is only half of the contract and does not
+     * work alone: it keeps the node's own descriptor out of the retained
+     * list, but nothing rebuilds the FRAME unless an input epoch moves, so
+     * a title screen whose only animation is the braziers retains the very
+     * first frame forever. That is exactly what shipped -- the fire ran, the
+     * sprite was re-uploaded every step, and the screen kept showing the
+     * seed row from step one, a bright line at the bowl rim and nothing
+     * above it.
+     *
+     * The counter and not the clock: it moves once per fixed 35 ms step, so
+     * the epoch flips exactly when the pixels do rather than every frame.
+     */
+    if( app->flames )
+        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_ANIMATION], app->flames->update_index);
     signature[UITREE_HOST_INPUT_ANIMATION] =
         app_ui_input_hash_int(signature[UITREE_HOST_INPUT_ANIMATION], app->slots.flash_tab);
     if( app->slots.flash_tab >= 0 )
@@ -8616,6 +9088,24 @@ App_Init(
      * revision profile states about behaviour rather than about ids: the
      * feature table (consumed a few hundred lines below, where the era is
      * resolved) and the camera policy. */
+    /* Same three sources again, for the sentences a login failure needs. Here
+     * rather than in the builder because the builder's items are torn down
+     * after the bake and a rejection can arrive at any time. */
+    RS_LoginReplies_Init(&app->login_replies);
+    RS_LoginReplies_LoadSources(
+        &app->login_replies,
+        app->cfg.revconfig_ui_ini,
+        app->cfg.revconfig_cache_ini,
+        app->cfg.revconfig_inline_ini);
+    /* And the loading screen's own work list, from the same three sources.
+     * What this revision fetches before it can show a title, in its order,
+     * with the percentage and the sentence each step carries. */
+    RS_Preload_Init(&app->preload);
+    RS_Preload_LoadSources(
+        &app->preload,
+        app->cfg.revconfig_ui_ini,
+        app->cfg.revconfig_cache_ini,
+        app->cfg.revconfig_inline_ini);
     RevConfigProfile_Init(&app->revconfig_profile);
     RevConfigProfile_LoadSources(
         &app->revconfig_profile,
@@ -8917,6 +9407,7 @@ App_Init(
      * resolves the parts the first time the preview asks for a rebuild. */
     RS_IdkDesign_Init(&app->idk_design);
     RS_Chat_Init(&app->chat, "Player");
+    RS_Title_Init(&app->title);
     /* No hardcoded welcome line: the server sends the real "Welcome to
      * RuneScape." MESSAGE_GAME packet on login (reference has no client-side
      * welcome message; its only "Welcome to RuneScape" is the login title). */
@@ -9417,11 +9908,38 @@ App_Init(
         app->button_sink.if_button = app_send_if_button;
         app->button_sink.resume_pausebutton = app_send_resume_pausebutton;
         app->button_sink.close_modal = app_send_close_modal;
-        ToriRS_Network_ConnectLogin(
-            app->net,
-            cfg->connect_target,
-            cfg->connect_user ? cfg->connect_user : "guest",
+        /*
+         * Dialling is NOT done here any more.
+         *
+         * It used to be: App_Init opened the socket with whatever credentials
+         * the command line carried, before a single frame had been drawn. That
+         * left no room for a login screen -- by the time anything could be
+         * shown, the handshake had already happened.
+         *
+         * The connect now happens on submit (app_title_submit), which is the
+         * one path a clicked Login, a pressed Enter and an autologin all take.
+         * A profile with no title screen still connects without one: see
+         * app_title_tick's autologin branch.
+         *
+         * Credentials are kept for that submit rather than passed here. The old
+         * "guest"/"" defaults are gone with the call: absent credentials now
+         * mean an interactive login form, which is the point.
+         */
+        snprintf(
+            app->autologin_user,
+            sizeof(app->autologin_user),
+            "%s",
+            cfg->connect_user ? cfg->connect_user : "");
+        snprintf(
+            app->autologin_pass,
+            sizeof(app->autologin_pass),
+            "%s",
             cfg->connect_pass ? cfg->connect_pass : "");
+        snprintf(
+            app->connect_target,
+            sizeof(app->connect_target),
+            "%s",
+            cfg->connect_target);
     }
 }
 
@@ -13176,6 +13694,17 @@ Task_AppBoot_Run(
     PT_BEGIN(&self->pt);
 
     app->boot_progress = 10;
+    /* This stage's place in the profile's own list, where it declares
+     * one. The modern lane's boot is numbered by the deob and continues
+     * from where its cache-index steps left off; a lane that names no
+     * such step keeps the client's own position. */
+    if( !app_preload_announce(app, "boot_config") )
+        app_title_progress(app, 10, "loading_config");
+    /* Let the frame loop draw the bar where it now stands before the
+     * next stretch of work begins. Without this the whole boot settles
+     * inside one frame and the bar only ever appears at 100. */
+    PT_TASK_YIELD_TO_RENDER(
+        TORIRS_RENDER_BOOT_BAR, app->title.progress_percent, app->title.progress_text);
 
     /*
      * Varbit types, before anything that can run a script.
@@ -13453,6 +13982,22 @@ Task_AppBoot_Run(
             TORIRS_LOG("preview_state: applied %d records\n", applied);
     }
 
+    /* The config tables are in; the tree build below is the long one, and the
+     * references both name it while it runs rather than leaving the bar still
+     * (Client-TS "Requesting interface", the deob "Loading interfaces"). */
+    app->boot_progress = 30;
+    /* This stage's place in the profile's own list, where it declares
+     * one. The modern lane's boot is numbered by the deob and continues
+     * from where its cache-index steps left off; a lane that names no
+     * such step keeps the client's own position. */
+    if( !app_preload_announce(app, "boot_tree") )
+        app_title_progress(app, 30, "loaded_config");
+    /* Let the frame loop draw the bar where it now stands before the
+     * next stretch of work begins. Without this the whole boot settles
+     * inside one frame and the bar only ever appears at 100. */
+    PT_TASK_YIELD_TO_RENDER(
+        TORIRS_RENDER_BOOT_BAR, app->title.progress_percent, app->title.progress_text);
+
     /* One root-build path. A manifest that names no RevConfig at all still comes
      * through here: the builder synthesises the single rs_iface mount of
      * boot_interface_id, which is what the old open-the-interface-directly
@@ -13495,6 +14040,17 @@ Task_AppBoot_Run(
         app->tree->interface_parent_count);
 
     app->boot_progress = 60;
+    /* This stage's place in the profile's own list, where it declares
+     * one. The modern lane's boot is numbered by the deob and continues
+     * from where its cache-index steps left off; a lane that names no
+     * such step keeps the client's own position. */
+    if( !app_preload_announce(app, "boot_interfaces") )
+        app_title_progress(app, 60, "loading_interfaces");
+    /* Let the frame loop draw the bar where it now stands before the
+     * next stretch of work begins. Without this the whole boot settles
+     * inside one frame and the bar only ever appears at 100. */
+    PT_TASK_YIELD_TO_RENDER(
+        TORIRS_RENDER_BOOT_BAR, app->title.progress_percent, app->title.progress_text);
 
     /* Shared b12 fallback before configured overlay models are bound. Normally
      * already resident — the RevConfig assets pass loads every declared
@@ -13507,6 +14063,17 @@ Task_AppBoot_Run(
             : NULL);
 
     app->boot_progress = 75;
+    /* This stage's place in the profile's own list, where it declares
+     * one. The modern lane's boot is numbered by the deob and continues
+     * from where its cache-index steps left off; a lane that names no
+     * such step keeps the client's own position. */
+    if( !app_preload_announce(app, "boot_media") )
+        app_title_progress(app, 75, "loading_media");
+    /* Let the frame loop draw the bar where it now stands before the
+     * next stretch of work begins. Without this the whole boot settles
+     * inside one frame and the bar only ever appears at 100. */
+    PT_TASK_YIELD_TO_RENDER(
+        TORIRS_RENDER_BOOT_BAR, app->title.progress_percent, app->title.progress_text);
 
     if( getenv("TORIRS_ANIM_DEBUG") )
     {
@@ -13573,6 +14140,19 @@ Task_AppBoot_Run(
     if( App_WorldNodeIndex(app) >= 0 && !app->net_enabled )
         app_world_load_begin(app, NULL, 0);
 
+    app->boot_progress = 90;
+    /* This stage's place in the profile's own list, where it declares
+     * one. The modern lane's boot is numbered by the deob and continues
+     * from where its cache-index steps left off; a lane that names no
+     * such step keeps the client's own position. */
+    if( !app_preload_announce(app, "boot_ready") )
+        app_title_progress(app, 90, "preparing");
+    /* Let the frame loop draw the bar where it now stands before the
+     * next stretch of work begins. Without this the whole boot settles
+     * inside one frame and the bar only ever appears at 100. */
+    PT_TASK_YIELD_TO_RENDER(
+        TORIRS_RENDER_BOOT_BAR, app->title.progress_percent, app->title.progress_text);
+
     app_chat_build_view(app);
     app->emit.count = 0;
     UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, -1);
@@ -13581,7 +14161,17 @@ Task_AppBoot_Run(
     app_update_world_viewport(app);
 
     app->boot_progress = 100;
+    /* Cleared, not filled: a bar left at 100 keeps the loading group in
+     * front of the login form it was covering. */
+    RS_Title_SetProgress(&app->title, -1, NULL);
     app->app_state = APP_STATE_READY;
+    /* A freshly baked title tree shows every screen's group at once until it is
+     * told which one is current. */
+    if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
+    {
+        app_title_sync_groups(app);
+        app_title_flames_start(app);
+    }
     app->pending_tree_refresh = 1;
     app->need_redraw = 1;
 
@@ -13599,10 +14189,21 @@ static struct ToriRS_TaskVTable Task_AppBoot_VTable = {
     .free = Task_AppBoot_Free,
 };
 
-void
-App_OpenRootInterface(
+/*
+ * Rebuild the whole tree from RevConfig, taking one layout group.
+ *
+ * The body App_OpenRootInterface and App_OpenTitleScreen share. The only
+ * things that differ between a gameframe bake and a title bake are which
+ * [layout:] group is selected, which is refused, and whether there is a root
+ * interface to mount -- the title screen has none, because no revision ships
+ * one as interface data.
+ */
+static void
+app_open_tree(
     struct App* app,
-    int interface_id)
+    int interface_id,
+    char const* layout_group,
+    char const* layout_group_exclude)
 {
     struct Task_AppBoot* task;
 
@@ -13651,6 +14252,18 @@ App_OpenRootInterface(
      * being asked to root to — the manifest's boot interface on the first call,
      * the server's IF_SETTOPLEVEL group on a display-mode remount. */
     app->builder.root_interface_id = interface_id;
+    /* Which [layout:] group this bake takes, and which it refuses. The
+     * gameframe refuses the title group so the title screen's widgets -- and
+     * their every-frame repaint -- never enter the in-game tree. */
+    app->builder.layout_group[0] = '\0';
+    app->builder.layout_group_exclude[0] = '\0';
+    if( layout_group )
+        strncpy(app->builder.layout_group, layout_group, sizeof(app->builder.layout_group) - 1);
+    if( layout_group_exclude )
+        strncpy(
+            app->builder.layout_group_exclude,
+            layout_group_exclude,
+            sizeof(app->builder.layout_group_exclude) - 1);
     /* Bake remaps sprite/font ids to scene ids so the tree renders directly. */
     app->builder.bridge = &app->bridge;
     /* Where a component's `role=` is interned. The table outlives the tree, so
@@ -13667,6 +14280,33 @@ App_OpenRootInterface(
      * IF_OPENTOP as informational (see rs_gameproto_exec), so the two agree. */
     app->host.top_interface_id = interface_id;
 
+    /*
+     * The profile's own preload list first, as a SIBLING rather than a child.
+     *
+     * The queue runs its head to completion before anything behind it, so
+     * ordering is free -- and being the head is what lets its render
+     * requests reach the runner directly, which is the whole point of a task
+     * that exists to show the bar moving.
+     *
+     * NULL on a profile that names no cache indices, which is every dat1
+     * lane: their list is jag archives, loaded by other machinery.
+     */
+    if( app->provider )
+    {
+        /* One of the two answers, never both: a profile lists cache indices
+         * or jag archives, and each constructor returns NULL for the list
+         * that is not its own. The epoch is not tested here because the
+         * profile already decides it by what it declares. */
+        struct ToriRS_Task* preload =
+            CreateTask_Dat2Preload(app->provider, &app->preload, &app->login_replies);
+
+        if( !preload )
+            preload =
+                CreateTask_Dat1Preload(app->provider, &app->preload, &app->login_replies);
+        if( preload )
+            ToriRS_TaskQueue_Add(app->runner.queue, preload);
+    }
+
     task = calloc(1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_AppBoot_VTable;
@@ -13674,6 +14314,41 @@ App_OpenRootInterface(
     task->app = app;
     PT_INIT(&task->pt);
     ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+}
+
+void
+App_OpenRootInterface(
+    struct App* app,
+    int interface_id)
+{
+    assert(app);
+    app->screen = APP_SCREEN_GAME;
+    /* Half a megabyte of simulation buffers that only the title screen wants,
+     * and the tree that drew them is about to be cleared. */
+    app_title_flames_stop(app);
+    app_open_tree(app, interface_id, NULL, APP_TITLE_LAYOUT_GROUP);
+}
+
+int
+App_HasTitleScreen(struct App const* app)
+{
+    assert(app);
+    /* Undeclared means absent, the whole revconfig contract: a profile that
+     * names no [layout:title] has no title screen and must boot straight into
+     * the game, the way every offline and bench manifest here already does. */
+    return app->cfg.revconfig_ui_ini && app->cfg.revconfig_ui_ini[0] &&
+           revconfig_ini_has_layout_group(app->cfg.revconfig_ui_ini, APP_TITLE_LAYOUT_GROUP);
+}
+
+void
+App_OpenTitleScreen(struct App* app)
+{
+    assert(app);
+    /* No root interface: the title screen is client widgets over a cache
+     * background, and the gameframe the server will re-root to does not exist
+     * until a login succeeds. */
+    app->screen = APP_SCREEN_TITLE;
+    app_open_tree(app, -1, APP_TITLE_LAYOUT_GROUP, NULL);
 }
 
 /* IF_OPENSUB wrapper: mount a cache interface pack under a component slot of an
@@ -14808,6 +15483,144 @@ app_pump_net_packets(struct App* app)
     return redraw;
 }
 
+/*
+ * Submit whatever is in the login form.
+ *
+ * The one path a clicked Login, an Enter on the password and an autologin all
+ * take, which is what makes the scripted lanes exercise the login screen
+ * instead of going around it.
+ */
+static void
+app_title_submit(struct App* app)
+{
+    char const* user;
+    char const* pass;
+
+    assert(app);
+    app->title.submit_requested = 0;
+
+    if( !app->net_enabled || !app->net )
+        return;
+
+    user = RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME);
+    pass = RS_Title_FieldText(&app->title, RS_TITLE_FIELD_PASSWORD);
+    /* Nothing to send. Left on the form rather than dialled with an empty
+     * name, which every server answers with a rejection the player then has
+     * to read as if it meant something. */
+    if( user[0] == '\0' )
+        return;
+
+    /* The client knows WHEN to say this; the revision says what. */
+    RS_Title_SetMessages(
+        &app->title, NULL, RS_LoginReplies_String(&app->login_replies, "connecting"), NULL);
+    app->screen = APP_SCREEN_CONNECTING;
+    app_title_state_changed(app);
+    ToriRS_Network_ConnectLogin(app->net, app->connect_target, user, pass);
+}
+
+/*
+ * The title screen's own tick: autologin, submit, and the login result.
+ *
+ * Runs while the session is on the title screen or connecting through it. The
+ * frame loop keeps drawing throughout, which is where "Connecting to
+ * server..." appears -- the reference does the same, and it is the reason the
+ * connect had to come out of App_Init.
+ */
+static int
+app_title_tick(struct App* app)
+{
+    int redraw = 0;
+
+    assert(app);
+
+    /*
+     * A networked profile that declares no title screen still has to log in.
+     *
+     * Any manifest whose revconfig predates [layout:title] is in that
+     * position: it boots straight to the gameframe, so there is no screen to
+     * show progress on -- but the credentials still have to reach the server,
+     * which is what App_Init used to do before the connect moved to submit.
+     */
+    if( app->net_enabled && app->net && !app->autologin_done &&
+        app->screen == APP_SCREEN_GAME && app->autologin_user[0] )
+    {
+        app->autologin_done = 1;
+        ToriRS_Network_ConnectLogin(
+            app->net, app->connect_target, app->autologin_user, app->autologin_pass);
+        return 0;
+    }
+
+    if( app->screen != APP_SCREEN_TITLE && app->screen != APP_SCREEN_CONNECTING )
+        return 0;
+    /* Nothing to submit into until the title tree is up. */
+    if( app->app_state != APP_STATE_READY )
+        return 0;
+
+    /*
+     * Credentials from the command line or the manifest: prefill and submit
+     * once. Once, because a rejected login must land back on the form rather
+     * than dial again forever.
+     */
+    if( !app->autologin_done && app->autologin_user[0] && app->screen == APP_SCREEN_TITLE )
+    {
+        app->autologin_done = 1;
+        RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_USERNAME, app->autologin_user);
+        RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_PASSWORD, app->autologin_pass);
+        RS_Title_SetScreen(&app->title, RS_TITLE_LOGIN_FORM);
+        app->title.submit_requested = 1;
+        redraw = 1;
+    }
+
+    if( app->title.submit_requested )
+    {
+        app_title_submit(app);
+        redraw = 1;
+    }
+
+    /* The handshake finished: the server's IF_OPENTOP roots the gameframe,
+     * exactly as a networked boot used to do straight out of App_Init. */
+    if( app->screen == APP_SCREEN_CONNECTING && app->net &&
+        app->net->state == TORIRS_NET_GAME )
+    {
+        App_OpenRootInterface(app, -1);
+        return 1;
+    }
+
+    /*
+     * The handshake failed. Back to the form, with what the server said.
+     *
+     * The reply code is the only thing separating "wrong password" from "this
+     * world is full" from "you have only just left another world", and the
+     * player is owed the difference. The words are the profile's; if it
+     * declares none, the code goes to the log and the screen says nothing
+     * rather than inventing a sentence.
+     */
+    if( app->screen == APP_SCREEN_CONNECTING && app->net &&
+        app->net->state == TORIRS_NET_DISCONNECTED )
+    {
+        struct RS_LoginReply const* reply =
+            RS_LoginReplies_Get(&app->login_replies, app->net->login_reply);
+
+        app->screen = APP_SCREEN_TITLE;
+        if( reply )
+        {
+            RS_Title_SetMessages(&app->title, reply->line[0], reply->line[1], reply->line[2]);
+            if( reply->screen >= 0 )
+                RS_Title_SetScreen(&app->title, (enum RS_TitleScreen)reply->screen);
+        }
+        else
+        {
+            TORIRS_ERR("login: rejected with reply=%d and the profile declares no text for it\n",
+                app->net->login_reply);
+            RS_Title_SetMessages(&app->title, NULL, NULL, NULL);
+        }
+        app_title_state_changed(app);
+        return 1;
+    }
+
+    return redraw;
+}
+
 /* One 20ms client tick: clock, widget timers, animation loads + advance. */
 static int
 app_logic_tick(struct App* app)
@@ -14815,6 +15628,12 @@ app_logic_tick(struct App* app)
     int redraw = 0;
 
     app->logic_cycle++;
+
+    if( app_title_tick(app) )
+        redraw = 1;
+    if( app->flames )
+        app_title_flames_tick(
+            app, (uint64_t)app->logic_cycle * (1000 / APP_LOGIC_CYCLES_PER_SECOND));
 
     /*
      * System-update countdown (reference gameLoop: `if (rebootTimer > 1)
@@ -16538,6 +17357,57 @@ app_draw_viewport_message(
         (void)ToriDraw2D_DrawString(
             font, &vp, cx, cy + 15, line2_nullable, 0xffffff, true, false, pixels);
     }
+}
+
+/*
+ * The bar's caption, centred on `center_x` with its baseline at `baseline_y`.
+ *
+ * Best-effort by nature: the references have a system font and this has
+ * whatever the cache has handed over so far, which early in a boot is
+ * nothing. Drawing no caption is the honest outcome then -- the bar itself
+ * still says the client is working.
+ */
+static void
+app_boot_bar_caption(
+    struct App* app,
+    int* pixels,
+    int width,
+    int height,
+    int center_x,
+    int baseline_y,
+    char const* text)
+{
+    struct ToriDraw_Font* font;
+    struct ToriDraw_ViewPort vp;
+    int font_cache_id;
+    int scene_id;
+
+    assert(app);
+    assert(pixels);
+    assert(text);
+
+    font_cache_id = app_font_cache_id(app, APP_FONT_P12);
+    scene_id = font_cache_id >= 0 ? UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id) : -1;
+    if( scene_id < 0 )
+        scene_id = app_minimenu_font_scene_id(app);
+    if( scene_id < 0 )
+        return;
+    font = ToriDraw_SceneFontGet(app->scene, scene_id);
+    if( !font )
+        return;
+
+    vp.width = width;
+    vp.height = height;
+    vp.stride = width;
+    vp.x_center = width / 2;
+    vp.y_center = height / 2;
+    vp.clip_left = 0;
+    vp.clip_top = 0;
+    vp.clip_right = width;
+    vp.clip_bottom = height;
+
+    (void)ToriDraw2D_DrawString(
+        font, &vp, center_x, baseline_y, text, 0xFFFFFF, true, false, pixels);
 }
 
 /* deob method5761 / Client-TS REBUILD_NORMAL: while the scene rebuilds, the
@@ -28338,6 +29208,9 @@ App_RunOnce(
     uint64_t now_ms,
     struct LibToriRS_Input* input)
 {
+    /* Set below: the login form drained this frame's keys, so the in-game
+     * key passes must not also act on them. */
+    int title_captures_keys = 0;
     struct UIInteractOut out;
     int ran_cs2 = 0;
     int plugin_pointer_owned = 0;
@@ -28535,6 +29408,13 @@ App_RunOnce(
                     app->boot_steps++;
                 stat = TaskRunner_Step(&app->runner);
                 if( stat == TASK_RUNNER_IDLE )
+                    break;
+                /* A task asked for the screen. Stop stepping and let this
+                 * frame out: spending the rest of the budget here is
+                 * exactly the behaviour the request exists to interrupt,
+                 * and it is why the whole boot used to land in one frame
+                 * with the bar never drawn below 100. */
+                if( stat == TASK_RUNNER_RENDER )
                     break;
             }
             /*
@@ -29510,7 +30390,30 @@ App_RunOnce(
      * Focus itself is not decided here: app_chat_focus_tick above owns it for
      * every revision, because a cache chatbox has a focus state too and only
      * its *typing* is a clientscript's. What is left below is the typing. */
-    if( app_chat_node_index(app) >= 0 && !app->locedit_visible )
+    /*
+     * The title screen takes every key, ahead of all the in-game routing.
+     *
+     * Ahead of it AND to the exclusion of it: the game's key passes are not
+     * merely irrelevant on a login form, they are wrong. The chat branch below
+     * would decline on its own (a title tree has no chat node), but the camera
+     * keys and the hotkey passes further down would happily act on a keystroke
+     * meant for a password.
+     */
+    title_captures_keys =
+        app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING;
+    if( title_captures_keys )
+    {
+        for( int e = 0; e < input->key_event_count; e++ )
+        {
+            if( RS_Title_HandleKey(
+                    &app->title,
+                    input->key_events[e].key_typed,
+                    input->key_events[e].key_pressed) )
+                app_title_state_changed(app);
+        }
+    }
+
+    if( !title_captures_keys && app_chat_node_index(app) >= 0 && !app->locedit_visible )
     {
         int chat_captures =
             app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open;
@@ -29750,14 +30653,19 @@ App_RunOnce(
         app->need_redraw = 1;
     }
 
-    app_world_camera_keys(app, input, &out);
-    app_world_camera_mouse(app, input, &out);
-    /* Before the debug world hotkeys: a configured binding claims its key so
-     * the same press cannot also spawn something. */
-    app_ui_hotkeys(app, input);
-    app_world_hotkeys(app, input, &out);
-    app_inv_drag_tick(app, input, plugin_pointer_consumed);
-    app_worldmap_drag_tick(app, input, plugin_pointer_consumed);
+    /* Every one of these reads the same key queue the login form just drained;
+     * none of them has anything to act on before a world exists. */
+    if( !title_captures_keys )
+    {
+        app_world_camera_keys(app, input, &out);
+        app_world_camera_mouse(app, input, &out);
+        /* Before the debug world hotkeys: a configured binding claims its key
+         * so the same press cannot also spawn something. */
+        app_ui_hotkeys(app, input);
+        app_world_hotkeys(app, input, &out);
+        app_inv_drag_tick(app, input, plugin_pointer_consumed);
+        app_worldmap_drag_tick(app, input, plugin_pointer_consumed);
+    }
 
     /* Idle timer (reference IDLE_TIMER after ~90s of no input). */
     if( input->key_event_count > 0 || input->curr.mouse_button_down[TORIRSM_LEFT] ||
@@ -32357,26 +33265,63 @@ App_Render(
 
     if( !App_BuildFrame(app, &frame, width, height) )
     {
-        /* Font-free loading screen: dark clear + centered progress bar.
-         * Deliberately independent of every asset pipeline (they are what is
-         * still loading). */
-        int bar_w = width / 3;
-        int bar_h = 12;
-        int bar_x = (width - bar_w) / 2;
-        int bar_y = (height - bar_h) / 2;
-        int fill_w = bar_w * (app->boot_progress < 0 ? 0 : app->boot_progress) / 100;
+        /*
+         * The startup progress bar. @see engine/boot_bar.h for why its
+         * geometry is the one screen here that is not revconfig's.
+         *
+         * The deob has a second placement, 50 pixels BELOW centre, for when
+         * the title screen is already up behind it. This client never needs
+         * it: once the title tree is baked App_BuildFrame succeeds and the
+         * panel's own bar takes over, so the only bar drawn here is the
+         * centred one.
+         */
+        char const* caption = NULL;
+        int percent = app->boot_progress;
 
-        for( int i = 0; i < width * height; i++ )
-            pixels[i] = 0x000000;
-        for( int y = bar_y - 1; y <= bar_y + bar_h; y++ )
-            for( int x = bar_x - 1; x <= bar_x + bar_w; x++ )
-            {
-                if( y < 0 || y >= height || x < 0 || x >= width )
-                    continue;
-                int border = (y < bar_y || y >= bar_y + bar_h || x < bar_x || x >= bar_x + bar_w);
-                int filled = !border && (x - bar_x) < fill_w;
-                pixels[y * width + x] = border ? 0x8b0000 : (filled ? 0x8b0000 : 0x000000);
-            }
+        /*
+         * What the boot task asked for, when it asked for anything.
+         *
+         * The render step does not decide what a load looks like: the task
+         * that knows which stage it is at says so, and this obeys. That is
+         * the whole point of the opt-in -- a task which never asks keeps the
+         * old behaviour of settling silently, and one which does asks for a
+         * specific picture rather than merely for a frame.
+         */
+        if( app->runner.render.intent == TORIRS_RENDER_BOOT_BAR )
+        {
+            percent = app->runner.render.percent;
+            if( app->runner.render.caption && app->runner.render.caption[0] )
+                caption = app->runner.render.caption;
+        }
+
+        BootBar_Draw((uint32_t*)pixels, width, height, percent);
+
+        /*
+         * The caption, once there is a font to draw one with.
+         *
+         * The references have a system font (bold 13 Helvetica) and always
+         * have one; a software rasteriser has none until the cache hands it
+         * over. So the bar is complete without text and gains it when it can
+         * -- in time for the wait that matters, the gameframe bake after a
+         * successful login, where a silent black screen reads as a hang.
+         *
+         * Centred on the track and sitting on its baseline, where both
+         * references put it, rather than in the middle of the canvas.
+         */
+        if( app->runner.render.intent != TORIRS_RENDER_BOOT_BAR ||
+            !app->runner.render.caption || !app->runner.render.caption[0] )
+            caption = RS_LoginReplies_String(
+                &app->login_replies,
+                app->screen == APP_SCREEN_GAME ? "entering_world" : "loading");
+        if( caption && caption[0] )
+            app_boot_bar_caption(
+                app,
+                pixels,
+                width,
+                height,
+                BootBar_OriginX(width) + BOOT_BAR_W / 2,
+                BootBar_OriginY(height) + BOOT_BAR_TEXT_BASELINE,
+                caption);
         return;
     }
 

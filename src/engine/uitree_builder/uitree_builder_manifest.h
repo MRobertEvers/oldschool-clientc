@@ -110,6 +110,8 @@ struct UIBuilderTreeOp
      *  into the builder's role table at bake. @see ui/uitree_role.h. */
     char role[64];
     int dirty;
+    /** @see RevConfigUILayoutItem::xalign_center. */
+    int xalign_center;
     int level_mask;
     /** Effect names this component advertises (revconfig hotkey= lines). */
     char hotkeys[REVCONFIG_COMPONENT_HOTKEY_MAX][64];
@@ -125,6 +127,25 @@ struct UIBuilderTreeOp
     int over_color;
     int shadowed;
     char text[256];
+    /* Title-screen widgets; @see RevConfigUIComponentItem's title_* block. */
+    char title_field[16];
+    char title_prefix[32];
+    char title_caret[24];
+    int title_caret_blink;
+    char title_mask[8];
+    int title_maxlen;
+    char title_charset[160];
+    char title_action[32];
+    int title_message_index;
+    int title_px_per_percent;
+    /** @see RevConfigUIComponentItem::flame_bias. */
+    int flame_bias;
+    int flame_sway;
+    int flame_run;
+    int flame_row;
+    char flame_blur[16];
+    /** @see RevConfigUIComponentItem::text_baseline. */
+    int text_baseline;
     int button_type;
     int client_code;
     char option[REVCONFIG_MENU_OPTION_LEN];

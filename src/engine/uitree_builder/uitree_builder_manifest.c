@@ -321,6 +321,22 @@ fill_tree_op_from_component(
     op->over_color = comp->over_color;
     op->shadowed = comp->shadowed;
     strncpy(op->text, comp->text, sizeof(op->text) - 1);
+    strncpy(op->title_field, comp->title_field, sizeof(op->title_field) - 1);
+    strncpy(op->title_prefix, comp->title_prefix, sizeof(op->title_prefix) - 1);
+    strncpy(op->title_caret, comp->title_caret, sizeof(op->title_caret) - 1);
+    op->title_caret_blink = comp->title_caret_blink;
+    strncpy(op->title_mask, comp->title_mask, sizeof(op->title_mask) - 1);
+    op->title_maxlen = comp->title_maxlen;
+    strncpy(op->title_charset, comp->title_charset, sizeof(op->title_charset) - 1);
+    strncpy(op->title_action, comp->title_action, sizeof(op->title_action) - 1);
+    op->title_message_index = comp->title_message_index;
+    op->title_px_per_percent = comp->title_px_per_percent;
+    op->flame_bias = comp->flame_bias;
+    op->flame_sway = comp->flame_sway;
+    op->flame_run = comp->flame_run;
+    op->flame_row = comp->flame_row;
+    strncpy(op->flame_blur, comp->flame_blur, sizeof(op->flame_blur) - 1);
+    op->text_baseline = comp->text_baseline;
     op->button_type = comp->button_type;
     op->client_code = comp->client_code;
     strncpy(op->option, comp->option, sizeof(op->option) - 1);
@@ -411,6 +427,7 @@ add_layout_op(
     op->bottom = layout->bottom;
     op->right = layout->right;
     op->dirty = layout->dirty;
+    op->xalign_center = layout->xalign_center;
 
     fill_tree_op_from_component(op, comp, root_interface_id);
 }

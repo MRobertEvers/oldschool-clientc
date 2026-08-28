@@ -16,6 +16,21 @@ CreateTask_Dat2ComponentPackLoad(
 struct ToriRS_Task*
 CreateTask_Dat2ClientScriptTableLoad(struct CacheProvider* provider);
 
+struct RS_PreloadTable;
+struct RS_LoginReplyTable;
+/**
+ * Open the cache indices the profile's [preload:] list names, showing the
+ * bar move as each lands.
+ *
+ * NULL when the profile names no indices -- an absent list is a revision
+ * that does not preload, not an error.
+ */
+struct ToriRS_Task*
+CreateTask_Dat2Preload(
+    struct CacheProvider* provider,
+    struct RS_PreloadTable const* steps,
+    struct RS_LoginReplyTable const* strings);
+
 /** The clientscript group whose name hashes to `name_hash`, or -1 (which also
  *  covers "the reference table has not landed yet"). */
 int
@@ -90,6 +105,19 @@ struct ToriRS_Task*
 CreateTask_Dat2SpriteLoad(
     struct CacheProvider* provider,
     int sprite_id);
+
+/**
+ * The title backdrop, from the BINARY table's `archive_name`.
+ *
+ * OldSchool keeps the title image there rather than in a jagfile, which is the
+ * one difference from the dat1 path; the half-and-mirror composite itself is
+ * shared. Registered under `sprite_name`. NULL when already loaded.
+ */
+struct ToriRS_Task*
+CreateTask_Dat2TitlePanelLoad(
+    struct CacheProvider* provider,
+    char const* archive_name,
+    char const* sprite_name);
 
 struct ToriRS_Task*
 CreateTask_Dat2SpriteLoadByName(

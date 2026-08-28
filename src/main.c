@@ -3863,9 +3863,27 @@ main(
      * -1 rather than 0 for "no root": INTERFACE_ID_UNSET is 0, but 0 is a real
      * cache group to the builder, which would mount it instead of nothing.
      */
-    App_OpenRootInterface(
-        &app,
-        app.net_enabled || cfg.interface_id == INTERFACE_ID_UNSET ? -1 : cfg.interface_id);
+    /*
+     * A networked boot goes to the title screen when the profile declares one;
+     * everything else roots a frame as before.
+     *
+     * The gate is the profile's, not a flag: a manifest that ships no
+     * [layout:title] has no title screen to show, and the offline, bench and
+     * map-editor lanes are exactly that. Credentials on the command line no
+     * longer skip the screen -- they prefill it and submit through the same
+     * path a clicked Login takes, so the scripted lanes exercise the flow
+     * rather than bypassing it.
+     */
+    if( app.net_enabled && App_HasTitleScreen(&app) )
+    {
+        App_OpenTitleScreen(&app);
+    }
+    else
+    {
+        App_OpenRootInterface(
+            &app,
+            app.net_enabled || cfg.interface_id == INTERFACE_ID_UNSET ? -1 : cfg.interface_id);
+    }
 
     /* Boot is fully async (App_RunOnce pumps it; App_Render shows a loading
      * bar). The headless harness/debug paths below inspect the freshly built

@@ -231,6 +231,7 @@ Task_CS2ScriptExec_Run(
                 if( !CacheProvider_ClientScriptHas(exec->provider, exec->script_id) )
                 {
                     TASK_AWAITEX(
+                        &(exec->task),
                         &(exec->pt),
                         io,
                         CreateTask_ClientScriptLoad(exec->provider, exec->script_id));

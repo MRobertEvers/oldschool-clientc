@@ -277,6 +277,82 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_SHADOWED;
     else if( strcmp(key, "text") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_TEXT;
+    /* Title-screen widget keys. `field=`, `action=`, `index=` and `mask=` are
+     * ordinary words, so all of these are scoped to [component:…] the way the
+     * rest of the component vocabulary is. */
+    else if( strcmp(key, "field") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_FIELD;
+    else if( strcmp(key, "prefix") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_PREFIX;
+    else if( strcmp(key, "caret") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_CARET;
+    else if( strcmp(key, "caret_blink") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_CARET_BLINK;
+    else if( strcmp(key, "mask") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_MASK;
+    else if( strcmp(key, "maxlen") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_MAXLEN;
+    else if( strcmp(key, "charset") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_CHARSET;
+    else if( strcmp(key, "action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_ACTION;
+    else if( strcmp(key, "index") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX;
+    else if( strcmp(key, "px_per_percent") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT;
+    else if( strcmp(key, "flame_bias") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_FLAME_BIAS;
+    else if( strcmp(key, "flame_sway") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_FLAME_SWAY;
+    else if( strcmp(key, "flame_run") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_FLAME_RUN;
+    else if( strcmp(key, "flame_row") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_FLAME_ROW;
+    else if( strcmp(key, "flame_blur") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_FLAME_BLUR;
+    else if( strcmp(key, "baseline") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TEXT_BASELINE;
+    /* `text=` already means the literal of an rs_text; under [string:] it is
+     * the whole point of the section, so the type disambiguates as usual. */
+    else if( strcmp(key, "text") == 0 && strcmp(s_ini_item_type, "string") == 0 )
+        kind = RCFIELD_STRING_TEXT;
+    /* The loading screen's own list. Every key is scoped to [preload:] so
+     * names as generic as `id` and `kind` cannot collide with a component's. */
+    else if( strcmp(s_ini_item_type, "preload") == 0 )
+    {
+        if( strcmp(key, "kind") == 0 )
+            kind = RCFIELD_PRELOAD_KIND;
+        if( strcmp(key, "archive") == 0 )
+            kind = RCFIELD_PRELOAD_ARCHIVE;
+        if( strcmp(key, "id") == 0 )
+            kind = RCFIELD_PRELOAD_ID;
+        if( strcmp(key, "percent") == 0 )
+            kind = RCFIELD_PRELOAD_PERCENT;
+        if( strcmp(key, "say") == 0 )
+            kind = RCFIELD_PRELOAD_SAY;
+        if( strcmp(key, "weight") == 0 )
+            kind = RCFIELD_PRELOAD_WEIGHT;
+        if( strcmp(key, "render") == 0 )
+            kind = RCFIELD_PRELOAD_RENDER;
+        if( strcmp(key, "order") == 0 )
+            kind = RCFIELD_PRELOAD_ORDER;
+    }
+    else if( strcmp(s_ini_item_type, "login_reply") == 0 )
+    {
+        if( strcmp(key, "screen") == 0 )
+            kind = RCFIELD_LOGIN_REPLY_SCREEN;
+        else if( strcmp(key, "line1") == 0 )
+            kind = RCFIELD_LOGIN_REPLY_LINE1;
+        else if( strcmp(key, "line2") == 0 )
+            kind = RCFIELD_LOGIN_REPLY_LINE2;
+        else if( strcmp(key, "line3") == 0 )
+            kind = RCFIELD_LOGIN_REPLY_LINE3;
+        else
+            TORIRS_LOG("revconfig: [login_reply:] has no key '%s'\n", key);
+        if( kind != RCFIELD_NONE )
+            push_field(vec, kind, value);
+        return;
+    }
     else if( strcmp(key, "option") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_OPTION;
     else if( strcmp(key, "option_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
@@ -369,6 +445,8 @@ push_field_from_ini_kv(
         kind = RCFIELD_UILAYOUT_BOTTOM;
     else if( strcmp(key, "dirty") == 0 && strcmp(s_ini_item_type, "layout") == 0 )
         kind = RCFIELD_UILAYOUT_DIRTY;
+    else if( strcmp(key, "xalign") == 0 && strcmp(s_ini_item_type, "layout") == 0 )
+        kind = RCFIELD_UILAYOUT_XALIGN;
     else if( (strcmp(key, "p") == 0 || strcmp(key, "parent") == 0) &&
              strcmp(s_ini_item_type, "layout") == 0 )
         kind = RCFIELD_UILAYOUT_PARENT;
@@ -548,6 +626,42 @@ revconfig_load_fields_from_ini(
     struct RevConfigBuffer* revconfig_buffer)
 {
     revconfig_load_fields_from_ini_prefixed(filename, NULL, revconfig_buffer);
+}
+
+int
+revconfig_ini_has_layout_group(
+    const char* filename,
+    const char* group)
+{
+    char line[512];
+    char wanted[64];
+    int found = 0;
+    size_t wanted_len;
+    FILE* file;
+
+    assert(filename);
+    assert(group);
+    if( !filename[0] || !group[0] )
+        return 0;
+
+    snprintf(wanted, sizeof(wanted), "[layout:%s]", group);
+    wanted_len = strlen(wanted);
+
+    file = fopen(filename, "r");
+    if( !file )
+        return 0;
+
+    while( !found && fgets(line, sizeof(line), file) )
+    {
+        char const* scan = line;
+        while( *scan == ' ' || *scan == '\t' )
+            scan++;
+        if( strncmp(scan, wanted, wanted_len) == 0 )
+            found = 1;
+    }
+
+    fclose(file);
+    return found;
 }
 
 int

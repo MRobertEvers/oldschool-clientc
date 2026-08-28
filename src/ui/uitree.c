@@ -645,6 +645,7 @@ UITree_InvSlotsMut(struct UITreeComponent* c)
 struct UITreeChatConfig const uitree_chat_none = { 0 };
 struct UITreeDebugOverlayConfig const uitree_debug_overlay_none = { 0 };
 struct UITreeChatButtonConfig const uitree_chat_button_none = { 0 };
+struct UITreeLoginInputConfig const uitree_login_input_none = { 0 };
 
 struct UITreeChatConfig const*
 UITree_Chat(struct UITreeComponent const* c)
@@ -704,6 +705,26 @@ UITree_ChatButtonMut(struct UITreeComponent* c)
         *c->u.chat_button = uitree_chat_button_none;
     }
     return c->u.chat_button;
+}
+
+struct UITreeLoginInputConfig const*
+UITree_LoginInput(struct UITreeComponent const* c)
+{
+    assert(c);
+    return c->u.login_input ? c->u.login_input : &uitree_login_input_none;
+}
+
+struct UITreeLoginInputConfig*
+UITree_LoginInputMut(struct UITreeComponent* c)
+{
+    assert(c);
+    if( !c->u.login_input )
+    {
+        c->u.login_input = malloc(sizeof(*c->u.login_input));
+        assert(c->u.login_input);
+        *c->u.login_input = uitree_login_input_none;
+    }
+    return c->u.login_input;
 }
 
 struct UITreeRuntimeHooks*
@@ -1289,6 +1310,18 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "compass";
     case UIELEM_BUILTIN_CROSS:
         return "cross";
+    case UIELEM_BUILTIN_LOGIN_INPUT:
+        return "login_input";
+    case UIELEM_BUILTIN_LOGIN_BUTTON:
+        return "login_button";
+    case UIELEM_BUILTIN_LOGIN_MESSAGE:
+        return "login_message";
+    case UIELEM_BUILTIN_TITLE_PROGRESS:
+        return "title_progress";
+    case UIELEM_BUILTIN_TITLE_PROGRESS_TEXT:
+        return "title_progress_text";
+    case UIELEM_BUILTIN_TITLE_FLAMES:
+        return "title_flames";
     case UIELEM_BUILTIN_MINIMENU:
         return "minimenu";
     case UIELEM_BUILTIN_HOVERTEXT:
@@ -1408,6 +1441,11 @@ uitree_component_free_owned(struct UITreeComponent* c)
     {
         free(c->u.chat_button);
         c->u.chat_button = NULL;
+    }
+    if( c->type == UIELEM_BUILTIN_LOGIN_INPUT )
+    {
+        free(c->u.login_input);
+        c->u.login_input = NULL;
     }
     free(c->child_key_index);
     c->child_key_index = NULL;
@@ -2304,6 +2342,45 @@ UITree_Push(
         uitree_topo_bump(tree, __LINE__);
         break;
 
+    case UIELEM_BUILTIN_LOGIN_INPUT:
+        *UITree_LoginInputMut(component) = spec->u.login_input;
+        break;
+
+    case UIELEM_BUILTIN_LOGIN_BUTTON:
+        component->u.login_button.scene_id = spec->u.login_button.scene_id;
+        component->u.login_button.atlas_index = spec->u.login_button.atlas_index;
+        component->u.login_button.action = spec->u.login_button.action;
+        break;
+
+    case UIELEM_BUILTIN_LOGIN_MESSAGE:
+        component->u.login_message.index = spec->u.login_message.index;
+        component->u.login_message.font_id = spec->u.login_message.font_id;
+        component->u.login_message.color = spec->u.login_message.color;
+        component->u.login_message.center = spec->u.login_message.center;
+        component->u.login_message.shadowed = spec->u.login_message.shadowed;
+        break;
+
+    case UIELEM_BUILTIN_TITLE_PROGRESS:
+        component->u.title_progress.color = spec->u.title_progress.color;
+        component->u.title_progress.px_per_percent = spec->u.title_progress.px_per_percent;
+        break;
+
+    case UIELEM_BUILTIN_TITLE_FLAMES:
+        component->u.title_flames.side = spec->u.title_flames.side;
+        component->u.title_flames.bias = spec->u.title_flames.bias;
+        component->u.title_flames.sway = spec->u.title_flames.sway;
+        component->u.title_flames.run = spec->u.title_flames.run;
+        component->u.title_flames.row = spec->u.title_flames.row;
+        component->u.title_flames.blur = spec->u.title_flames.blur;
+        break;
+
+    case UIELEM_BUILTIN_TITLE_PROGRESS_TEXT:
+        component->u.title_progress_text.font_id = spec->u.title_progress_text.font_id;
+        component->u.title_progress_text.color = spec->u.title_progress_text.color;
+        component->u.title_progress_text.center = spec->u.title_progress_text.center;
+        component->u.title_progress_text.shadowed = spec->u.title_progress_text.shadowed;
+        break;
+
     case UIELEM_BUILTIN_REDSTONE_TAB:
         component->u.redstone_tab.tabno = spec->u.redstone_tab.tabno;
         component->u.redstone_tab.scene_id = spec->u.redstone_tab.scene_id;
@@ -2354,6 +2431,7 @@ UITree_Push(
         component->colour = spec->u.rs_text.color;
         component->u.rs_text.center = spec->u.rs_text.center;
         component->u.rs_text.y_align = spec->u.rs_text.y_align;
+        component->u.rs_text.baseline = spec->u.rs_text.baseline;
         component->u.rs_text.line_height = spec->u.rs_text.line_height;
         component->u.rs_text.shadowed = spec->u.rs_text.shadowed;
         component->u.rs_text.text = text_owned;
@@ -3196,6 +3274,26 @@ UITree_SetFrameHiddenAt(
     if( c->frame_hidden == (uint8_t)hidden )
         return true;
     c->frame_hidden = (uint8_t)hidden;
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
+    return true;
+}
+
+bool
+UITree_SetScreenHiddenAt(
+    struct UITree* tree,
+    int32_t idx,
+    int hidden)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    if( !c )
+        return false;
+    hidden = hidden ? 1 : 0;
+    if( c->screen_hidden == (uint8_t)hidden )
+        return true;
+    c->screen_hidden = (uint8_t)hidden;
     uitree_note_mutation(
         tree,
         idx,
@@ -5199,6 +5297,7 @@ uitree_node_or_ancestor_hidden(
             if( tree->components[idx].behavior.hide ||
                 (include_plugin_hidden &&
                  (tree->components[idx].frame_hidden ||
+                  tree->components[idx].screen_hidden ||
                   tree->components[idx].projection_hidden ||
                   (tree->components[idx].replacement_hidden &&
                    idx != ignore_own_replacement))) )
@@ -5299,7 +5398,7 @@ drop_target_pick_in_subtree(
         return 0;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_DROP, 1);
     c = &tree->components[idx];
-    if( c->behavior.hide || c->frame_hidden || c->replacement_hidden ||
+    if( c->behavior.hide || c->frame_hidden || c->screen_hidden || c->replacement_hidden ||
         c->projection_hidden )
         return 0;
     if( c->component_id == exclude_component_id )
@@ -5402,6 +5501,7 @@ UITree_FindDropTargetNode(
     for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
         if( tree->components[root].behavior.hide || tree->components[root].frame_hidden ||
+            tree->components[root].screen_hidden ||
             tree->components[root].replacement_hidden ||
             tree->components[root].projection_hidden )
             continue;
