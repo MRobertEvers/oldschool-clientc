@@ -17,7 +17,7 @@ static uint16_t const TORIRS_FONT_CHARSET[TORIRS_FONT_GLYPH_COUNT] = {
     'g',    'h', 'i',  'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',  't', 'u', 'v',
     'w',    'x', 'y',  'z', '0', '1', '2', '3', '4', '5', '6', '7', '8',  '9', '!', '"',
     0x00A3, '$', '%',  '^', '&', '*', '(', ')', '-', '_', '=', '+', '[',  '{', ']', '}',
-    ';',    ':', '\'', '@', '#', '~', ',', '<', '.', '>', '/', '?', '\\', ' '
+    ';',    ':', '\'', '@', '#', '~', ',', '<', '.', '>', '/', '?', '\\', '|'
 };
 
 static int
@@ -41,14 +41,17 @@ font_init_charcodeset(struct ToriRS_Font* font)
     for( i = 0; i < 256; i++ )
     {
         int c = font_index_of_char((uint8_t)i);
-        if( c == -1 )
-            c = font_index_of_char(' ');
+        /* A character this font has no record for draws nothing and advances
+         * like a space. It must NOT fall back to the last glyph record --
+         * that slot is '|', and every unknown byte would draw a bar. */
         if( c < 0 || c >= TORIRS_FONT_GLYPH_COUNT )
-            c = TORIRS_FONT_GLYPH_COUNT - 1;
+            c = FONT_ADVANCE_ONLY_GLYPH;
         font->charcodeset[i] = (char)c;
     }
+    /* The space is the one character with no glyph record: it is the
+     * advance-only slot past the end of the 94 records. @see the CHARSET
+     * note in 3rd/rscache dat1_pix_font.c, which this table mirrors. */
     font->charcodeset[(unsigned char)' '] = (char)FONT_ADVANCE_ONLY_GLYPH;
-    font->charcodeset[(unsigned char)'|'] = (char)FONT_ADVANCE_ONLY_GLYPH;
 }
 
 static void
@@ -57,8 +60,6 @@ font_finish_draw_widths(struct ToriRS_Font* font)
     int const fallback = font->advance[8] > 0 ? font->advance[8] : 4;
     int i;
 
-    if( font->advance[93] < 4 )
-        font->advance[93] = fallback;
     if( font->advance[FONT_ADVANCE_ONLY_GLYPH] <= 0 )
         font->advance[FONT_ADVANCE_ONLY_GLYPH] = fallback;
 
@@ -66,7 +67,6 @@ font_finish_draw_widths(struct ToriRS_Font* font)
         font->draw_width[i] = font->advance[(unsigned char)font->charcodeset[i]];
 
     font->draw_width[(unsigned char)' '] = font->advance[FONT_ADVANCE_ONLY_GLYPH];
-    font->draw_width[(unsigned char)'|'] = font->advance[FONT_ADVANCE_ONLY_GLYPH];
 }
 
 static int

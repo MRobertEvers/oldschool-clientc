@@ -32029,6 +32029,75 @@ app_plugin_obj_notify(struct App* app, int idx, enum ToriRS_PluginEvent which)
     }
 }
 
+/*
+ * Ground-item model for `obj_id` at `count`.
+ *
+ * A stackable declares up to ten count variants (`count_obj`/`count_co`), each
+ * its own objtype with its own model -- one coin, a small pile, a heap. The
+ * reference's ObjType.getModel(count) resolves that variant before it looks at
+ * any model id, so a dropped 100 coins draws the heap. Building straight from
+ * the base objtype drew a single coin at every stack size.
+ *
+ * NULL when the variant's objtype or model is not resident yet -- the caller
+ * leaves the element alone and the async load lands on a later packet.
+ */
+static struct ToriDraw_Model*
+app_obj_stack_build_model(struct App* app, int obj_id, int count)
+{
+    struct ToriRS_Objtype* obj;
+    int model_ids[1];
+
+    assert(app);
+    obj = CacheProvider_ObjtypeGet(
+        app->provider, ObjModelLoad_RenderObjId(app->provider, obj_id, count));
+    if( !obj || obj->inventory_model_id <= 0 )
+        return NULL;
+    model_ids[0] = obj->inventory_model_id;
+    {
+        struct AppModelRecolorSpec recolors = {
+            .recolors_from = obj->recolors_from,
+            .recolors_to = obj->recolors_to,
+            .recolor_count = obj->recolor_count,
+        };
+        return app_world_build_model(
+            app, model_ids, 1, &recolors, 128, 128, APP_LIGHT_SCENE, obj->contrast,
+            obj->ambient);
+    }
+}
+
+/* Re-point a live stack's element at the model its NEW count selects. The
+ * variant only changes at the ten count_co thresholds, so this is a no-op for
+ * most count edits. Call BEFORE World_ObjStackSetCount: the count still on the
+ * entity is what decides whether anything has to change. */
+static void
+app_obj_stack_refresh_model(struct App* app, struct World* world, int idx, int count)
+{
+    struct WorldEntity_ObjStack* stack;
+    struct ToriDraw_Model* model;
+    struct ToriDraw_ModelHandle hnd;
+
+    assert(app);
+    assert(world);
+    assert(idx >= 0);
+    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
+    assert(stack);
+    if( ObjModelLoad_RenderObjId(app->provider, stack->obj_id, stack->count) ==
+        ObjModelLoad_RenderObjId(app->provider, stack->obj_id, count) )
+        return;
+    if( stack->element_id < 0 ||
+        !ToriDraw_SceneElementIsLive(app->scene, stack->element_id) )
+        return;
+    model = app_obj_stack_build_model(app, stack->obj_id, count);
+    if( !model )
+        return;
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = model;
+    /* Disposes the model the element was holding. */
+    ToriDraw_SceneElementSetModel(app->scene, stack->element_id, hnd);
+    app_sync_textures(app);
+}
+
 /* Ground item stacks (zone OBJ_* packets). The objtype + its inventory
  * model must already be cached (the packet task awaits the loads). */
 int
@@ -32042,7 +32111,6 @@ App_WorldObjStackAdd(
 {
     struct ToriRS_Objtype* obj;
     struct ToriDraw_Model* model;
-    int model_ids[1];
     int world_x = scene_x * 128 + 64;
     int world_z = scene_z * 128 + 64;
     int world_y;
@@ -32058,25 +32126,19 @@ App_WorldObjStackAdd(
     existing = World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
     if( existing >= 0 )
     {
+        app_obj_stack_refresh_model(app, world, existing, count);
         World_ObjStackSetCount(world, existing, count);
         app_plugin_obj_notify(app, existing, TORIRS_PLUGIN_EV_OBJ_COUNT);
         app->need_redraw = 1;
         return existing;
     }
 
+    /* The BASE objtype carries the name and the ground ops the minimenu reads;
+     * the model comes from whichever count variant `count` selects. */
     obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
-    if( !obj || obj->inventory_model_id <= 0 )
+    if( !obj )
         return -1;
-    model_ids[0] = obj->inventory_model_id;
-    {
-        struct AppModelRecolorSpec recolors = {
-            .recolors_from = obj->recolors_from,
-            .recolors_to = obj->recolors_to,
-            .recolor_count = obj->recolor_count,
-        };
-        model = app_world_build_model(
-            app, model_ids, 1, &recolors, 128, 128, APP_LIGHT_SCENE, obj->contrast, obj->ambient);
-    }
+    model = app_obj_stack_build_model(app, obj_id, count);
     if( !model )
         return -1;
 
@@ -32497,6 +32559,7 @@ App_WorldObjStackSetCount(
     idx = World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
     if( idx < 0 )
         return;
+    app_obj_stack_refresh_model(app, world, idx, count);
     World_ObjStackSetCount(world, idx, count);
     app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_COUNT);
     app->need_redraw = 1;

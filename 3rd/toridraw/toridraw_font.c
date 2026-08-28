@@ -14,7 +14,7 @@ const uint16_t TORIDRAW_FONT_CHARSET[] = {
     'g',    'h', 'i',  'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',  't', 'u', 'v',
     'w',    'x', 'y',  'z', '0', '1', '2', '3', '4', '5', '6', '7', '8',  '9', '!', '"',
     0x00A3, '$', '%',  '^', '&', '*', '(', ')', '-', '_', '=', '+', '[',  '{', ']', '}',
-    ';',    ':', '\'', '@', '#', '~', ',', '<', '.', '>', '/', '?', '\\', ' '
+    ';',    ':', '\'', '@', '#', '~', ',', '<', '.', '>', '/', '?', '\\', '|'
 };
 
 _Static_assert(
@@ -44,14 +44,17 @@ font_init_charcodeset(struct ToriDraw_Font* font)
     for( int i = 0; i < 256; i++ )
     {
         int c = font_index_of_char((uint8_t)i);
-        if( c == -1 )
-            c = font_index_of_char(' ');
+        /* A character this font has no record for draws nothing and advances
+         * like a space. It must NOT fall back to the last glyph record --
+         * that slot is '|', and every unknown byte would draw a bar. */
         if( c < 0 || c >= TORIDRAW_FONT_GLYPH_COUNT )
-            c = TORIDRAW_FONT_GLYPH_COUNT - 1;
+            c = TORIDRAW_FONT_ADVANCE_ONLY_GLYPH;
         font->charcodeset[i] = (char)c;
     }
+    /* The space is the one character with no glyph record: it is the
+     * advance-only slot past the end of the 94 records. @see the CHARSET
+     * note in 3rd/rscache dat1_pix_font.c, which this table mirrors. */
     font->charcodeset[(unsigned char)' '] = (char)TORIDRAW_FONT_ADVANCE_ONLY_GLYPH;
-    font->charcodeset[(unsigned char)'|'] = (char)TORIDRAW_FONT_ADVANCE_ONLY_GLYPH;
 }
 
 static void
@@ -59,8 +62,6 @@ font_finish_draw_widths(struct ToriDraw_Font* font)
 {
     int const fallback = font->advance[8] > 0 ? font->advance[8] : 4;
 
-    if( font->advance[93] < 4 )
-        font->advance[93] = fallback;
     if( font->advance[TORIDRAW_FONT_ADVANCE_ONLY_GLYPH] <= 0 )
         font->advance[TORIDRAW_FONT_ADVANCE_ONLY_GLYPH] = fallback;
 
@@ -68,7 +69,6 @@ font_finish_draw_widths(struct ToriDraw_Font* font)
         font->draw_width[i] = font->advance[(unsigned char)font->charcodeset[i]];
 
     font->draw_width[(unsigned char)' '] = font->advance[TORIDRAW_FONT_ADVANCE_ONLY_GLYPH];
-    font->draw_width[(unsigned char)'|'] = font->advance[TORIDRAW_FONT_ADVANCE_ONLY_GLYPH];
 }
 
 void
@@ -391,7 +391,10 @@ font_space_advance(struct ToriDraw_Font const* font)
 static bool
 font_is_rs_space_char(unsigned char ch)
 {
-    return ch == ' ' || ch == '|';
+    /* The space alone. '|' is a printable glyph in this font family -- it is
+     * the caret both references draw on the login screen ("@yel@|") -- and
+     * calling it a space made that caret invisible. */
+    return ch == ' ';
 }
 
 static int
