@@ -182,6 +182,12 @@ push_field_from_ini_kv(
             kind = RCFIELD_CHROME_PLUGIN_BUTTON_H;
         else if( strcmp(key, "plugin_button_op") == 0 )
             kind = RCFIELD_CHROME_PLUGIN_BUTTON_OP;
+        else if( strcmp(key, "plugin_button_anchor") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_ANCHOR;
+        else if( strcmp(key, "plugin_button_align") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN;
+        else if( strcmp(key, "plugin_button_margin") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN;
         else
             TORIRS_LOG("revconfig: [chrome] has no key '%s'\n", key);
         if( kind != RCFIELD_NONE )

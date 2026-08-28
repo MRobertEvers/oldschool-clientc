@@ -917,19 +917,33 @@ app_plugin_panel_apply(struct App* app, int widget)
  * add one to.
  *
  * WHERE IT GOES IS THE PROFILE'S, not this file's. Which interface the logout
- * tab is, which of its children the plate hangs off, and where in that child it
- * sits -- every one of those is a fact about a revision. They are the RevConfig
- * `[chrome]` block; see struct RevConfigChromeItem.
+ * tab is and which of its children the plate hangs off are facts about a
+ * revision. They are the RevConfig `[chrome]` block; see struct
+ * RevConfigChromeItem.
  *
- * THE ART IS THE CHROME'S, not the cache's -- the same reason the authored
- * version uses `sprite=chrome:*`. This button opens the client's own furniture,
- * so it cannot be drawn with art that only some caches contain. The three
- * baked slots are the interfaces' own wide stone button (two 36px caps and a
- * 20px tile between them) and the caption is set in the baked bold face, so the
- * plate draws identically on a cache that carries neither.
+ * THE BOX AND THE ART COME FROM THE PANEL'S OWN BUTTON, not from four numbers
+ * and a baked skin -- `plugin_button_anchor=` names the role, and the plate is
+ * cut from whatever node that resolves to on the frame currently up.
+ *
+ * That is not tidiness, it is the bug this replaced. The absolute form said
+ * x=23 y=205 144x36 inside interface 182, measured once; the panel's own
+ * "Click here to logout" button is at y=201, so the plate was drawn straight
+ * over it -- on the fixed frame and on both resizable ones, because the CS2
+ * hook that lays that panel out puts the button in the same place on all
+ * three. A number cannot be right about a box a script owns. The anchor's
+ * live box can: same width, same height, same column, and an edge and a
+ * margin (`plugin_button_align=` / `plugin_button_margin=`) for the one thing
+ * the panel does not already say -- which end of it the client's button goes.
+ *
+ * The ART likewise. Copying the anchor's own graphics makes this plate the
+ * same material as the controls beside it, on a cache this file has never
+ * seen; the baked chrome skin (two 36px caps and a 20px tile between them,
+ * with the caption in the baked bold face) stays as the answer for a profile
+ * that states the absolute form, where there is no anchor to cut from.
  *
  * Everything the button needs is on screen only once the server has mounted
- * that interface, which is why the build below waits for the parent to appear.
+ * that interface AND its own button has been laid out, which is why the build
+ * below waits for both.
  */
 
 /** The `[chrome]` block of the running revision's profile. */
@@ -948,35 +962,65 @@ app_plugin_panel_apply(struct App* app, int widget)
 /** The caption, which is also the name of the thing it opens. */
 #define APP_PLUGIN_BUTTON_TEXT "Manage Plugins"
 
+/** Which of the two spellings of a mount the profile wrote, if either. */
+enum AppPluginButtonForm
+{
+    /** No `[chrome]` block, or one too incomplete to build from. */
+    APP_PLUGIN_BUTTON_FORM_NONE = 0,
+    /** `plugin_button_anchor=` + `align` + `margin`: the box and the art are
+     *  the anchor role's, live. */
+    APP_PLUGIN_BUTTON_FORM_ANCHORED,
+    /** `plugin_button_x/y/w/h`: a box measured by the profile, worn in the
+     *  client's own baked plate. */
+    APP_PLUGIN_BUTTON_FORM_ABSOLUTE,
+};
+
 /**
- * Is this revision's plugin-button mount fully stated?
+ * How is this revision's plugin-button mount stated -- if it is?
  *
- * All of it or none of it. The mount is ONE description -- an interface, one of
- * its children, and a box inside that child -- and half of it is not half a
- * button: a `[chrome]` block that names the interface but forgets the height
- * puts a zero-tall plate in the logout tab, which reads as a missing button and
- * is far harder to find than an absent one.
+ * All of one form or none of it. A mount is ONE description -- an interface,
+ * one of its children, and then either an anchor to cut the plate from or a
+ * box to draw it in -- and half of it is not half a button: a `[chrome]` block
+ * that names the interface but forgets the height puts a zero-tall plate in
+ * the logout tab, which reads as a missing button and is far harder to find
+ * than an absent one.
  *
  * Saying nothing at all is the ordinary case (an authored lane puts the button
  * in its own records), so that is silent. A HALF-stated block is a mistake in
  * the profile, and gets one line on stderr.
  */
 static int
-app_plugin_button_declared(struct App const* app)
+app_plugin_button_form(struct App const* app)
 {
     struct RevConfigChromeItem const* chrome;
+    int mount_stated;
     int stated;
-    int complete;
 
     assert(app);
     chrome = &app->revconfig_profile.chrome;
+    mount_stated = chrome->plugin_iface[0] != '\0' && chrome->plugin_button_parent >= 0;
+
     stated = chrome->plugin_iface[0] != '\0' || chrome->plugin_button_parent >= 0 ||
              chrome->plugin_button_x >= 0 || chrome->plugin_button_y >= 0 ||
-             chrome->plugin_button_w >= 0 || chrome->plugin_button_h >= 0;
-    complete = chrome->plugin_iface[0] != '\0' && chrome->plugin_button_parent >= 0 &&
-               chrome->plugin_button_x >= 0 && chrome->plugin_button_y >= 0 &&
-               chrome->plugin_button_w > 0 && chrome->plugin_button_h > 0;
-    if( stated && !complete )
+             chrome->plugin_button_w >= 0 || chrome->plugin_button_h >= 0 ||
+             chrome->plugin_button_anchor[0] != '\0' ||
+             chrome->plugin_button_align != REVCONFIG_CHROME_ALIGN_NONE ||
+             chrome->plugin_button_margin >= 0;
+    if( !stated )
+        return APP_PLUGIN_BUTTON_FORM_NONE;
+
+    /* The anchored form first: a profile that states an anchor has said where
+     * the plate's box comes from, and any x/y/w/h left beside it is the older
+     * spelling of the same mount rather than a second one. */
+    if( mount_stated && chrome->plugin_button_anchor[0] != '\0' &&
+        chrome->plugin_button_align != REVCONFIG_CHROME_ALIGN_NONE &&
+        chrome->plugin_button_margin >= 0 )
+        return APP_PLUGIN_BUTTON_FORM_ANCHORED;
+
+    if( mount_stated && chrome->plugin_button_x >= 0 && chrome->plugin_button_y >= 0 &&
+        chrome->plugin_button_w > 0 && chrome->plugin_button_h > 0 )
+        return APP_PLUGIN_BUTTON_FORM_ABSOLUTE;
+
     {
         static int complained = 0;
         if( !complained )
@@ -985,12 +1029,13 @@ app_plugin_button_declared(struct App const* app)
             fprintf(
                 stderr,
                 "chrome: [chrome] states only part of the plugin button mount "
-                "(plugin_button_iface, plugin_button_parent, plugin_button_x, "
-                "plugin_button_y, plugin_button_w, plugin_button_h); "
+                "(plugin_button_iface and plugin_button_parent, then either "
+                "plugin_button_anchor + plugin_button_align + "
+                "plugin_button_margin, or plugin_button_x/y/w/h); "
                 "no Manage Plugins button is built\n");
         }
     }
-    return complete;
+    return APP_PLUGIN_BUTTON_FORM_NONE;
 }
 
 /**
@@ -1005,7 +1050,7 @@ static int
 app_plugin_button_mount_com(struct App const* app)
 {
     assert(app);
-    if( !app_plugin_button_declared(app) )
+    if( app_plugin_button_form(app) == APP_PLUGIN_BUTTON_FORM_NONE )
         return -1;
     return app_iface_com(
         app,
@@ -1053,15 +1098,17 @@ app_plugin_button_alive(struct App const* app)
            TORIRS_CHROME_PLUGIN_BUTTON_ID;
 }
 
-/** One piece of the plate: a graphic holding one baked skin slot, no ops. */
+/** One piece of the plate: a graphic holding one sprite already in the scene,
+ *  and no ops -- the container above it answers the click. */
 static void
 app_plugin_button_piece(
     struct App* app,
     int32_t parent,
     int id,
-    int skin,
+    int scene_id,
     int slot,
     int x,
+    int y,
     int w,
     int h,
     int tiled)
@@ -1073,12 +1120,12 @@ app_plugin_button_piece(
     comp.type = UIBUILD_GRAPHIC;
     comp.parent_id = -1;
     comp.base_x = x;
-    comp.base_y = 0;
+    comp.base_y = y;
     comp.base_width = w;
     comp.base_height = h;
     comp.if3 = 1;
     comp.graphic = -1;
-    comp.graphic_scene_id = skin;
+    comp.graphic_scene_id = scene_id;
     comp.graphic_atlas_index = slot;
     comp.graphic_active = -1;
     /* `tiled` repeats the 20px middle across the box rather than blitting it
@@ -1094,36 +1141,331 @@ app_plugin_button_piece(
     UITree_PushBuildComponent(app->tree, parent, &comp, NULL, NULL, app);
 }
 
-/* TEMP DEBUG PROBE -- remove. Dumps the logout interface's live boxes. */
-static void
-app_plugin_button_probe(struct App* app)
+/**
+ * Where the plate goes and what it is made of, resolved against the tree as
+ * it stands this frame.
+ *
+ * `anchor` is the node the art is copied from, or -1 for the client's baked
+ * plate. Everything else is in the MOUNT's own coordinates, which is where a
+ * child of it has to be built.
+ */
+struct AppPluginButtonPlate
 {
-    static int last = -1;
-    int iface;
-    int frame;
-    if( !getenv("TORIRS_PLUGIN_BTN_PROBE") || !app->tree )
-        return;
-    frame = (int)(g_plugin_panel_ticks / 20);
-    if( frame == last )
-        return;
-    last = frame;
-    iface = RevConfigRefs_Get(&app->revconfig_refs, "iface",
-        app->revconfig_profile.chrome.plugin_iface);
-    fprintf(stderr, "PROBE tick=%d iface=%d layout=%d wmode=%d canvas=%dx%d\n",
-        g_plugin_panel_ticks, iface, app->host.client_layout_mode,
-        app->host.window_mode, app->host.viewport_w, app->host.viewport_h);
-    for( uint32_t i = 0; i < app->tree->component_count; i++ )
+    int x;
+    int y;
+    int w;
+    int h;
+    int32_t anchor;
+};
+
+/**
+ * Is the anchor ready to be cut from?
+ *
+ * Not "does it exist": a component the panel has mounted but not yet laid out
+ * has a zero box, and a graphic whose sprite has not landed has no scene id.
+ * Copying either produces a plate that is present, sized wrong or invisible,
+ * and stays that way -- the build below runs once and the result is what the
+ * player gets. Answering "not yet" instead costs one more frame.
+ */
+static int
+app_plugin_button_anchor_ready(
+    struct App const* app,
+    int32_t anchor)
+{
+    struct UITreeComponent const* node;
+    int graphics = 0;
+
+    assert(app);
+    assert(app->tree);
+    assert(anchor >= 0);
+
+    node = &app->tree->components[anchor];
+    if( node->position.abs_w <= 0 || node->position.abs_h <= 0 )
+        return 0;
+    for( int32_t child = node->first_child; child >= 0;
+         child = app->tree->components[child].next_sibling )
     {
-        struct UITreeComponent const* c = &app->tree->components[i];
-        if( c->freed || ((c->component_id >> 16) & 0xFFFF) != iface )
+        struct UITreeComponent const* c = &app->tree->components[child];
+        if( c->freed || c->behavior.hide )
             continue;
-        fprintf(stderr, "PROBE   com=%d|%d type=%d hide=%d abs=%d,%d %dx%d parent=%d text='%s'\n",
-            (c->component_id >> 16) & 0xFFFF, c->component_id & 0xFFFF,
-            (int)c->type, (int)c->behavior.hide,
-            c->position.abs_x, c->position.abs_y, c->position.abs_w, c->position.abs_h,
-            c->parent,
-            c->type == UIELEM_RS_TEXT && c->u.rs_text.text ? c->u.rs_text.text : "");
+        if( c->type != UIELEM_RS_GRAPHIC )
+            continue;
+        if( c->u.rs_graphic.scene_id <= 0 )
+            return 0;
+        graphics++;
     }
+    /* A button made of no pictures at all is one whose art has not been
+     * decoded yet on every lane this runs on; treating it as ready draws an
+     * empty box with a caption floating in it. */
+    return graphics > 0;
+}
+
+/**
+ * The plate's box, and the node its art comes from.
+ *
+ * @return 0 while the revision's own button is not yet there to measure --
+ *         which is a WAIT, not a refusal: the caller runs again next frame.
+ */
+static int
+app_plugin_button_plate(
+    struct App* app,
+    int32_t mount,
+    struct AppPluginButtonPlate* out)
+{
+    struct RevConfigChromeItem const* chrome;
+    struct UITreeComponent const* mount_node;
+    struct UITreeComponent const* anchor_node;
+    int32_t anchor;
+
+    assert(app);
+    assert(app->tree);
+    assert(mount >= 0);
+    assert(out);
+
+    chrome = APP_PLUGIN_CHROME;
+    out->anchor = -1;
+    if( app_plugin_button_form(app) == APP_PLUGIN_BUTTON_FORM_ABSOLUTE )
+    {
+        out->x = chrome->plugin_button_x;
+        out->y = chrome->plugin_button_y;
+        out->w = chrome->plugin_button_w;
+        out->h = chrome->plugin_button_h;
+        return 1;
+    }
+
+    anchor = UITree_RoleNodeByName(app->tree, &app->ui_roles, chrome->plugin_button_anchor);
+    if( anchor < 0 )
+        return 0;
+    if( !app_plugin_button_anchor_ready(app, anchor) )
+        return 0;
+
+    mount_node = &app->tree->components[mount];
+    anchor_node = &app->tree->components[anchor];
+    if( mount_node->position.abs_h <= 0 )
+        return 0;
+
+    /*
+     * The anchor's size, and the anchor's column.
+     *
+     * Absolute coordinates differenced against the mount, not the anchor's own
+     * base_x: the two are several containers apart (rev-239 hangs the panel's
+     * buttons off a block inside the interface root, and the plate off the
+     * root), and only the resolved boxes are in one space. The plate lines up
+     * with the buttons it joins rather than with the panel's edge, which is
+     * the whole point of naming one of them.
+     */
+    out->w = anchor_node->position.abs_w;
+    out->h = anchor_node->position.abs_h;
+    out->x = anchor_node->position.abs_x - mount_node->position.abs_x;
+    out->y = chrome->plugin_button_align == REVCONFIG_CHROME_ALIGN_BOTTOM
+                 ? mount_node->position.abs_h - chrome->plugin_button_margin - out->h
+                 : chrome->plugin_button_margin;
+    out->anchor = anchor;
+    return 1;
+}
+
+/** The caption over the plate, in the face and colour the dress chose. */
+static void
+app_plugin_button_label(
+    struct App* app,
+    int32_t node,
+    struct AppPluginButtonPlate const* plate,
+    int font_id,
+    int color,
+    int over_color,
+    int shadowed)
+{
+    struct UIBuildComponent comp;
+
+    assert(app);
+    assert(plate);
+
+    /*
+     * Centred against the WHOLE button, not against a hand-placed line box:
+     * ascent and descent differ per face, so a 13px box positioned by eye sits
+     * right in one font and low in the next. The cache's own captions are
+     * authored exactly this way -- full height, halign 1, valign 1.
+     */
+    memset(&comp, 0, sizeof(comp));
+    comp.id = TORIRS_CHROME_PLUGIN_LABEL_ID;
+    comp.type = UIBUILD_TEXT;
+    comp.parent_id = -1;
+    comp.base_x = 0;
+    comp.base_y = 0;
+    comp.base_width = plate->w;
+    comp.base_height = plate->h;
+    comp.if3 = 1;
+    comp.graphic = -1;
+    comp.graphic_active = -1;
+    comp.over_layer_id = -1;
+    comp.model_active_id = -1;
+    comp.model_seq_id = -1;
+    comp.text = APP_PLUGIN_BUTTON_TEXT;
+    comp.font_id = font_id;
+    comp.color = color;
+    comp.over_color = over_color;
+    comp.text_h_align = 1;
+    comp.text_v_align = 1;
+    comp.shadowed = shadowed;
+    UITree_PushBuildComponent(app->tree, node, &comp, NULL, NULL, app);
+}
+
+/**
+ * Dress the plate in the anchor's own art: one copy per graphic under it, each
+ * where it sits relative to that button's box, plus its caption's face and
+ * colour behind this button's own words.
+ *
+ * A COPY and not a borrow. The anchor is the panel's live button and stays
+ * exactly where it is doing exactly its own job; nothing here touches it. What
+ * is copied is the scene sprite id the tree already resolved, so no archive
+ * has to be read again and a cache this file has never seen still dresses the
+ * plate correctly.
+ */
+static void
+app_plugin_button_dress_from_anchor(
+    struct App* app,
+    int32_t node,
+    struct AppPluginButtonPlate const* plate)
+{
+    struct UITreeComponent const* anchor;
+    int piece = 0;
+    /* The baked plate's cream, until the anchor's own caption says otherwise. */
+    int font_id = UITreeSceneBridge_EnsureDebugFont1x(&app->bridge, TORIRS_CHROME_FONT_MENU);
+    int color = 0xF7F0DF;
+    int over_color = 0xFF0000;
+    int shadowed = 1;
+
+    assert(app);
+    assert(plate);
+    assert(plate->anchor >= 0);
+
+    anchor = &app->tree->components[plate->anchor];
+    for( int32_t child = anchor->first_child;
+         child >= 0 && piece < TORIRS_CHROME_PLUGIN_PIECE_MAX;
+         child = app->tree->components[child].next_sibling )
+    {
+        struct UITreeComponent const* c = &app->tree->components[child];
+        if( c->freed || c->behavior.hide )
+            continue;
+        if( c->type == UIELEM_RS_TEXT )
+        {
+            /*
+             * The caption's MATERIAL, not its words. The face is the one the
+             * panel sets its own button labels in -- a scene font id the tree
+             * has already resolved, which is what a text node carries and what
+             * a build component with no resolver expects.
+             *
+             * The hover colour only when the anchor states one: zero is black,
+             * and a label that turns black under the pointer reads as a
+             * disappearing button rather than as a copied style.
+             */
+            font_id = c->u.rs_text.font_id;
+            color = c->u.rs_text.color;
+            if( c->behavior.over_color )
+                over_color = c->behavior.over_color;
+            shadowed = c->u.rs_text.shadowed;
+            continue;
+        }
+        if( c->type != UIELEM_RS_GRAPHIC )
+            continue;
+        app_plugin_button_piece(
+            app,
+            node,
+            TORIRS_CHROME_PLUGIN_PIECE_ID(piece),
+            c->u.rs_graphic.scene_id,
+            c->u.rs_graphic.atlas_index,
+            c->position.abs_x - anchor->position.abs_x,
+            c->position.abs_y - anchor->position.abs_y,
+            c->position.abs_w,
+            c->position.abs_h,
+            c->u.rs_graphic.tiled);
+        piece++;
+    }
+
+    app_plugin_button_label(app, node, plate, font_id, color, over_color, shadowed);
+}
+
+/**
+ * Dress the plate in the client's own baked skin: the interfaces' wide stone
+ * button, for a profile that states a box rather than an anchor.
+ *
+ * The three pieces overlap at the offsets the cache's own button uses -- the
+ * tile is laid OVER each cap's inner edge, not beside it. Butting them edge to
+ * edge instead leaves the bevels showing as two seams across the plate.
+ */
+static void
+app_plugin_button_dress_baked(
+    struct App* app,
+    int32_t node,
+    int skin,
+    struct AppPluginButtonPlate const* plate)
+{
+    assert(app);
+    assert(skin > 0);
+    assert(plate);
+
+    app_plugin_button_piece(
+        app, node, TORIRS_CHROME_PLUGIN_CAP_LEFT_ID, skin, TORIRS_CHROME_SKIN_BUTTON_LEFT,
+        0, 0, APP_PLUGIN_BTN_CAP, plate->h, 0);
+    app_plugin_button_piece(
+        app, node, TORIRS_CHROME_PLUGIN_CAP_MID_ID, skin, TORIRS_CHROME_SKIN_BUTTON_MID,
+        APP_PLUGIN_BTN_MID_INSET, 0, plate->w - 2 * APP_PLUGIN_BTN_MID_INSET, plate->h, 1);
+    app_plugin_button_piece(
+        app, node, TORIRS_CHROME_PLUGIN_CAP_RIGHT_ID, skin, TORIRS_CHROME_SKIN_BUTTON_RIGHT,
+        plate->w - APP_PLUGIN_BTN_CAP, 0, APP_PLUGIN_BTN_CAP, plate->h, 0);
+
+    /*
+     * The face is the baked bold one (the chrome's own 496), pinned at 1x:
+     * these glyphs land in INTERFACE pixels, which the gameframe lays out and
+     * the shell scales afterwards, so a chrome-scale face would come out
+     * double-sized on any HighDPI display.
+     *
+     * Red under the pointer, which is what the logout button above it does.
+     */
+    app_plugin_button_label(
+        app,
+        node,
+        plate,
+        UITreeSceneBridge_EnsureDebugFont1x(&app->bridge, TORIRS_CHROME_FONT_MENU),
+        0xF7F0DF,
+        0xFF0000,
+        1);
+}
+
+/**
+ * The plate follows its anchor while both are up.
+ *
+ * The build below runs once per gameframe, and a resize does not rebuild the
+ * tree: the CS2 hooks that lay the panel out re-run and its own buttons move,
+ * which would leave a plate measured against the old ones sitting somewhere
+ * it no longer belongs. Only the position, because a size change means the
+ * pieces cut from the anchor are the wrong size too, and the honest answer to
+ * that is the rebuild a gameframe change already brings.
+ */
+static void
+app_plugin_button_follow(struct App* app)
+{
+    struct AppPluginButtonPlate plate;
+    struct UITreeComponent const* node;
+    int32_t mount;
+
+    assert(app);
+    assert(app->tree);
+    if( app->plugin_button_node < 0 )
+        return;
+    if( app_plugin_button_form(app) != APP_PLUGIN_BUTTON_FORM_ANCHORED )
+        return;
+
+    node = &app->tree->components[app->plugin_button_node];
+    mount = node->parent;
+    if( mount < 0 )
+        return;
+    if( !app_plugin_button_plate(app, mount, &plate) )
+        return;
+    if( plate.x == node->position.x && plate.y == node->position.y )
+        return;
+    UITree_SetPositionAt(app->tree, app->plugin_button_node, plate.x, plate.y);
+    UITree_MarkAllDirty(app->tree);
 }
 
 static void
@@ -1131,14 +1473,12 @@ app_plugin_button_sync(struct App* app)
 {
     struct RevConfigChromeItem const* chrome;
     struct UIBuildComponent comp;
+    struct AppPluginButtonPlate plate;
     int32_t mount;
     int32_t node;
-    int skin;
-    int w;
-    int h;
+    int skin = 0;
     int const down = app_plugin_io_down(app);
 
-    app_plugin_button_probe(app);
     if( !app->tree || !ToriRSChrome_TreeAcceptsChrome(app->tree) )
         return;
 
@@ -1151,8 +1491,8 @@ app_plugin_button_sync(struct App* app)
      * independently (RS_MinimenuBuildCtx::plugin_io_down), so neither the click
      * nor the right-click menu can reach the panel while it is gone.
      *
-     * On the CONTAINER only: the three graphics and the label hang off it, and
-     * a hidden ancestor already keeps a subtree off the screen. The click mask
+     * On the CONTAINER only: the pieces and the label hang off it, and a
+     * hidden ancestor already keeps a subtree off the screen. The click mask
      * goes with it, rather than relying on a hidden component being unhittable:
      * the two are separate pieces of state and this does not need to know how
      * the hit walk treats the first.
@@ -1166,6 +1506,7 @@ app_plugin_button_sync(struct App* app)
             app->plugin_button_disabled = down;
             UITree_MarkAllDirty(app->tree);
         }
+        app_plugin_button_follow(app);
         return;
     }
 
@@ -1194,16 +1535,22 @@ app_plugin_button_sync(struct App* app)
     if( mount < 0 )
         return;
 
-    /* The plate and the caption both come from the BAKED chrome, so there is
-     * nothing to wait for and nothing to get wrong -- no archive has to land
-     * first and no cache has to contain the art. */
-    skin = UITreeSceneBridge_EnsureChromeSkin(&app->bridge);
-    if( skin <= 0 )
+    /* And, on an anchored mount, only once the panel's own button is there to
+     * be measured and cut from. */
+    if( !app_plugin_button_plate(app, mount, &plate) )
         return;
 
+    /* The baked plate has nothing to wait for and nothing to get wrong -- no
+     * archive has to land first and no cache has to contain the art -- but the
+     * skin itself still has to be in the scene before a piece can name it. */
+    if( plate.anchor < 0 )
+    {
+        skin = UITreeSceneBridge_EnsureChromeSkin(&app->bridge);
+        if( skin <= 0 )
+            return;
+    }
+
     chrome = APP_PLUGIN_CHROME;
-    w = chrome->plugin_button_w;
-    h = chrome->plugin_button_h;
 
     /*
      * The container. It carries the menu row and nothing else -- the pieces
@@ -1214,10 +1561,10 @@ app_plugin_button_sync(struct App* app)
     comp.id = TORIRS_CHROME_PLUGIN_BUTTON_ID;
     comp.type = UIBUILD_LAYER;
     comp.parent_id = -1;
-    comp.base_x = chrome->plugin_button_x;
-    comp.base_y = chrome->plugin_button_y;
-    comp.base_width = w;
-    comp.base_height = h;
+    comp.base_x = plate.x;
+    comp.base_y = plate.y;
+    comp.base_width = plate.w;
+    comp.base_height = plate.h;
     comp.if3 = 1;
     comp.graphic = -1;
     comp.graphic_active = -1;
@@ -1232,53 +1579,10 @@ app_plugin_button_sync(struct App* app)
     if( node < 0 )
         return;
 
-    app_plugin_button_piece(
-        app, node, TORIRS_CHROME_PLUGIN_CAP_LEFT_ID, skin, TORIRS_CHROME_SKIN_BUTTON_LEFT,
-        0, APP_PLUGIN_BTN_CAP, h, 0);
-    app_plugin_button_piece(
-        app, node, TORIRS_CHROME_PLUGIN_CAP_MID_ID, skin, TORIRS_CHROME_SKIN_BUTTON_MID,
-        APP_PLUGIN_BTN_MID_INSET, w - 2 * APP_PLUGIN_BTN_MID_INSET, h, 1);
-    app_plugin_button_piece(
-        app, node, TORIRS_CHROME_PLUGIN_CAP_RIGHT_ID, skin, TORIRS_CHROME_SKIN_BUTTON_RIGHT,
-        w - APP_PLUGIN_BTN_CAP, APP_PLUGIN_BTN_CAP, h, 0);
-
-    /*
-     * The caption, over the three graphics and the full size of the plate.
-     *
-     * Centred against the WHOLE button, not against a hand-placed line box:
-     * ascent and descent differ per face, so a 13px box positioned by eye sits
-     * right in one font and low in the next. The cache's own captions are
-     * authored exactly this way -- full height, halign 1, valign 1.
-     *
-     * The face is the baked bold one (the chrome's own 496), pinned at 1x:
-     * these glyphs land in INTERFACE pixels, which the gameframe lays out and
-     * the shell scales afterwards, so a chrome-scale face would come out
-     * double-sized on any HighDPI display.
-     *
-     * Red under the pointer, which is what the logout button above it does.
-     */
-    memset(&comp, 0, sizeof(comp));
-    comp.id = TORIRS_CHROME_PLUGIN_LABEL_ID;
-    comp.type = UIBUILD_TEXT;
-    comp.parent_id = -1;
-    comp.base_x = 0;
-    comp.base_y = 0;
-    comp.base_width = w;
-    comp.base_height = h;
-    comp.if3 = 1;
-    comp.graphic = -1;
-    comp.graphic_active = -1;
-    comp.over_layer_id = -1;
-    comp.model_active_id = -1;
-    comp.model_seq_id = -1;
-    comp.text = APP_PLUGIN_BUTTON_TEXT;
-    comp.font_id = UITreeSceneBridge_EnsureDebugFont1x(&app->bridge, TORIRS_CHROME_FONT_MENU);
-    comp.color = 0xF7F0DF;
-    comp.over_color = 0xFF0000;
-    comp.text_h_align = 1;
-    comp.text_v_align = 1;
-    comp.shadowed = 1;
-    UITree_PushBuildComponent(app->tree, node, &comp, NULL, NULL, app);
+    if( plate.anchor >= 0 )
+        app_plugin_button_dress_from_anchor(app, node, &plate);
+    else
+        app_plugin_button_dress_baked(app, node, skin, &plate);
 
     app->plugin_button_node = node;
     /* Freshly built means freshly enabled -- `down` is false to have got here.
@@ -1288,7 +1592,6 @@ app_plugin_button_sync(struct App* app)
     UITree_ApplyClickMask(app->tree, TORIRS_CHROME_PLUGIN_BUTTON_ID, 1);
     UITree_MarkAllDirty(app->tree);
 }
-
 
 static void
 app_plugin_exec_bind(struct App* app);

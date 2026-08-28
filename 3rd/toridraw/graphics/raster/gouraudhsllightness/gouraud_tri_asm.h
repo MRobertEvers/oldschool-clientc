@@ -130,6 +130,42 @@ void toridraw_gouraud_alpha_s4_sorting_asm(
 #define TORIDRAW_GOURAUD_RUN_ROW_INTS 12
 #define TORIDRAW_GOURAUD_PRESORTED_RUN 1
 
+#elif defined(TORIDRAW_GOURAUD_TRI_NEON_ASM)
+
+/*
+ * The AArch64 / NEON lane: gouraud_tri_aarch64.S. Only the RUN doors exist --
+ * the per-face path keeps the C, which is the arm the A/B baseline measures.
+ * Same 48-byte row record as the i686 kernel, opacity in lane 11.
+ */
+
+#ifdef TORIDRAW_PIXEL16
+#error "gouraud_tri_aarch64.S assumes 32-bit pixels and a 32-bit palette"
+#endif
+
+#include "graphics/shared_tables.h"
+
+void toridraw_gouraud_opaque_s4_presorted_run_asm(
+    toripixel_t* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    const int* rows,
+    int count);
+
+void toridraw_gouraud_alpha_s4_presorted_run_asm(
+    toripixel_t* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    const int* rows,
+    int count);
+
+#define TORIDRAW_GOURAUD_TRI_OPAQUE_S4 \
+    raster_gouraudhsllightness_screen_opaque_bary_branching_s4
+
+#define TORIDRAW_GOURAUD_RUN_ROW_INTS 12
+#define TORIDRAW_GOURAUD_PRESORTED_RUN 1
+
 #else
 
 #define TORIDRAW_GOURAUD_TRI_OPAQUE_S4 \

@@ -91,6 +91,19 @@ PlatformX_IO_Process(
  * Per-io, not global: the app runs two task pipelines over one platform pump,
  * and one of them being blocked must not stall the other.
  */
+/**
+ * @brief Is the read queued in `slot` still outstanding?
+ *
+ * Asked per task by the runner, so one task parked on a JS5 miss does not stop
+ * the rest of the queue from being stepped. Always 0 for a purely synchronous
+ * read: it was answered inside Process.
+ */
+int
+PlatformX_IO_SlotPending(
+    struct PlatformX_IO* px,
+    struct ToriRS_IO* io,
+    int slot);
+
 int
 PlatformX_IO_Pending(
     struct PlatformX_IO* px,

@@ -15628,7 +15628,6 @@ static void
 app_title_submit(struct App* app)
 {
     char const* user;
-    char const* pass;
 
     assert(app);
     app->title.submit_requested = 0;
@@ -15636,8 +15635,9 @@ app_title_submit(struct App* app)
     if( !app->net_enabled || !app->net )
         return;
 
+    /* The password is not read here: the connect happens a tick later and
+     * takes both straight off the form -- see App::title_connect_pending. */
     user = RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME);
-    pass = RS_Title_FieldText(&app->title, RS_TITLE_FIELD_PASSWORD);
     /* Nothing to send. Left on the form rather than dialled with an empty
      * name, which every server answers with a rejection the player then has
      * to read as if it meant something. */

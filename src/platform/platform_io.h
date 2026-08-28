@@ -43,6 +43,7 @@
 #define Platform_IO_LoadItem PlatformWeb_IO_LoadItem
 #define Platform_IO_Process PlatformWeb_IO_Process
 #define Platform_IO_Pending PlatformWeb_IO_Pending
+#define Platform_IO_SlotPending PlatformWeb_IO_SlotPending
 #define Platform_IO_ServerReachable PlatformWeb_IO_ServerReachable
 
 /* The opaque handle. A browser's executor keeps its state on the JavaScript
@@ -64,6 +65,7 @@
 #define Platform_IO_LoadItem PlatformX_IO_LoadItem
 #define Platform_IO_Process PlatformX_IO_Process
 #define Platform_IO_Pending PlatformX_IO_Pending
+#define Platform_IO_SlotPending PlatformX_IO_SlotPending
 #define Platform_IO_ServerReachable PlatformX_IO_ServerReachable
 
 #define Platform_IO struct PlatformX_IO

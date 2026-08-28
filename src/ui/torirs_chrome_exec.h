@@ -665,6 +665,19 @@ ToriRSChromeExec_ForKind(
 #define TORIRS_CHROME_PLUGIN_CAP_RIGHT_ID (TORIRS_CHROME_PLUGIN_BUTTON_ID + 3)
 #define TORIRS_CHROME_PLUGIN_LABEL_ID (TORIRS_CHROME_PLUGIN_BUTTON_ID + 4)
 
+/**
+ * One piece of a plate CUT FROM a lane's own button, rather than from the
+ * baked skin: the client copies that button's graphics so its own control is
+ * the same material as the ones beside it, and each copy needs an id.
+ *
+ * Past the five above with room to spare, and capped well above what a button
+ * is made of (rev-239's logout plate is four children) so that a profile
+ * naming something enormous as the anchor stops copying rather than running
+ * into the ids of whatever the client adds here next.
+ */
+#define TORIRS_CHROME_PLUGIN_PIECE_ID(i) (TORIRS_CHROME_PLUGIN_BUTTON_ID + 16 + (i))
+#define TORIRS_CHROME_PLUGIN_PIECE_MAX 16
+
 struct UITree;
 
 /**

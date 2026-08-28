@@ -8,6 +8,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -120,12 +121,83 @@ struct ToriRS_IOItem
         IOITEM_DATA_SIZE(item) = 0;                                                                \
     } while( 0 )
 
+/*
+ * The queue of outstanding platform requests.
+ *
+ * ## Slots, and why a task's `0` is not slot 0
+ *
+ * Every task asks for its reads at slot `0` -- that is what the hundred-odd
+ * call sites in the engine say, and it was literal while exactly one task
+ * could have a read outstanding. It no longer is: `slot_base` is added to
+ * whatever a task names, so `0` means "this task's first slot" and several
+ * tasks can be waiting on the platform at once (see TaskRunner_Step, which
+ * sets it around each run).
+ *
+ * That is the whole of what made cache reads serial. The IO layer has always
+ * held 32 items and every executor has always processed the whole active list
+ * in one pass; the runner simply never handed it more than one, so a boot that
+ * reads two and a half thousand groups paid two and a half thousand round
+ * trips end to end.
+ *
+ * `slots_taken` is ownership, not busyness: a slot is taken from the moment
+ * the runner gives it to a task until that task's read has been answered and
+ * consumed. An item's `kind` cannot answer that question -- it is NONE both
+ * before a read is queued and after it is decoded.
+ */
 struct ToriRS_IO
 {
     struct ToriRS_IOItem io_slots[TORIRS_IO_MAX_ITEMS];
     int active[TORIRS_IO_MAX_ITEMS];
     int active_count;
+    /** Bit per slot; see the note above. */
+    uint32_t slots_taken;
+    /** What a task's slot 0 currently addresses. */
+    int slot_base;
 };
+
+/**
+ * The item a task means by `slot_id`, which is `slot_id` slots into the block
+ * the runner gave it.
+ */
+static inline struct ToriRS_IOItem*
+ToriRS_IO_TaskSlot(
+    struct ToriRS_IO* io,
+    int slot_id)
+{
+    assert(io != NULL);
+    assert(slot_id >= 0);
+    assert(io->slot_base >= 0);
+    assert(io->slot_base + slot_id < TORIRS_IO_MAX_ITEMS);
+    return &io->io_slots[io->slot_base + slot_id];
+}
+
+/** Take a slot for a task, or -1 when every one is already owned. */
+static inline int
+ToriRS_IO_SlotAlloc(struct ToriRS_IO* io)
+{
+    assert(io != NULL);
+    for( int i = 0; i < TORIRS_IO_MAX_ITEMS; i++ )
+    {
+        if( (io->slots_taken & (1u << i)) == 0 )
+        {
+            io->slots_taken |= (1u << i);
+            return i;
+        }
+    }
+    return -1;
+}
+
+static inline void
+ToriRS_IO_SlotRelease(
+    struct ToriRS_IO* io,
+    int slot)
+{
+    assert(io != NULL);
+    assert(slot >= 0);
+    assert(slot < TORIRS_IO_MAX_ITEMS);
+    assert(io->slots_taken & (1u << slot));
+    io->slots_taken &= ~(1u << slot);
+}
 
 /*
  * What a task wants on screen while it works.
@@ -175,6 +247,18 @@ struct ToriRS_Task
      * `blocked` -- a request describes one yield, never a standing mode. */
     int wants_render;
     struct ToriRS_RenderRequest render;
+
+    /*
+     * The IO slot this task's reads live in, or -1 while it holds none.
+     *
+     * Held only for as long as a read is actually outstanding -- the runner
+     * gives one out before a run and takes it back the moment the task yields
+     * without having queued anything. That is what keeps a chain of tasks from
+     * deadlocking on the slot table: a parent parked on PT_TASK_AWAITSELF is
+     * waiting on its child, not on the platform, so it holds nothing while the
+     * child needs a slot of its own.
+     */
+    int io_slot;
 
     struct ToriRS_Task* next;
     struct ToriRS_Task* prev;
@@ -271,6 +355,11 @@ push_active(
     assert(io != NULL);
     assert(slot_id >= 0);
     assert(slot_id < TORIRS_IO_MAX_ITEMS);
+    /* One entry per slot per pass is the most a queue can produce, and the
+     * list is as long as the slot table -- but a task that queues twice
+     * without yielding would push twice, and running off the end of this
+     * array is not something to discover from the symptom. */
+    assert(io->active_count < TORIRS_IO_MAX_ITEMS);
     io->active[io->active_count++] = slot_id;
 }
 
@@ -297,7 +386,7 @@ ToriRS_IO_QueueCache(
     assert(table_id >= 0);
     assert(archive_id >= 0);
     assert(flags >= 0);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
+    struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot_id);
     memset(item, 0, sizeof(struct ToriRS_IOItem));
 
     item->kind = TORIRS_IOK_CACHE;
@@ -305,7 +394,7 @@ ToriRS_IO_QueueCache(
     item->u.cache.table_id = table_id;
     item->u.cache.archive_id = archive_id;
     item->u.cache.flags = flags;
-    push_active(io, slot_id);
+    push_active(io, io->slot_base + slot_id);
 }
 
 static inline void
@@ -316,12 +405,12 @@ ToriRS_IO_QueueConfigFile(
 {
     assert(io != NULL);
     assert(path != NULL);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
+    struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot_id);
     memset(item, 0, sizeof(struct ToriRS_IOItem));
 
     item->kind = TORIRS_IOK_CONFIG_FILE;
     strcpy(item->u.config_file.path, path);
-    push_active(io, slot_id);
+    push_active(io, io->slot_base + slot_id);
 }
 
 static inline void
@@ -332,12 +421,12 @@ ToriRS_IO_QueueScript(
 {
     assert(io != NULL);
     assert(path != NULL);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
+    struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot_id);
     memset(item, 0, sizeof(struct ToriRS_IOItem));
 
     item->kind = TORIRS_IOK_SCRIPT;
     strcpy(item->u.script.path, path);
-    push_active(io, slot_id);
+    push_active(io, io->slot_base + slot_id);
 }
 
 /** Read a client-owned file whole. `path` is used as given. */
@@ -349,12 +438,12 @@ ToriRS_IO_QueueFileRead(
 {
     assert(io != NULL);
     assert(path != NULL);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
+    struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot_id);
     memset(item, 0, sizeof(struct ToriRS_IOItem));
 
     item->kind = TORIRS_IOK_FILE_READ;
     snprintf(item->u.file.path, sizeof(item->u.file.path), "%s", path);
-    push_active(io, slot_id);
+    push_active(io, io->slot_base + slot_id);
 }
 
 /**
@@ -375,14 +464,14 @@ ToriRS_IO_QueueFileWrite(
     assert(io != NULL);
     assert(path != NULL);
     assert(data != NULL || data_size == 0);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
+    struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot_id);
     memset(item, 0, sizeof(struct ToriRS_IOItem));
 
     item->kind = TORIRS_IOK_FILE_WRITE;
     snprintf(item->u.file.path, sizeof(item->u.file.path), "%s", path);
     item->data = data;
     item->data_size = data_size;
-    push_active(io, slot_id);
+    push_active(io, io->slot_base + slot_id);
 }
 
 static inline void
@@ -393,12 +482,12 @@ ToriRS_IO_QueueReferenceTable(
 {
     assert(io != NULL);
     assert(table_id >= 0);
-    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
+    struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot_id);
     memset(item, 0, sizeof(struct ToriRS_IOItem));
 
     item->kind = TORIRS_IOK_REFERENCE_TABLE;
     item->u.reference_table.table_id = table_id;
-    push_active(io, slot_id);
+    push_active(io, io->slot_base + slot_id);
 }
 
 static inline void
@@ -464,6 +553,9 @@ ToriRS_TaskQueue_Add(
 {
     assert(queue != NULL);
     assert(task != NULL);
+    /* Owned by nobody until the runner hands one over. Set here rather than in
+     * each CreateTask_*: they calloc, and 0 is a real slot. */
+    task->io_slot = -1;
     if( queue->head == NULL )
     {
         queue->head = task;
@@ -510,69 +602,79 @@ torirs_task_log_enabled(void)
     return enabled;
 }
 
+/*
+ * Run ONE task, once, and reap it if it finished.
+ *
+ * This used to be `ToriRS_TaskQueue_Run`, which ran the head and nothing else:
+ * it looped until the head yielded and then returned, so the queue could only
+ * ever have one task in flight and therefore only one platform read
+ * outstanding. Every cache miss cost a whole round trip end to end, and a boot
+ * that reads a couple of thousand groups paid for them one after another.
+ *
+ * WHICH task to run is the runner's decision now (TaskRunner_Step), because
+ * that is where the platform can be asked whether a given task's read has
+ * landed. This function is left with the part that is genuinely the queue's:
+ * run it, translate the protothread's answer, and unlink it when it ends.
+ *
+ * Returns one of TORIRS_ASYNCIO_STAT_*. On DONE the task has been freed and
+ * the caller must not touch it again.
+ */
 static inline int
-ToriRS_TaskQueue_Run(
+ToriRS_TaskQueue_RunTask(
     struct ToriRS_TaskQueue* queue,
-    struct ToriRS_IO* io)
+    struct ToriRS_IO* io,
+    struct ToriRS_Task* task)
 {
+    int res;
+
     assert(queue != NULL);
-    int res = TORIRS_ASYNCIO_STAT_DONE;
-    struct ToriRS_Task* task = NULL;
-    while( queue->head != NULL )
+    assert(task != NULL);
+
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_RESUMES, 1);
+    res = task_run(task, io);
+
+    // Return states for the protothread functions
+    // #define PT_WAITING 0
+    // #define PT_YIELDED 1
+    // #define PT_EXITED 2
+    // #define PT_ENDED 3
+    switch( res )
     {
-        task = queue->head;
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_RESUMES, 1);
-        res = task_run(task, io);
-
-        // Return states for the protothread functions
-        // #define PT_WAITING 0
-        // #define PT_YIELDED 1
-        // #define PT_EXITED 2
-        // #define PT_ENDED 3
-        switch( res )
-        {
-        case PT_YIELDED:
-            /* Head parked on client state (TASK_AWAIT_STATE): stepping again
-             * cannot change that state, so say so and let the caller unwind to
-             * the frame loop. Everything behind it stays queued in order. */
-            if( task->blocked )
-                return TORIRS_ASYNCIO_STAT_BLOCKED;
-            /* Head asked for a frame. Unwind with the request intact so the
-             * caller can read it off the head task, which is still queued
-             * and resumes exactly here on the next pass. */
-            if( task->wants_render )
-                return TORIRS_ASYNCIO_STAT_RENDER;
-            /* Head is blocked on IO — hand control back so the platform can
-             * satisfy the request; the next pass resumes this task. */
-            return TORIRS_ASYNCIO_STAT_YIELD;
-        case PT_ENDED:
-            /* Clean completion (reached PT_END). This is the normal, healthy
-             * path for every task; it is only logged when task tracing is on
-             * (set TORIRS_TASK_LOG) so the console is not spammed. A task that
-             * failed prints its own diagnostic before exiting. Keep running —
-             * DONE means the whole queue drained, not just one task. */
-            if( torirs_task_log_enabled() )
-                fprintf(stderr, "Task %s completed\n", task->name);
-            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_ENDS, 1);
-            ToriRS_TaskQueue_Remove(queue, task);
-            break;
-        case PT_EXITED:
-            /* Early return via PT_EXIT. Some are benign guard clauses; others
-             * follow an error the task already logged. Distinguished from a
-             * clean end and gated behind the same trace flag. */
-            if( torirs_task_log_enabled() )
-                fprintf(stderr, "Task %s exited early (PT_EXIT)\n", task->name);
-            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_ENDS, 1);
-            ToriRS_TaskQueue_Remove(queue, task);
-            break;
-        default:
-            fprintf(stderr, "Task %s exited with unknown result\n", task->name);
-            assert(0);
-            break;
-        }
+    case PT_YIELDED:
+        /* Parked on client state (TASK_AWAIT_STATE): only another queue can
+         * make that true, so stepping this task again is a busy-wait. */
+        if( task->blocked )
+            return TORIRS_ASYNCIO_STAT_BLOCKED;
+        /* Asked for a frame before it is resumed. Still queued, still parked,
+         * so its request is intact for the caller to read. */
+        if( task->wants_render )
+            return TORIRS_ASYNCIO_STAT_RENDER;
+        /* Parked on IO, or simply slicing. Either way it made progress. */
+        return TORIRS_ASYNCIO_STAT_YIELD;
+    case PT_ENDED:
+        /* Clean completion (reached PT_END). This is the normal, healthy path
+         * for every task; it is only logged when task tracing is on (set
+         * TORIRS_TASK_LOG) so the console is not spammed. A task that failed
+         * prints its own diagnostic before exiting. */
+        if( torirs_task_log_enabled() )
+            fprintf(stderr, "Task %s completed\n", task->name);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_ENDS, 1);
+        ToriRS_TaskQueue_Remove(queue, task);
+        return TORIRS_ASYNCIO_STAT_DONE;
+    case PT_EXITED:
+        /* Early return via PT_EXIT. Some are benign guard clauses; others
+         * follow an error the task already logged. Distinguished from a clean
+         * end and gated behind the same trace flag. */
+        if( torirs_task_log_enabled() )
+            fprintf(stderr, "Task %s exited early (PT_EXIT)\n", task->name);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_ENDS, 1);
+        ToriRS_TaskQueue_Remove(queue, task);
+        return TORIRS_ASYNCIO_STAT_DONE;
+    default:
+        fprintf(stderr, "Task %s exited with unknown result\n", task->name);
+        assert(0);
+        return TORIRS_ASYNCIO_STAT_ERROR;
     }
-
-    return TORIRS_ASYNCIO_STAT_DONE;
 }
 
 static inline void

@@ -71,10 +71,33 @@ mergeInto(LibraryManager.library, {
      */
     inflight: null,
 
+    /*
+     * WHICH slots are outstanding, not just how many.
+     *
+     * The count above answers the queue's old question ("is anything out?").
+     * The runner now runs several tasks per pass and needs the per-task one --
+     * "is THIS task's read still coming?" -- so a task whose read has landed
+     * can be resumed while its neighbours are still waiting. Map io -> Set of
+     * slot indices.
+     */
+    inflightSlots: null,
+
     addInflight: function (io, delta) {
       const now = (this.inflight.get(io) || 0) + delta;
       if (now > 0) { this.inflight.set(io, now); }
       else { this.inflight.delete(io); }
+    },
+
+    markSlot: function (io, slot, busy) {
+      let slots = this.inflightSlots.get(io);
+      if (busy) {
+        if (!slots) { slots = new Set(); this.inflightSlots.set(io, slots); }
+        slots.add(slot);
+        return;
+      }
+      if (!slots) { return; }
+      slots.delete(slot);
+      if (slots.size === 0) { this.inflightSlots.delete(io); }
     },
 
     init: function () {
@@ -93,6 +116,7 @@ mergeInto(LibraryManager.library, {
        * necessarily set anything up. */
       this.instances = new Map();
       this.inflight = new Map();
+      this.inflightSlots = new Map();
     },
 
     /*
@@ -524,6 +548,7 @@ mergeInto(LibraryManager.library, {
     run: async function (inst, io, slot) {
       const req = this.describe(inst, this.itemPtr(io, slot));
       this.addInflight(io, 1);
+      this.markSlot(io, slot, true);
       try {
         const bytes = await this.execute(inst, req);
         /* itemPtr recomputed AFTER the await: see describe. */
@@ -536,6 +561,7 @@ mergeInto(LibraryManager.library, {
         this.answer(this.itemPtr(io, slot), null);
       } finally {
         this.addInflight(io, -1);
+        this.markSlot(io, slot, false);
       }
     },
   },
@@ -661,6 +687,18 @@ mergeInto(LibraryManager.library, {
   PlatformWeb_IO_Pending__deps: ['$TORIRS_WEB_IO'],
   PlatformWeb_IO_Pending: function (px, io) {
     return TORIRS_WEB_IO.inflight.get(io) || 0;
+  },
+
+  /*
+   * Is the read in THIS slot still coming?
+   *
+   * What the runner asks per task, so one task waiting on the network does not
+   * hold up every other task's turn -- which is what made cache reads serial.
+   */
+  PlatformWeb_IO_SlotPending__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_SlotPending: function (px, io, slot) {
+    const slots = TORIRS_WEB_IO.inflightSlots.get(io);
+    return slots && slots.has(slot) ? 1 : 0;
   },
 
   /*

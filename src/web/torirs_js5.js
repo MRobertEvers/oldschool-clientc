@@ -293,6 +293,11 @@
       request[2] = (group >> 8) & 0xFF;
       request[3] = group & 0xFF;
       try {
+        this.dbgSent = (this.dbgSent || 0) + 1;
+        this.dbgMax = Math.max(this.dbgMax || 0, this.pending.size);
+        if (this.dbgSent % 400 === 0) {
+          console.log(`iopass: sent=${this.dbgSent} inflight_now=${this.pending.size} inflight_max=${this.dbgMax}`);
+        }
         this.socket.send(request);
       } catch (err) {
         this.pending.delete(key);

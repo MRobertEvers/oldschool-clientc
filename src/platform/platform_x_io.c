@@ -1190,6 +1190,36 @@ PlatformX_IO_Pending(
 }
 
 /*
+ * Is the read in THIS slot still coming?
+ *
+ * The per-task half of Pending above, and the reason a task waiting on a JS5
+ * miss no longer holds up every other task's turn. A synchronous read has
+ * already landed by the time anyone can ask, so on a cache with no JS5
+ * attached this is always no -- which is exactly what it was before the runner
+ * learned to ask.
+ */
+int
+PlatformX_IO_SlotPending(
+    struct PlatformX_IO* px,
+    struct ToriRS_IO* io,
+    int slot)
+{
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+    assert(px);
+    for( int i = 0; i < JS5_PENDING_SLOTS; i++ )
+        if( px->js5_pending[i].in_use && px->js5_pending[i].io == io &&
+            px->js5_pending[i].slot == slot )
+            return 1;
+    return 0;
+#else
+    (void)px;
+    (void)io;
+    (void)slot;
+    return 0;
+#endif
+}
+
+/*
  * Whatever stored_file_read's second leg last found.
  *
  * On the desktop there is no second leg, so this is yes for the life of the

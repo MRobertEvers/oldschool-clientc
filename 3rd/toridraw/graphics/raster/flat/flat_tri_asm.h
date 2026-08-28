@@ -118,6 +118,43 @@ void toridraw_flat_alpha_s4_presorted_run_asm(
 #define TORIDRAW_FLAT_PRESORTED_RUN_ROW_INTS 12
 #define TORIDRAW_FLAT_PRESORTED_RUN 1
 
+#elif defined(TORIDRAW_FLAT_TRI_NEON_ASM)
+
+/*
+ * The AArch64 / NEON lane: flat_tri_aarch64.S. Only the RUN doors exist --
+ * the per-face path keeps the C, which is the arm the A/B baseline measures,
+ * and a run is the only thing the depth sort ever hands the asm. Same row
+ * record as the i686 kernel.
+ */
+
+#ifdef TORIDRAW_PIXEL16
+#error "flat_tri_aarch64.S assumes 32-bit pixels and a 32-bit palette"
+#endif
+
+#include "graphics/shared_tables.h"
+
+void toridraw_flat_opaque_s4_presorted_run_asm(
+    toripixel_t* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    const int* rows,
+    int count);
+
+void toridraw_flat_alpha_s4_presorted_run_asm(
+    toripixel_t* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    const int* rows,
+    int count);
+
+#define TORIDRAW_FLAT_TRI_OPAQUE_S4 raster_flat_screen_opaque_branching_s4
+#define TORIDRAW_FLAT_TRI_ALPHA_S4  raster_flat_screen_alpha_branching_s4
+
+#define TORIDRAW_FLAT_PRESORTED_RUN_ROW_INTS 12
+#define TORIDRAW_FLAT_PRESORTED_RUN 1
+
 #else
 
 #define TORIDRAW_FLAT_TRI_OPAQUE_S4 raster_flat_screen_opaque_branching_s4

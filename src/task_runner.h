@@ -47,65 +47,175 @@ enum TaskRunnerStat
     TASK_RUNNER_RENDER,
 };
 
-/** One scheduler pass: run the queue until it yields for IO, then hand the IO
- * list to the platform. */
+/*
+ * One scheduler pass: run every task that can make progress, then hand the
+ * queued reads to the platform.
+ *
+ * ## Why this walks the queue instead of stepping its head
+ *
+ * It used to do two things that together made every cache read serial: it
+ * returned as soon as ANY read was outstanding, and the queue it called ran
+ * only its head. So the client held exactly one platform request at a time and
+ * a boot spent one network round trip per group, in a strict line -- measured
+ * on the browser lane at one in flight across two thousand requests, for a
+ * post-login load of ~2500 groups.
+ *
+ * Neither layer underneath ever required that. The IO queue holds 32 items,
+ * the desktop executor answers a whole list per call, and the browser one
+ * dispatches every item without awaiting. Only the runner was single-file.
+ *
+ * So a pass now walks the queue and, for each task, asks the platform whether
+ * THAT task's read has landed (Platform_IO_SlotPending). One still waiting is
+ * skipped -- resuming it would run it over an empty slot -- and the rest are
+ * stepped, each in its own IO slot. What comes out the far end is a list of
+ * reads the executor issues together.
+ *
+ * Order is unchanged in the only sense a task can observe: the walk is
+ * head-first, and a task is only ever passed over while it is parked on
+ * something this pass cannot deliver. A task that awaits another
+ * (PT_TASK_AWAITSELF) runs its child inline, on the parent's own slot, so a
+ * chain stays a chain.
+ *
+ * RENDER ends the pass: the whole point of the request is that this frame
+ * reaches the screen, and stepping other tasks past it would publish their
+ * work on it too.
+ */
 static inline enum TaskRunnerStat
 TaskRunner_Step(struct TaskRunner* runner)
 {
-    int stat;
+    struct ToriRS_Task* task;
+    struct ToriRS_Task* next;
+    struct ToriRS_Task* render_task = NULL;
+    int ran = 0;
+    int waiting_io = 0;
+    int blocked = 0;
 
     assert(runner && runner->queue && runner->io && runner->px);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_STEPS, 1);
-    /* A read the platform has not answered yet: the head task is parked right
-     * after its PT_YIELD and running it would resume it over an empty slot.
-     * Always false on a synchronous backend, so native behaviour is unchanged. */
-    {
-        int pending = 0;
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
-        {
-            pending = Platform_IO_Pending(runner->px, runner->io);
-        }
-        if( pending )
-            return TASK_RUNNER_PENDING;
-    }
+
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_QUEUE_RUN)
     {
-        stat = ToriRS_TaskQueue_Run(runner->queue, runner->io);
-    }
-    if( stat == TORIRS_ASYNCIO_STAT_BLOCKED )
-    {
-        /* A blocked yield requests nothing, but an earlier task in this same
-         * pass may have left items queued; draining them here keeps the IO
-         * list's lifetime identical on both exits. */
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
+        for( task = runner->queue->head; task && !render_task; task = next )
         {
-            Platform_IO_Process(runner->px, runner->io);
+            int slot;
+            int stat;
+
+            next = task->next;
+
+            if( task->io_slot >= 0 )
+            {
+                int pending = 0;
+                TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
+                {
+                    pending =
+                        Platform_IO_SlotPending(runner->px, runner->io, task->io_slot);
+                }
+                /* Its answer is still on the wire. Nothing this pass can do
+                 * for it, and running it would resume it over an empty slot. */
+                if( pending )
+                {
+                    waiting_io = 1;
+                    continue;
+                }
+            }
+            else
+            {
+                task->io_slot = ToriRS_IO_SlotAlloc(runner->io);
+                /* Every slot is already owned by a task with a read out. That
+                 * is the concurrency ceiling doing its job, not an error: the
+                 * rest of the queue waits for one of them to be answered. */
+                if( task->io_slot < 0 )
+                {
+                    waiting_io = 1;
+                    break;
+                }
+            }
+
+            /* Remembered because RunTask may free the task, and the slot has
+             * to be given back either way. */
+            slot = task->io_slot;
+            runner->io->slot_base = slot;
+            stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
+            runner->io->slot_base = 0;
+
+            if( stat == TORIRS_ASYNCIO_STAT_DONE )
+            {
+                /* A task that ends with a read still queued is a task that
+                 * asked for something and walked away; the item would sit in
+                 * the slot forever and the slot would never come back. */
+                if( runner->io->io_slots[slot].kind != TORIRS_IOK_NONE )
+                    ToriRS_IO_ClearItem(&runner->io->io_slots[slot]);
+                ToriRS_IO_SlotRelease(runner->io, slot);
+                ran = 1;
+                continue;
+            }
+
+            /*
+             * A slot is held only while a read is actually outstanding. A task
+             * parked on anything else -- another queue's state, a frame, a
+             * plain cooperative yield -- gives it back, which is what keeps a
+             * queue full of parked tasks from owning the whole table.
+             */
+            if( runner->io->io_slots[slot].kind == TORIRS_IOK_NONE )
+            {
+                ToriRS_IO_SlotRelease(runner->io, slot);
+                task->io_slot = -1;
+            }
+
+            if( stat == TORIRS_ASYNCIO_STAT_BLOCKED )
+            {
+                blocked = 1;
+                continue;
+            }
+            if( stat == TORIRS_ASYNCIO_STAT_RENDER )
+            {
+                render_task = task;
+                break;
+            }
+            ran = 1;
         }
-        return TASK_RUNNER_BLOCKED;
     }
-    if( stat == TORIRS_ASYNCIO_STAT_RENDER )
+
+    if( getenv("TORIRS_TASK_STATS") )
     {
-        /* The head is still queued and still parked on its yield, so its
-         * request is intact; copy it out before anything else touches the
-         * queue. Any IO an earlier task in this pass left queued is drained
-         * here, exactly as the other two exits do. */
-        assert(runner->queue->head);
-        runner->render = runner->queue->head->render;
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
-        {
-            Platform_IO_Process(runner->px, runner->io);
-        }
+        static int passes = 0;
+        static int sum_queued = 0;
+        static int sum_ran = 0;
+        static int max_queued = 0;
+        int queued = 0;
+        for( struct ToriRS_Task* t = runner->queue->head; t; t = t->next )
+            queued++;
+        passes++;
+        sum_queued += queued;
+        sum_ran += ran;
+        if( queued > max_queued )
+            max_queued = queued;
+        if( passes % 500 == 0 )
+            fprintf(stderr, "taskstats: passes=%d avg_queued=%.2f max_queued=%d ran_frac=%.2f\n",
+                passes, (double)sum_queued / passes, max_queued, (double)sum_ran / passes);
+    }
+
+    /* Every read this pass produced, handed over together -- which is the
+     * whole point of the walk above. */
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
+    {
+        Platform_IO_Process(runner->px, runner->io);
+    }
+
+    if( render_task )
+    {
+        runner->render = render_task->render;
         return TASK_RUNNER_RENDER;
     }
-    if( stat == TORIRS_ASYNCIO_STAT_YIELD )
-    {
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
-        {
-            Platform_IO_Process(runner->px, runner->io);
-        }
+    if( runner->queue->head == NULL )
+        return TASK_RUNNER_IDLE;
+    if( ran || waiting_io )
         return TASK_RUNNER_PENDING;
-    }
-    return TASK_RUNNER_IDLE;
+    /* Nothing ran, nothing is on the wire: everything left is waiting on
+     * another queue, and only the frame loop can move that. */
+    if( blocked )
+        return TASK_RUNNER_BLOCKED;
+    return TASK_RUNNER_PENDING;
 }
 
 /** Blocking drain — native and tests only.

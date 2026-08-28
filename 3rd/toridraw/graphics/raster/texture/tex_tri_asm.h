@@ -1,6 +1,8 @@
 #ifndef TEX_TRI_ASM_H
 #define TEX_TRI_ASM_H
 
+#include <stdint.h>
+
 /*
  * DOOR NAMING -- the same scheme in flat/, gouraudhsllightness/ and texture/.
  *
@@ -274,6 +276,61 @@ int toridraw_texplane_prepare32_asm(
 #define TORIDRAW_TEX_TRI_PERSP_FLAT_OPAQUE toridraw_textri_flat_opaque_lerp8_v3_sorting_asm
 #define TORIDRAW_TEX_TRI_PERSP_FLAT_TRANS  toridraw_textri_flat_trans_lerp8_v3_sorting_asm
 
+#elif defined(TORIDRAW_TEXTRI_NEON_ASM)
+
+/*
+ * The AArch64 / NEON lane: tex_tri_aarch64.S. Only the four RUN doors exist;
+ * the per-face path keeps the C twin, which stays the reference and the
+ * A/B baseline. The kernel mirrors the NEON C span (tex.span.neon.u.c) --
+ * float reciprocal, float clamp, saturating narrow -- because that is what
+ * the macOS build draws with, and toridraw_presorted_neon_test.c holds it to
+ * every pixel.
+ */
+
+#ifdef TORIDRAW_PIXEL16
+#error "tex_tri_aarch64.S assumes 32-bit pixels and 32-bit texels"
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void toridraw_textri_opaque_lerp8_v3_presorted_run_asm(
+    int* pixel_buffer, int stride, int screen_width, int screen_height,
+    int camera_cot16, const int* rows, int count);
+
+void toridraw_textri_trans_lerp8_v3_presorted_run_asm(
+    int* pixel_buffer, int stride, int screen_width, int screen_height,
+    int camera_cot16, const int* rows, int count);
+
+void toridraw_textri_flat_opaque_lerp8_v3_presorted_run_asm(
+    int* pixel_buffer, int stride, int screen_width, int screen_height,
+    int camera_cot16, const int* rows, int count);
+
+void toridraw_textri_flat_trans_lerp8_v3_presorted_run_asm(
+    int* pixel_buffer, int stride, int screen_width, int screen_height,
+    int camera_cot16, const int* rows, int count);
+
+/* The plane setup stays in C on this lane too; see the i686 note above. */
+struct ToriDraw_TexturePlane32;
+
+int toridraw_texplane_prepare32_asm(
+    struct ToriDraw_TexturePlane32* plane,
+    int screen_width,
+    int screen_height,
+    int camera_cot16);
+
+#ifdef __cplusplus
+}
+#endif
+
+#define TORIDRAW_TEXTRI_PRESORTED_RUN 1
+
+#define TORIDRAW_TEX_TRI_PERSP_OPAQUE      raster_texshadeblend_persp_texopaque_branching_lerp8_v3
+#define TORIDRAW_TEX_TRI_PERSP_TRANS       raster_texshadeblend_persp_textrans_branching_lerp8_v3
+#define TORIDRAW_TEX_TRI_PERSP_FLAT_OPAQUE raster_texshadeblend_persp_texopaque_branching_lerp8_v3
+#define TORIDRAW_TEX_TRI_PERSP_FLAT_TRANS  raster_texshadeblend_persp_textrans_branching_lerp8_v3
+
 #else
 
 /* The reference expansion. The flat pair maps onto the blend kernel because
@@ -284,6 +341,43 @@ int toridraw_texplane_prepare32_asm(
 #define TORIDRAW_TEX_TRI_PERSP_FLAT_OPAQUE raster_texshadeblend_persp_texopaque_branching_lerp8_v3
 #define TORIDRAW_TEX_TRI_PERSP_FLAT_TRANS  raster_texshadeblend_persp_textrans_branching_lerp8_v3
 
+#endif
+
+/*
+ * The batched textured row, by lane.
+ *
+ * Twenty-four ints, 16-byte aligned. The first eighteen are the same on
+ * every lane: three screen x, three screen y, the nine orthographic
+ * coordinates of the texture frame (uv origin, u end, v end -- three ROLES,
+ * never permuted with the corners), and three shades. What follows depends on
+ * the pointer width: the texel pointer needs one int lane on i686 and two on
+ * an LP64 host, and the width and gate lanes move up behind it. The kernels
+ * read their own lane's layout; TORIDRAW_TEXBATCH_SET_TEXELS is the one place
+ * a texel pointer is written into a row, so nothing else has to know which.
+ */
+#define TORIDRAW_RASTER_TEXBATCH_ROW_INTS 24
+#define TORIDRAW_TEXBATCH_LANE_X 0
+#define TORIDRAW_TEXBATCH_LANE_Y 3
+#define TORIDRAW_TEXBATCH_LANE_OX 6
+#define TORIDRAW_TEXBATCH_LANE_OY 9
+#define TORIDRAW_TEXBATCH_LANE_OZ 12
+#define TORIDRAW_TEXBATCH_LANE_SHADE 15
+#define TORIDRAW_TEXBATCH_LANE_TEXELS 18
+#if UINTPTR_MAX > 0xFFFFFFFFu
+#define TORIDRAW_TEXBATCH_LANE_TW 20
+#define TORIDRAW_TEXBATCH_LANE_GATE 21
+#define TORIDRAW_TEXBATCH_SET_TEXELS(row, texels)                                                   \
+    do                                                                                             \
+    {                                                                                              \
+        uintptr_t toridraw_texbatch_ptr_ = (uintptr_t)(texels);                                    \
+        (row)[TORIDRAW_TEXBATCH_LANE_TEXELS + 0] = (int)(uint32_t)toridraw_texbatch_ptr_;           \
+        (row)[TORIDRAW_TEXBATCH_LANE_TEXELS + 1] = (int)(uint32_t)(toridraw_texbatch_ptr_ >> 32);   \
+    } while( 0 )
+#else
+#define TORIDRAW_TEXBATCH_LANE_TW 19
+#define TORIDRAW_TEXBATCH_LANE_GATE 20
+#define TORIDRAW_TEXBATCH_SET_TEXELS(row, texels)                                                   \
+    ((row)[TORIDRAW_TEXBATCH_LANE_TEXELS] = (int)(uintptr_t)(texels))
 #endif
 
 #endif

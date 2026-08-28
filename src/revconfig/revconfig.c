@@ -975,6 +975,12 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CHROME_PLUGIN_BUTTON_H";
     case RCFIELD_CHROME_PLUGIN_BUTTON_OP:
         return "RCFIELD_CHROME_PLUGIN_BUTTON_OP";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_ANCHOR:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_ANCHOR";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN";
     case RCFIELD_ROLE_MATCH:
         return "RCFIELD_ROLE_MATCH";
     case RCFIELD_UICOMPONENT_ROLE:
@@ -1231,6 +1237,8 @@ revconfig_item_begin(
         item->u.chrome.plugin_button_y = -1;
         item->u.chrome.plugin_button_w = -1;
         item->u.chrome.plugin_button_h = -1;
+        item->u.chrome.plugin_button_align = REVCONFIG_CHROME_ALIGN_NONE;
+        item->u.chrome.plugin_button_margin = -1;
     }
     else if( revconfig_type_is_cacheref(type_value) )
     {
@@ -1942,6 +1950,10 @@ revconfig_chrome_key_str(enum RevConfigFieldKind kind)
         return "plugin_button_w";
     case RCFIELD_CHROME_PLUGIN_BUTTON_H:
         return "plugin_button_h";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN:
+        return "plugin_button_align";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN:
+        return "plugin_button_margin";
     default:
         return revconfig_field_kind_str(kind);
     }
@@ -1974,6 +1986,25 @@ revconfig_item_apply_chrome_field(
         strncpy(chrome->plugin_button_op, value, sizeof(chrome->plugin_button_op) - 1);
         chrome->plugin_button_op[sizeof(chrome->plugin_button_op) - 1] = '\0';
         break;
+    case RCFIELD_CHROME_PLUGIN_BUTTON_ANCHOR:
+        strncpy(chrome->plugin_button_anchor, value, sizeof(chrome->plugin_button_anchor) - 1);
+        chrome->plugin_button_anchor[sizeof(chrome->plugin_button_anchor) - 1] = '\0';
+        break;
+    case RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN:
+        /* An edge, by name. An unknown word is REPORTED and left unstated, the
+         * same as an unparseable number below: guessing `top` for a profile
+         * that meant something else puts the plate over the panel's own
+         * heading, which reads as a layout bug rather than as a typo. */
+        if( strcmp(value, "top") == 0 )
+            chrome->plugin_button_align = REVCONFIG_CHROME_ALIGN_TOP;
+        else if( strcmp(value, "bottom") == 0 )
+            chrome->plugin_button_align = REVCONFIG_CHROME_ALIGN_BOTTOM;
+        else
+            TORIRS_LOG(
+                "revconfig: [chrome] plugin_button_align must be top or bottom, got '%s'\n",
+                value);
+        break;
+    case RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN:
     case RCFIELD_CHROME_PLUGIN_BUTTON_PARENT:
     case RCFIELD_CHROME_PLUGIN_BUTTON_X:
     case RCFIELD_CHROME_PLUGIN_BUTTON_Y:
@@ -1996,7 +2027,9 @@ revconfig_item_apply_chrome_field(
                 value);
             break;
         }
-        if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_PARENT )
+        if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN )
+            chrome->plugin_button_margin = n;
+        else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_PARENT )
             chrome->plugin_button_parent = n;
         else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_X )
             chrome->plugin_button_x = n;

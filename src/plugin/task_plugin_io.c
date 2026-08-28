@@ -214,7 +214,7 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
         ToriRS_IO_QueueScript(io, PLUGIN_IO_SLOT, task->manifest_path);
         PT_YIELD(&task->pt);
 
-        item = &io->io_slots[PLUGIN_IO_SLOT];
+        item = ToriRS_IO_TaskSlot(io, PLUGIN_IO_SLOT);
         if( IOITEM_ERROR_CODE(item) == 0 && IOITEM_DATA(item) )
             plugin_manifest_parse(
                 task, (char const*)IOITEM_DATA(item), IOITEM_DATA_SIZE(item));
@@ -236,7 +236,7 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
         ToriRS_IO_QueueScript(io, PLUGIN_IO_SLOT, task->entries[task->at].source);
         PT_YIELD(&task->pt);
 
-        item = &io->io_slots[PLUGIN_IO_SLOT];
+        item = ToriRS_IO_TaskSlot(io, PLUGIN_IO_SLOT);
         if( IOITEM_ERROR_CODE(item) == 0 && IOITEM_DATA(item) )
         {
             int const index = PluginLua_AddScript(
@@ -266,7 +266,7 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
         ToriRS_IO_QueueFileRead(io, PLUGIN_IO_SLOT, task->prefs_path);
         PT_YIELD(&task->pt);
 
-        item = &io->io_slots[PLUGIN_IO_SLOT];
+        item = ToriRS_IO_TaskSlot(io, PLUGIN_IO_SLOT);
         if( IOITEM_ERROR_CODE(item) == 0 && IOITEM_DATA(item) )
             PluginHost_ConfigDecode(task->host, IOITEM_DATA(item), IOITEM_DATA_SIZE(item));
         /* No file is a first launch, not an error. */
@@ -389,7 +389,7 @@ Task_PluginAssetRead_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
         ToriRS_IO_QueueFileRead(io, PLUGIN_IO_SLOT, task->saved_path);
         PT_YIELD(&task->pt);
 
-        item = &io->io_slots[PLUGIN_IO_SLOT];
+        item = ToriRS_IO_TaskSlot(io, PLUGIN_IO_SLOT);
         if( IOITEM_ERROR_CODE(item) == 0 && IOITEM_DATA(item) )
         {
             plugin_asset_take(task, item);
@@ -403,7 +403,7 @@ Task_PluginAssetRead_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
     ToriRS_IO_QueueScript(io, PLUGIN_IO_SLOT, task->shipped_path);
     PT_YIELD(&task->pt);
 
-    item = &io->io_slots[PLUGIN_IO_SLOT];
+    item = ToriRS_IO_TaskSlot(io, PLUGIN_IO_SLOT);
     if( IOITEM_ERROR_CODE(item) == 0 && IOITEM_DATA(item) )
         plugin_asset_take(task, item);
     else
@@ -494,7 +494,7 @@ Task_PluginAssetWrite_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
     ToriRS_IO_QueueFileWrite(io, PLUGIN_IO_SLOT, task->path, task->data, task->size);
     PT_YIELD(&task->pt);
 
-    item = &io->io_slots[PLUGIN_IO_SLOT];
+    item = ToriRS_IO_TaskSlot(io, PLUGIN_IO_SLOT);
     if( IOITEM_ERROR_CODE(item) != 0 )
         TORIRS_LOG("plugin: could not write asset to %s\n", task->path);
     ToriRS_IO_ClearItem(item);
@@ -570,7 +570,7 @@ Task_PluginSave_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
     ToriRS_IO_QueueFileWrite(io, PLUGIN_IO_SLOT, task->path, task->data, task->size);
     PT_YIELD(&task->pt);
 
-    item = &io->io_slots[PLUGIN_IO_SLOT];
+    item = ToriRS_IO_TaskSlot(io, PLUGIN_IO_SLOT);
     if( IOITEM_ERROR_CODE(item) != 0 )
         TORIRS_LOG("plugin: could not write settings to %s\n", task->path);
     ToriRS_IO_ClearItem(item);

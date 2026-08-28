@@ -282,6 +282,9 @@ enum RevConfigFieldKind
     RCFIELD_CHROME_PLUGIN_BUTTON_W,
     RCFIELD_CHROME_PLUGIN_BUTTON_H,
     RCFIELD_CHROME_PLUGIN_BUTTON_OP,
+    RCFIELD_CHROME_PLUGIN_BUTTON_ANCHOR,
+    RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN,
+    RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN,
     RCFIELD_ROLE_MATCH,
     RCFIELD_UICOMPONENT_ROLE,
     RCFIELD_UILAYOUT_NULL,
@@ -1271,6 +1274,22 @@ struct RevConfigCameraItem
  *  longer than that can reach here anyway. */
 #define REVCONFIG_CHROME_NAME_LEN 64
 
+/**
+ * `plugin_button_align=` -- which edge of the mount an anchored plate hangs
+ * off.
+ *
+ * An edge and a margin rather than a y, because the y is the thing that goes
+ * wrong: the mount is a panel the cache sizes and a CS2 hook re-lays out, so a
+ * number measured on one frame lands on top of the panel's own button on the
+ * next. "Fifteen pixels in from the top" survives both.
+ */
+enum RevConfigChromeAlign
+{
+    REVCONFIG_CHROME_ALIGN_NONE = 0,
+    REVCONFIG_CHROME_ALIGN_TOP,
+    REVCONFIG_CHROME_ALIGN_BOTTOM,
+};
+
 /*
  * `[chrome]` -- where the CLIENT's own furniture mounts on this revision.
  *
@@ -1317,6 +1336,30 @@ struct RevConfigChromeItem
      * "Manage Plugins". Empty means the button names nothing on hover; the
      * plate's own caption says it either way. */
     char plugin_button_op[REVCONFIG_CHROME_NAME_LEN];
+
+    /*
+     * INI: plugin_button_anchor= -- the `[role:<name>]` whose node the plate
+     * is CUT FROM: its width, its height and the pictures it is made of.
+     *
+     * The alternative is what this replaced: a width, a height and a baked
+     * skin written into the profile, all three of which are a guess about a
+     * panel the cache lays out and a CS2 hook re-lays out per layout. Naming
+     * the panel's own button instead makes the plate the same size and the
+     * same material as the control above it on every frame the revision has,
+     * and it is one name rather than four numbers.
+     *
+     * Empty when unstated, which is the absolute form: `plugin_button_x/y/w/h`
+     * and the client's own baked plate.
+     */
+    char plugin_button_anchor[REVCONFIG_CHROME_NAME_LEN];
+
+    /* INI: plugin_button_align= -- which edge of the parent the anchored plate
+     * sits against, enum RevConfigChromeAlign. _NONE when unstated. */
+    int plugin_button_align;
+
+    /* INI: plugin_button_margin= -- how far in from that edge, in interface
+     * pixels. -1 when unstated. */
+    int plugin_button_margin;
 };
 
 struct RevConfigItem

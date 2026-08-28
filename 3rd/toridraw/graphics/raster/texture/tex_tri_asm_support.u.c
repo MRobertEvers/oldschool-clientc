@@ -16,7 +16,7 @@
 
 #include "graphics/raster/texture/tex_tri_asm.h"
 
-#ifdef TORIDRAW_TEXTRI_ASM
+#if defined(TORIDRAW_TEXTRI_ASM) || defined(TORIDRAW_TEXTRI_NEON_ASM)
 
 #include <assert.h>
 

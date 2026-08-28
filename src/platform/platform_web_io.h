@@ -100,6 +100,16 @@ int
 PlatformWeb_IO_Pending(struct PlatformWeb_IO* px, struct ToriRS_IO* io);
 
 /**
+ * Is the read queued in `slot` still outstanding?
+ *
+ * The per-task half of Pending: the runner steps several tasks in a pass and
+ * has to know which of them are still waiting on this executor, rather than
+ * whether any of them is.
+ */
+int
+PlatformWeb_IO_SlotPending(struct PlatformWeb_IO* px, struct ToriRS_IO* io, int slot);
+
+/**
  * Can the executor still reach whatever answers its reads?
  *
  * False only when a request went unanswered. A server that says "no such file"

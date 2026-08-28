@@ -24,6 +24,8 @@ RevConfigProfile_Init(struct RevConfigProfile* profile)
     profile->chrome.plugin_button_y = -1;
     profile->chrome.plugin_button_w = -1;
     profile->chrome.plugin_button_h = -1;
+    profile->chrome.plugin_button_align = REVCONFIG_CHROME_ALIGN_NONE;
+    profile->chrome.plugin_button_margin = -1;
 
     profile->camera.zoom_mode = REVCONFIG_CAMERA_ZOOM_CLAMPED;
     profile->camera.zoom_min = REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN;
@@ -106,6 +108,15 @@ profile_merge_chrome(
         dst->plugin_button_w = src->plugin_button_w;
     if( src->plugin_button_h >= 0 )
         dst->plugin_button_h = src->plugin_button_h;
+    if( src->plugin_button_anchor[0] )
+        memcpy(
+            dst->plugin_button_anchor,
+            src->plugin_button_anchor,
+            sizeof(dst->plugin_button_anchor));
+    if( src->plugin_button_align != REVCONFIG_CHROME_ALIGN_NONE )
+        dst->plugin_button_align = src->plugin_button_align;
+    if( src->plugin_button_margin >= 0 )
+        dst->plugin_button_margin = src->plugin_button_margin;
 }
 
 void
