@@ -1,3 +1,4 @@
+#include "engine/boot_bar.h"
 #include "platform/platform_sdl2_renderer_gl3.h"
 
 #include "core/trspk_atlas.h"
@@ -5331,20 +5332,40 @@ ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress)
         glUniform1i(gl3->u2d_uv_clamp, 0);
     glDisable(GL_SCISSOR_TEST);
 
-    int const bar_w = gl3->width / 3;
-    int const bar_h = 12;
-    int const bar_x = (gl3->width - bar_w) / 2;
-    int const bar_y = (gl3->height - bar_h) / 2;
-    int const fill_w = bar_w * progress / 100;
-    float const border_rgba[4] = { 0.545f, 0.0f, 0.0f, 1.0f };
-    float const fill_rgba[4] = { 0.545f, 0.0f, 0.0f, 1.0f };
-    float const empty_rgba[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    /*
+     * The references' bar, not one of ours. @see engine/boot_bar.h -- the
+     * constants are shared with the software lane so the same boot does
+     * not draw two different pictures depending on the renderer.
+     */
+    int const bar_x = gl3->width / 2 - BOOT_BAR_W / 2;
+    int const bar_y = gl3->height / 2 - BOOT_BAR_ABOVE_CENTRE;
+    int const fill_w = progress * BOOT_BAR_PX_PER_PERCENT;
+    float const red_rgba[4] = {
+        (float)((BOOT_BAR_COLOR >> 16) & 0xFF) / 255.0f,
+        (float)((BOOT_BAR_COLOR >> 8) & 0xFF) / 255.0f,
+        (float)(BOOT_BAR_COLOR & 0xFF) / 255.0f,
+        1.0f
+    };
+    float const black_rgba[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
     gl3_flush_2d_batch(gl3);
-    gl3_draw_textured_quad_immediate(gl3, (float)(bar_x - 1), (float)(bar_y - 1), (float)(bar_x + bar_w + 1), (float)(bar_y + bar_h + 1), 0, 0, 1, 1, border_rgba);
-    gl3_draw_textured_quad_immediate(gl3, (float)bar_x, (float)bar_y, (float)(bar_x + fill_w), (float)(bar_y + bar_h), 0, 0, 1, 1, fill_rgba);
-    if( fill_w < bar_w )
-        gl3_draw_textured_quad_immediate(gl3, (float)(bar_x + fill_w), (float)bar_y, (float)(bar_x + bar_w), (float)(bar_y + bar_h), 0, 0, 1, 1, empty_rgba);
+    /* Filled track, a black inset one pixel in that leaves the red as a
+     * border and blacks the unfilled remainder, then the fill two pixels
+     * in. The black ring between border and fill is the deob's. */
+    gl3_draw_textured_quad_immediate(gl3,
+        (float)bar_x, (float)bar_y,
+        (float)(bar_x + BOOT_BAR_W), (float)(bar_y + BOOT_BAR_H),
+        0, 0, 1, 1, red_rgba);
+    gl3_draw_textured_quad_immediate(gl3,
+        (float)(bar_x + 1), (float)(bar_y + 1),
+        (float)(bar_x + BOOT_BAR_W - 1), (float)(bar_y + BOOT_BAR_H - 1),
+        0, 0, 1, 1, black_rgba);
+    if( fill_w > 0 )
+        gl3_draw_textured_quad_immediate(gl3,
+            (float)(bar_x + BOOT_BAR_INSET), (float)(bar_y + BOOT_BAR_INSET),
+            (float)(bar_x + BOOT_BAR_INSET + fill_w),
+            (float)(bar_y + BOOT_BAR_INSET + BOOT_BAR_FILL_H),
+            0, 0, 1, 1, red_rgba);
     gl3_unbind_attribs(gl3);
 }
 
