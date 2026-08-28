@@ -13958,6 +13958,40 @@ ToriRSServer_WorldSelftest(void)
                                        "and an empty bank, got %d coins",
                                        ToriRSServer_BankCount(srv, 995));
 
+                        /*
+                         * The modern presentation: interface 614's progress
+                         * bar is driven from varp 406, whose fraction is
+                         * derived from the step rather than tabulated. Three
+                         * points on the curve, because a bar that is wrong
+                         * only at the ends is the easy thing to ship.
+                         */
+                        {
+                            int bar = ToriRSServer_ContentSymbol(
+                                TORIRSSERVER_PACK_VARP, "tutorial_progress_overlay");
+
+                            SELFTEST_CHECK(bar >= 0,
+                                           "varp `tutorial_progress_overlay` should "
+                                           "resolve, got %d", bar);
+                            if( bar >= 0 )
+                            {
+                                SELFTEST_CHECK(tut->varps[bar] == 0,
+                                               "step 0 should leave the bar empty, "
+                                               "got %d", tut->varps[bar]);
+                                tut->varps[tutorial_varp] = 335; /* half of 670 */
+                                ToriRSServer_ScriptsRunProc(
+                                    srv, "[proc,set_tutorial_progress]", NULL, 0);
+                                SELFTEST_CHECK(tut->varps[bar] == 8192,
+                                               "half way should be half a bar "
+                                               "(16384/2), got %d", tut->varps[bar]);
+                                tut->varps[tutorial_varp] = 670;
+                                ToriRSServer_ScriptsRunProc(
+                                    srv, "[proc,set_tutorial_progress]", NULL, 0);
+                                SELFTEST_CHECK(tut->varps[bar] == 16384,
+                                               "the last step should fill it, got %d",
+                                               tut->varps[bar]);
+                            }
+                        }
+
                         /* Graduation. */
                         ToriRSServer_ScriptsRunProc(srv, "[proc,tutorial_finish]", NULL, 0);
                         SELFTEST_CHECK(tut->varps[tutorial_varp] == 1000,
