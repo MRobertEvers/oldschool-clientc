@@ -25,6 +25,7 @@
  *   make -C src test-wev-rebuild    (runs from src/, cache at ../cache.osrs239)
  */
 #include "asyncio.h"
+#include "task_runner.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/torirs_types.h"
@@ -479,6 +480,13 @@ pool_snapshot_assert_gone(
     }
 }
 
+/*
+ * Drain one task to completion.
+ *
+ * Through a TaskRunner rather than by stepping the queue directly: the runner
+ * is what hands a task its IO slot, and a world load now fans its assets out
+ * as sibling tasks that need slots of their own.
+ */
 static void
 run_task(
     struct ToriRS_TaskQueue* queue,
@@ -486,10 +494,18 @@ run_task(
     struct PlatformX_IO* px,
     struct ToriRS_Task* task)
 {
+    struct TaskRunner runner;
+
     assert(task);
+    memset(&runner, 0, sizeof(runner));
+    runner.queue = queue;
+    runner.io = io;
+    runner.px = px;
+    /* Asset loads, like the client's own asset runner: a rebuild fans its
+     * models and textures out as siblings and they have to be allowed to run. */
+    runner.parallel = 1;
     ToriRS_TaskQueue_Add(queue, task);
-    while( ToriRS_TaskQueue_Run(queue, io) == TORIRS_ASYNCIO_STAT_YIELD )
-        PlatformX_IO_Process(px, io);
+    TaskRunner_Drain(&runner);
 }
 
 static void
@@ -605,8 +621,8 @@ test_raft_deck_rebuild(char const* cache_dir)
     run_task(
         queue, io, px,
         CreateTask_WorldLoad(
-            provider, boat_builder, chunks, 1, boat_zone_center, boat_zone_center, 8, zones,
-            NULL, NULL));
+            provider, boat_builder, queue, chunks, 1, boat_zone_center, boat_zone_center, 8,
+            zones, NULL, NULL));
 
     TEST_WEVR_ASSERT(boat_world->_base_tile_x == RAFT_BASE_TILE, "boat base X pinned to the wire");
     TEST_WEVR_ASSERT(boat_world->_base_tile_z == RAFT_BASE_TILE, "boat base Z pinned to the wire");
@@ -663,7 +679,8 @@ test_raft_deck_rebuild(char const* cache_dir)
         run_task(
             queue, io, px,
             CreateTask_WorldLoad(
-                provider, root_builder, root_chunks, count, 404, 404, 104, NULL, NULL, NULL));
+                provider, root_builder, queue, root_chunks, count, 404, 404, 104, NULL, NULL,
+                NULL));
         TEST_WEVR_ASSERT(root_world->load_complete, "root load completes");
         TEST_WEVR_ASSERT(
             root_world->entities.terrain.active_count > 0, "root rebuild fills the root world");
@@ -706,8 +723,8 @@ test_raft_deck_rebuild(char const* cache_dir)
     run_task(
         queue, io, px,
         CreateTask_WorldLoad(
-            provider, boat_builder, chunks, 1, boat_zone_center, boat_zone_center, 8, zones,
-            NULL, NULL));
+            provider, boat_builder, queue, chunks, 1, boat_zone_center, boat_zone_center, 8,
+            zones, NULL, NULL));
     TEST_WEVR_ASSERT(boat_world->load_complete, "boat reload completes");
 
     pool_snapshot_assert_intact(

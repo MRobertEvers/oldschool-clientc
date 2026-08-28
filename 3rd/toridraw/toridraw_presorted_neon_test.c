@@ -439,6 +439,45 @@ run_door(int* fb, const int* rows, int count, enum door door)
     }
 }
 
+/*
+ * WHAT "PASSES" MEANS HERE.
+ *
+ * The three edge slopes come off a packed NEON reciprocal, the WinXP kernels'
+ * EDGESLOPES3 ladder, so the kernels are NOT bit-identical to the C and this
+ * test scores them the way toridraw_flat_tri_asm_test.c scores the i686
+ * ladder: a triangle and pixel budget an order of magnitude above what was
+ * measured and several orders below anything visible. It is not a licence to
+ * drift. Assemble the kernels with -DTORIDRAW_EDGE_IDIV and build this test
+ * with -DTORIDRAW_PRESORTED_EXACT, and both numbers must be exactly zero --
+ * which is what separates a regression in the walk from the approximation
+ * in the slope. The textured kernels carry two more approximations the C
+ * does not (the i686 kernel's rcpss reciprocal of w and its shared
+ * reciprocal of sarea), so they never reach zero and are held to a budget of
+ * their own.
+ */
+#ifdef TORIDRAW_PRESORTED_EXACT
+#define TOL_TRIANGLES_PPM 0
+#define TOL_PIXELS_PPM 0
+#define TOL_TEX_TRIANGLES_PPM 0
+#define TOL_TEX_PIXELS_PPM 0
+#else
+#define TOL_TRIANGLES_PPM 2000    /* 0.2% of triangles may differ; the
+                                   * reciprocal arm measures up to 650  */
+#define TOL_PIXELS_PPM 200        /* 0.02% of drawn pixels; measured 72 */
+#define TOL_TEX_TRIANGLES_PPM 20000
+#define TOL_TEX_PIXELS_PPM 2000
+#endif
+
+struct deviation
+{
+    long triangles;   /* triangles whose standalone raster differs        */
+    long total;       /* triangles scored                                 */
+    long pixels;      /* differing pixels, over those triangles           */
+    long drawn;       /* pixels the reference drew                        */
+    long worst;       /* most differing pixels in one triangle            */
+    long runs;        /* runs that differed                               */
+};
+
 static int
 door_pass(enum door door, int chunks, int* texels)
 {
@@ -447,15 +486,22 @@ door_pass(enum door door, int chunks, int* texels)
     int* fb_a = malloc(sizeof(*fb_a) * ALLOC);
     struct tri t[BATCH_MAX];
     int tex = door >= DOOR_TEX_OPAQUE;
-    int bad = 0;
+    int row_ints = tex ? TORIDRAW_RASTER_TEXBATCH_ROW_INTS : TORIDRAW_GOURAUD_RUN_ROW_INTS;
+    struct deviation d;
+    int printed = 0;
     int chunk;
     long drew = 0;
-    long pixels = 0;
     int fb_hint;
+    double tri_ppm;
+    double px_ppm;
+    int tol_tri = tex ? TOL_TEX_TRIANGLES_PPM : TOL_TRIANGLES_PPM;
+    int tol_px = tex ? TOL_TEX_PIXELS_PPM : TOL_PIXELS_PPM;
+    int ok;
 
     assert(fb_c);
     assert(fb_a);
     memset(&fb_hint, 0x5A, sizeof(fb_hint));
+    memset(&d, 0, sizeof(d));
 
     for( chunk = 0; chunk < chunks; chunk++ )
     {
@@ -486,39 +532,55 @@ door_pass(enum door door, int chunks, int* texels)
 
         run_door(fb_a, rows, count, door);
 
-        {
-            long n = count_drawn(fb_c, fb_hint);
-            if( n )
-            {
-                drew++;
-                pixels += n;
-            }
-        }
+        d.total += count;
+        d.drawn += count_drawn(fb_c, fb_hint);
+        if( d.drawn )
+            drew++;
 
-        if( memcmp(fb_c, fb_a, sizeof(*fb_c) * ALLOC) != 0 )
+        if( memcmp(fb_c, fb_a, sizeof(*fb_c) * ALLOC) == 0 )
+            continue;
+        d.runs++;
+
+        /* The run differed. Replay it one row at a time to attribute the
+         * difference to triangles and pixels: the batch is what is scored,
+         * but the budget is per triangle and the offending geometry is what
+         * a fix needs. A row that writes OUTSIDE the picture is never
+         * tolerated, whatever the budget. */
+        for( i = 0; i < count; i++ )
         {
-            bad++;
-            if( bad <= 5 )
+            int p;
+            long here = 0;
+            int outside = 0;
+
+            memset(fb_c, 0x5A, sizeof(*fb_c) * ALLOC);
+            memset(fb_a, 0x5A, sizeof(*fb_a) * ALLOC);
+            reference(fb_c, &t[i], door, texels);
+            run_door(fb_a, rows + i * row_ints, 1, door);
+            for( p = 0; p < ALLOC; p++ )
             {
-                /* Locate the first differing triangle by replaying the run one
-                 * row at a time: the batch is what is scored, but the offending
-                 * geometry is what a fix needs. */
-                for( i = 0; i < count; i++ )
-                {
-                    memset(fb_c, 0x5A, sizeof(*fb_c) * ALLOC);
-                    memset(fb_a, 0x5A, sizeof(*fb_a) * ALLOC);
-                    reference(fb_c, &t[i], door, texels);
-                    run_door(fb_a, rows + i * (tex ? TORIDRAW_RASTER_TEXBATCH_ROW_INTS
-                                                    : TORIDRAW_GOURAUD_RUN_ROW_INTS),
-                             1, door);
-                    if( compare(fb_c, fb_a, &t[i], chunk * BATCH_MAX + i,
-                                g_door_name[door]) )
-                        break;
-                }
-                if( i == count )
-                    printf("MISMATCH [%s] chunk %d: every row agrees alone -- a "
-                           "carry across the run\n",
-                           g_door_name[door], chunk);
+                if( fb_c[p] == fb_a[p] )
+                    continue;
+                here++;
+                if( p < GUARD || p >= GUARD + PIXELS || (p - GUARD) % STRIDE >= W )
+                    outside = 1;
+            }
+            if( !here )
+                continue;
+            d.triangles++;
+            d.pixels += here;
+            if( here > d.worst )
+                d.worst = here;
+            if( outside || printed < 3 )
+            {
+                compare(fb_c, fb_a, &t[i], chunk * BATCH_MAX + i, g_door_name[door]);
+                printed++;
+            }
+            if( outside )
+            {
+                printf("FAIL: %-17s wrote outside the viewport\n", g_door_name[door]);
+                free(fb_c);
+                free(fb_a);
+                return 1;
             }
         }
     }
@@ -526,11 +588,10 @@ door_pass(enum door door, int chunks, int* texels)
     free(fb_c);
     free(fb_a);
 
-    if( bad )
-    {
-        printf("FAIL: %-17s %d of %d runs differ\n", g_door_name[door], bad, chunks);
-        return 1;
-    }
+    tri_ppm = d.total ? 1e6 * (double)d.triangles / (double)d.total : 0.0;
+    px_ppm = d.drawn ? 1e6 * (double)d.pixels / (double)d.drawn : 0.0;
+    ok = tri_ppm <= (double)tol_tri && px_ppm <= (double)tol_px;
+
     if( drew * 4 < chunks )
     {
         printf("FAIL: %-17s only %ld of %d runs drew anything -- a comparison of two "
@@ -538,9 +599,11 @@ door_pass(enum door door, int chunks, int* texels)
                g_door_name[door], drew, chunks);
         return 1;
     }
-    printf("PASS: %-17s %d runs (counts 1..%d), %ld pixels, every pixel identical\n",
-           g_door_name[door], chunks, BATCH_MAX, pixels);
-    return 0;
+    printf("%s: %-17s %ld/%ld triangles (%.1f ppm), %ld/%ld pixels (%.2f ppm), "
+           "worst %ld px, %ld/%d runs  [budget %d / %d ppm]\n",
+           ok ? "PASS" : "FAIL", g_door_name[door], d.triangles, d.total, tri_ppm,
+           d.pixels, d.drawn, px_ppm, d.worst, d.runs, chunks, tol_tri, tol_px);
+    return ok ? 0 : 1;
 }
 
 int

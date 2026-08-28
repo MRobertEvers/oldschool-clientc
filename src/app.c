@@ -213,6 +213,17 @@ enum
      */
     APP_ASYNC_STEP_LIMIT = 5000,
     /*
+     * How many scheduler passes a task will wait for assets it fanned out.
+     *
+     * A fan-out waits on RESIDENCY rather than on a child task, and residency
+     * is a condition a failed load never reaches (see Task_NpcMultiLoad). The
+     * bound is what turns "this part cannot be served" from a task parked for
+     * the rest of the session into one that carries on without it. Passes, not
+     * frames or milliseconds: it is the unit the waiter is actually counting,
+     * and a slow network spends them no faster than a fast one.
+     */
+    APP_ASSET_WAIT_PASSES = 600,
+    /*
      * Connection-loss thresholds. See the `net_lost` block in app.h.
      *
      * APP_NET_TIMEOUT_MS is the reference's own: Client-TS gives up 15s after
@@ -7203,6 +7214,33 @@ CreateTask_NpcMultiResolve(
 }
 
 /*
+ * Is every part of this npc's body resident?
+ *
+ * The wait condition for the fan-out below. A part id the config does not
+ * carry, and a config that is not resident at all, are both "nothing to wait
+ * for" rather than "not yet": the caller has already resolved the terminal
+ * config, and a body with no parts is a legitimate record.
+ */
+static int
+app_npc_models_resident(
+    struct App* app,
+    int npc_id)
+{
+    struct ToriRS_Npctype* npctype;
+
+    assert(app);
+    npctype = CacheProvider_NpctypeGet(app->provider, npc_id);
+    if( !npctype )
+        return 1;
+    for( int i = 0; i < npctype->models_count; i++ )
+    {
+        if( npctype->models[i] >= 0 && !CacheProvider_ModelHas(app->provider, npctype->models[i]) )
+            return 0;
+    }
+    return 1;
+}
+
+/*
  * A multiNpc cannot be resolved before its wrapper config is resident. The
  * packet path used to try exactly that, get a cache miss, and permanently
  * spawn the model-less wrapper. Keep the config walk and its asset waits in a
@@ -7219,6 +7257,8 @@ struct Task_NpcMultiLoad
     int resolved_npc_id;
     int model_i;
     int seq_i;
+    /** Passes spent waiting for the body parts; see the fan-out below. */
+    int wait_passes;
 };
 
 static int
@@ -7236,16 +7276,50 @@ Task_NpcMultiLoad_Run(
 
     if( self->resolved_npc_id >= 0 )
     {
-        /* The terminal config was loaded by the walk above. Load its complete
-         * body and movement set before the caller mounts/replaces the model. */
-        for( self->model_i = 0;; self->model_i++ )
+        /*
+         * The terminal config was loaded by the walk above. Load its complete
+         * body and movement set before the caller mounts/replaces the model.
+         *
+         * The body parts go out TOGETHER. Awaiting them one at a time is one
+         * network round trip per part on a cache being streamed, and an npc
+         * body is commonly four -- for a roster of a thousand that is the
+         * difference between a world that populates and one that trickles.
+         * They are independent reads with a common consumer, which is exactly
+         * the shape the runner can now overlap: queued as siblings, each gets
+         * its own IO slot and they are all on the wire at once.
+         */
         {
             struct ToriRS_Npctype* npctype =
                 CacheProvider_NpctypeGet(app->provider, self->resolved_npc_id);
-            if( !npctype || self->model_i >= npctype->models_count )
+            for( self->model_i = 0; npctype && self->model_i < npctype->models_count;
+                 self->model_i++ )
+            {
+                struct ToriRS_Task* part = npctype->models[self->model_i] >= 0
+                                               ? CreateTask_ModelLoad(
+                                                     app->provider, npctype->models[self->model_i])
+                                               : NULL;
+                if( part )
+                    ToriRS_TaskQueue_Add(app->runner.queue, part);
+            }
+        }
+        /*
+         * Then wait for them, but not forever.
+         *
+         * Awaiting a task ends when the task ends, however it ended. Waiting on
+         * RESIDENCY does not: a part the cache cannot serve never becomes
+         * resident, and an unbounded wait would strand this npc -- and whoever
+         * awaits it -- for the rest of the session. The budget is generous
+         * enough that no healthy load reaches it and short enough that a broken
+         * one still spawns, missing a part, which is what the old per-part
+         * await did too.
+         */
+        for( self->wait_passes = 0; self->wait_passes < APP_ASSET_WAIT_PASSES;
+             self->wait_passes++ )
+        {
+            if( app_npc_models_resident(app, self->resolved_npc_id) )
                 break;
-            PT_TASK_AWAITSELF_IF(
-                CreateTask_ModelLoad(app->provider, npctype->models[self->model_i]));
+            self->task.blocked = 1;
+            PT_YIELD(&self->pt);
         }
         for( self->seq_i = 0; self->seq_i < 5; self->seq_i++ )
         {
@@ -9198,6 +9272,17 @@ App_Init(
     app->runner.queue = ToriRS_TaskQueue_New();
     app->runner.px = Platform_IO_New();
     assert(app->runner.px != NULL);
+    /*
+     * The asset pipeline runs its tasks in parallel.
+     *
+     * Nothing downstream of a cache read cares which of a region's models,
+     * textures or sprites lands first -- they are independent reads with a
+     * common consumer -- and making each wait for the last is what put a
+     * network round trip between every group of the couple of thousand a
+     * login streams. The game-action queue below stays strictly ordered,
+     * because the server chose the order of the packets that fill it.
+     */
+    app->runner.parallel = 1;
 
     /* Serial game-action pipeline: own queue + io slots, SHARED platform
      * pump (there is exactly one IO backend). */
@@ -12323,6 +12408,7 @@ app_world_load_begin(
     task = CreateTask_WorldLoad(
         app->provider,
         app->world_builder,
+        app->runner.queue,
         chunks_xz,
         chunk_pair_count,
         -1,

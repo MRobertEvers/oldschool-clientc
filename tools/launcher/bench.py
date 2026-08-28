@@ -72,6 +72,17 @@ RENDERER_FLAGS = {
     # switch for this — toridraw.c reads TORIDRAW_RASTER_SCANLINE once in
     # ToriDraw_Init — so the variant lives in RENDERER_ENV, not here.
     "soft3d-scanline": "--soft3d",
+    # The three A/B arms of the AArch64 presorted-run work, same binary and
+    # flag again. `soft3d` is the shipped pipeline: the flat SIMD face cull +
+    # bitonic/radix sort feeding the batched NEON run kernels. `-bucket` is
+    # what it replaced -- the depth-bucket sort and the per-face C kernels;
+    # the other two swap one stage at a time so the sort and the kernels
+    # each get their own number. Selected through the environment for the
+    # same reason as the scanline family: toridraw reads TORIDRAW_FACE_SORT
+    # and TORIDRAW_RASTER_BATCH once, and there is no CLI switch.
+    "soft3d-bucket": "--soft3d",
+    "soft3d-bucket-neon": "--soft3d",
+    "soft3d-flat-perface": "--soft3d",
     "d3d9": "--d3d9",
     "d3d9-zbuffer": "--d3d9-zbuffer",
     "opengl3": "--opengl3",
@@ -83,8 +94,15 @@ RENDERER_FLAGS = {
 # TORIDRAW_RASTER_SCANLINE=1 in the machine's environment cannot quietly turn
 # an A/B into a B/B.
 RENDERER_ENV = {
-    "soft3d": {"TORIDRAW_RASTER_SCANLINE": "0"},
+    "soft3d": {"TORIDRAW_RASTER_SCANLINE": "0",
+               "TORIDRAW_FACE_SORT": "flat", "TORIDRAW_RASTER_BATCH": "1"},
     "soft3d-scanline": {"TORIDRAW_RASTER_SCANLINE": "1"},
+    "soft3d-bucket": {"TORIDRAW_RASTER_SCANLINE": "0",
+                      "TORIDRAW_FACE_SORT": "bucket", "TORIDRAW_RASTER_BATCH": "0"},
+    "soft3d-bucket-neon": {"TORIDRAW_RASTER_SCANLINE": "0",
+                           "TORIDRAW_FACE_SORT": "bucket", "TORIDRAW_RASTER_BATCH": "1"},
+    "soft3d-flat-perface": {"TORIDRAW_RASTER_SCANLINE": "0",
+                            "TORIDRAW_FACE_SORT": "flat", "TORIDRAW_RASTER_BATCH": "0"},
 }
 
 # The stage timers worth a column. `frame` is the whole loop iteration minus

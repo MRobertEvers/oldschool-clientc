@@ -898,6 +898,28 @@ TEXTRI_ASM_OBJ := $(OBJ_DIR)/tex_tri_asm.o
 TORIDRAW_CFLAGS += -DTORIDRAW_TEXTRI_ASM=1
 endif
 
+# --- AArch64 presorted-run kernels (Advanced SIMD) --------------------------
+# The eight standard-definition presorted-run doors -- flat opaque/alpha,
+# gouraud opaque/alpha, textured opaque/trans x flat/shaded -- as NEON twins
+# of the i686 SSE2 kernels above. Same shape as the i686 lanes: the C per-face
+# kernels stay compiled and stay the reference (toridraw_presorted_neon_test.c
+# holds the doors to them), the batched walk takes the asm. Withdrawn from a
+# probe build for the same reason as the i686 kernels: the census and
+# ablation counters live in the C. TORIDRAW_NO_SIMD withdraws it with the rest
+# of the SIMD lanes.
+NEON_TRI_ASM_OBJS :=
+ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
+ifeq ($(PLATFORM),macos)
+ifeq ($(shell uname -m),arm64)
+ifneq ($(TORIDRAW_NO_SIMD),1)
+NEON_TRI_ASM_OBJS := $(OBJ_DIR)/flat_tri_neon.o $(OBJ_DIR)/gouraud_tri_neon.o $(OBJ_DIR)/tex_tri_neon.o
+NEON_TRI_ASM_CFLAGS := -DTORIDRAW_FLAT_TRI_NEON_ASM=1 -DTORIDRAW_GOURAUD_TRI_NEON_ASM=1 -DTORIDRAW_TEXTRI_NEON_ASM=1
+TORIDRAW_CFLAGS += $(NEON_TRI_ASM_CFLAGS)
+endif
+endif
+endif
+endif
+
 # The framebuffer clear. Unlike the three kernels above this one is not
 # withdrawn under the probe builds -- it has no census counters to invalidate,
 # and withdrawing it would make the probe build clear its screen differently
@@ -926,7 +948,7 @@ EIP_SAMPLE_OBJ := $(OBJ_DIR)/toridraw_eip_sample.o
 # the Apple arm64 projection kernel and the x86 Windows texture span, each empty
 # on the lanes that do not have one. Naming the set once is what keeps a target
 # from silently reaching the C through a unity object compiled to call the asm.
-TORIDRAW_UNITY_LINK_OBJS = $(OBJ_DIR)/toridraw_unity.o $(TORIDRAW_PROJECTION_ASM_OBJ) $(TEXSPAN_ASM_OBJ) $(GOURAUD_TRI_ASM_OBJ) $(TEXTRI_ASM_OBJ) $(FLAT_TRI_ASM_OBJ) $(FB_CLEAR_ASM_OBJ) $(FRAME_AB_OBJ) $(EIP_SAMPLE_OBJ)
+TORIDRAW_UNITY_LINK_OBJS = $(OBJ_DIR)/toridraw_unity.o $(TORIDRAW_PROJECTION_ASM_OBJ) $(TEXSPAN_ASM_OBJ) $(GOURAUD_TRI_ASM_OBJ) $(TEXTRI_ASM_OBJ) $(FLAT_TRI_ASM_OBJ) $(FB_CLEAR_ASM_OBJ) $(NEON_TRI_ASM_OBJS) $(FRAME_AB_OBJ) $(EIP_SAMPLE_OBJ)
 # Objects derived from SRCS (one .o per source, flat in OBJ_DIR) plus the
 # out-of-tree/unity extras that have their own rules below. The world_builder
 # pipeline ($(WB_OBJS), incl. wb_minimap.o â the Minimap world.h is written
@@ -1893,6 +1915,18 @@ endif
 ifneq ($(TEXTRI_ASM_SRC),)
 $(TEXTRI_ASM_OBJ): $(TEXTRI_ASM_SRC) $(TORIDRAW_DIR)/graphics/raster/texture/span/tex_span_body.inc | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
+endif
+
+# The AArch64 presorted-run kernels. Same treatment as the i686 lanes: cpp
+# first, no PLATFORM_BASE_CFLAGS. edge_slopes_aarch64.inc is the shared
+# slope reciprocal, so every one of the three depends on it.
+ifneq ($(NEON_TRI_ASM_OBJS),)
+$(OBJ_DIR)/flat_tri_neon.o: $(TORIDRAW_DIR)/graphics/raster/flat/flat_tri_aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
+$(OBJ_DIR)/gouraud_tri_neon.o: $(TORIDRAW_DIR)/graphics/raster/gouraudhsllightness/gouraud_tri_aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
+$(OBJ_DIR)/tex_tri_neon.o: $(TORIDRAW_DIR)/graphics/raster/texture/tex_tri_aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
 endif
 
 # Fourth of the same shape, and the simplest: no include, no template.
@@ -4738,6 +4772,35 @@ test-scene-profiles: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_
 		$(TORIDRAW_DIR)/toridraw_scene_profile_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/scene_profile_test
+
+# The AArch64 presorted-run kernels against the C per-face kernels, all
+# eight doors. The default arm is the reciprocal one (a triangle/pixel ppm
+# budget, as the i686 ladder is scored); NEON_TRI_ASM_FLAGS=-DTORIDRAW_EDGE_IDIV
+# assembles the exact-divide lane, under which the test demands zero.
+# Apple arm64 only -- elsewhere there is no kernel to score.
+# The test includes the unity source itself (it reaches the static C
+# kernels), so it links the three asm objects alone, not the unity object.
+test-presorted-neon: $(OBJ_DIR) $(NEON_TRI_ASM_OBJS)
+ifeq ($(NEON_TRI_ASM_OBJS),)
+	@echo "test-presorted-neon: no kernel for PLATFORM=$(PLATFORM) -- nothing to score"
+else
+	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function \
+		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) $(NEON_TRI_ASM_CFLAGS) \
+		$(NEON_TRI_ASM_FLAGS) -I$(TORIDRAW_DIR) -I$(BMP_DIR) \
+		-o $(OBJ_DIR)/presorted_neon_test \
+		$(TORIDRAW_DIR)/toridraw_presorted_neon_test.c $(NEON_TRI_ASM_OBJS) -lm
+	./$(OBJ_DIR)/presorted_neon_test
+endif
+
+# The flat face sort (SIMD cull + bitonic/radix) against the bucket sort it
+# replaces: order for order, across clip candidates, priorities, the radix
+# threshold and tail faces. Runs on every lane; the SIMD body has a scalar
+# twin, so a lane without NEON still has the sort to hold to the reference.
+test-face-sort-flat: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/face_sort_flat_test \
+		$(TORIDRAW_DIR)/toridraw_face_sort_flat_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/face_sort_flat_test
 
 # Depth-tested raster family: a model tagged TORIDRAW_MODEL_FLAG_ZBUFFER
 # resolves its own faces per pixel, the result does not depend on face order,

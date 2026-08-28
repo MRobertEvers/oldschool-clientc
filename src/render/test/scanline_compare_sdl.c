@@ -252,6 +252,9 @@ run_task(
     struct ToriRS_Task* task)
 {
     assert(task);
+    /* Asset loads: a world rebuild fans its models and textures out as
+     * sibling tasks, which only a parallel runner will step. */
+    viewer->runner.parallel = 1;
     ToriRS_TaskQueue_Add(viewer->runner.queue, task);
     TaskRunner_Drain(&viewer->runner);
 }
@@ -543,7 +546,7 @@ world_load(
     run_task(
         viewer,
         CreateTask_WorldLoad(
-            viewer->provider, viewer->world_builder, chunks, 1, -1, -1, 104, NULL, NULL, NULL));
+            viewer->provider, viewer->world_builder, viewer->runner.queue, chunks, 1, -1, -1, 104, NULL, NULL, NULL));
 
     if( !viewer->world->load_complete )
     {

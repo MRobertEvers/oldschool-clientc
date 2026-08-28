@@ -275,7 +275,10 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     free(scene->tmp_flex_prio11_face_to_depth);
     free(scene->tmp_flex_prio12_face_to_depth);
     free(scene->sm_face_depth);
-    free(scene->sm_face_xy);
+    free(scene->sm_face_x4);
+    free(scene->sm_face_y4);
+    free(scene->sm_sort_keys);
+    free(scene->sm_sort_tmp);
     free(scene->sm_depth_offset);
     free(scene->sm_depth_cursor);
     free(scene->sm_faces_by_depth);
@@ -328,7 +331,16 @@ ToriDraw_SceneAllocBuffers(
          * depth sort fills it. Capacity is max_faces, but the region actually
          * touched is num_faces of whichever model is being drawn, which is a
          * few hundred bytes for the median one. */
-        scene->sm_face_xy = malloc((size_t)caps->max_faces * 8 * sizeof(int));
+        scene->sm_face_x4 = malloc(((size_t)caps->max_faces + 4) * 4 * sizeof(int));
+        scene->sm_face_y4 = malloc(((size_t)caps->max_faces + 4) * 4 * sizeof(int));
+        {
+            size_t keys = 8;
+            while( keys < (size_t)caps->max_faces )
+                keys <<= 1;
+            keys += 4;
+            scene->sm_sort_keys = malloc(keys * sizeof(uint32_t));
+            scene->sm_sort_tmp = malloc(keys * sizeof(uint32_t));
+        }
         /* calloc, not malloc: the counting sort never clears this table whole.
          * Each sort re-zeroes only the [min, max + 1] window it dirtied after
          * its consumer has walked it, so the all-zero state is established
@@ -344,7 +356,10 @@ ToriDraw_SceneAllocBuffers(
             malloc((size_t)caps->flex_prio12 * sizeof(int));
 
         assert(scene->sm_face_depth);
-        assert(scene->sm_face_xy);
+        assert(scene->sm_face_x4);
+        assert(scene->sm_face_y4);
+        assert(scene->sm_sort_keys);
+        assert(scene->sm_sort_tmp);
         assert(scene->sm_depth_offset);
         assert(scene->sm_depth_cursor);
         assert(scene->sm_faces_by_depth);
@@ -769,6 +784,14 @@ ToriDraw_Init(void)
         g_toridraw_raster_scanline = (scanline_env[0] != '0' && scanline_env[0] != '\0');
 }
 
+int g_toridraw_raster_batch_override = -1;
+
+void
+ToriDraw_RasterBatchSetArmed(int enabled)
+{
+    g_toridraw_raster_batch_override = enabled;
+}
+
 void
 ToriDraw_RasterSetScanline(bool enabled)
 {
@@ -828,6 +851,130 @@ toridraw_stock_model_needs_zbuffer(
 #endif
 }
 
+/* ---- The projection and face cull+sort stages as kernels ------------- */
+
+static int
+projection_kernel_default(
+    void* user_data,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera)
+{
+    (void)user_data;
+    return ToriDraw_Project(scene, hnd, position, view_port, camera);
+}
+
+/* A full-mode scene has only the bucket sort: the flat sort's key and stash
+ * buffers are allocated for the small tier alone (ToriDraw_SceneNew), and a
+ * full scene's faces never go to the batched walk. So the two stock face
+ * sorts differ only on a small scene, which is the one the world painter
+ * uses. */
+static int
+face_sort_kernel_bucket(
+    void* user_data,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    bool presort)
+{
+    (void)user_data;
+    if( scene->flags & TORIDRAW_SCENE_SMALL )
+        toridraw_compute_projected_face_order_small(scene, hnd, presort, 0);
+    else
+        ToriDraw_ComputeProjectedFaceOrder(scene, hnd, presort);
+    return scene->tmp_face_order_count;
+}
+
+static int
+face_sort_kernel_flat(
+    void* user_data,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    bool presort)
+{
+    (void)user_data;
+    if( scene->flags & TORIDRAW_SCENE_SMALL )
+        toridraw_compute_projected_face_order_small(scene, hnd, presort, 1);
+    else
+        ToriDraw_ComputeProjectedFaceOrder(scene, hnd, presort);
+    return scene->tmp_face_order_count;
+}
+
+static const struct ToriDraw_ProjectionKernel g_stock_projection_kernel = {
+    .name = "projection",
+    .project = projection_kernel_default,
+};
+
+static const struct ToriDraw_FaceCullSortKernel g_stock_face_sort_bucket = {
+    .name = "bucket",
+    .sort = face_sort_kernel_bucket,
+};
+
+static const struct ToriDraw_FaceCullSortKernel g_stock_face_sort_flat = {
+    .name = "flat",
+    .sort = face_sort_kernel_flat,
+};
+
+const struct ToriDraw_ProjectionKernel*
+ToriDraw_ProjectionKernelGetDefault(void)
+{
+    return &g_stock_projection_kernel;
+}
+
+const struct ToriDraw_FaceCullSortKernel*
+ToriDraw_FaceCullSortKernelGetBucket(void)
+{
+    return &g_stock_face_sort_bucket;
+}
+
+const struct ToriDraw_FaceCullSortKernel*
+ToriDraw_FaceCullSortKernelGetFlat(void)
+{
+    return &g_stock_face_sort_flat;
+}
+
+const struct ToriDraw_FaceCullSortKernel*
+ToriDraw_FaceCullSortKernelGetDefault(void)
+{
+    return toridraw_face_sort_flat_armed() ? &g_stock_face_sort_flat
+                                           : &g_stock_face_sort_bucket;
+}
+
+static inline int
+sd_kernel_project(
+    const struct ToriDraw_RasterKernelSD* kernel,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera)
+{
+    if( kernel->projection )
+    {
+        assert(kernel->projection->project);
+        return kernel->projection->project(
+            kernel->projection->user_data, scene, hnd, position, view_port, camera);
+    }
+    return ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
+}
+
+static inline int
+sd_kernel_sort(
+    const struct ToriDraw_RasterKernelSD* kernel,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    bool presort)
+{
+    if( kernel->face_sort )
+    {
+        assert(kernel->face_sort->sort);
+        return kernel->face_sort->sort(kernel->face_sort->user_data, scene, hnd, presort);
+    }
+    return presort ? ToriDraw_RenderModel2SortFacesPresorted(hnd, scene)
+                   : ToriDraw_RenderModel2SortFaces(hnd, scene);
+}
+
 static int
 sd_render_with_kernel_painter(
     struct ToriDraw_ModelHandle hnd,
@@ -843,7 +990,7 @@ sd_render_with_kernel_painter(
     ToriDraw_RasterKernelSDAssertValid(kernel);
     assert(!(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER));
 
-    cull = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
+    cull = sd_kernel_project(kernel, hnd, scene, position, view_port, camera);
     if( cull != TORIDRAW_CULL_VISIBLE )
         return cull;
 
@@ -851,7 +998,7 @@ sd_render_with_kernel_painter(
      * branching kernels, which is the batched walk's only door. Everything
      * else uses the plain sort next door. */
     if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
-        ToriDraw_RenderModel2SortFacesPresorted(hnd, scene);
+        sd_kernel_sort(kernel, hnd, scene, true);
 
     return ToriDraw_RasterPainter(scene, hnd, view_port, camera, pixel_buffer, kernel)
                ? TORIDRAW_CULL_VISIBLE
@@ -883,12 +1030,12 @@ sd_render_with_kernel_z(
 #else
     int cull;
 
-    cull = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
+    cull = sd_kernel_project(kernel, hnd, scene, position, view_port, camera);
     if( cull != TORIDRAW_CULL_VISIBLE )
         return cull;
 
     if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
-        ToriDraw_RenderModel2SortFaces(hnd, scene);
+        sd_kernel_sort(kernel, hnd, scene, false);
 
     return ToriDraw_RasterZ(scene, hnd, view_port, camera, pixel_buffer, kernel)
                ? TORIDRAW_CULL_VISIBLE

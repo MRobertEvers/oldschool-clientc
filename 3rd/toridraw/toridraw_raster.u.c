@@ -41,10 +41,12 @@ struct ToriDrawModelRasterContext
     hsl16_t* colors_a;
     hsl16_t* colors_b;
     hsl16_t* colors_c;
-    /* scene->sm_face_xy: the six screen coordinates and the near-clip flag the
-     * depth sort already had in registers. Only the sorted painter walk reads
-     * it, and only for faces that sort accepted. */
-    int* face_xy;
+    /* scene->sm_face_x4 / sm_face_y4: the six screen coordinates, the
+     * near-clip flag and the y-sort permutation the depth sort already had in
+     * registers. Only the sorted painter walk reads them, and only for faces
+     * the sort accepted. */
+    int* face_x4;
+    int* face_y4;
     alphaint_t* face_alphas_nullable;
     int offset_x;
     int offset_y;
@@ -1198,7 +1200,8 @@ toridraw_raster_context_init(
     model = model_as_full(hnd);
     context_from_handle(scene, hnd, view_port, camera, ctx);
     ctx->kernel = *kernel;
-    ctx->face_xy = scene->sm_face_xy;
+    ctx->face_x4 = scene->sm_face_x4;
+    ctx->face_y4 = scene->sm_face_y4;
     clip_left = view_port->clip_left > 0 ? view_port->clip_left : 0;
     clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
     ctx->pixel_buffer = pixel_buffer + clip_left + clip_top * ctx->stride;
@@ -1299,9 +1302,8 @@ enum ToriDraw_RasterBatchClass
 
 #define TORIDRAW_RASTER_BATCH_IS_TEX(k) ((k) >= TORIDRAW_RASTER_BATCH_TEX_OPAQUE)
 
-/* Twenty of the twenty-four are the kernel's arguments, lane 20 is the gate,
- * and the last three are padding to keep the row 16-byte aligned. */
-#define TORIDRAW_RASTER_TEXBATCH_ROW_INTS 24
+/* The textured row's lanes are laid out by tex_tri_asm.h: twenty-four ints,
+ * the texel pointer taking one lane on i686 and two on an LP64 host. */
 #define TORIDRAW_RASTER_TEXBATCH_ROWS 32
 
 struct ToriDraw_RasterBatch
@@ -1337,11 +1339,6 @@ static _Alignas(16) int g_toridraw_raster_batch
  * and only one of the two is live at a time -- a run is a single class. */
 static _Alignas(16) int g_toridraw_raster_texbatch
     [TORIDRAW_RASTER_TEXBATCH_ROWS * TORIDRAW_RASTER_TEXBATCH_ROW_INTS];
-
-/* The texel pointer travels in an int lane. Guaranteed by construction rather
- * than hoped for: this whole file is behind the i686 batch kernels. */
-_Static_assert(sizeof(void*) == sizeof(int),
-               "the batched texture row carries a texel pointer in an int lane");
 
 /* The per-face path's own bisect knob, asked the same way. A face it would
  * have dropped must not be drawn here instead. */
@@ -1553,7 +1550,7 @@ toridraw_raster_batch_classify_textured(
     /* A near-clipped face is rebuilt by the clip builder, which produces
      * geometry this row cannot describe. The sort already answered the
      * question, so this is a lane read rather than three gathered ones. */
-    if( ctx->near_clipped && ctx->face_xy[(size_t)face * 8 + 3] )
+    if( ctx->near_clipped && ctx->face_x4[(size_t)face * 4 + 3] )
         return TORIDRAW_RASTER_BATCH_NONE;
 
     if( !ctx->orthographic_vertex_x_nullable || !ctx->orthographic_vertex_y_nullable ||
@@ -1616,7 +1613,7 @@ toridraw_raster_batch_classify(
     if( alpha <= 1 )
         return TORIDRAW_RASTER_BATCH_NONE;
 
-    if( ctx->near_clipped && ctx->face_xy[(size_t)face * 8 + 3] )
+    if( ctx->near_clipped && ctx->face_x4[(size_t)face * 4 + 3] )
         return TORIDRAW_RASTER_BATCH_NONE;
 
     out->alpha = alpha;
@@ -1663,29 +1660,30 @@ toridraw_raster_batch_append_textured(
     const struct ToriDraw_RasterBatchFace* info,
     struct ToriDraw_RasterBatch* batch)
 {
-    int const* const xy = &ctx->face_xy[(size_t)face * 8];
+    int const* const x4 = &ctx->face_x4[(size_t)face * 4];
+    int const* const y4 = &ctx->face_y4[(size_t)face * 4];
     int* const row = g_toridraw_raster_texbatch +
                      batch->count * TORIDRAW_RASTER_TEXBATCH_ROW_INTS;
     int const* const ox_arr = ctx->orthographic_vertex_x_nullable;
     int const* const oy_arr = ctx->orthographic_vertex_y_nullable;
     int const* const oz_arr = ctx->orthographic_vertex_z_nullable;
 
-    row[0] = xy[0] + ctx->offset_x;
-    row[1] = xy[1] + ctx->offset_x;
-    row[2] = xy[2] + ctx->offset_x;
-    row[3] = xy[4] + ctx->offset_y;
-    row[4] = xy[5] + ctx->offset_y;
-    row[5] = xy[6] + ctx->offset_y;
+    row[TORIDRAW_TEXBATCH_LANE_X + 0] = x4[0] + ctx->offset_x;
+    row[TORIDRAW_TEXBATCH_LANE_X + 1] = x4[1] + ctx->offset_x;
+    row[TORIDRAW_TEXBATCH_LANE_X + 2] = x4[2] + ctx->offset_x;
+    row[TORIDRAW_TEXBATCH_LANE_Y + 0] = y4[0] + ctx->offset_y;
+    row[TORIDRAW_TEXBATCH_LANE_Y + 1] = y4[1] + ctx->offset_y;
+    row[TORIDRAW_TEXBATCH_LANE_Y + 2] = y4[2] + ctx->offset_y;
 
-    row[6] = ox_arr[info->p];
-    row[7] = ox_arr[info->m];
-    row[8] = ox_arr[info->n];
-    row[9] = oy_arr[info->p];
-    row[10] = oy_arr[info->m];
-    row[11] = oy_arr[info->n];
-    row[12] = oz_arr[info->p];
-    row[13] = oz_arr[info->m];
-    row[14] = oz_arr[info->n];
+    row[TORIDRAW_TEXBATCH_LANE_OX + 0] = ox_arr[info->p];
+    row[TORIDRAW_TEXBATCH_LANE_OX + 1] = ox_arr[info->m];
+    row[TORIDRAW_TEXBATCH_LANE_OX + 2] = ox_arr[info->n];
+    row[TORIDRAW_TEXBATCH_LANE_OY + 0] = oy_arr[info->p];
+    row[TORIDRAW_TEXBATCH_LANE_OY + 1] = oy_arr[info->m];
+    row[TORIDRAW_TEXBATCH_LANE_OY + 2] = oy_arr[info->n];
+    row[TORIDRAW_TEXBATCH_LANE_OZ + 0] = oz_arr[info->p];
+    row[TORIDRAW_TEXBATCH_LANE_OZ + 1] = oz_arr[info->m];
+    row[TORIDRAW_TEXBATCH_LANE_OZ + 2] = oz_arr[info->n];
 
     if( kind == TORIDRAW_RASTER_BATCH_TEX_FLAT_OPAQUE ||
         kind == TORIDRAW_RASTER_BATCH_TEX_FLAT_TRANS )
@@ -1694,23 +1692,23 @@ toridraw_raster_batch_append_textured(
          * 16 and 17 are left as the previous row left them on purpose:
          * writing them would be two stores per face for a value with no
          * consumer. */
-        row[15] = ctx->colors_a[face];
+        row[TORIDRAW_TEXBATCH_LANE_SHADE] = ctx->colors_a[face];
     }
     else
     {
         /* Per-vertex shades, so they follow the sort's permutation. */
-        unsigned char const* const o = g_toridraw_raster_batch_order[xy[7]];
+        unsigned char const* const o = g_toridraw_raster_batch_order[y4[3]];
         int const col[3] = { ctx->colors_a[face], ctx->colors_b[face],
                              ctx->colors_c[face] };
-        row[15] = col[o[0]];
-        row[16] = col[o[1]];
-        row[17] = col[o[2]];
+        row[TORIDRAW_TEXBATCH_LANE_SHADE + 0] = col[o[0]];
+        row[TORIDRAW_TEXBATCH_LANE_SHADE + 1] = col[o[1]];
+        row[TORIDRAW_TEXBATCH_LANE_SHADE + 2] = col[o[2]];
     }
 
-    row[18] = (int)(intptr_t)info->texels;
-    row[19] = info->texture_width;
-    row[20] = info->gate;
-    /* 21..23 pad the row to 16 bytes; TLOADROW never reads them. */
+    TORIDRAW_TEXBATCH_SET_TEXELS(row, info->texels);
+    row[TORIDRAW_TEXBATCH_LANE_TW] = info->texture_width;
+    row[TORIDRAW_TEXBATCH_LANE_GATE] = info->gate;
+    /* The rest pads the row to 16 bytes; no kernel reads it. */
 
     batch->kind = kind;
     batch->count++;
@@ -1725,7 +1723,8 @@ toridraw_raster_batch_append(
     int alpha,
     struct ToriDraw_RasterBatch* batch)
 {
-    int const* const xy = &ctx->face_xy[(size_t)face * 8];
+    int const* const x4 = &ctx->face_x4[(size_t)face * 4];
+    int const* const y4 = &ctx->face_y4[(size_t)face * 4];
     int* const row =
         g_toridraw_raster_batch + batch->count * TORIDRAW_RASTER_BATCH_ROW_INTS;
     int const ox = ctx->offset_x;
@@ -1735,19 +1734,19 @@ toridraw_raster_batch_append(
      * holding for the winding. Nothing here reorders anything; the viewport
      * offset is the only arithmetic left, and it is here rather than in the
      * sort because the sort does not know the viewport. */
-    row[0] = xy[0] + ox;
-    row[1] = xy[1] + ox;
-    row[2] = xy[2] + ox;
-    row[4] = xy[4] + oy;
-    row[5] = xy[5] + oy;
-    row[6] = xy[6] + oy;
+    row[0] = x4[0] + ox;
+    row[1] = x4[1] + ox;
+    row[2] = x4[2] + ox;
+    row[4] = y4[0] + oy;
+    row[5] = y4[1] + oy;
+    row[6] = y4[2] + oy;
 
     if( kind == TORIDRAW_RASTER_BATCH_GOURAUD ||
         kind == TORIDRAW_RASTER_BATCH_GOURAUD_ALPHA )
     {
         /* The colours are per-vertex, so they follow the same permutation the
          * sort applied to the coordinates. */
-        unsigned char const* const o = g_toridraw_raster_batch_order[xy[7]];
+        unsigned char const* const o = g_toridraw_raster_batch_order[y4[3]];
         int const col[3] = { ctx->colors_a[face], ctx->colors_b[face],
                              ctx->colors_c[face] };
 

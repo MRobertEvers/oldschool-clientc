@@ -1928,8 +1928,9 @@ bucket_sort_by_average_depth_small(
                  */
                 if( stash_xy )
                 {
-                int* const xy = &scene->sm_face_xy[(size_t)f * 8];
-                xy[3] = clip_candidate ? 1 : 0;
+                int* const x4 = &scene->sm_face_x4[(size_t)f * 4];
+                int* const y4 = &scene->sm_face_y4[(size_t)f * 4];
+                x4[3] = clip_candidate ? 1 : 0;
                 if( !clip_candidate )
                 {
                     /*
@@ -1963,16 +1964,16 @@ bucket_sort_by_average_depth_small(
                     int const px[3] = { vx[a], vx[b], vx[c] };
                     int const py[3] = { ya, yb, yc };
 
-                    xy[0] = px[o[0]];
-                    xy[1] = px[o[1]];
-                    xy[2] = px[o[2]];
-                    xy[4] = py[o[0]];
-                    xy[5] = py[o[1]];
-                    xy[6] = py[o[2]];
+                    x4[0] = px[o[0]];
+                    x4[1] = px[o[1]];
+                    x4[2] = px[o[2]];
+                    y4[0] = py[o[0]];
+                    y4[1] = py[o[1]];
+                    y4[2] = py[o[2]];
                     /* The permutation itself, for the consumers that carry
                      * per-vertex data of their own -- gouraud's three colours,
                      * and the texture frame's three vertex indices. */
-                    xy[7] = perm;
+                    y4[3] = perm;
                 }
                 }
 
@@ -2105,6 +2106,8 @@ bucket_sort_by_average_depth_small(
 
     return (min_d) | (max_d << 16);
 }
+
+#include "toridraw_face_sort_flat.u.c"
 
 /**
  * Small-scene twin of partition_and_accumulate_faces_by_priority(): the same
@@ -2265,10 +2268,11 @@ sort_face_draw_order_small(
 }
 
 static inline void
-ToriDraw_ComputeProjectedFaceOrderSmall(
+toridraw_compute_projected_face_order_small(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
-    bool presort)
+    bool presort,
+    int flat)
 {
     struct ToriDraw_FaceSortDebugStats debug_stats_storage;
     struct ToriDraw_FaceSortDebugStats* debug_stats = NULL;
@@ -2318,6 +2322,38 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
     {
         toridraw_face_sort_debug_init(&debug_stats_storage);
         debug_stats = &debug_stats_storage;
+    }
+
+    /* The flat sort: SIMD cull into composite keys, then bitonic or radix.
+     * The debug counters live in the bucket sort, so a run that asks for
+     * them goes there; everything else takes this. */
+    if( !debug_stats && flat )
+    {
+        int const n = toridraw_face_sort_flat(
+            scene, presort, scene->near_clipped, model_min_depth, face_count,
+            scene->screen_vertices_x, scene->screen_vertices_y, scene->screen_vertices_z,
+            fia, fib, fic);
+        const uint32_t* keys = scene->sm_sort_keys;
+        int i;
+
+        if( !face_priorities )
+        {
+            for( i = 0; i < n; i++ )
+                scene->tmp_face_order[i] = (int)(keys[i] & 0xFFFF);
+            scene->tmp_face_order_count = n;
+            return;
+        }
+
+        {
+            int priority_depths[12] = { 0 };
+            int counts[12] = { 0 };
+
+            partition_and_accumulate_faces_by_priority_keys(
+                scene, keys, n, priority_depths, counts, face_priorities);
+            scene->tmp_face_order_count = sort_face_draw_order_small(
+                scene, scene->tmp_face_order, priority_depths, counts);
+        }
+        return;
     }
 
     int bounds = bucket_sort_by_average_depth_small(
@@ -2384,6 +2420,17 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
     if( debug_stats )
         toridraw_face_sort_debug_print(
             scene, hnd, debug_stats, scene->tmp_face_order_count);
+}
+
+/* The plain entry: the sort the environment / ToriDraw_FaceSortSetFlat name. */
+static inline void
+ToriDraw_ComputeProjectedFaceOrderSmall(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    bool presort)
+{
+    toridraw_compute_projected_face_order_small(
+        scene, hnd, presort, toridraw_face_sort_flat_armed());
 }
 
 /*

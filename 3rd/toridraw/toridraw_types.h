@@ -826,9 +826,21 @@ struct ToriDraw_Scene
      * Only faces the sort ACCEPTED have meaningful entries, and only they can
      * appear in tmp_face_order, so no consumer can read a stale one.
      */
-    int* sm_face_xy;
+    /* Two planes, four ints per face each, so the NEON sort can write four
+     * faces with two interleaving stores: sm_face_x4 = {x0, x1, x2, clip},
+     * sm_face_y4 = {y0, y1, y2, perm}. Allocated max_faces + 4 records, since
+     * the vector sort writes whole blocks of four. */
+    int* sm_face_x4;
+    int* sm_face_y4;
     /*
-     * Whether the LAST sort actually filled sm_face_xy, which is not the same
+     * The flat sort's composite keys, (0xFFFF - depth) << 16 | face, and
+     * the radix sort's bounce buffer. Sized to the next power of two above
+     * max_faces plus four lanes of slack for the unconditional pack store.
+     */
+    uint32_t* sm_sort_keys;
+    uint32_t* sm_sort_tmp;
+    /*
+     * Whether the LAST sort actually filled sm_face_x4/y4, which is not the same
      * question as whether the build can. Three things have to hold -- the
      * caller asked (ToriDraw_RenderModel2SortFacesPresorted rather than the
      * plain entry), the batched kernels are armed, and this is a small-mode

@@ -122,6 +122,11 @@ test_profile(void)
         TEST_ASSERT(profile.chrome.plugin_button_w == -1, "button width unstated");
         TEST_ASSERT(profile.chrome.plugin_button_h == -1, "button height unstated");
         TEST_ASSERT(profile.chrome.plugin_button_op[0] == '\0', "button op unstated");
+        TEST_ASSERT(profile.chrome.plugin_button_anchor[0] == '\0', "anchor unstated");
+        TEST_ASSERT(
+            profile.chrome.plugin_button_align == REVCONFIG_CHROME_ALIGN_NONE,
+            "align unstated");
+        TEST_ASSERT(profile.chrome.plugin_button_margin == -1, "margin unstated");
     }
 
     /* The rev-239 mount, whole -- and the interface root is child 0, so a real
@@ -155,6 +160,46 @@ test_profile(void)
         TEST_ASSERT(profile.chrome.plugin_button_y == 180, "y overridden");
         TEST_ASSERT(strcmp(profile.chrome.plugin_iface, "logout") == 0, "iface survives");
         TEST_ASSERT(profile.chrome.plugin_button_w == 144, "width survives");
+    }
+
+    /* The anchored mount: a role to cut the plate from, and the one thing the
+     * role cannot say -- which end of the panel it goes. */
+    {
+        struct RevConfigProfile profile;
+        RevConfigProfile_Init(&profile);
+        merge_ini(
+            &profile,
+            "[chrome]\n"
+            "plugin_button_iface=logout\n"
+            "plugin_button_parent=0\n"
+            "plugin_button_anchor=logout_button\n"
+            "plugin_button_align=top\n"
+            "plugin_button_margin=15\n");
+        TEST_ASSERT(
+            strcmp(profile.chrome.plugin_button_anchor, "logout_button") == 0,
+            "anchor stated");
+        TEST_ASSERT(
+            profile.chrome.plugin_button_align == REVCONFIG_CHROME_ALIGN_TOP,
+            "align stated");
+        TEST_ASSERT(profile.chrome.plugin_button_margin == 15, "margin stated");
+        /* A margin of zero is a plate flush with the panel's edge, which is a
+         * placement and not an omission. */
+        merge_ini(&profile, "[chrome]\nplugin_button_align=bottom\nplugin_button_margin=0\n");
+        TEST_ASSERT(
+            profile.chrome.plugin_button_align == REVCONFIG_CHROME_ALIGN_BOTTOM,
+            "align overridden");
+        TEST_ASSERT(profile.chrome.plugin_button_margin == 0, "flush margin stated");
+        TEST_ASSERT(
+            strcmp(profile.chrome.plugin_button_anchor, "logout_button") == 0,
+            "anchor survives");
+
+        /* An edge this client has no meaning for is reported and left alone,
+         * for the same reason an unparseable number is: guessing puts the
+         * plate over the panel's own controls. */
+        merge_ini(&profile, "[chrome]\nplugin_button_align=middle\n");
+        TEST_ASSERT(
+            profile.chrome.plugin_button_align == REVCONFIG_CHROME_ALIGN_BOTTOM,
+            "unknown edge ignored");
     }
 
     /* A geometry of nothing is an invisible button, not a smaller one: it is

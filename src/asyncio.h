@@ -677,6 +677,34 @@ ToriRS_TaskQueue_RunTask(
     }
 }
 
+/*
+ * Drain the head, and only the head: strict FIFO.
+ *
+ * The ordering guarantee some queues need and others merely used to have. A
+ * packet queue is the first kind -- VARP, PLAYER_INFO, VARP arrive in an order
+ * the server chose and must be applied in it, even when the middle one parks
+ * on a model load -- so it keeps this driver. An asset queue is the second:
+ * nothing downstream cares which of a region's models lands first, and making
+ * them wait for each other is what cost a round trip per model
+ * (TaskRunner_Step, parallel).
+ *
+ * Returns when the head yields for any reason, or when the queue empties.
+ */
+static inline int
+ToriRS_TaskQueue_Run(
+    struct ToriRS_TaskQueue* queue,
+    struct ToriRS_IO* io)
+{
+    assert(queue != NULL);
+    while( queue->head != NULL )
+    {
+        int stat = ToriRS_TaskQueue_RunTask(queue, io, queue->head);
+        if( stat != TORIRS_ASYNCIO_STAT_DONE )
+            return stat;
+    }
+    return TORIRS_ASYNCIO_STAT_DONE;
+}
+
 static inline void
 ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
 {

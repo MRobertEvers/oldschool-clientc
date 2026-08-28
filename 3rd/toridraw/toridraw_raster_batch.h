@@ -26,6 +26,9 @@
 
 #include <stdlib.h>
 
+/* The benchmark's override; -1 = the environment decides. */
+extern int g_toridraw_raster_batch_override;
+
 /* TORIDRAW_RASTER_BATCH=0 puts the per-face walk back, in the same binary,
  * which is how the two are A/B'd on the box. Read once; off is one predicted
  * branch, and the sort's hot loop hoists it out. */
@@ -33,6 +36,8 @@ static inline int
 toridraw_raster_batch_armed(void)
 {
     static int armed = -1;
+    if( g_toridraw_raster_batch_override >= 0 )
+        return g_toridraw_raster_batch_override;
     if( armed < 0 )
     {
         const char* v = getenv("TORIDRAW_RASTER_BATCH");

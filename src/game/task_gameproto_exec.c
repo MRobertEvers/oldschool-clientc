@@ -263,8 +263,9 @@ Task_GameProtoExec_Run(
          * below, so the entity shift can land between the scene swap and
          * App_WorldLoadFinish (which the shift must precede). */
         PT_TASK_AWAITSELF_IF(CreateTask_WorldLoad(
-            app->provider, rebuild_view(self)->builder, self->chunks, self->chunk_count,
-            self->zone_x, self->zone_z, 104, self->packet._map_rebuild.zones, NULL, NULL));
+            app->provider, rebuild_view(self)->builder, app->runner.queue, self->chunks,
+            self->chunk_count, self->zone_x, self->zone_z, 104,
+            self->packet._map_rebuild.zones, NULL, NULL));
         /* The load's final step swapped the scene synchronously (same
          * task drain — no frame renders in between): relocate the kept
          * entities before any later packet or frame reads them, then run
@@ -396,8 +397,9 @@ Task_GameProtoExec_Run(
                 self->wev_scene_size,
                 self->chunk_count);
         PT_TASK_AWAITSELF_IF(CreateTask_WorldLoad(
-            app->provider, wev_view(self)->builder, self->chunks, self->chunk_count,
-            self->zone_x, self->zone_z, self->wev_scene_size, self->wev_zones, NULL, NULL));
+            app->provider, wev_view(self)->builder, app->runner.queue, self->chunks,
+            self->chunk_count, self->zone_x, self->zone_z, self->wev_scene_size,
+            self->wev_zones, NULL, NULL));
         if( getenv("TORIRS_WEV_DEBUG") )
             fprintf(
                 stderr,

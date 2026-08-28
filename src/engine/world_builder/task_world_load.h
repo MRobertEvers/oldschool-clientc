@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 struct CacheProvider;
+struct ToriRS_TaskQueue;
 struct WorldBuilder;
 struct ToriRS_Task;
 
@@ -41,6 +42,7 @@ struct ToriRS_Task*
 CreateTask_WorldLoad(
     struct CacheProvider* provider,
     struct WorldBuilder* builder,
+    struct ToriRS_TaskQueue* queue,
     const int* chunks_xz,
     int chunk_count,
     int zone_center_x,

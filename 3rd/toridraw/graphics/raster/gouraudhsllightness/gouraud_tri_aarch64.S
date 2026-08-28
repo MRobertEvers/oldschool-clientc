@@ -17,12 +17,10 @@
  *     accumulator and its two steps, the row pointer, the segment counts --
  *     lives in registers for the whole triangle. The i686 kernel spent its
  *     effort choosing which four values got a register; this one has thirty.
- *   - The three edge slopes are exact `sdiv`s, and the two colour gradients
- *     are the C's own double reciprocal and multiply
- *     (gouraudhsllightness_barycentric_steps.h): one fdiv, two fmul, two
- *     fcvtzs, the same IEEE operations in the same order. So the kernel is
- *     bit-identical to the C, not merely close, and the parity test holds it
- *     to every pixel with no rounding budget.
+ *   - The three edge slopes come off one packed NEON reciprocal, the i686
+ *     kernel's EDGESLOPES3 ladder (edge_slopes_aarch64.inc). The two colour
+ *     gradients share one double reciprocal of sarea, as the i686 kernel and
+ *     the C both do: one fdiv, two fmul, two fcvtzs.
  *   - The fill is toridraw_gouraud_span_fill_short transcribed: one palette
  *     lookup per FOUR pixels, phased from x_start, stored as one q register;
  *     the 1..3 tail is three stores and two conditional indices. The 4-pixel
@@ -32,9 +30,12 @@
  *     C does; the edges are stepped before the fill, which frees them from
  *     the fill's register pressure -- the same schedule the i686 kernel uses.
  *
- * EXACTNESS. Bit-identical to
+ * EXACTNESS. Scored against
  * raster_gouraudhsllightness_screen_opaque_bary_branching_s4() and the alpha
- * twin, framebuffer against framebuffer (toridraw_presorted_neon_test.c).
+ * twin, framebuffer against framebuffer (toridraw_presorted_neon_test.c),
+ * on the i686 kernel's triangle and pixel budget. The walk and both fills
+ * are bit-identical: assembled with -DTORIDRAW_EDGE_IDIV the test demands
+ * every pixel identical, and gets it.
  *
  * ROW LAYOUT. `rows` is `count` 48-byte records: x0,x1,x2,pad / y0,y1,y2,pad
  * / c0,c1,c2,alpha -- already in y order, colours permuted with the vertices,
@@ -58,6 +59,8 @@
 #define R_A   44
 #define ROWBYTES 48
 
+#include "graphics/raster/edge_slopes_aarch64.inc"
+
 	.text
 	.p2align 2
 
@@ -67,6 +70,7 @@
  *   x0  pixel_buffer          w1  stride (pixels)      w2 screen_width
  *   w3  screen_height         x4  current row          w5 rows left
  *   x6  stride * 4 (bytes)    x7  g_hsl16_to_rgb_table
+ *   v17 65536.0f x4  v18 {0,0,-1,0}    (edge slope constants)
  *   w8  step_y_hsl_ish8       (per-row colour step)
  *   w15 sxAC  w16 sxAB  w17 sxBC        (16.16 edge steps)
  *   w19 eAC   w20 eAB   w21 eBC         (16.16 edge x)
@@ -292,9 +296,10 @@
 .macro SETUP_ALPHA
 	ldr	w11, [x4, #R_A]
 	dup	v7.8h, w11			/* alpha x8                          */
-	mov	w14, #255
-	sub	w14, w14, w11
-	dup	v2.8h, w14			/* 255 - alpha, x8                   */
+	/* w26 (dy_BC) is dead once the BC slope is taken; w14 (y2) is not. */
+	mov	w26, #255
+	sub	w26, w26, w11
+	dup	v2.8h, w26			/* 255 - alpha, x8                   */
 	mvni	v3.4s, #0xFF, lsl #24		/* 0x00FFFFFF x4                     */
 .endm
 
@@ -343,15 +348,12 @@
 	fmul	d2, d2, d1
 	fcvtzs	w8, d2				/* step_y_hsl_ish8                   */
 
-	/* The three edge slopes, exact; sdiv by zero is the C's "else 0". */
+	/* The three edge slopes, all three at once, off one packed reciprocal.
+	 * See edge_slopes_aarch64.inc. AFTER the colour steps, whose double
+	 * reciprocal lives in d1 -- the ladder scratches v19-v23 only. */
 	sub	w26, w14, w13			/* dy_BC                             */
 	sub	w27, w11, w10			/* dx_BC                             */
-	lsl	w15, w20, #16
-	sdiv	w15, w15, w19
-	lsl	w16, w21, #16
-	sdiv	w16, w16, w23
-	lsl	w17, w27, #16
-	sdiv	w17, w17, w26
+	EDGESLOPES3 w20, w21, w27, w19, w23, w26, w15, w16, w17, w11
 
 	/* hsl = (step_x + (color0 << 8)) - x0*step_x, all modular */
 	lsl	w27, w25, #8
@@ -412,8 +414,10 @@
 /* ---- AB/BC on the left, AC on the right ---- */
 \p\()branchA:
 	NOHCLIP w20, w16, w19, w15, w23, w25
-	madd	w9, w23, w15, w19
-	NOHCLIP w21, w17, w9, w15, w24, w26
+	/* BC is not advanced during the first trapezoid; AC is. w11, not one
+	 * of NOHCLIP's own scratch registers. */
+	madd	w11, w23, w15, w19
+	NOHCLIP w21, w17, w11, w15, w24, w26
 	SEGMENT w20, w19, w16, w15, w25, w23, \fill
 	SEGMENT w21, w19, w17, w15, w26, w24, \fill
 	b	\p\()next
@@ -421,8 +425,8 @@
 /* ---- AC on the left, AB/BC on the right ---- */
 \p\()branchB:
 	NOHCLIP w19, w15, w20, w16, w23, w25
-	madd	w9, w23, w15, w19
-	NOHCLIP w9, w15, w21, w17, w24, w26
+	madd	w11, w23, w15, w19
+	NOHCLIP w11, w15, w21, w17, w24, w26
 	SEGMENT w19, w20, w15, w16, w25, w23, \fill
 	SEGMENT w19, w21, w15, w17, w26, w24, \fill
 
@@ -447,6 +451,7 @@
 	adrp	x7, :got:g_hsl16_to_rgb_table
 	ldr	x7, [x7, :got_lo12:g_hsl16_to_rgb_table]
 #endif
+	EDGECONST
 .endm
 
 .macro LEAVE

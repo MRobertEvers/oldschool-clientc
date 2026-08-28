@@ -63,6 +63,15 @@ idset_add(
     s->count++;
 }
 
+/*
+ * How many scheduler passes the rebuild waits for its fanned-out models.
+ *
+ * See the wait itself: residency is a condition a failed load never reaches,
+ * so the wait needs a floor under it. Passes rather than frames, because that
+ * is the unit the waiter counts.
+ */
+#define WORLD_LOAD_ASSET_WAIT_PASSES 600
+
 struct Task_WorldLoad
 {
     struct ToriRS_Task task;
@@ -70,6 +79,14 @@ struct Task_WorldLoad
 
     struct CacheProvider* provider;
     struct WorldBuilder* builder;
+    /*
+     * Where this task puts work it wants done ALONGSIDE it rather than inside
+     * it -- the region's loc models (step 4b). It is the queue this task is
+     * itself on; a sibling is a task, not a subtask, which is the whole point:
+     * the runner can have several of them in flight at once, and their reads go
+     * out together instead of nose to tail.
+     */
+    struct ToriRS_TaskQueue* queue;
     int chunks_xz[WORLD_LOAD_MAX_CHUNKS * 2];
     int chunk_count;
     /* >= 0: RebuildCenterzone(zone, scene_size). < 0: RebuildChunklist. */
@@ -101,7 +118,85 @@ struct Task_WorldLoad
     int i;
     int pass;
     int added;
+    /** Passes spent waiting for the fanned-out loc models. */
+    int wait_passes;
 };
+
+/*
+ * A residency test and a loader factory, both shaped (provider, id).
+ *
+ * Every stage of the load below is the same three steps over a different kind
+ * of record -- ask what is missing, queue it, wait for it -- so the stages say
+ * which kind and share the rest.
+ */
+typedef bool (*WorldLoadHasFn)(struct CacheProvider*, int);
+typedef struct ToriRS_Task* (*WorldLoadMakeFn)(struct CacheProvider*, int);
+
+/*
+ * Queue a loader for every id in `ids` that is not already resident.
+ *
+ * Queued as SIBLINGS of this task rather than awaited inside it, which is the
+ * whole point: they are independent reads, so the runner can have them all on
+ * the wire at once instead of one per round trip. Nothing downstream of a
+ * cache read cares which of them lands first.
+ */
+static void
+world_load_fanout(
+    struct Task_WorldLoad* self,
+    struct WorldLoadIdSet const* ids,
+    WorldLoadHasFn has,
+    WorldLoadMakeFn make)
+{
+    assert(self);
+    assert(self->queue);
+    assert(ids);
+    for( int i = 0; i < ids->count; i++ )
+    {
+        struct ToriRS_Task* load;
+
+        if( has(self->provider, ids->items[i]) )
+            continue;
+        load = make(self->provider, ids->items[i]);
+        if( load )
+            ToriRS_TaskQueue_Add(self->queue, load);
+    }
+}
+
+/** Is every id in the set resident? The fan-out's wait condition. */
+static int
+world_load_set_resident(
+    struct CacheProvider* provider,
+    struct WorldLoadIdSet const* ids,
+    WorldLoadHasFn has)
+{
+    assert(ids);
+    for( int i = 0; i < ids->count; i++ )
+    {
+        if( !has(provider, ids->items[i]) )
+            return 0;
+    }
+    return 1;
+}
+
+/*
+ * Wait for a fanned-out set, bounded.
+ *
+ * A macro because it suspends, and the bound is not optional: this waits on
+ * RESIDENCY, and a record the cache cannot serve never becomes resident.
+ * Awaiting a task ended when the task ended, however it ended; an unbounded
+ * residency wait would strand a whole rebuild on one bad id, so the budget is
+ * set far above any healthy load and reaching it drops exactly what a
+ * per-record await would have failed to produce.
+ */
+#define WORLD_LOAD_AWAIT_SET(ids_, has_)                                                           \
+    for( self->wait_passes = 0;                                                                    \
+         self->wait_passes < WORLD_LOAD_ASSET_WAIT_PASSES &&                                       \
+         !world_load_set_resident(p, (ids_), (has_));                                              \
+         self->wait_passes++ )                                                                     \
+    {                                                                                              \
+        self->task.blocked = 1;                                                                    \
+        PT_YIELD(&self->pt);                                                                       \
+    }
 
 /*
  * Pull every varbit/varp morph target into `locs`.
@@ -272,17 +367,10 @@ Task_WorldLoad_Run(
     /* 2. Scan loaded chunks for referenced config ids (CPU only). */
     world_load_scan_chunk_refs(self);
 
-    for( self->i = 0; self->i < self->underlays.count; self->i++ )
-        PT_TASK_AWAITSELF_IF(
-            CacheProvider_UnderlayHas(p, self->underlays.items[self->i])
-                ? NULL
-                : CreateTask_UnderlayLoad(p, self->underlays.items[self->i]));
-
-    for( self->i = 0; self->i < self->overlays.count; self->i++ )
-        PT_TASK_AWAITSELF_IF(
-            CacheProvider_FlotypeHas(p, self->overlays.items[self->i])
-                ? NULL
-                : CreateTask_FlotypeLoad(p, self->overlays.items[self->i]));
+    world_load_fanout(self, &self->underlays, CacheProvider_UnderlayHas, CreateTask_UnderlayLoad);
+    world_load_fanout(self, &self->overlays, CacheProvider_FlotypeHas, CreateTask_FlotypeLoad);
+    WORLD_LOAD_AWAIT_SET(&self->underlays, CacheProvider_UnderlayHas);
+    WORLD_LOAD_AWAIT_SET(&self->overlays, CacheProvider_FlotypeHas);
 
     /* 3. Textures referenced by loaded overlay flotypes. */
     for( self->i = 0; self->i < self->overlays.count; self->i++ )
@@ -291,18 +379,12 @@ Task_WorldLoad_Run(
         if( flo && flo->texture >= 0 )
             idset_add(&self->textures, flo->texture);
     }
-    for( self->i = 0; self->i < self->textures.count; self->i++ )
-        PT_TASK_AWAITSELF_IF(
-            CacheProvider_TextureHas(p, self->textures.items[self->i])
-                ? NULL
-                : CreateTask_TextureLoad(p, self->textures.items[self->i]));
+    world_load_fanout(self, &self->textures, CacheProvider_TextureHas, CreateTask_TextureLoad);
+    WORLD_LOAD_AWAIT_SET(&self->textures, CacheProvider_TextureHas);
 
     /* 4. Scenery locs, then their models. */
-    for( self->i = 0; self->i < self->locs.count; self->i++ )
-        PT_TASK_AWAITSELF_IF(
-            CacheProvider_LocationHas(p, self->locs.items[self->i])
-                ? NULL
-                : CreateTask_LocLoad(p, self->locs.items[self->i]));
+    world_load_fanout(self, &self->locs, CacheProvider_LocationHas, CreateTask_LocLoad);
+    WORLD_LOAD_AWAIT_SET(&self->locs, CacheProvider_LocationHas);
 
     /* 4b. Morph closure: a loc the map names may resolve to a transform target at rebuild time,
      * and that target can morph again. Collect (CPU only) then load, until nothing new appears.
@@ -313,11 +395,8 @@ Task_WorldLoad_Run(
         if( self->added <= 0 )
             break;
 
-        for( self->i = 0; self->i < self->locs.count; self->i++ )
-            PT_TASK_AWAITSELF_IF(
-                CacheProvider_LocationHas(p, self->locs.items[self->i])
-                    ? NULL
-                    : CreateTask_LocLoad(p, self->locs.items[self->i]));
+        world_load_fanout(self, &self->locs, CacheProvider_LocationHas, CreateTask_LocLoad);
+        WORLD_LOAD_AWAIT_SET(&self->locs, CacheProvider_LocationHas);
     }
 
     for( self->i = 0; self->i < self->locs.count; self->i++ )
@@ -333,11 +412,15 @@ Task_WorldLoad_Run(
         world_load_collect_loc_models(dbg, &self->models);
     }
 
-    for( self->i = 0; self->i < self->models.count; self->i++ )
-        PT_TASK_AWAITSELF_IF(
-            CacheProvider_ModelHas(p, self->models.items[self->i])
-                ? NULL
-                : CreateTask_ModelLoad(p, self->models.items[self->i]));
+    /*
+     * Every loc model the region needs, ALL AT ONCE.
+     *
+     * This is the big one: a region names hundreds of models, and awaiting
+     * them one at a time cost a network round trip each, in a line, on a cache
+     * being streamed.
+     */
+    world_load_fanout(self, &self->models, CacheProvider_ModelHas, CreateTask_ModelLoad);
+    WORLD_LOAD_AWAIT_SET(&self->models, CacheProvider_ModelHas);
 
     /* 4c. Textures referenced by the loaded loc models (face texture ids) and
      * by loc retextures — preload so scenery is textured at rebuild (v1
@@ -366,11 +449,8 @@ Task_WorldLoad_Run(
                 CacheProvider_TextureIsSd(p, loc->retextures_to[r]) )
                 idset_add(&self->textures, loc->retextures_to[r]);
     }
-    for( self->i = 0; self->i < self->textures.count; self->i++ )
-        PT_TASK_AWAITSELF_IF(
-            CacheProvider_TextureHas(p, self->textures.items[self->i])
-                ? NULL
-                : CreateTask_TextureLoad(p, self->textures.items[self->i]));
+    world_load_fanout(self, &self->textures, CacheProvider_TextureHas, CreateTask_TextureLoad);
+    WORLD_LOAD_AWAIT_SET(&self->textures, CacheProvider_TextureHas);
 
     /* 4d. Sequences for animated locs — registered in the scene animation
      * registry so scenery_load_animation can bind them during the rebuild.
@@ -440,6 +520,7 @@ struct ToriRS_Task*
 CreateTask_WorldLoad(
     struct CacheProvider* provider,
     struct WorldBuilder* builder,
+    struct ToriRS_TaskQueue* queue,
     const int* chunks_xz,
     int chunk_count,
     int zone_center_x,
@@ -453,6 +534,9 @@ CreateTask_WorldLoad(
 
     assert(provider);
     assert(builder);
+    /* Every stage fans its loads out as siblings, so there is no such thing as
+     * a world load with nowhere to put them. */
+    assert(queue);
     assert(chunks_xz);
     /* Zero squares is legal, and only for an instance: a house with no rooms
      * built is an all-void scene with nothing to prefetch. Every other caller
@@ -470,6 +554,7 @@ CreateTask_WorldLoad(
     strcpy(task->task.name, "WorldLoad");
     task->provider = provider;
     task->builder = builder;
+    task->queue = queue;
     task->zone_center_x = zone_center_x;
     task->zone_center_z = zone_center_z;
     task->scene_size = scene_size;

@@ -17,12 +17,10 @@
  *     three slopes, the three edges, the row pointer, the two segment counts
  *     and the two no-clip proofs all stay put across both trapezoid walks;
  *     nothing is spilled to the frame between the prologue and the last row.
- *   - The three edge slopes are three exact `sdiv`s. The i686 kernel took a
- *     packed rcpps because its integer divider is not pipelined; this one is,
- *     and an exact divide is what makes the kernel bit-identical to the C
- *     reference instead of merely close. sdiv x/0 is 0 on AArch64, which is
- *     exactly the C's "else 0" arm for the AB and BC edges, so those two
- *     conditionals disappear into the instruction.
+ *   - The three edge slopes come off one packed NEON reciprocal, the same
+ *     ladder as the i686 kernel's EDGESLOPES3 (edge_slopes_aarch64.inc):
+ *     numerators and divisors in one vector each, frecpe, Newton-Raphson,
+ *     the 16.16 scale after the divide, a mask for the dead lanes.
  *   - The opaque span is unaligned 16-byte stores throughout, closed with one
  *     overlapping store at the far end instead of a scalar tail: the store is
  *     idempotent, and a modern core splits nothing on a misaligned q store.
@@ -34,10 +32,13 @@
  *     reason: alpha_blend() in graphics/alpha.h sums its four terms with a
  *     plain `+`, carries and all, and reproducing that carry is not optional.
  *
- * EXACTNESS. Bit-identical to raster_flat_screen_opaque_branching_s4() and
- * raster_flat_screen_alpha_branching_s4(), framebuffer against framebuffer,
+ * EXACTNESS. Scored against raster_flat_screen_opaque_branching_s4() and
+ * raster_flat_screen_alpha_branching_s4() framebuffer against framebuffer,
  * including degenerate, flat-topped, sliver and fully-offscreen triangles
- * (toridraw_presorted_neon_test.c).
+ * (toridraw_presorted_neon_test.c), on the same triangle and pixel budget
+ * the i686 kernel is held to. The walk and both fills are bit-identical:
+ * assembled with -DTORIDRAW_EDGE_IDIV (the exact edge lane) the test
+ * demands every pixel identical, and gets it.
  *
  * ROW LAYOUT. `rows` is `count` records of TORIDRAW_FLAT_PRESORTED_RUN_ROW_INTS
  * ints: x0,x1,x2,pad / y0,y1,y2,pad / color,alpha,pad,pad -- the screen
@@ -61,6 +62,8 @@
 #define R_A   36
 #define ROWBYTES 48
 
+#include "graphics/raster/edge_slopes_aarch64.inc"
+
 	.text
 	.p2align 2
 
@@ -70,6 +73,7 @@
  *   x0  pixel_buffer          w1  stride (pixels)      w2 screen_width
  *   w3  screen_height         x4  current row          w5 rows left
  *   x6  stride * 4 (bytes)    x7  g_hsl16_to_rgb_table
+ *   v17 65536.0f x4  v18 {0,0,-1,0}    (edge slope constants)
  *   w15 sxAC  w16 sxAB  w17 sxBC        (16.16 edge steps)
  *   w19 eAC   w20 eAB   w21 eBC         (16.16 edge x)
  *   x22 pointer to the current row of the frame buffer
@@ -307,16 +311,11 @@
 	msub	w24, w20, w23, w24
 	cbz	w24, \p\()next
 
-	/* The three edge slopes, exact. sdiv by zero is zero on this
-	 * architecture, which is the C's "else 0" for AB and BC. */
+	/* The three edge slopes, all three at once, off one packed reciprocal.
+	 * See edge_slopes_aarch64.inc. */
 	sub	w25, w14, w13			/* dy_BC                             */
 	sub	w26, w11, w10			/* dx_BC                             */
-	lsl	w15, w20, #16
-	sdiv	w15, w15, w19
-	lsl	w16, w21, #16
-	sdiv	w16, w16, w23
-	lsl	w17, w26, #16
-	sdiv	w17, w17, w25
+	EDGESLOPES3 w20, w21, w26, w19, w23, w25, w15, w16, w17, w28
 
 	\setup
 
@@ -411,6 +410,7 @@
 	adrp	x7, :got:g_hsl16_to_rgb_table
 	ldr	x7, [x7, :got_lo12:g_hsl16_to_rgb_table]
 #endif
+	EDGECONST
 .endm
 
 .macro LEAVE

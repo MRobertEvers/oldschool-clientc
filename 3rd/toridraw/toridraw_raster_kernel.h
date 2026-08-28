@@ -199,6 +199,65 @@ struct ToriDraw_RasterKernelHDVTable
 };
 
 /*
+ * The two stages in front of the face loop, each its own kernel.
+ *
+ * A model draw is three stages -- project the vertices, cull and sort the
+ * faces, raster the faces -- and a raster kernel names all three, so a scene
+ * can be timed with any one of them swapped and the other two held. The
+ * stock objects are process-lifetime and immutable, like the raster kernels.
+ *
+ * PROJECTION: model space to screen space into the scene's scratch
+ * (screen_vertices_*, orthographic_vertices_*, near_clipped, the projected
+ * centre). Returns a TORIDRAW_CULL_* verdict; anything but VISIBLE means the
+ * later stages do not run.
+ *
+ * FACE CULL + SORT: the winding cull and the back-to-front order, into
+ * scene->tmp_face_order, returning the count. `presort` asks it to leave
+ * the y-sorted screen coordinates behind for the batched raster walk
+ * (scene->sm_face_x4 / y4, recorded in sm_face_xy_valid); a kernel that
+ * cannot must say so there rather than leave a stale stash.
+ *
+ * The stock face-sort kernels:
+ *
+ *   bucket  the depth-bucket sort -- one scalar winding test per face,
+ *           faces scattered into per-depth lists, walked from far to near.
+ *   flat    a four-wide SIMD winding cull compacted into (depth, face) keys,
+ *           then a bitonic network (<= 256 keys) or a two-pass radix, and
+ *           the order read straight off the sorted keys. Same order as
+ *           `bucket`, face for face (toridraw_face_sort_flat_test.c).
+ *
+ * A NULL slot is the default: the stock projection, and whichever sort
+ * TORIDRAW_FACE_SORT selects (see toridraw_face_sort_flat.u.c).
+ */
+typedef int (*ToriDraw_ProjectionKernelFn)(
+    void* user_data,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera);
+
+typedef int (*ToriDraw_FaceCullSortKernelFn)(
+    void* user_data,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    bool presort);
+
+struct ToriDraw_ProjectionKernel
+{
+    const char* name;
+    ToriDraw_ProjectionKernelFn project;
+    void* user_data;
+};
+
+struct ToriDraw_FaceCullSortKernel
+{
+    const char* name;
+    ToriDraw_FaceCullSortKernelFn sort;
+    void* user_data;
+};
+
+/*
  * A render call borrows the selected object, its complete vtable, and
  * user_data. They must remain alive and immutable until that call returns.
  * Flags describe pass-wide requirements and are read before the face loop.
@@ -211,6 +270,10 @@ struct ToriDraw_RasterKernelSD
     const struct ToriDraw_RasterKernelSDVTable* vtable;
     void* user_data;
     uint32_t flags;
+
+    /* The stages in front of the face loop; NULL selects the stock one. */
+    const struct ToriDraw_ProjectionKernel* projection;
+    const struct ToriDraw_FaceCullSortKernel* face_sort;
 };
 
 struct ToriDraw_RasterKernelHD
@@ -221,6 +284,19 @@ struct ToriDraw_RasterKernelHD
 };
 
 /* Process-lifetime, immutable built-in kernels. */
+const struct ToriDraw_ProjectionKernel*
+ToriDraw_ProjectionKernelGetDefault(void);
+
+const struct ToriDraw_FaceCullSortKernel*
+ToriDraw_FaceCullSortKernelGetBucket(void);
+
+const struct ToriDraw_FaceCullSortKernel*
+ToriDraw_FaceCullSortKernelGetFlat(void);
+
+/* Whichever of the two TORIDRAW_FACE_SORT / ToriDraw_FaceSortSetFlat name. */
+const struct ToriDraw_FaceCullSortKernel*
+ToriDraw_FaceCullSortKernelGetDefault(void);
+
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetBranching(void);
 

@@ -26,6 +26,20 @@ struct TaskRunner
     /* A CS2 task has joined this queue and the tree/display list must not be
      * published until its whole host follow-up fixed point has settled. */
     int frame_settle_pending;
+    /*
+     * May this queue's tasks overlap?
+     *
+     * Off by default, and deliberately: strict FIFO is what a queue carrying
+     * PACKETS needs -- the server chose the order of VARP, PLAYER_INFO, VARP
+     * and the client must apply it, even when the middle one parks on a model
+     * load (game/test/task_order_test.c pins exactly this).
+     *
+     * On for a queue carrying ASSET LOADS, where nothing downstream cares
+     * which of a region's models lands first. That is where the cost was: one
+     * network round trip per read, in a line, for the couple of thousand
+     * groups a login streams.
+     */
+    int parallel;
     /* What the head task asked to be drawn, valid only while the last Step
      * returned TASK_RUNNER_RENDER. */
     struct ToriRS_RenderRequest render;
@@ -115,6 +129,10 @@ TaskRunner_Step(struct TaskRunner* runner)
                 if( pending )
                 {
                     waiting_io = 1;
+                    /* Ordered: the head owes an answer, and nothing behind it
+                     * may overtake it. */
+                    if( !runner->parallel )
+                        break;
                     continue;
                 }
             }
@@ -162,37 +180,22 @@ TaskRunner_Step(struct TaskRunner* runner)
                 task->io_slot = -1;
             }
 
-            if( stat == TORIRS_ASYNCIO_STAT_BLOCKED )
-            {
-                blocked = 1;
-                continue;
-            }
             if( stat == TORIRS_ASYNCIO_STAT_RENDER )
             {
                 render_task = task;
                 break;
             }
-            ran = 1;
-        }
-    }
+            if( stat == TORIRS_ASYNCIO_STAT_BLOCKED )
+                blocked = 1;
+            else
+                ran = 1;
 
-    if( getenv("TORIRS_TASK_STATS") )
-    {
-        static int passes = 0;
-        static int sum_queued = 0;
-        static int sum_ran = 0;
-        static int max_queued = 0;
-        int queued = 0;
-        for( struct ToriRS_Task* t = runner->queue->head; t; t = t->next )
-            queued++;
-        passes++;
-        sum_queued += queued;
-        sum_ran += ran;
-        if( queued > max_queued )
-            max_queued = queued;
-        if( passes % 500 == 0 )
-            fprintf(stderr, "taskstats: passes=%d avg_queued=%.2f max_queued=%d ran_frac=%.2f\n",
-                passes, (double)sum_queued / passes, max_queued, (double)sum_ran / passes);
+            /* Strict FIFO: the head yielded, so nothing behind it may run --
+             * see TaskRunner::parallel. A task that ENDED is different, and
+             * the loop continues past it either way. */
+            if( !runner->parallel )
+                break;
+        }
     }
 
     /* Every read this pass produced, handed over together -- which is the
