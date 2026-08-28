@@ -176,19 +176,21 @@ Task_Dat2Preload_Run(
             continue;
         }
 
-        /* Announce BEFORE the work, so the sentence on screen names what is
-         * happening rather than what just finished. */
-        compose_caption(task, task->step);
-        if( task->step->render )
-            TASK_YIELD_TO_RENDER(
-                &task->task,
-                &task->pt,
-                TORIRS_RENDER_BOOT_BAR,
-                task->step->percent,
-                task->caption);
-
         if( !dat2_buildcache_reference_table_has(task->bc, task->table_id) )
         {
+            /* Announce BEFORE the work, so the sentence on screen names what
+             * is happening rather than what just finished -- and only when
+             * there IS work: a table already resident (the post-login rebake
+             * reaches this task again) must not replay its caption. */
+            compose_caption(task, task->step);
+            if( task->step->render )
+                TASK_YIELD_TO_RENDER(
+                    &task->task,
+                    &task->pt,
+                    TORIRS_RENDER_BOOT_BAR,
+                    task->step->percent,
+                    task->caption);
+
             RSCache_IO_Dat2ReferenceTableLoad(io, 0, task->table_id);
             PT_YIELD(&task->pt);
 

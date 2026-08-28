@@ -5293,6 +5293,10 @@ void
 ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress)
 {
     assert(gl3);
+    /* progress < 0: clear to black and draw nothing -- the post-login
+     * loading screen, which shows only App_Render's sentence on the soft
+     * lane and a bare black screen here. */
+    int const clear_only = progress < 0;
     if( progress < 0 )
         progress = 0;
     if( progress > 100 )
@@ -5312,8 +5316,13 @@ ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress)
     gl3->lb_h = lb.h;
 
     glViewport(0, 0, drawable_w, drawable_h);
-    glClearColor(0.125f, 0.141f, 0.157f, 1.0f);
+    if( clear_only )
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    else
+        glClearColor(0.125f, 0.141f, 0.157f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if( clear_only )
+        return;
 
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);

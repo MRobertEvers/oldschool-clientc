@@ -769,6 +769,16 @@ struct App
      *  the record that it was enabled, which the login block needs to know to
      *  ask that server for its checksums. */
     int cache_on_demand;
+    /** 1 once a bake has queued the on-demand prefetch passes. They belong to
+     *  the SESSION's first loading screen, not to every tree bake -- the
+     *  post-login gameframe rebake reaches app_open_tree too, and re-walking
+     *  every anim, model and map square there would put a second loading
+     *  screen after the login this boot just performed. */
+    int dat1_prefetch_queued;
+    /** 1 while the warm gameframe bake of App_BootGameframeThenTitle is in
+     *  flight: the title screen is opened the moment it settles, before any
+     *  frame can render the gameframe it baked. */
+    int title_pending_after_boot;
 
     /* Phase 2: asset pipeline. The build cache matching the live disk backs
      * `provider`; everything downstream sees only the provider. */
@@ -2740,6 +2750,29 @@ App_HasTitleScreen(struct App const* app);
  */
 void
 App_OpenTitleScreen(struct App* app);
+
+/**
+ * The networked boot with a title screen: LOADING FIRST, login after.
+ *
+ * Bakes the gameframe first thing, under the startup loading bar -- that bake
+ * is where the interface packs, media and fonts are actually fetched and
+ * decoded, so it IS the loading the bar narrates -- and swaps to the title
+ * screen the moment it settles (App_RunOnce / App_BootWait), before a single
+ * gameframe frame can render. The post-login rebake then finds every cache
+ * this bake warmed and crosses in a moment, showing only "entering world"
+ * instead of replaying the loading captions after the login screen.
+ */
+void
+App_BootGameframeThenTitle(struct App* app);
+
+/**
+ * Is the current loading phase the post-login kind -- black screen, the
+ * sentence "Loading - please wait.", and NO bar? True during any quiet bake
+ * (post-login rebake, in-game remount) while it is still baking. The boot's
+ * own loading screen, which ran before the title, keeps the bar.
+ */
+int
+App_BootTextOnly(struct App const* app);
 
 /** IF_OPENSUB (rev-230 openSubInterface): mount a cache interface group under a
  *  component slot of the open root. target_uid = packed (parent<<16|child) of

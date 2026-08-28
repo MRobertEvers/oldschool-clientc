@@ -129,7 +129,10 @@ struct RS_PreloadTable;
 struct RS_LoginReplyTable;
 /**
  * Fetch the jag archives the profile's [preload:] list names, showing the
- * bar move as each is requested.
+ * bar move as each is requested -- and, on a `source=ondemand` world, perform
+ * the list's kind=ondemand prefetch passes (anims, flagged models, map
+ * squares) the same way the reference does before its title screen. A disk
+ * world skips the ondemand steps: there is no wire to warm.
  *
  * NULL when the profile names none this client holds whole -- an absent
  * list is a revision that does not preload, not an error.
@@ -138,6 +141,7 @@ struct ToriRS_Task*
 CreateTask_Dat1Preload(
     struct CacheProvider* provider,
     struct RS_PreloadTable const* steps,
-    struct RS_LoginReplyTable const* strings);
+    struct RS_LoginReplyTable const* strings,
+    int on_demand);
 
 #endif

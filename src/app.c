@@ -5895,8 +5895,14 @@ app_title_field_line(
     }
 
     focused = app->title.focus == cfg->field;
-    if( focused && cfg->caret_blink > 0 )
-        caret_showing = (int)(app->logic_cycle % (uint64_t)cfg->caret_blink) < cfg->caret_blink / 2;
+    /* caret_blink=0 is a SOLID caret, not an absent one -- the header's
+     * "default 0 = never blink" (revconfig.h) means always shown. A profile
+     * that wants no caret at all declares caret= empty instead. */
+    if( focused )
+        caret_showing =
+            cfg->caret_blink > 0
+                ? (int)(app->logic_cycle % (uint64_t)cfg->caret_blink) < cfg->caret_blink / 2
+                : 1;
 
     snprintf(
         app->title_field_line[cfg->field],
@@ -13672,6 +13678,35 @@ App_WorldNodeIndex(struct App const* app)
     return app->tree->world_index;
 }
 
+/* A bake that must not replay the loading screen's staged captions or walk
+ * the bar back: everything after the session's first. On a profile with a
+ * title screen the loading ran once, at boot (App_BootGameframeThenTitle,
+ * screen still APP_SCREEN_BOOT); the title bake that follows it, the
+ * post-login gameframe rebake and any in-game display-mode remount all cross
+ * caches that bake warmed, and replaying 10..100 with captions over them
+ * would put a second loading sequence after the first -- or worse, after the
+ * login screen. A quiet bake leaves the bar where the loud one parked it
+ * (100) and App_Render's caption fallback says "loading" / "entering world".
+ * The lanes with no title screen or no net keep announcing: their startup
+ * bake is the only loading they have. */
+static int
+app_boot_bake_is_quiet(struct App const* app)
+{
+    assert(app);
+    return app->net_enabled && App_HasTitleScreen(app) && app->screen != APP_SCREEN_BOOT;
+}
+
+int
+App_BootTextOnly(struct App const* app)
+{
+    assert(app);
+    /* GAME only: the startup title bake is also quiet, but it belongs to the
+     * boot's loading screen and holds the bar at 100 instead -- text-only is
+     * the POST-LOGIN picture. */
+    return app->app_state == APP_STATE_BOOTING && app->screen == APP_SCREEN_GAME &&
+           app_boot_bake_is_quiet(app);
+}
+
 /* The async boot protothread: builds the root tree (RevConfig or cache
  * interface open), awaits the overlay font, then runs the synchronous
  * seeding steps and flips the app READY. All IO flows through the platform
@@ -13693,13 +13728,16 @@ Task_AppBoot_Run(
 
     PT_BEGIN(&self->pt);
 
-    app->boot_progress = 10;
     /* This stage's place in the profile's own list, where it declares
      * one. The modern lane's boot is numbered by the deob and continues
      * from where its cache-index steps left off; a lane that names no
      * such step keeps the client's own position. */
-    if( !app_preload_announce(app, "boot_config") )
-        app_title_progress(app, 10, "loading_config");
+    if( !app_boot_bake_is_quiet(app) )
+    {
+        app->boot_progress = 10;
+        if( !app_preload_announce(app, "boot_config") )
+            app_title_progress(app, 10, "loading_config");
+    }
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
      * inside one frame and the bar only ever appears at 100. */
@@ -13985,13 +14023,16 @@ Task_AppBoot_Run(
     /* The config tables are in; the tree build below is the long one, and the
      * references both name it while it runs rather than leaving the bar still
      * (Client-TS "Requesting interface", the deob "Loading interfaces"). */
-    app->boot_progress = 30;
     /* This stage's place in the profile's own list, where it declares
      * one. The modern lane's boot is numbered by the deob and continues
      * from where its cache-index steps left off; a lane that names no
      * such step keeps the client's own position. */
-    if( !app_preload_announce(app, "boot_tree") )
-        app_title_progress(app, 30, "loaded_config");
+    if( !app_boot_bake_is_quiet(app) )
+    {
+        app->boot_progress = 30;
+        if( !app_preload_announce(app, "boot_tree") )
+            app_title_progress(app, 30, "loaded_config");
+    }
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
      * inside one frame and the bar only ever appears at 100. */
@@ -14039,13 +14080,16 @@ Task_AppBoot_Run(
         app->host.var_transmit_hook_count,
         app->tree->interface_parent_count);
 
-    app->boot_progress = 60;
     /* This stage's place in the profile's own list, where it declares
      * one. The modern lane's boot is numbered by the deob and continues
      * from where its cache-index steps left off; a lane that names no
      * such step keeps the client's own position. */
-    if( !app_preload_announce(app, "boot_interfaces") )
-        app_title_progress(app, 60, "loading_interfaces");
+    if( !app_boot_bake_is_quiet(app) )
+    {
+        app->boot_progress = 60;
+        if( !app_preload_announce(app, "boot_interfaces") )
+            app_title_progress(app, 60, "loading_interfaces");
+    }
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
      * inside one frame and the bar only ever appears at 100. */
@@ -14062,13 +14106,16 @@ Task_AppBoot_Run(
             ? CreateTask_FontLoad(app->provider, app_font_b12_cache_id(app))
             : NULL);
 
-    app->boot_progress = 75;
     /* This stage's place in the profile's own list, where it declares
      * one. The modern lane's boot is numbered by the deob and continues
      * from where its cache-index steps left off; a lane that names no
      * such step keeps the client's own position. */
-    if( !app_preload_announce(app, "boot_media") )
-        app_title_progress(app, 75, "loading_media");
+    if( !app_boot_bake_is_quiet(app) )
+    {
+        app->boot_progress = 75;
+        if( !app_preload_announce(app, "boot_media") )
+            app_title_progress(app, 75, "loading_media");
+    }
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
      * inside one frame and the bar only ever appears at 100. */
@@ -14140,13 +14187,16 @@ Task_AppBoot_Run(
     if( App_WorldNodeIndex(app) >= 0 && !app->net_enabled )
         app_world_load_begin(app, NULL, 0);
 
-    app->boot_progress = 90;
     /* This stage's place in the profile's own list, where it declares
      * one. The modern lane's boot is numbered by the deob and continues
      * from where its cache-index steps left off; a lane that names no
      * such step keeps the client's own position. */
-    if( !app_preload_announce(app, "boot_ready") )
-        app_title_progress(app, 90, "preparing");
+    if( !app_boot_bake_is_quiet(app) )
+    {
+        app->boot_progress = 90;
+        if( !app_preload_announce(app, "boot_ready") )
+            app_title_progress(app, 90, "preparing");
+    }
     /* Let the frame loop draw the bar where it now stands before the
      * next stretch of work begins. Without this the whole boot settles
      * inside one frame and the bar only ever appears at 100. */
@@ -14274,7 +14324,11 @@ app_open_tree(
 
     app->app_state = APP_STATE_BOOTING;
     app->boot_interface_id = interface_id;
-    app->boot_progress = 0;
+    /* A quiet bake leaves the bar where the loud one parked it (100) instead
+     * of walking it back to zero for work the first bake already narrated.
+     * @see app_boot_bake_is_quiet. */
+    if( !app_boot_bake_is_quiet(app) )
+        app->boot_progress = 0;
     /* The booted gameframe root is what IF_GETTOP reports: this client mounts
      * every server sub-interface into it and treats a differing server
      * IF_OPENTOP as informational (see rs_gameproto_exec), so the two agree. */
@@ -14301,8 +14355,14 @@ app_open_tree(
             CreateTask_Dat2Preload(app->provider, &app->preload, &app->login_replies);
 
         if( !preload )
-            preload =
-                CreateTask_Dat1Preload(app->provider, &app->preload, &app->login_replies);
+        {
+            preload = CreateTask_Dat1Preload(
+                app->provider,
+                &app->preload,
+                &app->login_replies,
+                app->cache_on_demand && !app->dat1_prefetch_queued);
+            app->dat1_prefetch_queued = 1;
+        }
         if( preload )
             ToriRS_TaskQueue_Add(app->runner.queue, preload);
     }
@@ -14349,6 +14409,38 @@ App_OpenTitleScreen(struct App* app)
      * until a login succeeds. */
     app->screen = APP_SCREEN_TITLE;
     app_open_tree(app, -1, APP_TITLE_LAYOUT_GROUP, NULL);
+}
+
+void
+App_BootGameframeThenTitle(struct App* app)
+{
+    assert(app);
+    /* The loading half of the boot, run FIRST: the same gameframe bake the
+     * login used to pay for. Everything it fetches -- interface packs, media,
+     * fonts, the profile's preload list -- lands in the provider's caches
+     * before the login screen is offered, which is the reference's own order
+     * (its bar walks "Loading interfaces"/"Loaded media" to 100 before the
+     * title appears). The tree itself is baked to be thrown away: the swap in
+     * app_title_swap_if_pending replaces it with the title tree the moment it
+     * settles, and the post-login rebake redoes only the CPU half against
+     * warm caches. */
+    app->screen = APP_SCREEN_BOOT;
+    app->title_pending_after_boot = 1;
+    app_open_tree(app, -1, NULL, APP_TITLE_LAYOUT_GROUP);
+}
+
+/* The warm gameframe bake settled: swap to the title screen. Called from the
+ * two places that observe the bake finishing -- App_RunOnce before it can
+ * render a frame of the gameframe, and App_BootWait so headless harnesses
+ * return with the title (not the warm-up tree) as the settled state. */
+static void
+app_title_swap_if_pending(struct App* app)
+{
+    assert(app);
+    if( !app->title_pending_after_boot || app->app_state != APP_STATE_READY )
+        return;
+    app->title_pending_after_boot = 0;
+    App_OpenTitleScreen(app);
 }
 
 /* IF_OPENSUB wrapper: mount a cache interface pack under a component slot of an
@@ -14807,6 +14899,7 @@ App_BootWait(struct App* app)
         app->boot_steps += 2;
         main_stat = TaskRunner_Step(&app->runner);
         exec_stat = TaskRunner_Step(&app->exec_runner);
+        app_title_swap_if_pending(app);
         if( app->app_state == APP_STATE_READY )
             app_async_polls(app);
         if( main_stat == TASK_RUNNER_IDLE && exec_stat == TASK_RUNNER_IDLE &&
@@ -29467,6 +29560,11 @@ App_RunOnce(
         }
     }
 
+    /* Before the BOOTING test: the swap puts the session straight back into
+     * BOOTING for the title bake, so the frame that saw the warm gameframe
+     * bake settle still renders a loading screen, never the gameframe. */
+    app_title_swap_if_pending(app);
+
     if( app->app_state == APP_STATE_BOOTING )
     {
         /* Loading screen frame; no logic/interaction until the tree exists. */
@@ -33289,12 +33387,27 @@ App_Render(
          */
         if( app->runner.render.intent == TORIRS_RENDER_BOOT_BAR )
         {
-            percent = app->runner.render.percent;
+            /* A step that states no bar position (percent -1) leaves the bar
+             * where the last stated one put it -- the profile's own contract
+             * ("or -1 to leave the bar alone", rs_preload.h). Overriding with
+             * -1 would clamp to zero and walk the bar backwards. */
+            if( app->runner.render.percent >= 0 )
+                percent = app->runner.render.percent;
             if( app->runner.render.caption && app->runner.render.caption[0] )
                 caption = app->runner.render.caption;
         }
 
-        BootBar_Draw((uint32_t*)pixels, width, height, percent);
+        /* Post-login (and any later quiet bake), the reference shows ONLY the
+         * sentence: a black screen and "Loading - please wait.", no bar. The
+         * bar belongs to the boot's own loading screen, which already ran to
+         * 100 before the title. */
+        if( App_BootTextOnly(app) )
+        {
+            for( int i = 0; i < width * height; i++ )
+                pixels[i] = 0;
+        }
+        else
+            BootBar_Draw((uint32_t*)pixels, width, height, percent);
 
         /*
          * The caption, once there is a font to draw one with.

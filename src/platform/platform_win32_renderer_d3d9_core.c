@@ -6618,6 +6618,14 @@ ToriRS_D3D9_DrawBootBar(struct ToriRS_D3D9* renderer, int progress)
     assert(renderer);
     if( !d3d9_begin_frame_scene(renderer) )
         return;
+    /* progress < 0: clear only, no bar -- the post-login loading screen,
+     * which shows only App_Render's sentence on the soft lane and a bare
+     * black screen here. */
+    if( progress < 0 )
+    {
+        d3d9_end_frame_scene(renderer);
+        return;
+    }
     progress = d3d9_clampi(progress, 0, 100);
     d3d9_set_full_viewport(renderer);
 

@@ -476,7 +476,10 @@ interactive_render_present(
 
         if( App_IsBooting(app, &progress) )
         {
-            ToriRS_D3D9_DrawBootBar(d3d9, progress);
+            /* Post-login loading is a black screen with only the sentence;
+             * the GPU lanes have no boot-time text path, so they show the
+             * cleared screen (-1 = clear only, no bar). */
+            ToriRS_D3D9_DrawBootBar(d3d9, App_BootTextOnly(app) ? -1 : progress);
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
@@ -535,7 +538,10 @@ interactive_render_present(
 
         if( App_IsBooting(app, &progress) )
         {
-            ToriRS_GL3_DrawBootBar(gl3, progress);
+            /* Post-login loading is a black screen with only the sentence;
+             * the GPU lanes have no boot-time text path, so they show the
+             * cleared screen (-1 = clear only, no bar). */
+            ToriRS_GL3_DrawBootBar(gl3, App_BootTextOnly(app) ? -1 : progress);
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
@@ -3876,7 +3882,13 @@ main(
      */
     if( app.net_enabled && App_HasTitleScreen(&app) )
     {
-        App_OpenTitleScreen(&app);
+        /* Loading FIRST, login after: the gameframe bake -- where the
+         * interface packs, media and fonts are actually fetched -- runs under
+         * the startup loading bar, and the title screen replaces it the
+         * moment it settles. The post-login rebake then crosses warm caches
+         * showing only "entering world", instead of replaying the loading
+         * captions after the login screen. */
+        App_BootGameframeThenTitle(&app);
     }
     else
     {
