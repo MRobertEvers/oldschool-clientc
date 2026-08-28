@@ -15,6 +15,7 @@
  * call.  See platform_win32_renderer_d3d9_core.h for the contract.
  */
 
+#include "engine/boot_bar.h"
 #include "platform/platform_win32_renderer_d3d9_core.h"
 #include "toridraw_element_id.h"
 #include <assert.h>
@@ -6611,8 +6612,6 @@ ToriRS_D3D9_Execute(
 void
 ToriRS_D3D9_DrawBootBar(struct ToriRS_D3D9* renderer, int progress)
 {
-    int bar_w;
-    int bar_h = 12;
     int bar_x;
     int bar_y;
     int fill_w;
@@ -6621,16 +6620,32 @@ ToriRS_D3D9_DrawBootBar(struct ToriRS_D3D9* renderer, int progress)
         return;
     progress = d3d9_clampi(progress, 0, 100);
     d3d9_set_full_viewport(renderer);
-    bar_w = renderer->width / 3;
-    bar_x = (renderer->width - bar_w) / 2;
-    bar_y = (renderer->height - bar_h) / 2;
-    fill_w = bar_w * progress / 100;
-    d3d9_draw_solid_rect(renderer, bar_x - 1, bar_y - 1, bar_w + 2, bar_h + 2, 0xff8b0000u);
+
+    /*
+     * The references' bar, not one of ours. @see engine/boot_bar.h -- the
+     * constants are shared with the software lane so the same boot does not
+     * draw two different pictures depending on which renderer came up.
+     *
+     * Three rects reach what BootBar_Draw reaches with four operations: a
+     * filled red track, a black inset one pixel in that leaves the red as a
+     * border and blacks the unfilled remainder, then the fill itself two
+     * pixels in. The black ring between border and fill is the deob's, and
+     * it is what makes the bar look recessed.
+     */
+    bar_x = renderer->width / 2 - BOOT_BAR_W / 2;
+    bar_y = renderer->height / 2 - BOOT_BAR_ABOVE_CENTRE;
+    fill_w = progress * BOOT_BAR_PX_PER_PERCENT;
+    d3d9_draw_solid_rect(
+        renderer, bar_x, bar_y, BOOT_BAR_W, BOOT_BAR_H, 0xff000000u | BOOT_BAR_COLOR);
+    d3d9_draw_solid_rect(
+        renderer, bar_x + 1, bar_y + 1, BOOT_BAR_W - 2, BOOT_BAR_H - 2, 0xff000000u);
     if( fill_w > 0 )
-        d3d9_draw_solid_rect(renderer, bar_x, bar_y, fill_w, bar_h, 0xff8b0000u);
-    if( fill_w < bar_w )
-        d3d9_draw_solid_rect(
-            renderer, bar_x + fill_w, bar_y, bar_w - fill_w, bar_h, 0xff000000u);
+        d3d9_draw_solid_rect(renderer,
+                             bar_x + BOOT_BAR_INSET,
+                             bar_y + BOOT_BAR_INSET,
+                             fill_w,
+                             BOOT_BAR_FILL_H,
+                             0xff000000u | BOOT_BAR_COLOR);
     d3d9_end_frame_scene(renderer);
 }
 
