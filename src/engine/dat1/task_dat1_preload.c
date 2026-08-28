@@ -135,7 +135,7 @@ ondemand_pass_for(char const* archive)
 static void
 io_slot_discard(struct ToriRS_IO* io)
 {
-    struct ToriRS_IOItem* item = &io->io_slots[0];
+    struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, 0);
     struct RSCache_Dat1DiskArchive* archive;
 
     assert(io);

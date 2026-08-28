@@ -293,6 +293,107 @@ run_fixture(
     compare(label, &g_bucket_result, &g_flat_result);
 }
 
+/*
+ * Timing mode: TORIDRAW_FACE_SORT_BENCH=1. After the parity pass, time both
+ * sorts on projected models of a few sizes, presort stash on. Same process,
+ * same scratch, alternating ABAB per repetition so a frequency ramp lands on
+ * both. Reports microseconds per sort and nanoseconds per input face.
+ */
+#include <time.h>
+
+static double
+now_us(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1e6 + (double)ts.tv_nsec * 1e-3;
+}
+
+static void
+bench_sorts(struct ToriDraw_Scene* scene)
+{
+    /* Many models per size, same vertices, different faces: the sort sees a
+     * different index stream each call, so the branch predictor cannot learn
+     * one model's winding/y-order sequence across repetitions the way it
+     * would with a single model looped hot -- which is the trap a single
+     * repeated model falls into, and no real frame repeats a model. */
+    enum { MODELS = 64 };
+    static const int sizes[] = { 64, 200, 256, 1000, 2000 };
+    const struct ToriDraw_FaceCullSortKernel* k[2] = {
+        ToriDraw_FaceCullSortKernelGetBucket(), ToriDraw_FaceCullSortKernelGetFlat()
+    };
+    struct ToriDraw_ViewPort viewport = {
+        .width = VIEW_W, .height = VIEW_H, .stride = VIEW_W,
+        .x_center = VIEW_W / 2, .y_center = VIEW_H / 2,
+        .clip_right = VIEW_W, .clip_bottom = VIEW_H,
+    };
+    struct ToriDraw_Camera camera = {
+        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
+        .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+        .near_plane_z = 50,
+        .pitch = 0,
+    };
+    struct ToriDraw_Position position = { .z = 900 };
+
+    ToriDraw_RasterBatchSetArmed(1);
+    printf("\n%-8s %-8s %12s %12s %12s %12s   %s\n", "faces", "drawn", "bucket us", "flat us",
+           "bucket ns/f", "flat ns/f", "flat/bucket");
+    for( size_t si = 0; si < sizeof(sizes) / sizeof(sizes[0]); si++ )
+    {
+        int const fc = sizes[si];
+        struct ToriDraw_Model* models[MODELS];
+        struct ToriDraw_ModelHandle hnds[MODELS];
+        int const reps = 4000000 / fc;
+        double best[2] = { 1e30, 1e30 };
+        long drawn = 0;
+        int m;
+        int cull;
+
+        for( m = 0; m < MODELS; m++ )
+        {
+            models[m] = make_model(fc, fc, 120, 0, 0);
+            if( m > 0 )
+            {
+                memcpy(models[m]->vertices_x, models[0]->vertices_x, (size_t)fc * sizeof(vertexint_t));
+                memcpy(models[m]->vertices_y, models[0]->vertices_y, (size_t)fc * sizeof(vertexint_t));
+                memcpy(models[m]->vertices_z, models[0]->vertices_z, (size_t)fc * sizeof(vertexint_t));
+                ToriDraw_ModelSetBoundsCylinder(models[m]);
+            }
+            hnds[m] = ToriDraw_ModelHandleOwned(models[m]);
+        }
+        cull = ToriDraw_RenderModel1Project(hnds[0], scene, &position, &viewport, &camera);
+        if( cull != TORIDRAW_CULL_VISIBLE )
+        {
+            printf("%-8d culled (%d)\n", fc, cull);
+            for( m = 0; m < MODELS; m++ )
+                ToriDraw_ModelFree(models[m]);
+            continue;
+        }
+        /* Five batches, best-of, arms alternating inside each batch. */
+        for( int batch = 0; batch < 5; batch++ )
+        {
+            for( int arm = 0; arm < 2; arm++ )
+            {
+                double t0;
+                int a = (batch & 1) ? 1 - arm : arm;
+                for( m = 0; m < MODELS; m++ )
+                    k[a]->sort(k[a]->user_data, scene, hnds[m], true); /* warm */
+                drawn = 0;
+                t0 = now_us();
+                for( int r = 0; r < reps; r++ )
+                    drawn += k[a]->sort(k[a]->user_data, scene, hnds[r % MODELS], true);
+                t0 = (now_us() - t0) / reps;
+                if( t0 < best[a] )
+                    best[a] = t0;
+            }
+        }
+        printf("%-8d %-8ld %12.3f %12.3f %12.2f %12.2f   %.2fx\n", fc, drawn / reps, best[0],
+               best[1], best[0] * 1000.0 / fc, best[1] * 1000.0 / fc, best[1] / best[0]);
+        for( m = 0; m < MODELS; m++ )
+            ToriDraw_ModelFree(models[m]);
+    }
+}
+
 int
 main(void)
 {
@@ -341,6 +442,8 @@ main(void)
     }
 
 done:
+    if( !g_failures && getenv("TORIDRAW_FACE_SORT_BENCH") )
+        bench_sorts(scene);
     ToriDraw_SceneFree(scene);
     printf("face sort flat vs bucket: %d fixtures, %ld faces compared, %ld drawn -- %s\n",
            g_fixtures, g_faces_compared, g_faces_drawn, g_failures ? "FAIL" : "PASS");

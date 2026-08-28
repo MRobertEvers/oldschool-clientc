@@ -221,6 +221,18 @@ ToriRS_IO_TaskSlot(
 {
     assert(io != NULL);
     assert(slot_id >= 0);
+    /*
+     * One slot per task, so the only slot a task may name is its own first.
+     *
+     * The runner hands each task exactly one (ToriRS_IO_SlotAlloc) and decides
+     * whether that task still has a read outstanding by looking at THAT slot
+     * alone (TaskRunner_Step). A task parking a read at slot_base + 1 is
+     * therefore judged idle, has its slot released, and is given a different
+     * slot_base next pass -- then takes its answer off another task's slot.
+     * The sequence loader did exactly that, and it read as scattered
+     * "failed to decode" across every record type rather than as a slot bug.
+     */
+    assert(slot_id == 0);
     assert(io->slot_base >= 0);
     assert(io->slot_base + slot_id < io->slot_capacity);
     return &io->io_slots[io->slot_base + slot_id];

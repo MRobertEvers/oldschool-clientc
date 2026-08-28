@@ -52,7 +52,7 @@ Task_PrefsLoad_Run(
     ToriRS_IO_QueueFileRead(io, PREFS_IO_SLOT, task->path);
     PT_YIELD(&task->pt);
 
-    item = &io->io_slots[PREFS_IO_SLOT];
+    item = ToriRS_IO_TaskSlot(io, PREFS_IO_SLOT);
     if( IOITEM_ERROR_CODE(item) == 0 && IOITEM_DATA(item) )
         RS_Prefs_Decode(task->prefs, IOITEM_DATA(item), IOITEM_DATA_SIZE(item));
     /* No file is a first launch, not an error, so nothing is reported here.
@@ -116,7 +116,7 @@ Task_PrefsSave_Run(
     ToriRS_IO_QueueFileWrite(io, PREFS_IO_SLOT, task->path, task->data, task->size);
     PT_YIELD(&task->pt);
 
-    task->item = &io->io_slots[PREFS_IO_SLOT];
+    task->item = ToriRS_IO_TaskSlot(io, PREFS_IO_SLOT);
     if( IOITEM_ERROR_CODE(task->item) != 0 )
         TORIRS_LOG("prefs: could not write %s\n", task->path);
     ToriRS_IO_ClearItem(task->item);

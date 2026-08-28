@@ -259,7 +259,7 @@ seq_take_archive(
     struct ToriRS_IO* io,
     int slot)
 {
-    struct ToriRS_IOItem* item = &io->io_slots[slot];
+    struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot);
     struct RSCache_Dat2DiskArchive* archive = (struct RSCache_Dat2DiskArchive*)item->data;
     item->data = NULL;
     ToriRS_IO_ClearItem(item);
@@ -370,11 +370,11 @@ Task_Dat2SequenceLoad_Run(
         {
             self->cur_framemap_id = self->maya->base_id;
             ToriRS_IO_QueueCache(
-                io, 1, 0, RSCACHE_DAT2_TABLE_SKELETONS, self->cur_framemap_id,
+                io, 0, 0, RSCACHE_DAT2_TABLE_SKELETONS, self->cur_framemap_id,
                 TORIRS_IO_CACHE_DAT2);
             PT_YIELD(&self->pt);
             {
-                struct RSCache_Dat2DiskArchive* fm_archive = seq_take_archive(io, 1);
+                struct RSCache_Dat2DiskArchive* fm_archive = seq_take_archive(io, 0);
                 if( fm_archive )
                 {
                     /* The rig rides in the framemap's trailing bytes, so decode
@@ -458,14 +458,14 @@ Task_Dat2SequenceLoad_Run(
         {
             ToriRS_IO_QueueCache(
                 io,
-                1,
+                0,
                 0,
                 RSCACHE_DAT2_TABLE_SKELETONS,
                 self->cur_framemap_id,
                 TORIRS_IO_CACHE_DAT2);
             PT_YIELD(&self->pt);
             {
-                struct RSCache_Dat2DiskArchive* fm_archive = seq_take_archive(io, 1);
+                struct RSCache_Dat2DiskArchive* fm_archive = seq_take_archive(io, 0);
                 if( fm_archive )
                 {
                     if( self->framemap )
