@@ -91,6 +91,7 @@
 #include "src/revisions/revisions.c"
 #include "src/revisions/rev_dat1_lc245_2.c"
 #include "src/revisions/rev_dat1_lc254.c"
+#include "src/revisions/rev_dat1_lc289.c"
 #include "src/revisions/rev_dat2_osrs184_kronos.c"
 #include "src/revisions/rev_dat2_osrs230.c"
 #include "src/revisions/rev_dat2_osrs231.c"

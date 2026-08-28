@@ -44,6 +44,11 @@ RSCache_ProfileDat1Lc254(void);
 struct RSCache
 RSCache_ProfileDat1Lc245_2(void);
 
+/** LostCity rev 289 (manifests/manifest_rs289lc.ini). Format-identical to 254;
+ *  declared so revision=289 resolves. */
+struct RSCache
+RSCache_ProfileDat1Lc289(void);
+
 /* --- dat2 / js5 era ----------------------------------------------------- */
 
 /** Rev 530 / January 2009 (`2009scape/Server/data/cache`). */

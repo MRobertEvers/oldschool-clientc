@@ -23,6 +23,7 @@ static const struct revision_entry REVISIONS[] = {
     /* dat1 */
     { "lc254", RSCache_ProfileDat1Lc254 },
     { "lc245_2", RSCache_ProfileDat1Lc245_2 },
+    { "lc289", RSCache_ProfileDat1Lc289 },
     /* dat2 */
     { "osrs184", RSCache_ProfileDat2Osrs184Kronos },
     { "kronos", RSCache_ProfileDat2Osrs184Kronos },
