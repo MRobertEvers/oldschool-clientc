@@ -204,6 +204,31 @@ frame_translate_scene_event(
         out->u.batch.batch_id = ev->batch_id;
         out->u.batch.clear_all = ev->batch_id == TORIDRAW_SCENE_INVALID_BATCH_ID;
         return true;
+    /*
+     * Sprite unload.
+     *
+     * The scene has emitted this since it was written and nothing here ever
+     * translated it, so TORIRSRC_SPRITE_UNLOAD was a command no producer
+     * produced. The GPU lanes cache an uploaded sprite by element id and
+     * rely on that command to drop it, so a sprite REPLACED over a live id
+     * kept its first upload for the rest of the session.
+     *
+     * The title screen's braziers are what showed it: the fire replaces its
+     * 128x265 column every 35 ms over the same two ids, and D3D9 drew the
+     * very first one -- a single bright row, all the heat there is one step
+     * in -- for as long as the client ran. The software lane reads sprites
+     * straight out of the scene, so it never showed the fault, and every
+     * capture taken through App_Render looked correct while the window did
+     * not.
+     *
+     * Only the id is carried. The scene frees the sprite array immediately
+     * after emitting, and this queue is drained later, so the pointer in the
+     * event is not ours to pass on.
+     */
+    case TORIDRAW_EVENT_SPRITE_UNLOAD:
+        out->kind = TORIRSRC_SPRITE_UNLOAD;
+        out->u.sprite_load.element_id = ev->element_id;
+        return true;
     case TORIDRAW_EVENT_SCENE_RESET:
         out->kind = TORIRSRC_BATCH3D_CLEAR;
         out->u.batch.batch_id = TORIDRAW_SCENE_INVALID_BATCH_ID;

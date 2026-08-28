@@ -6280,6 +6280,24 @@ app_ui_host_publish_inputs(struct App* app)
             signature[UITREE_HOST_INPUT_ANIMATION],
             blink > 0 ? (int)(app->logic_cycle % (uint64_t)blink) < blink / 2 : 0);
     }
+    /*
+     * The fire's step counter, while there is a fire.
+     *
+     * always_dirty on the node is only half of the contract and does not
+     * work alone: it keeps the node's own descriptor out of the retained
+     * list, but nothing rebuilds the FRAME unless an input epoch moves, so
+     * a title screen whose only animation is the braziers retains the very
+     * first frame forever. That is exactly what shipped -- the fire ran, the
+     * sprite was re-uploaded every step, and the screen kept showing the
+     * seed row from step one, a bright line at the bowl rim and nothing
+     * above it.
+     *
+     * The counter and not the clock: it moves once per fixed 35 ms step, so
+     * the epoch flips exactly when the pixels do rather than every frame.
+     */
+    if( app->flames )
+        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+            signature[UITREE_HOST_INPUT_ANIMATION], app->flames->update_index);
     signature[UITREE_HOST_INPUT_ANIMATION] =
         app_ui_input_hash_int(signature[UITREE_HOST_INPUT_ANIMATION], app->slots.flash_tab);
     if( app->slots.flash_tab >= 0 )

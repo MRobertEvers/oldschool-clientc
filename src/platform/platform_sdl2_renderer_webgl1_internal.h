@@ -221,12 +221,28 @@ struct WebGL1AlphaSubmission
     int depth;
 };
 
+/*
+ * The atlas tile a scene sprite already occupies.
+ *
+ * Kept across an unload, and that is the point of it. The sprite atlas is
+ * an append-only bin-packer with no reclamation, so a sprite REPLACED over
+ * a live id would take a fresh tile on every upload and exhaust the sheet;
+ * once inserts fail the sprite stops drawing at all. Holding the tile lets
+ * a replacement of the same size overwrite the pixels where they are.
+ */
+struct WebGL1SpriteTile
+{
+    struct TRSPK_AtlasTile tile;
+    uint8_t valid;
+};
+
 struct WebGL1SpriteSlot
 {
     int scene_id;
     int count;
     float* uvs;
     uint8_t* loaded;
+    struct WebGL1SpriteTile* tiles;
 };
 
 struct WebGL1SpriteVariant

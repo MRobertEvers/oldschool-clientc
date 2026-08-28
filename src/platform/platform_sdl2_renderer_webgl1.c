@@ -984,6 +984,10 @@ webgl1_sprite_slot_index(
     renderer->sprite_slots[free_idx].count = 0;
     free(renderer->sprite_slots[free_idx].uvs);
     free(renderer->sprite_slots[free_idx].loaded);
+    /* The tiles belong to whatever sprite used to live in this slot;
+     * reusing them for a different id would overwrite it. */
+    free(renderer->sprite_slots[free_idx].tiles);
+    renderer->sprite_slots[free_idx].tiles = NULL;
     renderer->sprite_slots[free_idx].uvs = NULL;
     renderer->sprite_slots[free_idx].loaded = NULL;
     return free_idx;
@@ -1070,17 +1074,45 @@ webgl1_sprite_upload_rgba(
     uint32_t src_stride,
     int upload_w,
     int upload_h,
+    struct WebGL1SpriteTile* tile_io,
     float* out_uv)
 {
     struct TRSPK_AtlasTile tile;
-    if( !trspk_atlas_binpack_insert(
-            &renderer->sprite_atlas,
-            crop_pixels,
-            src_stride,
-            (uint32_t)upload_w,
-            (uint32_t)upload_h,
-            &tile) )
-        return false;
+
+    /* Overwrite the tile this sprite already holds when the replacement
+     * is the same size, and only ask the packer for a new one otherwise.
+     * Without this a sprite replaced every frame walks the sheet until
+     * inserts fail and it silently stops drawing. */
+    if( tile_io && tile_io->valid && tile_io->tile.w == (uint32_t)upload_w &&
+        tile_io->tile.h == (uint32_t)upload_h )
+    {
+        if( !trspk_atlas_update_rect(
+                &renderer->sprite_atlas,
+                tile_io->tile.x,
+                tile_io->tile.y,
+                crop_pixels,
+                src_stride,
+                (uint32_t)upload_w,
+                (uint32_t)upload_h) )
+            return false;
+        tile = tile_io->tile;
+    }
+    else
+    {
+        if( !trspk_atlas_binpack_insert(
+                &renderer->sprite_atlas,
+                crop_pixels,
+                src_stride,
+                (uint32_t)upload_w,
+                (uint32_t)upload_h,
+                &tile) )
+            return false;
+        if( tile_io )
+        {
+            tile_io->tile = tile;
+            tile_io->valid = 1u;
+        }
+    }
     out_uv[0] = tile.u_start;
     out_uv[1] = tile.v_start;
     out_uv[2] = tile.u_end;
@@ -1196,10 +1228,13 @@ webgl1_sprite_ensure_base(
         slot->count = count;
         free(slot->uvs);
         free(slot->loaded);
+        free(slot->tiles);
         slot->uvs = calloc((size_t)count * 4u, sizeof(float));
         slot->loaded = calloc((size_t)count, sizeof(uint8_t));
+        slot->tiles = calloc((size_t)count, sizeof(*slot->tiles));
         assert(slot->uvs);
         assert(slot->loaded);
+        assert(slot->tiles);
     }
     if( slot->loaded[atlas_index] )
     {
@@ -1236,7 +1271,7 @@ webgl1_sprite_ensure_base(
                 (uint32_t)sp->width * 4u,
                 upload_w,
                 upload_h,
-                uv) )
+                &slot->tiles[atlas_index], uv) )
         {
             free(rgba);
             return false;
@@ -1381,7 +1416,7 @@ webgl1_sprite_ensure_variant(
         /* Transforms leave ToriDraw ARGB in spr_px; GL_RGBA wants R,G,B,A. */
         trspk_sprite_argb_to_rgba(spr_px, spr_px, (size_t)sw * (size_t)sh);
         if( !webgl1_sprite_upload_rgba(
-                renderer, (uint8_t const*)spr_px, (uint32_t)sw * 4u, sw, sh, uv) )
+                renderer, (uint8_t const*)spr_px, (uint32_t)sw * 4u, sw, sh, NULL, uv) )
         {
             free(spr_px);
             return false;
@@ -2445,12 +2480,19 @@ webgl1_ev_sprite_unload(
     int slot_i = webgl1_sprite_slot_index(renderer, scene_id, false);
     if( slot_i < 0 )
         return;
-    free(renderer->sprite_slots[slot_i].uvs);
-    free(renderer->sprite_slots[slot_i].loaded);
-    renderer->sprite_slots[slot_i].uvs = NULL;
-    renderer->sprite_slots[slot_i].loaded = NULL;
-    renderer->sprite_slots[slot_i].count = 0;
-    renderer->sprite_slots[slot_i].scene_id = 0;
+    /*
+     * Mark the pixels stale; keep the slot and its tiles.
+     *
+     * Releasing the slot here is what made a replaced sprite take a new
+     * atlas tile on every upload. The next draw re-uploads into the tile
+     * this slot already owns whenever the size is unchanged, which for a
+     * sprite replaced in place it always is.
+     */
+    if( renderer->sprite_slots[slot_i].loaded )
+        memset(renderer->sprite_slots[slot_i].loaded,
+               0,
+               (size_t)renderer->sprite_slots[slot_i].count *
+                   sizeof(*renderer->sprite_slots[slot_i].loaded));
 }
 
 static void
