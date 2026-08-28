@@ -1094,6 +1094,38 @@ app_plugin_button_piece(
     UITree_PushBuildComponent(app->tree, parent, &comp, NULL, NULL, app);
 }
 
+/* TEMP DEBUG PROBE -- remove. Dumps the logout interface's live boxes. */
+static void
+app_plugin_button_probe(struct App* app)
+{
+    static int last = -1;
+    int iface;
+    int frame;
+    if( !getenv("TORIRS_PLUGIN_BTN_PROBE") || !app->tree )
+        return;
+    frame = (int)(g_plugin_panel_ticks / 20);
+    if( frame == last )
+        return;
+    last = frame;
+    iface = RevConfigRefs_Get(&app->revconfig_refs, "iface",
+        app->revconfig_profile.chrome.plugin_iface);
+    fprintf(stderr, "PROBE tick=%d iface=%d layout=%d wmode=%d canvas=%dx%d\n",
+        g_plugin_panel_ticks, iface, app->host.client_layout_mode,
+        app->host.window_mode, app->host.viewport_w, app->host.viewport_h);
+    for( uint32_t i = 0; i < app->tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &app->tree->components[i];
+        if( c->freed || ((c->component_id >> 16) & 0xFFFF) != iface )
+            continue;
+        fprintf(stderr, "PROBE   com=%d|%d type=%d hide=%d abs=%d,%d %dx%d parent=%d text='%s'\n",
+            (c->component_id >> 16) & 0xFFFF, c->component_id & 0xFFFF,
+            (int)c->type, (int)c->behavior.hide,
+            c->position.abs_x, c->position.abs_y, c->position.abs_w, c->position.abs_h,
+            c->parent,
+            c->type == UIELEM_RS_TEXT && c->u.rs_text.text ? c->u.rs_text.text : "");
+    }
+}
+
 static void
 app_plugin_button_sync(struct App* app)
 {
@@ -1106,6 +1138,7 @@ app_plugin_button_sync(struct App* app)
     int h;
     int const down = app_plugin_io_down(app);
 
+    app_plugin_button_probe(app);
     if( !app->tree || !ToriRSChrome_TreeAcceptsChrome(app->tree) )
         return;
 

@@ -249,6 +249,29 @@ UITree_InteractFrameWithPointerCapture(
     int left_pointer_captured,
     struct UIInteractOut* out);
 
+/**
+ * Run a frame with both pointer claims stated.
+ *
+ * `left_pointer_captured` is the capture above: an external surface owns the
+ * physical press while the tree keeps hovering and scrolling underneath it.
+ *
+ * `pointer_owned` is the stronger claim, for an opaque overlay DRAWN over the
+ * tree in the same canvas -- a chrome window rasterised into the frame. Then
+ * no hover, no wheel, no left gesture and no right-press menu request reaches
+ * the tree, and the component that was hovered is told it was left. Keys stay
+ * live: they are not aimed with the mouse.
+ */
+void
+UITree_InteractFrameWithPointerOwner(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct UITreeHost const* ui_host,
+    struct LibToriRS_Input* input,
+    uint64_t now_ms,
+    int left_pointer_captured,
+    int pointer_owned,
+    struct UIInteractOut* out);
+
 /** Prefer on_op, else on_click; walk parents from leaf until a hooked node is
  * found. Exposed for tests. */
 struct UITreeRuntimeScriptHook const*

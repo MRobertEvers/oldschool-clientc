@@ -1684,16 +1684,24 @@ void
 ToriRSChrome_ModelViewSet(struct ToriRSChrome* ui, int widget, int scene_sprite_id);
 
 /**
- * Would a wheel event at (x, y) belong to the chrome?
+ * Does the chrome own the pointer at (x, y)?
  *
- * True over any visible panel and over the open dropdown popup (which extends
- * beyond its panel). Const and side-effect free, so the CALLER's wheel gate
- * can ask it: the camera-zoom path runs long after the chrome handled input
- * this frame, and this probe is what keeps a wheel over a panel from also
- * zooming the world behind it -- the chrome may consume the event and do
- * nothing with it, and "consumed into nothing" over a panel is correct where
- * "fell through to the camera" is not.
+ * True over any visible panel, over the open dropdown or colour popup (both
+ * extend beyond their panel), and for as long as a gesture the chrome started
+ * is still in flight.
+ *
+ * Const and side-effect free, so the CALLER's own gates can ask it. That is
+ * the whole point: a host routes this frame's input to the chrome long before
+ * it runs the game's interaction pass, and by then "did the chrome take it"
+ * cannot be read off a consumed flag -- the shell sets that flag on every
+ * frame for its own replay fence. A press, a wheel or a right click over a
+ * panel belongs to the chrome even when the chrome does nothing with it:
+ * consumed into nothing beats walking the player under the window.
  */
+int
+ToriRSChrome_WantsPointer(struct ToriRSChrome const* ui, int x, int y);
+
+/** The pointer test above, for the caller that only asks about the wheel. */
 int
 ToriRSChrome_WantsWheel(struct ToriRSChrome const* ui, int x, int y);
 

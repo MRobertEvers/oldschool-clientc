@@ -6469,9 +6469,16 @@ ToriRSChrome_MouseWheel(struct ToriRSChrome* ui, int x, int y, int delta)
 }
 
 int
-ToriRSChrome_WantsWheel(struct ToriRSChrome const* ui, int x, int y)
+ToriRSChrome_WantsPointer(struct ToriRSChrome const* ui, int x, int y)
 {
     assert(ui);
+    /* A gesture the chrome already started owns the pointer wherever it has
+     * gone: a window dragged faster than the frame rate leaves the pointer
+     * outside its own title bar, and a release the game sees out there is a
+     * click into whatever the window was dragged across. */
+    if( ui->drag_panel >= 0 || ui->resize_panel >= 0 || ui->scroll_panel >= 0 ||
+        ui->press >= 0 || ui->colorpick_drag_bar != TORIRS_CHROME_COLORBAR_NONE )
+        return 1;
     if( ui->dropdown_open >= 0 )
     {
         struct ToriRSChromeRect const rect = dbg_dropdown_rect(ui);
@@ -6481,6 +6488,12 @@ ToriRSChrome_WantsWheel(struct ToriRSChrome const* ui, int x, int y)
     if( ui->colorpick_open >= 0 && dbg_point_in_rect(x, y, dbg_colorpick_rect(ui)) )
         return 1;
     return dbg_panel_at(ui, x, y) >= 0;
+}
+
+int
+ToriRSChrome_WantsWheel(struct ToriRSChrome const* ui, int x, int y)
+{
+    return ToriRSChrome_WantsPointer(ui, x, y);
 }
 
 int

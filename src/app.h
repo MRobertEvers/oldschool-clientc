@@ -1579,6 +1579,19 @@ struct App
     /** Cleared once the automatic submit has fired, so a failed login returns
      *  to the form instead of retrying by itself forever. */
     int autologin_done;
+    /**
+     * A submitted login, waiting for the frame that says so to reach the
+     * screen before it dials.
+     *
+     * The submit changes what the player is looking at -- the message line
+     * becomes "Connecting to server...", and the Login and Cancel buttons are
+     * withdrawn (title_form_buttons) -- and then the connect begins a stretch
+     * of work with no frame in it. Dialling in the same tick means the screen
+     * still shows an untouched form throughout: the click reads as ignored,
+     * and the client looks hung rather than busy. So the submit ends the tick
+     * here, and the next one connects, with the frame in between.
+     */
+    int title_connect_pending;
 
     /*
      * Connection loss and re-establishment (reference `lostCon`, Client-TS
@@ -2292,6 +2305,11 @@ struct App
     /** Set by App_RunOnce once the stable-tree gate has been crossed and the
      *  current host input frame has reached interaction. */
     int input_frame_consumed;
+    /** This frame's pointer is over chrome drawn in this canvas (a developer
+     *  panel, or the plugin window under the buffer executor), so the game
+     *  sees none of it. Latched once per frame after the chrome ticks; see
+     *  app_chrome_wants_pointer, which is also what computes it. */
+    int chrome_pointer_owned;
     /**
      * Zone sub-packets that arrived while the world was still async-loading.
      *

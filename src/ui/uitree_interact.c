@@ -1184,6 +1184,7 @@ interact_hover(
     struct UITreeHost const* ui_host,
     struct LibToriRS_Input* input,
     uint64_t now_ms,
+    int pointer_owned,
     struct UIInteractOut* out)
 {
     int mx = input->curr.mouse_x;
@@ -1198,8 +1199,15 @@ interact_hover(
      * addComponentOptions), components from tabs that are not even on screen
      * then override the visible ones — which showed up as stat cells having a
      * hover box a few pixels tall. */
-    interact->hover_com_id = UITree_FindHoveredComponentIdForRegion(
-        tree, ui_host, -1, mx, my, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    /* An overlay above the tree owns this point, so nothing under it is
+     * hovered. Run the walk anyway -- with no hit -- rather than returning
+     * early: the component that WAS hovered has an onMouseLeave owed to it,
+     * and skipping the pass would leave it lit under the panel. */
+    interact->hover_com_id =
+        pointer_owned ? -1
+                      : UITree_FindHoveredComponentIdForRegion(
+                            tree, ui_host, -1, mx, my, 0, 0, UITREE_LAYOUT_ROOT_W,
+                            UITREE_LAYOUT_ROOT_H);
 
     interact->hover_node_index = -1;
     interact->hover_node_incarnation = 0;
@@ -1289,6 +1297,7 @@ static int
 interact_minimenu(
     struct UIInteraction* interact,
     struct LibToriRS_Input* input,
+    int pointer_owned,
     struct UIInteractOut* out)
 {
     struct UIMinimenu* menu = &interact->minimenu;
@@ -1300,7 +1309,9 @@ interact_minimenu(
          * loss, drag) cannot eat this click. */
         if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
             interact->swallow_left_click = 0;
-        if( LibToriRS_Input_IsMouseDown(input, TORIRSM_RIGHT) )
+        /* No menu for a right press an overlay owns: the rows would describe
+         * whatever the panel is drawn over. */
+        if( !pointer_owned && LibToriRS_Input_IsMouseDown(input, TORIRSM_RIGHT) )
         {
             out->right_click = 1;
             out->right_click_x = input->curr.mouse_x;
@@ -1704,13 +1715,14 @@ interact_cancel_external_left_capture(
 }
 
 void
-UITree_InteractFrameWithPointerCapture(
+UITree_InteractFrameWithPointerOwner(
     struct UIInteraction* interact,
     struct UITree* tree,
     struct UITreeHost const* ui_host,
     struct LibToriRS_Input* input,
     uint64_t now_ms,
     int left_pointer_captured,
+    int pointer_owned,
     struct UIInteractOut* out)
 {
     struct UIInputResult ui_result;
@@ -1738,8 +1750,24 @@ UITree_InteractFrameWithPointerCapture(
 
     /* An open minimenu owns the whole pointer: no scrollbars, drags, hover, or
      * clicks reach the tree until it closes (reference choose-option). */
-    if( interact_minimenu(interact, input, out) )
+    if( interact_minimenu(interact, input, pointer_owned, out) )
         return;
+
+    /*
+     * An overlay drawn above the tree owns this pointer position outright --
+     * a chrome window rasterised into the same canvas, say. Stronger than the
+     * capture below: there the surface owns the PRESS and the tree still
+     * hovers and scrolls under it, here nothing about the pointer reaches the
+     * tree at all. Keys stay live; they are not aimed with the mouse.
+     */
+    if( pointer_owned )
+    {
+        interact_cancel_external_left_capture(interact, tree);
+        out->cancelled_pointer_click = 1;
+        interact_hover(interact, tree, ui_host, input, now_ms, 1, out);
+        interact_keys(tree, input, out);
+        return;
+    }
 
     if( left_pointer_captured )
     {
@@ -1749,7 +1777,7 @@ UITree_InteractFrameWithPointerCapture(
         interact_cancel_external_left_capture(interact, tree);
         out->cancelled_pointer_click = 1;
         interact_wheel(tree, input, out);
-        interact_hover(interact, tree, ui_host, input, now_ms, out);
+        interact_hover(interact, tree, ui_host, input, now_ms, 0, out);
         interact_keys(tree, input, out);
         return;
     }
@@ -1806,7 +1834,7 @@ UITree_InteractFrameWithPointerCapture(
     interact_drag(interact, tree, ui_host, input, sb_owns_mouse, &ui_result, out);
     interact_release(tree, input, &ui_result, out);
     interact_hold(interact, tree, input, sb_owns_mouse, out);
-    interact_hover(interact, tree, ui_host, input, now_ms, out);
+    interact_hover(interact, tree, ui_host, input, now_ms, 0, out);
     if( !swallow_click )
         interact_click(tree, ui_host, input, &ui_result, out);
     interact_keys(tree, input, out);
@@ -1833,6 +1861,20 @@ UITree_InteractFrameWithPointerCapture(
 }
 
 void
+UITree_InteractFrameWithPointerCapture(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct UITreeHost const* ui_host,
+    struct LibToriRS_Input* input,
+    uint64_t now_ms,
+    int left_pointer_captured,
+    struct UIInteractOut* out)
+{
+    UITree_InteractFrameWithPointerOwner(
+        interact, tree, ui_host, input, now_ms, left_pointer_captured, 0, out);
+}
+
+void
 UITree_InteractFrame(
     struct UIInteraction* interact,
     struct UITree* tree,
@@ -1841,6 +1883,6 @@ UITree_InteractFrame(
     uint64_t now_ms,
     struct UIInteractOut* out)
 {
-    UITree_InteractFrameWithPointerCapture(
-        interact, tree, ui_host, input, now_ms, 0, out);
+    UITree_InteractFrameWithPointerOwner(
+        interact, tree, ui_host, input, now_ms, 0, 0, out);
 }

@@ -48,6 +48,75 @@ test_click_event_coords(void)
     UITree_Free(tree);
 }
 
+/*
+ * An overlay drawn over the tree in the same canvas owns the pointer: the
+ * component under it is neither hovered, clicked, nor right-clicked.
+ *
+ * The client's regression is the plugin window rasterised into the game frame
+ * (the buffer executor). Its clicks reached the chrome AND the game beneath
+ * it, because "the chrome took this" cannot be read downstream off a consumed
+ * flag the shell sets on every frame.
+ */
+void
+test_pointer_owner_blocks_tree(void)
+{
+    struct UITree* tree;
+    struct TestHostState hs;
+    struct UITreeHost host;
+    struct UIInteraction interact;
+    struct LibToriRS_Input storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    int32_t btn;
+    int clicked = 0;
+
+    printf("TEST: an owned pointer reaches no component\n");
+    tree = UITree_New(8);
+    UITree_TestHostInit(&host, &hs);
+    btn = UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 700, 100, 40, 200, 20);
+    tree->components[btn].if3 = 1;
+    UITree_HooksMut(&tree->components[btn])->on_click.script_id = 9226;
+    /* A hover hook as well, so "was it hovered" is a question with a yes: the
+     * hover walk reports components the reference would offer options for. */
+    UITree_HooksMut(&tree->components[btn])->on_mouse_over.script_id = 9227;
+    UITree_TestResolve(tree);
+
+    UIInteraction_Init(&interact);
+    input = LibToriRS_Input_Init(&storage, 0);
+    LibToriRS_Input_Begin(input, 0);
+    LibToriRS_Input_PushMouseMove(input, 160, 47);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 160, 47);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrameWithPointerOwner(&interact, tree, &host, input, 0, 0, 1, &out);
+
+    for( int i = 0; i < out.intent_count; i++ )
+        if( out.intents[i].hook && out.intents[i].hook->script_id == 9226 )
+            clicked = 1;
+    TEST_ASSERT(!clicked, "a press under the overlay runs no onClick");
+    TEST_ASSERT(out.hover_com_id == -1, "nothing under the overlay is hovered");
+
+    /* And no Choose Option menu: its rows would describe what the overlay is
+     * drawn over. */
+    LibToriRS_Input_Begin(input, 20);
+    LibToriRS_Input_PushMouseMove(input, 160, 47);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_RIGHT, 160, 47);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrameWithPointerOwner(&interact, tree, &host, input, 20, 0, 1, &out);
+    TEST_ASSERT(!out.right_click, "a right press under the overlay asks for no menu");
+
+    /* The same press with nobody owning the pointer is the control: this is a
+     * gate, not a component that stopped working. */
+    LibToriRS_Input_Begin(input, 40);
+    LibToriRS_Input_PushMouseMove(input, 160, 47);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_RIGHT, 160, 47);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrameWithPointerOwner(&interact, tree, &host, input, 40, 0, 0, &out);
+    TEST_ASSERT(out.right_click, "the same press unowned does ask for one");
+    TEST_ASSERT(out.hover_com_id == 700, "and the component hovers again");
+
+    UITree_Free(tree);
+}
+
 void
 test_hover_input(void)
 {

@@ -8469,6 +8469,33 @@ app_dbgui_key_edit_from_osrs(int osrs_key)
 }
 
 /**
+ * Does chrome DRAWN IN THIS CANVAS own the pointer at (x, y)?
+ *
+ * The game's interaction pass, the world hittest and the camera all run long
+ * after the chrome handled this frame's input, and by then they cannot read
+ * "the chrome took it" off `input_frame_consumed` -- the shell sets that on
+ * every frame as its own replay fence. They ask this instead, and a press, a
+ * wheel or a right click over a panel stops there.
+ *
+ * The plugin window counts only under the BUFFER executor. Every other
+ * presentation draws it somewhere else -- its own SDL window, a DOM, the
+ * interface tree -- while the in-canvas model keeps the geometry it was laid
+ * out with. That geometry is a ghost: hit-testable at a floating position
+ * nothing draws, so honouring it would punch an invisible hole in the game.
+ */
+static int
+app_chrome_wants_pointer(struct App const* app, int x, int y)
+{
+    assert(app);
+    if( ToriRSChrome_WantsPointer(&app->dbg_ui, x, y) )
+        return 1;
+    if( app->plugin_panel_visible && app->plugin_exec_kind == TORIRS_CHROME_EXEC_BUFFER &&
+        ToriRSChrome_WantsPointer(&app->plugin_ui, x, y) )
+        return 1;
+    return 0;
+}
+
+/**
  * Feed one frame's pointer and keyboard to one chrome instance.
  *
  * Instance-taking rather than reaching for app->dbg_ui, because the plugin
@@ -15622,7 +15649,21 @@ app_title_submit(struct App* app)
         &app->title, NULL, RS_LoginReplies_String(&app->login_replies, "connecting"), NULL);
     app->screen = APP_SCREEN_CONNECTING;
     app_title_state_changed(app);
-    ToriRS_Network_ConnectLogin(app->net, app->connect_target, user, pass);
+    /*
+     * And stop here, one frame short of dialling.
+     *
+     * Everything above is a change to what is ON SCREEN -- the message line,
+     * and the Login/Cancel buttons that app_title_sync_groups withdraws for
+     * APP_SCREEN_CONNECTING -- and none of it has been drawn yet.
+     * app_title_state_changed has asked for the frame; connecting here would
+     * spend the rest of this tick, and every tick after it, on a handshake and
+     * then on the whole gameframe's assets, with the pre-click picture still on
+     * the screen. The player clicks Login and watches nothing happen.
+     *
+     * The tick ends instead, the frame goes out, and app_title_tick dials on
+     * the next one -- see App::title_connect_pending.
+     */
+    app->title_connect_pending = 1;
 }
 
 /*
@@ -15681,6 +15722,22 @@ app_title_tick(struct App* app)
     if( app->title.submit_requested )
     {
         app_title_submit(app);
+        redraw = 1;
+    }
+    /*
+     * The connect the previous tick deferred, now that its frame has been
+     * drawn. Read out of the form rather than carried across, because the form
+     * IS the state -- nothing can have edited it in between, and a copy would
+     * be a second place for the credentials to live.
+     */
+    else if( app->title_connect_pending )
+    {
+        app->title_connect_pending = 0;
+        ToriRS_Network_ConnectLogin(
+            app->net,
+            app->connect_target,
+            RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME),
+            RS_Title_FieldText(&app->title, RS_TITLE_FIELD_PASSWORD));
         redraw = 1;
     }
 
@@ -18693,6 +18750,10 @@ app_world_mouse_gate(
 
     if( !app->world_active || !app_world_viewport_component_live(app) )
         return 0;
+    /* A chrome panel drawn over the viewport is as opaque to the world as an
+     * interface is: no hover, no pick, no click-to-walk under the window. */
+    if( app_chrome_wants_pointer(app, mouse_x, mouse_y) )
+        return 0;
     /* A viewport interface (reference mainModalId) owns the entire viewport
      * rect: buildMinimenu adds that modal's component options there and NEVER
      * world options (Client.ts:2772 `if (mainModalId === -1) addWorldOptions
@@ -19879,7 +19940,7 @@ app_world_camera_mouse(
          * an open dropdown belongs to the chrome even when the chrome had
          * nothing to do with it -- consumed into nothing beats zooming the
          * world behind a panel. */
-        !ToriRSChrome_WantsWheel(&app->dbg_ui, mouse_x, mouse_y) &&
+        !app_chrome_wants_pointer(app, mouse_x, mouse_y) &&
         app_world_mouse_gate(app, mouse_x, mouse_y) )
     {
         /* Only the FOLLOW camera is the revision's. The free camera is this
@@ -25814,9 +25875,12 @@ app_hover_text_update(
 
     snprintf(prev, sizeof(prev), "%s", app->hover_text.text);
 
-    /* 4726's first gate: no hover line while the Choose Option popup is up. */
-    if( app->interact.minimenu.visible || mouse_x < 0 || mouse_y < 0 ||
-        mouse_x >= UITREE_LAYOUT_ROOT_W || mouse_y >= UITREE_LAYOUT_ROOT_H )
+    /* 4726's first gate: no hover line while the Choose Option popup is up.
+     * Nor under a chrome window: the line would name whatever the window is
+     * drawn over, and the right click that row promises is refused. */
+    if( app->interact.minimenu.visible || app_chrome_wants_pointer(app, mouse_x, mouse_y) ||
+        mouse_x < 0 || mouse_y < 0 || mouse_x >= UITREE_LAYOUT_ROOT_W ||
+        mouse_y >= UITREE_LAYOUT_ROOT_H )
     {
         app->hover_text.visible = false;
         app->hover_text.text[0] = '\0';
@@ -29484,6 +29548,11 @@ App_RunOnce(
     /* Loc editor next, same reasoning -- and it has to run before anything
      * downstream reads input_frame_consumed for click-to-walk. */
     app_loc_editor_tick(app, input);
+    /* Who owns this frame's pointer, latched after the chrome ticks that may
+     * have moved, opened or closed a panel and before anything else acts on
+     * it -- so every consumer below answers the question the same way. */
+    app->chrome_pointer_owned =
+        app_chrome_wants_pointer(app, input->curr.mouse_x, input->curr.mouse_y);
     /* Plugin regions paint beneath the developer/plugin chrome. Let that
      * chrome claim a new press first; an already-captured plugin gesture still
      * owns its held/release edges (app_chrome_route_input fences those). */
@@ -29895,13 +29964,14 @@ App_RunOnce(
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INTERACT)
     {
-        UITree_InteractFrameWithPointerCapture(
+        UITree_InteractFrameWithPointerOwner(
             &app->interact,
             app->tree,
             &app->ui_host,
             input,
             now_ms,
             plugin_pointer_owned,
+            app->chrome_pointer_owned,
             &out);
     }
     plugin_pointer_consumed = plugin_pointer_owned || out.minimenu_consumed_pointer;
