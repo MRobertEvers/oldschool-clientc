@@ -681,11 +681,20 @@ from under anything else reading it (a second client, an osrsify search wave).
 while iterating on C or on scripts, and the wrong one the moment the content
 tree changed.
 
-Those bakes read the OSRS-Content tree, and they need its `ported/` lanes —
-`torirsserver-scripts` feeds both `ported/scape2009_summoning` and
-`ported/rs2012_qbd_td` to `sscompile` on every embedded run, so a checkout
-without them fails on a missing `all.varbit.compack`, which names nothing about
-the real problem.
+Those bakes read the OSRS-Content tree, and they need its `ported/` lanes. Both
+launchers still check for `ported/scape2009_summoning` and
+`ported/rs2012_qbd_td` before picking a tree, because a checkout without them
+fails on a missing `all.varbit.compack`, which names nothing about the real
+problem.
+
+What `torirsserver-scripts` does *not* do any more is compile them.
+`ported/rs2012_qbd_td` is `default=off` alongside the two that always were, so
+the bare pack is pristine rev 239 — no royal dragonhide in the tanner, no
+dragonbone sets in the equipment tables, no 2012 Dragon claws. A profile that
+wants the lane asks for it by name (`[content:lanes]` in
+`manifests/manifest_osrs239_rs2012.ini`, or `make torirsserver-scripts-rs2012`),
+which is also what keeps its composed cache and its script pack on the same
+namespace.
 
 Neither launcher makes you know which checkout that is. Both look at
 `OSRS-Content/osrs239-content` first, then each `build/*/osrs239-content`, and

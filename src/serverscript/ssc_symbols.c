@@ -416,10 +416,27 @@ SSC_SymbolsLoadPack(
         if( trailing )
             *trailing = '\0';
         strip_eol(equals + 1);
-        if( !equals[1] )
-            continue;
-        if( SSC_SymbolsAdd(symbols, equals + 1, (int32_t)atoi(cursor), kind, NULL) )
-            loaded++;
+        /* A trailing provenance suffix. An archive-level pack whose cache index
+         * stores only a hash carries what it was hashed from beside the name --
+         * `496=font_496 hashcode(1057075019)`,
+         * `2584=tutorial_overlay_hint hashname("[clientscript,...]")`. That is
+         * a note about the id, not part of the name, and a symbol name never
+         * contains whitespace, so the name ends at the first space. Without
+         * this cut, 13_fonts, 12_clientscripts, 8_sprites and 6_musictracks
+         * loaded every entry under a name no script can spell -- which is how
+         * `split_init(..., font_496)` came to fail against a pack that lists
+         * font_496 on line 3. */
+        {
+            char* name = equals + 1;
+
+            while( *name == ' ' || *name == '\t' )
+                name++;
+            name[strcspn(name, " \t")] = '\0';
+            if( !*name )
+                continue;
+            if( SSC_SymbolsAdd(symbols, name, (int32_t)atoi(cursor), kind, NULL) )
+                loaded++;
+        }
     }
     fclose(file);
     return loaded;

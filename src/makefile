@@ -982,7 +982,7 @@ endif
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
 .PHONY: bench-trspk-bake test-trspk-color-simd test-trspk-swizzle-simd test-trspk-modelarena-index
 .PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
-.PHONY: torirsserver-scripts-lanes torirsserver-lanes
+.PHONY: torirsserver-scripts-lanes torirsserver-lanes torirsserver-scripts-rs2012
 .PHONY: test-wev test-wev-rebuild test-painters-world-entity
 
 all: $(OBJ_DIR) $(TARGET)
@@ -3659,6 +3659,15 @@ torirsserver-scripts-curses:
 	@$(MAKE) torirsserver-scripts-lanes \
 		TORIRSSERVER_SCRIPT_LANES=rs558_ancient_curses \
 		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_curses
+
+# QBD / Tormented Demons on. The lane was `default=on` until base content
+# stopped naming its objs; it is asked for by name now, here and in
+# manifests/manifest_osrs239_rs2012.ini, and the pack goes to its own directory
+# so the pristine one stays pristine.
+torirsserver-scripts-rs2012:
+	@$(MAKE) torirsserver-scripts-lanes \
+		TORIRSSERVER_SCRIPT_LANES=rs2012_qbd_td \
+		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_rs2012
 
 test-summoning-phase3: torirsserver-scripts torirsserver-scripts-summoning test-mock239-playerinfo
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase3.py

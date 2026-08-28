@@ -276,6 +276,13 @@ test_live_tree(const char* content_dir)
           "live tree: bankmain:items composes");
     check(resolved(&symbols, "attackrate", SSC_SYM_PARAM) == 14,
           "live tree: attackrate is param 14");
+    /* `pack/13_fonts.pack` line 3 is `496=font_496 hashcode(1057075019)`. The
+     * hashcode is provenance for an archive the cache names only by hash; the
+     * name ends before it. Without the cut every entry of the four packs that
+     * carry one loaded under a name no script can spell, and
+     * `split_init(..., font_496)` failed against a pack that lists it. */
+    check(resolved(&symbols, "font_496", SSC_SYM_FONTMETRICS) == 496,
+          "live tree: a hashcode suffix is not part of the name");
 
     SSC_SymbolsFree(&symbols);
 }

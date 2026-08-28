@@ -74,7 +74,12 @@ def main() -> None:
         "server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_qbd.dbrow"
     )
     imported = read("ported/rs2012_qbd_td/configs/rs2012.obj")
-    leather = read("server/scripts/skill_crafting/scripts/leather/leather.rs2")
+    # The Royal bindings moved out of `skill_crafting/.../leather.rs2` when this
+    # lane became one a build may leave out: a base file may not name
+    # `rs2012_obj_24374`. The panel and the batch loop they call are still base.
+    leather = read(
+        "server/scripts/minigames/minigame_rs2012_qbd/scripts/rs2012_royal_leather.rs2"
+    )
     tanner = read("server/scripts/areas/alkharid/scripts/tanner.rs2")
     sbott = read("server/scripts/areas/area_canifis/scripts/sbott.rs2")
     disputed = read("server/scripts/skill_combat/configs/equipment_disputed.obj")
