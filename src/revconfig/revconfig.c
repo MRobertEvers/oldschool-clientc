@@ -835,6 +835,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_FLAME_RUN";
     case RCFIELD_UICOMPONENT_FLAME_ROW:
         return "RCFIELD_UICOMPONENT_FLAME_ROW";
+    case RCFIELD_UICOMPONENT_FLAME_BLUR:
+        return "RCFIELD_UICOMPONENT_FLAME_BLUR";
     case RCFIELD_UICOMPONENT_TEXT_BASELINE:
         return "RCFIELD_UICOMPONENT_TEXT_BASELINE";
     case RCFIELD_UICOMPONENT_OPTION:
@@ -1634,6 +1636,9 @@ revconfig_item_apply_uicomponent_field(
         break;
     case RCFIELD_UICOMPONENT_FLAME_ROW:
         comp->flame_row = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_BLUR:
+        strncpy(comp->flame_blur, value, sizeof(comp->flame_blur) - 1);
         break;
     case RCFIELD_UICOMPONENT_TEXT_BASELINE:
         comp->text_baseline = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;

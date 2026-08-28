@@ -292,6 +292,68 @@ test_palette_is_configurable(void)
     TitleFlames_Free(&flames);
 }
 
+/*
+ * The two eras smooth the fire differently, and it is visible.
+ *
+ * Client-TS averages the four neighbours and excludes the centre. On a
+ * lattice that leaves the two checkerboard sublattices reading only each
+ * other, so they drift apart and the fire carries a permanent dither. The
+ * deob's box blur includes the centre and mixes them.
+ *
+ * Measured as the mean absolute difference between ADJACENT pixels over the
+ * one between pixels TWO apart. Above 1 means neighbours disagree more than
+ * near-neighbours do, which is a checkerboard and nothing else; below 1 is
+ * an ordinary smooth field. This is the number that told the difference
+ * between 'the reference looks like this' and 'we picked the wrong blur'.
+ */
+static double
+grain_ratio(struct TitleFlames* flames)
+{
+    double adjacent = 0.0;
+    double apart = 0.0;
+    int n = 0;
+
+    for( int y = 180; y < 250; y++ )
+    {
+        for( int x = 20; x < 106; x++ )
+        {
+            int at = y * TORIRS_FLAME_W + x;
+            adjacent += abs(flames->heat[at] - flames->heat[at + 1]);
+            apart += abs(flames->heat[at] - flames->heat[at + 2]);
+            n++;
+        }
+    }
+    TEST_ASSERT(n > 0 && apart > 0.0, "the sample band carries some fire");
+    return apart > 0.0 ? adjacent / apart : 0.0;
+}
+
+static void
+test_blur_kinds_differ(void)
+{
+    struct TitleFlames flames;
+    uint32_t const bg = 0xFF000000u;
+    double neighbour4;
+    double box;
+
+    init_flames(&flames, bg);
+    run(&flames, 40);
+    neighbour4 = grain_ratio(&flames);
+    TitleFlames_Free(&flames);
+
+    init_flames(&flames, bg);
+    TitleFlames_SetBlur(&flames, TORIRS_FLAME_BLUR_BOX);
+    run(&flames, 40);
+    box = grain_ratio(&flames);
+    TitleFlames_Free(&flames);
+
+    /* The 2004 value is not a defect to be driven down: it was matched to
+     * within 0.03 of an independent transcription of Client-TS, so a change
+     * here means the simulation drifted from its reference. */
+    TEST_ASSERT(neighbour4 > 1.4, "the four-neighbour blur leaves the reference's dither");
+    TEST_ASSERT(box < 1.0, "the box blur mixes the sublattices and removes it");
+    TEST_ASSERT(box < neighbour4, "and is the smoother of the two");
+}
+
 int
 main(void)
 {
@@ -304,6 +366,7 @@ main(void)
     test_is_reproducible();
     test_sides_differ();
     test_unplaced_side_is_absent();
+    test_blur_kinds_differ();
     test_fixed_step();
     test_palette_is_configurable();
 

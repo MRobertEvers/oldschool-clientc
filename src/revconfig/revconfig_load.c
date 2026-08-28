@@ -308,6 +308,8 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_FLAME_RUN;
     else if( strcmp(key, "flame_row") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_FLAME_ROW;
+    else if( strcmp(key, "flame_blur") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_FLAME_BLUR;
     else if( strcmp(key, "baseline") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_TEXT_BASELINE;
     /* `text=` already means the literal of an rs_text; under [string:] it is

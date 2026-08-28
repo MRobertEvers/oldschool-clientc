@@ -143,6 +143,7 @@ struct UIBuilderTreeOp
     int flame_sway;
     int flame_run;
     int flame_row;
+    char flame_blur[16];
     /** @see RevConfigUIComponentItem::text_baseline. */
     int text_baseline;
     int button_type;

@@ -963,6 +963,8 @@ struct UITreeComponent
             int sway;
             int run;
             int row;
+            /** enum TitleFlameBlur. */
+            int blur;
         } title_flames;
         struct
         {
@@ -1584,6 +1586,8 @@ struct UITreeNodeSpec
             int sway;
             int run;
             int row;
+            /** enum TitleFlameBlur. */
+            int blur;
         } title_flames;
         struct UITreeDebugOverlayConfig debug_overlay;
         struct UITreeChatConfig chat;

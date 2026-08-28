@@ -196,6 +196,7 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_FLAME_SWAY,
     RCFIELD_UICOMPONENT_FLAME_RUN,
     RCFIELD_UICOMPONENT_FLAME_ROW,
+    RCFIELD_UICOMPONENT_FLAME_BLUR,
     RCFIELD_UICOMPONENT_TEXT_BASELINE,
     RCFIELD_STRING_TEXT,
     RCFIELD_PRELOAD_KIND,
@@ -993,6 +994,10 @@ struct RevConfigUIComponentItem
     int flame_sway;
     int flame_run;
     int flame_row;
+    /* INI: flame_blur= -- `neighbour4` (Client-TS) or `box` (the deob).
+     * The single biggest difference in how the two eras' fire looks; see
+     * enum TitleFlameBlur. Unstated is the older one. */
+    char flame_blur[16];
 
     /* INI: option= / op0=..op4= — minimenu row labels for static/builtin owners. */
     char option[REVCONFIG_MENU_OPTION_LEN];

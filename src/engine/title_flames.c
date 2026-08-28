@@ -152,6 +152,62 @@ generate_cooling_map(
     }
 }
 
+/*
+ * The deob's smoothing: a separable running-sum box blur (class77).
+ *
+ * Two passes, horizontal then vertical, each a sliding window carried as a
+ * running total -- which is why the reference can afford a window at all on
+ * 32768 cells. The window INCLUDES the centre, and that is the whole
+ * difference from Client-TS's four-neighbour average: it mixes the two
+ * checkerboard sublattices instead of letting them evolve apart, so the
+ * fire has no dither.
+ *
+ * The radius alternates 0 and 1 with the step counter, exactly as
+ * `((clientCycle & 1) + ticks) / 2` does at one tick per step. A radius of
+ * zero is a copy, so half the steps smooth and half do not.
+ */
+static void
+flame_blur_box(struct TitleFlames* flames)
+{
+    int radius = ((flames->update_index & 1) + 1) / 2;
+    int span = radius * 2 + 1;
+
+    assert(flames);
+    if( radius <= 0 )
+        return;
+
+    for( int y = 0; y < TORIRS_FLAME_H; y++ )
+    {
+        int row = y * TORIRS_FLAME_W;
+        int sum = 0;
+
+        for( int x = -radius; x < TORIRS_FLAME_W; x++ )
+        {
+            if( x + radius < TORIRS_FLAME_W )
+                sum += flames->heat[row + x + radius];
+            if( x - (radius + 1) >= 0 )
+                sum -= flames->heat[row + x - (radius + 1)];
+            if( x >= 0 )
+                flames->blur[row + x] = sum / span;
+        }
+    }
+
+    for( int x = 0; x < TORIRS_FLAME_W; x++ )
+    {
+        int sum = 0;
+
+        for( int y = -radius; y < TORIRS_FLAME_H; y++ )
+        {
+            if( y + radius < TORIRS_FLAME_H )
+                sum += flames->blur[(y + radius) * TORIRS_FLAME_W + x];
+            if( y - (radius + 1) >= 0 )
+                sum -= flames->blur[(y - (radius + 1)) * TORIRS_FLAME_W + x];
+            if( y >= 0 )
+                flames->heat[y * TORIRS_FLAME_W + x] = sum / span;
+        }
+    }
+}
+
 /* One simulation step: feed, spark, blur, cool, wobble, and age the fades. */
 static void
 flame_update(struct TitleFlames* flames)
@@ -175,17 +231,27 @@ flame_update(struct TitleFlames* flames)
         flames->heat[y * TORIRS_FLAME_W + x] = FLAME_SPARK_HEAT;
     }
 
-    /* Four-neighbour blur. The row below is included, which is what carries
-     * heat upward: each cell inherits from the hotter row beneath it. */
-    for( int y = 1; y < TORIRS_FLAME_H - 1; y++ )
+    /*
+     * Four-neighbour blur, for the lane whose reference does it here.
+     *
+     * The row below is included, which is what carries heat upward: each
+     * cell inherits from the hotter row beneath it. The deob has no pass in
+     * this position at all -- it smooths once, at the end, over the field it
+     * is about to draw -- so running both would smooth twice and the fire
+     * would come out dim and short.
+     */
+    if( flames->blur_kind != TORIRS_FLAME_BLUR_BOX )
     {
-        for( int x = 1; x < TORIRS_FLAME_W - 1; x++ )
+        for( int y = 1; y < TORIRS_FLAME_H - 1; y++ )
         {
-            int at = y * TORIRS_FLAME_W + x;
-            flames->blur[at] =
-                (flames->heat[at - 1] + flames->heat[at + 1] + flames->heat[at - TORIRS_FLAME_W] +
-                 flames->heat[at + TORIRS_FLAME_W]) /
-                4;
+            for( int x = 1; x < TORIRS_FLAME_W - 1; x++ )
+            {
+                int at = y * TORIRS_FLAME_W + x;
+                flames->blur[at] = (flames->heat[at - 1] + flames->heat[at + 1] +
+                                    flames->heat[at - TORIRS_FLAME_W] +
+                                    flames->heat[at + TORIRS_FLAME_W]) /
+                                   4;
+            }
         }
     }
 
@@ -202,13 +268,21 @@ flame_update(struct TitleFlames* flames)
 
     /* Lift the blurred field by one row and cool it. The row shift is the
      * upward motion; the subtraction is what shapes the flame. */
-    for( int at = 0; at < TORIRS_FLAME_CELLS - TORIRS_FLAME_W; at++ )
     {
-        int cooled =
-            flames->blur[at + TORIRS_FLAME_W] -
-            flames->cooling[(at + flames->cooling_scroll) & (TORIRS_FLAME_CELLS - 1)] /
-                FLAME_COOLING_DIVISOR;
-        flames->heat[at] = cooled < 0 ? 0 : cooled;
+        /* The deob cools straight off the heat field; Client-TS cools off the
+         * blurred copy it just made. Reading `at + W` ahead of the write at
+         * `at` is safe in both cases -- the row below has not been reached. */
+        int32_t const* from =
+            flames->blur_kind == TORIRS_FLAME_BLUR_BOX ? flames->heat : flames->blur;
+
+        for( int at = 0; at < TORIRS_FLAME_CELLS - TORIRS_FLAME_W; at++ )
+        {
+            int cooled =
+                from[at + TORIRS_FLAME_W] -
+                flames->cooling[(at + flames->cooling_scroll) & (TORIRS_FLAME_CELLS - 1)] /
+                    FLAME_COOLING_DIVISOR;
+            flames->heat[at] = cooled < 0 ? 0 : cooled;
+        }
     }
 
     /* The per-row sway, shifted up a row per step so a wobble travels with the
@@ -221,6 +295,13 @@ flame_update(struct TitleFlames* flames)
               sin((double)flames->wobble_phase / 15.0) * 14.0 +
               sin((double)flames->wobble_phase / 16.0) * 12.0);
     flames->wobble_phase++;
+
+    /* The deob smooths at the END of its update, over the field it is about
+     * to draw; Client-TS's blur has already happened above, feeding the cool.
+     * A profile that asks for neither gets the older one. */
+    if( flames->blur_kind == TORIRS_FLAME_BLUR_BOX )
+        flame_blur_box(flames);
+    flames->update_index++;
 
     for( int i = 0; i < TORIRS_FLAME_PALETTES - 1; i++ )
     {
@@ -438,6 +519,15 @@ TitleFlames_SetGeometry(
 
     flames->geometry[side] = *geometry;
     flames->has_geometry[side] = 1;
+}
+
+void
+TitleFlames_SetBlur(
+    struct TitleFlames* flames,
+    int blur_kind)
+{
+    assert(flames);
+    flames->blur_kind = blur_kind;
 }
 
 void

@@ -67,6 +67,30 @@ struct TitleFlameGeometry
     int row;
 };
 
+/*
+ * How the heat field is smoothed each step, which is the single biggest
+ * difference in how the two eras' fire LOOKS.
+ *
+ * Client-TS averages the four neighbours and excludes the centre. On a
+ * lattice that decouples the two checkerboard sublattices -- each evolves
+ * without ever reading the other -- so they drift apart and the fire carries
+ * a permanent dither. That grain is the 2004 client's, measured here at a
+ * 1.70 ratio between adjacent and two-apart differences and matched to 0.03
+ * against a transcription of the reference.
+ *
+ * The deob does not do that. class77 runs a separable running-sum BOX blur
+ * whose window includes the centre, which mixes the sublattices and removes
+ * the dither. Using the 2004 blur on a modern profile is what made its
+ * braziers look pixelated in a way neither reference does.
+ */
+enum TitleFlameBlur
+{
+    /** Client-TS: four neighbours, centre excluded. */
+    TORIRS_FLAME_BLUR_NEIGHBOUR4 = 0,
+    /** The deob: separable running-sum box, centre included. */
+    TORIRS_FLAME_BLUR_BOX
+};
+
 enum TitleFlameSide
 {
     TORIRS_FLAME_LEFT = 0,
@@ -121,6 +145,12 @@ struct TitleFlames
     struct TitleFlameGeometry geometry[TORIRS_FLAME_SIDES];
     int has_geometry[TORIRS_FLAME_SIDES];
 
+    /** @see TitleFlameBlur. Client-TS's is the default because it is the
+     *  older of the two and the one a profile that says nothing wants. */
+    int blur_kind;
+    /** Steps taken, for the deob's alternating blur radius. */
+    int update_index;
+
     /** Milliseconds not yet consumed by a fixed step. */
     int accum_ms;
     /** Private, seeded, and never rand(): a fire that differs run to run
@@ -147,6 +177,13 @@ TitleFlames_Init(
 
 void
 TitleFlames_Free(struct TitleFlames* flames);
+
+/** Choose how the heat field is smoothed. @see TitleFlameBlur. */
+void
+TitleFlames_SetBlur(
+    struct TitleFlames* flames,
+    int blur_kind);
+
 
 /**
  * Place one side's fire within its column.

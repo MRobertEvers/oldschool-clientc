@@ -587,6 +587,7 @@ struct UITreeHostRequest
             int sway;
             int run;
             int row;
+            int blur;
             int* out_scene_id;
         } get_title_flames;
         struct

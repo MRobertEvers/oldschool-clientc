@@ -840,6 +840,9 @@ push_builtin_op(
         spec.u.title_flames.sway = op->flame_sway;
         spec.u.title_flames.run = op->flame_run;
         spec.u.title_flames.row = op->flame_row;
+        /* `box` is the deob's; anything else, including nothing, is the
+         * 2004 four-neighbour average. */
+        spec.u.title_flames.blur = strcmp(op->flame_blur, "box") == 0 ? 1 : 0;
         break;
     case UIELEM_BUILTIN_ENTITY_OVERLAY:
         spec.always_dirty = 1;

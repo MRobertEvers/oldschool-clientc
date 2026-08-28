@@ -335,6 +335,7 @@ fill_tree_op_from_component(
     op->flame_sway = comp->flame_sway;
     op->flame_run = comp->flame_run;
     op->flame_row = comp->flame_row;
+    strncpy(op->flame_blur, comp->flame_blur, sizeof(op->flame_blur) - 1);
     op->text_baseline = comp->text_baseline;
     op->button_type = comp->button_type;
     op->client_code = comp->client_code;

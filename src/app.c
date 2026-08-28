@@ -5811,6 +5811,9 @@ app_host_request(
         geometry.run = req->u.get_title_flames.run;
         geometry.row = req->u.get_title_flames.row;
         TitleFlames_SetGeometry(app->flames, (enum TitleFlameSide)side, &geometry);
+        /* Shared by both braziers -- the simulation is one field -- so the
+         * two nodes state the same value and either may set it. */
+        TitleFlames_SetBlur(app->flames, req->u.get_title_flames.blur);
         *req->u.get_title_flames.out_scene_id = side == TORIRS_FLAME_LEFT
                                                     ? UITREE_SCENE_TITLE_FLAME_LEFT_ID
                                                     : UITREE_SCENE_TITLE_FLAME_RIGHT_ID;
