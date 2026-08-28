@@ -438,7 +438,8 @@ GL3ZB_SubmitModel(
         return;
 
     /* Only now, and only for models that really have translucency. */
-    sorted_face_count = ToriDraw_RenderModel2SortFaces(mcmd->model, ctx);
+    sorted_face_count =
+        ToriDraw_RenderModel2SortFacesWithKernel(mcmd->model, ctx, renderer->kernel);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_SORTED_MODELS, 1);
     if( sorted_face_count <= 0 )
         return;

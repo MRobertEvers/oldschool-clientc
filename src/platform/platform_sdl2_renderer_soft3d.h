@@ -14,9 +14,14 @@ struct ToriRS_Frame;
 /** Matches APP_DAMAGE_RECT_MAX; the renderer does not include app.h. */
 #define TORIRS_SOFT3D_DAMAGE_RECT_MAX 4
 
+struct ToriDraw_RasterKernelSD;
+
 struct ToriRS_Soft3D
 {
     struct ToriDraw_Scene* scene;
+    /* Projection + face sort + raster, chosen once at init and passed to
+     * every stage (toridraw.h, the *WithKernel entries). */
+    const struct ToriDraw_RasterKernelSD* kernel;
     int* pixels;
     int width;
     int height;

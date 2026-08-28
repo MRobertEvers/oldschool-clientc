@@ -287,6 +287,25 @@ struct ToriDraw_RasterKernelHD
 const struct ToriDraw_ProjectionKernel*
 ToriDraw_ProjectionKernelGetDefault(void);
 
+/*
+ * The stock software kernel a renderer holds: branching or scanline as
+ * TORIDRAW_RASTER_SCANLINE / ToriDraw_RasterSetScanline decided, smooth or
+ * not, with the default projection and face sort. Resolved at the call, so
+ * take it once at renderer init, after ToriDraw_Init.
+ */
+const struct ToriDraw_RasterKernelSD*
+ToriDraw_RasterKernelSDGetStock(bool smooth);
+
+/*
+ * The kernel a GPU renderer holds: projection and face cull+sort only. Its
+ * raster vtable is NULL -- the faces go to a vertex buffer, never to a
+ * software span -- so it is accepted by the stage-1 and stage-2 entries
+ * (ToriDraw_RenderModel1ProjectWithKernel, ...2SortFacesWithKernel) and
+ * refused by every raster entry.
+ */
+const struct ToriDraw_RasterKernelSD*
+ToriDraw_RasterKernelSDGetGpu(void);
+
 const struct ToriDraw_FaceCullSortKernel*
 ToriDraw_FaceCullSortKernelGetBucket(void);
 

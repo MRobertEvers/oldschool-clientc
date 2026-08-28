@@ -3792,9 +3792,9 @@ webgl1_ev_model_draw(
         ToriDraw_SceneElementApplyAnimation(
             ctx, mcmd->element_id, mcmd->anim_index == 0, mcmd->anim_frame);
     position = mcmd->position;
-    if( ToriDraw_RenderModel1Project(
-            mcmd->model, ctx, &position, &renderer->cur_3d.view_port, &renderer->cur_3d.camera) !=
-        TORIDRAW_CULL_VISIBLE )
+    if( ToriDraw_RenderModel1ProjectWithKernel(
+            mcmd->model, ctx, &position, &renderer->cur_3d.view_port, &renderer->cur_3d.camera,
+            renderer->kernel) != TORIDRAW_CULL_VISIBLE )
         return;
     /* Hittest before the face sort: the scene scratch holds this model's
      * projection only until the next model projects, and a model whose faces
@@ -3835,7 +3835,7 @@ webgl1_ev_model_draw(
          */
         int face_count = renderer->z_buffer_enabled
                              ? trspk_toridraw_face_count(mcmd->model)
-                             : ToriDraw_RenderModel2SortFaces(mcmd->model, ctx);
+                             : ToriDraw_RenderModel2SortFacesWithKernel(mcmd->model, ctx, renderer->kernel);
         int* face_order;
         if( face_count <= 0 )
             return;
@@ -4987,6 +4987,7 @@ ToriRS_GL3_Init(
 {
     assert(gl3 && window && scene);
     gl3->scene = scene;
+    gl3->kernel = ToriDraw_RasterKernelSDGetGpu();
     gl3->window = window;
     gl3->z_buffer_enabled = z_buffer;
     if( z_buffer )

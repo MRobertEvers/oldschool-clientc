@@ -1050,8 +1050,9 @@ soft3d_draw_model(
     position = cmd->position;
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_PROJECT)
     {
-        cull = ToriDraw_RenderModel1Project(
-            cmd->model, soft->scene, &position, &soft->view_port_3d, &soft->camera_3d);
+        cull = ToriDraw_RenderModel1ProjectWithKernel(
+            cmd->model, soft->scene, &position, &soft->view_port_3d, &soft->camera_3d,
+            soft->kernel);
     }
     if( trace_this && cull != g_draw_trace_last_cull )
     {
@@ -1106,8 +1107,8 @@ soft3d_draw_model(
              * walk's only door. The D3D9 and GL renderers use the plain
              * entry next door -- they sort for the GPU and never read the
              * store. */
-            sorted =
-                ToriDraw_RenderModel2SortFacesPresorted(cmd->model, soft->scene);
+            sorted = ToriDraw_RenderModel2SortFacesPresortedWithKernel(
+                cmd->model, soft->scene, soft->kernel);
         }
         /* Only the transitions matter: went-to-zero is the invisible-but-
          * clickable state, came-back is the recovery. A drifting face count on
@@ -1143,8 +1144,8 @@ soft3d_draw_model(
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_RASTER)
     {
-        ToriDraw_RenderModel3Raster(
-            soft->scene, &soft->view_port_3d, &soft->camera_3d, soft->pixels, false);
+        ToriDraw_RenderModel3RasterWithKernel(
+            soft->scene, &soft->view_port_3d, &soft->camera_3d, soft->pixels, soft->kernel);
     }
 }
 
@@ -1162,6 +1163,7 @@ ToriRS_Soft3D_Init(
     assert(width > 0 && height > 0);
     memset(soft, 0, sizeof(*soft));
     soft->scene = scene;
+    soft->kernel = ToriDraw_RasterKernelSDGetStock(false);
     soft->pixels = pixels;
     soft->width = width;
     soft->height = height;

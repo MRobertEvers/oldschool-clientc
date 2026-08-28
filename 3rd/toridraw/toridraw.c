@@ -941,6 +941,24 @@ ToriDraw_FaceCullSortKernelGetDefault(void)
                                            : &g_stock_face_sort_bucket;
 }
 
+/* No raster vtable: stages 1 and 2 only. NULL slots are the defaults. */
+static const struct ToriDraw_RasterKernelSD g_stock_gpu_kernel = {
+    .vtable = NULL,
+    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
+};
+
+const struct ToriDraw_RasterKernelSD*
+ToriDraw_RasterKernelSDGetStock(bool smooth)
+{
+    return toridraw_stock_builtin_kernel(smooth);
+}
+
+const struct ToriDraw_RasterKernelSD*
+ToriDraw_RasterKernelSDGetGpu(void)
+{
+    return &g_stock_gpu_kernel;
+}
+
 static inline int
 sd_kernel_project(
     const struct ToriDraw_RasterKernelSD* kernel,
@@ -1136,6 +1154,60 @@ ToriDraw_RenderModel1Project(
 {
     scene->active_hnd = hnd;
     return ToriDraw_Project(scene, hnd, position, view_port, camera);
+}
+
+int
+ToriDraw_RenderModel1ProjectWithKernel(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    const struct ToriDraw_RasterKernelSD* kernel)
+{
+    assert(kernel);
+    return sd_kernel_project(kernel, hnd, scene, position, view_port, camera);
+}
+
+int
+ToriDraw_RenderModel2SortFacesWithKernel(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_RasterKernelSD* kernel)
+{
+    assert(kernel);
+    return sd_kernel_sort(kernel, hnd, scene, false);
+}
+
+int
+ToriDraw_RenderModel2SortFacesPresortedWithKernel(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_RasterKernelSD* kernel)
+{
+    assert(kernel);
+    return sd_kernel_sort(kernel, hnd, scene, true);
+}
+
+int
+ToriDraw_RenderModel3RasterWithKernel(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_RasterKernelSD* kernel)
+{
+    assert(kernel);
+    assert(kernel->vtable && "a GPU kernel has no raster stage");
+    if( !(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER) &&
+        toridraw_stock_model_needs_zbuffer(scene->active_hnd, scene, view_port) )
+    {
+        bool smooth = kernel == ToriDraw_RasterKernelSDGetSmoothBranching() ||
+                      kernel == ToriDraw_RasterKernelSDGetSmoothScanline();
+        kernel = toridraw_stock_zbuffered_kernel(smooth, true);
+    }
+    return ToriDraw_RenderModel3RasterWithRasterKernel(
+        scene, view_port, camera, pixel_buffer, kernel);
 }
 
 /*

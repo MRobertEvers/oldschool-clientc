@@ -348,6 +348,8 @@ struct ToriRS_GL3
     int polygon_count;
 
     struct ToriDraw_Scene* scene;
+    /* Projection + face sort; no raster stage (ToriDraw_RasterKernelSDGetGpu). */
+    const struct ToriDraw_RasterKernelSD* kernel;
     SDL_Window* window;
     SDL_GLContext gl_context;
     int width;

@@ -66,7 +66,8 @@ d3d9_painter_sort_faces(
     const struct ToriRS_RenderCommand_Model* command,
     int* out_sorted_face_count)
 {
-    int face_count = ToriDraw_RenderModel2SortFaces(command->model, renderer->scene);
+    int face_count = ToriDraw_RenderModel2SortFacesWithKernel(
+        command->model, renderer->scene, renderer->kernel);
     /* Every face this mode draws is a sorted face: the two counts are the same
      * number, and the core wants both. */
     *out_sorted_face_count = face_count;

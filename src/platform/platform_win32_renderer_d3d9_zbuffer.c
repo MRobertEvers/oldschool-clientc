@@ -1043,7 +1043,8 @@ d3d9_zbuffer_emit_model(
     written = 0u;
     if( material->blended_count == 0u )
         return;
-    sorted_face_count = ToriDraw_RenderModel2SortFaces(command->model, renderer->scene);
+    sorted_face_count = ToriDraw_RenderModel2SortFacesWithKernel(
+        command->model, renderer->scene, renderer->kernel);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_Z_SORTED_MODELS, 1);
     if( sorted_face_count <= 0 )
         return;
