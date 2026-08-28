@@ -26,8 +26,12 @@ struct ToriDraw_Font
     uint8_t* glyph_alpha[TORIDRAW_FONT_GLYPH_COUNT];
     int glyph_width[TORIDRAW_FONT_GLYPH_COUNT];
     int glyph_height[TORIDRAW_FONT_GLYPH_COUNT];
-    int offset_x[TORIDRAW_FONT_GLYPH_COUNT];
-    int offset_y[TORIDRAW_FONT_GLYPH_COUNT];
+    /* One past the glyphs, like `advance` below: font_glyph_index answers
+     * TORIDRAW_FONT_ADVANCE_ONLY_GLYPH for a character this font does not map,
+     * and the draw loop reads the pen offsets before it learns the glyph has
+     * no bitmap. A zero slot is what that read must find. */
+    int offset_x[TORIDRAW_FONT_GLYPH_COUNT + 1];
+    int offset_y[TORIDRAW_FONT_GLYPH_COUNT + 1];
     int advance[TORIDRAW_FONT_GLYPH_COUNT + 1];
     int draw_width[256];
     int line_height;

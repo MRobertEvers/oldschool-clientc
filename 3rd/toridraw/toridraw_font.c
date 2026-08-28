@@ -479,7 +479,16 @@ font_glyph_drawable(
     struct ToriDraw_Font const* font,
     int gi)
 {
-    assert(font && gi >= 0 && gi < TORIDRAW_FONT_GLYPH_COUNT);
+    assert(font);
+    assert(gi >= 0);
+    assert(gi <= TORIDRAW_FONT_ADVANCE_ONLY_GLYPH);
+
+    /* The advance-only glyph is a legitimate answer from font_glyph_index --
+     * a space, or any character this font's charcodeset does not map (an
+     * NBSP out of a chat line) -- and it indexes one past every glyph array.
+     * It moves the pen and draws nothing. */
+    if( gi == TORIDRAW_FONT_ADVANCE_ONLY_GLYPH )
+        return false;
 
     int const gw = font->glyph_width[gi];
     int const gh = font->glyph_height[gi];
