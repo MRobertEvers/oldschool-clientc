@@ -17517,6 +17517,38 @@ app_boot_bar_caption(
     scene_id = font_cache_id >= 0 ? UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id) : -1;
     if( scene_id < 0 )
         scene_id = app_minimenu_font_scene_id(app);
+    /*
+     * The baked face, when the cache has not handed one over yet.
+     *
+     * That is the ORDINARY case for this caption rather than an edge one: the
+     * sentences the profile gives the loading bar -- "Checking for updates -
+     * 30%", "Loaded update list" ([preload:] `say=`, revconfig) -- are said
+     * while the cache's own fonts are among the archives still being fetched.
+     * A bar that waits for a cache font is a bar that never carries the words
+     * it was configured with, and the whole of the boot the player watches
+     * goes past unlabelled.
+     *
+     * The reference does not solve this by loading fonts earlier -- it cannot,
+     * since the fetches the bar is reporting on are the ones that carry the
+     * fonts ("Loading fonts - " is one of its own sentences). It draws this
+     * text with a face that exists before any cache does: an AWT
+     * `java.awt.Font("Helvetica", BOLD, 13)` (deob class510; Client-TS
+     * GameShell.messageBox draws `bold 13px helvetica`). A software rasteriser
+     * has no system face, so the baked one is the same answer to the same
+     * question.
+     *
+     * The BOLD face, for that reason: ToriRSChromeFont_Menu is cache archive
+     * 496 (b12) baked into .rdata (engine/torirs_debug_font_baked.h), needing
+     * no cache and no IO. Only this pre-cache span ever reaches it -- once the
+     * archives are in, APP_FONT_P12 resolves above and the later
+     * "Loading - please wait." is plain p12, as it is in the reference.
+     *
+     * At 1x, because this draws into the canvas's own pixels: the boot bar is
+     * placed in canvas coordinates, and a chrome-scaled face would paint
+     * double-size text into them.
+     */
+    if( scene_id < 0 )
+        scene_id = UITreeSceneBridge_EnsureDebugFont1x(&app->bridge, TORIRS_CHROME_FONT_MENU);
     if( scene_id < 0 )
         return;
     font = ToriDraw_SceneFontGet(app->scene, scene_id);
@@ -33535,13 +33567,14 @@ App_Render(
             BootBar_Draw((uint32_t*)pixels, width, height, percent);
 
         /*
-         * The caption, once there is a font to draw one with.
+         * The caption.
          *
          * The references have a system font (bold 13 Helvetica) and always
-         * have one; a software rasteriser has none until the cache hands it
-         * over. So the bar is complete without text and gains it when it can
-         * -- in time for the wait that matters, the gameframe bake after a
-         * successful login, where a silent black screen reads as a hang.
+         * have one; a software rasteriser has none until it is given one, so
+         * this used to draw nothing until the cache's fonts had loaded --
+         * which is after every sentence the profile gives the loading bar has
+         * already been and gone. app_boot_bar_caption falls back to the baked
+         * face for exactly that span.
          *
          * Centred on the track and sitting on its baseline, where both
          * references put it, rather than in the middle of the canvas.

@@ -118,12 +118,18 @@ now_ms(void)
 static int
 wait_readable(
     struct ToriRSServerSession* session,
-    long wait_ms)
+    long wait_ms,
+    int listener,
+    int* listener_ready)
 {
     fd_set readable;
     struct timeval timeout;
     int fd;
+    int top;
     int ready;
+
+    if( listener_ready )
+        *listener_ready = 0;
 
     /*
      * Bytes already in hand beat any descriptor.
@@ -152,10 +158,27 @@ wait_readable(
         wait_ms = 0;
     FD_ZERO(&readable);
     FD_SET(fd, &readable);
+    top = fd;
+    /*
+     * The listener waits here too, whenever the caller has one.
+     *
+     * A session is served in line, so without this the accept loop stops for
+     * as long as somebody is logged in — and the next client to arrive is not
+     * refused, it is never answered: its cache download hangs before it has
+     * drawn anything, and a second tab looks exactly like a server that is
+     * down. Which of the two is readable decides who gets served; see
+     * accept_side_connection for what a connection arriving now can be given.
+     */
+    if( listener >= 0 )
+    {
+        FD_SET(listener, &readable);
+        if( listener > top )
+            top = listener;
+    }
     timeout.tv_sec = wait_ms / 1000;
     timeout.tv_usec = (wait_ms % 1000) * 1000;
 
-    ready = select(fd + 1, &readable, NULL, NULL, &timeout);
+    ready = select(top + 1, &readable, NULL, NULL, &timeout);
     if( ready < 0 )
     {
 #ifdef _WIN32
@@ -164,15 +187,26 @@ wait_readable(
         return errno == EINTR ? 0 : -1;
 #endif
     }
+    if( ready > 0 && listener >= 0 && listener_ready && FD_ISSET(listener, &readable) )
+        *listener_ready = 1;
     return ready > 0 && FD_ISSET(fd, &readable);
 }
+
+/* Defined below, beside the JS5 hand-off it shares. */
+static void
+accept_side_connection(
+    int listener,
+    struct ToriRSServer* srv,
+    const struct ToriRSServerWire* wire,
+    int busy_fd);
 
 static void
 serve(
     struct ToriRSServer* srv,
     struct ToriRSServerConn* conn,
     const struct ToriRSServerBootConfig* config,
-    const struct ToriRSServerWire* wire)
+    const struct ToriRSServerWire* wire,
+    int listener)
 {
     struct ToriRSServerSession session;
     struct ToriRSServerTransport transport;
@@ -206,10 +240,16 @@ serve(
 
     while( ToriRSServer_SessionAlive(&session) )
     {
-        int ready = wait_readable(&session, next_tick - now_ms());
+        int listener_ready = 0;
+        int ready = wait_readable(&session, next_tick - now_ms(), listener, &listener_ready);
 
         if( ready < 0 )
             break;
+
+        /* Somebody arrived while this session is being served. Answering them
+         * is what keeps a second client's cache download alive; see there. */
+        if( listener_ready )
+            accept_side_connection(listener, srv, wire, ToriRSServer_SessionPollfd(&session));
 
         if( ready > 0 )
         {
@@ -316,7 +356,7 @@ serve_js5(
     {
         /* No tick deadline to race, so this blocks until there is something to
          * do — a cache download is request/response with long idle gaps. */
-        if( wait_readable(&session, 60000) < 0 )
+        if( wait_readable(&session, 60000, -1, NULL) < 0 )
             break;
         if( !ToriRSServer_SessionPump(&session, srv) )
             break;
@@ -360,6 +400,115 @@ js5_thread_main(void* raw)
     return 0;
 }
 #endif
+
+/*
+ * Hand an open JS5 connection to a child and return.
+ *
+ * `keep_out_fd` is a socket this process holds that the child must not: the
+ * game connection being served when a JS5 client arrives mid-session. A child
+ * that inherited it would hold that player's socket open for as long as it
+ * lived, so the server would not see them leave.
+ */
+static void
+js5_detach(
+    struct ToriRSServer* srv,
+    struct ToriRSServerConn* conn,
+    int fd,
+    int listener,
+    const struct ToriRSServerWire* wire,
+    int keep_out_fd)
+{
+#ifdef _WIN32
+    struct ToriRSServerJs5Args* args = (struct ToriRSServerJs5Args*)calloc(1, sizeof(*args));
+    HANDLE thread;
+
+    (void)srv;
+    (void)listener;
+    (void)keep_out_fd;
+    assert(args);
+    args->wire = wire;
+    args->fd = fd;
+    /* The open connection, handshake and all, as the thread's own copy: the
+     * accept loop reuses `conn` for the next client. */
+    args->conn = *conn;
+    thread = (HANDLE)_beginthreadex(NULL, 0, js5_thread_main, args, 0, NULL);
+    if( thread )
+        CloseHandle(thread); /* detached: nothing joins a JS5 connection */
+    else
+    {
+        /* Not an allocation failure: the thread limit is a real runtime
+         * condition, and the connection is dropped. */
+        close(fd);
+        free(args);
+    }
+#else
+    pid_t child = fork();
+
+    if( child == 0 )
+    {
+        close(listener);
+        if( keep_out_fd >= 0 )
+            close(keep_out_fd);
+        fprintf(stderr, "torirsserver: JS5 connection\n");
+        srv->wire = wire;
+        serve_js5(srv, conn);
+        close(fd);
+        _exit(0);
+    }
+    close(fd);
+    if( child < 0 )
+        perror("fork");
+#endif
+}
+
+/*
+ * Answer a connection that arrives while a game session is already being
+ * served.
+ *
+ * A JS5 client gets what it always gets: its own child, off this socket, with
+ * the cache the world is reading. That is the case this exists for -- a second
+ * browser tab does not reach a login screen until its cache has loaded, and
+ * before this the connection was simply never accepted, which reads as a dead
+ * server rather than a busy one.
+ *
+ * A second GAME connection cannot be served: the world here is per-connection
+ * (see serve()), one player at a time. It is closed at once rather than left
+ * in the backlog, because a client that is refused says so and a client that
+ * is ignored hangs on a blank screen.
+ */
+static void
+accept_side_connection(
+    int listener,
+    struct ToriRSServer* srv,
+    const struct ToriRSServerWire* wire,
+    int busy_fd)
+{
+    /* 128 KB of buffers, and the JS5 child takes a copy of it -- not on a
+     * stack shared with a live session. */
+    static struct ToriRSServerConn side;
+    int nodelay = 1;
+    int fd = (int)accept(listener, NULL, NULL);
+
+    if( fd < 0 )
+        return;
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char*)&nodelay, sizeof(nodelay));
+
+    if( !ToriRSServer_ConnOpen(&side, fd) )
+    {
+        close(fd);
+        return;
+    }
+    if( ToriRSServer_ConnPeekFirst(&side) == 15 )
+    {
+        js5_detach(srv, &side, fd, listener, wire, busy_fd);
+        return;
+    }
+
+    fprintf(stderr,
+            "torirsserver: a second game connection arrived while one is being "
+            "served -- refused (this server hosts one player at a time)\n");
+    close(fd);
+}
 
 int
 main(
@@ -556,45 +705,12 @@ main(
         }
         if( ToriRSServer_ConnPeekFirst(&conn) == 15 )
         {
-#ifdef _WIN32
-            struct ToriRSServerJs5Args* args = (struct ToriRSServerJs5Args*)calloc(1, sizeof(*args));
-            HANDLE thread;
-            assert(args);
-            args->wire = wire;
-            args->fd = fd;
-            /* The open connection, handshake and all, as the thread's own
-             * copy: the accept loop reuses `conn` for the next client. */
-            args->conn = conn;
-            thread = (HANDLE)_beginthreadex(NULL, 0, js5_thread_main, args, 0, NULL);
-            if( thread )
-                CloseHandle(thread); /* detached: nothing joins a JS5 connection */
-            else
-            {
-                /* Not an allocation failure: the thread limit is a real
-                 * runtime condition, and the connection is dropped. */
-                close(fd);
-                free(args);
-            }
-#else
-            pid_t child = fork();
-            if( child == 0 )
-            {
-                close(listener);
-                fprintf(stderr, "torirsserver: JS5 connection\n");
-                srv.wire = wire;
-                serve_js5(&srv, &conn);
-                close(fd);
-                _exit(0);
-            }
-            close(fd);
-            if( child < 0 )
-                perror("fork");
-#endif
+            js5_detach(&srv, &conn, fd, listener, wire, -1);
             continue;
         }
 
         fprintf(stderr, "torirsserver: client connected\n");
-        serve(&srv, &conn, &config, wire);
+        serve(&srv, &conn, &config, wire, listener);
         close(fd);
         fprintf(stderr, "torirsserver: client disconnected\n");
     }
