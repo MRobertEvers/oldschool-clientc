@@ -1145,7 +1145,7 @@ ToriDraw_RenderModel1Project(
  * it whenever the faces are going anywhere except the batched software raster
  * walk -- which is every D3D9 and GL renderer, the HD path, the sprite baker
  * and the tests. They read the order out of tmp_face_order and nothing else,
- * and filling sm_face_xy for them is seven stores and a six-way compare per
+ * and filling sm_face_x4/y4 for them is seven stores and a six-way compare per
  * drawn face into a buffer none of them loads.
  */
 int
@@ -1169,7 +1169,7 @@ ToriDraw_RenderModel2SortFaces(
  * branches on a part that pays twenty pipeline stages for a mispredict.
  *
  * Only worth calling if the batched walk will actually run on the result. It
- * may decline: a full-mode scene has no sm_face_xy to fill, and
+ * may decline: a full-mode scene has no sm_face_x4/y4 to fill, and
  * TORIDRAW_RASTER_BATCH=0 asks for the old pipeline. Either way the sort
  * records what it did in scene->sm_face_xy_valid and the walk reads that, so
  * asking for the store and not getting it is safe rather than silent.

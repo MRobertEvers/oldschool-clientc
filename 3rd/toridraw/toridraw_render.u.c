@@ -1552,7 +1552,7 @@ ToriDraw_ComputeProjectedFaceOrder(
     struct ToriDraw_ModelHandle hnd,
     bool presort)
 {
-    /* Full mode has no sm_face_xy to fill: the buffer is allocated only
+    /* Full mode has no sm_face_x4/y4 to fill: the buffer is allocated only
      * for a small-mode scene (toridraw.c), and only the small sorter
      * stamps it. Saying so here is what stops the batched walk reading a
      * NULL pointer, or a stash left behind by an earlier small model. */
@@ -1844,7 +1844,7 @@ bucket_sort_by_average_depth_small(
      */
     int const stash_xy = presort && toridraw_raster_batch_armed();
 
-    /* Recorded, not re-derived downstream: the walk that reads sm_face_xy
+    /* Recorded, not re-derived downstream: the walk that reads sm_face_x4/y4
      * asks this rather than asking the same three questions again and
      * possibly answering one of them differently. */
     scene->sm_face_xy_valid = stash_xy;

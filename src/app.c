@@ -9281,8 +9281,12 @@ App_Init(
      * network round trip between every group of the couple of thousand a
      * login streams. The game-action queue below stays strictly ordered,
      * because the server chose the order of the packets that fill it.
+     *
+     * TORIRS_SERIAL_ASSETS puts this queue back in single file. It is the A/B
+     * the change was measured with, and the first thing to try if a load ever
+     * looks order-dependent when it should not be.
      */
-    app->runner.parallel = 1;
+    app->runner.parallel = getenv("TORIRS_SERIAL_ASSETS") == NULL;
 
     /* Serial game-action pipeline: own queue + io slots, SHARED platform
      * pump (there is exactly one IO backend). */

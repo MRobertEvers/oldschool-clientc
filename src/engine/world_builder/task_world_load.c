@@ -162,6 +162,22 @@ world_load_fanout(
     }
 }
 
+/** Is every square this load names resident, terrain and scenery both? */
+static int
+world_load_maps_resident(struct Task_WorldLoad* self)
+{
+    assert(self);
+    for( int c = 0; c < self->chunk_count; c++ )
+    {
+        int const map_id =
+            CacheProvider_MapId(self->chunks_xz[c * 2], self->chunks_xz[c * 2 + 1]);
+        if( !CacheProvider_MapTerrainHas(self->provider, map_id) ||
+            !CacheProvider_MapSceneryHas(self->provider, map_id) )
+            return 0;
+    }
+    return 1;
+}
+
 /** Is every id in the set resident? The fan-out's wait condition. */
 static int
 world_load_set_resident(
@@ -319,42 +335,54 @@ Task_WorldLoad_Run(
      */
     CacheProvider_TrimDerivedCaches(p);
 
-    /* 1. Map terrain + scenery per chunk. */
+    /*
+     * 1. Map terrain + scenery per chunk, ALL AT ONCE.
+     *
+     * A square's terrain and its scenery are the two biggest archives a
+     * rebuild reads, and a rebuild reads a handful of squares. They are
+     * independent of each other, so they go out together rather than four
+     * round trips deep -- the same fan-out every stage below uses, spelled out
+     * here because a map is addressed by (x, z) rather than by an id.
+     *
+     * Resident squares are skipped, the same way the underlay, flotype and
+     * texture loads below skip what the provider already holds. Without that a
+     * square is re-read on every rebuild, which is wasted IO for the game --
+     * and wrong for anything that puts a square into the provider from
+     * somewhere other than the cache. The map editor does exactly that: it
+     * parses the `.jm2`/`.jl2` text in the content tree and seeds the provider
+     * with it, so what the world builder meshes is the file being edited
+     * rather than the last bake. An unconditional load would overwrite the
+     * edit between one frame and the next.
+     */
     for( self->c = 0; self->c < self->chunk_count; self->c++ )
     {
-        /*
-         * Resident squares are skipped, the same way the underlay, flotype and
-         * texture loads below skip what the provider already holds.
-         *
-         * Without this a square is re-read from the cache on every rebuild,
-         * which is wasted IO for the game — and wrong for anything that puts a
-         * square into the provider from somewhere other than the cache. The
-         * map editor does exactly that: it parses the `.jm2`/`.jl2` text in the
-         * content tree and seeds the provider with it, so that what the world
-         * builder meshes is the file being edited rather than the last bake.
-         * An unconditional load here would overwrite the edit with the stale
-         * baked copy between one frame and the next.
-         *
-         * The coordinates are spelled out at each use rather than hoisted into
-         * a local: this is a protothread, and a local does not survive the
-         * yield inside PT_TASK_AWAITSELF_IF.
-         */
-        PT_TASK_AWAITSELF_IF(
-            CacheProvider_MapTerrainHas(
-                p,
-                CacheProvider_MapId(
-                    self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1]))
-                ? NULL
-                : CreateTask_MapTerrainLoad(
-                      p, self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1]));
-        PT_TASK_AWAITSELF_IF(
-            CacheProvider_MapSceneryHas(
-                p,
-                CacheProvider_MapId(
-                    self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1]))
-                ? NULL
-                : CreateTask_MapSceneryLoad(
-                      p, self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1]));
+        int const map_x = self->chunks_xz[self->c * 2];
+        int const map_z = self->chunks_xz[self->c * 2 + 1];
+        int const map_id = CacheProvider_MapId(map_x, map_z);
+        struct ToriRS_Task* load;
+
+        if( !CacheProvider_MapTerrainHas(p, map_id) )
+        {
+            load = CreateTask_MapTerrainLoad(p, map_x, map_z);
+            if( load )
+                ToriRS_TaskQueue_Add(self->queue, load);
+        }
+        if( !CacheProvider_MapSceneryHas(p, map_id) )
+        {
+            load = CreateTask_MapSceneryLoad(p, map_x, map_z);
+            if( load )
+                ToriRS_TaskQueue_Add(self->queue, load);
+        }
+    }
+    for( self->wait_passes = 0;
+         self->wait_passes < WORLD_LOAD_ASSET_WAIT_PASSES && !world_load_maps_resident(self);
+         self->wait_passes++ )
+    {
+        self->task.blocked = 1;
+        PT_YIELD(&self->pt);
+    }
+    for( self->c = 0; self->c < self->chunk_count; self->c++ )
+    {
         if( !CacheProvider_MapTerrainHas(
                 p,
                 CacheProvider_MapId(

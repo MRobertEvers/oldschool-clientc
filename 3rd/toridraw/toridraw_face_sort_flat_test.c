@@ -91,6 +91,31 @@ make_model(int vertex_count, int face_count, int extent, int with_priorities, in
     struct ToriDraw_Model* m = ToriDraw_ModelNew(vertex_count, face_count, 0);
     assert(m);
 
+    /* ToriDraw_ModelNew allocates the shell only. */
+    m->vertices_x = malloc((size_t)vertex_count * sizeof(vertexint_t));
+    m->vertices_y = malloc((size_t)vertex_count * sizeof(vertexint_t));
+    m->vertices_z = malloc((size_t)vertex_count * sizeof(vertexint_t));
+    m->face_indices_a = malloc((size_t)face_count * sizeof(faceint_t));
+    m->face_indices_b = malloc((size_t)face_count * sizeof(faceint_t));
+    m->face_indices_c = malloc((size_t)face_count * sizeof(faceint_t));
+    m->face_colors_a = malloc((size_t)face_count * sizeof(hsl16_t));
+    m->face_colors_b = malloc((size_t)face_count * sizeof(hsl16_t));
+    m->face_colors_c = malloc((size_t)face_count * sizeof(hsl16_t));
+    assert(m->vertices_x);
+    assert(m->vertices_y);
+    assert(m->vertices_z);
+    assert(m->face_indices_a);
+    assert(m->face_indices_b);
+    assert(m->face_indices_c);
+    assert(m->face_colors_a);
+    assert(m->face_colors_b);
+    assert(m->face_colors_c);
+    if( with_alpha )
+    {
+        m->face_alphas = malloc((size_t)face_count * sizeof(alphaint_t));
+        assert(m->face_alphas);
+    }
+
     for( int i = 0; i < vertex_count; i++ )
     {
         m->vertices_x[i] = rnd_range(-extent, extent);
@@ -110,7 +135,7 @@ make_model(int vertex_count, int face_count, int extent, int with_priorities, in
         m->face_colors_a[f] = (hsl16_t)(rnd() & 0xFFFF);
         m->face_colors_b[f] = (hsl16_t)(rnd() & 0xFFFF);
         m->face_colors_c[f] = (hsl16_t)(rnd() & 0xFFFF);
-        if( with_alpha && m->face_alphas )
+        if( with_alpha )
             m->face_alphas[f] = (alphaint_t)(rnd() & 0xFF);
     }
     if( with_priorities )

@@ -1266,7 +1266,7 @@ toridraw_raster_context_init(
  * construction cannot be inlined.
  *
  * All three are now one. The sort keeps the six screen coordinates it was
- * already holding (scene->sm_face_xy), this pass copies them into a row, and
+ * already holding (scene->sm_face_x4/y4), this pass copies them into a row, and
  * the kernel reads the row directly -- so the call, the four register saves,
  * the argument marshal and the four screen constants happen once per RUN
  * instead of once per face.
@@ -1948,7 +1948,7 @@ toridraw_raster_draw_faces(
 #ifdef TORIDRAW_RASTER_BATCH
         /* sm_face_xy_valid, and not toridraw_raster_batch_armed() again: the
          * sort is the only thing that knows whether it actually filled the
-         * buffer. It declines for a full-mode scene, where sm_face_xy is not
+         * buffer. It declines for a full-mode scene, where sm_face_x4/y4 are not
          * even allocated, and for a caller that used the plain sort entry. */
         if( ctx->kernel.vtable == &g_stock_branching_vtable && !ctx->raster_debug &&
             scene->sm_face_xy_valid )
