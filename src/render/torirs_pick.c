@@ -346,6 +346,27 @@ ToriRS_PickHitsClassify(
             }
             else
             {
+                if( getenv("TORIRS_WORLD_PICK_DEBUG") )
+                {
+                    struct World* vw =
+                        views && WorldviewRegistry_IsLive(views, hit->view_id)
+                            ? WorldviewRegistry_Get(views, hit->view_id)->world
+                            : NULL;
+                    enum World_PickType t = WORLD_PICK_TERRAIN;
+                    int tx = -1, tz = -1, tl = -1;
+                    int classified =
+                        vw && pick_classify_element(vw, hit->element_id, &t, &tx, &tz, &tl);
+
+                    struct WorldEntity_Scenery* sc =
+                        vw ? World_SceneryGetByElementId(vw, hit->element_id) : NULL;
+
+                    fprintf(stderr,
+                            "world_pick: view fallthrough el=0x%x view=%d vw=%p "
+                            "classified=%d type=%d sc=%p interactive=%d loc=%d\n",
+                            (unsigned)hit->element_id, hit->view_id, (void*)vw, classified,
+                            (int)t, (void*)sc, sc ? sc->interactive : -1,
+                            sc ? sc->loc_id : -1);
+                }
                 /* A sub-scene MODEL that classifies as nothing (hull side,
                  * mast, deck terrain skirt): what a click on it MEANS is "the
                  * boat" — surface the view id and let the menu layer offer

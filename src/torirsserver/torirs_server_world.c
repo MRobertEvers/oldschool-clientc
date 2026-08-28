@@ -1054,6 +1054,35 @@ ToriRSServer_WorldInteractionSet(
  * opened while the player was walking over. That door is still the thing they
  * clicked, and its id having changed is not staleness.
  */
+/*
+ * Bind a built window that CONTAINS the tile when the bound one does not —
+ * the dual-frame rule for loc lookups. An aboard player's own window is
+ * deliberately anchored under the hull (player_scene_anchor), so a click on
+ * a DECK loc arrives with a binding that cannot see it: the loc lives in the
+ * vessel's pinned deck window. Every slot a find returns is an index into
+ * the BOUND window's arrays, so the binding must move before the find and
+ * stay for the operation that consumes the slot; the per-phase
+ * ToriRSServer_WorldSetActive restores the player's own binding afterwards.
+ */
+static void
+scene_bind_covering(
+    int tile_x,
+    int tile_z)
+{
+    if( ToriRSServer_SceneWindowContains(ToriRSServer_SceneBoundWindow(), tile_x, tile_z) )
+        return;
+    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
+    {
+        struct ToriRSServerSceneWindow* window = ToriRSServer_SceneWindowByIndex(i);
+
+        if( !ToriRSServer_SceneWindowBuilt(window) ||
+            !ToriRSServer_SceneWindowContains(window, tile_x, tile_z) )
+            continue;
+        ToriRSServer_SceneBindWindow(window);
+        return;
+    }
+}
+
 static int
 find_interaction_loc(
     int tile_x,
@@ -1061,8 +1090,10 @@ find_interaction_loc(
     int level,
     int loc_id)
 {
-    int slot = ToriRSServer_SceneFindLoc(tile_x, tile_z, level, loc_id);
+    int slot;
 
+    scene_bind_covering(tile_x, tile_z);
+    slot = ToriRSServer_SceneFindLoc(tile_x, tile_z, level, loc_id);
     if( slot >= 0 )
         return slot;
     return ToriRSServer_SceneFindLoc(tile_x, tile_z, level, -1);
@@ -6290,8 +6321,12 @@ handle_oploc(
     /* The footprint decides what counts as "beside it": a two-tile gate is
      * reachable from tiles a one-tile door is not. The slot is also what the op
      * is validated against below, so it has to be found first. */
+    scene_bind_covering(tile_x, tile_z);
     slot = ToriRSServer_SceneFindLoc(tile_x, tile_z, srv->active_player->level, loc_id);
     loc = ToriRSServer_SceneLoc(slot);
+    if( srv->verbose )
+        fprintf(stderr, "torirsserver: <- OPLOC%d %d at %d,%d lvl=%d slot=%d\n", op_num,
+                loc_id, tile_x, tile_z, srv->active_player->level, slot);
 
     /*
      * LostCity OpLocHandler: validate ops against the multiloc-resolved child
@@ -13008,6 +13043,16 @@ world_loc_set_ops_in_window(
          * `base_id` stays -1 unless an earlier in-scene change captured it. */
         ToriRSServer_ZoneLocChanged(srv, x, z, level, shape, loc_id, angle, base_id, base_angle,
                                  0, ops);
+        /* "Covered" is judged against the BOUND window only, and the bound
+         * window at mutation time is whoever is acting — content furnishing
+         * a vessel deck acts from a player whose window sits under the hull,
+         * thousands of tiles from the deck instance. The deck's OWN pinned
+         * window covers the tile and is already built, so the mutation must
+         * land there too or `ToriRSServer_SceneFindLoc` (the OPLOC handler's
+         * lookup, which reads the bound window's slot array) never finds
+         * what every client is drawing. The mirror binds each covering
+         * window, applies, and restores the binding. */
+        world_loc_mirror(x, z, level, shape, loc_id, angle, kind, ops);
         return 1;
     }
 

@@ -21020,6 +21020,7 @@ app_loc_change_apply_ops(
      * would intern as a second, identical-looking label. */
     {
         struct WorldEntity_SceneryInfo probe = *sc->info;
+        int has_action = 0;
 
         for( int i = 0; i < 5; i++ )
         {
@@ -21029,12 +21030,22 @@ app_loc_change_apply_ops(
                 label = "";
             else if( self->loc_ops[i][0] != '\0' )
                 label = self->loc_ops[i];
-            if( !label )
-                continue;
-            memset(probe.actions[i].name, 0, sizeof(probe.actions[i].name));
-            snprintf(probe.actions[i].name, sizeof(probe.actions[i].name), "%s", label);
+            if( label )
+            {
+                memset(probe.actions[i].name, 0, sizeof(probe.actions[i].name));
+                snprintf(probe.actions[i].name, sizeof(probe.actions[i].name), "%s", label);
+            }
+            if( probe.actions[i].name[0] != '\0' )
+                has_action = 1;
         }
-        sc->info = World_SceneryInfoIntern(app->world, &probe);
+        sc->info = World_SceneryInfoIntern(world, &probe);
+        /* A placement the server gave a MENU is clickable by definition —
+         * that is what LOC_ADD_CHANGE_V2's op strings exist for. The
+         * loctype's own `active` default can say no (the sailing masts ship
+         * with no name and no cache ops), and the pick's interactive gate
+         * would then refuse a loc whose whole point is its one op. */
+        if( has_action )
+            sc->interactive = 1;
     }
 }
 
@@ -27279,6 +27290,9 @@ app_minimenu_run_option(
             pview = WorldviewRegistry_Get(&app->worldviews, opt.pick.view_id);
             abs_x = opt.pick.tertiary_id + pview->base_x;
             abs_z = opt.pick.quaternary_id + pview->base_z;
+            TORIRS_LOG("oploc view: op%d loc=%d at %d,%d (view %d local %d,%d)\n",
+                opt.action_index + 1, loc_id, abs_x, abs_z, opt.pick.view_id,
+                opt.pick.tertiary_id, opt.pick.quaternary_id);
             if( app->objsel.active )
             {
                 APP_NET_SEND(
