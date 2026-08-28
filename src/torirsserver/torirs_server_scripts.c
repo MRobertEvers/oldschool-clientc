@@ -9955,6 +9955,22 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    case SS_OP_VESSEL_FACILITY:
+    {
+        int32_t handle;
+        int32_t slot;
+        int32_t option;
+        struct ToriRSServerVessel* vessel;
+
+        if( !SSVM_PopInt(state, &option) || !SSVM_PopInt(state, &slot) ||
+            !SSVM_PopInt(state, &handle) )
+            return 1;
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        if( vessel && slot >= 0 && slot < TORIRSSERVER_VESSEL_FACILITY_SLOTS )
+            vessel->facility[slot] = option < 0 ? 0 : (int)option;
+        return 1;
+    }
+
     case SS_OP_VESSEL_HP:
     {
         int32_t handle;

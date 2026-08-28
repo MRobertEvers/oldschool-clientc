@@ -13631,14 +13631,17 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
                 { ids->varbit_sailing_name_descriptor,
                   vessel ? vessel->name_descriptor : 0 },
                 { ids->varbit_sailing_name_noun, vessel ? vessel->name_noun : 0 },
-                /* Facilities: every player hull carries its tier's first
-                 * option in each slot (regular sail, bronze steering,
-                 * regular hull) until customisation content exists — the
-                 * value is a 1-based pick into the boat row's option
-                 * columns, resolved client-side (cs2 9026). */
-                { ids->varbit_sailing_facility_sail, vessel ? 1 : 0 },
-                { ids->varbit_sailing_facility_helm, vessel ? 1 : 0 },
-                { ids->varbit_sailing_facility_hull, vessel ? 1 : 0 },
+                /* Facilities: the hull's OWN slots, set by whoever furnished
+                 * the deck (content's [proc,sailing_deck_built] records what
+                 * it placed). The value is a 1-based pick into the boat row's
+                 * option columns, resolved client-side (cs2 9026), so the
+                 * panel lists what is really on the deck. */
+                { ids->varbit_sailing_facility_sail,
+                  vessel ? vessel->facility[TORIRSSERVER_VESSEL_FACILITY_SAIL] : 0 },
+                { ids->varbit_sailing_facility_helm,
+                  vessel ? vessel->facility[TORIRSSERVER_VESSEL_FACILITY_HELM] : 0 },
+                { ids->varbit_sailing_facility_hull,
+                  vessel ? vessel->facility[TORIRSSERVER_VESSEL_FACILITY_HULL] : 0 },
                 /* Stats tab, movement block — the mover's own numbers, fine
                  * units per tick (tier * 64; the panel shows /128 as tiles).
                  * Live: ::speedup/::speeddown change the tier and the next

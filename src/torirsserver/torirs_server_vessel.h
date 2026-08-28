@@ -67,6 +67,14 @@ struct ToriRSServerPlayer;
 /** Angle units between adjacent 16-point compass headings. */
 #define TORIRSSERVER_VESSEL_HEADING_STEP 128
 
+/** Facility slots a hull tracks, indexed by TORIRSSERVER_VESSEL_FACILITY_*.
+ *  The cache's boat rows carry more (keel, flag, brazier); these three are
+ *  the ones the sidepanel's Facilities tab reads. */
+#define TORIRSSERVER_VESSEL_FACILITY_SLOTS 3
+#define TORIRSSERVER_VESSEL_FACILITY_SAIL 0
+#define TORIRSSERVER_VESSEL_FACILITY_HELM 1
+#define TORIRSSERVER_VESSEL_FACILITY_HULL 2
+
 /** How far a gangplank looks for ground when putting a rider ashore. Wide
  *  enough to clear the longest hull's footprint from its centre, short enough
  *  that "there is no shore here" still means it. */
@@ -157,6 +165,16 @@ struct ToriRSServerVessel
      * nothing said. ToriRSServer_VesselTakeBlocked drains it.
      */
     int blocked_notice;
+
+    /**
+     * Which option each facility slot holds — 1-based picks into the boat's
+     * `sailing_boat` dbrow option columns, 0 for an empty slot. The sailing
+     * sidepanel's Facilities tab renders these (varbits
+     * `sailing_sidepanel_facility_{sail,helm,hull}`, resolved client-side
+     * through cs2 9026), so what the panel lists is what content actually
+     * placed on the deck rather than a fixed guess.
+     */
+    int facility[TORIRSSERVER_VESSEL_FACILITY_SLOTS];
 
     /** The template zone base this deck was filled from (absolute tiles;
      *  -1,-1 before the deck is built). The facility dbrows state their

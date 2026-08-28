@@ -907,6 +907,12 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # the resulting state so one op can both act and report.
     "VESSEL_SAILS": (11095, 2, 0, 1, 0),
 
+    # vessel_facility(handle, slot, option)
+    # Record which option a hull's facility slot holds (0 sail, 1 helm,
+    # 2 hull; option is the 1-based pick into that column, 0 = empty). The
+    # sidepanel's Facilities tab renders exactly this.
+    "VESSEL_FACILITY": (11102, 3, 0, 0, 0),
+
     # vessel_hp(handle)(int)
     # The hull's integrity, and its maximum as the second return — the pair
     # the sailing sidepanel's bar shows. 0,0 for a dead handle.

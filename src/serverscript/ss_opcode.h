@@ -528,10 +528,11 @@
 #define SS_OP_VESSEL_DISEMBARK 11099
 #define SS_OP_VESSEL_HP 11100
 #define SS_OP_VESSEL_DAMAGE 11101
+#define SS_OP_VESSEL_FACILITY 11102
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11102
+#define SS_OPCODE_MAX 11103
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 506
+#define SS_OPCODE_COUNT 507
 
 #endif
