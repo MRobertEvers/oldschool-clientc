@@ -32,6 +32,7 @@
 #include <stdint.h>
 
 struct ToriRSServer;
+struct ToriRSServerPlayer;
 
 /** Concurrent vessels. Same order of magnitude as the map-instance pool that
  *  feeds their decks (each vessel owns one reservation of the 8). */
@@ -65,6 +66,11 @@ struct ToriRSServer;
 
 /** Angle units between adjacent 16-point compass headings. */
 #define TORIRSSERVER_VESSEL_HEADING_STEP 128
+
+/** How far a gangplank looks for ground when putting a rider ashore. Wide
+ *  enough to clear the longest hull's footprint from its centre, short enough
+ *  that "there is no shore here" still means it. */
+#define TORIRSSERVER_VESSEL_DISEMBARK_RANGE 12
 
 /** Default turn rate: 128 angle units per tick = 90 degrees in 4 ticks, the
  *  mid ship class (docs/SAILING.md §2 cites 2/4/6-tick quarter turns). */
@@ -142,6 +148,15 @@ struct ToriRSServerVessel
      *  choose. */
     int name_descriptor;
     int name_noun;
+
+    /**
+     * Set by the mover on the tick a commanded hull is refused by the water
+     * and parks, cleared once reported. The park itself is correct (a whole
+     * step or none), but it is SILENT: content has just told the helmsman
+     * "the boat gets under way", and without this the boat simply stops with
+     * nothing said. ToriRSServer_VesselTakeBlocked drains it.
+     */
+    int blocked_notice;
 
     /** The template zone base this deck was filled from (absolute tiles;
      *  -1,-1 before the deck is built). The facility dbrows state their
@@ -261,6 +276,48 @@ ToriRSServer_VesselSpawn(
     int tile_x,
     int tile_z,
     int angle);
+
+/**
+ * The live hull whose ROOT position is within `range` tiles of a root tile,
+ * nearest first — the "is there a boat at this dock?" question a gangplank
+ * asks. 0 when nothing is in range. Deck instances are not searched: this is
+ * a root-frame query, and a rider is already aboard.
+ */
+int
+ToriRSServer_VesselNearest(
+    struct ToriRSServer* srv,
+    int tile_x,
+    int tile_z,
+    int level,
+    int range);
+
+/**
+ * Stand a player on this hull's deck — the boarding teleport, at the deck's
+ * own walkable plane (ToriRSServer_VesselDeckPlane) and the deck box's
+ * centre, which is what `::vesselboard` does and what content's gangplank
+ * needs. Returns 0 for a hull with no built deck instance.
+ */
+int
+ToriRSServer_VesselBoardPlayer(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerVessel* vessel);
+
+/**
+ * Put an aboard player ashore: the nearest WALKABLE root tile just outside
+ * the hull's footprint, searched outward from the hull's projected position.
+ * Returns 0 when there is nowhere to step — a hull at sea has no shore, and
+ * saying so is content's job (the caller words the refusal).
+ */
+int
+ToriRSServer_VesselDisembarkPlayer(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player);
+
+/** Did this hull just get refused by the water? One-shot: reading clears it.
+ *  The tick loop reports it to whoever is at the helm. */
+int
+ToriRSServer_VesselTakeBlocked(struct ToriRSServerVessel* vessel);
 
 /** Release the vessel and its deck instance. Returns 0 for a dead handle —
  *  the map-instance convention for handle-shaped deallocators. */

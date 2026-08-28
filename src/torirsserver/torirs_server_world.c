@@ -14521,6 +14521,22 @@ ToriRSServer_WorldTick(struct ToriRSServer* srv)
      * on — never a frame behind the players standing on it
      * (docs/SAILING_PLAN.md S1). */
     ToriRSServer_VesselTickAll(srv);
+    /*
+     * A hull the water refused parks silently, and the helmsman has just been
+     * told the opposite ("the boat gets under way"). Report it to whoever is
+     * steering, once per park — the same shape as every other "you cannot do
+     * that" line, and content's to word (ToriRSServer_Say: silent when the
+     * pack defines no `[proc,sailing_boat_blocked]`, never a C sentence).
+     */
+    TORIRSSERVER_FOR_EACH_PLAYER(srv, player)
+    {
+        struct ToriRSServerVessel* helmed = player_helm_vessel(srv, player);
+
+        if( !helmed || !ToriRSServer_VesselTakeBlocked(helmed) )
+            continue;
+        ToriRSServer_WorldSetActive(srv, player);
+        ToriRSServer_Say(srv, "sailing_boat_blocked", NULL);
+    }
     BD_MARK();
     phase_info(srv);
     BD_MARK();

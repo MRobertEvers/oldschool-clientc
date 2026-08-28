@@ -907,6 +907,31 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # the resulting state so one op can both act and report.
     "VESSEL_SAILS": (11095, 2, 0, 1, 0),
 
+    # vessel_hp(handle)(int)
+    # The hull's integrity, and its maximum as the second return — the pair
+    # the sailing sidepanel's bar shows. 0,0 for a dead handle.
+    "VESSEL_HP": (11100, 1, 0, 2, 0),
+
+    # vessel_damage(handle, amount)(int)
+    # Take `amount` off the hull (negative repairs), clamped to 0..max, and
+    # answer the resulting integrity. Content owns what costs what.
+    "VESSEL_DAMAGE": (11101, 2, 0, 1, 0),
+
+    # vessel_nearest(coord, range)(int)
+    # The live hull nearest that coord within `range` tiles, or 0 — the "is
+    # there a boat at this dock?" question a gangplank asks.
+    "VESSEL_NEAREST": (11097, 2, 0, 1, 0),
+
+    # vessel_board(handle)(boolean)
+    # Stand the active player on that hull's deck (its walkable plane, the
+    # deck box's centre). False for a hull with no built deck.
+    "VESSEL_BOARD": (11098, 1, 0, 1, 0),
+
+    # vessel_disembark()(boolean)
+    # Put an aboard player ashore on the nearest walkable ground beside the
+    # hull. False when there is none — a boat at sea has no shore.
+    "VESSEL_DISEMBARK": (11099, 0, 0, 1, 0),
+
     # vessel_helm(handle)(int)
     # Put the active player at the hull's helm (handle 0, or the helm they
     # already hold, releases it). While helming, ground clicks steer and the

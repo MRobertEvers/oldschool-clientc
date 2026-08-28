@@ -523,10 +523,15 @@
 #define SS_OP_VESSEL_HERE 11094
 #define SS_OP_VESSEL_SAILS 11095
 #define SS_OP_VESSEL_HELM 11096
+#define SS_OP_VESSEL_NEAREST 11097
+#define SS_OP_VESSEL_BOARD 11098
+#define SS_OP_VESSEL_DISEMBARK 11099
+#define SS_OP_VESSEL_HP 11100
+#define SS_OP_VESSEL_DAMAGE 11101
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11097
+#define SS_OPCODE_MAX 11102
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 501
+#define SS_OPCODE_COUNT 506
 
 #endif

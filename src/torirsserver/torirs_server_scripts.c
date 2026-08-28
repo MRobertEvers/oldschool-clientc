@@ -9955,6 +9955,78 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    case SS_OP_VESSEL_HP:
+    {
+        int32_t handle;
+        struct ToriRSServerVessel* vessel;
+
+        if( !SSVM_PopInt(state, &handle) )
+            return 1;
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        SSVM_PushInt(state, vessel ? vessel->hp : 0);
+        SSVM_PushInt(state, vessel ? vessel->hp_max : 0);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_DAMAGE:
+    {
+        int32_t handle;
+        int32_t amount;
+        struct ToriRSServerVessel* vessel;
+        int hp = 0;
+
+        if( !SSVM_PopInt(state, &amount) || !SSVM_PopInt(state, &handle) )
+            return 1;
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        if( vessel )
+        {
+            hp = vessel->hp - (int)amount;
+            if( hp < 0 )
+                hp = 0;
+            if( hp > vessel->hp_max )
+                hp = vessel->hp_max;
+            vessel->hp = hp;
+        }
+        SSVM_PushInt(state, hp);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_NEAREST:
+    {
+        int32_t coord;
+        int32_t range;
+
+        if( !SSVM_PopInt(state, &range) || !SSVM_PopInt(state, &coord) )
+            return 1;
+        SSVM_PushInt(state,
+                     ToriRSServer_VesselNearest(srv, coord_x(coord), coord_z(coord),
+                                              coord_level(coord), (int)range));
+        return 1;
+    }
+
+    case SS_OP_VESSEL_BOARD:
+    {
+        int32_t handle;
+        struct ToriRSServerVessel* vessel;
+
+        if( !SSVM_PopInt(state, &handle) )
+            return 1;
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        SSVM_PushInt(state,
+                     vessel && srv->active_player
+                         ? ToriRSServer_VesselBoardPlayer(srv, srv->active_player, vessel)
+                         : 0);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_DISEMBARK:
+    {
+        SSVM_PushInt(state, srv->active_player
+                                ? ToriRSServer_VesselDisembarkPlayer(srv, srv->active_player)
+                                : 0);
+        return 1;
+    }
+
     case SS_OP_VESSEL_HELM:
     {
         int32_t handle;

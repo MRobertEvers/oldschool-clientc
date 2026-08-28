@@ -782,13 +782,141 @@ vessel_tick(struct ToriRSServerVessel* vessel)
                 vessel->level);
         if( vessel_debug_enabled() )
             vessel_debug_dump_footprint(vessel, next_x, next_z, vessel->angle);
-        /* A blocked step stops the boat: whole step or none, no sliding. */
+        /* A blocked step stops the boat: whole step or none, no sliding.
+         * The helmsman is told (ToriRSServer_VesselTakeBlocked) — a boat that
+         * stops dead with no message is the "does nothing" symptom this tree
+         * keeps out of content. */
+        vessel->blocked_notice = 1;
         ToriRSServer_VesselStop(vessel);
         return;
     }
 
     vessel->fine_x = next_x;
     vessel->fine_z = next_z;
+}
+
+int
+ToriRSServer_VesselNearest(
+    struct ToriRSServer* srv,
+    int tile_x,
+    int tile_z,
+    int level,
+    int range)
+{
+    int best = 0;
+    int best_gap = 0;
+
+    assert(srv);
+    if( range < 0 )
+        return 0;
+    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; i++ )
+    {
+        struct ToriRSServerVessel* vessel = &srv->vessels[i];
+        int hx;
+        int hz;
+        int dx;
+        int dz;
+        int gap;
+
+        if( !vessel->in_use || vessel->level != level )
+            continue;
+        hx = vessel->fine_x >> 7;
+        hz = vessel->fine_z >> 7;
+        dx = hx > tile_x ? hx - tile_x : tile_x - hx;
+        dz = hz > tile_z ? hz - tile_z : tile_z - hz;
+        gap = dx > dz ? dx : dz;
+        if( gap > range )
+            continue;
+        if( best == 0 || gap < best_gap )
+        {
+            best = vessel->index;
+            best_gap = gap;
+        }
+    }
+    return best;
+}
+
+int
+ToriRSServer_VesselBoardPlayer(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerVessel* vessel)
+{
+    int base_tile_x = 0;
+    int base_tile_z = 0;
+    int level;
+
+    assert(srv);
+    assert(player);
+    assert(vessel);
+    if( !ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z) )
+        return 0;
+    /* The deck's own walkable plane and the DECK-BOX centre — the two things
+     * `::vesselboard` learned the hard way: plane 0 is the solid hull shell,
+     * and the hull-size half-tile lands beside the template's planking. */
+    level = ToriRSServer_VesselDeckPlane(vessel);
+    ToriRSServer_WorldSetActive(srv, player);
+    ToriRSServer_WorldTeleport(srv, level,
+                               base_tile_x + ((vessel->size_x_tiles + 7) / 8) * 4,
+                               base_tile_z + ((vessel->size_z_tiles + 7) / 8) * 4);
+    return 1;
+}
+
+int
+ToriRSServer_VesselDisembarkPlayer(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServerVessel* vessel;
+    int anchor_x;
+    int anchor_z;
+
+    assert(srv);
+    assert(player);
+    vessel = ToriRSServer_VesselAtTile(srv, player->x, player->z);
+    if( !vessel )
+        return 0;
+    /* Ashore FROM the hull's projected position: rings outward, nearest
+     * first, and the first WALKABLE root tile wins. At sea every ring is
+     * water and the search fails — which is the right answer, not a bug: a
+     * boat in open water has no shore, and the caller says so. */
+    anchor_x = vessel->fine_x >> 7;
+    anchor_z = vessel->fine_z >> 7;
+    for( int ring = 1; ring <= TORIRSSERVER_VESSEL_DISEMBARK_RANGE; ring++ )
+        for( int dz = -ring; dz <= ring; dz++ )
+            for( int dx = -ring; dx <= ring; dx++ )
+            {
+                int tx;
+                int tz;
+
+                /* The ring's edge only — the inside was searched already. */
+                if( dx > -ring && dx < ring && dz > -ring && dz < ring )
+                    continue;
+                tx = anchor_x + dx;
+                tz = anchor_z + dz;
+                if( ToriRSServer_SceneWalkBlocked(vessel->level, tx, tz) )
+                    continue;
+                /* Water is walk-clear for a hull and not for a person: the
+                 * gangplank must land on ground, not on the sea the boat is
+                 * floating in. */
+                if( ToriRSServer_VesselTileSailable(vessel->level, tx, tz) )
+                    continue;
+                ToriRSServer_WorldSetActive(srv, player);
+                ToriRSServer_WorldTeleport(srv, vessel->level, tx, tz);
+                return 1;
+            }
+    return 0;
+}
+
+int
+ToriRSServer_VesselTakeBlocked(struct ToriRSServerVessel* vessel)
+{
+    int blocked;
+
+    assert(vessel);
+    blocked = vessel->blocked_notice;
+    vessel->blocked_notice = 0;
+    return blocked;
 }
 
 void
