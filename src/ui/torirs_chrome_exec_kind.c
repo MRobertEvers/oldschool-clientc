@@ -3,9 +3,10 @@
 #include <string.h>
 
 static char const* const CHROME_EXEC_NAME[TORIRS_CHROME_EXEC_COUNT] = {
-    [TORIRS_CHROME_EXEC_BUFFER] = "buffer", [TORIRS_CHROME_EXEC_SDL] = "sdl",
-    [TORIRS_CHROME_EXEC_WEB] = "web",       [TORIRS_CHROME_EXEC_GDI] = "gdi",
-    [TORIRS_CHROME_EXEC_CS2] = "cs2",
+    [TORIRS_CHROME_EXEC_BUFFER] = "buffer",
+    [TORIRS_CHROME_EXEC_SDL] = "sdl",
+    [TORIRS_CHROME_EXEC_WEB] = "web",
+    [TORIRS_CHROME_EXEC_GDI] = "gdi",
 };
 
 char const*

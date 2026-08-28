@@ -43,7 +43,7 @@ which kind it is.
 | Fills | `present`, `surface_input`, `is_surface` | `apply`, `poll` |
 | Uses the command stream | No | Yes -- it is the whole contract |
 | Widgets are | ToriRSChrome's, drawn by ToriRSChrome | The platform's own |
-| Examples | `buffer` (in-canvas), `sdl` (second OS window) | `web` (DOM), `gdi` (comctl32), `cs2` (game interfaces) |
+| Examples | `buffer` (in-canvas), `sdl` (second OS window) | `web` (DOM), `gdi` (comctl32) |
 
 One table rather than two, because a host drives them identically: bring it up,
 hand it this frame, take back what the user did, tear it down. Making the
@@ -90,27 +90,20 @@ or written to a recording. Every string entering a command is copied into it.
 
 ## 3. Choosing one
 
-`[chrome] executor=buffer|sdl|web|gdi|cs2` in the boot manifest, overridden by
+`[chrome] executor=buffer|sdl|web|gdi` in the boot manifest, overridden by
 `TORIRS_CHROME_EXECUTOR` -- the same precedence `TORIRS_CHROME_THEME` has over
 the theme beside it, so a lane can ship a default a developer steps past without
 editing it.
 
-**With no key and no env var**, the gameframe picks: a gameframe that mounts the
-popout strip (interface 728, the column with XP Tracker and Loot Tracker) gets
-`cs2`, so the plugin window arrives as a fourth tracker rather than as a panel
-floating over the game; every other gameframe gets `buffer`.
-
-That is a default and nothing more. Naming an executor -- in the manifest or in
-the environment -- wins over it, including when the name is what would have been
-chosen anyway. This needs the *presence* of the key tracked separately from its
+**With no key and no env var** it is `buffer`, which is also the fallback for
+every failure below. The *presence* of the key is tracked separately from its
 value (`BootManifest::chrome_executor_set`), because `buffer` is both the zero
-value and a legitimate answer; without that flag the strip's preference read as
-unconditional and `[chrome] executor=` was inert on every lane that has a strip.
-The client prints what it bound and why on the frame the window first opens:
+value and a legitimate answer, and the client says which it was on the frame the
+window first opens:
 
 ```
 chrome: plugin window executor = sdl (configured)
-chrome: plugin window executor = cs2 (default)
+chrome: plugin window executor = buffer (default)
 ```
 
 A manifest naming something that is not an executor at all is a **load-time
@@ -146,14 +139,13 @@ them a choice would be four more consumers to keep working for nobody.
 | `sdl` | surface | macOS, Linux | **Done.** One auxiliary OS window. See COMMON-CHROME-001 and COMMON-CHROME-002 (points in, pixels out). |
 | `web` | native-widget | web | **Done.** Real DOM controls, built by the page from the command stream. |
 | `gdi` | native-widget | win32, win64 | **Written, not run.** Compiles only on Windows; parsed here by `make -C src check-gdi-syntax`. |
-| `cs2` | native-widget | every | **Done.** The window as game interface components. |
 
 ### What each native-widget executor does
 
-**All three wear the same art.** `web`, `gdi` and `cs2` draw their controls out
-of one bake -- `engine/torirs_chrome_skin_baked.c` -- on one set of metrics,
+**Both wear the same art.** `web` and `gdi` draw their controls out of one bake
+-- `engine/torirs_chrome_skin_baked.c` -- on one set of metrics,
 `ui/torirs_chrome_metrics.h`. What differs is only how a platform is *told*: the
-CS2 executor is handed a scene id, the page is handed base64 RGBA it turns into
+page is handed base64 RGBA it turns into
 data: URLs, and Windows gets a DIB it composites in software. The semantic slot
 enum and the bake's own order are the same numbers, which all of them rely on
 and none of them used to check; `ui/torirs_chrome_skin.h` is the static
@@ -316,7 +308,7 @@ assertion that they agree, and the page's copy of the same table is pinned by
   scaling ours, which is what makes a 2x checkbox crisp rather than smeared.
 
   A roster row becomes **three** controls -- a name, a settings well, an
-  on/off switch -- for the same reason it becomes two components under `cs2`: a
+  on/off switch -- because a
   single owner-drawn button reports a click without saying where in itself it
   landed, so one control could never tell "open this plugin's page" from "turn
   it off". Before that, a `LISTROW` fell through to the default branch and
@@ -376,121 +368,6 @@ assertion that they agree, and the page's copy of the same table is pinned by
   and captured grip dragging all update one pixel scroll position. A standard
   `WS_VSCROLL` would put platform chrome straight back on the borderless skin.
 
-- **cs2** (`src/ui/torirs_chrome_exec_cs2.c`) -- the window as real interface
-  components, built through the same `UITree_PushBuildComponent` any
-  programmatic panel uses and clicked through the same hit test as any
-  cache-authored interface. It needs no platform support at all, which is why
-  it is the one executor available on every lane.
-
-  Three things about it are worth knowing before touching it, because each was
-  a bug first:
-
-  1. **Component ids come from group `0x7FFE`**, not a private high range. A
-     root in any other unmounted group is deliberately dropped by
-     `UITree_RootIsDisplayable` -- that filter exists so a CS2 script
-     auto-mounting an interface for property access cannot cover the gameframe
-     -- so ids picked for being far away render *nothing*. `0x7FFE` is the
-     tree's own "app-overlay chrome" group.
-  2. **It mounts into the gameframe's popout strip**, `popout:container`
-     (728:9) -- the slot XP Tracker, Loot Tools and Hiscores mount into. Those
-     panels are authored pure fill-parent with no chrome of their own (the
-     nine-slice frame is a sibling under `popout:frame`), so building there
-     inherits the strip's frame, sizing and collapse behaviour and reads as a
-     fourth tracker. Mounting as its own root (`-1`) was the first attempt and
-     is what a gameframe with no strip would need; it is not what this does.
-  3. **The tree owns its text.** `UITree_PushBuildComponent` strdups the
-     string and node teardown frees it, so assigning a pointer of your own into
-     `u.rs_text.text` afterwards is a heap corruption on the next rebuild, not
-     a leak. Hand strings to the *builder*.
-  4. **Its art is baked in, not loaded.** The furniture -- tradebacking behind
-     panels and fields, the six pieces `~script31` builds a scrollbar out of,
-     and the nine-slice panel frame -- comes from
-     `engine/torirs_chrome_skin_baked.c`, the same bake the in-canvas chrome
-     draws, handed over as one multi-frame scene sprite whose frames are
-     `enum ToriRSChromeSkinSlot`. So does the wrench on the strip button.
-     Components reach it through `UIBuildComponent::graphic_scene_id` +
-     `graphic_atlas_index`, which bypass the sprite resolver entirely.
-
-     It used to ask the cache for archives 297/773/788/792/789/790/791 and 785,
-     and that was wrong three ways: nothing could be drawn until the loads
-     landed, so the panel opened as flat boxes and rebuilt when each piece
-     arrived; those ids name unrelated images on any cache but the OSRS one
-     they were chosen from, so a different lane got a confidently wrong
-     picture; and the launcher button could not be built at all until its icon
-     resolved. None of those failure modes exist now -- the images are `.rdata`
-     and the only question left is whether this *build* baked a skin.
-
-  **Its metrics are not its own either.** The row grid, the label column, the
-  control sizes and the palette all come from `ui/torirs_chrome_metrics.h`,
-  which the in-canvas chrome reads too -- see §8.0 of
-  `src/ui/README_DEBUG_OVERLAY.md`. Two files implementing one picture from two
-  sets of numbers is exactly how the panel came to look different depending on
-  which executor was bound to it, so there is now one set. A number that
-  belongs only to this presentation (the tab caption's approximated advance,
-  the component-id blocks) still lives here.
-
-  **The frame is the strip's, or its own.** Mounted in `popout:container` the
-  panel draws no border at all -- `popout:frame` already drew one, and a second
-  inside the first is a box in a box. Standalone it draws the nine-slice itself,
-  which is the same border `ToriRSChrome_PanelSetFramed` puts on the in-canvas
-  window, so the two presentations are the same window either way.
-
-  The scrollbar is drawn the way `~script31` assembles one -- track, grip,
-  arrow sprites -- but only the ARROWS take a click, because a grip drag is a
-  press held across frames and this toolkit has no drag. The grip is still
-  positioned from the scroll offset, so the bar reads and moves like the
-  game's.
-
-  **Editing works, by routing the keyboard and nothing else.** A click on a
-  field arrives as a component click and becomes an ACTIVATE intent, which the
-  intent layer turns into FOCUS on the model's own text input; the host then
-  routes key events (and only key events) into that model, so typing lands in
-  the focused field and mirrors back per keystroke. The MOUSE is deliberately
-  not routed there: the in-canvas window still lays out and hit-tests at its
-  floating position even though nothing draws it, so mouse routing would
-  deliver every click to that ghost as well. The field shows no caret -- the
-  text component has none -- but it takes and shows typing.
-
-  **Dropdowns open a list**, built as components after every row -- children
-  draw in the order they are pushed, so a list built where its row is would be
-  painted over by the rows below it. It is the in-canvas list in this
-  presentation's vocabulary: the shared table's geometry (the button's width,
-  the 2px pad, the 20px rows), the cache's lighter parchment tiled behind it,
-  script_9114's two alternating band transparencies, and `~script31`'s bar
-  inside it once the options overflow the ten rows it shows.
-
-  Three things are this executor's own. The open state is HELD HERE rather than
-  mirrored from the model, because the model's list is prims at the in-canvas
-  window's floating position and this presentation is neither -- what crosses
-  the seam is the PICK a row makes, the same intent the click sent before. The
-  cursor is the row band's `over_color`, so the tree finds the hovered row per
-  frame and there is no hover state to keep. And the list **opens upward** when
-  there is more room above than below: the strip is short, a settings tab fills
-  it, and a fixed downward list would stop working the further down the panel
-  its row sat.
-
-  A click on anything else dismisses it before that click is acted on, which is
-  what makes it modal the way every dropdown in the game is.
-
-  It used to CYCLE instead: a click stepped to the next option, because a popup
-  is an open state held across frames plus a hit test of its own and this
-  toolkit had neither. That is wrong on its own terms once a list exists -- a
-  click that changes the setting on the way to reading the options commits a
-  value nobody chose, and on a palette of two thousand loc names it is not an
-  affordance at all. `make -C src test-uitree` pins the replacement
-  (`ui/test/uitree_test_chrome_cs2.c`).
-
-  The focused field is **outlined** in the accent, from `WIDGET_FOCUS`. Before
-  that command existed the rows took typing perfectly well and gave no sign of
-  it, so they read as read-only -- which is exactly how they were reported.
-
-  A colour row builds its **axis bars as components** when the model says its
-  picker is open: three rows of 32 cells each, in a block of ids of their own.
-  Thirty-two rather than one per value, because 64 hues plus 128 lightnesses
-  would be two hundred nodes in the interface tree for one open popup; the cell
-  a click lands in maps back onto the axis's full range, so every value is
-  still reachable and only the pointer is coarser.
-
 ### Two checkboxes, and an option that picks one
 
 This game has no *drawn* checkbox. Every boolean in its interfaces is a pair of
@@ -520,7 +397,7 @@ baked and the choice is an option:
 (`TORIRS_CHROME_M_BOX` / `_M_BOX_SQUARE`), and a UI sprite drawn at anything but
 its baked size speckles -- the outline is baked before the scale. So the control
 is sized to the art it is wearing, everywhere: `dbg_check_size` in the in-canvas
-chrome, `cs2_box` in the CS2 executor, `chrome_gdi_box` in the Win32 one, and a
+chrome, `chrome_gdi_box` in the Win32 one, and a
 `.checkbox-square` class in the page's stylesheet that carries its own width.
 Changing the style dirties every panel exactly as `SetScale` does.
 
@@ -537,8 +414,8 @@ The page is sent **both** pairs at open and switches with a `classList.toggle`:
 the stylesheet is built once and the command can arrive on any frame, so a style
 change that had to wait for a base64 blob would repaint the window in two steps.
 
-Pinned by `make -C src test-uitree` (the command's content and its order, and
-the CS2 executor's art and box size), `make -C src test-debug-overlay-visual`
+Pinned by `make -C src test-uitree` (the command's content and its order),
+`make -C src test-debug-overlay-visual`
 (the in-canvas pixels, against the bake, both ways round), and
 `make -C src test-web-channel` (the page's class, its sheet, and that the boxed
 pair decodes to a green tick and an empty well rather than to each other).
@@ -689,34 +566,50 @@ changed, and that the dock arrow is the pop-out arrow rotated 180. None of those
 is visible from the page, and a stamp that silently did nothing would give you a
 pop-out button wearing an X.
 
-## 5a. Opening it: the sidebar Plugin button
+## 5a. Opening it: the Manage Plugins button
 
-A client-built component that toggles the window, sitting with the gameframe's
-own sidebar furniture. Also reachable by the `plugin_panel_toggle` debug action.
+A wide stone plate at the bottom of the **logout tab**, reading "Manage
+Plugins". Also reachable by the `plugin_panel_toggle` debug action. It is the
+same control on every lane; only who builds it differs.
+
+**An authored gameframe authors it.** The 2004 profiles write it out as
+`[component:manage_plugins_*]` records plus a layout entry inside the logout
+tab (`revconfig/rs245_2lc`, read by 254, 289 and 377): a container carrying
+`option=Manage Plugins` / `option_action=PLUGIN_PANEL`, three
+`sprite=chrome:button_{left,mid,right}` graphics, and a `font=chrome:bold`
+caption. The op lands in `RS_MINIMENU_ACTION_PLUGIN_PANEL` and `app.c`'s
+dispatcher opens the window.
+
+**A cache gameframe gets the same plate built for it.** On a lane whose frame is
+a CS2 toplevel there are no authored records to add one to, so
+`app_plugin_button_sync` pushes the identical five components into the interface
+tree and answers its own click. Where they go is the profile's `[chrome]` block
+-- the interface, the child to hang off, and the box inside it -- because those
+numbers are facts about a revision. A lane that states none of it builds
+nothing, which is exactly what the authored lanes want.
 
 It is **not** a sidebar tab, and that is a finding rather than a shortcut. A tab
 would be a `tab_icon` + `redstone_tab` + `sidebar` triple in a layout INI --
-which is how the rev-245 lane declares its tabs, and which this lane has none
-of: its gameframe is a *cache* interface (`interface_id=161`), so the tab strip
-on screen is cache components with cache hooks and there is no INI triple to add
-one to. Declaring a builtin `tab_icon` anyway would render, and then route its
-click through `SET_SELECTED_TAB` -- selecting a tabno the gameframe does not
-have, which blanks its sidebar.
+which a cache gameframe has none of: the tab strip on screen is cache components
+with cache hooks. Declaring a builtin `tab_icon` anyway would render, and then
+route its click through `SET_SELECTED_TAB` -- selecting a tabno the gameframe
+does not have, which blanks its sidebar.
 
-So the button is built the way the CS2 executor builds its panel: a component in
-the app-overlay chrome group, its own root, clicked through the same
-interception. That works on every executor and every revision, needs no cache
-sprite, and leaves the game's tab machinery alone.
+**The art is the chrome's, not the cache's.** Three baked skin slots and a baked
+face, so the plate draws identically on a cache that carries neither -- which is
+the whole point of a button that opens the client's own furniture.
 
-Two things about its placement were bugs first:
+Two things about it were bugs first:
 
 - **It must wait for the gameframe.** The plugin tick runs before the BOOTING
   early-out -- deliberately, so the window is usable while a cache loads --
-  which means the first frames see an *empty* tree. A button built there becomes
-  component 0 and is wiped by the first real tree build.
-- **Position comes from the canvas, not the layout root.** They are different
-  spaces: on this lane the layout root is 1224 wide while the canvas is 765, so
-  a button placed from the root sits four hundred pixels off the right edge.
+  which means the first frames see an *empty* tree. A component built there
+  becomes the first root, which makes the gameframe's own group the odd one out
+  and blanks the screen; `ToriRSChrome_TreeAcceptsChrome` is that gate.
+- **It follows the plugin transport.** Every file the plugin system needs rides
+  `TORIRS_IOK_SCRIPT`, so with that transport down the button is *hidden*, not
+  merely unclickable -- the plate has no greyed variant, and its menu row is
+  suppressed by action (`RS_MinimenuBuildCtx::plugin_io_down`).
 
 ### Closing it takes the presentation down with it
 
@@ -740,7 +633,7 @@ The chain is worth stating because no link in it is obviously the owner:
    answer can be read -- and calls `app_plugin_window_set_open(app, 0)`.
 4. That calls `ToriRSChromeSync_Shutdown`, and the executor's own `end()`
    decides what closing means: SDL destroys its aux window, GDI its HWND, the
-   web one calls the page's close hook, the CS2 one clears the nodes it built.
+   web one calls the page's close hook.
 
 The host knows none of those four things, which is the point. The next open
 re-binds from scratch, so nothing carries a shadow of a window nobody can see
@@ -872,7 +765,6 @@ dropdowns:
 | | How a colour row appears |
 |---|---|
 | `buffer` / `sdl` | The swatch, the hex, and the three bars; a press-sweep-release along a bar moves that axis, and the wheel steps it one value |
-| `cs2` | The swatch, the hex, and the bars as components -- see §4 |
 | `web` | `<input type="color">` beside the hex. The browser's picker is 24-bit; what comes back is a TEXT intent the MODEL quantises, so the swatch visibly snaps to a palette entry |
 | `gdi` | A clickable coloured `STATIC` beside the `EDIT`; it expands three ToriRS-styled H/S/L bars inline, with click-and-drag selection at the renderer's real HSL16 resolution |
 
@@ -916,17 +808,16 @@ first thing a plugin does inside the build handler.
 
 ### Chrome is not game content, and the game had to be told
 
-Two ways the CS2 window leaked into machinery that has no business seeing it,
-both reported as "the inputs just say Continue and cannot be edited":
+Two ways client chrome leaked into machinery that has no business seeing it:
 
-- **The minimenu and the mouseover text.** The window's rows are real interface
-  components, armed for clicks so the executor hears about them -- and that
-  arming is exactly what `RS_Minimenu_Build` reads. So every field grew a
+- **The minimenu and the mouseover text.** The Manage Plugins button is a real
+  interface component, armed for clicks so the client hears about it -- and
+  that arming is exactly what `RS_Minimenu_Build` reads. So it grew a
   right-click menu offering "Continue" (the generic verb the reference gives a
-  component a script enabled), and the mouseover text said "Continue" with the
-  pointer anywhere over the panel. `add_component_rows` now returns nothing for
-  the chrome group, which covers the right-click menu, the left-click default
-  row and the mouseover text in one test, because all three are that one build.
+  component a script enabled), and the mouseover text said so too.
+  `add_component_rows` now returns nothing for the chrome group, which covers
+  the right-click menu, the left-click default row and the mouseover text in
+  one test, because all three are that one build.
 
 - **The keyboard.** A chrome field under the caret is the model's, and the host
   routes keys into it long before the game's own key handling runs -- but
@@ -1034,7 +925,6 @@ the verification COMMON-CHROME-001 asks for.
 | `src/ui/torirs_chrome_exec_web.c` | The web executor's C half |
 | `src/web/torirs_chrome.js` | The web executor's DOM half |
 | `src/ui/torirs_chrome_exec_gdi.c` | The Win32 executor |
-| `src/ui/torirs_chrome_exec_cs2.c` | The CS2 executor |
 | `src/platform/platform_sdl2.{h,c}` | `PlatformSDL2_Aux*` -- the auxiliary window; `*_SetBorderless` / `*_SetDragHandleProvider` -- the frameless one |
 | `src/plugin/torirs_plugin.h` | The plugin contract, ABI 5: `win_*`, `EV_UI`, `EV_UI_BUILD` |
 | `src/plugin/torirs_plugin_host.{h,c}` | The window registry, dispatch, `PluginHost_Reload` |

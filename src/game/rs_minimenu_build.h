@@ -175,9 +175,9 @@ struct RS_MinimenuBuildCtx
      * AUTHORED: a profile puts `op0_action=PLUGIN_PANEL` on whatever component
      * it likes, so the client does not know which component to grey and cannot
      * reach it even if it did. Suppressing by ACTION covers every one of them,
-     * on every gameframe, including the launcher this client builds itself --
-     * and it takes the left-click default with it, since a row that is not
-     * there cannot be chosen (RS_Minimenu_ActionIsDefaultable).
+     * on every gameframe -- and it takes the left-click default with it, since
+     * a row that is not there cannot be chosen
+     * (RS_Minimenu_ActionIsDefaultable).
      *
      * Sense is deliberately "down", not "available": false is the pre-existing
      * behaviour, so every build path that predates this -- the standalone

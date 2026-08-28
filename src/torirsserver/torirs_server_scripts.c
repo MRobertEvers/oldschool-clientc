@@ -1010,7 +1010,23 @@ report_abort(struct SSVM_State* state)
 static int
 run_or_park(struct ToriRSServer* srv, struct SSVM_State* state)
 {
-    int was_parked = srv->active_player->active_script == state;
+    /*
+     * No active player is an ordinary state here, not a missing one.
+     *
+     * A world with nobody logged in still ticks -- npc respawn clocks, instance
+     * linger windows and `[ai_*]` triggers are the world's, not a session's --
+     * and an npc trigger's subject is the npc alone. This used to be
+     * unreachable only because the socket server tore its world down with the
+     * one connection it served, so a tick could not happen without a player;
+     * the first tick after the last logout dereferenced this and the process
+     * died with no message at all.
+     *
+     * What such a script cannot do is *park*: the parking slot belongs to a
+     * player. The suspend cases below say so and drop it, rather than each
+     * reaching through this pointer.
+     */
+    struct ToriRSServerPlayer* active = srv->active_player;
+    int was_parked = active && active->active_script == state;
     enum SSVM_Exec status = SSVM_Execute(state);
 
     /*
@@ -1028,7 +1044,7 @@ run_or_park(struct ToriRSServer* srv, struct SSVM_State* state)
      */
     if( was_parked && (status == SSVM_FINISHED || status == SSVM_ABORTED) )
     {
-        struct ToriRSServerPlayer* owner = srv->active_player;
+        struct ToriRSServerPlayer* owner = active;
 
         if( status == SSVM_ABORTED )
             report_abort(state);
@@ -1054,23 +1070,33 @@ run_or_park(struct ToriRSServer* srv, struct SSVM_State* state)
     case SSVM_PAUSEBUTTON:
     case SSVM_COUNTDIALOG:
     case SSVM_NAMEDIALOG:
+        /* A player suspend with nobody to suspend on. Reachable on a world
+         * that is ticking with no one logged in: an `[ai_*]` script whose
+         * subject is an npc may still reach a `p_delay`, and there is no slot
+         * to park it in. Dropped and said, the same as the collision below. */
+        if( !active )
+        {
+            fprintf(stderr,
+                    "torirsserver: dropping %s, which suspended with no player to park it on\n",
+                    state->script ? state->script->name : "?");
+            SSVM_StateRelease(state);
+            return 0;
+        }
         /* One parked script per player. A second would need somewhere to live
          * and, more importantly, would let two scripts interleave writes to the
          * same player — the reference has the same single slot. */
-        if( srv->active_player->active_script && srv->active_player->active_script != state )
+        if( active->active_script && active->active_script != state )
         {
             fprintf(stderr,
                     "torirsserver: dropping %s, which suspended while %s waits\n",
                     state->script ? state->script->name : "?",
-                    srv->active_player->active_script->script
-                        ? srv->active_player->active_script->script->name
-                        : "?");
+                    active->active_script->script ? active->active_script->script->name : "?");
             SSVM_StateRelease(state);
             return 0;
         }
         /* It may have been parked on an npc last time round — see `unpark`. */
         unpark(srv, state);
-        srv->active_player->active_script = state;
+        active->active_script = state;
         return 1;
 
     case SSVM_NPC_SUSPENDED:

@@ -172,18 +172,16 @@ push_field_from_ini_kv(
             kind = RCFIELD_CHROME_PLUGIN_IFACE;
         else if( strcmp(key, "plugin_button_parent") == 0 )
             kind = RCFIELD_CHROME_PLUGIN_BUTTON_PARENT;
-        else if( strcmp(key, "plugin_panel_parent") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_PANEL_PARENT;
-        else if( strcmp(key, "plugin_button_slot") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_BUTTON_SLOT;
-        else if( strcmp(key, "plugin_button_size") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_BUTTON_SIZE;
-        else if( strcmp(key, "plugin_button_pitch") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_BUTTON_PITCH;
+        else if( strcmp(key, "plugin_button_x") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_X;
+        else if( strcmp(key, "plugin_button_y") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_Y;
+        else if( strcmp(key, "plugin_button_w") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_W;
+        else if( strcmp(key, "plugin_button_h") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_H;
         else if( strcmp(key, "plugin_button_op") == 0 )
             kind = RCFIELD_CHROME_PLUGIN_BUTTON_OP;
-        else if( strcmp(key, "plugin_layout_script") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_LAYOUT_SCRIPT;
         else
             TORIRS_LOG("revconfig: [chrome] has no key '%s'\n", key);
         if( kind != RCFIELD_NONE )

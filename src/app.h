@@ -1719,11 +1719,9 @@ struct App
     /**
      * Someone NAMED that executor, rather than getting it by default.
      *
-     * What stops the gameframe's own preference from being a lock. The plugin
-     * window belongs in the popout strip where there is one, so that is the
-     * default -- but a manifest or an env var that asks for a second OS window
-     * has to win, or the setting is unusable on every gameframe that has a
-     * strip, which is all of them that matter.
+     * Distinct from the value, because "unset" and "explicitly buffer" are the
+     * same number and only one of them is a decision. Read for the "(configured)"
+     * / "(default)" half of the line the bind logs.
      */
     int plugin_exec_explicit;
     /**
@@ -1739,8 +1737,9 @@ struct App
     /** The build serials the merge was made from. */
     int chrome_merged_dbg;
     int chrome_merged_win;
-    /** Tree node of the sidebar Plugin button, or -1. Rechecked rather than
-     *  trusted: a tree rebuild takes it, and the index alone cannot say so. */
+    /** Tree node of the client-built "Manage Plugins" button, or -1. Rechecked
+     *  rather than trusted: a tree rebuild takes it, and the index alone cannot
+     *  say so. */
     int32_t plugin_button_node;
     /**
      * Whether that button is currently switched off because the plugin lane's

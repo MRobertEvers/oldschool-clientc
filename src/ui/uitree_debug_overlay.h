@@ -1392,8 +1392,8 @@ ToriRSChrome_TextArea(
  * next word would not fit; a single word longer than the box is broken mid-word
  * rather than run off the edge.
  *
- * Public because the CS2 executor wraps the same string for the same box and
- * the two presentations have to break it in the same places. It measures with
+ * Public because more than one presentation wraps the same string for the same
+ * box and they all have to break it in the same places. It measures with
  * the baked advance tables, which are a pure function of the slot -- no chrome
  * instance, no cache, nothing to be uninitialised.
  */

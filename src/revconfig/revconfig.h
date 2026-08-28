@@ -277,12 +277,11 @@ enum RevConfigFieldKind
     RCFIELD_CAMERA_WHEEL_STEP,
     RCFIELD_CHROME_PLUGIN_IFACE,
     RCFIELD_CHROME_PLUGIN_BUTTON_PARENT,
-    RCFIELD_CHROME_PLUGIN_PANEL_PARENT,
-    RCFIELD_CHROME_PLUGIN_BUTTON_SLOT,
-    RCFIELD_CHROME_PLUGIN_BUTTON_SIZE,
-    RCFIELD_CHROME_PLUGIN_BUTTON_PITCH,
+    RCFIELD_CHROME_PLUGIN_BUTTON_X,
+    RCFIELD_CHROME_PLUGIN_BUTTON_Y,
+    RCFIELD_CHROME_PLUGIN_BUTTON_W,
+    RCFIELD_CHROME_PLUGIN_BUTTON_H,
     RCFIELD_CHROME_PLUGIN_BUTTON_OP,
-    RCFIELD_CHROME_PLUGIN_LAYOUT_SCRIPT,
     RCFIELD_ROLE_MATCH,
     RCFIELD_UICOMPONENT_ROLE,
     RCFIELD_UILAYOUT_NULL,
@@ -1275,52 +1274,49 @@ struct RevConfigCameraItem
 /*
  * `[chrome]` -- where the CLIENT's own furniture mounts on this revision.
  *
- * One thing today: the plugin window's launcher button and the strip it lives
- * in. That button is not the cache's -- plugins are a client feature and no
- * server knows about them -- but WHERE it goes is entirely the cache's
- * business: interface 728's button column is child 6 on rev-239 and does not
- * exist at all on a 2004 dat1 cache. Every one of those numbers used to be a
- * literal in torirs_plugin_panel.u.c, which is the same silent-wrong-answer
- * trap `[iface:…]` exists to delete, one level down: the interface id was
- * named by the profile and the children, the slot, the geometry and the layout
- * script were not.
+ * One thing today: the plugin window's "Manage Plugins" launcher. That button
+ * is not the cache's -- plugins are a client feature and no server knows about
+ * them -- but WHERE it goes is entirely the cache's business: on rev-239 the
+ * logout tab is interface 182 and its panel is 190x261, and neither number
+ * means anything on another revision. Every one of them used to be a literal
+ * in torirs_plugin_panel.u.c, which is the same silent-wrong-answer trap
+ * `[iface:...]` exists to delete, one level down.
+ *
+ * A LANE WHOSE GAMEFRAME IS AUTHORED STATES NONE OF THIS. The 2004 profiles
+ * write the same button out as `[component:manage_plugins_*]` records with a
+ * layout entry inside the logout tab (revconfig/rs245_2lc), because a profile
+ * that builds the whole frame can simply put it there. This section is for the
+ * lanes whose frame comes out of a cache and cannot be authored -- and stating
+ * it on a lane that already authors one is how you get two buttons.
  *
  * Nothing here is defaulted. An absent section, or one that leaves a key out,
- * means "this revision has no strip to mount in" -- the button is not built
- * and the window opens in the canvas instead, which is exactly what a lane
- * with no `[iface:plugin_popout]` already did.
+ * means "the client builds no launcher on this revision".
  */
 struct RevConfigChromeItem
 {
     /* INI: plugin_button_iface= -- the `[iface:<name>]` section naming the
-     * interface the strip belongs to. Empty when unstated. */
+     * interface the button mounts inside. Empty when unstated. */
     char plugin_iface[REVCONFIG_CHROME_NAME_LEN];
 
-    /* INI: plugin_button_parent= -- child component of that interface holding
-     * the launcher column the button is appended to. -1 when unstated. */
+    /* INI: plugin_button_parent= -- child component of that interface the
+     * button hangs off; 0 is the interface's own root. -1 when unstated. */
     int plugin_button_parent;
 
-    /* INI: plugin_panel_parent= -- child component panels mount into, i.e. the
-     * one slot the strip shows at a time. -1 when unstated. */
-    int plugin_panel_parent;
+    /* INI: plugin_button_x= / plugin_button_y= -- where the plate sits inside
+     * that parent, in interface pixels. -1 when unstated. */
+    int plugin_button_x;
+    int plugin_button_y;
 
-    /* INI: plugin_button_slot= -- index down the column. The shipped entries
-     * take the ones before it. -1 when unstated. */
-    int plugin_button_slot;
-
-    /* INI: plugin_button_size= / plugin_button_pitch= -- the column's own icon
-     * box and vertical pitch, in interface pixels. -1 when unstated. */
-    int plugin_button_size;
-    int plugin_button_pitch;
+    /* INI: plugin_button_w= / plugin_button_h= -- the plate's own box. The
+     * three baked caps are 36px, so a width under 72 has nowhere to put the
+     * tile between them. -1 when unstated. */
+    int plugin_button_w;
+    int plugin_button_h;
 
     /* INI: plugin_button_op= -- the hover option the button advertises, e.g.
-     * "Show Plugin Settings". Empty means the button names nothing on hover. */
+     * "Manage Plugins". Empty means the button names nothing on hover; the
+     * plate's own caption says it either way. */
     char plugin_button_op[REVCONFIG_CHROME_NAME_LEN];
-
-    /* INI: plugin_layout_script= -- the `[script:<name>]` binding for the
-     * clientscript that lays the strip out, run after the panel takes the slot
-     * or gives it back. Empty when the strip needs no such pass. */
-    char plugin_layout_script[REVCONFIG_CHROME_NAME_LEN];
 };
 
 struct RevConfigItem

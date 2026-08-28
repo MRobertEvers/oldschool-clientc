@@ -5,8 +5,9 @@
  * emitted by fontbake. Nothing else in this file reaches outside the C
  * library — see the dependency note in the header. */
 #include "uitree_debug_font_metrics.h"
-/* Macros only -- the authored geometry and palette this chrome shares with the
- * CS2 executor. See the note there on why neither file owns them. */
+/* Macros only -- the authored geometry and palette this chrome shares with
+ * every other presentation of the same model. See the note there on why no one
+ * file owns them. */
 #include "torirs_chrome_metrics.h"
 
 #include <string.h>
@@ -179,8 +180,8 @@ _Static_assert(
  *  the line box; there is no bottom border on the selected tab, which is what
  *  joins it to the content below (see dbg_push_tabstrip). */
 #define DBG_TAB_PAD_X DBG_PX(TORIRS_CHROME_M_TAB_PAD_X)
-/** A tab's own height, so a strip is the same 20 the CS2 executor builds
- *  rather than whatever the row face happens to measure. */
+/** A tab's own height, so a strip is the same 20 everywhere rather than
+ *  whatever the row face happens to measure. */
 #define DBG_TAB_H DBG_PX(TORIRS_CHROME_M_TAB_H)
 /** Thickness of the optional nine-slice panel frame's RAIL -- what the content
  *  column is inset by. See dbg_push_frame; the corners are wider. */
@@ -900,8 +901,8 @@ dbg_row_box_offset(struct ToriRSChrome const* ui, struct ToriRSChromeWidget cons
      *
      * Measured was the old behaviour and it moves every field in the panel
      * sideways the moment one label changes -- a plugin renaming a setting
-     * reflows the whole page. Fixed is also what the CS2 executor lays out
-     * (CS2_LABEL_W), so a panel keeps its shape across a change of executor.
+     * reflows the whole page. Fixed is also what the other presentations lay
+     * out, so a panel keeps its shape across a change of executor.
      *
      * An UNLABELLED row gets no column at all rather than an empty one: there
      * is nothing to line it up with, and reserving 104 pixels for a caption
@@ -3109,8 +3110,8 @@ dbg_push_tabstrip(
  * The interfaces' own panel frame, as a nine-slice.
  *
  * The border the gameframe's popout strip draws around the panels that mount
- * in it -- which is why the plugin window built by the CS2 executor wears one
- * and the same window drawn in canvas did not.
+ * in it -- which is what the plugin window wears so it reads as the game's own
+ * furniture rather than as a developer overlay.
  *
  * Nine pieces and not one stretched box, because the corners are ROUNDED: the
  * outer pixel of each 3x3 corner is transparent, so a single sprite stretched

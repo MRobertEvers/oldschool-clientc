@@ -862,21 +862,20 @@ add_component_rows(
     /*
      * CLIENT CHROME IS NOT GAME CONTENT.
      *
-     * The CS2 chrome executor builds the plugin window out of real interface
-     * components, and the sidebar's Plugin button is one too. They are armed
-     * for clicks so the executor hears about them -- and that arming is
-     * exactly what this function reads, so every field and every checkbox in
-     * that window grew a right-click menu offering "Continue", and the
-     * mouseover text read "Continue" with the pointer anywhere over the panel.
-     * That is the generic verb the reference gives a component a script
-     * enabled, and it means nothing for a control the game does not own.
+     * The client builds its own furniture out of real interface components --
+     * today the "Manage Plugins" button. They are armed for clicks so the
+     * client hears about them -- and that arming is exactly what this function
+     * reads, so a control the game does not own grew a right-click menu
+     * offering "Continue", and the mouseover text read "Continue" with the
+     * pointer over it. That is the generic verb the reference gives a
+     * component a script enabled, and it means nothing here.
      *
      * Recognised by GROUP, the same bounds test the click interception uses
-     * (TORIRS_CHROME_CS2_GROUP is the tree's own "app-overlay chrome" group).
+     * (TORIRS_CHROME_GROUP is the tree's own "app-overlay chrome" group).
      * One test here covers the right-click menu, the left-click default row
      * and the mouseover text, because all three are this one menu build.
      */
-    if( ((node->component_id >> 16) & 0xFFFF) == TORIRS_CHROME_CS2_GROUP )
+    if( ((node->component_id >> 16) & 0xFFFF) == TORIRS_CHROME_GROUP )
         return 0;
 
     if( add_social_rows(node, menu) )

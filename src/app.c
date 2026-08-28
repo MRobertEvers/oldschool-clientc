@@ -14561,11 +14561,6 @@ Task_OpenSubRefresh_Run(
             struct timespec close_t1;
             uint64_t close_ns;
             int rec = UITree_InterfaceParentFind(app->tree, self->target_uid);
-            /* Was this close aimed at the plugin window? Answered before the
-             * record goes, and acted on after -- see below. */
-            int closed_plugin_window =
-                rec >= 0 && self->target_uid == APP_POPOUT_CONTAINER &&
-                app->tree->interface_parents[rec].group_id == TORIRS_CHROME_CS2_GROUP;
             clock_gettime(CLOCK_MONOTONIC, &close_t0);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE, 1);
             if( rec >= 0 )
@@ -14583,21 +14578,6 @@ Task_OpenSubRefresh_Run(
             close_ns = (uint64_t)(close_t1.tv_sec - close_t0.tv_sec) * 1000000000ull +
                        (uint64_t)(close_t1.tv_nsec - close_t0.tv_nsec);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE_NS, (int64_t)close_ns);
-            /*
-             * The plugin window is a fourth entry in the popout strip and holds
-             * that slot exactly as a shipped panel does, so a close aimed at
-             * the slot is the strip saying the window is gone -- and the window
-             * has to agree. Without this its own keep-alive tick sees an empty
-             * slot, reads it as a gameframe rebuild, re-registers, re-expands
-             * the strip and rebuilds the rows, so `~chrome_popout_close` does
-             * nothing but flicker.
-             *
-             * After the record is cleared, not before: set_open releases the
-             * slot itself and would find someone else's registration to leave
-             * alone otherwise.
-             */
-            if( closed_plugin_window )
-                app_plugin_window_set_open(app, 0);
         }
         /*
          * Then tell the tree a sub-interface went away.
@@ -27629,13 +27609,12 @@ app_minimenu_run_option(
     /*
      * "Manage Plugins": open the plugin window.
      *
-     * A profile authors this row -- `op0_action=PLUGIN_PANEL` on a component
-     * it placed in whatever tab it likes -- so the CLIENT never has to know
-     * which gameframe it is running on or where the button went. The
-     * gameframes that HAVE a popout strip get the launcher in it
-     * (app_plugin_button_sync); the ones that do not, which is every dat1
-     * frame, get whatever their profile put there instead, and this is where
-     * both arrive.
+     * A profile authors this row -- `op0_action=PLUGIN_PANEL` on the
+     * `manage_plugins_button` it places in the logout tab -- so the CLIENT
+     * never has to know which gameframe it is running on. The lanes whose
+     * frame comes out of a cache and cannot be authored get the same plate
+     * built for them instead (app_plugin_button_sync), and answer their own
+     * click; this is where the authored ones arrive.
      *
      * Before the pick.kind switch, like the client rows below it: there is no
      * engine behaviour behind this action id to fall through to, and a
@@ -30105,19 +30084,18 @@ App_RunOnce(
         app_obj_cell_at(app, out.clicked_x, out.clicked_y, &pressed_cell);
 
     /*
-     * The CS2 chrome executor's own components, before the game sees them.
+     * The client's own chrome components, before the game sees them.
      *
-     * Its widgets ARE interface components, so without this a click on the
-     * plugin window's checkbox would also build a minimenu for whatever the
-     * component looks like to the game -- a rectangle with no ops, which is
-     * "Walk here". Recognised by component id: the executor allocates from a
-     * private high range precisely so this is a bounds test.
+     * The Manage Plugins button IS an interface component, so without this a
+     * click on it would also build a minimenu for whatever the component looks
+     * like to the game -- a layer with no armed op, which is "Walk here".
+     * Recognised by component id: the client allocates from a private high
+     * range precisely so this is a bounds test.
      */
     int chrome_took_click = 0;
-    if( out.clicked_com_id >= TORIRS_CHROME_CS2_ID_BASE &&
-        out.clicked_com_id < TORIRS_CHROME_CS2_ID_END &&
-        (app_plugin_button_click(app, out.clicked_com_id) ||
-         ToriRSChromeExecCs2_Click(out.clicked_com_id)) )
+    if( out.clicked_com_id >= TORIRS_CHROME_ID_BASE &&
+        out.clicked_com_id < TORIRS_CHROME_ID_END &&
+        app_plugin_button_click(app, out.clicked_com_id) )
     {
         chrome_took_click = 1;
         app->input_frame_consumed = 1;

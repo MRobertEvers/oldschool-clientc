@@ -24,7 +24,7 @@
  * taking.
  *
  * THE CONTROLS ARE THE GAME'S, NOT THE SHELL'S. Every one of them is drawn
- * with the same baked cache art the CS2 executor builds its panel out of:
+ * with the same baked cache art the in-canvas chrome draws its panel out of:
  * tradebacking behind the window and every field, the interfaces' 17x17 tick
  * and cross for a boolean, the scrollbar's own arrow on a dropdown, and the
  * nine-slice panel frame. They are still USER32 controls -- an EDIT is an
@@ -78,8 +78,7 @@ static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
  * label column -- on the grounds that Windows controls at the system font want
  * their own geometry. That was true while the controls looked like Windows.
  * They are drawn with the game's art now, so they get the game's grid, out of
- * the same torirs_chrome_metrics.h the in-canvas chrome and the CS2 executor
- * lay out from. The one thing that stays the system's is the FONT: a bitmap
+ * the same torirs_chrome_metrics.h the in-canvas chrome lays out from. The one thing that stays the system's is the FONT: a bitmap
  * face cannot be given to an EDIT, and mixing a baked p12 in the owner-drawn
  * halves with the shell's font in the typed ones would read worse than one
  * font throughout.
@@ -174,8 +173,7 @@ static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
  *
  * A LISTROW owns TWO controls -- its switch and its settings affordance -- and
  * they report different intents, so the second gets a parallel block at the
- * same offset. Exactly what CS2_ID_ACTION_BASE does in the CS2 executor, and
- * for the same reason: the handle stays the index into both.
+ * same offset, so the handle stays the index into both.
  */
 #define CHROME_GDI_ID_BASE 0x4000
 #define CHROME_GDI_ID_TAB_BASE 0x5000
@@ -264,7 +262,7 @@ struct ChromeGdi
      * BS_AUTOCHECKBOX kept its own tick and answered BM_GETCHECK; BS_OWNERDRAW
      * draws whatever we say and knows nothing, so the checked bit lives here
      * and the click toggles it. `row_action` is a LISTROW's shape and rides
-     * the ADD, exactly as it does in the CS2 executor.
+     * the ADD.
      */
     unsigned char checked[TORIRS_CHROME_MAX_WIDGETS];
     unsigned char row_action[TORIRS_CHROME_MAX_WIDGETS];
@@ -1051,8 +1049,8 @@ chrome_gdi_layout(struct ChromeGdi* s)
         /*
          * A roster row: the name at the left, a settings well and a switch
          * pinned to the right so a column of them lines up however long the
-         * names are. Right to left, exactly as the in-canvas chrome and the
-         * CS2 executor both place it.
+         * names are. Right to left, exactly as the in-canvas chrome places
+         * it.
          */
         if( w->kind == TORIRS_CHROME_W_LISTROW )
         {
@@ -1233,9 +1231,9 @@ chrome_gdi_box(struct ChromeGdi const* s)
  *
  * Right-aligned rather than centred because a LISTROW's switch is a 24-wide
  * hit box around 17-wide art and the slack belongs on the left, between the
- * sprite and the settings well -- the same placement the in-canvas chrome and
- * the CS2 executor both use. A checkbox's box is exactly the art, so for that
- * one the two are the same thing.
+ * sprite and the settings well -- the same placement the in-canvas chrome
+ * uses. A checkbox's box is exactly the art, so for that one the two are the
+ * same thing.
  */
 static void
 chrome_gdi_draw_mark(struct ChromeGdi* s, HDC dc, RECT box, int on)
@@ -1660,8 +1658,8 @@ chrome_gdi_draw_combo(struct ChromeGdi* s, DRAWITEMSTRUCT const* di)
          * arrows side by side reads worse than one that is the wrong shape.
          *
          * The alternative was to drop the COMBOBOX for a button that CYCLES
-         * its options -- which is what the CS2 executor does, having no popup
-         * at all. Not taken: a real list is what a Windows user reaches for,
+         * its options, having no popup at all. Not taken: a real list is what
+         * a Windows user reaches for,
          * and the point of a native executor is the platform's own controls.
          */
         chrome_gdi_field(s, di->hDC, box.left, box.top, w, h);
@@ -2744,7 +2742,7 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
     s->presented[cmd->widget] = 0;
     /* The ADD is the one command carrying a widget's SHAPE, and `w` is a
      * LISTROW's shape bits -- its settings affordance and its lock -- the same
-     * field the CS2 executor reads them out of. A row that gained or lost
+     * field every other presentation reads them out of. A row that gained or lost
      * either is re-added, not updated. */
     s->row_action[cmd->widget] = (cmd->w & TORIRS_CHROME_ROW_ACTION) ? 1 : 0;
     s->row_locked[cmd->widget] = (cmd->w & TORIRS_CHROME_ROW_LOCKED) ? 1 : 0;
@@ -2775,9 +2773,8 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
          * Split because the row has two OUTCOMES and a single owner-drawn
          * button reports a click without saying where in itself it landed --
          * so one control could never tell "open this plugin's page" from "turn
-         * it off". The CS2 executor splits it the same way and for the same
-         * reason, and the ids line up: the switch takes the handle's own slot,
-         * the well takes the parallel ACTION block.
+         * it off". The switch takes the handle's own slot, the well takes the
+         * parallel ACTION block.
          *
          * Before this, a LISTROW fell through to the default branch and became
          * a STATIC -- a row of plugin names with no switch and no way in.

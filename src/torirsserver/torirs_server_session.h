@@ -194,6 +194,17 @@ ToriRSServer_SessionPollfd(const struct ToriRSServerSession* session);
 int
 ToriRSServer_SessionBuffered(const struct ToriRSServerSession* session);
 
+/** Bytes this session has written that the peer has not been given yet — see
+ *  the transport's `pending` contract. */
+int
+ToriRSServer_SessionPendingOut(const struct ToriRSServerSession* session);
+
+/** Undecoded inbound bytes the session is holding on its own account.
+ *  Nonzero after a pump means it stopped early (a login to run, or JS5
+ *  backpressure) and must be re-entered without waiting for the peer. */
+int
+ToriRSServer_SessionPendingIn(const struct ToriRSServerSession* session);
+
 void
 ToriRSServer_SessionKill(struct ToriRSServerSession* session);
 

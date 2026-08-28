@@ -219,6 +219,10 @@ connect_login(
     }
 
     net->state = TORIRS_NET_LOGIN;
+    if( getenv("TORIRS_LOGIN_DEBUG") )
+        fprintf(stderr, "login_debug: connect host='%s' user='%s' (%d) pass=%d reconnect=%d\n",
+            net->host, net->username, (int)strlen(net->username),
+            (int)strlen(net->password), reconnect);
     push_out(net, TORIRS_NET_OUT_CONNECT, (uint8_t const*)net->host, (int)strlen(net->host));
 
     /* Run SEND_CONNECT now (v0 drove the login machine from game_poll before

@@ -35,6 +35,12 @@
  *               the next request can already be in hand while the descriptor
  *               says nothing is coming — and the peer that sent them is
  *               waiting for the reply, so nothing more ever will.
+ *   pending     bytes a send has accepted that the peer has not yet been given.
+ *               Since `send` never blocks and never refuses, this is the only
+ *               thing that says a peer has stopped keeping up, and it is what a
+ *               service whose answers dwarf its requests (JS5) has to consult
+ *               before generating another one. Zero for a transport that
+ *               cannot fall behind.
  */
 
 #include <stdint.h>
@@ -48,6 +54,7 @@ struct ToriRSServerTransport
     int (*send)(void* ctx, const uint8_t* src, int len);
     int (*pollfd)(void* ctx);
     int (*buffered)(void* ctx);
+    int (*pending)(void* ctx);
     void (*close)(void* ctx);
 };
 
@@ -94,6 +101,28 @@ ToriRSServer_PipeRead(
 /** Live bytes. */
 int
 ToriRSServer_PipeAvailable(const struct ToriRSServerPipe* pipe);
+
+/**
+ * The live bytes in place, for a writer that hands them somewhere itself.
+ *
+ * `ToriRSServer_PipeRead` copies, which is the wrong shape for a queue whose
+ * whole purpose is to be handed to write(2): the copy would be a second buffer
+ * to own, and a short write would have to push the remainder back. Peek, write
+ * what the kernel takes, drop exactly that much.
+ *
+ * `*len` is set to the count; NULL is returned when there is nothing. The
+ * pointer is invalidated by the next write to the pipe.
+ */
+const uint8_t*
+ToriRSServer_PipePeek(
+    const struct ToriRSServerPipe* pipe,
+    int* len);
+
+/** Retire `len` peeked bytes. `len` must not exceed what the peek reported. */
+void
+ToriRSServer_PipeDrop(
+    struct ToriRSServerPipe* pipe,
+    int len);
 
 void
 ToriRSServer_PipeClose(struct ToriRSServerPipe* pipe);

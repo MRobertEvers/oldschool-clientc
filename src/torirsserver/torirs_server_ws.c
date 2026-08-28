@@ -30,6 +30,7 @@
 #define read(fd, buf, n)  recv((fd), (char*)(buf), (int)(n), 0)
 #define write(fd, buf, n) send((fd), (const char*)(buf), (int)(n), 0)
 #else
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
@@ -38,27 +39,75 @@
 /* Socket helpers                                                      */
 /* ------------------------------------------------------------------ */
 
+/*
+ * "Nothing right now" and "interrupted", asked portably.
+ *
+ * Winsock never touches errno -- every failure code is behind
+ * WSAGetLastError() -- so the errno tests this file used to do inline were
+ * reading a stale value on Windows. On a blocking socket that was harmless
+ * (neither condition could arise); on a non-blocking one, EWOULDBLOCK is the
+ * ordinary case and misreading it drops a live connection.
+ */
 static int
-write_all(
-    int fd,
+sock_would_block(void)
+{
+#ifdef _WIN32
+    return WSAGetLastError() == WSAEWOULDBLOCK;
+#else
+    return errno == EAGAIN || errno == EWOULDBLOCK;
+#endif
+}
+
+static int
+sock_interrupted(void)
+{
+#ifdef _WIN32
+    return WSAGetLastError() == WSAEINTR;
+#else
+    return errno == EINTR;
+#endif
+}
+
+static void
+sock_set_nonblocking(int fd)
+{
+#ifdef _WIN32
+    u_long on = 1;
+    ioctlsocket(fd, FIONBIO, &on);
+#else
+    int flags = fcntl(fd, F_GETFL, 0);
+
+    if( flags >= 0 )
+        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+#endif
+}
+
+/*
+ * Queue bytes for the peer and hand the kernel as many as it will take.
+ *
+ * Always accepts the whole of `data`: a caller that had to cope with a short
+ * write would need its own remainder buffer, which is this one. Returns 0 once
+ * the connection is dead -- the peer left, or it has fallen further behind than
+ * TORIRSSERVER_CONN_OUT_MAX, which is not slowness but a peer that stopped
+ * reading.
+ */
+static int
+conn_out_push(
+    struct ToriRSServerConn* conn,
     uint8_t const* data,
     int len)
 {
-    int sent = 0;
-    while( sent < len )
+    if( conn->closed )
+        return 0;
+    if( ToriRSServer_PipeAvailable(&conn->out) + len > TORIRSSERVER_CONN_OUT_MAX )
     {
-        ssize_t step = write(fd, data + sent, (size_t)(len - sent));
-        if( step < 0 )
-        {
-            if( errno == EINTR )
-                continue;
-            return -1;
-        }
-        if( step == 0 )
-            return -1;
-        sent += (int)step;
+        fprintf(stderr, "torirsserver: peer is %d bytes behind; dropping the connection\n",
+                ToriRSServer_PipeAvailable(&conn->out));
+        conn->closed = 1;
+        return 0;
     }
-    return sent;
+    ToriRSServer_PipeWrite(&conn->out, data, len);
+    return ToriRSServer_ConnFlush(conn);
 }
 
 /* Append to the deframed application buffer, refusing rather than truncating:
@@ -86,99 +135,122 @@ app_append(
 /* ------------------------------------------------------------------ */
 
 /*
- * Read the upgrade request and answer it.
+ * Read what has arrived of the upgrade request and answer it once it is whole.
  *
  * The parsing and the Sec-WebSocket-Accept digest are shared with js5_server
  * through net_transport_ws_handshake.h; what stays here is this server's own
- * choice about how the request is read, which is a blocking loop because this
- * connection layer is a blocking one.
+ * choice about how the request is read, which is now one non-blocking read per
+ * call with the partial request held in `raw`. It used to be a loop that
+ * blocked until the headers were complete, which one connection per process
+ * could afford and one thread per server cannot: a peer that opens a socket
+ * and sends half a header line would otherwise hold the world tick.
  */
-static int
-ws_handshake(struct ToriRSServerConn* conn)
+static enum ToriRSServerConnOpen
+ws_handshake_step(struct ToriRSServerConn* conn)
 {
-    uint8_t request[WS_HANDSHAKE_REQUEST_MAX];
-    int len = 0;
     struct WsHandshake handshake;
-    enum WsHandshakeStatus status = WS_HANDSHAKE_INCOMPLETE;
+    enum WsHandshakeStatus status;
+    ssize_t got;
 
-    for( ;; )
+    if( conn->raw_len >= WS_HANDSHAKE_REQUEST_MAX )
     {
-        ssize_t got;
-
-        if( len >= (int)sizeof(request) )
-        {
-            fprintf(stderr, "torirsserver: websocket request headers too large\n");
-            return 0;
-        }
-        got = read(conn->fd, request + len, sizeof(request) - (size_t)len);
-        if( got < 0 )
-        {
-            if( errno == EINTR )
-                continue;
-            return 0;
-        }
-        if( got == 0 )
-            return 0;
-        len += (int)got;
-
-        status = WsHandshake_Consume(request, len, &handshake);
-        if( status != WS_HANDSHAKE_INCOMPLETE )
-            break;
+        fprintf(stderr, "torirsserver: websocket request headers too large\n");
+        return TORIRSSERVER_CONN_OPEN_FAILED;
     }
 
+    got = read(conn->fd, conn->raw + conn->raw_len,
+               (size_t)(WS_HANDSHAKE_REQUEST_MAX - conn->raw_len));
+    if( got < 0 )
+    {
+        if( sock_interrupted() || sock_would_block() )
+            return TORIRSSERVER_CONN_OPENING;
+        return TORIRSSERVER_CONN_OPEN_FAILED;
+    }
+    if( got == 0 )
+        return TORIRSSERVER_CONN_OPEN_FAILED;
+    conn->raw_len += (int)got;
+
+    status = WsHandshake_Consume(conn->raw, conn->raw_len, &handshake);
+    if( status == WS_HANDSHAKE_INCOMPLETE )
+        return TORIRSSERVER_CONN_OPENING;
     if( status != WS_HANDSHAKE_OK )
     {
         fprintf(stderr, "torirsserver: malformed websocket upgrade request\n");
-        return 0;
+        return TORIRSSERVER_CONN_OPEN_FAILED;
     }
 
-    if( write_all(conn->fd, (uint8_t const*)handshake.response, handshake.response_len) < 0 )
-        return 0;
+    /* `ws` before the response goes out, so the queue this pushes into is the
+     * one every later send shares -- ordering, not framing: the response is
+     * plain HTTP either way because conn_out_push does not frame. */
+    conn->ws = 1;
+    if( !conn_out_push(conn, (uint8_t const*)handshake.response, handshake.response_len) )
+        return TORIRSSERVER_CONN_OPEN_FAILED;
 
     /* Anything the client pipelined after the headers is already frame data. */
-    conn->raw_len = len - handshake.consumed;
+    conn->raw_len -= handshake.consumed;
     if( conn->raw_len > 0 )
-        memcpy(conn->raw, request + handshake.consumed, (size_t)conn->raw_len);
+        memmove(conn->raw, conn->raw + handshake.consumed, (size_t)conn->raw_len);
     else
         conn->raw_len = 0;
 
-    conn->ws = 1;
+    conn->opening = 0;
     fprintf(
         stderr,
         "torirsserver: websocket client (subprotocol %s)\n",
         handshake.protocol[0] ? handshake.protocol : "none");
-    return 1;
+    return TORIRSSERVER_CONN_OPEN_READY;
 }
 
-int
-ToriRSServer_ConnOpen(
+void
+ToriRSServer_ConnBegin(
     struct ToriRSServerConn* conn,
     int fd)
+{
+    assert(conn);
+    memset(conn, 0, sizeof(*conn));
+    conn->fd = fd;
+    conn->opening = 1;
+    sock_set_nonblocking(fd);
+}
+
+enum ToriRSServerConnOpen
+ToriRSServer_ConnOpenStep(struct ToriRSServerConn* conn)
 {
     uint8_t first = 0;
     ssize_t peeked;
 
-    memset(conn, 0, sizeof(*conn));
-    conn->fd = fd;
+    assert(conn);
+    if( conn->closed )
+        return TORIRSSERVER_CONN_OPEN_FAILED;
+    if( !conn->opening )
+        return TORIRSSERVER_CONN_OPEN_READY;
+    if( conn->upgrade )
+        return ws_handshake_step(conn);
 
     /*
      * One byte is enough to tell the two apart and is all that can be looked
      * at: a raw 230 client sends opcode 14 alone and then waits for the
-     * response, so peeking any further would deadlock.
+     * response, so peeking any further would deadlock. It is peeked rather
+     * than taken because a raw connection's first byte is the session's, and
+     * the session reads it through the ordinary recv path.
      */
-    for( ;; )
+    peeked = recv(conn->fd, (char*)&first, 1, MSG_PEEK);
+    if( peeked < 0 )
     {
-        peeked = recv(fd, &first, 1, MSG_PEEK);
-        if( peeked < 0 && errno == EINTR )
-            continue;
-        break;
+        if( sock_interrupted() || sock_would_block() )
+            return TORIRSSERVER_CONN_OPENING;
+        return TORIRSSERVER_CONN_OPEN_FAILED;
     }
-    if( peeked <= 0 )
-        return 0;
+    if( peeked == 0 )
+        return TORIRSSERVER_CONN_OPEN_FAILED;
 
     if( first == 'G' )
-        return ws_handshake(conn);
-    return 1;
+    {
+        conn->upgrade = 1;
+        return ws_handshake_step(conn);
+    }
+    conn->opening = 0;
+    return TORIRSSERVER_CONN_OPEN_READY;
 }
 
 /* ------------------------------------------------------------------ */
@@ -219,7 +291,7 @@ ws_deframe(struct ToriRSServerConn* conn)
             uint8_t pong[256];
             int n = frame.payload_len > 125 ? 125 : frame.payload_len;
             int framed = ws_frame_encode(WS_OP_PONG, frame.payload, n, NULL, pong, sizeof(pong));
-            if( framed > 0 && write_all(conn->fd, pong, framed) < 0 )
+            if( framed > 0 && !conn_out_push(conn, pong, framed) )
                 return 0;
             break;
         }
@@ -262,9 +334,7 @@ conn_fill(struct ToriRSServerConn* conn)
         got = read(conn->fd, conn->app + conn->app_len, (size_t)space);
         if( got < 0 )
         {
-            if( errno == EINTR )
-                return 1;
-            if( errno == EAGAIN || errno == EWOULDBLOCK )
+            if( sock_interrupted() || sock_would_block() )
                 return 1;
             conn->closed = 1;
             return 0;
@@ -288,9 +358,7 @@ conn_fill(struct ToriRSServerConn* conn)
     got = read(conn->fd, conn->raw + conn->raw_len, (size_t)space);
     if( got < 0 )
     {
-        if( errno == EINTR )
-            return 1;
-        if( errno == EAGAIN || errno == EWOULDBLOCK )
+        if( sock_interrupted() || sock_would_block() )
             return 1;
         conn->closed = 1;
         return 0;
@@ -317,14 +385,52 @@ ToriRSServer_ConnBuffered(const struct ToriRSServerConn* conn)
 }
 
 int
-ToriRSServer_ConnPeekFirst(struct ToriRSServerConn* conn)
+ToriRSServer_ConnPending(const struct ToriRSServerConn* conn)
 {
-    while( conn->app_len == 0 )
+    return ToriRSServer_PipeAvailable(&conn->out);
+}
+
+int
+ToriRSServer_ConnFlush(struct ToriRSServerConn* conn)
+{
+    assert(conn);
+    if( conn->closed || conn->fd < 0 )
+        return 0;
+
+    for( ;; )
     {
-        if( !conn_fill(conn) )
-            return -1;
+        int len = 0;
+        const uint8_t* live = ToriRSServer_PipePeek(&conn->out, &len);
+        ssize_t step;
+
+        if( !live )
+            return 1;
+        step = write(conn->fd, live, (size_t)len);
+        if( step < 0 )
+        {
+            if( sock_interrupted() )
+                continue;
+            /* The ordinary case: the send window is full. What is left stays
+             * queued and the host re-enters when select() says writable. */
+            if( sock_would_block() )
+                return 1;
+            conn->closed = 1;
+            return 0;
+        }
+        if( step == 0 )
+        {
+            conn->closed = 1;
+            return 0;
+        }
+        ToriRSServer_PipeDrop(&conn->out, (int)step);
     }
-    return conn->app[0];
+}
+
+void
+ToriRSServer_ConnFree(struct ToriRSServerConn* conn)
+{
+    assert(conn);
+    ToriRSServer_PipeFree(&conn->out);
 }
 
 static int
@@ -371,8 +477,10 @@ ToriRSServer_ConnSend(
 
     if( conn->ws )
     {
-        /* Header only — the payload goes out unmasked and unmodified, so it
-         * never has to be copied however large the packet is. */
+        /* Header separately — the payload is queued unmasked and unmodified,
+         * so it never has to be copied twice however large the packet is. The
+         * two pushes are adjacent in one queue, so nothing can be interleaved
+         * between a header and its payload. */
         uint8_t header[16];
         int header_len = ws_frame_encode_header(WS_OP_BINARY, len, NULL, header, sizeof(header));
         if( header_len < 0 )
@@ -380,17 +488,11 @@ ToriRSServer_ConnSend(
             conn->closed = 1;
             return -1;
         }
-        if( write_all(conn->fd, header, header_len) < 0 )
-        {
-            conn->closed = 1;
+        if( !conn_out_push(conn, header, header_len) )
             return -1;
-        }
     }
 
-    if( write_all(conn->fd, data, len) < 0 )
-    {
-        conn->closed = 1;
+    if( !conn_out_push(conn, data, len) )
         return -1;
-    }
     return len;
 }

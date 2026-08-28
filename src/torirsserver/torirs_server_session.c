@@ -108,6 +108,20 @@ ToriRSServer_SessionBuffered(const struct ToriRSServerSession* session)
 }
 
 int
+ToriRSServer_SessionPendingOut(const struct ToriRSServerSession* session)
+{
+    if( !session->transport.pending )
+        return 0;
+    return session->transport.pending(session->transport.ctx);
+}
+
+int
+ToriRSServer_SessionPendingIn(const struct ToriRSServerSession* session)
+{
+    return session->in_len;
+}
+
+int
 ToriRSServer_SessionSend(
     struct ToriRSServerSession* session,
     const uint8_t* data,
@@ -231,6 +245,15 @@ login_is_239(const struct ToriRSServer* srv)
 static struct Js5ServerCache* g_js5;
 static int g_js5_tried;
 
+/*
+ * How far ahead of the peer the JS5 service will run before it stops building
+ * answers. Half a megabyte is several whole groups in flight -- enough that a
+ * download never waits on the loop -- and two orders of magnitude below
+ * TORIRSSERVER_CONN_OUT_MAX, so a session that trips this is throttled rather
+ * than dropped.
+ */
+#define TORIRSSERVER_JS5_BACKLOG_MAX (512 * 1024)
+
 static struct Js5ServerCache*
 js5_cache(void)
 {
@@ -313,6 +336,25 @@ step_js5_serve(struct ToriRSServerSession* session)
 
     while( session->in_len >= 4 )
     {
+        /*
+         * Backpressure, and the reason it has to exist here.
+         *
+         * A request is four bytes and its answer is a whole cache group, so a
+         * client that pipelines its prefetch queue -- which is how every
+         * client primes a cache -- asks for tens of megabytes in one read.
+         * Answering all of it in one pump was fine while a JS5 connection had
+         * a process to itself and a blocking write: the kernel refused, the
+         * child parked, and the queue never existed. A host that carries every
+         * connection on one thread cannot park, so its transport queues
+         * instead, and without this the queue IS the download.
+         *
+         * Returning "did not advance" stops the pump with the remaining
+         * requests still buffered; the host re-enters when the socket has
+         * drained. Nothing is lost and nothing is reordered.
+         */
+        if( served && ToriRSServer_SessionPendingOut(session) > TORIRSSERVER_JS5_BACKLOG_MAX )
+            return 0;
+
         int opcode = session->in[0];
         int archive = session->in[1];
         int group = (session->in[2] << 8) | session->in[3];

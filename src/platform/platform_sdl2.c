@@ -1734,6 +1734,11 @@ PlatformSDL2_MapMouse(
     SDL_GetWindowSize(platform->window, &window_w, &window_h);
     letterbox_dst(platform->width, platform->height, window_w, window_h, &dst);
 
+    if( getenv("TORIRS_MOUSE_DEBUG") )
+        fprintf(stderr, "mousemap: in=%d,%d window=%dx%d canvas=%dx%d dst=%d,%d %dx%d\n",
+            win_x, win_y, window_w, window_h, platform->width, platform->height,
+            dst.x, dst.y, dst.w, dst.h);
+
     if( dst.w <= 0 || dst.h <= 0 )
     {
         *out_x = 0;

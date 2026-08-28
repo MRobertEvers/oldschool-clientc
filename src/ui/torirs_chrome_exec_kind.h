@@ -26,8 +26,6 @@ enum ToriRSChromeExecKind
     TORIRS_CHROME_EXEC_WEB,
     /** An owned Win32 tool window of common controls. */
     TORIRS_CHROME_EXEC_GDI,
-    /** A game-native interface behind a sidebar button. */
-    TORIRS_CHROME_EXEC_CS2,
     TORIRS_CHROME_EXEC_COUNT
 };
 

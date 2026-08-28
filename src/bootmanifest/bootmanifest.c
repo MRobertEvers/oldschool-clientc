@@ -535,7 +535,7 @@ bm_set_kv(
             if( kind < 0 )
             {
                 TORIRS_LOG("bootmanifest: [chrome] executor must be "
-                    "buffer|sdl|web|gdi|cs2, got '%s'\n",
+                    "buffer|sdl|web|gdi, got '%s'\n",
                     value);
                 bm->chrome_executor_error = 1;
             }

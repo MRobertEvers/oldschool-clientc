@@ -1584,8 +1584,80 @@ enum AppPluginFeatureSlot
     /** int field of struct RevConfigCameraItem, by byte offset. */
     APP_PLUGIN_FEATURE_SLOT_CAMERA,
     /** One bit of RevConfigCameraItem::controls; `offset` is the mask. */
-    APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT
+    APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT,
+    /** The whole zoom band -- zoom_min, zoom_max and zoom_height at once, by
+     *  preset id rather than by offset. @see APP_PLUGIN_ZOOM_BANDS. */
+    APP_PLUGIN_FEATURE_SLOT_CAMERA_ZOOM_BAND
 };
+
+/**
+ * The zoom band, as one choice instead of three numbers.
+ *
+ * These three fields are not independent: a `min` above `max` takes the wheel
+ * away entirely (app_world_camera_zooms reads `min < max` as "this revision
+ * zooms"), and a `height` outside the band is a rest position the first wheel
+ * notch snaps away from. Three number rows made the page's reader responsible
+ * for keeping a triple consistent, and every inconsistent triple was reachable
+ * in one click. A band is the thing somebody actually means to choose.
+ *
+ * `zoom_mode` is deliberately NOT part of a preset. Whether the wheel is live
+ * at all is what the revision states in `zoom=`, it has its own row directly
+ * above this one, and a preset that silently flipped it would make that row
+ * disagree with the click that changed it.
+ */
+enum
+{
+    /** Whatever this boot resolved. Never in `values` -- the page's own
+     *  "Revision default" entry is this one, and it arrives as
+     *  TORIRS_PLUGIN_FEATURE_UNSET. */
+    APP_PLUGIN_ZOOM_BAND_REVISION = 0,
+    APP_PLUGIN_ZOOM_BAND_OSRS,
+    APP_PLUGIN_ZOOM_BAND_UNLOCKED
+};
+
+struct AppPluginZoomBand
+{
+    int id;
+    int min;
+    int max;
+    int height;
+};
+
+static struct AppPluginZoomBand const APP_PLUGIN_ZOOM_BANDS[] = {
+    /*
+     * OSRS: its vanilla wheel spans zoom scale 200..1004 about a 512 rest,
+     * and this tree's unit is the inverse of that scale -- an eye HEIGHT,
+     * 600 at rest. 512*600/1004 and 512*600/200 come to 306 and 1536, rounded
+     * here to the values the old three rows already named.
+     */
+    { APP_PLUGIN_ZOOM_BAND_OSRS, 360, 1600, REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT },
+    /* Unlocked: the whole band this bridge will accept, which is wider than
+     * any revision states because a profile is a statement about a revision
+     * and this is a person moving a camera. */
+    { APP_PLUGIN_ZOOM_BAND_UNLOCKED,
+      APP_PLUGIN_FEATURE_ZOOM_MIN,
+      APP_PLUGIN_FEATURE_ZOOM_MAX,
+      REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT },
+};
+
+#define APP_PLUGIN_ZOOM_BAND_COUNT \
+    ((int)(sizeof(APP_PLUGIN_ZOOM_BANDS) / sizeof(APP_PLUGIN_ZOOM_BANDS[0])))
+
+/** Which preset a camera item is sitting on, or REVISION when none names it. */
+static int
+app_plugin_zoom_band_of(struct RevConfigCameraItem const* camera)
+{
+    assert(camera);
+
+    for( int i = 0; i < APP_PLUGIN_ZOOM_BAND_COUNT; i++ )
+    {
+        struct AppPluginZoomBand const* band = &APP_PLUGIN_ZOOM_BANDS[i];
+        if( camera->zoom_min == band->min && camera->zoom_max == band->max &&
+            camera->zoom_height == band->height )
+            return band->id;
+    }
+    return APP_PLUGIN_ZOOM_BAND_REVISION;
+}
 
 struct AppPluginFeatureDesc
 {
@@ -1636,43 +1708,19 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         2,
     },
     {
-        "camera_zoom_min",
-        "Closest",
+        "camera_zoom_band",
+        "Zoom band",
         "",
-        APP_PLUGIN_FEATURE_SLOT_CAMERA,
-        APP_PLUGIN_FEATURE_CAMERA_OFF(zoom_min),
-        TORIRS_PLUGIN_FEATURE_INT,
-        APP_PLUGIN_FEATURE_ZOOM_MIN,
-        APP_PLUGIN_FEATURE_ZOOM_MAX,
-        "120|240|360|480|600",
-        { 120, 240, 360, 480, 600 },
-        5,
-    },
-    {
-        "camera_zoom_max",
-        "Furthest",
-        "",
-        APP_PLUGIN_FEATURE_SLOT_CAMERA,
-        APP_PLUGIN_FEATURE_CAMERA_OFF(zoom_max),
-        TORIRS_PLUGIN_FEATURE_INT,
-        APP_PLUGIN_FEATURE_ZOOM_MIN,
-        APP_PLUGIN_FEATURE_ZOOM_MAX,
-        "900|1200|1600|2160|3200|4800",
-        { 900, 1200, 1600, 2160, 3200, 4800 },
-        6,
-    },
-    {
-        "camera_zoom_height",
-        "Fixed height",
-        "",
-        APP_PLUGIN_FEATURE_SLOT_CAMERA,
-        APP_PLUGIN_FEATURE_CAMERA_OFF(zoom_height),
-        TORIRS_PLUGIN_FEATURE_INT,
-        APP_PLUGIN_FEATURE_ZOOM_MIN,
-        APP_PLUGIN_FEATURE_ZOOM_MAX,
-        "400|600 (2004)|900|1200",
-        { 400, 600, 900, 1200 },
-        4,
+        APP_PLUGIN_FEATURE_SLOT_CAMERA_ZOOM_BAND,
+        0,
+        TORIRS_PLUGIN_FEATURE_ENUM,
+        0,
+        0,
+        /* "Revision default" is the entry the page prepends to every row;
+         * it restores the boot band, which is the third option here. */
+        "OSRS|Unlocked",
+        { APP_PLUGIN_ZOOM_BAND_OSRS, APP_PLUGIN_ZOOM_BAND_UNLOCKED },
+        2,
     },
     {
         "camera_wheel_step",
@@ -1907,9 +1955,21 @@ app_plugin_feature_cell(
             return &camera->controls;
         return (int*)((char*)camera + desc->offset);
     }
+    case APP_PLUGIN_FEATURE_SLOT_CAMERA_ZOOM_BAND:
+        /* Three fields at once and a preset id that is in none of them.
+         * app_plugin_feature_read/_set answer it without coming here. */
+        break;
     }
     assert(0 && "unhandled feature slot");
     return NULL;
+}
+
+/** The camera item a flag reads, this boot's snapshot or the live one. */
+static struct RevConfigCameraItem*
+app_plugin_feature_camera(struct App* app, int boot)
+{
+    assert(app);
+    return boot ? &app->plugin_feature_boot_camera : &app->revconfig_profile.camera;
 }
 
 static int
@@ -1918,6 +1978,9 @@ app_plugin_feature_read(
 {
     assert(app);
     assert(desc);
+
+    if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA_ZOOM_BAND )
+        return app_plugin_zoom_band_of(app_plugin_feature_camera(app, boot));
 
     int const cell = *app_plugin_feature_cell(app, desc, boot);
     if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT )
@@ -2030,34 +2093,65 @@ app_plugin_feature_set(void* user, char const* key, int value)
     else if( value < desc->min || value > desc->max )
         return 0;
 
-    int* cell = app_plugin_feature_cell(app, desc, 0);
-    if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT )
+    if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA_ZOOM_BAND )
     {
-        if( value )
-            *cell |= (int)desc->offset;
+        struct RevConfigCameraItem* camera = app_plugin_feature_camera(app, 0);
+        struct RevConfigCameraItem const* boot_camera =
+            app_plugin_feature_camera(app, 1);
+        struct AppPluginZoomBand const* band = NULL;
+
+        for( int i = 0; i < APP_PLUGIN_ZOOM_BAND_COUNT; i++ )
+        {
+            if( APP_PLUGIN_ZOOM_BANDS[i].id == value )
+                band = &APP_PLUGIN_ZOOM_BANDS[i];
+        }
+
+        /*
+         * No preset owns REVISION: it is the boot's own three numbers, which
+         * nothing outside app.c can reconstruct. It arrives here whenever the
+         * restore above resolved to it -- either the page picked "Revision
+         * default", or this boot's band already matched no preset.
+         */
+        if( band )
+        {
+            camera->zoom_min = band->min;
+            camera->zoom_max = band->max;
+            camera->zoom_height = band->height;
+        }
         else
-            *cell &= ~(int)desc->offset;
+        {
+            camera->zoom_min = boot_camera->zoom_min;
+            camera->zoom_max = boot_camera->zoom_max;
+            camera->zoom_height = boot_camera->zoom_height;
+        }
     }
     else
-        *cell = value;
+    {
+        int* cell = app_plugin_feature_cell(app, desc, 0);
+        if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT )
+        {
+            if( value )
+                *cell |= (int)desc->offset;
+            else
+                *cell &= ~(int)desc->offset;
+        }
+        else
+            *cell = value;
+    }
 
     /*
-     * A zoom band is two numbers and one of them arrives first, so a band
-     * typed in either order passes through a moment where min > max. Ordering
-     * them here rather than refusing the first edit: app_world_camera_zooms
-     * reads `min < max` as "this revision zooms at all", and an inverted band
-     * would silently take the wheel away.
+     * A band arrives whole, so min > max is no longer reachable from this
+     * page -- the presets state ordered pairs and the restore states the
+     * boot's. That is the reason the band is one row: app_world_camera_zooms
+     * reads `min < max` as "this revision zooms at all", and the three-number
+     * page could take the wheel away between two edits.
      */
-    if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA )
+    if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA ||
+        desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA_ZOOM_BAND )
     {
-        if( app->revconfig_profile.camera.zoom_min >
-            app->revconfig_profile.camera.zoom_max )
-        {
-            int const swap = app->revconfig_profile.camera.zoom_min;
-            app->revconfig_profile.camera.zoom_min =
-                app->revconfig_profile.camera.zoom_max;
-            app->revconfig_profile.camera.zoom_max = swap;
-        }
+        assert(
+            app->revconfig_profile.camera.zoom_min <=
+            app->revconfig_profile.camera.zoom_max);
         /* The live eye height is a position inside the band, so a band that
          * moved under it has to pull it back in or the next wheel notch
          * starts from outside it. */
@@ -4084,10 +4178,27 @@ app_plugin_menu_build(
             struct AppPluginRegion const* region = &app->plugin_regions[i];
             struct UIMinimenuPick pick;
 
-            /* No verbs does not mean click-through: it is the plugin form of
-             * an opaque panel. Retain the standard escape row, but discard
-             * native/world actions which were built underneath its pixels. */
-            if( region->op_count <= 0 )
+            /*
+             * Whatever was built underneath its pixels goes, verbs or no
+             * verbs. Only the standard escape row survives.
+             *
+             * A region is opaque -- "the plugin's own real estate with nothing
+             * of the game's underneath", which is already how the LEFT click
+             * treats it: app_handle_input clears clicked_com_id, the minimap
+             * gesture and the left-click miss the moment one is hit. The menu
+             * has to say the same thing or the two disagree about what is
+             * under the pointer, and the disagreement is only invisible on a
+             * frame whose chrome sits BESIDE the scene rather than on it.
+             *
+             * On a floating frame it is the whole behaviour: the mobile
+             * layout's viewport is the entire canvas, so every orb, tab stone
+             * and filter button has the world behind it, and a right click on
+             * one used to open a menu of Walk here and whatever npc was
+             * standing there, with the orb's own verb sorted in among them.
+             *
+             * Dropped before the region's own rows are added rather than
+             * after, so the trim cannot eat them.
+             */
             {
                 int write = 0;
                 for( int row = 0; row < menu->option_count; row++ )
@@ -4099,7 +4210,7 @@ app_plugin_menu_build(
                     }
                 menu->option_count = write;
             }
-            else
+            if( region->op_count > 0 )
             {
                 memset(&pick, 0, sizeof(pick));
                 pick.kind = UI_MINIMENU_PICK_NONE;

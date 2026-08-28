@@ -561,8 +561,8 @@ test_debug_overlay_textinput(void)
  * field's, the caret a click places, and the box that follows it.
  *
  * WHY THE WRAP IS TESTED FROM THE OUTSIDE. ToriRSChrome_WrapText is public
- * because the CS2 executor breaks the same string for the same box and the two
- * have to agree about where the breaks are; a wrap that only the draw could see
+ * because more than one presentation breaks the same string for the same box
+ * and they have to agree; a wrap that only the draw could see
  * would let them drift with nothing failing.
  */
 static void

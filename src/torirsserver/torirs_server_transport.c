@@ -24,6 +24,33 @@ ToriRSServer_PipeAvailable(const struct ToriRSServerPipe* pipe)
     return pipe->tail - pipe->head;
 }
 
+const uint8_t*
+ToriRSServer_PipePeek(
+    const struct ToriRSServerPipe* pipe,
+    int* len)
+{
+    int live = pipe->tail - pipe->head;
+
+    assert(len);
+    *len = live;
+    return live > 0 ? pipe->data + pipe->head : NULL;
+}
+
+void
+ToriRSServer_PipeDrop(
+    struct ToriRSServerPipe* pipe,
+    int len)
+{
+    assert(len >= 0);
+    assert(len <= pipe->tail - pipe->head);
+    pipe->head += len;
+    if( pipe->head == pipe->tail )
+    {
+        pipe->head = 0;
+        pipe->tail = 0;
+    }
+}
+
 void
 ToriRSServer_PipeClose(struct ToriRSServerPipe* pipe)
 {
@@ -144,6 +171,12 @@ socket_buffered(void* ctx)
     return ToriRSServer_ConnBuffered((struct ToriRSServerConn*)ctx);
 }
 
+static int
+socket_pending(void* ctx)
+{
+    return ToriRSServer_ConnPending((struct ToriRSServerConn*)ctx);
+}
+
 void
 ToriRSServer_TransportSocket(
     struct ToriRSServerTransport* transport,
@@ -154,6 +187,7 @@ ToriRSServer_TransportSocket(
     transport->send = socket_send;
     transport->pollfd = socket_pollfd;
     transport->buffered = socket_buffered;
+    transport->pending = socket_pending;
     transport->close = socket_close;
 }
 
@@ -198,6 +232,20 @@ memory_buffered(void* ctx)
     return ToriRSServer_PipeAvailable(((struct ToriRSServerMemoryEnds*)ctx)->to_server);
 }
 
+/*
+ * An embedded host drains `to_client` on its own schedule and cannot be
+ * outrun by anything that would help: the queue grows, the host takes it, and
+ * there is no kernel in between to refuse. Reporting the depth anyway is what
+ * keeps the JS5 service's backpressure honest in-process too -- a host that
+ * pumps once per frame while a cache download runs is exactly the case where
+ * an unbounded answer stream would show up as memory rather than as latency.
+ */
+static int
+memory_pending(void* ctx)
+{
+    return ToriRSServer_PipeAvailable(((struct ToriRSServerMemoryEnds*)ctx)->to_client);
+}
+
 void
 ToriRSServer_TransportMemory(
     struct ToriRSServerTransport* transport,
@@ -213,5 +261,6 @@ ToriRSServer_TransportMemory(
     transport->send = memory_send;
     transport->pollfd = memory_pollfd;
     transport->buffered = memory_buffered;
+    transport->pending = memory_pending;
     transport->close = memory_close;
 }

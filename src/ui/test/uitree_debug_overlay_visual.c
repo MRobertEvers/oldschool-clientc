@@ -2106,8 +2106,7 @@ visual_listrow(void)
  * The roster exactly as the plugin window builds it at runtime: the reference
  * theme with every baked skin slot present, and the plugin names from a real
  * session. `visual_listrow` above deliberately runs with NO skin, because that
- * is the fallback look; this is the one a player sees, and it is the one that
- * has to match what the CS2 executor puts on the popout strip.
+ * is the fallback look; this is the one a player sees.
  */
 static void
 visual_listrow_skinned(void)
@@ -2122,9 +2121,8 @@ visual_listrow_skinned(void)
     g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->h;
 
     panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 12, 12, 250, "Plugins");
-    /* The interfaces' own nine-slice border, which is what the same roster
-     * wears when the CS2 executor mounts it in the gameframe's popout strip.
-     * Drawn here so the two presentations can be put side by side. */
+    /* The interfaces' own nine-slice border, which is what the roster wears so
+     * it reads as the game's own furniture. */
     ToriRSChrome_PanelSetFramed(&g_ui, panel, 1);
     ToriRSChrome_ListRow(&g_ui, panel, "tile-indicator-c", 0, 1);
     ToriRSChrome_ListRow(&g_ui, panel, "lua", 1, 0);

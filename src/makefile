@@ -638,7 +638,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
 	ui/uitree_hovertext.c ui/uitree_debug_overlay.c ui/uitree_snapshot.c \
 	ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c \
-	ui/torirs_chrome_mirror.c ui/torirs_chrome_exec_cs2.c \
+	ui/torirs_chrome_mirror.c \
 	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
 	ui/uitree_interact.c ui/uitree_iface_stats.c \
 	varp/varp_manager.c \
@@ -2561,7 +2561,6 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_chrome_exec.c ui/torirs_chrome_exec.c \
 		ui/torirs_chrome_exec_kind.c \
 		ui/torirs_chrome_mirror.c \
-		ui/test/uitree_test_chrome_cs2.c ui/torirs_chrome_exec_cs2.c \
 		$(CHROME_EXEC_TEST_CFLAGS) \
 		ui/test/uitree_test_entity_overlay_order.c \
 		ui/test/uitree_test_server_viewport.c ui/test/uitree_test_frame.c \
@@ -3170,7 +3169,12 @@ test-revconfig: $(OBJ_DIR)
 # read the message and packs again to relay it (docs/FRIENDS_PRIVATE_CHAT.md
 # Â§3.4 â a plaintext override on the inbound side was rejected because it would
 # make the two halves of net_out.c/torirsserver disagree).
-TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c net/jbase37.c net/wordpack.c $(TORIRSSERVER_CORE_SRCS)
+# `torirs_server_host.c` sits here rather than in TORIRSSERVER_CORE_SRCS because
+# it is the *socket* host -- select(), accept(), a listening descriptor. The core
+# list is also what EMBED_SERVER=1 links into the client, which has no listener
+# and drives ToriRSServer_EmbedPump itself.
+TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c torirsserver/torirs_server_host.c \
+	net/jbase37.c net/wordpack.c $(TORIRSSERVER_CORE_SRCS)
 # Dedicated read-only, multi-client JS5 cache service.
 #
 # It is separate from ToriRSServer because a client uses ONE port for JS5 and the
@@ -4676,7 +4680,10 @@ test-content-register: $(OBJ_DIR)
 # `net/bitbuffer.c` is NOT in that list even though those readers need it: it is
 # already in $(NET_CORE_OBJS) as $(OBJ_DIR)/bitbuffer.o, and naming it here too
 # compiles it a second time into the same link â four duplicate symbols and a
-# link failure. This target had been unbuildable for that reason, which is worse
+# link failure. `pkt_player_info.c`/`pkt_npc_info.c` were named in the recipe and
+# then joined $(NET_CORE_OBJS) later, which broke this link again the same way;
+# they are gone from the recipe now and the objects carry them.
+# This target had been unbuildable for that reason, which is worse
 # than it sounds: it is the only test that asserts the two-peer zone replay (a
 # door one client opens being open for a client that connects later), so the
 # whole multi-client half of the zone work was going unverified with nothing
@@ -4684,8 +4691,7 @@ test-content-register: $(OBJ_DIR)
 test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedTest \
 		torirsserver/test/embed_test.c $(TORIRSSERVER_CORE_SRCS) \
-		net/net_out.c net/rev/packets/pkt_player_info.c \
-		net/rev/packets/pkt_npc_info.c \
+		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedTest
 

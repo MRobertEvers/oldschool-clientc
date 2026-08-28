@@ -2,11 +2,11 @@
  * The chrome's authored geometry and palette, at 1x -- one copy, read by every
  * presentation of it.
  *
- * WHY THIS FILE EXISTS. The plugin window is drawn twice: once by the in-canvas
- * chrome (ui/uitree_debug_overlay.c, which the `buffer` and `sdl` executors
- * both rasterise) and once by the CS2 executor (ui/torirs_chrome_exec_cs2.c),
- * which rebuilds the same rows as interface components. Those two implement the
- * SAME picture by two different means, and for as long as each carried its own
+ * WHY THIS FILE EXISTS. The plugin window is drawn more than once: by the
+ * in-canvas chrome (ui/uitree_debug_overlay.c, which the `buffer` and `sdl`
+ * executors both rasterise), by the page (`web`) and by USER32 (`gdi`), each
+ * rebuilding the same rows out of its own controls. They implement the
+ * SAME picture by different means, and for as long as each carried its own
  * copy of the numbers they slowly stopped agreeing -- a row 20 tall beside one
  * 18 tall, a 12px settings well beside a 14px one, a toggle at 22x11 beside one
  * at 24x12. None of that is a bug either file can see; it only shows up as
@@ -17,9 +17,9 @@
  * model stay one look.
  *
  * UNITS. Everything below is a 1x CHROME pixel. The in-canvas chrome multiplies
- * by its own scale (DBG_PX); the CS2 executor uses them raw, because the
- * gameframe's interface scaling already applies over the top. Neither is a
- * screen pixel, and no site here may assume it is.
+ * by its own scale (DBG_PX); a presentation whose own surface already scales
+ * uses them raw. Neither is a screen pixel, and no site here may assume it
+ * is.
  *
  * WHAT IS NOT HERE. The minimenu-style panel's geometry, which is
  * UIMinimenu_LayoutFromLineBox's and is pinned against it separately, and
@@ -115,8 +115,8 @@
 /* ---- the panel frame -----------------------------------------------------
  *
  * The interfaces' own nine-slice border -- the one the gameframe's popout strip
- * (interface 728) draws around the panels that mount in it, which is the frame
- * this window wears when the CS2 executor puts it there. Sprites 846/820/847,
+ * (interface 728) draws around the panels that mount in it, and the frame this
+ * window wears so it reads as the game's own furniture. Sprites 846/820/847,
  * 821/841, 848/828/849.
  *
  * TWO numbers, not one, and that is what this art needs. The RAIL is a 6px bar;
@@ -224,8 +224,8 @@
  * Pitch of one wrapped line inside the box.
  *
  * AUTHORED, for the same reason TORIRS_CHROME_M_DROP_LIST_ROW_H is: the
- * presentations that read this cannot measure text at all -- the CS2 executor's
- * advances live in the scene's font and the DOM's in the browser -- so they get
+ * presentations that read this cannot measure text at all -- the DOM's advances
+ * live in the browser and USER32's in the font it picked -- so they get
  * the number the p12 line box comes out at (12 ascent + 4 descent). The
  * in-canvas chrome measures its own face and uses that, and the two agree
  * because the face is the same one.
@@ -252,8 +252,8 @@
  * AUTHORED, unlike the in-canvas chrome's own list pitch, which is the row
  * face's line box plus its air so a re-bake at another size reflows instead of
  * cropping. The presentations that read this cannot measure text at all -- the
- * CS2 executor's advances live in the scene's font and the DOM's in the
- * browser -- so they get the number the reference uses, which is what the
+ * DOM's advances live in the browser -- so they get the number the reference
+ * uses, which is what the
  * line-box form comes out at for the p12 the rows are set in.
  */
 #define TORIRS_CHROME_M_DROP_LIST_ROW_H 20
@@ -270,7 +270,7 @@
  * script_3850's own three, read off the script rather than off a screenshot.
  *
  * The in-canvas chrome reaches these through its THEME (so a flat developer
- * palette can be swapped in wholesale); the CS2 executor, which has no theme,
+ * palette can be swapped in wholesale); a presentation with no theme of its own
  * reads them directly. Same numbers either way.
  */
 

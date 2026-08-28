@@ -770,18 +770,35 @@ orbs_draw(
      * a column that reads its position from the map can look correct for a
      * long time while belonging to nothing.
      *
-     * Anchored to the same role the rectangle came from, so the two cannot
-     * disagree: the orbs emit immediately after the minimap's own subtree,
-     * under the minimap's PARENT clip -- which is what lets the column hang
-     * off the map's left edge and past its bottom while still being cut by the
-     * panel that houses the map -- and they inherit its fate. A gameframe that
-     * hides, moves or rebuilds its minimap hides, moves and rebuilds these.
+     * Anchored to a role, so the picture and the position cannot disagree: the
+     * orbs emit immediately after that role's own subtree, under its PARENT
+     * clip -- which is what lets the column hang off the map's left edge and
+     * past its bottom while still being cut by the panel that houses the map
+     * -- and they inherit its fate. A gameframe that hides, moves or rebuilds
+     * the thing they hang off hides, moves and rebuilds these.
      *
-     * Zero means the role did not resolve for this pass. Every declaration
+     * `minimap_edge` FIRST, and `minimap` only when a frame has no such thing.
+     *
+     * The map surface and the chrome that wraps it are two different nodes,
+     * and on every frame that has both, the wrapper is painted AFTER the
+     * surface -- it is a plate with a hole in it, so it has to be. Anchoring
+     * to the map therefore puts the column between the two: over the map,
+     * under the housing, which on the 2004 frame is four orbs behind an opaque
+     * 172x156 plate. That is not a bug in the housing's paint order, it is the
+     * column asking to be attached to the wrong half of the assembly.
+     *
+     * So the profile names the wrapper, and the orbs ask for it: `minimap` is
+     * where the column IS, `minimap_edge` is what it is drawn over. A frame
+     * whose housing is not a sibling at all -- a gameframe plugin's, which
+     * declares it with layout_slot_overlay and so paints it inside the map's
+     * own boundary -- has no `minimap_edge` to find, and the fallback is
+     * already correct for it.
+     *
+     * Zero from both means no role resolved for this pass. Every declaration
      * after it would be dropped by the host anyway; returning here says so
      * once instead of drawing nine images into a discard.
      */
-    if( !g_api->role_anchor(ctx, "minimap") )
+    if( !g_api->role_anchor(ctx, "minimap_edge") && !g_api->role_anchor(ctx, "minimap") )
         return TORIRS_PLUGIN_PASS;
 
     /* Asked for every frame, not only at start: an image that failed its read

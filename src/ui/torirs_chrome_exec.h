@@ -622,14 +622,12 @@ ToriRSChromeExec_ForKind(
     int kind, void* platform, ToriRSChromeRasteriseFn rasterise, void* rasterise_user,
     int* out_kind);
 
-/* ---- the CS2 native-widget executor (ui/torirs_chrome_exec_cs2.c) --------
+/* ---- the client-chrome id space ------------------------------------------
  *
- * Always compiled: its "native" toolkit is the game's own interface tree, so
- * unlike the other three it needs no platform support and works on every lane.
- */
-
-/**
- * Component ids this executor allocates from.
+ * Component ids the client allocates for furniture IT owns inside the game's
+ * interface tree. Today that is one control -- the plugin window's "Manage
+ * Plugins" launcher -- but the range is what makes it work, so it lives here
+ * rather than beside the button.
  *
  * Group 0x7FFE, which is not an arbitrary high number: it is the group
  * UITree_RootIsDisplayable already recognises as "app-overlay chrome". A root
@@ -637,28 +635,35 @@ ToriRSChromeExec_ForKind(
  * that filter exists so a CS2 script auto-mounting an interface for property
  * access cannot cover the gameframe with it -- so a private range picked for
  * being far away renders nothing at all. This one is the tree's own answer to
- * "chrome the app built", and using it is what makes the panel displayable.
+ * "chrome the app built", and using it is what makes the control displayable.
  *
  * A range rather than a registry, because a component id is how a click gets
  * home: the tree reports one, and the host has to recognise it as the chrome's
  * before the game's own dispatch sees it. A bounds test does that in a line.
  */
-#define TORIRS_CHROME_CS2_GROUP 0x7FFE
-#define TORIRS_CHROME_CS2_ID_BASE (TORIRS_CHROME_CS2_GROUP << 16)
-#define TORIRS_CHROME_CS2_ID_END (TORIRS_CHROME_CS2_ID_BASE + 0x10000)
-#define TORIRS_CHROME_CS2_ID_TAB_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x10)
-#define TORIRS_CHROME_CS2_TABS_MAX 12
+#define TORIRS_CHROME_GROUP 0x7FFE
+#define TORIRS_CHROME_ID_BASE (TORIRS_CHROME_GROUP << 16)
+#define TORIRS_CHROME_ID_END (TORIRS_CHROME_ID_BASE + 0x10000)
 
 /**
- * The sidebar Plugin button's component id.
+ * The "Manage Plugins" button, and the four pieces of drawing under it.
  *
- * In the same group and recognised by the same click interception, but it is
- * NOT the CS2 executor's: the button exists on every executor, because it is
- * how the window is opened rather than part of how it is drawn. Placed well
- * clear of the widget range so the two never have to be told apart by
- * arithmetic.
+ * The container carries the op and answers the click; the three graphics and
+ * the label are decoration. Five ids rather than one because the plate is the
+ * interfaces' own wide stone button -- two 36px caps with a 20px tile stretched
+ * between them -- and a label over the top, which is exactly how the 2004
+ * profile authors the same control (`manage_plugins_*` in
+ * revconfig/rs245_2lc). The client builds it on lanes whose gameframe comes
+ * out of a cache and cannot be authored.
+ *
+ * Placed well clear of the base so the group has room for whatever else the
+ * client puts in the tree later.
  */
-#define TORIRS_CHROME_PLUGIN_BUTTON_ID (TORIRS_CHROME_CS2_ID_BASE + 0x8000)
+#define TORIRS_CHROME_PLUGIN_BUTTON_ID (TORIRS_CHROME_ID_BASE + 0x8000)
+#define TORIRS_CHROME_PLUGIN_CAP_LEFT_ID (TORIRS_CHROME_PLUGIN_BUTTON_ID + 1)
+#define TORIRS_CHROME_PLUGIN_CAP_MID_ID (TORIRS_CHROME_PLUGIN_BUTTON_ID + 2)
+#define TORIRS_CHROME_PLUGIN_CAP_RIGHT_ID (TORIRS_CHROME_PLUGIN_BUTTON_ID + 3)
+#define TORIRS_CHROME_PLUGIN_LABEL_ID (TORIRS_CHROME_PLUGIN_BUTTON_ID + 4)
 
 struct UITree;
 
@@ -677,49 +682,6 @@ struct UITree;
  */
 int
 ToriRSChrome_TreeAcceptsChrome(struct UITree const* tree);
-
-/**
- * @param tree the interface tree to build in.
- * @param mount_node the node index everything mounts under; -1 for its own root.
- * @param font_id the SCENE font id text falls back to.
- * @param cache_font_id the CACHE font id text should be set in -- the
- *        gameframe's own body face -- resolved through resolve_font at build
- *        time; -1 draws everything in font_id.
- * @param skin_scene_id the BAKED chrome skin, already uploaded, as one
- *        multi-frame scene sprite -- every piece of furniture this draws is a
- *        frame of it (enum ToriRSChromeSkinSlot is the frame index). Pass -1 and
- *        the panel draws its flat fallbacks throughout. Baked rather than
- *        pulled from the cache so this presentation needs no cache at all;
- *        see the note above the CS2_SPR_* slots.
- * @param resolve_font cache font id -> scene font id, requesting the load on a
- *        miss; NULL or a -1 answer sets the rows in font_id instead.
- * @param resolve_ud handed to the resolver.
- *
- * All injected rather than reached for: ui/ owns the tree type but not the App
- * that holds one, which slot a panel belongs in is a gameframe question, and
- * scene ids come from the bridge that uploaded the assets. A font_id of 0
- * draws no text at all -- the id has to be a real one, and only the host
- * knows which.
- */
-struct ToriRSChromeExec
-ToriRSChromeExec_Cs2(
-    struct UITree* tree,
-    int32_t mount_node,
-    int font_id,
-    int cache_font_id,
-    int skin_scene_id,
-    int (*resolve_font)(void*, int),
-    void* resolve_ud);
-
-/**
- * Offer one clicked component id to the executor.
- *
- * @return 1 when it belonged to the plugin window and became an intent, so the
- * caller can stop before the game's own interface dispatch runs. A click on a
- * chrome checkbox must not also become a minimenu.
- */
-int
-ToriRSChromeExecCs2_Click(int component_id);
 
 #if defined(TORIRS_CHROME_EXEC_GDI_AVAILABLE)
 /* ---- the Win32 native-widget executor (ui/torirs_chrome_exec_gdi.c) ------- */

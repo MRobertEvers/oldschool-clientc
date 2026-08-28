@@ -965,18 +965,16 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CHROME_PLUGIN_IFACE";
     case RCFIELD_CHROME_PLUGIN_BUTTON_PARENT:
         return "RCFIELD_CHROME_PLUGIN_BUTTON_PARENT";
-    case RCFIELD_CHROME_PLUGIN_PANEL_PARENT:
-        return "RCFIELD_CHROME_PLUGIN_PANEL_PARENT";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_SLOT:
-        return "RCFIELD_CHROME_PLUGIN_BUTTON_SLOT";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_SIZE:
-        return "RCFIELD_CHROME_PLUGIN_BUTTON_SIZE";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_PITCH:
-        return "RCFIELD_CHROME_PLUGIN_BUTTON_PITCH";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_X:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_X";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_Y:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_Y";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_W:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_W";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_H:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_H";
     case RCFIELD_CHROME_PLUGIN_BUTTON_OP:
         return "RCFIELD_CHROME_PLUGIN_BUTTON_OP";
-    case RCFIELD_CHROME_PLUGIN_LAYOUT_SCRIPT:
-        return "RCFIELD_CHROME_PLUGIN_LAYOUT_SCRIPT";
     case RCFIELD_ROLE_MATCH:
         return "RCFIELD_ROLE_MATCH";
     case RCFIELD_UICOMPONENT_ROLE:
@@ -1229,10 +1227,10 @@ revconfig_item_begin(
          * this section did not state has to read as something no INI can spell.
          * The merge below keys off exactly that. */
         item->u.chrome.plugin_button_parent = -1;
-        item->u.chrome.plugin_panel_parent = -1;
-        item->u.chrome.plugin_button_slot = -1;
-        item->u.chrome.plugin_button_size = -1;
-        item->u.chrome.plugin_button_pitch = -1;
+        item->u.chrome.plugin_button_x = -1;
+        item->u.chrome.plugin_button_y = -1;
+        item->u.chrome.plugin_button_w = -1;
+        item->u.chrome.plugin_button_h = -1;
     }
     else if( revconfig_type_is_cacheref(type_value) )
     {
@@ -1936,14 +1934,14 @@ revconfig_chrome_key_str(enum RevConfigFieldKind kind)
     {
     case RCFIELD_CHROME_PLUGIN_BUTTON_PARENT:
         return "plugin_button_parent";
-    case RCFIELD_CHROME_PLUGIN_PANEL_PARENT:
-        return "plugin_panel_parent";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_SLOT:
-        return "plugin_button_slot";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_SIZE:
-        return "plugin_button_size";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_PITCH:
-        return "plugin_button_pitch";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_X:
+        return "plugin_button_x";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_Y:
+        return "plugin_button_y";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_W:
+        return "plugin_button_w";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_H:
+        return "plugin_button_h";
     default:
         return revconfig_field_kind_str(kind);
     }
@@ -1953,9 +1951,9 @@ revconfig_chrome_key_str(enum RevConfigFieldKind kind)
  * One `[chrome]` key.
  *
  * A number that does not parse is REPORTED and left unstated, rather than
- * applied as the 0 atoi() hands back: a button column with a pitch of zero
- * stacks every icon on top of the first, which is a far worse answer than the
- * strip simply not carrying a plugin button on this revision.
+ * applied as the 0 atoi() hands back: a plate zero pixels tall is an invisible
+ * button in the middle of the logout tab, which is a far worse answer than the
+ * client simply not building one on this revision.
  */
 static void
 revconfig_item_apply_chrome_field(
@@ -1976,23 +1974,18 @@ revconfig_item_apply_chrome_field(
         strncpy(chrome->plugin_button_op, value, sizeof(chrome->plugin_button_op) - 1);
         chrome->plugin_button_op[sizeof(chrome->plugin_button_op) - 1] = '\0';
         break;
-    case RCFIELD_CHROME_PLUGIN_LAYOUT_SCRIPT:
-        strncpy(
-            chrome->plugin_layout_script, value, sizeof(chrome->plugin_layout_script) - 1);
-        chrome->plugin_layout_script[sizeof(chrome->plugin_layout_script) - 1] = '\0';
-        break;
     case RCFIELD_CHROME_PLUGIN_BUTTON_PARENT:
-    case RCFIELD_CHROME_PLUGIN_PANEL_PARENT:
-    case RCFIELD_CHROME_PLUGIN_BUTTON_SLOT:
-    case RCFIELD_CHROME_PLUGIN_BUTTON_SIZE:
-    case RCFIELD_CHROME_PLUGIN_BUTTON_PITCH:
+    case RCFIELD_CHROME_PLUGIN_BUTTON_X:
+    case RCFIELD_CHROME_PLUGIN_BUTTON_Y:
+    case RCFIELD_CHROME_PLUGIN_BUTTON_W:
+    case RCFIELD_CHROME_PLUGIN_BUTTON_H:
     {
         int const n = revconfig_parse_int(value);
         /* A geometry of nothing is not a smaller button, it is an invisible
-         * one; a child or a slot cannot be negative. */
+         * one; a child or a position cannot be negative. */
         int const floor_value =
-            (kind == RCFIELD_CHROME_PLUGIN_BUTTON_SIZE ||
-             kind == RCFIELD_CHROME_PLUGIN_BUTTON_PITCH)
+            (kind == RCFIELD_CHROME_PLUGIN_BUTTON_W ||
+             kind == RCFIELD_CHROME_PLUGIN_BUTTON_H)
                 ? 1
                 : 0;
         if( n < floor_value )
@@ -2005,14 +1998,14 @@ revconfig_item_apply_chrome_field(
         }
         if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_PARENT )
             chrome->plugin_button_parent = n;
-        else if( kind == RCFIELD_CHROME_PLUGIN_PANEL_PARENT )
-            chrome->plugin_panel_parent = n;
-        else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_SLOT )
-            chrome->plugin_button_slot = n;
-        else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_SIZE )
-            chrome->plugin_button_size = n;
+        else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_X )
+            chrome->plugin_button_x = n;
+        else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_Y )
+            chrome->plugin_button_y = n;
+        else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_W )
+            chrome->plugin_button_w = n;
         else
-            chrome->plugin_button_pitch = n;
+            chrome->plugin_button_h = n;
         break;
     }
     default:

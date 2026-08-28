@@ -110,61 +110,51 @@ test_profile(void)
             profile.features.ground_click_nearest[0] == '\0', "nearest still unstated");
     }
 
-    /* No `[chrome]` block is a revision with no strip: nothing to mount the
-     * plugin button in, and no geometry invented for one. */
+    /* No `[chrome]` block is a revision the client builds no launcher on:
+     * nothing to mount the button in, and no geometry invented for one. */
     {
         struct RevConfigProfile profile;
         RevConfigProfile_Init(&profile);
         TEST_ASSERT(profile.chrome.plugin_iface[0] == '\0', "chrome iface unstated");
         TEST_ASSERT(profile.chrome.plugin_button_parent == -1, "button parent unstated");
-        TEST_ASSERT(profile.chrome.plugin_panel_parent == -1, "panel parent unstated");
-        TEST_ASSERT(profile.chrome.plugin_button_slot == -1, "button slot unstated");
-        TEST_ASSERT(profile.chrome.plugin_button_size == -1, "button size unstated");
-        TEST_ASSERT(profile.chrome.plugin_button_pitch == -1, "button pitch unstated");
-        TEST_ASSERT(profile.chrome.plugin_layout_script[0] == '\0', "layout script unstated");
+        TEST_ASSERT(profile.chrome.plugin_button_x == -1, "button x unstated");
+        TEST_ASSERT(profile.chrome.plugin_button_y == -1, "button y unstated");
+        TEST_ASSERT(profile.chrome.plugin_button_w == -1, "button width unstated");
+        TEST_ASSERT(profile.chrome.plugin_button_h == -1, "button height unstated");
         TEST_ASSERT(profile.chrome.plugin_button_op[0] == '\0', "button op unstated");
     }
 
-    /* The rev-239 mount, whole -- and slot 0 is a real slot, so it has to
-     * survive a merge that keys off "unstated". */
+    /* The rev-239 mount, whole -- and the interface root is child 0, so a real
+     * zero has to survive a merge that keys off "unstated". */
     {
         struct RevConfigProfile profile;
         RevConfigProfile_Init(&profile);
         merge_ini(
             &profile,
             "[chrome]\n"
-            "plugin_button_iface=plugin_popout\n"
-            "plugin_button_parent=6\n"
-            "plugin_panel_parent=9\n"
-            "plugin_button_slot=0\n"
-            "plugin_button_size=30\n"
-            "plugin_button_pitch=36\n"
-            "plugin_button_op=Show Plugin Settings\n"
-            "plugin_layout_script=plugin_popout_layout\n");
+            "plugin_button_iface=logout\n"
+            "plugin_button_parent=0\n"
+            "plugin_button_x=23\n"
+            "plugin_button_y=205\n"
+            "plugin_button_w=144\n"
+            "plugin_button_h=36\n"
+            "plugin_button_op=Manage Plugins\n");
+        TEST_ASSERT(strcmp(profile.chrome.plugin_iface, "logout") == 0, "chrome iface stated");
+        TEST_ASSERT(profile.chrome.plugin_button_parent == 0, "child zero stated");
+        TEST_ASSERT(profile.chrome.plugin_button_x == 23, "button x stated");
+        TEST_ASSERT(profile.chrome.plugin_button_y == 205, "button y stated");
+        TEST_ASSERT(profile.chrome.plugin_button_w == 144, "button width stated");
+        TEST_ASSERT(profile.chrome.plugin_button_h == 36, "button height stated");
         TEST_ASSERT(
-            strcmp(profile.chrome.plugin_iface, "plugin_popout") == 0, "chrome iface stated");
-        TEST_ASSERT(profile.chrome.plugin_button_parent == 6, "button parent stated");
-        TEST_ASSERT(profile.chrome.plugin_panel_parent == 9, "panel parent stated");
-        TEST_ASSERT(profile.chrome.plugin_button_slot == 0, "slot zero stated");
-        TEST_ASSERT(profile.chrome.plugin_button_size == 30, "button size stated");
-        TEST_ASSERT(profile.chrome.plugin_button_pitch == 36, "button pitch stated");
-        TEST_ASSERT(
-            strcmp(profile.chrome.plugin_button_op, "Show Plugin Settings") == 0,
+            strcmp(profile.chrome.plugin_button_op, "Manage Plugins") == 0,
             "button op stated");
-        TEST_ASSERT(
-            strcmp(profile.chrome.plugin_layout_script, "plugin_popout_layout") == 0,
-            "layout script stated");
 
-        /* Per KEY, like the camera: a manifest moving the button down the
-         * column must not take the interface or the geometry with it. */
-        merge_ini(&profile, "[chrome]\nplugin_button_slot=3\n");
-        TEST_ASSERT(profile.chrome.plugin_button_slot == 3, "slot overridden");
-        TEST_ASSERT(
-            strcmp(profile.chrome.plugin_iface, "plugin_popout") == 0, "iface survives");
-        TEST_ASSERT(profile.chrome.plugin_button_pitch == 36, "pitch survives");
-        TEST_ASSERT(
-            strcmp(profile.chrome.plugin_layout_script, "plugin_popout_layout") == 0,
-            "layout script survives");
+        /* Per KEY, like the camera: a manifest nudging the plate down the tab
+         * must not take the interface or the rest of the box with it. */
+        merge_ini(&profile, "[chrome]\nplugin_button_y=180\n");
+        TEST_ASSERT(profile.chrome.plugin_button_y == 180, "y overridden");
+        TEST_ASSERT(strcmp(profile.chrome.plugin_iface, "logout") == 0, "iface survives");
+        TEST_ASSERT(profile.chrome.plugin_button_w == 144, "width survives");
     }
 
     /* A geometry of nothing is an invisible button, not a smaller one: it is
@@ -175,11 +165,11 @@ test_profile(void)
         merge_ini(
             &profile,
             "[chrome]\n"
-            "plugin_button_size=0\n"
-            "plugin_button_pitch=none\n"
+            "plugin_button_w=0\n"
+            "plugin_button_h=none\n"
             "plugin_button_parent=-2\n");
-        TEST_ASSERT(profile.chrome.plugin_button_size == -1, "zero size ignored");
-        TEST_ASSERT(profile.chrome.plugin_button_pitch == -1, "unparseable pitch ignored");
+        TEST_ASSERT(profile.chrome.plugin_button_w == -1, "zero width ignored");
+        TEST_ASSERT(profile.chrome.plugin_button_h == -1, "unparseable height ignored");
         TEST_ASSERT(profile.chrome.plugin_button_parent == -1, "negative parent ignored");
     }
 

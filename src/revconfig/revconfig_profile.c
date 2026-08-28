@@ -16,14 +16,14 @@ RevConfigProfile_Init(struct RevConfigProfile* profile)
     profile->features.ground_click_unbounded = -1;
     profile->features.ground_click_offmap = -1;
 
-    /* Nothing stated: no strip, so no plugin button. The memset already left
-     * both names empty; the numbers need their own sentinel because 0 is a real
-     * child, a real slot and (for a size) a real-looking one. */
+    /* Nothing stated: the client builds no plugin launcher. The memset already
+     * left both names empty; the numbers need their own sentinel because 0 is a
+     * real child, a real position and (for a size) a real-looking one. */
     profile->chrome.plugin_button_parent = -1;
-    profile->chrome.plugin_panel_parent = -1;
-    profile->chrome.plugin_button_slot = -1;
-    profile->chrome.plugin_button_size = -1;
-    profile->chrome.plugin_button_pitch = -1;
+    profile->chrome.plugin_button_x = -1;
+    profile->chrome.plugin_button_y = -1;
+    profile->chrome.plugin_button_w = -1;
+    profile->chrome.plugin_button_h = -1;
 
     profile->camera.zoom_mode = REVCONFIG_CAMERA_ZOOM_CLAMPED;
     profile->camera.zoom_min = REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN;
@@ -96,21 +96,16 @@ profile_merge_chrome(
         memcpy(dst->plugin_iface, src->plugin_iface, sizeof(dst->plugin_iface));
     if( src->plugin_button_op[0] )
         memcpy(dst->plugin_button_op, src->plugin_button_op, sizeof(dst->plugin_button_op));
-    if( src->plugin_layout_script[0] )
-        memcpy(
-            dst->plugin_layout_script,
-            src->plugin_layout_script,
-            sizeof(dst->plugin_layout_script));
     if( src->plugin_button_parent >= 0 )
         dst->plugin_button_parent = src->plugin_button_parent;
-    if( src->plugin_panel_parent >= 0 )
-        dst->plugin_panel_parent = src->plugin_panel_parent;
-    if( src->plugin_button_slot >= 0 )
-        dst->plugin_button_slot = src->plugin_button_slot;
-    if( src->plugin_button_size >= 0 )
-        dst->plugin_button_size = src->plugin_button_size;
-    if( src->plugin_button_pitch >= 0 )
-        dst->plugin_button_pitch = src->plugin_button_pitch;
+    if( src->plugin_button_x >= 0 )
+        dst->plugin_button_x = src->plugin_button_x;
+    if( src->plugin_button_y >= 0 )
+        dst->plugin_button_y = src->plugin_button_y;
+    if( src->plugin_button_w >= 0 )
+        dst->plugin_button_w = src->plugin_button_w;
+    if( src->plugin_button_h >= 0 )
+        dst->plugin_button_h = src->plugin_button_h;
 }
 
 void

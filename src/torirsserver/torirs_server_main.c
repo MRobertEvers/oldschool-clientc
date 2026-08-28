@@ -1,16 +1,23 @@
 /*
- * The listening socket and the 600 ms tick loop.
+ * The listening socket, and nothing else.
  *
  * Everything that used to make this file long has moved:
  *
+ *   torirs_server_host.c       the poll loop over every connection, the tick,
+ *                        and the login/logout work queue
  *   torirs_server_session.c    the login handshake and inbound framing, as a state
  *                        machine rather than a run of blocking reads
  *   torirs_server_transport.c  where the bytes come from
  *   torirs_server_boot.c       the loader order
  *
- * What is left is the part that is genuinely about being a *socket* server:
- * binding, accepting, and deciding when a tick is due. An in-process server
- * (torirs_server_embed.c) shares everything else and has none of this.
+ * What is left is the part that is genuinely about *starting* a socket server:
+ * parsing the port, binding, and booting the static data in the right order. An
+ * in-process server (torirs_server_embed.c) shares everything else and has none
+ * of this.
+ *
+ * The `serve()` that used to live here — one connection, its own world, a
+ * forked child per JS5 download — is gone. See torirs_server_host.h for what
+ * replaced it and why.
  *
  *   make -C src ToriRSServer
  *   src/build/torirsserver [port]
@@ -33,32 +40,23 @@
 
 #include "torirs_server_boot.h"
 #include "torirs_server_container.h"
+#include "torirs_server_host.h"
 #include "torirs_server_shop.h"
-#include "torirs_server_session.h"
-#include "torirs_server_transport.h"
-#include "torirs_server_ws.h"
 
 #include <signal.h>
 
 /* mingw-w64 has no POSIX socket headers at all (see src/ioserver/http_server.c
  * and src/torirsserver/torirs_server_ws.c for the same split); Winsock2 replaces
- * sockets, select()'s error reporting, and gettimeofday all at once, and
- * fork() has no equivalent whatsoever -- a JS5 connection becomes a detached
- * thread below instead of a forked child. */
+ * sockets and select()'s error reporting. */
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
-#include <process.h> /* _beginthreadex */
 #define close closesocket
 #else
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <sys/select.h>
 #include <sys/socket.h>
-#include <sys/time.h>
-#include <sys/wait.h>
 #include <unistd.h>
 #endif
 
@@ -86,437 +84,12 @@ sock_perror(char const* msg)
 #endif
 }
 
-#define TORIRSSERVER_TICK_MS 600
-
-static long
-now_ms(void)
-{
-#ifdef _WIN32
-    /* Only ever compared to itself for tick scheduling, so milliseconds since
-     * boot (not epoch) is fine -- and unlike gettimeofday(), mingw actually has
-     * it. */
-    return (long)GetTickCount64();
-#else
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return ((long)tv.tv_sec * 1000L) + (tv.tv_usec / 1000L);
-#endif
-}
-
-/*
- * Sleep until the socket has something or the next tick is due.
- *
- * Returns 1 when there are bytes to read, 0 when the wait timed out, -1 when
- * the connection is gone.
- *
- * The distinction between 1 and 0 is load-bearing and not a tidiness matter: an
- * accepted socket is *blocking*, so this select() is the only thing standing
- * between the reader and a read that parks the entire server until the client
- * next says something. Pumping on a timeout would hang a session whose player
- * is standing still.
- */
-static int
-wait_readable(
-    struct ToriRSServerSession* session,
-    long wait_ms,
-    int listener,
-    int* listener_ready)
-{
-    fd_set readable;
-    struct timeval timeout;
-    int fd;
-    int top;
-    int ready;
-
-    if( listener_ready )
-        *listener_ready = 0;
-
-    /*
-     * Bytes already in hand beat any descriptor.
-     *
-     * A framed transport reads whole frames, so one read can leave a complete
-     * request deframed and queued while the socket has nothing further to say
-     * — and the client that sent it is waiting for the answer, so nothing
-     * further ever arrives. Selecting on the fd there waits out the whole
-     * timeout with the request sitting in the buffer: 600 ms on the game loop,
-     * where the tick deadline hides it, and a full minute on a JS5 connection,
-     * where it looks exactly like a server that accepted the handshake and
-     * then went silent.
-     */
-    if( ToriRSServer_SessionBuffered(session) > 0 )
-        return 1;
-
-    fd = ToriRSServer_SessionPollfd(session);
-
-    /* No descriptor means nothing to wait on — the shape an embedded session
-     * takes. It never reaches this loop, but reporting "readable" is the safe
-     * answer: its transport never blocks. */
-    if( fd < 0 )
-        return 1;
-
-    if( wait_ms < 0 )
-        wait_ms = 0;
-    FD_ZERO(&readable);
-    FD_SET(fd, &readable);
-    top = fd;
-    /*
-     * The listener waits here too, whenever the caller has one.
-     *
-     * A session is served in line, so without this the accept loop stops for
-     * as long as somebody is logged in — and the next client to arrive is not
-     * refused, it is never answered: its cache download hangs before it has
-     * drawn anything, and a second tab looks exactly like a server that is
-     * down. Which of the two is readable decides who gets served; see
-     * accept_side_connection for what a connection arriving now can be given.
-     */
-    if( listener >= 0 )
-    {
-        FD_SET(listener, &readable);
-        if( listener > top )
-            top = listener;
-    }
-    timeout.tv_sec = wait_ms / 1000;
-    timeout.tv_usec = (wait_ms % 1000) * 1000;
-
-    ready = select(top + 1, &readable, NULL, NULL, &timeout);
-    if( ready < 0 )
-    {
-#ifdef _WIN32
-        return WSAGetLastError() == WSAEINTR ? 0 : -1;
-#else
-        return errno == EINTR ? 0 : -1;
-#endif
-    }
-    if( ready > 0 && listener >= 0 && listener_ready && FD_ISSET(listener, &readable) )
-        *listener_ready = 1;
-    return ready > 0 && FD_ISSET(fd, &readable);
-}
-
-/* Defined below, beside the JS5 hand-off it shares. */
-static void
-accept_side_connection(
-    int listener,
-    struct ToriRSServer* srv,
-    const struct ToriRSServerWire* wire,
-    int busy_fd);
-
-static void
-serve(
-    struct ToriRSServer* srv,
-    struct ToriRSServerConn* conn,
-    const struct ToriRSServerBootConfig* config,
-    const struct ToriRSServerWire* wire,
-    int listener)
-{
-    struct ToriRSServerSession session;
-    struct ToriRSServerTransport transport;
-    long next_tick;
-
-    memset(srv, 0, sizeof(*srv));
-    srv->verbose = getenv("TORIRSSERVER_VERBOSE") != NULL;
-    srv->familiar_singles_assist = ToriRSServer_FlagDefaultOn("TORIRSSERVER_FAMILIAR_SINGLES");
-    srv->members_world = ToriRSServer_FlagDefaultOn("TORIRSSERVER_MEMBERS_WORLD");
-    /*
-     * After the memset, not before it.
-     *
-     * The revision was first set at the call site, which the memset two lines
-     * up then erased -- so the server read every login block as revision 230
-     * and answered "rsa decrypt failed", a message that points at the key and
-     * not at the four bytes of `serverVersion` it had failed to skip. The wire
-     * is per-process configuration, so it has to be re-applied to a struct this
-     * function deliberately zeroes per connection.
-     */
-    srv->wire = wire;
-    /* Same reason: the memset above wipes any earlier seeding of
-     * `srv->world_containers`, so shared shops are reseeded fresh per
-     * connection — one process serves one connection at a time here (the JS5
-     * thread aside), so this is boot, not a mid-session reset. */
-    ToriRSServer_ShopSeed(srv);
-
-    ToriRSServer_TransportSocket(&transport, conn);
-    ToriRSServer_SessionInit(&session, &transport, srv->verbose);
-
-    next_tick = now_ms() + TORIRSSERVER_TICK_MS;
-
-    while( ToriRSServer_SessionAlive(&session) )
-    {
-        int listener_ready = 0;
-        int ready = wait_readable(&session, next_tick - now_ms(), listener, &listener_ready);
-
-        if( ready < 0 )
-            break;
-
-        /* Somebody arrived while this session is being served. Answering them
-         * is what keeps a second client's cache download alive; see there. */
-        if( listener_ready )
-            accept_side_connection(listener, srv, wire, ToriRSServer_SessionPollfd(&session));
-
-        if( ready > 0 )
-        {
-            if( !ToriRSServer_SessionPump(&session, srv) )
-                break;
-
-            /*
-             * The handshake completed inside that pump. The world comes up here
-             * rather than inside the session because a session carries bytes
-             * and knows nothing about ticks, npcs or scripts.
-             */
-            if( ToriRSServer_SessionTakeLogin(&session) )
-            {
-                struct ToriRSServerPlayer* player;
-
-                ToriRSServer_ScriptsLoad(srv, config->script_dir);
-                ToriRSServer_WorldInit(srv, ToriRSServer_BootZone(config->home_x),
-                                   ToriRSServer_BootZone(config->home_z));
-                player = ToriRSServer_WorldAddPlayer(srv, &session);
-                if( !player )
-                    break;
-                session.player = player;
-                ToriRSServer_WorldPlayerInit(player);
-                ToriRSServer_WorldSetDisplayName(player, session.display_name);
-                ToriRSServer_WorldLogin(player);
-                /* Anything the client sent behind its login block is still in
-                 * the session buffer; decode it now that there is a world. */
-                if( !ToriRSServer_SessionPump(&session, srv) )
-                    break;
-            }
-        }
-
-        if( now_ms() >= next_tick )
-        {
-            ToriRSServer_WorldTick(srv);
-            /* Anchor to the schedule rather than to "now", so a slow tick does
-             * not push every later tick out. */
-            next_tick += TORIRSSERVER_TICK_MS;
-            if( now_ms() - next_tick > 5 * TORIRSSERVER_TICK_MS )
-                next_tick = now_ms() + TORIRSSERVER_TICK_MS;
-        }
-    }
-
-    /*
-     * This server still accepts one connection at a time (§6.1 wants a
-     * non-blocking accept with per-connection buffering), so the world goes away
-     * with the session. `ToriRSServer_WorldRemovePlayer` releases the slot and the
-     * bank; the shutdown below is the rest of the pool, which is empty here and
-     * would not be in a multi-connection host.
-     */
-    /*
-     * A session that never logged in has no player to remove, and reaching
-     * here without one is ordinary rather than exceptional: a JS5 connection
-     * shares this loop and never logs in at all, and a client can also drop
-     * during the handshake or fail it. `session.player` is set only once
-     * SessionTakeLogin has succeeded, so all three arrive here NULL.
-     *
-     * The test belongs at this call site and not inside the callee, which
-     * keeps its assert: whether this session ever had a player is knowledge
-     * this function has and WorldRemovePlayer cannot recover. The embedded
-     * host already guards the same call for the same reason.
-     *
-     * Unguarded, a browser priming its cache over JS5 aborted the whole
-     * server on the assert as its connection closed.
-     */
-    if( session.player )
-        ToriRSServer_WorldRemovePlayer(srv, session.player);
-    ToriRSServer_BankShutdown(srv);
-    ToriRSServer_ContainerShutdown(srv);
-    ToriRSServer_ScriptsFree(srv);
-    ToriRSServer_SessionFree(&session);
-    ToriRSServer_WorldReset(srv);
-}
-
-/*
- * A JS5 connection's own loop.
- *
- * Deliberately NOT `serve()`. That function ticks the world every 600 ms, and a
- * JS5 session never logs in, so the world it would tick is the memset-zero one
- * `serve` starts with — no scripts, no scene, no players. The child died on the
- * first tick after answering one request, which presents as a client that
- * fetches a single reference table and then renders a black screen forever:
- * the game connection is healthy the whole time, so nothing looks broken.
- *
- * JS5 needs none of it. Read, answer, repeat until the peer goes away.
- */
-static void
-serve_js5(
-    struct ToriRSServer* srv,
-    struct ToriRSServerConn* conn)
-{
-    struct ToriRSServerSession session;
-    struct ToriRSServerTransport transport;
-
-    memset(srv, 0, sizeof(*srv));
-    srv->verbose = getenv("TORIRSSERVER_VERBOSE") != NULL;
-    srv->familiar_singles_assist = ToriRSServer_FlagDefaultOn("TORIRSSERVER_FAMILIAR_SINGLES");
-    srv->members_world = ToriRSServer_FlagDefaultOn("TORIRSSERVER_MEMBERS_WORLD");
-
-    ToriRSServer_TransportSocket(&transport, conn);
-    ToriRSServer_SessionInit(&session, &transport, srv->verbose);
-
-    while( ToriRSServer_SessionAlive(&session) )
-    {
-        /* No tick deadline to race, so this blocks until there is something to
-         * do — a cache download is request/response with long idle gaps. */
-        if( wait_readable(&session, 60000, -1, NULL) < 0 )
-            break;
-        if( !ToriRSServer_SessionPump(&session, srv) )
-            break;
-    }
-    ToriRSServer_SessionFree(&session);
-}
-
-#ifdef _WIN32
-/*
- * fork()'s Windows replacement: a JS5 connection gets its own thread rather
- * than its own process.
- *
- * The comment on the POSIX branch below says a forked child "shares nothing
- * mutable" with the parent -- true because fork() copies the whole address
- * space, so the child's `serve_js5`, which memsets its `ToriRSServer`
- * argument on entry, was always zeroing a private copy. A thread shares the
- * parent's address space for real, so handing it the same static `srv` the
- * game-connection loop is using would let a JS5 thread's memset stomp a live
- * game tick mid-flight. Each thread instead gets its own heap block; ~330 KB
- * (see the `srv`/`conn` comments in main()) is too much to also put on a
- * thread's stack.
- */
-struct ToriRSServerJs5Args
-{
-    const struct ToriRSServerWire* wire;
-    int fd;
-    struct ToriRSServer srv;
-    struct ToriRSServerConn conn;
-};
-
-static unsigned __stdcall
-js5_thread_main(void* raw)
-{
-    struct ToriRSServerJs5Args* args = (struct ToriRSServerJs5Args*)raw;
-
-    fprintf(stderr, "torirsserver: JS5 connection\n");
-    args->srv.wire = args->wire; /* serve_js5() memsets the rest right away */
-    serve_js5(&args->srv, &args->conn);
-    close(args->fd);
-    free(args);
-    return 0;
-}
-#endif
-
-/*
- * Hand an open JS5 connection to a child and return.
- *
- * `keep_out_fd` is a socket this process holds that the child must not: the
- * game connection being served when a JS5 client arrives mid-session. A child
- * that inherited it would hold that player's socket open for as long as it
- * lived, so the server would not see them leave.
- */
-static void
-js5_detach(
-    struct ToriRSServer* srv,
-    struct ToriRSServerConn* conn,
-    int fd,
-    int listener,
-    const struct ToriRSServerWire* wire,
-    int keep_out_fd)
-{
-#ifdef _WIN32
-    struct ToriRSServerJs5Args* args = (struct ToriRSServerJs5Args*)calloc(1, sizeof(*args));
-    HANDLE thread;
-
-    (void)srv;
-    (void)listener;
-    (void)keep_out_fd;
-    assert(args);
-    args->wire = wire;
-    args->fd = fd;
-    /* The open connection, handshake and all, as the thread's own copy: the
-     * accept loop reuses `conn` for the next client. */
-    args->conn = *conn;
-    thread = (HANDLE)_beginthreadex(NULL, 0, js5_thread_main, args, 0, NULL);
-    if( thread )
-        CloseHandle(thread); /* detached: nothing joins a JS5 connection */
-    else
-    {
-        /* Not an allocation failure: the thread limit is a real runtime
-         * condition, and the connection is dropped. */
-        close(fd);
-        free(args);
-    }
-#else
-    pid_t child = fork();
-
-    if( child == 0 )
-    {
-        close(listener);
-        if( keep_out_fd >= 0 )
-            close(keep_out_fd);
-        fprintf(stderr, "torirsserver: JS5 connection\n");
-        srv->wire = wire;
-        serve_js5(srv, conn);
-        close(fd);
-        _exit(0);
-    }
-    close(fd);
-    if( child < 0 )
-        perror("fork");
-#endif
-}
-
-/*
- * Answer a connection that arrives while a game session is already being
- * served.
- *
- * A JS5 client gets what it always gets: its own child, off this socket, with
- * the cache the world is reading. That is the case this exists for -- a second
- * browser tab does not reach a login screen until its cache has loaded, and
- * before this the connection was simply never accepted, which reads as a dead
- * server rather than a busy one.
- *
- * A second GAME connection cannot be served: the world here is per-connection
- * (see serve()), one player at a time. It is closed at once rather than left
- * in the backlog, because a client that is refused says so and a client that
- * is ignored hangs on a blank screen.
- */
-static void
-accept_side_connection(
-    int listener,
-    struct ToriRSServer* srv,
-    const struct ToriRSServerWire* wire,
-    int busy_fd)
-{
-    /* 128 KB of buffers, and the JS5 child takes a copy of it -- not on a
-     * stack shared with a live session. */
-    static struct ToriRSServerConn side;
-    int nodelay = 1;
-    int fd = (int)accept(listener, NULL, NULL);
-
-    if( fd < 0 )
-        return;
-    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char*)&nodelay, sizeof(nodelay));
-
-    if( !ToriRSServer_ConnOpen(&side, fd) )
-    {
-        close(fd);
-        return;
-    }
-    if( ToriRSServer_ConnPeekFirst(&side) == 15 )
-    {
-        js5_detach(srv, &side, fd, listener, wire, busy_fd);
-        return;
-    }
-
-    fprintf(stderr,
-            "torirsserver: a second game connection arrived while one is being "
-            "served -- refused (this server hosts one player at a time)\n");
-    close(fd);
-}
-
 int
 main(
     int argc,
     char** argv)
 {
     static struct ToriRSServer srv; /* ~200 KB of player state — not on the stack */
-    static struct ToriRSServerConn conn;  /* 128 KB of buffers — likewise */
     struct ToriRSServerBootConfig config;
     /* --selftest: run the game logic with no socket and exit. Detected before
      * the port parse because atoi("--selftest") is 0. */
@@ -524,6 +97,7 @@ main(
     int port = (argc > 1 && !selftest) ? atoi(argv[1]) : TORIRSSERVER_DEFAULT_PORT;
     int listener = -1;
     int reuse = 1;
+    int status;
     struct sockaddr_in addr;
     /*
      * Which revision's bytes to write. `--rev <name>` beats TORIRSSERVER_REV beats
@@ -558,13 +132,12 @@ main(
      * Windows sockets never raise SIGPIPE at all -- send() just returns an
      * error -- and mingw only declares the macro behind #ifdef _POSIX, which
      * this build does not define.
+     *
+     * SIGCHLD went with the fork: JS5 is served in the host's loop now, so
+     * there is no child to reap.
      */
 #ifndef _WIN32
     signal(SIGPIPE, SIG_IGN);
-    /* JS5 connections are served by forked children; without this each one
-     * leaves a zombie for the lifetime of the process. Threads (the Windows
-     * substitute, see js5_thread_main) have no zombie-process concept. */
-    signal(SIGCHLD, SIG_IGN);
 #endif
 
 #ifdef _WIN32
@@ -617,7 +190,15 @@ main(
 #endif
             return 1;
         }
-        listen(listener, 1);
+        /*
+         * A backlog of one was right while the server drained the queue by
+         * serving a connection to completion. It is wrong now for the reason
+         * the rest of this change exists: a client opens JS5 and its game
+         * socket back to back, several clients arrive together when a world
+         * comes up, and a connection that does not fit in the backlog is
+         * refused by the kernel before this process ever sees it.
+         */
+        listen(listener, 16);
     }
 
     ToriRSServer_BootLoad(&config);
@@ -630,6 +211,24 @@ main(
     }
 
     /*
+     * The world's server struct, set up once for the process.
+     *
+     * This used to be per connection — `serve()` memset it on every accept and
+     * re-seeded the shops — which was the honest thing to do while one
+     * connection *was* the world. It is boot now: the world outlives any one
+     * session, so anything reset per connection would be a mid-session reset
+     * for everybody else.
+     */
+    srv.verbose = getenv("TORIRSSERVER_VERBOSE") != NULL;
+    srv.familiar_singles_assist = ToriRSServer_FlagDefaultOn("TORIRSSERVER_FAMILIAR_SINGLES");
+    srv.members_world = ToriRSServer_FlagDefaultOn("TORIRSSERVER_MEMBERS_WORLD");
+    srv.wire = wire;
+    /* Shop definitions are global (ToriRSServer_ContentLoad populated them);
+     * seeding their containers is per-server-instance, so it happens once the
+     * boot that defined them has run. */
+    ToriRSServer_ShopSeed(&srv);
+
+    /*
      * Compile-check and load the script pack now, not at first login.
      *
      * `ToriRSServer_ScriptsLoad` is idempotent (`scripts_ok`), so the login path can
@@ -639,82 +238,25 @@ main(
      * "Connecting to server..." with nothing to attribute it to at either end.
      * Boot is the honest place — the server is not claiming to be ready yet.
      */
-    srv.wire = wire;
     ToriRSServer_ScriptsLoad(&srv, config.script_dir);
 
     /* Listening since before the loaders ran; this is where it starts accepting. */
     fprintf(stderr,
-            "torirsserver: listening on 127.0.0.1:%d, wire %s (home %d,%d — zone %d,%d)\n",
+            "torirsserver: listening on 127.0.0.1:%d, wire %s (home %d,%d — zone %d,%d), "
+            "up to %d players\n",
             port, wire->name, config.home_x, config.home_z,
-            ToriRSServer_BootZone(config.home_x), ToriRSServer_BootZone(config.home_z));
+            ToriRSServer_BootZone(config.home_x), ToriRSServer_BootZone(config.home_z),
+            TORIRSSERVER_PLAYER_MAX);
 
-    for( ;; )
-    {
-        int nodelay = 1;
-        int fd = (int)accept(listener, NULL, NULL);
-        if( fd < 0 )
-            continue;
+    status = ToriRSServer_HostRun(&srv, &config, listener);
 
-        /*
-         * Every game packet is its own send(), and a tick's output is a run of
-         * small ones ending in SERVER_TICK_END. With Nagle on, everything after
-         * the first unacknowledged segment waits for the peer's delayed ACK, so
-         * the fence could land tens of milliseconds after the packet that
-         * opened the tick — and the client's UI transaction latch (correctly)
-         * withholds frames until the fence. Measured as a 2-4 logic tick frame
-         * freeze every server cycle in the browser client.
-         */
-        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char*)&nodelay, sizeof(nodelay));
-
-        /*
-         * JS5 and the game are two SEPARATE, CONCURRENT connections.
-         *
-         * This loop used to serve one connection to completion before
-         * accepting the next, which is fine while a client only ever holds one.
-         * An OldSchool client holds both: it opens JS5, keeps it open for
-         * on-demand archive loads for the whole session, and opens a second
-         * socket for the game. Serially, the game connection sits in the
-         * backlog forever — the client reaches its login screen (JS5 answered)
-         * and then hangs on login with no error at either end, because nothing
-         * ever accepts it.
-         *
-         * The first APPLICATION byte says which this is (15 JS5, 14 game), and
-         * that is not the first byte of the SOCKET. A browser can only speak
-         * WebSocket, so its stream opens with 'G' and the protocol byte does
-         * not arrive until the upgrade is done — which is why sniffing the
-         * socket worked for as long as only native clients reached it. Every
-         * browser JS5 connection went down the game path instead and the parent
-         * served it in line: the page fetched groups until it wanted its game
-         * socket too, that socket sat unaccepted in a backlog of one, and the
-         * loop never returned to accept() again. From outside it is a client
-         * that boots halfway and a server that is up and answers nothing.
-         *
-         * So the handshake is completed here, and the question is put to the
-         * byte that carries the answer. A JS5 connection is handed to a forked
-         * child: it shares nothing mutable —
-         * read-only cache file handles and a computed master index — so a
-         * process is a legitimate way to hold it, and it costs none of the
-         * restructuring a multi-session select loop would. (Windows has no
-         * fork(); js5_thread_main above is the substitute, and heap-allocates
-         * its own state for the same reason a forked child gets its own copy.)
-         */
-        if( !ToriRSServer_ConnOpen(&conn, fd) )
-        {
-            close(fd);
-            continue;
-        }
-        if( ToriRSServer_ConnPeekFirst(&conn) == 15 )
-        {
-            js5_detach(&srv, &conn, fd, listener, wire, -1);
-            continue;
-        }
-
-        fprintf(stderr, "torirsserver: client connected\n");
-        serve(&srv, &conn, &config, wire, listener);
-        close(fd);
-        fprintf(stderr, "torirsserver: client disconnected\n");
-    }
-
+    ToriRSServer_BankShutdown(&srv);
+    ToriRSServer_ContainerShutdown(&srv);
+    ToriRSServer_ScriptsFree(&srv);
     ToriRSServer_BootFree();
-    return 0;
+    close(listener);
+#ifdef _WIN32
+    WSACleanup();
+#endif
+    return status;
 }

@@ -5,8 +5,9 @@
  * FOR; `enum ToriRSChromeSkin_Slot` (engine/torirs_chrome_skin_baked.h) says
  * what order spritebake wrote them in. They are the same numbers, and every
  * consumer has quietly relied on that -- `app.c` maps the atlas with
- * `atlas[i] = i`, the visual test does the same, and the CS2 executor hands a
- * semantic slot straight to `graphic_atlas_index`.
+ * `atlas[i] = i`, the visual test does the same, and the client hands a
+ * semantic slot straight to `graphic_atlas_index` for the furniture it builds
+ * in the interface tree.
  *
  * That is a real coupling and it was checked nowhere. Re-bake with the
  * `--sprite` arguments in a different order and every one of those consumers
@@ -16,10 +17,11 @@
  * mistake rather than on a frame months later.
  *
  * This header is also how the two NATIVE-WIDGET executors that own no scene --
- * `web` (DOM) and `gdi` (USER32) -- reach the pixels at all. The CS2 executor
- * is handed a scene id by the App, because its images have to become a
- * ToriDraw sprite anyway; a browser wants a data: URL and Windows wants a DIB,
- * and neither is anything the App can hand over.
+ * `web` (DOM) and `gdi` (USER32) -- reach the pixels at all. Chrome the client
+ * builds INSIDE the interface tree is handed a scene id by the App instead,
+ * because its images have to become a ToriDraw sprite anyway; a browser wants a
+ * data: URL and Windows wants a DIB, and neither is anything the App can hand
+ * over.
  *
  * Header-only: the accessor is three lines over a function the baked module
  * already exports, and a translation unit of its own would be a makefile entry

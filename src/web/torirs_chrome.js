@@ -123,7 +123,7 @@
    *
    * DEFAULTS ONLY. The real numbers arrive from C at open time
    * (torirsChromeSkinMetrics), out of src/ui/torirs_chrome_metrics.h -- the
-   * same table the in-canvas chrome and the CS2 executor lay out from. They
+   * same table every other presentation lays out from. They
    * are duplicated here so a page running against a client too old to send
    * them still renders something the right shape, and for no other reason: if
    * these and the header ever disagree, the header is right.
@@ -683,7 +683,7 @@
        * old to send the command leaves the window exactly as it was. */
       this.checkStyle = 0;
       /* The dropdown whose list is up, or -1, and the list's node. One window,
-       * one open list -- the same rule the model and the CS2 executor keep. */
+       * one open list -- the same rule the model keeps. */
       this.dropOpen = -1;
       this.dropList = null;
       /* The cursor row while the list is being driven from the keyboard; -1
@@ -2246,7 +2246,7 @@
            * model's copy of it is downstream of what the user clicked here;
            * calling .focus() on the way back would fight the caret the user just
            * placed. The command exists for presentations that have no focus of
-           * their own -- see the CS2 executor. */
+           * their own. */
           break;
 
         default:

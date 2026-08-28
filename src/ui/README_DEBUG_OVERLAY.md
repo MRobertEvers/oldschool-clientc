@@ -504,18 +504,17 @@ sliding switch until it was pointed out that this game has no such thing.
 
 ### 8.0 One table of metrics, two presentations
 
-The geometry and the palette live in `ui/torirs_chrome_metrics.h`, and neither
-this module nor the CS2 executor owns them. The plugin window is drawn twice —
-here as prims, and in `ui/torirs_chrome_exec_cs2.c` as real interface
-components — and for as long as each carried its own numbers the two slowly
-stopped agreeing: a row 20 tall beside one 18 tall, a 12px settings well beside
+The geometry and the palette live in `ui/torirs_chrome_metrics.h`, and no one
+presentation owns them. The plugin window is drawn here as prims, in the page as
+DOM nodes (`web`) and in USER32 controls (`gdi`) — and for as long as each
+carried its own numbers they slowly stopped agreeing: a row 20 tall beside one 18 tall, a 12px settings well beside
 a 14px one, a toggle at 22×11 beside one at 24×12. None of that is a bug either
 file can see; it shows up only as "the panel looks different depending on which
 executor is bound".
 
 Everything in that header is a **1x chrome pixel**: this module multiplies by
-`ui->scale` (`DBG_PX`), the CS2 executor uses them raw because the gameframe's
-interface scaling applies over the top.
+`ui->scale` (`DBG_PX`); a presentation whose own surface already scales uses
+them raw.
 
 Two consequences worth knowing, because both were behaviour changes:
 
@@ -658,11 +657,11 @@ tiling loop up here can step by it without holding any pixels.
 
 Regenerate with the command in the generated file's header comment.
 
-**The bake has a second consumer, and it does not draw prims.** The interface-
-tree presentation of the plugin window (`ui/torirs_chrome_exec_cs2.c`) builds
-real components, so it reaches these images through the scene rather than
-through the display list: the host hands it the multi-frame sprite's scene id,
-and a component names a slot with `UIBuildComponent::graphic_atlas_index`
+**The bake has a second consumer, and it does not draw prims.** The client's
+own furniture inside the interface tree — the "Manage Plugins" button — is real
+components, so it reaches these images through the scene rather than through the
+display list: the host hands it the multi-frame sprite's scene id, and a
+component names a slot with `UIBuildComponent::graphic_atlas_index`
 beside `graphic_scene_id`. `PLUGIN_ICON` is baked for that consumer alone --
 nothing up here emits it.
 

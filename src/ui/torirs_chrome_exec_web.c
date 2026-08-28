@@ -123,15 +123,14 @@ EM_JS(char*, web_chrome_take_intent, (void), {
  * The page draws the same chrome the game does, out of the same baked images:
  * the tradebacking behind the panel and every field, the interfaces' 17x17
  * tick and cross for a boolean, the scrollbar's own arrows and grip, and the
- * nine-slice panel frame. It is the CS2 executor's look, rebuilt out of DOM
- * nodes instead of interface components.
+ * nine-slice panel frame. It is the in-canvas look, rebuilt out of DOM nodes
+ * instead of drawn prims.
  *
  * WHY THE PIXELS CROSS AT ALL. Every other way for the page to get them is
  * worse. Shipping the images beside index.html means a second copy of the bake
  * that can go stale, and a lane that changed cache would serve last cache's
  * art; asking the cache at runtime is the exact failure the bake exists to
- * remove (see the note in torirs_chrome_exec_cs2.c). The wasm already holds
- * them in .rdata, so it hands them over.
+ * remove. The wasm already holds them in .rdata, so it hands them over.
  *
  * RAW RGBA, NOT PNG. The page turns the bytes into an ImageData, puts them on
  * a canvas and takes a data: URL back out -- three lines of platform API

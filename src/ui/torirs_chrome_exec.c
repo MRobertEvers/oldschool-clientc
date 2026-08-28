@@ -1,7 +1,32 @@
 #include "torirs_chrome_exec.h"
 
+#include "uitree.h"
+
 #include <assert.h>
+#include <stdint.h>
 #include <string.h>
+
+/* ---- the client-chrome group ---------------------------------------------
+ *
+ * Here rather than beside the one control that uses it: the group is a fact
+ * about the TREE (which roots the emit walk will show), not about the button,
+ * and the next piece of client furniture will want the same answer.
+ */
+
+int
+ToriRSChrome_TreeAcceptsChrome(struct UITree const* tree)
+{
+    int group;
+
+    if( !tree || tree->root_index < 0 )
+        return 0;
+    if( (uint32_t)tree->root_index >= tree->component_count )
+        return 0;
+    group = (tree->components[tree->root_index].component_id >> 16) & 0xffff;
+    /* Our own group already sitting first means chrome got in ahead of the
+     * gameframe -- the state this exists to keep out of. */
+    return group != TORIRS_CHROME_GROUP;
+}
 
 /* ---- helpers ------------------------------------------------------------- */
 
@@ -364,7 +389,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             /* What "selected" means, per kind -- see the command's own note.
              * A TEXTAREA's is WHICH LINE IS AT THE TOP of its box, which is the
              * one thing a presentation that cannot scroll a control of its own
-             * (the CS2 window, whose rows are drawn components) needs in order
+             * (the in-canvas buffer, whose rows are drawn) needs in order
              * to show the same window of a long list the model is showing. */
             int const sel =
                 w->kind == TORIRS_CHROME_W_TEXTAREA ? w->scroll : w->selected;
@@ -372,7 +397,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             {
                 /* The chosen option's own string rides along with its index,
                  * for the same reason INTENT_PICK carries both: an executor
-                 * that shows the value as TEXT (the CS2 window's closed
+                 * that shows the value as TEXT (the in-canvas closed
                  * dropdown) would otherwise need its own copy of the whole
                  * list just to turn the index back into a word. Executors
                  * holding a native combo box ignore it. */
@@ -631,16 +656,6 @@ ToriRSChromeExec_ForKind(
 {
     switch( kind )
     {
-    case TORIRS_CHROME_EXEC_CS2:
-    {
-        /* The only executor whose target is not a platform: `platform` is
-         * unused and the tree comes from the host, which binds it separately
-         * through ToriRSChromeExec_Cs2. Reaching it from here would need this
-         * file to know what an App is. */
-        if( out_kind )
-            *out_kind = TORIRS_CHROME_EXEC_BUFFER;
-        break;
-    }
 #if defined(TORIRS_CHROME_EXEC_GDI_AVAILABLE)
     case TORIRS_CHROME_EXEC_GDI:
     {

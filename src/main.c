@@ -4863,7 +4863,7 @@ main(
              * beside the env vars above.
              *
              * Set whichever executor was asked for. A lane that says
-             * `borderless=1` with `executor=cs2` is describing the sdl window
+             * `borderless=1` with `executor=web` is describing the sdl window
              * it does not use, and a wish nobody reads costs an int.
              */
             ToriRSChromeExecSdl_SetBorderless(boot_manifest.chrome_borderless);
@@ -4873,7 +4873,7 @@ main(
             {
                 int const from_env = ToriRSChromeExec_KindFromName(want);
                 if( from_env < 0 )
-                    TORIRS_LOG("chrome: '%s' is not an executor (buffer|sdl|web|gdi|cs2); "
+                    TORIRS_LOG("chrome: '%s' is not an executor (buffer|sdl|web|gdi); "
                         "using buffer\n",
                         want);
                 else
@@ -4888,17 +4888,11 @@ main(
                 App_ChromeRasterise,
                 &app,
                 &got);
-            if( wanted > TORIRS_CHROME_EXEC_BUFFER && got != wanted &&
-                wanted != TORIRS_CHROME_EXEC_CS2 )
+            if( wanted > TORIRS_CHROME_EXEC_BUFFER && got != wanted )
                 TORIRS_LOG("chrome: no '%s' executor in this build; the plugin window stays in the "
                     "canvas\n",
                     ToriRSChromeExec_KindName(wanted));
-            /* The KIND asked for, not the one ForKind produced: "cs2" is
-             * bound by the App itself -- it needs the interface tree, which
-             * the shell does not have -- so the shell's job is to carry the
-             * request rather than to satisfy it. */
-            App_SetPluginChromeExec(
-                &app, &chrome_exec, wanted == TORIRS_CHROME_EXEC_CS2 ? wanted : got, chosen);
+            App_SetPluginChromeExec(&app, &chrome_exec, got, chosen);
         }
 
 #if defined(TORIRS_HAVE_D3D9)
