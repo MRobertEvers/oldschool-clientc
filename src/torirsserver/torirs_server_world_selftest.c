@@ -13876,6 +13876,109 @@ ToriRSServer_WorldSelftest(void)
                                kit);
             }
 
+            /*
+             * Tutorial Island, which is the other half of the same fixture.
+             *
+             * The block above proves what a character created OFF the island
+             * gets, and that is the arm every other stanza in this suite runs
+             * through -- `g_tutorial_home_*` defaults to the home tile, so a
+             * world that boots no config (this one) creates characters exactly
+             * where it always did and `~newplayer_setup` deals the kit.
+             *
+             * This proves the other arm, which is the one a real server takes:
+             * move the tutorial tile somewhere else and a character with no
+             * save is created THERE, with no kit and a tutorial to play. The
+             * three things checked are the three that can each be wrong on
+             * their own -- where the engine put them, that `[login]` did not
+             * then move them again, and that content read the position rather
+             * than a flag.
+             *
+             * `~tutorial_finish` closes it: the graduate is on the home tile
+             * with `%tutorial` past the client's `< 1000` gate and this world's
+             * development kit finally dealt. Without that last check the kit
+             * could simply have been lost rather than deferred.
+             */
+            {
+                int tutorial_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,
+                                                           "tutorial");
+                int seeded_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,
+                                                          "newplayer_seeded");
+                /* Somewhere that is not the home tile and not in the map
+                 * instance band. The real island is 3094,3106; any tile does,
+                 * because what is under test is the placement rather than the
+                 * destination. */
+                const int tut_x = 3094;
+                const int tut_z = 3106;
+                struct ToriRSServerPlayer* tut;
+
+                SELFTEST_CHECK(tutorial_varp >= 0 && seeded_varp >= 0,
+                               "the tutorial's varps should resolve: tutorial=%d "
+                               "newplayer_seeded=%d",
+                               tutorial_varp, seeded_varp);
+                ToriRSServer_WorldSetTutorialHome(tut_x, tut_z);
+                tut = ToriRSServer_WorldAddPlayer(srv, NULL);
+                SELFTEST_CHECK(tut != NULL, "the pool should admit a tutorial session");
+                if( tut && tutorial_varp >= 0 && seeded_varp >= 0 )
+                {
+                    ToriRSServer_WorldPlayerInit(tut);
+                    ToriRSServer_WorldSetActive(srv, tut);
+                    SELFTEST_CHECK(tut->x == g_home_x && tut->z == g_home_z,
+                                   "a fresh slot starts on the home tile, got %d,%d",
+                                   tut->x, tut->z);
+                    ToriRSServer_WorldPlaceNewCharacter(tut);
+                    SELFTEST_CHECK(tut->x == tut_x && tut->z == tut_z && tut->level == 0,
+                                   "a character with no save is created on the tutorial "
+                                   "tile, got %d,%d,%d",
+                                   tut->x, tut->z, tut->level);
+
+                    {
+                        int before_x = tut->x;
+                        int before_z = tut->z;
+                        int tut_kit = 0;
+
+                        ToriRSServer_ScriptsRunTriggerSpecific(srv, SS_TRIGGER_LOGIN,
+                                                           -1, -1, -1);
+                        SELFTEST_CHECK(tut->x == before_x && tut->z == before_z,
+                                       "[login] must not move a tutorial character "
+                                       "either: was %d,%d -- now %d,%d",
+                                       before_x, before_z, tut->x, tut->z);
+                        SELFTEST_CHECK(tut->varps[seeded_varp] == 1,
+                                       "the seed should have run, got %d",
+                                       tut->varps[seeded_varp]);
+                        SELFTEST_CHECK(tut->varps[tutorial_varp] == 0,
+                                       "and left the tutorial at step 0, got %d",
+                                       tut->varps[tutorial_varp]);
+                        for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                            if( tut->inv[i].obj_id >= 0 )
+                                tut_kit++;
+                        SELFTEST_CHECK(tut_kit == 0,
+                                       "a character starting the tutorial gets no "
+                                       "opening kit, got %d item(s)", tut_kit);
+                        SELFTEST_CHECK(ToriRSServer_BankCount(srv, 995) == 0,
+                                       "and an empty bank, got %d coins",
+                                       ToriRSServer_BankCount(srv, 995));
+
+                        /* Graduation. */
+                        ToriRSServer_ScriptsRunProc(srv, "[proc,tutorial_finish]", NULL, 0);
+                        SELFTEST_CHECK(tut->varps[tutorial_varp] == 1000,
+                                       "finishing should put the tutorial varp past the "
+                                       "client's gate, got %d",
+                                       tut->varps[tutorial_varp]);
+                        SELFTEST_CHECK(tut->x == g_home_x && tut->z == g_home_z,
+                                       "and the graduate on the home tile, got %d,%d",
+                                       tut->x, tut->z);
+                        SELFTEST_CHECK(ToriRSServer_BankCount(srv, 995) == 250000,
+                                       "and this world's kit finally dealt (bank coins "
+                                       "%d)", ToriRSServer_BankCount(srv, 995));
+                    }
+                    ToriRSServer_WorldRemovePlayer(srv, tut);
+                }
+                /* Back to the default, or every stanza after this one creates
+                 * its characters on Tutorial Island. */
+                ToriRSServer_WorldSetTutorialHome(g_home_x, g_home_z);
+                ToriRSServer_WorldSetActive(srv, player);
+            }
+
             /* [opnpc1,hans] replaces the hardcoded greeting and bumps a varp,
              * so both the script's effect and the varp flush are observable. */
             hans = selftest_find_npc(srv, 3105);

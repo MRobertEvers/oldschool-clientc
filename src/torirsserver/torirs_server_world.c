@@ -10946,6 +10946,53 @@ ToriRSServer_WorldSetTutorialHome(
 }
 
 /*
+ * Where a character with no save file stands: Tutorial Island, not the world's
+ * home tile.
+ *
+ * HERE, and not in `[login,_]`. A content-side `p_telejump` was the obvious
+ * place and it breaks the invariant the suite states -- "[login] must not move
+ * the player", written after `~gauntlet_login` spent two weeks teleporting
+ * every account on the server into the Gauntlet lobby. Logging in is not an
+ * event that relocates anybody; where a character STARTS is a different fact.
+ * Doing it before the login scene preflight also means the first REBUILD is
+ * built around the island rather than around Lumbridge and then corrected.
+ *
+ * `g_tutorial_home_*` equals `g_home_*` unless ToriRSServer_BootDefaults has run,
+ * so a world that boots no config -- the selftest -- creates characters exactly
+ * where it always did, and a world that wants no tutorial says so by setting
+ * `TORIRSSERVER_TUTORIAL_HOME` to its home tile. Content decides what a new
+ * character is GIVEN by asking whether it is standing on the island
+ * (`~newplayer_setup`, player/newplayer.rs2); this decides only where.
+ *
+ * THE HOME-TILE GUARD IS NOT BELT AND BRACES. `ToriRSServer_WorldPlayerInit` puts
+ * every fresh slot on the home tile and a real login never touches the coord
+ * between there and here, so testing for it is exactly "nothing else has placed
+ * this character". A caller that DOES place one first -- the login-rebuild
+ * fixture logs a saved coord of 2495,5112 in with no save file behind it -- is
+ * stating a position, and overwriting it would be this function deciding it
+ * knew better.
+ */
+void
+ToriRSServer_WorldPlaceNewCharacter(struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    if( player->x != g_home_x || player->z != g_home_z || player->level != 0 )
+        return;
+    if( player->x == g_tutorial_home_x && player->z == g_tutorial_home_z )
+        return;
+    player->x = g_tutorial_home_x;
+    player->z = g_tutorial_home_z;
+    /* The step-history fields `ToriRSServer_WorldPlayerInit` derived from the home
+     * tile. Left behind they describe a walk that started on the other side of
+     * the world, which the first PLAYER_INFO would try to encode as a step. */
+    player->last_step_x = player->x - 1;
+    player->last_step_z = player->z;
+    player->follow_x = player->last_step_x;
+    player->follow_z = player->last_step_z;
+    player->place_dirty = 1;
+}
+
+/*
  * The scene window a player's movement and view are judged against: pool slot
  * `1 + pid` (slot 0 is the root window, the world's boot anchor). The slot is
  * the player's for the lifetime of the pid — it may simply not be built yet,
@@ -12016,45 +12063,7 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
      * says so by returning 0 on ENOENT — so there is nothing to handle here.
      */
     if( !ToriRSServer_LoadPlayer(player, ToriRSServer_SavePath(player->display_name)) )
-    {
-        /*
-         * No save file, so this account has never logged in: a new character
-         * starts on Tutorial Island rather than on the world's home tile.
-         *
-         * HERE, and not in `[login,_]`. A content-side `p_telejump` was the
-         * obvious place and it breaks the invariant the suite states two
-         * screens further down -- "[login] must not move the player", written
-         * after `~gauntlet_login` spent two weeks teleporting every account on
-         * the server into the Gauntlet lobby. Placing the character before the
-         * scene preflight below also means the first REBUILD is built around
-         * the island, rather than around Lumbridge and then corrected.
-         *
-         * `g_tutorial_home_*` equals `g_home_*` unless ToriRSServer_BootDefaults
-         * has run, so a world that boots no config -- the selftest -- creates
-         * characters exactly where it always did. Content decides what a new
-         * character is GIVEN by asking whether it is standing on the island
-         * (`~newplayer_setup`, player/newplayer.rs2); this decides only where.
-         *
-         * THE HOME-TILE GUARD IS NOT BELT AND BRACES. `ToriRSServer_WorldPlayerInit`
-         * puts every fresh slot on the home tile and a real login never touches
-         * the coord between there and here, so testing for it is exactly
-         * "nothing else has placed this character". Callers that DO place one
-         * before `ToriRSServer_WorldLogin` -- the login-rebuild fixture logs a
-         * saved coord of 2495,5112 in with no save file behind it -- are
-         * stating a position, and overwriting it would be this function
-         * deciding it knew better.
-         */
-        if( player->x == g_home_x && player->z == g_home_z && player->level == 0 )
-        {
-            player->x = g_tutorial_home_x;
-            player->z = g_tutorial_home_z;
-            player->last_step_x = player->x - 1;
-            player->last_step_z = player->z;
-            player->follow_x = player->last_step_x;
-            player->follow_z = player->last_step_z;
-            player->place_dirty = 1;
-        }
-    }
+        ToriRSServer_WorldPlaceNewCharacter(player);
     /* The save restores boosted HP into the stat array; the DAMAGE mask and
      * death check read player->hitpoints. LostCity's PlayerLoading writes both
      * together (`levels[i] = sav.g1()`); hydrate here so a returning character

@@ -4651,6 +4651,16 @@ ToriRSServer_WorldSetTutorialHome(
     int tile_z);
 
 /**
+ * Put a character with no save file on the tutorial tile.
+ *
+ * Called from the login path, once, when ToriRSServer_LoadPlayer reports no save.
+ * A no-op when the tutorial tile IS the home tile (a world with the tutorial
+ * turned off) or when the caller has already placed the character somewhere.
+ */
+void
+ToriRSServer_WorldPlaceNewCharacter(struct ToriRSServerPlayer* player);
+
+/**
  * Take a pool slot and hand it its session.
  *
  * **Call before ToriRSServer_WorldLogin**, and before anything encodes: the session

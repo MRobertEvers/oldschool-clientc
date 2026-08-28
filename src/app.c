@@ -29544,6 +29544,33 @@ App_RunOnce(
                  * with the bar never drawn below 100. */
                 if( stat == TASK_RUNNER_RENDER )
                     break;
+                /*
+                 * Nothing more can happen this frame, so stepping again is a
+                 * busy-wait into the tripwire below rather than progress.
+                 *
+                 * BLOCKED says so outright: the head is parked on state this
+                 * queue does not own, and ToriRS_TaskQueue_Run only ever runs
+                 * the head -- every further pass returns BLOCKED again without
+                 * running anything.
+                 *
+                 * PENDING says so only together with the platform. An
+                 * asynchronous backend answers a read after the host's next
+                 * turn, and until it does TaskRunner_Step returns PENDING
+                 * before it runs the queue at all. That is every browser read
+                 * (platform_web_io.js): the frame has to END for the answer to
+                 * arrive, so a boot that waited here span the whole budget on
+                 * a check and aborted as a task that would not converge. A
+                 * synchronous backend never has one outstanding at this point
+                 * and does not reach either break.
+                 *
+                 * TaskRunner_SettleFrame draws the same two lines for the same
+                 * reason.
+                 */
+                if( stat == TASK_RUNNER_BLOCKED )
+                    break;
+                if( stat == TASK_RUNNER_PENDING
+                    && Platform_IO_Pending(app->runner.px, app->runner.io) )
+                    break;
             }
             /*
              * Reaching the limit is not a cap doing its job -- it is a task
