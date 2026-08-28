@@ -475,6 +475,27 @@ load_ported_component_symbols(const char* dir)
     return loaded;
 }
 
+/*
+ * One past the highest id this pack names.
+ *
+ * `count` is the number of ENTRIES, and a `.compack` is dense in practice but
+ * not by contract, so the answer is the last id plus one rather than the entry
+ * count. Callers size an id-indexed array with it; getting that wrong is an
+ * out-of-bounds write on the one record whose id is the highest.
+ */
+int
+ToriRSServer_ContentSymbolCount(enum ToriRSServerPackKind kind)
+{
+    const struct Pack* pack;
+
+    if( kind < 0 || kind >= TORIRSSERVER_PACK_COUNT )
+        return 0;
+    pack = &g_packs[kind];
+    if( !pack->by_id || pack->count <= 0 )
+        return 0;
+    return pack->by_id[pack->count - 1]->id + 1;
+}
+
 int
 ToriRSServer_ContentSymbol(
     enum ToriRSServerPackKind kind,
@@ -788,6 +809,7 @@ pack_kind_name(enum ToriRSServerPackKind kind)
         [TORIRSSERVER_PACK_DBTABLE] = "dbtable",
         [TORIRSSERVER_PACK_DBROW] = "dbrow",
         [TORIRSSERVER_PACK_CATEGORY] = "category",
+        [TORIRSSERVER_PACK_IDK] = "idk",
     };
 
     if( kind < 0 || kind >= TORIRSSERVER_PACK_COUNT )
@@ -2736,6 +2758,204 @@ load_enum_config(const char* path)
  * default and `outputstring=yes` flips the output to text. Values are raw
  * integers — no symbol resolution, because this file is a machine dump.
  */
+/* ------------------------------------------------------------------ */
+/* Identity kits (configs/all.idk)                                     */
+/* ------------------------------------------------------------------ */
+
+/*
+ * One number per idk record: `bodypart`.
+ *
+ * That is the whole of what a server needs from the idk table, and it is what
+ * `SETIDKIT` cannot work without: content names a KIT ("give me hair 7") and
+ * the appearance array is indexed by WEAR POSITION, so something has to know
+ * that hair 7 is a hair. The cache states it and nothing here read it, which is
+ * why the opcode was declared and unimplemented.
+ *
+ * The numbering is the classic one and this cache still uses it (checked by
+ * reading `configs/all.idk`: idk 0/10/18/26/33/36/42 are bodyparts 0..6, which
+ * are the seven ids `player/configs/appearance.enum` deals a new character):
+ *
+ *     0 hair   1 jaw   2 torso   3 arms   4 hands   5 legs   6 feet
+ *
+ * and 7..13 are the same seven for the female body. `ToriRSServer_ContentIdkWearpos`
+ * collapses both halves onto the wear position, because the appearance array
+ * has one slot for "hair" whichever body is wearing it.
+ *
+ * A machine dump, like `configs/all.enum` below: no symbol resolution, no
+ * `^constants`, and a record this does not understand is skipped rather than
+ * refused.
+ */
+static int8_t* g_idk_bodypart;
+static int g_idk_count;
+
+static int
+load_idk_bodyparts(const char* content_dir)
+{
+    char path[1024];
+    FILE* file;
+    char raw[512];
+    int current = -1;
+    int loaded = 0;
+
+    /* Sized off the name table rather than grown, because the ids ARE the
+     * indices: `configs/all.idk.compack` is `<id>=<name>` and the dump's
+     * sections are those names. */
+    g_idk_count = ToriRSServer_ContentSymbolCount(TORIRSSERVER_PACK_IDK);
+    if( g_idk_count <= 0 )
+        return 0;
+    g_idk_bodypart = (int8_t*)malloc((size_t)g_idk_count);
+    assert(g_idk_bodypart);
+    memset(g_idk_bodypart, -1, (size_t)g_idk_count);
+
+    snprintf(path, sizeof(path), "%s/configs/all.idk", content_dir);
+    file = fopen(path, "rb");
+    if( !file )
+    {
+        /* Not an error: a tree with no idk dump simply cannot answer SETIDKIT,
+         * and the opcode says so at the call site rather than here. */
+        fprintf(stderr,
+                "torirsserver: no configs/all.idk — setidkit cannot resolve a kit's "
+                "body part\n");
+        return 0;
+    }
+    while( fgets(raw, sizeof(raw), file) )
+    {
+        char* line = raw;
+        char* end;
+
+        while( *line == ' ' || *line == '\t' )
+            line++;
+        end = line + strlen(line);
+        while( end > line && (end[-1] == '\n' || end[-1] == '\r' || end[-1] == ' ') )
+            *--end = '\0';
+        if( line[0] == '[' && end > line + 1 && end[-1] == ']' )
+        {
+            end[-1] = '\0';
+            current = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_IDK, line + 1);
+            continue;
+        }
+        if( current < 0 || current >= g_idk_count )
+            continue;
+        if( strncmp(line, "bodypart=", 9) == 0 )
+        {
+            int part = atoi(line + 9);
+
+            if( part >= 0 && part < 127 )
+            {
+                g_idk_bodypart[current] = (int8_t)part;
+                loaded++;
+            }
+        }
+    }
+    fclose(file);
+    return loaded;
+}
+
+/*
+ * bodypart -> wear position, for both bodies.
+ *
+ * The seven are the reference's own (`Player.body = [0, 10, 18, 26, 33, 36,
+ * 42]` paired with `player/configs/appearance.enum`'s keys) and the 239
+ * client's own (`Statics.method8884`'s design-part table, transcribed in
+ * app.c as `app_ifplayer_design_slots`). Both agree, which is the check worth
+ * recording: the two were derived from different sources.
+ */
+static const int k_idk_bodypart_wearpos[7] = {
+    8,  /* 0 hair  */
+    11, /* 1 jaw   */
+    4,  /* 2 torso */
+    6,  /* 3 arms  */
+    9,  /* 4 hands */
+    7,  /* 5 legs  */
+    10, /* 6 feet  */
+};
+
+int
+ToriRSServer_ContentIdkBodypart(int idk_id)
+{
+    if( !g_idk_bodypart || idk_id < 0 || idk_id >= g_idk_count )
+        return -1;
+    return g_idk_bodypart[idk_id];
+}
+
+int
+ToriRSServer_ContentIdkWearpos(int idk_id)
+{
+    int part = ToriRSServer_ContentIdkBodypart(idk_id);
+
+    if( part < 0 )
+        return -1;
+    /* The female half is the same seven parts on the same seven positions. */
+    if( part >= 7 )
+        part -= 7;
+    if( part >= 7 )
+        return -1;
+    return k_idk_bodypart_wearpos[part];
+}
+
+int
+ToriRSServer_ContentIdkIsFemale(int idk_id)
+{
+    return ToriRSServer_ContentIdkBodypart(idk_id) >= 7;
+}
+
+/*
+ * The same kit on the other body.
+ *
+ * The reference hand-writes two maps for this (`Player.MALE_FEMALE_MAP` and
+ * its inverse) because 2004's two bodies have different kit counts and no
+ * arithmetic relation. They DO have a relation, and the cache states it: kits
+ * are grouped by body part, so "the third hairstyle" is the third record with
+ * `bodypart=0` for a man and the third with `bodypart=7` for a woman. Counting
+ * offsets within a part gets the same answer from the data and survives a cache
+ * that adds a hairstyle, which a pinned table does not.
+ *
+ * Where the other body has fewer kits in that part, the last is used rather
+ * than nothing: a character mid-design must always be wearing something, and
+ * the reference's `?? -1` (fall back to the content default) would silently
+ * undo a choice the player had just made on a neighbouring row.
+ *
+ * Returns the input unchanged when it is already on the wanted body, and -1
+ * when the id is not an idk at all.
+ */
+int
+ToriRSServer_ContentIdkForGender(int idk_id, int gender)
+{
+    int part = ToriRSServer_ContentIdkBodypart(idk_id);
+    int want_part;
+    int offset = 0;
+    int last = -1;
+    int seen = 0;
+
+    if( part < 0 )
+        return -1;
+    if( gender != 0 && gender != 1 )
+        return idk_id;
+    want_part = (part >= 7 ? part - 7 : part) + (gender == 1 ? 7 : 0);
+    if( want_part == part )
+        return idk_id;
+
+    for( int id = 0; id < g_idk_count; id++ )
+    {
+        if( g_idk_bodypart[id] != (int8_t)part )
+            continue;
+        if( id == idk_id )
+            break;
+        offset++;
+    }
+    for( int id = 0; id < g_idk_count; id++ )
+    {
+        if( g_idk_bodypart[id] != (int8_t)want_part )
+            continue;
+        last = id;
+        if( seen++ == offset )
+            return id;
+    }
+    /* The other body is short of this part: its last kit, or -1 if it has none
+     * at all (which sends the encoder back to the content default). */
+    return last;
+}
+
 static int
 load_rank0_enums(const char* content_dir)
 {
@@ -4365,6 +4585,14 @@ ToriRSServer_ContentLoad(const char* dir)
 
         if( enums )
             fprintf(stderr, "torirsserver: %d enums from configs/all.enum\n", enums);
+    }
+    /* After the packs are read (it sizes itself off `idk`'s name table) and
+     * before anything can run a script that says `setidkit`. */
+    {
+        int idks = load_idk_bodyparts(dir);
+
+        if( idks )
+            fprintf(stderr, "torirsserver: %d idk body parts from configs/all.idk\n", idks);
     }
     walk_configs(path, ".varp", load_varp_config);
     /* `[default]` first, then the roster — see load_npc_default_config. */

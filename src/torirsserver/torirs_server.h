@@ -271,6 +271,17 @@ enum
     TORIRSSERVER_STEP_MAX = 256,
     TORIRSSERVER_INV_SLOTS = 28,
     TORIRSSERVER_WORN_SLOTS = 14,
+    /*
+     * The appearance array's own two sizes, which are NOT the worn ones.
+     *
+     * Twelve, not fourteen: ring and quiver are worn but never drawn, so the
+     * wire's slot array stops at 11 (`APPEARANCE_SLOT_COUNT` in
+     * net/rev/packets/pkt_player_appearance.h, which this must agree with and
+     * cannot include -- torirsserver.h is read by translation units that have
+     * no net headers). Five is the design recolour count.
+     */
+    TORIRSSERVER_APPEARANCE_SLOTS = 12,
+    TORIRSSERVER_APPEARANCE_COLOURS = 5,
 
     /*
      * Rows in a container registry table — see torirs_server_container.h.
@@ -3840,11 +3851,40 @@ struct ToriRSServerPlayer
      *
      * It was a literal `0` in the encoder, labelled "gender: male" by a comment
      * beside it — a constant standing in for state, and `text_gender`
-     * cannot be implemented against a comment. Nothing sets it yet (there is no
-     * character-design flow here), so every player is male; the difference is
-     * that the answer now comes from one place instead of two.
+     * cannot be implemented against a comment. `SETGENDER` writes it now, from
+     * the character-design panel.
      */
     int gender;
+
+    /**
+     * The character's own body, one identity kit per wear position, or -1 for
+     * "whatever `player/configs/appearance.enum` deals".
+     *
+     * -1 rather than the default copied in at init, and that is the whole
+     * point: idk 0 is a real kit (`hair0`), so a zero could not mean "unset",
+     * and a character created before the design panel existed has to keep
+     * following the content default when an operator changes it. Only the seven
+     * body positions are ever written (4, 6, 7, 8, 9, 10, 11); the other five
+     * are where an item is worn and there is no body under a hat to draw.
+     *
+     * Written by `SETIDKIT`, read by `appearance_slots` /
+     * `appearance_identkit_slots` in torirs_server_encode.c.
+     */
+    int appearance_kit[TORIRSSERVER_APPEARANCE_SLOTS];
+
+    /**
+     * The five design recolours: hair, torso, legs, feet, skin.
+     *
+     * Palette INDICES, not colours — the client owns the five palettes
+     * (`k_recol1d` in engine/entity_model_build.c) and recolours the merged
+     * model with them, which is why the wire carries one byte each. Zero is a
+     * real entry (the first colour of each palette) and is the default, so
+     * unlike `appearance_kit` there is no sentinel to keep.
+     *
+     * Written by `SETIDKIT` (which recolours the part it just set) and
+     * `SETIDKCOLOUR`.
+     */
+    int body_colour[TORIRSSERVER_APPEARANCE_COLOURS];
 
 };
 

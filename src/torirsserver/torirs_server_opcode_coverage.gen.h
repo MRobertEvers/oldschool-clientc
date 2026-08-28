@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    307  host commands
+ *    320  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -19,7 +19,7 @@
  *      2  host commands (param)
  *      5  host commands (player)
  *     11  host commands (poh)
- *    436  total, of 498 declared opcodes
+ *    449  total, of 507 declared opcodes
  */
 
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 436
-#define TORIRSSERVER_OPCODE_DECLARED_COUNT 498
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 449
+#define TORIRSSERVER_OPCODE_DECLARED_COUNT 507
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -37,7 +37,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11094
+#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11103
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_COUNT] = {
@@ -95,6 +95,7 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     1022, /* SS_OP_WORLD_DELAY (host commands) */
     1023, /* SS_OP_MIDI_LENGTH (host commands) */
     2002, /* SS_OP_ANIM (host commands) */
+    2004, /* SS_OP_BUILDAPPEARANCE (host commands) */
     2005, /* SS_OP_BUSY (host commands) */
     2006, /* SS_OP_BUSY2 (host commands) */
     2007, /* SS_OP_CAM_LOOKAT (host commands) */
@@ -179,6 +180,9 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     2101, /* SS_OP_SAY (host commands) */
     2102, /* SS_OP_SESSION_LOG (host commands) */
     2103, /* SS_OP_SET_PLAYER_OP (host commands) */
+    2104, /* SS_OP_SETGENDER (host commands) */
+    2105, /* SS_OP_SETIDKIT (host commands) */
+    2107, /* SS_OP_SETIDKCOLOUR (host commands) */
     2108, /* SS_OP_SETTIMER (host commands) */
     2109, /* SS_OP_SOFTTIMER (host commands) */
     2110, /* SS_OP_SOUND_SYNTH (host commands) */
@@ -477,6 +481,15 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     11091, /* SS_OP_VESSEL_SETSPEED (host commands) */
     11092, /* SS_OP_VESSEL_POS (host commands) */
     11093, /* SS_OP_VESSEL_FREE (host commands) */
+    11094, /* SS_OP_VESSEL_HERE (host commands) */
+    11095, /* SS_OP_VESSEL_SAILS (host commands) */
+    11096, /* SS_OP_VESSEL_HELM (host commands) */
+    11097, /* SS_OP_VESSEL_NEAREST (host commands) */
+    11098, /* SS_OP_VESSEL_BOARD (host commands) */
+    11099, /* SS_OP_VESSEL_DISEMBARK (host commands) */
+    11100, /* SS_OP_VESSEL_HP (host commands) */
+    11101, /* SS_OP_VESSEL_DAMAGE (host commands) */
+    11102, /* SS_OP_VESSEL_FACILITY (host commands) */
 };
 
 #endif

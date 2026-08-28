@@ -11598,6 +11598,18 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     /* Same reason as the npc's: 0 is a sequence id, and the priority gate reads
      * this as the animation already queued for the tick. */
     player->anim_id = -1;
+    /*
+     * -1 at every wear position, which is "no character has been designed yet"
+     * and NOT "bald": idk 0 is a real kit, so a memset's 0 would freeze every
+     * new player's hair to `hair0` and make `player/configs/appearance.enum`
+     * unreadable. The encoder falls through to that enum for any -1.
+     *
+     * The five design colours need no sentinel and get none — 0 is the first
+     * entry of each palette and is the default face, which is what the memset
+     * above already left.
+     */
+    for( int i = 0; i < TORIRSSERVER_APPEARANCE_SLOTS; i++ )
+        player->appearance_kit[i] = -1;
     /* Unarmed human_* appearance seqs — same ids put_appearance used to
      * hardcode. Content's ~update_bas replaces them when a weapon is worn. */
     player->readyanim = 808;

@@ -272,6 +272,26 @@ ToriRSServer_SavePlayer(
             TORIRSSERVER_SAVE_VERSION, player->display_name, player->x, player->z, player->level,
             player->run_energy, player->run_toggle, player->client_layout_mode);
 
+    /*
+     * The character's own face.
+     *
+     * Written as one line each because the two halves have different shapes:
+     * `gender` is a flag, the kits are sparse (only the seven body positions
+     * are ever set, and -1 means "follow player/configs/appearance.enum"), and
+     * the five colours are a fixed row. A save with none of this reads back as
+     * a character who has never been through the design panel, which is
+     * exactly what an old save is.
+     */
+    fprintf(file, "\n[appearance]\n; gender, then <wearpos> = <idk> and colours\n");
+    fprintf(file, "gender = %d\n", player->gender);
+    for( int i = 0; i < TORIRSSERVER_APPEARANCE_SLOTS; i++ )
+        if( player->appearance_kit[i] >= 0 )
+            fprintf(file, "kit%d = %d\n", i, player->appearance_kit[i]);
+    fprintf(file, "colours =");
+    for( int i = 0; i < TORIRSSERVER_APPEARANCE_COLOURS; i++ )
+        fprintf(file, " %d", player->body_colour[i]);
+    fprintf(file, "\n");
+
     fprintf(file, "\n[stats]\n; <stat> = <boosted> <xp_tenths>\n");
     for( int stat = 0; stat < TORIRSSERVER_STAT_COUNT; stat++ )
     {
@@ -365,6 +385,8 @@ enum SaveSection
 {
     SAVE_NONE = 0,
     SAVE_PLAYER,
+    /** `[appearance]` — gender, the seven body kits, the five design colours. */
+    SAVE_APPEARANCE,
     SAVE_STATS,
     SAVE_INV,
     SAVE_WORN,
@@ -481,6 +503,8 @@ ToriRSServer_LoadPlayer(
             ContentIni_Trim(element._section.name);
             if( strcmp(element._section.name, "player") == 0 )
                 section = SAVE_PLAYER;
+            else if( strcmp(element._section.name, "appearance") == 0 )
+                section = SAVE_APPEARANCE;
             else if( strcmp(element._section.name, "stats") == 0 )
                 section = SAVE_STATS;
             else if( strcmp(element._section.name, "inv") == 0 )
@@ -570,6 +594,38 @@ ToriRSServer_LoadPlayer(
              * it would restore prayers the varps already disagree about. */
             /* An unknown key is a save from a newer server. Skipping it is the
              * whole reason this is a text format. */
+            break;
+
+        case SAVE_APPEARANCE:
+            if( strcmp(key, "gender") == 0 )
+            {
+                int gender = atoi(value);
+
+                /* Anything else keeps the init default. A save is a file on
+                 * disk and can be hand-edited; a third gender would reach the
+                 * wire as a byte the client indexes an array with. */
+                if( gender == 0 || gender == 1 )
+                    player->gender = gender;
+            }
+            else if( strncmp(key, "kit", 3) == 0 )
+            {
+                int wearpos = atoi(key + 3);
+
+                if( wearpos >= 0 && wearpos < TORIRSSERVER_APPEARANCE_SLOTS )
+                    player->appearance_kit[wearpos] = atoi(value);
+            }
+            else if( strcmp(key, "colours") == 0 )
+            {
+                const char* scan = value;
+
+                for( int i = 0; i < TORIRSSERVER_APPEARANCE_COLOURS && *scan; i++ )
+                {
+                    player->body_colour[i] = (int)strtol(scan, (char**)&scan, 10) & 0xff;
+                    while( *scan == ' ' )
+                        scan++;
+                }
+            }
+            /* Same rule as [player]: an unknown key is a newer server's. */
             break;
 
         case SAVE_STATS:

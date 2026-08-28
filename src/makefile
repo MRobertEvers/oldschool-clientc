@@ -982,6 +982,7 @@ endif
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
 .PHONY: bench-trspk-bake test-trspk-color-simd test-trspk-swizzle-simd test-trspk-modelarena-index
 .PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
+.PHONY: check-design-colours
 .PHONY: torirsserver-scripts-lanes torirsserver-lanes torirsserver-scripts-rs2012
 .PHONY: test-wev test-wev-rebuild test-painters-world-entity
 
@@ -3498,6 +3499,13 @@ check-dks-contract:
 check-superior-coverage:
 	@cd $(REPO_ROOT) && python3 tools/check_superior_coverage.py
 
+# The five character-design palettes live in the client and their LENGTHS live
+# in content, because the server does not link the renderer and the panel's
+# arrows have to know where to wrap. Two copies of one fact; this is the check
+# that stops them drifting into an arrow that quietly does nothing.
+check-design-colours:
+	@cd $(REPO_ROOT) && python3 tools/check_design_colours.py
+
 check-smithing:
 	@cd $(REPO_ROOT) && python3 tools/check_smithing_contract.py
 
@@ -3641,7 +3649,7 @@ torirsserver-lanes: sscompile
 # the lane variants below are development builds of the same tree and do not
 # re-run gates the default build has already passed. The three settled audits
 # are the exception and live on check-content-audits instead; see there for why.
-torirsserver-scripts: check-selftest-registration check-stronghold-contract check-dks-contract check-boss-contract check-clan-crystals check-konar-locations check-chompy-hats check-krystilia-tasks check-agility-shortcuts check-dbtable-rows check-spellbooks check-agility-courses check-corpbane check-npc-style-defaults check-pickpocket check-stalls check-thieving-tables check-mining check-smelting check-smithing check-superior-coverage check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-tob-pillar-contract
+torirsserver-scripts: check-design-colours check-selftest-registration check-stronghold-contract check-dks-contract check-boss-contract check-clan-crystals check-konar-locations check-chompy-hats check-krystilia-tasks check-agility-shortcuts check-dbtable-rows check-spellbooks check-agility-courses check-corpbane check-npc-style-defaults check-pickpocket check-stalls check-thieving-tables check-mining check-smelting check-smithing check-superior-coverage check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-tob-pillar-contract
 	@$(MAKE) torirsserver-scripts-lanes \
 		TORIRSSERVER_SCRIPT_LANES= \
 		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build

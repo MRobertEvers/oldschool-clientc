@@ -7511,6 +7511,175 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    /* ------------------------------------------------------------------ */
+    /* Character design                                                     */
+    /* ------------------------------------------------------------------ */
+    /*
+     * The three writers behind the rev-239 `player_design` panel (interface
+     * 679). Nothing in this server could change what a character looked like
+     * before these: `gender` was written nowhere, the body came from
+     * `player/configs/appearance.enum` for everybody, and the five design
+     * colours went out as five zero bytes.
+     *
+     * The CLIENT needed nothing. `PlayerModel_BuildFromAppearance`
+     * (engine/entity_model_build.c) has always recoloured the merged composite
+     * against the five palettes and always honoured an identkit slot; the
+     * design preview is `clientcode=328`, the live local player, which
+     * `app_player_model_poll` rebuilds whenever the appearance changes. The
+     * panel is server-driven end to end: every arrow on it is an ordinary
+     * component with `op1=*`, so a click is an IF_BUTTON and the state is
+     * ours.
+     */
+
+    /*
+     * setidkit(idkit, colour) — LostCity PlayerOps SETIDKIT, ported.
+     *
+     * Two writes from one call, which is the reference's shape and not an
+     * economy: a kit and the colour of the part it belongs to are chosen
+     * together in the panel, and the colour slot is DERIVED from the body part
+     * rather than passed, so a caller cannot recolour the wrong thing.
+     *
+     *     hair, jaw      -> colour 0        hands -> no recolour
+     *     torso, arms    -> colour 1        legs  -> colour 2
+     *     feet           -> colour 3        skin  -> colour 4 (setidkcolour only)
+     *
+     * `ToriRSServer_ContentIdkWearpos` is what makes it possible here at all --
+     * see the note above `load_idk_bodyparts` in torirs_server_content.c. A kit
+     * the idk table does not know is a content bug and says so; writing it to a
+     * guessed slot would put a beard where the legs go.
+     */
+    case SS_OP_SETIDKIT:
+    {
+        int32_t values[2];
+        int wearpos;
+        int part;
+
+        for( int i = 1; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        wearpos = ToriRSServer_ContentIdkWearpos(values[0]);
+        if( wearpos < 0 )
+        {
+            SSVM_Abort(state, "setidkit: idk %d has no body part", values[0]);
+            return 1;
+        }
+        player->appearance_kit[wearpos] = values[0];
+
+        part = ToriRSServer_ContentIdkBodypart(values[0]);
+        if( part >= 7 )
+            part -= 7;
+        switch( part )
+        {
+        case 0: /* hair */
+        case 1: /* jaw  */
+            player->body_colour[0] = values[1] & 0xff;
+            break;
+        case 2: /* torso */
+        case 3: /* arms  */
+            player->body_colour[1] = values[1] & 0xff;
+            break;
+        case 4: /* hands — the reference recolours nothing here, and neither
+                 * does the panel: hands take the skin colour, which is
+                 * `setidkcolour(4, ...)`. */
+            break;
+        case 5: /* legs */
+            player->body_colour[2] = values[1] & 0xff;
+            break;
+        case 6: /* feet */
+            player->body_colour[3] = values[1] & 0xff;
+            break;
+        default:
+            break;
+        }
+        player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
+        return 1;
+    }
+
+    /* setidkcolour(slot, colour) — the colour on its own, for the four rows
+     * the panel offers without a kit beside them and for skin, which no kit
+     * carries. */
+    case SS_OP_SETIDKCOLOUR:
+    {
+        int32_t values[2];
+
+        for( int i = 1; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( values[0] < 0 || values[0] >= TORIRSSERVER_APPEARANCE_COLOURS )
+        {
+            SSVM_Abort(state, "setidkcolour: colour slot %d is not 0..%d", values[0],
+                       TORIRSSERVER_APPEARANCE_COLOURS - 1);
+            return 1;
+        }
+        player->body_colour[values[0]] = values[1] & 0xff;
+        player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
+        return 1;
+    }
+
+    /*
+     * setgender(0 male | 1 female).
+     *
+     * The reference carries two hand-written idk translation tables
+     * (`MALE_FEMALE_MAP` / `FEMALE_MALE_MAP`) because 2004's two bodies do not
+     * have matching kit counts. This does not copy them, and does not need to:
+     * the cache states each kit's body part, so the equivalent kit is the one
+     * at the SAME OFFSET within the same part of the other body. That is
+     * derived from data rather than pinned to a table that a cache bump would
+     * silently invalidate — and where the other body is short of kits the
+     * offset is clamped, which is the same answer the reference's `?? -1`
+     * fallback reaches by a different route (fall back to the content default).
+     */
+    case SS_OP_SETGENDER:
+    {
+        int32_t gender;
+
+        if( !SSVM_PopInt(state, &gender) )
+            return 1;
+        if( gender != 0 && gender != 1 )
+        {
+            SSVM_Abort(state, "setgender: %d is neither male (0) nor female (1)", gender);
+            return 1;
+        }
+        if( gender != player->gender )
+        {
+            for( int i = 0; i < TORIRSSERVER_APPEARANCE_SLOTS; i++ )
+            {
+                int kit = player->appearance_kit[i];
+
+                if( kit < 0 )
+                    continue;
+                player->appearance_kit[i] = ToriRSServer_ContentIdkForGender(kit, gender);
+            }
+            player->gender = gender;
+        }
+        player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
+        return 1;
+    }
+
+    /*
+     * buildappearance(inv) — the reference rebuilds the appearance from a worn
+     * container. Here the appearance is composed at the wire from
+     * `player->worn` every time it is sent, so there is nothing to rebuild;
+     * what the caller actually wants is for the new one to GO OUT, and that is
+     * the mask. The inv argument is read and dropped rather than refused: a
+     * script that says which container it changed is not wrong, this server
+     * simply has one.
+     */
+    case SS_OP_BUILDAPPEARANCE:
+    {
+        int32_t inv;
+
+        if( !SSVM_PopInt(state, &inv) )
+            return 1;
+        (void)inv;
+        player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
+        return 1;
+    }
+
     /* Appearance stance seqs — LostCity PlayerOps READYANIM…RUNANIM. Each
      * write dirties APPEARANCE so a BAS change without a worn-container write
      * (agility ~bas_set restore, equip already dirties via worn) still ships. */

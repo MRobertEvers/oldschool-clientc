@@ -13979,6 +13979,91 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_WorldSetActive(srv, player);
             }
 
+            /*
+             * Character design — interface 679's twelve rows, end to end.
+             *
+             * Driven through the panel's own procs rather than through
+             * IF_BUTTON payloads, because what is under test is the three
+             * engine writers and the content that feeds them; the buttons are
+             * `op1=*` components and IF_BUTTON dispatch has its own coverage.
+             *
+             * Every check here failed before the writers existed: `gender` was
+             * written nowhere, the body came from `default_appearance` for
+             * everybody, and the five design colours went out as zeros.
+             */
+            {
+                int32_t design_args[2];
+                int hair_slot = ToriRSServer_ContentIdkWearpos(0);
+                int male_hair;
+                int female_hair;
+
+                SELFTEST_CHECK(hair_slot == 8,
+                               "idk 0 is hair, which is wear position 8, got %d",
+                               hair_slot);
+                SELFTEST_CHECK(ToriRSServer_ContentIdkBodypart(10) == 1 &&
+                                   ToriRSServer_ContentIdkBodypart(18) == 2 &&
+                                   ToriRSServer_ContentIdkBodypart(36) == 5,
+                               "configs/all.idk should place jaw/torso/legs at body "
+                               "parts 1/2/5, got %d/%d/%d",
+                               ToriRSServer_ContentIdkBodypart(10),
+                               ToriRSServer_ContentIdkBodypart(18),
+                               ToriRSServer_ContentIdkBodypart(36));
+
+                SELFTEST_CHECK(player->appearance_kit[hair_slot] == -1,
+                               "a character who has not designed one carries no kit, "
+                               "got %d", player->appearance_kit[hair_slot]);
+
+                /* One step right on the hairstyle row. */
+                design_args[0] = 0; /* ^design_part_hair */
+                design_args[1] = 1;
+                ToriRSServer_ScriptsRunProc(srv, "[proc,design_kit_step]", design_args, 2);
+                male_hair = player->appearance_kit[hair_slot];
+                SELFTEST_CHECK(male_hair >= 0 &&
+                                   ToriRSServer_ContentIdkBodypart(male_hair) == 0,
+                               "stepping the hair row should set a hair kit, got %d "
+                               "(body part %d)",
+                               male_hair, ToriRSServer_ContentIdkBodypart(male_hair));
+
+                /* Skin, which is the one colour row no kit carries. */
+                design_args[0] = 4; /* ^design_colour_skin */
+                design_args[1] = 1;
+                ToriRSServer_ScriptsRunProc(srv, "[proc,design_colour_step]", design_args, 2);
+                SELFTEST_CHECK(player->body_colour[4] == 1,
+                               "stepping the skin row should move colour 4, got %d",
+                               player->body_colour[4]);
+
+                /* The other body. Every kit must move with it — a male
+                 * hairstyle on a female body draws the wrong model, which is
+                 * the whole reason the reference carries translation tables. */
+                design_args[0] = 1;
+                ToriRSServer_ScriptsRunProc(srv, "[proc,design_set_bodytype]", design_args, 1);
+                female_hair = player->appearance_kit[hair_slot];
+                SELFTEST_CHECK(player->gender == 1, "setgender should take, got %d",
+                               player->gender);
+                SELFTEST_CHECK(female_hair >= 0 &&
+                                   ToriRSServer_ContentIdkBodypart(female_hair) == 7,
+                               "and carry the hair row onto the female body, got %d "
+                               "(body part %d)",
+                               female_hair, ToriRSServer_ContentIdkBodypart(female_hair));
+
+                /* And back, to the kit it started on: the mapping is derived
+                 * from offsets within a body part, so it has to round-trip. */
+                design_args[0] = 0;
+                ToriRSServer_ScriptsRunProc(srv, "[proc,design_set_bodytype]", design_args, 1);
+                SELFTEST_CHECK(player->gender == 0 &&
+                                   player->appearance_kit[hair_slot] == male_hair,
+                               "and back again to kit %d, got %d (gender %d)",
+                               male_hair, player->appearance_kit[hair_slot],
+                               player->gender);
+
+                /* Leave the fixture as it was found. Every later stanza in
+                 * this block reads this player. */
+                for( int i = 0; i < TORIRSSERVER_APPEARANCE_SLOTS; i++ )
+                    player->appearance_kit[i] = -1;
+                for( int i = 0; i < TORIRSSERVER_APPEARANCE_COLOURS; i++ )
+                    player->body_colour[i] = 0;
+            }
+
             /* [opnpc1,hans] replaces the hardcoded greeting and bumps a varp,
              * so both the script's effect and the varp flush are observable. */
             hans = selftest_find_npc(srv, 3105);

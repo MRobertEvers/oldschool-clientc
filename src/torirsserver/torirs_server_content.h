@@ -111,6 +111,9 @@ enum ToriRSServerPackKind
     TORIRSSERVER_PACK_DBTABLE,
     TORIRSSERVER_PACK_DBROW,
     TORIRSSERVER_PACK_CATEGORY,
+    /* Identity kits -- the body parts a character is made of. Only the name
+     * table and one field (`bodypart`) are read; see load_idk_bodyparts. */
+    TORIRSSERVER_PACK_IDK,
     TORIRSSERVER_PACK_COUNT
 };
 
@@ -719,6 +722,49 @@ struct ToriRSServerEnumDef
     int count;
     int capacity;
 };
+
+/** How many names this pack's table holds, i.e. one past the highest id. */
+int
+ToriRSServer_ContentSymbolCount(enum ToriRSServerPackKind kind);
+
+/* ------------------------------------------------------------------ */
+/* Identity kits                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * An idk's `bodypart`, or -1 when the tree has no idk dump / the id is unknown.
+ *
+ * 0..6 are hair, jaw, torso, arms, hands, legs, feet on the male body and
+ * 7..13 the same seven on the female one.
+ */
+int
+ToriRSServer_ContentIdkBodypart(int idk_id);
+
+/**
+ * The appearance WEAR POSITION an idk occupies, or -1.
+ *
+ * Both bodies collapse onto the same seven positions -- the appearance array
+ * has one "hair" slot whoever is wearing it -- which is the translation
+ * `setidkit` needs and the reason this is not just the body part.
+ */
+int
+ToriRSServer_ContentIdkWearpos(int idk_id);
+
+/** Whether this kit belongs to the female body (`bodypart` 7..13). */
+int
+ToriRSServer_ContentIdkIsFemale(int idk_id);
+
+/**
+ * The equivalent kit on the body `gender` names (0 male, 1 female).
+ *
+ * Derived from the cache -- the Nth kit of a body part maps to the Nth kit of
+ * the same part on the other body -- rather than from the reference's two
+ * hand-written translation tables, which a cache bump would invalidate in
+ * silence. Returns the input unchanged when it is already on that body, and -1
+ * when the id names no kit.
+ */
+int
+ToriRSServer_ContentIdkForGender(int idk_id, int gender);
 
 /** An enum by name, or NULL. */
 const struct ToriRSServerEnumDef*

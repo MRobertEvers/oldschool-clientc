@@ -3259,6 +3259,13 @@ ToriRSServer_SendInvPartial(
  * in its revision's tags, through Appearance_WirePack. *Which* kit fills a bare
  * slot is the player's character and is content's, in
  * `player/configs/appearance.enum`. */
+/* torirs_server.h states these for the player struct without being able to
+ * include the wire header. One place says so out loud rather than two drifting. */
+_Static_assert(TORIRSSERVER_APPEARANCE_SLOTS == APPEARANCE_SLOT_COUNT,
+               "the player's appearance array must be the wire's");
+_Static_assert(TORIRSSERVER_APPEARANCE_COLOURS == APPEARANCE_COLOUR_COUNT,
+               "the player's design colours must be the wire's");
+
 static int
 default_kit(int wearpos)
 {
@@ -3272,6 +3279,25 @@ default_kit(int wearpos)
      * a crash, and the missing config is the thing to fix. */
     return -1;
 }
+
+/*
+ * The kit at a wear position: the character's own if they have designed one,
+ * otherwise the content default.
+ *
+ * -1 is the sentinel and not 0, because idk 0 is `hair0` — a real, bald head.
+ * A character created before the design panel existed carries -1 everywhere and
+ * keeps following `player/configs/appearance.enum`, which is what lets an
+ * operator restyle the default player without rewriting saves.
+ */
+static int
+player_kit(const struct ToriRSServerPlayer* player, int wearpos)
+{
+    if( player && wearpos >= 0 && wearpos < TORIRSSERVER_APPEARANCE_SLOTS &&
+        player->appearance_kit[wearpos] >= 0 )
+        return player->appearance_kit[wearpos];
+    return default_kit(wearpos);
+}
+
 
 /*
  * The player's canonical appearance: one slot per wear position, in the
@@ -3320,7 +3346,7 @@ appearance_slots(
             slots[i] = 0;
         else if( i < TORIRSSERVER_WORN_SLOTS && player->worn[i].obj_id >= 0 )
             slots[i] = Appearance_PackObj(player->worn[i].obj_id);
-        else if( (kit = default_kit(i)) >= 0 )
+        else if( (kit = player_kit(player, i)) >= 0 )
             slots[i] = Appearance_PackKit(kit);
         else
             slots[i] = 0;
@@ -3329,11 +3355,13 @@ appearance_slots(
 
 /** The body underneath, whatever is worn over it (239's second array). */
 static void
-appearance_identkit_slots(int slots[APPEARANCE_SLOT_COUNT])
+appearance_identkit_slots(
+    const struct ToriRSServerPlayer* player,
+    int slots[APPEARANCE_SLOT_COUNT])
 {
     for( int i = 0; i < APPEARANCE_SLOT_COUNT; i++ )
     {
-        int kit = default_kit(i);
+        int kit = player_kit(player, i);
         slots[i] = kit >= 0 ? Appearance_PackKit(kit) : 0;
     }
 }
@@ -3386,7 +3414,7 @@ put_appearance_v5(
     int headicon;
 
     appearance_slots(player, equipment);
-    appearance_identkit_slots(identkit);
+    appearance_identkit_slots(player, identkit);
 
     /* Rev 239 carries one prayer-icon archive index, not the older appearance
      * bitmask. Content still owns the mask through HEADICONS_SET; choose its
@@ -3409,8 +3437,17 @@ put_appearance_v5(
     }
     put_appearance_slots(buf, APPEARANCE_ENC_V5, identkit);
 
-    for( int i = 0; i < 5; i++ )
-        rsab_p1(buf, 0); /* body colours */
+    /*
+     * The five design recolours — hair, torso, legs, feet, skin.
+     *
+     * These were five literal zeros, which is a legal appearance (the first
+     * entry of each palette) and was indistinguishable from "this server has no
+     * character design". The client has always decoded and applied them
+     * (`PlayerModel_BuildFromAppearance` recolours the merged model against
+     * `k_recol1d`); nothing ever sent anything but zero.
+     */
+    for( int i = 0; i < APPEARANCE_COLOUR_COUNT; i++ )
+        rsab_p1(buf, (uint8_t)player->body_colour[i]);
 
     {
         int anims[7] = {
@@ -3509,8 +3546,10 @@ put_appearance(
     {
         put_appearance_slots(buf, APPEARANCE_ENC_CLASSIC, slots);
     }
-    for( int i = 0; i < 5; i++ )
-        rsab_p1(buf, 0); /* body colours */
+    /* Same five design recolours as the v5 block above; the classic encoding
+     * differs in the slot tag and the name field, not in these. */
+    for( int i = 0; i < APPEARANCE_COLOUR_COUNT; i++ )
+        rsab_p1(buf, (uint8_t)player->body_colour[i]);
 
     /* idle, turn, walk, walk-back, walk-left, walk-right, run.
      * Content's READYANIM…RUNANIM own these; player_init seeds the unarmed
