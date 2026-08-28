@@ -38,6 +38,7 @@
 #define Platform_IO_InitDat1Disk PlatformWeb_IO_InitDat1Disk
 #define Platform_IO_InitConfigPath PlatformWeb_IO_InitConfigPath
 #define Platform_IO_InitScriptPath PlatformWeb_IO_InitScriptPath
+#define Platform_IO_InitIoServer PlatformWeb_IO_InitIoServer
 #define Platform_IO_InitCacheId PlatformWeb_IO_InitCacheId
 #define Platform_IO_LoadItem PlatformWeb_IO_LoadItem
 #define Platform_IO_Process PlatformWeb_IO_Process

@@ -551,6 +551,9 @@ mergeInto(LibraryManager.library, {
   PlatformWeb_IO_InitDat2Disk: function (px, disk) {},
   PlatformWeb_IO_InitDat1Disk: function (px, disk) {},
   PlatformWeb_IO_InitCacheId: function (px, epoch, game, revision, quirks, dir) {},
+  /* The page is served by the file server and reads every stored file relative
+   * to its own boot URL, so there is no other server to be named. */
+  PlatformWeb_IO_InitIoServer: function (px, host, port) {},
 
   PlatformWeb_IO_InitConfigPath__deps: ['$TORIRS_WEB_IO'],
   PlatformWeb_IO_InitConfigPath: function (px, path) {

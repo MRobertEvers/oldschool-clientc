@@ -22032,6 +22032,7 @@ app_loc_change_apply_ops(
     struct WorldEntity_Scenery* sc;
 
     assert(app);
+    (void)app; /* asserted only; unused under NDEBUG */
     assert(world);
     assert(self);
     if( self->loc_id < 0 )

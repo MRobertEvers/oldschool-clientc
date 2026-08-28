@@ -62,6 +62,18 @@ PlatformWeb_IO_InitConfigPath(struct PlatformWeb_IO* px, const char* config_path
 void
 PlatformWeb_IO_InitScriptPath(struct PlatformWeb_IO* px, const char* script_path);
 
+/*
+ * Where to ask for a stored file this executor does not have.
+ *
+ * Accepted and recorded nowhere. The page is served BY the file server, and
+ * the host IO reads every stored file relative to that same boot URL
+ * (web/torirs_host.js), so a browser already knows the answer this call
+ * carries and cannot be pointed somewhere else by a manifest. It exists so the
+ * client's boot reads the same on every platform.
+ */
+void
+PlatformWeb_IO_InitIoServer(struct PlatformWeb_IO* px, const char* host, int port);
+
 void
 PlatformWeb_IO_InitCacheId(
     struct PlatformWeb_IO* px,

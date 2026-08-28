@@ -29,6 +29,12 @@ struct ToriRSServerPlayer;
 extern int g_home_x;
 extern int g_home_z;
 
+/* The tile a character with NO SAVE FILE starts on -- Tutorial Island. Read
+ * once per account, at the login that finds no save. See
+ * ToriRSServer_WorldSetTutorialHome. */
+extern int g_tutorial_home_x;
+extern int g_tutorial_home_z;
+
 /* The player's containers and worn kit. */
 void
 inv_set(

@@ -335,6 +335,7 @@ bucket_emit_world_marker(
     int kind,
     int view_id)
 {
+    (void)end;
     assert(*cur < end);
     assert(view_id > 0);
     assert(view_id < PAINTER_MAX_WORLD_VIEWS);
@@ -866,8 +867,7 @@ bucket_paint_run(
     assert(cursor);
     struct Painter* painter = ctx->painter;
     assert(painter);
-    struct PaintersBuffer* buffer = cursor->buffer;
-    assert(buffer);
+    assert(cursor->buffer);
     int camera_sx = ctx->camera_sx;
     int camera_sz = ctx->camera_sz;
     int camera_slevel = ctx->camera_slevel;

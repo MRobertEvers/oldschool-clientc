@@ -215,8 +215,8 @@ dump_tree_node(
     int i;
 
     for( i = 0; i < depth; i++ )
-        TORIRS_LOG("  ");
-    TORIRS_LOG("[%d] kind=%s widget_type=%d trans=%d fill_mode=0 user_id=0x%08x (%d<<16|%d) %s",
+        TORIRS_REPORT("  ");
+    TORIRS_REPORT("[%d] kind=%s widget_type=%d trans=%d fill_mode=0 user_id=0x%08x (%d<<16|%d) %s",
         dump_index(c),
         kind,
         dump_widget_type(c),
@@ -227,28 +227,28 @@ dump_tree_node(
         c->dynamic ? "dynamic" : "static");
 
     if( c->type == UIELEM_RS_GRAPHIC )
-        TORIRS_LOG(" graphic=%d",
+        TORIRS_REPORT(" graphic=%d",
             UITreeSceneBridge_SpriteCacheIdForScene(&app->bridge, c->u.rs_graphic.scene_id));
     else if( c->type == UIELEM_RS_TEXT )
-        TORIRS_LOG(" font=%d color=0x%x text=\"%s\"",
+        TORIRS_REPORT(" font=%d color=0x%x text=\"%s\"",
             c->u.rs_text.font_id,
             (unsigned)c->u.rs_text.color,
             c->u.rs_text.text ? c->u.rs_text.text : "");
     else if( c->type == UIELEM_RS_LINE )
-        TORIRS_LOG(" color=0x%x width=%d dir=%d",
+        TORIRS_REPORT(" color=0x%x width=%d dir=%d",
             (unsigned)c->u.rs_line.color,
             c->u.rs_line.line_width,
             c->u.rs_line.horizontal ? 1 : 0);
 
     if( c->type != UIELEM_RS_LAYER )
-        TORIRS_LOG(" abs=%d,%d %dx%d hidden=%d ownhide=%d",
+        TORIRS_REPORT(" abs=%d,%d %dx%d hidden=%d ownhide=%d",
             c->position.abs_x,
             c->position.abs_y,
             c->position.abs_w,
             c->position.abs_h,
             dump_node_hidden(tree, idx),
             c->behavior.hide);
-    TORIRS_LOG("\n");
+    TORIRS_REPORT("\n");
 
     {
         struct DumpChildRef refs[512];
@@ -297,7 +297,7 @@ dump_hooks(struct App* app)
             struct UITreeRuntimeScriptHook const* slot = UITree_HooksSlotAtConst(hooks, h);
             if( !UITree_HookIsSet(slot) )
                 continue;
-            TORIRS_LOG("HOOKDUMP com=0x%08x (%d|%d) %s script=%d argc=%d\n",
+            TORIRS_REPORT("HOOKDUMP com=0x%08x (%d|%d) %s script=%d argc=%d\n",
                 c->component_id,
                 (c->component_id >> 16) & 0xFFFF,
                 c->component_id & 0xFFFF,
@@ -1173,15 +1173,16 @@ frame_loop_step(void)
     uint64_t logic_now;
     int app_redraw;
     uint64_t frame_start_us;
-#if !defined(__EMSCRIPTEN__)
-    uint64_t frame_start_ms;
     /* When the screen is next allowed to be redrawn.
      *
      * Only consulted while the async pipeline has work and the loop is
      * therefore not sleeping: without it, a loop spinning to drain IO would
      * present every iteration and spend on redraws exactly the time the spin
-     * exists to give back. */
+     * exists to give back. The present-skip that reads it is not native-only,
+     * so neither is the deadline. */
     static uint64_t next_draw_ms;
+#if !defined(__EMSCRIPTEN__)
+    uint64_t frame_start_ms;
 #endif
 
     if( max_frames > 0 && frame_count++ >= max_frames )

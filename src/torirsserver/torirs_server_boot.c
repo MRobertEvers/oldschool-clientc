@@ -33,6 +33,38 @@
 #define DEFAULT_HOME_Z 3218
 
 /*
+ * Where a character that has never logged in before starts: the front room of
+ * the RuneScape Guide's house on Tutorial Island (map square 48_48, local
+ * 22,34).
+ *
+ * This is a *second* tile, not a replacement for the home one, because the two
+ * answer different questions. `home` is where a session that has nowhere else
+ * to be is put -- a respawn, a rescue off an expired map instance, every
+ * selftest fixture. `tutorial_home` is only ever read once per account, on the
+ * login that finds no save file.
+ *
+ * WHY THIS IS IN C AND NOT IN CONTENT. `[login,_]` running a `p_telejump` was
+ * the obvious content-side answer and it is the wrong one: the suite's own
+ * "[login] must not move the player" check (torirs_server_world_selftest.c)
+ * exists because `~gauntlet_login` did exactly that for two weeks and put
+ * every account on the server in the Gauntlet lobby. Logging in is not an
+ * event that relocates anybody. Where a character STARTS is a different fact,
+ * it belongs beside the home tile, and answering it here means the scene is
+ * built on the island in the first place rather than rebuilt a tick later.
+ *
+ * Everything else about Tutorial Island is content
+ * (`OSRS-Content/.../server/scripts/tutorial/`): the steps, the guides, the
+ * gates, what the player is given, and where a graduate is put. This is one
+ * coordinate, and `TORIRSSERVER_TUTORIAL_HOME=x,z` overrides it the same way
+ * `TORIRSSERVER_HOME` overrides the other. Setting it to the home tile is how
+ * a world opts out of the tutorial: content's `~newplayer_setup` asks whether
+ * the character it is seeding is standing on the island, and deals this
+ * world's opening kit immediately when it is not.
+ */
+#define DEFAULT_TUTORIAL_HOME_X 3094
+#define DEFAULT_TUTORIAL_HOME_Z 3106
+
+/*
  * A boolean server flag that is ON unless the environment turns it off.
  *
  * The ordinary `getenv(...) != NULL` idiom cannot express this: a flag that
@@ -86,6 +118,7 @@ ToriRSServer_BootDefaults(struct ToriRSServerBootConfig* config)
     const char* cache_env = getenv("TORIRSSERVER_CACHE");
     const char* script_env = getenv("TORIRSSERVER_SCRIPTS");
     const char* home_env = getenv("TORIRSSERVER_HOME");
+    const char* tutorial_env = getenv("TORIRSSERVER_TUTORIAL_HOME");
 
     memset(config, 0, sizeof(*config));
     config->cache_dir = cache_env ? cache_env : TORIRSSERVER_CACHE_DIR_DEFAULT;
@@ -106,6 +139,11 @@ ToriRSServer_BootDefaults(struct ToriRSServerBootConfig* config)
     config->home_z = DEFAULT_HOME_Z;
     if( home_env )
         sscanf(home_env, "%d,%d", &config->home_x, &config->home_z);
+
+    config->tutorial_home_x = DEFAULT_TUTORIAL_HOME_X;
+    config->tutorial_home_z = DEFAULT_TUTORIAL_HOME_Z;
+    if( tutorial_env )
+        sscanf(tutorial_env, "%d,%d", &config->tutorial_home_x, &config->tutorial_home_z);
 }
 
 int
@@ -266,6 +304,7 @@ ToriRSServer_BootLoad(const struct ToriRSServerBootConfig* config)
     ToriRSServer_BankLoad(config->cache_dir);
 
     ToriRSServer_WorldSetHome(config->home_x, config->home_z);
+    ToriRSServer_WorldSetTutorialHome(config->tutorial_home_x, config->tutorial_home_z);
 
     return ToriRSServer_ContentErrorCount();
 }

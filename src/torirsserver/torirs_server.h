@@ -4636,6 +4636,21 @@ ToriRSServer_WorldSetHome(
     int tile_z);
 
 /**
+ * The tile a character with no save file starts on -- Tutorial Island.
+ *
+ * Distinct from the home tile because it answers a different question: home is
+ * where a session with nowhere to be is put (respawn, instance rescue, every
+ * selftest fixture), and this is read exactly once per account. Left equal to
+ * the home tile unless ToriRSServer_BootDefaults has run, so a world that never
+ * boots a config -- the selftest -- creates characters where it always did.
+ * See the note above DEFAULT_TUTORIAL_HOME_X in torirs_server_boot.c.
+ */
+void
+ToriRSServer_WorldSetTutorialHome(
+    int tile_x,
+    int tile_z);
+
+/**
  * Take a pool slot and hand it its session.
  *
  * **Call before ToriRSServer_WorldLogin**, and before anything encodes: the session

@@ -1132,9 +1132,9 @@ painter_release_wall(
     int entity)
 {
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
-    if( tile->wall_a >= 0 && painter->elements[tile->wall_a]._wall.entity == entity )
+    if( tile->wall_a >= 0 && (int)painter->elements[tile->wall_a]._wall.entity == entity )
         tile->wall_a = -1;
-    if( tile->wall_b >= 0 && painter->elements[tile->wall_b]._wall.entity == entity )
+    if( tile->wall_b >= 0 && (int)painter->elements[tile->wall_b]._wall.entity == entity )
         tile->wall_b = -1;
 }
 
@@ -1160,7 +1160,7 @@ painter_release_scenery(
     {
         int element = painter->scenery_pool[sn].element_idx;
         struct PaintersElement const* el = &painter->elements[element];
-        if( el->kind == PNTRELEM_SCENERY && el->_scenery.entity == entity )
+        if( el->kind == PNTRELEM_SCENERY && (int)el->_scenery.entity == entity )
             matches[match_count++] = element;
     }
 
@@ -1818,7 +1818,7 @@ painter_dump_command_order(
             if( only_sx >= 0 && (el->sx != (uint16_t)only_sx || el->sz != (uint16_t)only_sz) )
                 break;
 
-            TORIRS_LOG("PDUMP cmd=%d tile=(%d,%d,L%d) %s entity=%d elem=%d\n",
+            TORIRS_REPORT("PDUMP cmd=%d tile=(%d,%d,L%d) %s entity=%d elem=%d\n",
                 ci,
                 (int)el->sx,
                 (int)el->sz,

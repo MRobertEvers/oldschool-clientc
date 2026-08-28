@@ -31,6 +31,15 @@ struct ToriRSServerBootConfig
     /** Tile a session logs in on, and respawns at. */
     int home_x;
     int home_z;
+    /**
+     * Tile a character with no save file starts on -- Tutorial Island.
+     *
+     * Read exactly once per account, by the login that finds no save. Set it
+     * to `home_x`/`home_z` to opt a world out of the tutorial; content reads
+     * back "am I standing on the island?" rather than any flag.
+     */
+    int tutorial_home_x;
+    int tutorial_home_z;
 };
 
 /**
