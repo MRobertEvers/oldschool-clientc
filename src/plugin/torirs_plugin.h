@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 17
+#define TORIRS_PLUGIN_ABI 18
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Semantic role spelling, terminator included. Kept in the public contract
@@ -263,6 +263,22 @@ enum ToriRS_PluginEvent
      * draw_tile or draw_hull.
      */
     TORIRS_PLUGIN_EV_DRAW_FRAME,
+    /**
+     * Dress the parts of the frame this plugin has CLAIMED. Payload: EvLayout,
+     * carrying the same canvas the arranger was handed.
+     *
+     * Raised for every plugin holding a chrome claim, in claim order, AFTER
+     * the arranger's EV_LAYOUT declaration has been applied -- which is the
+     * whole of the ordering guarantee between the two tiers. A plugin that
+     * replaces the report button therefore reads the box the gameframe plugin
+     * put it in this pass, never last pass's.
+     *
+     * The dispatch is the whole declaration, exactly as EV_LAYOUT is: this
+     * plugin's part table is emptied before the call and applied after, so a
+     * part it does not mention is a part HIDDEN rather than one left where it
+     * was. chrome_paint and chrome_ops are legal here and nowhere else.
+     */
+    TORIRS_PLUGIN_EV_CHROME,
 
     TORIRS_PLUGIN_EV_COUNT
 };
@@ -1335,6 +1351,209 @@ enum ToriRS_PluginLayoutCanvas
      * it.
      */
     TORIRS_PLUGIN_CANVAS_FIXED = 1
+};
+
+/* ------------------------------------------------------------------------ */
+/* Chrome: dressing one PART of a frame somebody else arranged               */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * The second tier of the frame.
+ *
+ * Arranging is exclusive per FRAME -- layout_claim, one plugin, the whole
+ * gameframe. Dressing is exclusive per PART: the report button, one orb, a
+ * single control, claimed by any plugin without owning the frame around it.
+ *
+ * The two are ordered by construction. EV_LAYOUT declares the frame and
+ * EV_CHROME dresses it, in that order, in one pass -- so a plugin replacing a
+ * button always reads the box THIS pass put it in.
+ *
+ * A part is addressed by ROLE NAME, the same namespace role_replace and
+ * role_anchor use, because a name is the only address that survives changing
+ * lanes: the report button is a chat_buttons member on a 2004 frame and cache
+ * component 162:31 on OldSchool, and the profile for each revision says which.
+ * A plugin says "report_button" and stops caring.
+ */
+
+/** Which picture a part wears. -1 in `art` is a state the part has not got. */
+enum ToriRS_PluginChromeState
+{
+    TORIRS_PLUGIN_CHROME_IDLE = 0,
+    TORIRS_PLUGIN_CHROME_HOVER,
+    /** Selected -- the chat filter this box is showing. */
+    TORIRS_PLUGIN_CHROME_ACTIVE,
+    TORIRS_PLUGIN_CHROME_ACTIVE_HOVER,
+    TORIRS_PLUGIN_CHROME_DISABLED,
+
+    TORIRS_PLUGIN_CHROME_STATE_COUNT
+};
+
+/** Which authority a part came from. @see chrome_part. */
+enum ToriRS_PluginChromeSource
+{
+    /** Nothing is there. */
+    TORIRS_PLUGIN_CHROME_SOURCE_NONE = 0,
+    /**
+     * The cache's or the revconfig's own.
+     *
+     * A real box and no art: the picture belongs to a cache this plugin
+     * cannot decode and would be a different picture on the next revision. A
+     * dresser on this lane ships its own.
+     */
+    TORIRS_PLUGIN_CHROME_SOURCE_LANE,
+    /** A frame arranger declared it in EV_LAYOUT. Art handles are real. */
+    TORIRS_PLUGIN_CHROME_SOURCE_FRAME,
+    /** A plugin INTRODUCED it: this revision has no node for it at all.
+     *  Art handles are real. @see chrome_add. */
+    TORIRS_PLUGIN_CHROME_SOURCE_ADDED
+};
+
+/**
+ * The SCOPES of a part: which of its aspects a claim takes.
+ *
+ * A part is not one thing to own. Where it is, what it looks like and what a
+ * click on it does are three questions with three different natural owners
+ * -- a layout plugin moves the report button, a skin plugin recolours it, an
+ * accessibility plugin makes it bigger to hit -- and a claim that took all
+ * three at once would make any two of those plugins mutually exclusive for no
+ * reason either could name.
+ *
+ * So a claim is on (part, scope), exclusive per pair, and three plugins may
+ * hold the three scopes of one part. Bits, so a plugin that wants two asks
+ * once.
+ */
+enum ToriRS_PluginChromeScope
+{
+    /** The box: x, y, w, h of chrome_paint. */
+    TORIRS_PLUGIN_CHROME_SCOPE_POSITION = 1 << 0,
+    /** The pictures: art[], label_x, label_y, and chrome_state. */
+    TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE = 1 << 1,
+    /** The click: chrome_ops, and the region it is served from. */
+    TORIRS_PLUGIN_CHROME_SCOPE_HITBOX = 1 << 2,
+
+    TORIRS_PLUGIN_CHROME_SCOPE_ALL = (1 << 3) - 1
+};
+
+/**
+ * One dressable part: where its picture is, and what that picture is.
+ *
+ * The box is the ART's, which is NOT the role's box, and that difference is
+ * the whole reason this struct exists. role_rect answers where the LABEL
+ * mounts -- 100x25 for a 2004 chat button -- while the plate composed for it
+ * is 100x23 sitting three rows lower. A plugin painting the role's rectangle
+ * overhangs the plate it meant to replace.
+ */
+struct ToriRS_PluginChromePart
+{
+    /*
+     * Canvas coordinates on the way OUT of chrome_part, always.
+     *
+     * On the way IN they are relative to the part's anchor, which for
+     * everything except an added part IS the canvas -- so the two spellings
+     * coincide for a native or arranger-declared part and differ only where
+     * the difference is the point. @see chrome_add.
+     */
+    int x;
+    int y;
+    int w;
+    int h;
+
+    /**
+     * One handle per enum ToriRS_PluginChromeState, -1 for a state this part
+     * has not got.
+     *
+     * -1 at ACTIVE is an ANSWER and not an omission: it says the button does
+     * not select anything, it opens something. Report abuse is that button on
+     * every frame in this tree.
+     *
+     * A state with no art of its own falls back to IDLE, so the common part --
+     * one picture, no hover -- states one handle and leaves the rest -1.
+     */
+    int art[TORIRS_PLUGIN_CHROME_STATE_COUNT];
+
+    /** Where a caption or an icon centres inside the art, for a replacement
+     *  that keeps the plate and changes only what is on it. */
+    int label_x;
+    int label_y;
+
+    /** enum ToriRS_PluginChromeSource. Written by chrome_part; ignored on
+     *  every call that DECLARES a part. */
+    int source;
+};
+
+/* ------------------------------------------------------------------------ */
+/* Entities: claiming a thing in the WORLD                                   */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * The same tier, pointed at the scene instead of the frame.
+ *
+ * An npc, a player, a ground item or a loc is a PART like the report button
+ * is: it has a picture, a click and a place, three plugins may want one each,
+ * and two plugins that both outline the same npc every frame are two plugins
+ * disagreeing about one thing with nothing to arbitrate. So an entity is
+ * claimed through chrome_claim under a name of its own, with the same scopes,
+ * the same three answers and the same teardown -- one exclusion set, not two.
+ *
+ * What differs is what each scope can DO, because a server entity is not a
+ * plugin's to move and its model is not a plugin's to repaint:
+ *
+ *   APPEARANCE  the hull: outline and fill, as draw_hull draws it, declared
+ *               once with entity_look and painted by the host every world
+ *               frame. draw_hull itself is refused for an entity whose
+ *               APPEARANCE another plugin holds, which is the whole of how
+ *               two highlighters stop fighting.
+ *   HITBOX      the click: the rows a right-click offers, declared with
+ *               entity_ops. APPEND keeps the game's own rows and adds these;
+ *               REPLACE drops the game's rows for this thing and offers only
+ *               these; NONE drops them and offers nothing -- the thing is
+ *               unclickable for as long as the claim stands.
+ *   POSITION    refused. Where an entity is is the server's sentence, and a
+ *               claim that said yes and moved nothing would be the silent
+ *               no-op this contract exists to prevent.
+ *
+ * A name is `<kind>:<ids>`, spelled by entity_part so no plugin formats one by
+ * hand: `npc:<server_slot>`, `player:<pid>`, `loc:<x>,<z>,<level>,<id>`,
+ * `obj:<x>,<z>,<level>,<id>` -- the identities that survive a scene rebuild,
+ * never a scene element, which does not.
+ *
+ * A claim on a thing that is not there yet is ordinary and stands: an npc
+ * slot is claimed at EV_START and binds to whatever spawns into it. That is
+ * also the caveat -- a slot is reused, so a plugin that means "this goblin"
+ * and not "whatever is in slot 12" watches base_npc_id and releases.
+ */
+
+enum ToriRS_PluginEntityKind
+{
+    TORIRS_PLUGIN_ENTITY_NPC = 1,
+    TORIRS_PLUGIN_ENTITY_PLAYER,
+    TORIRS_PLUGIN_ENTITY_LOC,
+    TORIRS_PLUGIN_ENTITY_OBJ
+};
+
+/** What a HITBOX holder does to the game's own rows. @see entity_ops. */
+enum ToriRS_PluginEntityOpsMode
+{
+    /** The game's rows stay; the plugin's are added. */
+    TORIRS_PLUGIN_ENTITY_OPS_APPEND = 0,
+    /** The game's rows for this thing go; the plugin's stand alone. */
+    TORIRS_PLUGIN_ENTITY_OPS_REPLACE,
+    /** The game's rows go and nothing replaces them: not clickable. */
+    TORIRS_PLUGIN_ENTITY_OPS_NONE
+};
+
+/** An APPEARANCE holder's standing declaration for an entity. */
+struct ToriRS_PluginEntityLook
+{
+    /** Draw a hull at all. 0 is "claimed and invisible", which is how a
+     *  plugin that only wants the click keeps another's outline off it. */
+    int hull;
+    /** 0xRRGGBB. */
+    uint32_t rgb;
+    /** Fill alpha 0..255; 0 for an outline alone. */
+    int fill_alpha;
+    /** enum ToriRS_PluginHullShape. */
+    int shape;
 };
 
 /* ------------------------------------------------------------------------ */
@@ -2959,6 +3178,313 @@ struct ToriRS_PluginApi
      * or another plugin owns its replacement.
      */
     int (*role_anchor)(struct ToriRS_PluginCtx* ctx, char const* role);
+
+    /* -- ABI 18 append: chrome ------------------------------------------- */
+
+    /**
+     * Declare the ART of one member of a role this layout just placed. Legal
+     * only inside EV_LAYOUT (asserted), and only for the frame's owner.
+     *
+     * The arranger's half of the chrome tier, and the reason the tier can
+     * exist at all: before this, a gameframe's chat button was four image
+     * handles in a plugin-local array and a blit in EV_DRAW_FRAME, which no
+     * other plugin could see, measure or take over. Declared, it is a part the
+     * HOST paints -- so a dresser claiming it means the host stops painting
+     * the arranger's version, with no cooperation between the two and no
+     * "did somebody replace me" check in the arranger's draw path.
+     *
+     * `member` is the role's own numbering, exactly as layout_slot_at takes
+     * it. The declaration reaches dressers under whatever role name this
+     * revision binds to that member -- `report_button` for
+     * `slot(chat_buttons, report)` -- which is the profile's business and not
+     * the arranger's.
+     *
+     * `part` is borrowed for the call. Its box is canvas coordinates, like
+     * every other layout call. Passing NULL drops a previously declared part.
+     *
+     * A part is rebuilt from nothing each EV_LAYOUT, like every other
+     * declaration here, so an arranger that stops declaring one stops painting
+     * it.
+     *
+     * @return 1 when this gameframe has that member, 0 otherwise -- the same
+     * "does this frame have one" answer layout_slot_at gives.
+     */
+    int (*layout_slot_art)(
+        struct ToriRS_PluginCtx* ctx,
+        int slot,
+        int member,
+        struct ToriRS_PluginChromePart const* part);
+
+    /**
+     * Claim or release `scopes` of the part named `part`. `scopes` is a mask
+     * of enum ToriRS_PluginChromeScope; `enabled` zero releases those scopes
+     * and leaves any others this plugin holds standing.
+     *
+     * @return -1 when this revision has no such part -- the caller may
+     * chrome_add one, or do without; nothing is drawing it either way.
+     * Otherwise the mask of the requested scopes this plugin now HOLDS.
+     *
+     * A mask and not a yes, because the answer is per scope: a plugin asking
+     * for APPEARANCE|HITBOX may get APPEARANCE alone, when another plugin
+     * already owns the click. Every bit that came back is this plugin's to
+     * declare; every bit that did not is ANOTHER PLUGIN'S, and the caller
+     * degrades for that scope -- it does not draw it, and it does not
+     * complain, because the part is on the screen, just not by its hand. A 0
+     * is "everything you asked for is somebody else's", and chrome_owner says
+     * whose.
+     *
+     * The three answers are kept apart because they call for opposite
+     * responses, and a plugin told only "no" would have to pick one and be
+     * wrong half the time.
+     *
+     * Take every claim at EV_START, before drawing anything. A claim survives
+     * its target being absent and rebinds to the next incarnation that
+     * resolves, exactly as role_replace's does, so claiming early is correct
+     * rather than premature -- and it puts the arbitration at the moment the
+     * user flipped the switch, which is the moment they can act on what the
+     * client says about it.
+     *
+     * POSITION is refused on a part the LANE provides -- a cache component or
+     * a revconfig builtin -- and said so in the log: moving a native node is
+     * not something this tier can do, and a claim that reported success and
+     * moved nothing would be the silent no-op this contract exists to
+     * prevent. Every other scope on a lane part, and every scope on a frame
+     * or added part, is claimable.
+     *
+     * Claims are persistent across gameframe rebuilds and released for you
+     * when the plugin stops.
+     */
+    int (*chrome_claim)(
+        struct ToriRS_PluginCtx* ctx, char const* part, int scopes, int enabled);
+
+    /**
+     * Introduce a part this revision has no node for, hung off `anchor`, and
+     * claim it in the same call.
+     *
+     * The minimap orbs are the case. On an OldSchool cache they are interface
+     * 160 and the client draws them; on a 2004 cache the numbers are on the
+     * wire and the PICTURE does not exist -- there is no component, and so
+     * nothing for a role to bind to and nothing to claim. The part has to be
+     * introduced before it can be dressed.
+     *
+     * `anchor` is an existing role and the part's box is RELATIVE to it, which
+     * is what makes an added part follow the frame: a gameframe that moves the
+     * minimap moves the orbs with it and the plugin re-declares nothing. The
+     * part is emitted after the anchor's own subtree under the anchor's PARENT
+     * clip, so it may overlap the anchor -- an orb column hangs past the
+     * bottom of the map -- while still being cut by the panel that houses it,
+     * and it inherits the anchor's fate: hidden with it, rebuilt with it.
+     *
+     * An added part is a part like any other. Anyone can find it by name with
+     * chrome_part, a second plugin can claim and restyle it, and a profile
+     * that later binds the same name to a native node takes over silently --
+     * chrome_claim starts answering 1 where it answered 0, and the plugin's
+     * own code path does not change.
+     *
+     * So name it for what it IS -- `orb_hitpoints`, never
+     * `minimap_orbs_orb_0`. A name carrying its plugin's identity can never be
+     * adopted by a profile and can never be provided by anything else, which
+     * defeats both.
+     *
+     * An added part is introduced with EVERY scope held by its introducer,
+     * which may then release the ones it does not want kept.
+     *
+     * @return exactly as chrome_claim(part, SCOPE_ALL, 1), and -1 also for an
+     * anchor role this revision does not have -- which is the honest reply to
+     * "put an orb column on a gameframe with no minimap".
+     */
+    int (*chrome_add)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* part,
+        char const* anchor,
+        struct ToriRS_PluginChromePart const* initial);
+
+    /**
+     * The human title of the plugin providing `part`, or NULL when nobody is.
+     *
+     * For the one line a degrading plugin writes to the LOG. Losing a claim is
+     * not a fault to report to the player: their screen is correct, the orb is
+     * there, another plugin drew it. What belongs in the chatbox is a part
+     * that NOBODY ends up providing.
+     */
+    char const* (*chrome_owner)(struct ToriRS_PluginCtx* ctx, char const* part, int scope);
+
+    /** Of `scopes`, the ones held by some plugin OTHER than the caller. The
+     *  one test a plugin that still draws a part imperatively -- an animated
+     *  stone, a live gradient -- has to make before drawing it. */
+    int (*chrome_claimed)(struct ToriRS_PluginCtx* ctx, char const* part, int scopes);
+
+    /**
+     * Read a part as whatever authority currently owns it, in CANVAS
+     * coordinates. `out` is untouched on 0.
+     *
+     * Art handles come back already borrowed into the caller's own namespace:
+     * a second reference onto the same resident pixels, which draw_image and
+     * image_size take like any other handle. A borrow is read-only -- it
+     * cannot be composed into or released -- and it is idempotent, so asking
+     * every EV_CHROME yields the same handle rather than leaking one a pass.
+     *
+     * A borrow whose lender dropped the image behaves exactly as a PENDING
+     * image does: image_size answers 0 and draw_image draws nothing. That is
+     * deliberate reuse rather than a third state -- every caller already has
+     * correct code for "the pixels are not here yet", written for the IO
+     * queue, and it is right for this too.
+     *
+     * Answers for a part somebody ELSE holds, which is what makes degradation
+     * possible rather than merely polite: a plugin that lost two orbs reads
+     * where they are and lays its remaining two out around them.
+     *
+     * @return 1 when this frame has the part, 0 when it does not.
+     */
+    int (*chrome_part)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* part,
+        struct ToriRS_PluginChromePart* out);
+
+    /**
+     * Declare this plugin's art for a part it holds. Legal only inside
+     * EV_CHROME (asserted).
+     *
+     * "Keep the frame's plate and put my icon on it" is therefore: read the
+     * part, compose the two into one handle, declare it back at the same box.
+     *
+     * A part claimed and never painted is a part HIDDEN -- declaration
+     * semantics, and also a feature: a plugin whose whole purpose is to remove
+     * the report button claims it and declares nothing. A plugin that wants
+     * the arranger's part back RELEASES the claim instead. Those are two
+     * different sentences and both are sayable.
+     *
+     * Only the fields of the scopes this plugin HOLDS are read: a POSITION
+     * holder's art[] is ignored and an APPEARANCE holder's box is, so a
+     * plugin fills in what it owns and leaves the rest zero. A holder of
+     * APPEARANCE alone has no box to give and passes w/h of 0 without
+     * complaint; the size check applies to a POSITION holder only.
+     *
+     * @return 1 recorded, 0 for a part this plugin holds no scope of, an
+     * anchor that was not placed this pass, or a non-positive size from a
+     * POSITION holder.
+     */
+    int (*chrome_paint)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* part,
+        struct ToriRS_PluginChromePart const* art);
+
+    /**
+     * The ops for a held part's hit region, installed by the host along with
+     * the declaration. Legal only inside EV_CHROME (asserted).
+     *
+     * Same meaning as hit_region's: the first op is the mouseover line and the
+     * left click, all of them are rows in the menu, and `tag` comes back in
+     * EV_CANVAS_CLICK. An `op_count` of 0 claims the pointer and offers
+     * nothing, for a part that must only stop a click falling through to what
+     * is behind it.
+     *
+     * Declared here rather than at draw time because the region belongs to the
+     * PART: whoever holds the part this frame owns the click, and a region
+     * declared by a plugin that has since lost or released it is dropped
+     * rather than dispatched.
+     *
+     * @return 1 when the ops were recorded, 0 for a part this plugin does not
+     * hold the HITBOX of.
+     */
+    int (*chrome_ops)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* part,
+        char const* const* ops,
+        int op_count,
+        uint32_t tag);
+
+    /**
+     * Select which of a held part's pictures is showing. Legal at ANY time,
+     * unlike the declaring calls, and cheap enough to call every tick.
+     *
+     * `state` is an enum ToriRS_PluginChromeState, and it is the half of the
+     * choice the host cannot make for itself. Hover it knows -- it has the
+     * pointer and the part's box -- so the host picks HOVER over IDLE and
+     * ACTIVE_HOVER over ACTIVE without being told. Which chat filter the box
+     * is SHOWING is a fact about the game, and only the plugin reading that
+     * var knows it.
+     *
+     * So the split is: the plugin says selected-or-not, the host says
+     * hovered-or-not, and the four-plate family the reference ships is
+     * addressed without either of them re-deriving the other's half.
+     *
+     * A part is IDLE until told otherwise, and a state whose art is -1 falls
+     * back to IDLE, so a part with one picture never needs this at all.
+     *
+     * @return 1 when the state was recorded, 0 for a part this plugin does not
+     * hold the APPEARANCE of, or a state out of range.
+     */
+    int (*chrome_state)(struct ToriRS_PluginCtx* ctx, char const* part, int state);
+
+    /**
+     * The arranger's spellings of chrome_claimed and chrome_state, in the
+     * arranger's own terms. Legal only for the frame's owner (asserted).
+     *
+     * An arranger places MEMBERS and does not know -- should not have to know
+     * -- that this revision calls member 3 of the chat buttons
+     * `report_button`. It still has two things to say about a part it
+     * declared: whether somebody has taken the click, so it does not install
+     * a second region under theirs; and which plate the host should be
+     * painting, because "the chat is open on this filter" is the arranger's
+     * fact and not the host's.
+     *
+     * layout_slot_claimed answers, of `scopes`, the ones some plugin holds.
+     * layout_slot_state selects the declared part's picture, exactly as
+     * chrome_state does for a claimant, and is legal at any time.
+     */
+    int (*layout_slot_claimed)(struct ToriRS_PluginCtx* ctx, int slot, int member, int scopes);
+    int (*layout_slot_state)(struct ToriRS_PluginCtx* ctx, int slot, int member, int state);
+
+    /* -- entities: the same tier, aimed at the world ---------------------- */
+
+    /**
+     * Spell the part name for one world entity into `buf`, for chrome_claim
+     * and the two verbs below. `a`..`d` are the kind's own ids:
+     *
+     *   NPC     a = server slot
+     *   PLAYER  a = server pid
+     *   LOC     a = tile x, b = tile z, c = level, d = loc id   (ABSOLUTE tile)
+     *   OBJ     a = tile x, b = tile z, c = level, d = obj id
+     *
+     * @return `buf`, or NULL for a kind this contract has not got or a buffer
+     * too small for the name (TORIRS_PLUGIN_ROLE_NAME_MAX is always enough).
+     */
+    char const* (*entity_part)(
+        struct ToriRS_PluginCtx* ctx, int kind, int a, int b, int c, int d, char* buf, int cap);
+
+    /**
+     * Declare how an entity whose APPEARANCE this plugin holds is drawn.
+     * Legal at any time and cheap enough for every tick; the host paints it on
+     * every world frame until it is restated or the claim goes.
+     *
+     * @return 1 recorded, 0 for a part this plugin does not hold the
+     * APPEARANCE of.
+     */
+    int (*entity_look)(
+        struct ToriRS_PluginCtx* ctx, char const* part, struct ToriRS_PluginEntityLook const* look);
+
+    /**
+     * Declare what a right-click on an entity whose HITBOX this plugin holds
+     * offers. Legal at any time. `mode` is enum ToriRS_PluginEntityOpsMode,
+     * `ops` and `op_count` as hit_region takes them, and `tag` comes back in
+     * EV_MENU_SELECT as `plugin_tag` on the chosen row.
+     *
+     * The rows are added by the HOST on every menu build the entity is the
+     * subject of -- the hover line, the right-click, the left-click default
+     * are all that same build -- so a plugin declares once and is not asked
+     * again.
+     *
+     * @return 1 recorded, 0 for a part this plugin does not hold the HITBOX
+     * of.
+     */
+    int (*entity_ops)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* part,
+        int mode,
+        char const* const* ops,
+        int op_count,
+        uint32_t tag);
 };
 
 /* ------------------------------------------------------------------------ */

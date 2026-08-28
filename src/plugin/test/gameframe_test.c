@@ -438,13 +438,46 @@ static int fake_draw_rect(void* u, int x, int y, int w, int h, uint32_t c, int a
 static void fake_draw_select_canvas(void* u, int c) { (void)u; (void)c; }
 static int fake_mouse_pos(void* u, int* x, int* y) { (void)u; (void)x; (void)y; return 0; }
 static int fake_minimap_rect(void* u, int* x, int* y, int* w, int* h) { (void)u; (void)x; (void)y; (void)w; (void)h; return 0; }
-static int fake_slot_rect(void* u, int a, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)x; (void)y; (void)w; (void)h; return 0; }
-static int fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)m; (void)x; (void)y; (void)w; (void)h; return 0; }
+/*
+ * Answered from what the last declaration PLACED, as the real engine answers
+ * from the placed node. The host's chrome pass reads these back to paint the
+ * parts the arranger declared, so a fake that said "no such region" would
+ * make every declared plate vanish from the blit count.
+ */
+static int
+fake_slot_rect(void* u, int a, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( a < 0 || a >= TORIRS_PLUGIN_SLOT_COUNT || !g_frame.slot[a].placed )
+        return 0;
+    if( x ) *x = g_frame.slot[a].x;
+    if( y ) *y = g_frame.slot[a].y;
+    if( w ) *w = g_frame.slot[a].w;
+    if( h ) *h = g_frame.slot[a].h;
+    return 1;
+}
+
+static int
+fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( a < 0 || a >= TORIRS_PLUGIN_SLOT_COUNT || m < 0 || m >= FAKE_SLOT_MEMBERS )
+        return 0;
+    if( !g_frame.member[a][m].placed )
+        return 0;
+    if( x ) *x = g_frame.member[a][m].x;
+    if( y ) *y = g_frame.member[a][m].y;
+    if( w ) *w = g_frame.member[a][m].w;
+    if( h ) *h = g_frame.member[a][m].h;
+    return 1;
+}
 static int fake_component_rect(void* u, int c, int* x, int* y, int* w, int* h) { (void)u; (void)c; (void)x; (void)y; (void)w; (void)h; return 0; }
 static int fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h) { (void)u; (void)r; (void)x; (void)y; (void)w; (void)h; return 0; }
 static int fake_role_visible(void* u, char const* r) { (void)u; (void)r; return 0; }
 static int fake_role_click(void* u, char const* r, int op) { (void)u; (void)r; (void)op; return 0; }
 static int fake_role_id(void* u, char const* r) { (void)u; (void)r; return -1; }
+static int fake_role_slot(void* u, char const* r, int* s, int* m)
+{ (void)u; (void)r; (void)s; (void)m; return 0; }
 static int fake_role_replace(void* u, int p, char const* r, int e)
 { (void)u; (void)p; (void)r; (void)e; return 1; }
 static int fake_role_anchor(void* u, int p, char const* r, int replace)
@@ -454,6 +487,15 @@ static int fake_stat_xp(void* u, int s, int* a, int* b, int* c) { (void)u; (void
 static char const* fake_skill_name(void* u, int s) { (void)u; (void)s; return NULL; }
 static int fake_run_energy(void* u) { (void)u; return 0; }
 static int fake_menu_add(void* u, void* c, char const* t, int a) { (void)u; (void)c; (void)t; (void)a; return 0; }
+
+static int
+fake_menu_drop(void* u, void* cursor, int index)
+{
+    (void)u;
+    (void)cursor;
+    (void)index;
+    return 1;
+}
 static int fake_if_click(void* u, int c, int o) { (void)u; (void)c; (void)o; return 0; }
 static int fake_asset_write(void* u, char const* p, char const* n, void const* d, int s) { (void)u; (void)p; (void)n; (void)d; (void)s; return 1; }
 static int
@@ -506,6 +548,17 @@ draw(int w, int h)
     g_frame.blits = 0;
     g_frame.regions = 0;
     PluginHost_DrawFrame(g_host, w, h);
+}
+
+/* The CANVAS surface, over the interfaces, as distinct from draw()'s frame
+ * surface under them. A plugin that draws on neither has to be checked on
+ * both, or "it draws nothing" is only half tested. */
+static void
+draw_over(int w, int h)
+{
+    g_frame.blits = 0;
+    g_frame.regions = 0;
+    PluginHost_DrawCanvas(g_host, w, h);
 }
 
 static int
@@ -562,6 +615,7 @@ main(void)
     e.role_visible = fake_role_visible;
     e.role_click = fake_role_click;
     e.role_id = fake_role_id;
+    e.role_slot = fake_role_slot;
     e.role_replace = fake_role_replace;
     e.role_anchor = fake_role_anchor;
     e.layout_set = fake_layout_set;
@@ -578,6 +632,7 @@ main(void)
     e.skill_name = fake_skill_name;
     e.run_energy = fake_run_energy;
     e.menu_add = fake_menu_add;
+    e.menu_drop = fake_menu_drop;
     e.image_publish = fake_image_publish;
     e.image_publish_argb = fake_image_publish_argb;
     e.image_read = fake_image_read;

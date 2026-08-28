@@ -1588,11 +1588,10 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
      * anywhere else puts the chrome back where it belongs -- on the four
      * controls -- without laying a slab across the corner behind them.
      */
-    for( int i = 0; i < MOBILE_CHAT_BUTTON_COUNT; i++ )
-        mobile_blit(
-            g_art[ART_CHAT_BUTTON],
-            MOBILE_CHAT_BUTTON_X(i),
-            strip_y + MOBILE_CHAT_BUTTON_LIFT);
+    /* The plates are DECLARED below rather than blitted here: a plate in the
+     * blit list would be painted under a claimant's replacement, and a
+     * replacement wider than the original would show its edges. The host
+     * paints the declaration, or the claimant's, never both. */
 
     /*
      * The four filter buttons stay the LANE's.
@@ -1604,6 +1603,9 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
      * is a button this frame added rather than one it took over.
      */
     for( int i = 0; i < MOBILE_CHAT_BUTTON_COUNT; i++ )
+    {
+        struct ToriRS_PluginChromePart part;
+
         g_api->layout_slot_at(
             ctx,
             TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
@@ -1612,6 +1614,27 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
             strip_y + MOBILE_CHAT_BUTTON_LIFT,
             MOBILE_CHAT_BUTTON_W,
             MOBILE_CHAT_BUTTON_H);
+
+        /*
+         * And the plate under it DECLARED as a part, beside the blit above
+         * that still draws it for this frame's own look. Declared so that a
+         * plugin replacing the report button finds one here to replace:
+         * the host answers chrome_part with this box and this art, and paints
+         * the claimant's instead when one holds it. One picture for all
+         * four, no hover -- this strip has none -- so IDLE alone is stated.
+         */
+        memset(&part, 0, sizeof(part));
+        for( int st = 0; st < TORIRS_PLUGIN_CHROME_STATE_COUNT; st++ )
+            part.art[st] = -1;
+        part.x = MOBILE_CHAT_BUTTON_X(i);
+        part.y = strip_y + MOBILE_CHAT_BUTTON_LIFT;
+        part.w = MOBILE_CHAT_BUTTON_W;
+        part.h = MOBILE_CHAT_BUTTON_H;
+        part.art[TORIRS_PLUGIN_CHROME_IDLE] = g_art[ART_CHAT_BUTTON];
+        part.label_x = MOBILE_CHAT_BUTTON_W / 2;
+        part.label_y = MOBILE_CHAT_BUTTON_H / 2;
+        g_api->layout_slot_art(ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, i, &part);
+    }
 }
 
 /** One glyph, centred in a switch's box. */

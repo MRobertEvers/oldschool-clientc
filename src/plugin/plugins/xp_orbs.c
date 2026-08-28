@@ -138,6 +138,10 @@ _Static_assert(ORB_BUF_MAX <= ORB_SCRATCH_W, "a globe has to fit the scratch");
 _Static_assert(ORB_BUF_MAX <= ORB_SCRATCH_H, "a globe has to fit the scratch");
 
 static struct ToriRS_PluginApi const* g_api;
+/** Scopes of the `xp_drops` part this plugin holds; 0 draws nothing. */
+static int g_xp_drops_held;
+/** The claim has been answered by a frame that could; until then it is retried. */
+static int g_xp_drops_settled;
 
 /* ------------------------------------------------------------- skill colour */
 
@@ -1559,6 +1563,11 @@ orb_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     assert(ctx);
     assert(ev);
 
+    /* Somebody else's drops: the claim said so at start, and the screen has
+     * them -- just not from here. */
+    if( !(g_xp_drops_held & TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE) )
+        return TORIRS_PLUGIN_PASS;
+
     orb_size_tables(ctx);
     orb_load_art(ctx);
     if( !g_skills_px )
@@ -1734,6 +1743,36 @@ orb_click(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 
 /* --------------------------------------------------------------- lifecycle */
 
+/** The part could not be introduced at start because the frame had no
+ *  viewport yet; try again now that a layout has run. */
+static enum ToriRS_PluginVerdict
+orb_layout_changed(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+{
+    struct ToriRS_PluginChromePart initial;
+    int got;
+
+    (void)event;
+    (void)userdata;
+    if( g_xp_drops_settled )
+        return TORIRS_PLUGIN_PASS;
+    memset(&initial, 0, sizeof(initial));
+    for( int i = 0; i < TORIRS_PLUGIN_CHROME_STATE_COUNT; i++ )
+        initial.art[i] = -1;
+    initial.w = 1;
+    initial.h = 1;
+    got = g_api->chrome_add(ctx, "xp_drops", "viewport", &initial);
+    if( got < 0 )
+        return TORIRS_PLUGIN_PASS;
+    g_xp_drops_settled = 1;
+    g_xp_drops_held = got;
+    if( got == 0 )
+    {
+        char const* who = g_api->chrome_owner(ctx, "xp_drops", TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE);
+        g_api->log(ctx, "'xp_drops' is provided by '%s'; not drawing them", who ? who : "another plugin");
+    }
+    return TORIRS_PLUGIN_PASS;
+}
+
 static enum ToriRS_PluginVerdict
 orb_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 {
@@ -1757,6 +1796,43 @@ orb_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     {
         g_globe[i].image = -1;
         g_globe[i].key = 0;
+    }
+
+    /*
+     * The column is a PART -- `xp_drops`, hung off the viewport -- claimed
+     * here so that anything else providing XP drops (a gameframe that draws
+     * its own, a second drops plugin) and this plugin settle it at the moment
+     * the switch is flipped rather than by drawing over each other. Losing
+     * the APPEARANCE is the degrade: the globes are not drawn, and the log
+     * says whose they are. The box is nominal; the globes lay themselves out
+     * against the safe region every frame as they always have.
+     */
+    {
+        struct ToriRS_PluginChromePart initial;
+        int got;
+        memset(&initial, 0, sizeof(initial));
+        for( int i = 0; i < TORIRS_PLUGIN_CHROME_STATE_COUNT; i++ )
+            initial.art[i] = -1;
+        initial.w = 1;
+        initial.h = 1;
+        got = g_api->chrome_claim(ctx, "xp_drops", TORIRS_PLUGIN_CHROME_SCOPE_ALL, 1);
+        if( got < 0 )
+            got = g_api->chrome_add(ctx, "xp_drops", "viewport", &initial);
+        /*
+         * Three answers. Held: draw. Somebody else's: do not. NOT THERE YET
+         * -- the viewport has no box before the first layout -- is neither:
+         * nobody holds it, so the globes draw as they always did, and the add
+         * is tried again from EV_LAYOUT_CHANGED until a frame can take it.
+         */
+        g_xp_drops_held = got > 0 ? got : got < 0 ? TORIRS_PLUGIN_CHROME_SCOPE_ALL : 0;
+        g_xp_drops_settled = got >= 0;
+        if( got == 0 )
+        {
+            char const* who =
+                g_api->chrome_owner(ctx, "xp_drops", TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE);
+            g_api->log(ctx, "'xp_drops' is provided by '%s'; not drawing them",
+                who ? who : "another plugin");
+        }
     }
     for( int i = 0; i < ORB_DROP_MAX; i++ )
     {
@@ -1810,6 +1886,7 @@ orb_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
 
     g_api = api;
     api->subscribe(ctx, TORIRS_PLUGIN_EV_START, orb_start, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_LAYOUT_CHANGED, orb_layout_changed, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, orb_stop, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_LOGIC_TICK, orb_tick, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_CANVAS, orb_draw, NULL);

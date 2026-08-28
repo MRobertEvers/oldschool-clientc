@@ -3492,6 +3492,67 @@ app_plugin_role_rect(
         app, app_plugin_role_node(app, role), out_x, out_y, out_w, out_h);
 }
 
+/*
+ * Does `role` name a frame slot member, and which?
+ *
+ * Two channels, in the order a role is resolved anywhere else. The name may BE
+ * a region's own spelling -- `minimap`, `chat_buttons` -- which is the whole
+ * region and no member. Otherwise the profile's chain is walked for a slot()
+ * rung, which is what binds a name like `report_button` to
+ * `slot(chat_buttons, report)` on a lane whose frame is revconfig builtins.
+ *
+ * The FIRST slot rung wins, matching UITree_RoleNode's own "first rung that
+ * resolves" rule -- except that this asks what the chain SAYS rather than what
+ * it currently resolves to, because a part's identity must not blink out while
+ * the gameframe is between rebuilds.
+ */
+static int
+app_plugin_role_frame_slot(void* user, char const* role, int* out_slot, int* out_member)
+{
+    struct App* app = (struct App*)user;
+    uint16_t role_id;
+    struct UITreeRoleEntry const* entry;
+
+    assert(app);
+    assert(role);
+    if( !app->tree )
+        return 0;
+
+    {
+        /* Through the same name->region helper the rect verbs use, so a
+         * region cannot be spelled one way here and another way there. CANVAS
+         * and SAFE fall out: they are derived rectangles with no node, and a
+         * part cannot be a member of one. */
+        int const slot = app_plugin_role_slot(role);
+        if( slot >= 0 && slot < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+        {
+            if( out_slot )
+                *out_slot = slot;
+            if( out_member )
+                *out_member = -1;
+            return 1;
+        }
+        if( slot >= 0 )
+            return 0;
+    }
+
+    role_id = UITree_RoleFind(&app->ui_roles, role);
+    if( !role_id )
+        return 0;
+    entry = &app->ui_roles.entries[role_id - 1];
+    for( int i = 0; i < entry->matcher_count; i++ )
+    {
+        if( entry->matchers[i].kind != UITREE_ROLE_MATCH_SLOT )
+            continue;
+        if( out_slot )
+            *out_slot = entry->matchers[i].slot;
+        if( out_member )
+            *out_member = entry->matchers[i].member;
+        return 1;
+    }
+    return 0;
+}
+
 static int
 app_plugin_role_visible(void* user, char const* role)
 {
@@ -4131,6 +4192,24 @@ app_plugin_menu_add(void* user, void* cursor, char const* text, int action_id)
     return UIMinimenu_AddOption(menu, text, action_id, -1, pick) ? 1 : 0;
 }
 
+static int
+app_plugin_menu_drop(void* user, void* cursor, int index)
+{
+    struct UIMinimenu* menu = (struct UIMinimenu*)cursor;
+
+    (void)user;
+    assert(menu);
+    if( index < 0 || index >= menu->option_count )
+        return 0;
+    /* Compacted in place, as the region trim above does: rows above the
+     * dropped one move down, and a caller dropping several walks from the
+     * top. The final SortPriorityActions puts Cancel back where it belongs. */
+    for( int i = index + 1; i < menu->option_count; i++ )
+        menu->options[i - 1] = menu->options[i];
+    menu->option_count--;
+    return 1;
+}
+
 /*
  * Hand a freshly built minimenu to the plugins, then re-sort.
  *
@@ -4360,6 +4439,8 @@ app_plugin_engine(struct App* app)
     engine.role_id = app_plugin_role_id;
     engine.role_replace = app_plugin_role_replace;
     engine.role_anchor = app_plugin_role_anchor;
+    engine.role_slot = app_plugin_role_frame_slot;
+    engine.menu_drop = app_plugin_menu_drop;
     engine.layout_set = app_plugin_layout_set;
     engine.layout_begin = app_plugin_layout_begin;
     engine.layout_end = app_plugin_layout_end;

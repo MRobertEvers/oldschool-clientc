@@ -24,6 +24,15 @@
  * scroll helper -- and several of them name subjects (which loc is an Agility
  * obstacle, which npc is a fishing spot) that this client has no table for and
  * would otherwise have had to build. See NXT_CLIENT_PLUGINS.md.
+ *
+ * ## It yields, and claims nothing
+ *
+ * This is the BASELINE renderer -- what the cache asked for -- so it holds no
+ * entity claims of its own: a claim is for a plugin that wants an entity to
+ * itself, and the cache's highlight groups are the thing a plugin like that
+ * is overriding. The host's draw_hull gate does the yielding: an entity whose
+ * APPEARANCE another plugin holds is silently skipped here, and comes back the
+ * moment that claim goes. Nothing in this file has to know.
  */
 
 /*

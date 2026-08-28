@@ -436,6 +436,8 @@ static int fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h
 static int fake_role_visible(void* u, char const* r) { (void)u; (void)r; return 0; }
 static int fake_role_click(void* u, char const* r, int op) { (void)u; (void)r; (void)op; return 0; }
 static int fake_role_id(void* u, char const* r) { (void)u; (void)r; return -1; }
+static int fake_role_slot(void* u, char const* r, int* s, int* m)
+{ (void)u; (void)r; (void)s; (void)m; return 0; }
 static int fake_role_replace(void* u, int p, char const* r, int e)
 { (void)u; (void)p; (void)r; (void)e; return 1; }
 static int fake_role_anchor(void* u, int p, char const* r, int replace)
@@ -445,6 +447,15 @@ static int fake_stat_xp(void* u, int s, int* a, int* b, int* c) { (void)u; (void
 static char const* fake_skill_name(void* u, int s) { (void)u; (void)s; return NULL; }
 static int fake_run_energy(void* u) { (void)u; return 0; }
 static int fake_menu_add(void* u, void* c, char const* t, int a) { (void)u; (void)c; (void)t; (void)a; return 0; }
+
+static int
+fake_menu_drop(void* u, void* cursor, int index)
+{
+    (void)u;
+    (void)cursor;
+    (void)index;
+    return 1;
+}
 static int fake_if_click(void* u, int c, int o) { (void)u; (void)c; (void)o; return 0; }
 static int fake_asset_write(void* u, char const* p, char const* n, void const* d, int s) { (void)u; (void)p; (void)n; (void)d; (void)s; return 1; }
 static int
@@ -598,6 +609,7 @@ main(void)
     e.role_visible = fake_role_visible;
     e.role_click = fake_role_click;
     e.role_id = fake_role_id;
+    e.role_slot = fake_role_slot;
     e.role_replace = fake_role_replace;
     e.role_anchor = fake_role_anchor;
     e.layout_set = fake_layout_set;
@@ -614,6 +626,7 @@ main(void)
     e.skill_name = fake_skill_name;
     e.run_energy = fake_run_energy;
     e.menu_add = fake_menu_add;
+    e.menu_drop = fake_menu_drop;
     e.image_publish = fake_image_publish;
     e.image_publish_argb = fake_image_publish_argb;
     e.image_read = fake_image_read;

@@ -29096,6 +29096,17 @@ App_PluginLayoutTick(struct App* app)
          * that invalidation before interaction consumes the resolved boxes. */
         UITree_EnsureLayout(app->tree);
     }
+    /*
+     * The chrome tier, after the layout and never before it.
+     *
+     * That order IS the guarantee between the two: a plugin dressing the
+     * report button reads the box the gameframe plugin put it in on this pass,
+     * not the one it had last pass. Run every frame rather than only inside
+     * the branch above, because a claimant also has to be re-asked when a
+     * borrowed image lands off the IO queue -- which happens with no layout in
+     * flight at all.
+     */
+    PluginHost_ChromeTick(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     /* UITree_EmitWalk keeps a final generation fence as well. It no longer
      * rewrites CS2 geometry: it only rebinds the standing semantic declaration
      * if topology somehow changed after this settled pass. */

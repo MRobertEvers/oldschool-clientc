@@ -171,6 +171,23 @@ struct ToriRS_PluginEngine
     int (*role_click)(void* user, char const* role, int op);
     /** Its component id right now, or -1. @see ToriRS_PluginApi::role_id. */
     int (*role_id)(void* user, char const* role);
+    /**
+     * Does `role` name a FRAME SLOT member on this revision, and which?
+     *
+     * The reverse of role_rect, and the one question the chrome tier cannot
+     * answer without the engine. An arranger declares a part's art against
+     * (slot, member) because that is what it just placed; a dresser asks for
+     * it by role name because a name is the only address that survives
+     * changing lanes. Something has to know that `report_button` IS
+     * `slot(chat_buttons, report)` here, and the only thing that does is the
+     * profile's own role table.
+     *
+     * `out_member` is -1 for a role naming a whole region.
+     *
+     * @return 1 when the role resolves to a slot, 0 for a cache component, a
+     * role this revision has not declared, or no tree.
+     */
+    int (*role_slot)(void* user, char const* role, int* out_slot, int* out_member);
     /** Reconcile one persistent owner-scoped replacement declaration. */
     int (*role_replace)(void* user, int plugin, char const* role, int enabled);
     /** Select/reset the role anchor for the open canvas subscriber. A NULL
@@ -376,6 +393,16 @@ struct ToriRS_PluginEngine
     /** Append a row carrying `action_id` to the menu build in progress.
      *  Returns 1 on success, 0 when the menu is full. */
     int (*menu_add)(void* user, void* cursor, char const* text, int action_id);
+    /**
+     * Remove one row from the menu being built, by the index it had in the
+     * EV_MENU_BUILD payload. Rows above it shift down, so a caller dropping
+     * several walks from the highest index to the lowest.
+     *
+     * For the entity tier: a HITBOX holder that REPLACES the game's rows for
+     * an npc needs the game's rows gone, and appending cannot say that.
+     * @see ToriRS_PluginApi::entity_ops.
+     */
+    int (*menu_drop)(void* user, void* cursor, int index);
 
     /* Assets. The engine owns the paths and the IO queue; the host owns the
      * resident bytes and who is allowed to see them, which is why `plugin` is
@@ -612,6 +639,21 @@ void PluginHost_ReconcileRoleReplacements(struct ToriRS_PluginHost* host);
  *  interfaces. Raised for the frame's owner alone, and not at all when nobody
  *  holds it, so a client with no layout plugin pays one branch. */
 void PluginHost_DrawFrame(struct ToriRS_PluginHost* host, int width, int height);
+
+/**
+ * The chrome pass: reconcile the suppressions, then re-ask every claimant
+ * whose declaration went stale. @see ToriRS_PluginApi::chrome_claim.
+ *
+ * Call once a frame, AFTER PluginHost_Layout. That order is the whole of the
+ * promise between the two tiers -- the frame's arranger has already stated
+ * where everything is, so every box a dresser reads is this pass's rather than
+ * the last one's.
+ *
+ * Per frame rather than per layout because a borrowed image lands off the IO
+ * queue with no layout in flight, and a dresser that skipped a pass waiting
+ * for pixels has to be asked again once they arrive.
+ */
+void PluginHost_ChromeTick(struct ToriRS_PluginHost* host, int width, int height);
 
 /**
  * Ask the frame's owner to declare it, against a canvas of `width` x `height`.

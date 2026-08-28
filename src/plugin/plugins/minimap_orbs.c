@@ -610,7 +610,6 @@ orbs_draw_one(
 {
     char text[16];
     int hidden;
-    int hovered = 0;
     int trans;
 
     if( g_image[ORB_IMG_FRAME] < 0 )
@@ -627,25 +626,15 @@ orbs_draw_one(
      *             `specenergy_indicator` is authored with.
      *   HOVERED   the same, with the lit plate (graphic 1072 beside 1071).
      *
-     * The transparency is on the DISC alone, not on the orb: 2792's
-     * `if_settrans` names the indicator component, and the plate and the icon
-     * over it stay opaque in every state. Washing the whole orb out instead
-     * makes an inactive one look like a rendering fault rather than like a
-     * control that is switched off.
+     * The plate, the lit plate and the hit region are the HOST's now: they
+     * were declared as the part's art and ops in orbs_chrome, and the host
+     * picks the hovered plate itself from the pointer and the box. What is
+     * drawn here is what changes every tick -- the disc, its cap, the icon
+     * and the number -- over the plate the host already put down.
      */
-    {
-        int mx = 0;
-        int my = 0;
-        /*
-         * Gated on having a VERB, not on the grey look. The reference clears
-         * the ops and the mouseover hooks in the same breath, so "offers
-         * nothing" is exactly when the plate must not light -- and the run orb
-         * is grey while you are walking yet is still the button that starts
-         * you running.
-         */
-        if( op_count > 0 && g_api->mouse_pos(ctx, &mx, &my) )
-            hovered = mx >= x && mx < x + ORB_W && my >= y && my < y + ORB_H;
-    }
+    (void)ops;
+    (void)op_count;
+    (void)tag;
     trans = inactive ? 50 : 25;
     if( inactive )
     {
@@ -655,22 +644,6 @@ orbs_draw_one(
         filled = total;
     }
 
-    /*
-     * The plate is the button, claimed before it is drawn.
-     *
-     * Claimed even when there are no verbs -- `op_count` is 0 for an orb whose
-     * button the lane has not named -- because the region's other job is to
-     * stop the click: an orb sits over the minimap on most gameframes, and
-     * without this a click on it walks the player to whatever tile is
-     * underneath.
-     */
-    g_api->hit_region(ctx, surface, x, y, ORB_W, ORB_H, ops, op_count, tag);
-
-    {
-        int const plate =
-            hovered && g_image[ORB_IMG_FRAME_OVER] >= 0 ? ORB_IMG_FRAME_OVER : ORB_IMG_FRAME;
-        g_api->draw_image(ctx, surface, g_image[plate], x, y, 0, 0, 0, 0, 0);
-    }
     g_api->draw_image(
         ctx, surface, g_image[fill_image], x + ORB_DISC_X, y + ORB_DISC_Y, 0, 0, 0, 0, trans);
 
@@ -724,6 +697,296 @@ orbs_draw_one(
     g_api->draw_text(ctx, surface, x + ORB_TEXT_CX, y + ORB_TEXT_BASELINE, text, ORB_TEXT_RGB);
 }
 
+/*
+ * ## The orbs are PARTS
+ *
+ * Each orb is a chrome part -- `orb_hitpoints`, `orb_prayer`, `orb_run`,
+ * `orb_spec` -- claimed at start and, where this revision has no such thing,
+ * ADDED and hung off the minimap. That is what lets this plugin coexist with
+ * whatever else provides orbs: on an OldSchool cache the four names bind to
+ * interface 160's own orb roots, so claiming them hides the cache's orbs and
+ * this plugin draws exactly one set; on a 2004 cache nothing binds, so the
+ * parts are introduced here; and on a frame where a gameframe plugin already
+ * drew them, the claim comes back 0 and this plugin draws none of that orb --
+ * and lays its remaining ones out AROUND it, because a part somebody else
+ * holds still answers where it is.
+ *
+ * The split of labour: the HOST paints the plate and owns the hit region from
+ * this plugin's declaration (chrome_paint / chrome_ops in EV_CHROME), and this
+ * plugin draws what changes every tick -- the fill, the icon, the number -- on
+ * top of it in EV_DRAW_CANVAS. Hover is the host's: it has the pointer and the
+ * box and picks the lit plate itself.
+ */
+
+enum OrbIndex
+{
+    ORB_HP = 0,
+    ORB_PRAYER,
+    ORB_RUN,
+    ORB_SPEC,
+    ORB_COUNT
+};
+
+static struct
+{
+    char const* part;
+    char const* label;
+    uint32_t tag;
+} const ORB_PART[ORB_COUNT] = {
+    { "orb_hitpoints", "the hitpoints orb", ORB_TAG_HP },
+    { "orb_prayer", "the prayer orb", ORB_TAG_PRAYER },
+    { "orb_run", "the run orb", ORB_TAG_RUN },
+    { "orb_spec", "the special attack orb", ORB_TAG_SPEC },
+};
+
+/** Per-orb claim state. */
+static struct
+{
+    /** Scopes this plugin holds, 0 for an orb it does not draw. */
+    int held;
+    /** The claim has been tried against a frame that had somewhere to put
+     *  it: an add that failed because the anchor was not there yet is
+     *  retried, one that failed for good is not. */
+    int settled;
+    /** The verbs last declared, so a change (run on -> off) re-declares. */
+    char ops_sig[128];
+} g_orb[ORB_COUNT];
+
+/** Every claim has been tried once against a frame that could answer. */
+static int g_orbs_reported;
+
+/** The names the user reads, joined for the one line the chatbox gets. */
+static void
+orbs_append(char* buf, size_t cap, char const* what)
+{
+    size_t const len = strlen(buf);
+    if( len == 0 )
+        snprintf(buf, cap, "%s", what);
+    else
+        snprintf(buf + len, cap - len, ", %s", what);
+}
+
+/**
+ * Try every claim. Called at start and again after each layout pass until
+ * every orb is settled -- an ADD needs an anchor with a box, and the first
+ * layout may not have given the minimap one yet.
+ */
+static void
+orbs_claim_all(struct ToriRS_PluginCtx* ctx)
+{
+    struct ToriRS_PluginChromePart initial;
+    char missing[192] = "";
+    int provided = 0;
+    int pending = 0;
+
+    assert(ctx);
+
+    memset(&initial, 0, sizeof(initial));
+    for( int i = 0; i < TORIRS_PLUGIN_CHROME_STATE_COUNT; i++ )
+        initial.art[i] = -1;
+    initial.w = ORB_W;
+    initial.h = ORB_H;
+
+    for( int i = 0; i < ORB_COUNT; i++ )
+    {
+        int got;
+
+        if( g_orb[i].settled )
+        {
+            if( g_orb[i].held )
+                provided++;
+            continue;
+        }
+
+        got = g_api->chrome_claim(ctx, ORB_PART[i].part, TORIRS_PLUGIN_CHROME_SCOPE_ALL, 1);
+        if( got > 0 )
+        {
+            g_orb[i].held = got;
+            g_orb[i].settled = 1;
+            provided++;
+            continue;
+        }
+        if( got == 0 )
+        {
+            /* Somebody else draws it. The player's screen is right; the log
+             * is where this belongs and the chatbox is not. */
+            char const* who = g_api->chrome_owner(
+                ctx, ORB_PART[i].part, TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE);
+            g_api->log(ctx, "'%s' is provided by '%s'; not drawing one",
+                ORB_PART[i].part, who ? who : "another plugin");
+            g_orb[i].settled = 1;
+            continue;
+        }
+
+        /* Nothing on this revision has it: introduce one, hung off the map.
+         * Relative to the MAP SQUARE and not its housing, because the column's
+         * arithmetic has always been in the map's own terms. */
+        {
+            int mx = 0;
+            int my = 0;
+            int mw = 0;
+            int mh = 0;
+            if( !g_api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, &mx, &my, &mw, &mh) )
+            {
+                /* No map yet: not a refusal, just not now. */
+                pending++;
+                continue;
+            }
+            initial.x = g_api->cfg_int(ctx, "offset_x") - ORB_W + ORB_SLOT[i].dx;
+            initial.y = mh / 4 + g_api->cfg_int(ctx, "offset_y") - ORB_SLOT[0].dy + ORB_SLOT[i].dy;
+        }
+        got = g_api->chrome_add(ctx, ORB_PART[i].part, "minimap", &initial);
+        if( got > 0 )
+        {
+            g_orb[i].held = got;
+            g_orb[i].settled = 1;
+            provided++;
+        }
+        else if( got == 0 )
+        {
+            char const* who = g_api->chrome_owner(
+                ctx, ORB_PART[i].part, TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE);
+            g_api->log(ctx, "'%s' is provided by '%s'; not drawing one",
+                ORB_PART[i].part, who ? who : "another plugin");
+            g_orb[i].settled = 1;
+        }
+        else
+        {
+            orbs_append(missing, sizeof(missing), ORB_PART[i].label);
+            g_orb[i].settled = 1;
+        }
+    }
+
+    if( pending || g_orbs_reported )
+        return;
+    g_orbs_reported = 1;
+
+    if( !provided )
+    {
+        g_api->disable_self(ctx, "this gameframe has no minimap to hang orbs off");
+        return;
+    }
+    if( missing[0] )
+    {
+        /* A part NOBODY ends up providing is the one thing the player is
+         * told about: they switched a feature on and cannot see it. */
+        char msg[256];
+        snprintf(msg, sizeof(msg), "Minimap orbs: no room on this gameframe for %s.", missing);
+        g_api->notify(ctx, msg);
+        g_api->log(ctx, "%s", msg);
+    }
+}
+
+static enum ToriRS_PluginVerdict
+orbs_layout_changed(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+{
+    (void)event;
+    (void)userdata;
+    orbs_claim_all(ctx);
+    return TORIRS_PLUGIN_PASS;
+}
+
+/**
+ * The verbs one orb offers right now, and a signature of them so a change
+ * (the run orb flips between "Turn run on" and "Turn run off") re-declares.
+ */
+static int
+orbs_ops_for(
+    struct ToriRS_PluginCtx* ctx, int orb, char const** ops, char* sig, size_t sig_cap)
+{
+    int n = 0;
+
+    switch( orb )
+    {
+    case ORB_HP:
+        n = orbs_ops(ctx, "hp_button", "orb_hp_button", "Cure", ops);
+        break;
+    case ORB_PRAYER:
+        n = orbs_ops(ctx, "prayer_button", "orb_prayer_button", "Quick-prayers", ops);
+        break;
+    case ORB_RUN:
+        n = orbs_ops(ctx, "run_button", "orb_run_on", "Toggle Run", ops);
+        break;
+    case ORB_SPEC:
+        n = orbs_ops(ctx, "spec_button", "orb_spec_button", "Use Special Attack", ops);
+        break;
+    default:
+        break;
+    }
+    sig[0] = '\0';
+    for( int i = 0; i < n; i++ )
+    {
+        size_t const len = strlen(sig);
+        snprintf(sig + len, sig_cap - len, "%s|", ops[i]);
+    }
+    return n;
+}
+
+/**
+ * EV_CHROME: state the plate and the click for every orb this plugin holds.
+ * The box is only read for a part this plugin holds the POSITION of (an added
+ * one); on a cache orb the box is the cache's.
+ */
+static enum ToriRS_PluginVerdict
+orbs_chrome(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+{
+    (void)event;
+    (void)userdata;
+
+    orbs_load_images(ctx);
+
+    for( int i = 0; i < ORB_COUNT; i++ )
+    {
+        struct ToriRS_PluginChromePart part;
+        char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
+        int n;
+
+        if( !g_orb[i].held )
+            continue;
+
+        memset(&part, 0, sizeof(part));
+        for( int s = 0; s < TORIRS_PLUGIN_CHROME_STATE_COUNT; s++ )
+            part.art[s] = -1;
+        part.art[TORIRS_PLUGIN_CHROME_IDLE] = g_image[ORB_IMG_FRAME];
+        part.art[TORIRS_PLUGIN_CHROME_HOVER] = g_image[ORB_IMG_FRAME_OVER];
+        part.w = ORB_W;
+        part.h = ORB_H;
+        if( g_orb[i].held & TORIRS_PLUGIN_CHROME_SCOPE_POSITION )
+        {
+            int mx = 0;
+            int my = 0;
+            int mw = 0;
+            int mh = 0;
+            (void)g_api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, &mx, &my, &mw, &mh);
+            part.x = g_api->cfg_int(ctx, "offset_x") - ORB_W + ORB_SLOT[i].dx;
+            part.y = mh / 4 + g_api->cfg_int(ctx, "offset_y") - ORB_SLOT[0].dy + ORB_SLOT[i].dy;
+        }
+        g_api->chrome_paint(ctx, ORB_PART[i].part, &part);
+
+        /* Claimed even with no verbs: the region's other job is to stop the
+         * click falling through to the map tile under the orb. */
+        n = orbs_ops_for(ctx, i, ops, g_orb[i].ops_sig, sizeof(g_orb[i].ops_sig));
+        g_api->chrome_ops(ctx, ORB_PART[i].part, ops, n, ORB_PART[i].tag);
+    }
+    return TORIRS_PLUGIN_PASS;
+}
+
+/** Where an orb this plugin holds is, or 0 for one it does not hold or one
+ *  the frame has nowhere for right now. */
+static int
+orbs_part_box(struct ToriRS_PluginCtx* ctx, int orb, int* out_x, int* out_y)
+{
+    struct ToriRS_PluginChromePart part;
+
+    if( !g_orb[orb].held )
+        return 0;
+    if( !g_api->chrome_part(ctx, ORB_PART[orb].part, &part) )
+        return 0;
+    *out_x = part.x;
+    *out_y = part.y;
+    return 1;
+}
+
 static enum ToriRS_PluginVerdict
 orbs_draw(
     struct ToriRS_PluginCtx* ctx,
@@ -739,7 +1002,6 @@ orbs_draw(
     int map_h;
     int x;
     int y;
-    int slot = 0;
 
     assert(ctx);
     assert(ev);
@@ -809,21 +1071,21 @@ orbs_draw(
     orbs_load_digits(ctx);
 
     /*
-     * The column hangs off the minimap's LEFT edge, starting a QUARTER of the
-     * way down it, which is where interface 160 puts it and where a player
-     * looks for it: the orbs curve around the lower part of the map and carry
-     * on past its bottom edge, rather than running down the whole side of it.
-     *
-     * Anchored to the map's own height rather than to a number, because that
-     * height is a property of the gameframe -- 151 in a 2004 frame, and
-     * whatever a resizable one resolves to. The offsets stay config so a
-     * gameframe whose minimap sits against the screen edge, or whose frame art
-     * the plate would cover, can move the column without a rebuild.
+     * Where each orb IS is answered by its part, not computed here: an added
+     * part's box was stated relative to the map in orbs_chrome and the host
+     * has already made it absolute; a cache orb's box is the cache's own. An
+     * orb this plugin does not hold is simply not drawn, and the ones it does
+     * hold keep the places they were given -- which is what lets a column of
+     * two coexist with somebody else's two without stacking on them.
      */
-    x = map_x + g_api->cfg_int(ctx, "offset_x") - ORB_W;
-    y = map_y + map_h / 4 + g_api->cfg_int(ctx, "offset_y") - ORB_SLOT[0].dy;
+    (void)map_x;
+    (void)map_y;
+    (void)map_w;
+    (void)map_h;
+    x = 0;
+    y = 0;
 
-    if( g_api->cfg_bool(ctx, "show_hp") )
+    if( g_api->cfg_bool(ctx, "show_hp") && orbs_part_box(ctx, ORB_HP, &x, &y) )
     {
         int current = 0;
         int base = 0;
@@ -837,8 +1099,8 @@ orbs_draw(
             orbs_draw_one(
                 ctx,
                 ev->surface,
-                x + ORB_SLOT[slot].dx,
-                y + ORB_SLOT[slot].dy,
+                x,
+                y,
                 ORB_IMG_FILL_RED,
                 ORB_IMG_ICON_HP,
                 current,
@@ -848,11 +1110,10 @@ orbs_draw(
                 ops,
                 n,
                 0);
-            slot++;
         }
     }
 
-    if( g_api->cfg_bool(ctx, "show_prayer") && slot < ORB_SLOT_COUNT )
+    if( g_api->cfg_bool(ctx, "show_prayer") && orbs_part_box(ctx, ORB_PRAYER, &x, &y) )
     {
         int current = 0;
         int base = 0;
@@ -866,8 +1127,8 @@ orbs_draw(
             orbs_draw_one(
                 ctx,
                 ev->surface,
-                x + ORB_SLOT[slot].dx,
-                y + ORB_SLOT[slot].dy,
+                x,
+                y,
                 ORB_IMG_FILL_PRAYER,
                 ORB_IMG_ICON_PRAYER,
                 current,
@@ -877,27 +1138,31 @@ orbs_draw(
                 ops,
                 n,
                 0);
-            slot++;
         }
     }
 
-    if( g_api->cfg_bool(ctx, "show_run") )
+    if( g_api->cfg_bool(ctx, "show_run") && orbs_part_box(ctx, ORB_RUN, &x, &y) )
     {
         char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
-        int const n = orbs_ops(ctx, "run_button", "orb_run_on", "Toggle Run", ops);
+        char sig[128];
+        int const n = orbs_ops_for(ctx, ORB_RUN, ops, sig, sizeof(sig));
         int const energy = g_api->run_energy(ctx);
+        /* The verb follows the state, and the host's region carries the verb
+         * -- so a change here restates the claim, which re-asks for the
+         * declaration on the next chrome tick. */
+        if( strcmp(sig, g_orb[ORB_RUN].ops_sig) != 0 )
+            g_api->chrome_claim(ctx, ORB_PART[ORB_RUN].part, TORIRS_PLUGIN_CHROME_SCOPE_HITBOX, 1);
         int const run_varp = orbs_varp(ctx, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
         /* Run ON is the gold disc and the running boot; walking is the grey
          * disc and the standing one -- the same pair the reference swaps. A
          * lane with no run var reads as walking rather than as an error. */
         int const running = run_varp >= 0 && g_api->varp(ctx, run_varp) != 0;
-        if( slot < ORB_SLOT_COUNT )
         {
             orbs_draw_one(
                 ctx,
                 ev->surface,
-                x + ORB_SLOT[slot].dx,
-                y + ORB_SLOT[slot].dy,
+                x,
+                y,
                 ORB_IMG_FILL_GOLD,
                 running ? ORB_IMG_ICON_RUN : ORB_IMG_ICON_WALK,
                 energy,
@@ -912,16 +1177,15 @@ orbs_draw(
                  * says how much energy there is. The gold disc and the running
                  * boot are the on state. */
                 !running);
-            slot++;
         }
     }
 
-    if( g_api->cfg_bool(ctx, "show_spec") )
+    if( g_api->cfg_bool(ctx, "show_spec") && orbs_part_box(ctx, ORB_SPEC, &x, &y) )
     {
         int const spec_varp =
             orbs_varp(ctx, "spec_varp", "special_attack_energy", ORB_VARP_SPEC_FALLBACK);
         int const spec_max = g_api->cfg_int(ctx, "spec_max");
-        if( spec_varp >= 0 && spec_max > 0 && slot < ORB_SLOT_COUNT )
+        if( spec_varp >= 0 && spec_max > 0 )
         {
             char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
             int const n =
@@ -954,8 +1218,8 @@ orbs_draw(
             orbs_draw_one(
                 ctx,
                 ev->surface,
-                x + ORB_SLOT[slot].dx,
-                y + ORB_SLOT[slot].dy,
+                x,
+                y,
                 /* The lit disc while the special is ARMED, the plain one
                  * otherwise -- graphic 1608 beside 1607, as 2792 picks them. */
                 armed ? ORB_IMG_FILL_CYAN_LIT : ORB_IMG_FILL_CYAN,
@@ -969,7 +1233,6 @@ orbs_draw(
                 ops,
                 n,
                 inactive);
-            slot++;
         }
     }
 
@@ -1094,6 +1357,13 @@ orbs_start(
     g_digits_ready = 0;
     orbs_load_images(ctx);
     orbs_load_digits(ctx);
+
+    /* Every claim, NOW -- before a pixel is drawn -- so the arbitration
+     * happens at the moment the user flipped the switch. Adds that need a map
+     * the frame has not laid out yet are retried from EV_LAYOUT_CHANGED. */
+    memset(g_orb, 0, sizeof(g_orb));
+    g_orbs_reported = 0;
+    orbs_claim_all(ctx);
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -1127,6 +1397,8 @@ orbs_init(
     api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, orbs_stop, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_CANVAS, orbs_draw, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CANVAS_CLICK, orbs_click, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_CHROME, orbs_chrome, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_LAYOUT_CHANGED, orbs_layout_changed, NULL);
 }
 
 /*
@@ -1181,15 +1453,15 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS = {
     .priority = 0,
     .config = ORBS_CONFIG,
     /*
-     * OFF until asked for, and this one has a second reason beyond the usual.
-     *
-     * The usual reason is that a client which marks up the screen on first
-     * launch without being asked reads as broken. The second is that on a
-     * rev-239 cache the gameframe draws these orbs ITSELF, from interface 160,
-     * and a plugin drawing a second set over them would be two of everything.
-     * The lane that wants them is the one whose cache has none.
+     * ON by default now. It used to be off because on a rev-239 cache the
+     * gameframe draws these orbs ITSELF, from interface 160, and a plugin
+     * drawing a second set over them was two of everything. The four orb
+     * names now bind to interface 160's own roots on that lane, so the claim
+     * this plugin takes at start HIDES the cache's orb and draws this one in
+     * its place -- exactly one set, on every lane, with nothing for the user
+     * to know.
      */
-    .disabled_by_default = true,
+    .disabled_by_default = false,
     .init = orbs_init,
     .shutdown = NULL,
 };

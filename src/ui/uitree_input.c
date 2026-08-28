@@ -313,8 +313,19 @@ hit_test_interactive_recursive(
     bool const point_in_self =
         UITree_PointInScrolledBounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y);
 
-    if( hit_trace_armed() && component->component_id > 0 )
-        TORIRS_LOG("hit: idx=%d com=%d type=%d box=%d,%d %dx%d in_self=%d passthru=%d vis=%d\n",
+    /*
+     * Every node, and through TORIRS_REPORT.
+     *
+     * It used to print only `component_id > 0` and through TORIRS_LOG, which
+     * left it blind in both directions at once: a builtin (a login field, a
+     * login button, the minimap) carries no component id, and TORIRS_LOG is
+     * compiled out of the optimized build people actually run. So the trace
+     * that exists to answer "why did my click do nothing" could not see the
+     * nodes whose clicks are hardest to reason about. It is gated by its own
+     * environment variable, which is what TORIRS_REPORT is for.
+     */
+    if( hit_trace_armed() )
+        TORIRS_REPORT("hit: idx=%d com=%d type=%d box=%d,%d %dx%d in_self=%d passthru=%d vis=%d\n",
             node_index,
             component->component_id,
             (int)component->type,

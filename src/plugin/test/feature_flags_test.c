@@ -580,6 +580,19 @@ fake_role_id(void* u, char const* role)
     return -1;
 }
 
+/* No role in these fakes binds to a frame slot: the tests that care about
+ * chrome parts drive them through the slot verbs directly. */
+static int
+fake_role_slot(void* user, char const* role, int* out_slot, int* out_member)
+{
+    (void)user;
+    (void)role;
+    (void)out_slot;
+    (void)out_member;
+    return 0;
+}
+
+
 static int
 fake_role_replace(void* u, int plugin, char const* role, int enabled)
 {
@@ -649,6 +662,15 @@ fake_menu_add(
     (void)t;
     (void)a;
     return 0;
+}
+
+static int
+fake_menu_drop(void* u, void* cursor, int index)
+{
+    (void)u;
+    (void)cursor;
+    (void)index;
+    return 1;
 }
 static int
 fake_if_click(
@@ -1221,6 +1243,7 @@ fake_engine(void)
     e.role_visible = fake_role_visible;
     e.role_click = fake_role_click;
     e.role_id = fake_role_id;
+    e.role_slot = fake_role_slot;
     e.role_replace = fake_role_replace;
     e.role_anchor = fake_role_anchor;
     e.stat = fake_stat;
@@ -1228,6 +1251,7 @@ fake_engine(void)
     e.skill_name = fake_skill_name;
     e.run_energy = fake_run_energy;
     e.menu_add = fake_menu_add;
+    e.menu_drop = fake_menu_drop;
     e.image_publish = fake_image_publish;
     e.image_publish_argb = fake_image_publish_argb;
     e.image_read = fake_image_read;

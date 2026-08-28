@@ -710,6 +710,46 @@ frame_chat_buttons_across(
         }
         g_api->layout_slot_at(
             ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, i, bx, y, FRAME_CHAT_BUTTON_W, height);
+
+        /*
+         * And DECLARED, not merely remembered for the draw pass.
+         *
+         * The plate is the same four handles it always was; what changes is
+         * who blits it. Stated to the host, it is a PART -- something another
+         * plugin can find by name, measure, borrow the art of, or claim
+         * outright -- and when one does, the host simply stops painting this
+         * declaration and starts painting theirs. Nothing in this file has to
+         * ask "did somebody replace the report button" before drawing it.
+         *
+         * The box is the PLATE's, lifted FRAME_O_CHAT_BUTTON_LIFT rows and
+         * two rows shorter than the mount the label sits in. That difference
+         * is the whole reason the declaration carries a box of its own: a
+         * plugin painting the ROLE's rectangle overhangs the plate it meant
+         * to replace.
+         */
+        if( plate && g_frame.chat_button_count > 0 &&
+            g_frame.chat_button[g_frame.chat_button_count - 1].filter == i )
+        {
+            struct FrameChatButton const* b =
+                &g_frame.chat_button[g_frame.chat_button_count - 1];
+            struct ToriRS_PluginChromePart part;
+            int pw = 0;
+            int ph = 0;
+
+            memset(&part, 0, sizeof(part));
+            part.x = b->x;
+            part.y = b->y;
+            part.w = b->w;
+            part.h = g_api->image_size(ctx, b->idle, &pw, &ph) ? ph : height;
+            part.art[TORIRS_PLUGIN_CHROME_IDLE] = b->idle;
+            part.art[TORIRS_PLUGIN_CHROME_HOVER] = b->hover;
+            part.art[TORIRS_PLUGIN_CHROME_ACTIVE] = b->active;
+            part.art[TORIRS_PLUGIN_CHROME_ACTIVE_HOVER] = b->active_hover;
+            part.art[TORIRS_PLUGIN_CHROME_DISABLED] = -1;
+            part.label_x = b->w / 2;
+            part.label_y = part.h / 2;
+            g_api->layout_slot_art(ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, i, &part);
+        }
     }
 }
 
@@ -1691,19 +1731,40 @@ frame_on_draw(
              * the two combine: the family ships all four plates because a
              * selected button still has to answer the pointer.
              */
-            if( b->active >= 0 && g_chat_open && g_chat_filter == b->filter )
-                plate = hot && b->active_hover >= 0 ? b->active_hover : b->active;
-            else
-                plate = hot && b->hover >= 0 ? b->hover : b->idle;
-            /* One blit: the plate was composed at the button's own size, so
-             * there is nothing left to slice at draw time. */
-            g_api->draw_image(ctx, ev->surface, plate, b->x, b->y, 0, 0, 0, 0, 0);
+            /*
+             * The PLATE is the host's to paint now: it was declared as a part
+             * in the layout pass, and the host picks hover for itself from
+             * the pointer and the box. What the host cannot know is whether
+             * this button is the filter the chat is SHOWING -- the
+             * reference's own %varcint41, a SELECTION and not a press -- and
+             * layout_slot_state is how the arranger says so.
+             */
+            (void)plate;
+            (void)hot;
+            (void)iw;
+            g_api->layout_slot_state(
+                ctx,
+                TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
+                b->filter,
+                b->active >= 0 && g_chat_open && g_chat_filter == b->filter
+                    ? TORIRS_PLUGIN_CHROME_ACTIVE
+                    : TORIRS_PLUGIN_CHROME_IDLE);
             /* Only a frame whose chatbox can be put away claims these, and
              * on it only the three buttons that SELECT something: on the fixed
              * frames the click belongs to the lane's own button, which cycles
              * the filter's mode, and Report abuse is the lane's on every frame.
-             * @see FrameChatButton::active. */
-            if( b->active >= 0 )
+             * @see FrameChatButton::active.
+             *
+             * And not when another plugin holds the HITBOX: a second region
+             * under theirs would be a second answer to one click. The host
+             * cannot tell which of this plugin's regions is for which part,
+             * so this is the arranger's one line to add. */
+            if( b->active >= 0 &&
+                !g_api->layout_slot_claimed(
+                    ctx,
+                    TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
+                    b->filter,
+                    TORIRS_PLUGIN_CHROME_SCOPE_HITBOX) )
                 g_api->hit_region(
                     ctx,
                     ev->surface,

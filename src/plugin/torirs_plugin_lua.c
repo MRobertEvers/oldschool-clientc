@@ -133,6 +133,8 @@ struct LuaScript
         LUA_SURFACE_WORLD,
         LUA_SURFACE_CANVAS
     } cur_surface_kind;
+    /** Inside on_chrome: chrome.paint and chrome.ops are legal. */
+    int cur_in_chrome;
     struct ToriRS_PluginEvMenuBuild* cur_menu;
 
     size_t mem_used;
@@ -990,6 +992,354 @@ lua_role_id(lua_State* L)
  * frame handler is not allocating one per frame; a script that hoists it is
  * doing the same thing, only visibly.
  */
+/* -- chrome and entities: the claim tier ---------------------------------
+ *
+ * `api.chrome.*` and `api.entity.*`, flat verbs taking the part name, because
+ * a claim is stated once at start and the name is not repeated at every
+ * frame the way a region's is. Scopes are a table of strings or a single
+ * string: {"appearance", "hitbox"}.
+ */
+
+static int
+lua_scopes_arg(lua_State* L, int idx)
+{
+    static const struct
+    {
+        char const* name;
+        int bit;
+    } SCOPES[] = {
+        { "position", TORIRS_PLUGIN_CHROME_SCOPE_POSITION },
+        { "appearance", TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE },
+        { "hitbox", TORIRS_PLUGIN_CHROME_SCOPE_HITBOX },
+        { "all", TORIRS_PLUGIN_CHROME_SCOPE_ALL },
+    };
+    int mask = 0;
+
+    if( lua_isnoneornil(L, idx) )
+        return TORIRS_PLUGIN_CHROME_SCOPE_ALL;
+    if( lua_isinteger(L, idx) )
+        return (int)lua_tointeger(L, idx) & TORIRS_PLUGIN_CHROME_SCOPE_ALL;
+
+    lua_Integer const n = lua_istable(L, idx) ? luaL_len(L, idx) : 1;
+    for( lua_Integer i = 1; i <= n; i++ )
+    {
+        char const* name;
+        int found = 0;
+        if( lua_istable(L, idx) )
+            lua_rawgeti(L, idx, i);
+        else
+            lua_pushvalue(L, idx);
+        name = lua_tostring(L, -1);
+        for( size_t s = 0; name && s < sizeof(SCOPES) / sizeof(SCOPES[0]); s++ )
+            if( strcmp(name, SCOPES[s].name) == 0 )
+            {
+                mask |= SCOPES[s].bit;
+                found = 1;
+            }
+        lua_pop(L, 1);
+        if( !found )
+            return luaL_error(L, "unknown scope '%s'", name ? name : "?");
+    }
+    return mask;
+}
+
+static void
+lua_push_scopes(lua_State* L, int mask)
+{
+    lua_createtable(L, 0, 3);
+    lua_pushboolean(L, (mask & TORIRS_PLUGIN_CHROME_SCOPE_POSITION) != 0);
+    lua_setfield(L, -2, "position");
+    lua_pushboolean(L, (mask & TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE) != 0);
+    lua_setfield(L, -2, "appearance");
+    lua_pushboolean(L, (mask & TORIRS_PLUGIN_CHROME_SCOPE_HITBOX) != 0);
+    lua_setfield(L, -2, "hitbox");
+}
+
+/** A ChromePart from a table {x,y,w,h, idle=,hover=,active=,active_hover=,
+ *  disabled=, label_x=, label_y=}. Missing art is -1. */
+static void
+lua_part_arg(lua_State* L, int idx, struct ToriRS_PluginChromePart* out)
+{
+    static char const* const STATE_KEY[TORIRS_PLUGIN_CHROME_STATE_COUNT] = {
+        "idle", "hover", "active", "active_hover", "disabled",
+    };
+    memset(out, 0, sizeof(*out));
+    for( int i = 0; i < TORIRS_PLUGIN_CHROME_STATE_COUNT; i++ )
+        out->art[i] = -1;
+    if( !lua_istable(L, idx) )
+        return;
+#define LUA_PART_INT(field, key)                                                   \
+    do                                                                             \
+    {                                                                              \
+        lua_getfield(L, idx, key);                                                 \
+        out->field = (int)luaL_optinteger(L, -1, out->field);                      \
+        lua_pop(L, 1);                                                             \
+    } while( 0 )
+    LUA_PART_INT(x, "x");
+    LUA_PART_INT(y, "y");
+    LUA_PART_INT(w, "w");
+    LUA_PART_INT(h, "h");
+    LUA_PART_INT(label_x, "label_x");
+    LUA_PART_INT(label_y, "label_y");
+#undef LUA_PART_INT
+    for( int i = 0; i < TORIRS_PLUGIN_CHROME_STATE_COUNT; i++ )
+    {
+        lua_getfield(L, idx, STATE_KEY[i]);
+        out->art[i] = (int)luaL_optinteger(L, -1, -1);
+        lua_pop(L, 1);
+    }
+}
+
+static void
+lua_push_part(lua_State* L, struct ToriRS_PluginChromePart const* part)
+{
+    static char const* const STATE_KEY[TORIRS_PLUGIN_CHROME_STATE_COUNT] = {
+        "idle", "hover", "active", "active_hover", "disabled",
+    };
+    static char const* const SOURCE_NAME[] = { "none", "lane", "frame", "added" };
+    lua_createtable(L, 0, 12);
+    lua_pushinteger(L, part->x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, part->y);
+    lua_setfield(L, -2, "y");
+    lua_pushinteger(L, part->w);
+    lua_setfield(L, -2, "w");
+    lua_pushinteger(L, part->h);
+    lua_setfield(L, -2, "h");
+    lua_pushinteger(L, part->label_x);
+    lua_setfield(L, -2, "label_x");
+    lua_pushinteger(L, part->label_y);
+    lua_setfield(L, -2, "label_y");
+    for( int i = 0; i < TORIRS_PLUGIN_CHROME_STATE_COUNT; i++ )
+        if( part->art[i] >= 0 )
+        {
+            lua_pushinteger(L, part->art[i]);
+            lua_setfield(L, -2, STATE_KEY[i]);
+        }
+    lua_pushstring(L, part->source >= 0 && part->source < 4 ? SOURCE_NAME[part->source] : "none");
+    lua_setfield(L, -2, "source");
+}
+
+/** api.chrome.claim(part [, scopes]) -> held-scopes table, or nil for a part
+ *  this revision has not got. */
+static int
+lua_chrome_claim(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* part = luaL_checkstring(L, 1);
+    int const scopes = lua_scopes_arg(L, 2);
+    int const got = g_api->chrome_claim(script->cur_ctx, part, scopes, 1);
+    if( got < 0 )
+        lua_pushnil(L);
+    else
+        lua_push_scopes(L, got);
+    return 1;
+}
+
+/** api.chrome.release(part [, scopes]) */
+static int
+lua_chrome_release(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* part = luaL_checkstring(L, 1);
+    g_api->chrome_claim(script->cur_ctx, part, lua_scopes_arg(L, 2), 0);
+    return 0;
+}
+
+/** api.chrome.add(part, anchor [, initial]) -> held-scopes table, or nil. */
+static int
+lua_chrome_add(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* part = luaL_checkstring(L, 1);
+    char const* anchor = luaL_checkstring(L, 2);
+    struct ToriRS_PluginChromePart initial;
+    int got;
+    lua_part_arg(L, 3, &initial);
+    got = g_api->chrome_add(script->cur_ctx, part, anchor, lua_istable(L, 3) ? &initial : NULL);
+    if( got < 0 )
+        lua_pushnil(L);
+    else
+        lua_push_scopes(L, got);
+    return 1;
+}
+
+/** api.chrome.owner(part [, scope]) -> title or nil */
+static int
+lua_chrome_owner(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* part = luaL_checkstring(L, 1);
+    int scope = lua_isnoneornil(L, 2) ? TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE : lua_scopes_arg(L, 2);
+    char const* who = g_api->chrome_owner(script->cur_ctx, part, scope);
+    if( who )
+        lua_pushstring(L, who);
+    else
+        lua_pushnil(L);
+    return 1;
+}
+
+/** api.chrome.claimed(part [, scopes]) -> scopes table held by others */
+static int
+lua_chrome_claimed(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* part = luaL_checkstring(L, 1);
+    lua_push_scopes(L, g_api->chrome_claimed(script->cur_ctx, part, lua_scopes_arg(L, 2)));
+    return 1;
+}
+
+/** api.chrome.part(part) -> part table or nil */
+static int
+lua_chrome_part(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* part = luaL_checkstring(L, 1);
+    struct ToriRS_PluginChromePart out;
+    if( !g_api->chrome_part(script->cur_ctx, part, &out) )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_push_part(L, &out);
+    return 1;
+}
+
+/** api.chrome.paint(part, {x,y,w,h, idle=..}) -- inside on_chrome only. */
+static int
+lua_chrome_paint(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* part = luaL_checkstring(L, 1);
+    struct ToriRS_PluginChromePart art;
+    if( !script->cur_in_chrome )
+        return luaL_error(L, "chrome.paint is only legal inside on_chrome");
+    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_part_arg(L, 2, &art);
+    lua_pushboolean(L, g_api->chrome_paint(script->cur_ctx, part, &art));
+    return 1;
+}
+
+/** Read a string-or-list of ops at `idx` into `ops`. */
+static int
+lua_ops_arg(lua_State* L, int idx, char const** ops)
+{
+    int op_count = 0;
+    if( lua_isstring(L, idx) )
+        ops[op_count++] = lua_tostring(L, idx);
+    else if( lua_istable(L, idx) )
+    {
+        lua_Integer const n = luaL_len(L, idx);
+        for( lua_Integer i = 1; i <= n && op_count < TORIRS_PLUGIN_REGION_OPS_MAX; i++ )
+        {
+            lua_rawgeti(L, idx, i);
+            if( lua_type(L, -1) == LUA_TSTRING )
+                ops[op_count++] = lua_tostring(L, -1);
+            lua_pop(L, 1);
+        }
+    }
+    else if( !lua_isnoneornil(L, idx) )
+        return luaL_error(L, "ops must be a string or a list of strings");
+    return op_count;
+}
+
+/** api.chrome.ops(part, ops [, tag]) -- inside on_chrome only. */
+static int
+lua_chrome_ops(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* part = luaL_checkstring(L, 1);
+    char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX];
+    int op_count;
+    if( !script->cur_in_chrome )
+        return luaL_error(L, "chrome.ops is only legal inside on_chrome");
+    op_count = lua_ops_arg(L, 2, ops);
+    lua_pushboolean(
+        L, g_api->chrome_ops(script->cur_ctx, part, ops, op_count, (uint32_t)luaL_optinteger(L, 3, 0)));
+    return 1;
+}
+
+/** api.chrome.state(part, "idle"|"hover"|"active"|"active_hover"|"disabled") */
+static int
+lua_chrome_state(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* part = luaL_checkstring(L, 1);
+    static char const* const NAMES[] = { "idle", "hover", "active", "active_hover", "disabled", NULL };
+    int const state = luaL_checkoption(L, 2, "idle", NAMES);
+    lua_pushboolean(L, g_api->chrome_state(script->cur_ctx, part, state));
+    return 1;
+}
+
+/** api.entity.part(kind, a [, b, c, d]) -> name. kind is "npc"|"player"|"loc"|"obj". */
+static int
+lua_entity_part(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    static char const* const KINDS[] = { "npc", "player", "loc", "obj", NULL };
+    int const kind = luaL_checkoption(L, 1, NULL, KINDS) + 1;
+    char buf[TORIRS_PLUGIN_ROLE_NAME_MAX];
+    char const* name = g_api->entity_part(
+        script->cur_ctx,
+        kind,
+        (int)luaL_checkinteger(L, 2),
+        (int)luaL_optinteger(L, 3, 0),
+        (int)luaL_optinteger(L, 4, 0),
+        (int)luaL_optinteger(L, 5, 0),
+        buf,
+        (int)sizeof(buf));
+    if( name )
+        lua_pushstring(L, name);
+    else
+        lua_pushnil(L);
+    return 1;
+}
+
+/** api.entity.look(part, {hull=true, rgb=0xRRGGBB, fill=alpha, shape="bounds"|"mesh"}) */
+static int
+lua_entity_look(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* part = luaL_checkstring(L, 1);
+    struct ToriRS_PluginEntityLook look;
+    static char const* const SHAPES[] = { "bounds", "mesh", NULL };
+
+    luaL_checktype(L, 2, LUA_TTABLE);
+    memset(&look, 0, sizeof(look));
+    lua_getfield(L, 2, "hull");
+    look.hull = lua_isnoneornil(L, -1) ? 1 : lua_toboolean(L, -1);
+    lua_pop(L, 1);
+    lua_getfield(L, 2, "rgb");
+    look.rgb = (uint32_t)luaL_optinteger(L, -1, 0xFFFFFF);
+    lua_pop(L, 1);
+    lua_getfield(L, 2, "fill");
+    look.fill_alpha = (int)luaL_optinteger(L, -1, 0);
+    lua_pop(L, 1);
+    lua_getfield(L, 2, "shape");
+    look.shape = luaL_checkoption(L, -1, "bounds", SHAPES) == 0 ? TORIRS_PLUGIN_HULL_BOUNDS
+                                                               : TORIRS_PLUGIN_HULL_MESH;
+    lua_pop(L, 1);
+    lua_pushboolean(L, g_api->entity_look(script->cur_ctx, part, &look));
+    return 1;
+}
+
+/** api.entity.ops(part, "append"|"replace"|"none", ops [, tag]) */
+static int
+lua_entity_ops(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* part = luaL_checkstring(L, 1);
+    static char const* const MODES[] = { "append", "replace", "none", NULL };
+    int const mode = luaL_checkoption(L, 2, "append", MODES);
+    char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX];
+    int const op_count = lua_ops_arg(L, 3, ops);
+    lua_pushboolean(
+        L,
+        g_api->entity_ops(
+            script->cur_ctx, part, mode, ops, op_count, (uint32_t)luaL_optinteger(L, 4, 0)));
+    return 1;
+}
+
 static int
 lua_api_role(lua_State* L)
 {
@@ -2062,6 +2412,50 @@ lua_build_api_table(struct LuaScript* script)
     lua_pushcclosure(L, lua_api_role, 2);
     lua_setfield(L, -2, "role");
 
+    /* api.chrome and api.entity: the claim tier. */
+    {
+        static const struct
+        {
+            char const* name;
+            lua_CFunction fn;
+        } CHROME[] = {
+            { "claim", lua_chrome_claim },     { "release", lua_chrome_release },
+            { "add", lua_chrome_add },         { "owner", lua_chrome_owner },
+            { "claimed", lua_chrome_claimed }, { "part", lua_chrome_part },
+            { "paint", lua_chrome_paint },     { "ops", lua_chrome_ops },
+            { "state", lua_chrome_state },
+        };
+        static const struct
+        {
+            char const* name;
+            lua_CFunction fn;
+        } ENTITY[] = {
+            { "part", lua_entity_part },
+            { "look", lua_entity_look },
+            { "ops", lua_entity_ops },
+            { "claim", lua_chrome_claim },
+            { "release", lua_chrome_release },
+            { "owner", lua_chrome_owner },
+            { "claimed", lua_chrome_claimed },
+        };
+        lua_createtable(L, 0, (int)(sizeof(CHROME) / sizeof(CHROME[0])));
+        for( size_t v = 0; v < sizeof(CHROME) / sizeof(CHROME[0]); v++ )
+        {
+            lua_pushlightuserdata(L, script);
+            lua_pushcclosure(L, CHROME[v].fn, 1);
+            lua_setfield(L, -2, CHROME[v].name);
+        }
+        lua_setfield(L, -2, "chrome");
+        lua_createtable(L, 0, (int)(sizeof(ENTITY) / sizeof(ENTITY[0])));
+        for( size_t v = 0; v < sizeof(ENTITY) / sizeof(ENTITY[0]); v++ )
+        {
+            lua_pushlightuserdata(L, script);
+            lua_pushcclosure(L, ENTITY[v].fn, 1);
+            lua_setfield(L, -2, ENTITY[v].name);
+        }
+        lua_setfield(L, -2, "entity");
+    }
+
     /*
      * api.layout: one sub-table per REGION, with the verbs on it.
      *
@@ -2312,6 +2706,7 @@ static char const* const LUA_HANDLER_NAME[TORIRS_PLUGIN_EV_COUNT] = {
     [TORIRS_PLUGIN_EV_DRAW_CANVAS] = "on_draw_canvas",
     [TORIRS_PLUGIN_EV_CANVAS_CLICK] = "on_canvas_click",
     [TORIRS_PLUGIN_EV_LAYOUT_CHANGED] = "on_layout_changed",
+    [TORIRS_PLUGIN_EV_CHROME] = "on_chrome",
     [TORIRS_PLUGIN_EV_CONFIG_CHANGED] = "on_config_changed",
     [TORIRS_PLUGIN_EV_OBJ_SPAWN] = "on_obj_spawn",
     [TORIRS_PLUGIN_EV_OBJ_COUNT] = "on_obj_count",
@@ -2553,6 +2948,16 @@ lua_push_event_arg(struct LuaScript* script, int event, void* payload)
         return 1;
     }
 
+    case TORIRS_PLUGIN_EV_CHROME:
+    {
+        struct ToriRS_PluginEvLayout const* ev = payload;
+        lua_createtable(L, 0, 2);
+        lua_pushinteger(L, ev->width);
+        lua_setfield(L, -2, "width");
+        lua_pushinteger(L, ev->height);
+        lua_setfield(L, -2, "height");
+        return 1;
+    }
     case TORIRS_PLUGIN_EV_CANVAS_CLICK:
     {
         struct ToriRS_PluginEvCanvasClick const* ev = payload;
@@ -2635,6 +3040,7 @@ lua_trampoline(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     }
     if( binding->event == TORIRS_PLUGIN_EV_MENU_BUILD )
         script->cur_menu = (struct ToriRS_PluginEvMenuBuild*)event;
+    script->cur_in_chrome = binding->event == TORIRS_PLUGIN_EV_CHROME;
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, script->handler_ref[binding->event]);
     lua_rawgeti(L, LUA_REGISTRYINDEX, script->api_ref);
@@ -2655,6 +3061,7 @@ lua_trampoline(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         script->cur_surface = NULL;
         script->cur_surface_kind = LUA_SURFACE_NONE;
         script->cur_menu = NULL;
+        script->cur_in_chrome = 0;
         lua_script_fault(script, msg);
         return TORIRS_PLUGIN_PASS;
     }
@@ -2665,6 +3072,7 @@ lua_trampoline(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     script->cur_surface = NULL;
     script->cur_surface_kind = LUA_SURFACE_NONE;
     script->cur_menu = NULL;
+    script->cur_in_chrome = 0;
     return verdict;
 }
 

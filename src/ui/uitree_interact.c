@@ -1405,9 +1405,6 @@ interact_click(
     {
         struct UITreeComponent const* hit_c = &tree->components[ihit];
         int tabno = -1;
-        if( getenv("TORIRS_LOGIN_DEBUG") )
-            fprintf(stderr, "ui_hit: x=%d y=%d idx=%d type=%d com=0x%08x\n",
-                click_x, click_y, ihit, (int)hit_c->type, (unsigned)hit_c->component_id);
         if( hit_c->type == UIELEM_BUILTIN_TAB_ICONS )
             tabno = hit_c->u.tab_icon.tabno;
         else if( hit_c->type == UIELEM_BUILTIN_REDSTONE_TAB )

@@ -663,6 +663,15 @@ fake_menu_add(void* u, void* cursor, char const* text, int action)
     return 1;
 }
 
+static int
+fake_menu_drop(void* u, void* cursor, int index)
+{
+    (void)u;
+    (void)cursor;
+    (void)index;
+    return 1;
+}
+
 /* ---- the 2026-08-22 additions: the canvas surface, images and if_click ----
  *
  * Stubs, deliberately: what these tests exercise is the HOST -- the bus, the
@@ -952,6 +961,19 @@ fake_role_id(void* u, char const* role)
     return role_is(role) ? g_role_component_id : -1;
 }
 
+/* No role in these fakes binds to a frame slot: the tests that care about
+ * chrome parts drive them through the slot verbs directly. */
+static int
+fake_role_slot(void* user, char const* role, int* out_slot, int* out_member)
+{
+    (void)user;
+    (void)role;
+    (void)out_slot;
+    (void)out_member;
+    return 0;
+}
+
+
 static int
 fake_role_replace(void* u, int plugin, char const* role, int enabled)
 {
@@ -1204,6 +1226,7 @@ fake_engine(void)
     e.role_visible = fake_role_visible;
     e.role_click = fake_role_click;
     e.role_id = fake_role_id;
+    e.role_slot = fake_role_slot;
     e.role_replace = fake_role_replace;
     e.role_anchor = fake_role_anchor;
     e.layout_set = fake_layout_set;
@@ -1231,6 +1254,7 @@ fake_engine(void)
     e.hit_region = fake_hit_region;
     e.if_click = fake_if_click;
     e.menu_add = fake_menu_add;
+    e.menu_drop = fake_menu_drop;
     e.obj_next = fake_obj_next;
     e.asset_read = fake_asset_read;
     e.asset_write = fake_asset_write;
