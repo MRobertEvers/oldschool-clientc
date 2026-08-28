@@ -33,9 +33,83 @@
 #include "cmd/cmdbus.h"
 #include "input/torirs_input.h"
 #include "input/torirs_keymap.h"
+#include "input/torirs_touch.h"
 #include "perf/torirs_perf.h"
 
 #include <windows.h>
+
+/*
+ * WM_TOUCH, without giving up the XP lane.
+ *
+ * Touch arrived in Windows 7. This backend still has to LOAD on XP, so none of
+ * it can be linked against: RegisterTouchWindow and friends live in user32 on
+ * a machine that has them and nowhere at all on one that does not, and an
+ * import for a missing symbol fails the whole process at load time rather than
+ * at the call. So they are looked up by name once, and a machine without them
+ * simply never registers the window and never sees the message.
+ *
+ * The declarations are local for the same reason the lookup is: the XP-era
+ * headers this lane compiles against have no winuser.h touch section, so
+ * including one is not an option and the shapes are restated from the API
+ * documentation instead.
+ */
+#ifndef WM_TOUCH
+#define WM_TOUCH 0x0240
+#endif
+#ifndef TOUCHEVENTF_MOVE
+#define TOUCHEVENTF_MOVE 0x0001
+#define TOUCHEVENTF_DOWN 0x0002
+#define TOUCHEVENTF_UP 0x0004
+#endif
+#ifndef TWF_WANTPALM
+#define TWF_WANTPALM 0x00000002
+#endif
+
+typedef struct
+{
+    LONG x; /* in hundredths of a pixel, screen space */
+    LONG y;
+    HANDLE source;
+    DWORD id;
+    DWORD flags;
+    DWORD mask;
+    DWORD time;
+    ULONG_PTR extra;
+    DWORD contact_w;
+    DWORD contact_h;
+} TORIRS_TOUCHINPUT;
+
+typedef BOOL(WINAPI* TORIRS_RegisterTouchWindow)(HWND, ULONG);
+typedef BOOL(WINAPI* TORIRS_GetTouchInputInfo)(HANDLE, UINT, TORIRS_TOUCHINPUT*, int);
+typedef BOOL(WINAPI* TORIRS_CloseTouchInputHandle)(HANDLE);
+
+static TORIRS_RegisterTouchWindow g_register_touch_window;
+static TORIRS_GetTouchInputInfo g_get_touch_input_info;
+static TORIRS_CloseTouchInputHandle g_close_touch_input_handle;
+
+/** @return true when this machine has the touch API at all. */
+static int
+win32_touch_load(void)
+{
+    static int tried;
+    HMODULE user32;
+
+    if( tried )
+        return g_register_touch_window != NULL;
+    tried = 1;
+    user32 = GetModuleHandleA("user32.dll");
+    if( !user32 )
+        return 0;
+    g_register_touch_window =
+        (TORIRS_RegisterTouchWindow)(void*)GetProcAddress(user32, "RegisterTouchWindow");
+    g_get_touch_input_info =
+        (TORIRS_GetTouchInputInfo)(void*)GetProcAddress(user32, "GetTouchInputInfo");
+    g_close_touch_input_handle =
+        (TORIRS_CloseTouchInputHandle)(void*)GetProcAddress(user32, "CloseTouchInputHandle");
+    if( !g_get_touch_input_info || !g_close_touch_input_handle )
+        g_register_touch_window = NULL;
+    return g_register_touch_window != NULL;
+}
 
 #include <assert.h>
 #include <stdint.h>
@@ -94,6 +168,9 @@ struct PlatformSDL2
     int     pending_resize_w;
     int     pending_resize_h;
     int     pending_repeat;
+    /* Fingers. @see ToriRS_Touch, which holds the gesture policy this backend
+     * shares with the SDL one. */
+    struct ToriRS_Touch touch;
 #if defined(TORIRS_WIN32_GDI_TEST_API)
     uint32_t paint_count;
 #endif
@@ -619,6 +696,50 @@ wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         }
         break;
 
+    case WM_TOUCH:
+        if( bus && g_get_touch_input_info )
+        {
+            /*
+             * Windows hands over a BATCH -- every contact that changed in this
+             * frame of the digitiser's report, not one message per finger --
+             * and the handle behind it has to be closed whatever happens next,
+             * or the driver runs out of them and touch stops working for the
+             * whole session.
+             */
+            UINT const count = LOWORD(wparam);
+            TORIRS_TOUCHINPUT inputs[TORIRS_TOUCH_MAX];
+            UINT const wanted = count > TORIRS_TOUCH_MAX ? TORIRS_TOUCH_MAX : count;
+
+            if( wanted &&
+                g_get_touch_input_info(
+                    (HANDLE)lparam, wanted, inputs, (int)sizeof(TORIRS_TOUCHINPUT)) )
+            {
+                for( UINT i = 0; i < wanted; i++ )
+                {
+                    POINT pt;
+                    enum ToriRS_TouchPhase phase = TORIRS_TOUCH_MOVED;
+
+                    /* Screen space, in HUNDREDTHS of a pixel, so it is divided
+                     * down before being made client-relative. */
+                    pt.x = inputs[i].x / 100;
+                    pt.y = inputs[i].y / 100;
+                    ScreenToClient(hwnd, &pt);
+                    map_mouse(p, pt.x, pt.y, &lx, &ly);
+
+                    if( inputs[i].flags & TOUCHEVENTF_DOWN )
+                        phase = TORIRS_TOUCH_BEGAN;
+                    else if( inputs[i].flags & TOUCHEVENTF_UP )
+                        phase = TORIRS_TOUCH_ENDED;
+                    ToriRS_TouchEvent(
+                        &p->touch, bus, phase, (int64_t)inputs[i].id, lx, ly,
+                        (uint64_t)GetTickCount());
+                }
+            }
+            g_close_touch_input_handle((HANDLE)lparam);
+            return 0;
+        }
+        break;
+
     case WM_SIZE:
         if( p && wparam != SIZE_MINIMIZED )
         {
@@ -738,6 +859,14 @@ PlatformSDL2_Init(struct PlatformSDL2* p, int width, int height, char const* tit
     if( !p->hwnd )
         return false;
     SetWindowLongPtr(p->hwnd, GWLP_USERDATA, (LONG_PTR)p);
+
+    /* Asked for, and a refusal is an answer: a desktop without a digitiser
+     * says no here and simply never sends WM_TOUCH. TWF_WANTPALM keeps the
+     * contacts the OS would otherwise filter as an accidental palm, because
+     * this frame is played with the hand ON the screen. */
+    ToriRS_TouchReset(&p->touch);
+    if( win32_touch_load() )
+        g_register_touch_window(p->hwnd, TWF_WANTPALM);
 
     /* Held for the window's life rather than fetched per present; see the field
      * comment. Also the DC the memory DC is made compatible with. */
@@ -881,6 +1010,23 @@ PlatformSDL2_SetTitle(struct PlatformSDL2* p, char const* title)
         SetWindowTextA(p->hwnd, title);
 }
 
+/*
+ * No keyboard to raise.
+ *
+ * This lane is a Win32 desktop window and its keyboard is the physical one --
+ * there is nothing to show and nothing to put away. The entry point exists so
+ * that a plugin asking for a keyboard is answered the same way on every lane:
+ * on the backends that HAVE a soft keyboard (SDL2 on Android and iOS, and
+ * emscripten in a mobile browser) the SDL implementation raises it, and here it
+ * is a no-op rather than a link error.
+ */
+void
+PlatformSDL2_SetTextInput(struct PlatformSDL2* p, int on)
+{
+    (void)p;
+    (void)on;
+}
+
 void
 PlatformSDL2_SetCanvasFollowsWindow(
     struct PlatformSDL2* p, struct ToriRS_CmdBus* bus, bool follow, int min_w, int min_h)
@@ -969,6 +1115,10 @@ PlatformSDL2_PollCommands(struct PlatformSDL2* p, struct ToriRS_CmdBus* bus)
     p->poll_bus = bus;
     p->pending_resize_w = -1;
     p->pending_resize_h = -1;
+
+    /* A finger held perfectly still sends no further WM_TOUCH, so the long
+     * press is given its chance to become a right click from out here. */
+    ToriRS_TouchTick(&p->touch, bus, (uint64_t)GetTickCount());
 
     while( PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) )
     {

@@ -964,11 +964,15 @@ main(
 
         server.ondemand = PlatformX_IO_New();
         assert(server.ondemand);
+        /* No hydration directory here on purpose: io_server PROXIES this
+         * cache to a browser, which keeps its own copy in IndexedDB. A second
+         * one on the server's disk would be a copy nobody reads. */
         enabled = PlatformXIO_Dat1OnDemandEnable(
             server.ondemand,
             manifest.host[0] ? manifest.host : "localhost",
             manifest.port,
-            manifest.ws_port);
+            manifest.ws_port,
+            NULL);
         if( enabled != 0 )
         {
             fprintf(stderr,

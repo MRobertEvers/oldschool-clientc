@@ -57,6 +57,12 @@ test_load_fields(void)
     CHECK(bm.spawn_x == 12);
     CHECK(bm.spawn_z == 34);
 
+    /* [io:boot] -- where stored files this disk lacks are fetched from. Its
+     * own section rather than a key on [net:boot]: this is not the game server
+     * and does not move with it. */
+    CHECK(strcmp(bm.io_host, "io.example.com") == 0);
+    CHECK(bm.io_port == 8099);
+
     CHECK(strcmp(bm.rev_name, "xrsps233") == 0);
     CHECK(strcmp(bm.transport, "ws") == 0);
     CHECK(strcmp(bm.host, "example.com") == 0);
@@ -467,6 +473,143 @@ test_migrated_spawn_actions(void)
     }
 }
 
+
+/*
+ * Where an ondemand world hydrates.
+ *
+ * The assertions are deliberately about SHAPE rather than an exact string.
+ * Recomputing the expected path here would mean reimplementing
+ * bm_user_home in the test, which tests nothing: the two copies would
+ * agree with each other and both be wrong together. What is worth pinning is
+ * what the caller depends on -- that a default appears, that it is anchored
+ * rather than relative to the manifest, that it names this world, and that the
+ * two ways of overriding it both still work.
+ */
+static void
+test_cache_dir_default(void)
+{
+    struct BootManifest bm;
+
+    /* Silence defaults to <home>/torirs_cache/<game>/<world>. */
+    CHECK(BootManifest_LoadFile(
+              &bm, "bootmanifest/test/fixture_cache_default.ini") == 0);
+    CHECK(bm.cache_on_demand == 1);
+    CHECK(bm.cache_dir_stated == 0);
+    CHECK(bm.cache_dir[0] != '\0');
+    /* The 239 client's shape -- ~/jagexcache/<game>/<mode>/ -- under our name:
+     * <home>/torirs_cache/<game>/<world>/. */
+    CHECK(strstr(bm.cache_dir, "torirs_cache") != NULL);
+    /* Segmented by game, so a dat1 cache and a dat2 cache never meet. The
+     * fixture states game=rs2. */
+    CHECK(strstr(bm.cache_dir, "rs2") != NULL);
+    /* ...and by world, so two ondemand manifests do not share a directory and
+     * wipe each other's contents on every alternating boot. */
+    CHECK(strstr(bm.cache_dir, "fixture_cache_default") != NULL);
+    /* Under the home, not at the very start of it: something precedes it. */
+    CHECK(strstr(bm.cache_dir, "torirs_cache") > bm.cache_dir);
+    /* Anchored, not joined onto the manifest's directory. */
+    CHECK(strstr(bm.cache_dir, "bootmanifest/test") == NULL);
+    CHECK(bm.cache_dir[0] == '/' || bm.cache_dir[0] == '\\'
+          || bm.cache_dir[1] == ':');
+
+    /* An empty dir= is the opt-out and must not be defaulted over. */
+    CHECK(BootManifest_LoadFile(
+              &bm, "bootmanifest/test/fixture_cache_optout.ini") == 0);
+    CHECK(bm.cache_on_demand == 1);
+    CHECK(bm.cache_dir_stated == 1);
+    CHECK(bm.cache_dir[0] == '\0');
+
+    /* `~/x` is the home directory, not a directory named "~". */
+    CHECK(BootManifest_LoadFile(
+              &bm, "bootmanifest/test/fixture_cache_home.ini") == 0);
+    CHECK(bm.cache_dir_stated == 1);
+    CHECK(strchr(bm.cache_dir, '~') == NULL);
+    CHECK(strstr(bm.cache_dir, "torirs-fixture/cache") != NULL);
+    CHECK(strstr(bm.cache_dir, "bootmanifest/test") == NULL);
+
+    /* An idb: location is a database name, not a path: it survives parsing
+     * byte for byte rather than being joined onto the manifest's directory. */
+    CHECK(BootManifest_LoadFile(
+              &bm, "bootmanifest/test/fixture_cache_idb.ini") == 0);
+    CHECK(bm.cache_dir_stated == 1);
+    CHECK(strcmp(bm.cache_dir, "idb:torirs_cache/rs2/my-world") == 0);
+    CHECK(BootManifest_CacheLocationIsIdb(bm.cache_dir) == 1);
+    /* And a real directory is not mistaken for one. */
+    CHECK(BootManifest_CacheLocationIsIdb("some/cache") == 0);
+
+    /* A stated dir= still wins over the default, and a DISK world is left
+     * alone entirely -- there, cache_dir is a cache to read, and inventing one
+     * would point the client at an empty directory instead of failing. */
+    CHECK(BootManifest_LoadFile(&bm, FIXTURE) == 0);
+    CHECK(bm.cache_on_demand == 0);
+    CHECK(strcmp(bm.cache_dir, "bootmanifest/test/some/cache") == 0);
+}
+
+
+/* Two paths, equal if they differ only in which separator spells them. */
+static int
+paths_equal(char const* a, char const* b)
+{
+    for( ; *a && *b; a++, b++ )
+    {
+        char ca = (*a == '\\') ? '/' : *a;
+        char cb = (*b == '\\') ? '/' : *b;
+        if( ca != cb )
+            return 0;
+    }
+    return *a == *b;
+}
+
+/*
+ * The same manifest, named with the separator Windows tools produce.
+ *
+ * Every other test here spells FIXTURE with forward slashes, which is how this
+ * went unnoticed: bm_dirname searched for '/' alone, so a path spelled
+ * `bootmanifest\\test\\fixture_manifest.ini` -- what launch.cmd builds, and
+ * what any Windows caller would naturally pass -- yielded an EMPTY manifest
+ * directory. Every relative value then resolved against the process's working
+ * directory instead of the manifest's.
+ *
+ * That is not a cosmetic difference. `revconfig_ui` is stated relative to the
+ * manifest, so it landed outside the repository and the client booted with no
+ * gameframe layout at all -- a window with nothing in it but the fill colour,
+ * and no error, because a manifest naming a file that is not there is simply a
+ * manifest with no UI.
+ *
+ * Windows only: on POSIX a backslash is a legal character in a filename, and
+ * splitting on it there would break a validly-named file.
+ */
+static void
+test_backslash_manifest_path(void)
+{
+#if defined(_WIN32)
+    struct BootManifest fwd;
+    struct BootManifest back;
+
+    CHECK(BootManifest_LoadFile(&fwd, FIXTURE) == 0);
+    CHECK(BootManifest_LoadFile(
+              &back, "bootmanifest\\test\\fixture_manifest.ini") == 0);
+
+    /*
+     * Compared with separators normalised, not byte for byte. A
+     * backslash-spelled manifest yields a backslash-spelled directory, so the
+     * join produces `bootmanifest\\test/some/cache` -- mixed, and opened by
+     * every Windows API in this tree exactly like the all-forward-slash form.
+     * What must hold is that the directory was FOUND and prefixed; rewriting
+     * one separator into the other is not required and pinning it would fail
+     * a correct implementation.
+     */
+    CHECK(paths_equal(fwd.cache_dir, back.cache_dir));
+    CHECK(paths_equal(fwd.revconfig_ui, back.revconfig_ui));
+    CHECK(paths_equal(fwd.revconfig_cache, back.revconfig_cache));
+
+    /* And specifically: joined onto the manifest's directory, not left as the
+     * bare relative value the manifest states -- which is what happened, and
+     * what put revconfig_ui outside the repository. */
+    CHECK(paths_equal(back.cache_dir, "bootmanifest/test/some/cache"));
+#endif
+}
+
 int
 main(void)
 {
@@ -479,6 +622,8 @@ main(void)
     test_required_identity_keys();
     test_exact_manifest_tokens_preserved();
     test_migrated_spawn_actions();
+    test_cache_dir_default();
+    test_backslash_manifest_path();
 
     if( g_fail )
     {

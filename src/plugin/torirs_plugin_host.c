@@ -117,6 +117,20 @@ struct PluginAsset
      * second asset_load of the same name joins the first rather than queuing
      * a duplicate read. */
     bool pending;
+    /*
+     * The read completed and the file was not there.
+     *
+     * Without this the slot records that a read HAPPENED but not what it
+     * found: data stays NULL and pending goes false, which is exactly what an
+     * untouched slot looks like, so the next asset_load starts the read again.
+     * A plugin that asks from its draw path -- item-stats asks for text.ini
+     * and bonuses.txt -- then pays a task, two IO round trips and a log line
+     * every tick, forever, for a file that is not going to appear.
+     *
+     * Cleared by api_asset_save, which writes the very file the load wanted,
+     * so this is a cached answer and not a permanent refusal.
+     */
+    bool missing;
 };
 
 #define TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX 64
@@ -760,8 +774,23 @@ api_layout_claim(
     host->layout_claim_epoch++;
     host->layout_owner = ctx->index;
     host->layout_canvas = canvas;
-    host->layout_fixed_w = canvas == TORIRS_PLUGIN_CANVAS_FIXED ? fixed_w : 0;
-    host->layout_fixed_h = canvas == TORIRS_PLUGIN_CANVAS_FIXED ? fixed_h : 0;
+    /*
+     * Kept for BOTH modes, and they mean different things in each: the pinned
+     * canvas for FIXED, the smallest canvas the layout can be declared against
+     * for FOLLOW_WINDOW. @see layout_claim.
+     *
+     * They used to be zeroed for FOLLOW_WINDOW, on the reasoning that a frame
+     * following the window has no size of its own to state. It has one: the
+     * size below which its own pieces stop fitting each other. Without it the
+     * engine has nothing to clamp to but the client's 765x503 -- the REVCONFIG
+     * gameframe's floor -- and a layout authored for a phone is clamped up to a
+     * desktop canvas and letterboxed into the shape it was written to avoid.
+     *
+     * A claim that names no minimum still passes zeroes, which the engine reads
+     * as "no opinion" and answers with its own floor.
+     */
+    host->layout_fixed_w = fixed_w > 0 ? fixed_w : 0;
+    host->layout_fixed_h = fixed_h > 0 ? fixed_h : 0;
     /*
      * Publishing the claim is the whole of it: the engine marks the frame
      * needing a declaration and raises EV_LAYOUT on its next layout pass, with
@@ -2143,6 +2172,12 @@ api_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
      * and both callers see the bytes. */
     if( slot && slot->pending )
         return 0;
+    /* Already looked, already not there. The plugin was told the first time --
+     * PluginHost_AssetDeliver fires the event with NULL either way -- so
+     * re-reading tells it nothing it does not know and costs a task, two IO
+     * round trips and a log line for every tick it keeps asking. */
+    if( slot && slot->missing )
+        return 0;
 
     slot = plugin_asset_claim(host, ctx->index, name);
     if( !slot )
@@ -2360,6 +2395,10 @@ PluginHost_AssetDeliver(
     }
 
     slot->pending = false;
+    /* What the read FOUND, which is the half the slot used to drop. A miss
+     * that leaves data NULL and pending false is otherwise identical to a
+     * slot nobody has read yet. */
+    slot->missing = (data == NULL);
     if( data )
     {
         free(slot->data);
@@ -3388,6 +3427,15 @@ api_hit_region(
         ctx->host->engine.user, ctx->index, x, y, w, h, ops, op_count, tag);
 }
 
+static void
+api_text_input(struct ToriRS_PluginCtx* ctx, int on)
+{
+    assert(ctx);
+    if( !ctx->host->engine.text_input )
+        return;
+    ctx->host->engine.text_input(ctx->host->engine.user, on ? 1 : 0);
+}
+
 static int
 api_if_click(struct ToriRS_PluginCtx* ctx, int component_id, int op)
 {
@@ -3593,6 +3641,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .draw_image = api_draw_image,
         .hit_region = api_hit_region,
         .if_click = api_if_click,
+        .text_input = api_text_input,
         .asset_load = api_asset_load,
         .asset_data = api_asset_data,
         .asset_save = api_asset_save,

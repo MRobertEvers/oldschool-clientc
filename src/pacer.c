@@ -26,12 +26,93 @@ ToriRS_Pacer_Init(
     pacer->last_logic_ticks = 0;
     pacer->trace = getenv("TORIRS_PACER_TRACE") &&
                    atoi(getenv("TORIRS_PACER_TRACE")) != 0;
+
+    pacer->draw_period_ms = period_ms;
+    pacer->adapt = !(getenv("TORIRS_PACER_ADAPT") &&
+                     atoi(getenv("TORIRS_PACER_ADAPT")) == 0);
+    pacer->adapt_behind = 0;
+    pacer->adapt_ahead = 0;
+}
+
+int
+ToriRS_Pacer_DrawPeriodMs(struct ToriRS_Pacer const* pacer)
+{
+    assert(pacer);
+    return pacer->draw_period_ms > 0 ? pacer->draw_period_ms : pacer->period_ms;
+}
+
+/*
+ * Move the draw budget to match what this machine can actually do.
+ *
+ * The signal is the wait itself, which is the one number that already
+ * distinguishes the two regimes: a frame that waited essentially nothing did
+ * not fit its budget, whatever the frame rate says. Frame rate alone cannot
+ * tell "48 fps with 4 ms of sleep" from "48 fps flat out", and only the second
+ * is worth giving up frames to fix.
+ *
+ * Stepping back up is deliberately harder than stepping down. It requires the
+ * WORK to fit the base budget with room to spare -- not merely that the
+ * current, larger budget is being met, which a machine at 24 ms would satisfy
+ * at 33 ms and then immediately miss at 20 ms. That asymmetry is what stops
+ * the budget oscillating between the two rates.
+ */
+static void
+pacer_adapt(struct ToriRS_Pacer* pacer, uint64_t wait_us)
+{
+    int const base = pacer->period_ms;
+
+    if( !pacer->adapt || base <= 0 )
+        return;
+    if( TORIRS_PACER_FALLBACK_PERIOD_MS <= base )
+        return; /* nothing to fall back to */
+
+    if( wait_us < 1000u )
+    {
+        /* Did not fit: the deadline was already behind us. */
+        pacer->adapt_ahead = 0;
+        if( pacer->draw_period_ms >= TORIRS_PACER_FALLBACK_PERIOD_MS )
+            return;
+        if( ++pacer->adapt_behind < TORIRS_PACER_ADAPT_FRAMES )
+            return;
+        pacer->draw_period_ms = TORIRS_PACER_FALLBACK_PERIOD_MS;
+        pacer->adapt_behind = 0;
+        TORIRS_ERR("pacer: cannot hold %d ms frames; drawing every %d ms "
+            "(~%d fps) so the wait can give the CPU back. The world still "
+            "ticks at %d ms. TORIRS_PACER_ADAPT=0 to pin it.\n",
+            base, pacer->draw_period_ms, 1000 / pacer->draw_period_ms, base);
+        return;
+    }
+
+    pacer->adapt_behind = 0;
+    if( pacer->draw_period_ms <= base )
+        return;
+
+    /* Room to spare only counts if the work would fit the BASE budget. */
+    {
+        uint64_t const budget_us = (uint64_t)pacer->draw_period_ms * 1000u;
+        uint64_t const work_us = wait_us >= budget_us ? 0u : budget_us - wait_us;
+        if( work_us * 10u > (uint64_t)base * 1000u * 8u )
+        {
+            pacer->adapt_ahead = 0;
+            return;
+        }
+    }
+    if( ++pacer->adapt_ahead < TORIRS_PACER_ADAPT_FRAMES )
+        return;
+    pacer->draw_period_ms = base;
+    pacer->adapt_ahead = 0;
+    TORIRS_ERR("pacer: frames fit %d ms again; drawing every %d ms\n",
+        base, base);
 }
 
 void
 ToriRS_Pacer_NoteFrame(struct ToriRS_Pacer* pacer, uint64_t now_us, uint64_t wait_us)
 {
     assert(pacer);
+
+    /* Before the trace gate: the budget adapts whether or not anyone asked
+     * for a trace. */
+    pacer_adapt(pacer, wait_us);
 
     if( !pacer->trace )
         return;
@@ -278,11 +359,27 @@ ToriRS_Pacer_WaitDeadline(
     assert(pacer->period_ms > 0);
 
     if( pacer->kind == TORIRS_PACER_DEADLINE )
-        return frame_start_ms + (uint64_t)pacer->period_ms;
+        return frame_start_ms + (uint64_t)ToriRS_Pacer_DrawPeriodMs(pacer);
 
     /* A duration, not a deadline: the reference sleeps `del` regardless of how
      * long the iteration took, which is precisely why it cannot recover the
      * time an overrun cost it. */
+    /*
+     * GameShell waits a DURATION. When the draw budget has stepped up, that
+     * duration is what has to carry the extra wait -- `del` is computed
+     * against the base period and would otherwise still be the 1 ms floor,
+     * which is the flat-out regime this exists to leave.
+     */
+    {
+        int const draw = ToriRS_Pacer_DrawPeriodMs(pacer);
+        if( draw > pacer->period_ms )
+        {
+            uint64_t const deadline =
+                frame_start_ms + (uint64_t)draw;
+            if( deadline > now_ms )
+                return deadline;
+        }
+    }
     if( pacer->del_ms <= 0 )
         return now_ms;
     return now_ms + (uint64_t)pacer->del_ms;

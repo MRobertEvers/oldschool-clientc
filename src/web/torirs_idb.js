@@ -40,7 +40,53 @@
 (function () {
   'use strict';
 
-  const DB_NAME = 'torirs-cache';
+  /*
+   * Which database this cache lives in.
+   *
+   * A constant meant one browser origin held exactly one cache, so two worlds
+   * served from the same page shared a database and could only be separated by
+   * editing this file. The native build segments its cache directory by game
+   * and world for the same reason -- two caches that share a home wipe each
+   * other whenever their server checksums differ, which is the re-streaming
+   * the cache exists to avoid.
+   *
+   * Named, in order, by:
+   *
+   *   window.TORIRS_IDB_NAME   set by the page before the first read
+   *   ?idb=<name>              the query string, matching how everything else
+   *                            about this page is configured
+   *   'torirs-cache'           the default, unchanged
+   *
+   * A boot manifest spells the same thing `[cache:boot] dir=idb:<name>`, which
+   * is why the value is free-form here rather than assembled from parts: the
+   * manifest has already decided what the name is.
+   *
+   * Resolved once and then frozen. The name is read on every openDb(), and a
+   * value that changed underneath a running client would split its cache
+   * across two databases -- reads missing records that were written moments
+   * earlier, with nothing to say why.
+   */
+  let dbName = null;
+
+  function databaseName() {
+    if( dbName !== null )
+      return dbName;
+    let name = null;
+    if (typeof window.TORIRS_IDB_NAME === 'string' && window.TORIRS_IDB_NAME)
+      name = window.TORIRS_IDB_NAME;
+    if (!name) {
+      try {
+        name = new URLSearchParams(window.location.search).get('idb');
+      } catch (err) {
+        /* No location to read (a worker, a file: page with a hostile
+         * URLSearchParams). The default is still a working cache. */
+        name = null;
+      }
+    }
+    dbName = name || 'torirs-cache';
+    return dbName;
+  }
+
   const DB_VERSION = 1;
 
   function reqPromise(request) {
@@ -54,7 +100,7 @@
     return new Promise(resolve => {
       let request;
       try {
-        request = indexedDB.open(DB_NAME, DB_VERSION);
+        request = indexedDB.open(databaseName(), DB_VERSION);
       } catch (err) {
         /* Private browsing with storage disabled. Not fatal: reads miss and the
          * producers refill, which is a slow client rather than a broken one. */
@@ -133,6 +179,10 @@
   const asBuffer = (bytes) => bytes.slice().buffer;
 
   window.ToriRS_IDB = {
+    /* Which database this cache is in. Resolved on first use and stable after,
+     * so a caller that reports it reports what is actually open. */
+    databaseName,
+
     /*
      * A container's address, and `flags` is part of it.
      *

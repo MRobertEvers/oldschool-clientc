@@ -199,6 +199,20 @@ enum
     APP_LOGIC_TICK_MS = 20,
     APP_MAX_CATCHUP_TICKS = 5,
     /*
+     * The async pipeline's runaway tripwire. NOT a frame budget.
+     *
+     * The bound that used to live at the call site (512 booting, 32 otherwise,
+     * from 8f3028ede under the note "a small budget keeps frame pacing")
+     * throttled the pipeline to budget-times-framerate -- 1600 steps a second
+     * once past boot -- which made the frame cap decide how fast the world
+     * could load. This client streams its whole world through that pipeline.
+     *
+     * Set far above any frame that is making progress, so reaching it means a
+     * task never returns IDLE. That aborts, because the alternative is a
+     * client that looks merely slow for a reason nothing reports.
+     */
+    APP_ASYNC_STEP_LIMIT = 5000,
+    /*
      * Connection-loss thresholds. See the `net_lost` block in app.h.
      *
      * APP_NET_TIMEOUT_MS is the reference's own: Client-TS gives up 15s after
@@ -7637,6 +7651,17 @@ app_debug_overlay_init(struct App* app)
     }
 }
 
+/* Did the last App_RunOnce leave async work queued?
+ *
+ * The frame loop asks so it can decline to sleep. See app.h for why the frame
+ * cap must not pace the pipeline. */
+int
+App_AsyncPending(const struct App* app)
+{
+    assert(app);
+    return app->async_pending;
+}
+
 void
 App_NoteFrameTime(
     struct App* app,
@@ -8847,8 +8872,13 @@ App_Init(
          * owns the client, the same way it owns the JS5 one. */
         char const* host = cfg->connect_target && cfg->connect_target[0] ? cfg->connect_target
                                                                         : "localhost";
+        /* `dir=` under an ondemand source is where the stream is written
+         * down, not where it is read from -- the same shape dat2 has had all
+         * along with its sparse cache. Absent means stream everything, every
+         * boot, which is what this world did before. */
         int enabled = PlatformXIO_Dat1OnDemandEnable(
-            app->runner.px, host, cfg->connect_port, cfg->web_port);
+            app->runner.px, host, cfg->connect_port, cfg->web_port,
+            cfg->cache_dir);
         if( enabled != 0 )
             TORIRS_LOG("app: [cache:boot] source=ondemand, but %s is not serving a cache "
                 "(game port %d, web port %d)\n",
@@ -8911,6 +8941,9 @@ App_Init(
         cfg->cache_dir);
     Platform_IO_InitConfigPath(app->runner.px, cfg->config_dir);
     Platform_IO_InitScriptPath(app->runner.px, cfg->script_dir);
+    /* After the script path, because it is the fallback FOR it: a stored file
+     * is looked for under script_dir first and asked of this server second. */
+    Platform_IO_InitIoServer(app->runner.px, cfg->io_host, cfg->io_port);
 
     /* Phase 2: asset pipeline (provider is a view over the build cache). */
     if( cfg->cache_kind == APP_CACHE_DAT1 )
@@ -27474,10 +27507,26 @@ App_SetCanvasSize(
 
     assert(app);
 
-    if( width < APP_CANVAS_MIN_W )
-        width = APP_CANVAS_MIN_W;
-    if( height < APP_CANVAS_MIN_H )
-        height = APP_CANVAS_MIN_H;
+    /*
+     * The floor is the FRAME's, and a plugin layout brings its own.
+     *
+     * APP_CANVAS_MIN_W/H is a fact about a revconfig gameframe -- its children
+     * are insets off 765x503 and a smaller canvas gives them zero-sized
+     * viewports -- so it is the right floor for exactly as long as that frame
+     * is the one on screen. While a plugin arranges the frame it is not, and
+     * clamping a phone-shaped layout up to a desktop canvas is how a mobile
+     * frame ends up letterboxed inside the size it was written to avoid.
+     */
+    {
+        int min_w = APP_CANVAS_MIN_W;
+        int min_h = APP_CANVAS_MIN_H;
+
+        App_PluginLayoutMinSize(app, &min_w, &min_h);
+        if( width < min_w )
+            width = min_w;
+        if( height < min_h )
+            height = min_h;
+    }
 
     /* All three copies are tested, not just the layout one: they are set
      * together here and nowhere else, so disagreement means somebody wrote one
@@ -27782,6 +27831,26 @@ App_PluginLayoutFixedSize(struct App const* app, int* out_w, int* out_h)
     return 1;
 }
 
+int
+App_PluginLayoutMinSize(struct App const* app, int* out_w, int* out_h)
+{
+    assert(app);
+    if( !app->plugin_layout_owned )
+        return 0;
+    if( app->plugin_layout_canvas != TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW )
+        return 0;
+    /* A claim that named no minimum gets the client's, rather than a floor of
+     * zero: "I did not say" and "any size at all" are different statements, and
+     * only one of them should be able to produce a 1x1 canvas. */
+    if( app->plugin_layout_fixed_w <= 0 || app->plugin_layout_fixed_h <= 0 )
+        return 0;
+    if( out_w )
+        *out_w = app->plugin_layout_fixed_w;
+    if( out_h )
+        *out_h = app->plugin_layout_fixed_h;
+    return 1;
+}
+
 void
 App_PluginLayoutTick(struct App* app)
 {
@@ -27890,6 +27959,18 @@ App_PluginLayoutTick(struct App* app)
     /* UITree_EmitWalk keeps a final generation fence as well. It no longer
      * rewrites CS2 geometry: it only rebinds the standing semantic declaration
      * if topology somehow changed after this settled pass. */
+}
+
+int
+App_TakeTextInputChange(struct App* app, int* out_on)
+{
+    assert(app);
+    if( !app->text_input_dirty )
+        return 0;
+    app->text_input_dirty = 0;
+    if( out_on )
+        *out_on = app->text_input_on;
+    return 1;
 }
 
 int
@@ -28286,9 +28367,31 @@ App_RunOnce(
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_ASYNC)
     {
         int booting = app->app_state == APP_STATE_BOOTING;
-        int budget = booting ? 512 : 32;
+        /*
+         * Drain it. The bound this replaces came in with 8f3028ede (2026-07-22)
+         * under the note "once READY a small budget keeps frame pacing", and
+         * that had the relationship backwards: frame pacing was never what
+         * needed protecting. What the bound actually did was cap the async
+         * pipeline at budget-times-framerate -- 32 x 50 = 1600 steps a second
+         * once past boot -- and this client streams its entire world through
+         * that pipeline, 516 containers on a cold rev-289 boot. The frame cap
+         * was deciding how fast the game could load.
+         *
+         * A step is cooperative and returns; the loop below still exits the
+         * moment the runner goes idle. The guard is a runaway backstop, not a
+         * pacing device, which is why it is large enough that no real frame
+         * reaches it -- and main() no longer sleeps while work is queued, so a
+         * frame that does hit it resumes immediately instead of waiting out
+         * the cap.
+         */
+        int budget = APP_ASYNC_STEP_LIMIT;
         enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
         int steps = 0;
+
+        /* Cleared here and set below, so it describes THIS frame. The caller
+         * uses it to decide whether to sleep: work still queued means the
+         * frame cap would be pacing the pipeline rather than the screen. */
+        app->async_pending = 0;
         int settling_cs2 = !booting && (app->runner_had_work || app->runner.frame_settle_pending);
 
         if( settling_cs2 )
@@ -28313,6 +28416,26 @@ App_RunOnce(
                 if( stat == TASK_RUNNER_RENDER )
                     break;
             }
+            /*
+             * Reaching the limit is not a cap doing its job -- it is a task
+             * that will not converge, a runner that never returns IDLE.
+             *
+             * abort() rather than assert(): OPT=1 compiles -DNDEBUG, and this
+             * has to fail the same way in the build people actually run. A
+             * client that silently capped here would present as "slow to
+             * load" with nothing anywhere saying why, which is the failure
+             * this whole change exists to remove.
+             */
+            if( steps >= budget )
+            {
+                TORIRS_ERR(
+                    "app: the async pipeline ran %d steps in one frame without "
+                    "going idle (limit %d, booting=%d). A task is not "
+                    "converging.\n",
+                    steps, budget, booting);
+                fflush(stderr);
+                abort();
+            }
         }
         if( booting )
         {
@@ -28327,6 +28450,12 @@ App_RunOnce(
             app->busy_frames++;
             app->busy_steps += steps;
         }
+
+        /* Anything left to do -- a budget that ran out, or a runner that is
+         * simply not idle -- means the next frame should start immediately
+         * instead of waiting out the cap. */
+        if( stat != TASK_RUNNER_IDLE )
+            app->async_pending = 1;
         if( settling_cs2 && stat != TASK_RUNNER_IDLE )
             app->runner_had_work = 1;
         /* Tree-affecting async work (CS2 hooks/transmits) finished: refresh. */

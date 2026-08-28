@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "rscache_log.h"
 #define SECTOR_SIZE 520
 #define INDEX_ENTRY_SIZE 6
 
@@ -159,7 +160,7 @@ RSCache_Dat2DiskDat2FileReadArchive(
 
     if( sector <= 0L )
     {
-        printf("bad read, dat length %d, requested sector %d", length, sector);
+        RSCACHE_LOG("bad read, dat length %d, requested sector %d", length, sector);
         goto error;
     }
 
@@ -174,7 +175,7 @@ RSCache_Dat2DiskDat2FileReadArchive(
     {
         if( sector == 0 )
         {
-            printf("Unexpected end of file\n");
+            RSCACHE_LOG("Unexpected end of file\n");
             goto error;
         }
 
@@ -239,7 +240,7 @@ RSCache_Dat2DiskDat2FileReadArchive(
         int bytes_read = fread(read_buffer, 1, header_size + data_block_size, dat2_file);
         if( bytes_read < header_size + data_block_size )
         {
-            printf("short read when reading file data for %d/%d\n", archive_id, header.index_id);
+            RSCACHE_LOG("short read when reading file data for %d/%d\n", archive_id, header.index_id);
             goto error;
         }
 
@@ -249,7 +250,7 @@ RSCache_Dat2DiskDat2FileReadArchive(
         if( archive_id != header.archive_id || header.part_no != part ||
             idx_file_id != header.index_id )
         {
-            printf(
+            RSCACHE_LOG(
                 "data mismatch %d != %d, %d != %d, %d != %d\n",
                 archive_id,
                 header.archive_id,
@@ -262,7 +263,7 @@ RSCache_Dat2DiskDat2FileReadArchive(
 
         if( header.next_sector_no < 0 )
         {
-            printf("invalid next sector");
+            RSCACHE_LOG("invalid next sector");
             goto error;
         }
 
@@ -322,7 +323,7 @@ RSCache_Dat2DiskDat2FileAppendArchive(
         uint8_t zeros[SECTOR_SIZE] = { 0 };
         if( fwrite(zeros, 1, (size_t)padding, file) != (size_t)padding )
         {
-            printf("failed to write padding\n");
+            RSCACHE_LOG("failed to write padding\n");
             assert(false);
             return -1;
         }
@@ -361,7 +362,7 @@ RSCache_Dat2DiskDat2FileAppendArchive(
         int written_bytes = fwrite(sector_data, 1, SECTOR_SIZE, file);
         if( written_bytes != SECTOR_SIZE )
         {
-            printf("failed to write sector\n");
+            RSCACHE_LOG("failed to write sector\n");
             assert(false);
             return -1;
         }
@@ -563,12 +564,12 @@ RSCache_Dat2DiskIndexFileReadRecord(
     if( ret != 0 )
     {
         ret = ferror(file);
-        printf("failed to seek index record err: %d\n", ret);
+        RSCACHE_LOG("failed to seek index record err: %d\n", ret);
         return -1;
     }
 
     // ret = ftell(file);
-    // printf("current file pos: %d\n", ret);
+    // RSCACHE_LOG("current file pos: %d\n", ret);
 
     ret = fread(data, INDEX_ENTRY_SIZE, 1, file);
     if( ret != 1 )
@@ -645,7 +646,7 @@ RSCache_Dat2DiskIndexFileWriteRecord(
     int written_bytes = fwrite(data, INDEX_ENTRY_SIZE, 1, file);
     if( written_bytes != 1 )
     {
-        printf("failed to write index record\n");
+        RSCACHE_LOG("failed to write index record\n");
         assert(false);
         return -1;
     }
@@ -1105,7 +1106,7 @@ init_reference_tables(struct RSCache_Dat2Disk* disk)
             RSCache_Dat2DiskArchiveNewReferenceTableLoad(disk, i);
         if( !table_archive )
         {
-            printf("Failed to load referencetable %d\n", i);
+            RSCACHE_LOG("Failed to load referencetable %d\n", i);
             continue;
         }
 
@@ -1139,7 +1140,7 @@ dat2disk_ensure_reference_table_loaded(
         RSCache_Dat2DiskArchiveNewReferenceTableLoad(disk, table_id);
     if( !table_archive )
     {
-        printf("Failed to load reference table %d\n", table_id);
+        RSCACHE_LOG("Failed to load reference table %d\n", table_id);
         return NULL;
     }
 
@@ -1423,7 +1424,7 @@ RSCache_Dat2DiskArchiveInitMetadata(
         dat2disk_ensure_reference_table_loaded(disk, archive->table_id);
     if( !table )
     {
-        printf("Failed to load reference table for table %d\n", archive->table_id);
+        RSCACHE_LOG("Failed to load reference table for table %d\n", archive->table_id);
         return false;
     }
 
@@ -1444,7 +1445,7 @@ RSCache_Dat2DiskArchiveNewLoadDecrypted(
 
     if( !RSCache_ArchiveDecryptDecompress(archive, xtea_key_nullable) )
     {
-        printf("Failed to decompress dat2 archive for table %d\n", table_id);
+        RSCACHE_LOG("Failed to decompress dat2 archive for table %d\n", table_id);
         goto error;
     }
 

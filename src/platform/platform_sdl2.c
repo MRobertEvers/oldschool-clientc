@@ -2,6 +2,7 @@
 
 #include "cmd/cmdbus.h"
 #include "input/torirs_input.h"
+#include "input/torirs_touch.h"
 
 #include <SDL.h>
 
@@ -132,6 +133,10 @@ struct PlatformSDL2
     /* Borderless state, one per window. @see struct SdlHitState. */
     struct SdlHitState hit_main;
     struct SdlHitState hit_aux;
+
+    /* Fingers. @see ToriRS_Touch, which holds the whole gesture policy so that
+     * this backend and the Win32 one cannot drift apart about it. */
+    struct ToriRS_Touch touch;
 };
 
 /*
@@ -542,6 +547,8 @@ PlatformSDL2_New(void)
     assert(platform);
     memset(platform, 0, sizeof(struct PlatformSDL2));
     platform->interface_scale_mode = 2;
+    /* A zeroed finger table would read as eight fingers all holding id 0. */
+    ToriRS_TouchReset(&platform->touch);
     return platform;
 }
 
@@ -555,6 +562,20 @@ PlatformSDL2_Init(
     assert(platform);
     assert(width > 0 && height > 0);
 
+    /*
+     * SDL must not invent a mouse from a finger.
+     *
+     * By default it synthesises a full mouse press, move and release behind
+     * every touch, so a client that handles BOTH sees each tap twice -- once as
+     * the gesture layer decided, and once more as SDL guessed. That is not a
+     * duplicate click so much as a contradictory one: a long press would come
+     * through as a right click from here and a left click from SDL, and the
+     * minimenu would open and be dismissed by its own gesture.
+     *
+     * Turned off before the video subsystem starts, because SDL reads it when
+     * the touch device is opened.
+     */
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -646,6 +667,20 @@ PlatformSDL2_InitForOpenGL3(
     assert(platform);
     assert(width > 0 && height > 0);
 
+    /*
+     * SDL must not invent a mouse from a finger.
+     *
+     * By default it synthesises a full mouse press, move and release behind
+     * every touch, so a client that handles BOTH sees each tap twice -- once as
+     * the gesture layer decided, and once more as SDL guessed. That is not a
+     * duplicate click so much as a contradictory one: a long press would come
+     * through as a right click from here and a left click from SDL, and the
+     * minimenu would open and be dismissed by its own gesture.
+     *
+     * Turned off before the video subsystem starts, because SDL reads it when
+     * the touch device is opened.
+     */
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -1589,6 +1624,19 @@ PlatformSDL2_SetInterfaceScaleMode(
 }
 
 void
+PlatformSDL2_SetTextInput(struct PlatformSDL2* platform, int on)
+{
+    assert(platform);
+    (void)platform;
+    /* Asked every time rather than tracked: SDL already tracks it, and a second
+     * copy here could only disagree. Both calls are idempotent. */
+    if( on )
+        SDL_StartTextInput();
+    else
+        SDL_StopTextInput();
+}
+
+void
 PlatformSDL2_SetCanvasFollowsWindow(
     struct PlatformSDL2* platform,
     struct ToriRS_CmdBus* bus,
@@ -1858,6 +1906,38 @@ PlatformSDL2_PollCommands(
             PlatformSDL2_MapMouse(platform, event.motion.x, event.motion.y, &lx, &ly);
             CmdBus_PushMouseMove(bus, (int16_t)lx, (int16_t)ly);
             break;
+        case SDL_FINGERDOWN:
+        case SDL_FINGERMOTION:
+        case SDL_FINGERUP:
+        {
+            /*
+             * SDL reports a finger NORMALISED to the window -- 0..1 on each
+             * axis -- because a touch device need not share the window's
+             * resolution or even its aspect. So it is scaled back up to window
+             * pixels and then run through the same letterbox inverse a mouse
+             * takes, which is what puts a finger and a cursor on the same
+             * canvas pixel.
+             */
+            int window_w = 0;
+            int window_h = 0;
+            enum ToriRS_TouchPhase phase = TORIRS_TOUCH_MOVED;
+
+            SDL_GetWindowSize(platform->window, &window_w, &window_h);
+            PlatformSDL2_MapMouse(
+                platform,
+                (int)(event.tfinger.x * (float)window_w),
+                (int)(event.tfinger.y * (float)window_h),
+                &lx,
+                &ly);
+            if( event.type == SDL_FINGERDOWN )
+                phase = TORIRS_TOUCH_BEGAN;
+            else if( event.type == SDL_FINGERUP )
+                phase = TORIRS_TOUCH_ENDED;
+            ToriRS_TouchEvent(
+                &platform->touch, bus, phase, (int64_t)event.tfinger.fingerId, lx, ly,
+                (uint64_t)SDL_GetTicks());
+            break;
+        }
         case SDL_MOUSEWHEEL:
         {
             int wheel_y = event.wheel.y;
@@ -1882,6 +1962,10 @@ PlatformSDL2_PollCommands(
      * App_Render would write off the end of it. */
     if( pending_resize_w > 0 && pending_resize_h > 0 )
         CmdBus_PushWindowResize(bus, pending_resize_w, pending_resize_h);
+
+    /* A finger held perfectly still generates no events at all, so the long
+     * press has to be given a chance to become a right click from out here. */
+    ToriRS_TouchTick(&platform->touch, bus, (uint64_t)SDL_GetTicks());
 }
 
 void

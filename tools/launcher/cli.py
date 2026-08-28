@@ -257,8 +257,18 @@ def build_plan(profile, client_override=None, flavor_override=None,
         # binary reports "no ASan errors" for the wrong reason.
         if "asan" in flavors:
             raise LaunchError(_no_asan_on_windows(profile, flavors))
-        binary = "src/torirs_win64.exe"
-        target = "win64-debug" if "debug" in flavors else "win64"
+        debug = "debug" in flavors
+        if profile.windows_lane == "win32":
+            # The XP lane. Different target, and a DIFFERENT BINARY NAME -- the
+            # win32 makefile writes src/torirs.exe, which is also what
+            # build_winxp.ps1 produces and what gets pushed to the box, so a
+            # profile and a hand build cannot disagree about which file is
+            # under test.
+            binary = "src/torirs.exe"
+            target = "winxp-debug" if debug else "winxp"
+        else:
+            binary = "src/torirs_win64.exe"
+            target = "win64-debug" if debug else "win64"
         make_args = [arg for arg in make_args if arg != "OPT=0"]
 
     service_list = []

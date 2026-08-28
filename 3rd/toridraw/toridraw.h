@@ -81,6 +81,14 @@ ToriDraw_RenderModel1Project(
     struct ToriDraw_Camera* camera);
 
 int
+ToriDraw_RenderModel2SortFacesPresorted(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene);
+
+/* Sort back to front WITHOUT the pre-sort store. The right entry for every
+ * caller whose faces do not go to the batched software raster walk -- the
+ * D3D9 and GL renderers, HD, the sprite baker. See toridraw.c. */
+int
 ToriDraw_RenderModel2SortFaces(
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Scene* scene);

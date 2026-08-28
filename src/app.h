@@ -337,6 +337,12 @@ struct AppConfig
     char const* cache_dir;
     char const* config_dir;
     char const* script_dir;
+    /* [io:boot] -- the server asked for any stored file this disk lacks: the
+     * plugin manifest, the plugin scripts, and each shipped plugin asset as a
+     * plugin asks for it. Empty host leaves TORIRS_IO_SERVER (or nothing) in
+     * charge. */
+    char io_host[256];
+    int io_port;
     /** [editor:boot] content_dir — the content root whose `maps/` the world map
      *  editor edits. NULL = no editor this boot, which is every normal client
      *  run. Borrowed from the BootManifest, which outlives the App. */
@@ -2014,6 +2020,20 @@ struct App
      * pending — the async pipeline being drip-fed a slice at a time. */
     int busy_frames;
     long busy_steps;
+
+    /*
+     * The async pipeline still had work when the last App_RunOnce returned.
+     *
+     * Read by the frame loop, which skips its pacing sleep while it is set.
+     * The frame cap exists to pace the SCREEN; sleeping through outstanding IO
+     * paces the download instead, and on a cold boot this client streams its
+     * whole world through that pipeline -- 516 containers for the rev-289
+     * world -- so the cap was deciding how fast the game could load.
+     *
+     * busy_frames next door has been counting the same situation for a while.
+     * This is the half that acts on it.
+     */
+    int async_pending;
     int boot_interface_id;
     /** Invalid TORIRS_PREVIEW_STATE packet; the headless caller turns this into
      * a non-zero process exit after the async boot task returns. */
@@ -2350,6 +2370,12 @@ struct App
      *  arrives. */
     int window_w;
     int window_h;
+
+    /** A plugin asked for the on-screen keyboard. Drained by the shell, which
+     *  is the only thing here with a platform to raise one on.
+     *  @see App_TakeTextInputChange. */
+    int text_input_on;
+    int text_input_dirty;
 };
 
 /** Smallest client canvas. The reference's resizable mode will not go below the
@@ -2549,6 +2575,25 @@ int
 App_PluginLayoutFixedSize(struct App const* app, int* out_w, int* out_h);
 
 /**
+ * The smallest canvas a plugin layout can be declared against, or 0 when no
+ * plugin is arranging the frame.
+ *
+ * The floor App_SetCanvasSize clamps to, when this answers. APP_CANVAS_MIN_W/H
+ * is the REVCONFIG gameframe's floor and says so: a rev-230 frame's children
+ * are insets off 765x503, so a smaller canvas collapses them. A plugin layout
+ * is arithmetic on whatever canvas it is handed, so that reasoning does not
+ * reach it, and a frame authored for a phone is narrower than 765 without being
+ * broken. The claim carries the number because the plugin computing the frame
+ * is the only thing that knows how small it still computes.
+ *
+ * Only for a FOLLOW_WINDOW claim: a FIXED one is not clamped toward a minimum,
+ * it is pinned outright, and App_PluginLayoutFixedSize is that.
+ * Returns 1 when both outs were written.
+ */
+int
+App_PluginLayoutMinSize(struct App const* app, int* out_w, int* out_h);
+
+/**
  * Bring the frame up to date once per frame: re-declare it if the canvas or
  * the tree changed under the claim, and re-assert the chrome suppression the
  * declaration made.
@@ -2573,6 +2618,17 @@ App_PluginLayoutTick(struct App* app);
  * the fixed canvas", or "start tracking it". Same split as
  * RS_CS2Host.close_modal_requested.
  */
+/**
+ * Drain a plugin's request to show or hide the on-screen keyboard.
+ *
+ * The same split as App_TakeWindowModeChange, and for the same reason: raising
+ * a keyboard is a statement about the PLATFORM, the App has none to make it
+ * with, and there is already one drain in the shell that turns statements like
+ * this into SDL calls. @return 1 when a request was pending.
+ */
+int
+App_TakeTextInputChange(struct App* app, int* out_on);
+
 int
 App_TakeWindowModeChange(
     struct App* app,
@@ -3396,6 +3452,10 @@ App_DrainAudio(
  * residual of its 20 ms budget, and timing across that sleep reports the cap
  * back rather than the cost of the frame.
  */
+/** Whether the last App_RunOnce left async work queued. */
+int
+App_AsyncPending(const struct App* app);
+
 void
 App_NoteFrameTime(
     struct App* app,

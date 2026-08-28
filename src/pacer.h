@@ -40,7 +40,23 @@ enum ToriRS_PacerKind
 enum
 {
     /* GameShell's ring length. Its rate estimate therefore lags ten frames. */
-    TORIRS_PACER_OTIM_COUNT = 10
+    TORIRS_PACER_OTIM_COUNT = 10,
+
+    /*
+     * The draw budget to fall back to when the base one cannot be met: 33 ms,
+     * or ~30 fps. Chosen because it is the rate the reference client settles
+     * at on hardware like this, and because it leaves real slack -- a 24 ms
+     * frame sleeps 9 ms of every 33 instead of nothing at all.
+     */
+    TORIRS_PACER_FALLBACK_PERIOD_MS = 33,
+
+    /*
+     * Consecutive frames agreeing before the budget moves. Long enough that a
+     * single expensive frame -- a region load, a model bake -- does not drop
+     * the client to 30 fps for the rest of the session, short enough that
+     * walking into a heavy scene is answered within a second.
+     */
+    TORIRS_PACER_ADAPT_FRAMES = 40
 };
 
 struct ToriRS_Pacer
@@ -48,6 +64,21 @@ struct ToriRS_Pacer
     enum ToriRS_PacerKind kind;
     int period_ms; /* GameShell's `deltime` */
     int mindel_ms; /* GameShell's `mindel`; the deadline pacer has no floor */
+
+    /*
+     * The budget the SCREEN is paced to. Equal to period_ms until the machine
+     * proves it cannot hold that, then TORIRS_PACER_FALLBACK_PERIOD_MS.
+     *
+     * Separate from period_ms because the simulation must not follow it. A
+     * client drawing at 30 fps still ticks the world at 50 Hz; the two rates
+     * are independent and conflating them would slow the game down instead of
+     * the picture.
+     */
+    int draw_period_ms;
+    /* TORIRS_PACER_ADAPT=0 pins the draw budget to period_ms. */
+    int adapt;
+    int adapt_behind; /* consecutive frames that did not fit */
+    int adapt_ahead;  /* consecutive frames with room to spare */
 
     /* GameShell state. Unused by TORIRS_PACER_DEADLINE. */
     uint64_t otim[TORIRS_PACER_OTIM_COUNT];
@@ -118,6 +149,12 @@ uint64_t ToriRS_Pacer_WaitDeadline(
 
 /* Logic ticks the last ToriRS_Pacer_BeginFrame asked for. */
 int ToriRS_Pacer_LastLogicTicks(struct ToriRS_Pacer const* pacer);
+
+/*
+ * The budget the SCREEN is currently paced to, in ms. Equal to period_ms
+ * unless the machine could not hold that rate; see draw_period_ms.
+ */
+int ToriRS_Pacer_DrawPeriodMs(struct ToriRS_Pacer const* pacer);
 
 /*
  * Close one iteration for the trace: `now_us` is the clock after the wait, and

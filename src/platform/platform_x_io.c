@@ -113,6 +113,8 @@ struct PlatformX_IO
      * answers from one file.
      */
     char io_server_host[256];
+    /* Set when TORIRS_IO_SERVER named it, so a later manifest does not. */
+    int io_server_from_env;
     int io_server_port;
 
     /* Set when that second leg found nobody home. Stays zero for a client with
@@ -171,11 +173,48 @@ PlatformX_IO_New(void)
             snprintf(px->io_server_host, sizeof(px->io_server_host), "%s", server);
 
         if( px->io_server_host[0] )
+        {
+            /* Remembered so a manifest cannot overwrite a deliberate one-off.
+             * TORIRS_IO_SERVER is what someone reaches for to point a client
+             * at a different server for one run; a manifest read afterwards
+             * would silently undo that. */
+            px->io_server_from_env = 1;
             TORIRS_LOG("io: files not found locally will be asked of %s:%d\n",
                 px->io_server_host,
                 px->io_server_port);
+        }
     }
     return px;
+}
+
+/*
+ * Where to ask for a file this disk does not have.
+ *
+ * Called after the boot manifest is read, so a world can state its own file
+ * server the way it states its game server. TORIRS_IO_SERVER wins: it is the
+ * older spelling and the one a one-off debugging run uses, and a manifest
+ * quietly overriding it would make that run lie about which server answered.
+ *
+ * An empty host is "say nothing", not "turn it off" -- the manifest simply had
+ * no opinion, and a value from the environment stands.
+ */
+void
+PlatformX_IO_InitIoServer(struct PlatformX_IO* px, const char* host, int port)
+{
+    assert(px);
+
+    if( px->io_server_from_env )
+        return;
+    if( !host || !host[0] )
+        return;
+
+    snprintf(px->io_server_host, sizeof(px->io_server_host), "%s", host);
+    if( port > 0 && port <= 65535 )
+        px->io_server_port = port;
+
+    TORIRS_LOG("io: files not found locally will be asked of %s:%d\n",
+        px->io_server_host,
+        px->io_server_port);
 }
 
 void
@@ -1273,13 +1312,15 @@ PlatformXIO_Dat1OnDemandEnable(
     struct PlatformX_IO* px,
     const char* host,
     int game_port,
-    int web_port)
+    int web_port,
+    const char* cache_dir)
 {
     assert(px);
     assert(host);
     if( px->dat1_disk || px->dat1_on_demand )
         return -1;
-    px->dat1_on_demand = PlatformXIOOnDemand_New(host, game_port, web_port);
+    px->dat1_on_demand =
+        PlatformXIOOnDemand_New(host, game_port, web_port, cache_dir);
     return px->dat1_on_demand ? 0 : -1;
 }
 
