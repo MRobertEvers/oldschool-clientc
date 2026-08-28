@@ -5766,6 +5766,19 @@ app_title_sync_groups(struct App* app)
                                   : (!showing_progress && k_screen[i] == (int)app->title.screen);
         UITree_SetScreenHiddenAt(app->tree, idx, !visible);
     }
+
+    /* While a submitted login is dialling, the form stays up -- its message
+     * lines are where "Connecting to server..." appears -- but the Login and
+     * Cancel buttons are withdrawn: mid-handshake there is nothing either
+     * could meaningfully do. The profile declares the role around exactly
+     * the widgets it wants withdrawn; one that declares no such layer keeps
+     * its buttons and loses nothing else. */
+    {
+        int32_t idx = UITree_RoleNodeByName(app->tree, &app->ui_roles, "title_form_buttons");
+        if( idx >= 0 )
+            UITree_SetScreenHiddenAt(
+                app->tree, idx, app->screen == APP_SCREEN_CONNECTING);
+    }
 }
 
 /*
