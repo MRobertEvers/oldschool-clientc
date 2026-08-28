@@ -727,6 +727,20 @@ struct ToriRSServerEnumDef
 int
 ToriRSServer_ContentSymbolCount(enum ToriRSServerPackKind kind);
 
+/**
+ * Whether this id was minted by content rather than named by the cache.
+ *
+ * True for anything read out of `pack/<ns>.alloc` or a lane's own pack. The
+ * distinction is invisible after load -- both files are one namespace on
+ * purpose -- and is needed where a config block for a MINTED record
+ * legitimately states the cache-side fields a bake will write, while the same
+ * fields on an overlay of a cache record are a mistake worth reporting.
+ */
+int
+ToriRSServer_ContentSymbolIsMinted(
+    enum ToriRSServerPackKind kind,
+    int id);
+
 /* ------------------------------------------------------------------ */
 /* Identity kits                                                       */
 /* ------------------------------------------------------------------ */

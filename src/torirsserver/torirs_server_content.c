@@ -195,6 +195,20 @@ struct PackEntry
 {
     char* name;
     int id;
+    /*
+     * 1 when this name came from `pack/<ns>.alloc` rather than from the
+     * cache's own `configs/all.<ns>.compack`.
+     *
+     * The two files are one namespace on purpose -- a lookup is one pass and a
+     * rename across them is caught like a duplicate inside one -- so nothing
+     * downstream could tell a MINTED record from a cache one afterwards. It
+     * has to, in exactly one place: a `.obj` block for a record content
+     * invented is the whole record and legitimately states the cache-side keys
+     * (`name`, `model`, `2dzoom`...) for `cachepack` to bake, while the same
+     * keys on an overlay of a cache record are a paste from a LostCity tree and
+     * are reported. See obj_apply_key.
+     */
+    int minted;
 };
 
 /* Names are bump-allocated into a chain of these, never realloc'd (entries
@@ -315,7 +329,8 @@ static void
 pack_add(
     struct Pack* pack,
     const char* name,
-    int id)
+    int id,
+    int minted)
 {
     if( pack->count == pack->capacity )
     {
@@ -328,13 +343,15 @@ pack_add(
     }
     pack->entries[pack->count].name = pack_name_intern(pack, name);
     pack->entries[pack->count].id = id;
+    pack->entries[pack->count].minted = minted;
     pack->count++;
 }
 
 static int
 pack_load(
     struct Pack* pack,
-    const char* path)
+    const char* path,
+    int minted)
 {
     FILE* file = fopen(path, "rb");
     char raw[512];
@@ -354,7 +371,7 @@ pack_load(
         name = ToriRSServer_ContentSplitKeyValue(line);
         if( !name || !*name )
             continue;
-        pack_add(pack, name, atoi(line));
+        pack_add(pack, name, atoi(line), minted);
         loaded++;
     }
     fclose(file);
@@ -394,7 +411,7 @@ load_component_symbols_from_root(
             continue;
         memset(&children, 0, sizeof(children));
         snprintf(path, sizeof(path), "%s/interfaces/%s.compack", dir, iface_name);
-        if( pack_load(&children, path) == 0 )
+        if( pack_load(&children, path, 0) == 0 )
         {
             pack_names_free(&children);
             free(children.entries);
@@ -418,7 +435,7 @@ load_component_symbols_from_root(
                                   path, iface_id, children.entries[c].id, existing, full);
                 continue;
             }
-            pack_add(&g_packs[TORIRSSERVER_PACK_COMPONENT], full, uid);
+            pack_add(&g_packs[TORIRSSERVER_PACK_COMPONENT], full, uid, 0);
             loaded++;
         }
         pack_names_free(&children);
@@ -483,6 +500,31 @@ load_ported_component_symbols(const char* dir)
  * count. Callers size an id-indexed array with it; getting that wrong is an
  * out-of-bounds write on the one record whose id is the highest.
  */
+/*
+ * Whether this id was MINTED by content rather than named by the cache.
+ *
+ * `pack/<ns>.alloc` is the server's allocation ledger and `configs/all.<ns>.compack`
+ * is the cache's member index; both load into one namespace, so this is the
+ * only thing that can still tell them apart afterwards. A lane's own
+ * `pack/<ns>.{pack,alloc}` counts as minted too -- a lane exists to bring
+ * records the base cache does not have.
+ */
+int
+ToriRSServer_ContentSymbolIsMinted(
+    enum ToriRSServerPackKind kind,
+    int id)
+{
+    const struct Pack* pack;
+
+    if( kind < 0 || kind >= TORIRSSERVER_PACK_COUNT )
+        return 0;
+    pack = &g_packs[kind];
+    for( int i = 0; i < pack->count; i++ )
+        if( pack->entries[i].id == id )
+            return pack->entries[i].minted;
+    return 0;
+}
+
 int
 ToriRSServer_ContentSymbolCount(enum ToriRSServerPackKind kind)
 {
@@ -858,9 +900,9 @@ load_ported_pack_symbols(const char* dir)
             if( kind == TORIRSSERVER_PACK_COMPONENT )
                 continue; /* composed from lane interface compacks below */
             snprintf(path, sizeof(path), "%s/pack/%s.pack", lane, name);
-            loaded += pack_load(&g_packs[kind], path);
+            loaded += pack_load(&g_packs[kind], path, 1);
             snprintf(path, sizeof(path), "%s/pack/%s.alloc", lane, name);
-            loaded += pack_load(&g_packs[kind], path);
+            loaded += pack_load(&g_packs[kind], path, 1);
         }
     }
     closedir(handle);
@@ -2086,9 +2128,23 @@ obj_config_key(
 
     if( strcmp(key, "param") != 0 )
     {
-        /* Every other LostCity obj key states something the cache already does.
+        /*
+         * Every other LostCity obj key states something the cache already does.
          * Accepted and ignored, like the `.npc` grammar's `model=` — but never
-         * silently, so a paste from a LostCity tree reports what it dropped. */
+         * silently, so a paste from a LostCity tree reports what it dropped.
+         *
+         * UNLESS THE RECORD IS CONTENT'S OWN. A block for an obj this tree
+         * MINTED (`pack/obj.alloc`, an id past the cache's high-water mark) is
+         * not an overlay on anything: it is the whole record, and the cache
+         * side of it is exactly what `cachepack pack` bakes -- `fields/obj.ini`
+         * routes `name`, `model`, `2dzoom` and the rest into the client band.
+         * The server has no use for them and still ignores them; what it must
+         * not do is call them a mistake. `skill_herblore/configs/herblore_items.obj`
+         * is the standing example (herb tar, twelve keys) and reported twelve
+         * errors a boot for as long as this test did not exist.
+         */
+        if( ToriRSServer_ContentSymbolIsMinted(TORIRSSERVER_PACK_OBJ, obj_id) )
+            return;
         CONTENT_ERROR("%s: obj key `%s` is the cache's to state, ignored\n", where, key);
         return;
     }
@@ -4457,7 +4513,7 @@ ToriRSServer_ContentLoad(const char* dir)
             snprintf(path, sizeof(path), "%s/configs/all.%s.compack", dir, name);
         else
             snprintf(path, sizeof(path), "%s/pack/%s.pack", dir, name);
-        symbols += pack_load(&g_packs[kind], path);
+        symbols += pack_load(&g_packs[kind], path, 0);
         /* The server's allocation ledger, layered into the same namespace. The
          * compack is the cache's member index and `pack/<ns>.alloc` holds the
          * ids ss_allocate.py handed out past its high-water mark — one
@@ -4465,7 +4521,7 @@ ToriRSServer_ContentLoad(const char* dir)
          * `validate_symbols` exactly as a duplicate inside one file is. Absent
          * for most kinds, and `pack_load` reads absence as zero symbols. */
         snprintf(path, sizeof(path), "%s/pack/%s.alloc", dir, name);
-        symbols += pack_load(&g_packs[kind], path);
+        symbols += pack_load(&g_packs[kind], path, 1);
     }
     /* Same imported namespace layers passed to sscompile in the build. */
     symbols += load_ported_pack_symbols(dir);

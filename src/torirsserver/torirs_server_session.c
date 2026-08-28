@@ -100,6 +100,14 @@ ToriRSServer_SessionPollfd(const struct ToriRSServerSession* session)
 }
 
 int
+ToriRSServer_SessionBuffered(const struct ToriRSServerSession* session)
+{
+    if( !session->transport.buffered )
+        return 0;
+    return session->transport.buffered(session->transport.ctx);
+}
+
+int
 ToriRSServer_SessionSend(
     struct ToriRSServerSession* session,
     const uint8_t* data,

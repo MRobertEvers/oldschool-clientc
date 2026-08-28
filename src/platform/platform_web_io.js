@@ -276,6 +276,28 @@ mergeInto(LibraryManager.library, {
     // ---------------------------------------------------------- execution
 
     /*
+     * A logical dat2 table as this cache's branch numbers it, or -1.
+     *
+     * The client's ids are roles and the cache's are idx numbers; they agree up
+     * to 15 and part company after it (OldSchool keeps client defaults at 17
+     * where the role's ordinal is 31). Everything below the queue — the wire,
+     * the decode, the metadata table — wants the disk number, which is exactly
+     * what the desktop executor resolves before it reads
+     * (platform_x_io.c, dat2_resolve_table). Resolving here and once keeps the
+     * two executors saying the same thing to the same cache.
+     *
+     * The table itself stays in rscache: a second copy in JavaScript is a
+     * second thing to be wrong, and being wrong here does not fail — it reads
+     * a real archive as the wrong type.
+     */
+    dat2DiskTable: function (inst, logical) {
+      if (inst.cacheGame === null) {
+        throw new Error('torirs: a dat2 read arrived before InitCacheId named the cache');
+      }
+      return _ToriRS_WebApi_Dat2TableDiskId(inst.cacheGame, logical);
+    },
+
+    /*
      * Everything the host needs to know about one item, read BEFORE any await.
      *
      * Read up front on purpose. Once this function awaits, the wasm heap may
@@ -313,10 +335,17 @@ mergeInto(LibraryManager.library, {
       }
       if (kind === K.CACHE) {
         const c = this.itemCache(item);
-        return { kind: kind, table: c.table, archive: c.archive, flags: c.flags, epoch: c.epoch };
+        /* dat1 numbers its own tables and has no roles to resolve; the flags
+         * are what says which container space this read is in. */
+        const table = this.isDat1(c.flags) ? c.table : this.dat2DiskTable(inst, c.table);
+        return { kind: kind, table: table, archive: c.archive, flags: c.flags, epoch: c.epoch };
       }
       if (kind === K.REFERENCE_TABLE) {
-        return { kind: kind, table: HEAP32[(item + a.uOff + a.refTableOff) >> 2] };
+        /* dat2 only — dat1 has a versionlist, not reference tables. */
+        return {
+          kind: kind,
+          table: this.dat2DiskTable(inst, HEAP32[(item + a.uOff + a.refTableOff) >> 2]),
+        };
       }
       return { kind: kind };
     },
@@ -415,6 +444,10 @@ mergeInto(LibraryManager.library, {
       }
 
       if (req.kind === K.CACHE) {
+        /* A role this branch has no table for: nothing to ask anyone for, and
+         * the same answer the desktop gives (platform_x_io.c returns the item
+         * failed rather than reading table -1). */
+        if (req.table < 0) { return null; }
         /*
          * Two awaits, and the order matters only in that both must finish
          * before the decode: the group's bytes, and the key the cache profile
@@ -463,6 +496,7 @@ mergeInto(LibraryManager.library, {
       }
 
       if (req.kind === K.REFERENCE_TABLE) {
+        if (req.table < 0) { return null; }
         /* A FRESH decode, because this one is handed over and freed by whoever
          * asked for it. */
         const table = await this.refTableDecode(inst, req.table);
@@ -531,6 +565,10 @@ mergeInto(LibraryManager.library, {
       join: function (base, path) {
         return base && base.length ? `${base}/${path}` : path;
       },
+      /* Which branch's cache this is, from InitCacheId. Null until it is
+       * called, and a cache read before then is a bug rather than a default —
+       * see dat2DiskTable. */
+      cacheGame: null,
       /* The page supplies the actual IO. Everything above is queue mechanics;
        * this is where bytes come from, and it is deliberately the only part a
        * different host would have to replace. */
@@ -550,7 +588,20 @@ mergeInto(LibraryManager.library, {
    * simply has nothing to record. */
   PlatformWeb_IO_InitDat2Disk: function (px, disk) {},
   PlatformWeb_IO_InitDat1Disk: function (px, disk) {},
-  PlatformWeb_IO_InitCacheId: function (px, epoch, game, revision, quirks, dir) {},
+
+  /*
+   * The cache's identity, of which one field is load-bearing here: the game.
+   *
+   * A dat2 table id is a ROLE on the client's side of the queue and an idx
+   * number on the cache's, and which idx a role lives at is a property of the
+   * branch. The desktop executor asks the open disk; this one has no disk, so
+   * it keeps the game the manifest named and asks rscache directly — see
+   * dat2DiskTable.
+   */
+  PlatformWeb_IO_InitCacheId__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_InitCacheId: function (px, epoch, game, revision, quirks, dir) {
+    TORIRS_WEB_IO.instances.get(px).cacheGame = game;
+  },
   /* The page is served by the file server and reads every stored file relative
    * to its own boot URL, so there is no other server to be named. */
   PlatformWeb_IO_InitIoServer: function (px, host, port) {},

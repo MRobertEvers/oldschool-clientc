@@ -156,6 +156,9 @@
       this.pending = new Map();
       this.readyPromise = null;
       this.failed = null;
+      /* The master index, parsed into "which tables exist" — see
+       * #tablesPresent. One request per session. */
+      this.tablesPromise = null;
       this.bytesReceived = 0;
       this.groupsReceived = 0;
 
@@ -262,6 +265,20 @@
       if (this.failed) { throw this.failed; }
       await this.ready();
 
+      /*
+       * Anything belonging to a table the master index does not list is
+       * answered here, because the protocol cannot answer it at all -- see
+       * #tablesPresent. That is the reference table 255/<table> and equally
+       * any group inside it: the client addresses some groups without having
+       * read a reference table first, so gating only the table would move the
+       * hang one request along rather than remove it.
+       */
+      if (archive !== MASTER_ARCHIVE || group !== MASTER_ARCHIVE) {
+        const table = archive === MASTER_ARCHIVE ? group : archive;
+        const present = await this.#tablesPresent();
+        if (present && !present.has(table)) { return null; }
+      }
+
       const key = (archive << 16) | group;
       const existing = this.pending.get(key);
       if (existing) { return await existing.promise; }
@@ -287,6 +304,52 @@
     /** The master index: the (CRC, version) of every reference table. */
     async masterIndex() {
       return await this.group(MASTER_ARCHIVE, MASTER_ARCHIVE);
+    }
+
+    /**
+     * Which reference tables the server actually holds. Asked once, kept.
+     *
+     * This is the only container this file looks inside, and the exception
+     * earns itself: JS5 HAS NO REPLY FOR "no such group". A server that holds
+     * one sends bytes and a server that does not sends nothing, so a request
+     * for an absent table is a promise that never settles -- the client sits
+     * on a boot bar with a healthy socket and a server that logs the miss and
+     * carries on. Every cache has absent tables: `cache.osrs239` stops at
+     * archive 24, and the client asks for 31.
+     *
+     * The native lane has this same list under another name -- its metadata
+     * prime validates every table against this index before a task may ask for
+     * one (docs/JS5_INCREMENTAL_CACHE.md). That barrier is gone on this lane,
+     * so the gate lives here or nowhere.
+     *
+     * Format: the master index is stored uncompressed, so its payload begins
+     * after the 5-byte container header and is one (CRC, version) pair per
+     * archive, in archive order. Zero for both means the cache does not hold
+     * that table; past the end means the same thing. Anything that does not
+     * read that way returns null, which opens the gate rather than guessing --
+     * a request that might be answerable is better than a boot refused on a
+     * container this file declined to understand.
+     */
+    async #tablesPresent() {
+      if (!this.tablesPromise) {
+        this.tablesPromise = (async () => {
+          const master = await this.masterIndex();
+          if (!master || master[0] !== COMPRESSION_NONE || master.length < 5) {
+            return null;
+          }
+          const payload = master.subarray(5);
+          const present = new Set();
+          for (let i = 0; i + 8 <= payload.length; i += 8) {
+            let empty = true;
+            for (let b = 0; b < 8; b++) {
+              if (payload[i + b] !== 0) { empty = false; break; }
+            }
+            if (!empty) { present.add(i / 8); }
+          }
+          return present;
+        })();
+      }
+      return await this.tablesPromise;
     }
 
     /** One table's reference table. */

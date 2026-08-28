@@ -93,6 +93,29 @@ ToriRS_WebApi_ArchiveDecode(
 }
 
 /**
+ * The disk table id this cache's branch keeps a logical table at.
+ *
+ * The client addresses tables by ROLE (`enum RSCache_Dat2Table`) and the cache
+ * addresses them by idx number, and the two agree only for 0..15 — OldSchool
+ * ships client defaults at 17 where the role's own ordinal is 31, and its
+ * world map tables sit where RS2 keeps npc/obj/seq. The desktop executor
+ * resolves this against the open disk before it reads anything
+ * (platform_x_io.c, dat2_resolve_table); a browser has no disk, so it asks
+ * here and gets the same answer from the same table.
+ *
+ * `game` is what the boot manifest named, handed over by InitCacheId.
+ * Returns RSCACHE_DAT2_DISK_TABLE_ABSENT (-1) for a role this branch has no
+ * table for, which is a read that must not be attempted rather than an error.
+ */
+EMSCRIPTEN_KEEPALIVE int
+ToriRS_WebApi_Dat2TableDiskId(
+    int game,
+    int logical_table)
+{
+    return RSCache_Dat2DiskTableForGame(game, (enum RSCache_Dat2Table)logical_table);
+}
+
+/**
  * Attach the reference table's metadata (file count and ids) to a decoded
  * archive.
  *

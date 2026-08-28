@@ -122,8 +122,25 @@ wait_readable(
 {
     fd_set readable;
     struct timeval timeout;
-    int fd = ToriRSServer_SessionPollfd(session);
+    int fd;
     int ready;
+
+    /*
+     * Bytes already in hand beat any descriptor.
+     *
+     * A framed transport reads whole frames, so one read can leave a complete
+     * request deframed and queued while the socket has nothing further to say
+     * — and the client that sent it is waiting for the answer, so nothing
+     * further ever arrives. Selecting on the fd there waits out the whole
+     * timeout with the request sitting in the buffer: 600 ms on the game loop,
+     * where the tick deadline hides it, and a full minute on a JS5 connection,
+     * where it looks exactly like a server that accepted the handshake and
+     * then went silent.
+     */
+    if( ToriRSServer_SessionBuffered(session) > 0 )
+        return 1;
+
+    fd = ToriRSServer_SessionPollfd(session);
 
     /* No descriptor means nothing to wait on — the shape an embedded session
      * takes. It never reaches this loop, but reporting "readable" is the safe
@@ -337,8 +354,7 @@ js5_thread_main(void* raw)
 
     fprintf(stderr, "torirsserver: JS5 connection\n");
     args->srv.wire = args->wire; /* serve_js5() memsets the rest right away */
-    if( ToriRSServer_ConnOpen(&args->conn, args->fd) )
-        serve_js5(&args->srv, &args->conn);
+    serve_js5(&args->srv, &args->conn);
     close(args->fd);
     free(args);
     return 0;
@@ -485,7 +501,6 @@ main(
 
     for( ;; )
     {
-        uint8_t first = 0;
         int nodelay = 1;
         int fd = (int)accept(listener, NULL, NULL);
         if( fd < 0 )
@@ -514,15 +529,32 @@ main(
          * and then hangs on login with no error at either end, because nothing
          * ever accepts it.
          *
-         * Peeking the first byte says which this is (15 JS5, 14 game). A JS5
-         * connection is handed to a forked child: it shares nothing mutable —
+         * The first APPLICATION byte says which this is (15 JS5, 14 game), and
+         * that is not the first byte of the SOCKET. A browser can only speak
+         * WebSocket, so its stream opens with 'G' and the protocol byte does
+         * not arrive until the upgrade is done — which is why sniffing the
+         * socket worked for as long as only native clients reached it. Every
+         * browser JS5 connection went down the game path instead and the parent
+         * served it in line: the page fetched groups until it wanted its game
+         * socket too, that socket sat unaccepted in a backlog of one, and the
+         * loop never returned to accept() again. From outside it is a client
+         * that boots halfway and a server that is up and answers nothing.
+         *
+         * So the handshake is completed here, and the question is put to the
+         * byte that carries the answer. A JS5 connection is handed to a forked
+         * child: it shares nothing mutable —
          * read-only cache file handles and a computed master index — so a
          * process is a legitimate way to hold it, and it costs none of the
          * restructuring a multi-session select loop would. (Windows has no
          * fork(); js5_thread_main above is the substitute, and heap-allocates
          * its own state for the same reason a forked child gets its own copy.)
          */
-        if( recv(fd, (char*)&first, 1, MSG_PEEK) == 1 && first == 15 )
+        if( !ToriRSServer_ConnOpen(&conn, fd) )
+        {
+            close(fd);
+            continue;
+        }
+        if( ToriRSServer_ConnPeekFirst(&conn) == 15 )
         {
 #ifdef _WIN32
             struct ToriRSServerJs5Args* args = (struct ToriRSServerJs5Args*)calloc(1, sizeof(*args));
@@ -530,6 +562,9 @@ main(
             assert(args);
             args->wire = wire;
             args->fd = fd;
+            /* The open connection, handshake and all, as the thread's own
+             * copy: the accept loop reuses `conn` for the next client. */
+            args->conn = conn;
             thread = (HANDLE)_beginthreadex(NULL, 0, js5_thread_main, args, 0, NULL);
             if( thread )
                 CloseHandle(thread); /* detached: nothing joins a JS5 connection */
@@ -547,8 +582,7 @@ main(
                 close(listener);
                 fprintf(stderr, "torirsserver: JS5 connection\n");
                 srv.wire = wire;
-                if( ToriRSServer_ConnOpen(&conn, fd) )
-                    serve_js5(&srv, &conn);
+                serve_js5(&srv, &conn);
                 close(fd);
                 _exit(0);
             }
@@ -560,8 +594,7 @@ main(
         }
 
         fprintf(stderr, "torirsserver: client connected\n");
-        if( ToriRSServer_ConnOpen(&conn, fd) )
-            serve(&srv, &conn, &config, wire);
+        serve(&srv, &conn, &config, wire);
         close(fd);
         fprintf(stderr, "torirsserver: client disconnected\n");
     }

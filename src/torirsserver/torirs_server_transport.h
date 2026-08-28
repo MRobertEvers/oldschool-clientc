@@ -29,6 +29,12 @@
  *   send   len  on success (buffering internally if it must), -1 once dead
  *   pollfd      a descriptor to select() on, or -1 when there is nothing to
  *               wait on — an embedded host polls on its own schedule
+ *   buffered    bytes a recv would return without going to the source. A
+ *               waiter must consult this before it sleeps on `pollfd`: a
+ *               framed transport reads whole frames, so the bytes that answer
+ *               the next request can already be in hand while the descriptor
+ *               says nothing is coming — and the peer that sent them is
+ *               waiting for the reply, so nothing more ever will.
  */
 
 #include <stdint.h>
@@ -41,6 +47,7 @@ struct ToriRSServerTransport
     int (*recv)(void* ctx, uint8_t* dst, int max);
     int (*send)(void* ctx, const uint8_t* src, int len);
     int (*pollfd)(void* ctx);
+    int (*buffered)(void* ctx);
     void (*close)(void* ctx);
 };
 

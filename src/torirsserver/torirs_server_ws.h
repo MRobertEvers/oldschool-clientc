@@ -45,6 +45,33 @@ ToriRSServer_ConnOpen(
     int fd);
 
 /*
+ * Application bytes already deframed and waiting to be taken.
+ *
+ * Nonzero means a recv answers from this buffer without touching the socket,
+ * which is what makes it wrong to select() on the fd: the bytes are in hand and
+ * the peer, having sent them, may well be waiting for the reply.
+ */
+int
+ToriRSServer_ConnBuffered(const struct ToriRSServerConn* conn);
+
+/*
+ * The first application byte, without consuming it.
+ *
+ * Which protocol a connection carries is its first byte -- 15 JS5, 14 game --
+ * and over a WebSocket that is not the first byte of the SOCKET: the upgrade
+ * is. This answers the question the socket cannot, and the byte stays queued
+ * for whoever serves the connection.
+ *
+ * Blocks for it, which the note at the foot of this header does not forbid:
+ * that warns against a SESSION reading synchronously, where the peer may be
+ * waiting on the session's own reply. This runs in the accept loop, before any
+ * session or transport exists, and waits only for the byte a client sends
+ * unprompted to announce what it is. Returns -1 if the peer leaves first.
+ */
+int
+ToriRSServer_ConnPeekFirst(struct ToriRSServerConn* conn);
+
+/*
  * Send application bytes. One call is one WebSocket message (the client
  * concatenates them, so message boundaries carry no meaning). Returns the byte
  * count, or -1 once the connection is dead.

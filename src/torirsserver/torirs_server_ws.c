@@ -310,6 +310,23 @@ conn_fill(struct ToriRSServerConn* conn)
     return 1;
 }
 
+int
+ToriRSServer_ConnBuffered(const struct ToriRSServerConn* conn)
+{
+    return conn->app_len;
+}
+
+int
+ToriRSServer_ConnPeekFirst(struct ToriRSServerConn* conn)
+{
+    while( conn->app_len == 0 )
+    {
+        if( !conn_fill(conn) )
+            return -1;
+    }
+    return conn->app[0];
+}
+
 static int
 app_take(
     struct ToriRSServerConn* conn,

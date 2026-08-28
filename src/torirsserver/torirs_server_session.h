@@ -188,6 +188,12 @@ ToriRSServer_SessionAlive(const struct ToriRSServerSession* session);
 int
 ToriRSServer_SessionPollfd(const struct ToriRSServerSession* session);
 
+/** Bytes the transport already holds — see its `buffered` contract. Nonzero
+ *  means pump now; waiting on the descriptor would wait for a peer that is
+ *  itself waiting for this session's reply. */
+int
+ToriRSServer_SessionBuffered(const struct ToriRSServerSession* session);
+
 void
 ToriRSServer_SessionKill(struct ToriRSServerSession* session);
 

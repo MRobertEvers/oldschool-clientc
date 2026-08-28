@@ -138,6 +138,12 @@ socket_close(void* ctx)
     ((struct ToriRSServerConn*)ctx)->closed = 1;
 }
 
+static int
+socket_buffered(void* ctx)
+{
+    return ToriRSServer_ConnBuffered((struct ToriRSServerConn*)ctx);
+}
+
 void
 ToriRSServer_TransportSocket(
     struct ToriRSServerTransport* transport,
@@ -147,6 +153,7 @@ ToriRSServer_TransportSocket(
     transport->recv = socket_recv;
     transport->send = socket_send;
     transport->pollfd = socket_pollfd;
+    transport->buffered = socket_buffered;
     transport->close = socket_close;
 }
 
@@ -185,6 +192,12 @@ memory_close(void* ctx)
     ToriRSServer_PipeClose(ends->to_server);
 }
 
+static int
+memory_buffered(void* ctx)
+{
+    return ToriRSServer_PipeAvailable(((struct ToriRSServerMemoryEnds*)ctx)->to_server);
+}
+
 void
 ToriRSServer_TransportMemory(
     struct ToriRSServerTransport* transport,
@@ -199,5 +212,6 @@ ToriRSServer_TransportMemory(
     transport->recv = memory_recv;
     transport->send = memory_send;
     transport->pollfd = memory_pollfd;
+    transport->buffered = memory_buffered;
     transport->close = memory_close;
 }

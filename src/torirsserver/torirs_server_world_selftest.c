@@ -1060,6 +1060,43 @@ selftest_reset_world(
  * lengthens PLAYER_INFO's bit section, and an aggressive npc nearby writes
  * masks nobody asked for. Resetting is cheaper than ordering the sections.
  */
+/*
+ * Is an optional content lane in THIS build?
+ *
+ * A lane can be left out (`ported/<lane>/lane.ini`'s `default=off`, or simply
+ * not named in `TORIRSSERVER_SCRIPT_LANES`), and when it is, its server scripts
+ * are subtracted from the compile. Its CONFIGS are not: `walk_configs` walks
+ * `server/scripts` whole and `load_ported_pack_symbols` layers every lane's
+ * pack unconditionally, so the lane's npcs, varps and locs all still resolve.
+ * That is why a stanza cannot ask "does this npc exist" to find out -- the
+ * only thing that actually goes missing is the SCRIPT.
+ *
+ * Skipping is LOUD, for the reason `tools/check_selftest_registration.py`
+ * exists: a stanza that silently does not run reads exactly like a passing
+ * one. The line names the lane and the probe, so a build that meant to have
+ * the lane and does not can be told apart from one that meant to leave it out.
+ */
+static int
+selftest_lane_present(
+    struct ToriRSServer* srv,
+    const char* lane,
+    const char* probe)
+{
+    if( srv->scripts && SSVM_ProviderGetByName(srv->scripts, probe) )
+        return 1;
+    fprintf(stderr,
+            "  SKIP  content lane `%s` is not in this build (`%s` is not in the "
+            "pack) — build with TORIRSSERVER_SCRIPT_LANES=\"%s\" to run these\n",
+            lane, probe, lane);
+    return 0;
+}
+
+/* The lane these stanzas belong to, and the one script each asks for. Named
+ * once so a rename in the lane is one edit rather than six. */
+#define SELFTEST_LANE_RS2012 "rs2012_qbd_td"
+#define SELFTEST_LANE_RS2012_PROBE "[proc,rs2012_qbd_coord]"
+#define SELFTEST_LANE_RS2012_TD_PROBE "[proc,rs2012_td_init]"
+
 static void
 selftest_park_player(
     struct ToriRSServer* srv,
@@ -24944,6 +24981,11 @@ ToriRSServer_WorldSelftest(void)
          * through advance_player proves a locked first or second tile cannot
          * be skipped by running. */
         fprintf(stderr, "ToriRSServer selftest: QBD per-step movement gate\n");
+        if( !selftest_lane_present(srv, SELFTEST_LANE_RS2012, SELFTEST_LANE_RS2012_PROBE) )
+        {
+            /* Nothing to assert and nothing wrong: the lane is optional. */
+        }
+        else
         {
             const struct SSVM_Script* probe = SSVM_ProviderGetByName(
                 srv->scripts, "[walktrigger,rs2012_qbd_walkstep_probe]");
@@ -55523,6 +55565,11 @@ ToriRSServer_WorldSelftest(void)
         {
             fprintf(stderr, "  SKIP  no compiled script pack\n");
         }
+        else if( !selftest_lane_present(srv, SELFTEST_LANE_RS2012,
+                                        SELFTEST_LANE_RS2012_PROBE) )
+        {
+            /* Optional lane, left out of this build. */
+        }
         else
         {
             const struct SSVM_Script* probe =
@@ -55649,6 +55696,10 @@ ToriRSServer_WorldSelftest(void)
         if( !loaded )
         {
             fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else if( !selftest_lane_present(srv, SELFTEST_LANE_RS2012, SELFTEST_LANE_RS2012_PROBE) )
+        {
+            /* Optional lane, left out of this build. */
         }
         else
         {
@@ -56866,6 +56917,11 @@ ToriRSServer_WorldSelftest(void)
         if( !loaded )
         {
             fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else if( !selftest_lane_present(srv, SELFTEST_LANE_RS2012,
+                                        SELFTEST_LANE_RS2012_TD_PROBE) )
+        {
+            /* Optional lane, left out of this build. */
         }
         else
         {
