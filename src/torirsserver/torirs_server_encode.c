@@ -1314,6 +1314,7 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
     int kept_x[TORIRSSERVER_WEV_VIEW_MAX];
     int kept_z[TORIRSSERVER_WEV_VIEW_MAX];
     int kept_angle[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_seq_stamps[TORIRSSERVER_WEV_VIEW_MAX];
     int kept_count = 0;
     const struct ToriRSServerWirePayload* pl;
 
@@ -1376,13 +1377,22 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         dx = vessel->fine_x - player->wev_last_fine_x[i];
         dz = vessel->fine_z - player->wev_last_fine_z[i];
         dangle = wev_angle_delta(player->wev_last_angle[i], vessel->angle);
+        /* updateFlags bit 0x1: the one-shot wire seq (the sink family), sent
+         * once per seq_stamp bump per observer. Bit 0x2 (op mask) stays
+         * spawn-only. */
+        {
+            int flags = 0;
+
+            if( vessel->seq_id >= 0 &&
+                player->wev_seq_stamps[i] != vessel->seq_stamp )
+                flags |= 0x1;
         if( dx == 0 && dz == 0 && dangle == 0 )
         {
             /* Op 1 is the flags-only record: the slot has to be described
              * (the count addresses it positionally) and there is nothing to
-             * say about it. A zero flags byte says exactly that. */
+             * say about it. */
             rsab_p1(&buf, 1);
-            rsab_p1(&buf, 0);
+            rsab_p1(&buf, flags);
         }
         else
         {
@@ -1402,13 +1412,22 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
              */
             rsab_p1(&buf, 2);
             wev_put_transform(&buf, dx, 0, dz, dangle);
-            rsab_p1(&buf, 0); /* updateFlags: no op-mask change, no seq */
+            rsab_p1(&buf, flags);
+        }
+        if( flags & 0x1 )
+        {
+            /* Same shape the client reads: seq u16 BE (65535 clears), then
+             * the delay byte in 20 ms client ticks. */
+            rsab_p2(&buf, vessel->seq_id & 0xFFFF);
+            rsab_p1(&buf, vessel->seq_delay & 0xFF);
+        }
         }
         kept_ids[kept_count] = view;
         kept_serials[kept_count] = vessel->serial;
         kept_x[kept_count] = vessel->fine_x;
         kept_z[kept_count] = vessel->fine_z;
         kept_angle[kept_count] = vessel->angle;
+        kept_seq_stamps[kept_count] = vessel->seq_stamp;
         kept_count++;
     }
 
@@ -1446,6 +1465,9 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         kept_x[kept_count] = vessel->fine_x;
         kept_z[kept_count] = vessel->fine_z;
         kept_angle[kept_count] = vessel->angle;
+        /* Recorded unsent: a client that just learned of the hull has no
+         * business replaying a sink already in progress. */
+        kept_seq_stamps[kept_count] = vessel->seq_stamp;
         kept_count++;
     }
 
@@ -1458,6 +1480,7 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         player->wev_last_fine_x[i] = kept_x[i];
         player->wev_last_fine_z[i] = kept_z[i];
         player->wev_last_angle[i] = kept_angle[i];
+        player->wev_seq_stamps[i] = kept_seq_stamps[i];
     }
     player->wev_tracked_count = kept_count;
 
@@ -3784,6 +3807,43 @@ zone_base(
  * Both are fixed together: the window now spans all four planes
  * (`rebuild_active`), so this has to be told which one it is describing.
  */
+/* The sandwich form: a deck zone is addressed inside SET_ACTIVE_WORLD, and
+ * the client resolves its header against the VIEW's world — whose base is the
+ * instance base, not the receiving player's root scene origin. The one-byte
+ * wire fields wrap on anything else: a deck zone is thousands of tiles from
+ * every root origin, and the wrapped base filed the boarding resync's loc
+ * state at garbage tiles the view silently refused. */
+void
+ToriRSServer_SendZoneHeaderAt(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int level,
+    int full,
+    int origin_tile_x,
+    int origin_tile_z)
+{
+    struct RSAreaBuf buf;
+    int base_x = zone_x * TORIRSSERVER_ZONE_TILES - origin_tile_x;
+    int base_z = zone_z * TORIRSSERVER_ZONE_TILES - origin_tile_z;
+
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        int name = full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS;
+
+        if( pl && pl->zone_header )
+            pl->zone_header(&buf, name, base_x, base_z, level);
+        else
+        {
+            rsab_p1(&buf, base_x);
+            rsab_p1(&buf, base_z);
+        }
+    }
+    flush(player, &buf, full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS,
+          0);
+}
+
 void
 ToriRSServer_SendZoneHeader(
     struct ToriRSServerPlayer* player,
@@ -4098,6 +4158,42 @@ ToriRSServer_SendZoneSub(
 }
 
 /* `level` is the zone's plane — same reason as ToriRSServer_SendZoneHeader. */
+/* Enclosed batch with an explicit origin — the deck sandwich's spelling; see
+ * ToriRSServer_SendZoneHeaderAt. */
+void
+ToriRSServer_SendZoneEnclosedAt(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int level,
+    const uint8_t* blob,
+    int len,
+    int origin_tile_x,
+    int origin_tile_z)
+{
+    struct RSAreaBuf buf;
+    int base_x = zone_x * TORIRSSERVER_ZONE_TILES - origin_tile_x;
+    int base_z = zone_z * TORIRSSERVER_ZONE_TILES - origin_tile_z;
+
+    if( len <= 0 )
+        return;
+    open_packet(&buf, (size_t)len + 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+        if( pl && pl->zone_header )
+            pl->zone_header(&buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, base_x, base_z,
+                            level);
+        else
+        {
+            rsab_p1(&buf, base_x);
+            rsab_p1(&buf, base_z);
+        }
+    }
+    rsab_pdata(&buf, blob, (size_t)len);
+    flush(player, &buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, 2);
+}
+
 void
 ToriRSServer_SendZoneEnclosed(
     struct ToriRSServerPlayer* player,

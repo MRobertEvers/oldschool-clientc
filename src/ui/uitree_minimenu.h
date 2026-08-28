@@ -38,6 +38,9 @@ enum UIMinimenuPickKind
     UI_MINIMENU_PICK_TERRAIN,
     UI_MINIMENU_PICK_OBJ,
     UI_MINIMENU_PICK_PLAYER,
+    /** A sailing hull (world entity): id = view id, secondary = config op
+     * index 0..4 (SAILING_PLAN C5.2). */
+    UI_MINIMENU_PICK_WEV,
 };
 
 /*

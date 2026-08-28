@@ -71,9 +71,16 @@ vessel_trig_init(void)
 
     if( s_sin16_ready )
         return;
+    /* Truncation toward zero, NOT lround: this table must be byte-identical
+     * to the client's (3rd/toridraw shared_tables.c builds its sin table
+     * with a plain cast), because the deck→root projection below must land
+     * on the same tile the client's Wev_ParentFromDeck computes. With
+     * lround here and truncation there, the two ends disagreed by 1-2 fine
+     * units at the twelve non-cardinal headings — enough to flap the
+     * rider's projected shadow across a tile boundary. */
     for( i = 0; i < TORIRSSERVER_VESSEL_ANGLE_UNITS; i++ )
         s_sin16[i] =
-            (int32_t)lround(sin((double)i * k_two_pi / TORIRSSERVER_VESSEL_ANGLE_UNITS) * 65536.0);
+            (int32_t)(sin((double)i * k_two_pi / TORIRSSERVER_VESSEL_ANGLE_UNITS) * 65536.0);
     s_sin16_ready = 1;
 }
 
@@ -92,7 +99,9 @@ vessel_cos(int angle)
 }
 
 /** Rotate a deck-local fine offset by yaw into a root-space offset. The bow
- *  direction (0, -1) lands on (-sin, -cos), agreeing with the mover. */
+ *  direction (0, -1) lands on (-sin, -cos), agreeing with the mover.
+ *  Floor shift, no rounding term: the client's Wev_ParentFromDeck floors,
+ *  and the observer projection must land on the tile the client draws. */
 static void
 vessel_rotate_forward(
     int angle,
@@ -104,12 +113,13 @@ vessel_rotate_forward(
     int64_t c = vessel_cos(angle);
     int64_t s = vessel_sin(angle);
 
-    *out_rx = (int)(((int64_t)lx * c + (int64_t)lz * s + 32768) >> 16);
-    *out_rz = (int)(((int64_t)lz * c - (int64_t)lx * s + 32768) >> 16);
+    *out_rx = (int)(((int64_t)lx * c + (int64_t)lz * s) >> 16);
+    *out_rz = (int)(((int64_t)lz * c - (int64_t)lx * s) >> 16);
 }
 
-/** The transposed rotation — vessel_rotate_forward's inverse (exact up to the
- *  16.16 rounding). */
+/** The transposed rotation — vessel_rotate_forward's inverse (exact up to
+ *  the 16.16 floor). Floor shift like the forward, matching the client's
+ *  Wev_DeckFromParent so both ends map a root point to the same deck tile. */
 static void
 vessel_rotate_inverse(
     int angle,
@@ -121,8 +131,8 @@ vessel_rotate_inverse(
     int64_t c = vessel_cos(angle);
     int64_t s = vessel_sin(angle);
 
-    *out_lx = (int)(((int64_t)rx * c - (int64_t)rz * s + 32768) >> 16);
-    *out_lz = (int)(((int64_t)rz * c + (int64_t)rx * s + 32768) >> 16);
+    *out_lx = (int)(((int64_t)rx * c - (int64_t)rz * s) >> 16);
+    *out_lz = (int)(((int64_t)rz * c + (int64_t)rx * s) >> 16);
 }
 
 /* ------------------------------------------------------------------ */
@@ -281,6 +291,12 @@ ToriRSServer_VesselSpawn(
      * same "check your handle" answer map_instance_alloc gives. */
     zone_w = (size_x_tiles + 7) / 8;
     zone_h = (size_z_tiles + 7) / 8;
+    /* 13 zones is the client's hard grid stride (REBUILD_WORLDENTITY decodes
+     * onto the 13x13 instance array, gameproto_parse.c) — and 14+ would also
+     * index the encoder's own zones[4][13][13] out of bounds. The instance
+     * pool accepts 16, so refuse here, where the size is still a request. */
+    if( zone_w > 13 || zone_h > 13 )
+        return 0;
     instance = ToriRSServer_MapInstanceAlloc(ToriRSServer_WorldCacheDir(), zone_w, zone_h);
     if( instance == 0 )
         return 0;
@@ -297,6 +313,7 @@ ToriRSServer_VesselSpawn(
      * is not the hull you were told about", when a free and a spawn land in
      * the same tick and both recycle the same numbers. */
     vessel->serial = ++g_vessel_serial;
+    vessel->seq_id = -1;
     /* Lowest free world-view id. 0 when all 15 are taken: the hull still sails,
      * it just has no name the wire can say — see the field's comment. */
     for( int view = 1; view <= TORIRSSERVER_WEV_VIEW_MAX; view++ )
@@ -315,6 +332,24 @@ ToriRSServer_VesselSpawn(
     vessel->config_id = config_id;
     vessel->size_x_tiles = size_x_tiles;
     vessel->size_z_tiles = size_z_tiles;
+    /* Full hull, scaled by footprint: the bar reads as the boat's bulk and a
+     * bigger hull has more of it. Values are arbitrary until hull damage
+     * exists; the SHAPE (hp == hp_max at spawn, both nonzero) is what the
+     * sidepanel's 0/0 placeholder needed. */
+    vessel->hp_max = 50 * (size_x_tiles > 0 ? size_x_tiles : 1) *
+                     (size_z_tiles > 0 ? size_z_tiles : 1);
+    vessel->hp = vessel->hp_max;
+    /* Deterministic per slot, small enough for the shortest option table:
+     * the composed name is stable across respawns of the same slot, and two
+     * hulls afloat at once read differently. */
+    {
+        int slot = (int)(vessel - srv->vessels);
+
+        vessel->name_descriptor = 1 + (slot * 7) % 20;
+        vessel->name_noun = 1 + (slot * 13 + 5) % 20;
+    }
+    vessel->deck_src_x = -1;
+    vessel->deck_src_z = -1;
     vessel->instance = instance;
     vessel->level = level;
     vessel->fine_x = tile_x * TORIRSSERVER_VESSEL_FINE_PER_TILE + 64;
@@ -532,6 +567,14 @@ vessel_heading_toward(
     return ((angle + TORIRSSERVER_VESSEL_HEADING_STEP / 2) / TORIRSSERVER_VESSEL_HEADING_STEP) & 15;
 }
 
+int
+ToriRSServer_VesselHeadingToward(
+    int dx,
+    int dz)
+{
+    return vessel_heading_toward(dx, dz);
+}
+
 /** Round a fine displacement to the nearest 32-unit quantum (half rounds up;
  *  the arithmetic shift makes that hold for negatives too). */
 static int
@@ -657,6 +700,21 @@ vessel_tick(struct ToriRSServerVessel* vessel)
 
     speed = vessel->speed_tier * 64;
 
+    /*
+     * The launch controls (docs/SAILING.md §7): with the sails un-set a
+     * HEADING command still TURNS the hull — the arc above has already run —
+     * but it does not translate; setting the sails is the instant "go".
+     * Reversing is the wiki's stationary nudge: backward at the base half
+     * tile per tick, only ever with the sails down. A TARGET sail is a
+     * scripted move and ignores the sails entirely.
+     */
+    if( vessel->state == TORIRSSERVER_VESSEL_HEADING && !vessel->sails_set )
+    {
+        if( !vessel->reversing )
+            return;
+        speed = -64;
+    }
+
     if( vessel->state == TORIRSSERVER_VESSEL_TARGET )
     {
         /* Arrival: within one tick's travel (Chebyshev, matching the per-axis
@@ -724,13 +782,141 @@ vessel_tick(struct ToriRSServerVessel* vessel)
                 vessel->level);
         if( vessel_debug_enabled() )
             vessel_debug_dump_footprint(vessel, next_x, next_z, vessel->angle);
-        /* A blocked step stops the boat: whole step or none, no sliding. */
+        /* A blocked step stops the boat: whole step or none, no sliding.
+         * The helmsman is told (ToriRSServer_VesselTakeBlocked) — a boat that
+         * stops dead with no message is the "does nothing" symptom this tree
+         * keeps out of content. */
+        vessel->blocked_notice = 1;
         ToriRSServer_VesselStop(vessel);
         return;
     }
 
     vessel->fine_x = next_x;
     vessel->fine_z = next_z;
+}
+
+int
+ToriRSServer_VesselNearest(
+    struct ToriRSServer* srv,
+    int tile_x,
+    int tile_z,
+    int level,
+    int range)
+{
+    int best = 0;
+    int best_gap = 0;
+
+    assert(srv);
+    if( range < 0 )
+        return 0;
+    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; i++ )
+    {
+        struct ToriRSServerVessel* vessel = &srv->vessels[i];
+        int hx;
+        int hz;
+        int dx;
+        int dz;
+        int gap;
+
+        if( !vessel->in_use || vessel->level != level )
+            continue;
+        hx = vessel->fine_x >> 7;
+        hz = vessel->fine_z >> 7;
+        dx = hx > tile_x ? hx - tile_x : tile_x - hx;
+        dz = hz > tile_z ? hz - tile_z : tile_z - hz;
+        gap = dx > dz ? dx : dz;
+        if( gap > range )
+            continue;
+        if( best == 0 || gap < best_gap )
+        {
+            best = vessel->index;
+            best_gap = gap;
+        }
+    }
+    return best;
+}
+
+int
+ToriRSServer_VesselBoardPlayer(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerVessel* vessel)
+{
+    int base_tile_x = 0;
+    int base_tile_z = 0;
+    int level;
+
+    assert(srv);
+    assert(player);
+    assert(vessel);
+    if( !ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z) )
+        return 0;
+    /* The deck's own walkable plane and the DECK-BOX centre — the two things
+     * `::vesselboard` learned the hard way: plane 0 is the solid hull shell,
+     * and the hull-size half-tile lands beside the template's planking. */
+    level = ToriRSServer_VesselDeckPlane(vessel);
+    ToriRSServer_WorldSetActive(srv, player);
+    ToriRSServer_WorldTeleport(srv, level,
+                               base_tile_x + ((vessel->size_x_tiles + 7) / 8) * 4,
+                               base_tile_z + ((vessel->size_z_tiles + 7) / 8) * 4);
+    return 1;
+}
+
+int
+ToriRSServer_VesselDisembarkPlayer(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServerVessel* vessel;
+    int anchor_x;
+    int anchor_z;
+
+    assert(srv);
+    assert(player);
+    vessel = ToriRSServer_VesselAtTile(srv, player->x, player->z);
+    if( !vessel )
+        return 0;
+    /* Ashore FROM the hull's projected position: rings outward, nearest
+     * first, and the first WALKABLE root tile wins. At sea every ring is
+     * water and the search fails — which is the right answer, not a bug: a
+     * boat in open water has no shore, and the caller says so. */
+    anchor_x = vessel->fine_x >> 7;
+    anchor_z = vessel->fine_z >> 7;
+    for( int ring = 1; ring <= TORIRSSERVER_VESSEL_DISEMBARK_RANGE; ring++ )
+        for( int dz = -ring; dz <= ring; dz++ )
+            for( int dx = -ring; dx <= ring; dx++ )
+            {
+                int tx;
+                int tz;
+
+                /* The ring's edge only — the inside was searched already. */
+                if( dx > -ring && dx < ring && dz > -ring && dz < ring )
+                    continue;
+                tx = anchor_x + dx;
+                tz = anchor_z + dz;
+                if( ToriRSServer_SceneWalkBlocked(vessel->level, tx, tz) )
+                    continue;
+                /* Water is walk-clear for a hull and not for a person: the
+                 * gangplank must land on ground, not on the sea the boat is
+                 * floating in. */
+                if( ToriRSServer_VesselTileSailable(vessel->level, tx, tz) )
+                    continue;
+                ToriRSServer_WorldSetActive(srv, player);
+                ToriRSServer_WorldTeleport(srv, vessel->level, tx, tz);
+                return 1;
+            }
+    return 0;
+}
+
+int
+ToriRSServer_VesselTakeBlocked(struct ToriRSServerVessel* vessel)
+{
+    int blocked;
+
+    assert(vessel);
+    blocked = vessel->blocked_notice;
+    vessel->blocked_notice = 0;
+    return blocked;
 }
 
 void
@@ -750,6 +936,72 @@ ToriRSServer_VesselTickAll(struct ToriRSServer* srv)
 /* Deck <-> root projection                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The config's pivot (archive-72 opcodes 4/5), mirrored here because the
+ * server does not decode archive 72 and the projection must recenter with
+ * EXACTLY the client's terms — the client's descent places deck point d at
+ * hull + R(d − zone_tiles·64 − pivot), so a projection missing the pivot
+ * (or using the raw tile size where the client uses the zone-rounded one)
+ * draws every rider offset from where the server thinks they stand.
+ * Values from cache.osrs239 (wev_test TORIRS_WEV_DUMP=1). Unknown ids: 0,0.
+ */
+static void
+vessel_config_pivot(
+    int config_id,
+    int* out_px,
+    int* out_pz)
+{
+    static const int k_px[15] = { 0, -64, 0, -64, 0, -64, -64, -64, -64, -64, 0, 0, -64, -64, -64 };
+    static const int k_pz[15] = { 0, -64, -64, 0, 0, 512, 512, 512, 512, 192, -64, -64, 0, 0, 0 };
+
+    if( config_id >= 1 && config_id <= 14 )
+    {
+        *out_px = k_px[config_id];
+        *out_pz = k_pz[config_id];
+        return;
+    }
+    *out_px = 0;
+    *out_pz = 0;
+}
+
+/**
+ * The config's deck plane (archive-72 opcode 2), mirrored like the pivots:
+ * the plane a rider STANDS on. Every real boat in cache.osrs239 authors its
+ * walkable planking at plane 1 (the hull at plane 0 is the loc-built shell —
+ * solid collision, which is why boarding at level 0 could not walk a single
+ * tile); config 4 is the plane-0 oddity. Unknown ids: 0.
+ */
+int
+ToriRSServer_VesselDeckPlane(const struct ToriRSServerVessel* vessel)
+{
+    static const int k_plane[15] = { 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
+    assert(vessel);
+    if( vessel->config_id >= 1 && vessel->config_id <= 14 )
+        return k_plane[vessel->config_id];
+    return 0;
+}
+
+/** The recenter the CLIENT applies: half the ZONE-ROUNDED deck box (the wire
+ *  publishes zone counts, so the client's view is zones×8 tiles regardless of
+ *  the hull's own size) plus the config pivot. One helper so DeckToRoot and
+ *  RootToDeck cannot drift apart. */
+static void
+vessel_recenter_fine(
+    const struct ToriRSServerVessel* vessel,
+    int* out_cx,
+    int* out_cz)
+{
+    int px;
+    int pz;
+
+    vessel_config_pivot(vessel->config_id, &px, &pz);
+    *out_cx = ((vessel->size_x_tiles + 7) / 8) * 8 * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2) +
+              px;
+    *out_cz = ((vessel->size_z_tiles + 7) / 8) * 8 * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2) +
+              pz;
+}
+
 void
 ToriRSServer_VesselDeckToRoot(
     const struct ToriRSServerVessel* vessel,
@@ -758,6 +1010,8 @@ ToriRSServer_VesselDeckToRoot(
     int* out_fine_x,
     int* out_fine_z)
 {
+    int cx;
+    int cz;
     int lx;
     int lz;
     int rx;
@@ -769,9 +1023,9 @@ ToriRSServer_VesselDeckToRoot(
     assert(out_fine_x);
     assert(out_fine_z);
 
-    /* Pivot at the hull center; a config-supplied pivot is S3's concern. */
-    lx = deck_fine_x - vessel->size_x_tiles * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2);
-    lz = deck_fine_z - vessel->size_z_tiles * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2);
+    vessel_recenter_fine(vessel, &cx, &cz);
+    lx = deck_fine_x - cx;
+    lz = deck_fine_z - cz;
     vessel_rotate_forward(vessel->angle, lx, lz, &rx, &rz);
     *out_fine_x = vessel->fine_x + rx;
     *out_fine_z = vessel->fine_z + rz;
@@ -785,6 +1039,8 @@ ToriRSServer_VesselRootToDeck(
     int* out_deck_fine_x,
     int* out_deck_fine_z)
 {
+    int cx;
+    int cz;
     int lx;
     int lz;
 
@@ -794,10 +1050,11 @@ ToriRSServer_VesselRootToDeck(
     assert(out_deck_fine_x);
     assert(out_deck_fine_z);
 
+    vessel_recenter_fine(vessel, &cx, &cz);
     vessel_rotate_inverse(
         vessel->angle, root_fine_x - vessel->fine_x, root_fine_z - vessel->fine_z, &lx, &lz);
-    *out_deck_fine_x = lx + vessel->size_x_tiles * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2);
-    *out_deck_fine_z = lz + vessel->size_z_tiles * (TORIRSSERVER_VESSEL_FINE_PER_TILE / 2);
+    *out_deck_fine_x = lx + cx;
+    *out_deck_fine_z = lz + cz;
 }
 
 void

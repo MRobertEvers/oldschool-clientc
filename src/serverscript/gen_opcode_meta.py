@@ -895,6 +895,56 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # Release the hull and its deck instance.
     "VESSEL_FREE": (11093, 1, 0, 0, 0),
 
+    # vessel_here()(int)
+    # The handle of the vessel whose deck reservation contains the active
+    # player's feet, or 0 ashore — the aboard test every deck-facility op
+    # starts from.
+    "VESSEL_HERE": (11094, 0, 0, 1, 0),
+
+    # vessel_sails(handle, set)(int)
+    # Hoist (1), furl (0) or toggle (-1) the sails — the launch model's sail
+    # gate: a hull with sails set advances on its heading each tick. Returns
+    # the resulting state so one op can both act and report.
+    "VESSEL_SAILS": (11095, 2, 0, 1, 0),
+
+    # vessel_facility(handle, slot, option)
+    # Record which option a hull's facility slot holds (0 sail, 1 helm,
+    # 2 hull; option is the 1-based pick into that column, 0 = empty). The
+    # sidepanel's Facilities tab renders exactly this.
+    "VESSEL_FACILITY": (11102, 3, 0, 0, 0),
+
+    # vessel_hp(handle)(int)
+    # The hull's integrity, and its maximum as the second return — the pair
+    # the sailing sidepanel's bar shows. 0,0 for a dead handle.
+    "VESSEL_HP": (11100, 1, 0, 2, 0),
+
+    # vessel_damage(handle, amount)(int)
+    # Take `amount` off the hull (negative repairs), clamped to 0..max, and
+    # answer the resulting integrity. Content owns what costs what.
+    "VESSEL_DAMAGE": (11101, 2, 0, 1, 0),
+
+    # vessel_nearest(coord, range)(int)
+    # The live hull nearest that coord within `range` tiles, or 0 — the "is
+    # there a boat at this dock?" question a gangplank asks.
+    "VESSEL_NEAREST": (11097, 2, 0, 1, 0),
+
+    # vessel_board(handle)(boolean)
+    # Stand the active player on that hull's deck (its walkable plane, the
+    # deck box's centre). False for a hull with no built deck.
+    "VESSEL_BOARD": (11098, 1, 0, 1, 0),
+
+    # vessel_disembark()(boolean)
+    # Put an aboard player ashore on the nearest walkable ground beside the
+    # hull. False when there is none — a boat at sea has no shore.
+    "VESSEL_DISEMBARK": (11099, 0, 0, 1, 0),
+
+    # vessel_helm(handle)(int)
+    # Put the active player at the hull's helm (handle 0, or the helm they
+    # already hold, releases it). While helming, ground clicks steer and the
+    # speed/sails ops act on this hull — the state `::helm` toggles. Returns
+    # 1 engaged, 0 released.
+    "VESSEL_HELM": (11096, 1, 0, 1, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses

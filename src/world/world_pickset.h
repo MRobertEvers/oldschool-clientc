@@ -9,6 +9,11 @@ enum World_PickType
     WORLD_PICK_NPC,
     WORLD_PICK_OBJSTACK,
     WORLD_PICK_PLAYER,
+    /** A model belonging to a world-entity view's sub-scene (a sailing
+     * hull's side, mast, rail — anything drawn inside the descent that is
+     * not deck terrain). Carries view_id; the tile fields are -1. The hull's
+     * right-click op rows key on view_id (SAILING_PLAN C5.2). */
+    WORLD_PICK_WEV,
 };
 
 struct World_Picked

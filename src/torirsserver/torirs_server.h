@@ -2970,6 +2970,12 @@ struct ToriRSServerPlayer
     int wev_last_fine_x[TORIRSSERVER_WEV_VIEW_MAX];
     int wev_last_fine_z[TORIRSSERVER_WEV_VIEW_MAX];
     int wev_last_angle[TORIRSSERVER_WEV_VIEW_MAX];
+    /** Per tracked entity, the vessel seq_stamp this client last heard — the
+     *  one-shot wire seq (updateFlags 0x1) goes out once per stamp bump per
+     *  observer. A newly tracked hull records the current stamp unsent: the
+     *  sink is transient, and a client that spawned the hull mid-anim has no
+     *  frame history to play it against. */
+    int wev_seq_stamps[TORIRSSERVER_WEV_VIEW_MAX];
 
     /*
      * Observation coordinates: where this player is to be SEEN, which is not
@@ -3018,6 +3024,38 @@ struct ToriRSServerPlayer
      * tweak to this flag.
      */
     int obs_jumped;
+
+    /**
+     * Vessel handle this player is NAVIGATING (took the helm), 0 = none.
+     *
+     * While set, an ordinary ground click stops being a walk request and
+     * becomes a STEERING order: handle_move quantizes the clicked tile's
+     * bearing from the hull into the 16-point heading and hands it to the
+     * vessel — the launch model's "white arrow toward the cursor, click to
+     * set the boat's direction" (docs/SAILING.md §7), reinterpreted server-
+     * side so the wire needs no new packet. Cleared by ::helm again, by
+     * stepping/teleporting off the deck, and by the vessel being freed.
+     */
+    int navigating_vessel;
+
+    /**
+     * The navigated vessel's serial (struct ToriRSServerVessel::serial),
+     * captured when the helm was taken. Vessel slot handles recycle within a
+     * tick, so the handle alone can silently come to name a DIFFERENT hull —
+     * every helm consumer must check the serial still matches and drop the
+     * helm if it does not, or a stranger's boat steers by this player's
+     * clicks. Meaningless while navigating_vessel == 0.
+     */
+    int navigating_vessel_serial;
+
+    /**
+     * Serial of the vessel whose DECK ZONES this player last flushed
+     * (SAILING_PLAN S2.3, torirs_server_zone.c deck_zone_flush). 0 = not
+     * aboard. A change is the boarding edge: the deck's zones get a FULL
+     * state resync before events flow, so a door opened before this player
+     * boarded is not invisible to them.
+     */
+    int deck_zone_serial;
 
     /*
      * The world this player is in, and where its bytes go.
@@ -5104,6 +5142,16 @@ ToriRSServer_CombatEngage(
     struct ToriRSServer* srv,
     int slot);
 
+/** Is the claimed Attack ready to fire from range — weapon range and LoS
+ *  judged from the player's reach position (a rider's projected tile)? 1 =
+ *  treat the interaction as REACHED so the ordinary OP dispatch runs (the
+ *  fight lives in content's [opnpc] loop; the engine has no attack clock).
+ *  0 = fall through to the walk-to-adjacency path. */
+int
+ToriRSServer_CombatAtRangeReady(
+    struct ToriRSServer* srv,
+    int slot);
+
 /** True once TORIRSSERVER_AFK_COMBAT_TICKS have passed with no player input, which
  *  is when OldSchool stops the character fighting. See its definition. */
 int
@@ -7180,6 +7228,27 @@ ToriRSServer_SendInvStopTransmit(
  *  otherwise UPDATE_ZONE_PARTIAL_FOLLOWS, which does not. Coordinates are in
  *  zone units. */
 void
+ToriRSServer_SendZoneHeaderAt(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int level,
+    int full,
+    int origin_tile_x,
+    int origin_tile_z);
+
+void
+ToriRSServer_SendZoneEnclosedAt(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int level,
+    const uint8_t* blob,
+    int len,
+    int origin_tile_x,
+    int origin_tile_z);
+
+void
 ToriRSServer_SendZoneHeader(
     struct ToriRSServerPlayer* player,
     int zone_x,
@@ -7353,6 +7422,44 @@ ToriRSServer_PlayerSceneAnchor(
     const struct ToriRSServerPlayer* player,
     int* out_x,
     int* out_z);
+
+/**
+ * Where `player` stands for RANGE / LoS / adjacency judgments made against a
+ * point at (other_x, other_z) — the sailing reach seam. Identity for everyone
+ * ashore, and for a rider judged against something on their OWN deck (both
+ * live in deck space). A rider judged against anything OFF the deck answers
+ * with the PROJECTED tile — the deck tile pushed through the hull into the
+ * root world, the same one the shore sees them at — which is what lets them
+ * fish, shoot and cast over the gunwale.
+ */
+/** A deck tile projected to the root frame (level becomes the hull's); any
+ *  other tile passes through unchanged. The shared cross-frame rule for zone
+ *  events and script measurement ops. */
+void
+ToriRSServer_RootTile(
+    struct ToriRSServer* srv,
+    int* x,
+    int* z,
+    int* level);
+
+void
+ToriRSServer_PlayerReachTile(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int other_x,
+    int other_z,
+    int* out_x,
+    int* out_z);
+
+/** The LEVEL companion of ToriRSServer_PlayerReachTile: the rider's own level is
+ *  a deck plane (planking at plane 1), incomparable with root levels — reach
+ *  against an off-deck point answers the HULL's root level instead. */
+int
+ToriRSServer_PlayerReachLevel(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int other_x,
+    int other_z);
 
 /**
  * One npc's projection, out of band with the per-tick sweep.

@@ -25,6 +25,7 @@ main(void)
     test_mover_model_flag();
     test_stop_settles_promptly();
     test_entity_face();
+    test_entity_face_across_frames();
     test_try_route();
     test_try_route_nearest_models();
     test_try_route_op();

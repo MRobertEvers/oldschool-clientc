@@ -131,6 +131,7 @@ void test_walk_keeps_up(void);
 void test_mover_model_flag(void);
 void test_stop_settles_promptly(void);
 void test_entity_face(void);
+void test_entity_face_across_frames(void);
 void test_try_route(void);
 void test_try_route_nearest_models(void);
 void test_try_route_op(void);

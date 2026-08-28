@@ -3,6 +3,7 @@
 #include "toridraw_element_id.h"
 #include "world/world.h"
 #include "world/world_pickset.h"
+#include "world/worldview.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -217,6 +218,7 @@ pick_debug_dump(
 void
 ToriRS_PickHitsClassify(
     struct World* world,
+    struct WorldviewRegistry* views,
     struct ToriRS_PickHits const* hits,
     int player_level,
     struct World_PickSet* out_pickset,
@@ -280,6 +282,16 @@ ToriRS_PickHitsClassify(
                 out_result->hover_tile_z = hit->tile_z;
                 out_result->hover_tile_level = hit->tile_level;
             }
+            else
+            {
+                /* The deck's own hover, in its own frame — see the field's
+                 * comment in torirs_pick.h. */
+                out_result->hover_view_valid = true;
+                out_result->hover_view = hit->view_id;
+                out_result->hover_view_x = hit->tile_x;
+                out_result->hover_view_z = hit->tile_z;
+                out_result->hover_view_level = hit->tile_level;
+            }
             World_PickSetAdd(
                 out_pickset,
                 hit->element_id,
@@ -288,6 +300,81 @@ ToriRS_PickHitsClassify(
                 hit->tile_z,
                 hit->tile_level,
                 hit->view_id);
+        }
+        else if( hit->view_id != 0 )
+        {
+            enum World_PickType type;
+            int tile_x;
+            int tile_z;
+            int tile_level;
+
+            /* An actor RIDING the view first: aboard players and npcs are
+             * retagged into the view's dynamic pool but keep their ROOT
+             * entity records, so they classify like any shore actor — a
+             * click on a fellow passenger must offer their own rows (Attack,
+             * Talk-to), not the hull's. No reach-level filter here: an
+             * aboard actor's level is a deck plane, incomparable with the
+             * viewer's root level. */
+            if( pick_classify_element(
+                    world, hit->element_id, &type, &tile_x, &tile_z, &tile_level) &&
+                (type == WORLD_PICK_NPC || type == WORLD_PICK_PLAYER) )
+            {
+                World_PickSetAdd(
+                    out_pickset, hit->element_id, type, tile_x, tile_z, tile_level,
+                    hit->view_id);
+            }
+            else if(
+                views && WorldviewRegistry_IsLive(views, hit->view_id) &&
+                WorldviewRegistry_Get(views, hit->view_id)->world &&
+                pick_classify_element(
+                    WorldviewRegistry_Get(views, hit->view_id)->world, hit->element_id,
+                    &type, &tile_x, &tile_z, &tile_level) &&
+                type == WORLD_PICK_SCENERY )
+            {
+                /* A DECK LOC: it lives in the VIEW world's scenery table, so
+                 * classification runs against that world — same interactive
+                 * gate as the root's. The pick carries deck-local tiles and
+                 * the view id; the menu layer resolves the loc through the
+                 * same view world, and its op dispatch sends view.base+local
+                 * (the wire shape every aboard interaction uses). No reach-
+                 * level filter: a deck plane is incomparable with the
+                 * viewer's root level — reachability is the server's deck
+                 * collision's problem, like every deck walk. */
+                World_PickSetAdd(
+                    out_pickset, hit->element_id, WORLD_PICK_SCENERY, tile_x, tile_z,
+                    tile_level, hit->view_id);
+            }
+            else
+            {
+                if( getenv("TORIRS_WORLD_PICK_DEBUG") )
+                {
+                    struct World* vw =
+                        views && WorldviewRegistry_IsLive(views, hit->view_id)
+                            ? WorldviewRegistry_Get(views, hit->view_id)->world
+                            : NULL;
+                    enum World_PickType t = WORLD_PICK_TERRAIN;
+                    int tx = -1, tz = -1, tl = -1;
+                    int classified =
+                        vw && pick_classify_element(vw, hit->element_id, &t, &tx, &tz, &tl);
+
+                    struct WorldEntity_Scenery* sc =
+                        vw ? World_SceneryGetByElementId(vw, hit->element_id) : NULL;
+
+                    fprintf(stderr,
+                            "world_pick: view fallthrough el=0x%x view=%d vw=%p "
+                            "classified=%d type=%d sc=%p interactive=%d loc=%d\n",
+                            (unsigned)hit->element_id, hit->view_id, (void*)vw, classified,
+                            (int)t, (void*)sc, sc ? sc->interactive : -1,
+                            sc ? sc->loc_id : -1);
+                }
+                /* A sub-scene MODEL that classifies as nothing (hull side,
+                 * mast, deck terrain skirt): what a click on it MEANS is "the
+                 * boat" — surface the view id and let the menu layer offer
+                 * the hull's config ops (the deob's menu hash carries the
+                 * world-view id for exactly this). */
+                World_PickSetAdd(
+                    out_pickset, hit->element_id, WORLD_PICK_WEV, -1, -1, -1, hit->view_id);
+            }
         }
         else
         {

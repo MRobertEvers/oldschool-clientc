@@ -4746,6 +4746,12 @@ ToriRSServer_ScriptCommand(
             player->x = coord_x(coord);
             player->z = coord_z(coord);
             player->level = coord_level(coord);
+            /* A teleport is how every path leaves a vessel deck (the gunwale
+             * blocks walking off), and a gangplank script disembarks with
+             * exactly this op — so it must drop the helm the way
+             * ToriRSServer_WorldTeleport does, or the ex-rider's ground
+             * clicks keep steering a boat they are no longer on. */
+            player->navigating_vessel = 0;
             /* The next PLAYER_INFO has to carry an absolute placement rather
              * than a step direction, and the scene may need re-centring around
              * the new position — both of which the tick handles off
@@ -4975,13 +4981,31 @@ ToriRSServer_ScriptCommand(
     {
         int32_t first;
         int32_t second;
+        int fx;
+        int fz;
+        int fl;
+        int sx;
+        int sz;
+        int sl;
         int dx;
         int dz;
 
         if( !SSVM_PopInt(state, &second) || !SSVM_PopInt(state, &first) )
             return 1;
-        dx = coord_x(first) - coord_x(second);
-        dz = coord_z(first) - coord_z(second);
+        /* Both ends into the ROOT frame before measuring: a rider's `coord`
+         * is a deck-reservation tile hundreds of squares off the map, and a
+         * distance mixing frames is meaningless — it is what made every
+         * script flight-time computed from aboard overflow. */
+        fx = coord_x(first);
+        fz = coord_z(first);
+        fl = coord_level(first);
+        sx = coord_x(second);
+        sz = coord_z(second);
+        sl = coord_level(second);
+        ToriRSServer_RootTile(srv, &fx, &fz, &fl);
+        ToriRSServer_RootTile(srv, &sx, &sz, &sl);
+        dx = fx - sx;
+        dz = fz - sz;
         if( dx < 0 )
             dx = -dx;
         if( dz < 0 )
@@ -6656,6 +6680,18 @@ ToriRSServer_ScriptCommand(
         {
             SSVM_Abort(state, "npc_range with no active npc");
             return 1;
+        }
+        /* A rider's `coord` is a deck tile at a DECK plane — project it to
+         * the root frame first, or the plane test below answers "unreachable"
+         * (0x7fffffff) for a shore npc four tiles off the gunwale, and every
+         * flight time content multiplies from it overflows. */
+        {
+            int px = coord_x(coord);
+            int pz = coord_z(coord);
+            int pl = coord_level(coord);
+
+            ToriRSServer_RootTile(srv, &px, &pz, &pl);
+            coord = coord_pack(pl, px, pz);
         }
         if( npc->level != coord_level(coord) )
         {
@@ -9827,7 +9863,17 @@ ToriRSServer_ScriptCommand(
             return 1;
         vessel = ToriRSServer_VesselGet(srv, handle);
         if( vessel && heading >= 0 && heading < 16 )
+        {
             ToriRSServer_VesselSetHeading(vessel, heading);
+            /* A scripted heading means "sail there", not "point there": the
+             * launch-model sail gate (vessel.sails_set) is a helm control,
+             * and content driving a hull by opcode expects it to move.
+             * Forward, specifically — a navigator who was reversing when the
+             * script fired must not creep backward again the moment the sails
+             * come down (the ::sails toggle only clears reversing on set). */
+            vessel->sails_set = 1;
+            vessel->reversing = 0;
+        }
         return 1;
     }
 
@@ -9873,6 +9919,173 @@ ToriRSServer_ScriptCommand(
         if( !SSVM_PopInt(state, &handle) )
             return 1;
         ToriRSServer_VesselFree(srv, handle);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_HERE:
+    {
+        struct ToriRSServerPlayer* player = srv->active_player;
+        struct ToriRSServerVessel* vessel =
+            player ? ToriRSServer_VesselAtTile(srv, player->x, player->z) : NULL;
+
+        SSVM_PushInt(state, vessel ? vessel->index : 0);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_SAILS:
+    {
+        int32_t handle;
+        int32_t set;
+        struct ToriRSServerVessel* vessel;
+
+        if( !SSVM_PopInt(state, &set) || !SSVM_PopInt(state, &handle) )
+            return 1;
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        if( vessel )
+        {
+            /* -1 toggles: the mast's one op is "work the sails", and content
+             * has no read-back to decide which way. */
+            vessel->sails_set = set < 0 ? !vessel->sails_set : set != 0;
+            /* Setting sail and holding position are exclusive states — the
+             * same rule the helm's own toggle keeps. */
+            if( vessel->sails_set )
+                vessel->reversing = 0;
+        }
+        SSVM_PushInt(state, vessel ? vessel->sails_set : 0);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_FACILITY:
+    {
+        int32_t handle;
+        int32_t slot;
+        int32_t option;
+        struct ToriRSServerVessel* vessel;
+
+        if( !SSVM_PopInt(state, &option) || !SSVM_PopInt(state, &slot) ||
+            !SSVM_PopInt(state, &handle) )
+            return 1;
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        if( vessel && slot >= 0 && slot < TORIRSSERVER_VESSEL_FACILITY_SLOTS )
+            vessel->facility[slot] = option < 0 ? 0 : (int)option;
+        return 1;
+    }
+
+    case SS_OP_VESSEL_HP:
+    {
+        int32_t handle;
+        struct ToriRSServerVessel* vessel;
+
+        if( !SSVM_PopInt(state, &handle) )
+            return 1;
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        SSVM_PushInt(state, vessel ? vessel->hp : 0);
+        SSVM_PushInt(state, vessel ? vessel->hp_max : 0);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_DAMAGE:
+    {
+        int32_t handle;
+        int32_t amount;
+        struct ToriRSServerVessel* vessel;
+        int hp = 0;
+
+        if( !SSVM_PopInt(state, &amount) || !SSVM_PopInt(state, &handle) )
+            return 1;
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        if( vessel )
+        {
+            hp = vessel->hp - (int)amount;
+            if( hp < 0 )
+                hp = 0;
+            if( hp > vessel->hp_max )
+                hp = vessel->hp_max;
+            vessel->hp = hp;
+        }
+        SSVM_PushInt(state, hp);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_NEAREST:
+    {
+        int32_t coord;
+        int32_t range;
+
+        if( !SSVM_PopInt(state, &range) || !SSVM_PopInt(state, &coord) )
+            return 1;
+        SSVM_PushInt(state,
+                     ToriRSServer_VesselNearest(srv, coord_x(coord), coord_z(coord),
+                                              coord_level(coord), (int)range));
+        return 1;
+    }
+
+    case SS_OP_VESSEL_BOARD:
+    {
+        int32_t handle;
+        struct ToriRSServerVessel* vessel;
+
+        if( !SSVM_PopInt(state, &handle) )
+            return 1;
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        SSVM_PushInt(state,
+                     vessel && srv->active_player
+                         ? ToriRSServer_VesselBoardPlayer(srv, srv->active_player, vessel)
+                         : 0);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_DISEMBARK:
+    {
+        SSVM_PushInt(state, srv->active_player
+                                ? ToriRSServer_VesselDisembarkPlayer(srv, srv->active_player)
+                                : 0);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_HELM:
+    {
+        int32_t handle;
+        struct ToriRSServerVessel* vessel;
+        struct ToriRSServerPlayer* player = srv->active_player;
+
+        if( !SSVM_PopInt(state, &handle) )
+            return 1;
+        if( !player )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        if( handle == 0 )
+        {
+            player->navigating_vessel = 0;
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        if( !vessel )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        if( player->navigating_vessel == vessel->index )
+        {
+            /* The helm's one op toggles: steering already, so step away. */
+            player->navigating_vessel = 0;
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        player->navigating_vessel = vessel->index;
+        player->navigating_vessel_serial = vessel->serial;
+        /* Hold the current heading so turning and reversing act immediately —
+         * taking the helm is not a movement order in itself (the ::helm
+         * cheat's rule, kept exactly). */
+        ToriRSServer_VesselSetHeading(
+            vessel,
+            ((vessel->angle + TORIRSSERVER_VESSEL_HEADING_STEP / 2) /
+             TORIRSSERVER_VESSEL_HEADING_STEP) &
+                15);
+        SSVM_PushInt(state, 1);
         return 1;
     }
 

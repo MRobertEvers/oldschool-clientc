@@ -208,10 +208,18 @@ Task_GameProtoExec_Run(
         /* The tail below (App_WorldRebuildBegin's root flags, the entity
          * shift, camera/minimap, App_WorldLoadFinish) acts on the ROOT scene:
          * a boat's rebuild arrives as REBUILD_WORLDENTITY (the branch below)
-         * and never through here. rebuild_view() already asserts the id is
-         * live; this pins that only the root can be addressed by these two
-         * packets. */
-        assert(self->packet._map_rebuild.world_area == WORLDVIEW_ROOT);
+         * and never through here. world_area is WIRE data — a non-root value
+         * is a malformed packet, and under NDEBUG the old assert let it
+         * index the registry out of bounds through rebuild_view(); drop the
+         * packet instead. */
+        if( self->packet._map_rebuild.world_area != WORLDVIEW_ROOT )
+        {
+            fprintf(
+                stderr,
+                "gameproto: REBUILD addressed world_area %d, not root — dropped\n",
+                self->packet._map_rebuild.world_area);
+            PT_EXIT(&self->pt);
+        }
         {
             int force = self->packet.packet_type == PKT_NAME_REBUILD_REGION ||
                         app->net_force_rebuild;
@@ -262,9 +270,21 @@ Task_GameProtoExec_Run(
          * and it execs behind this task on the same serial queue. */
         self->wev_view_id = app->active_world;
         /* The root has no deck: its rebuilds arrive as REBUILD_NORMAL /
-         * REBUILD_REGION above. A server addressing the root here is a
-         * protocol violation, the mirror of the WORLDVIEW_ROOT pin there. */
-        assert(self->wev_view_id != WORLDVIEW_ROOT);
+         * REBUILD_REGION above, so a cursor still on the root here is a
+         * protocol violation — and a cursor whose view died between the
+         * SET_ACTIVE_WORLD and this exec (a same-tick despawn) is a stale
+         * address. Both are wire-driven states, guarded: the packet is
+         * dropped at the frame that caused it. */
+        if( self->wev_view_id == WORLDVIEW_ROOT ||
+            !WorldviewRegistry_IsLive(&app->worldviews, self->wev_view_id) )
+        {
+            fprintf(
+                stderr,
+                "gameproto: REBUILD_WORLDENTITY with cursor on %s view %d — dropped\n",
+                self->wev_view_id == WORLDVIEW_ROOT ? "the root" : "a dead",
+                self->wev_view_id);
+            PT_EXIT(&self->pt);
+        }
         {
             struct Worldview* view = wev_view(self);
             int decoded;
@@ -278,10 +298,18 @@ Task_GameProtoExec_Run(
                 view->size_x_tiles / 8,
                 view->size_z_tiles / 8,
                 self->wev_zones);
-            assert(decoded && "REBUILD_WORLDENTITY grid does not match the view size");
-            /* OPT=1 builds define NDEBUG (src/makefile), which eats the assert
-             * and with it the only read of `decoded`. */
-            (void)decoded;
+            if( !decoded )
+            {
+                /* The bitstream and the view disagree about the deck's size:
+                 * a release build continuing here would stage a partially
+                 * decoded grid as if it were the deck. Drop the packet. */
+                fprintf(
+                    stderr,
+                    "gameproto: REBUILD_WORLDENTITY grid does not match view %d's "
+                    "size — dropped\n",
+                    self->wev_view_id);
+                PT_EXIT(&self->pt);
+            }
 
             /* The World's scene is square; a non-square view leaves the
              * extra zones 0 = void in the decoded grid. */
@@ -291,10 +319,21 @@ Task_GameProtoExec_Run(
 
             /* The wire base is the deck's SW corner in absolute root-world
              * tiles (deob field1405/field1395) — the view's membership
-             * rectangle the spawn left at (0,0). Zone-aligned by
-             * construction: the grid can only address whole zones. */
-            assert(self->packet._rebuild_wev.base_x % 8 == 0);
-            assert(self->packet._rebuild_wev.base_z % 8 == 0);
+             * rectangle the spawn left at (0,0). The grid can only address
+             * whole zones, so an unaligned base means a desynced or
+             * malformed packet: staged anyway it would shear every deck
+             * coordinate off by the remainder. Drop it. */
+            if( self->packet._rebuild_wev.base_x % 8 != 0 ||
+                self->packet._rebuild_wev.base_z % 8 != 0 )
+            {
+                fprintf(
+                    stderr,
+                    "gameproto: REBUILD_WORLDENTITY base %d,%d not zone-aligned — "
+                    "dropped\n",
+                    self->packet._rebuild_wev.base_x,
+                    self->packet._rebuild_wev.base_z);
+                PT_EXIT(&self->pt);
+            }
             view->base_x = self->packet._rebuild_wev.base_x;
             view->base_z = self->packet._rebuild_wev.base_z;
             /* The same SET_ACTIVE_WORLD that aimed this rebuild carried the
@@ -350,6 +389,9 @@ Task_GameProtoExec_Run(
                 wev_view(self)->world->_base_tile_x,
                 wev_view(self)->world->_base_tile_z,
                 wev_view(self)->world->load_complete);
+        /* The deck's static geometry just changed; the C4 flat bake merged
+         * the old one. */
+        App_WevFlatInvalidate(app, self->wev_view_id);
         app->need_redraw = 1;
     }
     else if( self->packet.packet_type == PKT_NAME_OBJ_ADD ||

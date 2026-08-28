@@ -32,6 +32,7 @@
 #include <stdint.h>
 
 struct ToriRSServer;
+struct ToriRSServerPlayer;
 
 /** Concurrent vessels. Same order of magnitude as the map-instance pool that
  *  feeds their decks (each vessel owns one reservation of the 8). */
@@ -65,6 +66,19 @@ struct ToriRSServer;
 
 /** Angle units between adjacent 16-point compass headings. */
 #define TORIRSSERVER_VESSEL_HEADING_STEP 128
+
+/** Facility slots a hull tracks, indexed by TORIRSSERVER_VESSEL_FACILITY_*.
+ *  The cache's boat rows carry more (keel, flag, brazier); these three are
+ *  the ones the sidepanel's Facilities tab reads. */
+#define TORIRSSERVER_VESSEL_FACILITY_SLOTS 3
+#define TORIRSSERVER_VESSEL_FACILITY_SAIL 0
+#define TORIRSSERVER_VESSEL_FACILITY_HELM 1
+#define TORIRSSERVER_VESSEL_FACILITY_HULL 2
+
+/** How far a gangplank looks for ground when putting a rider ashore. Wide
+ *  enough to clear the longest hull's footprint from its centre, short enough
+ *  that "there is no shore here" still means it. */
+#define TORIRSSERVER_VESSEL_DISEMBARK_RANGE 12
 
 /** Default turn rate: 128 angle units per tick = 90 degrees in 4 ticks, the
  *  mid ship class (docs/SAILING.md §2 cites 2/4/6-tick quarter turns). */
@@ -127,6 +141,48 @@ struct ToriRSServerVessel
     int size_x_tiles;
     int size_z_tiles;
 
+    /** Hull integrity, the sailing sidepanel's HP bar (varbits
+     *  `sailing_sidepanel_boat_hp[_max]`). Spawned full; nothing damages a
+     *  hull yet, but the state is the vessel's so content can when it does. */
+    int hp;
+    int hp_max;
+
+    /** The boat's name, as the cache composes it: 1-based picks into the
+     *  `sailing_boat_name_options` descriptor and noun tables (varbits
+     *  19149/19150 on varp `sailing_boarded_boat_name`; the prefix table
+     *  ships no options). 0/0 = unnamed, which the panel shows as the noun
+     *  table's default, "Boat". Spawn picks a deterministic pair so every
+     *  hull reads as a named ship until shipyard content lets players
+     *  choose. */
+    int name_descriptor;
+    int name_noun;
+
+    /**
+     * Set by the mover on the tick a commanded hull is refused by the water
+     * and parks, cleared once reported. The park itself is correct (a whole
+     * step or none), but it is SILENT: content has just told the helmsman
+     * "the boat gets under way", and without this the boat simply stops with
+     * nothing said. ToriRSServer_VesselTakeBlocked drains it.
+     */
+    int blocked_notice;
+
+    /**
+     * Which option each facility slot holds — 1-based picks into the boat's
+     * `sailing_boat` dbrow option columns, 0 for an empty slot. The sailing
+     * sidepanel's Facilities tab renders these (varbits
+     * `sailing_sidepanel_facility_{sail,helm,hull}`, resolved client-side
+     * through cs2 9026), so what the panel lists is what content actually
+     * placed on the deck rather than a fixed guess.
+     */
+    int facility[TORIRSSERVER_VESSEL_FACILITY_SLOTS];
+
+    /** The template zone base this deck was filled from (absolute tiles;
+     *  -1,-1 before the deck is built). The facility dbrows state their
+     *  placements as template-absolute coords, so content's deck-furnishing
+     *  proc needs the base to rebase them onto the instance. */
+    int deck_src_x;
+    int deck_src_z;
+
     /** Deck map-instance handle (1-based), owned by this vessel: spawned with
      *  it, released by ToriRSServer_VesselFree. */
     int instance;
@@ -135,6 +191,17 @@ struct ToriRSServerVessel
     int priority;
     /** Owning player uid, or 0 for a world-owned vessel. */
     int owner_uid;
+
+    /**
+     * One-shot wire seq (WORLDENTITY_INFO updateFlags 0x1) — the cache's
+     * `sailing_worldentity_boat_*_sink_01` family. Content sets the pair and
+     * bumps seq_stamp (::vesselseq); the encoder sends it once per stamp per
+     * observer (player->wev_seq_stamps). seq_id -1 = nothing pending; 65535
+     * is the wire's explicit clear.
+     */
+    int seq_id;
+    int seq_delay;
+    int seq_stamp;
 
     /** Root-world transform: plane, fine-unit position of the hull's CENTER,
      *  and the yaw in 2048-space. */
@@ -148,6 +215,17 @@ struct ToriRSServerVessel
     enum ToriRSServerVesselState state;
     int heading;
     int speed_tier;
+    /**
+     * The launch-model controls (docs/SAILING.md §7, OSRS wiki "Sailing"):
+     * `sails_set` is the instant go/stop gate — a HEADING command turns the
+     * hull with sails down, but it only translates once the sails are set.
+     * `reversing` nudges the hull BACKWARD at the base 0.5 tiles/tick and is
+     * only honoured with the sails un-set, the wiki's "reverse the boat if
+     * stationary with the sails un-set". TARGET sails ignore both: a targeted
+     * sail is a harness/scripted move, not a helm.
+     */
+    int sails_set;
+    int reversing;
     /** Max angle units turned per tick (shortest arc, clamped to this). */
     int turn_rate;
     /** TARGET state's destination, fine units (already quantum-aligned). */
@@ -216,6 +294,48 @@ ToriRSServer_VesselSpawn(
     int tile_x,
     int tile_z,
     int angle);
+
+/**
+ * The live hull whose ROOT position is within `range` tiles of a root tile,
+ * nearest first — the "is there a boat at this dock?" question a gangplank
+ * asks. 0 when nothing is in range. Deck instances are not searched: this is
+ * a root-frame query, and a rider is already aboard.
+ */
+int
+ToriRSServer_VesselNearest(
+    struct ToriRSServer* srv,
+    int tile_x,
+    int tile_z,
+    int level,
+    int range);
+
+/**
+ * Stand a player on this hull's deck — the boarding teleport, at the deck's
+ * own walkable plane (ToriRSServer_VesselDeckPlane) and the deck box's
+ * centre, which is what `::vesselboard` does and what content's gangplank
+ * needs. Returns 0 for a hull with no built deck instance.
+ */
+int
+ToriRSServer_VesselBoardPlayer(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerVessel* vessel);
+
+/**
+ * Put an aboard player ashore: the nearest WALKABLE root tile just outside
+ * the hull's footprint, searched outward from the hull's projected position.
+ * Returns 0 when there is nowhere to step — a hull at sea has no shore, and
+ * saying so is content's job (the caller words the refusal).
+ */
+int
+ToriRSServer_VesselDisembarkPlayer(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player);
+
+/** Did this hull just get refused by the water? One-shot: reading clears it.
+ *  The tick loop reports it to whoever is at the helm. */
+int
+ToriRSServer_VesselTakeBlocked(struct ToriRSServerVessel* vessel);
 
 /** Release the vessel and its deck instance. Returns 0 for a dead handle —
  *  the map-instance convention for handle-shaped deallocators. */
@@ -289,6 +409,14 @@ ToriRSServer_VesselSetSpeed(
 /** Drop the movement command; state -> IDLE. Position and angle keep. */
 void
 ToriRSServer_VesselStop(struct ToriRSServerVessel* vessel);
+
+/** The 16-point compass heading whose angle points closest along (dx, dz)
+ *  under the mover's own convention (heading angle A moves dx = -sin(A),
+ *  dz = -cos(A)). The steering click's quantizer. */
+int
+ToriRSServer_VesselHeadingToward(
+    int dx,
+    int dz);
 
 /* ------------------------------------------------------------------ */
 /* Mover                                                               */
@@ -364,6 +492,13 @@ ToriRSServer_VesselDeckToRoot(
 
 /** Root-world fine coords -> deck fine coords; exact inverse of the above up
  *  to the 16.16 rounding. */
+/** The plane a rider STANDS on aboard this hull — the config's deck plane
+ *  (archive-72 op 2), mirrored server-side like the pivots. Every real boat
+ *  authors its walkable planking at plane 1; plane 0 is the loc-built shell
+ *  whose collision is solid. */
+int
+ToriRSServer_VesselDeckPlane(const struct ToriRSServerVessel* vessel);
+
 void
 ToriRSServer_VesselRootToDeck(
     const struct ToriRSServerVessel* vessel,

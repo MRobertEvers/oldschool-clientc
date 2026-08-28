@@ -103,7 +103,8 @@ npc_def(const struct ToriRSServerNpc* npc)
  */
 static void
 npc_player_gap(
-    const struct ToriRSServerPlayer* player,
+    int player_x,
+    int player_z,
     const struct ToriRSServerNpc* npc,
     int* out_dx,
     int* out_dz)
@@ -112,14 +113,14 @@ npc_player_gap(
     int dx = 0;
     int dz = 0;
 
-    if( npc->x > player->x )
-        dx = npc->x - player->x;
-    else if( player->x > npc->x + size - 1 )
-        dx = player->x - (npc->x + size - 1);
-    if( npc->z > player->z )
-        dz = npc->z - player->z;
-    else if( player->z > npc->z + size - 1 )
-        dz = player->z - (npc->z + size - 1);
+    if( npc->x > player_x )
+        dx = npc->x - player_x;
+    else if( player_x > npc->x + size - 1 )
+        dx = player_x - (npc->x + size - 1);
+    if( npc->z > player_z )
+        dz = npc->z - player_z;
+    else if( player_z > npc->z + size - 1 )
+        dz = player_z - (npc->z + size - 1);
     *out_dx = dx;
     *out_dz = dz;
 }
@@ -150,17 +151,25 @@ npc_player_gap(
  */
 static int
 in_attack_range_with(
+    struct ToriRSServer* srv,
     const struct ToriRSServerPlayer* player,
     const struct ToriRSServerNpc* npc,
     int range)
 {
+    int px;
+    int pz;
     int dx;
     int dz;
 
-    if( player->level != npc->level )
+    /* A rider measures from their PROJECTED tile — and its level, the
+     * HULL's — against anything off their deck (the sailing reach seam,
+     * ToriRSServer_PlayerReachTile/Level: the rider's own level is a deck
+     * plane, incomparable with the target's root level). */
+    if( ToriRSServer_PlayerReachLevel(srv, player, npc->x, npc->z) != npc->level )
         return 0;
 
-    npc_player_gap(player, npc, &dx, &dz);
+    ToriRSServer_PlayerReachTile(srv, player, npc->x, npc->z, &px, &pz);
+    npc_player_gap(px, pz, npc, &dx, &dz);
 
     if( range <= 1 )
         return (dx + dz) == 1;
@@ -193,18 +202,20 @@ player_weapon_attackrange(const struct ToriRSServerPlayer* player)
 
 static int
 in_player_attack_range(
+    struct ToriRSServer* srv,
     const struct ToriRSServerPlayer* player,
     const struct ToriRSServerNpc* npc)
 {
-    return in_attack_range_with(player, npc, player_weapon_attackrange(player));
+    return in_attack_range_with(srv, player, npc, player_weapon_attackrange(player));
 }
 
 static int
 in_npc_attack_range(
+    struct ToriRSServer* srv,
     const struct ToriRSServerPlayer* player,
     const struct ToriRSServerNpc* npc)
 {
-    return in_attack_range_with(player, npc, npc_def(npc)->attackrange);
+    return in_attack_range_with(srv, player, npc, npc_def(npc)->attackrange);
 }
 
 /*
@@ -382,9 +393,14 @@ npc_sound_nearby(
 
         if( !player->active || player->level != npc->level )
             continue;
-        if( tile_distance(player->x, player->z, npc->x, npc->z) >
-            TORIRSSERVER_NPC_SOUND_TILES )
-            continue;
+        {
+            int px;
+            int pz;
+
+            ToriRSServer_PlayerReachTile(srv, player, npc->x, npc->z, &px, &pz);
+            if( tile_distance(px, pz, npc->x, npc->z) > TORIRSSERVER_NPC_SOUND_TILES )
+                continue;
+        }
         /* One loop, not zero, and this is checkable rather than a preference:
          * `RS_Audio_QueueEffect` (src/game/rs_audio.c) *refuses* `loops == 0`,
          * matching the reference's `Message.queueSoundEffect` requiring
@@ -1751,6 +1767,56 @@ ToriRSServer_CombatPlayerAfk(const struct ToriRSServerPlayer* player)
     return player->world->tick - player->last_input_tick >= TORIRSSERVER_AFK_COMBAT_TICKS;
 }
 
+/*
+ * Is the claimed Attack READY to fire from range (SAILING SAIL-68's ranged
+ * half, but ashore too)? A weapon that out-ranges melee does not need to
+ * arrive at adjacency: within weapon range of the reach position (a rider's
+ * projected tile) with LoS, the interaction counts as REACHED and the
+ * ordinary OP dispatch runs — which is where the actual fight lives
+ * (content's [opnpc2,_] swings and re-arms itself via p_opnpc; the engine
+ * has no attack clock of its own, so an engage-and-clear here produced a
+ * fight that never swung). Melee (range <= 1), out-of-range and out-of-LoS
+ * all return 0 and keep the walk-to-adjacency path unchanged.
+ */
+int
+ToriRSServer_CombatAtRangeReady(
+    struct ToriRSServer* srv,
+    int slot)
+{
+    struct ToriRSServerPlayer* player = srv->active_player;
+    struct ToriRSServerNpc* npc;
+    int npc_size;
+    int px;
+    int pz;
+
+    if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
+        return 0;
+    npc = &srv->npcs[slot];
+    if( !npc->active || npc->death_tick >= 0 )
+        return 0;
+    if( srv->verbose )
+        fprintf(stderr,
+                "torirsserver: at-range ready? slot=%d range=%d in_range=%d\n",
+                slot, player_weapon_attackrange(player),
+                in_player_attack_range(srv, player, npc));
+    if( player_weapon_attackrange(player) <= 1 )
+        return 0;
+    if( !in_player_attack_range(srv, player, npc) )
+        return 0;
+    npc_size = npc->size > 0 ? npc->size : 1;
+    ToriRSServer_PlayerReachTile(srv, player, npc->x, npc->z, &px, &pz);
+    if( !ToriRSServer_SceneApproached(
+            npc->level, px, pz, npc->x, npc->z, 1, 1, npc_size, npc_size) )
+    {
+        if( srv->verbose )
+            fprintf(stderr, "torirsserver: at-range ready: no LoS from %d,%d\n", px, pz);
+        return 0;
+    }
+    if( srv->verbose )
+        fprintf(stderr, "torirsserver: at-range ready -> op dispatches from range\n");
+    return 1;
+}
+
 void
 ToriRSServer_CombatEngage(
     struct ToriRSServer* srv,
@@ -1805,7 +1871,7 @@ ToriRSServer_CombatEngage(
          * this is that same gate, just on the click that starts the fight
          * rather than the tick that continues it.
          */
-        if( in_player_attack_range(player, npc) )
+        if( in_player_attack_range(srv, player, npc) )
             ToriRSServer_WorldStepsClear(player);
         else
         {
@@ -1857,7 +1923,7 @@ ToriRSServer_CombatPlayerApproach(struct ToriRSServer* srv)
     if( !npc->active || npc->death_tick >= 0 )
         return;
 
-    if( in_player_attack_range(player, npc) )
+    if( in_player_attack_range(srv, player, npc) )
     {
         ToriRSServer_WorldStepsClear(player);
         return;
@@ -2034,11 +2100,15 @@ tile_within_maxrange(
 
 static int
 target_within_maxrange(
-    const struct ToriRSServer* srv,
+    struct ToriRSServer* srv,
     const struct ToriRSServerPlayer* player,
     const struct ToriRSServerNpc* npc)
 {
-    return tile_within_maxrange(srv, player->x, player->z, npc);
+    int px;
+    int pz;
+
+    ToriRSServer_PlayerReachTile(srv, player, npc->x, npc->z, &px, &pz);
+    return tile_within_maxrange(srv, px, pz, npc);
 }
 
 /*
@@ -2066,7 +2136,13 @@ nearest_victim(
 
         if( !player->active || player->dying || player->level != npc->level )
             continue;
-        distance = tile_distance(player->x, player->z, npc->x, npc->z);
+        {
+            int px;
+            int pz;
+
+            ToriRSServer_PlayerReachTile(srv, player, npc->x, npc->z, &px, &pz);
+            distance = tile_distance(px, pz, npc->x, npc->z);
+        }
         if( distance > npc->def->huntrange )
             continue;
         if( !best || distance < best_distance )
@@ -2542,12 +2618,18 @@ ToriRSServer_CombatNpcTick(
      * mechanic. Melee (`attackrange <= 1`) keeps the plain adjacency test:
      * the shared-edge wall check in the approach already answers fences. */
     int npc_size = npc->size > 0 ? npc->size : 1;
-    int in_reach = in_npc_attack_range(player, npc);
+    int in_reach = in_npc_attack_range(srv, player, npc);
 
-    if( in_reach && npc_def(npc)->attackrange > 1 &&
-        !ToriRSServer_SceneApproached(
-            npc->level, player->x, player->z, npc->x, npc->z, 1, 1, npc_size, npc_size) )
-        in_reach = 0;
+    {
+        int px;
+        int pz;
+
+        ToriRSServer_PlayerReachTile(srv, player, npc->x, npc->z, &px, &pz);
+        if( in_reach && npc_def(npc)->attackrange > 1 &&
+            !ToriRSServer_SceneApproached(
+                npc->level, px, pz, npc->x, npc->z, 1, 1, npc_size, npc_size) )
+            in_reach = 0;
+    }
 
     if( !in_reach )
     {
@@ -2596,9 +2678,17 @@ ToriRSServer_CombatNpcTick(
         /* Moves *then* gives up, which is the reference's order
          * (`const moved = this.updateMovement(); if (moved && !givechase)`) and
          * visible: a `givechase=no` npc takes one step before turning away. */
-        if( ToriRSServer_WorldNpcWalkToApproach(npc, player->x, player->z, &approach) &&
-            !npc_def(npc)->givechase )
-            ToriRSServer_CombatStopNpc(srv, slot);
+        {
+            int px;
+            int pz;
+
+            /* Pursue toward where the rider IS in this world — the hull's
+             * edge, not their pool tile a continent away. */
+            ToriRSServer_PlayerReachTile(srv, player, npc->x, npc->z, &px, &pz);
+            if( ToriRSServer_WorldNpcWalkToApproach(npc, px, pz, &approach) &&
+                !npc_def(npc)->givechase )
+                ToriRSServer_CombatStopNpc(srv, slot);
+        }
         return;
     }
 

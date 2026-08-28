@@ -38161,10 +38161,16 @@ ToriRSServer_WorldSelftest(void)
         }
         if( vessel )
         {
-            /* The projection's constants for a 2x3 hull: deck-space pivot at
-             * the hull center, in fine units. */
-            const int pivot_x = 2 * 64;
-            const int pivot_z = 3 * 64;
+            /* The projection's constants for a 2x3 hull spawned as CONFIG 1:
+             * the recenter is the CLIENT's — half the ZONE-ROUNDED deck box
+             * (2x3 tiles reserve 1x1 zones = 8x8 tiles -> 512 fine) plus the
+             * config's authored pivot (archive-72 ops 4/5; config 1 carries
+             * -64,-64) — because the wire publishes zone counts and the
+             * client's descent recenters by them, so the server projecting
+             * with the raw hull size drew every rider (zones*8 - size)/2
+             * tiles away from where it thought they stood. */
+            const int pivot_x = 8 * 64 - 64;
+            const int pivot_z = 8 * 64 - 64;
             static const int k_angles[] = { 0, 512, 1024, 1536, 256, 300, 1877 };
             static const int k_deck[][2] = {
                 { 64, 64 }, { 192, 320 }, { 32, 160 }, { 128, 0 }
@@ -38196,11 +38202,14 @@ ToriRSServer_WorldSelftest(void)
             }
 
             /* Deck -> root -> deck round-trips: exact at the cardinals (the
-             * sine table holds 0/±65536 exactly), within one fine unit at any
-             * other angle (16.16 rounding, both directions). */
+             * sine table holds 0/±65536 exactly), within two fine units at
+             * any other angle — both directions FLOOR (no rounding term),
+             * deliberately: the client's Wev_ParentFromDeck/DeckFromParent
+             * floor over the same truncated table, and landing on the same
+             * tile as the client outranks internal round-trip exactness. */
             for( int i = 0; i < (int)(sizeof(k_angles) / sizeof(k_angles[0])); i++ )
             {
-                int tolerance = (k_angles[i] & 511) == 0 ? 0 : 1;
+                int tolerance = (k_angles[i] & 511) == 0 ? 0 : 2;
 
                 vessel->angle = k_angles[i];
                 for( int j = 0; j < (int)(sizeof(k_deck) / sizeof(k_deck[0])); j++ )
@@ -38231,13 +38240,157 @@ ToriRSServer_WorldSelftest(void)
                            "and west at angle 512, got (%d,%d)", fx, fz);
 
             /* A boarded player's ABSOLUTE deck tile projects through the
-             * instance base: the deck's south-west tile center sits half the
-             * hull west and south of the pivot at angle 0. */
+             * instance base: the deck's south-west tile center sits at
+             * (64,64) deck-fine, i.e. recenter-minus-64 west and south of
+             * the hull at angle 0. */
             vessel->angle = 0;
             ToriRSServer_VesselDeckTileToRoot(vessel, base_tile_x, base_tile_z, &fx, &fz);
-            SELFTEST_CHECK(fx == vessel->fine_x - 64 && fz == vessel->fine_z - 128,
-                           "the deck's south-west tile projects half a hull away, got (%d,%d)",
+            SELFTEST_CHECK(fx == vessel->fine_x - (pivot_x - 64) &&
+                               fz == vessel->fine_z - (pivot_z - 64),
+                           "the deck's south-west tile projects half a deck box away, got (%d,%d)",
                            fx, fz);
+        }
+
+        fprintf(stderr,
+                "ToriRSServer selftest: a rider reaches across the gunwale from the projected tile\n");
+        if( vessel )
+        {
+            int base_tile_x = 0;
+            int base_tile_z = 0;
+            int deck_x;
+            int deck_z;
+            int proj_x = 0;
+            int proj_z = 0;
+            int reach_x = 0;
+            int reach_z = 0;
+            int goblin;
+            int saved_x = player->x;
+            int saved_z = player->z;
+            int saved_level = player->level;
+
+            vessel->angle = 0;
+            vessel->fine_x = patch_x * 128 + 64;
+            vessel->fine_z = patch_z * 128 + 64;
+            SELFTEST_CHECK(
+                ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z),
+                "the reach fixture reads the deck base");
+            /* Board at the deck-box centre — the tile ::vesselboard picks. */
+            deck_x = base_tile_x + ((vessel->size_x_tiles + 7) / 8) * 4;
+            deck_z = base_tile_z + ((vessel->size_z_tiles + 7) / 8) * 4;
+            selftest_park_player(srv, deck_x, deck_z);
+            player->level = 0;
+            SELFTEST_CHECK(ToriRSServer_VesselAtTile(srv, player->x, player->z) == vessel,
+                           "the rider is aboard for the reach seam");
+
+            /*
+             * The reach seam itself (ToriRSServer_PlayerReachTile): judged
+             * against anything OFF the deck the rider answers with the
+             * projected tile — the deck tile pushed through the hull — and
+             * against a point on their OWN deck, with the raw pool tile.
+             * This is what lets a rider fish, shoot and melee over the
+             * gunwale while two things on one deck still measure in the
+             * deck's own space.
+             */
+            ToriRSServer_PlayerSceneAnchor(srv, player, &proj_x, &proj_z);
+            SELFTEST_CHECK(proj_x >= patch_x - 8 && proj_x <= patch_x + 8 &&
+                               proj_z >= patch_z - 8 && proj_z <= patch_z + 8,
+                           "the projected tile is at the hull, got %d,%d", proj_x, proj_z);
+            ToriRSServer_PlayerReachTile(srv, player, proj_x + 1, proj_z, &reach_x, &reach_z);
+            SELFTEST_CHECK(reach_x == proj_x && reach_z == proj_z,
+                           "reach against a shore point answers the projected tile");
+            ToriRSServer_PlayerReachTile(srv, player, deck_x, deck_z, &reach_x, &reach_z);
+            SELFTEST_CHECK(reach_x == player->x && reach_z == player->z,
+                           "and against the own deck, the raw pool tile");
+
+            /* A melee attack across the gunwale: target one tile off the
+             * projected position — thousands of tiles from the rider's FEET,
+             * which is exactly what made this impossible before the seam. */
+            goblin = ToriRSServer_WorldNpcSpawn(srv, 1, proj_x + 1, proj_z, 0);
+            SELFTEST_CHECK(goblin >= 0, "a goblin stands one tile off the gunwale");
+            if( goblin >= 0 )
+            {
+                struct ToriRSServerNpc* npc = &srv->npcs[goblin];
+                const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfo(npc->type);
+                int saved_god = player->godmode;
+
+                player->godmode = 1;
+                /* The latch processes instead of giving up: before the seam,
+                 * distance-to-target from the rider's FEET was thousands of
+                 * tiles, and continue_or_give_up dropped the interaction with
+                 * cannot_reach on the first tick. */
+                ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_NPC, 2, goblin,
+                                              npc->type, npc->x, npc->z, npc->level,
+                                              info->size, info->size);
+                selftest_tick(srv);
+                SELFTEST_CHECK(player->face_entity == goblin,
+                               "the latched attack faces the shore npc, got %d",
+                               player->face_entity);
+                ToriRSServer_WorldClearPendingAction(srv);
+
+                /* Engaged combat HOLDS: the per-tick range check measures
+                 * from the projected tile, so the fight neither disengages
+                 * nor tries to walk the rider off the deck. */
+                ToriRSServer_CombatEngage(srv, goblin);
+                selftest_tick(srv);
+                SELFTEST_CHECK(player->combat_target == goblin,
+                               "combat engages across the gunwale, got %d",
+                               player->combat_target);
+                selftest_tick(srv);
+                selftest_tick(srv);
+                SELFTEST_CHECK(player->combat_target == goblin,
+                               "and holds at range from the projected tile, got %d",
+                               player->combat_target);
+                player->godmode = saved_god;
+                ToriRSServer_WorldClearPendingAction(srv);
+                ToriRSServer_WorldNpcFree(srv, goblin);
+            }
+
+            /* The RANGED half: a weapon that out-ranges melee counts as
+             * REACHED from the projected tile (ToriRSServer_CombatAtRangeReady)
+             * so the OP dispatch — where content's combat loop swings — runs
+             * with no walk to adjacency, which a rider cannot perform across
+             * the gunwale. The engine has no attack clock, so with no script
+             * pack loaded here nothing engages; what the engine owns and this
+             * pins is the reach verdict and the dispatch-without-a-step. Four
+             * tiles off the hull is out of melee reach and inside the
+             * crossbow's five. */
+            {
+                int xbow =
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "phoenix_crossbow");
+                int far_goblin =
+                    ToriRSServer_WorldNpcSpawn(srv, 1, proj_x + 4, proj_z, 0);
+
+                SELFTEST_CHECK(xbow >= 0, "the ranged fixture's crossbow resolves");
+                SELFTEST_CHECK(far_goblin >= 0, "a goblin stands four tiles off the gunwale");
+                if( xbow >= 0 && far_goblin >= 0 )
+                {
+                    struct ToriRSServerNpc* npc = &srv->npcs[far_goblin];
+                    const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfo(npc->type);
+                    int saved_weapon = player->worn[TORIRSSERVER_WEAR_WEAPON].obj_id;
+                    int saved_god = player->godmode;
+
+                    player->godmode = 1;
+                    player->worn[TORIRSSERVER_WEAR_WEAPON].obj_id = xbow;
+                    SELFTEST_CHECK(ToriRSServer_CombatAtRangeReady(srv, far_goblin),
+                                   "the crossbow is at-range ready across the gunwale");
+                    ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_NPC, 2, far_goblin,
+                                                  npc->type, npc->x, npc->z, npc->level,
+                                                  info->size, info->size);
+                    selftest_tick(srv);
+                    SELFTEST_CHECK(player->interaction.kind == TORIRSSERVER_INTERACT_NONE,
+                                   "the attack dispatched as reached, got kind %d",
+                                   player->interaction.kind);
+                    SELFTEST_CHECK(player->x == deck_x && player->z == deck_z,
+                                   "without the rider taking a single step, at %d,%d",
+                                   player->x, player->z);
+                    player->worn[TORIRSSERVER_WEAR_WEAPON].obj_id = saved_weapon;
+                    player->godmode = saved_god;
+                    ToriRSServer_WorldClearPendingAction(srv);
+                    ToriRSServer_WorldNpcFree(srv, far_goblin);
+                }
+            }
+            selftest_park_player(srv, saved_x, saved_z);
+            player->level = saved_level;
         }
 
         fprintf(stderr,
@@ -38249,6 +38402,9 @@ ToriRSServer_WorldSelftest(void)
             vessel->fine_z = patch_z * 128 + 64;
             ToriRSServer_VesselSetSpeed(vessel, 1);
             ToriRSServer_VesselSetHeading(vessel, 8);
+            /* These rows test the MOVER; the launch-model sail gate
+             * (vessel.sails_set) is the helm's concern, so hoist it. */
+            vessel->sails_set = 1;
 
             /* South to north is a half turn: 1024 units at the default cap of
              * 128 per tick is exactly eight ticks, every intermediate angle a
@@ -38351,6 +38507,89 @@ ToriRSServer_WorldSelftest(void)
          * (the pool leak check at the end of the suite counts on it). */
         if( handle )
         {
+            /*
+             * Walk-then-melee across the rail (the off-deck WalkToApproach
+             * seam): a melee target past the FAR rail forces the rider to
+             * close DECK distance first — the approach walks them to the
+             * rail tile nearest the target — and only the projected
+             * adjacency from that rail tile lands the swing. Runs LAST in
+             * this hull's life because building the deck window rebinds the
+             * scene, which the mover stanzas above must not see.
+             */
+            if( vessel )
+            {
+                int deck_base_x = 0;
+                int deck_base_z = 0;
+                int zones_x = 0;
+                int zones_z = 0;
+                int deck_x;
+                int deck_z;
+                int proj_x = 0;
+                int proj_z = 0;
+                int rail_goblin;
+                int saved_x = player->x;
+                int saved_z = player->z;
+                int saved_level = player->level;
+
+                uint32_t saved_rng = srv->rng;
+
+                fprintf(stderr,
+                        "ToriRSServer selftest: melee closes deck distance to the rail\n");
+                vessel->angle = 0;
+                vessel->fine_x = patch_x * 128 + 64;
+                vessel->fine_z = patch_z * 128 + 64;
+                ToriRSServer_MapInstanceBuild(vessel->instance);
+                ToriRSServer_WorldMapInstanceBuilt(srv, vessel->instance);
+                ToriRSServer_MapInstanceBase(vessel->instance, &deck_base_x, &deck_base_z);
+                ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
+                deck_x = deck_base_x + zones_x * 4;
+                deck_z = deck_base_z + zones_z * 4;
+                selftest_park_player(srv, deck_x, deck_z);
+                player->level = 0;
+                ToriRSServer_PlayerSceneAnchor(srv, player, &proj_x, &proj_z);
+
+                rail_goblin = ToriRSServer_WorldNpcSpawn(srv, 1, proj_x - 2, proj_z, 0);
+                SELFTEST_CHECK(rail_goblin >= 0, "a goblin stands past the far rail");
+                if( rail_goblin >= 0 )
+                {
+                    struct ToriRSServerNpc* npc = &srv->npcs[rail_goblin];
+                    const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfo(npc->type);
+                    int saved_god = player->godmode;
+
+                    player->godmode = 1;
+                    ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_NPC, 2,
+                                                  rail_goblin, npc->type, npc->x, npc->z,
+                                                  npc->level, info->size, info->size);
+                    for( int t = 0; t < 6 && player->x != deck_x - 1; t++ )
+                        selftest_tick(srv);
+                    SELFTEST_CHECK(player->x == deck_x - 1 && player->z == deck_z,
+                                   "the rider closed deck distance to the west rail, at %d,%d",
+                                   player->x, player->z);
+                    SELFTEST_CHECK(player->face_entity == rail_goblin,
+                                   "and faces the target across it, got %d",
+                                   player->face_entity);
+                    ToriRSServer_WorldClearPendingAction(srv);
+                    /* The engine fight itself holds from the rail: range and
+                     * level judged from the projected tile. */
+                    ToriRSServer_CombatEngage(srv, rail_goblin);
+                    selftest_tick(srv);
+                    SELFTEST_CHECK(player->combat_target == rail_goblin,
+                                   "engaged melee holds across the rail, got %d",
+                                   player->combat_target);
+                    player->godmode = saved_god;
+                    ToriRSServer_WorldClearPendingAction(srv);
+                    ToriRSServer_WorldNpcFree(srv, rail_goblin);
+                }
+                selftest_park_player(srv, saved_x, saved_z);
+                player->level = saved_level;
+                /* RNG-neutral: this stanza's goblin AI and swings consume
+                 * draws, and a downstream fixture (the running-npc rows)
+                 * pins behaviour that flips on the draw count — the exact
+                 * brittleness its own comment documents. Restore the seed
+                 * so inserting this stanza is invisible to it. */
+                srv->rng = saved_rng;
+            }
+
             SELFTEST_CHECK(ToriRSServer_VesselFree(srv, handle) == 1, "the vessel frees");
             SELFTEST_CHECK(ToriRSServer_VesselGet(srv, handle) == NULL,
                            "and its handle is dead");
@@ -38620,6 +38859,7 @@ ToriRSServer_WorldSelftest(void)
                  * without turning and stays inside the stamped water. */
                 ToriRSServer_VesselSetHeading(boat, 0);
                 ToriRSServer_VesselSetSpeed(boat, 1);
+                boat->sails_set = 1;
                 for( int tick = 0; tick < 3; tick++ )
                 {
                     int index;
@@ -38875,6 +39115,7 @@ ToriRSServer_WorldSelftest(void)
                      */
                     ToriRSServer_VesselSetHeading(boat, 0);
                     ToriRSServer_VesselSetSpeed(boat, 1);
+                    boat->sails_set = 1;
                     for( int tick = 0; tick < sail_ticks; tick++ )
                     {
                         int hull_fine_x = boat->fine_x;

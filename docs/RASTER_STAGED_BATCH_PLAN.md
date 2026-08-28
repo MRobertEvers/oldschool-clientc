@@ -1,4 +1,4 @@
-# Staged / batched software raster plan
+AS# Staged / batched software raster plan
 
 Target: the win32 (i686, Pentium 4, Windows XP) soft3d lane. Baseline profile
 (Very Sleepy, docs/winxp_profiles/):

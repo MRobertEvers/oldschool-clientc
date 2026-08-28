@@ -64,6 +64,10 @@ struct UITreeMinimapDot
     int scene_id;
     int atlas_index;
     uint32_t color;
+    /** Sprite-content rotation in 2048-per-turn units, pivoted at the icon
+     * centre (a sailing hull's minimap icon turns with its yaw — deob
+     * client.method2412). 0 = plain blit. */
+    int rotate;
 };
 
 /** One screen-space primitive of the entity overlay pass (reference

@@ -1450,6 +1450,16 @@ struct App
     int world_hover_tile_x; /* scene tile, -1 = none */
     int world_hover_tile_z;
     int world_hover_tile_level;
+    /** The hovered DECK tile (world-entity terrain under the pointer), or
+     *  view 0 when the pointer is over no deck. Deck-LOCAL tiles at the deck
+     *  MESH level. Kept beside — never instead of — the root hover latch
+     *  above: the click cross and spawn hotkeys speak root tiles; the
+     *  boat-aware consumers (the tile-indicator plugins' hover marker)
+     *  prefer this one when set. */
+    int world_hover_view;
+    int world_hover_view_x;
+    int world_hover_view_z;
+    int world_hover_view_level;
 
     /* Projectile hotkey latch: first press = src tile, second = dst + fire. */
     int proj_src_tile_x; /* -1 = unarmed */
@@ -3129,6 +3139,14 @@ App_WevDespawn(
  * REBUILD_WORLDENTITY yet) never match; the per-tick routing pass re-tests, so
  * an absolute op that raced the deck rebuild heals a tick later.
  */
+/** Drop view_id's flatten bake (C4): its deck geometry changed, so the merged
+ * flat-colour stand-in no longer matches. Rebuilt lazily the next time the
+ * hull flattens. No-op for a view with no live entity. */
+void
+App_WevFlatInvalidate(
+    struct App* app,
+    int view_id);
+
 int
 App_WevHomeViewForAbsTile(
     struct App* app,

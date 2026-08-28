@@ -11,6 +11,12 @@
 -- (a safespot, a stall, a tick-perfect step) is reasoned about in true tiles,
 -- and until you can see it you are guessing.
 --
+-- Boat-aware for free: aboard a vessel the api hands back deck tiles as
+-- STAGING-ABSOLUTE addresses (the boat instance's own tiles), and draw.tile
+-- recognises that band and draws the marker through the hull's live
+-- transform -- position, yaw and bob -- so every marker rides the boat.
+-- Nothing in this file has to know any of that.
+--
 -- The C twin of this file is src/plugin/plugins/tileind.c, which registers as
 -- "tile-indicator". Both are built on the same api and draw the same thing,
 -- which is what keeps the contract honest about being language-agnostic

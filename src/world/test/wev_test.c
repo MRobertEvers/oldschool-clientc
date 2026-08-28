@@ -485,8 +485,13 @@ test_config_decode_synthetic(void)
     TEST_WEV_ASSERT(cfg.corner_z[0][0][0] == -384, "bucket 0 corner 0 z");
     TEST_WEV_ASSERT(cfg.corner_x[0][0][2] == 256, "bucket 0 corner 2 x");
     TEST_WEV_ASSERT(cfg.corner_z[0][0][2] == -128, "bucket 0 corner 2 z");
-    TEST_WEV_ASSERT(cfg.corner_x[0][4][2] == 128, "90-degree bucket rotates x");
-    TEST_WEV_ASSERT(cfg.corner_z[0][4][2] == 256, "90-degree bucket rotates z");
+    /* Bucket 4 (90°) in the ENGINE's rotation sense — the same one
+     * Wev_ParentFromDeck and the descent transform apply (x' = x·cos + z·sin,
+     * z' = z·cos − x·sin), so a bounds_off centre lands on the same side of
+     * the hull the drawn geometry does. Corner 2 pre-rotation is
+     * (+256, −128): sin=1,cos=0 maps it to (−128, −256). */
+    TEST_WEV_ASSERT(cfg.corner_x[0][4][2] == -128, "90-degree bucket rotates x (engine sense)");
+    TEST_WEV_ASSERT(cfg.corner_z[0][4][2] == -256, "90-degree bucket rotates z (engine sense)");
     /* The three inflations sit above the true box, never below it. */
     TEST_WEV_ASSERT(cfg.corner_x[1][0][2] == 256 + 256, "margin 1 inflates by 256");
     TEST_WEV_ASSERT(cfg.corner_x[3][0][2] == 256 + 362, "margin 3 is the widest");
@@ -578,6 +583,29 @@ test_config_decode_cache(char const* cache_dir)
             "every archive-72 record decodes clean (full consumption)");
         clean++;
 
+        /* TORIRS_WEV_DUMP=1: the whole catalogue, one line per record — what
+         * `::vesselspawn`'s defaults are chosen from. */
+        if( getenv("TORIRS_WEV_DUMP") )
+            printf(
+                "wev %2d: name=%-24s plane=%d bounds=%dx%d off=%d,%d pivot=%d,%d "
+                "minimap_sprite=%d anim=%d ops=[%s|%s|%s|%s|%s]\n",
+                id,
+                cfg.name ? cfg.name : "(none)",
+                cfg.plane,
+                cfg.bounds_w / 128,
+                cfg.bounds_h / 128,
+                cfg.bounds_off_x,
+                cfg.bounds_off_z,
+                cfg.pivot_x,
+                cfg.pivot_z,
+                cfg.minimap_sprite_id,
+                cfg.anim_id,
+                cfg.ops[0] ? cfg.ops[0] : "-",
+                cfg.ops[1] ? cfg.ops[1] : "-",
+                cfg.ops[2] ? cfg.ops[2] : "-",
+                cfg.ops[3] ? cfg.ops[3] : "-",
+                cfg.ops[4] ? cfg.ops[4] : "-");
+
         /* Pins hand-verified against the raw bytes (probe_archive72). */
         if( id == 4 )
         {
@@ -597,7 +625,7 @@ test_config_decode_cache(char const* cache_dir)
             TEST_WEV_ASSERT(cfg.bounds_w == 384, "wev 5 'Ship' is 3 tiles wide");
             TEST_WEV_ASSERT(cfg.bounds_h == 1152, "wev 5 'Ship' is 9 tiles long");
             TEST_WEV_ASSERT(cfg.anim_id == 13428, "wev 5 anim");
-            TEST_WEV_ASSERT(cfg.op26 == 7291, "wev 5 op26");
+            TEST_WEV_ASSERT(cfg.minimap_sprite_id == 7291, "wev 5 minimap sprite");
             pinned++;
         }
         else if( id == 9 )
@@ -605,7 +633,7 @@ test_config_decode_cache(char const* cache_dir)
             TEST_WEV_ASSERT(cfg.name && strcmp(cfg.name, "The Zenith") == 0, "wev 9 name");
             TEST_WEV_ASSERT(cfg.ops[0] && strcmp(cfg.ops[0], "Board") == 0, "wev 9 Board op");
             TEST_WEV_ASSERT(cfg.op24 == 1, "wev 9 op24");
-            TEST_WEV_ASSERT(cfg.op26 == 7292, "wev 9 op26");
+            TEST_WEV_ASSERT(cfg.minimap_sprite_id == 7292, "wev 9 minimap sprite");
             TEST_WEV_ASSERT(cfg.pivot_z == 192, "wev 9 pivot z");
             /* The one record with no box of its own: the Zenith's extent
              * arrives on the wire, not in archive 72. */
@@ -623,7 +651,7 @@ test_config_decode_cache(char const* cache_dir)
             TEST_WEV_ASSERT(cfg.bounds_h == 1280, "wev 13 is 10 tiles long");
             TEST_WEV_ASSERT(cfg.ops[1] && strcmp(cfg.ops[1], "Attack") == 0, "wev 13 Attack op");
             TEST_WEV_ASSERT(cfg.category == 2439, "wev 13 category");
-            TEST_WEV_ASSERT(cfg.op26 == 7290, "wev 13 op26");
+            TEST_WEV_ASSERT(cfg.minimap_sprite_id == 7290, "wev 13 minimap sprite");
             pinned++;
         }
         WevConfig_FreeContents(&cfg);

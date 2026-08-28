@@ -111,7 +111,7 @@ WevConfig_Init(
     config->category = -1;
     config->click_mode = 2;
     config->anim_id = -1;
-    config->op26 = -1;
+    config->minimap_sprite_id = -1;
     config->flat_hsl = WEV_FLAT_HSL_DEFAULT;
 }
 
@@ -143,8 +143,15 @@ wev_config_bake_corners(struct WevConfig* config)
                 double cx = config->bounds_off_x + bx[k];
                 double cz = config->bounds_off_z + bz[k];
 
-                config->corner_x[m][o][k] = (int)lround(cx * co - cz * s);
-                config->corner_z[m][o][k] = (int)lround(cx * s + cz * co);
+                /* Same rotation SENSE as the engine transform that places
+                 * the hull (Wev_ParentFromDeck / frame_view_push:
+                 * x' = x·cos + z·sin, z' = z·cos − x·sin). The extents are
+                 * sense-symmetric, so this only shows through bounds_off —
+                 * where the standard-CCW sense mirrored the offset and put
+                 * the footprint centre on the wrong side of the hull at
+                 * east/west headings. */
+                config->corner_x[m][o][k] = (int)lround(cx * co + cz * s);
+                config->corner_z[m][o][k] = (int)lround(cz * co - cx * s);
             }
         }
     }
@@ -249,7 +256,7 @@ WevConfig_Decode(
             config->anim_id = wc_g2(&c);
             break;
         case 26:
-            config->op26 = wc_g2(&c);
+            config->minimap_sprite_id = wc_g2(&c);
             break;
         case 27:
             /* Absent from every entry of cache.osrs239; the u16 size is the
@@ -267,12 +274,16 @@ WevConfig_Decode(
              * the failure would surface as a wrongly-sized hull, far from
              * here. Absent is the honest answer. */
             config->_consumed = c.pos - 1;
+            /* Strings decoded before the bad opcode are heap-owned; the
+             * table's free pass skips id == -1 entries, so drop them here. */
+            WevConfig_FreeContents(config);
             config->id = -1;
             return 0;
         }
         if( c.err )
         {
             config->_consumed = c.pos;
+            WevConfig_FreeContents(config);
             config->id = -1;
             return 0;
         }
@@ -283,6 +294,7 @@ WevConfig_Decode(
     {
         /* Ran off the end with no opcode-0 terminator, or stopped short of
          * it. Same reasoning as the unknown-opcode path: report absent. */
+        WevConfig_FreeContents(config);
         config->id = -1;
         return 0;
     }
@@ -350,8 +362,10 @@ WevConfigTable_Has(
     int id)
 {
     assert(table);
-    assert(id >= 0);
-    return id < table->count && table->entries[id].id >= 0;
+    /* This IS the membership predicate wire code asks with untrusted ids —
+     * a negative id (0xFFFF read signed) is a legitimate "no", not a caller
+     * bug, and an assert here would let NDEBUG index entries[-1]. */
+    return id >= 0 && id < table->count && table->entries[id].id >= 0;
 }
 
 struct WevConfig const*
@@ -457,6 +471,17 @@ Wevs_Spawn(
     wev->op_mask = op_mask;
     wev->seq_id = -1;
     wev->seq_delay = 0;
+    /* The config idle bob loops from spawn (deob method10487 starts it in
+     * the same breath as the spawn decode). */
+    wev->bob_y = 0;
+    wev->anim_start_cycle = wevs->clock;
+    wev->seq_start_cycle = 0.0;
+    wev->flattened = false;
+    /* The bake is app-owned: the App frees it BEFORE despawn (the model and
+     * the scene element live in the App's scene), so a live pointer here at
+     * spawn is a leak upstream, not state to inherit. */
+    assert(wev->flat_model == NULL);
+    wev->flat_element = -1;
 
     wevs->lists[parent_view_id].ids[wevs->lists[parent_view_id].count++] = id;
     return wev;
@@ -732,9 +757,12 @@ Wev_FootprintTiles(
 
     /* Rotating a box about the entity moves its centre and swells its extent;
      * the extent is |cos|*hx + |sin|*hz per axis, which peaks near 45 degrees
-     * at the half-diagonal. */
-    cx = (double)wev->config->bounds_off_x * cs - (double)wev->config->bounds_off_z * sn;
-    cz = (double)wev->config->bounds_off_x * sn + (double)wev->config->bounds_off_z * cs;
+     * at the half-diagonal. The centre rotates in the ENGINE's sense
+     * (x' = x·cos + z·sin, z' = z·cos − x·sin — Wev_ParentFromDeck and the
+     * descent transform), not standard CCW: the two differ exactly by the
+     * sign bounds_off picks up, and the drawn hull is the authority. */
+    cx = (double)wev->config->bounds_off_x * cs + (double)wev->config->bounds_off_z * sn;
+    cz = (double)wev->config->bounds_off_z * cs - (double)wev->config->bounds_off_x * sn;
     ex = fabs(cs) * (double)hx + fabs(sn) * (double)hz;
     ez = fabs(sn) * (double)hx + fabs(cs) * (double)hz;
 

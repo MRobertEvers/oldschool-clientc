@@ -392,6 +392,14 @@ RS_GameProto_FlushPendingZone(struct RS_GameProtoCtx const* ctx)
     {
         struct AppPendingZonePkt const* entry = &app->pending_zone[i];
         struct ZoneAt at = { entry->base_x, entry->base_z, entry->level, entry->view };
+
+        /* The entry captured its view when it queued; the view can be
+         * despawned before load_complete lets the replay run. A dead view's
+         * zone event has nowhere to land — drop it, don't resolve a released
+         * registry slot. */
+        if( entry->view != WORLDVIEW_ROOT &&
+            !WorldviewRegistry_IsLive(&app->worldviews, entry->view) )
+            continue;
         exec_zone_sub_packet_at(ctx, entry->pkt.name, &entry->pkt._loc_add_change, &at);
     }
     app->pending_zone_count = 0;
@@ -702,7 +710,20 @@ exec_worldentity_info(
     assert(app);
     assert(pkt);
     view = app->active_world;
-    assert(pkt->count <= Wevs_ViewListCount(&app->wevs, view));
+    /* The count is WIRE data: a count past the view's actual list is a
+     * malformed or misaddressed packet (parse can bound it against 15, not
+     * against client state), and indexing the list with it walks past live
+     * entries — refuse the packet, don't assert (NDEBUG turns the assert
+     * into the OOB walk itself). */
+    if( pkt->count > Wevs_ViewListCount(&app->wevs, view) )
+    {
+        TORIRS_LOG(
+            "exec: WORLDENTITY_INFO refused, count %d > list %d (view %d)\n",
+            pkt->count,
+            Wevs_ViewListCount(&app->wevs, view),
+            view);
+        return;
+    }
 
     /*
      * A count SHORTER than the list is the server truncating it: every entity
@@ -748,6 +769,9 @@ exec_worldentity_info(
         {
             wev->seq_id = up->seq_id;
             wev->seq_delay = up->seq_delay;
+            /* One animaya frame per 20 ms cycle; the delay holds frame 0
+             * that many cycles away (deob field5699). */
+            wev->seq_start_cycle = app->wevs.clock + up->seq_delay;
         }
     }
 
@@ -757,7 +781,16 @@ exec_worldentity_info(
     for( int i = 0; i < pkt->spawn_count; i++ )
     {
         struct PktWevSpawn const* sp = &pkt->spawns[i];
-        struct Wev* wev = App_WevSpawn(
+        struct Wev* wev;
+
+        /* A spawn naming an id that is already live replaces it (the deob
+         * despawns before re-adding; a repeat-spawn that skipped this would
+         * overwrite the view's owned world/builder and grow the parent list
+         * past its bound in release builds). */
+        if( sp->id > WORLDVIEW_ROOT && sp->id < WORLDVIEW_MAX &&
+            Wevs_IsLive(&app->wevs, sp->id) )
+            App_WevDespawn(app, sp->id);
+        wev = App_WevSpawn(
             app,
             sp->id,
             sp->config_id,
@@ -768,11 +801,14 @@ exec_worldentity_info(
             sp->z,
             sp->angle,
             (unsigned)sp->op_mask);
+        if( !wev )
+            continue; /* refused (bad config/size) — App_WevSpawn logged it */
 
         if( sp->has_seq )
         {
             wev->seq_id = sp->seq_id;
             wev->seq_delay = sp->seq_delay;
+            wev->seq_start_cycle = app->wevs.clock + sp->seq_delay;
         }
     }
     app->need_redraw = 1;
@@ -1817,17 +1853,30 @@ RS_GameProto_Exec(
         break;
     case PKT_NAME_SET_ACTIVE_WORLD:
         /* Points the zone/rebuild applicators at a world view until the tick
-         * fence resets it (deob class100 activeWorld). Get() asserts the id
-         * names a live view — the deob throws on a despawned entity too, so a
-         * server bug stops here instead of mutating the wrong world. */
+         * fence resets it (deob class100 activeWorld). The id and level are
+         * WIRE data — a raw g2 and a raw byte — so a value outside the
+         * registry, a dead view, or an impossible plane is a malformed or
+         * lagging server, guarded rather than asserted: an assert-only check
+         * is an abort in debug and an OOB registry/heightmap index in the
+         * NDEBUG release lane. The deob throws here; our release build has
+         * to refuse instead. */
         if( ctx->app )
         {
-            (void)WorldviewRegistry_Get(
-                &ctx->app->worldviews, packet->_set_active_world.world_id);
-            ctx->app->active_world = packet->_set_active_world.world_id;
+            int world_id = packet->_set_active_world.world_id;
+            int level = packet->_set_active_world.level;
+
+            if( world_id < 0 || world_id >= WORLDVIEW_MAX ||
+                !WorldviewRegistry_IsLive(&ctx->app->worldviews, world_id) )
+            {
+                TORIRS_LOG("exec: SET_ACTIVE_WORLD refused, view %d not live\n", world_id);
+                break;
+            }
+            ctx->app->active_world = world_id;
             /* The deob snapshots the plane alongside the id; nothing consumes
-             * it at C0 but dropping it here would strand the wire field. */
-            ctx->app->active_world_level = packet->_set_active_world.level;
+             * it at C0 but dropping it here would strand the wire field. It
+             * feeds per-frame height sampling later, so clamp it to the
+             * heightmap's planes. */
+            ctx->app->active_world_level = level < 0 ? 0 : (level > 3 ? 3 : level);
         }
         break;
     case PKT_NAME_WORLDENTITY_INFO:

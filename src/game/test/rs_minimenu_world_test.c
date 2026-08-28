@@ -1078,6 +1078,85 @@ test_player_get_by_element_id(void)
     World_Free(world);
 }
 
+/*
+ * SAILING_PLAN C5.2's non-terrain half: a SCENERY pick carrying a view id is a
+ * DECK loc, whose record lives in the VIEW's own world. It must resolve
+ * through ctx.view_world_fn — never ctx->world — build the loc's op rows, and
+ * stamp the view id onto every row's pick so the dispatcher can add the
+ * staging base. Without a resolver the pick is dropped, never misread against
+ * the root world's tables.
+ */
+static struct World* g_deck_world;
+
+static struct World*
+test_deck_world_resolver(void* user, int view_id)
+{
+    (void)user;
+    return view_id == 3 ? g_deck_world : NULL;
+}
+
+static void
+test_deck_scenery_pick_resolves_through_view_world(void)
+{
+    printf("TEST: a deck loc's SCENERY pick resolves through the view world\n");
+
+    struct World* root = World_TestMakeReady(104);
+    struct World* deck = World_TestMakeReady(64);
+    char actions[5][32];
+    struct World_PickSet picks;
+    struct UIMinimenu menu;
+    int helm_rows = 0;
+
+    memset(actions, 0, sizeof(actions));
+    snprintf(actions[0], sizeof(actions[0]), "Steer");
+    g_deck_world = deck;
+    TEST_ASSERT(
+        World_SceneryRegister(
+            deck, 777, 4242, 5, 6, 1, 1, 1, /* shape scenery */ 10, 0, 0, "Helm",
+            (char const(*)[32])actions, 1) >= 0,
+        "deck helm loc registered in the view world");
+
+    World_PickSetReset(&picks);
+    World_PickSetAdd(&picks, 777, WORLD_PICK_SCENERY, 5, 6, 1, /* view */ 3);
+
+    struct RS_MinimenuBuildCtx ctx = {
+        .selection = { .mode = RS_MINIMENU_SELECT_NONE },
+        .world = root,
+        .world_pickset = &picks,
+        .click_in_world = true,
+        .view_world_fn = test_deck_world_resolver,
+    };
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+
+    TEST_ASSERT(menu_has_substr(&menu, "Steer @cya@Helm"), "the deck loc's op row is built");
+    TEST_ASSERT(menu_has_substr(&menu, "Examine @cya@Helm"), "and its Examine row");
+    for( int i = 0; i < menu.option_count; i++ )
+        if( menu.options[i].pick.kind == UI_MINIMENU_PICK_SCENERY )
+        {
+            helm_rows++;
+            TEST_ASSERT(
+                menu.options[i].pick.view_id == 3,
+                "every scenery row's pick carries the view id");
+            TEST_ASSERT(
+                menu.options[i].pick.tertiary_id == 5 &&
+                    menu.options[i].pick.quaternary_id == 6,
+                "and the DECK-LOCAL tile, for the dispatcher's base add");
+        }
+    TEST_ASSERT(helm_rows >= 2, "op + Examine rows both landed");
+
+    /* No resolver -> the pick is dropped, not misread against the root. */
+    ctx.view_world_fn = NULL;
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+    TEST_ASSERT(
+        !menu_has_substr(&menu, "Helm"),
+        "without a resolver the deck pick builds nothing");
+
+    World_Free(deck);
+    World_Free(root);
+}
+
 int
 main(void)
 {
@@ -1100,6 +1179,7 @@ main(void)
     test_player_attack_option();
     test_player_attack_option_clan();
     test_dat2_obj_team_decodes();
+    test_deck_scenery_pick_resolves_through_view_world();
 
     if( g_failures )
     {

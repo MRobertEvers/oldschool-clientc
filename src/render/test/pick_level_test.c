@@ -82,7 +82,7 @@ terrain_hit_survives(
 
     ToriRS_PickHitsReset(&hits);
     ToriRS_PickHitsAdd(&hits, /* element_id */ 7, /* is_terrain */ true, x, z, mesh_level, 0);
-    ToriRS_PickHitsClassify(world, &hits, player_level, &pickset, &result);
+    ToriRS_PickHitsClassify(world, NULL, &hits, player_level, &pickset, &result);
     return pickset.count == 1 && pickset.items[0].type == WORLD_PICK_TERRAIN &&
            pickset.items[0].tile_x == x && pickset.items[0].tile_z == z;
 }
@@ -163,16 +163,16 @@ main(void)
 
         ToriRS_PickHitsReset(&hits);
         ToriRS_PickHitsAdd(&hits, 70, /* is_terrain */ false, -1, -1, -1, 0);
-        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
+        ToriRS_PickHitsClassify(world, NULL, &hits, /* player_level */ 0, &pickset, &result);
         CHECK(pickset.count == 0, "an inactive loc is not picked by default");
 
         WorldEntity_SceneryDebugSetTools(true);
-        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
+        ToriRS_PickHitsClassify(world, NULL, &hits, /* player_level */ 0, &pickset, &result);
         CHECK(pickset.count == 1 && pickset.items[0].type == WORLD_PICK_SCENERY,
               "a tool that inspects locs picks the inactive ones");
 
         WorldEntity_SceneryDebugSetTools(false);
-        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
+        ToriRS_PickHitsClassify(world, NULL, &hits, /* player_level */ 0, &pickset, &result);
         CHECK(pickset.count == 0, "and stops again when the tool is switched off");
     }
 
@@ -200,18 +200,18 @@ main(void)
 
         ToriRS_PickHitsReset(&hits);
         ToriRS_PickHitsAdd(&hits, 71, /* is_terrain */ false, -1, -1, -1, 0);
-        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
+        ToriRS_PickHitsClassify(world, NULL, &hits, /* player_level */ 0, &pickset, &result);
         CHECK(pickset.count == 1 && pickset.items[0].type == WORLD_PICK_SCENERY,
               "a loc on the deck under your feet is clickable from level 0");
 
-        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 1, &pickset, &result);
+        ToriRS_PickHitsClassify(world, NULL, &hits, /* player_level */ 1, &pickset, &result);
         CHECK(pickset.count == 0, "and is not reachable from the level it was authored on");
 
         ToriRS_PickHitsReset(&hits);
         ToriRS_PickHitsAdd(&hits, 72, /* is_terrain */ false, -1, -1, -1, 0);
-        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
+        ToriRS_PickHitsClassify(world, NULL, &hits, /* player_level */ 0, &pickset, &result);
         CHECK(pickset.count == 0, "a loc on a genuine upper storey stays unreachable from below");
-        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 1, &pickset, &result);
+        ToriRS_PickHitsClassify(world, NULL, &hits, /* player_level */ 1, &pickset, &result);
         CHECK(pickset.count == 1, "and is clickable once you are standing up there");
     }
 

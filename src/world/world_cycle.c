@@ -391,6 +391,7 @@ World_EntityFace(
     struct World* world,
     struct WorldEntityFacet_Facing* facing,
     struct WorldEntityFacet_DrawPosition const* draw_position,
+    struct WorldEntityFacet_ViewPlacement const* placement,
     struct WorldEntityFacet_Orientation* orientation,
     struct WorldEntityFacet_Pathing const* pathing,
     struct WorldEntityFacet_IdleAnimations const* idle,
@@ -398,10 +399,22 @@ World_EntityFace(
 {
     int dst_x;
     int dst_z;
+    /* Cross-frame facing (SAILING): all direction math below runs in the
+     * ROOT frame — an aboard facer's position is pushed out through the
+     * hull first — and the resulting yaw has the facer's FRAME yaw (the
+     * hull's angle) taken back out before it goes on the element, because a
+     * homed actor's element yaw is deck-frame and the descent adds the
+     * hull's yaw at draw. Root actors: identity, offset 0. */
+    int self_x = (int)draw_position->x;
+    int self_z = (int)draw_position->z;
+    int frame_yaw = 0;
     bool applied = false;
 
     if( facing->turn_speed == 0 )
         return -1;
+    if( world->actor_root_frame_fn && placement )
+        world->actor_root_frame_fn(
+            world->actor_root_frame_userdata, placement, &self_x, &self_z, &frame_yaw);
 
     /* class105.method3650 + method3537: a direct angle is one-shot, but mode
      * 0 defers it while walking whereas mode 1 permits it during a route. */
@@ -409,7 +422,7 @@ World_EntityFace(
         (facing->face_during_movement || pathing->route_length == 0 ||
          animation->anim_delay_move > 0) )
     {
-        orientation->dst_yaw = (uint16_t)(facing->direct_angle & 0x7ff);
+        orientation->dst_yaw = (uint16_t)((facing->direct_angle - frame_yaw) & 0x7ff);
         facing->direct_angle = -1;
         applied = true;
     }
@@ -422,14 +435,15 @@ World_EntityFace(
         (facing->face_during_movement || pathing->route_length == 0 ||
          animation->anim_delay_move > 0) )
     {
-        dst_x = (int)draw_position->x -
+        dst_x = self_x -
                 (facing->square_x - world->_base_tile_x - world->_base_tile_x) * 64;
-        dst_z = (int)draw_position->z -
+        dst_z = self_z -
                 (facing->square_z - world->_base_tile_z - world->_base_tile_z) * 64;
         if( dst_x != 0 || dst_z != 0 )
             orientation->dst_yaw =
-                (uint16_t)(((int)(atan2((double)dst_x, (double)dst_z) *
-                                        WORLD_YAW_FROM_RADIANS)) &
+                (uint16_t)((((int)(atan2((double)dst_x, (double)dst_z) *
+                                        WORLD_YAW_FROM_RADIANS)) -
+                            frame_yaw) &
                            0x7ff);
         facing->square_x = 0;
         facing->square_z = 0;
@@ -439,33 +453,50 @@ World_EntityFace(
     if( !applied && facing->entity_id != WORLD_FACING_ENTITY_NONE )
     {
         struct WorldEntityFacet_DrawPosition const* target = NULL;
+        struct WorldEntityFacet_ViewPlacement const* target_placement = NULL;
         if( facing->entity_id < WORLD_FACING_PLAYER_BASE )
         {
             struct WorldEntity_NPC* npc =
                 World_NpcGetByServerSlot(world, facing->entity_id);
             if( npc )
+            {
                 target = &npc->draw_position;
+                target_placement = &npc->view_placement;
+            }
         }
         else
         {
             struct WorldEntity_Player* player = World_PlayerGetByServerPid(
                 world, facing->entity_id - WORLD_FACING_PLAYER_BASE);
             if( player )
+            {
                 target = &player->draw_position;
+                target_placement = &player->view_placement;
+            }
         }
         if( target )
         {
-            dst_x = (int)draw_position->x - (int)target->x;
-            dst_z = (int)draw_position->z - (int)target->z;
+            int target_x = (int)target->x;
+            int target_z = (int)target->z;
+            int target_frame_yaw = 0;
+
+            if( world->actor_root_frame_fn && target_placement )
+                world->actor_root_frame_fn(
+                    world->actor_root_frame_userdata, target_placement, &target_x,
+                    &target_z, &target_frame_yaw);
+            dst_x = self_x - target_x;
+            dst_z = self_z - target_z;
             if( dst_x != 0 || dst_z != 0 )
                 orientation->dst_yaw =
-                    (uint16_t)(((int)(atan2((double)dst_x, (double)dst_z) *
-                                      WORLD_YAW_FROM_RADIANS)) &
+                    (uint16_t)((((int)(atan2((double)dst_x, (double)dst_z) *
+                                      WORLD_YAW_FROM_RADIANS)) -
+                                frame_yaw) &
                                0x7ff);
         }
         else if( facing->fallback_angle >= 0 )
         {
-            orientation->dst_yaw = (uint16_t)(facing->fallback_angle & 0x7ff);
+            orientation->dst_yaw =
+                (uint16_t)((facing->fallback_angle - frame_yaw) & 0x7ff);
         }
     }
 
@@ -1042,6 +1073,7 @@ World_CycleUpdatePlayers(
                     world,
                     &player->facing,
                     &player->draw_position,
+                    &player->view_placement,
                     &player->orientation,
                     &player->pathing,
                     &player->idle_animations,
@@ -1111,6 +1143,7 @@ World_CycleUpdateNpcs(
                     world,
                     &npc->facing,
                     &npc->draw_position,
+                    &npc->view_placement,
                     &npc->orientation,
                     &npc->pathing,
                     &npc->idle_animations,
@@ -1144,6 +1177,9 @@ World_ProjectileTrackTarget(
     struct WorldEntity_Projectile* proj)
 {
     struct WorldEntityFacet_DrawPosition const* dst = NULL;
+    struct WorldEntityFacet_ViewPlacement const* placement = NULL;
+    int fx;
+    int fz;
 
     if( proj->target == WORLD_PROJECTILE_TARGET_NONE )
         return;
@@ -1152,23 +1188,45 @@ World_ProjectileTrackTarget(
     {
         struct WorldEntity_NPC* npc = World_NpcGetByServerSlot(world, proj->target - 1);
         if( npc )
+        {
             dst = &npc->draw_position;
+            placement = &npc->view_placement;
+        }
     }
     else
     {
         struct WorldEntity_Player* player = World_PlayerGetByServerPid(world, -proj->target - 1);
         if( player )
+        {
             dst = &player->draw_position;
+            placement = &player->view_placement;
+        }
     }
 
     if( !dst )
         return;
 
+    fx = (int)dst->x;
+    fz = (int)dst->z;
+    /* A target drawn by a world-entity view stands at a projected root
+     * position, and a HOMED rider's draw position is deck-local outright —
+     * both answered by the same root-frame hook the facing math uses. The
+     * projectile lives in the ROOT world (deob: one world per projectile), so
+     * the aim point must too; without this an arrow chasing a rider re-aims
+     * at deck-local numbers and flies at the map corner. */
+    if( placement && placement->view_id != 0 && world->actor_root_frame_fn )
+    {
+        int frame_yaw = 0;
+
+        world->actor_root_frame_fn(
+            world->actor_root_frame_userdata, placement, &fx, &fz, &frame_yaw);
+    }
+
     /* dst_level stays the projectile's own level: the reference samples the
      * target's height with getAvH(npc.x, npc.z, *proj.level*), not the
      * entity's level. */
-    proj->dst_x = (int)dst->x;
-    proj->dst_z = (int)dst->z;
+    proj->dst_x = fx;
+    proj->dst_z = fz;
 }
 
 static void
@@ -1397,6 +1455,12 @@ world_dyn_tile_claim(
 static int
 world_local_level(struct World* world)
 {
+    /* The hook answers the MAP plane when a rider's own grid level is a deck
+     * plane — reference minusedlevel is the plane of the map the client
+     * holds, and aboard that is the hull's root plane. Without it a level-0
+     * projectile is unlinked against the rider's plane-1 and never draws. */
+    if( world->local_plane_fn )
+        return world->local_plane_fn(world->local_plane_userdata);
     if( world->local_pid < 0 )
         return 0;
     struct World_EntityPool* pool = &world->entities.player;
@@ -1656,6 +1720,21 @@ World_CycleRegisterPainterDynamics(struct World* world)
          i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, i);
+        /* TORIRS_PROJ_DEBUG=1: narrate the paint gate — the difference between
+         * "no projectile exists" and "one exists and is being culled" is
+         * invisible on screen and has burned a session each way. */
+        {
+            static int proj_debug = -1;
+
+            if( proj_debug < 0 )
+                proj_debug = getenv("TORIRS_PROJ_DEBUG") != NULL;
+            if( proj_debug && p && p->element_id >= 0 )
+                fprintf(stderr,
+                        "proj paint: el=%d cycle=%d t1=%d t2=%d level=%d local=%d at %d,%d "
+                        "y=%d\n",
+                        p->element_id, p->cycle, p->t1, p->t2, p->level, local_level,
+                        (int)p->x >> 7, (int)p->z >> 7, (int)p->y);
+        }
         /* Reference addProjectiles: unlink when level !== minusedlevel. */
         if( !p || p->element_id < 0 || p->cycle < p->t1 || p->level != local_level )
             continue;

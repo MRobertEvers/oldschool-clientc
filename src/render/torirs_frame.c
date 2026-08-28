@@ -1285,6 +1285,17 @@ translate_ui_cmd(
                 out->u.sprite.scissor_w = right > left ? right - left : 0;
                 out->u.sprite.scissor_h = bottom > top ? bottom - top : 0;
                 out->u.sprite.if3 = 0;
+                /* A hull icon spins with its yaw, pivoted at its centre. The
+                 * anchors are BOX-LOCAL (the blit subtracts the dst box origin
+                 * itself) — a screen-absolute pivot double-counts the origin
+                 * and maps every pixel outside the source. */
+                sprite_set_rotated(
+                    &out->u.sprite,
+                    dot->rotate,
+                    dot->w / 2,
+                    dot->h / 2,
+                    dot->w / 2,
+                    dot->h / 2);
             }
             else
             {
