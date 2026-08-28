@@ -2592,7 +2592,25 @@ frame_loop_step(void)
             uint64_t now_ms = PlatformSDL2_Ticks64();
             if( win_start_ms == 0 )
                 win_start_ms = now_ms;
-            win_frames++;
+            /*
+             * Frames PRESENTED, not iterations run.
+             *
+             * These were the same number until the loop learned to skip a
+             * draw -- once while the async pipeline is draining, and again
+             * when the pacer steps the draw budget down on a machine that
+             * cannot hold the rate. Counting iterations after that reports a
+             * frame rate nobody is looking at: the loop can spin at 49/s
+             * while the screen updates 30 times, and the fps line would say
+             * 49.
+             *
+             * That matters more than a cosmetic mislabel, because this number
+             * is what says whether two clients are comparable at all -- the
+             * whole reason it exists (see above). A draw rate inflated by
+             * skipped presents would put the comparison back exactly where
+             * that comment says it was.
+             */
+            if( app_redraw )
+                win_frames++;
             if( now_ms - win_start_ms >= 2000 )
             {
                 TORIRS_REPORT(
