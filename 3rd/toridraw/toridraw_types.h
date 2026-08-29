@@ -157,6 +157,36 @@ struct ToriDraw_Bones
 struct ToriDraw_Model
 {
     uint8_t flags;
+    /**
+     * Non-zero if this model is a terrain tile whose triangulation the face
+     * sort may resolve at COMPILE time: `1 + rotation`, rotation in 0..3.
+     *
+     * A world tile is not an arbitrary mesh. Its vertex layout and its index
+     * triples come from four static tables in world_decode_tile.c, keyed by a
+     * shape id, and a census of a loaded map says 94% of tiles are one of the
+     * three 4-vertex, 2-triangle shapes -- PLAIN, DIAGONAL and the unnamed
+     * shape 0 -- which all carry the SAME triples, (1,2,3) and (0,1,3), turned
+     * by the tile's rotation. That is the fast path's premise: with the triples
+     * known at compile time the sort reads nothing out of face_indices_a/b/c,
+     * the two faces provably share two of the four vertices so the duplicated
+     * coordinate loads fold, and a two-face model is culled, keyed and ordered
+     * without a loop or a sort network. 6.5 ns per input face against the
+     * general path's 8.7 on the dev host. See
+     * toridraw_face_sort_flat_tile2_scalar.
+     *
+     * Spending the same constants on SIMD instead -- one vector load per axis,
+     * a shuffle per lane -- is written as toridraw_face_sort_flat_tile2 and is
+     * SLOWER than both, 8.9 ns. Its comment has the numbers and the reason. The
+     * field selects neither; TORIDRAW_TILE_SORT does, and the field only says
+     * the model is eligible.
+     *
+     * Zero for everything else, INCLUDING the other ten tile shapes: the field
+     * is the eligibility test, so nothing downstream re-derives it, and the
+     * shapes that would need their own kernels simply take the general path.
+     * Set only by world_decode_tile, which is the one place a tile's shape and
+     * rotation are known.
+     */
+    uint8_t tile_sort_kernel;
     int vertex_count;
     int face_count;
     vertexint_t* vertices_x;

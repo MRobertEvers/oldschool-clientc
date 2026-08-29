@@ -18,8 +18,10 @@
  *   - their order, with and without face priorities (the priority partition
  *     reads (face, depth) pairs off the keys and must land where the bucket
  *     partition landed them);
- *   - the pre-sort stash the batched raster walk reads: the y-sorted screen
- *     coordinates and the clip flag, for every drawn face;
+ *   - the pre-sort stash the batched raster walk reads: the clip flag for
+ *     every drawn face, and the y-sorted screen coordinates for every face
+ *     the flag says is not clipped (compare() says why a CLIPPED face's
+ *     coordinates are not part of the contract);
  *   - across both sort arms -- the bitonic network (<= 256 keys) and the
  *     radix (above it) -- and across the four-face block's tail (face counts
  *     that are not a multiple of four).
@@ -156,6 +158,69 @@ make_model(int vertex_count, int face_count, int extent, int with_priorities, in
     return m;
 }
 
+/*
+ * A world terrain tile, built exactly as world_decode_tile builds one of the
+ * three 4-vertex, 2-triangle shapes: four corners in SW, SE, NE, NW order,
+ * faces (1,2,3) and (0,1,3), each corner index turned by the rotation. Those
+ * are 94% of the tiles a loaded map contains, and tile_sort_kernel is what
+ * puts them on the compile-time kernel in toridraw_face_sort_flat.u.c.
+ *
+ * Heights are random per corner, which is the point: it is the corner heights
+ * that decide the winding of each half of the quad, so a fixture set over
+ * random heights covers a back-facing tile, a degenerate flat one, and the two
+ * halves disagreeing -- the cases the kernel's two lanes have to get right
+ * independently.
+ */
+static struct ToriDraw_Model*
+make_tile_model(int rotation, int height_extent)
+{
+    static const int base_a[2] = { 1, 0 };
+    static const int base_b[2] = { 2, 1 };
+    static const int base_c[2] = { 3, 3 };
+    static const int corner_x[4] = { -64, 64, 64, -64 }; /* SW, SE, NE, NW */
+    static const int corner_z[4] = { -64, -64, 64, 64 };
+    struct ToriDraw_Model* m = ToriDraw_ModelNew(4, 2, 0);
+    assert(m);
+
+    m->vertices_x = malloc(4 * sizeof(vertexint_t));
+    m->vertices_y = malloc(4 * sizeof(vertexint_t));
+    m->vertices_z = malloc(4 * sizeof(vertexint_t));
+    m->face_indices_a = malloc(2 * sizeof(faceint_t));
+    m->face_indices_b = malloc(2 * sizeof(faceint_t));
+    m->face_indices_c = malloc(2 * sizeof(faceint_t));
+    m->face_colors_a = malloc(2 * sizeof(hsl16_t));
+    m->face_colors_b = malloc(2 * sizeof(hsl16_t));
+    m->face_colors_c = malloc(2 * sizeof(hsl16_t));
+    assert(m->vertices_x);
+    assert(m->vertices_y);
+    assert(m->vertices_z);
+    assert(m->face_indices_a);
+    assert(m->face_indices_b);
+    assert(m->face_indices_c);
+    assert(m->face_colors_a);
+    assert(m->face_colors_b);
+    assert(m->face_colors_c);
+
+    for( int i = 0; i < 4; i++ )
+    {
+        m->vertices_x[i] = (vertexint_t)corner_x[i];
+        m->vertices_z[i] = (vertexint_t)corner_z[i];
+        m->vertices_y[i] = (vertexint_t)rnd_range(-height_extent, height_extent);
+    }
+    for( int f = 0; f < 2; f++ )
+    {
+        m->face_indices_a[f] = (faceint_t)((base_a[f] - rotation) & 3);
+        m->face_indices_b[f] = (faceint_t)((base_b[f] - rotation) & 3);
+        m->face_indices_c[f] = (faceint_t)((base_c[f] - rotation) & 3);
+        m->face_colors_a[f] = (hsl16_t)(rnd() & 0xFFFF);
+        m->face_colors_b[f] = (hsl16_t)(rnd() & 0xFFFF);
+        m->face_colors_c[f] = (hsl16_t)(rnd() & 0xFFFF);
+    }
+    m->tile_sort_kernel = (uint8_t)(1 + rotation);
+    ToriDraw_ModelSetBoundsCylinder(m);
+    return m;
+}
+
 struct SortResult
 {
     int count;
@@ -211,7 +276,26 @@ compare(
             const int* fx = &flat->x4[i * 4];
             const int* by = &bucket->y4[i * 4];
             const int* fy = &flat->y4[i * 4];
-            if( memcmp(bx, fx, 4 * sizeof(int)) || memcmp(by, fy, 4 * sizeof(int)) )
+            /*
+             * x4[3] is the near-clip flag and is the whole contract for a
+             * clipped face: it is what makes the batched walk hand the face to
+             * the clip builder instead of staging a row, so the other seven
+             * values are never read for one (three sites in
+             * toridraw_raster.u.c, all spelled `face_x4[face * 4 + 3]`).
+             *
+             * The two sorts genuinely differ there and always have. The bucket
+             * walk and the flat sort's scalar tail skip a clip candidate's
+             * winding, so they never load its coordinates and write only the
+             * flag; the four-wide block and the tile kernel compute all four
+             * lanes unconditionally and store what they got. Holding them equal
+             * would be pinning a value neither one promises -- so the flag is
+             * compared for every drawn face, and the rest only when it is
+             * clear.
+             */
+            int const clipped = bx[3] != 0;
+            size_t const n_cmp = clipped ? 0 : 3 * sizeof(int);
+            if( bx[3] != fx[3] || memcmp(bx, fx, n_cmp) ||
+                memcmp(by, fy, clipped ? 0 : 4 * sizeof(int)) )
             {
                 CHECK(0,
                       "%s: stash for face %d differs: bucket x(%d,%d,%d,%d) y(%d,%d,%d,%d) "
@@ -392,6 +476,67 @@ bench_sorts(struct ToriDraw_Scene* scene)
         for( m = 0; m < MODELS; m++ )
             ToriDraw_ModelFree(models[m]);
     }
+
+    /*
+     * The terrain tile, timed the same way. Two faces is far too few to
+     * amortise anything, which is exactly why it is worth a row: a scene draws
+     * hundreds of these per frame and the sort's per-MODEL cost is what they
+     * pay, not its per-face cost.
+     *
+     * TORIDRAW_TILE_SORT=0 in the environment puts the tile back on the
+     * general path, so running this binary twice gives the kernel's own
+     * before/after in the `flat` column, with the bucket column as the
+     * control that must not move between the two runs.
+     */
+    {
+        enum { TILE_MODELS = 256 };
+        struct ToriDraw_Model* models[TILE_MODELS];
+        struct ToriDraw_ModelHandle hnds[TILE_MODELS];
+        int const reps = 200000;
+        double best[2] = { 1e30, 1e30 };
+        long drawn = 0;
+        int m;
+
+        /* Rotations in the census proportion: 94% at 0, the rest spread. */
+        for( m = 0; m < TILE_MODELS; m++ )
+        {
+            int rotation = (m % 16 == 5) ? 1 + (m % 3) : 0;
+            models[m] = make_tile_model(rotation, 120);
+            hnds[m] = ToriDraw_ModelHandleOwned(models[m]);
+        }
+        if( ToriDraw_RenderModel1Project(hnds[0], scene, &position, &viewport, &camera) !=
+            TORIDRAW_CULL_VISIBLE )
+        {
+            printf("tile     culled\n");
+        }
+        else
+        {
+            for( int batch = 0; batch < 5; batch++ )
+            {
+                for( int arm = 0; arm < 2; arm++ )
+                {
+                    double t0;
+                    int a = (batch & 1) ? 1 - arm : arm;
+                    for( m = 0; m < TILE_MODELS; m++ )
+                        k[a]->sort(k[a]->user_data, scene, hnds[m], true); /* warm */
+                    drawn = 0;
+                    t0 = now_us();
+                    for( int r = 0; r < reps; r++ )
+                        drawn += k[a]->sort(k[a]->user_data, scene, hnds[r % TILE_MODELS], true);
+                    t0 = (now_us() - t0) / reps;
+                    if( t0 < best[a] )
+                        best[a] = t0;
+                }
+            }
+            printf("%-8s %-8ld %12.3f %12.3f %12.2f %12.2f   %.2fx   (tile kernel %s)\n", "tile2",
+                   drawn / reps, best[0], best[1], best[0] * 1000.0 / 2, best[1] * 1000.0 / 2,
+                   best[1] / best[0],
+                   getenv("TORIDRAW_TILE_SORT") ? getenv("TORIDRAW_TILE_SORT")
+                                                : "1 (scalar, default)");
+        }
+        for( m = 0; m < TILE_MODELS; m++ )
+            ToriDraw_ModelFree(models[m]);
+    }
 }
 
 int
@@ -416,10 +561,13 @@ main(void)
         int face_count = face_counts[fi];
         int vertex_count = face_count < 8 ? 8 : (face_count > 2000 ? 2000 : face_count);
 
-        for( int variant = 0; variant < 12; variant++ )
+        for( int variant = 0; variant < 16; variant++ )
         {
             int with_priorities = (variant & 1);
             int with_alpha = (variant & 2) != 0;
+            /* 16 variants and not 12, so `presort` and the near distance
+             * overlap: at 12 the two bits were disjoint and the stash was
+             * never once compared on a model carrying a clipped face. */
             int presort = (variant & 4) != 0;
             /* Near enough that some vertices cross the near plane on the
              * odd variants, far enough that none do on the even ones. */
@@ -436,6 +584,32 @@ main(void)
                 run_fixture(scene, model, distance, rep * 373, presort, label);
                 if( g_failures > 20 )
                     goto done;
+            }
+            ToriDraw_ModelFree(model);
+        }
+    }
+
+    /* The terrain tile, which the flat sort answers with a kernel of its own
+     * rather than with the four-face block and the scalar tail. Held to the
+     * same bucket-walk order as everything above, over all four rotations and
+     * over near enough that a corner crosses the near plane. */
+    for( int rotation = 0; rotation < 4 && g_failures <= 20; rotation++ )
+    {
+        for( int variant = 0; variant < 8; variant++ )
+        {
+            int presort = (variant & 1) != 0;
+            int distance = (variant & 2) ? 120 : 900;
+            int height_extent = (variant & 4) ? 0 : 120; /* 0 = a flat tile */
+            struct ToriDraw_Model* model = make_tile_model(rotation, height_extent);
+
+            for( int rep = 0; rep < 16; rep++ )
+            {
+                snprintf(label, sizeof(label),
+                         "tile rot=%d presort=%d dist=%d height=%d rep=%d", rotation,
+                         presort, distance, height_extent, rep);
+                run_fixture(scene, model, distance, rep * 373, presort, label);
+                if( g_failures > 20 )
+                    break;
             }
             ToriDraw_ModelFree(model);
         }

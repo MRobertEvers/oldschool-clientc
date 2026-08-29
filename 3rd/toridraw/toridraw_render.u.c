@@ -2281,6 +2281,8 @@ toridraw_compute_projected_face_order_small(
     faceint_t* fic = NULL;
     uint8_t* face_priorities = NULL;
     int face_count = 0;
+    /* -1 = not a two-triangle terrain tile; see ToriDraw_Model.tile_sort_kernel. */
+    int tile2_rot = -1;
 
     switch( hnd.kind )
     {
@@ -2308,6 +2310,18 @@ toridraw_compute_projected_face_order_small(
                 ? NULL
                 : m->face_priorities;
         face_count = m->face_count;
+        /* TORIDRAWMK_MODEL only. The tile kernel reads vx[0..3] on the promise
+         * that this model's four projected vertices are its own and that its two
+         * faces are the tile triples -- a promise world_decode_tile makes about a
+         * model it owns outright, and not one the lent-faces or the shared regimes
+         * are in a position to keep. */
+        if( hnd.kind == TORIDRAWMK_MODEL && m->tile_sort_kernel &&
+            toridraw_face_sort_tile2_armed() )
+        {
+            assert(m->vertex_count == 4);
+            assert(m->face_count == 2);
+            tile2_rot = m->tile_sort_kernel - 1;
+        }
         break;
     }
     default:
@@ -2330,7 +2344,7 @@ toridraw_compute_projected_face_order_small(
     if( !debug_stats && flat )
     {
         int const n = toridraw_face_sort_flat(
-            scene, presort, scene->near_clipped, model_min_depth, face_count,
+            scene, presort, scene->near_clipped, model_min_depth, face_count, tile2_rot,
             scene->screen_vertices_x, scene->screen_vertices_y, scene->screen_vertices_z,
             fia, fib, fic);
         const uint32_t* keys = scene->sm_sort_keys;
