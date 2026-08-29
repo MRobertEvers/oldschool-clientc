@@ -87,20 +87,6 @@
 
 #define TORIDRAW_PROJ_PREP_1_OVER_65536 ( 1.0f / 65536.0f )
 
-/*
- * The prepared block is _Alignas(16) inside the scene, but the scene itself
- * comes from malloc, and 32-bit malloc only promises eight. Unaligned loads,
- * three of them per call.
- */
-static inline __m128
-toridraw_proj_prep_load_scaled(const int* splat4, float scale)
-{
-    assert(splat4);
-
-    return _mm_mul_ps(
-        _mm_cvtepi32_ps(_mm_loadu_si128((__m128i const*)splat4)),
-        _mm_set1_ps(scale));
-}
 
 /* Pack one pmaddwd coefficient dword; see projection16_fast.sse2.h for the
  * split -- C == (C >> 8) * 256 + (C & 255), both halves int16, recombined
@@ -138,6 +124,7 @@ __attribute__((always_inline))
 static inline void
 toridraw_proj_prepared_core(
     const struct ToriDraw_ProjectionPreparedCamera* prep,
+    const struct ToriDraw_ProjectionPreparedCameraFloat* prep_f,
     int* orthographic_vertices_x,
     int* orthographic_vertices_y,
     int* orthographic_vertices_z,
@@ -159,6 +146,7 @@ toridraw_proj_prepared_core(
     int want_clip)
 {
     assert(prep);
+    assert(prep_f);
     assert(screen_vertices_x);
     assert(screen_vertices_y);
     assert(screen_vertices_z);
@@ -230,11 +218,24 @@ toridraw_proj_prepared_core(
     __m128i const v_neg5001 = _mm_set1_epi32(TORIDRAW_SCREEN_X_NEAR_CLIPPED_NUDGE);
     __m128i const v_ones = _mm_set1_epi32(-1);
 
-    __m128 const f_ccp =
-        toridraw_proj_prep_load_scaled(prep->cos_pitch, TORIDRAW_PROJ_PREP_1_OVER_65536);
-    __m128 const f_scp =
-        toridraw_proj_prep_load_scaled(prep->sin_pitch, TORIDRAW_PROJ_PREP_1_OVER_65536);
-    __m128 const f_fov = toridraw_proj_prep_load_scaled(prep->cot15, 1.0f / 64.0f);
+    /*
+     * Read, not derived. These three were a load, a cvtdq2ps and a mulps each,
+     * every call, for values the frame fixed once -- see
+     * ToriDraw_ProjectionPreparedCameraFloat for why the conversion is exact
+     * and why the block is separate.
+     *
+     * ALIGNED loads, where the helper this replaces used movups on the belief
+     * that a 32-bit malloc only promises eight bytes. That stopped being true
+     * when td_scene_alloc_aligned arrived: the scene base is aligned to
+     * _Alignof(struct ToriDraw_Scene), which the _Alignas(16) members drag to
+     * sixteen. The proof is already in the build -- the compiler emits aligned
+     * STORES to the sibling int block in ToriDraw_ScenePrepareProjectionCamera
+     * on the strength of the same _Alignas, and those would have been faulting
+     * all along if the premise were false.
+     */
+    __m128 const f_ccp = _mm_load_ps(prep_f->cos_pitch);
+    __m128 const f_scp = _mm_load_ps(prep_f->sin_pitch);
+    __m128 const f_fov = _mm_load_ps(prep_f->cot15);
 
     int i = 0;
 
@@ -402,6 +403,7 @@ ToriDraw_ProjPreparedNoclip(
 
     toridraw_proj_prepared_core(
         &scene->projection_prepared_camera,
+        &scene->projection_prepared_camera_f,
         scene->orthographic_vertices_x,
         scene->orthographic_vertices_y,
         scene->orthographic_vertices_z,
@@ -441,6 +443,7 @@ ToriDraw_ProjPreparedClip(
 
     toridraw_proj_prepared_core(
         &scene->projection_prepared_camera,
+        &scene->projection_prepared_camera_f,
         scene->orthographic_vertices_x,
         scene->orthographic_vertices_y,
         scene->orthographic_vertices_z,
@@ -482,6 +485,7 @@ ToriDraw_ProjPreparedNotexNoclip(
 
     toridraw_proj_prepared_core(
         &scene->projection_prepared_camera,
+        &scene->projection_prepared_camera_f,
         NULL,
         NULL,
         NULL,
@@ -521,6 +525,7 @@ ToriDraw_ProjPreparedNotexClip(
 
     toridraw_proj_prepared_core(
         &scene->projection_prepared_camera,
+        &scene->projection_prepared_camera_f,
         NULL,
         NULL,
         NULL,
@@ -542,4 +547,73 @@ ToriDraw_ProjPreparedNotexClip(
         1);
 }
 
+
+/* ----------------------------------------------- the bound's eight corners */
+
+/*
+ * The cylinder bound, on the prepared camera.
+ *
+ * ToriDraw_CalculateCylinderAabb8point reached for
+ * project_vertices_array_fused_notex_clip -- the unprepared twenty-argument
+ * kernel, which reads four trig tables and builds a dozen constants of its own
+ * before it moves a single corner. Measured (make -C src test-proj-model-bench,
+ * which reads the bound off by difference against a stub), that call is 30.3 ns
+ * of the 56.1 ns a four-vertex terrain tile spends being projected: 54% of the
+ * call, to place eight points whose own arithmetic is about 5 ns. And the
+ * camera it derives all that from is the one already prepared for the model
+ * projection that happens two steps later.
+ *
+ * Different from the four entry points above in exactly one way: where the
+ * output goes. A bound is built on the stack, swept for min/max, and thrown
+ * away -- it never travels through the scene -- so this one takes the arrays.
+ * want_ortho off, want_clip ON, because the sweep needs a corner behind the
+ * near plane to come back as the sentinel and drag the box out; see the
+ * clipping-family note at the head of the AABB.
+ */
+static void
+ToriDraw_ProjPreparedBoundClip(
+    struct ToriDraw_Scene* scene,
+    int* out_x,
+    int* out_y,
+    int* out_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    int num_vertices,
+    int camera_yaw,
+    int model_yaw,
+    const struct ToriDraw_Position* position,
+    int near_plane_z)
+{
+    assert(scene);
+    assert(position);
+    assert(out_x);
+    assert(out_y);
+    assert(out_z);
+    assert(scene->projection_prepared_camera_source);
+
+    toridraw_proj_prepared_core(
+        &scene->projection_prepared_camera,
+        &scene->projection_prepared_camera_f,
+        NULL,
+        NULL,
+        NULL,
+        out_x,
+        out_y,
+        out_z,
+        vertex_x,
+        vertex_y,
+        vertex_z,
+        num_vertices,
+        camera_yaw,
+        model_yaw,
+        0, /* model_mid_z: a bound is not depth-biased, and the caller it
+            * replaces passed zero here too. */
+        position->x,
+        position->y,
+        position->z,
+        near_plane_z,
+        0,
+        1);
+}
 #endif /* TORIDRAW_PROJECTION16_PREPARED_SSE2_H */

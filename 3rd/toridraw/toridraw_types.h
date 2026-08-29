@@ -536,6 +536,36 @@ struct ToriDraw_ProjectionPreparedCamera
     int cot15[4];
 };
 
+/**
+ * The same prepared camera's pitch and fov, already in the form the SSE2
+ * kernel actually multiplies by.
+ *
+ * toridraw_proj_prepared_core wants these three as floats scaled by 1/65536,
+ * 1/65536 and 1/64. They were being derived from the int block above on every
+ * call -- a load, a cvtdq2ps and a mulps each -- for values that change once a
+ * frame. That is nothing on a 380-vertex model and it is not nothing on a
+ * four-vertex terrain tile, where the loop body runs exactly ONCE and the
+ * prologue is the call.
+ *
+ * A SEPARATE BLOCK, not three more members on the struct above, because that
+ * struct's size and field offsets are pinned by _Static_asserts in toridraw.c
+ * for projection16_apple.S, which loads it with ldp pairs. Appending would
+ * keep those offsets valid and still trip the size assert, and the Apple lane
+ * cannot be built here to check. Nothing on that lane reads this one.
+ *
+ * The conversion is EXACT, so this is a hoist and not an approximation: both
+ * scales are powers of two (2^-16 and 2^-6), so the multiply only adjusts an
+ * exponent, and the int-to-float conversion rounds identically whether C or
+ * cvtdq2ps does it. The bytes the kernel reads are the bytes it used to
+ * compute -- which the pixel comparison then confirms rather than assumes.
+ */
+struct ToriDraw_ProjectionPreparedCameraFloat
+{
+    _Alignas(16) float cos_pitch[4];
+    float sin_pitch[4];
+    float cot15[4];
+};
+
 enum ToriDraw_TextureAnimation
 {
     TORIDRAW_TEXANIM_DIRECTION_NONE,
@@ -819,6 +849,11 @@ struct ToriDraw_Scene
      */
     struct ToriDraw_ProjectionPreparedCamera projection_prepared_camera;
     const struct ToriDraw_Camera* projection_prepared_camera_source;
+    /* Published and cleared with the block above, and by the same function --
+     * projection_prepared_camera_source guards both. Placed AFTER the source
+     * pointer so the offset of projection_prepared_camera, which a static
+     * assert pins relative to screen_vertices_x, does not move. */
+    struct ToriDraw_ProjectionPreparedCameraFloat projection_prepared_camera_f;
 
     faceint_t* tmp_depth_face_count;
     faceint_t* tmp_depth_faces;

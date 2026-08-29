@@ -893,11 +893,25 @@ ToriDraw_FastCull(
 static void
 ToriDraw_CalculateCylinderAabb8point(
     struct ToriDraw_AABB* aabb,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera)
 {
+#if defined(TORIDRAW_BENCH_SKIP_AABB) && TORIDRAW_BENCH_SKIP_AABB
+    /* BENCH ONLY, and wrong on purpose: an infinite box culls nothing, which
+     * is how the eight-corner bound's own cost is read off by difference.
+     * Never built into anything that draws. */
+    (void)hnd; (void)position; (void)camera;
+    aabb->min_screen_x = INT_MIN / 2;
+    aabb->max_screen_x = INT_MAX / 2;
+    aabb->min_screen_y = INT_MIN / 2;
+    aabb->max_screen_y = INT_MAX / 2;
+    aabb->kind = TORIDRAW_AABB_KIND_CYLINDER_8POINT;
+    (void)view_port;
+    return;
+#endif
     const struct ToriDraw_BoundsCylinder* bcyl = model_bounds_cylinder(hnd);
     assert(bcyl);
     int model_edge_radius = bcyl->radius;
@@ -988,6 +1002,39 @@ ToriDraw_CalculateCylinderAabb8point(
     }
     else
     {
+#if defined(TORIDRAW_SSE2_PREPARED_PROJECTION)
+        /* Reaching this branch already established the gate's rotation half --
+         * model pitch, model roll and camera roll are all zero -- so the only
+         * question left is whether a block was published for THIS camera, which
+         * is the same pointer test the model projection makes.
+         *
+         * The fused rotation rounds in different places from the kernel below,
+         * so a corner can land up to four pixels off where the unprepared one
+         * put it (the family's own header quantifies it). That is inert here
+         * and only here: this box is a cylinder of radius sqrt(2)*64 ~ 90 drawn
+         * around a 128-unit tile, already tens of pixels looser than the
+         * geometry it contains, and it is used for nothing but a coarse reject
+         * and a pick prefilter that defers to an exact per-face test. Do not
+         * read this as licence to tighten the box -- that is a different change
+         * and it drops pixels at the viewport edge. */
+        if( scene->projection_prepared_camera_source == camera )
+        {
+            ToriDraw_ProjPreparedBoundClip(
+                scene,
+                sc_x,
+                sc_y,
+                sc_z,
+                bb_x,
+                bb_y,
+                bb_z,
+                8,
+                camera->yaw,
+                model_yaw,
+                position,
+                camera->near_plane_z);
+        }
+        else
+#endif
         project_vertices_array_fused_notex_clip(
             sc_x,
             sc_y,
@@ -1007,6 +1054,27 @@ ToriDraw_CalculateCylinderAabb8point(
             camera->yaw);
     }
 
+    /*
+     * SCALAR ON PURPOSE, both here and in the corner arrays above. Measured
+     * with test-proj-model-bench, against the prepared bound below:
+     *
+     *     this                              53.0 - 53.5 ns per model
+     *     min/max reduced through SSE2      59.1 - 59.6
+     *     corners built as three vectors    58.4 - 58.7
+     *
+     * The reduction loses because SSE2 has no pminsd or pmaxsd -- those are
+     * SSE4.1 and this lane is pentium4 -- so every lane-wise min is a compare
+     * and three selects, and a 4-to-1 reduction wants several. What it would
+     * be buying is branches that already predict: min and max both start at
+     * corner 0 and only move apart, so after the first corner or two every
+     * test below is not-taken. The corner arrays lose because -O3 already
+     * merges those stores, and hand-vectorising adds splats and masks to
+     * reproduce what was free.
+     *
+     * `else if` is not a bug: min <= max always holds, so no corner can be
+     * below one and above the other, and skipping the max test on a new
+     * minimum skips a test that could not have fired.
+     */
     int min_sx = sc_x[0];
     int max_sx = sc_x[0];
     int min_sy = sc_y[0];
@@ -3144,7 +3212,7 @@ ToriDraw_Project(
 
     scene->projected_vertex = center_projection;
 
-    ToriDraw_CalculateCylinderAabb8point(&scene->aabb, hnd, position, view_port, camera);
+    ToriDraw_CalculateCylinderAabb8point(&scene->aabb, scene, hnd, position, view_port, camera);
 
     cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
     if( cull != TORIDRAW_CULL_VISIBLE )
