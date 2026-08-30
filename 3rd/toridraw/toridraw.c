@@ -1373,6 +1373,24 @@ ToriDraw_KernelEnsureScratch(
  * the scene tier and outlives no renderer's resize -- call
  * ToriDraw_SceneZBufferResize where the viewport is known.
  */
+/*
+ * The software table a renderer takes when it has no opinion beyond "the
+ * usual one": branching or scanline, as TORIDRAW_RASTER_SCANLINE /
+ * ToriDraw_RasterSetScanline decided.
+ *
+ * The table twin of ToriDraw_RasterKernelSDGetStock, and the same rule -- the
+ * choice is resolved AT THE CALL, so a renderer takes it once at init, after
+ * ToriDraw_Init. There is no smooth twin here because smooth is a per-draw
+ * request in the SD kernels rather than a property of a pass, and no renderer
+ * holds a smooth table.
+ */
+const struct ToriDraw_Kernel*
+ToriDraw_KernelGetStock(void)
+{
+    return ToriDraw_RasterGetScanline() ? ToriDraw_KernelGetSoftwareScanline()
+                                        : ToriDraw_KernelGetSoftwarePainter();
+}
+
 const struct ToriDraw_Kernel*
 ToriDraw_KernelTake(struct ToriDraw_Scene* scene, const struct ToriDraw_Kernel* table)
 {

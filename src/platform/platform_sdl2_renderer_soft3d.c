@@ -882,7 +882,7 @@ soft3d_draw_model(
 {
     struct ToriDraw_Position position;
     int cull;
-    const struct ToriDraw_RasterKernelSD* kernel;
+    const struct ToriDraw_Kernel* kernel;
 
     assert(soft);
     assert(cmd);
@@ -903,7 +903,7 @@ soft3d_draw_model(
     position = cmd->position;
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_PROJECT)
     {
-        cull = ToriDraw_RenderModel1ProjectWithKernel(
+        cull = ToriDraw_RenderModel1ProjectWithTable(
             cmd->model, soft->scene, &position, &soft->view_port_3d, &soft->camera_3d, kernel);
     }
     soft3d_dbg_draw_trace_cull(cmd, &position, (int)cull);
@@ -955,10 +955,10 @@ soft3d_draw_model(
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_SORT)
     {
         /* Whether this leaves the batched walk's y-ordered stash behind is the
-         * KERNEL's answer, not ours -- and it has to be, because the arm we
+         * TABLE's answer, not ours -- and it has to be, because the arm we
          * hold changes under TORIDRAW_RASTER_SCANLINE and the frame A/B, and
          * only the branching kernel has a door that reads the stash. */
-        sorted = ToriDraw_RenderModel2SortFacesWithKernel(cmd->model, soft->scene, kernel);
+        sorted = ToriDraw_RenderModel2SortFacesWithTable(cmd->model, soft->scene, kernel);
     }
     soft3d_dbg_draw_trace_sorted(cmd, sorted);
     /* Counted after the sort, not before: a model that survives both culls
@@ -977,7 +977,7 @@ soft3d_draw_model(
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_RASTER)
     {
-        ToriDraw_RenderModel3RasterWithKernel(
+        ToriDraw_RenderModel3RasterWithTable(
             soft->scene, &soft->view_port_3d, &soft->camera_3d, soft->pixels, kernel);
     }
 }
@@ -1032,7 +1032,11 @@ ToriRS_Soft3D_Init(
     memset(soft, 0, sizeof(*soft));
     soft->scratch = scratch;
     soft->scene = scene;
-    soft->kernel = ToriDraw_RasterKernelSDGetStock(false);
+    /* Taking it is also checking it: ToriDraw_KernelTake validates the table
+     * against this scene and provisions the scratch its three stages need, so
+     * "I selected the presorting painter and did not get it" is a line on
+     * stderr here rather than a shape in a profile later. */
+    soft->kernel = ToriDraw_KernelTake(scene, ToriDraw_KernelGetStock());
     soft3d_dbg_frame_ab_kernels_init(soft);
     soft->pixels = pixels;
     soft->width = width;

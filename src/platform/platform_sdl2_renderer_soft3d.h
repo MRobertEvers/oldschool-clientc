@@ -26,19 +26,26 @@ struct ToriRS_Soft3DScratch;
 struct ToriRS_Soft3D
 {
     struct ToriDraw_Scene* scene;
-    /* Projection + face sort + raster, chosen once at init and passed to
-     * every stage (toridraw.h, the *WithKernel entries). */
-    const struct ToriDraw_RasterKernelSD* kernel;
+    /* Projection + face sort + raster, named by ONE object, taken once at
+     * init through ToriDraw_KernelTake -- which is also where it is validated
+     * against this scene -- and passed to every stage (the *WithTable
+     * entries). */
+    const struct ToriDraw_Kernel* kernel;
     /*
-     * The in-frame A/B (toridraw_frame_ab.h) with a kernel per arm. Under
+     * The in-frame A/B (toridraw_frame_ab.h) with a TABLE per arm. Under
      * TORIDRAW_FRAME_AB=1, TORIDRAW_FRAME_AB_KERNELS=<A>,<B> names the face
      * sort each arm runs (`bucket` | `flat`) and TORIDRAW_FRAME_AB_BATCH=<A>,<B>
      * whether the batched presorted-run walk is armed (0 | 1); an unset
      * knob leaves that stage the same in both arms. Every model of a frame
      * draws through the frame's arm, so the two arms alternate ABBA inside
      * one process and the run-to-run mode of the box subtracts out.
+     *
+     * A table by value, so an arm can name a different sort without touching
+     * the process-wide object the getter handed out. This used to be a copy of
+     * the RASTER kernel with its deprecated stage-2 slot overwritten, which
+     * meant the harness was the last thing keeping that slot alive.
      */
-    struct ToriDraw_RasterKernelSD kernel_ab[2];
+    struct ToriDraw_Kernel kernel_ab[2];
     int batch_ab[2];
     int* pixels;
     int width;

@@ -361,6 +361,10 @@ soft3d_dbg_frame_ab_kernels_init(struct ToriRS_Soft3D* soft)
 
     soft->batch_ab[0] = -1;
     soft->batch_ab[1] = -1;
+    /* A table by value per arm. Naming a sort per arm then writes the table's
+     * OWN stage-2 slot; this used to copy the raster kernel and overwrite its
+     * deprecated projection/face_sort pair, which made this harness the last
+     * reader keeping those two fields alive. */
     for( arm = 0; arm < 2; arm++ )
         soft->kernel_ab[arm] = *soft->kernel;
 

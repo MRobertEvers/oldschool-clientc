@@ -679,6 +679,12 @@ ToriDraw_KernelEnsureScratch(
     struct ToriDraw_Scene* scene,
     const struct ToriDraw_Kernel* kernel);
 
+/** Branching or scanline as TORIDRAW_RASTER_SCANLINE / ToriDraw_RasterSetScanline
+ *  decided: the table a renderer takes when it has no opinion beyond "the usual
+ *  one". Resolved at the call, so take it once at init, after ToriDraw_Init. */
+const struct ToriDraw_Kernel*
+ToriDraw_KernelGetStock(void);
+
 /**
  * Take a table for a scene: validate, report, provision. The one door.
  *
