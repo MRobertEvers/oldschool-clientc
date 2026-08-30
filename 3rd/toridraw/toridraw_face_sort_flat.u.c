@@ -77,6 +77,8 @@
 
 #include "toridraw_face_sort_flat.h"
 
+#include "graphics/ysort_order.h"
+
 #include <stdint.h>
 #include <string.h>
 
@@ -176,15 +178,6 @@ toridraw_face_sort_bitonic_max(void)
     return max;
 }
 
-/* The y-order permutation, as the batched kernels read it (sm_face_y4[3]). */
-static const unsigned char g_toridraw_ysort_order[6][3] = {
-    { 0, 1, 2 },
-    { 0, 2, 1 },
-    { 1, 2, 0 },
-    { 1, 0, 2 },
-    { 2, 0, 1 },
-    { 2, 1, 0 }
-};
 
 /*
  * One face, scalar: the tail of whatever the lane's vector cull left, and the

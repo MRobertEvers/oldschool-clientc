@@ -5,6 +5,7 @@
 #include "toridraw_math.h"
 #include "toridraw_model_internal.h"
 #include "toridraw_raster_batch.h"
+#include "graphics/ysort_order.h"
 #include "toridraw_raster_kernel.h"
 #include "toridraw_types.h"
 
@@ -1391,14 +1392,6 @@ sm_stash_face_xy_sorted(
     uint32_t b,
     uint32_t c)
 {
-    static const unsigned char order[6][3] = {
-        { 0, 1, 2 },
-        { 0, 2, 1 },
-        { 1, 2, 0 },
-        { 1, 0, 2 },
-        { 2, 0, 1 },
-        { 2, 1, 0 }
-    };
     int* const x4 = &scene->sm_face_x4[(size_t)f * 4];
     int* const y4 = &scene->sm_face_y4[(size_t)f * 4];
     int const ya = vy[a];
@@ -1407,7 +1400,7 @@ sm_stash_face_xy_sorted(
     int const perm = (ya <= yb && ya <= yc) ? ((yb <= yc) ? 0 : 1)
                      : (yb <= yc)           ? ((yc <= ya) ? 2 : 3)
                                             : ((ya <= yb) ? 4 : 5);
-    unsigned char const* const o = order[perm];
+    unsigned char const* const o = g_toridraw_ysort_order[perm];
     int const px[3] = { vx[a], vx[b], vx[c] };
     int const py[3] = { ya, yb, yc };
 

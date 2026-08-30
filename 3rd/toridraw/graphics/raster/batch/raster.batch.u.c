@@ -417,12 +417,6 @@ toridraw_raster_batch_classify(
  * offset is the only arithmetic left, and it is here rather than in the sort
  * because the sort does not know the viewport.
  */
-/* The permutation the sort applied, for the consumers carrying per-vertex
- * data of their own. One table, two callers. */
-static const unsigned char g_toridraw_raster_batch_order[6][3] = {
-    { 0, 1, 2 }, { 0, 2, 1 }, { 1, 2, 0 },
-    { 1, 0, 2 }, { 2, 0, 1 }, { 2, 1, 0 }
-};
 
 /*
  * One classified textured face into the wide staging buffer.
@@ -481,7 +475,7 @@ toridraw_raster_batch_append_textured(
     else
     {
         /* Per-vertex shades, so they follow the sort's permutation. */
-        unsigned char const* const o = g_toridraw_raster_batch_order[y4[3]];
+        unsigned char const* const o = g_toridraw_ysort_order[y4[3]];
         int const col[3] = { ctx->colors_a[face], ctx->colors_b[face],
                              ctx->colors_c[face] };
         row[TORIDRAW_TEXBATCH_LANE_SHADE + 0] = col[o[0]];
@@ -530,7 +524,7 @@ toridraw_raster_batch_append(
     {
         /* The colours are per-vertex, so they follow the same permutation the
          * sort applied to the coordinates. */
-        unsigned char const* const o = g_toridraw_raster_batch_order[y4[3]];
+        unsigned char const* const o = g_toridraw_ysort_order[y4[3]];
         int const col[3] = { ctx->colors_a[face], ctx->colors_b[face],
                              ctx->colors_c[face] };
 
