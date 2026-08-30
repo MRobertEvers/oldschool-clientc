@@ -55,6 +55,14 @@ _Static_assert(
         offsetof(struct ToriDraw_Scene, screen_vertices_x) + 6 * sizeof(int*),
     "prepared projection relative layout");
 _Static_assert(
+    offsetof(struct ToriDraw_Scene, projection_bound) ==
+        offsetof(struct ToriDraw_Scene, screen_vertices_x) + 6 * sizeof(int*) +
+            sizeof(struct ToriDraw_ProjectionPreparedCamera),
+    "projection bound block relative layout");
+_Static_assert(
+    sizeof(((struct ToriDraw_Scene*)0)->projection_bound) == 64,
+    "projection bound block size");
+_Static_assert(
     offsetof(struct ToriDraw_Position, x) == 0,
     "projection position-x layout");
 _Static_assert(

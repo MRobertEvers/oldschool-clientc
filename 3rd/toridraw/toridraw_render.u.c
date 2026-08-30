@@ -111,6 +111,14 @@ toridraw_dbg_log(
 #include "graphics/projection_zdiv_simd.u.c"
 // clang-format on
 
+/* For toridraw_projected_bound; the same gates the projection ladder above
+ * selects its kernels by, so the sweep vectorises exactly where they do. */
+#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
+#include <arm_neon.h>
+#elif defined(__SSE4_1__) && !defined(SSE2_DISABLED) && !defined(SSE41_DISABLED)
+#include <smmintrin.h>
+#endif
+
 #if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
 /*
  * Private renderer ABI: the first argument addresses Scene's contiguous
@@ -168,6 +176,9 @@ div3_fast_fixedpoint(int z_sum)
  * plausibly be on screen is affected.
  */
 #define TORIDRAW_PROJECTED_COORD_LIMIT 8192
+/* The reference per-face pick's cursor dilation (toridraw_mouse_roughly_inside_triangle);
+ * defined up here because the projected bound is grown by it too. */
+#define TORIDRAW_PICK_SLOP 5
 
 /*
  * The near plane needed to keep this model's projection inside that limit.
@@ -421,6 +432,12 @@ toridraw_projection_debug_print(
     int center_z,
     bool may_clip)
 {
+    /* First, before any of the derivations below: this runs once per
+     * projected model, and the tail of the prologue holds an integer divide
+     * (INT_MAX / cot15) the optimizer is not obliged to sink past the gate. */
+    if( !toridraw_sort_debug_enabled() )
+        return;
+
     const struct ToriDraw_Model* model = model_as_full(hnd);
     int min_x = INT_MAX;
     int max_x = INT_MIN;
@@ -792,7 +809,6 @@ ToriDraw_AabbCull(
 
 static inline int
 ToriDraw_FastCull(
-    struct ToriDraw_AABB* aabb,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
@@ -857,286 +873,322 @@ ToriDraw_FastCull(
 
     int ortho_screen_x_min = mid_x - model_edge_radius;
     int ortho_screen_x_max = mid_x + model_edge_radius;
-
-    int screen_x_min_unoffset;
-    int screen_x_max_unoffset;
-    if( parallel )
-    {
-        screen_x_min_unoffset = (ortho_screen_x_min * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
-        screen_x_max_unoffset = (ortho_screen_x_max * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
-    }
-    else
-    {
-        screen_x_min_unoffset = project_divide(
-            ortho_screen_x_min,
-            mid_z,
-            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
-        screen_x_max_unoffset = project_divide(
-            ortho_screen_x_max,
-            mid_z,
-            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
-    }
     int screen_edge_width = view_port->width >> 1;
+    int screen_edge_height = view_port->height >> 1;
 
-    if( screen_x_min_unoffset > screen_edge_width || screen_x_max_unoffset < -screen_edge_width )
-        return TORIDRAW_CULL_FAST;
+/* The y extent, derived only once the x test has passed: two trig reads
+ * and two multiplies a model rejected on x never needs. */
+#define TORIDRAW_FASTCULL_Y_EXTENT()                                                      int model_center_to_top_edge = bc->center_to_top_edge;                                int model_center_to_bottom_edge =                                                         (bc->center_to_bottom_edge * ToriDraw_ReadCosTable(camera_pitch) >> 16) +             (model_edge_radius * ToriDraw_ReadSinTable(camera_pitch) >> 16);                  int ortho_screen_y_min = mid_y - abs(model_center_to_bottom_edge);                    int ortho_screen_y_max = mid_y + abs(model_center_to_top_edge)
 
-    int model_center_to_top_edge = bc->center_to_top_edge;
-
-    int model_center_to_bottom_edge =
-        (bc->center_to_bottom_edge * ToriDraw_ReadCosTable(camera_pitch) >> 16) +
-        (model_edge_radius * ToriDraw_ReadSinTable(camera_pitch) >> 16);
-
-    int screen_y_min_unoffset;
-    int screen_y_max_unoffset;
     if( parallel )
     {
-        screen_y_min_unoffset =
-            ((mid_y - abs(model_center_to_bottom_edge)) * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
-        screen_y_max_unoffset =
-            ((mid_y + abs(model_center_to_top_edge)) * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
-    }
-    else
-    {
-        screen_y_min_unoffset = project_divide(
-            mid_y - abs(model_center_to_bottom_edge),
-            mid_z,
-            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
-        screen_y_max_unoffset = project_divide(
-            mid_y + abs(model_center_to_top_edge),
-            mid_z,
-            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
-    }
-    int screen_edge_height = view_port->height >> 1;
-    if( screen_y_min_unoffset > screen_edge_height || screen_y_max_unoffset < -screen_edge_height )
-        return TORIDRAW_CULL_FAST;
+        int screen_x_min_unoffset = (ortho_screen_x_min * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
+        int screen_x_max_unoffset = (ortho_screen_x_max * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
+        if( screen_x_min_unoffset > screen_edge_width ||
+            screen_x_max_unoffset < -screen_edge_width )
+            return TORIDRAW_CULL_FAST;
 
-    aabb->min_screen_x = screen_x_min_unoffset + view_port->x_center;
-    aabb->min_screen_y = screen_y_min_unoffset + view_port->y_center;
-    aabb->max_screen_x = screen_x_max_unoffset + view_port->x_center;
-    aabb->max_screen_y = screen_y_max_unoffset + view_port->y_center;
-    aabb->kind = TORIDRAW_AABB_KIND_CYLINDER_4POINT;
+        TORIDRAW_FASTCULL_Y_EXTENT();
+        int screen_y_min_unoffset = (ortho_screen_y_min * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
+        int screen_y_max_unoffset = (ortho_screen_y_max * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
+        if( screen_y_min_unoffset > screen_edge_height ||
+            screen_y_max_unoffset < -screen_edge_height )
+            return TORIDRAW_CULL_FAST;
+
+        return TORIDRAW_CULL_VISIBLE;
+    }
+
+    /*
+     * Four perspective divides, asked as four multiplies.
+     *
+     * The old form projected each extent -- project_divide, i.e.
+     * trunc(((p * cot15) >> 15) * 512 / mid_z) -- and compared the pixel
+     * against the half-width. Nothing consumed the pixel; the comparison was
+     * the whole product, and this is the only site in the client that ran an
+     * integer divide per model on the hot path. So the divide is cancelled
+     * across the inequality instead. With z > 0, W >= 0 and truncation toward
+     * zero:
+     *
+     *     trunc(n / z) >  W   <=>   n >=  (W + 1) * z
+     *     trunc(n / z) < -W   <=>   n <= -(W + 1) * z
+     *
+     * (the first: a positive quotient truncates down, so it exceeds W exactly
+     * when the real quotient reaches W + 1; the second is its mirror). Both
+     * sides are exact integers, so this is the same predicate the divide
+     * answered, bit for bit, on every input -- not an approximation of it.
+     * `n` is formed by the same int arithmetic project_divide used, wrapping
+     * and all, so a value that overflowed there overflows identically here.
+     *
+     * mid_z is at least near_plane_z after the clamp above, and a perspective
+     * camera's near plane is at least 1 (ToriDraw_Project guards the < 1 case
+     * onto the clipping family, and project_divide asserted z > 0); a
+     * non-positive z would have been a divide by zero on the old path, so it
+     * is asserted rather than handled.
+     */
+    assert(mid_z > 0);
+    {
+        int const cot15 =
+            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048) >> 1;
+        long long const z_w = (long long)(screen_edge_width + 1) * mid_z;
+        long long const z_h = (long long)(screen_edge_height + 1) * mid_z;
+        int const qx_min = (ortho_screen_x_min * cot15) >> 15;
+        int const qx_max = (ortho_screen_x_max * cot15) >> 15;
+        long long const nx_min = SCALE_UNIT(qx_min);
+        long long const nx_max = SCALE_UNIT(qx_max);
+
+        if( nx_min >= z_w || nx_max <= -z_w )
+            return TORIDRAW_CULL_FAST;
+
+        TORIDRAW_FASTCULL_Y_EXTENT();
+        int const qy_min = (ortho_screen_y_min * cot15) >> 15;
+        int const qy_max = (ortho_screen_y_max * cot15) >> 15;
+        long long const ny_min = SCALE_UNIT(qy_min);
+        long long const ny_max = SCALE_UNIT(qy_max);
+
+        if( ny_min >= z_h || ny_max <= -z_h )
+            return TORIDRAW_CULL_FAST;
+    }
+#undef TORIDRAW_FASTCULL_Y_EXTENT
 
     return TORIDRAW_CULL_VISIBLE;
 }
 
-static void
-ToriDraw_CalculateCylinderAabb8point(
-    struct ToriDraw_AABB* aabb,
+/*
+ * The model's screen box, off the coordinates the projection just wrote.
+ *
+ * This replaced ToriDraw_CalculateCylinderAabb8point, which projected eight
+ * cylinder corners per model BEFORE the model was projected, to cull it. Two
+ * measurements retired it. A projection census on the Grand Exchange ground
+ * orbit (graphics/proj_census.h, TORIDRAW_PROJ_CENSUS_AABB) put the corner
+ * box's reject rate at 0.05% of the models that reached it -- 0.00% for most
+ * vertex counts, never above 0.9% -- because the cylinder test in
+ * ToriDraw_FastCull has already answered the question it asks. And
+ * test-proj-model-bench put the corner box at 30 of the 56 ns a four-vertex
+ * tile spent being projected, which is 60% of all models. A bound that costs
+ * eight projected corners and rejects one model in two thousand is not a cull;
+ * it is a tax. Counting projected points for a model of V vertices:
+ *
+ *     corner box:   8 + V  (survives, 99.95%)      8  (rejected, 0.05%)
+ *     this:             V                          V
+ *
+ * which favours this for every V below 8 / 0.0005 = 16,000 vertices; the
+ * largest model in the cache is a tenth of that.
+ *
+ * WHAT THE BOX IS FOR, and why it is dilated. Two consumers:
+ *
+ *   - ToriDraw_AabbCull: a model is dropped when the box is wholly off the
+ *     viewport. A triangle's screen image is the triangle of its projected
+ *     vertices (test-raster-overshoot: the raster never paints outside that
+ *     hull), so a box over the vertices is exact for the pixels. Exact is
+ *     ALSO the reason for the slop below.
+ *   - ToriDraw_ProjectedModelContainsAabb: the prefilter in front of the
+ *     per-face pick, whose ROUGH test accepts a cursor up to
+ *     TORIDRAW_PICK_SLOP outside a face's own box. The old corner box was
+ *     tens of pixels looser than the geometry and absorbed that; an exact
+ *     box would not, and a click four pixels outside a fence post that used
+ *     to pick would stop picking. So the box is grown by the slop, once,
+ *     here: every prefilter that passed before still passes, and the cull
+ *     keeps a model whose silhouette is within five pixels of the edge --
+ *     which is the model a click at the edge could still pick.
+ *
+ * A near-clipped vertex is parked at TORIDRAW_SCREEN_X_NEAR_CLIPPED with an
+ * UNDIVIDED y, so no box over it means anything; and the near-clip rebuild
+ * (toridraw_triangle_clip.u.c) can put pixels well outside the in-front
+ * vertices. Any such vertex makes the box the whole plane -- the same
+ * concession the corner box made when a corner sat behind the near plane.
+ * Only the clipping family can write the sentinel, and the no-clip family
+ * can legitimately project a real -5000, so the test is gated on
+ * scene->near_clipped exactly as every other sentinel consumer is.
+ *
+ * Four lanes at a time where the ISA has a lane-wise min/max (NEON, SSE4.1);
+ * plain SSE2 has neither and takes the scalar loop, which for the
+ * four-vertex tile that dominates is four iterations.
+ */
+static inline void
+toridraw_projected_bound(
     struct ToriDraw_Scene* scene,
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Position* position,
-    struct ToriDraw_ViewPort* view_port,
-    struct ToriDraw_Camera* camera)
+    const struct ToriDraw_ViewPort* view_port,
+    int vertex_count)
 {
-#if defined(TORIDRAW_BENCH_SKIP_AABB) && TORIDRAW_BENCH_SKIP_AABB
-    /* BENCH ONLY, and wrong on purpose: an infinite box culls nothing, which
-     * is how the eight-corner bound's own cost is read off by difference.
-     * Never built into anything that draws. */
-    (void)hnd; (void)position; (void)camera;
-    aabb->min_screen_x = INT_MIN / 2;
-    aabb->max_screen_x = INT_MAX / 2;
-    aabb->min_screen_y = INT_MIN / 2;
-    aabb->max_screen_y = INT_MAX / 2;
-    aabb->kind = TORIDRAW_AABB_KIND_CYLINDER_8POINT;
-    (void)view_port;
-    return;
+    const int* const svx = scene->screen_vertices_x;
+    const int* const svy = scene->screen_vertices_y;
+    struct ToriDraw_AABB* const aabb = &scene->aabb;
+    int min_sx;
+    int max_sx;
+    int min_sy;
+    int max_sy;
+    int box_clipped = 0;
+    int i = 0;
+
+    assert(scene);
+    assert(view_port);
+
+    aabb->kind = TORIDRAW_AABB_KIND_VERTICES;
+
+    if( vertex_count <= 0 )
+    {
+        /* Nothing to bound and nothing to draw; stays visible, as it did
+         * under the corner box, and picks nothing. */
+        aabb->min_screen_x = INT_MIN / 2;
+        aabb->max_screen_x = INT_MAX / 2;
+        aabb->min_screen_y = INT_MIN / 2;
+        aabb->max_screen_y = INT_MAX / 2;
+        return;
+    }
+
+    min_sx = svx[0];
+    max_sx = svx[0];
+    min_sy = svy[0];
+    max_sy = svy[0];
+
+    if( scene->projection_bound_vertices > 0 )
+    {
+        /* A prepared kernel already reduced every full block into four
+         * lanes; fold the lanes, then the tail below finishes the last 0..3. */
+        const int* const b = &scene->projection_bound[0][0];
+        assert((scene->projection_bound_vertices & 3) == 0);
+        assert(scene->projection_bound_vertices <= vertex_count);
+#if defined(__aarch64__) && ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
+        min_sx = vminvq_s32(vld1q_s32(b + 0));
+        max_sx = vmaxvq_s32(vld1q_s32(b + 4));
+        min_sy = vminvq_s32(vld1q_s32(b + 8));
+        max_sy = vmaxvq_s32(vld1q_s32(b + 12));
+#else
+        /* Sixteen scalar compares; SSE2 has no horizontal min and this is
+         * once per model, not per vertex. */
+        min_sx = b[0];
+        max_sx = b[4];
+        min_sy = b[8];
+        max_sy = b[12];
+        for( int lane = 1; lane < 4; lane++ )
+        {
+            if( b[lane] < min_sx )
+                min_sx = b[lane];
+            if( b[4 + lane] > max_sx )
+                max_sx = b[4 + lane];
+            if( b[8 + lane] < min_sy )
+                min_sy = b[8 + lane];
+            if( b[12 + lane] > max_sy )
+                max_sy = b[12 + lane];
+        }
 #endif
-    const struct ToriDraw_BoundsCylinder* bcyl = model_bounds_cylinder(hnd);
-    assert(bcyl);
-    int model_edge_radius = bcyl->radius;
-    int model_min_y = bcyl->min_y;
-    int model_max_y = bcyl->max_y;
-
-    int mx = 0;
-    int mz = 0;
-
-    vertexint_t bb_x[8] = {
-        (vertexint_t)(mx + model_edge_radius), (vertexint_t)(mx + model_edge_radius),
-        (vertexint_t)(mx + model_edge_radius), (vertexint_t)(mx + model_edge_radius),
-        (vertexint_t)(mx - model_edge_radius), (vertexint_t)(mx - model_edge_radius),
-        (vertexint_t)(mx - model_edge_radius), (vertexint_t)(mx - model_edge_radius)
-    };
-    vertexint_t bb_y[8] = { (vertexint_t)model_min_y, (vertexint_t)model_min_y,
-                            (vertexint_t)model_max_y, (vertexint_t)model_max_y,
-                            (vertexint_t)model_min_y, (vertexint_t)model_min_y,
-                            (vertexint_t)model_max_y, (vertexint_t)model_max_y };
-    vertexint_t bb_z[8] = {
-        (vertexint_t)(mz + model_edge_radius), (vertexint_t)(mz - model_edge_radius),
-        (vertexint_t)(mz + model_edge_radius), (vertexint_t)(mz - model_edge_radius),
-        (vertexint_t)(mz + model_edge_radius), (vertexint_t)(mz - model_edge_radius),
-        (vertexint_t)(mz + model_edge_radius), (vertexint_t)(mz - model_edge_radius)
-    };
-
-    int sc_x[8];
-    int sc_y[8];
-    int sc_z[8];
-
-    int const model_pitch = ToriDraw_NormalizeAngle(position->pitch);
-    int const model_yaw = ToriDraw_NormalizeAngle(position->yaw);
-    int const model_roll = ToriDraw_NormalizeAngle(position->roll);
-    int const camera_roll = ToriDraw_NormalizeAngle(camera->roll);
-
-    /*
-     * The clipping family, unlike ToriDraw_Project: the min/max sweep below
-     * reads sc_x directly, so a corner behind the near plane has to come back
-     * as the sentinel to drag min_screen_x out to -5000 and keep the box
-     * conservative. Eight vertices, so the per-vertex cost is noise.
-     */
-    if( toridraw_proj_is_parallel(camera->proj_mode) )
-    {
-        /* No sentinel needed: with no divide a corner behind the near plane
-         * still projects to a real coordinate, so the min/max sweep below can
-         * use it directly and the box is tighter than the perspective one. */
-        int const zoom16 =
-            camera->parallel_zoom16 ? camera->parallel_zoom16 : TORIDRAW_ORTHO_ZOOM_UNIT;
-        if( model_pitch != 0 || model_roll != 0 || camera_roll != 0 )
-        {
-            project_vertices_array_ortho6_fused_notex_noclip(
-                sc_x, sc_y, sc_z, bb_x, bb_y, bb_z, 8,
-                model_pitch, model_yaw, model_roll, 0,
-                position->x, position->y, position->z,
-                zoom16, camera->pitch, camera->yaw, camera_roll);
-        }
-        else
-        {
-            project_vertices_array_ortho_fused_notex_noclip(
-                sc_x, sc_y, sc_z, bb_x, bb_y, bb_z, 8,
-                model_yaw, 0,
-                position->x, position->y, position->z,
-                zoom16, camera->pitch, camera->yaw);
-        }
+        i = scene->projection_bound_vertices;
     }
-    else if( model_pitch != 0 || model_roll != 0 || camera_roll != 0 )
+#if defined(__aarch64__) && ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
+    else if( vertex_count >= 4 )
     {
-        project_vertices_array6_fused_notex_clip(
-            sc_x,
-            sc_y,
-            sc_z,
-            bb_x,
-            bb_y,
-            bb_z,
-            8,
-            model_pitch,
-            model_yaw,
-            model_roll,
-            0,
-            position->x,
-            position->y,
-            position->z,
-            camera->near_plane_z,
-            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
-            camera->pitch,
-            camera->yaw,
-            camera_roll);
-    }
-    else
-    {
-#if defined(TORIDRAW_SSE2_PREPARED_PROJECTION)
-        /* Reaching this branch already established the gate's rotation half --
-         * model pitch, model roll and camera roll are all zero -- so the only
-         * question left is whether a block was published for THIS camera, which
-         * is the same pointer test the model projection makes.
-         *
-         * The fused rotation rounds in different places from the kernel below,
-         * so a corner can land up to four pixels off where the unprepared one
-         * put it (the family's own header quantifies it). That is inert here
-         * and only here: this box is a cylinder of radius sqrt(2)*64 ~ 90 drawn
-         * around a 128-unit tile, already tens of pixels looser than the
-         * geometry it contains, and it is used for nothing but a coarse reject
-         * and a pick prefilter that defers to an exact per-face test. Do not
-         * read this as licence to tighten the box -- that is a different change
-         * and it drops pixels at the viewport edge. */
-        if( scene->projection_prepared_camera_source == camera )
+        /* Two accumulator sets: a single min/max chain is bound by the
+         * two-cycle latency of each step, and the loop is otherwise a pair of
+         * loads -- eight vertices a trip halves the chain per vertex. */
+        int32x4_t vmin_x = vld1q_s32(svx);
+        int32x4_t vmax_x = vmin_x;
+        int32x4_t vmin_y = vld1q_s32(svy);
+        int32x4_t vmax_y = vmin_y;
+        int32x4_t vmin_x2 = vmin_x;
+        int32x4_t vmax_x2 = vmax_x;
+        int32x4_t vmin_y2 = vmin_y;
+        int32x4_t vmax_y2 = vmax_y;
+        for( i = 4; i + 8 <= vertex_count; i += 8 )
         {
-            ToriDraw_ProjPreparedBoundClip(
-                scene,
-                sc_x,
-                sc_y,
-                sc_z,
-                bb_x,
-                bb_y,
-                bb_z,
-                8,
-                camera->yaw,
-                model_yaw,
-                position,
-                camera->near_plane_z);
+            int32x4_t const x = vld1q_s32(svx + i);
+            int32x4_t const y = vld1q_s32(svy + i);
+            int32x4_t const x2 = vld1q_s32(svx + i + 4);
+            int32x4_t const y2 = vld1q_s32(svy + i + 4);
+            vmin_x = vminq_s32(vmin_x, x);
+            vmax_x = vmaxq_s32(vmax_x, x);
+            vmin_y = vminq_s32(vmin_y, y);
+            vmax_y = vmaxq_s32(vmax_y, y);
+            vmin_x2 = vminq_s32(vmin_x2, x2);
+            vmax_x2 = vmaxq_s32(vmax_x2, x2);
+            vmin_y2 = vminq_s32(vmin_y2, y2);
+            vmax_y2 = vmaxq_s32(vmax_y2, y2);
         }
-        else
+        if( i + 4 <= vertex_count )
+        {
+            int32x4_t const x = vld1q_s32(svx + i);
+            int32x4_t const y = vld1q_s32(svy + i);
+            vmin_x = vminq_s32(vmin_x, x);
+            vmax_x = vmaxq_s32(vmax_x, x);
+            vmin_y = vminq_s32(vmin_y, y);
+            vmax_y = vmaxq_s32(vmax_y, y);
+            i += 4;
+        }
+        min_sx = vminvq_s32(vminq_s32(vmin_x, vmin_x2));
+        max_sx = vmaxvq_s32(vmaxq_s32(vmax_x, vmax_x2));
+        min_sy = vminvq_s32(vminq_s32(vmin_y, vmin_y2));
+        max_sy = vmaxvq_s32(vmaxq_s32(vmax_y, vmax_y2));
+    }
+#elif defined(__SSE4_1__) && !defined(SSE2_DISABLED) && !defined(SSE41_DISABLED)
+    else if( vertex_count >= 4 )
+    {
+        __m128i vmin_x = _mm_loadu_si128((const __m128i*)svx);
+        __m128i vmax_x = vmin_x;
+        __m128i vmin_y = _mm_loadu_si128((const __m128i*)svy);
+        __m128i vmax_y = vmin_y;
+        for( i = 4; i + 4 <= vertex_count; i += 4 )
+        {
+            __m128i const x = _mm_loadu_si128((const __m128i*)(svx + i));
+            __m128i const y = _mm_loadu_si128((const __m128i*)(svy + i));
+            vmin_x = _mm_min_epi32(vmin_x, x);
+            vmax_x = _mm_max_epi32(vmax_x, x);
+            vmin_y = _mm_min_epi32(vmin_y, y);
+            vmax_y = _mm_max_epi32(vmax_y, y);
+        }
+        /* 4 -> 2 -> 1 with the lane shuffles SSE2 already had. */
+        vmin_x = _mm_min_epi32(vmin_x, _mm_shuffle_epi32(vmin_x, 0x4E));
+        vmin_x = _mm_min_epi32(vmin_x, _mm_shuffle_epi32(vmin_x, 0xB1));
+        vmax_x = _mm_max_epi32(vmax_x, _mm_shuffle_epi32(vmax_x, 0x4E));
+        vmax_x = _mm_max_epi32(vmax_x, _mm_shuffle_epi32(vmax_x, 0xB1));
+        vmin_y = _mm_min_epi32(vmin_y, _mm_shuffle_epi32(vmin_y, 0x4E));
+        vmin_y = _mm_min_epi32(vmin_y, _mm_shuffle_epi32(vmin_y, 0xB1));
+        vmax_y = _mm_max_epi32(vmax_y, _mm_shuffle_epi32(vmax_y, 0x4E));
+        vmax_y = _mm_max_epi32(vmax_y, _mm_shuffle_epi32(vmax_y, 0xB1));
+        min_sx = _mm_cvtsi128_si32(vmin_x);
+        max_sx = _mm_cvtsi128_si32(vmax_x);
+        min_sy = _mm_cvtsi128_si32(vmin_y);
+        max_sy = _mm_cvtsi128_si32(vmax_y);
+    }
 #endif
-        project_vertices_array_fused_notex_clip(
-            sc_x,
-            sc_y,
-            sc_z,
-            bb_x,
-            bb_y,
-            bb_z,
-            8,
-            model_yaw,
-            0,
-            position->x,
-            position->y,
-            position->z,
-            camera->near_plane_z,
-            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
-            camera->pitch,
-            camera->yaw);
-    }
 
-    /*
-     * SCALAR ON PURPOSE, both here and in the corner arrays above. Measured
-     * with test-proj-model-bench, against the prepared bound below:
-     *
-     *     this                              53.0 - 53.5 ns per model
-     *     min/max reduced through SSE2      59.1 - 59.6
-     *     corners built as three vectors    58.4 - 58.7
-     *
-     * The reduction loses because SSE2 has no pminsd or pmaxsd -- those are
-     * SSE4.1 and this lane is pentium4 -- so every lane-wise min is a compare
-     * and three selects, and a 4-to-1 reduction wants several. What it would
-     * be buying is branches that already predict: min and max both start at
-     * corner 0 and only move apart, so after the first corner or two every
-     * test below is not-taken. The corner arrays lose because -O3 already
-     * merges those stores, and hand-vectorising adds splats and masks to
-     * reproduce what was free.
-     *
-     * `else if` is not a bug: min <= max always holds, so no corner can be
-     * below one and above the other, and skipping the max test on a new
-     * minimum skips a test that could not have fired.
-     */
-    int min_sx = sc_x[0];
-    int max_sx = sc_x[0];
-    int min_sy = sc_y[0];
-    int max_sy = sc_y[0];
-
-    for( int i = 1; i < 8; i++ )
+    /* The scalar tail -- or the whole model, where no lane path applied.
+     * `else if` is right: min <= max always, so a new minimum cannot also be
+     * a new maximum. */
+    for( ; i < vertex_count; i++ )
     {
-        int sx = sc_x[i];
-        int sy = sc_y[i];
-
+        int const sx = svx[i];
+        int const sy = svy[i];
         if( sx < min_sx )
             min_sx = sx;
         else if( sx > max_sx )
             max_sx = sx;
-
         if( sy < min_sy )
             min_sy = sy;
         else if( sy > max_sy )
             max_sy = sy;
     }
 
-    int cx = view_port->x_center;
-    int cy = view_port->y_center;
+    /* The sentinel is the smallest x any clipped model can hold, so if one
+     * is present it IS the minimum -- one compare after the sweep, not one
+     * per vertex. */
+    if( scene->near_clipped && min_sx == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
+        box_clipped = 1;
 
-    aabb->min_screen_x = min_sx + cx;
-    aabb->max_screen_x = max_sx + cx;
-    aabb->min_screen_y = min_sy + cy;
-    aabb->max_screen_y = max_sy + cy;
-
-
-    aabb->kind = TORIDRAW_AABB_KIND_CYLINDER_8POINT;
+    if( box_clipped )
+    {
+        aabb->min_screen_x = INT_MIN / 2;
+        aabb->max_screen_x = INT_MAX / 2;
+        aabb->min_screen_y = INT_MIN / 2;
+        aabb->max_screen_y = INT_MAX / 2;
+    }
+    else
+    {
+        aabb->min_screen_x = min_sx + view_port->x_center - TORIDRAW_PICK_SLOP;
+        aabb->max_screen_x = max_sx + view_port->x_center + TORIDRAW_PICK_SLOP;
+        aabb->min_screen_y = min_sy + view_port->y_center - TORIDRAW_PICK_SLOP;
+        aabb->max_screen_y = max_sy + view_port->y_center + TORIDRAW_PICK_SLOP;
+    }
 }
+
 
 /*
  * Split so the shift is chosen ONCE, not per face.
@@ -2603,6 +2655,8 @@ toridraw_project_vertices_clip(
                 model_mid_z,
                 position);
         }
+        /* The kernel bounded every full block; the sweep takes the tail. */
+        scene->projection_bound_vertices = model_vertex_count(hnd) & ~3;
         return;
     }
 #endif
@@ -2978,6 +3032,11 @@ toridraw_project_vertices_noclip(
                 model_mid_z,
                 position);
         }
+        /* The exact-four body (num_vertices == 4) does not touch the bound
+         * block -- four outputs are one vector load each to sweep. The
+         * generic loop covers every full block and leaves the tail to the
+         * sweep. */
+        scene->projection_bound_vertices = num_vertices == 4 ? 0 : (num_vertices & ~3);
         return;
     }
 #endif
@@ -3016,6 +3075,8 @@ toridraw_project_vertices_noclip(
                 model_mid_z,
                 position);
         }
+        /* The kernel bounded every full block; the sweep takes the tail. */
+        scene->projection_bound_vertices = model_vertex_count(hnd) & ~3;
         return;
     }
 #endif
@@ -3237,8 +3298,7 @@ ToriDraw_Project(
 
     int cull = TORIDRAW_CULL_VISIBLE;
 
-    cull = ToriDraw_FastCull(
-        &scene->cylinder_fast_aabb, view_port, hnd, position, camera, &center_projection);
+    cull = ToriDraw_FastCull(view_port, hnd, position, camera, &center_projection);
     if( cull != TORIDRAW_CULL_VISIBLE )
     {
         if( cull == TORIDRAW_CULL_ERROR )
@@ -3251,46 +3311,12 @@ ToriDraw_Project(
     scene->projected_vertex = center_projection;
 
     /*
-     * A MODEL SMALL ENOUGH IS ITS OWN BOUND.
-     *
-     * ToriDraw_CalculateCylinderAabb8point projects EIGHT cylinder corners to
-     * decide whether the model is on screen. That is the cheap question for a
-     * 200-vertex loc and the expensive one for a terrain tile, which has FOUR
-     * vertices -- the bound costs more than the thing it bounds, and a
-     * projection census puts 62.6% of models at eight vertices or fewer.
-     * Measured, it is 30.3 ns of the 56.1 ns such a model spends being
-     * projected (make -C src test-proj-model-bench).
-     *
-     * So a small model skips the bound and is culled AFTER its own projection,
-     * off the screen coordinates the raster will actually use. Count the work
-     * for a model of V vertices:
-     *
-     *   survives the cull:  8 + V before, V after   -- always cheaper
-     *   culled:             8     before, V after   -- cheaper while V <= 8
-     *
-     * which is where the eight comes from: the largest threshold that cannot
-     * lose, not a tuned one. Raising it is a bet on the cull's rejection rate
-     * and would need that measured first.
-     *
-     * The box is also exact rather than a cylinder of radius sqrt(2)*64 ~ 90
-     * drawn around a 128-unit tile, so tiles that used to survive and pay a
-     * sort and a raster walk to draw nothing are now culled.
+     * No screen box is built before the projection. The model is bounded
+     * AFTER it, off its own projected vertices (toridraw_projected_bound
+     * below), which is where the eight-corner cylinder box used to be and
+     * why it is gone.
      */
     int const bound_vertex_count = model_vertex_count(hnd);
-    int const bound_after_projection = bound_vertex_count > 0 && bound_vertex_count <= 8;
-
-    if( !bound_after_projection )
-    {
-        ToriDraw_CalculateCylinderAabb8point(
-            &scene->aabb, scene, hnd, position, view_port, camera);
-
-        cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
-        if( cull != TORIDRAW_CULL_VISIBLE )
-        {
-            TORIDRAW_PROJ_CENSUS_COUNT(cull_aabb);
-            return cull;
-        }
-    }
 
     int const model_pitch = ToriDraw_NormalizeAngle(position->pitch);
     int const model_yaw = ToriDraw_NormalizeAngle(position->yaw);
@@ -3379,6 +3405,10 @@ ToriDraw_Project(
 #endif
 
     scene->near_clipped = may_clip;
+    /* Only the prepared kernels (AArch64 assembly, SSE2 fused-yaw) fill the
+     * bound block; every other path leaves this zero and the bound is swept
+     * from the outputs. */
+    scene->projection_bound_vertices = 0;
 
     if( toridraw_proj_is_parallel(camera->proj_mode) )
     {
@@ -3409,67 +3439,21 @@ ToriDraw_Project(
             model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
 
     /*
-     * The small model's bound, off the coordinates just written. Exact, and a
-     * sweep over at most eight screen positions still in cache.
+     * The model's bound, off the coordinates just written; see
+     * toridraw_projected_bound for why it is exact, dilated, and after the
+     * projection rather than before it.
      *
      * Placed BEFORE the debug print so a culled model stays as silent as it
      * was when the cull happened earlier.
-     *
-     * This is what found the coordinate-space bug in ToriDraw_AabbCull: an
-     * exact box has no slack to absorb it with, and the frame lost the last
-     * four columns of the 3D viewport until that was fixed. The raster itself
-     * is clean -- test-raster-overshoot proves it never paints outside the
-     * hull its three vertices describe, over 48,000 triangles -- so no padding
-     * is needed here, and none should be added.
      */
-    if( bound_after_projection )
+    toridraw_projected_bound(scene, view_port, bound_vertex_count);
+
+    cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
+    TORIDRAW_PROJ_CENSUS_AABB(bound_vertex_count, cull != TORIDRAW_CULL_VISIBLE);
+    if( cull != TORIDRAW_CULL_VISIBLE )
     {
-        const int* const svx = scene->screen_vertices_x;
-        const int* const svy = scene->screen_vertices_y;
-        int min_sx = svx[0];
-        int max_sx = svx[0];
-        int min_sy = svy[0];
-        int max_sy = svy[0];
-        int box_clipped = svx[0] == TORIDRAW_SCREEN_X_NEAR_CLIPPED;
-
-        for( int i = 1; i < bound_vertex_count; i++ )
-        {
-            int const sx = svx[i];
-            int const sy = svy[i];
-            if( sx == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
-                box_clipped = 1;
-            if( sx < min_sx )
-                min_sx = sx;
-            else if( sx > max_sx )
-                max_sx = sx;
-            if( sy < min_sy )
-                min_sy = sy;
-            else if( sy > max_sy )
-                max_sy = sy;
-        }
-
-        if( box_clipped )
-        {
-            scene->aabb.min_screen_x = INT_MIN / 2;
-            scene->aabb.max_screen_x = INT_MAX / 2;
-            scene->aabb.min_screen_y = INT_MIN / 2;
-            scene->aabb.max_screen_y = INT_MAX / 2;
-        }
-        else
-        {
-            scene->aabb.min_screen_x = min_sx + view_port->x_center;
-            scene->aabb.max_screen_x = max_sx + view_port->x_center;
-            scene->aabb.min_screen_y = min_sy + view_port->y_center;
-            scene->aabb.max_screen_y = max_sy + view_port->y_center;
-        }
-        scene->aabb.kind = TORIDRAW_AABB_KIND_CYLINDER_8POINT;
-
-        cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
-        if( cull != TORIDRAW_CULL_VISIBLE )
-        {
-            TORIDRAW_PROJ_CENSUS_COUNT(cull_aabb);
-            return cull;
-        }
+        TORIDRAW_PROJ_CENSUS_COUNT(cull_aabb);
+        return cull;
     }
 
     TORIDRAW_PROJ_CENSUS_COUNT(projected);
@@ -3759,7 +3743,6 @@ toridraw_reference_triangle_contains_point(
  * which is precisely the agility-obstacle complaint. Face bboxes overlap far
  * enough to fill the silhouette.
  */
-#define TORIDRAW_PICK_SLOP 5
 
 static inline bool
 toridraw_mouse_roughly_inside_triangle(

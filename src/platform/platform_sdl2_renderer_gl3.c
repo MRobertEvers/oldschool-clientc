@@ -3348,6 +3348,14 @@ gl3_ev_begin_3d(
     renderer->cur_3d = command->u.begin_3d;
     renderer->has_3d = true;
     renderer->in3d = true;
+    /* Publish the prepared camera block. The prepared projection kernels
+     * (the AArch64 assembly, the SSE2 fused-yaw family) are gated on
+     * `scene->projection_prepared_camera_source == camera`; until this was
+     * here only the soft3d and D3D9 renderers published one, so every model
+     * on the GL lanes took the unprepared kernel. The pointer must be the
+     * one the projection is called with: &renderer->cur_3d.camera. */
+    if( renderer->scene )
+        ToriDraw_ScenePrepareProjectionCamera(renderer->scene, &renderer->cur_3d.camera);
 
     {
         const struct ToriDraw_ViewPort* vp = &renderer->cur_3d.view_port;
@@ -4067,6 +4075,8 @@ gl3_ev_end_3d(
     }
 
 done:
+    if( renderer->scene )
+        ToriDraw_SceneClearProjectionCamera(renderer->scene);
     renderer->has_3d = false;
     renderer->in3d = false;
     /* World pass leaves a world-sized viewport and depth state; restore so any

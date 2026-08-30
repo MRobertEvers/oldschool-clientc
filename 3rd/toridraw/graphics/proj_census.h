@@ -62,6 +62,12 @@ struct ToriDraw_ProjCensus
     unsigned int cull_aabb;
     unsigned int cull_error;
     unsigned int projected;
+    /** The 8-point bound's reject rate BY MODEL SIZE: the bound is a fixed
+     * eight corners, so whether it pays for itself against culling off the
+     * model's own projected vertices depends on how often it rejects a model
+     * of that many vertices. Same buckets as hist[]. */
+    unsigned int aabb_seen[TORIDRAW_PROJ_CENSUS_BUCKETS];
+    unsigned int aabb_rejected[TORIDRAW_PROJ_CENSUS_BUCKETS];
     /** Set once, by the first record, so the dump is registered exactly once. */
     int installed;
 };
@@ -115,11 +121,20 @@ toridraw_proj_census_record(int kind, int clipped, int num_vertices)
 #define TORIDRAW_PROJ_CENSUS_RECORD(kind, clipped, n) \
     toridraw_proj_census_record((kind), (clipped), (n))
 #define TORIDRAW_PROJ_CENSUS_COUNT(field) (g_toridraw_proj_census.field += 1)
+#define TORIDRAW_PROJ_CENSUS_AABB(n, rejected) \
+    do \
+    { \
+        int bucket_ = toridraw_proj_census_bucket(n); \
+        g_toridraw_proj_census.aabb_seen[bucket_] += 1; \
+        if( rejected ) \
+            g_toridraw_proj_census.aabb_rejected[bucket_] += 1; \
+    } while( 0 )
 
 #else
 
 #define TORIDRAW_PROJ_CENSUS_RECORD(kind, clipped, n) ((void)0)
 #define TORIDRAW_PROJ_CENSUS_COUNT(field) ((void)0)
+#define TORIDRAW_PROJ_CENSUS_AABB(n, rejected) ((void)0)
 
 #endif /* TORIDRAW_PROJ_CENSUS */
 

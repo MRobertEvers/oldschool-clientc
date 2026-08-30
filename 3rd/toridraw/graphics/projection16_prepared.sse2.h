@@ -79,6 +79,7 @@
 
 #include <assert.h>
 #include <emmintrin.h>
+#include <limits.h>
 
 #include "dash_vertexint.h"
 #include "projection.h"
@@ -118,6 +119,21 @@ toridraw_proj_prep_sx16(__m128i w)
     return _mm_srai_epi32(_mm_unpacklo_epi16(w, w), 16);
 }
 
+/* Lane-wise signed min/max on the SSE2 floor: pminsd/pmaxsd are SSE4.1. */
+static inline __m128i
+toridraw_proj_prep_min_epi32(__m128i a, __m128i b)
+{
+    __m128i const a_gt = _mm_cmpgt_epi32(a, b);
+    return _mm_or_si128(_mm_and_si128(a_gt, b), _mm_andnot_si128(a_gt, a));
+}
+
+static inline __m128i
+toridraw_proj_prep_max_epi32(__m128i a, __m128i b)
+{
+    __m128i const a_gt = _mm_cmpgt_epi32(a, b);
+    return _mm_or_si128(_mm_and_si128(a_gt, a), _mm_andnot_si128(a_gt, b));
+}
+
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((always_inline))
 #endif
@@ -143,7 +159,8 @@ toridraw_proj_prepared_core(
     int scene_z,
     int near_plane_z,
     int want_ortho,
-    int want_clip)
+    int want_clip,
+    int* bound_out)
 {
     assert(prep);
     assert(prep_f);
@@ -239,6 +256,22 @@ toridraw_proj_prepared_core(
 
     int i = 0;
 
+    /*
+     * The screen box, accumulated where the screen coordinates are born --
+     * the same thing projection16_apple.S does in v8-v11. Lane-wise min x,
+     * max x, min y, max y over every full block, written to the scene's
+     * projection_bound afterwards; the caller records how many vertices
+     * that covers (count & ~3) and toridraw_projected_bound sweeps only the
+     * tail. Matters most on this lane: SSE2 has no pminsd, so the sweep it
+     * replaces was the scalar loop, one compare-and-branch per coordinate.
+     * Here a min is a pcmpgtd and three logic ops -- four per block, on
+     * registers already in hand.
+     */
+    __m128i b_min_x = _mm_set1_epi32(INT_MAX);
+    __m128i b_max_x = _mm_set1_epi32(INT_MIN);
+    __m128i b_min_y = _mm_set1_epi32(INT_MAX);
+    __m128i b_max_y = _mm_set1_epi32(INT_MIN);
+
     for( ; i + 4 <= num_vertices; i += 4 )
     {
         __m128i const xw = _mm_loadl_epi64((__m128i const*)&vertex_x[i]);
@@ -308,6 +341,22 @@ toridraw_proj_prepared_core(
 
         _mm_storeu_si128((__m128i*)&screen_vertices_x[i], final_x);
         _mm_storeu_si128((__m128i*)&screen_vertices_y[i], final_y);
+
+        if( bound_out )
+        {
+            b_min_x = toridraw_proj_prep_min_epi32(b_min_x, final_x);
+            b_max_x = toridraw_proj_prep_max_epi32(b_max_x, final_x);
+            b_min_y = toridraw_proj_prep_min_epi32(b_min_y, final_y);
+            b_max_y = toridraw_proj_prep_max_epi32(b_max_y, final_y);
+        }
+    }
+
+    if( bound_out )
+    {
+        _mm_storeu_si128((__m128i*)(bound_out + 0), b_min_x);
+        _mm_storeu_si128((__m128i*)(bound_out + 4), b_max_x);
+        _mm_storeu_si128((__m128i*)(bound_out + 8), b_min_y);
+        _mm_storeu_si128((__m128i*)(bound_out + 12), b_max_y);
     }
 
     /* Four-vertex models are 59% of all calls and never reach the tail; give
@@ -422,7 +471,8 @@ ToriDraw_ProjPreparedNoclip(
         position->z,
         0,
         1,
-        0);
+        0,
+        &scene->projection_bound[0][0]);
 }
 
 static void
@@ -462,7 +512,8 @@ ToriDraw_ProjPreparedClip(
         position->z,
         scene->projection_near_plane_z,
         1,
-        1);
+        1,
+        &scene->projection_bound[0][0]);
 }
 
 /* ------------------------------------------------ untextured (screen only) */
@@ -504,7 +555,8 @@ ToriDraw_ProjPreparedNotexNoclip(
         position->z,
         0,
         0,
-        0);
+        0,
+        &scene->projection_bound[0][0]);
 }
 
 static void
@@ -544,76 +596,9 @@ ToriDraw_ProjPreparedNotexClip(
         position->z,
         scene->projection_near_plane_z,
         0,
-        1);
+        1,
+        &scene->projection_bound[0][0]);
 }
 
 
-/* ----------------------------------------------- the bound's eight corners */
-
-/*
- * The cylinder bound, on the prepared camera.
- *
- * ToriDraw_CalculateCylinderAabb8point reached for
- * project_vertices_array_fused_notex_clip -- the unprepared twenty-argument
- * kernel, which reads four trig tables and builds a dozen constants of its own
- * before it moves a single corner. Measured (make -C src test-proj-model-bench,
- * which reads the bound off by difference against a stub), that call is 30.3 ns
- * of the 56.1 ns a four-vertex terrain tile spends being projected: 54% of the
- * call, to place eight points whose own arithmetic is about 5 ns. And the
- * camera it derives all that from is the one already prepared for the model
- * projection that happens two steps later.
- *
- * Different from the four entry points above in exactly one way: where the
- * output goes. A bound is built on the stack, swept for min/max, and thrown
- * away -- it never travels through the scene -- so this one takes the arrays.
- * want_ortho off, want_clip ON, because the sweep needs a corner behind the
- * near plane to come back as the sentinel and drag the box out; see the
- * clipping-family note at the head of the AABB.
- */
-static void
-ToriDraw_ProjPreparedBoundClip(
-    struct ToriDraw_Scene* scene,
-    int* out_x,
-    int* out_y,
-    int* out_z,
-    vertexint_t* vertex_x,
-    vertexint_t* vertex_y,
-    vertexint_t* vertex_z,
-    int num_vertices,
-    int camera_yaw,
-    int model_yaw,
-    const struct ToriDraw_Position* position,
-    int near_plane_z)
-{
-    assert(scene);
-    assert(position);
-    assert(out_x);
-    assert(out_y);
-    assert(out_z);
-    assert(scene->projection_prepared_camera_source);
-
-    toridraw_proj_prepared_core(
-        &scene->projection_prepared_camera,
-        &scene->projection_prepared_camera_f,
-        NULL,
-        NULL,
-        NULL,
-        out_x,
-        out_y,
-        out_z,
-        vertex_x,
-        vertex_y,
-        vertex_z,
-        num_vertices,
-        camera_yaw,
-        model_yaw,
-        0, /* model_mid_z: a bound is not depth-biased, and the caller it
-            * replaces passed zero here too. */
-        position->x,
-        position->y,
-        position->z,
-        near_plane_z,
-        0,
-        1);
-}
 #endif /* TORIDRAW_PROJECTION16_PREPARED_SSE2_H */

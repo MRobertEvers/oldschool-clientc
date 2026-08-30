@@ -1,5 +1,49 @@
     .section __TEXT,__text,regular,pure_instructions
 
+/*
+ * The screen box, accumulated where the screen coordinates are born.
+ *
+ * Every generic (non-exact-four) path keeps lane-wise min x / max x / min y /
+ * max y of every full block in v8-v11 and writes them to the Scene's
+ * projection_bound block, 128 bytes past the output-pointer block (right
+ * after the prepared camera; toridraw.c pins the layout). Four ops per
+ * block on registers the body already holds, against the second pass over
+ * every output the C sweep costs a large model. The scalar tail does not
+ * accumulate: the caller records how many vertices the block covers
+ * (count & ~3) and sweeps the remainder itself.
+ *
+ * v8-v11 are callee-saved in their low 64 bits, so the generic paths save
+ * and restore d8-d11 around their loop; the exact-four bodies never touch
+ * them and keep their zero-stack entry.
+ */
+    .macro BOUND_INIT
+    mvni    v8.4s, #0x80, lsl #24
+    movi    v9.4s, #0x80, lsl #24
+    mvni    v10.4s, #0x80, lsl #24
+    movi    v11.4s, #0x80, lsl #24
+    .endm
+
+/* v25 = screen x, v26 = screen y, both already fcvtzs'd. */
+    .macro BOUND_ACCUMULATE
+    smin    v8.4s, v8.4s, v25.4s
+    smax    v9.4s, v9.4s, v25.4s
+    smin    v10.4s, v10.4s, v26.4s
+    smax    v11.4s, v11.4s, v26.4s
+    .endm
+
+    .macro BOUND_SAVE_REGS
+    stp     d8, d9, [sp, #-32]!
+    stp     d10, d11, [sp, #16]
+    .endm
+
+/* \base addresses the output-pointer block. */
+    .macro BOUND_STORE_AND_RESTORE base
+    stp     q8, q9, [\base, #128]
+    stp     q10, q11, [\base, #160]
+    ldp     d10, d11, [sp, #16]
+    ldp     d8, d9, [sp], #32
+    .endm
+
 /* Exact scalar integer tail. Constants are splatted in v0-v4/v16-v20/v30. */
     .macro WHOLE_SCALAR_TAIL tex, vx, vy, vz, sx, sy, sz, rem
     cbz     \rem, 99f
@@ -117,6 +161,7 @@
     fcvtzs  v26.4s, v26.4s
     str     q25, [\sx], #16
     str     q26, [\sy], #16
+    BOUND_ACCUMULATE
     .endm
 
 /* Exact4 body uses v0-v2 inputs, v3-v4 model and v5-v7 translations. */
@@ -273,6 +318,7 @@
     fcvtzs  v26.4s, v26.4s
     str     q25, [\sx], #16
     str     q26, [\sy], #16
+    BOUND_ACCUMULATE
     .endm
 
     .macro WHOLE_NOYAW_EXACT4_BODY tex, midreg, sx, sy, sz
@@ -323,10 +369,12 @@
     .endm
 
 /*
- * Renderer-native zero-stack ABI. x0 addresses the contiguous six-pointer
- * Scene block (screen xyz, then orthographic xyz); its prepared-camera vectors
- * begin exactly 48 bytes later. x1-x3 are input xyz, w4=count, w5=model yaw,
- * w6=model mid-z, and x7 addresses contiguous Position xyz integers.
+ * Renderer-native ABI. x0 addresses the contiguous six-pointer Scene block
+ * (screen xyz, then orthographic xyz); its prepared-camera vectors begin
+ * exactly 48 bytes later, and the projection_bound block it writes back (see
+ * BOUND_INIT above) 128 bytes later. x1-x3 are input xyz, w4=count, w5=model
+ * yaw, w6=model mid-z, and x7 addresses contiguous Position xyz integers.
+ * The exact-four bodies are zero-stack; the generic paths spill d8-d11.
  */
     .p2align 2
     .globl _toridraw_project_vertices_fused_neon_noclip_native_prepared_aarch64
@@ -357,6 +405,9 @@ _toridraw_project_vertices_fused_neon_noclip_native_prepared_aarch64:
     WHOLE_EXACT4_BODY 1, w6, x3, x4, x5
 
 Lnative_tex_generic:
+    BOUND_SAVE_REGS
+    BOUND_INIT
+    mov     x9, x0
     ld2r.4s { v0, v1 }, [x8]
     ld1r.4s { v2 }, [x7], #4
     ld1r.4s { v3 }, [x7], #4
@@ -381,6 +432,7 @@ Lnative_tex_loop:
     b.ne    Lnative_tex_loop
 Lnative_tex_tail:
     WHOLE_SCALAR_TAIL 1, x6, x7, x8, x3, x4, x5, w11
+    BOUND_STORE_AND_RESTORE x9
     ret
 
 Lnative_tex_noyaw:
@@ -399,6 +451,9 @@ Lnative_tex_noyaw:
     WHOLE_NOYAW_EXACT4_BODY 1, w6, x3, x4, x5
 
 Lnative_tex_noyaw_generic:
+    BOUND_SAVE_REGS
+    BOUND_INIT
+    mov     x9, x0
     ld1r.4s { v2 }, [x7], #4
     ld1r.4s { v3 }, [x7], #4
     ld1r.4s { v4 }, [x7]
@@ -422,6 +477,7 @@ Lnative_tex_noyaw_loop:
     b.ne    Lnative_tex_noyaw_loop
 Lnative_tex_noyaw_tail:
     WHOLE_NOYAW_SCALAR_TAIL 1, x6, x7, x8, x3, x4, x5, w11
+    BOUND_STORE_AND_RESTORE x9
     ret
 
     .p2align 2
@@ -452,6 +508,9 @@ _toridraw_project_vertices_fused_neon_notex_noclip_native_prepared_aarch64:
     WHOLE_EXACT4_BODY 0, w6, x0, x1, x2
 
 Lnative_notex_generic:
+    BOUND_SAVE_REGS
+    BOUND_INIT
+    mov     x9, x0
     ld2r.4s { v0, v1 }, [x8]
     ld1r.4s { v2 }, [x7], #4
     ld1r.4s { v3 }, [x7], #4
@@ -476,6 +535,7 @@ Lnative_notex_loop:
     b.ne    Lnative_notex_loop
 Lnative_notex_tail:
     WHOLE_SCALAR_TAIL 0, x3, x4, x5, x0, x1, x2, w8
+    BOUND_STORE_AND_RESTORE x9
     ret
 
 Lnative_notex_noyaw:
@@ -493,6 +553,9 @@ Lnative_notex_noyaw:
     WHOLE_NOYAW_EXACT4_BODY 0, w6, x0, x1, x2
 
 Lnative_notex_noyaw_generic:
+    BOUND_SAVE_REGS
+    BOUND_INIT
+    mov     x9, x0
     ld1r.4s { v2 }, [x7], #4
     ld1r.4s { v3 }, [x7], #4
     ld1r.4s { v4 }, [x7]
@@ -516,6 +579,7 @@ Lnative_notex_noyaw_loop:
     b.ne    Lnative_notex_noyaw_loop
 Lnative_notex_noyaw_tail:
     WHOLE_NOYAW_SCALAR_TAIL 0, x3, x4, x5, x0, x1, x2, w8
+    BOUND_STORE_AND_RESTORE x9
     ret
 
     .subsections_via_symbols

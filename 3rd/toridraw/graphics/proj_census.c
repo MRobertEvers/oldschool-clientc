@@ -62,6 +62,33 @@ ToriDraw_ProjCensusDump(void)
     fprintf(f, "  cull: fast %u, aabb8 %u, error %u; projected %u\n",
         c->cull_fast, c->cull_aabb, c->cull_error, c->projected);
 
+    fprintf(f, "  8-point bound reject rate by vertex count (models that reached it):\n");
+    for( i = 0; i < TORIDRAW_PROJ_CENSUS_BUCKETS; i++ )
+    {
+        int lo;
+        int hi;
+
+        if( c->aabb_seen[i] == 0 )
+            continue;
+        if( i < TORIDRAW_PROJ_CENSUS_EXACT )
+        {
+            lo = i;
+            hi = i;
+        }
+        else
+        {
+            lo = TORIDRAW_PROJ_CENSUS_EXACT << (i - TORIDRAW_PROJ_CENSUS_EXACT);
+            hi = (lo * 2) - 1;
+        }
+        if( lo == hi )
+            fprintf(f, "    %6d      ", lo);
+        else
+            fprintf(f, "    %4d-%-4d   ", lo, hi);
+        fprintf(f, "%10u seen %8u rejected  %6.2f%%\n",
+            c->aabb_seen[i], c->aabb_rejected[i],
+            100.0 * (double)c->aabb_rejected[i] / (double)c->aabb_seen[i]);
+    }
+
     fprintf(f, "  vertex-count histogram (models):\n");
     for( i = 0; i < TORIDRAW_PROJ_CENSUS_BUCKETS; i++ )
     {

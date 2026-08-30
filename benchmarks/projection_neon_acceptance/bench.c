@@ -133,6 +133,10 @@ struct NativeProjectionBlock
     int cos_camera_pitch[4];
     int sin_camera_pitch[4];
     int cot15[4];
+    /* Written back by the generic paths: lane-wise min x, max x, min y,
+     * max y over every full block (projection16_apple.S BOUND_INIT). Sized
+     * and placed as ToriDraw_Scene.projection_bound is. */
+    _Alignas(16) int bound[4][4];
 };
 
 struct NativePosition
@@ -151,7 +155,8 @@ _Static_assert(offsetof(struct NativeProjectionBlock, ortho_z) == 40, "native or
 _Static_assert(
     offsetof(struct NativeProjectionBlock, cos_camera_yaw) == 48,
     "native prepared-camera offset");
-_Static_assert(sizeof(struct NativeProjectionBlock) == 128, "native projection-block size");
+_Static_assert(offsetof(struct NativeProjectionBlock, bound) == 128, "native bound offset");
+_Static_assert(sizeof(struct NativeProjectionBlock) == 192, "native projection-block size");
 
 extern void
 toridraw_project_vertices_fused_neon_noclip_native_prepared_aarch64(

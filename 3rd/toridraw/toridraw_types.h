@@ -49,8 +49,10 @@ struct ToriDraw_BoundsCylinder
     int min_z_depth_any_rotation;
 };
 
-#define TORIDRAW_AABB_KIND_CYLINDER_4POINT 0
-#define TORIDRAW_AABB_KIND_CYLINDER_8POINT 1
+/** The box over the model's own projected vertices, dilated by the pick slop;
+ *  see toridraw_projected_bound. (Kinds 0 and 1 were the cylinder boxes the
+ *  fast cull and the eight-corner bound used to write; neither exists now.) */
+#define TORIDRAW_AABB_KIND_VERTICES 2
 
 struct ToriDraw_AABB
 {
@@ -789,7 +791,6 @@ struct ToriDraw_Scene
 
     struct ProjectedVertex projected_vertex;
     struct ToriDraw_AABB aabb;
-    struct ToriDraw_AABB cylinder_fast_aabb;
 
     /*
      * Whether the model ToriDraw_Project last projected could reach behind the
@@ -848,6 +849,24 @@ struct ToriDraw_Scene
      * callers using another camera continue through the portable kernels.
      */
     struct ToriDraw_ProjectionPreparedCamera projection_prepared_camera;
+    /*
+     * The screen box the AArch64 prepared kernel accumulates WHILE it
+     * projects: lane-wise min x, max x, min y, max y over every full
+     * four-vertex block its vector loop ran, straight from the registers the
+     * screen coordinates were converted in. projection16_apple.S writes it
+     * 128 bytes past screen_vertices_x -- immediately after the prepared
+     * camera; the static asserts in toridraw.c pin both -- so the bound of a
+     * large model costs four vector ops per block inside the kernel instead
+     * of a second pass that reads every coordinate back.
+     *
+     * projection_bound_vertices is how many leading vertices the block
+     * covers (a multiple of four); the caller sets it after the kernel
+     * returns and ToriDraw_Project zeroes it before dispatch, so a kernel
+     * that does not write the block leaves zero and
+     * toridraw_projected_bound sweeps the outputs instead.
+     */
+    _Alignas(16) int projection_bound[4][4];
+    int projection_bound_vertices;
     const struct ToriDraw_Camera* projection_prepared_camera_source;
     /* Published and cleared with the block above, and by the same function --
      * projection_prepared_camera_source guards both. Placed AFTER the source
