@@ -1,6 +1,8 @@
 #ifndef PROJECTION_ORTHO_U_C
 #define PROJECTION_ORTHO_U_C
 
+#include "projection_ortho.h"
+
 #include "dash_restrict.h"
 #include "dash_vertexint.h"
 #include "projection.h"
@@ -77,26 +79,41 @@
 /* TORIDRAW_ORTHO_ZOOM_SHIFT / _UNIT are in projection.h: callers set
  * ToriDraw_Camera.parallel_zoom16, so the unit is public API. */
 
+/*
+ * ONE LANE. The four kernels below hold the scalar work and the tail loop; the
+ * vector body of each is in the lane file, behind the hooks projection_ortho.h
+ * names. `#elif` and not four `#if`s: a build has exactly one of these, and
+ * the stacked form this replaced -- three vector blocks inside each of four
+ * functions -- read as though a build could have several.
+ */
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-#include <arm_neon.h>
-#define TORIDRAW_ORTHO_SIMD_NEON 1
+#include "projection_ortho.neon.u.c"
 #elif defined(__AVX2__) && !defined(AVX2_DISABLED)
-#include <immintrin.h>
-#define TORIDRAW_ORTHO_SIMD_AVX2 1
+#include "projection_ortho.avx.u.c"
 #elif defined(__SSE2__) && !defined(SSE2_DISABLED)
-#include "sse2_41compat.h"
-#define TORIDRAW_ORTHO_SIMD_SSE 1
+#include "projection_ortho.sse2.u.c"
+#else
+#include "projection_ortho.none.u.c"
 #endif
 
 /** One vertex to camera space. Shared by every scalar tail and the no-SIMD build. */
 static inline void
 toridraw_ortho_to_camera_space(
-    int vx, int vy, int vz,
-    int cos_model_yaw, int sin_model_yaw,
-    int scene_x, int scene_y, int scene_z,
-    int cos_camera_yaw, int sin_camera_yaw,
-    int cos_camera_pitch, int sin_camera_pitch,
-    int* out_x, int* out_y, int* out_z)
+    int vx,
+    int vy,
+    int vz,
+    int cos_model_yaw,
+    int sin_model_yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int cos_camera_yaw,
+    int sin_camera_yaw,
+    int cos_camera_pitch,
+    int sin_camera_pitch,
+    int* out_x,
+    int* out_y,
+    int* out_z)
 {
     int x_rotated = (vx * cos_model_yaw + vz * sin_model_yaw) >> 16;
     int z_rotated = (vz * cos_model_yaw - vx * sin_model_yaw) >> 16;
@@ -142,132 +159,35 @@ project_vertices_array_ortho_fused_noclip(
     int const cos_model_yaw = ToriDraw_ReadCosTable(model_yaw);
     int const sin_model_yaw = ToriDraw_ReadSinTable(model_yaw);
 
-    int i = 0;
+    struct ToriDraw_OrthoFusedCamera const cam = {
+        .cos_model_yaw = cos_model_yaw,
+        .sin_model_yaw = sin_model_yaw,
+        .cos_camera_yaw = cos_camera_yaw,
+        .sin_camera_yaw = sin_camera_yaw,
+        .cos_camera_pitch = cos_camera_pitch,
+        .sin_camera_pitch = sin_camera_pitch,
+        .scene_x = scene_x,
+        .scene_y = scene_y,
+        .scene_z = scene_z,
+        .camera_zoom16 = camera_zoom16,
+        .model_mid_z = model_mid_z,
+        /* The noclip lane never reads it. */
+        .near_plane_z = 0,
+    };
 
-#if defined(TORIDRAW_ORTHO_SIMD_NEON)
-    {
-        int32x4_t const c_my = vdupq_n_s32(cos_model_yaw);
-        int32x4_t const s_my = vdupq_n_s32(sin_model_yaw);
-        int32x4_t const c_yaw = vdupq_n_s32(cos_camera_yaw);
-        int32x4_t const s_yaw = vdupq_n_s32(sin_camera_yaw);
-        int32x4_t const c_pitch = vdupq_n_s32(cos_camera_pitch);
-        int32x4_t const s_pitch = vdupq_n_s32(sin_camera_pitch);
-        int32x4_t const v_zoom = vdupq_n_s32(camera_zoom16);
-        int32x4_t const v_mid = vdupq_n_s32(model_mid_z);
-        int32x4_t const v_sx = vdupq_n_s32(scene_x);
-        int32x4_t const v_sy = vdupq_n_s32(scene_y);
-        int32x4_t const v_sz = vdupq_n_s32(scene_z);
-
-        for( ; i + 4 <= num_vertices; i += 4 )
-        {
-            int32x4_t xv = vmovl_s16(vld1_s16(&vertex_x[i]));
-            int32x4_t yv = vmovl_s16(vld1_s16(&vertex_y[i]));
-            int32x4_t zv = vmovl_s16(vld1_s16(&vertex_z[i]));
-
-            int32x4_t x_rot = vshrq_n_s32(vaddq_s32(vmulq_s32(xv, c_my), vmulq_s32(zv, s_my)), 16);
-            int32x4_t z_rot = vshrq_n_s32(vsubq_s32(vmulq_s32(zv, c_my), vmulq_s32(xv, s_my)), 16);
-            x_rot = vaddq_s32(x_rot, v_sx);
-            int32x4_t y_rot = vaddq_s32(yv, v_sy);
-            z_rot = vaddq_s32(z_rot, v_sz);
-
-            int32x4_t x_cam = vshrq_n_s32(vaddq_s32(vmulq_s32(x_rot, c_yaw), vmulq_s32(z_rot, s_yaw)), 16);
-            int32x4_t z_cam = vshrq_n_s32(vsubq_s32(vmulq_s32(z_rot, c_yaw), vmulq_s32(x_rot, s_yaw)), 16);
-            int32x4_t y_cam = vshrq_n_s32(vsubq_s32(vmulq_s32(y_rot, c_pitch), vmulq_s32(z_cam, s_pitch)), 16);
-            int32x4_t z_fin = vshrq_n_s32(vaddq_s32(vmulq_s32(y_rot, s_pitch), vmulq_s32(z_cam, c_pitch)), 16);
-
-            vst1q_s32(&orthographic_vertices_x[i], x_cam);
-            vst1q_s32(&orthographic_vertices_y[i], y_cam);
-            vst1q_s32(&orthographic_vertices_z[i], z_fin);
-
-            int32x4_t px = vshrq_n_s32(vmulq_s32(x_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            int32x4_t py = vshrq_n_s32(vmulq_s32(y_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-
-            vst1q_s32(&screen_vertices_x[i], px);
-            vst1q_s32(&screen_vertices_y[i], py);
-            vst1q_s32(&screen_vertices_z[i], vsubq_s32(z_fin, v_mid));
-        }
-    }
-#elif defined(TORIDRAW_ORTHO_SIMD_AVX2)
-    {
-        __m256i const c_my = _mm256_set1_epi32(cos_model_yaw);
-        __m256i const s_my = _mm256_set1_epi32(sin_model_yaw);
-        __m256i const c_yaw = _mm256_set1_epi32(cos_camera_yaw);
-        __m256i const s_yaw = _mm256_set1_epi32(sin_camera_yaw);
-        __m256i const c_pitch = _mm256_set1_epi32(cos_camera_pitch);
-        __m256i const s_pitch = _mm256_set1_epi32(sin_camera_pitch);
-        __m256i const v_zoom = _mm256_set1_epi32(camera_zoom16);
-        __m256i const v_mid = _mm256_set1_epi32(model_mid_z);
-
-        for( ; i + 8 <= num_vertices; i += 8 )
-        {
-            __m256i xv = _mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i const*)&vertex_x[i]));
-            __m256i yv = _mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i const*)&vertex_y[i]));
-            __m256i zv = _mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i const*)&vertex_z[i]));
-
-            __m256i x_rot = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(xv, c_my), _mm256_mullo_epi32(zv, s_my)), 16);
-            __m256i z_rot = _mm256_srai_epi32(_mm256_sub_epi32(_mm256_mullo_epi32(zv, c_my), _mm256_mullo_epi32(xv, s_my)), 16);
-            x_rot = _mm256_add_epi32(x_rot, _mm256_set1_epi32(scene_x));
-            __m256i y_rot = _mm256_add_epi32(yv, _mm256_set1_epi32(scene_y));
-            z_rot = _mm256_add_epi32(z_rot, _mm256_set1_epi32(scene_z));
-
-            __m256i x_cam = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(x_rot, c_yaw), _mm256_mullo_epi32(z_rot, s_yaw)), 16);
-            __m256i z_cam = _mm256_srai_epi32(_mm256_sub_epi32(_mm256_mullo_epi32(z_rot, c_yaw), _mm256_mullo_epi32(x_rot, s_yaw)), 16);
-            __m256i y_cam = _mm256_srai_epi32(_mm256_sub_epi32(_mm256_mullo_epi32(y_rot, c_pitch), _mm256_mullo_epi32(z_cam, s_pitch)), 16);
-            __m256i z_fin = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(y_rot, s_pitch), _mm256_mullo_epi32(z_cam, c_pitch)), 16);
-
-            _mm256_storeu_si256((__m256i*)&orthographic_vertices_x[i], x_cam);
-            _mm256_storeu_si256((__m256i*)&orthographic_vertices_y[i], y_cam);
-            _mm256_storeu_si256((__m256i*)&orthographic_vertices_z[i], z_fin);
-
-            __m256i px = _mm256_srai_epi32(_mm256_mullo_epi32(x_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            __m256i py = _mm256_srai_epi32(_mm256_mullo_epi32(y_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-
-            _mm256_storeu_si256((__m256i*)&screen_vertices_x[i], px);
-            _mm256_storeu_si256((__m256i*)&screen_vertices_y[i], py);
-            _mm256_storeu_si256((__m256i*)&screen_vertices_z[i], _mm256_sub_epi32(z_fin, v_mid));
-        }
-    }
-#elif defined(TORIDRAW_ORTHO_SIMD_SSE)
-    {
-        __m128i const c_my = _mm_set1_epi32(cos_model_yaw);
-        __m128i const s_my = _mm_set1_epi32(sin_model_yaw);
-        __m128i const c_yaw = _mm_set1_epi32(cos_camera_yaw);
-        __m128i const s_yaw = _mm_set1_epi32(sin_camera_yaw);
-        __m128i const c_pitch = _mm_set1_epi32(cos_camera_pitch);
-        __m128i const s_pitch = _mm_set1_epi32(sin_camera_pitch);
-        __m128i const v_zoom = _mm_set1_epi32(camera_zoom16);
-        __m128i const v_mid = _mm_set1_epi32(model_mid_z);
-
-        for( ; i + 4 <= num_vertices; i += 4 )
-        {
-            __m128i xv = _mm_set_epi32(vertex_x[i + 3], vertex_x[i + 2], vertex_x[i + 1], vertex_x[i]);
-            __m128i yv = _mm_set_epi32(vertex_y[i + 3], vertex_y[i + 2], vertex_y[i + 1], vertex_y[i]);
-            __m128i zv = _mm_set_epi32(vertex_z[i + 3], vertex_z[i + 2], vertex_z[i + 1], vertex_z[i]);
-
-            __m128i x_rot = _mm_srai_epi32(_mm_add_epi32(mullo_epi32_sse(xv, c_my), mullo_epi32_sse(zv, s_my)), 16);
-            __m128i z_rot = _mm_srai_epi32(_mm_sub_epi32(mullo_epi32_sse(zv, c_my), mullo_epi32_sse(xv, s_my)), 16);
-            x_rot = _mm_add_epi32(x_rot, _mm_set1_epi32(scene_x));
-            __m128i y_rot = _mm_add_epi32(yv, _mm_set1_epi32(scene_y));
-            z_rot = _mm_add_epi32(z_rot, _mm_set1_epi32(scene_z));
-
-            __m128i x_cam = _mm_srai_epi32(_mm_add_epi32(mullo_epi32_sse(x_rot, c_yaw), mullo_epi32_sse(z_rot, s_yaw)), 16);
-            __m128i z_cam = _mm_srai_epi32(_mm_sub_epi32(mullo_epi32_sse(z_rot, c_yaw), mullo_epi32_sse(x_rot, s_yaw)), 16);
-            __m128i y_cam = _mm_srai_epi32(_mm_sub_epi32(mullo_epi32_sse(y_rot, c_pitch), mullo_epi32_sse(z_cam, s_pitch)), 16);
-            __m128i z_fin = _mm_srai_epi32(_mm_add_epi32(mullo_epi32_sse(y_rot, s_pitch), mullo_epi32_sse(z_cam, c_pitch)), 16);
-
-            _mm_storeu_si128((__m128i*)&orthographic_vertices_x[i], x_cam);
-            _mm_storeu_si128((__m128i*)&orthographic_vertices_y[i], y_cam);
-            _mm_storeu_si128((__m128i*)&orthographic_vertices_z[i], z_fin);
-
-            __m128i px = _mm_srai_epi32(mullo_epi32_sse(x_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            __m128i py = _mm_srai_epi32(mullo_epi32_sse(y_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-
-            _mm_storeu_si128((__m128i*)&screen_vertices_x[i], px);
-            _mm_storeu_si128((__m128i*)&screen_vertices_y[i], py);
-            _mm_storeu_si128((__m128i*)&screen_vertices_z[i], _mm_sub_epi32(z_fin, v_mid));
-        }
-    }
-#endif
+    /* Whatever the build's lane took off the front; 0 if it has no kernel. */
+    int i = toridraw_ortho_lane_fused(
+        &cam,
+        orthographic_vertices_x,
+        orthographic_vertices_y,
+        orthographic_vertices_z,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        vertex_x,
+        vertex_y,
+        vertex_z,
+        num_vertices);
 
     for( ; i < num_vertices; i++ )
     {
@@ -275,12 +195,21 @@ project_vertices_array_ortho_fused_noclip(
         int y_cam;
         int z_fin;
         toridraw_ortho_to_camera_space(
-            vertex_x[i], vertex_y[i], vertex_z[i],
-            cos_model_yaw, sin_model_yaw,
-            scene_x, scene_y, scene_z,
-            cos_camera_yaw, sin_camera_yaw,
-            cos_camera_pitch, sin_camera_pitch,
-            &x_cam, &y_cam, &z_fin);
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
+            cos_model_yaw,
+            sin_model_yaw,
+            scene_x,
+            scene_y,
+            scene_z,
+            cos_camera_yaw,
+            sin_camera_yaw,
+            cos_camera_pitch,
+            sin_camera_pitch,
+            &x_cam,
+            &y_cam,
+            &z_fin);
 
         orthographic_vertices_x[i] = x_cam;
         orthographic_vertices_y[i] = y_cam;
@@ -292,7 +221,8 @@ project_vertices_array_ortho_fused_noclip(
     }
 }
 
-/** With camera-space output; marks vertices behind near_plane_z for the face test to DROP (see header). */
+/** With camera-space output; marks vertices behind near_plane_z for the face test to DROP (see
+ * header). */
 static inline void
 project_vertices_array_ortho_fused_clip(
     int* RESTRICT orthographic_vertices_x,
@@ -322,144 +252,34 @@ project_vertices_array_ortho_fused_clip(
     int const cos_model_yaw = ToriDraw_ReadCosTable(model_yaw);
     int const sin_model_yaw = ToriDraw_ReadSinTable(model_yaw);
 
-    int i = 0;
+    struct ToriDraw_OrthoFusedCamera const cam = {
+        .cos_model_yaw = cos_model_yaw,
+        .sin_model_yaw = sin_model_yaw,
+        .cos_camera_yaw = cos_camera_yaw,
+        .sin_camera_yaw = sin_camera_yaw,
+        .cos_camera_pitch = cos_camera_pitch,
+        .sin_camera_pitch = sin_camera_pitch,
+        .scene_x = scene_x,
+        .scene_y = scene_y,
+        .scene_z = scene_z,
+        .camera_zoom16 = camera_zoom16,
+        .model_mid_z = model_mid_z,
+        .near_plane_z = near_plane_z,
+    };
 
-#if defined(TORIDRAW_ORTHO_SIMD_NEON)
-    {
-        int32x4_t const c_my = vdupq_n_s32(cos_model_yaw);
-        int32x4_t const s_my = vdupq_n_s32(sin_model_yaw);
-        int32x4_t const c_yaw = vdupq_n_s32(cos_camera_yaw);
-        int32x4_t const s_yaw = vdupq_n_s32(sin_camera_yaw);
-        int32x4_t const c_pitch = vdupq_n_s32(cos_camera_pitch);
-        int32x4_t const s_pitch = vdupq_n_s32(sin_camera_pitch);
-        int32x4_t const v_zoom = vdupq_n_s32(camera_zoom16);
-        int32x4_t const v_mid = vdupq_n_s32(model_mid_z);
-        int32x4_t const v_sx = vdupq_n_s32(scene_x);
-        int32x4_t const v_sy = vdupq_n_s32(scene_y);
-        int32x4_t const v_sz = vdupq_n_s32(scene_z);
-        int32x4_t const v_near = vdupq_n_s32(near_plane_z);
-        int32x4_t const v_sentinel = vdupq_n_s32(TORIDRAW_SCREEN_X_NEAR_CLIPPED);
-
-        for( ; i + 4 <= num_vertices; i += 4 )
-        {
-            int32x4_t xv = vmovl_s16(vld1_s16(&vertex_x[i]));
-            int32x4_t yv = vmovl_s16(vld1_s16(&vertex_y[i]));
-            int32x4_t zv = vmovl_s16(vld1_s16(&vertex_z[i]));
-
-            int32x4_t x_rot = vshrq_n_s32(vaddq_s32(vmulq_s32(xv, c_my), vmulq_s32(zv, s_my)), 16);
-            int32x4_t z_rot = vshrq_n_s32(vsubq_s32(vmulq_s32(zv, c_my), vmulq_s32(xv, s_my)), 16);
-            x_rot = vaddq_s32(x_rot, v_sx);
-            int32x4_t y_rot = vaddq_s32(yv, v_sy);
-            z_rot = vaddq_s32(z_rot, v_sz);
-
-            int32x4_t x_cam = vshrq_n_s32(vaddq_s32(vmulq_s32(x_rot, c_yaw), vmulq_s32(z_rot, s_yaw)), 16);
-            int32x4_t z_cam = vshrq_n_s32(vsubq_s32(vmulq_s32(z_rot, c_yaw), vmulq_s32(x_rot, s_yaw)), 16);
-            int32x4_t y_cam = vshrq_n_s32(vsubq_s32(vmulq_s32(y_rot, c_pitch), vmulq_s32(z_cam, s_pitch)), 16);
-            int32x4_t z_fin = vshrq_n_s32(vaddq_s32(vmulq_s32(y_rot, s_pitch), vmulq_s32(z_cam, c_pitch)), 16);
-
-            vst1q_s32(&orthographic_vertices_x[i], x_cam);
-            vst1q_s32(&orthographic_vertices_y[i], y_cam);
-            vst1q_s32(&orthographic_vertices_z[i], z_fin);
-
-            int32x4_t px = vshrq_n_s32(vmulq_s32(x_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            int32x4_t py = vshrq_n_s32(vmulq_s32(y_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            px = vbslq_s32(vcltq_s32(z_fin, v_near), v_sentinel, px);
-
-            vst1q_s32(&screen_vertices_x[i], px);
-            vst1q_s32(&screen_vertices_y[i], py);
-            vst1q_s32(&screen_vertices_z[i], vsubq_s32(z_fin, v_mid));
-        }
-    }
-#elif defined(TORIDRAW_ORTHO_SIMD_AVX2)
-    {
-        __m256i const c_my = _mm256_set1_epi32(cos_model_yaw);
-        __m256i const s_my = _mm256_set1_epi32(sin_model_yaw);
-        __m256i const c_yaw = _mm256_set1_epi32(cos_camera_yaw);
-        __m256i const s_yaw = _mm256_set1_epi32(sin_camera_yaw);
-        __m256i const c_pitch = _mm256_set1_epi32(cos_camera_pitch);
-        __m256i const s_pitch = _mm256_set1_epi32(sin_camera_pitch);
-        __m256i const v_zoom = _mm256_set1_epi32(camera_zoom16);
-        __m256i const v_mid = _mm256_set1_epi32(model_mid_z);
-        __m256i const v_near = _mm256_set1_epi32(near_plane_z);
-        __m256i const v_sentinel = _mm256_set1_epi32(TORIDRAW_SCREEN_X_NEAR_CLIPPED);
-
-        for( ; i + 8 <= num_vertices; i += 8 )
-        {
-            __m256i xv = _mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i const*)&vertex_x[i]));
-            __m256i yv = _mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i const*)&vertex_y[i]));
-            __m256i zv = _mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i const*)&vertex_z[i]));
-
-            __m256i x_rot = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(xv, c_my), _mm256_mullo_epi32(zv, s_my)), 16);
-            __m256i z_rot = _mm256_srai_epi32(_mm256_sub_epi32(_mm256_mullo_epi32(zv, c_my), _mm256_mullo_epi32(xv, s_my)), 16);
-            x_rot = _mm256_add_epi32(x_rot, _mm256_set1_epi32(scene_x));
-            __m256i y_rot = _mm256_add_epi32(yv, _mm256_set1_epi32(scene_y));
-            z_rot = _mm256_add_epi32(z_rot, _mm256_set1_epi32(scene_z));
-
-            __m256i x_cam = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(x_rot, c_yaw), _mm256_mullo_epi32(z_rot, s_yaw)), 16);
-            __m256i z_cam = _mm256_srai_epi32(_mm256_sub_epi32(_mm256_mullo_epi32(z_rot, c_yaw), _mm256_mullo_epi32(x_rot, s_yaw)), 16);
-            __m256i y_cam = _mm256_srai_epi32(_mm256_sub_epi32(_mm256_mullo_epi32(y_rot, c_pitch), _mm256_mullo_epi32(z_cam, s_pitch)), 16);
-            __m256i z_fin = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(y_rot, s_pitch), _mm256_mullo_epi32(z_cam, c_pitch)), 16);
-
-            _mm256_storeu_si256((__m256i*)&orthographic_vertices_x[i], x_cam);
-            _mm256_storeu_si256((__m256i*)&orthographic_vertices_y[i], y_cam);
-            _mm256_storeu_si256((__m256i*)&orthographic_vertices_z[i], z_fin);
-
-            __m256i px = _mm256_srai_epi32(_mm256_mullo_epi32(x_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            __m256i py = _mm256_srai_epi32(_mm256_mullo_epi32(y_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            px = _mm256_blendv_epi8(px, v_sentinel, _mm256_cmpgt_epi32(v_near, z_fin));
-
-            _mm256_storeu_si256((__m256i*)&screen_vertices_x[i], px);
-            _mm256_storeu_si256((__m256i*)&screen_vertices_y[i], py);
-            _mm256_storeu_si256((__m256i*)&screen_vertices_z[i], _mm256_sub_epi32(z_fin, v_mid));
-        }
-    }
-#elif defined(TORIDRAW_ORTHO_SIMD_SSE)
-    {
-        __m128i const c_my = _mm_set1_epi32(cos_model_yaw);
-        __m128i const s_my = _mm_set1_epi32(sin_model_yaw);
-        __m128i const c_yaw = _mm_set1_epi32(cos_camera_yaw);
-        __m128i const s_yaw = _mm_set1_epi32(sin_camera_yaw);
-        __m128i const c_pitch = _mm_set1_epi32(cos_camera_pitch);
-        __m128i const s_pitch = _mm_set1_epi32(sin_camera_pitch);
-        __m128i const v_zoom = _mm_set1_epi32(camera_zoom16);
-        __m128i const v_mid = _mm_set1_epi32(model_mid_z);
-        __m128i const v_near = _mm_set1_epi32(near_plane_z);
-        __m128i const v_sentinel = _mm_set1_epi32(TORIDRAW_SCREEN_X_NEAR_CLIPPED);
-
-        for( ; i + 4 <= num_vertices; i += 4 )
-        {
-            __m128i xv = _mm_set_epi32(vertex_x[i + 3], vertex_x[i + 2], vertex_x[i + 1], vertex_x[i]);
-            __m128i yv = _mm_set_epi32(vertex_y[i + 3], vertex_y[i + 2], vertex_y[i + 1], vertex_y[i]);
-            __m128i zv = _mm_set_epi32(vertex_z[i + 3], vertex_z[i + 2], vertex_z[i + 1], vertex_z[i]);
-
-            __m128i x_rot = _mm_srai_epi32(_mm_add_epi32(mullo_epi32_sse(xv, c_my), mullo_epi32_sse(zv, s_my)), 16);
-            __m128i z_rot = _mm_srai_epi32(_mm_sub_epi32(mullo_epi32_sse(zv, c_my), mullo_epi32_sse(xv, s_my)), 16);
-            x_rot = _mm_add_epi32(x_rot, _mm_set1_epi32(scene_x));
-            __m128i y_rot = _mm_add_epi32(yv, _mm_set1_epi32(scene_y));
-            z_rot = _mm_add_epi32(z_rot, _mm_set1_epi32(scene_z));
-
-            __m128i x_cam = _mm_srai_epi32(_mm_add_epi32(mullo_epi32_sse(x_rot, c_yaw), mullo_epi32_sse(z_rot, s_yaw)), 16);
-            __m128i z_cam = _mm_srai_epi32(_mm_sub_epi32(mullo_epi32_sse(z_rot, c_yaw), mullo_epi32_sse(x_rot, s_yaw)), 16);
-            __m128i y_cam = _mm_srai_epi32(_mm_sub_epi32(mullo_epi32_sse(y_rot, c_pitch), mullo_epi32_sse(z_cam, s_pitch)), 16);
-            __m128i z_fin = _mm_srai_epi32(_mm_add_epi32(mullo_epi32_sse(y_rot, s_pitch), mullo_epi32_sse(z_cam, c_pitch)), 16);
-
-            _mm_storeu_si128((__m128i*)&orthographic_vertices_x[i], x_cam);
-            _mm_storeu_si128((__m128i*)&orthographic_vertices_y[i], y_cam);
-            _mm_storeu_si128((__m128i*)&orthographic_vertices_z[i], z_fin);
-
-            __m128i px = _mm_srai_epi32(mullo_epi32_sse(x_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            __m128i py = _mm_srai_epi32(mullo_epi32_sse(y_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            {   /* and/andnot/or: a blend that is valid on plain SSE2 too. */
-                __m128i m = _mm_cmplt_epi32(z_fin, v_near);
-                px = _mm_or_si128(_mm_and_si128(m, v_sentinel), _mm_andnot_si128(m, px));
-            }
-
-            _mm_storeu_si128((__m128i*)&screen_vertices_x[i], px);
-            _mm_storeu_si128((__m128i*)&screen_vertices_y[i], py);
-            _mm_storeu_si128((__m128i*)&screen_vertices_z[i], _mm_sub_epi32(z_fin, v_mid));
-        }
-    }
-#endif
+    /* Whatever the build's lane took off the front; 0 if it has no kernel. */
+    int i = toridraw_ortho_lane_fused_clip(
+        &cam,
+        orthographic_vertices_x,
+        orthographic_vertices_y,
+        orthographic_vertices_z,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        vertex_x,
+        vertex_y,
+        vertex_z,
+        num_vertices);
 
     for( ; i < num_vertices; i++ )
     {
@@ -467,12 +287,21 @@ project_vertices_array_ortho_fused_clip(
         int y_cam;
         int z_fin;
         toridraw_ortho_to_camera_space(
-            vertex_x[i], vertex_y[i], vertex_z[i],
-            cos_model_yaw, sin_model_yaw,
-            scene_x, scene_y, scene_z,
-            cos_camera_yaw, sin_camera_yaw,
-            cos_camera_pitch, sin_camera_pitch,
-            &x_cam, &y_cam, &z_fin);
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
+            cos_model_yaw,
+            sin_model_yaw,
+            scene_x,
+            scene_y,
+            scene_z,
+            cos_camera_yaw,
+            sin_camera_yaw,
+            cos_camera_pitch,
+            sin_camera_pitch,
+            &x_cam,
+            &y_cam,
+            &z_fin);
 
         orthographic_vertices_x[i] = x_cam;
         orthographic_vertices_y[i] = y_cam;
@@ -512,120 +341,32 @@ project_vertices_array_ortho_fused_notex_noclip(
     int const cos_model_yaw = ToriDraw_ReadCosTable(model_yaw);
     int const sin_model_yaw = ToriDraw_ReadSinTable(model_yaw);
 
-    int i = 0;
+    struct ToriDraw_OrthoFusedCamera const cam = {
+        .cos_model_yaw = cos_model_yaw,
+        .sin_model_yaw = sin_model_yaw,
+        .cos_camera_yaw = cos_camera_yaw,
+        .sin_camera_yaw = sin_camera_yaw,
+        .cos_camera_pitch = cos_camera_pitch,
+        .sin_camera_pitch = sin_camera_pitch,
+        .scene_x = scene_x,
+        .scene_y = scene_y,
+        .scene_z = scene_z,
+        .camera_zoom16 = camera_zoom16,
+        .model_mid_z = model_mid_z,
+        /* The noclip lane never reads it. */
+        .near_plane_z = 0,
+    };
 
-#if defined(TORIDRAW_ORTHO_SIMD_NEON)
-    {
-        int32x4_t const c_my = vdupq_n_s32(cos_model_yaw);
-        int32x4_t const s_my = vdupq_n_s32(sin_model_yaw);
-        int32x4_t const c_yaw = vdupq_n_s32(cos_camera_yaw);
-        int32x4_t const s_yaw = vdupq_n_s32(sin_camera_yaw);
-        int32x4_t const c_pitch = vdupq_n_s32(cos_camera_pitch);
-        int32x4_t const s_pitch = vdupq_n_s32(sin_camera_pitch);
-        int32x4_t const v_zoom = vdupq_n_s32(camera_zoom16);
-        int32x4_t const v_mid = vdupq_n_s32(model_mid_z);
-        int32x4_t const v_sx = vdupq_n_s32(scene_x);
-        int32x4_t const v_sy = vdupq_n_s32(scene_y);
-        int32x4_t const v_sz = vdupq_n_s32(scene_z);
-
-        for( ; i + 4 <= num_vertices; i += 4 )
-        {
-            int32x4_t xv = vmovl_s16(vld1_s16(&vertex_x[i]));
-            int32x4_t yv = vmovl_s16(vld1_s16(&vertex_y[i]));
-            int32x4_t zv = vmovl_s16(vld1_s16(&vertex_z[i]));
-
-            int32x4_t x_rot = vshrq_n_s32(vaddq_s32(vmulq_s32(xv, c_my), vmulq_s32(zv, s_my)), 16);
-            int32x4_t z_rot = vshrq_n_s32(vsubq_s32(vmulq_s32(zv, c_my), vmulq_s32(xv, s_my)), 16);
-            x_rot = vaddq_s32(x_rot, v_sx);
-            int32x4_t y_rot = vaddq_s32(yv, v_sy);
-            z_rot = vaddq_s32(z_rot, v_sz);
-
-            int32x4_t x_cam = vshrq_n_s32(vaddq_s32(vmulq_s32(x_rot, c_yaw), vmulq_s32(z_rot, s_yaw)), 16);
-            int32x4_t z_cam = vshrq_n_s32(vsubq_s32(vmulq_s32(z_rot, c_yaw), vmulq_s32(x_rot, s_yaw)), 16);
-            int32x4_t y_cam = vshrq_n_s32(vsubq_s32(vmulq_s32(y_rot, c_pitch), vmulq_s32(z_cam, s_pitch)), 16);
-            int32x4_t z_fin = vshrq_n_s32(vaddq_s32(vmulq_s32(y_rot, s_pitch), vmulq_s32(z_cam, c_pitch)), 16);
-
-            int32x4_t px = vshrq_n_s32(vmulq_s32(x_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            int32x4_t py = vshrq_n_s32(vmulq_s32(y_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-
-            vst1q_s32(&screen_vertices_x[i], px);
-            vst1q_s32(&screen_vertices_y[i], py);
-            vst1q_s32(&screen_vertices_z[i], vsubq_s32(z_fin, v_mid));
-        }
-    }
-#elif defined(TORIDRAW_ORTHO_SIMD_AVX2)
-    {
-        __m256i const c_my = _mm256_set1_epi32(cos_model_yaw);
-        __m256i const s_my = _mm256_set1_epi32(sin_model_yaw);
-        __m256i const c_yaw = _mm256_set1_epi32(cos_camera_yaw);
-        __m256i const s_yaw = _mm256_set1_epi32(sin_camera_yaw);
-        __m256i const c_pitch = _mm256_set1_epi32(cos_camera_pitch);
-        __m256i const s_pitch = _mm256_set1_epi32(sin_camera_pitch);
-        __m256i const v_zoom = _mm256_set1_epi32(camera_zoom16);
-        __m256i const v_mid = _mm256_set1_epi32(model_mid_z);
-
-        for( ; i + 8 <= num_vertices; i += 8 )
-        {
-            __m256i xv = _mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i const*)&vertex_x[i]));
-            __m256i yv = _mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i const*)&vertex_y[i]));
-            __m256i zv = _mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i const*)&vertex_z[i]));
-
-            __m256i x_rot = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(xv, c_my), _mm256_mullo_epi32(zv, s_my)), 16);
-            __m256i z_rot = _mm256_srai_epi32(_mm256_sub_epi32(_mm256_mullo_epi32(zv, c_my), _mm256_mullo_epi32(xv, s_my)), 16);
-            x_rot = _mm256_add_epi32(x_rot, _mm256_set1_epi32(scene_x));
-            __m256i y_rot = _mm256_add_epi32(yv, _mm256_set1_epi32(scene_y));
-            z_rot = _mm256_add_epi32(z_rot, _mm256_set1_epi32(scene_z));
-
-            __m256i x_cam = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(x_rot, c_yaw), _mm256_mullo_epi32(z_rot, s_yaw)), 16);
-            __m256i z_cam = _mm256_srai_epi32(_mm256_sub_epi32(_mm256_mullo_epi32(z_rot, c_yaw), _mm256_mullo_epi32(x_rot, s_yaw)), 16);
-            __m256i y_cam = _mm256_srai_epi32(_mm256_sub_epi32(_mm256_mullo_epi32(y_rot, c_pitch), _mm256_mullo_epi32(z_cam, s_pitch)), 16);
-            __m256i z_fin = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(y_rot, s_pitch), _mm256_mullo_epi32(z_cam, c_pitch)), 16);
-
-            __m256i px = _mm256_srai_epi32(_mm256_mullo_epi32(x_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            __m256i py = _mm256_srai_epi32(_mm256_mullo_epi32(y_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-
-            _mm256_storeu_si256((__m256i*)&screen_vertices_x[i], px);
-            _mm256_storeu_si256((__m256i*)&screen_vertices_y[i], py);
-            _mm256_storeu_si256((__m256i*)&screen_vertices_z[i], _mm256_sub_epi32(z_fin, v_mid));
-        }
-    }
-#elif defined(TORIDRAW_ORTHO_SIMD_SSE)
-    {
-        __m128i const c_my = _mm_set1_epi32(cos_model_yaw);
-        __m128i const s_my = _mm_set1_epi32(sin_model_yaw);
-        __m128i const c_yaw = _mm_set1_epi32(cos_camera_yaw);
-        __m128i const s_yaw = _mm_set1_epi32(sin_camera_yaw);
-        __m128i const c_pitch = _mm_set1_epi32(cos_camera_pitch);
-        __m128i const s_pitch = _mm_set1_epi32(sin_camera_pitch);
-        __m128i const v_zoom = _mm_set1_epi32(camera_zoom16);
-        __m128i const v_mid = _mm_set1_epi32(model_mid_z);
-
-        for( ; i + 4 <= num_vertices; i += 4 )
-        {
-            __m128i xv = _mm_set_epi32(vertex_x[i + 3], vertex_x[i + 2], vertex_x[i + 1], vertex_x[i]);
-            __m128i yv = _mm_set_epi32(vertex_y[i + 3], vertex_y[i + 2], vertex_y[i + 1], vertex_y[i]);
-            __m128i zv = _mm_set_epi32(vertex_z[i + 3], vertex_z[i + 2], vertex_z[i + 1], vertex_z[i]);
-
-            __m128i x_rot = _mm_srai_epi32(_mm_add_epi32(mullo_epi32_sse(xv, c_my), mullo_epi32_sse(zv, s_my)), 16);
-            __m128i z_rot = _mm_srai_epi32(_mm_sub_epi32(mullo_epi32_sse(zv, c_my), mullo_epi32_sse(xv, s_my)), 16);
-            x_rot = _mm_add_epi32(x_rot, _mm_set1_epi32(scene_x));
-            __m128i y_rot = _mm_add_epi32(yv, _mm_set1_epi32(scene_y));
-            z_rot = _mm_add_epi32(z_rot, _mm_set1_epi32(scene_z));
-
-            __m128i x_cam = _mm_srai_epi32(_mm_add_epi32(mullo_epi32_sse(x_rot, c_yaw), mullo_epi32_sse(z_rot, s_yaw)), 16);
-            __m128i z_cam = _mm_srai_epi32(_mm_sub_epi32(mullo_epi32_sse(z_rot, c_yaw), mullo_epi32_sse(x_rot, s_yaw)), 16);
-            __m128i y_cam = _mm_srai_epi32(_mm_sub_epi32(mullo_epi32_sse(y_rot, c_pitch), mullo_epi32_sse(z_cam, s_pitch)), 16);
-            __m128i z_fin = _mm_srai_epi32(_mm_add_epi32(mullo_epi32_sse(y_rot, s_pitch), mullo_epi32_sse(z_cam, c_pitch)), 16);
-
-            __m128i px = _mm_srai_epi32(mullo_epi32_sse(x_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            __m128i py = _mm_srai_epi32(mullo_epi32_sse(y_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-
-            _mm_storeu_si128((__m128i*)&screen_vertices_x[i], px);
-            _mm_storeu_si128((__m128i*)&screen_vertices_y[i], py);
-            _mm_storeu_si128((__m128i*)&screen_vertices_z[i], _mm_sub_epi32(z_fin, v_mid));
-        }
-    }
-#endif
+    /* Whatever the build's lane took off the front; 0 if it has no kernel. */
+    int i = toridraw_ortho_lane_fused_notex(
+        &cam,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        vertex_x,
+        vertex_y,
+        vertex_z,
+        num_vertices);
 
     for( ; i < num_vertices; i++ )
     {
@@ -633,12 +374,21 @@ project_vertices_array_ortho_fused_notex_noclip(
         int y_cam;
         int z_fin;
         toridraw_ortho_to_camera_space(
-            vertex_x[i], vertex_y[i], vertex_z[i],
-            cos_model_yaw, sin_model_yaw,
-            scene_x, scene_y, scene_z,
-            cos_camera_yaw, sin_camera_yaw,
-            cos_camera_pitch, sin_camera_pitch,
-            &x_cam, &y_cam, &z_fin);
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
+            cos_model_yaw,
+            sin_model_yaw,
+            scene_x,
+            scene_y,
+            scene_z,
+            cos_camera_yaw,
+            sin_camera_yaw,
+            cos_camera_pitch,
+            sin_camera_pitch,
+            &x_cam,
+            &y_cam,
+            &z_fin);
 
         screen_vertices_x[i] = (x_cam * camera_zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
         screen_vertices_y[i] = (y_cam * camera_zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
@@ -646,7 +396,8 @@ project_vertices_array_ortho_fused_notex_noclip(
     }
 }
 
-/** No camera-space output; marks vertices behind near_plane_z for the face test to DROP (see header). */
+/** No camera-space output; marks vertices behind near_plane_z for the face test to DROP (see
+ * header). */
 static inline void
 project_vertices_array_ortho_fused_notex_clip(
     int* RESTRICT screen_vertices_x,
@@ -673,132 +424,31 @@ project_vertices_array_ortho_fused_notex_clip(
     int const cos_model_yaw = ToriDraw_ReadCosTable(model_yaw);
     int const sin_model_yaw = ToriDraw_ReadSinTable(model_yaw);
 
-    int i = 0;
+    struct ToriDraw_OrthoFusedCamera const cam = {
+        .cos_model_yaw = cos_model_yaw,
+        .sin_model_yaw = sin_model_yaw,
+        .cos_camera_yaw = cos_camera_yaw,
+        .sin_camera_yaw = sin_camera_yaw,
+        .cos_camera_pitch = cos_camera_pitch,
+        .sin_camera_pitch = sin_camera_pitch,
+        .scene_x = scene_x,
+        .scene_y = scene_y,
+        .scene_z = scene_z,
+        .camera_zoom16 = camera_zoom16,
+        .model_mid_z = model_mid_z,
+        .near_plane_z = near_plane_z,
+    };
 
-#if defined(TORIDRAW_ORTHO_SIMD_NEON)
-    {
-        int32x4_t const c_my = vdupq_n_s32(cos_model_yaw);
-        int32x4_t const s_my = vdupq_n_s32(sin_model_yaw);
-        int32x4_t const c_yaw = vdupq_n_s32(cos_camera_yaw);
-        int32x4_t const s_yaw = vdupq_n_s32(sin_camera_yaw);
-        int32x4_t const c_pitch = vdupq_n_s32(cos_camera_pitch);
-        int32x4_t const s_pitch = vdupq_n_s32(sin_camera_pitch);
-        int32x4_t const v_zoom = vdupq_n_s32(camera_zoom16);
-        int32x4_t const v_mid = vdupq_n_s32(model_mid_z);
-        int32x4_t const v_sx = vdupq_n_s32(scene_x);
-        int32x4_t const v_sy = vdupq_n_s32(scene_y);
-        int32x4_t const v_sz = vdupq_n_s32(scene_z);
-        int32x4_t const v_near = vdupq_n_s32(near_plane_z);
-        int32x4_t const v_sentinel = vdupq_n_s32(TORIDRAW_SCREEN_X_NEAR_CLIPPED);
-
-        for( ; i + 4 <= num_vertices; i += 4 )
-        {
-            int32x4_t xv = vmovl_s16(vld1_s16(&vertex_x[i]));
-            int32x4_t yv = vmovl_s16(vld1_s16(&vertex_y[i]));
-            int32x4_t zv = vmovl_s16(vld1_s16(&vertex_z[i]));
-
-            int32x4_t x_rot = vshrq_n_s32(vaddq_s32(vmulq_s32(xv, c_my), vmulq_s32(zv, s_my)), 16);
-            int32x4_t z_rot = vshrq_n_s32(vsubq_s32(vmulq_s32(zv, c_my), vmulq_s32(xv, s_my)), 16);
-            x_rot = vaddq_s32(x_rot, v_sx);
-            int32x4_t y_rot = vaddq_s32(yv, v_sy);
-            z_rot = vaddq_s32(z_rot, v_sz);
-
-            int32x4_t x_cam = vshrq_n_s32(vaddq_s32(vmulq_s32(x_rot, c_yaw), vmulq_s32(z_rot, s_yaw)), 16);
-            int32x4_t z_cam = vshrq_n_s32(vsubq_s32(vmulq_s32(z_rot, c_yaw), vmulq_s32(x_rot, s_yaw)), 16);
-            int32x4_t y_cam = vshrq_n_s32(vsubq_s32(vmulq_s32(y_rot, c_pitch), vmulq_s32(z_cam, s_pitch)), 16);
-            int32x4_t z_fin = vshrq_n_s32(vaddq_s32(vmulq_s32(y_rot, s_pitch), vmulq_s32(z_cam, c_pitch)), 16);
-
-            int32x4_t px = vshrq_n_s32(vmulq_s32(x_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            int32x4_t py = vshrq_n_s32(vmulq_s32(y_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            px = vbslq_s32(vcltq_s32(z_fin, v_near), v_sentinel, px);
-
-            vst1q_s32(&screen_vertices_x[i], px);
-            vst1q_s32(&screen_vertices_y[i], py);
-            vst1q_s32(&screen_vertices_z[i], vsubq_s32(z_fin, v_mid));
-        }
-    }
-#elif defined(TORIDRAW_ORTHO_SIMD_AVX2)
-    {
-        __m256i const c_my = _mm256_set1_epi32(cos_model_yaw);
-        __m256i const s_my = _mm256_set1_epi32(sin_model_yaw);
-        __m256i const c_yaw = _mm256_set1_epi32(cos_camera_yaw);
-        __m256i const s_yaw = _mm256_set1_epi32(sin_camera_yaw);
-        __m256i const c_pitch = _mm256_set1_epi32(cos_camera_pitch);
-        __m256i const s_pitch = _mm256_set1_epi32(sin_camera_pitch);
-        __m256i const v_zoom = _mm256_set1_epi32(camera_zoom16);
-        __m256i const v_mid = _mm256_set1_epi32(model_mid_z);
-        __m256i const v_near = _mm256_set1_epi32(near_plane_z);
-        __m256i const v_sentinel = _mm256_set1_epi32(TORIDRAW_SCREEN_X_NEAR_CLIPPED);
-
-        for( ; i + 8 <= num_vertices; i += 8 )
-        {
-            __m256i xv = _mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i const*)&vertex_x[i]));
-            __m256i yv = _mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i const*)&vertex_y[i]));
-            __m256i zv = _mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i const*)&vertex_z[i]));
-
-            __m256i x_rot = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(xv, c_my), _mm256_mullo_epi32(zv, s_my)), 16);
-            __m256i z_rot = _mm256_srai_epi32(_mm256_sub_epi32(_mm256_mullo_epi32(zv, c_my), _mm256_mullo_epi32(xv, s_my)), 16);
-            x_rot = _mm256_add_epi32(x_rot, _mm256_set1_epi32(scene_x));
-            __m256i y_rot = _mm256_add_epi32(yv, _mm256_set1_epi32(scene_y));
-            z_rot = _mm256_add_epi32(z_rot, _mm256_set1_epi32(scene_z));
-
-            __m256i x_cam = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(x_rot, c_yaw), _mm256_mullo_epi32(z_rot, s_yaw)), 16);
-            __m256i z_cam = _mm256_srai_epi32(_mm256_sub_epi32(_mm256_mullo_epi32(z_rot, c_yaw), _mm256_mullo_epi32(x_rot, s_yaw)), 16);
-            __m256i y_cam = _mm256_srai_epi32(_mm256_sub_epi32(_mm256_mullo_epi32(y_rot, c_pitch), _mm256_mullo_epi32(z_cam, s_pitch)), 16);
-            __m256i z_fin = _mm256_srai_epi32(_mm256_add_epi32(_mm256_mullo_epi32(y_rot, s_pitch), _mm256_mullo_epi32(z_cam, c_pitch)), 16);
-
-            __m256i px = _mm256_srai_epi32(_mm256_mullo_epi32(x_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            __m256i py = _mm256_srai_epi32(_mm256_mullo_epi32(y_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            px = _mm256_blendv_epi8(px, v_sentinel, _mm256_cmpgt_epi32(v_near, z_fin));
-
-            _mm256_storeu_si256((__m256i*)&screen_vertices_x[i], px);
-            _mm256_storeu_si256((__m256i*)&screen_vertices_y[i], py);
-            _mm256_storeu_si256((__m256i*)&screen_vertices_z[i], _mm256_sub_epi32(z_fin, v_mid));
-        }
-    }
-#elif defined(TORIDRAW_ORTHO_SIMD_SSE)
-    {
-        __m128i const c_my = _mm_set1_epi32(cos_model_yaw);
-        __m128i const s_my = _mm_set1_epi32(sin_model_yaw);
-        __m128i const c_yaw = _mm_set1_epi32(cos_camera_yaw);
-        __m128i const s_yaw = _mm_set1_epi32(sin_camera_yaw);
-        __m128i const c_pitch = _mm_set1_epi32(cos_camera_pitch);
-        __m128i const s_pitch = _mm_set1_epi32(sin_camera_pitch);
-        __m128i const v_zoom = _mm_set1_epi32(camera_zoom16);
-        __m128i const v_mid = _mm_set1_epi32(model_mid_z);
-        __m128i const v_near = _mm_set1_epi32(near_plane_z);
-        __m128i const v_sentinel = _mm_set1_epi32(TORIDRAW_SCREEN_X_NEAR_CLIPPED);
-
-        for( ; i + 4 <= num_vertices; i += 4 )
-        {
-            __m128i xv = _mm_set_epi32(vertex_x[i + 3], vertex_x[i + 2], vertex_x[i + 1], vertex_x[i]);
-            __m128i yv = _mm_set_epi32(vertex_y[i + 3], vertex_y[i + 2], vertex_y[i + 1], vertex_y[i]);
-            __m128i zv = _mm_set_epi32(vertex_z[i + 3], vertex_z[i + 2], vertex_z[i + 1], vertex_z[i]);
-
-            __m128i x_rot = _mm_srai_epi32(_mm_add_epi32(mullo_epi32_sse(xv, c_my), mullo_epi32_sse(zv, s_my)), 16);
-            __m128i z_rot = _mm_srai_epi32(_mm_sub_epi32(mullo_epi32_sse(zv, c_my), mullo_epi32_sse(xv, s_my)), 16);
-            x_rot = _mm_add_epi32(x_rot, _mm_set1_epi32(scene_x));
-            __m128i y_rot = _mm_add_epi32(yv, _mm_set1_epi32(scene_y));
-            z_rot = _mm_add_epi32(z_rot, _mm_set1_epi32(scene_z));
-
-            __m128i x_cam = _mm_srai_epi32(_mm_add_epi32(mullo_epi32_sse(x_rot, c_yaw), mullo_epi32_sse(z_rot, s_yaw)), 16);
-            __m128i z_cam = _mm_srai_epi32(_mm_sub_epi32(mullo_epi32_sse(z_rot, c_yaw), mullo_epi32_sse(x_rot, s_yaw)), 16);
-            __m128i y_cam = _mm_srai_epi32(_mm_sub_epi32(mullo_epi32_sse(y_rot, c_pitch), mullo_epi32_sse(z_cam, s_pitch)), 16);
-            __m128i z_fin = _mm_srai_epi32(_mm_add_epi32(mullo_epi32_sse(y_rot, s_pitch), mullo_epi32_sse(z_cam, c_pitch)), 16);
-
-            __m128i px = _mm_srai_epi32(mullo_epi32_sse(x_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            __m128i py = _mm_srai_epi32(mullo_epi32_sse(y_cam, v_zoom), TORIDRAW_ORTHO_ZOOM_SHIFT);
-            {   /* and/andnot/or: a blend that is valid on plain SSE2 too. */
-                __m128i m = _mm_cmplt_epi32(z_fin, v_near);
-                px = _mm_or_si128(_mm_and_si128(m, v_sentinel), _mm_andnot_si128(m, px));
-            }
-
-            _mm_storeu_si128((__m128i*)&screen_vertices_x[i], px);
-            _mm_storeu_si128((__m128i*)&screen_vertices_y[i], py);
-            _mm_storeu_si128((__m128i*)&screen_vertices_z[i], _mm_sub_epi32(z_fin, v_mid));
-        }
-    }
-#endif
+    /* Whatever the build's lane took off the front; 0 if it has no kernel. */
+    int i = toridraw_ortho_lane_fused_notex_clip(
+        &cam,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        vertex_x,
+        vertex_y,
+        vertex_z,
+        num_vertices);
 
     for( ; i < num_vertices; i++ )
     {
@@ -806,12 +456,21 @@ project_vertices_array_ortho_fused_notex_clip(
         int y_cam;
         int z_fin;
         toridraw_ortho_to_camera_space(
-            vertex_x[i], vertex_y[i], vertex_z[i],
-            cos_model_yaw, sin_model_yaw,
-            scene_x, scene_y, scene_z,
-            cos_camera_yaw, sin_camera_yaw,
-            cos_camera_pitch, sin_camera_pitch,
-            &x_cam, &y_cam, &z_fin);
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
+            cos_model_yaw,
+            sin_model_yaw,
+            scene_x,
+            scene_y,
+            scene_z,
+            cos_camera_yaw,
+            sin_camera_yaw,
+            cos_camera_pitch,
+            sin_camera_pitch,
+            &x_cam,
+            &y_cam,
+            &z_fin);
 
         screen_vertices_x[i] = (z_fin < near_plane_z)
                                    ? TORIDRAW_SCREEN_X_NEAR_CLIPPED
@@ -851,10 +510,18 @@ project_vertices_array_ortho6_fused_noclip(
     for( int i = 0; i < num_vertices; i++ )
     {
         struct ProjectedVertex pv = project_orthographic(
-            vertex_x[i], vertex_y[i], vertex_z[i],
-            model_pitch, model_yaw, model_roll,
-            scene_x, scene_y, scene_z,
-            camera_pitch, camera_yaw, camera_roll);
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
+            model_pitch,
+            model_yaw,
+            model_roll,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_pitch,
+            camera_yaw,
+            camera_roll);
 
         int x_cam = pv.x;
         int y_cam = pv.y;
@@ -901,10 +568,18 @@ project_vertices_array_ortho6_fused_clip(
     for( int i = 0; i < num_vertices; i++ )
     {
         struct ProjectedVertex pv = project_orthographic(
-            vertex_x[i], vertex_y[i], vertex_z[i],
-            model_pitch, model_yaw, model_roll,
-            scene_x, scene_y, scene_z,
-            camera_pitch, camera_yaw, camera_roll);
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
+            model_pitch,
+            model_yaw,
+            model_roll,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_pitch,
+            camera_yaw,
+            camera_roll);
 
         int x_cam = pv.x;
         int y_cam = pv.y;
@@ -949,10 +624,18 @@ project_vertices_array_ortho6_fused_notex_noclip(
     for( int i = 0; i < num_vertices; i++ )
     {
         struct ProjectedVertex pv = project_orthographic(
-            vertex_x[i], vertex_y[i], vertex_z[i],
-            model_pitch, model_yaw, model_roll,
-            scene_x, scene_y, scene_z,
-            camera_pitch, camera_yaw, camera_roll);
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
+            model_pitch,
+            model_yaw,
+            model_roll,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_pitch,
+            camera_yaw,
+            camera_roll);
 
         int x_cam = pv.x;
         int y_cam = pv.y;
@@ -992,10 +675,18 @@ project_vertices_array_ortho6_fused_notex_clip(
     for( int i = 0; i < num_vertices; i++ )
     {
         struct ProjectedVertex pv = project_orthographic(
-            vertex_x[i], vertex_y[i], vertex_z[i],
-            model_pitch, model_yaw, model_roll,
-            scene_x, scene_y, scene_z,
-            camera_pitch, camera_yaw, camera_roll);
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
+            model_pitch,
+            model_yaw,
+            model_roll,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_pitch,
+            camera_yaw,
+            camera_roll);
 
         int x_cam = pv.x;
         int y_cam = pv.y;

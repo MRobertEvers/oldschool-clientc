@@ -132,8 +132,8 @@ initialize_fixture(struct Fixture* fixture)
     fixture->handle.u.model.model = &fixture->model;
     fixture->position = (struct ToriDraw_Position){ .x = 96, .y = -48, .z = 2048 };
     fixture->camera = (struct ToriDraw_Camera){
-        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-        .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+        .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+        .projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT,
         .near_plane_z = 50,
         .pitch = 128,
         .yaw = 173,

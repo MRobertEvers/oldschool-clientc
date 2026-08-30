@@ -31,6 +31,12 @@
 #endif
 // clang-format on
 
+/* The debug facility behind the TORIDRAW_DBG_RASTER_* macros this file's walk
+ * is spelled with. toridraw_render.u.c includes it ahead of this file and it
+ * carries an include guard, so this is a no-op in the unity build; with the
+ * gate off every macro below it is a constant or nothing at all. */
+#include "toridraw_debug.u.c"
+
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -433,14 +439,18 @@ ToriDraw_RasterWalkPerFace(
  * Here rather than higher up: each names the stock callbacks defined above,
  * and the texture slots are macros that resolve to an unreachable stub under
  * TORIDRAW_PIXEL16, so the kernels have to be assembled after that choice.
+ *
+ * The depth family comes FIRST: every painter below names its depth-tested
+ * twin (zbuffered_variant) by address, so those four objects have to exist by
+ * the time the painters are initialised.
  */
 // clang-format off
+#include "kernels/sd.zbuffered.u.c"
 #include "kernels/sd.branching.u.c"
 #include "kernels/sd.branching_perface.u.c"
 #include "kernels/sd.scanline.u.c"
 #include "kernels/sd.smooth_branching.u.c"
 #include "kernels/sd.smooth_scanline.u.c"
-#include "kernels/sd.zbuffered.u.c"
 // clang-format on
 
 #undef toridraw_stock_scanline_textured_flat
@@ -685,11 +695,7 @@ ToriDraw_RasterModelFaceKernel(
     }
 
     TORIDRAW_DBG_RASTER_DREW_SHADED(
-        dbg,
-        prepared.face_class == TORIDRAW_RASTER_FACE_SD_FLAT,
-        color_a,
-        color_b,
-        color_c);
+        dbg, prepared.face_class == TORIDRAW_RASTER_FACE_SD_FLAT, color_a, color_b, color_c);
 
     ToriDraw_RasterKernelSDDispatch(&ctx->kernel, &ctx->target, &prepared);
 }
@@ -768,8 +774,8 @@ context_from_handle(
          * projection never used would place them where nothing was cut. */
         ctx->near_plane_z = scene->projection_near_plane_z;
         ctx->stride = view_port->stride ? view_port->stride : view_port->width;
-        ctx->camera_cot16 =
-            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048);
+        ctx->camera_cot16 = toridraw_projection_cot16(
+            camera->projection_mode, camera->projection_scale, camera->fov_rpi2048);
         ctx->texture_map = &ToriDraw_SceneTexState(scene)->texture_map;
         ctx->cache_texture_id = -1;
         ctx->cache_texels = NULL;
@@ -828,8 +834,7 @@ toridraw_raster_context_init(
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer,
     const struct ToriDraw_RasterKernelSD* kernel,
-    struct ToriDrawModelRasterContext* ctx
-    TORIDRAW_DBG_RASTER_STORAGE_PARAM)
+    struct ToriDrawModelRasterContext* ctx TORIDRAW_DBG_RASTER_STORAGE_PARAM)
 {
     struct ToriDraw_Model* model;
     int clip_left;
@@ -856,7 +861,7 @@ toridraw_raster_context_init(
     ctx->target.near_plane_z = ctx->near_plane_z;
     ctx->target.camera_cot16 = ctx->camera_cot16;
     ctx->target.model_mid_z = scene->projected_vertex.z;
-    ctx->target.parallel_projection = toridraw_proj_is_parallel(camera->proj_mode);
+    ctx->target.parallel_projection = toridraw_projection_is_parallel(camera->projection_mode);
     ctx->target.affine_textures = ctx->affine_textures;
     ctx->target.near_clip_available = ctx->allow_near_clip && ctx->orthographic_vertex_x_nullable &&
                                       ctx->orthographic_vertex_y_nullable &&
@@ -943,20 +948,19 @@ ToriDraw_RasterWalkPerFace(
 /*
  * Stage 3 is one call. Which walk runs is the kernel's own business.
  *
- * A NULL draw_model is the stock walk, not a contract violation -- the same
- * defaulting the projection and face_sort slots use, and what lets a kernel
- * that only supplies the four leaf callbacks stay a valid aggregate
- * initializer.
+ * A kernel with no traversal of its own NAMES ToriDraw_RasterWalkPerFace and
+ * gets the normalizing walk; that naming is the declaration the presort rule
+ * reads. There is no NULL-means-the-stock-walk, because a stage a kernel
+ * forgot to name has to stop at the kernel that forgot it rather than quietly
+ * draw down a path its author never chose.
  */
 static inline void
 toridraw_raster_draw_faces(
     struct ToriDraw_Scene* scene,
     struct ToriDrawModelRasterContext* ctx)
 {
-    if( ctx->kernel.draw_model )
-        ctx->kernel.draw_model(ctx->kernel.user_data, scene, ctx);
-    else
-        ToriDraw_RasterWalkPerFace(ctx->kernel.user_data, scene, ctx);
+    assert(ctx->kernel.draw_model);
+    ctx->kernel.draw_model(ctx->kernel.user_data, scene, ctx);
 }
 
 static inline bool
@@ -979,8 +983,13 @@ ToriDraw_RasterPainter(
     case TORIDRAWMK_MODEL_SHARED:
     case TORIDRAWMK_MODEL_LENT_FACES:
         toridraw_raster_context_init(
-            scene, hnd, view_port, camera, pixel_buffer, kernel, &ctx
-                TORIDRAW_DBG_RASTER_STORAGE_ARG);
+            scene,
+            hnd,
+            view_port,
+            camera,
+            pixel_buffer,
+            kernel,
+            &ctx TORIDRAW_DBG_RASTER_STORAGE_ARG);
         toridraw_raster_draw_faces(scene, &ctx);
         TORIDRAW_DBG_RASTER_PRINT(&ctx, (void*)model_as_full(hnd));
         return true;
@@ -1012,8 +1021,13 @@ ToriDraw_RasterZ(
     case TORIDRAWMK_MODEL_SHARED:
     case TORIDRAWMK_MODEL_LENT_FACES:
         toridraw_raster_context_init(
-            scene, hnd, view_port, camera, pixel_buffer, kernel, &ctx
-                TORIDRAW_DBG_RASTER_STORAGE_ARG);
+            scene,
+            hnd,
+            view_port,
+            camera,
+            pixel_buffer,
+            kernel,
+            &ctx TORIDRAW_DBG_RASTER_STORAGE_ARG);
 
         rows = ctx.target.clip_origin_y + ctx.screen_height;
         if( !ToriDraw_SceneHasZBuffer(scene, ctx.stride, rows) )
@@ -1036,7 +1050,7 @@ ToriDraw_RasterZ(
         ctx.zbuf_target.offset_y = ctx.offset_y;
         ctx.zbuf_target.near_plane_z = ctx.near_plane_z;
         ctx.zbuf_target.model_mid_z = scene->projected_vertex.z;
-        ctx.zbuf_target.parallel = toridraw_proj_is_parallel(camera->proj_mode);
+        ctx.zbuf_target.parallel = toridraw_projection_is_parallel(camera->projection_mode);
 
         ctx.zbuf_source.face_indices_a = ctx.face_indices_a;
         ctx.zbuf_source.face_indices_b = ctx.face_indices_b;

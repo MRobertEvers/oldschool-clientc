@@ -3409,8 +3409,8 @@ gl3_ev_begin_3d(
              * whatever the layout computed — at this boot's viewport that is
              * ~191, so the GPU drew the world 2.7x magnified about the viewport
              * centre. Identical camera, identical scene, different size. */
-            (int)cam->proj_mode,
-            cam->proj_scale,
+            (int)cam->projection_mode,
+            cam->projection_scale,
             cam->fov_rpi2048,
             cam->parallel_zoom16);
 

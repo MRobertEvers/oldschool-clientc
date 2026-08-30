@@ -19,11 +19,11 @@
  * arms have to be read knowing which lane produced them.
  */
 
-#define TORIDRAW_PROJ_SLOT_ALWAYS_INLINE
-#define TORIDRAW_PROJ_SLOT_NEVER_INLINE
+#define TORIDRAW_PROJECTION_SLOT_ALWAYS_INLINE
+#define TORIDRAW_PROJECTION_SLOT_NEVER_INLINE
 
 static inline bool
-toridraw_proj_prepared_clip(
+toridraw_projection_prepared_clip(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
@@ -31,11 +31,12 @@ toridraw_proj_prepared_clip(
     int model_yaw,
     int model_mid_z)
 {
-    return TORIDRAW_PROJ_PREPARED_DECLINE(scene, hnd, position, camera, model_yaw, model_mid_z);
+    return TORIDRAW_PROJECTION_PREPARED_DECLINE(
+        scene, hnd, position, camera, model_yaw, model_mid_z);
 }
 
 static inline bool
-toridraw_proj_prepared_noclip(
+toridraw_projection_prepared_noclip(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
@@ -43,7 +44,8 @@ toridraw_proj_prepared_noclip(
     int model_yaw,
     int model_mid_z)
 {
-    return TORIDRAW_PROJ_PREPARED_DECLINE(scene, hnd, position, camera, model_yaw, model_mid_z);
+    return TORIDRAW_PROJECTION_PREPARED_DECLINE(
+        scene, hnd, position, camera, model_yaw, model_mid_z);
 }
 
 #endif /* TORIDRAW_GRAPHICS_PROJECTION_PREPARED_NONE_U_C */

@@ -6796,9 +6796,9 @@ webgl1_ev_begin_3d(
 
              * centre. Identical camera, identical scene, different size. */
 
-            (int)cam->proj_mode,
+            (int)cam->projection_mode,
 
-            cam->proj_scale,
+            cam->projection_scale,
 
             cam->fov_rpi2048,
 

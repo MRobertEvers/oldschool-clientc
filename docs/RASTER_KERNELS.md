@@ -95,9 +95,12 @@ struct ToriDraw_RasterKernelHDVTable {
 };
 
 struct ToriDraw_RasterKernelSD {
+    ToriDraw_RasterKernelSDModelFn draw_model;
     const struct ToriDraw_RasterKernelSDVTable *vtable;
     void *user_data;
     uint32_t flags;
+    const struct ToriDraw_ProjectionKernel *projection;
+    const struct ToriDraw_FaceCullSortKernel *face_sort;
 };
 
 struct ToriDraw_RasterKernelHD {
@@ -113,6 +116,15 @@ The kernel, vtable, flags, and `user_data` are borrowed for the render call.
 They must remain alive and immutable until it returns. A vtable should normally
 be `static const`; a kernel and its state may be stack objects when the render
 call is synchronous. Every vtable slot is mandatory and must be non-null.
+
+So is every stage slot. `draw_model`, `projection` and `face_sort` are not
+optional and there is no NULL-means-the-default: a kernel that supplies only
+the four leaf callbacks names `ToriDraw_RasterWalkPerFace` as its `draw_model`,
+and says which projection and which face sort it runs --
+`ToriDraw_ProjectionKernelGetDefault()` and
+`ToriDraw_FaceCullSortKernelGetDefault()` are how it asks for the usual ones.
+The simplest way to get this right when overriding a built-in is to copy the
+built-in kernel and change only what differs.
 Supplying an incomplete kernel or unknown flag bit violates the API contract.
 
 ## Pass orchestration flags
@@ -348,11 +360,11 @@ struct ToriDraw_RasterKernelSDVTable counter_vtable = *built_in->vtable;
 counter_vtable.draw[TORIDRAW_RASTER_FACE_SD_FLAT] = counted_flat;
 
 struct FlatCounter counter = { 0 };
-struct ToriDraw_RasterKernelSD kernel = {
-    .vtable = &counter_vtable,
-    .user_data = &counter,
-    .flags = built_in->flags,
-};
+/* Copy the built-in so the walk, projection and face sort come across; each
+ * is required, and a hole in one of them asserts rather than defaulting. */
+struct ToriDraw_RasterKernelSD kernel = *built_in;
+kernel.vtable = &counter_vtable;
+kernel.user_data = &counter;
 
 int result = ToriDraw_RenderModelWithRasterKernel(
     model, scene, &position, &viewport, &camera, pixels, &kernel);
@@ -403,9 +415,15 @@ static const struct ToriDraw_RasterKernelSDVTable wire_vtable = {
 };
 
 struct ToriDraw_RasterKernelSD wire = {
+    /* Only the four leaf callbacks are ours, so the stock walk is named
+     * rather than left out, and the two stages in front of it are the
+     * library's -- said out loud, because neither slot may be NULL. */
+    .draw_model = ToriDraw_RasterWalkPerFace,
     .vtable = &wire_vtable,
     .user_data = &wire_state,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
+    .projection = ToriDraw_ProjectionKernelGetDefault(),
+    .face_sort = ToriDraw_FaceCullSortKernelGetDefault(),
 };
 ```
 

@@ -21,15 +21,18 @@ static const struct ToriDraw_RasterKernelSDVTable g_stock_scanline_vtable = {
     },
 };
 
-static const struct ToriDraw_RasterKernelSD g_stock_scanline_kernel = {
+static struct ToriDraw_RasterKernelSD g_stock_scanline_kernel = {
     .draw_model = ToriDraw_RasterWalkPerFace,
     .vtable = &g_stock_scanline_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
+    /* The depth family has no scanline form; the twin is the shared one. */
+    .zbuffered_variant = &g_stock_sorted_zbuffered_kernel,
 };
 
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetScanline(void)
 {
+    toridraw_sd_kernel_publish(&g_stock_scanline_kernel);
     return &g_stock_scanline_kernel;
 }
 

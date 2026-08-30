@@ -9481,10 +9481,10 @@ App_Init(
     app->painter_buffer = painter_buffer_new();
     assert(app->painter_buffer);
     /* v1 GameRunescape camera defaults; repositioned on world load complete. */
-    /* Both knobs are populated; proj_mode picks. See graphics/projection.h. */
-    app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    app->world_camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
-    app->world_camera.fov_rpi2048 = TORIDRAW_PROJ_FOV_DEFAULT;
+    /* Both knobs are populated; projection_mode picks. See graphics/projection.h. */
+    app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    app->world_camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
+    app->world_camera.fov_rpi2048 = TORIDRAW_PROJECTION_FOV_DEFAULT;
     /* 50 also load-bearing for the raster, not just for what gets drawn: the
      * near plane is what keeps projected coordinates inside the kernels' 16.16
      * edge representation (+/-32,768 px). Lowering it moves the largest models
@@ -13547,7 +13547,7 @@ app_debug_log_bridges(struct App* app)
  * viewport HEIGHT on every layout (class159.method5357:
  * scale = viewportHeight * zoom / 334, zoom interpolated between the two
  * VIEWPORT_SETFOV endpoints over height-334 in [0,100]). Leaving it at the
- * compile-time proj_scale = 512 is what drew the Inferno 2.68x magnified —
+ * compile-time projection_scale = 512 is what drew the Inferno 2.68x magnified —
  * at a 503-high world viewport the reference lands on 191/192.
  *
  * ON by default. TORIRS_WEDGE_SCALE values:
@@ -13557,10 +13557,10 @@ app_debug_log_bridges(struct App* app)
  *   TORIRS_WEDGE_ZOOM=<n>,<f>   override the decoded SETFOV endpoints (auto mode)
  *   TORIRS_WEDGE_FOV_DEBUG=1    log the SETFOV decode and the resulting scale
  *
- * The scale reaches the kernels exactly, through ToriDraw_Camera.proj_scale.
+ * The scale reaches the kernels exactly, through ToriDraw_Camera.projection_scale.
  *
  * TORIRS_WORLD_FOV=<n> drives the camera's OTHER knob instead: it switches the
- * world camera to TORIDRAW_PROJ_MODE_FOV and sets fov_rpi2048 to n (units of
+ * world camera to TORIDRAW_PROJECTION_MODE_FOV and sets fov_rpi2048 to n (units of
  * 2*pi/2048, 512 = the default). Both spellings are configurable; the angle
  * cannot express most integer scales, so it is the wrong tool for matching a
  * reference projection and the right one for a free camera. It wins over
@@ -13578,11 +13578,11 @@ app_world_fov_override(void)
         if( e && e[0] != '\0' && sscanf(e, "%d", &v) == 1 && v > 0 )
         {
             /* Clamped, not rejected: an out-of-domain angle would otherwise
-             * mirror the world (see TORIDRAW_PROJ_FOV_MAX). */
-            if( v < TORIDRAW_PROJ_FOV_MIN )
-                v = TORIDRAW_PROJ_FOV_MIN;
-            if( v > TORIDRAW_PROJ_FOV_MAX )
-                v = TORIDRAW_PROJ_FOV_MAX;
+             * mirror the world (see TORIDRAW_PROJECTION_FOV_MAX). */
+            if( v < TORIDRAW_PROJECTION_FOV_MIN )
+                v = TORIDRAW_PROJECTION_FOV_MIN;
+            if( v > TORIDRAW_PROJECTION_FOV_MAX )
+                v = TORIDRAW_PROJECTION_FOV_MAX;
             cached = v;
         }
     }
@@ -13629,7 +13629,7 @@ app_apply_wedge_scale(struct App* app)
 
     if( fov_override > 0 )
     {
-        app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_FOV;
+        app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_FOV;
         app->world_camera.fov_rpi2048 = fov_override;
         if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
         {
@@ -13639,7 +13639,8 @@ app_apply_wedge_scale(struct App* app)
                 logged = 1;
                 TORIRS_LOG("wedge: fov mode fov_rpi2048=%d -> realised scale %d\n",
                     fov_override,
-                    toridraw_proj_scale_from_cot16(toridraw_proj_cot16_from_fov(fov_override)));
+                    toridraw_projection_scale_from_cot16(
+                        toridraw_projection_cot16_from_fov(fov_override)));
             }
         }
         return;
@@ -13667,8 +13668,8 @@ app_apply_wedge_scale(struct App* app)
     if( mode == 0 &&
         app->revconfig_profile.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_FIXED )
     {
-        app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-        app->world_camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+        app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+        app->world_camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
         if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
         {
             static int logged = 0;
@@ -13677,7 +13678,7 @@ app_apply_wedge_scale(struct App* app)
                 logged = 1;
                 TORIRS_LOG("wedge: fixed camera -> constant scale=%d (no viewport "
                     "recompute)\n",
-                    TORIDRAW_PROJ_SCALE_DEFAULT);
+                    TORIDRAW_PROJECTION_SCALE_DEFAULT);
             }
         }
         return;
@@ -13727,9 +13728,9 @@ app_apply_wedge_scale(struct App* app)
     if( scale < 1 )
         scale = 1;
 
-    /* Exact: the kernels multiply by proj_scale directly. */
-    app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    app->world_camera.proj_scale = scale;
+    /* Exact: the kernels multiply by projection_scale directly. */
+    app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    app->world_camera.projection_scale = scale;
 
     if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
     {
@@ -13745,9 +13746,9 @@ app_apply_wedge_scale(struct App* app)
                 far_zoom,
                 zoom,
                 scale,
-                toridraw_proj_scale_from_cot16(toridraw_proj_cot16(
-                    app->world_camera.proj_mode,
-                    app->world_camera.proj_scale,
+                toridraw_projection_scale_from_cot16(toridraw_projection_cot16(
+                    app->world_camera.projection_mode,
+                    app->world_camera.projection_scale,
                     app->world_camera.fov_rpi2048)));
         }
     }
@@ -18001,9 +18002,9 @@ app_update_painter_cull(
                 near_z,
                 vw,
                 vh,
-                toridraw_proj_cot16(
-                    app->world_camera.proj_mode,
-                    app->world_camera.proj_scale,
+                toridraw_projection_cot16(
+                    app->world_camera.projection_mode,
+                    app->world_camera.projection_scale,
                     app->world_camera.fov_rpi2048),
                 &trig);
             clock_gettime(CLOCK_MONOTONIC, &t1);
@@ -18077,8 +18078,8 @@ app_update_painter_cull(
     params.screen_height = vh;
     /* Same values the frame will be drawn with; the cull frustum must not
      * assume a different projection scale than the rasterizer uses. */
-    params.proj_mode = app->world_camera.proj_mode;
-    params.proj_scale = app->world_camera.proj_scale;
+    params.projection_mode = app->world_camera.projection_mode;
+    params.projection_scale = app->world_camera.projection_scale;
     params.fov_rpi2048 = app->world_camera.fov_rpi2048;
     /* Eye-relative row range covering the draw box around the orbit centre. */
     params.dz_min = (center_sz - radius) - cam_sz - 2;

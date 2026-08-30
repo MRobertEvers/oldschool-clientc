@@ -20,7 +20,15 @@
  *   smooth_*                  the same two, selected when the caller asked
  *                             for smooth shading; the vtable is shared
  *                             because the depth family has no separate
- *                             smooth gouraud callback.
+ *                             smooth gouraud callback. They are distinct
+ *                             OBJECTS regardless, because the smooth painters
+ *                             name them as their zbuffered_variant -- that is
+ *                             what carries "the caller wanted smooth" across
+ *                             the swap, and what a smooth depth callback would
+ *                             only have to be dropped into.
+ *
+ * Included before the painter kernels (toridraw_raster.u.c), which name these
+ * four by address.
  *
  * Under TORIDRAW_PIXEL16 every slot is the unsupported stub: the depth family
  * draws through the 32-bit texture and blend paths, and sd_render_with_kernel_z
@@ -43,26 +51,26 @@ static const struct ToriDraw_RasterKernelSDVTable g_stock_zbuffered_vtable = {
     },
 };
 
-static const struct ToriDraw_RasterKernelSD g_stock_zbuffered_kernel = {
+static struct ToriDraw_RasterKernelSD g_stock_zbuffered_kernel = {
     .draw_model = ToriDraw_RasterWalkPerFace,
     .vtable = &g_stock_zbuffered_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
 };
 
-static const struct ToriDraw_RasterKernelSD g_stock_smooth_zbuffered_kernel = {
+static struct ToriDraw_RasterKernelSD g_stock_smooth_zbuffered_kernel = {
     .draw_model = ToriDraw_RasterWalkPerFace,
     .vtable = &g_stock_zbuffered_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
 };
 
-static const struct ToriDraw_RasterKernelSD g_stock_sorted_zbuffered_kernel = {
+static struct ToriDraw_RasterKernelSD g_stock_sorted_zbuffered_kernel = {
     .draw_model = ToriDraw_RasterWalkPerFace,
     .vtable = &g_stock_zbuffered_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING |
              TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
 };
 
-static const struct ToriDraw_RasterKernelSD g_stock_smooth_sorted_zbuffered_kernel = {
+static struct ToriDraw_RasterKernelSD g_stock_smooth_sorted_zbuffered_kernel = {
     .draw_model = ToriDraw_RasterWalkPerFace,
     .vtable = &g_stock_zbuffered_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING |
@@ -72,10 +80,18 @@ static const struct ToriDraw_RasterKernelSD g_stock_smooth_sorted_zbuffered_kern
 static const struct ToriDraw_RasterKernelSD*
 toridraw_stock_zbuffered_kernel(bool smooth, bool sorted)
 {
+    struct ToriDraw_RasterKernelSD* kernel;
+
     if( sorted )
-        return smooth ? &g_stock_smooth_sorted_zbuffered_kernel
-                      : &g_stock_sorted_zbuffered_kernel;
-    return smooth ? &g_stock_smooth_zbuffered_kernel : &g_stock_zbuffered_kernel;
+        kernel = smooth ? &g_stock_smooth_sorted_zbuffered_kernel
+                        : &g_stock_sorted_zbuffered_kernel;
+    else
+        kernel = smooth ? &g_stock_smooth_zbuffered_kernel : &g_stock_zbuffered_kernel;
+    /* Stage 2 does not run for the unsorted pair, but the slots are filled all
+     * the same: every stage entry asserts, and a caller running the stages by
+     * hand must find a real sort named rather than a hole. */
+    toridraw_sd_kernel_publish(kernel);
+    return kernel;
 }
 
 const struct ToriDraw_RasterKernelSD*

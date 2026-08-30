@@ -75,13 +75,13 @@ ToriDraw_ScaleUnitDiv(int v, int z)
  *     effective_scale = camera_cot16 * UNIT_SCALE / 65536 = camera_cot16 >> 7
  *
  * Both spellings are configurable and both are stored on the camera. Which one
- * is live is stated by proj_mode, NOT inferred from a zero sentinel -- two
+ * is live is stated by projection_mode, NOT inferred from a zero sentinel -- two
  * fields racing to define one quantity through "0 means use the other" is how
  * a camera ends up projecting with a value nobody set.
  *
- *   TORIDRAW_PROJ_MODE_SCALE  proj_scale is authoritative. Exact, and the only
+ *   TORIDRAW_PROJECTION_MODE_SCALE  projection_scale is authoritative. Exact, and the only
  *                             way to match a reference projection.
- *   TORIDRAW_PROJ_MODE_FOV    fov_rpi2048 is authoritative. An angle, resolved
+ *   TORIDRAW_PROJECTION_MODE_FOV    fov_rpi2048 is authoritative. An angle, resolved
  *                             through cot(fov/2). Natural for a free camera.
  *
  * The angle is lossy as a way to request a scale, which is why the default mode
@@ -90,38 +90,38 @@ ToriDraw_ScaleUnitDiv(int v, int z)
  * ~2.6 near 410. Most integer scales are not on that ladder -- including the
  * 191 the reference lands on at a 503-high viewport (nearest 190.31, 192.09).
  *
- * toridraw_proj_scale_from_fov / toridraw_proj_fov_from_scale convert between
+ * toridraw_projection_scale_from_fov / toridraw_projection_fov_from_scale convert between
  * them for callers that need to move a value from one spelling to the other.
  */
-#define TORIDRAW_PROJ_COT16_SHIFT (16 - UNIT_SCALE_SHIFT)
+#define TORIDRAW_PROJECTION_COT16_SHIFT (16 - UNIT_SCALE_SHIFT)
 
 /** The scale the reference defaults to, and what SCALE_UNIT alone produces. */
-#define TORIDRAW_PROJ_SCALE_DEFAULT UNIT_SCALE
+#define TORIDRAW_PROJECTION_SCALE_DEFAULT UNIT_SCALE
 
 /** The angle whose cotangent is ~1.0, i.e. the fov spelling of scale 512. */
-#define TORIDRAW_PROJ_FOV_DEFAULT (512)
+#define TORIDRAW_PROJECTION_FOV_DEFAULT (512)
 
 /* Valid fov domain. cot(fov/2) is only positive while fov/2 < 90 degrees, i.e.
  * fov_half < 512 in these units. Past that the tan table returns a NEGATIVE
  * cotangent and the projection mirrors: fov 1200 resolves to scale -142, which
  * draws the world inside out rather than failing. Angles are clamped into the
  * domain here so no caller can reach that by arithmetic accident. */
-#define TORIDRAW_PROJ_FOV_MIN (2)
-#define TORIDRAW_PROJ_FOV_MAX (1022)
+#define TORIDRAW_PROJECTION_FOV_MIN (2)
+#define TORIDRAW_PROJECTION_FOV_MAX (1022)
 
-enum ToriDraw_ProjMode
+enum ToriDraw_ProjectionMode
 {
-    /** proj_scale drives the projection. Default. */
-    TORIDRAW_PROJ_MODE_SCALE = 0,
+    /** projection_scale drives the projection. Default. */
+    TORIDRAW_PROJECTION_MODE_SCALE = 0,
     /** fov_rpi2048 drives the projection. */
-    TORIDRAW_PROJ_MODE_FOV = 1,
+    TORIDRAW_PROJECTION_MODE_FOV = 1,
     /**
      * Parallel (orthographic) projection -- no perspective divide at all;
      * parallel_zoom16 drives it. For the map editor. Selects the
      * projection_ortho.u.c kernels, and changes what the bounding-cylinder cull
      * has to compute, because screen extent no longer depends on depth.
      */
-    TORIDRAW_PROJ_MODE_PARALLEL = 2,
+    TORIDRAW_PROJECTION_MODE_PARALLEL = 2,
 };
 
 /** Fixed-point shift for ToriDraw_Camera.parallel_zoom16. */
@@ -131,62 +131,62 @@ enum ToriDraw_ProjMode
 
 /** Parallel projection is a different kernel family, not a different scale. */
 static inline bool
-toridraw_proj_is_parallel(int proj_mode)
+toridraw_projection_is_parallel(int projection_mode)
 {
-    return proj_mode == TORIDRAW_PROJ_MODE_PARALLEL;
+    return projection_mode == TORIDRAW_PROJECTION_MODE_PARALLEL;
 }
 
 /** Exact: cot16 such that the kernels project coord * scale / z. */
 static inline int
-toridraw_proj_cot16_from_scale(int proj_scale)
+toridraw_projection_cot16_from_scale(int projection_scale)
 {
-    return (proj_scale > 0 ? proj_scale : TORIDRAW_PROJ_SCALE_DEFAULT)
-           << TORIDRAW_PROJ_COT16_SHIFT;
+    return (projection_scale > 0 ? projection_scale : TORIDRAW_PROJECTION_SCALE_DEFAULT)
+           << TORIDRAW_PROJECTION_COT16_SHIFT;
 }
 
 /** Lossy; see the ladder note above. Angle is in units of 2*pi/2048, clamped
- *  to [TORIDRAW_PROJ_FOV_MIN, TORIDRAW_PROJ_FOV_MAX]. */
+ *  to [TORIDRAW_PROJECTION_FOV_MIN, TORIDRAW_PROJECTION_FOV_MAX]. */
 static inline int
-toridraw_proj_cot16_from_fov(int fov_rpi2048)
+toridraw_projection_cot16_from_fov(int fov_rpi2048)
 {
     if( fov_rpi2048 < 1 )
-        fov_rpi2048 = TORIDRAW_PROJ_FOV_DEFAULT;
-    if( fov_rpi2048 < TORIDRAW_PROJ_FOV_MIN )
-        fov_rpi2048 = TORIDRAW_PROJ_FOV_MIN;
-    if( fov_rpi2048 > TORIDRAW_PROJ_FOV_MAX )
-        fov_rpi2048 = TORIDRAW_PROJ_FOV_MAX;
+        fov_rpi2048 = TORIDRAW_PROJECTION_FOV_DEFAULT;
+    if( fov_rpi2048 < TORIDRAW_PROJECTION_FOV_MIN )
+        fov_rpi2048 = TORIDRAW_PROJECTION_FOV_MIN;
+    if( fov_rpi2048 > TORIDRAW_PROJECTION_FOV_MAX )
+        fov_rpi2048 = TORIDRAW_PROJECTION_FOV_MAX;
     return ToriDraw_ReadTanTable(1536 - (fov_rpi2048 >> 1));
 }
 
 /**
  * Resolve the camera's projection knobs to the single value the kernels want.
  * Takes ints rather than the camera so this header stays free of toridraw_types.
- * proj_mode selects; the unselected field is ignored, never consulted.
+ * projection_mode selects; the unselected field is ignored, never consulted.
  */
 static inline int
-toridraw_proj_cot16(int proj_mode, int proj_scale, int fov_rpi2048)
+toridraw_projection_cot16(int projection_mode, int projection_scale, int fov_rpi2048)
 {
-    if( proj_mode == TORIDRAW_PROJ_MODE_FOV )
-        return toridraw_proj_cot16_from_fov(fov_rpi2048);
-    return toridraw_proj_cot16_from_scale(proj_scale);
+    if( projection_mode == TORIDRAW_PROJECTION_MODE_FOV )
+        return toridraw_projection_cot16_from_fov(fov_rpi2048);
+    return toridraw_projection_cot16_from_scale(projection_scale);
 }
 
 /** The linear scale a cot16 realises -- for logging and assertions, so a
  *  reported scale is measured rather than assumed. */
 static inline int
-toridraw_proj_scale_from_cot16(int cot16)
+toridraw_projection_scale_from_cot16(int cot16)
 {
-    return cot16 >> TORIDRAW_PROJ_COT16_SHIFT;
+    return cot16 >> TORIDRAW_PROJECTION_COT16_SHIFT;
 }
 
 /** Angle -> nearest scale. Round to nearest, not down: truncating turns the tan
  *  table's 65535 for fov 512 into scale 511 rather than the 512 it means. */
 static inline int
-toridraw_proj_scale_from_fov(int fov_rpi2048)
+toridraw_projection_scale_from_fov(int fov_rpi2048)
 {
-    return (toridraw_proj_cot16_from_fov(fov_rpi2048) +
-            (1 << (TORIDRAW_PROJ_COT16_SHIFT - 1))) >>
-           TORIDRAW_PROJ_COT16_SHIFT;
+    return (toridraw_projection_cot16_from_fov(fov_rpi2048) +
+            (1 << (TORIDRAW_PROJECTION_COT16_SHIFT - 1))) >>
+           TORIDRAW_PROJECTION_COT16_SHIFT;
 }
 
 /** Scale -> nearest angle on the fov ladder. Lossy in general (that is the
@@ -194,16 +194,16 @@ toridraw_proj_scale_from_fov(int fov_rpi2048)
  *  representable step. cot is monotonically decreasing in the index, so this is
  *  a plain binary search over the same table the projection uses. */
 static inline int
-toridraw_proj_fov_from_scale(int proj_scale)
+toridraw_projection_fov_from_scale(int projection_scale)
 {
     int want;
-    int lo = TORIDRAW_PROJ_FOV_MIN >> 1;
+    int lo = TORIDRAW_PROJECTION_FOV_MIN >> 1;
     /* Search only where cot is positive and monotonically decreasing; the table
      * changes sign at fov_half 512 and a search across that finds nonsense. */
-    int hi = TORIDRAW_PROJ_FOV_MAX >> 1;
-    if( proj_scale < 1 )
-        proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
-    want = proj_scale << TORIDRAW_PROJ_COT16_SHIFT;
+    int hi = TORIDRAW_PROJECTION_FOV_MAX >> 1;
+    if( projection_scale < 1 )
+        projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
+    want = projection_scale << TORIDRAW_PROJECTION_COT16_SHIFT;
     while( lo < hi )
     {
         int mid = (lo + hi) >> 1;
@@ -214,7 +214,7 @@ toridraw_proj_fov_from_scale(int proj_scale)
     }
     /* lo is the first half-angle at or below `want`; pick whichever neighbour
      * lands closer so the round trip does not systematically bias one way. */
-    if( lo > (TORIDRAW_PROJ_FOV_MIN >> 1) )
+    if( lo > (TORIDRAW_PROJECTION_FOV_MIN >> 1) )
     {
         int a = ToriDraw_ReadTanTable(1536 - (lo - 1));
         int b = ToriDraw_ReadTanTable(1536 - lo);

@@ -78,6 +78,19 @@
  */
 static inline int
 sm_bucket_sort_finish(struct ToriDraw_Scene* scene, int num_faces, int min_d, int max_d);
+static inline int
+bucket_accept_face(
+    faceint_t* RESTRICT face_depth_buckets,
+    faceint_t* RESTRICT face_depth_bucket_counts,
+    int depth_stride,
+    int depth_avg,
+    int f,
+    int* RESTRICT min_d,
+    int* RESTRICT max_d);
+static inline int
+bucket_sort_bounds(int min_d, int max_d);
+static inline bool
+bucket_face_clip_candidate(const int* RESTRICT vx, uint32_t a, uint32_t b, uint32_t c);
 static inline void
 sm_stash_face_clipped(struct ToriDraw_Scene* scene, int f);
 static inline void
@@ -459,9 +472,10 @@ toridraw_dbg_project_differential(
 {
     const struct ToriDraw_Model* model = model_as_full(hnd);
     int const dbg_cot15 =
-        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048) >> 1;
+        toridraw_projection_cot16(
+            camera->projection_mode, camera->projection_scale, camera->fov_rpi2048) >> 1;
     int const dbg_ortho_limit = dbg_cot15 > 0 ? INT_MAX / dbg_cot15 : INT_MAX;
-    bool const dbg_yaw_only = !toridraw_proj_is_parallel(camera->proj_mode) &&
+    bool const dbg_yaw_only = !toridraw_projection_is_parallel(camera->projection_mode) &&
                               ToriDraw_NormalizeAngle(position->pitch) == 0 &&
                               ToriDraw_NormalizeAngle(position->roll) == 0 &&
                               ToriDraw_NormalizeAngle(camera->roll) == 0;
@@ -1064,8 +1078,8 @@ toridraw_projection_debug_print(
         max_z,
         center_z,
         camera->near_plane_z,
-        toridraw_proj_scale_from_cot16(toridraw_proj_cot16(
-            camera->proj_mode, camera->proj_scale, camera->fov_rpi2048)),
+        toridraw_projection_scale_from_cot16(toridraw_projection_cot16(
+            camera->projection_mode, camera->projection_scale, camera->fov_rpi2048)),
         (int)may_clip,
         clipped_vertices,
         fixed16_vertices,
@@ -1376,6 +1390,113 @@ bucket_sort_by_average_depth_small_stats(
     return sm_bucket_sort_finish(scene, num_faces, min_d, max_d);
 }
 
+/*
+ * A fifth large-model bucket sort, and the one variant that keeps its flags --
+ * the exact twin of the small-scene one above, for the same reason.
+ *
+ * The counters need to see every face the four in toridraw_render.u.c discard
+ * early, and telling back-facing from degenerate means keeping the winding
+ * itself rather than the boolean the production loops ask for. It also owns
+ * the one counter that has no production equivalent at all: bucket_overflow,
+ * which is how a model that lost faces to a full depth bucket says so.
+ *
+ * Reached through TORIDRAW_DBG_SORT_LARGE_TAKEOVER, at the top of the
+ * dispatcher that chooses between the other four.
+ */
+static int
+bucket_sort_by_average_depth_stats(
+    faceint_t* RESTRICT face_depth_buckets,
+    faceint_t* RESTRICT face_depth_bucket_counts,
+    int depth_levels,
+    int depth_stride,
+    int depth_shift,
+    struct ToriDraw_FaceSortDebugStats* debug_stats,
+    bool near_clipped,
+    int model_min_depth,
+    int num_faces,
+    const int* RESTRICT vx,
+    const int* RESTRICT vy,
+    const int* RESTRICT vz,
+    const faceint_t* RESTRICT face_a,
+    const faceint_t* RESTRICT face_b,
+    const faceint_t* RESTRICT face_c)
+{
+    int min_d = depth_levels;
+    int max_d = 0;
+
+    assert(debug_stats);
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        const uint32_t a = face_a[f];
+        const uint32_t b = face_b[f];
+        const uint32_t c = face_c[f];
+        long long winding = 1;
+        bool clip_candidate;
+
+        clip_candidate = near_clipped && bucket_face_clip_candidate(vx, a, b, c);
+        if( !clip_candidate )
+            winding = toridraw_winding_2d(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
+
+        if( !clip_candidate && !toridraw_winding_front_facing(winding) )
+        {
+            if( winding == 0 )
+                debug_stats->degenerate++;
+            else
+                debug_stats->back_facing++;
+            continue;
+        }
+
+        {
+            int const depth_avg =
+                (div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth) >> depth_shift;
+            int occupancy;
+
+            debug_stats->front_facing++;
+            if( clip_candidate )
+                debug_stats->near_clip_candidates++;
+            if( depth_avg < debug_stats->min_depth_seen )
+                debug_stats->min_depth_seen = depth_avg;
+            if( depth_avg > debug_stats->max_depth_seen )
+                debug_stats->max_depth_seen = depth_avg;
+
+            if( (unsigned int)depth_avg >= (unsigned int)depth_levels )
+            {
+                if( depth_avg < 0 )
+                    debug_stats->depth_out_low++;
+                else
+                    debug_stats->depth_out_high++;
+                if( debug_stats->first_depth_out_face < 0 )
+                {
+                    debug_stats->first_depth_out_face = f;
+                    debug_stats->first_depth_out_value = depth_avg;
+                }
+                continue;
+            }
+
+            occupancy = bucket_accept_face(
+                face_depth_buckets, face_depth_bucket_counts, depth_stride, depth_avg, f,
+                &min_d, &max_d);
+            if( occupancy == 0 )
+            {
+                debug_stats->bucket_overflow++;
+                continue;
+            }
+
+            debug_stats->accepted++;
+            if( occupancy > debug_stats->max_bucket_occupancy )
+                debug_stats->max_bucket_occupancy = occupancy;
+        }
+    }
+
+    assert(
+        debug_stats->front_facing == debug_stats->accepted + debug_stats->depth_out_low +
+                                         debug_stats->depth_out_high +
+                                         debug_stats->bucket_overflow);
+
+    return bucket_sort_bounds(min_d, max_d);
+}
+
 /* ------------------------------------------------------------------ */
 /* The render path: the near-clip gate's verification harness.        */
 /* ------------------------------------------------------------------ */
@@ -1478,7 +1599,7 @@ toridraw_dbg_verify_near_clip_gate(
             memcpy(verify_z, scene->screen_vertices_z, (size_t)vcount * sizeof(int));
 
             /* Re-project down the opposite arm and compare. */
-            bool const par = toridraw_proj_is_parallel(camera->proj_mode);
+            bool const par = toridraw_projection_is_parallel(camera->projection_mode);
             if( may_clip && par )
                 toridraw_project_vertices_parallel_noclip(
                     scene, hnd, position, camera,
@@ -1950,78 +2071,6 @@ toridraw_dbg_report_tex_mode(int face, int coord, unsigned int render_type)
     } while( 0 )
 #define TORIDRAW_DBG_SORT_ARMED() (debug_stats != NULL)
 
-#define TORIDRAW_DBG_SORT_FRONT(dbg, clip_candidate, depth_avg) \
-    do \
-    { \
-        if( dbg ) \
-        { \
-            (dbg)->front_facing++; \
-            if( clip_candidate ) \
-                (dbg)->near_clip_candidates++; \
-            if( (depth_avg) < (dbg)->min_depth_seen ) \
-                (dbg)->min_depth_seen = (depth_avg); \
-            if( (depth_avg) > (dbg)->max_depth_seen ) \
-                (dbg)->max_depth_seen = (depth_avg); \
-        } \
-    } while( 0 )
-
-#define TORIDRAW_DBG_SORT_ACCEPTED(dbg, occupancy) \
-    do \
-    { \
-        if( dbg ) \
-        { \
-            (dbg)->accepted++; \
-            if( (occupancy) > (dbg)->max_bucket_occupancy ) \
-                (dbg)->max_bucket_occupancy = (occupancy); \
-        } \
-    } while( 0 )
-
-#define TORIDRAW_DBG_SORT_OVERFLOW(dbg) \
-    do \
-    { \
-        if( dbg ) \
-            (dbg)->bucket_overflow++; \
-    } while( 0 )
-
-#define TORIDRAW_DBG_SORT_DEPTH_OUT(dbg, face, depth_avg) \
-    do \
-    { \
-        if( dbg ) \
-        { \
-            if( (depth_avg) < 0 ) \
-                (dbg)->depth_out_low++; \
-            else \
-                (dbg)->depth_out_high++; \
-            if( (dbg)->first_depth_out_face < 0 ) \
-            { \
-                (dbg)->first_depth_out_face = (face); \
-                (dbg)->first_depth_out_value = (depth_avg); \
-            } \
-        } \
-    } while( 0 )
-
-#define TORIDRAW_DBG_SORT_CULLED(dbg, winding) \
-    do \
-    { \
-        if( dbg ) \
-        { \
-            if( (winding) == 0 ) \
-                (dbg)->degenerate++; \
-            else \
-                (dbg)->back_facing++; \
-        } \
-    } while( 0 )
-
-/** Every front-facing face landed in exactly one bucket. */
-#define TORIDRAW_DBG_SORT_TOTALS(dbg) \
-    do \
-    { \
-        if( dbg ) \
-            assert( \
-                (dbg)->front_facing == (dbg)->accepted + (dbg)->depth_out_low + \
-                                           (dbg)->depth_out_high + (dbg)->bucket_overflow); \
-    } while( 0 )
-
 #define TORIDRAW_DBG_SORT_PRINT(dbg, scene, hnd, ordered) \
     do \
     { \
@@ -2039,6 +2088,17 @@ toridraw_dbg_report_tex_mode(int face, int coord, unsigned int render_type)
             return bucket_sort_by_average_depth_small_stats( \
                 (scene), (dbg), (stash_xy), (near_clipped), (model_min_depth), (num_faces), \
                 (vx), (vy), (vz), (fa), (fb), (fc)); \
+    } while( 0 )
+#define TORIDRAW_DBG_SORT_LARGE_TAKEOVER( \
+    dbg, buckets, counts, depth_levels, depth_stride, depth_shift, near_clipped, \
+    model_min_depth, num_faces, vx, vy, vz, fa, fb, fc) \
+    do \
+    { \
+        if( dbg ) \
+            return bucket_sort_by_average_depth_stats( \
+                (buckets), (counts), (depth_levels), (depth_stride), (depth_shift), (dbg), \
+                (near_clipped), (model_min_depth), (num_faces), (vx), (vy), (vz), (fa), (fb), \
+                (fc)); \
     } while( 0 )
 
 /* -- the render path: the once-per-model reports -- */
@@ -2186,15 +2246,13 @@ toridraw_dbg_report_tex_mode(int face, int coord, unsigned int render_type)
 #define TORIDRAW_DBG_SORT_ARM()   ((void)0)
 #define TORIDRAW_DBG_SORT_ARMED() 0
 
-#define TORIDRAW_DBG_SORT_FRONT(dbg, clip_candidate, depth_avg)  ((void)0)
-#define TORIDRAW_DBG_SORT_ACCEPTED(dbg, occupancy)               ((void)0)
-#define TORIDRAW_DBG_SORT_OVERFLOW(dbg)                          ((void)0)
-#define TORIDRAW_DBG_SORT_DEPTH_OUT(dbg, face, depth_avg)        ((void)0)
-#define TORIDRAW_DBG_SORT_CULLED(dbg, winding)                   ((void)0)
-#define TORIDRAW_DBG_SORT_TOTALS(dbg)                            ((void)0)
 #define TORIDRAW_DBG_SORT_PRINT(dbg, scene, hnd, ordered)        ((void)0)
 #define TORIDRAW_DBG_SORT_SMALL_TAKEOVER( \
     dbg, scene, stash_xy, near_clipped, model_min_depth, num_faces, vx, vy, vz, fa, fb, fc) \
+    ((void)0)
+#define TORIDRAW_DBG_SORT_LARGE_TAKEOVER( \
+    dbg, buckets, counts, depth_levels, depth_stride, depth_shift, near_clipped, \
+    model_min_depth, num_faces, vx, vy, vz, fa, fb, fc) \
     ((void)0)
 
 #define TORIDRAW_DBG_SORT_COUNTS(counts, flex, avg12, avg34, avg68) ((void)0)

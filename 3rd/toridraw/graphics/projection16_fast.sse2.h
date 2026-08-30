@@ -60,7 +60,7 @@
  * same order.
  */
 static inline __m128i
-toridraw_proj_pair16(int first, int second)
+toridraw_projection_pair16(int first, int second)
 {
     assert(first >= -32768);
     assert(first <= 32767);
@@ -76,7 +76,7 @@ toridraw_proj_pair16(int first, int second)
  * `ab` holds the (a, b) pairs; `hi` and `lo` are the >> 8 and & 255 halves.
  */
 static inline __m128i
-toridraw_proj_madd16(__m128i ab, __m128i hi, __m128i lo)
+toridraw_projection_madd16(__m128i ab, __m128i hi, __m128i lo)
 {
     __m128i const h = _mm_madd_epi16(ab, hi);
     __m128i const l = _mm_madd_epi16(ab, lo);
@@ -86,12 +86,12 @@ toridraw_proj_madd16(__m128i ab, __m128i hi, __m128i lo)
 
 /* Sign-extend the low four int16 of a vector into four int32. */
 static inline __m128i
-toridraw_proj_sx16(__m128i w)
+toridraw_projection_sx16(__m128i w)
 {
     return _mm_srai_epi32(_mm_unpacklo_epi16(w, w), 16);
 }
 
-#define TORIDRAW_PROJ_1_OVER_65536 ( 1.0f / 65536.0f )
+#define TORIDRAW_PROJECTION_1_OVER_65536 ( 1.0f / 65536.0f )
 
 /*
  * `has_yaw`, `want_ortho` and `want_clip` are literals at every call site, so
@@ -105,7 +105,7 @@ toridraw_proj_sx16(__m128i w)
 __attribute__((always_inline))
 #endif
 static inline void
-toridraw_proj_fast_core(
+toridraw_projection_fast_core(
     int* orthographic_vertices_x,
     int* orthographic_vertices_y,
     int* orthographic_vertices_z,
@@ -140,21 +140,21 @@ toridraw_proj_fast_core(
 
     /* Model yaw, split into the two int16 halves pmaddwd can take. */
     __m128i const k_xr_hi =
-        toridraw_proj_pair16(cos_model_yaw >> 8, sin_model_yaw >> 8);
+        toridraw_projection_pair16(cos_model_yaw >> 8, sin_model_yaw >> 8);
     __m128i const k_xr_lo =
-        toridraw_proj_pair16(cos_model_yaw & 255, sin_model_yaw & 255);
+        toridraw_projection_pair16(cos_model_yaw & 255, sin_model_yaw & 255);
     __m128i const k_zr_hi =
-        toridraw_proj_pair16(neg_sin_model_yaw >> 8, cos_model_yaw >> 8);
+        toridraw_projection_pair16(neg_sin_model_yaw >> 8, cos_model_yaw >> 8);
     __m128i const k_zr_lo =
-        toridraw_proj_pair16(neg_sin_model_yaw & 255, cos_model_yaw & 255);
+        toridraw_projection_pair16(neg_sin_model_yaw & 255, cos_model_yaw & 255);
 
     __m128 const f_scene_x = _mm_set1_ps((float)scene_x);
     __m128 const f_scene_y = _mm_set1_ps((float)scene_y);
     __m128 const f_scene_z = _mm_set1_ps((float)scene_z);
-    __m128 const f_ccy = _mm_set1_ps((float)cos_camera_yaw * TORIDRAW_PROJ_1_OVER_65536);
-    __m128 const f_scy = _mm_set1_ps((float)sin_camera_yaw * TORIDRAW_PROJ_1_OVER_65536);
-    __m128 const f_ccp = _mm_set1_ps((float)cos_camera_pitch * TORIDRAW_PROJ_1_OVER_65536);
-    __m128 const f_scp = _mm_set1_ps((float)sin_camera_pitch * TORIDRAW_PROJ_1_OVER_65536);
+    __m128 const f_ccy = _mm_set1_ps((float)cos_camera_yaw * TORIDRAW_PROJECTION_1_OVER_65536);
+    __m128 const f_scy = _mm_set1_ps((float)sin_camera_yaw * TORIDRAW_PROJECTION_1_OVER_65536);
+    __m128 const f_ccp = _mm_set1_ps((float)cos_camera_pitch * TORIDRAW_PROJECTION_1_OVER_65536);
+    __m128 const f_scp = _mm_set1_ps((float)sin_camera_pitch * TORIDRAW_PROJECTION_1_OVER_65536);
     __m128 const f_fov = _mm_set1_ps((float)cot_fov_half_ish15 * ( 1.0f / 64.0f ));
 
     __m128i const v_mid = _mm_set1_epi32(model_mid_z);
@@ -189,17 +189,17 @@ toridraw_proj_fast_core(
         {
             __m128i const xz = _mm_unpacklo_epi16(xw, zw);
 
-            xr = _mm_srai_epi32(toridraw_proj_madd16(xz, k_xr_hi, k_xr_lo), 16);
-            zr = _mm_srai_epi32(toridraw_proj_madd16(xz, k_zr_hi, k_zr_lo), 16);
+            xr = _mm_srai_epi32(toridraw_projection_madd16(xz, k_xr_hi, k_xr_lo), 16);
+            zr = _mm_srai_epi32(toridraw_projection_madd16(xz, k_zr_hi, k_zr_lo), 16);
         }
         else
         {
-            xr = toridraw_proj_sx16(xw);
-            zr = toridraw_proj_sx16(zw);
+            xr = toridraw_projection_sx16(xw);
+            zr = toridraw_projection_sx16(zw);
         }
 
         fx = _mm_add_ps(_mm_cvtepi32_ps(xr), f_scene_x);
-        fy = _mm_add_ps(_mm_cvtepi32_ps(toridraw_proj_sx16(yw)), f_scene_y);
+        fy = _mm_add_ps(_mm_cvtepi32_ps(toridraw_projection_sx16(yw)), f_scene_y);
         fz = _mm_add_ps(_mm_cvtepi32_ps(zr), f_scene_z);
 
         fxs = _mm_add_ps(_mm_mul_ps(fx, f_ccy), _mm_mul_ps(fz, f_scy));
@@ -342,7 +342,7 @@ toridraw_proj_fast_core(
 /* -------------------------------------------------- textured (six outputs) */
 
 static inline void
-toridraw_proj_fast_noclip(
+toridraw_projection_fast_noclip(
     int* orthographic_vertices_x,
     int* orthographic_vertices_y,
     int* orthographic_vertices_z,
@@ -365,14 +365,14 @@ toridraw_proj_fast_noclip(
 {
     /* clang-format off */
     if( model_yaw != 0 )
-        toridraw_proj_fast_core(
+        toridraw_projection_fast_core(
             orthographic_vertices_x, orthographic_vertices_y,
             orthographic_vertices_z, screen_vertices_x, screen_vertices_y,
             screen_vertices_z, vertex_x, vertex_y, vertex_z, num_vertices,
             model_yaw, model_mid_z, near_plane_z, scene_x, scene_y, scene_z,
             camera_cot16, camera_pitch, camera_yaw, 1, 1, 0);
     else
-        toridraw_proj_fast_core(
+        toridraw_projection_fast_core(
             orthographic_vertices_x, orthographic_vertices_y,
             orthographic_vertices_z, screen_vertices_x, screen_vertices_y,
             screen_vertices_z, vertex_x, vertex_y, vertex_z, num_vertices,
@@ -382,7 +382,7 @@ toridraw_proj_fast_noclip(
 }
 
 static inline void
-toridraw_proj_fast_clip(
+toridraw_projection_fast_clip(
     int* orthographic_vertices_x,
     int* orthographic_vertices_y,
     int* orthographic_vertices_z,
@@ -405,14 +405,14 @@ toridraw_proj_fast_clip(
 {
     /* clang-format off */
     if( model_yaw != 0 )
-        toridraw_proj_fast_core(
+        toridraw_projection_fast_core(
             orthographic_vertices_x, orthographic_vertices_y,
             orthographic_vertices_z, screen_vertices_x, screen_vertices_y,
             screen_vertices_z, vertex_x, vertex_y, vertex_z, num_vertices,
             model_yaw, model_mid_z, near_plane_z, scene_x, scene_y, scene_z,
             camera_cot16, camera_pitch, camera_yaw, 1, 1, 1);
     else
-        toridraw_proj_fast_core(
+        toridraw_projection_fast_core(
             orthographic_vertices_x, orthographic_vertices_y,
             orthographic_vertices_z, screen_vertices_x, screen_vertices_y,
             screen_vertices_z, vertex_x, vertex_y, vertex_z, num_vertices,
@@ -429,7 +429,7 @@ toridraw_proj_fast_clip(
  * exists to keep one core inline rather than two.
  */
 static inline void
-toridraw_proj_fast_notex_noclip(
+toridraw_projection_fast_notex_noclip(
     int* screen_vertices_x,
     int* screen_vertices_y,
     int* screen_vertices_z,
@@ -449,13 +449,13 @@ toridraw_proj_fast_notex_noclip(
 {
     /* clang-format off */
     if( model_yaw != 0 )
-        toridraw_proj_fast_core(
+        toridraw_projection_fast_core(
             NULL, NULL, NULL, screen_vertices_x, screen_vertices_y,
             screen_vertices_z, vertex_x, vertex_y, vertex_z, num_vertices,
             model_yaw, model_mid_z, near_plane_z, scene_x, scene_y, scene_z,
             camera_cot16, camera_pitch, camera_yaw, 1, 0, 0);
     else
-        toridraw_proj_fast_core(
+        toridraw_projection_fast_core(
             NULL, NULL, NULL, screen_vertices_x, screen_vertices_y,
             screen_vertices_z, vertex_x, vertex_y, vertex_z, num_vertices,
             0, model_mid_z, near_plane_z, scene_x, scene_y, scene_z,
@@ -464,7 +464,7 @@ toridraw_proj_fast_notex_noclip(
 }
 
 static inline void
-toridraw_proj_fast_notex_clip(
+toridraw_projection_fast_notex_clip(
     int* screen_vertices_x,
     int* screen_vertices_y,
     int* screen_vertices_z,
@@ -484,13 +484,13 @@ toridraw_proj_fast_notex_clip(
 {
     /* clang-format off */
     if( model_yaw != 0 )
-        toridraw_proj_fast_core(
+        toridraw_projection_fast_core(
             NULL, NULL, NULL, screen_vertices_x, screen_vertices_y,
             screen_vertices_z, vertex_x, vertex_y, vertex_z, num_vertices,
             model_yaw, model_mid_z, near_plane_z, scene_x, scene_y, scene_z,
             camera_cot16, camera_pitch, camera_yaw, 1, 0, 1);
     else
-        toridraw_proj_fast_core(
+        toridraw_projection_fast_core(
             NULL, NULL, NULL, screen_vertices_x, screen_vertices_y,
             screen_vertices_z, vertex_x, vertex_y, vertex_z, num_vertices,
             0, model_mid_z, near_plane_z, scene_x, scene_y, scene_z,

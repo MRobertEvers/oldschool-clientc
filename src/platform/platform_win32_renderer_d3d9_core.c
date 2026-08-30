@@ -5146,8 +5146,8 @@ d3d9_begin_3d(
         pass_h,
         /* See the note at the GL caller: this used to project at a hardcoded
          * 512 regardless of what the camera asked for. */
-        (int)command->camera.proj_mode,
-        command->camera.proj_scale,
+        (int)command->camera.projection_mode,
+        command->camera.projection_scale,
         command->camera.fov_rpi2048,
         command->camera.parallel_zoom16);
     if( renderer->zbuffer )

@@ -19,18 +19,18 @@
  * other family.
  *
  * The kernels read the camera out of the scene's prepared block, so `camera`
- * itself is never touched here -- toridraw_proj_prepared_eligible already
+ * itself is never touched here -- toridraw_projection_prepared_eligible already
  * established that the block belongs to it.
  */
 
 /* Measured on this lane: the prepared slot folds into ToriDraw_ProjectWithVTable's
  * call site, and the portable fallback stays out of line so its register
  * pressure does not price the hot path. */
-#define TORIDRAW_PROJ_SLOT_ALWAYS_INLINE __attribute__((always_inline))
-#define TORIDRAW_PROJ_SLOT_NEVER_INLINE __attribute__((noinline))
+#define TORIDRAW_PROJECTION_SLOT_ALWAYS_INLINE __attribute__((always_inline))
+#define TORIDRAW_PROJECTION_SLOT_NEVER_INLINE __attribute__((noinline))
 
 static inline bool
-toridraw_proj_prepared_clip(
+toridraw_projection_prepared_clip(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
@@ -39,11 +39,12 @@ toridraw_proj_prepared_clip(
     int model_mid_z)
 {
     /* No clip entry point exists in projection16.aarch64.S. */
-    return TORIDRAW_PROJ_PREPARED_DECLINE(scene, hnd, position, camera, model_yaw, model_mid_z);
+    return TORIDRAW_PROJECTION_PREPARED_DECLINE(
+        scene, hnd, position, camera, model_yaw, model_mid_z);
 }
 
 static inline bool
-toridraw_proj_prepared_noclip(
+toridraw_projection_prepared_noclip(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
@@ -62,7 +63,7 @@ toridraw_proj_prepared_noclip(
 
     if( model_has_textures(hnd) )
     {
-        TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 0, num_vertices);
+        TORIDRAW_PROJECTION_CENSUS_RECORD(TORIDRAW_PROJECTION_K_YAW_TEX, 0, num_vertices);
         toridraw_project_vertices_fused_neon_noclip_native_prepared_aarch64(
             &scene->screen_vertices_x,
             model_vertices_x(hnd),
@@ -75,7 +76,7 @@ toridraw_proj_prepared_noclip(
     }
     else
     {
-        TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 0, num_vertices);
+        TORIDRAW_PROJECTION_CENSUS_RECORD(TORIDRAW_PROJECTION_K_YAW_NOTEX, 0, num_vertices);
         toridraw_project_vertices_fused_neon_notex_noclip_native_prepared_aarch64(
             &scene->screen_vertices_x,
             model_vertices_x(hnd),

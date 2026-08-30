@@ -4,9 +4,11 @@
 /*
  * D3D9 / GL / WebGL: stages 1 and 2 only.
  *
- * A NULL raster slot is how a table says it has no software raster stage. The
- * faces go to a vertex upload, so the renderer wants the back-to-front order
- * and nothing else -- it reads tmp_face_order and never walks a span.
+ * A NULL raster slot is how a table says it has no software raster stage. That
+ * is a declaration and not an unfilled slot: the faces go to a vertex upload,
+ * so the renderer wants the back-to-front order and nothing else -- it reads
+ * tmp_face_order and never walks a span -- and every raster entry refuses this
+ * table rather than defaulting to one.
  *
  * That is exactly why the stash must not be filled here. A GPU lane paying
  * seven stores and a six-way compare per drawn face into sm_face_x4/y4, for a
@@ -16,16 +18,15 @@
  * ToriDraw_KernelScratchNeeds does not ask for it.
  */
 
-static const struct ToriDraw_Kernel g_kernel_gpu = {
+static struct ToriDraw_Kernel g_kernel_gpu = {
     .name = "gpu",
-    .projection = NULL,
-    .face_sort = NULL,
     .raster = NULL,
 };
 
 const struct ToriDraw_Kernel*
 ToriDraw_KernelGetGpu(void)
 {
+    toridraw_kernel_table_publish(&g_kernel_gpu);
     return &g_kernel_gpu;
 }
 

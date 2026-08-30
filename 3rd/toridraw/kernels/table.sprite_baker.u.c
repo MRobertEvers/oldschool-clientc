@@ -14,16 +14,16 @@
  * has a door to read them, so this table costs the sort nothing extra.
  */
 
-static const struct ToriDraw_Kernel g_kernel_sprite_baker = {
+static struct ToriDraw_Kernel g_kernel_sprite_baker = {
     .name = "sprite-baker",
-    .projection = NULL,
-    .face_sort = NULL,
     .raster = &g_stock_branching_perface_kernel,
 };
 
 const struct ToriDraw_Kernel*
 ToriDraw_KernelGetSpriteBaker(void)
 {
+    toridraw_sd_kernel_publish(&g_stock_branching_perface_kernel);
+    toridraw_kernel_table_publish(&g_kernel_sprite_baker);
     return &g_kernel_sprite_baker;
 }
 

@@ -318,8 +318,8 @@ static struct ToriDraw_Camera
 camera(void)
 {
     struct ToriDraw_Camera cam = {
-        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-        .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+        .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+        .projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT,
         .near_plane_z = 50,
     };
     return cam;
@@ -901,7 +901,7 @@ test_perspective_correct_depth(struct ToriDraw_Scene* scene)
         double const x_model = -(double)EXTENT + t * 2.0 * (double)EXTENT;
         double const z_camera = (double)CAMERA_DISTANCE + (double)flat_z;
         double const screen_x =
-            x_model * (double)TORIDRAW_PROJ_SCALE_DEFAULT / z_camera + (double)(VIEW_W / 2);
+            x_model * (double)TORIDRAW_PROJECTION_SCALE_DEFAULT / z_camera + (double)(VIEW_W / 2);
         double const error = (double)boundary - screen_x;
 
         CHECK(

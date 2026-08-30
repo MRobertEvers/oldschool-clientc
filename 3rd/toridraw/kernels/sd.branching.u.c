@@ -23,7 +23,7 @@ static const struct ToriDraw_RasterKernelSDVTable g_stock_branching_vtable = {
     },
 };
 
-static const struct ToriDraw_RasterKernelSD g_stock_branching_kernel = {
+static struct ToriDraw_RasterKernelSD g_stock_branching_kernel = {
     /* Staged runs into the assembly kernels, with the per-face walk behind
      * it. On a lane with no presorted-run assembly this name IS the per-face
      * walk (graphics/raster/batch/raster.batch.u.c), so there is nothing to
@@ -31,11 +31,15 @@ static const struct ToriDraw_RasterKernelSD g_stock_branching_kernel = {
     .draw_model = toridraw_raster_walk_batched,
     .vtable = &g_stock_branching_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
+    /* Sorted, because this kernel sorts: the twin has to stand in for the
+     * whole kernel, stage 2 included, not just for the fill. */
+    .zbuffered_variant = &g_stock_sorted_zbuffered_kernel,
 };
 
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetBranching(void)
 {
+    toridraw_sd_kernel_publish(&g_stock_branching_kernel);
     return &g_stock_branching_kernel;
 }
 

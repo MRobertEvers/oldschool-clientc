@@ -91,8 +91,8 @@ static struct ToriDraw_Camera
 test_camera(void)
 {
     struct ToriDraw_Camera camera = {
-        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-        .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+        .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+        .projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT,
         .near_plane_z = 50,
         .texture_affine = true,
     };
@@ -328,6 +328,34 @@ test_typed_builtin_kernels(void)
           "smooth branching names the stock walk");
     CHECK(ToriDraw_RasterKernelSDGetGpu()->draw_model == NULL,
           "the gpu kernel has no raster stage at all");
+
+    /*
+     * Which depth-tested twin each painter names.
+     *
+     * The stage-3 entries read this slot to honour TORIDRAW_MODEL_FLAG_ZBUFFER
+     * instead of recognising the caller's kernel by address. The smooth twin
+     * draws the same pixels as the flat one today -- the depth family shares
+     * one vtable -- so the only thing holding the smooth painters to the
+     * smooth twin is this check and the day the family grows a smooth
+     * callback.
+     */
+    CHECK(sd_branching->zbuffered_variant != NULL, "branching names no depth twin");
+    CHECK(sd_scanline->zbuffered_variant == sd_branching->zbuffered_variant,
+          "the flat painters disagree on their depth twin");
+    CHECK(sd_smooth_branching->zbuffered_variant != NULL,
+          "smooth branching names no depth twin");
+    CHECK(sd_smooth_scanline->zbuffered_variant == sd_smooth_branching->zbuffered_variant,
+          "the smooth painters disagree on their depth twin");
+    CHECK(sd_smooth_branching->zbuffered_variant != sd_branching->zbuffered_variant,
+          "the smooth painter took the flat painter's depth twin");
+    CHECK((sd_branching->zbuffered_variant->flags &
+           TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER) != 0,
+          "a depth twin that does not ask for the depth buffer");
+    CHECK((sd_branching->zbuffered_variant->flags &
+           TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING) != 0,
+          "a sorting painter's depth twin dropped the sort");
+    CHECK(sd_zbuffered->zbuffered_variant == NULL,
+          "a depth kernel is its own twin and should name none");
     CHECK(sizeof(struct ToriDraw_RasterKernelHDVTable) ==
               6 * sizeof(ToriDraw_RasterKernelHDFaceFn),
           "HD vtable is not six typed slots");
@@ -597,27 +625,45 @@ test_sd_direct_apis(const struct SDFixture* fixture, struct RenderEnv* env)
     struct ToriDraw_Camera camera = test_camera();
     struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
     struct SDSpy spy = { .fixture = fixture, .env = env };
+    /*
+     * A caller's own kernel names all three stages. There is no slot here that
+     * may be left NULL for the library to fill in: the walk is the stock
+     * per-face one because these kernels supply only the four leaf callbacks,
+     * and the projection and sort are the library's, said out loud.
+     */
     const struct ToriDraw_RasterKernelSD full_kernel = {
+        .draw_model = ToriDraw_RasterWalkPerFace,
         .vtable = &sd_full_vtable,
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
+        .projection = ToriDraw_ProjectionKernelGetDefault(),
+        .face_sort = ToriDraw_FaceCullSortKernelGetDefault(),
     };
     const struct ToriDraw_RasterKernelSD none_kernel = {
+        .draw_model = ToriDraw_RasterWalkPerFace,
         .vtable = &sd_full_vtable,
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NONE,
+        .projection = ToriDraw_ProjectionKernelGetDefault(),
+        .face_sort = ToriDraw_FaceCullSortKernelGetDefault(),
     };
 #ifndef TORIDRAW_PIXEL16
     const struct ToriDraw_RasterKernelSD z_kernel = {
+        .draw_model = ToriDraw_RasterWalkPerFace,
         .vtable = &sd_full_vtable,
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
+        .projection = ToriDraw_ProjectionKernelGetDefault(),
+        .face_sort = ToriDraw_FaceCullSortKernelGetDefault(),
     };
     const struct ToriDraw_RasterKernelSD sorted_z_kernel = {
+        .draw_model = ToriDraw_RasterWalkPerFace,
         .vtable = &sd_full_vtable,
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING |
                  TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
+        .projection = ToriDraw_ProjectionKernelGetDefault(),
+        .face_sort = ToriDraw_FaceCullSortKernelGetDefault(),
     };
 #endif
     int result;
@@ -1312,9 +1358,12 @@ test_pixel16_sd_depth_unsupported(
     struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
     struct SDSpy spy = { .fixture = fixture, .env = env };
     const struct ToriDraw_RasterKernelSD kernel = {
+        .draw_model = ToriDraw_RasterWalkPerFace,
         .vtable = &sd_full_vtable,
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
+        .projection = ToriDraw_ProjectionKernelGetDefault(),
+        .face_sort = ToriDraw_FaceCullSortKernelGetDefault(),
     };
     pid_t child = fork();
     int status = 0;

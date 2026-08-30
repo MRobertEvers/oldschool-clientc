@@ -177,7 +177,7 @@ struct ToriDraw_Model
      * toridraw_face_sort_flat_tile2_scalar.
      *
      * Spending the same constants on SIMD instead -- one vector load per axis,
-     * a shuffle per lane -- is written as toridraw_face_sort_flat_tile2 and is
+     * a shuffle per lane -- is written as toridraw_face_sort_flat_tile2_sse2 and is
      * SLOWER than both, 8.9 ns. Its comment has the numbers and the reason. The
      * field selects neither; TORIDRAW_TILE_SORT does, and the field only says
      * the model is eligible.
@@ -483,27 +483,27 @@ struct ToriDraw_Camera
     /** Which of the two knobs below drives the projection. Zero-initialising a
      *  camera selects SCALE, so a memset camera projects at the reference's
      *  default 512 rather than at whatever an unset angle would resolve to. */
-    enum ToriDraw_ProjMode proj_mode;
+    enum ToriDraw_ProjectionMode projection_mode;
 
     /** The reference client's viewport scale (class159.method5357 ->
      *  client.field817): the integer multiplier in screen = coord * scale / z,
      *  recomputed per layout from the world viewport height. Live when
-     *  proj_mode == TORIDRAW_PROJ_MODE_SCALE. 0 = TORIDRAW_PROJ_SCALE_DEFAULT.
+     *  projection_mode == TORIDRAW_PROJECTION_MODE_SCALE. 0 = TORIDRAW_PROJECTION_SCALE_DEFAULT.
      *
      *  The only way to match a reference projection exactly -- most integer
      *  scales are not reachable through fov_rpi2048 at all. */
-    int proj_scale;
+    int projection_scale;
 
-    /** Field of view, in units of 2*pi/2048. Live when proj_mode ==
-     *  TORIDRAW_PROJ_MODE_FOV. 0 = TORIDRAW_PROJ_FOV_DEFAULT. Natural for a
+    /** Field of view, in units of 2*pi/2048. Live when projection_mode ==
+     *  TORIDRAW_PROJECTION_MODE_FOV. 0 = TORIDRAW_PROJECTION_FOV_DEFAULT. Natural for a
      *  free camera; lossy as a way to request a specific scale (see the ladder
      *  note in graphics/projection.h). */
     int fov_rpi2048;
 
     /**
-     * Pixels per world unit, 16.16 fixed point. Live when proj_mode ==
-     * TORIDRAW_PROJ_MODE_PARALLEL; TORIDRAW_ORTHO_ZOOM_UNIT (65536) is 1:1.
-     * Deliberately not proj_scale reused: that one is a perspective numerator
+     * Pixels per world unit, 16.16 fixed point. Live when projection_mode ==
+     * TORIDRAW_PROJECTION_MODE_PARALLEL; TORIDRAW_ORTHO_ZOOM_UNIT (65536) is 1:1.
+     * Deliberately not projection_scale reused: that one is a perspective numerator
      * measured against z, this is a plain screen scale, and collapsing two
      * different quantities into one field is how a camera ends up projecting
      * with a value nobody set.
@@ -551,7 +551,7 @@ struct ToriDraw_ProjectionPreparedCamera
  * The same prepared camera's pitch and fov, already in the form the SSE2
  * kernel actually multiplies by.
  *
- * toridraw_proj_prepared_core wants these three as floats scaled by 1/65536,
+ * toridraw_projection_prepared_core wants these three as floats scaled by 1/65536,
  * 1/65536 and 1/64. They were being derived from the int block above on every
  * call -- a load, a cvtdq2ps and a mulps each -- for values that change once a
  * frame. That is nothing on a 380-vertex model and it is not nothing on a

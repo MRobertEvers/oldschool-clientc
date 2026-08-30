@@ -16,7 +16,7 @@
  * D3D9, GL and WebGL renderers therefore call the plain sort entry.
  */
 
-static const struct ToriDraw_RasterKernelSD g_stock_gpu_kernel = {
+static struct ToriDraw_RasterKernelSD g_stock_gpu_kernel = {
     /* No stage 3 at all: both slots NULL, and every raster entry asserts. */
     .draw_model = NULL,
     .vtable = NULL,
@@ -26,6 +26,7 @@ static const struct ToriDraw_RasterKernelSD g_stock_gpu_kernel = {
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetGpu(void)
 {
+    toridraw_sd_kernel_publish(&g_stock_gpu_kernel);
     return &g_stock_gpu_kernel;
 }
 

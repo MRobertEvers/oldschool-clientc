@@ -6,7 +6,7 @@
  * WHY THE CALL AND NOT THE LOOP
  *
  * A projection census over lumbridge-ground (graphics/proj_census.h, built
- * with -DTORIDRAW_PROJ_CENSUS=1) counted 2653519 model projections and
+ * with -DTORIDRAW_PROJECTION_CENSUS=1) counted 2653519 model projections and
  * 59772954 vertices in one run, and the distribution is the whole story:
  *
  *   - Only the model-yaw kernels ever fire. Every 6DOF and pitch+yaw entry
@@ -253,7 +253,7 @@ project_one(struct Model const* m, struct Outputs const* o, int fast)
         if( m->textured )
         {
             if( fast )
-                toridraw_proj_fast_clip(
+                toridraw_projection_fast_clip(
                     o->ox, o->oy, o->oz, o->sx, o->sy, o->sz, vx, vy, vz, n,
                     yaw, 0, m->scene_x, m->scene_y, m->scene_z,
                     NEAR_Z, CAM_COT16, CAM_PITCH, CAM_YAW);
@@ -266,7 +266,7 @@ project_one(struct Model const* m, struct Outputs const* o, int fast)
         else
         {
             if( fast )
-                toridraw_proj_fast_notex_clip(
+                toridraw_projection_fast_notex_clip(
                     o->sx, o->sy, o->sz, vx, vy, vz, n,
                     yaw, 0, m->scene_x, m->scene_y, m->scene_z,
                     NEAR_Z, CAM_COT16, CAM_PITCH, CAM_YAW);
@@ -282,7 +282,7 @@ project_one(struct Model const* m, struct Outputs const* o, int fast)
         if( m->textured )
         {
             if( fast )
-                toridraw_proj_fast_noclip(
+                toridraw_projection_fast_noclip(
                     o->ox, o->oy, o->oz, o->sx, o->sy, o->sz, vx, vy, vz, n,
                     yaw, 0, m->scene_x, m->scene_y, m->scene_z,
                     NEAR_Z, CAM_COT16, CAM_PITCH, CAM_YAW);
@@ -295,7 +295,7 @@ project_one(struct Model const* m, struct Outputs const* o, int fast)
         else
         {
             if( fast )
-                toridraw_proj_fast_notex_noclip(
+                toridraw_projection_fast_notex_noclip(
                     o->sx, o->sy, o->sz, vx, vy, vz, n,
                     yaw, 0, m->scene_x, m->scene_y, m->scene_z,
                     NEAR_Z, CAM_COT16, CAM_PITCH, CAM_YAW);

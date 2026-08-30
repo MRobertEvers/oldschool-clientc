@@ -390,9 +390,9 @@ soft3d_dbg_frame_ab_kernels_init(struct ToriRS_Soft3D* soft)
     if( ToriDraw_FrameAbEnabled() && !announced++ )
         TORIRS_REPORT(
             "soft3d: frame A/B arms: A face_sort=%s batch=%d, B face_sort=%s batch=%d\n",
-            soft->kernel_ab[0].face_sort ? soft->kernel_ab[0].face_sort->name : "default",
+            soft->kernel_ab[0].face_sort->name,
             soft->batch_ab[0],
-            soft->kernel_ab[1].face_sort ? soft->kernel_ab[1].face_sort->name : "default",
+            soft->kernel_ab[1].face_sort->name,
             soft->batch_ab[1]);
 }
 

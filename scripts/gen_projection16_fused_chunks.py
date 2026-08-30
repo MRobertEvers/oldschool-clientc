@@ -61,15 +61,15 @@ def transform_project16(text: str) -> str:
     # SSE int loads
     text = text.replace(
         "__m128i xv4 = _mm_loadu_si128((__m128i*)&vertex_x[i]);",
-        "__m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));",
+        "__m128i xv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));",
     )
     text = text.replace(
         "__m128i yv4 = _mm_loadu_si128((__m128i*)&vertex_y[i]);",
-        "__m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));",
+        "__m128i yv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));",
     )
     text = text.replace(
         "__m128i zv4 = _mm_loadu_si128((__m128i*)&vertex_z[i]);",
-        "__m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));",
+        "__m128i zv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));",
     )
     return text
 

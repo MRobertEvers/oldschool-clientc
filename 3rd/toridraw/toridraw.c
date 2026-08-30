@@ -1002,6 +1002,33 @@ toridraw_stock_model_needs_zbuffer(
 #endif
 }
 
+/*
+ * The kernel to raster with once the model has asked for a depth buffer.
+ *
+ * A kernel names its own depth-tested twin, so nothing here identifies the
+ * caller's kernel to carry an attribute across the swap: smooth shading and
+ * the face-sort flag survive it because the twin was chosen BY the kernel that
+ * has them, at the point where they are still known, rather than reconstructed
+ * by whoever happened to notice the model's flag.
+ *
+ * A kernel that names no twin gets the stock depth painter, which is all this
+ * could ever do for a kernel the library did not build -- but it is a stated
+ * fallback for an unstated slot now, not the silent flattening of every kernel
+ * that failed an address comparison.
+ */
+static const struct ToriDraw_RasterKernelSD*
+sd_kernel_zbuffered_variant(const struct ToriDraw_RasterKernelSD* kernel)
+{
+    assert(kernel);
+    if( !kernel->zbuffered_variant )
+        return toridraw_stock_zbuffered_kernel(false, true);
+    assert((kernel->zbuffered_variant->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER) &&
+           "a depth-tested twin must ask for the depth buffer");
+    assert(!kernel->zbuffered_variant->zbuffered_variant &&
+           "a depth-tested twin is its own twin and names none");
+    return kernel->zbuffered_variant;
+}
+
 /* ---- The projection and face cull+sort stages as kernels ------------- */
 
 /*
@@ -1092,12 +1119,15 @@ ToriDraw_SceneHasScratch(
     return (ToriDraw_SceneScratchResident(scene) & needs) == needs;
 }
 
-/* A NULL face-sort slot is the stock default, the same defaulting stage 2
- * does when it runs. */
+/* A kernel names its own sort. There is no defaulting here and none in stage
+ * 2 either: the prebaked kernels are handed out with the slot already filled
+ * (toridraw_sd_kernel_publish), so a hole is a caller who assembled one by
+ * hand and left a stage out. */
 static const struct ToriDraw_FaceCullSortKernel*
 sd_kernel_face_sort(const struct ToriDraw_RasterKernelSD* kernel)
 {
-    return kernel->face_sort ? kernel->face_sort : ToriDraw_FaceCullSortKernelGetDefault();
+    assert(kernel->face_sort);
+    return kernel->face_sort;
 }
 
 /*
@@ -1115,6 +1145,9 @@ sd_kernel_face_sort(const struct ToriDraw_RasterKernelSD* kernel)
 static bool
 sd_raster_is_whole_model(const struct ToriDraw_RasterKernelSD* raster)
 {
+    /* A NULL walk is not a defaulted one here: it is the GPU kernel, which has
+     * no stage 3 at all and so has no door either. Every kernel that rasters
+     * names its walk, and ToriDraw_RasterKernelSDAssertValid says so. */
     return raster->draw_model && raster->draw_model != ToriDraw_RasterWalkPerFace;
 }
 
@@ -1226,15 +1259,20 @@ ToriDraw_SceneEnsureKernelScratch(
 
 /* ---- The kernel table ------------------------------------------------ */
 
-/* The stages a table names, with NULL resolved to the stock default. */
+/* The stages a table names. Both are required: a table is the object that
+ * answers "which projection, which sort, which raster", and one that answers
+ * NULL to either is not a table with a default, it is a table with a stage
+ * missing. */
 static void
 kernel_table_resolve(
     const struct ToriDraw_Kernel* kernel,
     const struct ToriDraw_ProjectionKernel** projection,
     const struct ToriDraw_FaceCullSortKernel** sort)
 {
-    *projection = kernel->projection ? kernel->projection : ToriDraw_ProjectionKernelGetDefault();
-    *sort = kernel->face_sort ? kernel->face_sort : ToriDraw_FaceCullSortKernelGetDefault();
+    assert(kernel->projection);
+    assert(kernel->face_sort);
+    *projection = kernel->projection;
+    *sort = kernel->face_sort;
 }
 
 /* Does this table's raster draw whole models? A GPU table has no raster at
@@ -1402,13 +1440,10 @@ sd_kernel_project(
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera)
 {
-    if( kernel->projection )
-    {
-        assert(kernel->projection->project);
-        return kernel->projection->project(
-            kernel->projection->user_data, scene, hnd, position, view_port, camera);
-    }
-    return ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
+    assert(kernel->projection);
+    assert(kernel->projection->project);
+    return kernel->projection->project(
+        kernel->projection->user_data, scene, hnd, position, view_port, camera);
 }
 
 /* The stock sort, with the presort the caller already decided. The only place
@@ -1442,12 +1477,9 @@ sd_kernel_sort(
 {
     bool const presort = sd_kernel_wants_presort(kernel);
 
-    if( kernel->face_sort )
-    {
-        assert(kernel->face_sort->sort);
-        return kernel->face_sort->sort(kernel->face_sort->user_data, scene, hnd, presort);
-    }
-    return sd_sort_faces_stock(hnd, scene, presort);
+    assert(kernel->face_sort);
+    assert(kernel->face_sort->sort);
+    return kernel->face_sort->sort(kernel->face_sort->user_data, scene, hnd, presort);
 }
 
 static int
@@ -1542,8 +1574,9 @@ ToriDraw_ScenePrepareProjectionCamera(
     values[1] = ToriDraw_ReadSinTable(camera->yaw);
     values[2] = ToriDraw_ReadCosTable(camera->pitch);
     values[3] = ToriDraw_ReadSinTable(camera->pitch);
-    values[4] =
-        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048) >> 1;
+    values[4] = toridraw_projection_cot16(
+                    camera->projection_mode, camera->projection_scale, camera->fov_rpi2048) >>
+                1;
 
     for( int lane = 0; lane < 4; lane++ )
     {
@@ -1553,7 +1586,7 @@ ToriDraw_ScenePrepareProjectionCamera(
         prepared->sin_pitch[lane] = values[3];
         prepared->cot15[lane] = values[4];
 
-        /* Exactly what toridraw_proj_prepared_core used to build per call.
+        /* Exactly what toridraw_projection_prepared_core used to build per call.
          * Both scales are powers of two, so the multiply is an exponent
          * adjustment and the only rounding is the int-to-float conversion --
          * the same one cvtdq2ps performed. Bit-for-bit the same operands. */
@@ -1583,7 +1616,7 @@ ToriDraw_RenderModel(
     const struct ToriDraw_RasterKernelSD* kernel = toridraw_stock_builtin_kernel(false);
 
     if( toridraw_stock_model_needs_zbuffer(hnd, scene, view_port) )
-        kernel = toridraw_stock_zbuffered_kernel(false, true);
+        kernel = sd_kernel_zbuffered_variant(kernel);
 
     (void)ToriDraw_RenderModelWithRasterKernel(
         hnd, scene, position, view_port, camera, pixel_buffer, kernel);
@@ -1614,13 +1647,15 @@ ToriDraw_RenderModelWithRasterKernel(
 static inline const struct ToriDraw_ProjectionKernel*
 table_projection(const struct ToriDraw_Kernel* table)
 {
-    return table->projection ? table->projection : ToriDraw_ProjectionKernelGetDefault();
+    assert(table->projection);
+    return table->projection;
 }
 
 static inline const struct ToriDraw_FaceCullSortKernel*
 table_face_sort(const struct ToriDraw_Kernel* table)
 {
-    return table->face_sort ? table->face_sort : ToriDraw_FaceCullSortKernelGetDefault();
+    assert(table->face_sort);
+    return table->face_sort;
 }
 
 int
@@ -1768,11 +1803,7 @@ ToriDraw_RenderModel3RasterWithKernel(
     assert(kernel->vtable && "a GPU kernel has no raster stage");
     if( !(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER) &&
         toridraw_stock_model_needs_zbuffer(scene->active_hnd, scene, view_port) )
-    {
-        bool smooth = kernel == ToriDraw_RasterKernelSDGetSmoothBranching() ||
-                      kernel == ToriDraw_RasterKernelSDGetSmoothScanline();
-        kernel = toridraw_stock_zbuffered_kernel(smooth, true);
-    }
+        kernel = sd_kernel_zbuffered_variant(kernel);
     return ToriDraw_RenderModel3RasterWithRasterKernel(
         scene, view_port, camera, pixel_buffer, kernel);
 }
@@ -1808,7 +1839,7 @@ ToriDraw_RenderModel3Raster(
     const struct ToriDraw_RasterKernelSD* kernel = toridraw_stock_builtin_kernel(smooth);
 
     if( toridraw_stock_model_needs_zbuffer(scene->active_hnd, scene, view_port) )
-        kernel = toridraw_stock_zbuffered_kernel(smooth, true);
+        kernel = sd_kernel_zbuffered_variant(kernel);
 
     return ToriDraw_RenderModel3RasterWithRasterKernel(
         scene, view_port, camera, pixel_buffer, kernel);

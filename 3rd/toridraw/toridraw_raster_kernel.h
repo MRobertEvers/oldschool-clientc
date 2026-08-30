@@ -286,8 +286,11 @@ struct ToriDraw_RasterKernelHDVTable
  *           the order read straight off the sorted keys. Same order as
  *           `bucket`, face for face (toridraw_face_sort_flat_test.c).
  *
- * A NULL slot is the default: the stock projection, and whichever sort
- * TORIDRAW_FACE_SORT selects (see toridraw_face_sort_flat.u.c).
+ * Neither slot may be NULL. The prebaked kernels and tables are handed out
+ * with both already filled -- the projection is fixed, the sort is whichever
+ * TORIDRAW_FACE_SORT / ToriDraw_FaceSortSetFlat named when the getter ran (see
+ * toridraw_face_sort_flat.u.c) -- so the choice is made once, where the caller
+ * takes the object, and never re-made per model behind their back.
  */
 typedef int (*ToriDraw_ProjectionKernelFn)(
     void* user_data,
@@ -340,26 +343,24 @@ typedef int (*ToriDraw_FaceCullSortKernelFn)(
  *
  * Before any vertex is touched, ToriDraw_Project resolves two properties -- is
  * the camera parallel, and can this model reach behind the near plane -- and
- * those two answers select one of four specialized vertex kernels. That cross
- * used to be an if/else ladder in the middle of a 386-line function, which
- * meant "which projection is this frame running" was not something a caller
- * could hold, name, or swap.
+ * those two answers select one specialized vertex kernel. That cross used to
+ * be an if/else ladder in the middle of a 386-line function, which meant
+ * "which projection is this frame running" was not something a caller could
+ * hold, name, or swap.
  *
- * As a vtable it is one slot per shape, filled by the kernel the caller
- * selected. The two stock kernels differ in exactly the two perspective slots,
- * because the prepared-camera family only ever applied there.
+ * The two answers are not peers, so they are not two indices into one flat
+ * table. The first names a FAMILY; the second is a question only that family
+ * knows how to ask, because "can a vertex reach the near plane, and which
+ * plane is that" has a different answer under a projection that divides by z
+ * than under one that does not. So a family owns its own near-clip rule and
+ * the two vertex kernels that rule selects between, and the shared shell
+ * neither states nor spells either rule -- it reads the camera once to pick a
+ * family and asks that family everything else.
  *
- * One indirect call per MODEL, behind the cull that stops most models before
- * they reach it. The raster vtable already accepts one per FACE.
+ * One indirect call per MODEL for the rule and one for the vertices, both
+ * behind the cull that stops most models before they reach either. The raster
+ * vtable already accepts one per FACE.
  */
-enum ToriDraw_ProjectionShape
-{
-    TORIDRAW_PROJECTION_PERSPECTIVE_CLIP = 0,
-    TORIDRAW_PROJECTION_PERSPECTIVE_NOCLIP = 1,
-    TORIDRAW_PROJECTION_PARALLEL_CLIP = 2,
-    TORIDRAW_PROJECTION_PARALLEL_NOCLIP = 3,
-    TORIDRAW_PROJECTION_SHAPE_COUNT = 4,
-};
 
 /*
  * Project one model's vertices into the scene's scratch.
@@ -381,10 +382,40 @@ typedef void (*ToriDraw_ProjectionVerticesFn)(
     int camera_roll,
     int model_mid_z);
 
-/* Every slot is required. A kernel with a NULL slot is incomplete. */
+/*
+ * One family's near-clip rule: the plane everything downstream clips against,
+ * and whether any vertex of this model can reach it.
+ *
+ * `*out_near_plane_z` is what the raster, the HD path and the prepared kernels
+ * read back out of the scene, so a family may raise the camera's plane but
+ * must always publish one. `*out_may_clip` selects this family's `project`
+ * slot and must be conservative in the "may clip" direction: a no-clip kernel
+ * that meets a vertex behind the plane is a wrong projection, not a slow one.
+ *
+ * `bounds` is NULL when the model carries no bound; a family that cannot rule
+ * out a near vertex without one must answer true.
+ */
+typedef void (*ToriDraw_ProjectionNearClipFn)(
+    const struct ToriDraw_Camera* camera,
+    const struct ToriDraw_BoundsCylinder* bounds,
+    const struct ProjectedVertex* center,
+    int* out_near_plane_z,
+    bool* out_may_clip);
+
+/* Both slots and the rule are required. A NULL member is an incomplete family. */
+struct ToriDraw_ProjectionFamily
+{
+    const char* name;
+    ToriDraw_ProjectionNearClipFn near_clip;
+    /* Indexed by the `may_clip` that `near_clip` returned. */
+    ToriDraw_ProjectionVerticesFn project[2];
+};
+
+/* Both families are required. A kernel with a NULL family is incomplete. */
 struct ToriDraw_ProjectionKernelVTable
 {
-    ToriDraw_ProjectionVerticesFn project[TORIDRAW_PROJECTION_SHAPE_COUNT];
+    const struct ToriDraw_ProjectionFamily* perspective;
+    const struct ToriDraw_ProjectionFamily* parallel;
 };
 
 struct ToriDraw_ProjectionKernel
@@ -392,7 +423,7 @@ struct ToriDraw_ProjectionKernel
     const char* name;
     ToriDraw_ProjectionKernelFn project;
     void* user_data;
-    /* The four specialized vertex kernels this stage dispatches through. */
+    /* The two projection families this stage dispatches through. */
     const struct ToriDraw_ProjectionKernelVTable* vtable;
 };
 
@@ -416,13 +447,45 @@ struct ToriDraw_FaceCullSortKernel
  */
 struct ToriDraw_RasterKernelSD
 {
-    /* This IS stage 3. NULL selects ToriDraw_RasterWalkPerFace, so a kernel
-     * that only supplies the four leaf callbacks needs nothing here. */
+    /* This IS stage 3, and it is required. A kernel that only supplies the
+     * four leaf callbacks NAMES ToriDraw_RasterWalkPerFace here; that naming
+     * is also what tells the library the kernel has no traversal of its own.
+     * The one NULL is the GPU kernel, which has no stage 3 at all and is
+     * refused by every raster entry. */
     ToriDraw_RasterKernelSDModelFn draw_model;
     /* Read only by ToriDraw_RasterWalkPerFace. */
     const struct ToriDraw_RasterKernelSDVTable* vtable;
     void* user_data;
     uint32_t flags;
+
+    /*
+     * The depth-tested twin of this kernel: what it becomes when it is handed
+     * a TORIDRAW_MODEL_FLAG_ZBUFFER model.
+     *
+     * The depth test is per pixel and lives in the face callbacks, so
+     * honouring that flag means swapping the whole kernel, not setting a bit
+     * on this one. The swap happens at the stage-3 entries, and this slot is
+     * how a kernel states its own replacement rather than being recognised
+     * there by address -- an address comparison can only ever know the
+     * library's own kernels, and only until someone adds another.
+     *
+     * It is also where an attribute the depth family does not carry TODAY is
+     * kept: smooth gouraud shares the plain depth vtable, because that family
+     * has no separate smooth callback yet. The smooth painters name the smooth
+     * twin anyway, so when the callback lands the wiring is already right and
+     * no substitution site has to learn what smooth means.
+     *
+     * NULL on a kernel that already sets NEEDS_ZBUFFER -- it is its own twin
+     * -- and on one with no depth-tested form, which the stage-3 entries
+     * resolve to the stock depth painter. A named twin MUST set NEEDS_ZBUFFER
+     * and MUST NOT name a twin of its own.
+     *
+     * Not a const pointer: reading this slot IS taking that kernel, so the
+     * twin is published (its stage-1 and stage-2 slots filled) alongside the
+     * kernel that names it, and toridraw_sd_kernel_publish writes through
+     * here to do it.
+     */
+    struct ToriDraw_RasterKernelSD* zbuffered_variant;
 
     /*
      * DEPRECATED: use struct ToriDraw_Kernel.
@@ -431,10 +494,13 @@ struct ToriDraw_RasterKernelSD
      * the kernel table replaced -- a raster kernel should name a raster, and
      * the table should name all three as peers. They stay only because the
      * ...WithKernel entries still read them and one A/B harness still sets
-     * face_sort; every prebaked kernel leaves both NULL, and the table entries
-     * (ToriDraw_RenderModel*WithTable) ignore them entirely.
+     * face_sort; the table entries (ToriDraw_RenderModel*WithTable) ignore
+     * them entirely.
      *
-     * NULL selects the stock stage, as it always did.
+     * Required, not defaulted: the ...WithKernel entries assert. The prebaked
+     * kernels arrive with both filled, and a caller assembling one by hand
+     * names the stages it wants -- ToriDraw_ProjectionKernelGetDefault() and
+     * ToriDraw_FaceCullSortKernelGetDefault() are how it says "the usual ones".
      */
     const struct ToriDraw_ProjectionKernel* projection;
     const struct ToriDraw_FaceCullSortKernel* face_sort;
@@ -534,14 +600,20 @@ ToriDraw_RasterKernelHDGetZBuffered(void);
  * a decision made once at init rather than three environment reads and a
  * couple of pointer comparisons buried in the library.
  *
+ * Every slot but the raster is required, and none of them is defaulted: a
+ * table that answers NULL to "which projection" or "which sort" is not a table
+ * with a default, it is a table with a stage missing, and the entries assert
+ * rather than quietly running the stock one. The prebaked tables are published
+ * with both filled; a caller building its own names them.
+ *
  * NOT every triple is coherent. The stages hand each other work through the
  * scene's scratch -- the sort's face order, the projection's camera-space
  * vertices, the y-ordered stash the batched raster walk reads -- and a table
  * is valid only when each consumer's requirement is met by a producer above
  * it. ToriDraw_KernelValidate answers that, once, before the first frame.
  *
- * A NULL projection or face_sort means the stock default. A NULL raster means
- * stages 1 and 2 only: that is the GPU table, whose faces go to a vertex
+ * A NULL raster is the one slot that carries a meaning rather than a hole:
+ * stages 1 and 2 only. That is the GPU table, whose faces go to a vertex
  * buffer and never to a software span, and every raster entry refuses it.
  */
 struct ToriDraw_Kernel

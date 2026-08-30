@@ -43,9 +43,9 @@ project_vertices_array_sse(
     int i = 0;
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
-        __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+        __m128i xv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
+        __m128i yv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+        __m128i zv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
 
         __m128i x_rotated = xv4;
         __m128i z_rotated = zv4;
@@ -172,9 +172,9 @@ project_vertices_array_noyaw_sse(
     int i = 0;
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
-        __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+        __m128i xv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
+        __m128i yv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+        __m128i zv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
 
         __m128i x_rotated = xv4;
         __m128i z_rotated = zv4;
@@ -585,9 +585,9 @@ project_vertices_array_sse_notex(
     int i = 0;
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
-        __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+        __m128i xv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
+        __m128i yv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+        __m128i zv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
 
         __m128i x_rotated = xv4;
         __m128i z_rotated = zv4;
@@ -707,9 +707,9 @@ project_vertices_array_noyaw_sse_notex(
     int i = 0;
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
-        __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+        __m128i xv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
+        __m128i yv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+        __m128i zv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
 
         __m128i x_rotated = xv4;
         __m128i z_rotated = zv4;
@@ -1090,9 +1090,9 @@ project_vertices_array_fused_sse_clip(
     int i = 0;
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
-        __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+        __m128i xv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
+        __m128i yv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+        __m128i zv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
 
         __m128i cos_model_yaw_v4 = _mm_set1_epi32(cos_model_yaw);
         __m128i sin_model_yaw_v4 = _mm_set1_epi32(sin_model_yaw);
@@ -1244,9 +1244,9 @@ project_vertices_array_fused_sse_noclip(
     int i = 0;
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
-        __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+        __m128i xv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
+        __m128i yv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+        __m128i zv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
 
         __m128i cos_model_yaw_v4 = _mm_set1_epi32(cos_model_yaw);
         __m128i sin_model_yaw_v4 = _mm_set1_epi32(sin_model_yaw);
@@ -1385,9 +1385,9 @@ project_vertices_array_fused_noyaw_sse_clip(
     int i = 0;
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
-        __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+        __m128i xv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
+        __m128i yv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+        __m128i zv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
 
         __m128i x_rotated = _mm_add_epi32(xv4, _mm_set1_epi32(scene_x));
         __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
@@ -1524,9 +1524,9 @@ project_vertices_array_fused_noyaw_sse_noclip(
     int i = 0;
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
-        __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+        __m128i xv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
+        __m128i yv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+        __m128i zv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
 
         __m128i x_rotated = _mm_add_epi32(xv4, _mm_set1_epi32(scene_x));
         __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
@@ -1791,9 +1791,9 @@ project_vertices_array_fused_sse_notex_clip(
     int i = 0;
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
-        __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+        __m128i xv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
+        __m128i yv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+        __m128i zv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
 
         __m128i cos_model_yaw_v4 = _mm_set1_epi32(cos_model_yaw);
         __m128i sin_model_yaw_v4 = _mm_set1_epi32(sin_model_yaw);
@@ -1934,9 +1934,9 @@ project_vertices_array_fused_sse_notex_noclip(
     int i = 0;
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
-        __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+        __m128i xv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
+        __m128i yv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+        __m128i zv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
 
         __m128i cos_model_yaw_v4 = _mm_set1_epi32(cos_model_yaw);
         __m128i sin_model_yaw_v4 = _mm_set1_epi32(sin_model_yaw);
@@ -2064,9 +2064,9 @@ project_vertices_array_fused_noyaw_sse_notex_clip(
     int i = 0;
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
-        __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+        __m128i xv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
+        __m128i yv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+        __m128i zv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
 
         __m128i x_rotated = _mm_add_epi32(xv4, _mm_set1_epi32(scene_x));
         __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
@@ -2192,9 +2192,9 @@ project_vertices_array_fused_noyaw_sse_notex_noclip(
     int i = 0;
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
-        __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+        __m128i xv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
+        __m128i yv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+        __m128i zv4 = projection_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
 
         __m128i x_rotated = _mm_add_epi32(xv4, _mm_set1_epi32(scene_x));
         __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));

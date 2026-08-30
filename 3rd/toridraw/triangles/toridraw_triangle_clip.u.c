@@ -174,7 +174,7 @@ ToriDraw_TriangleLerpPlanef(
 
 /** Float twin of ToriDraw_TriangleLerpPlaneProjecti; same scale rule.
  *  `camera_cot16 >> 1` is scale << 6, so dividing by 64 recovers the scale
- *  including its fractional part, which `>> TORIDRAW_PROJ_COT16_SHIFT` would
+ *  including its fractional part, which `>> TORIDRAW_PROJECTION_COT16_SHIFT` would
  *  throw away. */
 static inline float
 ToriDraw_TriangleLerpPlaneProjectf(

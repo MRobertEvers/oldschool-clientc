@@ -86,14 +86,14 @@
 #include "shared_tables.h"
 #include "toridraw_types.h"
 
-#define TORIDRAW_PROJ_PREP_1_OVER_65536 ( 1.0f / 65536.0f )
+#define TORIDRAW_PROJECTION_PREP_1_OVER_65536 ( 1.0f / 65536.0f )
 
 
 /* Pack one pmaddwd coefficient dword; see projection16_fast.sse2.h for the
  * split -- C == (C >> 8) * 256 + (C & 255), both halves int16, recombined
  * (h << 8) + l, exact mod 2^32. */
 static inline __m128i
-toridraw_proj_prep_pair16(int first, int second)
+toridraw_projection_prep_pair16(int first, int second)
 {
     assert(first >= -32768);
     assert(first <= 32767);
@@ -105,7 +105,7 @@ toridraw_proj_prep_pair16(int first, int second)
 }
 
 static inline __m128i
-toridraw_proj_prep_madd16(__m128i ab, __m128i hi, __m128i lo)
+toridraw_projection_prep_madd16(__m128i ab, __m128i hi, __m128i lo)
 {
     __m128i const h = _mm_madd_epi16(ab, hi);
     __m128i const l = _mm_madd_epi16(ab, lo);
@@ -114,21 +114,21 @@ toridraw_proj_prep_madd16(__m128i ab, __m128i hi, __m128i lo)
 }
 
 static inline __m128i
-toridraw_proj_prep_sx16(__m128i w)
+toridraw_projection_prep_sx16(__m128i w)
 {
     return _mm_srai_epi32(_mm_unpacklo_epi16(w, w), 16);
 }
 
 /* Lane-wise signed min/max on the SSE2 floor: pminsd/pmaxsd are SSE4.1. */
 static inline __m128i
-toridraw_proj_prep_min_epi32(__m128i a, __m128i b)
+toridraw_projection_prep_min_epi32(__m128i a, __m128i b)
 {
     __m128i const a_gt = _mm_cmpgt_epi32(a, b);
     return _mm_or_si128(_mm_and_si128(a_gt, b), _mm_andnot_si128(a_gt, a));
 }
 
 static inline __m128i
-toridraw_proj_prep_max_epi32(__m128i a, __m128i b)
+toridraw_projection_prep_max_epi32(__m128i a, __m128i b)
 {
     __m128i const a_gt = _mm_cmpgt_epi32(a, b);
     return _mm_or_si128(_mm_and_si128(a_gt, a), _mm_andnot_si128(a_gt, b));
@@ -138,7 +138,7 @@ toridraw_proj_prep_max_epi32(__m128i a, __m128i b)
 __attribute__((always_inline))
 #endif
 static inline void
-toridraw_proj_prepared_core(
+toridraw_projection_prepared_core(
     const struct ToriDraw_ProjectionPreparedCamera* prep,
     const struct ToriDraw_ProjectionPreparedCameraFloat* prep_f,
     int* orthographic_vertices_x,
@@ -221,10 +221,10 @@ toridraw_proj_prepared_core(
         tz -= ( cos_yaw - sin_yaw ) >> 1;
     }
 
-    __m128i const k_xr_hi = toridraw_proj_prep_pair16(cos_c >> 8, sin_c >> 8);
-    __m128i const k_xr_lo = toridraw_proj_prep_pair16(cos_c & 255, sin_c & 255);
-    __m128i const k_zr_hi = toridraw_proj_prep_pair16(neg_sin_c >> 8, cos_c >> 8);
-    __m128i const k_zr_lo = toridraw_proj_prep_pair16(neg_sin_c & 255, cos_c & 255);
+    __m128i const k_xr_hi = toridraw_projection_prep_pair16(cos_c >> 8, sin_c >> 8);
+    __m128i const k_xr_lo = toridraw_projection_prep_pair16(cos_c & 255, sin_c & 255);
+    __m128i const k_zr_hi = toridraw_projection_prep_pair16(neg_sin_c >> 8, cos_c >> 8);
+    __m128i const k_zr_lo = toridraw_projection_prep_pair16(neg_sin_c & 255, cos_c & 255);
 
     __m128i const v_tx = _mm_set1_epi32(tx);
     __m128i const v_tz = _mm_set1_epi32(tz);
@@ -282,13 +282,13 @@ toridraw_proj_prepared_core(
 
         __m128i const xs = _mm_srai_epi32(
             _mm_add_epi32(
-                toridraw_proj_prep_madd16(xz, k_xr_hi, k_xr_lo), v_tx),
+                toridraw_projection_prep_madd16(xz, k_xr_hi, k_xr_lo), v_tx),
             16);
         __m128i const zs = _mm_srai_epi32(
             _mm_add_epi32(
-                toridraw_proj_prep_madd16(xz, k_zr_hi, k_zr_lo), v_tz),
+                toridraw_projection_prep_madd16(xz, k_zr_hi, k_zr_lo), v_tz),
             16);
-        __m128i const yr = _mm_add_epi32(toridraw_proj_prep_sx16(yw), v_sy);
+        __m128i const yr = _mm_add_epi32(toridraw_projection_prep_sx16(yw), v_sy);
 
         __m128 const fxs = _mm_cvtepi32_ps(xs);
         __m128 const fzs = _mm_cvtepi32_ps(zs);
@@ -344,10 +344,10 @@ toridraw_proj_prepared_core(
 
         if( bound_out )
         {
-            b_min_x = toridraw_proj_prep_min_epi32(b_min_x, final_x);
-            b_max_x = toridraw_proj_prep_max_epi32(b_max_x, final_x);
-            b_min_y = toridraw_proj_prep_min_epi32(b_min_y, final_y);
-            b_max_y = toridraw_proj_prep_max_epi32(b_max_y, final_y);
+            b_min_x = toridraw_projection_prep_min_epi32(b_min_x, final_x);
+            b_max_x = toridraw_projection_prep_max_epi32(b_max_x, final_x);
+            b_min_y = toridraw_projection_prep_min_epi32(b_min_y, final_y);
+            b_max_y = toridraw_projection_prep_max_epi32(b_max_y, final_y);
         }
     }
 
@@ -435,7 +435,7 @@ toridraw_proj_prepared_core(
 /* ------------------------------------------------- textured (six outputs) */
 
 static void
-ToriDraw_ProjPreparedNoclip(
+ToriDraw_ProjectionPreparedNoclip(
     struct ToriDraw_Scene* scene,
     vertexint_t* vertex_x,
     vertexint_t* vertex_y,
@@ -450,7 +450,7 @@ ToriDraw_ProjPreparedNoclip(
     assert(position);
     assert(scene->projection_prepared_camera_source);
 
-    toridraw_proj_prepared_core(
+    toridraw_projection_prepared_core(
         &scene->projection_prepared_camera,
         &scene->projection_prepared_camera_f,
         scene->orthographic_vertices_x,
@@ -476,7 +476,7 @@ ToriDraw_ProjPreparedNoclip(
 }
 
 static void
-ToriDraw_ProjPreparedClip(
+ToriDraw_ProjectionPreparedClip(
     struct ToriDraw_Scene* scene,
     vertexint_t* vertex_x,
     vertexint_t* vertex_y,
@@ -491,7 +491,7 @@ ToriDraw_ProjPreparedClip(
     assert(position);
     assert(scene->projection_prepared_camera_source);
 
-    toridraw_proj_prepared_core(
+    toridraw_projection_prepared_core(
         &scene->projection_prepared_camera,
         &scene->projection_prepared_camera_f,
         scene->orthographic_vertices_x,
@@ -519,7 +519,7 @@ ToriDraw_ProjPreparedClip(
 /* ------------------------------------------------ untextured (screen only) */
 
 static void
-ToriDraw_ProjPreparedNotexNoclip(
+ToriDraw_ProjectionPreparedNotexNoclip(
     struct ToriDraw_Scene* scene,
     vertexint_t* vertex_x,
     vertexint_t* vertex_y,
@@ -534,7 +534,7 @@ ToriDraw_ProjPreparedNotexNoclip(
     assert(position);
     assert(scene->projection_prepared_camera_source);
 
-    toridraw_proj_prepared_core(
+    toridraw_projection_prepared_core(
         &scene->projection_prepared_camera,
         &scene->projection_prepared_camera_f,
         NULL,
@@ -560,7 +560,7 @@ ToriDraw_ProjPreparedNotexNoclip(
 }
 
 static void
-ToriDraw_ProjPreparedNotexClip(
+ToriDraw_ProjectionPreparedNotexClip(
     struct ToriDraw_Scene* scene,
     vertexint_t* vertex_x,
     vertexint_t* vertex_y,
@@ -575,7 +575,7 @@ ToriDraw_ProjPreparedNotexClip(
     assert(position);
     assert(scene->projection_prepared_camera_source);
 
-    toridraw_proj_prepared_core(
+    toridraw_projection_prepared_core(
         &scene->projection_prepared_camera,
         &scene->projection_prepared_camera_f,
         NULL,

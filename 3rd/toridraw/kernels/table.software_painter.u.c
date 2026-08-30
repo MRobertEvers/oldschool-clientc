@@ -12,21 +12,22 @@
  * DEGRADED rather than failing when they do not. The pixels are the same
  * either way; only the speed differs.
  *
- * NULL projection and face_sort mean the stock defaults, so this table follows
- * TORIDRAW_FACE_SORT and the prepared-camera path exactly as the client did
- * before tables existed.
+ * The projection and face-sort slots are filled by the getter, not left NULL
+ * for a stage to resolve: this table follows TORIDRAW_FACE_SORT and the
+ * prepared-camera path exactly as the client did before tables existed, but it
+ * says so in the object it hands out.
  */
 
-static const struct ToriDraw_Kernel g_kernel_software_painter = {
+static struct ToriDraw_Kernel g_kernel_software_painter = {
     .name = "software-painter",
-    .projection = NULL,
-    .face_sort = NULL,
     .raster = &g_stock_branching_kernel,
 };
 
 const struct ToriDraw_Kernel*
 ToriDraw_KernelGetSoftwarePainter(void)
 {
+    toridraw_sd_kernel_publish(&g_stock_branching_kernel);
+    toridraw_kernel_table_publish(&g_kernel_software_painter);
     return &g_kernel_software_painter;
 }
 

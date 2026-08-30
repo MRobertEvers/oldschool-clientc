@@ -24,15 +24,20 @@ static const struct ToriDraw_RasterKernelSDVTable g_stock_branching_perface_vtab
     },
 };
 
-static const struct ToriDraw_RasterKernelSD g_stock_branching_perface_kernel = {
+static struct ToriDraw_RasterKernelSD g_stock_branching_perface_kernel = {
     .draw_model = ToriDraw_RasterWalkPerFace,
     .vtable = &g_stock_branching_perface_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
+    /* The same twin the branching kernel names: the depth family draws face by
+     * face already, so the A/B difference this kernel exists for disappears
+     * the moment the model wants depth. */
+    .zbuffered_variant = &g_stock_sorted_zbuffered_kernel,
 };
 
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetBranchingPerFace(void)
 {
+    toridraw_sd_kernel_publish(&g_stock_branching_perface_kernel);
     return &g_stock_branching_perface_kernel;
 }
 

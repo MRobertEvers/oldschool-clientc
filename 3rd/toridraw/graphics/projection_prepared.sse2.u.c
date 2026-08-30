@@ -13,7 +13,7 @@
  *
  * Both families, unlike the AArch64 lane next door: this one has a clip kernel
  * as well as a noclip one, so nothing falls through to the portable ladder
- * except the models toridraw_proj_prepared_eligible already turned away.
+ * except the models toridraw_projection_prepared_eligible already turned away.
  *
  * Reached only from the plain-SSE2 arm of the ladder in
  * projection16_simd.u.c, which is what defines TORIDRAW_SSE2_PREPARED_PROJECTION
@@ -24,11 +24,11 @@
 
 /* Nothing measured on this lane; the renderer's slot functions take the
  * compiler's own inlining decisions. */
-#define TORIDRAW_PROJ_SLOT_ALWAYS_INLINE
-#define TORIDRAW_PROJ_SLOT_NEVER_INLINE
+#define TORIDRAW_PROJECTION_SLOT_ALWAYS_INLINE
+#define TORIDRAW_PROJECTION_SLOT_NEVER_INLINE
 
 static inline bool
-toridraw_proj_prepared_clip(
+toridraw_projection_prepared_clip(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
@@ -40,8 +40,8 @@ toridraw_proj_prepared_clip(
 
     if( model_has_textures(hnd) )
     {
-        TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 1, num_vertices);
-        ToriDraw_ProjPreparedClip(
+        TORIDRAW_PROJECTION_CENSUS_RECORD(TORIDRAW_PROJECTION_K_YAW_TEX, 1, num_vertices);
+        ToriDraw_ProjectionPreparedClip(
             scene,
             model_vertices_x(hnd),
             model_vertices_y(hnd),
@@ -54,8 +54,8 @@ toridraw_proj_prepared_clip(
     }
     else
     {
-        TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 1, num_vertices);
-        ToriDraw_ProjPreparedNotexClip(
+        TORIDRAW_PROJECTION_CENSUS_RECORD(TORIDRAW_PROJECTION_K_YAW_NOTEX, 1, num_vertices);
+        ToriDraw_ProjectionPreparedNotexClip(
             scene,
             model_vertices_x(hnd),
             model_vertices_y(hnd),
@@ -73,7 +73,7 @@ toridraw_proj_prepared_clip(
 }
 
 static inline bool
-toridraw_proj_prepared_noclip(
+toridraw_projection_prepared_noclip(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
@@ -85,8 +85,8 @@ toridraw_proj_prepared_noclip(
 
     if( model_has_textures(hnd) )
     {
-        TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 0, num_vertices);
-        ToriDraw_ProjPreparedNoclip(
+        TORIDRAW_PROJECTION_CENSUS_RECORD(TORIDRAW_PROJECTION_K_YAW_TEX, 0, num_vertices);
+        ToriDraw_ProjectionPreparedNoclip(
             scene,
             model_vertices_x(hnd),
             model_vertices_y(hnd),
@@ -99,8 +99,8 @@ toridraw_proj_prepared_noclip(
     }
     else
     {
-        TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 0, num_vertices);
-        ToriDraw_ProjPreparedNotexNoclip(
+        TORIDRAW_PROJECTION_CENSUS_RECORD(TORIDRAW_PROJECTION_K_YAW_NOTEX, 0, num_vertices);
+        ToriDraw_ProjectionPreparedNotexNoclip(
             scene,
             model_vertices_x(hnd),
             model_vertices_y(hnd),

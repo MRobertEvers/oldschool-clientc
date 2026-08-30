@@ -22,15 +22,22 @@ static const struct ToriDraw_RasterKernelSDVTable g_stock_smooth_branching_vtabl
     },
 };
 
-static const struct ToriDraw_RasterKernelSD g_stock_smooth_branching_kernel = {
+static struct ToriDraw_RasterKernelSD g_stock_smooth_branching_kernel = {
     .draw_model = ToriDraw_RasterWalkPerFace,
     .vtable = &g_stock_smooth_branching_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
+    /* The SMOOTH twin, which today draws the same pixels as the flat one --
+     * the depth family shares one vtable. Naming it anyway is the point of the
+     * slot: the day the depth family grows a smooth gouraud callback, this
+     * line is already correct and no substitution site has to be taught to
+     * tell a smooth painter from a flat one. */
+    .zbuffered_variant = &g_stock_smooth_sorted_zbuffered_kernel,
 };
 
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetSmoothBranching(void)
 {
+    toridraw_sd_kernel_publish(&g_stock_smooth_branching_kernel);
     return &g_stock_smooth_branching_kernel;
 }
 

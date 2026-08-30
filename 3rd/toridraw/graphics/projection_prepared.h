@@ -15,9 +15,9 @@
  * functions in toridraw_render.u.c, with the model half written out once per
  * ISA.
  *
- *   toridraw_proj_prepared_eligible   per model. One copy, no ISA.
- *   toridraw_proj_prepared_clip       per ISA. One file each.
- *   toridraw_proj_prepared_noclip
+ *   toridraw_projection_prepared_eligible   per model. One copy, no ISA.
+ *   toridraw_projection_prepared_clip       per ISA. One file each.
+ *   toridraw_projection_prepared_noclip
  *
  *   projection_prepared.u.c        selects one lane
  *   projection_prepared.neon.u.c   AArch64: the assembly in
@@ -48,8 +48,8 @@
  *
  * THE INLINING, WHICH IS ALSO A LANE FACT
  *
- * Every lane defines TORIDRAW_PROJ_SLOT_ALWAYS_INLINE and
- * TORIDRAW_PROJ_SLOT_NEVER_INLINE, which the two renderer slot functions carry
+ * Every lane defines TORIDRAW_PROJECTION_SLOT_ALWAYS_INLINE and
+ * TORIDRAW_PROJECTION_SLOT_NEVER_INLINE, which the two renderer slot functions carry
  * -- prepared inlined into its caller, portable kept out of line. Only the
  * AArch64 lane asks for either, and it was measured there; the tuning lives
  * with the lane that measured it rather than as a bare `#if` around an
@@ -74,7 +74,7 @@
  * same three lines in every lane, and the comment in each of them said so.
  */
 static inline bool
-toridraw_proj_prepared_eligible(
+toridraw_projection_prepared_eligible(
     const struct ToriDraw_Scene* scene,
     const struct ToriDraw_Camera* camera,
     int model_pitch,
@@ -89,7 +89,7 @@ toridraw_proj_prepared_eligible(
  * A lane that has no kernel for this family. Names the intent, and consumes
  * the arguments a declining hook never looks at.
  */
-#define TORIDRAW_PROJ_PREPARED_DECLINE(scene, hnd, position, camera, model_yaw, model_mid_z) \
+#define TORIDRAW_PROJECTION_PREPARED_DECLINE(scene, hnd, position, camera, model_yaw, model_mid_z) \
     ((void)(scene),                                                                          \
      (void)(hnd),                                                                            \
      (void)(position),                                                                       \

@@ -589,8 +589,8 @@ world_replay(
     desc.world_level_mask = 0xF;
 
     struct ToriDraw_Camera camera = { 0 };
-    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     camera.near_plane_z = 50;
     camera.pitch = viewer->pitch & 2047;
     camera.yaw = viewer->yaw & 2047;
@@ -775,8 +775,8 @@ render_frame(struct Viewer* viewer)
     camera.pitch = viewer->pitch & 2047;
     camera.yaw = 0;
     camera.roll = 0;
-    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     camera.near_plane_z = 50;
 
     struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);

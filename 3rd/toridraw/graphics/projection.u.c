@@ -131,7 +131,7 @@ project_perspective(
     int x,
     int y,
     int z,
-    int camera_cot16, // resolved projection multiplier, see toridraw_proj_cot16
+    int camera_cot16, // resolved projection multiplier, see toridraw_projection_cot16
     int near_clip)
 {
     struct ProjectedVertex projected_vertex = { 0 };
@@ -242,7 +242,7 @@ project(
     int camera_pitch,
     int camera_yaw,
     int camera_roll,
-    int camera_cot16, // resolved projection multiplier, see toridraw_proj_cot16
+    int camera_cot16, // resolved projection multiplier, see toridraw_projection_cot16
     int near_clip,
     int screen_width,
     int screen_height)
@@ -733,7 +733,7 @@ project_perspective_fast_trig(
     int x,
     int y,
     int z,
-    int camera_cot16, // resolved projection multiplier, see toridraw_proj_cot16
+    int camera_cot16, // resolved projection multiplier, see toridraw_projection_cot16
     int near_clip,
     const struct ToriDrawTrigFns* trig)
 {
@@ -770,7 +770,7 @@ project_perspective_fast_trig(
 
     assert(z != 0);
 
-    /* Already resolved by the caller (toridraw_proj_cot16), so an exact linear
+    /* Already resolved by the caller (toridraw_projection_cot16), so an exact linear
      * scale reaches this path too and not just an angle. trig->tan is no longer
      * consulted here; trig still supplies sin/cos above. */
     int cot_fov_half_ish16 = camera_cot16;
@@ -820,7 +820,7 @@ project_perspective_fast(
     int x,
     int y,
     int z,
-    int camera_cot16, // resolved projection multiplier, see toridraw_proj_cot16
+    int camera_cot16, // resolved projection multiplier, see toridraw_projection_cot16
     int near_clip)
 {
     struct ToriDrawTrigFns trig;

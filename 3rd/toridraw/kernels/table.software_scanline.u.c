@@ -14,16 +14,16 @@
  * to fill a buffer this raster would never load.
  */
 
-static const struct ToriDraw_Kernel g_kernel_software_scanline = {
+static struct ToriDraw_Kernel g_kernel_software_scanline = {
     .name = "software-scanline",
-    .projection = NULL,
-    .face_sort = NULL,
     .raster = &g_stock_scanline_kernel,
 };
 
 const struct ToriDraw_Kernel*
 ToriDraw_KernelGetSoftwareScanline(void)
 {
+    toridraw_sd_kernel_publish(&g_stock_scanline_kernel);
+    toridraw_kernel_table_publish(&g_kernel_software_scanline);
     return &g_kernel_software_scanline;
 }
 

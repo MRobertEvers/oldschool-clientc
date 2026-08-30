@@ -333,8 +333,8 @@ run_fixture(
         .clip_bottom = VIEW_H,
     };
     struct ToriDraw_Camera camera = {
-        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-        .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+        .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+        .projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT,
         .near_plane_z = 50,
         .pitch = 128,
         .yaw = (yaw * 7) & 2047,
@@ -412,8 +412,8 @@ bench_sorts(struct ToriDraw_Scene* scene)
         .clip_right = VIEW_W, .clip_bottom = VIEW_H,
     };
     struct ToriDraw_Camera camera = {
-        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-        .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+        .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+        .projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT,
         .near_plane_z = 50,
         .pitch = 0,
     };

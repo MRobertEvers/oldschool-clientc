@@ -494,8 +494,8 @@ project_top_down(struct Vec3 v, int side, int zoom, int lift, int* out_x, int* o
     double cam_z = (double)zoom + lift + v.y;
     if( cam_z < 1 )
         cam_z = 1;
-    *out_x = side / 2 + (int)(v.x * (double)TORIDRAW_PROJ_SCALE_DEFAULT / cam_z);
-    *out_y = side / 2 + (int)(-v.z * (double)TORIDRAW_PROJ_SCALE_DEFAULT / cam_z);
+    *out_x = side / 2 + (int)(v.x * (double)TORIDRAW_PROJECTION_SCALE_DEFAULT / cam_z);
+    *out_y = side / 2 + (int)(-v.z * (double)TORIDRAW_PROJECTION_SCALE_DEFAULT / cam_z);
 }
 
 /*

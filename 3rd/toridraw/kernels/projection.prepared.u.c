@@ -13,7 +13,7 @@
  * an alternative to it.
  *
  * The two vtables differ in exactly the two perspective slots; see
- * g_projection_prepared_vtable in toridraw_render.u.c.
+ * families/projection.perspective_prepared.u.c.
  */
 
 static int
