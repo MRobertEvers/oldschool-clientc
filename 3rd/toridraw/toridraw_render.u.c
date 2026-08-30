@@ -3279,15 +3279,6 @@ ToriDraw_Project(
     int const bound_vertex_count = model_vertex_count(hnd);
     int const bound_after_projection = bound_vertex_count > 0 && bound_vertex_count <= 8;
 
-<<<<<<< HEAD
-    cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
-    if( cull != TORIDRAW_CULL_VISIBLE )
-    {
-        TORIDRAW_PROJ_CENSUS_COUNT(cull_aabb);
-        return cull;
-    }
-    TORIDRAW_PROJ_CENSUS_COUNT(projected);
-=======
     if( !bound_after_projection )
     {
         ToriDraw_CalculateCylinderAabb8point(
@@ -3295,9 +3286,11 @@ ToriDraw_Project(
 
         cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
         if( cull != TORIDRAW_CULL_VISIBLE )
+        {
+            TORIDRAW_PROJ_CENSUS_COUNT(cull_aabb);
             return cull;
+        }
     }
->>>>>>> origin/v3
 
     int const model_pitch = ToriDraw_NormalizeAngle(position->pitch);
     int const model_yaw = ToriDraw_NormalizeAngle(position->yaw);
@@ -3473,8 +3466,13 @@ ToriDraw_Project(
 
         cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
         if( cull != TORIDRAW_CULL_VISIBLE )
+        {
+            TORIDRAW_PROJ_CENSUS_COUNT(cull_aabb);
             return cull;
+        }
     }
+
+    TORIDRAW_PROJ_CENSUS_COUNT(projected);
 
     toridraw_projection_debug_print(
         scene, hnd, position, view_port, camera, center_projection.z, may_clip);
