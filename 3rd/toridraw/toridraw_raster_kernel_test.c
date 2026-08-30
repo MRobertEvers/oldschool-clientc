@@ -1611,6 +1611,101 @@ done:
     ToriDraw_SceneFree(scene);
 }
 
+
+/*
+ * The kernel table: what each prebaked triple asks the scene for, and what
+ * ToriDraw_KernelValidate says about the pairing.
+ *
+ * The interesting assertions are the negative ones. A table whose raster has
+ * no whole-model door must not make the sort stash for it, and a table on a
+ * full scene must be reported DEGRADED rather than silently taking a slower
+ * path -- that report is the entire reason the enum has three values.
+ */
+static void
+test_kernel_tables(void)
+{
+    struct ToriDraw_Scene* small =
+        ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    struct ToriDraw_Scene* full =
+        ToriDraw_SceneNew(TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    const struct ToriDraw_Kernel* painter = ToriDraw_KernelGetSoftwarePainter();
+    const struct ToriDraw_Kernel* scanline = ToriDraw_KernelGetSoftwareScanline();
+    const struct ToriDraw_Kernel* zbuf = ToriDraw_KernelGetSoftwareZBuffered();
+    const struct ToriDraw_Kernel* gpu = ToriDraw_KernelGetGpu();
+    const struct ToriDraw_Kernel* baker = ToriDraw_KernelGetSpriteBaker();
+    const char* why = NULL;
+
+    CHECK(small != NULL && full != NULL, "tables: scenes");
+    if( !small || !full )
+        return;
+
+    /* Every table names three real stages. */
+    CHECK(painter->name && scanline->name && zbuf->name && gpu->name && baker->name,
+          "tables: every table is named");
+    CHECK(gpu->raster == NULL, "tables: the gpu table has no raster stage");
+    CHECK(painter->raster != NULL, "tables: the painter table has a raster stage");
+
+    /* The painter is the only table that asks for the presort stash, and only
+     * on a small scene. */
+    CHECK(ToriDraw_KernelScratchNeeds(small, painter) & TORIDRAW_SCENE_SCRATCH_PRESORT_XY,
+          "tables: painter wants the stash on a small scene");
+    CHECK(!(ToriDraw_KernelScratchNeeds(small, scanline) &
+            TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "tables: scanline does not want the stash");
+    CHECK(!(ToriDraw_KernelScratchNeeds(small, baker) & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "tables: the sprite baker does not want the stash");
+    CHECK(!(ToriDraw_KernelScratchNeeds(small, gpu) & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "tables: the gpu table does not want the stash");
+    CHECK(!(ToriDraw_KernelScratchNeeds(full, painter) & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "tables: a full scene is never asked for the stash");
+
+    /* The z-buffered table runs no sort at all. */
+    CHECK(!(ToriDraw_KernelScratchNeeds(small, zbuf) & TORIDRAW_SCENE_SCRATCH_FACE_ORDER),
+          "tables: zbuffered wants no face order");
+    /* The gpu table does: it sorts for the upload. */
+    CHECK(ToriDraw_KernelScratchNeeds(small, gpu) & TORIDRAW_SCENE_SCRATCH_FACE_ORDER,
+          "tables: gpu wants the face order");
+
+    /* Fit. On a small scene the painter is whole; on a full one it degrades,
+     * and says which half degraded. */
+    CHECK(ToriDraw_KernelValidate(painter, small, &why) == TORIDRAW_KERNEL_FIT_OK,
+          "tables: painter fits a small scene (%s)", why);
+    CHECK(ToriDraw_KernelValidate(painter, full, &why) == TORIDRAW_KERNEL_FIT_DEGRADED,
+          "tables: painter degrades on a full scene (%s)", why);
+    CHECK(why != NULL && strcmp(why, "ok") != 0, "tables: a degrade explains itself");
+
+    /* The scanline table has no door, so a full scene costs it nothing extra
+     * beyond the sort fallback -- it must not be reported as a raster degrade. */
+    CHECK(ToriDraw_KernelValidate(scanline, small, &why) == TORIDRAW_KERNEL_FIT_OK,
+          "tables: scanline fits a small scene (%s)", why);
+
+    CHECK(ToriDraw_KernelValidate(gpu, small, &why) == TORIDRAW_KERNEL_FIT_OK,
+          "tables: the gpu table is valid (%s)", why);
+
+    /* A hand-built table with a hole in its raster vtable is refused. */
+    {
+        struct ToriDraw_RasterKernelSDVTable broken = *painter->raster->vtable;
+        struct ToriDraw_RasterKernelSD raster = *painter->raster;
+        struct ToriDraw_Kernel table = *painter;
+
+        broken.draw[TORIDRAW_RASTER_FACE_SD_FLAT] = NULL;
+        raster.vtable = &broken;
+        table.raster = &raster;
+        CHECK(ToriDraw_KernelValidate(&table, small, &why) ==
+                  TORIDRAW_KERNEL_FIT_INCOMPATIBLE,
+              "tables: a NULL face slot is incompatible");
+    }
+
+    /* Ensure is idempotent and satisfies what it reported. */
+    CHECK(ToriDraw_KernelEnsureScratch(small, painter), "tables: ensure for the painter");
+    CHECK(ToriDraw_SceneHasScratch(small, ToriDraw_KernelScratchNeeds(small, painter)),
+          "tables: ensure satisfied the painter's needs");
+    CHECK(ToriDraw_KernelEnsureScratch(small, painter), "tables: ensure is idempotent");
+
+    ToriDraw_SceneFree(small);
+    ToriDraw_SceneFree(full);
+}
+
 int
 main(void)
 {
@@ -1621,6 +1716,7 @@ main(void)
     ToriDraw_RasterSetScanline(false);
     test_typed_builtin_kernels();
     test_kernel_scratch();
+    test_kernel_tables();
     sd_fixture_init(&sd_fixture);
     if( !render_env_init(&env) )
     {

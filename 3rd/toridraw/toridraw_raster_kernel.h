@@ -481,4 +481,120 @@ ToriDraw_RasterKernelHDGetScanline(void);
 const struct ToriDraw_RasterKernelHD*
 ToriDraw_RasterKernelHDGetZBuffered(void);
 
+
+/* ---- The kernel table ------------------------------------------------ */
+
+/**
+ * One object naming all three render stages.
+ *
+ * Drawing a model is project, then cull+sort, then raster, and each stage has
+ * its own selectable subkernel. A renderer holds ONE of these and passes it to
+ * each stage, so which projection, which face sort and which raster it runs is
+ * a decision made once at init rather than three environment reads and a
+ * couple of pointer comparisons buried in the library.
+ *
+ * NOT every triple is coherent. The stages hand each other work through the
+ * scene's scratch -- the sort's face order, the projection's camera-space
+ * vertices, the y-ordered stash the batched raster walk reads -- and a table
+ * is valid only when each consumer's requirement is met by a producer above
+ * it. ToriDraw_KernelValidate answers that, once, before the first frame.
+ *
+ * A NULL projection or face_sort means the stock default. A NULL raster means
+ * stages 1 and 2 only: that is the GPU table, whose faces go to a vertex
+ * buffer and never to a software span, and every raster entry refuses it.
+ */
+struct ToriDraw_Kernel
+{
+    const char* name;
+    const struct ToriDraw_ProjectionKernel* projection;
+    const struct ToriDraw_FaceCullSortKernel* face_sort;
+    const struct ToriDraw_RasterKernelSD* raster;
+};
+
+/**
+ * How well a table fits a scene.
+ *
+ * Three outcomes and not two, because the interesting failure is not an error.
+ * Asking for the presorted fast path and not getting it is ALREADY safe: the
+ * sort records what it actually did in sm_face_xy_valid, the raster reads that
+ * flag rather than the request, and the frame draws the same pixels down the
+ * slower path. That behaviour should stay. What was missing is any way for a
+ * caller who chose the presorting table BECAUSE it is faster to find out at
+ * init that they are not getting it, instead of in a profile.
+ */
+enum ToriDraw_KernelFit
+{
+    /** Every stage gets what it needs. */
+    TORIDRAW_KERNEL_FIT_OK = 0,
+    /** Draws correctly, but some stage falls back to a slower path. */
+    TORIDRAW_KERNEL_FIT_DEGRADED = 1,
+    /** Would draw wrong, or trip an assert. Do not render with this. */
+    TORIDRAW_KERNEL_FIT_INCOMPATIBLE = 2,
+};
+
+/**
+ * Check a table against the scene it will draw into.
+ *
+ * `why` receives a static string naming the first problem found, or "ok". It
+ * is never allocated and never NULL on return.
+ *
+ * Assumes ToriDraw_KernelEnsureScratch will be (or has been) called: a scene
+ * that merely has not allocated a buffer yet is not a mismatch, whereas a
+ * scene whose TIER cannot carry that buffer at all is.
+ */
+enum ToriDraw_KernelFit
+ToriDraw_KernelValidate(
+    const struct ToriDraw_Kernel* kernel,
+    const struct ToriDraw_Scene* scene,
+    const char** why);
+
+/** The scratch groups this table's three stages read and write. */
+uint32_t
+ToriDraw_KernelScratchNeeds(
+    const struct ToriDraw_Scene* scene,
+    const struct ToriDraw_Kernel* kernel);
+
+/**
+ * Allocate whatever the table needs and the scene does not have.
+ *
+ * Call once, after ToriDraw_SceneNew and before the first frame. Does NOT
+ * provision the z-buffer, which is sized from the viewport rather than the
+ * scene tier -- use ToriDraw_SceneZBufferResize for that.
+ */
+bool
+ToriDraw_KernelEnsureScratch(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_Kernel* kernel);
+
+/*
+ * The prebaked tables. Process-lifetime and immutable, like the subkernels
+ * they name.
+ */
+
+/** Branching raster with its whole-model door, the flat sort, prepared
+ *  projection. The world painter, and the only table that reaches the batched
+ *  walk -- and only on a small scene, in a build with the run assembly. */
+const struct ToriDraw_Kernel*
+ToriDraw_KernelGetSoftwarePainter(void);
+
+/** The scanline rasteriser. Its own vtable, so it can never take a presorted
+ *  run; asking the sort to stash for it would be pure cost. */
+const struct ToriDraw_Kernel*
+ToriDraw_KernelGetSoftwareScanline(void);
+
+/** Depth-resolved models. Stage 2 does not run at all: faces draw in model
+ *  order and the buffer decides. */
+const struct ToriDraw_Kernel*
+ToriDraw_KernelGetSoftwareZBuffered(void);
+
+/** D3D9 / GL / WebGL: stages 1 and 2 only, the order goes to a vertex upload.
+ *  Never wants the stash -- nothing downstream walks a software span. */
+const struct ToriDraw_Kernel*
+ToriDraw_KernelGetGpu(void);
+
+/** Offline icon and sprite bakes: software raster, but per-face, because the
+ *  baker reads tmp_face_order and nothing else. */
+const struct ToriDraw_Kernel*
+ToriDraw_KernelGetSpriteBaker(void);
+
 #endif

@@ -948,6 +948,15 @@ toridraw_stock_model_needs_zbuffer(
 #include "kernels/facesort.bucket.u.c"
 #include "kernels/facesort.flat.u.c"
 #include "kernels/sd.gpu.u.c"
+
+/* The prebaked tables, one file each. After the subkernels they name: each
+ * refers to a kernel object defined above by address, so the tables are
+ * immutable statics rather than rebuilt on every call. */
+#include "kernels/table.software_painter.u.c"
+#include "kernels/table.software_scanline.u.c"
+#include "kernels/table.software_zbuffered.u.c"
+#include "kernels/table.gpu.u.c"
+#include "kernels/table.sprite_baker.u.c"
 // clang-format on
 
 const struct ToriDraw_RasterKernelSD*
@@ -1085,6 +1094,170 @@ ToriDraw_SceneEnsureKernelScratch(
     assert(scene);
     return ToriDraw_SceneEnsureScratch(
         scene, ToriDraw_SceneKernelScratchNeeds(scene, kernel));
+}
+
+/* ---- The kernel table ------------------------------------------------ */
+
+/* The stages a table names, with NULL resolved to the stock default. */
+static void
+kernel_table_resolve(
+    const struct ToriDraw_Kernel* kernel,
+    const struct ToriDraw_ProjectionKernel** projection,
+    const struct ToriDraw_FaceCullSortKernel** sort)
+{
+    *projection = kernel->projection ? kernel->projection
+                                     : ToriDraw_ProjectionKernelGetDefault();
+    *sort = kernel->face_sort ? kernel->face_sort : ToriDraw_FaceCullSortKernelGetDefault();
+}
+
+/* Does this table's raster want the y-ordered stash, and can its sort make one? */
+static bool
+kernel_table_wants_presort(
+    const struct ToriDraw_Kernel* kernel,
+    const struct ToriDraw_FaceCullSortKernel* sort)
+{
+    return kernel->raster && kernel->raster->vtable && kernel->raster->vtable->draw_model &&
+           (sort->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY) != 0;
+}
+
+uint32_t
+ToriDraw_KernelScratchNeeds(
+    const struct ToriDraw_Scene* scene,
+    const struct ToriDraw_Kernel* kernel)
+{
+    bool const small = (scene->flags & TORIDRAW_SCENE_SMALL) != 0;
+    uint32_t needs = TORIDRAW_SCENE_SCRATCH_VERTICES;
+    const struct ToriDraw_ProjectionKernel* projection;
+    const struct ToriDraw_FaceCullSortKernel* sort;
+
+    assert(scene);
+    assert(kernel);
+
+    kernel_table_resolve(kernel, &projection, &sort);
+    (void)projection; /* Projection reads and writes the vertex arrays only. */
+
+    /* A raster that resolves depth per pixel takes no face order, so stage 2
+     * does not run and none of its scratch is touched. A NULL raster is the
+     * GPU table, which does sort. */
+    if( kernel->raster &&
+        !(kernel->raster->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING) )
+        return needs;
+
+    needs |= TORIDRAW_SCENE_SCRATCH_FACE_ORDER;
+    needs |= small ? TORIDRAW_SCENE_SCRATCH_CSR_SORT : TORIDRAW_SCENE_SCRATCH_BUCKET_SORT;
+
+    if( small && (sort->needs & TORIDRAW_FACESORT_NEEDS_FLAT_KEYS) )
+        needs |= TORIDRAW_SCENE_SCRATCH_FLAT_KEYS;
+
+    /* Both halves have to want it: a sort that can stash, and a raster with a
+     * whole-model door to read it. */
+    if( small && kernel_table_wants_presort(kernel, sort) )
+        needs |= TORIDRAW_SCENE_SCRATCH_PRESORT_XY;
+
+    return needs;
+}
+
+bool
+ToriDraw_KernelEnsureScratch(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_Kernel* kernel)
+{
+    assert(scene);
+    assert(kernel);
+    return ToriDraw_SceneEnsureScratch(scene, ToriDraw_KernelScratchNeeds(scene, kernel));
+}
+
+enum ToriDraw_KernelFit
+ToriDraw_KernelValidate(
+    const struct ToriDraw_Kernel* kernel,
+    const struct ToriDraw_Scene* scene,
+    const char** why)
+{
+    static const char* ok = "ok";
+    bool const small = (scene->flags & TORIDRAW_SCENE_SMALL) != 0;
+    const struct ToriDraw_ProjectionKernel* projection;
+    const struct ToriDraw_FaceCullSortKernel* sort;
+    enum ToriDraw_KernelFit fit = TORIDRAW_KERNEL_FIT_OK;
+
+    assert(kernel);
+    assert(scene);
+    assert(why);
+    *why = ok;
+
+    kernel_table_resolve(kernel, &projection, &sort);
+
+    /* ---- INCOMPATIBLE: would draw wrong, or assert. ---- */
+
+    if( !projection->project )
+    {
+        *why = "projection kernel has no project function";
+        return TORIDRAW_KERNEL_FIT_INCOMPATIBLE;
+    }
+    if( !sort->sort )
+    {
+        *why = "face sort kernel has no sort function";
+        return TORIDRAW_KERNEL_FIT_INCOMPATIBLE;
+    }
+    if( kernel->raster )
+    {
+        if( !kernel->raster->vtable )
+        {
+            /* The GPU kernel object, named as a table's raster. Legal as a
+             * table (stages 1 and 2), so this is only wrong if someone put it
+             * where a software raster belongs -- which is what the NULL raster
+             * slot is for. Say so rather than silently accepting it. */
+            *why = "raster kernel has no vtable; use a NULL raster slot for a GPU table";
+            return TORIDRAW_KERNEL_FIT_INCOMPATIBLE;
+        }
+        for( int i = 0; i < TORIDRAW_RASTER_FACE_SD_CLASS_COUNT; i++ )
+        {
+            if( !kernel->raster->vtable->draw[i] )
+            {
+                *why = "raster vtable has a NULL face slot";
+                return TORIDRAW_KERNEL_FIT_INCOMPATIBLE;
+            }
+        }
+#ifdef TORIDRAW_PIXEL16
+        if( kernel->raster->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER )
+        {
+            /* sd_render_with_kernel_z asserts on this lane: the depth family
+             * draws through the 32-bit texture and blend paths. */
+            *why = "depth-tested raster needs the 32-bit raster (PIXEL16 build)";
+            return TORIDRAW_KERNEL_FIT_INCOMPATIBLE;
+        }
+#endif
+        if( (kernel->raster->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING) &&
+            !(sort->provides & TORIDRAW_FACESORT_PROVIDES_FACE_ORDER) )
+        {
+            *why = "raster needs a face order the sort does not provide";
+            return TORIDRAW_KERNEL_FIT_INCOMPATIBLE;
+        }
+    }
+
+    /* ---- DEGRADED: correct pixels, slower path. ---- */
+
+    if( !small && (sort->needs & TORIDRAW_FACESORT_NEEDS_SMALL_SCENE) )
+    {
+        *why = "face sort falls back to the bucket sort on a full scene";
+        fit = TORIDRAW_KERNEL_FIT_DEGRADED;
+    }
+    else if( kernel->raster && kernel->raster->vtable &&
+             kernel->raster->vtable->draw_model && !small )
+    {
+        /* The door exists and the sort could stash, but the scene has no
+         * sm_face_x4/y4 to stash into, so the batched walk never runs. */
+        *why = "whole-model raster falls back per face: a full scene has no presort stash";
+        fit = TORIDRAW_KERNEL_FIT_DEGRADED;
+    }
+    else if( kernel->raster && kernel->raster->vtable &&
+             kernel->raster->vtable->draw_model &&
+             !(sort->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY) )
+    {
+        *why = "whole-model raster falls back per face: the sort cannot presort";
+        fit = TORIDRAW_KERNEL_FIT_DEGRADED;
+    }
+
+    return fit;
 }
 
 static inline int
