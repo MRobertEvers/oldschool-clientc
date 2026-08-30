@@ -710,71 +710,13 @@ TORIDRAW_DEFINE_HD_MAPPED_Z_CALLBACK(hd_draw_cylinder_z, 0)
 TORIDRAW_DEFINE_HD_MAPPED_Z_CALLBACK(hd_draw_cube_z, 1)
 TORIDRAW_DEFINE_HD_MAPPED_Z_CALLBACK(hd_draw_sphere_z, 2)
 
-static const struct ToriDraw_RasterKernelHDVTable g_hd_branching_vtable = {
-    .draw = {
-        [TORIDRAW_RASTER_FACE_HD_GOURAUD] = hd_branching_gouraud,
-        [TORIDRAW_RASTER_FACE_HD_FLAT] = hd_branching_flat,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE] = hd_draw_plane_painter,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER] = hd_draw_cylinder,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE] = hd_draw_cube,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE] = hd_draw_sphere,
-    },
-};
-
-static const struct ToriDraw_RasterKernelHDVTable g_hd_scanline_vtable = {
-    .draw = {
-        [TORIDRAW_RASTER_FACE_HD_GOURAUD] = hd_scanline_gouraud,
-        [TORIDRAW_RASTER_FACE_HD_FLAT] = hd_scanline_flat,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE] = hd_draw_plane_painter,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER] = hd_draw_cylinder,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE] = hd_draw_cube,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE] = hd_draw_sphere,
-    },
-};
-
-static const struct ToriDraw_RasterKernelHDVTable g_hd_z_vtable = {
-    .draw = {
-        [TORIDRAW_RASTER_FACE_HD_GOURAUD] = hd_draw_gouraud_z,
-        [TORIDRAW_RASTER_FACE_HD_FLAT] = hd_draw_flat_z,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE] = hd_draw_plane_z,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER] = hd_draw_cylinder_z,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE] = hd_draw_cube_z,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE] = hd_draw_sphere_z,
-    },
-};
-
-static const struct ToriDraw_RasterKernelHD g_hd_branching_kernel = {
-    .vtable = &g_hd_branching_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
-};
-
-static const struct ToriDraw_RasterKernelHD g_hd_scanline_kernel = {
-    .vtable = &g_hd_scanline_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
-};
-
-static const struct ToriDraw_RasterKernelHD g_hd_z_kernel = {
-    .vtable = &g_hd_z_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
-};
-
-const struct ToriDraw_RasterKernelHD*
-ToriDraw_RasterKernelHDGetBranching(void)
-{
-    return &g_hd_branching_kernel;
-}
-
-const struct ToriDraw_RasterKernelHD*
-ToriDraw_RasterKernelHDGetScanline(void)
-{
-    return &g_hd_scanline_kernel;
-}
-
-const struct ToriDraw_RasterKernelHD*
-ToriDraw_RasterKernelHDGetZBuffered(void)
-{
-    return &g_hd_z_kernel;
-}
+/* The prebaked HD kernels, one file each. Both arms of the PIXEL16 split
+ * include them; the guards make that harmless, and only one arm compiles. */
+// clang-format off
+#include "kernels/hd.branching.u.c"
+#include "kernels/hd.scanline.u.c"
+#include "kernels/hd.zbuffered.u.c"
+// clang-format on
 
 static inline void
 hd_dispatch_prepared_face(struct hd_ctx* ctx)
@@ -1416,38 +1358,13 @@ static const struct ToriDraw_RasterKernelHDVTable g_hd_pixel16_vtable = {
     },
 };
 
-static const struct ToriDraw_RasterKernelHD g_hd_pixel16_branching_kernel = {
-    .vtable = &g_hd_pixel16_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
-};
-
-static const struct ToriDraw_RasterKernelHD g_hd_pixel16_scanline_kernel = {
-    .vtable = &g_hd_pixel16_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
-};
-
-static const struct ToriDraw_RasterKernelHD g_hd_pixel16_z_kernel = {
-    .vtable = &g_hd_pixel16_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
-};
-
-const struct ToriDraw_RasterKernelHD*
-ToriDraw_RasterKernelHDGetBranching(void)
-{
-    return &g_hd_pixel16_branching_kernel;
-}
-
-const struct ToriDraw_RasterKernelHD*
-ToriDraw_RasterKernelHDGetScanline(void)
-{
-    return &g_hd_pixel16_scanline_kernel;
-}
-
-const struct ToriDraw_RasterKernelHD*
-ToriDraw_RasterKernelHDGetZBuffered(void)
-{
-    return &g_hd_pixel16_z_kernel;
-}
+/* The prebaked HD kernels, one file each. Both arms of the PIXEL16 split
+ * include them; the guards make that harmless, and only one arm compiles. */
+// clang-format off
+#include "kernels/hd.branching.u.c"
+#include "kernels/hd.scanline.u.c"
+#include "kernels/hd.zbuffered.u.c"
+// clang-format on
 
 static const struct ToriDraw_RasterKernelHD*
 hd_pixel16_builtin_kernel(void)

@@ -497,144 +497,20 @@ toridraw_stock_unreachable_textured(
 #define toridraw_stock_scanline_textured_flat toridraw_stock_unreachable_textured
 #endif
 
-static const struct ToriDraw_RasterKernelSDVTable g_stock_branching_vtable = {
-    .draw = {
-        [TORIDRAW_RASTER_FACE_SD_GOURAUD] = toridraw_stock_branching_gouraud,
-        [TORIDRAW_RASTER_FACE_SD_FLAT] = toridraw_stock_branching_flat,
-        [TORIDRAW_RASTER_FACE_SD_TEXTURED] = toridraw_stock_branching_textured_gouraud,
-        [TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT] = toridraw_stock_branching_textured_flat,
-    },
-};
-
-static const struct ToriDraw_RasterKernelSDVTable g_stock_scanline_vtable = {
-    .draw = {
-        [TORIDRAW_RASTER_FACE_SD_GOURAUD] = toridraw_stock_scanline_gouraud,
-        [TORIDRAW_RASTER_FACE_SD_FLAT] = toridraw_stock_scanline_flat,
-        [TORIDRAW_RASTER_FACE_SD_TEXTURED] = toridraw_stock_scanline_textured_gouraud,
-        [TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT] = toridraw_stock_scanline_textured_flat,
-    },
-};
-
-static const struct ToriDraw_RasterKernelSDVTable g_stock_smooth_branching_vtable = {
-    .draw = {
-        [TORIDRAW_RASTER_FACE_SD_GOURAUD] = toridraw_stock_smooth_branching_gouraud,
-        [TORIDRAW_RASTER_FACE_SD_FLAT] = toridraw_stock_branching_flat,
-        [TORIDRAW_RASTER_FACE_SD_TEXTURED] = toridraw_stock_branching_textured_gouraud,
-        [TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT] = toridraw_stock_branching_textured_flat,
-    },
-};
-
-static const struct ToriDraw_RasterKernelSDVTable g_stock_smooth_scanline_vtable = {
-    .draw = {
-        [TORIDRAW_RASTER_FACE_SD_GOURAUD] = toridraw_stock_smooth_scanline_gouraud,
-        [TORIDRAW_RASTER_FACE_SD_FLAT] = toridraw_stock_scanline_flat,
-        [TORIDRAW_RASTER_FACE_SD_TEXTURED] = toridraw_stock_scanline_textured_gouraud,
-        [TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT] = toridraw_stock_scanline_textured_flat,
-    },
-};
-
-static const struct ToriDraw_RasterKernelSDVTable g_stock_zbuffered_vtable = {
-    .draw = {
-#ifdef TORIDRAW_PIXEL16
-        [TORIDRAW_RASTER_FACE_SD_GOURAUD] = toridraw_stock_zbuffered_unsupported,
-        [TORIDRAW_RASTER_FACE_SD_FLAT] = toridraw_stock_zbuffered_unsupported,
-        [TORIDRAW_RASTER_FACE_SD_TEXTURED] = toridraw_stock_zbuffered_unsupported,
-        [TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT] = toridraw_stock_zbuffered_unsupported,
-#else
-        [TORIDRAW_RASTER_FACE_SD_GOURAUD] = toridraw_stock_zbuffered_gouraud,
-        [TORIDRAW_RASTER_FACE_SD_FLAT] = toridraw_stock_zbuffered_flat,
-        [TORIDRAW_RASTER_FACE_SD_TEXTURED] = toridraw_stock_zbuffered_textured,
-        [TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT] = toridraw_stock_zbuffered_textured,
-#endif
-    },
-};
-
-static const struct ToriDraw_RasterKernelSD g_stock_branching_kernel = {
-    .vtable = &g_stock_branching_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
-};
-
-static const struct ToriDraw_RasterKernelSD g_stock_scanline_kernel = {
-    .vtable = &g_stock_scanline_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
-};
-
-static const struct ToriDraw_RasterKernelSD g_stock_smooth_branching_kernel = {
-    .vtable = &g_stock_smooth_branching_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
-};
-
-static const struct ToriDraw_RasterKernelSD g_stock_smooth_scanline_kernel = {
-    .vtable = &g_stock_smooth_scanline_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
-};
-
-static const struct ToriDraw_RasterKernelSD g_stock_zbuffered_kernel = {
-    .vtable = &g_stock_zbuffered_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
-};
-
-static const struct ToriDraw_RasterKernelSD g_stock_smooth_zbuffered_kernel = {
-    .vtable = &g_stock_zbuffered_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
-};
-
-static const struct ToriDraw_RasterKernelSD g_stock_sorted_zbuffered_kernel = {
-    .vtable = &g_stock_zbuffered_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING |
-             TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
-};
-
-static const struct ToriDraw_RasterKernelSD g_stock_smooth_sorted_zbuffered_kernel = {
-    .vtable = &g_stock_zbuffered_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING |
-             TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
-};
-
-const struct ToriDraw_RasterKernelSD*
-ToriDraw_RasterKernelSDGetBranching(void)
-{
-    return &g_stock_branching_kernel;
-}
-
-const struct ToriDraw_RasterKernelSD*
-ToriDraw_RasterKernelSDGetScanline(void)
-{
-    return &g_stock_scanline_kernel;
-}
-
-const struct ToriDraw_RasterKernelSD*
-ToriDraw_RasterKernelSDGetSmoothBranching(void)
-{
-    return &g_stock_smooth_branching_kernel;
-}
-
-const struct ToriDraw_RasterKernelSD*
-ToriDraw_RasterKernelSDGetSmoothScanline(void)
-{
-    return &g_stock_smooth_scanline_kernel;
-}
-
-static const struct ToriDraw_RasterKernelSD*
-toridraw_stock_zbuffered_kernel(bool smooth, bool sorted)
-{
-    if( sorted )
-        return smooth ? &g_stock_smooth_sorted_zbuffered_kernel
-                      : &g_stock_sorted_zbuffered_kernel;
-    return smooth ? &g_stock_smooth_zbuffered_kernel : &g_stock_zbuffered_kernel;
-}
-
-const struct ToriDraw_RasterKernelSD*
-ToriDraw_RasterKernelSDGetZBuffered(void)
-{
-    return toridraw_stock_zbuffered_kernel(false, false);
-}
-
-const struct ToriDraw_RasterKernelSD*
-ToriDraw_RasterKernelSDGetSmoothZBuffered(void)
-{
-    return toridraw_stock_zbuffered_kernel(true, false);
-}
+/*
+ * The prebaked SD raster kernels, one file each.
+ *
+ * Here rather than higher up: each names the stock callbacks defined above,
+ * and the texture slots are macros that resolve to an unreachable stub under
+ * TORIDRAW_PIXEL16, so the kernels have to be assembled after that choice.
+ */
+// clang-format off
+#include "kernels/sd.branching.u.c"
+#include "kernels/sd.scanline.u.c"
+#include "kernels/sd.smooth_branching.u.c"
+#include "kernels/sd.smooth_scanline.u.c"
+#include "kernels/sd.zbuffered.u.c"
+// clang-format on
 
 #undef toridraw_stock_scanline_textured_flat
 #undef toridraw_stock_scanline_textured_gouraud

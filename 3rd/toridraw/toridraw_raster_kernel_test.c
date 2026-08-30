@@ -1372,6 +1372,81 @@ test_pixel16_hd_unsupported(const struct SDFixture* fixture, struct RenderEnv* e
 
 #endif /* TORIDRAW_PIXEL16 */
 
+
+/*
+ * Kernel scratch: what a kernel needs, what a scene has, and the gap.
+ *
+ * The interesting case is the FULL scene. The flat sort's keys and the batched
+ * walk's stash are small-tier scratch, so a full scene cannot satisfy either --
+ * and the point of the needs mask is that this is now something a caller can
+ * ask about instead of discovering in a profile.
+ */
+static void
+test_kernel_scratch(void)
+{
+    struct ToriDraw_Scene* small;
+    struct ToriDraw_Scene* full;
+    uint32_t needs;
+
+    small = ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    CHECK(small != NULL, "small scene allocated");
+    full = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    CHECK(full != NULL, "full scene allocated");
+    if( !small || !full )
+        return;
+
+    /* A small scene created the stock way already carries everything the stock
+     * painter asks for -- the ensure API is a no-op there, which is what keeps
+     * it from changing any existing caller's allocation. */
+    needs = ToriDraw_SceneKernelScratchNeeds(small, ToriDraw_RasterKernelSDGetBranching());
+    CHECK(needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY, "small branching wants the stash");
+    CHECK(needs & TORIDRAW_SCENE_SCRATCH_CSR_SORT, "small branching wants the CSR sort");
+    CHECK(ToriDraw_SceneHasScratch(small, needs), "small scene already satisfies it");
+    CHECK(ToriDraw_SceneEnsureKernelScratch(small, ToriDraw_RasterKernelSDGetBranching()),
+          "ensure succeeds on a small scene");
+
+    /* The scanline family never loads the stash, so it must not be asked for:
+     * filling it would be seven stores per face into a buffer nobody reads. */
+    needs = ToriDraw_SceneKernelScratchNeeds(small, ToriDraw_RasterKernelSDGetScanline());
+    CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "scanline does not ask for the stash");
+
+    /* A z-buffered kernel runs no face sort at all, so it needs neither the
+     * order nor any sort scratch. */
+    needs = ToriDraw_SceneKernelScratchNeeds(small, ToriDraw_RasterKernelSDGetZBuffered());
+    CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_FACE_ORDER),
+          "zbuffered does not ask for the face order");
+    CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_CSR_SORT),
+          "zbuffered does not ask for sort scratch");
+
+    /* The GPU kernel sorts but never rasters in software: order yes, stash no. */
+    needs = ToriDraw_SceneKernelScratchNeeds(small, ToriDraw_RasterKernelSDGetGpu());
+    CHECK(needs & TORIDRAW_SCENE_SCRATCH_FACE_ORDER, "gpu wants the face order");
+    CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY), "gpu does not want the stash");
+
+    /* THE FULL SCENE. It takes the dense bucket table, and neither the flat
+     * keys nor the stash are asked for -- because on a full scene the flat
+     * face-sort kernel runs the same bucket sort the bucket kernel does. */
+    needs = ToriDraw_SceneKernelScratchNeeds(full, ToriDraw_RasterKernelSDGetBranching());
+    CHECK(needs & TORIDRAW_SCENE_SCRATCH_BUCKET_SORT, "full branching wants the buckets");
+    CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "full scene is not asked for the stash");
+    CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_FLAT_KEYS),
+          "full scene is not asked for the flat keys");
+    CHECK(ToriDraw_SceneHasScratch(full, needs), "full scene satisfies its own needs");
+    CHECK(!(ToriDraw_SceneScratchResident(full) & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "full scene really has no stash");
+
+    /* Idempotent: asking twice allocates nothing the second time and still
+     * reports satisfied. */
+    CHECK(ToriDraw_SceneEnsureKernelScratch(full, ToriDraw_RasterKernelSDGetBranching()),
+          "ensure succeeds on a full scene");
+    CHECK(ToriDraw_SceneEnsureKernelScratch(full, ToriDraw_RasterKernelSDGetBranching()),
+          "ensure is idempotent");
+
+    ToriDraw_SceneFree(small);
+    ToriDraw_SceneFree(full);
+}
 int
 main(void)
 {
@@ -1381,6 +1456,7 @@ main(void)
     ToriDraw_Init();
     ToriDraw_RasterSetScanline(false);
     test_typed_builtin_kernels();
+    test_kernel_scratch();
     sd_fixture_init(&sd_fixture);
     if( !render_env_init(&env) )
     {

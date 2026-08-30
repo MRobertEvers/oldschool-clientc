@@ -303,6 +303,154 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     memset(scene, 0, sizeof(*scene));
 }
 
+/*
+ * Scratch allocation, split by WHAT NEEDS IT rather than by scene tier.
+ *
+ * Each helper below owns one TORIDRAW_SCENE_SCRATCH_* group and is idempotent:
+ * it returns true immediately when the group is already resident. That is what
+ * lets ToriDraw_SceneEnsureScratch run after ToriDraw_SceneNew, for a kernel
+ * the scene was not created for, without re-allocating what is already there.
+ *
+ * ToriDraw_SceneNew still decides the same groups it always did -- the tier and
+ * the SMALL flag pick exactly one of the two sort families -- so a scene that
+ * nobody calls the ensure API on allocates byte for byte what it used to.
+ */
+
+static bool
+scene_alloc_vertices(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneCaps* caps)
+{
+    if( scene->screen_vertices_x )
+        return true;
+
+    scene->screen_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
+    scene->screen_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));
+    scene->screen_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
+    scene->orthographic_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
+    scene->orthographic_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));
+    scene->orthographic_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
+
+    assert(scene->screen_vertices_x);
+    assert(scene->screen_vertices_y);
+    assert(scene->screen_vertices_z);
+    assert(scene->orthographic_vertices_x);
+    assert(scene->orthographic_vertices_y);
+    assert(scene->orthographic_vertices_z);
+    return true;
+}
+
+static bool
+scene_alloc_face_order(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneCaps* caps)
+{
+    if( scene->tmp_face_order )
+        return true;
+
+    scene->tmp_face_order = malloc((size_t)caps->max_faces * sizeof(int));
+    assert(scene->tmp_face_order);
+    return true;
+}
+
+/* The dense depth_levels x depth_stride bucket table, for a full scene. */
+static bool
+scene_alloc_bucket_sort(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneCaps* caps)
+{
+    if( scene->tmp_depth_faces )
+        return true;
+
+    /* calloc, not malloc: the render path never clears this table whole.
+     * Each sort re-zeroes only the buckets it dirtied after its consumer
+     * has walked them (ToriDraw_ComputeProjectedFaceOrder), so the
+     * all-zero state is established here, once. */
+    scene->tmp_depth_face_count = calloc((size_t)caps->depth_levels, sizeof(faceint_t));
+    scene->tmp_depth_faces = malloc(
+        (size_t)caps->depth_levels * (size_t)caps->depth_stride * sizeof(faceint_t));
+    scene->tmp_priority_face_count = malloc(12 * sizeof(faceint_t));
+    scene->tmp_priority_depth_sum = malloc(12 * sizeof(int));
+    scene->tmp_priority_faces =
+        malloc(12 * (size_t)caps->priority_stride * sizeof(faceint_t));
+    scene->tmp_flex_prio11_face_to_depth = malloc((size_t)caps->flex_prio11 * sizeof(int));
+    scene->tmp_flex_prio12_face_to_depth = malloc((size_t)caps->flex_prio12 * sizeof(int));
+
+    assert(scene->tmp_depth_face_count);
+    assert(scene->tmp_depth_faces);
+    assert(scene->tmp_priority_face_count);
+    assert(scene->tmp_priority_depth_sum);
+    assert(scene->tmp_priority_faces);
+    assert(scene->tmp_flex_prio11_face_to_depth);
+    assert(scene->tmp_flex_prio12_face_to_depth);
+    return true;
+}
+
+/* The CSR sorter's arrays, which scale with max_faces instead of carrying the
+ * dense table above. Both stock face sorts walk these on a small scene. */
+static bool
+scene_alloc_csr_sort(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneCaps* caps)
+{
+    if( scene->sm_faces_by_depth )
+        return true;
+
+    scene->sm_face_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
+    /* calloc, not malloc: the counting sort never clears this table whole.
+     * Each sort re-zeroes only the [min, max + 1] window it dirtied after
+     * its consumer has walked it, so the all-zero state is established
+     * here, once (the full-mode tmp_depth_face_count invariant). */
+    scene->sm_depth_offset = calloc((size_t)(caps->depth_levels + 1), sizeof(int));
+    scene->sm_depth_cursor = malloc((size_t)caps->depth_levels * sizeof(int));
+    scene->sm_faces_by_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
+    scene->sm_prio_offset = malloc(13 * sizeof(int));
+    scene->sm_prio_faces = malloc(13 * (size_t)caps->max_faces * sizeof(faceint_t));
+    scene->sm_flex_prio11_face_to_depth = malloc((size_t)caps->flex_prio11 * sizeof(int));
+    scene->sm_flex_prio12_face_to_depth = malloc((size_t)caps->flex_prio12 * sizeof(int));
+
+    assert(scene->sm_face_depth);
+    assert(scene->sm_depth_offset);
+    assert(scene->sm_depth_cursor);
+    assert(scene->sm_faces_by_depth);
+    assert(scene->sm_prio_offset);
+    assert(scene->sm_prio_faces);
+    assert(scene->sm_flex_prio11_face_to_depth);
+    assert(scene->sm_flex_prio12_face_to_depth);
+    return true;
+}
+
+/* The flat sort's key arrays. Rounded up to a power of two so the bitonic
+ * network can pad without a second buffer. */
+static bool
+scene_alloc_flat_keys(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneCaps* caps)
+{
+    size_t keys = 8;
+
+    if( scene->sm_sort_keys )
+        return true;
+
+    while( keys < (size_t)caps->max_faces )
+        keys <<= 1;
+    keys += 4;
+    scene->sm_sort_keys = malloc(keys * sizeof(uint32_t));
+    scene->sm_sort_tmp = malloc(keys * sizeof(uint32_t));
+
+    assert(scene->sm_sort_keys);
+    assert(scene->sm_sort_tmp);
+    return true;
+}
+
+/* The y-ordered stash the batched raster walk reads. Eight ints per face; see
+ * the field for the layout and for why the depth sort fills it. Capacity is
+ * max_faces, but the region actually touched is num_faces of whichever model
+ * is being drawn, which is a few hundred bytes for the median one. */
+static bool
+scene_alloc_presort_xy(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneCaps* caps)
+{
+    if( scene->sm_face_x4 )
+        return true;
+
+    scene->sm_face_x4 = malloc(((size_t)caps->max_faces + 4) * 4 * sizeof(int));
+    scene->sm_face_y4 = malloc(((size_t)caps->max_faces + 4) * 4 * sizeof(int));
+
+    assert(scene->sm_face_x4);
+    assert(scene->sm_face_y4);
+    return true;
+}
+
 static void
 ToriDraw_SceneAllocBuffers(
     struct ToriDraw_Scene* scene,
@@ -316,92 +464,20 @@ ToriDraw_SceneAllocBuffers(
     scene->flex_prio_capacity =
         caps->flex_prio11 < caps->flex_prio12 ? caps->flex_prio11 : caps->flex_prio12;
 
-    scene->screen_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
-    scene->screen_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));
-    scene->screen_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
-    scene->orthographic_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
-    scene->orthographic_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));
-    scene->orthographic_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
-    scene->tmp_face_order = malloc((size_t)caps->max_faces * sizeof(int));
+    scene_alloc_vertices(scene, caps);
+    scene_alloc_face_order(scene, caps);
 
-    assert(scene->screen_vertices_x);
-    assert(scene->screen_vertices_y);
-    assert(scene->screen_vertices_z);
-    assert(scene->orthographic_vertices_x);
-    assert(scene->orthographic_vertices_y);
-    assert(scene->orthographic_vertices_z);
-    assert(scene->tmp_face_order);
-
+    /* Capacity always comes from the tier; SMALL only selects the CSR sorter,
+     * and with it the flat sort's keys and the batched walk's stash. */
     if( caps->small_mode )
     {
-        scene->sm_face_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
-        /* Eight ints per face; see the field for the layout and for why the
-         * depth sort fills it. Capacity is max_faces, but the region actually
-         * touched is num_faces of whichever model is being drawn, which is a
-         * few hundred bytes for the median one. */
-        scene->sm_face_x4 = malloc(((size_t)caps->max_faces + 4) * 4 * sizeof(int));
-        scene->sm_face_y4 = malloc(((size_t)caps->max_faces + 4) * 4 * sizeof(int));
-        {
-            size_t keys = 8;
-            while( keys < (size_t)caps->max_faces )
-                keys <<= 1;
-            keys += 4;
-            scene->sm_sort_keys = malloc(keys * sizeof(uint32_t));
-            scene->sm_sort_tmp = malloc(keys * sizeof(uint32_t));
-        }
-        /* calloc, not malloc: the counting sort never clears this table whole.
-         * Each sort re-zeroes only the [min, max + 1] window it dirtied after
-         * its consumer has walked it, so the all-zero state is established
-         * here, once (the full-mode tmp_depth_face_count invariant). */
-        scene->sm_depth_offset = calloc((size_t)(caps->depth_levels + 1), sizeof(int));
-        scene->sm_depth_cursor = malloc((size_t)caps->depth_levels * sizeof(int));
-        scene->sm_faces_by_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
-        scene->sm_prio_offset = malloc(13 * sizeof(int));
-        scene->sm_prio_faces = malloc(13 * (size_t)caps->max_faces * sizeof(faceint_t));
-        scene->sm_flex_prio11_face_to_depth =
-            malloc((size_t)caps->flex_prio11 * sizeof(int));
-        scene->sm_flex_prio12_face_to_depth =
-            malloc((size_t)caps->flex_prio12 * sizeof(int));
-
-        assert(scene->sm_face_depth);
-        assert(scene->sm_face_x4);
-        assert(scene->sm_face_y4);
-        assert(scene->sm_sort_keys);
-        assert(scene->sm_sort_tmp);
-        assert(scene->sm_depth_offset);
-        assert(scene->sm_depth_cursor);
-        assert(scene->sm_faces_by_depth);
-        assert(scene->sm_prio_offset);
-        assert(scene->sm_prio_faces);
-        assert(scene->sm_flex_prio11_face_to_depth);
-        assert(scene->sm_flex_prio12_face_to_depth);
+        scene_alloc_csr_sort(scene, caps);
+        scene_alloc_flat_keys(scene, caps);
+        scene_alloc_presort_xy(scene, caps);
     }
     else
     {
-        /* calloc, not malloc: the render path never clears this table whole.
-         * Each sort re-zeroes only the buckets it dirtied after its consumer
-         * has walked them (ToriDraw_ComputeProjectedFaceOrder), so the
-         * all-zero state is established here, once. */
-        scene->tmp_depth_face_count =
-            calloc((size_t)caps->depth_levels, sizeof(faceint_t));
-        scene->tmp_depth_faces = malloc(
-            (size_t)caps->depth_levels * (size_t)caps->depth_stride * sizeof(faceint_t));
-        scene->tmp_priority_face_count = malloc(12 * sizeof(faceint_t));
-        scene->tmp_priority_depth_sum = malloc(12 * sizeof(int));
-        scene->tmp_priority_faces =
-            malloc(12 * (size_t)caps->priority_stride * sizeof(faceint_t));
-        scene->tmp_flex_prio11_face_to_depth =
-            malloc((size_t)caps->flex_prio11 * sizeof(int));
-        scene->tmp_flex_prio12_face_to_depth =
-            malloc((size_t)caps->flex_prio12 * sizeof(int));
-
-        assert(scene->tmp_depth_face_count);
-        assert(scene->tmp_depth_faces);
-        assert(scene->tmp_priority_face_count);
-        assert(scene->tmp_priority_depth_sum);
-        assert(scene->tmp_priority_faces);
-        assert(scene->tmp_flex_prio11_face_to_depth);
-        assert(scene->tmp_flex_prio12_face_to_depth);
+        scene_alloc_bucket_sort(scene, caps);
     }
 
     if( !caps->lazy_textures )
@@ -861,99 +937,17 @@ toridraw_stock_model_needs_zbuffer(
 
 /* ---- The projection and face cull+sort stages as kernels ------------- */
 
-static int
-projection_kernel_default(
-    void* user_data,
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Position* position,
-    struct ToriDraw_ViewPort* view_port,
-    struct ToriDraw_Camera* camera)
-{
-    (void)user_data;
-    return ToriDraw_Project(scene, hnd, position, view_port, camera);
-}
-
-/* A full-mode scene has only the bucket sort: the flat sort's key and stash
- * buffers are allocated for the small tier alone (ToriDraw_SceneNew), and a
- * full scene's faces never go to the batched walk. So the two stock face
- * sorts differ only on a small scene, which is the one the world painter
- * uses. */
-static int
-face_sort_kernel_bucket(
-    void* user_data,
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_ModelHandle hnd,
-    bool presort)
-{
-    (void)user_data;
-    if( scene->flags & TORIDRAW_SCENE_SMALL )
-        toridraw_compute_projected_face_order_small(scene, hnd, presort, 0);
-    else
-        ToriDraw_ComputeProjectedFaceOrder(scene, hnd, presort);
-    return scene->tmp_face_order_count;
-}
-
-static int
-face_sort_kernel_flat(
-    void* user_data,
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_ModelHandle hnd,
-    bool presort)
-{
-    (void)user_data;
-    if( scene->flags & TORIDRAW_SCENE_SMALL )
-        toridraw_compute_projected_face_order_small(scene, hnd, presort, 1);
-    else
-        ToriDraw_ComputeProjectedFaceOrder(scene, hnd, presort);
-    return scene->tmp_face_order_count;
-}
-
-static const struct ToriDraw_ProjectionKernel g_stock_projection_kernel = {
-    .name = "projection",
-    .project = projection_kernel_default,
-};
-
-static const struct ToriDraw_FaceCullSortKernel g_stock_face_sort_bucket = {
-    .name = "bucket",
-    .sort = face_sort_kernel_bucket,
-};
-
-static const struct ToriDraw_FaceCullSortKernel g_stock_face_sort_flat = {
-    .name = "flat",
-    .sort = face_sort_kernel_flat,
-};
-
-const struct ToriDraw_ProjectionKernel*
-ToriDraw_ProjectionKernelGetDefault(void)
-{
-    return &g_stock_projection_kernel;
-}
-
-const struct ToriDraw_FaceCullSortKernel*
-ToriDraw_FaceCullSortKernelGetBucket(void)
-{
-    return &g_stock_face_sort_bucket;
-}
-
-const struct ToriDraw_FaceCullSortKernel*
-ToriDraw_FaceCullSortKernelGetFlat(void)
-{
-    return &g_stock_face_sort_flat;
-}
-
-const struct ToriDraw_FaceCullSortKernel*
-ToriDraw_FaceCullSortKernelGetDefault(void)
-{
-    return toridraw_face_sort_flat_armed() ? &g_stock_face_sort_flat
-                                           : &g_stock_face_sort_bucket;
-}
-
-/* No raster vtable: stages 1 and 2 only. NULL slots are the defaults. */
-static const struct ToriDraw_RasterKernelSD g_stock_gpu_kernel = {
-    .vtable = NULL,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
-};
+/*
+ * One file per prebaked kernel. Here rather than beside the SD raster kernels
+ * because these two stages are defined in terms of ToriDraw_Project and the
+ * face-order entry points, which this file owns.
+ */
+// clang-format off
+#include "kernels/projection.stock.u.c"
+#include "kernels/facesort.bucket.u.c"
+#include "kernels/facesort.flat.u.c"
+#include "kernels/sd.gpu.u.c"
+// clang-format on
 
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetStock(bool smooth)
@@ -961,10 +955,132 @@ ToriDraw_RasterKernelSDGetStock(bool smooth)
     return toridraw_stock_builtin_kernel(smooth);
 }
 
-const struct ToriDraw_RasterKernelSD*
-ToriDraw_RasterKernelSDGetGpu(void)
+/* ---- Kernel scratch ------------------------------------------------- */
+
+/*
+ * Recover the caps a scene was built with.
+ *
+ * Every field the allocators need is already on the scene, so the ensure API
+ * does not have to be told the tier a second time. flex_prio_capacity is the
+ * min of the two flexible-priority capacities, which are equal in every
+ * scratch profile, so it stands in for both.
+ */
+static void
+scene_caps_from_scene(const struct ToriDraw_Scene* scene, struct ToriDraw_SceneCaps* caps)
 {
-    return &g_stock_gpu_kernel;
+    assert(scene);
+    assert(caps);
+
+    caps->max_vertices = scene->max_vertices;
+    caps->max_faces = scene->max_faces;
+    caps->depth_levels = scene->depth_levels;
+    caps->depth_stride = scene->depth_stride;
+    caps->priority_stride = scene->priority_stride;
+    caps->flex_prio11 = scene->flex_prio_capacity;
+    caps->flex_prio12 = scene->flex_prio_capacity;
+    caps->small_mode = (scene->flags & TORIDRAW_SCENE_SMALL) != 0;
+    caps->lazy_textures = (scene->flags & TORIDRAW_SCENE_LAZY_TEXTURES) != 0;
+}
+
+uint32_t
+ToriDraw_SceneScratchResident(const struct ToriDraw_Scene* scene)
+{
+    uint32_t resident = 0;
+
+    assert(scene);
+
+    if( scene->screen_vertices_x )
+        resident |= TORIDRAW_SCENE_SCRATCH_VERTICES;
+    if( scene->tmp_face_order )
+        resident |= TORIDRAW_SCENE_SCRATCH_FACE_ORDER;
+    if( scene->tmp_depth_faces )
+        resident |= TORIDRAW_SCENE_SCRATCH_BUCKET_SORT;
+    if( scene->sm_faces_by_depth )
+        resident |= TORIDRAW_SCENE_SCRATCH_CSR_SORT;
+    if( scene->sm_sort_keys )
+        resident |= TORIDRAW_SCENE_SCRATCH_FLAT_KEYS;
+    if( scene->sm_face_x4 )
+        resident |= TORIDRAW_SCENE_SCRATCH_PRESORT_XY;
+    return resident;
+}
+
+bool
+ToriDraw_SceneHasScratch(const struct ToriDraw_Scene* scene, uint32_t needs)
+{
+    assert(scene);
+    return (ToriDraw_SceneScratchResident(scene) & needs) == needs;
+}
+
+uint32_t
+ToriDraw_SceneKernelScratchNeeds(
+    const struct ToriDraw_Scene* scene,
+    const struct ToriDraw_RasterKernelSD* kernel)
+{
+    bool const small = (scene->flags & TORIDRAW_SCENE_SMALL) != 0;
+    uint32_t needs = TORIDRAW_SCENE_SCRATCH_VERTICES;
+    const struct ToriDraw_FaceCullSortKernel* sort;
+
+    assert(scene);
+
+    /* A NULL kernel is the stock painter: it sorts. */
+    if( kernel && !(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING) )
+        return needs;
+
+    needs |= TORIDRAW_SCENE_SCRATCH_FACE_ORDER;
+    needs |= small ? TORIDRAW_SCENE_SCRATCH_CSR_SORT : TORIDRAW_SCENE_SCRATCH_BUCKET_SORT;
+
+    /* The flat sort's keys, and only where the CSR sorter runs: a full scene
+     * takes the dense bucket sort whichever face-sort kernel is named. */
+    sort = (kernel && kernel->face_sort) ? kernel->face_sort
+                                         : ToriDraw_FaceCullSortKernelGetDefault();
+    if( small && sort == ToriDraw_FaceCullSortKernelGetFlat() )
+        needs |= TORIDRAW_SCENE_SCRATCH_FLAT_KEYS;
+
+    /* The presort stash, asked for by exactly one raster kernel: the batched
+     * walk tests for the stock branching vtable, so the scanline and smooth
+     * families would never load what the sort stored. */
+    if( small && (!kernel || kernel == ToriDraw_RasterKernelSDGetBranching()) )
+        needs |= TORIDRAW_SCENE_SCRATCH_PRESORT_XY;
+
+    return needs;
+}
+
+bool
+ToriDraw_SceneEnsureScratch(struct ToriDraw_Scene* scene, uint32_t needs)
+{
+    struct ToriDraw_SceneCaps caps;
+
+    assert(scene);
+
+    if( ToriDraw_SceneHasScratch(scene, needs) )
+        return true;
+
+    scene_caps_from_scene(scene, &caps);
+
+    if( needs & TORIDRAW_SCENE_SCRATCH_VERTICES )
+        scene_alloc_vertices(scene, &caps);
+    if( needs & TORIDRAW_SCENE_SCRATCH_FACE_ORDER )
+        scene_alloc_face_order(scene, &caps);
+    if( needs & TORIDRAW_SCENE_SCRATCH_BUCKET_SORT )
+        scene_alloc_bucket_sort(scene, &caps);
+    if( needs & TORIDRAW_SCENE_SCRATCH_CSR_SORT )
+        scene_alloc_csr_sort(scene, &caps);
+    if( needs & TORIDRAW_SCENE_SCRATCH_FLAT_KEYS )
+        scene_alloc_flat_keys(scene, &caps);
+    if( needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY )
+        scene_alloc_presort_xy(scene, &caps);
+
+    return ToriDraw_SceneHasScratch(scene, needs);
+}
+
+bool
+ToriDraw_SceneEnsureKernelScratch(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_RasterKernelSD* kernel)
+{
+    assert(scene);
+    return ToriDraw_SceneEnsureScratch(
+        scene, ToriDraw_SceneKernelScratchNeeds(scene, kernel));
 }
 
 static inline int

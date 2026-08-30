@@ -88,8 +88,89 @@ ToriDraw_ScenePrintSize(
     uint32_t flags,
     enum ToriDraw_ScratchBufferSize scratch_buffer_size);
 
+struct ToriDraw_RasterKernelSD;
+
 struct ToriDraw_TextureState*
 ToriDraw_SceneTexState(struct ToriDraw_Scene* scene);
+
+/* ---- Kernel scratch ------------------------------------------------- */
+
+/**
+ * The scratch groups a kernel's three stages read and write.
+ *
+ * A scene allocates by tier and by the SMALL flag, which is a decision made at
+ * ToriDraw_SceneNew, before anyone has chosen a kernel. These bits let the two
+ * be reconciled afterwards: ask a kernel what it needs, ask the scene what it
+ * has, and allocate the difference.
+ *
+ * They also make one long-standing trap visible. The flat sort's key arrays
+ * and the batched walk's y-ordered stash are small-tier scratch, so on a full
+ * scene the flat face-sort kernel silently runs the same bucket sort the
+ * bucket kernel runs, and a presorted raster never sees a presorted face. That
+ * is safe -- sm_face_xy_valid records what the sort actually did, and the walk
+ * reads the flag rather than the request -- but until now a caller had no way
+ * to find out except by profiling. ToriDraw_SceneHasScratch answers it.
+ */
+enum ToriDraw_SceneScratch
+{
+    /** Projected vertex arrays. Every kernel, always. */
+    TORIDRAW_SCENE_SCRATCH_VERTICES = 1u << 0,
+    /** tmp_face_order: the back-to-front order stage 3 walks. */
+    TORIDRAW_SCENE_SCRATCH_FACE_ORDER = 1u << 1,
+    /** The full scene's dense depth_levels x depth_stride bucket table. */
+    TORIDRAW_SCENE_SCRATCH_BUCKET_SORT = 1u << 2,
+    /** The small scene's CSR sorter arrays, sized off max_faces. */
+    TORIDRAW_SCENE_SCRATCH_CSR_SORT = 1u << 3,
+    /** sm_sort_keys / sm_sort_tmp: the flat sort's composite keys. */
+    TORIDRAW_SCENE_SCRATCH_FLAT_KEYS = 1u << 4,
+    /** sm_face_x4 / y4: the y-ordered stash the batched raster walk reads. */
+    TORIDRAW_SCENE_SCRATCH_PRESORT_XY = 1u << 5,
+};
+
+/**
+ * What this kernel will read and write, given this scene.
+ *
+ * Depends on both: a flat face sort needs FLAT_KEYS only where the scene runs
+ * the CSR sorter, and the presort stash is only ever asked for by the stock
+ * branching raster, which is the batched walk's only door.
+ *
+ * `kernel` may be NULL, meaning the stock defaults.
+ */
+uint32_t
+ToriDraw_SceneKernelScratchNeeds(
+    const struct ToriDraw_Scene* scene,
+    const struct ToriDraw_RasterKernelSD* kernel);
+
+/** Which groups are currently allocated. */
+uint32_t
+ToriDraw_SceneScratchResident(const struct ToriDraw_Scene* scene);
+
+/** Whether every group in `needs` is resident. */
+bool
+ToriDraw_SceneHasScratch(const struct ToriDraw_Scene* scene, uint32_t needs);
+
+/**
+ * Allocate every group in `needs` that is not already resident.
+ *
+ * Idempotent, and never frees: a scene that has been prepared for two kernels
+ * keeps the union of what they need, so switching between them costs nothing.
+ * Returns false only when a group cannot be satisfied for this scene at all.
+ */
+bool
+ToriDraw_SceneEnsureScratch(struct ToriDraw_Scene* scene, uint32_t needs);
+
+/**
+ * The pair above, applied: prepare `scene` for `kernel`.
+ *
+ * Call once, after ToriDraw_SceneNew and before the first frame, with the
+ * kernel the renderer intends to hold. Does NOT provision the z-buffer, which
+ * is sized from the viewport rather than the scene tier -- use
+ * ToriDraw_SceneZBufferResize for that.
+ */
+bool
+ToriDraw_SceneEnsureKernelScratch(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_RasterKernelSD* kernel);
 
 /* The scene's z-buffer scratch (TORIDRAW_SCENE_MODEL_ZBUFFER). */
 
