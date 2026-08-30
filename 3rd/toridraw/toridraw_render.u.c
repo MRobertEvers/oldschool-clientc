@@ -810,25 +810,9 @@ sort_face_draw_order(
     int flexible_face_index = 0;
     int order_index = 0;
 
-    /* The flexible-priority interleave is decided by three averages that
-     * nothing else prints, and guessing at them is how an afternoon goes. */
-    if( toridraw_sort_debug_level() >= 2 )
-    {
-        int flex_min = 1 << 30, flex_max = -1;
-        for( int i = 0; i < counts[10]; i++ )
-        {
-            int d = flex_prio11_face_to_depth[i] & 0xFFFF;
-            if( d < flex_min ) flex_min = d;
-            if( d > flex_max ) flex_max = d;
-        }
-        fprintf(stderr,
-            "sort: counts 0..11 = %d %d %d %d %d %d %d %d %d %d %d %d | "
-            "avg12=%d avg34=%d avg68=%d | flex depth %d..%d\n",
-            counts[0],counts[1],counts[2],counts[3],counts[4],counts[5],
-            counts[6],counts[7],counts[8],counts[9],counts[10],counts[11],
-            average_depth1_2, average_depth3_4, average_depth6_8,
-            flex_min, flex_max);
-    }
+    toridraw_dbg_report_sort_counts(
+        counts, flex_prio11_face_to_depth, average_depth1_2, average_depth3_4,
+        average_depth6_8);
 
     while( flexible_face_index < counts[10] &&
            (flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth1_2 )
@@ -1358,55 +1342,7 @@ bucket_sort_by_average_depth_small(
     if( min_d > max_d )
         return 0;
 
-    /*
-     * TORIDRAW_SPAN_RATIO=1: faces bucketed vs depth levels walked to get them
-     * back out again.
-     *
-     * Every consumer of this table is a loop over [min_d, max_d] reading two
-     * ints per level -- the prefix sum below, the cursor seed, the priority
-     * partition, the restore. If a model's depth span is much wider than its
-     * face count, that is four passes over a range whose length has nothing to
-     * do with how much work the model represents, and the bucket sort is being
-     * paid for a resolution it is not using. This counter is what says whether
-     * that is happening or whether the span is tight.
-     */
-    {
-        static char const* out_path = NULL;
-        static int armed = -1;
-        static long long faces_total;
-        static long long span_total;
-        static long long models;
-
-        if( armed < 0 )
-        {
-            out_path = getenv("TORIDRAW_SPAN_RATIO");
-            armed = (out_path && out_path[0]) ? 1 : 0;
-        }
-        if( armed )
-        {
-            faces_total += num_faces;
-            span_total += (max_d - min_d + 1);
-            models++;
-            /* Rewritten in place every so often rather than dumped at exit:
-             * the measurement harness ends an arm with taskkill /F, and an
-             * end-of-run dump is a dump that never happens. */
-            if( models % 20000 == 0 )
-            {
-                FILE* f = fopen(out_path, "wb");
-                if( f )
-                {
-                    fprintf(f,
-                        "models=%lld faces/model=%.1f span/model=%.1f "
-                        "span-per-face=%.1fx\n",
-                        models,
-                        (double)faces_total / (double)models,
-                        (double)span_total / (double)models,
-                        (double)span_total / (double)(faces_total ? faces_total : 1));
-                    fclose(f);
-                }
-            }
-        }
-    }
+    toridraw_dbg_report_span_ratio(num_faces, min_d, max_d);
 
     /* Prefix sum over the model's span only. Buckets outside it are zero and
      * stay zero; no consumer reads them, because every consumer is bounded by
@@ -2482,6 +2418,9 @@ toridraw_projection_shape(bool parallel, bool may_clip)
                     : TORIDRAW_PROJECTION_PERSPECTIVE_NOCLIP;
 }
 
+/* The near-clip verification harness; needs the vertex kernels above. */
+#include "toridraw_debug_near_clip.u.c"
+
 /*
  * Project one model, dispatching its vertices through `vtable`.
  *
@@ -2514,16 +2453,7 @@ ToriDraw_ProjectWithVTable(
     if( model_vertex_count(hnd) > scene->max_vertices ||
         model_face_count(hnd) > scene->max_faces )
     {
-        TORIDRAW_DBG_RECORD_CAPACITY_REJECT(scene, hnd);
-        if( toridraw_sort_debug_enabled() )
-            fprintf(
-                stderr,
-                "sort_capacity: model=%p vertices=%d/%d faces=%d/%d rejected=1\n",
-                (void*)model_as_full(hnd),
-                model_vertex_count(hnd),
-                scene->max_vertices,
-                model_face_count(hnd),
-                scene->max_faces);
+        toridraw_dbg_report_capacity_reject(scene, hnd);
         return TORIDRAW_CULL_ERROR;
     }
 
@@ -2533,27 +2463,7 @@ ToriDraw_ProjectWithVTable(
      * before the sorter adds bias, hence the required diameter is 2*bias+1. */
     if( toridraw_sort_debug_enabled() )
     {
-        const struct ToriDraw_BoundsCylinder* bounds = model_bounds_cylinder(hnd);
-        if( bounds )
-        {
-            long long const required_levels =
-                (long long)bounds->min_z_depth_any_rotation * 2 + 1;
-            if( required_levels > scene->depth_levels )
-                fprintf(
-                    stderr,
-                    "sort_depth_capacity: model=%p vertices=%d faces=%d "
-                    "bounds={y=%d..%d,xz=%d,bias=%d} required=%lld "
-                    "depth_levels=%d rejected=0\n",
-                    (void*)model_as_full(hnd),
-                    model_vertex_count(hnd),
-                    model_face_count(hnd),
-                    bounds->min_y,
-                    bounds->max_y,
-                    bounds->radius,
-                    bounds->min_z_depth_any_rotation,
-                    required_levels,
-                    scene->depth_levels);
-        }
+        toridraw_dbg_report_depth_capacity(scene, hnd);
     }
 
     int cull = TORIDRAW_CULL_VISIBLE;
@@ -2647,22 +2557,7 @@ ToriDraw_ProjectWithVTable(
     may_clip = true;
 #endif
 
-#ifdef TORIDRAW_NEAR_CLIP_STATS
-    {
-        static long clipped_models = 0;
-        static long total_models = 0;
-        total_models++;
-        if( may_clip )
-            clipped_models++;
-        if( (total_models % 100000) == 0 )
-            fprintf(
-                stderr,
-                "near_clip_stats: %ld/%ld models took the clipping kernel (%.2f%%)\n",
-                clipped_models,
-                total_models,
-                100.0 * (double)clipped_models / (double)total_models);
-    }
-#endif
+    toridraw_dbg_count_near_clip_gate(may_clip);
 
     scene->near_clipped = may_clip;
     /* Only the prepared kernels (AArch64 assembly, SSE2 fused-yaw) fill the
@@ -2706,162 +2601,12 @@ ToriDraw_ProjectWithVTable(
     toridraw_projection_debug_print(
         scene, hnd, position, view_port, camera, center_projection.z, may_clip);
 
-#ifdef TORIDRAW_NEAR_CLIP_STATS
-    /*
-     * Verification build. Two properties are checked here, on real scene data.
-     *
-     * Deliberately NOT done by comparing rendered frames between a gated and a
-     * forced build: this client's offline boot is not frame-deterministic (the
-     * same binary run twice produces different frames — async asset loads
-     * settle differently), so a frame byte-compare answers "did these two runs
-     * load the same things", not "do the two kernels agree". Everything below
-     * runs both kernels over the same model inside one process instead.
-     *
-     *   1. Conservativeness. If any vertex really did land in front of the near
-     *      plane, the gate must have said so. The reverse — gate says "may
-     *      clip", nothing actually clips — is merely a missed optimization.
-     *      A failure here means the no-clip kernel divided by a z it should
-     *      not have, the one way this change can corrupt geometry.
-     *   2. Equivalence. Whenever nothing actually clipped, both kernels must
-     *      produce identical vertices. Checked regardless of which way the gate
-     *      went, so the boundary case (gate says "may clip", reality says no)
-     *      is covered too, not just the easy interior.
-     *
-     * The kernels write screen z as (camera-space z - model_mid_z), so the
-     * camera-space z is recoverable exactly and neither check needs the
-     * projection to hand anything extra back.
-     */
-    {
-        int const vcount = model_vertex_count(hnd);
-        bool actually_clipped = false;
-        for( int vi = 0; vi < vcount; vi++ )
-        {
-            if( scene->screen_vertices_z[vi] + center_projection.z < camera->near_plane_z )
-            {
-                actually_clipped = true;
-                break;
-            }
-        }
-
-        if( actually_clipped && !may_clip )
-        {
-            fprintf(
-                stderr,
-                "near_clip_bound_violation: model clipped but the gate said it could not "
-                "(mid_z=%d sphere_r=%d near=%d)\n",
-                center_projection.z,
-                proj_bc ? proj_bc->min_z_depth_any_rotation : -1,
-                camera->near_plane_z);
-            assert(0 && "near-clip gate was not conservative");
-        }
-
-        if( !actually_clipped )
-        {
-            static int* verify_x = NULL;
-            static int* verify_y = NULL;
-            static int* verify_z = NULL;
-            static int verify_cap = 0;
-            static long compared_models = 0;
-            static long nudge_divergences = 0;
-
-            if( vcount > verify_cap )
-            {
-                verify_cap = vcount;
-                verify_x = (int*)realloc(verify_x, (size_t)verify_cap * sizeof(int));
-                verify_y = (int*)realloc(verify_y, (size_t)verify_cap * sizeof(int));
-                verify_z = (int*)realloc(verify_z, (size_t)verify_cap * sizeof(int));
-                assert(verify_x && verify_y && verify_z);
-            }
-            memcpy(verify_x, scene->screen_vertices_x, (size_t)vcount * sizeof(int));
-            memcpy(verify_y, scene->screen_vertices_y, (size_t)vcount * sizeof(int));
-            memcpy(verify_z, scene->screen_vertices_z, (size_t)vcount * sizeof(int));
-
-            /* Re-project down the opposite arm and compare. */
-            bool const par = toridraw_proj_is_parallel(camera->proj_mode);
-            if( may_clip && par )
-                toridraw_project_vertices_parallel_noclip(
-                    scene, hnd, position, camera,
-                    model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
-            else if( par )
-                toridraw_project_vertices_parallel_clip(
-                    scene, hnd, position, camera,
-                    model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
-            else if( may_clip )
-                toridraw_project_vertices_noclip_prepared(
-                    scene, hnd, position, camera,
-                    model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
-            else
-                toridraw_project_vertices_clip_prepared(
-                    scene, hnd, position, camera,
-                    model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
-
-            compared_models++;
-            for( int vi = 0; vi < vcount; vi++ )
-            {
-                /* The one legitimate divergence: the clipping kernel nudges a
-                 * genuinely projected -5000 to -5001 and the no-clip kernel
-                 * does not. Counted rather than failed — it is the documented
-                 * consequence of dropping the nudge, and the count says how
-                 * often it is reachable at all. */
-                int const lo = verify_x[vi] < scene->screen_vertices_x[vi]
-                                   ? verify_x[vi]
-                                   : scene->screen_vertices_x[vi];
-                int const hi = verify_x[vi] < scene->screen_vertices_x[vi]
-                                   ? scene->screen_vertices_x[vi]
-                                   : verify_x[vi];
-                if( lo == TORIDRAW_SCREEN_X_NEAR_CLIPPED_NUDGE &&
-                    hi == TORIDRAW_SCREEN_X_NEAR_CLIPPED &&
-                    verify_y[vi] == scene->screen_vertices_y[vi] &&
-                    verify_z[vi] == scene->screen_vertices_z[vi] )
-                {
-                    nudge_divergences++;
-                    continue;
-                }
-                if( verify_x[vi] != scene->screen_vertices_x[vi] ||
-                    verify_y[vi] != scene->screen_vertices_y[vi] ||
-                    verify_z[vi] != scene->screen_vertices_z[vi] )
-                {
-                    fprintf(
-                        stderr,
-                        "near_clip_mismatch: gate=%d vertex %d/%d "
-                        "gated=(%d,%d,%d) other=(%d,%d,%d) "
-                        "[mpitch=%d myaw=%d mroll=%d croll=%d tex=%d mid_z=%d near=%d]\n",
-                        (int)may_clip,
-                        vi,
-                        vcount,
-                        verify_x[vi],
-                        verify_y[vi],
-                        verify_z[vi],
-                        scene->screen_vertices_x[vi],
-                        scene->screen_vertices_y[vi],
-                        scene->screen_vertices_z[vi],
-                        model_pitch,
-                        model_yaw,
-                        model_roll,
-                        camera_roll,
-                        (int)model_has_textures(hnd),
-                        center_projection.z,
-                        camera->near_plane_z);
-                    assert(0 && "the two near-clip kernels disagreed");
-                }
-            }
-
-            /* Restore the gated result: the rest of the frame must render from
-             * the path production would actually have taken. */
-            memcpy(scene->screen_vertices_x, verify_x, (size_t)vcount * sizeof(int));
-            memcpy(scene->screen_vertices_y, verify_y, (size_t)vcount * sizeof(int));
-            memcpy(scene->screen_vertices_z, verify_z, (size_t)vcount * sizeof(int));
-
-            if( (compared_models % 100000) == 0 )
-                fprintf(
-                    stderr,
-                    "near_clip_verify: %ld models compared both kernels, "
-                    "%ld nudge-only divergences\n",
-                    compared_models,
-                    nudge_divergences);
-        }
-    }
-#endif
+    /* The gate's correctness argument, on real scene data: both kernels run
+     * over the same model inside one process and the results are compared.
+     * Compiled out unless TORIDRAW_NEAR_CLIP_STATS. */
+    toridraw_dbg_verify_near_clip_gate(
+        scene, hnd, position, camera, &center_projection, proj_bc, may_clip,
+        model_pitch, model_yaw, model_roll, camera_roll);
 
     return TORIDRAW_CULL_VISIBLE;
 }

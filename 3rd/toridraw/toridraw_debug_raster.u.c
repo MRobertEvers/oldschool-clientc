@@ -268,4 +268,84 @@ toridraw_raster_debug_print(
         hist_buf);
 }
 
+/*
+ * The remaining TORIDRAW_RASTER_DEBUG reporters.
+ *
+ * Each was an `if( gate ) fprintf(...)` inline in the per-face path -- one of
+ * them in the middle of texture preparation, where the formatting was longer
+ * than the code it described. The gate now lives with the message.
+ */
+
+#ifndef TORIDRAW_PIXEL16
+static inline void
+toridraw_raster_note_texture_miss(int texture_id)
+{
+    static int skip_tally[TORIDRAW_TEXTURE_ID_CAPACITY];
+    static int skip_total;
+    static int debug_enabled = -1;
+
+    if( debug_enabled < 0 )
+        debug_enabled = getenv("TORIRS_RASTER_TEX_DEBUG") ? 1 : 0;
+    if( !debug_enabled || texture_id < 0 || texture_id >= TORIDRAW_TEXTURE_ID_CAPACITY )
+        return;
+
+    if( ++skip_tally[texture_id] == 1 )
+        fprintf(stderr, "raster_tex_skip: first miss id=%d\n", texture_id);
+    if( ++skip_total % 500 == 1 )
+        fprintf(stderr,
+                "raster_tex_skip: total=%d id=%d (count=%d)\n",
+                skip_total,
+                texture_id,
+                skip_tally[texture_id]);
+}
+#endif
+
+/** A face index outside the model. A logic error, not a content problem, so it
+ *  is reported at verbose level and counted either way. */
+static void
+toridraw_dbg_report_index_oob(
+    struct ToriDraw_RasterDebugStats* dbg,
+    const struct ToriDrawModelRasterContext* ctx,
+    int face,
+    const int* vertex)
+{
+    if( !dbg )
+        return;
+    if( vertex[0] >= 0 && vertex[0] < ctx->num_vertices && vertex[1] >= 0 &&
+        vertex[1] < ctx->num_vertices && vertex[2] >= 0 && vertex[2] < ctx->num_vertices )
+        return;
+
+    dbg->index_oob++;
+    if( toridraw_raster_debug_level() < 2 )
+        return;
+    fprintf(
+        stderr,
+        "raster_index_oob: model=%p face=%d indices=(%d,%d,%d) num_vertices=%d\n",
+        (void*)ctx->face_indices_a,
+        face,
+        vertex[0],
+        vertex[1],
+        vertex[2],
+        ctx->num_vertices);
+}
+
+/** Which stock render type a textured face resolved to. Capped at 32 lines:
+ *  the question is which types a scene contains, not how many faces have one. */
+static void
+toridraw_dbg_report_tex_mode(int face, int coord, unsigned int render_type)
+{
+    static int complex_debug_count;
+
+    if( render_type == 0 || !toridraw_raster_tex_mode_debug() )
+        return;
+    if( complex_debug_count++ >= 32 )
+        return;
+    fprintf(
+        stderr,
+        "raster_tex_mode: face=%d coord=%d type=%u affine=1\n",
+        face,
+        coord >= 0 ? coord : face,
+        render_type);
+}
+
 #endif /* TORIDRAW_DEBUG_RASTER_U_C */

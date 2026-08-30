@@ -817,4 +817,175 @@ toridraw_projection_debug_print(
         position->roll);
 }
 
+/*
+ * The remaining TORIDRAW_SORT_DEBUG reporters.
+ *
+ * Each was an `if( gate ) fprintf(...)` sitting inline in the render path --
+ * in the middle of the priority interleave, or in the capacity refusal at the
+ * top of ToriDraw_Project. The gate now lives with the message, so the render
+ * path carries one call and no formatting.
+ */
+
+/** The flexible-priority interleave is decided by three averages that nothing
+ *  else prints, and guessing at them is how an afternoon goes. */
+static void
+toridraw_dbg_report_sort_counts(
+    const int* counts,
+    const int* flex_prio11_face_to_depth,
+    int average_depth1_2,
+    int average_depth3_4,
+    int average_depth6_8)
+{
+    int flex_min = 1 << 30;
+    int flex_max = -1;
+
+    if( toridraw_sort_debug_level() < 2 )
+        return;
+
+    for( int i = 0; i < counts[10]; i++ )
+    {
+        int d = flex_prio11_face_to_depth[i] & 0xFFFF;
+        if( d < flex_min )
+            flex_min = d;
+        if( d > flex_max )
+            flex_max = d;
+    }
+    fprintf(
+        stderr,
+        "sort: counts 0..11 = %d %d %d %d %d %d %d %d %d %d %d %d | "
+        "avg12=%d avg34=%d avg68=%d | flex depth %d..%d\n",
+        counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6],
+        counts[7], counts[8], counts[9], counts[10], counts[11], average_depth1_2,
+        average_depth3_4, average_depth6_8, flex_min, flex_max);
+}
+
+/** A model too big for the scene's scratch, refused before it can write past
+ *  any of the six buffers. Also emits the NDJSON record. */
+static void
+toridraw_dbg_report_capacity_reject(
+    const struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd)
+{
+    TORIDRAW_DBG_RECORD_CAPACITY_REJECT(scene, hnd);
+    if( !toridraw_sort_debug_enabled() )
+        return;
+    fprintf(
+        stderr,
+        "sort_capacity: model=%p vertices=%d/%d faces=%d/%d rejected=1\n",
+        (void*)model_as_full(hnd),
+        model_vertex_count(hnd),
+        scene->max_vertices,
+        model_face_count(hnd),
+        scene->max_faces);
+}
+
+/** An undersized depth table, surfaced BEFORE the fast and AABB culls can hide
+ *  it: the model still draws, but its faces share buckets and sort coarsely. */
+static void
+toridraw_dbg_report_depth_capacity(
+    const struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd)
+{
+    const struct ToriDraw_BoundsCylinder* bounds = model_bounds_cylinder(hnd);
+    long long required_levels;
+
+    if( !bounds )
+        return;
+    required_levels = (long long)bounds->min_z_depth_any_rotation * 2 + 1;
+    if( required_levels <= scene->depth_levels )
+        return;
+
+    fprintf(
+        stderr,
+        "sort_depth_capacity: model=%p vertices=%d faces=%d "
+        "bounds={y=%d..%d,xz=%d,bias=%d} required=%lld "
+        "depth_levels=%d rejected=0\n",
+        (void*)model_as_full(hnd),
+        model_vertex_count(hnd),
+        model_face_count(hnd),
+        bounds->min_y,
+        bounds->max_y,
+        bounds->radius,
+        bounds->min_z_depth_any_rotation,
+        required_levels,
+        scene->depth_levels);
+}
+
+    /*
+     * TORIDRAW_SPAN_RATIO=1: faces bucketed vs depth levels walked to get them
+     * back out again.
+     *
+     * Every consumer of this table is a loop over [min_d, max_d] reading two
+     * ints per level -- the prefix sum below, the cursor seed, the priority
+     * partition, the restore. If a model's depth span is much wider than its
+     * face count, that is four passes over a range whose length has nothing to
+     * do with how much work the model represents, and the bucket sort is being
+     * paid for a resolution it is not using. This counter is what says whether
+     * that is happening or whether the span is tight.
+     */
+static void
+toridraw_dbg_report_span_ratio(int num_faces, int min_d, int max_d)
+{
+    static char const* out_path = NULL;
+    static int armed = -1;
+    static long long faces_total;
+    static long long span_total;
+    static long long models;
+
+    if( armed < 0 )
+    {
+        out_path = getenv("TORIDRAW_SPAN_RATIO");
+        armed = (out_path && out_path[0]) ? 1 : 0;
+    }
+    if( armed )
+    {
+        faces_total += num_faces;
+        span_total += (max_d - min_d + 1);
+        models++;
+        /* Rewritten in place every so often rather than dumped at exit:
+         * the measurement harness ends an arm with taskkill /F, and an
+         * end-of-run dump is a dump that never happens. */
+        if( models % 20000 == 0 )
+        {
+            FILE* f = fopen(out_path, "wb");
+            if( f )
+            {
+                fprintf(f,
+                    "models=%lld faces/model=%.1f span/model=%.1f "
+                    "span-per-face=%.1fx\n",
+                    models,
+                    (double)faces_total / (double)models,
+                    (double)span_total / (double)models,
+                    (double)span_total / (double)(faces_total ? faces_total : 1));
+                fclose(f);
+            }
+        }
+    }
+}
+
+/*
+ * How often the near-clip gate sends a model down the clipping kernel.
+ * TORIDRAW_NEAR_CLIP_STATS only; a no-op otherwise.
+ */
+static void
+toridraw_dbg_count_near_clip_gate(bool may_clip)
+{
+#ifdef TORIDRAW_NEAR_CLIP_STATS
+    static long clipped_models = 0;
+    static long total_models = 0;
+    total_models++;
+    if( may_clip )
+        clipped_models++;
+    if( (total_models % 100000) == 0 )
+        fprintf(
+            stderr,
+            "near_clip_stats: %ld/%ld models took the clipping kernel (%.2f%%)\n",
+            clipped_models,
+            total_models,
+            100.0 * (double)clipped_models / (double)total_models);
+#else
+    (void)may_clip;
+#endif
+}
+
 #endif /* TORIDRAW_DEBUG_RENDER_U_C */
