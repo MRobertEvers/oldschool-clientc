@@ -5,6 +5,7 @@
 #include "graphics/projection.h"
 #include "graphics/winding.h"
 #include "graphics/tori_compat.h"
+#include "../toridraw_debug_log.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -60,11 +61,9 @@ ToriDraw_TriangleClipFrontFacing(int clipped_count)
         g_toridraw_triangle_clip_y[2]);
 }
 
-/* #region agent log */
 /** Times ToriDraw_TriangleSlopei saw a depth span the reciprocal table cannot
  *  index. Reported per model by the raster debug line. */
-static int g_toridraw_clip_recip_oob = 0;
-/* #endregion */
+TORIDRAW_DBG_COUNTER(g_toridraw_clip_recip_oob);
 
 static inline int
 ToriDraw_TriangleSlopei(
@@ -80,9 +79,7 @@ ToriDraw_TriangleSlopei(
     if( (unsigned int)dz < 4096u )
         return dnear * g_reciprocal16[dz];
 
-    /* #region agent log */
-    g_toridraw_clip_recip_oob++;
-    /* #endregion */
+    TORIDRAW_DBG_COUNT(g_toridraw_clip_recip_oob);
 
     /*
      * g_reciprocal16 only covers a 4,096-unit depth span. Ordinary models are

@@ -6,6 +6,7 @@
 
 #include "graphics/tori_compat.h"
 #include "graphics/shared_tables.h"
+#include "toridraw_debug_log.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -599,14 +600,12 @@ toridraw_add_mul32(int base, int step, int distance)
  * toridraw_add_mul32.  This work happens once per triangle; all scanline and
  * span arithmetic remains 32-bit.
  */
-/* #region agent log */
 /** Largest normalization shift ToriDraw_TexturePlanePrepare32 has needed, and
  *  how many triangles it refused outright. Reported per model by the raster
  *  debug line: every bit of shift is a bit of uv precision discarded, so a
  *  large value here is a striped/banded texture rather than a lost face. */
-static int g_toridraw_tex_plane_max_shift = 0;
-static int g_toridraw_tex_plane_rejected = 0;
-/* #endregion */
+TORIDRAW_DBG_COUNTER(g_toridraw_tex_plane_max_shift);
+TORIDRAW_DBG_COUNTER(g_toridraw_tex_plane_rejected);
 
 static inline bool
 ToriDraw_TexturePlanePrepare32(
@@ -646,9 +645,7 @@ ToriDraw_TexturePlanePrepare32(
             break;
         if( pre_shift++ >= 30 )
         {
-            /* #region agent log */
-            g_toridraw_tex_plane_rejected++;
-            /* #endregion */
+            TORIDRAW_DBG_COUNT(g_toridraw_tex_plane_rejected);
             return false;
         }
         for( int i = 0; i < 3; i++ )
@@ -676,9 +673,7 @@ ToriDraw_TexturePlanePrepare32(
             break;
         if( plane->shift++ >= 30 )
         {
-            /* #region agent log */
-            g_toridraw_tex_plane_rejected++;
-            /* #endregion */
+            TORIDRAW_DBG_COUNT(g_toridraw_tex_plane_rejected);
             return false;
         }
         for( int i = 0; i < 3; i++ )
@@ -689,10 +684,7 @@ ToriDraw_TexturePlanePrepare32(
         }
     }
 
-    /* #region agent log */
-    if( plane->shift > g_toridraw_tex_plane_max_shift )
-        g_toridraw_tex_plane_max_shift = plane->shift;
-    /* #endregion */
+    TORIDRAW_DBG_MAX(g_toridraw_tex_plane_max_shift, plane->shift);
 
     return plane->term[2].x != 0 || plane->term[2].y != 0 || plane->term[2].base != 0;
 }

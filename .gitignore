@@ -117,3 +117,6 @@ src/.last_flavor
 
 # Staged build output.
 /dist/
+
+# The NDJSON anomaly log (3rd/toridraw/toridraw_debug_log.h) default path.
+toridraw-debug.ndjson

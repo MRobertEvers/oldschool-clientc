@@ -14,12 +14,12 @@
  * once per frame; the calls come two and a half million to the frame. So
  * everything derived from (pitch, yaw, cot16) is read out of the
  * ToriDraw_ProjectionPreparedCamera the scene already carries -- the same
- * block projection16_apple.S loads with two ldp pairs -- and the call keeps
+ * block projection16.aarch64.S loads with two ldp pairs -- and the call keeps
  * only what is genuinely per-model.
  *
  * WHY THE SCENE POINTER AND NOT TWENTY ARGUMENTS
  *
- * projection16_apple.S takes the six output arrays as one pointer to the
+ * projection16.aarch64.S takes the six output arrays as one pointer to the
  * contiguous Scene block and reloads them with `ldp`;
  * benchmarks/projection_neon_scene goes further and passes every parameter in
  * one args struct. Both are answering the same thing: on the hot four-vertex
@@ -258,7 +258,7 @@ toridraw_proj_prepared_core(
 
     /*
      * The screen box, accumulated where the screen coordinates are born --
-     * the same thing projection16_apple.S does in v8-v11. Lane-wise min x,
+     * the same thing projection16.aarch64.S does in v8-v11. Lane-wise min x,
      * max x, min y, max y over every full block, written to the scene's
      * projection_bound afterwards; the caller records how many vertices
      * that covers (count & ~3) and toridraw_projected_bound sweeps only the

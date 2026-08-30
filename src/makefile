@@ -378,6 +378,18 @@ endif
 # Removing the unity object by hand is not optional: the .u.c files it pulls in
 # are not dependency-tracked, and an added -D forces no rebuild on its own.
 TORIDRAW_PROBE_CFLAGS ?=
+
+# The NDJSON anomaly log (3rd/toridraw/toridraw_debug_log.h) is gated the same
+# way and for the same reason: its sites are per-model and per-face on the
+# render path. This is shorthand for adding the -D to the probe flags above;
+# the env var of the same name then turns the log on at run time, so an
+# instrumented binary is still silent until asked.
+#
+#   rm -f src/build_opt/toridraw_unity.o
+#   make -C src TORIDRAW_DEBUG_NDJSON=1 ...
+ifeq ($(TORIDRAW_DEBUG_NDJSON),1)
+TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_DEBUG_NDJSON=1
+endif
 TORIDRAW_CFLAGS = -std=c11 $(TORIDRAW_O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -MMD -MP \
 	$(TORIDRAW_PROBE_CFLAGS) \
 	-I$(TORIDRAW_DIR) \
@@ -391,7 +403,7 @@ ifeq ($(PLATFORM),macos)
 ifeq ($(shell uname -m),arm64)
 ifneq ($(TORIDRAW_NO_SIMD),1)
 TORIDRAW_CFLAGS += -DTORIDRAW_APPLE_NEON_PROJECTION_ASM=1
-TORIDRAW_PROJECTION_ASM_OBJ = $(OBJ_DIR)/projection16_apple.o
+TORIDRAW_PROJECTION_ASM_OBJ = $(OBJ_DIR)/projection16.aarch64.o
 endif
 endif
 endif
@@ -1880,7 +1892,7 @@ $(OBJ_DIR)/xteas.o: $(REPO_ROOT)/3rd/xteas/xteas.c | $(OBJ_DIR)
 $(OBJ_DIR)/toridraw_unity.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(TORIDRAW_CFLAGS) -w -c $(TORIDRAW_UNITY_SRC) -o $@
 
-$(OBJ_DIR)/projection16_apple.o: $(TORIDRAW_DIR)/graphics/projection16_apple.S | $(OBJ_DIR)
+$(OBJ_DIR)/projection16.aarch64.o: $(TORIDRAW_DIR)/graphics/projection16.aarch64.S | $(OBJ_DIR)
 	$(CC) -c $< -o $@
 
 # Assembled through $(CC) so the target architecture follows the lane's own

@@ -134,7 +134,7 @@ struct NativeProjectionBlock
     int sin_camera_pitch[4];
     int cot15[4];
     /* Written back by the generic paths: lane-wise min x, max x, min y,
-     * max y over every full block (projection16_apple.S BOUND_INIT). Sized
+     * max y over every full block (projection16.aarch64.S BOUND_INIT). Sized
      * and placed as ToriDraw_Scene.projection_bound is. */
     _Alignas(16) int bound[4][4];
 };
@@ -1118,7 +1118,7 @@ run_acceptance(void)
         RANDOM_CASES,
         MAX_VERTICES);
 #else
-    printf("native Apple assembly: SKIP (projection16_apple.S not linked on this target)\n");
+    printf("native Apple assembly: SKIP (projection16.aarch64.S not linked on this target)\n");
 #endif
     printf("acceptance seed: 0x%08" PRIx32 "\n", UINT32_C(0xc001d00d));
     return true;

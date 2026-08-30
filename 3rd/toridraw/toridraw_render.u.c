@@ -19,134 +19,18 @@
 #define VERTEXINT_BITS 16
 #endif
 
-/* #region agent log */
-#define TORIDRAW_DBG_LOG_PATH \
-    "/Users/matthewevers/Documents/git_repos/3draster/.cursor/debug-ef81cb.log"
-#define TORIDRAW_DBG_SESSION "ef81cb"
-#define TORIDRAW_DBG_BUDGET  6000
-
-static int
-toridraw_dbg_enabled(void)
-{
-    static int on = -1;
-    if( on < 0 )
-    {
-        const char* v = getenv("TORIDRAW_DEBUG_NDJSON");
-        on = (v && v[0] != '\0' && v[0] != '0') ? 1 : 0;
-    }
-    return on;
-}
-
-/** TORIDRAW_DEBUG_LOG=<path> overrides the sink. The default above is a macOS
- *  absolute path, so on any other host fopen fails and every record is dropped
- *  silently - which reads exactly like "the instrumentation says nothing is
- *  wrong". */
-static const char*
-toridraw_dbg_log_path(void)
-{
-    static const char* path = NULL;
-    if( !path )
-    {
-        const char* v = getenv("TORIDRAW_DEBUG_LOG");
-        path = (v && v[0] != '\0') ? v : TORIDRAW_DBG_LOG_PATH;
-    }
-    return path;
-}
-
-static const char*
-toridraw_dbg_run_id(void)
-{
-    static const char* run = NULL;
-    if( !run )
-    {
-        const char* v = getenv("TORIDRAW_DEBUG_RUN");
-        run = (v && v[0] != '\0') ? v : "run1";
-    }
-    return run;
-}
-
-/** Emit at most one record per anomaly burst: `state` counts calls at this
- *  site, the first few always pass, then one in `period`. */
-static bool
-toridraw_dbg_gate(int* state, int period)
-{
-    int const n = (*state)++;
-    return n < 4 || (period > 0 && (n % period) == 0);
-}
-
-static void
-toridraw_dbg_log(
-    const char* hypothesis,
-    const char* location,
-    const char* message,
-    const char* data_json)
-{
-    static int budget = TORIDRAW_DBG_BUDGET;
-    FILE* f;
-
-    if( !toridraw_dbg_enabled() || budget <= 0 )
-        return;
-    budget--;
-
-    f = fopen(toridraw_dbg_log_path(), "a");
-    if( !f )
-        return;
-    fprintf(
-        f,
-        "{\"sessionId\":\"" TORIDRAW_DBG_SESSION "\",\"runId\":\"%s\","
-        "\"hypothesisId\":\"%s\",\"location\":\"%s\",\"message\":\"%s\","
-        "\"data\":%s,\"timestamp\":%lld}\n",
-        toridraw_dbg_run_id(),
-        hypothesis,
-        location,
-        message,
-        data_json,
-        (long long)time(NULL) * 1000);
-    fclose(f);
-}
-/* #endregion */
+/* The NDJSON anomaly log: compile-time gated, off by default. */
+#include "toridraw_debug_log.h"
 
 // clang-format off
 #include "graphics/projection16_simd.u.c"
 #include "graphics/projection_zdiv_simd.u.c"
+/* The per-ISA screen-box sweep behind toridraw_projected_bound. */
+#include "graphics/projection_bound.u.c"
 // clang-format on
 
-/* For toridraw_projected_bound; the same gates the projection ladder above
- * selects its kernels by, so the sweep vectorises exactly where they do. */
-#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-#include <arm_neon.h>
-#elif defined(__SSE4_1__) && !defined(SSE2_DISABLED) && !defined(SSE41_DISABLED)
-#include <smmintrin.h>
-#endif
-
-#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
-/*
- * Private renderer ABI: the first argument addresses Scene's contiguous
- * screen/orthographic output-pointer block. The assembly derives the prepared
- * camera vectors from that block, so all eight arguments stay in registers.
- */
-extern void
-toridraw_project_vertices_fused_neon_noclip_native_prepared_aarch64(
-    int* const* output_pointer_block,
-    const vertexint_t* vertex_x,
-    const vertexint_t* vertex_y,
-    const vertexint_t* vertex_z,
-    int num_vertices,
-    int model_yaw,
-    int model_mid_z,
-    const struct ToriDraw_Position* position);
-
-extern void
-toridraw_project_vertices_fused_neon_notex_noclip_native_prepared_aarch64(
-    int* const* output_pointer_block,
-    const vertexint_t* vertex_x,
-    const vertexint_t* vertex_y,
-    const vertexint_t* vertex_z,
-    int num_vertices,
-    int model_yaw,
-    int model_mid_z,
-    const struct ToriDraw_Position* position);
-#endif
+/* The AArch64 prepared-projection entry points, where this lane builds them. */
+#include "graphics/projection16.aarch64.h"
 
 /** Far plane for bounding-cylinder frustum cull. */
 // #define TORIDRAW_CYLINDER_FAR_PLANE_Z 3500
@@ -198,21 +82,6 @@ div3_fast_fixedpoint(int z_sum)
  * a vertex one unit past z=50 projects past 90,000, which wraps every edge
  * stepper it touches and paints the streaks it was reported for.
  */
-/* #region agent log */
-/** TORIDRAW_SAFE_NEAR=0 restores the camera's own near plane, so one session
- *  can A/B whether the raised plane is what removes near geometry. */
-static int
-toridraw_safe_near_enabled(void)
-{
-    static int on = -1;
-    if( on < 0 )
-    {
-        const char* v = getenv("TORIDRAW_SAFE_NEAR");
-        on = (v && v[0] == '0') ? 0 : 1;
-    }
-    return on;
-}
-/* #endregion */
 
 static inline int
 toridraw_safe_near_plane_z(
@@ -227,10 +96,8 @@ toridraw_safe_near_plane_z(
     int extent;
     long long required;
 
-    /* #region agent log */
-    if( !toridraw_safe_near_enabled() )
+    if( !TORIDRAW_DBG_SAFE_NEAR_ENABLED() )
         return camera_near_plane_z;
-    /* #endregion */
 
     if( !bc || scale <= 0 )
         return camera_near_plane_z;
@@ -269,6 +136,11 @@ struct ToriDraw_FaceSortDebugStats
     int first_depth_out_value;
 };
 
+/* The record builders for every log site below. Placed here: it needs the
+ * model accessors, div3_fast_fixedpoint, TORIDRAW_PROJECTED_COORD_LIMIT and
+ * the stats struct above, and everything that emits is below. */
+#include "toridraw_debug_render.u.c"
+
 /** TORIDRAW_SORT_DEBUG is intentionally runtime-selectable: the counters below
  * remain disabled on the normal render path, while an ASan reproduction can
  * turn them on without rebuilding a multi-minute client.
@@ -295,10 +167,8 @@ toridraw_sort_debug_level(void)
 static inline bool
 toridraw_sort_debug_enabled(void)
 {
-    /* #region agent log */
-    if( toridraw_dbg_enabled() )
+    if( TORIDRAW_DBG_ENABLED() )
         return true;
-    /* #endregion */
     return toridraw_sort_debug_level() != 0;
 }
 
@@ -328,56 +198,7 @@ toridraw_face_sort_debug_print(
     int const depth_min = stats->min_depth_seen == INT_MAX ? -1 : stats->min_depth_seen;
     int const depth_max = stats->max_depth_seen == INT_MIN ? -1 : stats->max_depth_seen;
 
-    /* #region agent log */
-    if( toridraw_dbg_enabled() )
-    {
-        static int gate_anomaly = 0;
-        static int gate_clean = 0;
-        bool const anomaly = stats->depth_out_low || stats->depth_out_high ||
-                             stats->bucket_overflow || ordered != stats->accepted;
-        bool const big = model_face_count(hnd) >= 2000;
-        if( (anomaly && toridraw_dbg_gate(&gate_anomaly, 200)) ||
-            (!anomaly && big && toridraw_dbg_gate(&gate_clean, 400)) )
-        {
-            char data[768];
-            snprintf(
-                data,
-                sizeof(data),
-                "{\"model\":\"%p\",\"vertices\":%d,\"faces\":%d,\"max_vertices\":%d,"
-                "\"max_faces\":%d,\"depth_bias\":%d,\"required_levels\":%lld,"
-                "\"depth_levels\":%d,\"depth_stride\":%d,\"observed_min\":%d,"
-                "\"observed_max\":%d,\"front\":%d,\"near_clip_cand\":%d,\"accepted\":%d,"
-                "\"ordered\":%d,\"back\":%d,\"degenerate\":%d,\"out_low\":%d,"
-                "\"out_high\":%d,\"bucket_overflow\":%d,\"max_bucket\":%d}",
-                (void*)model_as_full(hnd),
-                model_vertex_count(hnd),
-                model_face_count(hnd),
-                scene->max_vertices,
-                scene->max_faces,
-                depth_bias,
-                conservative_levels,
-                scene->depth_levels,
-                scene->depth_stride,
-                depth_min,
-                depth_max,
-                stats->front_facing,
-                stats->near_clip_candidates,
-                stats->accepted,
-                ordered,
-                stats->back_facing,
-                stats->degenerate,
-                stats->depth_out_low,
-                stats->depth_out_high,
-                stats->bucket_overflow,
-                stats->max_bucket_occupancy);
-            toridraw_dbg_log(
-                "C",
-                "toridraw_render.u.c:face_sort",
-                anomaly ? "face sort dropped or reordered faces" : "face sort clean",
-                data);
-        }
-    }
-    /* #endregion */
+    TORIDRAW_DBG_RECORD_FACE_SORT(scene, hnd, stats, ordered);
 
     /* Level 1 is an anomaly detector suitable for a live client.  `all` (or
      * level 2) emits clean models too when comparing an exact reproduction. */
@@ -450,90 +271,11 @@ toridraw_projection_debug_print(
     int fixed16_faces = 0;
     int clipped_faces = 0;
     long long max_abs_edge_dx = 0;
-    /* #region agent log */
-    /* Exact-arithmetic differential against whatever kernel actually ran. The
-     * perspective kernels all compute `x_scene * (cot16 >> 1) >> 6`, which is
-     * mathematically `x_scene * scale` but forms a product six bits larger on
-     * the way. In the NEON path that product is a vmulq_s32 lane, which wraps
-     * silently and which no sanitizer instruments. A wrapped lane yields a
-     * small but wrong screen coordinate, so only a comparison against exact
-     * arithmetic can see it. */
-    int const dbg_cot15 =
-        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048) >> 1;
-    int const dbg_ortho_limit = dbg_cot15 > 0 ? INT_MAX / dbg_cot15 : INT_MAX;
-    bool const dbg_yaw_only = !toridraw_proj_is_parallel(camera->proj_mode) &&
-                              ToriDraw_NormalizeAngle(position->pitch) == 0 &&
-                              ToriDraw_NormalizeAngle(position->roll) == 0 &&
-                              ToriDraw_NormalizeAngle(camera->roll) == 0;
-    int ortho_overflow = 0;
-    int screen_mismatch = 0;
-    long long worst_screen_delta = 0;
-    int worst_ortho_coord = 0;
-    /* #endregion */
+    /* Zeroed, so the record below reads well-defined fields on a build with
+     * the log compiled out (where the call is a no-op). */
+    struct ToriDraw_DbgProjectDifferential diff = { 0 };
 
-    if( !toridraw_sort_debug_enabled() )
-        return;
-
-    /* #region agent log */
-    if( dbg_yaw_only )
-    {
-        int const near_z = scene->projection_near_plane_z;
-        int const yaw = ToriDraw_NormalizeAngle(position->yaw);
-        const vertexint_t* mvx = model_vertices_x(hnd);
-        const vertexint_t* mvy = model_vertices_y(hnd);
-        const vertexint_t* mvz = model_vertices_z(hnd);
-
-        for( int vi = 0; vi < model->vertex_count; vi++ )
-        {
-            struct ProjectedVertex pv;
-            long long exact_x;
-            long long exact_y;
-            int abs_x;
-            int abs_y;
-
-            project_orthographic_fast(
-                &pv, mvx[vi], mvy[vi], mvz[vi], yaw,
-                position->x, position->y, position->z,
-                ToriDraw_NormalizeAngle(camera->pitch),
-                ToriDraw_NormalizeAngle(camera->yaw));
-
-            abs_x = pv.x < 0 ? -pv.x : pv.x;
-            abs_y = pv.y < 0 ? -pv.y : pv.y;
-            if( abs_x > dbg_ortho_limit || abs_y > dbg_ortho_limit )
-            {
-                ortho_overflow++;
-                if( (abs_x > abs_y ? abs_x : abs_y) > worst_ortho_coord )
-                    worst_ortho_coord = abs_x > abs_y ? abs_x : abs_y;
-            }
-
-            if( pv.z < near_z )
-                continue;
-
-            exact_x = (((long long)pv.x * dbg_cot15) >> 6) / pv.z;
-            exact_y = (((long long)pv.y * dbg_cot15) >> 6) / pv.z;
-            if( exact_x == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
-                exact_x = TORIDRAW_SCREEN_X_NEAR_CLIPPED_NUDGE;
-
-            {
-                long long const dx = exact_x - scene->screen_vertices_x[vi];
-                long long const dy = exact_y - scene->screen_vertices_y[vi];
-                long long const adx = dx < 0 ? -dx : dx;
-                long long const ady = dy < 0 ? -dy : dy;
-                long long const worst = adx > ady ? adx : ady;
-                if( worst > 1 )
-                {
-                    screen_mismatch++;
-                    if( worst > worst_screen_delta )
-                    {
-                        worst_screen_delta = worst;
-                        if( abs_x > worst_ortho_coord )
-                            worst_ortho_coord = abs_x;
-                    }
-                }
-            }
-        }
-    }
-    /* #endregion */
+    TORIDRAW_DBG_PROJECT_DIFFERENTIAL(scene, hnd, position, camera, &diff);
 
     for( int vi = 0; vi < model->vertex_count; vi++ )
     {
@@ -596,114 +338,15 @@ toridraw_projection_debug_print(
             fixed16_faces++;
     }
 
-    /* #region agent log */
-    if( toridraw_dbg_enabled() )
     {
-        static int gate_fixed16 = 0;
-        static int gate_simd = 0;
-        static int gate_raise = 0;
-        static int gate_clip = 0;
-        static int gate_clean = 0;
-        bool const simd_wrap = screen_mismatch > 0 || ortho_overflow > 0;
-        const struct ToriDraw_BoundsCylinder* pbc = model_bounds_cylinder(hnd);
-        int const radius = pbc ? pbc->min_z_depth_any_rotation : 0;
-        bool const overflow = fixed16_vertices > 0 || fixed16_faces > 0 ||
-                              max_abs_edge_dx > 2 * TORIDRAW_PROJECTED_COORD_LIMIT;
-        /* Geometry this model only loses because the plane was raised: at the
-         * camera's own near plane nothing here would have been behind it. */
-        bool const raised_cut = clipped_faces > 0 &&
-                                scene->projection_near_plane_z > camera->near_plane_z &&
-                                center_z - radius >= camera->near_plane_z;
-        /* An untextured model has no camera-space scratch, so the triangle
-         * dispatchers drop these faces instead of clipping them. */
-        bool const near_clip_loss = clipped_faces > 0 && model->textured_face_count == 0;
-        bool const big = model->face_count >= 2000;
-        const char* hyp = simd_wrap
-                              ? "I"
-                              : (overflow ? "A"
-                                          : (raised_cut ? "G" : (near_clip_loss ? "B" : "AB")));
-        bool emit = false;
-
-        if( simd_wrap )
-            emit = toridraw_dbg_gate(&gate_simd, 150);
-        else if( overflow )
-            emit = toridraw_dbg_gate(&gate_fixed16, 200);
-        else if( raised_cut )
-            emit = toridraw_dbg_gate(&gate_raise, 150);
-        else if( near_clip_loss )
-            emit = toridraw_dbg_gate(&gate_clip, 150);
-        else if( big )
-            emit = toridraw_dbg_gate(&gate_clean, 400);
-
-        if( emit )
-        {
-            char data[1024];
-            snprintf(
-                data,
-                sizeof(data),
-                "{\"model\":\"%p\",\"vertices\":%d,\"faces\":%d,"
-                "\"textured_faces\":%d,\"allow_near_clip\":%d,\"may_clip\":%d,"
-                "\"screen_x_min\":%d,\"screen_x_max\":%d,\"screen_y_min\":%d,"
-                "\"screen_y_max\":%d,\"screen_z_min\":%d,\"screen_z_max\":%d,"
-                "\"center_z\":%d,\"radius\":%d,\"near_plane_z\":%d,"
-                "\"near_plane_z_eff\":%d,\"raised_cut\":%d,"
-                "\"coord_limit\":%d,\"clipped_vertices\":%d,"
-                "\"clipped_faces\":%d,\"fixed16_vertices\":%d,\"fixed16_faces\":%d,"
-                "\"max_abs_edge_dx\":%lld,\"viewport_w\":%d,\"viewport_h\":%d,"
-                "\"pos_x\":%d,\"pos_y\":%d,\"pos_z\":%d,"
-                "\"yaw_only\":%d,\"cot15\":%d,\"ortho_limit\":%d,"
-                "\"ortho_overflow\":%d,\"screen_mismatch\":%d,"
-                "\"worst_screen_delta\":%lld,\"worst_ortho_coord\":%d}",
-                (void*)model,
-                model->vertex_count,
-                model->face_count,
-                model->textured_face_count,
-                model->textured_face_count > 0 ? 1 : 0,
-                (int)may_clip,
-                min_x,
-                max_x,
-                min_y,
-                max_y,
-                min_z,
-                max_z,
-                center_z,
-                radius,
-                camera->near_plane_z,
-                scene->projection_near_plane_z,
-                (int)raised_cut,
-                TORIDRAW_PROJECTED_COORD_LIMIT,
-                clipped_vertices,
-                clipped_faces,
-                fixed16_vertices,
-                fixed16_faces,
-                max_abs_edge_dx,
-                view_port->width,
-                view_port->height,
-                position->x,
-                position->y,
-                position->z,
-                (int)dbg_yaw_only,
-                dbg_cot15,
-                dbg_ortho_limit,
-                ortho_overflow,
-                screen_mismatch,
-                worst_screen_delta,
-                worst_ortho_coord);
-            toridraw_dbg_log(
-                hyp,
-                "toridraw_render.u.c:project_range",
-                simd_wrap
-                    ? "projection disagrees with exact arithmetic (lane wrap)"
-                    : overflow
-                    ? "projected coords exceed raster 16.16 range"
-                    : (raised_cut
-                           ? "raised near plane cut geometry the camera plane kept"
-                           : (near_clip_loss ? "near-clipped faces on untextured model"
-                                             : "projection range clean")),
-                data);
-        }
+        struct ToriDraw_DbgProjectRange const range = {
+            min_x, max_x, min_y, max_y, min_z, max_z,
+            clipped_vertices, clipped_faces, fixed16_vertices, fixed16_faces,
+            max_abs_edge_dx
+        };
+        TORIDRAW_DBG_RECORD_PROJECT_RANGE(
+            scene, hnd, position, view_port, camera, center_z, may_clip, &range, &diff);
     }
-    /* #endregion */
 
     /* Every raster path converts x and dx to signed 16.16 with `<< 16`.
      * Report models that exceed that representable range; ASan cannot see
@@ -1036,9 +679,11 @@ ToriDraw_FastCull(
  * can legitimately project a real -5000, so the test is gated on
  * scene->near_clipped exactly as every other sentinel consumer is.
  *
- * Four lanes at a time where the ISA has a lane-wise min/max (NEON, SSE4.1);
- * plain SSE2 has neither and takes the scalar loop, which for the
- * four-vertex tile that dominates is four iterations.
+ * Four lanes at a time where the ISA has a lane-wise min/max; the lanes
+ * themselves live in graphics/projection_bound.u.c and the ISA files behind
+ * it, so nothing arch-specific is inlined here. Everything below the sweep --
+ * the scalar tail, the sentinel test, the dilation, the viewport offset -- is
+ * the same code on every lane.
  */
 static inline void
 toridraw_projected_bound(
@@ -1049,12 +694,9 @@ toridraw_projected_bound(
     const int* const svx = scene->screen_vertices_x;
     const int* const svy = scene->screen_vertices_y;
     struct ToriDraw_AABB* const aabb = &scene->aabb;
-    int min_sx;
-    int max_sx;
-    int min_sy;
-    int max_sy;
+    struct ToriDraw_ScreenBound box;
     int box_clipped = 0;
-    int i = 0;
+    int i;
 
     assert(scene);
     assert(view_port);
@@ -1072,119 +714,27 @@ toridraw_projected_bound(
         return;
     }
 
-    min_sx = svx[0];
-    max_sx = svx[0];
-    min_sy = svy[0];
-    max_sy = svy[0];
+    box.min_x = svx[0];
+    box.max_x = svx[0];
+    box.min_y = svy[0];
+    box.max_y = svy[0];
 
     if( scene->projection_bound_vertices > 0 )
     {
         /* A prepared kernel already reduced every full block into four
          * lanes; fold the lanes, then the tail below finishes the last 0..3. */
-        const int* const b = &scene->projection_bound[0][0];
         assert((scene->projection_bound_vertices & 3) == 0);
         assert(scene->projection_bound_vertices <= vertex_count);
-#if defined(__aarch64__) && ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-        min_sx = vminvq_s32(vld1q_s32(b + 0));
-        max_sx = vmaxvq_s32(vld1q_s32(b + 4));
-        min_sy = vminvq_s32(vld1q_s32(b + 8));
-        max_sy = vmaxvq_s32(vld1q_s32(b + 12));
-#else
-        /* Sixteen scalar compares; SSE2 has no horizontal min and this is
-         * once per model, not per vertex. */
-        min_sx = b[0];
-        max_sx = b[4];
-        min_sy = b[8];
-        max_sy = b[12];
-        for( int lane = 1; lane < 4; lane++ )
-        {
-            if( b[lane] < min_sx )
-                min_sx = b[lane];
-            if( b[4 + lane] > max_sx )
-                max_sx = b[4 + lane];
-            if( b[8 + lane] < min_sy )
-                min_sy = b[8 + lane];
-            if( b[12 + lane] > max_sy )
-                max_sy = b[12 + lane];
-        }
-#endif
+        toridraw_bound_fold_prepared(&scene->projection_bound[0][0], &box);
         i = scene->projection_bound_vertices;
     }
-#if defined(__aarch64__) && ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-    else if( vertex_count >= 4 )
+    else
     {
-        /* Two accumulator sets: a single min/max chain is bound by the
-         * two-cycle latency of each step, and the loop is otherwise a pair of
-         * loads -- eight vertices a trip halves the chain per vertex. */
-        int32x4_t vmin_x = vld1q_s32(svx);
-        int32x4_t vmax_x = vmin_x;
-        int32x4_t vmin_y = vld1q_s32(svy);
-        int32x4_t vmax_y = vmin_y;
-        int32x4_t vmin_x2 = vmin_x;
-        int32x4_t vmax_x2 = vmax_x;
-        int32x4_t vmin_y2 = vmin_y;
-        int32x4_t vmax_y2 = vmax_y;
-        for( i = 4; i + 8 <= vertex_count; i += 8 )
-        {
-            int32x4_t const x = vld1q_s32(svx + i);
-            int32x4_t const y = vld1q_s32(svy + i);
-            int32x4_t const x2 = vld1q_s32(svx + i + 4);
-            int32x4_t const y2 = vld1q_s32(svy + i + 4);
-            vmin_x = vminq_s32(vmin_x, x);
-            vmax_x = vmaxq_s32(vmax_x, x);
-            vmin_y = vminq_s32(vmin_y, y);
-            vmax_y = vmaxq_s32(vmax_y, y);
-            vmin_x2 = vminq_s32(vmin_x2, x2);
-            vmax_x2 = vmaxq_s32(vmax_x2, x2);
-            vmin_y2 = vminq_s32(vmin_y2, y2);
-            vmax_y2 = vmaxq_s32(vmax_y2, y2);
-        }
-        if( i + 4 <= vertex_count )
-        {
-            int32x4_t const x = vld1q_s32(svx + i);
-            int32x4_t const y = vld1q_s32(svy + i);
-            vmin_x = vminq_s32(vmin_x, x);
-            vmax_x = vmaxq_s32(vmax_x, x);
-            vmin_y = vminq_s32(vmin_y, y);
-            vmax_y = vmaxq_s32(vmax_y, y);
-            i += 4;
-        }
-        min_sx = vminvq_s32(vminq_s32(vmin_x, vmin_x2));
-        max_sx = vmaxvq_s32(vmaxq_s32(vmax_x, vmax_x2));
-        min_sy = vminvq_s32(vminq_s32(vmin_y, vmin_y2));
-        max_sy = vmaxvq_s32(vmaxq_s32(vmax_y, vmax_y2));
+        /* Zero where the lane declined, and the tail below is then the whole
+         * sweep; otherwise the count of leading vertices it consumed, having
+         * written every field of `box` from exactly those. */
+        i = toridraw_bound_sweep(svx, svy, vertex_count, &box);
     }
-#elif defined(__SSE4_1__) && !defined(SSE2_DISABLED) && !defined(SSE41_DISABLED)
-    else if( vertex_count >= 4 )
-    {
-        __m128i vmin_x = _mm_loadu_si128((const __m128i*)svx);
-        __m128i vmax_x = vmin_x;
-        __m128i vmin_y = _mm_loadu_si128((const __m128i*)svy);
-        __m128i vmax_y = vmin_y;
-        for( i = 4; i + 4 <= vertex_count; i += 4 )
-        {
-            __m128i const x = _mm_loadu_si128((const __m128i*)(svx + i));
-            __m128i const y = _mm_loadu_si128((const __m128i*)(svy + i));
-            vmin_x = _mm_min_epi32(vmin_x, x);
-            vmax_x = _mm_max_epi32(vmax_x, x);
-            vmin_y = _mm_min_epi32(vmin_y, y);
-            vmax_y = _mm_max_epi32(vmax_y, y);
-        }
-        /* 4 -> 2 -> 1 with the lane shuffles SSE2 already had. */
-        vmin_x = _mm_min_epi32(vmin_x, _mm_shuffle_epi32(vmin_x, 0x4E));
-        vmin_x = _mm_min_epi32(vmin_x, _mm_shuffle_epi32(vmin_x, 0xB1));
-        vmax_x = _mm_max_epi32(vmax_x, _mm_shuffle_epi32(vmax_x, 0x4E));
-        vmax_x = _mm_max_epi32(vmax_x, _mm_shuffle_epi32(vmax_x, 0xB1));
-        vmin_y = _mm_min_epi32(vmin_y, _mm_shuffle_epi32(vmin_y, 0x4E));
-        vmin_y = _mm_min_epi32(vmin_y, _mm_shuffle_epi32(vmin_y, 0xB1));
-        vmax_y = _mm_max_epi32(vmax_y, _mm_shuffle_epi32(vmax_y, 0x4E));
-        vmax_y = _mm_max_epi32(vmax_y, _mm_shuffle_epi32(vmax_y, 0xB1));
-        min_sx = _mm_cvtsi128_si32(vmin_x);
-        max_sx = _mm_cvtsi128_si32(vmax_x);
-        min_sy = _mm_cvtsi128_si32(vmin_y);
-        max_sy = _mm_cvtsi128_si32(vmax_y);
-    }
-#endif
 
     /* The scalar tail -- or the whole model, where no lane path applied.
      * `else if` is right: min <= max always, so a new minimum cannot also be
@@ -1193,20 +743,20 @@ toridraw_projected_bound(
     {
         int const sx = svx[i];
         int const sy = svy[i];
-        if( sx < min_sx )
-            min_sx = sx;
-        else if( sx > max_sx )
-            max_sx = sx;
-        if( sy < min_sy )
-            min_sy = sy;
-        else if( sy > max_sy )
-            max_sy = sy;
+        if( sx < box.min_x )
+            box.min_x = sx;
+        else if( sx > box.max_x )
+            box.max_x = sx;
+        if( sy < box.min_y )
+            box.min_y = sy;
+        else if( sy > box.max_y )
+            box.max_y = sy;
     }
 
     /* The sentinel is the smallest x any clipped model can hold, so if one
      * is present it IS the minimum -- one compare after the sweep, not one
      * per vertex. */
-    if( scene->near_clipped && min_sx == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
+    if( scene->near_clipped && box.min_x == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
         box_clipped = 1;
 
     if( box_clipped )
@@ -1218,10 +768,10 @@ toridraw_projected_bound(
     }
     else
     {
-        aabb->min_screen_x = min_sx + view_port->x_center - TORIDRAW_PICK_SLOP;
-        aabb->max_screen_x = max_sx + view_port->x_center + TORIDRAW_PICK_SLOP;
-        aabb->min_screen_y = min_sy + view_port->y_center - TORIDRAW_PICK_SLOP;
-        aabb->max_screen_y = max_sy + view_port->y_center + TORIDRAW_PICK_SLOP;
+        aabb->min_screen_x = box.min_x + view_port->x_center - TORIDRAW_PICK_SLOP;
+        aabb->max_screen_x = box.max_x + view_port->x_center + TORIDRAW_PICK_SLOP;
+        aabb->min_screen_y = box.min_y + view_port->y_center - TORIDRAW_PICK_SLOP;
+        aabb->max_screen_y = box.max_y + view_port->y_center + TORIDRAW_PICK_SLOP;
     }
 }
 
@@ -1609,128 +1159,6 @@ sort_face_draw_order(
     return order_index;
 }
 
-/* #region agent log */
-/**
- * Integrity of the emitted draw order, which the drop counters cannot see.
- *
- * Three independent things can go wrong once the depth buckets are folded into
- * priority runs, and each produces visible sorting artefacts rather than
- * missing geometry:
- *   - a face index written through the wrong stride appears twice, which means
- *     another accepted face never appears at all;
- *   - an index lands outside the model;
- *   - a priority run stops being back-to-front, so near faces paint first and
- *     far ones paint over them.
- * Depth is recomputed the same way the bucket sort computed it.
- */
-static void
-toridraw_dbg_check_face_order(
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_ModelHandle hnd,
-    const uint8_t* face_priorities,
-    int face_count,
-    int model_depth_bias)
-{
-    static uint8_t seen[16384];
-    static int gate_bad = 0;
-    static int gate_ok = 0;
-    const struct ToriDraw_Model* m = model_as_full(hnd);
-    const faceint_t* fa = m->face_indices_a;
-    const faceint_t* fb = m->face_indices_b;
-    const faceint_t* fc = m->face_indices_c;
-    const int* vz = scene->screen_vertices_z;
-    int const ordered = scene->tmp_face_order_count;
-    int duplicates = 0;
-    int out_of_range = 0;
-    int distinct = 0;
-    int prio_inversions = 0;
-    int worst_inversion = 0;
-    int prev_prio = -1;
-    int prev_depth = 0;
-
-    if( face_count > (int)sizeof(seen) )
-        return;
-    memset(seen, 0, (size_t)face_count);
-
-    for( int i = 0; i < ordered; i++ )
-    {
-        int const f = scene->tmp_face_order[i];
-        int prio;
-        int depth;
-
-        if( f < 0 || f >= face_count )
-        {
-            out_of_range++;
-            continue;
-        }
-        if( seen[f] )
-            duplicates++;
-        else
-        {
-            seen[f] = 1;
-            distinct++;
-        }
-
-        depth = div3_fast_fixedpoint(vz[fa[f]] + vz[fb[f]] + vz[fc[f]]) + model_depth_bias;
-        prio = face_priorities ? faceprio_unpack(face_priorities, (faceint_t)f) : 0;
-
-        if( prio == prev_prio && depth > prev_depth )
-        {
-            prio_inversions++;
-            if( depth - prev_depth > worst_inversion )
-                worst_inversion = depth - prev_depth;
-        }
-        prev_prio = prio;
-        prev_depth = depth;
-    }
-
-    {
-        bool const bad = duplicates > 0 || out_of_range > 0 || prio_inversions > 0 ||
-                         distinct != ordered;
-        bool const big = face_count >= 2000;
-        bool emit = false;
-
-        if( bad )
-            emit = toridraw_dbg_gate(&gate_bad, 150);
-        else if( big )
-            emit = toridraw_dbg_gate(&gate_ok, 400);
-
-        if( emit )
-        {
-            char data[512];
-            snprintf(
-                data,
-                sizeof(data),
-                "{\"model\":\"%p\",\"faces\":%d,\"ordered\":%d,\"distinct\":%d,"
-                "\"duplicates\":%d,\"out_of_range\":%d,\"prio_inversions\":%d,"
-                "\"worst_inversion\":%d,\"depth_bias\":%d,\"depth_levels\":%d,"
-                "\"depth_stride\":%d,\"priority_stride\":%d,\"max_faces\":%d,"
-                "\"max_vertices\":%d,\"has_priorities\":%d}",
-                (void*)model_as_full(hnd),
-                face_count,
-                ordered,
-                distinct,
-                duplicates,
-                out_of_range,
-                prio_inversions,
-                worst_inversion,
-                model_depth_bias,
-                scene->depth_levels,
-                scene->depth_stride,
-                scene->priority_stride,
-                scene->max_faces,
-                scene->max_vertices,
-                face_priorities ? 1 : 0);
-            toridraw_dbg_log(
-                "H",
-                "toridraw_render.u.c:face_order",
-                bad ? "draw order is not a back-to-front permutation"
-                    : "draw order integrity clean",
-                data);
-        }
-    }
-}
-/* #endregion */
 
 static inline void
 ToriDraw_ComputeProjectedFaceOrder(
@@ -1787,11 +1215,9 @@ ToriDraw_ComputeProjectedFaceOrder(
 
     const struct ToriDraw_BoundsCylinder* bc = model_bounds_cylinder(hnd);
     int model_min_depth = bc ? bc->min_z_depth_any_rotation : 0;
-    /* #region agent log */
     /* model_min_depth is reused below to carry the observed depth range, so
      * keep the bias the bucket sort actually applied. */
     int const bias = model_min_depth;
-    /* #endregion */
 
     if( toridraw_sort_debug_enabled() )
     {
@@ -1894,10 +1320,7 @@ ToriDraw_ComputeProjectedFaceOrder(
 
         if( debug_stats )
             toridraw_face_sort_debug_print(scene, hnd, debug_stats, order_index);
-        /* #region agent log */
-        if( toridraw_dbg_enabled() )
-            toridraw_dbg_check_face_order(scene, hnd, face_priorities, face_count, bias);
-        /* #endregion */
+        TORIDRAW_DBG_CHECK_FACE_ORDER(scene, hnd, face_priorities, face_count, bias);
         return;
     }
 
@@ -1949,10 +1372,7 @@ ToriDraw_ComputeProjectedFaceOrder(
     if( debug_stats )
         toridraw_face_sort_debug_print(
             scene, hnd, debug_stats, scene->tmp_face_order_count);
-    /* #region agent log */
-    if( toridraw_dbg_enabled() )
-        toridraw_dbg_check_face_order(scene, hnd, face_priorities, face_count, bias);
-    /* #endregion */
+    TORIDRAW_DBG_CHECK_FACE_ORDER(scene, hnd, face_priorities, face_count, bias);
 }
 
 #ifndef NDEBUG
@@ -3266,31 +2686,7 @@ ToriDraw_Project(
     if( model_vertex_count(hnd) > scene->max_vertices ||
         model_face_count(hnd) > scene->max_faces )
     {
-        /* #region agent log */
-        if( toridraw_dbg_enabled() )
-        {
-            static int gate = 0;
-            if( toridraw_dbg_gate(&gate, 200) )
-            {
-                char data[256];
-                snprintf(
-                    data,
-                    sizeof(data),
-                    "{\"model\":\"%p\",\"vertices\":%d,\"max_vertices\":%d,"
-                    "\"faces\":%d,\"max_faces\":%d}",
-                    (void*)model_as_full(hnd),
-                    model_vertex_count(hnd),
-                    scene->max_vertices,
-                    model_face_count(hnd),
-                    scene->max_faces);
-                toridraw_dbg_log(
-                    "D",
-                    "toridraw_render.u.c:project_capacity",
-                    "model rejected: exceeds scene scratch capacity",
-                    data);
-            }
-        }
-        /* #endregion */
+        TORIDRAW_DBG_RECORD_CAPACITY_REJECT(scene, hnd);
         if( toridraw_sort_debug_enabled() )
             fprintf(
                 stderr,

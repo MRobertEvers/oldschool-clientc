@@ -536,7 +536,7 @@ struct ToriDraw_Camera
  * Camera-only constants shared by every yaw projection in a command stream.
  * Each value is splatted so the Apple AArch64 projection kernel can load the
  * complete prepared state with two paired vector loads and one vector load.
- * Keep the order and 16-byte alignment in sync with projection16_apple.S.
+ * Keep the order and 16-byte alignment in sync with projection16.aarch64.S.
  */
 struct ToriDraw_ProjectionPreparedCamera
 {
@@ -560,7 +560,7 @@ struct ToriDraw_ProjectionPreparedCamera
  *
  * A SEPARATE BLOCK, not three more members on the struct above, because that
  * struct's size and field offsets are pinned by _Static_asserts in toridraw.c
- * for projection16_apple.S, which loads it with ldp pairs. Appending would
+ * for projection16.aarch64.S, which loads it with ldp pairs. Appending would
  * keep those offsets valid and still trip the size assert, and the Apple lane
  * cannot be built here to check. Nothing on that lane reads this one.
  *
@@ -862,7 +862,7 @@ struct ToriDraw_Scene
      * The screen box the AArch64 prepared kernel accumulates WHILE it
      * projects: lane-wise min x, max x, min y, max y over every full
      * four-vertex block its vector loop ran, straight from the registers the
-     * screen coordinates were converted in. projection16_apple.S writes it
+     * screen coordinates were converted in. projection16.aarch64.S writes it
      * 128 bytes past screen_vertices_x -- immediately after the prepared
      * camera; the static asserts in toridraw.c pin both -- so the bound of a
      * large model costs four vector ops per block inside the kernel instead

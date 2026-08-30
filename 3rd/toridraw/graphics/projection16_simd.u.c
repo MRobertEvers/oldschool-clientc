@@ -25,7 +25,7 @@
 #include "projection16_simd.sse2.u.c"
 /*
  * Prepared-camera model-yaw family, the x86 answer to the prepared AArch64
- * entry points in projection16_apple.S. Only the SSE2 lane gets it: the SSE4.1
+ * entry points in projection16.aarch64.S. Only the SSE2 lane gets it: the SSE4.1
  * and AVX2 kernels above have their own measured shapes, and this one has been
  * benchmarked against the SSE2 pair it displaces, not against those.
  * PREPARED_PROJECTION_DISABLED compiles the family back out, which is how the

@@ -78,9 +78,11 @@ interpreting.
 
 ### How to tell whether a model has them
 
-`TORIDRAW_DEBUG_NDJSON=1 TORIDRAW_DEBUG_LOG=<path>` emits a `face_order` record
-per model with `has_priorities`. Before the strip the QBD was the only large
-arena model reporting `1`.
+A build made with `make -C src TORIDRAW_DEBUG_NDJSON=1` (delete
+`build_opt/toridraw_unity.o` first -- the `.u.c` files are not dep-tracked)
+then run under `TORIDRAW_DEBUG_NDJSON=1 TORIDRAW_DEBUG_LOG=<path>` emits a
+`face_order` record per model with `has_priorities`. Before the strip the QBD
+was the only large arena model reporting `1`.
 
 ### Better than stripping: author the bands from measurement
 
