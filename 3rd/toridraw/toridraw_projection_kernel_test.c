@@ -145,11 +145,14 @@ shot_take(
     const struct ToriDraw_ProjectionKernel* projection,
     int vertex_count)
 {
-    struct ToriDraw_RasterKernelSD kernel = *ToriDraw_RasterKernelSDGetBranching();
+    /* A table, not a raster kernel with a projection bolted to it: naming the
+     * three stages as peers is the whole point, and this is the shape a
+     * consumer selecting a projection actually writes. */
+    struct ToriDraw_Kernel table = *ToriDraw_KernelGetSoftwarePainter();
     size_t bytes;
 
-    kernel.projection = projection;
-    shot->cull = ToriDraw_RenderModel1ProjectWithKernel(hnd, scene, position, vp, cam, &kernel);
+    table.projection = projection;
+    shot->cull = ToriDraw_RenderModel1ProjectWithTable(hnd, scene, position, vp, cam, &table);
     shot->count = vertex_count;
     shot->near_clipped = scene->near_clipped ? 1 : 0;
     shot->aabb = scene->aabb;

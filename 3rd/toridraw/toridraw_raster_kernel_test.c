@@ -1479,7 +1479,7 @@ test_kernel_scratch(void)
             ToriDraw_FaceCullSortKernelGetBucket();
         const struct ToriDraw_FaceCullSortKernel* flat =
             ToriDraw_FaceCullSortKernelGetFlat();
-        struct ToriDraw_RasterKernelSD k;
+        struct ToriDraw_Kernel k;
 
         CHECK(bucket->provides & TORIDRAW_FACESORT_PROVIDES_FACE_ORDER,
               "bucket provides the face order");
@@ -1501,18 +1501,16 @@ test_kernel_scratch(void)
 
         /* The needs mask follows the declaration: naming the bucket sort must
          * not reserve key arrays it will never touch. */
-        k = *ToriDraw_RasterKernelSDGetBranching();
+        k = *ToriDraw_KernelGetSoftwarePainter();
         k.face_sort = bucket;
-        CHECK(!(ToriDraw_SceneKernelScratchNeeds(small, &k) &
+        CHECK(!(ToriDraw_KernelScratchNeeds(small, &k) &
                 TORIDRAW_SCENE_SCRATCH_FLAT_KEYS),
               "bucket sort asks for no flat keys");
         k.face_sort = flat;
-        CHECK(ToriDraw_SceneKernelScratchNeeds(small, &k) &
-                  TORIDRAW_SCENE_SCRATCH_FLAT_KEYS,
+        CHECK(ToriDraw_KernelScratchNeeds(small, &k) & TORIDRAW_SCENE_SCRATCH_FLAT_KEYS,
               "flat sort asks for the flat keys");
         /* On a full scene neither does, because neither runs there. */
-        k.face_sort = flat;
-        CHECK(!(ToriDraw_SceneKernelScratchNeeds(full, &k) &
+        CHECK(!(ToriDraw_KernelScratchNeeds(full, &k) &
                 TORIDRAW_SCENE_SCRATCH_FLAT_KEYS),
               "full scene asks for no flat keys even for the flat sort");
     }

@@ -423,7 +423,18 @@ struct ToriDraw_RasterKernelSD
     void* user_data;
     uint32_t flags;
 
-    /* The stages in front of the face loop; NULL selects the stock one. */
+    /*
+     * DEPRECATED: use struct ToriDraw_Kernel.
+     *
+     * These are stages 1 and 2 hanging off the stage-3 object, which is what
+     * the kernel table replaced -- a raster kernel should name a raster, and
+     * the table should name all three as peers. They stay only because the
+     * ...WithKernel entries still read them and one A/B harness still sets
+     * face_sort; every prebaked kernel leaves both NULL, and the table entries
+     * (ToriDraw_RenderModel*WithTable) ignore them entirely.
+     *
+     * NULL selects the stock stage, as it always did.
+     */
     const struct ToriDraw_ProjectionKernel* projection;
     const struct ToriDraw_FaceCullSortKernel* face_sort;
 };
