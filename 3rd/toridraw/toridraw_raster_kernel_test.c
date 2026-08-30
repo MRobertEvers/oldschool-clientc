@@ -1714,11 +1714,11 @@ test_kernel_tables(void)
  * The table-driven stage entries against the kernel-driven ones.
  *
  * Same three stages reached two ways, so the pictures must be identical. The
- * part worth pinning is stage 2: the table decides the presort itself, and it
- * has to reach the same answer the caller used to reach by choosing between
- * ToriDraw_RenderModel2SortFaces and ...SortFacesPresorted -- including the
- * negative case, where a table whose raster has no whole-model door must NOT
- * stash, because that store is pure cost for a raster that will not read it.
+ * part worth pinning is stage 2: both entries decide the presort themselves,
+ * from the raster they name, and both must reach the same answer the caller
+ * used to reach by picking a function whose name said "Presorted" -- including
+ * the negative case, where a raster with no whole-model door must NOT stash,
+ * because that store is pure cost for a raster that will not read it.
  */
 static void
 test_table_entries(struct SDFixture* fixture)
@@ -1776,6 +1776,39 @@ test_table_entries(struct SDFixture* fixture)
     ToriDraw_RenderModel2SortFacesWithTable(fixture->handle, scene, baker);
     CHECK(!scene->sm_face_xy_valid,
           "entries: the sprite-baker table does not stash, because its raster has no door");
+
+    /*
+     * And the kernel entry, which has no twin to pick between either. The
+     * branching kernel is the only one with a door -- on a lane that built the
+     * presorted-run assembly, which is what the door test's gate asks -- and
+     * every other stock kernel must come back with the flag clear.
+     */
+    if( ToriDraw_RasterKernelSDGetBranching()->draw_model != ToriDraw_RasterWalkPerFace )
+    {
+        ToriDraw_RenderModel1ProjectWithKernel(
+            fixture->handle, scene, &position, &viewport, &camera,
+            ToriDraw_RasterKernelSDGetBranching());
+        ToriDraw_RenderModel2SortFacesWithKernel(
+            fixture->handle, scene, ToriDraw_RasterKernelSDGetBranching());
+        CHECK(scene->sm_face_xy_valid,
+              "entries: the branching kernel stashes, because its raster has a door");
+    }
+
+    ToriDraw_RenderModel1ProjectWithKernel(
+        fixture->handle, scene, &position, &viewport, &camera,
+        ToriDraw_RasterKernelSDGetScanline());
+    ToriDraw_RenderModel2SortFacesWithKernel(
+        fixture->handle, scene, ToriDraw_RasterKernelSDGetScanline());
+    CHECK(!scene->sm_face_xy_valid,
+          "entries: the scanline kernel does not stash, because its raster has no door");
+
+    ToriDraw_RenderModel1ProjectWithKernel(
+        fixture->handle, scene, &position, &viewport, &camera,
+        ToriDraw_RasterKernelSDGetBranchingPerFace());
+    ToriDraw_RenderModel2SortFacesWithKernel(
+        fixture->handle, scene, ToriDraw_RasterKernelSDGetBranchingPerFace());
+    CHECK(!scene->sm_face_xy_valid,
+          "entries: the per-face branching kernel does not stash either");
 
 done:
     if( texture && scene )

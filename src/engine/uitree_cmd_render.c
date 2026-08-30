@@ -19,7 +19,7 @@ UITreeCmd_RenderToPixels(
     int height)
 {
     struct ToriRS_Frame frame;
-    struct ToriRS_Soft3D soft;
+    struct ToriRS_Soft3D* soft;
 
     assert(scene);
     assert(pixels);
@@ -32,8 +32,12 @@ UITreeCmd_RenderToPixels(
     ToriRS_FrameSetCanvas(&frame, width, height);
     ToriRS_FrameSetEmit(&frame, cmds, cmd_count);
 
-    ToriRS_Soft3D_Init(&soft, scene, pixels, width, height);
-    ToriRS_Soft3D_RenderFrame(&soft, &frame);
+    /* One shot: this renderer's caches have nothing to carry to a next frame,
+     * so it lives no longer than the picture it draws. */
+    soft = ToriRS_Soft3D_New();
+    ToriRS_Soft3D_Init(soft, scene, pixels, width, height);
+    ToriRS_Soft3D_RenderFrame(soft, &frame);
+    ToriRS_Soft3D_Free(soft);
 }
 
 int

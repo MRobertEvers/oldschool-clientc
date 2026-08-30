@@ -57,6 +57,7 @@
 #include "world/world_pickset.h"
 #include "world/worldview.h"
 
+struct ToriRS_Soft3D;
 struct ToriRS_Frame;
 struct ToriRS_PickHits;
 struct PktRunClientScript;
@@ -803,6 +804,19 @@ struct App
     /* Phase 3: scene + bridge. */
     struct ToriDraw_Scene* scene;
     struct UITreeSceneBridge bridge;
+
+    /*
+     * The software renderers, made once and re-pointed at a buffer per frame.
+     * They carry the outline/shadow cache and the blit scratch across frames,
+     * which is the whole reason they are not made at each render.
+     *
+     * Two of them because the two surfaces are independent: `soft` paints the
+     * game canvas from App_Render, `soft_chrome` paints an out-of-canvas
+     * plugin window from the chrome executor's own paint, and neither is
+     * sequenced against the other.
+     */
+    struct ToriRS_Soft3D* soft;
+    struct ToriRS_Soft3D* soft_chrome;
 
     /* Phase 4b: world sim + builder (needs provider + scene + varps; the
      * World references assets and scene elements by integer id only). */

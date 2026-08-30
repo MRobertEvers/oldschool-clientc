@@ -7,6 +7,16 @@
 struct ToriDraw_Scene;
 struct ToriRS_Frame;
 
+/*
+ * The working buffers that have to survive a frame boundary: the blit scratch
+ * and the outline/shadow LRU (what stops SpriteNewGraphicOutline recomputing
+ * the same chrome icons every frame -- idle flamegraphs put it at ~2.5% of
+ * samples). Opaque here because nothing outside the renderer reads it; it is
+ * allocated by ToriRS_Soft3D_New and released by ToriRS_Soft3D_Free, and
+ * ToriRS_Soft3D_Init carries it across the per-frame reset.
+ */
+struct ToriRS_Soft3DScratch;
+
 #include "render/torirs_polygon.h"
 
 #define TORIRS_SOFT3D_BG 0xFF202428
@@ -55,8 +65,23 @@ struct ToriRS_Soft3D
     int pick_mouse_x; /* canvas coords */
     int pick_mouse_y;
     struct ToriRS_PickHits pick_hits;
+
+    /* Owned by New/Free, and the one field Init does not reset. */
+    struct ToriRS_Soft3DScratch* scratch;
 };
 
+/** Allocate a renderer and its frame-crossing scratch. The renderer is meant
+ * to be made once and re-pointed at each frame's buffer with Init; making one
+ * per frame throws the outline cache away with it. */
+struct ToriRS_Soft3D*
+ToriRS_Soft3D_New(void);
+
+/** Release a renderer and everything its scratch holds. Accepts NULL. */
+void
+ToriRS_Soft3D_Free(struct ToriRS_Soft3D* soft);
+
+/** Point an already-New'd renderer at this frame's scene and pixel buffer.
+ * Resets all frame state; the scratch and its caches carry over. */
 void
 ToriRS_Soft3D_Init(
     struct ToriRS_Soft3D* soft,

@@ -7809,12 +7809,12 @@ App_ChromeRasterise(
     struct App* app = user;
     struct UITreeEmitDesc desc;
     struct ToriRS_Frame frame;
-    struct ToriRS_Soft3D soft;
 
     assert(app);
     assert(pixels);
     if( !app->scene || count <= 0 )
         return;
+    assert(app->soft_chrome);
 
     memset(&desc, 0, sizeof(desc));
     desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
@@ -7839,8 +7839,8 @@ App_ChromeRasterise(
     /* One desc, handed directly: the buffer form exists for the tree's whole
      * emit walk, and this window is a single display list. */
     ToriRS_FrameSetEmit(&frame, &desc, 1);
-    ToriRS_Soft3D_Init(&soft, app->scene, pixels, width, height);
-    ToriRS_Soft3D_RenderFrame(&soft, &frame);
+    ToriRS_Soft3D_Init(app->soft_chrome, app->scene, pixels, width, height);
+    ToriRS_Soft3D_RenderFrame(app->soft_chrome, &frame);
 }
 
 int
@@ -9423,6 +9423,10 @@ App_Init(
         TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
         TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
     assert(app->scene);
+    /* Once each, not once a frame: the outline/shadow LRU inside a renderer is
+     * only worth having if it survives the frame that filled it. */
+    app->soft = ToriRS_Soft3D_New();
+    app->soft_chrome = ToriRS_Soft3D_New();
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
     /* The seq the design/local-player previews are posed at. Stated here, once,
      * for both the boot bake and the runtime interface mount — they share the
@@ -10199,6 +10203,8 @@ App_Shutdown(struct App* app)
         UITreeBuilder_Free(&app->builder);
     UITreeSceneBridge_Free(&app->bridge);
     TorirsModelInstCache_Free(&app->model_inst_cache);
+    ToriRS_Soft3D_Free(app->soft_chrome);
+    ToriRS_Soft3D_Free(app->soft);
     ToriDraw_SceneFree(app->scene);
     /* Only the pair matching cfg.cache_kind was ever created; both frees assert
      * on NULL, so the unused side must not be handed to them. */
@@ -33668,10 +33674,10 @@ App_Render(
     int height)
 {
     struct ToriRS_Frame frame;
-    struct ToriRS_Soft3D soft;
 
     assert(app);
     assert(pixels);
+    assert(app->soft);
 
     if( !App_BuildFrame(app, &frame, width, height) )
     {
@@ -33751,7 +33757,7 @@ App_Render(
         return;
     }
 
-    ToriRS_Soft3D_Init(&soft, app->scene, pixels, width, height);
+    ToriRS_Soft3D_Init(app->soft, app->scene, pixels, width, height);
 
     /* Must follow BuildFrame: the emit list it publishes is what says which
      * regions are live this frame. */
@@ -33762,11 +33768,11 @@ App_Render(
      * scene scratch holds its projection), then the raw hits classify into
      * the pickset + hover tile the click/hotkey paths consume next frame. */
     if( app_world_drawable(app) && app->world_mouse_in_viewport )
-        ToriRS_Soft3D_SetPick(&soft, app->world_mouse_x, app->world_mouse_y);
+        ToriRS_Soft3D_SetPick(app->soft, app->world_mouse_x, app->world_mouse_y);
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
     {
-        ToriRS_Soft3D_RenderFrame(&soft, &frame);
+        ToriRS_Soft3D_RenderFrame(app->soft, &frame);
     }
 
     /* deob method5761 / Client-TS REBUILD_NORMAL: while the scene rebuilds,
@@ -33787,8 +33793,8 @@ App_Render(
             frame.dbg_drop_not_live,
             frame.dbg_drop_no_model);
 
-    if( soft.pick_enabled )
-        App_PickFinish(app, &soft.pick_hits);
+    if( app->soft->pick_enabled )
+        App_PickFinish(app, &app->soft->pick_hits);
 }
 
 int

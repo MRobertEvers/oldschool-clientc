@@ -189,13 +189,17 @@ The `#region agent log` blocks were factored out. The instrumentation itself
 is unchanged and still emits the same records; what moved is where it lives
 and how it is turned on.
 
-- `3rd/toridraw/toridraw_debug_log.h` — the logger, the sampling gate and the
-  env plumbing, plus the `TORIDRAW_SAFE_NEAR` A/B knob.
-- `3rd/toridraw/toridraw_debug_render.u.c` — project range, face sort,
-  face-order integrity, SIMD/exact differential on the yaw-only path, and the
-  scene-capacity reject. Included by `toridraw_render.u.c`.
-- `3rd/toridraw/toridraw_debug_raster.u.c` — per-model draw/skip accounting
-  and texture ids. Included by `toridraw_raster.u.c`.
+- `3rd/toridraw/toridraw_debug.u.c` — the whole facility, in one file: the
+  logger, the sampling gate and the env plumbing; the `TORIDRAW_SAFE_NEAR` A/B
+  knob; project range, face sort, face-order integrity, the SIMD/exact
+  differential on the yaw-only path and the scene-capacity reject; the
+  per-model raster draw/skip accounting and texture ids; the instrumented
+  bucket sort; and the near-clip differential. Included once, by
+  `toridraw_render.u.c`; the raster path reaches it through the macros at the
+  bottom of it.
+- `3rd/toridraw/toridraw_debug.h` — the compile-time gate and the
+  `TORIDRAW_DBG_COUNTER` macros, and nothing else. A header only because the
+  two counter sites below are compiled before the render path exists.
 - The three counters it reports still live where they are incremented, now
   declared through `TORIDRAW_DBG_COUNTER`:
   `g_toridraw_tex_plane_max_shift` / `g_toridraw_tex_plane_rejected` in
@@ -208,7 +212,8 @@ build has no branch at any of them. Build it in, then ask for it at run time:
 
 ```sh
 rm -f src/build_opt/toridraw_unity.o     # the .u.c files are not dep-tracked
-make -C src TORIDRAW_DEBUG_NDJSON=1 ...
+make -C src TORIDRAW_DEBUG_STATS=1 ...    # counters, printers, harnesses
+make -C src TORIDRAW_DEBUG_NDJSON=1 ...   # the above plus the NDJSON log
 ```
 
 Useful env (in a build that has it):
@@ -422,8 +427,8 @@ in the live client, which is how a traversal fault is told from a geometry one.
    drawn as a fabricated flat gradient is now drawn per pixel, which is the
    horizon band. If floors changed, this is why.
 4. The `#region agent log` blocks have since been factored into
-   `toridraw_debug_log.h` / `toridraw_debug_{render,raster}.u.c` and put behind
-   a compile-time gate, so they no longer cost a default build anything and
+   `toridraw_debug.u.c` (gate in `toridraw_debug.h`) and put behind a
+   compile-time gate, so they no longer cost a default build anything and
    need not be removed on a schedule. Still open: whether safe-near stays
    permanent or is replaced by a screen-space guard-band clipper.
 5. `tex.span.{neon,sse2,sse41,avx}.u.c` had silently drifted from `scalar` on

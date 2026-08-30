@@ -112,17 +112,11 @@ struct ToriDrawModelRasterContext
     struct ToriDraw_RasterTarget target;
     struct ToriDraw_RasterKernelSD kernel;
 
-    /* Non-NULL only when TORIDRAW_RASTER_DEBUG >= 1. */
-    struct ToriDraw_RasterDebugStats* raster_debug;
-    int ordered_faces;
+    /* The raster-debug slot: the counters, and the face count they describe.
+     * Present only in a build that asked for the facility -- see
+     * toridraw_debug.u.c, which toridraw_render.u.c includes above this file. */
+    TORIDRAW_DBG_RASTER_CONTEXT_FIELDS
 };
-
-/*
- * Everything that exists only to describe a raster pass: the
- * TORIDRAW_RASTER_DEBUG counters and printer, and the NDJSON record builder
- * behind them. Off the render path in a default build.
- */
-#include "toridraw_debug_raster.u.c"
 
 static inline bool
 toridraw_raster_face_is_near_clipped(
@@ -468,7 +462,7 @@ ToriDraw_RasterModelFaceKernel(
     int face,
     struct ToriDrawModelRasterContext* ctx)
 {
-    struct ToriDraw_RasterDebugStats* dbg = ctx->raster_debug;
+    TORIDRAW_DBG_RASTER_LOCAL(ctx)
     struct ToriDraw_RasterFaceSD prepared;
     int raw_type;
     int color_a;
@@ -479,12 +473,10 @@ ToriDraw_RasterModelFaceKernel(
     assert(face >= 0 && face < ctx->num_faces);
 
     raw_type = ctx->face_infos ? ctx->face_infos[face] : 0;
-    if( dbg && raw_type >= 0 && raw_type < 16 )
-        dbg->type_hist[raw_type]++;
+    TORIDRAW_DBG_RASTER_TYPE(dbg, raw_type);
     if( raw_type == 2 || raw_type < 0 || raw_type > 3 )
     {
-        if( dbg )
-            dbg->skipped_type++;
+        TORIDRAW_DBG_RASTER_BUMP(dbg, skipped_type);
         return;
     }
 
@@ -493,15 +485,14 @@ ToriDraw_RasterModelFaceKernel(
     prepared.vertex[1] = ctx->face_indices_b[face];
     prepared.vertex[2] = ctx->face_indices_c[face];
 
-    toridraw_dbg_report_index_oob(dbg, ctx, face, prepared.vertex);
+    TORIDRAW_DBG_RASTER_INDEX_OOB(dbg, ctx, face, prepared.vertex);
 
     color_a = ctx->colors_a[face];
     color_b = ctx->colors_b[face];
     color_c = ctx->colors_c[face];
     if( color_c == TORIDRAWHSL16_HIDDEN )
     {
-        if( dbg )
-            dbg->skipped_hidden++;
+        TORIDRAW_DBG_RASTER_BUMP(dbg, skipped_hidden);
         return;
     }
 
@@ -543,9 +534,8 @@ ToriDraw_RasterModelFaceKernel(
                         : NULL;
                 if( !texture )
                 {
-                    if( dbg )
-                        dbg->skipped_tex_miss++;
-                    toridraw_raster_note_texture_miss(texture_id);
+                    TORIDRAW_DBG_RASTER_BUMP(dbg, skipped_tex_miss);
+                    TORIDRAW_DBG_RASTER_TEX_MISS(texture_id);
                     return;
                 }
                 texels = texture->texels;
@@ -561,9 +551,8 @@ ToriDraw_RasterModelFaceKernel(
 
             if( !texels || texture_size <= 0 || texture_height <= 0 )
             {
-                if( dbg )
-                    dbg->skipped_tex_miss++;
-                toridraw_raster_note_texture_miss(texture_id);
+                TORIDRAW_DBG_RASTER_BUMP(dbg, skipped_tex_miss);
+                TORIDRAW_DBG_RASTER_TEX_MISS(texture_id);
                 return;
             }
 
@@ -571,8 +560,7 @@ ToriDraw_RasterModelFaceKernel(
             {
                 if( coord < 0 || coord >= ctx->num_textured_faces )
                 {
-                    if( dbg )
-                        dbg->skipped_tex_coord++;
+                    TORIDRAW_DBG_RASTER_BUMP(dbg, skipped_tex_coord);
                     return;
                 }
                 if( ctx->texture_render_types_nullable )
@@ -583,8 +571,7 @@ ToriDraw_RasterModelFaceKernel(
                     if( !ctx->face_p_coordinate_nullable || !ctx->face_m_coordinate_nullable ||
                         !ctx->face_n_coordinate_nullable )
                     {
-                        if( dbg )
-                            dbg->skipped_tex_coord++;
+                        TORIDRAW_DBG_RASTER_BUMP(dbg, skipped_tex_coord);
                         return;
                     }
                     p = ctx->face_p_coordinate_nullable[coord];
@@ -615,13 +602,12 @@ ToriDraw_RasterModelFaceKernel(
                 prepared.texture.frame_fallback = true;
             }
 
-            toridraw_dbg_report_tex_mode(face, coord, render_type);
+            TORIDRAW_DBG_RASTER_TEX_MODE(face, coord, render_type);
 
             if( p < 0 || p >= ctx->num_vertices || m < 0 || m >= ctx->num_vertices || n < 0 ||
                 n >= ctx->num_vertices )
             {
-                if( dbg )
-                    dbg->skipped_tex_coord++;
+                TORIDRAW_DBG_RASTER_BUMP(dbg, skipped_tex_coord);
                 return;
             }
 
@@ -629,15 +615,13 @@ ToriDraw_RasterModelFaceKernel(
             prepared.near_clipped = near_clipped;
             if( near_clipped && !ctx->allow_near_clip )
             {
-                if( dbg )
-                    dbg->skipped_near_clip++;
+                TORIDRAW_DBG_RASTER_BUMP(dbg, skipped_near_clip);
                 return;
             }
             if( !ctx->orthographic_vertex_x_nullable || !ctx->orthographic_vertex_y_nullable ||
                 !ctx->orthographic_vertex_z_nullable )
             {
-                if( dbg )
-                    dbg->skipped_near_clip++;
+                TORIDRAW_DBG_RASTER_BUMP(dbg, skipped_near_clip);
                 return;
             }
 
@@ -660,12 +644,7 @@ ToriDraw_RasterModelFaceKernel(
             prepared.texture.frame.m = m;
             prepared.texture.frame.n = n;
 
-            if( dbg )
-            {
-                dbg->drawn++;
-                dbg->drawn_textured++;
-                toridraw_raster_debug_note_texture(dbg, texture_id);
-            }
+            TORIDRAW_DBG_RASTER_DREW_TEXTURED(dbg, texture_id);
 
             ToriDraw_RasterKernelSDDispatch(&ctx->kernel, &ctx->target, &prepared);
             return;
@@ -676,8 +655,7 @@ ToriDraw_RasterModelFaceKernel(
     prepared.opacity = ctx->face_alphas_nullable ? 0xFF - ctx->face_alphas_nullable[face] : 0xFF;
     if( prepared.opacity <= 1 )
     {
-        if( dbg )
-            dbg->skipped_alpha++;
+        TORIDRAW_DBG_RASTER_BUMP(dbg, skipped_alpha);
         return;
     }
 
@@ -687,8 +665,7 @@ ToriDraw_RasterModelFaceKernel(
         (!ctx->allow_near_clip || !ctx->orthographic_vertex_x_nullable ||
          !ctx->orthographic_vertex_y_nullable || !ctx->orthographic_vertex_z_nullable) )
     {
-        if( dbg )
-            dbg->skipped_near_clip++;
+        TORIDRAW_DBG_RASTER_BUMP(dbg, skipped_near_clip);
         return;
     }
 
@@ -707,22 +684,12 @@ ToriDraw_RasterModelFaceKernel(
         prepared.shade[2] = color_c;
     }
 
-    if( dbg )
-    {
-        dbg->drawn++;
-        if( prepared.face_class == TORIDRAW_RASTER_FACE_SD_FLAT )
-            dbg->drawn_flat++;
-        else
-        {
-            int const dab = abs(color_a - color_b);
-            int const dbc = abs(color_b - color_c);
-            int const dca = abs(color_c - color_a);
-            int const worst = dab > dbc ? (dab > dca ? dab : dca) : (dbc > dca ? dbc : dca);
-            dbg->drawn_gouraud++;
-            if( worst > dbg->max_color_delta )
-                dbg->max_color_delta = worst;
-        }
-    }
+    TORIDRAW_DBG_RASTER_DREW_SHADED(
+        dbg,
+        prepared.face_class == TORIDRAW_RASTER_FACE_SD_FLAT,
+        color_a,
+        color_b,
+        color_c);
 
     ToriDraw_RasterKernelSDDispatch(&ctx->kernel, &ctx->target, &prepared);
 }
@@ -812,7 +779,7 @@ context_from_handle(
         ctx->affine_textures = camera->texture_affine != 0;
         ctx->allow_near_clip = ToriDraw_ModelHasTextures(hnd);
         ctx->near_clipped = scene->near_clipped;
-        ctx->raster_debug = NULL;
+        TORIDRAW_DBG_RASTER_DISARM(ctx);
         break;
     }
     default:
@@ -861,8 +828,8 @@ toridraw_raster_context_init(
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer,
     const struct ToriDraw_RasterKernelSD* kernel,
-    struct ToriDrawModelRasterContext* ctx,
-    struct ToriDraw_RasterDebugStats* raster_debug_storage)
+    struct ToriDrawModelRasterContext* ctx
+    TORIDRAW_DBG_RASTER_STORAGE_PARAM)
 {
     struct ToriDraw_Model* model;
     int clip_left;
@@ -912,13 +879,7 @@ toridraw_raster_context_init(
         model->original_vertices_z ? model->original_vertices_z : model->vertices_z;
     ctx->target.internal = ctx;
 
-    if( toridraw_raster_debug_enabled() )
-    {
-        memset(raster_debug_storage, 0, sizeof(*raster_debug_storage));
-        ctx->raster_debug = raster_debug_storage;
-    }
-    else
-        ctx->raster_debug = NULL;
+    TORIDRAW_DBG_RASTER_ARM(ctx);
 }
 
 #include "graphics/raster/texture/tex_tri_asm.h"
@@ -959,7 +920,7 @@ ToriDraw_RasterWalkPerFace(
     if( ctx->kernel.flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
     {
         /* The sorter already culled back-facing faces. */
-        ctx->ordered_faces = scene->tmp_face_order_count;
+        TORIDRAW_DBG_RASTER_ORDERED(ctx, scene->tmp_face_order_count);
         if( skip_faces )
             return;
         for( int i = 0; i < scene->tmp_face_order_count; i++ )
@@ -967,7 +928,7 @@ ToriDraw_RasterWalkPerFace(
     }
     else
     {
-        ctx->ordered_faces = ctx->num_faces;
+        TORIDRAW_DBG_RASTER_ORDERED(ctx, ctx->num_faces);
         if( skip_faces )
             return;
         for( int face = 0; face < ctx->num_faces; face++ )
@@ -1007,7 +968,7 @@ ToriDraw_RasterPainter(
     toripixel_t* pixel_buffer,
     const struct ToriDraw_RasterKernelSD* kernel)
 {
-    struct ToriDraw_RasterDebugStats raster_debug_storage;
+    TORIDRAW_DBG_RASTER_STORAGE
     struct ToriDrawModelRasterContext ctx;
 
     assert(!(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER));
@@ -1018,10 +979,10 @@ ToriDraw_RasterPainter(
     case TORIDRAWMK_MODEL_SHARED:
     case TORIDRAWMK_MODEL_LENT_FACES:
         toridraw_raster_context_init(
-            scene, hnd, view_port, camera, pixel_buffer, kernel, &ctx, &raster_debug_storage);
+            scene, hnd, view_port, camera, pixel_buffer, kernel, &ctx
+                TORIDRAW_DBG_RASTER_STORAGE_ARG);
         toridraw_raster_draw_faces(scene, &ctx);
-        if( ctx.raster_debug )
-            toridraw_raster_debug_print(ctx.raster_debug, &ctx, (void*)model_as_full(hnd));
+        TORIDRAW_DBG_RASTER_PRINT(&ctx, (void*)model_as_full(hnd));
         return true;
     default:
         assert(false && "Invalid model handle kind");
@@ -1039,7 +1000,7 @@ ToriDraw_RasterZ(
     toripixel_t* pixel_buffer,
     const struct ToriDraw_RasterKernelSD* kernel)
 {
-    struct ToriDraw_RasterDebugStats raster_debug_storage;
+    TORIDRAW_DBG_RASTER_STORAGE
     struct ToriDrawModelRasterContext ctx;
     int rows;
 
@@ -1051,7 +1012,8 @@ ToriDraw_RasterZ(
     case TORIDRAWMK_MODEL_SHARED:
     case TORIDRAWMK_MODEL_LENT_FACES:
         toridraw_raster_context_init(
-            scene, hnd, view_port, camera, pixel_buffer, kernel, &ctx, &raster_debug_storage);
+            scene, hnd, view_port, camera, pixel_buffer, kernel, &ctx
+                TORIDRAW_DBG_RASTER_STORAGE_ARG);
 
         rows = ctx.target.clip_origin_y + ctx.screen_height;
         if( !ToriDraw_SceneHasZBuffer(scene, ctx.stride, rows) )
@@ -1104,8 +1066,7 @@ ToriDraw_RasterZ(
             ctx.zbuf_target.parallel);
 
         toridraw_raster_draw_faces(scene, &ctx);
-        if( ctx.raster_debug )
-            toridraw_raster_debug_print(ctx.raster_debug, &ctx, (void*)model_as_full(hnd));
+        TORIDRAW_DBG_RASTER_PRINT(&ctx, (void*)model_as_full(hnd));
         return true;
     default:
         assert(false && "Invalid model handle kind");

@@ -1,5 +1,3 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include "graphics/dash_restrict.h"
 #include "graphics/proj_census.h"
 #include "graphics/projection.h"
@@ -7,20 +5,20 @@
 #include "toridraw_math.h"
 #include "toridraw_model_internal.h"
 #include "toridraw_raster_batch.h"
+#include "toridraw_raster_kernel.h"
 #include "toridraw_types.h"
 
 #include <assert.h>
 #include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
 #ifndef VERTEXINT_BITS
 #define VERTEXINT_BITS 16
 #endif
-
-/* The NDJSON anomaly log: compile-time gated, off by default. */
-#include "toridraw_debug_log.h"
 
 // clang-format off
 #include "graphics/projection16_simd.u.c"
@@ -29,8 +27,17 @@
 #include "graphics/projection_bound.u.c"
 // clang-format on
 
-/* The AArch64 prepared-projection entry points, where this lane builds them. */
-#include "graphics/projection16.aarch64.h"
+/* The prepared-camera lane -- which ISA supplies one, and the two hooks the
+ * perspective slots below call. The lane owns the entry points (the AArch64
+ * assembly, the SSE2 family) and the inline attributes those slots carry, so
+ * nothing here tests the architecture. */
+#include "graphics/projection_prepared.u.c"
+
+/* toridraw_ignore_priorities(), the depth-sort override the face walk reads.
+ * toridraw.c includes this file ahead of this one and it carries an include
+ * guard, so this is a no-op in the unity build -- it is here so the file states
+ * its own dependency and parses standalone, which is what the editor does. */
+#include "triangles/toridraw_triangle_clip.u.c"
 
 /** Far plane for bounding-cylinder frustum cull. */
 // #define TORIDRAW_CYLINDER_FAR_PLANE_Z 3500
@@ -63,6 +70,19 @@ div3_fast_fixedpoint(int z_sum)
 /* The reference per-face pick's cursor dilation (toridraw_mouse_roughly_inside_triangle);
  * defined up here because the projected bound is grown by it too. */
 #define TORIDRAW_PICK_SLOP 5
+
+/*
+ * Everything that exists only to describe a render or a raster pass: the
+ * TORIDRAW_SORT_DEBUG and TORIDRAW_RASTER_DEBUG counters and printers, the
+ * NDJSON record builders, and the two verification harnesses. None of it is
+ * compiled at all in a default build, and what is left at the sites below is a
+ * macro that expands to a constant or to nothing.
+ *
+ * Here rather than higher up: it needs the model accessors,
+ * div3_fast_fixedpoint and TORIDRAW_PROJECTED_COORD_LIMIT above, and every
+ * site that uses it is below.
+ */
+#include "toridraw_debug.u.c"
 
 /*
  * The near plane needed to keep this model's projection inside that limit.
@@ -118,17 +138,6 @@ toridraw_safe_near_plane_z(
         return INT_MAX;
     return (int)required;
 }
-
-/*
- * Everything that exists only to describe a render: the TORIDRAW_SORT_DEBUG
- * counters and printers, and the NDJSON record builders behind them. None of
- * it is on the render path in a default build.
- *
- * Here rather than higher up: it needs the model accessors,
- * div3_fast_fixedpoint, TORIDRAW_PROJECTED_COORD_LIMIT and
- * toridraw_safe_near_plane_z above, and every reporting site is below.
- */
-#include "toridraw_debug_render.u.c"
 
 static inline int
 ToriDraw_AabbCull(
@@ -285,12 +294,11 @@ ToriDraw_FastCull(
 
 /* The y extent, derived only once the x test has passed: two trig reads
  * and two multiplies a model rejected on x never needs. */
-#define TORIDRAW_FASTCULL_Y_EXTENT()                                                  \
-    int model_center_to_top_edge = bc->center_to_top_edge;                            \
-    int model_center_to_bottom_edge =                                                 \
-        (bc->center_to_bottom_edge * cos_camera_pitch >> 16) +                        \
-        (model_edge_radius * sin_camera_pitch >> 16);                                 \
-    int ortho_screen_y_min = mid_y - abs(model_center_to_bottom_edge);                \
+#define TORIDRAW_FASTCULL_Y_EXTENT()                                                               \
+    int model_center_to_top_edge = bc->center_to_top_edge;                                         \
+    int model_center_to_bottom_edge = (bc->center_to_bottom_edge * cos_camera_pitch >> 16) +       \
+                                      (model_edge_radius * sin_camera_pitch >> 16);                \
+    int ortho_screen_y_min = mid_y - abs(model_center_to_bottom_edge);                             \
     int ortho_screen_y_max = mid_y + abs(model_center_to_top_edge)
 
     if( parallel )
@@ -507,7 +515,6 @@ toridraw_projected_bound(
     }
 }
 
-
 /*
  * Split so the shift is chosen ONCE, not per face.
  *
@@ -528,8 +535,7 @@ bucket_sort_by_average_depth_impl(
     int depth_levels,
     int depth_stride,
     int depth_shift,
-    struct ToriDraw_FaceSortDebugStats* debug_stats,
-    bool near_clipped,
+    TORIDRAW_DBG_SORT_PARAM bool near_clipped,
     int model_min_depth,
     int num_faces,
     const int* RESTRICT vx,
@@ -548,15 +554,12 @@ bucket_sort_by_average_depth_impl(
         const uint32_t b = face_b[f];
         const uint32_t c = face_c[f];
 
-        bool const clip_candidate =
-            near_clipped &&
-            (vx[a] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
-             vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
-             vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
+        bool const clip_candidate = near_clipped && (vx[a] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                                                     vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                                                     vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
         long long winding = 1;
         if( !clip_candidate )
-            winding = toridraw_winding_2d(
-                vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
+            winding = toridraw_winding_2d(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
 
         /* A clipped vertex has sentinel x and undivided y, so this triangle's
          * screen-space winding does not exist yet. The reference buckets it
@@ -571,16 +574,7 @@ bucket_sort_by_average_depth_impl(
              * before. */
             int depth_avg = (div3_fast_fixedpoint(z_sum) + model_min_depth) >> depth_shift;
 
-            if( debug_stats )
-            {
-                debug_stats->front_facing++;
-                if( clip_candidate )
-                    debug_stats->near_clip_candidates++;
-                if( depth_avg < debug_stats->min_depth_seen )
-                    debug_stats->min_depth_seen = depth_avg;
-                if( depth_avg > debug_stats->max_depth_seen )
-                    debug_stats->max_depth_seen = depth_avg;
-            }
+            TORIDRAW_DBG_SORT_FRONT(debug_stats, clip_candidate, depth_avg);
 
             if( (unsigned int)depth_avg < (unsigned int)depth_levels )
             {
@@ -602,50 +596,30 @@ bucket_sort_by_average_depth_impl(
                     face_depth_bucket_counts[depth_avg] = count + 1;
                     face_depth_buckets[depth_avg * depth_stride + count] = (faceint_t)f;
 
-                    if( debug_stats )
-                    {
-                        debug_stats->accepted++;
-                        if( count + 1 > debug_stats->max_bucket_occupancy )
-                            debug_stats->max_bucket_occupancy = count + 1;
-                    }
+                    TORIDRAW_DBG_SORT_ACCEPTED(debug_stats, count + 1);
 
                     if( depth_avg < min_d )
                         min_d = depth_avg;
                     if( depth_avg > max_d )
                         max_d = depth_avg;
                 }
-                else if( debug_stats )
+                else
                 {
-                    debug_stats->bucket_overflow++;
+                    TORIDRAW_DBG_SORT_OVERFLOW(debug_stats);
                 }
             }
-            else if( debug_stats )
+            else
             {
-                if( depth_avg < 0 )
-                    debug_stats->depth_out_low++;
-                else
-                    debug_stats->depth_out_high++;
-                if( debug_stats->first_depth_out_face < 0 )
-                {
-                    debug_stats->first_depth_out_face = f;
-                    debug_stats->first_depth_out_value = depth_avg;
-                }
+                TORIDRAW_DBG_SORT_DEPTH_OUT(debug_stats, f, depth_avg);
             }
         }
-        else if( debug_stats )
+        else
         {
-            if( winding == 0 )
-                debug_stats->degenerate++;
-            else
-                debug_stats->back_facing++;
+            TORIDRAW_DBG_SORT_CULLED(debug_stats, winding);
         }
     }
 
-    if( debug_stats )
-        assert(
-            debug_stats->front_facing ==
-            debug_stats->accepted + debug_stats->depth_out_low +
-                debug_stats->depth_out_high + debug_stats->bucket_overflow);
+    TORIDRAW_DBG_SORT_TOTALS(debug_stats);
 
     if( min_d > max_d )
         return 0;
@@ -660,8 +634,7 @@ bucket_sort_by_average_depth(
     int depth_levels,
     int depth_stride,
     int depth_shift,
-    struct ToriDraw_FaceSortDebugStats* debug_stats,
-    bool near_clipped,
+    TORIDRAW_DBG_SORT_PARAM bool near_clipped,
     int model_min_depth,
     int num_faces,
     const int* RESTRICT vx,
@@ -673,12 +646,34 @@ bucket_sort_by_average_depth(
 {
     if( depth_shift == 0 )
         return bucket_sort_by_average_depth_impl(
-            face_depth_buckets, face_depth_bucket_counts, depth_levels, depth_stride, 0,
-            debug_stats, near_clipped, model_min_depth, num_faces, vx, vy, vz, face_a, face_b,
+            face_depth_buckets,
+            face_depth_bucket_counts,
+            depth_levels,
+            depth_stride,
+            0,
+            TORIDRAW_DBG_SORT_ARG near_clipped,
+            model_min_depth,
+            num_faces,
+            vx,
+            vy,
+            vz,
+            face_a,
+            face_b,
             face_c);
     return bucket_sort_by_average_depth_impl(
-        face_depth_buckets, face_depth_bucket_counts, depth_levels, depth_stride, depth_shift,
-        debug_stats, near_clipped, model_min_depth, num_faces, vx, vy, vz, face_a, face_b,
+        face_depth_buckets,
+        face_depth_bucket_counts,
+        depth_levels,
+        depth_stride,
+        depth_shift,
+        TORIDRAW_DBG_SORT_ARG near_clipped,
+        model_min_depth,
+        num_faces,
+        vx,
+        vy,
+        vz,
+        face_a,
+        face_b,
         face_c);
 }
 
@@ -810,9 +805,8 @@ sort_face_draw_order(
     int flexible_face_index = 0;
     int order_index = 0;
 
-    toridraw_dbg_report_sort_counts(
-        counts, flex_prio11_face_to_depth, average_depth1_2, average_depth3_4,
-        average_depth6_8);
+    TORIDRAW_DBG_SORT_COUNTS(
+        counts, flex_prio11_face_to_depth, average_depth1_2, average_depth3_4, average_depth6_8);
 
     while( flexible_face_index < counts[10] &&
            (flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth1_2 )
@@ -825,8 +819,7 @@ sort_face_draw_order(
     {
         for( int i = 0; i < counts[prio]; i++ )
         {
-            face_draw_order[order_index++] =
-                face_priority_buckets[prio * priority_stride + i];
+            face_draw_order[order_index++] = face_priority_buckets[prio * priority_stride + i];
         }
     }
 
@@ -841,8 +834,7 @@ sort_face_draw_order(
     {
         for( int i = 0; i < counts[prio]; i++ )
         {
-            face_draw_order[order_index++] =
-                face_priority_buckets[prio * priority_stride + i];
+            face_draw_order[order_index++] = face_priority_buckets[prio * priority_stride + i];
         }
     }
 
@@ -857,8 +849,7 @@ sort_face_draw_order(
     {
         for( int i = 0; i < counts[prio]; i++ )
         {
-            face_draw_order[order_index++] =
-                face_priority_buckets[prio * priority_stride + i];
+            face_draw_order[order_index++] = face_priority_buckets[prio * priority_stride + i];
         }
     }
 
@@ -875,7 +866,6 @@ sort_face_draw_order(
     return order_index;
 }
 
-
 static inline void
 ToriDraw_ComputeProjectedFaceOrder(
     struct ToriDraw_Scene* scene,
@@ -888,8 +878,7 @@ ToriDraw_ComputeProjectedFaceOrder(
      * NULL pointer, or a stash left behind by an earlier small model. */
     (void)presort;
     scene->sm_face_xy_valid = 0;
-    struct ToriDraw_FaceSortDebugStats debug_stats_storage;
-    struct ToriDraw_FaceSortDebugStats* debug_stats = NULL;
+    TORIDRAW_DBG_SORT_LOCALS
     faceint_t* fia = NULL;
     faceint_t* fib = NULL;
     faceint_t* fic = NULL;
@@ -916,11 +905,11 @@ ToriDraw_ComputeProjectedFaceOrder(
          *
          * TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY drops them on its own, for an
          * imported model whose priorities its authoring client never read. */
-        face_priorities =
-            (toridraw_ignore_priorities() ||
-             (m->flags & (TORIDRAW_MODEL_FLAG_ZBUFFER | TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY)))
-                ? NULL
-                : m->face_priorities;
+        face_priorities = m->face_priorities;
+        if( toridraw_ignore_priorities() )
+            face_priorities = NULL;
+        if( m->flags & (TORIDRAW_MODEL_FLAG_ZBUFFER | TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY) )
+            face_priorities = NULL;
         face_count = m->face_count;
         break;
     }
@@ -935,11 +924,7 @@ ToriDraw_ComputeProjectedFaceOrder(
      * keep the bias the bucket sort actually applied. */
     int const bias = model_min_depth;
 
-    if( toridraw_sort_debug_enabled() )
-    {
-        toridraw_face_sort_debug_init(&debug_stats_storage);
-        debug_stats = &debug_stats_storage;
-    }
+    TORIDRAW_DBG_SORT_ARM();
 
     /* No clear here. The bucket-count table arrives all-zero -- calloc'd at
      * scene creation, and each sort below re-zeroes exactly the buckets it
@@ -971,13 +956,11 @@ ToriDraw_ComputeProjectedFaceOrder(
      * Derived rather than tuned: the smallest shift for which 2*bias+1 fits.
      */
     int depth_shift = 0;
+    int64_t span = (int64_t)model_min_depth * 2 + 1;
+    while( span > (int64_t)scene->depth_levels && depth_shift < 30 )
     {
-        long long span = (long long)model_min_depth * 2 + 1;
-        while( span > (long long)scene->depth_levels && depth_shift < 30 )
-        {
-            span >>= 1;
-            depth_shift++;
-        }
+        span >>= 1;
+        depth_shift++;
     }
 
     int bounds = bucket_sort_by_average_depth(
@@ -986,8 +969,7 @@ ToriDraw_ComputeProjectedFaceOrder(
         scene->depth_levels,
         scene->depth_stride,
         depth_shift,
-        debug_stats,
-        scene->near_clipped,
+        TORIDRAW_DBG_SORT_ARG scene->near_clipped,
         model_min_depth,
         face_count,
         scene->screen_vertices_x,
@@ -1003,8 +985,7 @@ ToriDraw_ComputeProjectedFaceOrder(
     if( !face_priorities )
     {
         int order_index = 0;
-        for( int depth = model_max_depth;
-             depth < scene->depth_levels && depth >= model_min_depth;
+        for( int depth = model_max_depth; depth < scene->depth_levels && depth >= model_min_depth;
              depth-- )
         {
             int bucket_count = (int)scene->tmp_depth_face_count[depth];
@@ -1034,8 +1015,7 @@ ToriDraw_ComputeProjectedFaceOrder(
             (size_t)(model_max_depth - model_min_depth + 1) *
                 sizeof(scene->tmp_depth_face_count[0]));
 
-        if( debug_stats )
-            toridraw_face_sort_debug_print(scene, hnd, debug_stats, order_index);
+        TORIDRAW_DBG_SORT_PRINT(debug_stats, scene, hnd, order_index);
         TORIDRAW_DBG_CHECK_FACE_ORDER(scene, hnd, face_priorities, face_count, bias);
         return;
     }
@@ -1072,8 +1052,7 @@ ToriDraw_ComputeProjectedFaceOrder(
     memset(
         &scene->tmp_depth_face_count[model_min_depth],
         0,
-        (size_t)(model_max_depth - model_min_depth + 1) *
-            sizeof(scene->tmp_depth_face_count[0]));
+        (size_t)(model_max_depth - model_min_depth + 1) * sizeof(scene->tmp_depth_face_count[0]));
 
     scene->tmp_face_order_count = sort_face_draw_order(
         scene->tmp_priority_depth_sum,
@@ -1085,9 +1064,7 @@ ToriDraw_ComputeProjectedFaceOrder(
         scene->priority_stride,
         scene->flex_prio_capacity,
         scene->max_faces);
-    if( debug_stats )
-        toridraw_face_sort_debug_print(
-            scene, hnd, debug_stats, scene->tmp_face_order_count);
+    TORIDRAW_DBG_SORT_PRINT(debug_stats, scene, hnd, scene->tmp_face_order_count);
     TORIDRAW_DBG_CHECK_FACE_ORDER(scene, hnd, face_priorities, face_count, bias);
 }
 
@@ -1119,7 +1096,10 @@ sm_depth_offset_all_zero(const struct ToriDraw_Scene* scene)
  * sm_depth_offset has walked it, on every exit that reached the prefix sum.
  */
 static inline void
-sm_depth_offset_restore(struct ToriDraw_Scene* scene, int min_depth, int max_depth)
+sm_depth_offset_restore(
+    struct ToriDraw_Scene* scene,
+    int min_depth,
+    int max_depth)
 {
     assert(scene);
     assert(scene->sm_depth_offset);
@@ -1128,226 +1108,117 @@ sm_depth_offset_restore(struct ToriDraw_Scene* scene, int min_depth, int max_dep
     assert(min_depth <= max_depth);
 
     memset(
-        &scene->sm_depth_offset[min_depth],
-        0,
-        (size_t)(max_depth - min_depth + 2) * sizeof(int));
+        &scene->sm_depth_offset[min_depth], 0, (size_t)(max_depth - min_depth + 2) * sizeof(int));
 }
 
-/* Models whose sort left the y ordering behind; see the increment below. */
+/* Models whose sort stashed the y ordering for the batched raster walk.
+ * Reported by TORIDRAW_BATCH_STATS. A GPU lane must show zero here: it sorts
+ * for the GPU and never reads the stash, so a non-zero count is exactly the
+ * regression the stash/no-stash split below exists to prevent. */
 static long g_toridraw_presort_models;
 
-static inline int
-bucket_sort_by_average_depth_small(
+/*
+ * Hand the raster pass what the sort loop already has.
+ *
+ * Every one of these six values was just loaded to compute the winding, and
+ * every one of them used to be read a second time further down the frame --
+ * through face_indices_a/b/c into screen_vertices_x/y, which is three loads to
+ * get an index and six dependent loads to use it, per face, to recover what
+ * was sitting in registers in the caller.
+ *
+ * ORDERED BY Y, here, once, for every kernel downstream. Every raster kernel
+ * used to open with a six-way compare ladder to put the three vertices in y
+ * order, and then a permuting copy to act on the answer. Both are deleted by
+ * doing it here: these three y values are already in registers -- the winding
+ * needed them -- and the ladder is a mispredict per triangle on a part that
+ * pays twenty pipeline stages for one.
+ *
+ * The `<=` tie-breaks are transcribed exactly from the C wrappers the kernels
+ * came from. Two triangles that tie differently stop tiling with each other,
+ * so this is part of the contract and not a comparison order to tidy up --
+ * which is why the ladder lives in one function and not once per sort variant.
+ */
+static inline void
+sm_stash_face_xy_sorted(
     struct ToriDraw_Scene* scene,
-    struct ToriDraw_FaceSortDebugStats* debug_stats,
-    bool presort,
-    bool near_clipped,
-    int model_min_depth,
-    int num_faces,
+    int f,
     const int* RESTRICT vx,
     const int* RESTRICT vy,
-    const int* RESTRICT vz,
-    const faceint_t* RESTRICT face_a,
-    const faceint_t* RESTRICT face_b,
-    const faceint_t* RESTRICT face_c)
+    uint32_t a,
+    uint32_t b,
+    uint32_t c)
 {
-    const int depth_levels = scene->depth_levels;
-    int min_d = depth_levels;
-    int max_d = 0;
-    /*
-     * Hoisted: one getenv-cached read for the model, not one per face.
-     *
-     * `presort` is the caller's, and it is the half that matters. The stash
-     * has exactly one consumer -- the batched software raster walk -- and a
-     * caller that will not run it (every D3D9 renderer sorts back-to-front on
-     * the CPU and then hands the faces to the GPU) would otherwise pay seven
-     * stores and a six-way compare per drawn face to fill a buffer nobody
-     * loads.
-     */
-    int const stash_xy = presort && toridraw_raster_batch_armed();
+    static const unsigned char order[6][3] = {
+        { 0, 1, 2 },
+        { 0, 2, 1 },
+        { 1, 2, 0 },
+        { 1, 0, 2 },
+        { 2, 0, 1 },
+        { 2, 1, 0 }
+    };
+    int* const x4 = &scene->sm_face_x4[(size_t)f * 4];
+    int* const y4 = &scene->sm_face_y4[(size_t)f * 4];
+    int const ya = vy[a];
+    int const yb = vy[b];
+    int const yc = vy[c];
+    int const perm = (ya <= yb && ya <= yc) ? ((yb <= yc) ? 0 : 1)
+                     : (yb <= yc)           ? ((yc <= ya) ? 2 : 3)
+                                            : ((ya <= yb) ? 4 : 5);
+    unsigned char const* const o = order[perm];
+    int const px[3] = { vx[a], vx[b], vx[c] };
+    int const py[3] = { ya, yb, yc };
 
-    /* Recorded, not re-derived downstream: the walk that reads sm_face_x4/y4
-     * asks this rather than asking the same three questions again and
-     * possibly answering one of them differently. */
-    scene->sm_face_xy_valid = stash_xy;
-    /* Reported by TORIDRAW_BATCH_STATS. A GPU lane must show zero here: it
-     * sorts for the GPU and never reads the store, so a non-zero count is
-     * exactly the regression this split exists to prevent. */
-    if( stash_xy )
-        g_toridraw_presort_models++;
+    x4[0] = px[o[0]];
+    x4[1] = px[o[1]];
+    x4[2] = px[o[2]];
+    /* Not a clip candidate; the flag is the other stash below. */
+    x4[3] = 0;
+    y4[0] = py[o[0]];
+    y4[1] = py[o[1]];
+    y4[2] = py[o[2]];
+    /* The permutation itself, for the consumers that carry per-vertex data of
+     * their own -- gouraud's three colours, and the texture frame's three
+     * vertex indices. */
+    y4[3] = perm;
+}
 
-    /* No clear here, and none of depth_levels width anywhere below. The
-     * counting pass only touches buckets in this model's depth span, so the
-     * table arrives all-zero -- calloc'd at scene creation, and every exit
-     * that dirties it re-zeroes that span once its consumers are done. A
-     * full-width clear is 64KB per model at DEPTH_16K, to bucket a median of
-     * ~19 faces, and it evicts 8x a P4's L1D on the way past. */
-    assert(sm_depth_offset_all_zero(scene));
+/* A clip candidate never had its coordinates read -- the winding is skipped
+ * for it -- so only the flag is written, and the flag is what stops anything
+ * reading the rest. */
+static inline void
+sm_stash_face_clipped(
+    struct ToriDraw_Scene* scene,
+    int f)
+{
+    scene->sm_face_x4[(size_t)f * 4 + 3] = 1;
+}
 
-    for( int f = 0; f < num_faces; f++ )
-    {
-        scene->sm_face_depth[f] = -1;
-
-        const uint32_t a = face_a[f];
-        const uint32_t b = face_b[f];
-        const uint32_t c = face_c[f];
-
-        bool const clip_candidate =
-            near_clipped &&
-            (vx[a] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
-             vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
-             vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
-        long long winding = 1;
-        if( !clip_candidate )
-            winding = toridraw_winding_2d(
-                vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
-
-        if( clip_candidate || toridraw_winding_front_facing(winding) )
-        {
-            int z_sum = vz[a] + vz[b] + vz[c];
-            int depth_avg = div3_fast_fixedpoint(z_sum) + model_min_depth;
-
-            if( debug_stats )
-            {
-                debug_stats->front_facing++;
-                if( clip_candidate )
-                    debug_stats->near_clip_candidates++;
-                if( depth_avg < debug_stats->min_depth_seen )
-                    debug_stats->min_depth_seen = depth_avg;
-                if( depth_avg > debug_stats->max_depth_seen )
-                    debug_stats->max_depth_seen = depth_avg;
-            }
-
-            if( (unsigned int)depth_avg < (unsigned int)depth_levels )
-            {
-                scene->sm_face_depth[f] = (faceint_t)depth_avg;
-                scene->sm_depth_offset[depth_avg]++;
-
-                /*
-                 * Hand the raster pass what this loop already has.
-                 *
-                 * Every one of these six values was just loaded to compute the
-                 * winding, and every one of them used to be read a second time
-                 * further down the frame -- through face_indices_a/b/c into
-                 * screen_vertices_x/y, which is three loads to get an index and
-                 * six dependent loads to use it, per face, to recover what was
-                 * sitting in registers here. So does clip_candidate, which the
-                 * raster pass re-derived from the same three vertex_x entries
-                 * tested above.
-                 *
-                 * A clip candidate never had its coordinates read -- the
-                 * winding is skipped for it -- so only the flag is written, and
-                 * the flag is what stops anything reading the rest.
-                 *
-                 * Only when something will READ it. The batched walk is the
-                 * one consumer -- the per-face walk goes back to the index
-                 * arrays and gets its near-clip answer from vertex_x -- so
-                 * with the batcher disarmed this is seven stores and a
-                 * six-way compare per face, to fill a buffer nobody loads.
-                 * Leaving that in would put it in the A/B baseline, where it
-                 * would read as a cost of the OLD pipeline and be credited to
-                 * the new one.
-                 */
-                if( stash_xy )
-                {
-                int* const x4 = &scene->sm_face_x4[(size_t)f * 4];
-                int* const y4 = &scene->sm_face_y4[(size_t)f * 4];
-                x4[3] = clip_candidate ? 1 : 0;
-                if( !clip_candidate )
-                {
-                    /*
-                     * ORDERED BY Y, here, once, for every kernel downstream.
-                     *
-                     * Every raster kernel used to open with a six-way compare
-                     * ladder to put the three vertices in y order, and then a
-                     * permuting copy to act on the answer. Both are deleted by
-                     * doing it here: these three y values are already in
-                     * registers -- the winding above needed them -- and the
-                     * ladder is a mispredict per triangle on a part that pays
-                     * twenty pipeline stages for one.
-                     *
-                     * The `<=` tie-breaks are transcribed exactly from the C
-                     * wrappers the kernels came from. Two triangles that tie
-                     * differently stop tiling with each other, so this is part
-                     * of the contract and not a comparison order to tidy up.
-                     */
-                    int const ya = vy[a];
-                    int const yb = vy[b];
-                    int const yc = vy[c];
-                    int const perm = (ya <= yb && ya <= yc)
-                                         ? ((yb <= yc) ? 0 : 1)
-                                     : (yb <= yc) ? ((yc <= ya) ? 2 : 3)
-                                                  : ((ya <= yb) ? 4 : 5);
-                    static const unsigned char order[6][3] = {
-                        { 0, 1, 2 }, { 0, 2, 1 }, { 1, 2, 0 },
-                        { 1, 0, 2 }, { 2, 0, 1 }, { 2, 1, 0 }
-                    };
-                    unsigned char const* const o = order[perm];
-                    int const px[3] = { vx[a], vx[b], vx[c] };
-                    int const py[3] = { ya, yb, yc };
-
-                    x4[0] = px[o[0]];
-                    x4[1] = px[o[1]];
-                    x4[2] = px[o[2]];
-                    y4[0] = py[o[0]];
-                    y4[1] = py[o[1]];
-                    y4[2] = py[o[2]];
-                    /* The permutation itself, for the consumers that carry
-                     * per-vertex data of their own -- gouraud's three colours,
-                     * and the texture frame's three vertex indices. */
-                    y4[3] = perm;
-                }
-                }
-
-                if( debug_stats )
-                {
-                    debug_stats->accepted++;
-                    if( scene->sm_depth_offset[depth_avg] > debug_stats->max_bucket_occupancy )
-                        debug_stats->max_bucket_occupancy = scene->sm_depth_offset[depth_avg];
-                }
-
-                if( depth_avg < min_d )
-                    min_d = depth_avg;
-                if( depth_avg > max_d )
-                    max_d = depth_avg;
-            }
-            else if( debug_stats )
-            {
-                if( depth_avg < 0 )
-                    debug_stats->depth_out_low++;
-                else
-                    debug_stats->depth_out_high++;
-                if( debug_stats->first_depth_out_face < 0 )
-                {
-                    debug_stats->first_depth_out_face = f;
-                    debug_stats->first_depth_out_value = depth_avg;
-                }
-            }
-        }
-        else if( debug_stats )
-        {
-            if( winding == 0 )
-                debug_stats->degenerate++;
-            else
-                debug_stats->back_facing++;
-        }
-    }
-
-    if( debug_stats )
-        assert(
-            debug_stats->front_facing ==
-            debug_stats->accepted + debug_stats->depth_out_low +
-                debug_stats->depth_out_high);
+/*
+ * The half of the CSR sort that has nothing to do with which loop filled the
+ * counts: prefix sum, end sentinel, cursor seed, scatter. Identical for every
+ * variant below, which is why it is here and not spelled out five times --
+ * the flags change what a FACE costs, not what the table does afterwards.
+ *
+ * Returns the packed [min_d, max_d] the caller passes on, or 0 for a model
+ * that accepted nothing.
+ */
+static inline int
+sm_bucket_sort_finish(
+    struct ToriDraw_Scene* scene,
+    int num_faces,
+    int min_d,
+    int max_d)
+{
+    int total = 0;
 
     if( min_d > max_d )
         return 0;
 
-    toridraw_dbg_report_span_ratio(num_faces, min_d, max_d);
+    TORIDRAW_DBG_SPAN_RATIO(num_faces, min_d, max_d);
 
     /* Prefix sum over the model's span only. Buckets outside it are zero and
      * stay zero; no consumer reads them, because every consumer is bounded by
      * the same [min_d, max_d] this returns. */
-    int total = 0;
     for( int d = min_d; d <= max_d; d++ )
     {
         int count = scene->sm_depth_offset[d];
@@ -1358,7 +1229,7 @@ bucket_sort_by_average_depth_small(
     /* End sentinel. Consumers read sm_depth_offset[depth + 1] for depth up to
      * max_d, so max_d + 1 must hold the end of the last bucket -- which is why
      * the array is calloc'd depth_levels + 1 long. */
-    assert(max_d + 1 <= depth_levels);
+    assert(max_d + 1 <= scene->depth_levels);
     scene->sm_depth_offset[max_d + 1] = total;
 
     /* The scatter below bumps sm_depth_cursor only over [min_d, max_d], so
@@ -1379,6 +1250,303 @@ bucket_sort_by_average_depth_small(
     }
 
     return (min_d) | (max_d << 16);
+}
+
+/*
+ * THE FOUR SORT LOOPS, AND WHY THERE ARE FOUR OF THEM.
+ *
+ * Two questions used to be asked per face inside one loop: does this model
+ * reach behind the near plane, and is anything going to read the y-ordered
+ * stash. Neither changes within a model, and both are cheap to answer once, so
+ * they are answered once -- by the dispatcher at the bottom -- and each answer
+ * picks a loop that does not contain the question. Same reasoning as the
+ * near-clip projection family further down this file, and the same reason the
+ * flags are not threaded down and left to the optimizer to unswitch: it held
+ * at -O2/-O3 and did not at -O1.
+ *
+ * The stash matters most. It has exactly one consumer -- the batched software
+ * raster walk -- and a caller that will not run it (every D3D9 renderer sorts
+ * back-to-front on the CPU and then hands the faces to the GPU) would
+ * otherwise pay seven stores and a six-way compare per drawn face to fill a
+ * buffer nobody loads. Worse, the bucket sort is the A/B baseline the flat
+ * sort is measured against, so leaving that cost in would read as a cost of
+ * the OLD pipeline and be credited to the new one.
+ *
+ * The counting pass in each loop touches only buckets in this model's depth
+ * span, so sm_depth_offset arrives all-zero -- calloc'd at scene creation, and
+ * every exit that dirties it re-zeroes that span once its consumers are done.
+ * A full-width clear is 64KB per model at DEPTH_16K, to bucket a median of ~19
+ * faces, and it evicts 8x a P4's L1D on the way past. The dispatcher asserts
+ * the invariant; none of these four re-establish it.
+ */
+
+/* No near clip, no stash: the plain case, and the one most models take. */
+static int
+bucket_sort_by_average_depth_small_plain(
+    struct ToriDraw_Scene* scene,
+    int model_min_depth,
+    int num_faces,
+    const int* RESTRICT vx,
+    const int* RESTRICT vy,
+    const int* RESTRICT vz,
+    const faceint_t* RESTRICT face_a,
+    const faceint_t* RESTRICT face_b,
+    const faceint_t* RESTRICT face_c)
+{
+    const int depth_levels = scene->depth_levels;
+    int min_d = depth_levels;
+    int max_d = 0;
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        const uint32_t a = face_a[f];
+        const uint32_t b = face_b[f];
+        const uint32_t c = face_c[f];
+        int depth_avg;
+
+        scene->sm_face_depth[f] = -1;
+
+        if( !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
+            continue;
+
+        depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
+        if( (unsigned int)depth_avg >= (unsigned int)depth_levels )
+            continue;
+
+        scene->sm_face_depth[f] = (faceint_t)depth_avg;
+        scene->sm_depth_offset[depth_avg]++;
+
+        if( depth_avg < min_d )
+            min_d = depth_avg;
+        if( depth_avg > max_d )
+            max_d = depth_avg;
+    }
+
+    return sm_bucket_sort_finish(scene, num_faces, min_d, max_d);
+}
+
+/*
+ * Near clip, no stash.
+ *
+ * A clipped vertex has sentinel x and undivided y, so this triangle's
+ * screen-space winding does not exist yet. The reference buckets it
+ * unconditionally and performs the real winding test after building the
+ * near-plane polygon.
+ */
+static int
+bucket_sort_by_average_depth_small_clipped(
+    struct ToriDraw_Scene* scene,
+    int model_min_depth,
+    int num_faces,
+    const int* RESTRICT vx,
+    const int* RESTRICT vy,
+    const int* RESTRICT vz,
+    const faceint_t* RESTRICT face_a,
+    const faceint_t* RESTRICT face_b,
+    const faceint_t* RESTRICT face_c)
+{
+    const int depth_levels = scene->depth_levels;
+    int min_d = depth_levels;
+    int max_d = 0;
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        const uint32_t a = face_a[f];
+        const uint32_t b = face_b[f];
+        const uint32_t c = face_c[f];
+        bool clip_candidate;
+        int depth_avg;
+
+        scene->sm_face_depth[f] = -1;
+
+        clip_candidate = vx[a] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                         vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                         vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED;
+        if( !clip_candidate &&
+            !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
+            continue;
+
+        depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
+        if( (unsigned int)depth_avg >= (unsigned int)depth_levels )
+            continue;
+
+        scene->sm_face_depth[f] = (faceint_t)depth_avg;
+        scene->sm_depth_offset[depth_avg]++;
+
+        if( depth_avg < min_d )
+            min_d = depth_avg;
+        if( depth_avg > max_d )
+            max_d = depth_avg;
+    }
+
+    return sm_bucket_sort_finish(scene, num_faces, min_d, max_d);
+}
+
+/* No near clip, stashing: every accepted face is a real triangle, so every
+ * accepted face gets the y-ordered stash and nothing writes the clip flag. */
+static int
+bucket_sort_by_average_depth_small_stash(
+    struct ToriDraw_Scene* scene,
+    int model_min_depth,
+    int num_faces,
+    const int* RESTRICT vx,
+    const int* RESTRICT vy,
+    const int* RESTRICT vz,
+    const faceint_t* RESTRICT face_a,
+    const faceint_t* RESTRICT face_b,
+    const faceint_t* RESTRICT face_c)
+{
+    const int depth_levels = scene->depth_levels;
+    int min_d = depth_levels;
+    int max_d = 0;
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        const uint32_t a = face_a[f];
+        const uint32_t b = face_b[f];
+        const uint32_t c = face_c[f];
+        int depth_avg;
+
+        scene->sm_face_depth[f] = -1;
+
+        if( !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
+            continue;
+
+        depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
+        if( (unsigned int)depth_avg >= (unsigned int)depth_levels )
+            continue;
+
+        scene->sm_face_depth[f] = (faceint_t)depth_avg;
+        scene->sm_depth_offset[depth_avg]++;
+        sm_stash_face_xy_sorted(scene, f, vx, vy, a, b, c);
+
+        if( depth_avg < min_d )
+            min_d = depth_avg;
+        if( depth_avg > max_d )
+            max_d = depth_avg;
+    }
+
+    return sm_bucket_sort_finish(scene, num_faces, min_d, max_d);
+}
+
+/* Near clip and stashing: the only loop that has to choose between the two
+ * stashes, because it is the only one that can see a face with no winding. */
+static int
+bucket_sort_by_average_depth_small_stash_clipped(
+    struct ToriDraw_Scene* scene,
+    int model_min_depth,
+    int num_faces,
+    const int* RESTRICT vx,
+    const int* RESTRICT vy,
+    const int* RESTRICT vz,
+    const faceint_t* RESTRICT face_a,
+    const faceint_t* RESTRICT face_b,
+    const faceint_t* RESTRICT face_c)
+{
+    const int depth_levels = scene->depth_levels;
+    int min_d = depth_levels;
+    int max_d = 0;
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        const uint32_t a = face_a[f];
+        const uint32_t b = face_b[f];
+        const uint32_t c = face_c[f];
+        bool clip_candidate;
+        int depth_avg;
+
+        scene->sm_face_depth[f] = -1;
+
+        clip_candidate = vx[a] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                         vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                         vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED;
+        if( !clip_candidate &&
+            !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
+            continue;
+
+        depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
+        if( (unsigned int)depth_avg >= (unsigned int)depth_levels )
+            continue;
+
+        scene->sm_face_depth[f] = (faceint_t)depth_avg;
+        scene->sm_depth_offset[depth_avg]++;
+        if( clip_candidate )
+            sm_stash_face_clipped(scene, f);
+        else
+            sm_stash_face_xy_sorted(scene, f, vx, vy, a, b, c);
+
+        if( depth_avg < min_d )
+            min_d = depth_avg;
+        if( depth_avg > max_d )
+            max_d = depth_avg;
+    }
+
+    return sm_bucket_sort_finish(scene, num_faces, min_d, max_d);
+}
+
+/*
+ * The only place the three questions are asked. Once per model, not per face.
+ *
+ * `presort` is the caller's half of the stash decision and it is the half that
+ * matters; toridraw_raster_batch_armed() is a getenv-cached read, hoisted here
+ * so it happens once for the model too.
+ */
+static inline int
+bucket_sort_by_average_depth_small(
+    struct ToriDraw_Scene* scene,
+    TORIDRAW_DBG_SORT_PARAM bool presort,
+    bool near_clipped,
+    int model_min_depth,
+    int num_faces,
+    const int* RESTRICT vx,
+    const int* RESTRICT vy,
+    const int* RESTRICT vz,
+    const faceint_t* RESTRICT face_a,
+    const faceint_t* RESTRICT face_b,
+    const faceint_t* RESTRICT face_c)
+{
+    bool const stash_xy = presort && toridraw_raster_batch_armed();
+
+    /* Recorded, not re-derived downstream: the walk that reads sm_face_x4/y4
+     * asks this rather than asking the same three questions again and possibly
+     * answering one of them differently. Written here, so no loop below has to
+     * remember to. */
+    scene->sm_face_xy_valid = stash_xy;
+    if( stash_xy )
+        g_toridraw_presort_models++;
+
+    /* Verifying the all-zero invariant is O(depth_levels) -- the very cost the
+     * windowing exists to avoid -- so it is an assert and nothing else. */
+    assert(sm_depth_offset_all_zero(scene));
+
+    TORIDRAW_DBG_SORT_SMALL_TAKEOVER(
+        debug_stats,
+        scene,
+        stash_xy,
+        near_clipped,
+        model_min_depth,
+        num_faces,
+        vx,
+        vy,
+        vz,
+        face_a,
+        face_b,
+        face_c);
+
+    if( stash_xy )
+    {
+        if( near_clipped )
+            return bucket_sort_by_average_depth_small_stash_clipped(
+                scene, model_min_depth, num_faces, vx, vy, vz, face_a, face_b, face_c);
+        return bucket_sort_by_average_depth_small_stash(
+            scene, model_min_depth, num_faces, vx, vy, vz, face_a, face_b, face_c);
+    }
+
+    if( near_clipped )
+        return bucket_sort_by_average_depth_small_clipped(
+            scene, model_min_depth, num_faces, vx, vy, vz, face_a, face_b, face_c);
+    return bucket_sort_by_average_depth_small_plain(
+        scene, model_min_depth, num_faces, vx, vy, vz, face_a, face_b, face_c);
 }
 
 #include "toridraw_face_sort_flat.u.c"
@@ -1548,8 +1716,7 @@ toridraw_compute_projected_face_order_small(
     bool presort,
     int flat)
 {
-    struct ToriDraw_FaceSortDebugStats debug_stats_storage;
-    struct ToriDraw_FaceSortDebugStats* debug_stats = NULL;
+    TORIDRAW_DBG_SORT_LOCALS
     faceint_t* fia = NULL;
     faceint_t* fib = NULL;
     faceint_t* fic = NULL;
@@ -1578,11 +1745,11 @@ toridraw_compute_projected_face_order_small(
          *
          * TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY drops them on its own, for an
          * imported model whose priorities its authoring client never read. */
-        face_priorities =
-            (toridraw_ignore_priorities() ||
-             (m->flags & (TORIDRAW_MODEL_FLAG_ZBUFFER | TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY)))
-                ? NULL
-                : m->face_priorities;
+        face_priorities = m->face_priorities;
+        if( toridraw_ignore_priorities() )
+            face_priorities = NULL;
+        if( m->flags & (TORIDRAW_MODEL_FLAG_ZBUFFER | TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY) )
+            face_priorities = NULL;
         face_count = m->face_count;
         /* TORIDRAWMK_MODEL only. The tile kernel reads vx[0..3] on the promise
          * that this model's four projected vertices are its own and that its two
@@ -1606,21 +1773,26 @@ toridraw_compute_projected_face_order_small(
     const struct ToriDraw_BoundsCylinder* bc = model_bounds_cylinder(hnd);
     int model_min_depth = bc ? bc->min_z_depth_any_rotation : 0;
 
-    if( toridraw_sort_debug_enabled() )
-    {
-        toridraw_face_sort_debug_init(&debug_stats_storage);
-        debug_stats = &debug_stats_storage;
-    }
+    TORIDRAW_DBG_SORT_ARM();
 
     /* The flat sort: SIMD cull into composite keys, then bitonic or radix.
      * The debug counters live in the bucket sort, so a run that asks for
      * them goes there; everything else takes this. */
-    if( !debug_stats && flat )
+    if( !TORIDRAW_DBG_SORT_ARMED() && flat )
     {
         int const n = toridraw_face_sort_flat(
-            scene, presort, scene->near_clipped, model_min_depth, face_count, tile2_rot,
-            scene->screen_vertices_x, scene->screen_vertices_y, scene->screen_vertices_z,
-            fia, fib, fic);
+            scene,
+            presort,
+            scene->near_clipped,
+            model_min_depth,
+            face_count,
+            tile2_rot,
+            scene->screen_vertices_x,
+            scene->screen_vertices_y,
+            scene->screen_vertices_z,
+            fia,
+            fib,
+            fic);
         const uint32_t* keys = scene->sm_sort_keys;
         int i;
 
@@ -1638,16 +1810,15 @@ toridraw_compute_projected_face_order_small(
 
             partition_and_accumulate_faces_by_priority_keys(
                 scene, keys, n, priority_depths, counts, face_priorities);
-            scene->tmp_face_order_count = sort_face_draw_order_small(
-                scene, scene->tmp_face_order, priority_depths, counts);
+            scene->tmp_face_order_count =
+                sort_face_draw_order_small(scene, scene->tmp_face_order, priority_depths, counts);
         }
         return;
     }
 
     int bounds = bucket_sort_by_average_depth_small(
         scene,
-        debug_stats,
-        presort,
+        TORIDRAW_DBG_SORT_ARG presort,
         scene->near_clipped,
         model_min_depth,
         face_count,
@@ -1669,8 +1840,7 @@ toridraw_compute_projected_face_order_small(
          * zeroing two already-zero ints in the first case is free. */
         sm_depth_offset_restore(scene, model_min_depth, model_max_depth);
         scene->tmp_face_order_count = 0;
-        if( debug_stats )
-            toridraw_face_sort_debug_print(scene, hnd, debug_stats, 0);
+        TORIDRAW_DBG_SORT_PRINT(debug_stats, scene, hnd, 0);
         return;
     }
 
@@ -1688,8 +1858,7 @@ toridraw_compute_projected_face_order_small(
         scene->tmp_face_order_count = order_index;
 
         sm_depth_offset_restore(scene, model_min_depth, model_max_depth);
-        if( debug_stats )
-            toridraw_face_sort_debug_print(scene, hnd, debug_stats, order_index);
+        TORIDRAW_DBG_SORT_PRINT(debug_stats, scene, hnd, order_index);
         return;
     }
 
@@ -1705,9 +1874,7 @@ toridraw_compute_projected_face_order_small(
 
     scene->tmp_face_order_count =
         sort_face_draw_order_small(scene, scene->tmp_face_order, priority_depths, counts);
-    if( debug_stats )
-        toridraw_face_sort_debug_print(
-            scene, hnd, debug_stats, scene->tmp_face_order_count);
+    TORIDRAW_DBG_SORT_PRINT(debug_stats, scene, hnd, scene->tmp_face_order_count);
 }
 
 /* The plain entry: the sort the environment / ToriDraw_FaceSortSetFlat name. */
@@ -1745,7 +1912,6 @@ toridraw_project_vertices_clip_portable(
     int camera_roll,
     int model_mid_z)
 {
-
     /* Full 6DOF when model/camera roll is set (obj-icon zan2d, etc.). yaw-only and
      * pitch+yaw keep the SIMD fused paths; array6_fused matches v0 Dash. */
     if( model_roll != 0 || camera_roll != 0 )
@@ -1897,7 +2063,6 @@ toridraw_project_vertices_clip_portable(
             camera->pitch,
             camera->yaw);
     }
-
 }
 
 /*
@@ -1910,9 +2075,13 @@ toridraw_project_vertices_clip_portable(
  * again.
  *
  * Falls through to the portable ladder for every model the prepared kernel
- * cannot take -- pitched, rolled, or drawn under a camera whose prepared block
- * was never published. That fallback is the reason this is a superset of
- * `_portable` and not an alternative to it.
+ * cannot take -- pitched, rolled, drawn under a camera whose prepared block
+ * was never published, or simply not a shape this build's lane implements.
+ * That fallback is the reason this is a superset of `_portable` and not an
+ * alternative to it.
+ *
+ * Which lane answers is graphics/projection_prepared.u.c's business, and the
+ * hook says only whether it took the model; see projection_prepared.h.
  */
 static inline void
 toridraw_project_vertices_clip_prepared(
@@ -1926,62 +2095,16 @@ toridraw_project_vertices_clip_prepared(
     int camera_roll,
     int model_mid_z)
 {
-#if defined(TORIDRAW_SSE2_PREPARED_PROJECTION)
-    /* Same gate as the Apple prepared path: yaw-only geometry, and a prepared
-     * block that was published for this exact camera. */
-    if( model_pitch == 0 && model_roll == 0 && camera_roll == 0 &&
-        scene->projection_prepared_camera_source == camera )
-    {
-        if( model_has_textures(hnd) )
-        {
-            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 1, model_vertex_count(hnd));
-            ToriDraw_ProjPreparedClip(
-                scene,
-                model_vertices_x(hnd),
-                model_vertices_y(hnd),
-                model_vertices_z(hnd),
-                model_vertex_count(hnd),
-                camera->yaw,
-                model_yaw,
-                model_mid_z,
-                position);
-        }
-        else
-        {
-            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 1, model_vertex_count(hnd));
-            ToriDraw_ProjPreparedNotexClip(
-                scene,
-                model_vertices_x(hnd),
-                model_vertices_y(hnd),
-                model_vertices_z(hnd),
-                model_vertex_count(hnd),
-                camera->yaw,
-                model_yaw,
-                model_mid_z,
-                position);
-        }
-        /* The kernel bounded every full block; the sweep takes the tail. */
-        scene->projection_bound_vertices = model_vertex_count(hnd) & ~3;
+    if( toridraw_proj_prepared_eligible(scene, camera, model_pitch, model_roll, camera_roll) &&
+        toridraw_proj_prepared_clip(scene, hnd, position, camera, model_yaw, model_mid_z) )
         return;
-    }
-#endif
 
     toridraw_project_vertices_clip_portable(
-        scene,
-        hnd,
-        position,
-        camera,
-        model_pitch,
-        model_yaw,
-        model_roll,
-        camera_roll,
-        model_mid_z);
+        scene, hnd, position, camera, model_pitch, model_yaw, model_roll, camera_roll, model_mid_z);
 }
 
 /* Models that provably cannot; no sentinel, no near-plane test. */
-#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
-__attribute__((noinline))
-#endif
+TORIDRAW_PROJ_SLOT_NEVER_INLINE
 static void
 toridraw_project_vertices_noclip_portable(
     struct ToriDraw_Scene* scene,
@@ -2145,7 +2268,6 @@ toridraw_project_vertices_noclip_portable(
             camera->pitch,
             camera->yaw);
     }
-
 }
 
 /*
@@ -2154,9 +2276,7 @@ toridraw_project_vertices_noclip_portable(
  * above, which this falls through to for every model the prepared kernels
  * cannot take.
  */
-#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
-__attribute__((always_inline))
-#endif
+TORIDRAW_PROJ_SLOT_ALWAYS_INLINE
 static inline void
 toridraw_project_vertices_noclip_prepared(
     struct ToriDraw_Scene* scene,
@@ -2169,97 +2289,12 @@ toridraw_project_vertices_noclip_prepared(
     int camera_roll,
     int model_mid_z)
 {
-#if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
-    int const num_vertices = model_vertex_count(hnd);
-
-    if( model_pitch == 0 && model_roll == 0 && camera_roll == 0 &&
-        scene->projection_prepared_camera_source == camera && num_vertices >= 4 )
-    {
-        if( model_has_textures(hnd) )
-        {
-            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 0, num_vertices);
-            toridraw_project_vertices_fused_neon_noclip_native_prepared_aarch64(
-                &scene->screen_vertices_x,
-                model_vertices_x(hnd),
-                model_vertices_y(hnd),
-                model_vertices_z(hnd),
-                num_vertices,
-                model_yaw,
-                model_mid_z,
-                position);
-        }
-        else
-        {
-            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 0, num_vertices);
-            toridraw_project_vertices_fused_neon_notex_noclip_native_prepared_aarch64(
-                &scene->screen_vertices_x,
-                model_vertices_x(hnd),
-                model_vertices_y(hnd),
-                model_vertices_z(hnd),
-                num_vertices,
-                model_yaw,
-                model_mid_z,
-                position);
-        }
-        /* The exact-four body (num_vertices == 4) does not touch the bound
-         * block -- four outputs are one vector load each to sweep. The
-         * generic loop covers every full block and leaves the tail to the
-         * sweep. */
-        scene->projection_bound_vertices = num_vertices == 4 ? 0 : (num_vertices & ~3);
+    if( toridraw_proj_prepared_eligible(scene, camera, model_pitch, model_roll, camera_roll) &&
+        toridraw_proj_prepared_noclip(scene, hnd, position, camera, model_yaw, model_mid_z) )
         return;
-    }
-#endif
-
-#if defined(TORIDRAW_SSE2_PREPARED_PROJECTION)
-    /* Same gate as the Apple prepared path: yaw-only geometry, and a prepared
-     * block that was published for this exact camera. */
-    if( model_pitch == 0 && model_roll == 0 && camera_roll == 0 &&
-        scene->projection_prepared_camera_source == camera )
-    {
-        if( model_has_textures(hnd) )
-        {
-            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 0, model_vertex_count(hnd));
-            ToriDraw_ProjPreparedNoclip(
-                scene,
-                model_vertices_x(hnd),
-                model_vertices_y(hnd),
-                model_vertices_z(hnd),
-                model_vertex_count(hnd),
-                camera->yaw,
-                model_yaw,
-                model_mid_z,
-                position);
-        }
-        else
-        {
-            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 0, model_vertex_count(hnd));
-            ToriDraw_ProjPreparedNotexNoclip(
-                scene,
-                model_vertices_x(hnd),
-                model_vertices_y(hnd),
-                model_vertices_z(hnd),
-                model_vertex_count(hnd),
-                camera->yaw,
-                model_yaw,
-                model_mid_z,
-                position);
-        }
-        /* The kernel bounded every full block; the sweep takes the tail. */
-        scene->projection_bound_vertices = model_vertex_count(hnd) & ~3;
-        return;
-    }
-#endif
 
     toridraw_project_vertices_noclip_portable(
-        scene,
-        hnd,
-        position,
-        camera,
-        model_pitch,
-        model_yaw,
-        model_roll,
-        camera_roll,
-        model_mid_z);
+        scene, hnd, position, camera, model_pitch, model_yaw, model_roll, camera_roll, model_mid_z);
 }
 
 /*
@@ -2285,40 +2320,92 @@ toridraw_project_vertices_parallel_clip(
     {
         if( model_has_textures(hnd) )
             project_vertices_array_ortho6_fused_clip(
-                scene->orthographic_vertices_x, scene->orthographic_vertices_y,
-                scene->orthographic_vertices_z, scene->screen_vertices_x,
-                scene->screen_vertices_y, scene->screen_vertices_z,
-                model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
-                model_vertex_count(hnd), model_pitch, model_yaw, model_roll, model_mid_z,
-                position->x, position->y, position->z, scene->projection_near_plane_z,
-                zoom16, camera->pitch, camera->yaw, camera_roll);
+                scene->orthographic_vertices_x,
+                scene->orthographic_vertices_y,
+                scene->orthographic_vertices_z,
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                model_roll,
+                model_mid_z,
+                position->x,
+                position->y,
+                position->z,
+                scene->projection_near_plane_z,
+                zoom16,
+                camera->pitch,
+                camera->yaw,
+                camera_roll);
         else
             project_vertices_array_ortho6_fused_notex_clip(
-                scene->screen_vertices_x, scene->screen_vertices_y, scene->screen_vertices_z,
-                model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
-                model_vertex_count(hnd), model_pitch, model_yaw, model_roll, model_mid_z,
-                position->x, position->y, position->z, scene->projection_near_plane_z,
-                zoom16, camera->pitch, camera->yaw, camera_roll);
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                model_roll,
+                model_mid_z,
+                position->x,
+                position->y,
+                position->z,
+                scene->projection_near_plane_z,
+                zoom16,
+                camera->pitch,
+                camera->yaw,
+                camera_roll);
     }
     else if( model_has_textures(hnd) )
     {
         project_vertices_array_ortho_fused_clip(
-            scene->orthographic_vertices_x, scene->orthographic_vertices_y,
-            scene->orthographic_vertices_z, scene->screen_vertices_x,
-            scene->screen_vertices_y, scene->screen_vertices_z,
-            model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
-            model_vertex_count(hnd), model_yaw, model_mid_z,
-            position->x, position->y, position->z, scene->projection_near_plane_z,
-            zoom16, camera->pitch, camera->yaw);
+            scene->orthographic_vertices_x,
+            scene->orthographic_vertices_y,
+            scene->orthographic_vertices_z,
+            scene->screen_vertices_x,
+            scene->screen_vertices_y,
+            scene->screen_vertices_z,
+            model_vertices_x(hnd),
+            model_vertices_y(hnd),
+            model_vertices_z(hnd),
+            model_vertex_count(hnd),
+            model_yaw,
+            model_mid_z,
+            position->x,
+            position->y,
+            position->z,
+            scene->projection_near_plane_z,
+            zoom16,
+            camera->pitch,
+            camera->yaw);
     }
     else
     {
         project_vertices_array_ortho_fused_notex_clip(
-            scene->screen_vertices_x, scene->screen_vertices_y, scene->screen_vertices_z,
-            model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
-            model_vertex_count(hnd), model_yaw, model_mid_z,
-            position->x, position->y, position->z, scene->projection_near_plane_z,
-            zoom16, camera->pitch, camera->yaw);
+            scene->screen_vertices_x,
+            scene->screen_vertices_y,
+            scene->screen_vertices_z,
+            model_vertices_x(hnd),
+            model_vertices_y(hnd),
+            model_vertices_z(hnd),
+            model_vertex_count(hnd),
+            model_yaw,
+            model_mid_z,
+            position->x,
+            position->y,
+            position->z,
+            scene->projection_near_plane_z,
+            zoom16,
+            camera->pitch,
+            camera->yaw);
     }
 }
 
@@ -2340,40 +2427,88 @@ toridraw_project_vertices_parallel_noclip(
     {
         if( model_has_textures(hnd) )
             project_vertices_array_ortho6_fused_noclip(
-                scene->orthographic_vertices_x, scene->orthographic_vertices_y,
-                scene->orthographic_vertices_z, scene->screen_vertices_x,
-                scene->screen_vertices_y, scene->screen_vertices_z,
-                model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
-                model_vertex_count(hnd), model_pitch, model_yaw, model_roll, model_mid_z,
-                position->x, position->y, position->z,
-                zoom16, camera->pitch, camera->yaw, camera_roll);
+                scene->orthographic_vertices_x,
+                scene->orthographic_vertices_y,
+                scene->orthographic_vertices_z,
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                model_roll,
+                model_mid_z,
+                position->x,
+                position->y,
+                position->z,
+                zoom16,
+                camera->pitch,
+                camera->yaw,
+                camera_roll);
         else
             project_vertices_array_ortho6_fused_notex_noclip(
-                scene->screen_vertices_x, scene->screen_vertices_y, scene->screen_vertices_z,
-                model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
-                model_vertex_count(hnd), model_pitch, model_yaw, model_roll, model_mid_z,
-                position->x, position->y, position->z,
-                zoom16, camera->pitch, camera->yaw, camera_roll);
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                model_roll,
+                model_mid_z,
+                position->x,
+                position->y,
+                position->z,
+                zoom16,
+                camera->pitch,
+                camera->yaw,
+                camera_roll);
     }
     else if( model_has_textures(hnd) )
     {
         project_vertices_array_ortho_fused_noclip(
-            scene->orthographic_vertices_x, scene->orthographic_vertices_y,
-            scene->orthographic_vertices_z, scene->screen_vertices_x,
-            scene->screen_vertices_y, scene->screen_vertices_z,
-            model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
-            model_vertex_count(hnd), model_yaw, model_mid_z,
-            position->x, position->y, position->z,
-            zoom16, camera->pitch, camera->yaw);
+            scene->orthographic_vertices_x,
+            scene->orthographic_vertices_y,
+            scene->orthographic_vertices_z,
+            scene->screen_vertices_x,
+            scene->screen_vertices_y,
+            scene->screen_vertices_z,
+            model_vertices_x(hnd),
+            model_vertices_y(hnd),
+            model_vertices_z(hnd),
+            model_vertex_count(hnd),
+            model_yaw,
+            model_mid_z,
+            position->x,
+            position->y,
+            position->z,
+            zoom16,
+            camera->pitch,
+            camera->yaw);
     }
     else
     {
         project_vertices_array_ortho_fused_notex_noclip(
-            scene->screen_vertices_x, scene->screen_vertices_y, scene->screen_vertices_z,
-            model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
-            model_vertex_count(hnd), model_yaw, model_mid_z,
-            position->x, position->y, position->z,
-            zoom16, camera->pitch, camera->yaw);
+            scene->screen_vertices_x,
+            scene->screen_vertices_y,
+            scene->screen_vertices_z,
+            model_vertices_x(hnd),
+            model_vertices_y(hnd),
+            model_vertices_z(hnd),
+            model_vertex_count(hnd),
+            model_yaw,
+            model_mid_z,
+            position->x,
+            position->y,
+            position->z,
+            zoom16,
+            camera->pitch,
+            camera->yaw);
     }
 }
 
@@ -2409,17 +2544,14 @@ static const struct ToriDraw_ProjectionKernelVTable g_projection_portable_vtable
 
 /* Which slot this model and camera resolve to. */
 static inline enum ToriDraw_ProjectionShape
-toridraw_projection_shape(bool parallel, bool may_clip)
+toridraw_projection_shape(
+    bool parallel,
+    bool may_clip)
 {
     if( parallel )
-        return may_clip ? TORIDRAW_PROJECTION_PARALLEL_CLIP
-                        : TORIDRAW_PROJECTION_PARALLEL_NOCLIP;
-    return may_clip ? TORIDRAW_PROJECTION_PERSPECTIVE_CLIP
-                    : TORIDRAW_PROJECTION_PERSPECTIVE_NOCLIP;
+        return may_clip ? TORIDRAW_PROJECTION_PARALLEL_CLIP : TORIDRAW_PROJECTION_PARALLEL_NOCLIP;
+    return may_clip ? TORIDRAW_PROJECTION_PERSPECTIVE_CLIP : TORIDRAW_PROJECTION_PERSPECTIVE_NOCLIP;
 }
-
-/* The near-clip verification harness; needs the vertex kernels above. */
-#include "toridraw_debug_near_clip.u.c"
 
 /*
  * Project one model, dispatching its vertices through `vtable`.
@@ -2450,10 +2582,9 @@ ToriDraw_ProjectWithVTable(
      * merged, so the old 4,096 assumptions wrote beyond six separate buffers.
      * Refuse an unsupported model before touching any array; full scenes now
      * carry a large enough declared capacity for the imported encounter. */
-    if( model_vertex_count(hnd) > scene->max_vertices ||
-        model_face_count(hnd) > scene->max_faces )
+    if( model_vertex_count(hnd) > scene->max_vertices || model_face_count(hnd) > scene->max_faces )
     {
-        toridraw_dbg_report_capacity_reject(scene, hnd);
+        TORIDRAW_DBG_CAPACITY_REJECT(scene, hnd);
         return TORIDRAW_CULL_ERROR;
     }
 
@@ -2461,10 +2592,7 @@ ToriDraw_ProjectWithVTable(
      * model from the face-sort diagnostics.  The bound is deliberately
      * rotation-independent: every sorted face depth lies within [-bias,+bias]
      * before the sorter adds bias, hence the required diameter is 2*bias+1. */
-    if( toridraw_sort_debug_enabled() )
-    {
-        toridraw_dbg_report_depth_capacity(scene, hnd);
-    }
+    TORIDRAW_DBG_DEPTH_CAPACITY(scene, hnd);
 
     int cull = TORIDRAW_CULL_VISIBLE;
 
@@ -2531,8 +2659,7 @@ ToriDraw_ProjectWithVTable(
             : toridraw_safe_near_plane_z(
                   proj_bc,
                   &center_projection,
-                  toridraw_proj_cot16(
-                      camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
+                  toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
                   camera->near_plane_z);
 
     /*
@@ -2544,10 +2671,8 @@ ToriDraw_ProjectWithVTable(
      * every model the more expensive kernel for no reason.
      */
     bool may_clip =
-        !proj_bc ||
-        (!toridraw_proj_is_parallel(camera->proj_mode) && camera->near_plane_z < 1) ||
-        center_projection.z - proj_bc->min_z_depth_any_rotation <
-            scene->projection_near_plane_z;
+        !proj_bc || (!toridraw_proj_is_parallel(camera->proj_mode) && camera->near_plane_z < 1) ||
+        center_projection.z - proj_bc->min_z_depth_any_rotation < scene->projection_near_plane_z;
 
 #ifdef TORIDRAW_NEAR_CLIP_FORCE_ALL
     /* Build with -DTORIDRAW_NEAR_CLIP_FORCE_ALL=1 to send every model down the
@@ -2557,7 +2682,7 @@ ToriDraw_ProjectWithVTable(
     may_clip = true;
 #endif
 
-    toridraw_dbg_count_near_clip_gate(may_clip);
+    TORIDRAW_DBG_NEAR_CLIP_GATE(may_clip);
 
     scene->near_clipped = may_clip;
     /* Only the prepared kernels (AArch64 assembly, SSE2 fused-yaw) fill the
@@ -2575,8 +2700,15 @@ ToriDraw_ProjectWithVTable(
      */
     vtable->project[toridraw_projection_shape(
         toridraw_proj_is_parallel(camera->proj_mode), may_clip)](
-        scene, hnd, position, camera,
-        model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
+        scene,
+        hnd,
+        position,
+        camera,
+        model_pitch,
+        model_yaw,
+        model_roll,
+        camera_roll,
+        center_projection.z);
 
     /*
      * The model's bound, off the coordinates just written; see
@@ -2598,15 +2730,24 @@ ToriDraw_ProjectWithVTable(
 
     TORIDRAW_PROJ_CENSUS_COUNT(projected);
 
-    toridraw_projection_debug_print(
+    TORIDRAW_DBG_PROJECTION_PRINT(
         scene, hnd, position, view_port, camera, center_projection.z, may_clip);
 
     /* The gate's correctness argument, on real scene data: both kernels run
      * over the same model inside one process and the results are compared.
      * Compiled out unless TORIDRAW_NEAR_CLIP_STATS. */
-    toridraw_dbg_verify_near_clip_gate(
-        scene, hnd, position, camera, &center_projection, proj_bc, may_clip,
-        model_pitch, model_yaw, model_roll, camera_roll);
+    TORIDRAW_DBG_VERIFY_NEAR_CLIP(
+        scene,
+        hnd,
+        position,
+        camera,
+        &center_projection,
+        proj_bc,
+        may_clip,
+        model_pitch,
+        model_yaw,
+        model_roll,
+        camera_roll);
 
     return TORIDRAW_CULL_VISIBLE;
 }
@@ -2762,17 +2903,13 @@ toridraw_mouse_roughly_inside_triangle(
     int x,
     int y)
 {
-    if( y + TORIDRAW_PICK_SLOP < y1 && y + TORIDRAW_PICK_SLOP < y2 &&
-        y + TORIDRAW_PICK_SLOP < y3 )
+    if( y + TORIDRAW_PICK_SLOP < y1 && y + TORIDRAW_PICK_SLOP < y2 && y + TORIDRAW_PICK_SLOP < y3 )
         return false;
-    if( y - TORIDRAW_PICK_SLOP > y1 && y - TORIDRAW_PICK_SLOP > y2 &&
-        y - TORIDRAW_PICK_SLOP > y3 )
+    if( y - TORIDRAW_PICK_SLOP > y1 && y - TORIDRAW_PICK_SLOP > y2 && y - TORIDRAW_PICK_SLOP > y3 )
         return false;
-    if( x + TORIDRAW_PICK_SLOP < x1 && x + TORIDRAW_PICK_SLOP < x2 &&
-        x + TORIDRAW_PICK_SLOP < x3 )
+    if( x + TORIDRAW_PICK_SLOP < x1 && x + TORIDRAW_PICK_SLOP < x2 && x + TORIDRAW_PICK_SLOP < x3 )
         return false;
-    if( x - TORIDRAW_PICK_SLOP > x1 && x - TORIDRAW_PICK_SLOP > x2 &&
-        x - TORIDRAW_PICK_SLOP > x3 )
+    if( x - TORIDRAW_PICK_SLOP > x1 && x - TORIDRAW_PICK_SLOP > x2 && x - TORIDRAW_PICK_SLOP > x3 )
         return false;
     return true;
 }
@@ -2921,7 +3058,12 @@ ToriDraw_ProjectedModelContainsPoint(
     int screen_y)
 {
     return toridraw_projected_model_hit_face(
-        scene, hnd, view_port, screen_x, screen_y, TORIDRAW_PICKTEST_EXACT,
+        scene,
+        hnd,
+        view_port,
+        screen_x,
+        screen_y,
+        TORIDRAW_PICKTEST_EXACT,
         /* include_hidden */ false);
 }
 
@@ -2934,7 +3076,12 @@ ToriDraw_ProjectedModelMouseHitTest(
     int screen_y)
 {
     return toridraw_projected_model_hit_face(
-        scene, hnd, view_port, screen_x, screen_y, TORIDRAW_PICKTEST_ROUGH,
+        scene,
+        hnd,
+        view_port,
+        screen_x,
+        screen_y,
+        TORIDRAW_PICKTEST_ROUGH,
         /* include_hidden */ false);
 }
 
@@ -2950,6 +3097,11 @@ ToriDraw_ProjectedTileMouseHitTest(
      * test's slop, and NOT the barycentric one, which refuses a face that
      * projects to zero area. See toridraw_reference_triangle_contains_point. */
     return toridraw_projected_model_hit_face(
-        scene, hnd, view_port, screen_x, screen_y, TORIDRAW_PICKTEST_REFERENCE_TILE,
+        scene,
+        hnd,
+        view_port,
+        screen_x,
+        screen_y,
+        TORIDRAW_PICKTEST_REFERENCE_TILE,
         /* include_hidden */ true);
 }

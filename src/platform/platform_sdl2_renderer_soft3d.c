@@ -24,17 +24,6 @@
  * predicted branch per frame or per model for the lot. */
 #include "platform_sdl2_renderer_soft3d_debug.u.c"
 
-/*
- * Soft3D is stack-allocated and re-Init'd every App_Render, so persistent
- * working buffers live here rather than on the struct. The outline cache is
- * what stops SpriteNewGraphicOutline from calloc/freeing the same chrome
- * icons every frame (idle flamegraphs put it at ~2.5% of samples). Dense
- * SETOBJECT grids with cc_setoutline(1) prefer a pre-baked bordered icon;
- * this cache covers remaining draw-time outline/shadow chrome.
- */
-static uint32_t* g_soft3d_scratch;
-static size_t g_soft3d_scratch_cap;
-
 struct Soft3DOutlineCacheEntry
 {
     uint32_t const* src;
@@ -46,8 +35,23 @@ struct Soft3DOutlineCacheEntry
     uint64_t last_used;
 };
 
-static struct Soft3DOutlineCacheEntry g_soft3d_outline_cache[256];
-static uint64_t g_soft3d_outline_clock;
+#define SOFT3D_OUTLINE_CACHE_SLOTS 256
+
+/*
+ * The renderer's frame-crossing working set (declared opaque in the header).
+ * Init resets everything else on the struct every frame; this hangs off it and
+ * lives from New to Free, because the outline cache is only worth anything if
+ * it outlives a frame. Dense SETOBJECT grids with cc_setoutline(1) prefer a
+ * pre-baked bordered icon; this cache covers the remaining draw-time
+ * outline/shadow chrome.
+ */
+struct ToriRS_Soft3DScratch
+{
+    uint32_t* blit;
+    size_t blit_cap;
+    struct Soft3DOutlineCacheEntry outline_cache[SOFT3D_OUTLINE_CACHE_SLOTS];
+    uint64_t outline_clock;
+};
 
 /*
  * Emitted scissor -> raster clip rect, intersected with the pixel buffer.
@@ -85,23 +89,28 @@ viewport_from_scissor(
 }
 
 static uint32_t*
-soft3d_scratch(size_t pixels)
+soft3d_scratch(
+    struct ToriRS_Soft3D* soft,
+    size_t pixels)
 {
+    assert(soft);
+    assert(soft->scratch);
+
     if( pixels == 0 )
         return NULL;
-    if( pixels > g_soft3d_scratch_cap )
+    if( pixels > soft->scratch->blit_cap )
     {
-        uint32_t* grown = (uint32_t*)realloc(g_soft3d_scratch, pixels * sizeof(uint32_t));
-        if( !grown )
-            return NULL;
-        g_soft3d_scratch = grown;
-        g_soft3d_scratch_cap = pixels;
+        uint32_t* grown = (uint32_t*)realloc(soft->scratch->blit, pixels * sizeof(uint32_t));
+        assert(grown);
+        soft->scratch->blit = grown;
+        soft->scratch->blit_cap = pixels;
     }
-    return g_soft3d_scratch;
+    return soft->scratch->blit;
 }
 
 static uint32_t*
 soft3d_outline_cache_get(
+    struct ToriRS_Soft3D* soft,
     uint32_t const* src,
     int sw,
     int sh,
@@ -110,6 +119,8 @@ soft3d_outline_cache_get(
     int* out_w,
     int* out_h)
 {
+    struct Soft3DOutlineCacheEntry* cache;
+    uint64_t stamp;
     int i;
     int victim = 0;
     uint64_t victim_used = UINT64_MAX;
@@ -120,25 +131,28 @@ soft3d_outline_cache_get(
     int fw = 0;
     int fh = 0;
 
+    assert(soft);
+    assert(soft->scratch);
     assert(out_w);
     assert(out_h);
-    g_soft3d_outline_clock++;
 
-    for( i = 0; i < (int)(sizeof(g_soft3d_outline_cache) / sizeof(g_soft3d_outline_cache[0])); i++ )
+    cache = soft->scratch->outline_cache;
+    stamp = ++soft->scratch->outline_clock;
+
+    for( i = 0; i < SOFT3D_OUTLINE_CACHE_SLOTS; i++ )
     {
-        if( g_soft3d_outline_cache[i].src == src && g_soft3d_outline_cache[i].sw == sw &&
-            g_soft3d_outline_cache[i].sh == sh && g_soft3d_outline_cache[i].outline == outline &&
-            g_soft3d_outline_cache[i].graphic_shadow == graphic_shadow &&
-            g_soft3d_outline_cache[i].pixels )
+        if( cache[i].src == src && cache[i].sw == sw && cache[i].sh == sh &&
+            cache[i].outline == outline && cache[i].graphic_shadow == graphic_shadow &&
+            cache[i].pixels )
         {
-            g_soft3d_outline_cache[i].last_used = g_soft3d_outline_clock;
-            *out_w = g_soft3d_outline_cache[i].w;
-            *out_h = g_soft3d_outline_cache[i].h;
-            return g_soft3d_outline_cache[i].pixels;
+            cache[i].last_used = stamp;
+            *out_w = cache[i].w;
+            *out_h = cache[i].h;
+            return cache[i].pixels;
         }
-        if( g_soft3d_outline_cache[i].last_used < victim_used )
+        if( cache[i].last_used < victim_used )
         {
-            victim_used = g_soft3d_outline_cache[i].last_used;
+            victim_used = cache[i].last_used;
             victim = i;
         }
     }
@@ -173,16 +187,16 @@ soft3d_outline_cache_get(
         return NULL;
     }
 
-    free(g_soft3d_outline_cache[victim].pixels);
-    g_soft3d_outline_cache[victim].src = src;
-    g_soft3d_outline_cache[victim].sw = sw;
-    g_soft3d_outline_cache[victim].sh = sh;
-    g_soft3d_outline_cache[victim].outline = outline;
-    g_soft3d_outline_cache[victim].graphic_shadow = graphic_shadow;
-    g_soft3d_outline_cache[victim].pixels = final_px;
-    g_soft3d_outline_cache[victim].w = ow;
-    g_soft3d_outline_cache[victim].h = oh;
-    g_soft3d_outline_cache[victim].last_used = g_soft3d_outline_clock;
+    free(cache[victim].pixels);
+    cache[victim].src = src;
+    cache[victim].sw = sw;
+    cache[victim].sh = sh;
+    cache[victim].outline = outline;
+    cache[victim].graphic_shadow = graphic_shadow;
+    cache[victim].pixels = final_px;
+    cache[victim].w = ow;
+    cache[victim].h = oh;
+    cache[victim].last_used = stamp;
     *out_w = ow;
     *out_h = oh;
     return final_px;
@@ -190,6 +204,7 @@ soft3d_outline_cache_get(
 
 static uint32_t*
 soft3d_clamp_to_nominal(
+    struct ToriRS_Soft3D* soft,
     uint32_t const* src,
     int src_w,
     int src_h,
@@ -208,9 +223,8 @@ soft3d_clamp_to_nominal(
     assert(src);
 
     n = (size_t)nominal_w * (size_t)nominal_h;
-    dst = soft3d_scratch(n);
-    if( !dst )
-        return NULL;
+    dst = soft3d_scratch(soft, n);
+    assert(dst);
     memset(dst, 0, n * sizeof(uint32_t));
 
     for( y = 0; y < src_h; y++ )
@@ -410,7 +424,7 @@ soft3d_draw_sprite(
 
     /*
      * Outlined/shadowed icons with no further pixel mutation: serve from the
-     * process-lifetime LRU so idle chrome stops calloc/freeing every frame.
+     * renderer-lifetime LRU so idle chrome stops calloc/freeing every frame.
      */
     if( (cmd->outline > 0 || cmd->graphic_shadow != 0) && cmd->trans <= 0 && !cmd->flip_h &&
         !cmd->flip_v && cmd->sprite_angle_r2pi65536 == 0 && !cmd->tiled )
@@ -418,7 +432,7 @@ soft3d_draw_sprite(
         int cw = 0;
         int ch = 0;
         uint32_t* cached = soft3d_outline_cache_get(
-            spr->pixels_argb, sw, sh, cmd->outline, cmd->graphic_shadow, &cw, &ch);
+            soft, spr->pixels_argb, sw, sh, cmd->outline, cmd->graphic_shadow, &cw, &ch);
         if( cached )
         {
             int cox = ox;
@@ -453,7 +467,14 @@ soft3d_draw_sprite(
         int sw2 = 0;
         int sh2 = 0;
         uint32_t* cached = soft3d_outline_cache_get(
-            spr->pixels_argb, nominal_w, nominal_h, cmd->outline, cmd->graphic_shadow, &sw2, &sh2);
+            soft,
+            spr->pixels_argb,
+            nominal_w,
+            nominal_h,
+            cmd->outline,
+            cmd->graphic_shadow,
+            &sw2,
+            &sh2);
         if( cached )
         {
             size_t n = (size_t)sw2 * (size_t)sh2;
@@ -490,10 +511,10 @@ soft3d_draw_sprite(
         if( ox != 0 || oy != 0 || sw != nominal_w || sh != nominal_h )
         {
             uint32_t* clamped =
-                soft3d_clamp_to_nominal(spr_px, sw, sh, ox, oy, nominal_w, nominal_h);
+                soft3d_clamp_to_nominal(soft, spr_px, sw, sh, ox, oy, nominal_w, nominal_h);
             if( clamped )
             {
-                /* clamp writes into the process scratch — copy out so the
+                /* clamp writes into the renderer scratch — copy out so the
                  * later TransformPixels free stays well-defined. */
                 size_t n = (size_t)nominal_w * (size_t)nominal_h;
                 uint32_t* owned = malloc(n * sizeof(uint32_t));
@@ -929,29 +950,26 @@ soft3d_draw_model(
 
     if( cmd->pick_only )
         return;
+
+    int sorted = 0;
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_SORT)
     {
-        int sorted = 0;
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_SORT)
-        {
-            /* Presorted: this model goes on to ToriDraw_RenderModel3Raster
-             * and the stock branching kernels below, which is the batched
-             * walk's only door. The D3D9 and GL renderers use the plain
-             * entry next door -- they sort for the GPU and never read the
-             * store. */
-            sorted =
-                ToriDraw_RenderModel2SortFacesPresortedWithKernel(cmd->model, soft->scene, kernel);
-        }
-        soft3d_dbg_draw_trace_sorted(cmd, sorted);
-        /* Counted after the sort, not before: a model that survives both culls
-         * has already paid its whole per-vertex projection by this point, so
-         * `sorted <= 0` is work spent for no pixels and wants its own name. */
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_DRAWN, 1);
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_FACES, sorted > 0 ? sorted : 0);
-        if( sorted <= 0 )
-        {
-            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_SORT_EMPTY, 1);
-            return;
-        }
+        /* Whether this leaves the batched walk's y-ordered stash behind is the
+         * KERNEL's answer, not ours -- and it has to be, because the arm we
+         * hold changes under TORIDRAW_RASTER_SCANLINE and the frame A/B, and
+         * only the branching kernel has a door that reads the stash. */
+        sorted = ToriDraw_RenderModel2SortFacesWithKernel(cmd->model, soft->scene, kernel);
+    }
+    soft3d_dbg_draw_trace_sorted(cmd, sorted);
+    /* Counted after the sort, not before: a model that survives both culls
+     * has already paid its whole per-vertex projection by this point, so
+     * `sorted <= 0` is work spent for no pixels and wants its own name. */
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_DRAWN, 1);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_FACES, sorted > 0 ? sorted : 0);
+    if( sorted <= 0 )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_SORT_EMPTY, 1);
+        return;
     }
     /* ABLATION (TORIRS_ABL_NORASTER): everything decided, no pixels written. */
     if( soft3d_dbg_abl_noraster() )
@@ -964,6 +982,34 @@ soft3d_draw_model(
     }
 }
 
+struct ToriRS_Soft3D*
+ToriRS_Soft3D_New(void)
+{
+    struct ToriRS_Soft3D* soft = calloc(1, sizeof(*soft));
+
+    assert(soft);
+    soft->scratch = calloc(1, sizeof(*soft->scratch));
+    assert(soft->scratch);
+    return soft;
+}
+
+void
+ToriRS_Soft3D_Free(struct ToriRS_Soft3D* soft)
+{
+    int i;
+
+    if( !soft )
+        return;
+    if( soft->scratch )
+    {
+        for( i = 0; i < SOFT3D_OUTLINE_CACHE_SLOTS; i++ )
+            free(soft->scratch->outline_cache[i].pixels);
+        free(soft->scratch->blit);
+        free(soft->scratch);
+    }
+    free(soft);
+}
+
 void
 ToriRS_Soft3D_Init(
     struct ToriRS_Soft3D* soft,
@@ -972,11 +1018,19 @@ ToriRS_Soft3D_Init(
     int width,
     int height)
 {
+    struct ToriRS_Soft3DScratch* scratch;
+
     assert(soft);
     assert(scene);
     assert(pixels);
     assert(width > 0 && height > 0);
+    /* New's, and the only thing that survives the reset -- an Init that threw
+     * the outline cache away every frame would be the cache never existing. */
+    assert(soft->scratch);
+
+    scratch = soft->scratch;
     memset(soft, 0, sizeof(*soft));
+    soft->scratch = scratch;
     soft->scene = scene;
     soft->kernel = ToriDraw_RasterKernelSDGetStock(false);
     soft3d_dbg_frame_ab_kernels_init(soft);

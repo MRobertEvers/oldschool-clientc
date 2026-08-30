@@ -1092,6 +1092,60 @@ ToriDraw_SceneHasScratch(
     return (ToriDraw_SceneScratchResident(scene) & needs) == needs;
 }
 
+/* A NULL face-sort slot is the stock default, the same defaulting stage 2
+ * does when it runs. */
+static const struct ToriDraw_FaceCullSortKernel*
+sd_kernel_face_sort(const struct ToriDraw_RasterKernelSD* kernel)
+{
+    return kernel->face_sort ? kernel->face_sort : ToriDraw_FaceCullSortKernelGetDefault();
+}
+
+/*
+ * Does this raster draw whole models, rather than leaning on the stock
+ * per-face walk?
+ *
+ * Asked by identity against ToriDraw_RasterWalkPerFace rather than by a flag:
+ * naming the stock walk IS the declaration that this kernel has no traversal
+ * of its own, so there is nothing extra to keep in sync. It is also what makes
+ * a lane with no presorted-run assembly answer correctly -- there
+ * toridraw_raster_walk_batched IS ToriDraw_RasterWalkPerFace (raster.batch.h),
+ * so the branching kernel reports no door and nothing fills a stash that would
+ * never be read.
+ */
+static bool
+sd_raster_is_whole_model(const struct ToriDraw_RasterKernelSD* raster)
+{
+    return raster->draw_model && raster->draw_model != ToriDraw_RasterWalkPerFace;
+}
+
+/*
+ * Does this raster want the y-ordered stash, and can this sort make one?
+ *
+ * THE rule, and the only copy of it. Everything that has to agree about the
+ * presort -- the scratch the scene allocates, stage 2 when it runs, the
+ * validator that reports DEGRADED -- asks here, so no two of them can answer
+ * differently. It is a property of the kernel and never of the call site: only
+ * a raster with a whole-model door loads sm_face_x4/y4, and a caller that asks
+ * for the store anyway pays seven stores and a six-way compare per drawn face
+ * to fill a buffer nothing reads.
+ */
+static bool
+sd_wants_presort(
+    const struct ToriDraw_RasterKernelSD* raster,
+    const struct ToriDraw_FaceCullSortKernel* sort)
+{
+    return sd_raster_is_whole_model(raster) &&
+           (sort->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY) != 0;
+}
+
+/* The same question of a kernel a renderer holds, which carries its own
+ * (deprecated) face-sort slot. */
+static bool
+sd_kernel_wants_presort(const struct ToriDraw_RasterKernelSD* kernel)
+{
+    return sd_wants_presort(kernel, sd_kernel_face_sort(kernel));
+}
+
 uint32_t
 ToriDraw_SceneKernelScratchNeeds(
     const struct ToriDraw_Scene* scene,
@@ -1110,20 +1164,22 @@ ToriDraw_SceneKernelScratchNeeds(
     needs |= TORIDRAW_SCENE_SCRATCH_FACE_ORDER;
     needs |= small ? TORIDRAW_SCENE_SCRATCH_CSR_SORT : TORIDRAW_SCENE_SCRATCH_BUCKET_SORT;
 
+    /* A NULL kernel is the stock painter; name it, and everything below reads
+     * one object rather than repeating the defaulting. */
+    if( !kernel )
+        kernel = ToriDraw_RasterKernelSDGetBranching();
+
     /* The flat sort's keys, asked for by the kernel rather than inferred from
      * its identity -- and only where the CSR sorter runs, because a full scene
      * takes the dense bucket walk whichever sort is named. */
-    sort =
-        (kernel && kernel->face_sort) ? kernel->face_sort : ToriDraw_FaceCullSortKernelGetDefault();
+    sort = sd_kernel_face_sort(kernel);
     if( small && (sort->needs & TORIDRAW_FACESORT_NEEDS_FLAT_KEYS) )
         needs |= TORIDRAW_SCENE_SCRATCH_FLAT_KEYS;
 
-    /* The presort stash. Both halves have to want it: a sort that can leave it
-     * behind, and a raster that will read it. The raster side is still the
-     * stock branching kernel by identity -- the batched walk tests for that
-     * vtable -- and becomes a declared whole-model door in its own phase. */
-    if( small && (sort->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY) &&
-        (!kernel || kernel == ToriDraw_RasterKernelSDGetBranching()) )
+    /* The presort stash, decided by the rule stage 2 will apply to this same
+     * kernel. Asking here and asking there cannot disagree, because it is one
+     * function. */
+    if( small && sd_wants_presort(kernel, sort) )
         needs |= TORIDRAW_SCENE_SCRATCH_PRESORT_XY;
 
     return needs;
@@ -1181,19 +1237,12 @@ kernel_table_resolve(
     *sort = kernel->face_sort ? kernel->face_sort : ToriDraw_FaceCullSortKernelGetDefault();
 }
 
-/*
- * Does this table's raster draw whole models, rather than leaning on the stock
- * per-face walk?
- *
- * Asked by identity against ToriDraw_RasterWalkPerFace rather than by a flag:
- * naming the stock walk IS the declaration that this kernel has no traversal
- * of its own, so there is nothing extra to keep in sync.
- */
+/* Does this table's raster draw whole models? A GPU table has no raster at
+ * all, so it never does. */
 static bool
 kernel_table_raster_is_whole_model(const struct ToriDraw_Kernel* kernel)
 {
-    return kernel->raster && kernel->raster->draw_model &&
-           kernel->raster->draw_model != ToriDraw_RasterWalkPerFace;
+    return kernel->raster && sd_raster_is_whole_model(kernel->raster);
 }
 
 /* Does this table's raster want the y-ordered stash, and can its sort make one? */
@@ -1202,8 +1251,7 @@ kernel_table_wants_presort(
     const struct ToriDraw_Kernel* kernel,
     const struct ToriDraw_FaceCullSortKernel* sort)
 {
-    return kernel_table_raster_is_whole_model(kernel) &&
-           (sort->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY) != 0;
+    return kernel->raster && sd_wants_presort(kernel->raster, sort);
 }
 
 uint32_t
@@ -1363,20 +1411,43 @@ sd_kernel_project(
     return ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
 }
 
-static inline int
-sd_kernel_sort(
-    const struct ToriDraw_RasterKernelSD* kernel,
+/* The stock sort, with the presort the caller already decided. The only place
+ * that choice is still spelled out by hand; every entry above it derives it. */
+static int
+sd_sort_faces_stock(
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Scene* scene,
     bool presort)
 {
+    if( scene->flags & TORIDRAW_SCENE_SMALL )
+        ToriDraw_ComputeProjectedFaceOrderSmall(scene, hnd, presort);
+    else
+        ToriDraw_ComputeProjectedFaceOrder(scene, hnd, presort);
+    return scene->tmp_face_order_count;
+}
+
+/*
+ * Stage 2 through a held kernel, with the presort decided HERE.
+ *
+ * The caller does not get a say, and there is no presorted twin to pick
+ * between: the stash has exactly one consumer -- the batched walk behind a
+ * whole-model draw_model -- so the kernel that names the raster is the only
+ * thing that knows. See sd_wants_presort.
+ */
+static inline int
+sd_kernel_sort(
+    const struct ToriDraw_RasterKernelSD* kernel,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene)
+{
+    bool const presort = sd_kernel_wants_presort(kernel);
+
     if( kernel->face_sort )
     {
         assert(kernel->face_sort->sort);
         return kernel->face_sort->sort(kernel->face_sort->user_data, scene, hnd, presort);
     }
-    return presort ? ToriDraw_RenderModel2SortFacesPresorted(hnd, scene)
-                   : ToriDraw_RenderModel2SortFaces(hnd, scene);
+    return sd_sort_faces_stock(hnd, scene, presort);
 }
 
 static int
@@ -1398,11 +1469,8 @@ sd_render_with_kernel_painter(
     if( cull != TORIDRAW_CULL_VISIBLE )
         return cull;
 
-    /* The one caller that goes on to raster in software through the stock
-     * branching kernels, which is the batched walk's only door. Everything
-     * else uses the plain sort next door. */
     if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
-        sd_kernel_sort(kernel, hnd, scene, true);
+        sd_kernel_sort(kernel, hnd, scene);
 
     return ToriDraw_RasterPainter(scene, hnd, view_port, camera, pixel_buffer, kernel)
                ? TORIDRAW_CULL_VISIBLE
@@ -1439,7 +1507,7 @@ sd_render_with_kernel_z(
         return cull;
 
     if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
-        sd_kernel_sort(kernel, hnd, scene, false);
+        sd_kernel_sort(kernel, hnd, scene);
 
     return ToriDraw_RasterZ(scene, hnd, view_port, camera, pixel_buffer, kernel)
                ? TORIDRAW_CULL_VISIBLE
@@ -1578,13 +1646,13 @@ ToriDraw_RenderModel1ProjectWithTable(
 /*
  * Stage 2, with the presort decision made HERE rather than by the caller.
  *
- * The two older entries -- ToriDraw_RenderModel2SortFaces and
- * ...SortFacesPresorted -- put that choice on whoever called them, and getting
- * it wrong is the regression the split exists to prevent: a GPU renderer that
- * calls the presorted entry pays seven stores and a six-way compare per drawn
- * face to fill a buffer nothing downstream loads. A table already knows,
- * because it names the raster: the stash is worth filling exactly when that
- * raster has a whole-model door to read it and the sort can produce it.
+ * The choice used to be spelled into the entry's NAME, which put it on whoever
+ * called it, and getting it wrong is the regression this exists to prevent: a
+ * GPU renderer that calls a presorting entry pays seven stores and a six-way
+ * compare per drawn face to fill a buffer nothing downstream loads. A table
+ * already knows, because it names the raster: the stash is worth filling
+ * exactly when that raster has a whole-model door to read it and the sort can
+ * produce it. Same rule, same function, as ...SortFacesWithKernel.
  */
 int
 ToriDraw_RenderModel2SortFacesWithTable(
@@ -1685,17 +1753,7 @@ ToriDraw_RenderModel2SortFacesWithKernel(
     const struct ToriDraw_RasterKernelSD* kernel)
 {
     assert(kernel);
-    return sd_kernel_sort(kernel, hnd, scene, false);
-}
-
-int
-ToriDraw_RenderModel2SortFacesPresortedWithKernel(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene,
-    const struct ToriDraw_RasterKernelSD* kernel)
-{
-    assert(kernel);
-    return sd_kernel_sort(kernel, hnd, scene, true);
+    return sd_kernel_sort(kernel, hnd, scene);
 }
 
 int
@@ -1720,51 +1778,23 @@ ToriDraw_RenderModel3RasterWithKernel(
 }
 
 /*
- * Sort this model's faces back to front.
+ * Sort this model's faces back to front, for a caller that names no kernel.
  *
- * This is the plain entry and it does NOT leave the pre-sort store behind. Use
- * it whenever the faces are going anywhere except the batched software raster
- * walk -- which is every D3D9 and GL renderer, the HD path, the sprite baker
- * and the tests. They read the order out of tmp_face_order and nothing else,
- * and filling sm_face_x4/y4 for them is seven stores and a six-way compare per
- * drawn face into a buffer none of them loads.
+ * It does NOT leave the pre-sort store behind, and there is no entry that
+ * does: the stash is the batched walk's, so the only caller who can honestly
+ * ask for it is one holding the kernel that would read it, and that caller
+ * takes ...WithKernel or ...WithTable and never states the choice. What is
+ * left here reads the order out of tmp_face_order and nothing else -- the HD
+ * path, the sprite baker, the tests -- and filling sm_face_x4/y4 for them is
+ * seven stores and a six-way compare per drawn face into a buffer none of them
+ * loads.
  */
 int
 ToriDraw_RenderModel2SortFaces(
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Scene* scene)
 {
-    if( scene->flags & TORIDRAW_SCENE_SMALL )
-        ToriDraw_ComputeProjectedFaceOrderSmall(scene, hnd, false);
-    else
-        ToriDraw_ComputeProjectedFaceOrder(scene, hnd, false);
-    return scene->tmp_face_order_count;
-}
-
-/*
- * The same sort, leaving the y ordering behind for the batched raster walk.
- *
- * The sort already holds all three y values -- it needed them for the winding
- * test -- so ordering the triangle here costs a permuted copy and saves every
- * kernel downstream a six-way compare ladder, which is up to six unpredictable
- * branches on a part that pays twenty pipeline stages for a mispredict.
- *
- * Only worth calling if the batched walk will actually run on the result. It
- * may decline: a full-mode scene has no sm_face_x4/y4 to fill, and
- * TORIDRAW_RASTER_BATCH=0 asks for the old pipeline. Either way the sort
- * records what it did in scene->sm_face_xy_valid and the walk reads that, so
- * asking for the store and not getting it is safe rather than silent.
- */
-int
-ToriDraw_RenderModel2SortFacesPresorted(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene)
-{
-    if( scene->flags & TORIDRAW_SCENE_SMALL )
-        ToriDraw_ComputeProjectedFaceOrderSmall(scene, hnd, true);
-    else
-        ToriDraw_ComputeProjectedFaceOrder(scene, hnd, true);
-    return scene->tmp_face_order_count;
+    return sd_sort_faces_stock(hnd, scene, false);
 }
 
 int

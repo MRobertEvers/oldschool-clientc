@@ -5,7 +5,7 @@
 #include "graphics/projection.h"
 #include "graphics/winding.h"
 #include "graphics/tori_compat.h"
-#include "../toridraw_debug_log.h"
+#include "../toridraw_debug.h"
 
 #include <assert.h>
 #include <stdbool.h>

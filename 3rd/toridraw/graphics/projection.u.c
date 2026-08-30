@@ -6,7 +6,7 @@
 
 #include "graphics/tori_compat.h"
 #include "graphics/shared_tables.h"
-#include "toridraw_debug_log.h"
+#include "toridraw_debug.h"
 
 #include <assert.h>
 #include <limits.h>

@@ -94,11 +94,6 @@ ToriDraw_RenderModel1Project(
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera);
 
-int
-ToriDraw_RenderModel2SortFacesPresorted(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene);
-
 /*
  * The three stages, each taking the kernel that names them. A renderer that
  * runs the stages itself -- every platform renderer does, to hit-test between
@@ -108,6 +103,10 @@ ToriDraw_RenderModel2SortFacesPresorted(
  * rather than three environment reads. A GPU renderer holds
  * ToriDraw_RasterKernelSDGetGpu(), whose raster vtable is NULL; stages 1 and
  * 2 accept it, stage 3 asserts.
+ *
+ * Stage 2 decides the presort itself from the kernel, exactly as the table
+ * entry does, so there is no presorted twin to pick between and no way to
+ * pick wrong.
  */
 int
 ToriDraw_RenderModel1ProjectWithKernel(
@@ -120,12 +119,6 @@ ToriDraw_RenderModel1ProjectWithKernel(
 
 int
 ToriDraw_RenderModel2SortFacesWithKernel(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene,
-    const struct ToriDraw_RasterKernelSD* kernel);
-
-int
-ToriDraw_RenderModel2SortFacesPresortedWithKernel(
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Scene* scene,
     const struct ToriDraw_RasterKernelSD* kernel);
@@ -188,9 +181,9 @@ ToriDraw_RenderModelWithTable(
     toripixel_t* pixel_buffer,
     const struct ToriDraw_Kernel* table);
 
-/* Sort back to front WITHOUT the pre-sort store. The right entry for every
- * caller whose faces do not go to the batched software raster walk -- the
- * D3D9 and GL renderers, HD, the sprite baker. See toridraw.c. */
+/* Sort back to front WITHOUT the pre-sort store, for a caller that names no
+ * kernel -- HD, the sprite baker, the tests. A caller that holds a kernel or a
+ * table takes the entry for it and does not state the choice. See toridraw.c. */
 int
 ToriDraw_RenderModel2SortFaces(
     struct ToriDraw_ModelHandle hnd,

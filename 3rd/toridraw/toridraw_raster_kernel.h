@@ -274,7 +274,8 @@ struct ToriDraw_RasterKernelHDVTable
  * scene->tmp_face_order, returning the count. `presort` asks it to leave
  * the y-sorted screen coordinates behind for the batched raster walk
  * (scene->sm_face_x4 / y4, recorded in sm_face_xy_valid); a kernel that
- * cannot must say so there rather than leave a stale stash.
+ * cannot must say so there rather than leave a stale stash. The stage entries
+ * derive that argument from the raster -- it is never a caller's to pass.
  *
  * The stock face-sort kernels:
  *
@@ -308,8 +309,8 @@ typedef int (*ToriDraw_ProjectionKernelFn)(
  * PROVIDES_PRESORTED_XY is a capability, not a promise. Both stock sorts can
  * leave the y-ordered stash behind -- the small-scene bucket sort in
  * bucket_sort_by_average_depth_small, the flat sort in its own block -- but
- * only when the caller asked for it, the batched walk is armed, AND the scene
- * is small enough to have the buffers. A full-mode scene explicitly zeroes
+ * only when the raster it runs under has a door for it, the batched walk is
+ * armed, AND the scene is small enough to have the buffers. A full-mode scene explicitly zeroes
  * sm_face_xy_valid, and that flag stays the per-model truth; this bit only
  * says the kernel is capable, so a table naming a presorting raster and a sort
  * that cannot presort is refusable at selection time.

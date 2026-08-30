@@ -720,10 +720,10 @@ toridraw_raster_walk_batched(
     struct ToriDrawModelRasterContext* ctx)
 {
     if( (ctx->kernel.flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING) &&
-        !ctx->raster_debug && scene->sm_face_xy_valid &&
+        !TORIDRAW_DBG_RASTER_ARMED(ctx) && scene->sm_face_xy_valid &&
         !toridraw_raster_abl_nofaces() )
     {
-        ctx->ordered_faces = scene->tmp_face_order_count;
+        TORIDRAW_DBG_RASTER_ORDERED(ctx, scene->tmp_face_order_count);
         toridraw_raster_draw_faces_batched(scene, ctx);
         return;
     }

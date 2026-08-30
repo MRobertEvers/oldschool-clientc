@@ -610,18 +610,19 @@ world_replay(
         viewer->world_cam_y,
         viewer->world_cam_z);
 
-    struct ToriRS_Soft3D soft;
-    ToriRS_Soft3D_Init(&soft, viewer->scene, pane, PANE_W, PANE_H);
+    struct ToriRS_Soft3D* soft = ToriRS_Soft3D_New();
+    ToriRS_Soft3D_Init(soft, viewer->scene, pane, PANE_W, PANE_H);
 
     int drawn = 0;
     struct ToriRS_RenderCommand cmd;
     ToriRS_FrameBegin(&frame);
     while( ToriRS_FrameNextCommand(&frame, &cmd) )
     {
-        ToriRS_Soft3D_Execute(&soft, &cmd);
+        ToriRS_Soft3D_Execute(soft, &cmd);
         drawn++;
     }
     ToriRS_FrameEnd(&frame);
+    ToriRS_Soft3D_Free(soft);
 
     return drawn;
 }

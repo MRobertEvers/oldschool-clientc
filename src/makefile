@@ -379,14 +379,21 @@ endif
 # are not dependency-tracked, and an added -D forces no rebuild on its own.
 TORIDRAW_PROBE_CFLAGS ?=
 
-# The NDJSON anomaly log (3rd/toridraw/toridraw_debug_log.h) is gated the same
-# way and for the same reason: its sites are per-model and per-face on the
-# render path. This is shorthand for adding the -D to the probe flags above;
-# the env var of the same name then turns the log on at run time, so an
-# instrumented binary is still silent until asked.
+# The render/raster debug facility (3rd/toridraw/toridraw_debug.u.c, gated by
+# 3rd/toridraw/toridraw_debug.h) is compile-time for the same reason: its sites
+# are per-model and per-face on the render path. These are shorthand for adding
+# the -D to the probe flags above; the env vars of the same names then select
+# within the facility at run time, so an instrumented binary is still silent
+# until asked.
 #
 #   rm -f src/build_opt/toridraw_unity.o
-#   make -C src TORIDRAW_DEBUG_NDJSON=1 ...
+#   make -C src TORIDRAW_DEBUG_STATS=1 ...    counters, printers, harnesses
+#   make -C src TORIDRAW_DEBUG_NDJSON=1 ...   the above plus the NDJSON log
+#
+# The second implies the first; toridraw_debug.h is where that is decided.
+ifeq ($(TORIDRAW_DEBUG_STATS),1)
+TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_DEBUG_STATS=1
+endif
 ifeq ($(TORIDRAW_DEBUG_NDJSON),1)
 TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_DEBUG_NDJSON=1
 endif
