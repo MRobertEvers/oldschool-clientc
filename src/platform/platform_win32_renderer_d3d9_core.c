@@ -3221,7 +3221,7 @@ d3d9_ui_draw_model_widget(
     if( !d3d9_widget_model_project(
             renderer, command, &transform, &origin_x, &origin_y) )
         return;
-    sorted_face_count = ToriDraw_RenderModel2SortFacesWithKernel(
+    sorted_face_count = ToriDraw_RenderModel2SortFacesWithTable(
         command->model, renderer->scene, renderer->kernel);
     if( sorted_face_count <= 0 )
         return;
@@ -5195,7 +5195,7 @@ d3d9_draw_model(
             command->anim_index == 0,
             command->anim_frame);
     projected_position = command->position;
-    if( ToriDraw_RenderModel1ProjectWithKernel(
+    if( ToriDraw_RenderModel1ProjectWithTable(
             command->model,
             renderer->scene,
             &projected_position,
@@ -6170,7 +6170,7 @@ ToriRS_D3D9_AttachSceneHeadlessForTest(
         return false;
     assert(scene);
     renderer->scene = scene;
-    renderer->kernel = ToriDraw_RasterKernelSDGetGpu();
+    renderer->kernel = ToriDraw_KernelGetGpu();
     return true;
 }
 
@@ -6473,7 +6473,7 @@ ToriRS_D3D9_Init(
         return false;
     renderer->hwnd = (HWND)native_window;
     renderer->scene = scene;
-    renderer->kernel = ToriDraw_RasterKernelSDGetGpu();
+    renderer->kernel = ToriDraw_KernelGetGpu();
     if( !d3d9_read_client_size(renderer, &width, &height) || width <= 0 || height <= 0 )
         return false;
     renderer->client_w = width;

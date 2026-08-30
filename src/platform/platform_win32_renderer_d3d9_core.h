@@ -251,8 +251,9 @@ struct D3D9ZBufferWorld;
 struct ToriRS_D3D9
 {
     struct ToriDraw_Scene* scene;
-    /* Projection + face sort; no raster stage (ToriDraw_RasterKernelSDGetGpu). */
-    const struct ToriDraw_RasterKernelSD* kernel;
+    /* Projection + face sort; a NULL raster slot is how the table says it
+     * has no software raster stage (ToriDraw_KernelGetGpu). */
+    const struct ToriDraw_Kernel* kernel;
     HWND hwnd;
     IDirect3D9* d3d;
     IDirect3DDevice9* device;

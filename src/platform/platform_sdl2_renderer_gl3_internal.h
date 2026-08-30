@@ -350,8 +350,9 @@ struct ToriRS_GL3
     int polygon_count;
 
     struct ToriDraw_Scene* scene;
-    /* Projection + face sort; no raster stage (ToriDraw_RasterKernelSDGetGpu). */
-    const struct ToriDraw_RasterKernelSD* kernel;
+    /* Projection + face sort; a NULL raster slot is how the table says it
+     * has no software raster stage (ToriDraw_KernelGetGpu). */
+    const struct ToriDraw_Kernel* kernel;
     SDL_Window* window;
     SDL_GLContext gl_context;
     int width;

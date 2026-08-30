@@ -3812,7 +3812,7 @@ gl3_ev_model_draw(
         ToriDraw_SceneElementApplyAnimation(
             ctx, mcmd->element_id, mcmd->anim_index == 0, mcmd->anim_frame);
     position = mcmd->position;
-    if( ToriDraw_RenderModel1ProjectWithKernel(
+    if( ToriDraw_RenderModel1ProjectWithTable(
             mcmd->model, ctx, &position, &renderer->cur_3d.view_port, &renderer->cur_3d.camera,
             renderer->kernel) != TORIDRAW_CULL_VISIBLE )
         return;
@@ -3855,7 +3855,7 @@ gl3_ev_model_draw(
          */
         int face_count = renderer->z_buffer_enabled
                              ? trspk_toridraw_face_count(mcmd->model)
-                             : ToriDraw_RenderModel2SortFacesWithKernel(
+                             : ToriDraw_RenderModel2SortFacesWithTable(
                                    mcmd->model, ctx, renderer->kernel);
         int* face_order;
         if( face_count <= 0 )
@@ -4946,7 +4946,7 @@ ToriRS_GL3_Init(
 {
     assert(gl3 && window && scene);
     gl3->scene = scene;
-    gl3->kernel = ToriDraw_RasterKernelSDGetGpu();
+    gl3->kernel = ToriDraw_KernelGetGpu();
     gl3->window = window;
     gl3->z_buffer_enabled = z_buffer;
     if( z_buffer )
