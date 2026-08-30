@@ -50,6 +50,14 @@
  *   3. EMIT. The draw order is the low sixteen bits of each key; the
  *      priority partition reads (face, depth) pairs off the same array.
  *
+ * THE TERRAIN TILE short-circuits all of it. 94% of a map's tiles are four
+ * vertices and two triangles whose index triples are a compile-time fact, and
+ * two faces never reach step 1's vector path at all -- so they get a kernel
+ * with the triples as literals, and a compare-swap for step 2. It is the
+ * scalar one that wins; the SSE2 twin beside it is slower than the general
+ * path and is kept only as a switch position. Numbers at
+ * toridraw_face_sort_tile2_armed, which is also how the three are A/B'd.
+ *
  * The two sorts are selected by TORIDRAW_FACE_SORT (see
  * toridraw_face_sort_flat_armed) and by ToriDraw_FaceSortSetFlat for the
  * A/B in the benchmark; the bucket sort stays compiled and is the reference
@@ -109,6 +117,54 @@ toridraw_face_sort_flat_armed(void)
     return armed;
 }
 
+/*
+ * Which kernel the two-triangle terrain tile takes, in the SAME binary. The
+ * times are ns per input face, from the tile2 row of the bench in
+ * toridraw_face_sort_flat_test.c (make -C src test-face-sort-flat,
+ * TORIDRAW_FACE_SORT_BENCH=1), on the dev host -- an x86-64 core running this
+ * win32 SSE2 build, which is NOT the Pentium 4 any of it is aimed at:
+ *
+ *   TORIDRAW_TILE_SORT=0   the general path -- the four-wide block's scalar
+ *                          tail, twice, reading the index arrays    8.5-8.8
+ *   TORIDRAW_TILE_SORT=1   scalar kernel, triples as literals       6.5-6.6
+ *                          (the default)
+ *   TORIDRAW_TILE_SORT=2   SSE2 kernel, triples as shuffle          8.9-9.0
+ *                          immediates -- SLOWER THAN DOING NOTHING
+ *
+ * Reproducible to within about 1% run to run, with the bucket sort's column as
+ * the control: it sits at 13 ns in all three and must not move. The frame-level
+ * sweep cannot see any of this -- ~200 tiles a frame times 2 ns saved is 0.09%
+ * of a 0.97 ms frame, against a ~1.7% noise floor -- so this bench is the
+ * instrument for a change here, not a wall-clock A/B.
+ *
+ * That the vector arm loses is the surprise, and the reason is in its own
+ * comment: the gather was never what a two-face model paid for. Do not re-try
+ * it on this host expecting a different answer; the open question is the P4,
+ * which is what the arm is kept for.
+ *
+ * Two binaries would be the other way to A/B this, and it is the worse way:
+ * the arms then differ by a link as well as by a kernel, and telling them
+ * apart afterwards means hashing blobs rather than reading a variable. One
+ * check per model, cached, alongside the two this sort already does.
+ */
+#define TORIDRAW_TILE_SORT_OFF 0
+#define TORIDRAW_TILE_SORT_SCALAR 1
+#define TORIDRAW_TILE_SORT_SIMD 2
+
+static inline int
+toridraw_face_sort_tile2_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+    {
+        const char* v = getenv("TORIDRAW_TILE_SORT");
+        armed = v ? atoi(v) : TORIDRAW_TILE_SORT_SCALAR;
+        if( armed < 0 || armed > TORIDRAW_TILE_SORT_SIMD )
+            armed = TORIDRAW_TILE_SORT_SCALAR;
+    }
+    return armed;
+}
+
 static inline int
 toridraw_face_sort_bitonic_max(void)
 {
@@ -133,9 +189,12 @@ static const unsigned char g_toridraw_ysort_order[6][3] = {
  * non-NEON fallback. Same decisions as the bucket sort, same stash.
  */
 static inline int
-toridraw_face_sort_flat_one(
+toridraw_face_sort_flat_one_abc(
     struct ToriDraw_Scene* scene,
     int f,
+    uint32_t a,
+    uint32_t b,
+    uint32_t c,
     bool near_clipped,
     int flip,
     int model_min_depth,
@@ -143,14 +202,8 @@ toridraw_face_sort_flat_one(
     const int* RESTRICT vx,
     const int* RESTRICT vy,
     const int* RESTRICT vz,
-    const faceint_t* RESTRICT face_a,
-    const faceint_t* RESTRICT face_b,
-    const faceint_t* RESTRICT face_c,
     uint32_t* out_key)
 {
-    const uint32_t a = face_a[f];
-    const uint32_t b = face_b[f];
-    const uint32_t c = face_c[f];
     bool const clip_candidate =
         near_clipped &&
         (vx[a] == TORIDRAW_SCREEN_X_NEAR_CLIPPED || vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
@@ -197,6 +250,95 @@ toridraw_face_sort_flat_one(
 
     *out_key = ((uint32_t)(0xFFFF - depth_avg) << 16) | (uint32_t)f;
     return 1;
+}
+
+/* The same, reading face f's triple out of the index arrays. */
+static inline int
+toridraw_face_sort_flat_one(
+    struct ToriDraw_Scene* scene,
+    int f,
+    bool near_clipped,
+    int flip,
+    int model_min_depth,
+    int stash_xy,
+    const int* RESTRICT vx,
+    const int* RESTRICT vy,
+    const int* RESTRICT vz,
+    const faceint_t* RESTRICT face_a,
+    const faceint_t* RESTRICT face_b,
+    const faceint_t* RESTRICT face_c,
+    uint32_t* out_key)
+{
+    return toridraw_face_sort_flat_one_abc(
+        scene, f, (uint32_t)face_a[f], (uint32_t)face_b[f], (uint32_t)face_c[f],
+        near_clipped, flip, model_min_depth, stash_xy, vx, vy, vz, out_key);
+}
+
+/*
+ * The two-triangle terrain tile, with the triangulation resolved at COMPILE
+ * time. This is the default (TORIDRAW_TILE_SORT=1).
+ *
+ * WHY A TILE GETS A KERNEL. A tile is not an arbitrary mesh. Its four vertices
+ * and its two index triples come from static tables in world_decode_tile.c,
+ * and 94% of the tiles a Lumbridge square builds are one of the three shapes
+ * that read four corners and emit faces (1,2,3) and (0,1,3) -- all three the
+ * same triples, turned by the tile's rotation. Those tiles are ~65% of the
+ * models this sort is handed and a few percent of its faces, so what they cost
+ * is not face work: it is that a two-face model never reaches the vector path
+ * at all (`f + 4 <= num_faces` is false) and falls to the scalar tail twice.
+ *
+ * WHAT THE KNOWLEDGE BUYS, and it is not what it first looks like. The obvious
+ * prize is the gather -- twenty-four dependent coordinate loads for two
+ * triangles -- and spending the constants on SIMD to collapse it is what
+ * toridraw_face_sort_flat_tile2 does; measured, that LOSES (its comment has
+ * the numbers). What actually pays is smaller and duller: face_indices_a/b/c
+ * are not read at all, which is six loads gone, and with the indices constant
+ * the two faces provably share vertices 1 and 3, so the compiler folds the
+ * duplicated coordinate loads instead of issuing each face's six blind.
+ * 6.5 ns per input face against the general path's 8.7, a 25% cut of the sort
+ * for a tile, on the bench in toridraw_face_sort_flat_test.c.
+ *
+ * Rotation 0 is 94% of tiles and gets literals. The other three turn the
+ * corner indices the way world_decode_tile turned them, which is arithmetic on
+ * a register rather than four more copies of the body.
+ */
+static inline int
+toridraw_face_sort_flat_tile2_scalar(
+    struct ToriDraw_Scene* scene,
+    int rot,
+    bool near_clipped,
+    int flip,
+    int model_min_depth,
+    int stash_xy,
+    const int* RESTRICT vx,
+    const int* RESTRICT vy,
+    const int* RESTRICT vz,
+    uint32_t* keys)
+{
+    int n = 0;
+    if( rot == 0 )
+    {
+        n += toridraw_face_sort_flat_one_abc(
+            scene, 0, 1, 2, 3, near_clipped, flip, model_min_depth, stash_xy, vx, vy, vz,
+            keys + n);
+        n += toridraw_face_sort_flat_one_abc(
+            scene, 1, 0, 1, 3, near_clipped, flip, model_min_depth, stash_xy, vx, vy, vz,
+            keys + n);
+    }
+    else
+    {
+        uint32_t const r0 = (uint32_t)((0 - rot) & 3);
+        uint32_t const r1 = (uint32_t)((1 - rot) & 3);
+        uint32_t const r2 = (uint32_t)((2 - rot) & 3);
+        uint32_t const r3 = (uint32_t)((3 - rot) & 3);
+        n += toridraw_face_sort_flat_one_abc(
+            scene, 0, r1, r2, r3, near_clipped, flip, model_min_depth, stash_xy, vx, vy,
+            vz, keys + n);
+        n += toridraw_face_sort_flat_one_abc(
+            scene, 1, r0, r1, r3, near_clipped, flip, model_min_depth, stash_xy, vx, vy,
+            vz, keys + n);
+    }
+    return n;
 }
 
 #ifdef TORIDRAW_FACE_SORT_NEON
@@ -536,40 +678,43 @@ toridraw_sse2_pack_pd_masks(__m128d lo, __m128d hi)
         _mm_shuffle_ps(_mm_castpd_ps(lo), _mm_castpd_ps(hi), _MM_SHUFFLE(2, 0, 2, 0)));
 }
 
-/* Four faces at f..f+3: cull, key, pack, stash. Writes four keys at *keys
- * unconditionally; returns how many of them count. */
+/*
+ * Cull, key, pack and stash four faces whose NINE coordinate vectors are
+ * already in registers, lane i holding face f + i.
+ *
+ * Split out of toridraw_face_sort_flat_block4 so the terrain-tile kernel below
+ * can reach the same arithmetic rather than restate it. Everything that
+ * differs between the two is a parameter that is a compile-time constant at
+ * both call sites, so nothing here costs the general path anything:
+ *
+ *   lanes  4 for a full block, 2 for a two-triangle tile. Lanes at or above
+ *          it are forced out of the accept mask and are never stashed, which
+ *          is what lets the tile kernel leave them holding junk.
+ *   f      the face index of lane 0.
+ *
+ * Writes four keys at *keys unconditionally; returns how many of them count.
+ */
 static inline int
-toridraw_face_sort_flat_block4(
+toridraw_face_sort_flat_pack4(
     struct ToriDraw_Scene* scene,
     int f,
+    int lanes,
     __m128i near_clip_sentinel, /* -5000 x4 when near_clipped, else INT_MIN x4 */
     int flip,
     __m128i min_depth,
     __m128i depth_levels,
     int stash_xy,
-    const int* RESTRICT vx,
-    const int* RESTRICT vy,
-    const int* RESTRICT vz,
-    const faceint_t* RESTRICT face_a,
-    const faceint_t* RESTRICT face_b,
-    const faceint_t* RESTRICT face_c,
+    __m128i ax,
+    __m128i ay,
+    __m128i az,
+    __m128i bx,
+    __m128i by,
+    __m128i bz,
+    __m128i cx,
+    __m128i cy,
+    __m128i cz,
     uint32_t* keys)
 {
-    int const a0 = face_a[f], a1 = face_a[f + 1], a2 = face_a[f + 2], a3 = face_a[f + 3];
-    int const b0 = face_b[f], b1 = face_b[f + 1], b2 = face_b[f + 2], b3 = face_b[f + 3];
-    int const c0 = face_c[f], c1 = face_c[f + 1], c2 = face_c[f + 2], c3 = face_c[f + 3];
-
-    /* The gather, structure of arrays: _mm_set_epi32 takes lane 3 first. */
-    __m128i const ax = _mm_set_epi32(vx[a3], vx[a2], vx[a1], vx[a0]);
-    __m128i const bx = _mm_set_epi32(vx[b3], vx[b2], vx[b1], vx[b0]);
-    __m128i const cx = _mm_set_epi32(vx[c3], vx[c2], vx[c1], vx[c0]);
-    __m128i const ay = _mm_set_epi32(vy[a3], vy[a2], vy[a1], vy[a0]);
-    __m128i const by = _mm_set_epi32(vy[b3], vy[b2], vy[b1], vy[b0]);
-    __m128i const cy = _mm_set_epi32(vy[c3], vy[c2], vy[c1], vy[c0]);
-    __m128i const az = _mm_set_epi32(vz[a3], vz[a2], vz[a1], vz[a0]);
-    __m128i const bz = _mm_set_epi32(vz[b3], vz[b2], vz[b1], vz[b0]);
-    __m128i const cz = _mm_set_epi32(vz[c3], vz[c2], vz[c1], vz[c0]);
-
     /* Winding = dx1*dy2 - dy1*dx2, in doubles: exact, see the block comment. */
     __m128i const dx1 = _mm_sub_epi32(ax, bx);
     __m128i const dy1 = _mm_sub_epi32(ay, by);
@@ -601,7 +746,13 @@ toridraw_face_sort_flat_block4(
     depth = _mm_add_epi32(depth, min_depth);
     __m128i const in_range = toridraw_sse2_cmplt_epu32(depth, depth_levels);
 
-    __m128i const accept = _mm_and_si128(_mm_or_si128(front, clip), in_range);
+    __m128i accept = _mm_and_si128(_mm_or_si128(front, clip), in_range);
+
+    /* A short block's surplus lanes hold whatever the shuffle left there.
+     * Dropping them here rather than at the caller means they cannot reach the
+     * key array, the popcount, or the stash. */
+    if( lanes < 4 )
+        accept = _mm_and_si128(accept, _mm_set_epi32(0, 0, -1, -1));
 
     /* key = (0xFFFF - depth) << 16 | face */
     __m128i key = _mm_slli_epi32(_mm_sub_epi32(_mm_set1_epi32(0xFFFF), depth), 16);
@@ -658,16 +809,168 @@ toridraw_face_sort_flat_block4(
             _MM_TRANSPOSE4_PS(y0, y1, y2, y3);
             _mm_storeu_ps((float*)(x4 + 0), x0);
             _mm_storeu_ps((float*)(x4 + 4), x1);
-            _mm_storeu_ps((float*)(x4 + 8), x2);
-            _mm_storeu_ps((float*)(x4 + 12), x3);
             _mm_storeu_ps((float*)(y4 + 0), y0);
             _mm_storeu_ps((float*)(y4 + 4), y1);
-            _mm_storeu_ps((float*)(y4 + 8), y2);
-            _mm_storeu_ps((float*)(y4 + 12), y3);
+            if( lanes == 4 )
+            {
+                _mm_storeu_ps((float*)(x4 + 8), x2);
+                _mm_storeu_ps((float*)(x4 + 12), x3);
+                _mm_storeu_ps((float*)(y4 + 8), y2);
+                _mm_storeu_ps((float*)(y4 + 12), y3);
+            }
         }
 
         return g_toridraw_popcount4[m];
     }
+}
+
+/* Four faces at f..f+3: gather by axis, then the shared cull above. */
+static inline int
+toridraw_face_sort_flat_block4(
+    struct ToriDraw_Scene* scene,
+    int f,
+    __m128i near_clip_sentinel,
+    int flip,
+    __m128i min_depth,
+    __m128i depth_levels,
+    int stash_xy,
+    const int* RESTRICT vx,
+    const int* RESTRICT vy,
+    const int* RESTRICT vz,
+    const faceint_t* RESTRICT face_a,
+    const faceint_t* RESTRICT face_b,
+    const faceint_t* RESTRICT face_c,
+    uint32_t* keys)
+{
+    int const a0 = face_a[f], a1 = face_a[f + 1], a2 = face_a[f + 2], a3 = face_a[f + 3];
+    int const b0 = face_b[f], b1 = face_b[f + 1], b2 = face_b[f + 2], b3 = face_b[f + 3];
+    int const c0 = face_c[f], c1 = face_c[f + 1], c2 = face_c[f + 2], c3 = face_c[f + 3];
+
+    /* The gather, structure of arrays: _mm_set_epi32 takes lane 3 first. */
+    return toridraw_face_sort_flat_pack4(
+        scene,
+        f,
+        4,
+        near_clip_sentinel,
+        flip,
+        min_depth,
+        depth_levels,
+        stash_xy,
+        _mm_set_epi32(vx[a3], vx[a2], vx[a1], vx[a0]),
+        _mm_set_epi32(vy[a3], vy[a2], vy[a1], vy[a0]),
+        _mm_set_epi32(vz[a3], vz[a2], vz[a1], vz[a0]),
+        _mm_set_epi32(vx[b3], vx[b2], vx[b1], vx[b0]),
+        _mm_set_epi32(vy[b3], vy[b2], vy[b1], vy[b0]),
+        _mm_set_epi32(vz[b3], vz[b2], vz[b1], vz[b0]),
+        _mm_set_epi32(vx[c3], vx[c2], vx[c1], vx[c0]),
+        _mm_set_epi32(vy[c3], vy[c2], vy[c1], vy[c0]),
+        _mm_set_epi32(vz[c3], vz[c2], vz[c1], vz[c0]),
+        keys);
+}
+
+/*
+ * The same tile through SSE2, and the SLOWER of the two -- kept as the arm
+ * TORIDRAW_TILE_SORT=2 selects, not as anything's default.
+ *
+ * The idea was that the gather is what a two-face model pays: with the triples
+ * known, the model's four projected vertices are contiguous at vx[0..3], so ONE
+ * unaligned vector load per axis has all of them and each of the three lanes is
+ * a _mm_shuffle_epi32 with a constant immediate -- three loads and twelve
+ * shuffles for both faces at once, against twenty-four dependent scalar loads.
+ * The rotation is applied to the loaded vector rather than to the immediates,
+ * so rotations 1-3 cost three more shuffles and rotation 0, which is 94% of
+ * tiles, costs none.
+ *
+ * MEASURED, it loses. On the isolated sort bench (make -C src
+ * test-face-sort-flat, TORIDRAW_FACE_SORT_BENCH=1) over 256 tiles in the
+ * census's rotation mix, per input face:
+ *
+ *     TORIDRAW_TILE_SORT=0  general path       8.5 - 8.8 ns
+ *     TORIDRAW_TILE_SORT=1  scalar kernel      6.5 - 6.6 ns
+ *     TORIDRAW_TILE_SORT=2  this               8.9 - 9.0 ns
+ *
+ * The gather was not the cost. What costs is the rest of pack4 -- the
+ * double-precision cross product, the emulated 32-bit multiply and unsigned
+ * compare, the left-pack, and the whole y-sort permutation ladder -- which is
+ * priced to be amortised over FOUR faces and here is amortised over two. The
+ * scalar kernel wins by deleting loads the compiler can prove redundant rather
+ * than by widening the arithmetic.
+ *
+ * Kept because the host it was measured on is not the host it was written for:
+ * a Pentium 4 pays ~10 cycles for the 64-bit imul the scalar winding needs and
+ * has half this core's load throughput, which is the case that could flip it.
+ * That is a hypothesis, and the switch is how the XP box tests it in one
+ * binary. SSE2 only; a NEON twin is not written because nothing here is
+ * measured on NEON.
+ */
+static inline int
+toridraw_face_sort_flat_tile2(
+    struct ToriDraw_Scene* scene,
+    int rot, /* quarter turns, 0..3 */
+    __m128i near_clip_sentinel,
+    int flip,
+    __m128i min_depth,
+    __m128i depth_levels,
+    int stash_xy,
+    const int* RESTRICT vx,
+    const int* RESTRICT vy,
+    const int* RESTRICT vz,
+    uint32_t* keys)
+{
+    __m128i rx = _mm_loadu_si128((const __m128i*)vx);
+    __m128i ry = _mm_loadu_si128((const __m128i*)vy);
+    __m128i rz = _mm_loadu_si128((const __m128i*)vz);
+
+    /* r[j] = v[(j - rot) & 3], undoing the turn the face indices were built
+     * with. Rotation 0 is the overwhelming majority and does nothing. */
+    switch( rot )
+    {
+    case 1:
+        rx = _mm_shuffle_epi32(rx, _MM_SHUFFLE(2, 1, 0, 3));
+        ry = _mm_shuffle_epi32(ry, _MM_SHUFFLE(2, 1, 0, 3));
+        rz = _mm_shuffle_epi32(rz, _MM_SHUFFLE(2, 1, 0, 3));
+        break;
+    case 2:
+        rx = _mm_shuffle_epi32(rx, _MM_SHUFFLE(1, 0, 3, 2));
+        ry = _mm_shuffle_epi32(ry, _MM_SHUFFLE(1, 0, 3, 2));
+        rz = _mm_shuffle_epi32(rz, _MM_SHUFFLE(1, 0, 3, 2));
+        break;
+    case 3:
+        rx = _mm_shuffle_epi32(rx, _MM_SHUFFLE(0, 3, 2, 1));
+        ry = _mm_shuffle_epi32(ry, _MM_SHUFFLE(0, 3, 2, 1));
+        rz = _mm_shuffle_epi32(rz, _MM_SHUFFLE(0, 3, 2, 1));
+        break;
+    default:
+        break;
+    }
+
+    /* Lane 0 is face 0 = (1,2,3), lane 1 is face 1 = (0,1,3). Lanes 2 and 3
+     * are junk and `lanes = 2` is what keeps them from mattering. */
+#define TORIDRAW_TILE2_A(v) _mm_shuffle_epi32((v), _MM_SHUFFLE(1, 1, 0, 1))
+#define TORIDRAW_TILE2_B(v) _mm_shuffle_epi32((v), _MM_SHUFFLE(2, 2, 1, 2))
+#define TORIDRAW_TILE2_C(v) _mm_shuffle_epi32((v), _MM_SHUFFLE(3, 3, 3, 3))
+    return toridraw_face_sort_flat_pack4(
+        scene,
+        0,
+        2,
+        near_clip_sentinel,
+        flip,
+        min_depth,
+        depth_levels,
+        stash_xy,
+        TORIDRAW_TILE2_A(rx),
+        TORIDRAW_TILE2_A(ry),
+        TORIDRAW_TILE2_A(rz),
+        TORIDRAW_TILE2_B(rx),
+        TORIDRAW_TILE2_B(ry),
+        TORIDRAW_TILE2_B(rz),
+        TORIDRAW_TILE2_C(rx),
+        TORIDRAW_TILE2_C(ry),
+        TORIDRAW_TILE2_C(rz),
+        keys);
+#undef TORIDRAW_TILE2_A
+#undef TORIDRAW_TILE2_B
+#undef TORIDRAW_TILE2_C
 }
 
 static inline __m128i
@@ -807,8 +1110,34 @@ toridraw_key_compare(const void* pa, const void* pb)
 }
 
 /*
+ * Two accepted keys, sorted: one compare-swap.
+ *
+ * The general dispatch below would pad the array to four with 0xFFFFFFFF and
+ * run the whole bitonic network to order a pair, and a two-face model is not
+ * rare -- the world painter draws hundreds of terrain tiles a frame and each
+ * is exactly two triangles. Ordering the full u32 is what the network does
+ * too, so equal depths keep face order for the same reason.
+ */
+static inline int
+toridraw_face_sort_flat_sort2(int n, uint32_t* keys)
+{
+    if( n == 2 && keys[0] > keys[1] )
+    {
+        uint32_t const t = keys[0];
+        keys[0] = keys[1];
+        keys[1] = t;
+    }
+    return n;
+}
+
+/*
  * Cull, key and sort one model's faces. Returns the accepted count; the
  * sorted keys are in scene->sm_sort_keys.
+ *
+ * `tile2_rot` is the terrain-tile fast path: 0..3 says this model is one of
+ * the two-triangle tile shapes at that rotation, -1 says it is anything else.
+ * The caller answers it off ToriDraw_Model.tile_sort_kernel, which is where the
+ * shape is known; see toridraw_face_sort_flat_tile2.
  */
 static int
 toridraw_face_sort_flat(
@@ -817,6 +1146,7 @@ toridraw_face_sort_flat(
     bool near_clipped,
     int model_min_depth,
     int num_faces,
+    int tile2_rot,
     const int* RESTRICT vx,
     const int* RESTRICT vy,
     const int* RESTRICT vz,
@@ -837,6 +1167,12 @@ toridraw_face_sort_flat(
     if( stash_xy )
         g_toridraw_presort_models++;
 
+    /* Only the SSE2 lane carries the tile kernel; everywhere else the tile is
+     * an ordinary two-face model and the caller's answer goes unread. */
+#if !defined(TORIDRAW_FACE_SORT_SSE2)
+    (void)tile2_rot;
+#endif
+
 #if defined(TORIDRAW_FACE_SORT_NEON)
     {
         int32x4_t const sentinel =
@@ -856,6 +1192,22 @@ toridraw_face_sort_flat(
         __m128i const min_depth = _mm_set1_epi32(model_min_depth);
         __m128i const levels = _mm_set1_epi32(scene->depth_levels);
 
+        if( tile2_rot >= 0 )
+        {
+            assert(num_faces == 2);
+            if( toridraw_face_sort_tile2_armed() == TORIDRAW_TILE_SORT_SIMD )
+                return toridraw_face_sort_flat_sort2(
+                    toridraw_face_sort_flat_tile2(
+                        scene, tile2_rot, sentinel, flip, min_depth, levels, stash_xy, vx,
+                        vy, vz, keys),
+                    keys);
+            return toridraw_face_sort_flat_sort2(
+                toridraw_face_sort_flat_tile2_scalar(
+                    scene, tile2_rot, near_clipped, flip, model_min_depth, stash_xy, vx,
+                    vy, vz, keys),
+                keys);
+        }
+
         for( ; f + 4 <= num_faces; f += 4 )
             n += toridraw_face_sort_flat_block4(
                 scene, f, sentinel, flip, min_depth, levels, stash_xy, vx, vy, vz, face_a,
@@ -867,8 +1219,8 @@ toridraw_face_sort_flat(
             scene, f, near_clipped, flip, model_min_depth, stash_xy, vx, vy, vz, face_a,
             face_b, face_c, keys + n);
 
-    if( n <= 1 )
-        return n;
+    if( n <= 2 )
+        return toridraw_face_sort_flat_sort2(n, keys);
 
     if( n <= toridraw_face_sort_bitonic_max() )
     {

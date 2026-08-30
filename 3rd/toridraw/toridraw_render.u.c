@@ -745,16 +745,46 @@ ToriDraw_AabbCull(
     struct ToriDraw_Camera* camera)
 {
     (void)camera;
-    int screen_width = view_port->width;
-    int screen_height = view_port->height;
+    /*
+     * The box is in FRAMEBUFFER coordinates: every corner was projected to a
+     * viewport-relative position and then offset by x_center / y_center. So
+     * the bounds it is tested against have to be framebuffer coordinates too.
+     * They were not -- `width` and `height` are the viewport's EXTENT, which
+     * is only the right edge when the viewport starts at the framebuffer
+     * origin. The fixed-layout client's 3D view does not:
+     *
+     *     w=513 h=335 x_center=260 y_center=171 clip=[4,517)x[4,339)
+     *
+     * so a model was culled once it passed x = 513 while the raster kept
+     * drawing to 516, and the last four columns -- exactly clip_left -- were
+     * unreachable.
+     *
+     * Nothing was visibly wrong, because the only box that reaches here is the
+     * eight-corner cylinder bound: tens of pixels looser than the geometry
+     * inside it, which absorbed the offset. A box derived from a model's own
+     * projected vertices does not absorb it, and loses that column in every
+     * frame -- which is how this was found.
+     *
+     * Derived from x_center and width rather than read out of clip_left /
+     * clip_right, for two reasons: those are the two fields the projection
+     * itself used, so the spaces agree by construction; and not every caller
+     * fills the clip rectangle (the D3D9 lane leaves it zero, and reading it
+     * there would cull the scene). On this viewport the derivation reproduces
+     * the clip rectangle exactly, and it reduces to the old test whenever the
+     * viewport does start at the origin.
+     */
+    int const left = view_port->x_center - view_port->width / 2;
+    int const top = view_port->y_center - view_port->height / 2;
+    int const right = left + view_port->width;
+    int const bottom = top + view_port->height;
 
-    if( aabb->min_screen_x >= screen_width )
+    if( aabb->min_screen_x >= right )
         return TORIDRAW_CULL_AABB;
-    if( aabb->min_screen_y >= screen_height )
+    if( aabb->min_screen_y >= bottom )
         return TORIDRAW_CULL_AABB;
-    if( aabb->max_screen_x < 0 )
+    if( aabb->max_screen_x < left )
         return TORIDRAW_CULL_AABB;
-    if( aabb->max_screen_y < 0 )
+    if( aabb->max_screen_y < top )
         return TORIDRAW_CULL_AABB;
 
     return TORIDRAW_CULL_VISIBLE;
@@ -893,11 +923,25 @@ ToriDraw_FastCull(
 static void
 ToriDraw_CalculateCylinderAabb8point(
     struct ToriDraw_AABB* aabb,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera)
 {
+#if defined(TORIDRAW_BENCH_SKIP_AABB) && TORIDRAW_BENCH_SKIP_AABB
+    /* BENCH ONLY, and wrong on purpose: an infinite box culls nothing, which
+     * is how the eight-corner bound's own cost is read off by difference.
+     * Never built into anything that draws. */
+    (void)hnd; (void)position; (void)camera;
+    aabb->min_screen_x = INT_MIN / 2;
+    aabb->max_screen_x = INT_MAX / 2;
+    aabb->min_screen_y = INT_MIN / 2;
+    aabb->max_screen_y = INT_MAX / 2;
+    aabb->kind = TORIDRAW_AABB_KIND_CYLINDER_8POINT;
+    (void)view_port;
+    return;
+#endif
     const struct ToriDraw_BoundsCylinder* bcyl = model_bounds_cylinder(hnd);
     assert(bcyl);
     int model_edge_radius = bcyl->radius;
@@ -988,6 +1032,39 @@ ToriDraw_CalculateCylinderAabb8point(
     }
     else
     {
+#if defined(TORIDRAW_SSE2_PREPARED_PROJECTION)
+        /* Reaching this branch already established the gate's rotation half --
+         * model pitch, model roll and camera roll are all zero -- so the only
+         * question left is whether a block was published for THIS camera, which
+         * is the same pointer test the model projection makes.
+         *
+         * The fused rotation rounds in different places from the kernel below,
+         * so a corner can land up to four pixels off where the unprepared one
+         * put it (the family's own header quantifies it). That is inert here
+         * and only here: this box is a cylinder of radius sqrt(2)*64 ~ 90 drawn
+         * around a 128-unit tile, already tens of pixels looser than the
+         * geometry it contains, and it is used for nothing but a coarse reject
+         * and a pick prefilter that defers to an exact per-face test. Do not
+         * read this as licence to tighten the box -- that is a different change
+         * and it drops pixels at the viewport edge. */
+        if( scene->projection_prepared_camera_source == camera )
+        {
+            ToriDraw_ProjPreparedBoundClip(
+                scene,
+                sc_x,
+                sc_y,
+                sc_z,
+                bb_x,
+                bb_y,
+                bb_z,
+                8,
+                camera->yaw,
+                model_yaw,
+                position,
+                camera->near_plane_z);
+        }
+        else
+#endif
         project_vertices_array_fused_notex_clip(
             sc_x,
             sc_y,
@@ -1007,6 +1084,27 @@ ToriDraw_CalculateCylinderAabb8point(
             camera->yaw);
     }
 
+    /*
+     * SCALAR ON PURPOSE, both here and in the corner arrays above. Measured
+     * with test-proj-model-bench, against the prepared bound below:
+     *
+     *     this                              53.0 - 53.5 ns per model
+     *     min/max reduced through SSE2      59.1 - 59.6
+     *     corners built as three vectors    58.4 - 58.7
+     *
+     * The reduction loses because SSE2 has no pminsd or pmaxsd -- those are
+     * SSE4.1 and this lane is pentium4 -- so every lane-wise min is a compare
+     * and three selects, and a 4-to-1 reduction wants several. What it would
+     * be buying is branches that already predict: min and max both start at
+     * corner 0 and only move apart, so after the first corner or two every
+     * test below is not-taken. The corner arrays lose because -O3 already
+     * merges those stores, and hand-vectorising adds splats and masks to
+     * reproduce what was free.
+     *
+     * `else if` is not a bug: min <= max always holds, so no corner can be
+     * below one and above the other, and skipping the max test on a new
+     * minimum skips a test that could not have fired.
+     */
     int min_sx = sc_x[0];
     int max_sx = sc_x[0];
     int min_sy = sc_y[0];
@@ -2281,6 +2379,8 @@ toridraw_compute_projected_face_order_small(
     faceint_t* fic = NULL;
     uint8_t* face_priorities = NULL;
     int face_count = 0;
+    /* -1 = not a two-triangle terrain tile; see ToriDraw_Model.tile_sort_kernel. */
+    int tile2_rot = -1;
 
     switch( hnd.kind )
     {
@@ -2308,6 +2408,18 @@ toridraw_compute_projected_face_order_small(
                 ? NULL
                 : m->face_priorities;
         face_count = m->face_count;
+        /* TORIDRAWMK_MODEL only. The tile kernel reads vx[0..3] on the promise
+         * that this model's four projected vertices are its own and that its two
+         * faces are the tile triples -- a promise world_decode_tile makes about a
+         * model it owns outright, and not one the lent-faces or the shared regimes
+         * are in a position to keep. */
+        if( hnd.kind == TORIDRAWMK_MODEL && m->tile_sort_kernel &&
+            toridraw_face_sort_tile2_armed() )
+        {
+            assert(m->vertex_count == 4);
+            assert(m->face_count == 2);
+            tile2_rot = m->tile_sort_kernel - 1;
+        }
         break;
     }
     default:
@@ -2330,7 +2442,7 @@ toridraw_compute_projected_face_order_small(
     if( !debug_stats && flat )
     {
         int const n = toridraw_face_sort_flat(
-            scene, presort, scene->near_clipped, model_min_depth, face_count,
+            scene, presort, scene->near_clipped, model_min_depth, face_count, tile2_rot,
             scene->screen_vertices_x, scene->screen_vertices_y, scene->screen_vertices_z,
             fia, fib, fic);
         const uint32_t* keys = scene->sm_sort_keys;
@@ -3130,11 +3242,44 @@ ToriDraw_Project(
 
     scene->projected_vertex = center_projection;
 
-    ToriDraw_CalculateCylinderAabb8point(&scene->aabb, hnd, position, view_port, camera);
+    /*
+     * A MODEL SMALL ENOUGH IS ITS OWN BOUND.
+     *
+     * ToriDraw_CalculateCylinderAabb8point projects EIGHT cylinder corners to
+     * decide whether the model is on screen. That is the cheap question for a
+     * 200-vertex loc and the expensive one for a terrain tile, which has FOUR
+     * vertices -- the bound costs more than the thing it bounds, and a
+     * projection census puts 62.6% of models at eight vertices or fewer.
+     * Measured, it is 30.3 ns of the 56.1 ns such a model spends being
+     * projected (make -C src test-proj-model-bench).
+     *
+     * So a small model skips the bound and is culled AFTER its own projection,
+     * off the screen coordinates the raster will actually use. Count the work
+     * for a model of V vertices:
+     *
+     *   survives the cull:  8 + V before, V after   -- always cheaper
+     *   culled:             8     before, V after   -- cheaper while V <= 8
+     *
+     * which is where the eight comes from: the largest threshold that cannot
+     * lose, not a tuned one. Raising it is a bet on the cull's rejection rate
+     * and would need that measured first.
+     *
+     * The box is also exact rather than a cylinder of radius sqrt(2)*64 ~ 90
+     * drawn around a 128-unit tile, so tiles that used to survive and pay a
+     * sort and a raster walk to draw nothing are now culled.
+     */
+    int const bound_vertex_count = model_vertex_count(hnd);
+    int const bound_after_projection = bound_vertex_count > 0 && bound_vertex_count <= 8;
 
-    cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
-    if( cull != TORIDRAW_CULL_VISIBLE )
-        return cull;
+    if( !bound_after_projection )
+    {
+        ToriDraw_CalculateCylinderAabb8point(
+            &scene->aabb, scene, hnd, position, view_port, camera);
+
+        cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
+        if( cull != TORIDRAW_CULL_VISIBLE )
+            return cull;
+    }
 
     int const model_pitch = ToriDraw_NormalizeAngle(position->pitch);
     int const model_yaw = ToriDraw_NormalizeAngle(position->yaw);
@@ -3251,6 +3396,67 @@ ToriDraw_Project(
         toridraw_project_vertices_noclip(
             scene, hnd, position, camera,
             model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
+
+    /*
+     * The small model's bound, off the coordinates just written. Exact, and a
+     * sweep over at most eight screen positions still in cache.
+     *
+     * Placed BEFORE the debug print so a culled model stays as silent as it
+     * was when the cull happened earlier.
+     *
+     * This is what found the coordinate-space bug in ToriDraw_AabbCull: an
+     * exact box has no slack to absorb it with, and the frame lost the last
+     * four columns of the 3D viewport until that was fixed. The raster itself
+     * is clean -- test-raster-overshoot proves it never paints outside the
+     * hull its three vertices describe, over 48,000 triangles -- so no padding
+     * is needed here, and none should be added.
+     */
+    if( bound_after_projection )
+    {
+        const int* const svx = scene->screen_vertices_x;
+        const int* const svy = scene->screen_vertices_y;
+        int min_sx = svx[0];
+        int max_sx = svx[0];
+        int min_sy = svy[0];
+        int max_sy = svy[0];
+        int box_clipped = svx[0] == TORIDRAW_SCREEN_X_NEAR_CLIPPED;
+
+        for( int i = 1; i < bound_vertex_count; i++ )
+        {
+            int const sx = svx[i];
+            int const sy = svy[i];
+            if( sx == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
+                box_clipped = 1;
+            if( sx < min_sx )
+                min_sx = sx;
+            else if( sx > max_sx )
+                max_sx = sx;
+            if( sy < min_sy )
+                min_sy = sy;
+            else if( sy > max_sy )
+                max_sy = sy;
+        }
+
+        if( box_clipped )
+        {
+            scene->aabb.min_screen_x = INT_MIN / 2;
+            scene->aabb.max_screen_x = INT_MAX / 2;
+            scene->aabb.min_screen_y = INT_MIN / 2;
+            scene->aabb.max_screen_y = INT_MAX / 2;
+        }
+        else
+        {
+            scene->aabb.min_screen_x = min_sx + view_port->x_center;
+            scene->aabb.max_screen_x = max_sx + view_port->x_center;
+            scene->aabb.min_screen_y = min_sy + view_port->y_center;
+            scene->aabb.max_screen_y = max_sy + view_port->y_center;
+        }
+        scene->aabb.kind = TORIDRAW_AABB_KIND_CYLINDER_8POINT;
+
+        cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
+        if( cull != TORIDRAW_CULL_VISIBLE )
+            return cull;
+    }
 
     toridraw_projection_debug_print(
         scene, hnd, position, view_port, camera, center_projection.z, may_clip);
