@@ -299,9 +299,30 @@ test_typed_builtin_kernels(void)
     const struct ToriDraw_RasterKernelHD* hd_zbuffered =
         ToriDraw_RasterKernelHDGetZBuffered();
 
+    /* Four typed face slots plus the optional whole-model door. */
     CHECK(sizeof(struct ToriDraw_RasterKernelSDVTable) ==
-              4 * sizeof(ToriDraw_RasterKernelSDFaceFn),
-          "SD vtable is not four typed slots");
+              4 * sizeof(ToriDraw_RasterKernelSDFaceFn) +
+                  sizeof(ToriDraw_RasterKernelSDModelFn),
+          "SD vtable is not four face slots plus a model door");
+
+    /*
+     * Which kernels declare a whole-model door.
+     *
+     * It used to be an identity test against the branching vtable inside the
+     * raster; now it is a slot. The branching kernel keeps its door (the
+     * batched walk), its per-face twin deliberately has none, and the
+     * scanline and smooth families must not grow one -- they are different
+     * rasterisers, and a presorted run drawing their faces would draw wrong
+     * pixels.
+     */
+    CHECK(ToriDraw_RasterKernelSDGetBranchingPerFace()->vtable->draw_model == NULL,
+          "branching-per-face has no door");
+    CHECK(ToriDraw_RasterKernelSDGetBranchingPerFace()->vtable->draw[0] ==
+              sd_branching->vtable->draw[0],
+          "the per-face twin draws the same faces");
+    CHECK(sd_scanline->vtable->draw_model == NULL, "scanline has no whole-model door");
+    CHECK(sd_smooth_branching->vtable->draw_model == NULL,
+          "smooth branching has no whole-model door");
     CHECK(sizeof(struct ToriDraw_RasterKernelHDVTable) ==
               6 * sizeof(ToriDraw_RasterKernelHDFaceFn),
           "HD vtable is not six typed slots");
@@ -1494,6 +1515,102 @@ test_kernel_scratch(void)
     ToriDraw_SceneFree(small);
     ToriDraw_SceneFree(full);
 }
+
+/*
+ * The whole-model door against the per-face walk, pixel for pixel.
+ *
+ * The batched walk had no end-to-end coverage: test-presorted-neon scores the
+ * eight run kernels in isolation, against C references it calls itself, but
+ * nothing checked the WALK that stages faces into those runs -- which class it
+ * assigns a face to, when it flushes, and whether the result is the picture
+ * the per-face path draws. The two are the same kernel set reached two ways,
+ * so they must agree exactly.
+ *
+ * Needs a SMALL scene: the y-ordered stash the door reads is small-tier
+ * scratch, and the rest of this file's fixtures are TORIDRAW_SCENE_FULL, which
+ * is why the door never fired here before.
+ */
+static void
+test_whole_model_door(struct SDFixture* fixture)
+{
+    struct ToriDraw_Scene* scene =
+        ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    struct ToriDraw_ViewPort viewport = test_viewport();
+    struct ToriDraw_Camera camera = test_camera();
+    struct ToriDraw_Position position = { .z = 420 };
+    size_t const count = (size_t)VIEW_STRIDE * VIEW_HEIGHT;
+    toripixel_t* batched = calloc(count, sizeof(toripixel_t));
+    toripixel_t* per_face = calloc(count, sizeof(toripixel_t));
+    struct ToriDraw_Texture* texture = make_test_texture();
+    int diff = 0;
+
+    /* Runtime-gated, NOT #ifdef TORIDRAW_RASTER_BATCH: that macro is derived
+     * inside the library's own translation unit from -D flags the test is not
+     * compiled with, so a preprocessor gate here silently compiles the whole
+     * check away and reports a pass. Ask the kernel instead. */
+    if( ToriDraw_RasterKernelSDGetBranching()->vtable->draw_model == NULL )
+    {
+        printf("  whole-model door not built on this lane -- skipped\n");
+        ToriDraw_SceneFree(scene);
+        free(batched);
+        free(per_face);
+        if( texture )
+            ToriDraw_TextureFree(texture);
+        return;
+    }
+
+    CHECK(scene != NULL, "door: scene");
+    CHECK(batched != NULL && per_face != NULL, "door: framebuffers");
+    CHECK(texture != NULL, "door: texture");
+    if( !scene || !batched || !per_face || !texture )
+        goto done;
+    ToriDraw_SceneSetTexture(scene, TEST_TEXTURE_ID, texture);
+
+    /* The stash only exists if the scene was prepared for a kernel that wants
+     * it -- which is the scratch API's whole job. */
+    CHECK(ToriDraw_SceneEnsureKernelScratch(scene, ToriDraw_RasterKernelSDGetBranching()),
+          "door: scratch for the branching kernel");
+    CHECK(ToriDraw_SceneHasScratch(scene, TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "door: the stash is resident");
+
+    CHECK(ToriDraw_RenderModelWithRasterKernel(
+              fixture->handle, scene, &position, &viewport, &camera, batched,
+              ToriDraw_RasterKernelSDGetBranching()) == TORIDRAW_CULL_VISIBLE,
+          "door: batched render visible");
+    /* Set by the sort when it actually stashed. If this is zero the door
+     * cannot have fired and the comparison below is vacuous. */
+    CHECK(scene->sm_face_xy_valid, "door: the sort stashed, so the door was reachable");
+
+    CHECK(ToriDraw_RenderModelWithRasterKernel(
+              fixture->handle, scene, &position, &viewport, &camera, per_face,
+              ToriDraw_RasterKernelSDGetBranchingPerFace()) == TORIDRAW_CULL_VISIBLE,
+          "door: per-face render visible");
+
+    for( size_t i = 0; i < count; i++ )
+    {
+        if( batched[i] != per_face[i] )
+            diff++;
+    }
+    CHECK(diff == 0, "door: %d pixels differ between the batched and per-face walks", diff);
+
+    /* And the comparison is not vacuous in the other direction either: the
+     * model has to have drawn something. */
+    {
+        int drawn = 0;
+        for( size_t i = 0; i < count; i++ )
+            if( batched[i] != 0 )
+                drawn++;
+        CHECK(drawn > 0, "door: the batched walk drew no pixels at all");
+    }
+
+done:
+    if( texture )
+        ToriDraw_SceneSetTexture(scene, TEST_TEXTURE_ID, NULL);
+    free(batched);
+    free(per_face);
+    ToriDraw_SceneFree(scene);
+}
+
 int
 main(void)
 {
@@ -1511,6 +1628,7 @@ main(void)
         return 1;
     }
 
+    test_whole_model_door(&sd_fixture);
     test_sd_direct_apis(&sd_fixture, &env);
     test_sd_legacy_parity(&sd_fixture, &env);
 

@@ -497,6 +497,16 @@ toridraw_stock_unreachable_textured(
 #define toridraw_stock_scanline_textured_flat toridraw_stock_unreachable_textured
 #endif
 
+#ifdef TORIDRAW_RASTER_BATCH
+/* Defined below, once the batched walk exists; named here so the branching
+ * kernel's vtable can point at it. */
+static void
+toridraw_raster_draw_model_batched(
+    void* user_data,
+    struct ToriDraw_Scene* scene,
+    struct ToriDrawModelRasterContext* ctx);
+#endif
+
 /*
  * The prebaked SD raster kernels, one file each.
  *
@@ -506,6 +516,7 @@ toridraw_stock_unreachable_textured(
  */
 // clang-format off
 #include "kernels/sd.branching.u.c"
+#include "kernels/sd.branching_perface.u.c"
 #include "kernels/sd.scanline.u.c"
 #include "kernels/sd.smooth_branching.u.c"
 #include "kernels/sd.smooth_scanline.u.c"
@@ -1696,6 +1707,19 @@ toridraw_raster_draw_faces_batched(
 
     toridraw_raster_batch_flush(ctx, &batch);
 }
+
+/* The vtable door. One indirection per model, and only for a kernel that has
+ * one; the walk itself is unchanged. */
+static void
+toridraw_raster_draw_model_batched(
+    void* user_data,
+    struct ToriDraw_Scene* scene,
+    struct ToriDrawModelRasterContext* ctx)
+{
+    (void)user_data;
+    toridraw_raster_draw_faces_batched(scene, ctx);
+}
+
 #endif /* TORIDRAW_RASTER_BATCH */
 
 /* ABLATION SUPPORT (measurement only) -- see the TORIRS_ABL_NOFACES arm in
@@ -1734,10 +1758,10 @@ toridraw_raster_draw_faces(
          * sort is the only thing that knows whether it actually filled the
          * buffer. It declines for a full-mode scene, where sm_face_x4/y4 are not
          * even allocated, and for a caller that used the plain sort entry. */
-        if( ctx->kernel.vtable == &g_stock_branching_vtable && !ctx->raster_debug &&
+        if( ctx->kernel.vtable->draw_model && !ctx->raster_debug &&
             scene->sm_face_xy_valid )
         {
-            toridraw_raster_draw_faces_batched(scene, ctx);
+            ctx->kernel.vtable->draw_model(ctx->kernel.user_data, scene, ctx);
             return;
         }
 #endif

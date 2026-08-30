@@ -187,10 +187,44 @@ typedef void (*ToriDraw_RasterKernelHDFaceFn)(
     const struct ToriDraw_RasterTarget* target,
     const struct ToriDraw_RasterFaceHD* face);
 
+/*
+ * The whole-model door.
+ *
+ * A kernel that fills this draws an entire model in one call instead of once
+ * per face. The stock branching kernel's door is the batched walk: it stages
+ * faces by class into runs and hands each run to a presorted-run assembly
+ * kernel, which is only possible because the face sort left the vertices in y
+ * order (sm_face_x4 / y4) on its way past.
+ *
+ * Optional. A NULL slot means the per-face vtable above is the only way in,
+ * which is correct for the scanline and smooth families -- they are different
+ * rasterisers, and a run door drawing their faces would draw wrong pixels.
+ *
+ * This used to be an identity test against the stock branching vtable inside
+ * toridraw_raster_draw_faces, which meant "does this kernel draw whole models"
+ * was a fact about one pointer rather than something a kernel declared. The
+ * caller still has no obligation: the walk runs only when the sort actually
+ * stashed (scene->sm_face_xy_valid), so a kernel with a door and a scene
+ * without a stash falls back per face.
+ *
+ * The context is ToriDraw's own render state and is deliberately opaque here.
+ * A third-party kernel leaves this NULL; the built-in kernels are the only
+ * ones that can meaningfully fill it today.
+ */
+struct ToriDrawModelRasterContext;
+
+typedef void (*ToriDraw_RasterKernelSDModelFn)(
+    void* user_data,
+    struct ToriDraw_Scene* scene,
+    struct ToriDrawModelRasterContext* ctx);
+
+
 /* Every slot is required. A kernel with a NULL callback is incomplete. */
 struct ToriDraw_RasterKernelSDVTable
 {
     ToriDraw_RasterKernelSDFaceFn draw[TORIDRAW_RASTER_FACE_SD_CLASS_COUNT];
+    /* Optional; see the whole-model door above. NULL means per-face only. */
+    ToriDraw_RasterKernelSDModelFn draw_model;
 };
 
 struct ToriDraw_RasterKernelHDVTable
@@ -417,6 +451,11 @@ ToriDraw_FaceCullSortKernelGetDefault(void);
 
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetBranching(void);
+
+/* The same kernel with no whole-model door: draws face by face even when the
+ * sort left a presorted stash. The batched walk's A/B baseline. */
+const struct ToriDraw_RasterKernelSD*
+ToriDraw_RasterKernelSDGetBranchingPerFace(void);
 
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetScanline(void);
