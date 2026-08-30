@@ -13149,6 +13149,133 @@ App_EditorPlaceSpawn(
         app_world_spawn_npc(app, scene_x, scene_z, level, args);
 }
 
+/* Frames to let the world load's asset queue drain before spawning. Well
+ * inside the suite's 300 discarded warmup frames. */
+#define APP_BENCH_SPAWN_DELAY_FRAMES 60
+/* And how long to wait for the npc body itself, once requested. */
+#define APP_BENCH_SPAWN_WAIT_FRAMES 600
+
+/*
+ * TORIRS_BENCH_SPAWN_NPCS=<count>[,<id>[,<spacing>]] -- populate an offline
+ * scene with npcs.
+ *
+ * The benchmark suite is offline: no server, so no NPC_INFO, so no entities.
+ * That leaves the whole DYNAMIC geometry path unmeasured -- nothing poses a
+ * model per frame, nothing bakes posed vertices into the frame arena, and the
+ * d3d9 dynamic vertex buffer is never written. An entity-free scene reports
+ * zero dynamic upload bytes, which reads as "the dynamic path is free" when
+ * all it means is that the path never ran.
+ *
+ * The npcs go down through App_EditorPlaceSpawn, the call the map editor's
+ * place-spawn already uses, so this adds a CALLER rather than a second spawn
+ * path. The default id is app_world_spawn_npc's own default (3106, "Man").
+ *
+ * Laid out on the smallest square grid that holds `count`, centred on the
+ * camera, `spacing` tiles apart. The spacing is not cosmetic: stacked npcs
+ * occlude one another, and the painter would then be measured against an
+ * overdraw pattern no real scene produces.
+ */
+static void
+app_bench_spawn_npcs(struct App* app)
+{
+    /*
+     * Fired once, and deliberately NOT on the frame the world finished
+     * loading. An npc's body parts are queued onto app->runner.queue and the
+     * spawn then waits only APP_ASSET_WAIT_PASSES yields for them to become
+     * resident. Queued while the world load is still draining that same queue,
+     * every part misses its window and each npc spawns modelless -- which the
+     * client reports as "spawn_npc: npc N models failed to load" and then
+     * renders as nothing at all, so the run still looks like it worked. The
+     * delay below is what makes the difference between measuring entities and
+     * measuring their absence.
+     */
+    static int done = 0;
+    static int delay = 0;
+    static int kicked = 0;
+    static int resolved = -1;
+    static int waited = 0;
+    char const* spec = getenv("TORIRS_BENCH_SPAWN_NPCS");
+    int count = 0;
+    int npc_id = 3106;
+    int spacing = 3;
+    int side;
+    int centre_x;
+    int centre_z;
+    int placed = 0;
+
+    assert(app);
+
+    if( done || !spec || !spec[0] )
+        return;
+    if( !app->world_active || !app->world )
+        return;
+    if( delay++ < APP_BENCH_SPAWN_DELAY_FRAMES )
+        return;
+    if( sscanf(spec, "%d,%d,%d", &count, &npc_id, &spacing) < 1 )
+        return;
+    if( count <= 0 )
+        return;
+
+    /*
+     * Load the body FIRST, and wait for it here rather than inside the spawn.
+     *
+     * Task_AppSpawn does await the parts, but it awaits them in its own yields,
+     * and those are pumped many times per frame -- its 600-pass budget can
+     * expire inside a couple of frames, long before a cold read of eight model
+     * groups has landed. Every npc then spawns modelless, and an entity that
+     * draws nothing is exactly the thing this hook exists to avoid measuring.
+     * One check per FRAME gives the reads the wall time they actually need.
+     */
+    if( !kicked )
+    {
+        struct ToriRS_Task* load = CreateTask_NpcMultiLoad(app, npc_id, &resolved);
+        if( load )
+            ToriRS_TaskQueue_Add(app->exec_runner.queue, load);
+        kicked = 1;
+        return;
+    }
+    if( !app_npc_models_resident(app, resolved >= 0 ? resolved : npc_id) )
+    {
+        /* Bounded, and loud when it runs out: a benchmark that quietly
+         * measured an empty scene is worse than one that did not run. */
+        if( ++waited < APP_BENCH_SPAWN_WAIT_FRAMES )
+            return;
+        TORIRS_ERR("bench_spawn: npc %d body never became resident in %d frames"
+                   " -- spawning nothing\n", npc_id, APP_BENCH_SPAWN_WAIT_FRAMES);
+        done = 1;
+        return;
+    }
+    done = 1;
+    assert(spacing > 0);
+
+    for( side = 1; side * side < count; side++ )
+        ;
+    /*
+     * Centred on the CAMERA, not on the scene.
+     *
+     * A benchmark scene points its camera wherever the route says, which is
+     * rarely tile 52,52. Npcs parked at the scene centre spawn perfectly well,
+     * report their model-cache hits, and are then culled every frame for being
+     * off screen -- the counters that matter (dynamic vbo uploads, draw calls)
+     * do not move at all, which reads exactly like "entities are free".
+     */
+    centre_x = (int)app->world_camera_pos.x / 128;
+    centre_z = (int)app->world_camera_pos.z / 128;
+
+    for( int i = 0; i < count; i++ )
+    {
+        int const x = centre_x + (i % side - side / 2) * spacing;
+        int const z = centre_z + (i / side - side / 2) * spacing;
+
+        if( x < 0 || z < 0 || x >= app->world->_scene_size || z >= app->world->_scene_size )
+            continue;
+        App_EditorPlaceSpawn(app, 0, npc_id, x, z, 0);
+        placed++;
+    }
+    TORIRS_ERR("bench_spawn: %d npc(s) id=%d spacing=%d on a %dx%d grid at %d,%d\n",
+        placed, npc_id, spacing, side, side, centre_x, centre_z);
+}
+
 /** Start a load the square browser asked for. Runs on the frame boundary with
  *  the other editor drains, so a panel click never loads a world mid-tick. */
 static void
@@ -13750,6 +13877,7 @@ app_apply_wedge_scale(struct App* app)
 static void
 app_update_world_viewport(struct App* app)
 {
+    app_bench_spawn_npcs(app);
     app_debug_log_position(app);
     app_debug_log_bridges(app);
     app_debug_height_profile(app);
