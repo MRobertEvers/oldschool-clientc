@@ -188,28 +188,28 @@ typedef void (*ToriDraw_RasterKernelHDFaceFn)(
     const struct ToriDraw_RasterFaceHD* face);
 
 /*
- * The whole-model door.
+ * STAGE 3. A raster kernel draws a MODEL, not a face.
  *
- * A kernel that fills this draws an entire model in one call instead of once
- * per face. The stock branching kernel's door is the batched walk: it stages
- * faces by class into runs and hands each run to a presorted-run assembly
- * kernel, which is only possible because the face sort left the vertices in y
- * order (sm_face_x4 / y4) on its way past.
+ * This is the whole of the raster stage: one call per model, and how that
+ * model becomes pixels -- which traversal, which batching, which arm per face
+ * type -- is the kernel's own business. Face classification is an
+ * implementation detail of a walk, not a term in the interface.
  *
- * Optional. A NULL slot means the per-face vtable above is the only way in,
- * which is correct for the scanline and smooth families -- they are different
- * rasterisers, and a run door drawing their faces would draw wrong pixels.
+ * Two walks ship. ToriDraw_RasterWalkPerFace is the stock one: it normalizes
+ * each face (resolving and bounds-checking the texture, the HIDDEN sentinel,
+ * face alpha, near-clip eligibility, index range) and dispatches it to one of
+ * the four callbacks in the vtable below. toridraw_raster_walk_batched stages
+ * runs of presorted faces into the assembly kernels and falls through to the
+ * per-face walk for anything it cannot take.
  *
- * This used to be an identity test against the stock branching vtable inside
- * toridraw_raster_draw_faces, which meant "does this kernel draw whole models"
- * was a fact about one pointer rather than something a kernel declared. The
- * caller still has no obligation: the walk runs only when the sort actually
- * stashed (scene->sm_face_xy_valid), so a kernel with a door and a scene
- * without a stash falls back per face.
+ * A kernel that only wants to supply the four leaf callbacks names
+ * ToriDraw_RasterWalkPerFace here and gets the normalizing walk for free; that
+ * is the narrow extension point, and the reason the vtable survives the
+ * inversion. A kernel that wants to own the loop supplies its own.
  *
- * The context is ToriDraw's own render state and is deliberately opaque here.
- * A third-party kernel leaves this NULL; the built-in kernels are the only
- * ones that can meaningfully fill it today.
+ * The context is ToriDraw's own render state and is deliberately opaque: it is
+ * reserved for the built-in walks, and an application kernel reaches the model
+ * through the callbacks rather than through this pointer.
  */
 struct ToriDrawModelRasterContext;
 
@@ -219,12 +219,37 @@ typedef void (*ToriDraw_RasterKernelSDModelFn)(
     struct ToriDrawModelRasterContext* ctx);
 
 
+
+/**
+ * The stock stage-3 walk: normalize each face and dispatch it to the vtable.
+ *
+ * Name this as a kernel's draw_model to supply only the four leaf callbacks
+ * and inherit the whole normalizing walk -- texture resolution and bounds
+ * checking, the HIDDEN sentinel, face alpha, near-clip eligibility, index
+ * range, then class selection. That is the narrow extension point, and the
+ * reason the face vtable survives stage 3 being a whole-model call.
+ *
+ * Naming it is also a declaration: a kernel whose draw_model is this one has
+ * no traversal of its own, which is how the library knows not to ask the face
+ * sort for a presorted stash it would never read.
+ */
+void
+ToriDraw_RasterWalkPerFace(
+    void* user_data,
+    struct ToriDraw_Scene* scene,
+    struct ToriDrawModelRasterContext* ctx);
+
 /* Every slot is required. A kernel with a NULL callback is incomplete. */
+/*
+ * The face callbacks the stock walk dispatches through.
+ *
+ * Only ToriDraw_RasterWalkPerFace reads this. A kernel whose draw_model is its
+ * own walk may leave it NULL; a kernel that names ToriDraw_RasterWalkPerFace
+ * must fill every slot.
+ */
 struct ToriDraw_RasterKernelSDVTable
 {
     ToriDraw_RasterKernelSDFaceFn draw[TORIDRAW_RASTER_FACE_SD_CLASS_COUNT];
-    /* Optional; see the whole-model door above. NULL means per-face only. */
-    ToriDraw_RasterKernelSDModelFn draw_model;
 };
 
 struct ToriDraw_RasterKernelHDVTable
@@ -390,6 +415,10 @@ struct ToriDraw_FaceCullSortKernel
  */
 struct ToriDraw_RasterKernelSD
 {
+    /* This IS stage 3. NULL selects ToriDraw_RasterWalkPerFace, so a kernel
+     * that only supplies the four leaf callbacks needs nothing here. */
+    ToriDraw_RasterKernelSDModelFn draw_model;
+    /* Read only by ToriDraw_RasterWalkPerFace. */
     const struct ToriDraw_RasterKernelSDVTable* vtable;
     void* user_data;
     uint32_t flags;

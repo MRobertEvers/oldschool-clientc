@@ -1,3 +1,8 @@
+/* Names this translation unit. The prebaked kernels under kernels/ are
+ * fragments of it, not compilable on their own; each tests this macro so that
+ * an editor asked to index one directly can pull the whole unit in. */
+#define TORIDRAW_TORIDRAW_C_UNITY 1
+
 #include "toridraw.h"
 #include <assert.h>
 
@@ -1110,13 +1115,28 @@ kernel_table_resolve(
     *sort = kernel->face_sort ? kernel->face_sort : ToriDraw_FaceCullSortKernelGetDefault();
 }
 
+/*
+ * Does this table's raster draw whole models, rather than leaning on the stock
+ * per-face walk?
+ *
+ * Asked by identity against ToriDraw_RasterWalkPerFace rather than by a flag:
+ * naming the stock walk IS the declaration that this kernel has no traversal
+ * of its own, so there is nothing extra to keep in sync.
+ */
+static bool
+kernel_table_raster_is_whole_model(const struct ToriDraw_Kernel* kernel)
+{
+    return kernel->raster && kernel->raster->draw_model &&
+           kernel->raster->draw_model != ToriDraw_RasterWalkPerFace;
+}
+
 /* Does this table's raster want the y-ordered stash, and can its sort make one? */
 static bool
 kernel_table_wants_presort(
     const struct ToriDraw_Kernel* kernel,
     const struct ToriDraw_FaceCullSortKernel* sort)
 {
-    return kernel->raster && kernel->raster->vtable && kernel->raster->vtable->draw_model &&
+    return kernel_table_raster_is_whole_model(kernel) &&
            (sort->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY) != 0;
 }
 
@@ -1241,16 +1261,14 @@ ToriDraw_KernelValidate(
         *why = "face sort falls back to the bucket sort on a full scene";
         fit = TORIDRAW_KERNEL_FIT_DEGRADED;
     }
-    else if( kernel->raster && kernel->raster->vtable &&
-             kernel->raster->vtable->draw_model && !small )
+    else if( kernel_table_raster_is_whole_model(kernel) && !small )
     {
         /* The door exists and the sort could stash, but the scene has no
          * sm_face_x4/y4 to stash into, so the batched walk never runs. */
         *why = "whole-model raster falls back per face: a full scene has no presort stash";
         fit = TORIDRAW_KERNEL_FIT_DEGRADED;
     }
-    else if( kernel->raster && kernel->raster->vtable &&
-             kernel->raster->vtable->draw_model &&
+    else if( kernel_table_raster_is_whole_model(kernel) &&
              !(sort->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY) )
     {
         *why = "whole-model raster falls back per face: the sort cannot presort";

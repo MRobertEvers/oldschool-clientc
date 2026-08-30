@@ -17,6 +17,8 @@
  */
 
 static const struct ToriDraw_RasterKernelSD g_stock_gpu_kernel = {
+    /* No stage 3 at all: both slots NULL, and every raster entry asserts. */
+    .draw_model = NULL,
     .vtable = NULL,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
 };

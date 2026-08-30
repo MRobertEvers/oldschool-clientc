@@ -21,13 +21,15 @@ static const struct ToriDraw_RasterKernelSDVTable g_stock_branching_vtable = {
         [TORIDRAW_RASTER_FACE_SD_TEXTURED] = toridraw_stock_branching_textured_gouraud,
         [TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT] = toridraw_stock_branching_textured_flat,
     },
-#ifdef TORIDRAW_RASTER_BATCH
-    /* The batched walk: runs of presorted faces into the assembly kernels. */
-    .draw_model = toridraw_raster_draw_model_batched,
-#endif
 };
 
 static const struct ToriDraw_RasterKernelSD g_stock_branching_kernel = {
+#ifdef TORIDRAW_RASTER_BATCH
+    /* Staged runs into the assembly kernels, per-face behind it. */
+    .draw_model = toridraw_raster_walk_batched,
+#else
+    .draw_model = ToriDraw_RasterWalkPerFace,
+#endif
     .vtable = &g_stock_branching_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
 };

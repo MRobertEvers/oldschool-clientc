@@ -299,30 +299,35 @@ test_typed_builtin_kernels(void)
     const struct ToriDraw_RasterKernelHD* hd_zbuffered =
         ToriDraw_RasterKernelHDGetZBuffered();
 
-    /* Four typed face slots plus the optional whole-model door. */
+    /* The vtable is the face callbacks and nothing else; the stage-3 entry
+     * lives on the kernel, because stage 3 draws a MODEL. */
     CHECK(sizeof(struct ToriDraw_RasterKernelSDVTable) ==
-              4 * sizeof(ToriDraw_RasterKernelSDFaceFn) +
-                  sizeof(ToriDraw_RasterKernelSDModelFn),
-          "SD vtable is not four face slots plus a model door");
+              4 * sizeof(ToriDraw_RasterKernelSDFaceFn),
+          "SD vtable is not four typed face slots");
 
     /*
-     * Which kernels declare a whole-model door.
+     * Which walk each kernel names.
      *
-     * It used to be an identity test against the branching vtable inside the
-     * raster; now it is a slot. The branching kernel keeps its door (the
-     * batched walk), its per-face twin deliberately has none, and the
-     * scanline and smooth families must not grow one -- they are different
-     * rasterisers, and a presorted run drawing their faces would draw wrong
-     * pixels.
+     * Every raster kernel has a draw_model, because that IS stage 3. Naming
+     * the stock ToriDraw_RasterWalkPerFace is how a kernel says it has no
+     * traversal of its own and only supplies the four leaf callbacks -- which
+     * is what the scanline and smooth families do, and must keep doing: they
+     * are different rasterisers, and a presorted run drawing their faces would
+     * draw wrong pixels.
      */
-    CHECK(ToriDraw_RasterKernelSDGetBranchingPerFace()->vtable->draw_model == NULL,
-          "branching-per-face has no door");
+    CHECK(sd_branching->draw_model != NULL, "branching names a walk");
+    CHECK(ToriDraw_RasterKernelSDGetBranchingPerFace()->draw_model ==
+              ToriDraw_RasterWalkPerFace,
+          "branching-per-face names the stock walk");
     CHECK(ToriDraw_RasterKernelSDGetBranchingPerFace()->vtable->draw[0] ==
               sd_branching->vtable->draw[0],
           "the per-face twin draws the same faces");
-    CHECK(sd_scanline->vtable->draw_model == NULL, "scanline has no whole-model door");
-    CHECK(sd_smooth_branching->vtable->draw_model == NULL,
-          "smooth branching has no whole-model door");
+    CHECK(sd_scanline->draw_model == ToriDraw_RasterWalkPerFace,
+          "scanline names the stock walk");
+    CHECK(sd_smooth_branching->draw_model == ToriDraw_RasterWalkPerFace,
+          "smooth branching names the stock walk");
+    CHECK(ToriDraw_RasterKernelSDGetGpu()->draw_model == NULL,
+          "the gpu kernel has no raster stage at all");
     CHECK(sizeof(struct ToriDraw_RasterKernelHDVTable) ==
               6 * sizeof(ToriDraw_RasterKernelHDFaceFn),
           "HD vtable is not six typed slots");
@@ -1548,7 +1553,7 @@ test_whole_model_door(struct SDFixture* fixture)
      * inside the library's own translation unit from -D flags the test is not
      * compiled with, so a preprocessor gate here silently compiles the whole
      * check away and reports a pass. Ask the kernel instead. */
-    if( ToriDraw_RasterKernelSDGetBranching()->vtable->draw_model == NULL )
+    if( ToriDraw_RasterKernelSDGetBranching()->draw_model == ToriDraw_RasterWalkPerFace )
     {
         printf("  whole-model door not built on this lane -- skipped\n");
         ToriDraw_SceneFree(scene);

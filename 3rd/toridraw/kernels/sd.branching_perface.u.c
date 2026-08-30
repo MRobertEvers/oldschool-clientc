@@ -22,10 +22,10 @@ static const struct ToriDraw_RasterKernelSDVTable g_stock_branching_perface_vtab
         [TORIDRAW_RASTER_FACE_SD_TEXTURED] = toridraw_stock_branching_textured_gouraud,
         [TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT] = toridraw_stock_branching_textured_flat,
     },
-    /* Deliberately no door. */
 };
 
 static const struct ToriDraw_RasterKernelSD g_stock_branching_perface_kernel = {
+    .draw_model = ToriDraw_RasterWalkPerFace,
     .vtable = &g_stock_branching_perface_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
 };

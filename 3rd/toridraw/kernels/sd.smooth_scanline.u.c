@@ -18,6 +18,7 @@ static const struct ToriDraw_RasterKernelSDVTable g_stock_smooth_scanline_vtable
 };
 
 static const struct ToriDraw_RasterKernelSD g_stock_smooth_scanline_kernel = {
+    .draw_model = ToriDraw_RasterWalkPerFace,
     .vtable = &g_stock_smooth_scanline_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
 };

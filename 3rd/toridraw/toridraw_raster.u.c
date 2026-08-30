@@ -497,11 +497,19 @@ toridraw_stock_unreachable_textured(
 #define toridraw_stock_scanline_textured_flat toridraw_stock_unreachable_textured
 #endif
 
+/* Both defined below, once the walks exist; named here so the prebaked
+ * kernels can point at them. ToriDraw_RasterWalkPerFace is the stock stage-3
+ * implementation and is public: a kernel that only wants to supply face
+ * callbacks names it and gets the whole normalizing walk for free. */
+void
+ToriDraw_RasterWalkPerFace(
+    void* user_data,
+    struct ToriDraw_Scene* scene,
+    struct ToriDrawModelRasterContext* ctx);
+
 #ifdef TORIDRAW_RASTER_BATCH
-/* Defined below, once the batched walk exists; named here so the branching
- * kernel's vtable can point at it. */
 static void
-toridraw_raster_draw_model_batched(
+toridraw_raster_walk_batched(
     void* user_data,
     struct ToriDraw_Scene* scene,
     struct ToriDrawModelRasterContext* ctx);
@@ -1047,6 +1055,17 @@ toridraw_raster_context_init(
 
 #include "graphics/raster/texture/tex_tri_asm.h"
 #include "toridraw_raster_batch.h"
+
+/* ABLATION SUPPORT (measurement only) -- see the TORIRS_ABL_NOFACES arm in
+ * toridraw_raster_draw_faces. Read once; off is one predicted branch. */
+static int
+toridraw_raster_abl_nofaces(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_ABL_NOFACES") ? 1 : 0;
+    return armed;
+}
 
 #ifdef TORIDRAW_RASTER_BATCH
 
@@ -1708,33 +1727,44 @@ toridraw_raster_draw_faces_batched(
     toridraw_raster_batch_flush(ctx, &batch);
 }
 
-/* The vtable door. One indirection per model, and only for a kernel that has
- * one; the walk itself is unchanged. */
+/*
+ * The batched walk as a stage-3 entry, with the per-face walk behind it.
+ *
+ * A superset, not an alternative -- the same shape the prepared projection
+ * kernels take. It runs the staged form only when the sort actually left a
+ * y-ordered stash behind, and hands everything else to the default walk:
+ *
+ *   sm_face_xy_valid, and NOT toridraw_raster_batch_armed() again -- the sort
+ *   is the only thing that knows whether it filled the buffer. It declines for
+ *   a full-mode scene, where sm_face_x4/y4 are not even allocated, and for a
+ *   caller whose table named no whole-model raster.
+ *
+ *   raster_debug, because every counter the batched form would have to
+ *   maintain lives in the per-face path and belongs there rather than
+ *   reimplemented twice.
+ */
 static void
-toridraw_raster_draw_model_batched(
+toridraw_raster_walk_batched(
     void* user_data,
     struct ToriDraw_Scene* scene,
     struct ToriDrawModelRasterContext* ctx)
 {
-    (void)user_data;
-    toridraw_raster_draw_faces_batched(scene, ctx);
+    if( (ctx->kernel.flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING) &&
+        !ctx->raster_debug && scene->sm_face_xy_valid &&
+        !toridraw_raster_abl_nofaces() )
+    {
+        ctx->ordered_faces = scene->tmp_face_order_count;
+        toridraw_raster_draw_faces_batched(scene, ctx);
+        return;
+    }
+    ToriDraw_RasterWalkPerFace(user_data, scene, ctx);
 }
 
 #endif /* TORIDRAW_RASTER_BATCH */
 
-/* ABLATION SUPPORT (measurement only) -- see the TORIRS_ABL_NOFACES arm in
- * toridraw_raster_draw_faces. Read once; off is one predicted branch. */
-static int
-toridraw_raster_abl_nofaces(void)
-{
-    static int armed = -1;
-    if( armed < 0 )
-        armed = getenv("TORIRS_ABL_NOFACES") ? 1 : 0;
-    return armed;
-}
-
-static inline void
-toridraw_raster_draw_faces(
+void
+ToriDraw_RasterWalkPerFace(
+    void* user_data,
     struct ToriDraw_Scene* scene,
     struct ToriDrawModelRasterContext* ctx)
 {
@@ -1747,24 +1777,14 @@ toridraw_raster_draw_faces(
      * describing the same walk. */
     int const skip_faces = toridraw_raster_abl_nofaces();
 
+    (void)user_data;
+
     if( ctx->kernel.flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
     {
         /* The sorter already culled back-facing faces. */
         ctx->ordered_faces = scene->tmp_face_order_count;
         if( skip_faces )
             return;
-#ifdef TORIDRAW_RASTER_BATCH
-        /* sm_face_xy_valid, and not toridraw_raster_batch_armed() again: the
-         * sort is the only thing that knows whether it actually filled the
-         * buffer. It declines for a full-mode scene, where sm_face_x4/y4 are not
-         * even allocated, and for a caller that used the plain sort entry. */
-        if( ctx->kernel.vtable->draw_model && !ctx->raster_debug &&
-            scene->sm_face_xy_valid )
-        {
-            ctx->kernel.vtable->draw_model(ctx->kernel.user_data, scene, ctx);
-            return;
-        }
-#endif
         for( int i = 0; i < scene->tmp_face_order_count; i++ )
             ToriDraw_RasterModelFaceKernel(scene->tmp_face_order[i], ctx);
     }
@@ -1780,6 +1800,25 @@ toridraw_raster_draw_faces(
             ToriDraw_RasterModelFaceKernel(face, ctx);
         }
     }
+}
+
+/*
+ * Stage 3 is one call. Which walk runs is the kernel's own business.
+ *
+ * A NULL draw_model is the stock walk, not a contract violation -- the same
+ * defaulting the projection and face_sort slots use, and what lets a kernel
+ * that only supplies the four leaf callbacks stay a valid aggregate
+ * initializer.
+ */
+static inline void
+toridraw_raster_draw_faces(
+    struct ToriDraw_Scene* scene,
+    struct ToriDrawModelRasterContext* ctx)
+{
+    if( ctx->kernel.draw_model )
+        ctx->kernel.draw_model(ctx->kernel.user_data, scene, ctx);
+    else
+        ToriDraw_RasterWalkPerFace(ctx->kernel.user_data, scene, ctx);
 }
 
 static inline bool
