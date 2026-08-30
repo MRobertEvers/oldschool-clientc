@@ -1030,17 +1030,20 @@ ToriDraw_SceneKernelScratchNeeds(
     needs |= TORIDRAW_SCENE_SCRATCH_FACE_ORDER;
     needs |= small ? TORIDRAW_SCENE_SCRATCH_CSR_SORT : TORIDRAW_SCENE_SCRATCH_BUCKET_SORT;
 
-    /* The flat sort's keys, and only where the CSR sorter runs: a full scene
-     * takes the dense bucket sort whichever face-sort kernel is named. */
+    /* The flat sort's keys, asked for by the kernel rather than inferred from
+     * its identity -- and only where the CSR sorter runs, because a full scene
+     * takes the dense bucket walk whichever sort is named. */
     sort = (kernel && kernel->face_sort) ? kernel->face_sort
                                          : ToriDraw_FaceCullSortKernelGetDefault();
-    if( small && sort == ToriDraw_FaceCullSortKernelGetFlat() )
+    if( small && (sort->needs & TORIDRAW_FACESORT_NEEDS_FLAT_KEYS) )
         needs |= TORIDRAW_SCENE_SCRATCH_FLAT_KEYS;
 
-    /* The presort stash, asked for by exactly one raster kernel: the batched
-     * walk tests for the stock branching vtable, so the scanline and smooth
-     * families would never load what the sort stored. */
-    if( small && (!kernel || kernel == ToriDraw_RasterKernelSDGetBranching()) )
+    /* The presort stash. Both halves have to want it: a sort that can leave it
+     * behind, and a raster that will read it. The raster side is still the
+     * stock branching kernel by identity -- the batched walk tests for that
+     * vtable -- and becomes a declared whole-model door in its own phase. */
+    if( small && (sort->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY) &&
+        (!kernel || kernel == ToriDraw_RasterKernelSDGetBranching()) )
         needs |= TORIDRAW_SCENE_SCRATCH_PRESORT_XY;
 
     return needs;

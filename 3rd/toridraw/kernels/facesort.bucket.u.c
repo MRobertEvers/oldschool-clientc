@@ -32,6 +32,11 @@ face_sort_kernel_bucket(
 static const struct ToriDraw_FaceCullSortKernel g_stock_face_sort_bucket = {
     .name = "bucket",
     .sort = face_sort_kernel_bucket,
+    /* Works on either tier: the dense bucket table on a full scene, the CSR
+     * variant on a small one. Can stash on a small scene. */
+    .provides = TORIDRAW_FACESORT_PROVIDES_FACE_ORDER |
+                TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY,
+    .needs = 0,
 };
 
 const struct ToriDraw_FaceCullSortKernel*

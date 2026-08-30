@@ -237,6 +237,38 @@ typedef int (*ToriDraw_ProjectionKernelFn)(
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera);
 
+
+/*
+ * What a face cull+sort kernel hands on, and what it needs to do it.
+ *
+ * The scratch API used to answer both by comparing the kernel pointer against
+ * ToriDraw_FaceCullSortKernelGetFlat(), which meant a caller's own sort kernel
+ * could never be reasoned about at all. Declaring it makes the question one
+ * the kernel answers about itself.
+ *
+ * PROVIDES_PRESORTED_XY is a capability, not a promise. Both stock sorts can
+ * leave the y-ordered stash behind -- the small-scene bucket sort in
+ * bucket_sort_by_average_depth_small, the flat sort in its own block -- but
+ * only when the caller asked for it, the batched walk is armed, AND the scene
+ * is small enough to have the buffers. A full-mode scene explicitly zeroes
+ * sm_face_xy_valid, and that flag stays the per-model truth; this bit only
+ * says the kernel is capable, so a table naming a presorting raster and a sort
+ * that cannot presort is refusable at selection time.
+ */
+enum ToriDraw_FaceSortTrait
+{
+    /** Writes tmp_face_order. Every sort does; a kernel that does not is not
+     *  a sort. Declared anyway so a NULL-slot kernel reads as incomplete. */
+    TORIDRAW_FACESORT_PROVIDES_FACE_ORDER = 1u << 0,
+    /** Can fill sm_face_x4 / y4 when asked and when the scene allows. */
+    TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY = 1u << 1,
+    /** Sorts composite keys and needs sm_sort_keys / sm_sort_tmp. */
+    TORIDRAW_FACESORT_NEEDS_FLAT_KEYS = 1u << 2,
+    /** Differs from the stock bucket sort only on a small scene; on a full
+     *  one it falls through to the same dense bucket walk. */
+    TORIDRAW_FACESORT_NEEDS_SMALL_SCENE = 1u << 3,
+};
+
 typedef int (*ToriDraw_FaceCullSortKernelFn)(
     void* user_data,
     struct ToriDraw_Scene* scene,
@@ -309,6 +341,9 @@ struct ToriDraw_FaceCullSortKernel
     const char* name;
     ToriDraw_FaceCullSortKernelFn sort;
     void* user_data;
+    /* ToriDraw_FaceSortTrait bits. */
+    uint32_t provides;
+    uint32_t needs;
 };
 
 /*

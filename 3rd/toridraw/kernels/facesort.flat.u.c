@@ -34,6 +34,13 @@ face_sort_kernel_flat(
 static const struct ToriDraw_FaceCullSortKernel g_stock_face_sort_flat = {
     .name = "flat",
     .sort = face_sort_kernel_flat,
+    /* The key arrays are small-tier scratch, and on a full scene this falls
+     * through to the same bucket walk -- so it needs both to be the kernel
+     * its name claims. */
+    .provides = TORIDRAW_FACESORT_PROVIDES_FACE_ORDER |
+                TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY,
+    .needs = TORIDRAW_FACESORT_NEEDS_FLAT_KEYS |
+             TORIDRAW_FACESORT_NEEDS_SMALL_SCENE,
 };
 
 const struct ToriDraw_FaceCullSortKernel*
