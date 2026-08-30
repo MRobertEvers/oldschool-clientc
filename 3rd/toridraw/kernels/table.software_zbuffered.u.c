@@ -25,7 +25,6 @@ static struct ToriDraw_Kernel g_kernel_software_zbuffered = {
 const struct ToriDraw_Kernel*
 ToriDraw_KernelGetSoftwareZBuffered(void)
 {
-    toridraw_sd_kernel_publish(&g_stock_zbuffered_kernel);
     toridraw_kernel_table_publish(&g_kernel_software_zbuffered);
     return &g_kernel_software_zbuffered;
 }

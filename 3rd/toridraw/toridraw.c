@@ -1119,15 +1119,15 @@ ToriDraw_SceneHasScratch(
     return (ToriDraw_SceneScratchResident(scene) & needs) == needs;
 }
 
-/* A kernel names its own sort. There is no defaulting here and none in stage
- * 2 either: the prebaked kernels are handed out with the slot already filled
- * (toridraw_sd_kernel_publish), so a hole is a caller who assembled one by
- * hand and left a stage out. */
 static const struct ToriDraw_FaceCullSortKernel*
 sd_kernel_face_sort(const struct ToriDraw_RasterKernelSD* kernel)
 {
-    assert(kernel->face_sort);
-    return kernel->face_sort;
+    /* A raster kernel names a RASTER. Stages 1 and 2 used to hang off it, and
+     * the entries that reach here are precisely the ones whose caller named no
+     * table -- ToriDraw_RenderModel and friends -- so "the usual sort" is the
+     * honest answer and this is the one place that says it. */
+    (void)kernel;
+    return ToriDraw_FaceCullSortKernelGetDefault();
 }
 
 /*
@@ -1533,10 +1533,14 @@ sd_kernel_project(
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera)
 {
-    assert(kernel->projection);
-    assert(kernel->projection->project);
-    return kernel->projection->project(
-        kernel->projection->user_data, scene, hnd, position, view_port, camera);
+    const struct ToriDraw_ProjectionKernel* const projection =
+        ToriDraw_ProjectionKernelGetDefault();
+
+    /* As above: these entries are the ones whose caller named no table. */
+    (void)kernel;
+    assert(projection->project);
+    scene->active_hnd = hnd;
+    return projection->project(projection->user_data, scene, hnd, position, view_port, camera);
 }
 
 /* The stock sort, with the presort the caller already decided. The only place
@@ -1568,11 +1572,11 @@ sd_kernel_sort(
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Scene* scene)
 {
-    bool const presort = sd_kernel_wants_presort(kernel);
+    const struct ToriDraw_FaceCullSortKernel* const sort = sd_kernel_face_sort(kernel);
+    bool const presort = sd_wants_presort(kernel, sort);
 
-    assert(kernel->face_sort);
-    assert(kernel->face_sort->sort);
-    return kernel->face_sort->sort(kernel->face_sort->user_data, scene, hnd, presort);
+    assert(sort->sort);
+    return sort->sort(sort->user_data, scene, hnd, presort);
 }
 
 static int
@@ -1780,7 +1784,7 @@ ToriDraw_RenderModel1ProjectWithTable(
  * compare per drawn face to fill a buffer nothing downstream loads. A table
  * already knows, because it names the raster: the stash is worth filling
  * exactly when that raster has a whole-model door to read it and the sort can
- * produce it. Same rule, same function, as ...SortFacesWithKernel.
+ * produce it: sd_wants_presort is the only copy of that rule.
  */
 int
 ToriDraw_RenderModel2SortFacesWithTable(
@@ -1800,6 +1804,14 @@ ToriDraw_RenderModel2SortFacesWithTable(
     return sort->sort(sort->user_data, scene, hnd, presort);
 }
 
+static int
+sd_raster_with_zswap(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_RasterKernelSD* kernel);
+
 int
 ToriDraw_RenderModel3RasterWithTable(
     struct ToriDraw_Scene* scene,
@@ -1811,8 +1823,7 @@ ToriDraw_RenderModel3RasterWithTable(
     assert(scene);
     assert(table);
     assert(table->raster && "a GPU table has no raster stage");
-    return ToriDraw_RenderModel3RasterWithKernel(
-        scene, view_port, camera, pixel_buffer, table->raster);
+    return sd_raster_with_zswap(scene, view_port, camera, pixel_buffer, table->raster);
 }
 
 /*
@@ -1861,31 +1872,15 @@ ToriDraw_RenderModel1Project(
     return ToriDraw_Project(scene, hnd, position, view_port, camera);
 }
 
-int
-ToriDraw_RenderModel1ProjectWithKernel(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_Position* position,
-    struct ToriDraw_ViewPort* view_port,
-    struct ToriDraw_Camera* camera,
-    const struct ToriDraw_RasterKernelSD* kernel)
-{
-    assert(kernel);
-    return sd_kernel_project(kernel, hnd, scene, position, view_port, camera);
-}
-
-int
-ToriDraw_RenderModel2SortFacesWithKernel(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene,
-    const struct ToriDraw_RasterKernelSD* kernel)
-{
-    assert(kernel);
-    return sd_kernel_sort(kernel, hnd, scene);
-}
-
-int
-ToriDraw_RenderModel3RasterWithKernel(
+/*
+ * Stage 3 with the depth-tested swap in front of it.
+ *
+ * Internal, and no longer a public entry: a caller holding a raster kernel and
+ * nothing else was how stages 1 and 2 ended up hanging off the stage-3 object.
+ * The table entries share this body, which is all that entry ever was.
+ */
+static int
+sd_raster_with_zswap(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
@@ -1907,7 +1902,7 @@ ToriDraw_RenderModel3RasterWithKernel(
  * It does NOT leave the pre-sort store behind, and there is no entry that
  * does: the stash is the batched walk's, so the only caller who can honestly
  * ask for it is one holding the kernel that would read it, and that caller
- * takes ...WithKernel or ...WithTable and never states the choice. What is
+ * takes ...WithTable and never states the choice. What is
  * left here reads the order out of tmp_face_order and nothing else -- the HD
  * path, the sprite baker, the tests -- and filling sm_face_x4/y4 for them is
  * seven stores and a six-way compare per drawn face into a buffer none of them

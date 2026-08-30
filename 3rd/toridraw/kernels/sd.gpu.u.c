@@ -6,7 +6,7 @@
  *
  * Its raster vtable is NULL -- the faces go to a vertex buffer, never to a
  * software span -- so it is accepted by the stage-1 and stage-2 entries and
- * refused by every raster entry (ToriDraw_RenderModel3RasterWithKernel asserts
+ * refused by every raster entry (the stage-3 table entry asserts
  * on the vtable).
  *
  * NEEDS_FACE_SORTING is set because a GPU renderer still wants the
@@ -26,7 +26,6 @@ static struct ToriDraw_RasterKernelSD g_stock_gpu_kernel = {
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetGpu(void)
 {
-    toridraw_sd_kernel_publish(&g_stock_gpu_kernel);
     return &g_stock_gpu_kernel;
 }
 

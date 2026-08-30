@@ -28,7 +28,6 @@ static struct ToriDraw_RasterKernelSD g_stock_smooth_scanline_kernel = {
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetSmoothScanline(void)
 {
-    toridraw_sd_kernel_publish(&g_stock_smooth_scanline_kernel);
     return &g_stock_smooth_scanline_kernel;
 }
 

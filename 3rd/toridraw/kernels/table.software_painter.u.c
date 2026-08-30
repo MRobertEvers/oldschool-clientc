@@ -26,7 +26,6 @@ static struct ToriDraw_Kernel g_kernel_software_painter = {
 const struct ToriDraw_Kernel*
 ToriDraw_KernelGetSoftwarePainter(void)
 {
-    toridraw_sd_kernel_publish(&g_stock_branching_kernel);
     toridraw_kernel_table_publish(&g_kernel_software_painter);
     return &g_kernel_software_painter;
 }

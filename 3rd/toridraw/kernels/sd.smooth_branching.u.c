@@ -37,7 +37,6 @@ static struct ToriDraw_RasterKernelSD g_stock_smooth_branching_kernel = {
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetSmoothBranching(void)
 {
-    toridraw_sd_kernel_publish(&g_stock_smooth_branching_kernel);
     return &g_stock_smooth_branching_kernel;
 }
 

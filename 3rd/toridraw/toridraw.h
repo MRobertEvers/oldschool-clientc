@@ -95,46 +95,6 @@ ToriDraw_RenderModel1Project(
     struct ToriDraw_Camera* camera);
 
 /*
- * The three stages, each taking the kernel that names them. A renderer that
- * runs the stages itself -- every platform renderer does, to hit-test between
- * projection and sort, or to sort for a vertex upload and never raster --
- * holds one kernel and passes it to each stage, so which projection, which
- * face sort and which raster it runs is one object chosen once at init
- * rather than three environment reads. A GPU renderer holds
- * ToriDraw_RasterKernelSDGetGpu(), whose raster vtable is NULL; stages 1 and
- * 2 accept it, stage 3 asserts.
- *
- * Stage 2 decides the presort itself from the kernel, exactly as the table
- * entry does, so there is no presorted twin to pick between and no way to
- * pick wrong.
- */
-int
-ToriDraw_RenderModel1ProjectWithKernel(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_Position* position,
-    struct ToriDraw_ViewPort* view_port,
-    struct ToriDraw_Camera* camera,
-    const struct ToriDraw_RasterKernelSD* kernel);
-
-int
-ToriDraw_RenderModel2SortFacesWithKernel(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene,
-    const struct ToriDraw_RasterKernelSD* kernel);
-
-/* Stage 3 through a held kernel, with the per-model z-buffer swap that
- * ToriDraw_RenderModel3Raster does: a model flagged for the depth test goes
- * to the stock z-buffered kernel whatever painter kernel is held. */
-int
-ToriDraw_RenderModel3RasterWithKernel(
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_ViewPort* view_port,
-    struct ToriDraw_Camera* camera,
-    toripixel_t* pixel_buffer,
-    const struct ToriDraw_RasterKernelSD* kernel);
-
-/*
  * The three stages, driven by a table.
  *
  * A renderer that runs the stages by hand -- every platform renderer does, to

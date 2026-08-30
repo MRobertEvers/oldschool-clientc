@@ -37,7 +37,6 @@ static struct ToriDraw_RasterKernelSD g_stock_branching_perface_kernel = {
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetBranchingPerFace(void)
 {
-    toridraw_sd_kernel_publish(&g_stock_branching_perface_kernel);
     return &g_stock_branching_perface_kernel;
 }
 

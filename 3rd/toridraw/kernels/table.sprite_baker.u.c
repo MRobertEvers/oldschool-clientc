@@ -22,7 +22,6 @@ static struct ToriDraw_Kernel g_kernel_sprite_baker = {
 const struct ToriDraw_Kernel*
 ToriDraw_KernelGetSpriteBaker(void)
 {
-    toridraw_sd_kernel_publish(&g_stock_branching_perface_kernel);
     toridraw_kernel_table_publish(&g_kernel_sprite_baker);
     return &g_kernel_sprite_baker;
 }

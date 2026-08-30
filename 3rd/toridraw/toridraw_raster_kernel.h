@@ -480,30 +480,10 @@ struct ToriDraw_RasterKernelSD
      * resolve to the stock depth painter. A named twin MUST set NEEDS_ZBUFFER
      * and MUST NOT name a twin of its own.
      *
-     * Not a const pointer: reading this slot IS taking that kernel, so the
-     * twin is published (its stage-1 and stage-2 slots filled) alongside the
-     * kernel that names it, and toridraw_sd_kernel_publish writes through
-     * here to do it.
+     * Not a const pointer only because the substitution sites hand it back as
+     * the kernel to render with; nothing writes through it.
      */
     struct ToriDraw_RasterKernelSD* zbuffered_variant;
-
-    /*
-     * DEPRECATED: use struct ToriDraw_Kernel.
-     *
-     * These are stages 1 and 2 hanging off the stage-3 object, which is what
-     * the kernel table replaced -- a raster kernel should name a raster, and
-     * the table should name all three as peers. They stay only because the
-     * ...WithKernel entries still read them and one A/B harness still sets
-     * face_sort; the table entries (ToriDraw_RenderModel*WithTable) ignore
-     * them entirely.
-     *
-     * Required, not defaulted: the ...WithKernel entries assert. The prebaked
-     * kernels arrive with both filled, and a caller assembling one by hand
-     * names the stages it wants -- ToriDraw_ProjectionKernelGetDefault() and
-     * ToriDraw_FaceCullSortKernelGetDefault() are how it says "the usual ones".
-     */
-    const struct ToriDraw_ProjectionKernel* projection;
-    const struct ToriDraw_FaceCullSortKernel* face_sort;
 };
 
 struct ToriDraw_RasterKernelHD
@@ -537,11 +517,9 @@ const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetStock(bool smooth);
 
 /*
- * The kernel a GPU renderer holds: projection and face cull+sort only. Its
- * raster vtable is NULL -- the faces go to a vertex buffer, never to a
- * software span -- so it is accepted by the stage-1 and stage-2 entries
- * (ToriDraw_RenderModel1ProjectWithKernel, ...2SortFacesWithKernel) and
- * refused by every raster entry.
+ * The raster kernel a GPU table names: none. Its vtable is NULL -- the faces
+ * go to a vertex buffer, never to a software span -- so every raster entry
+ * refuses it. A GPU renderer holds ToriDraw_KernelGetGpu(), the table.
  */
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetGpu(void);

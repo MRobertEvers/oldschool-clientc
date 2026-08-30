@@ -22,7 +22,6 @@ static struct ToriDraw_Kernel g_kernel_software_scanline = {
 const struct ToriDraw_Kernel*
 ToriDraw_KernelGetSoftwareScanline(void)
 {
-    toridraw_sd_kernel_publish(&g_stock_scanline_kernel);
     toridraw_kernel_table_publish(&g_kernel_software_scanline);
     return &g_kernel_software_scanline;
 }

@@ -90,7 +90,6 @@ toridraw_stock_zbuffered_kernel(bool smooth, bool sorted)
     /* Stage 2 does not run for the unsorted pair, but the slots are filled all
      * the same: every stage entry asserts, and a caller running the stages by
      * hand must find a real sort named rather than a hole. */
-    toridraw_sd_kernel_publish(kernel);
     return kernel;
 }
 

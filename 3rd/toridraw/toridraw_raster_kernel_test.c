@@ -647,26 +647,22 @@ test_sd_direct_apis(const struct SDFixture* fixture, struct RenderEnv* env)
     struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
     struct SDSpy spy = { .fixture = fixture, .env = env };
     /*
-     * A caller's own kernel names all three stages. There is no slot here that
-     * may be left NULL for the library to fill in: the walk is the stock
-     * per-face one because these kernels supply only the four leaf callbacks,
-     * and the projection and sort are the library's, said out loud.
+     * A caller's own RASTER kernel. It names a walk and four leaf callbacks
+     * and nothing else -- stages 1 and 2 belong to the table, and the entries
+     * used here are the ones whose caller names no table, so they run the
+     * library's default projection and sort.
      */
     const struct ToriDraw_RasterKernelSD full_kernel = {
         .draw_model = ToriDraw_RasterWalkPerFace,
         .vtable = &sd_full_vtable,
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
-        .projection = ToriDraw_ProjectionKernelGetDefault(),
-        .face_sort = ToriDraw_FaceCullSortKernelGetDefault(),
     };
     const struct ToriDraw_RasterKernelSD none_kernel = {
         .draw_model = ToriDraw_RasterWalkPerFace,
         .vtable = &sd_full_vtable,
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NONE,
-        .projection = ToriDraw_ProjectionKernelGetDefault(),
-        .face_sort = ToriDraw_FaceCullSortKernelGetDefault(),
     };
 #ifndef TORIDRAW_PIXEL16
     const struct ToriDraw_RasterKernelSD z_kernel = {
@@ -674,8 +670,6 @@ test_sd_direct_apis(const struct SDFixture* fixture, struct RenderEnv* env)
         .vtable = &sd_full_vtable,
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
-        .projection = ToriDraw_ProjectionKernelGetDefault(),
-        .face_sort = ToriDraw_FaceCullSortKernelGetDefault(),
     };
     const struct ToriDraw_RasterKernelSD sorted_z_kernel = {
         .draw_model = ToriDraw_RasterWalkPerFace,
@@ -683,8 +677,6 @@ test_sd_direct_apis(const struct SDFixture* fixture, struct RenderEnv* env)
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING |
                  TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
-        .projection = ToriDraw_ProjectionKernelGetDefault(),
-        .face_sort = ToriDraw_FaceCullSortKernelGetDefault(),
     };
 #endif
     int result;
@@ -1383,8 +1375,6 @@ test_pixel16_sd_depth_unsupported(
         .vtable = &sd_full_vtable,
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
-        .projection = ToriDraw_ProjectionKernelGetDefault(),
-        .face_sort = ToriDraw_FaceCullSortKernelGetDefault(),
     };
     pid_t child = fork();
     int status = 0;
@@ -1812,6 +1802,7 @@ test_table_entries(struct SDFixture* fixture)
     struct ToriDraw_Texture* texture = make_test_texture();
     const struct ToriDraw_Kernel* painter = ToriDraw_KernelGetSoftwarePainter();
     const struct ToriDraw_Kernel* baker = ToriDraw_KernelGetSpriteBaker();
+    const struct ToriDraw_Kernel* scanline = ToriDraw_KernelGetSoftwareScanline();
     int diff = 0;
     int drawn = 0;
 
@@ -1860,37 +1851,17 @@ test_table_entries(struct SDFixture* fixture)
           "entries: the sprite-baker table does not stash, because its raster has no door");
 
     /*
-     * And the kernel entry, which has no twin to pick between either. The
-     * branching kernel is the only one with a door -- on a lane that built the
-     * presorted-run assembly, which is what the door test's gate asks -- and
-     * every other stock kernel must come back with the flag clear.
+     * The third rasteriser, for completeness: painter (a door) and baker (no
+     * door) are the two above, and scanline is the case where the raster is a
+     * different family altogether -- it must not be asked to stash either,
+     * since a presorted run drawing scanline faces would draw the branching
+     * family's pixels.
      */
-    if( ToriDraw_RasterKernelSDGetBranching()->draw_model != ToriDraw_RasterWalkPerFace )
-    {
-        ToriDraw_RenderModel1ProjectWithKernel(
-            fixture->handle, scene, &position, &viewport, &camera,
-            ToriDraw_RasterKernelSDGetBranching());
-        ToriDraw_RenderModel2SortFacesWithKernel(
-            fixture->handle, scene, ToriDraw_RasterKernelSDGetBranching());
-        CHECK(scene->sm_face_xy_valid,
-              "entries: the branching kernel stashes, because its raster has a door");
-    }
-
-    ToriDraw_RenderModel1ProjectWithKernel(
-        fixture->handle, scene, &position, &viewport, &camera,
-        ToriDraw_RasterKernelSDGetScanline());
-    ToriDraw_RenderModel2SortFacesWithKernel(
-        fixture->handle, scene, ToriDraw_RasterKernelSDGetScanline());
+    ToriDraw_RenderModel1ProjectWithTable(
+        fixture->handle, scene, &position, &viewport, &camera, scanline);
+    ToriDraw_RenderModel2SortFacesWithTable(fixture->handle, scene, scanline);
     CHECK(!scene->sm_face_xy_valid,
-          "entries: the scanline kernel does not stash, because its raster has no door");
-
-    ToriDraw_RenderModel1ProjectWithKernel(
-        fixture->handle, scene, &position, &viewport, &camera,
-        ToriDraw_RasterKernelSDGetBranchingPerFace());
-    ToriDraw_RenderModel2SortFacesWithKernel(
-        fixture->handle, scene, ToriDraw_RasterKernelSDGetBranchingPerFace());
-    CHECK(!scene->sm_face_xy_valid,
-          "entries: the per-face branching kernel does not stash either");
+          "entries: the scanline table does not stash, because its raster has no door");
 
 done:
     if( texture && scene )

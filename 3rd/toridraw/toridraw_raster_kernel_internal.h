@@ -14,13 +14,12 @@
 static inline void
 ToriDraw_RasterKernelSDAssertValid(const struct ToriDraw_RasterKernelSD* kernel)
 {
-    /* Every stage this kernel names, and it names all of them: no slot below
-     * is a NULL that some entry point quietly resolves to the stock one. */
+    /* A raster kernel names a raster: the whole-model walk and the four face
+     * callbacks it dispatches through. Stages 1 and 2 are the TABLE's, and a
+     * table's slots are asserted where a table is used. */
     assert(kernel);
     assert(kernel->draw_model);
     assert(kernel->vtable);
-    assert(kernel->projection);
-    assert(kernel->face_sort);
     assert((kernel->flags & ~TORIDRAW_RASTER_KERNEL_FLAG_MASK) == 0);
     for( int face_class = 0; face_class < TORIDRAW_RASTER_FACE_SD_CLASS_COUNT; face_class++ )
         assert(kernel->vtable->draw[face_class]);
@@ -58,47 +57,23 @@ toridraw_raster_abl_nokernel(void)
 }
 
 /*
- * Hand out a prebaked kernel or table with every stage slot filled.
+ * Hand out a prebaked TABLE with its two front stages filled.
  *
- * A kernel names all three stages, and every stage entry ASSERTS its slot
+ * A table names all three stages, and every stage entry ASSERTS its slot
  * rather than resolving a NULL to the stock one. A slot that quietly means
  * "the default" is how a table whose sort was dropped keeps drawing the right
  * pixels down the wrong path, visible only in a profile -- so the two stages
- * the library chooses for a prebaked object are chosen HERE, at the getter,
+ * the library chooses for a prebaked table are chosen HERE, at the getter,
  * which is the moment a renderer takes its kernel.
  *
- * That is also why the prebaked objects are mutable statics: the face sort is
+ * That is also why the prebaked tables are mutable statics: the face sort is
  * still a runtime choice (TORIDRAW_FACE_SORT / ToriDraw_FaceSortSetFlat), it
  * is just made once, at a point the caller can see, instead of on every model.
+ *
+ * There is no kernel twin of this any more. A RASTER kernel names a raster;
+ * the stage-1 and stage-2 pointers that used to hang off it were the thing
+ * the table replaced, and publishing into them was what kept them alive.
  */
-static inline void
-toridraw_sd_kernel_publish_one(struct ToriDraw_RasterKernelSD* kernel)
-{
-    assert(kernel);
-    kernel->projection = ToriDraw_ProjectionKernelGetDefault();
-    kernel->face_sort = ToriDraw_FaceCullSortKernelGetDefault();
-}
-
-static inline void
-toridraw_sd_kernel_publish(struct ToriDraw_RasterKernelSD* kernel)
-{
-    assert(kernel);
-    toridraw_sd_kernel_publish_one(kernel);
-    /*
-     * A kernel's depth-tested twin goes out with it.
-     *
-     * Reading zbuffered_variant IS taking that kernel -- the stage-3 entries
-     * swap to it without passing a getter -- so it has to leave here with the
-     * same two slots filled, or the swap hands the raster a kernel with a hole
-     * in stage 1 and stage 2 that only the depth-flagged models reach.
-     *
-     * One level, not a walk: a twin sets NEEDS_ZBUFFER and names no twin of
-     * its own, which is what the stage-3 resolver asserts.
-     */
-    if( kernel->zbuffered_variant )
-        toridraw_sd_kernel_publish_one(kernel->zbuffered_variant);
-}
-
 static inline void
 toridraw_kernel_table_publish(struct ToriDraw_Kernel* table)
 {
