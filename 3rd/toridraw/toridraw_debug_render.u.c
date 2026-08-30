@@ -17,6 +17,64 @@
 
 #include "toridraw_debug_log.h"
 
+struct ToriDraw_FaceSortDebugStats
+{
+    int front_facing;
+    int back_facing;
+    int degenerate;
+    int accepted;
+    int depth_out_low;
+    int depth_out_high;
+    int bucket_overflow;
+    int min_depth_seen;
+    int max_depth_seen;
+    int max_bucket_occupancy;
+    int near_clip_candidates;
+    int first_depth_out_face;
+    int first_depth_out_value;
+};
+
+/** TORIDRAW_SORT_DEBUG is intentionally runtime-selectable: the counters below
+ * remain disabled on the normal render path, while an ASan reproduction can
+ * turn them on without rebuilding a multi-minute client.
+ * Pair with TORIDRAW_RASTER_DEBUG (toridraw_raster.u.c) to see per-face skip
+ * reasons (hidden type, HIDDEN sentinel, alpha, near-clip, texture miss). */
+static inline int
+toridraw_sort_debug_level(void)
+{
+    static int level = -1;
+    if( level < 0 )
+    {
+        const char* value = getenv("TORIDRAW_SORT_DEBUG");
+        if( !value || value[0] == '\0' || value[0] == '0' )
+            level = 0;
+        else if( strcmp(value, "all") == 0 || strcmp(value, "verbose") == 0 ||
+                 strcmp(value, "2") == 0 )
+            level = 2;
+        else
+            level = 1;
+    }
+    return level;
+}
+
+static inline bool
+toridraw_sort_debug_enabled(void)
+{
+    if( TORIDRAW_DBG_ENABLED() )
+        return true;
+    return toridraw_sort_debug_level() != 0;
+}
+
+static inline void
+toridraw_face_sort_debug_init(struct ToriDraw_FaceSortDebugStats* stats)
+{
+    memset(stats, 0, sizeof(*stats));
+    stats->min_depth_seen = INT_MAX;
+    stats->max_depth_seen = INT_MIN;
+    stats->first_depth_out_face = -1;
+    stats->first_depth_out_value = -1;
+}
+
 /** Exact-arithmetic differential against whatever projection kernel ran. */
 struct ToriDraw_DbgProjectDifferential
 {
@@ -535,5 +593,228 @@ toridraw_dbg_record_capacity_reject(
 #define TORIDRAW_DBG_RECORD_CAPACITY_REJECT(scene, hnd) ((void)(scene))
 
 #endif /* TORIDRAW_DEBUG_NDJSON */
+
+/*
+ * The TORIDRAW_SORT_DEBUG printers.
+ *
+ * Last, because they call the record macros above: a printer emits its
+ * NDJSON record first and its human line second, so both describe the
+ * same model from the same counters.
+ */
+static inline void
+toridraw_face_sort_debug_print(
+    const struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    const struct ToriDraw_FaceSortDebugStats* stats,
+    int ordered)
+{
+    const struct ToriDraw_BoundsCylinder* bounds = model_bounds_cylinder(hnd);
+    int const depth_bias = bounds ? bounds->min_z_depth_any_rotation : 0;
+    int const xz_radius = bounds ? bounds->radius : 0;
+    int const min_y = bounds ? bounds->min_y : 0;
+    int const max_y = bounds ? bounds->max_y : 0;
+    long long const conservative_levels = (long long)depth_bias * 2 + 1;
+    int const depth_min = stats->min_depth_seen == INT_MAX ? -1 : stats->min_depth_seen;
+    int const depth_max = stats->max_depth_seen == INT_MIN ? -1 : stats->max_depth_seen;
+
+    TORIDRAW_DBG_RECORD_FACE_SORT(scene, hnd, stats, ordered);
+
+    /* Level 1 is an anomaly detector suitable for a live client.  `all` (or
+     * level 2) emits clean models too when comparing an exact reproduction. */
+    if( toridraw_sort_debug_level() < 2 && stats->depth_out_low == 0 &&
+        stats->depth_out_high == 0 && stats->bucket_overflow == 0 &&
+        ordered == stats->accepted )
+        return;
+
+    fprintf(
+        stderr,
+        "sort_depth: model=%p vertices=%d/%d faces=%d/%d "
+        "bounds={y=%d..%d,xz=%d,bias=%d} "
+        "bound_levels=%lld depth_levels=%d depth_stride=%d observed=%d..%d "
+        "front=%d near_clip=%d accepted=%d ordered=%d back=%d degenerate=%d "
+        "out_low=%d out_high=%d bucket_overflow=%d max_bucket=%d "
+        "first_out_face=%d first_out_depth=%d\n",
+        (void*)model_as_full(hnd),
+        model_vertex_count(hnd),
+        scene->max_vertices,
+        model_face_count(hnd),
+        scene->max_faces,
+        min_y,
+        max_y,
+        xz_radius,
+        depth_bias,
+        conservative_levels,
+        scene->depth_levels,
+        scene->depth_stride,
+        depth_min,
+        depth_max,
+        stats->front_facing,
+        stats->near_clip_candidates,
+        stats->accepted,
+        ordered,
+        stats->back_facing,
+        stats->degenerate,
+        stats->depth_out_low,
+        stats->depth_out_high,
+        stats->bucket_overflow,
+        stats->max_bucket_occupancy,
+        stats->first_depth_out_face,
+        stats->first_depth_out_value);
+}
+
+static inline void
+toridraw_projection_debug_print(
+    const struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    const struct ToriDraw_Position* position,
+    const struct ToriDraw_ViewPort* view_port,
+    const struct ToriDraw_Camera* camera,
+    int center_z,
+    bool may_clip)
+{
+    /* First, before any of the derivations below: this runs once per
+     * projected model, and the tail of the prologue holds an integer divide
+     * (INT_MAX / cot15) the optimizer is not obliged to sink past the gate. */
+    if( !toridraw_sort_debug_enabled() )
+        return;
+
+    const struct ToriDraw_Model* model = model_as_full(hnd);
+    int min_x = INT_MAX;
+    int max_x = INT_MIN;
+    int min_y = INT_MAX;
+    int max_y = INT_MIN;
+    int min_z = INT_MAX;
+    int max_z = INT_MIN;
+    int clipped_vertices = 0;
+    int fixed16_vertices = 0;
+    int fixed16_faces = 0;
+    int clipped_faces = 0;
+    long long max_abs_edge_dx = 0;
+    /* Zeroed, so the record below reads well-defined fields on a build with
+     * the log compiled out (where the call is a no-op). */
+    struct ToriDraw_DbgProjectDifferential diff = { 0 };
+
+    TORIDRAW_DBG_PROJECT_DIFFERENTIAL(scene, hnd, position, camera, &diff);
+
+    for( int vi = 0; vi < model->vertex_count; vi++ )
+    {
+        int const x = scene->screen_vertices_x[vi];
+        int const y = scene->screen_vertices_y[vi];
+        int const z = scene->screen_vertices_z[vi];
+        if( x < min_x ) min_x = x;
+        if( x > max_x ) max_x = x;
+        if( y < min_y ) min_y = y;
+        if( y > max_y ) max_y = y;
+        if( z < min_z ) min_z = z;
+        if( z > max_z ) max_z = z;
+        /* A clipped vertex carries the sentinel in x and an undivided y, so
+         * neither is a projected coordinate yet; only the survivors are. */
+        if( may_clip && x == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
+            clipped_vertices++;
+        else if(
+            x < -TORIDRAW_PROJECTED_COORD_LIMIT || x > TORIDRAW_PROJECTED_COORD_LIMIT ||
+            y < -TORIDRAW_PROJECTED_COORD_LIMIT || y > TORIDRAW_PROJECTED_COORD_LIMIT )
+            fixed16_vertices++;
+    }
+
+    for( int face = 0; face < model->face_count; face++ )
+    {
+        uint32_t const a = model->face_indices_a[face];
+        uint32_t const b = model->face_indices_b[face];
+        uint32_t const c = model->face_indices_c[face];
+        if( a >= (uint32_t)model->vertex_count || b >= (uint32_t)model->vertex_count ||
+            c >= (uint32_t)model->vertex_count )
+            continue;
+
+        int const xa = scene->screen_vertices_x[a];
+        int const xb = scene->screen_vertices_x[b];
+        int const xc = scene->screen_vertices_x[c];
+        bool const clipped = may_clip &&
+                             (xa == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                              xb == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                              xc == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
+        if( clipped )
+        {
+            clipped_faces++;
+            continue;
+        }
+
+        long long const dx_ab = (long long)xa - xb;
+        long long const dx_bc = (long long)xb - xc;
+        long long const dx_ca = (long long)xc - xa;
+        long long const abs_ab = dx_ab < 0 ? -dx_ab : dx_ab;
+        long long const abs_bc = dx_bc < 0 ? -dx_bc : dx_bc;
+        long long const abs_ca = dx_ca < 0 ? -dx_ca : dx_ca;
+        long long const face_max =
+            abs_ab > abs_bc ? (abs_ab > abs_ca ? abs_ab : abs_ca)
+                            : (abs_bc > abs_ca ? abs_bc : abs_ca);
+        if( face_max > max_abs_edge_dx )
+            max_abs_edge_dx = face_max;
+        if( xa < -TORIDRAW_PROJECTED_COORD_LIMIT || xa > TORIDRAW_PROJECTED_COORD_LIMIT ||
+            xb < -TORIDRAW_PROJECTED_COORD_LIMIT || xb > TORIDRAW_PROJECTED_COORD_LIMIT ||
+            xc < -TORIDRAW_PROJECTED_COORD_LIMIT || xc > TORIDRAW_PROJECTED_COORD_LIMIT ||
+            face_max > 2 * TORIDRAW_PROJECTED_COORD_LIMIT )
+            fixed16_faces++;
+    }
+
+    {
+        struct ToriDraw_DbgProjectRange const range = {
+            min_x, max_x, min_y, max_y, min_z, max_z,
+            clipped_vertices, clipped_faces, fixed16_vertices, fixed16_faces,
+            max_abs_edge_dx
+        };
+        TORIDRAW_DBG_RECORD_PROJECT_RANGE(
+            scene, hnd, position, view_port, camera, center_z, may_clip, &range, &diff);
+    }
+
+    /* Every raster path converts x and dx to signed 16.16 with `<< 16`.
+     * Report models that exceed that representable range; ASan cannot see
+     * this class of arithmetic wrap because it stays inside allocated memory. */
+    if( toridraw_sort_debug_level() < 2 && fixed16_vertices == 0 && fixed16_faces == 0 &&
+        !(model->face_count >= 8000 && clipped_vertices > 0) )
+        return;
+
+    fprintf(
+        stderr,
+        "project_range: model=%p vertices=%d faces=%d "
+        "screen={x=%d..%d,y=%d..%d,z=%d..%d} center_z=%d near=%d scale=%d "
+        "may_clip=%d clipped_vertices=%d fixed16_vertices=%d "
+        "fixed16_faces=%d max_abs_edge_dx=%lld "
+        "viewport={size=%dx%d,clip=%d,%d..%d,%d,center=%d,%d,stride=%d} "
+        "position={x=%d,y=%d,z=%d,pitch=%d,yaw=%d,roll=%d}\n",
+        (void*)model,
+        model->vertex_count,
+        model->face_count,
+        min_x,
+        max_x,
+        min_y,
+        max_y,
+        min_z,
+        max_z,
+        center_z,
+        camera->near_plane_z,
+        toridraw_proj_scale_from_cot16(toridraw_proj_cot16(
+            camera->proj_mode, camera->proj_scale, camera->fov_rpi2048)),
+        (int)may_clip,
+        clipped_vertices,
+        fixed16_vertices,
+        fixed16_faces,
+        max_abs_edge_dx,
+        view_port->width,
+        view_port->height,
+        view_port->clip_left,
+        view_port->clip_top,
+        view_port->clip_right,
+        view_port->clip_bottom,
+        view_port->x_center,
+        view_port->y_center,
+        view_port->stride,
+        position->x,
+        position->y,
+        position->z,
+        position->pitch,
+        position->yaw,
+        position->roll);
+}
 
 #endif /* TORIDRAW_DEBUG_RENDER_U_C */
