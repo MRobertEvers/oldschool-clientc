@@ -267,7 +267,16 @@ struct ToriDraw_Model
     struct ToriDraw_Normals* merged_normals;
     struct ToriDraw_Bones* vertex_bones;
     struct ToriDraw_Bones* face_bones;
-    struct ToriDraw_BoundsCylinder* bounds_cylinder;
+    /*
+     * Embedded, not pointed to. ToriDraw_Project reads the cylinder on every
+     * model it culls, and as a separate allocation that was a dependent cache
+     * line behind the model struct itself -- for a four-vertex terrain tile,
+     * one of about seven the projection touched. has_bounds_cylinder is the
+     * "was it ever computed" test the NULL pointer used to be;
+     * ToriDraw_ModelGetBoundsCylinder still answers NULL when it is false.
+     */
+    struct ToriDraw_BoundsCylinder bounds_cylinder;
+    bool has_bounds_cylinder;
 
     /* Animaya per-vertex skin (NULL if no skeletal rigging) */
     int      animaya_vertex_count;

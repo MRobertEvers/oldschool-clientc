@@ -392,9 +392,9 @@ ToriDraw_SceneElementOcclusionHeight(
     if( !el || !ToriDraw_ModelKindIsFull(el->model.kind) )
         return 0;
     model = el->model.u.model.model;
-    if( !model || !model->bounds_cylinder )
+    if( !model || !model->has_bounds_cylinder )
         return 0;
-    h = -model->bounds_cylinder->min_y;
+    h = -model->bounds_cylinder.min_y;
     return h > 0 ? h : 0;
 }
 

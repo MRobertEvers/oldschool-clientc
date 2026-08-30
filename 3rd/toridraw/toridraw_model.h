@@ -382,9 +382,9 @@ ToriDraw_ModelGetBoundsCylinder(struct ToriDraw_ModelHandle hnd)
     case TORIDRAWMK_MODEL_HD:
     case TORIDRAWMK_MODEL_SHARED:
     case TORIDRAWMK_MODEL_LENT_FACES:
-        if( !hnd.u.model.model )
+        if( !hnd.u.model.model || !hnd.u.model.model->has_bounds_cylinder )
             return NULL;
-        return hnd.u.model.model->bounds_cylinder;
+        return &hnd.u.model.model->bounds_cylinder;
     default:
         return NULL;
     }

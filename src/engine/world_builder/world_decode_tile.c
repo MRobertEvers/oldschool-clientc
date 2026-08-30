@@ -670,10 +670,9 @@ decode_tile(
         td->tile_sort_kernel = (uint8_t)(1 + rotation);
     }
 
-    td->bounds_cylinder = calloc(1, sizeof(struct ToriDraw_BoundsCylinder));
-    assert(td->bounds_cylinder);
     tile_calculate_bounds_cylinder(
-        td->bounds_cylinder, vertex_count, vertices_x, vertices_y, vertices_z);
+        &td->bounds_cylinder, vertex_count, vertices_x, vertices_y, vertices_z);
+    td->has_bounds_cylinder = true;
 
     free(valid_faces);
 

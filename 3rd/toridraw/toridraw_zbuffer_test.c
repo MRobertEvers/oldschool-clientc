@@ -133,16 +133,16 @@ mesh_init(struct Mesh* m)
     m->model.face_colors_b = m->cb;
     m->model.face_colors_c = m->cc;
     m->model.face_infos = m->infos;
-    m->model.bounds_cylinder = &m->bounds;
+    m->model.has_bounds_cylinder = true;
 
     /* A sphere about the origin that contains every vertex any test builds, so
      * the cull and the near-clip gate see a model shaped like the geometry. */
-    m->bounds.radius = EXTENT * 2;
-    m->bounds.min_y = -EXTENT;
-    m->bounds.max_y = EXTENT;
-    m->bounds.center_to_top_edge = EXTENT * 3;
-    m->bounds.center_to_bottom_edge = EXTENT * 3;
-    m->bounds.min_z_depth_any_rotation = EXTENT * 3;
+    m->model.bounds_cylinder.radius = EXTENT * 2;
+    m->model.bounds_cylinder.min_y = -EXTENT;
+    m->model.bounds_cylinder.max_y = EXTENT;
+    m->model.bounds_cylinder.center_to_top_edge = EXTENT * 3;
+    m->model.bounds_cylinder.center_to_bottom_edge = EXTENT * 3;
+    m->model.bounds_cylinder.min_z_depth_any_rotation = EXTENT * 3;
 
     m->hnd.kind = TORIDRAWMK_MODEL;
     m->hnd.u.model.model = &m->model;

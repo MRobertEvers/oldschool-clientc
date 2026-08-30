@@ -66,7 +66,7 @@ fixture_init(struct Fixture* fx, int reverse)
     fx->model.face_colors_a = fx->color_a;
     fx->model.face_colors_b = fx->color_b;
     fx->model.face_colors_c = fx->color_c;
-    fx->model.bounds_cylinder = &fx->bounds;
+    fx->model.has_bounds_cylinder = true;
 
     /* This face is untextured. A nonzero count makes the public raster context
      * retain camera-space vertices, as a real mixed textured model does, so its

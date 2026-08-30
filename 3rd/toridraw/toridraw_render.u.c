@@ -809,6 +809,7 @@ ToriDraw_AabbCull(
 
 static inline int
 ToriDraw_FastCull(
+    const struct ToriDraw_Scene* scene,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
@@ -816,31 +817,62 @@ ToriDraw_FastCull(
     struct ProjectedVertex* projected_vertex)
 {
     assert(hnd.kind != TORIDRAWMK_NONE);
-    int model_yaw = ToriDraw_NormalizeAngle(position->yaw);
+    assert(ToriDraw_ModelKindIsFull(hnd.kind));
     int scene_x = position->x;
     int scene_y = position->y;
     int scene_z = position->z;
-
-    int camera_pitch = ToriDraw_NormalizeAngle(camera->pitch);
-    int camera_yaw = ToriDraw_NormalizeAngle(camera->yaw);
     int near_plane_z = camera->near_plane_z;
 
-    int cull_mx = 0;
-    int cull_my = 0;
-    int cull_mz = 0;
-    assert(ToriDraw_ModelKindIsFull(hnd.kind));
+    /*
+     * The camera's trig and projection scale, off the prepared block when one
+     * was published for THIS camera (the same pointer test the kernels make)
+     * and off the tables otherwise. The block holds exactly the table values
+     * and cot16 >> 1 -- ToriDraw_ScenePrepareProjectionCamera writes them from
+     * the same reads -- so the two arms agree bit for bit; the prepared one
+     * just spends one cache line instead of four dependent table loads and the
+     * cot ladder, once per model.
+     */
+    int cos_camera_pitch;
+    int sin_camera_pitch;
+    int cos_camera_yaw;
+    int sin_camera_yaw;
+    int cot15;
+    if( scene->projection_prepared_camera_source == camera )
+    {
+        const struct ToriDraw_ProjectionPreparedCamera* prep = &scene->projection_prepared_camera;
+        cos_camera_pitch = prep->cos_pitch[0];
+        sin_camera_pitch = prep->sin_pitch[0];
+        cos_camera_yaw = prep->cos_yaw[0];
+        sin_camera_yaw = prep->sin_yaw[0];
+        cot15 = prep->cot15[0];
+    }
+    else
+    {
+        int const camera_pitch = ToriDraw_NormalizeAngle(camera->pitch);
+        int const camera_yaw = ToriDraw_NormalizeAngle(camera->yaw);
+        cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch);
+        sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch);
+        cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw);
+        sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw);
+        cot15 =
+            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048) >> 1;
+    }
 
-    project_orthographic_fast(
-        projected_vertex,
-        cull_mx,
-        cull_my,
-        cull_mz,
-        model_yaw,
-        scene_x,
-        scene_y,
-        scene_z,
-        camera_pitch,
-        camera_yaw);
+    /*
+     * The model's origin in camera space: project_orthographic_fast on the
+     * point (0, 0, 0). The model rotation of the zero vector is the zero
+     * vector, so no model-yaw trig is read and only the camera's two
+     * rotations of the translate remain -- the same expressions, the same
+     * shifts, in the same order, so the result is the one the general
+     * routine gives (projection.u.c project_orthographic_fast_trig).
+     */
+    {
+        int const x_scene = (scene_x * cos_camera_yaw + scene_z * sin_camera_yaw) >> 16;
+        int const z_scene = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
+        projected_vertex->x = x_scene;
+        projected_vertex->y = (scene_y * cos_camera_pitch - z_scene * sin_camera_pitch) >> 16;
+        projected_vertex->z = (scene_y * sin_camera_pitch + z_scene * cos_camera_pitch) >> 16;
+    }
 
     const struct ToriDraw_BoundsCylinder* bc = model_bounds_cylinder(hnd);
     if( !bc )
@@ -878,7 +910,13 @@ ToriDraw_FastCull(
 
 /* The y extent, derived only once the x test has passed: two trig reads
  * and two multiplies a model rejected on x never needs. */
-#define TORIDRAW_FASTCULL_Y_EXTENT()                                                      int model_center_to_top_edge = bc->center_to_top_edge;                                int model_center_to_bottom_edge =                                                         (bc->center_to_bottom_edge * ToriDraw_ReadCosTable(camera_pitch) >> 16) +             (model_edge_radius * ToriDraw_ReadSinTable(camera_pitch) >> 16);                  int ortho_screen_y_min = mid_y - abs(model_center_to_bottom_edge);                    int ortho_screen_y_max = mid_y + abs(model_center_to_top_edge)
+#define TORIDRAW_FASTCULL_Y_EXTENT()                                                  \
+    int model_center_to_top_edge = bc->center_to_top_edge;                            \
+    int model_center_to_bottom_edge =                                                 \
+        (bc->center_to_bottom_edge * cos_camera_pitch >> 16) +                        \
+        (model_edge_radius * sin_camera_pitch >> 16);                                 \
+    int ortho_screen_y_min = mid_y - abs(model_center_to_bottom_edge);                \
+    int ortho_screen_y_max = mid_y + abs(model_center_to_top_edge)
 
     if( parallel )
     {
@@ -927,8 +965,6 @@ ToriDraw_FastCull(
      */
     assert(mid_z > 0);
     {
-        int const cot15 =
-            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048) >> 1;
         long long const z_w = (long long)(screen_edge_width + 1) * mid_z;
         long long const z_h = (long long)(screen_edge_height + 1) * mid_z;
         int const qx_min = (ortho_screen_x_min * cot15) >> 15;
@@ -3298,7 +3334,7 @@ ToriDraw_Project(
 
     int cull = TORIDRAW_CULL_VISIBLE;
 
-    cull = ToriDraw_FastCull(view_port, hnd, position, camera, &center_projection);
+    cull = ToriDraw_FastCull(scene, view_port, hnd, position, camera, &center_projection);
     if( cull != TORIDRAW_CULL_VISIBLE )
     {
         if( cull == TORIDRAW_CULL_ERROR )

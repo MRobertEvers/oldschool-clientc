@@ -171,7 +171,9 @@ ToriDraw_ModelMoveArrays(
     MODEL_MOVE(merged_normals);
     MODEL_MOVE(vertex_bones);
     MODEL_MOVE(face_bones);
-    MODEL_MOVE(bounds_cylinder);
+    dst->bounds_cylinder = src->bounds_cylinder;
+    dst->has_bounds_cylinder = src->has_bounds_cylinder;
+    src->has_bounds_cylinder = false;
     MODEL_MOVE(animaya_group_counts);
     MODEL_MOVE(animaya_groups);
     MODEL_MOVE(animaya_scales);
@@ -271,9 +273,6 @@ ToriDraw_ModelHeapBytes(const struct ToriDraw_Model* model)
 
     if( model->face_priorities )
         total += ToriDraw_FacePrioritiesByteCount(model->face_count);
-
-    if( model->bounds_cylinder )
-        total += sizeof(*model->bounds_cylinder);
 
     total += model_normals_bytes(model->normals);
     total += model_normals_bytes(model->merged_normals);
@@ -902,15 +901,11 @@ void
 ToriDraw_ModelSetBoundsCylinder(struct ToriDraw_Model* model)
 {
     assert(model && "ToriDraw_ModelSetBoundsCylinder: model is NULL");
-    if( !model->bounds_cylinder )
-        model->bounds_cylinder = calloc(1, sizeof(struct ToriDraw_BoundsCylinder));
-    assert(
-        model->bounds_cylinder &&
-        "ToriDraw_ModelSetBoundsCylinder: failed to allocate bounds cylinder");
+    model->has_bounds_cylinder = true;
 
     if( model->vertex_count <= 0 )
     {
-        memset(model->bounds_cylinder, 0, sizeof(struct ToriDraw_BoundsCylinder));
+        memset(&model->bounds_cylinder, 0, sizeof(struct ToriDraw_BoundsCylinder));
         return;
     }
 
@@ -934,11 +929,11 @@ ToriDraw_ModelSetBoundsCylinder(struct ToriDraw_Model* model)
 
     int center_to_bottom_edge = (int)sqrt((double)radius_squared + (double)min_y * min_y) + 1;
     int center_to_top_edge = (int)sqrt((double)radius_squared + (double)max_y * max_y) + 1;
-    model->bounds_cylinder->center_to_bottom_edge = center_to_bottom_edge;
-    model->bounds_cylinder->center_to_top_edge = center_to_top_edge;
-    model->bounds_cylinder->min_y = min_y;
-    model->bounds_cylinder->max_y = max_y;
-    model->bounds_cylinder->radius = (int)sqrt((double)radius_squared);
-    model->bounds_cylinder->min_z_depth_any_rotation =
+    model->bounds_cylinder.center_to_bottom_edge = center_to_bottom_edge;
+    model->bounds_cylinder.center_to_top_edge = center_to_top_edge;
+    model->bounds_cylinder.min_y = min_y;
+    model->bounds_cylinder.max_y = max_y;
+    model->bounds_cylinder.radius = (int)sqrt((double)radius_squared);
+    model->bounds_cylinder.min_z_depth_any_rotation =
         center_to_top_edge > center_to_bottom_edge ? center_to_top_edge : center_to_bottom_edge;
 }

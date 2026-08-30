@@ -71,7 +71,6 @@ check_selectable_depth_capacity(void)
     faceint_t face_a[1] = { 0 };
     faceint_t face_b[1] = { 1 };
     faceint_t face_c[1] = { 2 };
-    struct ToriDraw_BoundsCylinder bounds = { 0 };
     struct ToriDraw_Model model = { 0 };
     struct ToriDraw_ModelHandle hnd = { 0 };
     struct ToriDraw_Scene* reference;
@@ -85,7 +84,7 @@ check_selectable_depth_capacity(void)
     model.face_indices_a = face_a;
     model.face_indices_b = face_b;
     model.face_indices_c = face_c;
-    model.bounds_cylinder = &bounds;
+    model.has_bounds_cylinder = true;
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = &model;
 
@@ -125,7 +124,7 @@ check_selectable_depth_capacity(void)
      * disappearing -- so both tables must order the face, and the deep table
      * (which needs no shift) remains exact.
      */
-    bounds.min_z_depth_any_rotation = 4791;
+    model.bounds_cylinder.min_z_depth_any_rotation = 4791;
     seed_one_face_at_depth(reference, hnd, 4791);
     seed_one_face_at_depth(deep, hnd, 4791);
     CHECK(ToriDraw_FaceOrderCount(reference) == 1);

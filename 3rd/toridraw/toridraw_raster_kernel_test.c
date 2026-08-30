@@ -238,8 +238,7 @@ sd_fixture_init(struct SDFixture* fixture)
 static void
 sd_fixture_destroy(struct SDFixture* fixture)
 {
-    free(fixture->model.bounds_cylinder);
-    fixture->model.bounds_cylinder = NULL;
+    fixture->model.has_bounds_cylinder = false;
 }
 
 static void
@@ -859,9 +858,8 @@ static void
 hd_fixture_destroy(struct HDFixture* fixture)
 {
     free(fixture->hd.texture_mappings);
-    free(fixture->hd.base.bounds_cylinder);
     fixture->hd.texture_mappings = NULL;
-    fixture->hd.base.bounds_cylinder = NULL;
+    fixture->hd.base.has_bounds_cylinder = false;
 }
 
 static void

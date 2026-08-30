@@ -1061,7 +1061,8 @@ soft3d_draw_model(
     if( trace_this && cull != g_draw_trace_last_cull )
     {
         struct ToriDraw_Model const* m = cmd->model.u.model.model;
-        struct ToriDraw_BoundsCylinder const* bc = m->bounds_cylinder;
+        struct ToriDraw_BoundsCylinder const* bc =
+            m->has_bounds_cylinder ? &m->bounds_cylinder : NULL;
         TORIRS_LOG("draw_trace: element=%d vc=%d faces=%d CULL %d -> %d (0=visible) pos=(%d,%d,%d) "
             "radius=%d min_y=%d max_y=%d bias=%d after %d drawn frames\n",
             cmd->element_id, m->vertex_count, m->face_count, g_draw_trace_last_cull, (int)cull,
