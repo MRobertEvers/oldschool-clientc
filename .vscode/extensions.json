@@ -1,5 +1,8 @@
 {
   "recommendations": [
+    "llvm-vs-code-extensions.vscode-clangd",
+    "xaver.clang-format",
     "sumneko.lua"
-  ]
+  ],
+  "unwantedRecommendations": []
 }

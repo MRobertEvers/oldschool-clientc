@@ -1,33 +1,38 @@
-/* Names this translation unit. The prebaked kernels under kernels/ are
- * fragments of it, not compilable on their own; each tests this macro so that
- * an editor asked to index one directly can pull the whole unit in. */
-#define TORIDRAW_TORIDRAW_C_UNITY 1
-
 #include "toridraw.h"
-#include <assert.h>
 
-#include "toridraw_types.h"
 #include "toridraw_shared_model.h"
+#include "toridraw_types.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
 _Static_assert(
-    offsetof(struct ToriDraw_ProjectionPreparedCamera, cos_yaw) == 0,
+    offsetof(
+        struct ToriDraw_ProjectionPreparedCamera,
+        cos_yaw) == 0,
     "prepared projection cos-yaw offset");
 _Static_assert(
-    offsetof(struct ToriDraw_ProjectionPreparedCamera, sin_yaw) == 16,
+    offsetof(
+        struct ToriDraw_ProjectionPreparedCamera,
+        sin_yaw) == 16,
     "prepared projection sin-yaw offset");
 _Static_assert(
-    offsetof(struct ToriDraw_ProjectionPreparedCamera, cos_pitch) == 32,
+    offsetof(
+        struct ToriDraw_ProjectionPreparedCamera,
+        cos_pitch) == 32,
     "prepared projection cos-pitch offset");
 _Static_assert(
-    offsetof(struct ToriDraw_ProjectionPreparedCamera, sin_pitch) == 48,
+    offsetof(
+        struct ToriDraw_ProjectionPreparedCamera,
+        sin_pitch) == 48,
     "prepared projection sin-pitch offset");
 _Static_assert(
-    offsetof(struct ToriDraw_ProjectionPreparedCamera, cot15) == 64,
+    offsetof(
+        struct ToriDraw_ProjectionPreparedCamera,
+        cot15) == 64,
     "prepared projection cotangent offset");
 _Static_assert(
     sizeof(struct ToriDraw_ProjectionPreparedCamera) == 80,
@@ -36,85 +41,130 @@ _Static_assert(
     _Alignof(struct ToriDraw_ProjectionPreparedCamera) >= 16,
     "prepared projection camera alignment");
 _Static_assert(
-    offsetof(struct ToriDraw_Scene, screen_vertices_y) ==
-        offsetof(struct ToriDraw_Scene, screen_vertices_x) + sizeof(int*),
+    offsetof(
+        struct ToriDraw_Scene,
+        screen_vertices_y) ==
+        offsetof(
+            struct ToriDraw_Scene,
+            screen_vertices_x) +
+            sizeof(int*),
     "projection screen-y pointer layout");
 _Static_assert(
-    offsetof(struct ToriDraw_Scene, screen_vertices_z) ==
-        offsetof(struct ToriDraw_Scene, screen_vertices_x) + 2 * sizeof(int*),
+    offsetof(
+        struct ToriDraw_Scene,
+        screen_vertices_z) ==
+        offsetof(
+            struct ToriDraw_Scene,
+            screen_vertices_x) +
+            2 * sizeof(int*),
     "projection screen-z pointer layout");
 _Static_assert(
-    offsetof(struct ToriDraw_Scene, orthographic_vertices_x) ==
-        offsetof(struct ToriDraw_Scene, screen_vertices_x) + 3 * sizeof(int*),
+    offsetof(
+        struct ToriDraw_Scene,
+        orthographic_vertices_x) ==
+        offsetof(
+            struct ToriDraw_Scene,
+            screen_vertices_x) +
+            3 * sizeof(int*),
     "projection orthographic-x pointer layout");
 _Static_assert(
-    offsetof(struct ToriDraw_Scene, orthographic_vertices_y) ==
-        offsetof(struct ToriDraw_Scene, screen_vertices_x) + 4 * sizeof(int*),
+    offsetof(
+        struct ToriDraw_Scene,
+        orthographic_vertices_y) ==
+        offsetof(
+            struct ToriDraw_Scene,
+            screen_vertices_x) +
+            4 * sizeof(int*),
     "projection orthographic-y pointer layout");
 _Static_assert(
-    offsetof(struct ToriDraw_Scene, orthographic_vertices_z) ==
-        offsetof(struct ToriDraw_Scene, screen_vertices_x) + 5 * sizeof(int*),
+    offsetof(
+        struct ToriDraw_Scene,
+        orthographic_vertices_z) ==
+        offsetof(
+            struct ToriDraw_Scene,
+            screen_vertices_x) +
+            5 * sizeof(int*),
     "projection orthographic-z pointer layout");
 _Static_assert(
-    offsetof(struct ToriDraw_Scene, projection_prepared_camera) ==
-        offsetof(struct ToriDraw_Scene, screen_vertices_x) + 6 * sizeof(int*),
+    offsetof(
+        struct ToriDraw_Scene,
+        projection_prepared_camera) ==
+        offsetof(
+            struct ToriDraw_Scene,
+            screen_vertices_x) +
+            6 * sizeof(int*),
     "prepared projection relative layout");
 _Static_assert(
-    offsetof(struct ToriDraw_Scene, projection_bound) ==
-        offsetof(struct ToriDraw_Scene, screen_vertices_x) + 6 * sizeof(int*) +
-            sizeof(struct ToriDraw_ProjectionPreparedCamera),
+    offsetof(
+        struct ToriDraw_Scene,
+        projection_bound) ==
+        offsetof(
+            struct ToriDraw_Scene,
+            screen_vertices_x) +
+            6 * sizeof(int*) + sizeof(struct ToriDraw_ProjectionPreparedCamera),
     "projection bound block relative layout");
 _Static_assert(
     sizeof(((struct ToriDraw_Scene*)0)->projection_bound) == 64,
     "projection bound block size");
 _Static_assert(
-    offsetof(struct ToriDraw_Position, x) == 0,
+    offsetof(
+        struct ToriDraw_Position,
+        x) == 0,
     "projection position-x layout");
 _Static_assert(
-    offsetof(struct ToriDraw_Position, y) ==
-        offsetof(struct ToriDraw_Position, x) + sizeof(int),
+    offsetof(
+        struct ToriDraw_Position,
+        y) ==
+        offsetof(
+            struct ToriDraw_Position,
+            x) +
+            sizeof(int),
     "projection position-y layout");
 _Static_assert(
-    offsetof(struct ToriDraw_Position, z) ==
-        offsetof(struct ToriDraw_Position, x) + 2 * sizeof(int),
+    offsetof(
+        struct ToriDraw_Position,
+        z) ==
+        offsetof(
+            struct ToriDraw_Position,
+            x) +
+            2 * sizeof(int),
     "projection position-z layout");
 #endif
 
-#define TORIDRAW_LOW_MAX_VERTICES    2048
-#define TORIDRAW_LOW_MAX_FACES       4096
+#define TORIDRAW_LOW_MAX_VERTICES 2048
+#define TORIDRAW_LOW_MAX_FACES 4096
 #define TORIDRAW_LOW_PRIORITY_STRIDE 4096
-#define TORIDRAW_LOW_FLEX_PRIO11     4096
-#define TORIDRAW_LOW_FLEX_PRIO12     4096
+#define TORIDRAW_LOW_FLEX_PRIO11 4096
+#define TORIDRAW_LOW_FLEX_PRIO12 4096
 
-#define TORIDRAW_MED_MAX_VERTICES    4096
-#define TORIDRAW_MED_MAX_FACES       8192
+#define TORIDRAW_MED_MAX_VERTICES 4096
+#define TORIDRAW_MED_MAX_FACES 8192
 #define TORIDRAW_MED_PRIORITY_STRIDE 8192
-#define TORIDRAW_MED_FLEX_PRIO11     8192
-#define TORIDRAW_MED_FLEX_PRIO12     8192
+#define TORIDRAW_MED_FLEX_PRIO11 8192
+#define TORIDRAW_MED_FLEX_PRIO12 8192
 
 /* HIGH_8K is the existing QBD-safe vertex/face allocation.  Do not reduce it
  * without replacing the explicit capacity guard in ToriDraw_Project: the
  * merged sleeping QBD has 6,223 vertices and 9,012 faces.  Its 4,791-unit
  * animated bounding sphere separately requires TORIDRAW_SCENE_DEPTH_16K. */
-#define TORIDRAW_HIGH_MAX_VERTICES    8192
-#define TORIDRAW_HIGH_MAX_FACES       16384
+#define TORIDRAW_HIGH_MAX_VERTICES 8192
+#define TORIDRAW_HIGH_MAX_FACES 16384
 #define TORIDRAW_HIGH_PRIORITY_STRIDE 16384
-#define TORIDRAW_HIGH_FLEX_PRIO11     16384
-#define TORIDRAW_HIGH_FLEX_PRIO12     16384
+#define TORIDRAW_HIGH_FLEX_PRIO11 16384
+#define TORIDRAW_HIGH_FLEX_PRIO12 16384
 
 /* VERYHIGH_16K exists for merged NPCs that outgrow HIGH_8K: the
  * face-synthesised QBD body (70260 at K=4) plus its collar ring (69766)
  * projects 9,097 vertices.  Same 2:1 face allowance as the other tiers. */
-#define TORIDRAW_VERYHIGH_MAX_VERTICES    16384
-#define TORIDRAW_VERYHIGH_MAX_FACES       32768
+#define TORIDRAW_VERYHIGH_MAX_VERTICES 16384
+#define TORIDRAW_VERYHIGH_MAX_FACES 32768
 #define TORIDRAW_VERYHIGH_PRIORITY_STRIDE 32768
-#define TORIDRAW_VERYHIGH_FLEX_PRIO11     32768
-#define TORIDRAW_VERYHIGH_FLEX_PRIO12     32768
+#define TORIDRAW_VERYHIGH_FLEX_PRIO11 32768
+#define TORIDRAW_VERYHIGH_FLEX_PRIO12 32768
 
 #define TORIDRAW_DEPTH_LEVELS_REFERENCE 1500
-#define TORIDRAW_DEPTH_LEVELS_16K       16384
+#define TORIDRAW_DEPTH_LEVELS_16K 16384
 #define TORIDRAW_FULL_DEPTH_STRIDE 512
-
 
 struct ToriDraw_ScratchProfile
 {
@@ -193,9 +243,8 @@ resolve_caps(
     profile = &g_scratch_profiles[scratch_buffer_size];
     caps->small_mode = (flags & TORIDRAW_SCENE_SMALL) != 0;
     caps->lazy_textures = (flags & TORIDRAW_SCENE_LAZY_TEXTURES) != 0;
-    caps->depth_levels = (flags & TORIDRAW_SCENE_DEPTH_16K)
-                             ? TORIDRAW_DEPTH_LEVELS_16K
-                             : TORIDRAW_DEPTH_LEVELS_REFERENCE;
+    caps->depth_levels = (flags & TORIDRAW_SCENE_DEPTH_16K) ? TORIDRAW_DEPTH_LEVELS_16K
+                                                            : TORIDRAW_DEPTH_LEVELS_REFERENCE;
 
     /* Capacity always comes from the tier; SMALL only selects the CSR
      * sorter, whose buffers scale with max_faces instead of carrying the
@@ -322,7 +371,9 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
  */
 
 static bool
-scene_alloc_vertices(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneCaps* caps)
+scene_alloc_vertices(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_SceneCaps* caps)
 {
     if( scene->screen_vertices_x )
         return true;
@@ -344,7 +395,9 @@ scene_alloc_vertices(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneCa
 }
 
 static bool
-scene_alloc_face_order(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneCaps* caps)
+scene_alloc_face_order(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_SceneCaps* caps)
 {
     if( scene->tmp_face_order )
         return true;
@@ -356,7 +409,9 @@ scene_alloc_face_order(struct ToriDraw_Scene* scene, const struct ToriDraw_Scene
 
 /* The dense depth_levels x depth_stride bucket table, for a full scene. */
 static bool
-scene_alloc_bucket_sort(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneCaps* caps)
+scene_alloc_bucket_sort(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_SceneCaps* caps)
 {
     if( scene->tmp_depth_faces )
         return true;
@@ -366,12 +421,11 @@ scene_alloc_bucket_sort(struct ToriDraw_Scene* scene, const struct ToriDraw_Scen
      * has walked them (ToriDraw_ComputeProjectedFaceOrder), so the
      * all-zero state is established here, once. */
     scene->tmp_depth_face_count = calloc((size_t)caps->depth_levels, sizeof(faceint_t));
-    scene->tmp_depth_faces = malloc(
-        (size_t)caps->depth_levels * (size_t)caps->depth_stride * sizeof(faceint_t));
+    scene->tmp_depth_faces =
+        malloc((size_t)caps->depth_levels * (size_t)caps->depth_stride * sizeof(faceint_t));
     scene->tmp_priority_face_count = malloc(12 * sizeof(faceint_t));
     scene->tmp_priority_depth_sum = malloc(12 * sizeof(int));
-    scene->tmp_priority_faces =
-        malloc(12 * (size_t)caps->priority_stride * sizeof(faceint_t));
+    scene->tmp_priority_faces = malloc(12 * (size_t)caps->priority_stride * sizeof(faceint_t));
     scene->tmp_flex_prio11_face_to_depth = malloc((size_t)caps->flex_prio11 * sizeof(int));
     scene->tmp_flex_prio12_face_to_depth = malloc((size_t)caps->flex_prio12 * sizeof(int));
 
@@ -388,7 +442,9 @@ scene_alloc_bucket_sort(struct ToriDraw_Scene* scene, const struct ToriDraw_Scen
 /* The CSR sorter's arrays, which scale with max_faces instead of carrying the
  * dense table above. Both stock face sorts walk these on a small scene. */
 static bool
-scene_alloc_csr_sort(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneCaps* caps)
+scene_alloc_csr_sort(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_SceneCaps* caps)
 {
     if( scene->sm_faces_by_depth )
         return true;
@@ -420,7 +476,9 @@ scene_alloc_csr_sort(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneCa
 /* The flat sort's key arrays. Rounded up to a power of two so the bitonic
  * network can pad without a second buffer. */
 static bool
-scene_alloc_flat_keys(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneCaps* caps)
+scene_alloc_flat_keys(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_SceneCaps* caps)
 {
     size_t keys = 8;
 
@@ -443,7 +501,9 @@ scene_alloc_flat_keys(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneC
  * max_faces, but the region actually touched is num_faces of whichever model
  * is being drawn, which is a few hundred bytes for the median one. */
 static bool
-scene_alloc_presort_xy(struct ToriDraw_Scene* scene, const struct ToriDraw_SceneCaps* caps)
+scene_alloc_presort_xy(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_SceneCaps* caps)
 {
     if( scene->sm_face_x4 )
         return true;
@@ -596,21 +656,24 @@ ToriDraw_ScenePrintSize(
     size_t tex_bytes = caps.lazy_textures ? 0 : sizeof(struct ToriDraw_TextureState);
     size_t total = struct_bytes + vertex_bytes + order_bytes + sort_bytes + tex_bytes;
 
-    printf("toridraw scene size (scratch=%s, flags=0x%x%s%s%s):\n",
-           profile_name,
-           (unsigned)flags,
-           caps.small_mode ? ", SMALL" : ", FULL",
-           caps.lazy_textures ? ", LAZY_TEXTURES" : "",
-           (flags & TORIDRAW_SCENE_DEPTH_16K) ? ", DEPTH_16K" : "");
+    printf(
+        "toridraw scene size (scratch=%s, flags=0x%x%s%s%s):\n",
+        profile_name,
+        (unsigned)flags,
+        caps.small_mode ? ", SMALL" : ", FULL",
+        caps.lazy_textures ? ", LAZY_TEXTURES" : "",
+        (flags & TORIDRAW_SCENE_DEPTH_16K) ? ", DEPTH_16K" : "");
     printf("  struct:     %6zu bytes\n", struct_bytes);
     printf("  vertices:   %6zu bytes (%d verts x 6 arrays)\n", vertex_bytes, caps.max_vertices);
     printf("  face order: %6zu bytes (%d faces)\n", order_bytes, caps.max_faces);
-    printf("  sort:       %6zu bytes (%s)\n",
-           sort_bytes,
-           caps.small_mode ? "CSR small variant" : "full bucket arrays");
-    printf("  textures:   %6zu bytes%s\n",
-           tex_bytes,
-           caps.lazy_textures ? " (lazy, not included in alloc)" : "");
+    printf(
+        "  sort:       %6zu bytes (%s)\n",
+        sort_bytes,
+        caps.small_mode ? "CSR small variant" : "full bucket arrays");
+    printf(
+        "  textures:   %6zu bytes%s\n",
+        tex_bytes,
+        caps.lazy_textures ? " (lazy, not included in alloc)" : "");
     printf("  total:      %6zu bytes (%.1f KiB)\n", total, (double)total / 1024.0);
 }
 
@@ -639,8 +702,7 @@ td_scene_alloc_aligned(void)
     void* raw;
     uintptr_t aligned;
 
-    raw = calloc(
-        1, sizeof(struct ToriDraw_Scene) + TORIDRAW_SCENE_ALIGN + sizeof(void*));
+    raw = calloc(1, sizeof(struct ToriDraw_Scene) + TORIDRAW_SCENE_ALIGN + sizeof(void*));
     assert(raw);
     aligned = ((uintptr_t)raw + sizeof(void*) + TORIDRAW_SCENE_ALIGN - 1) &
               ~(uintptr_t)(TORIDRAW_SCENE_ALIGN - 1);
@@ -981,7 +1043,9 @@ ToriDraw_RasterKernelSDGetStock(bool smooth)
  * scratch profile, so it stands in for both.
  */
 static void
-scene_caps_from_scene(const struct ToriDraw_Scene* scene, struct ToriDraw_SceneCaps* caps)
+scene_caps_from_scene(
+    const struct ToriDraw_Scene* scene,
+    struct ToriDraw_SceneCaps* caps)
 {
     assert(scene);
     assert(caps);
@@ -1020,7 +1084,9 @@ ToriDraw_SceneScratchResident(const struct ToriDraw_Scene* scene)
 }
 
 bool
-ToriDraw_SceneHasScratch(const struct ToriDraw_Scene* scene, uint32_t needs)
+ToriDraw_SceneHasScratch(
+    const struct ToriDraw_Scene* scene,
+    uint32_t needs)
 {
     assert(scene);
     return (ToriDraw_SceneScratchResident(scene) & needs) == needs;
@@ -1047,8 +1113,8 @@ ToriDraw_SceneKernelScratchNeeds(
     /* The flat sort's keys, asked for by the kernel rather than inferred from
      * its identity -- and only where the CSR sorter runs, because a full scene
      * takes the dense bucket walk whichever sort is named. */
-    sort = (kernel && kernel->face_sort) ? kernel->face_sort
-                                         : ToriDraw_FaceCullSortKernelGetDefault();
+    sort =
+        (kernel && kernel->face_sort) ? kernel->face_sort : ToriDraw_FaceCullSortKernelGetDefault();
     if( small && (sort->needs & TORIDRAW_FACESORT_NEEDS_FLAT_KEYS) )
         needs |= TORIDRAW_SCENE_SCRATCH_FLAT_KEYS;
 
@@ -1064,7 +1130,9 @@ ToriDraw_SceneKernelScratchNeeds(
 }
 
 bool
-ToriDraw_SceneEnsureScratch(struct ToriDraw_Scene* scene, uint32_t needs)
+ToriDraw_SceneEnsureScratch(
+    struct ToriDraw_Scene* scene,
+    uint32_t needs)
 {
     struct ToriDraw_SceneCaps caps;
 
@@ -1097,8 +1165,7 @@ ToriDraw_SceneEnsureKernelScratch(
     const struct ToriDraw_RasterKernelSD* kernel)
 {
     assert(scene);
-    return ToriDraw_SceneEnsureScratch(
-        scene, ToriDraw_SceneKernelScratchNeeds(scene, kernel));
+    return ToriDraw_SceneEnsureScratch(scene, ToriDraw_SceneKernelScratchNeeds(scene, kernel));
 }
 
 /* ---- The kernel table ------------------------------------------------ */
@@ -1110,8 +1177,7 @@ kernel_table_resolve(
     const struct ToriDraw_ProjectionKernel** projection,
     const struct ToriDraw_FaceCullSortKernel** sort)
 {
-    *projection = kernel->projection ? kernel->projection
-                                     : ToriDraw_ProjectionKernelGetDefault();
+    *projection = kernel->projection ? kernel->projection : ToriDraw_ProjectionKernelGetDefault();
     *sort = kernel->face_sort ? kernel->face_sort : ToriDraw_FaceCullSortKernelGetDefault();
 }
 
@@ -1268,8 +1334,9 @@ ToriDraw_KernelValidate(
         *why = "whole-model raster falls back per face: a full scene has no presort stash";
         fit = TORIDRAW_KERNEL_FIT_DEGRADED;
     }
-    else if( kernel_table_raster_is_whole_model(kernel) &&
-             !(sort->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY) )
+    else if(
+        kernel_table_raster_is_whole_model(kernel) &&
+        !(sort->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY) )
     {
         *why = "whole-model raster falls back per face: the sort cannot presort";
         fit = TORIDRAW_KERNEL_FIT_DEGRADED;
@@ -1394,14 +1461,10 @@ ToriDraw_ScenePrepareProjectionCamera(
     /* The compiler writes these five vectors with aligned stores, on the
      * strength of the _Alignas(16) in the struct; td_scene_alloc_aligned is
      * what makes that true of the block the scene actually lives in. */
-    assert(
-        ((uintptr_t)&scene->projection_prepared_camera &
-         (TORIDRAW_SCENE_ALIGN - 1)) == 0);
+    assert(((uintptr_t)&scene->projection_prepared_camera & (TORIDRAW_SCENE_ALIGN - 1)) == 0);
     /* The float block is read with an ALIGNED load, so this one is not a
      * tidiness check -- an unaligned movaps faults. */
-    assert(
-        ((uintptr_t)&scene->projection_prepared_camera_f &
-         (TORIDRAW_SCENE_ALIGN - 1)) == 0);
+    assert(((uintptr_t)&scene->projection_prepared_camera_f & (TORIDRAW_SCENE_ALIGN - 1)) == 0);
 
     /* Publish the source only after all five vectors are complete. */
     scene->projection_prepared_camera_source = NULL;
@@ -1509,8 +1572,7 @@ ToriDraw_RenderModel1ProjectWithTable(
     assert(projection->project);
 
     scene->active_hnd = hnd;
-    return projection->project(
-        projection->user_data, scene, hnd, position, view_port, camera);
+    return projection->project(projection->user_data, scene, hnd, position, view_port, camera);
 }
 
 /*
@@ -1581,16 +1643,14 @@ ToriDraw_RenderModelWithTable(
     assert(table);
     assert(table->raster && "a GPU table has no raster stage");
 
-    cull = ToriDraw_RenderModel1ProjectWithTable(
-        hnd, scene, position, view_port, camera, table);
+    cull = ToriDraw_RenderModel1ProjectWithTable(hnd, scene, position, view_port, camera, table);
     if( cull != TORIDRAW_CULL_VISIBLE )
         return cull;
 
     if( table->raster->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
         ToriDraw_RenderModel2SortFacesWithTable(hnd, scene, table);
 
-    return ToriDraw_RenderModel3RasterWithTable(
-        scene, view_port, camera, pixel_buffer, table);
+    return ToriDraw_RenderModel3RasterWithTable(scene, view_port, camera, pixel_buffer, table);
 }
 
 int
@@ -1742,15 +1802,13 @@ ToriDraw_RenderModel3RasterWithRasterKernel(
         assert(false && "SD Z-buffer raster kernels need the 32-bit raster");
         return TORIDRAW_CULL_ERROR;
 #else
-        return ToriDraw_RasterZ(
-                   scene, scene->active_hnd, view_port, camera, pixel_buffer, kernel)
+        return ToriDraw_RasterZ(scene, scene->active_hnd, view_port, camera, pixel_buffer, kernel)
                    ? TORIDRAW_CULL_VISIBLE
                    : TORIDRAW_CULL_ERROR;
 #endif
     }
 
-    return ToriDraw_RasterPainter(
-               scene, scene->active_hnd, view_port, camera, pixel_buffer, kernel)
+    return ToriDraw_RasterPainter(scene, scene->active_hnd, view_port, camera, pixel_buffer, kernel)
                ? TORIDRAW_CULL_VISIBLE
                : TORIDRAW_CULL_ERROR;
 }
@@ -1790,6 +1848,5 @@ ToriDraw_RenderZBufferedWithRasterKernel(
     assert(kernel);
     assert(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER);
 
-    return sd_render_with_kernel_z(
-        hnd, scene, position, view_port, camera, pixel_buffer, kernel);
+    return sd_render_with_kernel_z(hnd, scene, position, view_port, camera, pixel_buffer, kernel);
 }

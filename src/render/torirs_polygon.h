@@ -28,7 +28,11 @@
  * One horizontal run of pixels: `count` pixels starting at (x, y).
  * Already clipped — a backend can write it without further checks.
  */
-typedef void (*ToriRS_PolygonSpanFn)(void* user_data, int x, int y, int count);
+typedef void (*ToriRS_PolygonSpanFn)(
+    void* user_data,
+    int x,
+    int y,
+    int count);
 
 /**
  * Fill a convex polygon by handing its spans to `span`.

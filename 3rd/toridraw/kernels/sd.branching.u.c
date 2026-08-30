@@ -1,11 +1,3 @@
-#ifndef TORIDRAW_TORIDRAW_C_UNITY
-/* Indexed on its own by an editor rather than reached through the unity build.
- * Pull in the translation unit that owns this fragment: it includes this file
- * back at its proper place, with the macro defined, where every name below is
- * in scope. Inert in a real build, where toridraw.c defines the macro first. */
-#include "../toridraw.c"
-#else
-
 #ifndef TORIDRAW_KERNELS_SD_BRANCHING_U_C
 #define TORIDRAW_KERNELS_SD_BRANCHING_U_C
 
@@ -48,5 +40,3 @@ ToriDraw_RasterKernelSDGetBranching(void)
 }
 
 #endif /* TORIDRAW_KERNELS_SD_BRANCHING_U_C */
-
-#endif /* TORIDRAW_TORIDRAW_C_UNITY */

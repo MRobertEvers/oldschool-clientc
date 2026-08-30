@@ -1040,8 +1040,10 @@ struct App
      *    while the buffer behind them is refilled -- the same descs
      *    `UITreeEmitBuffer::volatile_refs` counts, for the same reason.
      *
-     * Everything else in a retained frame is already on screen, so it needs
-     * neither clearing, nor redrawing, nor presenting. Membership is decided
+     * Everything else in a retained frame is already on screen, so it does not
+     * need presenting. (It is still cleared and redrawn: the software renderer
+     * used to clip its clear and its draws to this box too, and no longer
+     * does.) Membership is decided
      * by testing the pointers rather than by listing the kinds that set them,
      * so a kind added later cannot quietly opt itself out. @see
      * app_compute_damage.
@@ -1053,13 +1055,7 @@ struct App
     int damage_h;
     /**
      * The same damage as a small list of rectangles instead of their bounding
-     * box, which is what the clear and the present actually want.
-     *
-     * The box is what the draw clip has to use -- a ToriDraw_ViewPort holds one
-     * rectangle, so clipping to a union would mean running each draw once per
-     * rect, and the polygon and model commands carry accumulation state that
-     * cannot simply be replayed. The clear and the present have no such
-     * constraint: both just touch pixels.
+     * box, which is what the present actually wants.
      *
      * It matters because the two live regions are the world viewport and the
      * minimap, which sit at opposite ends of the same rows. Their bounding box

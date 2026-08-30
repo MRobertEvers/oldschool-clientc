@@ -6,7 +6,30 @@
 #include "toridraw_model.h"
 #include "toridraw_model_internal.h"
 #include "toridraw_raster_kernel_internal.h"
+#include "toridraw_scene.h"
 #include "toridraw_types.h"
+
+/*
+ * The kernel families this file's face callbacks draw through. toridraw.c
+ * includes the same set, in the same order and under the same PIXEL16 gate,
+ * ahead of this file, and every one of them carries an include guard -- so all
+ * of this is a no-op in the unity build. It is here so the file states the
+ * dependencies it actually calls into and parses on its own, which is what the
+ * editor's index does with a .u.c.
+ */
+// clang-format off
+#include "triangles/toridraw_triangle_clip.u.c"
+#include "triangles/toridraw_triangle_face_alpha.u.c"
+#include "graphics/raster/scanline/scanline.u.c"
+#include "triangles/toridraw_triangle_flat.u.c"
+#include "triangles/toridraw_triangle_gouraud.u.c"
+#ifndef TORIDRAW_PIXEL16
+#include "triangles/toridraw_triangle_texture_opaque.u.c"
+#include "triangles/toridraw_triangle_texture_transparent.u.c"
+#include "triangles/toridraw_triangle_texture_affine.u.c"
+#include "triangles/toridraw_triangle_zbuf.u.c"
+#endif
+// clang-format on
 
 #include <assert.h>
 #include <stdbool.h>

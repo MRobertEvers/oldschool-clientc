@@ -33319,8 +33319,8 @@ app_damage_armed(void)
 static int g_damage_trace;
 
 /*
- * TORIRS_DAMAGE_RECTS=1: clear and present the live rectangles separately
- * instead of their bounding box.
+ * TORIRS_DAMAGE_RECTS=1: present the live rectangles separately instead of
+ * their bounding box.
  *
  * Off, because it measured slower -- see App::damage_rects. Kept switchable
  * rather than deleted so the arm that produced that number still exists.
@@ -33418,15 +33418,15 @@ app_damage_add(struct App* app, int x, int y, int w, int h)
 }
 
 /*
- * Decide what this frame is allowed to leave untouched. @see App::damage_valid.
+ * Decide what this frame is allowed to leave unpresented. @see
+ * App::damage_valid.
  *
- * A single box, not a region list: the three live areas of an in-world frame
- * (viewport, minimap, the overlays inside them) are adjacent, so a region list
- * would carry per-rect bookkeeping into every draw for a couple of percent of
- * area, and BitBlt bills per call as well as per pixel.
+ * A single box by default, not a region list: the three live areas of an
+ * in-world frame (viewport, minimap, the overlays inside them) are adjacent,
+ * and BitBlt bills per call as well as per pixel.
  *
  * A desc contributes its box UNION its clip rather than their intersection.
- * Which of the two becomes the raster scissor differs by kind, and the union
+ * Which of the two bounds the pixels it writes differs by kind, and the union
  * is the bound that is correct without knowing which -- an intersection would
  * be tighter and occasionally wrong, and being wrong here means stale pixels
  * that never repair.
@@ -33757,26 +33757,6 @@ App_Render(
      * regions are live this frame. */
     app_compute_damage(app, width, height);
     app_damage_note(app, width, height);
-    if( app->damage_valid )
-    {
-        ToriRS_Soft3D_SetDamage(
-            &soft, app->damage_x, app->damage_y, app->damage_w, app->damage_h);
-        if( app->damage_rect_count > 0 )
-        {
-            int rects[APP_DAMAGE_RECT_MAX][4];
-
-            for( int i = 0; i < app->damage_rect_count; i++ )
-            {
-                rects[i][0] = app->damage_rects[i].x;
-                rects[i][1] = app->damage_rects[i].y;
-                rects[i][2] = app->damage_rects[i].w;
-                rects[i][3] = app->damage_rects[i].h;
-            }
-            ToriRS_Soft3D_SetDamageClearRects(
-                &soft, (int const(*)[4])rects, app->damage_rect_count);
-        }
-    }
-
     /* World hittest rides the render: each visible model is tested against
      * the mouse point right after it projects (the only window where the
      * scene scratch holds its projection), then the raw hits classify into
