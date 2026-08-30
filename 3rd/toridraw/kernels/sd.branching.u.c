@@ -1,3 +1,11 @@
+#ifndef TORIDRAW_TORIDRAW_C_UNITY
+/* Indexed on its own by an editor rather than reached through the unity build.
+ * Pull in the translation unit that owns this fragment: it includes this file
+ * back at its proper place, with the macro defined, where every name below is
+ * in scope. Inert in a real build, where toridraw.c defines the macro first. */
+#include "../toridraw.c"
+#else
+
 #ifndef TORIDRAW_KERNELS_SD_BRANCHING_U_C
 #define TORIDRAW_KERNELS_SD_BRANCHING_U_C
 
@@ -24,12 +32,11 @@ static const struct ToriDraw_RasterKernelSDVTable g_stock_branching_vtable = {
 };
 
 static const struct ToriDraw_RasterKernelSD g_stock_branching_kernel = {
-#ifdef TORIDRAW_RASTER_BATCH
-    /* Staged runs into the assembly kernels, per-face behind it. */
+    /* Staged runs into the assembly kernels, with the per-face walk behind
+     * it. On a lane with no presorted-run assembly this name IS the per-face
+     * walk (graphics/raster/batch/raster.batch.u.c), so there is nothing to
+     * branch on here. */
     .draw_model = toridraw_raster_walk_batched,
-#else
-    .draw_model = ToriDraw_RasterWalkPerFace,
-#endif
     .vtable = &g_stock_branching_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
 };
@@ -41,3 +48,5 @@ ToriDraw_RasterKernelSDGetBranching(void)
 }
 
 #endif /* TORIDRAW_KERNELS_SD_BRANCHING_U_C */
+
+#endif /* TORIDRAW_TORIDRAW_C_UNITY */
