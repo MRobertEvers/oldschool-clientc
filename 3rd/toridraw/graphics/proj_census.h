@@ -53,6 +53,14 @@ struct ToriDraw_ProjCensus
     unsigned int hist[TORIDRAW_PROJ_CENSUS_BUCKETS];
     /** Vertices landing in the scalar tail of a 4-wide kernel (count & 3). */
     double vertices_tail;
+    /** Where ToriDraw_Project stopped: fast (cylinder) cull, 8-point AABB
+     * cull, or went on to project. The 8-point box costs eight projected
+     * corners per model, so its reject count is what says whether it earns
+     * its keep. */
+    unsigned int cull_fast;
+    unsigned int cull_aabb;
+    unsigned int cull_error;
+    unsigned int projected;
     /** Set once, by the first record, so the dump is registered exactly once. */
     int installed;
 };
@@ -105,10 +113,12 @@ toridraw_proj_census_record(int kind, int clipped, int num_vertices)
 
 #define TORIDRAW_PROJ_CENSUS_RECORD(kind, clipped, n) \
     toridraw_proj_census_record((kind), (clipped), (n))
+#define TORIDRAW_PROJ_CENSUS_COUNT(field) (g_toridraw_proj_census.field += 1)
 
 #else
 
 #define TORIDRAW_PROJ_CENSUS_RECORD(kind, clipped, n) ((void)0)
+#define TORIDRAW_PROJ_CENSUS_COUNT(field) ((void)0)
 
 #endif /* TORIDRAW_PROJ_CENSUS */
 

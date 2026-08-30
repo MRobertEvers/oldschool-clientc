@@ -2842,6 +2842,7 @@ toridraw_project_vertices_noclip(
     {
         if( model_has_textures(hnd) )
         {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 0, num_vertices);
             toridraw_project_vertices_fused_neon_noclip_native_prepared_aarch64(
                 &scene->screen_vertices_x,
                 model_vertices_x(hnd),
@@ -2854,6 +2855,7 @@ toridraw_project_vertices_noclip(
         }
         else
         {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 0, num_vertices);
             toridraw_project_vertices_fused_neon_notex_noclip_native_prepared_aarch64(
                 &scene->screen_vertices_x,
                 model_vertices_x(hnd),
@@ -3126,7 +3128,13 @@ ToriDraw_Project(
     cull = ToriDraw_FastCull(
         &scene->cylinder_fast_aabb, view_port, hnd, position, camera, &center_projection);
     if( cull != TORIDRAW_CULL_VISIBLE )
+    {
+        if( cull == TORIDRAW_CULL_ERROR )
+            TORIDRAW_PROJ_CENSUS_COUNT(cull_error);
+        else
+            TORIDRAW_PROJ_CENSUS_COUNT(cull_fast);
         return cull;
+    }
 
     scene->projected_vertex = center_projection;
 
@@ -3134,7 +3142,11 @@ ToriDraw_Project(
 
     cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
     if( cull != TORIDRAW_CULL_VISIBLE )
+    {
+        TORIDRAW_PROJ_CENSUS_COUNT(cull_aabb);
         return cull;
+    }
+    TORIDRAW_PROJ_CENSUS_COUNT(projected);
 
     int const model_pitch = ToriDraw_NormalizeAngle(position->pitch);
     int const model_yaw = ToriDraw_NormalizeAngle(position->yaw);

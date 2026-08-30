@@ -59,6 +59,8 @@ ToriDraw_ProjCensusDump(void)
 
     fprintf(f, "  vertices in the 4-wide scalar tail: %.0f (%.2f%%)\n",
         c->vertices_tail, 100.0 * c->vertices_tail / verts_total);
+    fprintf(f, "  cull: fast %u, aabb8 %u, error %u; projected %u\n",
+        c->cull_fast, c->cull_aabb, c->cull_error, c->projected);
 
     fprintf(f, "  vertex-count histogram (models):\n");
     for( i = 0; i < TORIDRAW_PROJ_CENSUS_BUCKETS; i++ )
