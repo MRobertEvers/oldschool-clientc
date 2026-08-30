@@ -87,6 +87,17 @@ struct ToriDrawModelRasterContext
     struct ToriDraw_TextureMap* texture_map;
     bool affine_textures;
     bool allow_near_clip;
+    /*
+     * Two process constants, resolved once per model instead of once per face.
+     *
+     * Both were getenv-caching function calls -- a load, a branch on a static,
+     * and on the first call a getenv -- sitting inside the per-face walk.
+     * Cheap individually and wrong structurally: the walk asks them for every
+     * face of every model of every frame, and the answer was fixed before the
+     * process drew anything.
+     */
+    int winding_flip;
+    bool skip_textured;
     /* Whether this model's projection could park TORIDRAW_SCREEN_X_NEAR_CLIPPED
      * in screen_vertices_x at all — scene->near_clipped, set by ToriDraw_Project.
      * The per-face sentinel tests below are gated on it, both to skip them
@@ -510,11 +521,9 @@ ToriDraw_RasterModelFaceKernel(
     {
         int texture_id = ctx->face_textures ? ctx->face_textures[face] : -1;
 
-        /* Preserve the existing textured-path bisect knob. */
-        static int skip_textured = -1;
-        if( skip_textured < 0 )
-            skip_textured = getenv("TORIDRAW_SKIP_TEXTURED") ? 1 : 0;
-        if( skip_textured && texture_id != -1 )
+        /* The textured-path bisect knob, read once per model into the
+         * context rather than tested against a static here, per face. */
+        if( ctx->skip_textured && texture_id != -1 )
             return;
 
         if( texture_id != -1 )
@@ -817,13 +826,14 @@ toridraw_raster_face_front_facing(
                               ctx->vertex_x[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED) )
         return true;
 
-    return toridraw_winding_2d_front_facing(
+    return toridraw_winding_2d_front_facing_flip(
         ctx->vertex_x[a],
         ctx->vertex_y[a],
         ctx->vertex_x[b],
         ctx->vertex_y[b],
         ctx->vertex_x[c],
-        ctx->vertex_y[c]);
+        ctx->vertex_y[c],
+        ctx->winding_flip);
 }
 
 static inline void
@@ -845,6 +855,8 @@ toridraw_raster_context_init(
     ctx->kernel = *kernel;
     ctx->face_x4 = scene->sm_face_x4;
     ctx->face_y4 = scene->sm_face_y4;
+    ctx->winding_flip = toridraw_flip_winding();
+    ctx->skip_textured = toridraw_raster_skip_textured();
     clip_left = view_port->clip_left > 0 ? view_port->clip_left : 0;
     clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
     ctx->pixel_buffer = pixel_buffer + clip_left + clip_top * ctx->stride;

@@ -124,17 +124,6 @@ static _Alignas(16) int g_toridraw_raster_batch
 static _Alignas(16) int g_toridraw_raster_texbatch
     [TORIDRAW_RASTER_TEXBATCH_ROWS * TORIDRAW_RASTER_TEXBATCH_ROW_INTS];
 
-/* The per-face path's own bisect knob, asked the same way. A face it would
- * have dropped must not be drawn here instead. */
-static int
-toridraw_raster_batch_skip_textured(void)
-{
-    static int skip = -1;
-    if( skip < 0 )
-        skip = getenv("TORIDRAW_SKIP_TEXTURED") ? 1 : 0;
-    return skip;
-}
-
 static void
 toridraw_raster_batch_flush(
     struct ToriDrawModelRasterContext* ctx,
@@ -258,7 +247,9 @@ toridraw_raster_batch_classify_textured(
     int m;
     int n;
 
-    if( toridraw_raster_batch_skip_textured() )
+    /* Hoisted per model, and the SAME predicate the per-face walk read: a
+     * face that path would drop must not be drawn here instead. */
+    if( ctx->skip_textured )
         return TORIDRAW_RASTER_BATCH_NONE;
 
     /* The affine family is a different rasteriser with a different signature;

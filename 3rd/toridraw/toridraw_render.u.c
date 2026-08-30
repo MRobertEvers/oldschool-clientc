@@ -661,6 +661,7 @@ bucket_sort_by_average_depth_plain(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
+    int const flip = toridraw_flip_winding();
     int min_d = depth_levels;
     int max_d = 0;
 
@@ -671,7 +672,7 @@ bucket_sort_by_average_depth_plain(
         const uint32_t c = face_c[f];
         int depth_avg;
 
-        if( !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
+        if( !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
             continue;
 
         depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
@@ -714,6 +715,7 @@ bucket_sort_by_average_depth_clipped(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
+    int const flip = toridraw_flip_winding();
     int min_d = depth_levels;
     int max_d = 0;
 
@@ -725,7 +727,7 @@ bucket_sort_by_average_depth_clipped(
         int depth_avg;
 
         if( !bucket_face_clip_candidate(vx, a, b, c) &&
-            !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
+            !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
             continue;
 
         depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
@@ -763,6 +765,7 @@ bucket_sort_by_average_depth_shift(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
+    int const flip = toridraw_flip_winding();
     int min_d = depth_levels;
     int max_d = 0;
 
@@ -775,7 +778,7 @@ bucket_sort_by_average_depth_shift(
         const uint32_t c = face_c[f];
         int depth_avg;
 
-        if( !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
+        if( !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
             continue;
 
         depth_avg = (div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth) >> depth_shift;
@@ -812,6 +815,7 @@ bucket_sort_by_average_depth_shift_clipped(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
+    int const flip = toridraw_flip_winding();
     int min_d = depth_levels;
     int max_d = 0;
 
@@ -825,7 +829,7 @@ bucket_sort_by_average_depth_shift_clipped(
         int depth_avg;
 
         if( !bucket_face_clip_candidate(vx, a, b, c) &&
-            !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
+            !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
             continue;
 
         depth_avg = (div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth) >> depth_shift;
@@ -1529,6 +1533,7 @@ bucket_sort_by_average_depth_small_plain(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
+    int const flip = toridraw_flip_winding();
     const int depth_levels = scene->depth_levels;
     int min_d = depth_levels;
     int max_d = 0;
@@ -1542,7 +1547,7 @@ bucket_sort_by_average_depth_small_plain(
 
         scene->sm_face_depth[f] = -1;
 
-        if( !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
+        if( !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
             continue;
 
         depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
@@ -1581,6 +1586,7 @@ bucket_sort_by_average_depth_small_clipped(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
+    int const flip = toridraw_flip_winding();
     const int depth_levels = scene->depth_levels;
     int min_d = depth_levels;
     int max_d = 0;
@@ -1599,7 +1605,7 @@ bucket_sort_by_average_depth_small_clipped(
                          vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
                          vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED;
         if( !clip_candidate &&
-            !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
+            !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
             continue;
 
         depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
@@ -1632,6 +1638,7 @@ bucket_sort_by_average_depth_small_stash(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
+    int const flip = toridraw_flip_winding();
     const int depth_levels = scene->depth_levels;
     int min_d = depth_levels;
     int max_d = 0;
@@ -1645,7 +1652,7 @@ bucket_sort_by_average_depth_small_stash(
 
         scene->sm_face_depth[f] = -1;
 
-        if( !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
+        if( !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
             continue;
 
         depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
@@ -1679,6 +1686,7 @@ bucket_sort_by_average_depth_small_stash_clipped(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
+    int const flip = toridraw_flip_winding();
     const int depth_levels = scene->depth_levels;
     int min_d = depth_levels;
     int max_d = 0;
@@ -1697,7 +1705,7 @@ bucket_sort_by_average_depth_small_stash_clipped(
                          vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
                          vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED;
         if( !clip_candidate &&
-            !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
+            !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
             continue;
 
         depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;

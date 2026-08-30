@@ -57,6 +57,15 @@
  * misreads the order it was given, and a frame hash cannot see a face that
  * moved somewhere invisible.
  *
+ * A KNOWN DIVERGENCE this found and does not fail on, because the suite does
+ * not set the knob: under TORIDRAW_SKIP_TEXTURED=1 the batched and per-face
+ * arms of the painter draw different frames. It predates the walk sharing one
+ * skip predicate -- reverting the batched walk to its own private static
+ * reproduces it exactly -- so it is a real disagreement in that bisect aid
+ * rather than a consequence of consolidating the two. Worth knowing before
+ * bisecting a textured-path regression with it: the baseline moves when the
+ * batcher does.
+ *
  * Standalone TU, no cache or disk.
  */
 
@@ -224,12 +233,27 @@ stack_model_init(struct StackModel* m, int depth_spread)
         int const rx = 70 + (face % 5) * 9;
         int const ry = 60 + (face % 7) * 7;
 
-        m->vertex_x[v + 0] = (vertexint_t)(-rx + (spin % 23));
-        m->vertex_y[v + 0] = (vertexint_t)(-ry + (spin % 17));
-        m->vertex_x[v + 1] = (vertexint_t)(rx - (spin % 19));
-        m->vertex_y[v + 1] = (vertexint_t)(-ry + (spin % 13));
-        m->vertex_x[v + 2] = (vertexint_t)((spin % 29) - 14);
-        m->vertex_y[v + 2] = (vertexint_t)(ry - (spin % 11));
+        /*
+         * Each face CLASS gets its own patch of the model, overlapping its own
+         * kind heavily and its neighbours only at the edges.
+         *
+         * Without this the four classes pile into one region and the nearest
+         * opaque faces cover the rest: measured, the eleven textured faces
+         * contributed zero pixels to the frame, so the two textured classes
+         * were in the fixture and not in the picture -- and a hash cannot tell
+         * the difference between a face that drew nothing and a face that was
+         * never asked to draw. Setting TORIDRAW_SKIP_TEXTURED must move this
+         * frame, and now does.
+         */
+        int const class_x = ((face % 4) - 2) * 58 + 26;
+        int const class_y = ((face % 4) % 2) * 34 - 17;
+
+        m->vertex_x[v + 0] = (vertexint_t)(class_x - rx + (spin % 23));
+        m->vertex_y[v + 0] = (vertexint_t)(class_y - ry + (spin % 17));
+        m->vertex_x[v + 1] = (vertexint_t)(class_x + rx - (spin % 19));
+        m->vertex_y[v + 1] = (vertexint_t)(class_y - ry + (spin % 13));
+        m->vertex_x[v + 2] = (vertexint_t)(class_x + (spin % 29) - 14);
+        m->vertex_y[v + 2] = (vertexint_t)(class_y + ry - (spin % 11));
 
         /*
          * Depth is a PERMUTATION of the face index, not a multiple of it.

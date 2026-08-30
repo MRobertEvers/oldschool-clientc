@@ -81,4 +81,29 @@ toridraw_winding_2d_front_facing(
         toridraw_winding_2d(ax, ay, bx, by, cx, cy));
 }
 
+/*
+ * The same two, with the flip already in hand.
+ *
+ * TORIDRAW_FLIP_WINDING is a process constant read once into a static, but the
+ * read is a function call with a branch on that static, and the plain forms
+ * above make it PER FACE -- inside every cull loop in the depth sort, and again
+ * in the raster walk. The flat sort already hoists it out of its own loop; these
+ * let every other per-face caller do the same, and say in the signature that
+ * the value is loop-invariant rather than leaving it to the optimiser to prove
+ * across an opaque getenv-caching call.
+ */
+static inline bool
+toridraw_winding_front_facing_flip(long long winding, int flip)
+{
+    return flip ? (winding < 0) : (winding > 0);
+}
+
+static inline bool
+toridraw_winding_2d_front_facing_flip(
+    int ax, int ay, int bx, int by, int cx, int cy, int flip)
+{
+    return toridraw_winding_front_facing_flip(
+        toridraw_winding_2d(ax, ay, bx, by, cx, cy), flip);
+}
+
 #endif
