@@ -70,6 +70,27 @@ struct SDFixture
     faceint_t texture[SD_FACE_COUNT];
 };
 
+/*
+ * Does THIS BUILD have the whole-model run door?
+ *
+ * Runtime-gated, never #ifdef TORIDRAW_RASTER_BATCH: that macro is derived
+ * inside the library's own translation unit from -D flags this test is not
+ * compiled with, so a preprocessor gate here compiles the check away and
+ * reports a pass. Ask the kernel what it actually named instead.
+ *
+ * A lane with no presorted-run assembly resolves toridraw_raster_walk_batched
+ * to the per-face walk, so the branching kernel HAS no door, the sort is
+ * correctly told not to stash, and every expectation that depends on the
+ * stash has to stand down with it. That is the 16-bit ABI's situation by
+ * construction -- the run kernels store 4-byte pixels -- and it is also any
+ * lane built with TORIDRAW_NO_SIMD.
+ */
+static bool
+whole_model_door_built(void)
+{
+    return ToriDraw_RasterKernelSDGetBranching()->draw_model != ToriDraw_RasterWalkPerFace;
+}
+
 static struct ToriDraw_ViewPort
 test_viewport(void)
 {
@@ -1474,7 +1495,14 @@ test_kernel_scratch(void)
      * painter asks for -- the ensure API is a no-op there, which is what keeps
      * it from changing any existing caller's allocation. */
     needs = ToriDraw_SceneKernelScratchNeeds(small, ToriDraw_RasterKernelSDGetBranching());
-    CHECK(needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY, "small branching wants the stash");
+    /* Only where the run door was built: with no door the branching kernel is
+     * the per-face walk, and asking the sort to fill a stash nothing loads is
+     * precisely what the needs mask exists to prevent. */
+    if( whole_model_door_built() )
+        CHECK(needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY, "small branching wants the stash");
+    else
+        CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+              "small branching does not want the stash with no door built");
     CHECK(needs & TORIDRAW_SCENE_SCRATCH_CSR_SORT, "small branching wants the CSR sort");
     CHECK(ToriDraw_SceneHasScratch(small, needs), "small scene already satisfies it");
     CHECK(ToriDraw_SceneEnsureKernelScratch(small, ToriDraw_RasterKernelSDGetBranching()),
@@ -1596,11 +1624,7 @@ test_whole_model_door(struct SDFixture* fixture)
     struct ToriDraw_Texture* texture = make_test_texture();
     int diff = 0;
 
-    /* Runtime-gated, NOT #ifdef TORIDRAW_RASTER_BATCH: that macro is derived
-     * inside the library's own translation unit from -D flags the test is not
-     * compiled with, so a preprocessor gate here silently compiles the whole
-     * check away and reports a pass. Ask the kernel instead. */
-    if( ToriDraw_RasterKernelSDGetBranching()->draw_model == ToriDraw_RasterWalkPerFace )
+    if( !whole_model_door_built() )
     {
         printf("  whole-model door not built on this lane -- skipped\n");
         ToriDraw_SceneFree(scene);
@@ -1699,8 +1723,13 @@ test_kernel_tables(void)
 
     /* The painter is the only table that asks for the presort stash, and only
      * on a small scene. */
-    CHECK(ToriDraw_KernelScratchNeeds(small, painter) & TORIDRAW_SCENE_SCRATCH_PRESORT_XY,
-          "tables: painter wants the stash on a small scene");
+    if( whole_model_door_built() )
+        CHECK(ToriDraw_KernelScratchNeeds(small, painter) & TORIDRAW_SCENE_SCRATCH_PRESORT_XY,
+              "tables: painter wants the stash on a small scene");
+    else
+        CHECK(!(ToriDraw_KernelScratchNeeds(small, painter) &
+                TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+              "tables: painter does not want the stash with no door built");
     CHECK(!(ToriDraw_KernelScratchNeeds(small, scanline) &
             TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
           "tables: scanline does not want the stash");
@@ -1817,8 +1846,12 @@ test_table_entries(struct SDFixture* fixture)
     ToriDraw_RenderModel1ProjectWithTable(
         fixture->handle, scene, &position, &viewport, &camera, painter);
     ToriDraw_RenderModel2SortFacesWithTable(fixture->handle, scene, painter);
-    CHECK(scene->sm_face_xy_valid,
-          "entries: the painter table stashes, because its raster has a door");
+    if( whole_model_door_built() )
+        CHECK(scene->sm_face_xy_valid,
+              "entries: the painter table stashes, because its raster has a door");
+    else
+        CHECK(!scene->sm_face_xy_valid,
+              "entries: the painter table does not stash with no door built");
 
     ToriDraw_RenderModel1ProjectWithTable(
         fixture->handle, scene, &position, &viewport, &camera, baker);

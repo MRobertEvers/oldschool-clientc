@@ -484,13 +484,48 @@ test_alpha_algebra(int* plain_buf, int* got)
 }
 
 /*
- * Modulate is a per-channel multiply applied AFTER the shade, so the expected
- * value is derived from the plain kernel's own output channel by channel.
+ * Is every channel of `got` within this tint's fused-vs-unfused bound of
+ * `expect`? One truncation instead of two can only differ by what the dropped
+ * low bits are worth once the tint has scaled them: ceil(tint/256).
+ */
+static bool
+channels_within(int got, int expect, const int tint[3])
+{
+    int const shift[3] = { 16, 8, 0 };
+
+    for( int c = 0; c < 3; c++ )
+    {
+        int const g = (got >> shift[c]) & 0xFF;
+        int const e = (expect >> shift[c]) & 0xFF;
+        int const bound = (tint[c] + 255) / 256;
+        int const diff = g > e ? g - e : e - g;
+
+        if( diff > bound )
+            return false;
+    }
+    return true;
+}
+
+/*
+ * Modulate is a per-channel multiply applied AFTER the shade -- but FUSED with
+ * it, in one truncation: tex_sampler_shade_tint computes
+ * (texel * shade * tint) >> 16, not ((texel * shade) >> 8) * tint >> 8. The
+ * kernels do this deliberately (see TS2_SHADE_AND_MODULATE): shading down to
+ * eight bits and multiplying back up rounds twice, and the doubled rounding
+ * streaks a smooth gradient.
+ *
+ * So the expectation cannot be the plain kernel's already-truncated output
+ * tinted a second time -- that IS the double rounding the kernels avoid. What
+ * the two forms do guarantee against each other is a bound: the first >>8
+ * discards at most 255/256 of a unit, which the tint then scales, so the two
+ * differ by at most ceil(tint/256) per channel. That is exact, not a
+ * tolerance picked to make the test pass, and it collapses to bit-exact at a
+ * neutral tint -- which the identity block above pins separately.
  */
 static void
 test_modulate_algebra(int* plain_buf, int* got)
 {
-    printf("modulate algebra: per-channel (plain * tint) >> 8\n");
+    printf("modulate algebra: fused (texel * shade * tint) >> 16\n");
 
     static unsigned char covered[H * W];
     static const int tints[][3] = {
@@ -526,10 +561,14 @@ test_modulate_algebra(int* plain_buf, int* got)
             {
                 int expect;
                 if( !covered[p] )
-                    expect = BG;
-                else
-                    expect = tex_sampler_tint(&s, RGB(plain_buf[GUARD + p]));
-                if( RGB(got[GUARD + p]) != RGB(expect) )
+                {
+                    /* Off the triangle nothing is written at all: exact. */
+                    if( RGB(got[GUARD + p]) != RGB(BG) )
+                        bad_total++;
+                    continue;
+                }
+                expect = tex_sampler_tint(&s, RGB(plain_buf[GUARD + p]));
+                if( !channels_within(RGB(got[GUARD + p]), RGB(expect), tints[ti]) )
                     bad_total++;
             }
         }
@@ -542,7 +581,7 @@ test_modulate_algebra(int* plain_buf, int* got)
     }
     else
     {
-        printf("  ok   5 tints x %d triangles\n", TRI_COUNT);
+        printf("  ok   5 tints x %d triangles, within the fused bound\n", TRI_COUNT);
     }
 }
 

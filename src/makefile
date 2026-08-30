@@ -2870,11 +2870,33 @@ test-raster-kernel: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_f
 RASTER_KERNEL_PIXEL16_OBJS = $(OBJ_DIR)/toridraw_unity_pixel16.o \
 	$(OBJ_DIR)/toridraw_font_pixel16.o $(OBJ_DIR)/bmp_pixel16.o
 
+# Every hand-written span/triangle kernel stores 4-byte pixels out of a 4-byte
+# palette, and each of their headers says so with an #error under
+# TORIDRAW_PIXEL16 rather than assembling something that would scribble. The
+# 16-bit ABI therefore has to be compiled with the asm lanes WITHDRAWN, not
+# merely with PIXEL16 added on top of whatever this platform enabled -- on a
+# lane that builds any of them (macOS arm64 builds all three NEON doors, the
+# MinGW lanes the i686 ones) the object cannot compile otherwise, and the
+# 16-bit half of the raster-kernel contract goes unbuilt and unrun.
+#
+# The projection asm is not in this list: it writes screen vertices, never
+# pixels, and the test links $(TORIDRAW_PROJECTION_ASM_OBJ) for exactly that
+# reason.
+TORIDRAW_PIXEL16_ASM_CFLAGS := \
+	-DTORIDRAW_FLAT_TRI_ASM=1 -DTORIDRAW_GOURAUD_TRI_ASM=1 \
+	-DTORIDRAW_TEXTRI_ASM=1 -DTORIDRAW_TEXSPAN_ASM=1 \
+	-DTORIDRAW_FLAT_TRI_NEON_ASM=1 -DTORIDRAW_GOURAUD_TRI_NEON_ASM=1 \
+	-DTORIDRAW_TEXTRI_NEON_ASM=1 -DTORIDRAW_FB_CLEAR_ASM=1
+
+TORIDRAW_PIXEL16_CFLAGS = \
+	$(filter-out $(TORIDRAW_PIXEL16_ASM_CFLAGS),$(TORIDRAW_CFLAGS)) \
+	-DTORIDRAW_PIXEL16=1
+
 $(OBJ_DIR)/toridraw_unity_pixel16.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
-	$(CC) $(TORIDRAW_CFLAGS) -DTORIDRAW_PIXEL16=1 -w -c $< -o $@
+	$(CC) $(TORIDRAW_PIXEL16_CFLAGS) -w -c $< -o $@
 
 $(OBJ_DIR)/toridraw_font_pixel16.o: $(TORIDRAW_DIR)/toridraw_font.c | $(OBJ_DIR)
-	$(CC) $(TORIDRAW_CFLAGS) -DTORIDRAW_PIXEL16=1 -I$(REPO_ROOT)/v0 -w -c $< -o $@
+	$(CC) $(TORIDRAW_PIXEL16_CFLAGS) -I$(REPO_ROOT)/v0 -w -c $< -o $@
 
 $(OBJ_DIR)/bmp_pixel16.o: $(BMP_DIR)/bmp.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL16=1 -w -c $< -o $@
@@ -4890,6 +4912,50 @@ test-near-clip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.
 		$(TORIDRAW_DIR)/toridraw_near_clip_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/near_clip_test
+
+
+# ---- The kernel suite -------------------------------------------------
+#
+# Every proof the three-stage kernel system rests on, in one target.
+#
+# A kernel, a table, a family, or the scratch two stages hand each other is
+# not done until this passes. The individual targets each hold ONE seam --
+# the four SD face classes, the two projection kernels against each other,
+# the flat sort against the bucket sort, the scanline family against the
+# branching one -- and the seams only mean anything together: a change that
+# keeps every kernel correct in isolation and breaks the agreement between
+# two of them passes each of these alone.
+#
+# A lane with no assembly to score (test-presorted-neon off Apple arm64)
+# prints that and succeeds. It stays in the list on every platform, because
+# "there is nothing to run here" is a different report from "it was not run".
+.PHONY: test-toridraw-kernels
+TORIDRAW_KERNEL_TESTS = \
+	test-raster-kernel \
+	test-raster-kernel-pixel16 \
+	test-projection-kernel \
+	test-projected-bound \
+	test-near-clip \
+	test-face-sort-flat \
+	test-zbuffer \
+	test-scene-profiles \
+	test-render-hd \
+	test-raster-overshoot \
+	test-scanline \
+	test-texture-matrix \
+	test-texmap \
+	test-gouraudrgb \
+	test-presorted-neon
+
+test-toridraw-kernels:
+	@fail=""; \
+	for t in $(TORIDRAW_KERNEL_TESTS); do \
+		echo "=== $$t"; \
+		$(MAKE) --no-print-directory $$t >/dev/null 2>$(OBJ_DIR)/tdk_$$t.log \
+			|| { fail="$$fail $$t"; tail -20 $(OBJ_DIR)/tdk_$$t.log; }; \
+	done; \
+	if [ -n "$$fail" ]; then echo "toridraw kernel suite FAILED:$$fail"; exit 1; fi; \
+	echo "toridraw kernel suite: all green"
 
 # CPU-only, but deliberately compiled with the Win32 compiler: it links the
 # real fixed-function D3D9 command dispatcher and drives its retained resource
