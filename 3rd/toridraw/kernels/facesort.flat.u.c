@@ -16,6 +16,20 @@
  * kernel it selected will actually be the kernel that runs.
  */
 
+/*
+ * Flat where flat exists, and the BUCKET KERNEL by name where it does not.
+ *
+ * The composite keys this sorts (sm_sort_keys / sm_sort_tmp) are small-tier
+ * scratch. A full-mode scene has none, so on one there is no flat sort to run
+ * -- and what runs instead is not "a fallback path inside the flat kernel",
+ * it is the other kernel, called through its own entry so that reading this
+ * function tells you so.
+ *
+ * That substitution is REPORTED, not silent: the kernel declares
+ * TORIDRAW_FACESORT_NEEDS_SMALL_SCENE, ToriDraw_KernelValidate turns that into
+ * DEGRADED on a full scene, and ToriDraw_KernelTake prints it once at init --
+ * which is the whole reason the fit enum has three values instead of two.
+ */
 static int
 face_sort_kernel_flat(
     void* user_data,
@@ -24,10 +38,11 @@ face_sort_kernel_flat(
     bool presort)
 {
     (void)user_data;
-    if( scene->flags & TORIDRAW_SCENE_SMALL )
-        toridraw_compute_projected_face_order_small(scene, hnd, presort, 1);
-    else
-        ToriDraw_ComputeProjectedFaceOrder(scene, hnd, presort);
+    if( !(scene->flags & TORIDRAW_SCENE_SMALL) )
+        return g_stock_face_sort_bucket.sort(
+            g_stock_face_sort_bucket.user_data, scene, hnd, presort);
+
+    toridraw_compute_projected_face_order_small(scene, hnd, presort, 1);
     return scene->tmp_face_order_count;
 }
 

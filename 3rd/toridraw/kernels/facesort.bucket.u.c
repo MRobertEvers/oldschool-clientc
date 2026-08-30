@@ -14,6 +14,19 @@
  * accordingly -- see ToriDraw_SceneEnsureScratch.
  */
 
+/*
+ * Two real implementations of one algorithm, and the scene's TIER picks
+ * between them: the dense depth_levels x depth_stride table on a full scene,
+ * the CSR variant sized off max_faces on a small one.
+ *
+ * The tier is fixed at ToriDraw_SceneNew and never changes, so this is a
+ * per-model test of a per-SCENE constant -- the honest place for it would be
+ * kernel selection. It is not there because the getters that hand out kernels
+ * have no scene to ask, and the tables they fill are process-wide mutable
+ * statics that the face-sort knob rewrites, so a scene-side resolution cached
+ * against a table pointer would go stale the moment that knob moved. Asking
+ * once per model, off a flag already in cache, is what that buys instead.
+ */
 static int
 face_sort_kernel_bucket(
     void* user_data,
