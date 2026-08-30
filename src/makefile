@@ -299,7 +299,7 @@ STB_DIR      := $(REPO_ROOT)/3rd/stb
 # and sign-compare warnings that are not worth failing a build over.
 CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -Wall -Wextra \
 	-Werror=incompatible-pointer-types -MMD -MP \
-	$(TORIDRAW_PROBE_CFLAGS) \
+	$(TORIDRAW_PROBE_CFLAGS) $(PAINTERS_PROBE_CFLAGS) \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(SRC_DIR)/serverscript \
 	-I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) -I$(RSAREABUF_DIR) \
@@ -397,6 +397,24 @@ endif
 ifeq ($(TORIDRAW_DEBUG_NDJSON),1)
 TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_DEBUG_NDJSON=1
 endif
+
+# The painter debug facility (painters/debug/painters_debug.u.c, gated by
+# painters/debug/painters_debug.h) is compile-time for the same reason: the
+# wedge log alone has ~25 sites inside the bucket drain loop, and a runtime
+# branch there taxes the traversal it is measuring. The env vars named in that
+# header then select within the facility at run time, so an instrumented binary
+# is still silent until asked.
+#
+#   make -C src PAINTERS_DEBUG=1 ...   wedge log, draw-order dump, world-entity
+#                                      trace, and the two debugger traps
+#
+# Global rather than a painter-only flag: app.c hands the wedge log the eye it
+# is about to paint with, so the gate has to reach that translation unit too.
+PAINTERS_PROBE_CFLAGS ?=
+ifeq ($(PAINTERS_DEBUG),1)
+PAINTERS_PROBE_CFLAGS += -DPAINTERS_DEBUG=1
+endif
+
 TORIDRAW_CFLAGS = -std=c11 $(TORIDRAW_O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -MMD -MP \
 	$(TORIDRAW_PROBE_CFLAGS) \
 	-I$(TORIDRAW_DIR) \

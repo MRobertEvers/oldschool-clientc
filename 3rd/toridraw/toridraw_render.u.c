@@ -1731,7 +1731,8 @@ bucket_sort_by_average_depth_small_stash_clipped(
  * The only place the three questions are asked. Once per model, not per face.
  *
  * `presort` is the caller's half of the stash decision and it is the half that
- * matters; toridraw_raster_batch_armed() is a getenv-cached read, hoisted here
+ * matters. Whether the batcher is armed is not asked here at all any more: it
+ * chose the raster kernel, and `presort` is derived from that kernel's door --
  * so it happens once for the model too.
  */
 static inline int
@@ -1748,7 +1749,7 @@ bucket_sort_by_average_depth_small(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
-    bool const stash_xy = presort && toridraw_raster_batch_armed();
+    bool const stash_xy = presort;
 
     /* Recorded, not re-derived downstream: the walk that reads sm_face_x4/y4
      * asks this rather than asking the same three questions again and possibly

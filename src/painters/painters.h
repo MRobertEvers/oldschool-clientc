@@ -1,6 +1,7 @@
 #ifndef PAINTERS_H
 #define PAINTERS_H
 
+#include "debug/painters_debug.h"
 #include "graphics/projection.h"
 #include "toridraw_element_id.h"
 
@@ -1042,19 +1043,5 @@ painter_paint_world3d(
     int camera_sx,
     int camera_sz,
     int camera_slevel);
-
-/**
- * Draw-order telemetry (TORIRS_WEDGELOG=<path>). Records the eye and viewport the
- * caller is about to paint with so the log header can be compared against the
- * instrumented official client's `#path` line. No-op unless the env var is set;
- * never reads or writes painter/render state.
- */
-void
-painter_wedgelog_set_eye(
-    int eye_x,
-    int eye_y,
-    int eye_z,
-    int viewport_w,
-    int viewport_h);
 
 #endif

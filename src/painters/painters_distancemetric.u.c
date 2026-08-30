@@ -292,12 +292,7 @@ painter_paint_distancemetric(
         assert(tile_paint->queue_count > 0);
         tile_paint->queue_count -= 1;
 
-        if( g_trap_x != -1 && g_trap_z != -1 && tile_sx == g_trap_x && tile_sz == g_trap_z )
-        {
-            printf("tile_idx: %d\n", tile_idx);
-
-            // __builtin_debugtrap();
-        }
+        PAINTER_DBG_TRAP_TILE(tile_sx, tile_sz, tile_idx);
         // https://discord.com/channels/788652898904309761/1069689552052166657/1172452179160870922
         // Dane discovered this also.
         // The issue turned out to be...a nuance of the DoublyLinkedList and Node

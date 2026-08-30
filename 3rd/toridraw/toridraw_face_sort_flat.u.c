@@ -498,7 +498,7 @@ toridraw_face_sort_flat(
     const faceint_t* RESTRICT face_c)
 {
     uint32_t* const keys = scene->sm_sort_keys;
-    int const stash_xy = presort && toridraw_raster_batch_armed();
+    int const stash_xy = presort;
     int const flip = toridraw_flip_winding();
     int tile_n = 0;
     int n = 0;

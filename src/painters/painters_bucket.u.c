@@ -97,12 +97,7 @@ bucket_push_if_active(
         return 0;
     bucket_push(w, paints, ti, dist);
     BUCKET_PERF_INCREMENT(*perf_pushes);
-    if( painter_wedgelog_armed() )
-    {
-        char extra[32];
-        snprintf(extra, sizeof(extra), "d=%d", dist);
-        painter_wedgelog_event(ti, "PUSH", extra);
-    }
+    PAINTER_DBG_WEDGE_EVENTF(ti, "PUSH", "d=%d", dist);
     return 1;
 }
 
@@ -449,7 +444,7 @@ bucket_emit_tile_features(
             struct PaintersElement* element = &elements[bridge_underpass_tile->wall_a];
             assert(element->kind == PNTRELEM_WALL_A);
             bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
-            painter_wedgelog_paint(
+            PAINTER_DBG_WEDGE_PAINT(
                 tile->bridge_tile,
                 "wall:bridge",
                 (int)element->source_level,
@@ -473,7 +468,7 @@ bucket_emit_tile_features(
              * underpass tile, so reaching this is a caller bug. */
             assert(!scenery_is_world_entity(element));
             bucket_emit_entity(&cmd_cur, cmd_end, element->_scenery.entity);
-            painter_wedgelog_paint(
+            PAINTER_DBG_WEDGE_PAINT(
                 tile->bridge_tile,
                 scenery_element >= painter->static_element_count ? "entity:bridge"
                                                                 : "loc:bridge",
@@ -494,7 +489,7 @@ bucket_emit_tile_features(
                          occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
         {
             bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
-            painter_wedgelog_paint(
+            PAINTER_DBG_WEDGE_PAINT(
                 e_tile, "wall_a", (int)element->source_level, element->_wall.entity,
                 tile->wall_a);
         }
@@ -509,7 +504,7 @@ bucket_emit_tile_features(
                          occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
         {
             bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
-            painter_wedgelog_paint(
+            PAINTER_DBG_WEDGE_PAINT(
                 e_tile, "wall_b", (int)element->source_level, element->_wall.entity,
                 tile->wall_b);
         }
@@ -523,7 +518,7 @@ bucket_emit_tile_features(
                          occ, occlusion_level, tile_sx, tile_sz, 0)) )
         {
             bucket_emit_entity(&cmd_cur, cmd_end, element->_ground_decor.entity);
-            painter_wedgelog_paint(
+            PAINTER_DBG_WEDGE_PAINT(
                 e_tile, "grounddecor", (int)element->source_level,
                 element->_ground_decor.entity, tile->ground_decor);
         }
@@ -537,7 +532,7 @@ bucket_emit_tile_features(
                          occ, occlusion_level, tile_sx, tile_sz, 0)) )
         {
             bucket_emit_entity(&cmd_cur, cmd_end, element->_ground_object.entity);
-            painter_wedgelog_paint(
+            PAINTER_DBG_WEDGE_PAINT(
                 e_tile, "item", (int)element->source_level,
                 element->_ground_object.entity, tile->ground_object_bottom);
         }
@@ -571,7 +566,7 @@ bucket_emit_tile_features(
                 if( !decor_hidden )
                 {
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                    painter_wedgelog_paint(
+                    PAINTER_DBG_WEDGE_PAINT(
                         e_tile, "decor", (int)element->source_level,
                         element->_wall_decor.entity, tile->wall_decor_a);
                 }
@@ -583,7 +578,7 @@ bucket_emit_tile_features(
                 if( !decor_hidden )
                 {
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                    painter_wedgelog_paint(
+                    PAINTER_DBG_WEDGE_PAINT(
                         e_tile, "decor_alt", (int)element->source_level,
                         element->_wall_decor.entity, tile->wall_decor_b);
                 }
@@ -594,7 +589,7 @@ bucket_emit_tile_features(
             if( !decor_hidden )
             {
                 bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                painter_wedgelog_paint(
+                PAINTER_DBG_WEDGE_PAINT(
                     e_tile, "decor", (int)element->source_level,
                     element->_wall_decor.entity, tile->wall_decor_a);
             }
@@ -738,34 +733,6 @@ bucket_cursor_reserve(
     cursor->end = cursor->base + buffer->command_capacity;
 }
 
-/**
- * `TORIRS_WEV_DEBUG=1` — trace every descent that is asked for and every one
- * that completes.
- *
- * A world entity that renders nothing is otherwise indistinguishable at four
- * different stages: the pseudo-loc never emitted a BEGIN_WORLD, the request
- * arrived but was refused (unbound view, cycle, full stack), the descent ran
- * but the child painter emitted no commands, or it emitted commands that the
- * drain later dropped. The request/done pair separates the first three.
- *
- * Read once, not per descent: this sits on the paint path, where even the
- * getenv is charged every frame of every entity.
- * @see app_wev_debug_enabled
- */
-static int
-bucket_wev_debug_enabled(void)
-{
-    static int cached = -1;
-
-    if( cached < 0 )
-    {
-        char const* v = getenv("TORIRS_WEV_DEBUG");
-
-        cached = (v && v[0] && v[0] != '0') ? 1 : 0;
-    }
-    return cached;
-}
-
 /* Mutually recursive with bucket_descend: a paint descends, and a descent is a
  * paint. */
 static void
@@ -821,19 +788,15 @@ bucket_descend(
     int refused = !view->active || (stack->view_ids & (1u << view_id)) ||
                   painter_on_stack || depth + 1 >= PAINTER_MAX_WORLD_VIEWS;
 
-    if( bucket_wev_debug_enabled() )
-        fprintf(
-            stderr,
-            "wev: DESCEND request view %d active=%d dup_id=%d dup_painter=%d "
-            "depth=%d cam %d,%d cmds=%d\n",
-            view_id,
-            view->active,
-            (stack->view_ids & (1u << view_id)) ? 1 : 0,
-            painter_on_stack,
-            depth,
-            view->camera_sx,
-            view->camera_sz,
-            (int)(cursor->cur - cursor->base));
+    PAINTER_DBG_WEV_REQUEST(
+        view_id,
+        view->active,
+        (stack->view_ids & (1u << view_id)) ? 1 : 0,
+        painter_on_stack,
+        depth,
+        view->camera_sx,
+        view->camera_sz,
+        (int)(cursor->cur - cursor->base));
 
     /* Two markers is a refusal's whole budget, and the open one goes down
      * before the nested paint's commands do. */
@@ -855,8 +818,8 @@ bucket_descend(
         /* A nested world's rows would index the BOUND painter's tiles[] with
          * this painter's indices. Closing the log for the duration is what
          * enforces that, so the drain's ~20 emit sites stay free of any
-         * per-row ownership test. @see painter_wedgelog_suspend. */
-        int saved = painter_wedgelog_suspend();
+         * per-row ownership test. @see PAINTER_DBG_WEDGE_SUSPEND. */
+        int saved = PAINTER_DBG_WEDGE_SUSPEND();
         bucket_paint_world(
             view->painter,
             cursor,
@@ -864,17 +827,12 @@ bucket_descend(
             view->camera_sz,
             view->camera_slevel,
             stack);
-        painter_wedgelog_resume(saved);
+        PAINTER_DBG_WEDGE_RESUME(saved);
 
         stack->view_ids &= ~(1u << view_id);
         stack->depth = depth;
 
-        if( bucket_wev_debug_enabled() )
-            fprintf(
-                stderr,
-                "wev: DESCEND done view %d emitted %d command(s)\n",
-                view_id,
-                (int)(cursor->cur - cursor->base));
+        PAINTER_DBG_WEV_DONE(view_id, (int)(cursor->cur - cursor->base));
     }
 
     bucket_cursor_reserve(cursor, 1);
@@ -898,7 +856,7 @@ bucket_paint_world(
     assert(cursor);
     assert(stack);
     /* Only the root drives the wedge log: a nested painter's rows would index
-     * a different tile array. @see painter_wedgelog_suspend. */
+     * a different tile array. @see PAINTER_DBG_WEDGE_SUSPEND. */
     const int is_root = (stack->depth == 0);
     struct PainterBucketCtx* w = BM(painter);
     assert(w);
@@ -972,7 +930,7 @@ bucket_paint_world(
     /* Draw-order telemetry (TORIRS_WEDGELOG). Armed before the classify loop so
      * the MARK rows land in the same file as the traversal. */
     if( is_root )
-        painter_wedgelog_frame_begin(
+        PAINTER_DBG_WEDGE_FRAME_BEGIN(
             painter,
             camera_sx,
             camera_sz,
@@ -1082,8 +1040,7 @@ bucket_paint_world(
 
                 tp->step = PAINT_STEP_READY;
                 tiles_remaining++;
-                if( painter_wedgelog_armed() )
-                    painter_wedgelog_event(ti, "MARK", NULL);
+                PAINTER_DBG_WEDGE_EVENT(ti, "MARK");
                 bucket_push(w, paints, ti, abs(x - camera_sx) + adz);
                 BUCKET_PERF_INCREMENT(perf_pushes);
             }
@@ -1168,12 +1125,7 @@ bucket_paint_world(
                 if( paints[tidx].step == PAINT_STEP_READY )
                 {
                     int dist = abs(sx - camera_sx) + abs(sz - camera_sz);
-                    if( painter_wedgelog_armed() )
-                    {
-                        char extra[48];
-                        snprintf(extra, sizeof(extra), "phase=%d d=%d", phase, dist);
-                        painter_wedgelog_event(tidx, "SEED", extra);
-                    }
+                    PAINTER_DBG_WEDGE_EVENTF(tidx, "SEED", "phase=%d d=%d", phase, dist);
                     bucket_push_if_active(
                         w, paints, tidx, dist, &perf_pushes, &perf_push_dedup);
                     check_adjacent = (phase == 1);
@@ -1190,12 +1142,7 @@ bucket_paint_world(
         if( e_tile < 0 )
             continue;
         BUCKET_PERF_INCREMENT(perf_pops);
-        if( painter_wedgelog_armed() )
-        {
-            char extra[32];
-            snprintf(extra, sizeof(extra), "step=%d", (int)paints[e_tile].step);
-            painter_wedgelog_event(e_tile, "POP", extra);
-        }
+        PAINTER_DBG_WEDGE_EVENTF(e_tile, "POP", "step=%d", (int)paints[e_tile].step);
 
         struct PaintersTile* tile = &tiles[e_tile];
         struct TilePaint* tile_paint = &paints[e_tile];
@@ -1298,7 +1245,7 @@ bucket_paint_world(
                         {
                             bucket_emit_terrain(&cmd_cur, cmd_end, bridge_underpass_tile->sx,
                                                 bridge_underpass_tile->sz, ml);
-                            painter_wedgelog_paint(
+                            PAINTER_DBG_WEDGE_PAINT(
                                 tile->bridge_tile, "floor:bridge", ml, -1, -1);
                         }
                 }
@@ -1316,7 +1263,7 @@ bucket_paint_world(
                         if( !ground_hidden )
                         {
                             bucket_emit_terrain(&cmd_cur, cmd_end, tile_sx, tile_sz, ml);
-                            painter_wedgelog_paint(e_tile, "floor", ml, -1, -1);
+                            PAINTER_DBG_WEDGE_PAINT(e_tile, "floor", ml, -1, -1);
                         }
                         else if( camera_slevel >= 0 && ml <= camera_slevel )
                         {
@@ -1506,7 +1453,7 @@ bucket_paint_world(
              * so both come back off the cursor. */
             if( scenery_is_world_entity(element) )
             {
-                painter_wedgelog_paint(
+                PAINTER_DBG_WEDGE_PAINT(
                     e_tile,
                     "world",
                     (int)element->source_level,
@@ -1529,7 +1476,7 @@ bucket_paint_world(
                            element->_scenery.model_height)) )
             {
                 bucket_emit_entity(&cmd_cur, cmd_end, element->_scenery.entity);
-                painter_wedgelog_paint(
+                PAINTER_DBG_WEDGE_PAINT(
                     e_tile,
                     si >= painter->static_element_count ? "entity" : "loc",
                     (int)element->source_level,
@@ -1604,7 +1551,7 @@ bucket_paint_world(
                 continue;
             ep->drawn = true;
             bucket_emit_entity(&cmd_cur, cmd_end, el->_scenery.entity);
-            painter_wedgelog_paint(
+            PAINTER_DBG_WEDGE_PAINT(
                 e_tile, "item_back", (int)el->source_level, el->_scenery.entity, si);
         }
 
@@ -1649,7 +1596,7 @@ bucket_paint_world(
                         if( !decor_hidden )
                         {
                             bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                            painter_wedgelog_paint(
+                            PAINTER_DBG_WEDGE_PAINT(
                                 e_tile, "decor_back", (int)element->source_level,
                                 element->_wall_decor.entity, tile->wall_decor_a);
                         }
@@ -1661,7 +1608,7 @@ bucket_paint_world(
                         if( !decor_hidden )
                         {
                             bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                            painter_wedgelog_paint(
+                            PAINTER_DBG_WEDGE_PAINT(
                                 e_tile, "decor_back_alt", (int)element->source_level,
                                 element->_wall_decor.entity, tile->wall_decor_b);
                         }
@@ -1672,7 +1619,7 @@ bucket_paint_world(
                     if( !decor_hidden )
                     {
                         bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                        painter_wedgelog_paint(
+                        PAINTER_DBG_WEDGE_PAINT(
                             e_tile, "decor_back", (int)element->source_level,
                             element->_wall_decor.entity, tile->wall_decor_a);
                     }
@@ -1688,7 +1635,7 @@ bucket_paint_world(
                                  occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
                 {
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
-                    painter_wedgelog_paint(
+                    PAINTER_DBG_WEDGE_PAINT(
                         e_tile, "wall_back_a", (int)element->source_level, element->_wall.entity,
                         tile->wall_a);
                 }
@@ -1703,7 +1650,7 @@ bucket_paint_world(
                                  occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
                 {
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
-                    painter_wedgelog_paint(
+                    PAINTER_DBG_WEDGE_PAINT(
                         e_tile, "wall_back_b", (int)element->source_level, element->_wall.entity,
                         tile->wall_b);
                 }
@@ -1817,8 +1764,8 @@ painter_paint_bucket(
     buffer->command_count = (int)(cursor.cur - cursor.base);
     TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_PAINTER_COMMANDS, buffer->command_count);
 
-    painter_wedgelog_frame_end((long)buffer->command_count);
-    painter_dump_command_order(painter, buffer);
+    PAINTER_DBG_WEDGE_FRAME_END(buffer->command_count);
+    PAINTER_DBG_DUMP_ORDER(painter, buffer);
     return 0;
 }
 

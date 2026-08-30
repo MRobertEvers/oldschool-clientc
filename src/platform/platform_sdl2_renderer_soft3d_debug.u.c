@@ -321,10 +321,14 @@ static void
 soft3d_dbg_frame_ab_begin(struct ToriRS_Soft3D* soft)
 {
     assert(soft);
+    (void)soft;
 
     ToriDraw_FrameAbBegin();
-    if( ToriDraw_FrameAbEnabled() && soft->batch_ab[0] >= 0 )
-        ToriDraw_RasterBatchSetArmed(soft->batch_ab[ToriDraw_FrameAbArm()]);
+    /* Nothing to set per frame any more: the batch arm is a property of the
+     * TABLE each arm holds, decided once in soft3d_dbg_frame_ab_kernels_init.
+     * It used to be a process-wide runtime flag flipped between frames, which
+     * meant the arm's raster kernel and the arm's stash decision were two
+     * separate things that had to be kept in step by hand. */
 }
 
 static void
@@ -389,6 +393,17 @@ soft3d_dbg_frame_ab_kernels_init(struct ToriRS_Soft3D* soft)
         const char* comma = strchr(v, ',');
         soft->batch_ab[0] = v[0] == '1';
         soft->batch_ab[1] = comma ? comma[1] == '1' : soft->batch_ab[0];
+        /*
+         * An arm that names a batch setting names a RASTER: with the
+         * whole-model run door, or the same four callbacks without it. That is
+         * the honest A/B -- TORIDRAW_RASTER_BATCH=0 as a process flag also
+         * stopped the sort filling the stash, so it moved work out of stage 2
+         * as well and the two arms differed in more than the batcher.
+         */
+        for( arm = 0; arm < 2; arm++ )
+            soft->kernel_ab[arm].raster = soft->batch_ab[arm]
+                                              ? ToriDraw_RasterKernelSDGetBranching()
+                                              : ToriDraw_RasterKernelSDGetBranchingPerFace();
     }
     /* Init runs again on every relayout; say it once. */
     if( ToriDraw_FrameAbEnabled() && !announced++ )

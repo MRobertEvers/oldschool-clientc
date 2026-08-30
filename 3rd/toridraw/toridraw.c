@@ -955,14 +955,41 @@ ToriDraw_RasterGetScanline(void)
     return g_toridraw_raster_scanline != 0;
 }
 
+/*
+ * The stock painter walk: with its whole-model door, or without it.
+ *
+ * TORIDRAW_RASTER_BATCH used to be read inside the SORT, once per model, as
+ * `presort && toridraw_raster_batch_armed()`. That is a per-frame constant
+ * asked per model, and worse, it was a second place that decided whether the
+ * stash gets filled -- the first being whether the raster has a door to read
+ * it at all. Two answers to one question, in two stages, agreeing only by
+ * construction.
+ *
+ * Now it is one answer, made where every other kernel choice is made: the
+ * knob picks the KERNEL. Armed, the painter is the branching kernel with its
+ * run door; disarmed, it is the same four callbacks with no door
+ * (branching_perface). sd_wants_presort then derives the stash from the door
+ * alone, which is what it always meant, and the sort has nothing left to ask.
+ *
+ * Smooth has no door either way -- the smooth branching kernel names
+ * ToriDraw_RasterWalkPerFace -- so the knob does not reach it.
+ */
+static const struct ToriDraw_RasterKernelSD*
+toridraw_stock_painter_kernel(bool smooth)
+{
+    if( smooth )
+        return ToriDraw_RasterKernelSDGetSmoothBranching();
+    return toridraw_raster_batch_armed() ? ToriDraw_RasterKernelSDGetBranching()
+                                         : ToriDraw_RasterKernelSDGetBranchingPerFace();
+}
+
 static const struct ToriDraw_RasterKernelSD*
 toridraw_stock_builtin_kernel(bool smooth)
 {
     if( ToriDraw_RasterGetScanline() )
         return smooth ? ToriDraw_RasterKernelSDGetSmoothScanline()
                       : ToriDraw_RasterKernelSDGetScanline();
-    return smooth ? ToriDraw_RasterKernelSDGetSmoothBranching()
-                  : ToriDraw_RasterKernelSDGetBranching();
+    return toridraw_stock_painter_kernel(smooth);
 }
 
 static bool

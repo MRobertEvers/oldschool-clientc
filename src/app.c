@@ -18649,7 +18649,7 @@ app_world_paint(struct App* app)
 
     /* Draw-order telemetry (TORIRS_WEDGELOG): hand the painter the eye and world
      * viewport it is about to paint with, for the log header. No-op otherwise. */
-    painter_wedgelog_set_eye(
+    PAINTER_DBG_WEDGE_SET_EYE(
         app->world_camera_pos.x,
         app->world_camera_pos.y,
         app->world_camera_pos.z,

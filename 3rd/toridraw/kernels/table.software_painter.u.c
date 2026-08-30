@@ -26,6 +26,11 @@ static struct ToriDraw_Kernel g_kernel_software_painter = {
 const struct ToriDraw_Kernel*
 ToriDraw_KernelGetSoftwarePainter(void)
 {
+    /* The raster slot too, not just the two front stages: whether this table
+     * gets the whole-model door is TORIDRAW_RASTER_BATCH's answer, and it is
+     * given HERE, once, where a renderer takes the table -- not per model,
+     * inside the sort, as a second opinion about whether to fill the stash. */
+    g_kernel_software_painter.raster = toridraw_stock_painter_kernel(false);
     toridraw_kernel_table_publish(&g_kernel_software_painter);
     return &g_kernel_software_painter;
 }
