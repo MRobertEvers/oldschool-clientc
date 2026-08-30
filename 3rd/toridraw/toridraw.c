@@ -1067,6 +1067,7 @@ ToriDraw_ScenePrepareProjectionCamera(
     const struct ToriDraw_Camera* camera)
 {
     struct ToriDraw_ProjectionPreparedCamera* prepared;
+    struct ToriDraw_ProjectionPreparedCameraFloat* prepared_f;
     int values[5];
 
     assert(scene);
@@ -1077,10 +1078,16 @@ ToriDraw_ScenePrepareProjectionCamera(
     assert(
         ((uintptr_t)&scene->projection_prepared_camera &
          (TORIDRAW_SCENE_ALIGN - 1)) == 0);
+    /* The float block is read with an ALIGNED load, so this one is not a
+     * tidiness check -- an unaligned movaps faults. */
+    assert(
+        ((uintptr_t)&scene->projection_prepared_camera_f &
+         (TORIDRAW_SCENE_ALIGN - 1)) == 0);
 
     /* Publish the source only after all five vectors are complete. */
     scene->projection_prepared_camera_source = NULL;
     prepared = &scene->projection_prepared_camera;
+    prepared_f = &scene->projection_prepared_camera_f;
     values[0] = ToriDraw_ReadCosTable(camera->yaw);
     values[1] = ToriDraw_ReadSinTable(camera->yaw);
     values[2] = ToriDraw_ReadCosTable(camera->pitch);
@@ -1095,6 +1102,14 @@ ToriDraw_ScenePrepareProjectionCamera(
         prepared->cos_pitch[lane] = values[2];
         prepared->sin_pitch[lane] = values[3];
         prepared->cot15[lane] = values[4];
+
+        /* Exactly what toridraw_proj_prepared_core used to build per call.
+         * Both scales are powers of two, so the multiply is an exponent
+         * adjustment and the only rounding is the int-to-float conversion --
+         * the same one cvtdq2ps performed. Bit-for-bit the same operands. */
+        prepared_f->cos_pitch[lane] = (float)values[2] * (1.0f / 65536.0f);
+        prepared_f->sin_pitch[lane] = (float)values[3] * (1.0f / 65536.0f);
+        prepared_f->cot15[lane] = (float)values[4] * (1.0f / 64.0f);
     }
     scene->projection_prepared_camera_source = camera;
 }

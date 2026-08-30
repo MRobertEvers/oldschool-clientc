@@ -157,6 +157,36 @@ struct ToriDraw_Bones
 struct ToriDraw_Model
 {
     uint8_t flags;
+    /**
+     * Non-zero if this model is a terrain tile whose triangulation the face
+     * sort may resolve at COMPILE time: `1 + rotation`, rotation in 0..3.
+     *
+     * A world tile is not an arbitrary mesh. Its vertex layout and its index
+     * triples come from four static tables in world_decode_tile.c, keyed by a
+     * shape id, and a census of a loaded map says 94% of tiles are one of the
+     * three 4-vertex, 2-triangle shapes -- PLAIN, DIAGONAL and the unnamed
+     * shape 0 -- which all carry the SAME triples, (1,2,3) and (0,1,3), turned
+     * by the tile's rotation. That is the fast path's premise: with the triples
+     * known at compile time the sort reads nothing out of face_indices_a/b/c,
+     * the two faces provably share two of the four vertices so the duplicated
+     * coordinate loads fold, and a two-face model is culled, keyed and ordered
+     * without a loop or a sort network. 6.5 ns per input face against the
+     * general path's 8.7 on the dev host. See
+     * toridraw_face_sort_flat_tile2_scalar.
+     *
+     * Spending the same constants on SIMD instead -- one vector load per axis,
+     * a shuffle per lane -- is written as toridraw_face_sort_flat_tile2 and is
+     * SLOWER than both, 8.9 ns. Its comment has the numbers and the reason. The
+     * field selects neither; TORIDRAW_TILE_SORT does, and the field only says
+     * the model is eligible.
+     *
+     * Zero for everything else, INCLUDING the other ten tile shapes: the field
+     * is the eligibility test, so nothing downstream re-derives it, and the
+     * shapes that would need their own kernels simply take the general path.
+     * Set only by world_decode_tile, which is the one place a tile's shape and
+     * rotation are known.
+     */
+    uint8_t tile_sort_kernel;
     int vertex_count;
     int face_count;
     vertexint_t* vertices_x;
@@ -506,6 +536,36 @@ struct ToriDraw_ProjectionPreparedCamera
     int cot15[4];
 };
 
+/**
+ * The same prepared camera's pitch and fov, already in the form the SSE2
+ * kernel actually multiplies by.
+ *
+ * toridraw_proj_prepared_core wants these three as floats scaled by 1/65536,
+ * 1/65536 and 1/64. They were being derived from the int block above on every
+ * call -- a load, a cvtdq2ps and a mulps each -- for values that change once a
+ * frame. That is nothing on a 380-vertex model and it is not nothing on a
+ * four-vertex terrain tile, where the loop body runs exactly ONCE and the
+ * prologue is the call.
+ *
+ * A SEPARATE BLOCK, not three more members on the struct above, because that
+ * struct's size and field offsets are pinned by _Static_asserts in toridraw.c
+ * for projection16_apple.S, which loads it with ldp pairs. Appending would
+ * keep those offsets valid and still trip the size assert, and the Apple lane
+ * cannot be built here to check. Nothing on that lane reads this one.
+ *
+ * The conversion is EXACT, so this is a hoist and not an approximation: both
+ * scales are powers of two (2^-16 and 2^-6), so the multiply only adjusts an
+ * exponent, and the int-to-float conversion rounds identically whether C or
+ * cvtdq2ps does it. The bytes the kernel reads are the bytes it used to
+ * compute -- which the pixel comparison then confirms rather than assumes.
+ */
+struct ToriDraw_ProjectionPreparedCameraFloat
+{
+    _Alignas(16) float cos_pitch[4];
+    float sin_pitch[4];
+    float cot15[4];
+};
+
 enum ToriDraw_TextureAnimation
 {
     TORIDRAW_TEXANIM_DIRECTION_NONE,
@@ -789,6 +849,11 @@ struct ToriDraw_Scene
      */
     struct ToriDraw_ProjectionPreparedCamera projection_prepared_camera;
     const struct ToriDraw_Camera* projection_prepared_camera_source;
+    /* Published and cleared with the block above, and by the same function --
+     * projection_prepared_camera_source guards both. Placed AFTER the source
+     * pointer so the offset of projection_prepared_camera, which a static
+     * assert pins relative to screen_vertices_x, does not move. */
+    struct ToriDraw_ProjectionPreparedCameraFloat projection_prepared_camera_f;
 
     faceint_t* tmp_depth_face_count;
     faceint_t* tmp_depth_faces;

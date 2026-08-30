@@ -4796,6 +4796,23 @@ endif
 # replaces: order for order, across clip candidates, priorities, the radix
 # threshold and tail faces. Runs on every lane; the SIMD body has a scalar
 # twin, so a lane without NEON still has the sort to hold to the reference.
+# How much of a projection call is fixed per MODEL rather than per vertex.
+# 59% of projections are four-vertex terrain tiles, where the 4-wide loop runs
+# once and everything around it is amortised over nothing -- so this is what
+# says whether a frame-start terrain arena is worth building at all.
+# How far outside a triangle's vertices the raster paints. The number it
+# prints is the padding a cull box derived from projected vertices needs, and
+# the test is what keeps that number true when a kernel changes.
+test-raster-overshoot: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/raster_overshoot_test \
+		$(TORIDRAW_DIR)/toridraw_raster_overshoot_test.c
+	./$(OBJ_DIR)/raster_overshoot_test
+test-proj-model-bench: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/proj_model_bench \
+		$(TORIDRAW_DIR)/toridraw_proj_model_bench.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/proj_model_bench
+
 test-face-sort-flat: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/face_sort_flat_test \
 		$(TORIDRAW_DIR)/toridraw_face_sort_flat_test.c $(TORIDRAW_UNITY_LINK_OBJS) \

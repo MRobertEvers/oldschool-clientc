@@ -648,6 +648,28 @@ decode_tile(
      * routes the tile through the depth-tested kernels, and bit 1 means nothing
      * at all. Terrain is painter-sorted like the rest of the scene. */
 
+    /*
+     * Shapes 0, 1 and 2 are the three that read { 1, 3, 5, 7 } vertices and
+     * { (1,2,3), (0,1,3) } faces -- four corners, two triangles, identical
+     * triples; only the underlay/overlay selector differs between them, and
+     * that is spent above on colour. A census of a loaded Lumbridge square
+     * says they are 94% of the tiles built, so the sort gets a kernel with
+     * those triples resolved at compile time (toridraw_face_sort_flat_tile2),
+     * and this is the flag that says the model is eligible for it.
+     *
+     * The rotation goes with it because the face loop above has already turned
+     * the triples by it: a corner index a became (a - rotation) & 3, so the
+     * kernel's shuffles have to be turned the same way. The other ten shapes
+     * stay 0 and take the general path.
+     */
+    if( shape <= 2 )
+    {
+        assert(vertex_count == 4);
+        assert(face_count == 2);
+        assert(rotation >= 0 && rotation <= 3);
+        td->tile_sort_kernel = (uint8_t)(1 + rotation);
+    }
+
     td->bounds_cylinder = calloc(1, sizeof(struct ToriDraw_BoundsCylinder));
     assert(td->bounds_cylinder);
     tile_calculate_bounds_cylinder(
