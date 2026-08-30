@@ -687,6 +687,12 @@ test_validate_and_scratch(void)
               g_tables[t].name, why ? why : "?");
         CHECK(ToriDraw_KernelEnsureScratch(small, g_tables[t].get()),
               "validate: ensure-scratch failed for %s", g_tables[t].name);
+
+        /* And the door a renderer actually uses: the same two calls, in one,
+         * returning the table so the caller's line stays a single assignment.
+         * On a stock small scene none of these is DEGRADED, so this is silent. */
+        CHECK(ToriDraw_KernelTake(small, g_tables[t].get()) == g_tables[t].get(),
+              "take: %s did not return the table it was handed", g_tables[t].name);
     }
 
     /* The flat sort's key arrays are small-tier scratch, so on a full scene the
@@ -698,6 +704,14 @@ test_validate_and_scratch(void)
     fit = ToriDraw_KernelValidate(ToriDraw_KernelGetSoftwarePainter(), full, &why);
     CHECK(fit != TORIDRAW_KERNEL_FIT_INCOMPATIBLE,
           "validate: the painter must still DRAW on a full scene (%s)", why ? why : "?");
+    CHECK(fit == TORIDRAW_KERNEL_FIT_DEGRADED,
+          "validate: the flat sort on a full scene must report DEGRADED, got %d (%s)",
+          (int)fit, why ? why : "?");
+    /* Taking it anyway is legal and prints that reason to stderr once -- the
+     * whole point of the fit enum having three values instead of two. */
+    printf("  (expect one DEGRADED line on stderr next)\n");
+    CHECK(ToriDraw_KernelTake(full, ToriDraw_KernelGetSoftwarePainter()) != NULL,
+          "take: a DEGRADED table must still be usable");
 
     printf("  ok   %d tables validate and provision on a small scene\n", TABLE_COUNT);
 

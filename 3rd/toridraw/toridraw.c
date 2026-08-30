@@ -1339,6 +1339,81 @@ ToriDraw_KernelEnsureScratch(
     return ToriDraw_SceneEnsureScratch(scene, ToriDraw_KernelScratchNeeds(scene, kernel));
 }
 
+/*
+ * Take a table for a scene: validate it, say so when it will not be what was
+ * asked for, and provision what it needs.
+ *
+ * The validate/ensure pair existed before this and had no production caller at
+ * all -- every renderer took a getter's result and rendered with it, so the
+ * DEGRADED diagnostic the validator exists to produce was never printed and
+ * the scratch API was exercised only by tests. That is the shape of an API
+ * nobody can be blamed for skipping: it is two extra calls, both of which look
+ * optional at the call site because the frame draws without them.
+ *
+ * One function instead, and the renderer's line reads as what it means:
+ *
+ *     renderer->kernel = ToriDraw_KernelTake(scene, ToriDraw_KernelGetSoftwarePainter());
+ *
+ * The getter is still where the library resolves the environment knobs into a
+ * choice; this is where that choice meets the scene it will actually draw
+ * into. Returns the table it was handed, so it wraps the getter rather than
+ * replacing it.
+ *
+ * INCOMPATIBLE aborts. It means the next frame draws wrong pixels or trips an
+ * assert deeper in, and a renderer cannot do anything useful with the news at
+ * this point -- the reason is printed first, because an assert that fires on
+ * the fit enum alone tells you nothing about which of a dozen conditions it
+ * was.
+ *
+ * DEGRADED does NOT abort: the frame is correct, some stage is just slower
+ * than the table's name implies. That is exactly the case a caller cannot
+ * discover any other way short of a profile, so it is reported once, here.
+ *
+ * Does NOT provision the z-buffer. That is sized from the viewport rather than
+ * the scene tier and outlives no renderer's resize -- call
+ * ToriDraw_SceneZBufferResize where the viewport is known.
+ */
+const struct ToriDraw_Kernel*
+ToriDraw_KernelTake(struct ToriDraw_Scene* scene, const struct ToriDraw_Kernel* table)
+{
+    const char* why = NULL;
+    enum ToriDraw_KernelFit fit;
+
+    assert(scene);
+    assert(table);
+
+    fit = ToriDraw_KernelValidate(table, scene, &why);
+    if( fit == TORIDRAW_KERNEL_FIT_INCOMPATIBLE )
+    {
+        fprintf(
+            stderr,
+            "toridraw: kernel table `%s` is INCOMPATIBLE with this scene: %s\n",
+            table->name ? table->name : "(unnamed)",
+            why);
+        assert(!"ToriDraw_KernelTake: incompatible kernel table for this scene");
+    }
+    else if( fit == TORIDRAW_KERNEL_FIT_DEGRADED )
+    {
+        fprintf(
+            stderr,
+            "toridraw: kernel table `%s` is DEGRADED on this scene: %s\n",
+            table->name ? table->name : "(unnamed)",
+            why);
+    }
+
+    {
+        bool const provisioned = ToriDraw_KernelEnsureScratch(scene, table);
+
+        /* An allocation failure here is not a case to handle: the frame would
+         * draw down a path the table did not name, which is the exact thing
+         * the fit check above just certified against. */
+        assert(provisioned);
+        (void)provisioned;
+    }
+
+    return table;
+}
+
 enum ToriDraw_KernelFit
 ToriDraw_KernelValidate(
     const struct ToriDraw_Kernel* kernel,

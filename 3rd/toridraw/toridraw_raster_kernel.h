@@ -679,6 +679,21 @@ ToriDraw_KernelEnsureScratch(
     struct ToriDraw_Scene* scene,
     const struct ToriDraw_Kernel* kernel);
 
+/**
+ * Take a table for a scene: validate, report, provision. The one door.
+ *
+ * Wraps a getter -- `ToriDraw_KernelTake(scene, ToriDraw_KernelGetSoftwarePainter())`
+ * -- and returns the same table, so a renderer's one line of kernel setup is
+ * also the line that checks it. Aborts on INCOMPATIBLE after printing which
+ * condition failed; prints and continues on DEGRADED, because those pixels are
+ * correct and only the speed is not what the table's name implies.
+ *
+ * Does not provision the z-buffer: that is sized from the viewport, not the
+ * scene tier. See ToriDraw_SceneZBufferResize.
+ */
+const struct ToriDraw_Kernel*
+ToriDraw_KernelTake(struct ToriDraw_Scene* scene, const struct ToriDraw_Kernel* table);
+
 /*
  * The prebaked tables. Process-lifetime and immutable, like the subkernels
  * they name.
