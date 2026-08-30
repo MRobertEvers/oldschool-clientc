@@ -1706,6 +1706,82 @@ test_kernel_tables(void)
     ToriDraw_SceneFree(full);
 }
 
+
+/*
+ * The table-driven stage entries against the kernel-driven ones.
+ *
+ * Same three stages reached two ways, so the pictures must be identical. The
+ * part worth pinning is stage 2: the table decides the presort itself, and it
+ * has to reach the same answer the caller used to reach by choosing between
+ * ToriDraw_RenderModel2SortFaces and ...SortFacesPresorted -- including the
+ * negative case, where a table whose raster has no whole-model door must NOT
+ * stash, because that store is pure cost for a raster that will not read it.
+ */
+static void
+test_table_entries(struct SDFixture* fixture)
+{
+    struct ToriDraw_Scene* scene =
+        ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    struct ToriDraw_ViewPort viewport = test_viewport();
+    struct ToriDraw_Camera camera = test_camera();
+    struct ToriDraw_Position position = { .z = 420 };
+    size_t const count = (size_t)VIEW_STRIDE * VIEW_HEIGHT;
+    toripixel_t* via_table = calloc(count, sizeof(toripixel_t));
+    toripixel_t* via_kernel = calloc(count, sizeof(toripixel_t));
+    struct ToriDraw_Texture* texture = make_test_texture();
+    const struct ToriDraw_Kernel* painter = ToriDraw_KernelGetSoftwarePainter();
+    const struct ToriDraw_Kernel* baker = ToriDraw_KernelGetSpriteBaker();
+    int diff = 0;
+    int drawn = 0;
+
+    CHECK(scene && via_table && via_kernel && texture, "entries: fixtures");
+    if( !scene || !via_table || !via_kernel || !texture )
+        goto done;
+    ToriDraw_SceneSetTexture(scene, TEST_TEXTURE_ID, texture);
+    CHECK(ToriDraw_KernelEnsureScratch(scene, painter), "entries: scratch");
+
+    CHECK(ToriDraw_RenderModelWithTable(
+              fixture->handle, scene, &position, &viewport, &camera, via_table,
+              painter) == TORIDRAW_CULL_VISIBLE,
+          "entries: table render visible");
+    CHECK(ToriDraw_RenderModelWithRasterKernel(
+              fixture->handle, scene, &position, &viewport, &camera, via_kernel,
+              ToriDraw_RasterKernelSDGetBranching()) == TORIDRAW_CULL_VISIBLE,
+          "entries: kernel render visible");
+
+    for( size_t i = 0; i < count; i++ )
+    {
+        if( via_table[i] != via_kernel[i] )
+            diff++;
+        if( via_table[i] != 0 )
+            drawn++;
+    }
+    CHECK(diff == 0, "entries: %d pixels differ between the table and kernel entries", diff);
+    CHECK(drawn > 0, "entries: the table entry drew nothing");
+
+    /* Stage 2's own decision, both ways round. The painter's raster has a
+     * door, so its sort stashes; the baker's does not, so its sort must not --
+     * and that is visible in the flag the sort records. */
+    ToriDraw_RenderModel1ProjectWithTable(
+        fixture->handle, scene, &position, &viewport, &camera, painter);
+    ToriDraw_RenderModel2SortFacesWithTable(fixture->handle, scene, painter);
+    CHECK(scene->sm_face_xy_valid,
+          "entries: the painter table stashes, because its raster has a door");
+
+    ToriDraw_RenderModel1ProjectWithTable(
+        fixture->handle, scene, &position, &viewport, &camera, baker);
+    ToriDraw_RenderModel2SortFacesWithTable(fixture->handle, scene, baker);
+    CHECK(!scene->sm_face_xy_valid,
+          "entries: the sprite-baker table does not stash, because its raster has no door");
+
+done:
+    if( texture && scene )
+        ToriDraw_SceneSetTexture(scene, TEST_TEXTURE_ID, NULL);
+    free(via_table);
+    free(via_kernel);
+    ToriDraw_SceneFree(scene);
+}
+
 int
 main(void)
 {
@@ -1725,6 +1801,7 @@ main(void)
     }
 
     test_whole_model_door(&sd_fixture);
+    test_table_entries(&sd_fixture);
     test_sd_direct_apis(&sd_fixture, &env);
     test_sd_legacy_parity(&sd_fixture, &env);
 

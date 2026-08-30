@@ -141,6 +141,53 @@ ToriDraw_RenderModel3RasterWithKernel(
     toripixel_t* pixel_buffer,
     const struct ToriDraw_RasterKernelSD* kernel);
 
+/*
+ * The three stages, driven by a table.
+ *
+ * A renderer that runs the stages by hand -- every platform renderer does, to
+ * hit-test between projection and sort, or to sort for a vertex upload and
+ * never raster -- holds one ToriDraw_Kernel and passes it to each. Which
+ * projection, which face sort and which raster it runs is then one object
+ * chosen once at init.
+ *
+ * Stage 2 decides the presort itself from the table, so there is no presorted
+ * twin to pick between and no way to pick wrong.
+ */
+int
+ToriDraw_RenderModel1ProjectWithTable(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    const struct ToriDraw_Kernel* table);
+
+int
+ToriDraw_RenderModel2SortFacesWithTable(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_Kernel* table);
+
+/* Asserts on a GPU table, whose raster slot is NULL. */
+int
+ToriDraw_RenderModel3RasterWithTable(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_Kernel* table);
+
+/** All three stages through one table. */
+int
+ToriDraw_RenderModelWithTable(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_Kernel* table);
+
 /* Sort back to front WITHOUT the pre-sort store. The right entry for every
  * caller whose faces do not go to the batched software raster walk -- the
  * D3D9 and GL renderers, HD, the sprite baker. See toridraw.c. */

@@ -1460,6 +1460,121 @@ ToriDraw_RenderModelWithRasterKernel(
         hnd, scene, position, view_port, camera, pixel_buffer, kernel);
 }
 
+/* ---- The three stages, driven by a table ----------------------------- */
+
+static inline const struct ToriDraw_ProjectionKernel*
+table_projection(const struct ToriDraw_Kernel* table)
+{
+    return table->projection ? table->projection : ToriDraw_ProjectionKernelGetDefault();
+}
+
+static inline const struct ToriDraw_FaceCullSortKernel*
+table_face_sort(const struct ToriDraw_Kernel* table)
+{
+    return table->face_sort ? table->face_sort : ToriDraw_FaceCullSortKernelGetDefault();
+}
+
+int
+ToriDraw_RenderModel1ProjectWithTable(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    const struct ToriDraw_Kernel* table)
+{
+    const struct ToriDraw_ProjectionKernel* projection;
+
+    assert(scene);
+    assert(table);
+    projection = table_projection(table);
+    assert(projection->project);
+
+    scene->active_hnd = hnd;
+    return projection->project(
+        projection->user_data, scene, hnd, position, view_port, camera);
+}
+
+/*
+ * Stage 2, with the presort decision made HERE rather than by the caller.
+ *
+ * The two older entries -- ToriDraw_RenderModel2SortFaces and
+ * ...SortFacesPresorted -- put that choice on whoever called them, and getting
+ * it wrong is the regression the split exists to prevent: a GPU renderer that
+ * calls the presorted entry pays seven stores and a six-way compare per drawn
+ * face to fill a buffer nothing downstream loads. A table already knows,
+ * because it names the raster: the stash is worth filling exactly when that
+ * raster has a whole-model door to read it and the sort can produce it.
+ */
+int
+ToriDraw_RenderModel2SortFacesWithTable(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_Kernel* table)
+{
+    const struct ToriDraw_FaceCullSortKernel* sort;
+    bool presort;
+
+    assert(scene);
+    assert(table);
+    sort = table_face_sort(table);
+    assert(sort->sort);
+
+    presort = kernel_table_wants_presort(table, sort);
+    return sort->sort(sort->user_data, scene, hnd, presort);
+}
+
+int
+ToriDraw_RenderModel3RasterWithTable(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_Kernel* table)
+{
+    assert(scene);
+    assert(table);
+    assert(table->raster && "a GPU table has no raster stage");
+    return ToriDraw_RenderModel3RasterWithKernel(
+        scene, view_port, camera, pixel_buffer, table->raster);
+}
+
+/*
+ * All three stages through one table.
+ *
+ * Not a wrapper over ToriDraw_RenderModelWithRasterKernel: that one reads the
+ * projection and face-sort slots off the RASTER kernel, which is where they
+ * used to live. A table names them itself, so running the stages here is what
+ * keeps a table's sort choice from being silently replaced by the default.
+ */
+int
+ToriDraw_RenderModelWithTable(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_Kernel* table)
+{
+    int cull;
+
+    assert(scene);
+    assert(table);
+    assert(table->raster && "a GPU table has no raster stage");
+
+    cull = ToriDraw_RenderModel1ProjectWithTable(
+        hnd, scene, position, view_port, camera, table);
+    if( cull != TORIDRAW_CULL_VISIBLE )
+        return cull;
+
+    if( table->raster->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
+        ToriDraw_RenderModel2SortFacesWithTable(hnd, scene, table);
+
+    return ToriDraw_RenderModel3RasterWithTable(
+        scene, view_port, camera, pixel_buffer, table);
+}
+
 int
 ToriDraw_RenderModel1Project(
     struct ToriDraw_ModelHandle hnd,
