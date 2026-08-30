@@ -710,7 +710,8 @@ painter_paint_distancemetric(
             /* Always the insertion sort. The qsort branch this replaced parked
              * the painter and camera in file-scope statics for its comparator
              * (portable qsort has no user-data argument); the orders are
-             * identical, and the statics could not survive a suspended paint. */
+             * identical, and the statics could not survive a nested paint
+             * running inside an outer one. */
             scenery_queue_insertion_sort(
                 scenery_queue, scenery_queue_length, painter, camera_sx, camera_sz);
 

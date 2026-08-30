@@ -160,8 +160,8 @@ scenery_min_dist_sq_cam(
 /* Ascending min corner dist^2 - farthest first (painter's algorithm). This is
  * the only scenery order left: the qsort variant it replaced needed three
  * file-scope statics to smuggle the painter and camera into the comparator,
- * and a suspended outer paint would have found them rewritten by the inner one
- * the moment the descent (PNTR_CMD_BEGIN_WORLD) landed. */
+ * and an outer paint, still live below the descent, would have found them
+ * rewritten by the inner one the moment PNTR_CMD_BEGIN_WORLD landed. */
 static void
 scenery_queue_insertion_sort(
     int* queue,
