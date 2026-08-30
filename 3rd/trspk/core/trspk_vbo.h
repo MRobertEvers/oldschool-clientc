@@ -11,10 +11,14 @@
 #include "../d3d9/d3d9_vertex.h"
 // clang-format on
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 
 #define TRSPK_VBO_FLAG_DIRTY TRSPK_FLAG(0)
+/* The vertex writers are aimed at memory this VBO does not own -- see
+ * `d3d9_write` below. */
+#define TRSPK_VBO_FLAG_MAPPED TRSPK_FLAG(1)
 
 struct TRSPK_VBO
 {
@@ -41,6 +45,21 @@ struct TRSPK_VBO
         struct TRSPK_VertexOpenGl3* as_opengl3;
         struct TRSPK_VertexD3D9* as_d3d9;
     } vertices;
+
+    /*
+     * Where the D3D9 vertex writers actually put bytes.
+     *
+     * Normally this is `vertices.as_d3d9` -- the array this VBO owns. A
+     * backend able to map its GPU vertex buffer points it at that mapping
+     * instead, and then a bake writes each vertex ONCE, into driver memory,
+     * rather than filling a system-memory copy that is memcpy'd across in full
+     * immediately afterwards. See trspk_vbo_d3d9_map.
+     *
+     * Held apart from the union on purpose: the mapping is not owned here, so
+     * it must never be realloc'd or freed. The reallocating paths keep this in
+     * step with `vertices` whenever it is NOT mapped.
+     */
+    struct TRSPK_VertexD3D9* d3d9_write;
 };
 
 struct TRSPK_VBO*
@@ -202,6 +221,41 @@ trspk_d3d9_pack_argb(
  * Unlike the float writer this does NOT set the dirty flag. A bake writes
  * hundreds of vertices into one buffer and the flag is idempotent, so the
  * caller sets it once around the loop -- see d3d9_bake_pose_vertices. */
+/*
+ * Aim the D3D9 vertex writers at `mapped`, memory this VBO does not own --
+ * in practice a locked D3D9 vertex buffer.
+ *
+ * While mapped, the VBO's own array is NOT written, so it holds stale data and
+ * must not be uploaded from; the caller is promising that everything baked in
+ * this window goes straight to the GPU instead. How many vertices the mapping
+ * holds is the caller's to know and to enforce -- this buffer's own capacity
+ * says nothing about it.
+ */
+static inline void
+trspk_vbo_d3d9_map(struct TRSPK_VBO* vbo, struct TRSPK_VertexD3D9* mapped)
+{
+    assert(vbo);
+    assert(mapped);
+    assert(vbo->format == TRSPK_VERTEX_FORMAT_D3D9);
+    vbo->d3d9_write = mapped;
+    vbo->flags |= TRSPK_VBO_FLAG_MAPPED;
+}
+
+static inline void
+trspk_vbo_d3d9_unmap(struct TRSPK_VBO* vbo)
+{
+    assert(vbo);
+    vbo->d3d9_write = vbo->vertices.as_d3d9;
+    vbo->flags &= ~(uint32_t)TRSPK_VBO_FLAG_MAPPED;
+}
+
+static inline bool
+trspk_vbo_is_mapped(const struct TRSPK_VBO* vbo)
+{
+    assert(vbo);
+    return (vbo->flags & TRSPK_VBO_FLAG_MAPPED) != 0u;
+}
+
 static inline void
 trspk_vbo_write_vertex_d3d9_argb(
     struct TRSPK_VBO* vbo,
@@ -214,7 +268,7 @@ trspk_vbo_write_vertex_d3d9_argb(
     float v,
     float tex_id)
 {
-    struct TRSPK_VertexD3D9* vertex = &vbo->vertices.as_d3d9[index];
+    struct TRSPK_VertexD3D9* vertex = &vbo->d3d9_write[index];
 
     vertex->position[0] = x;
     vertex->position[1] = y;
@@ -238,7 +292,7 @@ trspk_vbo_write_vertex_d3d9(
     float v,
     float tex_id)
 {
-    struct TRSPK_VertexD3D9* vertex = &vbo->vertices.as_d3d9[index];
+    struct TRSPK_VertexD3D9* vertex = &vbo->d3d9_write[index];
 
     vertex->position[0] = x;
     vertex->position[1] = y;
