@@ -1128,12 +1128,26 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     }
     else
     {
-        g_last_cull =
-            ToriDraw_RenderModel1Project(hnd, g_scene, &position, &view_port, &camera);
+        /*
+         * The software painter, through the table that names all three stages,
+         * rather than three entries that each resolve their own stage from the
+         * environment. Split rather than ToriDraw_RenderModelWithTable so the
+         * cull verdict stays visible: this viewer reports it.
+         *
+         * The two branches above still take library entries that predate the
+         * table -- HD has no table slot yet, and ToriDraw_RenderZBuffered is
+         * the "no face sort at all" entry rather than the depth-tested table.
+         * Both move when HD does.
+         */
+        const struct ToriDraw_Kernel* const table = ToriDraw_KernelGetStock();
+
+        g_last_cull = ToriDraw_RenderModel1ProjectWithTable(
+            hnd, g_scene, &position, &view_port, &camera, table);
         if( g_last_cull == TORIDRAW_CULL_VISIBLE )
         {
-            ToriDraw_RenderModel2SortFaces(hnd, g_scene);
-            ToriDraw_RenderModel3Raster(g_scene, &view_port, &camera, g_pixels, false);
+            ToriDraw_RenderModel2SortFacesWithTable(hnd, g_scene, table);
+            ToriDraw_RenderModel3RasterWithTable(
+                g_scene, &view_port, &camera, g_pixels, table);
         }
     }
 

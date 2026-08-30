@@ -475,8 +475,9 @@ ToriDraw_RenderModelExtentsAtWidget(
     camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     camera.texture_affine = 1;
 
-    ToriDraw_RenderModel2SortFaces(hnd, scene);
-    ToriDraw_RenderModel3Raster(scene, &view_port, &camera, pixels, false);
+    ToriDraw_RenderModel2SortFacesWithTable(hnd, scene, ToriDraw_KernelGetSpriteBaker());
+    ToriDraw_RenderModel3RasterWithTable(
+        scene, &view_port, &camera, pixels, ToriDraw_KernelGetSpriteBaker());
 
     *out_draw_x = draw_x;
     *out_draw_y = draw_y;
@@ -621,8 +622,9 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     toripixel_t* pixels = calloc(pixel_count, sizeof(toripixel_t));
     assert(pixels);
 
-    ToriDraw_RenderModel2SortFaces(hnd, scene);
-    ToriDraw_RenderModel3Raster(scene, &view_port, &camera, pixels, false);
+    ToriDraw_RenderModel2SortFacesWithTable(hnd, scene, ToriDraw_KernelGetSpriteBaker());
+    ToriDraw_RenderModel3RasterWithTable(
+        scene, &view_port, &camera, pixels, ToriDraw_KernelGetSpriteBaker());
 
     uint32_t* argb = malloc(pixel_count * sizeof(uint32_t));
     assert(argb);
@@ -699,7 +701,8 @@ ToriDraw_SpriteNewFromModelRaster(
     toripixel_t* pixels = calloc(pixel_count, sizeof(toripixel_t));
     assert(pixels);
 
-    ToriDraw_RenderModel(hnd, scene, &position, &view_port, &camera, pixels);
+    ToriDraw_RenderModelWithTable(
+        hnd, scene, &position, &view_port, &camera, pixels, ToriDraw_KernelGetSpriteBaker());
 
     uint32_t* argb = malloc(pixel_count * sizeof(uint32_t));
     assert(argb);
@@ -793,7 +796,9 @@ ToriDraw_SpriteNewFromObjIconRaster(
     view_port.x_center = render_w / 2;
     view_port.stride = render_w;
 
-    ToriDraw_RenderModel(hnd, scene, &position, &view_port, &camera, render_pixels);
+    ToriDraw_RenderModelWithTable(
+        hnd, scene, &position, &view_port, &camera, render_pixels,
+        ToriDraw_KernelGetSpriteBaker());
 
     size_t out_pixel_count = (size_t)width * (size_t)height;
     uint32_t* argb = malloc(out_pixel_count * sizeof(uint32_t));
