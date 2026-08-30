@@ -243,11 +243,65 @@ typedef int (*ToriDraw_FaceCullSortKernelFn)(
     struct ToriDraw_ModelHandle hnd,
     bool presort);
 
+/*
+ * The projection stage's vtable, the peer of ToriDraw_RasterKernelSDVTable.
+ *
+ * Before any vertex is touched, ToriDraw_Project resolves two properties -- is
+ * the camera parallel, and can this model reach behind the near plane -- and
+ * those two answers select one of four specialized vertex kernels. That cross
+ * used to be an if/else ladder in the middle of a 386-line function, which
+ * meant "which projection is this frame running" was not something a caller
+ * could hold, name, or swap.
+ *
+ * As a vtable it is one slot per shape, filled by the kernel the caller
+ * selected. The two stock kernels differ in exactly the two perspective slots,
+ * because the prepared-camera family only ever applied there.
+ *
+ * One indirect call per MODEL, behind the cull that stops most models before
+ * they reach it. The raster vtable already accepts one per FACE.
+ */
+enum ToriDraw_ProjectionShape
+{
+    TORIDRAW_PROJECTION_PERSPECTIVE_CLIP = 0,
+    TORIDRAW_PROJECTION_PERSPECTIVE_NOCLIP = 1,
+    TORIDRAW_PROJECTION_PARALLEL_CLIP = 2,
+    TORIDRAW_PROJECTION_PARALLEL_NOCLIP = 3,
+    TORIDRAW_PROJECTION_SHAPE_COUNT = 4,
+};
+
+/*
+ * Project one model's vertices into the scene's scratch.
+ *
+ * The angles arrive already normalized and `model_mid_z` is the model's
+ * camera-space centre depth; the caller derived both once. A slot writes
+ * screen_vertices_*, writes orthographic_vertices_* when the model is
+ * textured, and sets projection_bound_vertices when it bounded the block in
+ * registers rather than leaving it to be swept.
+ */
+typedef void (*ToriDraw_ProjectionVerticesFn)(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_Camera* camera,
+    int model_pitch,
+    int model_yaw,
+    int model_roll,
+    int camera_roll,
+    int model_mid_z);
+
+/* Every slot is required. A kernel with a NULL slot is incomplete. */
+struct ToriDraw_ProjectionKernelVTable
+{
+    ToriDraw_ProjectionVerticesFn project[TORIDRAW_PROJECTION_SHAPE_COUNT];
+};
+
 struct ToriDraw_ProjectionKernel
 {
     const char* name;
     ToriDraw_ProjectionKernelFn project;
     void* user_data;
+    /* The four specialized vertex kernels this stage dispatches through. */
+    const struct ToriDraw_ProjectionKernelVTable* vtable;
 };
 
 struct ToriDraw_FaceCullSortKernel
@@ -286,6 +340,16 @@ struct ToriDraw_RasterKernelHD
 /* Process-lifetime, immutable built-in kernels. */
 const struct ToriDraw_ProjectionKernel*
 ToriDraw_ProjectionKernelGetDefault(void);
+
+/* The prepared-camera kernels, with the portable ladder behind them. The
+ * default, and what every caller got before the two were separable. */
+const struct ToriDraw_ProjectionKernel*
+ToriDraw_ProjectionKernelGetPrepared(void);
+
+/* The portable SIMD/scalar ladder only. Same pixels; the A/B baseline, and
+ * the honest choice for a caller that never publishes a prepared camera. */
+const struct ToriDraw_ProjectionKernel*
+ToriDraw_ProjectionKernelGetPortable(void);
 
 /*
  * The stock software kernel a renderer holds: branching or scanline as

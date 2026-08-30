@@ -943,7 +943,8 @@ toridraw_stock_model_needs_zbuffer(
  * face-order entry points, which this file owns.
  */
 // clang-format off
-#include "kernels/projection.stock.u.c"
+#include "kernels/projection.prepared.u.c"
+#include "kernels/projection.portable.u.c"
 #include "kernels/facesort.bucket.u.c"
 #include "kernels/facesort.flat.u.c"
 #include "kernels/sd.gpu.u.c"

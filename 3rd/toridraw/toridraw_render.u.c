@@ -2064,9 +2064,9 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
  * path ~20%% slower than the code it replaced at -O1, where the flag stopped
  * being a constant and blocked auto-vectorization.
  */
-/* Models that can reach behind the near plane. */
+/* Models that can reach behind the near plane, portable ladder only. */
 static inline void
-toridraw_project_vertices_clip(
+toridraw_project_vertices_clip_portable(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
@@ -2077,45 +2077,6 @@ toridraw_project_vertices_clip(
     int camera_roll,
     int model_mid_z)
 {
-#if defined(TORIDRAW_SSE2_PREPARED_PROJECTION)
-    /* Same gate as the Apple prepared path: yaw-only geometry, and a prepared
-     * block that was published for this exact camera. */
-    if( model_pitch == 0 && model_roll == 0 && camera_roll == 0 &&
-        scene->projection_prepared_camera_source == camera )
-    {
-        if( model_has_textures(hnd) )
-        {
-            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 1, model_vertex_count(hnd));
-            ToriDraw_ProjPreparedClip(
-                scene,
-                model_vertices_x(hnd),
-                model_vertices_y(hnd),
-                model_vertices_z(hnd),
-                model_vertex_count(hnd),
-                camera->yaw,
-                model_yaw,
-                model_mid_z,
-                position);
-        }
-        else
-        {
-            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 1, model_vertex_count(hnd));
-            ToriDraw_ProjPreparedNotexClip(
-                scene,
-                model_vertices_x(hnd),
-                model_vertices_y(hnd),
-                model_vertices_z(hnd),
-                model_vertex_count(hnd),
-                camera->yaw,
-                model_yaw,
-                model_mid_z,
-                position);
-        }
-        /* The kernel bounded every full block; the sweep takes the tail. */
-        scene->projection_bound_vertices = model_vertex_count(hnd) & ~3;
-        return;
-    }
-#endif
 
     /* Full 6DOF when model/camera roll is set (obj-icon zan2d, etc.). yaw-only and
      * pitch+yaw keep the SIMD fused paths; array6_fused matches v0 Dash. */
@@ -2269,6 +2230,84 @@ toridraw_project_vertices_clip(
             camera->yaw);
     }
 
+}
+
+/*
+ * The same models, with the prepared-camera kernel in front.
+ *
+ * Two functions rather than one with a flag, for the reason the comment above
+ * gives: below this point every kernel is specialized, and a runtime test here
+ * would be a branch on a value that is constant for the whole frame. The
+ * projection kernel a caller selects picks the entry; nothing downstream asks
+ * again.
+ *
+ * Falls through to the portable ladder for every model the prepared kernel
+ * cannot take -- pitched, rolled, or drawn under a camera whose prepared block
+ * was never published. That fallback is the reason this is a superset of
+ * `_portable` and not an alternative to it.
+ */
+static inline void
+toridraw_project_vertices_clip_prepared(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_Camera* camera,
+    int model_pitch,
+    int model_yaw,
+    int model_roll,
+    int camera_roll,
+    int model_mid_z)
+{
+#if defined(TORIDRAW_SSE2_PREPARED_PROJECTION)
+    /* Same gate as the Apple prepared path: yaw-only geometry, and a prepared
+     * block that was published for this exact camera. */
+    if( model_pitch == 0 && model_roll == 0 && camera_roll == 0 &&
+        scene->projection_prepared_camera_source == camera )
+    {
+        if( model_has_textures(hnd) )
+        {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_TEX, 1, model_vertex_count(hnd));
+            ToriDraw_ProjPreparedClip(
+                scene,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                camera->yaw,
+                model_yaw,
+                model_mid_z,
+                position);
+        }
+        else
+        {
+            TORIDRAW_PROJ_CENSUS_RECORD(TORIDRAW_PROJ_K_YAW_NOTEX, 1, model_vertex_count(hnd));
+            ToriDraw_ProjPreparedNotexClip(
+                scene,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                camera->yaw,
+                model_yaw,
+                model_mid_z,
+                position);
+        }
+        /* The kernel bounded every full block; the sweep takes the tail. */
+        scene->projection_bound_vertices = model_vertex_count(hnd) & ~3;
+        return;
+    }
+#endif
+
+    toridraw_project_vertices_clip_portable(
+        scene,
+        hnd,
+        position,
+        camera,
+        model_pitch,
+        model_yaw,
+        model_roll,
+        camera_roll,
+        model_mid_z);
 }
 
 /* Models that provably cannot; no sentinel, no near-plane test. */
@@ -2441,11 +2480,17 @@ toridraw_project_vertices_noclip_portable(
 
 }
 
+/*
+ * The prepared-camera entry for models that provably cannot reach behind the
+ * near plane. Its portable twin is toridraw_project_vertices_noclip_portable
+ * above, which this falls through to for every model the prepared kernels
+ * cannot take.
+ */
 #if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
 __attribute__((always_inline))
 #endif
 static inline void
-toridraw_project_vertices_noclip(
+toridraw_project_vertices_noclip_prepared(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
@@ -2664,14 +2709,65 @@ toridraw_project_vertices_parallel_noclip(
     }
 }
 
+/*
+ * The two stock projection vtables.
+ *
+ * They differ in exactly two slots. A parallel camera has no prepared family
+ * -- the prepared block is a perspective cotangent and a yaw/pitch pair, and
+ * the orthographic kernels use neither -- so both tables name the same two
+ * parallel kernels, and only the perspective pair changes.
+ *
+ * Here rather than in kernels/: these are data about the static functions
+ * above, so they belong beside them. The kernels/ files wrap them into the
+ * ToriDraw_ProjectionKernel objects a caller selects.
+ */
+static const struct ToriDraw_ProjectionKernelVTable g_projection_prepared_vtable = {
+    .project = {
+        [TORIDRAW_PROJECTION_PERSPECTIVE_CLIP] = toridraw_project_vertices_clip_prepared,
+        [TORIDRAW_PROJECTION_PERSPECTIVE_NOCLIP] = toridraw_project_vertices_noclip_prepared,
+        [TORIDRAW_PROJECTION_PARALLEL_CLIP] = toridraw_project_vertices_parallel_clip,
+        [TORIDRAW_PROJECTION_PARALLEL_NOCLIP] = toridraw_project_vertices_parallel_noclip,
+    },
+};
+
+static const struct ToriDraw_ProjectionKernelVTable g_projection_portable_vtable = {
+    .project = {
+        [TORIDRAW_PROJECTION_PERSPECTIVE_CLIP] = toridraw_project_vertices_clip_portable,
+        [TORIDRAW_PROJECTION_PERSPECTIVE_NOCLIP] = toridraw_project_vertices_noclip_portable,
+        [TORIDRAW_PROJECTION_PARALLEL_CLIP] = toridraw_project_vertices_parallel_clip,
+        [TORIDRAW_PROJECTION_PARALLEL_NOCLIP] = toridraw_project_vertices_parallel_noclip,
+    },
+};
+
+/* Which slot this model and camera resolve to. */
+static inline enum ToriDraw_ProjectionShape
+toridraw_projection_shape(bool parallel, bool may_clip)
+{
+    if( parallel )
+        return may_clip ? TORIDRAW_PROJECTION_PARALLEL_CLIP
+                        : TORIDRAW_PROJECTION_PARALLEL_NOCLIP;
+    return may_clip ? TORIDRAW_PROJECTION_PERSPECTIVE_CLIP
+                    : TORIDRAW_PROJECTION_PERSPECTIVE_NOCLIP;
+}
+
+/*
+ * Project one model, dispatching its vertices through `vtable`.
+ *
+ * Everything here -- the capacity refusal, the fast cull, the safe near
+ * plane, the screen box, the AABB cull -- is the same whichever projection
+ * kernel was selected. The kernel decides ONE thing: which of the four
+ * specialized vertex kernels runs, and that is the vtable call below.
+ */
 static inline int
-ToriDraw_Project(
+ToriDraw_ProjectWithVTable(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
     struct ToriDraw_ViewPort* view_port,
-    struct ToriDraw_Camera* camera)
+    struct ToriDraw_Camera* camera,
+    const struct ToriDraw_ProjectionKernelVTable* vtable)
 {
+    assert(vtable);
     struct ProjectedVertex center_projection;
 
     /* Refined below once the model's camera-space centre is known. Set here so
@@ -2842,33 +2938,18 @@ ToriDraw_Project(
      * from the outputs. */
     scene->projection_bound_vertices = 0;
 
-    if( toridraw_proj_is_parallel(camera->proj_mode) )
-    {
-        /*
-         * Same near-clip gate, different meaning. Parallel projection has no
-         * singularity to avoid, so may_clip here is not a safety requirement --
-         * it just says whether any vertex is near enough the view plane to need
-         * hiding. A camera with a very negative near_plane_z therefore never
-         * takes the clipping family at all, which is the map editor's normal
-         * configuration.
-         */
-        if( may_clip )
-            toridraw_project_vertices_parallel_clip(
-                scene, hnd, position, camera,
-                model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
-        else
-            toridraw_project_vertices_parallel_noclip(
-                scene, hnd, position, camera,
-                model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
-    }
-    else if( may_clip )
-        toridraw_project_vertices_clip(
-            scene, hnd, position, camera,
-            model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
-    else
-        toridraw_project_vertices_noclip(
-            scene, hnd, position, camera,
-            model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
+    /*
+     * Same near-clip gate, two different meanings. Under perspective it is a
+     * safety requirement -- a vertex behind the plane has no projection. Under
+     * a parallel camera there is no singularity to avoid, so it only says
+     * whether any vertex is near enough the view plane to need hiding; a
+     * camera with a very negative near_plane_z never takes the clipping family
+     * at all, which is the map editor's normal configuration.
+     */
+    vtable->project[toridraw_projection_shape(
+        toridraw_proj_is_parallel(camera->proj_mode), may_clip)](
+        scene, hnd, position, camera,
+        model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
 
     /*
      * The model's bound, off the coordinates just written; see
@@ -2974,11 +3055,11 @@ ToriDraw_Project(
                     scene, hnd, position, camera,
                     model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
             else if( may_clip )
-                toridraw_project_vertices_noclip(
+                toridraw_project_vertices_noclip_prepared(
                     scene, hnd, position, camera,
                     model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
             else
-                toridraw_project_vertices_clip(
+                toridraw_project_vertices_clip_prepared(
                     scene, hnd, position, camera,
                     model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
 
@@ -3051,6 +3132,23 @@ ToriDraw_Project(
 #endif
 
     return TORIDRAW_CULL_VISIBLE;
+}
+
+/*
+ * The stock entry: the prepared-camera kernels, with the portable ladder
+ * behind them. What every caller got before the vtable existed, and what
+ * ToriDraw_ProjectionKernelGetDefault still selects.
+ */
+static inline int
+ToriDraw_Project(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera)
+{
+    return ToriDraw_ProjectWithVTable(
+        scene, hnd, position, view_port, camera, &g_projection_prepared_vtable);
 }
 
 /**
