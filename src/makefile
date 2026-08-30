@@ -4914,6 +4914,25 @@ test-near-clip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.
 	./$(OBJ_DIR)/near_clip_test
 
 
+# The kernel TABLE matrix: the agreements BETWEEN the three stages.
+#
+# Every other kernel target here holds one seam. This one renders a fixture
+# built to make face order matter -- overlapping triangles at descending
+# depths, all four SD classes, translucency -- through every prebaked table x
+# {bucket,flat} x batch{0,1}, and hashes the frame.
+#
+# Within a table the hash must not move: which sort ran and whether the run
+# doors were armed are speed decisions. Across rasterisers it must move, or
+# the matrix is agreeing about a blank screen. Nothing is pinned to a golden
+# constant -- the goldens come from the first arm of the same run, so a
+# legitimate kernel change stays green and a change that moves one arm and
+# not its twin does not.
+test-kernel-matrix: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/kernel_matrix_test \
+		$(TORIDRAW_DIR)/toridraw_kernel_matrix_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/kernel_matrix_test
+
 # ---- The kernel suite -------------------------------------------------
 #
 # Every proof the three-stage kernel system rests on, in one target.
@@ -4929,10 +4948,11 @@ test-near-clip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.
 # A lane with no assembly to score (test-presorted-neon off Apple arm64)
 # prints that and succeeds. It stays in the list on every platform, because
 # "there is nothing to run here" is a different report from "it was not run".
-.PHONY: test-toridraw-kernels
+.PHONY: test-toridraw-kernels test-kernel-matrix
 TORIDRAW_KERNEL_TESTS = \
 	test-raster-kernel \
 	test-raster-kernel-pixel16 \
+	test-kernel-matrix \
 	test-projection-kernel \
 	test-projected-bound \
 	test-near-clip \
