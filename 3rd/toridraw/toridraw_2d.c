@@ -43,28 +43,33 @@ toridraw2d_div255(int v)
  * split into a/inv and the source channels pre-extracted, so the caller can
  * hoist all of that out of its inner loop.
  */
-static inline int
+static inline toripixel_t
 toridraw2d_blend_channels(
-    int dst,
+    toripixel_t dst,
     int sr,
     int sg,
     int sb,
     int a,
     int inv)
 {
-    int const dr = (dst >> 16) & 0xFF;
-    int const dg = (dst >> 8) & 0xFF;
-    int const db = dst & 0xFF;
+    /* The destination comes back to 8-bit channels, the blend is what it has
+     * always been, and the result goes out through the format. On a 32-bit
+     * ARGB target both conversions are the identity. */
+    uint32_t const d = toripixel_to_argb8888(dst);
+    int const dr = (int)TORIPIXEL_ARGB_R(d);
+    int const dg = (int)TORIPIXEL_ARGB_G(d);
+    int const db = (int)TORIPIXEL_ARGB_B(d);
     int const rr = toridraw2d_div255((sr * a) + (dr * inv));
     int const rg = toridraw2d_div255((sg * a) + (dg * inv));
     int const rb = toridraw2d_div255((sb * a) + (db * inv));
-    return (int)0xFF000000 | (rr << 16) | (rg << 8) | rb;
+    return toripixel_pack_argb8888(
+        0xFF000000u | ((uint32_t)rr << 16) | ((uint32_t)rg << 8) | (uint32_t)rb);
 }
 
 /* The caller has already clipped the destination coordinate. */
 static inline void
 toridraw2d_blend_argb_unclipped(
-    int* dst,
+    toripixel_t* dst,
     uint32_t argb,
     int alpha)
 {
@@ -76,7 +81,7 @@ toridraw2d_blend_argb_unclipped(
 
     if( a == 255 )
     {
-        *dst = (int)(argb | 0xFF000000u);
+        *dst = toripixel_pack_argb8888(argb | 0xFF000000u);
         return;
     }
 
@@ -90,7 +95,7 @@ ToriDraw2D_BlendArgbPixel(
     int x,
     int y,
     int argb,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(view_port);
     assert(pixel_buffer);
@@ -110,11 +115,12 @@ ToriDraw2D_BlendArgbPixel(
 
     if( a == 255 )
     {
-        pixel_buffer[y * stride + x] = (argb & 0x00FFFFFF) | 0xFF000000;
+        pixel_buffer[y * stride + x] =
+            toripixel_pack_argb8888(((uint32_t)argb & 0x00FFFFFFu) | 0xFF000000u);
         return;
     }
 
-    int* slot = &pixel_buffer[y * stride + x];
+    toripixel_t* slot = &pixel_buffer[y * stride + x];
     *slot = toridraw2d_blend_channels(
         *slot, (argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF, a, 255 - a);
 }
@@ -127,7 +133,7 @@ ToriDraw2D_FillRect(
     int x1,
     int y1,
     int argb,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(view_port);
     assert(pixel_buffer);
@@ -161,9 +167,9 @@ ToriDraw2D_FillRect(
     {
         for( int y = y0; y < y1; y++ )
         {
-            int* RESTRICT row = pixel_buffer + (size_t)y * stride;
+            toripixel_t* RESTRICT row = pixel_buffer + (size_t)y * stride;
             for( int x = x0; x < x1; x++ )
-                row[x] = argb;
+                row[x] = toripixel_pack_argb8888((uint32_t)argb);
         }
         return;
     }
@@ -175,7 +181,7 @@ ToriDraw2D_FillRect(
 
     for( int y = y0; y < y1; y++ )
     {
-        int* RESTRICT row = pixel_buffer + (size_t)y * stride;
+        toripixel_t* RESTRICT row = pixel_buffer + (size_t)y * stride;
         for( int x = x0; x < x1; x++ )
             row[x] = toridraw2d_blend_channels(row[x], sr, sg, sb, a, inv);
     }
@@ -191,7 +197,7 @@ ToriDraw2D_FillRectGradientVertical(
     int color_top,
     int color_bot,
     int alpha,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(view_port);
     assert(pixel_buffer);
@@ -222,7 +228,7 @@ ToriDraw2D_FillRectGradientAlpha(
     int color_bot,
     int alpha_top,
     int alpha_bot,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(view_port);
     assert(pixel_buffer);
@@ -251,7 +257,7 @@ ToriDraw2D_DrawRectOutline(
     int x1,
     int y1,
     int argb,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     ToriDraw2D_FillRect(view_port, x0, y0, x1, y0 + 1, argb, pixel_buffer);
     ToriDraw2D_FillRect(view_port, x0, y1 - 1, x1, y1, argb, pixel_buffer);
@@ -268,7 +274,7 @@ ToriDraw2D_DrawLine(
     int y1,
     int thickness,
     int argb,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(view_port);
     assert(pixel_buffer);
@@ -321,7 +327,7 @@ ToriDraw2D_BlitArgb(
     uint32_t const* src,
     int src_w,
     int src_h,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     ToriDraw2D_BlitArgbAlpha(view_port, dst_x, dst_y, src, src_w, src_h, 255, pixel_buffer);
 }
@@ -335,7 +341,7 @@ ToriDraw2D_BlitArgbAlpha(
     int src_w,
     int src_h,
     int alpha,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(view_port);
     assert(pixel_buffer);
@@ -388,7 +394,7 @@ ToriDraw2D_BlitArgbAlpha(
         for( int y = 0; y < draw_h; y++ )
         {
             uint32_t const* srow = src + (size_t)(src_y0 + y) * src_w + src_x0;
-            int* drow = pixel_buffer + (size_t)((int)y0 + y) * stride + (int)x0;
+            toripixel_t* drow = pixel_buffer + (size_t)((int)y0 + y) * stride + (int)x0;
             int x = 0;
             while( x < draw_w )
             {
@@ -424,7 +430,7 @@ ToriDraw2D_BlitArgbAlpha(
     for( int y = 0; y < draw_h; y++ )
     {
         uint32_t const* srow = src + (size_t)(src_y0 + y) * src_w + src_x0;
-        int* drow = pixel_buffer + (size_t)((int)y0 + y) * stride + (int)x0;
+        toripixel_t* drow = pixel_buffer + (size_t)((int)y0 + y) * stride + (int)x0;
         for( int x = 0; x < draw_w; x++ )
             toridraw2d_blend_argb_unclipped(&drow[x], srow[x], alpha);
     }
@@ -440,7 +446,7 @@ ToriDraw2D_BlitArgbScaled(
     uint32_t const* src,
     int src_w,
     int src_h,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     ToriDraw2D_BlitArgbScaledAlpha(
         view_port, dst_x, dst_y, dst_w, dst_h, src, src_w, src_h, 255, pixel_buffer);
@@ -457,7 +463,7 @@ ToriDraw2D_BlitArgbScaledAlpha(
     int src_w,
     int src_h,
     int alpha,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(view_port);
     assert(pixel_buffer);
@@ -530,7 +536,7 @@ ToriDraw2D_BlitArgbScaledAlpha(
     for( int y = 0; y < draw_h; y++ )
     {
         uint32_t const* srow = src + (size_t)sy * src_w;
-        int* drow = pixel_buffer + (size_t)((int)y0 + y) * stride + (int)x0;
+        toripixel_t* drow = pixel_buffer + (size_t)((int)y0 + y) * stride + (int)x0;
 
         int sx = sx0;
         int x_rem = x_rem0;
@@ -569,7 +575,7 @@ ToriDraw2D_BlitArgbTiled(
     int src_h,
     int origin_x,
     int origin_y,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     ToriDraw2D_BlitArgbTiledAlpha(
         view_port,
@@ -599,7 +605,7 @@ ToriDraw2D_BlitArgbTiledAlpha(
     int origin_x,
     int origin_y,
     int alpha,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(view_port);
     assert(pixel_buffer);
@@ -636,7 +642,7 @@ ToriDraw2D_BlitArgbTiledAlpha(
     for( int y = 0; y < draw_h; y++ )
     {
         uint32_t const* srow = src + (size_t)sy * src_w;
-        int* drow = pixel_buffer + (size_t)((int)y0 + y) * stride + (int)x0;
+        toripixel_t* drow = pixel_buffer + (size_t)((int)y0 + y) * stride + (int)x0;
         int sx = sx0;
         for( int x = 0; x < draw_w; x++ )
         {
@@ -662,7 +668,7 @@ ToriDraw2D_BlitArgbMasked(
     uint32_t const* mask,
     int mask_w,
     int mask_h,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(view_port);
     assert(pixel_buffer);
@@ -750,7 +756,7 @@ ToriDraw2D_BlitArgbMaskedInverted(
     uint32_t const* mask,
     int mask_w,
     int mask_h,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(view_port);
     assert(pixel_buffer);
@@ -840,7 +846,7 @@ ToriDraw2D_BlitArgbRotatedMaskedInverted(
     int angle,
     int angle_scale,
     int alpha,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(view_port);
     assert(pixel_buffer);

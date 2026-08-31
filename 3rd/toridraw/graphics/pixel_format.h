@@ -93,10 +93,19 @@
  * blend's habit of leaving the top byte zero rather than carrying it.
  */
 
+/*
+ * The identity, and deliberately not a mask.
+ *
+ * `X` means the top byte is not INTERPRETED, not that it is cleared. Two
+ * callers rely on the difference: the palette hands this a value that never
+ * had an alpha byte, and the 2D layer hands it one carrying 0xFF because the
+ * surface it composites onto wants an opaque lane. Masking would silently
+ * take that away from the second to no benefit for the first.
+ */
 static inline int
 toripixel_xrgb8888_pack_argb8888(uint32_t argb)
 {
-    return (int)(argb & 0x00FFFFFFu);
+    return (int)argb;
 }
 
 /*

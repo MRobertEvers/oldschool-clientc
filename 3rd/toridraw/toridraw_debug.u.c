@@ -1961,7 +1961,6 @@ toridraw_raster_debug_print(
  * than the code it described. The gate now lives with the message.
  */
 
-#ifndef TORIDRAW_PIXEL16
 static inline void
 toridraw_raster_note_texture_miss(int texture_id)
 {
@@ -1983,7 +1982,6 @@ toridraw_raster_note_texture_miss(int texture_id)
                 texture_id,
                 skip_tally[texture_id]);
 }
-#endif
 
 /** A face index outside the model. A logic error, not a content problem, so it
  *  is reported at verbose level and counted either way. */

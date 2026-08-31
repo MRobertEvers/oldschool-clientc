@@ -631,7 +631,7 @@ ToriDraw_SpriteNewFromModelRasterExtents(
 
     for( size_t i = 0; i < pixel_count; i++ )
     {
-        uint32_t rgb = (uint32_t)pixels[i];
+        uint32_t rgb = toripixel_to_argb8888(pixels[i]);
         argb[i] = (rgb & 0xFFFFFFu) ? (rgb | 0xFF000000u) : 0u;
     }
 
@@ -709,7 +709,7 @@ ToriDraw_SpriteNewFromModelRaster(
 
     for( size_t i = 0; i < pixel_count; i++ )
     {
-        uint32_t rgb = (uint32_t)pixels[i] & 0xFFFFFFu;
+        uint32_t rgb = toripixel_to_argb8888(pixels[i]) & 0xFFFFFFu;
         argb[i] = rgb ? (rgb | 0xFF000000u) : 0u;
     }
 
@@ -811,7 +811,8 @@ ToriDraw_SpriteNewFromObjIconRaster(
             for( int x = 0; x < width; x++ )
             {
                 uint32_t rgb =
-                    (uint32_t)render_pixels[(x + crop_x) + y * render_w] & 0xFFFFFFu;
+                    toripixel_to_argb8888(render_pixels[(x + crop_x) + y * render_w]) &
+                    0xFFFFFFu;
                 argb[x + y * width] = rgb ? (rgb | 0xFF000000u) : 0u;
             }
         }
@@ -820,7 +821,7 @@ ToriDraw_SpriteNewFromObjIconRaster(
     {
         for( size_t i = 0; i < out_pixel_count; i++ )
         {
-            uint32_t rgb = (uint32_t)render_pixels[i] & 0xFFFFFFu;
+            uint32_t rgb = toripixel_to_argb8888(render_pixels[i]) & 0xFFFFFFu;
             argb[i] = rgb ? (rgb | 0xFF000000u) : 0u;
         }
     }
