@@ -750,6 +750,10 @@ static struct
     int settled;
     /** The verbs last declared, so a change (run on -> off) re-declares. */
     char ops_sig[128];
+    /** The role this orb was ADDED under, empty for one that was claimed
+     *  rather than introduced. A claimed part is the lane's node and its
+     *  parent is not ours to move; an added one is ours. @see orbs_reanchor. */
+    char anchor[TORIRS_PLUGIN_ROLE_NAME_MAX];
 } g_orb[ORB_COUNT];
 
 /** Every claim has been tried once against a frame that could answer. */
@@ -764,6 +768,115 @@ orbs_append(char* buf, size_t cap, char const* what)
         snprintf(buf, cap, "%s", what);
     else
         snprintf(buf + len, cap - len, ", %s", what);
+}
+
+/*
+ * Which node the column hangs off, and what that costs in arithmetic.
+ *
+ * The plate and the disc are drawn by two different halves of this file -- the
+ * HOST paints the plate from the chrome part, this plugin draws the disc in
+ * EV_DRAW_CANVAS -- and each is placed by naming a role. chrome_add emits the
+ * part after its anchor's own subtree; role_anchor emits the primitives after
+ * the anchored role's own subtree. It is the same rule, so the two halves land
+ * together only while they name the SAME role.
+ *
+ * They did not. The part was added to `minimap` while the draw anchored to
+ * `minimap_edge`, and on any frame that has both -- the 2004 assembly, where
+ * the housing is a plate with the map's hole cut out of it and therefore has
+ * to paint AFTER the map -- that put the plate between the map and its
+ * housing and the disc on top of the housing. Which is exactly what the
+ * player sees: orbs whose backs are missing, hidden behind the map's edge.
+ *
+ * So the role is resolved ONCE, here, and every site uses this one answer.
+ *
+ * The column's arithmetic stays in the MAP's terms -- `offset_x` is documented
+ * to the user as "offset from minimap left", and the y is a share of the map's
+ * height -- so what the anchor changes is only the origin those numbers are
+ * measured from. dx/dy carry that difference. They are zero when the anchor IS
+ * the map, so the fallback needs no path of its own.
+ */
+struct OrbAnchor
+{
+    /** The role the plate hangs off AND the draw anchors to. Never NULL. */
+    char const* role;
+    /** Added to a map-relative box to make it anchor-relative. */
+    int dx;
+    int dy;
+    /** The map square's height; the column's y is a share of it. */
+    int map_h;
+    /** The housing resolved, so this is the role the column WANTS. 0 means
+     *  the map square is standing in for it. @see orbs_reanchor. */
+    int preferred;
+};
+
+/** The anchor for this pass, or 0 when the frame has no minimap right now. */
+static int
+orbs_anchor(struct ToriRS_PluginCtx* ctx, struct OrbAnchor* out)
+{
+    int mx = 0;
+    int my = 0;
+    int mw = 0;
+    int mh = 0;
+    int ex = 0;
+    int ey = 0;
+
+    assert(ctx);
+    assert(out);
+
+    /* No map means nothing to hang off, on either half. A state, not a fault:
+     * the login screen and a cutscene that took the map away both land here. */
+    if( !g_api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, &mx, &my, &mw, &mh) )
+        return 0;
+
+    out->map_h = mh;
+
+    /*
+     * `minimap_edge` is the LAST piece of the map assembly -- the housing --
+     * and a readout drawn beside the map has to sit on top of it. A frame that
+     * has no such thing, because a gameframe plugin declared its housing with
+     * layout_slot_overlay and so paints it inside the map's own boundary,
+     * answers 0 here, and there the map itself is already the right answer.
+     */
+    if( g_api->role_rect(ctx, "minimap_edge", &ex, &ey, NULL, NULL) )
+    {
+        out->role = "minimap_edge";
+        out->dx = mx - ex;
+        out->dy = my - ey;
+        out->preferred = 1;
+    }
+    else
+    {
+        out->role = "minimap";
+        out->dx = 0;
+        out->dy = 0;
+        out->preferred = 0;
+    }
+    return 1;
+}
+
+/**
+ * Where one orb's plate goes, relative to the anchor.
+ *
+ * One copy of the sum, because the claim states this box once and EV_CHROME
+ * restates it on every pass: two spellings of it is a column that walks
+ * whenever only one of them is edited.
+ */
+static void
+orbs_box(
+    struct ToriRS_PluginCtx* ctx,
+    struct OrbAnchor const* anchor,
+    int orb,
+    int* out_x,
+    int* out_y)
+{
+    assert(ctx);
+    assert(anchor);
+    assert(out_x);
+    assert(out_y);
+
+    *out_x = g_api->cfg_int(ctx, "offset_x") - ORB_W + ORB_SLOT[orb].dx + anchor->dx;
+    *out_y = anchor->map_h / 4 + g_api->cfg_int(ctx, "offset_y") - ORB_SLOT[0].dy +
+             ORB_SLOT[orb].dy + anchor->dy;
 }
 
 /**
@@ -818,24 +931,24 @@ orbs_claim_all(struct ToriRS_PluginCtx* ctx)
             continue;
         }
 
-        /* Nothing on this revision has it: introduce one, hung off the map.
-         * Relative to the MAP SQUARE and not its housing, because the column's
-         * arithmetic has always been in the map's own terms. */
+        /* Nothing on this revision has it: introduce one, hung off the map
+         * assembly. On the SAME role the draw anchors to -- name a different
+         * one and the plate and the disc come out on opposite sides of the
+         * housing. @see orbs_anchor. */
         {
-            int mx = 0;
-            int my = 0;
-            int mw = 0;
-            int mh = 0;
-            if( !g_api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, &mx, &my, &mw, &mh) )
+            struct OrbAnchor anchor;
+
+            if( !orbs_anchor(ctx, &anchor) )
             {
                 /* No map yet: not a refusal, just not now. */
                 pending++;
                 continue;
             }
-            initial.x = g_api->cfg_int(ctx, "offset_x") - ORB_W + ORB_SLOT[i].dx;
-            initial.y = mh / 4 + g_api->cfg_int(ctx, "offset_y") - ORB_SLOT[0].dy + ORB_SLOT[i].dy;
+            orbs_box(ctx, &anchor, i, &initial.x, &initial.y);
+            got = g_api->chrome_add(ctx, ORB_PART[i].part, anchor.role, &initial);
+            if( got > 0 )
+                snprintf(g_orb[i].anchor, sizeof(g_orb[i].anchor), "%s", anchor.role);
         }
-        got = g_api->chrome_add(ctx, ORB_PART[i].part, "minimap", &initial);
         if( got > 0 )
         {
             g_orb[i].held = got;
@@ -875,6 +988,77 @@ orbs_claim_all(struct ToriRS_PluginCtx* ctx)
         g_api->notify(ctx, msg);
         g_api->log(ctx, "%s", msg);
     }
+}
+
+/*
+ * Move an added orb when the anchor it should hang off has changed.
+ *
+ * The plate's parent is chosen ONCE, at chrome_add, and the host is explicit
+ * that it stays: "an added part keeps the anchor it was introduced with;
+ * re-anchoring is a different part, not the same one said again". So the only
+ * way to correct one is to release it -- which, for an added part, removes it
+ * -- and add it again.
+ *
+ * That is needed because the two roles do not become available together. The
+ * map square carries its size in the layout (`w=146 h=151`) and so has a box
+ * from the first pass; the housing is a SPRITE, and it has no box until its
+ * pixels arrive -- which on a lane that streams its cache over on-demand can
+ * be a good while after the map is placed. An orb added in that window went
+ * under `minimap`, settled there for good, and spent the session painted into
+ * the gap between the map and its housing while the discs drew on top of it.
+ * The picture that report describes: orbs with no backs.
+ *
+ * So it is re-asked instead of assumed. Only parts this plugin ADDED are
+ * touched: a claimed one is the lane's own node, and where the lane puts it is
+ * not this plugin's business.
+ */
+static void
+orbs_reanchor(struct ToriRS_PluginCtx* ctx, struct OrbAnchor const* anchor)
+{
+    assert(ctx);
+    assert(anchor);
+
+    /*
+     * UPWARDS only: onto the housing, never back down off it.
+     *
+     * The move is worth making once, when the housing's pixels finally give it
+     * a box. Making it in both directions would let a frame that briefly loses
+     * that box -- a rebuild, a re-decode -- drag every plate down onto the map
+     * and back again, and each leg is a release, an add and a layout
+     * notification. An orb that has really lost its housing loses it along
+     * with the anchor it hangs off, and is rebuilt with the frame.
+     */
+    if( !anchor->preferred )
+        return;
+
+    for( int i = 0; i < ORB_COUNT; i++ )
+    {
+        if( !g_orb[i].held || g_orb[i].anchor[0] == '\0' )
+            continue;
+        if( strcmp(g_orb[i].anchor, anchor->role) == 0 )
+            continue;
+
+        g_api->log(ctx, "'%s' moves from '%s' to '%s'",
+            ORB_PART[i].part, g_orb[i].anchor, anchor->role);
+        /* Releasing every scope of an ADDED part removes it, which is what
+         * makes the add below a fresh introduction under the new role. */
+        (void)g_api->chrome_claim(ctx, ORB_PART[i].part, TORIRS_PLUGIN_CHROME_SCOPE_ALL, 0);
+        g_orb[i].held = 0;
+        g_orb[i].settled = 0;
+        g_orb[i].anchor[0] = '\0';
+        g_orb[i].ops_sig[0] = '\0';
+    }
+}
+
+/** Any orb whose claim has not yet been tried against a frame that could
+ *  answer it. @see orbs_draw, which is where the retry actually happens. */
+static int
+orbs_unsettled(void)
+{
+    for( int i = 0; i < ORB_COUNT; i++ )
+        if( !g_orb[i].settled )
+            return 1;
+    return 0;
 }
 
 static enum ToriRS_PluginVerdict
@@ -953,13 +1137,12 @@ orbs_chrome(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         part.h = ORB_H;
         if( g_orb[i].held & TORIRS_PLUGIN_CHROME_SCOPE_POSITION )
         {
-            int mx = 0;
-            int my = 0;
-            int mw = 0;
-            int mh = 0;
-            (void)g_api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, &mx, &my, &mw, &mh);
-            part.x = g_api->cfg_int(ctx, "offset_x") - ORB_W + ORB_SLOT[i].dx;
-            part.y = mh / 4 + g_api->cfg_int(ctx, "offset_y") - ORB_SLOT[0].dy + ORB_SLOT[i].dy;
+            struct OrbAnchor anchor;
+
+            /* A pass with no map restates no box: the part keeps the one it
+             * has rather than being moved to the origin for a frame. */
+            if( orbs_anchor(ctx, &anchor) )
+                orbs_box(ctx, &anchor, i, &part.x, &part.y);
         }
         g_api->chrome_paint(ctx, ORB_PART[i].part, &part);
 
@@ -996,10 +1179,7 @@ orbs_draw(
     (void)userdata;
 
     struct ToriRS_PluginEvDrawCanvas* ev = (struct ToriRS_PluginEvDrawCanvas*)event;
-    int map_x;
-    int map_y;
-    int map_w;
-    int map_h;
+    struct OrbAnchor anchor;
     int x;
     int y;
 
@@ -1016,8 +1196,37 @@ orbs_draw(
      * vocabulary. One name for the map means a plugin that reads it and a
      * layout that PLACES it cannot come to disagree about where it is.
      */
-    if( !g_api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, &map_x, &map_y, &map_w, &map_h) )
+    if( !orbs_anchor(ctx, &anchor) )
         return TORIRS_PLUGIN_PASS;
+
+    /*
+     * The claim, retried HERE and not only from EV_LAYOUT_CHANGED.
+     *
+     * An ADD needs the map to have a box, and at EV_START it usually has none,
+     * so the first attempt fails and the orb waits to be told the layout
+     * moved. That telling is not guaranteed to come after the map is placed.
+     * On a lane where no plugin owns the gameframe, app.c announces the layout
+     * once -- on the first tree it sees -- and then not again until something
+     * marks it dirty; a boot whose map was not placed on that one pass was
+     * left with four unclaimed orbs, no plate, no hit region and no verbs,
+     * until the player opened a panel and dirtied the layout by hand. Which is
+     * exactly the report: the orbs do not work until you open the settings
+     * menu.
+     *
+     * EV_CHROME cannot be the retry either. The host dispatches it only to a
+     * plugin that already HOLDS a claim, so a plugin whose every claim failed
+     * is never asked again -- the one state that needs the retry is the one
+     * state that cannot receive it. The draw is the only event that arrives
+     * every frame regardless of what this plugin holds, which is the same
+     * reason the image loads below are retried from here.
+     *
+     * Reaching this line means the map HAS a box, which is the condition the
+     * add was waiting on; and orbs_claim_all is a no-op once every orb has
+     * settled, so the steady state costs a four-iteration loop.
+     */
+    orbs_reanchor(ctx, &anchor);
+    if( orbs_unsettled() )
+        orbs_claim_all(ctx);
 
     /*
      * And drawn AS PART OF the minimap, not merely beside it.
@@ -1039,28 +1248,19 @@ orbs_draw(
      * -- and they inherit its fate. A gameframe that hides, moves or rebuilds
      * the thing they hang off hides, moves and rebuilds these.
      *
-     * `minimap_edge` FIRST, and `minimap` only when a frame has no such thing.
+     * WHICH role that is was settled by orbs_anchor, and this is the same
+     * answer the plate was hung off -- which is the whole point of resolving
+     * it in one place. The map surface and the chrome that wraps it are two
+     * different nodes, and on every frame that has both the wrapper is painted
+     * AFTER the surface, because it is a plate with a hole in it. Naming one
+     * role here and the other at chrome_add is what put the discs on top of
+     * the housing and their plates underneath it.
      *
-     * The map surface and the chrome that wraps it are two different nodes,
-     * and on every frame that has both, the wrapper is painted AFTER the
-     * surface -- it is a plate with a hole in it, so it has to be. Anchoring
-     * to the map therefore puts the column between the two: over the map,
-     * under the housing, which on the 2004 frame is four orbs behind an opaque
-     * 172x156 plate. That is not a bug in the housing's paint order, it is the
-     * column asking to be attached to the wrong half of the assembly.
-     *
-     * So the profile names the wrapper, and the orbs ask for it: `minimap` is
-     * where the column IS, `minimap_edge` is what it is drawn over. A frame
-     * whose housing is not a sibling at all -- a gameframe plugin's, which
-     * declares it with layout_slot_overlay and so paints it inside the map's
-     * own boundary -- has no `minimap_edge` to find, and the fallback is
-     * already correct for it.
-     *
-     * Zero from both means no role resolved for this pass. Every declaration
+     * Zero means the role did not resolve for this pass. Every declaration
      * after it would be dropped by the host anyway; returning here says so
      * once instead of drawing nine images into a discard.
      */
-    if( !g_api->role_anchor(ctx, "minimap_edge") && !g_api->role_anchor(ctx, "minimap") )
+    if( !g_api->role_anchor(ctx, anchor.role) )
         return TORIRS_PLUGIN_PASS;
 
     /* Asked for every frame, not only at start: an image that failed its read
@@ -1078,10 +1278,6 @@ orbs_draw(
      * hold keep the places they were given -- which is what lets a column of
      * two coexist with somebody else's two without stacking on them.
      */
-    (void)map_x;
-    (void)map_y;
-    (void)map_w;
-    (void)map_h;
     x = 0;
     y = 0;
 
@@ -1380,6 +1576,24 @@ orbs_stop(
     for( int i = 0; i < ORB_IMG_COUNT; i++ )
         g_image[i] = -1;
     g_digits_ready = 0;
+
+    /*
+     * And the claims, which the HOST has just released for us.
+     *
+     * `held` is this plugin's memory of scopes the host no longer records, and
+     * `settled` is its promise not to ask for them again. Kept across a stop,
+     * the two combine into a plugin that comes back from a re-enable believing
+     * it owns four parts it does not: orbs_claim_all skips every one as
+     * settled, so nothing is ever re-added, and orbs_chrome paints and states
+     * verbs for parts the host will not accept them for. The orbs simply never
+     * reappear -- switched off and on again in the settings panel, they are
+     * gone for the rest of the session.
+     *
+     * A stop is the end of everything this plugin knew, so it ends here rather
+     * than being repaired later.
+     */
+    memset(g_orb, 0, sizeof(g_orb));
+    g_orbs_reported = 0;
     return TORIRS_PLUGIN_PASS;
 }
 
