@@ -2892,41 +2892,32 @@ test-scanline: $(OBJ_DIR)
 
 # The same parity, on every pixel format the library claims to support.
 #
-# This is the proof that the solid families are format-agnostic: they reach the
-# framebuffer through the palette and alpha_blend and nothing else, so a
-# channel order or a channel width is not a term in what they compute. All five
-# 32bpp orders pass whole.
-#
-# The two 16bpp formats run SOLID-ONLY. Their texture arms are expected to fail
-# until the texture stage is converted -- the families still take int* pixel
-# buffers and int* texels -- and this target says so rather than hiding it, so
-# the day that phase lands the exclusion below is what gets deleted.
+# This is the proof that the raster families are format-agnostic: a solid face
+# reaches the framebuffer through the palette and alpha_blend, and a textured
+# one composes in 8-bit texel lanes and converts once at the store. Neither a
+# channel order nor a channel width is a term in what they compute, so every
+# format runs every arm -- solid and textured -- and all of them must agree
+# with the same branching references.
 #
 # -Werror=incompatible-pointer-types is the point of the compile: a kernel that
 # has not been converted cannot silently accept a native buffer.
-TORIDRAW_PIXEL_FORMATS_32 = XRGB8888:1 ARGB8888:2 RGBA8888:3 ABGR8888:4 BGRA8888:5
-TORIDRAW_PIXEL_FORMATS_16 = RGB565:6 ARGB1555:7
+TORIDRAW_PIXEL_FORMATS = \
+	XRGB8888:1 ARGB8888:2 RGBA8888:3 ABGR8888:4 BGRA8888:5 RGB565:6 ARGB1555:7
 
 .PHONY: test-scanline-formats
 test-scanline-formats: $(OBJ_DIR)
 	@fail=""; \
-	for spec in $(TORIDRAW_PIXEL_FORMATS_32) $(TORIDRAW_PIXEL_FORMATS_16); do \
-		name=$${spec%%:*}; val=$${spec##*:}; solid_only=""; \
-		case " $(TORIDRAW_PIXEL_FORMATS_16) " in *" $$spec "*) solid_only=1;; esac; \
+	for spec in $(TORIDRAW_PIXEL_FORMATS); do \
+		name=$${spec%%:*}; val=$${spec##*:}; \
 		$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
 			-Werror=incompatible-pointer-types -DTORIDRAW_PIXEL_FORMAT=$$val \
 			-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/scanline_parity_$$name \
 			$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm \
 			|| { echo "  $$name: COMPILE FAILED"; fail="$$fail $$name"; continue; }; \
 		out=$$(./$(OBJ_DIR)/scanline_parity_$$name 2>&1); \
-		solid=$$(printf '%s\n' "$$out" | grep -c 'FAIL \(flat\|gouraud\)' || true); \
-		tex=$$(printf '%s\n' "$$out" | grep -c 'FAIL tex' || true); \
-		if [ "$$solid" -ne 0 ]; then \
-			echo "  $$name: $$solid solid-family failure(s)"; fail="$$fail $$name"; \
-		elif [ -n "$$solid_only" ]; then \
-			echo "  $$name: solid families agree ($$tex texture arm(s) await the texture-stage conversion)"; \
-		elif [ "$$tex" -ne 0 ]; then \
-			echo "  $$name: $$tex texture-family failure(s)"; fail="$$fail $$name"; \
+		bad=$$(printf '%s\n' "$$out" | grep -c '  FAIL ' || true); \
+		if [ "$$bad" -ne 0 ]; then \
+			echo "  $$name: $$bad failure(s)"; fail="$$fail $$name"; \
 		else \
 			echo "  $$name: all families agree"; \
 		fi; \

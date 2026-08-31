@@ -29,13 +29,13 @@
 #define SLT_STORE(dst_ref, texel, shade)                                                           \
     do                                                                                             \
     {                                                                                              \
-        (dst_ref) = alpha_blend(face_alpha, (dst_ref), toritexel_shade_blend((texel), (shade)));             \
+        (dst_ref) = alpha_blend(face_alpha, (dst_ref), toritexel_to_pixel(toritexel_shade_blend((texel), (shade)))); \
     } while( 0 )
 #else
 #define SLT_STORE(dst_ref, texel, shade)                                                           \
     do                                                                                             \
     {                                                                                              \
-        (dst_ref) = toritexel_shade_blend((texel), (shade));                                                 \
+        (dst_ref) = toritexel_to_pixel(toritexel_shade_blend((texel), (shade)));                   \
     } while( 0 )
 #endif
 
@@ -43,7 +43,7 @@
 #define SLT_EMIT(dst_ref, texel, shade)                                                            \
     do                                                                                             \
     {                                                                                              \
-        int slt_texel_ = (texel);                                                                  \
+        toritexel_t slt_texel_ = (texel);                                                          \
         if( slt_texel_ != 0 )                                                                      \
             SLT_STORE(dst_ref, slt_texel_, shade);                                                 \
     } while( 0 )

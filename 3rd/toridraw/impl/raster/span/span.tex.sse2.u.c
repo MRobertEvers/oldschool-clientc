@@ -67,8 +67,8 @@ raster_linear_transparent_blend_lerp8(
 
     // Handle transparency: preserve existing pixel buffer where texel is 0
     __m128i zero = _mm_setzero_si128();
-    __m128i existing0 = _mm_loadu_si128((__m128i*)&pixel_buffer[offset]);
-    __m128i existing1 = _mm_loadu_si128((__m128i*)&pixel_buffer[offset + 4]);
+    __m128i existing0 = _mm_loadu_si128((const __m128i*)&pixel_buffer[offset]);
+    __m128i existing1 = _mm_loadu_si128((const __m128i*)&pixel_buffer[offset + 4]);
 
     // Create masks for non-zero texels (true where texel is 0)
     __m128i mask0 = _mm_cmpeq_epi32(t0, zero);

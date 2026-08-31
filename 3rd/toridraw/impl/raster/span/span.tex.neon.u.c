@@ -66,8 +66,8 @@ raster_linear_transparent_blend_lerp8(
 
     // Handle transparency: preserve existing pixel buffer where texel is 0
     uint32x4_t zero = vdupq_n_u32(0);
-    uint32x4_t existing0 = vld1q_u32(&pixel_buffer[offset]);
-    uint32x4_t existing1 = vld1q_u32(&pixel_buffer[offset + 4]);
+    uint32x4_t existing0 = vld1q_u32((const uint32_t*)&pixel_buffer[offset]);
+    uint32x4_t existing1 = vld1q_u32((const uint32_t*)&pixel_buffer[offset + 4]);
 
     // Create masks for non-zero texels
     uint32x4_t mask0 = vceqq_u32(t0, zero); // true where texel is 0
@@ -77,8 +77,8 @@ raster_linear_transparent_blend_lerp8(
     r1 = vbslq_u32(mask1, existing1, r1);
 
     // Store results
-    vst1q_u32(&pixel_buffer[offset], r0);
-    vst1q_u32(&pixel_buffer[offset + 4], r1);
+    vst1q_u32((uint32_t*)&pixel_buffer[offset], r0);
+    vst1q_u32((uint32_t*)&pixel_buffer[offset + 4], r1);
 }
 
 static inline void
@@ -138,8 +138,8 @@ raster_linear_opaque_blend_lerp8(
     uint32x4_t r1 = shade_blend4_neon(t1, shade);
 
     // Store results directly (no transparency masking for opaque rendering)
-    vst1q_u32(&pixel_buffer[offset], r0);
-    vst1q_u32(&pixel_buffer[offset + 4], r1);
+    vst1q_u32((uint32_t*)&pixel_buffer[offset], r0);
+    vst1q_u32((uint32_t*)&pixel_buffer[offset + 4], r1);
 }
 
 static inline void

@@ -427,21 +427,12 @@ struct SDSpy
 static enum ToriDraw_RasterFaceClassSD
 sd_expected_class(int face)
 {
-#ifdef TORIDRAW_PIXEL16
-    static const enum ToriDraw_RasterFaceClassSD expected[SD_FACE_COUNT] = {
-        TORIDRAW_RASTER_FACE_SD_GOURAUD,
-        TORIDRAW_RASTER_FACE_SD_FLAT,
-        TORIDRAW_RASTER_FACE_SD_GOURAUD,
-        TORIDRAW_RASTER_FACE_SD_FLAT,
-    };
-#else
     static const enum ToriDraw_RasterFaceClassSD expected[SD_FACE_COUNT] = {
         TORIDRAW_RASTER_FACE_SD_GOURAUD,
         TORIDRAW_RASTER_FACE_SD_FLAT,
         TORIDRAW_RASTER_FACE_SD_TEXTURED,
         TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT,
     };
-#endif
     return expected[face];
 }
 
@@ -510,7 +501,6 @@ sd_verify_face(const struct SDSpy* spy, const struct ToriDraw_RasterFaceSD* face
         CHECK(face->shade[0] == shade_a && face->shade[1] == shade_b &&
                   face->shade[2] == shade_c && face->opacity == 255,
               "SD face %d shade/opacity", index);
-#ifndef TORIDRAW_PIXEL16
         CHECK(face->texture.texture_id == TEST_TEXTURE_ID &&
                   face->texture.texels == spy->env->texture_texels &&
                   face->texture.width == TEST_TEXTURE_WIDTH &&
@@ -523,7 +513,6 @@ sd_verify_face(const struct SDSpy* spy, const struct ToriDraw_RasterFaceSD* face
                   face->texture.frame.m == face->vertex[1] &&
                   face->texture.frame.n == face->vertex[2],
               "SD face %d fallback frame", index);
-#endif
     }
 }
 
@@ -573,11 +562,7 @@ static const struct ToriDraw_RasterKernelSDVTable sd_full_vtable = {
 static void
 check_sd_full_calls(const struct SDSpy* spy)
 {
-#ifdef TORIDRAW_PIXEL16
-    static const int expected[TORIDRAW_RASTER_FACE_SD_CLASS_COUNT] = { 2, 2, 0, 0 };
-#else
     static const int expected[TORIDRAW_RASTER_FACE_SD_CLASS_COUNT] = { 1, 1, 1, 1 };
-#endif
 
     CHECK(spy->total_calls == SD_FACE_COUNT, "SD total calls %d", spy->total_calls);
     for( int slot = 0; slot < TORIDRAW_RASTER_FACE_SD_CLASS_COUNT; slot++ )

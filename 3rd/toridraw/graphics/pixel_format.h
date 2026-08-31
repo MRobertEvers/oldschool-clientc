@@ -350,6 +350,78 @@ toripixel_argb1555_texel_alpha(uint16_t p)
     return ((uint32_t)p & TORIPIXEL_ARGB1555_ALPHA_BIT) ? 0xFF : 0x00;
 }
 
+
+/* ============================================== back to ARGB8888 ==
+ *
+ * The inverse of pack, for the code that has to look at a finished pixel
+ * rather than produce one: parity tests recovering a channel, a screenshot
+ * writer, a colour picker. Not a hot path on any target -- nothing in the
+ * raster stage reads a pixel back except to blend it, and blending stays in
+ * the native format.
+ *
+ * The 16-bit unpacks REPLICATE the high bits into the low ones (0x1F -> 0xFF,
+ * not 0xF8) so a fully saturated channel comes back fully saturated. They are
+ * still lossy: five bits cannot carry eight, and a caller measuring precision
+ * has to know that -- TORIPIXEL_LANES_8BIT is what says whether they do.
+ */
+
+static inline uint32_t
+toripixel_xrgb8888_to_argb8888(int p)
+{
+    return (uint32_t)p & 0x00FFFFFFu;
+}
+
+static inline uint32_t
+toripixel_argb8888_to_argb8888(uint32_t p)
+{
+    return p;
+}
+
+static inline uint32_t
+toripixel_rgba8888_to_argb8888(uint32_t p)
+{
+    return (p >> 8) | (p << 24);
+}
+
+static inline uint32_t
+toripixel_abgr8888_to_argb8888(uint32_t p)
+{
+    return (p & 0xFF00FF00u) | ((p & 0x000000FFu) << 16) | ((p >> 16) & 0x000000FFu);
+}
+
+static inline uint32_t
+toripixel_bgra8888_to_argb8888(uint32_t p)
+{
+    return ((p & 0x000000FFu) << 24) | ((p >> 8) & 0x000000FFu) << 16 |
+           (((p >> 16) & 0x000000FFu) << 8) | ((p >> 24) & 0x000000FFu);
+}
+
+/** 5/6/5 widened by bit replication, so 0x1F becomes 0xFF and not 0xF8. */
+static inline uint32_t
+toripixel_rgb565_to_argb8888(uint16_t p)
+{
+    uint32_t r5 = ((uint32_t)p >> 11) & 0x1Fu;
+    uint32_t g6 = ((uint32_t)p >> 5) & 0x3Fu;
+    uint32_t b5 = (uint32_t)p & 0x1Fu;
+    uint32_t r8 = (r5 << 3) | (r5 >> 2);
+    uint32_t g8 = (g6 << 2) | (g6 >> 4);
+    uint32_t b8 = (b5 << 3) | (b5 >> 2);
+
+    return (r8 << 16) | (g8 << 8) | b8;
+}
+
+static inline uint32_t
+toripixel_argb1555_to_argb8888(uint16_t p)
+{
+    uint32_t r5 = ((uint32_t)p >> 10) & 0x1Fu;
+    uint32_t g5 = ((uint32_t)p >> 5) & 0x1Fu;
+    uint32_t b5 = (uint32_t)p & 0x1Fu;
+    uint32_t a8 = ((uint32_t)p & TORIPIXEL_ARGB1555_ALPHA_BIT) ? 0xFFu : 0x00u;
+
+    return (a8 << 24) | ((((r5 << 3) | (r5 >> 2))) << 16) | ((((g5 << 3) | (g5 >> 2))) << 8) |
+           ((b5 << 3) | (b5 >> 2));
+}
+
 /* ================================================ the texel shading space ==
  *
  * A TEXEL is not a pixel, and does not become one until it is stored.
@@ -410,6 +482,7 @@ typedef int toripixel_t;
 #define shade_blend toripixel_xrgb8888_shade_blend
 #define toripixel_is_key toripixel_xrgb8888_is_key
 #define toripixel_texel_alpha toripixel_xrgb8888_texel_alpha
+#define toripixel_to_argb8888 toripixel_xrgb8888_to_argb8888
 /* The shading space IS this format, so the conversion is the identity by
  * definition -- not a mask that happens to be a no-op. */
 #define toritexel_to_pixel(t) ((toripixel_t)(t))
@@ -428,6 +501,7 @@ typedef uint32_t toripixel_t;
 #define shade_blend toripixel_argb8888_shade_blend
 #define toripixel_is_key toripixel_argb8888_is_key
 #define toripixel_texel_alpha toripixel_argb8888_texel_alpha
+#define toripixel_to_argb8888 toripixel_argb8888_to_argb8888
 /* The shading space IS this format, so the conversion is the identity by
  * definition -- not a mask that happens to be a no-op. */
 #define toritexel_to_pixel(t) ((toripixel_t)(t))
@@ -446,6 +520,7 @@ typedef uint32_t toripixel_t;
 #define shade_blend toripixel_rgba8888_shade_blend
 #define toripixel_is_key toripixel_rgba8888_is_key
 #define toripixel_texel_alpha toripixel_rgba8888_texel_alpha
+#define toripixel_to_argb8888 toripixel_rgba8888_to_argb8888
 #define toritexel_to_pixel(t) toripixel_pack_argb8888(t)
 
 #elif TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_ABGR8888
@@ -462,6 +537,7 @@ typedef uint32_t toripixel_t;
 #define shade_blend toripixel_abgr8888_shade_blend
 #define toripixel_is_key toripixel_abgr8888_is_key
 #define toripixel_texel_alpha toripixel_abgr8888_texel_alpha
+#define toripixel_to_argb8888 toripixel_abgr8888_to_argb8888
 #define toritexel_to_pixel(t) toripixel_pack_argb8888(t)
 
 #elif TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_BGRA8888
@@ -478,6 +554,7 @@ typedef uint32_t toripixel_t;
 #define shade_blend toripixel_bgra8888_shade_blend
 #define toripixel_is_key toripixel_bgra8888_is_key
 #define toripixel_texel_alpha toripixel_bgra8888_texel_alpha
+#define toripixel_to_argb8888 toripixel_bgra8888_to_argb8888
 #define toritexel_to_pixel(t) toripixel_pack_argb8888(t)
 
 #elif TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_RGB565
@@ -494,6 +571,7 @@ typedef uint16_t toripixel_t;
 #define shade_blend toripixel_rgb565_shade_blend
 #define toripixel_is_key toripixel_rgb565_is_key
 #define toripixel_texel_alpha toripixel_rgb565_texel_alpha
+#define toripixel_to_argb8888 toripixel_rgb565_to_argb8888
 #define toritexel_to_pixel(t) toripixel_pack_argb8888(t)
 
 #elif TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_ARGB1555
@@ -510,6 +588,7 @@ typedef uint16_t toripixel_t;
 #define shade_blend toripixel_argb1555_shade_blend
 #define toripixel_is_key toripixel_argb1555_is_key
 #define toripixel_texel_alpha toripixel_argb1555_texel_alpha
+#define toripixel_to_argb8888 toripixel_argb1555_to_argb8888
 #define toritexel_to_pixel(t) toripixel_pack_argb8888(t)
 
 #else

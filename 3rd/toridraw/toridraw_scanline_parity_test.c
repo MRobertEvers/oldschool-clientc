@@ -679,8 +679,10 @@ test_texture_shade_plane(toripixel_t* got)
 
                 /* First written pixel of this row: shade is sampled here. */
                 /* shade_blend stores floor(255 * shade8 / 256) per channel, so
-                 * the inverse is a ceiling, not a round. */
-                int channel = px & 0xFF;
+                 * the inverse is a ceiling, not a round. The channel has to be
+                 * read back through the format -- `px & 0xFF` is blue only in
+                 * an ARGB layout, and is the alpha lane in RGBA. */
+                int channel = (int)TORIPIXEL_ARGB_B(toripixel_to_argb8888(px));
                 int shade8 = (channel * 256 + 254) / 255;
 
                 /* The kernel applies a one-step nudge (+kx) to the plane base,
@@ -715,7 +717,18 @@ test_texture_shade_plane(toripixel_t* got)
      * wrong plane shows up as a large worst-case *and* a large bias, so both
      * are bounded here.
      */
-    if( worst > 4 || mean_abs > 1.5 || bias < -1.0 || bias > 1.0 )
+    /*
+     * The tolerance is an 8-bit-channel tolerance, so the assertion only runs
+     * where the framebuffer has 8-bit channels. On a 16-bit format the shade
+     * comes back through five bits and the residual is dominated by that
+     * quantisation, which would be measuring the FORMAT rather than the
+     * kernel's plane -- the interpolation this checks is identical either way.
+     */
+    if( !TORIPIXEL_LANES_8BIT )
+    {
+        printf("  (skipped: 16-bit channels cannot resolve an 8-bit shade)\n");
+    }
+    else if( worst > 4 || mean_abs > 1.5 || bias < -1.0 || bias > 1.0 )
     {
         printf("  FAIL interpolated shade does not match the analytic plane\n");
         g_fail++;
