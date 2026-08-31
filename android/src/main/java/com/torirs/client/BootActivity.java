@@ -64,6 +64,9 @@ public final class BootActivity extends Activity
     private long deadline;
     private boolean countdownRunning;
     private boolean launched;
+    /** Set once onCreate has built the UI, so onResume can tell a first
+     *  show from a return out of the editor. */
+    private boolean uiBuilt;
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -75,6 +78,30 @@ public final class BootActivity extends Activity
 
         if( selected != null )
             startCountdown();
+    }
+
+    /**
+     * Coming back from the editor re-reads the manifests, so an edit is visible
+     * immediately -- and does NOT restart the countdown.
+     *
+     * A user who has just been editing a profile is mid-decision; having the
+     * machine boot something four seconds after they hit Back is the one
+     * behaviour this screen must not have.
+     */
+    @Override
+    protected void onResume()
+    {
+        super.onResume();
+        if( uiBuilt )
+        {
+            profiles = BootProfile.discover(this);
+            selected = null;
+            setContentView(buildUi());
+            cancelCountdown();
+            if( status != null )
+                status.setText("tap a profile to boot it");
+        }
+        uiBuilt = true;
     }
 
     @Override
@@ -93,7 +120,43 @@ public final class BootActivity extends Activity
         root.setBackgroundColor(Color.BLACK);
         root.setPadding(dp(24), dp(20), dp(24), dp(20));
 
-        root.addView(label("ToriRS", 26, Color.WHITE, true));
+        /*
+         * Title on the left, gear on the right.
+         *
+         * The gear edits where a profile's SERVER is -- the one field that goes
+         * stale without anyone touching it, because it is a DHCP lease. Before
+         * this the only way to correct it was a desktop, a cable and an adb
+         * push to change one word.
+         */
+        {
+            LinearLayout header = new LinearLayout(this);
+            header.setOrientation(LinearLayout.HORIZONTAL);
+            header.setGravity(Gravity.CENTER_VERTICAL);
+
+            TextView title = label("ToriRS", 26, Color.WHITE, true);
+            header.addView(title, new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            /* Drawn, not typed: U+2699 has no glyph in Android 5.1's font and
+             * comes out as a tofu box. @see GearView. */
+            GearView gear = new GearView(this, dp(34));
+            gear.setOnClickListener(new View.OnClickListener()
+            {
+                @Override
+                public void onClick(View v)
+                {
+                    /* Stop the clock first: opening the editor must not be
+                     * followed a second later by the countdown booting a world
+                     * underneath it. */
+                    cancelCountdown();
+                    if( status != null )
+                        status.setText("tap a profile to boot it");
+                    startActivity(new Intent(BootActivity.this, ProfileEditorActivity.class));
+                }
+            });
+            header.addView(gear);
+            root.addView(header);
+        }
 
         if( profiles.isEmpty() )
         {

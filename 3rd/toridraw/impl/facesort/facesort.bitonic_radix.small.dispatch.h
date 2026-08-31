@@ -24,11 +24,17 @@
  *   facesort.bitonic_radix.small.dispatch.u.c  the shared scalar work, the
  *                                              lane selection, the radix, and
  *                                              the one dispatcher
- *   facesort.bitonic_radix.small.neon64.u.c      AArch64: vqtbl1q left-pack,
+ *   facesort.bitonic_radix.small.neon64.u.c    AArch64: vqtbl1q left-pack,
  *                                              64-bit winding in vmlsl_s32,
  *                                              vst4q stash, bitonic network.
  *                                              NO tile kernel -- nothing here
  *                                              was measured on NEON.
+ *   facesort.bitonic_radix.small.neon32.u.c    the armv7 twin of it, and the
+ *                                              Android armeabi-v7a lane. Same
+ *                                              arithmetic; the five A64-only
+ *                                              intrinsics are replaced as the
+ *                                              ladder below lists. Declines the
+ *                                              tile for the same reason.
  *   facesort.bitonic_radix.small.sse2.u.c      the Win32 XP lane, written to
  *                                              the Pentium 4 floor: no pshufb,
  *                                              no pcmpgtq, no pminud, no
@@ -84,8 +90,8 @@
  * shuffle immediates -- are reachable only from the SSE2 lane, and that is
  * deliberate rather than an omission: the A/B that chose between them
  * (toridraw_face_sort_tile2_armed) was run on an x86 host against the general
- * path, and no equivalent measurement exists on NEON. Until one does, the
- * NEON lane declines and a terrain tile there is an ordinary two-face model.
+ * path, and no equivalent measurement exists on NEON. Until one does, both
+ * NEON lanes decline and a terrain tile there is an ordinary two-face model.
  */
 
 #include "graphics/dash_restrict.h"
@@ -102,24 +108,50 @@
  * in toridraw_face_sort_bitonic_radix_armed.
  */
 /*
- * __aarch64__ is REQUIRED, not just NEON.
+ * THE ARM LANE IS SPLIT BY ENCODING WIDTH, not gated on __aarch64__.
  *
- * The NEON lane is written in A64-only intrinsics -- vmull_high_s32 /
+ * A32 and A64 NEON are different instruction sets, and the sort's body reaches
+ * five things the A64 file spells with A64-only intrinsics: vmull_high_s32 and
  * vmlsl_high_s32 (the widening high-half multiply), vcgtq_s64 (there is no
- * 64-bit vector compare in A32 NEON at all), vaddvq_u32 (horizontal add) and
+ * 64-bit lane-wise compare in A32 NEON at all), vaddvq_u32 (horizontal add) and
  * vqtbl1q_u8 (the full 16-byte table lookup; A32 has only the 8-byte vtbl).
- * None of the five exists on armv7, so an armv7 build that reached this lane
- * did not merely run slower -- it failed to compile, which is how the Android
- * armeabi-v7a lane found this.
+ * armv7 pointed at the A64 file did not merely run slower -- it failed to
+ * compile, which is how the Android armeabi-v7a lane found this.
  *
- * Same requirement, and the same reason, as the projection bound lane: see the
- * header comment in impl/projection/projection.bound.dispatch.u.c. armv7 falls
- * through the ladder to the scalar lane, which is correct and is what every
- * non-SIMD host already uses.
+ * All five have an A32 route, and the neon32 file takes it, so armv7 gets the
+ * SIMD winding cull and the bitonic network rather than falling through to the
+ * scalar lane:
+ *
+ *   vmull_high_s32 / vmlsl_high_s32  vmull_s32 / vmlsl_s32 of vget_high_s32.
+ *                                    The widening multiply is A32; only the
+ *                                    form that takes the quad and picks its
+ *                                    top half is A64.
+ *   vcgtq_s64 / vcltq_s64            synthesized from the 32-bit halves of the
+ *                                    product: the sign of a 64-bit value
+ *                                    against zero is its high word's sign,
+ *                                    with the unsigned low word breaking the
+ *                                    high == 0 tie. The SSE2 lane has the same
+ *                                    hole (no pcmpgtq) and answers it the same
+ *                                    way. No 32-bit truncation, so the sign
+ *                                    decisions stay bit-for-bit the scalar
+ *                                    reference's.
+ *   vaddvq_u32                       two vpadd_u32 folds, once per block.
+ *   vqtbl1q_u8                       the SSE2 lane's index-table left-pack:
+ *                                    a stack slot and four unconditional
+ *                                    scalar stores, no pshufb needed and none
+ *                                    available.
+ *
+ * aarch64 keeps neon64 for the five single instructions. Same split, and the
+ * same reason, as the projection bound lane: see the header comment in
+ * impl/projection/projection.bound.dispatch.u.c.
  */
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && defined(__aarch64__) &&                     \
     !defined(NEON_DISABLED)
-#define TORIDRAW_FACE_SORT_LANE_NEON 1
+#define TORIDRAW_FACE_SORT_LANE_NEON64 1
+#define TORIDRAW_FACE_SORT_SIMD 1
+#elif ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(__aarch64__) &&                  \
+    !defined(NEON_DISABLED)
+#define TORIDRAW_FACE_SORT_LANE_NEON32 1
 #define TORIDRAW_FACE_SORT_SIMD 1
 #elif defined(__SSE2__) && !defined(SSE2_DISABLED)
 /* The Win32 XP lane: -march=pentium4 is SSE2 and nothing above it -- no

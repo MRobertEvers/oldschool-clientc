@@ -41,6 +41,7 @@
 #include "toridraw_sprite.h"
 #include "ui/uitree.h"
 #include "ui/uitree_cross.h"
+#include "ui/uitree_ink.h"
 #include "ui/torirs_chrome_exec.h"
 #include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_emit.h"
@@ -1684,6 +1685,10 @@ struct App
     struct SeqLoadTracker seq_loads;
     struct InterfaceOpenStats open_stats;
     struct UICross cross;
+    /* The touch marker. Separate from `cross` because it is shown for EVERY
+     * touch, before anything has decided what the touch meant -- @see
+     * ui/uitree_ink.h for why that cannot be a mode on the cross. */
+    struct UIInk ink;
     /** Mouseover text under the pointer, rebuilt every frame (reference: CS2
      * script 4726 rebuilds it every client cycle). */
     struct UIHoverText hover_text;
@@ -2422,6 +2427,9 @@ struct App
      *  is the only thing here with a platform to raise one on.
      *  @see App_TakeTextInputChange. */
     int text_input_on;
+    /** What the platform was last told. The keyboard is raised and lowered off
+     *  this, so a redundant change never reaches the IME. */
+    int text_input_effective;
     int text_input_dirty;
 };
 

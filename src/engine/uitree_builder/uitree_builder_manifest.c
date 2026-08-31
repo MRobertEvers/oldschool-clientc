@@ -302,6 +302,9 @@ fill_tree_op_from_component(
     strncpy(op->sprite_active_ref, comp->sprite_active, sizeof(op->sprite_active_ref) - 1);
     strncpy(op->inv_name, comp->inv, sizeof(op->inv_name) - 1);
     op->font = comp->font;
+    op->ink_style = comp->ink_style;
+    op->ink_walk_color = comp->ink_walk_color;
+    op->ink_interact_color = comp->ink_interact_color;
     op->has_font_ref = comp->has_font_ref;
     if( comp->has_font_ref )
         strncpy(op->font_ref, comp->font_ref, sizeof(op->font_ref) - 1);

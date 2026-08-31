@@ -5971,6 +5971,38 @@ app_host_request(
         return 0;
     case UITREE_HOST_GET_SCROLLBAR_SCENE:
         return UITreeSceneBridge_ScrollbarSceneId(&app->bridge);
+    case UITREE_HOST_GET_INKWELL:
+    {
+        /*
+         * The component supplies the artwork it was configured with and the
+         * app supplies the marker's live state; neither knows the other's
+         * half. -1 from the profile means "unstated", and the defaults here
+         * are the reference client's convention: yellow walks, red interacts.
+         */
+        int const style = req->u.get_inkwell.style >= 0 ? req->u.get_inkwell.style
+                                                        : TORIRS_INKWELL_SPLASH;
+        int const walk = req->u.get_inkwell.walk_color >= 0
+                             ? req->u.get_inkwell.walk_color
+                             : TORIRS_INKWELL_YELLOW;
+        int const interact = req->u.get_inkwell.interact_color >= 0
+                                 ? req->u.get_inkwell.interact_color
+                                 : TORIRS_INKWELL_RED;
+        int colour;
+
+        if( !UIInk_IsActive(&app->ink) )
+            return 0;
+        colour = app->ink.colour == TORIRS_INKWELL_RED ? interact : walk;
+        if( req->u.get_inkwell.out_x )
+            *req->u.get_inkwell.out_x = app->ink.x;
+        if( req->u.get_inkwell.out_y )
+            *req->u.get_inkwell.out_y = app->ink.y;
+        if( req->u.get_inkwell.out_atlas_index )
+            *req->u.get_inkwell.out_atlas_index =
+                ToriRSInkwell_AtlasIndex(style, colour, UIInk_Frame(&app->ink));
+        return 1;
+    }
+    case UITREE_HOST_GET_INKWELL_SCENE:
+        return UITreeSceneBridge_EnsureInkwell(&app->bridge);
     case UITREE_HOST_GET_STATIC_SPRITE_SCENE:
         return UITreeSceneBridge_StaticSpriteSceneId(
             &app->bridge, (enum StaticSpriteSlot)req->u.static_sprite.slot);
@@ -17119,6 +17151,12 @@ app_logic_tick(struct App* app)
         redraw = 1;
     }
 
+    if( UIInk_IsActive(&app->ink) )
+    {
+        UIInk_Tick(&app->ink, APP_LOGIC_TICK_MS);
+        redraw = 1;
+    }
+
     return redraw;
 }
 
@@ -27724,6 +27762,11 @@ app_minimenu_run_option(
         enum UICrossMode cross_mode = RS_Minimenu_CrossModeForAction(opt.action);
         if( cross_mode != UI_CROSS_OFF && cross_mode != UI_CROSS_WALK )
             UICross_Show(&app->cross, cross_mode, click_x, click_y);
+            /* Same answer, applied to the marker that is already running. */
+            UIInk_SetColour(
+                &app->ink,
+                cross_mode == UI_CROSS_INTERACT ? TORIRS_INKWELL_RED
+                                                : TORIRS_INKWELL_YELLOW);
     }
 
     /* method5229 marks component operations above targetPriority with the
@@ -29367,15 +29410,65 @@ App_PluginLayoutTick(struct App* app)
      * if topology somehow changed after this settled pass. */
 }
 
+/**
+ * Does the client have somewhere for typed characters to go right now?
+ *
+ * Three sources, and they are the three places this client accepts text: the
+ * login form's two fields, the chat line, and a plugin that asked for input.
+ *
+ * This exists for the soft keyboard. On a desktop the answer is not needed --
+ * a physical keyboard is always there, and SDL's text-input mode only governs
+ * whether TEXTINPUT events arrive, which the shell turns on once at boot and
+ * never turns off. On a touch device it is the whole question: there is no
+ * keyboard unless one is raised, and raising it at the wrong time covers half
+ * the screen with something the user cannot type into.
+ */
+static int
+app_wants_text_input(struct App const* app)
+{
+    assert(app);
+
+    /* The login form, and only while it is the screen being shown: `focus`
+     * keeps its last value across a screen change, so testing it alone would
+     * raise the keyboard over the main menu. */
+    if( app->title.screen == RS_TITLE_LOGIN_FORM &&
+        app->title.focus >= 0 && app->title.focus < RS_TITLE_FIELD_COUNT )
+        return 1;
+
+    if( app->chat_input_active )
+        return 1;
+
+    /* A plugin asked for it (torirs_plugin_bridge.u.c). Kept last so the
+     * client's own fields win when both are true. */
+    return app->text_input_on ? 1 : 0;
+}
+
 int
 App_TakeTextInputChange(struct App* app, int* out_on)
 {
+    int wanted;
+
     assert(app);
+
+    /*
+     * Poll rather than wait for a writer, because the two client-side sources
+     * are plain state that many code paths change -- clicking a field, pressing
+     * Escape, submitting the form, a script closing the chat. Making each of
+     * those remember to set a dirty flag would be a rule to keep, and the one
+     * that forgot would leave the keyboard up over a screen with no field.
+     */
+    wanted = app_wants_text_input(app);
+    if( wanted != app->text_input_effective )
+    {
+        app->text_input_effective = wanted;
+        app->text_input_dirty = 1;
+    }
+
     if( !app->text_input_dirty )
         return 0;
     app->text_input_dirty = 0;
     if( out_on )
-        *out_on = app->text_input_on;
+        *out_on = app->text_input_effective;
     return 1;
 }
 
@@ -31113,6 +31206,30 @@ App_RunOnce(
         app_world_hotkeys(app, input, &out);
         app_inv_drag_tick(app, input, plugin_pointer_consumed);
         app_worldmap_drag_tick(app, input, plugin_pointer_consumed);
+    }
+
+    /*
+     * The touch marker, shown for EVERY press.
+     *
+     * Here, and not where the cross is set, because that is the point: the
+     * cross is shown by the paths that DID something, and a tap that hits a
+     * widget, misses every target, or lands during a modal shows nothing at
+     * all. On a touchscreen there is no pointer to prove the device saw it, so
+     * the marker goes up before anything has decided what the press meant.
+     *
+     * The colour is the walk one at this stage -- "a touch happened". If the
+     * press turns out to be an interaction, RS_Minimenu's cross path refines it
+     * through UIInk_SetColour a moment later, in the same frame, without
+     * restarting the animation.
+     *
+     * Costs nothing on a lane with no inkwell component: the state ticks and
+     * the emit never asks for it.
+     */
+    if( input->curr.mouse_button_down[TORIRSM_LEFT] ||
+        input->curr.mouse_button_down[TORIRSM_RIGHT] )
+    {
+        UIInk_Show(
+            &app->ink, TORIRS_INKWELL_YELLOW, input->curr.mouse_x, input->curr.mouse_y);
     }
 
     /* Idle timer (reference IDLE_TIMER after ~90s of no input). */

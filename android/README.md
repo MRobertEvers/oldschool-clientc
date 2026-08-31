@@ -146,6 +146,45 @@ Blank lines and `#` comments are ignored.
 
 ---
 
+## Touch, and the profile editor
+
+**Gestures.** Tap = click, long-press = right-click, **drag on the 3D viewport =
+camera**, pinch = zoom, two-finger pan = camera. Enabled for every revision; no
+profile has to opt in.
+
+**The inkwell** is the touch marker, shown for *every* touch — unlike the X,
+which only appears when a click resulted in something. Configured per profile:
+
+```ini
+[component:cross@mobile]
+type=inkwell
+style=splash          ; splash | blot | ripple
+walk_color=yellow
+interact_color=red
+```
+
+`@mobile` sections load only on touch devices and override the unsuffixed
+section above them. To compare the styles on a desktop:
+
+```sh
+TORIRS_REVCONFIG_PLATFORM=mobile ./src/torirs --manifest manifests/manifest_osrs239_bench.ini
+```
+
+**The keyboard** comes up when a text field takes focus (login form, chat line,
+or a plugin asking for input) and goes away with the **Hide keyboard** button
+that appears while it is up. That button exists because Back also closes the
+keyboard on most devices — but Back is *also* the client's Escape, so pressing
+it would close the interface you were typing into.
+
+**The gear** in the boot menu edits each profile's server host/port, cache/CRC
+host/port, cache directory, IO server host/port, and renderer. Useful because a
+server's DHCP lease moves and every profile pointing at it goes stale, with no
+other way to fix it from the device.
+
+Prefer **names over addresses** in `host=`: your router serves DNS for its own
+clients, so `matthewllm` follows the lease. Note `.local`/mDNS does **not**
+resolve on Android 5.1; the bare name and the `.lan` suffix both do.
+
 ## Why the data is pushed and not bundled
 
 The client reads its cache with ordinary stdio. **An APK asset is not a file** —

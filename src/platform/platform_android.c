@@ -834,6 +834,13 @@ PlatformSDL2_SetTextInput(struct PlatformSDL2* p, int on)
 }
 
 void
+PlatformSDL2_SetTouchViewport(struct PlatformSDL2* p, int x, int y, int w, int h)
+{
+    assert(p);
+    ToriRS_TouchSetViewport(&p->touch, x, y, w, h);
+}
+
+void
 PlatformSDL2_SetInterfaceScaleMode(struct PlatformSDL2* p, int mode)
 {
     assert(p);

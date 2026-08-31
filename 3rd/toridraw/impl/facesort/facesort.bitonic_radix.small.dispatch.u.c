@@ -71,7 +71,7 @@
  *
  * WHAT IS IN THIS FILE AND WHAT IS NOT. Steps 1 and 2 are written per
  * instruction set and each ISA's copy lives in its own file --
- * facesort.bitonic_radix.small.{neon,sse2,scalar}.u.c -- reached through the
+ * facesort.bitonic_radix.small.{neon64,neon32,sse2,scalar}.u.c -- reached through the
  * three hooks facesort.bitonic_radix.small.dispatch.h names. This file holds
  * only what every build compiles: the scalar per-face cull, the scalar terrain
  * tile, the radix sort, the environment gates, and the one dispatcher that
@@ -378,8 +378,10 @@ toridraw_face_sort_bitonic_radix_tile2_scalar(
  * function, one after the other, each redefining the same helper names -- read
  * as though a build could have both and would try each in turn.
  */
-#if defined(TORIDRAW_FACE_SORT_LANE_NEON)
+#if defined(TORIDRAW_FACE_SORT_LANE_NEON64)
 #include "impl/facesort/facesort.bitonic_radix.small.neon64.u.c"
+#elif defined(TORIDRAW_FACE_SORT_LANE_NEON32)
+#include "impl/facesort/facesort.bitonic_radix.small.neon32.u.c"
 #elif defined(TORIDRAW_FACE_SORT_LANE_SSE2)
 #include "impl/facesort/facesort.bitonic_radix.small.sse2.u.c"
 #else

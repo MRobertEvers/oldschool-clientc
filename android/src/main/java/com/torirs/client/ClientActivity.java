@@ -12,6 +12,8 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.Button;
+import android.widget.FrameLayout;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -59,6 +61,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     }
 
     private SurfaceView surfaceView;
+    private Button hideKeyboardButton;
     private boolean started;
 
     /* ---- native ---------------------------------------------------------- */
@@ -85,7 +88,48 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
          * events from a hardware or soft keyboard. */
         surfaceView.setFocusable(true);
         surfaceView.setFocusableInTouchMode(true);
-        setContentView(surfaceView);
+
+        /*
+         * The surface, with a "Hide keyboard" button floating over it.
+         *
+         * The button exists because Android's soft keyboard has no dismiss
+         * affordance of its own that this app can rely on: Back closes it on
+         * most devices, but Back is ALSO the client's Escape (see
+         * android_keycode_to_torirsk), so a user pressing it to put the
+         * keyboard away also closes whatever interface they were typing into.
+         * An explicit button separates the two.
+         *
+         * It is visible only while the keyboard is up -- a permanent button
+         * over the viewport would cover part of the world for a control that is
+         * almost never wanted.
+         */
+        FrameLayout root = new FrameLayout(this);
+        root.addView(surfaceView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+
+        hideKeyboardButton = new Button(this);
+        hideKeyboardButton.setText("Hide keyboard");
+        hideKeyboardButton.setVisibility(View.GONE);
+        hideKeyboardButton.setOnClickListener(new View.OnClickListener()
+        {
+            @Override
+            public void onClick(View v)
+            {
+                showSoftKeyboard(false);
+            }
+        });
+        {
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT);
+            /* Top-right: the keyboard occupies the bottom, and the client's own
+             * chat line sits along the bottom edge of the canvas. */
+            lp.gravity = android.view.Gravity.TOP | android.view.Gravity.END;
+            root.addView(hideKeyboardButton, lp);
+        }
+
+        setContentView(root);
         surfaceView.requestFocus();
 
         nativeSetDensity(displayDensityBucket());
@@ -334,6 +378,10 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                 {
                     imm.hideSoftInputFromWindow(surfaceView.getWindowToken(), 0);
                 }
+                /* The dismiss button exists exactly as long as the thing it
+                 * dismisses. */
+                if( hideKeyboardButton != null )
+                    hideKeyboardButton.setVisibility(show ? View.VISIBLE : View.GONE);
             }
         });
     }

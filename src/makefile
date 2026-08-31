@@ -694,9 +694,10 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/uitree_anim.c engine/entity_model_build.c engine/uitree_role_load.c \
 	ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
-	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
+	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
 	ui/uitree_hovertext.c ui/uitree_debug_overlay.c ui/uitree_snapshot.c \
 	ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c \
+	ui/torirs_chrome_inkwell.c \
 	ui/torirs_chrome_mirror.c \
 	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
 	ui/uitree_interact.c ui/uitree_iface_stats.c \
@@ -957,7 +958,7 @@ TEXTRI_ASM_OBJ := $(OBJ_DIR)/tex_tri_asm.o
 TORIDRAW_CFLAGS += -DTORIDRAW_TEXTRI_ASM=1
 endif
 
-# --- AArch64 presorted-run kernels (Advanced SIMD) --------------------------
+# --- NEON presorted-run kernels (Advanced SIMD) -----------------------------
 # The eight standard-definition presorted-run doors -- flat opaque/alpha,
 # gouraud opaque/alpha, textured opaque/trans x flat/shaded -- as NEON twins
 # of the i686 SSE2 kernels above. Same shape as the i686 lanes: the C per-face
@@ -966,18 +967,51 @@ endif
 # probe build for the same reason as the i686 kernels: the census and
 # ablation counters live in the C. TORIDRAW_NO_SIMD withdraws it with the rest
 # of the SIMD lanes.
+#
+# THESE DOORS ARE WHAT TURNS THE WHOLE-MODEL PIPELINE ON. toridraw_raster_batch.h
+# defines TORIDRAW_RASTER_BATCH if and only if the flat AND gouraud presorted-run
+# doors both exist, and toridraw_raster_batch_armed() then defaults to armed. So
+# this block is not "an optional asm speedup": without it the renderer walks a
+# model face by face through the C kernels, and with it a model's faces are depth
+# sorted and handed to one call per material class. Selecting no kernel here
+# silently selects the per-face pipeline.
+#
+# TWO ENCODINGS, ONE FAMILY, CHOSEN BY THE TARGET. A32 and A64 Advanced SIMD are
+# different instruction sets rather than two spellings of one, so each door has
+# two source files -- tri.*.aarch64.S and tri.*.neon32.S -- and the lane picks by
+# the architecture being BUILT FOR. The old gate asked `uname -m`, which is the
+# build host: correct by accident on a native macOS arm64 build and wrong for
+# every cross-compile, which is why the Android arm64 APK was shipping the
+# per-face C pipeline on a part that has had these kernels all along.
 NEON_TRI_ASM_OBJS :=
+NEON_TRI_ASM_ISA :=
 ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
-ifeq ($(PLATFORM),macos)
-ifeq ($(shell uname -m),arm64)
 ifneq ($(TORIDRAW_NO_SIMD),1)
+  ifeq ($(PLATFORM),macos)
+    ifeq ($(shell uname -m),arm64)
+      NEON_TRI_ASM_ISA := aarch64
+    endif
+  endif
+  ifeq ($(PLATFORM),android)
+    ifeq ($(ANDROID_ABI),arm64-v8a)
+      NEON_TRI_ASM_ISA := aarch64
+    endif
+    ifeq ($(ANDROID_ABI),armeabi-v7a)
+      NEON_TRI_ASM_ISA := neon32
+    endif
+  endif
+endif
+endif
+
+ifneq ($(NEON_TRI_ASM_ISA),)
 NEON_TRI_ASM_OBJS := $(OBJ_DIR)/flat_tri_neon.o $(OBJ_DIR)/gouraud_tri_neon.o $(OBJ_DIR)/tex_tri_neon.o
 NEON_TRI_ASM_CFLAGS := -DTORIDRAW_FLAT_TRI_NEON_ASM=1 -DTORIDRAW_GOURAUD_TRI_NEON_ASM=1 -DTORIDRAW_TEXTRI_NEON_ASM=1
 TORIDRAW_CFLAGS += $(NEON_TRI_ASM_CFLAGS)
 endif
-endif
-endif
-endif
+
+# The shared edge-slope ladder, one per encoding. Named here so the three rules
+# below depend on the one their own ISA actually includes.
+NEON_TRI_EDGE_INC := $(TORIDRAW_DIR)/graphics/raster/edge_slopes_$(NEON_TRI_ASM_ISA).inc
 
 # The framebuffer clear. Unlike the three kernels above this one is not
 # withdrawn under the probe builds -- it has no census counters to invalidate,
@@ -1990,15 +2024,19 @@ $(TEXTRI_ASM_OBJ): $(TEXTRI_ASM_SRC) $(TORIDRAW_DIR)/graphics/raster/texture/spa
 	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
 endif
 
-# The AArch64 presorted-run kernels. Same treatment as the i686 lanes: cpp
-# first, no PLATFORM_BASE_CFLAGS. edge_slopes_aarch64.inc is the shared
-# slope reciprocal, so every one of the three depends on it.
+# The NEON presorted-run kernels. Same treatment as the i686 lanes: cpp first,
+# no PLATFORM_BASE_CFLAGS. The ISA in the filename is the one the gate above
+# picked for this target; edge_slopes_$(ISA).inc is the shared slope
+# reciprocal, so every one of the three depends on it.
+#
+# $(PLATFORM_CC) matters on the cross lanes: the .S files are guarded on
+# __arm__ / __aarch64__ and would assemble to nothing under the host compiler.
 ifneq ($(NEON_TRI_ASM_OBJS),)
-$(OBJ_DIR)/flat_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.flat.aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+$(OBJ_DIR)/flat_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.flat.$(NEON_TRI_ASM_ISA).S $(NEON_TRI_EDGE_INC) | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
-$(OBJ_DIR)/gouraud_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.gouraudhsllightness.aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+$(OBJ_DIR)/gouraud_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.gouraudhsllightness.$(NEON_TRI_ASM_ISA).S $(NEON_TRI_EDGE_INC) | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
-$(OBJ_DIR)/tex_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.tex.aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+$(OBJ_DIR)/tex_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.tex.$(NEON_TRI_ASM_ISA).S $(NEON_TRI_EDGE_INC) | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
 endif
 
@@ -2650,7 +2688,7 @@ test-uitree: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \
 		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
-		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
+		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
@@ -4898,23 +4936,53 @@ test-scene-profiles: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/scene_profile_test
 
-# The AArch64 presorted-run kernels against the C per-face kernels, all
-# eight doors. The default arm is the reciprocal one (a triangle/pixel ppm
-# budget, as the i686 ladder is scored); NEON_TRI_ASM_FLAGS=-DTORIDRAW_EDGE_IDIV
-# assembles the exact-divide lane, under which the test demands zero.
-# Apple arm64 only -- elsewhere there is no kernel to score.
+# The NEON presorted-run kernels against the C per-face kernels, all eight
+# doors. The default arm is the reciprocal one (a triangle/pixel ppm budget,
+# as the i686 ladder is scored); NEON_TRI_ASM_FLAGS=-DTORIDRAW_EDGE_IDIV
+# assembles the exact-divide lane, under which the test demands zero -- that
+# is what separates a regression in the walk from the approximation in the
+# slope, and BOTH kernels are held to it.
+# Scores whichever encoding the gate picked: aarch64 on Apple arm64 and
+# Android arm64-v8a, neon32 on Android armeabi-v7a.
 # The test includes the unity source itself (it reaches the static C
 # kernels), so it links the three asm objects alone, not the unity object.
+#
+# HOW IT IS RUN. A cross-compiled lane cannot execute on the build host, and a
+# target that quietly skipped the run would report a pass nothing observed --
+# so the Android lanes push to an attached device and run there, and say so
+# loudly if there is none. ANDROID_SERIAL picks one when several are attached.
+# adb shell on an older device does not propagate an exit status, hence the
+# RC= marker rather than trusting adb's own.
+ifeq ($(PLATFORM),android)
+ADB := adb $(if $(ANDROID_SERIAL),-s $(ANDROID_SERIAL),)
+define NEON_TEST_RUN
+	@$(ADB) get-state >/dev/null 2>&1 || { \
+		echo "test-presorted-neon: built for $(ANDROID_ABI), but no adb device is attached."; \
+		echo "  The kernels cannot run on the build host. Attach a device (or set"; \
+		echo "  ANDROID_SERIAL) and re-run; nothing was scored."; \
+		exit 1; }
+	$(ADB) push $(1) /data/local/tmp/presorted_neon_test >/dev/null
+	@$(ADB) shell "chmod 755 /data/local/tmp/presorted_neon_test && \
+		/data/local/tmp/presorted_neon_test; echo RC=\$$?" 2>&1 \
+		| grep -v -i "warning: linker" | tee $(1).log
+	@grep -q "RC=0" $(1).log || { echo "test-presorted-neon: FAILED on device"; exit 1; }
+endef
+else
+define NEON_TEST_RUN
+	./$(1)
+endef
+endif
+
 test-presorted-neon: $(OBJ_DIR) $(NEON_TRI_ASM_OBJS)
 ifeq ($(NEON_TRI_ASM_OBJS),)
-	@echo "test-presorted-neon: no kernel for PLATFORM=$(PLATFORM) -- nothing to score"
+	@echo "test-presorted-neon: no kernel for PLATFORM=$(PLATFORM) ABI=$(ANDROID_ABI) -- nothing to score"
 else
 	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function \
 		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) $(NEON_TRI_ASM_CFLAGS) \
 		$(NEON_TRI_ASM_FLAGS) -I$(TORIDRAW_DIR) -I$(BMP_DIR) \
 		-o $(OBJ_DIR)/presorted_neon_test \
 		$(TORIDRAW_DIR)/toridraw_presorted_neon_test.c $(NEON_TRI_ASM_OBJS) -lm
-	./$(OBJ_DIR)/presorted_neon_test
+	$(call NEON_TEST_RUN,$(OBJ_DIR)/presorted_neon_test)
 endif
 
 # The bitonic+radix face sort (SIMD cull + bitonic/radix) against the bucket

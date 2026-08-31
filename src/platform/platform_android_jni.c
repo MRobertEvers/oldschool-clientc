@@ -94,6 +94,21 @@ argv_push(char const* value)
     g_argv[g_argc++] = copy;
 }
 
+static JavaVM* g_vm;
+static jobject g_activity;      /* global ref, held for the app's life */
+static jmethodID g_show_keyboard;
+/**
+ * The frame thread has been attached to the JVM.
+ *
+ * It MUST be detached before the thread exits. ART does not treat that as a
+ * leak to be tidied up later -- it aborts the process with "Native thread
+ * exited without calling DetachCurrentThread", which surfaces as a SIGSEGV in
+ * a thread with no relation to the code that attached. Tracked here because
+ * the attach happens on demand (the first soft-keyboard call) and the detach
+ * happens somewhere else entirely (the end of frame_thread).
+ */
+static int g_frame_thread_attached;
+
 /* ---- the frame thread ---------------------------------------------------- */
 
 static pthread_t g_thread;
@@ -110,6 +125,18 @@ frame_thread(void* unused)
         LOGI("  argv[%d] = %s", i, g_argv[i]);
 
     rc = main(g_argc, g_argv);
+
+    /*
+     * Detach BEFORE returning. A thread that attached to the JVM and then exits
+     * without detaching aborts the whole process -- ART checks this on thread
+     * exit and calls it fatal, and the crash it produces names a thread id with
+     * nothing to connect it back to the attach.
+     */
+    if( g_frame_thread_attached && g_vm )
+    {
+        (*g_vm)->DetachCurrentThread(g_vm);
+        g_frame_thread_attached = 0;
+    }
 
     LOGI("frame thread: main() returned %d", rc);
     return NULL;
@@ -188,9 +215,7 @@ redirect_stdio_to_log(void)
  * so the actual show/hide is a method on the activity and this reaches back up
  * to call it.
  */
-static JavaVM* g_vm;
-static jobject g_activity;      /* global ref, held for the app's life */
-static jmethodID g_show_keyboard;
+
 
 void
 PlatformAndroidJni_SetSoftKeyboard(int on)
@@ -214,7 +239,14 @@ PlatformAndroidJni_SetSoftKeyboard(int on)
             return;
         attached = 1;
     }
-    (void)attached;
+    /*
+     * Attached and LEFT attached, deliberately: this is called once per focus
+     * change and re-attaching each time would be pure overhead. The debt is
+     * settled at the end of frame_thread, which is the only place that knows
+     * the thread is about to stop existing.
+     */
+    if( attached )
+        g_frame_thread_attached = 1;
     (*env)->CallVoidMethod(env, g_activity, g_show_keyboard, (jboolean)(on != 0));
     if( (*env)->ExceptionCheck(env) )
         (*env)->ExceptionClear(env);

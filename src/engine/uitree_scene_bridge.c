@@ -9,6 +9,7 @@
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/toridraw_sprite_from_torirs.h"
 #include "engine/torirs_chrome_skin_baked.h"
+#include "ui/torirs_chrome_inkwell.h"
 #include "engine/torirs_debug_font_baked.h"
 #include "engine/torirs_types.h"
 #include "hmap.h"
@@ -568,6 +569,57 @@ UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge)
 
     ToriDraw_SceneSpriteAdd(bridge->scene, UITREE_SCENE_CHROME_SKIN_ID, sprites, count);
     return UITREE_SCENE_CHROME_SKIN_ID;
+}
+
+int
+UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge)
+{
+    struct ToriDraw_Sprite** sprites;
+    int const count = TORIRS_INKWELL_ATLAS_COUNT;
+    int at = 0;
+
+    assert(bridge);
+    assert(bridge->scene);
+
+    if( ToriDraw_SceneSpriteHas(bridge->scene, UITREE_SCENE_INKWELL_ID) )
+        return UITREE_SCENE_INKWELL_ID;
+
+    /*
+     * Every style and colour in one entry. 48 frames of 32x32 is under 200 KB,
+     * which buys the profile the freedom to name any style -- and a touch the
+     * freedom to pick a colour -- without either causing an upload mid-frame.
+     */
+    sprites = calloc((size_t)count, sizeof(*sprites));
+    assert(sprites);
+    for( int style = 0; style < TORIRS_INKWELL_STYLE_COUNT; style++ )
+    {
+        for( int colour = 0; colour < TORIRS_INKWELL_COLOUR_COUNT; colour++ )
+        {
+            for( int frame = 0; frame < TORIRS_INKWELL_FRAMES; frame++, at++ )
+            {
+                struct ToriDraw_Sprite* spr = calloc(1, sizeof(*spr));
+                size_t const bytes = (size_t)TORIRS_INKWELL_SIZE *
+                                     (size_t)TORIRS_INKWELL_SIZE * sizeof(uint32_t);
+
+                assert(spr);
+                spr->width = TORIRS_INKWELL_SIZE;
+                spr->height = TORIRS_INKWELL_SIZE;
+                spr->crop_width = TORIRS_INKWELL_SIZE;
+                spr->crop_height = TORIRS_INKWELL_SIZE;
+                /* Deep copy: the scene frees every sprite it holds, and the
+                 * generator hands back a pointer into its own static table. */
+                spr->pixels_argb = malloc(bytes);
+                assert(spr->pixels_argb);
+                memcpy(spr->pixels_argb,
+                       ToriRSInkwell_Frame(style, colour, frame), bytes);
+                assert(at == ToriRSInkwell_AtlasIndex(style, colour, frame));
+                sprites[at] = spr;
+            }
+        }
+    }
+
+    ToriDraw_SceneSpriteAdd(bridge->scene, UITREE_SCENE_INKWELL_ID, sprites, count);
+    return UITREE_SCENE_INKWELL_ID;
 }
 
 /** @see UITREE_SCENE_PLUGIN_IMAGE_SLOTS, which the header states so that the

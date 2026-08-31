@@ -328,7 +328,66 @@ profile can be tried with `--webgl1` or `--offline` without rebuilding the APK.
 
 ---
 
-## 9. What the lane check enforces
+## 9. Touch: what a finger does
+
+| gesture | result |
+|---|---|
+| tap | left click |
+| long press (400 ms, inside the slop) | right click — the minimenu |
+| **drag starting on the 3D viewport** | **turns the camera** |
+| drag elsewhere | pointer moves, no click |
+| pinch | wheel — the zoom |
+| two-finger pan | arrow keys — the camera |
+
+The camera drag is **synthesised as a middle-button drag**, not reimplemented.
+The desktop already turns the camera that way (`app_world_camera_mouse`), and
+that path carries the revision's `[camera] controls=` gate, the follow-cam
+split, and the screen-space sign convention that keeps free and orbit cameras
+agreeing. A second implementation would be three things to keep true instead of
+none. The platform publishes the viewport box each frame
+(`PlatformSDL2_SetTouchViewport`); a drag is tested against where the finger
+*started*, so one that wanders onto the interface is still the same drag.
+
+The button goes down only once the finger passes the slop, so a tap on the world
+is still a walk-here click.
+
+### The inkwell
+
+`UICross` is shown by the paths that **did** something — a walk was routed, an
+interaction was sent. A tap on a widget, a tap that missed, or a tap during a
+modal shows nothing, which is fine on a desktop where the pointer is visible.
+On a touchscreen a tap that draws nothing is indistinguishable from a tap the
+digitiser dropped, and the user taps again.
+
+So the inkwell fires for **every** touch, before anything has interpreted it,
+and the colour is refined afterwards (`UIInk_SetColour`) without restarting the
+animation. Three styles — `splash`, `blot`, `ripple` — authored procedurally in
+`ui/torirs_chrome_inkwell.c` because `spritebake` extracts *existing* cache
+sprites and no revision ever shipped a touch marker. All 48 frames (3 styles x
+2 colours x 8 frames) upload as one scene entry, so a style is an atlas index
+and never an upload.
+
+```ini
+[component:cross]           ; every platform
+type=cross
+
+[component:cross@mobile]    ; touch only, and it OVERRIDES the above
+type=inkwell
+style=splash
+walk_color=yellow
+interact_color=red
+```
+
+The `@tag` suffix is stripped before the name is stored, so both declarations
+are the **same** element and the later one wins. A non-matching tag skips the
+section *whole* — a half-applied override would leave a component with some
+mobile fields and some desktop ones. `TORIRS_REVCONFIG_PLATFORM=mobile` forces
+it on a desktop, so the mobile layout is testable with no device attached.
+
+Colours are revconfig keys rather than constants because "yellow walks, red
+interacts" is a *revision's* convention, not a law.
+
+## 10. What the lane check enforces
 
 `make -C src lane-check PLATFORM=android` is not decoration — three of its
 requirements have failed quietly before:
@@ -351,7 +410,7 @@ lane-check: android artifact carries no SDL symbol
 
 ---
 
-## 10. Build and run
+## 11. Build and run
 
 See **`android/README.md`** for the commands. In short:
 

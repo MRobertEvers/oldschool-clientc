@@ -1108,6 +1108,13 @@ PlatformSDL2_SetTextInput(struct PlatformSDL2* p, int on)
 }
 
 void
+PlatformSDL2_SetTouchViewport(struct PlatformSDL2* p, int x, int y, int w, int h)
+{
+    assert(p);
+    ToriRS_TouchSetViewport(&p->touch, x, y, w, h);
+}
+
+void
 PlatformSDL2_SetCanvasFollowsWindow(
     struct PlatformSDL2* p, struct ToriRS_CmdBus* bus, bool follow, int min_w, int min_h)
 {

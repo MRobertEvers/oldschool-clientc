@@ -69,6 +69,14 @@
             </intent-filter>
         </activity>
 
+        <!-- The gear button's screen: edit where a profile's server is. -->
+        <activity
+            android:name=".ProfileEditorActivity"
+            android:exported="false"
+            android:screenOrientation="fullSensor"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize" />
+
         <!--
           The client itself.
 

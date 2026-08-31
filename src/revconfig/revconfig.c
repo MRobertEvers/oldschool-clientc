@@ -1,5 +1,7 @@
 #include "revconfig.h"
 
+#include "ui/torirs_chrome_inkwell.h"
+
 #include <assert.h>
 #include <ctype.h>
 #include <stdbool.h>
@@ -797,6 +799,12 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_TILED";
     case RCFIELD_UICOMPONENT_FONT:
         return "RCFIELD_UICOMPONENT_FONT";
+    case RCFIELD_UICOMPONENT_INK_STYLE:
+        return "RCFIELD_UICOMPONENT_INK_STYLE";
+    case RCFIELD_UICOMPONENT_INK_WALK_COLOR:
+        return "RCFIELD_UICOMPONENT_INK_WALK_COLOR";
+    case RCFIELD_UICOMPONENT_INK_INTERACT_COLOR:
+        return "RCFIELD_UICOMPONENT_INK_INTERACT_COLOR";
     case RCFIELD_UICOMPONENT_CENTER:
         return "RCFIELD_UICOMPONENT_CENTER";
     case RCFIELD_UICOMPONENT_VALIGN:
@@ -1181,6 +1189,12 @@ revconfig_item_begin(
     {
         item->kind = RCITEM_UICOMPONENT;
         item->u.uicomponent.componentno = -1;
+        /* Unstated is not zero: 0 is a real style (splash) and a real colour
+         * (yellow), so an unset key must be distinguishable from one set to
+         * the first value. */
+        item->u.uicomponent.ink_style = -1;
+        item->u.uicomponent.ink_walk_color = -1;
+        item->u.uicomponent.ink_interact_color = -1;
     }
     else if( strcmp(type_value, "layout") == 0 )
         item->kind = RCITEM_UILAYOUT;
@@ -1359,6 +1373,19 @@ revconfig_item_apply_font_field(
  * id like any other, and the named forms this has to leave alone -- `b12`,
  * `chrome:bold` -- are exactly the ones that do not parse.
  */
+/** `yellow` / `red` -> enum ToriRSInkwellColour, or -1 when unrecognised. */
+static int
+revconfig_ink_color_from_name(char const* value)
+{
+    if( !value || !value[0] )
+        return -1;
+    if( strcmp(value, "yellow") == 0 )
+        return TORIRS_INKWELL_YELLOW;
+    if( strcmp(value, "red") == 0 )
+        return TORIRS_INKWELL_RED;
+    return -1;
+}
+
 static int
 revconfig_font_field_is_numeric(const char* value)
 {
@@ -1564,6 +1591,15 @@ revconfig_item_apply_uicomponent_field(
         break;
     case RCFIELD_UICOMPONENT_TILED:
         comp->tiled = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
+        break;
+    case RCFIELD_UICOMPONENT_INK_STYLE:
+        comp->ink_style = ToriRSInkwell_StyleFromName(value);
+        break;
+    case RCFIELD_UICOMPONENT_INK_WALK_COLOR:
+        comp->ink_walk_color = revconfig_ink_color_from_name(value);
+        break;
+    case RCFIELD_UICOMPONENT_INK_INTERACT_COLOR:
+        comp->ink_interact_color = revconfig_ink_color_from_name(value);
         break;
     case RCFIELD_UICOMPONENT_FONT:
         if( revconfig_font_field_is_numeric(value) )

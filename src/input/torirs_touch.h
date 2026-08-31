@@ -87,6 +87,17 @@ struct ToriRS_Touch
 {
     struct ToriRS_TouchFinger finger[TORIRS_TOUCH_MAX];
     int count;
+    /*
+     * The world viewport, in CANVAS pixels, or w/h <= 0 when the caller has not
+     * said. A one-finger drag that STARTED inside it turns the camera instead
+     * of moving the pointer -- @see ToriRS_TouchSetViewport.
+     */
+    int view_x;
+    int view_y;
+    int view_w;
+    int view_h;
+    /** A one-finger camera drag is in progress; the middle button is held. */
+    int cam_drag;
     /** Pinch/pan baselines, taken when the second finger lands. */
     int pinch_distance;
     int pan_x;
@@ -100,6 +111,25 @@ struct ToriRS_Touch
 
 void
 ToriRS_TouchReset(struct ToriRS_Touch* touch);
+
+/**
+ * Where the 3D world is on the canvas, so a drag that begins there can turn the
+ * camera rather than drag the pointer across the interface.
+ *
+ * Set every frame by whatever knows the viewport's box; w/h <= 0 disables the
+ * gesture, which is what a client with no world on screen wants.
+ *
+ * WHY THE CAMERA DRAG IS A MIDDLE-BUTTON DRAG
+ *
+ * The desktop already turns the camera by dragging with the middle button
+ * (app_world_camera_mouse), including all the parts that are easy to get wrong:
+ * the revision's `[camera] controls=` gate, the follow-cam split, and the
+ * screen-space sign convention that keeps free and orbit cameras agreeing. A
+ * finger drag therefore SYNTHESISES that gesture rather than reimplementing it,
+ * so both inputs are the same code path and cannot drift.
+ */
+void
+ToriRS_TouchSetViewport(struct ToriRS_Touch* touch, int x, int y, int w, int h);
 
 /**
  * One finger event, in CANVAS pixels.

@@ -341,6 +341,25 @@ PlatformSDL2_SetTitle(
 void
 PlatformSDL2_SetTextInput(struct PlatformSDL2* platform, int on);
 
+/**
+ * Where the 3D world sits on the canvas, for the touch gesture policy.
+ *
+ * A one-finger drag that begins inside this box turns the camera instead of
+ * dragging the pointer across the interface; outside it, a drag is still a
+ * drag. The platform owns the finger state (@see input/torirs_touch.h) and the
+ * client owns the layout, so this is the one fact that has to cross.
+ *
+ * Called every frame. `w`/`h` <= 0 means "no world on screen", which disables
+ * the gesture rather than guessing -- the login screen and the world map both
+ * want that.
+ *
+ * A no-op on a backend with no touch state; every backend implements it so
+ * nothing above platform/ has to ask which host it is on.
+ */
+void
+PlatformSDL2_SetTouchViewport(
+    struct PlatformSDL2* platform, int x, int y, int w, int h);
+
 void
 PlatformSDL2_SetCanvasFollowsWindow(
     struct PlatformSDL2* platform,

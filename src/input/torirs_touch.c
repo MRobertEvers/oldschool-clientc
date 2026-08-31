@@ -2,6 +2,7 @@
 
 #include "cmd/cmdbus.h"
 #include "input/torirs_input.h"
+#include "log/torirs_log.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -107,6 +108,41 @@ touch_hold_pan(struct ToriRS_Touch* touch, struct ToriRS_CmdBus* bus, uint8_t ke
         return;
     touch->pan_key = key;
     CmdBus_PushKey(bus, TORIRS_CMD_INPUT_KEY_DOWN, key);
+}
+
+void
+ToriRS_TouchSetViewport(struct ToriRS_Touch* touch, int x, int y, int w, int h)
+{
+    assert(touch);
+    touch->view_x = x;
+    touch->view_y = y;
+    touch->view_w = w;
+    touch->view_h = h;
+}
+
+/** Did this finger come down on the 3D world? Tested against the finger's
+ *  START, not its current position: a camera drag that wanders onto the
+ *  interface is still the same drag. */
+static int
+touch_started_in_view(struct ToriRS_Touch const* touch, struct ToriRS_TouchFinger const* finger)
+{
+    if( touch->view_w <= 0 || touch->view_h <= 0 )
+        return 0;
+    return finger->start_x >= touch->view_x &&
+           finger->start_x < touch->view_x + touch->view_w &&
+           finger->start_y >= touch->view_y &&
+           finger->start_y < touch->view_y + touch->view_h;
+}
+
+/** Let go of a camera drag, if one is running. */
+static void
+touch_release_cam(struct ToriRS_Touch* touch, struct ToriRS_CmdBus* bus, int x, int y)
+{
+    if( !touch->cam_drag )
+        return;
+    CmdBus_PushMouseButton(
+        bus, TORIRS_CMD_INPUT_MOUSE_UP, TORIRSM_MIDDLE, (int16_t)x, (int16_t)y);
+    touch->cam_drag = 0;
 }
 
 void
@@ -251,11 +287,51 @@ ToriRS_TouchEvent(
     {
         if( touch->count >= 2 )
         {
+            /* A second finger turns this into a pinch/pan, so the one-finger
+             * camera drag ends here rather than staying held through it. */
+            touch_release_cam(touch, bus, canvas_x, canvas_y);
             touch_two_finger(touch, bus);
             return;
         }
         if( !finger->dragging && touch_far(finger) )
             finger->dragging = 1;
+
+        /*
+         * A drag that began on the 3D world turns the camera.
+         *
+         * Synthesised as a MIDDLE-button drag so it lands in
+         * app_world_camera_mouse -- the same path the desktop uses, with the
+         * revision's `[camera] controls=` gate, the follow-cam split and the
+         * screen-space sign convention already applied. Reimplementing the
+         * rotation here would be a second copy of all three.
+         *
+         * The button goes down only once the finger has passed the slop, so a
+         * tap on the world is still a tap: the walk-here click is the common
+         * gesture and must not be swallowed by a camera drag that never moved.
+         */
+        if( finger->dragging && touch_started_in_view(touch, finger) )
+        {
+            if( !touch->cam_drag )
+            {
+                touch->cam_drag = 1;
+                TORIRS_REPORT("touch: camera drag from %d,%d (view %d,%d %dx%d)\n",
+                    finger->start_x, finger->start_y,
+                    touch->view_x, touch->view_y, touch->view_w, touch->view_h);
+                /* From where the finger STARTED, so the first delta is the
+                 * distance actually travelled rather than a jump. */
+                CmdBus_PushMouseMove(
+                    bus, (int16_t)finger->start_x, (int16_t)finger->start_y);
+                CmdBus_PushMouseButton(
+                    bus,
+                    TORIRS_CMD_INPUT_MOUSE_DOWN,
+                    TORIRSM_MIDDLE,
+                    (int16_t)finger->start_x,
+                    (int16_t)finger->start_y);
+            }
+            CmdBus_PushMouseMove(bus, (int16_t)canvas_x, (int16_t)canvas_y);
+            return;
+        }
+
         /* The pointer follows the finger whether or not this became a drag:
          * what a drag withholds is the CLICK, not the position. */
         CmdBus_PushMouseMove(bus, (int16_t)canvas_x, (int16_t)canvas_y);
@@ -263,6 +339,7 @@ ToriRS_TouchEvent(
     }
 
     /* ENDED */
+    touch_release_cam(touch, bus, canvas_x, canvas_y);
     if( !touch->multi && !finger->dragging && !finger->held )
         touch_click(bus, TORIRSM_LEFT, canvas_x, canvas_y);
 

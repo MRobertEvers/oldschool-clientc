@@ -1484,6 +1484,18 @@ frame_loop_step(void)
             CmdBus_PushFrame(&bus, now);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PLATFORM_POLL)
             {
+                /*
+                 * Before the poll, so the fingers this drain interprets are
+                 * measured against the viewport the LAST frame actually drew.
+                 * Publishing it after would test a touch against a box that
+                 * does not exist on screen yet.
+                 */
+                PlatformSDL2_SetTouchViewport(
+                    sdl,
+                    app.world_emit_desc.x,
+                    app.world_emit_desc.y,
+                    app.world_emit_desc.w,
+                    app.world_emit_desc.h);
                 PlatformSDL2_PollCommands(sdl, &bus);
                 if( sock )
                     NetTransport_Poll(sock, app.net, &bus);
@@ -4916,6 +4928,30 @@ main(
                     chosen = 1;
                 }
             }
+#if defined(TORIRS_PLATFORM_ANDROID)
+            /*
+             * Android is ALWAYS the in-canvas buffer executor.
+             *
+             * Every other executor presents the plugin chrome in a second
+             * OS-level surface -- an SDL window, a Win32 tool window, DOM
+             * controls in a page. Android has no second window to give: an app
+             * is one Activity with one Surface, and the client already owns it.
+             * There is no `sdl` or `gdi` executor compiled into this lane
+             * anyway, so a manifest asking for one would have fallen back to
+             * buffer regardless; clamping here means it does so as a stated
+             * property of the platform rather than as the accident of an
+             * absent object file, and the log line says which manifest to fix.
+             *
+             * Deliberately after the env override, so TORIRS_CHROME_EXECUTOR
+             * cannot talk this lane into a window it does not have either.
+             */
+            if( wanted > TORIRS_CHROME_EXEC_BUFFER )
+                TORIRS_LOG("chrome: '%s' was requested, but Android has one surface — "
+                    "using the in-canvas buffer executor\n",
+                    ToriRSChromeExec_KindName(wanted));
+            wanted = TORIRS_CHROME_EXEC_BUFFER;
+            chosen = 1;
+#endif
             chrome_exec = ToriRSChromeExec_ForKind(
                 wanted < 0 ? TORIRS_CHROME_EXEC_BUFFER : wanted,
                 sdl,

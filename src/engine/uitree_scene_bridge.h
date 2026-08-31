@@ -125,6 +125,18 @@ struct UITreeSceneBridge
  * ids are cache font ids everywhere else (see EnsureFont), so these sit out of
  * that range alongside the reserved model/sprite ids above. */
 #define UITREE_SCENE_DEBUG_FONT_SMALL_ID 0x40000006
+
+/*
+ * The touch marker's artwork -- every style and colour in ONE scene entry, so a
+ * variant is an atlas index and switching one costs no upload. Same shape as
+ * UITREE_SCENE_CHROME_SKIN_ID above, and for the same reason: the render
+ * command already carries an atlas index, so nothing downstream needs a new
+ * field to reach these.
+ *
+ * @see ui/torirs_chrome_inkwell.h for why the pixels are drawn rather than
+ * baked out of a cache.
+ */
+#define UITREE_SCENE_INKWELL_ID 0x40000007
 #define UITREE_SCENE_DEBUG_FONT_MENU_ID 0x40000007
 #define UITREE_SCENE_DEBUG_FONT_BODY_ID 0x40000008
 
@@ -212,6 +224,18 @@ UITreeSceneBridge_EnsureStaticSprite(
     int cache_graphic_id);
 
 /** Scene id bound to a static sprite slot, or -1. */
+/**
+ * Upload the touch-marker frames if they are not already resident.
+ *
+ * @return UITREE_SCENE_INKWELL_ID, or -1 when the scene refused them.
+ *
+ * The atlas index for one frame is ToriRSInkwell_AtlasIndex(style, colour,
+ * frame) -- every combination is present, so the profile can pick a style
+ * without the bridge knowing which one it picked.
+ */
+int
+UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge);
+
 int
 UITreeSceneBridge_StaticSpriteSceneId(
     struct UITreeSceneBridge const* bridge,

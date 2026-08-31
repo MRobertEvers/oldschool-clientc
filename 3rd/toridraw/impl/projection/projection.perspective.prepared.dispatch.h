@@ -20,11 +20,21 @@
  *   toridraw_projection_prepared_noclip
  *
  *   projection_prepared.u.c        selects one lane
- *   projection_prepared.neon.u.c   AArch64: the assembly in
+ *   projection_prepared.neon64.u.c AArch64: the assembly in
  *                                  projection16.aarch64.S. NOCLIP ONLY --
  *                                  there is no clip entry point in the .S, so
  *                                  `clip` declines on this lane and those
  *                                  models take the portable ladder.
+ *   projection_prepared.neon32.u.c armv7 (and any NEON build without the
+ *                                  AArch64 assembly): intrinsics, BOTH
+ *                                  families. It does not fuse the two yaw
+ *                                  rotations the way the SSE2 lane does --
+ *                                  that fusion buys a Pentium-4 its 32x32
+ *                                  multiply back and costs exactness, and ARM
+ *                                  needs neither trade -- so it hoists only
+ *                                  the prepared block's trig and cot16 and
+ *                                  stays bit-exact against the portable
+ *                                  ladder.
  *   projection_prepared.sse2.u.c   the SSE2 fused-yaw kernels, both families
  *   projection_prepared.none.u.c   everywhere else -- wasm, scalar, and the
  *                                  SSE4.1/AVX2 builds, which reach neither

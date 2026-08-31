@@ -140,6 +140,20 @@ enum UITreeComponentType
      *  click flips that answer -- the same TITLE_ACTION path a login_button
      *  takes. The LABEL beside it is a child rs_text, as with a button. */
     UIELEM_BUILTIN_LOGIN_TOGGLE = 37,
+    /**
+     * Touch marker -- the "inkwell". Shown for EVERY touch, which is the whole
+     * difference from UIELEM_BUILTIN_CROSS: the cross marks a click that
+     * resulted in something, and on a touchscreen a tap that draws nothing is
+     * indistinguishable from a tap the device never received.
+     *
+     * A builtin for the same reason CROSS is: no interface owns it, the
+     * reference plots it straight onto the canvas. Its artwork and its colour
+     * rules are revconfig's (`style=`, `walk_color=`, `interact_color=`), and a
+     * profile overrides them with a `[component:<name>@mobile]` section.
+     *
+     * @see ui/torirs_chrome_inkwell.h, ui/uitree_ink.h.
+     */
+    UIELEM_BUILTIN_INKWELL = 38,
     UIELEM_RS_TEXT = 14,     /* TYPE_TEXT */
     UIELEM_RS_GRAPHIC = 15,  /* TYPE_GRAPHIC */
     UIELEM_RS_MODEL = 16,    /* TYPE_MODEL */
@@ -774,6 +788,19 @@ struct UITreeComponent
             int mask_scene_id;
             int mask_atlas_index;
         } sprite;
+        /*
+         * UIELEM_BUILTIN_INKWELL. No scene id here: the artwork is generated
+         * and uploaded once into a single scene entry holding every style and
+         * colour, so what a component carries is a CHOICE and not a binding.
+         * -1 for any of these means "the profile said nothing", and the host
+         * substitutes its default. @see ui/torirs_chrome_inkwell.h.
+         */
+        struct
+        {
+            int style;
+            int walk_color;
+            int interact_color;
+        } inkwell;
         struct
         {
             int scene_id;
@@ -1409,6 +1436,14 @@ struct UITreeNodeSpec
             int mask_scene_id;
             int mask_atlas_index;
         } sprite;
+        /* UIELEM_BUILTIN_INKWELL: a CHOICE of artwork, not a binding to one.
+         * @see the matching member on UITreeComponent. */
+        struct
+        {
+            int style;
+            int walk_color;
+            int interact_color;
+        } inkwell;
         struct
         {
             int scene_id;

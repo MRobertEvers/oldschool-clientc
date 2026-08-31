@@ -11,6 +11,64 @@
 
 /* Current [type:name] header `type` for keyval dispatch (component, layout, inv, sprite, …). */
 static char s_ini_item_type[64];
+
+/* ---- platform-suffixed sections -------------------------------------------
+ *
+ * A section name may carry an `@tag` suffix, and the section is loaded only
+ * when the tag describes the machine this build is running on:
+ *
+ *   [component:cross]           every platform
+ *   [component:cross@mobile]    touch devices only, and it OVERRIDES the above
+ *
+ * The suffix is stripped before the name reaches the buffer, so the two
+ * declarations are the SAME element -- the later one wins, which is what makes
+ * this an override rather than a second component with a decorated name. Order
+ * therefore matters exactly as it already does for two files declaring the same
+ * element: the base goes first, the platform variant after it.
+ *
+ * A section whose tag does not match is skipped WHOLE, keys included. That is
+ * the only behaviour that composes: a half-applied override would leave an
+ * element with some of the mobile fields and some of the desktop ones.
+ *
+ * Why a section suffix and not a key suffix: what varies between a phone and a
+ * desktop is rarely one value. It is a component's whole presentation -- its
+ * type, its sprites, its size -- and grouping those under one header keeps the
+ * variant readable as a unit and keeps every key lookup in this file ignorant
+ * of the mechanism.
+ */
+#define REVCONFIG_PLATFORM_TAG_MAX 32
+
+/**
+ * Does `tag` describe this build?
+ *
+ * `mobile` is the touch lane -- Android today, and whatever joins it. It is
+ * keyed off the PLATFORM rather than off "is there a touchscreen", because a
+ * profile is chosen at boot and cannot be re-baked when someone plugs a mouse
+ * into a tablet.
+ *
+ * TORIRS_REVCONFIG_PLATFORM overrides the built-in tag, which is what lets the
+ * mobile layout be looked at on a desktop without a device attached. A
+ * developer-facing override, in the same spirit as TORIRS_CHROME_EXECUTOR.
+ */
+static int
+revconfig_platform_tag_matches(char const* tag)
+{
+    char const* self;
+
+    if( !tag || !tag[0] )
+        return 1;
+
+    self = getenv("TORIRS_REVCONFIG_PLATFORM");
+    if( !self || !self[0] )
+    {
+#if defined(TORIRS_PLATFORM_ANDROID)
+        self = "mobile";
+#else
+        self = "desktop";
+#endif
+    }
+    return strcmp(tag, self) == 0;
+}
 static char s_ini_layout_group[32];
 /* Section-header prefix this load accepts ("" = the unprefixed dialect), and
  * whether the section currently open failed that test — see
@@ -71,6 +129,24 @@ push_element_from_ini_header(
         strncpy(item_type, section_header, sizeof(item_type) - 1);
         item_type[sizeof(item_type) - 1] = '\0';
         item_name[0] = '\0';
+    }
+
+    /*
+     * `name@tag` -- the tag decides whether this section is for this build, and
+     * is then removed so the element is stored under its BASE name and
+     * overrides the unsuffixed declaration. @see revconfig_platform_tag_matches.
+     */
+    {
+        char* at = strchr(item_name, '@');
+        if( at )
+        {
+            *at = '\0';
+            if( !revconfig_platform_tag_matches(at + 1) )
+            {
+                s_ini_section_skipped = 1;
+                return;
+            }
+        }
     }
 
     strncpy(s_ini_item_type, item_type, sizeof(s_ini_item_type) - 1);
@@ -271,6 +347,13 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_TILED;
     else if( strcmp(key, "font") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_FONT;
+    /* type=inkwell. @see ui/torirs_chrome_inkwell.h. */
+    else if( strcmp(key, "style") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_INK_STYLE;
+    else if( strcmp(key, "walk_color") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_INK_WALK_COLOR;
+    else if( strcmp(key, "interact_color") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_INK_INTERACT_COLOR;
     else if( strcmp(key, "center") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_CENTER;
     else if( strcmp(key, "valign") == 0 && strcmp(s_ini_item_type, "component") == 0 )

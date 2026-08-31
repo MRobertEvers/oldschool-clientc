@@ -177,6 +177,11 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_MMB_ROTATE,
     RCFIELD_UICOMPONENT_WHEEL_ZOOM,
     RCFIELD_UICOMPONENT_FONT,
+    /* type=inkwell: which artwork, and which colour each outcome uses.
+     * @see ui/torirs_chrome_inkwell.h. */
+    RCFIELD_UICOMPONENT_INK_STYLE,
+    RCFIELD_UICOMPONENT_INK_WALK_COLOR,
+    RCFIELD_UICOMPONENT_INK_INTERACT_COLOR,
     RCFIELD_UICOMPONENT_CENTER,
     RCFIELD_UICOMPONENT_VALIGN,
     RCFIELD_UICOMPONENT_OVER_COLOR,
@@ -854,6 +859,24 @@ struct RevConfigUIComponentItem
     /* INI: font= — RS font id 0–3 for type=rs_text, or symbolic [font:…] name
      * for hovertext/minimenu. */
     int font;
+
+    /* ---- type=inkwell -------------------------------------------------
+     *
+     * INI: style= (splash|blot|ripple), walk_color= / interact_color=
+     * (yellow|red).
+     *
+     * The colours are configurable rather than fixed because "yellow walks,
+     * red interacts" is a REVISION's convention, not a law -- and a world that
+     * wants one colour for every touch, or the two swapped, should be able to
+     * say so where it already says everything else about its interface. A
+     * profile overrides them with a `[component:<name>@mobile]` section.
+     *
+     * -1 means unstated, so a profile that names only `style=` keeps the
+     * revision's colours.
+     */
+    int ink_style;
+    int ink_walk_color;
+    int ink_interact_color;
     /** When font= is non-numeric, resolved via ui_font_lookup. */
     char font_ref[64];
     uint8_t has_font_ref;

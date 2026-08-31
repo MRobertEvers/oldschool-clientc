@@ -102,6 +102,13 @@ struct UIBuilderTreeOp
     char inv_name[64];
     char font_ref[64];
     int font;
+
+    /* type=inkwell: which artwork, and which colour each outcome uses.
+     * -1 = the profile said nothing, and the host keeps its default.
+     * @see ui/torirs_chrome_inkwell.h. */
+    int ink_style;
+    int ink_walk_color;
+    int ink_interact_color;
     uint8_t has_font_ref;
     int tabno;
     int selected;
