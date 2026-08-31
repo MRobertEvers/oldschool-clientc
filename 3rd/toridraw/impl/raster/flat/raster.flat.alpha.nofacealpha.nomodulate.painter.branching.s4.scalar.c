@@ -164,7 +164,7 @@ raster_flat_screen_alpha_branching_s4_ordered(
     if( sarea == 0 )
         return;
 
-    int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
+    int rgb_color = g_hsl16_to_pixel_table[color_hsl16];
 
     int step_edge_x_AC_ish16;
     int step_edge_x_AB_ish16;

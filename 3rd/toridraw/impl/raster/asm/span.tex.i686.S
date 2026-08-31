@@ -1,5 +1,5 @@
 /*
- * toridraw_texspan_opaque_lerp8_v3_asm -- hand-written i686 (cdecl, SSE2).
+ * toridraw_texspan_opaque_lerp8_v3_xrgb8888_asm -- hand-written i686 (cdecl, SSE2).
  *
  * One span, called once per scanline. The kernel itself is tex_span_body.inc;
  * this file is the cdecl wrapper around it -- unpack fifteen arguments into the
@@ -15,10 +15,10 @@
 
 #include "graphics/raster/texture/span/tex_span_body.inc"
 
-	.globl  _toridraw_texspan_opaque_lerp8_v3_asm
-	.def    _toridraw_texspan_opaque_lerp8_v3_asm; .scl 2; .type 32; .endef
+	.globl  _toridraw_texspan_opaque_lerp8_v3_xrgb8888_asm
+	.def    _toridraw_texspan_opaque_lerp8_v3_xrgb8888_asm; .scl 2; .type 32; .endef
 
-_toridraw_texspan_opaque_lerp8_v3_asm:
+_toridraw_texspan_opaque_lerp8_v3_xrgb8888_asm:
 	pushl   %ebx
 	pushl   %esi
 	pushl   %edi

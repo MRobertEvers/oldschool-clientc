@@ -465,10 +465,10 @@ SYM(\name):
 	ret
 .endm
 
-	TEXENTRY toridraw_textri_opaque_lerp8_v3_presorted_run_asm, 0
-	TEXENTRY toridraw_textri_trans_lerp8_v3_presorted_run_asm, 0
-	TEXENTRY toridraw_textri_flat_opaque_lerp8_v3_presorted_run_asm, 1
-	TEXENTRY toridraw_textri_flat_trans_lerp8_v3_presorted_run_asm, 1
+	TEXENTRY toridraw_textri_opaque_lerp8_v3_presorted_run_xrgb8888_asm, 0
+	TEXENTRY toridraw_textri_trans_lerp8_v3_presorted_run_xrgb8888_asm, 0
+	TEXENTRY toridraw_textri_flat_opaque_lerp8_v3_presorted_run_xrgb8888_asm, 1
+	TEXENTRY toridraw_textri_flat_trans_lerp8_v3_presorted_run_xrgb8888_asm, 1
 
 	.p2align 4
 Ltex_lanes:

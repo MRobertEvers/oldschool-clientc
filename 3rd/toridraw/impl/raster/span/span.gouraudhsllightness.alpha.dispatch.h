@@ -23,7 +23,7 @@
  *
  * THE HOOK CONTRACT. Each lane defines exactly this, under this name:
  *
- *   void raster_linear_alpha_s4(uint32_t* RESTRICT pixel_buffer,
+ *   void raster_linear_alpha_s4(toripixel_t* RESTRICT pixel_buffer,
  *                               int offset, int rgb_color, int alpha)
  *       Blends pixel_buffer[offset .. offset + 3] toward rgb_color at `alpha`
  *       (0 = keep the buffer, 0xFF = take the colour), in place. All four

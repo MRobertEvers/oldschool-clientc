@@ -113,7 +113,7 @@
 #define V_Y2      40
 #define V_COL4    48	/* the fill colour, four times, for the wide store  */
 #define V_ROWBUF  64	/* one staged row, for the single-triangle entries  */
-#define V_RGB    112	/* g_hsl16_to_rgb_table[color], once per triangle   */
+#define V_RGB    112	/* g_hsl16_to_pixel_table[color], once per triangle   */
 #define V_SXAC   128	/* step_edge_x_AC_ish16                             */
 #define V_SXAB   132	/* step_edge_x_AB_ish16                             */
 #define V_SXBC   136	/* step_edge_x_BC_ish16                             */
@@ -799,7 +799,7 @@
 .macro	FSETUP_OPAQUE
 	movl	V_ROW(%esp), %ecx
 	movl	R_C(%ecx), %edx
-	movl	_g_hsl16_to_rgb_table(,%edx,4), %edx
+	movl	_g_hsl16_to_pixel_table(,%edx,4), %edx
 	movl	%edx, V_RGB(%esp)
 	movd	%edx, %xmm0
 	pshufd	$0x00, %xmm0, %xmm0
@@ -822,7 +822,7 @@
 .macro	FSETUP_ALPHA
 	movl	V_ROW(%esp), %ecx
 	movl	R_C(%ecx), %edx
-	movl	_g_hsl16_to_rgb_table(,%edx,4), %edx	/* o */
+	movl	_g_hsl16_to_pixel_table(,%edx,4), %edx	/* o */
 	movl	%edx, V_RGB(%esp)
 	movl	R_A(%ecx), %ecx				/* a */
 
@@ -859,7 +859,7 @@
 /* ---- entries ---------------------------------------------------------- */
 
 /*
- * void toridraw_flat_opaque_s4_presorted_run_asm(
+ * void toridraw_flat_opaque_s4_presorted_run_xrgb8888_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, const int* rows, int count);
  *
@@ -869,8 +869,8 @@
  * and no register save/restore per triangle. Draw order is preserved by the
  * caller, which flushes the batch the moment a face it cannot take appears.
  */
-	.globl	_toridraw_flat_opaque_s4_presorted_run_asm
-_toridraw_flat_opaque_s4_presorted_run_asm:
+	.globl	_toridraw_flat_opaque_s4_presorted_run_xrgb8888_asm
+_toridraw_flat_opaque_s4_presorted_run_xrgb8888_asm:
 	FENTER
 	movl	A(5), %eax
 	testl	%eax, %eax
@@ -881,7 +881,7 @@ _toridraw_flat_opaque_s4_presorted_run_asm:
 	jmp	Lo_face
 
 /*
- * void toridraw_flat_opaque_s4_sorting_asm(
+ * void toridraw_flat_opaque_s4_sorting_xrgb8888_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, int x0, int x1, int x2, int y0, int y1, int y2,
  *     int color_hsl16);
@@ -889,23 +889,23 @@ _toridraw_flat_opaque_s4_presorted_run_asm:
  * The one-triangle door. It stages its arguments into a single row and walks
  * the same body, so the two cannot diverge.
  */
-	.globl	_toridraw_flat_opaque_s4_sorting_asm
-_toridraw_flat_opaque_s4_sorting_asm:
+	.globl	_toridraw_flat_opaque_s4_sorting_xrgb8888_asm
+_toridraw_flat_opaque_s4_sorting_xrgb8888_asm:
 	FENTER
 	FSTAGE1
 
 	FLATBODY Lo_, FSETUP_OPAQUE, FILLOPAQUE
 
 /*
- * void toridraw_flat_alpha_s4_presorted_run_asm(
+ * void toridraw_flat_alpha_s4_presorted_run_xrgb8888_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, const int* rows, int count);
  *
  * As above, blending instead of storing. The per-row alpha is in the staged
  * row, so a run may mix opacities.
  */
-	.globl	_toridraw_flat_alpha_s4_presorted_run_asm
-_toridraw_flat_alpha_s4_presorted_run_asm:
+	.globl	_toridraw_flat_alpha_s4_presorted_run_xrgb8888_asm
+_toridraw_flat_alpha_s4_presorted_run_xrgb8888_asm:
 	FENTER
 	movl	A(5), %eax
 	testl	%eax, %eax
@@ -916,13 +916,13 @@ _toridraw_flat_alpha_s4_presorted_run_asm:
 	jmp	La_face
 
 /*
- * void toridraw_flat_alpha_s4_sorting_asm(
+ * void toridraw_flat_alpha_s4_sorting_xrgb8888_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, int x0, int x1, int x2, int y0, int y1, int y2,
  *     int color_hsl16, int alpha);
  */
-	.globl	_toridraw_flat_alpha_s4_sorting_asm
-_toridraw_flat_alpha_s4_sorting_asm:
+	.globl	_toridraw_flat_alpha_s4_sorting_xrgb8888_asm
+_toridraw_flat_alpha_s4_sorting_xrgb8888_asm:
 	FENTER
 	FSTAGE1
 	movl	A(11), %eax

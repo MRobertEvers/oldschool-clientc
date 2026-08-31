@@ -29,7 +29,7 @@ extern "C" {
 // Entries are native framebuffer words, packed once at build time, so every
 // solid kernel is a palette lookup and a store on every format. On a 16-bit
 // target that also halves the hottest table in the engine, 256KB to 128KB.
-extern TORIDRAW_TABLE_QUAL toripixel_t g_hsl16_to_rgb_table[65536];
+extern TORIDRAW_TABLE_QUAL toripixel_t g_hsl16_to_pixel_table[65536];
 
 /*
  * Gouraud rasterizers carry packed HSL16 in 8.8 fixed point while walking a
@@ -41,12 +41,12 @@ extern TORIDRAW_TABLE_QUAL toripixel_t g_hsl16_to_rgb_table[65536];
  * already have a valid index and retain the branch-free direct lookup.
  */
 static inline toripixel_t
-ToriDraw_Hsl16Ish8ToRgb(int hsl16_ish8)
+ToriDraw_Hsl16Ish8ToPixel(int hsl16_ish8)
 {
     int hsl16 = hsl16_ish8 >> 8;
     if( (unsigned)hsl16 > 0xFFFFu )
         hsl16 = hsl16 < 0 ? 0 : 0xFFFF;
-    return g_hsl16_to_rgb_table[hsl16];
+    return g_hsl16_to_pixel_table[hsl16];
 }
 
 extern const int* g_sin_table;
@@ -268,7 +268,7 @@ extern uint32_t g_reciprocal_norm30[G_RECIPROCAL_NORM_LEN];
 #endif
 
 void
-init_hsl16_to_rgb_table(void);
+init_hsl16_to_pixel_table(void);
 void
 init_reciprocal16(void);
 

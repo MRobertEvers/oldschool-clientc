@@ -12,7 +12,7 @@ ToriDraw_InitHsl16(void);
 static inline int
 ToriDraw_Hsl16ToRgb(uint16_t hsl16)
 {
-    return g_hsl16_to_rgb_table[hsl16];
+    return g_hsl16_to_pixel_table[hsl16];
 }
 
 #endif

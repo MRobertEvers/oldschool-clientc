@@ -2890,6 +2890,50 @@ test-scanline: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm
 	./$(OBJ_DIR)/scanline_parity_test
 
+# The same parity, on every pixel format the library claims to support.
+#
+# This is the proof that the solid families are format-agnostic: they reach the
+# framebuffer through the palette and alpha_blend and nothing else, so a
+# channel order or a channel width is not a term in what they compute. All five
+# 32bpp orders pass whole.
+#
+# The two 16bpp formats run SOLID-ONLY. Their texture arms are expected to fail
+# until the texture stage is converted -- the families still take int* pixel
+# buffers and int* texels -- and this target says so rather than hiding it, so
+# the day that phase lands the exclusion below is what gets deleted.
+#
+# -Werror=incompatible-pointer-types is the point of the compile: a kernel that
+# has not been converted cannot silently accept a native buffer.
+TORIDRAW_PIXEL_FORMATS_32 = XRGB8888:1 ARGB8888:2 RGBA8888:3 ABGR8888:4 BGRA8888:5
+TORIDRAW_PIXEL_FORMATS_16 = RGB565:6 ARGB1555:7
+
+.PHONY: test-scanline-formats
+test-scanline-formats: $(OBJ_DIR)
+	@fail=""; \
+	for spec in $(TORIDRAW_PIXEL_FORMATS_32) $(TORIDRAW_PIXEL_FORMATS_16); do \
+		name=$${spec%%:*}; val=$${spec##*:}; solid_only=""; \
+		case " $(TORIDRAW_PIXEL_FORMATS_16) " in *" $$spec "*) solid_only=1;; esac; \
+		$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
+			-Werror=incompatible-pointer-types -DTORIDRAW_PIXEL_FORMAT=$$val \
+			-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/scanline_parity_$$name \
+			$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm \
+			|| { echo "  $$name: COMPILE FAILED"; fail="$$fail $$name"; continue; }; \
+		out=$$(./$(OBJ_DIR)/scanline_parity_$$name 2>&1); \
+		solid=$$(printf '%s\n' "$$out" | grep -c 'FAIL \(flat\|gouraud\)' || true); \
+		tex=$$(printf '%s\n' "$$out" | grep -c 'FAIL tex' || true); \
+		if [ "$$solid" -ne 0 ]; then \
+			echo "  $$name: $$solid solid-family failure(s)"; fail="$$fail $$name"; \
+		elif [ -n "$$solid_only" ]; then \
+			echo "  $$name: solid families agree ($$tex texture arm(s) await the texture-stage conversion)"; \
+		elif [ "$$tex" -ne 0 ]; then \
+			echo "  $$name: $$tex texture-family failure(s)"; fail="$$fail $$name"; \
+		else \
+			echo "  $$name: all families agree"; \
+		fi; \
+	done; \
+	if [ -n "$$fail" ]; then echo "scanline format matrix FAILED:$$fail"; exit 1; fi; \
+	echo "scanline format matrix: all green"
+
 # Public model-face dispatch: four typed SD slots, six typed HD slots, complete
 # vtables, pass-requirement flags, and per-call selection. CPU-only, no cache/disk.
 ifneq ($(strip $(ASAN_DYLD_SHIM)),)
@@ -2909,27 +2953,18 @@ test-raster-kernel: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_f
 RASTER_KERNEL_PIXEL16_OBJS = $(OBJ_DIR)/toridraw_unity_pixel16.o \
 	$(OBJ_DIR)/toridraw_font_pixel16.o $(OBJ_DIR)/bmp_pixel16.o
 
-# Every hand-written span/triangle kernel stores 4-byte pixels out of a 4-byte
-# palette, and each of their headers says so with an #error under
-# TORIDRAW_PIXEL16 rather than assembling something that would scribble. The
-# 16-bit ABI therefore has to be compiled with the asm lanes WITHDRAWN, not
-# merely with PIXEL16 added on top of whatever this platform enabled -- on a
-# lane that builds any of them (macOS arm64 builds all three NEON doors, the
-# MinGW lanes the i686 ones) the object cannot compile otherwise, and the
-# 16-bit half of the raster-kernel contract goes unbuilt and unrun.
+# The asm lanes are NOT withdrawn here, and used to have to be.
 #
-# The projection asm is not in this list: it writes screen vertices, never
-# pixels, and the test links $(TORIDRAW_PROJECTION_ASM_OBJ) for exactly that
-# reason.
-TORIDRAW_PIXEL16_ASM_CFLAGS := \
-	-DTORIDRAW_FLAT_TRI_ASM=1 -DTORIDRAW_GOURAUD_TRI_ASM=1 \
-	-DTORIDRAW_TEXTRI_ASM=1 -DTORIDRAW_TEXSPAN_ASM=1 \
-	-DTORIDRAW_FLAT_TRI_NEON_ASM=1 -DTORIDRAW_GOURAUD_TRI_NEON_ASM=1 \
-	-DTORIDRAW_TEXTRI_NEON_ASM=1 -DTORIDRAW_FB_CLEAR_ASM=1
-
-TORIDRAW_PIXEL16_CFLAGS = \
-	$(filter-out $(TORIDRAW_PIXEL16_ASM_CFLAGS),$(TORIDRAW_CFLAGS)) \
-	-DTORIDRAW_PIXEL16=1
+# Every hand-written span/triangle kernel stores 4-byte pixels out of a 4-byte
+# palette, and each of their headers used to say so with an #error under
+# TORIDRAW_PIXEL16 -- so this recipe had to strip eight -D flags back out of
+# TORIDRAW_CFLAGS, and any lane that gained a door without updating that list
+# would simply stop compiling the 16-bit object.
+#
+# Each door now makes a positive claim instead: it is gated on
+# TORIPIXEL_IS_XRGB8888, so a build for any other format falls through to the
+# C twin on its own. The recipe just adds the format.
+TORIDRAW_PIXEL16_CFLAGS = $(TORIDRAW_CFLAGS) -DTORIDRAW_PIXEL16=1
 
 $(OBJ_DIR)/toridraw_unity_pixel16.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(TORIDRAW_PIXEL16_CFLAGS) -w -c $< -o $@

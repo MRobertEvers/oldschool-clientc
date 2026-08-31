@@ -706,7 +706,7 @@ main(void)
 
     /* Only gouraudhsllightness needs the palette, and only for the coverage
      * comparison; gouraudrgb never touches it. */
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
 
     test_coverage_matches_hsl(a, b);
     test_constant_colour(a);

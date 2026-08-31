@@ -240,7 +240,7 @@ main(void)
 
     /* The kernels index this to turn an hsl16 into a pixel; without it every
      * colour comes out zero and nothing looks painted. */
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
 
     printf("raster overshoot beyond the vertex hull, %d triangles per shape\n",
            PER_KIND * 2);

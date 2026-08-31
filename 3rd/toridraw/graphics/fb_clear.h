@@ -14,6 +14,8 @@
  * Both write the same bytes. toridraw_fb_clear_test compares them.
  */
 
+#include "pixel_format.h"
+
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -49,11 +51,12 @@ ToriDraw_FbClear32(uint32_t* dst, size_t count_px, uint32_t value)
         dst[i] = value;
 }
 
-#if defined(TORIDRAW_FB_CLEAR_ASM) && TORIDRAW_FB_CLEAR_ASM
-
-#if defined(TORIDRAW_PIXEL16)
-#error "fb_clear_i686.S writes 32-bit pixels; TORIDRAW_PIXEL16 has no twin here"
-#endif
+/*
+ * PIXEL FORMAT. fb_clear_i686.S writes 4-byte pixels, so it claims
+ * TORIPIXEL_IS_XRGB8888 rather than merely having been assembled; any other
+ * format takes the C twin above.
+ */
+#if defined(TORIDRAW_FB_CLEAR_ASM) && TORIDRAW_FB_CLEAR_ASM && TORIPIXEL_IS_XRGB8888
 
 /**
  * @brief Hand-written i686 SSE2 twin of ToriDraw_FbClear32.
@@ -61,9 +64,9 @@ ToriDraw_FbClear32(uint32_t* dst, size_t count_px, uint32_t value)
  * Ends in an sfence, so the buffer is safe to read -- by a blit, by the next
  * pass -- the instant this returns.
  */
-void toridraw_fb_clear32_nt_asm(uint32_t* dst, size_t count_px, uint32_t value);
+void toridraw_fb_clear32_nt_xrgb8888_asm(uint32_t* dst, size_t count_px, uint32_t value);
 
-#define TORIDRAW_FB_CLEAR32 toridraw_fb_clear32_nt_asm
+#define TORIDRAW_FB_CLEAR32 toridraw_fb_clear32_nt_xrgb8888_asm
 
 #else
 

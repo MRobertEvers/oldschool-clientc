@@ -244,7 +244,7 @@ zbuf_span(
                 break;
 
             case TORIDRAW_ZBUF_MODE_GOURAUD:
-                color = ToriDraw_Hsl16Ish8ToRgb(hsl_ish8);
+                color = ToriDraw_Hsl16Ish8ToPixel(hsl_ish8);
                 break;
 
             default:
@@ -407,7 +407,7 @@ raster_zbuf_screen_ordered(
     }
     else if( mode == TORIDRAW_ZBUF_MODE_FLAT )
     {
-        s.rgb = g_hsl16_to_rgb_table[tri->shade[0] & 0xFFFF];
+        s.rgb = g_hsl16_to_pixel_table[tri->shade[0] & 0xFFFF];
     }
     /* Spelled as the positive test rather than a bare `else`, so it is the same
      * condition that gates the read of texture_plane further down. `mode` is a

@@ -311,7 +311,7 @@ hd_face_tint(
     int lightness =
         g_hd_tuning.tint_lightness < 0 ? (hsl16 & 0x7F) : (g_hd_tuning.tint_lightness & 0x7F);
     int keyed = (hsl16 & 0xFF80) | lightness;
-    int rgb = g_hsl16_to_rgb_table[keyed & 0xFFFF];
+    int rgb = g_hsl16_to_pixel_table[keyed & 0xFFFF];
     int scale = g_hd_tuning.tint_scale > 0 ? g_hd_tuning.tint_scale : 100;
     /*
      * The material's own average is the rule; an explicitly tuned neutral

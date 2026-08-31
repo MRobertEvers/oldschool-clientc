@@ -694,7 +694,7 @@ main(void)
     static int a[BUF_LEN];
     static int b[BUF_LEN];
 
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
     ToriDraw_InitSinTable();
     ToriDraw_InitCosTable();
     ToriDraw_InitTanTable();

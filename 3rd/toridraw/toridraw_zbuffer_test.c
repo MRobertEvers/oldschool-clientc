@@ -167,7 +167,7 @@ mesh_add_vertex(struct Mesh* m, int x, int y, int z)
 
 /**
  * A flat-shaded triangle. Flat rather than gouraud so a drawn pixel has one
- * exact expected colour: g_hsl16_to_rgb_table[hsl], with no interpolation to
+ * exact expected colour: g_hsl16_to_pixel_table[hsl], with no interpolation to
  * reason about. The selector for flat shading is TORIDRAWHSL16_FLAT in
  * colors_c, which is how the model decoder spells it.
  */
@@ -447,7 +447,7 @@ frame_coverage_differences(const struct Frame* a, const struct Frame* b)
 static int
 rgb_of(int hsl)
 {
-    return (int)g_hsl16_to_rgb_table[hsl];
+    return (int)g_hsl16_to_pixel_table[hsl];
 }
 
 /**

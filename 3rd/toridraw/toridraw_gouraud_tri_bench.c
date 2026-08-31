@@ -36,7 +36,7 @@
 #include "graphics/shared_tables.c"
 #include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
 
-void toridraw_gouraud_opaque_s4_sorting_asm(
+void toridraw_gouraud_opaque_s4_sorting_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -152,7 +152,7 @@ run_asm(toripixel_t* fb, const struct tri* c, int n)
     int i;
 
     for( i = 0; i < n; i++ )
-        toridraw_gouraud_opaque_s4_sorting_asm(
+        toridraw_gouraud_opaque_s4_sorting_xrgb8888_asm(
             fb, W, W, H,
             c[i].x[0], c[i].x[1], c[i].x[2],
             c[i].y[0], c[i].y[1], c[i].y[2],
@@ -176,7 +176,7 @@ main(int argc, char** argv)
     assert(corpus);
     assert(fb);
 
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
     build_corpus(corpus, tris);
     memset(fb, 0, sizeof(*fb) * W * H);
     QueryPerformanceFrequency(&freq);

@@ -163,7 +163,7 @@ raster_flat_screen_opaque_sort_s4(
     if( x0 == x1 && x1 == x2 )
         return;
 
-    int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
+    int rgb_color = g_hsl16_to_pixel_table[color_hsl16];
 
     int dx_AC = x2 - x0;
     int dy_AC = y2 - y0;

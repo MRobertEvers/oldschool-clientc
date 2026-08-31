@@ -39,7 +39,12 @@
  * build that silently ran the asm would report a texture span that draws no
  * spans at all.
  */
-#ifdef TORIDRAW_TEXSPAN_ASM
+#include "graphics/pixel_format.h"
+
+/* PIXEL FORMAT. The span asm stores 4-byte pixels and samples 4-byte
+ * texels; it claims that format rather than merely having been
+ * assembled, and any other format takes the C reference below. */
+#if defined(TORIDRAW_TEXSPAN_ASM) && TORIPIXEL_IS_XRGB8888
 #include "graphics/raster/texture/span/tex_span_asm.h"
 #endif
 
@@ -61,8 +66,8 @@ tex_span_opaque_lerp8_v3_ordered(
     int* RESTRICT texels,
     int texture_width)
 {
-#ifdef TORIDRAW_TEXSPAN_ASM
-    toridraw_texspan_opaque_lerp8_v3_asm(
+#if defined(TORIDRAW_TEXSPAN_ASM) && TORIPIXEL_IS_XRGB8888
+    toridraw_texspan_opaque_lerp8_v3_xrgb8888_asm(
 #else
     draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
 #endif

@@ -28,7 +28,7 @@
  */
 
 /*
- * toridraw_textri_opaque_lerp8_v3_sorting_asm -- hand-written i686 (cdecl, SSE2).
+ * toridraw_textri_opaque_lerp8_v3_sorting_xrgb8888_asm -- hand-written i686 (cdecl, SSE2).
  *
  * The WHOLE perspective-textured triangle: the six-way vertex sort, the
  * per-triangle prologue, the trapezoid walk and the span fill, with no C
@@ -370,10 +370,10 @@
 	movl	%eax, P_GATE(%esp)
 .endm
 
-	.globl  _toridraw_textri_opaque_lerp8_v3_sorting_asm
-	.def    _toridraw_textri_opaque_lerp8_v3_sorting_asm; .scl 2; .type 32; .endef
+	.globl  _toridraw_textri_opaque_lerp8_v3_sorting_xrgb8888_asm
+	.def    _toridraw_textri_opaque_lerp8_v3_sorting_xrgb8888_asm; .scl 2; .type 32; .endef
 
-_toridraw_textri_opaque_lerp8_v3_sorting_asm:
+_toridraw_textri_opaque_lerp8_v3_sorting_xrgb8888_asm:
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
@@ -440,10 +440,10 @@ _toridraw_textri_opaque_lerp8_v3_sorting_asm:
  * cannot draw different triangles: the only difference between them is who
  * decided the order.
  */
-	.globl  _toridraw_textri_opaque_lerp8_v3_presorted_asm
-	.def    _toridraw_textri_opaque_lerp8_v3_presorted_asm; .scl 2; .type 32; .endef
+	.globl  _toridraw_textri_opaque_lerp8_v3_presorted_xrgb8888_asm
+	.def    _toridraw_textri_opaque_lerp8_v3_presorted_xrgb8888_asm; .scl 2; .type 32; .endef
 
-_toridraw_textri_opaque_lerp8_v3_presorted_asm:
+_toridraw_textri_opaque_lerp8_v3_presorted_xrgb8888_asm:
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
@@ -456,16 +456,16 @@ _toridraw_textri_opaque_lerp8_v3_presorted_asm:
 	jmp	.Lsorted
 
 /*
- * void toridraw_textri_trans_lerp8_v3_sorting_asm(... the same 25 arguments ...)
+ * void toridraw_textri_trans_lerp8_v3_sorting_xrgb8888_asm(... the same 25 arguments ...)
  *
  * The self-sorting keyed door. The blend-shaded transparent call site had no
  * asm twin and fell through to the C; it has one now, so the only difference
  * between the two gates at any call site is which symbol is named.
  */
-	.globl  _toridraw_textri_trans_lerp8_v3_sorting_asm
-	.def    _toridraw_textri_trans_lerp8_v3_sorting_asm; .scl 2; .type 32; .endef
+	.globl  _toridraw_textri_trans_lerp8_v3_sorting_xrgb8888_asm
+	.def    _toridraw_textri_trans_lerp8_v3_sorting_xrgb8888_asm; .scl 2; .type 32; .endef
 
-_toridraw_textri_trans_lerp8_v3_sorting_asm:
+_toridraw_textri_trans_lerp8_v3_sorting_xrgb8888_asm:
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
@@ -483,10 +483,10 @@ _toridraw_textri_trans_lerp8_v3_sorting_asm:
  * three times, or once and leaves the other two lanes alone, because nothing
  * downstream of VSORT looks at them.
  */
-	.globl  _toridraw_textri_flat_opaque_lerp8_v3_sorting_asm
-	.def    _toridraw_textri_flat_opaque_lerp8_v3_sorting_asm; .scl 2; .type 32; .endef
+	.globl  _toridraw_textri_flat_opaque_lerp8_v3_sorting_xrgb8888_asm
+	.def    _toridraw_textri_flat_opaque_lerp8_v3_sorting_xrgb8888_asm; .scl 2; .type 32; .endef
 
-_toridraw_textri_flat_opaque_lerp8_v3_sorting_asm:
+_toridraw_textri_flat_opaque_lerp8_v3_sorting_xrgb8888_asm:
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
@@ -497,10 +497,10 @@ _toridraw_textri_flat_opaque_lerp8_v3_sorting_asm:
 	TSTAGE1
 	jmp	.Ltexsort
 
-	.globl  _toridraw_textri_flat_trans_lerp8_v3_sorting_asm
-	.def    _toridraw_textri_flat_trans_lerp8_v3_sorting_asm; .scl 2; .type 32; .endef
+	.globl  _toridraw_textri_flat_trans_lerp8_v3_sorting_xrgb8888_asm
+	.def    _toridraw_textri_flat_trans_lerp8_v3_sorting_xrgb8888_asm; .scl 2; .type 32; .endef
 
-_toridraw_textri_flat_trans_lerp8_v3_sorting_asm:
+_toridraw_textri_flat_trans_lerp8_v3_sorting_xrgb8888_asm:
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
@@ -511,10 +511,10 @@ _toridraw_textri_flat_trans_lerp8_v3_sorting_asm:
 	TSTAGE1
 	jmp	.Ltexsort
 
-	.globl  _toridraw_textri_flat_opaque_lerp8_v3_presorted_asm
-	.def    _toridraw_textri_flat_opaque_lerp8_v3_presorted_asm; .scl 2; .type 32; .endef
+	.globl  _toridraw_textri_flat_opaque_lerp8_v3_presorted_xrgb8888_asm
+	.def    _toridraw_textri_flat_opaque_lerp8_v3_presorted_xrgb8888_asm; .scl 2; .type 32; .endef
 
-_toridraw_textri_flat_opaque_lerp8_v3_presorted_asm:
+_toridraw_textri_flat_opaque_lerp8_v3_presorted_xrgb8888_asm:
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
@@ -526,10 +526,10 @@ _toridraw_textri_flat_opaque_lerp8_v3_presorted_asm:
 	VSORT	0, 1, 2
 	jmp	.Lsorted
 
-	.globl  _toridraw_textri_flat_trans_lerp8_v3_presorted_asm
-	.def    _toridraw_textri_flat_trans_lerp8_v3_presorted_asm; .scl 2; .type 32; .endef
+	.globl  _toridraw_textri_flat_trans_lerp8_v3_presorted_xrgb8888_asm
+	.def    _toridraw_textri_flat_trans_lerp8_v3_presorted_xrgb8888_asm; .scl 2; .type 32; .endef
 
-_toridraw_textri_flat_trans_lerp8_v3_presorted_asm:
+_toridraw_textri_flat_trans_lerp8_v3_presorted_xrgb8888_asm:
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
@@ -542,17 +542,17 @@ _toridraw_textri_flat_trans_lerp8_v3_presorted_asm:
 	jmp	.Lsorted
 
 /*
- * void toridraw_textri_trans_lerp8_v3_presorted_asm(... same 25 arguments ...)
+ * void toridraw_textri_trans_lerp8_v3_presorted_xrgb8888_asm(... same 25 arguments ...)
  *
  * The colour-keyed twin: identical in every respect except that a texel whose
  * RGB is zero leaves the destination alone. Same uv walk, same texel, same
  * shade -- a face changing gate must not see its texture mapping move, which
  * is why the gate is a parameter of the fill and not a second span.
  */
-	.globl  _toridraw_textri_trans_lerp8_v3_presorted_asm
-	.def    _toridraw_textri_trans_lerp8_v3_presorted_asm; .scl 2; .type 32; .endef
+	.globl  _toridraw_textri_trans_lerp8_v3_presorted_xrgb8888_asm
+	.def    _toridraw_textri_trans_lerp8_v3_presorted_xrgb8888_asm; .scl 2; .type 32; .endef
 
-_toridraw_textri_trans_lerp8_v3_presorted_asm:
+_toridraw_textri_trans_lerp8_v3_presorted_xrgb8888_asm:
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
@@ -565,7 +565,7 @@ _toridraw_textri_trans_lerp8_v3_presorted_asm:
 	jmp	.Lsorted
 
 /*
- * void toridraw_textri_opaque_lerp8_v3_presorted_run_asm(
+ * void toridraw_textri_opaque_lerp8_v3_presorted_run_xrgb8888_asm(
  *     int* pixel_buffer, int stride, int screen_width, int screen_height,
  *     int camera_cot16, const int* rows, int count);
  *
@@ -581,11 +581,11 @@ _toridraw_textri_trans_lerp8_v3_presorted_asm:
  * the call, four register saves and restores, and the five screen constants
  * re-read out of the incoming frame. The arithmetic below is untouched.
  */
-	.globl  _toridraw_textri_opaque_lerp8_v3_presorted_run_asm
-	.def    _toridraw_textri_opaque_lerp8_v3_presorted_run_asm; .scl 2; .type 32; .endef
+	.globl  _toridraw_textri_opaque_lerp8_v3_presorted_run_xrgb8888_asm
+	.def    _toridraw_textri_opaque_lerp8_v3_presorted_run_xrgb8888_asm; .scl 2; .type 32; .endef
 
 /*
- * void toridraw_textri_trans_lerp8_v3_presorted_run_asm(
+ * void toridraw_textri_trans_lerp8_v3_presorted_run_xrgb8888_asm(
  *     int* pixel_buffer, int stride, int screen_width, int screen_height,
  *     int camera_cot16, const int* rows, int count);
  *
@@ -594,10 +594,10 @@ _toridraw_textri_trans_lerp8_v3_presorted_asm:
  * reason to split a run that mixes them, and TLOADROW reads lane 20 back over
  * this every row.
  */
-	.globl  _toridraw_textri_trans_lerp8_v3_presorted_run_asm
-	.def    _toridraw_textri_trans_lerp8_v3_presorted_run_asm; .scl 2; .type 32; .endef
+	.globl  _toridraw_textri_trans_lerp8_v3_presorted_run_xrgb8888_asm
+	.def    _toridraw_textri_trans_lerp8_v3_presorted_run_xrgb8888_asm; .scl 2; .type 32; .endef
 
-_toridraw_textri_trans_lerp8_v3_presorted_run_asm:
+_toridraw_textri_trans_lerp8_v3_presorted_run_xrgb8888_asm:
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
@@ -616,10 +616,10 @@ _toridraw_textri_trans_lerp8_v3_presorted_run_asm:
  * batcher fills shade lane 0 and leaves lanes 1 and 2 as the previous row left
  * them, because a constant-shade walk never reads them.
  */
-	.globl  _toridraw_textri_flat_trans_lerp8_v3_presorted_run_asm
-	.def    _toridraw_textri_flat_trans_lerp8_v3_presorted_run_asm; .scl 2; .type 32; .endef
+	.globl  _toridraw_textri_flat_trans_lerp8_v3_presorted_run_xrgb8888_asm
+	.def    _toridraw_textri_flat_trans_lerp8_v3_presorted_run_xrgb8888_asm; .scl 2; .type 32; .endef
 
-_toridraw_textri_flat_trans_lerp8_v3_presorted_run_asm:
+_toridraw_textri_flat_trans_lerp8_v3_presorted_run_xrgb8888_asm:
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
@@ -629,10 +629,10 @@ _toridraw_textri_flat_trans_lerp8_v3_presorted_run_asm:
 	movl	$1, P_FLAT(%esp)
 	jmp	.Ltexbatch_common
 
-	.globl  _toridraw_textri_flat_opaque_lerp8_v3_presorted_run_asm
-	.def    _toridraw_textri_flat_opaque_lerp8_v3_presorted_run_asm; .scl 2; .type 32; .endef
+	.globl  _toridraw_textri_flat_opaque_lerp8_v3_presorted_run_xrgb8888_asm
+	.def    _toridraw_textri_flat_opaque_lerp8_v3_presorted_run_xrgb8888_asm; .scl 2; .type 32; .endef
 
-_toridraw_textri_flat_opaque_lerp8_v3_presorted_run_asm:
+_toridraw_textri_flat_opaque_lerp8_v3_presorted_run_xrgb8888_asm:
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
@@ -642,7 +642,7 @@ _toridraw_textri_flat_opaque_lerp8_v3_presorted_run_asm:
 	movl	$1, P_FLAT(%esp)
 	jmp	.Ltexbatch_common
 
-_toridraw_textri_opaque_lerp8_v3_presorted_run_asm:
+_toridraw_textri_opaque_lerp8_v3_presorted_run_xrgb8888_asm:
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi

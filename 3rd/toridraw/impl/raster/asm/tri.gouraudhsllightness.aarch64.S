@@ -69,7 +69,7 @@
  *
  *   x0  pixel_buffer          w1  stride (pixels)      w2 screen_width
  *   w3  screen_height         x4  current row          w5 rows left
- *   x6  stride * 4 (bytes)    x7  g_hsl16_to_rgb_table
+ *   x6  stride * 4 (bytes)    x7  g_hsl16_to_pixel_table
  *   v17 65536.0f x4  v18 {0,0,-1,0}    (edge slope constants)
  *   w8  step_y_hsl_ish8       (per-row colour step)
  *   w15 sxAC  w16 sxAB  w17 sxBC        (16.16 edge steps)
@@ -445,11 +445,11 @@
 	sxtw	x6, w1
 	lsl	x6, x6, #2
 #if defined(__APPLE__)
-	adrp	x7, _g_hsl16_to_rgb_table@GOTPAGE
-	ldr	x7, [x7, _g_hsl16_to_rgb_table@GOTPAGEOFF]
+	adrp	x7, _g_hsl16_to_pixel_table@GOTPAGE
+	ldr	x7, [x7, _g_hsl16_to_pixel_table@GOTPAGEOFF]
 #else
-	adrp	x7, :got:g_hsl16_to_rgb_table
-	ldr	x7, [x7, :got_lo12:g_hsl16_to_rgb_table]
+	adrp	x7, :got:g_hsl16_to_pixel_table
+	ldr	x7, [x7, :got_lo12:g_hsl16_to_pixel_table]
 #endif
 	EDGECONST
 .endm
@@ -464,12 +464,12 @@
 .endm
 
 /*
- * void toridraw_gouraud_opaque_s4_presorted_run_asm(
+ * void toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, const int* rows, int count);
  */
-	.globl	SYM(toridraw_gouraud_opaque_s4_presorted_run_asm)
-SYM(toridraw_gouraud_opaque_s4_presorted_run_asm):
+	.globl	SYM(toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm)
+SYM(toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm):
 	cmp	w5, #0
 	b.le	Lo_ret
 	ENTER
@@ -479,14 +479,14 @@ Lo_ret:
 	ret
 
 /*
- * void toridraw_gouraud_alpha_s4_presorted_run_asm(
+ * void toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, const int* rows, int count);
  *
  * The blending twin, opacity per row in lane 11; a run may mix them.
  */
-	.globl	SYM(toridraw_gouraud_alpha_s4_presorted_run_asm)
-SYM(toridraw_gouraud_alpha_s4_presorted_run_asm):
+	.globl	SYM(toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm)
+SYM(toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm):
 	cmp	w5, #0
 	b.le	La_ret
 	ENTER

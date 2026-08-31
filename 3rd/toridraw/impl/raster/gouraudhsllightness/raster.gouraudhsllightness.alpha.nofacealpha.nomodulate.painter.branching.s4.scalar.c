@@ -51,7 +51,7 @@ draw_scanline_gouraudhsllightness_screen_alpha_bary_branching_s4_ordered(
 
     while( steps-- > 0 )
     {
-        int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+        int rgb_color = ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
 
         for( int i = 0; i < 4; i++ )
         {
@@ -64,7 +64,7 @@ draw_scanline_gouraudhsllightness_screen_alpha_bary_branching_s4_ordered(
         color_hsl16_ish8 = toridraw_wrap_add(color_hsl16_ish8, color_step_hsl16_ish8);
     }
 
-    int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+    int rgb_color = ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
     switch( (stride) & 0x3 )
     {
     case 3:
@@ -124,7 +124,7 @@ draw_scanline_gouraudhsllightness_screen_alpha_bary_branching_s4_ordered_noclip(
 
     while( steps-- > 0 )
     {
-        int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+        int rgb_color = ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
 
         for( int i = 0; i < 4; i++ )
         {
@@ -137,7 +137,7 @@ draw_scanline_gouraudhsllightness_screen_alpha_bary_branching_s4_ordered_noclip(
         color_hsl16_ish8 = toridraw_wrap_add(color_hsl16_ish8, color_step_hsl16_ish8);
     }
 
-    int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+    int rgb_color = ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
     switch( (stride) & 0x3 )
     {
     case 3:

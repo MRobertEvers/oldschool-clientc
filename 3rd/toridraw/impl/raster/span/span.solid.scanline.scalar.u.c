@@ -91,7 +91,7 @@ scanline_span_gouraudhsllightness_opaque(
             pixel_buffer,
             offset,
             count,
-            (toripixel_t)ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8));
+            (toripixel_t)ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8));
         return;
     }
 
@@ -100,7 +100,7 @@ scanline_span_gouraudhsllightness_opaque(
 
     while( quads-- > 0 )
     {
-        toripixel_t rgb_color = (toripixel_t)ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+        toripixel_t rgb_color = (toripixel_t)ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
 
         pixel_buffer[offset + 0] = rgb_color;
         pixel_buffer[offset + 1] = rgb_color;
@@ -114,7 +114,7 @@ scanline_span_gouraudhsllightness_opaque(
     int tail = count & 0x3;
     if( tail )
     {
-        toripixel_t rgb_color = (toripixel_t)ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+        toripixel_t rgb_color = (toripixel_t)ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
         do
         {
             pixel_buffer[offset++] = rgb_color;
@@ -134,7 +134,7 @@ scanline_span_gouraudhsllightness_alpha(
     if( color_step_hsl16_ish8 == 0 )
     {
         scanline_span_flat_alpha(
-            pixel_buffer, offset, count, ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8), alpha);
+            pixel_buffer, offset, count, ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8), alpha);
         return;
     }
 
@@ -143,7 +143,7 @@ scanline_span_gouraudhsllightness_alpha(
 
     while( quads-- > 0 )
     {
-        int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+        int rgb_color = ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
 
         for( int i = 0; i < 4; i++ )
         {
@@ -157,7 +157,7 @@ scanline_span_gouraudhsllightness_alpha(
     int tail = count & 0x3;
     if( tail )
     {
-        int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+        int rgb_color = ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
         do
         {
             pixel_buffer[offset] = (toripixel_t)alpha_blend(alpha, pixel_buffer[offset], rgb_color);

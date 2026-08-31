@@ -39,7 +39,7 @@ raster_flat_screen_opaque_scanline_s8(
     if( !scanline_edges_build(&edges, &tri, screen_height) )
         return;
 
-    toripixel_t rgb_color = (toripixel_t)g_hsl16_to_rgb_table[color_hsl16];
+    toripixel_t rgb_color = (toripixel_t)g_hsl16_to_pixel_table[color_hsl16];
 
     for( int seg = 0; seg < 2; seg++ )
     {
@@ -107,7 +107,7 @@ raster_flat_screen_alpha_scanline_s8(
     if( !scanline_edges_build(&edges, &tri, screen_height) )
         return;
 
-    int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
+    int rgb_color = g_hsl16_to_pixel_table[color_hsl16];
 
     for( int seg = 0; seg < 2; seg++ )
     {

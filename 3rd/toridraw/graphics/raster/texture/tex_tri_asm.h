@@ -64,11 +64,16 @@
  * SPANBODY from span/tex_span_body.inc -- see the header there for why.
  */
 
-#ifdef TORIDRAW_TEXTRI_ASM
+/*
+ * PIXEL FORMAT. These kernels store 4-byte pixels and sample 4-byte texels,
+ * which is a claim about ONE format -- so they are gated on
+ * TORIPIXEL_IS_XRGB8888 and not merely on having been assembled. A build that
+ * asks for the asm on some other format falls through to the C twin below.
+ */
 
-#ifdef TORIDRAW_PIXEL16
-#error "tex_tri_i686.S assumes 32-bit pixels and 32-bit texels"
-#endif
+#include "graphics/pixel_format.h"
+
+#if defined(TORIDRAW_TEXTRI_ASM) && TORIPIXEL_IS_XRGB8888
 
 #ifdef __cplusplus
 extern "C" {
@@ -76,7 +81,7 @@ extern "C" {
 
 /** Bit-exact hand-written twin of
  *  raster_texshadeblend_persp_texopaque_branching_lerp8_v3, sort included. */
-void toridraw_textri_opaque_lerp8_v3_sorting_asm(
+void toridraw_textri_opaque_lerp8_v3_sorting_xrgb8888_asm(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -110,7 +115,7 @@ void toridraw_textri_opaque_lerp8_v3_sorting_asm(
  *  The test is on the RAW texel, before the shade, because a dark texel under
  *  a low shade blends to zero too and skipping it would drop a pixel the
  *  reference draws. */
-void toridraw_textri_trans_lerp8_v3_sorting_asm(
+void toridraw_textri_trans_lerp8_v3_sorting_xrgb8888_asm(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -150,7 +155,7 @@ void toridraw_textri_trans_lerp8_v3_sorting_asm(
  * statement than it sounds: it means the flat and blend arms of a textured
  * model are the same rasteriser and tile against each other exactly.
  */
-void toridraw_textri_flat_opaque_lerp8_v3_sorting_asm(
+void toridraw_textri_flat_opaque_lerp8_v3_sorting_xrgb8888_asm(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -177,7 +182,7 @@ void toridraw_textri_flat_opaque_lerp8_v3_sorting_asm(
     int* texels,
     int texture_width);
 
-void toridraw_textri_flat_trans_lerp8_v3_sorting_asm(
+void toridraw_textri_flat_trans_lerp8_v3_sorting_xrgb8888_asm(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -221,19 +226,19 @@ void toridraw_textri_flat_trans_lerp8_v3_sorting_asm(
  * the call, four register saves and restores, and the five screen constants
  * re-read out of the incoming frame.
  */
-void toridraw_textri_opaque_lerp8_v3_presorted_run_asm(
+void toridraw_textri_opaque_lerp8_v3_presorted_run_xrgb8888_asm(
     int* pixel_buffer, int stride, int screen_width, int screen_height,
     int camera_cot16, const int* rows, int count);
 
-void toridraw_textri_trans_lerp8_v3_presorted_run_asm(
+void toridraw_textri_trans_lerp8_v3_presorted_run_xrgb8888_asm(
     int* pixel_buffer, int stride, int screen_width, int screen_height,
     int camera_cot16, const int* rows, int count);
 
-void toridraw_textri_flat_opaque_lerp8_v3_presorted_run_asm(
+void toridraw_textri_flat_opaque_lerp8_v3_presorted_run_xrgb8888_asm(
     int* pixel_buffer, int stride, int screen_width, int screen_height,
     int camera_cot16, const int* rows, int count);
 
-void toridraw_textri_flat_trans_lerp8_v3_presorted_run_asm(
+void toridraw_textri_flat_trans_lerp8_v3_presorted_run_xrgb8888_asm(
     int* pixel_buffer, int stride, int screen_width, int screen_height,
     int camera_cot16, const int* rows, int count);
 
@@ -271,12 +276,12 @@ int toridraw_texplane_prepare32_asm(
  * The dispatch macro, so the call site names one thing and the build decides
  * which thing it is. Same shape as TORIDRAW_GOURAUD_TRI_OPAQUE_S4 next door.
  */
-#define TORIDRAW_TEX_TRI_PERSP_OPAQUE      toridraw_textri_opaque_lerp8_v3_sorting_asm
-#define TORIDRAW_TEX_TRI_PERSP_TRANS       toridraw_textri_trans_lerp8_v3_sorting_asm
-#define TORIDRAW_TEX_TRI_PERSP_FLAT_OPAQUE toridraw_textri_flat_opaque_lerp8_v3_sorting_asm
-#define TORIDRAW_TEX_TRI_PERSP_FLAT_TRANS  toridraw_textri_flat_trans_lerp8_v3_sorting_asm
+#define TORIDRAW_TEX_TRI_PERSP_OPAQUE      toridraw_textri_opaque_lerp8_v3_sorting_xrgb8888_asm
+#define TORIDRAW_TEX_TRI_PERSP_TRANS       toridraw_textri_trans_lerp8_v3_sorting_xrgb8888_asm
+#define TORIDRAW_TEX_TRI_PERSP_FLAT_OPAQUE toridraw_textri_flat_opaque_lerp8_v3_sorting_xrgb8888_asm
+#define TORIDRAW_TEX_TRI_PERSP_FLAT_TRANS  toridraw_textri_flat_trans_lerp8_v3_sorting_xrgb8888_asm
 
-#elif defined(TORIDRAW_TEXTRI_NEON_ASM)
+#elif defined(TORIDRAW_TEXTRI_NEON_ASM) && TORIPIXEL_IS_XRGB8888
 
 /*
  * The AArch64 / NEON lane: tex_tri_aarch64.S. Only the four RUN doors exist;
@@ -287,27 +292,24 @@ int toridraw_texplane_prepare32_asm(
  * every pixel.
  */
 
-#ifdef TORIDRAW_PIXEL16
-#error "tex_tri_aarch64.S assumes 32-bit pixels and 32-bit texels"
-#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void toridraw_textri_opaque_lerp8_v3_presorted_run_asm(
+void toridraw_textri_opaque_lerp8_v3_presorted_run_xrgb8888_asm(
     int* pixel_buffer, int stride, int screen_width, int screen_height,
     int camera_cot16, const int* rows, int count);
 
-void toridraw_textri_trans_lerp8_v3_presorted_run_asm(
+void toridraw_textri_trans_lerp8_v3_presorted_run_xrgb8888_asm(
     int* pixel_buffer, int stride, int screen_width, int screen_height,
     int camera_cot16, const int* rows, int count);
 
-void toridraw_textri_flat_opaque_lerp8_v3_presorted_run_asm(
+void toridraw_textri_flat_opaque_lerp8_v3_presorted_run_xrgb8888_asm(
     int* pixel_buffer, int stride, int screen_width, int screen_height,
     int camera_cot16, const int* rows, int count);
 
-void toridraw_textri_flat_trans_lerp8_v3_presorted_run_asm(
+void toridraw_textri_flat_trans_lerp8_v3_presorted_run_xrgb8888_asm(
     int* pixel_buffer, int stride, int screen_width, int screen_height,
     int camera_cot16, const int* rows, int count);
 

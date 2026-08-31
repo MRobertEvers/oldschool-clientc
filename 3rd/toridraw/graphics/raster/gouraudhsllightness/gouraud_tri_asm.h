@@ -47,22 +47,21 @@
  * 4-pixel colour quantization in toridraw_gouraud_span_fill_short is visible
  * output, pinned separately by toridraw_scanline_parity_test.
  *
- * PIXEL FORMAT. The kernel indexes g_hsl16_to_rgb_table with a 4-byte scale and
- * stores 4-byte pixels. Under TORIDRAW_PIXEL16 both are 2 bytes, so the asm
- * would be silently wrong rather than merely absent -- hence the hard error.
- * The makefile does not build the kernel into a 16-bit-pixel configuration; if
- * that ever changes, this is where it stops.
+ * PIXEL FORMAT. The kernel indexes the palette with a 4-byte scale and stores
+ * 4-byte pixels, which is a claim about ONE format -- so it is gated on
+ * TORIPIXEL_IS_XRGB8888 and not merely on having been assembled. A build that
+ * asks for the asm on some other format falls through to the C twin below.
+ * Writing a door for another format means a new file naming it
+ * (tri.gouraudhsllightness.rgb565.aarch64.S) and a claim of its own here.
  */
 
-#ifdef TORIDRAW_GOURAUD_TRI_ASM
+#include "graphics/pixel_format.h"
 
-#ifdef TORIDRAW_PIXEL16
-#error "gouraud_tri_i686.S assumes 32-bit pixels and a 32-bit palette"
-#endif
+#if defined(TORIDRAW_GOURAUD_TRI_ASM) && TORIPIXEL_IS_XRGB8888
 
 #include "graphics/shared_tables.h"
 
-void toridraw_gouraud_opaque_s4_sorting_asm(
+void toridraw_gouraud_opaque_s4_sorting_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -77,7 +76,7 @@ void toridraw_gouraud_opaque_s4_sorting_asm(
     int color1_hsl16,
     int color2_hsl16);
 
-#define TORIDRAW_GOURAUD_TRI_OPAQUE_S4 toridraw_gouraud_opaque_s4_sorting_asm
+#define TORIDRAW_GOURAUD_TRI_OPAQUE_S4 toridraw_gouraud_opaque_s4_sorting_xrgb8888_asm
 
 /*
  * The same kernel entered once for a RUN of triangles instead of once each.
@@ -89,7 +88,7 @@ void toridraw_gouraud_opaque_s4_sorting_asm(
  * survives a batch; see toridraw_raster.u.c for the flushing rule that keeps
  * it that way.
  */
-void toridraw_gouraud_opaque_s4_presorted_run_asm(
+void toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -102,7 +101,7 @@ void toridraw_gouraud_opaque_s4_presorted_run_asm(
  * spare. A run may mix opacities, and there is no reason for the batcher to
  * split one that does.
  */
-void toridraw_gouraud_alpha_s4_presorted_run_asm(
+void toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -110,7 +109,7 @@ void toridraw_gouraud_alpha_s4_presorted_run_asm(
     const int* rows,
     int count);
 
-void toridraw_gouraud_alpha_s4_sorting_asm(
+void toridraw_gouraud_alpha_s4_sorting_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -130,7 +129,7 @@ void toridraw_gouraud_alpha_s4_sorting_asm(
 #define TORIDRAW_GOURAUD_RUN_ROW_INTS 12
 #define TORIDRAW_GOURAUD_PRESORTED_RUN 1
 
-#elif defined(TORIDRAW_GOURAUD_TRI_NEON_ASM)
+#elif defined(TORIDRAW_GOURAUD_TRI_NEON_ASM) && TORIPIXEL_IS_XRGB8888
 
 /*
  * The AArch64 / NEON lane: gouraud_tri_aarch64.S. Only the RUN doors exist --
@@ -138,13 +137,9 @@ void toridraw_gouraud_alpha_s4_sorting_asm(
  * Same 48-byte row record as the i686 kernel, opacity in lane 11.
  */
 
-#ifdef TORIDRAW_PIXEL16
-#error "gouraud_tri_aarch64.S assumes 32-bit pixels and a 32-bit palette"
-#endif
-
 #include "graphics/shared_tables.h"
 
-void toridraw_gouraud_opaque_s4_presorted_run_asm(
+void toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -152,7 +147,7 @@ void toridraw_gouraud_opaque_s4_presorted_run_asm(
     const int* rows,
     int count);
 
-void toridraw_gouraud_alpha_s4_presorted_run_asm(
+void toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,

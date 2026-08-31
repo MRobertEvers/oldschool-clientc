@@ -209,7 +209,7 @@
 
 /*
  * Colour accumulator in \src -> palette entry in \dst, clamp and all.
- * The clamp is the one in ToriDraw_Hsl16Ish8ToRgb: an edge can land a subpixel
+ * The clamp is the one in ToriDraw_Hsl16Ish8ToPixel: an edge can land a subpixel
  * past its vertex after the fixed-point nudge, so the interpolant is not
  * guaranteed inside the palette's range even though every vertex is.
  */
@@ -224,7 +224,7 @@
 	notl	\dst
 	andl	$0xFFFF, \dst
 7000:
-	movl	_g_hsl16_to_rgb_table(,\dst,4), \dst
+	movl	_g_hsl16_to_pixel_table(,\dst,4), \dst
 .endm
 
 /*
@@ -682,7 +682,7 @@
 .endm
 
 /*
- * void toridraw_gouraud_opaque_s4_presorted_run_asm(
+ * void toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, const int* rows, int count);
  *
@@ -703,8 +703,8 @@
  * face it cannot take appears. A painter has no depth buffer, so a batch that
  * reordered anything would be wrong however fast it was.
  */
-	.globl	_toridraw_gouraud_opaque_s4_presorted_run_asm
-_toridraw_gouraud_opaque_s4_presorted_run_asm:
+	.globl	_toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm
+_toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm:
 	ENTER
 	movl	A(5), %eax
 	testl	%eax, %eax
@@ -715,7 +715,7 @@ _toridraw_gouraud_opaque_s4_presorted_run_asm:
 	jmp	Lo_face
 
 /*
- * void toridraw_gouraud_opaque_s4_sorting_asm(
+ * void toridraw_gouraud_opaque_s4_sorting_xrgb8888_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, int x0, int x1, int x2, int y0, int y1, int y2,
  *     int color0_hsl16, int color1_hsl16, int color2_hsl16);
@@ -731,8 +731,8 @@ _toridraw_gouraud_opaque_s4_presorted_run_asm:
  * batched and unbatched paths cannot drift apart, and the bit-exactness the
  * existing test pins for one of them is inherited by the other.
  */
-	.globl	_toridraw_gouraud_opaque_s4_sorting_asm
-_toridraw_gouraud_opaque_s4_sorting_asm:
+	.globl	_toridraw_gouraud_opaque_s4_sorting_xrgb8888_asm
+_toridraw_gouraud_opaque_s4_sorting_xrgb8888_asm:
 	ENTER
 	movl	A(4), %eax
 	movl	%eax, V_RBX0(%esp)
@@ -758,7 +758,7 @@ _toridraw_gouraud_opaque_s4_sorting_asm:
 	jmp	Lo_ysort
 
 /*
- * void toridraw_gouraud_alpha_s4_presorted_run_asm(
+ * void toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, const int* rows, int count);
  *
@@ -771,8 +771,8 @@ _toridraw_gouraud_opaque_s4_sorting_asm:
  * and the same per-face call the batch exists to delete, so leaving it out
  * would have meant a face class that still cut every run in half.
  */
-	.globl	_toridraw_gouraud_alpha_s4_presorted_run_asm
-_toridraw_gouraud_alpha_s4_presorted_run_asm:
+	.globl	_toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm
+_toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm:
 	ENTER
 	movl	A(5), %eax
 	testl	%eax, %eax
@@ -783,13 +783,13 @@ _toridraw_gouraud_alpha_s4_presorted_run_asm:
 	jmp	La_face
 
 /*
- * void toridraw_gouraud_alpha_s4_sorting_asm(
+ * void toridraw_gouraud_alpha_s4_sorting_xrgb8888_asm(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, int x0, int x1, int x2, int y0, int y1, int y2,
  *     int color0_hsl16, int color1_hsl16, int color2_hsl16, int alpha);
  */
-	.globl	_toridraw_gouraud_alpha_s4_sorting_asm
-_toridraw_gouraud_alpha_s4_sorting_asm:
+	.globl	_toridraw_gouraud_alpha_s4_sorting_xrgb8888_asm
+_toridraw_gouraud_alpha_s4_sorting_xrgb8888_asm:
 	ENTER
 	movl	A(4), %eax
 	movl	%eax, V_RBX0(%esp)

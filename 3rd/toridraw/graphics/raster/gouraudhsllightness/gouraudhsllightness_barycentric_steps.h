@@ -10,7 +10,7 @@
  * WHY THIS IS ALLOWED TO BE APPROXIMATE, AND THE EDGE SLOPES ARE NOT.
  *
  * These two quotients are a *shade* step. They accumulate into an index into
- * g_hsl16_to_rgb_table, shifted down by 8 on the way, so being one 1/256th out
+ * g_hsl16_to_pixel_table, shifted down by 8 on the way, so being one 1/256th out
  * moves a pixel's colour by at most one palette entry after 256 pixels of span.
  * The three edge slopes in the same prologue are a *screen x* in 1/65536ths;
  * being one out there is eventually a wrong pixel column, and a triangle whose

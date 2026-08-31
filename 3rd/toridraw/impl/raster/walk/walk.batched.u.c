@@ -12,7 +12,7 @@
  * lets the assembly skip the six-way y-permutation ladder entirely.
  *
  * WHY THE GATE, AND WHY IT IS HERE. Nothing about this is a feature toggle.
- * The walk names symbols like toridraw_flat_opaque_s4_presorted_run_asm
+ * The walk names symbols like toridraw_flat_opaque_s4_presorted_run_xrgb8888_asm
  * DIRECTLY, and those exist only on lanes where the makefile assembled the .S
  * files -- TORIDRAW_RASTER_BATCH is derived from exactly that
  * (toridraw_raster_batch.h, off the two _PRESORTED_RUN macros the asm headers
@@ -139,7 +139,7 @@ toridraw_raster_batch_flush(
         switch( batch->kind )
         {
         case TORIDRAW_RASTER_BATCH_GOURAUD:
-            toridraw_gouraud_opaque_s4_presorted_run_asm(
+            toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm(
                 ctx->pixel_buffer,
                 ctx->stride,
                 ctx->screen_width,
@@ -148,7 +148,7 @@ toridraw_raster_batch_flush(
                 batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_GOURAUD_ALPHA:
-            toridraw_gouraud_alpha_s4_presorted_run_asm(
+            toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm(
                 ctx->pixel_buffer,
                 ctx->stride,
                 ctx->screen_width,
@@ -157,7 +157,7 @@ toridraw_raster_batch_flush(
                 batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_FLAT_OPAQUE:
-            toridraw_flat_opaque_s4_presorted_run_asm(
+            toridraw_flat_opaque_s4_presorted_run_xrgb8888_asm(
                 ctx->pixel_buffer,
                 ctx->stride,
                 ctx->screen_width,
@@ -166,7 +166,7 @@ toridraw_raster_batch_flush(
                 batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_FLAT_ALPHA:
-            toridraw_flat_alpha_s4_presorted_run_asm(
+            toridraw_flat_alpha_s4_presorted_run_xrgb8888_asm(
                 ctx->pixel_buffer,
                 ctx->stride,
                 ctx->screen_width,
@@ -176,7 +176,7 @@ toridraw_raster_batch_flush(
             break;
 #ifdef TORIDRAW_TEXTRI_PRESORTED_RUN
         case TORIDRAW_RASTER_BATCH_TEX_OPAQUE:
-            toridraw_textri_opaque_lerp8_v3_presorted_run_asm(
+            toridraw_textri_opaque_lerp8_v3_presorted_run_xrgb8888_asm(
                 ctx->pixel_buffer,
                 ctx->stride,
                 ctx->screen_width,
@@ -186,7 +186,7 @@ toridraw_raster_batch_flush(
                 batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_TEX_TRANS:
-            toridraw_textri_trans_lerp8_v3_presorted_run_asm(
+            toridraw_textri_trans_lerp8_v3_presorted_run_xrgb8888_asm(
                 ctx->pixel_buffer,
                 ctx->stride,
                 ctx->screen_width,
@@ -196,7 +196,7 @@ toridraw_raster_batch_flush(
                 batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_TEX_FLAT_OPAQUE:
-            toridraw_textri_flat_opaque_lerp8_v3_presorted_run_asm(
+            toridraw_textri_flat_opaque_lerp8_v3_presorted_run_xrgb8888_asm(
                 ctx->pixel_buffer,
                 ctx->stride,
                 ctx->screen_width,
@@ -206,7 +206,7 @@ toridraw_raster_batch_flush(
                 batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_TEX_FLAT_TRANS:
-            toridraw_textri_flat_trans_lerp8_v3_presorted_run_asm(
+            toridraw_textri_flat_trans_lerp8_v3_presorted_run_xrgb8888_asm(
                 ctx->pixel_buffer,
                 ctx->stride,
                 ctx->screen_width,

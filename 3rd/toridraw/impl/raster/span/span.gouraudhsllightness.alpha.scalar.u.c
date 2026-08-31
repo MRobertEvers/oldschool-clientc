@@ -11,7 +11,7 @@
 
 static inline void
 raster_linear_alpha_s4(
-    uint32_t* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int offset,
     int rgb_color,
     int alpha)

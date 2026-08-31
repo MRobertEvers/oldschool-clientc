@@ -10,7 +10,7 @@ _Alignas(64) int g_projection_model_yaw_table[2048][2];
 //   This tool renders a color palette using jagex's 16-bit HSL, 6 bits
 //             for hue, 3 for saturation and 7 for lightness, bitpacked and
 //             represented as a short.
-toripixel_t g_hsl16_to_rgb_table[65536];
+toripixel_t g_hsl16_to_pixel_table[65536];
 
 static int g_sin_table_builtin[2048];
 static int g_cos_table_builtin[2048];
@@ -176,7 +176,7 @@ pix3d_init_palette(
 #ifdef TORIDRAW_TABLES_PRECOMPUTED
 
 void
-init_hsl16_to_rgb_table(void)
+init_hsl16_to_pixel_table(void)
 {
 }
 
@@ -210,10 +210,10 @@ init_reciprocal16(void)
 #else /* !TORIDRAW_TABLES_PRECOMPUTED */
 
 void
-init_hsl16_to_rgb_table(void)
+init_hsl16_to_pixel_table(void)
 {
     // 0 and 128 are both black.
-    pix3d_init_palette(g_hsl16_to_rgb_table, 0.8);
+    pix3d_init_palette(g_hsl16_to_pixel_table, 0.8);
 }
 
 void

@@ -1446,7 +1446,7 @@ ToriRSChrome_DropdownSetSelected(struct ToriRSChrome* ui, int widget, int select
  * hands the engine as a colour ends up here, so a picker that works in this
  * space is a picker whose every value survives the trip.
  *
- * Computed rather than pulled from the rasteriser's g_hsl16_to_rgb_table, and
+ * Computed rather than pulled from the rasteriser's g_hsl16_to_pixel_table, and
  * that is the module's no-dependency rule (see the header note) rather than a
  * preference: ui/ links no renderer, so the chrome would draw grey swatches in
  * every test and in any build whose palette had not been initialised yet. It

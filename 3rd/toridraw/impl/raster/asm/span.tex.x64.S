@@ -1,5 +1,5 @@
 /*
- * toridraw_texspan_opaque_lerp8_v3_asm -- hand-written x86-64 (MS ABI, SSE2).
+ * toridraw_texspan_opaque_lerp8_v3_xrgb8888_asm -- hand-written x86-64 (MS ABI, SSE2).
  *
  * Twin of draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered in
  * tex.span.sse2.u.c. That C function is the reference and
@@ -355,10 +355,10 @@
 3:
 	.endm
 
-	.globl  toridraw_texspan_opaque_lerp8_v3_asm
-	.def    toridraw_texspan_opaque_lerp8_v3_asm; .scl 2; .type 32; .endef
+	.globl  toridraw_texspan_opaque_lerp8_v3_xrgb8888_asm
+	.def    toridraw_texspan_opaque_lerp8_v3_xrgb8888_asm; .scl 2; .type 32; .endef
 
-toridraw_texspan_opaque_lerp8_v3_asm:
+toridraw_texspan_opaque_lerp8_v3_xrgb8888_asm:
 	pushq   %rbx
 	pushq   %rbp
 	pushq   %rsi

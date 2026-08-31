@@ -109,19 +109,30 @@ static const struct Tri g_tris[] = {
 
 static int g_fail;
 
+/*
+ * The "nothing drew here" sentinel.
+ *
+ * It has to carry the framebuffer's type and not be a raw literal at each use:
+ * on a 16-bit format 0x00112233 truncates on the way INTO the buffer, and a
+ * comparison against the untruncated literal then reports every untouched
+ * pixel as written. Naming it once makes the fill and the test agree on every
+ * format.
+ */
+#define UNWRITTEN ((toripixel_t)0x00112233)
+
 static void
-buf_reset(int* buf)
+buf_reset(toripixel_t* buf)
 {
     for( int i = 0; i < BUF_LEN; i++ )
-        buf[i] = 0x00112233;
+        buf[i] = UNWRITTEN;
 }
 
 static int
-guard_intact(const int* buf, const char* variant, const char* tri)
+guard_intact(const toripixel_t* buf, const char* variant, const char* tri)
 {
     for( int i = 0; i < GUARD; i++ )
     {
-        if( buf[i] != 0x00112233 || buf[BUF_LEN - 1 - i] != 0x00112233 )
+        if( buf[i] != UNWRITTEN || buf[BUF_LEN - 1 - i] != UNWRITTEN )
         {
             printf("  FAIL %-34s %-22s wrote outside the framebuffer\n", variant, tri);
             g_fail++;
@@ -137,8 +148,8 @@ guard_intact(const int* buf, const char* variant, const char* tri)
  */
 static int
 compare(
-    const int* a,
-    const int* b,
+    const toripixel_t* a,
+    const toripixel_t* b,
     int allow_boundary,
     int* out_total_diff)
 {
@@ -167,8 +178,8 @@ static void
 report(
     const char* variant,
     const struct Tri* tri,
-    const int* ref,
-    const int* got)
+    const toripixel_t* ref,
+    const toripixel_t* got)
 {
     if( !guard_intact(got, variant, tri->name) )
         return;
@@ -201,8 +212,8 @@ static void
 report_coverage(
     const char* variant,
     const struct Tri* tri,
-    const int* a,
-    const int* b)
+    const toripixel_t* a,
+    const toripixel_t* b)
 {
     int bad = 0;
     for( int y = 0; y < H; y++ )
@@ -210,8 +221,8 @@ report_coverage(
         for( int x = 0; x < W; x++ )
         {
             int i = GUARD + y * W + x;
-            int wrote_a = a[i] != 0x00112233;
-            int wrote_b = b[i] != 0x00112233;
+            int wrote_a = a[i] != UNWRITTEN;
+            int wrote_b = b[i] != UNWRITTEN;
             if( wrote_a == wrote_b )
                 continue;
             if( tri->expect_clipped && (x >= W - 2 || x <= 1 || y >= H - 1) )
@@ -230,7 +241,7 @@ report_coverage(
 /* ------------------------------------------------------------------ flat */
 
 static void
-test_flat(int* ref, int* got)
+test_flat(toripixel_t* ref, toripixel_t* got)
 {
     printf("flat.screen.opaque / alpha\n");
 
@@ -261,7 +272,7 @@ test_flat(int* ref, int* got)
 /* --------------------------------------------------- gouraudhsllightness */
 
 static void
-test_gouraudhsllightness(int* ref, int* got)
+test_gouraudhsllightness(toripixel_t* ref, toripixel_t* got)
 {
     printf("gouraudhsllightness.screen.opaque / alpha (bary)\n");
 
@@ -321,16 +332,16 @@ test_gouraudhsllightness_palette_bounds(void)
         ICON_ROW = 16,
         ICON_X = 12,
     };
-    int icon[ICON_W * ICON_H];
+    toripixel_t icon[ICON_W * ICON_H];
     int const high_ish8 = 0x10000 << 8;
     int const low_ish8 = -1;
-    int const high_rgb = g_hsl16_to_rgb_table[0xFFFF];
-    int const low_rgb = g_hsl16_to_rgb_table[0];
+    toripixel_t const high_rgb = g_hsl16_to_pixel_table[0xFFFF];
+    toripixel_t const low_rgb = g_hsl16_to_pixel_table[0];
 
     printf("gouraudhsllightness HSL16 palette bounds (36x32 obj icon tail)\n");
 
-    if( ToriDraw_Hsl16Ish8ToRgb(high_ish8) != high_rgb ||
-        ToriDraw_Hsl16Ish8ToRgb(low_ish8) != low_rgb )
+    if( ToriDraw_Hsl16Ish8ToPixel(high_ish8) != high_rgb ||
+        ToriDraw_Hsl16Ish8ToPixel(low_ish8) != low_rgb )
     {
         printf("  FAIL interpolated HSL16 palette clamp\n");
         g_fail++;
@@ -338,7 +349,7 @@ test_gouraudhsllightness_palette_bounds(void)
     }
 
     for( int i = 0; i < ICON_W * ICON_H; i++ )
-        icon[i] = 0x00112233;
+        icon[i] = UNWRITTEN;
 
     draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered_noclip(
         icon,
@@ -400,8 +411,24 @@ static const struct TexVerts g_texverts_flat = {
  * faces they share edges with, which means it cannot be bit-identical to both
  * reference conventions at once.
  */
+
+/*
+ * PHASE 3 BRIDGE -- delete with the texture-stage conversion.
+ *
+ * The solid families already take toripixel_t*; the texture families still
+ * take int* pixel buffers and int* texels. The shared buffer is declared in
+ * the native type, so the texture call sites bridge explicitly here rather
+ * than silently.
+ *
+ * On a 32-bit format this cast is the identity -- toripixel_t IS int -- so
+ * nothing this test has ever checked changes. On a 16-bit format the texture
+ * arms are known-unconverted and fail loudly, which is the true state until
+ * that phase lands; the solid arms above them are real proofs on every format.
+ */
+#define TEXBUF(p) ((int*)(p))
+
 static void
-test_texture_anchor(int* ref, int* got)
+test_texture_anchor(toripixel_t* ref, toripixel_t* got)
 {
     printf("texshadeflat.persp.texopaque.scanline vs branching (exact anchor)\n");
 
@@ -414,9 +441,9 @@ test_texture_anchor(int* ref, int* got)
         buf_reset(ref);
         buf_reset(got);
         raster_texshadeflat_persp_texopaque_branching_lerp8(
-            ref + GUARD, TEXGEOM(tv), 0x40, g_texels, TEX_W);
+            TEXBUF(ref) + GUARD, TEXGEOM(tv), 0x40, g_texels, TEX_W);
         raster_texshadeflat_persp_texopaque_scanline_lerp8(
-            got + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
+            TEXBUF(got) + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
         report("texshadeflat.persp.texopaque.scanline", t, ref, got);
     }
 }
@@ -431,7 +458,7 @@ test_texture_anchor(int* ref, int* got)
  *   facealpha(255) == plain        by construction
  */
 static void
-test_texture_chain(int* a, int* b)
+test_texture_chain(toripixel_t* a, toripixel_t* b)
 {
     printf("scanline texture variant chain (gate / shade / space / alpha axes)\n");
 
@@ -446,26 +473,26 @@ test_texture_chain(int* a, int* b)
         buf_reset(a);
         buf_reset(b);
         raster_texshadeflat_persp_texopaque_scanline_lerp8(
-            a + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels_opaque, TEX_W);
+            TEXBUF(a) + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels_opaque, TEX_W);
         raster_texshadeflat_persp_textrans_scanline_lerp8(
-            b + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels_opaque, TEX_W);
+            TEXBUF(b) + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels_opaque, TEX_W);
         report("textrans == texopaque (no zero texels)", t, a, b);
 
         /* shade axis: a constant shade plane must equal the flat-shade kernel */
         buf_reset(a);
         buf_reset(b);
         raster_texshadeflat_persp_texopaque_scanline_lerp8(
-            a + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
+            TEXBUF(a) + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
         raster_texshadeblend_persp_texopaque_scanline_lerp8(
-            b + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
+            TEXBUF(b) + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
         report("texshadeblend == texshadeflat (equal shades)", t, a, b);
 
         buf_reset(a);
         buf_reset(b);
         raster_texshadeflat_persp_textrans_scanline_lerp8(
-            a + GUARD, TEXGEOM(tv), 0x33, 0x33, 0x33, 0xFF, g_texels, TEX_W);
+            TEXBUF(a) + GUARD, TEXGEOM(tv), 0x33, 0x33, 0x33, 0xFF, g_texels, TEX_W);
         raster_texshadeblend_persp_textrans_scanline_lerp8(
-            b + GUARD, TEXGEOM(tv), 0x33, 0x33, 0x33, 0xFF, g_texels, TEX_W);
+            TEXBUF(b) + GUARD, TEXGEOM(tv), 0x33, 0x33, 0x33, 0xFF, g_texels, TEX_W);
         report("texshadeblend.textrans == texshadeflat.textrans", t, a, b);
 
         /*
@@ -479,9 +506,9 @@ test_texture_chain(int* a, int* b)
         buf_reset(a);
         buf_reset(b);
         raster_texshadeblend_persp_texopaque_scanline_lerp8(
-            a + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_white, TEX_W);
+            TEXBUF(a) + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_white, TEX_W);
         raster_texshadeblend_affine_texopaque_scanline_lerp8(
-            b + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_white, TEX_W);
+            TEXBUF(b) + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_white, TEX_W);
         report("affine == persp coverage+shade (constant depth)", t, a, b);
 
         /* space axis, uv: with a real texture the two must still agree on
@@ -489,9 +516,9 @@ test_texture_chain(int* a, int* b)
         buf_reset(a);
         buf_reset(b);
         raster_texshadeblend_persp_texopaque_scanline_lerp8(
-            a + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_opaque, TEX_W);
+            TEXBUF(a) + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_opaque, TEX_W);
         raster_texshadeblend_affine_texopaque_scanline_lerp8(
-            b + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_opaque, TEX_W);
+            TEXBUF(b) + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_opaque, TEX_W);
         report_coverage("affine/persp identical coverage", t, a, b);
     }
 }
@@ -506,16 +533,16 @@ static void
 check_facealpha(
     const char* variant,
     const struct Tri* t,
-    const int* opaque_buf,
-    const int* got,
+    const toripixel_t* opaque_buf,
+    const toripixel_t* got,
     int alpha)
 {
     int bad = 0;
     for( int p = 0; p < H * W; p++ )
     {
-        int opaque = opaque_buf[GUARD + p];
-        int expect =
-            (opaque == 0x00112233) ? 0x00112233 : alpha_blend(alpha, 0x00112233, opaque);
+        toripixel_t opaque = opaque_buf[GUARD + p];
+        toripixel_t expect =
+            (opaque == UNWRITTEN) ? UNWRITTEN : alpha_blend(alpha, UNWRITTEN, opaque);
         if( got[GUARD + p] != expect )
             bad++;
     }
@@ -533,7 +560,7 @@ check_facealpha(
 }
 
 static void
-test_texture_facealpha_blend(int* opaque_buf, int* got)
+test_texture_facealpha_blend(toripixel_t* opaque_buf, toripixel_t* got)
 {
     printf("texshade*.facealpha.scanline blend algebra (all gates / spaces)\n");
 
@@ -553,8 +580,8 @@ test_texture_facealpha_blend(int* opaque_buf, int* got)
     {                                                                                              \
         buf_reset(opaque_buf);                                                                     \
         buf_reset(got);                                                                            \
-        PLAIN_FN(opaque_buf + GUARD, TEXGEOM(TVP), 0x20, 0x50, 0x70, 0xFF, TEX, TEX_W);            \
-        ALPHA_FN(got + GUARD, TEXGEOM(TVP), 0x20, 0x50, 0x70, alpha, TEX, TEX_W);                  \
+        PLAIN_FN(TEXBUF(opaque_buf) + GUARD, TEXGEOM(TVP), 0x20, 0x50, 0x70, 0xFF, TEX, TEX_W);            \
+        ALPHA_FN(TEXBUF(got) + GUARD, TEXGEOM(TVP), 0x20, 0x50, 0x70, alpha, TEX, TEX_W);                  \
         if( guard_intact(got, NAME, t->name) )                                                     \
             check_facealpha(NAME, t, opaque_buf, got, alpha);                                      \
     } while( 0 )
@@ -621,7 +648,7 @@ test_texture_facealpha_blend(int* opaque_buf, int* got)
  * solved from the three input vertices.
  */
 static void
-test_texture_shade_plane(int* got)
+test_texture_shade_plane(toripixel_t* got)
 {
     printf("texshadeblend shade plane vs analytic plane (white texture)\n");
 
@@ -654,14 +681,14 @@ test_texture_shade_plane(int* got)
 
         buf_reset(got);
         raster_texshadeblend_persp_texopaque_scanline_lerp8(
-            got + GUARD, TEXGEOM(tv), shade_a, shade_b, shade_c, 0xFF, g_texels_white, TEX_W);
+            TEXBUF(got) + GUARD, TEXGEOM(tv), shade_a, shade_b, shade_c, 0xFF, g_texels_white, TEX_W);
 
         for( int y = 0; y < H; y++ )
         {
             for( int x = 0; x < W; x++ )
             {
-                int px = got[GUARD + y * W + x];
-                if( px == 0x00112233 )
+                toripixel_t px = got[GUARD + y * W + x];
+                if( px == UNWRITTEN )
                     continue;
 
                 /* First written pixel of this row: shade is sampled here. */
@@ -770,7 +797,7 @@ test_texture_plane_32bit_normalization(void)
 int
 main(void)
 {
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
     ToriDraw_InitSinTable();
     ToriDraw_InitCosTable();
     ToriDraw_InitTanTable();
@@ -790,8 +817,8 @@ main(void)
         }
     }
 
-    int* ref = malloc(sizeof(int) * BUF_LEN);
-    int* got = malloc(sizeof(int) * BUF_LEN);
+    toripixel_t* ref = malloc(sizeof(*ref) * BUF_LEN);
+    toripixel_t* got = malloc(sizeof(*got) * BUF_LEN);
     assert(ref);
     assert(got);
 

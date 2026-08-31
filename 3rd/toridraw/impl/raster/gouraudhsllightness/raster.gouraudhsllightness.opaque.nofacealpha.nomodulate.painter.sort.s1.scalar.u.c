@@ -52,7 +52,7 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_sort_s1(
 
     for( int j = 0; j < stride; j++ )
     {
-        int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+        int rgb_color = ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
         pixel_buffer[offset] = rgb_color;
         offset += 1;
         color_hsl16_ish8 = toridraw_wrap_add(color_hsl16_ish8, step_x_hsl_ish8);
