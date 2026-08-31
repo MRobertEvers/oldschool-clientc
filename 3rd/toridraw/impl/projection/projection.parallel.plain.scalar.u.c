@@ -1,7 +1,7 @@
 #ifndef TORIDRAW_GRAPHICS_PROJECTION_ORTHO_NONE_U_C
 #define TORIDRAW_GRAPHICS_PROJECTION_ORTHO_NONE_U_C
 
-#include "projection_ortho.h"
+#include "impl/projection/projection.parallel.plain.dispatch.h"
 
 /*
  * No vector parallel projection in this build.

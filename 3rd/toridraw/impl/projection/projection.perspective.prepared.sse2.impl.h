@@ -81,9 +81,9 @@
 #include <emmintrin.h>
 #include <limits.h>
 
-#include "dash_vertexint.h"
-#include "projection.h"
-#include "shared_tables.h"
+#include "graphics/dash_vertexint.h"
+#include "impl/projection/projection.scalar_reference.h"
+#include "graphics/shared_tables.h"
 #include "toridraw_types.h"
 
 #define TORIDRAW_PROJECTION_PREP_1_OVER_65536 ( 1.0f / 65536.0f )

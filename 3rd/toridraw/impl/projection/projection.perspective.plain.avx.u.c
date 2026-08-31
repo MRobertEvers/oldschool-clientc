@@ -3,7 +3,7 @@
 
 #if defined(__AVX2__) && !defined(AVX2_DISABLED)
 #include <immintrin.h>
-#include "projection_zdiv_simd.avx.u.c"
+#include "impl/projection/zdiv/projection.zdiv.avx.u.c"
 
 static inline void
 project_vertices_array_avx2(

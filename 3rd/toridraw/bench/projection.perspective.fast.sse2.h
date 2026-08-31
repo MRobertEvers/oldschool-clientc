@@ -51,8 +51,8 @@
 #include <assert.h>
 #include <emmintrin.h>
 
-#include "dash_vertexint.h"
-#include "projection.h"
+#include "graphics/dash_vertexint.h"
+#include "impl/projection/projection.scalar_reference.h"
 
 /*
  * Pack one pmaddwd coefficient dword. A source vector's dword holds the pair

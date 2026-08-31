@@ -1,13 +1,13 @@
 #ifndef PROJECTION16_SIMD_U_C
 #define PROJECTION16_SIMD_U_C
 
-#include "dash_faceint.h"
-#include "dash_vertexint.h"
-#include "projection.h"
+#include "graphics/dash_faceint.h"
+#include "graphics/dash_vertexint.h"
+#include "impl/projection/projection.scalar_reference.h"
 /* Scalar helpers live in projection.u.c (also pulled in by render_*.u.c before this TU). */
-#include "projection.u.c"
+#include "impl/projection/projection.scalar_reference.u.c"
 /* Parallel projection for the map editor; no divide, no near-plane sentinel. */
-#include "projection_ortho.u.c"
+#include "impl/projection/projection.parallel.plain.dispatch.u.c"
 
 #include <assert.h>
 #include <limits.h>
@@ -16,13 +16,13 @@
 
 // This was turning out slower than the scalar version, so we're disabling it for now.
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-#include "projection16_simd.neon.u.c"
+#include "impl/projection/projection.perspective.plain.neon.u.c"
 #elif defined(__AVX2__) && !defined(AVX2_DISABLED)
-#include "projection16_simd.avx.u.c"
+#include "impl/projection/projection.perspective.plain.avx.u.c"
 #elif defined(__SSE4_1__) && !defined(SSE2_DISABLED)
-#include "projection16_simd.sse41.u.c"
+#include "impl/projection/projection.perspective.plain.sse41.u.c"
 #elif defined(__SSE2__) && !defined(SSE2_DISABLED)
-#include "projection16_simd.sse2.u.c"
+#include "impl/projection/projection.perspective.plain.sse2.u.c"
 /*
  * Prepared-camera model-yaw family, the x86 answer to the prepared AArch64
  * entry points in projection16.aarch64.S. Only the SSE2 lane gets it: the SSE4.1
@@ -35,12 +35,12 @@
  */
 #if !defined(PREPARED_PROJECTION_DISABLED)
 #define TORIDRAW_SSE2_PREPARED_PROJECTION 1
-#include "projection16_prepared.sse2.h"
+#include "impl/projection/projection.perspective.prepared.sse2.impl.h"
 #endif
 #elif defined(__SSE__) && !defined(SSE_DISABLED)
-#include "projection16_simd.sse_float.u.c"
+#include "impl/projection/projection.perspective.plain.sse_float.u.c"
 #else
-#include "projection16_simd.scalar.u.c"
+#include "impl/projection/projection.perspective.plain.scalar.u.c"
 #endif
 
 /**

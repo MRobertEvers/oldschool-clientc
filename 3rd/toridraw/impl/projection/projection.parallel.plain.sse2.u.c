@@ -1,9 +1,9 @@
 #ifndef TORIDRAW_GRAPHICS_PROJECTION_ORTHO_SSE2_U_C
 #define TORIDRAW_GRAPHICS_PROJECTION_ORTHO_SSE2_U_C
 
-#include "projection_ortho.h"
+#include "impl/projection/projection.parallel.plain.dispatch.h"
 
-#include "sse2_41compat.h"
+#include "graphics/sse2_41compat.h"
 
 /*
  * The SSE2 lane of the parallel projection: four vertices at a time, on the

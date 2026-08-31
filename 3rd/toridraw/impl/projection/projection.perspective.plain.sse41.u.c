@@ -1,13 +1,13 @@
-#ifndef PROJECTION16_SIMD_SSE2_U_C
-#define PROJECTION16_SIMD_SSE2_U_C
+#ifndef PROJECTION16_SIMD_SSE41_U_C
+#define PROJECTION16_SIMD_SSE41_U_C
 
-#if defined(__SSE2__) && !defined(__SSE4_1__) && !defined(SSE2_DISABLED)
-#include "sse2_41compat.h"
-#include "projection_zdiv_simd.sse2.u.c"
+#if defined(__SSE4_1__) && !defined(SSE2_DISABLED)
+#include "graphics/sse2_41compat.h"
+#include "impl/projection/zdiv/projection.zdiv.sse41.u.c"
 /* One alias per near-clip family; a call site uses the one matching the
  * family it lives in (see ToriDraw_Project for where the choice is made). */
-#define PROJECTION_ZDIV_SSE_APPLY_CLIP projection_zdiv_sse2_apply_clip
-#define PROJECTION_ZDIV_SSE_APPLY_NOCLIP projection_zdiv_sse2_apply_noclip
+#define PROJECTION_ZDIV_SSE_APPLY_CLIP projection_zdiv_sse41_apply_clip
+#define PROJECTION_ZDIV_SSE_APPLY_NOCLIP projection_zdiv_sse41_apply_noclip
 
 static inline void
 project_vertices_array_sse(
@@ -2398,4 +2398,4 @@ project_vertices_array_fused_notex_noclip(
 }
 #endif
 
-#endif /* PROJECTION16_SIMD_SSE2_U_C */
+#endif /* PROJECTION16_SIMD_SSE41_U_C */

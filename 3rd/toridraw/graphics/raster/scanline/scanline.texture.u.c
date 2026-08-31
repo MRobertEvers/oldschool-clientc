@@ -24,7 +24,7 @@
 #include "graphics/alpha.h"
 #include "graphics/clamp.h"
 #include "graphics/dash_restrict.h"
-#include "graphics/projection.u.c"
+#include "impl/projection/projection.scalar_reference.u.c"
 #include "graphics/raster/scanline/scanline_common.h"
 #include "graphics/raster/texture/span/tex.span.u.c"
 #include "graphics/shade.h"

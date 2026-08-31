@@ -510,7 +510,7 @@ endif
 endif
 
 ifeq ($(TORIDRAW_NO_SIMD),1)
-# The selection ladder in graphics/projection16_simd.u.c (and its zdiv twin)
+# The selection ladder in impl/projection/projection.perspective.plain.dispatch.u.c
 # picks a kernel from the host's ISA macros unless the matching *_DISABLED is
 # defined. Define all of them and every host lands on the scalar file.
 TORIDRAW_CFLAGS += -DNEON_DISABLED=1 -DAVX2_DISABLED=1 -DSSE41_DISABLED=1 \
@@ -1938,7 +1938,7 @@ $(OBJ_DIR)/xteas.o: $(REPO_ROOT)/3rd/xteas/xteas.c | $(OBJ_DIR)
 $(OBJ_DIR)/toridraw_unity.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(TORIDRAW_CFLAGS) -w -c $(TORIDRAW_UNITY_SRC) -o $@
 
-$(OBJ_DIR)/projection16.aarch64.o: $(TORIDRAW_DIR)/graphics/projection16.aarch64.S | $(OBJ_DIR)
+$(OBJ_DIR)/projection16.aarch64.o: $(TORIDRAW_DIR)/impl/projection/projection.perspective.prepared.aarch64.S | $(OBJ_DIR)
 	$(CC) -c $< -o $@
 
 # Assembled through $(CC) so the target architecture follows the lane's own

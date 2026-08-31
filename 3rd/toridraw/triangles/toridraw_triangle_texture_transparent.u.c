@@ -10,7 +10,7 @@
 #include <stdbool.h>
 
 // clang-format off
-#include "graphics/projection.u.c"
+#include "impl/projection/projection.scalar_reference.u.c"
 #include "graphics/clamp.h"
 #include "graphics/shade.h"
 #include "graphics/raster/texture/span/tex.span.u.c"

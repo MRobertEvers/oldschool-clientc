@@ -1,9 +1,9 @@
 #ifndef TORIDRAW_GRAPHICS_PROJECTION_PREPARED_SSE2_U_C
 #define TORIDRAW_GRAPHICS_PROJECTION_PREPARED_SSE2_U_C
 
-#include "proj_census.h"
-#include "projection16_prepared.sse2.h"
-#include "projection_prepared.h"
+#include "graphics/proj_census.h"
+#include "impl/projection/projection.perspective.prepared.sse2.impl.h"
+#include "impl/projection/projection.perspective.prepared.dispatch.h"
 #include "toridraw_model_internal.h"
 
 /*

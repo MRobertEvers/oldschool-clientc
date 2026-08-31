@@ -1,7 +1,7 @@
 #ifndef TORIDRAW_GRAPHICS_PROJECTION_BOUND_SCALAR_U_C
 #define TORIDRAW_GRAPHICS_PROJECTION_BOUND_SCALAR_U_C
 
-#include "projection_bound.h"
+#include "impl/projection/projection.bound.dispatch.h"
 
 static inline void
 toridraw_bound_fold_prepared(const int* b, struct ToriDraw_ScreenBound* box)

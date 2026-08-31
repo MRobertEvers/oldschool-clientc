@@ -45,7 +45,7 @@ int g_toridraw_raster_scanline = 0;
 #include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c"
 #include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c"
 
-#include "graphics/projection.u.c"
+#include "impl/projection/projection.scalar_reference.u.c"
 #include "graphics/raster/texture/span/tex.span.u.c"
 #include "graphics/raster/texture/texshadeflat.persp.texopaque.ordered.lerp8.scanline.u.c"
 #include "graphics/raster/texture/texshadeflat.persp.textrans.ordered.lerp8.scanline.u.c"

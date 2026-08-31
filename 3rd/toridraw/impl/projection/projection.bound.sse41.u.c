@@ -1,7 +1,7 @@
 #ifndef TORIDRAW_GRAPHICS_PROJECTION_BOUND_SSE41_U_C
 #define TORIDRAW_GRAPHICS_PROJECTION_BOUND_SSE41_U_C
 
-#include "projection_bound.h"
+#include "impl/projection/projection.bound.dispatch.h"
 
 #include <smmintrin.h>
 

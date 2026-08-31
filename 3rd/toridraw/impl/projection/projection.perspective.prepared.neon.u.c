@@ -1,9 +1,9 @@
 #ifndef TORIDRAW_GRAPHICS_PROJECTION_PREPARED_NEON_U_C
 #define TORIDRAW_GRAPHICS_PROJECTION_PREPARED_NEON_U_C
 
-#include "proj_census.h"
-#include "projection16.aarch64.h"
-#include "projection_prepared.h"
+#include "graphics/proj_census.h"
+#include "impl/projection/projection.perspective.prepared.aarch64.h"
+#include "impl/projection/projection.perspective.prepared.dispatch.h"
 #include "toridraw_model_internal.h"
 
 /*

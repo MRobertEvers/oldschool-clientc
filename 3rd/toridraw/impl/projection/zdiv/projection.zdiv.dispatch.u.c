@@ -15,34 +15,34 @@
  * common stem.
  */
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-#include "projection_zdiv_simd.neon.u.c"
+#include "impl/projection/zdiv/projection.zdiv.neon.u.c"
 #define TORIDRAW_ZDIV_PASS_TEX_CLIP(oz, sx, sy, sz, n, mid, near) \
     projection_zdiv_tex_neon_clip((oz), (sx), (sy), (sz), (n), (mid), (near))
 #define TORIDRAW_ZDIV_PASS_NOTEX_CLIP(sx, sy, sz, n, mid, near) \
     projection_zdiv_notex_neon_clip((sx), (sy), (sz), (n), (mid), (near))
 #elif defined(__AVX2__) && !defined(AVX2_DISABLED)
-#include "projection_zdiv_simd.scalar.u.c"
-#include "projection_zdiv_simd.avx.u.c"
+#include "impl/projection/zdiv/projection.zdiv.scalar.u.c"
+#include "impl/projection/zdiv/projection.zdiv.avx.u.c"
 #define TORIDRAW_ZDIV_PASS_TEX_CLIP(oz, sx, sy, sz, n, mid, near) \
     projection_zdiv_tex_avx2_clip((oz), (sx), (sy), (sz), (n), (mid), (near))
 #define TORIDRAW_ZDIV_PASS_NOTEX_CLIP(sx, sy, sz, n, mid, near) \
     projection_zdiv_notex_avx2_clip((sx), (sy), (sz), (n), (mid), (near))
 #elif defined(__SSE4_1__) && !defined(SSE2_DISABLED)
-#include "projection_zdiv_simd.scalar.u.c"
-#include "projection_zdiv_simd.sse41.u.c"
+#include "impl/projection/zdiv/projection.zdiv.scalar.u.c"
+#include "impl/projection/zdiv/projection.zdiv.sse41.u.c"
 #define TORIDRAW_ZDIV_PASS_TEX_CLIP(oz, sx, sy, sz, n, mid, near) \
     projection_zdiv_tex_sse41_clip((oz), (sx), (sy), (sz), (n), (mid), (near))
 #define TORIDRAW_ZDIV_PASS_NOTEX_CLIP(sx, sy, sz, n, mid, near) \
     projection_zdiv_notex_sse41_clip((sx), (sy), (sz), (n), (mid), (near))
 #elif defined(__SSE2__) && !defined(SSE2_DISABLED)
-#include "projection_zdiv_simd.scalar.u.c"
-#include "projection_zdiv_simd.sse2.u.c"
+#include "impl/projection/zdiv/projection.zdiv.scalar.u.c"
+#include "impl/projection/zdiv/projection.zdiv.sse2.u.c"
 #define TORIDRAW_ZDIV_PASS_TEX_CLIP(oz, sx, sy, sz, n, mid, near) \
     projection_zdiv_tex_sse2_clip((oz), (sx), (sy), (sz), (n), (mid), (near))
 #define TORIDRAW_ZDIV_PASS_NOTEX_CLIP(sx, sy, sz, n, mid, near) \
     projection_zdiv_notex_sse2_clip((sx), (sy), (sz), (n), (mid), (near))
 #else
-#include "projection_zdiv_simd.scalar.u.c"
+#include "impl/projection/zdiv/projection.zdiv.scalar.u.c"
 #define TORIDRAW_ZDIV_PASS_TEX_CLIP(oz, sx, sy, sz, n, mid, near) \
     projection_zdiv_tex_scalar_range_clip((oz), (sx), (sy), (sz), 0, (n), (mid), (near))
 #define TORIDRAW_ZDIV_PASS_NOTEX_CLIP(sx, sy, sz, n, mid, near) \

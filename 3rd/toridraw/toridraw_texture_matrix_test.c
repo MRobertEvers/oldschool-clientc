@@ -48,7 +48,7 @@
 // clang-format off
 #include "graphics/shared_tables.c"
 
-#include "graphics/projection.u.c"
+#include "impl/projection/projection.scalar_reference.u.c"
 #include "graphics/raster/texture/span/tex.span.u.c"
 #include "graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c"

@@ -3,7 +3,7 @@
 
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
 #include <arm_neon.h>
-#include "projection_zdiv_simd.neon.u.c"
+#include "impl/projection/zdiv/projection.zdiv.neon.u.c"
 
 static inline void
 project_vertices_array_neon(

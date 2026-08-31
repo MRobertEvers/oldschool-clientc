@@ -1,7 +1,7 @@
 #ifndef TORIDRAW_TYPES_H
 #define TORIDRAW_TYPES_H
 
-#include "graphics/projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "graphics/zdepth.h"
 #include "toridraw_intrusive_list.h"
 #include "toridraw_texture_mapping.h"

@@ -12,13 +12,18 @@ That is the whole interface. `ToriDraw_KernelTake` validates the table against
 the scene it will draw into, reports if some stage will not be what the table's
 name implies, and provisions the scratch the three stages hand each other.
 
+Names are not abbreviated. `projection` is not `proj`, `perspective` is not
+`persp`, and an axis that is off carries a value (`nomodulate`, `painter`,
+`nofacealpha`) rather than being absent — absence cannot be grepped for, and it
+makes the axis order load-bearing for reading rather than just for sorting.
+
 ## The tiers
 
 | tier | lives in | what it holds |
 |---|---|---|
 | 0–1 | `kernels/` | the tables a caller takes, and the three stage objects they name |
 | 2 | `families/` | projection families: a mode, its near-clip rule, and the clip/noclip pair that rule selects between |
-| 3 | `graphics/`, `triangles/` | the math: per-ISA vertex kernels, sort lanes, span and triangle kernels |
+| 3 | `impl/`, `graphics/`, `triangles/` | the math: per-ISA vertex kernels, sort lanes, span and triangle kernels |
 
 Nothing in tiers 0–2 contains a loop. They name and select; tier 3 draws.
 
@@ -76,7 +81,7 @@ library knows not to ask the sort for a stash nothing would read.
   coordinate. `make -C src check-kernel-names` fails on an off-grammar name.
 - **A new ISA lane**: fill that stage's hook contract — three functions for the
   flat sort (`toridraw_face_sort_flat.h`), two for the prepared projection
-  (`graphics/projection_prepared.h`), the eight contract entries for the portable
+  (`impl/projection/projection.perspective.prepared.dispatch.h`), the eight contract entries for the portable
   ladder. A lane that has no kernel for a family *declines*, and the caller falls
   through; declining is a supported answer, not a stub.
 - **A new kernel object**: one file under `kernels/`, named

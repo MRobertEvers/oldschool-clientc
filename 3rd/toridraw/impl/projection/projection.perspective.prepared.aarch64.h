@@ -17,7 +17,7 @@
 
 #if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
 
-#include "dash_vertexint.h"
+#include "graphics/dash_vertexint.h"
 
 struct ToriDraw_Position;
 

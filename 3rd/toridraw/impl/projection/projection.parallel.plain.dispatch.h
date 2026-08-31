@@ -44,9 +44,9 @@
  * handed, or it wrote nothing.
  */
 
-#include "dash_restrict.h"
-#include "dash_vertexint.h"
-#include "projection.h"
+#include "graphics/dash_restrict.h"
+#include "graphics/dash_vertexint.h"
+#include "impl/projection/projection.scalar_reference.h"
 
 /*
  * The camera and the model's placement, resolved once per call.

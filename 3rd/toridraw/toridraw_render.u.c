@@ -2,7 +2,7 @@
 #include "graphics/dash_restrict.h"
 #include "graphics/div3.h"
 #include "graphics/proj_census.h"
-#include "graphics/projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "graphics/winding.h"
 #include "graphics/ysort_order.h"
 #include "toridraw_math.h"
@@ -24,17 +24,17 @@
 #endif
 
 // clang-format off
-#include "graphics/projection16_simd.u.c"
-#include "graphics/projection_zdiv_simd.u.c"
+#include "impl/projection/projection.perspective.plain.dispatch.u.c"
+#include "impl/projection/zdiv/projection.zdiv.dispatch.u.c"
 /* The per-ISA screen-box sweep behind toridraw_projected_bound. */
-#include "graphics/projection_bound.u.c"
+#include "impl/projection/projection.bound.dispatch.u.c"
 // clang-format on
 
 /* The prepared-camera lane -- which ISA supplies one, and the two hooks the
  * perspective slots below call. The lane owns the entry points (the AArch64
  * assembly, the SSE2 family) and the inline attributes those slots carry, so
  * nothing here tests the architecture. */
-#include "graphics/projection_prepared.u.c"
+#include "impl/projection/projection.perspective.prepared.dispatch.u.c"
 
 /* toridraw_ignore_priorities(), the depth-sort override the face walk reads.
  * toridraw.c includes this file ahead of this one and it carries an include

@@ -5,39 +5,9 @@ derived from the filenames, which is the point of naming every axis.
 
 | stage | files |
 |---|---:|
-| proj | 35 |
 | facesort | 5 |
 | raster | 178 |
 | (kept: instrumentation, shared headers, templates) | 53 |
-
-## proj
-
-### `proj.bound`
-
-| position | values |
-|---|---|
-| 2 | `dispatch`, `neon`, `scalar`, `sse41` |
-
-### `proj.parallel`
-
-| position | values |
-|---|---|
-| 2 | `plain` |
-| 3 | `avx`, `dispatch`, `neon`, `scalar`, `sse2` |
-
-### `proj.persp`
-
-| position | values |
-|---|---|
-| 2 | `fast`, `plain`, `prepared` |
-| 3 | `aarch64`, `avx`, `dispatch`, `neon`, `scalar`, `sse2`, `sse41`, `sse_float` |
-| 4 | `impl` |
-
-### `proj.zdiv`
-
-| position | values |
-|---|---|
-| 2 | `avx`, `dispatch`, `neon`, `scalar`, `sse2`, `sse41` |
 
 ## facesort
 
@@ -56,19 +26,19 @@ derived from the filenames, which is the point of naming every axis.
 |---|---|
 | 2 | `alpha`, `opaque` |
 | 3 | `nofacealpha` |
-| 4 | `nomod` |
+| 4 | `nomodulate` |
 | 5 | `painter` |
 | 6 | `branching`, `sort` |
 | 7 | `s4` |
 | 8 | `scalar` |
 
-### `raster.gouraudhsl`
+### `raster.gouraudhsllightness`
 
 | position | values |
 |---|---|
 | 2 | `alpha`, `opaque` |
 | 3 | `nofacealpha` |
-| 4 | `nomod` |
+| 4 | `nomodulate` |
 | 5 | `painter` |
 | 6 | `branching`, `sort` |
 | 7 | `s1`, `s4` |
@@ -80,7 +50,7 @@ derived from the filenames, which is the point of naming every axis.
 |---|---|
 | 2 | `alpha`, `opaque` |
 | 3 | `nofacealpha` |
-| 4 | `nomod` |
+| 4 | `nomodulate` |
 | 5 | `painter` |
 | 6 | `branching` |
 | 7 | `s4` |
@@ -90,10 +60,10 @@ derived from the filenames, which is the point of naming every axis.
 
 | position | values |
 |---|---|
-| 2 | `persp` |
+| 2 | `perspective` |
 | 3 | `texalpha`, `texopaque`, `textrans` |
 | 4 | `facealpha`, `nofacealpha` |
-| 5 | `modulate`, `nomod` |
+| 5 | `modulate`, `nomodulate` |
 | 6 | `painter`, `zbuf` |
 | 7 | `branching` |
 | 8 | `lerp8_v3` |
@@ -103,10 +73,10 @@ derived from the filenames, which is the point of naming every axis.
 
 | position | values |
 |---|---|
-| 2 | `persp` |
+| 2 | `perspective` |
 | 3 | `texalpha`, `texopaque`, `textrans` |
 | 4 | `facealpha`, `nofacealpha` |
-| 5 | `modulate`, `nomod` |
+| 5 | `modulate`, `nomodulate` |
 | 6 | `painter`, `zbuf` |
 | 7 | `branching` |
 | 8 | `lerp8_v3` |
@@ -116,10 +86,10 @@ derived from the filenames, which is the point of naming every axis.
 
 | position | values |
 |---|---|
-| 2 | `persp` |
+| 2 | `perspective` |
 | 3 | `texalpha`, `texopaque`, `textrans` |
 | 4 | `facealpha`, `nofacealpha` |
-| 5 | `modulate`, `nomod` |
+| 5 | `modulate`, `nomodulate` |
 | 6 | `painter`, `zbuf` |
 | 7 | `branching` |
 | 8 | `lerp8_v3` |
@@ -129,10 +99,10 @@ derived from the filenames, which is the point of naming every axis.
 
 | position | values |
 |---|---|
-| 2 | `persp` |
+| 2 | `perspective` |
 | 3 | `texalpha`, `texopaque`, `textrans` |
 | 4 | `facealpha`, `nofacealpha` |
-| 5 | `modulate`, `nomod` |
+| 5 | `modulate`, `nomodulate` |
 | 6 | `painter`, `zbuf` |
 | 7 | `branching` |
 | 8 | `lerp8_v3` |
@@ -142,10 +112,10 @@ derived from the filenames, which is the point of naming every axis.
 
 | position | values |
 |---|---|
-| 2 | `affine`, `persp` |
+| 2 | `affine`, `perspective` |
 | 3 | `texopaque`, `textrans` |
 | 4 | `nofacealpha` |
-| 5 | `nomod` |
+| 5 | `nomodulate` |
 | 6 | `painter` |
 | 7 | `branching` |
 | 8 | `lerp8`, `lerp8_v3` |
@@ -155,10 +125,10 @@ derived from the filenames, which is the point of naming every axis.
 
 | position | values |
 |---|---|
-| 2 | `persp` |
+| 2 | `perspective` |
 | 3 | `texopaque`, `textrans` |
 | 4 | `nofacealpha` |
-| 5 | `nomod` |
+| 5 | `nomodulate` |
 | 6 | `painter` |
 | 7 | `branching`, `scanline` |
 | 8 | `lerp8` |
@@ -168,10 +138,10 @@ derived from the filenames, which is the point of naming every axis.
 
 | position | values |
 |---|---|
-| 2 | `persp` |
+| 2 | `perspective` |
 | 3 | `texalpha`, `texopaque`, `textrans` |
 | 4 | `facealpha`, `nofacealpha` |
-| 5 | `modulate`, `nomod` |
+| 5 | `modulate`, `nomodulate` |
 | 6 | `painter`, `zbuf` |
 | 7 | `branching` |
 | 8 | `lerp8_v3` |
@@ -184,7 +154,7 @@ derived from the filenames, which is the point of naming every axis.
 | 2 | `screen` |
 | 3 | `walker` |
 
-### `span.gouraudhsl`
+### `span.gouraudhsllightness`
 
 | position | values |
 |---|---|
@@ -210,7 +180,7 @@ derived from the filenames, which is the point of naming every axis.
 |---|---|
 | 2 | `aarch64`, `i686` |
 
-### `tri.gouraudhsl`
+### `tri.gouraudhsllightness`
 
 | position | values |
 |---|---|

@@ -1,11 +1,11 @@
 #ifndef PROJECTION_ORTHO_U_C
 #define PROJECTION_ORTHO_U_C
 
-#include "projection_ortho.h"
+#include "impl/projection/projection.parallel.plain.dispatch.h"
 
-#include "dash_restrict.h"
-#include "dash_vertexint.h"
-#include "projection.h"
+#include "graphics/dash_restrict.h"
+#include "graphics/dash_vertexint.h"
+#include "impl/projection/projection.scalar_reference.h"
 
 #include <stdbool.h>
 
@@ -87,13 +87,13 @@
  * functions -- read as though a build could have several.
  */
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-#include "projection_ortho.neon.u.c"
+#include "impl/projection/projection.parallel.plain.neon.u.c"
 #elif defined(__AVX2__) && !defined(AVX2_DISABLED)
-#include "projection_ortho.avx.u.c"
+#include "impl/projection/projection.parallel.plain.avx.u.c"
 #elif defined(__SSE2__) && !defined(SSE2_DISABLED)
-#include "projection_ortho.sse2.u.c"
+#include "impl/projection/projection.parallel.plain.sse2.u.c"
 #else
-#include "projection_ortho.none.u.c"
+#include "impl/projection/projection.parallel.plain.scalar.u.c"
 #endif
 
 /** One vertex to camera space. Shared by every scalar tail and the no-SIMD build. */

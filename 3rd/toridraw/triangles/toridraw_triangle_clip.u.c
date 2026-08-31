@@ -2,7 +2,7 @@
 #define TORIDRAW_TRIANGLE_CLIP_U_C
 
 #include "../toridraw_math.h"
-#include "graphics/projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "graphics/winding.h"
 #include "graphics/tori_compat.h"
 #include "../toridraw_debug.h"

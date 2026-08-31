@@ -1,7 +1,7 @@
 #ifndef TORIDRAW_GRAPHICS_PROJECTION_PREPARED_U_C
 #define TORIDRAW_GRAPHICS_PROJECTION_PREPARED_U_C
 
-#include "projection_prepared.h"
+#include "impl/projection/projection.perspective.prepared.dispatch.h"
 
 /*
  * One lane, selected by the same two macros that decide whether the kernels
@@ -16,11 +16,11 @@
  * each in turn.
  */
 #if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
-#include "projection_prepared.neon.u.c"
+#include "impl/projection/projection.perspective.prepared.neon.u.c"
 #elif defined(TORIDRAW_SSE2_PREPARED_PROJECTION)
-#include "projection_prepared.sse2.u.c"
+#include "impl/projection/projection.perspective.prepared.sse2.u.c"
 #else
-#include "projection_prepared.none.u.c"
+#include "impl/projection/projection.perspective.prepared.scalar.u.c"
 #endif
 
 #endif /* TORIDRAW_GRAPHICS_PROJECTION_PREPARED_U_C */

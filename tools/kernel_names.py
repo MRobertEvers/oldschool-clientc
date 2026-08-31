@@ -67,7 +67,7 @@ ISA_CANON = {
 # `neon` names an instruction set that aarch64 assembly does not exclusively use.
 ASM_ISA = {"aarch64", "i686", "x64"}
 
-STAGE_PROJ, STAGE_SORT, STAGE_RASTER = "proj", "facesort", "raster"
+STAGE_PROJ, STAGE_SORT, STAGE_RASTER = "projection", "facesort", "raster"
 
 
 class Placement:
@@ -96,7 +96,7 @@ def _ext(name):
 
 def place_projection(rel, base):
     """
-    graphics/projection*  ->  impl/proj/
+    graphics/projection*  ->  impl/projection/
 
     Families, and what each file fixes:
 
@@ -109,7 +109,7 @@ def place_projection(rel, base):
                                     tex fixed, clip spanned by two hooks.
       projection_bound.<isa>        the screen-box fold. Not a projection
                                     kernel at all -- it reads what one wrote --
-                                    so it keeps its own name under proj/.
+                                    so it keeps its own name under projection/.
       projection16.aarch64.S        the hand-written prepared kernel.
       projection_zdiv_simd.<isa>    compiled, no production caller.
     """
@@ -124,36 +124,36 @@ def place_projection(rel, base):
     fam = parts[0]
 
     def out(name, note=""):
-        return Placement(rel, "impl/proj/" + name + ext, STAGE_PROJ, note)
+        return Placement(rel, "impl/projection/" + name + ext, STAGE_PROJ, note)
 
     if fam == "projection16_simd":
         if isa:
-            return out("proj.persp.plain.%s" % isa,
+            return out("projection.perspective.plain.%s" % isa,
                        "spans clip/tex/shape; the eight contract entries carry them")
-        return out("proj.persp.plain.dispatch")
+        return out("projection.perspective.plain.dispatch")
     if fam == "projection_ortho":
         if isa:
-            return out("proj.parallel.plain.%s" % isa)
-        return out("proj.parallel.plain.dispatch")
+            return out("projection.parallel.plain.%s" % isa)
+        return out("projection.parallel.plain.dispatch")
     if fam == "projection_prepared":
         if isa:
-            return out("proj.persp.prepared.%s" % isa)
-        return out("proj.persp.prepared.dispatch")
+            return out("projection.perspective.prepared.%s" % isa)
+        return out("projection.perspective.prepared.dispatch")
     if fam == "projection16_prepared" and isa:
-        return out("proj.persp.prepared.%s.impl" % isa,
+        return out("projection.perspective.prepared.%s.impl" % isa,
                    "header carrying the SSE2 prepared core")
     if fam == "projection16_fast" and isa:
-        return Placement(rel, "bench/proj.persp.fast.%s%s" % (isa, ext), STAGE_PROJ,
+        return Placement(rel, "bench/projection.perspective.fast.%s%s" % (isa, ext), STAGE_PROJ,
                          "BENCH ONLY: sole includer is toridraw_proj_bench.c")
     if fam == "projection_bound":
-        return out("proj.bound." + isa if isa else "proj.bound.dispatch")
+        return out("projection.bound." + isa if isa else "projection.bound.dispatch")
     if fam == "projection_zdiv_simd":
-        return Placement(rel, "impl/proj/zdiv/proj.zdiv.%s%s" % (isa or "dispatch", ext),
+        return Placement(rel, "impl/projection/zdiv/projection.zdiv.%s%s" % (isa or "dispatch", ext),
                          STAGE_PROJ, "NO PRODUCTION CALLER: delete or move to bench/")
     if fam == "projection16" and parts[-1] in ASM_ISA:
-        return out("proj.persp.prepared.%s" % parts[-1], "hand-written kernel")
+        return out("projection.perspective.prepared.%s" % parts[-1], "hand-written kernel")
     if fam == "projection":
-        return out("proj.scalar_reference")
+        return out("projection.scalar_reference")
     return None
 
 
@@ -208,6 +208,7 @@ def place_raster_texture(rel, base):
         return None
 
     interp = rest[0] if rest and rest[0] in ("persp", "affine") else None
+    interp = "perspective" if interp == "persp" else interp
     if interp is None:
         return None
     rest = rest[1:]
@@ -218,7 +219,7 @@ def place_raster_texture(rel, base):
     rest = rest[1:]
 
     facealpha = "facealpha" if "facealpha" in rest else "nofacealpha"
-    modulate = "modulate" if "modulate" in rest else "nomod"
+    modulate = "modulate" if "modulate" in rest else "nomodulate"
     depth = "zbuf" if "zbuf" in rest else "painter"
     traversal = next((t for t in rest if t in ("branching", "scanline", "sort", "ordered")), None)
     step = next((t for t in rest if t.startswith("lerp8") or t in ("s1", "s4", "s8")), None)
@@ -240,7 +241,7 @@ def place_raster_texture(rel, base):
     return Placement(rel, "impl/raster/tex/" + name + ext, STAGE_RASTER, note)
 
 
-SOLID_SHADING = {"flat": "flat", "gouraudhsllightness": "gouraudhsl",
+SOLID_SHADING = {"flat": "flat", "gouraudhsllightness": "gouraudhsllightness",
                  "gouraudrgb": "gouraudrgb", "zbuf": "zbuf", "scanline": None}
 
 
@@ -273,7 +274,7 @@ def place_raster_solid(rel, base):
         return Unplaced(rel, "no traversal segment in %r" % (rest,))
     if step is None:
         step = "s4"
-    name = ".".join(["raster", shading, alpha, "nofacealpha", "nomod", "painter",
+    name = ".".join(["raster", shading, alpha, "nofacealpha", "nomodulate", "painter",
                      traversal, step, "scalar"])
     return Placement(rel, "impl/raster/%s/%s" % (parts[0], name) + ext, STAGE_RASTER)
 
@@ -295,7 +296,7 @@ def place_raster_span(rel, base):
         return Placement(rel, "impl/raster/span/" + tail + ext, STAGE_RASTER)
     if parts[0] == "gouraudhsllightness" and "span" in parts:
         alpha = "alpha" if "alpha" in parts else "opaque"
-        tail = "span.gouraudhsl.%s.%s" % (alpha, isa or "dispatch")
+        tail = "span.gouraudhsllightness.%s.%s" % (alpha, isa or "dispatch")
         return Placement(rel, "impl/raster/span/" + tail + ext, STAGE_RASTER)
     if parts[0] == "scanline" and "span" in parts:
         return Placement(rel, "impl/raster/span/span.solid.scanline.scalar" + ext,
@@ -314,7 +315,7 @@ def place_raster_asm(rel, base):
     if not m:
         return None
     family, kind, arch = m.groups()
-    fam = {"flat": "flat", "gouraud": "gouraudhsl", "tex": "tex"}[family]
+    fam = {"flat": "flat", "gouraud": "gouraudhsllightness", "tex": "tex"}[family]
     return Placement(rel, "impl/raster/asm/%s.%s.%s.S" % (kind, fam, arch), STAGE_RASTER)
 
 
@@ -330,7 +331,7 @@ def place_raster_scanline(rel, base):
     if len(parts) == 1:
         return Placement(rel, "impl/raster/scanline/scanline.dispatch" + ext, STAGE_RASTER)
     fam = parts[1]
-    fam = {"gouraudhsllightness": "gouraudhsl"}.get(fam, fam)
+    fam = {"gouraudhsllightness": "gouraudhsllightness"}.get(fam, fam)
     return Placement(rel, "impl/raster/scanline/scanline.%s%s" % (fam, ext), STAGE_RASTER)
 
 

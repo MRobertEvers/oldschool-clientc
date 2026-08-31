@@ -2,7 +2,7 @@
 #define PROJECTION_U_C
 
 #include <stdint.h>
-#include "projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 
 #include "graphics/tori_compat.h"
 #include "graphics/shared_tables.h"

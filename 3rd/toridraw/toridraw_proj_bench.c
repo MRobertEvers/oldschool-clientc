@@ -35,8 +35,8 @@
 #include <string.h>
 #include <time.h>
 
-#include "graphics/projection16_fast.sse2.h"
-#include "graphics/projection16_simd.u.c"
+#include "bench/projection.perspective.fast.sse2.h"
+#include "impl/projection/projection.perspective.plain.dispatch.u.c"
 
 /* ------------------------------------------------------------ census shape */
 

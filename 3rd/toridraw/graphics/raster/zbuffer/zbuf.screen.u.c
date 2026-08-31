@@ -44,7 +44,7 @@
 #include "graphics/alpha.h"
 #include "graphics/clamp.h"
 #include "graphics/dash_restrict.h"
-#include "graphics/projection.u.c"
+#include "impl/projection/projection.scalar_reference.u.c"
 #include "graphics/raster/gouraudhsllightness/gouraudhsllightness_barycentric_steps.h"
 #include "graphics/shade.h"
 #include "graphics/shared_tables.h"

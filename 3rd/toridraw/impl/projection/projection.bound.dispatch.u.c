@@ -1,7 +1,7 @@
 #ifndef TORIDRAW_GRAPHICS_PROJECTION_BOUND_U_C
 #define TORIDRAW_GRAPHICS_PROJECTION_BOUND_U_C
 
-#include "projection_bound.h"
+#include "impl/projection/projection.bound.dispatch.h"
 
 /*
  * Same gates the projection ladder in projection16_simd.u.c selects its
@@ -11,11 +11,11 @@
  */
 #if defined(__aarch64__) && ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && \
     !defined(NEON_DISABLED)
-#include "projection_bound.neon.u.c"
+#include "impl/projection/projection.bound.neon.u.c"
 #elif defined(__SSE4_1__) && !defined(SSE2_DISABLED) && !defined(SSE41_DISABLED)
-#include "projection_bound.sse41.u.c"
+#include "impl/projection/projection.bound.sse41.u.c"
 #else
-#include "projection_bound.scalar.u.c"
+#include "impl/projection/projection.bound.scalar.u.c"
 #endif
 
 #endif /* TORIDRAW_GRAPHICS_PROJECTION_BOUND_U_C */

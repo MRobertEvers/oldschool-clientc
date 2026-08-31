@@ -16,7 +16,7 @@
 #include "toridraw_sprite.h"
 #include "toridraw_types.h"
 #include "toridraw_vec.h"
-#include "graphics/projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "graphics/shared_tables.h"
 
 #include <stdbool.h>
