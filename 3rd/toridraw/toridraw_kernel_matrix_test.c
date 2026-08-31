@@ -737,7 +737,53 @@ test_validate_and_scratch(void)
     CHECK(ToriDraw_KernelTake(full, ToriDraw_KernelGetSoftwarePainter()) != NULL,
           "take: a DEGRADED table must still be usable");
 
-    printf("  ok   %d tables validate and provision on a small scene\n", TABLE_COUNT);
+    /*
+     * The HD tables. They fill raster_hd and leave raster NULL, which is how a
+     * table says which pipeline it is for -- and until these existed, the HD
+     * path reached stages 1 and 2 by calling the no-kernel entries directly,
+     * so HD always took the prepared projection and whatever sort the
+     * environment had named, with no way for a caller to hold or swap either.
+     */
+    {
+        const struct ToriDraw_Kernel* hd[2] = { ToriDraw_KernelGetHDPainter(),
+                                                ToriDraw_KernelGetHDZBuffered() };
+
+        for( int i = 0; i < 2; i++ )
+        {
+            why = NULL;
+            fit = ToriDraw_KernelValidate(hd[i], small, &why);
+            CHECK(fit != TORIDRAW_KERNEL_FIT_INCOMPATIBLE,
+                  "validate: %s is INCOMPATIBLE with a stock small scene (%s)",
+                  hd[i]->name, why ? why : "?");
+            CHECK(hd[i]->raster == NULL && hd[i]->raster_hd != NULL,
+                  "validate: %s must name an HD raster and no SD one", hd[i]->name);
+            CHECK(hd[i]->projection && hd[i]->face_sort,
+                  "validate: %s left a front stage NULL", hd[i]->name);
+            CHECK(ToriDraw_KernelTake(small, hd[i]) == hd[i],
+                  "take: %s did not return the table it was handed", hd[i]->name);
+        }
+
+        /* The depth-tested HD table runs no sort at all, so it must not be
+         * charged for the sort's scratch -- the same rule the SD depth table
+         * follows, now asked of the slot that actually decides it. */
+        CHECK(!(ToriDraw_KernelScratchNeeds(small, hd[1]) &
+                TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+              "validate: hd-zbuffered must not want the presort stash");
+
+        /* And a table naming BOTH rasters is refused, because every entry
+         * point would otherwise have to guess which pipeline was meant. */
+        {
+            struct ToriDraw_Kernel both = *ToriDraw_KernelGetSoftwarePainter();
+
+            both.raster_hd = hd[0]->raster_hd;
+            why = NULL;
+            CHECK(ToriDraw_KernelValidate(&both, small, &why) ==
+                      TORIDRAW_KERNEL_FIT_INCOMPATIBLE,
+                  "validate: a table naming both an SD and an HD raster must be refused");
+        }
+    }
+
+    printf("  ok   %d SD + 2 HD tables validate and provision on a small scene\n", TABLE_COUNT);
 
     ToriDraw_SceneFree(small);
     ToriDraw_SceneFree(full);
