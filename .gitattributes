@@ -5,3 +5,5 @@ lib/emsdk-win64-toolchain.zip filter=lfs diff=lfs merge=lfs -text
 lib/emsdk-linux-toolchain.zip filter=lfs diff=lfs merge=lfs -text
 lib/emsdk-macos-toolchain.zip filter=lfs diff=lfs merge=lfs -text
 toolchains/java-toolchain-osrs239.zip filter=lfs diff=lfs merge=lfs -text
+lib/cpu-z_1.79-en.zip filter=lfs diff=lfs merge=lfs -text
+lib/jdk-8u151-windows-i586.exe filter=lfs diff=lfs merge=lfs -text

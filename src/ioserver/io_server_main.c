@@ -8,14 +8,31 @@
  * is what makes the two builds agree: there is no second implementation of
  * "what does this archive request mean", only one, on this side of the socket.
  *
- * It also serves build-web/ as static files, so `io_server --manifest X` is the
+ * It also serves build-web/ as static files, so `io_server` on its own is the
  * whole thing you need to run to open the client in a browser.
  *
  *   POST /io          an IOWire request batch -> an IOWire response batch
  *   GET  /boot/<path>  a manifest or RevConfig INI, under --boot-root
- *   GET  /cache/dat1/<table>/<archive>[?flags=N]
+ *   GET  /cache/dat1/<table>/<archive>[?flags=N][&manifest=<path>]
  *                     one raw dat1 container, proxied off a LostCity server
+ *   GET  /status      what this process is serving, as a page
+ *   GET  /stats       the same counters, one line, for scripts
  *   GET  /...          a file under --root (default build-web/), "/" -> index.html
+ *
+ * ## The client names its world, not the command line
+ *
+ * Nothing about which world this serves is settled at startup. A batch names
+ * the cache it is about, and a container fetch names the manifest it is booting
+ * -- the same manifest path the client fetched through GET /boot/<path> moments
+ * earlier, so there is one spelling of "which world" and no way for the two
+ * ends to disagree about it. Caches, on-demand connections and parsed manifests
+ * are all opened on first use and kept.
+ *
+ * So one process serves every world at once, and `--manifest` is only a
+ * preopen: it moves "that server is not running" from a browser tab to the
+ * command line that asked for it. It used to be the only way to reach an
+ * on-demand world at all, which meant a second world meant a second process on
+ * a second port.
  *
  * ## Why the dat1 proxy is here and not in the page
  *
@@ -32,6 +49,7 @@
  * what keeps a single decode step at the far end.
  *
  * Usage:
+ *   src/build/io_server [--port 8088]
  *   src/build/io_server --manifest manifests/manifest_rs254lc.ini [--port 8088]
  *   src/build/io_server --rev lc254 cache.rs254_zuk
  */
@@ -51,6 +69,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 
 #define IO_SERVER_DEFAULT_PORT 8088
 #define IO_SERVER_DEFAULT_ROOT "build-web"
@@ -79,6 +98,38 @@ struct CacheSlot
 
 #define IO_SERVER_MAX_CACHES 8
 
+/*
+ * One LostCity server this process proxies.
+ *
+ * Keyed on the resolved endpoint rather than on the manifest that named it:
+ * two manifests pointing at the same server are the same wire, and opening a
+ * second connection for the second manifest would spend a slot — and a socket
+ * the server moves into file-pipe state — on a server already held.
+ */
+struct OnDemandSource
+{
+    char host[128];
+    int port;
+    int ws_port;
+    struct PlatformX_IO* px;
+    char describe[IO_SERVER_DESCRIBE_MAX];
+    int failed_open; /* remember a refusal so it is reported once, not per read */
+};
+
+#define IO_SERVER_MAX_ONDEMAND 4
+
+/* A manifest path as the client spelled it, and the endpoint it resolved to.
+ * `source` is an index into IoServer::ondemand, or -1 for a manifest that
+ * parsed but names no on-demand cache — a negative answer worth caching, since
+ * otherwise every read against a disk world re-parses the INI to be told so. */
+struct ManifestBinding
+{
+    char path[HTTP_MAX_PATH];
+    int source;
+};
+
+#define IO_SERVER_MAX_MANIFESTS 8
+
 struct IoServer
 {
     /*
@@ -91,16 +142,31 @@ struct IoServer
     int cache_count;
 
     /*
-     * The LostCity proxy, or NULL.
+     * The LostCity proxies.
      *
-     * Not one of the slots above, because there is nothing to key it on. A
-     * disk cache is identified by its directory and a batch names the one it
-     * means; an on-demand cache IS the server named in the manifest's
-     * [net:boot], so there is exactly one per process and it is settled at
-     * startup rather than opened on first use.
+     * There used to be one, settled at startup from --manifest, on the reading
+     * that an on-demand cache IS the server named in [net:boot] and so there
+     * could only be one per process. The first half is true; the second did not
+     * follow from it. A disk cache is keyed on its directory and opened when a
+     * batch names it, and the same is available here — the key is the endpoint,
+     * and what names it is the client's manifest.
+     *
+     * So this is a table on the same terms as `caches`, and --manifest is now
+     * only a preopen. What that buys is the thing the file header claims for
+     * the disk side: the manifest can change without restarting anything, which
+     * for an ondemand world it previously could not.
      */
-    struct PlatformX_IO* ondemand;
-    char ondemand_describe[IO_SERVER_DESCRIBE_MAX];
+    struct OnDemandSource ondemand[IO_SERVER_MAX_ONDEMAND];
+    int ondemand_count;
+
+    /*
+     * Resolved manifest path -> endpoint, so a manifest is parsed once rather
+     * than on every container fetch. A dat1 read is already a blocking round
+     * trip; adding an INI parse in front of each one would be the larger half.
+     */
+    struct ManifestBinding manifests[IO_SERVER_MAX_MANIFESTS];
+    int manifest_count;
+
     char root[512];
     /* Where GET /boot/<path> reads from: the tree the manifests live in, and
      * the root the caches themselves are resolved against. */
@@ -108,6 +174,11 @@ struct IoServer
     char config_dir[256];
     char script_dir[256];
     int verbose;
+
+    /* Only GET /status reads these. The banner already printed the port, but a
+     * page reached through a hostname cannot see stdout. */
+    int port;
+    time_t started;
 
     long served;
     long failed;
@@ -292,6 +363,204 @@ io_server_cache_for(
     printf("io_server: opened %s\n", slot->describe);
     fflush(stdout);
     return slot;
+}
+
+/* -------------------------------------------------------------- on demand */
+
+/* Defined with the static-file routes, which is where the rule it enforces
+ * belongs; a manifest path is subject to the same one. */
+static int
+sanitize_path(char const* path, char* out, int out_size);
+
+/*
+ * One named query parameter, or 0 when absent.
+ *
+ * Matched at a parameter boundary rather than with strstr, which is what the
+ * flags= read above does and would find `oldflags=` just as happily. Not
+ * percent-decoded, for the same reason sanitize_path does not decode a path:
+ * nothing this server is asked for needs it, and a decoder is a second place
+ * for "what does this name mean" to be answered differently.
+ */
+static int
+query_param(
+    char const* tail,
+    char const* name,
+    char* out,
+    int cap)
+{
+    char const* cursor = strchr(tail, '?');
+    int name_len = (int)strlen(name);
+
+    assert(tail);
+    assert(name);
+    assert(out);
+    assert(cap > 0);
+
+    out[0] = '\0';
+    if( !cursor )
+        return 0;
+    cursor++;
+
+    while( *cursor )
+    {
+        char const* value_end = strchr(cursor, '&');
+        if( !value_end )
+            value_end = cursor + strlen(cursor);
+
+        if( (int)(value_end - cursor) > name_len + 1 &&
+            strncmp(cursor, name, (size_t)name_len) == 0 &&
+            cursor[name_len] == '=' )
+        {
+            int len = (int)(value_end - cursor) - name_len - 1;
+            if( len >= cap )
+                return 0;
+            memcpy(out, cursor + name_len + 1, (size_t)len);
+            out[len] = '\0';
+            return 1;
+        }
+        cursor = *value_end ? value_end + 1 : value_end;
+    }
+    return 0;
+}
+
+/*
+ * Get, or open, the wire to one LostCity server.
+ *
+ * Opening is where a dead server is discovered, and `failed_open` is what keeps
+ * that from being rediscovered per read: the slot is kept, marked, and refused
+ * from then on. Not retried, because the retry that matters is the operator
+ * starting the server, and that is a restart of nothing — the next process to
+ * ask gets a fresh slot.
+ */
+static struct OnDemandSource*
+io_server_ondemand_for(
+    struct IoServer* server,
+    char const* host,
+    int port,
+    int ws_port)
+{
+    struct OnDemandSource* source;
+    int enabled;
+
+    assert(server);
+    assert(host);
+
+    for( int i = 0; i < server->ondemand_count; i++ )
+    {
+        if( strcmp(server->ondemand[i].host, host) == 0 &&
+            server->ondemand[i].port == port &&
+            server->ondemand[i].ws_port == ws_port )
+            return server->ondemand[i].failed_open ? NULL : &server->ondemand[i];
+    }
+
+    if( server->ondemand_count >= IO_SERVER_MAX_ONDEMAND )
+    {
+        fprintf(stderr, "io_server: no room for another on-demand source (%d open)\n",
+                server->ondemand_count);
+        return NULL;
+    }
+
+    source = &server->ondemand[server->ondemand_count++];
+    memset(source, 0, sizeof(*source));
+    snprintf(source->host, sizeof(source->host), "%s", host);
+    source->port = port;
+    source->ws_port = ws_port;
+    snprintf(source->describe, sizeof(source->describe),
+        "%s:%d (dat1 on demand, web port %d)", host, port, ws_port);
+
+    source->px = PlatformX_IO_New();
+    assert(source->px);
+    /* No hydration directory here on purpose: io_server PROXIES this cache to
+     * a browser, which keeps its own copy in IndexedDB. A second one on the
+     * server's disk would be a copy nobody reads. */
+    enabled = PlatformXIO_Dat1OnDemandEnable(source->px, host, port, ws_port, NULL);
+    if( enabled != 0 )
+    {
+        fprintf(stderr,
+            "io_server: %s is not serving a cache (game port %d, web port %d)\n",
+            host, port, ws_port);
+        source->failed_open = 1;
+        return NULL;
+    }
+    printf("io_server: proxying %s\n", source->describe);
+    fflush(stdout);
+    return source;
+}
+
+/*
+ * The client's manifest, resolved to the server it names.
+ *
+ * The path is read the same way GET /boot/<path> reads one — under --boot-root,
+ * sanitized — because it IS the same file, fetched by the same client moments
+ * earlier. Anything else would mean two spellings of "which manifest" and a way
+ * for them to disagree.
+ */
+static struct OnDemandSource*
+io_server_ondemand_for_manifest(
+    struct IoServer* server,
+    char const* manifest_path)
+{
+    static struct BootManifest manifest; /* ~KBs; not worth a stack frame */
+    struct ManifestBinding* binding = NULL;
+    struct OnDemandSource* source;
+    char rel[HTTP_MAX_PATH];
+    char full[HTTP_MAX_PATH + 512];
+    char with_slash[HTTP_MAX_PATH];
+
+    assert(server);
+    assert(manifest_path);
+
+    for( int i = 0; i < server->manifest_count; i++ )
+    {
+        if( strcmp(server->manifests[i].path, manifest_path) == 0 )
+        {
+            if( server->manifests[i].source < 0 )
+                return NULL;
+            return &server->ondemand[server->manifests[i].source];
+        }
+    }
+
+    /* sanitize_path wants a rooted path, and it is what decides whether this
+     * one may be opened at all — so the leading slash is added rather than the
+     * check being skipped for a spelling that arrived without one. */
+    snprintf(with_slash, sizeof(with_slash), "%s%s",
+             manifest_path[0] == '/' ? "" : "/", manifest_path);
+    if( sanitize_path(with_slash, rel, (int)sizeof(rel)) != 0 || rel[0] != '/' )
+    {
+        fprintf(stderr, "io_server: refusing manifest path '%s'\n", manifest_path);
+        return NULL;
+    }
+    snprintf(full, sizeof(full), "%s%s", server->boot_root, rel);
+
+    if( BootManifest_LoadFile(&manifest, full) != 0 )
+    {
+        fprintf(stderr, "io_server: cannot read manifest %s\n", full);
+        return NULL;
+    }
+
+    if( server->manifest_count < IO_SERVER_MAX_MANIFESTS )
+    {
+        binding = &server->manifests[server->manifest_count++];
+        snprintf(binding->path, sizeof(binding->path), "%s", manifest_path);
+        binding->source = -1;
+    }
+
+    if( !manifest.cache_on_demand )
+    {
+        /* A disk world. Its reads come through POST /io, which names the cache
+         * directly; there is nothing to proxy. Remembered as -1 so the next
+         * read does not re-parse the file to reach the same answer. */
+        return NULL;
+    }
+
+    source = io_server_ondemand_for(
+        server,
+        manifest.host[0] ? manifest.host : "localhost",
+        manifest.port > 0 ? manifest.port : 43594,
+        manifest.ws_port > 0 ? manifest.ws_port : 80);
+    if( source && binding )
+        binding->source = (int)(source - server->ondemand);
+    return source;
 }
 
 /* ------------------------------------------------------------------ cache */
@@ -624,6 +893,23 @@ handle_static(
     }
     snprintf(full, sizeof(full), "%s%s", server->root, rel);
     serve_file(server, full, req, res);
+
+    /*
+     * A bare 404 at the root is the least useful answer this server can give:
+     * it is what someone sees when they point a browser at the host to check
+     * that the server is up, and build-web/ has not been built. Send them to
+     * the status page, which reports the missing client as its first line —
+     * so the redirect informs rather than hides.
+     *
+     * Only the root. A 404 for some other path is a real 404 and must stay
+     * one; redirecting every miss would turn a mistyped asset into a page
+     * that loads, which is how a broken build looks like a working one.
+     */
+    if( res->status == 404 && strcmp(rel, "/index.html") == 0 )
+    {
+        res->status = 302;
+        snprintf(res->location, sizeof(res->location), "/status");
+    }
 }
 
 /*
@@ -683,6 +969,8 @@ handle_ondemand_container(
     long archive_id;
     long flags = TORIRS_IO_CACHE_DAT1;
     char const* query;
+    char manifest_path[HTTP_MAX_PATH];
+    struct OnDemandSource* source;
     uint8_t* bytes;
     int format = 0;
     int size = 0;
@@ -690,12 +978,6 @@ handle_ondemand_container(
     assert(server);
     assert(req);
     assert(res);
-
-    if( !server->ondemand )
-    {
-        res->status = 503;
-        return;
-    }
 
     table_id = strtol(cursor, &end, 10);
     if( end == cursor || *end != '/' )
@@ -720,8 +1002,35 @@ handle_ondemand_container(
     if( query )
         flags = strtol(query + 6, NULL, 10);
 
+    /*
+     * Which server to ask, named by the client's own manifest.
+     *
+     * The fallback is what keeps a client that names none working: with a
+     * single source open — which is what --manifest leaves behind — there is
+     * no ambiguity to resolve. With several, there is, and guessing among them
+     * would serve one world's containers to another; that is the 503.
+     */
+    if( query_param(end, "manifest", manifest_path, (int)sizeof(manifest_path)) )
+    {
+        source = io_server_ondemand_for_manifest(server, manifest_path);
+    }
+    else if( server->ondemand_count == 1 )
+    {
+        source = server->ondemand[0].failed_open ? NULL : &server->ondemand[0];
+    }
+    else
+    {
+        source = NULL;
+    }
+
+    if( !source )
+    {
+        res->status = 503;
+        return;
+    }
+
     bytes = PlatformXIO_Dat1OnDemandContainerFetch(
-        server->ondemand, (int)table_id, (int)archive_id, (int)flags, &format, &size);
+        source->px, (int)table_id, (int)archive_id, (int)flags, &format, &size);
     if( !bytes || size <= 0 )
     {
         free(bytes);
@@ -745,6 +1054,406 @@ handle_ondemand_container(
     res->owns_body = 1;
 }
 
+/* --------------------------------------------------------------- /status */
+
+/*
+ * Cache directories reach this process from a client — a batch names the cache
+ * it is about — so every one of them is text someone else chose, and it is
+ * printed back into a page. Escaped on the way out rather than validated on the
+ * way in: cache_dir_normalize's job is to keep a read inside the tree, not to
+ * decide which bytes are safe in HTML, and the two questions have different
+ * right answers.
+ */
+static void
+html_escape(
+    char const* text,
+    char* out,
+    int cap)
+{
+    int len = 0;
+
+    assert(text);
+    assert(out);
+    assert(cap > 0);
+
+    for( int i = 0; text[i]; i++ )
+    {
+        char const* entity = NULL;
+
+        switch( text[i] )
+        {
+        case '&': entity = "&amp;"; break;
+        case '<': entity = "&lt;"; break;
+        case '>': entity = "&gt;"; break;
+        case '"': entity = "&quot;"; break;
+        default: break;
+        }
+
+        if( entity )
+        {
+            int entity_len = (int)strlen(entity);
+            if( len + entity_len >= cap )
+                break;
+            memcpy(out + len, entity, (size_t)entity_len);
+            len += entity_len;
+            continue;
+        }
+        if( len + 1 >= cap )
+            break;
+        out[len++] = text[i];
+    }
+    out[len] = '\0';
+}
+
+/* Escaping can grow a string sixfold ("&quot;"), and every string that reaches
+ * the page goes through it, so a scratch buffer is sized against the longest
+ * one the server holds rather than against any one call site. */
+#define IO_SERVER_ESCAPED_MAX ((IO_SERVER_DESCRIBE_MAX * 6) + 1)
+
+/*
+ * GET /status — what this process is, in a browser.
+ *
+ * /stats answers the same question in one line for a script; this is the one
+ * for a person who typed the host into a URL bar and needs to know whether they
+ * reached the server at all, which cache it holds, and whether the LostCity
+ * proxy came up. Self-contained markup on purpose: it has to render when
+ * build-web/ is missing, which is exactly the case that sends someone here.
+ */
+static void
+handle_status(
+    struct IoServer* server,
+    struct HttpResponse* res)
+{
+    /*
+     * Every table on this page is bounded by its own MAX, and every cell is
+     * bounded by the escape buffer, so the worst page has a size and one
+     * allocation covers it — the writer never has to grow. A row is charged
+     * one escaped string plus its markup and any unescaped describe.
+     */
+    int const row = IO_SERVER_ESCAPED_MAX + IO_SERVER_DESCRIBE_MAX + 512;
+    int const cap = 16384 +
+                    (IO_SERVER_MAX_CACHES * row) +
+                    (IO_SERVER_MAX_ONDEMAND * row) +
+                    (IO_SERVER_MAX_MANIFESTS * row);
+    char* page = malloc((size_t)cap);
+    char escaped[IO_SERVER_ESCAPED_MAX];
+    long uptime;
+    int len = 0;
+
+    assert(server);
+    assert(page);
+
+    uptime = (long)(time(NULL) - server->started);
+
+    len += snprintf(
+        page + len, (size_t)(cap - len),
+        "<!doctype html>\n"
+        "<html lang=\"en\"><head><meta charset=\"utf-8\">\n"
+        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
+        /* A status page nobody has to reload by hand. Five seconds is short
+         * enough to watch a cache open and long enough to be free. */
+        "<meta http-equiv=\"refresh\" content=\"5\">\n"
+        "<title>io_server status</title>\n"
+        "<style>\n"
+        "body{font:14px/1.5 ui-monospace,Consolas,monospace;margin:0;padding:2rem;\n"
+        "     background:#14161a;color:#d8dee9}\n"
+        "h1{font-size:1.25rem;margin:0 0 .25rem}\n"
+        "h2{font-size:.95rem;margin:2rem 0 .5rem;color:#88c0d0;\n"
+        "   text-transform:uppercase;letter-spacing:.08em}\n"
+        "table{border-collapse:collapse;width:100%%;max-width:70rem}\n"
+        "td,th{text-align:left;padding:.35rem .75rem .35rem 0;\n"
+        "      border-bottom:1px solid #2b303b;vertical-align:top}\n"
+        "th{color:#7b8394;font-weight:normal;white-space:nowrap}\n"
+        ".up{color:#a3be8c}.down{color:#bf616a}.muted{color:#7b8394}\n"
+        "code{color:#ebcb8b}\n"
+        "</style></head><body>\n"
+        "<h1>io_server <span class=\"up\">up</span></h1>\n"
+        "<p class=\"muted\">port %d &middot; %ld s uptime &middot; refreshes every 5 s</p>\n",
+        server->port,
+        uptime);
+
+    /*
+     * The reason someone lands here by redirect rather than by typing /status,
+     * so it goes first. stat rather than a flag set at startup: --root can be
+     * built while the server runs, and a page that still says "no client" once
+     * there is one would send someone looking for a fault that is fixed.
+     */
+    {
+        char index_path[HTTP_MAX_PATH + 512];
+        struct stat info;
+
+        snprintf(index_path, sizeof(index_path), "%s/index.html", server->root);
+        if( stat(index_path, &info) != 0 )
+        {
+            html_escape(server->root, escaped, (int)sizeof(escaped));
+            len += snprintf(
+                page + len, (size_t)(cap - len),
+                "<p class=\"down\">No <code>index.html</code> under "
+                "<code>%s</code> — the web client is not built, so "
+                "<code>GET /</code> lands here. Build it, or point "
+                "<code>--root</code> at a tree that has one.</p>\n",
+                escaped);
+        }
+    }
+
+    len += snprintf(
+        page + len, (size_t)(cap - len),
+        "<h2>Requests</h2><table>\n"
+        "<tr><th>served</th><td>%ld</td></tr>\n"
+        "<tr><th>failed</th><td>%ld</td></tr>\n"
+        "<tr><th>bytes out</th><td>%ld (%.1f MiB)</td></tr>\n"
+        "</table>\n",
+        server->served,
+        server->failed,
+        server->bytes_out,
+        (double)server->bytes_out / (1024.0 * 1024.0));
+
+    html_escape(server->root, escaped, (int)sizeof(escaped));
+    len += snprintf(
+        page + len, (size_t)(cap - len),
+        "<h2>Paths</h2><table>\n"
+        "<tr><th>static root</th><td><code>%s</code></td></tr>\n",
+        escaped);
+    html_escape(server->boot_root, escaped, (int)sizeof(escaped));
+    len += snprintf(
+        page + len, (size_t)(cap - len),
+        "<tr><th>boot root</th><td><code>%s</code></td></tr>\n",
+        escaped);
+    html_escape(server->config_dir, escaped, (int)sizeof(escaped));
+    len += snprintf(
+        page + len, (size_t)(cap - len),
+        "<tr><th>config</th><td><code>%s</code></td></tr>\n",
+        escaped);
+    html_escape(server->script_dir, escaped, (int)sizeof(escaped));
+    len += snprintf(
+        page + len, (size_t)(cap - len),
+        "<tr><th>script</th><td><code>%s</code></td></tr>\n"
+        "</table>\n",
+        escaped);
+
+    len += snprintf(
+        page + len, (size_t)(cap - len),
+        "<h2>Caches (%d of %d open)</h2>\n",
+        server->cache_count,
+        IO_SERVER_MAX_CACHES);
+    if( server->cache_count == 0 )
+    {
+        /* Not an error: caches open on the first batch that names one, so an
+         * empty table is the normal state of a server nobody has asked yet. */
+        len += snprintf(
+            page + len, (size_t)(cap - len),
+            "<p class=\"muted\">None yet — a cache opens on the first request "
+            "that names it.</p>\n");
+    }
+    else
+    {
+        len += snprintf(
+            page + len, (size_t)(cap - len),
+            "<table><tr><th>state</th><th>identity</th></tr>\n");
+        for( int i = 0; i < server->cache_count; i++ )
+        {
+            html_escape(server->caches[i].describe, escaped, (int)sizeof(escaped));
+            len += snprintf(
+                page + len, (size_t)(cap - len),
+                "<tr><td class=\"%s\">%s</td><td><code>%s</code></td></tr>\n",
+                server->caches[i].failed_open ? "down" : "up",
+                server->caches[i].failed_open ? "failed" : "open",
+                escaped);
+        }
+        len += snprintf(page + len, (size_t)(cap - len), "</table>\n");
+    }
+
+    len += snprintf(
+        page + len, (size_t)(cap - len),
+        "<h2>LostCity proxies (%d of %d)</h2>\n",
+        server->ondemand_count,
+        IO_SERVER_MAX_ONDEMAND);
+    if( server->ondemand_count == 0 )
+    {
+        len += snprintf(
+            page + len, (size_t)(cap - len),
+            "<p class=\"muted\">None yet — one opens when a client asks for "
+            "<code>/cache/dat1/…?manifest=&lt;path&gt;</code> with a manifest "
+            "whose boot cache is <code>source=ondemand</code>.</p>\n");
+    }
+    else
+    {
+        len += snprintf(
+            page + len, (size_t)(cap - len),
+            "<table><tr><th>state</th><th>server</th></tr>\n");
+        for( int i = 0; i < server->ondemand_count; i++ )
+        {
+            html_escape(server->ondemand[i].describe, escaped, (int)sizeof(escaped));
+            len += snprintf(
+                page + len, (size_t)(cap - len),
+                "<tr><td class=\"%s\">%s</td><td><code>%s</code></td></tr>\n",
+                server->ondemand[i].failed_open ? "down" : "up",
+                server->ondemand[i].failed_open ? "unreachable" : "connected",
+                escaped);
+        }
+        len += snprintf(page + len, (size_t)(cap - len), "</table>\n");
+    }
+
+    len += snprintf(
+        page + len, (size_t)(cap - len),
+        "<h2>Manifests resolved (%d of %d)</h2>\n",
+        server->manifest_count,
+        IO_SERVER_MAX_MANIFESTS);
+    if( server->manifest_count == 0 )
+    {
+        len += snprintf(
+            page + len, (size_t)(cap - len),
+            "<p class=\"muted\">None — no client has named one yet.</p>\n");
+    }
+    else
+    {
+        len += snprintf(
+            page + len, (size_t)(cap - len),
+            "<table><tr><th>manifest</th><th>reads from</th></tr>\n");
+        for( int i = 0; i < server->manifest_count; i++ )
+        {
+            int bound = server->manifests[i].source;
+            html_escape(server->manifests[i].path, escaped, (int)sizeof(escaped));
+            len += snprintf(
+                page + len, (size_t)(cap - len),
+                "<tr><td><code>%s</code></td><td>%s</td></tr>\n",
+                escaped,
+                bound >= 0 ? server->ondemand[bound].describe
+                           : "its own cache directory (disk world)");
+        }
+        len += snprintf(page + len, (size_t)(cap - len), "</table>\n");
+    }
+
+    len += snprintf(
+        page + len, (size_t)(cap - len),
+        "<h2>Endpoints</h2><table>\n"
+        "<tr><th>GET /</th><td>the client, from the static root</td></tr>\n"
+        "<tr><th>GET /status</th><td>this page</td></tr>\n"
+        "<tr><th>GET /stats</th><td>the same counters, one line, for scripts</td></tr>\n"
+        "<tr><th>GET /boot/&lt;path&gt;</th><td>a manifest or RevConfig INI</td></tr>\n"
+        "<tr><th>GET /cache/dat1/&lt;table&gt;/&lt;archive&gt;</th>"
+        "<td>one raw container off the LostCity server</td></tr>\n"
+        "<tr><th>POST /io</th><td>an IOWire request batch</td></tr>\n"
+        "</table>\n"
+        "</body></html>\n");
+
+    res->status = 200;
+    snprintf(res->content_type, sizeof(res->content_type), "text/html; charset=utf-8");
+    res->body = page;
+    res->body_len = len < cap ? len : cap - 1;
+    res->owns_body = 1;
+}
+
+/*
+ * Is this request a person looking at a page, or a program reading bytes?
+ *
+ * The two want opposite things from a failure. A browser wants a page saying
+ * what went wrong; the client's fetch wants the status code and nothing it has
+ * to parse around. Accept is exactly that question asked by the request itself,
+ * so there is no need to sniff User-Agent or guess from the path: a browser
+ * lists `text/html` on a navigation and asks for anything on a fetch.
+ */
+static int
+wants_html(struct HttpRequest const* req)
+{
+    int len = 0;
+    char const* accept;
+
+    assert(req);
+
+    accept = HttpRequest_Header(req, "Accept", &len);
+    if( !accept )
+        return 0;
+    for( int i = 0; i + 9 <= len; i++ )
+    {
+        if( memcmp(accept + i, "text/html", 9) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
+/*
+ * The body for a failure a browser is about to render.
+ *
+ * Every route here reports failure by setting a status and returning, which is
+ * right — a handler should not each carry its own idea of what an error looks
+ * like. So the page is put on at the end, in one place, for whatever status
+ * came back. A program still gets the terse body it got before; only a
+ * navigation gets markup.
+ */
+static void
+render_error_page(
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    static struct
+    {
+        int status;
+        char const* what;
+    } const reasons[] = {
+        { 400, "The server could not parse that request." },
+        { 404, "No such path on this server." },
+        { 405, "That method is not allowed on this path. This server answers "
+               "GET, HEAD and OPTIONS everywhere, and POST at /io." },
+        { 500, "The server failed while answering that." },
+        { 503, "This server has no LostCity connection, so cache reads that "
+               "need one cannot be answered." },
+    };
+    char const* what = "The server could not answer that.";
+    char escaped_path[(HTTP_MAX_PATH * 6) + 1];
+    char* body;
+    int const cap = (int)sizeof(escaped_path) + 1024;
+
+    assert(req);
+    assert(res);
+
+    for( size_t i = 0; i < sizeof(reasons) / sizeof(reasons[0]); i++ )
+    {
+        if( reasons[i].status == res->status )
+        {
+            what = reasons[i].what;
+            break;
+        }
+    }
+
+    /* The path is echoed back into the page, and it is the most attacker-
+     * controlled string this process handles — it arrived in the request line. */
+    html_escape(req->path, escaped_path, (int)sizeof(escaped_path));
+
+    body = malloc((size_t)cap);
+    assert(body);
+    res->body_len = snprintf(
+        body, (size_t)cap,
+        "<!doctype html>\n"
+        "<html lang=\"en\"><head><meta charset=\"utf-8\">\n"
+        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
+        "<title>%d — io_server</title>\n"
+        "<style>body{font:14px/1.6 ui-monospace,Consolas,monospace;margin:0;\n"
+        "padding:3rem 2rem;background:#14161a;color:#d8dee9}\n"
+        "h1{font-size:2.5rem;margin:0;color:#bf616a}\n"
+        "p{max-width:40rem}code{color:#ebcb8b}a{color:#88c0d0}\n"
+        "</style></head><body>\n"
+        "<h1>%d</h1>\n"
+        "<p>%s</p>\n"
+        "<p class=\"muted\"><code>%s %s</code></p>\n"
+        "<p><a href=\"/status\">/status</a> — what this server is serving.</p>\n"
+        "</body></html>\n",
+        res->status,
+        res->status,
+        what,
+        req->method,
+        escaped_path);
+    snprintf(res->content_type, sizeof(res->content_type), "text/html; charset=utf-8");
+    res->body = body;
+    res->owns_body = 1;
+}
+
+static void
+io_server_route(
+    struct IoServer* server,
+    struct HttpRequest const* req,
+    struct HttpResponse* res);
+
 static void
 io_server_handler(
     void* user,
@@ -753,6 +1462,35 @@ io_server_handler(
 {
     struct IoServer* server = (struct IoServer*)user;
 
+    io_server_route(server, req, res);
+
+    /*
+     * A HEAD is a GET whose body is dropped: routing it as one is what makes
+     * every path answer it, rather than the dispatcher's fallthrough turning a
+     * link check of a file that exists into a 404. The Content-Length then
+     * goes out as 0 rather than the entity's length — permitted, and the
+     * alternative is every handler learning to size a body it will not send.
+     */
+    if( strcmp(req->method, "HEAD") == 0 )
+    {
+        if( res->owns_body )
+            free(res->body);
+        res->body = NULL;
+        res->body_len = 0;
+        res->owns_body = 0;
+        return;
+    }
+
+    if( res->status >= 400 && !res->body && wants_html(req) )
+        render_error_page(req, res);
+}
+
+static void
+io_server_route(
+    struct IoServer* server,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
     if( strcmp(req->method, "OPTIONS") == 0 )
     {
         res->status = 204;
@@ -765,8 +1503,29 @@ io_server_handler(
         handle_io_batch(server, req, res);
         return;
     }
-    if( strcmp(req->method, "GET") == 0 )
+    if( strcmp(req->method, "GET") == 0 || strcmp(req->method, "HEAD") == 0 )
     {
+        /*
+         * Every browser asks for this on every navigation, and nothing here
+         * has one to give. Answering 204 rather than 404 keeps a request the
+         * user did not make out of the failure count and out of the log, where
+         * it reads as a fault in whatever they were actually loading. If the
+         * static root does have a favicon, the normal path below serves it.
+         */
+        if( strcmp(req->path, "/favicon.ico") == 0 )
+        {
+            char full[HTTP_MAX_PATH + 512];
+            struct stat info;
+
+            snprintf(full, sizeof(full), "%s/favicon.ico", server->root);
+            if( stat(full, &info) != 0 )
+            {
+                res->status = 204;
+                res->body = NULL;
+                res->body_len = 0;
+                return;
+            }
+        }
         if( strncmp(req->path, "/boot/", 6) == 0 )
         {
             handle_boot_file(server, req, res);
@@ -777,15 +1536,16 @@ io_server_handler(
             handle_ondemand_container(server, req, res);
             return;
         }
+        if( strcmp(req->path, "/status") == 0 )
+        {
+            handle_status(server, res);
+            return;
+        }
         if( strcmp(req->path, "/stats") == 0 )
         {
             char* text = malloc(256);
             int len;
-            if( !text )
-            {
-                res->status = 500;
-                return;
-            }
+            assert(text);
             /* Which caches are open, so a page can say what it is talking to.
              * The first is the one --manifest preopened, if any. */
             len = snprintf(
@@ -802,7 +1562,12 @@ io_server_handler(
         handle_static(server, req, res);
         return;
     }
-    res->status = 404;
+    /*
+     * The method, not the path, is what this server cannot answer — a PUT to a
+     * path that exists is still refused. 405 says which of the two is wrong;
+     * the 404 this used to send sent someone looking for a missing route.
+     */
+    res->status = 405;
 }
 
 /* -------------------------------------------------------------------- main */
@@ -823,8 +1588,11 @@ usage(char const* argv0)
         "          [--port N] [--root DIR] [--boot-root DIR] [--config DIR]\n"
         "          [--script DIR] [-v]\n"
         "\n"
-        "  --manifest   read cache identity + dir from the same boot manifest the\n"
-        "               native client uses (recommended: the two cannot disagree)\n"
+        "  --manifest   PREOPEN one world's cache (and its LostCity wire) at\n"
+        "               startup, so an unreachable server is named here rather\n"
+        "               than in a browser tab. Optional: a client names its own\n"
+        "               manifest per request, so this serves every world without\n"
+        "               it\n"
         "  --rev        named cache profile, with the cache dir as a positional\n"
         "  --root       directory served over GET (default %s)\n"
         "  --boot-root  directory served over GET /boot/<path> — the manifests and\n"
@@ -953,52 +1721,45 @@ main(
     }
 
     /*
-     * The manifest asked for the server's own cache, so open the wire to it
-     * now rather than on the first read. Failing here names the reason --
-     * almost always that LostCity is not started yet -- where a tab would
-     * only show a client that decodes nothing.
+     * --manifest named an on-demand world, so open its wire now rather than on
+     * the first read. Still worth doing for the same reason the cache preopen
+     * is: a server that is not started yet is named here, at the command line
+     * that asked for it, rather than in a browser tab later.
+     *
+     * No longer a requirement, though, which is the change. A client names its
+     * own manifest per request now, so a process launched with no --manifest at
+     * all serves any world a client asks for — and one launched WITH it can
+     * still serve others alongside. Failing to reach this one is therefore not
+     * fatal any more: it is one unreachable source out of however many this
+     * process will be asked for, and it is reported as that.
      */
     if( want_ondemand )
     {
-        int enabled;
-
-        server.ondemand = PlatformX_IO_New();
-        assert(server.ondemand);
-        /* No hydration directory here on purpose: io_server PROXIES this
-         * cache to a browser, which keeps its own copy in IndexedDB. A second
-         * one on the server's disk would be a copy nobody reads. */
-        enabled = PlatformXIO_Dat1OnDemandEnable(
-            server.ondemand,
-            manifest.host[0] ? manifest.host : "localhost",
-            manifest.port,
-            manifest.ws_port,
-            NULL);
-        if( enabled != 0 )
-        {
-            fprintf(stderr,
-                "io_server: [cache:boot] source=ondemand, but %s is not serving a "
-                "cache (game port %d, web port %d)\n",
+        if( !io_server_ondemand_for(
+                &server,
                 manifest.host[0] ? manifest.host : "localhost",
                 manifest.port > 0 ? manifest.port : 43594,
-                manifest.ws_port > 0 ? manifest.ws_port : 80);
-            return 1;
+                manifest.ws_port > 0 ? manifest.ws_port : 80) )
+        {
+            fprintf(stderr,
+                "io_server: --manifest names source=ondemand but that server is "
+                "not serving a cache; continuing, since a client can name "
+                "another manifest\n");
         }
-        snprintf(server.ondemand_describe, sizeof(server.ondemand_describe),
-            "%s:%d (dat1 on demand, web port %d)",
-            manifest.host[0] ? manifest.host : "localhost",
-            manifest.port > 0 ? manifest.port : 43594,
-            manifest.ws_port > 0 ? manifest.ws_port : 80);
-        printf("io_server: proxying %s\n", server.ondemand_describe);
-        fflush(stdout);
     }
 
     signal(SIGINT, on_signal);
     signal(SIGTERM, on_signal);
 
+    server.port = port;
+    server.started = time(NULL);
+
     printf(
-        "io_server: http://localhost:%d/  (serving %s; caches open on demand)\n",
+        "io_server: http://localhost:%d/  (serving %s; caches open on demand)\n"
+        "io_server: http://localhost:%d/status  (status page)\n",
         port,
-        server.root);
+        server.root,
+        port);
     fflush(stdout);
 
     if( HttpServer_Run(port, io_server_handler, &server) != 0 )
@@ -1012,6 +1773,7 @@ main(
         RSCache_Dat1DiskFree(server.caches[i].dat1_disk);
         RSCache_Dat2DiskFree(server.caches[i].dat2_disk);
     }
-    PlatformX_IO_Free(server.ondemand);
+    for( int i = 0; i < server.ondemand_count; i++ )
+        PlatformX_IO_Free(server.ondemand[i].px);
     return 0;
 }

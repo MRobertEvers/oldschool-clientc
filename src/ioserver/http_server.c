@@ -190,19 +190,39 @@ status_text(int status)
         return "OK";
     case 204:
         return "No Content";
+    case 302:
+        return "Found";
     case 304:
         return "Not Modified";
     case 400:
         return "Bad Request";
     case 404:
         return "Not Found";
+    case 405:
+        return "Method Not Allowed";
     case 413:
         return "Payload Too Large";
     case 500:
         return "Internal Server Error";
+    case 503:
+        return "Service Unavailable";
     default:
-        return "OK";
+        break;
     }
+    /*
+     * Never "OK", which is what this used to answer for everything it did not
+     * know: a 503 went out on the wire spelled "503 OK". Clients read the
+     * number, so nothing broke — but the reason phrase is what a person reads
+     * in a log or a devtools panel, and one that contradicts the code is worse
+     * than a vague one.
+     */
+    if( status >= 500 )
+        return "Server Error";
+    if( status >= 400 )
+        return "Client Error";
+    if( status >= 300 )
+        return "Redirect";
+    return "OK";
 }
 
 static int
@@ -210,7 +230,7 @@ send_response(
     sock_t fd,
     struct HttpResponse const* res)
 {
-    char header[768];
+    char header[1024];
     /* A 304 carries no body by definition (RFC 7232 4.1), and the length is
      * spelled 0 rather than omitted so keep-alive framing stays unambiguous. */
     int body_len = res->status == 304 ? 0 : res->body_len;
@@ -231,6 +251,7 @@ send_response(
         "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
         "Access-Control-Expose-Headers: ETag, Content-Length\r\n"
         "%s%s%s"
+        "%s%s%s"
         "Cache-Control: %s\r\n"
         "Connection: keep-alive\r\n"
         "\r\n",
@@ -241,6 +262,9 @@ send_response(
         res->etag[0] ? "ETag: " : "",
         res->etag[0] ? res->etag : "",
         res->etag[0] ? "\r\n" : "",
+        res->location[0] ? "Location: " : "",
+        res->location[0] ? res->location : "",
+        res->location[0] ? "\r\n" : "",
         /* no-store on anything without a validator: an IO batch is a POST
          * result and a stats page is a snapshot, neither of which may be
          * reused. A validated representation is the opposite case — it must be
