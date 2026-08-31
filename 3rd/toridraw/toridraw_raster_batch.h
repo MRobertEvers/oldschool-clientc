@@ -18,8 +18,38 @@
 #include "graphics/raster/gouraudhsllightness/gouraud_tri_asm.h"
 #include "graphics/raster/flat/flat_tri_asm.h"
 
-#if defined(TORIDRAW_GOURAUD_PRESORTED_RUN) && defined(TORIDRAW_FLAT_PRESORTED_RUN)
+/*
+ * ONE FAMILY IS ENOUGH. This was the conjunction of the two while the only
+ * lanes were i686 and AArch64, which either have both doors or neither -- so
+ * the conjunction and the disjunction were the same test, and the conjunction
+ * was the one that read as "the batched pipeline exists".
+ *
+ * A lane can have one. The Xtensa lane has the flat doors and not the gouraud
+ * ones, and under the old gate that lane got no batched walk at all: the flat
+ * kernel would have been linked, reachable through the header, and called by
+ * nothing. A face class with no door already has a supported answer -- the
+ * classifier returns NONE and the per-face walk draws it, which is what the
+ * textured four have always done -- so the honest gate is "is there any door
+ * to flush to", and the classes each carry their own.
+ */
+#if defined(TORIDRAW_FLAT_PRESORTED_RUN) || defined(TORIDRAW_GOURAUD_PRESORTED_RUN)
 #define TORIDRAW_RASTER_BATCH 1
+#endif
+
+/*
+ * The staging row is as wide as the widest untextured door on this lane. The
+ * two families agree at twelve ints and the walk stages both in one buffer;
+ * the assert is what keeps that a fact rather than a memory.
+ */
+#if defined(TORIDRAW_GOURAUD_PRESORTED_RUN) && defined(TORIDRAW_FLAT_PRESORTED_RUN)
+#define TORIDRAW_RASTER_BATCH_ROW_INTS TORIDRAW_GOURAUD_RUN_ROW_INTS
+_Static_assert(
+    TORIDRAW_GOURAUD_RUN_ROW_INTS == TORIDRAW_FLAT_PRESORTED_RUN_ROW_INTS,
+    "the gouraud and flat run doors stage into one buffer and must share a row");
+#elif defined(TORIDRAW_GOURAUD_PRESORTED_RUN)
+#define TORIDRAW_RASTER_BATCH_ROW_INTS TORIDRAW_GOURAUD_RUN_ROW_INTS
+#elif defined(TORIDRAW_FLAT_PRESORTED_RUN)
+#define TORIDRAW_RASTER_BATCH_ROW_INTS TORIDRAW_FLAT_PRESORTED_RUN_ROW_INTS
 #endif
 
 #ifdef TORIDRAW_RASTER_BATCH

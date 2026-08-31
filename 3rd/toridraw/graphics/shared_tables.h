@@ -256,7 +256,25 @@ ToriDraw_AsinTurns16(float x)
 extern TORIDRAW_TABLE_QUAL int g_reciprocal16[4096];
 extern TORIDRAW_TABLE_QUAL int g_reciprocal15[4096];
 
-#ifndef TORIDRAW_DISABLE_SIMD_TABLES
+/*
+ * The two vector reciprocal tables: 640 KB of BSS, and OPT-IN.
+ *
+ * They were opt-OUT, behind TORIDRAW_DISABLE_SIMD_TABLES, which no build lane
+ * in this tree ever set -- so every build carried them, and ToriDraw_Init ran
+ * 288K divisions filling them. A grep says nothing reads either one: the
+ * kernels that were to use them exist only as commented-out lines in
+ * projection.scalar_reference.u.c. That is affordable on a desktop and it is
+ * two and a half times an embedded client's whole budget.
+ *
+ * Defining TORIDRAW_SIMD_RECIPROCAL_TABLES brings them back, declaration,
+ * storage and builder together, for the lane that finally writes those
+ * kernels.
+ */
+#ifdef TORIDRAW_DISABLE_SIMD_TABLES
+#error "TORIDRAW_DISABLE_SIMD_TABLES is retired -- the tables are opt-in now; define TORIDRAW_SIMD_RECIPROCAL_TABLES to have them"
+#endif
+
+#ifdef TORIDRAW_SIMD_RECIPROCAL_TABLES
 /** 256 Ki entries; valid denominator indices are 1 .. G_RECIPROCAL16_SIMD_LEN-1. */
 #define G_RECIPROCAL16_SIMD_LEN (256 * 1024)
 extern uint16_t g_reciprocal16_simd[G_RECIPROCAL16_SIMD_LEN];
@@ -266,6 +284,21 @@ extern uint16_t g_reciprocal16_simd[G_RECIPROCAL16_SIMD_LEN];
 #define G_RECIPROCAL_NORM_LEN (1 << 15)
 extern uint32_t g_reciprocal_norm30[G_RECIPROCAL_NORM_LEN];
 #endif
+
+/**
+ * Gamma-correct one 24-bit RGB triple, channel by channel, in the reference
+ * client's own arithmetic (Pix3D applies 0.8 to every palette it builds).
+ *
+ * Declared here because the palette above is not the only thing that needs it:
+ * a texture baked from a cache sprite has to gamma its palette by the SAME
+ * curve, or the textured faces of a model come out a different brightness from
+ * its solid ones. toridraw_rscache calls this rather than carrying a second
+ * copy of six pow() calls.
+ */
+int
+pix3d_set_gamma(
+    int rgb,
+    double gamma);
 
 void
 init_hsl16_to_pixel_table(void);

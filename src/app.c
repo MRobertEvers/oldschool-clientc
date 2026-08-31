@@ -25941,8 +25941,15 @@ app_world_frame(
     if( cycles > 0 )
     {
         struct ToriDraw_TextureState* tex_state = ToriDraw_SceneTexState(app->scene);
+        /* The rotate buffer is the caller's now -- see the header. This client
+         * does animate textures, so it keeps the 64 KB it always had. */
+        static int tex_anim_scratch[TORIDRAW_TEXTURE_ANIM_SCRATCH_INTS];
         if( tex_state )
-            ToriDraw_TextureMapAnimate(&tex_state->texture_map, cycles);
+            ToriDraw_TextureMapAnimate(
+                &tex_state->texture_map,
+                cycles,
+                tex_anim_scratch,
+                TORIDRAW_TEXTURE_ANIM_SCRATCH_INTS);
     }
 
     app->need_redraw = 1;

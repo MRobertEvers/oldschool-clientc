@@ -2,11 +2,13 @@
 #define TORIDRAW_H
 
 #include "toridraw_animation.h"
+#include "toridraw_arena.h"
 #include "toridraw_hsl16.h"
 #include "toridraw_light_model.h"
 #include "toridraw_lighting.h"
 #include "toridraw_map.h"
 #include "toridraw_math.h"
+#include "toridraw_mini.h"
 #include "toridraw_model.h"
 #include "toridraw_model_sprite.h"
 #include "toridraw_model_transform.h"

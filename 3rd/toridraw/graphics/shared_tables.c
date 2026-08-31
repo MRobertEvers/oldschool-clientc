@@ -24,16 +24,44 @@ const int* g_tan_table = g_tan_table_builtin;
 int g_reciprocal15[4096];
 int g_reciprocal16[4096];
 
-#ifndef TORIDRAW_DISABLE_SIMD_TABLES
+#ifdef TORIDRAW_SIMD_RECIPROCAL_TABLES
 uint16_t g_reciprocal16_simd[G_RECIPROCAL16_SIMD_LEN];
 uint32_t g_reciprocal_norm30[G_RECIPROCAL_NORM_LEN];
 #endif
 
 #else /* TORIDRAW_TABLES_PRECOMPUTED */
 
-const int* g_sin_table;
-const int* g_cos_table;
-const int* g_tan_table;
+/*
+ * The tables are `const` arrays in a GENERATED translation unit, which a
+ * target with a linker script puts in ROM. That is the whole point: the
+ * palette alone is 128 KB at 16bpp, and on a client with a quarter-megabyte
+ * of RAM it has to come out of RAM or nothing else fits.
+ *
+ * Generate the unit with tools/toridraw_tables_gen.c, built with the SAME
+ * -DTORIDRAW_PIXEL_FORMAT as the target -- the palette's element type is
+ * toripixel_t, so a unit generated for one format is the wrong width for
+ * another. The generator includes THIS file and calls the builders below, so
+ * the emitted values are the ones the runtime path computes rather than a
+ * second implementation of the same math.
+ *
+ * g_projection_model_yaw_table stays mutable: it is DERIVED from whichever
+ * sine and cosine tables are selected, and ToriDraw_SetSinTable exists so a
+ * host may select its own. 16 KB is what a precomputed build still pays.
+ *
+ * The generated unit DEFINES g_hsl16_to_pixel_table, g_atan_turns16_table,
+ * g_reciprocal15 and g_reciprocal16 under their canonical names -- the header
+ * already declares them `const` arrays here, so nothing downstream changes
+ * spelling or pays an indirection. It also defines the three trigonometric
+ * tables under their own names, because those are reached through a POINTER
+ * a host may repoint (ToriDraw_SetSinTable).
+ */
+extern const int g_toridraw_sin_precomputed[2048];
+extern const int g_toridraw_cos_precomputed[2048];
+extern const int g_toridraw_tan_precomputed[2048];
+
+const int* g_sin_table = g_toridraw_sin_precomputed;
+const int* g_cos_table = g_toridraw_cos_precomputed;
+const int* g_tan_table = g_toridraw_tan_precomputed;
 
 #endif /* !TORIDRAW_TABLES_PRECOMPUTED */
 
@@ -180,21 +208,26 @@ init_hsl16_to_pixel_table(void)
 {
 }
 
+/* The tables are already there; selecting them and refreshing the derived
+ * yaw pairs is all an init can still do. Idempotent, like the builders. */
 void
 ToriDraw_InitSinTable(void)
 {
+    g_sin_table = g_toridraw_sin_precomputed;
     ToriDraw_RebuildProjectionModelYawTable();
 }
 
 void
 ToriDraw_InitCosTable(void)
 {
+    g_cos_table = g_toridraw_cos_precomputed;
     ToriDraw_RebuildProjectionModelYawTable();
 }
 
 void
 ToriDraw_InitTanTable(void)
 {
+    g_tan_table = g_toridraw_tan_precomputed;
 }
 
 void
@@ -269,7 +302,7 @@ init_reciprocal16(void)
     for( int i = 1; i < 4096; i++ )
         g_reciprocal15[i] = ((1 << 15) / i);
 
-#ifndef TORIDRAW_DISABLE_SIMD_TABLES
+#ifdef TORIDRAW_SIMD_RECIPROCAL_TABLES
     for( int i = 1; i < G_RECIPROCAL16_SIMD_LEN; i++ )
         g_reciprocal16_simd[i] = ((1 << 16) / i);
 
@@ -286,7 +319,7 @@ ToriDraw_SetSinTable(const int* table)
 #ifndef TORIDRAW_TABLES_PRECOMPUTED
     g_sin_table = table ? table : g_sin_table_builtin;
 #else
-    g_sin_table = table;
+    g_sin_table = table ? table : g_toridraw_sin_precomputed;
 #endif
     ToriDraw_RebuildProjectionModelYawTable();
 }
@@ -297,7 +330,7 @@ ToriDraw_SetCosTable(const int* table)
 #ifndef TORIDRAW_TABLES_PRECOMPUTED
     g_cos_table = table ? table : g_cos_table_builtin;
 #else
-    g_cos_table = table;
+    g_cos_table = table ? table : g_toridraw_cos_precomputed;
 #endif
     ToriDraw_RebuildProjectionModelYawTable();
 }
@@ -308,6 +341,6 @@ ToriDraw_SetTanTable(const int* table)
 #ifndef TORIDRAW_TABLES_PRECOMPUTED
     g_tan_table = table ? table : g_tan_table_builtin;
 #else
-    g_tan_table = table;
+    g_tan_table = table ? table : g_toridraw_tan_precomputed;
 #endif
 }

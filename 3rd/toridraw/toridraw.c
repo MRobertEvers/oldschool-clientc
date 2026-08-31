@@ -302,6 +302,28 @@ small_sort_buffer_bytes(const struct ToriDraw_SceneCaps* caps)
     return bytes;
 }
 
+/*
+ * The bitonic+radix sort's key arrays, rounded to a power of two exactly as
+ * scene_alloc_bitonic_radix_keys rounds them.
+ */
+static size_t
+bitonic_radix_key_bytes(const struct ToriDraw_SceneCaps* caps)
+{
+    size_t keys = 8;
+
+    while( keys < (size_t)caps->max_faces )
+        keys <<= 1;
+    keys += 4;
+    return keys * sizeof(uint32_t) * 2;
+}
+
+/** The batched raster walk's y-ordered stash: eight ints per face, two planes. */
+static size_t
+presort_xy_bytes(const struct ToriDraw_SceneCaps* caps)
+{
+    return ((size_t)caps->max_faces + 4) * 4 * sizeof(int) * 2;
+}
+
 static size_t
 ToriDraw_SceneBufferBytes(const struct ToriDraw_SceneCaps* caps)
 {
@@ -310,8 +332,14 @@ ToriDraw_SceneBufferBytes(const struct ToriDraw_SceneCaps* caps)
     bytes += (size_t)caps->max_faces * sizeof(int);
     if( !caps->lazy_textures )
         bytes += sizeof(struct ToriDraw_TextureState);
+    /* Every group ToriDraw_SceneAllocBuffers allocates, and only those. A
+     * small scene takes the CSR sorter AND the bitonic+radix keys AND the
+     * presort stash -- reporting only the first understated the smallest
+     * scene this library can build by 160 KB, which is most of an embedded
+     * target's whole budget. */
     if( caps->small_mode )
-        bytes += small_sort_buffer_bytes(caps);
+        bytes += small_sort_buffer_bytes(caps) + bitonic_radix_key_bytes(caps) +
+                 presort_xy_bytes(caps);
     else
         bytes += full_sort_buffer_bytes(caps);
     return bytes;
@@ -615,11 +643,22 @@ ToriDraw_SceneTexState(struct ToriDraw_Scene* scene)
 
     if( !scene->tex_state )
     {
+        /* An arena scene cannot grow one: its memory was sized once, by the
+         * caller, from limits that said this model had no textures. Reaching
+         * here means the model does. */
+        assert(!ToriDraw_SceneIsArena(scene));
         scene->tex_state = calloc(1, sizeof(struct ToriDraw_TextureState));
         assert(scene->tex_state);
     }
 
     return scene->tex_state;
+}
+
+struct ToriDraw_TextureMap*
+ToriDraw_SceneTextureMapOrNull(struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    return scene->tex_state ? &scene->tex_state->texture_map : NULL;
 }
 
 size_t
@@ -655,7 +694,10 @@ ToriDraw_ScenePrintSize(
     size_t sort_bytes =
         caps.small_mode ? small_sort_buffer_bytes(&caps) : full_sort_buffer_bytes(&caps);
     size_t tex_bytes = caps.lazy_textures ? 0 : sizeof(struct ToriDraw_TextureState);
-    size_t total = struct_bytes + vertex_bytes + order_bytes + sort_bytes + tex_bytes;
+    size_t keys_bytes = caps.small_mode ? bitonic_radix_key_bytes(&caps) : 0;
+    size_t presort_bytes = caps.small_mode ? presort_xy_bytes(&caps) : 0;
+    size_t total = struct_bytes + vertex_bytes + order_bytes + sort_bytes + keys_bytes +
+                   presort_bytes + tex_bytes;
 
     printf(
         "toridraw scene size (scratch=%s, flags=0x%x%s%s%s):\n",
@@ -671,6 +713,12 @@ ToriDraw_ScenePrintSize(
         "  sort:       %6zu bytes (%s)\n",
         sort_bytes,
         caps.small_mode ? "CSR small variant" : "full bucket arrays");
+
+    if( caps.small_mode )
+    {
+        printf("  sort keys:  %6zu bytes (bitonic+radix)\n", keys_bytes);
+        printf("  presort xy: %6zu bytes (batched walk stash)\n", presort_bytes);
+    }
     printf(
         "  textures:   %6zu bytes%s\n",
         tex_bytes,
@@ -752,6 +800,11 @@ ToriDraw_SceneFree(struct ToriDraw_Scene* scene)
 {
     if( !scene )
         return;
+    /* An arena scene's memory is the caller's -- often static or a stack
+     * buffer. Handing it to free() is not a leak, it is a heap corruption
+     * several frames later, in an allocation that has nothing to do with
+     * this one. */
+    assert(!ToriDraw_SceneIsArena(scene));
     ToriDraw_SceneGraphShutdown(scene);
     /* After the shutdown, not before: disposing the elements is what returns
      * the models they borrowed, and the store asserts it is empty. */
@@ -1246,6 +1299,14 @@ ToriDraw_SceneEnsureScratch(
 
     if( ToriDraw_SceneHasScratch(scene, needs) )
         return true;
+
+    /* An arena scene has no allocator to grow with: its scratch was sized
+     * once, by the caller, from a ToriDraw_SceneLimits. Reaching here means
+     * the table it was handed wants a group those limits did not ask for --
+     * a batched raster on a scene built without the stash, most likely. Say
+     * so at take time rather than mallocing behind a client that has no
+     * heap. */
+    assert(!ToriDraw_SceneIsArena(scene));
 
     scene_caps_from_scene(scene, &caps);
 

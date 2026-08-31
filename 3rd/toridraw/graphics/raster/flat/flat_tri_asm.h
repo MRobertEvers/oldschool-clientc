@@ -46,13 +46,29 @@
  * each, single and batched, including degenerate, flat-topped, sliver and
  * fully-offscreen cases (toridraw_flat_tri_asm_test.c).
  *
- * PIXEL FORMAT. These kernels index the palette with a 4-byte scale and store
- * 4-byte pixels, which is a claim about ONE format -- so they are gated on
- * TORIPIXEL_IS_XRGB8888 and not merely on having been assembled. A build that
- * asks for the asm on some other format falls through to the C twin below,
- * the same way a lane with no kernel for a family declines and the caller
- * carries on. Writing a door for another format means a new file naming it
- * (tri.flat.rgb565.aarch64.S) and a claim of its own here.
+ * PIXEL FORMAT. The i686 and AArch64 kernels index the palette with a 4-byte
+ * scale and store 4-byte pixels, which is a claim about ONE format -- so they
+ * are gated on TORIPIXEL_IS_XRGB8888 and not merely on having been assembled.
+ * A build that asks for the asm on some other format falls through to the C
+ * twin below, the same way a lane with no kernel for a family declines and
+ * the caller carries on. Writing a door for another format means a new file
+ * naming it and a claim of its own here, which is what the Xtensa arm is:
+ * tri.flat.rgb565.xtensa.S indexes a 2-byte palette, stores 2-byte pixels and
+ * blends with the RGB565 spread arithmetic, so it claims RGB565 and declines
+ * everywhere else.
+ *
+ * WHAT THE WALK NAMES. Every arm binds the two run doors to
+ * TORIDRAW_FLAT_PRESORTED_RUN_OPAQUE and ..._ALPHA -- the neutral spelling,
+ * carrying no format -- and impl/raster/walk/walk.batched.u.c writes those.
+ * A format token belongs in the name of an IMPLEMENTATION and nowhere else;
+ * a walk that spells one is a walk that has to be edited to reach a lane it
+ * has no opinion about. This is the same rule graphics/alpha.h states for
+ * alpha_blend, applied to a door instead of a blend.
+ *
+ * The gouraud and texture families have no such spelling and should not grow
+ * one yet: every arm either of them has is XRGB8888, so a neutral name there
+ * would select between one thing. It appears when a family acquires a second
+ * format, which is what has just happened to this one.
  */
 
 #include "graphics/pixel_format.h"
@@ -116,6 +132,9 @@ void toridraw_flat_alpha_s4_presorted_run_xrgb8888_asm(
 #define TORIDRAW_FLAT_TRI_OPAQUE_S4 toridraw_flat_opaque_s4_sorting_xrgb8888_asm
 #define TORIDRAW_FLAT_TRI_ALPHA_S4  toridraw_flat_alpha_s4_sorting_xrgb8888_asm
 
+#define TORIDRAW_FLAT_PRESORTED_RUN_OPAQUE toridraw_flat_opaque_s4_presorted_run_xrgb8888_asm
+#define TORIDRAW_FLAT_PRESORTED_RUN_ALPHA  toridraw_flat_alpha_s4_presorted_run_xrgb8888_asm
+
 /* Sixteen bytes per group, three groups. Must match ROWBYTES in the .S. */
 #define TORIDRAW_FLAT_PRESORTED_RUN_ROW_INTS 12
 #define TORIDRAW_FLAT_PRESORTED_RUN 1
@@ -149,6 +168,53 @@ void toridraw_flat_alpha_s4_presorted_run_xrgb8888_asm(
 
 #define TORIDRAW_FLAT_TRI_OPAQUE_S4 raster_flat_screen_opaque_branching_s4
 #define TORIDRAW_FLAT_TRI_ALPHA_S4  raster_flat_screen_alpha_branching_s4
+
+#define TORIDRAW_FLAT_PRESORTED_RUN_OPAQUE toridraw_flat_opaque_s4_presorted_run_xrgb8888_asm
+#define TORIDRAW_FLAT_PRESORTED_RUN_ALPHA  toridraw_flat_alpha_s4_presorted_run_xrgb8888_asm
+
+#define TORIDRAW_FLAT_PRESORTED_RUN_ROW_INTS 12
+#define TORIDRAW_FLAT_PRESORTED_RUN 1
+
+#elif defined(TORIDRAW_FLAT_TRI_XTENSA_ASM) && TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_RGB565
+
+/*
+ * The Xtensa LX7 / ESP32-S3 lane: tri.flat.rgb565.xtensa.S. As on AArch64
+ * only the RUN doors exist, and the per-face path keeps the C.
+ *
+ * THE GATE IS THE FORMAT, NOT THE ISA, and both halves of it matter. A build
+ * that assembled the .S but selected another framebuffer arrives here and
+ * DECLINES -- the symbols are linked and unreachable -- because a kernel that
+ * stores halfwords into a 32-bit buffer is not a slower answer, it is a wrong
+ * one. There is no XRGB8888 twin of this file and there is no reason to write
+ * one: the parts this lane exists for drive 16-bit panels.
+ *
+ * Same 48-byte row record as the other two lanes. The record is ints and does
+ * not know the pixel format, which is why one batched walk feeds all three.
+ */
+
+#include "graphics/shared_tables.h"
+
+void toridraw_flat_opaque_s4_presorted_run_rgb565_asm(
+    toripixel_t* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    const int* rows,
+    int count);
+
+void toridraw_flat_alpha_s4_presorted_run_rgb565_asm(
+    toripixel_t* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    const int* rows,
+    int count);
+
+#define TORIDRAW_FLAT_TRI_OPAQUE_S4 raster_flat_screen_opaque_branching_s4
+#define TORIDRAW_FLAT_TRI_ALPHA_S4  raster_flat_screen_alpha_branching_s4
+
+#define TORIDRAW_FLAT_PRESORTED_RUN_OPAQUE toridraw_flat_opaque_s4_presorted_run_rgb565_asm
+#define TORIDRAW_FLAT_PRESORTED_RUN_ALPHA  toridraw_flat_alpha_s4_presorted_run_rgb565_asm
 
 #define TORIDRAW_FLAT_PRESORTED_RUN_ROW_INTS 12
 #define TORIDRAW_FLAT_PRESORTED_RUN 1

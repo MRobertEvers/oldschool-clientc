@@ -1,6 +1,16 @@
 #include "toridraw_sprite.h"
 
+/*
+ * The BMP export is the ONE thing in this library that reaches outside its own
+ * folder, and nothing in this tree calls it. Opt-in, so toridraw_unity.c
+ * compiles with -I<toridraw> alone -- which is what its own header promises and
+ * what an embedded client, which has no filesystem to write a BMP to, needs.
+ *
+ * Build with -DTORIDRAW_SPRITE_BMP_EXPORT and -I3rd/bmp to have it.
+ */
+#ifdef TORIDRAW_SPRITE_BMP_EXPORT
 #include "bmp.h"
+#endif
 #include "graphics/dash_restrict.h"
 #include "toridraw_math.h"
 
@@ -1002,6 +1012,7 @@ ToriDraw_SpriteFree(struct ToriDraw_Sprite* sprite)
     free(sprite);
 }
 
+#ifdef TORIDRAW_SPRITE_BMP_EXPORT
 int
 ToriDraw_SpriteWriteBmpFile(
     struct ToriDraw_Sprite const* sprite,
@@ -1060,3 +1071,4 @@ ToriDraw_SpriteWriteBmpFile(
     free(pixels);
     return 0;
 }
+#endif /* TORIDRAW_SPRITE_BMP_EXPORT */
