@@ -8,6 +8,10 @@ adaptive pair, the web wants PNG plus a real multi-size .ico, macOS wants
 .icns, Windows wants .ico, and SDL wants raw RGBA it can hand
 SDL_CreateRGBSurfaceFrom. A .jpg renamed to .png is not any of those.
 
+Requires: pillow, numpy, scipy. On macOS `iconutil` (Xcode command line
+tools) is also used, for the .icns; without it the .iconset is left in place
+for a macOS host to finish.
+
 Usage:
     python3 tools/make_app_icons.py res/torirs_icon.jpg
     python3 tools/make_app_icons.py res/torirs_icon.jpg --out-root /tmp/dryrun
@@ -46,7 +50,10 @@ PLAY_STORE_SIZE = 512
 
 # --- Web -----------------------------------------------------------------
 FAVICON_ICO_SIZES = [16, 32, 48]
-WEB_PNG_SIZES = [16, 32, 48, 180, 192, 512]
+# Only what index.html and site.webmanifest actually reference. 48 already
+# lives inside favicon.ico, and 180 is what apple-touch-icon.png is; a
+# second copy of either under a name nothing links is just a stray file.
+WEB_PNG_SIZES = [16, 32, 192, 512]
 APPLE_TOUCH_SIZE = 180
 
 # --- Windows -------------------------------------------------------------
@@ -388,7 +395,7 @@ def emit_sdl_embedded(master, out_root):
     lines.append(" * from any working directory still has one; there is no path to get")
     lines.append(" * wrong and no file to ship alongside the binary.")
     lines.append(" */")
-    lines.append('#include "platform_app_icon.h"')
+    lines.append('#include "platform/platform_app_icon.h"')
     lines.append("")
     lines.append("const int platform_app_icon_width = %d;" % SDL_ICON_SIZE)
     lines.append("const int platform_app_icon_height = %d;" % SDL_ICON_SIZE)

@@ -95,6 +95,9 @@ main(
     int port = (argc > 1 && !selftest) ? atoi(argv[1]) : TORIRSSERVER_DEFAULT_PORT;
     int listener = -1;
     int reuse = 1;
+    /* What the startup line reports, so it names where the socket actually
+     * went rather than where it used to go. @see TORIRSSERVER_BIND below. */
+    char const* bind_host = "127.0.0.1";
     int status;
     struct sockaddr_in addr;
     /*
@@ -178,7 +181,52 @@ main(
         setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse));
         memset(&addr, 0, sizeof(addr));
         addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        /*
+         * Loopback by default, and that default is deliberate: this is a
+         * development server with no authentication worth the name, and one
+         * that silently accepted connections from the network the moment it
+         * started would be a much worse default than one that has to be asked.
+         *
+         * TORIRSSERVER_BIND asks. It exists because "the client and the server
+         * are on the same machine" stopped being true: the Android lane
+         * (docs/android_architecture.md) runs the client on a phone, which
+         * cannot reach another host's loopback by any means. Without this the
+         * only ways to connect a real device were a USB port-forward or a TCP
+         * relay -- both of which are workarounds for a one-line limitation.
+         *
+         *   TORIRSSERVER_BIND=0.0.0.0     every interface
+         *   TORIRSSERVER_BIND=192.168.1.5 one interface
+         *   unset                          127.0.0.1, as before
+         */
+        {
+            char const* bind_env = getenv("TORIRSSERVER_BIND");
+            if( bind_env && bind_env[0] )
+            {
+                if( strcmp(bind_env, "0.0.0.0") == 0 )
+                {
+                    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+                }
+                else if( inet_pton(AF_INET, bind_env, &addr.sin_addr) != 1 )
+                {
+                    /* A misspelled address must not silently fall back to
+                     * loopback: the whole point of setting it is to be
+                     * reachable, and a server listening somewhere other than
+                     * where it was told is the failure this refuses to hide. */
+                    fprintf(stderr,
+                            "torirsserver: TORIRSSERVER_BIND='%s' is not an IPv4 address\n",
+                            bind_env);
+#ifdef _WIN32
+                    WSACleanup();
+#endif
+                    return 1;
+                }
+                bind_host = bind_env;
+            }
+            else
+            {
+                addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+            }
+        }
         addr.sin_port = htons((uint16_t)port);
         if( bind(listener, (struct sockaddr*)&addr, sizeof(addr)) != 0 )
         {
@@ -240,9 +288,9 @@ main(
 
     /* Listening since before the loaders ran; this is where it starts accepting. */
     fprintf(stderr,
-            "torirsserver: listening on 127.0.0.1:%d, wire %s (home %d,%d — zone %d,%d), "
+            "torirsserver: listening on %s:%d, wire %s (home %d,%d — zone %d,%d), "
             "up to %d players\n",
-            port, wire->name, config.home_x, config.home_z,
+            bind_host, port, wire->name, config.home_x, config.home_z,
             ToriRSServer_BootZone(config.home_x), ToriRSServer_BootZone(config.home_z),
             TORIRSSERVER_PLAYER_MAX);
 

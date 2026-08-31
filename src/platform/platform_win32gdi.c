@@ -28,6 +28,7 @@
  */
 
 #include "platform/platform_sdl2.h"
+#include "platform/platform_app_icon.h"
 #include "platform/platform_win32_timing.h"
 
 #include "cmd/cmdbus.h"
@@ -788,6 +789,79 @@ PlatformSDL2_SetInterfaceScaleMode(struct PlatformSDL2* p, int mode)
         InvalidateRect(p->hwnd, NULL, FALSE);
 }
 
+/* The window icon, from the RGBA that tools/make_app_icons.py embedded.
+ *
+ * Built at runtime rather than linked as an .rc resource: this lane has no
+ * resource-compile step, and adding one would mean a second description of
+ * the same artwork living in the build system. The bits come from the same
+ * generated array the SDL backend uses.
+ *
+ * A 32-bit DIB section carries its own alpha, so the AND mask exists only
+ * because ICONINFO requires one; it is left all-zero (fully opaque) and the
+ * alpha channel does the shaping.
+ */
+static HICON
+win32_create_app_icon(void)
+{
+    BITMAPV5HEADER header;
+    ICONINFO info;
+    HICON icon;
+    HBITMAP color;
+    HBITMAP mask;
+    void* bits = NULL;
+    HDC screen;
+    int i;
+    int const width = platform_app_icon_width;
+    int const height = platform_app_icon_height;
+    int const pixels = width * height;
+
+    memset(&header, 0, sizeof(header));
+    header.bV5Size = sizeof(header);
+    header.bV5Width = width;
+    /* Negative height: a top-down DIB, matching the generator's row order. */
+    header.bV5Height = -height;
+    header.bV5Planes = 1;
+    header.bV5BitCount = 32;
+    header.bV5Compression = BI_BITFIELDS;
+    header.bV5RedMask = 0x00FF0000u;
+    header.bV5GreenMask = 0x0000FF00u;
+    header.bV5BlueMask = 0x000000FFu;
+    header.bV5AlphaMask = 0xFF000000u;
+
+    screen = GetDC(NULL);
+    color = CreateDIBSection(
+        screen, (BITMAPINFO*)&header, DIB_RGB_COLORS, &bits, NULL, 0);
+    ReleaseDC(NULL, screen);
+    assert(color);
+    assert(bits);
+
+    /* The generated array is R,G,B,A in memory order; a 32-bit DIB word is
+     * 0xAARRGGBB, so the red and blue bytes swap on the way in. */
+    for( i = 0; i < pixels; i++ )
+    {
+        unsigned char const* source = &platform_app_icon_rgba[i * 4];
+        ((unsigned int*)bits)[i] = ((unsigned int)source[3] << 24) |
+                                   ((unsigned int)source[0] << 16) |
+                                   ((unsigned int)source[1] << 8) |
+                                   ((unsigned int)source[2]);
+    }
+
+    mask = CreateBitmap(width, height, 1, 1, NULL);
+    assert(mask);
+
+    memset(&info, 0, sizeof(info));
+    info.fIcon = TRUE;
+    info.hbmColor = color;
+    info.hbmMask = mask;
+    icon = CreateIconIndirect(&info);
+    assert(icon);
+
+    /* CreateIconIndirect copies both bitmaps. */
+    DeleteObject(color);
+    DeleteObject(mask);
+    return icon;
+}
+
 static int
 register_class(void)
 {
@@ -800,6 +874,10 @@ register_class(void)
     wc.lpfnWndProc = wnd_proc;
     wc.hInstance = GetModuleHandle(NULL);
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    /* hIconSm is left NULL: Windows derives the small icon by scaling
+     * hIcon, and the generated art has no separate small-size variant
+     * for it to prefer. */
+    wc.hIcon = win32_create_app_icon();
     /* The retained DIB repaints invalid regions; a class brush would erase the
      * frame before WM_PAINT and recreate the black flash this backend avoids. */
     wc.hbrBackground = NULL;

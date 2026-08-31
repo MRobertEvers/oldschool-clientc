@@ -6,7 +6,7 @@
  * from any working directory still has one; there is no path to get
  * wrong and no file to ship alongside the binary.
  */
-#include "platform_app_icon.h"
+#include "platform/platform_app_icon.h"
 
 const int platform_app_icon_width = 64;
 const int platform_app_icon_height = 64;
