@@ -16,7 +16,7 @@
 #include "impl/raster/tex/raster.texshadeblend.affine.textrans.nofacealpha.nomodulate.painter.branching.lerp8.scalar.u.c"
 #include "impl/raster/tex/raster.texshadeblend.affine.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
 #include "impl/raster/tex/raster.texshadeblend.affine.textrans.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
-#include "graphics/raster/face_census.h"
+#include "census/face_census.h"
 // clang-format on
 
 /**

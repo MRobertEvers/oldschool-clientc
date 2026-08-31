@@ -367,7 +367,7 @@ else
 TORIDRAW_O_LEVEL = $(O_LEVEL)
 endif
 # Raster probes, off unless asked for. The rasterizer's measurement gates are
-# compile-time (graphics/raster/span_census.h, graphics/raster/raster_ablate.h)
+# compile-time (census/span_census.h, census/raster_ablate.h)
 # because a runtime branch in the innermost span loop taxes the very thing it
 # is there to measure. `?=` so this can be set from the environment and reach a
 # build driven by ./launch, which does not forward make arguments:

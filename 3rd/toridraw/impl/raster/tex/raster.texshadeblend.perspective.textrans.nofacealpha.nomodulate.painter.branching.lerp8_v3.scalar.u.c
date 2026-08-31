@@ -1,7 +1,7 @@
 #ifndef TEXSHADEBLEND_PERSP_TEXTRANS_BRANCHING_LERP8_V3_U_C
 #define TEXSHADEBLEND_PERSP_TEXTRANS_BRANCHING_LERP8_V3_U_C
 
-#include "graphics/raster/raster_ablate.h"
+#include "census/raster_ablate.h"
 #include "graphics/dash_restrict.h"
 #include "graphics/int_wrap.h"
 #include "graphics/raster/texture/span/tex.span_peer_decl.h"

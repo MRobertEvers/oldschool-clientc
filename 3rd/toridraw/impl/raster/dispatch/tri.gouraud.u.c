@@ -17,7 +17,7 @@
 #include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
 #include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.alpha.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
 #include "graphics/raster/gouraudhsllightness/gouraud_tri_asm.h"
-#include "graphics/raster/face_census.h"
+#include "census/face_census.h"
 // clang-format on
 
 static inline void

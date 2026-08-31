@@ -1,7 +1,7 @@
 #ifndef TEXSHADEFLAT_PERSP_TEXOPAQUE_BRANCHING_LERP8_U_C
 #define TEXSHADEFLAT_PERSP_TEXOPAQUE_BRANCHING_LERP8_U_C
 
-#include "graphics/raster/raster_ablate.h"
+#include "census/raster_ablate.h"
 #include "graphics/dash_restrict.h"
 
 #include <stdint.h>

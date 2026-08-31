@@ -1,4 +1,4 @@
-#include "graphics/raster/face_census.h"
+#include "census/face_census.h"
 
 #if defined(TORIDRAW_FACE_CENSUS) && TORIDRAW_FACE_CENSUS
 

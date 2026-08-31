@@ -1,7 +1,7 @@
 #include "graphics/batch_stats.h"
 #include "graphics/dash_restrict.h"
 #include "graphics/div3.h"
-#include "graphics/proj_census.h"
+#include "census/proj_census.h"
 #include "impl/projection/projection.scalar_reference.h"
 #include "graphics/winding.h"
 #include "graphics/ysort_order.h"

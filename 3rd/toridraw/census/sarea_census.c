@@ -1,4 +1,4 @@
-#include "graphics/raster/gouraudhsllightness/sarea_census.h"
+#include "census/sarea_census.h"
 
 #if defined(TORIDRAW_SAREA_CENSUS) && TORIDRAW_SAREA_CENSUS
 

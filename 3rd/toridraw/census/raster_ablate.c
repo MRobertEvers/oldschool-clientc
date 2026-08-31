@@ -1,4 +1,4 @@
-#include "graphics/raster/raster_ablate.h"
+#include "census/raster_ablate.h"
 
 #if defined(TORIDRAW_ABLATE) && TORIDRAW_ABLATE
 

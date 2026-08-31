@@ -23,7 +23,13 @@ makes the axis order load-bearing for reading rather than just for sorting.
 |---|---|---|
 | 0–1 | `kernels/` | the tables a caller takes, and the three stage objects they name |
 | 2 | `families/` | projection families: a mode, its near-clip rule, and the clip/noclip pair that rule selects between |
-| 3 | `impl/`, `graphics/`, `triangles/` | the math: per-ISA vertex kernels, sort lanes, span and triangle kernels |
+| 3 | `impl/projection/`, `impl/facesort/`, `impl/raster/` | the math: per-ISA vertex kernels, sort lanes, span and triangle kernels |
+
+Three directories sit beside those tiers and are not part of them:
+`graphics/` holds what the kernels share — templates, step helpers, the winding
+and clamp headers, the y-order table; `census/` holds every counter and
+ablation, so no hot file hosts instrumentation; `bench/` holds code reachable
+only from a benchmark.
 
 Nothing in tiers 0–2 contains a loop. They name and select; tier 3 draws.
 

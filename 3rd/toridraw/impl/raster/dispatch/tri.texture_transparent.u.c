@@ -19,7 +19,7 @@
 #include "impl/raster/tex/raster.texshadeflat.perspective.textrans.nofacealpha.nomodulate.painter.branching.lerp8.scalar.u.c"
 #include "graphics/raster/texture/tex_tri_asm.h"
 #include "graphics/raster/texture/tex_tri_asm_support.u.c"
-#include "graphics/raster/face_census.h"
+#include "census/face_census.h"
 // clang-format on
 
 static inline void

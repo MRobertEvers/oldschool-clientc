@@ -1,7 +1,7 @@
 #ifndef TEXSHADEBLEND_AFFINE_TEXTRANS_BRANCHING_LERP8_U_C
 #define TEXSHADEBLEND_AFFINE_TEXTRANS_BRANCHING_LERP8_U_C
 
-#include "graphics/raster/raster_ablate.h"
+#include "census/raster_ablate.h"
 #include "graphics/dash_restrict.h"
 #include "graphics/int_wrap.h"
 #include "graphics/shade.h"

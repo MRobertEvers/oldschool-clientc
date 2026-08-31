@@ -16,7 +16,7 @@
 #include "impl/raster/flat/raster.flat.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
 #include "impl/raster/flat/raster.flat.alpha.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
 #include "graphics/raster/flat/flat_tri_asm.h"
-#include "graphics/raster/face_census.h"
+#include "census/face_census.h"
 // clang-format on
 
 static inline void

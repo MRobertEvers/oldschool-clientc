@@ -3,7 +3,7 @@
 
 #include "graphics/clamp.h"
 #include "graphics/dash_restrict.h"
-#include "graphics/raster/raster_ablate.h"
+#include "census/raster_ablate.h"
 #include "graphics/shade.h"
 #include "graphics/shared_tables.h"
 

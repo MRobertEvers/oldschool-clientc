@@ -1,4 +1,4 @@
-#include "graphics/proj_census.h"
+#include "census/proj_census.h"
 
 #if defined(TORIDRAW_PROJECTION_CENSUS) && TORIDRAW_PROJECTION_CENSUS
 

@@ -7,9 +7,9 @@
 #include "graphics/raster/gouraudhsllightness/gouraudhsllightness_barycentric_steps.h"
 #include "graphics/raster/gouraudhsllightness/gouraud_span_fill.h"
 #include "graphics/raster/flat/flat_screen_edges.h"
-#include "graphics/raster/span_census.h"
-#include "graphics/raster/raster_ablate.h"
-#include "graphics/raster/gouraudhsllightness/sarea_census.h"
+#include "census/span_census.h"
+#include "census/raster_ablate.h"
+#include "census/sarea_census.h"
 
 #include "graphics/shared_tables.h"
 

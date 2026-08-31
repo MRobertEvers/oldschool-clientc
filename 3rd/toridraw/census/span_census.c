@@ -1,4 +1,4 @@
-#include "graphics/raster/span_census.h"
+#include "census/span_census.h"
 
 #if defined(TORIDRAW_SPAN_TRACE) && TORIDRAW_SPAN_TRACE
 
