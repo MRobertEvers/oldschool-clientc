@@ -6,6 +6,51 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/*
+ * THE KNOB INVENTORY.
+ *
+ * Every environment variable that changes which kernel runs, and WHEN it is
+ * read. The rule the three-stage table exists to enforce is that a knob
+ * becomes a CHOICE at a point the caller can see -- a getter, or
+ * ToriDraw_KernelTake -- and is never re-asked per model or per face behind
+ * their back. This list is the audit of that rule; a new knob read from inside
+ * a stage is a bug against it.
+ *
+ *   ToriDraw_Init
+ *     TORIDRAW_RASTER_SCANLINE    branching <-> scanline, SD and HD.
+ *                                 ToriDraw_RasterSetScanline overrides.
+ *
+ *   At the getter (once, where a renderer takes its table)
+ *     TORIDRAW_FACE_SORT          bucket <-> flat, into the table's stage-2
+ *                                 slot. ToriDraw_FaceSortSetFlat overrides.
+ *     TORIDRAW_RASTER_BATCH       whether the painter table's raster is the
+ *                                 branching kernel with its whole-model run
+ *                                 door or the per-face twin. The sort no
+ *                                 longer asks: `presort` follows from the
+ *                                 door alone.
+ *
+ *   Per model, into the raster context (hoisted, not asked per face)
+ *     TORIDRAW_SKIP_TEXTURED      the textured-path bisect knob, read once
+ *                                 into ctx->skip_textured and shared by both
+ *                                 walks -- a face one drops must not be drawn
+ *                                 by the other.
+ *
+ *   Still per model, and honestly so
+ *     TORIDRAW_TILE_SORT          which two-triangle terrain-tile kernel; the
+ *                                 tile shape is a per-model property.
+ *     TORIDRAW_SORT_BITONIC_MAX   the bitonic/radix crossover, compared
+ *                                 against this model's face count.
+ *
+ *   Compile time, not runtime
+ *     TORIDRAW_FLIP_WINDING       a one-shot handedness check for an import,
+ *                                 not an A/B arm. See graphics/winding.h.
+ *     TORIDRAW_PIXEL16, the ISA ladders, the tri/span assembly lanes.
+ *
+ *   Measurement only, and deliberately still runtime
+ *     TORIDRAW_FRAME_AB[_SWAP,_KERNELS,_BATCH], TORIRS_ABL_*,
+ *     TORIDRAW_ABLATE*, TORIDRAW_BATCH_STATS, the census builds.
+ */
+
 enum ToriDraw_RasterKernelFlags
 {
     /* Traverse model face order and do not provision a depth buffer. */
