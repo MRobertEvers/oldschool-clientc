@@ -51,7 +51,6 @@ ToriDraw_HDGetTuning(struct ToriDraw_HDTuning* out)
         *out = g_hd_tuning;
 }
 
-#ifndef TORIDRAW_PIXEL16
 
 #include "graphics/raster/texture/tex_sampler.h"
 
@@ -87,7 +86,7 @@ _Static_assert(
  * it lands in differs.
  */
 typedef void (*hd_pmn_fn)(
-    int*,
+    toripixel_t*,
     int,
     int,
     int,
@@ -116,7 +115,7 @@ typedef void (*hd_pmn_fn)(
     const struct ToriDraw_TexSampler*);
 
 typedef void (*hd_mapped_fn)(
-    int*,
+    toripixel_t*,
     int,
     int,
     int,
@@ -191,7 +190,7 @@ static const hd_mapped_fn g_hd_mapped[3][3][2][2] = {
  * hd_draw_face, and only the call it lands on differs.
  */
 typedef void (*hd_pmn_zbuf_fn)(
-    int*,
+    toripixel_t*,
     int,
     int,
     int,
@@ -224,7 +223,7 @@ typedef void (*hd_pmn_zbuf_fn)(
     torizdepth_t*);
 
 typedef void (*hd_mapped_zbuf_fn)(
-    int*,
+    toripixel_t*,
     int,
     int,
     int,
@@ -1516,152 +1515,6 @@ ToriDraw_RenderHDZBufferedWithRasterKernel(
         hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, &table);
 }
 
-#else /* TORIDRAW_PIXEL16 */
-
-static void
-hd_pixel16_unsupported_face(
-    void* user_data,
-    const struct ToriDraw_RasterTarget* target,
-    const struct ToriDraw_RasterFaceHD* face)
-{
-    (void)user_data;
-    (void)target;
-    (void)face;
-}
-
-static const struct ToriDraw_RasterKernelHDVTable g_hd_pixel16_vtable = {
-    .draw = {
-        [TORIDRAW_RASTER_FACE_HD_GOURAUD] = hd_pixel16_unsupported_face,
-        [TORIDRAW_RASTER_FACE_HD_FLAT] = hd_pixel16_unsupported_face,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE] = hd_pixel16_unsupported_face,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER] = hd_pixel16_unsupported_face,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE] = hd_pixel16_unsupported_face,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE] = hd_pixel16_unsupported_face,
-    },
-};
-
-/* The prebaked HD kernels, one file each. Both arms of the PIXEL16 split
- * include them; the guards make that harmless, and only one arm compiles. */
-// clang-format off
-#include "kernels/hd.branching.u.c"
-#include "kernels/hd.scanline.u.c"
-#include "kernels/hd.zbuffered.u.c"
-// clang-format on
-
-static const struct ToriDraw_RasterKernelHD*
-hd_pixel16_builtin_kernel(void)
-{
-    return ToriDraw_RasterGetScanline() ? ToriDraw_RasterKernelHDGetScanline()
-                                        : ToriDraw_RasterKernelHDGetBranching();
-}
-
-static int
-hd_pixel16_render_with_kernel(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_Position* position,
-    struct ToriDraw_ViewPort* view_port,
-    struct ToriDraw_Camera* camera,
-    toripixel_t* pixel_buffer,
-    const struct ToriDraw_HDMaterials* materials,
-    struct ToriDraw_HDRenderStats* out_stats,
-    const struct ToriDraw_RasterKernelHD* kernel)
-{
-    if( out_stats )
-        memset(out_stats, 0, sizeof(*out_stats));
-    assert(kernel);
-    ToriDraw_RasterKernelHDAssertValid(kernel);
-    (void)hnd;
-    (void)scene;
-    (void)position;
-    (void)view_port;
-    (void)camera;
-    (void)pixel_buffer;
-    (void)materials;
-    return TORIDRAW_CULL_ERROR;
-}
-
-int
-ToriDraw_RenderHD(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_Position* position,
-    struct ToriDraw_ViewPort* view_port,
-    struct ToriDraw_Camera* camera,
-    toripixel_t* pixel_buffer,
-    const struct ToriDraw_HDMaterials* materials,
-    struct ToriDraw_HDRenderStats* out_stats)
-{
-    return hd_pixel16_render_with_kernel(
-        hnd,
-        scene,
-        position,
-        view_port,
-        camera,
-        pixel_buffer,
-        materials,
-        out_stats,
-        hd_pixel16_builtin_kernel());
-}
-
-int
-ToriDraw_RenderHDWithRasterKernel(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_Position* position,
-    struct ToriDraw_ViewPort* view_port,
-    struct ToriDraw_Camera* camera,
-    toripixel_t* pixel_buffer,
-    const struct ToriDraw_HDMaterials* materials,
-    struct ToriDraw_HDRenderStats* out_stats,
-    const struct ToriDraw_RasterKernelHD* kernel)
-{
-    return hd_pixel16_render_with_kernel(
-        hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, kernel);
-}
-
-int
-ToriDraw_RenderHDZBuffered(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_Position* position,
-    struct ToriDraw_ViewPort* view_port,
-    struct ToriDraw_Camera* camera,
-    toripixel_t* pixel_buffer,
-    const struct ToriDraw_HDMaterials* materials,
-    struct ToriDraw_HDRenderStats* out_stats)
-{
-    return hd_pixel16_render_with_kernel(
-        hnd,
-        scene,
-        position,
-        view_port,
-        camera,
-        pixel_buffer,
-        materials,
-        out_stats,
-        ToriDraw_RasterKernelHDGetZBuffered());
-}
-
-int
-ToriDraw_RenderHDZBufferedWithRasterKernel(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_Position* position,
-    struct ToriDraw_ViewPort* view_port,
-    struct ToriDraw_Camera* camera,
-    toripixel_t* pixel_buffer,
-    const struct ToriDraw_HDMaterials* materials,
-    struct ToriDraw_HDRenderStats* out_stats,
-    const struct ToriDraw_RasterKernelHD* kernel)
-{
-    assert(kernel);
-    assert(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER);
-    return hd_pixel16_render_with_kernel(
-        hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, kernel);
-}
-
-#endif /* TORIDRAW_PIXEL16 */
 
 /* ------------------------------------------------- building the mappings */
 

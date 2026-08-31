@@ -12,12 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(TORIDRAW_PIXEL16) && !defined(_WIN32) && !defined(__EMSCRIPTEN__)
-#include <signal.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#endif
-
 #define VIEW_WIDTH 320
 #define VIEW_HEIGHT 200
 #define VIEW_STRIDE 336
@@ -406,11 +400,13 @@ test_typed_builtin_kernels(void)
           "SD built-in kernels are unexpectedly aliased");
     CHECK(hd_branching != hd_scanline,
           "HD built-in kernels are unexpectedly aliased");
-#ifdef TORIDRAW_PIXEL16
-    CHECK(sizeof(toripixel_t) == 2, "Pixel16 toripixel_t is %zu bytes", sizeof(toripixel_t));
-#else
-    CHECK(sizeof(toripixel_t) == 4, "Pixel32 toripixel_t is %zu bytes", sizeof(toripixel_t));
-#endif
+    /* The framebuffer word is whatever the selected format says it is, and
+     * TORIPIXEL_BYTES is what the rest of the library strides by. */
+    CHECK(sizeof(toripixel_t) == (size_t)TORIPIXEL_BYTES,
+          "%s toripixel_t is %zu bytes, TORIPIXEL_BYTES says %d", TORIPIXEL_FORMAT_NAME,
+          sizeof(toripixel_t), TORIPIXEL_BYTES);
+    CHECK(TORIPIXEL_BYTES == 4 || TORIPIXEL_BYTES == 2,
+          "%s pixel width %d is neither 4 nor 2", TORIPIXEL_FORMAT_NAME, TORIPIXEL_BYTES);
 }
 
 struct SDSpy
@@ -806,7 +802,6 @@ test_sd_legacy_parity(const struct SDFixture* fixture, struct RenderEnv* env)
     free(reference);
 }
 
-#ifndef TORIDRAW_PIXEL16
 
 #define HD_FACE_COUNT 6
 #define HD_VERTEX_COUNT (HD_FACE_COUNT * 3)
@@ -1297,99 +1292,6 @@ test_hd_legacy_parity(const struct HDFixture* fixture, struct RenderEnv* env)
     free(reference);
 }
 
-#else /* TORIDRAW_PIXEL16 */
-
-struct Pixel16HDSpy
-{
-    int calls;
-};
-
-static void
-pixel16_hd_unexpected_callback(
-    void* user_data,
-    const struct ToriDraw_RasterTarget* target,
-    const struct ToriDraw_RasterFaceHD* face)
-{
-    struct Pixel16HDSpy* spy = user_data;
-
-    (void)target;
-    (void)face;
-    spy->calls++;
-}
-
-static const struct ToriDraw_RasterKernelHDVTable pixel16_hd_vtable = {
-    .draw = {
-        [TORIDRAW_RASTER_FACE_HD_GOURAUD] = pixel16_hd_unexpected_callback,
-        [TORIDRAW_RASTER_FACE_HD_FLAT] = pixel16_hd_unexpected_callback,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE] = pixel16_hd_unexpected_callback,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER] = pixel16_hd_unexpected_callback,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE] = pixel16_hd_unexpected_callback,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE] = pixel16_hd_unexpected_callback,
-    },
-};
-
-static void
-check_zero_hd_stats(const struct ToriDraw_HDRenderStats* stats, const char* label)
-{
-    struct ToriDraw_HDRenderStats zero = {0};
-
-    CHECK(memcmp(stats, &zero, sizeof(*stats)) == 0, "%s did not clear stats", label);
-}
-
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
-#endif
-
-static void
-test_pixel16_hd_unsupported(const struct SDFixture* fixture, struct RenderEnv* env)
-{
-    struct ToriDraw_ViewPort viewport = test_viewport();
-    struct ToriDraw_Camera camera = test_camera();
-    struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
-    struct ToriDraw_HDRenderStats stats;
-    struct Pixel16HDSpy spy = {0};
-    const struct ToriDraw_RasterKernelHD painter_kernel = {
-        .vtable = &pixel16_hd_vtable,
-        .user_data = &spy,
-        .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
-    };
-    const struct ToriDraw_RasterKernelHD z_kernel = {
-        .vtable = &pixel16_hd_vtable,
-        .user_data = &spy,
-        .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
-    };
-    int result;
-
-    memset(&stats, 0xA5, sizeof(stats));
-    result = ToriDraw_RenderHD(
-        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, NULL,
-        &stats);
-    CHECK(result == TORIDRAW_CULL_ERROR, "Pixel16 legacy HD returned %d", result);
-    check_zero_hd_stats(&stats, "Pixel16 legacy HD");
-
-    memset(&stats, 0xA5, sizeof(stats));
-    result = ToriDraw_RenderHDWithRasterKernel(
-        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, NULL,
-        &stats, &painter_kernel);
-    CHECK(result == TORIDRAW_CULL_ERROR, "Pixel16 direct HD returned %d", result);
-    check_zero_hd_stats(&stats, "Pixel16 direct HD");
-
-    memset(&stats, 0xA5, sizeof(stats));
-    result = ToriDraw_RenderHDZBuffered(
-        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, NULL,
-        &stats);
-    CHECK(result == TORIDRAW_CULL_ERROR, "Pixel16 legacy HD depth returned %d", result);
-    check_zero_hd_stats(&stats, "Pixel16 legacy HD depth");
-
-    memset(&stats, 0xA5, sizeof(stats));
-    result = ToriDraw_RenderHDZBufferedWithRasterKernel(
-        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, NULL,
-        &stats, &z_kernel);
-    CHECK(result == TORIDRAW_CULL_ERROR, "Pixel16 direct HD depth returned %d", result);
-    check_zero_hd_stats(&stats, "Pixel16 direct HD depth");
-    CHECK(spy.calls == 0, "Pixel16 unsupported HD path invoked %d callbacks", spy.calls);
-}
-
-#endif /* TORIDRAW_PIXEL16 */
 
 
 /*
@@ -1827,7 +1729,6 @@ main(void)
     test_sd_direct_apis(&sd_fixture, &env);
     test_sd_legacy_parity(&sd_fixture, &env);
 
-#ifndef TORIDRAW_PIXEL16
     {
         struct HDFixture hd_fixture;
 
@@ -1836,11 +1737,6 @@ main(void)
         test_hd_legacy_parity(&hd_fixture, &env);
         hd_fixture_destroy(&hd_fixture);
     }
-#else
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
-#endif
-    test_pixel16_hd_unsupported(&sd_fixture, &env);
-#endif
 
     render_env_destroy(&env);
     sd_fixture_destroy(&sd_fixture);

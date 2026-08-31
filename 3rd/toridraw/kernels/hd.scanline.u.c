@@ -11,7 +11,6 @@
  * scanline family replaces.
  */
 
-#ifndef TORIDRAW_PIXEL16
 
 static const struct ToriDraw_RasterKernelHDVTable g_hd_scanline_vtable = {
     .draw = {
@@ -30,15 +29,6 @@ static const struct ToriDraw_RasterKernelHD g_hd_scanline_kernel = {
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
 };
 
-#else /* TORIDRAW_PIXEL16 */
-
-static const struct ToriDraw_RasterKernelHD g_hd_scanline_kernel = {
-    .name = "scanline",
-    .vtable = &g_hd_pixel16_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
-};
-
-#endif /* TORIDRAW_PIXEL16 */
 
 const struct ToriDraw_RasterKernelHD*
 ToriDraw_RasterKernelHDGetScanline(void)

@@ -774,7 +774,6 @@ int g_toridraw_raster_scanline = 0;
 #include "impl/raster/dispatch/tri.texture_affine.u.c"
 #include "impl/raster/dispatch/tri.zbuf.u.c"
 #include "toridraw_render.u.c"
-#ifndef TORIDRAW_PIXEL16
 /* The HD kernel set: five projection families x twelve compositing variants,
  * each with a depth-tested twin. One file per variant; they share two
  * templates. Included here rather than from the triangle wrappers because
@@ -911,7 +910,6 @@ int g_toridraw_raster_scanline = 0;
 #include "impl/raster/tex/raster.texsphere.perspective.textrans.nofacealpha.modulate.zbuf.branching.lerp8_v3.scalar.u.c"
 #include "impl/raster/tex/raster.texsphere.perspective.textrans.nofacealpha.nomodulate.zbuf.branching.lerp8_v3.scalar.u.c"
 // clang-format on
-#endif /* !TORIDRAW_PIXEL16 */
 
 #include "toridraw_raster.u.c"
 #include "toridraw_render_hd.u.c"

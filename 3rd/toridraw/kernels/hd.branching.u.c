@@ -10,15 +10,10 @@
  * is waste. Texture shading, face alpha, texel gating, modulation and depth
  * testing are inputs to those six, not further vtable axes.
  *
- * Under TORIDRAW_PIXEL16 the whole HD kernel set is stubs: HD draws through
- * the 32-bit texture and blend paths, so every slot is the shared no-op and
- * the getters still resolve, which keeps ToriDraw_RenderHD linkable on a
- * 16-bit target rather than making every caller ifdef.
  */
 
 #include "../toridraw_raster_kernel.h"
 
-#ifndef TORIDRAW_PIXEL16
 
 /* The six face callbacks are defined by toridraw_render_hd.u.c, which includes
  * this file once they exist -- this table is a fragment of that file, not a
@@ -68,15 +63,6 @@ static const struct ToriDraw_RasterKernelHD g_hd_branching_kernel = {
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
 };
 
-#else /* TORIDRAW_PIXEL16 */
-
-static const struct ToriDraw_RasterKernelHD g_hd_branching_kernel = {
-    .name = "branching",
-    .vtable = &g_hd_pixel16_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
-};
-
-#endif /* TORIDRAW_PIXEL16 */
 
 const struct ToriDraw_RasterKernelHD*
 ToriDraw_RasterKernelHDGetBranching(void)

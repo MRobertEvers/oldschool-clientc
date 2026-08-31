@@ -9,7 +9,6 @@
  * is produced or consumed and stage 2 does not run.
  */
 
-#ifndef TORIDRAW_PIXEL16
 
 static const struct ToriDraw_RasterKernelHDVTable g_hd_z_vtable = {
     .draw = {
@@ -28,15 +27,6 @@ static const struct ToriDraw_RasterKernelHD g_hd_z_kernel = {
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
 };
 
-#else /* TORIDRAW_PIXEL16 */
-
-static const struct ToriDraw_RasterKernelHD g_hd_z_kernel = {
-    .name = "zbuffered",
-    .vtable = &g_hd_pixel16_vtable,
-    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
-};
-
-#endif /* TORIDRAW_PIXEL16 */
 
 const struct ToriDraw_RasterKernelHD*
 ToriDraw_RasterKernelHDGetZBuffered(void)
