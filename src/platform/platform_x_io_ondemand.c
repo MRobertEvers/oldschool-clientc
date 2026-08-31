@@ -1222,7 +1222,38 @@ PlatformXIOOnDemand_ArchiveLoad(
         if( !raw.data )
             return NULL;
         raw.data_size = size;
-        od_tally(table_id, archive_id, size);
+
+        /*
+         * The last two bytes are the file's VERSION, not payload.
+         *
+         * The reference client reads them as a big-endian u16 and CRCs only
+         * what precedes them (jagex2/io/OnDemand.validate: `len - 2`), so the
+         * gzip member is everything before them. Carrying them meant the
+         * member did not end where the buffer did, and ISIZE -- which is read
+         * from the last four bytes OF THE BUFFER -- came back as two bytes of
+         * real length followed by two bytes of version. For any archive under
+         * 64 KiB the real half is zero and that reads as exactly 0x01000000:
+         * 16 MiB, on every file.
+         *
+         * On a 32-bit client that is not merely wasteful. A 16 MiB allocation
+         * per model against a few KB of data exhausts the address space it
+         * fragments; malloc then fails, the decompress answers false, and the
+         * model, loc or sprite is gone for the session -- silently, because
+         * that miss is logged with TORIRS_LOG and OPT=1 compiles it out. It
+         * cost 68 of 351 models on the LostCity lane.
+         *
+         * Dropped before the store as well as before the decompress, so the
+         * copy the local dat1 cache keeps is a clean member too and the disk
+         * read back does not inherit the same mis-read.
+         */
+        if( raw.data_size < 2 )
+        {
+            free(raw.data);
+            return NULL;
+        }
+        raw.data_size -= 2;
+
+        od_tally(table_id, archive_id, raw.data_size);
 
         /* Stored BEFORE the decompress below: gzipped is the form the disk
          * layer keeps and the form it decompresses on the way back out. */
