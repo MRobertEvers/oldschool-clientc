@@ -294,13 +294,7 @@ ToriRS_TouchEvent(
             return;
         }
         if( !finger->dragging && touch_far(finger) )
-        {
             finger->dragging = 1;
-            TORIRS_REPORT("touch: drag begins at %d,%d  view=%d,%d %dx%d  inview=%d\n",
-                finger->start_x, finger->start_y,
-                touch->view_x, touch->view_y, touch->view_w, touch->view_h,
-                touch_started_in_view(touch, finger));
-        }
 
         /*
          * A drag that began on the 3D world turns the camera.
@@ -320,9 +314,6 @@ ToriRS_TouchEvent(
             if( !touch->cam_drag )
             {
                 touch->cam_drag = 1;
-                TORIRS_REPORT("touch: camera drag from %d,%d (view %d,%d %dx%d)\n",
-                    finger->start_x, finger->start_y,
-                    touch->view_x, touch->view_y, touch->view_w, touch->view_h);
                 /* From where the finger STARTED, so the first delta is the
                  * distance actually travelled rather than a jump. */
                 CmdBus_PushMouseMove(

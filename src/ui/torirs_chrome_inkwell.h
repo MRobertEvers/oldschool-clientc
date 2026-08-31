@@ -59,7 +59,7 @@ enum ToriRSInkwellColour
  *  50 ms is 400 ms total -- the same life the cross has, so the two feel like
  *  the same client. */
 #define TORIRS_INKWELL_FRAMES 8
-#define TORIRS_INKWELL_FRAME_MS 400
+#define TORIRS_INKWELL_FRAME_MS 50
 
 /** Every frame is this square. Large enough for the ripple to travel and still
  *  be centred on the touch; small enough that eight of them are cheap. */
