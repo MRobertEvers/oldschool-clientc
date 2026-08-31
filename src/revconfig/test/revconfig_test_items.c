@@ -238,8 +238,9 @@ test_items_build(void)
     struct RevConfigItem const* camera = &items->items[10];
     TEST_ASSERT(camera->kind == RCITEM_CAMERA, "camera item kind");
     TEST_ASSERT(camera->u.camera.has_zoom == 1, "camera zoom stated");
-    TEST_ASSERT(
-        camera->u.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_FIXED, "camera zoom fixed");
+    /* `zoom=` states the CAMERA, not the wheel. What `fixed:` carries is the
+     * 2004 model -- no viewport term -- and zoom_mode is left to the player. */
+    TEST_ASSERT(camera->u.camera.viewport_zoom == 0, "camera has no viewport zoom");
     TEST_ASSERT(camera->u.camera.zoom_height == 600, "camera zoom height");
     TEST_ASSERT(camera->u.camera.has_controls == 1, "camera controls stated");
     TEST_ASSERT(

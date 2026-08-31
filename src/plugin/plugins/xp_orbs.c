@@ -1874,6 +1874,18 @@ orb_stop(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         g_drop[i].skill = -1;
         g_drop[i].image = -1;
     }
+
+    /*
+     * And the claim, which the HOST released when this plugin stopped.
+     *
+     * `settled` is a promise not to ask again and `held` is a memory of scopes
+     * the host no longer records. Kept across a stop, they come back from a
+     * re-enable as a plugin that believes it owns `xp_drops` and never re-adds
+     * it -- so the part is gone for the rest of the session and switching the
+     * plugin off and on again is what removed it.
+     */
+    g_xp_drops_settled = 0;
+    g_xp_drops_held = 0;
     return TORIRS_PLUGIN_PASS;
 }
 
