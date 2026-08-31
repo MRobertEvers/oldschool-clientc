@@ -83,7 +83,13 @@ ISA_CANON = {
     # called neon32 fails loudly at compile time on armv7, while one wrongly
     # called neon64 would quietly exclude armv7 from a lane it could have used.
     "neon": "neon32",
-    "aarch64": "neon64",       # C files only; .S keeps the arch name
+    # C files only; .S keeps the arch name -- see place_raster_asm. The two
+    # architectures map onto the two ENCODINGS: aarch64 assembly is A64 and so
+    # neon64, aarch32 assembly is A32 and so neon32. They are not
+    # interchangeable in either direction, which is the whole point of the
+    # split above.
+    "aarch32": "neon32",
+    "aarch64": "neon64",
     "sse2": "sse2",
     "sse41": "sse41",
     "sse_float": "sse_float",
@@ -341,7 +347,7 @@ def place_raster_asm(rel, base):
     names an instruction set that aarch64 assembly does not exclusively use,
     and the two are not interchangeable in a filename that the assembler reads.
     """
-    m = re.match(r"(flat|gouraud|tex)_(tri|span)_(aarch64|i686|x64)\.S$", base)
+    m = re.match(r"(flat|gouraud|tex)_(tri|span)_(aarch32|aarch64|i686|x64)\.S$", base)
     if not m:
         return None
     family, kind, arch = m.groups()

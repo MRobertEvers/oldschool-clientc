@@ -1,7 +1,7 @@
 /*
  * The three edge slopes of a triangle, packed, off a NEON reciprocal -- the
- * A32 twin of edge_slopes_aarch64.inc, shared by tri.flat.neon32.S,
- * tri.gouraudhsllightness.neon32.S and tri.tex.neon32.S.
+ * A32 twin of edge_slopes_aarch64.inc, shared by tri.flat.aarch32.S,
+ * tri.gouraudhsllightness.aarch32.S and tri.tex.aarch32.S.
  *
  * WHAT IT REPLACES
  *

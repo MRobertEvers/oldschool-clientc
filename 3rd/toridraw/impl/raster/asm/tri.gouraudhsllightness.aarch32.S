@@ -5,7 +5,7 @@
  *
  * WHAT IS DIFFERENT FROM THE AArch64 KERNEL, AND WHY
  *
- * Everything said in tri.flat.neon32.S applies here -- the explicit frame, the
+ * Everything said in tri.flat.aarch32.S applies here -- the explicit frame, the
  * register-normalised segment, the GOT-relative palette, the untouched
  * d8-d15 -- and this kernel is where the fourteen-register budget actually
  * bites, because the gouraud row loop carries three more live values than the
@@ -96,7 +96,7 @@
 #define A_ROWS   (FRAMESZ + 36)
 #define A_COUNT  (FRAMESZ + 40)
 
-#include "graphics/raster/edge_slopes_neon32.inc"
+#include "graphics/raster/edge_slopes_aarch32.inc"
 
 	.syntax unified
 	.arm
@@ -138,7 +138,7 @@
 	ldr	\dst, [\pal, \dst, lsl #2]
 .endm
 
-/* flat_screen_fixed_edges_no_hclip; see tri.flat.neon32.S. */
+/* flat_screen_fixed_edges_no_hclip; see tri.flat.aarch32.S. */
 .macro NOHCLIP ea0, sa, eb0, sb, n, dst, t0, t1
 	cmp	\n, #0
 	ble	81f
@@ -275,7 +275,7 @@
 .endm
 
 /*
- * One trapezoid segment; see tri.flat.neon32.S for the shape and why this
+ * One trapezoid segment; see tri.flat.aarch32.S for the shape and why this
  * takes frame offsets. The colour accumulator is stepped at the row join,
  * drawn or not, and the colour at x_start is x_start * step_x + hsl (low 32
  * bits, as the C wraps).

@@ -37,7 +37,7 @@
  *     bookkeeping.
  *
  *   - THE EDGE LADDER NEEDS NO SCRATCH REGISTER. See the register note in
- *     edge_slopes_neon32.inc: the A32 macro plants the divisor's unused lane
+ *     edge_slopes_aarch32.inc: the A32 macro plants the divisor's unused lane
  *     with vmov.i32 rather than through an ARM register, which on this lane is
  *     the difference between the caller keeping its accumulators and spilling.
  *
@@ -62,7 +62,7 @@
  * It is NOT bit-identical to the AArch64 kernel's default arm and cannot be --
  * A32's vrecps and A64's frecps disagree in the last place. It is exactly as
  * ACCURATE, which is the standard that lane is itself held to; the measurement
- * is in edge_slopes_neon32.inc.
+ * is in edge_slopes_aarch32.inc.
  *
  * ROW LAYOUT. `rows` is `count` records of TORIDRAW_FLAT_PRESORTED_RUN_ROW_INTS
  * ints: x0,x1,x2,pad / y0,y1,y2,pad / color,alpha,pad,pad -- the screen
@@ -113,7 +113,7 @@
 #define A_ROWS   (FRAMESZ + 36)
 #define A_COUNT  (FRAMESZ + 40)
 
-#include "graphics/raster/edge_slopes_neon32.inc"
+#include "graphics/raster/edge_slopes_aarch32.inc"
 
 	.syntax unified
 	.arm
@@ -404,7 +404,7 @@
 	beq	\p\()next
 
 	/* The three edge slopes, all three at once, off one packed reciprocal.
-	 * See edge_slopes_neon32.inc. The outputs alias the dx inputs, which
+	 * See edge_slopes_aarch32.inc. The outputs alias the dx inputs, which
 	 * both arms of the macro permit. */
 	sub	r10, r5, r4			/* dy_BC                             */
 	sub	r12, r2, r1			/* dx_BC                             */

@@ -978,7 +978,7 @@ endif
 #
 # TWO ENCODINGS, ONE FAMILY, CHOSEN BY THE TARGET. A32 and A64 Advanced SIMD are
 # different instruction sets rather than two spellings of one, so each door has
-# two source files -- tri.*.aarch64.S and tri.*.neon32.S -- and the lane picks by
+# two source files -- tri.*.aarch64.S and tri.*.aarch32.S -- and the lane picks by
 # the architecture being BUILT FOR. The old gate asked `uname -m`, which is the
 # build host: correct by accident on a native macOS arm64 build and wrong for
 # every cross-compile, which is why the Android arm64 APK was shipping the
@@ -997,15 +997,38 @@ ifneq ($(TORIDRAW_NO_SIMD),1)
       NEON_TRI_ASM_ISA := aarch64
     endif
     ifeq ($(ANDROID_ABI),armeabi-v7a)
-      NEON_TRI_ASM_ISA := neon32
+      NEON_TRI_ASM_ISA := aarch32
     endif
   endif
 endif
 endif
 
+#
+# PER-KERNEL, not all-or-nothing: a kernel is taken when a source for THIS
+# encoding exists, and the C reference stands in for the ones that do not.
+#
+# The encodings are not ported in lockstep. aarch32 currently has the flat and
+# gouraud triangles and not the textured one, and naming all three unconditionally
+# made that half-finished state a hard build failure ("No rule to make target
+# tri.tex.aarch32.S") on the one lane the port is for. Asking the filesystem
+# means a kernel arriving is picked up with no edit here, and a kernel that has
+# not arrived costs nothing but the C path it already had.
 ifneq ($(NEON_TRI_ASM_ISA),)
-NEON_TRI_ASM_OBJS := $(OBJ_DIR)/flat_tri_neon.o $(OBJ_DIR)/gouraud_tri_neon.o $(OBJ_DIR)/tex_tri_neon.o
-NEON_TRI_ASM_CFLAGS := -DTORIDRAW_FLAT_TRI_NEON_ASM=1 -DTORIDRAW_GOURAUD_TRI_NEON_ASM=1 -DTORIDRAW_TEXTRI_NEON_ASM=1
+NEON_TRI_ASM_DIR := $(TORIDRAW_DIR)/impl/raster/asm
+NEON_TRI_ASM_OBJS :=
+NEON_TRI_ASM_CFLAGS :=
+ifneq ($(wildcard $(NEON_TRI_ASM_DIR)/tri.flat.$(NEON_TRI_ASM_ISA).S),)
+NEON_TRI_ASM_OBJS  += $(OBJ_DIR)/flat_tri_neon.o
+NEON_TRI_ASM_CFLAGS += -DTORIDRAW_FLAT_TRI_NEON_ASM=1
+endif
+ifneq ($(wildcard $(NEON_TRI_ASM_DIR)/tri.gouraudhsllightness.$(NEON_TRI_ASM_ISA).S),)
+NEON_TRI_ASM_OBJS  += $(OBJ_DIR)/gouraud_tri_neon.o
+NEON_TRI_ASM_CFLAGS += -DTORIDRAW_GOURAUD_TRI_NEON_ASM=1
+endif
+ifneq ($(wildcard $(NEON_TRI_ASM_DIR)/tri.tex.$(NEON_TRI_ASM_ISA).S),)
+NEON_TRI_ASM_OBJS  += $(OBJ_DIR)/tex_tri_neon.o
+NEON_TRI_ASM_CFLAGS += -DTORIDRAW_TEXTRI_NEON_ASM=1
+endif
 TORIDRAW_CFLAGS += $(NEON_TRI_ASM_CFLAGS)
 endif
 
@@ -4943,7 +4966,7 @@ test-scene-profiles: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_
 # is what separates a regression in the walk from the approximation in the
 # slope, and BOTH kernels are held to it.
 # Scores whichever encoding the gate picked: aarch64 on Apple arm64 and
-# Android arm64-v8a, neon32 on Android armeabi-v7a.
+# Android arm64-v8a, aarch32 on Android armeabi-v7a.
 # The test includes the unity source itself (it reaches the static C
 # kernels), so it links the three asm objects alone, not the unity object.
 #
