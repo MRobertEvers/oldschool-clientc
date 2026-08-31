@@ -5,18 +5,8 @@ derived from the filenames, which is the point of naming every axis.
 
 | stage | files |
 |---|---:|
-| facesort | 5 |
 | raster | 178 |
 | (kept: instrumentation, shared headers, templates) | 53 |
-
-## facesort
-
-### `facesort.flat`
-
-| position | values |
-|---|---|
-| 2 | `small` |
-| 3 | `dispatch`, `neon`, `scalar`, `sse2` |
 
 ## raster
 

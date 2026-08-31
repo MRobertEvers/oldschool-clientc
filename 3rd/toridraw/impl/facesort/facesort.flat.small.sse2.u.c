@@ -1,7 +1,7 @@
 #ifndef TORIDRAW_FACE_SORT_FLAT_SSE2_U_C
 #define TORIDRAW_FACE_SORT_FLAT_SSE2_U_C
 
-#include "toridraw_face_sort_flat.h"
+#include "impl/facesort/facesort.flat.small.dispatch.h"
 
 #include <emmintrin.h>
 

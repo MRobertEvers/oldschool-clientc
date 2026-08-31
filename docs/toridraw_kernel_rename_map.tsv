@@ -168,11 +168,6 @@ graphics/raster/texture/texsphere.persp.textrans.modulate.branching.lerp8_v3.u.c
 graphics/raster/texture/texsphere.persp.textrans.modulate.zbuf.branching.lerp8_v3.u.c	impl/raster/tex/raster.texsphere.perspective.textrans.nofacealpha.modulate.zbuf.branching.lerp8_v3.scalar.u.c
 graphics/raster/texture/texsphere.persp.textrans.zbuf.branching.lerp8_v3.u.c	impl/raster/tex/raster.texsphere.perspective.textrans.nofacealpha.nomodulate.zbuf.branching.lerp8_v3.scalar.u.c
 graphics/raster/zbuffer/zbuf.screen.u.c	impl/raster/zbuf/raster.zbuf.screen.walker.u.c
-toridraw_face_sort_flat.h	impl/facesort/facesort.flat.small.dispatch.h
-toridraw_face_sort_flat.neon.u.c	impl/facesort/facesort.flat.small.neon.u.c
-toridraw_face_sort_flat.none.u.c	impl/facesort/facesort.flat.small.scalar.u.c
-toridraw_face_sort_flat.sse2.u.c	impl/facesort/facesort.flat.small.sse2.u.c
-toridraw_face_sort_flat.u.c	impl/facesort/facesort.flat.small.dispatch.u.c
 triangles/toridraw_triangle_clip.u.c	impl/raster/dispatch/tri.clip.u.c
 triangles/toridraw_triangle_face_alpha.u.c	impl/raster/dispatch/tri.face_alpha.u.c
 triangles/toridraw_triangle_flat.u.c	impl/raster/dispatch/tri.flat.u.c

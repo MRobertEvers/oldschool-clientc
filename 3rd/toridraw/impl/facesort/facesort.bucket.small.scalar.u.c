@@ -458,7 +458,7 @@ bucket_sort_by_average_depth_small(
         scene, model_min_depth, num_faces, vx, vy, vz, face_a, face_b, face_c);
 }
 
-#include "toridraw_face_sort_flat.u.c"
+#include "impl/facesort/facesort.flat.small.dispatch.u.c"
 
 /**
  * Small-scene twin of partition_and_accumulate_faces_by_priority(): the same

@@ -75,7 +75,7 @@
 #ifndef TORIDRAW_FACE_SORT_FLAT_U_C
 #define TORIDRAW_FACE_SORT_FLAT_U_C
 
-#include "toridraw_face_sort_flat.h"
+#include "impl/facesort/facesort.flat.small.dispatch.h"
 
 #include "graphics/batch_stats.h"
 #include "graphics/div3.h"
@@ -355,11 +355,11 @@ toridraw_face_sort_flat_tile2_scalar(
  * as though a build could have both and would try each in turn.
  */
 #if defined(TORIDRAW_FACE_SORT_LANE_NEON)
-#include "toridraw_face_sort_flat.neon.u.c"
+#include "impl/facesort/facesort.flat.small.neon.u.c"
 #elif defined(TORIDRAW_FACE_SORT_LANE_SSE2)
-#include "toridraw_face_sort_flat.sse2.u.c"
+#include "impl/facesort/facesort.flat.small.sse2.u.c"
 #else
-#include "toridraw_face_sort_flat.none.u.c"
+#include "impl/facesort/facesort.flat.small.scalar.u.c"
 #endif
 
 /*
