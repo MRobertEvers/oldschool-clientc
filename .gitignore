@@ -120,3 +120,6 @@ src/.last_flavor
 
 # The NDJSON anomaly log (3rd/toridraw/toridraw_debug_log.h) default path.
 toridraw-debug.ndjson
+
+# Machine-local: the XP box MAC learned by tools/xpbox_wake.py --learn
+tools/.xpbox_wake.json

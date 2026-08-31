@@ -6284,6 +6284,223 @@ d3d9_core_ibochain_bytes(const struct TRSPK_IBOChain* chain, uint32_t* out_nodes
  * memory mirror it restores the video copy from, so their bytes hit private
  * working set even before the driver's own copy.
  */
+/*
+ * What this renderer is costing the card, against what the card has.
+ *
+ * TORIRS_D3D9_VRAM=1. Separate from the retained report above because it asks a
+ * different question: that one accounts for what we allocated, this one asks
+ * the DRIVER what is left. The two disagree in ways that matter -- the back
+ * buffer, the depth buffer and the driver's private surfaces are real VRAM and
+ * appear in no accounting of ours -- and on a 64 MiB card the difference is the
+ * difference between fitting and not.
+ *
+ * GetAvailableTextureMem is not VRAM alone: it reports texture memory the
+ * driver is willing to hand out, which on an AGP part includes the aperture.
+ * So the DELTA is the honest figure -- how much this client took -- and the
+ * absolute is an upper bound on the card. Both are printed rather than one
+ * derived number, because collapsing them hides which is which.
+ *
+ * Printed with TORIRS_REPORT: OPT=1 compiles TORIRS_LOG out, and a memory
+ * report that only exists in a debug build is a report of a different program.
+ */
+/*
+ * What the DRIVER says, rather than what we believe.
+ *
+ * Everything above this is our own accounting plus GetAvailableTextureMem,
+ * and neither can answer the question that actually matters on a 64 MiB card:
+ * is the MANAGED texture working set thrashing? D3D9 answers it directly.
+ *
+ *   D3DQUERYTYPE_RESOURCEMANAGER  per resource type -- bThrashing, NumEvicts,
+ *                                 WorkingSetBytes, TotalBytes. This is the
+ *                                 measurement; the arithmetic above is a guess
+ *                                 next to it.
+ *   D3DQUERYTYPE_TIMESTAMP        GPU time. Every number this client reports
+ *                                 today is GetProcessTimes, i.e. CPU only, and
+ *                                 taken at a 50 fps cap that hides GPU
+ *                                 headroom. A card spilling to AGP burns GPU
+ *                                 time and none of our measurements can see it.
+ *
+ * Support is reported rather than assumed: RESOURCEMANAGER is a DEBUG-runtime
+ * query and answers D3DERR_NOTAVAILABLE on a retail one, and a DirectX 7-class
+ * part need not offer TIMESTAMP at all. Saying which of those happened is the
+ * point -- "no data" and "no thrashing" must not look alike.
+ */
+static void
+d3d9_report_driver_queries(struct ToriRS_D3D9* renderer)
+{
+    static const struct
+    {
+        D3DQUERYTYPE type;
+        const char* name;
+    } probes[] = {
+        { D3DQUERYTYPE_RESOURCEMANAGER, "RESOURCEMANAGER (debug runtime only)" },
+        { D3DQUERYTYPE_TIMESTAMP, "TIMESTAMP (gpu time)" },
+        { D3DQUERYTYPE_TIMESTAMPFREQ, "TIMESTAMPFREQ" },
+        { D3DQUERYTYPE_TIMESTAMPDISJOINT, "TIMESTAMPDISJOINT" },
+        { D3DQUERYTYPE_OCCLUSION, "OCCLUSION (overdraw)" },
+        { D3DQUERYTYPE_EVENT, "EVENT (fence)" },
+    };
+    IDirect3DQuery9* query = NULL;
+    HRESULT hr;
+
+    TORIRS_REPORT("d3d9_vram: ---- driver query support ----\n");
+    for( size_t i = 0; i < sizeof(probes) / sizeof(probes[0]); i++ )
+    {
+        /* NULL asks "would this work?" without allocating one. */
+        hr = IDirect3DDevice9_CreateQuery(renderer->device, probes[i].type, NULL);
+        TORIRS_REPORT("d3d9_vram:   %-38s %s\n",
+            probes[i].name,
+            SUCCEEDED(hr) ? "yes" : "NO");
+    }
+
+    hr = IDirect3DDevice9_CreateQuery(
+        renderer->device, D3DQUERYTYPE_RESOURCEMANAGER, &query);
+    if( FAILED(hr) || !query )
+    {
+        TORIRS_REPORT("d3d9_vram: resource manager stats unavailable "
+                      "(retail runtime -- install the DirectX SDK debug runtime "
+                      "to read thrashing/evictions)\n");
+        return;
+    }
+
+    IDirect3DQuery9_Issue(query, D3DISSUE_END);
+    {
+        D3DDEVINFO_RESOURCEMANAGER rm;
+        int spins = 0;
+        memset(&rm, 0, sizeof(rm));
+        while( (hr = IDirect3DQuery9_GetData(query, &rm, sizeof(rm), D3DGETDATA_FLUSH)) ==
+                   S_FALSE &&
+               spins++ < 100000 )
+            ;
+        if( hr == S_OK )
+        {
+            static const struct
+            {
+                int rtype;
+                const char* name;
+            } kinds[] = {
+                { D3DRTYPE_TEXTURE, "texture" },
+                { D3DRTYPE_VERTEXBUFFER, "vertexbuffer" },
+                { D3DRTYPE_INDEXBUFFER, "indexbuffer" },
+            };
+            TORIRS_REPORT("d3d9_vram: ---- resource manager (the driver's own) ----\n");
+            TORIRS_REPORT("d3d9_vram:   %-13s %8s %8s %8s %12s %12s\n",
+                "type", "thrash", "evicts", "vidcreat", "workingset", "total");
+            for( size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++ )
+            {
+                const D3DRESOURCESTATS* st = &rm.stats[kinds[i].rtype];
+                TORIRS_REPORT("d3d9_vram:   %-13s %8s %8lu %8lu %9.2f MB %9.2f MB\n",
+                    kinds[i].name,
+                    st->bThrashing ? "YES" : "no",
+                    (unsigned long)st->NumEvicts,
+                    (unsigned long)st->NumVidCreates,
+                    (double)st->WorkingSetBytes / 1048576.0,
+                    (double)st->TotalBytes / 1048576.0);
+            }
+        }
+        else
+        {
+            TORIRS_REPORT("d3d9_vram: resource manager query returned no data (hr=0x%08lx)\n",
+                (unsigned long)hr);
+        }
+    }
+    IDirect3DQuery9_Release(query);
+}
+
+static void
+d3d9_report_vram_budget(struct ToriRS_D3D9* renderer)
+{
+    unsigned int avail_now = 0;
+    uint64_t gpu_vbo = 0;
+    uint64_t gpu_tex = 0;
+    uint64_t frame_buffers = 0;
+    uint64_t gpu_total = 0;
+    double budget_mb = 0.0;
+    const char* env = getenv("TORIRS_D3D9_VRAM");
+
+    if( !env || !env[0] || env[0] == '0' )
+        return;
+    if( !renderer || !renderer->device )
+        return;
+
+    /*
+     * Once, and mid-session rather than at teardown.
+     *
+     * Free() is not reached on a TORIRS_MAX_FRAMES exit, so a report hung off
+     * it never runs on the very lane that measures things. It is also the
+     * wrong moment: a budget is interesting while the scene is resident and
+     * the atlases are full, not after. TORIRS_D3D9_VRAM=<frame> picks the
+     * frame; =1 means "as soon as anything is drawn", which is usually too
+     * early to have loaded a world.
+     */
+    {
+        static int fired = 0;
+        static long seen = 0;
+        long at = atol(env);
+
+        if( fired )
+            return;
+        if( at < 1 )
+            at = 1;
+        if( ++seen < at )
+            return;
+        fired = 1;
+    }
+
+    avail_now = IDirect3DDevice9_GetAvailableTextureMem(renderer->device);
+
+    /* DEFAULT-pool buffers: the ones that live on the card. */
+    for( uint32_t group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
+        gpu_vbo += (uint64_t)renderer->groups[group].gpu_capacity *
+                   sizeof(struct TRSPK_VertexD3D9);
+    gpu_vbo += (uint64_t)renderer->static_batch_gpu_page_capacity * D3D9_VBO_PAGE *
+               sizeof(struct TRSPK_VertexD3D9);
+    gpu_vbo += (uint64_t)renderer->gpu_ibo_capacity * sizeof(uint16_t);
+
+    /* Both atlases are A8R8G8B8, so four bytes a texel and no mip chain. */
+    if( renderer->atlas_texture )
+        gpu_tex += (uint64_t)renderer->atlas.width * renderer->atlas.height * 4u;
+    if( renderer->ui_sprite_atlas_texture )
+        gpu_tex += (uint64_t)renderer->ui_sprite_atlas.width *
+                   renderer->ui_sprite_atlas.height * 4u;
+
+    /* The back buffer and the depth buffer are ours in every sense except that
+     * nothing of ours allocated them. 4 bytes a pixel each is the format this
+     * client asks for. */
+    frame_buffers = (uint64_t)renderer->present.BackBufferWidth *
+                    renderer->present.BackBufferHeight * 4u;
+    if( renderer->present.EnableAutoDepthStencil )
+        frame_buffers *= 2u;
+
+    gpu_total = gpu_vbo + gpu_tex + frame_buffers;
+    budget_mb = renderer->vram_avail_at_init
+                    ? (double)renderer->vram_avail_at_init / 1048576.0
+                    : 0.0;
+
+    TORIRS_REPORT("d3d9_vram: === vram budget ===" "\n"
+        "d3d9_vram: driver avail at init %10.2f MB\n"
+        "d3d9_vram: driver avail now     %10.2f MB\n"
+        "d3d9_vram: driver delta (us)    %10.2f MB\n"
+        "d3d9_vram: ---- our own accounting ----\n"
+        "d3d9_vram: vertex+index buffers %10.2f MB (DEFAULT pool)\n"
+        "d3d9_vram: atlas textures       %10.2f MB\n"
+        "d3d9_vram: back+depth buffers   %10.2f MB (%ux%u)\n"
+        "d3d9_vram: accounted total      %10.2f MB\n",
+        budget_mb,
+        (double)avail_now / 1048576.0,
+        renderer->vram_avail_at_init && renderer->vram_avail_at_init >= avail_now
+            ? (double)(renderer->vram_avail_at_init - avail_now) / 1048576.0
+            : 0.0,
+        (double)gpu_vbo / 1048576.0,
+        (double)gpu_tex / 1048576.0,
+        (double)frame_buffers / 1048576.0,
+        (unsigned)renderer->present.BackBufferWidth,
+        (unsigned)renderer->present.BackBufferHeight,
+        (double)gpu_total / 1048576.0);
+
+    d3d9_report_driver_queries(renderer);
+}
+
 static void
 d3d9_report_retained_memory(struct ToriRS_D3D9* renderer)
 {
@@ -6377,6 +6594,7 @@ d3d9_report_retained_memory(struct ToriRS_D3D9* renderer)
             (double)d3d9_pose_table_bytes(&renderer->batch_poses)) /
             1048576.0);
     d3d9_zbuffer_report_memory(renderer);
+    d3d9_report_vram_budget(renderer);
 }
 
 void
@@ -6470,12 +6688,24 @@ ToriRS_D3D9_Init(
      * d3d9_painter_*, which has nothing to allocate. */
     d3d9_zbuffer_destroy(renderer);
     if( z_buffer_enabled && !d3d9_zbuffer_create(renderer) )
+    {
+        TORIRS_ERR("D3D9: z-buffer world state could not be created\n");
         return false;
+    }
     renderer->hwnd = (HWND)native_window;
     renderer->scene = scene;
     renderer->kernel = ToriDraw_KernelGetGpu();
     if( !d3d9_read_client_size(renderer, &width, &height) || width <= 0 || height <= 0 )
+    {
+        /* A refusal with a reason. Reached when the window has no client area
+         * yet -- GetClientRect answering 0x0 on a window that is not on a live
+         * interactive desktop, which is what a session started by autologin
+         * and left with no foreground window looks like. Silent, this is
+         * indistinguishable from "this card cannot do D3D9". */
+        TORIRS_ERR("D3D9: client rect %dx%d (hwnd %p) -- no drawable window yet\n",
+            width, height, (void*)renderer->hwnd);
         return false;
+    }
     renderer->client_w = width;
     renderer->client_h = height;
     renderer->d3d = Direct3DCreate9(D3D_SDK_VERSION);
@@ -6490,7 +6720,7 @@ ToriRS_D3D9_Init(
     if( renderer->caps.MaxTextureWidth < D3D9_ATLAS_DIM ||
         renderer->caps.MaxTextureHeight < D3D9_ATLAS_DIM )
     {
-        TORIRS_LOG("D3D9: adapter texture cap %lux%lu is below the required 2048x2048 atlas\n",
+        TORIRS_ERR("D3D9: adapter texture cap %lux%lu is below the required 2048x2048 atlas\n",
             (unsigned long)renderer->caps.MaxTextureWidth,
             (unsigned long)renderer->caps.MaxTextureHeight);
         return false;
@@ -6546,6 +6776,12 @@ ToriRS_D3D9_Init(
         return false;
     }
     (void)IDirect3DDevice9_GetDeviceCaps(renderer->device, &renderer->caps);
+    /* Before this renderer has allocated a single buffer or texture, so the
+     * delta against it later is what WE cost. Sampled on every device create,
+     * including the one after a reset -- the driver's idea of what is free
+     * moves, and a baseline from two devices ago would flatter us. */
+    renderer->vram_avail_at_init =
+        IDirect3DDevice9_GetAvailableTextureMem(renderer->device);
     d3d9_update_letterbox(renderer);
     d3d9_restore_after_reset(renderer);
     if( !d3d9_upload_atlas(renderer) )
@@ -6798,6 +7034,8 @@ ToriRS_D3D9_Present(struct ToriRS_D3D9* renderer)
 {
     HRESULT hr;
     assert(renderer);
+    /* Counted per presented frame, and self-limiting: the report fires once. */
+    d3d9_report_vram_budget(renderer);
     if( renderer->scene_active || !d3d9_device_ready(renderer) )
         return;
     hr = IDirect3DDevice9_Present(renderer->device, NULL, NULL, NULL, NULL);

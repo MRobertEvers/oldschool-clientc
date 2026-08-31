@@ -283,6 +283,11 @@ struct ToriRS_D3D9
 
     struct TRSPK_Atlas atlas;
     IDirect3DTexture9* atlas_texture;
+    /* GetAvailableTextureMem right after CreateDevice, before this renderer has
+     * allocated anything of its own. The driver's own answer is the only one
+     * that counts the back buffer, the depth buffer and its private surfaces,
+     * so it is the baseline a budget is measured against. 0 = never sampled. */
+    unsigned int vram_avail_at_init;
     int tex_slot_of_id[TORIDRAW_TEXTURE_ID_CAPACITY];
     uint8_t tex_resident[D3D9_ATLAS_SLOTS];
     uint32_t tex_slot_next;
