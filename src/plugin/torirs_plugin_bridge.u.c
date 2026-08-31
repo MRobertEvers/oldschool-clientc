@@ -1601,9 +1601,10 @@ enum AppPluginFeatureSlot
  * in one click. A band is the thing somebody actually means to choose.
  *
  * `zoom_mode` is deliberately NOT part of a preset. Whether the wheel is live
- * at all is what the revision states in `zoom=`, it has its own row directly
- * above this one, and a preset that silently flipped it would make that row
- * disagree with the click that changed it.
+ * is the player's, with the revision supplying the default; it has its own row
+ * directly above this one, and a preset that silently flipped it would make
+ * that row disagree with the click that changed it. Range and on/off are two
+ * questions and the page asks them separately.
  */
 enum
 {
@@ -1611,37 +1612,86 @@ enum
      *  "Revision default" entry is this one, and it arrives as
      *  TORIRS_PLUGIN_FEATURE_UNSET. */
     APP_PLUGIN_ZOOM_BAND_REVISION = 0,
-    APP_PLUGIN_ZOOM_BAND_OSRS,
-    APP_PLUGIN_ZOOM_BAND_UNLOCKED
+    APP_PLUGIN_ZOOM_BAND_STANDARD,
+    APP_PLUGIN_ZOOM_BAND_CLOSE,
+    APP_PLUGIN_ZOOM_BAND_UNLIMITED
 };
 
 struct AppPluginZoomBand
 {
     int id;
-    int min;
-    int max;
-    int height;
+    /*
+     * Percent of the REVISION's own rest height, not eye heights.
+     *
+     * A preset naming absolute numbers is a preset that means something
+     * different on every lane -- "OSRS: 360..1600" is a sensible band around a
+     * rest of 600 and an absurd one around a rest of 200 -- and the page
+     * offered it identically on all of them. As a ratio it is the same amount
+     * of travel wherever it is picked. @see revconfig_camera_default_band.
+     *
+     * 0/0 is the exception and means the whole range this bridge accepts,
+     * which is what "Unlimited" is: not a ratio of anything.
+     */
+    int min_pct;
+    int max_pct;
 };
 
 static struct AppPluginZoomBand const APP_PLUGIN_ZOOM_BANDS[] = {
+    /* What every revision gets when nothing says otherwise -- the same ratio
+     * revconfig_camera_default_band hands a profile, so picking "Standard"
+     * lands exactly where a default boot already was. */
+    { APP_PLUGIN_ZOOM_BAND_STANDARD,
+      REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN_PCT,
+      REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX_PCT },
     /*
-     * OSRS: its vanilla wheel spans zoom scale 200..1004 about a 512 rest,
-     * and this tree's unit is the inverse of that scale -- an eye HEIGHT,
-     * 600 at rest. 512*600/1004 and 512*600/200 come to 306 and 1536, rounded
-     * here to the values the old three rows already named.
+     * OSRS's own wheel spans zoom scale 200..1004 about a 512 rest, and this
+     * tree's unit is the inverse of that scale -- an eye HEIGHT. 512/1004 and
+     * 512/200 are 51% and 256%; rounded to the 60%/267% that reproduce the
+     * 360..1600 these two rows already named on a rest of 600.
      */
-    { APP_PLUGIN_ZOOM_BAND_OSRS, 360, 1600, REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT },
-    /* Unlocked: the whole band this bridge will accept, which is wider than
-     * any revision states because a profile is a statement about a revision
-     * and this is a person moving a camera. */
-    { APP_PLUGIN_ZOOM_BAND_UNLOCKED,
-      APP_PLUGIN_FEATURE_ZOOM_MIN,
-      APP_PLUGIN_FEATURE_ZOOM_MAX,
-      REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT },
+    { APP_PLUGIN_ZOOM_BAND_CLOSE, 60, 267 },
+    /* The whole band this bridge will accept, which is wider than any revision
+     * states because a profile is a statement about a revision and this is a
+     * person moving a camera. */
+    { APP_PLUGIN_ZOOM_BAND_UNLIMITED, 0, 0 },
 };
 
 #define APP_PLUGIN_ZOOM_BAND_COUNT \
     ((int)(sizeof(APP_PLUGIN_ZOOM_BANDS) / sizeof(APP_PLUGIN_ZOOM_BANDS[0])))
+
+/**
+ * A preset's ratio, resolved against one revision's rest height.
+ *
+ * The same arithmetic answers both directions -- what to WRITE when the player
+ * picks a preset, and which preset the current band IS -- so the page cannot
+ * show one thing and set another.
+ */
+static void
+app_plugin_zoom_band_absolute(
+    struct AppPluginZoomBand const* band,
+    int height,
+    int* out_min,
+    int* out_max)
+{
+    assert(band);
+    assert(out_min);
+    assert(out_max);
+
+    if( band->min_pct <= 0 || band->max_pct <= 0 )
+    {
+        *out_min = APP_PLUGIN_FEATURE_ZOOM_MIN;
+        *out_max = APP_PLUGIN_FEATURE_ZOOM_MAX;
+        return;
+    }
+    *out_min = height * band->min_pct / 100;
+    *out_max = height * band->max_pct / 100;
+    if( *out_min < APP_PLUGIN_FEATURE_ZOOM_MIN )
+        *out_min = APP_PLUGIN_FEATURE_ZOOM_MIN;
+    if( *out_max > APP_PLUGIN_FEATURE_ZOOM_MAX )
+        *out_max = APP_PLUGIN_FEATURE_ZOOM_MAX;
+    if( *out_max <= *out_min )
+        *out_max = *out_min + 1;
+}
 
 /** Which preset a camera item is sitting on, or REVISION when none names it. */
 static int
@@ -1652,8 +1702,11 @@ app_plugin_zoom_band_of(struct RevConfigCameraItem const* camera)
     for( int i = 0; i < APP_PLUGIN_ZOOM_BAND_COUNT; i++ )
     {
         struct AppPluginZoomBand const* band = &APP_PLUGIN_ZOOM_BANDS[i];
-        if( camera->zoom_min == band->min && camera->zoom_max == band->max &&
-            camera->zoom_height == band->height )
+        int min = 0;
+        int max = 0;
+
+        app_plugin_zoom_band_absolute(band, camera->zoom_height, &min, &max);
+        if( camera->zoom_min == min && camera->zoom_max == max )
             return band->id;
     }
     return APP_PLUGIN_ZOOM_BAND_REVISION;
@@ -1709,18 +1762,22 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
     },
     {
         "camera_zoom_band",
-        "Zoom band",
+        "Zoom range",
         "",
         APP_PLUGIN_FEATURE_SLOT_CAMERA_ZOOM_BAND,
         0,
         TORIRS_PLUGIN_FEATURE_ENUM,
         0,
         0,
-        /* "Revision default" is the entry the page prepends to every row;
-         * it restores the boot band, which is the third option here. */
-        "OSRS|Unlocked",
-        { APP_PLUGIN_ZOOM_BAND_OSRS, APP_PLUGIN_ZOOM_BAND_UNLOCKED },
-        2,
+        /* "Revision default" is the entry the page prepends to every row; it
+         * restores the boot band. Named for how far the wheel travels rather
+         * than for a revision, because each is a ratio of whatever THIS
+         * revision rests at and so means the same thing on all of them. */
+        "Standard|Close|Unlimited",
+        { APP_PLUGIN_ZOOM_BAND_STANDARD,
+          APP_PLUGIN_ZOOM_BAND_CLOSE,
+          APP_PLUGIN_ZOOM_BAND_UNLIMITED },
+        3,
     },
     {
         "camera_wheel_step",
@@ -2114,9 +2171,12 @@ app_plugin_feature_set(void* user, char const* key, int value)
          */
         if( band )
         {
-            camera->zoom_min = band->min;
-            camera->zoom_max = band->max;
-            camera->zoom_height = band->height;
+            /* The REST stays the revision's. How far the wheel may travel is
+             * not a claim about where the camera sits when nobody has touched
+             * it, and a preset that moved both changed the view as a
+             * side-effect of widening the range. */
+            app_plugin_zoom_band_absolute(
+                band, camera->zoom_height, &camera->zoom_min, &camera->zoom_max);
         }
         else
         {
@@ -2137,6 +2197,21 @@ app_plugin_feature_set(void* user, char const* key, int value)
         }
         else
             *cell = value;
+
+        /*
+         * Switching the wheel OFF pins the eye at the revision's rest, rather
+         * than freezing it wherever the wheel happened to leave it -- "the eye
+         * rests at that height and nothing moves it" is what Fixed means, and
+         * a Fixed camera parked at some arbitrary scroll position is not that.
+         *
+         * Switching it ON needs nothing done here. Every revision now resolves
+         * with a real band whether or not its mode is CLAMPED, so the room the
+         * wheel needs is already there. @see revconfig_camera_default_band.
+         */
+        if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA &&
+            desc->offset == APP_PLUGIN_FEATURE_CAMERA_OFF(zoom_mode) &&
+            value == REVCONFIG_CAMERA_ZOOM_FIXED )
+            app->world_cam_height = app->revconfig_profile.camera.zoom_height;
     }
 
     /*
