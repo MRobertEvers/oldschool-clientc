@@ -6775,6 +6775,24 @@ ToriRS_D3D9_Init(
         renderer->device = NULL;
         return false;
     }
+    /*
+     * Say so when the DEBUG runtime is what answered.
+     *
+     * d3d9.dll forwards to d3d9d.dll whenever LoadDebugRuntime is set and the
+     * DLL is on the search path -- and the application directory leads that
+     * path, so dropping the pair beside the exe is enough to switch the whole
+     * client over with nothing on screen to say it happened. The debug runtime
+     * validates every call and is materially slower, so a benchmark taken
+     * under it is not comparable to a retail one and there is no way to tell
+     * afterwards from the numbers alone.
+     *
+     * Unconditional and TORIRS_REPORT: a warning that only exists in a debug
+     * build, or behind a switch someone has to know to set, is not a warning.
+     */
+    if( GetModuleHandleA("d3d9d.dll") )
+        TORIRS_REPORT("D3D9: *** DEBUG RUNTIME ACTIVE (d3d9d.dll) -- slower, and "
+                      "timings are NOT comparable to retail ***\n");
+
     (void)IDirect3DDevice9_GetDeviceCaps(renderer->device, &renderer->caps);
     /* Before this renderer has allocated a single buffer or texture, so the
      * delta against it later is what WE cost. Sampled on every device create,

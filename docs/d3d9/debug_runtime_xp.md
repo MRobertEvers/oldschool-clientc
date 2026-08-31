@@ -36,6 +36,15 @@ it. In `system32` both fail to load with `err 999`, and `d3d9.dll` swallows
 that and falls back to retail — which reads as "this card cannot do D3D9"
 rather than as a missing file. Uninstalling is deleting two files.
 
+The client warns on every start when it is active:
+
+    D3D9: *** DEBUG RUNTIME ACTIVE (d3d9d.dll) -- slower, and timings are NOT
+    comparable to retail ***
+
+so a contaminated benchmark cannot happen quietly. Retail is the default and
+needs nothing: the DLLs are not on the search path unless someone puts them
+there, and `LoadDebugRuntime` is 0.
+
 Confirm it actually took, because the fallback is silent:
 
     d3d modules in client: d3d9.dll, d3d8thk.dll, d3d9d.dll, d3dx9d_33.dll
