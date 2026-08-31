@@ -4972,6 +4972,18 @@ test-kernel-matrix: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_f
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/kernel_matrix_test
 
+# The kernel naming grammar, as a check.
+#
+# The variant space under 3rd/toridraw is only navigable if a filename is a
+# complete coordinate in it. tools/kernel_names.py holds that grammar in one
+# place and answers two questions with it: what every file WOULD be called
+# (the rename map, reviewed by a person before any move runs), and whether
+# every file can be placed at all.
+#
+# It moves nothing and is safe to run at any time.
+check-kernel-names:
+	python3 $(REPO_ROOT)/tools/kernel_names.py --check
+
 # ---- The kernel suite -------------------------------------------------
 #
 # Every proof the three-stage kernel system rests on, in one target.
@@ -4987,11 +4999,12 @@ test-kernel-matrix: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_f
 # A lane with no assembly to score (test-presorted-neon off Apple arm64)
 # prints that and succeeds. It stays in the list on every platform, because
 # "there is nothing to run here" is a different report from "it was not run".
-.PHONY: test-toridraw-kernels test-kernel-matrix
+.PHONY: test-toridraw-kernels test-kernel-matrix check-kernel-names
 TORIDRAW_KERNEL_TESTS = \
 	test-raster-kernel \
 	test-raster-kernel-pixel16 \
 	test-kernel-matrix \
+	check-kernel-names \
 	test-projection-kernel \
 	test-projected-bound \
 	test-near-clip \
