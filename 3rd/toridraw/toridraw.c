@@ -769,15 +769,10 @@ int g_toridraw_raster_scanline = 0;
 #include "impl/raster/scanline/scanline.dispatch.u.c"
 #include "impl/raster/dispatch/tri.flat.u.c"
 #include "impl/raster/dispatch/tri.gouraud.u.c"
-#ifndef TORIDRAW_PIXEL16
 #include "impl/raster/dispatch/tri.texture_opaque.u.c"
 #include "impl/raster/dispatch/tri.texture_transparent.u.c"
 #include "impl/raster/dispatch/tri.texture_affine.u.c"
-/* The depth-tested family draws through the 32-bit texture and blend paths, so
- * it shares the PIXEL16 exclusion with them. Under a 16-bit target
- * TORIDRAW_MODEL_FLAG_ZBUFFER is inert and models draw by face order alone. */
 #include "impl/raster/dispatch/tri.zbuf.u.c"
-#endif
 #include "toridraw_render.u.c"
 #ifndef TORIDRAW_PIXEL16
 /* The HD kernel set: five projection families x twelve compositing variants,
@@ -998,12 +993,6 @@ toridraw_stock_model_needs_zbuffer(
     const struct ToriDraw_Scene* scene,
     const struct ToriDraw_ViewPort* view_port)
 {
-#ifdef TORIDRAW_PIXEL16
-    (void)hnd;
-    (void)scene;
-    (void)view_port;
-    return false;
-#else
     const struct ToriDraw_Model* model;
     int clip_top;
     int clip_bottom;
@@ -1026,7 +1015,6 @@ toridraw_stock_model_needs_zbuffer(
 
     return ToriDraw_SceneHasZBuffer(scene, stride, rows) ||
            (scene->flags & TORIDRAW_SCENE_MODEL_ZBUFFER) != 0;
-#endif
 }
 
 /*
@@ -1452,6 +1440,84 @@ toridraw_kernel_log_armed(void)
     return armed;
 }
 
+/*
+ * WHY THE REPORT IS NOT SIMPLY PRINTED AT EVERY TAKE.
+ *
+ * ToriRS_Soft3D_Init -- the renderer's whole kernel setup, and the only
+ * production caller of ToriDraw_KernelTake -- runs once per FRAME, not once
+ * per process: it resets the renderer against this frame's pixel buffer, and
+ * UITreeCmd_Render goes further and builds a throwaway renderer per picture.
+ * So "log at the take" is sixty reports a second of a configuration that has
+ * not moved.
+ *
+ * The fix is not a once-per-process flag either. Several renderers run in one
+ * client -- the world, the chrome, an offscreen picture -- and they need not
+ * hold the same table; a flag would report whichever took first and hide the
+ * rest for the life of the program.
+ *
+ * So: report a CONFIGURATION the first time it is seen. Identity is the five
+ * pointers a report is made of and nothing else, which is what makes an
+ * override that swaps a stage without swapping the table -- ToriDraw_
+ * FaceSortSetFlat, the scanline setter -- come out as the news it is, while
+ * the same table taken again every frame stays silent.
+ *
+ * The table is small and fixed. Six prebaked tables exist and a caller may
+ * assemble more, so overflow is not impossible, only unlikely; when it
+ * happens the report says it is standing down rather than falling back to
+ * printing every frame, which is the failure this whole function exists to
+ * prevent.
+ */
+#define TORIDRAW_KERNEL_LOG_SLOTS 8
+
+struct toridraw_kernel_log_entry
+{
+    const struct ToriDraw_Kernel* table;
+    const struct ToriDraw_ProjectionKernel* projection;
+    const struct ToriDraw_FaceCullSortKernel* sort;
+    const struct ToriDraw_RasterKernelSD* raster;
+    const struct ToriDraw_RasterKernelHD* raster_hd;
+};
+
+static bool
+toridraw_kernel_log_is_new(const struct ToriDraw_Kernel* table)
+{
+    static struct toridraw_kernel_log_entry seen[TORIDRAW_KERNEL_LOG_SLOTS];
+    static int seen_count;
+    static bool stood_down;
+    struct toridraw_kernel_log_entry entry;
+    int i;
+
+    entry.table = table;
+    entry.projection = table->projection;
+    entry.sort = table->face_sort;
+    entry.raster = table->raster;
+    entry.raster_hd = table->raster_hd;
+
+    for( i = 0; i < seen_count; i++ )
+    {
+        if( seen[i].table == entry.table && seen[i].projection == entry.projection &&
+            seen[i].sort == entry.sort && seen[i].raster == entry.raster &&
+            seen[i].raster_hd == entry.raster_hd )
+            return false;
+    }
+
+    if( seen_count == TORIDRAW_KERNEL_LOG_SLOTS )
+    {
+        if( !stood_down )
+        {
+            stood_down = true;
+            fprintf(
+                stderr,
+                "toridraw: %d kernel configurations reported; no more will be\n",
+                TORIDRAW_KERNEL_LOG_SLOTS);
+        }
+        return false;
+    }
+
+    seen[seen_count++] = entry;
+    return true;
+}
+
 void
 ToriDraw_KernelLogConfiguration(const struct ToriDraw_Kernel* table)
 {
@@ -1495,8 +1561,11 @@ ToriDraw_KernelTake(struct ToriDraw_Scene* scene, const struct ToriDraw_Kernel* 
     assert(table);
 
     /* Before the fit check, so a DEGRADED or INCOMPATIBLE line lands under the
-     * report of the table it is about rather than naming one on its own. */
-    if( toridraw_kernel_log_armed() )
+     * report of the table it is about rather than naming one on its own. The
+     * new-configuration test comes second: a silenced log must not consume the
+     * slot that would report this configuration if the log were turned on
+     * later in the same process. */
+    if( toridraw_kernel_log_armed() && toridraw_kernel_log_is_new(table) )
         ToriDraw_KernelLogConfiguration(table);
 
     fit = ToriDraw_KernelValidate(table, scene, &why);
@@ -1581,15 +1650,6 @@ ToriDraw_KernelValidate(
                 return TORIDRAW_KERNEL_FIT_INCOMPATIBLE;
             }
         }
-#ifdef TORIDRAW_PIXEL16
-        if( kernel->raster->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER )
-        {
-            /* sd_render_with_kernel_z asserts on this lane: the depth family
-             * draws through the 32-bit texture and blend paths. */
-            *why = "depth-tested raster needs the 32-bit raster (PIXEL16 build)";
-            return TORIDRAW_KERNEL_FIT_INCOMPATIBLE;
-        }
-#endif
         if( (kernel->raster->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING) &&
             !(sort->provides & TORIDRAW_FACESORT_PROVIDES_FACE_ORDER) )
         {
@@ -1748,16 +1808,6 @@ sd_render_with_kernel_z(
     ToriDraw_RasterKernelSDAssertValid(kernel);
     assert(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER);
 
-#ifdef TORIDRAW_PIXEL16
-    assert(false && "SD Z-buffer raster kernels need the 32-bit raster");
-    (void)hnd;
-    (void)scene;
-    (void)position;
-    (void)view_port;
-    (void)camera;
-    (void)pixel_buffer;
-    return TORIDRAW_CULL_ERROR;
-#else
     int cull;
 
     cull = sd_kernel_project(kernel, hnd, scene, position, view_port, camera);
@@ -1770,7 +1820,6 @@ sd_render_with_kernel_z(
     return ToriDraw_RasterZ(scene, hnd, view_port, camera, pixel_buffer, kernel)
                ? TORIDRAW_CULL_VISIBLE
                : TORIDRAW_CULL_ERROR;
-#endif
 }
 
 void
@@ -2076,14 +2125,9 @@ ToriDraw_RenderModel3RasterWithRasterKernel(
 
     if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER )
     {
-#ifdef TORIDRAW_PIXEL16
-        assert(false && "SD Z-buffer raster kernels need the 32-bit raster");
-        return TORIDRAW_CULL_ERROR;
-#else
         return ToriDraw_RasterZ(scene, scene->active_hnd, view_port, camera, pixel_buffer, kernel)
                    ? TORIDRAW_CULL_VISIBLE
                    : TORIDRAW_CULL_ERROR;
-#endif
     }
 
     return ToriDraw_RasterPainter(scene, scene->active_hnd, view_port, camera, pixel_buffer, kernel)

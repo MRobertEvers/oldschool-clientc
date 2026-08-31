@@ -26,9 +26,7 @@
 #include "impl/raster/dispatch/tri.texture_opaque.u.c"
 #include "impl/raster/dispatch/tri.texture_transparent.u.c"
 #include "impl/raster/dispatch/tri.texture_affine.u.c"
-#ifndef TORIDRAW_PIXEL16
 #include "impl/raster/dispatch/tri.zbuf.u.c"
-#endif
 // clang-format on
 
 /* The debug facility behind the TORIDRAW_DBG_RASTER_* macros this file's walk
@@ -118,10 +116,8 @@ struct ToriDrawModelRasterContext
 
     /* Fixed depth-raster state. Only ToriDraw_RasterZ initializes or reads it;
      * the painter path never provisions a depth buffer. */
-#ifndef TORIDRAW_PIXEL16
     struct ToriDraw_ZbufTarget zbuf_target;
     struct ToriDraw_ZbufFaceSource zbuf_source;
-#endif
 
     /* The public, pass-stable descriptor and complete per-call kernel.
      * Built-in callbacks recover this context through target.internal;
@@ -148,7 +144,6 @@ toridraw_raster_face_is_near_clipped(
            ctx->vertex_x[ctx->face_indices_c[face]] == TORIDRAW_SCREEN_X_NEAR_CLIPPED;
 }
 
-#ifndef TORIDRAW_PIXEL16
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((always_inline))
 #endif
@@ -231,19 +226,6 @@ toridraw_stock_zbuffered_textured(
         ctx->allow_near_clip,
         ctx->near_clipped);
 }
-#else
-static void
-toridraw_stock_zbuffered_unsupported(
-    void* user_data,
-    const struct ToriDraw_RasterTarget* target,
-    const struct ToriDraw_RasterFaceSD* face)
-{
-    (void)user_data;
-    (void)target;
-    (void)face;
-    assert(false && "The SD z-buffer raster is unavailable in Pixel16");
-}
-#endif
 
 #define TORIDRAW_STOCK_FLAT_ARGS(ctx, face)                                                        \
     (ctx)->pixel_buffer, (face)->face_index, (ctx)->face_indices_a, (ctx)->face_indices_b,         \
@@ -987,7 +969,6 @@ ToriDraw_RasterPainter(
     }
 }
 
-#ifndef TORIDRAW_PIXEL16
 static inline bool
 ToriDraw_RasterZ(
     struct ToriDraw_Scene* scene,
@@ -1075,23 +1056,3 @@ ToriDraw_RasterZ(
         return false;
     }
 }
-#else
-static inline bool
-ToriDraw_RasterZ(
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_ViewPort* view_port,
-    struct ToriDraw_Camera* camera,
-    toripixel_t* pixel_buffer,
-    const struct ToriDraw_RasterKernelSD* kernel)
-{
-    assert(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER);
-    assert(false && "The SD z-buffer raster is unavailable in Pixel16");
-    (void)scene;
-    (void)hnd;
-    (void)view_port;
-    (void)camera;
-    (void)pixel_buffer;
-    return false;
-}
-#endif

@@ -13,8 +13,7 @@
  *
  * The z-buffer itself is NOT scene-tier scratch and ToriDraw_KernelEnsureScratch
  * will not provision it; it is sized from the viewport, so call
- * ToriDraw_SceneZBufferResize. Under TORIDRAW_PIXEL16 this table is
- * INCOMPATIBLE and ToriDraw_KernelValidate says so.
+ * ToriDraw_SceneZBufferResize.
  */
 
 static struct ToriDraw_Kernel g_kernel_software_zbuffered = {

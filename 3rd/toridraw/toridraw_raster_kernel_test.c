@@ -649,7 +649,6 @@ test_sd_direct_apis(const struct SDFixture* fixture, struct RenderEnv* env)
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NONE,
     };
-#ifndef TORIDRAW_PIXEL16
     const struct ToriDraw_RasterKernelSD z_kernel = {
         .draw_model = ToriDraw_RasterWalkPerFace,
         .vtable = &sd_full_vtable,
@@ -663,7 +662,6 @@ test_sd_direct_apis(const struct SDFixture* fixture, struct RenderEnv* env)
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING |
                  TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
     };
-#endif
     int result;
 
     sd_spy_reset(&spy, full_kernel.flags);
@@ -699,7 +697,6 @@ test_sd_direct_apis(const struct SDFixture* fixture, struct RenderEnv* env)
         CHECK(count_nonzero_pixels(env) == 0, "SD phase3 spy callbacks drew pixels");
     }
 
-#ifndef TORIDRAW_PIXEL16
     sd_spy_reset(&spy, z_kernel.flags);
     clear_pixels(env);
     result = ToriDraw_RenderZBufferedWithRasterKernel(
@@ -735,7 +732,6 @@ test_sd_direct_apis(const struct SDFixture* fixture, struct RenderEnv* env)
     check_sd_full_calls(&spy);
     check_sd_sorted_order(&spy, env->scene, "direct SD explicit sorted depth");
     CHECK(count_nonzero_pixels(env) == 0, "SD sorted depth callbacks drew pixels");
-#endif
 }
 
 static void
@@ -748,10 +744,8 @@ test_sd_legacy_parity(const struct SDFixture* fixture, struct RenderEnv* env)
         ToriDraw_RasterKernelSDGetBranching();
     const struct ToriDraw_RasterKernelSD* smooth =
         ToriDraw_RasterKernelSDGetSmoothBranching();
-#ifndef TORIDRAW_PIXEL16
     const struct ToriDraw_RasterKernelSD* smooth_z =
         ToriDraw_RasterKernelSDGetSmoothZBuffered();
-#endif
     size_t const image_bytes =
         (size_t)VIEW_STRIDE * VIEW_HEIGHT * sizeof(*env->pixels);
     toripixel_t* reference = malloc(image_bytes);
@@ -796,7 +790,6 @@ test_sd_legacy_parity(const struct SDFixture* fixture, struct RenderEnv* env)
     CHECK(memcmp(reference, env->pixels, image_bytes) == 0,
           "legacy smooth phase3 differs from the smooth built-in kernel");
 
-#ifndef TORIDRAW_PIXEL16
     clear_pixels(env);
     result = ToriDraw_RenderZBuffered(
         fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, true);
@@ -809,7 +802,6 @@ test_sd_legacy_parity(const struct SDFixture* fixture, struct RenderEnv* env)
     CHECK(result == TORIDRAW_CULL_VISIBLE, "explicit smooth SD depth returned %d", result);
     CHECK(memcmp(reference, env->pixels, image_bytes) == 0,
           "legacy smooth SD depth differs from the smooth built-in kernel");
-#endif
 
     free(reference);
 }
@@ -1345,50 +1337,6 @@ check_zero_hd_stats(const struct ToriDraw_HDRenderStats* stats, const char* labe
 }
 
 #if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
-static void
-test_pixel16_sd_depth_unsupported(
-    const struct SDFixture* fixture,
-    struct RenderEnv* env,
-    bool explicit_kernel)
-{
-    struct ToriDraw_ViewPort viewport = test_viewport();
-    struct ToriDraw_Camera camera = test_camera();
-    struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
-    struct SDSpy spy = { .fixture = fixture, .env = env };
-    const struct ToriDraw_RasterKernelSD kernel = {
-        .draw_model = ToriDraw_RasterWalkPerFace,
-        .vtable = &sd_full_vtable,
-        .user_data = &spy,
-        .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
-    };
-    pid_t child = fork();
-    int status = 0;
-
-    CHECK(child >= 0, "fork for Pixel16 SD depth unsupported check");
-    if( child < 0 )
-        return;
-    if( child == 0 )
-    {
-        int result;
-
-        close(STDERR_FILENO);
-        if( explicit_kernel )
-            result = ToriDraw_RenderZBufferedWithRasterKernel(
-                fixture->handle, env->scene, &position, &viewport, &camera, env->pixels,
-                &kernel);
-        else
-            result = ToriDraw_RenderZBuffered(
-                fixture->handle, env->scene, &position, &viewport, &camera, env->pixels,
-                false);
-        _exit(result == TORIDRAW_CULL_ERROR && spy.total_calls == 0 ? 0 : 2);
-    }
-
-    CHECK(waitpid(child, &status, 0) == child, "wait for Pixel16 SD depth child");
-    CHECK((WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT) ||
-              (WIFEXITED(status) && WEXITSTATUS(status) == 0),
-          "Pixel16 %s SD depth status 0x%x", explicit_kernel ? "explicit" : "legacy",
-          status);
-}
 #endif
 
 static void
@@ -1890,8 +1838,6 @@ main(void)
     }
 #else
 #if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
-    test_pixel16_sd_depth_unsupported(&sd_fixture, &env, false);
-    test_pixel16_sd_depth_unsupported(&sd_fixture, &env, true);
 #endif
     test_pixel16_hd_unsupported(&sd_fixture, &env);
 #endif

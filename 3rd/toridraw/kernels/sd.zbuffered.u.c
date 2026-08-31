@@ -29,25 +29,14 @@
  *
  * Included before the painter kernels (toridraw_raster.u.c), which name these
  * four by address.
- *
- * Under TORIDRAW_PIXEL16 every slot is the unsupported stub: the depth family
- * draws through the 32-bit texture and blend paths, and sd_render_with_kernel_z
- * asserts before reaching here anyway.
  */
 
 static const struct ToriDraw_RasterKernelSDVTable g_stock_zbuffered_vtable = {
     .draw = {
-#ifdef TORIDRAW_PIXEL16
-        [TORIDRAW_RASTER_FACE_SD_GOURAUD] = toridraw_stock_zbuffered_unsupported,
-        [TORIDRAW_RASTER_FACE_SD_FLAT] = toridraw_stock_zbuffered_unsupported,
-        [TORIDRAW_RASTER_FACE_SD_TEXTURED] = toridraw_stock_zbuffered_unsupported,
-        [TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT] = toridraw_stock_zbuffered_unsupported,
-#else
         [TORIDRAW_RASTER_FACE_SD_GOURAUD] = toridraw_stock_zbuffered_gouraud,
         [TORIDRAW_RASTER_FACE_SD_FLAT] = toridraw_stock_zbuffered_flat,
         [TORIDRAW_RASTER_FACE_SD_TEXTURED] = toridraw_stock_zbuffered_textured,
         [TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT] = toridraw_stock_zbuffered_textured,
-#endif
     },
 };
 
