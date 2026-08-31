@@ -4,14 +4,16 @@
  * @see torirs_chrome_inkwell.h for why this is authored rather than baked out
  * of a cache, and why it fires on every touch when the cross does not.
  *
- * Everything here is plain arithmetic over a 32x32 ARGB square. There is no
- * blending against the scene: the frames carry an alpha channel and the sprite
- * blit composites them, exactly as it does for any other alpha sprite.
+ * Everything here is plain arithmetic over a square of ARGB, sized in points
+ * and drawn at the display's density (@see ToriRSInkwell_SetDensity). There is
+ * no blending against the scene: the frames carry an alpha channel and the
+ * sprite blit composites them, as it does for any other alpha sprite.
  */
 
 #include "ui/torirs_chrome_inkwell.h"
 
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* The two colours, as the reference client's cross uses them: yellow marks a
@@ -50,8 +52,32 @@ ToriRSInkwell_StyleName(int style)
 
 /* ---- the drawing --------------------------------------------------------- */
 
-#define INK_N TORIRS_INKWELL_SIZE
+/*
+ * The atlas: 48 frames, contiguous, each `s_size` square.
+ *
+ * On the heap and not a static array because the size is the display's, known
+ * at boot and not at compile time -- and a static big enough for 4x would be
+ * three megabytes of BSS on a phone that will only ever use a quarter of it.
+ */
+static uint32_t* s_atlas;
+static int s_size;
+
+#define INK_N (s_size)
 #define INK_CENTRE ((INK_N - 1) * 8) /* centre in 1/16px, so it lands between pixels */
+
+/**
+ * A length from the shapes below, in sixteenths of a pixel of the CURRENT
+ * frame.
+ *
+ * The three styles were drawn against a 32px frame, so their radii read as
+ * plain distances -- "a disc growing from 3px to 13px". Left as absolutes they
+ * would stay 3px and 13px inside a bigger frame, and growing the marker would
+ * only pad it with transparent border. Scaling them here is what makes
+ * TORIRS_INKWELL_POINTS the single place the marker's size is stated, and keeps
+ * the descriptions above each shape true in proportion.
+ */
+#define INK_LEN16(sixteenths_at_32) \
+    (((sixteenths_at_32) * INK_N) / TORIRS_INKWELL_POINTS)
 
 /**
  * Distance from the frame's centre, in SIXTEENTHS of a pixel.
@@ -129,17 +155,17 @@ ink_draw_frame(uint32_t* out, int style, int colour, int frame)
             case TORIRS_INKWELL_SPLASH:
             {
                 /* A filled disc growing from 3px to 13px. */
-                int const r = (3 * 16) + (t * (10 * 16)) / 255;
-                a = ink_edge_alpha(d, r - 24, r);
+                int const r = INK_LEN16(3 * 16) + (t * INK_LEN16(10 * 16)) / 255;
+                a = ink_edge_alpha(d, r - INK_LEN16(24), r);
                 break;
             }
             case TORIRS_INKWELL_BLOT:
             {
                 /* A fixed 4px core and an 9px ring, neither moving: only the
                  * alpha changes, which is the steadiest of the three to read. */
-                int const core = ink_edge_alpha(d, 3 * 16, 4 * 16);
-                int const ring = ink_edge_alpha(d, 8 * 16, 9 * 16) -
-                                 ink_edge_alpha(d, 6 * 16, 7 * 16);
+                int const core = ink_edge_alpha(d, INK_LEN16(3 * 16), INK_LEN16(4 * 16));
+                int const ring = ink_edge_alpha(d, INK_LEN16(8 * 16), INK_LEN16(9 * 16)) -
+                                 ink_edge_alpha(d, INK_LEN16(6 * 16), INK_LEN16(7 * 16));
                 a = core > ring ? core : (ring > 0 ? ring : 0);
                 break;
             }
@@ -147,9 +173,9 @@ ink_draw_frame(uint32_t* out, int style, int colour, int frame)
             default:
             {
                 /* A 2px-thick ring travelling from 2px to 14px, hollow centre. */
-                int const r = (2 * 16) + (t * (12 * 16)) / 255;
-                int const outer = ink_edge_alpha(d, r, r + 16);
-                int const inner = ink_edge_alpha(d, r - 32, r - 16);
+                int const r = INK_LEN16(2 * 16) + (t * INK_LEN16(12 * 16)) / 255;
+                int const outer = ink_edge_alpha(d, r, r + INK_LEN16(16));
+                int const inner = ink_edge_alpha(d, r - INK_LEN16(32), r - INK_LEN16(16));
                 a = outer - inner;
                 if( a < 0 )
                     a = 0;
@@ -167,25 +193,50 @@ ink_draw_frame(uint32_t* out, int style, int colour, int frame)
     }
 }
 
+void
+ToriRSInkwell_SetDensity(int density)
+{
+    int size;
+
+    assert(density >= 1);
+    assert(density <= TORIRS_INKWELL_DENSITY_MAX);
+
+    size = TORIRS_INKWELL_POINTS * density;
+    if( s_atlas && size == s_size )
+        return; /* the common call: every frame, same display, nothing to do */
+
+    free(s_atlas);
+    s_atlas = malloc(
+        (size_t)TORIRS_INKWELL_ATLAS_COUNT * (size_t)size * (size_t)size * sizeof(*s_atlas));
+    assert(s_atlas);
+    s_size = size;
+
+    for( int st = 0; st < TORIRS_INKWELL_STYLE_COUNT; st++ )
+        for( int c = 0; c < TORIRS_INKWELL_COLOUR_COUNT; c++ )
+            for( int f = 0; f < TORIRS_INKWELL_FRAMES; f++ )
+                ink_draw_frame(
+                    s_atlas + (size_t)ToriRSInkwell_AtlasIndex(st, c, f) * (size_t)size *
+                                  (size_t)size,
+                    st,
+                    c,
+                    f);
+}
+
+int
+ToriRSInkwell_Size(void)
+{
+    assert(s_size > 0); /* ToriRSInkwell_SetDensity was never called */
+    return s_size;
+}
+
 uint32_t const*
 ToriRSInkwell_Frame(int style, int colour, int frame)
 {
-    static uint32_t
-        s_frames[TORIRS_INKWELL_STYLE_COUNT][TORIRS_INKWELL_COLOUR_COUNT]
-                [TORIRS_INKWELL_FRAMES][INK_N * INK_N];
-    static int s_built;
-
+    assert(s_atlas); /* ToriRSInkwell_SetDensity was never called */
     assert(style >= 0 && style < TORIRS_INKWELL_STYLE_COUNT);
     assert(colour >= 0 && colour < TORIRS_INKWELL_COLOUR_COUNT);
     assert(frame >= 0 && frame < TORIRS_INKWELL_FRAMES);
 
-    if( !s_built )
-    {
-        for( int st = 0; st < TORIRS_INKWELL_STYLE_COUNT; st++ )
-            for( int c = 0; c < TORIRS_INKWELL_COLOUR_COUNT; c++ )
-                for( int f = 0; f < TORIRS_INKWELL_FRAMES; f++ )
-                    ink_draw_frame(s_frames[st][c][f], st, c, f);
-        s_built = 1;
-    }
-    return s_frames[style][colour][frame];
+    return s_atlas + (size_t)ToriRSInkwell_AtlasIndex(style, colour, frame) * (size_t)s_size *
+               (size_t)s_size;
 }

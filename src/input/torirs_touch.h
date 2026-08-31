@@ -54,9 +54,18 @@ struct ToriRS_CmdBus;
  *  because a finger is not a mouse: the contact patch rolls as it lifts. */
 #define TORIRS_TOUCH_SLOP 12
 
-/** Pinch distance must change by this much before it is a zoom rather than two
- *  fingers resting unevenly. */
-#define TORIRS_TOUCH_PINCH_STEP 48
+/**
+ * Pinch distance must change by this much, in CANVAS pixels, before it is a
+ * zoom rather than two fingers resting unevenly.
+ *
+ * 16 and not 48. The threshold is doing two jobs -- rejecting a tremor, and
+ * setting the gearing, because it is also the distance between notches -- and
+ * at 48 the second one swamped the first: a pinch across half the screen was
+ * seven notches, so the zoom arrived in visible steps and a small adjustment
+ * arrived not at all. 16 is still well past the noise of two resting fingers
+ * and gives three times the travel, which is what makes it feel continuous.
+ */
+#define TORIRS_TOUCH_PINCH_STEP 16
 
 /** A two-finger pan must travel this far before it turns the camera. */
 #define TORIRS_TOUCH_PAN_STEP 40

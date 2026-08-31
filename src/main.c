@@ -50,6 +50,7 @@ struct ToriRS_D3D9;
 #include "toridraw_frame_ab.h"
 #include "toridraw_math.h"
 #include "pacer.h"
+#include "ui/torirs_chrome_inkwell.h"
 #include "ui/uitree_hover.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_snapshot.h"
@@ -2383,6 +2384,34 @@ frame_loop_step(void)
      * the clamped canvas, which is also what fixed mode does. */
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_SURFACE_SYNC)
     {
+        /*
+         * The touch marker is sized in POINTS, so it follows the DISPLAY's
+         * density and not the chrome ladder below.
+         *
+         * Those are two different questions, and the ladder answers the other
+         * one: it asks how much ROOM there is and scales panels to fill it, so
+         * on a large 1x window it returns 2 or 3 with no display density
+         * involved at all. A marker has nothing to do with room -- it is sized
+         * against the finger that made it -- so it takes the raw density and
+         * lets the chrome take the product. Idempotent, and unconditional for
+         * the same reason the block below is: a window dragged onto a display
+         * of a different density raises no event that says so.
+         */
+        ToriRSInkwell_SetDensity(PlatformSDL2_PixelDensity(sdl));
+
+        /*
+         * On this platform the pointer IS a finger, so the finger may turn the
+         * camera whatever the revision's desktop `controls=` list says.
+         *
+         * Set here rather than compiled into app.c so a desktop run can turn it
+         * on -- a touchscreen laptop, or a test that wants the gesture without
+         * a phone -- and so app.c is left stating the rule instead of the
+         * platform. @see App.touch_camera.
+         */
+#if defined(TORIRS_PLATFORM_ANDROID)
+        app.touch_camera = 1;
+#endif
+
         /* Cheap and unconditional: a window dragged from a Retina display to
          * an ordinary one changes density with no event that says so, and
          * App_SetChromeScale returns immediately when nothing moved. */

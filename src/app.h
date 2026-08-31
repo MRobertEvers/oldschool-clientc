@@ -914,6 +914,22 @@ struct App
     int cam_mmb_active;
     int cam_mmb_x;
     int cam_mmb_y;
+    /*
+     * This platform aims the camera with a FINGER, so the revision's
+     * `controls=` list does not decide whether it may.
+     *
+     * That list reproduces a revision's DESKTOP control scheme -- rev-289's
+     * client had no middle-button rotate, so `controls=arrow_keys` says so and
+     * the mouse gesture is refused. A finger drag is synthesised as a
+     * middle-button drag (ToriRS_TouchSetViewport says why: it is the one path
+     * that already has the follow-cam split, the sign convention and the pitch
+     * clamps), and it would be refused by the same test -- for reproducing a
+     * decision no revision ever made, because none of them ran on a phone.
+     *
+     * So the platform states it instead, once, at boot: where a finger is the
+     * pointer, the finger may turn the camera on every revision.
+     */
+    int touch_camera;
     /* Keys a revconfig hotkey binding acted on this frame, indexed by OSRS key
      * code. Debug world hotkeys share the digit row with the rev-254 tab
      * bindings, so they check this and stand down rather than firing both. */

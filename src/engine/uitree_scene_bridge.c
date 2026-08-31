@@ -576,6 +576,9 @@ UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge)
 {
     struct ToriDraw_Sprite** sprites;
     int const count = TORIRS_INKWELL_ATLAS_COUNT;
+    /* The density's square, asked for once: the upload below and the emit that
+     * places the marker must agree, and the generator is the one that knows. */
+    int const size = ToriRSInkwell_Size();
     int at = 0;
 
     assert(bridge);
@@ -585,9 +588,10 @@ UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge)
         return UITREE_SCENE_INKWELL_ID;
 
     /*
-     * Every style and colour in one entry. 48 frames of 32x32 is under 200 KB,
-     * which buys the profile the freedom to name any style -- and a touch the
-     * freedom to pick a colour -- without either causing an upload mid-frame.
+     * Every style and colour in one entry. 48 frames of a fingertip-sized
+     * square is a few hundred KB, which buys the profile the freedom to name
+     * any style -- and a touch the freedom to pick a colour -- without either
+     * causing an upload mid-frame.
      */
     sprites = calloc((size_t)count, sizeof(*sprites));
     assert(sprites);
@@ -598,14 +602,13 @@ UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge)
             for( int frame = 0; frame < TORIRS_INKWELL_FRAMES; frame++, at++ )
             {
                 struct ToriDraw_Sprite* spr = calloc(1, sizeof(*spr));
-                size_t const bytes = (size_t)TORIRS_INKWELL_SIZE *
-                                     (size_t)TORIRS_INKWELL_SIZE * sizeof(uint32_t);
+                size_t const bytes = (size_t)size * (size_t)size * sizeof(uint32_t);
 
                 assert(spr);
-                spr->width = TORIRS_INKWELL_SIZE;
-                spr->height = TORIRS_INKWELL_SIZE;
-                spr->crop_width = TORIRS_INKWELL_SIZE;
-                spr->crop_height = TORIRS_INKWELL_SIZE;
+                spr->width = size;
+                spr->height = size;
+                spr->crop_width = size;
+                spr->crop_height = size;
                 /* Deep copy: the scene frees every sprite it holds, and the
                  * generator hands back a pointer into its own static table. */
                 spr->pixels_argb = malloc(bytes);

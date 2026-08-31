@@ -796,10 +796,11 @@ UITree_EmitFill(
         out->atlas_index = atlas;
         /* Centred on the touch, like the cross -- the frames are drawn about
          * their own centre so the marker does not drift as it grows. */
-        out->x = cx - (TORIRS_INKWELL_SIZE / 2);
-        out->y = cy - (TORIRS_INKWELL_SIZE / 2);
-        out->w = TORIRS_INKWELL_SIZE;
-        out->h = TORIRS_INKWELL_SIZE;
+        int const size = ToriRSInkwell_Size();
+        out->x = cx - (size / 2);
+        out->y = cy - (size / 2);
+        out->w = size;
+        out->h = size;
         return true;
     }
 

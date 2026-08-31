@@ -186,7 +186,18 @@ touch_two_finger(struct ToriRS_Touch* touch, struct ToriRS_CmdBus* bus)
      */
     if( abs(spread - touch->pinch_distance) >= TORIRS_TOUCH_PINCH_STEP )
     {
-        CmdBus_PushMouseWheel(bus, spread > touch->pinch_distance ? (int16_t)-1 : (int16_t)1);
+        /*
+         * Fingers APART is zoom IN, which is a positive notch.
+         *
+         * app_world_camera_mouse subtracts the wheel from the eye height, so
+         * positive lowers the eye and brings the world closer -- the same
+         * direction a wheel pushed forward means everywhere else in the client.
+         * Spelled out because it was backwards: pushing the fingers apart made
+         * the world recede, which is the one thing a pinch cannot be allowed
+         * to do -- every other application on the device agrees about this, and
+         * the hand does not consult a manual.
+         */
+        CmdBus_PushMouseWheel(bus, spread > touch->pinch_distance ? (int16_t)1 : (int16_t)-1);
         touch->pinch_distance = spread;
         touch->pan_x = mid_x;
         touch->pan_y = mid_y;

@@ -61,9 +61,46 @@ enum ToriRSInkwellColour
 #define TORIRS_INKWELL_FRAMES 8
 #define TORIRS_INKWELL_FRAME_MS 50
 
-/** Every frame is this square. Large enough for the ripple to travel and still
- *  be centred on the touch; small enough that eight of them are cheap. */
-#define TORIRS_INKWELL_SIZE 32
+/*
+ * HOW BIG THE MARKER IS
+ *
+ * In POINTS, not pixels. A marker is sized against a FINGERTIP, and a fingertip
+ * is the same size on every phone -- so the one number that can be authored
+ * here is a physical one, and the pixel count is whatever that comes to on the
+ * display in front of it. Stating it in pixels instead makes the marker shrink
+ * as screens get sharper: the same 32 pixels that covered a fingertip on a
+ * 160dpi display is a quarter of one at 640dpi, which is the wrong direction
+ * for the one piece of art whose entire job is to be seen under a finger.
+ *
+ * Nothing is resampled to get there. The frames are drawn (INK_LEN16 scales
+ * every radius), so a 2x marker is drawn at 2x and is exactly as sharp as a 1x
+ * one -- the advantage of authoring artwork as code rather than as pixels, and
+ * the reason this is a generator and not a bake.
+ */
+
+/** The authored size, in points -- 32 of them, which is a fingertip's width at
+ *  arm's length and covers the cross it stands in for. */
+#define TORIRS_INKWELL_POINTS 32
+
+/** Densities the atlas is built for. Matches PlatformSDL2_PixelDensity's own
+ *  1..4 clamp; there is no display past 4x to build for. */
+#define TORIRS_INKWELL_DENSITY_MAX 4
+
+/**
+ * Build the atlas for this display density (drawable pixels per point).
+ *
+ * Idempotent: calling it every frame with the same density costs a compare,
+ * which is what lets the caller simply follow PlatformSDL2_PixelDensity rather
+ * than having to notice the one event that changes it -- a window dragged onto
+ * a display of a different density raises none.
+ */
+void
+ToriRSInkwell_SetDensity(int density);
+
+/** The square every frame currently is, in CANVAS pixels: points x density.
+ *  Whoever places or uploads the marker asks; nobody recomputes the product. */
+int
+ToriRSInkwell_Size(void);
 
 /** `style` from a profile's `style=` key, or -1 when unrecognised. */
 int
@@ -73,11 +110,12 @@ char const*
 ToriRSInkwell_StyleName(int style);
 
 /**
- * One frame, as ARGB8888, `TORIRS_INKWELL_SIZE` square.
+ * One frame, as ARGB8888, `ToriRSInkwell_Size()` square.
  *
- * Returns a pointer into a lazily-built static table: the frames are the same
- * every time and there are only 48 of them (3 styles x 2 colours x 8 frames),
- * so they are drawn once and kept rather than re-rendered per touch.
+ * Returns a pointer into the atlas built by ToriRSInkwell_SetDensity, which
+ * must have been called: the frames are the same every time and there are only
+ * 48 of them (3 styles x 2 colours x 8 frames), so they are drawn once at the
+ * display's density and kept rather than re-rendered per touch.
  */
 uint32_t const*
 ToriRSInkwell_Frame(int style, int colour, int frame);

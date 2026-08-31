@@ -17151,11 +17151,10 @@ app_logic_tick(struct App* app)
         redraw = 1;
     }
 
-    if( UIInk_IsActive(&app->ink) )
-    {
-        UIInk_Tick(&app->ink, APP_LOGIC_TICK_MS);
-        redraw = 1;
-    }
+    /* The inkwell is NOT ticked here -- see App_RunOnce, where it is advanced
+     * once per rendered frame by the real elapsed time. This function runs
+     * 0..APP_MAX_CATCHUP_TICKS times per frame, which is right for the
+     * simulation and wrong for anything the user watches. */
 
     return redraw;
 }
@@ -20091,7 +20090,11 @@ app_world_camera_mouse(
      * the orbit follow cam owns the angles, otherwise the free camera does. */
     follow_cam = app->net && !app->cam_script.scripted;
 
-    if( app->revconfig_profile.camera.controls & REVCONFIG_CAMERA_CONTROL_MMB )
+    /* `controls=` is the revision's answer for a MOUSE; app->touch_camera is
+     * the platform's answer for a FINGER, and the two are different questions.
+     * @see App.touch_camera. */
+    if( (app->revconfig_profile.camera.controls & REVCONFIG_CAMERA_CONTROL_MMB) ||
+        app->touch_camera )
     {
         /* Only the press has to land on the scene; once latched the drag keeps
          * the pointer until release, so sweeping over the sidebar mid-rotate
@@ -27761,12 +27764,17 @@ app_minimenu_run_option(
          */
         enum UICrossMode cross_mode = RS_Minimenu_CrossModeForAction(opt.action);
         if( cross_mode != UI_CROSS_OFF && cross_mode != UI_CROSS_WALK )
+        {
             UICross_Show(&app->cross, cross_mode, click_x, click_y);
-            /* Same answer, applied to the marker that is already running. */
+            /* Same answer, applied to the marker that is already running.
+             * Inside the guard, not beside it: a row that shows no cross has
+             * decided nothing about what the press meant, and the marker is
+             * already yellow -- "a touch happened" -- from the press itself. */
             UIInk_SetColour(
                 &app->ink,
                 cross_mode == UI_CROSS_INTERACT ? TORIRS_INKWELL_RED
                                                 : TORIRS_INKWELL_YELLOW);
+        }
     }
 
     /* method5229 marks component operations above targetPriority with the
@@ -30100,6 +30108,33 @@ App_RunOnce(
             app->logic_frame_ms = APP_LOGIC_TICK_MS;
         }
         int const ticks_paid = ticks;
+
+        /*
+         * The touch marker, advanced ONCE per rendered frame by the time that
+         * really elapsed -- not by the 20 ms simulation cycle above.
+         *
+         * It used to ride app_logic_tick, and that is why it "often doesn't
+         * render at all". That loop runs `ticks` times per frame, and `ticks`
+         * is whatever the accumulator paid out: 0 on a frame shorter than a
+         * cycle, and a whole handful on a slow one. So on a phone drawing ~9
+         * frames a second the marker's entire 400 ms life was spent inside one
+         * or two frames -- five cycles charged at once, the marker retired
+         * before the frame after it was ever drawn. It was on screen for two
+         * frames, both showing frame 0, which is a flicker and not an
+         * animation.
+         *
+         * A marker exists to be looked at, so its clock is the clock of the
+         * frames it is looked at in. Advancing by logic_frame_ms (the same
+         * clamped elapsed the movers are paid from, so a stall costs it the
+         * same) plays the whole 400 ms across however many frames the device
+         * manages, and guarantees at least one drawn frame per touch.
+         */
+        if( UIInk_IsActive(&app->ink) )
+        {
+            UIInk_Tick(&app->ink, (int)app->logic_frame_ms);
+            app->need_redraw = 1;
+        }
+
         if( ticks > 0 )
         {
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_LOGIC_TICKS, ticks);
@@ -31455,6 +31490,33 @@ App_RunOnce(
                 &app->emit,
                 app->hover_com_id,
                 &app->emit_gate);
+            /*
+             * A running touch marker is never a quiet frame.
+             *
+             * The gate's two terms are the TREE's dirty generation and the
+             * HOST's published dependency stamp, and the marker is in neither:
+             * its whole state (position, colour, which of the eight frames) is
+             * app-side, reached through UITREE_HOST_GET_INKWELL at walk time,
+             * and it advances every frame without any node claiming to be
+             * dirty. So the gate calls the frame quiet, the retained list --
+             * the one already on screen -- is reused, and the marker is frozen
+             * on whichever frame the last full walk happened to build.
+             *
+             * Measured on the phone: a tap produced two full walks, both
+             * emitting frame 0, then eighteen more animation ticks with no walk
+             * at all. On screen that is a blob that appears, does not animate,
+             * and stays until something unrelated forces a rebuild -- which is
+             * why it reads as "doesn't animate, often doesn't render".
+             *
+             * Stated here rather than by dirtying a node because the marker
+             * does not belong to a node: it is host state that a component
+             * renders, and the honest way to say that is that the frame is not
+             * quiet while it is running. It costs a full walk only for the
+             * ~400 ms a marker is alive, and only on a lane that declares one.
+             */
+            if( UIInk_IsActive(&app->ink) )
+                gate_quiet = 0;
+
             /* Every dirty_gen source was measured bursty (creates, hide flips,
              * child link/unlink — all interface-open work), so on a steady-state
              * frame the tree term should hold and the gate should fire. It fires

@@ -39,6 +39,7 @@
 #include <jni.h>
 
 #include <pthread.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -280,6 +281,58 @@ PlatformAndroidJni_SetSoftKeyboard(int on)
  * configuration it parses. Adding `--home` would mean adding a concept to the
  * client that only one platform uses.
  */
+/*
+ * env.txt, one KEY=VALUE per line, applied before main().
+ *
+ * The renderer's A/B and kernel-selection knobs -- TORIDRAW_FRAME_AB,
+ * TORIDRAW_RASTER_BATCH, TORIDRAW_FACE_SORT -- are read with getenv(), which
+ * on every other host is set by the shell that launches the client. An Android
+ * app has no shell and inherits no environment, so on the one platform whose
+ * performance is most worth measuring, every one of those knobs was
+ * unreachable and the arm being measured was whatever the build defaulted to.
+ *
+ * This is the same shape as extra_args.txt next to it and for the same reason:
+ * a profile can be tried a different way without rebuilding the APK. It is
+ * deliberately not a manifest key -- these are host-level debug knobs, not
+ * properties of a world, and putting them in a manifest would ship them.
+ */
+static void
+apply_env_file(char const* data_root)
+{
+    char path[1024];
+    char line[512];
+    FILE* f;
+
+    assert(data_root);
+
+    snprintf(path, sizeof(path), "%s/env.txt", data_root);
+    f = fopen(path, "r");
+    if( !f )
+        return; /* optional, and its absence is the normal case */
+
+    while( fgets(line, sizeof(line), f) )
+    {
+        char* eq;
+        char* p = line;
+        size_t n;
+
+        while( *p == ' ' || *p == '\t' )
+            p++;
+        if( *p == '#' || *p == '\n' || *p == '\r' || *p == '\0' )
+            continue;
+        n = strlen(p);
+        while( n > 0 && ( p[n - 1] == '\n' || p[n - 1] == '\r' ) )
+            p[--n] = '\0';
+        eq = strchr(p, '=');
+        if( !eq )
+            continue;
+        *eq = '\0';
+        setenv(p, eq + 1, 1);
+        LOGI("env: %s=%s", p, eq + 1);
+    }
+    fclose(f);
+}
+
 static void
 place_process(char const* data_root)
 {
@@ -289,6 +342,7 @@ place_process(char const* data_root)
         LOGE("could not chdir to %s -- preferences will not persist", data_root);
     setenv("HOME", data_root, 1);
     LOGI("data root: %s", data_root);
+    apply_env_file(data_root);
 }
 
 JNIEXPORT void JNICALL
