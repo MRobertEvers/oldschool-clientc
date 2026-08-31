@@ -6,7 +6,7 @@
 #include "ui/uitree_scroll.h"
 #include "world/world.h"
 
-#include "graphics/projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "toridraw_scene.h"
 #include "toridraw_types.h"
 

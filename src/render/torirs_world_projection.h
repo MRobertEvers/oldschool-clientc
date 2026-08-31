@@ -1,7 +1,7 @@
 #ifndef TORIRS_WORLD_PROJECTION_H
 #define TORIRS_WORLD_PROJECTION_H
 
-#include "graphics/projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "toridraw_math.h"
 #include "toridraw_types.h"
 

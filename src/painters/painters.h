@@ -2,7 +2,7 @@
 #define PAINTERS_H
 
 #include "debug/painters_debug.h"
-#include "graphics/projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "toridraw_element_id.h"
 
 #include <stddef.h>
