@@ -2,7 +2,10 @@ package com.torirs.client;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Rect;
+import android.os.Build;
 import android.os.Bundle;
+import android.text.InputType;
 import android.util.DisplayMetrics;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -10,7 +13,12 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewTreeObserver;
+import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.view.inputmethod.BaseInputConnection;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -64,6 +72,52 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     private Button hideKeyboardButton;
     private boolean started;
 
+    /**
+     * A SurfaceView the IME will agree to type into.
+     *
+     * A plain SurfaceView is not a text editor: onCreateInputConnection
+     * returns null, so no input session ever binds, and InputMethodManager
+     * quietly drops showSoftInput for a view it is not serving -- the request
+     * reached Java (the Hide-keyboard button appeared) and the keyboard never
+     * did. This is the same problem every game engine hits on Android, and
+     * the same fix SDL ships (its DummyEdit view): declare an editor.
+     *
+     * TYPE_NULL is the whole contract: it tells the IME "no text field --
+     * send raw key events", which the dummy BaseInputConnection also enforces
+     * by synthesising KeyEvents for anything the IME commits as text. Those
+     * events run the normal dispatch, the SurfaceView handles none of them,
+     * and they land in the activity's onKeyDown/onKeyUp exactly where the
+     * hardware keys already do -- so the C side sees one key stream and never
+     * learns which kind of keyboard produced it.
+     *
+     * NO_EXTRACT_UI / NO_FULLSCREEN keep the landscape IME from replacing the
+     * whole screen with its own editor box, which is what a landscape phone
+     * otherwise does to an app it cannot show inline text for.
+     */
+    private static final class ClientSurfaceView extends SurfaceView
+    {
+        ClientSurfaceView(Context context)
+        {
+            super(context);
+        }
+
+        @Override
+        public boolean onCheckIsTextEditor()
+        {
+            return true;
+        }
+
+        @Override
+        public InputConnection onCreateInputConnection(EditorInfo outAttrs)
+        {
+            outAttrs.inputType = InputType.TYPE_NULL;
+            outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE
+                    | EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                    | EditorInfo.IME_FLAG_NO_FULLSCREEN;
+            return new BaseInputConnection(this, false);
+        }
+    }
+
     /* ---- native ---------------------------------------------------------- */
 
     private native void nativeStart(String[] args, String dataRoot);
@@ -71,6 +125,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     private native void nativeSetDensity(int density);
     private native void nativeTouch(int action, int pointerId, int x, int y);
     private native void nativeKey(int keycode, int down, int unicode);
+    private native void nativeKeyboardInset(int bottomPx);
     private native void nativeStop();
 
     /* ---- lifecycle ------------------------------------------------------- */
@@ -82,7 +137,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        surfaceView = new SurfaceView(this);
+        surfaceView = new ClientSurfaceView(this);
         surfaceView.getHolder().addCallback(this);
         /* The view has to be focusable in touch mode or it never receives key
          * events from a hardware or soft keyboard. */
@@ -131,6 +186,58 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
 
         setContentView(root);
         surfaceView.requestFocus();
+
+        /*
+         * Tell the native side how much of the surface the soft keyboard is
+         * covering, so the client can slide its chat line and login inputs up
+         * from under it. Two listeners, because the signal has two eras:
+         *
+         *   API 30+ -- the window dispatches ime() insets to a fullscreen
+         *   window as well, so the listener is the whole answer.
+         *
+         *   Older -- there is no ime inset type. The visible-display-frame
+         *   comparison is the classic substitute; under this activity's
+         *   fullscreen theme some devices never shrink the frame, and on those
+         *   the report simply stays 0 -- the client keeps working with the
+         *   keyboard over its chat, which is exactly what it did before this
+         *   listener existed.
+         *
+         * Both report through one method so the native side has one number and
+         * no opinion about which era produced it.
+         */
+        final View insetRoot = root;
+        if( Build.VERSION.SDK_INT >= 30 )
+        {
+            insetRoot.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener()
+            {
+                @Override
+                public WindowInsets onApplyWindowInsets(View v, WindowInsets insets)
+                {
+                    nativeKeyboardInset(insets.getInsets(WindowInsets.Type.ime()).bottom);
+                    return insets;
+                }
+            });
+        }
+        else
+        {
+            insetRoot.getViewTreeObserver().addOnGlobalLayoutListener(
+                    new ViewTreeObserver.OnGlobalLayoutListener()
+            {
+                private final Rect visible = new Rect();
+
+                @Override
+                public void onGlobalLayout()
+                {
+                    insetRoot.getWindowVisibleDisplayFrame(visible);
+                    int covered = insetRoot.getRootView().getHeight() - visible.bottom;
+                    /* A sliver can be reported with no keyboard up (system
+                     * bars settling); a keyboard is never that short. */
+                    if( covered < 80 )
+                        covered = 0;
+                    nativeKeyboardInset(covered);
+                }
+            });
+        }
 
         nativeSetDensity(displayDensityBucket());
     }
@@ -372,7 +479,10 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                 if( show )
                 {
                     surfaceView.requestFocus();
-                    imm.showSoftInput(surfaceView, InputMethodManager.SHOW_IMPLICIT);
+                    /* Flags 0, not SHOW_IMPLICIT: implicit is the request the
+                     * system is documented as free to ignore, and this one is
+                     * the direct result of a deliberate tap. */
+                    imm.showSoftInput(surfaceView, 0);
                 }
                 else
                 {

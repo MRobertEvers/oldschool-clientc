@@ -494,6 +494,8 @@ push_field_from_ini_kv(
     else if(
         strcmp(key, "chat_op_accept_duel_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION;
+    else if( strcmp(key, "prompt") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_PROMPT;
     else if( strcmp(key, "filter") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_CHAT_BUTTON_FILTER;
     else if( strcmp(key, "label") == 0 && strcmp(s_ini_item_type, "component") == 0 )

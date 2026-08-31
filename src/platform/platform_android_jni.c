@@ -451,6 +451,15 @@ Java_com_torirs_client_ClientActivity_nativeSetDensity(
 }
 
 JNIEXPORT void JNICALL
+Java_com_torirs_client_ClientActivity_nativeKeyboardInset(
+    JNIEnv* env, jobject thiz, jint bottom_px)
+{
+    (void)env;
+    (void)thiz;
+    PlatformAndroid_SetKeyboardInset((int)bottom_px);
+}
+
+JNIEXPORT void JNICALL
 Java_com_torirs_client_ClientActivity_nativeTouch(
     JNIEnv* env, jobject thiz, jint action, jint pointer_id, jint x, jint y)
 {

@@ -421,7 +421,16 @@ Task_PluginAssetRead_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
          * frame restating a fact that had not changed. The delivery is the
          * contract; this line is for whoever is watching.
          */
-        TORIRS_LOG(
+        /* REPORT and not LOG. This is the line that says a plugin has no art,
+         * and a plugin with no art still CLAIMS the frame parts it dresses --
+         * so the visible result is a gameframe that disappears, with nothing
+         * anywhere connecting it to an asset. Under NDEBUG, which is every
+         * build that runs on a device, TORIRS_LOG compiles to nothing and this
+         * was completely silent. @see the per-frame concern above: the delivery
+         * below is the contract, and a plugin that re-asks every tick would
+         * repeat this -- which is a reason to fix the re-asking, not to hide
+         * the only line that explains an empty frame. */
+        TORIRS_REPORT(
             "plugin: %s asset '%s' not found (%s, %s)\n",
             task->plugin,
             task->asset,

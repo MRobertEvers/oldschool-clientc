@@ -895,6 +895,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL";
     case RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION:
         return "RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION";
+    case RCFIELD_UICOMPONENT_CHAT_PROMPT:
+        return "RCFIELD_UICOMPONENT_CHAT_PROMPT";
     case RCFIELD_UICOMPONENT_CHAT_BUTTON_FILTER:
         return "RCFIELD_UICOMPONENT_CHAT_BUTTON_FILTER";
     case RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL:
@@ -1767,6 +1769,10 @@ revconfig_item_apply_uicomponent_field(
         break;
     case RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION:
         comp->chat_op_accept_duel_action = revconfig_parse_minimenu_action(value);
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_PROMPT:
+        strncpy(comp->chat_prompt, value, sizeof(comp->chat_prompt) - 1);
+        comp->chat_prompt[sizeof(comp->chat_prompt) - 1] = '\0';
         break;
     case RCFIELD_UICOMPONENT_CHAT_BUTTON_FILTER:
         comp->chat_button_filter = revconfig_parse_chat_button_filter(value);

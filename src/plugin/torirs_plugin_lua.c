@@ -685,7 +685,7 @@ lua_window_kind_from_name(char const* name)
 /*
  * The layout region a call is about, carried as a SECOND upvalue.
  *
- * `api.layout.safe.reserve(...)` and `api.layout.viewport.rect()` are the same
+ * `api.layout.safe_gamechrome.reserve(...)` and `api.layout.viewport.rect()` are the same
  * two C functions closed over different regions, which is what lets the
  * scripted surface be per-region names -- the shape the C side reads as an
  * argument -- without a function per region per verb.
@@ -2459,8 +2459,8 @@ lua_build_api_table(struct LuaScript* script)
     /*
      * api.layout: one sub-table per REGION, with the verbs on it.
      *
-     * `api.layout.safe.reserve("right", 180)` rather than
-     * `api.layout.reserve("safe", "right", 180)`, because a region is a thing
+     * `api.layout.safe_gamechrome.reserve("right", 180)` rather than
+     * `api.layout.reserve("safe_gamechrome", "right", 180)`, because a region is a thing
      * a script talks about repeatedly and a string argument repeated at every
      * call site is a typo waiting to be a silent no-op. The region is bound
      * once, into the closure, and a misspelling is then a nil index at the
@@ -2488,7 +2488,7 @@ lua_build_api_table(struct LuaScript* script)
             { "modal_viewport", TORIRS_PLUGIN_SLOT_MAIN_MODAL },
             { "chat_buttons", TORIRS_PLUGIN_SLOT_CHAT_BUTTONS },
             { "canvas", TORIRS_PLUGIN_SLOT_CANVAS },
-            { "safe", TORIRS_PLUGIN_SLOT_SAFE },
+            { "safe_gamechrome", TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME },
         };
         static const struct
         {
@@ -2717,7 +2717,28 @@ static char const* const LUA_HANDLER_NAME[TORIRS_PLUGIN_EV_COUNT] = {
     [TORIRS_PLUGIN_EV_UI] = "on_ui",
     [TORIRS_PLUGIN_EV_UI_BUILD] = "on_ui_build",
     [TORIRS_PLUGIN_EV_SETTING] = "on_setting",
+    [TORIRS_PLUGIN_EV_SCREEN_CHANGE] = "on_screen_change",
 };
+
+/* The screen as a word, because the numeric TORIRS_PLUGIN_SCREEN_* values are
+ * a C header a script never sees: `if ev.screen == "game"`, never a bare 30. */
+static char const*
+lua_screen_name(int screen)
+{
+    switch( screen )
+    {
+    case TORIRS_PLUGIN_SCREEN_BOOT:
+        return "boot";
+    case TORIRS_PLUGIN_SCREEN_TITLE:
+        return "title";
+    case TORIRS_PLUGIN_SCREEN_CONNECTING:
+        return "connecting";
+    case TORIRS_PLUGIN_SCREEN_GAME:
+        return "game";
+    default:
+        return "";
+    }
+}
 
 /* Push the event's second argument. Returns the number of arguments pushed. */
 static int
@@ -2843,6 +2864,16 @@ lua_push_event_arg(struct LuaScript* script, int event, void* payload)
         /* No payload worth pushing: "build your tab" carries nothing but the
          * instruction, and the api the handler needs is its first argument. */
         return 0;
+    case TORIRS_PLUGIN_EV_SCREEN_CHANGE:
+    {
+        struct ToriRS_PluginEvScreen const* ev = payload;
+        lua_createtable(L, 0, 2);
+        lua_pushstring(L, lua_screen_name(ev->screen));
+        lua_setfield(L, -2, "screen");
+        lua_pushstring(L, lua_screen_name(ev->previous));
+        lua_setfield(L, -2, "previous");
+        return 1;
+    }
     case TORIRS_PLUGIN_EV_SETTING:
     {
         struct ToriRS_PluginEvSetting const* ev = payload;

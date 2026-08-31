@@ -1557,6 +1557,14 @@ struct App
      * password, which is exactly as bad as it sounds.
      */
     char title_field_line[RS_TITLE_FIELD_COUNT][RS_TITLE_FIELD_LEN + 64];
+
+    /** How far the title stone box is currently lifted above its authored
+     *  place so the login inputs clear the soft keyboard, and the tree
+     *  generation that lift was applied against -- a rebuild restores the
+     *  authored position, so a remembered lift from another generation is a
+     *  lift that is no longer applied. @see app_title_sync_groups. */
+    int title_box_lift;
+    uint32_t title_box_lift_gen;
     /** What each login rejection means, in this revision's words. Loaded from
      *  the profile beside RevConfigRefs and alive for the whole session. */
     struct RS_LoginReplyTable login_replies;
@@ -2438,6 +2446,12 @@ struct App
      *  arrives. */
     int window_w;
     int window_h;
+
+    /** CANVAS rows the OS soft keyboard covers at the bottom, 0 when it is
+     *  away (TORIRS_CMD_KEYBOARD_INSET; only touch platforms ever push it).
+     *  What api->safe_os subtracts from the canvas, and what the title
+     *  screen lifts the login stones by. */
+    int keyboard_inset;
 
     /** A plugin asked for the on-screen keyboard. Drained by the shell, which
      *  is the only thing here with a platform to raise one on.

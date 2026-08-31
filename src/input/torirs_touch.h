@@ -34,9 +34,13 @@ struct ToriRS_CmdBus;
  *                is the minimenu. It fires while the finger is still down --
  *                that is what makes it feel like a press rather than a delay --
  *                and the release that follows is swallowed.
- *   drag         moved beyond the slop: pointer moves and NO click. A finger
- *                that wanders is somebody scrolling or aiming, and the one
- *                thing it must not do is walk the player somewhere.
+ *   drag         moved beyond the slop: a button-held drag from where the
+ *                finger LANDED, and never a click. Which button is the policy
+ *                -- middle on the 3D world (the camera), left everywhere else
+ *                (windows, scrollbars, inventory slots) -- @see
+ *                ToriRS_Touch::drag_button. The one thing it must not do is
+ *                walk the player somewhere, which is why the click is withheld
+ *                rather than merely delayed.
  *   pinch        two fingers, distance changing: the wheel, which is the zoom.
  *   two-finger   two fingers moving together: arrow keys, which is the camera.
  *                Held down while the pan continues and released with the
@@ -105,8 +109,18 @@ struct ToriRS_Touch
     int view_y;
     int view_w;
     int view_h;
-    /** A one-finger camera drag is in progress; the middle button is held. */
-    int cam_drag;
+    /**
+     * The mouse button a one-finger drag is currently holding, or 0.
+     *
+     * TORIRSM_MIDDLE when the finger came down on the 3D world -- that is the
+     * camera gesture. TORIRSM_LEFT everywhere else, because off the world a
+     * drag is somebody moving a window, throwing a scrollbar or dragging an
+     * inventory slot, and every one of those is a press-move-release the
+     * client already implements for a mouse. Holding NOTHING, which is what
+     * this used to do, makes all three impossible by touch: the widget under
+     * the finger never sees a button go down, so there is nothing to drag.
+     */
+    uint8_t drag_button;
     /** Pinch/pan baselines, taken when the second finger lands. */
     int pinch_distance;
     int pan_x;

@@ -410,6 +410,21 @@ app_chat_region(
     return 1;
 }
 
+/* The unfocused input line's wording, from the chat component's `prompt=` key
+ * (a `@mobile` override is how a touch lane says "Tap here to chat...").
+ * NULL when no chat region exists or the profile stated nothing, which
+ * RS_Chat_BuildView reads as "use the reference wording". */
+static char const*
+app_chat_prompt(struct App const* app)
+{
+    int32_t idx;
+
+    idx = app_chat_node_index(app);
+    if( idx < 0 )
+        return NULL;
+    return UITree_Chat(&app->tree->components[idx])->prompt;
+}
+
 /* True when a canvas-space point lands inside the chat region's bounds. Used to
  * decide chat input focus on a left click.
  *
@@ -645,6 +660,7 @@ app_chat_build_view(struct App* app)
          * and suppresses the log the same way a dialogue does. */
         RS_UISlots_ChatRegionIface(&app->slots) != -1,
         app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open,
+        app_chat_prompt(app),
         &app->chat_view);
 }
 
@@ -5790,6 +5806,64 @@ app_title_sync_groups(struct App* app)
             UITree_SetScreenHiddenAt(
                 app->tree, idx, app->screen == APP_SCREEN_CONNECTING);
     }
+
+    /*
+     * Lift the stone box clear of the soft keyboard.
+     *
+     * The box is authored against the canvas's middle, and on a phone the
+     * keyboard covers the canvas's lower half -- which is where the password
+     * row and the Login button land. The lift is exactly the overlap (plus a
+     * margin), so on a desktop, and on a phone with the keyboard away, the
+     * box sits where the profile put it; a profile that declares no
+     * `title_box` role keeps its own arrangement and is never moved.
+     *
+     * The AUTHORED place is the current position plus whatever lift this
+     * generation already applied -- the tree is rebuilt on every resize, and
+     * a rebuild restores the profile's coordinates, which is what the
+     * generation check catches.
+     */
+    {
+        int32_t idx = UITree_RoleNodeByName(app->tree, &app->ui_roles, "title_box");
+        if( idx >= 0 )
+        {
+            struct UITreeComponent const* node = &app->tree->components[idx];
+            int base_x;
+            int base_y;
+            int box_h = 0;
+            int desired = 0;
+
+            if( app->title_box_lift_gen != app->tree->generation )
+            {
+                app->title_box_lift = 0;
+                app->title_box_lift_gen = app->tree->generation;
+            }
+            base_x = node->position.x;
+            base_y = node->position.y + app->title_box_lift;
+            UITree_LayoutGetBounds(&node->position, NULL, NULL, NULL, &box_h);
+
+            if( app->keyboard_inset > 0 )
+            {
+                /* The box's parent is the title root at the canvas origin, so
+                 * its relative coordinates are canvas coordinates -- the same
+                 * assumption its authored x/y already make. */
+                int const margin = 8;
+                int const visible_bottom = UITREE_LAYOUT_ROOT_H - app->keyboard_inset;
+
+                desired = base_y + box_h + margin - visible_bottom;
+                if( desired < 0 )
+                    desired = 0;
+                if( desired > base_y )
+                    desired = base_y; /* never past the canvas top */
+            }
+
+            if( desired != app->title_box_lift )
+            {
+                UITree_SetPositionAt(app->tree, idx, base_x, base_y - desired);
+                app->title_box_lift = desired;
+                app->title_box_lift_gen = app->tree->generation;
+            }
+        }
+    }
 }
 
 /*
@@ -6194,6 +6268,18 @@ app_host_request(
     case UITREE_HOST_TITLE_ACTION:
     {
         enum RS_TitleAction action = (enum RS_TitleAction)req->u.title_action.action;
+        /*
+         * A tap on a field re-asks for the soft keyboard even when the focus
+         * did not move -- and it usually has not, because the form always has
+         * a focused field. The keyboard request is edge-triggered
+         * (App_TakeTextInputChange pushes only changes), so after the player
+         * hides the keyboard, "wanted" never changes and no tap could bring
+         * it back. Forgetting what was last pushed makes the next take push
+         * the current answer again; on a desktop that re-push is a no-op.
+         */
+        if( action == RS_TITLE_ACTION_FOCUS_USERNAME ||
+            action == RS_TITLE_ACTION_FOCUS_PASSWORD )
+            app->text_input_effective = -1;
         if( RS_Title_HandleAction(&app->title, action) )
         {
             /* The form is greeted with a prompt rather than an empty box, and
@@ -29558,6 +29644,26 @@ App_DrainCommands(
                     app, app_ui_scaled_axis(app, cmd->width), app_ui_scaled_axis(app, cmd->height));
             }
             break;
+        case TORIRS_CMD_KEYBOARD_INSET:
+            if( header.length >= sizeof(struct ToriRS_CmdKeyboardInset) )
+            {
+                struct ToriRS_CmdKeyboardInset const* cmd =
+                    (struct ToriRS_CmdKeyboardInset const*)payload;
+                if( app->keyboard_inset != (int)cmd->bottom )
+                {
+                    app->keyboard_inset = (int)cmd->bottom;
+                    /* A layout event, exactly like a resize: the mobile frame
+                     * reads the new safe_os box in EV_LAYOUT and slides its
+                     * chatbox above (or back under) the keyboard. */
+                    app->plugin_layout_dirty = 1;
+                    /* And the title screen's, whose stone box lifts its login
+                     * inputs the same way. Harmless in game: a tree with no
+                     * title roles has nothing for the sync to move. */
+                    app_title_state_changed(app);
+                    app->need_redraw = 1;
+                }
+            }
+            break;
         /*
          * Host commands. Each is the same call the equivalent TORIRS_SIM_*
          * harness makes, reached from the drain instead of from a pre-loop
@@ -30286,6 +30392,37 @@ App_RunOnce(
 
     plugin_pointer_owned = app->plugin_pointer_capture.active;
     plugin_region_click = app_plugin_pointer_capture_release(app, input);
+
+    /*
+     * The touch marker, shown for EVERY press.
+     *
+     * Here, and not where the cross is set, because that is the point: the
+     * cross is shown by the paths that DID something, and a tap that hits a
+     * widget, misses every target, or lands during a modal shows nothing at
+     * all. On a touchscreen there is no pointer to prove the device saw it, so
+     * the marker goes up before anything has decided what the press meant.
+     *
+     * The colour is the walk one at this stage -- "a touch happened". If the
+     * press turns out to be an interaction, RS_Minimenu's cross path refines it
+     * through UIInk_SetColour a moment later, in the same frame, without
+     * restarting the animation.
+     *
+     * BEFORE the interact walk, and the order is load-bearing: a touch tap
+     * delivers its press and release in ONE command batch (touch_click), so
+     * the frame that shows the marker is also the frame whose click dispatch
+     * refines it. SetColour on an ink not yet shown is a no-op, and a Show
+     * after the dispatch repaints the refinement yellow -- either wrong order
+     * is a tap that never turns red, however red the cross says it was.
+     *
+     * Costs nothing on a lane with no inkwell component: the state ticks and
+     * the emit never asks for it.
+     */
+    if( input->curr.mouse_button_down[TORIRSM_LEFT] ||
+        input->curr.mouse_button_down[TORIRSM_RIGHT] )
+    {
+        UIInk_Show(
+            &app->ink, TORIRS_INKWELL_YELLOW, input->curr.mouse_x, input->curr.mouse_y);
+    }
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INTERACT)
     {
@@ -31241,30 +31378,6 @@ App_RunOnce(
         app_world_hotkeys(app, input, &out);
         app_inv_drag_tick(app, input, plugin_pointer_consumed);
         app_worldmap_drag_tick(app, input, plugin_pointer_consumed);
-    }
-
-    /*
-     * The touch marker, shown for EVERY press.
-     *
-     * Here, and not where the cross is set, because that is the point: the
-     * cross is shown by the paths that DID something, and a tap that hits a
-     * widget, misses every target, or lands during a modal shows nothing at
-     * all. On a touchscreen there is no pointer to prove the device saw it, so
-     * the marker goes up before anything has decided what the press meant.
-     *
-     * The colour is the walk one at this stage -- "a touch happened". If the
-     * press turns out to be an interaction, RS_Minimenu's cross path refines it
-     * through UIInk_SetColour a moment later, in the same frame, without
-     * restarting the animation.
-     *
-     * Costs nothing on a lane with no inkwell component: the state ticks and
-     * the emit never asks for it.
-     */
-    if( input->curr.mouse_button_down[TORIRSM_LEFT] ||
-        input->curr.mouse_button_down[TORIRSM_RIGHT] )
-    {
-        UIInk_Show(
-            &app->ink, TORIRS_INKWELL_YELLOW, input->curr.mouse_x, input->curr.mouse_y);
     }
 
     /* Idle timer (reference IDLE_TIMER after ~90s of no input). */

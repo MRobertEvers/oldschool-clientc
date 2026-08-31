@@ -216,6 +216,15 @@ CmdBus_PushWindowResize(
 }
 
 int
+CmdBus_PushKeyboardInset(
+    struct ToriRS_CmdBus* bus,
+    int32_t bottom)
+{
+    struct ToriRS_CmdKeyboardInset cmd = { bottom };
+    return CmdBus_Push(bus, TORIRS_CMD_KEYBOARD_INSET, &cmd, sizeof(cmd));
+}
+
+int
 CmdBus_PushNetStatus(
     struct ToriRS_CmdBus* bus,
     int32_t status)

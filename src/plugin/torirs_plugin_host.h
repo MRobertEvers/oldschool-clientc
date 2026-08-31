@@ -106,6 +106,14 @@ struct ToriRS_PluginEngine
     /** struct App*. */
     void* user;
 
+    /** enum AppScreen, as a TORIRS_PLUGIN_SCREEN_* value.
+     *  @see ToriRS_PluginApi::screen. */
+    int (*screen)(void* user);
+
+    /** Canvas minus what the OS is covering (the soft keyboard).
+     *  @see ToriRS_PluginApi::safe_os. */
+    int (*safe_os)(void* user, int* out_x, int* out_y, int* out_w, int* out_h);
+
     int (*world_cycle)(void* user);
     uint64_t (*frame_ms)(void* user);
     uint64_t (*frame_work_us)(void* user);
@@ -134,7 +142,7 @@ struct ToriRS_PluginEngine
      * One PLACEABLE region's box, plus CANVAS. @see
      * ToriRS_PluginApi::slot_rect.
      *
-     * SAFE is deliberately not here: it is derived from these plus the host's
+     * SAFE_GAMECHROME is deliberately not here: it is derived from these plus the host's
      * own reservation table, and the host is the only thing that holds both.
      */
     int (*slot_rect)(
@@ -158,8 +166,8 @@ struct ToriRS_PluginEngine
      * answer has to be taken and used in one step: a role bound to a
      * script-built component is only true until that subtree is next rebuilt.
      *
-     * `safe` is the exception the engine cannot answer, for the same reason it
-     * cannot answer SLOT_SAFE: it is derived from the reservation table, which
+     * `safe_gamechrome` is the exception the engine cannot answer, for the same reason it
+     * cannot answer SLOT_SAFE_GAMECHROME: it is derived from the reservation table, which
      * is the host's. The host intercepts that one name before it gets here. */
 
     /** Where a role's element is. @see ToriRS_PluginApi::role_rect. */
@@ -357,6 +365,8 @@ struct ToriRS_PluginEngine
     int (*if_click)(void* user, int component_id, int op);
     /** @see ToriRS_PluginApi::text_input. */
     void (*text_input)(void* user, int on);
+    /** @see ToriRS_PluginApi::chat_focus. */
+    void (*chat_focus)(void* user, int on);
     /** Blit a published image. @see ToriRS_PluginApi::draw_image. */
     int (*draw_image)(
         void* user,

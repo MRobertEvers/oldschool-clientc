@@ -391,6 +391,12 @@ fake_asset_read(void* u, char const* plugin, char const* name)
 
 /* -- everything the plugin does not use, answered flatly -- */
 
+/* In game: these harnesses exercise behaviour that is gated on it.
+ * @see ToriRS_PluginApi::screen. */
+/* Mutable so the enabled-at-the-title scenario can move it; everything else
+ * leaves it be. */
+static int g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+static int fake_plugin_screen(void* u) { (void)u; return g_screen_now; }
 static int fake_world_cycle(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_ms(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_work_us(void* u) { (void)u; return 0; }
@@ -575,6 +581,7 @@ main(void)
     struct ToriRS_PluginEngine e;
 
     memset(&e, 0, sizeof(e));
+    e.screen = fake_plugin_screen;
     e.world_cycle = fake_world_cycle;
     e.frame_ms = fake_frame_ms;
     e.frame_work_us = fake_frame_work_us;
@@ -1006,6 +1013,34 @@ main(void)
         CHECK(g_frame.end_calls == before, "a released layout declares nothing");
         CHECK(g_frame.blits == 0, "and draws nothing");
     }
+
+    /* ---- 6b. enabled at the title screen -------------------------------- */
+
+    /*
+     * The restart-shaped bug, this frame's copy of it. The host refuses a
+     * layout claim while the title is up -- there is no frame to claim before
+     * there is a frame -- so a plugin switched on at the title owned nothing,
+     * and with no claim there is no EV_LAYOUT to ask it to declare after
+     * login either. EV_SCREEN_CHANGE is the missing rung: entering the game
+     * re-claims, and the next layout pass declares.
+     */
+    g_screen_now = TORIRS_PLUGIN_SCREEN_TITLE;
+    PluginHost_SetEnabled(g_host, g_plugin, true);
+    /* The title's frames tick too -- and one has to, for the frame boundary
+     * to see the title at all before login moves the screen again. */
+    PluginHost_FrameStart(g_host, 950);
+    CHECK(
+        g_frame.owned == 0,
+        "enabling at the title claims nothing -- the host refuses the frame");
+    g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+    PluginHost_FrameStart(g_host, 1000);
+    CHECK(g_frame.owned == 1, "logging in claims the frame without a restart");
+    {
+        int const before = g_frame.end_calls;
+        declare(765, 503);
+        CHECK(g_frame.end_calls == before + 1, "and the next layout pass declares");
+    }
+    PluginHost_SetEnabled(g_host, g_plugin, false);
 
     /* ---- 7. the lane that brings its own ------------------------------- */
 

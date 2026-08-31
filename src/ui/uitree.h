@@ -43,6 +43,7 @@
 #define UITREE_SUBMENU_OP_SLOTS 10
 #define UITREE_SUBMENU_ENTRY_SLOTS 32
 #define UITREE_CHAT_OP_TEMPLATE_LEN 64
+#define UITREE_CHAT_PROMPT_LEN 64
 #define UITREE_WALK_STACK_MAX 64
 #define UITREE_INV_SOURCE_INVALID (-1)
 
@@ -560,6 +561,9 @@ struct UITreeChatConfig
 {
     struct UITreeChatMinimenuConfig minimenu;
     int font_id; /* INI font= (message + input line font, e.g. p12) */
+    /** INI prompt= — the unfocused input line's invitation. Empty (the
+     * "none" state included) means the renderer's own default wording. */
+    char prompt[UITREE_CHAT_PROMPT_LEN];
 };
 
 struct UITreeDebugOverlayConfig

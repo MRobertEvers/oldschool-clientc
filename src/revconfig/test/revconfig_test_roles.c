@@ -31,9 +31,9 @@ test_role_matcher_forms(void)
     struct RevConfigRoleMatcher m;
 
     /* slot(), with and without a member. */
-    TEST_ASSERT(revconfig_parse_role_matcher("slot(safe)", &m), "slot() parses");
+    TEST_ASSERT(revconfig_parse_role_matcher("slot(safe_gamechrome)", &m), "slot() parses");
     TEST_ASSERT(m.kind == REVCONFIG_ROLE_MATCH_SLOT, "slot() kind");
-    TEST_ASSERT(strcmp(m.slot, "safe") == 0, "slot() region");
+    TEST_ASSERT(strcmp(m.slot, "safe_gamechrome") == 0, "slot() region");
     TEST_ASSERT(m.member[0] == '\0', "slot() with no member states none");
 
     TEST_ASSERT(

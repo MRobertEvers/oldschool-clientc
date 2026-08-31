@@ -250,8 +250,14 @@ RS_Chat_NodeFriendState(
  * interface occupies the region. ui_host is used only for MEASURE_TEXT.
  *
  * `focused` is the chat input's focus state: unfocused, the input line is the
- * "Press Enter to chat..." prompt rather than `name: typed*`, since the caret
- * would otherwise sit under a line that is not collecting keys.
+ * prompt rather than `name: typed*`, since the caret would otherwise sit
+ * under a line that is not collecting keys.
+ *
+ * `prompt` is the unfocused line's wording, from the profile's chat component
+ * (revconfig `prompt=`). NULL or empty is a sentinel meaning "no override" --
+ * the reference "Press Enter to chat..." is used -- so a lane that says
+ * nothing reads exactly as it always did, and a touch lane's `@mobile`
+ * section can retell it for a finger.
  */
 void
 RS_Chat_BuildView(
@@ -261,6 +267,7 @@ RS_Chat_BuildView(
     int font_id,
     int dialog_mounted,
     int focused,
+    char const* prompt,
     struct UIChatView* out);
 
 /**

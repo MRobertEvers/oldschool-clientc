@@ -179,7 +179,7 @@ PlatformX_IO_New(void)
              * at a different server for one run; a manifest read afterwards
              * would silently undo that. */
             px->io_server_from_env = 1;
-            TORIRS_LOG("io: files not found locally will be asked of %s:%d\n",
+            TORIRS_REPORT("io: files not found locally will be asked of %s:%d\n",
                 px->io_server_host,
                 px->io_server_port);
         }
@@ -212,7 +212,7 @@ PlatformX_IO_InitIoServer(struct PlatformX_IO* px, const char* host, int port)
     if( port > 0 && port <= 65535 )
         px->io_server_port = port;
 
-    TORIRS_LOG("io: files not found locally will be asked of %s:%d\n",
+    TORIRS_REPORT("io: files not found locally will be asked of %s:%d\n",
         px->io_server_host,
         px->io_server_port);
 }

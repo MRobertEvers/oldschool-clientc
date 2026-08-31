@@ -382,6 +382,11 @@ fake_asset_read(void* u, char const* plugin, char const* name)
 
 /* -- everything the plugin does not use, answered flatly -- */
 
+/* In game: these harnesses exercise behaviour that is gated on it. Mutable so
+ * the enabled-at-the-title scenario can move it; everything else leaves it be.
+ * @see ToriRS_PluginApi::screen. */
+static int g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+static int fake_plugin_screen(void* u) { (void)u; return g_screen_now; }
 static int fake_world_cycle(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_ms(void* u) { (void)u; return 0; }
 static uint64_t fake_frame_work_us(void* u) { (void)u; return 0; }
@@ -569,6 +574,7 @@ main(void)
     struct ToriRS_PluginEngine e;
 
     memset(&e, 0, sizeof(e));
+    e.screen = fake_plugin_screen;
     e.world_cycle = fake_world_cycle;
     e.frame_ms = fake_frame_ms;
     e.frame_work_us = fake_frame_work_us;
@@ -1013,6 +1019,36 @@ main(void)
 
     PluginHost_SetEnabled(g_host, g_plugin, false);
     CHECK(g_frame.owned == 0, "switching the plugin off hands the lane's gameframe back");
+
+    /* ---- 9. enabled at the title screen ---------------------------------- */
+
+    /*
+     * The restart-shaped bug. The host refuses a layout claim while the title
+     * is up -- there is no frame to claim before there is a frame -- so a
+     * plugin switched on at the title owned nothing; and with no claim there
+     * is no EV_LAYOUT, so nothing asked it to declare after login either. The
+     * drawer only appeared if the plugin was toggled off and on while already
+     * in game. EV_SCREEN_CHANGE is the missing rung: entering the game
+     * re-claims, and the next layout pass declares.
+     */
+    g_screen_now = TORIRS_PLUGIN_SCREEN_TITLE;
+    PluginHost_SetEnabled(g_host, g_plugin, true);
+    /* The title's frames tick too: this is where the art finishes composing
+     * and the latched retry in mobile_on_frame makes its one claim -- refused,
+     * because the title is still up. Without it the harness never reproduces
+     * the stuck state: the first frame the plugin saw would already be in
+     * game, and the art retry would claim by accident. */
+    PluginHost_FrameStart(g_host, 950);
+    CHECK(
+        g_frame.owned == 0,
+        "enabling at the title claims nothing -- the host refuses the frame");
+    g_screen_now = TORIRS_PLUGIN_SCREEN_GAME;
+    PluginHost_FrameStart(g_host, 1000);
+    CHECK(g_frame.owned == 1, "logging in claims the frame without a restart");
+    declare(M_W, M_H);
+    CHECK(
+        g_frame.slot[TORIRS_PLUGIN_SLOT_VIEWPORT].placed,
+        "and the next layout pass declares it");
 
     PluginHost_Free(g_host);
 

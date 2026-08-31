@@ -178,6 +178,15 @@ fake_feature_set(
 
 /* Everything else the host asserts on, answered flatly. */
 
+/* In game: these harnesses exercise behaviour that is gated on it.
+ * @see ToriRS_PluginApi::screen. */
+static int
+fake_plugin_screen(void* u)
+{
+    (void)u;
+    return TORIRS_PLUGIN_SCREEN_GAME;
+}
+
 static int
 fake_world_cycle(void* u)
 {
@@ -1200,6 +1209,7 @@ fake_engine(void)
     struct ToriRS_PluginEngine e;
 
     memset(&e, 0, sizeof(e));
+    e.screen = fake_plugin_screen;
     e.world_cycle = fake_world_cycle;
     e.frame_ms = fake_frame_ms;
     e.frame_work_us = fake_frame_work_us;

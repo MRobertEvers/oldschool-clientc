@@ -169,6 +169,7 @@ struct UIBuilderTreeOp
     int chat_op_accept_trade_action;
     char chat_op_accept_duel[REVCONFIG_CHAT_OP_TEMPLATE_LEN];
     int chat_op_accept_duel_action;
+    char chat_prompt[REVCONFIG_CHAT_PROMPT_LEN];
     int chat_button_filter;
     char chat_button_label[64];
     int chat_button_label_y;

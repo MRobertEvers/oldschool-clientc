@@ -75,6 +75,25 @@ void
 PlatformAndroid_SetDensity(int density);
 
 /**
+ * How many SURFACE rows the soft keyboard covers at the bottom; 0 = away.
+ *
+ * Reported by ClientActivity's inset listener on the UI thread. Latest-value
+ * state rather than a queued event -- an inset is a level, and coalescing is
+ * what is wanted: only the value at the drain matters, exactly like the
+ * surface size. The drain (PlatformSDL2_PollCommands) maps it through the
+ * letterbox into canvas rows and pushes TORIRS_CMD_KEYBOARD_INSET when the
+ * canvas answer changes, for the reason touch coordinates are mapped at the
+ * drain and not at the post: the letterbox is the frame thread's and moves
+ * under the UI thread.
+ */
+void
+PlatformAndroid_SetKeyboardInset(int bottom_px);
+
+/** The latest reported keyboard coverage, in surface rows. */
+int
+PlatformAndroid_KeyboardInset(void);
+
+/**
  * Ask the frame loop to stop, from onDestroy.
  *
  * A request, not a kill: the loop finishes the frame it is in, App_Shutdown

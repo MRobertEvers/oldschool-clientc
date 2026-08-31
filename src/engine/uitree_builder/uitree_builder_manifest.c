@@ -382,6 +382,7 @@ fill_tree_op_from_component(
     strncpy(
         op->chat_op_accept_duel, comp->chat_op_accept_duel, sizeof(op->chat_op_accept_duel) - 1);
     op->chat_op_accept_duel_action = comp->chat_op_accept_duel_action;
+    strncpy(op->chat_prompt, comp->chat_prompt, sizeof(op->chat_prompt) - 1);
     op->chat_button_filter = comp->chat_button_filter;
     strncpy(op->chat_button_label, comp->chat_button_label, sizeof(op->chat_button_label) - 1);
     op->chat_button_label_y = comp->chat_button_label_y;

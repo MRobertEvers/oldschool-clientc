@@ -91,6 +91,7 @@ that a second time would put two loop shapes in one file.)
                     ║  g_lock (pthread mutex)║     Present       → ANativeWindow_lock
                     ║   window + size        ║                     blit + unlockAndPost
                     ║   density, quit flag   ║
+                    ║   keyboard inset (px)  ║
                     ║   event ring (256)     ║
                     ╚═══════════════════════╝
    onDestroy

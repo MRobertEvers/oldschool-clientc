@@ -1212,6 +1212,16 @@ _Static_assert(TORIRS_PLUGIN_KEY_ESCAPE == TORIRSK_ESCAPE, "plugin ESCAPE keycod
 /* ---------------------------------------------------------------- queries */
 
 static int
+app_plugin_screen(void* user)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    /* Handed straight across: the plugin header states enum AppScreen's own
+     * values, and torirs_plugin_host.c static_asserts that it still does. */
+    return (int)app->screen;
+}
+
+static int
 app_plugin_world_cycle(void* user)
 {
     struct App* app = (struct App*)user;
@@ -3235,6 +3245,62 @@ app_plugin_text_input(void* user, int on)
     app->text_input_dirty = 1;
 }
 
+static void
+app_plugin_chat_focus(void* user, int on)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    /* A lane with no client-drawn chat line has no focus to hand out -- the
+     * cache-era chatbox routes its own keys -- so this is the documented
+     * no-op, the same gate app_chat_focus_tick opens with. */
+    if( app_chat_node_index(app) < 0 )
+        return;
+    if( on )
+    {
+        app->chat_input_active = 1;
+        /* Even when the line was already focused: the keyboard request is
+         * edge-triggered, and the player may have dismissed the keyboard with
+         * the focus still held -- a re-tap must bring it back. Forgetting the
+         * last pushed state makes the next take push the answer again. */
+        app->text_input_effective = -1;
+        app->need_redraw = 1;
+        return;
+    }
+    if( !app->chat_input_active )
+        return;
+    app->chat_input_active = 0;
+    /* The keyboard follows by itself: app_wants_text_input reads this flag,
+     * and the shell drains the change. */
+    app->need_redraw = 1;
+}
+
+static int
+app_plugin_safe_os(void* user, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    struct App* app = (struct App*)user;
+    int inset;
+
+    assert(app);
+    inset = app->keyboard_inset;
+    if( inset < 0 )
+        inset = 0;
+    /* A keyboard can never cover the WHOLE canvas -- and answering an empty
+     * box would turn every consumer's arithmetic negative for a state that
+     * only a bogus platform report can produce. */
+    if( inset > UITREE_LAYOUT_ROOT_H - 1 )
+        inset = UITREE_LAYOUT_ROOT_H - 1;
+    if( out_x )
+        *out_x = 0;
+    if( out_y )
+        *out_y = 0;
+    if( out_w )
+        *out_w = UITREE_LAYOUT_ROOT_W;
+    if( out_h )
+        *out_h = UITREE_LAYOUT_ROOT_H - inset;
+    return 1;
+}
+
 static int
 app_plugin_if_click(void* user, int component_id, int op)
 {
@@ -3501,7 +3567,7 @@ app_plugin_component_rect(
  * The regions are answered by the SLOT vocabulary and not by the role table,
  * even though a profile may also bind them there. Two reasons, and the second
  * is the load-bearing one: every lane has a viewport whether or not its
- * profile thought to say so, and `safe` and `canvas` are DERIVED -- there is
+ * profile thought to say so, and `safe_gamechrome` and `canvas` are DERIVED -- there is
  * no node for "the part of the canvas nothing is sitting on", so the only
  * honest answer for them comes from the rect path below.
  */
@@ -3511,8 +3577,8 @@ app_plugin_role_slot(char const* role)
     assert(role);
     if( strcmp(role, "canvas") == 0 )
         return TORIRS_PLUGIN_SLOT_CANVAS;
-    if( strcmp(role, "safe") == 0 )
-        return TORIRS_PLUGIN_SLOT_SAFE;
+    if( strcmp(role, "safe_gamechrome") == 0 )
+        return TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME;
     return UITree_RoleSlotFromName(role);
 }
 
@@ -3556,9 +3622,9 @@ app_plugin_role_rect(
      * desc, and that a dat2 modal has no declared region at all.
      */
     slot = app_plugin_role_slot(role);
-    if( slot >= 0 && slot != TORIRS_PLUGIN_SLOT_SAFE )
+    if( slot >= 0 && slot != TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME )
         return app_plugin_slot_rect(user, slot, out_x, out_y, out_w, out_h);
-    if( slot == TORIRS_PLUGIN_SLOT_SAFE )
+    if( slot == TORIRS_PLUGIN_SLOT_SAFE_GAMECHROME )
         /* Derived from the others plus the reservation table, both of which
          * live in the host; it reaches this verb only through slot_rect. */
         return 0;
@@ -4461,6 +4527,8 @@ app_plugin_engine(struct App* app)
 
     memset(&engine, 0, sizeof(engine));
     engine.user = app;
+    engine.screen = app_plugin_screen;
+    engine.safe_os = app_plugin_safe_os;
     engine.world_cycle = app_plugin_world_cycle;
     engine.frame_ms = app_plugin_frame_ms;
     engine.frame_work_us = app_plugin_frame_work_us;
@@ -4503,6 +4571,7 @@ app_plugin_engine(struct App* app)
     engine.hit_region = app_plugin_hit_region;
     engine.if_click = app_plugin_if_click;
     engine.text_input = app_plugin_text_input;
+    engine.chat_focus = app_plugin_chat_focus;
     engine.mouse_pos = app_plugin_mouse_pos;
     engine.minimap_rect = app_plugin_minimap_rect;
     engine.slot_rect = app_plugin_slot_rect;

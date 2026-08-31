@@ -990,6 +990,7 @@ push_builtin_op(
             op->chat_op_accept_duel,
             sizeof(spec.u.chat.minimenu.op_accept_duel) - 1);
         spec.u.chat.minimenu.op_accept_duel_action = op->chat_op_accept_duel_action;
+        strncpy(spec.u.chat.prompt, op->chat_prompt, sizeof(spec.u.chat.prompt) - 1);
         break;
     case UIELEM_BUILTIN_CHAT_BUTTON:
     {

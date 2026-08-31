@@ -134,15 +134,15 @@ touch_started_in_view(struct ToriRS_Touch const* touch, struct ToriRS_TouchFinge
            finger->start_y < touch->view_y + touch->view_h;
 }
 
-/** Let go of a camera drag, if one is running. */
+/** Let go of whichever button a one-finger drag is holding, if any. */
 static void
-touch_release_cam(struct ToriRS_Touch* touch, struct ToriRS_CmdBus* bus, int x, int y)
+touch_release_drag(struct ToriRS_Touch* touch, struct ToriRS_CmdBus* bus, int x, int y)
 {
-    if( !touch->cam_drag )
+    if( !touch->drag_button )
         return;
     CmdBus_PushMouseButton(
-        bus, TORIRS_CMD_INPUT_MOUSE_UP, TORIRSM_MIDDLE, (int16_t)x, (int16_t)y);
-    touch->cam_drag = 0;
+        bus, TORIRS_CMD_INPUT_MOUSE_UP, touch->drag_button, (int16_t)x, (int16_t)y);
+    touch->drag_button = 0;
 }
 
 void
@@ -300,7 +300,7 @@ ToriRS_TouchEvent(
         {
             /* A second finger turns this into a pinch/pan, so the one-finger
              * camera drag ends here rather than staying held through it. */
-            touch_release_cam(touch, bus, canvas_x, canvas_y);
+            touch_release_drag(touch, bus, canvas_x, canvas_y);
             touch_two_finger(touch, bus);
             return;
         }
@@ -308,31 +308,45 @@ ToriRS_TouchEvent(
             finger->dragging = 1;
 
         /*
-         * A drag that began on the 3D world turns the camera.
+         * A drag holds a button down, and WHICH button is the whole policy.
          *
-         * Synthesised as a MIDDLE-button drag so it lands in
-         * app_world_camera_mouse -- the same path the desktop uses, with the
-         * revision's `[camera] controls=` gate, the follow-cam split and the
+         * On the 3D world it is the MIDDLE one, so the drag lands in
+         * app_world_camera_mouse -- the same path the desktop turns the camera
+         * with, and with the follow-cam split, the pitch clamps and the
          * screen-space sign convention already applied. Reimplementing the
          * rotation here would be a second copy of all three.
          *
-         * The button goes down only once the finger has passed the slop, so a
-         * tap on the world is still a tap: the walk-here click is the common
-         * gesture and must not be swallowed by a camera drag that never moved.
+         * Anywhere else it is the LEFT one. Off the world a drag is somebody
+         * moving the plugin window by its title bar, throwing a scrollbar, or
+         * dragging an inventory slot -- and all three are a press, some moves
+         * and a release, which the client already implements for a mouse and
+         * which no widget can begin without a button going down. This used to
+         * send the moves alone: the pointer tracked the finger perfectly and
+         * nothing could be dragged anywhere, because from the widget's side no
+         * press had ever happened.
+         *
+         * Either way the button goes down only once the finger has passed the
+         * slop, so a TAP is still a tap -- the walk-here click and the ordinary
+         * widget press are the common gestures and must not be swallowed by a
+         * drag that never moved.
          */
-        if( finger->dragging && touch_started_in_view(touch, finger) )
+        if( finger->dragging )
         {
-            if( !touch->cam_drag )
+            if( !touch->drag_button )
             {
-                touch->cam_drag = 1;
+                touch->drag_button = touch_started_in_view(touch, finger)
+                                         ? (uint8_t)TORIRSM_MIDDLE
+                                         : (uint8_t)TORIRSM_LEFT;
                 /* From where the finger STARTED, so the first delta is the
-                 * distance actually travelled rather than a jump. */
+                 * distance actually travelled rather than a jump -- and so a
+                 * window is grabbed by the point the finger landed on rather
+                 * than snapping to wherever the slop was crossed. */
                 CmdBus_PushMouseMove(
                     bus, (int16_t)finger->start_x, (int16_t)finger->start_y);
                 CmdBus_PushMouseButton(
                     bus,
                     TORIRS_CMD_INPUT_MOUSE_DOWN,
-                    TORIRSM_MIDDLE,
+                    touch->drag_button,
                     (int16_t)finger->start_x,
                     (int16_t)finger->start_y);
             }
@@ -340,14 +354,15 @@ ToriRS_TouchEvent(
             return;
         }
 
-        /* The pointer follows the finger whether or not this became a drag:
-         * what a drag withholds is the CLICK, not the position. */
+        /* Not a drag yet -- inside the slop, still a candidate for a tap or a
+         * long press. The pointer follows the finger so the client knows what
+         * is under it, and no button is held. */
         CmdBus_PushMouseMove(bus, (int16_t)canvas_x, (int16_t)canvas_y);
         return;
     }
 
     /* ENDED */
-    touch_release_cam(touch, bus, canvas_x, canvas_y);
+    touch_release_drag(touch, bus, canvas_x, canvas_y);
     if( !touch->multi && !finger->dragging && !finger->held )
         touch_click(bus, TORIRSM_LEFT, canvas_x, canvas_y);
 

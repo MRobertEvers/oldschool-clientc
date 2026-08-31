@@ -6,6 +6,7 @@
 #define REVCONFIG_MENU_OPTION_SLOTS 5
 #define REVCONFIG_MENU_OPTION_LEN 32
 #define REVCONFIG_CHAT_OP_TEMPLATE_LEN 64
+#define REVCONFIG_CHAT_PROMPT_LEN 64
 /** Effects one [component:…] may advertise with repeated hotkey= lines. */
 #define REVCONFIG_COMPONENT_HOTKEY_MAX 8
 
@@ -240,6 +241,7 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_TRADE_ACTION,
     RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL,
     RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION,
+    RCFIELD_UICOMPONENT_CHAT_PROMPT,
     RCFIELD_UICOMPONENT_CHAT_BUTTON_FILTER,
     RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL,
     RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL_Y,
@@ -1050,6 +1052,13 @@ struct RevConfigUIComponentItem
     int chat_op_accept_trade_action;
     char chat_op_accept_duel[REVCONFIG_CHAT_OP_TEMPLATE_LEN];
     int chat_op_accept_duel_action;
+
+    /* INI: prompt= — the unfocused input line's invitation on type=chat.
+     * The place the wording lives, because the right words are a property of
+     * the LANE: "Press Enter to chat..." on a desktop profile, "Tap here to
+     * chat..." under a `@mobile` override. Empty means the renderer's own
+     * default. */
+    char chat_prompt[REVCONFIG_CHAT_PROMPT_LEN];
 
     /* INI: type=chat_button — privacy bar below chatback (filter, label, mode0..3). */
     int chat_button_filter;

@@ -2839,7 +2839,7 @@ bench-uitree: $(OBJ_DIR)
 test-uitree-builder: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/uitree_builder -o $(OBJ_DIR)/uitree_builder_test \
 		engine/uitree_builder/uitree_builder_manifest.c \
-		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC) \
+		revconfig/revconfig.c revconfig/revconfig_load.c ui/torirs_chrome_inkwell.c $(INI_SRC) \
 		engine/uitree_builder/test/uitree_builder_test_manifest.c
 	./$(OBJ_DIR)/uitree_builder_test
 
@@ -3366,7 +3366,7 @@ test-uitree-builder-dat1: $(OBJ_DIR) $(OBJS)
 test-revconfig: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/revconfig -I$(SRC_DIR)/revconfig/test -o $(OBJ_DIR)/revconfig_test \
 		revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
-		revconfig/revconfig_profile.c $(INI_SRC) \
+		revconfig/revconfig_profile.c ui/torirs_chrome_inkwell.c $(INI_SRC) \
 		revconfig/test/revconfig_test_main.c revconfig/test/revconfig_test_buffer.c \
 		revconfig/test/revconfig_test_items.c revconfig/test/revconfig_test_load.c \
 		revconfig/test/revconfig_test_parse.c revconfig/test/revconfig_test_refs.c \

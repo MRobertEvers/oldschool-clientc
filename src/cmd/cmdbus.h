@@ -57,6 +57,15 @@ enum ToriRS_CmdType
      * mid-way must resize at the same frame. */
     TORIRS_CMD_WINDOW_RESIZE = 48, /* struct ToriRS_CmdWindowResize */
 
+    /* -> App. The OS soft keyboard covers the bottom of the canvas, or stopped
+     * covering it. `bottom` is CANVAS rows (the platform owns the surface->
+     * canvas letterbox, so it converts before pushing — the same rule its
+     * touch mapping follows), 0 when the keyboard is away. A layout event for
+     * the reason WINDOW_RESIZE is: the mobile gameframe slides its chatbox
+     * above the keyboard, and a replayed session must slide at the same
+     * frame. Desktop backends never push it. */
+    TORIRS_CMD_KEYBOARD_INSET = 49, /* struct ToriRS_CmdKeyboardInset */
+
     /* -> App, from a HOST rather than from a device.
      *
      * The client is embedded — in a browser tab, under an editor, under a test
@@ -131,6 +140,12 @@ struct ToriRS_CmdWindowResize
 {
     int32_t width;
     int32_t height;
+};
+
+struct ToriRS_CmdKeyboardInset
+{
+    /** Canvas rows covered at the bottom; 0 = keyboard away. */
+    int32_t bottom;
 };
 
 struct ToriRS_CmdUiOpenRoot
@@ -291,6 +306,11 @@ CmdBus_PushWindowResize(
     struct ToriRS_CmdBus* bus,
     int32_t width,
     int32_t height);
+
+int
+CmdBus_PushKeyboardInset(
+    struct ToriRS_CmdBus* bus,
+    int32_t bottom);
 
 int
 CmdBus_PushNetStatus(

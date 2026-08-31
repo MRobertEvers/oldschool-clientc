@@ -748,8 +748,9 @@ static struct
      *  it: an add that failed because the anchor was not there yet is
      *  retried, one that failed for good is not. */
     int settled;
-    /** The verbs last declared, so a change (run on -> off) re-declares. */
-    char ops_sig[128];
+    /** Everything the last DECLARATION was made of -- the verbs and the art --
+     *  so an answer that changes after it re-declares. @see orbs_restate. */
+    char decl_sig[160];
     /** The role this orb was ADDED under, empty for one that was claimed
      *  rather than introduced. A claimed part is the lane's node and its
      *  parent is not ours to move; an added one is ours. @see orbs_reanchor. */
@@ -1046,7 +1047,7 @@ orbs_reanchor(struct ToriRS_PluginCtx* ctx, struct OrbAnchor const* anchor)
         g_orb[i].held = 0;
         g_orb[i].settled = 0;
         g_orb[i].anchor[0] = '\0';
-        g_orb[i].ops_sig[0] = '\0';
+        g_orb[i].decl_sig[0] = '\0';
     }
 }
 
@@ -1107,6 +1108,68 @@ orbs_ops_for(
 }
 
 /**
+ * One orb's declaration as a string: the verbs it offers and the art it wears.
+ *
+ * Both halves, because both are declared in the same pass and either one can
+ * arrive late. @see orbs_restate.
+ */
+static void
+orbs_decl_sig(char const* ops_sig, char* out, size_t cap)
+{
+    assert(ops_sig);
+    assert(out);
+    snprintf(out, cap, "%s#%d,%d", ops_sig, g_image[ORB_IMG_FRAME], g_image[ORB_IMG_FRAME_OVER]);
+}
+
+/*
+ * Re-ask for EV_CHROME on any orb whose declaration has stopped being true.
+ *
+ * The chrome tier raises EV_CHROME only for a claim that is MARKED, and the
+ * only thing that marks one is a claim or a layout change. An orb is claimed
+ * once, on the frame the map first has a box, so without this the plate and
+ * the verbs it happened to have on that single frame are the ones it wears
+ * for the rest of the session -- and neither is settled by then:
+ *
+ *   * the art is read through the asset queue, so `image_load` answers -1
+ *     until the PNG lands, and an orb that declared no plate never gets one;
+ *   * a verb is a config key or a profile `[iface:...]` binding, and a lane
+ *     that resolves one later declares no op and so installs a region with
+ *     nothing in the menu -- a click that lands on the orb and stops there.
+ *
+ * That is the report this exists for: orbs that draw, and do nothing, until
+ * the player opens a panel and dirties the layout by hand -- which marks every
+ * claim and finally asks for the declaration that was owed.
+ *
+ * The RUN orb had a private version of this (its verb follows the run state);
+ * it was the only orb that could ever recover, and it recovered for the wrong
+ * reason. One rule for all four instead.
+ *
+ * Restated with the scopes this plugin actually HOLDS, never SCOPE_ALL: a lane
+ * orb is a node this tier may not move, and asking again for the position it
+ * was already refused would log that refusal every frame.
+ */
+static void
+orbs_restate(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+
+    for( int i = 0; i < ORB_COUNT; i++ )
+    {
+        char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
+        char ops_sig[128];
+        char sig[160];
+
+        if( !g_orb[i].held )
+            continue;
+        (void)orbs_ops_for(ctx, i, ops, ops_sig, sizeof(ops_sig));
+        orbs_decl_sig(ops_sig, sig, sizeof(sig));
+        if( strcmp(sig, g_orb[i].decl_sig) == 0 )
+            continue;
+        (void)g_api->chrome_claim(ctx, ORB_PART[i].part, g_orb[i].held, 1);
+    }
+}
+
+/**
  * EV_CHROME: state the plate and the click for every orb this plugin holds.
  * The box is only read for a part this plugin holds the POSITION of (an added
  * one); on a cache orb the box is the cache's.
@@ -1123,6 +1186,7 @@ orbs_chrome(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     {
         struct ToriRS_PluginChromePart part;
         char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
+        char ops_sig[128];
         int n;
 
         if( !g_orb[i].held )
@@ -1148,8 +1212,11 @@ orbs_chrome(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 
         /* Claimed even with no verbs: the region's other job is to stop the
          * click falling through to the map tile under the orb. */
-        n = orbs_ops_for(ctx, i, ops, g_orb[i].ops_sig, sizeof(g_orb[i].ops_sig));
+        n = orbs_ops_for(ctx, i, ops, ops_sig, sizeof(ops_sig));
         g_api->chrome_ops(ctx, ORB_PART[i].part, ops, n, ORB_PART[i].tag);
+        /* What this declaration was made of, so the next pass can tell whether
+         * it still holds. @see orbs_restate. */
+        orbs_decl_sig(ops_sig, g_orb[i].decl_sig, sizeof(g_orb[i].decl_sig));
     }
     return TORIRS_PLUGIN_PASS;
 }
@@ -1227,6 +1294,11 @@ orbs_draw(
     orbs_reanchor(ctx, &anchor);
     if( orbs_unsettled() )
         orbs_claim_all(ctx);
+    /* And the same rule for the DECLARATION as for the claim: an answer that
+     * was not knowable on the frame the orb was claimed is asked for again
+     * here, because the draw is the only event that arrives every frame.
+     * @see orbs_restate. */
+    orbs_restate(ctx);
 
     /*
      * And drawn AS PART OF the minimap, not merely beside it.
@@ -1340,14 +1412,12 @@ orbs_draw(
     if( g_api->cfg_bool(ctx, "show_run") && orbs_part_box(ctx, ORB_RUN, &x, &y) )
     {
         char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
-        char sig[128];
-        int const n = orbs_ops_for(ctx, ORB_RUN, ops, sig, sizeof(sig));
+        /* Scratch: what the region carries is declared in EV_CHROME and kept
+         * true by orbs_restate, which watches all four orbs. This asks only
+         * for the verbs the drawing itself hands to orbs_draw_one. */
+        char ops_sig[128];
+        int const n = orbs_ops_for(ctx, ORB_RUN, ops, ops_sig, sizeof(ops_sig));
         int const energy = g_api->run_energy(ctx);
-        /* The verb follows the state, and the host's region carries the verb
-         * -- so a change here restates the claim, which re-asks for the
-         * declaration on the next chrome tick. */
-        if( strcmp(sig, g_orb[ORB_RUN].ops_sig) != 0 )
-            g_api->chrome_claim(ctx, ORB_PART[ORB_RUN].part, TORIRS_PLUGIN_CHROME_SCOPE_HITBOX, 1);
         int const run_varp = orbs_varp(ctx, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
         /* Run ON is the gold disc and the running boot; walking is the grey
          * disc and the standing one -- the same pair the reference swaps. A

@@ -228,7 +228,7 @@ dofile = nil
 
 --- The verbs every region carries. Which of them MEAN anything depends on the
 --- region, and the host says no rather than the surface hiding them: `reserve`
---- works on `safe` and nothing else, because a placeable region is whatever
+--- works on `safe_gamechrome` and nothing else, because a placeable region is whatever
 --- the frame says it is; `replace` is legal only for the plugin that owns the
 --- frame, and only inside its layout handler.
 ---@class torirs.LayoutRegion
@@ -261,7 +261,7 @@ dofile = nil
 ---@field main_modal torirs.LayoutRegion Where a bank, a level-up or a dialogue opens.
 ---@field modal_viewport torirs.LayoutRegion The same region as `main_modal`, under the other name people know it by.
 ---@field canvas torirs.LayoutRegion The whole client window. Never fails, which makes it the bottom of every fallback chain.
----@field safe torirs.LayoutRegion The largest part of the canvas no chrome is sitting on -- the scene, minus the minimap, the chatbox, the sidebar, and every reservation. DERIVED, so it stays right when a plugin nobody anticipated docks a panel down one side. This is the region a readout wants.
+---@field safe_gamechrome torirs.LayoutRegion The largest part of the canvas no chrome is sitting on -- the scene, minus the minimap, the chatbox, the sidebar, and every reservation. DERIVED, so it stays right when a plugin nobody anticipated docks a panel down one side. This is the region a readout wants.
 ---@field top_level torirs.LayoutTopLevel
 ---@field revision fun(): integer Moves whenever anything about the layout does. Compare it against the value a cached picture was built at.
 
@@ -301,7 +301,7 @@ dofile = nil
 ---
 --- REGIONS. Every `api.layout` region name works here too and answers the
 --- identical rectangle: `"viewport"`, `"minimap"`, `"compass"`, `"chat"`,
---- `"sidebar"`, `"main_modal"`, `"chat_buttons"`, `"canvas"`, `"safe"`.
+--- `"sidebar"`, `"main_modal"`, `"chat_buttons"`, `"canvas"`, `"safe_gamechrome"`.
 ---
 --- SIDEBAR. `"tab_<name>"` is the STONE you click; `"panel_<name>"` is the
 --- interface mounted behind it. `<name>` is one of `combat`, `stats`,
@@ -353,6 +353,10 @@ dofile = nil
 ---@class torirs.EvWorld
 ---@field base_tile_x integer SW corner of the loaded scene, in world tiles.
 ---@field base_tile_z integer
+
+---@class torirs.EvScreen
+---@field screen "boot"|"title"|"connecting"|"game" Where the client is now.
+---@field previous "boot"|"title"|"connecting"|"game" Where it was until this moment.
 
 ---@class torirs.EvPacketIn
 ---@field name integer Server prot opcode.
@@ -493,3 +497,4 @@ dofile = nil
 ---@field on_chat_message? fun(api: torirs.Api, ev: torirs.EvChat): torirs.Verdict Every chat line, raw. Use on_game_event for the moments the client already recognises.
 ---@field on_game_event? fun(api: torirs.Api, ev: torirs.EvGameEvent): torirs.Verdict A level-up, quest completion, drop, boss kill or other notable moment.
 ---@field on_setting? fun(api: torirs.Api, ev: torirs.EvSetting): torirs.Verdict A row in the cache's All Settings panel was used. Only needed for the rows that have no var to read -- a BUTTON row is momentary, and this is the only trace of it.
+---@field on_screen_change? fun(api: torirs.Api, ev: torirs.EvScreen): torirs.Verdict The screen moved -- title to game on a login, game to title on a logout. For work that a screen gate declined and that nothing would otherwise retry, e.g. a claim the host refuses before the player is in game.

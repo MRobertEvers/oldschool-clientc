@@ -107,6 +107,9 @@ static ANativeWindow* g_window;
 static int g_window_w;
 static int g_window_h;
 static int g_density = 1;
+/** Surface rows the soft keyboard covers at the bottom; 0 = away.
+ *  @see PlatformAndroid_SetKeyboardInset. */
+static int g_keyboard_inset_px;
 static int g_quit;
 
 /* One queued input record. @see PlatformAndroid_PostTouch / _PostKey. */
@@ -242,6 +245,27 @@ PlatformAndroid_SetDensity(int density)
 }
 
 void
+PlatformAndroid_SetKeyboardInset(int bottom_px)
+{
+    if( bottom_px < 0 )
+        bottom_px = 0;
+    pthread_mutex_lock(&g_lock);
+    g_keyboard_inset_px = bottom_px;
+    pthread_mutex_unlock(&g_lock);
+}
+
+int
+PlatformAndroid_KeyboardInset(void)
+{
+    int px;
+
+    pthread_mutex_lock(&g_lock);
+    px = g_keyboard_inset_px;
+    pthread_mutex_unlock(&g_lock);
+    return px;
+}
+
+void
 PlatformAndroid_RequestQuit(void)
 {
     pthread_mutex_lock(&g_lock);
@@ -272,6 +296,9 @@ PlatformAndroid_ResetForStart(void)
      * must not land as a click now. */
     g_event_head = 0;
     g_event_tail = 0;
+    /* And a keyboard the previous run left up: the new run has not asked for
+     * one, and a stale inset would boot the frame with its chat mid-air. */
+    g_keyboard_inset_px = 0;
     pthread_mutex_unlock(&g_lock);
 }
 
@@ -443,6 +470,9 @@ struct PlatformSDL2
      *  rather than pushed every frame. */
     int last_seen_w;
     int last_seen_h;
+    /** The keyboard inset (CANVAS rows) the last poll pushed, so the command
+     *  goes out once per change rather than every frame. */
+    int last_keyboard_inset;
 
     int present_dmg_x;
     int present_dmg_y;
@@ -534,6 +564,32 @@ map_surface_to_canvas(struct PlatformSDL2* p, int win_x, int win_y, int* out_x, 
         y = p->height - 1;
     *out_x = x;
     *out_y = y;
+}
+
+/*
+ * The soft keyboard's coverage, mapped from surface rows into canvas rows
+ * through the same letterbox the touch mapping uses. The IME is a band across
+ * the surface's bottom, so only the vertical mapping matters; the part of the
+ * band lying on the letterbox bar (below the canvas) maps to zero.
+ */
+static int
+keyboard_canvas_inset(struct PlatformSDL2* p, int inset_px, int win_w, int win_h)
+{
+    struct android_rect box;
+    int visible_rows;
+
+    if( inset_px <= 0 || win_w <= 0 || win_h <= 0 || p->height <= 0 )
+        return 0;
+    letterbox_dst(p->width, p->height, win_w, win_h, &box);
+    if( box.h <= 0 )
+        return 0;
+    /* The topmost covered surface row, as a canvas row. */
+    visible_rows = (win_h - inset_px - box.y) * p->height / box.h;
+    if( visible_rows < 0 )
+        visible_rows = 0;
+    if( visible_rows > p->height )
+        visible_rows = p->height;
+    return p->height - visible_rows;
 }
 
 /* ---- the blit -----------------------------------------------------------
@@ -999,6 +1055,22 @@ PlatformSDL2_PollCommands(struct PlatformSDL2* p, struct ToriRS_CmdBus* bus)
         p->last_seen_h = win_h;
         if( p->canvas_follows_window )
             CmdBus_PushWindowResize(bus, win_w, win_h);
+    }
+
+    /*
+     * The keyboard's coverage, likewise coalesced -- recomputed rather than
+     * change-detected on the raw report, because the CANVAS answer also moves
+     * when the letterbox or the canvas size does (an interface-scaling change
+     * with the keyboard up), and those never touch g_keyboard_inset_px.
+     */
+    {
+        int const inset =
+            keyboard_canvas_inset(p, PlatformAndroid_KeyboardInset(), win_w, win_h);
+        if( inset != p->last_keyboard_inset )
+        {
+            p->last_keyboard_inset = inset;
+            CmdBus_PushKeyboardInset(bus, inset);
+        }
     }
 }
 

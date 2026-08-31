@@ -176,6 +176,12 @@ that appears while it is up. That button exists because Back also closes the
 keyboard on most devices — but Back is *also* the client's Escape, so pressing
 it would close the interface you were typing into.
 
+While the keyboard is up, the activity reports how much of the surface it
+covers (`nativeKeyboardInset`, from the API 30+ ime inset or the older
+visible-frame comparison), and the client slides its chat sheet and the login
+stone box above it. On a device where neither signal fires the report stays 0
+and the layout simply keeps its old bottom-pinned behaviour.
+
 **The gear** in the boot menu edits each profile's server host/port, cache/CRC
 host/port, cache directory, IO server host/port, and renderer. Useful because a
 server's DHCP lease moves and every profile pointing at it goes stale, with no
