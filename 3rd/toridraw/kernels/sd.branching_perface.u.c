@@ -25,6 +25,7 @@ static const struct ToriDraw_RasterKernelSDVTable g_stock_branching_perface_vtab
 };
 
 static struct ToriDraw_RasterKernelSD g_stock_branching_perface_kernel = {
+    .name = "branching_perface",
     .draw_model = ToriDraw_RasterWalkPerFace,
     .vtable = &g_stock_branching_perface_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,

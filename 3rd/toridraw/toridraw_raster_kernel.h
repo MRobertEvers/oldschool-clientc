@@ -49,6 +49,13 @@
  *   Measurement only, and deliberately still runtime
  *     TORIDRAW_FRAME_AB[_SWAP,_KERNELS,_BATCH], TORIRS_ABL_*,
  *     TORIDRAW_ABLATE*, TORIDRAW_BATCH_STATS, the census builds.
+ *
+ *   Changes nothing about which kernel runs
+ *     TORIDRAW_KERNEL_LOG=0       silences the four-line configuration report
+ *                                 ToriDraw_KernelTake prints. Listed here
+ *                                 because it is read at the same door and a
+ *                                 reader auditing that door should find it,
+ *                                 not because it selects anything.
  */
 
 enum ToriDraw_RasterKernelFlags
@@ -492,6 +499,13 @@ struct ToriDraw_FaceCullSortKernel
  */
 struct ToriDraw_RasterKernelSD
 {
+    /* What this kernel is called, in the vocabulary its FILE is named in:
+     * `sd.smooth_branching.u.c` is "smooth_branching". The stage is not part
+     * of it -- which slot of a table holds the kernel already says SD or HD --
+     * and neither is the walk, which ToriDraw_KernelLogConfiguration reads off
+     * draw_model rather than trusting a name to stay true when the slot
+     * changes. Required on every kernel the library hands out. */
+    const char* name;
     /* This IS stage 3, and it is required. A kernel that only supplies the
      * four leaf callbacks NAMES ToriDraw_RasterWalkPerFace here; that naming
      * is also what tells the library the kernel has no traversal of its own.
@@ -533,6 +547,10 @@ struct ToriDraw_RasterKernelSD
 
 struct ToriDraw_RasterKernelHD
 {
+    /* As the SD kernel's, and in the same vocabulary: `hd.zbuffered.u.c` is
+     * "zbuffered". The two families share the names their variants share
+     * because the slot, not the string, says which pipeline drew. */
+    const char* name;
     const struct ToriDraw_RasterKernelHDVTable* vtable;
     void* user_data;
     uint32_t flags;
@@ -742,6 +760,29 @@ ToriDraw_KernelGetStock(void);
  */
 const struct ToriDraw_Kernel*
 ToriDraw_KernelTake(struct ToriDraw_Scene* scene, const struct ToriDraw_Kernel* table);
+
+/**
+ * Print what a table actually resolved to -- four lines on stderr, one per
+ * stage:
+ *
+ *     toridraw: table      : software-painter
+ *     toridraw: projection : prepared
+ *     toridraw: face_sort  : flat
+ *     toridraw: raster SD  : branching (whole-model door)
+ *
+ * Every one of those is a runtime choice by the time a renderer holds the
+ * table -- the scanline knob picked the table, the batch knob picked its
+ * raster, the face-sort knob picked stage 2, and the ISA ladders decided what
+ * is behind all three. Reading the selection code answers what SHOULD happen
+ * on a target; this answers what did, on the box the frame is being drawn on,
+ * which is the question a "why is this build slow" report actually needs.
+ *
+ * ToriDraw_KernelTake calls it, so a renderer gets this for free at init and
+ * the DEGRADED line that may follow reads as a note on the report above it.
+ * TORIDRAW_KERNEL_LOG=0 silences that; calling this directly always prints.
+ */
+void
+ToriDraw_KernelLogConfiguration(const struct ToriDraw_Kernel* table);
 
 /*
  * The prebaked tables. Process-lifetime and immutable, like the subkernels

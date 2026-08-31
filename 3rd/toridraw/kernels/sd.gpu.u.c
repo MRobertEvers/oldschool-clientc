@@ -17,6 +17,7 @@
  */
 
 static struct ToriDraw_RasterKernelSD g_stock_gpu_kernel = {
+    .name = "gpu",
     /* No stage 3 at all: both slots NULL, and every raster entry asserts. */
     .draw_model = NULL,
     .vtable = NULL,

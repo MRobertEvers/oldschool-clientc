@@ -24,6 +24,7 @@ static const struct ToriDraw_RasterKernelSDVTable g_stock_branching_vtable = {
 };
 
 static struct ToriDraw_RasterKernelSD g_stock_branching_kernel = {
+    .name = "branching",
     /* Staged runs into the assembly kernels, with the per-face walk behind
      * it. On a lane with no presorted-run assembly this name IS the per-face
      * walk (graphics/raster/batch/raster.batch.u.c), so there is nothing to

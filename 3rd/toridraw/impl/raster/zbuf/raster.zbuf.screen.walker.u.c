@@ -124,7 +124,7 @@ struct ToriDraw_ZbufSpanState
     float key_step_dx;
 
     /** FLAT: the resolved rgb. */
-    int rgb;
+    toripixel_t rgb;
 
     /** GOURAUD: 8.8 hsl16 at x == 0. */
     int hsl_ish8;
@@ -234,7 +234,7 @@ zbuf_span(
          * fighting. */
         if( key > (float)zbuffer[at] )
         {
-            int color = 0;
+            toripixel_t color = 0;
             bool drew = true;
 
             switch( s->mode )
@@ -265,17 +265,18 @@ zbuf_span(
                 if( s->tex_kind == TORIDRAW_ZBUF_TEX_ALPHA )
                 {
                     int const texel_alpha = (int)(texel >> 24);
-                    int lit;
+                    toripixel_t lit;
 
                     if( texel_alpha == 0 )
                     {
                         drew = false;
                         break;
                     }
-                    lit = shade_blend(texel & 0x00FFFFFFu, (uint32_t)shade);
+                    lit = toritexel_to_pixel(
+                        toritexel_shade_blend(texel & TORITEXEL_COLOR_MASK, shade));
                     color = texel_alpha == 0xFF
                                 ? lit
-                                : alpha_blend(texel_alpha, (int)pixel_buffer[at], lit);
+                                : alpha_blend(texel_alpha, pixel_buffer[at], lit);
                 }
                 else if( s->tex_kind == TORIDRAW_ZBUF_TEX_TRANSPARENT && texel == 0 )
                 {
@@ -283,7 +284,7 @@ zbuf_span(
                 }
                 else
                 {
-                    color = shade_blend(texel, (uint32_t)shade);
+                    color = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
                 }
                 break;
             }
@@ -294,9 +295,9 @@ zbuf_span(
                 /* Face alpha belongs to the untextured kernels only — the stock
                  * textured ones never consult face_alphas either. */
                 if( s->mode != TORIDRAW_ZBUF_MODE_TEXTURE && s->alpha != 0xFF )
-                    color = alpha_blend(s->alpha, (int)pixel_buffer[at], color);
+                    color = alpha_blend(s->alpha, pixel_buffer[at], color);
 
-                pixel_buffer[at] = (toripixel_t)color;
+                pixel_buffer[at] = color;
                 if( s->depth_write )
                     zbuffer[at] = (torizdepth_t)key;
             }

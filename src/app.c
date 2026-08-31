@@ -15598,6 +15598,34 @@ app_pump_net_packets(struct App* app)
             }
         }
 
+        /*
+         * Parked on state this queue does not own -- in practice an asset the
+         * ASSET queue is loading: Task_NpcMultiLoad waiting for an npc's body
+         * parts, Task_WorldLoad waiting for a region's map squares. Resolve
+         * that io here rather than ending the frame.
+         *
+         * A task is only ever resumed against reads that have LANDED, and the
+         * budgets those waits carry are counted in resumes, not in frames.
+         * Ending the frame instead spends one pass of the budget per frame per
+         * waiting task -- which, on a cold region rebuild that parks hundreds
+         * of them behind one serial pipeline, is how every map square in the
+         * region reported "missing archive" and every npc in it "models failed
+         * to load" out of a cache that held all of them.
+         *
+         * A render request is the one thing that outranks finishing the io:
+         * the whole point of that request is that this frame is seen. Anything
+         * else keeps going until the asset queue can no longer move, which is
+         * the honest end of "resolve the io" -- and is bounded, because a wait
+         * that outlives its own budget gives up on its own.
+         */
+        if( stat == TASK_RUNNER_BLOCKED )
+        {
+            enum TaskRunnerStat assets = TaskRunner_SettleFrame(&app->runner);
+
+            if( assets != TASK_RUNNER_RENDER && app->runner.progressed )
+                continue;
+        }
+
         if( stat != TASK_RUNNER_IDLE )
         {
             if( getenv("TORIRS_FRAME_LATCH") )

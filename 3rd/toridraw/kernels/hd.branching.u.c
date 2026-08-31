@@ -30,6 +30,7 @@ static const struct ToriDraw_RasterKernelHDVTable g_hd_branching_vtable = {
 };
 
 static const struct ToriDraw_RasterKernelHD g_hd_branching_kernel = {
+    .name = "branching",
     .vtable = &g_hd_branching_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
 };
@@ -37,6 +38,7 @@ static const struct ToriDraw_RasterKernelHD g_hd_branching_kernel = {
 #else /* TORIDRAW_PIXEL16 */
 
 static const struct ToriDraw_RasterKernelHD g_hd_branching_kernel = {
+    .name = "branching",
     .vtable = &g_hd_pixel16_vtable,
     .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
 };

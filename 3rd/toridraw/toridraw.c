@@ -1425,6 +1425,66 @@ ToriDraw_KernelGetStock(void)
                                         : ToriDraw_KernelGetSoftwarePainter();
 }
 
+/*
+ * A name for a slot that has one, and a visible marker for a slot that does
+ * not. Every kernel the library hands out is named; a caller assembling its
+ * own table is not obliged to name it, and a report that silently printed
+ * nothing there would read as if the slot were empty rather than anonymous.
+ */
+static const char*
+kernel_name_or_unnamed(const char* name)
+{
+    return name ? name : "(unnamed)";
+}
+
+/* TORIDRAW_KERNEL_LOG=0 silences the report ToriDraw_KernelTake prints. Read
+ * once; it selects nothing, so it is the one knob in the inventory whose
+ * answer no stage can observe. */
+static int
+toridraw_kernel_log_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+    {
+        const char* v = getenv("TORIDRAW_KERNEL_LOG");
+        armed = (v && v[0] == '0') ? 0 : 1;
+    }
+    return armed;
+}
+
+void
+ToriDraw_KernelLogConfiguration(const struct ToriDraw_Kernel* table)
+{
+    const struct ToriDraw_ProjectionKernel* projection;
+    const struct ToriDraw_FaceCullSortKernel* sort;
+
+    assert(table);
+    kernel_table_resolve(table, &projection, &sort);
+
+    fprintf(stderr, "toridraw: table      : %s\n", kernel_name_or_unnamed(table->name));
+    fprintf(stderr, "toridraw: projection : %s\n", kernel_name_or_unnamed(projection->name));
+    fprintf(stderr, "toridraw: face_sort  : %s\n", kernel_name_or_unnamed(sort->name));
+    /* A table names exactly ONE raster, and which slot holds it is what says
+     * which pipeline this is -- so the label is the report's answer to that,
+     * not a fixed string with a name after it. The walk is read off draw_model
+     * rather than taken from the name: `branching` is one kernel object with
+     * the door and another without, and the whole point of printing this is to
+     * say which one a build actually got. */
+    if( table->raster )
+        fprintf(
+            stderr,
+            "toridraw: raster SD  : %s (%s)\n",
+            kernel_name_or_unnamed(table->raster->name),
+            kernel_table_raster_is_whole_model(table) ? "whole-model door" : "per-face walk");
+    else if( table->raster_hd )
+        fprintf(
+            stderr,
+            "toridraw: raster HD  : %s\n",
+            kernel_name_or_unnamed(table->raster_hd->name));
+    else
+        fprintf(stderr, "toridraw: raster     : none -- stages 1 and 2 only\n");
+}
+
 const struct ToriDraw_Kernel*
 ToriDraw_KernelTake(struct ToriDraw_Scene* scene, const struct ToriDraw_Kernel* table)
 {
@@ -1434,13 +1494,18 @@ ToriDraw_KernelTake(struct ToriDraw_Scene* scene, const struct ToriDraw_Kernel* 
     assert(scene);
     assert(table);
 
+    /* Before the fit check, so a DEGRADED or INCOMPATIBLE line lands under the
+     * report of the table it is about rather than naming one on its own. */
+    if( toridraw_kernel_log_armed() )
+        ToriDraw_KernelLogConfiguration(table);
+
     fit = ToriDraw_KernelValidate(table, scene, &why);
     if( fit == TORIDRAW_KERNEL_FIT_INCOMPATIBLE )
     {
         fprintf(
             stderr,
             "toridraw: kernel table `%s` is INCOMPATIBLE with this scene: %s\n",
-            table->name ? table->name : "(unnamed)",
+            kernel_name_or_unnamed(table->name),
             why);
         assert(!"ToriDraw_KernelTake: incompatible kernel table for this scene");
     }
@@ -1449,7 +1514,7 @@ ToriDraw_KernelTake(struct ToriDraw_Scene* scene, const struct ToriDraw_Kernel* 
         fprintf(
             stderr,
             "toridraw: kernel table `%s` is DEGRADED on this scene: %s\n",
-            table->name ? table->name : "(unnamed)",
+            kernel_name_or_unnamed(table->name),
             why);
     }
 
