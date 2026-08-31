@@ -45,16 +45,16 @@
 // clang-format off
 #include "graphics/shared_tables.h"
 #include "graphics/shared_tables.c"
-#include "graphics/projection.u.c"
+#include "impl/projection/projection.scalar_reference.u.c"
 #include "graphics/clamp.h"
 #include "graphics/shade.h"
-#include "graphics/raster/flat/flat.screen.opaque.branching.s4.c"
-#include "graphics/raster/flat/flat.screen.alpha.branching.s4.c"
-#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c"
-#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c"
-#include "graphics/raster/texture/span/tex.span.u.c"
-#include "graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c"
+#include "impl/raster/flat/raster.flat.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/flat/raster.flat.alpha.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.alpha.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/span/span.tex.dispatch.u.c"
+#include "impl/raster/tex/raster.texshadeblend.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeblend.perspective.textrans.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
 #include "graphics/raster/texture/tex_tri_asm.h"
 #include "graphics/raster/texture/tex_tri_asm_support.u.c"
 #include "graphics/raster/flat/flat_tri_asm.h"
@@ -403,34 +403,34 @@ run_door(int* fb, const int* rows, int count, enum door door)
     switch( door )
     {
     case DOOR_FLAT_OPAQUE:
-        toridraw_flat_opaque_s4_presorted_run_asm(pix, STRIDE, W, H, rows, count);
+        toridraw_flat_opaque_s4_presorted_run_xrgb8888_asm(pix, STRIDE, W, H, rows, count);
         break;
     case DOOR_FLAT_ALPHA:
-        toridraw_flat_alpha_s4_presorted_run_asm(pix, STRIDE, W, H, rows, count);
+        toridraw_flat_alpha_s4_presorted_run_xrgb8888_asm(pix, STRIDE, W, H, rows, count);
         break;
 #if TEST_GOURAUD
     case DOOR_GOURAUD_OPAQUE:
-        toridraw_gouraud_opaque_s4_presorted_run_asm(pix, STRIDE, W, H, rows, count);
+        toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm(pix, STRIDE, W, H, rows, count);
         break;
     case DOOR_GOURAUD_ALPHA:
-        toridraw_gouraud_alpha_s4_presorted_run_asm(pix, STRIDE, W, H, rows, count);
+        toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm(pix, STRIDE, W, H, rows, count);
         break;
 #endif
 #if TEST_TEX
     case DOOR_TEX_OPAQUE:
-        toridraw_textri_opaque_lerp8_v3_presorted_run_asm(
+        toridraw_textri_opaque_lerp8_v3_presorted_run_xrgb8888_asm(
             pix, STRIDE, W, H, COT16, rows, count);
         break;
     case DOOR_TEX_TRANS:
-        toridraw_textri_trans_lerp8_v3_presorted_run_asm(
+        toridraw_textri_trans_lerp8_v3_presorted_run_xrgb8888_asm(
             pix, STRIDE, W, H, COT16, rows, count);
         break;
     case DOOR_TEX_FLAT_OPAQUE:
-        toridraw_textri_flat_opaque_lerp8_v3_presorted_run_asm(
+        toridraw_textri_flat_opaque_lerp8_v3_presorted_run_xrgb8888_asm(
             pix, STRIDE, W, H, COT16, rows, count);
         break;
     case DOOR_TEX_FLAT_TRANS:
-        toridraw_textri_flat_trans_lerp8_v3_presorted_run_asm(
+        toridraw_textri_flat_trans_lerp8_v3_presorted_run_xrgb8888_asm(
             pix, STRIDE, W, H, COT16, rows, count);
         break;
 #endif
@@ -616,7 +616,7 @@ main(int argc, char** argv)
     int i;
 
     assert(texels);
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
 
     /* A texture no two texels of which are equal, so a fetch that lands on
      * the wrong texel cannot accidentally read the right colour. Every

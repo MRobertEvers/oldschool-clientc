@@ -30,10 +30,10 @@
 
 #include "graphics/shared_tables.h"
 #include "graphics/shared_tables.c"
-#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c"
-#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c"
+#include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.alpha.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
 
-void toridraw_gouraud_opaque_s4_sorting_asm(
+void toridraw_gouraud_opaque_s4_sorting_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -48,7 +48,7 @@ void toridraw_gouraud_opaque_s4_sorting_asm(
     int color1_hsl16,
     int color2_hsl16);
 
-void toridraw_gouraud_opaque_s4_presorted_run_asm(
+void toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -56,7 +56,7 @@ void toridraw_gouraud_opaque_s4_presorted_run_asm(
     const int* rows,
     int count);
 
-void toridraw_gouraud_alpha_s4_sorting_asm(
+void toridraw_gouraud_alpha_s4_sorting_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -72,7 +72,7 @@ void toridraw_gouraud_alpha_s4_sorting_asm(
     int color2_hsl16,
     int alpha);
 
-void toridraw_gouraud_alpha_s4_presorted_run_asm(
+void toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -385,7 +385,7 @@ batch_pass(int chunks)
                 t[i].c[0], t[i].c[1], t[i].c[2]);
         }
 
-        toridraw_gouraud_opaque_s4_presorted_run_asm(fb_a, W, W, H, rows, count);
+        toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm(fb_a, W, W, H, rows, count);
 
         for( i = 0; i < W * H; i++ )
         {
@@ -462,11 +462,11 @@ alpha_pass(int iters, int batched)
                 rows[8 + k] = t.c[pm[k]];
             }
             rows[11] = alpha;
-            toridraw_gouraud_alpha_s4_presorted_run_asm(fb_a, W, W, H, rows, 1);
+            toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm(fb_a, W, W, H, rows, 1);
         }
         else
         {
-            toridraw_gouraud_alpha_s4_sorting_asm(
+            toridraw_gouraud_alpha_s4_sorting_xrgb8888_asm(
                 fb_a, W, W, H, t.x[0], t.x[1], t.x[2], t.y[0], t.y[1], t.y[2],
                 t.c[0], t.c[1], t.c[2], alpha);
         }
@@ -496,7 +496,7 @@ main(int argc, char** argv)
     assert(fb_c);
     assert(fb_a);
 
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
 
     for( i = 0; i < iters; i++ )
     {
@@ -515,7 +515,7 @@ main(int argc, char** argv)
             t.y[0], t.y[1], t.y[2],
             t.c[0], t.c[1], t.c[2]);
 
-        toridraw_gouraud_opaque_s4_sorting_asm(
+        toridraw_gouraud_opaque_s4_sorting_xrgb8888_asm(
             fb_a, W, W, H,
             t.x[0], t.x[1], t.x[2],
             t.y[0], t.y[1], t.y[2],

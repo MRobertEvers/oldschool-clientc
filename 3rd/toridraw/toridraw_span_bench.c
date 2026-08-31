@@ -138,7 +138,7 @@ fill_first(toripixel_t* RESTRICT buf, int offset, int stride, int color, int ste
 {
     (void)step;
     if( stride > 0 )
-        buf[offset] = ToriDraw_Hsl16Ish8ToRgb(color);
+        buf[offset] = ToriDraw_Hsl16Ish8ToPixel(color);
 }
 
 static struct Variant const g_variants[] = {
@@ -346,7 +346,7 @@ main(int argc, char** argv)
     int passes;
     double ref_ns_per_px = 0.0;
 
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
 
     if( !path )
         path = "span_trace.bin";

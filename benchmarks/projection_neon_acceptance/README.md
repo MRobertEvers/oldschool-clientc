@@ -11,7 +11,7 @@ of the scalar backend in one translation unit.  No projection arithmetic is
 copied into the harness.
 
 On an Apple arm64 host, the Makefile also links
-`graphics/projection16_apple.S` when that file exists under `TORIDRAW_ROOT` and
+`graphics/projection16.aarch64.S` when that file exists under `TORIDRAW_ROOT` and
 enables a direct acceptance pass over its renderer-native entry points.  A
 baseline `TORIDRAW_ROOT` without that assembly file remains buildable; the
 program reports the native pass as skipped.

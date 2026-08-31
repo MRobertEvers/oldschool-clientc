@@ -130,7 +130,7 @@ ToriDraw_AnimApplyTransform(
             int const ox = transform->origin_x;
             int const oy = transform->origin_y;
             int const oz = transform->origin_z;
-            int const worst = model->bounds_cylinder ? model->bounds_cylinder->radius : 0;
+            int const worst = model->has_bounds_cylinder ? model->bounds_cylinder.radius : 0;
             int const limit = worst > 4096 ? worst * 4 : 16384;
 
             if( ox > limit || ox < -limit || oy > limit || oy < -limit || oz > limit ||
@@ -490,7 +490,6 @@ ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
     ToriDraw_NormalsFree(m->merged_normals);
     ToriDraw_BonesFree(m->vertex_bones);
     ToriDraw_BonesFree(m->face_bones);
-    free(m->bounds_cylinder);
 
     if( m->animaya_groups )
     {

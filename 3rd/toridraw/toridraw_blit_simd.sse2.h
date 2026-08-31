@@ -26,12 +26,14 @@
 #include <emmintrin.h>
 #include <stdint.h>
 
-static const unsigned char toridraw_blit_first_diff[16] = {
-    4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0
-};
+static const unsigned char toridraw_blit_first_diff[16] = { 4, 0, 1, 0, 2, 0, 1, 0,
+                                                            3, 0, 1, 0, 2, 0, 1, 0 };
 
 static inline int
-toridraw_blit_alpha_run_impl(uint32_t const* row, int count, uint32_t want)
+toridraw_blit_alpha_run_impl(
+    uint32_t const* row,
+    int count,
+    uint32_t want)
 {
     __m128i const amask = _mm_set1_epi32((int)0xFF000000u);
     __m128i const wantv = _mm_set1_epi32((int)(want << 24));
@@ -43,8 +45,7 @@ toridraw_blit_alpha_run_impl(uint32_t const* row, int count, uint32_t want)
     for( ; i + 4 <= count; i += 4 )
     {
         __m128i v = _mm_loadu_si128((__m128i const*)(row + i));
-        int m = _mm_movemask_ps(
-            _mm_castsi128_ps(_mm_cmpeq_epi32(_mm_and_si128(v, amask), wantv)));
+        int m = _mm_movemask_ps(_mm_castsi128_ps(_mm_cmpeq_epi32(_mm_and_si128(v, amask), wantv)));
 
         if( m != 0xF )
             return i + toridraw_blit_first_diff[(~m) & 0xF];

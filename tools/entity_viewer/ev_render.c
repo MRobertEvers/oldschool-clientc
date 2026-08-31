@@ -1010,8 +1010,8 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     camera.pitch = pitch & 2047;
     camera.yaw = 0;
     camera.roll = 0;
-    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     /*
      * 1, not the world's 50.
      *
@@ -1050,18 +1050,18 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     /*
      * Pan, as a camera-space translation of the model.
      *
-     * The projection is screen = centre + cam_coord * proj_scale / cam_z, and
+     * The projection is screen = centre + cam_coord * projection_scale / cam_z, and
      * the framing above puts the model centre at cam_z == zoom exactly
      * (cam_z = y*sin + z*cos = zoom*sin² + zoom*cos²), so a shift of
-     * pan_px * zoom / proj_scale camera units moves the image by pan_px pixels.
+     * pan_px * zoom / projection_scale camera units moves the image by pan_px pixels.
      * Camera x is world x (camera yaw is 0); camera y maps back to world through
      * the inverse pitch rotation, with the z term keeping cam_z unchanged so the
      * pan never alters depth, culling, or apparent size.
      */
     if( g_pan_x || g_pan_y )
     {
-        int dx_cam = (g_pan_x * zoom) / TORIDRAW_PROJ_SCALE_DEFAULT;
-        int dy_cam = (g_pan_y * zoom) / TORIDRAW_PROJ_SCALE_DEFAULT;
+        int dx_cam = (g_pan_x * zoom) / TORIDRAW_PROJECTION_SCALE_DEFAULT;
+        int dy_cam = (g_pan_y * zoom) / TORIDRAW_PROJECTION_SCALE_DEFAULT;
         position.x += dx_cam;
         position.y += (int)(((int64_t)dy_cam * ToriDraw_Cos(camera.pitch)) >> 16);
         position.z -= (int)(((int64_t)dy_cam * ToriDraw_Sin(camera.pitch)) >> 16);
@@ -1128,12 +1128,26 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     }
     else
     {
-        g_last_cull =
-            ToriDraw_RenderModel1Project(hnd, g_scene, &position, &view_port, &camera);
+        /*
+         * The software painter, through the table that names all three stages,
+         * rather than three entries that each resolve their own stage from the
+         * environment. Split rather than ToriDraw_RenderModelWithTable so the
+         * cull verdict stays visible: this viewer reports it.
+         *
+         * The two branches above still take library entries that predate the
+         * table -- HD has no table slot yet, and ToriDraw_RenderZBuffered is
+         * the "no face sort at all" entry rather than the depth-tested table.
+         * Both move when HD does.
+         */
+        const struct ToriDraw_Kernel* const table = ToriDraw_KernelGetStock();
+
+        g_last_cull = ToriDraw_RenderModel1ProjectWithTable(
+            hnd, g_scene, &position, &view_port, &camera, table);
         if( g_last_cull == TORIDRAW_CULL_VISIBLE )
         {
-            ToriDraw_RenderModel2SortFaces(hnd, g_scene);
-            ToriDraw_RenderModel3Raster(g_scene, &view_port, &camera, g_pixels, false);
+            ToriDraw_RenderModel2SortFacesWithTable(hnd, g_scene, table);
+            ToriDraw_RenderModel3RasterWithTable(
+                g_scene, &view_port, &camera, g_pixels, table);
         }
     }
 

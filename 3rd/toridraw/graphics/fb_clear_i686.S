@@ -1,5 +1,5 @@
 /*
- * toridraw_fb_clear32_nt_asm -- hand-written i686 (cdecl, SSE2).
+ * toridraw_fb_clear32_nt_xrgb8888_asm -- hand-written i686 (cdecl, SSE2).
  *
  * Fill a 32-bit framebuffer with a constant, using non-temporal stores.
  *
@@ -32,7 +32,7 @@
  * At 385,395 pixels the clear moves 1.54 MB per frame: 1.19 ms at the normal
  * store rate, 0.50 ms non-temporally, on a frame that measures 37.7 ms.
  *
- * void toridraw_fb_clear32_nt_asm(uint32_t* dst, size_t count_px, uint32_t v);
+ * void toridraw_fb_clear32_nt_xrgb8888_asm(uint32_t* dst, size_t count_px, uint32_t v);
  *
  *   8(%ebp)  dst        the pixel buffer; any alignment
  *  12(%ebp)  count_px   pixels, not bytes
@@ -53,10 +53,10 @@
 
 	.text
 	.p2align 4,,15
-	.globl  _toridraw_fb_clear32_nt_asm
-	.def    _toridraw_fb_clear32_nt_asm; .scl 2; .type 32; .endef
+	.globl  _toridraw_fb_clear32_nt_xrgb8888_asm
+	.def    _toridraw_fb_clear32_nt_xrgb8888_asm; .scl 2; .type 32; .endef
 
-_toridraw_fb_clear32_nt_asm:
+_toridraw_fb_clear32_nt_xrgb8888_asm:
 	pushl   %ebp
 	movl    %esp, %ebp
 	pushl   %edi

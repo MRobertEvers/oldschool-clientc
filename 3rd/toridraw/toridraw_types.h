@@ -1,7 +1,7 @@
 #ifndef TORIDRAW_TYPES_H
 #define TORIDRAW_TYPES_H
 
-#include "graphics/projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "graphics/zdepth.h"
 #include "toridraw_intrusive_list.h"
 #include "toridraw_texture_mapping.h"
@@ -49,8 +49,10 @@ struct ToriDraw_BoundsCylinder
     int min_z_depth_any_rotation;
 };
 
-#define TORIDRAW_AABB_KIND_CYLINDER_4POINT 0
-#define TORIDRAW_AABB_KIND_CYLINDER_8POINT 1
+/** The box over the model's own projected vertices, dilated by the pick slop;
+ *  see toridraw_projected_bound. (Kinds 0 and 1 were the cylinder boxes the
+ *  fast cull and the eight-corner bound used to write; neither exists now.) */
+#define TORIDRAW_AABB_KIND_VERTICES 2
 
 struct ToriDraw_AABB
 {
@@ -172,10 +174,10 @@ struct ToriDraw_Model
      * coordinate loads fold, and a two-face model is culled, keyed and ordered
      * without a loop or a sort network. 6.5 ns per input face against the
      * general path's 8.7 on the dev host. See
-     * toridraw_face_sort_flat_tile2_scalar.
+     * toridraw_face_sort_bitonic_radix_tile2_scalar.
      *
      * Spending the same constants on SIMD instead -- one vector load per axis,
-     * a shuffle per lane -- is written as toridraw_face_sort_flat_tile2 and is
+     * a shuffle per lane -- is written as toridraw_face_sort_bitonic_radix_tile2_sse2 and is
      * SLOWER than both, 8.9 ns. Its comment has the numbers and the reason. The
      * field selects neither; TORIDRAW_TILE_SORT does, and the field only says
      * the model is eligible.
@@ -265,7 +267,16 @@ struct ToriDraw_Model
     struct ToriDraw_Normals* merged_normals;
     struct ToriDraw_Bones* vertex_bones;
     struct ToriDraw_Bones* face_bones;
-    struct ToriDraw_BoundsCylinder* bounds_cylinder;
+    /*
+     * Embedded, not pointed to. ToriDraw_Project reads the cylinder on every
+     * model it culls, and as a separate allocation that was a dependent cache
+     * line behind the model struct itself -- for a four-vertex terrain tile,
+     * one of about seven the projection touched. has_bounds_cylinder is the
+     * "was it ever computed" test the NULL pointer used to be;
+     * ToriDraw_ModelGetBoundsCylinder still answers NULL when it is false.
+     */
+    struct ToriDraw_BoundsCylinder bounds_cylinder;
+    bool has_bounds_cylinder;
 
     /* Animaya per-vertex skin (NULL if no skeletal rigging) */
     int      animaya_vertex_count;
@@ -472,27 +483,27 @@ struct ToriDraw_Camera
     /** Which of the two knobs below drives the projection. Zero-initialising a
      *  camera selects SCALE, so a memset camera projects at the reference's
      *  default 512 rather than at whatever an unset angle would resolve to. */
-    enum ToriDraw_ProjMode proj_mode;
+    enum ToriDraw_ProjectionMode projection_mode;
 
     /** The reference client's viewport scale (class159.method5357 ->
      *  client.field817): the integer multiplier in screen = coord * scale / z,
      *  recomputed per layout from the world viewport height. Live when
-     *  proj_mode == TORIDRAW_PROJ_MODE_SCALE. 0 = TORIDRAW_PROJ_SCALE_DEFAULT.
+     *  projection_mode == TORIDRAW_PROJECTION_MODE_SCALE. 0 = TORIDRAW_PROJECTION_SCALE_DEFAULT.
      *
      *  The only way to match a reference projection exactly -- most integer
      *  scales are not reachable through fov_rpi2048 at all. */
-    int proj_scale;
+    int projection_scale;
 
-    /** Field of view, in units of 2*pi/2048. Live when proj_mode ==
-     *  TORIDRAW_PROJ_MODE_FOV. 0 = TORIDRAW_PROJ_FOV_DEFAULT. Natural for a
+    /** Field of view, in units of 2*pi/2048. Live when projection_mode ==
+     *  TORIDRAW_PROJECTION_MODE_FOV. 0 = TORIDRAW_PROJECTION_FOV_DEFAULT. Natural for a
      *  free camera; lossy as a way to request a specific scale (see the ladder
      *  note in graphics/projection.h). */
     int fov_rpi2048;
 
     /**
-     * Pixels per world unit, 16.16 fixed point. Live when proj_mode ==
-     * TORIDRAW_PROJ_MODE_PARALLEL; TORIDRAW_ORTHO_ZOOM_UNIT (65536) is 1:1.
-     * Deliberately not proj_scale reused: that one is a perspective numerator
+     * Pixels per world unit, 16.16 fixed point. Live when projection_mode ==
+     * TORIDRAW_PROJECTION_MODE_PARALLEL; TORIDRAW_ORTHO_ZOOM_UNIT (65536) is 1:1.
+     * Deliberately not projection_scale reused: that one is a perspective numerator
      * measured against z, this is a plain screen scale, and collapsing two
      * different quantities into one field is how a camera ends up projecting
      * with a value nobody set.
@@ -525,7 +536,7 @@ struct ToriDraw_Camera
  * Camera-only constants shared by every yaw projection in a command stream.
  * Each value is splatted so the Apple AArch64 projection kernel can load the
  * complete prepared state with two paired vector loads and one vector load.
- * Keep the order and 16-byte alignment in sync with projection16_apple.S.
+ * Keep the order and 16-byte alignment in sync with projection16.aarch64.S.
  */
 struct ToriDraw_ProjectionPreparedCamera
 {
@@ -540,7 +551,7 @@ struct ToriDraw_ProjectionPreparedCamera
  * The same prepared camera's pitch and fov, already in the form the SSE2
  * kernel actually multiplies by.
  *
- * toridraw_proj_prepared_core wants these three as floats scaled by 1/65536,
+ * toridraw_projection_prepared_core wants these three as floats scaled by 1/65536,
  * 1/65536 and 1/64. They were being derived from the int block above on every
  * call -- a load, a cvtdq2ps and a mulps each -- for values that change once a
  * frame. That is nothing on a 380-vertex model and it is not nothing on a
@@ -549,7 +560,7 @@ struct ToriDraw_ProjectionPreparedCamera
  *
  * A SEPARATE BLOCK, not three more members on the struct above, because that
  * struct's size and field offsets are pinned by _Static_asserts in toridraw.c
- * for projection16_apple.S, which loads it with ldp pairs. Appending would
+ * for projection16.aarch64.S, which loads it with ldp pairs. Appending would
  * keep those offsets valid and still trip the size assert, and the Apple lane
  * cannot be built here to check. Nothing on that lane reads this one.
  *
@@ -789,7 +800,6 @@ struct ToriDraw_Scene
 
     struct ProjectedVertex projected_vertex;
     struct ToriDraw_AABB aabb;
-    struct ToriDraw_AABB cylinder_fast_aabb;
 
     /*
      * Whether the model ToriDraw_Project last projected could reach behind the
@@ -848,6 +858,24 @@ struct ToriDraw_Scene
      * callers using another camera continue through the portable kernels.
      */
     struct ToriDraw_ProjectionPreparedCamera projection_prepared_camera;
+    /*
+     * The screen box the AArch64 prepared kernel accumulates WHILE it
+     * projects: lane-wise min x, max x, min y, max y over every full
+     * four-vertex block its vector loop ran, straight from the registers the
+     * screen coordinates were converted in. projection16.aarch64.S writes it
+     * 128 bytes past screen_vertices_x -- immediately after the prepared
+     * camera; the static asserts in toridraw.c pin both -- so the bound of a
+     * large model costs four vector ops per block inside the kernel instead
+     * of a second pass that reads every coordinate back.
+     *
+     * projection_bound_vertices is how many leading vertices the block
+     * covers (a multiple of four); the caller sets it after the kernel
+     * returns and ToriDraw_Project zeroes it before dispatch, so a kernel
+     * that does not write the block leaves zero and
+     * toridraw_projected_bound sweeps the outputs instead.
+     */
+    _Alignas(16) int projection_bound[4][4];
+    int projection_bound_vertices;
     const struct ToriDraw_Camera* projection_prepared_camera_source;
     /* Published and cleared with the block above, and by the same function --
      * projection_prepared_camera_source guards both. Placed AFTER the source
@@ -898,8 +926,8 @@ struct ToriDraw_Scene
     int* sm_face_x4;
     int* sm_face_y4;
     /*
-     * The flat sort's composite keys, (0xFFFF - depth) << 16 | face, and
-     * the radix sort's bounce buffer. Sized to the next power of two above
+     * The bitonic+radix sort's composite keys, (0xFFFF - depth) << 16 | face,
+     * and the radix sort's bounce buffer. Sized to the next power of two above
      * max_faces plus four lanes of slack for the unconditional pack store.
      */
     uint32_t* sm_sort_keys;
@@ -907,9 +935,10 @@ struct ToriDraw_Scene
     /*
      * Whether the LAST sort actually filled sm_face_x4/y4, which is not the same
      * question as whether the build can. Three things have to hold -- the
-     * caller asked (ToriDraw_RenderModel2SortFacesPresorted rather than the
-     * plain entry), the batched kernels are armed, and this is a small-mode
-     * scene, since sm_face_x4/y4 are allocated nowhere else. The batched raster
+     * kernel wanted it (its raster has a whole-model door and its sort can
+     * stash -- see sd_wants_presort; no caller states this), the batched
+     * kernels are armed, and this is a small-mode scene, since sm_face_x4/y4
+     * are allocated nowhere else. The batched raster
      * walk requires this rather than re-deriving it, so the side that writes
      * the buffer and the side that reads it cannot disagree.
      */

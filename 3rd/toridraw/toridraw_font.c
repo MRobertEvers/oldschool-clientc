@@ -818,7 +818,7 @@ font_draw_glyph_pixels(
     int cr,
     int cb,
     int stride,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     if( !font_glyph_drawable(font, gi) )
         return 0;
@@ -850,13 +850,13 @@ font_draw_glyph_pixels(
     for( int row = row_begin; row < row_stop; row++ )
     {
         uint8_t const* arow = font->glyph_alpha[gi] + (size_t)row * gw;
-        int* drow = pixel_buffer + (size_t)(gy + row) * stride + gx;
+        toripixel_t* drow = pixel_buffer + (size_t)(gy + row) * stride + gx;
 
         for( int col = col_begin; col < col_stop; col++ )
         {
             if( arow[col] == 0 )
                 continue;
-            drow[col] = color;
+            drow[col] = toripixel_pack_argb8888((uint32_t)color);
             pixels_written++;
         }
     }
@@ -988,7 +988,7 @@ font_draw_mask(
     uint8_t const* src,
     int src_off,
     int src_step,
-    int* dst,
+    toripixel_t* dst,
     int dst_off,
     int dst_step,
     int rgb)
@@ -1043,7 +1043,7 @@ font_draw_rule_span(
     int cr,
     int cb,
     int stride,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     if( !pixel_buffer || width <= 0 || y < ct || y >= cb )
         return;
@@ -1054,9 +1054,9 @@ font_draw_rule_span(
     if( x0 >= x1 )
         return;
     int const argb = (int)(0xFF000000u | (uint32_t)(rgb & 0xFFFFFF));
-    int* row = pixel_buffer + y * stride;
+    toripixel_t* row = pixel_buffer + y * stride;
     for( int px = x0; px < x1; px++ )
-        row[px] = argb;
+        row[px] = toripixel_pack_argb8888((uint32_t)argb);
 }
 
 /** Both rules for one advance — they are independent and can be on together. */
@@ -1072,7 +1072,7 @@ font_draw_style_rules(
     int cr,
     int cb,
     int stride,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     if( style->strike >= 0 )
         font_draw_rule_span(
@@ -1095,7 +1095,7 @@ font_draw_string_range(
     int cr,
     int cb,
     int stride,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(font && text && len > 0 && pixel_buffer);
 
@@ -1191,7 +1191,7 @@ font_draw_string_shadow_range(
     int cr,
     int cb,
     int stride,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(font && text && len > 0 && pixel_buffer);
 
@@ -1259,7 +1259,7 @@ ToriDraw2D_DrawString(
     int color,
     bool center,
     bool shadowed,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(font && view_port && text && pixel_buffer);
 
@@ -1682,7 +1682,7 @@ ToriDraw2D_DrawStringBox(
     int y_align,
     int line_height,
     bool shadowed,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(font && view_port && text && pixel_buffer);
 

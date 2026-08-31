@@ -439,7 +439,7 @@ WEBGL1ZB_SubmitModel(
 
     /* Only now, and only for models that really have translucency. */
     sorted_face_count =
-        ToriDraw_RenderModel2SortFacesWithKernel(mcmd->model, ctx, renderer->kernel);
+        ToriDraw_RenderModel2SortFacesWithTable(mcmd->model, ctx, renderer->kernel);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_SORTED_MODELS, 1);
     if( sorted_face_count <= 0 )
         return;

@@ -107,7 +107,7 @@ ToriDraw2D_BlitSprite(
     struct ToriDraw_ViewPort* view_port,
     int x,
     int y,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitSpriteAlpha(
@@ -116,7 +116,7 @@ ToriDraw2D_BlitSpriteAlpha(
     int x,
     int y,
     int alpha,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitSprite_subrect(
@@ -128,7 +128,7 @@ ToriDraw2D_BlitSprite_subrect(
     int src_y,
     int src_w,
     int src_h,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitSpriteTiled(
@@ -140,7 +140,7 @@ ToriDraw2D_BlitSpriteTiled(
     int rect_h,
     int origin_x,
     int origin_y,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitSpriteRotated(
@@ -153,7 +153,7 @@ ToriDraw2D_BlitSpriteRotated(
     int width,
     int height,
     int rotation_r2pi2048,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 /** Inverse-map blit: for each destination pixel, sample source with rotation.
  *  Destination bbox is (dst_x, dst_y, dst_w, dst_h) with pivot (dst_anchor_x, dst_anchor_y).
@@ -171,7 +171,7 @@ ToriDraw2D_BlitSpriteRotatedEx(
     int src_anchor_x,
     int src_anchor_y,
     int rotation_r2pi2048,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 /** BlitSpriteRotatedEx plus an axis-aligned mask sampled over the dest box
  *  (the mask never rotates with the content).
@@ -195,7 +195,7 @@ ToriDraw2D_BlitSpriteRotatedMaskedEx(
     int src_anchor_x,
     int src_anchor_y,
     int rotation_r2pi2048,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitSpriteMasked(
@@ -204,7 +204,7 @@ ToriDraw2D_BlitSpriteMasked(
     struct ToriDraw_ViewPort* view_port,
     int x,
     int y,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 /** RS UI graphic outline (CC_SETOUTLINE / deob SpritePixels.method9420).
  *  Same size as src; outline>=1 black edge, outline>=2 also white. Owned. */

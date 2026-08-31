@@ -44,13 +44,18 @@ ToriDraw_AddAngle(
     int angle1,
     int angle2)
 {
-    return (angle1 + angle2 + 2048) % 2048;
+    return (angle1 + angle2) & 2047;
 }
 
+/* `& 2047` is the same function as `(a % 2048 + 2048) % 2048` on every
+ * two's-complement int, including negatives -- the mask is the residue mod
+ * 2048 with the sign already folded in -- and it is one instruction where the
+ * double modulus is two divides the compiler turns into masks and fixups. This
+ * runs four times per projected model. */
 static inline int
 ToriDraw_NormalizeAngle(int angle_r2pi2048)
 {
-    return (angle_r2pi2048 % 2048 + 2048) % 2048;
+    return angle_r2pi2048 & 2047;
 }
 
 static inline float

@@ -51,11 +51,11 @@
 // clang-format off
 #include "graphics/shared_tables.h"
 #include "graphics/shared_tables.c"
-#include "graphics/projection.u.c"
+#include "impl/projection/projection.scalar_reference.u.c"
 #include "graphics/clamp.h"
 #include "graphics/shade.h"
-#include "graphics/raster/texture/span/tex.span.u.c"
-#include "graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c"
+#include "impl/raster/span/span.tex.dispatch.u.c"
+#include "impl/raster/tex/raster.texshadeblend.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
 #include "graphics/raster/texture/tex_tri_asm.h"
 #include "graphics/raster/texture/tex_tri_asm_support.u.c"
 // clang-format on
@@ -285,7 +285,7 @@ main(int argc, char** argv)
     assert(fb_a);
     assert(texels);
 
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
 
     memset(&fb_hint, 0x5A, sizeof(fb_hint));
 
@@ -315,7 +315,7 @@ main(int argc, char** argv)
             t.shade[0], t.shade[1], t.shade[2],
             texels, t.texture_width);
 
-        toridraw_textri_opaque_lerp8_v3_sorting_asm(
+        toridraw_textri_opaque_lerp8_v3_sorting_xrgb8888_asm(
             fb_a + GUARD, STRIDE, W, H, COT16,
             t.x[0], t.x[1], t.x[2],
             t.y[0], t.y[1], t.y[2],
@@ -388,7 +388,7 @@ main(int argc, char** argv)
         memset(fb_c, 0x5A, sizeof(*fb_c) * ALLOC);
         memset(fb_a, 0x5A, sizeof(*fb_a) * ALLOC);
 
-        toridraw_textri_flat_opaque_lerp8_v3_sorting_asm(
+        toridraw_textri_flat_opaque_lerp8_v3_sorting_xrgb8888_asm(
             fb_a + GUARD, STRIDE, W, H, COT16,
             t.x[0], t.x[1], t.x[2],
             t.y[0], t.y[1], t.y[2],
@@ -398,7 +398,7 @@ main(int argc, char** argv)
             t.shade[0], t.shade[0], t.shade[0],
             texels, t.texture_width);
 
-        toridraw_textri_opaque_lerp8_v3_sorting_asm(
+        toridraw_textri_opaque_lerp8_v3_sorting_xrgb8888_asm(
             fb_c + GUARD, STRIDE, W, H, COT16,
             t.x[0], t.x[1], t.x[2],
             t.y[0], t.y[1], t.y[2],

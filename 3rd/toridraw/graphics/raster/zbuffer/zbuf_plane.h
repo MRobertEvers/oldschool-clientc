@@ -84,7 +84,9 @@ toridraw_zbuf_plane_solve(
 
 /** The key at the left edge (x == 0) of row `y`. */
 static inline float
-toridraw_zbuf_plane_row(const struct ToriDraw_ZbufPlane* plane, int y)
+toridraw_zbuf_plane_row(
+    const struct ToriDraw_ZbufPlane* plane,
+    int y)
 {
     return plane->base + plane->step_dy * (float)y;
 }

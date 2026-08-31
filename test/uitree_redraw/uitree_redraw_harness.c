@@ -991,8 +991,8 @@ verify_projection_contract(void)
     static int const expected_x[] = { 106, 219, 332, 456, 0 };
     static int const expected_y[] = { 121, 117, 121, 137, 0 };
     struct ToriDraw_Camera camera = {
-        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-        .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+        .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+        .projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT,
         .pitch = ORBIT_PITCH,
     };
 
@@ -1082,9 +1082,9 @@ fixture_new(uint32_t seed, int bulk_nodes)
     fx->hs.overlay_items[1].h = 26;
     fx->hs.overlay_items[1].color = 0xFFFFD166u;
     fx->hs.overlay_items[1].line_width = 3;
-    fx->projection_camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    fx->projection_camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
-    fx->projection_camera.fov_rpi2048 = TORIDRAW_PROJ_FOV_DEFAULT;
+    fx->projection_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    fx->projection_camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
+    fx->projection_camera.fov_rpi2048 = TORIDRAW_PROJECTION_FOV_DEFAULT;
     fx->projection_camera.near_plane_z = 50;
     fx->projection_camera.pitch = ORBIT_PITCH;
     fx->projection_camera.yaw = fx->hs.camera_yaw;

@@ -31,31 +31,44 @@
  */
 
 #include <stdbool.h>
-#include <stdlib.h>
 
-/** TORIDRAW_FLIP_WINDING=1: cull the opposite screen-space winding.
- *  A bisect knob for the rs2012 QBD import - if a ported model renders
- *  inside-out (interior faces surviving, exterior culled), its faces are wound
- *  against the engine convention and the repair belongs in the importer, not
- *  here. See docs/qbd_toridraw_streaks_debug.md. */
-static int
-toridraw_flip_winding(void)
-{
-    static int on = -1;
-    if( on < 0 )
-    {
-        const char* v = getenv("TORIDRAW_FLIP_WINDING");
-        on = (v && v[0] && v[0] != '0') ? 1 : 0;
-    }
-    return on;
-}
+/**
+ * TORIDRAW_FLIP_WINDING=1: cull the opposite screen-space winding.
+ *
+ * A bisect knob for the rs2012 QBD import -- if a ported model renders
+ * inside-out (interior faces surviving, exterior culled), its faces are wound
+ * against the engine convention and the repair belongs in the importer, not
+ * here. See docs/qbd_toridraw_streaks_debug.md.
+ *
+ * COMPILE TIME, unlike the sort's kernel knobs next door. Those pick between
+ * arms that must be told apart afterwards, so one binary and a variable is the
+ * right shape for them. This is not an arm: it is a one-shot handedness check
+ * run once during an import, by someone who is already rebuilding, and it
+ * answers the same for every face in the process. Left at run time it cost a
+ * select per face in the scalar cull, a branch per four-face block in the
+ * vector culls, and a whole second family of `_flip` entry points here whose
+ * only purpose was to let nine call sites hoist the getenv out of their own
+ * loops by hand. At compile time the default folds to one compare and none of
+ * that has to exist.
+ *
+ *   make -C src TORIDRAW_FLIP_WINDING=1 ...
+ */
+#if !defined(TORIDRAW_FLIP_WINDING)
+#define TORIDRAW_FLIP_WINDING 0
+#endif
 
 /**
  * Twice the signed area of triangle (a, b, c) in screen space, taking b as the
  * origin. Positive is one winding, negative the other; zero is degenerate.
  */
 static inline long long
-toridraw_winding_2d(int ax, int ay, int bx, int by, int cx, int cy)
+toridraw_winding_2d(
+    int ax,
+    int ay,
+    int bx,
+    int by,
+    int cx,
+    int cy)
 {
     const int dx1 = ax - bx;
     const int dy1 = ay - by;
@@ -69,16 +82,24 @@ toridraw_winding_2d(int ax, int ay, int bx, int by, int cx, int cy)
 static inline bool
 toridraw_winding_front_facing(long long winding)
 {
-    return toridraw_flip_winding() ? (winding < 0) : (winding > 0);
+#if TORIDRAW_FLIP_WINDING
+    return winding < 0;
+#else
+    return winding > 0;
+#endif
 }
 
 /** The common case: compute the winding of (a, b, c) and test it. */
 static inline bool
 toridraw_winding_2d_front_facing(
-    int ax, int ay, int bx, int by, int cx, int cy)
+    int ax,
+    int ay,
+    int bx,
+    int by,
+    int cx,
+    int cy)
 {
-    return toridraw_winding_front_facing(
-        toridraw_winding_2d(ax, ay, bx, by, cx, cy));
+    return toridraw_winding_front_facing(toridraw_winding_2d(ax, ay, bx, by, cx, cy));
 }
 
 #endif

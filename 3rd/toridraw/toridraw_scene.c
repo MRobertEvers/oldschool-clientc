@@ -1934,7 +1934,7 @@ ToriDraw_SceneElementApplyAnimation(
          * whole session produces a handful of lines instead of one per pose --
          * TORIRS_ANIM_DEBUG's per-frame firehose is why this was never legible.
          */
-        if( anim_blowup && model->bounds_cylinder )
+        if( anim_blowup && model->has_bounds_cylinder )
         {
             /* Per ELEMENT. A single shared `last` compares one model's radius
              * against whatever was posed immediately before it, which fires on
@@ -1943,7 +1943,7 @@ ToriDraw_SceneElementApplyAnimation(
             static int last_radius[256];
             static bool last_seen[256];
             int const key = element_id & 255;
-            int const r = model->bounds_cylinder->radius;
+            int const r = model->bounds_cylinder.radius;
             int const prev = last_seen[key] ? last_radius[key] : -1;
 
             if( prev >= 0 && (r > prev * 2 + 64 || prev > r * 2 + 64) )
@@ -1953,8 +1953,8 @@ ToriDraw_SceneElementApplyAnimation(
                     "(min_y=%d max_y=%d bias=%d) -- this keyframe changed the "
                     "model's extent by more than 2x\n",
                     element_id, element->anim_seq_id, frame, prev, r,
-                    model->bounds_cylinder->min_y, model->bounds_cylinder->max_y,
-                    model->bounds_cylinder->min_z_depth_any_rotation);
+                    model->bounds_cylinder.min_y, model->bounds_cylinder.max_y,
+                    model->bounds_cylinder.min_z_depth_any_rotation);
             last_radius[key] = r;
             last_seen[key] = true;
         }
@@ -1963,7 +1963,7 @@ ToriDraw_SceneElementApplyAnimation(
          * bounds cylinder, to catch a keyframe whose decoded transforms blow
          * the model's geometry out to a radius the camera/culling can't
          * handle. See docs/rs2012_qbd_wakeup. */
-        if( anim_debug && model->bounds_cylinder )
+        if( anim_debug && model->has_bounds_cylinder )
             fprintf(
                 stderr,
                 "anim: element=%d primary=%d seq=%d frame=%d verts=%d radius=%d min_y=%d "
@@ -1973,9 +1973,9 @@ ToriDraw_SceneElementApplyAnimation(
                 element->anim_seq_id,
                 frame,
                 model->vertex_count,
-                model->bounds_cylinder->radius,
-                model->bounds_cylinder->min_y,
-                model->bounds_cylinder->max_y);
+                model->bounds_cylinder.radius,
+                model->bounds_cylinder.min_y,
+                model->bounds_cylinder.max_y);
     }
 }
 

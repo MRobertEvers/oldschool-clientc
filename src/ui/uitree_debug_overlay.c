@@ -381,7 +381,7 @@ dbg_menu_layout(int line_box, int scale)
 /* ---- HSL16 colour --------------------------------------------------------
  *
  * The revision's own palette, recomputed here rather than read out of the
- * rasteriser's g_hsl16_to_rgb_table.
+ * rasteriser's g_hsl16_to_pixel_table.
  *
  * This module links no renderer (see the header's dependency note), and that
  * is not an obstacle to route around -- it is what makes a swatch drawable in

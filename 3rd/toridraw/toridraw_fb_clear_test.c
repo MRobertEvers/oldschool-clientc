@@ -62,7 +62,7 @@ check(uint32_t* base, size_t offset_px, size_t count, uint32_t value,
     }
 
     ToriDraw_FbClear32(ref + GUARD + offset_px, count, value);
-    toridraw_fb_clear32_nt_asm(base + GUARD + offset_px, count, value);
+    toridraw_fb_clear32_nt_xrgb8888_asm(base + GUARD + offset_px, count, value);
 
     for( i = 0; i < slots; i++ )
     {
@@ -132,7 +132,7 @@ main(int argc, char** argv)
 
         t0 = clock();
         for( i = 0; i < REPS; i++ )
-            toridraw_fb_clear32_nt_asm(base + GUARD, FB_PX, 0xFF202428u);
+            toridraw_fb_clear32_nt_xrgb8888_asm(base + GUARD, FB_PX, 0xFF202428u);
         asm_ms = (double)(clock() - t0) / CLOCKS_PER_SEC * 1e3 / REPS;
 
         printf("host only: C %.3f ms  asm %.3f ms  %.2fx  "

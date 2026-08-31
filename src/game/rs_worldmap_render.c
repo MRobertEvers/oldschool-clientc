@@ -430,7 +430,7 @@ worldmap_overlay_rgb(
         hsl = palette_rgb_to_hsl16(overlay->rgb_color & 0xFFFFFF);
     }
 
-    return g_hsl16_to_rgb_table[terrain_adjust_lightness(hsl, 96) & 0xFFFF] & 0xFFFFFF;
+    return g_hsl16_to_pixel_table[terrain_adjust_lightness(hsl, 96) & 0xFFFF] & 0xFFFFFF;
 }
 
 /* =========================================================================

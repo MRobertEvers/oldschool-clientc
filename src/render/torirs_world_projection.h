@@ -1,7 +1,7 @@
 #ifndef TORIRS_WORLD_PROJECTION_H
 #define TORIRS_WORLD_PROJECTION_H
 
-#include "graphics/projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "toridraw_math.h"
 #include "toridraw_types.h"
 
@@ -58,12 +58,12 @@ ToriRS_WorldProjectPoint(
     if( dz < near_plane_z )
         return 0;
 
-    if( camera->proj_mode == TORIDRAW_PROJ_MODE_FOV )
-        scale = toridraw_proj_scale_from_fov(camera->fov_rpi2048);
+    if( camera->projection_mode == TORIDRAW_PROJECTION_MODE_FOV )
+        scale = toridraw_projection_scale_from_fov(camera->fov_rpi2048);
     else
-        scale = camera->proj_scale;
+        scale = camera->projection_scale;
     if( scale <= 0 )
-        scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+        scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
 
     *out_x = viewport_x + viewport_w / 2 + dx * scale / dz;
     *out_y = viewport_y + viewport_h / 2 + dy * scale / dz;

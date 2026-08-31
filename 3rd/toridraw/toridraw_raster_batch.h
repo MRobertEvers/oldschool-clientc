@@ -52,4 +52,24 @@ toridraw_raster_batch_armed(void)
 
 #endif
 
+/*
+ * The textured-path bisect knob (TORIDRAW_SKIP_TEXTURED).
+ *
+ * Here rather than in either walk because it had TWO private statics -- one in
+ * the per-face walk, one in the batched one -- and they have to answer the same
+ * way: a face the per-face path would drop must not be drawn by the batcher
+ * instead. Two caches of one environment variable is a correctness question
+ * dressed as a duplication.
+ *
+ * Callers hoist this into the per-model context; it is not a per-face read.
+ */
+static inline int
+toridraw_raster_skip_textured(void)
+{
+    static int skip = -1;
+    if( skip < 0 )
+        skip = getenv("TORIDRAW_SKIP_TEXTURED") ? 1 : 0;
+    return skip;
+}
+
 #endif

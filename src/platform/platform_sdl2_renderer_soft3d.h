@@ -7,31 +7,45 @@
 struct ToriDraw_Scene;
 struct ToriRS_Frame;
 
+/*
+ * The working buffers that have to survive a frame boundary: the blit scratch
+ * and the outline/shadow LRU (what stops SpriteNewGraphicOutline recomputing
+ * the same chrome icons every frame -- idle flamegraphs put it at ~2.5% of
+ * samples). Opaque here because nothing outside the renderer reads it; it is
+ * allocated by ToriRS_Soft3D_New and released by ToriRS_Soft3D_Free, and
+ * ToriRS_Soft3D_Init carries it across the per-frame reset.
+ */
+struct ToriRS_Soft3DScratch;
+
 #include "render/torirs_polygon.h"
 
 #define TORIRS_SOFT3D_BG 0xFF202428
-
-/** Matches APP_DAMAGE_RECT_MAX; the renderer does not include app.h. */
-#define TORIRS_SOFT3D_DAMAGE_RECT_MAX 4
 
 #include "toridraw_raster_kernel.h"
 
 struct ToriRS_Soft3D
 {
     struct ToriDraw_Scene* scene;
-    /* Projection + face sort + raster, chosen once at init and passed to
-     * every stage (toridraw.h, the *WithKernel entries). */
-    const struct ToriDraw_RasterKernelSD* kernel;
+    /* Projection + face sort + raster, named by ONE object, taken once at
+     * init through ToriDraw_KernelTake -- which is also where it is validated
+     * against this scene -- and passed to every stage (the *WithTable
+     * entries). */
+    const struct ToriDraw_Kernel* kernel;
     /*
-     * The in-frame A/B (toridraw_frame_ab.h) with a kernel per arm. Under
+     * The in-frame A/B (toridraw_frame_ab.h) with a TABLE per arm. Under
      * TORIDRAW_FRAME_AB=1, TORIDRAW_FRAME_AB_KERNELS=<A>,<B> names the face
      * sort each arm runs (`bucket` | `flat`) and TORIDRAW_FRAME_AB_BATCH=<A>,<B>
      * whether the batched presorted-run walk is armed (0 | 1); an unset
      * knob leaves that stage the same in both arms. Every model of a frame
      * draws through the frame's arm, so the two arms alternate ABBA inside
      * one process and the run-to-run mode of the box subtracts out.
+     *
+     * A table by value, so an arm can name a different sort without touching
+     * the process-wide object the getter handed out. This used to be a copy of
+     * the RASTER kernel with its deprecated stage-2 slot overwritten, which
+     * meant the harness was the last thing keeping that slot alive.
      */
-    struct ToriDraw_RasterKernelSD kernel_ab[2];
+    struct ToriDraw_Kernel kernel_ab[2];
     int batch_ab[2];
     int* pixels;
     int width;
@@ -59,31 +73,22 @@ struct ToriRS_Soft3D
     int pick_mouse_y;
     struct ToriRS_PickHits pick_hits;
 
-    /* Damage rectangle for this frame, half-open [x0,x1) x [y0,y1), or
-     * damage_valid == 0 for "the whole canvas". When set, the frame clears
-     * only this box and every draw is clipped to it, leaving the rest of the
-     * buffer holding the pixels the previous frame left there.
-     *
-     * The renderer does not decide this and cannot check it: whether last
-     * frame's pixels are still correct is a fact about the UI tree, which
-     * lives in App. @see App::damage_valid. */
-    int damage_valid;
-    int damage_x0;
-    int damage_y0;
-    int damage_x1;
-    int damage_y1;
-    /* The same damage as separate rectangles, used by the CLEAR only. The clip
-     * above stays the bounding box because a ViewPort holds one rectangle;
-     * the clear has no such constraint and skipping the strip between the
-     * world viewport and the minimap is most of what damage buys here.
-     *
-     * Safe because of what a retained frame means: outside the live rects
-     * nothing changed, so the pixels already there are the pixels the frame
-     * wants. Chrome redrawn over them lands on its own previous output. */
-    int damage_rect_count;
-    int damage_rects[TORIRS_SOFT3D_DAMAGE_RECT_MAX][4];
+    /* Owned by New/Free, and the one field Init does not reset. */
+    struct ToriRS_Soft3DScratch* scratch;
 };
 
+/** Allocate a renderer and its frame-crossing scratch. The renderer is meant
+ * to be made once and re-pointed at each frame's buffer with Init; making one
+ * per frame throws the outline cache away with it. */
+struct ToriRS_Soft3D*
+ToriRS_Soft3D_New(void);
+
+/** Release a renderer and everything its scratch holds. Accepts NULL. */
+void
+ToriRS_Soft3D_Free(struct ToriRS_Soft3D* soft);
+
+/** Point an already-New'd renderer at this frame's scene and pixel buffer.
+ * Resets all frame state; the scratch and its caches carry over. */
 void
 ToriRS_Soft3D_Init(
     struct ToriRS_Soft3D* soft,
@@ -99,33 +104,6 @@ ToriRS_Soft3D_SetPick(
     struct ToriRS_Soft3D* soft,
     int mouse_x,
     int mouse_y);
-
-/**
- * Restrict the next RenderFrame to a damage box: only this rectangle is
- * cleared, and every draw is clipped to it. Pixels outside are left as the
- * previous frame wrote them, so the caller must be able to prove they are
- * still correct -- see App::damage_valid for what that proof consists of.
- *
- * Not calling this leaves the frame full-canvas, which is always correct.
- */
-void
-ToriRS_Soft3D_SetDamage(
-    struct ToriRS_Soft3D* soft,
-    int x,
-    int y,
-    int w,
-    int h);
-
-/**
- * Narrow the CLEAR to these rectangles instead of the damage box. Must be
- * called after ToriRS_Soft3D_SetDamage, whose box must still cover them --
- * the draw clip keeps using the box. Passing 0 rects leaves the box clear.
- */
-void
-ToriRS_Soft3D_SetDamageClearRects(
-    struct ToriRS_Soft3D* soft,
-    int const (*rects)[4],
-    int count);
 
 /** Clear framebuffer to Soft3D background, then drain frame commands. */
 void

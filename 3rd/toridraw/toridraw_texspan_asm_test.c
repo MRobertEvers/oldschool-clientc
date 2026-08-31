@@ -55,7 +55,7 @@ toridraw_add_mul32(int base, int step, int distance)
 // clang-format off
 #include "graphics/shared_tables.c"
 #include "graphics/raster/texture/span/tex.span_uv.h"
-#include "graphics/raster/texture/span/tex.span.sse2.u.c"
+#include "impl/raster/span/span.tex.sse2.u.c"
 #include "graphics/raster/texture/span/tex_span_asm.h"
 // clang-format on
 
@@ -237,7 +237,7 @@ main(void)
                 texels,
                 c.texture_width);
 
-            toridraw_texspan_opaque_lerp8_v3_asm(
+            toridraw_texspan_opaque_lerp8_v3_xrgb8888_asm(
                 asm_fb,
                 FB_WIDTH,
                 c.screen_x0_ish16,
@@ -360,7 +360,7 @@ main(void)
                             c->shade8bit_ish8, c->step_shade8bit_dx_ish8, tx,
                             c->texture_width);
                     else
-                        toridraw_texspan_opaque_lerp8_v3_asm(
+                        toridraw_texspan_opaque_lerp8_v3_xrgb8888_asm(
                             asm_fb, FB_WIDTH, c->screen_x0_ish16,
                             c->screen_x1_ish16, c->pixel_offset, c->au, c->bv,
                             c->cw, c->step_au_dx, c->step_bv_dx, c->step_cw_dx,

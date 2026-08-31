@@ -236,7 +236,7 @@ render(char const* name)
 {
     struct UITreeEmitDesc desc;
     struct ToriRS_Frame frame;
-    struct ToriRS_Soft3D soft;
+    struct ToriRS_Soft3D* soft;
     char path[128];
     int count = 0;
 
@@ -264,8 +264,10 @@ render(char const* name)
     ToriRS_FrameSetCanvas(&frame, CANVAS_W, CANVAS_H);
     ToriRS_FrameSetEmit(&frame, &desc, 1);
 
-    ToriRS_Soft3D_Init(&soft, g_scene, g_pixels, CANVAS_W, CANVAS_H);
-    ToriRS_Soft3D_RenderFrame(&soft, &frame);
+    soft = ToriRS_Soft3D_New();
+    ToriRS_Soft3D_Init(soft, g_scene, g_pixels, CANVAS_W, CANVAS_H);
+    ToriRS_Soft3D_RenderFrame(soft, &frame);
+    ToriRS_Soft3D_Free(soft);
 
     snprintf(path, sizeof(path), "build/debug_overlay_%s.bmp", name);
     bmp_write_file(path, g_pixels, CANVAS_W, CANVAS_H);

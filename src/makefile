@@ -299,7 +299,7 @@ STB_DIR      := $(REPO_ROOT)/3rd/stb
 # and sign-compare warnings that are not worth failing a build over.
 CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -Wall -Wextra \
 	-Werror=incompatible-pointer-types -MMD -MP \
-	$(TORIDRAW_PROBE_CFLAGS) \
+	$(TORIDRAW_PROBE_CFLAGS) $(PAINTERS_PROBE_CFLAGS) \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(SRC_DIR)/serverscript \
 	-I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) -I$(RSAREABUF_DIR) \
@@ -367,7 +367,7 @@ else
 TORIDRAW_O_LEVEL = $(O_LEVEL)
 endif
 # Raster probes, off unless asked for. The rasterizer's measurement gates are
-# compile-time (graphics/raster/span_census.h, graphics/raster/raster_ablate.h)
+# compile-time (census/span_census.h, census/raster_ablate.h)
 # because a runtime branch in the innermost span loop taxes the very thing it
 # is there to measure. `?=` so this can be set from the environment and reach a
 # build driven by ./launch, which does not forward make arguments:
@@ -378,6 +378,64 @@ endif
 # Removing the unity object by hand is not optional: the .u.c files it pulls in
 # are not dependency-tracked, and an added -D forces no rebuild on its own.
 TORIDRAW_PROBE_CFLAGS ?=
+
+# The render/raster debug facility (3rd/toridraw/toridraw_debug.u.c, gated by
+# 3rd/toridraw/toridraw_debug.h) is compile-time for the same reason: its sites
+# are per-model and per-face on the render path. These are shorthand for adding
+# the -D to the probe flags above; the env vars of the same names then select
+# within the facility at run time, so an instrumented binary is still silent
+# until asked.
+#
+#   rm -f src/build_opt/toridraw_unity.o
+#   make -C src TORIDRAW_DEBUG_STATS=1 ...    counters, printers, harnesses
+#   make -C src TORIDRAW_DEBUG_NDJSON=1 ...   the above plus the NDJSON log
+#
+# The second implies the first; toridraw_debug.h is where that is decided.
+ifeq ($(TORIDRAW_DEBUG_STATS),1)
+TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_DEBUG_STATS=1
+endif
+ifeq ($(TORIDRAW_DEBUG_NDJSON),1)
+TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_DEBUG_NDJSON=1
+endif
+
+# The batched walk's census (3rd/toridraw/graphics/batch_stats.h): how much of a
+# frame reaches a presorted kernel. Three of its four counters sit inside the
+# per-face loop of the walk they measure, so it is compile-time and there is no
+# env var within it -- a build that has it reports at exit.
+#
+#   make -C src TORIDRAW_BATCH_STATS=1 ...
+ifeq ($(TORIDRAW_BATCH_STATS),1)
+TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_BATCH_STATS=1
+endif
+
+# The winding-handedness bisect (3rd/toridraw/graphics/winding.h): cull the
+# opposite screen-space winding, for checking whether an imported model's faces
+# are wound against the engine convention. Compile-time because it answers the
+# same for every face in the process; see the header for why it is not an env
+# var like the sort's kernel knobs.
+#
+#   make -C src TORIDRAW_FLIP_WINDING=1 ...
+ifeq ($(TORIDRAW_FLIP_WINDING),1)
+TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_FLIP_WINDING=1
+endif
+
+# The painter debug facility (painters/debug/painters_debug.u.c, gated by
+# painters/debug/painters_debug.h) is compile-time for the same reason: the
+# wedge log alone has ~25 sites inside the bucket drain loop, and a runtime
+# branch there taxes the traversal it is measuring. The env vars named in that
+# header then select within the facility at run time, so an instrumented binary
+# is still silent until asked.
+#
+#   make -C src PAINTERS_DEBUG=1 ...   wedge log, draw-order dump, world-entity
+#                                      trace, and the two debugger traps
+#
+# Global rather than a painter-only flag: app.c hands the wedge log the eye it
+# is about to paint with, so the gate has to reach that translation unit too.
+PAINTERS_PROBE_CFLAGS ?=
+ifeq ($(PAINTERS_DEBUG),1)
+PAINTERS_PROBE_CFLAGS += -DPAINTERS_DEBUG=1
+endif
+
 TORIDRAW_CFLAGS = -std=c11 $(TORIDRAW_O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -MMD -MP \
 	$(TORIDRAW_PROBE_CFLAGS) \
 	-I$(TORIDRAW_DIR) \
@@ -391,7 +449,7 @@ ifeq ($(PLATFORM),macos)
 ifeq ($(shell uname -m),arm64)
 ifneq ($(TORIDRAW_NO_SIMD),1)
 TORIDRAW_CFLAGS += -DTORIDRAW_APPLE_NEON_PROJECTION_ASM=1
-TORIDRAW_PROJECTION_ASM_OBJ = $(OBJ_DIR)/projection16_apple.o
+TORIDRAW_PROJECTION_ASM_OBJ = $(OBJ_DIR)/projection16.aarch64.o
 endif
 endif
 endif
@@ -452,7 +510,7 @@ endif
 endif
 
 ifeq ($(TORIDRAW_NO_SIMD),1)
-# The selection ladder in graphics/projection16_simd.u.c (and its zdiv twin)
+# The selection ladder in impl/projection/projection.perspective.plain.dispatch.u.c
 # picks a kernel from the host's ISA macros unless the matching *_DISABLED is
 # defined. Define all of them and every host lands on the scalar file.
 TORIDRAW_CFLAGS += -DNEON_DISABLED=1 -DAVX2_DISABLED=1 -DSSE41_DISABLED=1 \
@@ -805,10 +863,10 @@ TRSPK_UNITY_SRC = $(TRSPK_DIR)/trspk_unity.c
 TEXSPAN_ASM_SRC :=
 ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
 ifeq ($(PLATFORM),win64)
-TEXSPAN_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/texture/span/tex_span_x64.S
+TEXSPAN_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/span.tex.x64.S
 endif
 ifeq ($(PLATFORM),win32)
-TEXSPAN_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/texture/span/tex_span_i686.S
+TEXSPAN_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/span.tex.i686.S
 endif
 endif
 
@@ -837,7 +895,7 @@ endif
 GOURAUD_TRI_ASM_SRC :=
 ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
 ifeq ($(PLATFORM),win32)
-GOURAUD_TRI_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+GOURAUD_TRI_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/tri.gouraudhsllightness.i686.S
 endif
 endif
 
@@ -862,7 +920,7 @@ endif
 FLAT_TRI_ASM_SRC :=
 ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
 ifeq ($(PLATFORM),win32)
-FLAT_TRI_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/flat/flat_tri_i686.S
+FLAT_TRI_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/tri.flat.i686.S
 endif
 endif
 
@@ -889,7 +947,7 @@ endif
 TEXTRI_ASM_SRC :=
 ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
 ifeq ($(PLATFORM),win32)
-TEXTRI_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/texture/tex_tri_i686.S
+TEXTRI_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/tri.tex.i686.S
 endif
 endif
 
@@ -998,7 +1056,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
+.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
@@ -1880,7 +1938,7 @@ $(OBJ_DIR)/xteas.o: $(REPO_ROOT)/3rd/xteas/xteas.c | $(OBJ_DIR)
 $(OBJ_DIR)/toridraw_unity.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(TORIDRAW_CFLAGS) -w -c $(TORIDRAW_UNITY_SRC) -o $@
 
-$(OBJ_DIR)/projection16_apple.o: $(TORIDRAW_DIR)/graphics/projection16_apple.S | $(OBJ_DIR)
+$(OBJ_DIR)/projection16.aarch64.o: $(TORIDRAW_DIR)/impl/projection/projection.perspective.prepared.aarch64.S | $(OBJ_DIR)
 	$(CC) -c $< -o $@
 
 # Assembled through $(CC) so the target architecture follows the lane's own
@@ -1921,11 +1979,11 @@ endif
 # first, no PLATFORM_BASE_CFLAGS. edge_slopes_aarch64.inc is the shared
 # slope reciprocal, so every one of the three depends on it.
 ifneq ($(NEON_TRI_ASM_OBJS),)
-$(OBJ_DIR)/flat_tri_neon.o: $(TORIDRAW_DIR)/graphics/raster/flat/flat_tri_aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+$(OBJ_DIR)/flat_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.flat.aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
-$(OBJ_DIR)/gouraud_tri_neon.o: $(TORIDRAW_DIR)/graphics/raster/gouraudhsllightness/gouraud_tri_aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+$(OBJ_DIR)/gouraud_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.gouraudhsllightness.aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
-$(OBJ_DIR)/tex_tri_neon.o: $(TORIDRAW_DIR)/graphics/raster/texture/tex_tri_aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+$(OBJ_DIR)/tex_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.tex.aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
 endif
 
@@ -2832,6 +2890,41 @@ test-scanline: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm
 	./$(OBJ_DIR)/scanline_parity_test
 
+# The same parity, on every pixel format the library claims to support.
+#
+# This is the proof that the raster families are format-agnostic: a solid face
+# reaches the framebuffer through the palette and alpha_blend, and a textured
+# one composes in 8-bit texel lanes and converts once at the store. Neither a
+# channel order nor a channel width is a term in what they compute, so every
+# format runs every arm -- solid and textured -- and all of them must agree
+# with the same branching references.
+#
+# -Werror=incompatible-pointer-types is the point of the compile: a kernel that
+# has not been converted cannot silently accept a native buffer.
+TORIDRAW_PIXEL_FORMATS = \
+	XRGB8888:1 ARGB8888:2 RGBA8888:3 ABGR8888:4 BGRA8888:5 RGB565:6 ARGB1555:7
+
+.PHONY: test-scanline-formats
+test-scanline-formats: $(OBJ_DIR)
+	@fail=""; \
+	for spec in $(TORIDRAW_PIXEL_FORMATS); do \
+		name=$${spec%%:*}; val=$${spec##*:}; \
+		$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
+			-Werror=incompatible-pointer-types -DTORIDRAW_PIXEL_FORMAT=$$val \
+			-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/scanline_parity_$$name \
+			$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm \
+			|| { echo "  $$name: COMPILE FAILED"; fail="$$fail $$name"; continue; }; \
+		out=$$(./$(OBJ_DIR)/scanline_parity_$$name 2>&1); \
+		bad=$$(printf '%s\n' "$$out" | grep -c '  FAIL ' || true); \
+		if [ "$$bad" -ne 0 ]; then \
+			echo "  $$name: $$bad failure(s)"; fail="$$fail $$name"; \
+		else \
+			echo "  $$name: all families agree"; \
+		fi; \
+	done; \
+	if [ -n "$$fail" ]; then echo "scanline format matrix FAILED:$$fail"; exit 1; fi; \
+	echo "scanline format matrix: all green"
+
 # Public model-face dispatch: four typed SD slots, six typed HD slots, complete
 # vtables, pass-requirement flags, and per-call selection. CPU-only, no cache/disk.
 ifneq ($(strip $(ASAN_DYLD_SHIM)),)
@@ -2845,28 +2938,45 @@ test-raster-kernel: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_f
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o $(ASAN_COMPAT_SRC)
 	$(RASTER_KERNEL_TEST_ENV) ./$(OBJ_DIR)/raster_kernel_test
 
-# Compile the complete linked subset under the 16-bit ABI as well. Textured
-# model faces intentionally collapse to solid classes in this configuration;
-# the shared source asserts that public routing contract and the alpha cutoff.
-RASTER_KERNEL_PIXEL16_OBJS = $(OBJ_DIR)/toridraw_unity_pixel16.o \
-	$(OBJ_DIR)/toridraw_font_pixel16.o $(OBJ_DIR)/bmp_pixel16.o
+# The same routing contract, compiled and linked under a SECOND pixel format.
+#
+# It used to be "the 16-bit ABI", and the test carried a set of #ifdefs saying
+# what a 16-bit build could not do: textured faces collapsed to solid classes,
+# the depth family was absent, HD was six no-op callbacks. None of that is true
+# any more, and the test has no format conditionals left -- the same source
+# asserts the same contract, and the point of building it twice is that it HAS
+# to.
+#
+# RGB565 is the arm that proves the most, because it differs from the default
+# in both of the ways a format can: channel width and the pack that follows
+# from it. The asm lanes stay in $(TORIDRAW_CFLAGS) deliberately -- each door
+# is gated on TORIPIXEL_IS_XRGB8888 and declines on its own, and this recipe
+# not needing to strip them is the check that they do.
+TORIDRAW_ALT_FORMAT = TORIDRAW_PF_RGB565
+TORIDRAW_ALT_FORMAT_NAME = rgb565
 
-$(OBJ_DIR)/toridraw_unity_pixel16.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
-	$(CC) $(TORIDRAW_CFLAGS) -DTORIDRAW_PIXEL16=1 -w -c $< -o $@
+RASTER_KERNEL_ALTFMT_OBJS = $(OBJ_DIR)/toridraw_unity_altfmt.o \
+	$(OBJ_DIR)/toridraw_font_altfmt.o $(OBJ_DIR)/bmp_altfmt.o
 
-$(OBJ_DIR)/toridraw_font_pixel16.o: $(TORIDRAW_DIR)/toridraw_font.c | $(OBJ_DIR)
-	$(CC) $(TORIDRAW_CFLAGS) -DTORIDRAW_PIXEL16=1 -I$(REPO_ROOT)/v0 -w -c $< -o $@
+TORIDRAW_ALTFMT_CFLAGS = $(TORIDRAW_CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_ALT_FORMAT)
 
-$(OBJ_DIR)/bmp_pixel16.o: $(BMP_DIR)/bmp.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL16=1 -w -c $< -o $@
+$(OBJ_DIR)/toridraw_unity_altfmt.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
+	$(CC) $(TORIDRAW_ALTFMT_CFLAGS) -w -c $< -o $@
 
-test-raster-kernel-pixel16: $(OBJ_DIR) $(RASTER_KERNEL_PIXEL16_OBJS) $(TORIDRAW_PROJECTION_ASM_OBJ) $(ASAN_DYLD_SHIM)
-	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL16=1 $(filter -fsanitize=%,$(LDFLAGS)) \
+$(OBJ_DIR)/toridraw_font_altfmt.o: $(TORIDRAW_DIR)/toridraw_font.c | $(OBJ_DIR)
+	$(CC) $(TORIDRAW_ALTFMT_CFLAGS) -I$(REPO_ROOT)/v0 -w -c $< -o $@
+
+$(OBJ_DIR)/bmp_altfmt.o: $(BMP_DIR)/bmp.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_ALT_FORMAT) -w -c $< -o $@
+
+test-raster-kernel-altformat: $(OBJ_DIR) $(RASTER_KERNEL_ALTFMT_OBJS) $(TORIDRAW_PROJECTION_ASM_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_ALT_FORMAT) \
+		$(filter -fsanitize=%,$(LDFLAGS)) \
 		-lm $(PLATFORM_STRIP_LDFLAGS) \
-		-o $(OBJ_DIR)/raster_kernel_pixel16_test \
-		$(TORIDRAW_DIR)/toridraw_raster_kernel_test.c $(RASTER_KERNEL_PIXEL16_OBJS) \
+		-o $(OBJ_DIR)/raster_kernel_$(TORIDRAW_ALT_FORMAT_NAME)_test \
+		$(TORIDRAW_DIR)/toridraw_raster_kernel_test.c $(RASTER_KERNEL_ALTFMT_OBJS) \
 		$(TORIDRAW_PROJECTION_ASM_OBJ) $(ASAN_COMPAT_SRC)
-	$(RASTER_KERNEL_TEST_ENV) ./$(OBJ_DIR)/raster_kernel_pixel16_test
+	$(RASTER_KERNEL_TEST_ENV) ./$(OBJ_DIR)/raster_kernel_$(TORIDRAW_ALT_FORMAT_NAME)_test
 
 # ToriDraw2D_BlitArgbScaledAlpha's 1:1 shortcut against the stepping loop it
 # skips. Every if3 interface sprite reaches that call whether or not its
@@ -3005,7 +3115,7 @@ test-gouraudrgb: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/toridraw_gouraudrgb_test.c -lm
 	./$(OBJ_DIR)/gouraudrgb_test
 
-.PHONY: test-scanline test-raster-kernel test-raster-kernel-pixel16 test-gouraudrgb test-texture-matrix test-texmap test-render-hd
+.PHONY: test-scanline test-raster-kernel test-raster-kernel-altformat test-gouraudrgb test-texture-matrix test-texmap test-render-hd
 
 # The `texplane` compositing matrix on the `branching` family:
 # gate {texopaque,textrans,texalpha} x facealpha x modulate, plus clamp
@@ -4792,10 +4902,11 @@ else
 	./$(OBJ_DIR)/presorted_neon_test
 endif
 
-# The flat face sort (SIMD cull + bitonic/radix) against the bucket sort it
-# replaces: order for order, across clip candidates, priorities, the radix
-# threshold and tail faces. Runs on every lane; the SIMD body has a scalar
-# twin, so a lane without NEON still has the sort to hold to the reference.
+# The bitonic+radix face sort (SIMD cull + bitonic/radix) against the bucket
+# sort it replaces: order for order, across clip candidates, priorities, the
+# radix threshold and tail faces. Runs on every lane; the SIMD body has a
+# scalar twin, so a lane without NEON still has the sort to hold to the
+# reference -- there it is the radix half alone, and the kernel says so.
 # How much of a projection call is fixed per MODEL rather than per vertex.
 # 59% of projections are four-vertex terrain tiles, where the 4-wide loop runs
 # once and everything around it is amortised over nothing -- so this is what
@@ -4813,11 +4924,11 @@ test-proj-model-bench: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridra
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/proj_model_bench
 
-test-face-sort-flat: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
-	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/face_sort_flat_test \
-		$(TORIDRAW_DIR)/toridraw_face_sort_flat_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+test-face-sort-bitonic-radix: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/face_sort_bitonic_radix_test \
+		$(TORIDRAW_DIR)/toridraw_face_sort_bitonic_radix_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
-	./$(OBJ_DIR)/face_sort_flat_test
+	./$(OBJ_DIR)/face_sort_bitonic_radix_test
 
 # Depth-tested raster family: a model tagged TORIDRAW_MODEL_FLAG_ZBUFFER
 # resolves its own faces per pixel, the result does not depend on face order,
@@ -4844,11 +4955,112 @@ test-model-render-flags: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/torid
 # bmp.o: ToriDraw_SpriteWriteBmpFile is in the unity, so every target that links
 # it needs bmp_write_file. Without it these two fail to LINK, which reads as a
 # failing test rather than a missing object.
+# The screen box ToriDraw_Project leaves in scene->aabb, against one computed
+# straight from the projected vertices: exercises the AArch64 kernel's
+# in-register accumulation (and its tail hand-off) where that lane is built,
+# and the C sweep everywhere else. Sizes 1..390, yaw and no-yaw, textured and
+# not, and a camera-straddling placement for the clipping family.
+
+# The two stock projection kernels against each other, vertex for vertex. They
+# differ only in the two perspective vtable slots, so a divergence means the
+# prepared-camera kernel and the portable ladder are not interchangeable --
+# which is the whole premise of making them selectable.
+test-projection-kernel: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/projection_kernel_test \
+		$(TORIDRAW_DIR)/toridraw_projection_kernel_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/projection_kernel_test
+
+test-projected-bound: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/projected_bound_test \
+		$(TORIDRAW_DIR)/toridraw_projected_bound_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/projected_bound_test
+
 test-near-clip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/near_clip_test \
 		$(TORIDRAW_DIR)/toridraw_near_clip_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/near_clip_test
+
+
+# The kernel TABLE matrix: the agreements BETWEEN the three stages.
+#
+# Every other kernel target here holds one seam. This one renders a fixture
+# built to make face order matter -- overlapping triangles at descending
+# depths, all four SD classes, translucency -- through every prebaked table x
+# {bucket,bitonic_radix} x batch{0,1}, and hashes the frame.
+#
+# Within a table the hash must not move: which sort ran and whether the run
+# doors were armed are speed decisions. Across rasterisers it must move, or
+# the matrix is agreeing about a blank screen. Nothing is pinned to a golden
+# constant -- the goldens come from the first arm of the same run, so a
+# legitimate kernel change stays green and a change that moves one arm and
+# not its twin does not.
+test-kernel-matrix: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/kernel_matrix_test \
+		$(TORIDRAW_DIR)/toridraw_kernel_matrix_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/kernel_matrix_test
+
+# The kernel naming grammar, as a check.
+#
+# The variant space under 3rd/toridraw is only navigable if a filename is a
+# complete coordinate in it. tools/kernel_names.py holds that grammar in one
+# place and answers two questions with it: what every file WOULD be called
+# (the rename map, reviewed by a person before any move runs), and whether
+# every file can be placed at all.
+#
+# It moves nothing and is safe to run at any time.
+check-kernel-names:
+	python3 $(REPO_ROOT)/tools/kernel_names.py --check
+
+# ---- The kernel suite -------------------------------------------------
+#
+# Every proof the three-stage kernel system rests on, in one target.
+#
+# A kernel, a table, a family, or the scratch two stages hand each other is
+# not done until this passes. The individual targets each hold ONE seam --
+# the four SD face classes, the two projection kernels against each other,
+# the bitonic+radix sort against the bucket sort, the scanline family against
+# the
+# branching one -- and the seams only mean anything together: a change that
+# keeps every kernel correct in isolation and breaks the agreement between
+# two of them passes each of these alone.
+#
+# A lane with no assembly to score (test-presorted-neon off Apple arm64)
+# prints that and succeeds. It stays in the list on every platform, because
+# "there is nothing to run here" is a different report from "it was not run".
+.PHONY: test-toridraw-kernels test-kernel-matrix check-kernel-names
+TORIDRAW_KERNEL_TESTS = \
+	test-raster-kernel \
+	test-raster-kernel-altformat \
+	test-kernel-matrix \
+	check-kernel-names \
+	test-projection-kernel \
+	test-projected-bound \
+	test-near-clip \
+	test-face-sort-bitonic-radix \
+	test-zbuffer \
+	test-scene-profiles \
+	test-render-hd \
+	test-raster-overshoot \
+	test-scanline \
+	test-scanline-formats \
+	test-texture-matrix \
+	test-texmap \
+	test-gouraudrgb \
+	test-presorted-neon
+
+test-toridraw-kernels:
+	@fail=""; \
+	for t in $(TORIDRAW_KERNEL_TESTS); do \
+		echo "=== $$t"; \
+		$(MAKE) --no-print-directory $$t >/dev/null 2>$(OBJ_DIR)/tdk_$$t.log \
+			|| { fail="$$fail $$t"; tail -20 $(OBJ_DIR)/tdk_$$t.log; }; \
+	done; \
+	if [ -n "$$fail" ]; then echo "toridraw kernel suite FAILED:$$fail"; exit 1; fi; \
+	echo "toridraw kernel suite: all green"
 
 # CPU-only, but deliberately compiled with the Win32 compiler: it links the
 # real fixed-function D3D9 command dispatcher and drives its retained resource

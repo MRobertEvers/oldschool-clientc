@@ -7809,12 +7809,12 @@ App_ChromeRasterise(
     struct App* app = user;
     struct UITreeEmitDesc desc;
     struct ToriRS_Frame frame;
-    struct ToriRS_Soft3D soft;
 
     assert(app);
     assert(pixels);
     if( !app->scene || count <= 0 )
         return;
+    assert(app->soft_chrome);
 
     memset(&desc, 0, sizeof(desc));
     desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
@@ -7839,8 +7839,8 @@ App_ChromeRasterise(
     /* One desc, handed directly: the buffer form exists for the tree's whole
      * emit walk, and this window is a single display list. */
     ToriRS_FrameSetEmit(&frame, &desc, 1);
-    ToriRS_Soft3D_Init(&soft, app->scene, pixels, width, height);
-    ToriRS_Soft3D_RenderFrame(&soft, &frame);
+    ToriRS_Soft3D_Init(app->soft_chrome, app->scene, pixels, width, height);
+    ToriRS_Soft3D_RenderFrame(app->soft_chrome, &frame);
 }
 
 int
@@ -9423,6 +9423,10 @@ App_Init(
         TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
         TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
     assert(app->scene);
+    /* Once each, not once a frame: the outline/shadow LRU inside a renderer is
+     * only worth having if it survives the frame that filled it. */
+    app->soft = ToriRS_Soft3D_New();
+    app->soft_chrome = ToriRS_Soft3D_New();
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
     /* The seq the design/local-player previews are posed at. Stated here, once,
      * for both the boot bake and the runtime interface mount — they share the
@@ -9477,10 +9481,10 @@ App_Init(
     app->painter_buffer = painter_buffer_new();
     assert(app->painter_buffer);
     /* v1 GameRunescape camera defaults; repositioned on world load complete. */
-    /* Both knobs are populated; proj_mode picks. See graphics/projection.h. */
-    app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    app->world_camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
-    app->world_camera.fov_rpi2048 = TORIDRAW_PROJ_FOV_DEFAULT;
+    /* Both knobs are populated; projection_mode picks. See graphics/projection.h. */
+    app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    app->world_camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
+    app->world_camera.fov_rpi2048 = TORIDRAW_PROJECTION_FOV_DEFAULT;
     /* 50 also load-bearing for the raster, not just for what gets drawn: the
      * near plane is what keeps projected coordinates inside the kernels' 16.16
      * edge representation (+/-32,768 px). Lowering it moves the largest models
@@ -10199,6 +10203,8 @@ App_Shutdown(struct App* app)
         UITreeBuilder_Free(&app->builder);
     UITreeSceneBridge_Free(&app->bridge);
     TorirsModelInstCache_Free(&app->model_inst_cache);
+    ToriRS_Soft3D_Free(app->soft_chrome);
+    ToriRS_Soft3D_Free(app->soft);
     ToriDraw_SceneFree(app->scene);
     /* Only the pair matching cfg.cache_kind was ever created; both frees assert
      * on NULL, so the unused side must not be handed to them. */
@@ -13541,7 +13547,7 @@ app_debug_log_bridges(struct App* app)
  * viewport HEIGHT on every layout (class159.method5357:
  * scale = viewportHeight * zoom / 334, zoom interpolated between the two
  * VIEWPORT_SETFOV endpoints over height-334 in [0,100]). Leaving it at the
- * compile-time proj_scale = 512 is what drew the Inferno 2.68x magnified —
+ * compile-time projection_scale = 512 is what drew the Inferno 2.68x magnified —
  * at a 503-high world viewport the reference lands on 191/192.
  *
  * ON by default. TORIRS_WEDGE_SCALE values:
@@ -13551,10 +13557,10 @@ app_debug_log_bridges(struct App* app)
  *   TORIRS_WEDGE_ZOOM=<n>,<f>   override the decoded SETFOV endpoints (auto mode)
  *   TORIRS_WEDGE_FOV_DEBUG=1    log the SETFOV decode and the resulting scale
  *
- * The scale reaches the kernels exactly, through ToriDraw_Camera.proj_scale.
+ * The scale reaches the kernels exactly, through ToriDraw_Camera.projection_scale.
  *
  * TORIRS_WORLD_FOV=<n> drives the camera's OTHER knob instead: it switches the
- * world camera to TORIDRAW_PROJ_MODE_FOV and sets fov_rpi2048 to n (units of
+ * world camera to TORIDRAW_PROJECTION_MODE_FOV and sets fov_rpi2048 to n (units of
  * 2*pi/2048, 512 = the default). Both spellings are configurable; the angle
  * cannot express most integer scales, so it is the wrong tool for matching a
  * reference projection and the right one for a free camera. It wins over
@@ -13572,11 +13578,11 @@ app_world_fov_override(void)
         if( e && e[0] != '\0' && sscanf(e, "%d", &v) == 1 && v > 0 )
         {
             /* Clamped, not rejected: an out-of-domain angle would otherwise
-             * mirror the world (see TORIDRAW_PROJ_FOV_MAX). */
-            if( v < TORIDRAW_PROJ_FOV_MIN )
-                v = TORIDRAW_PROJ_FOV_MIN;
-            if( v > TORIDRAW_PROJ_FOV_MAX )
-                v = TORIDRAW_PROJ_FOV_MAX;
+             * mirror the world (see TORIDRAW_PROJECTION_FOV_MAX). */
+            if( v < TORIDRAW_PROJECTION_FOV_MIN )
+                v = TORIDRAW_PROJECTION_FOV_MIN;
+            if( v > TORIDRAW_PROJECTION_FOV_MAX )
+                v = TORIDRAW_PROJECTION_FOV_MAX;
             cached = v;
         }
     }
@@ -13623,7 +13629,7 @@ app_apply_wedge_scale(struct App* app)
 
     if( fov_override > 0 )
     {
-        app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_FOV;
+        app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_FOV;
         app->world_camera.fov_rpi2048 = fov_override;
         if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
         {
@@ -13633,7 +13639,8 @@ app_apply_wedge_scale(struct App* app)
                 logged = 1;
                 TORIRS_LOG("wedge: fov mode fov_rpi2048=%d -> realised scale %d\n",
                     fov_override,
-                    toridraw_proj_scale_from_cot16(toridraw_proj_cot16_from_fov(fov_override)));
+                    toridraw_projection_scale_from_cot16(
+                        toridraw_projection_cot16_from_fov(fov_override)));
             }
         }
         return;
@@ -13661,8 +13668,8 @@ app_apply_wedge_scale(struct App* app)
     if( mode == 0 &&
         app->revconfig_profile.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_FIXED )
     {
-        app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-        app->world_camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+        app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+        app->world_camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
         if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
         {
             static int logged = 0;
@@ -13671,7 +13678,7 @@ app_apply_wedge_scale(struct App* app)
                 logged = 1;
                 TORIRS_LOG("wedge: fixed camera -> constant scale=%d (no viewport "
                     "recompute)\n",
-                    TORIDRAW_PROJ_SCALE_DEFAULT);
+                    TORIDRAW_PROJECTION_SCALE_DEFAULT);
             }
         }
         return;
@@ -13721,9 +13728,9 @@ app_apply_wedge_scale(struct App* app)
     if( scale < 1 )
         scale = 1;
 
-    /* Exact: the kernels multiply by proj_scale directly. */
-    app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    app->world_camera.proj_scale = scale;
+    /* Exact: the kernels multiply by projection_scale directly. */
+    app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    app->world_camera.projection_scale = scale;
 
     if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
     {
@@ -13739,9 +13746,9 @@ app_apply_wedge_scale(struct App* app)
                 far_zoom,
                 zoom,
                 scale,
-                toridraw_proj_scale_from_cot16(toridraw_proj_cot16(
-                    app->world_camera.proj_mode,
-                    app->world_camera.proj_scale,
+                toridraw_projection_scale_from_cot16(toridraw_projection_cot16(
+                    app->world_camera.projection_mode,
+                    app->world_camera.projection_scale,
                     app->world_camera.fov_rpi2048)));
         }
     }
@@ -15591,6 +15598,34 @@ app_pump_net_packets(struct App* app)
             }
         }
 
+        /*
+         * Parked on state this queue does not own -- in practice an asset the
+         * ASSET queue is loading: Task_NpcMultiLoad waiting for an npc's body
+         * parts, Task_WorldLoad waiting for a region's map squares. Resolve
+         * that io here rather than ending the frame.
+         *
+         * A task is only ever resumed against reads that have LANDED, and the
+         * budgets those waits carry are counted in resumes, not in frames.
+         * Ending the frame instead spends one pass of the budget per frame per
+         * waiting task -- which, on a cold region rebuild that parks hundreds
+         * of them behind one serial pipeline, is how every map square in the
+         * region reported "missing archive" and every npc in it "models failed
+         * to load" out of a cache that held all of them.
+         *
+         * A render request is the one thing that outranks finishing the io:
+         * the whole point of that request is that this frame is seen. Anything
+         * else keeps going until the asset queue can no longer move, which is
+         * the honest end of "resolve the io" -- and is bounded, because a wait
+         * that outlives its own budget gives up on its own.
+         */
+        if( stat == TASK_RUNNER_BLOCKED )
+        {
+            enum TaskRunnerStat assets = TaskRunner_SettleFrame(&app->runner);
+
+            if( assets != TASK_RUNNER_RENDER && app->runner.progressed )
+                continue;
+        }
+
         if( stat != TASK_RUNNER_IDLE )
         {
             if( getenv("TORIRS_FRAME_LATCH") )
@@ -15848,8 +15883,16 @@ app_title_tick(struct App* app)
      * player is owed the difference. The words are the profile's; if it
      * declares none, the code goes to the log and the screen says nothing
      * rather than inventing a sentence.
+     *
+     * Not while the dial is still queued. app_title_submit puts the screen on
+     * APP_SCREEN_CONNECTING one tick BEFORE it connects (App::title_connect_pending),
+     * and TORIRS_NET_DISCONNECTED is also the state a network that has never
+     * been dialled sits in -- so without this the submit tick reads its own
+     * not-yet-started handshake as a failure, and the player is shown
+     * [login_reply:default] ("Unexpected server response") on the way to a
+     * login that then succeeds.
      */
-    if( app->screen == APP_SCREEN_CONNECTING && app->net &&
+    if( app->screen == APP_SCREEN_CONNECTING && !app->title_connect_pending && app->net &&
         app->net->state == TORIRS_NET_DISCONNECTED )
     {
         struct RS_LoginReply const* reply =
@@ -17995,9 +18038,9 @@ app_update_painter_cull(
                 near_z,
                 vw,
                 vh,
-                toridraw_proj_cot16(
-                    app->world_camera.proj_mode,
-                    app->world_camera.proj_scale,
+                toridraw_projection_cot16(
+                    app->world_camera.projection_mode,
+                    app->world_camera.projection_scale,
                     app->world_camera.fov_rpi2048),
                 &trig);
             clock_gettime(CLOCK_MONOTONIC, &t1);
@@ -18071,8 +18114,8 @@ app_update_painter_cull(
     params.screen_height = vh;
     /* Same values the frame will be drawn with; the cull frustum must not
      * assume a different projection scale than the rasterizer uses. */
-    params.proj_mode = app->world_camera.proj_mode;
-    params.proj_scale = app->world_camera.proj_scale;
+    params.projection_mode = app->world_camera.projection_mode;
+    params.projection_scale = app->world_camera.projection_scale;
     params.fov_rpi2048 = app->world_camera.fov_rpi2048;
     /* Eye-relative row range covering the draw box around the orbit centre. */
     params.dz_min = (center_sz - radius) - cam_sz - 2;
@@ -18642,7 +18685,7 @@ app_world_paint(struct App* app)
 
     /* Draw-order telemetry (TORIRS_WEDGELOG): hand the painter the eye and world
      * viewport it is about to paint with, for the log header. No-op otherwise. */
-    painter_wedgelog_set_eye(
+    PAINTER_DBG_WEDGE_SET_EYE(
         app->world_camera_pos.x,
         app->world_camera_pos.y,
         app->world_camera_pos.z,
@@ -33319,8 +33362,8 @@ app_damage_armed(void)
 static int g_damage_trace;
 
 /*
- * TORIRS_DAMAGE_RECTS=1: clear and present the live rectangles separately
- * instead of their bounding box.
+ * TORIRS_DAMAGE_RECTS=1: present the live rectangles separately instead of
+ * their bounding box.
  *
  * Off, because it measured slower -- see App::damage_rects. Kept switchable
  * rather than deleted so the arm that produced that number still exists.
@@ -33418,15 +33461,15 @@ app_damage_add(struct App* app, int x, int y, int w, int h)
 }
 
 /*
- * Decide what this frame is allowed to leave untouched. @see App::damage_valid.
+ * Decide what this frame is allowed to leave unpresented. @see
+ * App::damage_valid.
  *
- * A single box, not a region list: the three live areas of an in-world frame
- * (viewport, minimap, the overlays inside them) are adjacent, so a region list
- * would carry per-rect bookkeeping into every draw for a couple of percent of
- * area, and BitBlt bills per call as well as per pixel.
+ * A single box by default, not a region list: the three live areas of an
+ * in-world frame (viewport, minimap, the overlays inside them) are adjacent,
+ * and BitBlt bills per call as well as per pixel.
  *
  * A desc contributes its box UNION its clip rather than their intersection.
- * Which of the two becomes the raster scissor differs by kind, and the union
+ * Which of the two bounds the pixels it writes differs by kind, and the union
  * is the bound that is correct without knowing which -- an intersection would
  * be tighter and occasionally wrong, and being wrong here means stale pixels
  * that never repair.
@@ -33668,10 +33711,10 @@ App_Render(
     int height)
 {
     struct ToriRS_Frame frame;
-    struct ToriRS_Soft3D soft;
 
     assert(app);
     assert(pixels);
+    assert(app->soft);
 
     if( !App_BuildFrame(app, &frame, width, height) )
     {
@@ -33751,42 +33794,22 @@ App_Render(
         return;
     }
 
-    ToriRS_Soft3D_Init(&soft, app->scene, pixels, width, height);
+    ToriRS_Soft3D_Init(app->soft, app->scene, pixels, width, height);
 
     /* Must follow BuildFrame: the emit list it publishes is what says which
      * regions are live this frame. */
     app_compute_damage(app, width, height);
     app_damage_note(app, width, height);
-    if( app->damage_valid )
-    {
-        ToriRS_Soft3D_SetDamage(
-            &soft, app->damage_x, app->damage_y, app->damage_w, app->damage_h);
-        if( app->damage_rect_count > 0 )
-        {
-            int rects[APP_DAMAGE_RECT_MAX][4];
-
-            for( int i = 0; i < app->damage_rect_count; i++ )
-            {
-                rects[i][0] = app->damage_rects[i].x;
-                rects[i][1] = app->damage_rects[i].y;
-                rects[i][2] = app->damage_rects[i].w;
-                rects[i][3] = app->damage_rects[i].h;
-            }
-            ToriRS_Soft3D_SetDamageClearRects(
-                &soft, (int const(*)[4])rects, app->damage_rect_count);
-        }
-    }
-
     /* World hittest rides the render: each visible model is tested against
      * the mouse point right after it projects (the only window where the
      * scene scratch holds its projection), then the raw hits classify into
      * the pickset + hover tile the click/hotkey paths consume next frame. */
     if( app_world_drawable(app) && app->world_mouse_in_viewport )
-        ToriRS_Soft3D_SetPick(&soft, app->world_mouse_x, app->world_mouse_y);
+        ToriRS_Soft3D_SetPick(app->soft, app->world_mouse_x, app->world_mouse_y);
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
     {
-        ToriRS_Soft3D_RenderFrame(&soft, &frame);
+        ToriRS_Soft3D_RenderFrame(app->soft, &frame);
     }
 
     /* deob method5761 / Client-TS REBUILD_NORMAL: while the scene rebuilds,
@@ -33807,8 +33830,8 @@ App_Render(
             frame.dbg_drop_not_live,
             frame.dbg_drop_no_model);
 
-    if( soft.pick_enabled )
-        App_PickFinish(app, &soft.pick_hits);
+    if( app->soft->pick_enabled )
+        App_PickFinish(app, &app->soft->pick_hits);
 }
 
 int

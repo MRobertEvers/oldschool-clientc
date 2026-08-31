@@ -12,12 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(TORIDRAW_PIXEL16) && !defined(_WIN32) && !defined(__EMSCRIPTEN__)
-#include <signal.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#endif
-
 #define VIEW_WIDTH 320
 #define VIEW_HEIGHT 200
 #define VIEW_STRIDE 336
@@ -70,6 +64,27 @@ struct SDFixture
     faceint_t texture[SD_FACE_COUNT];
 };
 
+/*
+ * Does THIS BUILD have the whole-model run door?
+ *
+ * Runtime-gated, never #ifdef TORIDRAW_RASTER_BATCH: that macro is derived
+ * inside the library's own translation unit from -D flags this test is not
+ * compiled with, so a preprocessor gate here compiles the check away and
+ * reports a pass. Ask the kernel what it actually named instead.
+ *
+ * A lane with no presorted-run assembly resolves toridraw_raster_walk_batched
+ * to the per-face walk, so the branching kernel HAS no door, the sort is
+ * correctly told not to stash, and every expectation that depends on the
+ * stash has to stand down with it. That is the 16-bit ABI's situation by
+ * construction -- the run kernels store 4-byte pixels -- and it is also any
+ * lane built with TORIDRAW_NO_SIMD.
+ */
+static bool
+whole_model_door_built(void)
+{
+    return ToriDraw_RasterKernelSDGetBranching()->draw_model != ToriDraw_RasterWalkPerFace;
+}
+
 static struct ToriDraw_ViewPort
 test_viewport(void)
 {
@@ -91,8 +106,8 @@ static struct ToriDraw_Camera
 test_camera(void)
 {
     struct ToriDraw_Camera camera = {
-        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-        .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+        .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+        .projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT,
         .near_plane_z = 50,
         .texture_affine = true,
     };
@@ -238,8 +253,7 @@ sd_fixture_init(struct SDFixture* fixture)
 static void
 sd_fixture_destroy(struct SDFixture* fixture)
 {
-    free(fixture->model.bounds_cylinder);
-    fixture->model.bounds_cylinder = NULL;
+    fixture->model.has_bounds_cylinder = false;
 }
 
 static void
@@ -300,9 +314,63 @@ test_typed_builtin_kernels(void)
     const struct ToriDraw_RasterKernelHD* hd_zbuffered =
         ToriDraw_RasterKernelHDGetZBuffered();
 
+    /* The vtable is the face callbacks and nothing else; the stage-3 entry
+     * lives on the kernel, because stage 3 draws a MODEL. */
     CHECK(sizeof(struct ToriDraw_RasterKernelSDVTable) ==
               4 * sizeof(ToriDraw_RasterKernelSDFaceFn),
-          "SD vtable is not four typed slots");
+          "SD vtable is not four typed face slots");
+
+    /*
+     * Which walk each kernel names.
+     *
+     * Every raster kernel has a draw_model, because that IS stage 3. Naming
+     * the stock ToriDraw_RasterWalkPerFace is how a kernel says it has no
+     * traversal of its own and only supplies the four leaf callbacks -- which
+     * is what the scanline and smooth families do, and must keep doing: they
+     * are different rasterisers, and a presorted run drawing their faces would
+     * draw wrong pixels.
+     */
+    CHECK(sd_branching->draw_model != NULL, "branching names a walk");
+    CHECK(ToriDraw_RasterKernelSDGetBranchingPerFace()->draw_model ==
+              ToriDraw_RasterWalkPerFace,
+          "branching-per-face names the stock walk");
+    CHECK(ToriDraw_RasterKernelSDGetBranchingPerFace()->vtable->draw[0] ==
+              sd_branching->vtable->draw[0],
+          "the per-face twin draws the same faces");
+    CHECK(sd_scanline->draw_model == ToriDraw_RasterWalkPerFace,
+          "scanline names the stock walk");
+    CHECK(sd_smooth_branching->draw_model == ToriDraw_RasterWalkPerFace,
+          "smooth branching names the stock walk");
+    CHECK(ToriDraw_RasterKernelSDGetGpu()->draw_model == NULL,
+          "the gpu kernel has no raster stage at all");
+
+    /*
+     * Which depth-tested twin each painter names.
+     *
+     * The stage-3 entries read this slot to honour TORIDRAW_MODEL_FLAG_ZBUFFER
+     * instead of recognising the caller's kernel by address. The smooth twin
+     * draws the same pixels as the flat one today -- the depth family shares
+     * one vtable -- so the only thing holding the smooth painters to the
+     * smooth twin is this check and the day the family grows a smooth
+     * callback.
+     */
+    CHECK(sd_branching->zbuffered_variant != NULL, "branching names no depth twin");
+    CHECK(sd_scanline->zbuffered_variant == sd_branching->zbuffered_variant,
+          "the flat painters disagree on their depth twin");
+    CHECK(sd_smooth_branching->zbuffered_variant != NULL,
+          "smooth branching names no depth twin");
+    CHECK(sd_smooth_scanline->zbuffered_variant == sd_smooth_branching->zbuffered_variant,
+          "the smooth painters disagree on their depth twin");
+    CHECK(sd_smooth_branching->zbuffered_variant != sd_branching->zbuffered_variant,
+          "the smooth painter took the flat painter's depth twin");
+    CHECK((sd_branching->zbuffered_variant->flags &
+           TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER) != 0,
+          "a depth twin that does not ask for the depth buffer");
+    CHECK((sd_branching->zbuffered_variant->flags &
+           TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING) != 0,
+          "a sorting painter's depth twin dropped the sort");
+    CHECK(sd_zbuffered->zbuffered_variant == NULL,
+          "a depth kernel is its own twin and should name none");
     CHECK(sizeof(struct ToriDraw_RasterKernelHDVTable) ==
               6 * sizeof(ToriDraw_RasterKernelHDFaceFn),
           "HD vtable is not six typed slots");
@@ -332,11 +400,13 @@ test_typed_builtin_kernels(void)
           "SD built-in kernels are unexpectedly aliased");
     CHECK(hd_branching != hd_scanline,
           "HD built-in kernels are unexpectedly aliased");
-#ifdef TORIDRAW_PIXEL16
-    CHECK(sizeof(toripixel_t) == 2, "Pixel16 toripixel_t is %zu bytes", sizeof(toripixel_t));
-#else
-    CHECK(sizeof(toripixel_t) == 4, "Pixel32 toripixel_t is %zu bytes", sizeof(toripixel_t));
-#endif
+    /* The framebuffer word is whatever the selected format says it is, and
+     * TORIPIXEL_BYTES is what the rest of the library strides by. */
+    CHECK(sizeof(toripixel_t) == (size_t)TORIPIXEL_BYTES,
+          "%s toripixel_t is %zu bytes, TORIPIXEL_BYTES says %d", TORIPIXEL_FORMAT_NAME,
+          sizeof(toripixel_t), TORIPIXEL_BYTES);
+    CHECK(TORIPIXEL_BYTES == 4 || TORIPIXEL_BYTES == 2,
+          "%s pixel width %d is neither 4 nor 2", TORIPIXEL_FORMAT_NAME, TORIPIXEL_BYTES);
 }
 
 struct SDSpy
@@ -353,21 +423,12 @@ struct SDSpy
 static enum ToriDraw_RasterFaceClassSD
 sd_expected_class(int face)
 {
-#ifdef TORIDRAW_PIXEL16
-    static const enum ToriDraw_RasterFaceClassSD expected[SD_FACE_COUNT] = {
-        TORIDRAW_RASTER_FACE_SD_GOURAUD,
-        TORIDRAW_RASTER_FACE_SD_FLAT,
-        TORIDRAW_RASTER_FACE_SD_GOURAUD,
-        TORIDRAW_RASTER_FACE_SD_FLAT,
-    };
-#else
     static const enum ToriDraw_RasterFaceClassSD expected[SD_FACE_COUNT] = {
         TORIDRAW_RASTER_FACE_SD_GOURAUD,
         TORIDRAW_RASTER_FACE_SD_FLAT,
         TORIDRAW_RASTER_FACE_SD_TEXTURED,
         TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT,
     };
-#endif
     return expected[face];
 }
 
@@ -436,7 +497,6 @@ sd_verify_face(const struct SDSpy* spy, const struct ToriDraw_RasterFaceSD* face
         CHECK(face->shade[0] == shade_a && face->shade[1] == shade_b &&
                   face->shade[2] == shade_c && face->opacity == 255,
               "SD face %d shade/opacity", index);
-#ifndef TORIDRAW_PIXEL16
         CHECK(face->texture.texture_id == TEST_TEXTURE_ID &&
                   face->texture.texels == spy->env->texture_texels &&
                   face->texture.width == TEST_TEXTURE_WIDTH &&
@@ -449,7 +509,6 @@ sd_verify_face(const struct SDSpy* spy, const struct ToriDraw_RasterFaceSD* face
                   face->texture.frame.m == face->vertex[1] &&
                   face->texture.frame.n == face->vertex[2],
               "SD face %d fallback frame", index);
-#endif
     }
 }
 
@@ -499,11 +558,7 @@ static const struct ToriDraw_RasterKernelSDVTable sd_full_vtable = {
 static void
 check_sd_full_calls(const struct SDSpy* spy)
 {
-#ifdef TORIDRAW_PIXEL16
-    static const int expected[TORIDRAW_RASTER_FACE_SD_CLASS_COUNT] = { 2, 2, 0, 0 };
-#else
     static const int expected[TORIDRAW_RASTER_FACE_SD_CLASS_COUNT] = { 1, 1, 1, 1 };
-#endif
 
     CHECK(spy->total_calls == SD_FACE_COUNT, "SD total calls %d", spy->total_calls);
     for( int slot = 0; slot < TORIDRAW_RASTER_FACE_SD_CLASS_COUNT; slot++ )
@@ -572,29 +627,37 @@ test_sd_direct_apis(const struct SDFixture* fixture, struct RenderEnv* env)
     struct ToriDraw_Camera camera = test_camera();
     struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
     struct SDSpy spy = { .fixture = fixture, .env = env };
+    /*
+     * A caller's own RASTER kernel. It names a walk and four leaf callbacks
+     * and nothing else -- stages 1 and 2 belong to the table, and the entries
+     * used here are the ones whose caller names no table, so they run the
+     * library's default projection and sort.
+     */
     const struct ToriDraw_RasterKernelSD full_kernel = {
+        .draw_model = ToriDraw_RasterWalkPerFace,
         .vtable = &sd_full_vtable,
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
     };
     const struct ToriDraw_RasterKernelSD none_kernel = {
+        .draw_model = ToriDraw_RasterWalkPerFace,
         .vtable = &sd_full_vtable,
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NONE,
     };
-#ifndef TORIDRAW_PIXEL16
     const struct ToriDraw_RasterKernelSD z_kernel = {
+        .draw_model = ToriDraw_RasterWalkPerFace,
         .vtable = &sd_full_vtable,
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
     };
     const struct ToriDraw_RasterKernelSD sorted_z_kernel = {
+        .draw_model = ToriDraw_RasterWalkPerFace,
         .vtable = &sd_full_vtable,
         .user_data = &spy,
         .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING |
                  TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
     };
-#endif
     int result;
 
     sd_spy_reset(&spy, full_kernel.flags);
@@ -630,7 +693,6 @@ test_sd_direct_apis(const struct SDFixture* fixture, struct RenderEnv* env)
         CHECK(count_nonzero_pixels(env) == 0, "SD phase3 spy callbacks drew pixels");
     }
 
-#ifndef TORIDRAW_PIXEL16
     sd_spy_reset(&spy, z_kernel.flags);
     clear_pixels(env);
     result = ToriDraw_RenderZBufferedWithRasterKernel(
@@ -666,7 +728,6 @@ test_sd_direct_apis(const struct SDFixture* fixture, struct RenderEnv* env)
     check_sd_full_calls(&spy);
     check_sd_sorted_order(&spy, env->scene, "direct SD explicit sorted depth");
     CHECK(count_nonzero_pixels(env) == 0, "SD sorted depth callbacks drew pixels");
-#endif
 }
 
 static void
@@ -679,10 +740,8 @@ test_sd_legacy_parity(const struct SDFixture* fixture, struct RenderEnv* env)
         ToriDraw_RasterKernelSDGetBranching();
     const struct ToriDraw_RasterKernelSD* smooth =
         ToriDraw_RasterKernelSDGetSmoothBranching();
-#ifndef TORIDRAW_PIXEL16
     const struct ToriDraw_RasterKernelSD* smooth_z =
         ToriDraw_RasterKernelSDGetSmoothZBuffered();
-#endif
     size_t const image_bytes =
         (size_t)VIEW_STRIDE * VIEW_HEIGHT * sizeof(*env->pixels);
     toripixel_t* reference = malloc(image_bytes);
@@ -727,7 +786,6 @@ test_sd_legacy_parity(const struct SDFixture* fixture, struct RenderEnv* env)
     CHECK(memcmp(reference, env->pixels, image_bytes) == 0,
           "legacy smooth phase3 differs from the smooth built-in kernel");
 
-#ifndef TORIDRAW_PIXEL16
     clear_pixels(env);
     result = ToriDraw_RenderZBuffered(
         fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, true);
@@ -740,12 +798,10 @@ test_sd_legacy_parity(const struct SDFixture* fixture, struct RenderEnv* env)
     CHECK(result == TORIDRAW_CULL_VISIBLE, "explicit smooth SD depth returned %d", result);
     CHECK(memcmp(reference, env->pixels, image_bytes) == 0,
           "legacy smooth SD depth differs from the smooth built-in kernel");
-#endif
 
     free(reference);
 }
 
-#ifndef TORIDRAW_PIXEL16
 
 #define HD_FACE_COUNT 6
 #define HD_VERTEX_COUNT (HD_FACE_COUNT * 3)
@@ -859,9 +915,8 @@ static void
 hd_fixture_destroy(struct HDFixture* fixture)
 {
     free(fixture->hd.texture_mappings);
-    free(fixture->hd.base.bounds_cylinder);
     fixture->hd.texture_mappings = NULL;
-    fixture->hd.base.bounds_cylinder = NULL;
+    fixture->hd.base.has_bounds_cylinder = false;
 }
 
 static void
@@ -1237,142 +1292,421 @@ test_hd_legacy_parity(const struct HDFixture* fixture, struct RenderEnv* env)
     free(reference);
 }
 
-#else /* TORIDRAW_PIXEL16 */
 
-struct Pixel16HDSpy
-{
-    int calls;
-};
 
+/*
+ * Kernel scratch: what a kernel needs, what a scene has, and the gap.
+ *
+ * The interesting case is the FULL scene. The bitonic+radix sort's keys and
+ * the batched walk's stash are small-tier scratch, so a full scene cannot
+ * satisfy either --
+ * and the point of the needs mask is that this is now something a caller can
+ * ask about instead of discovering in a profile.
+ */
 static void
-pixel16_hd_unexpected_callback(
-    void* user_data,
-    const struct ToriDraw_RasterTarget* target,
-    const struct ToriDraw_RasterFaceHD* face)
+test_kernel_scratch(void)
 {
-    struct Pixel16HDSpy* spy = user_data;
+    struct ToriDraw_Scene* small;
+    struct ToriDraw_Scene* full;
+    uint32_t needs;
 
-    (void)target;
-    (void)face;
-    spy->calls++;
-}
-
-static const struct ToriDraw_RasterKernelHDVTable pixel16_hd_vtable = {
-    .draw = {
-        [TORIDRAW_RASTER_FACE_HD_GOURAUD] = pixel16_hd_unexpected_callback,
-        [TORIDRAW_RASTER_FACE_HD_FLAT] = pixel16_hd_unexpected_callback,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_PLANE] = pixel16_hd_unexpected_callback,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CYLINDER] = pixel16_hd_unexpected_callback,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_CUBE] = pixel16_hd_unexpected_callback,
-        [TORIDRAW_RASTER_FACE_HD_TEXTURED_SPHERE] = pixel16_hd_unexpected_callback,
-    },
-};
-
-static void
-check_zero_hd_stats(const struct ToriDraw_HDRenderStats* stats, const char* label)
-{
-    struct ToriDraw_HDRenderStats zero = {0};
-
-    CHECK(memcmp(stats, &zero, sizeof(*stats)) == 0, "%s did not clear stats", label);
-}
-
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
-static void
-test_pixel16_sd_depth_unsupported(
-    const struct SDFixture* fixture,
-    struct RenderEnv* env,
-    bool explicit_kernel)
-{
-    struct ToriDraw_ViewPort viewport = test_viewport();
-    struct ToriDraw_Camera camera = test_camera();
-    struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
-    struct SDSpy spy = { .fixture = fixture, .env = env };
-    const struct ToriDraw_RasterKernelSD kernel = {
-        .vtable = &sd_full_vtable,
-        .user_data = &spy,
-        .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
-    };
-    pid_t child = fork();
-    int status = 0;
-
-    CHECK(child >= 0, "fork for Pixel16 SD depth unsupported check");
-    if( child < 0 )
+    small = ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    CHECK(small != NULL, "small scene allocated");
+    full = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    CHECK(full != NULL, "full scene allocated");
+    if( !small || !full )
         return;
-    if( child == 0 )
-    {
-        int result;
 
-        close(STDERR_FILENO);
-        if( explicit_kernel )
-            result = ToriDraw_RenderZBufferedWithRasterKernel(
-                fixture->handle, env->scene, &position, &viewport, &camera, env->pixels,
-                &kernel);
-        else
-            result = ToriDraw_RenderZBuffered(
-                fixture->handle, env->scene, &position, &viewport, &camera, env->pixels,
-                false);
-        _exit(result == TORIDRAW_CULL_ERROR && spy.total_calls == 0 ? 0 : 2);
+    /* A small scene created the stock way already carries everything the stock
+     * painter asks for -- the ensure API is a no-op there, which is what keeps
+     * it from changing any existing caller's allocation. */
+    needs = ToriDraw_SceneKernelScratchNeeds(small, ToriDraw_RasterKernelSDGetBranching());
+    /* Only where the run door was built: with no door the branching kernel is
+     * the per-face walk, and asking the sort to fill a stash nothing loads is
+     * precisely what the needs mask exists to prevent. */
+    if( whole_model_door_built() )
+        CHECK(needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY, "small branching wants the stash");
+    else
+        CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+              "small branching does not want the stash with no door built");
+    CHECK(needs & TORIDRAW_SCENE_SCRATCH_CSR_SORT, "small branching wants the CSR sort");
+    CHECK(ToriDraw_SceneHasScratch(small, needs), "small scene already satisfies it");
+    CHECK(ToriDraw_SceneEnsureKernelScratch(small, ToriDraw_RasterKernelSDGetBranching()),
+          "ensure succeeds on a small scene");
+
+    /* The scanline family never loads the stash, so it must not be asked for:
+     * filling it would be seven stores per face into a buffer nobody reads. */
+    needs = ToriDraw_SceneKernelScratchNeeds(small, ToriDraw_RasterKernelSDGetScanline());
+    CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "scanline does not ask for the stash");
+
+    /* A z-buffered kernel runs no face sort at all, so it needs neither the
+     * order nor any sort scratch. */
+    needs = ToriDraw_SceneKernelScratchNeeds(small, ToriDraw_RasterKernelSDGetZBuffered());
+    CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_FACE_ORDER),
+          "zbuffered does not ask for the face order");
+    CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_CSR_SORT),
+          "zbuffered does not ask for sort scratch");
+
+    /* The GPU kernel sorts but never rasters in software: order yes, stash no. */
+    needs = ToriDraw_SceneKernelScratchNeeds(small, ToriDraw_RasterKernelSDGetGpu());
+    CHECK(needs & TORIDRAW_SCENE_SCRATCH_FACE_ORDER, "gpu wants the face order");
+    CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY), "gpu does not want the stash");
+
+    /* THE FULL SCENE. It takes the dense bucket table, and neither the sort
+     * keys nor the stash are asked for -- because on a full scene the
+     * bitonic+radix face-sort kernel runs the same bucket sort the bucket
+     * kernel does. */
+    needs = ToriDraw_SceneKernelScratchNeeds(full, ToriDraw_RasterKernelSDGetBranching());
+    CHECK(needs & TORIDRAW_SCENE_SCRATCH_BUCKET_SORT, "full branching wants the buckets");
+    CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "full scene is not asked for the stash");
+    CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS),
+          "full scene is not asked for the sort keys");
+    CHECK(ToriDraw_SceneHasScratch(full, needs), "full scene satisfies its own needs");
+    CHECK(!(ToriDraw_SceneScratchResident(full) & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "full scene really has no stash");
+
+    /* Idempotent: asking twice allocates nothing the second time and still
+     * reports satisfied. */
+    CHECK(ToriDraw_SceneEnsureKernelScratch(full, ToriDraw_RasterKernelSDGetBranching()),
+          "ensure succeeds on a full scene");
+    CHECK(ToriDraw_SceneEnsureKernelScratch(full, ToriDraw_RasterKernelSDGetBranching()),
+          "ensure is idempotent");
+
+
+    /* Traits, not identity. A sort declares what it can hand on and what it
+     * needs; the scratch API reads that rather than comparing pointers, so a
+     * caller's own sort kernel is reasoned about the same way. */
+    {
+        const struct ToriDraw_FaceCullSortKernel* bucket =
+            ToriDraw_FaceCullSortKernelGetBucket();
+        const struct ToriDraw_FaceCullSortKernel* keysort =
+            ToriDraw_FaceCullSortKernelGetBitonicRadix();
+        struct ToriDraw_Kernel k;
+
+        CHECK(bucket->provides & TORIDRAW_FACESORT_PROVIDES_FACE_ORDER,
+              "bucket provides the face order");
+        CHECK(keysort->provides & TORIDRAW_FACESORT_PROVIDES_FACE_ORDER,
+              "bitonic+radix provides the face order");
+        /* Both can stash: the small-scene bucket sort does it in
+         * bucket_sort_by_average_depth_small, the key sort in its own block. */
+        CHECK(bucket->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY,
+              "bucket can presort");
+        CHECK(keysort->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY,
+              "bitonic+radix can presort");
+        /* Only the key sort sorts keys, and only it degrades on a full scene. */
+        CHECK(!(bucket->needs & TORIDRAW_FACESORT_NEEDS_BITONIC_RADIX_KEYS),
+              "bucket needs no key arrays");
+        CHECK(keysort->needs & TORIDRAW_FACESORT_NEEDS_BITONIC_RADIX_KEYS,
+              "bitonic+radix needs the key arrays");
+        CHECK(keysort->needs & TORIDRAW_FACESORT_NEEDS_SMALL_SCENE,
+              "bitonic+radix needs a small scene to be itself");
+
+        /* The needs mask follows the declaration: naming the bucket sort must
+         * not reserve key arrays it will never touch. */
+        k = *ToriDraw_KernelGetSoftwarePainter();
+        k.face_sort = bucket;
+        CHECK(!(ToriDraw_KernelScratchNeeds(small, &k) &
+                TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS),
+              "bucket sort asks for no sort keys");
+        k.face_sort = keysort;
+        CHECK(ToriDraw_KernelScratchNeeds(small, &k) & TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS,
+              "bitonic+radix sort asks for the sort keys");
+        /* On a full scene neither does, because neither runs there. */
+        CHECK(!(ToriDraw_KernelScratchNeeds(full, &k) &
+                TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS),
+              "full scene asks for no sort keys even for the bitonic+radix sort");
     }
 
-    CHECK(waitpid(child, &status, 0) == child, "wait for Pixel16 SD depth child");
-    CHECK((WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT) ||
-              (WIFEXITED(status) && WEXITSTATUS(status) == 0),
-          "Pixel16 %s SD depth status 0x%x", explicit_kernel ? "explicit" : "legacy",
-          status);
+    ToriDraw_SceneFree(small);
+    ToriDraw_SceneFree(full);
 }
-#endif
 
+/*
+ * The whole-model door against the per-face walk, pixel for pixel.
+ *
+ * The batched walk had no end-to-end coverage: test-presorted-neon scores the
+ * eight run kernels in isolation, against C references it calls itself, but
+ * nothing checked the WALK that stages faces into those runs -- which class it
+ * assigns a face to, when it flushes, and whether the result is the picture
+ * the per-face path draws. The two are the same kernel set reached two ways,
+ * so they must agree exactly.
+ *
+ * Needs a SMALL scene: the y-ordered stash the door reads is small-tier
+ * scratch, and the rest of this file's fixtures are TORIDRAW_SCENE_FULL, which
+ * is why the door never fired here before.
+ */
 static void
-test_pixel16_hd_unsupported(const struct SDFixture* fixture, struct RenderEnv* env)
+test_whole_model_door(struct SDFixture* fixture)
 {
+    struct ToriDraw_Scene* scene =
+        ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     struct ToriDraw_ViewPort viewport = test_viewport();
     struct ToriDraw_Camera camera = test_camera();
-    struct ToriDraw_Position position = { .z = CAMERA_DISTANCE };
-    struct ToriDraw_HDRenderStats stats;
-    struct Pixel16HDSpy spy = {0};
-    const struct ToriDraw_RasterKernelHD painter_kernel = {
-        .vtable = &pixel16_hd_vtable,
-        .user_data = &spy,
-        .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
-    };
-    const struct ToriDraw_RasterKernelHD z_kernel = {
-        .vtable = &pixel16_hd_vtable,
-        .user_data = &spy,
-        .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
-    };
-    int result;
+    struct ToriDraw_Position position = { .z = 420 };
+    size_t const count = (size_t)VIEW_STRIDE * VIEW_HEIGHT;
+    toripixel_t* batched = calloc(count, sizeof(toripixel_t));
+    toripixel_t* per_face = calloc(count, sizeof(toripixel_t));
+    struct ToriDraw_Texture* texture = make_test_texture();
+    int diff = 0;
 
-    memset(&stats, 0xA5, sizeof(stats));
-    result = ToriDraw_RenderHD(
-        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, NULL,
-        &stats);
-    CHECK(result == TORIDRAW_CULL_ERROR, "Pixel16 legacy HD returned %d", result);
-    check_zero_hd_stats(&stats, "Pixel16 legacy HD");
+    if( !whole_model_door_built() )
+    {
+        printf("  whole-model door not built on this lane -- skipped\n");
+        ToriDraw_SceneFree(scene);
+        free(batched);
+        free(per_face);
+        if( texture )
+            ToriDraw_TextureFree(texture);
+        return;
+    }
 
-    memset(&stats, 0xA5, sizeof(stats));
-    result = ToriDraw_RenderHDWithRasterKernel(
-        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, NULL,
-        &stats, &painter_kernel);
-    CHECK(result == TORIDRAW_CULL_ERROR, "Pixel16 direct HD returned %d", result);
-    check_zero_hd_stats(&stats, "Pixel16 direct HD");
+    CHECK(scene != NULL, "door: scene");
+    CHECK(batched != NULL && per_face != NULL, "door: framebuffers");
+    CHECK(texture != NULL, "door: texture");
+    if( !scene || !batched || !per_face || !texture )
+        goto done;
+    ToriDraw_SceneSetTexture(scene, TEST_TEXTURE_ID, texture);
 
-    memset(&stats, 0xA5, sizeof(stats));
-    result = ToriDraw_RenderHDZBuffered(
-        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, NULL,
-        &stats);
-    CHECK(result == TORIDRAW_CULL_ERROR, "Pixel16 legacy HD depth returned %d", result);
-    check_zero_hd_stats(&stats, "Pixel16 legacy HD depth");
+    /* The stash only exists if the scene was prepared for a kernel that wants
+     * it -- which is the scratch API's whole job. */
+    CHECK(ToriDraw_SceneEnsureKernelScratch(scene, ToriDraw_RasterKernelSDGetBranching()),
+          "door: scratch for the branching kernel");
+    CHECK(ToriDraw_SceneHasScratch(scene, TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "door: the stash is resident");
 
-    memset(&stats, 0xA5, sizeof(stats));
-    result = ToriDraw_RenderHDZBufferedWithRasterKernel(
-        fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, NULL,
-        &stats, &z_kernel);
-    CHECK(result == TORIDRAW_CULL_ERROR, "Pixel16 direct HD depth returned %d", result);
-    check_zero_hd_stats(&stats, "Pixel16 direct HD depth");
-    CHECK(spy.calls == 0, "Pixel16 unsupported HD path invoked %d callbacks", spy.calls);
+    CHECK(ToriDraw_RenderModelWithRasterKernel(
+              fixture->handle, scene, &position, &viewport, &camera, batched,
+              ToriDraw_RasterKernelSDGetBranching()) == TORIDRAW_CULL_VISIBLE,
+          "door: batched render visible");
+    /* Set by the sort when it actually stashed. If this is zero the door
+     * cannot have fired and the comparison below is vacuous. */
+    CHECK(scene->sm_face_xy_valid, "door: the sort stashed, so the door was reachable");
+
+    CHECK(ToriDraw_RenderModelWithRasterKernel(
+              fixture->handle, scene, &position, &viewport, &camera, per_face,
+              ToriDraw_RasterKernelSDGetBranchingPerFace()) == TORIDRAW_CULL_VISIBLE,
+          "door: per-face render visible");
+
+    for( size_t i = 0; i < count; i++ )
+    {
+        if( batched[i] != per_face[i] )
+            diff++;
+    }
+    CHECK(diff == 0, "door: %d pixels differ between the batched and per-face walks", diff);
+
+    /* And the comparison is not vacuous in the other direction either: the
+     * model has to have drawn something. */
+    {
+        int drawn = 0;
+        for( size_t i = 0; i < count; i++ )
+            if( batched[i] != 0 )
+                drawn++;
+        CHECK(drawn > 0, "door: the batched walk drew no pixels at all");
+    }
+
+done:
+    if( texture )
+        ToriDraw_SceneSetTexture(scene, TEST_TEXTURE_ID, NULL);
+    free(batched);
+    free(per_face);
+    ToriDraw_SceneFree(scene);
 }
 
-#endif /* TORIDRAW_PIXEL16 */
+
+/*
+ * The kernel table: what each prebaked triple asks the scene for, and what
+ * ToriDraw_KernelValidate says about the pairing.
+ *
+ * The interesting assertions are the negative ones. A table whose raster has
+ * no whole-model door must not make the sort stash for it, and a table on a
+ * full scene must be reported DEGRADED rather than silently taking a slower
+ * path -- that report is the entire reason the enum has three values.
+ */
+static void
+test_kernel_tables(void)
+{
+    struct ToriDraw_Scene* small =
+        ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    struct ToriDraw_Scene* full =
+        ToriDraw_SceneNew(TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    const struct ToriDraw_Kernel* painter = ToriDraw_KernelGetSoftwarePainter();
+    const struct ToriDraw_Kernel* scanline = ToriDraw_KernelGetSoftwareScanline();
+    const struct ToriDraw_Kernel* zbuf = ToriDraw_KernelGetSoftwareZBuffered();
+    const struct ToriDraw_Kernel* gpu = ToriDraw_KernelGetGpu();
+    const struct ToriDraw_Kernel* baker = ToriDraw_KernelGetSpriteBaker();
+    const char* why = NULL;
+
+    CHECK(small != NULL && full != NULL, "tables: scenes");
+    if( !small || !full )
+        return;
+
+    /* Every table names three real stages. */
+    CHECK(painter->name && scanline->name && zbuf->name && gpu->name && baker->name,
+          "tables: every table is named");
+    CHECK(gpu->raster == NULL, "tables: the gpu table has no raster stage");
+    CHECK(painter->raster != NULL, "tables: the painter table has a raster stage");
+
+    /* The painter is the only table that asks for the presort stash, and only
+     * on a small scene. */
+    if( whole_model_door_built() )
+        CHECK(ToriDraw_KernelScratchNeeds(small, painter) & TORIDRAW_SCENE_SCRATCH_PRESORT_XY,
+              "tables: painter wants the stash on a small scene");
+    else
+        CHECK(!(ToriDraw_KernelScratchNeeds(small, painter) &
+                TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+              "tables: painter does not want the stash with no door built");
+    CHECK(!(ToriDraw_KernelScratchNeeds(small, scanline) &
+            TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "tables: scanline does not want the stash");
+    CHECK(!(ToriDraw_KernelScratchNeeds(small, baker) & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "tables: the sprite baker does not want the stash");
+    CHECK(!(ToriDraw_KernelScratchNeeds(small, gpu) & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "tables: the gpu table does not want the stash");
+    CHECK(!(ToriDraw_KernelScratchNeeds(full, painter) & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
+          "tables: a full scene is never asked for the stash");
+
+    /* The z-buffered table runs no sort at all. */
+    CHECK(!(ToriDraw_KernelScratchNeeds(small, zbuf) & TORIDRAW_SCENE_SCRATCH_FACE_ORDER),
+          "tables: zbuffered wants no face order");
+    /* The gpu table does: it sorts for the upload. */
+    CHECK(ToriDraw_KernelScratchNeeds(small, gpu) & TORIDRAW_SCENE_SCRATCH_FACE_ORDER,
+          "tables: gpu wants the face order");
+
+    /* Fit. On a small scene the painter is whole; on a full one it degrades,
+     * and says which half degraded. */
+    CHECK(ToriDraw_KernelValidate(painter, small, &why) == TORIDRAW_KERNEL_FIT_OK,
+          "tables: painter fits a small scene (%s)", why);
+    CHECK(ToriDraw_KernelValidate(painter, full, &why) == TORIDRAW_KERNEL_FIT_DEGRADED,
+          "tables: painter degrades on a full scene (%s)", why);
+    CHECK(why != NULL && strcmp(why, "ok") != 0, "tables: a degrade explains itself");
+
+    /* The scanline table has no door, so a full scene costs it nothing extra
+     * beyond the sort fallback -- it must not be reported as a raster degrade. */
+    CHECK(ToriDraw_KernelValidate(scanline, small, &why) == TORIDRAW_KERNEL_FIT_OK,
+          "tables: scanline fits a small scene (%s)", why);
+
+    CHECK(ToriDraw_KernelValidate(gpu, small, &why) == TORIDRAW_KERNEL_FIT_OK,
+          "tables: the gpu table is valid (%s)", why);
+
+    /* A hand-built table with a hole in its raster vtable is refused. */
+    {
+        struct ToriDraw_RasterKernelSDVTable broken = *painter->raster->vtable;
+        struct ToriDraw_RasterKernelSD raster = *painter->raster;
+        struct ToriDraw_Kernel table = *painter;
+
+        broken.draw[TORIDRAW_RASTER_FACE_SD_FLAT] = NULL;
+        raster.vtable = &broken;
+        table.raster = &raster;
+        CHECK(ToriDraw_KernelValidate(&table, small, &why) ==
+                  TORIDRAW_KERNEL_FIT_INCOMPATIBLE,
+              "tables: a NULL face slot is incompatible");
+    }
+
+    /* Ensure is idempotent and satisfies what it reported. */
+    CHECK(ToriDraw_KernelEnsureScratch(small, painter), "tables: ensure for the painter");
+    CHECK(ToriDraw_SceneHasScratch(small, ToriDraw_KernelScratchNeeds(small, painter)),
+          "tables: ensure satisfied the painter's needs");
+    CHECK(ToriDraw_KernelEnsureScratch(small, painter), "tables: ensure is idempotent");
+
+    ToriDraw_SceneFree(small);
+    ToriDraw_SceneFree(full);
+}
+
+
+/*
+ * The table-driven stage entries against the kernel-driven ones.
+ *
+ * Same three stages reached two ways, so the pictures must be identical. The
+ * part worth pinning is stage 2: both entries decide the presort themselves,
+ * from the raster they name, and both must reach the same answer the caller
+ * used to reach by picking a function whose name said "Presorted" -- including
+ * the negative case, where a raster with no whole-model door must NOT stash,
+ * because that store is pure cost for a raster that will not read it.
+ */
+static void
+test_table_entries(struct SDFixture* fixture)
+{
+    struct ToriDraw_Scene* scene =
+        ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    struct ToriDraw_ViewPort viewport = test_viewport();
+    struct ToriDraw_Camera camera = test_camera();
+    struct ToriDraw_Position position = { .z = 420 };
+    size_t const count = (size_t)VIEW_STRIDE * VIEW_HEIGHT;
+    toripixel_t* via_table = calloc(count, sizeof(toripixel_t));
+    toripixel_t* via_kernel = calloc(count, sizeof(toripixel_t));
+    struct ToriDraw_Texture* texture = make_test_texture();
+    const struct ToriDraw_Kernel* painter = ToriDraw_KernelGetSoftwarePainter();
+    const struct ToriDraw_Kernel* baker = ToriDraw_KernelGetSpriteBaker();
+    const struct ToriDraw_Kernel* scanline = ToriDraw_KernelGetSoftwareScanline();
+    int diff = 0;
+    int drawn = 0;
+
+    CHECK(scene && via_table && via_kernel && texture, "entries: fixtures");
+    if( !scene || !via_table || !via_kernel || !texture )
+        goto done;
+    ToriDraw_SceneSetTexture(scene, TEST_TEXTURE_ID, texture);
+    CHECK(ToriDraw_KernelEnsureScratch(scene, painter), "entries: scratch");
+
+    CHECK(ToriDraw_RenderModelWithTable(
+              fixture->handle, scene, &position, &viewport, &camera, via_table,
+              painter) == TORIDRAW_CULL_VISIBLE,
+          "entries: table render visible");
+    CHECK(ToriDraw_RenderModelWithRasterKernel(
+              fixture->handle, scene, &position, &viewport, &camera, via_kernel,
+              ToriDraw_RasterKernelSDGetBranching()) == TORIDRAW_CULL_VISIBLE,
+          "entries: kernel render visible");
+
+    for( size_t i = 0; i < count; i++ )
+    {
+        if( via_table[i] != via_kernel[i] )
+            diff++;
+        if( via_table[i] != 0 )
+            drawn++;
+    }
+    CHECK(diff == 0, "entries: %d pixels differ between the table and kernel entries", diff);
+    CHECK(drawn > 0, "entries: the table entry drew nothing");
+
+    /* Stage 2's own decision, both ways round. The painter's raster has a
+     * door, so its sort stashes; the baker's does not, so its sort must not --
+     * and that is visible in the flag the sort records. */
+    ToriDraw_RenderModel1ProjectWithTable(
+        fixture->handle, scene, &position, &viewport, &camera, painter);
+    ToriDraw_RenderModel2SortFacesWithTable(fixture->handle, scene, painter);
+    if( whole_model_door_built() )
+        CHECK(scene->sm_face_xy_valid,
+              "entries: the painter table stashes, because its raster has a door");
+    else
+        CHECK(!scene->sm_face_xy_valid,
+              "entries: the painter table does not stash with no door built");
+
+    ToriDraw_RenderModel1ProjectWithTable(
+        fixture->handle, scene, &position, &viewport, &camera, baker);
+    ToriDraw_RenderModel2SortFacesWithTable(fixture->handle, scene, baker);
+    CHECK(!scene->sm_face_xy_valid,
+          "entries: the sprite-baker table does not stash, because its raster has no door");
+
+    /*
+     * The third rasteriser, for completeness: painter (a door) and baker (no
+     * door) are the two above, and scanline is the case where the raster is a
+     * different family altogether -- it must not be asked to stash either,
+     * since a presorted run drawing scanline faces would draw the branching
+     * family's pixels.
+     */
+    ToriDraw_RenderModel1ProjectWithTable(
+        fixture->handle, scene, &position, &viewport, &camera, scanline);
+    ToriDraw_RenderModel2SortFacesWithTable(fixture->handle, scene, scanline);
+    CHECK(!scene->sm_face_xy_valid,
+          "entries: the scanline table does not stash, because its raster has no door");
+
+done:
+    if( texture && scene )
+        ToriDraw_SceneSetTexture(scene, TEST_TEXTURE_ID, NULL);
+    free(via_table);
+    free(via_kernel);
+    ToriDraw_SceneFree(scene);
+}
 
 int
 main(void)
@@ -1383,6 +1717,8 @@ main(void)
     ToriDraw_Init();
     ToriDraw_RasterSetScanline(false);
     test_typed_builtin_kernels();
+    test_kernel_scratch();
+    test_kernel_tables();
     sd_fixture_init(&sd_fixture);
     if( !render_env_init(&env) )
     {
@@ -1390,10 +1726,11 @@ main(void)
         return 1;
     }
 
+    test_whole_model_door(&sd_fixture);
+    test_table_entries(&sd_fixture);
     test_sd_direct_apis(&sd_fixture, &env);
     test_sd_legacy_parity(&sd_fixture, &env);
 
-#ifndef TORIDRAW_PIXEL16
     {
         struct HDFixture hd_fixture;
 
@@ -1402,13 +1739,6 @@ main(void)
         test_hd_legacy_parity(&hd_fixture, &env);
         hd_fixture_destroy(&hd_fixture);
     }
-#else
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
-    test_pixel16_sd_depth_unsupported(&sd_fixture, &env, false);
-    test_pixel16_sd_depth_unsupported(&sd_fixture, &env, true);
-#endif
-    test_pixel16_hd_unsupported(&sd_fixture, &env);
-#endif
 
     render_env_destroy(&env);
     sd_fixture_destroy(&sd_fixture);

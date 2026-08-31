@@ -11,7 +11,7 @@ ToriDraw2D_BlendArgbPixel(
     int x,
     int y,
     int argb,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_FillRect(
@@ -21,7 +21,7 @@ ToriDraw2D_FillRect(
     int x1,
     int y1,
     int argb,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_FillRectGradientVertical(
@@ -33,7 +33,7 @@ ToriDraw2D_FillRectGradientVertical(
     int color_top,
     int color_bot,
     int alpha,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_FillRectGradientAlpha(
@@ -46,7 +46,7 @@ ToriDraw2D_FillRectGradientAlpha(
     int color_bot,
     int alpha_top,
     int alpha_bot,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_DrawRectOutline(
@@ -56,7 +56,7 @@ ToriDraw2D_DrawRectOutline(
     int x1,
     int y1,
     int argb,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_DrawLine(
@@ -67,7 +67,7 @@ ToriDraw2D_DrawLine(
     int y1,
     int thickness,
     int argb,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitArgb(
@@ -77,7 +77,7 @@ ToriDraw2D_BlitArgb(
     uint32_t const* src,
     int src_w,
     int src_h,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 /* Source-over ARGB blit with an additional 0..255 opacity multiplier. */
 void
@@ -89,7 +89,7 @@ ToriDraw2D_BlitArgbAlpha(
     int src_w,
     int src_h,
     int alpha,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitArgbScaled(
@@ -101,7 +101,7 @@ ToriDraw2D_BlitArgbScaled(
     uint32_t const* src,
     int src_w,
     int src_h,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitArgbScaledAlpha(
@@ -114,7 +114,7 @@ ToriDraw2D_BlitArgbScaledAlpha(
     int src_w,
     int src_h,
     int alpha,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitArgbTiled(
@@ -128,7 +128,7 @@ ToriDraw2D_BlitArgbTiled(
     int src_h,
     int origin_x,
     int origin_y,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitArgbTiledAlpha(
@@ -143,7 +143,7 @@ ToriDraw2D_BlitArgbTiledAlpha(
     int origin_x,
     int origin_y,
     int alpha,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitArgbMasked(
@@ -158,7 +158,7 @@ ToriDraw2D_BlitArgbMasked(
     uint32_t const* mask,
     int mask_w,
     int mask_h,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitArgbMaskedInverted(
@@ -173,7 +173,7 @@ ToriDraw2D_BlitArgbMaskedInverted(
     uint32_t const* mask,
     int mask_w,
     int mask_h,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitArgbRotatedMaskedInverted(
@@ -191,6 +191,6 @@ ToriDraw2D_BlitArgbRotatedMaskedInverted(
     int angle,
     int angle_scale,
     int alpha,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 #endif

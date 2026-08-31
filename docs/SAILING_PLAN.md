@@ -135,19 +135,23 @@ The heart of the feature. Design:
    (or a flag bit) marking "world entity N". Height = parent terrain under
    the boat. This gives painter-correct ordering against real locs, actors
    and projectiles for free — same as the deob's radius-60 trick.
-2. **Descent**: convert the paint driver to a loop over an explicit stack of
-   paint contexts. `PainterBucketCtx` already holds per-painter traversal
-   state; give it explicit resume indices so a paint can be suspended.
-   `stack[0]` = root painter. When the drain pops a world-entity element, it
-   emits `CMD_BEGIN_WORLD(view id)` into the `PaintersBuffer`, pushes the
-   boat's painter context (camera pre-transformed into boat space — inverse
+2. **Descent**: the app keeps a *stack of painters*, and a paint that reaches
+   a world entity pushes onto it and runs that entity's painter right there.
+   `stack[0]` = root painter. When the drain emits a world-entity element it
+   writes `CMD_BEGIN_WORLD(view id)` into the `PaintersBuffer`, pushes the
+   boat's frame (camera pre-transformed into boat space — inverse
    yaw+translate applied to eye and focus, computed once per boat per frame),
-   and the outer loop continues with the new top of stack. When a context
-   finishes, emit `CMD_END_WORLD`, pop, resume. Nested boats come free
-   (depth cap = 16 views, asserted).
+   runs the boat's paint to completion, writes `CMD_END_WORLD`, pops, and
+   carries on with the rest of its own batch. The paint stays one
+   straight-line function: no resume indices, no suspend/resume states — the
+   outer paint's traversal is its own locals, and the nested paint touches
+   only the boat painter's arrays. The stack is what a descent is *checked*
+   against: a painter already on it (two view ids can name one painter) or a
+   full stack is refused, and the marker pair is emitted empty so the stream
+   stays balanced. Nested boats come free (depth cap = 16 views, asserted).
 3. **De-static the painter**: move the three qsort-context statics
    (`painters.c:138-140`) into `struct Painter` (or pass-through context) so
-   a suspended paint can't be corrupted by the inner one.
+   an outer paint can't be corrupted by the nested one.
 4. **Emit transform**: grow `ToriRS_Frame` from one `(world, painters)` to a
    per-view table with a per-view transform {translate, yaw, flatten scale +
    y-offset, flat-HSL override, anim matrix later}. `try_emit_world_draw_model`

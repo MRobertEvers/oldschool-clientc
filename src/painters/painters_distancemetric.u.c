@@ -292,12 +292,7 @@ painter_paint_distancemetric(
         assert(tile_paint->queue_count > 0);
         tile_paint->queue_count -= 1;
 
-        if( g_trap_x != -1 && g_trap_z != -1 && tile_sx == g_trap_x && tile_sz == g_trap_z )
-        {
-            printf("tile_idx: %d\n", tile_idx);
-
-            // __builtin_debugtrap();
-        }
+        PAINTER_DBG_TRAP_TILE(tile_sx, tile_sz, tile_idx);
         // https://discord.com/channels/788652898904309761/1069689552052166657/1172452179160870922
         // Dane discovered this also.
         // The issue turned out to be...a nuance of the DoublyLinkedList and Node
@@ -710,7 +705,8 @@ painter_paint_distancemetric(
             /* Always the insertion sort. The qsort branch this replaced parked
              * the painter and camera in file-scope statics for its comparator
              * (portable qsort has no user-data argument); the orders are
-             * identical, and the statics could not survive a suspended paint. */
+             * identical, and the statics could not survive a nested paint
+             * running inside an outer one. */
             scenery_queue_insertion_sort(
                 scenery_queue, scenery_queue_length, painter, camera_sx, camera_sz);
 

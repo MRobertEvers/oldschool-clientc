@@ -100,7 +100,7 @@ toridraw_gouraud_span_fill_ref(
 
     while( steps-- > 0 )
     {
-        rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+        rgb_color = ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
 
         pixel_buffer[offset + 0] = rgb_color;
         pixel_buffer[offset + 1] = rgb_color;
@@ -111,7 +111,7 @@ toridraw_gouraud_span_fill_ref(
         color_hsl16_ish8 = toridraw_wrap_add(color_hsl16_ish8, color_step_hsl16_ish8);
     }
 
-    rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+    rgb_color = ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
     switch( stride & 0x3 )
     {
     case 3:
@@ -195,11 +195,11 @@ toridraw_gouraud_span_fill_run(
         } while( steps > 0 && toridraw_gouraud_span_index(color_hsl16_ish8) == index );
 
         toridraw_gouraud_span_store(
-            pixel_buffer + offset, blocks << 2, g_hsl16_to_rgb_table[index]);
+            pixel_buffer + offset, blocks << 2, g_hsl16_to_pixel_table[index]);
         offset += blocks << 2;
     }
 
-    rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+    rgb_color = ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
     switch( stride & 0x3 )
     {
     case 3:
@@ -270,7 +270,7 @@ toridraw_gouraud_span_fill_edge(
 
     while( steps-- > 0 )
     {
-        rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+        rgb_color = ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
 
         dst[0] = rgb_color;
         dst[1] = rgb_color;
@@ -283,7 +283,7 @@ toridraw_gouraud_span_fill_edge(
 
     if( tail )
         toridraw_gouraud_span_tail(
-            dst, tail, ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8));
+            dst, tail, ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8));
 }
 
 /**
@@ -314,7 +314,7 @@ toridraw_gouraud_span_fill_short(
     if( stride < 4 )
     {
         toridraw_gouraud_span_tail(
-            dst, stride, ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8));
+            dst, stride, ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8));
         return;
     }
 
@@ -324,7 +324,7 @@ toridraw_gouraud_span_fill_short(
 
     while( steps-- > 0 )
     {
-        rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+        rgb_color = ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
 
         dst[0] = rgb_color;
         dst[1] = rgb_color;
@@ -337,7 +337,7 @@ toridraw_gouraud_span_fill_short(
 
     if( tail )
         toridraw_gouraud_span_tail(
-            dst, tail, ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8));
+            dst, tail, ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8));
 }
 
 /**
@@ -365,13 +365,13 @@ toridraw_gouraud_span_fill_sse2(
 
     while( steps-- > 0 )
     {
-        rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+        rgb_color = ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
         _mm_storeu_si128((__m128i*)(pixel_buffer + offset), _mm_set1_epi32(rgb_color));
         offset += 4;
         color_hsl16_ish8 = toridraw_wrap_add(color_hsl16_ish8, color_step_hsl16_ish8);
     }
 
-    rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
+    rgb_color = ToriDraw_Hsl16Ish8ToPixel(color_hsl16_ish8);
     switch( stride & 0x3 )
     {
     case 3:

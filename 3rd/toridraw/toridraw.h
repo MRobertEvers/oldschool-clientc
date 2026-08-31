@@ -16,7 +16,7 @@
 #include "toridraw_sprite.h"
 #include "toridraw_types.h"
 #include "toridraw_vec.h"
-#include "graphics/projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "graphics/shared_tables.h"
 
 #include <stdbool.h>
@@ -30,15 +30,15 @@ ToriDraw_Init(void);
  * The two runtime knobs the raster A/B benchmark turns, overriding the
  * TORIDRAW_RASTER_BATCH and TORIDRAW_FACE_SORT environment variables:
  * whether the depth sort leaves its pre-sorted stash and the batched
- * presorted-run kernels draw from it, and whether the flat SIMD face sort
- * (cull + composite keys + bitonic/radix) replaces the bucket sort. -1
+ * presorted-run kernels draw from it, and whether the bitonic+radix SIMD face
+ * sort (cull + composite keys + bitonic/radix) replaces the bucket sort. -1
  * hands the decision back to the environment.
  */
 void
 ToriDraw_RasterBatchSetArmed(int enabled);
 
 void
-ToriDraw_FaceSortSetFlat(int enabled);
+ToriDraw_FaceSortSetBitonicRadix(int enabled);
 
 /**
  * Compatibility selector used by the legacy render entry points. Off by
@@ -94,56 +94,56 @@ ToriDraw_RenderModel1Project(
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera);
 
-int
-ToriDraw_RenderModel2SortFacesPresorted(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene);
-
 /*
- * The three stages, each taking the kernel that names them. A renderer that
- * runs the stages itself -- every platform renderer does, to hit-test between
- * projection and sort, or to sort for a vertex upload and never raster --
- * holds one kernel and passes it to each stage, so which projection, which
- * face sort and which raster it runs is one object chosen once at init
- * rather than three environment reads. A GPU renderer holds
- * ToriDraw_RasterKernelSDGetGpu(), whose raster vtable is NULL; stages 1 and
- * 2 accept it, stage 3 asserts.
+ * The three stages, driven by a table.
+ *
+ * A renderer that runs the stages by hand -- every platform renderer does, to
+ * hit-test between projection and sort, or to sort for a vertex upload and
+ * never raster -- holds one ToriDraw_Kernel and passes it to each. Which
+ * projection, which face sort and which raster it runs is then one object
+ * chosen once at init.
+ *
+ * Stage 2 decides the presort itself from the table, so there is no presorted
+ * twin to pick between and no way to pick wrong.
  */
 int
-ToriDraw_RenderModel1ProjectWithKernel(
+ToriDraw_RenderModel1ProjectWithTable(
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Scene* scene,
     struct ToriDraw_Position* position,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
-    const struct ToriDraw_RasterKernelSD* kernel);
+    const struct ToriDraw_Kernel* table);
 
 int
-ToriDraw_RenderModel2SortFacesWithKernel(
+ToriDraw_RenderModel2SortFacesWithTable(
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Scene* scene,
-    const struct ToriDraw_RasterKernelSD* kernel);
+    const struct ToriDraw_Kernel* table);
 
+/* Asserts on a GPU table, whose raster slot is NULL. */
 int
-ToriDraw_RenderModel2SortFacesPresortedWithKernel(
-    struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Scene* scene,
-    const struct ToriDraw_RasterKernelSD* kernel);
-
-/* Stage 3 through a held kernel, with the per-model z-buffer swap that
- * ToriDraw_RenderModel3Raster does: a model flagged for the depth test goes
- * to the stock z-buffered kernel whatever painter kernel is held. */
-int
-ToriDraw_RenderModel3RasterWithKernel(
+ToriDraw_RenderModel3RasterWithTable(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer,
-    const struct ToriDraw_RasterKernelSD* kernel);
+    const struct ToriDraw_Kernel* table);
 
-/* Sort back to front WITHOUT the pre-sort store. The right entry for every
- * caller whose faces do not go to the batched software raster walk -- the
- * D3D9 and GL renderers, HD, the sprite baker. See toridraw.c. */
+/** All three stages through one table. */
+int
+ToriDraw_RenderModelWithTable(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_Kernel* table);
+
+/* Sort back to front WITHOUT the pre-sort store, for a caller that names no
+ * kernel -- HD, the sprite baker, the tests. A caller that holds a kernel or a
+ * table takes the entry for it and does not state the choice. See toridraw.c. */
 int
 ToriDraw_RenderModel2SortFaces(
     struct ToriDraw_ModelHandle hnd,

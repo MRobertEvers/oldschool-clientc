@@ -40,10 +40,10 @@
 
 #include "graphics/shared_tables.h"
 #include "graphics/shared_tables.c"
-#include "graphics/raster/flat/flat.screen.opaque.branching.s4.c"
-#include "graphics/raster/flat/flat.screen.alpha.branching.s4.c"
+#include "impl/raster/flat/raster.flat.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/flat/raster.flat.alpha.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
 
-void toridraw_flat_opaque_s4_sorting_asm(
+void toridraw_flat_opaque_s4_sorting_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -56,7 +56,7 @@ void toridraw_flat_opaque_s4_sorting_asm(
     int y2,
     int color_hsl16);
 
-void toridraw_flat_alpha_s4_sorting_asm(
+void toridraw_flat_alpha_s4_sorting_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -70,7 +70,7 @@ void toridraw_flat_alpha_s4_sorting_asm(
     int color_hsl16,
     int alpha);
 
-void toridraw_flat_opaque_s4_presorted_run_asm(
+void toridraw_flat_opaque_s4_presorted_run_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -78,7 +78,7 @@ void toridraw_flat_opaque_s4_presorted_run_asm(
     const int* rows,
     int count);
 
-void toridraw_flat_alpha_s4_presorted_run_asm(
+void toridraw_flat_alpha_s4_presorted_run_xrgb8888_asm(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -322,7 +322,7 @@ single_pass(int iters, int alpha_lane)
             raster_flat_screen_alpha_branching_s4(
                 fb_c, W, W, H, t.x[0], t.x[1], t.x[2], t.y[0], t.y[1], t.y[2],
                 t.color, t.alpha);
-            toridraw_flat_alpha_s4_sorting_asm(
+            toridraw_flat_alpha_s4_sorting_xrgb8888_asm(
                 fb_a, W, W, H, t.x[0], t.x[1], t.x[2], t.y[0], t.y[1], t.y[2],
                 t.color, t.alpha);
         }
@@ -331,7 +331,7 @@ single_pass(int iters, int alpha_lane)
             raster_flat_screen_opaque_branching_s4(
                 fb_c, W, W, H, t.x[0], t.x[1], t.x[2], t.y[0], t.y[1], t.y[2],
                 t.color);
-            toridraw_flat_opaque_s4_sorting_asm(
+            toridraw_flat_opaque_s4_sorting_xrgb8888_asm(
                 fb_a, W, W, H, t.x[0], t.x[1], t.x[2], t.y[0], t.y[1], t.y[2],
                 t.color);
         }
@@ -390,9 +390,9 @@ batch_pass(int chunks, int alpha_lane)
         }
 
         if( alpha_lane )
-            toridraw_flat_alpha_s4_presorted_run_asm(fb_a, W, W, H, rows, count);
+            toridraw_flat_alpha_s4_presorted_run_xrgb8888_asm(fb_a, W, W, H, rows, count);
         else
-            toridraw_flat_opaque_s4_presorted_run_asm(fb_a, W, W, H, rows, count);
+            toridraw_flat_opaque_s4_presorted_run_xrgb8888_asm(fb_a, W, W, H, rows, count);
 
         for( i = 0; i < W * H; i++ )
         {
@@ -422,7 +422,7 @@ main(int argc, char** argv)
     int const chunks = (iters / BATCH_MAX) > 0 ? (iters / BATCH_MAX) : 1;
     int lane;
 
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
 
     for( lane = 0; lane < 2; lane++ )
     {

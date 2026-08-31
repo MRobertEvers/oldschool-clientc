@@ -3766,7 +3766,7 @@ const st = { wasm: null, frameCount: 0, frame: 0, playing: false,
              zoom0: 1400, speed: 1200, keys: new Set(),
              frameAcc: 0, lastT: 0, seq: '' };
 const U2R = Math.PI / 1024;       // engine angle units -> radians
-const PROJ_SCALE = 512;           // TORIDRAW_PROJ_SCALE_DEFAULT
+const PROJ_SCALE = 512;           // TORIDRAW_PROJECTION_SCALE_DEFAULT
 
 // Camera basis in world coordinates (matches the engine's rotation forms:
 // yaw is x' = x cos + z sin, z' = z cos - x sin; pitch mixes y/z).

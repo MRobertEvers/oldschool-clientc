@@ -589,8 +589,8 @@ world_replay(
     desc.world_level_mask = 0xF;
 
     struct ToriDraw_Camera camera = { 0 };
-    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     camera.near_plane_z = 50;
     camera.pitch = viewer->pitch & 2047;
     camera.yaw = viewer->yaw & 2047;
@@ -610,18 +610,19 @@ world_replay(
         viewer->world_cam_y,
         viewer->world_cam_z);
 
-    struct ToriRS_Soft3D soft;
-    ToriRS_Soft3D_Init(&soft, viewer->scene, pane, PANE_W, PANE_H);
+    struct ToriRS_Soft3D* soft = ToriRS_Soft3D_New();
+    ToriRS_Soft3D_Init(soft, viewer->scene, pane, PANE_W, PANE_H);
 
     int drawn = 0;
     struct ToriRS_RenderCommand cmd;
     ToriRS_FrameBegin(&frame);
     while( ToriRS_FrameNextCommand(&frame, &cmd) )
     {
-        ToriRS_Soft3D_Execute(&soft, &cmd);
+        ToriRS_Soft3D_Execute(soft, &cmd);
         drawn++;
     }
     ToriRS_FrameEnd(&frame);
+    ToriRS_Soft3D_Free(soft);
 
     return drawn;
 }
@@ -774,8 +775,8 @@ render_frame(struct Viewer* viewer)
     camera.pitch = viewer->pitch & 2047;
     camera.yaw = 0;
     camera.roll = 0;
-    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     camera.near_plane_z = 50;
 
     struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);

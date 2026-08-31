@@ -340,21 +340,6 @@ gl3_upload_sprite_atlas(struct ToriRS_GL3* renderer)
 }
 
 static void
-gl3_sprite_uv_clamp_set(
-    struct ToriRS_GL3* renderer,
-    bool enable,
-    float u0,
-    float v0,
-    float u1,
-    float v1)
-{
-    if( renderer->u2d_uv_clamp >= 0 )
-        glUniform1i(renderer->u2d_uv_clamp, enable ? 1 : 0);
-    if( enable && renderer->u2d_uv_bounds >= 0 )
-        glUniform4f(renderer->u2d_uv_bounds, u0, v0, u1, v1);
-}
-
-static void
 gl3_apply_logical_scissor(
     struct ToriRS_GL3* renderer,
     int logical_x,
@@ -3348,6 +3333,14 @@ gl3_ev_begin_3d(
     renderer->cur_3d = command->u.begin_3d;
     renderer->has_3d = true;
     renderer->in3d = true;
+    /* Publish the prepared camera block. The prepared projection kernels
+     * (the AArch64 assembly, the SSE2 fused-yaw family) are gated on
+     * `scene->projection_prepared_camera_source == camera`; until this was
+     * here only the soft3d and D3D9 renderers published one, so every model
+     * on the GL lanes took the unprepared kernel. The pointer must be the
+     * one the projection is called with: &renderer->cur_3d.camera. */
+    if( renderer->scene )
+        ToriDraw_ScenePrepareProjectionCamera(renderer->scene, &renderer->cur_3d.camera);
 
     {
         const struct ToriDraw_ViewPort* vp = &renderer->cur_3d.view_port;
@@ -3401,8 +3394,8 @@ gl3_ev_begin_3d(
              * whatever the layout computed — at this boot's viewport that is
              * ~191, so the GPU drew the world 2.7x magnified about the viewport
              * centre. Identical camera, identical scene, different size. */
-            (int)cam->proj_mode,
-            cam->proj_scale,
+            (int)cam->projection_mode,
+            cam->projection_scale,
             cam->fov_rpi2048,
             cam->parallel_zoom16);
 
@@ -3804,7 +3797,7 @@ gl3_ev_model_draw(
         ToriDraw_SceneElementApplyAnimation(
             ctx, mcmd->element_id, mcmd->anim_index == 0, mcmd->anim_frame);
     position = mcmd->position;
-    if( ToriDraw_RenderModel1ProjectWithKernel(
+    if( ToriDraw_RenderModel1ProjectWithTable(
             mcmd->model, ctx, &position, &renderer->cur_3d.view_port, &renderer->cur_3d.camera,
             renderer->kernel) != TORIDRAW_CULL_VISIBLE )
         return;
@@ -3847,7 +3840,7 @@ gl3_ev_model_draw(
          */
         int face_count = renderer->z_buffer_enabled
                              ? trspk_toridraw_face_count(mcmd->model)
-                             : ToriDraw_RenderModel2SortFacesWithKernel(
+                             : ToriDraw_RenderModel2SortFacesWithTable(
                                    mcmd->model, ctx, renderer->kernel);
         int* face_order;
         if( face_count <= 0 )
@@ -4067,6 +4060,8 @@ gl3_ev_end_3d(
     }
 
 done:
+    if( renderer->scene )
+        ToriDraw_SceneClearProjectionCamera(renderer->scene);
     renderer->has_3d = false;
     renderer->in3d = false;
     /* World pass leaves a world-sized viewport and depth state; restore so any
@@ -4934,9 +4929,12 @@ ToriRS_GL3_Init(
     struct ToriDraw_Scene* scene,
     bool z_buffer)
 {
+    GLuint vertexShader = 0u;
+    GLuint fragmentShader = 0u;
+
     assert(gl3 && window && scene);
     gl3->scene = scene;
-    gl3->kernel = ToriDraw_RasterKernelSDGetGpu();
+    gl3->kernel = ToriDraw_KernelGetGpu();
     gl3->window = window;
     gl3->z_buffer_enabled = z_buffer;
     if( z_buffer )
@@ -5041,8 +5039,8 @@ ToriRS_GL3_Init(
 
     const char* vs_src = trspk_opengl3_vertex_shader;
     const char* fs_src = trspk_opengl3_fragment_shader;
-    GLuint vertexShader = gl3_compile_shader(GL_VERTEX_SHADER, vs_src);
-    GLuint fragmentShader = gl3_compile_shader(GL_FRAGMENT_SHADER, fs_src);
+    vertexShader = gl3_compile_shader(GL_VERTEX_SHADER, vs_src);
+    fragmentShader = gl3_compile_shader(GL_FRAGMENT_SHADER, fs_src);
     if( vertexShader == 0u || fragmentShader == 0u )
         goto fail_gl;
 

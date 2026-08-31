@@ -97,12 +97,7 @@ bucket_push_if_active(
         return 0;
     bucket_push(w, paints, ti, dist);
     BUCKET_PERF_INCREMENT(*perf_pushes);
-    if( painter_wedgelog_armed() )
-    {
-        char extra[32];
-        snprintf(extra, sizeof(extra), "d=%d", dist);
-        painter_wedgelog_event(ti, "PUSH", extra);
-    }
+    PAINTER_DBG_WEDGE_EVENTF(ti, "PUSH", "d=%d", dist);
     return 1;
 }
 
@@ -111,6 +106,10 @@ bucket_queue_empty(struct PainterBucketCtx* w)
 {
     return w->n_in_queue == 0;
 }
+
+/* The perimeter reseed, one line at the point of use; see the file header for
+ * why the drain has a stall path at all and how little it runs. */
+#include "painters_bucket_reseed.u.c"
 
 static int
 bucket_ctx_init(struct Painter* painter)
@@ -449,7 +448,7 @@ bucket_emit_tile_features(
             struct PaintersElement* element = &elements[bridge_underpass_tile->wall_a];
             assert(element->kind == PNTRELEM_WALL_A);
             bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
-            painter_wedgelog_paint(
+            PAINTER_DBG_WEDGE_PAINT(
                 tile->bridge_tile,
                 "wall:bridge",
                 (int)element->source_level,
@@ -473,7 +472,7 @@ bucket_emit_tile_features(
              * underpass tile, so reaching this is a caller bug. */
             assert(!scenery_is_world_entity(element));
             bucket_emit_entity(&cmd_cur, cmd_end, element->_scenery.entity);
-            painter_wedgelog_paint(
+            PAINTER_DBG_WEDGE_PAINT(
                 tile->bridge_tile,
                 scenery_element >= painter->static_element_count ? "entity:bridge"
                                                                 : "loc:bridge",
@@ -494,7 +493,7 @@ bucket_emit_tile_features(
                          occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
         {
             bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
-            painter_wedgelog_paint(
+            PAINTER_DBG_WEDGE_PAINT(
                 e_tile, "wall_a", (int)element->source_level, element->_wall.entity,
                 tile->wall_a);
         }
@@ -509,7 +508,7 @@ bucket_emit_tile_features(
                          occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
         {
             bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
-            painter_wedgelog_paint(
+            PAINTER_DBG_WEDGE_PAINT(
                 e_tile, "wall_b", (int)element->source_level, element->_wall.entity,
                 tile->wall_b);
         }
@@ -523,7 +522,7 @@ bucket_emit_tile_features(
                          occ, occlusion_level, tile_sx, tile_sz, 0)) )
         {
             bucket_emit_entity(&cmd_cur, cmd_end, element->_ground_decor.entity);
-            painter_wedgelog_paint(
+            PAINTER_DBG_WEDGE_PAINT(
                 e_tile, "grounddecor", (int)element->source_level,
                 element->_ground_decor.entity, tile->ground_decor);
         }
@@ -537,7 +536,7 @@ bucket_emit_tile_features(
                          occ, occlusion_level, tile_sx, tile_sz, 0)) )
         {
             bucket_emit_entity(&cmd_cur, cmd_end, element->_ground_object.entity);
-            painter_wedgelog_paint(
+            PAINTER_DBG_WEDGE_PAINT(
                 e_tile, "item", (int)element->source_level,
                 element->_ground_object.entity, tile->ground_object_bottom);
         }
@@ -571,7 +570,7 @@ bucket_emit_tile_features(
                 if( !decor_hidden )
                 {
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                    painter_wedgelog_paint(
+                    PAINTER_DBG_WEDGE_PAINT(
                         e_tile, "decor", (int)element->source_level,
                         element->_wall_decor.entity, tile->wall_decor_a);
                 }
@@ -583,7 +582,7 @@ bucket_emit_tile_features(
                 if( !decor_hidden )
                 {
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                    painter_wedgelog_paint(
+                    PAINTER_DBG_WEDGE_PAINT(
                         e_tile, "decor_alt", (int)element->source_level,
                         element->_wall_decor.entity, tile->wall_decor_b);
                 }
@@ -594,7 +593,7 @@ bucket_emit_tile_features(
             if( !decor_hidden )
             {
                 bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                painter_wedgelog_paint(
+                PAINTER_DBG_WEDGE_PAINT(
                     e_tile, "decor", (int)element->source_level,
                     element->_wall_decor.entity, tile->wall_decor_a);
             }
@@ -607,64 +606,92 @@ bucket_emit_tile_features(
     *cmd_cur_p = cmd_cur;
 }
 
-/** Widest ready-scenery batch one pop collects; also the resume array width. */
-#define BUCKET_VISIT_MAX 64
-
-enum BucketRunResult
-{
-    BUCKET_RUN_DONE = 0,
-    /** Suspended on a world-entity pseudo-loc; ctx->descend_view names the view. */
-    BUCKET_RUN_DESCEND = 1,
-};
-
 /**
- * One suspendable paint. Everything here is state the drain mutates and cannot
- * recompute; the hoists (draw box, cull tables, tile arrays) are deliberately
- * NOT here - they are pure functions of the painter and the camera, so a resume
- * derives them again rather than carrying them.
+ * ===========================================================================
+ * The bucket paint, and how a world entity nests inside it.
+ * ===========================================================================
+ *
+ * bucket_paint_world() below is the painter's algorithm, and it is the same
+ * algorithm whichever painter it is handed: reset and classify the draw box,
+ * push every visible tile into its Manhattan-distance bucket, then drain the
+ * buckets farthest-tile-first, emitting each tile's terrain, its scenery and
+ * finally its near walls as the reference traversal does. It knows nothing
+ * about world entities beyond one branch in the scenery emit.
+ *
+ *   painter_paint_bucket()        the entry point the app calls
+ *     |  the root frame of the painter stack, and the shared write cursor
+ *     |  every painter on that stack writes its commands through
+ *     |
+ *     +-> bucket_paint_world()    ONE painter, start to finish
+ *           |
+ *           | 1. resolve the draw box, then reset + classify + bulk-push it.
+ *           | 2. drain: pop the farthest tile and
+ *           |      a. the reference adjacency gate (plus the lateral seam
+ *           |         exception) — a blocked tile waits and is re-queued by
+ *           |         whatever unblocks it;
+ *           |      b. the ground pass: bridge underpass, terrain meshes, this
+ *           |         tile's far walls / decor / ground objects. -> GROUND;
+ *           |      c. the scenery whose WHOLE footprint has its ground down,
+ *           |         in farthest-corner-first chain order;
+ *           |      d. raised ground items, near decor, near walls. -> DONE;
+ *           |      e. push the neighbours the completion unblocks.
+ *           |
+ *           +-- (c) reaches a world-entity pseudo-loc
+ *                 |
+ *                 +-> bucket_descend()  BEGIN_WORLD, push that view's painter
+ *                     onto the stack, run it right here, pop, END_WORLD — and
+ *                     the batch carries on with its next element.
+ *
+ * Each world entity owns its own painter, so a descent is nothing more than
+ * the same algorithm run against a different painter instance and a camera
+ * transformed into that instance's tile space. Nothing of the outer paint is
+ * saved or restored across it: the outer traversal is its own C locals, and
+ * the nested paint touches only its own painter's arrays. The boat's commands
+ * land between its two markers, in the parent's draw order, because the parent
+ * is partway through emitting that batch while the nested paint runs.
+ *
+ * The stack is not what sequences the descent — the call does that. It is what
+ * a descent is CHECKED against, and what keeps the marker stream balanced:
+ *
+ *   - every BEGIN_WORLD is matched by an END_WORLD, refusals included. The
+ *     emit side tracks which world it is drawing from these markers, so an
+ *     unbalanced stream is a wrong-world terrain lookup, not a cosmetic defect;
+ *   - a view that is unbound, already on the stack, or one past the registry
+ *     bound is refused, and its pair is emitted empty;
+ *   - one PaintersBuffer serves the whole stack, so a nested paint can realloc
+ *     it out from under every painter below: each one reads its write position
+ *     back out of the cursor after a descent. @see bucket_cursor_reserve.
  */
-struct BucketPaintCtx
+
+/** One painter on the stack, and where the camera sits in ITS tile space. */
+struct BucketPaintFrame
 {
     struct Painter* painter;
     int camera_sx;
     int camera_sz;
     int camera_slevel;
+    /** 0 for the root; otherwise the parent's world-view registry slot. */
     int view_id;
-    /** Only the root context drives the wedge log. @see painter_wedgelog_suspend. */
-    int wedgelog;
-    int started;
+};
 
-    int tiles_remaining;
-    int check_adjacent;
-    int seed_gen_initialized;
-    /** Upper bound on the commands this context may still write. @see
-     *  bucket_cursor_reserve. */
-    int reserve;
-    struct PainterSeedGen seed_gen;
-
-    int64_t perf_pops;
-    int64_t perf_gate_rejects;
-    int64_t perf_pushes;
-    int64_t perf_push_dedup;
-
-    /* The one suspend point inside a pop: partway through a tile's ready
-     * scenery batch. Everything else the pop derives from e_tile. */
-    int resume_active;
-    int resume_e_tile;
-    int resume_vi;
-    int resume_n_visit;
-    int resume_blocked_undrawn;
-    int resume_some_drawn;
-    int resume_visit_sc[BUCKET_VISIT_MAX];
-
-    int descend_view;
+/**
+ * The painters currently being painted, outermost first; the running one is
+ * always frames[depth]. The nesting itself is the call chain of
+ * bucket_paint_world() — this is the record of it that bucket_descend() reads.
+ */
+struct BucketPaintStack
+{
+    struct BucketPaintFrame frames[PAINTER_MAX_WORLD_VIEWS];
+    int depth;
+    /** One bit per live view id. */
+    uint32_t view_ids;
 };
 
 /**
  * The shared write cursor. One PaintersBuffer serves the whole stack, so the
- * cursor cannot be a set of locals in the paint: a descended context's setup
- * may realloc the array out from under every suspended context above it. Kept
- * as a struct so that one realloc rebases all of them at once.
+ * write position cannot be a set of locals in one paint: a nested paint may
+ * realloc the array out from under every painter below it. Kept as a struct so
+ * that one realloc rebases all of them at once.
  */
 struct BucketPaintCursor
 {
@@ -678,12 +705,12 @@ struct BucketPaintCursor
  * Guarantee `need` free slots ahead of the write position, rebasing the cursor
  * if the array moves.
  *
- * Taken on EVERY entry to a context, not once at its setup. A context's budget
- * is reserved from where its cursor stands, and a descent advances that cursor
- * by the whole nested paint before the outer context writes another command —
- * so a reservation taken before the descent no longer covers the outer paint's
- * remainder. Deep chains overran the array exactly this way. Re-reserving on
- * resume costs at most one realloc per suspend and is correct at any depth.
+ * Taken again after EVERY descent, not once per paint. A painter's budget is
+ * reserved from where its cursor stands, and a descent advances that cursor by
+ * the whole nested paint before the outer one writes another command — so a
+ * reservation taken before the descent no longer covers the outer paint's
+ * remainder. Deep chains overran the array exactly this way. Re-reserving costs
+ * at most one realloc per descent and is correct at any depth.
  */
 static void
 bucket_cursor_reserve(
@@ -710,168 +737,131 @@ bucket_cursor_reserve(
     cursor->end = cursor->base + buffer->command_capacity;
 }
 
-/**
- * Emit one tile's ready-scenery batch, elements `vi_start`..`n_visit`.
- *
- * Returns the view id to descend into, having recorded the resume point in
- * `ctx`; 0 when the batch ran to the end.
- *
- * Its own always-inlined function purely so the descent does NOT need a label
- * in the middle of the drain's pop loop. Resuming by `goto` into the loop body
- * measured ~6% slower per paint with no boats on screen at all — a jump into
- * the middle of a loop stops GCC keeping that tile's state in registers across
- * the whole body. Here the resume path calls this a second time with a
- * non-zero `vi_start` instead, and the drain's own call inlines with
- * `vi_start` folded to 0, exactly the loop it had before world entities.
- */
-static inline int __attribute__((always_inline))
-bucket_emit_scenery_batch(
-    struct BucketPaintCtx* ctx,
+/* Mutually recursive with bucket_descend: a paint descends, and a descent is a
+ * paint. */
+static void
+bucket_paint_world(
     struct Painter* painter,
-    struct PainterBucketCtx* w,
-    struct PaintersElementCommand** cmd_cur_p,
-    struct PaintersElementCommand* cmd_end,
-    struct PaintersElement* elements,
-    struct ElementPaint* element_paints,
-    struct TilePaint* paints,
-    const int* visit_sc,
-    int n_visit,
-    int vi_start,
-    int e_tile,
-    int occlusion_level,
-    int paintgrid_level,
-    int width,
-    int level_stride,
-    int min_draw_x,
-    int max_draw_x,
-    int min_draw_z,
-    int max_draw_z,
+    struct BucketPaintCursor* restrict cursor,
     int camera_sx,
     int camera_sz,
-    int blocked_undrawn,
-    int* some_drawn_p,
-    int64_t* perf_pushes,
-    int64_t* perf_push_dedup)
+    int camera_slevel,
+    struct BucketPaintStack* stack);
+
+/**
+ * Push world view `view_id`'s painter onto the stack and paint it here.
+ *
+ * Writes BEGIN_WORLD, that painter's whole command stream, and END_WORLD. On a
+ * refusal the pair is emitted empty, so the stream stays balanced and the
+ * caller carries on with its own batch.
+ *
+ * Refused: a view with no painter bound; a view id or a painter already on the
+ * stack; a stack already at the registry bound. Each world entity owns a
+ * unique painter, so the view-id test is normally the one that fires; the
+ * painter scan is the backstop for two ids that name one painter (root(1)->A,
+ * A(2)->B, B(3)->A clears every bit test), because re-entering a painter runs
+ * its classify pass over the TilePaints and bucket heap of the run still live
+ * below it.
+ */
+static void
+bucket_descend(
+    struct BucketPaintStack* stack,
+    struct BucketPaintCursor* cursor,
+    int view_id)
 {
-    struct PaintersElementCommand* cmd_cur = *cmd_cur_p;
-    int some_drawn = *some_drawn_p;
-    int descend = 0;
+    assert(stack);
+    assert(cursor);
+    assert(view_id > 0);
+    assert(view_id < PAINTER_MAX_WORLD_VIEWS);
 
-    for( int vi = vi_start; vi < n_visit; vi++ )
+    int depth = stack->depth;
+    struct Painter* parent = stack->frames[depth].painter;
+    const struct PainterWorldEntityView* view = &parent->world_entity_views[view_id];
+
+    /* Linear over at most PAINTER_MAX_WORLD_VIEWS live frames, and only on a
+     * descent — cheaper than carrying a side table. */
+    int painter_on_stack = 0;
+    for( int d = 0; d <= depth; d++ )
     {
-        int si = visit_sc[vi];
-        struct ElementPaint* ep = &element_paints[si];
-        ep->drawn = true;
-
-        struct PaintersElement* element = &elements[si];
-        assert(element->kind == PNTRELEM_SCENERY);
-        /* A world-entity pseudo-loc carries a VIEW ID, not a scene element.
-         * It occupies this slot in painter order; the boat's own painter
-         * writes its commands between the two markers. */
-        int descend_view =
-            scenery_is_world_entity(element) ? (int)element->_scenery.entity : 0;
-        if( descend_view )
+        if( stack->frames[d].painter == view->painter )
         {
-            assert(descend_view > 0);
-            assert(descend_view < PAINTER_MAX_WORLD_VIEWS);
-            bucket_emit_world_marker(
-                &cmd_cur, cmd_end, PNTR_CMD_BEGIN_WORLD, descend_view);
-            painter_wedgelog_paint(
-                e_tile, "world", (int)element->source_level, descend_view, si);
-        }
-        else if( !(painter->occluders &&
-                   scene_occluders_footprint_hidden(
-                       painter->occluders,
-                       occlusion_level,
-                       (int)element->sx,
-                       (int)element->sz,
-                       element->_scenery.size_x,
-                       element->_scenery.size_z,
-                       element->_scenery.model_height)) )
-        {
-            bucket_emit_entity(&cmd_cur, cmd_end, element->_scenery.entity);
-            painter_wedgelog_paint(
-                e_tile,
-                si >= painter->static_element_count ? "entity" : "loc",
-                (int)element->source_level,
-                element->_scenery.entity,
-                si);
-        }
-
-        int min_tile_x = (int)element->sx;
-        int min_tile_z = (int)element->sz;
-        int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
-        int max_tile_z = min_tile_z + element->_scenery.size_z - 1;
-
-        if( max_tile_x > max_draw_x - 1 )
-            max_tile_x = max_draw_x - 1;
-        if( max_tile_z > max_draw_z - 1 )
-            max_tile_z = max_draw_z - 1;
-        if( min_tile_x < min_draw_x )
-            min_tile_x = min_draw_x;
-        if( min_tile_z < min_draw_z )
-            min_tile_z = min_draw_z;
-
-        if( min_tile_x <= max_tile_x && min_tile_z <= max_tile_z )
-        {
-            int row0 = min_tile_x + min_tile_z * width + paintgrid_level * level_stride;
-            for( int oz = min_tile_z, row = row0; oz <= max_tile_z; oz++, row += width )
-            {
-                for( int ox = min_tile_x, ti = row; ox <= max_tile_x; ox++, ti++ )
-                {
-                    int ndist = abs(ox - camera_sx) + abs(oz - camera_sz);
-                    bucket_push_if_active(
-                        w, paints, ti, ndist, perf_pushes, perf_push_dedup);
-                    some_drawn = 1;
-                }
-            }
-        }
-
-        if( descend_view )
-        {
-            /* Suspend: the footprint pushes above are already done, so the
-             * resume picks up at vi + 1. `drawn` was set before the emit, so
-             * this element is never revisited. */
-            ctx->resume_active = 1;
-            ctx->resume_e_tile = e_tile;
-            ctx->resume_vi = vi + 1;
-            ctx->resume_n_visit = n_visit;
-            /* Already there when the resume path is the one suspending again;
-             * the comparison folds away at both inline sites. */
-            if( visit_sc != ctx->resume_visit_sc )
-                memcpy(
-                    ctx->resume_visit_sc, visit_sc, sizeof(ctx->resume_visit_sc));
-            ctx->resume_blocked_undrawn = blocked_undrawn;
-            ctx->resume_some_drawn = some_drawn;
-            descend = descend_view;
+            painter_on_stack = 1;
             break;
         }
     }
+    int refused = !view->active || (stack->view_ids & (1u << view_id)) ||
+                  painter_on_stack || depth + 1 >= PAINTER_MAX_WORLD_VIEWS;
 
-    *cmd_cur_p = cmd_cur;
-    *some_drawn_p = some_drawn;
-    return descend;
+    PAINTER_DBG_WEV_REQUEST(
+        view_id,
+        view->active,
+        (stack->view_ids & (1u << view_id)) ? 1 : 0,
+        painter_on_stack,
+        depth,
+        view->camera_sx,
+        view->camera_sz,
+        (int)(cursor->cur - cursor->base));
+
+    /* Two markers is a refusal's whole budget, and the open one goes down
+     * before the nested paint's commands do. */
+    bucket_cursor_reserve(cursor, 2);
+    bucket_emit_world_marker(&cursor->cur, cursor->end, PNTR_CMD_BEGIN_WORLD, view_id);
+
+    if( !refused )
+    {
+        stack->depth = depth + 1;
+        stack->view_ids |= (1u << view_id);
+        stack->frames[depth + 1] = (struct BucketPaintFrame){
+            .painter = view->painter,
+            .camera_sx = view->camera_sx,
+            .camera_sz = view->camera_sz,
+            .camera_slevel = view->camera_slevel,
+            .view_id = view_id,
+        };
+
+        /* A nested world's rows would index the BOUND painter's tiles[] with
+         * this painter's indices. Closing the log for the duration is what
+         * enforces that, so the drain's ~20 emit sites stay free of any
+         * per-row ownership test. @see PAINTER_DBG_WEDGE_SUSPEND. */
+        int saved = PAINTER_DBG_WEDGE_SUSPEND();
+        bucket_paint_world(
+            view->painter,
+            cursor,
+            view->camera_sx,
+            view->camera_sz,
+            view->camera_slevel,
+            stack);
+        PAINTER_DBG_WEDGE_RESUME(saved);
+
+        stack->view_ids &= ~(1u << view_id);
+        stack->depth = depth;
+
+        PAINTER_DBG_WEV_DONE(view_id, (int)(cursor->cur - cursor->base));
+    }
+
+    bucket_cursor_reserve(cursor, 1);
+    bucket_emit_world_marker(&cursor->cur, cursor->end, PNTR_CMD_END_WORLD, view_id);
 }
 
-/* restrict: the context and the cursor live on the driver's own stack and are
- * reached through no other pointer here. Without it every ctx-> read in the
- * drain has to be re-loaded after any store into the painter's tile/element
- * arrays, which the compiler must assume may alias them — measurably slower
- * than the single-function paint this replaced. */
-static int
-bucket_paint_run(
-    struct BucketPaintCtx* restrict ctx,
-    struct BucketPaintCursor* restrict cursor)
+/* restrict on the cursor: it lives on the entry point's own stack and is
+ * reached through no other pointer here. Without it every cursor-> read has to
+ * be re-loaded after any store into the painter's tile/element arrays, which
+ * the compiler must assume may alias it. */
+static void
+bucket_paint_world(
+    struct Painter* painter,
+    struct BucketPaintCursor* restrict cursor,
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel,
+    struct BucketPaintStack* stack)
 {
-    assert(ctx);
-    assert(cursor);
-    struct Painter* painter = ctx->painter;
     assert(painter);
-    assert(cursor->buffer);
-    int camera_sx = ctx->camera_sx;
-    int camera_sz = ctx->camera_sz;
-    int camera_slevel = ctx->camera_slevel;
-    const int wedgelog_on = ctx->wedgelog;
+    assert(cursor);
+    assert(stack);
+    /* Only the root drives the wedge log: a nested painter's rows would index
+     * a different tile array. @see PAINTER_DBG_WEDGE_SUSPEND. */
+    const int is_root = (stack->depth == 0);
     struct PainterBucketCtx* w = BM(painter);
     assert(w);
 
@@ -886,10 +876,10 @@ bucket_paint_run(
     struct PaintersElement* elements = painter->elements;
     struct ElementPaint* element_paints = painter->element_paints;
     struct SceneryNode* scenery_pool = painter->scenery_pool;
-    int64_t perf_pops = ctx->perf_pops;
-    int64_t perf_gate_rejects = ctx->perf_gate_rejects;
-    int64_t perf_pushes = ctx->perf_pushes;
-    int64_t perf_push_dedup = ctx->perf_push_dedup;
+    int64_t perf_pops = 0;
+    int64_t perf_gate_rejects = 0;
+    int64_t perf_pushes = 0;
+    int64_t perf_push_dedup = 0;
     const struct PaintersCullMap* cullmap = painter->cullmap;
     size_t cull_camera_key = painter->cull_camera_key;
     int cull_all_visible = (cullmap == NULL || cullmap->all_visible);
@@ -902,6 +892,8 @@ bucket_paint_run(
         cull_grid_side = cullmap->grid_side;
         cull_vis = cullmap->visibility;
     }
+
+    memset(element_paints, 0x00, (size_t)painter->element_count * sizeof(struct ElementPaint));
 
     int radius = painter->draw_distance;
 
@@ -941,8 +933,8 @@ bucket_paint_run(
 
     /* Draw-order telemetry (TORIRS_WEDGELOG). Armed before the classify loop so
      * the MARK rows land in the same file as the traversal. */
-    if( !ctx->started && wedgelog_on )
-        painter_wedgelog_frame_begin(
+    if( is_root )
+        PAINTER_DBG_WEDGE_FRAME_BEGIN(
             painter,
             camera_sx,
             camera_sz,
@@ -966,12 +958,7 @@ bucket_paint_run(
      * ahead of a far tile of the next. The perimeter seed generator below stays
      * as the liveness fallback for tiles a span cycle strands; it is no longer
      * what drives the traversal. */
-    int tiles_remaining;
-    int check_adjacent;
-    if( !ctx->started )
-    {
-    memset(element_paints, 0x00, (size_t)painter->element_count * sizeof(struct ElementPaint));
-    tiles_remaining = 0;
+    int tiles_remaining = 0;
     int tiles_in_box = 0;
     bucket_reset(w);
     for( int s = min_level; s < max_level; s++ )
@@ -1057,8 +1044,7 @@ bucket_paint_run(
 
                 tp->step = PAINT_STEP_READY;
                 tiles_remaining++;
-                if( painter_wedgelog_armed() )
-                    painter_wedgelog_event(ti, "MARK", NULL);
+                PAINTER_DBG_WEDGE_EVENT(ti, "MARK");
                 bucket_push(w, paints, ti, abs(x - camera_sx) + adz);
                 BUCKET_PERF_INCREMENT(perf_pushes);
             }
@@ -1071,17 +1057,14 @@ bucket_paint_run(
                     2 * PAINTER_MAX_WORLD_VIEWS + 16;
     if( need_cmds < 16 )
         need_cmds = 16;
-    /* Reserved on top of whatever the suspended contexts above have already
-     * written, and re-taken on every resume. */
-    ctx->reserve = need_cmds;
-    bucket_cursor_reserve(cursor, ctx->reserve);
+    /* Reserved on top of whatever the painters below on the stack have already
+     * written, and taken again after every descent. @see bucket_cursor_reserve. */
+    bucket_cursor_reserve(cursor, need_cmds);
+    struct PaintersElementCommand* cmd_cur = cursor->cur;
+    struct PaintersElementCommand* cmd_end = cursor->end;
 
-    /* Incremental seed generator - initialized lazily on the first queue drain so frames
-     * where the cascade covers all tiles pay zero seed-iteration cost. Lives on
-     * the context: it is a cursor, and a suspended paint must resume where it
-     * left the perimeter. */
-    ctx->seed_gen_initialized = 0;
-    check_adjacent = 1;
+    struct PainterBucketReseed reseed = { .initialized = 0 };
+    int check_adjacent = 1;
 
     TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_PAINTER_TILES_REMAINING_SET, tiles_remaining);
 
@@ -1106,180 +1089,39 @@ bucket_paint_run(
                 cull_radius);
         }
     }
-    ctx->started = 1;
-    }
-    else
-    {
-        tiles_remaining = ctx->tiles_remaining;
-        check_adjacent = ctx->check_adjacent;
-        /* Resuming behind a completed descent: the cursor has moved by the
-         * whole nested paint, so this context's budget is reserved again from
-         * where it now stands. */
-        bucket_cursor_reserve(cursor, ctx->reserve);
-    }
-
-    /* Copied in and out rather than pointed at: seed_gen_next() steps it a
-     * field at a time, and through a pointer into the context every step
-     * re-reads memory. */
-    struct PainterSeedGen seed_gen_local = ctx->seed_gen;
-    struct PainterSeedGen* seed_gen = &seed_gen_local;
-    int seed_gen_initialized = ctx->seed_gen_initialized;
-    struct PaintersElementCommand* cmd_cur = cursor->cur;
-    struct PaintersElementCommand* cmd_end = cursor->end;
-
-    /* Finish the ready-scenery batch a descent cut in half, before the drain
-     * proper — never from inside it, so the pop loop carries no resume state.
-     * The interrupted tile had at least one ready element, so this always ends
-     * in the same "scenery was emitted" tail the loop runs and never falls
-     * through to that tile's wall pass. */
-    if( ctx->resume_active )
-    {
-        ctx->resume_active = 0;
-        int e_tile = ctx->resume_e_tile;
-        struct PaintersTile* tile = &tiles[e_tile];
-        int n_visit = ctx->resume_n_visit;
-        int blocked_undrawn = ctx->resume_blocked_undrawn;
-        int some_drawn = ctx->resume_some_drawn;
-        assert(n_visit > 0);
-        int descend_view = bucket_emit_scenery_batch(
-            ctx,
-            painter,
-            w,
-            &cmd_cur,
-            cmd_end,
-            elements,
-            element_paints,
-            paints,
-            ctx->resume_visit_sc,
-            n_visit,
-            ctx->resume_vi,
-            e_tile,
-            painters_tile_get_mesh_level(tile),
-            painters_tile_get_paintgrid_level(tile),
-            width,
-            level_stride,
-            min_draw_x,
-            max_draw_x,
-            min_draw_z,
-            max_draw_z,
-            camera_sx,
-            camera_sz,
-            blocked_undrawn,
-            &some_drawn,
-            &perf_pushes,
-            &perf_push_dedup);
-        if( descend_view )
-        {
-            ctx->descend_view = descend_view;
-            goto suspend;
-        }
-        /* Containment, as in the drain: a blocked contained loc needs the tile
-         * revisited when no footprint push already scheduled it. */
-        if( blocked_undrawn && !some_drawn )
-            bucket_push_if_active(
-                w,
-                paints,
-                e_tile,
-                abs(tile->sx - camera_sx) + abs(tile->sz - camera_sz),
-                &perf_pushes,
-                &perf_push_dedup);
-    }
 
     for( ;; )
     {
-        int e_tile;
-        struct PaintersTile* tile;
-        struct TilePaint* tile_paint;
-        int tile_sx;
-        int tile_sz;
-        int paintgrid_level;
-        int occlusion_level;
-        int adx;
-        int adz;
-        int tile_dist;
-        int visit_sc[BUCKET_VISIT_MAX];
-        int n_visit;
-        int blocked_undrawn;
-        int some_drawn;
-
         if( bucket_queue_empty(w) )
         {
             if( tiles_remaining == 0 )
                 break;
-            if( !seed_gen_initialized )
-            {
-                int seed_r = painter_seed_radius_for_box(
-                    camera_sx,
-                    camera_sz,
-                    min_draw_x,
-                    max_draw_x,
-                    min_draw_z,
-                    max_draw_z,
-                    radius);
-                seed_gen_init(
-                    seed_gen,
-                    camera_sx,
-                    camera_sz,
-                    min_draw_x,
-                    max_draw_x,
-                    min_draw_z,
-                    max_draw_z,
-                    levels,
-                    seed_r);
-                seed_gen_initialized = 1;
-            }
-            int seeded = 0;
-            int sx, sz, level, phase;
-            while( seed_gen_next(seed_gen, &sx, &sz, &level, &phase) )
-            {
-                int tidx = sx + sz * width + level * level_stride;
-                if( paints[tidx].step == PAINT_STEP_READY )
-                {
-                    int dist = abs(sx - camera_sx) + abs(sz - camera_sz);
-                    if( painter_wedgelog_armed() )
-                    {
-                        char extra[48];
-                        snprintf(extra, sizeof(extra), "phase=%d d=%d", phase, dist);
-                        painter_wedgelog_event(tidx, "SEED", extra);
-                    }
-                    bucket_push_if_active(
-                        w, paints, tidx, dist, &perf_pushes, &perf_push_dedup);
-                    check_adjacent = (phase == 1);
-                    seeded = 1;
-                    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_DRAIN_EVENTS, 1);
-                    break;
-                }
-            }
-            if( !seeded )
+            /* The wave-front stalled; restart it from the perimeter. */
+            if( !PAINTER_BUCKET_RESEED(&reseed) )
                 break;
         }
 
-        e_tile = bucket_pop(w, paints);
+        int e_tile = bucket_pop(w, paints);
         if( e_tile < 0 )
             continue;
         BUCKET_PERF_INCREMENT(perf_pops);
-        if( painter_wedgelog_armed() )
-        {
-            char extra[32];
-            snprintf(extra, sizeof(extra), "step=%d", (int)paints[e_tile].step);
-            painter_wedgelog_event(e_tile, "POP", extra);
-        }
+        PAINTER_DBG_WEDGE_EVENTF(e_tile, "POP", "step=%d", (int)paints[e_tile].step);
 
-        tile = &tiles[e_tile];
-        tile_paint = &paints[e_tile];
+        struct PaintersTile* tile = &tiles[e_tile];
+        struct TilePaint* tile_paint = &paints[e_tile];
         if( tile_paint->step == PAINT_STEP_DONE )
             continue;
 
-        tile_sx = tile->sx;
-        tile_sz = tile->sz;
-        paintgrid_level = painters_tile_get_paintgrid_level(tile);
+        int tile_sx = tile->sx;
+        int tile_sz = tile->sz;
+        int paintgrid_level = painters_tile_get_paintgrid_level(tile);
         /* Occlusion samples ground heights by originalLevel (Client-TS /
          * Square.originalLevel). mesh_level survives bridge push-down;
          * paintgrid_level is the shifted grid slot used for traversal. */
-        occlusion_level = painters_tile_get_mesh_level(tile);
-        adx = abs(tile_sx - camera_sx);
-        adz = abs(tile_sz - camera_sz);
-        tile_dist = adx + adz;
+        int occlusion_level = painters_tile_get_mesh_level(tile);
+        int adx = abs(tile_sx - camera_sx);
+        int adz = abs(tile_sz - camera_sz);
+        int tile_dist = adx + adz;
 
         if( tile_paint->step == PAINT_STEP_READY )
         {
@@ -1366,7 +1208,7 @@ bucket_paint_run(
                         {
                             bucket_emit_terrain(&cmd_cur, cmd_end, bridge_underpass_tile->sx,
                                                 bridge_underpass_tile->sz, ml);
-                            painter_wedgelog_paint(
+                            PAINTER_DBG_WEDGE_PAINT(
                                 tile->bridge_tile, "floor:bridge", ml, -1, -1);
                         }
                 }
@@ -1384,7 +1226,7 @@ bucket_paint_run(
                         if( !ground_hidden )
                         {
                             bucket_emit_terrain(&cmd_cur, cmd_end, tile_sx, tile_sz, ml);
-                            painter_wedgelog_paint(e_tile, "floor", ml, -1, -1);
+                            PAINTER_DBG_WEDGE_PAINT(e_tile, "floor", ml, -1, -1);
                         }
                         else if( camera_slevel >= 0 && ml <= camera_slevel )
                         {
@@ -1400,13 +1242,7 @@ bucket_paint_run(
              * (world3d order). Emitted at the release site below. */
             if( !tile_paint->seam_relaxed )
                 bucket_emit_tile_features(
-                    painter,
-                    &cmd_cur,
-                    cmd_end,
-                    tile,
-                    e_tile,
-                    camera_sx,
-                    camera_sz);
+                    painter, &cmd_cur, cmd_end, tile, e_tile, camera_sx, camera_sz);
 
 
             tile_paint->step = PAINT_STEP_GROUND;
@@ -1473,8 +1309,9 @@ bucket_paint_run(
         }
 
         /* PAINT_STEP_GROUND == reference PAINTER_STEP_BASE for scenery / completion. */
-        n_visit = 0;
-        blocked_undrawn = 0;
+        int visit_sc[64];
+        int n_visit = 0;
+        int blocked_undrawn = 0;
 
         /* A tile the seam exception let through paints nothing but its ground
          * until the reference gate passes; the neighbour's completion pushes
@@ -1493,13 +1330,7 @@ bucket_paint_run(
              * and objects the relaxed ground pass deferred, then fall through
              * to scenery — the order world3d's front pass produces. */
             bucket_emit_tile_features(
-                painter,
-                &cmd_cur,
-                cmd_end,
-                tile,
-                e_tile,
-                camera_sx,
-                camera_sz);
+                painter, &cmd_cur, cmd_end, tile, e_tile, camera_sx, camera_sz);
         }
 
         /* Reference emission order (class112.java:1030-1058 + method3971),
@@ -1569,39 +1400,85 @@ bucket_paint_run(
                 blocked_undrawn = 1;
         }
 
-        some_drawn = 0;
+        int some_drawn = 0;
+        for( int vi = 0; vi < n_visit; vi++ )
         {
-            int descend_view = bucket_emit_scenery_batch(
-                ctx,
-                painter,
-                w,
-                &cmd_cur,
-                cmd_end,
-                elements,
-                element_paints,
-                paints,
-                visit_sc,
-                n_visit,
-                0,
-                e_tile,
-                occlusion_level,
-                paintgrid_level,
-                width,
-                level_stride,
-                min_draw_x,
-                max_draw_x,
-                min_draw_z,
-                max_draw_z,
-                camera_sx,
-                camera_sz,
-                blocked_undrawn,
-                &some_drawn,
-                &perf_pushes,
-                &perf_push_dedup);
-            if( descend_view )
+            int si = visit_sc[vi];
+            struct ElementPaint* ep = &element_paints[si];
+            ep->drawn = true;
+
+            struct PaintersElement* element = &elements[si];
+            assert(element->kind == PNTRELEM_SCENERY);
+            /* A world-entity pseudo-loc carries a VIEW ID, not a scene
+             * element: push that view's painter onto the stack and run it
+             * right here, between the two markers. `cmd_cur`/`cmd_end` are
+             * dead across the call — the nested paint may realloc the buffer —
+             * so both come back off the cursor. */
+            if( scenery_is_world_entity(element) )
             {
-                ctx->descend_view = descend_view;
-                goto suspend;
+                PAINTER_DBG_WEDGE_PAINT(
+                    e_tile,
+                    "world",
+                    (int)element->source_level,
+                    (int)element->_scenery.entity,
+                    si);
+                cursor->cur = cmd_cur;
+                bucket_descend(stack, cursor, (int)element->_scenery.entity);
+                bucket_cursor_reserve(cursor, need_cmds);
+                cmd_cur = cursor->cur;
+                cmd_end = cursor->end;
+            }
+            else if( !(painter->occluders &&
+                       scene_occluders_footprint_hidden(
+                           painter->occluders,
+                           occlusion_level,
+                           (int)element->sx,
+                           (int)element->sz,
+                           element->_scenery.size_x,
+                           element->_scenery.size_z,
+                           element->_scenery.model_height)) )
+            {
+                bucket_emit_entity(&cmd_cur, cmd_end, element->_scenery.entity);
+                PAINTER_DBG_WEDGE_PAINT(
+                    e_tile,
+                    si >= painter->static_element_count ? "entity" : "loc",
+                    (int)element->source_level,
+                    element->_scenery.entity,
+                    si);
+            }
+
+            int min_tile_x = (int)element->sx;
+            int min_tile_z = (int)element->sz;
+            int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
+            int max_tile_z = min_tile_z + element->_scenery.size_z - 1;
+
+            if( max_tile_x > max_draw_x - 1 )
+                max_tile_x = max_draw_x - 1;
+            if( max_tile_z > max_draw_z - 1 )
+                max_tile_z = max_draw_z - 1;
+            if( min_tile_x < min_draw_x )
+                min_tile_x = min_draw_x;
+            if( min_tile_z < min_draw_z )
+                min_tile_z = min_draw_z;
+
+            if( min_tile_x <= max_tile_x && min_tile_z <= max_tile_z )
+            {
+                int row0 = min_tile_x + min_tile_z * width + paintgrid_level * level_stride;
+                for( int oz = min_tile_z, row = row0; oz <= max_tile_z; oz++, row += width )
+                {
+                    for( int ox = min_tile_x, ti = row; ox <= max_tile_x; ox++, ti++ )
+                    {
+                        int ndist = abs(ox - camera_sx) + abs(oz - camera_sz);
+                        bucket_push_if_active(
+                            w,
+                            paints,
+                            ti,
+                            ndist,
+                            &perf_pushes,
+                            &perf_push_dedup);
+                        some_drawn = 1;
+                    }
+                }
             }
         }
         /* Emitting scenery defers near-wall completion until a later visit (world3d parity). */
@@ -1637,7 +1514,7 @@ bucket_paint_run(
                 continue;
             ep->drawn = true;
             bucket_emit_entity(&cmd_cur, cmd_end, el->_scenery.entity);
-            painter_wedgelog_paint(
+            PAINTER_DBG_WEDGE_PAINT(
                 e_tile, "item_back", (int)el->source_level, el->_scenery.entity, si);
         }
 
@@ -1682,7 +1559,7 @@ bucket_paint_run(
                         if( !decor_hidden )
                         {
                             bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                            painter_wedgelog_paint(
+                            PAINTER_DBG_WEDGE_PAINT(
                                 e_tile, "decor_back", (int)element->source_level,
                                 element->_wall_decor.entity, tile->wall_decor_a);
                         }
@@ -1694,7 +1571,7 @@ bucket_paint_run(
                         if( !decor_hidden )
                         {
                             bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                            painter_wedgelog_paint(
+                            PAINTER_DBG_WEDGE_PAINT(
                                 e_tile, "decor_back_alt", (int)element->source_level,
                                 element->_wall_decor.entity, tile->wall_decor_b);
                         }
@@ -1705,7 +1582,7 @@ bucket_paint_run(
                     if( !decor_hidden )
                     {
                         bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                        painter_wedgelog_paint(
+                        PAINTER_DBG_WEDGE_PAINT(
                             e_tile, "decor_back", (int)element->source_level,
                             element->_wall_decor.entity, tile->wall_decor_a);
                     }
@@ -1721,7 +1598,7 @@ bucket_paint_run(
                                  occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
                 {
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
-                    painter_wedgelog_paint(
+                    PAINTER_DBG_WEDGE_PAINT(
                         e_tile, "wall_back_a", (int)element->source_level, element->_wall.entity,
                         tile->wall_a);
                 }
@@ -1736,7 +1613,7 @@ bucket_paint_run(
                                  occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
                 {
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
-                    painter_wedgelog_paint(
+                    PAINTER_DBG_WEDGE_PAINT(
                         e_tile, "wall_back_b", (int)element->source_level, element->_wall.entity,
                         tile->wall_b);
                 }
@@ -1799,67 +1676,23 @@ bucket_paint_run(
         }
     }
 
-    /* This context is finished. The command COUNT, the wedge-log close and the
-     * order dump describe the whole stack, not one context, so the driver owns
-     * them — writing them here would truncate an outer paint to an inner
-     * paint's length. */
     cursor->cur = cmd_cur;
 
 done:
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_POPS, perf_pops);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_GATE_REJECTS, perf_gate_rejects);
+    PAINTER_DBG_STALL_PAINT_END(perf_gate_rejects, perf_pushes);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_PUSHES, perf_pushes);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_PUSH_DEDUP, perf_push_dedup);
-    return BUCKET_RUN_DONE;
-
-suspend:
-    /* The descended context's setup may realloc buffer->commands, so the write
-     * position goes back to the shared cursor before we return: the reload
-     * after the resume picks up the rebased pointers. */
-    cursor->cur = cmd_cur;
-    ctx->tiles_remaining = tiles_remaining;
-    ctx->check_adjacent = check_adjacent;
-    ctx->seed_gen_initialized = seed_gen_initialized;
-    ctx->seed_gen = seed_gen_local;
-    ctx->perf_pops = perf_pops;
-    ctx->perf_gate_rejects = perf_gate_rejects;
-    ctx->perf_pushes = perf_pushes;
-    ctx->perf_push_dedup = perf_push_dedup;
-    return BUCKET_RUN_DESCEND;
 }
 
-/**
- * `TORIRS_WEV_DEBUG=1` — trace every descent the driver below is asked for and
- * every one it completes.
- *
- * A world entity that renders nothing is otherwise indistinguishable at four
- * different stages: the pseudo-loc never emitted a BEGIN_WORLD, the request
- * arrived but was refused (unbound view, cycle, full stack), the descent ran
- * but the child painter emitted no commands, or it emitted commands that the
- * drain later dropped. The request/done pair separates the first three.
- *
- * Read once, not per descent: this sits in the per-frame paint driver, where
- * even the getenv is charged every frame of every entity.
- * @see app_wev_debug_enabled
- */
-static int
-bucket_wev_debug_enabled(void)
-{
-    static int cached = -1;
-
-    if( cached < 0 )
-    {
-        char const* v = getenv("TORIRS_WEV_DEBUG");
-
-        cached = (v && v[0] && v[0] != '0') ? 1 : 0;
-    }
-    return cached;
-}
 
 /**
- * The paint driver: an explicit stack of suspendable contexts, never the C call
- * stack. stack[0] is the root painter; a world-entity pseudo-loc pushes the
- * view's painter with a camera already transformed into that view's space.
+ * Paint `painter`, and every world view it descends into, into `buffer`.
+ *
+ * The entry point is the root frame of the painter stack plus the shared write
+ * cursor; the paint itself is bucket_paint_world() above, which nests into
+ * itself for each world entity it reaches.
  */
 int
 painter_paint_bucket(
@@ -1872,24 +1705,16 @@ painter_paint_bucket(
     assert(painter);
     assert(buffer);
 
-    struct BucketPaintCtx stack[PAINTER_MAX_WORLD_VIEWS];
-    /* One bit per view id. The cheap first test only — what actually must not
-     * repeat on the stack is the PAINTER, not the view id: re-entering one runs
-     * its `!ctx->started` setup, which memsets element_paints and resets the
-     * bucket heap out from under the suspended frame below. Two distinct view
-     * ids bound to the same painter (root(1)->A, A(2)->B, B(3)->A) clear every
-     * bit test and still corrupt it, so the identity scan below is the guard
-     * and this is just the fast path. */
-    uint32_t on_stack = 1u; /* view 0 (the root) is always on the stack */
-    int depth = 0;
-
-    memset(&stack[0], 0, sizeof(stack[0]));
-    stack[0].painter = painter;
-    stack[0].camera_sx = camera_sx;
-    stack[0].camera_sz = camera_sz;
-    stack[0].camera_slevel = camera_slevel;
-    stack[0].view_id = 0;
-    stack[0].wedgelog = 1;
+    struct BucketPaintStack stack;
+    stack.depth = 0;
+    stack.view_ids = 1u; /* view 0 (the root) is always on the stack */
+    stack.frames[0] = (struct BucketPaintFrame){
+        .painter = painter,
+        .camera_sx = camera_sx,
+        .camera_sz = camera_sz,
+        .camera_slevel = camera_slevel,
+        .view_id = 0,
+    };
 
     struct BucketPaintCursor cursor;
     cursor.buffer = buffer;
@@ -1897,110 +1722,15 @@ painter_paint_bucket(
     cursor.cur = buffer->commands;
     cursor.end = buffer->commands + buffer->command_capacity;
 
-    for( ;; )
-    {
-        assert(depth >= 0);
-        assert(depth < PAINTER_MAX_WORLD_VIEWS);
-        struct BucketPaintCtx* top = &stack[depth];
-        int result;
-        if( top->wedgelog )
-        {
-            result = bucket_paint_run(top, &cursor);
-        }
-        else
-        {
-            /* A nested world's rows would index the BOUND painter's tiles[]
-             * with this painter's indices. Closing the log for the duration is
-             * what enforces that, so the drain's ~20 emit sites stay free of
-             * any per-row ownership test. @see painter_wedgelog_suspend. */
-            int saved = painter_wedgelog_suspend();
-            result = bucket_paint_run(top, &cursor);
-            painter_wedgelog_resume(saved);
-        }
-
-        if( result == BUCKET_RUN_DESCEND )
-        {
-            int view_id = top->descend_view;
-            assert(view_id > 0);
-            assert(view_id < PAINTER_MAX_WORLD_VIEWS);
-            const struct PainterWorldEntityView* view =
-                &top->painter->world_entity_views[view_id];
-
-            /* Linear over at most PAINTER_MAX_WORLD_VIEWS live frames, and only
-             * on a descent — cheaper than carrying a side table, and it catches
-             * the same painter arriving under a second view id. */
-            int painter_on_stack = 0;
-            for( int d = 0; d <= depth; d++ )
-            {
-                if( stack[d].painter == view->painter )
-                {
-                    painter_on_stack = 1;
-                    break;
-                }
-            }
-
-            /* An unbound view, a repeat of a view id or of a painter, or a full
-             * stack is not a descent: emit the closing marker immediately so the
-             * stream stays balanced, and let the outer context carry on. */
-            if( bucket_wev_debug_enabled() )
-                fprintf(
-                    stderr,
-                    "wev: DESCEND request view %d active=%d dup_id=%d "
-                    "dup_painter=%d depth=%d cam %d,%d cmds=%d\n",
-                    view_id,
-                    view->active,
-                    (on_stack & (1u << view_id)) ? 1 : 0,
-                    painter_on_stack,
-                    depth,
-                    view->camera_sx,
-                    view->camera_sz,
-                    (int)(cursor.cur - cursor.base));
-            if( !view->active || (on_stack & (1u << view_id)) || painter_on_stack ||
-                depth + 1 >= PAINTER_MAX_WORLD_VIEWS )
-            {
-                bucket_cursor_reserve(&cursor, 1);
-                bucket_emit_world_marker(
-                    &cursor.cur, cursor.end, PNTR_CMD_END_WORLD, view_id);
-                continue;
-            }
-
-            depth++;
-            on_stack |= (1u << view_id);
-            memset(&stack[depth], 0, sizeof(stack[depth]));
-            stack[depth].painter = view->painter;
-            stack[depth].camera_sx = view->camera_sx;
-            stack[depth].camera_sz = view->camera_sz;
-            stack[depth].camera_slevel = view->camera_slevel;
-            stack[depth].view_id = view_id;
-            /* Only the root drives the wedge log: an inner context indexes a
-             * different tile array. @see painter_wedgelog_suspend. */
-            stack[depth].wedgelog = 0;
-            continue;
-        }
-
-        assert(result == BUCKET_RUN_DONE);
-        if( depth == 0 )
-            break;
-
-        if( bucket_wev_debug_enabled() )
-            fprintf(
-                stderr,
-                "wev: DESCEND done view %d emitted %d command(s)\n",
-                top->view_id,
-                (int)(cursor.cur - cursor.base));
-        int view_id = top->view_id;
-        assert(view_id > 0);
-        bucket_cursor_reserve(&cursor, 1);
-        bucket_emit_world_marker(&cursor.cur, cursor.end, PNTR_CMD_END_WORLD, view_id);
-        on_stack &= ~(1u << view_id);
-        depth--;
-    }
+    buffer->command_count = 0;
+    PAINTER_DBG_STALL_FRAME();
+    bucket_paint_world(painter, &cursor, camera_sx, camera_sz, camera_slevel, &stack);
 
     buffer->command_count = (int)(cursor.cur - cursor.base);
     TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_PAINTER_COMMANDS, buffer->command_count);
 
-    painter_wedgelog_frame_end((long)buffer->command_count);
-    painter_dump_command_order(painter, buffer);
+    PAINTER_DBG_WEDGE_FRAME_END(buffer->command_count);
+    PAINTER_DBG_DUMP_ORDER(painter, buffer);
     return 0;
 }
 

@@ -6,7 +6,7 @@
 #include "ui/uitree_scroll.h"
 #include "world/world.h"
 
-#include "graphics/projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "toridraw_scene.h"
 #include "toridraw_types.h"
 
@@ -1767,8 +1767,8 @@ build_begin_3d_from_world_emit(
     }
     else
     {
-        out->camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-        out->camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+        out->camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+        out->camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
         out->camera.near_plane_z = 50;
         out->camera.pitch = 128;
         out->camera.yaw = 0;

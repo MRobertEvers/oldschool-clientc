@@ -55,8 +55,8 @@
 
 // clang-format off
 #include "graphics/shared_tables.c"
-#include "graphics/projection.u.c"
-#include "graphics/raster/texture/span/tex.span.u.c"
+#include "impl/projection/projection.scalar_reference.u.c"
+#include "impl/raster/span/span.tex.dispatch.u.c"
 // clang-format on
 
 #define SCREEN_W 512

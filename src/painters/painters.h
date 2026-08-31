@@ -1,7 +1,8 @@
 #ifndef PAINTERS_H
 #define PAINTERS_H
 
-#include "graphics/projection.h"
+#include "debug/painters_debug.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "toridraw_element_id.h"
 
 #include <stddef.h>
@@ -551,9 +552,9 @@ struct PaintersCullSpanParams
     int screen_height;
     /** Mirror of ToriDraw_Camera's projection knobs, and they must be the SAME
      *  values the frame is drawn with — see the note at the focal computation
-     *  in painters_cullspan.u.c. proj_mode selects; see graphics/projection.h. */
-    int proj_mode;
-    int proj_scale;
+     *  in painters_cullspan.u.c. projection_mode selects; see graphics/projection.h. */
+    int projection_mode;
+    int projection_scale;
     int fov_rpi2048;
     int dz_min;
     int dz_max;
@@ -577,7 +578,7 @@ painters_cullspan_build(
  * project and sin_fn are required; both receive the same user pointer.
  *
  * camera_cot16 is the resolved projection multiplier the bake assumes (see
- * toridraw_proj_cot16). It used to be a bare 512 buried in the frustum test,
+ * toridraw_projection_cot16). It used to be a bare 512 buried in the frustum test,
  * which silently baked a scale-512 frustum no matter what the camera projected
  * with; pass what the frame will actually use. The bake is conservative
  * (padding + dilation), so it tolerates being slightly wide but not narrow. */
@@ -1042,19 +1043,5 @@ painter_paint_world3d(
     int camera_sx,
     int camera_sz,
     int camera_slevel);
-
-/**
- * Draw-order telemetry (TORIRS_WEDGELOG=<path>). Records the eye and viewport the
- * caller is about to paint with so the log header can be compared against the
- * instrumented official client's `#path` line. No-op unless the env var is set;
- * never reads or writes painter/render state.
- */
-void
-painter_wedgelog_set_eye(
-    int eye_x,
-    int eye_y,
-    int eye_z,
-    int viewport_w,
-    int viewport_h);
 
 #endif

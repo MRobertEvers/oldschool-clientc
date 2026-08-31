@@ -36,7 +36,7 @@ extern "C" {
 
 /** Bit-exact hand-written twin of
  *  draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered. */
-void toridraw_texspan_opaque_lerp8_v3_asm(
+void toridraw_texspan_opaque_lerp8_v3_xrgb8888_asm(
     int* pixel_buffer,
     int screen_width,
     int screen_x0_ish16,

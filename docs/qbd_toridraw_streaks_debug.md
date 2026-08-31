@@ -185,23 +185,42 @@ merely off — it was uncorrelated with the truth.
 
 ## Instrumentation still in tree
 
-Behind `TORIDRAW_DEBUG_NDJSON=1` (and related env), `#region agent log` blocks in:
+The `#region agent log` blocks were factored out. The instrumentation itself
+is unchanged and still emits the same records; what moved is where it lives
+and how it is turned on.
 
-- `3rd/toridraw/toridraw_render.u.c` — project range, safe-near, face sort,
-  face-order integrity, SIMD/exact differential on yaw-only path.
-- `3rd/toridraw/toridraw_raster.u.c` — per-model draw/skip accounting,
-  texture ids, tex-plane shift/reject counters.
-- `3rd/toridraw/graphics/projection.u.c` — `g_toridraw_tex_plane_max_shift` /
-  `g_toridraw_tex_plane_rejected`.
-- `3rd/toridraw/triangles/toridraw_triangle_clip.u.c` — clip reciprocal OOB.
+- `3rd/toridraw/toridraw_debug.u.c` — the whole facility, in one file: the
+  logger, the sampling gate and the env plumbing; the `TORIDRAW_SAFE_NEAR` A/B
+  knob; project range, face sort, face-order integrity, the SIMD/exact
+  differential on the yaw-only path and the scene-capacity reject; the
+  per-model raster draw/skip accounting and texture ids; the instrumented
+  bucket sort; and the near-clip differential. Included once, by
+  `toridraw_render.u.c`; the raster path reaches it through the macros at the
+  bottom of it.
+- `3rd/toridraw/toridraw_debug.h` — the compile-time gate and the
+  `TORIDRAW_DBG_COUNTER` macros, and nothing else. A header only because the
+  two counter sites below are compiled before the render path exists.
+- The three counters it reports still live where they are incremented, now
+  declared through `TORIDRAW_DBG_COUNTER`:
+  `g_toridraw_tex_plane_max_shift` / `g_toridraw_tex_plane_rejected` in
+  `graphics/projection.u.c`, `g_toridraw_clip_recip_oob` in
+  `triangles/toridraw_triangle_clip.u.c`.
 
-NDJSON path used in this session:
-`/Users/matthewevers/Documents/git_repos/3draster/.cursor/debug-ef81cb.log`
+It is now COMPILE-TIME gated, like the censuses next door and for the same
+reason — these sites are per-model and per-face on the render path. A default
+build has no branch at any of them. Build it in, then ask for it at run time:
 
-Useful env:
+```sh
+rm -f src/build_opt/toridraw_unity.o     # the .u.c files are not dep-tracked
+make -C src TORIDRAW_DEBUG_STATS=1 ...    # counters, printers, harnesses
+make -C src TORIDRAW_DEBUG_NDJSON=1 ...   # the above plus the NDJSON log
+```
+
+Useful env (in a build that has it):
 
 ```text
 TORIDRAW_DEBUG_NDJSON=1
+TORIDRAW_DEBUG_LOG=<path>     # default: toridraw-debug.ndjson in the cwd
 TORIDRAW_DEBUG_RUN=<label>
 TORIDRAW_SAFE_NEAR=0          # optional A/B
 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1
@@ -213,7 +232,9 @@ Prefer the preserved binary ( `run-live` rebuilds a plain `torirs` ):
 
 ```sh
 # rebuild when needed
-make -C src EMBED_SERVER=1 TORIDRAW_NO_SIMD=1 ENABLE_UBSAN=1 -j"$(sysctl -n hw.ncpu)"
+rm -f src/build_opt/toridraw_unity.o
+make -C src EMBED_SERVER=1 TORIDRAW_NO_SIMD=1 ENABLE_UBSAN=1 TORIDRAW_DEBUG_NDJSON=1 \
+  -j"$(sysctl -n hw.ncpu)"
 cp -f src/torirs src/torirs_ubsan
 
 env TORIDRAW_DEBUG_NDJSON=1 TORIDRAW_DEBUG_RUN=fixN \
@@ -405,9 +426,11 @@ in the live client, which is how a traversal fault is told from a geometry one.
 3. Re-check **floor tiles vanishing**: the `w_n == 0` block that used to be
    drawn as a fabricated flat gradient is now drawn per pixel, which is the
    horizon band. If floors changed, this is why.
-4. Only after visual confirmation: remove `#region agent log` instrumentation;
-   decide whether safe-near stays permanent or is replaced by a screen-space
-   guard-band clipper.
+4. The `#region agent log` blocks have since been factored into
+   `toridraw_debug.u.c` (gate in `toridraw_debug.h`) and put behind a
+   compile-time gate, so they no longer cost a default build anything and
+   need not be removed on a schedule. Still open: whether safe-near stays
+   permanent or is replaced by a screen-space guard-band clipper.
 5. `tex.span.{neon,sse2,sse41,avx}.u.c` had silently drifted from `scalar` on
    these four functions. Worth a lint that asserts they stay identical, since
    nothing in the build catches an ISA-specific regression on a machine that

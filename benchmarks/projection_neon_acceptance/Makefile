@@ -16,7 +16,7 @@ LDLIBS += -lm
 
 HOST_OS := $(shell uname -s)
 HOST_ARCH := $(shell uname -m)
-APPLE_PROJECTION_ASM := $(TORIDRAW_ROOT)/graphics/projection16_apple.S
+APPLE_PROJECTION_ASM := $(TORIDRAW_ROOT)/graphics/projection16.aarch64.S
 NATIVE_ASM_CPPFLAGS :=
 NATIVE_ASM_SOURCES :=
 

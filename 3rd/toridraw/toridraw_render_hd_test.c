@@ -204,8 +204,8 @@ env_init(struct render_env* e)
     e->vp.clip_right = W;
     e->vp.clip_bottom = H;
 
-    e->cam.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    e->cam.proj_scale = 512;
+    e->cam.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    e->cam.projection_scale = 512;
     e->cam.near_plane_z = 50;
 
     /* Push the model away from the eye so every vertex clears the near plane;

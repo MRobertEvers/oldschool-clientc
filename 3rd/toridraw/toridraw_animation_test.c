@@ -55,24 +55,23 @@ check_classic_animation_refreshes_bounds(void)
         .y = frame_y,
         .z = frame_z,
     };
-    struct ToriDraw_BoundsCylinder bounds = { 0 };
     struct ToriDraw_Model model = {
         .vertex_count = 1,
         .vertices_x = vertices_x,
         .vertices_y = vertices_y,
         .vertices_z = vertices_z,
         .vertex_bones = &vertex_bones,
-        .bounds_cylinder = &bounds,
+        .has_bounds_cylinder = true,
     };
 
     ToriDraw_ModelSetBoundsCylinder(&model);
-    CHECK(bounds.radius == 0, "bind-pose radius seeded");
-    CHECK(bounds.min_z_depth_any_rotation == 1, "bind-pose depth bias seeded");
+    CHECK(model.bounds_cylinder.radius == 0, "bind-pose radius seeded");
+    CHECK(model.bounds_cylinder.min_z_depth_any_rotation == 1, "bind-pose depth bias seeded");
 
     ToriDraw_ModelAnimateFrame(&model, &base, &frame);
     CHECK(vertices_x[0] == 2000, "classic frame translated test vertex");
-    CHECK(bounds.radius == 2000, "classic frame refreshed horizontal radius");
-    CHECK(bounds.min_z_depth_any_rotation == 2001, "classic frame refreshed depth bias");
+    CHECK(model.bounds_cylinder.radius == 2000, "classic frame refreshed horizontal radius");
+    CHECK(model.bounds_cylinder.min_z_depth_any_rotation == 2001, "classic frame refreshed depth bias");
 }
 
 /*
@@ -383,7 +382,6 @@ check_resize_is_applied_after_the_animation(void)
         .y = frame_y,
         .z = frame_z,
     };
-    struct ToriDraw_BoundsCylinder bounds = { 0 };
     struct ToriDraw_Model model = {
         .vertex_count = 1,
         .vertices_x = vertices_x,
@@ -393,7 +391,7 @@ check_resize_is_applied_after_the_animation(void)
         .original_vertices_y = originals_y,
         .original_vertices_z = originals_z,
         .vertex_bones = &vertex_bones,
-        .bounds_cylinder = &bounds,
+        .has_bounds_cylinder = true,
     };
 
     ToriDraw_ModelSetPostResize(&model, 64, 64, 64);

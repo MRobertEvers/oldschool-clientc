@@ -943,7 +943,7 @@ one lane only.
   from that same scale, resolved through
   [`3rd/toridraw/graphics/projection.h`](../3rd/toridraw/graphics/projection.h)
   so the rasterizer and the GPU cannot disagree about what the camera asked for.
-  `trspk_compute_pass_matrices` takes the camera's `proj_mode`, `proj_scale`,
+  `trspk_compute_pass_matrices` takes the camera's `projection_mode`, `projection_scale`,
   `fov_rpi2048` and `parallel_zoom16` and does that resolution.
 - **What was wrong:** It previously took a hardcoded 90-degree field of view,
   which multiplied a hardcoded `512`. That is exactly right when the camera
@@ -957,7 +957,7 @@ one lane only.
   can only ever approximate the rasterizer it is meant to match. This is the
   same finding as the Inferno "orange wedge" (`docs/ORANGE_WEDGE.md` §11-12),
   reaching the GPU backends.
-- **Parallel projection:** `TORIDRAW_PROJ_MODE_PARALLEL` now builds an
+- **Parallel projection:** `TORIDRAW_PROJECTION_MODE_PARALLEL` now builds an
   orthographic matrix from `parallel_zoom16` instead of silently projecting
   perspective.
 - **Verification:** Capture the same scene on Soft3D and on the GPU backend and

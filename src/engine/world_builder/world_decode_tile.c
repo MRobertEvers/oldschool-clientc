@@ -654,8 +654,9 @@ decode_tile(
      * triples; only the underlay/overlay selector differs between them, and
      * that is spent above on colour. A census of a loaded Lumbridge square
      * says they are 94% of the tiles built, so the sort gets a kernel with
-     * those triples resolved at compile time (toridraw_face_sort_flat_tile2),
-     * and this is the flag that says the model is eligible for it.
+     * those triples resolved at compile time
+     * (toridraw_face_sort_bitonic_radix_tile2_scalar), and this is the flag
+     * that says the model is eligible for it.
      *
      * The rotation goes with it because the face loop above has already turned
      * the triples by it: a corner index a became (a - rotation) & 3, so the
@@ -670,10 +671,9 @@ decode_tile(
         td->tile_sort_kernel = (uint8_t)(1 + rotation);
     }
 
-    td->bounds_cylinder = calloc(1, sizeof(struct ToriDraw_BoundsCylinder));
-    assert(td->bounds_cylinder);
     tile_calculate_bounds_cylinder(
-        td->bounds_cylinder, vertex_count, vertices_x, vertices_y, vertices_z);
+        &td->bounds_cylinder, vertex_count, vertices_x, vertices_y, vertices_z);
+    td->has_bounds_cylinder = true;
 
     free(valid_faces);
 

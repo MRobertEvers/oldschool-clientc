@@ -1510,7 +1510,7 @@ struct stockjudge
     int thread_count;
     int tile;
     int distance;
-    int proj_scale;
+    int projection_scale;
     long ref_covered;
 };
 
@@ -1541,8 +1541,8 @@ stock_render(
      * job is to be the engine, so it frames like the one harness known to
      * agree with the engine. */
     struct ToriDraw_Camera camera = {
-        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-        .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+        .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+        .projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT,
         .near_plane_z = 50,
     };
     struct ToriDraw_Position pos = {
@@ -1560,7 +1560,7 @@ stock_render(
                 fprintf(stderr,
                         "stock_render: yaw %d pitch %d cull=%d sorted=%d dist=%d "
                         "scale=%d cyl=%d..%d,%d..%d radius=%d bottom=%d top=%d\n",
-                        pos.yaw, pos.pitch, cull, sorted, j->distance, j->proj_scale,
+                        pos.yaw, pos.pitch, cull, sorted, j->distance, j->projection_scale,
                         scene->cylinder_fast_aabb.min_screen_x,
                         scene->cylinder_fast_aabb.max_screen_x,
                         scene->cylinder_fast_aabb.min_screen_y,
@@ -1773,12 +1773,12 @@ stock_setup(
      * 7,500-unit cylinder cull starts eating views, and a clamped model that
      * renders slightly small is comparable on both sides of the diff while a
      * culled one is a blank lie. */
-    j->distance = (int)((double)extent * TORIDRAW_PROJ_SCALE_DEFAULT / (0.45 * tile));
+    j->distance = (int)((double)extent * TORIDRAW_PROJECTION_SCALE_DEFAULT / (0.45 * tile));
     if( j->distance < 100 )
         j->distance = 100;
     if( j->distance > 7000 )
         j->distance = 7000;
-    j->proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    j->projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     j->view_count = yaws * pitches;
 #ifdef _OPENMP
     j->thread_count = omp_get_max_threads();

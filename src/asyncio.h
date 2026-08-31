@@ -316,7 +316,11 @@ struct ToriRS_Task
 
     /* Set by TASK_AWAIT_STATE for the duration of one yield: this task is
      * waiting on state only some OTHER queue can change. Cleared on every
-     * resume, so it always describes the yield that just happened. */
+     * resume, so it always describes the yield that just happened.
+     *
+     * Carried up from an awaited child (TASK_AWAITEX), exactly like
+     * `wants_render` and for the same reason: the runner never sees a child,
+     * so a block a child raises is only a block if its parent says so. */
     int blocked;
 
     /* Set by PT_TASK_YIELD_TO_RENDER for the duration of one yield: this
@@ -831,6 +835,15 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
                 (task)->wants_render = 1;                                                          \
                 (task)->render = _child->render;                                                   \
             }                                                                                      \
+            /* Same reason, and the same cost when it is missed: the runner    \
+             * only ever looks at the QUEUED task, so a child parked on state  \
+             * this queue cannot change has to say so through its parent.      \
+             * Without this the parent reads as an ordinary io yield and the   \
+             * settle loop resumes it immediately -- a busy-wait that spends   \
+             * the child's whole wait budget inside one frame, before the      \
+             * queue that owns the reads has had a turn. */                    \
+            if( _child->blocked )                                                                  \
+                (task)->blocked = 1;                                                               \
             return _await_res;                                                                     \
         }                                                                                          \
         task_free(_child);                                                                         \
@@ -867,6 +880,10 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
                     (task)->wants_render = 1;                                                          \
                     (task)->render = _child->render;                                                   \
                 }                                                                                      \
+                /* @see TASK_AWAITEX: a child's block is the parent's block,   \
+                 * or the runner busy-waits it out inside one frame. */        \
+                if( _child->blocked )                                                              \
+                    (task)->blocked = 1;                                                           \
                 return _await_res;                                                                 \
             }                                                                                      \
             task_free(_child);                                                                     \

@@ -5,8 +5,9 @@
  * `struct Painter`. It takes its place in the PARENT painter's draw order as a
  * 1x1 pseudo-loc (`painter_add_world_entity`, flag PNTR_SCENERY_WORLDENTITY),
  * and when the bucket drain reaches that pseudo-loc it emits
- * PNTR_CMD_BEGIN_WORLD(view id), suspends, runs the boat's painter to
- * completion, emits PNTR_CMD_END_WORLD and resumes exactly where it stopped.
+ * PNTR_CMD_BEGIN_WORLD(view id), pushes the boat's painter onto the painter
+ * stack and runs it to completion right there, emits PNTR_CMD_END_WORLD and
+ * carries straight on with the rest of the batch.
  *
  * The properties that make that worth having, and that this file pins:
  *
@@ -21,8 +22,8 @@
  *     tracks its current world off these markers, so an unbalanced stream is
  *     not a cosmetic defect, it is a wrong-world terrain lookup or an assert
  *     in frame_view_pop;
- *   - nesting works to the registry bound (root + views 1..15) on an EXPLICIT
- *     stack, never the C call stack;
+ *   - nesting works to the registry bound (root + views 1..15), and the stack
+ *     of live painters is what refuses a repeat rather than re-entering it;
  *   - with no world entity live the stream carries no markers at all, i.e.
  *     the restructure is invisible to every existing scene.
  *
@@ -312,9 +313,9 @@ test_descent_resumes_the_rest_of_the_tile(void)
     struct PaintersBuffer* buf = make_buffer();
 
     /* All four on ONE tile, so one pop collects them into a single ready batch
-     * and the descent suspends partway through it. This is the only shape that
-     * exercises the resume with elements still to emit; a boat alone on its
-     * tile resumes with an empty remainder. */
+     * and the descent lands partway through it. This is the only shape that
+     * exercises a nested paint with elements of the outer batch still to
+     * emit; a boat alone on its tile comes back to an empty remainder. */
     painter_add_normal_scenery(root, 7, 7, 0, LOC_SAME_A, 1, 1, 0);
     painter_add_world_entity(root, 0, 7, 7, /*view_id=*/1, 0, 1, 1);
     painter_add_normal_scenery(root, 7, 7, 0, LOC_SAME_B, 1, 1, 0);
@@ -416,8 +417,8 @@ test_cycle_is_refused_not_re_entered(void)
     printf("test_cycle_is_refused_not_re_entered\n");
 
     /* root -> view 1 (deck1) -> view 2 (deck2) -> view 1 again. Re-entering
-     * deck1 would memset its element_paints out from under the suspended
-     * frame, so the third hop must be refused, not taken. */
+     * deck1 would memset its element_paints out from under the run still
+     * live below it, so the third hop must be refused, not taken. */
     struct Painter* root = make_painter();
     struct Painter* deck1 = make_painter();
     struct Painter* deck2 = make_painter();

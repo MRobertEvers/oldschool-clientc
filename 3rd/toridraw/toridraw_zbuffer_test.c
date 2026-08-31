@@ -133,16 +133,16 @@ mesh_init(struct Mesh* m)
     m->model.face_colors_b = m->cb;
     m->model.face_colors_c = m->cc;
     m->model.face_infos = m->infos;
-    m->model.bounds_cylinder = &m->bounds;
+    m->model.has_bounds_cylinder = true;
 
     /* A sphere about the origin that contains every vertex any test builds, so
      * the cull and the near-clip gate see a model shaped like the geometry. */
-    m->bounds.radius = EXTENT * 2;
-    m->bounds.min_y = -EXTENT;
-    m->bounds.max_y = EXTENT;
-    m->bounds.center_to_top_edge = EXTENT * 3;
-    m->bounds.center_to_bottom_edge = EXTENT * 3;
-    m->bounds.min_z_depth_any_rotation = EXTENT * 3;
+    m->model.bounds_cylinder.radius = EXTENT * 2;
+    m->model.bounds_cylinder.min_y = -EXTENT;
+    m->model.bounds_cylinder.max_y = EXTENT;
+    m->model.bounds_cylinder.center_to_top_edge = EXTENT * 3;
+    m->model.bounds_cylinder.center_to_bottom_edge = EXTENT * 3;
+    m->model.bounds_cylinder.min_z_depth_any_rotation = EXTENT * 3;
 
     m->hnd.kind = TORIDRAWMK_MODEL;
     m->hnd.u.model.model = &m->model;
@@ -167,7 +167,7 @@ mesh_add_vertex(struct Mesh* m, int x, int y, int z)
 
 /**
  * A flat-shaded triangle. Flat rather than gouraud so a drawn pixel has one
- * exact expected colour: g_hsl16_to_rgb_table[hsl], with no interpolation to
+ * exact expected colour: g_hsl16_to_pixel_table[hsl], with no interpolation to
  * reason about. The selector for flat shading is TORIDRAWHSL16_FLAT in
  * colors_c, which is how the model decoder spells it.
  */
@@ -318,8 +318,8 @@ static struct ToriDraw_Camera
 camera(void)
 {
     struct ToriDraw_Camera cam = {
-        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-        .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+        .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+        .projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT,
         .near_plane_z = 50,
     };
     return cam;
@@ -447,7 +447,7 @@ frame_coverage_differences(const struct Frame* a, const struct Frame* b)
 static int
 rgb_of(int hsl)
 {
-    return (int)g_hsl16_to_rgb_table[hsl];
+    return (int)g_hsl16_to_pixel_table[hsl];
 }
 
 /**
@@ -901,7 +901,7 @@ test_perspective_correct_depth(struct ToriDraw_Scene* scene)
         double const x_model = -(double)EXTENT + t * 2.0 * (double)EXTENT;
         double const z_camera = (double)CAMERA_DISTANCE + (double)flat_z;
         double const screen_x =
-            x_model * (double)TORIDRAW_PROJ_SCALE_DEFAULT / z_camera + (double)(VIEW_W / 2);
+            x_model * (double)TORIDRAW_PROJECTION_SCALE_DEFAULT / z_camera + (double)(VIEW_W / 2);
         double const error = (double)boundary - screen_x;
 
         CHECK(
