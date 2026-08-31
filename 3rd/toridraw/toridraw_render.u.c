@@ -40,7 +40,7 @@
  * toridraw.c includes this file ahead of this one and it carries an include
  * guard, so this is a no-op in the unity build -- it is here so the file states
  * its own dependency and parses standalone, which is what the editor does. */
-#include "triangles/toridraw_triangle_clip.u.c"
+#include "impl/raster/dispatch/tri.clip.u.c"
 
 /** Far plane for bounding-cylinder frustum cull. */
 // #define TORIDRAW_CYLINDER_FAR_PLANE_Z 3500

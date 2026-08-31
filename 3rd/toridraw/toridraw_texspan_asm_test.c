@@ -55,7 +55,7 @@ toridraw_add_mul32(int base, int step, int distance)
 // clang-format off
 #include "graphics/shared_tables.c"
 #include "graphics/raster/texture/span/tex.span_uv.h"
-#include "graphics/raster/texture/span/tex.span.sse2.u.c"
+#include "impl/raster/span/span.tex.sse2.u.c"
 #include "graphics/raster/texture/span/tex_span_asm.h"
 // clang-format on
 

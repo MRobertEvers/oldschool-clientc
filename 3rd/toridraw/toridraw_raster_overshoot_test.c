@@ -51,8 +51,8 @@
 
 #include "graphics/shared_tables.h"
 #include "graphics/shared_tables.c"
-#include "graphics/raster/flat/flat.screen.opaque.branching.s4.c"
-#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c"
+#include "impl/raster/flat/raster.flat.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
 
 #define W 256
 #define H 200

@@ -189,12 +189,23 @@ def main():
 
         def fix(m, old_dir=old_dir):
             target = m.group(2)
-            if "/" in target:
-                return m.group(0)          # already path-relative
-            sibling = os.path.normpath(os.path.join(TORIDRAW, old_dir, target))
-            if not os.path.exists(sibling):
-                return m.group(0)          # not a sibling of the old home
-            rel = os.path.relpath(sibling, TORIDRAW)
+            # ANY form that resolved against the old directory, not just a bare
+            # basename: triangles/*.u.c reached the library root with "../x.h",
+            # and a repair that only understood siblings left every one of them
+            # pointing one level above the new home.
+            #
+            # The test is resolution, not spelling. If the target exists
+            # relative to where the file USED to be, it was a relative include
+            # and is rewritten to the root-relative form. If it does not, it was
+            # already root-relative (the -I path finds it) and is left alone --
+            # which is why "graphics/winding.h" survives untouched from a file
+            # that was in graphics/raster/flat/.
+            resolved = os.path.normpath(os.path.join(TORIDRAW, old_dir, target))
+            if not os.path.exists(resolved):
+                return m.group(0)
+            rel = os.path.relpath(resolved, TORIDRAW)
+            if rel == target:
+                return m.group(0)          # already the form we would write
             return "%s%s%s" % (m.group(1), rel, m.group(3))
 
         text = re.sub(r'(#include\s+")([^"]+)(")', fix, text)

@@ -40,23 +40,23 @@ int g_toridraw_raster_scanline = 0;
 // clang-format off
 #include "graphics/shared_tables.c"
 
-#include "graphics/raster/flat/flat.screen.opaque.branching.s4.c"
-#include "graphics/raster/flat/flat.screen.alpha.branching.s4.c"
-#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c"
-#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c"
+#include "impl/raster/flat/raster.flat.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/flat/raster.flat.alpha.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.alpha.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
 
 #include "impl/projection/projection.scalar_reference.u.c"
-#include "graphics/raster/texture/span/tex.span.u.c"
-#include "graphics/raster/texture/texshadeflat.persp.texopaque.ordered.lerp8.scanline.u.c"
-#include "graphics/raster/texture/texshadeflat.persp.textrans.ordered.lerp8.scanline.u.c"
-#include "graphics/raster/texture/texshadeflat.persp.texopaque.branching.lerp8.u.c"
-#include "graphics/raster/texture/texshadeflat.persp.textrans.branching.lerp8.u.c"
-#include "graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texshadeblend.affine.texopaque.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texshadeblend.affine.textrans.branching.lerp8_v3.u.c"
+#include "impl/raster/span/span.tex.dispatch.u.c"
+#include "impl/raster/tex/raster.texshadeflat.perspective.texopaque.nofacealpha.nomodulate.painter.scanline.lerp8.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeflat.perspective.textrans.nofacealpha.nomodulate.painter.scanline.lerp8.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeflat.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeflat.perspective.textrans.nofacealpha.nomodulate.painter.branching.lerp8.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeblend.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeblend.perspective.textrans.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeblend.affine.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeblend.affine.textrans.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
 
-#include "graphics/raster/scanline/scanline.u.c"
+#include "impl/raster/scanline/scanline.dispatch.u.c"
 // clang-format on
 
 #define W 200

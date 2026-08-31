@@ -54,8 +54,8 @@
 #include "impl/projection/projection.scalar_reference.u.c"
 #include "graphics/clamp.h"
 #include "graphics/shade.h"
-#include "graphics/raster/texture/span/tex.span.u.c"
-#include "graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c"
+#include "impl/raster/span/span.tex.dispatch.u.c"
+#include "impl/raster/tex/raster.texshadeblend.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
 #include "graphics/raster/texture/tex_tri_asm.h"
 #include "graphics/raster/texture/tex_tri_asm_support.u.c"
 // clang-format on

@@ -863,10 +863,10 @@ TRSPK_UNITY_SRC = $(TRSPK_DIR)/trspk_unity.c
 TEXSPAN_ASM_SRC :=
 ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
 ifeq ($(PLATFORM),win64)
-TEXSPAN_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/texture/span/tex_span_x64.S
+TEXSPAN_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/span.tex.x64.S
 endif
 ifeq ($(PLATFORM),win32)
-TEXSPAN_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/texture/span/tex_span_i686.S
+TEXSPAN_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/span.tex.i686.S
 endif
 endif
 
@@ -895,7 +895,7 @@ endif
 GOURAUD_TRI_ASM_SRC :=
 ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
 ifeq ($(PLATFORM),win32)
-GOURAUD_TRI_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+GOURAUD_TRI_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/tri.gouraudhsllightness.i686.S
 endif
 endif
 
@@ -920,7 +920,7 @@ endif
 FLAT_TRI_ASM_SRC :=
 ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
 ifeq ($(PLATFORM),win32)
-FLAT_TRI_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/flat/flat_tri_i686.S
+FLAT_TRI_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/tri.flat.i686.S
 endif
 endif
 
@@ -947,7 +947,7 @@ endif
 TEXTRI_ASM_SRC :=
 ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
 ifeq ($(PLATFORM),win32)
-TEXTRI_ASM_SRC := $(TORIDRAW_DIR)/graphics/raster/texture/tex_tri_i686.S
+TEXTRI_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/tri.tex.i686.S
 endif
 endif
 
@@ -1979,11 +1979,11 @@ endif
 # first, no PLATFORM_BASE_CFLAGS. edge_slopes_aarch64.inc is the shared
 # slope reciprocal, so every one of the three depends on it.
 ifneq ($(NEON_TRI_ASM_OBJS),)
-$(OBJ_DIR)/flat_tri_neon.o: $(TORIDRAW_DIR)/graphics/raster/flat/flat_tri_aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+$(OBJ_DIR)/flat_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.flat.aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
-$(OBJ_DIR)/gouraud_tri_neon.o: $(TORIDRAW_DIR)/graphics/raster/gouraudhsllightness/gouraud_tri_aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+$(OBJ_DIR)/gouraud_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.gouraudhsllightness.aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
-$(OBJ_DIR)/tex_tri_neon.o: $(TORIDRAW_DIR)/graphics/raster/texture/tex_tri_aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
+$(OBJ_DIR)/tex_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.tex.aarch64.S $(TORIDRAW_DIR)/graphics/raster/edge_slopes_aarch64.inc | $(OBJ_DIR)
 	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
 endif
 

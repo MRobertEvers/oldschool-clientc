@@ -18,16 +18,16 @@
  * editor's index does with a .u.c.
  */
 // clang-format off
-#include "triangles/toridraw_triangle_clip.u.c"
-#include "triangles/toridraw_triangle_face_alpha.u.c"
-#include "graphics/raster/scanline/scanline.u.c"
-#include "triangles/toridraw_triangle_flat.u.c"
-#include "triangles/toridraw_triangle_gouraud.u.c"
+#include "impl/raster/dispatch/tri.clip.u.c"
+#include "impl/raster/dispatch/tri.face_alpha.u.c"
+#include "impl/raster/scanline/scanline.dispatch.u.c"
+#include "impl/raster/dispatch/tri.flat.u.c"
+#include "impl/raster/dispatch/tri.gouraud.u.c"
 #ifndef TORIDRAW_PIXEL16
-#include "triangles/toridraw_triangle_texture_opaque.u.c"
-#include "triangles/toridraw_triangle_texture_transparent.u.c"
-#include "triangles/toridraw_triangle_texture_affine.u.c"
-#include "triangles/toridraw_triangle_zbuf.u.c"
+#include "impl/raster/dispatch/tri.texture_opaque.u.c"
+#include "impl/raster/dispatch/tri.texture_transparent.u.c"
+#include "impl/raster/dispatch/tri.texture_affine.u.c"
+#include "impl/raster/dispatch/tri.zbuf.u.c"
 #endif
 // clang-format on
 
@@ -442,7 +442,7 @@ ToriDraw_RasterWalkPerFace(
     struct ToriDraw_Scene* scene,
     struct ToriDrawModelRasterContext* ctx);
 
-#include "graphics/raster/batch/raster.batch.h"
+#include "impl/raster/walk/walk.batched.h"
 
 /*
  * The prebaked SD raster kernels, one file each.
@@ -913,7 +913,7 @@ toridraw_raster_abl_nofaces(void)
 
 /* The batched whole-model walk. One file, one gate, at the boundary where the
  * presorted-run assembly is actually named. */
-#include "graphics/raster/batch/raster.batch.u.c"
+#include "impl/raster/walk/walk.batched.u.c"
 
 void
 ToriDraw_RasterWalkPerFace(
