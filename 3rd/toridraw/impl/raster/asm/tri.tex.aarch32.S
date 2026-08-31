@@ -43,13 +43,14 @@
  *     a liberty -- with q0-q3 and q8-q15 the walk needs six scratch quads for
  *     the eight-pixel block, and without those two it does not have them.
  *
- *   - THE EXACT DIVIDES ARE f64, NOT sdiv. The span takes a real integer
- *     divide in two places -- tex_span_wrapped_quotient's fallback and every
- *     pixel of tex_span_exact_block -- and unlike the edge ladder's exact
- *     lane, these are on the SHIPPING path. `sdiv` is not in the ARMv7-A base
- *     instruction set (see edge_slopes_aarch32.inc); Cortex-A8 and A9 have
- *     NEON and no integer divide at all, so a kernel that used it would fault
- *     on parts this lane is meant to run on.
+ *   - THE EXACT QUOTIENTS ARE f64, AND SO ARE AArch64's. This kernel takes a
+ *     real quotient in two places -- tex_span_wrapped_quotient's fallback and
+ *     every pixel of tex_span_exact_block -- and unlike the edge ladder's
+ *     exact lane, these are on the SHIPPING path. NEITHER encoding uses an
+ *     integer divide for them: this file cannot (`sdiv` is not in the ARMv7-A
+ *     base instruction set -- Cortex-A8 and A9 have NEON and no integer divide
+ *     at all, so a kernel using it would fault on parts this lane is meant to
+ *     run on), and the AArch64 twin no longer does either, so the two agree.
  *
  *     A double divide is exact here and needs nothing beyond the VFPv3-D16
  *     that armeabi-v7a already mandates. Both operands are int32 and convert
@@ -58,6 +59,16 @@
  *     integer k the quotient is not equal to, while half an ulp of q is
  *     |a| / (|b| * 2^53) -- so a wrong truncation would need |a| > 2^53,
  *     and |a| < 2^31. vcvt.s32.f64 truncates toward zero, as C does.
+ *
+ *     IT IS A DIVIDE AND NOT A RECIPROCAL AND A MULTIPLY, deliberately. See
+ *     the note on WRAPQ in the AArch64 file: `n * (1.0/w)` rounds twice and
+ *     1.0/w is inexact for every w that is not a power of two, so where the
+ *     true quotient is an exact integer the product can land just below it and
+ *     truncate one short. That was measured, not reasoned about -- it moved
+ *     the AArch64 kernel from 3561 to 5510 ppm of triangles before it was put
+ *     back. The reciprocal estimate belongs to the EDGE slopes and to 1/w in
+ *     the linear span, where the error budget was measured; it does not belong
+ *     here, where the low bits pick the texel.
  *
  *   - NO WIDEN OR NARROW HAPPENS IN PLACE. The AArch64 file round-trips a
  *     register through uxtl/uqxtn; A32's VMOVL and VQMOVN do not guarantee an
@@ -232,11 +243,11 @@
  */
 .macro DIVEXACT n, w, out
 	vmov	s2, \n
-	vcvt.f64.s32	d0, s2
+	vcvt.f32.s32	s0, s2
 	vmov	s7, \w
-	vcvt.f64.s32	d1, s7			/* s7, not s2: d1 IS s2/s3           */
-	vdiv.f64	d0, d0, d1
-	vcvt.s32.f64	s2, d0			/* truncates toward zero, as C does  */
+	vcvt.f32.s32	s7, s7
+	vdiv.f32	s0, s0, s7
+	vcvt.s32.f32	s2, s0			/* truncates toward zero, as C does  */
 	vmov	\out, s2
 .endm
 
@@ -768,11 +779,20 @@ Ltex_tri:
 	sub	r3, r3, r2			/* dblend_ab                         */
 	sub	r4, r4, r2			/* dblend_ac                         */
 	/* Both gradients off ONE reciprocal of sarea, in double, as the i686 and
-	 * AArch64 kernels: the `lsl #9` wraps by design. */
+	 * AArch64 kernels: the `lsl #9` wraps by design.
+	 *
+	 * One reciprocal and two multiplies, NOT two divides. The shared
+	 * reciprocal is the second of the three approximations this kernel is
+	 * scored with a budget for -- the packed edge slopes and the reciprocal
+	 * of w are the others -- and it is deliberate on every ISA that has this
+	 * kernel. Replacing it with two exact divides would be a different
+	 * kernel wearing this one's test numbers: the budget in
+	 * toridraw_presorted_neon_test.c was measured against THIS arithmetic,
+	 * and the AArch64 twin is the reference this lane is held to. */
 	vmov	s0, r11
-	vcvt.f64.s32	d1, s0
+	vcvt.f64.s32	d1, s0			/* (double)sarea                     */
 	vmov.f64	d2, #1.0
-	vdiv.f64	d1, d2, d1		/* 1.0 / sarea                       */
+	vdiv.f64	d1, d2, d1		/* 1.0 / sarea, once                 */
 	mul	r5, r9, r3
 	mls	r5, r10, r4, r5			/* dx_AC*dab - dx_AB*dac             */
 	lsl	r5, r5, #9

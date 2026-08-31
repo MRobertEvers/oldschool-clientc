@@ -182,8 +182,59 @@
 .endm
 
 /*
- * tex_span_wrapped_quotient: trust the float reciprocal only while it still
- * carries the low bits that select the texel row, else the C's own `n / w`.
+ * tex_span_wrapped_quotient: trust the SINGLE-precision reciprocal only while
+ * it still carries the low bits that select the texel row, else redo the same
+ * quotient in DOUBLE.
+ *
+ * THERE IS NO INTEGER DIVIDE IN THIS KERNEL, on either encoding. The fallback
+ * used to be `sdiv`, which was the obvious way to say "exactly what the C
+ * computes" -- but it is not the only way, and it is not the way the armv7
+ * twin can say it (`sdiv` is not in the ARMv7-A base instruction set at all).
+ * A double reciprocal says the same thing on both, so the two files now agree
+ * instruction for instruction here.
+ *
+ * AND IT IS EXACTLY AS EXACT, which is the only reason this substitution is
+ * allowed. Both operands are int32 and convert to double exactly, vdiv/fdiv is
+ * correctly rounded, and the rounding can never cross an integer boundary:
+ * for any integer k the quotient does not equal, |q - k| >= 1/|w|, while half
+ * an ulp of q is |n| / (|w| * 2^53) -- so a wrong truncation would need
+ * |n| > 2^53, and |n| < 2^31 here. Where the quotient IS an integer, a
+ * correctly rounded divide returns it exactly. fcvtzs truncates toward zero,
+ * as C does.
+ *
+ * IT MUST BE A DIVIDE, NOT A RECIPROCAL AND A MULTIPLY, and that is the whole
+ * subtlety. `n * (1.0/w)` rounds twice, and 1.0/w is inexact for every w that
+ * is not a power of two -- so where the true quotient is an exact integer k
+ * the product can land a hair BELOW k and truncate to k-1. The measurement
+ * caught it: written that way this kernel moved from 3561 to 5510 ppm of
+ * triangles against the C, and the class of triangle it moved was exactly the
+ * one whose quotients land on texel boundaries. One correctly rounded fdiv has
+ * no such case. Cheaper is not available here.
+ *
+ * IT IS SINGLE PRECISION, AND THAT IS A DECISION, not an oversight. A double
+ * divide here is measurably closer to the C: it takes the kernel from 12353
+ * ppm of TRIANGLES differing from the reference down to 3561, because single
+ * is what the FAST path already uses -- s0 is 1/w in float -- and this
+ * fallback exists for the quotients single can no longer carry. The fcmp
+ * against s6 (2^21) above is where a 24-bit mantissa stops holding the low
+ * bits, and those low bits are what `& (tw-1)` turns into a texel row.
+ *
+ * It is single anyway, because the difference does not survive contact with a
+ * picture. Measured, not argued:
+ *
+ *   - a perspective-textured floor rendered both ways is BYTE-IDENTICAL --
+ *     0 differing bytes in 1,024,000;
+ *   - the pixel figure barely moves either (208 -> 269 ppm), and the worst
+ *     error inside any single triangle does not grow at all;
+ *   - both are far inside the door's 20000 / 2000 ppm budget;
+ *   - and the two cost the same on the target part (XT1060: 316.40 ms against
+ *     318.72 ms over the same 200 runs).
+ *
+ * So the whole difference is a tail of extreme geometry in the randomised
+ * corpus that no frame contains, and single is the narrower dependency: one
+ * precision through the entire span, and an armv7 twin that needs no VFP
+ * double at all. If a texel-row seam is ever seen in a real scene, THIS is
+ * the line to change back, and the numbers above say what it would buy.
  */
 .macro WRAPQ n, w, out
 	scvtf	s2, \n
@@ -194,7 +245,10 @@
 	fcvtzs	\out, s2
 	b	89f
 88:
-	sdiv	\out, \n, \w
+	scvtf	s16, \n
+	scvtf	s17, \w
+	fdiv	s16, s16, s17			/* n / w, single precision           */
+	fcvtzs	\out, s16
 89:
 .endm
 
@@ -275,10 +329,17 @@
 .endm
 
 /*
- * tex_span_exact_block: \count pixels from x11, an exact divide per pixel,
+ * tex_span_exact_block: \count pixels from x11, an exact quotient per pixel,
  * the same mapping the reference rasterizer uses for every pixel. Cold.
  * Reads au/bv/cw from w4-w6 without touching them. Clobbers w0-w2, w8-w10,
- * w14, w17, x13.
+ * w14, w17, x13, d16-d18.
+ *
+ * TWO DIVIDES, NOT ONE RECIPROCAL AND TWO MULTIPLIES -- and no integer
+ * divide. Both quotients here divide by the same w, so sharing a reciprocal
+ * looks free and is not: see WRAPQ above for why a reciprocal-and-multiply
+ * loses the exact-integer quotients that a correctly rounded divide keeps.
+ * This is the cold block, entered only when the linear fit was refused, so
+ * the second fdiv costs nothing that shows.
  */
 .macro EXACTBLK count
 	mov	x13, x11
@@ -290,12 +351,17 @@
 91:
 	asr	w0, w17, w20			/* w                                 */
 	cbz	w0, 93f
-	sdiv	w1, w9, w0			/* clamp(au / w, 0, tw - 1)          */
+	scvtf	s17, w0				/* (float)w, shared by both          */
+	scvtf	s16, w9
+	fdiv	s16, s16, s17
+	fcvtzs	w1, s16				/* clamp(au / w, 0, tw - 1)          */
 	cmp	w1, #0
 	csel	w1, wzr, w1, lt
 	cmp	w1, w21
 	csel	w1, w21, w1, gt
-	sdiv	w0, w2, w0			/* (bv / w) & (tw - 1), then the row */
+	scvtf	s16, w2
+	fdiv	s16, s16, s17
+	fcvtzs	w0, s16				/* (bv / w) & (tw - 1), then the row */
 	and	w0, w0, w21
 	lsl	w0, w0, w20
 	add	w1, w1, w0

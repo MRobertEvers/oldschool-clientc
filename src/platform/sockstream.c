@@ -1,5 +1,9 @@
 #include "sockstream.h"
+
+#include "platform_mdns.h"
+
 #include <assert.h>
+#include <stdint.h>
 
 #ifdef _WIN32
 #include <io.h>
@@ -204,6 +208,40 @@ sockstream_connect(
         }
         if( res )
             freeaddrinfo(res);
+        /*
+         * SYSTEM RESOLVER FIRST, mDNS ONLY AS A FALLBACK.
+         *
+         * The other order was available -- intercept `.local` before
+         * getaddrinfo ever sees it -- and was rejected. macOS resolves `.local`
+         * inside getaddrinfo through mDNSResponder, and so does a Linux box
+         * running nss-mdns; on those hosts the line above already returns the
+         * right answer in single-digit milliseconds. Going to the wire first
+         * would replace a working system path with a reimplementation of it on
+         * every desktop boot, and add this module's whole retry budget to any
+         * name it happened to miss. Nothing about the developer's Mac changes
+         * here: on it, this branch is never reached.
+         *
+         * The cost of this order is one failed system lookup on the platform
+         * that needs the fallback. Measured on the XT1060 (Android 5.1),
+         * getaddrinfo("matthewllm.local") fails in 15-26 ms -- bionic has no
+         * mDNS path at all and the phone's only nameserver is the LAN router,
+         * which answers `.local` with NXDOMAIN immediately. That is a price
+         * worth paying to leave the working hosts untouched.
+         *
+         * Gated on the name, not on the platform: a `.local` name is one no
+         * unicast DNS server will ever answer, so this runs exactly when the
+         * failure above was a foregone conclusion and never turns an ordinary
+         * DNS outage into a multicast query.
+         */
+        if( !resolved && PlatformMdns_IsLocalName(host) )
+        {
+            uint32_t mdns_addr = 0;
+            if( PlatformMdns_ResolveIpv4(host, &mdns_addr) )
+            {
+                server_addr.sin_addr.s_addr = mdns_addr;
+                resolved = 1;
+            }
+        }
         if( !resolved )
         {
             TORIRS_ERR("Invalid address: %s\n", host);

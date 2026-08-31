@@ -154,7 +154,21 @@ find_component(
     char const* name)
 {
     assert(items && name);
-    for( uint32_t i = 0; i < items->item_count; i++ )
+    /*
+     * LAST match, not first: a later declaration of the same name OVERRIDES an
+     * earlier one.
+     *
+     * That is what makes layering work at all, and the load order is built
+     * around it -- `revconfig_ui=`, then `revconfig_cache=`, then the
+     * manifest's own inline `[revconfig:...]` sections, each able to restate
+     * what came before. It is also what makes a platform-suffixed section an
+     * override rather than a second component with a decorated name: the
+     * suffix is stripped before the name is stored (see
+     * revconfig_load.c), so `[component:cross@mobile]` lands here as a second
+     * `cross`, and scanning forwards would return the desktop one and silently
+     * ignore the override.
+     */
+    for( uint32_t i = items->item_count; i-- > 0; )
     {
         if( items->items[i].kind != RCITEM_UICOMPONENT )
             continue;

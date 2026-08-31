@@ -116,10 +116,19 @@
  */
 
 /*
- * Colour accumulator in \acc -> palette entry in \dst, clamp and all: an edge
- * can land a subpixel past its vertex after the fixed-point nudge, so the
- * interpolant is not guaranteed inside the palette even though every vertex
- * is. Out of range -> 0 or 0xFFFF, branchlessly, off a rarely-taken branch.
+ * Colour accumulator in \acc -> the ADDRESS of its palette entry in \dst,
+ * clamp and all: an edge can land a subpixel past its vertex after the
+ * fixed-point nudge, so the interpolant is not guaranteed inside the palette
+ * even though every vertex is. Out of range -> 0 or 0xFFFF, branchlessly, off
+ * a rarely-taken branch.
+ *
+ * IT YIELDS AN ADDRESS, WHERE THE AArch64 MACRO YIELDS THE ENTRY. Both hot
+ * consumers -- the opaque splat and the alpha blend constant -- want the
+ * colour in a NEON register, and on this part the way to get it there is to
+ * load it there (VLD1 to all lanes / to one lane) rather than to load it into
+ * an ARM register and transfer. Stopping one instruction earlier is what makes
+ * that possible; see the note in SPANFILL. The LOOKUP wrapper below adds the
+ * `ldr` back for the paths that genuinely need an ARM register.
  *
  * The AArch64 file tests `tst dst, #0xFFFF0000`. That constant is not an ARM
  * data-processing immediate (8 bits rotated by an even amount cannot make it),
@@ -127,7 +136,7 @@
  * is: a negative accumulator is a huge unsigned and fails it exactly as an
  * over-large positive one does.
  */
-.macro LOOKUP acc, dst, pal
+.macro LOOKUP_ADDR acc, dst, pal
 	asr	\dst, \acc, #8
 	cmp	\dst, #0x10000
 	blo	90f
@@ -135,7 +144,13 @@
 	mvn	\dst, \dst
 	uxth	\dst, \dst
 90:
-	ldr	\dst, [\pal, \dst, lsl #2]
+	add	\dst, \pal, \dst, lsl #2
+.endm
+
+/* The palette ENTRY, for the paths that need it in an ARM register. */
+.macro LOOKUP acc, dst, pal
+	LOOKUP_ADDR \acc, \dst, \pal
+	ldr	\dst, [\dst]
 .endm
 
 /* flat_screen_fixed_edges_no_hclip; see tri.flat.aarch32.S. */
@@ -176,8 +191,22 @@
 	str	r10, [sp, #F_TMP]		/* see the header: no fifth scratch  */
 	lsr	r11, r11, #2
 70:
-	LOOKUP	r9, r10, r7
-	vdup.32	q0, r10
+	/* THE BROADCAST COMES FROM MEMORY, NOT FROM AN ARM REGISTER.
+	 *
+	 * The obvious transcription of the AArch64 line is `ldr` the palette
+	 * entry, then `vdup.32 q0, r10`. That is an ARM->NEON register transfer
+	 * in the innermost loop, and on this class of part (Krait) it is the
+	 * single most expensive thing in the span: the two register files sit
+	 * either side of a queue, and a transfer drains it. On the A64 core the
+	 * AArch64 file was tuned against, `dup v0.4s, w10` costs almost nothing,
+	 * which is exactly why the transcription looks free and is not.
+	 *
+	 * VLD1 "load single element to all lanes" does the whole job in one
+	 * instruction and never leaves NEON, so LOOKUP hands over an ADDRESS
+	 * rather than a value. Measured on the XT1060, big triangles, this door
+	 * against the C it replaces: 0.68x before, 1.36x after. */
+	LOOKUP_ADDR r9, r10, r7
+	vld1.32	{d0[], d1[]}, [r10]
 	vst1.32	{d0, d1}, [r12]!
 	add	r9, r9, lr, lsl #2
 	subs	r11, r11, #1
@@ -209,8 +238,10 @@
  * per channel in u16 lanes. Unlike the flat kernel this cannot be hoisted out
  * of the span: the colour changes every four pixels.
  */
-.macro BLENDK src
-	vmov.32	d16[0], \src
+.macro BLENDK addr
+	/* Straight from the palette into a NEON lane -- see the note in SPANFILL
+	 * for why this must not travel through an ARM register on this part. */
+	vld1.32	{d16[0]}, [\addr]
 	vmovl.u8	q9, d16
 	vmul.i16	q9, q9, q15
 	vshr.u16	q9, q9, #8
@@ -248,7 +279,7 @@
 	str	r10, [sp, #F_TMP]
 	lsr	r11, r11, #2
 75:
-	LOOKUP	r9, r10, r7
+	LOOKUP_ADDR r9, r10, r7
 	BLENDK	r10
 	BLEND4
 	add	r9, r9, lr, lsl #2
@@ -258,7 +289,7 @@
 	cmp	r11, #0
 	beq	78f
 76:
-	LOOKUP	r9, r10, r7
+	LOOKUP_ADDR r9, r10, r7
 	BLENDK	r10
 77:
 	vld1.32	{d16[0]}, [r12]

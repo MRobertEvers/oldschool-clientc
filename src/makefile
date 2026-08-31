@@ -714,7 +714,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
 	net/rev/lc289/gameproto_rev_lc289.c net/rev/lc289/lc289_entity_info.c \
 	bootmanifest/bootmanifest.c features/features.c \
-	platform/sockstream.c platform/platform_socket.c \
+	platform/sockstream.c platform/platform_mdns.c platform/platform_socket.c \
 	platform/net_transport_tcp.c platform/net_transport_ws.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c \
 	platform/net_transport_embed.c \
@@ -1114,7 +1114,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
+.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
@@ -1297,7 +1297,7 @@ IO_SERVER_FLAVOR = PLATFORM=native OPT=0 MEMTRACE=0 ENABLE_ASAN=0 ENABLE_UBSAN=0
 IO_SERVER_SRCS = ioserver/io_server_main.c ioserver/http_server.c \
 	platform/io_wire.c platform/platform_x_io.c \
 	platform/platform_x_io_ondemand.c \
-	platform/platform_x_http.c platform/sockstream.c \
+	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c \
 	bootmanifest/bootmanifest.c features/features.c \
 	ui/torirs_chrome_exec_kind.c $(INI_SRC)
 # http_server.c talks Winsock directly (see JS5_SOCKET_LIBS below for the same
@@ -1349,7 +1349,7 @@ JS5_TEST_PYTHON ?= python
 test-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_test \
-		js5/js5.c js5/js5_rscache.c platform/sockstream.c \
+		js5/js5.c js5/js5_rscache.c platform/sockstream.c platform/platform_mdns.c \
 		js5/server/js5_server_cache.c js5/test/js5_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(JS5_SOCKET_LIBS)
@@ -1363,7 +1363,7 @@ test-js5-server: js5-server $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server_client_test \
-		js5/js5.c js5/js5_rscache.c platform/sockstream.c \
+		js5/js5.c js5/js5_rscache.c platform/sockstream.c platform/platform_mdns.c \
 		js5/server/test/js5_server_client_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(JS5_SOCKET_LIBS)
@@ -4914,6 +4914,15 @@ test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedTest
+
+# mDNS response parser: name compression (including a pointer chain and a
+# self-referential one), truncation, out-of-range RDLENGTH, reserved label
+# types, and the `.local` suffix classifier. No socket -- every packet is built
+# by hand, because a cooperating responder never sends the malformed ones and
+# those are exactly the cases that would read out of bounds.
+test-mdns: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mdns_parse_test platform/test/mdns_parse_test.c
+	./$(OBJ_DIR)/mdns_parse_test
 
 # WebSocket frame codec: mask/deframe/ping/incomplete/back-to-back, no socket.
 test-ws-frame: $(OBJ_DIR)
