@@ -44,7 +44,8 @@
  *   Compile time, not runtime
  *     TORIDRAW_FLIP_WINDING       a one-shot handedness check for an import,
  *                                 not an A/B arm. See graphics/winding.h.
- *     TORIDRAW_PIXEL16, the ISA ladders, the tri/span assembly lanes.
+ *     TORIDRAW_PIXEL_FORMAT (graphics/pixel_format.h), the ISA ladders,
+ *                                 the tri/span assembly lanes.
  *
  *   Measurement only, and deliberately still runtime
  *     TORIDRAW_FRAME_AB[_SWAP,_KERNELS,_BATCH], TORIRS_ABL_*,

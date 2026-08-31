@@ -9,9 +9,7 @@
  * pointer, because the scanline and smooth families are different rasterisers
  * and a run door drawing their faces would draw the wrong pixels.
  *
- * Included from toridraw_raster.u.c once the four stock callbacks exist; the
- * texture pair is a macro that resolves to an unreachable stub under
- * TORIDRAW_PIXEL16.
+ * Included from toridraw_raster.u.c once the four stock callbacks exist.
  */
 
 static const struct ToriDraw_RasterKernelSDVTable g_stock_branching_vtable = {

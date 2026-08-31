@@ -2938,41 +2938,45 @@ test-raster-kernel: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_f
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o $(ASAN_COMPAT_SRC)
 	$(RASTER_KERNEL_TEST_ENV) ./$(OBJ_DIR)/raster_kernel_test
 
-# Compile the complete linked subset under the 16-bit ABI as well. Textured
-# model faces intentionally collapse to solid classes in this configuration;
-# the shared source asserts that public routing contract and the alpha cutoff.
-RASTER_KERNEL_PIXEL16_OBJS = $(OBJ_DIR)/toridraw_unity_pixel16.o \
-	$(OBJ_DIR)/toridraw_font_pixel16.o $(OBJ_DIR)/bmp_pixel16.o
-
-# The asm lanes are NOT withdrawn here, and used to have to be.
+# The same routing contract, compiled and linked under a SECOND pixel format.
 #
-# Every hand-written span/triangle kernel stores 4-byte pixels out of a 4-byte
-# palette, and each of their headers used to say so with an #error under
-# TORIDRAW_PIXEL16 -- so this recipe had to strip eight -D flags back out of
-# TORIDRAW_CFLAGS, and any lane that gained a door without updating that list
-# would simply stop compiling the 16-bit object.
+# It used to be "the 16-bit ABI", and the test carried a set of #ifdefs saying
+# what a 16-bit build could not do: textured faces collapsed to solid classes,
+# the depth family was absent, HD was six no-op callbacks. None of that is true
+# any more, and the test has no format conditionals left -- the same source
+# asserts the same contract, and the point of building it twice is that it HAS
+# to.
 #
-# Each door now makes a positive claim instead: it is gated on
-# TORIPIXEL_IS_XRGB8888, so a build for any other format falls through to the
-# C twin on its own. The recipe just adds the format.
-TORIDRAW_PIXEL16_CFLAGS = $(TORIDRAW_CFLAGS) -DTORIDRAW_PIXEL16=1
+# RGB565 is the arm that proves the most, because it differs from the default
+# in both of the ways a format can: channel width and the pack that follows
+# from it. The asm lanes stay in $(TORIDRAW_CFLAGS) deliberately -- each door
+# is gated on TORIPIXEL_IS_XRGB8888 and declines on its own, and this recipe
+# not needing to strip them is the check that they do.
+TORIDRAW_ALT_FORMAT = TORIDRAW_PF_RGB565
+TORIDRAW_ALT_FORMAT_NAME = rgb565
 
-$(OBJ_DIR)/toridraw_unity_pixel16.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
-	$(CC) $(TORIDRAW_PIXEL16_CFLAGS) -w -c $< -o $@
+RASTER_KERNEL_ALTFMT_OBJS = $(OBJ_DIR)/toridraw_unity_altfmt.o \
+	$(OBJ_DIR)/toridraw_font_altfmt.o $(OBJ_DIR)/bmp_altfmt.o
 
-$(OBJ_DIR)/toridraw_font_pixel16.o: $(TORIDRAW_DIR)/toridraw_font.c | $(OBJ_DIR)
-	$(CC) $(TORIDRAW_PIXEL16_CFLAGS) -I$(REPO_ROOT)/v0 -w -c $< -o $@
+TORIDRAW_ALTFMT_CFLAGS = $(TORIDRAW_CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_ALT_FORMAT)
 
-$(OBJ_DIR)/bmp_pixel16.o: $(BMP_DIR)/bmp.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL16=1 -w -c $< -o $@
+$(OBJ_DIR)/toridraw_unity_altfmt.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
+	$(CC) $(TORIDRAW_ALTFMT_CFLAGS) -w -c $< -o $@
 
-test-raster-kernel-pixel16: $(OBJ_DIR) $(RASTER_KERNEL_PIXEL16_OBJS) $(TORIDRAW_PROJECTION_ASM_OBJ) $(ASAN_DYLD_SHIM)
-	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL16=1 $(filter -fsanitize=%,$(LDFLAGS)) \
+$(OBJ_DIR)/toridraw_font_altfmt.o: $(TORIDRAW_DIR)/toridraw_font.c | $(OBJ_DIR)
+	$(CC) $(TORIDRAW_ALTFMT_CFLAGS) -I$(REPO_ROOT)/v0 -w -c $< -o $@
+
+$(OBJ_DIR)/bmp_altfmt.o: $(BMP_DIR)/bmp.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_ALT_FORMAT) -w -c $< -o $@
+
+test-raster-kernel-altformat: $(OBJ_DIR) $(RASTER_KERNEL_ALTFMT_OBJS) $(TORIDRAW_PROJECTION_ASM_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_ALT_FORMAT) \
+		$(filter -fsanitize=%,$(LDFLAGS)) \
 		-lm $(PLATFORM_STRIP_LDFLAGS) \
-		-o $(OBJ_DIR)/raster_kernel_pixel16_test \
-		$(TORIDRAW_DIR)/toridraw_raster_kernel_test.c $(RASTER_KERNEL_PIXEL16_OBJS) \
+		-o $(OBJ_DIR)/raster_kernel_$(TORIDRAW_ALT_FORMAT_NAME)_test \
+		$(TORIDRAW_DIR)/toridraw_raster_kernel_test.c $(RASTER_KERNEL_ALTFMT_OBJS) \
 		$(TORIDRAW_PROJECTION_ASM_OBJ) $(ASAN_COMPAT_SRC)
-	$(RASTER_KERNEL_TEST_ENV) ./$(OBJ_DIR)/raster_kernel_pixel16_test
+	$(RASTER_KERNEL_TEST_ENV) ./$(OBJ_DIR)/raster_kernel_$(TORIDRAW_ALT_FORMAT_NAME)_test
 
 # ToriDraw2D_BlitArgbScaledAlpha's 1:1 shortcut against the stepping loop it
 # skips. Every if3 interface sprite reaches that call whether or not its
@@ -3111,7 +3115,7 @@ test-gouraudrgb: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/toridraw_gouraudrgb_test.c -lm
 	./$(OBJ_DIR)/gouraudrgb_test
 
-.PHONY: test-scanline test-raster-kernel test-raster-kernel-pixel16 test-gouraudrgb test-texture-matrix test-texmap test-render-hd
+.PHONY: test-scanline test-raster-kernel test-raster-kernel-altformat test-gouraudrgb test-texture-matrix test-texmap test-render-hd
 
 # The `texplane` compositing matrix on the `branching` family:
 # gate {texopaque,textrans,texalpha} x facealpha x modulate, plus clamp
@@ -4898,10 +4902,11 @@ else
 	./$(OBJ_DIR)/presorted_neon_test
 endif
 
-# The flat face sort (SIMD cull + bitonic/radix) against the bucket sort it
-# replaces: order for order, across clip candidates, priorities, the radix
-# threshold and tail faces. Runs on every lane; the SIMD body has a scalar
-# twin, so a lane without NEON still has the sort to hold to the reference.
+# The bitonic+radix face sort (SIMD cull + bitonic/radix) against the bucket
+# sort it replaces: order for order, across clip candidates, priorities, the
+# radix threshold and tail faces. Runs on every lane; the SIMD body has a
+# scalar twin, so a lane without NEON still has the sort to hold to the
+# reference -- there it is the radix half alone, and the kernel says so.
 # How much of a projection call is fixed per MODEL rather than per vertex.
 # 59% of projections are four-vertex terrain tiles, where the 4-wide loop runs
 # once and everything around it is amortised over nothing -- so this is what
@@ -4919,11 +4924,11 @@ test-proj-model-bench: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridra
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/proj_model_bench
 
-test-face-sort-flat: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
-	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/face_sort_flat_test \
-		$(TORIDRAW_DIR)/toridraw_face_sort_flat_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+test-face-sort-bitonic-radix: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/face_sort_bitonic_radix_test \
+		$(TORIDRAW_DIR)/toridraw_face_sort_bitonic_radix_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
-	./$(OBJ_DIR)/face_sort_flat_test
+	./$(OBJ_DIR)/face_sort_bitonic_radix_test
 
 # Depth-tested raster family: a model tagged TORIDRAW_MODEL_FLAG_ZBUFFER
 # resolves its own faces per pixel, the result does not depend on face order,
@@ -4984,7 +4989,7 @@ test-near-clip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.
 # Every other kernel target here holds one seam. This one renders a fixture
 # built to make face order matter -- overlapping triangles at descending
 # depths, all four SD classes, translucency -- through every prebaked table x
-# {bucket,flat} x batch{0,1}, and hashes the frame.
+# {bucket,bitonic_radix} x batch{0,1}, and hashes the frame.
 #
 # Within a table the hash must not move: which sort ran and whether the run
 # doors were armed are speed decisions. Across rasterisers it must move, or
@@ -5017,7 +5022,8 @@ check-kernel-names:
 # A kernel, a table, a family, or the scratch two stages hand each other is
 # not done until this passes. The individual targets each hold ONE seam --
 # the four SD face classes, the two projection kernels against each other,
-# the flat sort against the bucket sort, the scanline family against the
+# the bitonic+radix sort against the bucket sort, the scanline family against
+# the
 # branching one -- and the seams only mean anything together: a change that
 # keeps every kernel correct in isolation and breaks the agreement between
 # two of them passes each of these alone.
@@ -5028,18 +5034,19 @@ check-kernel-names:
 .PHONY: test-toridraw-kernels test-kernel-matrix check-kernel-names
 TORIDRAW_KERNEL_TESTS = \
 	test-raster-kernel \
-	test-raster-kernel-pixel16 \
+	test-raster-kernel-altformat \
 	test-kernel-matrix \
 	check-kernel-names \
 	test-projection-kernel \
 	test-projected-bound \
 	test-near-clip \
-	test-face-sort-flat \
+	test-face-sort-bitonic-radix \
 	test-zbuffer \
 	test-scene-profiles \
 	test-render-hd \
 	test-raster-overshoot \
 	test-scanline \
+	test-scanline-formats \
 	test-texture-matrix \
 	test-texmap \
 	test-gouraudrgb \

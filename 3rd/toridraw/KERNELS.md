@@ -69,8 +69,10 @@ divides by z than under one that does not. Kernels: `prepared` (the default) and
 `portable`, which differ in exactly the two perspective slots.
 
 **Cull + sort** (`ToriDraw_FaceCullSortKernel`) produces the back-to-front order
-in `scene->tmp_face_order`. Kernels: `bucket` and `flat`, which emit the same
-order face for face — `toridraw_face_sort_flat_test` holds them to it. The
+in `scene->tmp_face_order`. Kernels: `bucket` and `bitonic+radix`, which emit
+the same order face for face — `toridraw_face_sort_bitonic_radix_test` holds
+them to it. `bitonic+radix` reports itself as `radix` on a build with no vector
+lane, where the bitonic network does not exist. The
 `presort` argument asks for the y-ordered stash the batched raster walk reads;
 it is derived from the raster's door and is never a caller's to pass.
 
@@ -80,13 +82,62 @@ as its `draw_model` and inherits the normalising walk; naming it is also a
 declaration that the kernel has no traversal of its own, which is how the
 library knows not to ask the sort for a stash nothing would read.
 
+## The pixel format
+
+Everything that knows how a colour is laid out in a framebuffer word lives in
+`graphics/pixel_format.h` and nowhere else. Seven formats ship — XRGB8888
+(the default), ARGB8888, RGBA8888, ABGR8888, BGRA8888, RGB565, ARGB1555 —
+selected at compile time with `-DTORIDRAW_PIXEL_FORMAT=TORIDRAW_PF_RGB565`,
+the same way `VERTEXINT_BITS` and the ISA lanes are selected. Every raster
+family draws on every one of them.
+
+This is affordable because **no hot loop interpolates in pixel space**. The
+solid families walk a packed HSL16 word and index a palette that was packed
+once at build time; the texture families sample a texel, and a TEXEL IS NOT A
+PIXEL — texture data stays ARGB8888 in memory on every target, the composite
+(colour key, texel alpha, shade, tint) runs in 8-bit channels exactly as it
+always has, and `toritexel_to_pixel` converts once, at the store. On the two
+formats where the shading space *is* the framebuffer format that conversion is
+the identity by definition.
+
+Two rules hold the boundary:
+
+- **A name carries the format it writes.** `toripixel_rgb565_alpha_blend`
+  blends RGB565 and nothing else; a hand-written door is
+  `toridraw_flat_opaque_s4_sorting_xrgb8888_asm`. Every implementation is
+  compiled on every build so they can be tested against each other, and the
+  selection block binds exactly one of them to the neutral spelling a kernel
+  writes (`alpha_blend`, `shade_blend`, `toripixel_pack_argb8888`).
+- **A name without a format token promises it works for all of them.** That is
+  why the palette is `g_hsl16_to_pixel_table` and not `..._to_rgb_table`: its
+  element is a `toripixel_t`.
+
+An ISA door claims the format it implements — `TORIPIXEL_IS_XRGB8888` for the
+tri/span assembly, `TORIPIXEL_LANES_8BIT` for the vector alpha spans,
+`TORIPIXEL_TEXEL_SPACE_IS_NATIVE` for the vector texture spans. A door with no
+kernel for the selected format *declines*, and the caller falls through to the
+C twin, exactly as a projection lane declines for a family it has no kernel
+for. Writing a door for another format means a new file naming it
+(`tri.flat.rgb565.aarch64.S`) and a claim of its own.
+
+```
+make -C src test-scanline-formats      # every raster family x all seven formats
+make -C src test-raster-kernel-altformat   # the routing contract, built RGB565
+```
+
+The first is the one that matters: it compiles with
+`-Werror=incompatible-pointer-types`, so a kernel that has not been converted
+cannot silently accept a native buffer, and it holds every family to the same
+branching references on all seven formats.
+
 ## Adding a variant
 
 - **A new axis value** (another texture gate, another traversal): add it to the
   vocabulary in `tools/kernel_names.py`, then name the file for its full
   coordinate. `make -C src check-kernel-names` fails on an off-grammar name.
 - **A new ISA lane**: fill that stage's hook contract — three functions for the
-  flat sort (`toridraw_face_sort_flat.h`), two for the prepared projection
+  bitonic+radix sort (`impl/facesort/facesort.bitonic_radix.small.dispatch.h`),
+  two for the prepared projection
   (`impl/projection/projection.perspective.prepared.dispatch.h`), the eight contract entries for the portable
   ladder. A lane that has no kernel for a family *declines*, and the caller falls
   through; declining is a supported answer, not a stub.
@@ -99,8 +150,9 @@ library knows not to ask the sort for a stash nothing would read.
 ## Testing
 
 ```
-make -C src test-toridraw-kernels     # all 16 proofs, plus the name check
+make -C src test-toridraw-kernels     # every proof, plus the name check
 make -C src test-kernel-matrix        # the cross-stage agreement test
+make -C src test-scanline-formats     # every raster family x all seven formats
 ```
 
 The matrix is the one that sees what no single-stage test can: a projection, a

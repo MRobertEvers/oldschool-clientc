@@ -64,18 +64,23 @@
 #define TORIDRAW_PF_RGB565 6   /* 16bpp, no alpha lane                        */
 #define TORIDRAW_PF_ARGB1555 7 /* 16bpp, one alpha BIT                        */
 
-#ifndef TORIDRAW_PIXEL_FORMAT
-#ifdef TORIDRAW_PIXEL16
 /*
- * The historical 16-bit switch. It selected a uint16_t framebuffer and a
- * uint16_t palette, but the palette builder went on writing 24-bit packs into
- * it, so red was truncated away and every colour was wrong. It now names a
- * real format.
+ * TORIDRAW_PIXEL16 was the historical 16-bit switch. It selected a uint16_t
+ * framebuffer and a uint16_t palette but never said WHICH 16-bit format, so
+ * the palette builder went on writing 24-bit packs into it and red was
+ * truncated away; and it excluded the texture, depth and HD stages rather than
+ * converting them. Both are fixed, and a format now has a name.
+ *
+ * It fails loudly rather than being ignored: silently resolving to XRGB8888
+ * would hand an old 16-bit build a 32-bit framebuffer, which is the exact
+ * class of quiet wrongness this series exists to remove.
  */
-#define TORIDRAW_PIXEL_FORMAT TORIDRAW_PF_RGB565
-#else
-#define TORIDRAW_PIXEL_FORMAT TORIDRAW_PF_XRGB8888
+#ifdef TORIDRAW_PIXEL16
+#error "TORIDRAW_PIXEL16 is retired -- build with -DTORIDRAW_PIXEL_FORMAT=TORIDRAW_PF_RGB565"
 #endif
+
+#ifndef TORIDRAW_PIXEL_FORMAT
+#define TORIDRAW_PIXEL_FORMAT TORIDRAW_PF_XRGB8888
 #endif
 
 /* Channel extraction from the ARGB8888 that assets arrive in. */

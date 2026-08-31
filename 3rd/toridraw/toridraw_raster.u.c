@@ -410,8 +410,7 @@ ToriDraw_RasterWalkPerFace(
  * The prebaked SD raster kernels, one file each.
  *
  * Here rather than higher up: each names the stock callbacks defined above,
- * and the texture slots are macros that resolve to an unreachable stub under
- * TORIDRAW_PIXEL16, so the kernels have to be assembled after that choice.
+ * so the callbacks have to exist by the time these are assembled.
  *
  * The depth family comes FIRST: every painter below names its depth-tested
  * twin (zbuffered_variant) by address, so those four objects have to exist by
