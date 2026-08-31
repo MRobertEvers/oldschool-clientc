@@ -47,6 +47,12 @@ struct HttpResponse
      * would revalidate.
      */
     char etag[64];
+    /**
+     * When set, sent as Location. Only meaningful with a 3xx status; a browser
+     * that follows it re-requests, so the handler that set it does no work for
+     * the destination.
+     */
+    char location[256];
 };
 
 /**
