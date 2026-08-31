@@ -24,7 +24,7 @@
 
 static inline void
 ToriDraw_TriangleTextureBlendTransparentImpl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -127,7 +127,7 @@ ToriDraw_TriangleTextureBlendTransparentImpl(
 
 static inline void
 ToriDraw_TriangleTextureFlatTransparentImpl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -228,7 +228,7 @@ ToriDraw_TriangleTextureFlatTransparentImpl(
 }
 
 #define TORIDRAW_TRIANGLE_TEXTURE_BLEND_TRANSPARENT_PARAMETERS                                   \
-    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+    toripixel_t* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
         int screen_x0, int screen_x1, int screen_x2, int screen_y0, int screen_y1, int screen_y2, \
         int orthographic_x0, int orthographic_x1, int orthographic_x2, int orthographic_y0,       \
         int orthographic_y1, int orthographic_y2, int orthographic_z0, int orthographic_z1,       \
@@ -274,7 +274,7 @@ ToriDraw_TriangleTextureBlendTransparent(TORIDRAW_TRIANGLE_TEXTURE_BLEND_TRANSPA
 #undef TORIDRAW_TRIANGLE_TEXTURE_BLEND_TRANSPARENT_PARAMETERS
 
 #define TORIDRAW_TRIANGLE_TEXTURE_FLAT_TRANSPARENT_PARAMETERS                                    \
-    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+    toripixel_t* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
         int screen_x0, int screen_x1, int screen_x2, int screen_y0, int screen_y1, int screen_y2, \
         int orthographic_x0, int orthographic_x1, int orthographic_x2, int orthographic_y0,       \
         int orthographic_y1, int orthographic_y2, int orthographic_z0, int orthographic_z1,       \
@@ -321,7 +321,7 @@ ToriDraw_TriangleTextureFlatTransparent(TORIDRAW_TRIANGLE_TEXTURE_FLAT_TRANSPARE
 
 static inline void
 ToriDraw_TriangleFaceTextureBlendTransparentNearClipImpl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -655,7 +655,7 @@ ToriDraw_TriangleFaceTextureBlendTransparentNearClipImpl(
 
 static inline void
 ToriDraw_TriangleFaceTextureBlendTransparentImpl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -886,7 +886,7 @@ ToriDraw_TriangleFaceTextureBlendTransparentImpl(
 
 static inline void
 ToriDraw_TriangleFaceTextureFlatTransparentNearClipImpl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1179,7 +1179,7 @@ ToriDraw_TriangleFaceTextureFlatTransparentNearClipImpl(
 
 static inline void
 ToriDraw_TriangleFaceTextureFlatTransparentImpl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1316,7 +1316,7 @@ ToriDraw_TriangleFaceTextureFlatTransparentImpl(
 }
 
 #define TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_TRANSPARENT_PARAMETERS                              \
-    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+    toripixel_t* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
         int face, int tp_vertex, int tm_vertex, int tn_vertex, faceint_t* RESTRICT face_indices_a, \
         faceint_t* RESTRICT face_indices_b, faceint_t* RESTRICT face_indices_c,                   \
         int* RESTRICT screen_vertices_x, int* RESTRICT screen_vertices_y,                         \
@@ -1366,7 +1366,7 @@ ToriDraw_TriangleFaceTextureBlendTransparent(
 #undef TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_TRANSPARENT_PARAMETERS
 
 #define TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_TRANSPARENT_PARAMETERS                               \
-    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+    toripixel_t* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
         int face, int tp_vertex, int tm_vertex, int tn_vertex, faceint_t* RESTRICT face_indices_a, \
         faceint_t* RESTRICT face_indices_b, faceint_t* RESTRICT face_indices_c,                   \
         int* RESTRICT screen_vertices_x, int* RESTRICT screen_vertices_y,                         \

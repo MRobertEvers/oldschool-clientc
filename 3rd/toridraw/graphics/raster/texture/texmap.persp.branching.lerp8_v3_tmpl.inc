@@ -78,7 +78,7 @@
 
 static inline void
 TMAP_FN(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,

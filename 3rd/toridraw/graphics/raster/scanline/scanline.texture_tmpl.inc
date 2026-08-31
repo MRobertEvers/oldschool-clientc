@@ -29,13 +29,13 @@
 #define SLT_STORE(dst_ref, texel, shade)                                                           \
     do                                                                                             \
     {                                                                                              \
-        (dst_ref) = alpha_blend(face_alpha, (dst_ref), shade_blend((texel), (shade)));             \
+        (dst_ref) = alpha_blend(face_alpha, (dst_ref), toritexel_shade_blend((texel), (shade)));             \
     } while( 0 )
 #else
 #define SLT_STORE(dst_ref, texel, shade)                                                           \
     do                                                                                             \
     {                                                                                              \
-        (dst_ref) = shade_blend((texel), (shade));                                                 \
+        (dst_ref) = toritexel_shade_blend((texel), (shade));                                                 \
     } while( 0 )
 #endif
 
@@ -74,12 +74,12 @@
 #elif SLT_TRANS
 #define SLT_BLOCK8(pb, off, tex, u_scan, v_scan, su, sv, shift, vmask, shade)                      \
     raster_linear_transparent_blend_lerp8(                                                         \
-        (uint32_t*)(pb), (off), (const uint32_t*)(tex), (u_scan), (v_scan), (su), (sv), (shift),   \
+        (pb), (off), (const uint32_t*)(tex), (u_scan), (v_scan), (su), (sv), (shift),   \
         (shade))
 #else
 #define SLT_BLOCK8(pb, off, tex, u_scan, v_scan, su, sv, shift, vmask, shade)                      \
     raster_linear_opaque_blend_lerp8(                                                              \
-        (uint32_t*)(pb), (off), (const uint32_t*)(tex), (u_scan), (v_scan), (su), (sv), (shift),   \
+        (pb), (off), (const uint32_t*)(tex), (u_scan), (v_scan), (su), (sv), (shift),   \
         (shade))
 #endif
 
@@ -93,7 +93,7 @@
  */
 static void
 SLT_SPAN_FN(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int offset,
     int count,
     int au,
@@ -288,7 +288,7 @@ SLT_SPAN_FN(
 
 static void
 SLT_FN(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,

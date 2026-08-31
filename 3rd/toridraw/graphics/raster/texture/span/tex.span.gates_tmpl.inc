@@ -112,8 +112,8 @@
                                                                                                    \
         if( TS2_ZPASS(ts2_at_) )                                                                   \
         {                                                                                          \
-            int ts2_texel_ = (texel_expr);                                                         \
-            int ts2_rgb_ = ts2_texel_ & 0x00FFFFFF;                                                \
+            toritexel_t ts2_texel_ = (texel_expr);                                                 \
+            toritexel_t ts2_rgb_ = ts2_texel_ & TORITEXEL_COLOR_MASK;                              \
             int ts2_skip_ = 0;                                                                     \
             int ts2_alpha_ = 0xFF;                                                                 \
                                                                                                    \
@@ -124,7 +124,7 @@
                                                                                                    \
             if( !ts2_skip_ )                                                                       \
             {                                                                                      \
-                int ts2_out_ = TS2_SHADE_AND_MODULATE(ts2_rgb_, (shade));                          \
+                toritexel_t ts2_out_ = TS2_SHADE_AND_MODULATE(ts2_rgb_, (shade));                  \
                 TS2_FACEALPHA_APPLY(ts2_alpha_);                                                   \
                 TS2_STORE(pixel_buffer[ts2_at_], ts2_out_, ts2_alpha_);                            \
                 TS2_ZWRITE(ts2_at_);                                                               \
@@ -142,7 +142,7 @@
 #define TS2_GATE_APPLY(texel, rgb, skip, alpha)                                                    \
     do                                                                                             \
     {                                                                                              \
-        if( (rgb) == 0 )                                                                           \
+        if( toritexel_is_key(texel) )                                                              \
             (skip) = 1;                                                                            \
     } while( 0 )
 #else
@@ -152,7 +152,7 @@
 #define TS2_GATE_APPLY(texel, rgb, skip, alpha)                                                    \
     do                                                                                             \
     {                                                                                              \
-        (alpha) = ((unsigned)(texel) >> 24) & 0xFF;                                                \
+        (alpha) = toritexel_alpha(texel);                                                          \
         if( (alpha) == 0 )                                                                         \
             (skip) = 1;                                                                            \
     } while( 0 )
@@ -168,7 +168,7 @@
 #if TS2_MODULATE
 #define TS2_SHADE_AND_MODULATE(rgb, shade) tex_sampler_shade_tint(sampler, (rgb), (shade))
 #else
-#define TS2_SHADE_AND_MODULATE(rgb, shade) shade_blend((rgb), (shade))
+#define TS2_SHADE_AND_MODULATE(rgb, shade) toritexel_shade_blend((rgb), (shade))
 #endif
 
 #if TS2_FACEALPHA
@@ -189,23 +189,23 @@
     do                                                                                             \
     {                                                                                              \
         if( (alpha) >= 0xFF )                                                                      \
-            (dst_ref) = (rgb);                                                                     \
+            (dst_ref) = toritexel_to_pixel(rgb);                                                   \
         else                                                                                       \
-            (dst_ref) = alpha_blend((alpha), (dst_ref), (rgb));                                    \
+            (dst_ref) = alpha_blend((alpha), (dst_ref), toritexel_to_pixel(rgb));                  \
     } while( 0 )
 #else
 #define TS2_STORE(dst_ref, rgb, alpha)                                                             \
     do                                                                                             \
     {                                                                                              \
         (void)(alpha);                                                                             \
-        (dst_ref) = (rgb);                                                                         \
+        (dst_ref) = toritexel_to_pixel(rgb);                                                       \
     } while( 0 )
 #endif
 
 /** Eight pixels along a fitted uv line. */
 static inline void
 TS2_CAT(TS2_SPAN_FN, _block8)(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int offset,
     const struct ToriDraw_TexSampler* RESTRICT sampler,
     int u_scan,
@@ -233,7 +233,7 @@ TS2_CAT(TS2_SPAN_FN, _block8)(
  */
 static inline void
 TS2_CAT(TS2_SPAN_FN, _exact)(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int offset,
     const struct ToriDraw_TexSampler* RESTRICT sampler,
     int count,
@@ -280,7 +280,7 @@ TS2_CAT(TS2_SPAN_FN, _exact)(
 
 static inline void
 TS2_SPAN_FN(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int screen_width,
     int screen_x0_ish16,
     int screen_x1_ish16,

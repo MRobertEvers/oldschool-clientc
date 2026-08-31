@@ -22,8 +22,6 @@
 #include "impl/raster/scanline/scanline.flat.u.c"
 #include "impl/raster/scanline/scanline.gouraudhsllightness.u.c"
 
-#ifndef TORIDRAW_PIXEL16
 #include "impl/raster/scanline/scanline.texture.u.c"
-#endif
 
 #endif

@@ -350,6 +350,40 @@ toripixel_argb1555_texel_alpha(uint16_t p)
     return ((uint32_t)p & TORIPIXEL_ARGB1555_ALPHA_BIT) ? 0xFF : 0x00;
 }
 
+/* ================================================ the texel shading space ==
+ *
+ * A TEXEL is not a pixel, and does not become one until it is stored.
+ *
+ * Texture data arrives from the cache as ARGB8888 and STAYS ARGB8888 in
+ * memory, on every target. The whole texture composite -- the colour key, the
+ * texel's own alpha, the shade, the tint -- then runs in 8-bit channels
+ * exactly as it always has, and only the final store converts.
+ *
+ * That is a better trade than packing texels to the framebuffer format at
+ * registration, which was the obvious move and the wrong one:
+ *
+ *   - it would shade and tint in 5-bit channels on a 16-bit target, which is
+ *     where the precision is least affordable (tex_sampler_shade_tint exists
+ *     precisely because rounding twice in 8 bits already streaks);
+ *   - it would put the texel's alpha somewhere a 16-bit pixel has no room for,
+ *     forcing a parallel alpha plane through every span signature;
+ *   - and it would buy nothing, because a texel is sampled once per pixel
+ *     DRAWN either way.
+ *
+ * Keeping the shading space at ARGB8888 costs one pack per drawn pixel on a
+ * format that differs from it, and exactly nothing on the two that do not --
+ * where toritexel_to_pixel is the identity by definition rather than by luck,
+ * because there the shading space IS the framebuffer format.
+ */
+
+/** What a texture holds, and what the composite computes in: ARGB8888. */
+typedef uint32_t toritexel_t;
+
+#define TORITEXEL_COLOR_MASK 0x00FFFFFFu
+#define toritexel_shade_blend toripixel_xrgb8888_shade_blend
+#define toritexel_is_key toripixel_xrgb8888_is_key
+#define toritexel_alpha toripixel_xrgb8888_texel_alpha
+
 /* ========================================================= the selection ==
  *
  * One format is bound to the neutral spellings. Everything above stays defined
@@ -376,6 +410,9 @@ typedef int toripixel_t;
 #define shade_blend toripixel_xrgb8888_shade_blend
 #define toripixel_is_key toripixel_xrgb8888_is_key
 #define toripixel_texel_alpha toripixel_xrgb8888_texel_alpha
+/* The shading space IS this format, so the conversion is the identity by
+ * definition -- not a mask that happens to be a no-op. */
+#define toritexel_to_pixel(t) ((toripixel_t)(t))
 
 #elif TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_ARGB8888
 
@@ -391,6 +428,9 @@ typedef uint32_t toripixel_t;
 #define shade_blend toripixel_argb8888_shade_blend
 #define toripixel_is_key toripixel_argb8888_is_key
 #define toripixel_texel_alpha toripixel_argb8888_texel_alpha
+/* The shading space IS this format, so the conversion is the identity by
+ * definition -- not a mask that happens to be a no-op. */
+#define toritexel_to_pixel(t) ((toripixel_t)(t))
 
 #elif TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_RGBA8888
 
@@ -406,6 +446,7 @@ typedef uint32_t toripixel_t;
 #define shade_blend toripixel_rgba8888_shade_blend
 #define toripixel_is_key toripixel_rgba8888_is_key
 #define toripixel_texel_alpha toripixel_rgba8888_texel_alpha
+#define toritexel_to_pixel(t) toripixel_pack_argb8888(t)
 
 #elif TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_ABGR8888
 
@@ -421,6 +462,7 @@ typedef uint32_t toripixel_t;
 #define shade_blend toripixel_abgr8888_shade_blend
 #define toripixel_is_key toripixel_abgr8888_is_key
 #define toripixel_texel_alpha toripixel_abgr8888_texel_alpha
+#define toritexel_to_pixel(t) toripixel_pack_argb8888(t)
 
 #elif TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_BGRA8888
 
@@ -436,6 +478,7 @@ typedef uint32_t toripixel_t;
 #define shade_blend toripixel_bgra8888_shade_blend
 #define toripixel_is_key toripixel_bgra8888_is_key
 #define toripixel_texel_alpha toripixel_bgra8888_texel_alpha
+#define toritexel_to_pixel(t) toripixel_pack_argb8888(t)
 
 #elif TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_RGB565
 
@@ -451,6 +494,7 @@ typedef uint16_t toripixel_t;
 #define shade_blend toripixel_rgb565_shade_blend
 #define toripixel_is_key toripixel_rgb565_is_key
 #define toripixel_texel_alpha toripixel_rgb565_texel_alpha
+#define toritexel_to_pixel(t) toripixel_pack_argb8888(t)
 
 #elif TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_ARGB1555
 
@@ -466,9 +510,29 @@ typedef uint16_t toripixel_t;
 #define shade_blend toripixel_argb1555_shade_blend
 #define toripixel_is_key toripixel_argb1555_is_key
 #define toripixel_texel_alpha toripixel_argb1555_texel_alpha
+#define toritexel_to_pixel(t) toripixel_pack_argb8888(t)
 
 #else
 #error "TORIDRAW_PIXEL_FORMAT names no known format"
+#endif
+
+
+/*
+ * Whether the texel shading space and the framebuffer format are the SAME
+ * thing -- that is, whether toritexel_to_pixel is the identity.
+ *
+ * The vector texture spans compose in 8-bit lanes (which every format's texels
+ * are) and then store a whole vector of native words. That last step is only
+ * free where no conversion stands between the two, so those lanes claim this
+ * and every other format takes the scalar span, which converts per pixel
+ * through toritexel_to_pixel and is correct everywhere. A vector lane for a
+ * converting format is a real kernel to write, not a cast to add.
+ */
+#if TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_XRGB8888 ||                                               \
+    TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_ARGB8888
+#define TORIPIXEL_TEXEL_SPACE_IS_NATIVE 1
+#else
+#define TORIPIXEL_TEXEL_SPACE_IS_NATIVE 0
 #endif
 
 /*

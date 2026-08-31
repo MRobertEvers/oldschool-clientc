@@ -140,7 +140,7 @@ tex_span_wrapped_scan_start(int cur, int texture_width, int texture_shift)
  */
 static inline void
 tex_span_exact_block(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int offset,
     const int* RESTRICT texels,
     int count,
@@ -165,7 +165,7 @@ tex_span_exact_block(
             int v = (bv / w) & (texture_width - 1);
             int texel = texels[u + (v << texture_shift)];
             if( !transparent || texel != 0 )
-                pixel_buffer[offset + i] = shade_blend(texel, shade);
+                pixel_buffer[offset + i] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
         }
         au += step_au_dx;
         bv += step_bv_dx;

@@ -23,10 +23,10 @@
 #include "impl/raster/scanline/scanline.dispatch.u.c"
 #include "impl/raster/dispatch/tri.flat.u.c"
 #include "impl/raster/dispatch/tri.gouraud.u.c"
-#ifndef TORIDRAW_PIXEL16
 #include "impl/raster/dispatch/tri.texture_opaque.u.c"
 #include "impl/raster/dispatch/tri.texture_transparent.u.c"
 #include "impl/raster/dispatch/tri.texture_affine.u.c"
+#ifndef TORIDRAW_PIXEL16
 #include "impl/raster/dispatch/tri.zbuf.u.c"
 #endif
 // clang-format on
@@ -298,7 +298,6 @@ toridraw_stock_zbuffered_unsupported(
         flat_fn(TORIDRAW_STOCK_FLAT_ARGS(ctx, face));                                              \
     }
 
-#ifndef TORIDRAW_PIXEL16
 #define TORIDRAW_DEFINE_STOCK_TEXTURED_GOURAUD(name, opaque_fn, trans_fn, affine_fn)               \
     static void name(                                                                              \
         void* user_data,                                                                           \
@@ -393,7 +392,6 @@ TORIDRAW_DEFINE_STOCK_TEXTURED_FLAT(
     ToriDraw_TriangleFaceTextureFlatOpaqueScanline,
     ToriDraw_TriangleFaceTextureFlatTransparentScanline,
     ToriDraw_TriangleFaceTextureFlatAffineV3Scanline)
-#endif
 
 TORIDRAW_DEFINE_STOCK_GOURAUD(
     toridraw_stock_branching_gouraud,
@@ -413,24 +411,6 @@ TORIDRAW_DEFINE_STOCK_FLAT(
 TORIDRAW_DEFINE_STOCK_FLAT(
     toridraw_stock_scanline_flat,
     ToriDraw_TriangleFaceFlatScanline)
-
-#ifdef TORIDRAW_PIXEL16
-static void
-toridraw_stock_unreachable_textured(
-    void* user_data,
-    const struct ToriDraw_RasterTarget* target,
-    const struct ToriDraw_RasterFaceSD* face)
-{
-    (void)user_data;
-    (void)target;
-    (void)face;
-    assert(false && "Pixel16 stock classification emitted a textured face");
-}
-#define toridraw_stock_branching_textured_gouraud toridraw_stock_unreachable_textured
-#define toridraw_stock_branching_textured_flat toridraw_stock_unreachable_textured
-#define toridraw_stock_scanline_textured_gouraud toridraw_stock_unreachable_textured
-#define toridraw_stock_scanline_textured_flat toridraw_stock_unreachable_textured
-#endif
 
 /* Both defined below, once the walks exist; named here so the prebaked
  * kernels can point at them. ToriDraw_RasterWalkPerFace is the stock stage-3
@@ -517,7 +497,6 @@ ToriDraw_RasterModelFaceKernel(
         return;
     }
 
-#ifndef TORIDRAW_PIXEL16
     {
         int texture_id = ctx->face_textures ? ctx->face_textures[face] : -1;
 
@@ -669,7 +648,6 @@ ToriDraw_RasterModelFaceKernel(
             return;
         }
     }
-#endif
 
     prepared.opacity = ctx->face_alphas_nullable ? 0xFF - ctx->face_alphas_nullable[face] : 0xFF;
     if( prepared.opacity <= 1 )

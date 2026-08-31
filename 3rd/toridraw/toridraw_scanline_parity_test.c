@@ -412,20 +412,6 @@ static const struct TexVerts g_texverts_flat = {
  * reference conventions at once.
  */
 
-/*
- * PHASE 3 BRIDGE -- delete with the texture-stage conversion.
- *
- * The solid families already take toripixel_t*; the texture families still
- * take int* pixel buffers and int* texels. The shared buffer is declared in
- * the native type, so the texture call sites bridge explicitly here rather
- * than silently.
- *
- * On a 32-bit format this cast is the identity -- toripixel_t IS int -- so
- * nothing this test has ever checked changes. On a 16-bit format the texture
- * arms are known-unconverted and fail loudly, which is the true state until
- * that phase lands; the solid arms above them are real proofs on every format.
- */
-#define TEXBUF(p) ((int*)(p))
 
 static void
 test_texture_anchor(toripixel_t* ref, toripixel_t* got)
@@ -441,9 +427,9 @@ test_texture_anchor(toripixel_t* ref, toripixel_t* got)
         buf_reset(ref);
         buf_reset(got);
         raster_texshadeflat_persp_texopaque_branching_lerp8(
-            TEXBUF(ref) + GUARD, TEXGEOM(tv), 0x40, g_texels, TEX_W);
+            ref + GUARD, TEXGEOM(tv), 0x40, g_texels, TEX_W);
         raster_texshadeflat_persp_texopaque_scanline_lerp8(
-            TEXBUF(got) + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
+            got + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
         report("texshadeflat.persp.texopaque.scanline", t, ref, got);
     }
 }
@@ -473,26 +459,26 @@ test_texture_chain(toripixel_t* a, toripixel_t* b)
         buf_reset(a);
         buf_reset(b);
         raster_texshadeflat_persp_texopaque_scanline_lerp8(
-            TEXBUF(a) + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels_opaque, TEX_W);
+            a + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels_opaque, TEX_W);
         raster_texshadeflat_persp_textrans_scanline_lerp8(
-            TEXBUF(b) + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels_opaque, TEX_W);
+            b + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels_opaque, TEX_W);
         report("textrans == texopaque (no zero texels)", t, a, b);
 
         /* shade axis: a constant shade plane must equal the flat-shade kernel */
         buf_reset(a);
         buf_reset(b);
         raster_texshadeflat_persp_texopaque_scanline_lerp8(
-            TEXBUF(a) + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
+            a + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
         raster_texshadeblend_persp_texopaque_scanline_lerp8(
-            TEXBUF(b) + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
+            b + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
         report("texshadeblend == texshadeflat (equal shades)", t, a, b);
 
         buf_reset(a);
         buf_reset(b);
         raster_texshadeflat_persp_textrans_scanline_lerp8(
-            TEXBUF(a) + GUARD, TEXGEOM(tv), 0x33, 0x33, 0x33, 0xFF, g_texels, TEX_W);
+            a + GUARD, TEXGEOM(tv), 0x33, 0x33, 0x33, 0xFF, g_texels, TEX_W);
         raster_texshadeblend_persp_textrans_scanline_lerp8(
-            TEXBUF(b) + GUARD, TEXGEOM(tv), 0x33, 0x33, 0x33, 0xFF, g_texels, TEX_W);
+            b + GUARD, TEXGEOM(tv), 0x33, 0x33, 0x33, 0xFF, g_texels, TEX_W);
         report("texshadeblend.textrans == texshadeflat.textrans", t, a, b);
 
         /*
@@ -506,9 +492,9 @@ test_texture_chain(toripixel_t* a, toripixel_t* b)
         buf_reset(a);
         buf_reset(b);
         raster_texshadeblend_persp_texopaque_scanline_lerp8(
-            TEXBUF(a) + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_white, TEX_W);
+            a + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_white, TEX_W);
         raster_texshadeblend_affine_texopaque_scanline_lerp8(
-            TEXBUF(b) + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_white, TEX_W);
+            b + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_white, TEX_W);
         report("affine == persp coverage+shade (constant depth)", t, a, b);
 
         /* space axis, uv: with a real texture the two must still agree on
@@ -516,9 +502,9 @@ test_texture_chain(toripixel_t* a, toripixel_t* b)
         buf_reset(a);
         buf_reset(b);
         raster_texshadeblend_persp_texopaque_scanline_lerp8(
-            TEXBUF(a) + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_opaque, TEX_W);
+            a + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_opaque, TEX_W);
         raster_texshadeblend_affine_texopaque_scanline_lerp8(
-            TEXBUF(b) + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_opaque, TEX_W);
+            b + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_opaque, TEX_W);
         report_coverage("affine/persp identical coverage", t, a, b);
     }
 }
@@ -580,8 +566,8 @@ test_texture_facealpha_blend(toripixel_t* opaque_buf, toripixel_t* got)
     {                                                                                              \
         buf_reset(opaque_buf);                                                                     \
         buf_reset(got);                                                                            \
-        PLAIN_FN(TEXBUF(opaque_buf) + GUARD, TEXGEOM(TVP), 0x20, 0x50, 0x70, 0xFF, TEX, TEX_W);            \
-        ALPHA_FN(TEXBUF(got) + GUARD, TEXGEOM(TVP), 0x20, 0x50, 0x70, alpha, TEX, TEX_W);                  \
+        PLAIN_FN(opaque_buf + GUARD, TEXGEOM(TVP), 0x20, 0x50, 0x70, 0xFF, TEX, TEX_W);            \
+        ALPHA_FN(got + GUARD, TEXGEOM(TVP), 0x20, 0x50, 0x70, alpha, TEX, TEX_W);                  \
         if( guard_intact(got, NAME, t->name) )                                                     \
             check_facealpha(NAME, t, opaque_buf, got, alpha);                                      \
     } while( 0 )
@@ -681,7 +667,7 @@ test_texture_shade_plane(toripixel_t* got)
 
         buf_reset(got);
         raster_texshadeblend_persp_texopaque_scanline_lerp8(
-            TEXBUF(got) + GUARD, TEXGEOM(tv), shade_a, shade_b, shade_c, 0xFF, g_texels_white, TEX_W);
+            got + GUARD, TEXGEOM(tv), shade_a, shade_b, shade_c, 0xFF, g_texels_white, TEX_W);
 
         for( int y = 0; y < H; y++ )
         {

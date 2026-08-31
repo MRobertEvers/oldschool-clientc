@@ -29,7 +29,7 @@
  */
 static inline void
 ToriDraw_TriangleTextureScanlineAffine(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -107,7 +107,7 @@ ToriDraw_TriangleTextureScanlineAffine(
 
 static inline void
 ToriDraw_TriangleTextureBlendAffineV3Impl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -240,7 +240,7 @@ ToriDraw_TriangleTextureBlendAffineV3Impl(
 
 static inline void
 ToriDraw_TriangleTextureBlendAffineImpl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -373,7 +373,7 @@ ToriDraw_TriangleTextureBlendAffineImpl(
 
 static inline void
 ToriDraw_TriangleTextureFlatAffineV3Impl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -508,7 +508,7 @@ ToriDraw_TriangleTextureFlatAffineV3Impl(
 
 static inline void
 ToriDraw_TriangleTextureFlatAffineImpl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -642,7 +642,7 @@ ToriDraw_TriangleTextureFlatAffineImpl(
 }
 
 #define TORIDRAW_TRIANGLE_TEXTURE_BLEND_AFFINE_PARAMETERS                                        \
-    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+    toripixel_t* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
         int screen_x0, int screen_x1, int screen_x2, int screen_y0, int screen_y1, int screen_y2, \
         int orthographic_x0, int orthographic_x1, int orthographic_x2, int orthographic_y0,       \
         int orthographic_y1, int orthographic_y2, int orthographic_z0, int orthographic_z1,       \
@@ -689,7 +689,7 @@ TORIDRAW_DEFINE_AFFINE_BLEND_WRAPPERS(BlendAffine)
 #undef TORIDRAW_TRIANGLE_TEXTURE_BLEND_AFFINE_PARAMETERS
 
 #define TORIDRAW_TRIANGLE_TEXTURE_FLAT_AFFINE_PARAMETERS                                         \
-    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+    toripixel_t* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
         int screen_x0, int screen_x1, int screen_x2, int screen_y0, int screen_y1, int screen_y2, \
         int orthographic_x0, int orthographic_x1, int orthographic_x2, int orthographic_y0,       \
         int orthographic_y1, int orthographic_y2, int orthographic_z0, int orthographic_z1,       \
@@ -737,7 +737,7 @@ TORIDRAW_DEFINE_AFFINE_FLAT_WRAPPERS(FlatAffine)
 
 static inline void
 ToriDraw_TriangleFaceTextureBlendAffineV3NearClipImpl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1076,7 +1076,7 @@ ToriDraw_TriangleFaceTextureBlendAffineV3NearClipImpl(
 
 static inline void
 ToriDraw_TriangleFaceTextureBlendAffineNearClipImpl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1415,7 +1415,7 @@ ToriDraw_TriangleFaceTextureBlendAffineNearClipImpl(
 
 static inline void
 ToriDraw_TriangleFaceTextureBlendAffineV3Impl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1565,7 +1565,7 @@ ToriDraw_TriangleFaceTextureBlendAffineV3Impl(
 
 static inline void
 ToriDraw_TriangleFaceTextureBlendAffineImpl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1715,7 +1715,7 @@ ToriDraw_TriangleFaceTextureBlendAffineImpl(
 
 static inline void
 ToriDraw_TriangleFaceTextureFlatAffineV3NearClipImpl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1996,7 +1996,7 @@ ToriDraw_TriangleFaceTextureFlatAffineV3NearClipImpl(
 
 static inline void
 ToriDraw_TriangleFaceTextureFlatAffineV3Impl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -2126,7 +2126,7 @@ ToriDraw_TriangleFaceTextureFlatAffineV3Impl(
 
 static inline void
 ToriDraw_TriangleFaceTextureFlatAffineNearClipImpl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -2407,7 +2407,7 @@ ToriDraw_TriangleFaceTextureFlatAffineNearClipImpl(
 
 static inline void
 ToriDraw_TriangleFaceTextureFlatAffineImpl(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -2536,7 +2536,7 @@ ToriDraw_TriangleFaceTextureFlatAffineImpl(
 }
 
 #define TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_AFFINE_PARAMETERS                                   \
-    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+    toripixel_t* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
         int face, int tp_vertex, int tm_vertex, int tn_vertex, faceint_t* RESTRICT face_indices_a, \
         faceint_t* RESTRICT face_indices_b, faceint_t* RESTRICT face_indices_c,                   \
         int* RESTRICT screen_vertices_x, int* RESTRICT screen_vertices_y,                         \
@@ -2586,7 +2586,7 @@ TORIDRAW_DEFINE_AFFINE_BLEND_FACE_WRAPPERS(BlendAffine)
 #undef TORIDRAW_TRIANGLE_FACE_TEXTURE_BLEND_AFFINE_PARAMETERS
 
 #define TORIDRAW_TRIANGLE_FACE_TEXTURE_FLAT_AFFINE_PARAMETERS                                    \
-    int* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
+    toripixel_t* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int camera_cot16, \
         int face, int tp_vertex, int tm_vertex, int tn_vertex, faceint_t* RESTRICT face_indices_a, \
         faceint_t* RESTRICT face_indices_b, faceint_t* RESTRICT face_indices_c,                   \
         int* RESTRICT screen_vertices_x, int* RESTRICT screen_vertices_y,                         \

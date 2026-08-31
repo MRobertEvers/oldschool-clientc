@@ -2,6 +2,7 @@
 #define TEX_SPAN_U_C
 
 #include "graphics/dash_restrict.h"
+#include "graphics/pixel_format.h"
 
 #include <stdint.h>
 
@@ -12,13 +13,20 @@
 #include "graphics/raster/texture/span/tex.span_uv.h"
 // clang-format on
 
-#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
+/*
+ * A vector lane composes in 8-bit texel lanes and stores whole native words,
+ * so it is selected only where those are the same thing --
+ * TORIPIXEL_TEXEL_SPACE_IS_NATIVE. Every other format takes the scalar span,
+ * which converts per pixel and is correct on all of them.
+ */
+#if TORIPIXEL_TEXEL_SPACE_IS_NATIVE && \
+    ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
 #include "impl/raster/span/span.tex.neon.u.c"
-#elif defined(__AVX2__) && !defined(AVX2_DISABLED)
+#elif TORIPIXEL_TEXEL_SPACE_IS_NATIVE && defined(__AVX2__) && !defined(AVX2_DISABLED)
 #include "impl/raster/span/span.tex.avx.u.c"
-#elif defined(__SSE4_1__) && !defined(SSE2_DISABLED)
+#elif TORIPIXEL_TEXEL_SPACE_IS_NATIVE && defined(__SSE4_1__) && !defined(SSE2_DISABLED)
 #include "impl/raster/span/span.tex.sse41.u.c"
-#elif defined(__SSE2__) && !defined(SSE2_DISABLED)
+#elif TORIPIXEL_TEXEL_SPACE_IS_NATIVE && defined(__SSE2__) && !defined(SSE2_DISABLED)
 #include "impl/raster/span/span.tex.sse2.u.c"
 #else
 #include "impl/raster/span/span.tex.scalar.u.c"
@@ -50,7 +58,7 @@
 
 static inline void
 tex_span_opaque_lerp8_v3_ordered(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int screen_width,
     int screen_x0_ish16,
     int screen_x1_ish16,

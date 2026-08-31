@@ -15855,8 +15855,16 @@ app_title_tick(struct App* app)
      * player is owed the difference. The words are the profile's; if it
      * declares none, the code goes to the log and the screen says nothing
      * rather than inventing a sentence.
+     *
+     * Not while the dial is still queued. app_title_submit puts the screen on
+     * APP_SCREEN_CONNECTING one tick BEFORE it connects (App::title_connect_pending),
+     * and TORIRS_NET_DISCONNECTED is also the state a network that has never
+     * been dialled sits in -- so without this the submit tick reads its own
+     * not-yet-started handshake as a failure, and the player is shown
+     * [login_reply:default] ("Unexpected server response") on the way to a
+     * login that then succeeds.
      */
-    if( app->screen == APP_SCREEN_CONNECTING && app->net &&
+    if( app->screen == APP_SCREEN_CONNECTING && !app->title_connect_pending && app->net &&
         app->net->state == TORIRS_NET_DISCONNECTED )
     {
         struct RS_LoginReply const* reply =

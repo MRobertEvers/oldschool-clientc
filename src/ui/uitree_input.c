@@ -276,8 +276,17 @@ hit_test_interactive_recursive(
 
     struct UITreeComponent const* component = &tree->components[node_index];
 
-    /* Match emit: hidden subtrees are not interactive. */
-    if( component->behavior.hide || component->frame_hidden ||
+    /* Match emit: hidden subtrees are not interactive.
+     *
+     * screen_hidden included, and it is the one that was missing: the title
+     * screen's four groups (menu / form / info / progress) are fully
+     * overlapping siblings that app_title_sync_groups switches between with
+     * exactly this flag, so while it went untested every one of them took
+     * clicks at once and the LAST declared won. On the login form that is the
+     * info screen's "Try again" plate, which covers the right half of Login
+     * and the left half of Cancel -- both buttons visibly lit and dead over
+     * the overlap. */
+    if( component->behavior.hide || component->frame_hidden || component->screen_hidden ||
         component->replacement_hidden || component->projection_hidden )
         return -1;
 
@@ -467,7 +476,7 @@ UITree_HitTestRecursive(
     struct UITreeComponent const* component = &tree->components[node_index];
 
     /* Match emit: hidden subtrees are not interactive. */
-    if( component->behavior.hide || component->frame_hidden ||
+    if( component->behavior.hide || component->frame_hidden || component->screen_hidden ||
         component->replacement_hidden || component->projection_hidden )
         return -1;
 
@@ -547,7 +556,7 @@ collect_nodes_recursive(
 
     struct UITreeComponent const* component = &tree->components[node_index];
 
-    if( component->behavior.hide || component->frame_hidden ||
+    if( component->behavior.hide || component->frame_hidden || component->screen_hidden ||
         component->replacement_hidden || component->projection_hidden )
         return;
 
@@ -837,8 +846,8 @@ role_boundary_walk_node(
     if( node < 0 || (uint32_t)node >= tree->component_count )
         return;
     component = &tree->components[node];
-    if( component->freed || component->frame_hidden || component->projection_hidden ||
-        component->behavior.hide )
+    if( component->freed || component->frame_hidden || component->screen_hidden ||
+        component->projection_hidden || component->behavior.hide )
         return;
 
     /* Same selected-tab pruning as emit and interactive hit testing. */

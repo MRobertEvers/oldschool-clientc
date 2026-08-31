@@ -8,7 +8,7 @@
 
 static inline void
 raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -321,7 +321,7 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
 
 static inline void
 raster_texshadeblend_persp_texopaque_branching_lerp8_v3(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,

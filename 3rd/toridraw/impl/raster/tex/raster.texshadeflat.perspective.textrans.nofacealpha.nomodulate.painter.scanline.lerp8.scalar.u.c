@@ -11,7 +11,7 @@
 
 static void
 raster_texshadeflat_persp_textrans_ordered_lerp8_scanline(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -106,7 +106,7 @@ raster_texshadeflat_persp_textrans_ordered_lerp8_scanline(
         int v_scan = curr_v << texture_shift;
 
         raster_linear_transparent_texshadeflat_lerp8(
-            (uint32_t*)pixel_buffer,
+            pixel_buffer,
             offset,
             (uint32_t*)texels,
             u_scan,
@@ -158,7 +158,7 @@ raster_texshadeflat_persp_textrans_ordered_lerp8_scanline(
         v &= texture_width - 1;
         int texel = texels[u + v * texture_width];
         if( texel != 0 )
-            pixel_buffer[offset] = shade_blend(texel, shade);
+            pixel_buffer[offset] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
 
         u_scan += step_u;
         v_scan += step_v;

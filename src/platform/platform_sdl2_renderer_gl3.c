@@ -340,21 +340,6 @@ gl3_upload_sprite_atlas(struct ToriRS_GL3* renderer)
 }
 
 static void
-gl3_sprite_uv_clamp_set(
-    struct ToriRS_GL3* renderer,
-    bool enable,
-    float u0,
-    float v0,
-    float u1,
-    float v1)
-{
-    if( renderer->u2d_uv_clamp >= 0 )
-        glUniform1i(renderer->u2d_uv_clamp, enable ? 1 : 0);
-    if( enable && renderer->u2d_uv_bounds >= 0 )
-        glUniform4f(renderer->u2d_uv_bounds, u0, v0, u1, v1);
-}
-
-static void
 gl3_apply_logical_scissor(
     struct ToriRS_GL3* renderer,
     int logical_x,
@@ -4944,6 +4929,9 @@ ToriRS_GL3_Init(
     struct ToriDraw_Scene* scene,
     bool z_buffer)
 {
+    GLuint vertexShader = 0u;
+    GLuint fragmentShader = 0u;
+
     assert(gl3 && window && scene);
     gl3->scene = scene;
     gl3->kernel = ToriDraw_KernelGetGpu();
@@ -5051,8 +5039,8 @@ ToriRS_GL3_Init(
 
     const char* vs_src = trspk_opengl3_vertex_shader;
     const char* fs_src = trspk_opengl3_fragment_shader;
-    GLuint vertexShader = gl3_compile_shader(GL_VERTEX_SHADER, vs_src);
-    GLuint fragmentShader = gl3_compile_shader(GL_FRAGMENT_SHADER, fs_src);
+    vertexShader = gl3_compile_shader(GL_VERTEX_SHADER, vs_src);
+    fragmentShader = gl3_compile_shader(GL_FRAGMENT_SHADER, fs_src);
     if( vertexShader == 0u || fragmentShader == 0u )
         goto fail_gl;
 

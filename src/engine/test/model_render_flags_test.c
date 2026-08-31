@@ -377,7 +377,7 @@ main(void)
         return 2;
     }
 
-    emblem_rgb = (toripixel_t)g_hsl16_to_rgb_table[HSL_EMBLEM];
+    emblem_rgb = (toripixel_t)g_hsl16_to_pixel_table[HSL_EMBLEM];
 
     /* 2. As converted: the priority wins over depth. */
     count = sort_faces(scene, hnd);
