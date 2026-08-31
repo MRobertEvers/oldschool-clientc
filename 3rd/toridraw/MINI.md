@@ -30,9 +30,19 @@ ToriDraw_MiniClear(&target, 0);
 ToriDraw_MiniDrawModel(view, model, &target, &pose);
 ```
 
-That is the whole interface. No malloc runs anywhere in it —
-`toridraw_mini_test.c` counts the calls through `--wrap` and holds the draw
-path to zero.
+That is the whole interface. Two things hold it honest:
+
+- **No malloc runs anywhere in it.** `toridraw_mini_test.c` counts the calls
+  through `--wrap` and holds the draw path to zero. The counter is itself
+  checked against something that certainly allocates, because `0 == 0` passes
+  just as well on a build where the wrap flags got dropped.
+- **It draws the same pixels as the heap path.** The same test renders the
+  fixture through `ToriDraw_SpriteNewFromModelRaster` — an independent
+  spelling of the same reference pose, written years earlier, against a
+  `ToriDraw_SceneNew` scene — and requires the two frames to be identical at
+  eight yaws. Verified separately against four real osrs239 cache models at
+  eight yaws each: zero differing pixels, including the textured one and one
+  whose faces are all backfacing from half the angles.
 
 ## What it costs
 
@@ -47,14 +57,24 @@ model is ever drawn.
 | texture-animation scratch handed to the caller | 214 KB |
 | `-DTORIDRAW_TABLES_PRECOMPUTED` | **21.9 KB** |
 
-and per client, from the arena:
+and per client, from the arena. The first four are real osrs239 cache models
+drawn end to end by `3rd/toridraw_rscache/examples/model_to_ppm.c`:
 
-| what | arena bytes |
+| model | arena bytes |
 |---|---|
-| a 4-face fixture | 4,176 |
-| 256 vertices, 512 faces, no textures | 30,568 |
-| the same with a texture map | 46,960 |
-| 1,024 vertices, 2,048 faces | 123,464 |
+| 2426 — 40 vertices, 60 faces | 5,856 |
+| 8654 — 21 vertices, 26 faces, a large depth extent | 6,884 |
+| 9638 — 42 vertices, 63 faces, textured | 24,224 |
+| 66 — 213 vertices, 386 faces | 28,052 |
+| 256 vertices, 512 faces, depth 256 | 34,696 |
+| the same with a texture map | 51,088 |
+| 1,024 vertices, 2,048 faces, depth 1500 | 139,880 |
+
+The texture map is 16 KB of that, and shrinks to 512 bytes with
+`-DTORIDRAW_TEXTURE_ID_CAPACITY=64`. Depth extent is the other lever a caller
+does not set directly: it comes from the model's own bounding cylinder, so a
+tall thin model costs more sorter than a compact one with twice the faces —
+8654 above has under half of 2426's faces and a larger arena.
 
 For comparison, the smallest scene `ToriDraw_SceneNew` can build — `LOW_2K`
 plus `SMALL` plus `LAZY_TEXTURES` — is 388 KB across thirty allocations, and it

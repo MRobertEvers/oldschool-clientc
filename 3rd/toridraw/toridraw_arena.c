@@ -166,11 +166,18 @@ ToriDraw_SceneArenaInit(
     struct td_arena a;
     struct ToriDraw_Scene* scene;
     int depth_levels;
+    size_t needed;
 
     assert(memory);
     td_arena_assert_limits(limits);
     assert(((uintptr_t)memory & (TORIDRAW_ARENA_ALIGN - 1)) == 0);
-    assert(bytes >= ToriDraw_SceneArenaBytes(limits));
+
+    needed = ToriDraw_SceneArenaBytes(limits);
+    /* Under NDEBUG this assert is gone and a short buffer would be scribbled
+     * over instead. That is why the header tells callers to hold their buffer
+     * to ToriDraw_SceneArenaBytes with a _Static_assert: a compile-time check
+     * is the only one that survives the build a target actually ships. */
+    assert(bytes >= needed);
 
     depth_levels = td_arena_depth_levels(limits);
 
@@ -178,8 +185,12 @@ ToriDraw_SceneArenaInit(
      * dozen fields depend on starting at zero -- sm_face_xy_valid, the
      * prepared-camera source pointer, every count. The sort tables that must
      * start zeroed (sm_depth_offset, whose window each sort restores rather
-     * than re-clearing) are covered by the same memset. */
-    memset(memory, 0, bytes);
+     * than re-clearing) are covered by the same memset.
+     *
+     * Only the span the layout will USE, not the whole buffer: a caller may
+     * have handed over the front of something larger and be keeping their own
+     * data behind it. */
+    memset(memory, 0, needed);
 
     a.base = (uint8_t*)memory;
     a.used = 0;

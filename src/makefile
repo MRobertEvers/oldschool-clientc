@@ -5031,9 +5031,14 @@ test-toridraw-tables-precomputed: toridraw-tables-gen
 		-c $(OBJ_DIR)/toridraw_tables_precomputed.c \
 		-o $(OBJ_DIR)/toridraw_tables_precomputed.o
 	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_TABLES_FORMAT) \
+		-DTORIDRAW_TABLES_PRECOMPUTED -I$(TORIDRAW_DIR) -w \
+		-c $(TORIDRAW_DIR)/toridraw_model_sprite.c \
+		-o $(OBJ_DIR)/toridraw_model_sprite_precomputed.o
+	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_TABLES_FORMAT) \
 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/toridraw_mini_test_precomputed \
 		$(TORIDRAW_DIR)/toridraw_mini_test.c \
 		$(OBJ_DIR)/toridraw_unity_precomputed.o \
+		$(OBJ_DIR)/toridraw_model_sprite_precomputed.o \
 		$(OBJ_DIR)/toridraw_tables_precomputed.o -lm $(PLATFORM_STRIP_LDFLAGS)
 	./$(OBJ_DIR)/toridraw_mini_test_precomputed
 

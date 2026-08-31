@@ -99,11 +99,25 @@
 #define ROWBYTES 48
 
 /*
- * The frame. Offsets 0..15 are the windowed ABI base save area -- the window
- * overflow handler writes the caller's a0-a3 there -- so nothing of ours may
- * live below 16. FR_VEC is 16-byte aligned because the stack pointer is, and
- * EE.VLD.128 requires it.
+ * The frame.
+ *
+ * THE TOP SIXTEEN BYTES ARE NOT OURS. On a window overflow the handler spills
+ * the CALLER's a0-a3 to the sixteen bytes below the CALLER's stack pointer,
+ * which is [FRAMESIZE-16, FRAMESIZE) of this frame. So locals start at zero
+ * and stop at FRAMESIZE-16 -- which is also where the compiler puts them:
+ * compile any windowed leaf and look, `entry a1, 64` with the buffer at a1+0.
+ *
+ * Getting this backwards does not fault here. It corrupts the CALLER's saved
+ * registers, and only when a window overflow happens to land inside this
+ * call, so it presents as the caller reading a garbage pointer some
+ * iterations later. It cost a device run to find; it is written down so it
+ * costs nobody a second one.
+ *
+ * FR_VEC is first because it is the only field with an alignment requirement:
+ * offset zero of a frame is 16-byte aligned because the stack pointer is, and
+ * EE.VLD.128 needs that.
  */
+#define FR_VEC       0
 #define FR_PIXBUF    16
 #define FR_STRIDE_B  20
 #define FR_SCRW      24
@@ -124,7 +138,7 @@
 #define FR_NC2       84
 #define FR_BRANCH    88
 #define FR_RETADDR   92
-#define FR_VEC       96
+/* 96..111: the caller's spill area. Nothing of ours goes here. */
 #define FRAMESIZE    112
 
 #define RGB565_SPREAD_MASK 0x07E0F81F
