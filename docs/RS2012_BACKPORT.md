@@ -345,7 +345,14 @@ The QBD looked like a texture bug for a long time. It was not — it draws
 ```
 TORIDRAW_SKIP_TEXTURED=1     # drop textured faces: isolates the span path
 TORIDRAW_IGNORE_PRIORITIES=1 # drop priorities: isolates the sort
-TORIDRAW_FLIP_WINDING=1      # cull the opposite winding: import handedness check
+```
+
+The handedness check is the third, and it is a rebuild rather than an env var —
+it answers the same for every face in the process, so it folds at compile time
+instead of costing a select per face in the cull:
+
+```
+make -C src TORIDRAW_FLIP_WINDING=1 ...   # cull the opposite winding
 ```
 
 `TORIDRAW_IGNORE_PRIORITIES` is how the priority problem was confirmed before

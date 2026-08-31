@@ -1,8 +1,7 @@
 #include "toridraw_2d.h"
 
-#include "toridraw_blit_simd.h"
-
 #include "graphics/dash_restrict.h"
+#include "toridraw_blit_simd.h"
 
 #include <assert.h>
 #include <math.h>
@@ -82,12 +81,7 @@ toridraw2d_blend_argb_unclipped(
     }
 
     *dst = toridraw2d_blend_channels(
-        *dst,
-        (int)(argb >> 16) & 0xFF,
-        (int)(argb >> 8) & 0xFF,
-        (int)argb & 0xFF,
-        a,
-        255 - a);
+        *dst, (int)(argb >> 16) & 0xFF, (int)(argb >> 8) & 0xFF, (int)argb & 0xFF, a, 255 - a);
 }
 
 void
@@ -329,8 +323,7 @@ ToriDraw2D_BlitArgb(
     int src_h,
     int* pixel_buffer)
 {
-    ToriDraw2D_BlitArgbAlpha(
-        view_port, dst_x, dst_y, src, src_w, src_h, 255, pixel_buffer);
+    ToriDraw2D_BlitArgbAlpha(view_port, dst_x, dst_y, src, src_w, src_h, 255, pixel_buffer);
 }
 
 void
@@ -493,8 +486,7 @@ ToriDraw2D_BlitArgbScaledAlpha(
      */
     if( dst_w == src_w && dst_h == src_h )
     {
-        ToriDraw2D_BlitArgbAlpha(
-            view_port, dst_x, dst_y, src, src_w, src_h, alpha, pixel_buffer);
+        ToriDraw2D_BlitArgbAlpha(view_port, dst_x, dst_y, src, src_w, src_h, alpha, pixel_buffer);
         return;
     }
 
@@ -676,8 +668,7 @@ ToriDraw2D_BlitArgbMasked(
     assert(pixel_buffer);
     assert(content);
     assert(mask);
-    if( dst_w <= 0 || dst_h <= 0 || mask_w <= 0 || mask_h <= 0 || content_w <= 0 ||
-        content_h <= 0 )
+    if( dst_w <= 0 || dst_h <= 0 || mask_w <= 0 || mask_h <= 0 || content_w <= 0 || content_h <= 0 )
         return;
 
     /* Exact incremental source stepping (see ToriDraw2D_BlitArgbScaled) in
@@ -765,8 +756,7 @@ ToriDraw2D_BlitArgbMaskedInverted(
     assert(pixel_buffer);
     assert(content);
     assert(mask);
-    if( dst_w <= 0 || dst_h <= 0 || mask_w <= 0 || mask_h <= 0 || content_w <= 0 ||
-        content_h <= 0 )
+    if( dst_w <= 0 || dst_h <= 0 || mask_w <= 0 || mask_h <= 0 || content_w <= 0 || content_h <= 0 )
         return;
 
     /* Exact incremental source stepping (see ToriDraw2D_BlitArgbScaled) in

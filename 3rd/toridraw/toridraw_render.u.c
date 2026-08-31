@@ -1,11 +1,13 @@
+#include "graphics/batch_stats.h"
 #include "graphics/dash_restrict.h"
+#include "graphics/div3.h"
 #include "graphics/proj_census.h"
 #include "graphics/projection.h"
 #include "graphics/winding.h"
+#include "graphics/ysort_order.h"
 #include "toridraw_math.h"
 #include "toridraw_model_internal.h"
 #include "toridraw_raster_batch.h"
-#include "graphics/ysort_order.h"
 #include "toridraw_raster_kernel.h"
 #include "toridraw_types.h"
 
@@ -43,17 +45,6 @@
 /** Far plane for bounding-cylinder frustum cull. */
 // #define TORIDRAW_CYLINDER_FAR_PLANE_Z 3500
 #define TORIDRAW_CYLINDER_FAR_PLANE_Z 7500
-
-/* z_sum / 3, via the 16.16 reciprocal (21845 == 65536/3). Overflows at
- * z_sum > 98,304 (~32,768 average projected depth per vertex); a wrapped z_sum
- * goes negative and buckets outside the depth table, so the model loses faces
- * from some camera angles and not others. Only reachable with geometry that is
- * already wrong -- guard by range once per model, not by widening here. */
-static inline int
-div3_fast_fixedpoint(int z_sum)
-{
-    return (z_sum * 21845) >> 16;
-}
 
 /*
  * Largest projected coordinate the raster kernels can carry.
@@ -661,7 +652,6 @@ bucket_sort_by_average_depth_plain(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
-    int const flip = toridraw_flip_winding();
     int min_d = depth_levels;
     int max_d = 0;
 
@@ -672,7 +662,7 @@ bucket_sort_by_average_depth_plain(
         const uint32_t c = face_c[f];
         int depth_avg;
 
-        if( !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
+        if( !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
             continue;
 
         depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
@@ -715,7 +705,6 @@ bucket_sort_by_average_depth_clipped(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
-    int const flip = toridraw_flip_winding();
     int min_d = depth_levels;
     int max_d = 0;
 
@@ -727,7 +716,7 @@ bucket_sort_by_average_depth_clipped(
         int depth_avg;
 
         if( !bucket_face_clip_candidate(vx, a, b, c) &&
-            !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
+            !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
             continue;
 
         depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
@@ -765,7 +754,6 @@ bucket_sort_by_average_depth_shift(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
-    int const flip = toridraw_flip_winding();
     int min_d = depth_levels;
     int max_d = 0;
 
@@ -778,7 +766,7 @@ bucket_sort_by_average_depth_shift(
         const uint32_t c = face_c[f];
         int depth_avg;
 
-        if( !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
+        if( !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
             continue;
 
         depth_avg = (div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth) >> depth_shift;
@@ -815,7 +803,6 @@ bucket_sort_by_average_depth_shift_clipped(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
-    int const flip = toridraw_flip_winding();
     int min_d = depth_levels;
     int max_d = 0;
 
@@ -829,7 +816,7 @@ bucket_sort_by_average_depth_shift_clipped(
         int depth_avg;
 
         if( !bucket_face_clip_candidate(vx, a, b, c) &&
-            !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
+            !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
             continue;
 
         depth_avg = (div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth) >> depth_shift;
@@ -1359,12 +1346,6 @@ sm_depth_offset_restore(
         &scene->sm_depth_offset[min_depth], 0, (size_t)(max_depth - min_depth + 2) * sizeof(int));
 }
 
-/* Models whose sort stashed the y ordering for the batched raster walk.
- * Reported by TORIDRAW_BATCH_STATS. A GPU lane must show zero here: it sorts
- * for the GPU and never reads the stash, so a non-zero count is exactly the
- * regression the stash/no-stash split below exists to prevent. */
-static long g_toridraw_presort_models;
-
 /*
  * Hand the raster pass what the sort loop already has.
  *
@@ -1533,7 +1514,6 @@ bucket_sort_by_average_depth_small_plain(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
-    int const flip = toridraw_flip_winding();
     const int depth_levels = scene->depth_levels;
     int min_d = depth_levels;
     int max_d = 0;
@@ -1547,7 +1527,7 @@ bucket_sort_by_average_depth_small_plain(
 
         scene->sm_face_depth[f] = -1;
 
-        if( !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
+        if( !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
             continue;
 
         depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
@@ -1586,7 +1566,6 @@ bucket_sort_by_average_depth_small_clipped(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
-    int const flip = toridraw_flip_winding();
     const int depth_levels = scene->depth_levels;
     int min_d = depth_levels;
     int max_d = 0;
@@ -1605,7 +1584,7 @@ bucket_sort_by_average_depth_small_clipped(
                          vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
                          vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED;
         if( !clip_candidate &&
-            !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
+            !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
             continue;
 
         depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
@@ -1638,7 +1617,6 @@ bucket_sort_by_average_depth_small_stash(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
-    int const flip = toridraw_flip_winding();
     const int depth_levels = scene->depth_levels;
     int min_d = depth_levels;
     int max_d = 0;
@@ -1652,7 +1630,7 @@ bucket_sort_by_average_depth_small_stash(
 
         scene->sm_face_depth[f] = -1;
 
-        if( !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
+        if( !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
             continue;
 
         depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
@@ -1686,7 +1664,6 @@ bucket_sort_by_average_depth_small_stash_clipped(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
-    int const flip = toridraw_flip_winding();
     const int depth_levels = scene->depth_levels;
     int min_d = depth_levels;
     int max_d = 0;
@@ -1705,7 +1682,7 @@ bucket_sort_by_average_depth_small_stash_clipped(
                          vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
                          vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED;
         if( !clip_candidate &&
-            !toridraw_winding_2d_front_facing_flip(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c], flip) )
+            !toridraw_winding_2d_front_facing(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]) )
             continue;
 
         depth_avg = div3_fast_fixedpoint(vz[a] + vz[b] + vz[c]) + model_min_depth;
@@ -1758,7 +1735,7 @@ bucket_sort_by_average_depth_small(
      * remember to. */
     scene->sm_face_xy_valid = stash_xy;
     if( stash_xy )
-        g_toridraw_presort_models++;
+        TORIDRAW_BATCH_COUNT(g_toridraw_presort_models);
 
     /* Verifying the all-zero invariant is O(depth_levels) -- the very cost the
      * windowing exists to avoid -- so it is an assert and nothing else. */

@@ -77,8 +77,13 @@
 
 #include "toridraw_face_sort_flat.h"
 
+#include "graphics/batch_stats.h"
+#include "graphics/div3.h"
+#include "graphics/winding.h"
 #include "graphics/ysort_order.h"
+#include "toridraw_model_internal.h"
 
+#include <assert.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -178,7 +183,6 @@ toridraw_face_sort_bitonic_max(void)
     return max;
 }
 
-
 /*
  * One face, scalar: the tail of whatever the lane's vector cull left, and the
  * whole model on a lane that has no vector cull. Same decisions as the bucket
@@ -192,7 +196,6 @@ toridraw_face_sort_flat_one_abc(
     uint32_t b,
     uint32_t c,
     bool near_clipped,
-    int flip,
     int model_min_depth,
     int stash_xy,
     const int* RESTRICT vx,
@@ -209,7 +212,7 @@ toridraw_face_sort_flat_one_abc(
     if( !clip_candidate )
     {
         winding = toridraw_winding_2d(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
-        if( flip ? !(winding < 0) : !(winding > 0) )
+        if( !toridraw_winding_front_facing(winding) )
             return 0;
     }
 
@@ -253,7 +256,6 @@ toridraw_face_sort_flat_one(
     struct ToriDraw_Scene* scene,
     int f,
     bool near_clipped,
-    int flip,
     int model_min_depth,
     int stash_xy,
     const int* RESTRICT vx,
@@ -271,7 +273,6 @@ toridraw_face_sort_flat_one(
         (uint32_t)face_b[f],
         (uint32_t)face_c[f],
         near_clipped,
-        flip,
         model_min_depth,
         stash_xy,
         vx,
@@ -313,7 +314,6 @@ toridraw_face_sort_flat_tile2_scalar(
     struct ToriDraw_Scene* scene,
     int rot,
     bool near_clipped,
-    int flip,
     int model_min_depth,
     int stash_xy,
     const int* RESTRICT vx,
@@ -325,9 +325,9 @@ toridraw_face_sort_flat_tile2_scalar(
     if( rot == 0 )
     {
         n += toridraw_face_sort_flat_one_abc(
-            scene, 0, 1, 2, 3, near_clipped, flip, model_min_depth, stash_xy, vx, vy, vz, keys + n);
+            scene, 0, 1, 2, 3, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys + n);
         n += toridraw_face_sort_flat_one_abc(
-            scene, 1, 0, 1, 3, near_clipped, flip, model_min_depth, stash_xy, vx, vy, vz, keys + n);
+            scene, 1, 0, 1, 3, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys + n);
     }
     else
     {
@@ -336,33 +336,9 @@ toridraw_face_sort_flat_tile2_scalar(
         uint32_t const r2 = (uint32_t)((2 - rot) & 3);
         uint32_t const r3 = (uint32_t)((3 - rot) & 3);
         n += toridraw_face_sort_flat_one_abc(
-            scene,
-            0,
-            r1,
-            r2,
-            r3,
-            near_clipped,
-            flip,
-            model_min_depth,
-            stash_xy,
-            vx,
-            vy,
-            vz,
-            keys + n);
+            scene, 0, r1, r2, r3, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys + n);
         n += toridraw_face_sort_flat_one_abc(
-            scene,
-            1,
-            r0,
-            r1,
-            r3,
-            near_clipped,
-            flip,
-            model_min_depth,
-            stash_xy,
-            vx,
-            vy,
-            vz,
-            keys + n);
+            scene, 1, r0, r1, r3, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys + n);
     }
     return n;
 }
@@ -492,7 +468,6 @@ toridraw_face_sort_flat(
 {
     uint32_t* const keys = scene->sm_sort_keys;
     int const stash_xy = presort;
-    int const flip = toridraw_flip_winding();
     int tile_n = 0;
     int n = 0;
     int f = 0;
@@ -502,7 +477,7 @@ toridraw_face_sort_flat(
 
     scene->sm_face_xy_valid = stash_xy;
     if( stash_xy )
-        g_toridraw_presort_models++;
+        TORIDRAW_BATCH_COUNT(g_toridraw_presort_models);
 
     /* The terrain tile, if this lane has a kernel for one. A lane that has
      * none says so by declining and the tile falls through to the two loops
@@ -514,7 +489,6 @@ toridraw_face_sort_flat(
                 scene,
                 tile2_rot,
                 near_clipped,
-                flip,
                 model_min_depth,
                 stash_xy,
                 vx,
@@ -533,7 +507,6 @@ toridraw_face_sort_flat(
         &f,
         num_faces,
         near_clipped,
-        flip,
         model_min_depth,
         stash_xy,
         vx,
@@ -549,7 +522,6 @@ toridraw_face_sort_flat(
             scene,
             f,
             near_clipped,
-            flip,
             model_min_depth,
             stash_xy,
             vx,

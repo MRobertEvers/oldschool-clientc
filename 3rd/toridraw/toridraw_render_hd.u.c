@@ -1181,13 +1181,6 @@ hd_ctx_setup(
         out_stats->faces = ctx->m->face_count;
 }
 
-static const struct ToriDraw_RasterKernelHD*
-hd_builtin_kernel(void)
-{
-    return ToriDraw_RasterGetScanline() ? ToriDraw_RasterKernelHDGetScanline()
-                                        : ToriDraw_RasterKernelHDGetBranching();
-}
-
 /**
  * Is this face facing the camera?
  *
@@ -1234,20 +1227,26 @@ hd_render_begin(
     toripixel_t* pixel_buffer,
     const struct ToriDraw_HDMaterials* materials,
     struct ToriDraw_HDRenderStats* out_stats,
-    const struct ToriDraw_RasterKernelHD* kernel)
+    const struct ToriDraw_Kernel* table)
 {
+    const struct ToriDraw_RasterKernelHD* kernel;
     int result;
 
     if( out_stats )
         memset(out_stats, 0, sizeof(*out_stats));
 
     assert(scene);
-    assert(kernel);
+    assert(table);
+    assert(table->raster_hd && "an SD or GPU table has no HD raster stage");
+    kernel = table->raster_hd;
     ToriDraw_RasterKernelHDAssertValid(kernel);
     if( !ToriDraw_ModelKindIsFull(hnd.kind) || !hnd.u.model.model )
         return TORIDRAW_CULL_ERROR;
 
-    result = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
+    /* Stage 1 through the table, not through the entry that resolves its own
+     * projection: which projection HD runs is now the table's answer. */
+    result = ToriDraw_RenderModel1ProjectWithTable(
+        hnd, scene, position, view_port, camera, table);
     if( result != TORIDRAW_CULL_VISIBLE )
         return result;
 
@@ -1259,9 +1258,14 @@ hd_render_begin(
 static void
 hd_draw_faces_sorted(
     struct hd_ctx* ctx,
-    struct ToriDraw_ModelHandle hnd)
+    struct ToriDraw_ModelHandle hnd,
+    const struct ToriDraw_Kernel* table)
 {
-    ToriDraw_RenderModel2SortFaces(hnd, ctx->scene);
+    /* Stage 2 through the table. The presort argument is not passed and could
+     * not be: an HD raster names no whole-model door, so there is nothing that
+     * would read the y-ordered stash and the table entry derives `false`
+     * without HD having to say so. */
+    ToriDraw_RenderModel2SortFacesWithTable(hnd, ctx->scene, table);
     for( int i = 0; i < ctx->scene->tmp_face_order_count; i++ )
         hd_draw_face(ctx, ctx->scene->tmp_face_order[i]);
 }
@@ -1348,20 +1352,21 @@ hd_render_with_kernel_painter(
     toripixel_t* pixel_buffer,
     const struct ToriDraw_HDMaterials* materials,
     struct ToriDraw_HDRenderStats* out_stats,
-    const struct ToriDraw_RasterKernelHD* kernel)
+    const struct ToriDraw_Kernel* table)
 {
     struct hd_ctx ctx;
     int result;
 
-    assert(kernel);
-    assert((kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER) == 0);
+    assert(table);
+    assert(table->raster_hd);
+    assert((table->raster_hd->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER) == 0);
     result = hd_render_begin(
-        &ctx, hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, kernel);
+        &ctx, hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, table);
     if( result != TORIDRAW_CULL_VISIBLE )
         return result;
 
-    if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
-        hd_draw_faces_sorted(&ctx, hnd);
+    if( table->raster_hd->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
+        hd_draw_faces_sorted(&ctx, hnd, table);
     else
         hd_draw_faces_model_order(&ctx);
     return TORIDRAW_CULL_VISIBLE;
@@ -1377,24 +1382,52 @@ hd_render_with_kernel_z(
     toripixel_t* pixel_buffer,
     const struct ToriDraw_HDMaterials* materials,
     struct ToriDraw_HDRenderStats* out_stats,
-    const struct ToriDraw_RasterKernelHD* kernel)
+    const struct ToriDraw_Kernel* table)
 {
     struct hd_ctx ctx;
     int result;
 
-    assert(kernel);
-    assert(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER);
+    assert(table);
+    assert(table->raster_hd);
+    assert(table->raster_hd->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER);
     result = hd_render_begin(
-        &ctx, hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, kernel);
+        &ctx, hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, table);
     if( result != TORIDRAW_CULL_VISIBLE )
         return result;
     hd_enable_zbuffer(&ctx);
 
-    if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
-        hd_draw_faces_sorted(&ctx, hnd);
+    if( table->raster_hd->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
+        hd_draw_faces_sorted(&ctx, hnd, table);
     else
         hd_draw_faces_model_order(&ctx);
     return TORIDRAW_CULL_VISIBLE;
+}
+
+/*
+ * A table for a caller who brought their own HD raster and nothing else.
+ *
+ * The HD twin of ToriDraw_RenderModelWithRasterKernel's situation: the caller
+ * has named stage 3 and said nothing about stages 1 and 2, so those are the
+ * library's defaults -- said out loud, into a real table, rather than left as
+ * two entry points that each resolve their own.
+ *
+ * On the stack, because it exists for the duration of one render call and
+ * names an object the caller owns. The prebaked tables are the ones that live
+ * for the process.
+ */
+static struct ToriDraw_Kernel
+hd_table_for_raster(const struct ToriDraw_RasterKernelHD* kernel)
+{
+    struct ToriDraw_Kernel table = {
+        .name = "hd-caller",
+        .projection = ToriDraw_ProjectionKernelGetDefault(),
+        .face_sort = ToriDraw_FaceCullSortKernelGetDefault(),
+        .raster = NULL,
+        .raster_hd = kernel,
+    };
+
+    assert(kernel);
+    return table;
 }
 
 int
@@ -1417,7 +1450,7 @@ ToriDraw_RenderHD(
         pixel_buffer,
         materials,
         out_stats,
-        hd_builtin_kernel());
+        ToriDraw_KernelGetHDPainter());
 }
 
 int
@@ -1432,12 +1465,13 @@ ToriDraw_RenderHDWithRasterKernel(
     struct ToriDraw_HDRenderStats* out_stats,
     const struct ToriDraw_RasterKernelHD* kernel)
 {
-    assert(kernel);
+    struct ToriDraw_Kernel const table = hd_table_for_raster(kernel);
+
     if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER )
         return hd_render_with_kernel_z(
-            hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, kernel);
+            hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, &table);
     return hd_render_with_kernel_painter(
-        hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, kernel);
+        hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, &table);
 }
 
 int
@@ -1460,7 +1494,7 @@ ToriDraw_RenderHDZBuffered(
         pixel_buffer,
         materials,
         out_stats,
-        ToriDraw_RasterKernelHDGetZBuffered());
+        ToriDraw_KernelGetHDZBuffered());
 }
 
 int
@@ -1475,10 +1509,11 @@ ToriDraw_RenderHDZBufferedWithRasterKernel(
     struct ToriDraw_HDRenderStats* out_stats,
     const struct ToriDraw_RasterKernelHD* kernel)
 {
-    assert(kernel);
+    struct ToriDraw_Kernel const table = hd_table_for_raster(kernel);
+
     assert(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER);
     return hd_render_with_kernel_z(
-        hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, kernel);
+        hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, &table);
 }
 
 #else /* TORIDRAW_PIXEL16 */

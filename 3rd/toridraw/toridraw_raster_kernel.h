@@ -645,6 +645,26 @@ struct ToriDraw_Kernel
     const struct ToriDraw_ProjectionKernel* projection;
     const struct ToriDraw_FaceCullSortKernel* face_sort;
     const struct ToriDraw_RasterKernelSD* raster;
+    /*
+     * Stage 3 for the HD pipeline, if this table has one.
+     *
+     * A table names ONE raster, and which of these two slots holds it says
+     * which pipeline the table is for: the SD painter's four face classes, or
+     * HD's six. Exactly one is non-NULL in every prebaked table, and the entry
+     * points assert the one they need -- an SD entry handed an HD table finds
+     * a NULL where its raster should be, and says so, rather than drawing six
+     * classes' worth of faces through four callbacks.
+     *
+     * The GPU table is the one with neither, which is not a third pipeline but
+     * the absence of stage 3 altogether.
+     *
+     * HD never asks the sort to presort. That is not a policy written here, it
+     * follows: an HD raster kernel has no whole-model door to name -- no
+     * draw_model slot exists on it at all -- so there is nothing that could
+     * read the y-ordered stash, and kernel_table_wants_presort answers false
+     * without being told about HD.
+     */
+    const struct ToriDraw_RasterKernelHD* raster_hd;
 };
 
 /**
@@ -753,5 +773,17 @@ ToriDraw_KernelGetGpu(void);
  *  baker reads tmp_face_order and nothing else. */
 const struct ToriDraw_Kernel*
 ToriDraw_KernelGetSpriteBaker(void);
+
+/** The HD painter: six face classes, branching or scanline as
+ *  TORIDRAW_RASTER_SCANLINE decided. Sorts; never presorts, because no HD
+ *  raster has a whole-model door. Resolved at the call, like the SD stock
+ *  table -- take it once at init, after ToriDraw_Init. */
+const struct ToriDraw_Kernel*
+ToriDraw_KernelGetHDPainter(void);
+
+/** HD, depth-resolved. Stage 2 does not run: the buffer decides, and faces
+ *  draw in model order. */
+const struct ToriDraw_Kernel*
+ToriDraw_KernelGetHDZBuffered(void);
 
 #endif

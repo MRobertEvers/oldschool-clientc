@@ -489,6 +489,193 @@ painter_wev_debug_done(
     fprintf(stderr, "wev: DESCEND done view %d emitted %d command(s)\n", view_id, commands);
 }
 
+
+/* ---------------------------------------------------------------------------
+ * `TORIRS_PAINTER_STALL=1|all` — wave-front stall census.
+ *
+ * THE QUESTION THIS ANSWERS: how often does the bucket drain actually need the
+ * perimeter seed generator (painters_seedgen.u.c)?
+ *
+ * The classify pass pushes every READY tile into the queue up front, so on a
+ * frame where the wave-front reaches everything the queue empties only once
+ * tiles_remaining has hit zero, and the drain breaks before the seed branch.
+ * The seed branch is reached only when the queue empties with tiles STILL
+ * READY — which happens because `bucket_gate_blocks(...) -> continue` pops a
+ * tile and drops it without re-queuing it and without marking it DONE. When
+ * the last tiles standing are all gate-blocked on one another, nothing is left
+ * to re-push them and the wave-front has stalled. The generator then walks the
+ * draw-box perimeter for a still-READY tile to restart from; phase 2 relaxes
+ * the adjacency gate so a deadlocked set cannot stall forever.
+ *
+ * So a stall is not an error — it is the ordinary traversal restart. What is
+ * worth knowing is the RATE (how many per frame, on what kind of scene) and
+ * the GIVE-UPS: a stall no perimeter seed can restart ends the drain with
+ * tiles still READY, and those tiles are simply never painted. That is the one
+ * outcome here that is visible on screen.
+ *
+ *   TORIRS_PAINTER_STALL=1     summary to stderr at exit
+ *   TORIRS_PAINTER_STALL=all   the above, plus a line per stall
+ * ------------------------------------------------------------------------ */
+struct PainterStallCensus
+{
+    int enabled; /* -1 = unresolved, 0 = off, 1 = summary, 2 = every stall */
+    int registered;
+    long paints;          /* painter_paint_bucket calls */
+    long paints_stalled;  /* ... of which stalled at least once */
+    long stalls;          /* queue emptied with tiles still READY */
+    long reseeds;         /* ... that a perimeter seed restarted */
+    long giveups;         /* ... that no seed could restart */
+    long stranded;        /* tiles left READY by a give-up */
+    long max_per_paint;
+    long this_paint;
+    long deferrals;       /* tiles the adjacency gate popped and dropped */
+    long pushes;          /* queue pushes, initial + every re-push */
+};
+
+static struct PainterStallCensus g_stall = { -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+static void
+painter_stall_report(void)
+{
+    if( g_stall.enabled <= 0 )
+        return;
+    fprintf(
+        stderr,
+        "painter stall census: %ld paint(s), %ld stalled (%.1f%%), %ld stall(s) total "
+        "(%.2f/paint, max %ld in one paint)\n",
+        g_stall.paints,
+        g_stall.paints_stalled,
+        g_stall.paints ? 100.0 * (double)g_stall.paints_stalled / (double)g_stall.paints : 0.0,
+        g_stall.stalls,
+        g_stall.paints ? (double)g_stall.stalls / (double)g_stall.paints : 0.0,
+        g_stall.max_per_paint);
+    fprintf(
+        stderr,
+        "  restarted by a perimeter seed: %ld     unrecoverable: %ld (%ld tile(s) left "
+        "unpainted)\n",
+        g_stall.reseeds,
+        g_stall.giveups,
+        g_stall.stranded);
+    /* The denominator the stall count means nothing without. A deferral is the
+     * only thing that can strand a tile: the gate popped it and dropped it
+     * without re-queuing it. If deferrals are plentiful and stalls are zero,
+     * the wave-front is re-pushing every deferred tile from a neighbour before
+     * the queue runs dry -- which is the generator earning its keep by never
+     * being needed, not the generator being dead. */
+    fprintf(
+        stderr,
+        "  adjacency-gate deferrals: %ld (%.1f/paint), queue pushes: %ld (%.1f/paint)\n",
+        g_stall.deferrals,
+        g_stall.paints ? (double)g_stall.deferrals / (double)g_stall.paints : 0.0,
+        g_stall.pushes,
+        g_stall.paints ? (double)g_stall.pushes / (double)g_stall.paints : 0.0);
+}
+
+static int
+painter_stall_enabled(void)
+{
+    if( g_stall.enabled < 0 )
+    {
+        char const* v = getenv("TORIRS_PAINTER_STALL");
+        g_stall.enabled = 0;
+        if( v && v[0] && v[0] != '0' )
+            g_stall.enabled = (v[0] == 'a') ? 2 : 1;
+        if( g_stall.enabled && !g_stall.registered )
+        {
+            g_stall.registered = 1;
+            atexit(painter_stall_report);
+        }
+    }
+    return g_stall.enabled;
+}
+
+/** One painter_paint_bucket call is starting. */
+static void
+painter_stall_frame(void)
+{
+    if( !painter_stall_enabled() )
+        return;
+    g_stall.paints++;
+    g_stall.this_paint = 0;
+}
+
+/** The queue emptied with `tiles_remaining` tiles still READY. */
+static void
+painter_stall_note(
+    int depth,
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel,
+    int tiles_remaining,
+    int tiles_in_box)
+{
+    if( !painter_stall_enabled() )
+        return;
+    g_stall.stalls++;
+    if( ++g_stall.this_paint == 1 )
+        g_stall.paints_stalled++;
+    if( g_stall.this_paint > g_stall.max_per_paint )
+        g_stall.max_per_paint = g_stall.this_paint;
+    if( g_stall.enabled < 2 )
+        return;
+    fprintf(
+        stderr,
+        "painter stall: paint %ld #%ld depth=%d cam=%d,%d L%d remaining=%d of %d\n",
+        g_stall.paints,
+        g_stall.this_paint,
+        depth,
+        camera_sx,
+        camera_sz,
+        camera_slevel,
+        tiles_remaining,
+        tiles_in_box);
+}
+
+/** A perimeter seed restarted the wave-front from (sx, sz, level). */
+static void
+painter_stall_reseeded(
+    int sx,
+    int sz,
+    int level,
+    int phase)
+{
+    if( !painter_stall_enabled() )
+        return;
+    g_stall.reseeds++;
+    if( g_stall.enabled < 2 )
+        return;
+    fprintf(
+        stderr, "  -> reseeded at %d,%d L%d (phase %d)\n", sx, sz, level, phase);
+}
+
+/** One bucket_paint_world run finished; fold its per-paint totals in. */
+static void
+painter_stall_paint_end(
+    long gate_rejects,
+    long pushes)
+{
+    if( !painter_stall_enabled() )
+        return;
+    g_stall.deferrals += gate_rejects;
+    g_stall.pushes += pushes;
+}
+
+/** No perimeter seed could restart it; the drain ends with tiles unpainted. */
+static void
+painter_stall_giveup(int tiles_remaining)
+{
+    if( !painter_stall_enabled() )
+        return;
+    g_stall.giveups++;
+    g_stall.stranded += tiles_remaining;
+    if( g_stall.enabled < 2 )
+        return;
+    fprintf(
+        stderr,
+        "  -> NO SEED AVAILABLE; %d tile(s) left unpainted\n",
+        tiles_remaining);
+}
+
 /* -------------------------------------------------------------------------
  * The call-site façade. Everything above is reached through these and nothing
  * else, so the disabled branch below is the whole cost of the facility in a
@@ -519,6 +706,18 @@ painter_wev_debug_done(
 #define PAINTER_DBG_WEV_DONE(view_id, commands) \
     painter_wev_debug_done((view_id), (commands))
 
+#define PAINTER_DBG_STALL_FRAME() painter_stall_frame()
+#define PAINTER_DBG_STALL_NOTE( \
+    depth, camera_sx, camera_sz, camera_slevel, tiles_remaining, tiles_in_box) \
+    painter_stall_note( \
+        (depth), (camera_sx), (camera_sz), (camera_slevel), (tiles_remaining), \
+        (tiles_in_box))
+#define PAINTER_DBG_STALL_RESEEDED(sx, sz, level, phase) \
+    painter_stall_reseeded((sx), (sz), (level), (phase))
+#define PAINTER_DBG_STALL_GIVEUP(tiles_remaining) painter_stall_giveup((tiles_remaining))
+#define PAINTER_DBG_STALL_PAINT_END(gate_rejects, pushes) \
+    painter_stall_paint_end((long)(gate_rejects), (long)(pushes))
+
 #else /* !PAINTERS_DEBUG */
 
 /* Argument-consuming, so a local that only the log reads is still "used".
@@ -545,6 +744,17 @@ painter_wev_debug_done(
     ((void)(view_id), (void)(active), (void)(dup_id), (void)(dup_painter), (void)(depth), \
      (void)(camera_sx), (void)(camera_sz), (void)(commands))
 #define PAINTER_DBG_WEV_DONE(view_id, commands) ((void)(view_id), (void)(commands))
+
+#define PAINTER_DBG_STALL_FRAME() ((void)0)
+#define PAINTER_DBG_STALL_NOTE( \
+    depth, camera_sx, camera_sz, camera_slevel, tiles_remaining, tiles_in_box) \
+    ((void)(depth), (void)(camera_sx), (void)(camera_sz), (void)(camera_slevel), \
+     (void)(tiles_remaining), (void)(tiles_in_box))
+#define PAINTER_DBG_STALL_RESEEDED(sx, sz, level, phase) \
+    ((void)(sx), (void)(sz), (void)(level), (void)(phase))
+#define PAINTER_DBG_STALL_GIVEUP(tiles_remaining) ((void)(tiles_remaining))
+#define PAINTER_DBG_STALL_PAINT_END(gate_rejects, pushes) \
+    ((void)(gate_rejects), (void)(pushes))
 
 #endif /* PAINTERS_DEBUG */
 

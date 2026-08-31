@@ -22,7 +22,6 @@ toridraw_face_sort_flat_lane_blocks(
     int* f_io,
     int num_faces,
     bool near_clipped,
-    int flip,
     int model_min_depth,
     int stash_xy,
     const int* RESTRICT vx,
@@ -38,7 +37,6 @@ toridraw_face_sort_flat_lane_blocks(
         f_io,
         num_faces,
         near_clipped,
-        flip,
         model_min_depth,
         stash_xy,
         vx,
@@ -55,7 +53,6 @@ toridraw_face_sort_flat_lane_tile2(
     struct ToriDraw_Scene* scene,
     int tile2_rot,
     bool near_clipped,
-    int flip,
     int model_min_depth,
     int stash_xy,
     const int* RESTRICT vx,
@@ -65,7 +62,7 @@ toridraw_face_sort_flat_lane_tile2(
     int* out_n)
 {
     return TORIDRAW_FACE_SORT_TILE2_DECLINE(
-        scene, tile2_rot, near_clipped, flip, model_min_depth, stash_xy, vx, vy, vz, keys, out_n);
+        scene, tile2_rot, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys, out_n);
 }
 
 static inline bool

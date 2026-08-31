@@ -215,8 +215,7 @@ zbuf_span(
         return;
 
     float key = s->key_at_x0 + s->key_step_dx * (float)x_start;
-    int hsl_ish8 = toridraw_wrap_add(
-        s->hsl_ish8, toridraw_wrap_mul(s->hsl_step_dx_ish8, x_start));
+    int hsl_ish8 = toridraw_wrap_add(s->hsl_ish8, toridraw_wrap_mul(s->hsl_step_dx_ish8, x_start));
     int shade8_ish8 = s->shade8_ish8 + s->step_shade8_dx_ish8 * x_start;
 
     /* The texture numerators are stated at the centre column, so walk them from
@@ -372,9 +371,8 @@ raster_zbuf_screen_ordered(
     /* A translucent surface must not occlude what is drawn after it, and a
      * per-texel-alpha material is translucent texel by texel. Both test,
      * neither writes. */
-    s.depth_write =
-        tri->alpha == 0xFF && !(mode == TORIDRAW_ZBUF_MODE_TEXTURE &&
-                                tri->tex_kind == TORIDRAW_ZBUF_TEX_ALPHA);
+    s.depth_write = tri->alpha == 0xFF && !(mode == TORIDRAW_ZBUF_MODE_TEXTURE &&
+                                            tri->tex_kind == TORIDRAW_ZBUF_TEX_ALPHA);
 
     /*
      * Depth plane. The key is linear in screen space by construction (see
@@ -399,10 +397,10 @@ raster_zbuf_screen_ordered(
         int const d_hsl_AC = tri->shade[2] - tri->shade[0];
 
         double recip_sarea = gouraudhsllightness_barycentric_recip(sarea);
-        s.hsl_step_dx_ish8 =
-            gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, recip_sarea);
-        d.hsl_dy_ish8 =
-            gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, recip_sarea);
+        s.hsl_step_dx_ish8 = gouraudhsllightness_barycentric_hsl_step_ish8(
+            d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, recip_sarea);
+        d.hsl_dy_ish8 = gouraudhsllightness_barycentric_hsl_step_ish8(
+            d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, recip_sarea);
         s.hsl_ish8 = toridraw_wrap_sub(
             toridraw_wrap_add(s.hsl_step_dx_ish8, tri->shade[0] << 8),
             toridraw_wrap_mul(x0, s.hsl_step_dx_ish8));
@@ -472,8 +470,7 @@ raster_zbuf_screen_ordered(
 
         d.shade8_dy_ish8 = ((dx_AC * dshade_ab - dx_AB * dshade_ac) << 9) / sarea_abc;
         s.step_shade8_dx_ish8 = ((dy_AB * dshade_ac - dy_AC * dshade_ab) << 9) / sarea_abc;
-        s.shade8_ish8 =
-            (tri->shade[0] << 9) - s.step_shade8_dx_ish8 * x0 + s.step_shade8_dx_ish8;
+        s.shade8_ish8 = (tri->shade[0] << 9) - s.step_shade8_dx_ish8 * x0 + s.step_shade8_dx_ish8;
 
         s.texels = tri->texels;
         s.texture_width = tri->texture_width;
@@ -574,12 +571,10 @@ raster_zbuf_screen_ordered(
     {
         if( ac_is_right )
             zbuf_span(
-                pixel_buffer, zbuffer, offset, screen_width, edge_x_AB_ish16,
-                edge_x_AC_ish16, &s);
+                pixel_buffer, zbuffer, offset, screen_width, edge_x_AB_ish16, edge_x_AC_ish16, &s);
         else
             zbuf_span(
-                pixel_buffer, zbuffer, offset, screen_width, edge_x_AC_ish16,
-                edge_x_AB_ish16, &s);
+                pixel_buffer, zbuffer, offset, screen_width, edge_x_AC_ish16, edge_x_AB_ish16, &s);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -591,12 +586,10 @@ raster_zbuf_screen_ordered(
     {
         if( ac_is_right )
             zbuf_span(
-                pixel_buffer, zbuffer, offset, screen_width, edge_x_BC_ish16,
-                edge_x_AC_ish16, &s);
+                pixel_buffer, zbuffer, offset, screen_width, edge_x_BC_ish16, edge_x_AC_ish16, &s);
         else
             zbuf_span(
-                pixel_buffer, zbuffer, offset, screen_width, edge_x_AC_ish16,
-                edge_x_BC_ish16, &s);
+                pixel_buffer, zbuffer, offset, screen_width, edge_x_AC_ish16, edge_x_BC_ish16, &s);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_BC_ish16 += step_edge_x_BC_ish16;

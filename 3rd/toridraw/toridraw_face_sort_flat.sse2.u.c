@@ -142,7 +142,6 @@ toridraw_face_sort_flat_pack4_sse2(
     int f,
     int lanes,
     __m128i near_clip_sentinel, /* -5000 x4 when near_clipped, else INT_MIN x4 */
-    int flip,
     __m128i min_depth,
     __m128i depth_levels,
     int stash_xy,
@@ -171,9 +170,13 @@ toridraw_face_sort_flat_pack4_sse2(
         _mm_mul_pd(
             _mm_cvtepi32_pd(_mm_srli_si128(dy1, 8)), _mm_cvtepi32_pd(_mm_srli_si128(dx2, 8))));
     __m128d const zero = _mm_setzero_pd();
+#if TORIDRAW_FLIP_WINDING
     __m128i const front =
-        flip ? toridraw_sse2_pack_pd_masks(_mm_cmplt_pd(w_lo, zero), _mm_cmplt_pd(w_hi, zero))
-             : toridraw_sse2_pack_pd_masks(_mm_cmpgt_pd(w_lo, zero), _mm_cmpgt_pd(w_hi, zero));
+        toridraw_sse2_pack_pd_masks(_mm_cmplt_pd(w_lo, zero), _mm_cmplt_pd(w_hi, zero));
+#else
+    __m128i const front =
+        toridraw_sse2_pack_pd_masks(_mm_cmpgt_pd(w_lo, zero), _mm_cmpgt_pd(w_hi, zero));
+#endif
 
     /* A clipped vertex has sentinel x and no screen-space winding yet. */
     __m128i const clip = _mm_or_si128(
@@ -271,7 +274,6 @@ toridraw_face_sort_flat_block4_sse2(
     struct ToriDraw_Scene* scene,
     int f,
     __m128i near_clip_sentinel,
-    int flip,
     __m128i min_depth,
     __m128i depth_levels,
     int stash_xy,
@@ -293,7 +295,6 @@ toridraw_face_sort_flat_block4_sse2(
         f,
         4,
         near_clip_sentinel,
-        flip,
         min_depth,
         depth_levels,
         stash_xy,
@@ -349,7 +350,6 @@ toridraw_face_sort_flat_tile2_sse2(
     struct ToriDraw_Scene* scene,
     int rot, /* quarter turns, 0..3 */
     __m128i near_clip_sentinel,
-    int flip,
     __m128i min_depth,
     __m128i depth_levels,
     int stash_xy,
@@ -395,7 +395,6 @@ toridraw_face_sort_flat_tile2_sse2(
         0,
         2,
         near_clip_sentinel,
-        flip,
         min_depth,
         depth_levels,
         stash_xy,
@@ -514,7 +513,6 @@ toridraw_face_sort_flat_lane_blocks(
     int* f_io,
     int num_faces,
     bool near_clipped,
-    int flip,
     int model_min_depth,
     int stash_xy,
     const int* RESTRICT vx,
@@ -537,7 +535,6 @@ toridraw_face_sort_flat_lane_blocks(
             scene,
             f,
             sentinel,
-            flip,
             min_depth,
             levels,
             stash_xy,
@@ -564,7 +561,6 @@ toridraw_face_sort_flat_lane_tile2(
     struct ToriDraw_Scene* scene,
     int tile2_rot,
     bool near_clipped,
-    int flip,
     int model_min_depth,
     int stash_xy,
     const int* RESTRICT vx,
@@ -581,7 +577,6 @@ toridraw_face_sort_flat_lane_tile2(
             scene,
             tile2_rot,
             _mm_set1_epi32(near_clipped ? TORIDRAW_SCREEN_X_NEAR_CLIPPED : INT_MIN),
-            flip,
             _mm_set1_epi32(model_min_depth),
             _mm_set1_epi32(scene->depth_levels),
             stash_xy,
@@ -595,7 +590,7 @@ toridraw_face_sort_flat_lane_tile2(
     if( armed == TORIDRAW_TILE_SORT_SCALAR )
     {
         *out_n = toridraw_face_sort_flat_tile2_scalar(
-            scene, tile2_rot, near_clipped, flip, model_min_depth, stash_xy, vx, vy, vz, keys);
+            scene, tile2_rot, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys);
         return true;
     }
 

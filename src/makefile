@@ -398,6 +398,27 @@ ifeq ($(TORIDRAW_DEBUG_NDJSON),1)
 TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_DEBUG_NDJSON=1
 endif
 
+# The batched walk's census (3rd/toridraw/graphics/batch_stats.h): how much of a
+# frame reaches a presorted kernel. Three of its four counters sit inside the
+# per-face loop of the walk they measure, so it is compile-time and there is no
+# env var within it -- a build that has it reports at exit.
+#
+#   make -C src TORIDRAW_BATCH_STATS=1 ...
+ifeq ($(TORIDRAW_BATCH_STATS),1)
+TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_BATCH_STATS=1
+endif
+
+# The winding-handedness bisect (3rd/toridraw/graphics/winding.h): cull the
+# opposite screen-space winding, for checking whether an imported model's faces
+# are wound against the engine convention. Compile-time because it answers the
+# same for every face in the process; see the header for why it is not an env
+# var like the sort's kernel knobs.
+#
+#   make -C src TORIDRAW_FLIP_WINDING=1 ...
+ifeq ($(TORIDRAW_FLIP_WINDING),1)
+TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_FLIP_WINDING=1
+endif
+
 # The painter debug facility (painters/debug/painters_debug.u.c, gated by
 # painters/debug/painters_debug.h) is compile-time for the same reason: the
 # wedge log alone has ~25 sites inside the bucket drain loop, and a runtime

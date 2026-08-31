@@ -107,6 +107,10 @@ bucket_queue_empty(struct PainterBucketCtx* w)
     return w->n_in_queue == 0;
 }
 
+/* The perimeter reseed, one line at the point of use; see the file header for
+ * why the drain has a stall path at all and how little it runs. */
+#include "painters_bucket_reseed.u.c"
+
 static int
 bucket_ctx_init(struct Painter* painter)
 {
@@ -1059,10 +1063,7 @@ bucket_paint_world(
     struct PaintersElementCommand* cmd_cur = cursor->cur;
     struct PaintersElementCommand* cmd_end = cursor->end;
 
-    /* Incremental seed generator — initialized lazily on the first queue drain so frames
-     * where the cascade covers all tiles pay zero seed-iteration cost. */
-    struct PainterSeedGen seed_gen;
-    int seed_gen_initialized = 0;
+    struct PainterBucketReseed reseed = { .initialized = 0 };
     int check_adjacent = 1;
 
     TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_PAINTER_TILES_REMAINING_SET, tiles_remaining);
@@ -1095,46 +1096,8 @@ bucket_paint_world(
         {
             if( tiles_remaining == 0 )
                 break;
-            if( !seed_gen_initialized )
-            {
-                int seed_r = painter_seed_radius_for_box(
-                    camera_sx,
-                    camera_sz,
-                    min_draw_x,
-                    max_draw_x,
-                    min_draw_z,
-                    max_draw_z,
-                    radius);
-                seed_gen_init(
-                    &seed_gen,
-                    camera_sx,
-                    camera_sz,
-                    min_draw_x,
-                    max_draw_x,
-                    min_draw_z,
-                    max_draw_z,
-                    levels,
-                    seed_r);
-                seed_gen_initialized = 1;
-            }
-            int seeded = 0;
-            int sx, sz, level, phase;
-            while( seed_gen_next(&seed_gen, &sx, &sz, &level, &phase) )
-            {
-                int tidx = sx + sz * width + level * level_stride;
-                if( paints[tidx].step == PAINT_STEP_READY )
-                {
-                    int dist = abs(sx - camera_sx) + abs(sz - camera_sz);
-                    PAINTER_DBG_WEDGE_EVENTF(tidx, "SEED", "phase=%d d=%d", phase, dist);
-                    bucket_push_if_active(
-                        w, paints, tidx, dist, &perf_pushes, &perf_push_dedup);
-                    check_adjacent = (phase == 1);
-                    seeded = 1;
-                    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_DRAIN_EVENTS, 1);
-                    break;
-                }
-            }
-            if( !seeded )
+            /* The wave-front stalled; restart it from the perimeter. */
+            if( !PAINTER_BUCKET_RESEED(&reseed) )
                 break;
         }
 
@@ -1718,6 +1681,7 @@ bucket_paint_world(
 done:
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_POPS, perf_pops);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_GATE_REJECTS, perf_gate_rejects);
+    PAINTER_DBG_STALL_PAINT_END(perf_gate_rejects, perf_pushes);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_PUSHES, perf_pushes);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_PUSH_DEDUP, perf_push_dedup);
 }
@@ -1759,6 +1723,7 @@ painter_paint_bucket(
     cursor.end = buffer->commands + buffer->command_capacity;
 
     buffer->command_count = 0;
+    PAINTER_DBG_STALL_FRAME();
     bucket_paint_world(painter, &cursor, camera_sx, camera_sz, camera_slevel, &stack);
 
     buffer->command_count = (int)(cursor.cur - cursor.base);

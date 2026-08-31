@@ -1078,6 +1078,8 @@ sd_kernel_zbuffered_variant(const struct ToriDraw_RasterKernelSD* kernel)
 #include "kernels/table.software_zbuffered.u.c"
 #include "kernels/table.gpu.u.c"
 #include "kernels/table.sprite_baker.u.c"
+#include "kernels/table.hd_painter.u.c"
+#include "kernels/table.hd_zbuffered.u.c"
 // clang-format on
 
 const struct ToriDraw_RasterKernelSD*
@@ -1336,10 +1338,15 @@ ToriDraw_KernelScratchNeeds(
     (void)projection; /* Projection reads and writes the vertex arrays only. */
 
     /* A raster that resolves depth per pixel takes no face order, so stage 2
-     * does not run and none of its scratch is touched. A NULL raster is the
-     * GPU table, which does sort. */
+     * does not run and none of its scratch is touched. Which raster answers
+     * that is the table's other question: an HD table fills raster_hd and
+     * leaves raster NULL, and a table with neither is the GPU one, which does
+     * sort -- its faces go to a vertex upload in that order. */
     if( kernel->raster &&
         !(kernel->raster->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING) )
+        return needs;
+    if( kernel->raster_hd &&
+        !(kernel->raster_hd->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING) )
         return needs;
 
     needs |= TORIDRAW_SCENE_SCRATCH_FACE_ORDER;
@@ -1522,6 +1529,36 @@ ToriDraw_KernelValidate(
             !(sort->provides & TORIDRAW_FACESORT_PROVIDES_FACE_ORDER) )
         {
             *why = "raster needs a face order the sort does not provide";
+            return TORIDRAW_KERNEL_FIT_INCOMPATIBLE;
+        }
+    }
+
+    if( kernel->raster && kernel->raster_hd )
+    {
+        /* A table names ONE raster. Two would leave every entry point to guess
+         * which pipeline the caller meant. */
+        *why = "table names both an SD and an HD raster";
+        return TORIDRAW_KERNEL_FIT_INCOMPATIBLE;
+    }
+    if( kernel->raster_hd )
+    {
+        if( !kernel->raster_hd->vtable )
+        {
+            *why = "HD raster kernel has no vtable";
+            return TORIDRAW_KERNEL_FIT_INCOMPATIBLE;
+        }
+        for( int i = 0; i < TORIDRAW_RASTER_FACE_HD_CLASS_COUNT; i++ )
+        {
+            if( !kernel->raster_hd->vtable->draw[i] )
+            {
+                *why = "HD raster vtable has a NULL face slot";
+                return TORIDRAW_KERNEL_FIT_INCOMPATIBLE;
+            }
+        }
+        if( (kernel->raster_hd->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING) &&
+            !(sort->provides & TORIDRAW_FACESORT_PROVIDES_FACE_ORDER) )
+        {
+            *why = "HD raster needs a face order the sort does not provide";
             return TORIDRAW_KERNEL_FIT_INCOMPATIBLE;
         }
     }

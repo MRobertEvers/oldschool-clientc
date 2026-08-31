@@ -5,6 +5,8 @@
 
 #include <arm_neon.h>
 
+#include <limits.h>
+
 /*
  * The AArch64 lane of the flat face sort. See toridraw_face_sort_flat.h for
  * the three hooks every lane owes the dispatcher; this file provides all
@@ -69,7 +71,6 @@ toridraw_face_sort_flat_block4_neon(
     struct ToriDraw_Scene* scene,
     int f,
     int32x4_t near_clip_sentinel, /* -5000 x4 when near_clipped, else INT_MIN x4 */
-    int flip,
     int32x4_t min_depth,
     uint32x4_t depth_levels,
     int stash_xy,
@@ -114,18 +115,13 @@ toridraw_face_sort_flat_block4_neon(
     w_lo = vmlsl_s32(w_lo, vget_low_s32(dy1), vget_low_s32(dx2));
     w_hi = vmlsl_high_s32(w_hi, dy1, dx2);
     uint64x2_t const zero64 = vdupq_n_u64(0);
-    uint64x2_t front_lo;
-    uint64x2_t front_hi;
-    if( flip )
-    {
-        front_lo = vcltq_s64(w_lo, vreinterpretq_s64_u64(zero64));
-        front_hi = vcltq_s64(w_hi, vreinterpretq_s64_u64(zero64));
-    }
-    else
-    {
-        front_lo = vcgtq_s64(w_lo, vreinterpretq_s64_u64(zero64));
-        front_hi = vcgtq_s64(w_hi, vreinterpretq_s64_u64(zero64));
-    }
+#if TORIDRAW_FLIP_WINDING
+    uint64x2_t const front_lo = vcltq_s64(w_lo, vreinterpretq_s64_u64(zero64));
+    uint64x2_t const front_hi = vcltq_s64(w_hi, vreinterpretq_s64_u64(zero64));
+#else
+    uint64x2_t const front_lo = vcgtq_s64(w_lo, vreinterpretq_s64_u64(zero64));
+    uint64x2_t const front_hi = vcgtq_s64(w_hi, vreinterpretq_s64_u64(zero64));
+#endif
     uint32x4_t const front = vcombine_u32(vmovn_u64(front_lo), vmovn_u64(front_hi));
 
     /* A clipped vertex has sentinel x and no screen-space winding yet: the
@@ -287,7 +283,6 @@ toridraw_face_sort_flat_lane_blocks(
     int* f_io,
     int num_faces,
     bool near_clipped,
-    int flip,
     int model_min_depth,
     int stash_xy,
     const int* RESTRICT vx,
@@ -312,7 +307,6 @@ toridraw_face_sort_flat_lane_blocks(
             scene,
             f,
             sentinel,
-            flip,
             min_depth,
             levels,
             stash_xy,
@@ -333,7 +327,6 @@ toridraw_face_sort_flat_lane_tile2(
     struct ToriDraw_Scene* scene,
     int tile2_rot,
     bool near_clipped,
-    int flip,
     int model_min_depth,
     int stash_xy,
     const int* RESTRICT vx,
@@ -344,7 +337,7 @@ toridraw_face_sort_flat_lane_tile2(
 {
     /* No tile kernel is measured on NEON; see the header. */
     return TORIDRAW_FACE_SORT_TILE2_DECLINE(
-        scene, tile2_rot, near_clipped, flip, model_min_depth, stash_xy, vx, vy, vz, keys, out_n);
+        scene, tile2_rot, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys, out_n);
 }
 
 static inline bool

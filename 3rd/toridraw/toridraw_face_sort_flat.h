@@ -102,25 +102,11 @@
  * declining hook never looks at.
  */
 #define TORIDRAW_FACE_SORT_BLOCKS_DECLINE(                                                         \
-    scene,                                                                                         \
-    f_io,                                                                                          \
-    num_faces,                                                                                     \
-    near_clipped,                                                                                  \
-    flip,                                                                                          \
-    model_min_depth,                                                                               \
-    stash_xy,                                                                                      \
-    vx,                                                                                            \
-    vy,                                                                                            \
-    vz,                                                                                            \
-    fa,                                                                                            \
-    fb,                                                                                            \
-    fc,                                                                                            \
-    keys)                                                                                          \
+    scene, f_io, num_faces, near_clipped, model_min_depth, stash_xy, vx, vy, vz, fa, fb, fc, keys) \
     ((void)(scene),                                                                                \
      (void)(f_io),                                                                                 \
      (void)(num_faces),                                                                            \
      (void)(near_clipped),                                                                         \
-     (void)(flip),                                                                                 \
      (void)(model_min_depth),                                                                      \
      (void)(stash_xy),                                                                             \
      (void)(vx),                                                                                   \
@@ -134,11 +120,10 @@
 
 /* A lane with no terrain-tile kernel. */
 #define TORIDRAW_FACE_SORT_TILE2_DECLINE(                                                          \
-    scene, tile2_rot, near_clipped, flip, model_min_depth, stash_xy, vx, vy, vz, keys, out_n)      \
+    scene, tile2_rot, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys, out_n)            \
     ((void)(scene),                                                                                \
      (void)(tile2_rot),                                                                            \
      (void)(near_clipped),                                                                         \
-     (void)(flip),                                                                                 \
      (void)(model_min_depth),                                                                      \
      (void)(stash_xy),                                                                             \
      (void)(vx),                                                                                   \

@@ -88,15 +88,15 @@ struct ToriDrawModelRasterContext
     bool affine_textures;
     bool allow_near_clip;
     /*
-     * Two process constants, resolved once per model instead of once per face.
+     * A process constant, resolved once per model instead of once per face.
      *
-     * Both were getenv-caching function calls -- a load, a branch on a static,
+     * It was a getenv-caching function call -- a load, a branch on a static,
      * and on the first call a getenv -- sitting inside the per-face walk.
-     * Cheap individually and wrong structurally: the walk asks them for every
+     * Cheap individually and wrong structurally: the walk asked it for every
      * face of every model of every frame, and the answer was fixed before the
-     * process drew anything.
+     * process drew anything. (The winding flip sat here for the same reason
+     * and is gone: it is a compile-time constant now, see graphics/winding.h.)
      */
-    int winding_flip;
     bool skip_textured;
     /* Whether this model's projection could park TORIDRAW_SCREEN_X_NEAR_CLIPPED
      * in screen_vertices_x at all — scene->near_clipped, set by ToriDraw_Project.
@@ -826,14 +826,13 @@ toridraw_raster_face_front_facing(
                               ctx->vertex_x[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED) )
         return true;
 
-    return toridraw_winding_2d_front_facing_flip(
+    return toridraw_winding_2d_front_facing(
         ctx->vertex_x[a],
         ctx->vertex_y[a],
         ctx->vertex_x[b],
         ctx->vertex_y[b],
         ctx->vertex_x[c],
-        ctx->vertex_y[c],
-        ctx->winding_flip);
+        ctx->vertex_y[c]);
 }
 
 static inline void
@@ -855,7 +854,6 @@ toridraw_raster_context_init(
     ctx->kernel = *kernel;
     ctx->face_x4 = scene->sm_face_x4;
     ctx->face_y4 = scene->sm_face_y4;
-    ctx->winding_flip = toridraw_flip_winding();
     ctx->skip_textured = toridraw_raster_skip_textured();
     clip_left = view_port->clip_left > 0 ? view_port->clip_left : 0;
     clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
