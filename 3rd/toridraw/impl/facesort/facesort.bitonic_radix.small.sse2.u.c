@@ -1,13 +1,14 @@
-#ifndef TORIDRAW_FACE_SORT_FLAT_SSE2_U_C
-#define TORIDRAW_FACE_SORT_FLAT_SSE2_U_C
+#ifndef TORIDRAW_FACE_SORT_BITONIC_RADIX_SSE2_U_C
+#define TORIDRAW_FACE_SORT_BITONIC_RADIX_SSE2_U_C
 
-#include "impl/facesort/facesort.flat.small.dispatch.h"
+#include "impl/facesort/facesort.bitonic_radix.small.dispatch.h"
 
 #include <emmintrin.h>
 
 /*
- * The SSE2 lane of the flat face sort. See toridraw_face_sort_flat.h for the
- * three hooks every lane owes the dispatcher; this is the only lane that
+ * The SSE2 lane of the bitonic+radix face sort. See
+ * facesort.bitonic_radix.small.dispatch.h for the three hooks every lane owes
+ * the dispatcher; this is the only lane that
  * answers the terrain-tile one, because it is the only lane the two tile
  * kernels were ever measured on.
  */
@@ -124,7 +125,7 @@ toridraw_sse2_pack_pd_masks(
  * Cull, key, pack and stash four faces whose NINE coordinate vectors are
  * already in registers, lane i holding face f + i.
  *
- * Split out of toridraw_face_sort_flat_block4_sse2 so the terrain-tile kernel below
+ * Split out of toridraw_face_sort_bitonic_radix_block4_sse2 so the terrain-tile kernel below
  * can reach the same arithmetic rather than restate it. Everything that
  * differs between the two is a parameter that is a compile-time constant at
  * both call sites, so nothing here costs the general path anything:
@@ -137,7 +138,7 @@ toridraw_sse2_pack_pd_masks(
  * Writes four keys at *keys unconditionally; returns how many of them count.
  */
 static inline int
-toridraw_face_sort_flat_pack4_sse2(
+toridraw_face_sort_bitonic_radix_pack4_sse2(
     struct ToriDraw_Scene* scene,
     int f,
     int lanes,
@@ -270,7 +271,7 @@ toridraw_face_sort_flat_pack4_sse2(
 
 /* Four faces at f..f+3: gather by axis, then the shared cull above. */
 static inline int
-toridraw_face_sort_flat_block4_sse2(
+toridraw_face_sort_bitonic_radix_block4_sse2(
     struct ToriDraw_Scene* scene,
     int f,
     __m128i near_clip_sentinel,
@@ -290,7 +291,7 @@ toridraw_face_sort_flat_block4_sse2(
     int const c0 = face_c[f], c1 = face_c[f + 1], c2 = face_c[f + 2], c3 = face_c[f + 3];
 
     /* The gather, structure of arrays: _mm_set_epi32 takes lane 3 first. */
-    return toridraw_face_sort_flat_pack4_sse2(
+    return toridraw_face_sort_bitonic_radix_pack4_sse2(
         scene,
         f,
         4,
@@ -324,7 +325,7 @@ toridraw_face_sort_flat_block4_sse2(
  * tiles, costs none.
  *
  * MEASURED, it loses. On the isolated sort bench (make -C src
- * test-face-sort-flat, TORIDRAW_FACE_SORT_BENCH=1) over 256 tiles in the
+ * test-face-sort-bitonic-radix, TORIDRAW_FACE_SORT_BENCH=1) over 256 tiles in the
  * census's rotation mix, per input face:
  *
  *     TORIDRAW_TILE_SORT=0  general path       8.5 - 8.8 ns
@@ -346,7 +347,7 @@ toridraw_face_sort_flat_block4_sse2(
  * measured on NEON.
  */
 static inline int
-toridraw_face_sort_flat_tile2_sse2(
+toridraw_face_sort_bitonic_radix_tile2_sse2(
     struct ToriDraw_Scene* scene,
     int rot, /* quarter turns, 0..3 */
     __m128i near_clip_sentinel,
@@ -390,7 +391,7 @@ toridraw_face_sort_flat_tile2_sse2(
 #define TORIDRAW_TILE2_A(v) _mm_shuffle_epi32((v), _MM_SHUFFLE(1, 1, 0, 1))
 #define TORIDRAW_TILE2_B(v) _mm_shuffle_epi32((v), _MM_SHUFFLE(2, 2, 1, 2))
 #define TORIDRAW_TILE2_C(v) _mm_shuffle_epi32((v), _MM_SHUFFLE(3, 3, 3, 3))
-    return toridraw_face_sort_flat_pack4_sse2(
+    return toridraw_face_sort_bitonic_radix_pack4_sse2(
         scene,
         0,
         2,
@@ -508,7 +509,7 @@ toridraw_bitonic_sort_u32_sse2(
 /* ---- the lane hooks --------------------------------------------------- */
 
 static inline int
-toridraw_face_sort_flat_lane_blocks(
+toridraw_face_sort_bitonic_radix_lane_blocks(
     struct ToriDraw_Scene* scene,
     int* f_io,
     int num_faces,
@@ -531,7 +532,7 @@ toridraw_face_sort_flat_lane_blocks(
     int n = 0;
 
     for( ; f + 4 <= num_faces; f += 4 )
-        n += toridraw_face_sort_flat_block4_sse2(
+        n += toridraw_face_sort_bitonic_radix_block4_sse2(
             scene,
             f,
             sentinel,
@@ -557,7 +558,7 @@ toridraw_face_sort_flat_lane_blocks(
  * thing every other lane does unconditionally.
  */
 static inline bool
-toridraw_face_sort_flat_lane_tile2(
+toridraw_face_sort_bitonic_radix_lane_tile2(
     struct ToriDraw_Scene* scene,
     int tile2_rot,
     bool near_clipped,
@@ -573,7 +574,7 @@ toridraw_face_sort_flat_lane_tile2(
 
     if( armed == TORIDRAW_TILE_SORT_SIMD )
     {
-        *out_n = toridraw_face_sort_flat_tile2_sse2(
+        *out_n = toridraw_face_sort_bitonic_radix_tile2_sse2(
             scene,
             tile2_rot,
             _mm_set1_epi32(near_clipped ? TORIDRAW_SCREEN_X_NEAR_CLIPPED : INT_MIN),
@@ -589,7 +590,7 @@ toridraw_face_sort_flat_lane_tile2(
 
     if( armed == TORIDRAW_TILE_SORT_SCALAR )
     {
-        *out_n = toridraw_face_sort_flat_tile2_scalar(
+        *out_n = toridraw_face_sort_bitonic_radix_tile2_scalar(
             scene, tile2_rot, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys);
         return true;
     }
@@ -598,7 +599,7 @@ toridraw_face_sort_flat_lane_tile2(
 }
 
 static inline bool
-toridraw_face_sort_flat_lane_sort(
+toridraw_face_sort_bitonic_radix_lane_sort(
     uint32_t* keys,
     int n)
 {
@@ -615,4 +616,4 @@ toridraw_face_sort_flat_lane_sort(
     return true;
 }
 
-#endif /* TORIDRAW_FACE_SORT_FLAT_SSE2_U_C */
+#endif /* TORIDRAW_FACE_SORT_BITONIC_RADIX_SSE2_U_C */

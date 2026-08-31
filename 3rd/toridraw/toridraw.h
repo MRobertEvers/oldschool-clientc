@@ -30,15 +30,15 @@ ToriDraw_Init(void);
  * The two runtime knobs the raster A/B benchmark turns, overriding the
  * TORIDRAW_RASTER_BATCH and TORIDRAW_FACE_SORT environment variables:
  * whether the depth sort leaves its pre-sorted stash and the batched
- * presorted-run kernels draw from it, and whether the flat SIMD face sort
- * (cull + composite keys + bitonic/radix) replaces the bucket sort. -1
+ * presorted-run kernels draw from it, and whether the bitonic+radix SIMD face
+ * sort (cull + composite keys + bitonic/radix) replaces the bucket sort. -1
  * hands the decision back to the environment.
  */
 void
 ToriDraw_RasterBatchSetArmed(int enabled);
 
 void
-ToriDraw_FaceSortSetFlat(int enabled);
+ToriDraw_FaceSortSetBitonicRadix(int enabled);
 
 /**
  * Compatibility selector used by the legacy render entry points. Off by

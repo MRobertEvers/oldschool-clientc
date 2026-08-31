@@ -13,8 +13,9 @@
  *
  * Producer and consumer therefore have to agree on what index 4 means, exactly,
  * and they live in three different translation-unit halves that cannot see each
- * other's statics -- the flat sort, the bucket sort's stash, and the batched
- * walk. Each of them had its own copy of these six rows. Three literals that
+ * other's statics -- the bitonic+radix sort, the bucket sort's stash, and the
+ * batched walk. Each of them had its own copy of these six rows. Three
+ * literals that
  * must be identical, with nothing in the build that would notice if one of them
  * stopped being: editing one row of one of them draws a scrambled triangle
  * wherever the batcher takes a run, and correct triangles everywhere else.

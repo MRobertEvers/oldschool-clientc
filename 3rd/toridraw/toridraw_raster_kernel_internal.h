@@ -67,8 +67,9 @@ toridraw_raster_abl_nokernel(void)
  * which is the moment a renderer takes its kernel.
  *
  * That is also why the prebaked tables are mutable statics: the face sort is
- * still a runtime choice (TORIDRAW_FACE_SORT / ToriDraw_FaceSortSetFlat), it
- * is just made once, at a point the caller can see, instead of on every model.
+ * still a runtime choice (TORIDRAW_FACE_SORT /
+ * ToriDraw_FaceSortSetBitonicRadix), it is just made once, at a point the
+ * caller can see, instead of on every model.
  *
  * There is no kernel twin of this any more. A RASTER kernel names a raster;
  * the stage-1 and stage-2 pointers that used to hang off it were the thing

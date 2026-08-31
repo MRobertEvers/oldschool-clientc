@@ -1,10 +1,11 @@
 /*
- * The flat face sort against the bucket sort it replaces, order for order.
+ * The bitonic+radix face sort against the bucket sort it replaces, order for
+ * order.
  *
- * toridraw_face_sort_flat.u.c takes a different road to the same place: a
- * four-wide SIMD winding cull compacted into (depth, face) keys, a bitonic
- * network for a small model and a two-pass radix for a big one, and the
- * draw order read off the sorted keys. The bucket sort scatters faces into
+ * facesort.bitonic_radix.small.dispatch.u.c takes a different road to the same
+ * place: a four-wide SIMD winding cull compacted into (depth, face) keys, a
+ * bitonic network for a small model and a two-pass radix for a big one, and
+ * the draw order read off the sorted keys. The bucket sort scatters faces into
  * per-depth lists and walks them far to near. Both must produce the SAME
  * draw order -- not "a correct back-to-front order" but the bucket walk's
  * exact order, face for face, because the painter's result depends on the
@@ -32,10 +33,11 @@
  * enough that vertices cross it), and faces beyond the depth table.
  *
  * Both sorts run through the face-sort kernel objects
- * (ToriDraw_FaceCullSortKernelGetBucket / GetFlat), so the test also holds
+ * (ToriDraw_FaceCullSortKernelGetBucket / GetBitonicRadix), so the test also
+ * holds
  * the kernel dispatch to the sorts it names.
  *
- * Build and run:  make -C src test-face-sort-flat
+ * Build and run:  make -C src test-face-sort-bitonic-radix
  */
 
 #include "toridraw.h"
@@ -163,7 +165,7 @@ make_model(int vertex_count, int face_count, int extent, int with_priorities, in
  * three 4-vertex, 2-triangle shapes: four corners in SW, SE, NE, NW order,
  * faces (1,2,3) and (0,1,3), each corner index turned by the rotation. Those
  * are 94% of the tiles a loaded map contains, and tile_sort_kernel is what
- * puts them on the compile-time kernel in toridraw_face_sort_flat.u.c.
+ * puts them on the compile-time kernel in toridraw_face_sort_bitonic_radix.u.c.
  *
  * Heights are random per corner, which is the point: it is the corner heights
  * that decide the winding of each half of the quad, so a fixture set over
@@ -251,31 +253,31 @@ static void
 compare(
     const char* label,
     const struct SortResult* bucket,
-    const struct SortResult* flat)
+    const struct SortResult* keys)
 {
-    int n = bucket->count < flat->count ? bucket->count : flat->count;
+    int n = bucket->count < keys->count ? bucket->count : keys->count;
 
     g_fixtures++;
     g_faces_drawn += bucket->count;
-    CHECK(bucket->count == flat->count, "%s: drawn count bucket=%d flat=%d", label,
-          bucket->count, flat->count);
-    CHECK(bucket->stash_valid == flat->stash_valid, "%s: stash_valid bucket=%d flat=%d",
-          label, bucket->stash_valid, flat->stash_valid);
+    CHECK(bucket->count == keys->count, "%s: drawn count bucket=%d keys=%d", label,
+          bucket->count, keys->count);
+    CHECK(bucket->stash_valid == keys->stash_valid, "%s: stash_valid bucket=%d keys=%d",
+          label, bucket->stash_valid, keys->stash_valid);
     for( int i = 0; i < n; i++ )
     {
         g_faces_compared++;
-        if( bucket->order[i] != flat->order[i] )
+        if( bucket->order[i] != keys->order[i] )
         {
-            CHECK(0, "%s: order[%d] bucket=face %d flat=face %d", label, i,
-                  bucket->order[i], flat->order[i]);
+            CHECK(0, "%s: order[%d] bucket=face %d keys=face %d", label, i,
+                  bucket->order[i], keys->order[i]);
             return;
         }
-        if( bucket->stash_valid && flat->stash_valid )
+        if( bucket->stash_valid && keys->stash_valid )
         {
             const int* bx = &bucket->x4[i * 4];
-            const int* fx = &flat->x4[i * 4];
+            const int* fx = &keys->x4[i * 4];
             const int* by = &bucket->y4[i * 4];
-            const int* fy = &flat->y4[i * 4];
+            const int* fy = &keys->y4[i * 4];
             /*
              * x4[3] is the near-clip flag and is the whole contract for a
              * clipped face: it is what makes the batched walk hand the face to
@@ -284,7 +286,7 @@ compare(
              * toridraw_raster.u.c, all spelled `face_x4[face * 4 + 3]`).
              *
              * The two sorts genuinely differ there and always have. The bucket
-             * walk and the flat sort's scalar tail skip a clip candidate's
+             * walk and the key sort's scalar tail skip a clip candidate's
              * winding, so they never load its coordinates and write only the
              * flag; the four-wide block and the tile kernel compute all four
              * lanes unconditionally and store what they got. Holding them equal
@@ -299,7 +301,7 @@ compare(
             {
                 CHECK(0,
                       "%s: stash for face %d differs: bucket x(%d,%d,%d,%d) y(%d,%d,%d,%d) "
-                      "flat x(%d,%d,%d,%d) y(%d,%d,%d,%d)",
+                      "keys x(%d,%d,%d,%d) y(%d,%d,%d,%d)",
                       label, bucket->order[i], bx[0], bx[1], bx[2], bx[3], by[0], by[1],
                       by[2], by[3], fx[0], fx[1], fx[2], fx[3], fy[0], fy[1], fy[2], fy[3]);
                 return;
@@ -309,7 +311,7 @@ compare(
 }
 
 static struct SortResult g_bucket_result;
-static struct SortResult g_flat_result;
+static struct SortResult g_keys_result;
 
 static void
 run_fixture(
@@ -346,7 +348,8 @@ run_fixture(
         .yaw = yaw & 2047,
     };
     const struct ToriDraw_FaceCullSortKernel* bucket = ToriDraw_FaceCullSortKernelGetBucket();
-    const struct ToriDraw_FaceCullSortKernel* flat = ToriDraw_FaceCullSortKernelGetFlat();
+    const struct ToriDraw_FaceCullSortKernel* keys =
+        ToriDraw_FaceCullSortKernelGetBitonicRadix();
     int cull;
 
     cull = ToriDraw_RenderModel1Project(hnd, scene, &position, &viewport, &camera);
@@ -360,7 +363,7 @@ run_fixture(
     bucket->sort(bucket->user_data, scene, hnd, presort != 0);
     capture(scene, &g_bucket_result);
 
-    /* Dirty the outputs between the two so the flat sort cannot pass by
+    /* Dirty the outputs between the two so the key sort cannot pass by
      * leaving the bucket sort's answer in place. */
     memset(scene->tmp_face_order, 0x7F, (size_t)model->face_count * sizeof(int));
     if( scene->sm_face_x4 )
@@ -371,10 +374,10 @@ run_fixture(
     scene->sm_face_xy_valid = 0;
     scene->tmp_face_order_count = -1;
 
-    flat->sort(flat->user_data, scene, hnd, presort != 0);
-    capture(scene, &g_flat_result);
+    keys->sort(keys->user_data, scene, hnd, presort != 0);
+    capture(scene, &g_keys_result);
 
-    compare(label, &g_bucket_result, &g_flat_result);
+    compare(label, &g_bucket_result, &g_keys_result);
 }
 
 /*
@@ -404,7 +407,7 @@ bench_sorts(struct ToriDraw_Scene* scene)
     enum { MODELS = 64 };
     static const int sizes[] = { 64, 200, 256, 1000, 2000 };
     const struct ToriDraw_FaceCullSortKernel* k[2] = {
-        ToriDraw_FaceCullSortKernelGetBucket(), ToriDraw_FaceCullSortKernelGetFlat()
+        ToriDraw_FaceCullSortKernelGetBucket(), ToriDraw_FaceCullSortKernelGetBitonicRadix()
     };
     struct ToriDraw_ViewPort viewport = {
         .width = VIEW_W, .height = VIEW_H, .stride = VIEW_W,
@@ -420,8 +423,8 @@ bench_sorts(struct ToriDraw_Scene* scene)
     struct ToriDraw_Position position = { .z = 900 };
 
     ToriDraw_RasterBatchSetArmed(1);
-    printf("\n%-8s %-8s %12s %12s %12s %12s   %s\n", "faces", "drawn", "bucket us", "flat us",
-           "bucket ns/f", "flat ns/f", "flat/bucket");
+    printf("\n%-8s %-8s %12s %12s %12s %12s   %s\n", "faces", "drawn", "bucket us",
+           "keys us", "bucket ns/f", "keys ns/f", "keys/bucket");
     for( size_t si = 0; si < sizeof(sizes) / sizeof(sizes[0]); si++ )
     {
         int const fc = sizes[si];
@@ -485,7 +488,7 @@ bench_sorts(struct ToriDraw_Scene* scene)
      *
      * TORIDRAW_TILE_SORT=0 in the environment puts the tile back on the
      * general path, so running this binary twice gives the kernel's own
-     * before/after in the `flat` column, with the bucket column as the
+     * before/after in the `keys` column, with the bucket column as the
      * control that must not move between the two runs.
      */
     {
@@ -551,8 +554,9 @@ main(void)
 
     ToriDraw_Init();
 
-    /* The small tier is the world painter's; it is the one with the flat
-     * sort's buffers. LOW_2K holds 2048 faces, so every count above fits. */
+    /* The small tier is the world painter's; it is the one with the
+     * bitonic+radix sort's buffers. LOW_2K holds 2048 faces, so every count
+     * above fits. */
     scene = ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     assert(scene);
 
@@ -589,7 +593,7 @@ main(void)
         }
     }
 
-    /* The terrain tile, which the flat sort answers with a kernel of its own
+    /* The terrain tile, which the key sort answers with a kernel of its own
      * rather than with the four-face block and the scalar tail. Held to the
      * same bucket-walk order as everything above, over all four rotations and
      * over near enough that a corner crosses the near plane. */
@@ -619,7 +623,8 @@ done:
     if( !g_failures && getenv("TORIDRAW_FACE_SORT_BENCH") )
         bench_sorts(scene);
     ToriDraw_SceneFree(scene);
-    printf("face sort flat vs bucket: %d fixtures, %ld faces compared, %ld drawn -- %s\n",
+    printf("face sort bitonic+radix vs bucket: %d fixtures, %ld faces compared, "
+           "%ld drawn -- %s\n",
            g_fixtures, g_faces_compared, g_faces_drawn, g_failures ? "FAIL" : "PASS");
     return g_failures ? 1 : 0;
 }

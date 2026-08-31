@@ -1,39 +1,53 @@
-#ifndef TORIDRAW_FACE_SORT_FLAT_H
-#define TORIDRAW_FACE_SORT_FLAT_H
+#ifndef TORIDRAW_FACE_SORT_BITONIC_RADIX_H
+#define TORIDRAW_FACE_SORT_BITONIC_RADIX_H
 
 /*
- * The flat face sort's ISA lanes: what a lane provides, and how the one
- * dispatcher asks for it.
+ * The bitonic+radix face sort's ISA lanes: what a lane provides, and how the
+ * one dispatcher asks for it.
  *
- * The sort itself is one algorithm -- cull four faces at a time into composite
- * keys, then order the keys -- and two of its three steps are written per
- * instruction set. WHICH kernel runs is a property of the build; WHAT the sort
- * does with the answer is not. Those used to be the same function: one
- * `toridraw_face_sort_flat` with a NEON block, an SSE2 block and a scalar tail
- * stacked inside it, and a second copy of every helper name under each
- * `#ifdef`. This family keeps them apart.
+ * WHAT THE NAME MEANS, AND WHERE IT IS EARNED. The sort culls four faces at a
+ * time into composite keys and then orders the keys, and it orders them two
+ * ways: a branchless bitonic network up to
+ * toridraw_face_sort_bitonic_max() keys, a two-pass 8-bit radix above it. The
+ * bitonic half is a vector network and exists only where a vector lane does --
+ * NEON and SSE2 below. A build that reaches neither gate has the radix and
+ * qsort and no network at all, which is why the kernel it registers is called
+ * `radix` rather than `bitonic+radix`; see kernels/facesort.bitonic_radix.u.c.
  *
- *   toridraw_face_sort_flat.u.c        the shared scalar work, the lane
- *                                      selection, and the one dispatcher
- *   toridraw_face_sort_flat.neon.u.c   AArch64: vqtbl1q left-pack, 64-bit
- *                                      winding in vmlsl_s32, vst4q stash,
- *                                      bitonic network. NO tile kernel --
- *                                      nothing here was measured on NEON.
- *   toridraw_face_sort_flat.sse2.u.c   the Win32 XP lane, written to the
- *                                      Pentium 4 floor: no pshufb, no
- *                                      pcmpgtq, no pminud, no pmulld. Carries
- *                                      the two-triangle terrain tile kernel.
- *   toridraw_face_sort_flat.none.u.c   wasm, scalar, and anything that reaches
- *                                      neither gate. All three hooks decline;
- *                                      the sort is then the scalar tail and
- *                                      qsort, which is what the reference test
- *                                      needs and not a contender otherwise.
+ * Two of the sort's three steps are written per instruction set. WHICH kernel
+ * runs is a property of the build; WHAT the sort does with the answer is not.
+ * Those used to be the same function: one `toridraw_face_sort_bitonic_radix`
+ * with a NEON block, an SSE2 block and a scalar tail stacked inside it, and a
+ * second copy of every helper name under each `#ifdef`. This family keeps them
+ * apart.
+ *
+ *   facesort.bitonic_radix.small.dispatch.u.c  the shared scalar work, the
+ *                                              lane selection, the radix, and
+ *                                              the one dispatcher
+ *   facesort.bitonic_radix.small.neon.u.c      AArch64: vqtbl1q left-pack,
+ *                                              64-bit winding in vmlsl_s32,
+ *                                              vst4q stash, bitonic network.
+ *                                              NO tile kernel -- nothing here
+ *                                              was measured on NEON.
+ *   facesort.bitonic_radix.small.sse2.u.c      the Win32 XP lane, written to
+ *                                              the Pentium 4 floor: no pshufb,
+ *                                              no pcmpgtq, no pminud, no
+ *                                              pmulld. Carries the
+ *                                              two-triangle terrain tile
+ *                                              kernel.
+ *   facesort.bitonic_radix.small.scalar.u.c    wasm, scalar, and anything that
+ *                                              reaches neither gate. All three
+ *                                              hooks decline; the sort is then
+ *                                              the scalar tail and qsort,
+ *                                              which is what the reference
+ *                                              test needs and not a contender
+ *                                              otherwise.
  *
  * THE HOOK CONTRACT. Each lane defines all three of these, under these exact
- * names -- that is what lets toridraw_face_sort_flat carry no preprocessor of
- * its own:
+ * names -- that is what lets toridraw_face_sort_bitonic_radix carry no
+ * preprocessor of its own:
  *
- *   int toridraw_face_sort_flat_lane_blocks(...)
+ *   int toridraw_face_sort_bitonic_radix_lane_blocks(...)
  *       Runs the vector cull over whole blocks of faces starting at *f_io,
  *       appends the accepted keys at `keys`, advances *f_io past every face it
  *       consumed, and returns how many keys it wrote. A lane with no vector
@@ -44,25 +58,26 @@
  *       Writes up to four keys past the returned count (the left-pack stores a
  *       whole vector), so `keys` needs four lanes of slack.
  *
- *   bool toridraw_face_sort_flat_lane_tile2(...)
+ *   bool toridraw_face_sort_bitonic_radix_lane_tile2(...)
  *       The two-triangle terrain tile, whose index triples are a compile-time
  *       fact at rotation `tile2_rot`. True means *out_n holds the accepted
  *       count and the keys are written; false means "not my lane" and the
  *       model goes through the ordinary block-and-tail path. A declining lane
  *       must not have written anything.
  *
- *   bool toridraw_face_sort_flat_lane_sort(uint32_t* keys, int n)
+ *   bool toridraw_face_sort_bitonic_radix_lane_sort(uint32_t* keys, int n)
  *       Sorts n keys ascending, stably enough that equal depths keep face
  *       order (ordering the whole u32 gives that for free). True when it did;
  *       false means the caller runs qsort instead. Called only for counts at
  *       or under toridraw_face_sort_bitonic_max().
  *
  * The lane a build gets is decided by the one `#elif` ladder below, which also
- * sets TORIDRAW_FACE_SORT_SIMD when the lane has a vector cull. That is what
- * flips the default in toridraw_face_sort_flat_armed: where a SIMD cull was
- * compiled the flat sort is the default and TORIDRAW_FACE_SORT=bucket opts
- * out, and where it was not the bucket sort is the default and
- * TORIDRAW_FACE_SORT=flat opts in.
+ * sets TORIDRAW_FACE_SORT_SIMD when the lane has a vector cull -- and so, one
+ * layer up, whether the kernel is the one the family is named for. That is
+ * also what flips the default in toridraw_face_sort_bitonic_radix_armed: where
+ * a SIMD cull was compiled this sort is the default and
+ * TORIDRAW_FACE_SORT=bucket opts out, and where it was not the bucket sort is
+ * the default and TORIDRAW_FACE_SORT=bitonic_radix opts in.
  *
  * WHY THE TILE IS A LANE FACT AND NOT A MODEL FACT. Both tile kernels -- the
  * scalar one with the triples as literals and the SSE2 one with them as
@@ -84,7 +99,7 @@
  * the lane files do not test the architecture and neither does the
  * dispatcher. TORIDRAW_FACE_SORT_SIMD says a vector cull was compiled, which
  * is the one thing outside this family that has to know: it flips the default
- * in toridraw_face_sort_flat_armed.
+ * in toridraw_face_sort_bitonic_radix_armed.
  */
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
 #define TORIDRAW_FACE_SORT_LANE_NEON 1
@@ -133,4 +148,4 @@
      (void)(out_n),                                                                                \
      false)
 
-#endif /* TORIDRAW_FACE_SORT_FLAT_H */
+#endif /* TORIDRAW_FACE_SORT_BITONIC_RADIX_H */

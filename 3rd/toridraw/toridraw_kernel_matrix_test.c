@@ -11,8 +11,9 @@
  * Two claims, and they pull in opposite directions on purpose.
  *
  *   INVARIANT.  Within one table, the picture does not depend on which face
- *               sort ran or whether the batched walk was armed. The flat sort
- *               emits the bucket sort's order face for face; the run doors
+ *               sort ran or whether the batched walk was armed. The
+ *               bitonic+radix sort emits the bucket sort's order face for
+ *               face; the run doors
  *               draw what the per-face walk draws. Both are load-bearing
  *               performance choices, and both are supposed to be invisible
  *               here. A regression in either shows up as an arm whose hash
@@ -47,11 +48,12 @@
  * and it is measurably deaf to one face moving a few slots in a 23-face stack,
  * because the pixels that face lands on are composited from twenty others
  * either way. Measured, not assumed: mutating the batched walk's y-order table
- * or reversing the flat sort's emitted order both turn this red, and shifting
+ * or reversing the key sort's emitted order both turn this red, and shifting
  * a single face's depth does not.
  *
- * That single face is toridraw_face_sort_flat_test's job. It compares the two
- * sorts order for order over 864 fixtures instead of comparing pictures, and
+ * That single face is toridraw_face_sort_bitonic_radix_test's job. It compares
+ * the two sorts order for order over 864 fixtures instead of comparing
+ * pictures, and
  * it catches exactly the mutation this one misses. The two are complementary
  * and neither replaces the other: order-for-order cannot see a raster that
  * misreads the order it was given, and a frame hash cannot see a face that
@@ -92,7 +94,8 @@
 /*
  * Enough overlap that a shuffled order repaints nearly every covered pixel.
  *
- * DELIBERATELY NOT A MULTIPLE OF FOUR. The flat sort culls four faces at a
+ * DELIBERATELY NOT A MULTIPLE OF FOUR. The bitonic+radix sort culls four faces
+ * at a
  * time in its lane kernel and sweeps what is left over with a scalar tail, so
  * a face count divisible by four leaves that tail unreached -- and the tail is
  * the only arm on a no-SIMD lane, which makes it the half of the sort most
@@ -461,15 +464,15 @@ static const struct TableArm g_tables[] = {
 struct SortBatchArm
 {
     const char* name;
-    int flat;
+    int bitonic_radix;
     int batch;
 };
 
 static const struct SortBatchArm g_arms[] = {
     { "bucket/batch=0", 0, 0 },
     { "bucket/batch=1", 0, 1 },
-    { "flat/batch=0", 1, 0 },
-    { "flat/batch=1", 1, 1 },
+    { "bitonic_radix/batch=0", 1, 0 },
+    { "bitonic_radix/batch=1", 1, 1 },
 };
 
 #define ARM_COUNT ((int)(sizeof(g_arms) / sizeof(g_arms[0])))
@@ -502,7 +505,7 @@ test_table_matrix(struct ToriDraw_Scene* scene, toripixel_t* pixels)
             uint64_t h;
             long covered = 0;
 
-            ToriDraw_FaceSortSetFlat(g_arms[a].flat);
+            ToriDraw_FaceSortSetBitonicRadix(g_arms[a].bitonic_radix);
             ToriDraw_RasterBatchSetArmed(g_arms[a].batch);
 
             h = render_arm(
@@ -629,7 +632,7 @@ test_gpu_table_order(struct ToriDraw_Scene* scene)
 
     stack_model_init(&stack, 11);
 
-    ToriDraw_FaceSortSetFlat(1);
+    ToriDraw_FaceSortSetBitonicRadix(1);
     ToriDraw_RasterBatchSetArmed(1);
 
     ToriDraw_RenderModel1ProjectWithTable(
@@ -719,17 +722,18 @@ test_validate_and_scratch(void)
               "take: %s did not return the table it was handed", g_tables[t].name);
     }
 
-    /* The flat sort's key arrays are small-tier scratch, so on a full scene the
-     * painter cannot be the kernel it names. That is not an error -- the frame
-     * draws, down the bucket walk -- and DEGRADED is how a caller who chose it
-     * for the speed finds out. */
-    ToriDraw_FaceSortSetFlat(1);
+    /* The bitonic+radix sort's key arrays are small-tier scratch, so on a full
+     * scene the painter cannot be the kernel it names. That is not an error --
+     * the frame draws, down the bucket walk -- and DEGRADED is how a caller
+     * who chose it for the speed finds out. */
+    ToriDraw_FaceSortSetBitonicRadix(1);
     why = NULL;
     fit = ToriDraw_KernelValidate(ToriDraw_KernelGetSoftwarePainter(), full, &why);
     CHECK(fit != TORIDRAW_KERNEL_FIT_INCOMPATIBLE,
           "validate: the painter must still DRAW on a full scene (%s)", why ? why : "?");
     CHECK(fit == TORIDRAW_KERNEL_FIT_DEGRADED,
-          "validate: the flat sort on a full scene must report DEGRADED, got %d (%s)",
+          "validate: the bitonic+radix sort on a full scene must report DEGRADED, "
+          "got %d (%s)",
           (int)fit, why ? why : "?");
     /* Taking it anyway is legal and prints that reason to stderr once -- the
      * whole point of the fit enum having three values instead of two. */
@@ -799,7 +803,8 @@ main(void)
     ToriDraw_Init();
 
     /* The tier the client actually ships (src/app.c): SMALL is what makes the
-     * flat sort, its keys and the presort stash exist at all, so a matrix run
+     * bitonic+radix sort, its keys and the presort stash exist at all, so a
+     * matrix run
      * on a full scene would silently test one sort twice. */
     scene = ToriDraw_SceneNew(
         TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
@@ -822,7 +827,7 @@ main(void)
     test_validate_and_scratch();
 
     /* Leave the process knobs as they were found. */
-    ToriDraw_FaceSortSetFlat(-1);
+    ToriDraw_FaceSortSetBitonicRadix(-1);
     ToriDraw_RasterBatchSetArmed(-1);
 
     ToriDraw_SceneFree(scene);

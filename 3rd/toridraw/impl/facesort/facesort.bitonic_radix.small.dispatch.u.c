@@ -1,5 +1,10 @@
 /*
- * The flat face sort: SIMD cull, composite keys, bitonic or radix.
+ * The bitonic+radix face sort: SIMD cull, composite keys, bitonic or radix.
+ *
+ * The two halves of the name are step 2 below, and which one runs is decided
+ * by the key count. Only the bitonic half needs a vector lane; a build with
+ * none has the radix and qsort, and registers a kernel called `radix` instead
+ * -- see kernels/facesort.bitonic_radix.u.c.
  *
  * WHAT IT REPLACES. bucket_sort_by_average_depth_small walks the faces one
  * at a time: three index loads, six dependent coordinate loads, a branch on
@@ -59,23 +64,25 @@
  * toridraw_face_sort_tile2_armed, which is also how the three are A/B'd.
  *
  * The two sorts are selected by TORIDRAW_FACE_SORT (see
- * toridraw_face_sort_flat_armed) and by ToriDraw_FaceSortSetFlat for the
- * A/B in the benchmark; the bucket sort stays compiled and is the reference
- * toridraw_face_sort_flat_test.c holds this to, order for order.
+ * toridraw_face_sort_bitonic_radix_armed) and by
+ * ToriDraw_FaceSortSetBitonicRadix for the A/B in the benchmark; the bucket
+ * sort stays compiled and is the reference
+ * toridraw_face_sort_bitonic_radix_test.c holds this to, order for order.
  *
  * WHAT IS IN THIS FILE AND WHAT IS NOT. Steps 1 and 2 are written per
  * instruction set and each ISA's copy lives in its own file --
- * toridraw_face_sort_flat.{neon,sse2,none}.u.c -- reached through the three
- * hooks toridraw_face_sort_flat.h names. This file holds only what every build
- * compiles: the scalar per-face cull, the scalar terrain tile, the radix sort,
- * the environment gates, and the one dispatcher that asks the lane for the
- * rest. It contains no `#if` on any architecture, and neither does any caller.
+ * facesort.bitonic_radix.small.{neon,sse2,scalar}.u.c -- reached through the
+ * three hooks facesort.bitonic_radix.small.dispatch.h names. This file holds
+ * only what every build compiles: the scalar per-face cull, the scalar terrain
+ * tile, the radix sort, the environment gates, and the one dispatcher that
+ * asks the lane for the rest. It contains no `#if` on any architecture, and
+ * neither does any caller.
  */
 
-#ifndef TORIDRAW_FACE_SORT_FLAT_U_C
-#define TORIDRAW_FACE_SORT_FLAT_U_C
+#ifndef TORIDRAW_FACE_SORT_BITONIC_RADIX_U_C
+#define TORIDRAW_FACE_SORT_BITONIC_RADIX_U_C
 
-#include "impl/facesort/facesort.flat.small.dispatch.h"
+#include "impl/facesort/facesort.bitonic_radix.small.dispatch.h"
 
 #include "graphics/batch_stats.h"
 #include "graphics/div3.h"
@@ -90,32 +97,49 @@
 #define TORIDRAW_FACE_SORT_BITONIC_MAX 256
 
 /* Runtime override for the A/B: -1 = the environment decides. */
-int g_toridraw_face_sort_flat_override = -1;
+int g_toridraw_face_sort_bitonic_radix_override = -1;
 
 void
-ToriDraw_FaceSortSetFlat(int enabled)
+ToriDraw_FaceSortSetBitonicRadix(int enabled)
 {
-    g_toridraw_face_sort_flat_override = enabled;
+    g_toridraw_face_sort_bitonic_radix_override = enabled;
+}
+
+/*
+ * Does TORIDRAW_FACE_SORT name this sort?
+ *
+ * A FULL COMPARE, and not the first-letter test this replaced: `bucket` and
+ * `bitonic_radix` now share their first letter, so `b` alone cannot tell them
+ * apart. `0` and `1` are kept as the numeric spellings of the same two
+ * choices.
+ */
+static inline int
+toridraw_face_sort_env_named(const char* v, const char* name, char digit)
+{
+    if( !v )
+        return 0;
+    return strcmp(v, name) == 0 || (v[0] == digit && v[1] == '\0');
 }
 
 /*
  * TORIDRAW_FACE_SORT=bucket puts the bucket sort back, in the same binary.
- * Default is the flat sort wherever a SIMD cull is compiled; the scalar
- * flat sort is a fallback for the sake of the test, not a contender.
+ * Default is this sort wherever a SIMD cull is compiled; without one it is
+ * the radix and qsort with no bitonic network, which is a fallback for the
+ * sake of the test and not a contender, so there it is opt-in.
  */
 static inline int
-toridraw_face_sort_flat_armed(void)
+toridraw_face_sort_bitonic_radix_armed(void)
 {
     static int armed = -1;
-    if( g_toridraw_face_sort_flat_override >= 0 )
-        return g_toridraw_face_sort_flat_override;
+    if( g_toridraw_face_sort_bitonic_radix_override >= 0 )
+        return g_toridraw_face_sort_bitonic_radix_override;
     if( armed < 0 )
     {
         const char* v = getenv("TORIDRAW_FACE_SORT");
 #ifdef TORIDRAW_FACE_SORT_SIMD
-        armed = (v && (v[0] == 'b' || v[0] == '0')) ? 0 : 1;
+        armed = toridraw_face_sort_env_named(v, "bucket", '0') ? 0 : 1;
 #else
-        armed = (v && (v[0] == 'f' || v[0] == '1')) ? 1 : 0;
+        armed = toridraw_face_sort_env_named(v, "bitonic_radix", '1') ? 1 : 0;
 #endif
     }
     return armed;
@@ -124,7 +148,7 @@ toridraw_face_sort_flat_armed(void)
 /*
  * Which kernel the two-triangle terrain tile takes, in the SAME binary. The
  * times are ns per input face, from the tile2 row of the bench in
- * toridraw_face_sort_flat_test.c (make -C src test-face-sort-flat,
+ * toridraw_face_sort_bitonic_radix_test.c (make -C src test-face-sort-bitonic-radix,
  * TORIDRAW_FACE_SORT_BENCH=1), on the dev host -- an x86-64 core running this
  * win32 SSE2 build, which is NOT the Pentium 4 any of it is aimed at:
  *
@@ -189,7 +213,7 @@ toridraw_face_sort_bitonic_max(void)
  * sort, same stash.
  */
 static inline int
-toridraw_face_sort_flat_one_abc(
+toridraw_face_sort_bitonic_radix_one_abc(
     struct ToriDraw_Scene* scene,
     int f,
     uint32_t a,
@@ -252,7 +276,7 @@ toridraw_face_sort_flat_one_abc(
 
 /* The same, reading face f's triple out of the index arrays. */
 static inline int
-toridraw_face_sort_flat_one(
+toridraw_face_sort_bitonic_radix_one(
     struct ToriDraw_Scene* scene,
     int f,
     bool near_clipped,
@@ -266,7 +290,7 @@ toridraw_face_sort_flat_one(
     const faceint_t* RESTRICT face_c,
     uint32_t* out_key)
 {
-    return toridraw_face_sort_flat_one_abc(
+    return toridraw_face_sort_bitonic_radix_one_abc(
         scene,
         f,
         (uint32_t)face_a[f],
@@ -297,20 +321,20 @@ toridraw_face_sort_flat_one(
  * WHAT THE KNOWLEDGE BUYS, and it is not what it first looks like. The obvious
  * prize is the gather -- twenty-four dependent coordinate loads for two
  * triangles -- and spending the constants on SIMD to collapse it is what
- * toridraw_face_sort_flat_tile2_sse2 does; measured, that LOSES (its comment
+ * toridraw_face_sort_bitonic_radix_tile2_sse2 does; measured, that LOSES (its comment
  * has the numbers). What actually pays is smaller and duller: face_indices_a/b/c
  * are not read at all, which is six loads gone, and with the indices constant
  * the two faces provably share vertices 1 and 3, so the compiler folds the
  * duplicated coordinate loads instead of issuing each face's six blind.
  * 6.5 ns per input face against the general path's 8.7, a 25% cut of the sort
- * for a tile, on the bench in toridraw_face_sort_flat_test.c.
+ * for a tile, on the bench in toridraw_face_sort_bitonic_radix_test.c.
  *
  * Rotation 0 is 94% of tiles and gets literals. The other three turn the
  * corner indices the way world_decode_tile turned them, which is arithmetic on
  * a register rather than four more copies of the body.
  */
 static inline int
-toridraw_face_sort_flat_tile2_scalar(
+toridraw_face_sort_bitonic_radix_tile2_scalar(
     struct ToriDraw_Scene* scene,
     int rot,
     bool near_clipped,
@@ -324,9 +348,9 @@ toridraw_face_sort_flat_tile2_scalar(
     int n = 0;
     if( rot == 0 )
     {
-        n += toridraw_face_sort_flat_one_abc(
+        n += toridraw_face_sort_bitonic_radix_one_abc(
             scene, 0, 1, 2, 3, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys + n);
-        n += toridraw_face_sort_flat_one_abc(
+        n += toridraw_face_sort_bitonic_radix_one_abc(
             scene, 1, 0, 1, 3, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys + n);
     }
     else
@@ -335,16 +359,16 @@ toridraw_face_sort_flat_tile2_scalar(
         uint32_t const r1 = (uint32_t)((1 - rot) & 3);
         uint32_t const r2 = (uint32_t)((2 - rot) & 3);
         uint32_t const r3 = (uint32_t)((3 - rot) & 3);
-        n += toridraw_face_sort_flat_one_abc(
+        n += toridraw_face_sort_bitonic_radix_one_abc(
             scene, 0, r1, r2, r3, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys + n);
-        n += toridraw_face_sort_flat_one_abc(
+        n += toridraw_face_sort_bitonic_radix_one_abc(
             scene, 1, r0, r1, r3, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys + n);
     }
     return n;
 }
 
 /*
- * ONE LANE, chosen by the ladder in toridraw_face_sort_flat.h. Everything
+ * ONE LANE, chosen by the ladder in toridraw_face_sort_bitonic_radix.h. Everything
  * above this line is what every build compiles; everything the lane brings is
  * behind the three hooks the header names, so the dispatcher below carries no
  * preprocessor of its own.
@@ -355,11 +379,11 @@ toridraw_face_sort_flat_tile2_scalar(
  * as though a build could have both and would try each in turn.
  */
 #if defined(TORIDRAW_FACE_SORT_LANE_NEON)
-#include "impl/facesort/facesort.flat.small.neon.u.c"
+#include "impl/facesort/facesort.bitonic_radix.small.neon.u.c"
 #elif defined(TORIDRAW_FACE_SORT_LANE_SSE2)
-#include "impl/facesort/facesort.flat.small.sse2.u.c"
+#include "impl/facesort/facesort.bitonic_radix.small.sse2.u.c"
 #else
-#include "impl/facesort/facesort.flat.small.scalar.u.c"
+#include "impl/facesort/facesort.bitonic_radix.small.scalar.u.c"
 #endif
 
 /*
@@ -429,7 +453,7 @@ toridraw_key_compare(
  * too, so equal depths keep face order for the same reason.
  */
 static inline int
-toridraw_face_sort_flat_sort2(
+toridraw_face_sort_bitonic_radix_sort2(
     int n,
     uint32_t* keys)
 {
@@ -449,10 +473,10 @@ toridraw_face_sort_flat_sort2(
  * `tile2_rot` is the terrain-tile fast path: 0..3 says this model is one of
  * the two-triangle tile shapes at that rotation, -1 says it is anything else.
  * The caller answers it off ToriDraw_Model.tile_sort_kernel, which is where the
- * shape is known; see toridraw_face_sort_flat_lane_tile2.
+ * shape is known; see toridraw_face_sort_bitonic_radix_lane_tile2.
  */
 static int
-toridraw_face_sort_flat(
+toridraw_face_sort_bitonic_radix(
     struct ToriDraw_Scene* scene,
     bool presort,
     bool near_clipped,
@@ -485,7 +509,7 @@ toridraw_face_sort_flat(
     if( tile2_rot >= 0 )
     {
         assert(num_faces == 2);
-        if( toridraw_face_sort_flat_lane_tile2(
+        if( toridraw_face_sort_bitonic_radix_lane_tile2(
                 scene,
                 tile2_rot,
                 near_clipped,
@@ -496,13 +520,13 @@ toridraw_face_sort_flat(
                 vz,
                 keys,
                 &tile_n) )
-            return toridraw_face_sort_flat_sort2(tile_n, keys);
+            return toridraw_face_sort_bitonic_radix_sort2(tile_n, keys);
     }
 
     /* The lane's vector cull over whole blocks, then the scalar tail over
      * whatever it left. A lane with no vector cull leaves f at 0 and the tail
      * is the whole model. */
-    n += toridraw_face_sort_flat_lane_blocks(
+    n += toridraw_face_sort_bitonic_radix_lane_blocks(
         scene,
         &f,
         num_faces,
@@ -518,7 +542,7 @@ toridraw_face_sort_flat(
         keys);
 
     for( ; f < num_faces; f++ )
-        n += toridraw_face_sort_flat_one(
+        n += toridraw_face_sort_bitonic_radix_one(
             scene,
             f,
             near_clipped,
@@ -533,11 +557,11 @@ toridraw_face_sort_flat(
             keys + n);
 
     if( n <= 2 )
-        return toridraw_face_sort_flat_sort2(n, keys);
+        return toridraw_face_sort_bitonic_radix_sort2(n, keys);
 
     if( n <= toridraw_face_sort_bitonic_max() )
     {
-        if( !toridraw_face_sort_flat_lane_sort(keys, n) )
+        if( !toridraw_face_sort_bitonic_radix_lane_sort(keys, n) )
             qsort(keys, (size_t)n, sizeof(*keys), toridraw_key_compare);
     }
     else
@@ -549,7 +573,7 @@ toridraw_face_sort_flat(
 /*
  * The priority partition off the sorted keys: the same fold of the old
  * partition and accumulation as the small-mode CSR twin, reading (face,
- * depth) pairs from the flat array in the order the buckets emitted them.
+ * depth) pairs from the key array in the order the buckets emitted them.
  */
 static inline void
 partition_and_accumulate_faces_by_priority_keys(
@@ -598,4 +622,4 @@ partition_and_accumulate_faces_by_priority_keys(
     }
 }
 
-#endif /* TORIDRAW_FACE_SORT_FLAT_U_C */
+#endif /* TORIDRAW_FACE_SORT_BITONIC_RADIX_U_C */

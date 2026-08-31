@@ -342,14 +342,24 @@ soft3d_dbg_frame_ab_end(void)
  * copy of the held kernel and takes a face-sort kernel by name and a batch
  * setting, so an arm differs from the baseline in exactly what was named.
  */
+static int
+soft3d_dbg_name_is(const char* name, size_t len, const char* want, char digit)
+{
+    if( len == 1 && name[0] == digit )
+        return 1;
+    return len == strlen(want) && memcmp(name, want, len) == 0;
+}
+
+/* A WHOLE-NAME COMPARE, not a first letter: `bucket` and `bitonic_radix` share
+ * theirs. `0` and `1` stay as the numeric spellings of the same two. */
 static const struct ToriDraw_FaceCullSortKernel*
 soft3d_dbg_face_sort_kernel_by_name(const char* name, size_t len)
 {
     assert(name);
-    if( len >= 1 && (name[0] == 'b' || name[0] == '0') )
+    if( soft3d_dbg_name_is(name, len, "bucket", '0') )
         return ToriDraw_FaceCullSortKernelGetBucket();
-    if( len >= 1 && (name[0] == 'f' || name[0] == '1') )
-        return ToriDraw_FaceCullSortKernelGetFlat();
+    if( soft3d_dbg_name_is(name, len, "bitonic_radix", '1') )
+        return ToriDraw_FaceCullSortKernelGetBitonicRadix();
     return NULL;
 }
 

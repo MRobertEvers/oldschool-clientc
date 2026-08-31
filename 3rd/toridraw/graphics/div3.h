@@ -5,12 +5,13 @@
  * The face-depth average's divide by three, in one place.
  *
  * Every sort that orders faces back-to-front averages the three projected
- * vertex depths, and they must all average them the SAME way -- the flat sort
- * is held to the bucket sort order for order, and a rounding difference
- * between the two swaps coplanar faces and moves pixels. It lived in
- * toridraw_render.u.c, where the two lanes of the flat sort and the debug
- * dumper reached it only because the unity build had already pasted that file
- * in above them; here each of them can state the dependency and parse alone.
+ * vertex depths, and they must all average them the SAME way -- the
+ * bitonic+radix sort is held to the bucket sort order for order, and a
+ * rounding difference between the two swaps coplanar faces and moves pixels.
+ * It lived in toridraw_render.u.c, where the two lanes of the bitonic+radix
+ * sort and the debug dumper reached it only because the unity build had
+ * already pasted that file in above them; here each of them can state the
+ * dependency and parse alone.
  */
 
 /* z_sum / 3, via the 16.16 reciprocal (21845 == 65536/3). Overflows at

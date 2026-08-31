@@ -1297,8 +1297,9 @@ test_hd_legacy_parity(const struct HDFixture* fixture, struct RenderEnv* env)
 /*
  * Kernel scratch: what a kernel needs, what a scene has, and the gap.
  *
- * The interesting case is the FULL scene. The flat sort's keys and the batched
- * walk's stash are small-tier scratch, so a full scene cannot satisfy either --
+ * The interesting case is the FULL scene. The bitonic+radix sort's keys and
+ * the batched walk's stash are small-tier scratch, so a full scene cannot
+ * satisfy either --
  * and the point of the needs mask is that this is now something a caller can
  * ask about instead of discovering in a profile.
  */
@@ -1352,15 +1353,16 @@ test_kernel_scratch(void)
     CHECK(needs & TORIDRAW_SCENE_SCRATCH_FACE_ORDER, "gpu wants the face order");
     CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY), "gpu does not want the stash");
 
-    /* THE FULL SCENE. It takes the dense bucket table, and neither the flat
-     * keys nor the stash are asked for -- because on a full scene the flat
-     * face-sort kernel runs the same bucket sort the bucket kernel does. */
+    /* THE FULL SCENE. It takes the dense bucket table, and neither the sort
+     * keys nor the stash are asked for -- because on a full scene the
+     * bitonic+radix face-sort kernel runs the same bucket sort the bucket
+     * kernel does. */
     needs = ToriDraw_SceneKernelScratchNeeds(full, ToriDraw_RasterKernelSDGetBranching());
     CHECK(needs & TORIDRAW_SCENE_SCRATCH_BUCKET_SORT, "full branching wants the buckets");
     CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
           "full scene is not asked for the stash");
-    CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_FLAT_KEYS),
-          "full scene is not asked for the flat keys");
+    CHECK(!(needs & TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS),
+          "full scene is not asked for the sort keys");
     CHECK(ToriDraw_SceneHasScratch(full, needs), "full scene satisfies its own needs");
     CHECK(!(ToriDraw_SceneScratchResident(full) & TORIDRAW_SCENE_SCRATCH_PRESORT_XY),
           "full scene really has no stash");
@@ -1379,42 +1381,42 @@ test_kernel_scratch(void)
     {
         const struct ToriDraw_FaceCullSortKernel* bucket =
             ToriDraw_FaceCullSortKernelGetBucket();
-        const struct ToriDraw_FaceCullSortKernel* flat =
-            ToriDraw_FaceCullSortKernelGetFlat();
+        const struct ToriDraw_FaceCullSortKernel* keysort =
+            ToriDraw_FaceCullSortKernelGetBitonicRadix();
         struct ToriDraw_Kernel k;
 
         CHECK(bucket->provides & TORIDRAW_FACESORT_PROVIDES_FACE_ORDER,
               "bucket provides the face order");
-        CHECK(flat->provides & TORIDRAW_FACESORT_PROVIDES_FACE_ORDER,
-              "flat provides the face order");
+        CHECK(keysort->provides & TORIDRAW_FACESORT_PROVIDES_FACE_ORDER,
+              "bitonic+radix provides the face order");
         /* Both can stash: the small-scene bucket sort does it in
-         * bucket_sort_by_average_depth_small, the flat sort in its own block. */
+         * bucket_sort_by_average_depth_small, the key sort in its own block. */
         CHECK(bucket->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY,
               "bucket can presort");
-        CHECK(flat->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY,
-              "flat can presort");
-        /* Only the flat sort sorts keys, and only it degrades on a full scene. */
-        CHECK(!(bucket->needs & TORIDRAW_FACESORT_NEEDS_FLAT_KEYS),
+        CHECK(keysort->provides & TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY,
+              "bitonic+radix can presort");
+        /* Only the key sort sorts keys, and only it degrades on a full scene. */
+        CHECK(!(bucket->needs & TORIDRAW_FACESORT_NEEDS_BITONIC_RADIX_KEYS),
               "bucket needs no key arrays");
-        CHECK(flat->needs & TORIDRAW_FACESORT_NEEDS_FLAT_KEYS,
-              "flat needs the key arrays");
-        CHECK(flat->needs & TORIDRAW_FACESORT_NEEDS_SMALL_SCENE,
-              "flat needs a small scene to be itself");
+        CHECK(keysort->needs & TORIDRAW_FACESORT_NEEDS_BITONIC_RADIX_KEYS,
+              "bitonic+radix needs the key arrays");
+        CHECK(keysort->needs & TORIDRAW_FACESORT_NEEDS_SMALL_SCENE,
+              "bitonic+radix needs a small scene to be itself");
 
         /* The needs mask follows the declaration: naming the bucket sort must
          * not reserve key arrays it will never touch. */
         k = *ToriDraw_KernelGetSoftwarePainter();
         k.face_sort = bucket;
         CHECK(!(ToriDraw_KernelScratchNeeds(small, &k) &
-                TORIDRAW_SCENE_SCRATCH_FLAT_KEYS),
-              "bucket sort asks for no flat keys");
-        k.face_sort = flat;
-        CHECK(ToriDraw_KernelScratchNeeds(small, &k) & TORIDRAW_SCENE_SCRATCH_FLAT_KEYS,
-              "flat sort asks for the flat keys");
+                TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS),
+              "bucket sort asks for no sort keys");
+        k.face_sort = keysort;
+        CHECK(ToriDraw_KernelScratchNeeds(small, &k) & TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS,
+              "bitonic+radix sort asks for the sort keys");
         /* On a full scene neither does, because neither runs there. */
         CHECK(!(ToriDraw_KernelScratchNeeds(full, &k) &
-                TORIDRAW_SCENE_SCRATCH_FLAT_KEYS),
-              "full scene asks for no flat keys even for the flat sort");
+                TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS),
+              "full scene asks for no sort keys even for the bitonic+radix sort");
     }
 
     ToriDraw_SceneFree(small);

@@ -1,7 +1,7 @@
-#ifndef TORIDRAW_FACE_SORT_FLAT_NONE_U_C
-#define TORIDRAW_FACE_SORT_FLAT_NONE_U_C
+#ifndef TORIDRAW_FACE_SORT_BITONIC_RADIX_SCALAR_U_C
+#define TORIDRAW_FACE_SORT_BITONIC_RADIX_SCALAR_U_C
 
-#include "impl/facesort/facesort.flat.small.dispatch.h"
+#include "impl/facesort/facesort.bitonic_radix.small.dispatch.h"
 
 /*
  * No vector cull in this build.
@@ -9,15 +9,20 @@
  * A real lane and not a gap: it is what wasm, an x86 build with SSE2_DISABLED,
  * and any target with neither NEON nor SSE2 compile. All three hooks decline,
  * so the sort is the scalar per-face loop followed by qsort or the radix --
- * correct, and slower than the bucket sort it replaces, which is why
- * toridraw_face_sort_flat_armed defaults the OTHER way here: without
- * TORIDRAW_FACE_SORT_SIMD the flat sort is opt-in (TORIDRAW_FACE_SORT=flat)
- * and exists so toridraw_face_sort_flat_test has something to hold the bucket
- * sort against on a host with no SIMD at all.
+ * which is why the KERNEL IS NOT CALLED bitonic+radix here. There is no
+ * bitonic network without vectors, so what this build runs is the radix half
+ * alone, and that is the name kernels/facesort.bitonic_radix.u.c gives it.
+ *
+ * It is correct, and slower than the bucket sort it replaces, which is why
+ * toridraw_face_sort_bitonic_radix_armed defaults the OTHER way here: without
+ * TORIDRAW_FACE_SORT_SIMD this sort is opt-in
+ * (TORIDRAW_FACE_SORT=bitonic_radix) and exists so
+ * toridraw_face_sort_bitonic_radix_test has something to hold the bucket sort
+ * against on a host with no SIMD at all.
  */
 
 static inline int
-toridraw_face_sort_flat_lane_blocks(
+toridraw_face_sort_bitonic_radix_lane_blocks(
     struct ToriDraw_Scene* scene,
     int* f_io,
     int num_faces,
@@ -49,7 +54,7 @@ toridraw_face_sort_flat_lane_blocks(
 }
 
 static inline bool
-toridraw_face_sort_flat_lane_tile2(
+toridraw_face_sort_bitonic_radix_lane_tile2(
     struct ToriDraw_Scene* scene,
     int tile2_rot,
     bool near_clipped,
@@ -66,7 +71,7 @@ toridraw_face_sort_flat_lane_tile2(
 }
 
 static inline bool
-toridraw_face_sort_flat_lane_sort(
+toridraw_face_sort_bitonic_radix_lane_sort(
     uint32_t* keys,
     int n)
 {
@@ -76,4 +81,4 @@ toridraw_face_sort_flat_lane_sort(
     return false;
 }
 
-#endif /* TORIDRAW_FACE_SORT_FLAT_NONE_U_C */
+#endif /* TORIDRAW_FACE_SORT_BITONIC_RADIX_SCALAR_U_C */

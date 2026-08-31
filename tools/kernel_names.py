@@ -52,7 +52,7 @@ ROOT = os.path.normpath(ROOT)
 
 ISA_CANON = {
     "scalar": "scalar",
-    "none": "scalar",          # projection_ortho.none, face_sort_flat.none
+    "none": "scalar",          # projection_ortho.none, face_sort.none
     "neon": "neon",
     "aarch64": "neon",         # C files only; .S keeps the arch name
     "sse2": "sse2",
@@ -161,9 +161,10 @@ def place_projection(rel, base):
 
 def place_facesort(rel, base):
     """
-    toridraw_face_sort_flat.*  ->  impl/facesort/
+    toridraw_face_sort_bitonic_radix.*  ->  impl/facesort/
 
-    The flat sort's lane hooks. The bucket sort has no files of its own yet --
+    The bitonic+radix sort's lane hooks. The bucket sort has no files of its
+    own yet --
     it lives inside toridraw_render.u.c, and extracting it is a move of its own,
     which is why it is reported as a gap rather than given a name here.
     """
@@ -173,12 +174,12 @@ def place_facesort(rel, base):
     stem = base[: -len(ext)]
     parts = stem.split(".")
     isa = _isa(parts[-1]) if len(parts) > 1 else None
-    if parts[0] != "toridraw_face_sort_flat":
+    if parts[0] != "toridraw_face_sort_bitonic_radix":
         return None
     if isa:
-        return Placement(rel, "impl/facesort/facesort.flat.small.%s%s" % (isa, ext),
+        return Placement(rel, "impl/facesort/facesort.bitonic_radix.small.%s%s" % (isa, ext),
                          STAGE_SORT)
-    return Placement(rel, "impl/facesort/facesort.flat.small.dispatch" + ext, STAGE_SORT)
+    return Placement(rel, "impl/facesort/facesort.bitonic_radix.small.dispatch" + ext, STAGE_SORT)
 
 
 # ---- stage 3: raster -----------------------------------------------------
@@ -381,7 +382,7 @@ def scan():
             # Only the implementation tiers are renamed. kernels/ and families/
             # are the caller-facing tiers and already follow the grammar.
             if not (rel.startswith("graphics") or rel.startswith("triangles")
-                    or fn.startswith("toridraw_face_sort_flat")):
+                    or fn.startswith("toridraw_face_sort_bitonic_radix")):
                 continue
             if fn.endswith("_test.c") or fn.endswith("_bench.c"):
                 continue

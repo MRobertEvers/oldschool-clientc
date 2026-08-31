@@ -5,8 +5,8 @@
  * The depth-bucket face cull and sort.
  *
  * One scalar winding test per face, scattered into per-depth lists, prefix
- * summed, walked far to near. The reference the flat sort is held to, order
- * for order (toridraw_face_sort_flat_test.c).
+ * summed, walked far to near. The reference the bitonic+radix sort is held
+ * to, order for order (toridraw_face_sort_bitonic_radix_test.c).
  *
  * SCRATCH. On a full scene this walks the dense depth_levels x depth_stride
  * bucket table; on a small scene it walks the CSR variant sized off max_faces.

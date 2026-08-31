@@ -176,7 +176,7 @@ sm_bucket_sort_finish(
  * raster walk -- and a caller that will not run it (every D3D9 renderer sorts
  * back-to-front on the CPU and then hands the faces to the GPU) would
  * otherwise pay seven stores and a six-way compare per drawn face to fill a
- * buffer nobody loads. Worse, the bucket sort is the A/B baseline the flat
+ * buffer nobody loads. Worse, the bucket sort is the A/B baseline the other
  * sort is measured against, so leaving that cost in would read as a cost of
  * the OLD pipeline and be credited to the new one.
  *
@@ -458,7 +458,7 @@ bucket_sort_by_average_depth_small(
         scene, model_min_depth, num_faces, vx, vy, vz, face_a, face_b, face_c);
 }
 
-#include "impl/facesort/facesort.flat.small.dispatch.u.c"
+#include "impl/facesort/facesort.bitonic_radix.small.dispatch.u.c"
 
 /**
  * Small-scene twin of partition_and_accumulate_faces_by_priority(): the same

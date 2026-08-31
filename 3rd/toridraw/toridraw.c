@@ -473,10 +473,10 @@ scene_alloc_csr_sort(
     return true;
 }
 
-/* The flat sort's key arrays. Rounded up to a power of two so the bitonic
- * network can pad without a second buffer. */
+/* The bitonic+radix sort's key arrays. Rounded up to a power of two so the
+ * bitonic network can pad without a second buffer. */
 static bool
-scene_alloc_flat_keys(
+scene_alloc_bitonic_radix_keys(
     struct ToriDraw_Scene* scene,
     const struct ToriDraw_SceneCaps* caps)
 {
@@ -533,11 +533,12 @@ ToriDraw_SceneAllocBuffers(
     scene_alloc_face_order(scene, caps);
 
     /* Capacity always comes from the tier; SMALL only selects the CSR sorter,
-     * and with it the flat sort's keys and the batched walk's stash. */
+     * and with it the bitonic+radix sort's keys and the batched walk's
+     * stash. */
     if( caps->small_mode )
     {
         scene_alloc_csr_sort(scene, caps);
-        scene_alloc_flat_keys(scene, caps);
+        scene_alloc_bitonic_radix_keys(scene, caps);
         scene_alloc_presort_xy(scene, caps);
     }
     else
@@ -1053,7 +1054,7 @@ sd_kernel_zbuffered_variant(const struct ToriDraw_RasterKernelSD* kernel)
 #include "kernels/projection.prepared.u.c"
 #include "kernels/projection.portable.u.c"
 #include "kernels/facesort.bucket.u.c"
-#include "kernels/facesort.flat.u.c"
+#include "kernels/facesort.bitonic_radix.u.c"
 #include "kernels/sd.gpu.u.c"
 
 /* The prebaked tables, one file each. After the subkernels they name: each
@@ -1119,7 +1120,7 @@ ToriDraw_SceneScratchResident(const struct ToriDraw_Scene* scene)
     if( scene->sm_faces_by_depth )
         resident |= TORIDRAW_SCENE_SCRATCH_CSR_SORT;
     if( scene->sm_sort_keys )
-        resident |= TORIDRAW_SCENE_SCRATCH_FLAT_KEYS;
+        resident |= TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS;
     if( scene->sm_face_x4 )
         resident |= TORIDRAW_SCENE_SCRATCH_PRESORT_XY;
     return resident;
@@ -1217,12 +1218,13 @@ ToriDraw_SceneKernelScratchNeeds(
     if( !kernel )
         kernel = ToriDraw_RasterKernelSDGetBranching();
 
-    /* The flat sort's keys, asked for by the kernel rather than inferred from
-     * its identity -- and only where the CSR sorter runs, because a full scene
-     * takes the dense bucket walk whichever sort is named. */
+    /* The bitonic+radix sort's keys, asked for by the kernel rather than
+     * inferred from its identity -- and only where the CSR sorter runs,
+     * because a full scene takes the dense bucket walk whichever sort is
+     * named. */
     sort = sd_kernel_face_sort(kernel);
-    if( small && (sort->needs & TORIDRAW_FACESORT_NEEDS_FLAT_KEYS) )
-        needs |= TORIDRAW_SCENE_SCRATCH_FLAT_KEYS;
+    if( small && (sort->needs & TORIDRAW_FACESORT_NEEDS_BITONIC_RADIX_KEYS) )
+        needs |= TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS;
 
     /* The presort stash, decided by the rule stage 2 will apply to this same
      * kernel. Asking here and asking there cannot disagree, because it is one
@@ -1255,8 +1257,8 @@ ToriDraw_SceneEnsureScratch(
         scene_alloc_bucket_sort(scene, &caps);
     if( needs & TORIDRAW_SCENE_SCRATCH_CSR_SORT )
         scene_alloc_csr_sort(scene, &caps);
-    if( needs & TORIDRAW_SCENE_SCRATCH_FLAT_KEYS )
-        scene_alloc_flat_keys(scene, &caps);
+    if( needs & TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS )
+        scene_alloc_bitonic_radix_keys(scene, &caps);
     if( needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY )
         scene_alloc_presort_xy(scene, &caps);
 
@@ -1338,8 +1340,8 @@ ToriDraw_KernelScratchNeeds(
     needs |= TORIDRAW_SCENE_SCRATCH_FACE_ORDER;
     needs |= small ? TORIDRAW_SCENE_SCRATCH_CSR_SORT : TORIDRAW_SCENE_SCRATCH_BUCKET_SORT;
 
-    if( small && (sort->needs & TORIDRAW_FACESORT_NEEDS_FLAT_KEYS) )
-        needs |= TORIDRAW_SCENE_SCRATCH_FLAT_KEYS;
+    if( small && (sort->needs & TORIDRAW_FACESORT_NEEDS_BITONIC_RADIX_KEYS) )
+        needs |= TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS;
 
     /* Both halves have to want it: a sort that can stash, and a raster with a
      * whole-model door to read it. */
@@ -1455,8 +1457,9 @@ toridraw_kernel_log_armed(void)
  *
  * So: report a CONFIGURATION the first time it is seen. Identity is the five
  * pointers a report is made of and nothing else, which is what makes an
- * override that swaps a stage without swapping the table -- ToriDraw_
- * FaceSortSetFlat, the scanline setter -- come out as the news it is, while
+ * override that swaps a stage without swapping the table --
+ * ToriDraw_FaceSortSetBitonicRadix, the scanline setter -- come out as the
+ * news it is, while
  * the same table taken again every frame stays silent.
  *
  * The table is small and fixed. Six prebaked tables exist and a caller may

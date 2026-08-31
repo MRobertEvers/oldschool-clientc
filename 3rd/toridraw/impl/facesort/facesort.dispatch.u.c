@@ -5,8 +5,9 @@
  * WHAT BOTH SORT LANES SHARE: the model inputs, the two emitters, the entries.
  *
  * sort_model_inputs gathers what either lane needs to know about the model
- * once; face_order_small_bucket and face_order_small_flat turn each lane's
- * result into scene->tmp_face_order; and the two public entries sit on top.
+ * once; face_order_small_bucket and face_order_small_bitonic_radix turn each
+ * lane's result into scene->tmp_face_order; and the two public entries sit on
+ * top.
  *
  * This is stage 2's dispatch, so it is the one of the three files that a new
  * sort lane has to touch -- the lanes themselves are additive.
@@ -101,7 +102,8 @@ sort_model_inputs(
 }
 
 /*
- * THE FLAT LANE: SIMD cull into composite keys, then bitonic or radix.
+ * THE BITONIC+RADIX LANE: SIMD cull into composite keys, then bitonic or
+ * radix.
  *
  * The keys come back already in draw order, so the emit is a truncation -- the
  * low sixteen bits of each key are the face index -- or, for a model that
@@ -109,12 +111,12 @@ sort_model_inputs(
  * (face, depth) pairs off the key array instead of off the depth table.
  */
 static inline void
-face_order_small_flat(
+face_order_small_bitonic_radix(
     struct ToriDraw_Scene* scene,
     const struct sort_model_inputs* in,
     bool presort)
 {
-    int const n = toridraw_face_sort_flat(
+    int const n = toridraw_face_sort_bitonic_radix(
         scene,
         presort,
         scene->near_clipped,
@@ -149,8 +151,8 @@ face_order_small_flat(
 }
 
 /*
- * THE BUCKET LANE: the CSR depth sort, and the reference the flat lane is held
- * to order-for-order by toridraw_face_sort_flat_test.
+ * THE BUCKET LANE: the CSR depth sort, and the reference the bitonic+radix
+ * lane is held to order-for-order by toridraw_face_sort_bitonic_radix_test.
  *
  * It is also the only lane the debug counters exist in, which is why the
  * dispatcher hands it `debug_stats` and sends every instrumented run here.
@@ -228,17 +230,17 @@ face_order_small_bucket(
 /*
  * Read the model once, pick a lane once.
  *
- * `flat` is the caller's choice of algorithm; the debug counters live only in
- * the bucket lane, so a run that asks for them goes there whatever `flat` says.
- * That override is the reason the arming happens up here and not inside the
- * lane that uses it.
+ * `bitonic_radix` is the caller's choice of algorithm; the debug counters live
+ * only in the bucket lane, so a run that asks for them goes there whatever
+ * `bitonic_radix` says. That override is the reason the arming happens up here
+ * and not inside the lane that uses it.
  */
 static inline void
 toridraw_compute_projected_face_order_small(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     bool presort,
-    int flat)
+    int bitonic_radix)
 {
     TORIDRAW_DBG_SORT_LOCALS
     struct sort_model_inputs in;
@@ -247,13 +249,14 @@ toridraw_compute_projected_face_order_small(
 
     TORIDRAW_DBG_SORT_ARM();
 
-    if( flat && !TORIDRAW_DBG_SORT_ARMED() )
-        face_order_small_flat(scene, &in, presort);
+    if( bitonic_radix && !TORIDRAW_DBG_SORT_ARMED() )
+        face_order_small_bitonic_radix(scene, &in, presort);
     else
         face_order_small_bucket(scene, hnd, &in, TORIDRAW_DBG_SORT_ARG presort);
 }
 
-/* The plain entry: the sort the environment / ToriDraw_FaceSortSetFlat name. */
+/* The plain entry: the sort the environment / ToriDraw_FaceSortSetBitonicRadix
+ * name. */
 static inline void
 ToriDraw_ComputeProjectedFaceOrderSmall(
     struct ToriDraw_Scene* scene,
@@ -261,7 +264,7 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
     bool presort)
 {
     toridraw_compute_projected_face_order_small(
-        scene, hnd, presort, toridraw_face_sort_flat_armed());
+        scene, hnd, presort, toridraw_face_sort_bitonic_radix_armed());
 }
 
 

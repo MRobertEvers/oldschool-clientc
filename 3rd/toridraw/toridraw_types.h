@@ -174,10 +174,10 @@ struct ToriDraw_Model
      * coordinate loads fold, and a two-face model is culled, keyed and ordered
      * without a loop or a sort network. 6.5 ns per input face against the
      * general path's 8.7 on the dev host. See
-     * toridraw_face_sort_flat_tile2_scalar.
+     * toridraw_face_sort_bitonic_radix_tile2_scalar.
      *
      * Spending the same constants on SIMD instead -- one vector load per axis,
-     * a shuffle per lane -- is written as toridraw_face_sort_flat_tile2_sse2 and is
+     * a shuffle per lane -- is written as toridraw_face_sort_bitonic_radix_tile2_sse2 and is
      * SLOWER than both, 8.9 ns. Its comment has the numbers and the reason. The
      * field selects neither; TORIDRAW_TILE_SORT does, and the field only says
      * the model is eligible.
@@ -926,8 +926,8 @@ struct ToriDraw_Scene
     int* sm_face_x4;
     int* sm_face_y4;
     /*
-     * The flat sort's composite keys, (0xFFFF - depth) << 16 | face, and
-     * the radix sort's bounce buffer. Sized to the next power of two above
+     * The bitonic+radix sort's composite keys, (0xFFFF - depth) << 16 | face,
+     * and the radix sort's bounce buffer. Sized to the next power of two above
      * max_faces plus four lanes of slack for the unconditional pack store.
      */
     uint32_t* sm_sort_keys;

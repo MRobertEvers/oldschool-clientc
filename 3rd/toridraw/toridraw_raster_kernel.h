@@ -21,8 +21,9 @@
  *                                 ToriDraw_RasterSetScanline overrides.
  *
  *   At the getter (once, where a renderer takes its table)
- *     TORIDRAW_FACE_SORT          bucket <-> flat, into the table's stage-2
- *                                 slot. ToriDraw_FaceSortSetFlat overrides.
+ *     TORIDRAW_FACE_SORT          bucket <-> bitonic_radix, into the table's
+ *                                 stage-2 slot.
+ *                                 ToriDraw_FaceSortSetBitonicRadix overrides.
  *     TORIDRAW_RASTER_BATCH       whether the painter table's raster is the
  *                                 branching kernel with its whole-model run
  *                                 door or the per-face twin. The sort no
@@ -332,18 +333,24 @@ struct ToriDraw_RasterKernelHDVTable
  *
  * The stock face-sort kernels:
  *
- *   bucket  the depth-bucket sort -- one scalar winding test per face,
- *           faces scattered into per-depth lists, walked from far to near.
- *   flat    a four-wide SIMD winding cull compacted into (depth, face) keys,
- *           then a bitonic network (<= 256 keys) or a two-pass radix, and
- *           the order read straight off the sorted keys. Same order as
- *           `bucket`, face for face (toridraw_face_sort_flat_test.c).
+ *   bucket         the depth-bucket sort -- one scalar winding test per
+ *                  face, faces scattered into per-depth lists, walked from
+ *                  far to near.
+ *   bitonic+radix  a four-wide SIMD winding cull compacted into (depth, face)
+ *                  keys, then a bitonic network (<= 256 keys) or a two-pass
+ *                  radix, and the order read straight off the sorted keys.
+ *                  Same order as `bucket`, face for face
+ *                  (toridraw_face_sort_bitonic_radix_test.c). It reports
+ *                  itself as `radix` on a build with no vector lane, where
+ *                  the network does not exist -- see
+ *                  kernels/facesort.bitonic_radix.u.c.
  *
  * Neither slot may be NULL. The prebaked kernels and tables are handed out
  * with both already filled -- the projection is fixed, the sort is whichever
- * TORIDRAW_FACE_SORT / ToriDraw_FaceSortSetFlat named when the getter ran (see
- * toridraw_face_sort_flat.u.c) -- so the choice is made once, where the caller
- * takes the object, and never re-made per model behind their back.
+ * TORIDRAW_FACE_SORT / ToriDraw_FaceSortSetBitonicRadix named when the getter
+ * ran (see facesort.bitonic_radix.small.dispatch.u.c) -- so the choice is made
+ * once, where the caller takes the object, and never re-made per model behind
+ * their back.
  */
 typedef int (*ToriDraw_ProjectionKernelFn)(
     void* user_data,
@@ -358,13 +365,14 @@ typedef int (*ToriDraw_ProjectionKernelFn)(
  * What a face cull+sort kernel hands on, and what it needs to do it.
  *
  * The scratch API used to answer both by comparing the kernel pointer against
- * ToriDraw_FaceCullSortKernelGetFlat(), which meant a caller's own sort kernel
- * could never be reasoned about at all. Declaring it makes the question one
- * the kernel answers about itself.
+ * ToriDraw_FaceCullSortKernelGetBitonicRadix(), which meant a caller's own
+ * sort kernel could never be reasoned about at all. Declaring it makes the
+ * question one the kernel answers about itself.
  *
  * PROVIDES_PRESORTED_XY is a capability, not a promise. Both stock sorts can
  * leave the y-ordered stash behind -- the small-scene bucket sort in
- * bucket_sort_by_average_depth_small, the flat sort in its own block -- but
+ * bucket_sort_by_average_depth_small, the bitonic+radix sort in its own block
+ * -- but
  * only when the raster it runs under has a door for it, the batched walk is
  * armed, AND the scene is small enough to have the buffers. A full-mode scene explicitly zeroes
  * sm_face_xy_valid, and that flag stays the per-model truth; this bit only
@@ -379,7 +387,7 @@ enum ToriDraw_FaceSortTrait
     /** Can fill sm_face_x4 / y4 when asked and when the scene allows. */
     TORIDRAW_FACESORT_PROVIDES_PRESORTED_XY = 1u << 1,
     /** Sorts composite keys and needs sm_sort_keys / sm_sort_tmp. */
-    TORIDRAW_FACESORT_NEEDS_FLAT_KEYS = 1u << 2,
+    TORIDRAW_FACESORT_NEEDS_BITONIC_RADIX_KEYS = 1u << 2,
     /** Differs from the stock bucket sort only on a small scene; on a full
      *  one it falls through to the same dense bucket walk. */
     TORIDRAW_FACESORT_NEEDS_SMALL_SCENE = 1u << 3,
@@ -592,9 +600,10 @@ const struct ToriDraw_FaceCullSortKernel*
 ToriDraw_FaceCullSortKernelGetBucket(void);
 
 const struct ToriDraw_FaceCullSortKernel*
-ToriDraw_FaceCullSortKernelGetFlat(void);
+ToriDraw_FaceCullSortKernelGetBitonicRadix(void);
 
-/* Whichever of the two TORIDRAW_FACE_SORT / ToriDraw_FaceSortSetFlat name. */
+/* Whichever of the two TORIDRAW_FACE_SORT / ToriDraw_FaceSortSetBitonicRadix
+ * name. */
 const struct ToriDraw_FaceCullSortKernel*
 ToriDraw_FaceCullSortKernelGetDefault(void);
 
@@ -768,7 +777,7 @@ ToriDraw_KernelTake(struct ToriDraw_Scene* scene, const struct ToriDraw_Kernel* 
  *
  *     toridraw: table      : software-painter
  *     toridraw: projection : prepared
- *     toridraw: face_sort  : flat
+ *     toridraw: face_sort  : bitonic+radix
  *     toridraw: raster SD  : branching (whole-model door)
  *
  * Every one of those is a runtime choice by the time a renderer holds the
@@ -778,9 +787,18 @@ ToriDraw_KernelTake(struct ToriDraw_Scene* scene, const struct ToriDraw_Kernel* 
  * on a target; this answers what did, on the box the frame is being drawn on,
  * which is the question a "why is this build slow" report actually needs.
  *
- * ToriDraw_KernelTake calls it, so a renderer gets this for free at init and
- * the DEGRADED line that may follow reads as a note on the report above it.
- * TORIDRAW_KERNEL_LOG=0 silences that; calling this directly always prints.
+ * ToriDraw_KernelTake calls it the FIRST time it sees a given configuration
+ * and not again, so a renderer gets this once for free and the DEGRADED line
+ * that may follow reads as a note on the report above it. That test is there
+ * because a take is not an initialization: ToriRS_Soft3D_Init resets the
+ * renderer once per frame, so taking a table is a per-frame act and printing
+ * at every one of them is sixty reports a second saying nothing new. A
+ * configuration is the five pointers printed below, so a stage swapped behind
+ * an unchanged table still reports.
+ *
+ * TORIDRAW_KERNEL_LOG=0 silences that. Calling this directly always prints,
+ * seen before or not -- it is the caller's own report, and a caller that
+ * asked for it is not asking to be told they already know.
  */
 void
 ToriDraw_KernelLogConfiguration(const struct ToriDraw_Kernel* table);
@@ -790,9 +808,10 @@ ToriDraw_KernelLogConfiguration(const struct ToriDraw_Kernel* table);
  * they name.
  */
 
-/** Branching raster with its whole-model door, the flat sort, prepared
- *  projection. The world painter, and the only table that reaches the batched
- *  walk -- and only on a small scene, in a build with the run assembly. */
+/** Branching raster with its whole-model door, the bitonic+radix sort,
+ *  prepared projection. The world painter, and the only table that reaches
+ *  the batched walk -- and only on a small scene, in a build with the run
+ *  assembly. */
 const struct ToriDraw_Kernel*
 ToriDraw_KernelGetSoftwarePainter(void);
 

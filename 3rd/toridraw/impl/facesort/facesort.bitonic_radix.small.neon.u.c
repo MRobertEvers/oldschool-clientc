@@ -1,15 +1,16 @@
-#ifndef TORIDRAW_FACE_SORT_FLAT_NEON_U_C
-#define TORIDRAW_FACE_SORT_FLAT_NEON_U_C
+#ifndef TORIDRAW_FACE_SORT_BITONIC_RADIX_NEON_U_C
+#define TORIDRAW_FACE_SORT_BITONIC_RADIX_NEON_U_C
 
-#include "impl/facesort/facesort.flat.small.dispatch.h"
+#include "impl/facesort/facesort.bitonic_radix.small.dispatch.h"
 
 #include <arm_neon.h>
 
 #include <limits.h>
 
 /*
- * The AArch64 lane of the flat face sort. See toridraw_face_sort_flat.h for
- * the three hooks every lane owes the dispatcher; this file provides all
+ * The AArch64 lane of the bitonic+radix face sort. See
+ * facesort.bitonic_radix.small.dispatch.h for the three hooks every lane owes
+ * the dispatcher; this file provides all
  * three, and declines only the terrain tile -- both tile kernels were measured
  * against the general path on an x86 host and nothing equivalent has been run
  * here, so a tile on this lane stays an ordinary two-face model.
@@ -67,7 +68,7 @@ toridraw_sel3_neon(
  * lanes of slack past the count.
  */
 static inline int
-toridraw_face_sort_flat_block4_neon(
+toridraw_face_sort_bitonic_radix_block4_neon(
     struct ToriDraw_Scene* scene,
     int f,
     int32x4_t near_clip_sentinel, /* -5000 x4 when near_clipped, else INT_MIN x4 */
@@ -278,7 +279,7 @@ toridraw_bitonic_sort_u32_neon(
 /* ---- the lane hooks --------------------------------------------------- */
 
 static inline int
-toridraw_face_sort_flat_lane_blocks(
+toridraw_face_sort_bitonic_radix_lane_blocks(
     struct ToriDraw_Scene* scene,
     int* f_io,
     int num_faces,
@@ -303,7 +304,7 @@ toridraw_face_sort_flat_lane_blocks(
     int n = 0;
 
     for( ; f + 4 <= num_faces; f += 4 )
-        n += toridraw_face_sort_flat_block4_neon(
+        n += toridraw_face_sort_bitonic_radix_block4_neon(
             scene,
             f,
             sentinel,
@@ -323,7 +324,7 @@ toridraw_face_sort_flat_lane_blocks(
 }
 
 static inline bool
-toridraw_face_sort_flat_lane_tile2(
+toridraw_face_sort_bitonic_radix_lane_tile2(
     struct ToriDraw_Scene* scene,
     int tile2_rot,
     bool near_clipped,
@@ -341,7 +342,7 @@ toridraw_face_sort_flat_lane_tile2(
 }
 
 static inline bool
-toridraw_face_sort_flat_lane_sort(
+toridraw_face_sort_bitonic_radix_lane_sort(
     uint32_t* keys,
     int n)
 {
@@ -358,4 +359,4 @@ toridraw_face_sort_flat_lane_sort(
     return true;
 }
 
-#endif /* TORIDRAW_FACE_SORT_FLAT_NEON_U_C */
+#endif /* TORIDRAW_FACE_SORT_BITONIC_RADIX_NEON_U_C */

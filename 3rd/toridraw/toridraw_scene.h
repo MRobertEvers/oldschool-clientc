@@ -103,9 +103,9 @@ ToriDraw_SceneTexState(struct ToriDraw_Scene* scene);
  * be reconciled afterwards: ask a kernel what it needs, ask the scene what it
  * has, and allocate the difference.
  *
- * They also make one long-standing trap visible. The flat sort's key arrays
- * and the batched walk's y-ordered stash are small-tier scratch, so on a full
- * scene the flat face-sort kernel silently runs the same bucket sort the
+ * They also make one long-standing trap visible. The bitonic+radix sort's key
+ * arrays and the batched walk's y-ordered stash are small-tier scratch, so on
+ * a full scene that face-sort kernel silently runs the same bucket sort the
  * bucket kernel runs, and a presorted raster never sees a presorted face. That
  * is safe -- sm_face_xy_valid records what the sort actually did, and the walk
  * reads the flag rather than the request -- but until now a caller had no way
@@ -121,8 +121,8 @@ enum ToriDraw_SceneScratch
     TORIDRAW_SCENE_SCRATCH_BUCKET_SORT = 1u << 2,
     /** The small scene's CSR sorter arrays, sized off max_faces. */
     TORIDRAW_SCENE_SCRATCH_CSR_SORT = 1u << 3,
-    /** sm_sort_keys / sm_sort_tmp: the flat sort's composite keys. */
-    TORIDRAW_SCENE_SCRATCH_FLAT_KEYS = 1u << 4,
+    /** sm_sort_keys / sm_sort_tmp: the bitonic+radix sort's composite keys. */
+    TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS = 1u << 4,
     /** sm_face_x4 / y4: the y-ordered stash the batched raster walk reads. */
     TORIDRAW_SCENE_SCRATCH_PRESORT_XY = 1u << 5,
 };
@@ -130,9 +130,10 @@ enum ToriDraw_SceneScratch
 /**
  * What this kernel will read and write, given this scene.
  *
- * Depends on both: a flat face sort needs FLAT_KEYS only where the scene runs
- * the CSR sorter, and the presort stash is only ever asked for by the stock
- * branching raster, which is the batched walk's only door.
+ * Depends on both: the bitonic+radix face sort needs BITONIC_RADIX_KEYS only
+ * where the scene runs the CSR sorter, and the presort stash is only ever
+ * asked for by the stock branching raster, which is the batched walk's only
+ * door.
  *
  * `kernel` may be NULL, meaning the stock defaults.
  */
