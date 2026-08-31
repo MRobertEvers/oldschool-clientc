@@ -5289,13 +5289,59 @@ ToriRS_GL3_Execute(struct ToriRS_GL3* gl3, struct ToriRS_RenderCommand const* cm
     handle_render_command(gl3, (struct ToriRS_RenderCommand*)cmd);
 }
 
+/*
+ * The bar's caption, in a 2D pass of its own.
+ *
+ * The same two facts the software lane draws (App_BootBarCaption), through the
+ * same command the retained frame carries, so a boot sentence is one picture
+ * and not one per renderer. Baseline + centred: the reference draws it with
+ * centreString on the track's baseline, not into a widget box.
+ *
+ * gl3_ev_begin_2d sets the whole 2D state up itself, so this does not lean on
+ * the bar's own setup above -- and it is what the text path's `in2d` gate
+ * wants. The font id is a scene font id, which gl3_ensure_font_slot resolves
+ * out of the scene: no TORIRSRC_FONT_LOAD reaches this lane during a boot,
+ * because no frame is being walked to carry one.
+ */
+static void
+gl3_draw_boot_caption(
+    struct ToriRS_GL3* gl3,
+    int caption_font_id,
+    char const* caption)
+{
+    struct ToriRS_RenderCommand command;
+
+    assert(gl3);
+    assert(caption);
+    assert(caption_font_id >= 0);
+
+    memset(&command, 0, sizeof(command));
+    command.kind = TORIRSRC_FONT;
+    command.u.font.font_id = caption_font_id;
+    command.u.font.x = BootBar_OriginX(gl3->width) + BOOT_BAR_W / 2;
+    command.u.font.y = BootBar_OriginY(gl3->height) + BOOT_BAR_TEXT_BASELINE;
+    command.u.font.color = 0xFFFFFF;
+    command.u.font.center = 1;
+    command.u.font.baseline = 1;
+    command.u.font.text = caption;
+    command.u.font.scissor_w = gl3->width;
+    command.u.font.scissor_h = gl3->height;
+
+    gl3_ev_begin_2d(gl3, &command);
+    gl3_ev_font(gl3, &command);
+    gl3_ev_end_2d(gl3, &command);
+}
+
 void
-ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress)
+ToriRS_GL3_DrawBootBar(
+    struct ToriRS_GL3* gl3,
+    int progress,
+    int caption_font_id,
+    char const* caption)
 {
     assert(gl3);
-    /* progress < 0: clear to black and draw nothing -- the post-login
-     * loading screen, which shows only App_Render's sentence on the soft
-     * lane and a bare black screen here. */
+    /* progress < 0: clear to black and draw no bar -- the post-login loading
+     * screen, which is a black screen and the sentence alone on every lane. */
     int const clear_only = progress < 0;
     if( progress < 0 )
         progress = 0;
@@ -5322,7 +5368,11 @@ ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress)
         glClearColor(0.125f, 0.141f, 0.157f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     if( clear_only )
+    {
+        if( caption && caption[0] && caption_font_id >= 0 )
+            gl3_draw_boot_caption(gl3, caption_font_id, caption);
         return;
+    }
 
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
@@ -5376,6 +5426,9 @@ ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress)
             (float)(bar_y + BOOT_BAR_INSET + BOOT_BAR_FILL_H),
             0, 0, 1, 1, red_rgba);
     gl3_unbind_attribs(gl3);
+
+    if( caption && caption[0] && caption_font_id >= 0 )
+        gl3_draw_boot_caption(gl3, caption_font_id, caption);
 }
 
 void

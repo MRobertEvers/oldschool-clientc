@@ -3742,6 +3742,28 @@ App_IsBooting(
     struct App* app,
     int* out_progress);
 
+/**
+ * The boot bar's caption, and the scene font id to draw it with.
+ *
+ * For the lanes that draw the boot bar themselves -- the GPU backends run
+ * their own ToriRS_*_DrawBootBar while App_BuildFrame is still refusing a
+ * frame -- so that the words, the face and the moment they change are decided
+ * once here rather than three times, one per renderer.
+ *
+ * The call REGISTERS the face in the scene (ToriDraw_SceneFontAdd, which emits
+ * TORIDRAW_EVENT_FONT_LOAD); the backends resolve a font id by looking it up
+ * there, so a lane that draws the caption must take it from this and not
+ * invent an id of its own.
+ *
+ * Returns NULL when there is nothing to draw -- no sentence for this phase, or
+ * no face to draw it with -- and writes *out_font_scene_id only when it
+ * returns a caption.
+ */
+char const*
+App_BootBarCaption(
+    struct App* app,
+    int* out_font_scene_id);
+
 /** Write the current emit buffer to a BMP. Returns 0 on success. */
 int
 App_WriteBmp(

@@ -63,8 +63,22 @@ ToriRS_GL3_Execute(
     struct ToriRS_GL3* gl3,
     struct ToriRS_RenderCommand const* cmd);
 
+/**
+ * The startup progress bar, before there is a frame to build.
+ *
+ * `progress` < 0 clears without a bar (the post-login loading screen). The
+ * caption is drawn either way, so the text-only screen still carries its
+ * sentence; pass caption NULL / caption_font_id < 0 for none. Both come from
+ * App_BootBarCaption -- the font id is a SCENE font id, resolved out of the
+ * scene this renderer was initialised with, so the app must have registered
+ * the face before the id means anything here.
+ */
 void
-ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress);
+ToriRS_GL3_DrawBootBar(
+    struct ToriRS_GL3* gl3,
+    int progress,
+    int caption_font_id,
+    char const* caption);
 
 struct ToriRS_PickHits const*
 ToriRS_GL3_PickHits(struct ToriRS_GL3 const* gl3);

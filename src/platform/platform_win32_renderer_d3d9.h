@@ -101,8 +101,22 @@ ToriRS_D3D9_Execute(
     struct ToriRS_D3D9* d3d9,
     struct ToriRS_RenderCommand const* cmd);
 
+/**
+ * The startup progress bar, before there is a frame to build.
+ *
+ * `progress` < 0 clears without a bar (the post-login loading screen). The
+ * caption is drawn either way, so the text-only screen still carries its
+ * sentence; pass caption NULL / caption_font_id < 0 for none. Both come from
+ * App_BootBarCaption -- the font id is a SCENE font id, resolved out of the
+ * scene this renderer was initialised with, so the app must have registered
+ * the face before the id means anything here.
+ */
 void
-ToriRS_D3D9_DrawBootBar(struct ToriRS_D3D9* d3d9, int progress);
+ToriRS_D3D9_DrawBootBar(
+    struct ToriRS_D3D9* d3d9,
+    int progress,
+    int caption_font_id,
+    char const* caption);
 
 void
 ToriRS_D3D9_RenderFrame(struct ToriRS_D3D9* d3d9, struct ToriRS_Frame* frame);
