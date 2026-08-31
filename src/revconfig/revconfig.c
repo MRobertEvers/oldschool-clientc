@@ -2231,6 +2231,23 @@ revconfig_items_build(
     }
 }
 
+void
+revconfig_camera_default_band(int height, int* out_min, int* out_max)
+{
+    assert(height > 0);
+    assert(out_min);
+    assert(out_max);
+
+    *out_min = height * REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN_PCT / 100;
+    *out_max = height * REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX_PCT / 100;
+    /* A rest height small enough to round the band flat still has to leave the
+     * wheel somewhere to go, or `min < max` reads as "does not zoom". */
+    if( *out_min < 1 )
+        *out_min = 1;
+    if( *out_max <= *out_min )
+        *out_max = *out_min + 1;
+}
+
 int
 revconfig_parse_camera_zoom(
     char const* str,
@@ -2252,12 +2269,19 @@ revconfig_parse_camera_zoom(
             return 0;
         if( height <= 0 )
             return 0;
-        out->zoom_mode = REVCONFIG_CAMERA_ZOOM_FIXED;
+        /* zoom_mode is NOT set here. `zoom=` states the revision's camera --
+         * where it rests and whether it takes the viewport term -- and whether
+         * a WHEEL is live is this client's own question, answered the same way
+         * on every revision. @see enum RevConfigCameraZoomMode. */
         out->zoom_height = height;
-        /* Stated on the fixed branch too, so a reader of the resolved struct
-         * never has to know which branch filled it in: the band is the point. */
-        out->zoom_min = height;
-        out->zoom_max = height;
+        /* The 2004 camera: no wheel, and no viewport term on either the
+         * distance or the projection. @see RevConfigCameraItem::viewport_zoom. */
+        out->viewport_zoom = 0;
+        /* A REAL band, not a band of one, even though the wheel is off by
+         * default here. zoom_mode is what the player flips; the band is the
+         * room that flip needs, and it has to exist before the flip.
+         * @see REVCONFIG_CAMERA_ZOOM_FIXED. */
+        revconfig_camera_default_band(height, &out->zoom_min, &out->zoom_max);
         return 1;
     }
     if( strncmp(p, "clamped:", 8) == 0 )
@@ -2283,9 +2307,9 @@ revconfig_parse_camera_zoom(
             return 0;
         if( lo <= 0 || hi < lo )
             return 0;
-        out->zoom_mode = REVCONFIG_CAMERA_ZOOM_CLAMPED;
         out->zoom_min = lo;
         out->zoom_max = hi;
+        out->viewport_zoom = 1;
         /* Rest position: the reference height when the band contains it, and
          * the nearest end when it does not. */
         out->zoom_height = REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT;

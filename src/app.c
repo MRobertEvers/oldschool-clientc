@@ -13651,7 +13651,12 @@ app_apply_wedge_scale(struct App* app)
      * A revision whose camera is `zoom=fixed:` has no viewport-derived
      * projection either, and for the same reason the follow distance skips the
      * interpolation (app_world_camera_follow): class159.method5357 IS the later
-     * client's zoom, and the 2004 client does not have it. Its projection is the
+     * client's zoom, and the 2004 client does not have it.
+     *
+     * Asked of `viewport_zoom` and not of the live zoom_mode, because the
+     * settings page can flip that one: reading zoom_mode here meant switching
+     * the wheel ON halved the scale under the player, and no wheel band could
+     * put it back. @see RevConfigCameraItem::viewport_zoom. Its projection is the
      * bare `<< 9` in Model.project / Model.draw (Client-TS dash3d/Model.ts) --
      * scale 512, whatever the viewport measures.
      *
@@ -13665,8 +13670,7 @@ app_apply_wedge_scale(struct App* app)
      * An explicitly forced scale (TORIRS_WEDGE_SCALE=<n>) still wins, since it
      * exists to bisect exactly this.
      */
-    if( mode == 0 &&
-        app->revconfig_profile.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_FIXED )
+    if( mode == 0 && !app->revconfig_profile.camera.viewport_zoom )
     {
         app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
         app->world_camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
@@ -19972,13 +19976,25 @@ app_ui_hotkeys(
     }
 }
 
-/* Does this revision's follow camera zoom at all? `zoom=fixed:<height>` is a
- * band of one, which is the 2004 client: the eye is `pitch * 3 + 600` behind
- * the player and nothing the player does moves it. */
+/*
+ * Does the follow camera zoom right now? Both halves have to say yes.
+ *
+ * `zoom_mode` is the SWITCH -- the settings page's "Zoom" row, and what
+ * `zoom=fixed:` states for the 2004 client, whose eye is `pitch * 3 + 600`
+ * behind the player with nothing the player does moving it. `zoom_min <
+ * zoom_max` is the ROOM: `fixed:` resolves to a band of one, and a band of one
+ * has nowhere to go even when the switch is on.
+ *
+ * Reading only the band was what made the "Zoom" row a no-op on the two
+ * behaviours it appeared to name -- it moved no wheel and only changed the
+ * projection, which is the one thing it should never have touched.
+ */
 static int
 app_world_camera_zooms(struct App const* app)
 {
     assert(app);
+    if( app->revconfig_profile.camera.zoom_mode != REVCONFIG_CAMERA_ZOOM_CLAMPED )
+        return 0;
     return app->revconfig_profile.camera.zoom_min < app->revconfig_profile.camera.zoom_max;
 }
 
@@ -25476,9 +25492,14 @@ app_world_camera_follow(struct App* app)
                 app->orbit_pitch_vel = 0;
             }
             if( cam_zoom > 0 )
+                /* A percentage of THIS revision's rest, not of the reference
+                 * 600. The server is saying "this much closer than normal",
+                 * and normal is wherever this camera rests -- reading it
+                 * against a constant makes the same packet mean two different
+                 * views on two lanes. */
                 app->world_cam_height = RevConfigProfile_CameraClampHeight(
                     &app->revconfig_profile,
-                    REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT * cam_zoom / 100);
+                    app->revconfig_profile.camera.zoom_height * cam_zoom / 100);
         }
     }
     if( !RS_EntitySync_FindPlayer(
@@ -25626,9 +25647,13 @@ app_world_camera_follow(struct App* app)
      * wheel, and for the same reason: it is a later client's way of zooming,
      * and a revision that states a fixed height has said its camera has none.
      * `fixed:600` is then Client-TS's expression exactly.
+     *
+     * That is `viewport_zoom`, which the revision states and the player does
+     * not: a wheel switched on in the settings moves world_cam_height inside
+     * its band and leaves this term exactly as the revision left it.
      */
     distance = pitch * 3 + app->world_cam_height;
-    if( app->revconfig_profile.camera.zoom_mode != REVCONFIG_CAMERA_ZOOM_FIXED )
+    if( app->revconfig_profile.camera.viewport_zoom )
         distance = distance * app_world_cam_dist_zoom(app) / 256;
     /* Look-at height: the reference samples the ground under the ACTOR (not
      * under the eased anchor), takes the minimum over its footprint, then

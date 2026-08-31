@@ -31,6 +31,9 @@ RevConfigProfile_Init(struct RevConfigProfile* profile)
     profile->camera.zoom_min = REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN;
     profile->camera.zoom_max = REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX;
     profile->camera.zoom_height = REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT;
+    /* Matches the CLAMPED default above: a tree with no `[camera]` at all
+     * keeps the viewport zoom it has always had. */
+    profile->camera.viewport_zoom = 1;
     profile->camera.controls =
         REVCONFIG_CAMERA_CONTROL_MMB | REVCONFIG_CAMERA_CONTROL_ARROW_KEYS;
     profile->camera.wheel_step = REVCONFIG_CAMERA_WHEEL_STEP_DEFAULT;
@@ -71,10 +74,16 @@ profile_merge_camera(
 
     if( src->has_zoom )
     {
-        dst->zoom_mode = src->zoom_mode;
+        /* zoom_mode is absent on purpose: `zoom=` states the revision's
+         * camera, and whether a wheel is live is the player's. A profile
+         * carrying it would put the wheel back under revision control by the
+         * back door. @see enum RevConfigCameraZoomMode. */
         dst->zoom_height = src->zoom_height;
         dst->zoom_min = src->zoom_min;
         dst->zoom_max = src->zoom_max;
+        /* Carried with the band it was derived from, not on a `has_` of its
+         * own: `zoom=` is the only key that states it. */
+        dst->viewport_zoom = src->viewport_zoom;
     }
     if( src->has_controls )
         dst->controls = src->controls;
