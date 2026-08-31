@@ -19,7 +19,7 @@
  * terms of alpha_blend and so is correct on every format.
  */
 #if TORIPIXEL_LANES_8BIT && ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-#include "impl/raster/span/span.gouraudhsllightness.alpha.neon.u.c"
+#include "impl/raster/span/span.gouraudhsllightness.alpha.neon32.u.c"
 #elif TORIPIXEL_LANES_8BIT && defined(__AVX2__) && !defined(AVX2_DISABLED)
 #include "impl/raster/span/span.gouraudhsllightness.alpha.avx.u.c"
 #elif TORIPIXEL_LANES_8BIT && (defined(__SSE2__) || defined(__SSE4_1__)) && !defined(SSE2_DISABLED)

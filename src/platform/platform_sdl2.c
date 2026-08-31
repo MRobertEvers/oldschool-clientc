@@ -745,11 +745,13 @@ PlatformSDL2_InitForOpenGL3(
     return true;
 }
 
-struct SDL_Window*
+ToriRS_GLWindow*
 PlatformSDL2_Window(struct PlatformSDL2* platform)
 {
     assert(platform);
-    return platform->window;
+    /* SDL_Window and ToriRS_GLWindow are the same object under two names; this
+     * and platform_gl_context_sdl.c are the only places that say so. */
+    return (ToriRS_GLWindow*)platform->window;
 }
 
 void

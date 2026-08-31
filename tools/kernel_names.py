@@ -48,13 +48,42 @@ ROOT = os.path.normpath(ROOT)
 # One spelling per axis value. The left column is what the tree says today; the
 # right is the one spelling the grammar keeps. `none` vs `scalar` and `aarch64`
 # vs `neon` are the two splits that actually cost something: they make a
-# whole-tree grep for one ISA miss half of it.
+# whole-tree grep for one ISA miss half of it. The NEON entries additionally
+# carry the ENCODING WIDTH, for a stronger reason still -- see the block below.
 
+#
+# NEON IS TWO VALUES, NOT ONE.
+#
+# `neon` alone was a lie the tree told itself: ARM NEON in the A32 (armv7)
+# encoding and NEON in the A64 (aarch64) encoding are not the same instruction
+# set, and several kernels here are written in intrinsics that exist ONLY in
+# A64 -- the widening high-half multiplies (vmull_high_*), the 64-bit vector
+# compares (vcgtq_s64), the horizontal reductions (vaddvq_*, vminvq_*,
+# vmaxvq_*) and the full 16-byte table lookup (vqtbl1q_u8). A32 has none of
+# them, and a kernel using them does not run slower on armv7 -- it does not
+# COMPILE. That is exactly how the Android armeabi-v7a lane found the facesort
+# kernel: an `#if defined(__ARM_NEON)` guard admitted armv7 into an A64-only
+# lane, and the build died on five undeclared intrinsics.
+#
+# So the width is in the name, and a reader can tell from the filename alone
+# whether a 32-bit ARM target can use a kernel:
+#
+#   neon32   the A32 NEON baseline. Runs on armv7 AND on aarch64.
+#   neon64   requires aarch64, either for A64-only intrinsics or because the
+#            file wraps aarch64 assembly.
+#
 ISA_CANON = {
     "scalar": "scalar",
     "none": "scalar",          # projection_ortho.none, face_sort.none
-    "neon": "neon",
-    "aarch64": "neon",         # C files only; .S keeps the arch name
+    "neon32": "neon32",
+    "neon64": "neon64",
+    # Bare `neon` is retired: it never said which encoding, which is the whole
+    # point of the split above. Mapped to neon32 so an un-migrated name resolves
+    # to the PORTABLE lane -- the safe direction, because a kernel wrongly
+    # called neon32 fails loudly at compile time on armv7, while one wrongly
+    # called neon64 would quietly exclude armv7 from a lane it could have used.
+    "neon": "neon32",
+    "aarch64": "neon64",       # C files only; .S keeps the arch name
     "sse2": "sse2",
     "sse41": "sse41",
     "sse_float": "sse_float",

@@ -24,7 +24,7 @@
  *   facesort.bitonic_radix.small.dispatch.u.c  the shared scalar work, the
  *                                              lane selection, the radix, and
  *                                              the one dispatcher
- *   facesort.bitonic_radix.small.neon.u.c      AArch64: vqtbl1q left-pack,
+ *   facesort.bitonic_radix.small.neon64.u.c      AArch64: vqtbl1q left-pack,
  *                                              64-bit winding in vmlsl_s32,
  *                                              vst4q stash, bitonic network.
  *                                              NO tile kernel -- nothing here
@@ -101,7 +101,24 @@
  * is the one thing outside this family that has to know: it flips the default
  * in toridraw_face_sort_bitonic_radix_armed.
  */
-#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
+/*
+ * __aarch64__ is REQUIRED, not just NEON.
+ *
+ * The NEON lane is written in A64-only intrinsics -- vmull_high_s32 /
+ * vmlsl_high_s32 (the widening high-half multiply), vcgtq_s64 (there is no
+ * 64-bit vector compare in A32 NEON at all), vaddvq_u32 (horizontal add) and
+ * vqtbl1q_u8 (the full 16-byte table lookup; A32 has only the 8-byte vtbl).
+ * None of the five exists on armv7, so an armv7 build that reached this lane
+ * did not merely run slower -- it failed to compile, which is how the Android
+ * armeabi-v7a lane found this.
+ *
+ * Same requirement, and the same reason, as the projection bound lane: see the
+ * header comment in impl/projection/projection.bound.dispatch.u.c. armv7 falls
+ * through the ladder to the scalar lane, which is correct and is what every
+ * non-SIMD host already uses.
+ */
+#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && defined(__aarch64__) &&                     \
+    !defined(NEON_DISABLED)
 #define TORIDRAW_FACE_SORT_LANE_NEON 1
 #define TORIDRAW_FACE_SORT_SIMD 1
 #elif defined(__SSE2__) && !defined(SSE2_DISABLED)

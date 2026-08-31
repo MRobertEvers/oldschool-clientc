@@ -1,37 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.scenetile.test"
-    android:versionCode="1"
-    android:versionName="1.0">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- The client dials a game server, and the JS5/on-demand cache producers
+         fetch archives over the same stack. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <uses-feature
-        android:name="android.hardware.touchscreen"
-        android:required="false" />
-    <uses-feature
-        android:name="android.hardware.opengles.aep"
-        android:required="true" />
+    <!--
+      NO storage permission, deliberately.
+
+      Everything the client reads lives under the app's own external files
+      directory (Android/data/com.torirs.client/files), which an app may always
+      read and write without asking and which `adb push` can reach. Requesting
+      WRITE_EXTERNAL_STORAGE would add a runtime prompt on API 23+, do nothing
+      at all on API 29+ (scoped storage), and buy access this app never needs.
+    -->
+
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <!--
+      GLES2 is the ceiling the GPU renderer is written to, and it is only ever
+      opted into with the webgl1 flag. required="false" because the software rasterizer is
+      the default path and a device with no usable GL driver still runs the
+      client perfectly well.
+    -->
+    <uses-feature android:glEsVersion="0x00020000" android:required="false" />
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:label="@string/app_name"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar"
-        android:hardwareAccelerated="true">
+        android:hardwareAccelerated="true"
+        android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
 
+        <!-- The boot menu: pick a profile, or wait and take the default. -->
         <activity
-            android:name=".MainActivity"
+            android:name=".BootActivity"
             android:exported="true"
-            android:screenOrientation="landscape"
-            android:configChanges="orientation|keyboardHidden|screenSize"
-            android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|keyboardHidden|screenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          The client itself.
+
+          configChanges lists everything it handles ITSELF: the native frame
+          loop owns the Surface, and letting Android destroy and recreate the
+          activity on a rotation would tear down a running world to build the
+          same one back. The surface still changes size, and that arrives
+          through surfaceChanged like any other resize.
+        -->
+        <activity
+            android:name=".ClientActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize|keyboard|navigation|uiMode|density" />
 
     </application>
 

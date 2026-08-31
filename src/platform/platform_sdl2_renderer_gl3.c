@@ -27,7 +27,7 @@
 #include "toridraw_sprite.h"
 #include "toridraw_types.h"
 
-#include <SDL.h>
+#include "platform/platform_gl_context.h"
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
@@ -4865,7 +4865,7 @@ ToriRS_GL3_Free(struct ToriRS_GL3* renderer)
         return;
 
     if( renderer->window && renderer->gl_context )
-        SDL_GL_MakeCurrent(renderer->window, renderer->gl_context);
+        ToriRS_GLContext_MakeCurrent(renderer->window, renderer->gl_context);
 
     gl3_batch2d_free(renderer);
     gl3_destroy_gl_resources(renderer);
@@ -4915,7 +4915,7 @@ ToriRS_GL3_Free(struct ToriRS_GL3* renderer)
 
     if( renderer->gl_context )
     {
-        SDL_GL_DeleteContext(renderer->gl_context);
+        ToriRS_GLContext_Delete(renderer->gl_context);
         renderer->gl_context = NULL;
     }
 
@@ -4925,7 +4925,7 @@ ToriRS_GL3_Free(struct ToriRS_GL3* renderer)
 bool
 ToriRS_GL3_Init(
     struct ToriRS_GL3* gl3,
-    SDL_Window* window,
+    ToriRS_GLWindow* window,
     struct ToriDraw_Scene* scene,
     bool z_buffer)
 {
@@ -4937,48 +4937,42 @@ ToriRS_GL3_Init(
     gl3->kernel = ToriDraw_KernelGetGpu();
     gl3->window = window;
     gl3->z_buffer_enabled = z_buffer;
-    if( z_buffer )
-    {
-        /*
-         * Before the context exists, because it is part of the pixel format.
-         * A WebGL1 context is created with depth by default, but SDL only
-         * requests one if it is asked to, and a context without a depth buffer
-         * fails silently: the depth test simply never rejects anything and the
-         * result looks like painter order with the sort removed.
-         *
-         * 24 rather than D3D9's D16: WebGL1's DEPTH_COMPONENT16 renderbuffer is
-         * the guaranteed one, but SDL asks the browser for a canvas depth
-         * attachment and the implementation picks; asking for more and getting
-         * 16 is fine, asking for 16 cannot get more.
-         */
-        SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-    }
-    gl3->gl_context = SDL_GL_CreateContext(window);
+    /*
+     * Depth is a CREATION attribute -- part of the pixel format -- which is why
+     * it is a parameter of the create call and not a setting applied to a
+     * context that already exists. A context without a depth buffer fails
+     * SILENTLY: the depth test never rejects anything, and the result looks
+     * like painter order with the sort removed.
+     *
+     * 24 rather than D3D9's D16: the guaranteed GLES2/WebGL1 renderbuffer
+     * format is DEPTH_COMPONENT16, but the host picks what it actually hands
+     * back -- asking for more and getting 16 is fine, asking for 16 cannot get
+     * more.
+     *
+     * Create also makes the context current, so there is no separate
+     * make-current step here; the calls later in the frame exist because this
+     * renderer is written to survive sharing a thread with another context.
+     */
+    gl3->gl_context = ToriRS_GLContext_Create(window, z_buffer ? 24 : 0);
     if( !gl3->gl_context )
     {
-        fprintf(stderr, "OpenGL3: SDL_GL_CreateContext failed: %s\n", SDL_GetError());
+        fprintf(
+            stderr,
+            "OpenGL3: context creation failed: %s\n",
+            ToriRS_GLContext_LastError());
         return false;
     }
-
-    if( SDL_GL_MakeCurrent(window, gl3->gl_context) != 0 )
-    {
-        fprintf(stderr, "OpenGL3: SDL_GL_MakeCurrent failed: %s\n", SDL_GetError());
-        SDL_GL_DeleteContext(gl3->gl_context);
-        gl3->gl_context = NULL;
-        return false;
-    }
-
     /* Desktop GL needs its entry points resolved; emscripten links the GLES2
      * ones straight into the module. */
     if( !trspk_sdlgl_init() )
     {
         fprintf(stderr, "OpenGL3: trspk_sdlgl_init failed\n");
-        SDL_GL_DeleteContext(gl3->gl_context);
+        ToriRS_GLContext_Delete(gl3->gl_context);
         gl3->gl_context = NULL;
         return false;
     }
 
-    SDL_GL_SetSwapInterval(0);
+    ToriRS_GLContext_SetSwapInterval(0);
 
     /* Say what we actually got. The renderer is written against one feature
      * set; if the context is not the one it expects, that is worth seeing on
@@ -5234,7 +5228,7 @@ fail_gl:
     if( fragmentShader )
         glDeleteShader(fragmentShader);
     gl3_destroy_gl_resources(gl3);
-    SDL_GL_DeleteContext(gl3->gl_context);
+    ToriRS_GLContext_Delete(gl3->gl_context);
     gl3->gl_context = NULL;
     return false;
 }
@@ -5264,7 +5258,7 @@ ToriRS_GL3_SetInterfaceScaleMode(struct ToriRS_GL3* gl3, int mode)
     if( !gl3->gl_context || !gl3->window )
         return;
 
-    SDL_GL_MakeCurrent(gl3->window, gl3->gl_context);
+    ToriRS_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
     gl3_set_ui_texture_filter(gl3, gl3->sprite_atlas_texture);
     gl3_set_ui_texture_filter(gl3, gl3->white_texture);
     for( int i = 0; i < GL3_ROTMASK_DEDICATED_CAP; i++ )
@@ -5348,11 +5342,11 @@ ToriRS_GL3_DrawBootBar(
     if( progress > 100 )
         progress = 100;
 
-    SDL_GL_MakeCurrent(gl3->window, gl3->gl_context);
+    ToriRS_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
 
     int drawable_w = gl3->width;
     int drawable_h = gl3->height;
-    SDL_GL_GetDrawableSize(gl3->window, &drawable_w, &drawable_h);
+    ToriRS_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
 
     struct TRSPK_Letterbox lb;
     trspk_compute_letterbox(gl3->width, gl3->height, drawable_w, drawable_h, &lb);
@@ -5437,11 +5431,11 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
     assert(gl3);
     assert(frame);
 
-    SDL_GL_MakeCurrent(gl3->window, gl3->gl_context);
+    ToriRS_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
 
     int drawable_w = gl3->width;
     int drawable_h = gl3->height;
-    SDL_GL_GetDrawableSize(gl3->window, &drawable_w, &drawable_h);
+    ToriRS_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
 
     {
         struct TRSPK_Letterbox lb;
@@ -5528,7 +5522,7 @@ ToriRS_GL3_ReadPixels(
     if( !gl3->window )
         return false;
 
-    SDL_GL_GetDrawableSize(gl3->window, &fb_w, &fb_h);
+    ToriRS_GLContext_DrawableSize(gl3->window, &fb_w, &fb_h);
     if( fb_w <= 0 || fb_h <= 0 )
         return false;
 

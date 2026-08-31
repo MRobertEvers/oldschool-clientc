@@ -40,9 +40,16 @@ Thumbs.db
 *.apk
 *.aab
 
-# Native libraries (if auto-generated)
-# Uncomment if your .so files are generated during build
-# *.so
+# The native client, built by `make -C src PLATFORM=android` straight into this
+# tree so a native rebuild is what the next `gradlew assemble` packages. It is a
+# BUILD OUTPUT, exactly like src/torirs or src/torirs.exe, and belongs in the
+# repository no more than they do -- it is ~27 MB per ABI and changes on every
+# compile. android/README.md says how to produce it.
+src/main/jniLibs/*/*.so
+
+# Pushed to the device instead of packaged: the client reads its cache with
+# ordinary stdio, and an APK asset is not a file. See android/README.md.
+src/main/assets/
 
 # Temporary files
 *.tmp

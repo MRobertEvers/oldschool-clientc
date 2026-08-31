@@ -917,10 +917,12 @@ PlatformSDL2_InitForOpenGL3(struct PlatformSDL2* p, int width, int height, char 
     return false;
 }
 
-struct SDL_Window*
+ToriRS_GLWindow*
 PlatformSDL2_Window(struct PlatformSDL2* p)
 {
     (void)p;
+    /* No GL renderer on this lane -- it selects fixed-function D3D9, which
+     * consumes the HWND below rather than a GL window. */
     return NULL;
 }
 

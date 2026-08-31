@@ -21,7 +21,7 @@
  */
 #if TORIPIXEL_TEXEL_SPACE_IS_NATIVE && \
     ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-#include "impl/raster/span/span.tex.neon.u.c"
+#include "impl/raster/span/span.tex.neon32.u.c"
 #elif TORIPIXEL_TEXEL_SPACE_IS_NATIVE && defined(__AVX2__) && !defined(AVX2_DISABLED)
 #include "impl/raster/span/span.tex.avx.u.c"
 #elif TORIPIXEL_TEXEL_SPACE_IS_NATIVE && defined(__SSE4_1__) && !defined(SSE2_DISABLED)

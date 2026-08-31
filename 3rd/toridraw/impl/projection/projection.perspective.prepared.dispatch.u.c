@@ -16,7 +16,7 @@
  * each in turn.
  */
 #if defined(TORIDRAW_APPLE_NEON_PROJECTION_ASM)
-#include "impl/projection/projection.perspective.prepared.neon.u.c"
+#include "impl/projection/projection.perspective.prepared.neon64.u.c"
 #elif defined(TORIDRAW_SSE2_PREPARED_PROJECTION)
 #include "impl/projection/projection.perspective.prepared.sse2.u.c"
 #else

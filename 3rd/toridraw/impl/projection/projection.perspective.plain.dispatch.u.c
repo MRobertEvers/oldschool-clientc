@@ -16,7 +16,7 @@
 
 // This was turning out slower than the scalar version, so we're disabling it for now.
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-#include "impl/projection/projection.perspective.plain.neon.u.c"
+#include "impl/projection/projection.perspective.plain.neon32.u.c"
 #elif defined(__AVX2__) && !defined(AVX2_DISABLED)
 #include "impl/projection/projection.perspective.plain.avx.u.c"
 #elif defined(__SSE4_1__) && !defined(SSE2_DISABLED)

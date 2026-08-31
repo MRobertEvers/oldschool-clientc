@@ -87,7 +87,7 @@
  * functions -- read as though a build could have several.
  */
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-#include "impl/projection/projection.parallel.plain.neon.u.c"
+#include "impl/projection/projection.parallel.plain.neon32.u.c"
 #elif defined(__AVX2__) && !defined(AVX2_DISABLED)
 #include "impl/projection/projection.parallel.plain.avx.u.c"
 #elif defined(__SSE2__) && !defined(SSE2_DISABLED)

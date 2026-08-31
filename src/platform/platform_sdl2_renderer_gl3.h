@@ -4,7 +4,7 @@
 #include "render/torirs_pick.h"
 #include "render/torirs_render.h"
 
-#include <SDL.h>
+#include "platform/platform_gl_context.h"
 #include <stdbool.h>
 
 struct ToriDraw_Scene;
@@ -48,7 +48,7 @@ ToriRS_GL3_SetInterfaceScaleMode(
 bool
 ToriRS_GL3_Init(
     struct ToriRS_GL3* gl3,
-    SDL_Window* window,
+    ToriRS_GLWindow* window,
     struct ToriDraw_Scene* scene,
     bool z_buffer);
 

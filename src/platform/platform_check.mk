@@ -66,6 +66,39 @@ LANE_REQUIRE_web := -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1 \
 # gets. Check it with: make -C src lane-check PLATFORM=web OPT=0
 LANE_FORBID_web  := ASYNCIFY -dead_strip -O0
 
+# --- Android: GLES2, armv7 NEON, and NO SDL ---------------------------------
+#
+# Three things this lane must keep true, all of which have failed quietly
+# before rather than loudly:
+#
+#   -mfpu=neon        armv7 does not enable NEON by default, and the toridraw
+#                     span/projection/facesort kernels select their SIMD lane
+#                     with `#if defined(__ARM_NEON)` at COMPILE time. Without
+#                     this flag every one of them silently takes the scalar
+#                     fallback -- on the device class that can least afford it,
+#                     and with no symptom but a slower frame.
+#   -fPIC             the output is a shared library. Missing it does at least
+#                     fail, but deep in the linker with "relocation R_ARM_REL32
+#                     cannot be used against symbol 's_mp_prime_tab'", which
+#                     names a tommath symbol and not the cause.
+#   TORIRS_GL_ES2     the GPU renderer is built against the GLES2 ceiling. With
+#                     TORIRS_HAVE_GL3 but not this, main.c would accept
+#                     --opengl3 and hand this lane the desktop GL 3.3 renderer,
+#                     which no phone driver here can run.
+LANE_REQUIRE_android := -DTORIRS_PLATFORM_ANDROID=1 -fPIC -mfpu=neon \
+                        TORIRS_HAVE_GL3=1 TORIRS_GL_ES2=1 \
+                        -shared -llog -landroid -lGLESv2 -lEGL \
+                        webgl1_index16.o
+# -lSDL2/-sUSE_SDL=2 are forbidden, not merely absent. "No SDL on Android" is
+# the defining property of this lane, and the way it would be lost is somebody
+# adding SDL to a SHARED variable to fix another host -- which this catches at
+# `make lane-check` instead of on a device.
+#
+# -dead_strip is ld64-only; -mfpmath=sse and -march=pentium4 are x86. Their
+# presence would mean a desktop block's flags leaked into this one.
+LANE_FORBID_android  := -lSDL2 -sUSE_SDL=2 -dead_strip -mfpmath=sse \
+                        -march=pentium4 -march=x86-64 -ld3d9 TORIRS_HAVE_D3D9
+
 # Everything a lane actually compiles and links with. GPU object names are in
 # here so "no WebGL in the win32 link" is checkable as a flag would be.
 LANE_EFFECTIVE = $(CFLAGS) $(LDFLAGS) $(PLATFORM_GPU_OBJ_NAMES)
@@ -78,10 +111,14 @@ LANE_FORBIDDEN_PRESENT = $(strip $(foreach f,$(LANE_FORBID_$(PLATFORM)), \
 # Lanes needing more than a flag comparison name an extra target here.
 LANE_EXTRA_CHECKS_win32 := lane-check-toolchain-win32 lane-check-fixed-function-win32
 LANE_EXTRA_CHECKS_win64 := lane-check-toolchain-win64 lane-check-fixed-function-win32
+# The android lane's flag contract says SDL is not on the command line. This
+# proves it of the ARTIFACT: a linked library with an SDL symbol in it would
+# mean SDL arrived some way the flags do not show.
+LANE_EXTRA_CHECKS_android := lane-check-no-sdl-android
 
 .PHONY: lane-check lane-check-flags lane-check-all lane-check-artifact \
         lane-check-toolchain-win32 lane-check-toolchain-win64 \
-        lane-check-fixed-function-win32
+        lane-check-fixed-function-win32 lane-check-no-sdl-android
 
 lane-check: lane-check-flags $(LANE_EXTRA_CHECKS_$(PLATFORM))
 
@@ -174,3 +211,26 @@ lane-check-artifact:
 	if [ '$(PLATFORM)' = 'win32' ] && printf '%s\n' "$$imports_lc" | grep -Eq '(^|[[:space:]])_?putenv_s$$'; then \
 		echo "lane-check-artifact: $(TARGET) imports _putenv_s, which XP msvcrt.dll does not export" >&2; exit 1; fi; \
 	echo "lane-check-artifact: $(TARGET) ok ($$expected_fmt, subsystem $$expected_subsystem, fixed-function d3d9, QPC pacing, standalone)"
+
+# No SDL in the shipped Android library.
+#
+# Checked on the artifact rather than only the flags because that is where the
+# claim actually has to hold: "this app does not carry SDL" is about what is in
+# the .so, and a symbol could arrive through a static archive that never appears
+# on a command line. Skipped (not failed) when the library has not been built
+# yet, so `lane-check-all` stays runnable from a clean tree.
+lane-check-no-sdl-android:
+	@so='$(PLATFORM_TARGET)'; \
+	if [ ! -f "$$so" ]; then \
+		echo "lane-check: $$so not built yet - skipping the no-SDL artifact probe"; \
+		exit 0; fi; \
+	nm='$(ANDROID_TOOLCHAIN)/bin/llvm-nm'; \
+	if [ ! -x "$$nm" ]; then \
+		echo "lane-check: $$nm not found - skipping the no-SDL artifact probe"; \
+		exit 0; fi; \
+	if "$$nm" -D "$$so" 2>/dev/null | grep -q 'SDL_'; then \
+		echo "lane-check: PLATFORM=android links SDL symbols:" >&2; \
+		"$$nm" -D "$$so" | grep 'SDL_' | head >&2; \
+		echo "  This lane must have no SDL. See the android block in platform.mk." >&2; \
+		exit 1; fi; \
+	echo "lane-check: android artifact carries no SDL symbol"

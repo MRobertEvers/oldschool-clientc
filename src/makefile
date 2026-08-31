@@ -1340,8 +1340,14 @@ $(OBJ_DIR)/gameproto_rev_osrs239.o: net/rev/osrs239/gameproto_rev_osrs239.c | $(
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/osrs239 -c $< -o $@
 
 # tommath amalgam for RSA (login block exptmod).
+# PLATFORM_BASE_CFLAGS is on this line for the reason that variable exists:
+# it is the subset every TU needs, vendored units included. This rule spells its
+# own flags rather than using $(CFLAGS), and so had to name it explicitly --
+# without it the Android lane's -fPIC never reached the amalgam, and the whole
+# shared library failed to link with "relocation R_ARM_REL32 cannot be used
+# against symbol 's_mp_prime_tab'".
 $(OBJ_DIR)/tommath.o: $(REPO_ROOT)/3rd/tommath/mpi.c | $(OBJ_DIR)
-	$(CC) -std=c11 -O2 -w -I$(REPO_ROOT)/3rd/tommath -c $< -o $@
+	$(CC) -std=c11 -O2 -w $(PLATFORM_BASE_CFLAGS) -I$(REPO_ROOT)/3rd/tommath -c $< -o $@
 
 # --- World builder pipeline object rules ---------------------------------
 $(OBJ_DIR)/world_builder.o: $(WB_DIR)/world_builder.c | $(OBJ_DIR)
