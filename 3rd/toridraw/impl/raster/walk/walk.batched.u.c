@@ -139,7 +139,7 @@ toridraw_raster_batch_flush(
         {
 #ifdef TORIDRAW_GOURAUD_PRESORTED_RUN
         case TORIDRAW_RASTER_BATCH_GOURAUD:
-            toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm(
+            TORIDRAW_GOURAUD_PRESORTED_RUN_OPAQUE(
                 ctx->pixel_buffer,
                 ctx->stride,
                 ctx->screen_width,
@@ -148,7 +148,7 @@ toridraw_raster_batch_flush(
                 batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_GOURAUD_ALPHA:
-            toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm(
+            TORIDRAW_GOURAUD_PRESORTED_RUN_ALPHA(
                 ctx->pixel_buffer,
                 ctx->stride,
                 ctx->screen_width,

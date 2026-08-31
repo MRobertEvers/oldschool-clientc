@@ -55,7 +55,62 @@
  * |sarea| >= 2048. Two roundings and no table wins on every axis but one, and
  * that one is not resolvable.
  */
-static inline double
+/*
+ * -DTORIDRAW_GOURAUD_STEP_IDIV: the exact integer divide instead, and the
+ * reason it exists is a lane, not a preference.
+ *
+ * Everything above prices double against an integer divide on a core that has
+ * BOTH. A core with a single-precision FPU and no double -- Xtensa LX7, the
+ * ESP32-S3 -- has neither of the things that argument assumed. There, `double`
+ * is eight libgcc calls per triangle (three __floatsidf, one __divdf3, two
+ * __muldf3, two __fixdfsi), several hundred cycles, on EVERY gouraud triangle;
+ * and the integer divide the whole note argues against is one QUOS at about
+ * twenty cycles. The trade inverts completely, and it inverts for the C on
+ * that target as much as for the assembly.
+ *
+ * So this arm is not an approximation of the arm above. It is the EXACT
+ * quotient, and the arm above is the approximate one -- by at most 1, and only
+ * where sarea divides the numerator exactly, which is what the note already
+ * says. A lane taking this arm is a shade step closer to the truth, never
+ * further.
+ *
+ * It is also what makes the Xtensa kernel scoreable. Bit-exactness against the
+ * C is how every raster kernel here is held to its reference, and a kernel
+ * that cannot do double arithmetic cannot reproduce a double rounding; with
+ * the reference built on this arm the two agree exactly, and any difference
+ * that remains is a bug in the walk rather than the rounding of a reciprocal.
+ * That is the same separation -DTORIDRAW_EDGE_IDIV draws for the edge slopes.
+ *
+ * The 64-bit intermediate is load-bearing: `numerator << 8` is *meant* to wrap
+ * (toridraw_wrap_shl), so the value handed here is a full-range int32, and on
+ * a 32-bit quotient the division must not overflow before it truncates.
+ */
+#ifdef TORIDRAW_GOURAUD_STEP_IDIV
+
+typedef int gouraudhsllightness_recip_t;
+
+static inline gouraudhsllightness_recip_t
+gouraudhsllightness_barycentric_recip(int sarea)
+{
+    /* The divisor itself; there is no reciprocal to take. */
+    return sarea;
+}
+
+static inline int
+gouraudhsllightness_barycentric_hsl_step_ish8(
+    int numerator,
+    gouraudhsllightness_recip_t sarea)
+{
+    /* C division truncates toward zero, which is what (int) of the double
+     * product does too, so the two arms agree on sign as well as magnitude. */
+    return (int)(toridraw_wrap_shl(numerator, 8) / sarea);
+}
+
+#else
+
+typedef double gouraudhsllightness_recip_t;
+
+static inline gouraudhsllightness_recip_t
 gouraudhsllightness_barycentric_recip(int sarea)
 {
     /* sarea == 0 is a degenerate triangle and every caller returns before
@@ -66,9 +121,11 @@ gouraudhsllightness_barycentric_recip(int sarea)
 static inline int
 gouraudhsllightness_barycentric_hsl_step_ish8(
     int numerator,
-    double recip_sarea)
+    gouraudhsllightness_recip_t recip_sarea)
 {
     return (int)((double)toridraw_wrap_shl(numerator, 8) * recip_sarea);
 }
+
+#endif /* TORIDRAW_GOURAUD_STEP_IDIV */
 
 #endif

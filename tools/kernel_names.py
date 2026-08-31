@@ -65,7 +65,15 @@ ISA_CANON = {
 
 # Assembly keeps the architecture in its name: a .S file IS an architecture, and
 # `neon` names an instruction set that aarch64 assembly does not exclusively use.
-ASM_ISA = {"aarch64", "i686", "x64"}
+ASM_ISA = {"aarch64", "i686", "x64", "xtensa"}
+
+# A kernel that writes ONE framebuffer format names it, between the family and
+# the architecture: tri.flat.rgb565.xtensa.S. Absent, the file is XRGB8888 --
+# which is what every kernel was when there was only one format, so the token
+# appears exactly where a second one did. Renaming the incumbents to carry
+# `.xrgb8888.` would be churn that tells a reader nothing they did not know.
+FORMAT_TOKEN = {"xrgb8888", "argb8888", "rgba8888", "abgr8888", "bgra8888",
+                "rgb565", "argb1555"}
 
 STAGE_PROJ, STAGE_SORT, STAGE_RASTER = "projection", "facesort", "raster"
 
@@ -311,8 +319,15 @@ def place_raster_asm(rel, base):
     architecture name rather than the ISA vocabulary the C files share: `neon`
     names an instruction set that aarch64 assembly does not exclusively use,
     and the two are not interchangeable in a filename that the assembler reads.
+
+    The grammar is `<kind>.<family>[.<format>].<arch>.S`. The format token is
+    present only where the kernel writes one framebuffer layout that is not
+    the incumbent XRGB8888 -- see FORMAT_TOKEN. Nothing here MAPS onto a
+    formatted name, because no legacy file had one: the first such kernel
+    (tri.flat.rgb565.xtensa.S) was written under this grammar rather than
+    renamed into it.
     """
-    m = re.match(r"(flat|gouraud|tex)_(tri|span)_(aarch64|i686|x64)\.S$", base)
+    m = re.match(r"(flat|gouraud|tex)_(tri|span)_(aarch64|i686|x64|xtensa)\.S$", base)
     if not m:
         return None
     family, kind, arch = m.groups()

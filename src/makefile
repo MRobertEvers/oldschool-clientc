@@ -2911,7 +2911,7 @@ test-scanline: $(OBJ_DIR)
 # -Werror=incompatible-pointer-types is the point of the compile: a kernel that
 # has not been converted cannot silently accept a native buffer.
 TORIDRAW_PIXEL_FORMATS = \
-	XRGB8888:1 ARGB8888:2 RGBA8888:3 ABGR8888:4 BGRA8888:5 RGB565:6 ARGB1555:7
+	XRGB8888:1 ARGB8888:2 RGBA8888:3 ABGR8888:4 BGRA8888:5 RGB565:6 ARGB1555:7 \n	RGB565_BE:8
 
 .PHONY: test-scanline-formats
 test-scanline-formats: $(OBJ_DIR)
@@ -5068,6 +5068,40 @@ else
 		-o $(OBJ_DIR)/presorted_neon_test \
 		$(TORIDRAW_DIR)/toridraw_presorted_neon_test.c $(NEON_TRI_ASM_OBJS) -lm
 	./$(OBJ_DIR)/presorted_neon_test
+endif
+
+# --- the Xtensa lane, as far as a host can take it -------------------------
+#
+# tri.flat.rgb565.xtensa.S ASSEMBLES. That is the whole claim, and it is worth
+# a target because the file is reached by no other build on this machine and
+# would rot silently otherwise: a stray register name or a frame offset off
+# the grammar is caught here rather than by someone flashing a part.
+#
+# It is NOT a test and must not be described as one -- the assembler does not
+# police the ISA's zero-overhead-loop restrictions, and it accepts a loop
+# ending in a branch, which is architecturally illegal. The proof runs on the
+# device: 3rd/toridraw/test/xtensa, an ESP-IDF app that scores both doors
+# against the same C references. Nothing a host does substitutes for it.
+#
+# Skips rather than fails without an ESP toolchain. This is the one lane whose
+# compiler is not a normal cross-compiler to have lying around.
+XTENSA_AS := $(shell command -v xtensa-esp32s3-elf-gcc 2>/dev/null)
+
+.PHONY: check-xtensa-asm
+check-xtensa-asm:
+ifeq ($(XTENSA_AS),)
+	@echo "check-xtensa-asm: no xtensa-esp32s3-elf-gcc on PATH -- skipped"
+else
+	@mkdir -p $(OBJ_DIR)
+	$(XTENSA_AS) -mlongcalls -mtext-section-literals -I$(TORIDRAW_DIR) \
+		-c -x assembler-with-cpp \
+		$(TORIDRAW_DIR)/impl/raster/asm/tri.flat.rgb565.xtensa.S \
+		-o $(OBJ_DIR)/tri_flat_rgb565_xtensa.o
+	$(XTENSA_AS) -mlongcalls -mtext-section-literals -I$(TORIDRAW_DIR) \
+		-DTORIDRAW_XTENSA_NO_PIE=1 -c -x assembler-with-cpp \
+		$(TORIDRAW_DIR)/impl/raster/asm/tri.flat.rgb565.xtensa.S \
+		-o $(OBJ_DIR)/tri_flat_rgb565_xtensa_nopie.o
+	@echo "check-xtensa-asm: both fills assemble"
 endif
 
 # The bitonic+radix face sort (SIMD cull + bitonic/radix) against the bucket

@@ -138,7 +138,7 @@ derived from whichever sine and cosine tables are selected, and
   is a face that silently does not draw.
 - **`-DTORIDRAW_PIXEL_FORMAT=TORIDRAW_PF_RGB565`** (or `..._ARGB1555`) selects a
   two-byte framebuffer word. Every raster family draws on every one of the
-  seven formats; see `graphics/pixel_format.h`.
+  eight formats; see `graphics/pixel_format.h`.
 
 ## The arena, without the mini facade
 

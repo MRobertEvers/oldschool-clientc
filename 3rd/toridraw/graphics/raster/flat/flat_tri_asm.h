@@ -175,18 +175,37 @@ void toridraw_flat_alpha_s4_presorted_run_xrgb8888_asm(
 #define TORIDRAW_FLAT_PRESORTED_RUN_ROW_INTS 12
 #define TORIDRAW_FLAT_PRESORTED_RUN 1
 
-#elif defined(TORIDRAW_FLAT_TRI_XTENSA_ASM) && TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_RGB565
+#elif defined(TORIDRAW_FLAT_TRI_XTENSA_ASM) &&                                                     \
+    (TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_RGB565 ||                                                \
+     TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_RGB565_BE)
 
 /*
  * The Xtensa LX7 / ESP32-S3 lane: tri.flat.rgb565.xtensa.S. As on AArch64
  * only the RUN doors exist, and the per-face path keeps the C.
  *
- * THE GATE IS THE FORMAT, NOT THE ISA, and both halves of it matter. A build
- * that assembled the .S but selected another framebuffer arrives here and
- * DECLINES -- the symbols are linked and unreachable -- because a kernel that
- * stores halfwords into a 32-bit buffer is not a slower answer, it is a wrong
- * one. There is no XRGB8888 twin of this file and there is no reason to write
- * one: the parts this lane exists for drive 16-bit panels.
+ * WHY THIS IS THE ONLY PLACE A FORMAT IS NAMED TWICE. Every C kernel in the
+ * library is format-blind -- it stores what the palette gave it and calls
+ * alpha_blend, and graphics/pixel_format.h binds those to one format for the
+ * build. That is why a new format needs no new kernels. Assembly cannot call
+ * an inline C function, so a hand-written door has to CONTAIN the arithmetic
+ * and therefore has to claim which format it wrote. Hence the gate, hence
+ * TORIPIXEL_IS_XRGB8888 on the two lanes above.
+ *
+ * A build that assembled the .S but selected a 32-bit framebuffer arrives here
+ * and DECLINES -- the symbols are linked and unreachable -- because a kernel
+ * that stores halfwords into a 32-bit buffer is not a slower answer, it is a
+ * wrong one.
+ *
+ * BOTH 16-BIT ORDERS ARE SERVED, by different symbols, so the routing and the
+ * kernel cannot disagree about which one a build got. Most of the kernel did
+ * not care: the opaque door looks a word up in the palette and stores it, and
+ * the palette was generated in the build's own order, so it assembles
+ * identically for both. Only the BLEND touches channel fields, and that is
+ * where the .S spends its one #if. Assemble it with
+ * -DTORIDRAW_XTENSA_RGB565_BE=1 for the swapped order; it picks its entry
+ * point names off the same macro, so a mismatch between this header and that
+ * build flag is an undefined symbol at link rather than swapped reds on a
+ * panel.
  *
  * Same 48-byte row record as the other two lanes. The record is ints and does
  * not know the pixel format, which is why one batched walk feeds all three.
@@ -194,7 +213,15 @@ void toridraw_flat_alpha_s4_presorted_run_xrgb8888_asm(
 
 #include "graphics/shared_tables.h"
 
-void toridraw_flat_opaque_s4_presorted_run_rgb565_asm(
+#if TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_RGB565_BE
+#define TORIDRAW_FLAT_PRESORTED_RUN_OPAQUE toridraw_flat_opaque_s4_presorted_run_rgb565_be_asm
+#define TORIDRAW_FLAT_PRESORTED_RUN_ALPHA  toridraw_flat_alpha_s4_presorted_run_rgb565_be_asm
+#else
+#define TORIDRAW_FLAT_PRESORTED_RUN_OPAQUE toridraw_flat_opaque_s4_presorted_run_rgb565_asm
+#define TORIDRAW_FLAT_PRESORTED_RUN_ALPHA  toridraw_flat_alpha_s4_presorted_run_rgb565_asm
+#endif
+
+void TORIDRAW_FLAT_PRESORTED_RUN_OPAQUE(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -202,7 +229,7 @@ void toridraw_flat_opaque_s4_presorted_run_rgb565_asm(
     const int* rows,
     int count);
 
-void toridraw_flat_alpha_s4_presorted_run_rgb565_asm(
+void TORIDRAW_FLAT_PRESORTED_RUN_ALPHA(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,
@@ -212,9 +239,6 @@ void toridraw_flat_alpha_s4_presorted_run_rgb565_asm(
 
 #define TORIDRAW_FLAT_TRI_OPAQUE_S4 raster_flat_screen_opaque_branching_s4
 #define TORIDRAW_FLAT_TRI_ALPHA_S4  raster_flat_screen_alpha_branching_s4
-
-#define TORIDRAW_FLAT_PRESORTED_RUN_OPAQUE toridraw_flat_opaque_s4_presorted_run_rgb565_asm
-#define TORIDRAW_FLAT_PRESORTED_RUN_ALPHA  toridraw_flat_alpha_s4_presorted_run_rgb565_asm
 
 #define TORIDRAW_FLAT_PRESORTED_RUN_ROW_INTS 12
 #define TORIDRAW_FLAT_PRESORTED_RUN 1

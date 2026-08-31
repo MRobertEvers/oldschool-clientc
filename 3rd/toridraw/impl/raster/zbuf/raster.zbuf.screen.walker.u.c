@@ -397,7 +397,7 @@ raster_zbuf_screen_ordered(
         int const d_hsl_AB = tri->shade[1] - tri->shade[0];
         int const d_hsl_AC = tri->shade[2] - tri->shade[0];
 
-        double recip_sarea = gouraudhsllightness_barycentric_recip(sarea);
+        gouraudhsllightness_recip_t recip_sarea = gouraudhsllightness_barycentric_recip(sarea);
         s.hsl_step_dx_ish8 = gouraudhsllightness_barycentric_hsl_step_ish8(
             d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, recip_sarea);
         d.hsl_dy_ish8 = gouraudhsllightness_barycentric_hsl_step_ish8(

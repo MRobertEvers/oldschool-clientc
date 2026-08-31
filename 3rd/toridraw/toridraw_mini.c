@@ -1,6 +1,10 @@
 #include "toridraw_mini.h"
 
 #include "toridraw.h"
+/* For TORIDRAW_RASTER_BATCH: whether this build HAS a whole-model door to
+ * take. It is a fact about the lane, not a caller's choice, which is why it
+ * is read here and not passed in. */
+#include "toridraw_raster_batch.h"
 
 #include <assert.h>
 #include <string.h>
@@ -14,9 +18,40 @@
  * cannot be handed a heap scene by accident and a world client cannot pass its
  * scene here; ToriDraw_MiniViewScene is the one sanctioned crossing.
  *
- * The kernel table is not stored: ToriDraw_KernelGetSpriteBaker is a process-
- * lifetime object and asking for it is a load and a compare.
+ * The kernel table is not stored: the getters return process-lifetime objects
+ * and asking for one is a load and a compare.
+ *
+ * WHICH TABLE, AND WHY IT IS NOT ALWAYS THE BAKER. A build whose lane has the
+ * presorted-run assembly gets the software painter, whose whole-model door
+ * hands a RUN of same-class faces to one call instead of paying the per-face
+ * marshal on each; a build without it gets the per-face baker, because there
+ * the door does not exist and the painter would be the same walk with staging
+ * on top. The two draw the same pixels either way -- the assembly is scored
+ * against the C it replaces -- so this only ever moves the time.
+ *
+ * The stash the door reads costs 32 bytes per face, and the arena provisions
+ * it only when the limits ask; the two answers therefore have to come from
+ * the same predicate, which is what mini_wants_batched() is for. Getting them
+ * out of step is not silent -- ToriDraw_SceneEnsureScratch aborts on an arena
+ * scene asked to grow -- but it is a bad way to find out.
  */
+
+static bool
+mini_wants_batched(void)
+{
+#ifdef TORIDRAW_RASTER_BATCH
+    return true;
+#else
+    return false;
+#endif
+}
+
+static const struct ToriDraw_Kernel*
+mini_kernel(void)
+{
+    return mini_wants_batched() ? ToriDraw_KernelGetSoftwarePainter()
+                                : ToriDraw_KernelGetSpriteBaker();
+}
 
 static struct ToriDraw_Scene*
 mini_scene(struct ToriDraw_MiniView* view)
@@ -33,6 +68,7 @@ ToriDraw_MiniLimitsForModel(
 
     memset(out_limits, 0, sizeof(*out_limits));
     ToriDraw_SceneLimitsForModel(hnd, &out_limits->scene);
+    out_limits->scene.batched_raster = mini_wants_batched();
 }
 
 void
@@ -42,6 +78,7 @@ ToriDraw_MiniLimitsInclude(
 {
     assert(limits);
     ToriDraw_SceneLimitsInclude(&limits->scene, hnd);
+    limits->scene.batched_raster = mini_wants_batched();
 }
 
 size_t
@@ -76,7 +113,7 @@ ToriDraw_MiniViewInit(
      * unless asked -- this asks for exactly what the arena holds and the take
      * cannot allocate.
      */
-    ToriDraw_KernelTake(scene, ToriDraw_KernelGetSpriteBaker());
+    ToriDraw_KernelTake(scene, mini_kernel());
 
     return (struct ToriDraw_MiniView*)scene;
 }
@@ -250,7 +287,7 @@ ToriDraw_MiniDrawModel(
         &view_port,
         &camera,
         target->pixels,
-        ToriDraw_KernelGetSpriteBaker());
+        mini_kernel());
 
     return result == TORIDRAW_CULL_VISIBLE;
 }

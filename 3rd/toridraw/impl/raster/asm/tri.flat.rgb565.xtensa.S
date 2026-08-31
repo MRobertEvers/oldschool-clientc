@@ -22,6 +22,9 @@
  * and blends with the RGB565 spread arithmetic -- a different claim, hence a
  * different name and a gate of its own. See KERNELS.md, "The pixel format".
  *
+ * It serves BOTH 16-bit orders, RGB565 and RGB565_BE, under entry points that
+ * each name the one they write; see the block below the ISA gate.
+ *
  * WHAT IS DIFFERENT FROM THE AArch64 KERNEL, AND WHY
  *
  *   - THE EDGE SLOPES ARE AN EXACT INTEGER DIVIDE. The NEON lane folds three
@@ -90,6 +93,32 @@
  */
 
 #if defined(__XTENSA__)
+
+/*
+ * TWO FORMATS, ONE FILE. RGB565 and RGB565_BE are the same five/six/five
+ * channels in the two byte orders, and this kernel serves both:
+ *
+ *   -DTORIDRAW_XTENSA_RGB565_BE=1  ->  ..._presorted_run_rgb565_be_asm
+ *   (default)                      ->  ..._presorted_run_rgb565_asm
+ *
+ * The filename fixes the channels and SPANS the byte order, which the entry
+ * point names carry -- the convention tools/kernel_names.py states for every
+ * file that is more than one kernel. A name here never describes a format it
+ * does not write.
+ *
+ * Almost nothing differs. The opaque door is byte-order agnostic by
+ * construction: it looks a word up in the palette and stores it, and the
+ * palette was generated in whichever order the build selected, so the two
+ * assemble to identical code. Only the BLEND has to know, because it does
+ * arithmetic on channel fields -- see FILLALPHA.
+ */
+#if defined(TORIDRAW_XTENSA_RGB565_BE)
+#define SYM_OPAQUE toridraw_flat_opaque_s4_presorted_run_rgb565_be_asm
+#define SYM_ALPHA  toridraw_flat_alpha_s4_presorted_run_rgb565_be_asm
+#else
+#define SYM_OPAQUE toridraw_flat_opaque_s4_presorted_run_rgb565_asm
+#define SYM_ALPHA  toridraw_flat_alpha_s4_presorted_run_rgb565_asm
+#endif
 
 /* The staged row, in bytes. Must match TORIDRAW_FLAT_PRESORTED_RUN_ROW_INTS. */
 #define R_X   0
@@ -268,6 +297,24 @@
 	.macro	FILLALPHA
 	loopnez	a14, 8819f
 	l16ui	a15, a13, 0
+#if defined(TORIDRAW_XTENSA_RGB565_BE)
+	/*
+	 * Unswap, blend, swap back -- the same shape toripixel_rgb565_be_alpha_blend
+	 * has, and for the same reason. The swapped word puts green in two
+	 * pieces, three bits at each end, so there is nothing contiguous for the
+	 * one multiply to work on; blending the halves separately drops the
+	 * carry between them and bands the greens. Eight instructions to keep
+	 * one implementation of the arithmetic is the trade.
+	 *
+	 * The `extui ..., 0, 16` is not tidiness. Without it the high byte the
+	 * shift lifted above bit 15 survives into the spread, where the mask's
+	 * upper field (bits 21..26) reads it as green.
+	 */
+	srli	a4, a15, 8
+	slli	a15, a15, 8
+	or	a15, a15, a4
+	extui	a15, a15, 0, 16
+#endif
 	slli	a4, a15, 16
 	or	a15, a15, a4
 	and	a15, a15, a11
@@ -277,6 +324,12 @@
 	and	a15, a15, a11
 	extui	a4, a15, 16, 16
 	or	a15, a15, a4
+#if defined(TORIDRAW_XTENSA_RGB565_BE)
+	extui	a15, a15, 0, 16
+	srli	a4, a15, 8
+	slli	a15, a15, 8
+	or	a15, a15, a4
+#endif
 	s16i	a15, a13, 0
 	addi	a13, a13, 2
 8819:
@@ -379,6 +432,21 @@
 	l32i	a4, a1, FR_PAL
 	addx2	a14, a14, a4
 	l16ui	a14, a14, 0			/* the source pixel             */
+#if defined(TORIDRAW_XTENSA_RGB565_BE)
+	/*
+	 * THE PALETTE IS IN THE BUILD'S OWN ORDER, so on this arm the word that
+	 * just came out of it is swapped like every other pixel and has to be
+	 * unswapped before it can be spread. Missing this is not a subtle
+	 * shading difference: it multiplies scrambled channel fields and the
+	 * blended faces come out an unrelated colour, while every OPAQUE face
+	 * -- which stores the palette word untouched -- stays perfect. That is
+	 * a failure that hides in exactly the faces nobody checks first.
+	 */
+	srli	a4, a14, 8
+	slli	a14, a14, 8
+	or	a14, a14, a4
+	extui	a14, a14, 0, 16
+#endif
 	srli	a15, a15, 3			/* a = alpha >> 3, 0..31        */
 	movi	a11, RGB565_SPREAD_MASK
 	slli	a4, a14, 16
@@ -615,25 +683,25 @@
 	.endm
 
 /*
- * void toridraw_flat_opaque_s4_presorted_run_rgb565_asm(
+ * void <SYM_OPAQUE>(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, const int* rows, int count);
  */
 	.literal_position
 	.align	4
-	.globl	toridraw_flat_opaque_s4_presorted_run_rgb565_asm
-	.type	toridraw_flat_opaque_s4_presorted_run_rgb565_asm, @function
-toridraw_flat_opaque_s4_presorted_run_rgb565_asm:
+	.globl	SYM_OPAQUE
+	.type	SYM_OPAQUE, @function
+SYM_OPAQUE:
 	ENTER
 	l32i	a13, a1, FR_LEFT
 	blti	a13, 1, Lo_ret
 	FLATBODY Lo_, SETUP_OPAQUE, FILLOPAQUE
 Lo_ret:
 	LEAVE
-	.size	toridraw_flat_opaque_s4_presorted_run_rgb565_asm, . - toridraw_flat_opaque_s4_presorted_run_rgb565_asm
+	.size	SYM_OPAQUE, . - SYM_OPAQUE
 
 /*
- * void toridraw_flat_alpha_s4_presorted_run_rgb565_asm(
+ * void <SYM_ALPHA>(
  *     toripixel_t* pixel_buffer, int stride, int screen_width,
  *     int screen_height, const int* rows, int count);
  *
@@ -642,15 +710,15 @@ Lo_ret:
  */
 	.literal_position
 	.align	4
-	.globl	toridraw_flat_alpha_s4_presorted_run_rgb565_asm
-	.type	toridraw_flat_alpha_s4_presorted_run_rgb565_asm, @function
-toridraw_flat_alpha_s4_presorted_run_rgb565_asm:
+	.globl	SYM_ALPHA
+	.type	SYM_ALPHA, @function
+SYM_ALPHA:
 	ENTER
 	l32i	a13, a1, FR_LEFT
 	blti	a13, 1, La_ret
 	FLATBODY La_, SETUP_ALPHA, FILLALPHA
 La_ret:
 	LEAVE
-	.size	toridraw_flat_alpha_s4_presorted_run_rgb565_asm, . - toridraw_flat_alpha_s4_presorted_run_rgb565_asm
+	.size	SYM_ALPHA, . - SYM_ALPHA
 
 #endif /* __XTENSA__ */
