@@ -363,7 +363,7 @@ PLACERS = (place_projection, place_facesort, place_raster_asm, place_raster_span
 KEEP = re.compile(
     r"(census|ablate|_asm\.h$|_asm_support|tex_sampler|texmap_common|scanline_common"
     r"|scanline_select|_steps\.h$|_edges\.h$|zbuf_plane|ysort_order|winding|shade\.h"
-    r"|clamp\.h|alpha\.h|int_wrap|dash_|fb_clear|zdepth|sse2_41compat|tori_compat"
+    r"|clamp\.h|alpha\.h|pixel_format|int_wrap|dash_|fb_clear|zdepth|sse2_41compat|tori_compat"
     r"|shared_tables|convex_hull|_peer_decl|span_uv|_body\.inc$|_tmpl\.inc$"
     r"|edge_slopes|batch_stats|div3|span_fill)")
 

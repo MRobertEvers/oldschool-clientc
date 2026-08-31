@@ -10,11 +10,7 @@ _Alignas(64) int g_projection_model_yaw_table[2048][2];
 //   This tool renders a color palette using jagex's 16-bit HSL, 6 bits
 //             for hue, 3 for saturation and 7 for lightness, bitpacked and
 //             represented as a short.
-#ifdef TORIDRAW_PIXEL16
-uint16_t g_hsl16_to_rgb_table[65536];
-#else
-int g_hsl16_to_rgb_table[65536];
-#endif
+toripixel_t g_hsl16_to_rgb_table[65536];
 
 static int g_sin_table_builtin[2048];
 static int g_cos_table_builtin[2048];
@@ -73,11 +69,7 @@ pix3d_set_gamma(
 
 static void
 pix3d_init_palette(
-#ifdef TORIDRAW_PIXEL16
-    uint16_t* palette,
-#else
-    int* palette,
-#endif
+    toripixel_t* palette,
     double brightness)
 {
     double random_brightness = brightness;
@@ -173,7 +165,10 @@ pix3d_init_palette(
 
             int rgb = (intR << 16) + (intG << 8) + intB;
             int rgbAdjusted = pix3d_set_gamma(rgb, random_brightness);
-            palette[offset++] = rgbAdjusted;
+            /* The one HSL -> framebuffer conversion in the library. Every
+             * solid kernel is a lookup into what this writes, so the format
+             * is decided here and nowhere downstream. */
+            palette[offset++] = toripixel_pack_argb8888((uint32_t)rgbAdjusted);
         }
     }
 }
