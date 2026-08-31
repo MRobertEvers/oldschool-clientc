@@ -74,12 +74,24 @@ test_profile(void)
             "[camera]\n"
             "zoom=fixed:600\n"
             "controls=arrow_keys\n");
-        TEST_ASSERT(profile.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_FIXED, "fixed zoom");
+        /* The wheel stays live -- it is this client's gesture, not the
+         * revision's -- and what `fixed:` actually buys is the 2004
+         * projection and follow distance. */
+        TEST_ASSERT(
+            profile.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_CLAMPED, "wheel still live");
+        TEST_ASSERT(profile.camera.viewport_zoom == 0, "fixed: takes no viewport term");
         TEST_ASSERT(profile.camera.zoom_height == 600, "fixed height");
         TEST_ASSERT(
             profile.camera.controls == REVCONFIG_CAMERA_CONTROL_ARROW_KEYS, "arrow keys only");
-        TEST_ASSERT(RevConfigProfile_CameraClampHeight(&profile, 2000) == 600, "fixed clamps");
-        TEST_ASSERT(RevConfigProfile_CameraClampHeight(&profile, 100) == 600, "fixed clamps low");
+        /* `fixed:` states the camera you BOOT into, and carries a band anyway,
+         * so switching the wheel on in the settings has somewhere to go.
+         * 40%..360% of the stated 600. */
+        TEST_ASSERT(profile.camera.zoom_min == 240, "fixed still carries a band");
+        TEST_ASSERT(profile.camera.zoom_max == 2160, "fixed band top");
+        TEST_ASSERT(
+            RevConfigProfile_CameraClampHeight(&profile, 2000) == 2000, "inside the band");
+        TEST_ASSERT(
+            RevConfigProfile_CameraClampHeight(&profile, 100) == 240, "clamped to the floor");
     }
 
     /* Later source wins PER KEY: overriding controls must not put the zoom back
@@ -89,8 +101,12 @@ test_profile(void)
         RevConfigProfile_Init(&profile);
         merge_ini(&profile, "[camera]\nzoom=fixed:600\ncontrols=arrow_keys\n");
         merge_ini(&profile, "[camera]\ncontrols=mmb,arrow_keys\n");
-        TEST_ASSERT(profile.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_FIXED, "zoom survives");
+        /* What `zoom=` states -- the rest, the band and the camera model --
+         * survives a later source restating only `controls=`. zoom_mode is
+         * not among them: it is the player's, and no source states it. */
+        TEST_ASSERT(profile.camera.viewport_zoom == 0, "camera model survives");
         TEST_ASSERT(profile.camera.zoom_height == 600, "zoom height survives");
+        TEST_ASSERT(profile.camera.zoom_min == 240, "zoom band survives");
         TEST_ASSERT(
             profile.camera.controls ==
                 (REVCONFIG_CAMERA_CONTROL_MMB | REVCONFIG_CAMERA_CONTROL_ARROW_KEYS),

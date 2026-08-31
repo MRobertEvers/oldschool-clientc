@@ -6613,51 +6613,95 @@ ToriRS_D3D9_Execute(
     d3d9_dispatch(renderer, command);
 }
 
-void
-ToriRS_D3D9_DrawBootBar(struct ToriRS_D3D9* renderer, int progress)
+/*
+ * The bar's caption, in the 2D pass the UI text path needs.
+ *
+ * The same two facts the software lane draws (App_BootBarCaption), through
+ * the same command struct the retained frame uses, so a boot sentence is one
+ * picture and not one per renderer. Baseline + centred: the reference draws it
+ * with centreString on the track's baseline, not into a widget box.
+ *
+ * The font id is a scene font id and d3d9_ui_ensure_font resolves it out of
+ * the scene -- no TORIRSRC_FONT_LOAD reaches this lane during a boot, because
+ * no frame is being walked to carry one.
+ */
+static void
+d3d9_draw_boot_caption(
+    struct ToriRS_D3D9* renderer,
+    int caption_font_id,
+    char const* caption)
 {
-    int bar_x;
-    int bar_y;
-    int fill_w;
+    struct ToriRS_RenderCommand_Font font_command;
+
+    assert(renderer);
+    assert(caption);
+    assert(caption_font_id >= 0);
+
+    memset(&font_command, 0, sizeof(font_command));
+    font_command.font_id = caption_font_id;
+    font_command.x = BootBar_OriginX(renderer->width) + BOOT_BAR_W / 2;
+    font_command.y = BootBar_OriginY(renderer->height) + BOOT_BAR_TEXT_BASELINE;
+    font_command.color = 0xFFFFFF;
+    font_command.center = 1;
+    font_command.baseline = 1;
+    font_command.text = caption;
+    font_command.scissor_w = renderer->width;
+    font_command.scissor_h = renderer->height;
+
+    d3d9_begin_2d(renderer, NULL);
+    d3d9_ui_draw_font(renderer, &font_command);
+    d3d9_end_2d(renderer, NULL);
+}
+
+void
+ToriRS_D3D9_DrawBootBar(
+    struct ToriRS_D3D9* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption)
+{
     assert(renderer);
     if( !d3d9_begin_frame_scene(renderer) )
         return;
     /* progress < 0: clear only, no bar -- the post-login loading screen,
-     * which shows only App_Render's sentence on the soft lane and a bare
-     * black screen here. */
-    if( progress < 0 )
+     * which is a black screen and the sentence alone on every lane. */
+    if( progress >= 0 )
     {
-        d3d9_end_frame_scene(renderer);
-        return;
-    }
-    progress = d3d9_clampi(progress, 0, 100);
-    d3d9_set_full_viewport(renderer);
+        int bar_x;
+        int bar_y;
+        int fill_w;
 
-    /*
-     * The references' bar, not one of ours. @see engine/boot_bar.h -- the
-     * constants are shared with the software lane so the same boot does not
-     * draw two different pictures depending on which renderer came up.
-     *
-     * Three rects reach what BootBar_Draw reaches with four operations: a
-     * filled red track, a black inset one pixel in that leaves the red as a
-     * border and blacks the unfilled remainder, then the fill itself two
-     * pixels in. The black ring between border and fill is the deob's, and
-     * it is what makes the bar look recessed.
-     */
-    bar_x = renderer->width / 2 - BOOT_BAR_W / 2;
-    bar_y = renderer->height / 2 - BOOT_BAR_ABOVE_CENTRE;
-    fill_w = progress * BOOT_BAR_PX_PER_PERCENT;
-    d3d9_draw_solid_rect(
-        renderer, bar_x, bar_y, BOOT_BAR_W, BOOT_BAR_H, 0xff000000u | BOOT_BAR_COLOR);
-    d3d9_draw_solid_rect(
-        renderer, bar_x + 1, bar_y + 1, BOOT_BAR_W - 2, BOOT_BAR_H - 2, 0xff000000u);
-    if( fill_w > 0 )
-        d3d9_draw_solid_rect(renderer,
-                             bar_x + BOOT_BAR_INSET,
-                             bar_y + BOOT_BAR_INSET,
-                             fill_w,
-                             BOOT_BAR_FILL_H,
-                             0xff000000u | BOOT_BAR_COLOR);
+        progress = d3d9_clampi(progress, 0, 100);
+        d3d9_set_full_viewport(renderer);
+
+        /*
+         * The references' bar, not one of ours. @see engine/boot_bar.h -- the
+         * constants are shared with the software lane so the same boot does not
+         * draw two different pictures depending on which renderer came up.
+         *
+         * Three rects reach what BootBar_Draw reaches with four operations: a
+         * filled red track, a black inset one pixel in that leaves the red as a
+         * border and blacks the unfilled remainder, then the fill itself two
+         * pixels in. The black ring between border and fill is the deob's, and
+         * it is what makes the bar look recessed.
+         */
+        bar_x = renderer->width / 2 - BOOT_BAR_W / 2;
+        bar_y = renderer->height / 2 - BOOT_BAR_ABOVE_CENTRE;
+        fill_w = progress * BOOT_BAR_PX_PER_PERCENT;
+        d3d9_draw_solid_rect(
+            renderer, bar_x, bar_y, BOOT_BAR_W, BOOT_BAR_H, 0xff000000u | BOOT_BAR_COLOR);
+        d3d9_draw_solid_rect(
+            renderer, bar_x + 1, bar_y + 1, BOOT_BAR_W - 2, BOOT_BAR_H - 2, 0xff000000u);
+        if( fill_w > 0 )
+            d3d9_draw_solid_rect(renderer,
+                                 bar_x + BOOT_BAR_INSET,
+                                 bar_y + BOOT_BAR_INSET,
+                                 fill_w,
+                                 BOOT_BAR_FILL_H,
+                                 0xff000000u | BOOT_BAR_COLOR);
+    }
+    if( caption && caption[0] && caption_font_id >= 0 )
+        d3d9_draw_boot_caption(renderer, caption_font_id, caption);
     d3d9_end_frame_scene(renderer);
 }
 

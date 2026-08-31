@@ -13651,7 +13651,12 @@ app_apply_wedge_scale(struct App* app)
      * A revision whose camera is `zoom=fixed:` has no viewport-derived
      * projection either, and for the same reason the follow distance skips the
      * interpolation (app_world_camera_follow): class159.method5357 IS the later
-     * client's zoom, and the 2004 client does not have it. Its projection is the
+     * client's zoom, and the 2004 client does not have it.
+     *
+     * Asked of `viewport_zoom` and not of the live zoom_mode, because the
+     * settings page can flip that one: reading zoom_mode here meant switching
+     * the wheel ON halved the scale under the player, and no wheel band could
+     * put it back. @see RevConfigCameraItem::viewport_zoom. Its projection is the
      * bare `<< 9` in Model.project / Model.draw (Client-TS dash3d/Model.ts) --
      * scale 512, whatever the viewport measures.
      *
@@ -13665,8 +13670,7 @@ app_apply_wedge_scale(struct App* app)
      * An explicitly forced scale (TORIRS_WEDGE_SCALE=<n>) still wins, since it
      * exists to bisect exactly this.
      */
-    if( mode == 0 &&
-        app->revconfig_profile.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_FIXED )
+    if( mode == 0 && !app->revconfig_profile.camera.viewport_zoom )
     {
         app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
         app->world_camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
@@ -17657,12 +17661,83 @@ app_draw_viewport_message(
 }
 
 /*
+ * The face the boot bar's caption is drawn with, on every lane.
+ *
+ * ONE face for the whole boot, and a baked one: ToriRSChromeFont_Menu is cache
+ * archive 496 (b12) baked into .rdata (engine/torirs_debug_font_baked.h),
+ * needing no cache and no IO.
+ *
+ * The alternative -- resolve the profile's p12 when the cache has handed it
+ * over and fall back to the baked face until then -- is what this used to do,
+ * and it is wrong twice. It changes face mid-boot, so the same bar draws its
+ * sentences in two or three different hands as the archives land; and it makes
+ * the caption depend on cache state that the GPU lanes, which draw the bar
+ * before any frame is built, have no path to wait for.
+ *
+ * The reference has neither problem because it has one face for the whole
+ * screen and always has it: an AWT `java.awt.Font("Helvetica", BOLD, 13)`
+ * (deob class510; Client-TS GameShell.messageBox draws `bold 13px helvetica`).
+ * A software rasteriser has no system face, so a baked one is the same answer
+ * to the same question -- and the BOLD one, for the same reason.
+ *
+ * At 1x, because this lands in canvas pixels on every lane: the boot bar is
+ * placed in canvas coordinates, and a chrome-scaled face would paint
+ * double-size text into them.
+ *
+ * The Ensure is what puts the font IN the scene -- ToriDraw_SceneFontAdd emits
+ * TORIDRAW_EVENT_FONT_LOAD -- and the GPU backends resolve a font id by
+ * looking it up there (d3d9_ui_ensure_font, gl3_ensure_font_slot). A lane that
+ * never called this would find no font under the id and draw nothing, which is
+ * exactly what the D3D9 boot screen did while the caption lived in App_Render.
+ */
+static int
+app_boot_bar_font_scene_id(struct App* app)
+{
+    assert(app);
+    return UITreeSceneBridge_EnsureDebugFont1x(&app->bridge, TORIRS_CHROME_FONT_MENU);
+}
+
+char const*
+App_BootBarCaption(
+    struct App* app,
+    int* out_font_scene_id)
+{
+    char const* caption = NULL;
+    int font_scene_id;
+
+    assert(app);
+    assert(out_font_scene_id);
+
+    /*
+     * What the boot task asked for, when it asked for anything; otherwise the
+     * profile's own word for the phase.
+     *
+     * The render step does not decide what a load looks like: the task that
+     * knows which stage it is at says so, and this obeys. A task which never
+     * asks gets the standing sentence rather than silence.
+     */
+    if( app->runner.render.intent == TORIRS_RENDER_BOOT_BAR &&
+        app->runner.render.caption && app->runner.render.caption[0] )
+        caption = app->runner.render.caption;
+    else
+        caption = RS_LoginReplies_String(
+            &app->login_replies,
+            app->screen == APP_SCREEN_GAME ? "entering_world" : "loading");
+    if( !caption || !caption[0] )
+        return NULL;
+
+    font_scene_id = app_boot_bar_font_scene_id(app);
+    if( font_scene_id < 0 )
+        return NULL;
+    *out_font_scene_id = font_scene_id;
+    return caption;
+}
+
+/*
  * The bar's caption, centred on `center_x` with its baseline at `baseline_y`.
  *
- * Best-effort by nature: the references have a system font and this has
- * whatever the cache has handed over so far, which early in a boot is
- * nothing. Drawing no caption is the honest outcome then -- the bar itself
- * still says the client is working.
+ * The software lane's half of App_BootBarCaption: the GPU lanes draw the same
+ * two facts (`text`, `font_scene_id`) through their own text paths.
  */
 static void
 app_boot_bar_caption(
@@ -17672,56 +17747,18 @@ app_boot_bar_caption(
     int height,
     int center_x,
     int baseline_y,
-    char const* text)
+    char const* text,
+    int font_scene_id)
 {
     struct ToriDraw_Font* font;
     struct ToriDraw_ViewPort vp;
-    int font_cache_id;
-    int scene_id;
 
     assert(app);
     assert(pixels);
     assert(text);
+    assert(font_scene_id >= 0);
 
-    font_cache_id = app_font_cache_id(app, APP_FONT_P12);
-    scene_id = font_cache_id >= 0 ? UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id) : -1;
-    if( scene_id < 0 )
-        scene_id = app_minimenu_font_scene_id(app);
-    /*
-     * The baked face, when the cache has not handed one over yet.
-     *
-     * That is the ORDINARY case for this caption rather than an edge one: the
-     * sentences the profile gives the loading bar -- "Checking for updates -
-     * 30%", "Loaded update list" ([preload:] `say=`, revconfig) -- are said
-     * while the cache's own fonts are among the archives still being fetched.
-     * A bar that waits for a cache font is a bar that never carries the words
-     * it was configured with, and the whole of the boot the player watches
-     * goes past unlabelled.
-     *
-     * The reference does not solve this by loading fonts earlier -- it cannot,
-     * since the fetches the bar is reporting on are the ones that carry the
-     * fonts ("Loading fonts - " is one of its own sentences). It draws this
-     * text with a face that exists before any cache does: an AWT
-     * `java.awt.Font("Helvetica", BOLD, 13)` (deob class510; Client-TS
-     * GameShell.messageBox draws `bold 13px helvetica`). A software rasteriser
-     * has no system face, so the baked one is the same answer to the same
-     * question.
-     *
-     * The BOLD face, for that reason: ToriRSChromeFont_Menu is cache archive
-     * 496 (b12) baked into .rdata (engine/torirs_debug_font_baked.h), needing
-     * no cache and no IO. Only this pre-cache span ever reaches it -- once the
-     * archives are in, APP_FONT_P12 resolves above and the later
-     * "Loading - please wait." is plain p12, as it is in the reference.
-     *
-     * At 1x, because this draws into the canvas's own pixels: the boot bar is
-     * placed in canvas coordinates, and a chrome-scaled face would paint
-     * double-size text into them.
-     */
-    if( scene_id < 0 )
-        scene_id = UITreeSceneBridge_EnsureDebugFont1x(&app->bridge, TORIRS_CHROME_FONT_MENU);
-    if( scene_id < 0 )
-        return;
-    font = ToriDraw_SceneFontGet(app->scene, scene_id);
+    font = ToriDraw_SceneFontGet(app->scene, font_scene_id);
     if( !font )
         return;
 
@@ -19939,13 +19976,25 @@ app_ui_hotkeys(
     }
 }
 
-/* Does this revision's follow camera zoom at all? `zoom=fixed:<height>` is a
- * band of one, which is the 2004 client: the eye is `pitch * 3 + 600` behind
- * the player and nothing the player does moves it. */
+/*
+ * Does the follow camera zoom right now? Both halves have to say yes.
+ *
+ * `zoom_mode` is the SWITCH -- the settings page's "Zoom" row, and what
+ * `zoom=fixed:` states for the 2004 client, whose eye is `pitch * 3 + 600`
+ * behind the player with nothing the player does moving it. `zoom_min <
+ * zoom_max` is the ROOM: `fixed:` resolves to a band of one, and a band of one
+ * has nowhere to go even when the switch is on.
+ *
+ * Reading only the band was what made the "Zoom" row a no-op on the two
+ * behaviours it appeared to name -- it moved no wheel and only changed the
+ * projection, which is the one thing it should never have touched.
+ */
 static int
 app_world_camera_zooms(struct App const* app)
 {
     assert(app);
+    if( app->revconfig_profile.camera.zoom_mode != REVCONFIG_CAMERA_ZOOM_CLAMPED )
+        return 0;
     return app->revconfig_profile.camera.zoom_min < app->revconfig_profile.camera.zoom_max;
 }
 
@@ -25443,9 +25492,14 @@ app_world_camera_follow(struct App* app)
                 app->orbit_pitch_vel = 0;
             }
             if( cam_zoom > 0 )
+                /* A percentage of THIS revision's rest, not of the reference
+                 * 600. The server is saying "this much closer than normal",
+                 * and normal is wherever this camera rests -- reading it
+                 * against a constant makes the same packet mean two different
+                 * views on two lanes. */
                 app->world_cam_height = RevConfigProfile_CameraClampHeight(
                     &app->revconfig_profile,
-                    REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT * cam_zoom / 100);
+                    app->revconfig_profile.camera.zoom_height * cam_zoom / 100);
         }
     }
     if( !RS_EntitySync_FindPlayer(
@@ -25593,9 +25647,13 @@ app_world_camera_follow(struct App* app)
      * wheel, and for the same reason: it is a later client's way of zooming,
      * and a revision that states a fixed height has said its camera has none.
      * `fixed:600` is then Client-TS's expression exactly.
+     *
+     * That is `viewport_zoom`, which the revision states and the player does
+     * not: a wheel switched on in the settings moves world_cam_height inside
+     * its band and leaves this term exactly as the revision left it.
      */
     distance = pitch * 3 + app->world_cam_height;
-    if( app->revconfig_profile.camera.zoom_mode != REVCONFIG_CAMERA_ZOOM_FIXED )
+    if( app->revconfig_profile.camera.viewport_zoom )
         distance = distance * app_world_cam_dist_zoom(app) / 256;
     /* Look-at height: the reference samples the ground under the ACTOR (not
      * under the eased anchor), takes the minimum over its footprint, then
@@ -33728,7 +33786,8 @@ App_Render(
          * panel's own bar takes over, so the only bar drawn here is the
          * centred one.
          */
-        char const* caption = NULL;
+        char const* caption;
+        int caption_font_scene_id = -1;
         int percent = app->boot_progress;
 
         /*
@@ -33739,18 +33798,15 @@ App_Render(
          * the whole point of the opt-in -- a task which never asks keeps the
          * old behaviour of settling silently, and one which does asks for a
          * specific picture rather than merely for a frame.
+         *
+         * A step that states no bar position (percent -1) leaves the bar
+         * where the last stated one put it -- the profile's own contract
+         * ("or -1 to leave the bar alone", rs_preload.h). Overriding with -1
+         * would clamp to zero and walk the bar backwards.
          */
-        if( app->runner.render.intent == TORIRS_RENDER_BOOT_BAR )
-        {
-            /* A step that states no bar position (percent -1) leaves the bar
-             * where the last stated one put it -- the profile's own contract
-             * ("or -1 to leave the bar alone", rs_preload.h). Overriding with
-             * -1 would clamp to zero and walk the bar backwards. */
-            if( app->runner.render.percent >= 0 )
-                percent = app->runner.render.percent;
-            if( app->runner.render.caption && app->runner.render.caption[0] )
-                caption = app->runner.render.caption;
-        }
+        if( app->runner.render.intent == TORIRS_RENDER_BOOT_BAR &&
+            app->runner.render.percent >= 0 )
+            percent = app->runner.render.percent;
 
         /* Post-login (and any later quiet bake), the reference shows ONLY the
          * sentence: a black screen and "Loading - please wait.", no bar. The
@@ -33765,24 +33821,15 @@ App_Render(
             BootBar_Draw((uint32_t*)pixels, width, height, percent);
 
         /*
-         * The caption.
-         *
-         * The references have a system font (bold 13 Helvetica) and always
-         * have one; a software rasteriser has none until it is given one, so
-         * this used to draw nothing until the cache's fonts had loaded --
-         * which is after every sentence the profile gives the loading bar has
-         * already been and gone. app_boot_bar_caption falls back to the baked
-         * face for exactly that span.
+         * The caption -- the same words and the same face the GPU lanes get
+         * from App_BootBarCaption, so a boot does not read differently
+         * depending on which renderer came up.
          *
          * Centred on the track and sitting on its baseline, where both
          * references put it, rather than in the middle of the canvas.
          */
-        if( app->runner.render.intent != TORIRS_RENDER_BOOT_BAR ||
-            !app->runner.render.caption || !app->runner.render.caption[0] )
-            caption = RS_LoginReplies_String(
-                &app->login_replies,
-                app->screen == APP_SCREEN_GAME ? "entering_world" : "loading");
-        if( caption && caption[0] )
+        caption = App_BootBarCaption(app, &caption_font_scene_id);
+        if( caption )
             app_boot_bar_caption(
                 app,
                 pixels,
@@ -33790,7 +33837,8 @@ App_Render(
                 height,
                 BootBar_OriginX(width) + BOOT_BAR_W / 2,
                 BootBar_OriginY(height) + BOOT_BAR_TEXT_BASELINE,
-                caption);
+                caption,
+                caption_font_scene_id);
         return;
     }
 

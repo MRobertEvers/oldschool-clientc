@@ -168,4 +168,39 @@ test_parse_numbers(void)
     TEST_ASSERT(camera.zoom_height == 0x200, "fixed zoom height");
     memset(&camera, 0, sizeof(camera));
     TEST_ASSERT(!revconfig_parse_camera_zoom("clamped:[100 200]", &camera), "zoom band needs its comma");
+
+    /*
+     * `zoom=` states the camera MODEL as well as the band, and the two are
+     * read by different people: the band is a live setting the player may
+     * change, `viewport_zoom` is what the revision IS. `fixed:` is the 2004
+     * client -- projection is the bare `<< 9`, follow distance is flat -- and
+     * `clamped:` is a later one that scales both by the viewport.
+     *
+     * Pinned because collapsing them is a real regression with a quiet
+     * symptom: reading zoom_mode for the model meant switching the wheel on
+     * halved the projection scale under the player, to a view no band could
+     * bring back.
+     */
+    memset(&camera, 0, sizeof(camera));
+    TEST_ASSERT(revconfig_parse_camera_zoom("fixed:600", &camera), "fixed zoom parses");
+    TEST_ASSERT(camera.viewport_zoom == 0, "fixed: has no viewport zoom");
+    TEST_ASSERT(camera.zoom_min == 240, "fixed: still carries a band");
+    TEST_ASSERT(camera.zoom_max == 2160, "fixed: band top");
+
+    /*
+     * And the band is a RATIO of the rest, not a constant.
+     *
+     * This is the whole of "sensible across revisions": one setting has to buy
+     * the same amount of travel wherever it is picked, and it cannot while the
+     * numbers are absolute -- 240..2160 is a reasonable band around 600 and a
+     * nonsense one around 1000, where it would put the entire range on the
+     * near side of the resting view.
+     */
+    memset(&camera, 0, sizeof(camera));
+    TEST_ASSERT(revconfig_parse_camera_zoom("fixed:1000", &camera), "fixed zoom, other rest");
+    TEST_ASSERT(camera.zoom_min == 400, "band floor scales with the rest");
+    TEST_ASSERT(camera.zoom_max == 3600, "band ceiling scales with the rest");
+    memset(&camera, 0, sizeof(camera));
+    TEST_ASSERT(revconfig_parse_camera_zoom("clamped:[240,2160]", &camera), "clamped zoom parses");
+    TEST_ASSERT(camera.viewport_zoom == 1, "clamped: has viewport zoom");
 }

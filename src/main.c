@@ -476,10 +476,18 @@ interactive_render_present(
 
         if( App_IsBooting(app, &progress) )
         {
-            /* Post-login loading is a black screen with only the sentence;
-             * the GPU lanes have no boot-time text path, so they show the
-             * cleared screen (-1 = clear only, no bar). */
-            ToriRS_D3D9_DrawBootBar(d3d9, App_BootTextOnly(app) ? -1 : progress);
+            /* Post-login loading is a black screen with only the sentence
+             * (-1 = clear only, no bar). The caption is the app's on every
+             * lane -- App_BootBarCaption both picks the words and registers
+             * the face in the scene the renderer resolves font ids against. */
+            int caption_font_id = -1;
+            char const* caption = App_BootBarCaption(app, &caption_font_id);
+
+            ToriRS_D3D9_DrawBootBar(
+                d3d9,
+                App_BootTextOnly(app) ? -1 : progress,
+                caption_font_id,
+                caption);
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
@@ -538,10 +546,18 @@ interactive_render_present(
 
         if( App_IsBooting(app, &progress) )
         {
-            /* Post-login loading is a black screen with only the sentence;
-             * the GPU lanes have no boot-time text path, so they show the
-             * cleared screen (-1 = clear only, no bar). */
-            ToriRS_GL3_DrawBootBar(gl3, App_BootTextOnly(app) ? -1 : progress);
+            /* Post-login loading is a black screen with only the sentence
+             * (-1 = clear only, no bar). The caption is the app's on every
+             * lane -- App_BootBarCaption both picks the words and registers
+             * the face in the scene the renderer resolves font ids against. */
+            int caption_font_id = -1;
+            char const* caption = App_BootBarCaption(app, &caption_font_id);
+
+            ToriRS_GL3_DrawBootBar(
+                gl3,
+                App_BootTextOnly(app) ? -1 : progress,
+                caption_font_id,
+                caption);
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {

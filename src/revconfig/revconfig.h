@@ -1194,21 +1194,40 @@ struct RevConfigFeaturesItem
     int painter_draw_distance;
 };
 
-/** enum for RevConfigCameraItem.zoom_mode. */
+/*
+ * enum for RevConfigCameraItem.zoom_mode -- is the WHEEL live?
+ *
+ * The player's switch, not the revision's. No `zoom=` sets it: a revision
+ * states where its camera rests and whether it takes the later client's
+ * viewport term (`viewport_zoom`), and both of those are facts about that
+ * client. Whether a wheel moves the eye is a fact about THIS one, it is the
+ * same answer everywhere, and the settings page owns it.
+ *
+ * Splitting them is what makes the feature behave the same on every lane.
+ * While `zoom=fixed:` set this too, the one revision that states it -- the
+ * shared 2004 profile, which wanted the projection fidelity -- silently lost
+ * the wheel as well, and the settings row that appeared to give it back
+ * instead turned on the later client's viewport zoom and halved the picture.
+ */
 enum RevConfigCameraZoomMode
 {
     /**
-     * `zoom=clamped:[min,max]` — the eye height is a live value the wheel
-     * moves, bounded by min..max. This is the client's own gesture and no
-     * revision's behaviour; it is the default because it is what this tree
-     * already did everywhere.
+     * The eye height is a live value the wheel moves, bounded by min..max.
+     * This is the client's own gesture and no revision's behaviour; it is the
+     * default on every revision, because it is what this tree already did
+     * everywhere it was not switched off by accident.
      */
     REVCONFIG_CAMERA_ZOOM_CLAMPED = 0,
     /**
-     * `zoom=fixed:<height>` — the eye height is that number and nothing moves
-     * it: no wheel, and no viewport-height interpolation either. `fixed:600`
-     * is Client-TS exactly (`camFollow(..., pitch * 3 + 600)`), which is why
-     * every pre-HD revision states it.
+     * The eye is pinned at `zoom_height` and nothing moves it. What a player
+     * picks when they want the revision's resting camera and no wheel at all
+     * -- and, on a `zoom=fixed:` revision, what reproduces Client-TS exactly
+     * (`camFollow(..., pitch * 3 + 600)`).
+     *
+     * Reached only from the settings page. A revision asking for the 2004
+     * camera says so with `zoom=fixed:`, which states the rest height and
+     * clears `viewport_zoom`; losing the wheel as well was a side-effect of
+     * those two questions sharing one key, not anything a profile meant.
      */
     REVCONFIG_CAMERA_ZOOM_FIXED = 1,
 };
@@ -1224,16 +1243,35 @@ enum
     REVCONFIG_CAMERA_CONTROL_MMB = 1 << 1,
 };
 
-/** `zoom=` when no `[camera]` section states one: the wheel band this tree
- *  shipped with, expressed as eye heights around the reference's 600. */
-#define REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN 240
-#define REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX 2160
 /** The reference eye height, and this client's zoom rest position. */
 #define REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT 600
-/** `wheel_step=` when no `[camera]` section states one: one notch moves the eye
- *  height by a tenth of the reference 600, which is what this tree's old
- *  percentage step came to. */
-#define REVCONFIG_CAMERA_WHEEL_STEP_DEFAULT 60
+
+/*
+ * The wheel band, as PERCENTAGES of whatever rest height a revision states.
+ *
+ * A ratio and not a pair of eye heights, because absolute is what made this
+ * feature behave differently on every lane it ran on. [240,2160] is 40%..360%
+ * of the 2004 client's 600 and something else entirely of a revision that
+ * rests anywhere else, so one setting bought a different amount of travel
+ * depending on which world you booted -- and on a revision that rests far from
+ * 600 it could put the whole band on one side of the resting view. The ratio
+ * is the part that is actually the same, so the ratio is what is stated.
+ *
+ * 40..360 of 600 IS [240,2160], the band this tree already shipped, so no lane
+ * that was already right moves.
+ */
+#define REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN_PCT 40
+#define REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX_PCT 360
+
+/** `zoom=` when no `[camera]` section states one. Derived, so the two
+ *  spellings of this tree's default band cannot drift apart. */
+#define REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN             (REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT *               REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN_PCT / 100)
+#define REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX             (REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT *               REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX_PCT / 100)
+
+/** `wheel_step=` when no `[camera]` section states one: one notch moves the
+ *  eye height by a tenth of the rest position. */
+#define REVCONFIG_CAMERA_WHEEL_STEP_PCT 10
+#define REVCONFIG_CAMERA_WHEEL_STEP_DEFAULT           (REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT *               REVCONFIG_CAMERA_WHEEL_STEP_PCT / 100)
 
 /*
  * `[camera]` — what the world camera lets the player do.
@@ -1257,6 +1295,28 @@ struct RevConfigCameraItem
     /* INI: zoom=clamped:[min,max] — the band the wheel may reach. */
     int zoom_min;
     int zoom_max;
+    /*
+     * Does this revision's follow camera have the LATER client's
+     * viewport-derived zoom — the `* viewportZoom / 256` on the follow
+     * distance (client.method2068) and the viewport-recomputed projection
+     * scale (class159.method5357)?
+     *
+     * Derived from `zoom=` and never stated on its own: `fixed:` IS the 2004
+     * camera, whose projection is the bare `<< 9` of Model.project and whose
+     * distance is a flat `pitch * 3 + height`; `clamped:` is a later one.
+     *
+     * Separate from zoom_mode because the two answer different questions and
+     * only one of them is the player's to change. zoom_mode is a live setting
+     * — the settings page's "Zoom" row writes it — and reading it for THIS is
+     * what made turning the wheel on halve the picture: the projection scale
+     * dropped 512 -> 256 and the eye took the viewport term, so a 2004 lane
+     * jumped to a view no band could bring back. At rest the frame is
+     * 512/(pitch*3+600); at the OSRS band's closest notch it became
+     * 256/(pitch*3+360), a third smaller than the zoom it was supposed to
+     * start from. Enabling the wheel is not a claim about which client this
+     * is.
+     */
+    int viewport_zoom;
     /* INI: controls= — REVCONFIG_CAMERA_CONTROL_* bits. */
     int controls;
     /* INI: wheel_step= — eye-height units one wheel notch moves. Only the
@@ -1483,6 +1543,16 @@ revconfig_parse_button_type(char const* str);
  */
 int
 revconfig_parse_camera_zoom(char const* str, struct RevConfigCameraItem* out);
+
+/**
+ * The wheel band this client offers around `height`, in eye heights.
+ *
+ * One place, so a revision's band and the settings page's presets are the same
+ * arithmetic rather than two tables that agree until one is edited.
+ * @see REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN_PCT for why it is a ratio.
+ */
+void
+revconfig_camera_default_band(int height, int* out_min, int* out_max);
 
 /**
  * Parse one `[role:…] match=` line into `out`.
