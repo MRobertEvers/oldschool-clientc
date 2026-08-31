@@ -441,7 +441,7 @@ RSCache_ArchiveDecompressDat(
                 RSCACHE_GZIP_NO_FOOTER);
             if( uncompressed_length > 0 )
                 break;
-            if( expect > 0 || capacity >= (1u << 26) )
+            if( capacity >= (1u << 26) )
             {
                 free(out);
                 return false;
