@@ -292,7 +292,15 @@ APK.
                           argv = ["torirs", "--manifest", <path>, ...extra_args.txt]
 ```
 
-Two decisions worth naming:
+The two activities take **different orientations**, which is the one place they
+disagree: `BootActivity` is `fullSensor` (a vertical list shows about twice as
+many rows in portrait, and a phone picked up to choose something is usually held
+upright), while `ClientActivity` is locked landscape because its canvas is a
+765x503 landscape frame. The menu also carries `configChanges` for orientation,
+so a rotation re-lays-out the view tree instead of recreating the activity and
+restarting the countdown from the top.
+
+Three decisions worth naming:
 
 - **It lists unbootable profiles rather than hiding them.** A missing cache is
   the single most likely thing to be wrong on a fresh device; a menu that

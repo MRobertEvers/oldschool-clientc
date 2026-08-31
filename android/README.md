@@ -111,6 +111,11 @@ booting osrs239 bench in 2.3s  -  tap a profile to choose
   wrong on a fresh device.
 - The countdown boots the default after ~4s. **Any touch cancels it.**
 - The default is the last profile you booted, remembered on the device.
+- **The menu rotates; the client does not.** The menu is a vertical list and
+  shows about twice as many rows in portrait, so its orientation is free
+  (`fullSensor`). The client is locked landscape because its canvas is a
+  765x503 landscape frame, which portrait would letterbox into a band.
+  Rotating the menu does not restart the countdown.
 
 ### 2. Push a different manifest
 

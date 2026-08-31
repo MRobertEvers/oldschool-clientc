@@ -31,12 +31,26 @@
         android:hardwareAccelerated="true"
         android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
 
-        <!-- The boot menu: pick a profile, or wait and take the default. -->
+        <!--
+          The boot menu: pick a profile, or wait and take the default.
+
+          Orientation is FREE here, unlike the client below. The menu is a
+          vertical list of rows and reads better in portrait than in landscape,
+          where four rows fill the screen and the rest need scrolling; and a
+          phone picked up to choose something is usually being held upright.
+          The client is a different case  -  its canvas is a 765x503 landscape
+          frame, so portrait would letterbox it into a band.
+
+          configChanges keeps the activity ALIVE across a rotation rather than
+          recreating it. The view tree is built in code and re-lays-out on its
+          own, and surviving the rotation is what stops the boot countdown
+          restarting from the top every time the phone is turned.
+        -->
         <activity
             android:name=".BootActivity"
             android:exported="true"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|keyboardHidden|screenSize">
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
