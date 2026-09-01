@@ -2519,7 +2519,7 @@ App_SetCanvasSize(
  * -- which reads as a broken font rather than as a missed call.
  *
  * The caller is whoever knows the display: on the desktop shell that is
- * PlatformSDL2_PixelDensity, so a Retina window gets 2x chrome authored at 2x
+ * PlatformWindow_PixelDensity, so a Retina window gets 2x chrome authored at 2x
  * rather than 1x chrome stretched onto it. @return 1 if the scale changed.
  */
 int

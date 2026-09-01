@@ -1,15 +1,15 @@
 /*
  * platform_android.c -- Android + ANativeWindow backend for the src/main.c
- * App front-end. No SDL.
+ * App front-end. Raw ANativeWindow and EGL; no windowing library.
  *
- * src/main.c programs to the PlatformSDL2 interface (platform_sdl2.h). When
+ * src/main.c programs to the PlatformWindow interface (platform_window.h). When
  * built without a GPU renderer -- or with one that was not asked for -- it
  * takes the software path:
  *
- *     App_Render(app, PlatformSDL2_Pixels(p), W, H);   // CPU raster into pixels
- *     PlatformSDL2_Present(p);                          // show the pixels
+ *     App_Render(app, PlatformWindow_Pixels(p), W, H);   // CPU raster into pixels
+ *     PlatformWindow_Present(p);                          // show the pixels
  *
- * This file is a drop-in implementation of those same PlatformSDL2_* symbols
+ * This file is a drop-in implementation of those same PlatformWindow_* symbols
  * backed by ANativeWindow. It is the exact counterpart of platform_win32gdi.c,
  * which does the same job for raw Win32 + GDI, and the two are deliberately
  * shaped alike: hand out a 32bpp top-down ARGB buffer as the canvas, then
@@ -34,7 +34,7 @@
  * divergence. @see swizzle_argb_to_rgba.
  */
 
-#include "platform/platform_sdl2.h"
+#include "platform/platform_window.h"
 #include "platform/platform_android.h"
 
 #include "cmd/cmdbus.h"
@@ -451,7 +451,7 @@ android_keycode_to_vk(int keycode)
 
 /* ---- the platform object ------------------------------------------------- */
 
-struct PlatformSDL2
+struct PlatformWindow
 {
     /** The canvas: width * height ARGB8888 pixels, owned here. */
     int* pixels;
@@ -486,7 +486,7 @@ struct PlatformSDL2
     struct ToriRS_Touch touch;
 };
 
-/* ---- letterbox math (mirrors the SDL and Win32 backends) ----------------- */
+/* ---- letterbox math (the same box every PlatformWindow backend computes) -- */
 
 struct android_rect
 {
@@ -530,7 +530,7 @@ letterbox_dst(int logical_w, int logical_h, int win_w, int win_h, struct android
 }
 
 static void
-map_surface_to_canvas(struct PlatformSDL2* p, int win_x, int win_y, int* out_x, int* out_y)
+map_surface_to_canvas(struct PlatformWindow* p, int win_x, int win_y, int* out_x, int* out_y)
 {
     struct android_rect box;
     int win_w;
@@ -573,7 +573,7 @@ map_surface_to_canvas(struct PlatformSDL2* p, int win_x, int win_y, int* out_x, 
  * band lying on the letterbox bar (below the canvas) maps to zero.
  */
 static int
-keyboard_canvas_inset(struct PlatformSDL2* p, int inset_px, int win_w, int win_h)
+keyboard_canvas_inset(struct PlatformWindow* p, int inset_px, int win_w, int win_h)
 {
     struct android_rect box;
     int visible_rows;
@@ -641,7 +641,7 @@ swizzle_row(uint32_t* dst, uint32_t const* src, int count)
  * device and a correct one on another.
  */
 static void
-present_blit(struct PlatformSDL2* p, uint32_t* dst, int stride, int win_w, int win_h)
+present_blit(struct PlatformWindow* p, uint32_t* dst, int stride, int win_w, int win_h)
 {
     struct android_rect box;
     int y;
@@ -700,10 +700,10 @@ present_blit(struct PlatformSDL2* p, uint32_t* dst, int stride, int win_w, int w
 
 /* ---- lifecycle ----------------------------------------------------------- */
 
-struct PlatformSDL2*
-PlatformSDL2_New(void)
+struct PlatformWindow*
+PlatformWindow_New(void)
 {
-    struct PlatformSDL2* p = (struct PlatformSDL2*)malloc(sizeof(*p));
+    struct PlatformWindow* p = (struct PlatformWindow*)malloc(sizeof(*p));
     assert(p);
     memset(p, 0, sizeof(*p));
     p->interface_scale_mode = 2;
@@ -715,7 +715,7 @@ PlatformSDL2_New(void)
 
 /** Allocate (or re-allocate) the ARGB canvas. */
 static int
-android_make_canvas(struct PlatformSDL2* p, int width, int height)
+android_make_canvas(struct PlatformWindow* p, int width, int height)
 {
     int* pixels;
 
@@ -732,7 +732,7 @@ android_make_canvas(struct PlatformSDL2* p, int width, int height)
 }
 
 bool
-PlatformSDL2_Init(struct PlatformSDL2* p, int width, int height, char const* title)
+PlatformWindow_Init(struct PlatformWindow* p, int width, int height, char const* title)
 {
     assert(p);
     assert(width > 0);
@@ -757,7 +757,7 @@ PlatformSDL2_Init(struct PlatformSDL2* p, int width, int height, char const* tit
 }
 
 bool
-PlatformSDL2_InitForOpenGL3(struct PlatformSDL2* p, int width, int height, char const* title)
+PlatformWindow_InitForOpenGL3(struct PlatformWindow* p, int width, int height, char const* title)
 {
     assert(p);
     assert(width > 0);
@@ -778,11 +778,11 @@ PlatformSDL2_InitForOpenGL3(struct PlatformSDL2* p, int width, int height, char 
     p->height = height;
 
     /*
-     * The context itself is created by the renderer's ToriRS_GL3_Init, through
-     * SDL_GL_CreateContext -- which on this lane is platform_android_gl.c. It
-     * is not created here for the same reason the SDL backend does not create
-     * it in Init: the renderer decides the attributes it needs (depth, above
-     * all), and it has not been constructed yet.
+     * The context itself is created by the renderer's ToriRS_GLES2_Init,
+     * through the platform_gl_context.h seam -- which on this lane is
+     * platform_android_gl.c (EGL). It is not created here because the
+     * renderer decides the attributes it needs (depth, above all), and it has
+     * not been constructed yet.
      */
     __android_log_print(
         ANDROID_LOG_INFO, ANDROID_LOG_TAG, "GLES2 canvas %dx%d", width, height);
@@ -790,7 +790,7 @@ PlatformSDL2_InitForOpenGL3(struct PlatformSDL2* p, int width, int height, char 
 }
 
 ToriRS_GLWindow*
-PlatformSDL2_Window(struct PlatformSDL2* p)
+PlatformWindow_GLWindow(struct PlatformWindow* p)
 {
     assert(p);
     /*
@@ -804,14 +804,14 @@ PlatformSDL2_Window(struct PlatformSDL2* p)
 }
 
 void*
-PlatformSDL2_NativeWindowHandle(struct PlatformSDL2* p)
+PlatformWindow_NativeWindowHandle(struct PlatformWindow* p)
 {
     assert(p);
     return (void*)PlatformAndroid_Window();
 }
 
 void
-PlatformSDL2_Free(struct PlatformSDL2* p)
+PlatformWindow_Free(struct PlatformWindow* p)
 {
     if( !p )
         return;
@@ -820,28 +820,28 @@ PlatformSDL2_Free(struct PlatformSDL2* p)
 }
 
 int*
-PlatformSDL2_Pixels(struct PlatformSDL2* p)
+PlatformWindow_Pixels(struct PlatformWindow* p)
 {
     assert(p);
     return p->pixels;
 }
 
 int
-PlatformSDL2_Width(struct PlatformSDL2* p)
+PlatformWindow_Width(struct PlatformWindow* p)
 {
     assert(p);
     return p->width;
 }
 
 int
-PlatformSDL2_Height(struct PlatformSDL2* p)
+PlatformWindow_Height(struct PlatformWindow* p)
 {
     assert(p);
     return p->height;
 }
 
 int
-PlatformSDL2_PixelDensity(struct PlatformSDL2* p)
+PlatformWindow_PixelDensity(struct PlatformWindow* p)
 {
     int density;
 
@@ -853,7 +853,7 @@ PlatformSDL2_PixelDensity(struct PlatformSDL2* p)
 }
 
 void
-PlatformSDL2_SetWantHighDPI(bool want)
+PlatformWindow_SetWantHighDPI(bool want)
 {
     /*
      * Nothing to ask for. An Android Surface is ALWAYS device pixels -- there
@@ -866,14 +866,14 @@ PlatformSDL2_SetWantHighDPI(bool want)
 }
 
 bool
-PlatformSDL2_QuitRequested(struct PlatformSDL2* p)
+PlatformWindow_QuitRequested(struct PlatformWindow* p)
 {
     assert(p);
     return p->quit || PlatformAndroid_QuitRequested();
 }
 
 void
-PlatformSDL2_SetTitle(struct PlatformSDL2* p, char const* title)
+PlatformWindow_SetTitle(struct PlatformWindow* p, char const* title)
 {
     assert(p);
     assert(title);
@@ -883,21 +883,21 @@ PlatformSDL2_SetTitle(struct PlatformSDL2* p, char const* title)
 }
 
 void
-PlatformSDL2_SetTextInput(struct PlatformSDL2* p, int on)
+PlatformWindow_SetTextInput(struct PlatformWindow* p, int on)
 {
     assert(p);
     PlatformAndroidJni_SetSoftKeyboard(on);
 }
 
 void
-PlatformSDL2_SetTouchViewport(struct PlatformSDL2* p, int x, int y, int w, int h)
+PlatformWindow_SetTouchViewport(struct PlatformWindow* p, int x, int y, int w, int h)
 {
     assert(p);
     ToriRS_TouchSetViewport(&p->touch, x, y, w, h);
 }
 
 void
-PlatformSDL2_SetInterfaceScaleMode(struct PlatformSDL2* p, int mode)
+PlatformWindow_SetInterfaceScaleMode(struct PlatformWindow* p, int mode)
 {
     assert(p);
     if( mode < 0 )
@@ -908,8 +908,8 @@ PlatformSDL2_SetInterfaceScaleMode(struct PlatformSDL2* p, int mode)
 }
 
 void
-PlatformSDL2_SetCanvasFollowsWindow(
-    struct PlatformSDL2* p, struct ToriRS_CmdBus* bus, bool follow, int min_w, int min_h)
+PlatformWindow_SetCanvasFollowsWindow(
+    struct PlatformWindow* p, struct ToriRS_CmdBus* bus, bool follow, int min_w, int min_h)
 {
     assert(p);
     (void)min_w;
@@ -939,7 +939,7 @@ PlatformSDL2_SetCanvasFollowsWindow(
 }
 
 void
-PlatformSDL2_SetWindowSize(struct PlatformSDL2* p, int width, int height)
+PlatformWindow_SetWindowSize(struct PlatformWindow* p, int width, int height)
 {
     assert(p);
     (void)width;
@@ -952,7 +952,7 @@ PlatformSDL2_SetWindowSize(struct PlatformSDL2* p, int width, int height)
 }
 
 bool
-PlatformSDL2_Resize(struct PlatformSDL2* p, int width, int height)
+PlatformWindow_Resize(struct PlatformWindow* p, int width, int height)
 {
     assert(p);
     assert(width > 0);
@@ -966,7 +966,7 @@ PlatformSDL2_Resize(struct PlatformSDL2* p, int width, int height)
          * GL draws to the surface and owns no CPU buffer -- but the logical
          * size is still the space every touch is mapped INTO
          * (map_surface_to_canvas) and the keyboard inset is measured in, so
-         * it must follow the canvas exactly as the SDL backend's does.
+         * it must follow the canvas exactly as it does in software mode.
          * Returning before recording it left the mapper letterboxing a
          * 765x503 canvas that no longer existed once the mobile layout had
          * grown the canvas to the whole surface: every finger landed at
@@ -981,7 +981,7 @@ PlatformSDL2_Resize(struct PlatformSDL2* p, int width, int height)
 }
 
 void
-PlatformSDL2_MapMouse(struct PlatformSDL2* p, int win_x, int win_y, int* out_x, int* out_y)
+PlatformWindow_MapMouse(struct PlatformWindow* p, int win_x, int win_y, int* out_x, int* out_y)
 {
     assert(p);
     assert(out_x);
@@ -994,11 +994,11 @@ PlatformSDL2_MapMouse(struct PlatformSDL2* p, int win_x, int win_y, int* out_x, 
 static uint64_t
 android_now_ms(void)
 {
-    return PlatformSDL2_Ticks64();
+    return PlatformWindow_Ticks64();
 }
 
 void
-PlatformSDL2_PollCommands(struct PlatformSDL2* p, struct ToriRS_CmdBus* bus)
+PlatformWindow_PollCommands(struct PlatformWindow* p, struct ToriRS_CmdBus* bus)
 {
     struct android_event ev;
     uint64_t const now = android_now_ms();
@@ -1116,7 +1116,7 @@ PlatformSDL2_PollCommands(struct PlatformSDL2* p, struct ToriRS_CmdBus* bus)
 /* ---- damage -------------------------------------------------------------- */
 
 void
-PlatformSDL2_SetPresentDamage(struct PlatformSDL2* p, int x, int y, int w, int h)
+PlatformWindow_SetPresentDamage(struct PlatformWindow* p, int x, int y, int w, int h)
 {
     assert(p);
 
@@ -1139,7 +1139,7 @@ PlatformSDL2_SetPresentDamage(struct PlatformSDL2* p, int x, int y, int w, int h
 }
 
 void
-PlatformSDL2_SetPresentDamageRects(struct PlatformSDL2* p, int const (*rects)[4], int count)
+PlatformWindow_SetPresentDamageRects(struct PlatformWindow* p, int const (*rects)[4], int count)
 {
     assert(p);
     assert(rects);
@@ -1167,7 +1167,7 @@ PlatformSDL2_SetPresentDamageRects(struct PlatformSDL2* p, int const (*rects)[4]
 /* ---- present ------------------------------------------------------------- */
 
 void
-PlatformSDL2_Present(struct PlatformSDL2* p)
+PlatformWindow_Present(struct PlatformWindow* p)
 {
     ANativeWindow* window;
     ANativeWindow_Buffer buffer;
@@ -1235,7 +1235,7 @@ PlatformSDL2_Present(struct PlatformSDL2* p)
 }
 
 void
-PlatformSDL2_PresentGL(struct PlatformSDL2* p)
+PlatformWindow_PresentGL(struct PlatformWindow* p)
 {
     assert(p);
     PlatformAndroidGL_SwapBuffers();
@@ -1244,7 +1244,7 @@ PlatformSDL2_PresentGL(struct PlatformSDL2* p)
 /* ---- time ---------------------------------------------------------------- */
 
 uint64_t
-PlatformSDL2_Ticks64(void)
+PlatformWindow_Ticks64(void)
 {
     struct timespec ts;
 
@@ -1255,7 +1255,7 @@ PlatformSDL2_Ticks64(void)
 }
 
 uint64_t
-PlatformSDL2_TicksUs(void)
+PlatformWindow_TicksUs(void)
 {
     struct timespec ts;
 
@@ -1264,11 +1264,11 @@ PlatformSDL2_TicksUs(void)
 }
 
 void
-PlatformSDL2_SleepUntil(uint64_t deadline_ms)
+PlatformWindow_SleepUntil(uint64_t deadline_ms)
 {
     for( ;; )
     {
-        uint64_t const now = PlatformSDL2_Ticks64();
+        uint64_t const now = PlatformWindow_Ticks64();
         struct timespec req;
         uint64_t remain;
 

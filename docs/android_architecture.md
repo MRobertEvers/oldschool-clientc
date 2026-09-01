@@ -1,7 +1,7 @@
 # The Android lane
 
-The client on Android, with **no SDL**: a raw `ANativeWindow`, the tree's own
-software rasterizer, and GLES2 as the opt-in GPU path.
+The client on Android: a raw `ANativeWindow` and EGL with no windowing library,
+the tree's own software rasterizer, and GLES2 as the opt-in GPU path.
 
 This is the counterpart of `docs/web_build.md` and of the `win32` block in
 `src/platform/platform.mk`. Read that file first if you have not: it is the only
@@ -25,9 +25,9 @@ Android is a new implementation of an interface that already had three.
                                           │  programs against
                                           ▼
                       ┌──────────────────────────────────────────┐
-                      │      platform/platform_sdl2.h            │
-                      │  "PlatformSDL2" is the name of the       │
-                      │  INTERFACE, not of a library.            │
+                      │      platform/platform_window.h          │
+                      │  the host window, canvas, input and      │
+                      │  present interface (PlatformWindow_*)    │
                       └───────────────────┬──────────────────────┘
                     ┌─────────────┬───────┴───────┬───────────────┐
                     ▼             ▼               ▼               ▼
@@ -35,14 +35,14 @@ Android is a new implementation of an interface that already had three.
             macos / linux    win32gdi.c     android.c
             / web            win32 / win64  android
                  │                │               │
-                SDL           Win32+GDI     ANativeWindow
-                                            + EGL/GLES2
+            desktop window    Win32+GDI     ANativeWindow
+              library                       + EGL/GLES2
 ```
 
-`platform_win32gdi.c` has implemented this interface without SDL since the XP
-lane existed. Android is the second such backend, and the reason the names still
-say `PlatformSDL2_` is that renaming an interface is not the same as changing
-what implements it.
+Each backend is one file and owns its windowing entirely; nothing above
+`platform/` knows which one it is running on. The Android one names no
+windowing library anywhere: not in its headers, not in its comments, and the
+build proves it of the linked artifact (§9).
 
 ---
 
@@ -53,7 +53,7 @@ src/platform/
   platform_android.h        the seam between the two halves below
   platform_android_jni.c    knows Java. Owns the thread, the Surface handoff,
                             the input queue, stdout->logcat. DRAWS NOTHING.
-  platform_android.c        knows drawing. Implements platform_sdl2.h over
+  platform_android.c        knows drawing. Implements platform_window.h over
                             ANativeWindow: the ARGB canvas, the letterbox,
                             the blit, key/touch translation. KNOWS NO JAVA.
   platform_android_gl.c     the EGL context, as platform_gl_context.h.
@@ -81,7 +81,7 @@ that a second time would put two loop shapes in one file.)
      └─ ANativeWindow_fromSurface
         PlatformAndroid_SetWindow ─────┐
                                        │        main(argc, argv)
-   onTouchEvent(MotionEvent)           │          └─ PlatformSDL2_Init
+   onTouchEvent(MotionEvent)           │          └─ PlatformWindow_Init
      └─ nativeTouch ──────────┐        │               └─ PlatformAndroid_AwaitWindow
                               │        │                    ...blocks until ────┘
    onKeyDown(KeyEvent)        │        │
@@ -132,7 +132,7 @@ returns, because Android destroys the surface the moment it does.
    toridraw rasterises into                  platform_android_renderer_gles2_*.c
    the ARGB8888 canvas                       draws into the EGL surface
               │                                        │
-   PlatformSDL2_Present                      PlatformSDL2_PresentGL
+   PlatformWindow_Present                      PlatformWindow_PresentGL
               │                                        │
    ANativeWindow_lock                          eglSwapBuffers
    letterbox + swizzle + scale
@@ -176,11 +176,11 @@ The only thing it needs from the platform is a context, and that seam is
 
 | lane | implementation | backing |
 |---|---|---|
-| macos, linux, web | `platform_gl_context_sdl.c` | `SDL_GL_*` |
+| macos, linux, web | `platform_gl_context_sdl.c` | the desktop window library |
 | android | `platform_android_gl.c` | EGL |
 
-Neither GL renderer contains an SDL symbol any more. `nm -D libtorirs.so | grep
-SDL_` on the shipped library returns nothing.
+The renderers contain no windowing symbol at all; the Android lane's post-link
+probe (§9) checks the shipped library for exactly that.
 
 ### The one pixel-format subtlety
 
@@ -341,7 +341,7 @@ profile can be tried with `--gles2` or `--offline` without rebuilding the APK.
 
 | | why |
 |---|---|
-| **SDL** | The point of the lane. No header, no library, no SDL symbol in the `.so`. |
+| **A windowing library** | The point of the lane. No header, no library, no such symbol in the `.so`, and no mention of one in the lane's sources. |
 | **A CMakeLists.txt** | `src/platform/platform.mk` is the only thing that knows what a platform is. A second build description would restate every source and every `-D`, and drift silently — a stale duplicate still compiles. Gradle consumes the `.so`; it does not build C. |
 | **The embedded server** | `EMBED_SERVER` stays 0. Android is a *client*: it dials a real server over TCP or WebSocket. Linking ToriRSServer in would put a second world simulation on the phone — needing the compiled script pack and the server's own copy of the cache on the device — to serve one player already in the process. `net_transport_embed.c` compiles to a **silent stub** without it, so a `transport=embed` manifest would come up and connect to nothing; the boot menu refuses those by name instead. |
 | **Audio** | `platform_audio_null.c`, exactly as both Windows lanes do today. |
@@ -368,7 +368,7 @@ that path carries the revision's `[camera] controls=` gate, the follow-cam
 split, and the screen-space sign convention that keeps free and orbit cameras
 agreeing. A second implementation would be three things to keep true instead of
 none. The platform publishes the viewport box each frame
-(`PlatformSDL2_SetTouchViewport`); a drag is tested against where the finger
+(`PlatformWindow_SetTouchViewport`); a drag is tested against where the finger
 *started*, so one that wanders onto the interface is still the same drag.
 
 The button goes down only once the finger passes the slop, so a tap on the world
@@ -419,10 +419,11 @@ requirements have failed quietly before:
 |---|---|
 | `-mfpu=neon` | armv7 does not enable NEON by default, and the kernels select their SIMD lane with `#if defined(__ARM_NEON)` at **compile** time. Without it every one silently takes the scalar fallback — no symptom but a slower frame. |
 | `-fPIC` | fails, but deep in the linker naming a *tommath* symbol rather than the cause. |
-| `TORIRS_GL_ES2` | with `TORIRS_HAVE_GL3` but not this, `main.c` would accept `--opengl3` and hand this lane the desktop GL 3.3 renderer. |
+| `TORIRS_HAVE_GLES2` | the lane's own renderer; `TORIRS_HAVE_GL3` and `TORIRS_GL_ES2` are forbidden, so `main.c` cannot hand this lane a desktop GL renderer. |
 
-`-lSDL2` and `-sUSE_SDL=2` are **forbidden**, not merely absent — the way "no
-SDL" would be lost is someone adding SDL to a *shared* variable to fix another
+The desktop window library's link flags are **forbidden** by name in
+`platform_check.mk` (`LANE_FORBID_android`), not merely absent — the way the
+rule would be lost is someone adding them to a *shared* variable to fix another
 host. And because a flag list cannot prove what is in a binary, the lane has a
 post-link probe on the artifact itself:
 

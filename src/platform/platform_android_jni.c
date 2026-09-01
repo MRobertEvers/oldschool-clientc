@@ -212,7 +212,7 @@ redirect_stdio_to_log(void)
 
 /* ---- the soft keyboard ---------------------------------------------------
  *
- * PlatformSDL2_SetTextInput's implementation. InputMethodManager is Java-only,
+ * PlatformWindow_SetTextInput's implementation. InputMethodManager is Java-only,
  * so the actual show/hide is a method on the activity and this reaches back up
  * to call it.
  */

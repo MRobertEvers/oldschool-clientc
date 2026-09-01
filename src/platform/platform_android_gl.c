@@ -1,10 +1,9 @@
 /*
- * platform_android_gl.c -- the GL context seam, over EGL. No SDL.
+ * platform_android_gl.c -- the GL context seam, over EGL.
  *
- * Android's implementation of platform_gl_context.h, and the counterpart of
- * platform_gl_context_sdl.c on the lanes that do run SDL. Between them they are
- * the only two files in this tree that know how a GL context is made; the
- * renderers program to the seam and never see EGL or SDL.
+ * Android's implementation of platform_gl_context.h. The seam is the only
+ * place in this tree that knows how a GL context is made; the renderers
+ * program to it and never see EGL.
  *
  * The renderer on the other side of this seam here is the lane's own
  * platform_android_renderer_gles2_*.c: OpenGL ES 2.0 core with no extensions,
@@ -132,7 +131,7 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits)
 
     /*
      * The surface needs a window, and at this point there always is one:
-     * PlatformSDL2_InitForOpenGL3 waited for it before the renderer was even
+     * PlatformWindow_InitForOpenGL3 waited for it before the renderer was even
      * constructed. Refusing here rather than limping on is deliberate -- a
      * context with no surface renders nowhere, and main.c has a working
      * software path to fall back to.
@@ -233,9 +232,9 @@ ToriRS_GLContext_LastError(void)
 /* ---- the swap ------------------------------------------------------------
  *
  * Not part of platform_gl_context.h: presenting is the PLATFORM's job
- * (PlatformSDL2_PresentGL), and on the SDL lanes it is platform_sdl2.c that
- * calls SDL_GL_SwapWindow. This is the Android half of that, declared in
- * platform_android.h beside the rest of what platform_android.c calls.
+ * (PlatformWindow_PresentGL) on every lane, and the seam covers only making
+ * a context. This is the Android swap, declared in platform_android.h beside
+ * the rest of what platform_android.c calls.
  */
 void
 PlatformAndroidGL_SwapBuffers(void)

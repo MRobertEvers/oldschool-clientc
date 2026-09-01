@@ -501,10 +501,10 @@ else ifeq ($(PLATFORM),web)
   endif
 
 else ifeq ($(PLATFORM),android)
-  # --- Android, NDK, no SDL ---------------------------------------------------
+  # --- Android, NDK, no windowing library ------------------------------------
   #
   # The same shape as the win32 lane: a raw platform window backend implementing
-  # platform_sdl2.h, a CPU-presented software frame, and no SDL, GL, or audio
+  # platform_window.h, a CPU-presented software frame, and no windowing, GL or audio
   # dependency at all. What differs is that the link output is a SHARED LIBRARY
   # rather than an executable -- an Android app's process is started by the
   # runtime, and this lane's `main` is called on a thread the Java side spawns
@@ -512,7 +512,7 @@ else ifeq ($(PLATFORM),android)
   #
   # Two backends, both new, and the split is the same one every lane makes:
   #
-  #   platform_android.c       the PlatformSDL2 interface over ANativeWindow.
+  #   platform_android.c       the PlatformWindow interface over ANativeWindow.
   #                            Owns the ARGB canvas, the letterbox, and the
   #                            blit. Knows nothing about Java.
   #   platform_android_jni.c   the JNI surface. Owns the render thread, the
@@ -649,7 +649,7 @@ else ifeq ($(PLATFORM),android)
   #
   # <GLES2/gl2.h> comes from the NDK sysroot; the context comes from
   # platform_android_gl.c through the neutral seam in platform_gl_context.h.
-  # There is no SDL on this lane -- no header, no library, no SDL symbol in any
+  # There is no windowing library on this lane -- no header, no library, no such symbol in any
   # object it links -- and no out-of-tree GPU binding object: every GL call is
   # in the renderer's own translation units.
   PLATFORM_GPU_OBJ_NAMES :=
@@ -690,7 +690,7 @@ else
   $(error unknown PLATFORM '$(PLATFORM)' — expected one of: native $(PLATFORM_LIST))
 endif
 
-# The windowing implementation of the PlatformSDL2 interface. SDL platforms use
+# The windowing implementation of the PlatformWindow interface. SDL platforms use
 # platform_sdl2.c; both Windows blocks override this with platform_win32gdi.c.
 PLATFORM_WINDOW_SRC ?= platform/platform_sdl2.c
 

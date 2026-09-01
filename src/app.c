@@ -15685,18 +15685,18 @@ app_pump_net_packets(struct App* app)
              * queued by the previous iteration and nothing else. */
             static int slow_ms = -1;
             uint64_t t0;
-            extern uint64_t PlatformSDL2_TicksUs(void);
+            extern uint64_t PlatformWindow_TicksUs(void);
 
             if( slow_ms < 0 )
             {
                 char const* v = getenv("TORIRS_PKT_SLOW_MS");
                 slow_ms = (v && v[0]) ? atoi(v) : 0;
             }
-            t0 = slow_ms > 0 ? PlatformSDL2_TicksUs() : 0;
+            t0 = slow_ms > 0 ? PlatformWindow_TicksUs() : 0;
             stat = TaskRunner_SettleFrame(&app->exec_runner);
             if( slow_ms > 0 && last_exec_packet_type >= 0 )
             {
-                uint64_t dt = PlatformSDL2_TicksUs() - t0;
+                uint64_t dt = PlatformWindow_TicksUs() - t0;
                 if( dt >= (uint64_t)slow_ms * 1000u )
                     TORIRS_LOG("pkt_slow: type=%d %.2f ms cycle=%llu\n",
                         last_exec_packet_type,
@@ -21194,7 +21194,7 @@ app_world_spawn_npc_now(
     static int spawn_log = -1;
     uint64_t bd_t0, bd_t;
     uint64_t bd_model = 0, bd_elem = 0, bd_world = 0, bd_seq = 0, bd_tex = 0, bd_log = 0;
-    extern uint64_t PlatformSDL2_TicksUs(void);
+    extern uint64_t PlatformWindow_TicksUs(void);
 
     if( bd_us < 0 )
     {
@@ -21202,7 +21202,7 @@ app_world_spawn_npc_now(
         bd_us = (v && v[0]) ? atoi(v) : 0;
         spawn_log = getenv("TORIRS_SPAWN_LOG") ? 1 : 0;
     }
-    bd_t0 = bd_us ? PlatformSDL2_TicksUs() : 0;
+    bd_t0 = bd_us ? PlatformWindow_TicksUs() : 0;
 
     npctype = CacheProvider_NpctypeGet(app->provider, npc_id);
     if( !npctype )
@@ -21216,7 +21216,7 @@ app_world_spawn_npc_now(
         return -1;
     }
 
-    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
+    bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
     if( npctype->models_count <= 0 )
     {
         /*
@@ -21246,7 +21246,7 @@ app_world_spawn_npc_now(
         model = app_world_build_npc_model(app, npc_id, npctype);
     }
     if( bd_us )
-        bd_model = PlatformSDL2_TicksUs() - bd_t;
+        bd_model = PlatformWindow_TicksUs() - bd_t;
     if( !model )
     {
         /* Same rationale as the models_count<=0 branch above: a missing
@@ -21275,7 +21275,7 @@ app_world_spawn_npc_now(
     world_x = tile_x * 128 + size * 64;
     world_z = tile_z * 128 + size * 64;
     world_y = app_world_height(app, world_x, world_z, level);
-    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
+    bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
     element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_NPC, model, world_x, world_y, world_z);
     if( element_id < 0 )
         return -1;
@@ -21286,9 +21286,9 @@ app_world_spawn_npc_now(
         ToriDraw_SceneAnimListInvalidate(app->scene);
     }
     if( bd_us )
-        bd_elem = PlatformSDL2_TicksUs() - bd_t;
+        bd_elem = PlatformWindow_TicksUs() - bd_t;
 
-    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
+    bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
     {
         /* Config movement anims (dat1 has no turn/run for npcs; the reference
          * walkanim_l/r swap applies here at spawn like at CHANGE_TYPE). */
@@ -21317,12 +21317,12 @@ app_world_spawn_npc_now(
             npc->server_slot = -1;
     }
     if( bd_us )
-        bd_world = PlatformSDL2_TicksUs() - bd_t;
+        bd_world = PlatformWindow_TicksUs() - bd_t;
 
-    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
+    bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
     app_world_apply_seq(app, element_id, facts.readyanim);
     if( bd_us )
-        bd_seq = PlatformSDL2_TicksUs() - bd_t;
+        bd_seq = PlatformWindow_TicksUs() - bd_t;
     /* Spawn does not carry menu data; the minimenu rows read it off the
      * entity, so copy name/actions/level from the config here. */
     {
@@ -21344,7 +21344,7 @@ app_world_spawn_npc_now(
      * per npc arrival on the packet-apply path -- and npcs arrive in bursts of
      * 20+ when the player crosses into a populated zone. Gated behind its own
      * switch so the cost stays measurable (spawn_bd's `log` column). */
-    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
+    bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
     if( spawn_log )
         TORIRS_LOG("spawn_npc: npc=%d element=%d tile=%d,%d level=%d size=%d recolors=%d "
             "retextures=%d\n",
@@ -21357,16 +21357,16 @@ app_world_spawn_npc_now(
             npctype->recolor_count,
             npctype->retexture_count);
     if( bd_us )
-        bd_log = PlatformSDL2_TicksUs() - bd_t;
+        bd_log = PlatformWindow_TicksUs() - bd_t;
 
-    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
+    bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
     app_sync_textures(app);
     if( bd_us )
     {
         uint64_t total;
 
-        bd_tex = PlatformSDL2_TicksUs() - bd_t;
-        total = PlatformSDL2_TicksUs() - bd_t0;
+        bd_tex = PlatformWindow_TicksUs() - bd_t;
+        total = PlatformWindow_TicksUs() - bd_t0;
         if( total >= (uint64_t)bd_us )
             TORIRS_LOG("spawn_bd: npc=%d total %llu model %llu elem %llu world %llu seq %llu "
                 "log %llu tex %llu (us)\n",

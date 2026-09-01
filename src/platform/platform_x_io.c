@@ -10,7 +10,7 @@
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
 #include "platform_x_io_js5.h"
 #include "platform_x_io_js5_cache.h"
-#include "platform_sdl2.h"
+#include "platform_window.h"
 #endif
 #if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
 #include "platform_x_io_ondemand.h"
@@ -1177,7 +1177,7 @@ PlatformX_IO_Pending(
 
     assert(px);
     if( px->js5 )
-        PlatformXIO_Js5Pump(px, PlatformSDL2_Ticks64());
+        PlatformXIO_Js5Pump(px, PlatformWindow_Ticks64());
     for( int i = 0; i < JS5_PENDING_SLOTS; i++ )
         if( px->js5_pending[i].in_use && px->js5_pending[i].io == io )
             count++;

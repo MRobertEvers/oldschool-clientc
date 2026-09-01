@@ -50,7 +50,7 @@ The canvas existed as three unrelated variables:
 |---|---|---|
 | layout root | `src/ui/uitree_layout.c` `UITree_LayoutRootWidth/Height` (765×503), read through `UITREE_LAYOUT_ROOT_W/H` at ~25 sites | `UITree_LayoutSetRootSize`, called once from `TORIRS_ROOT_SIZE` in `main.c` |
 | VM canvas | `RS_CS2Host.viewport_w/h`, handed to the VM by `CS2VM2_ThreadSetCanvas` and returned by `GETCANVASSIZE` **and** `VIEWPORT_GETEFFECTIVESIZE` | hardcoded 765×503 in `RS_CS2Host_Init`, **never written again** |
-| backbuffer | `PlatformSDL2.width/height` | `PlatformSDL2_Init`, never again |
+| backbuffer | `PlatformWindow.width/height` | `PlatformWindow_Init`, never again |
 
 Measured before the fix, `TORIRS_ROOT_SIZE=1024x768`:
 
@@ -107,7 +107,7 @@ listeners `cc_create`/`cc_delete`, which reallocates `tree->components`.
   batch**: a window drag emits one event per mouse-move and each would cost a
   relayout plus every gameframe onResize script.
 - `App_DrainCommands` applies it via `App_SetCanvasSize`.
-- `PlatformSDL2_SetCanvasFollowsWindow(platform, bus, follow)` is the mode gate.
+- `PlatformWindow_SetCanvasFollowsWindow(platform, bus, follow)` is the mode gate.
   Off by default: fixed mode keeps a 765×503 backbuffer and letterboxes.
 
 ### 3.4 The four window-mode ops
@@ -141,7 +141,7 @@ The authority is the dialect's own type table (runestar cs2
   the layout scripts in either window mode and can therefore never tell the two
   modes apart. Use it to test the layout, not the mode.
 - `TORIRS_SIM_WINDOW="frame,WxH[;frame,WxH]"` — resize the **window**, i.e. do
-  what a user's drag does (`PlatformSDL2_SetWindowSize`). Everything after that
+  what a user's drag does (`PlatformWindow_SetWindowSize`). Everything after that
   is the client's own decision, so this is the only knob that tests the follow
   gate. **Correction to an earlier claim in this doc:** `SDL_VIDEODRIVER=dummy`
   does deliver `SDL_WINDOWEVENT_SIZE_CHANGED` for a programmatic
@@ -168,11 +168,11 @@ missing read at boot:
 | | says | measured |
 |---|---|---|
 | `RS_CS2Host_Init` | `window_mode = RESIZABLE` | every clientscript's `getwindowmode` answers **resizable** from the first frame |
-| `PlatformSDL2.canvas_follows_window` | starts `false` | a real window resize was **dropped in the poll loop** |
+| `PlatformWindow.canvas_follows_window` | starts `false` | a real window resize was **dropped in the poll loop** |
 
 So the client told its own scripts it was resizable, and then letterboxed and
 upscaled a 765×503 canvas into whatever window it was given. Nothing could clear
-that: `PlatformSDL2_SetCanvasFollowsWindow` was only ever called from the
+that: `PlatformWindow_SetCanvasFollowsWindow` was only ever called from the
 post-frame `App_TakeWindowModeChange` drain, which fires only when a script
 *changes* the mode — and **nothing binds 3998**, so no script ever did (§3.5).
 The mode was unreachable and the two halves disagreed for the whole session.
@@ -182,7 +182,7 @@ The mode was unreachable and the two halves disagreed for the whole session.
 - **`App_WindowMode(app)` / `App_SetBootWindowMode(app, mode)`** (`src/app.c`,
   `src/app.h`). The shell reads the mode once, right after `App_Init` and before
   `App_OpenRootInterface`, and hands it to
-  `PlatformSDL2_SetCanvasFollowsWindow` — the same call the runtime switch
+  `PlatformWindow_SetCanvasFollowsWindow` — the same call the runtime switch
   makes, so the two paths cannot drift. `App_SetBootWindowMode` deliberately
   does **not** raise `window_mode_dirty`: config is not a user action.
 - **A stateable mode.** `[ui:boot] windowmode = fixed|resizable` in the boot
@@ -197,7 +197,7 @@ The mode was unreachable and the two halves disagreed for the whole session.
   window is not allowed there rather than silently scaling.
 - **Fixed mode snaps the window to the floor, and resizable puts it back.**
   Entering fixed is the one window change the user did not ask for, so
-  `PlatformSDL2` remembers the size it snapped away from (`resizable_w/h`) and
+  `PlatformWindow` remembers the size it snapped away from (`resizable_w/h`) and
   restores it when the mode goes back. Without that, a round trip through the
   Display dropdown shrank the window permanently — measured, then fixed.
 - **`--window` no longer needs `--windowmode`.** The boot-size branch tested
@@ -225,7 +225,7 @@ Per frame:
 
 1. poll SDL → bus
 2. `App_DrainCommands` — applies the canvas change
-3. **`PlatformSDL2_Resize(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H)`** and
+3. **`PlatformWindow_Resize(platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H)`** and
    `ToriRS_GL3_SetViewport` with the same pair
 4. `App_RunOnce` (may raise `window_mode_dirty`)
 5. render / present
@@ -233,7 +233,7 @@ Per frame:
 
 Step 3 sizes the backbuffer **from the canvas, not from the window**, and that
 is not a preference: `App_Render` writes exactly `ROOT_W * ROOT_H` ints into
-`PlatformSDL2_Pixels()`. The canvas is clamped to a floor the window does not
+`PlatformWindow_Pixels()`. The canvas is clamped to a floor the window does not
 respect, so sizing the backbuffer from the raw window would overrun it the
 moment a user drags below 765×503. Below the floor the window letterboxes the
 clamped canvas — which is what fixed mode does anyway.

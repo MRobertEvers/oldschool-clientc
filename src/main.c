@@ -16,7 +16,7 @@
 #include "perf/torirs_perf.h"
 #include "platform/net_transport.h"
 #include "platform/platform_audio.h"
-#include "platform/platform_sdl2.h"
+#include "platform/platform_window.h"
 #if !defined(TORIRS_PLATFORM_WEB)
 #include "platform/platform_x_io_js5.h"
 #include "platform/platform_x_io_js5_cache.h"
@@ -455,8 +455,8 @@ capture_from_gles2(void* user, int* pixels, int width, int height)
 static int
 capture_from_software(void* user, int* pixels, int width, int height)
 {
-    struct PlatformSDL2* sdl = (struct PlatformSDL2*)user;
-    int const* src = PlatformSDL2_Pixels(sdl);
+    struct PlatformWindow* platform = (struct PlatformWindow*)user;
+    int const* src = PlatformWindow_Pixels(platform);
 
     if( !src )
         return 0;
@@ -471,7 +471,7 @@ capture_from_software(void* user, int* pixels, int width, int height)
 static void
 interactive_render_present(
     struct App* app,
-    struct PlatformSDL2* sdl,
+    struct PlatformWindow* platform,
     struct ToriRS_GL3* gl3,
     struct ToriRS_D3D9* d3d9,
     struct ToriRS_GLES2* gles2)
@@ -481,7 +481,7 @@ interactive_render_present(
     /* Device option 15 is presentation state, just like option 27's canvas
      * size. Apply it immediately after the click that changed it and to every
      * renderer lane; each setter is a no-op while the value is unchanged. */
-    PlatformSDL2_SetInterfaceScaleMode(sdl, interface_scale_mode);
+    PlatformWindow_SetInterfaceScaleMode(platform, interface_scale_mode);
 #if defined(TORIRS_HAVE_D3D9)
     if( d3d9 )
     {
@@ -606,7 +606,7 @@ interactive_render_present(
         App_DrawComplete(app, capture_from_gles2, gles2);
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
-            PlatformSDL2_PresentGL(sdl);
+            PlatformWindow_PresentGL(platform);
         }
         return;
     }
@@ -665,7 +665,7 @@ interactive_render_present(
         }
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
-            PlatformSDL2_PresentGL(sdl);
+            PlatformWindow_PresentGL(platform);
         }
         /*
          * AFTER the swap, and that is measured rather than reasoned.
@@ -687,7 +687,7 @@ interactive_render_present(
     (void)gl3;
 #endif
 
-    App_Render(app, PlatformSDL2_Pixels(sdl), UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    App_Render(app, PlatformWindow_Pixels(platform), UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     {
         /* Present only what the render actually wrote. Off unless damage
          * drawing is armed, in which case App_Render already left the rest of
@@ -704,7 +704,7 @@ interactive_render_present(
             struct App_DamageRect const* dr;
             int n;
 
-            PlatformSDL2_SetPresentDamage(sdl, dx, dy, dw, dh);
+            PlatformWindow_SetPresentDamage(platform, dx, dy, dw, dh);
             n = App_DamageRects(app, &dr);
             if( n > 0 )
             {
@@ -719,19 +719,19 @@ interactive_render_present(
                     rects[i][2] = dr[i].w;
                     rects[i][3] = dr[i].h;
                 }
-                PlatformSDL2_SetPresentDamageRects(
-                    sdl, (int const(*)[4])rects, n);
+                PlatformWindow_SetPresentDamageRects(
+                    platform, (int const(*)[4])rects, n);
             }
         }
     }
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
     {
-        PlatformSDL2_Present(sdl);
+        PlatformWindow_Present(platform);
     }
     /* After the present, matching the GL lanes. This one's buffer is
      * client-side and valid either side of it, so the ordering is chosen to
      * keep one rule rather than because this lane needs it. */
-    App_DrawComplete(app, capture_from_software, sdl);
+    App_DrawComplete(app, capture_from_software, platform);
 }
 
 /* App_RunOnce returned no frame commit.  The software surface can safely
@@ -741,7 +741,7 @@ interactive_render_present(
  * buffers alone; the window/compositor retains the last committed frame. */
 static void
 interactive_present_retained(
-    struct PlatformSDL2* sdl,
+    struct PlatformWindow* platform,
     struct ToriRS_GL3* gl3,
     struct ToriRS_D3D9* d3d9,
     struct ToriRS_GLES2* gles2)
@@ -764,7 +764,7 @@ interactive_present_retained(
 #else
     (void)gl3;
 #endif
-    PlatformSDL2_Present(sdl);
+    PlatformWindow_Present(platform);
 }
 
 
@@ -828,7 +828,7 @@ static struct AppConfig cfg = {
     .spawn_z = -1,
 };
 
-static struct PlatformSDL2* sdl;
+static struct PlatformWindow* platform;
 static struct LibToriRS_Input input_storage;
 static struct LibToriRS_Input* input;
 /* The ring is 128KB and there is exactly one bus per process. */
@@ -1256,7 +1256,7 @@ frame_loop_step(void)
         }
     }
 #endif
-    if( PlatformSDL2_QuitRequested(sdl) )
+    if( PlatformWindow_QuitRequested(platform) )
     {
         /* Both dumps are no-ops unless their env knob asked for them, and
          * both are idempotent, so the two exits below can each call them
@@ -1326,14 +1326,14 @@ frame_loop_step(void)
     /* The pacing budget starts before any frame work. The input timestamp
      * below is intentionally separate: using it as the origin omitted the
      * pre-poll work and made nominal 20 ms frames longer than 20 ms. */
-    frame_start_ms = PlatformSDL2_Ticks64();
+    frame_start_ms = PlatformWindow_Ticks64();
 #endif
     /* The developer overlay's readout (App_NoteFrameTime), which measures the
      * same interval the perf harness calls a frame — and, like it, is closed
      * before the pacing sleep so the number is work and not the cap. Sampled
      * on every platform: the browser lane has no sleep to exclude but has the
      * same question to answer. */
-    frame_start_us = PlatformSDL2_TicksUs();
+    frame_start_us = PlatformWindow_TicksUs();
     /* Carry the wall gap since the previous frame start, then open the frame:
      * FRAME_BEGIN moves the carry into this frame's bucket. Work and pace each
      * miss part of the loop, so only this is the period the player sees. */
@@ -1436,7 +1436,7 @@ frame_loop_step(void)
     {
         boot_reported = 1;
         TORIRS_ERR("boot: %llums  frames=%d steps=%ld capped=%d\n",
-            (unsigned long long)(PlatformSDL2_Ticks64() - boot_start_ms),
+            (unsigned long long)(PlatformWindow_Ticks64() - boot_start_ms),
             app.boot_frames,
             app.boot_steps,
             app.boot_frames_budget_capped);
@@ -1565,7 +1565,7 @@ frame_loop_step(void)
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INPUT_PREP)
         {
-            now = PlatformSDL2_Ticks64();
+            now = PlatformWindow_Ticks64();
             /* Once per iteration, before any frame work: this is the sample
              * point the GameShell pacer's ten-iteration ring is built on. */
             logic_now = ToriRS_Pacer_BeginFrame(&frame_pacer, now);
@@ -1578,13 +1578,13 @@ frame_loop_step(void)
                  * Publishing it after would test a touch against a box that
                  * does not exist on screen yet.
                  */
-                PlatformSDL2_SetTouchViewport(
-                    sdl,
+                PlatformWindow_SetTouchViewport(
+                    platform,
                     app.world_emit_desc.x,
                     app.world_emit_desc.y,
                     app.world_emit_desc.w,
                     app.world_emit_desc.h);
-                PlatformSDL2_PollCommands(sdl, &bus);
+                PlatformWindow_PollCommands(platform, &bus);
                 if( sock )
                     NetTransport_Poll(sock, app.net, &bus);
             }
@@ -2435,7 +2435,7 @@ frame_loop_step(void)
             if( wz_frame >= 0 && frame_count >= wz_frame )
             {
                 TORIRS_LOG("sim_window: frame=%ld %ldx%ld\n", wz_frame, wz_w, wz_h);
-                PlatformSDL2_SetWindowSize(sdl, (int)wz_w, (int)wz_h);
+                PlatformWindow_SetWindowSize(platform, (int)wz_w, (int)wz_h);
                 wz_frame = -1;
             }
         }
@@ -2444,7 +2444,7 @@ frame_loop_step(void)
 
 #if !defined(TORIRS_PLATFORM_WEB)
     if( executor_cfg.js5_enabled &&
-        PlatformXIO_Js5Pump(app.runner.px, PlatformSDL2_Ticks64()) < 0 )
+        PlatformXIO_Js5Pump(app.runner.px, PlatformWindow_Ticks64()) < 0 )
     {
         TORIRS_ERR("torirs: JS5 cache producer stopped (error=%d)\n",
             (int)PlatformXIO_Js5LastError(app.runner.px));
@@ -2484,7 +2484,7 @@ frame_loop_step(void)
          * the same reason the block below is: a window dragged onto a display
          * of a different density raises no event that says so.
          */
-        ToriRSInkwell_SetDensity(PlatformSDL2_PixelDensity(sdl));
+        ToriRSInkwell_SetDensity(PlatformWindow_PixelDensity(platform));
 
         /*
          * On this platform the pointer IS a finger, so the finger may turn the
@@ -2510,7 +2510,7 @@ frame_loop_step(void)
                  * to fullscreen steps the chrome up as the canvas grows -- and
                  * so a drag onto a display of a different density re-picks the
                  * baked face for it, which raises no event of its own. */
-                int const density = PlatformSDL2_PixelDensity(sdl);
+                int const density = PlatformWindow_PixelDensity(platform);
                 int const scale =
                     main_dynamic_chrome_scale(UITREE_LAYOUT_ROOT_H, density);
                 if( App_SetChromeScale(&app, scale) && getenv("TORIRS_RESIZE_DEBUG") )
@@ -2521,10 +2521,10 @@ frame_loop_step(void)
                         density);
             }
             else if( app.cfg.chrome_scale == 0 )
-                App_SetChromeScale(&app, PlatformSDL2_PixelDensity(sdl));
+                App_SetChromeScale(&app, PlatformWindow_PixelDensity(platform));
             /* > 0: pinned by the manifest; set once at boot, never followed. */
         }
-        PlatformSDL2_Resize(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        PlatformWindow_Resize(platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #if defined(TORIRS_HAVE_D3D9)
         if( d3d9 )
             ToriRS_D3D9_SetViewport(d3d9, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -2576,7 +2576,7 @@ frame_loop_step(void)
                 || ToriRS_Pacer_DrawPeriodMs(&frame_pacer)
                        > frame_pacer.period_ms) )
         {
-            uint64_t const draw_now = PlatformSDL2_Ticks64();
+            uint64_t const draw_now = PlatformWindow_Ticks64();
             if( draw_now < next_draw_ms )
                 app_redraw = 0;
             else
@@ -2590,14 +2590,14 @@ frame_loop_step(void)
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
         {
-            interactive_render_present(&app, sdl, gl3, d3d9, gles2);
+            interactive_render_present(&app, platform, gl3, d3d9, gles2);
         }
     }
     else
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
-            interactive_present_retained(sdl, gl3, d3d9, gles2);
+            interactive_present_retained(platform, gl3, d3d9, gles2);
         }
     }
 
@@ -2621,8 +2621,8 @@ frame_loop_step(void)
         {
             int const fw = UITREE_LAYOUT_ROOT_W;
             int const fh = UITREE_LAYOUT_ROOT_H;
-            PlatformSDL2_SetWindowSize(sdl, fw, fh);
-            PlatformSDL2_SetCanvasFollowsWindow(sdl, &bus, false, fw, fh);
+            PlatformWindow_SetWindowSize(platform, fw, fh);
+            PlatformWindow_SetCanvasFollowsWindow(platform, &bus, false, fw, fh);
             if( getenv("TORIRS_RESIZE_DEBUG") )
                 TORIRS_LOG("fixed-chrome: canvas %dx%d (strip inset)\n", fw, fh);
         }
@@ -2644,7 +2644,7 @@ frame_loop_step(void)
     {
         int keyboard_on = 0;
         if( App_TakeTextInputChange(&app, &keyboard_on) )
-            PlatformSDL2_SetTextInput(sdl, keyboard_on);
+            PlatformWindow_SetTextInput(platform, keyboard_on);
     }
     {
         int new_mode = 0;
@@ -2652,8 +2652,8 @@ frame_loop_step(void)
         {
             bool const resizable = new_mode == CS2VM_WINDOW_MODE_RESIZABLE;
             TORIRS_LOG("windowmode: %s\n", resizable ? "resizable" : "fixed");
-            PlatformSDL2_SetCanvasFollowsWindow(
-                sdl, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+            PlatformWindow_SetCanvasFollowsWindow(
+                platform, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
             if( !resizable )
                 CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
             /* Strip inset is applied next frame once layout has measured it. */
@@ -2713,7 +2713,7 @@ frame_loop_step(void)
      * nothing: fflush on an empty buffer writes nothing. See the setvbuf in
      * main(). */
     fflush(stderr);
-    App_NoteFrameTime(&app, PlatformSDL2_TicksUs() - frame_start_us);
+    App_NoteFrameTime(&app, PlatformWindow_TicksUs() - frame_start_us);
 
     /*
      * TORIRS_FPS_REPORT=1: frames per second, every two seconds.
@@ -2737,7 +2737,7 @@ frame_loop_step(void)
             report = getenv("TORIRS_FPS_REPORT") ? 1 : 0;
         if( report )
         {
-            uint64_t now_ms = PlatformSDL2_Ticks64();
+            uint64_t now_ms = PlatformWindow_Ticks64();
             if( win_start_ms == 0 )
                 win_start_ms = now_ms;
             /*
@@ -2793,9 +2793,9 @@ frame_loop_step(void)
      */
     if( !replay && !uncapped && !App_AsyncPending(&app) )
     {
-        uint64_t pace_begin_us = PlatformSDL2_TicksUs();
+        uint64_t pace_begin_us = PlatformWindow_TicksUs();
         uint64_t wait_until_ms =
-            ToriRS_Pacer_WaitDeadline(&frame_pacer, frame_start_ms, PlatformSDL2_Ticks64());
+            ToriRS_Pacer_WaitDeadline(&frame_pacer, frame_start_ms, PlatformWindow_Ticks64());
 
         if( pace_spin )
         {
@@ -2803,14 +2803,14 @@ frame_loop_step(void)
              * sleeping. Diagnostic only — it pins a core at 100% — but it is the
              * only way to separate the cap's own cost from the cost of resuming
              * a CPU that Windows parked during the sleep. */
-            while( PlatformSDL2_Ticks64() < wait_until_ms )
+            while( PlatformWindow_Ticks64() < wait_until_ms )
                 ;
         }
         else
-            PlatformSDL2_SleepUntil(wait_until_ms);
+            PlatformWindow_SleepUntil(wait_until_ms);
 
         {
-            uint64_t const pace_end_us = PlatformSDL2_TicksUs();
+            uint64_t const pace_end_us = PlatformWindow_TicksUs();
             TORIRS_PERF_CARRY(TORIRS_PERF_STAGE_PACE, (pace_end_us - pace_begin_us) * 1000u);
             ToriRS_Pacer_NoteFrame(&frame_pacer, pace_end_us, pace_end_us - pace_begin_us);
         }
@@ -3105,7 +3105,7 @@ frame_loop_teardown(void)
 #if defined(TORIRS_HAVE_GLES2)
     ToriRS_GLES2_Free(gles2);
 #endif
-    PlatformSDL2_Free(sdl);
+    PlatformWindow_Free(platform);
 }
 
 #if defined(__EMSCRIPTEN__)
@@ -3203,12 +3203,12 @@ executor_prime_js5_reference_tables(struct RSCache_Dat2Disk* sparse)
 
     while( status == 0 )
     {
-        if( PlatformXIOJs5Cache_Tick(prime, PlatformSDL2_Ticks64()) < 0 )
+        if( PlatformXIOJs5Cache_Tick(prime, PlatformWindow_Ticks64()) < 0 )
             status = -1;
         else if( PlatformXIOJs5Cache_MetadataReady(prime) )
             status = 1;
         else
-            PlatformSDL2_SleepUntil(PlatformSDL2_Ticks64() + 1u);
+            PlatformWindow_SleepUntil(PlatformWindow_Ticks64() + 1u);
     }
 
     {
@@ -3275,8 +3275,8 @@ executor_attach_and_prime_js5(void)
      * reference tables may satisfy the subsequent checks, but no core task is
      * stepped until all server-authoritative metadata is installed.
      */
-    while( (status = PlatformXIO_Js5Pump(app.runner.px, PlatformSDL2_Ticks64())) == 0 )
-        PlatformSDL2_SleepUntil(PlatformSDL2_Ticks64() + 1u);
+    while( (status = PlatformXIO_Js5Pump(app.runner.px, PlatformWindow_Ticks64())) == 0 )
+        PlatformWindow_SleepUntil(PlatformWindow_Ticks64() + 1u);
     if( status < 0 )
     {
         struct Js5Progress progress;
@@ -4984,9 +4984,9 @@ main(
          * a developer already looks and which costs nothing when it is off. */
         char const* title = "ToriRS";
 
-        sdl = PlatformSDL2_New();
+        platform = PlatformWindow_New();
 
-        if( !sdl )
+        if( !platform )
         {
             TORIRS_ERR("window platform alloc failed\n");
             App_Shutdown(&app);
@@ -5003,29 +5003,29 @@ main(
          * session, which the compositor then magnifies -- the frame looks
          * scaled and nothing downstream can tell that it was. */
         if( cfg.hidpi )
-            PlatformSDL2_SetWantHighDPI(cfg.hidpi > 0);
+            PlatformWindow_SetWantHighDPI(cfg.hidpi > 0);
         /* Read on every lane so a build without a GPU renderer has no unused
          * variable; the flag was refused at parse time where it does not apply. */
         (void)use_opengl3;
 #if defined(TORIRS_HAVE_GLES2)
         if( use_gles2 )
         {
-            if( !PlatformSDL2_InitForOpenGL3(
-                    sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
+            if( !PlatformWindow_InitForOpenGL3(
+                    platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
             {
                 TORIRS_ERR("GLES2 surface init failed\n");
-                PlatformSDL2_Free(sdl);
+                PlatformWindow_Free(platform);
                 App_Shutdown(&app);
                 return 1;
             }
             gles2 = ToriRS_GLES2_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             if( !gles2 ||
                 !ToriRS_GLES2_Init(
-                    gles2, PlatformSDL2_Window(sdl), app.scene, gles2_zbuffer != 0) )
+                    gles2, PlatformWindow_GLWindow(platform), app.scene, gles2_zbuffer != 0) )
             {
                 TORIRS_ERR("GLES2 renderer init failed\n");
                 ToriRS_GLES2_Free(gles2);
-                PlatformSDL2_Free(sdl);
+                PlatformWindow_Free(platform);
                 App_Shutdown(&app);
                 return 1;
             }
@@ -5040,22 +5040,22 @@ main(
 #if defined(TORIRS_HAVE_GL3)
         if( use_opengl3 )
         {
-            if( !PlatformSDL2_InitForOpenGL3(
-                    sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
+            if( !PlatformWindow_InitForOpenGL3(
+                    platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
             {
                 TORIRS_ERR("SDL OpenGL3 init failed\n");
-                PlatformSDL2_Free(sdl);
+                PlatformWindow_Free(platform);
                 App_Shutdown(&app);
                 return 1;
             }
             gl3 = ToriRS_GL3_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             if( !gl3 ||
                 !ToriRS_GL3_Init(
-                    gl3, PlatformSDL2_Window(sdl), app.scene, gl3_zbuffer != 0) )
+                    gl3, PlatformWindow_GLWindow(platform), app.scene, gl3_zbuffer != 0) )
             {
                 TORIRS_ERR("GL3 renderer init failed\n");
                 ToriRS_GL3_Free(gl3);
-                PlatformSDL2_Free(sdl);
+                PlatformWindow_Free(platform);
                 App_Shutdown(&app);
                 return 1;
             }
@@ -5067,10 +5067,10 @@ main(
         }
         else
 #endif
-        if( !PlatformSDL2_Init(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
+        if( !PlatformWindow_Init(platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
         {
             TORIRS_ERR("window init failed\n");
-            PlatformSDL2_Free(sdl);
+            PlatformWindow_Free(platform);
             App_Shutdown(&app);
             return 1;
         }
@@ -5085,7 +5085,7 @@ main(
          * plugin window is opened, so a session that never opens it never opens a
          * second OS window either.
          *
-         * TORIRS_CHROME_EXECUTOR names one (buffer|sdl|web|gdi|cs2), beside
+         * TORIRS_CHROME_EXECUTOR names one (buffer|platform|web|gdi|cs2), beside
          * TORIRS_CHROME_THEME which the developer chrome already reads. An unknown
          * name, or one this build has no executor for, lands on the in-canvas
          * chrome -- which is what every lane without a native executor uses anyway.
@@ -5110,7 +5110,7 @@ main(
              * beside the env vars above.
              *
              * Set whichever executor was asked for. A lane that says
-             * `borderless=1` with `executor=web` is describing the sdl window
+             * `borderless=1` with `executor=web` is describing the platform window
              * it does not use, and a wish nobody reads costs an int.
              */
             ToriRSChromeExecSdl_SetBorderless(boot_manifest.chrome_borderless);
@@ -5120,7 +5120,7 @@ main(
             {
                 int const from_env = ToriRSChromeExec_KindFromName(want);
                 if( from_env < 0 )
-                    TORIRS_LOG("chrome: '%s' is not an executor (buffer|sdl|web|gdi); "
+                    TORIRS_LOG("chrome: '%s' is not an executor (buffer|platform|web|gdi); "
                         "using buffer\n",
                         want);
                 else
@@ -5137,7 +5137,7 @@ main(
              * OS-level surface -- an SDL window, a Win32 tool window, DOM
              * controls in a page. Android has no second window to give: an app
              * is one Activity with one Surface, and the client already owns it.
-             * There is no `sdl` or `gdi` executor compiled into this lane
+             * There is no `platform` or `gdi` executor compiled into this lane
              * anyway, so a manifest asking for one would have fallen back to
              * buffer regardless; clamping here means it does so as a stated
              * property of the platform rather than as the accident of an
@@ -5155,7 +5155,7 @@ main(
 #endif
             chrome_exec = ToriRSChromeExec_ForKind(
                 wanted < 0 ? TORIRS_CHROME_EXEC_BUFFER : wanted,
-                sdl,
+                platform,
                 App_ChromeRasterise,
                 &app,
                 &got);
@@ -5173,7 +5173,7 @@ main(
             if( !d3d9 ||
                 !ToriRS_D3D9_Init(
                     d3d9,
-                    PlatformSDL2_NativeWindowHandle(sdl),
+                    PlatformWindow_NativeWindowHandle(platform),
                     app.scene,
                     d3d9_zbuffer != 0) )
             {
@@ -5219,7 +5219,7 @@ main(
          * ordinary display (and for pinning the size a screenshot test wants).
          */
         {
-            int density = PlatformSDL2_PixelDensity(sdl);
+            int density = PlatformWindow_PixelDensity(platform);
             char const* forced = getenv("TORIRS_CHROME_SCALE");
             /* Precedence: the env pin (a dev working on scaled chrome from a
              * 1x display), then the manifest's stated size, then the display
@@ -5239,14 +5239,14 @@ main(
             if( getenv("TORIRS_RESIZE_DEBUG") )
                 TORIRS_LOG("chrome: scale %d (display density %d)\n",
                     App_ChromeScale(&app),
-                    PlatformSDL2_PixelDensity(sdl));
+                    PlatformWindow_PixelDensity(platform));
         }
 
         {
             int const boot_mode = App_WindowMode(&app);
             bool const resizable = boot_mode == CS2VM_WINDOW_MODE_RESIZABLE;
-            PlatformSDL2_SetCanvasFollowsWindow(
-                sdl, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+            PlatformWindow_SetCanvasFollowsWindow(
+                platform, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
             if( !resizable )
                 CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
             if( getenv("TORIRS_RESIZE_DEBUG") )
@@ -5310,13 +5310,13 @@ main(
             if( !replay )
             {
                 TORIRS_ERR("cmdbus: cannot replay %s\n", getenv("TORIRS_CMD_REPLAY"));
-                PlatformSDL2_Free(sdl);
+                PlatformWindow_Free(platform);
                 App_Shutdown(&app);
                 return 1;
             }
         }
 
-        input = LibToriRS_Input_Init(&input_storage, PlatformSDL2_Ticks64());
+        input = LibToriRS_Input_Init(&input_storage, PlatformWindow_Ticks64());
 
         /* TORIRS_SEED_CHAT=N: inject N game chat lines (scroll-clipped) for
          * Soft3D / GL3 smoke comparison. */
@@ -5339,7 +5339,7 @@ main(
             }
         }
 
-        interactive_render_present(&app, sdl, gl3, d3d9, gles2);
+        interactive_render_present(&app, platform, gl3, d3d9, gles2);
 
         /* TORIRS_MAX_FRAMES=N: exit after N loop iterations (headless smoke
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */
@@ -5457,7 +5457,7 @@ main(
          * the number of boot frames that used their whole per-frame scheduler
          * budget — those are frames that had more work ready and were stopped. */
         boot_stats = getenv("TORIRS_BOOT_STATS") ? 1 : 0;
-        boot_start_ms = PlatformSDL2_Ticks64();
+        boot_start_ms = PlatformWindow_Ticks64();
         boot_reported = 0;
 
         sim_sethide = getenv("TORIRS_SIM_SETHIDE");

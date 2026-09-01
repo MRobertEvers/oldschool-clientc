@@ -700,7 +700,7 @@ ToriRSChrome_TreeAcceptsChrome(struct UITree const* tree);
 /* ---- the Win32 native-widget executor (ui/torirs_chrome_exec_gdi.c) ------- */
 
 /** An owned tool window of USER32 controls.
- *  @param platform struct PlatformSDL2*, as every executor is handed. */
+ *  @param platform struct PlatformWindow*, as every executor is handed. */
 struct ToriRSChromeExec
 ToriRSChromeExec_Gdi(void* platform);
 #endif
@@ -717,7 +717,7 @@ ToriRSChromeExec_Web(void);
 #if defined(TORIRS_CHROME_EXEC_SDL_AVAILABLE)
 /* ---- the SDL surface executor (ui/torirs_chrome_exec_sdl.c) --------------- */
 
-/** @param platform struct PlatformSDL2*, void* so ui/ needs no platform header. */
+/** @param platform struct PlatformWindow*, void* so ui/ needs no platform header. */
 struct ToriRSChromeExec
 ToriRSChromeExec_Sdl(void* platform, ToriRSChromeRasteriseFn rasterise, void* rasterise_user);
 

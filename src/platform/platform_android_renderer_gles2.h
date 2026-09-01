@@ -21,9 +21,9 @@
  *   - the UI is a retained sprite atlas, retained font atlases and one
  *     streamed vertex ring.
  *
- * The public surface is the same shape as the D3D9 and GL3 renderers'
- * (platform_win32_renderer_d3d9.h, platform_sdl2_renderer_gl3.h), so main.c
- * drives all three the same way. The context comes from the neutral seam in
+ * The public surface is the same shape as the D3D9 renderer's
+ * (platform_win32_renderer_d3d9.h), so main.c drives every GPU renderer the
+ * same way. The context comes from the neutral seam in
  * platform_gl_context.h, whose Android implementation is platform_android_gl.c
  * (EGL).
  */

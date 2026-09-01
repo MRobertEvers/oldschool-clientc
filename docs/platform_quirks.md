@@ -128,13 +128,13 @@ one lane only.
   own (`TORIRS_CHROME_EXECUTOR=sdl` today)
 - **Behavior:** The window is OPENED at a size in window points -- a physical
   size on a desk. Its SURFACE is the DRAWABLE, in pixels, which on a HighDPI
-  display is a multiple of that; `PlatformSDL2_AuxWidth/Height` report the
-  surface, `PlatformSDL2_AuxResize` takes the surface, and every pointer
+  display is a multiple of that; `PlatformWindow_AuxWidth/Height` report the
+  surface, `PlatformWindow_AuxResize` takes the surface, and every pointer
   coordinate the platform hands the chrome has already been scaled from points
   into it. A density that changes without a resize -- a window dragged to
   another display -- is noticed per frame and reported as a resize.
 - **Reason:** The chrome picks its baked font size from the display's density
-  (`App_SetChromeScale` off `PlatformSDL2_PixelDensity`), so a 2x display lays
+  (`App_SetChromeScale` off `PlatformWindow_PixelDensity`), so a 2x display lays
   out 36px rows and a 208px label column. That layout needs a 2x surface. It is
   the same rule the game window already keeps -- "everything this platform hands
   the client is a PIXEL count" -- and the aux window was the one surface that
@@ -150,7 +150,7 @@ one lane only.
   and a click at window point (x, y) reaches the chrome as (2x, 2y) -- open a
   plugin's page from its `...` well and every row of it, Save and Revert
   included, is on screen and clickable.
-- **Sources:** [`src/platform/platform_sdl2.h`](../src/platform/platform_sdl2.h),
+- **Sources:** [`src/platform/platform_window.h`](../src/platform/platform_window.h),
   [`src/platform/platform_sdl2.c`](../src/platform/platform_sdl2.c),
   [`src/ui/torirs_chrome_exec_sdl.c`](../src/ui/torirs_chrome_exec_sdl.c)
 

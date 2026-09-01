@@ -1,8 +1,8 @@
 # ToriRS on Android
 
-The client as a native Android app: **no SDL**, the tree's own software
-rasterizer, and the lane's own GLES2 renderer as an opt-in GPU path
-(`--gles2` / `--gles2-zbuffer`).
+The client as a native Android app: a raw `ANativeWindow` and EGL with no
+windowing library, the tree's own software rasterizer, and the lane's own
+GLES2 renderer as an opt-in GPU path (`--gles2` / `--gles2-zbuffer`).
 
 For *how it works* — the threading, the surface lifecycle, the frame path, the
 NEON split — see **[`docs/android_architecture.md`](../docs/android_architecture.md)**.

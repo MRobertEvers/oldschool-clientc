@@ -199,7 +199,7 @@ approximate. Verified misattributions to read around:
 
 - `App_WorldApplyNpcType` shows 88.6% inclusive — a bogus LTO parent that
   swallowed most of the frame loop; ignore its inclusive number.
-- `PlatformSDL2_SetWindowSize` (5.65%) is really `load_cache_item_dat2`
+- `PlatformWindow_SetWindowSize` (5.65%) is really `load_cache_item_dat2`
   cache-load work.
 - `UITree_InvViewGridHitTest` (2.07 s) appears under CS2 dispatch parents;
   its only real callers are `uitree_obj_cell.c:76` and `uitree_input.c:40`.

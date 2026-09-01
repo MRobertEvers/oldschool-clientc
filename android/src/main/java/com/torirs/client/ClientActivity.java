@@ -80,7 +80,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
      * quietly drops showSoftInput for a view it is not serving -- the request
      * reached Java (the Hide-keyboard button appeared) and the keyboard never
      * did. This is the same problem every game engine hits on Android, and
-     * the same fix SDL ships (its DummyEdit view): declare an editor.
+     * the fix is the one they all ship: declare a dummy editor.
      *
      * TYPE_NULL is the whole contract: it tells the IME "no text field --
      * send raw key events", which the dummy BaseInputConnection also enforces
@@ -282,7 +282,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
         {
             /*
              * The client starts only once there is a surface to draw on. It
-             * could be started earlier -- PlatformSDL2_Init waits for the
+             * could be started earlier -- PlatformWindow_Init waits for the
              * window anyway -- but starting it here means the first thing the
              * frame loop ever sees is a real size, so nothing boots at a
              * placeholder resolution and relayouts a moment later.
@@ -497,7 +497,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     }
 
     /**
-     * Called from the native frame thread. @see PlatformSDL2_SetTextInput.
+     * Called from the native frame thread. @see PlatformWindow_SetTextInput.
      *
      * Posted to the UI thread rather than acted on directly: every
      * InputMethodManager call must happen there, and the caller is the frame

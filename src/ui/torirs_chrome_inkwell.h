@@ -82,7 +82,7 @@ enum ToriRSInkwellColour
  *  arm's length and covers the cross it stands in for. */
 #define TORIRS_INKWELL_POINTS 32
 
-/** Densities the atlas is built for. Matches PlatformSDL2_PixelDensity's own
+/** Densities the atlas is built for. Matches PlatformWindow_PixelDensity's own
  *  1..4 clamp; there is no display past 4x to build for. */
 #define TORIRS_INKWELL_DENSITY_MAX 4
 
@@ -90,7 +90,7 @@ enum ToriRSInkwellColour
  * Build the atlas for this display density (drawable pixels per point).
  *
  * Idempotent: calling it every frame with the same density costs a compare,
- * which is what lets the caller simply follow PlatformSDL2_PixelDensity rather
+ * which is what lets the caller simply follow PlatformWindow_PixelDensity rather
  * than having to notice the one event that changes it -- a window dragged onto
  * a display of a different density raises none.
  */

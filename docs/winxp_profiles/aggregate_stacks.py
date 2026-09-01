@@ -173,6 +173,6 @@ for a in [
 print("\n#### render / present subtrees ####")
 for a in [
     "App_Render", "ToriRS_Soft3D_RenderFrame", "ToriRS_Soft3D_Execute",
-    "PlatformSDL2_SetWindowSize", "App_WorldDraw",
+    "PlatformWindow_SetWindowSize", "App_WorldDraw",
 ]:
     subtree(a)

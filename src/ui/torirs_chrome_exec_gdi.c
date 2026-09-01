@@ -49,7 +49,7 @@
 #include "torirs_chrome_mirror.h"
 #include "torirs_chrome_skin.h"
 
-#include "../platform/platform_sdl2.h"
+#include "../platform/platform_window.h"
 
 #include <windows.h>
 
@@ -3311,7 +3311,7 @@ ToriRSChromeExec_Gdi(void* platform)
      * it for the game's HWND, which is all an owned tool window needs. Asking
      * here rather than making the shell branch per executor is what keeps the
      * chooser's call site identical on every lane. */
-    g_chrome_gdi.owner = platform ? (HWND)PlatformSDL2_NativeWindowHandle(platform) : NULL;
+    g_chrome_gdi.owner = platform ? (HWND)PlatformWindow_NativeWindowHandle(platform) : NULL;
 
     exec.user = &g_chrome_gdi;
     exec.begin = chrome_gdi_begin;
