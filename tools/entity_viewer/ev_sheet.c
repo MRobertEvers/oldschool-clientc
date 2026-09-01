@@ -42,11 +42,14 @@
  */
 
 #include "ev_build.h"
+#include "ev_config.h"
 #include "ev_player.h"
 #include "ev_render.h"
 #include "ev_wire.h"
 
 #include "asset_access.h"
+#include "net/rev/packets/pkt_player_appearance.h"
+#include "rscache.h"
 #include "tool_profile.h"
 #include "toridraw.h"
 
@@ -250,6 +253,96 @@ adopt_anim(struct ToriDraw_Animation* anim)
     return frames;
 }
 
+/* ------------------------------------------------------------- appearance */
+
+/*
+ * Fold a 12-slot appearance buffer into the player spec.
+ *
+ * The packing is the engine's canonical one from pkt_player_appearance.h --
+ * APPEARANCE_PACK_KIT / APPEARANCE_PACK_OBJ -- and NOT the classic `0x100 +
+ * kit` / `0x200 + obj` wire tags. That header explains why at length: the wire
+ * ranges are only 256 wide, osrs239 ships 307 identity kits, and kit 300
+ * packed the classic way reads back as a valid, wrong obj 44. The wire tags
+ * are applied at the wire and nowhere else.
+ *
+ * A kit's slot does not say which body part it dresses -- the idk record does
+ * -- so each one is loaded to read body_part_id. EV_PlayerSpec.kits is indexed
+ * by that part, and worn objs simply accumulate in draw order.
+ */
+static int
+apply_appearance(
+    struct Tool_Dat2Cache* cache,
+    struct EV_PlayerSpec* spec,
+    const int* slots)
+{
+    assert(cache);
+    assert(spec);
+    assert(slots);
+
+    for( int s = 0; s < 12; s++ )
+    {
+        int packed = slots[s];
+        enum AppearanceSlotKind kind = Appearance_SlotKind(packed);
+
+        if( kind == APPEARANCE_SLOT_OBJ )
+        {
+            if( spec->worn_count >= EV_PLAYER_MAX_WORN )
+            {
+                fprintf(stderr, "slot %d: more than %d worn objs\n", s,
+                        EV_PLAYER_MAX_WORN);
+                return 0;
+            }
+            spec->worn[spec->worn_count++] = Appearance_SlotObj(packed);
+        }
+        else if( kind == APPEARANCE_SLOT_KIT )
+        {
+            int kit = Appearance_SlotKit(packed);
+            struct RSCache_Dat2ConfigIdk* idk = ev_idk_load(cache, kit);
+            if( !idk )
+            {
+                fprintf(stderr, "slot %d: identity kit %d does not decode\n", s, kit);
+                return 0;
+            }
+            if( idk->body_part_id >= 0 && idk->body_part_id < EV_PLAYER_PARTS )
+                spec->kits[idk->body_part_id] = kit;
+            else
+                fprintf(stderr, "slot %d: kit %d dresses no body part (%d)\n", s,
+                        kit, idk->body_part_id);
+            RSCache_Dat2ConfigIdkFree(idk);
+        }
+        /* APPEARANCE_SLOT_EMPTY covers 0 and -1: the slot is simply unused. */
+    }
+    return 1;
+}
+
+/*
+ * "a,b,c,..." -> up to 12 ints. Short lists leave the rest empty, which is how
+ * a caller dresses only the slots it cares about.
+ */
+static int
+parse_appearance(
+    const char* text,
+    int* out)
+{
+    assert(text);
+    assert(out);
+
+    int n = 0;
+    const char* p = text;
+    while( *p && n < 12 )
+    {
+        char* end = NULL;
+        long v = strtol(p, &end, 0);
+        if( end == p )
+            return -1;
+        out[n++] = (int)v;
+        p = end;
+        while( *p == ',' || *p == ' ' )
+            p++;
+    }
+    return *p ? -1 : n;
+}
+
 /* --------------------------------------------------------- two-pass compose */
 
 /*
@@ -379,13 +472,26 @@ usage(const char* prog)
         "\n"
         "  --npc <id>       render an npc\n"
         "  --player         render a player instead\n"
-        "  --wear <obj>     equip an obj on the player (repeatable)\n"
+        "  --gender <0|1>   0 male, 1 female [0]\n"
+        "  --appearance <list>\n"
+        "                   up to 12 comma-separated appearance slots. Each is\n"
+        "                   packed: 0x10000+kit for an identity kit, 0x20000+obj\n"
+        "                   for worn equipment, 0 for empty. A kit's body part\n"
+        "                   comes from its own record, not its slot. NOTE this is\n"
+        "                   the engine's canonical packing, NOT the 256/512 wire\n"
+        "                   tags -- see net/rev/packets/pkt_player_appearance.h.\n"
+        "  --wear <obj>     equip one obj, on top of --appearance (repeatable)\n"
         "  --seq <id>       sequence to play; omit for the bind pose\n"
         "  --fit <px>       scale the subject so the animation's widest extent is\n"
         "                   about this many pixels [160]\n"
         "  --side <px>      render canvas; must exceed --fit [512]\n"
-        "  --yaw <0-2047>   0 south, 512 west, 1024 north, 1536 east [0]\n"
-        "  --pitch <0-2047> camera pitch [128]\n"
+        "  --yaw <0-2047>   MODEL rotation. 0 south, 512 west, 1024 north,\n"
+        "                   1536 east [0]\n"
+        "  --model-pitch <0-2047>\n"
+        "                   model pitch, tilting the model itself [0]\n"
+        "  --roll <0-2047>  model roll [0]\n"
+        "  --pitch <0-2047> CAMERA elevation, which moves the eye rather than\n"
+        "                   the model [128]\n"
         "  --pad <px>       transparent margin around the crop [2]\n"
         "  --out <dir>      output directory (required)\n",
         prog);
@@ -408,9 +514,17 @@ main(
     int side = 512;
     int yaw = 0;
     int pitch = 128;
+    int model_pitch = 0;
+    int roll = 0;
     int pad = 2;
+    int gender = 0;
     int worn[EV_SHEET_MAX_WORN];
     int worn_count = 0;
+    int appearance[12];
+    int appearance_count = 0;
+
+    for( int i = 0; i < 12; i++ )
+        appearance[i] = 0;
 
     for( int i = 1; i < argc; i++ )
     {
@@ -439,6 +553,21 @@ main(
             yaw = atoi(argv[++i]);
         else if( strcmp(argv[i], "--pitch") == 0 && i + 1 < argc )
             pitch = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--model-pitch") == 0 && i + 1 < argc )
+            model_pitch = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--roll") == 0 && i + 1 < argc )
+            roll = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--gender") == 0 && i + 1 < argc )
+            gender = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--appearance") == 0 && i + 1 < argc )
+        {
+            appearance_count = parse_appearance(argv[++i], appearance);
+            if( appearance_count < 0 )
+            {
+                fprintf(stderr, "--appearance wants up to 12 comma-separated ints\n");
+                return 2;
+            }
+        }
         else if( strcmp(argv[i], "--pad") == 0 && i + 1 < argc )
             pad = atoi(argv[++i]);
         else if( strcmp(argv[i], "--out") == 0 && i + 1 < argc )
@@ -487,6 +616,10 @@ main(
     }
     ToriDraw_Init();
     ev_init();
+    /* --yaw is already the model's own rotation (ev_render sets
+     * ToriDraw_Position.yaw with it); these are the other two axes of the same
+     * orientation. --pitch, separately, elevates the camera. */
+    ev_set_orientation(model_pitch, roll);
 
     struct ToriDraw_Model* model = NULL;
     if( as_player )
@@ -494,8 +627,20 @@ main(
         struct EV_PlayerSpec spec;
         struct EV_PlayerPartMap map;
         ev_player_spec_init(&spec);
+        spec.gender = gender;
+        /* The appearance buffer goes on first so an explicit --wear can still
+         * add to what it dressed. */
+        if( appearance_count > 0 && !apply_appearance(&cache, &spec, appearance) )
+            return 1;
         for( int i = 0; i < worn_count; i++ )
+        {
+            if( spec.worn_count >= EV_PLAYER_MAX_WORN )
+            {
+                fprintf(stderr, "more than %d worn objs\n", EV_PLAYER_MAX_WORN);
+                return 1;
+            }
             spec.worn[spec.worn_count++] = worn[i];
+        }
         model = ev_build_player_model(&cache, &spec, &map);
     }
     else

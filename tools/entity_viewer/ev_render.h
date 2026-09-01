@@ -29,6 +29,20 @@ ev_init(void);
 void
 ev_set_bg(uint32_t argb);
 
+/**
+ * Model pitch and roll, in the client's 2048-per-turn units. Both default to
+ * 0, which is what the viewer has always drawn.
+ *
+ * ev_render's own `yaw` argument already turns the model (it sets
+ * ToriDraw_Position.yaw); its `pitch` argument elevates the CAMERA instead.
+ * Position carries pitch and roll too and nothing was setting them, so a
+ * caller wanting the model itself tilted or rolled had no way to ask.
+ */
+void
+ev_set_orientation(
+    int pitch,
+    int roll);
+
 void*
 ev_alloc(int size);
 
