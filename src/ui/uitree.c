@@ -2315,6 +2315,20 @@ UITree_Push(
         component->u.sprite.mask_atlas_index = spec->u.sprite.mask_atlas_index;
         break;
 
+    /* The inkwell carries a CHOICE, not a binding, and the three fields use
+     * -1 for "the profile said nothing" so the host can substitute its own
+     * defaults (yellow walks, red interacts). Falling through to the memset
+     * push_element_unlinked left behind does not mean "unstated": it means
+     * style=SPLASH, walk=YELLOW and interact=YELLOW, all stated. The first two
+     * happen to equal the defaults, which is why only the third showed --
+     * every interact marker came out yellow however red the cross beside it
+     * was, and `style=` in a profile was silently ignored. */
+    case UIELEM_BUILTIN_INKWELL:
+        component->u.inkwell.style = spec->u.inkwell.style;
+        component->u.inkwell.walk_color = spec->u.inkwell.walk_color;
+        component->u.inkwell.interact_color = spec->u.inkwell.interact_color;
+        break;
+
     case UIELEM_BUILTIN_MINIMENU:
         component->u.minimenu.font_id = spec->u.minimenu.font_id;
         break;

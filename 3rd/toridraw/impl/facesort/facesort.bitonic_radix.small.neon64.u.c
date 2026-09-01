@@ -283,6 +283,7 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
     struct ToriDraw_Scene* scene,
     int* f_io,
     int num_faces,
+    int num_vertices,
     bool near_clipped,
     int model_min_depth,
     int stash_xy,
@@ -292,8 +293,10 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
     const faceint_t* RESTRICT face_a,
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c,
-    uint32_t* keys)
+    uint32_t* keys,
+    int* out_accepted)
 {
+    (void)num_vertices; /* this lane gathers lane by lane from the axis arrays */
     /* The three loop-invariant vectors are built here rather than at the
      * caller because they are the lane's own currency: the dispatcher does not
      * know what shape a sentinel has on this ISA, and no longer needs to. */
@@ -320,6 +323,7 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
             keys + n);
 
     *f_io = f;
+    *out_accepted = n; /* this lane left-packs: every key written is an accepted face */
     return n;
 }
 

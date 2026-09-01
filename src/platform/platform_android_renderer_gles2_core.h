@@ -146,8 +146,17 @@
 #define GLES2_BINDING_COUNT (TRSPK_VBO_GROUP_COUNT + 3u)
 /* The painter path's frame stream: a ~40k-vertex world at 28 bytes. */
 #define GLES2_FRAME_STREAM_INIT_BYTES (49152u * 28u)
-/* The resident window is exactly what a U16 index can reach. */
-#define GLES2_HOT_RING_VERTICES 65536u
+/* A draw's index window is what a U16 index can reach from the bound
+ * attribute pointer; the resident ring is several windows long, because a
+ * frame's whole-bake working set (~88k vertices in Lumbridge) outgrows one.
+ * A draw item's window slides: it opens at the address of the item's first
+ * model, and later models join it while they lie within one window of it. */
+#define GLES2_HOT_WINDOW_VERTICES 65536u
+#define GLES2_HOT_RING_VERTICES (4u * GLES2_HOT_WINDOW_VERTICES)
+/* World draw items in one frame above which the ring is judged fragmented
+ * (placements scattered across windows by a long walk) and is emptied, so
+ * the next frame re-places the live set contiguously in painter order. */
+#define GLES2_HOT_COMPACT_DRAWS 48u
 /* A batch pose locates its Batch16 ENTRY: the batch slot and the entry's
  * index in it, from which the chunk, the vertex base and the GPU page all
  * follow. An entry is the unit the painter keeps residency for. */
@@ -500,6 +509,12 @@ struct ToriRS_GLES2
      */
     GLuint hot_vbo;
     uint32_t hot_head;
+    /* The oldest serial among residents drawn THIS frame. A placement may
+     * not advance the head past it plus one ring: that would overwrite the
+     * bytes of a model this frame's draw has already been told to read, and
+     * the model would flicker or draw garbage. Reset at the start of the
+     * pass; a placement that cannot fit is refused and the model gathered. */
+    uint32_t hot_frame_oldest_serial;
     struct TRSPK_VertexGLES2* hot_stage;
     uint32_t hot_stage_capacity;
     uint32_t hot_stage_count;
@@ -513,6 +528,14 @@ struct ToriRS_GLES2
     uint32_t painter_stat_placed_vertices;
     uint32_t painter_stat_placed_models;
     uint32_t painter_stat_draws;
+    uint32_t painter_stat_compactions;
+    /* The face sort's workload: models by bake size (2 faces = a terrain
+     * tile, then <=16, <=64, <=256, larger), faces handed to the sort, and
+     * faces that came out of it. The numbers that say where the sort's time
+     * goes -- fixed per-model cost or per-face work. */
+    uint32_t painter_stat_sort_models[5];
+    uint32_t painter_stat_sort_faces_in;
+    uint32_t painter_stat_sort_faces_out;
     struct TRSPK_PoseTable poses;
     struct TRSPK_PoseTable batch_poses;
 
@@ -599,6 +622,10 @@ struct GLES2ModelPlacement
      *  model is not a batch entry): what the painter keys residency on. */
     uint32_t batch_slot;
     uint32_t entry_index;
+    /** The entry's own baked vertex count -- the model's whole bake, which
+     *  is NOT ::face_count * 3 on the painter path (there face_count is the
+     *  post-cull sorted count). Zero when the model is not a batch entry. */
+    uint32_t entry_vertex_count;
     uint32_t local_base;
     uint32_t absolute_base;
     int face_count;

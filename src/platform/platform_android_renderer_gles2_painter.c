@@ -224,6 +224,18 @@ void
 gles2_painter_flush(struct ToriRS_GLES2* renderer)
 {
     assert(renderer);
+    /* Fragmentation check, on the frame that is ending: a long walk places
+     * new residents at the head, far from the neighbours they are drawn
+     * between, and every such seam is a window switch and a draw. Past the
+     * threshold, empty the ring -- one frame of re-placing the live set in
+     * painter order puts everything back into a few windows. Advancing the
+     * head a whole ring is the eviction: every serial fails the residency
+     * test. */
+    if( renderer->hot_vbo && renderer->draw_item_count > GLES2_HOT_COMPACT_DRAWS )
+    {
+        renderer->hot_head += GLES2_HOT_RING_VERTICES;
+        renderer->painter_stat_compactions++;
+    }
     if( renderer->hot_stage_count == 0u )
         return;
     assert(renderer->hot_vbo);
@@ -261,7 +273,8 @@ gles2_painter_place(
     assert(renderer);
     assert(batch);
     assert(vertices);
-    if( span == 0u || span > GLES2_HOT_RING_VERTICES )
+    /* A model must fit one draw window, not merely the ring. */
+    if( span == 0u || span > GLES2_HOT_WINDOW_VERTICES )
         return UINT32_MAX;
     if( entry_index >= batch->hot_serial_capacity )
         return UINT32_MAX;
@@ -270,12 +283,28 @@ gles2_painter_place(
 
     serial = batch->hot_serial[entry_index];
     if( serial != 0u && renderer->hot_head - serial <= GLES2_HOT_RING_VERTICES )
+    {
+        if( serial < renderer->hot_frame_oldest_serial )
+            renderer->hot_frame_oldest_serial = serial;
         return serial % GLES2_HOT_RING_VERTICES;
+    }
 
     /* Not resident: place at the head, on a fresh lap if it would not fit
      * the rest of this one. The staging run must stay contiguous in the
      * ring, so a lap change sends what is staged first. */
     address = renderer->hot_head % GLES2_HOT_RING_VERTICES;
+    {
+        uint32_t head_after = renderer->hot_head + span;
+        if( address + span > GLES2_HOT_RING_VERTICES )
+            head_after = renderer->hot_head + (GLES2_HOT_RING_VERTICES - address) + span;
+        /* The overwrite guard: this frame's draw reads every resident it
+         * has been handed, from the oldest one on, and those bytes must
+         * survive until it runs. A frame whose live set outgrows the ring
+         * gathers the overflow instead of eating its own tail. */
+        if( renderer->hot_frame_oldest_serial != UINT32_MAX &&
+            head_after - renderer->hot_frame_oldest_serial > GLES2_HOT_RING_VERTICES )
+            return UINT32_MAX;
+    }
     if( address + span > GLES2_HOT_RING_VERTICES )
     {
         gles2_painter_flush(renderer);
@@ -303,14 +332,19 @@ gles2_painter_place(
         (size_t)span * sizeof(*vertices));
     renderer->hot_stage_count += span;
     batch->hot_serial[entry_index] = renderer->hot_head;
+    if( renderer->hot_head < renderer->hot_frame_oldest_serial )
+        renderer->hot_frame_oldest_serial = renderer->hot_head;
     renderer->hot_head += span;
     renderer->painter_stat_placed_models++;
     return address;
 }
 
-/* Push one resident model's sorted faces as U16 indices into the ring. A
- * face the source cannot supply indexes the model's first vertex three
- * times: a degenerate triangle. */
+/* Push one resident model's sorted faces as U16 indices into the ring,
+ * relative to a draw window. The window is the open item's when the model
+ * lies inside it -- so consecutive residents keep merging into one draw --
+ * and otherwise opens at the model's own address. A face the source cannot
+ * supply indexes the model's first vertex three times: a degenerate
+ * triangle. */
 static void
 gles2_painter_push_resident(
     struct ToriRS_GLES2* renderer,
@@ -321,16 +355,26 @@ gles2_painter_push_resident(
 {
     uint16_t* indices;
     uint32_t index;
+    uint32_t window = address;
+    uint32_t span = source_face_limit * 3u;
 
     assert(renderer);
     assert(faces);
     if( count == 0u )
         return;
+    if( renderer->draw_item_count > 0u )
+    {
+        const struct GLES2DrawItem* open = &renderer->draw_items[renderer->draw_item_count - 1u];
+        if( open->indexed && open->binding == GLES2_HOT_BINDING && address >= open->page_base &&
+            address + span <= open->page_base + GLES2_HOT_WINDOW_VERTICES )
+            window = open->page_base;
+    }
     renderer->painter_stat_faces_indexed += count;
     (void)gles2_reserve_model_indices(renderer, count * 3u);
     indices = renderer->model_indices;
     assert(indices);
-    assert(address + (source_face_limit * 3u) <= GLES2_HOT_RING_VERTICES);
+    assert(address - window + span <= GLES2_HOT_WINDOW_VERTICES);
+    address -= window;
     for( index = 0u; index < count; index++ )
     {
         uint32_t face = (uint32_t)faces[index];
@@ -341,7 +385,8 @@ gles2_painter_push_resident(
         triplet[1] = (uint16_t)(vertex + step);
         triplet[2] = (uint16_t)(vertex + step + step);
     }
-    gles2_sequence_push_indexed(renderer, GLES2_HOT_BINDING, 0u, true, false, indices, count * 3u);
+    gles2_sequence_push_indexed(
+        renderer, GLES2_HOT_BINDING, window, true, false, indices, count * 3u);
 }
 
 /* ---- emission ---------------------------------------------------------------------- */
@@ -389,17 +434,24 @@ gles2_painter_emit_model(
         : placement->page_base + placement->local_base;
     if( source_base > source_vbo->vertex_count )
         return;
+    /* The order names faces by their index in the MODEL, which runs past the
+     * sorted count -- placement->face_count is that sorted count here, so it
+     * is NOT a bound on face indices. The only bound is the bake itself. */
     source_face_limit = (source_vbo->vertex_count - source_base) / 3u;
-    if( source_face_limit > (uint32_t)placement->face_count )
-        source_face_limit = (uint32_t)placement->face_count;
     face_order = ToriDraw_FaceOrder(renderer->scene);
 
-    /* A batch entry lives in the resident window. */
+    /* A batch entry lives in the resident window: the entry's whole bake is
+     * what gets placed, since any of its faces may be named this frame or
+     * the next. */
     if( placement->binding == GLES2_STATIC_PAGE_BINDING &&
         placement->batch_slot < renderer->static_batch_count &&
-        placement->entry_index != UINT32_MAX )
+        placement->entry_index != UINT32_MAX && placement->entry_vertex_count > 0u )
     {
-        uint32_t address = gles2_painter_place(
+        uint32_t entry_faces = placement->entry_vertex_count / 3u;
+        uint32_t address;
+        if( entry_faces < source_face_limit )
+            source_face_limit = entry_faces;
+        address = gles2_painter_place(
             renderer,
             &renderer->static_batches[placement->batch_slot],
             placement->entry_index,

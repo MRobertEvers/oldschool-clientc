@@ -341,6 +341,7 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     free(scene->sm_face_y4);
     free(scene->sm_sort_keys);
     free(scene->sm_sort_tmp);
+    free(scene->sm_vertex_xyz);
     free(scene->sm_depth_offset);
     free(scene->sm_depth_cursor);
     free(scene->sm_faces_by_depth);
@@ -493,6 +494,8 @@ scene_alloc_bitonic_radix_keys(
 
     assert(scene->sm_sort_keys);
     assert(scene->sm_sort_tmp);
+    scene->sm_vertex_xyz = malloc(((size_t)caps->max_vertices + 4) * 4 * sizeof(int));
+    assert(scene->sm_vertex_xyz);
     return true;
 }
 

@@ -12,9 +12,10 @@
  * The A32 lane of the bitonic+radix face sort -- the armv7 twin of
  * facesort.bitonic_radix.small.neon64.u.c. See
  * facesort.bitonic_radix.small.dispatch.h for the three hooks every lane owes
- * the dispatcher; this file provides two and declines the terrain tile, for the
- * same reason the A64 file does: both tile kernels were measured against the
- * general path on an x86 host and nothing equivalent has been run on ARM.
+ * the dispatcher; this file provides all three. The terrain tile takes the
+ * SCALAR tile kernel (as the SSE2 lane does), because on the Moto X a
+ * Lumbridge frame's sort is ~60% two-face tiles by call count and the tile
+ * kernel is about the per-model cost, not vector width -- see the hook.
  *
  * WHY A SECOND ARM FILE AT ALL. The arithmetic is identical -- the same
  * structure-of-arrays gather, the same 64-bit cross product, the same key, the
@@ -52,47 +53,22 @@
  *          {w0+w1, w2+w3}; vpadd_u32 of that with itself gives the total in
  *          both lanes. VPADD.I32 is A32. Once per four-face block.
  *
- *   vqtbl1q_u8                       (full 16-byte table lookup)
- *       -> A32 has only the 8-byte vtbl1/vtbl2, which cannot express a
- *          16-byte left-pack in one go. Rather than stitch two halves, this
- *          takes the SSE2 lane's road, which has no pshufb either: the four
- *          keys go to a stack slot and come back through a 16-entry LANE-INDEX
- *          table with four unconditional scalar stores. Still no branch on the
- *          winding and no data-dependent store address, and it writes the same
- *          four slots the vector store did -- so the hook's "four lanes of
- *          slack past the returned count" contract is unchanged.
+ *   vqtbl1q_u8                       (full 16-byte table lookup, the left-pack)
+ *       -> NOT DONE IN THE BLOCK AT ALL on this lane. A32 has only the 8-byte
+ *          vtbl, and every pack that brought the keys to the ARM side
+ *          (register moves, or a store the table lookup reloaded) was measured
+ *          as the block's serialisation point -- see block4. The block stores
+ *          all four keys with rejected faces as the sentinel, and lane_blocks
+ *          compacts the run in one ARM pass before the sort. Same "four lanes
+ *          of slack" contract, since every block writes a whole vector.
  *
- * Everything else in the file -- vld1_s16/vmovl_s16, vmulq_n_s32, vcltq_u32,
- * vbslq, vminq_u32/vmaxq_u32, vrev64q_u32, vextq_u32, vst4q_s32 -- is common to
- * both encodings and is written the same way in both files on purpose.
+ * Everything else in the file -- vmulq_n_s32, vcltq_u32, vbslq, vminq_u32/
+ * vmaxq_u32, vrev64q_u32, vextq_u32, vst4q_s32 -- is common to both encodings
+ * and is written the same way in both files on purpose. What is NOT common is
+ * the gather: this file reads interleaved {x,y,z,0} vertices with whole
+ * register loads and transposes, because lane inserts serialise on the A32
+ * NEON unit (see block4); the A64 file still gathers lane by lane.
  */
-
-/*
- * Left-pack: for each 4-bit accept mask, which source lane each of the four
- * destination slots takes. Slots past the popcount are don't-care -- they land
- * at or past the write cursor and are overwritten by the next block or padded
- * over by the sort.
- */
-static const uint8_t g_toridraw_pack_idx_neon32[16][4] = {
-    { 0, 0, 0, 0 },
-    { 0, 0, 0, 0 },
-    { 1, 0, 0, 0 },
-    { 0, 1, 0, 0 },
-    { 2, 0, 0, 0 },
-    { 0, 2, 0, 0 },
-    { 1, 2, 0, 0 },
-    { 0, 1, 2, 0 },
-    { 3, 0, 0, 0 },
-    { 0, 3, 0, 0 },
-    { 1, 3, 0, 0 },
-    { 0, 1, 3, 0 },
-    { 2, 3, 0, 0 },
-    { 0, 2, 3, 0 },
-    { 1, 2, 3, 0 },
-    { 0, 1, 2, 3 },
-};
-static const uint8_t g_toridraw_popcount4_neon32[16] = { 0, 1, 1, 2, 1, 2, 2, 3,
-                                                         1, 2, 2, 3, 2, 3, 3, 4 };
 
 /* 3-way select: lane takes a where o == 0, b where o == 1, else c. */
 static inline int32x4_t
@@ -138,9 +114,36 @@ toridraw_winding_front_neon32(
 }
 
 /*
- * Four faces at f..f+3: cull, key, pack, stash. Returns how many keys were
- * appended at *keys; always writes four slots there, so the buffer needs four
- * lanes of slack past the count.
+ * Four faces at f..f+3: cull, key, stash. Always writes four keys at *keys --
+ * rejected faces as the sentinel -- and returns 4; lane_blocks compacts the
+ * run afterwards.
+ *
+ * THE GATHER READS INTERLEAVED VERTICES. `xyz` is the model's projected
+ * vertices as {x, y, z, 0} quads, laid out by lane_blocks once per model. One
+ * whole-register load per corner vertex, twelve per block, then a 4x4
+ * transpose per corner (two VTRN.32 and the half swaps) puts each axis of the
+ * four faces into one vector.
+ *
+ * WHAT WAS MEASURED, on the Moto X with the sort bench (keys arm, presort off,
+ * ns per input face at 64/200/256/1000/2000 faces; parity with the bucket
+ * sort held throughout):
+ *
+ *   lane-by-lane gather + ARM left-pack (the original)   47.6 43.9 43.0 44.6 62.8
+ *   + vld1q_lane instead of vgetq_lane for the indices   no change
+ *   + pack via register moves instead of a stack slot    no change
+ *   + sentinel store, sort over ALL keys (no pack)       53.2 46.9 45.0 47.6 62.8
+ *   interleaved gather + transposes, ARM left-pack       51.5 46.7 45.2 48.0 56.7
+ *   interleaved gather, sentinel store, COMPACTION PASS  46.6 40.7 40.7 42.1 49.6
+ *
+ * So neither the gather nor the pack was the cost on its own. What the block
+ * could not do was overlap: the pack needed the keys on the ARM side at the
+ * end of the chain, and that wait charged every block the chain's full
+ * latency (the block ran at an IPC near 0.4). Removing the pack only paid
+ * once the sort was kept to the accepted keys -- hence the compaction pass
+ * -- and the interleaved gather, a loss on its own, pays with it at large
+ * counts. What is left is the core: ~40 ns a face is ~70 cycles at an IPC
+ * under one, spent on the winding's 64-bit products, the near-clip and
+ * depth compares and the key build.
  */
 static inline int
 toridraw_face_sort_bitonic_radix_block4_neon32(
@@ -150,34 +153,36 @@ toridraw_face_sort_bitonic_radix_block4_neon32(
     int32x4_t min_depth,
     uint32x4_t depth_levels,
     int stash_xy,
-    const int* RESTRICT vx,
-    const int* RESTRICT vy,
-    const int* RESTRICT vz,
+    const int* RESTRICT xyz,
     const faceint_t* RESTRICT face_a,
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c,
     uint32_t* keys)
 {
-    int32x4_t const ia = vmovl_s16(vld1_s16(face_a + f));
-    int32x4_t const ib = vmovl_s16(vld1_s16(face_b + f));
-    int32x4_t const ic = vmovl_s16(vld1_s16(face_c + f));
-    int const a0 = vgetq_lane_s32(ia, 0), a1 = vgetq_lane_s32(ia, 1);
-    int const a2 = vgetq_lane_s32(ia, 2), a3 = vgetq_lane_s32(ia, 3);
-    int const b0 = vgetq_lane_s32(ib, 0), b1 = vgetq_lane_s32(ib, 1);
-    int const b2 = vgetq_lane_s32(ib, 2), b3 = vgetq_lane_s32(ib, 3);
-    int const c0 = vgetq_lane_s32(ic, 0), c1 = vgetq_lane_s32(ic, 1);
-    int const c2 = vgetq_lane_s32(ic, 2), c3 = vgetq_lane_s32(ic, 3);
+    int const a0 = face_a[f], a1 = face_a[f + 1], a2 = face_a[f + 2], a3 = face_a[f + 3];
+    int const b0 = face_b[f], b1 = face_b[f + 1], b2 = face_b[f + 2], b3 = face_b[f + 3];
+    int const c0 = face_c[f], c1 = face_c[f + 1], c2 = face_c[f + 2], c3 = face_c[f + 3];
 
-    /* The gather, into structure-of-arrays vectors: one axis per vector. */
-    int32x4_t const ax = { vx[a0], vx[a1], vx[a2], vx[a3] };
-    int32x4_t const bx = { vx[b0], vx[b1], vx[b2], vx[b3] };
-    int32x4_t const cx = { vx[c0], vx[c1], vx[c2], vx[c3] };
-    int32x4_t const ay = { vy[a0], vy[a1], vy[a2], vy[a3] };
-    int32x4_t const by = { vy[b0], vy[b1], vy[b2], vy[b3] };
-    int32x4_t const cy = { vy[c0], vy[c1], vy[c2], vy[c3] };
-    int32x4_t const az = { vz[a0], vz[a1], vz[a2], vz[a3] };
-    int32x4_t const bz = { vz[b0], vz[b1], vz[b2], vz[b3] };
-    int32x4_t const cz = { vz[c0], vz[c1], vz[c2], vz[c3] };
+    /* vtrnq_s32({x0,y0,z0,_}, {x1,y1,z1,_}) is {x0,x1,z0,z1} and {y0,y1,_,_}:
+     * the x's and z's of two vertices in one vector, the y's in the other.
+     * Combining the low halves of two such pairs gives the axis across four
+     * vertices; the high halves of the first give z. The fourth column is
+     * the padding and is dropped. */
+    int32x4x2_t const ta01 = vtrnq_s32(vld1q_s32(xyz + a0 * 4), vld1q_s32(xyz + a1 * 4));
+    int32x4x2_t const ta23 = vtrnq_s32(vld1q_s32(xyz + a2 * 4), vld1q_s32(xyz + a3 * 4));
+    int32x4x2_t const tb01 = vtrnq_s32(vld1q_s32(xyz + b0 * 4), vld1q_s32(xyz + b1 * 4));
+    int32x4x2_t const tb23 = vtrnq_s32(vld1q_s32(xyz + b2 * 4), vld1q_s32(xyz + b3 * 4));
+    int32x4x2_t const tc01 = vtrnq_s32(vld1q_s32(xyz + c0 * 4), vld1q_s32(xyz + c1 * 4));
+    int32x4x2_t const tc23 = vtrnq_s32(vld1q_s32(xyz + c2 * 4), vld1q_s32(xyz + c3 * 4));
+    int32x4_t const ax = vcombine_s32(vget_low_s32(ta01.val[0]), vget_low_s32(ta23.val[0]));
+    int32x4_t const ay = vcombine_s32(vget_low_s32(ta01.val[1]), vget_low_s32(ta23.val[1]));
+    int32x4_t const az = vcombine_s32(vget_high_s32(ta01.val[0]), vget_high_s32(ta23.val[0]));
+    int32x4_t const bx = vcombine_s32(vget_low_s32(tb01.val[0]), vget_low_s32(tb23.val[0]));
+    int32x4_t const by = vcombine_s32(vget_low_s32(tb01.val[1]), vget_low_s32(tb23.val[1]));
+    int32x4_t const bz = vcombine_s32(vget_high_s32(tb01.val[0]), vget_high_s32(tb23.val[0]));
+    int32x4_t const cx = vcombine_s32(vget_low_s32(tc01.val[0]), vget_low_s32(tc23.val[0]));
+    int32x4_t const cy = vcombine_s32(vget_low_s32(tc01.val[1]), vget_low_s32(tc23.val[1]));
+    int32x4_t const cz = vcombine_s32(vget_high_s32(tc01.val[0]), vget_high_s32(tc23.val[0]));
 
     /* Winding, 64-bit, as graphics/winding.h: the deltas are int, only the
      * product is widened, and a truncating 32-bit product would be wrong
@@ -217,26 +222,25 @@ toridraw_face_sort_bitonic_radix_block4_neon32(
     }
 
     {
-        /* movemask: 0/1 per lane, weighted, then folded pairwise -- A32 has no
-         * vaddvq_u32, and two VPADD.I32 are the whole difference. */
-        uint32x4_t const weights = { 1, 2, 4, 8 };
-        uint32x4_t const bits = vmulq_u32(vshrq_n_u32(accept, 31), weights);
-        uint32x2_t fold = vpadd_u32(vget_low_u32(bits), vget_high_u32(bits));
-        unsigned m;
-        const uint8_t* t;
-        uint32_t lane[4];
-
-        fold = vpadd_u32(fold, fold);
-        m = vget_lane_u32(fold, 0);
-
-        /* Left-pack through the index table: four unconditional stores, in
-         * place of the A64 vqtbl1q_u8 byte shuffle. */
-        t = g_toridraw_pack_idx_neon32[m];
-        vst1q_u32(lane, key);
-        keys[0] = lane[t[0]];
-        keys[1] = lane[t[1]];
-        keys[2] = lane[t[2]];
-        keys[3] = lane[t[3]];
+        /*
+         * NO PACK INSIDE THE BLOCK. The four keys go out as one vector store
+         * with the rejected lanes as the sentinel 0xFFFFFFFF; lane_blocks
+         * compacts the whole run afterwards in one streaming ARM pass. The
+         * pack this replaces needed the mask and the keys on the ARM side
+         * -- five NEON-to-ARM moves at the END of the block's chain, each of
+         * which stalls the ARM pipeline until the vector work ahead of it
+         * retires. Sitting where they did, they charged the whole chain's
+         * latency to every block: the loop ran at the chain's latency, not
+         * its throughput, and the block measured an IPC of 0.4. With no
+         * ARM consumer in the loop the ARM side runs ahead on the next
+         * blocks' index loads and addresses while NEON drains this one.
+         *
+         * (An earlier variant stored the sentinels and sorted them too,
+         * which lost: it doubled the sort. The compaction pass is what makes
+         * this one pay -- four ARM instructions a face, and the sort sees
+         * exactly the accepted keys as before.)
+         */
+        vst1q_u32(keys, vbslq_u32(accept, key, vdupq_n_u32(0xFFFFFFFFu)));
 
         if( stash_xy )
         {
@@ -276,7 +280,7 @@ toridraw_face_sort_bitonic_radix_block4_neon32(
             vst4q_s32(&scene->sm_face_y4[(size_t)f * 4], yq);
         }
 
-        return g_toridraw_popcount4_neon32[m];
+        return 4;
     }
 }
 
@@ -374,6 +378,7 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
     struct ToriDraw_Scene* scene,
     int* f_io,
     int num_faces,
+    int num_vertices,
     bool near_clipped,
     int model_min_depth,
     int stash_xy,
@@ -383,7 +388,8 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
     const faceint_t* RESTRICT face_a,
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c,
-    uint32_t* keys)
+    uint32_t* keys,
+    int* out_accepted)
 {
     /* The three loop-invariant vectors are built here rather than at the
      * caller because they are the lane's own currency: the dispatcher does not
@@ -392,7 +398,9 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
     int32x4_t sentinel;
     int32x4_t min_depth;
     uint32x4_t levels;
+    int* xyz;
     int f;
+    int v;
     int n = 0;
 
     assert(scene);
@@ -404,11 +412,49 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
     assert(face_b);
     assert(face_c);
     assert(keys);
+    assert(out_accepted);
+
+    f = *f_io;
+    /* Nothing for the vector path to do (a two-face tile that declined its
+     * kernel, a three-face model): no interleave either. */
+    if( f + 4 > num_faces )
+    {
+        *out_accepted = 0;
+        return 0;
+    }
+
+    /*
+     * Interleave the projected vertices once per model: three streaming
+     * loads and one VST4 per four vertices, under an instruction per face
+     * against the twelve lane gathers a face's corners cost before (see
+     * block4). The scratch holds max_vertices + 4 quads; the axis arrays are
+     * exactly max_vertices long, so the last partial quad is done one vertex
+     * at a time rather than read past their end.
+     */
+    xyz = scene->sm_vertex_xyz;
+    assert(xyz);
+    {
+        int32x4x4_t quad;
+        quad.val[3] = vdupq_n_s32(0);
+        for( v = 0; v + 4 <= num_vertices; v += 4 )
+        {
+            quad.val[0] = vld1q_s32(vx + v);
+            quad.val[1] = vld1q_s32(vy + v);
+            quad.val[2] = vld1q_s32(vz + v);
+            vst4q_s32(xyz + (size_t)v * 4, quad);
+        }
+        for( ; v < num_vertices; v++ )
+        {
+            xyz[(size_t)v * 4 + 0] = vx[v];
+            xyz[(size_t)v * 4 + 1] = vy[v];
+            xyz[(size_t)v * 4 + 2] = vz[v];
+            xyz[(size_t)v * 4 + 3] = 0;
+        }
+    }
 
     sentinel = vdupq_n_s32(near_clipped ? TORIDRAW_SCREEN_X_NEAR_CLIPPED : INT_MIN);
     min_depth = vdupq_n_s32(model_min_depth);
     levels = vdupq_n_u32((uint32_t)scene->depth_levels);
-    f = *f_io;
 
     for( ; f + 4 <= num_faces; f += 4 )
         n += toridraw_face_sort_bitonic_radix_block4_neon32(
@@ -418,15 +464,33 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
             min_depth,
             levels,
             stash_xy,
-            vx,
-            vy,
-            vz,
+            xyz,
             face_a,
             face_b,
             face_c,
             keys + n);
 
     *f_io = f;
+
+    /*
+     * Compact the run: the blocks wrote four slots each with rejected faces
+     * as sentinels (see block4). One pass, ARM only, branch-free -- the
+     * store is unconditional and the cursor advances by the comparison --
+     * and the keys handed on are exactly the accepted ones in face order,
+     * as a packing lane would have written them.
+     */
+    {
+        int written = 0;
+        int i;
+        for( i = 0; i < n; i++ )
+        {
+            uint32_t const k = keys[i];
+            keys[written] = k;
+            written += (k != 0xFFFFFFFFu);
+        }
+        n = written;
+    }
+    *out_accepted = n;
     return n;
 }
 
@@ -443,7 +507,23 @@ toridraw_face_sort_bitonic_radix_lane_tile2(
     uint32_t* keys,
     int* out_n)
 {
-    /* No tile kernel is measured on NEON; see the header. */
+    /*
+     * The SCALAR tile kernel, as the SSE2 lane routes it. It is not a vector
+     * kernel and needs nothing from this lane: what it saves is the six
+     * face-index loads and the two-face model's trip through a four-wide
+     * block it can never fill (see toridraw_face_sort_bitonic_radix_tile2_scalar).
+     * Measured on the Moto X (Krait, armv7): a Lumbridge frame hands this
+     * sort ~1,300 models of which ~760 are terrain tiles, so the tile's
+     * per-model cost is most of what the sort costs there. TORIDRAW_TILE_SORT=0
+     * is the A/B's control arm (the general path); the SIMD arm was never
+     * written for NEON and is not selectable here.
+     */
+    if( toridraw_face_sort_tile2_armed() != TORIDRAW_TILE_SORT_OFF )
+    {
+        *out_n = toridraw_face_sort_bitonic_radix_tile2_scalar(
+            scene, tile2_rot, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys);
+        return true;
+    }
     return TORIDRAW_FACE_SORT_TILE2_DECLINE(
         scene, tile2_rot, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys, out_n);
 }

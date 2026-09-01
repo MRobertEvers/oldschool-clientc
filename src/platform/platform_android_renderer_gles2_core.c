@@ -2178,6 +2178,7 @@ gles2_sequence_reset(struct ToriRS_GLES2* renderer)
     renderer->draw_item_count = 0u;
     renderer->ibo_staging_count = 0u;
     renderer->frame_stream_count = 0u;
+    renderer->hot_frame_oldest_serial = UINT32_MAX;
 }
 
 static struct GLES2DrawItem*
@@ -2497,6 +2498,7 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
     placement.page_id = UINT32_MAX;
     placement.batch_slot = UINT32_MAX;
     placement.entry_index = UINT32_MAX;
+    placement.entry_vertex_count = 0u;
     if( command->animation && command->element_id >= 0 )
         ToriDraw_SceneElementApplyAnimation(
             renderer->scene, command->element_id, command->anim_index == 0, command->anim_frame);
@@ -2543,6 +2545,15 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
     face_count = renderer->zbuffer
         ? trspk_toridraw_face_count(command->model)
         : gles2_painter_sort_faces(renderer, command, &sorted_face_count);
+    if( !renderer->zbuffer )
+    {
+        int model_faces = trspk_toridraw_face_count(command->model);
+        int bucket = model_faces <= 2 ? 0 : model_faces <= 16 ? 1 : model_faces <= 64 ? 2
+                                                              : model_faces <= 256 ? 3 : 4;
+        renderer->painter_stat_sort_models[bucket]++;
+        renderer->painter_stat_sort_faces_in += (uint32_t)(model_faces > 0 ? model_faces : 0);
+        renderer->painter_stat_sort_faces_out += (uint32_t)(face_count > 0 ? face_count : 0);
+    }
     if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
         return;
     dynamic = command->dynamic || command->element_id < 0;
@@ -2621,6 +2632,7 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
         placement.page_id = page_id;
         placement.batch_slot = batch_slot;
         placement.entry_index = entry_index;
+        placement.entry_vertex_count = entry->vertex_count;
         vertex_base = entry->vertex_base;
     }
     else if( !trspk_pose_table_get(
@@ -2733,17 +2745,30 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
                 ANDROID_LOG_INFO,
                 "torirs",
                 "gles2 painter/frame: faces indexed %.0f gathered %.0f actor %.0f; residents "
-                "placed %.1f models %.0f vertices; draws %.1f; window head %u; static pages %u "
-                "%u vertices",
+                "placed %.1f models %.0f vertices; draws %.1f; compactions %u; ring head %u; "
+                "static pages %u %u vertices",
                 renderer->painter_stat_faces_indexed / 300.0,
                 renderer->painter_stat_faces_gathered / 300.0,
                 renderer->painter_stat_faces_actor / 300.0,
                 renderer->painter_stat_placed_models / 300.0,
                 renderer->painter_stat_placed_vertices / 300.0,
                 renderer->painter_stat_draws / 300.0,
+                renderer->painter_stat_compactions,
                 renderer->hot_head,
                 renderer->static_page_count,
                 renderer->static_batch_gpu_vertex_used);
+            __android_log_print(
+                ANDROID_LOG_INFO,
+                "torirs",
+                "gles2 sort/frame: models by bake size tile2 %.0f <=16 %.0f <=64 %.0f <=256 %.0f "
+                "larger %.0f; faces in %.0f out %.0f",
+                renderer->painter_stat_sort_models[0] / 300.0,
+                renderer->painter_stat_sort_models[1] / 300.0,
+                renderer->painter_stat_sort_models[2] / 300.0,
+                renderer->painter_stat_sort_models[3] / 300.0,
+                renderer->painter_stat_sort_models[4] / 300.0,
+                renderer->painter_stat_sort_faces_in / 300.0,
+                renderer->painter_stat_sort_faces_out / 300.0);
         }
         if( renderer->painter_stat_frames >= 300u )
         {
@@ -2754,6 +2779,10 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
             renderer->painter_stat_placed_models = 0u;
             renderer->painter_stat_placed_vertices = 0u;
             renderer->painter_stat_draws = 0u;
+            memset(
+                renderer->painter_stat_sort_models, 0, sizeof(renderer->painter_stat_sort_models));
+            renderer->painter_stat_sort_faces_in = 0u;
+            renderer->painter_stat_sort_faces_out = 0u;
         }
     }
 

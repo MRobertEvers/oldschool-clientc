@@ -33,8 +33,11 @@
  *                                              Android armeabi-v7a lane. Same
  *                                              arithmetic; the five A64-only
  *                                              intrinsics are replaced as the
- *                                              ladder below lists. Declines the
- *                                              tile for the same reason.
+ *                                              ladder below lists. Routes the
+ *                                              tile to the scalar tile kernel
+ *                                              (measured on the Krait), and
+ *                                              gathers from an interleaved
+ *                                              copy of the vertices.
  *   facesort.bitonic_radix.small.sse2.u.c      the Win32 XP lane, written to
  *                                              the Pentium 4 floor: no pshufb,
  *                                              no pcmpgtq, no pminud, no
@@ -53,16 +56,26 @@
  * names -- that is what lets toridraw_face_sort_bitonic_radix carry no
  * preprocessor of its own:
  *
- *   int toridraw_face_sort_bitonic_radix_lane_blocks(...)
+ *   int toridraw_face_sort_bitonic_radix_lane_blocks(..., int* out_accepted)
  *       Runs the vector cull over whole blocks of faces starting at *f_io,
- *       appends the accepted keys at `keys`, advances *f_io past every face it
- *       consumed, and returns how many keys it wrote. A lane with no vector
- *       cull leaves *f_io alone and returns 0; the caller's scalar loop then
+ *       (num_vertices says how many projected vertices are the model's, for a
+ *       lane that re-lays them out per model), 
+ *       appends keys at `keys`, advances *f_io past every face it consumed,
+ *       returns how many keys it WROTE and stores in *out_accepted how many of
+ *       those are accepted faces. The two differ on a lane that does not
+ *       left-pack: it may write a rejected face as the sentinel 0xFFFFFFFF in
+ *       place, which the sort carries to the end -- the sort runs over the
+ *       written count, the caller reports the accepted one, and the sorted
+ *       prefix [0, accepted) is the same either way because the key is a
+ *       total order. (Measured on the Krait, that variant LOST: sorting the
+ *       rejected keys cost more than the pack; every lane packs today, and
+ *       the contract only keeps the door open.) A lane with no vector cull leaves *f_io
+ *       alone, returns 0 with *out_accepted = 0; the caller's scalar loop then
  *       covers every face. The caller finishes [*f_io, num_faces) either way,
  *       so a lane may consume any whole number of faces it likes.
  *
- *       Writes up to four keys past the returned count (the left-pack stores a
- *       whole vector), so `keys` needs four lanes of slack.
+ *       Writes up to four keys past the returned count (a packing lane stores
+ *       a whole vector), so `keys` needs four lanes of slack.
  *
  *   bool toridraw_face_sort_bitonic_radix_lane_tile2(...)
  *       The two-triangle terrain tile, whose index triples are a compile-time
@@ -90,8 +103,10 @@
  * shuffle immediates -- are reachable only from the SSE2 lane, and that is
  * deliberate rather than an omission: the A/B that chose between them
  * (toridraw_face_sort_tile2_armed) was run on an x86 host against the general
- * path, and no equivalent measurement exists on NEON. Until one does, both
- * NEON lanes decline and a terrain tile there is an ordinary two-face model.
+ * path. The A32 lane has since been measured on the Krait (the scalar kernel
+ * wins there too, 117 -> 110 ns/face) and routes the tile; the A64 lane is
+ * still unmeasured and declines, so a terrain tile there is an ordinary
+ * two-face model.
  */
 
 #include "graphics/dash_restrict.h"

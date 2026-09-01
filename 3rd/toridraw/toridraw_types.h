@@ -932,6 +932,11 @@ struct ToriDraw_Scene
      */
     uint32_t* sm_sort_keys;
     uint32_t* sm_sort_tmp;
+    /* The projected vertices of the model being sorted, interleaved as
+     * {x, y, z, 0} quads: max_vertices + 4 of them, rebuilt per model by a
+     * lane whose gather wants whole-register loads (the A32 NEON lane; see
+     * its block4). NULL until the bitonic+radix scratch is allocated. */
+    int* sm_vertex_xyz;
     /*
      * Whether the LAST sort actually filled sm_face_x4/y4, which is not the same
      * question as whether the build can. Three things have to hold -- the

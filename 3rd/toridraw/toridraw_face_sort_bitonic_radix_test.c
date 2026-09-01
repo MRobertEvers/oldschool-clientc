@@ -399,6 +399,18 @@ now_us(void)
 static void
 bench_sorts(struct ToriDraw_Scene* scene)
 {
+    /* TORIDRAW_FACE_SORT_BENCH_PRESORT=0 times the sort WITHOUT the y-sorted
+     * XY stash the software raster asks for: what a GPU lane (GLES2, D3D9)
+     * actually runs, since its kernel table has no raster to presort for. */
+    bool const bench_presort =
+        !getenv("TORIDRAW_FACE_SORT_BENCH_PRESORT") || atoi(getenv("TORIDRAW_FACE_SORT_BENCH_PRESORT")) != 0;
+    /* TORIDRAW_FACE_SORT_BENCH_ARM=bucket|keys runs ONE arm only, so a
+     * hardware-counter run (`simpleperf stat`) attributes its cycles,
+     * instructions and misses to that kernel alone rather than to the two
+     * interleaved. Both arms by default, as the table's ratio column needs. */
+    const char* const bench_arm_only = getenv("TORIDRAW_FACE_SORT_BENCH_ARM");
+    int const arm_first = bench_arm_only && strcmp(bench_arm_only, "keys") == 0 ? 1 : 0;
+    int const arm_count = bench_arm_only ? 1 : 2;
     /* Many models per size, same vertices, different faces: the sort sees a
      * different index stream each call, so the branch predictor cannot learn
      * one model's winding/y-order sequence across repetitions the way it
@@ -459,16 +471,16 @@ bench_sorts(struct ToriDraw_Scene* scene)
         /* Five batches, best-of, arms alternating inside each batch. */
         for( int batch = 0; batch < 5; batch++ )
         {
-            for( int arm = 0; arm < 2; arm++ )
+            for( int arm = 0; arm < arm_count; arm++ )
             {
                 double t0;
-                int a = (batch & 1) ? 1 - arm : arm;
+                int a = arm_count == 1 ? arm_first : ((batch & 1) ? 1 - arm : arm);
                 for( m = 0; m < MODELS; m++ )
-                    k[a]->sort(k[a]->user_data, scene, hnds[m], true); /* warm */
+                    k[a]->sort(k[a]->user_data, scene, hnds[m], bench_presort); /* warm */
                 drawn = 0;
                 t0 = now_us();
                 for( int r = 0; r < reps; r++ )
-                    drawn += k[a]->sort(k[a]->user_data, scene, hnds[r % MODELS], true);
+                    drawn += k[a]->sort(k[a]->user_data, scene, hnds[r % MODELS], bench_presort);
                 t0 = (now_us() - t0) / reps;
                 if( t0 < best[a] )
                     best[a] = t0;
@@ -516,16 +528,16 @@ bench_sorts(struct ToriDraw_Scene* scene)
         {
             for( int batch = 0; batch < 5; batch++ )
             {
-                for( int arm = 0; arm < 2; arm++ )
+                for( int arm = 0; arm < arm_count; arm++ )
                 {
                     double t0;
-                    int a = (batch & 1) ? 1 - arm : arm;
+                    int a = arm_count == 1 ? arm_first : ((batch & 1) ? 1 - arm : arm);
                     for( m = 0; m < TILE_MODELS; m++ )
-                        k[a]->sort(k[a]->user_data, scene, hnds[m], true); /* warm */
+                        k[a]->sort(k[a]->user_data, scene, hnds[m], bench_presort); /* warm */
                     drawn = 0;
                     t0 = now_us();
                     for( int r = 0; r < reps; r++ )
-                        drawn += k[a]->sort(k[a]->user_data, scene, hnds[r % TILE_MODELS], true);
+                        drawn += k[a]->sort(k[a]->user_data, scene, hnds[r % TILE_MODELS], bench_presort);
                     t0 = (now_us() - t0) / reps;
                     if( t0 < best[a] )
                         best[a] = t0;

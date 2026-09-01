@@ -94,7 +94,31 @@
 #include <stdint.h>
 #include <string.h>
 
+/*
+ * Above this many accepted keys the radix sorts; at or below it, the lane's
+ * bitonic network does.
+ *
+ * PER LANE, because the crossover is a property of the core, not the
+ * algorithm. On x86 the wide network wins to 256. On the A32 NEON lane it
+ * does not: the network is 4-wide compare/swaps at an IPC under one, and at
+ * N = 256 its 36 stages cost more per face than the radix's two counting
+ * passes. Measured on the Moto X (Krait) with the sort bench, keys arm,
+ * presort off, ns per input face at 64/200/256/1000 faces:
+ *
+ *   BITONIC_MAX = 256   47.9  53.2  57.5  44.3     (the x86 default)
+ *   BITONIC_MAX = 128   47.7  53.3  47.0  44.4
+ *   BITONIC_MAX =  64   47.6  43.9  43.0  44.6
+ *   BITONIC_MAX =   0   55.1  44.2  43.2  45.2     (radix for everything)
+ *
+ * The network earns its keep below ~64 accepted keys (a 64-face model draws
+ * ~30) and loses above; 64 is the crossover. neon64 is untested and keeps
+ * the x86 value until it is measured. TORIDRAW_SORT_BITONIC_MAX overrides.
+ */
+#if defined(TORIDRAW_FACE_SORT_LANE_NEON32)
+#define TORIDRAW_FACE_SORT_BITONIC_MAX 64
+#else
 #define TORIDRAW_FACE_SORT_BITONIC_MAX 256
+#endif
 
 /* Runtime override for the A/B: -1 = the environment decides. */
 int g_toridraw_face_sort_bitonic_radix_override = -1;
@@ -484,6 +508,7 @@ toridraw_face_sort_bitonic_radix(
     bool near_clipped,
     int model_min_depth,
     int num_faces,
+    int num_vertices,
     int tile2_rot,
     const int* RESTRICT vx,
     const int* RESTRICT vy,
@@ -496,6 +521,7 @@ toridraw_face_sort_bitonic_radix(
     int const stash_xy = presort;
     int tile_n = 0;
     int n = 0;
+    int accepted = 0;
     int f = 0;
 
     assert(scene);
@@ -528,10 +554,15 @@ toridraw_face_sort_bitonic_radix(
     /* The lane's vector cull over whole blocks, then the scalar tail over
      * whatever it left. A lane with no vector cull leaves f at 0 and the tail
      * is the whole model. */
+    /* `n` counts keys WRITTEN; `accepted` the faces among them that passed
+     * the cull. A lane that stores rejected lanes as sentinels makes the two
+     * differ (see the hook contract); the sort runs over n and the sentinels
+     * land past `accepted`, which is what the caller is told. */
     n += toridraw_face_sort_bitonic_radix_lane_blocks(
         scene,
         &f,
         num_faces,
+        num_vertices,
         near_clipped,
         model_min_depth,
         stash_xy,
@@ -541,10 +572,12 @@ toridraw_face_sort_bitonic_radix(
         face_a,
         face_b,
         face_c,
-        keys);
+        keys,
+        &accepted);
 
     for( ; f < num_faces; f++ )
-        n += toridraw_face_sort_bitonic_radix_one(
+    {
+        int const one = toridraw_face_sort_bitonic_radix_one(
             scene,
             f,
             near_clipped,
@@ -557,6 +590,9 @@ toridraw_face_sort_bitonic_radix(
             face_b,
             face_c,
             keys + n);
+        n += one;
+        accepted += one;
+    }
 
     if( n <= 2 )
         return toridraw_face_sort_bitonic_radix_sort2(n, keys);
@@ -569,7 +605,7 @@ toridraw_face_sort_bitonic_radix(
     else
         toridraw_radix_sort_depth16(keys, scene->sm_sort_tmp, n);
 
-    return n;
+    return accepted;
 }
 
 /*

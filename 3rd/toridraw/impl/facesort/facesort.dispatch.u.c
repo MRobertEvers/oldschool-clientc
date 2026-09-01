@@ -31,6 +31,9 @@ struct sort_model_inputs
     /* NULL when this model's faces are not banded by render priority. */
     uint8_t* face_priorities;
     int face_count;
+    /** The model's projected vertex count: how much of screen_vertices_* is
+     *  this model's. A lane that re-lays the vertices out per model needs it. */
+    int vertex_count;
     /* -1 = not a two-triangle terrain tile; see ToriDraw_Model.tile_sort_kernel. */
     int tile2_rot;
     int model_min_depth;
@@ -50,6 +53,7 @@ sort_model_inputs(
     in->fic = NULL;
     in->face_priorities = NULL;
     in->face_count = 0;
+    in->vertex_count = 0;
     in->tile2_rot = -1;
 
     switch( hnd.kind )
@@ -78,6 +82,7 @@ sort_model_inputs(
         if( m->flags & (TORIDRAW_MODEL_FLAG_ZBUFFER | TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY) )
             in->face_priorities = NULL;
         in->face_count = m->face_count;
+        in->vertex_count = m->vertex_count;
         /* TORIDRAWMK_MODEL only. The tile kernel reads vx[0..3] on the promise
          * that this model's four projected vertices are its own and that its two
          * faces are the tile triples -- a promise world_decode_tile makes about a
@@ -122,6 +127,7 @@ face_order_small_bitonic_radix(
         scene->near_clipped,
         in->model_min_depth,
         in->face_count,
+        in->vertex_count,
         in->tile2_rot,
         scene->screen_vertices_x,
         scene->screen_vertices_y,
