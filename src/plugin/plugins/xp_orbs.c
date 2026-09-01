@@ -1760,7 +1760,7 @@ orb_layout_changed(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         initial.art[i] = -1;
     initial.w = 1;
     initial.h = 1;
-    got = g_api->chrome_add(ctx, "xp_drops", "viewport", &initial);
+    got = g_api->chrome_add(ctx, "xp_drops", "viewport", TORIRS_PLUGIN_ANCHOR_AFTER, &initial);
     if( got < 0 )
         return TORIRS_PLUGIN_PASS;
     g_xp_drops_settled = 1;
@@ -1817,7 +1817,7 @@ orb_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         initial.h = 1;
         got = g_api->chrome_claim(ctx, "xp_drops", TORIRS_PLUGIN_CHROME_SCOPE_ALL, 1);
         if( got < 0 )
-            got = g_api->chrome_add(ctx, "xp_drops", "viewport", &initial);
+            got = g_api->chrome_add(ctx, "xp_drops", "viewport", TORIRS_PLUGIN_ANCHOR_AFTER, &initial);
         /*
          * Three answers. Held: draw. Somebody else's: do not. NOT THERE YET
          * -- the viewport has no box before the first layout -- is neither:

@@ -1,6 +1,11 @@
 #ifndef TORIRS_PLUGIN_HOST_H
 #define TORIRS_PLUGIN_HOST_H
 
+/** The object's own appearance: the host-only third placement. Numerically
+ *  what ui/uitree_host.h calls UITREE_ROLE_PLACE_SELF; the two headers do not
+ *  include each other, so the number is stated on both sides. */
+#define PLUGIN_ANCHOR_PLACE_SELF 2
+
 /*
  * The host: the bus, the api implementation, the config store, and the entry
  * points the engine calls at each seam.
@@ -193,7 +198,10 @@ struct ToriRS_PluginEngine
     /** Select/reset the role anchor for the open canvas subscriber. A NULL
      * role resets it; a non-NULL empty role selects active-invalid/drop state;
      * `replace` says the caller owns the replacement claim. */
-    int (*role_anchor)(void* user, int plugin, char const* role, int replace);
+    /** `place` is enum ToriRS_PluginAnchorPlace, or PLUGIN_ANCHOR_PLACE_SELF
+     *  for the replacement owner's own appearance -- the object itself, which
+     *  everything BEFORE paints under and everything AFTER paints over. */
+    int (*role_anchor)(void* user, int plugin, char const* role, int replace, int place);
 
     /* The gameframe claim. @see ToriRS_PluginApi::layout_claim.
      *

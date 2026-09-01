@@ -178,6 +178,8 @@ struct PluginChromeClaim
      * is stated relative rather than absolute.
      */
     char anchor[TORIRS_PLUGIN_ROLE_NAME_MAX];
+    /** Which side of `anchor` an added part paints on. @see chrome_add. */
+    int place;
     uint8_t added;
 
     /**
@@ -585,6 +587,10 @@ static int
 plugin_entity_hull_allowed(struct ToriRS_PluginHost* host, int plugin, int element_id);
 static void
 plugin_chrome_paint_all(struct ToriRS_PluginHost* host, int canvas_pass);
+static int
+role_replacement_find(struct ToriRS_PluginHost const* host, char const* role);
+static int
+role_replaced_by(struct ToriRS_PluginHost const* host, char const* role);
 
 static enum ToriRS_PluginVerdict
 plugin_dispatch(struct ToriRS_PluginHost* host, enum ToriRS_PluginEvent ev, void* payload)
@@ -611,12 +617,12 @@ plugin_dispatch(struct ToriRS_PluginHost* host, enum ToriRS_PluginEvent ev, void
          * callback so an early return, a plugin with no anchor call, or the
          * next plugin in draw order can never inherit the previous target. */
         if( ev == TORIRS_PLUGIN_EV_DRAW_CANVAS )
-            (void)host->engine.role_anchor(host->engine.user, -1, NULL, 0);
+            (void)host->engine.role_anchor(host->engine.user, -1, NULL, 0, 0);
         host->dispatching = sub.plugin;
         verdict = sub.handler(ctx, payload, sub.userdata);
         host->dispatching = prev_dispatching;
         if( ev == TORIRS_PLUGIN_EV_DRAW_CANVAS )
-            (void)host->engine.role_anchor(host->engine.user, -1, NULL, 0);
+            (void)host->engine.role_anchor(host->engine.user, -1, NULL, 0, 0);
 
         if( verdict == TORIRS_PLUGIN_CONSUME )
             return TORIRS_PLUGIN_CONSUME;
@@ -1326,8 +1332,8 @@ api_role_visible(struct ToriRS_PluginCtx* ctx, char const* role)
      * "is the cache's plate visible".
      */
     {
-        int const at = role_replacement_find(ctx->host, role);
-        if( at >= 0 && ctx->host->plugins[ctx->host->role_replacements[at].plugin].running )
+        int const by = role_replaced_by(ctx->host, role);
+        if( by >= 0 && ctx->host->plugins[by].running )
             return 1;
     }
     return ctx->host->engine.role_visible(ctx->host->engine.user, role);
@@ -1364,6 +1370,37 @@ role_replacement_find(struct ToriRS_PluginHost const* host, char const* role)
         if( host->role_replacements[i].plugin >= 0 &&
             strcmp(host->role_replacements[i].role, role) == 0 )
             return i;
+    return -1;
+}
+
+/**
+ * Which plugin currently PROVIDES `role` in place of the lane, or -1.
+ *
+ * Two tables answer, because a role is replaced two ways: a plugin says so
+ * outright (role_replace), or it claims the APPEARANCE of a lane part and
+ * the chrome pass replaces the node for it (PluginHost_ChromeTick,
+ * `lane_replaced`). The second never entered role_replacements, so every
+ * verb that asked "is this role replaced" -- role_visible, role_anchor, the
+ * tombstone paint -- saw the claimed housing as unprovided: an orb column
+ * asked whether `minimap_edge` was on screen, heard no, hung itself off the
+ * map instead, and painted under the very plate it meant to sit on.
+ */
+static int
+role_replaced_by(struct ToriRS_PluginHost const* host, char const* role)
+{
+    int at;
+
+    assert(host);
+    assert(role);
+    at = role_replacement_find(host, role);
+    if( at >= 0 )
+        return host->role_replacements[at].plugin;
+    for( int i = 0; i < TORIRS_PLUGIN_CHROME_CLAIMS_MAX; i++ )
+    {
+        struct PluginChromeClaim const* row = &host->chrome_claims[i];
+        if( row->plugin >= 0 && row->lane_replaced && strcmp(row->part, role) == 0 )
+            return row->plugin;
+    }
     return -1;
 }
 
@@ -1445,10 +1482,9 @@ api_role_replace(
 }
 
 static int
-api_role_anchor(struct ToriRS_PluginCtx* ctx, char const* role)
+api_role_anchor(struct ToriRS_PluginCtx* ctx, char const* role, int place)
 {
     struct ToriRS_PluginHost* host;
-    int at;
     int replace = 0;
 
     assert(ctx);
@@ -1462,12 +1498,12 @@ api_role_anchor(struct ToriRS_PluginCtx* ctx, char const* role)
          * retarget must drop subsequent declarations from this subscriber,
          * never leave its previous anchor active or fall back to global
          * Canvas. Empty is safe because it is not a legal public role name. */
-        (void)host->engine.role_anchor(host->engine.user, ctx->index, "", 0);
+        (void)host->engine.role_anchor(host->engine.user, ctx->index, "", 0, 0);
         return 0;
     }
     if( strcmp(role, "safe") == 0 || strcmp(role, "canvas") == 0 )
     {
-        (void)host->engine.role_anchor(host->engine.user, ctx->index, "", 0);
+        (void)host->engine.role_anchor(host->engine.user, ctx->index, "", 0, 0);
         return 0;
     }
 
@@ -1489,11 +1525,15 @@ api_role_anchor(struct ToriRS_PluginCtx* ctx, char const* role)
      * before EV_DRAW_CANVAS), so what is hung off the object lands on top
      * of it.
      */
-    at = role_replacement_find(host, role);
-    if( at >= 0 )
+    if( role_replaced_by(host, role) >= 0 )
         replace = 1;
     return host->engine.role_anchor(
-        host->engine.user, ctx->index, role, replace);
+        host->engine.user,
+        ctx->index,
+        role,
+        replace,
+        place == TORIRS_PLUGIN_ANCHOR_BEFORE ? TORIRS_PLUGIN_ANCHOR_BEFORE
+                                             : TORIRS_PLUGIN_ANCHOR_AFTER);
 }
 
 /*
@@ -4057,6 +4097,7 @@ api_chrome_add(
     struct ToriRS_PluginCtx* ctx,
     char const* part,
     char const* anchor,
+    int place,
     struct ToriRS_PluginChromePart const* initial)
 {
     struct ToriRS_PluginHost* host = ctx->host;
@@ -4090,6 +4131,13 @@ api_chrome_add(
         return -1;
 
     result = plugin_chrome_claim_set(ctx, part, anchor, TORIRS_PLUGIN_CHROME_SCOPE_ALL, 1);
+    if( result > 0 )
+    {
+        struct PluginChromeClaim* row = plugin_chrome_row(host, ctx->index, part);
+        assert(row);
+        row->place = place == TORIRS_PLUGIN_ANCHOR_BEFORE ? TORIRS_PLUGIN_ANCHOR_BEFORE
+                                                          : TORIRS_PLUGIN_ANCHOR_AFTER;
+    }
     if( result > 0 && initial )
     {
         struct PluginChromeClaim* row = plugin_chrome_row(host, ctx->index, part);
@@ -6398,16 +6446,21 @@ plugin_chrome_paint_all(struct ToriRS_PluginHost* host, int canvas_pass)
              * replacement's tombstone, exactly as api_role_anchor routes a
              * plugin's own drawing: the anchor is the object, and the object
              * is wherever its provider paints it. */
+            /* A replacement's own appearance is the object itself -- SELF --
+             * so a part hung BEFORE it paints under and one hung AFTER paints
+             * over, whichever claimed first. */
             int anchored =
                 added ? host->engine.role_anchor(
                             host->engine.user,
                             who,
                             added->anchor,
-                            role_replacement_find(host, added->anchor) >= 0)
-                      : host->engine.role_anchor(host->engine.user, who, row->part, 1);
+                            role_replaced_by(host, added->anchor) >= 0,
+                            added->place)
+                      : host->engine.role_anchor(
+                            host->engine.user, who, row->part, 1, PLUGIN_ANCHOR_PLACE_SELF);
             if( anchored )
                 plugin_chrome_paint_one(host, &resolved, state, have_mouse, mx, my, ops);
-            (void)host->engine.role_anchor(host->engine.user, who, NULL, 0);
+            (void)host->engine.role_anchor(host->engine.user, who, NULL, 0, 0);
         }
         else
             plugin_chrome_paint_one(host, &resolved, state, have_mouse, mx, my, ops);

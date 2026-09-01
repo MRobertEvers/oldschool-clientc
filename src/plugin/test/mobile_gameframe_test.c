@@ -440,8 +440,8 @@ static int fake_role_slot(void* u, char const* r, int* s, int* m)
 { (void)u; (void)r; (void)s; (void)m; return 0; }
 static int fake_role_replace(void* u, int p, char const* r, int e)
 { (void)u; (void)p; (void)r; (void)e; return 1; }
-static int fake_role_anchor(void* u, int p, char const* r, int replace)
-{ (void)u; (void)p; (void)replace; return r ? 0 : 1; }
+static int fake_role_anchor(void* u, int p, char const* r, int replace, int place)
+{ (void)place; (void)u; (void)p; (void)replace; return r ? 0 : 1; }
 static int fake_stat(void* u, int s, int* c, int* b) { (void)u; (void)s; (void)c; (void)b; return 0; }
 static int fake_stat_xp(void* u, int s, int* a, int* b, int* c) { (void)u; (void)s; (void)a; (void)b; (void)c; return 0; }
 static char const* fake_skill_name(void* u, int s) { (void)u; (void)s; return NULL; }

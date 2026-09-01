@@ -986,9 +986,9 @@ fake_role_replace(void* u, int plugin, char const* role, int enabled)
 }
 
 static int
-fake_role_anchor(void* u, int plugin, char const* role, int replace)
+fake_role_anchor(void* u, int plugin, char const* role, int replace, int place)
 {
-    (void)u;
+    (void)place; (void)u;
     if( !role )
     {
         g_role_anchor_resets++;
@@ -1354,7 +1354,7 @@ alpha_canvas_anchor(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
 {
     (void)ev;
     (void)ud;
-    (void)g_api->role_anchor(ctx, "report_button");
+    (void)g_api->role_anchor(ctx, "report_button", TORIRS_PLUGIN_ANCHOR_AFTER);
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -1662,7 +1662,7 @@ beta_canvas_competing_anchor(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
     if( !g_beta_anchor_attempt )
         return TORIRS_PLUGIN_PASS;
     g_beta_anchor_retarget_invalid =
-        !g_api->role_anchor(ctx, "report_button") &&
+        !g_api->role_anchor(ctx, "report_button", TORIRS_PLUGIN_ANCHOR_AFTER) &&
         g_role_anchor_current_plugin >= 0 && g_role_anchor_replace == -2;
     g_beta_draw_saw_invalid = g_role_anchor_replace == -2;
     g_api->draw_rect(ctx, draw->surface, 1, 1, 2, 2, 0xffffffu, 0);

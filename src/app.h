@@ -1144,6 +1144,7 @@ struct App
         int32_t node_index;
         uint32_t node_incarnation;
         uint8_t replace;
+        uint8_t place;
     } plugin_role_overlay_raw[512];
     int plugin_role_overlay_raw_count;
     struct UITreeEntityOverlay plugin_role_overlay_items[512];
@@ -1163,6 +1164,7 @@ struct App
     int32_t plugin_role_anchor_node;
     uint32_t plugin_role_anchor_incarnation;
     uint8_t plugin_role_anchor_replace;
+    uint8_t plugin_role_anchor_place;
     /*
      * The plugin FRAME overlay: chrome, over the 3D scene and under the
      * interfaces (UITREE_HOST_GET_FRAME_OVERLAYS).
@@ -1205,6 +1207,7 @@ struct App
         uint8_t surface;
         uint8_t role_anchored;
         uint8_t role_replace;
+        uint8_t role_place;
         int32_t role_node;
         uint32_t role_incarnation;
         int role_clip_x;
@@ -1235,6 +1238,7 @@ struct App
         uint8_t surface;
         uint8_t role_anchored;
         uint8_t role_replace;
+        uint8_t role_place;
         int32_t role_node;
         uint32_t role_incarnation;
     } plugin_pointer_capture;

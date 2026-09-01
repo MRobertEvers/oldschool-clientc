@@ -601,9 +601,9 @@ fake_role_replace(void* u, int plugin, char const* role, int enabled)
 }
 
 static int
-fake_role_anchor(void* u, int plugin, char const* role, int replace)
+fake_role_anchor(void* u, int plugin, char const* role, int replace, int place)
 {
-    (void)u; (void)plugin; (void)replace;
+    (void)place; (void)u; (void)plugin; (void)replace;
     return role ? 0 : 1;
 }
 

@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 18
+#define TORIRS_PLUGIN_ABI 19
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Semantic role spelling, terminator included. Kept in the public contract
@@ -1386,6 +1386,26 @@ enum ToriRS_PluginChromeState
     TORIRS_PLUGIN_CHROME_DISABLED,
 
     TORIRS_PLUGIN_CHROME_STATE_COUNT
+};
+
+/**
+ * Where an anchored thing goes relative to the object it is anchored to.
+ *
+ * An anchor is a NAME, and the name may be provided by the lane, by a plugin
+ * that replaced it, or by a plugin that introduced it; wherever the object
+ * paints, what is hung off it paints in this order:
+ *
+ *   BEFORE  the anchored drawing, then the object
+ *   AFTER   the object, then the anchored drawing
+ *
+ * Which is the whole difference between a readout that sits on a housing and
+ * one the housing covers. Arrival order used to decide it, and arrival order
+ * is which plugin happened to claim first.
+ */
+enum ToriRS_PluginAnchorPlace
+{
+    TORIRS_PLUGIN_ANCHOR_AFTER = 0,
+    TORIRS_PLUGIN_ANCHOR_BEFORE = 1,
 };
 
 /** Which authority a part came from. @see chrome_part. */
@@ -3176,9 +3196,12 @@ struct ToriRS_PluginApi
      * rebuilt target drops the declarations; they never fall back to the
      * global canvas overlay.
      *
+     * `place` says which side of the object the primitives land on; see
+     * enum ToriRS_PluginAnchorPlace.
+     *
      * @return 1 when the role resolves for this draw pass, 0 when it does not.
      */
-    int (*role_anchor)(struct ToriRS_PluginCtx* ctx, char const* role);
+    int (*role_anchor)(struct ToriRS_PluginCtx* ctx, char const* role, int place);
 
     /* -- ABI 18 append: chrome ------------------------------------------- */
 
@@ -3287,6 +3310,10 @@ struct ToriRS_PluginApi
      * adopted by a profile and can never be provided by anything else, which
      * defeats both.
      *
+     * `place` is which side of the anchor the part paints on, for the life of
+     * the part -- enum ToriRS_PluginAnchorPlace. An orb column on a housing
+     * is AFTER it.
+     *
      * An added part is introduced with EVERY scope held by its introducer,
      * which may then release the ones it does not want kept.
      *
@@ -3298,6 +3325,7 @@ struct ToriRS_PluginApi
         struct ToriRS_PluginCtx* ctx,
         char const* part,
         char const* anchor,
+        int place,
         struct ToriRS_PluginChromePart const* initial);
 
     /**

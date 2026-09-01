@@ -2397,7 +2397,8 @@ emit_role_overlay_groups(
     struct UITreeEmitClip const* parent_clip,
     struct UITreeRoleOverlayGroup const* groups,
     int group_count,
-    int replace)
+    int replace,
+    int place)
 {
     struct UITreeComponent const* component;
 
@@ -2416,7 +2417,7 @@ emit_role_overlay_groups(
 
         if( group->node_index != idx ||
             group->node_incarnation != component->incarnation ||
-            !!group->replace != !!replace )
+            !!group->replace != !!replace || group->place != place )
             continue;
 
         /* Hit regions are consumed on the following interaction frame. Stamp
@@ -2427,6 +2428,7 @@ emit_role_overlay_groups(
         clip_req.u.set_role_overlay_clip.node_index = idx;
         clip_req.u.set_role_overlay_clip.node_incarnation = component->incarnation;
         clip_req.u.set_role_overlay_clip.replace = replace;
+        clip_req.u.set_role_overlay_clip.place = place;
         clip_req.u.set_role_overlay_clip.clip_x = parent_clip->x;
         clip_req.u.set_role_overlay_clip.clip_y = parent_clip->y;
         clip_req.u.set_role_overlay_clip.clip_w = parent_clip->w;
@@ -2569,16 +2571,26 @@ emit_walk_node(
     }
     if( c->replacement_hidden )
     {
+        /* The tombstone, in the order an anchor's placement promises: what is
+         * hung BEFORE the object, the object's own appearance, then what is
+         * hung AFTER it. Arrival order decides nothing. */
         if( !drag_pass )
-            emit_role_overlay_groups(
-                tree,
-                host,
-                out,
-                idx,
-                parent_clip,
-                role_groups,
-                role_group_count,
-                /*replace=*/1);
+        {
+            static int const PLACE[3] = {
+                UITREE_ROLE_PLACE_BEFORE, UITREE_ROLE_PLACE_SELF, UITREE_ROLE_PLACE_AFTER
+            };
+            for( int pl = 0; pl < 3; pl++ )
+                emit_role_overlay_groups(
+                    tree,
+                    host,
+                    out,
+                    idx,
+                    parent_clip,
+                    role_groups,
+                    role_group_count,
+                    /*replace=*/1,
+                    PLACE[pl]);
+        }
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return;
     }
@@ -2711,6 +2723,18 @@ emit_walk_node(
         }
     }
 
+    /* Anchored BEFORE: under this node and everything in it. */
+    if( !drag_pass )
+        emit_role_overlay_groups(
+            tree,
+            host,
+            out,
+            idx,
+            parent_clip,
+            role_groups,
+            role_group_count,
+            /*replace=*/0,
+            UITREE_ROLE_PLACE_BEFORE);
     subtree_emit_start = out->count;
 
     if( !if1_bar && c->type == UIELEM_RS_INV )
@@ -2933,15 +2957,15 @@ emit_walk_node(
     }
 
     emit_frame_slot_overlay(tree, out, idx, parent_clip, subtree_emit_start);
+    /* SELF has no meaning on a node the lane still draws; it is emitted here
+     * anyway so a declaration made against a role whose replacement was just
+     * released does not vanish for the frame the release takes. */
     emit_role_overlay_groups(
-        tree,
-        host,
-        out,
-        idx,
-        parent_clip,
-        role_groups,
-        role_group_count,
-        /*replace=*/0);
+        tree, host, out, idx, parent_clip, role_groups, role_group_count,
+        /*replace=*/0, UITREE_ROLE_PLACE_SELF);
+    emit_role_overlay_groups(
+        tree, host, out, idx, parent_clip, role_groups, role_group_count,
+        /*replace=*/0, UITREE_ROLE_PLACE_AFTER);
 }
 
 static void

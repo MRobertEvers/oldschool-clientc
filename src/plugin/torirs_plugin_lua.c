@@ -955,7 +955,11 @@ lua_role_anchor(lua_State* L)
 {
     struct LuaScript* script = lua_upvalue_script(L);
 
-    lua_pushboolean(L, g_api->role_anchor(script->cur_ctx, lua_role_name(L)));
+    /* api.role.anchor(role [, "before"|"after"]) -- after unless said. */
+    int place = TORIRS_PLUGIN_ANCHOR_AFTER;
+    if( lua_isstring(L, 2) && strcmp(lua_tostring(L, 2), "before") == 0 )
+        place = TORIRS_PLUGIN_ANCHOR_BEFORE;
+    lua_pushboolean(L, g_api->role_anchor(script->cur_ctx, lua_role_name(L), place));
     return 1;
 }
 
@@ -1156,7 +1160,15 @@ lua_chrome_add(lua_State* L)
     struct ToriRS_PluginChromePart initial;
     int got;
     lua_part_arg(L, 3, &initial);
-    got = g_api->chrome_add(script->cur_ctx, part, anchor, lua_istable(L, 3) ? &initial : NULL);
+    /* api.chrome.add(part, anchor [, initial [, "before"|"after"]]) */
+    got = g_api->chrome_add(
+        script->cur_ctx,
+        part,
+        anchor,
+        lua_isstring(L, 4) && strcmp(lua_tostring(L, 4), "before") == 0
+            ? TORIRS_PLUGIN_ANCHOR_BEFORE
+            : TORIRS_PLUGIN_ANCHOR_AFTER,
+        lua_istable(L, 3) ? &initial : NULL);
     if( got < 0 )
         lua_pushnil(L);
     else

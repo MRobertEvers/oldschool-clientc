@@ -132,11 +132,22 @@ struct UITreeEntityOverlay
 /** One role-local canvas list, already grouped by exact target incarnation.
  * `replace` selects the pruned target's tombstone; otherwise it is appended
  * after the complete live subtree. */
+/* Where a role overlay group paints relative to its target. Stated as numbers
+ * on both sides of the plugin/ui boundary (plugin/torirs_plugin.h's
+ * ToriRS_PluginAnchorPlace and torirs_plugin_host.h's SELF), which do not
+ * include each other. */
+#define UITREE_ROLE_PLACE_AFTER 0
+#define UITREE_ROLE_PLACE_BEFORE 1
+/** The target's own appearance, when a plugin provides it: paints between the
+ *  BEFORE and AFTER groups, where the native subtree would have. */
+#define UITREE_ROLE_PLACE_SELF 2
+
 struct UITreeRoleOverlayGroup
 {
     int32_t node_index;
     uint32_t node_incarnation;
     uint8_t replace;
+    uint8_t place;
     struct UITreeEntityOverlay const* items;
     int item_count;
 };
@@ -655,6 +666,7 @@ struct UITreeHostRequest
             int clip_y;
             int clip_w;
             int clip_h;
+            int place;
         } set_role_overlay_clip;
         struct
         {

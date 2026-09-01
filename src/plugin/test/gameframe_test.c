@@ -492,7 +492,23 @@ fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, int* h)
     return 1;
 }
 static int fake_component_rect(void* u, int c, int* x, int* y, int* w, int* h) { (void)u; (void)c; (void)x; (void)y; (void)w; (void)h; return 0; }
-static int fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h) { (void)u; (void)r; (void)x; (void)y; (void)w; (void)h; return 0; }
+/** Whether this fake lane has a `minimap_edge` object -- the 2004 housing --
+ *  for the classic layout to PROVIDE rather than blit. Off by default so the
+ *  fallback (an overlay on the compass slot) is what most of the file sees. */
+static int g_fake_minimap_edge;
+
+static int
+fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( !g_fake_minimap_edge || strcmp(r, "minimap_edge") != 0 )
+        return 0;
+    if( x ) *x = 550;
+    if( y ) *y = 4;
+    if( w ) *w = 172;
+    if( h ) *h = 156;
+    return 1;
+}
 static int fake_role_visible(void* u, char const* r) { (void)u; (void)r; return 0; }
 static int fake_role_click(void* u, char const* r, int op) { (void)u; (void)r; (void)op; return 0; }
 static int fake_role_id(void* u, char const* r) { (void)u; (void)r; return -1; }
@@ -500,8 +516,8 @@ static int fake_role_slot(void* u, char const* r, int* s, int* m)
 { (void)u; (void)r; (void)s; (void)m; return 0; }
 static int fake_role_replace(void* u, int p, char const* r, int e)
 { (void)u; (void)p; (void)r; (void)e; return 1; }
-static int fake_role_anchor(void* u, int p, char const* r, int replace)
-{ (void)u; (void)p; (void)replace; return r ? 0 : 1; }
+static int fake_role_anchor(void* u, int p, char const* r, int replace, int place)
+{ (void)place; (void)u; (void)p; (void)replace; return r ? 0 : 1; }
 static int fake_stat(void* u, int s, int* c, int* b) { (void)u; (void)s; (void)c; (void)b; return 0; }
 static int fake_stat_xp(void* u, int s, int* a, int* b, int* c) { (void)u; (void)s; (void)a; (void)b; (void)c; return 0; }
 static char const* fake_skill_name(void* u, int s) { (void)u; (void)s; return NULL; }
@@ -750,6 +766,21 @@ main(void)
             g_frame.overlay[TORIRS_PLUGIN_SLOT_COMPASS].y == 4 &&
             g_frame.overlay[TORIRS_PLUGIN_SLOT_COMPASS].trans == 0,
         "classic map housing is attached to the compass slot, the last of the two");
+    /*
+     * That overlay is the FALLBACK, for a lane with no housing to claim. On a
+     * lane that names its housing `minimap_edge`, the classic layout PROVIDES
+     * the object under that name instead -- claims it, and paints its plate
+     * as the object's appearance -- so that anything hung off the name (the
+     * minimap-orbs column) keeps resolving to the plate that is actually on
+     * screen. No overlay is declared then: the object is the plate.
+     */
+    g_fake_minimap_edge = 1;
+    declare(765, 503);
+    CHECK(
+        !g_frame.overlay[TORIRS_PLUGIN_SLOT_COMPASS].placed &&
+            !g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed,
+        "on a lane with a minimap_edge the classic housing is claimed, not overlaid");
+    g_fake_minimap_edge = 0;
     CHECK(
         g_frame.slot[TORIRS_PLUGIN_SLOT_MAIN_MODAL].placed,
         "the modal region is placed, not left to the lane");

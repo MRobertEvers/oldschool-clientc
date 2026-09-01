@@ -3090,6 +3090,7 @@ app_plugin_hit_region(
     {
         region->role_anchored = 1;
         region->role_replace = app->plugin_role_anchor_replace;
+        region->role_place = app->plugin_role_anchor_place;
         region->role_node = app->plugin_role_anchor_node;
         region->role_incarnation = app->plugin_role_anchor_incarnation;
         /* Zero until emit reaches this exact subtree and publishes the same
@@ -3860,7 +3861,8 @@ app_plugin_role_anchor(
     void* user,
     int plugin,
     char const* role,
-    int replace)
+    int replace,
+    int place)
 {
     struct App* app = (struct App*)user;
     int32_t node;
@@ -3874,6 +3876,7 @@ app_plugin_role_anchor(
         app->plugin_role_anchor_node = -1;
         app->plugin_role_anchor_incarnation = 0;
         app->plugin_role_anchor_replace = 0;
+        app->plugin_role_anchor_place = 0;
         return 1;
     }
 
@@ -3885,6 +3888,7 @@ app_plugin_role_anchor(
     app->plugin_role_anchor_node = -1;
     app->plugin_role_anchor_incarnation = 0;
     app->plugin_role_anchor_replace = replace ? 1 : 0;
+    app->plugin_role_anchor_place = (uint8_t)place;
     if( !app->tree )
         return 0;
     node = app_plugin_role_node(app, role);
@@ -3907,7 +3911,8 @@ app_plugin_role_anchor(
         app,
         app->plugin_role_anchor_node,
         app->plugin_role_anchor_incarnation,
-        app->plugin_role_anchor_replace);
+        app->plugin_role_anchor_replace,
+        app->plugin_role_anchor_place);
     return 1;
 }
 

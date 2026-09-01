@@ -544,6 +544,12 @@ static struct
     /** Paint declarations attached directly to live slots (today, the one map
      *  housing). Counted only for the one-line declaration diagnostic. */
     int anchored_count;
+    /**
+     * This plugin holds `minimap_edge` -- the map housing is being PROVIDED
+     * under its semantic name rather than blitted over the lane's plate.
+     * @see frame_housing_claim.
+     */
+    int housing_claimed;
     struct FrameTab tab[FRAME_TAB_COUNT];
     int tab_count;
     /*
@@ -899,6 +905,79 @@ frame_skin_scrollbar(struct ToriRS_PluginCtx* ctx)
         g_image[IMG_O_SB_ARROW_DOWN]);
 }
 
+/* -------------------------------------------------------- the housing */
+
+/*
+ * The map housing is a SEMANTIC OBJECT, and the frame provides it by name.
+ *
+ * The 2004 lane calls its housing `minimap_edge`: one plate with the map's
+ * and the compass's holes cut out of it, painted after both, and the thing a
+ * readout drawn beside the map has to sit on top of -- the minimap-orbs
+ * column hangs off exactly that name. A layout that merely blitted its own
+ * plate over the lane's left the name pointing at a node the layout had
+ * suppressed: the orbs resolved `minimap_edge`, found a box, anchored to it,
+ * and painted into a subtree that emits nothing.
+ *
+ * So the housing is CLAIMED. Holding APPEARANCE on `minimap_edge` replaces
+ * the lane's plate with this frame's: the host hides the node, paints this
+ * declaration at its tombstone -- which is after the map and the compass,
+ * because that is where the lane put its plate -- and routes every other
+ * plugin that anchors to the name to the same tombstone. The name keeps its
+ * meaning; only who draws it changed.
+ *
+ * A lane with no `minimap_edge` to claim gets the plate the old way, hung
+ * off the compass slot so it still paints after both holes. That is the
+ * fallback and not the design: nothing can anchor to a plate that has no
+ * name.
+ */
+static int
+frame_housing_claim(struct ToriRS_PluginCtx* ctx, int want)
+{
+    assert(ctx);
+    if( want && !g_frame.housing_claimed )
+    {
+        int const got = g_api->chrome_claim(
+            ctx, "minimap_edge", TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE, 1);
+        g_frame.housing_claimed = got > 0;
+    }
+    else if( !want && g_frame.housing_claimed )
+    {
+        (void)g_api->chrome_claim(
+            ctx, "minimap_edge", TORIRS_PLUGIN_CHROME_SCOPE_APPEARANCE, 0);
+        g_frame.housing_claimed = 0;
+    }
+    return g_frame.housing_claimed;
+}
+
+/**
+ * EV_CHROME: the housing's picture, for the name this frame holds.
+ *
+ * The box is the object's own -- this frame holds the picture and not the
+ * position, because the lane draws the object and only the lane can say
+ * where -- and it is passed anyway so the declaration reads as the whole
+ * part it is.
+ */
+static enum ToriRS_PluginVerdict
+frame_on_chrome(struct ToriRS_PluginCtx* ctx, void* payload, void* userdata)
+{
+    struct ToriRS_PluginChromePart part;
+
+    (void)payload;
+    (void)userdata;
+    assert(ctx);
+
+    if( !g_frame.housing_claimed )
+        return TORIRS_PLUGIN_PASS;
+
+    memset(&part, 0, sizeof(part));
+    for( int i = 0; i < TORIRS_PLUGIN_CHROME_STATE_COUNT; i++ )
+        part.art[i] = -1;
+    (void)g_api->role_rect(ctx, "minimap_edge", &part.x, &part.y, &part.w, &part.h);
+    part.art[TORIRS_PLUGIN_CHROME_IDLE] = g_image[IMG_C_MAPBACK];
+    g_api->chrome_paint(ctx, "minimap_edge", &part);
+    return TORIRS_PLUGIN_PASS;
+}
+
 /* --------------------------------------------------------- classic fixed */
 
 /*
@@ -961,28 +1040,21 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
     frame_blit(g_image[IMG_C_BACKLEFT1], 0, 4);
     frame_blit(g_image[IMG_C_BACKVMID1], 516, 4);
     /*
-     * The housing, hung off the COMPASS and not off the map.
+     * The housing: PROVIDED under its name where the lane has one, and only
+     * otherwise blitted. @see frame_housing_claim.
      *
-     * `mapback` is one plate with TWO holes in it -- the round map window and
-     * the compass rose's -- so it has to paint after both of the live surfaces
-     * it frames, which is exactly the order the revconfig states it in
-     * (`[layout:fixed]` places compass_widget, then mapback, twelve entries
-     * later). An overlay is emitted after its anchor's whole subtree, so the
-     * anchor has to be the LATER of the two, and on this frame that is the
-     * compass: the map is placed first and the compass second.
-     *
-     * Anchored to the map, which is what it named before, the plate went down
-     * between the two -- over the map and under the rose -- and the compass
-     * came out drawn on top of the frame as a bare square, with the hole it
-     * belongs in painted behind it.
-     *
-     * It does mean the housing follows the compass: an overlay whose anchor a
-     * gameframe does not have is omitted. That is not a case this layout can
-     * reach -- it places the compass itself, six lines down -- and it is the
-     * honest coupling anyway, because a plate with a compass hole in it is
-     * only the right picture for a frame that has a compass.
+     * The fallback hangs off the COMPASS and not off the map. `mapback` is
+     * one plate with TWO holes in it -- the round map window and the compass
+     * rose's -- so it has to paint after both of the live surfaces it frames,
+     * which is exactly the order the revconfig states it in (`[layout:fixed]`
+     * places compass_widget, then mapback, twelve entries later). An overlay
+     * is emitted after its anchor's whole subtree, so the anchor has to be
+     * the LATER of the two, and on this frame that is the compass. Anchored
+     * to the map, the plate went down between the two and the compass came
+     * out drawn on top of the frame as a bare square.
      */
-    frame_slot_overlay(ctx, TORIRS_PLUGIN_SLOT_COMPASS, g_image[IMG_C_MAPBACK], 550, 4);
+    if( !frame_housing_claim(ctx, 1) )
+        frame_slot_overlay(ctx, TORIRS_PLUGIN_SLOT_COMPASS, g_image[IMG_C_MAPBACK], 550, 4);
     frame_blit(g_image[IMG_C_BACKRIGHT1], 722, 4);
     frame_blit(g_image[IMG_C_BACKHMID1], 516, 160);
     frame_blit(g_image[IMG_C_BACKVMID2], 516, 205);
@@ -1092,6 +1164,10 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
     frame_blit(g_image[IMG_O_BACKTOP_RIGHT], 717, 0);
     frame_blit(g_image[IMG_O_BACKLEFT1], 0, 4);
     frame_blit(g_image[IMG_O_BACKVMID1], 516, 4);
+    /* This frame's housing is its own picture inside the map's boundary, not
+     * the lane's `minimap_edge`; a claim left over from the 2004 layout would
+     * paint a 2004 plate over it. */
+    (void)frame_housing_claim(ctx, 0);
     frame_slot_overlay(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, g_image[IMG_O_MAPBACK], 545, 4);
     frame_blit(g_image[IMG_O_BACKRIGHT_TOP], 717, 4);
     frame_blit(g_image[IMG_O_BACKHMID1], 516, 160);
@@ -1255,6 +1331,7 @@ frame_layout_modern_resizable(
 
     assert(ctx);
 
+    (void)frame_housing_claim(ctx, 0);
     frame_slot_overlay(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, g_image[IMG_O_MAPBACK_R], map_x, 0);
     /*
      * The panel backing FIRST, and larger than the panel.
@@ -2068,6 +2145,7 @@ frame_on_stop(
     /* Explicitly, rather than leaving it to the teardown: the release is what
      * hands the lane's own chrome back, and doing it here means it has
      * happened before the images this frame was drawn from are dropped. */
+    (void)frame_housing_claim(ctx, 0);
     g_api->layout_release(ctx);
     for( int i = 0; i < FRAME_IMG_COUNT; i++ )
     {
@@ -2158,6 +2236,7 @@ frame_init(
     api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, frame_on_stop, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_LAYOUT, frame_on_layout, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_FRAME, frame_on_draw, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_CHROME, frame_on_chrome, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CANVAS_CLICK, frame_on_click, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CONFIG_CHANGED, frame_on_config, NULL);
 }

@@ -953,7 +953,8 @@ orbs_claim_all(struct ToriRS_PluginCtx* ctx)
                 continue;
             }
             orbs_box(ctx, &anchor, i, &initial.x, &initial.y);
-            got = g_api->chrome_add(ctx, ORB_PART[i].part, anchor.role, &initial);
+            got = g_api->chrome_add(
+                ctx, ORB_PART[i].part, anchor.role, TORIRS_PLUGIN_ANCHOR_AFTER, &initial);
             if( got > 0 )
                 snprintf(g_orb[i].anchor, sizeof(g_orb[i].anchor), "%s", anchor.role);
         }
@@ -1268,7 +1269,9 @@ orbs_draw(
      * after it would be dropped by the host anyway; returning here says so
      * once instead of drawing nine images into a discard.
      */
-    if( !g_api->role_anchor(ctx, anchor.role) )
+    /* AFTER the housing: the whole point of hanging off `minimap_edge` is
+     * to sit on top of it. */
+    if( !g_api->role_anchor(ctx, anchor.role, TORIRS_PLUGIN_ANCHOR_AFTER) )
         return TORIRS_PLUGIN_PASS;
 
     /* Asked for every frame, not only at start: an image that failed its read

@@ -2648,6 +2648,7 @@ app_overlay_push(
             anchored->node_index = app->plugin_role_anchor_node;
             anchored->node_incarnation = app->plugin_role_anchor_incarnation;
             anchored->replace = app->plugin_role_anchor_replace;
+            anchored->place = app->plugin_role_anchor_place;
             return;
         }
         int cap = (int)(sizeof(app->canvas_overlays) / sizeof(app->canvas_overlays[0]));
@@ -2693,7 +2694,8 @@ app_role_overlay_group_seed(
     struct App* app,
     int32_t node,
     uint32_t incarnation,
-    int replace)
+    int replace,
+    int place)
 {
     int const cap = (int)(sizeof(app->plugin_role_overlay_groups) /
                           sizeof(app->plugin_role_overlay_groups[0]));
@@ -2704,7 +2706,7 @@ app_role_overlay_group_seed(
         struct UITreeRoleOverlayGroup const* group =
             &app->plugin_role_overlay_groups[i];
         if( group->node_index == node && group->node_incarnation == incarnation &&
-            group->replace == (replace ? 1 : 0) )
+            group->replace == (replace ? 1 : 0) && group->place == place )
             return;
     }
     if( app->plugin_role_overlay_group_count >= cap )
@@ -2715,6 +2717,7 @@ app_role_overlay_group_seed(
     group->node_index = node;
     group->node_incarnation = incarnation;
     group->replace = replace ? 1 : 0;
+    group->place = (uint8_t)place;
 }
 
 static void
@@ -2730,7 +2733,7 @@ app_role_overlays_group(struct App* app)
         struct AppPluginRoleOverlayRaw const* raw =
             &app->plugin_role_overlay_raw[i];
         app_role_overlay_group_seed(
-            app, raw->node_index, raw->node_incarnation, raw->replace);
+            app, raw->node_index, raw->node_incarnation, raw->replace, raw->place);
     }
     for( int g = 0; g < app->plugin_role_overlay_group_count; g++ )
     {
@@ -2743,7 +2746,7 @@ app_role_overlays_group(struct App* app)
                 &app->plugin_role_overlay_raw[i];
             if( raw->node_index != group->node_index ||
                 raw->node_incarnation != group->node_incarnation ||
-                raw->replace != group->replace )
+                raw->replace != group->replace || raw->place != group->place )
                 continue;
             app->plugin_role_overlay_items[write++] = raw->item;
         }
@@ -4009,6 +4012,7 @@ app_plugin_pointer_capture_latch(
             capture->surface = region->surface;
             capture->role_anchored = region->role_anchored;
             capture->role_replace = region->role_replace;
+            capture->role_place = region->role_place;
             capture->role_node = region->role_node;
             capture->role_incarnation = region->role_incarnation;
         }
@@ -6013,7 +6017,8 @@ app_host_request(
                 region->role_node != req->u.set_role_overlay_clip.node_index ||
                 region->role_incarnation !=
                     req->u.set_role_overlay_clip.node_incarnation ||
-                !!region->role_replace != !!req->u.set_role_overlay_clip.replace )
+                !!region->role_replace != !!req->u.set_role_overlay_clip.replace ||
+                region->role_place != req->u.set_role_overlay_clip.place )
                 continue;
             region->role_clip_x = req->u.set_role_overlay_clip.clip_x;
             region->role_clip_y = req->u.set_role_overlay_clip.clip_y;
