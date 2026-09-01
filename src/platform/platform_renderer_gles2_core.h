@@ -118,15 +118,21 @@
 #define GLES2_DRAW_ITEM_INIT 1024u
 /* How often a rotmask slot re-hashes its source sprite for a content change:
  * every Nth frame, staggered per slot. A minimap refresh lands at most N
- * frames late, and the hash -- a full read of the sprite -- costs 1/N. */
+ * frames late, and the hash -- a full read of the sprite -- costs 1/N.
+ * With TORIRS_GLES2_ROTMASK_GEN (the default) the hash is only a debug
+ * cross-check of the generation counter; see gles2_ui_rotmask_upload_source. */
 #define GLES2_ROTMASK_HASH_PERIOD 8u
 #define GLES2_UI_ATLAS_DIM 2048u
 #define GLES2_UI_SPRITE_CAP 2048
 #define GLES2_UI_VARIANT_CAP 2048u
 #define GLES2_UI_FONT_CAP 32
 #define GLES2_UI_BATCH_MAX_VERTS 32768u
-/* The 2D stream's opening size; a frame's UI is many small flushes. */
+/* The 2D stream's opening size; a frame's UI is many small flushes (or, with
+ * TORIRS_GLES2_UI_DEFER, one upload of the whole pass). */
 #define GLES2_UI_STREAM_INIT_BYTES (256u * 1024u)
+/* The deferred 2D pass: opening sizes of the CPU vertex and record arrays. */
+#define GLES2_UI_PASS_INIT_VERTICES 8192u
+#define GLES2_UI_PASS_INIT_RECORDS 64u
 #define GLES2_UI_ROTMASK_INIT_CAP 8u
 #define GLES2_UI_FONT_BOX_MAX_LINES 64
 #define GLES2_WIDGET_MODEL_NEAR 50.0f
@@ -157,6 +163,13 @@
  * (placements scattered across windows by a long walk) and is emptied, so
  * the next frame re-places the live set contiguously in painter order. */
 #define GLES2_HOT_COMPACT_DRAWS 48u
+/* Hysteresis on that compaction: after one, the ring is left alone for at
+ * least this many frames however fragmented it looks. Without it a live set
+ * that legitimately needs more than GLES2_HOT_COMPACT_DRAWS windows (a long
+ * sight line across bake order) was emptied EVERY frame -- a whole ring of
+ * re-placement per frame, ~2.5 MB of glBufferSubData, invisible with the
+ * camera still because a still frame has few draws. */
+#define GLES2_HOT_COMPACT_MIN_INTERVAL_FRAMES 30u
 /* A batch pose locates its Batch16 ENTRY: the batch slot and the entry's
  * index in it, from which the chunk, the vertex base and the GPU page all
  * follow. An entry is the unit the painter keeps residency for. */
@@ -357,13 +370,58 @@ struct GLES2UIRotmaskSlot
     uint32_t mask_hash;
     bool source_hash_valid;
     bool mask_hash_valid;
+    /* TORIRS_GLES2_ROTMASK_GEN: the rotmask source generation
+     * (gles2_rotmask_source_generation) each texture was uploaded at; 0 =
+     * never. A slot re-uploads when the producer has bumped it since. */
+    uint32_t source_generation;
+    uint32_t mask_generation;
     bool used;
+};
+
+/* The vertex layouts a 2D draw record can name (GLES2UIDrawRecord.layout). */
+#define GLES2_UI_RECORD_LAYOUT_UI 0u
+#define GLES2_UI_RECORD_LAYOUT_ROTMASK 1u
+/* A widget model's triangles: the UI vertex layout over the WORLD atlas. */
+#define GLES2_UI_RECORD_LAYOUT_WIDGET 2u
+
+/*
+ * One deferred 2D draw (TORIRS_GLES2_UI_DEFER). The pass appends every
+ * vertex into one CPU array and records each batch as a RANGE of it plus the
+ * state the draw needs; gles2_ui_submit uploads the array once, binds the
+ * attributes once, and issues glDrawArrays(first, count) per record. The
+ * state that GL applies at draw-issue time -- scissor, the two texture units,
+ * the program -- is captured here because with deferral the record time and
+ * the issue time are no longer the same moment.
+ */
+struct GLES2UIDrawRecord
+{
+    /** UI layout: first vertex in the pass array. Rotmask layout: first
+     *  vertex in the pass's rotmask side array. */
+    uint32_t first;
+    uint32_t count;
+    /** Unit 0 (the sprite atlas, the world atlas for a widget model, or the
+     *  rotmask source) and unit 1 (a font, or the rotmask stencil). 0 means
+     *  the white texture. */
+    GLuint texture0;
+    GLuint texture1;
+    uint8_t layout;
+    uint8_t scissor_enabled;
+    /** The record samples the UI sprite atlas: it must be uploaded before
+     *  the first deferred draw. */
+    uint8_t uses_sprite_atlas;
+    /** Rotmask only: the u_mask_invert uniform. */
+    float mask_invert;
+    struct GLES2Rect scissor;
 };
 
 struct GLES2UIBatch
 {
     struct GLES2VertexUI* vertices;
     uint32_t vertex_count;
+    /** Deferred pass: the index in renderer->ui_pass_vertices where this
+     *  batch's vertices start (its vertices are appended straight into the
+     *  pass array, so `vertices` is unused there). */
+    uint32_t first;
     /* Unit 1's texture for the whole batch (0 until a quad names one); unit
      * 0 is always the sprite atlas. A quad naming a different unit-1 texture
      * is the one texture change that still ends a batch. */
@@ -380,8 +438,11 @@ struct GLES2StaticBatch
     uint32_t* page_ids;
     uint32_t page_id_capacity;
     /* Per entry: the resident window serial it was placed at, 0 = never.
-     * Owned by the painter path (gles2_painter_batch_reset). */
-    uint32_t* hot_serial;
+     * Owned by the painter path (gles2_painter_batch_reset). 64-bit so the
+     * residency compare `hot_head - serial <= ring` never wraps: a 32-bit
+     * head passed 2^32 after ~16k ring laps, and at the wrap a stale serial
+     * compared as freshly placed. */
+    uint64_t* hot_serial;
     uint32_t hot_serial_capacity;
     bool active;
     bool building;
@@ -406,6 +467,14 @@ struct GLES2StaticPageRef
     uint32_t chunk_index;
     uint32_t gpu_offset;
     uint32_t gpu_capacity;
+    /* The chunk's CPU vertex buffer, cached when the page is assigned so the
+     * painter's placement does not walk page -> batch -> chunk -> vbo per
+     * model. A Batch16 chunk and its VBO object are allocated once and
+     * reused across every begin/clear (never freed before the batch is), so
+     * the pointer is stable for as long as `valid` is; the vertex array
+     * inside it is read through the VBO at use time, never cached, because a
+     * rebuild may realloc it. NULL while !valid. */
+    const struct TRSPK_VBO* cpu_vbo;
     bool valid;
 };
 
@@ -440,6 +509,23 @@ struct ToriRS_GLES2
     /* The depth renderer's private state, and the mode selector: non-NULL
      * means the gles2_zbuffer_* implementation owns the world path. */
     struct GLES2ZBufferWorld* zbuffer;
+
+    /* TORIRS_GLES2_DEBUG=1: the 300-frame counters printed from gles2_end_3d
+     * and the debug-only glGetError checks. Read once at creation; the
+     * getenv used to sit in the per-frame path. */
+    bool debug;
+    /*
+     * The performance levers, each read once from the environment at
+     * creation (ToriRS_GLES2_New): NAME=0 selects the previous behaviour,
+     * anything else (or unset) the new one. They exist so the two arms can
+     * be A/B'd on the device with one binary; the control arms are not
+     * deprecated code, they are the reference the new arms are judged
+     * against.
+     */
+    bool lever_ui_defer;      /* TORIRS_GLES2_UI_DEFER: one 2D upload, range draws */
+    bool lever_resident_fast; /* TORIRS_GLES2_RESIDENT_FAST: serial test before the chunk walk */
+    bool lever_triplet_neon;  /* TORIRS_GLES2_TRIPLET_NEON: vst3q_u16 index triplets */
+    bool lever_rotmask_gen;   /* TORIRS_GLES2_ROTMASK_GEN: generation counter, not a hash */
 
     int width;
     int height;
@@ -530,13 +616,18 @@ struct ToriRS_GLES2
      * in one glBufferSubData per frame (gles2_painter_flush).
      */
     GLuint hot_vbo;
-    uint32_t hot_head;
+    /* 64-bit: see GLES2StaticBatch::hot_serial. */
+    uint64_t hot_head;
     /* The oldest serial among residents drawn THIS frame. A placement may
      * not advance the head past it plus one ring: that would overwrite the
      * bytes of a model this frame's draw has already been told to read, and
      * the model would flicker or draw garbage. Reset at the start of the
-     * pass; a placement that cannot fit is refused and the model gathered. */
-    uint32_t hot_frame_oldest_serial;
+     * pass (to UINT64_MAX = none yet); a placement that cannot fit is refused
+     * and the model gathered. */
+    uint64_t hot_frame_oldest_serial;
+    /* Frames since the ring was last emptied for fragmentation; the
+     * compaction waits GLES2_HOT_COMPACT_MIN_INTERVAL_FRAMES between two. */
+    uint32_t hot_frames_since_compaction;
     struct TRSPK_VertexGLES2* hot_stage;
     uint32_t hot_stage_capacity;
     uint32_t hot_stage_count;
@@ -551,6 +642,11 @@ struct ToriRS_GLES2
     uint32_t painter_stat_placed_models;
     uint32_t painter_stat_draws;
     uint32_t painter_stat_compactions;
+    /* Frames the fragmentation test fired but the interval held it back. */
+    uint32_t painter_stat_compactions_deferred;
+    /* Resident window: models found resident by the serial test alone (no
+     * chunk walk) versus placements that had to resolve the CPU source. */
+    uint32_t painter_stat_resident_hits;
     /* The face sort's workload: models by bake size (2 faces = a terrain
      * tile, then <=16, <=64, <=256, larger), faces handed to the sort, and
      * faces that came out of it. The numbers that say where the sort's time
@@ -617,6 +713,29 @@ struct ToriRS_GLES2
     uint32_t ui_rotmask_count;
     uint32_t ui_rotmask_capacity;
     struct GLES2UIBatch ui_batch;
+    /*
+     * The deferred 2D pass (TORIRS_GLES2_UI_DEFER): every UI-layout vertex
+     * of the pass in one array, the few rotmask-layout vertices in a side
+     * array, and the draw records over them. Sent and drawn by
+     * gles2_ui_submit; see struct GLES2UIDrawRecord.
+     */
+    struct GLES2VertexUI* ui_pass_vertices;
+    uint32_t ui_pass_vertex_count;
+    uint32_t ui_pass_vertex_capacity;
+    struct GLES2VertexRotmask* ui_pass_rotmask_vertices;
+    uint32_t ui_pass_rotmask_count;
+    uint32_t ui_pass_rotmask_capacity;
+    struct GLES2UIDrawRecord* ui_pass_records;
+    uint32_t ui_pass_record_count;
+    uint32_t ui_pass_record_capacity;
+    /* Whether program_ui / program_rotmask already hold projection_2d.
+     * Uniform values are PROGRAM object state (ES 2.0 §2.10.4): they survive
+     * glUseProgram switches, so the matrix only needs re-sending when
+     * projection_2d itself changes (gles2_update_letterbox) or the program
+     * is re-created. Cleared there; the control arm ignores them and pushes
+     * per flush as before. */
+    bool ui_projection_pushed;
+    bool rotmask_projection_pushed;
     GLuint white_texture;
     /** This frame's 2D stream buffer (ui_stream's current one). */
     GLuint ui_vbo;
@@ -901,6 +1020,9 @@ void
 gles2_begin_2d(struct ToriRS_GLES2* renderer);
 void
 gles2_end_2d(struct ToriRS_GLES2* renderer);
+/** Every 2D draw recorded so far reaches the GPU: the open batch is closed
+ *  and, on the deferred arm, the pass's records are uploaded and issued.
+ *  Call before deleting or rewriting anything a recorded draw samples. */
 void
 gles2_ui_flush(struct ToriRS_GLES2* renderer);
 void
@@ -961,16 +1083,35 @@ gles2_ui_font_unload(struct ToriRS_GLES2* renderer, int font_id);
 /* ---- what the core exposes to the UI unit ------------------------------- */
 
 /** Append `bytes` to this frame's 2D stream buffer; returns the byte offset
- *  they landed at, with renderer->ui_vbo left bound as the array buffer. */
+ *  they landed at, with renderer->ui_vbo left bound as the array buffer.
+ *  `earlier_appends_drawn`: every byte appended to the 2D stream earlier
+ *  this frame has already had its draw ISSUED (the immediate 2D path draws
+ *  right after each append). Growth of the store may then orphan it; when
+ *  false, growth is only allowed at offset 0 (see gles2_stream_set_append). */
 uint32_t
-gles2_ring_upload(struct ToriRS_GLES2* renderer, const void* data, uint32_t bytes);
+gles2_ring_upload(
+    struct ToriRS_GLES2* renderer,
+    const void* data,
+    uint32_t bytes,
+    bool earlier_appends_drawn);
 
 /** Point the attributes at a UI-layout stream (the ring) at `byte_offset`;
- *  the rotmask variant adds the mask coordinate attribute. */
+ *  the rotmask variant adds the mask coordinate attribute. Both are no-ops
+ *  when the attributes already point there. */
 void
 gles2_bind_ui_stream(struct ToriRS_GLES2* renderer, uint32_t byte_offset);
 void
 gles2_bind_rotmask_stream(struct ToriRS_GLES2* renderer, uint32_t byte_offset);
+
+/** Grow renderer->upload_stage (the packed-row texture staging buffer) to at
+ *  least `needed` bytes. Shared by the atlas and rotmask uploads. */
+void
+gles2_reserve_upload_stage(struct ToriRS_GLES2* renderer, size_t needed);
+
+/** The rotmask source generation (ToriRS_GLES2_RotmaskSourceChanged): the
+ *  count of times the sprites behind a rotmask slot were rewritten in place. */
+uint32_t
+gles2_rotmask_source_generation(void);
 
 /** Convert a logical-space rectangle to a framebuffer scissor rectangle,
  *  clamped to the letterbox. False when nothing survives. */

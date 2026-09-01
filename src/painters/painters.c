@@ -429,6 +429,25 @@ painter_new(
     painter->scenery_pool = NULL;
     painter->scenery_pool_count = 0;
     painter->scenery_pool_capacity = 0;
+    painter->static_scenery_pool_count = 0;
+
+    painter->terrain_element = malloc((size_t)tile_count * sizeof(int32_t));
+    assert(painter->terrain_element);
+    for( int i = 0; i < tile_count; i++ )
+        painter->terrain_element[i] = -1;
+
+    painter->dyn_recording = 0;
+    painter->dyn_skip_override = -1;
+    painter->dyn_journal = NULL;
+    painter->dyn_journal_count = 0;
+    painter->dyn_journal_capacity = 0;
+    painter->dyn_previous = NULL;
+    painter->dyn_previous_count = 0;
+    painter->dyn_previous_capacity = 0;
+    painter->dyn_previous_valid = 0;
+    painter->static_generation = 0;
+    painter->dyn_previous_generation = 0;
+    painter->dyn_skipped_count = 0;
 
     for( int sx = 0; sx < width; sx++ )
     {
@@ -469,6 +488,7 @@ painter_new(
         free(painter->tile_paints);
         free(painter->elements);
         free(painter->element_paints);
+        free(painter->terrain_element);
         free(painter);
         return NULL;
     }
@@ -693,6 +713,9 @@ painter_free(struct Painter* painter)
     free(painter->tile_paints);
     free(painter->elements);
     free(painter->element_paints);
+    free(painter->terrain_element);
+    free(painter->dyn_journal);
+    free(painter->dyn_previous);
     bucket_ctx_free(painter);
     w3d_ctx_free(painter);
     distmetric_ctx_free(painter);
@@ -889,8 +912,100 @@ compute_normal_scenery_spans(
     }
 }
 
+/*
+ * The dynamic journal (see painter_dynamics_begin in the header).
+ *
+ * The three registration entry points the per-cycle pass uses are split in
+ * two: the public function records or bumps and delegates, the _apply half
+ * does the work. The replay in painter_dynamics_commit calls the _apply
+ * halves directly, so a rebuild neither re-records itself nor counts as a
+ * change to the static set.
+ */
+static int
+painter_dyn_skip_enabled(struct Painter* painter)
+{
+    /* TORIRS_PAINTER_DYN_SKIP: 1 (default) keeps the previous cycle's dynamic
+     * registrations in place when this cycle's are identical; 0 rebuilds every
+     * cycle (the control arm). Read once. */
+    static int cached = -1;
+
+    if( painter->dyn_skip_override >= 0 )
+        return painter->dyn_skip_override;
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_PAINTER_DYN_SKIP");
+        cached = (v && v[0] == '0') ? 0 : 1;
+    }
+    return cached;
+}
+
+static void
+painter_dyn_record(
+    struct Painter* painter,
+    const struct PainterDynRecord* record)
+{
+    assert(painter);
+    assert(record);
+    assert(painter->dyn_recording);
+    if( painter->dyn_journal_count == painter->dyn_journal_capacity )
+    {
+        int cap = painter->dyn_journal_capacity ? painter->dyn_journal_capacity * 2 : 256;
+        painter->dyn_journal =
+            realloc(painter->dyn_journal, (size_t)cap * sizeof(struct PainterDynRecord));
+        assert(painter->dyn_journal);
+        painter->dyn_journal_capacity = cap;
+    }
+    painter->dyn_journal[painter->dyn_journal_count++] = *record;
+}
+
+static int
+painter_add_normal_scenery_apply(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity,
+    int size_x,
+    int size_z,
+    int model_height,
+    uint8_t flags);
+
 int
 painter_add_normal_scenery_ex(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity,
+    int size_x,
+    int size_z,
+    int model_height,
+    uint8_t flags)
+{
+    assert(painter);
+    if( painter->dyn_recording )
+    {
+        struct PainterDynRecord record;
+        memset(&record, 0, sizeof(record));
+        record.op = PAINTER_DYN_OP_SCENERY;
+        record.flags = flags;
+        record.level = (uint8_t)slevel;
+        record.sx = (int16_t)sx;
+        record.sz = (int16_t)sz;
+        record.size_x = (int16_t)size_x;
+        record.size_z = (int16_t)size_z;
+        record.entity = entity;
+        record.model_height = model_height;
+        painter_dyn_record(painter, &record);
+        return -1;
+    }
+    painter->static_generation++;
+    return painter_add_normal_scenery_apply(
+        painter, sx, sz, slevel, entity, size_x, size_z, model_height, flags);
+}
+
+static int
+painter_add_normal_scenery_apply(
     struct Painter* painter,
     int sx,
     int sz,
@@ -1023,7 +1138,152 @@ painter_add_normal_scenery(
 void
 painter_mark_static_count(struct Painter* painter)
 {
+    assert(painter);
     painter->static_element_count = painter->element_count;
+    painter->static_scenery_pool_count = painter->scenery_pool_count;
+    painter->static_generation++;
+}
+
+void
+painter_set_terrain_element(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int element_id)
+{
+    assert(painter);
+    painter->terrain_element[painter_coord_idx(painter, sx, sz, slevel)] = element_id;
+}
+
+int
+painter_terrain_element_at(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel)
+{
+    assert(painter);
+    return painter->terrain_element[painter_coord_idx(painter, sx, sz, slevel)];
+}
+
+void
+painter_clear_terrain_elements(struct Painter* painter)
+{
+    assert(painter);
+    for( int i = 0; i < painter->tile_capacity; i++ )
+        painter->terrain_element[i] = -1;
+}
+
+void
+painter_set_dynamics_skip(
+    struct Painter* painter,
+    int enabled)
+{
+    assert(painter);
+    painter->dyn_skip_override = enabled;
+}
+
+void
+painter_dynamics_begin(struct Painter* painter)
+{
+    assert(painter);
+    assert(!painter->dyn_recording);
+    if( !painter_dyn_skip_enabled(painter) )
+    {
+        painter_reset_to_static(painter);
+        return;
+    }
+    painter->dyn_recording = 1;
+    painter->dyn_journal_count = 0;
+}
+
+static int painter_add_wall_apply(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity,
+    int wall_ab,
+    int side);
+
+static int painter_add_ground_decor_dynamic_apply(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity);
+
+int
+painter_dynamics_commit(struct Painter* painter)
+{
+    struct PainterDynRecord* swap;
+    int swap_capacity;
+
+    assert(painter);
+    /* The control arm: begin already reset and the adds applied themselves. */
+    if( !painter->dyn_recording )
+        return 1;
+    painter->dyn_recording = 0;
+
+    if( painter->dyn_previous_valid &&
+        painter->dyn_previous_generation == painter->static_generation &&
+        painter->dyn_previous_count == painter->dyn_journal_count &&
+        (painter->dyn_journal_count == 0 ||
+         memcmp(
+             painter->dyn_previous,
+             painter->dyn_journal,
+             (size_t)painter->dyn_journal_count * sizeof(struct PainterDynRecord)) == 0) )
+    {
+        painter->dyn_skipped_count++;
+        return 0;
+    }
+
+    painter_reset_to_static(painter);
+    for( int i = 0; i < painter->dyn_journal_count; i++ )
+    {
+        const struct PainterDynRecord* r = &painter->dyn_journal[i];
+        switch( r->op )
+        {
+        case PAINTER_DYN_OP_SCENERY:
+            painter_add_normal_scenery_apply(
+                painter,
+                r->sx,
+                r->sz,
+                r->level,
+                r->entity,
+                r->size_x,
+                r->size_z,
+                r->model_height,
+                r->flags);
+            break;
+        case PAINTER_DYN_OP_WALL:
+            painter_add_wall_apply(
+                painter, r->sx, r->sz, r->level, r->entity, r->wall_ab, r->side);
+            break;
+        case PAINTER_DYN_OP_GROUND_DECOR:
+            painter_add_ground_decor_dynamic_apply(
+                painter, r->sx, r->sz, r->level, r->entity);
+            break;
+        default:
+            assert(false);
+            abort();
+        }
+    }
+
+    /* This cycle's list becomes the one the next cycle compares against; the
+     * old list's storage is reused for the next recording. */
+    swap = painter->dyn_previous;
+    swap_capacity = painter->dyn_previous_capacity;
+    painter->dyn_previous = painter->dyn_journal;
+    painter->dyn_previous_count = painter->dyn_journal_count;
+    painter->dyn_previous_capacity = painter->dyn_journal_capacity;
+    painter->dyn_journal = swap;
+    painter->dyn_journal_count = 0;
+    painter->dyn_journal_capacity = swap_capacity;
+    painter->dyn_previous_valid = 1;
+    painter->dyn_previous_generation = painter->static_generation;
+    return 1;
 }
 
 void
@@ -1122,6 +1382,37 @@ painter_reset_to_static(struct Painter* painter)
         }
     }
 
+#ifndef NDEBUG
+    /* The invariant the truncation below rests on: every pool node a dynamic
+     * element appended sits at or above the static high-water, and the unlink
+     * loop above has taken every one of them out of its chain. Only the tiles
+     * under a dynamic footprint could ever have held one, so those are the
+     * chains checked. */
+    for( int i = painter->element_count - 1; i >= painter->static_element_count; i-- )
+    {
+        if( painter->elements[i].kind != PNTRELEM_SCENERY )
+            continue;
+        for( int x = 0; x < painter->elements[i]._scenery.size_x; x++ )
+        {
+            for( int z = 0; z < painter->elements[i]._scenery.size_z; z++ )
+            {
+                int tx = painter->elements[i].sx + x;
+                int tz = painter->elements[i].sz + z;
+                if( tx >= painter->width || tz >= painter->height )
+                    continue;
+                tile = painter_tile_at(painter, tx, tz, painter->elements[i].source_level);
+                for( int32_t n = tile->scenery_head; n != -1; n = painter->scenery_pool[n].next )
+                    assert(n < painter->static_scenery_pool_count);
+            }
+        }
+    }
+#endif
+    assert(painter->scenery_pool_count >= painter->static_scenery_pool_count);
+    /* Give the dynamic nodes back. Before this the pool only grew: every
+     * cycle's re-registration appended fresh nodes and nothing ever reclaimed
+     * them (~1.4 KB a frame in Lumbridge, reallocating to 2 MB in minutes). */
+    painter->scenery_pool_count = painter->static_scenery_pool_count;
+
     painter->element_count = painter->static_element_count;
 }
 
@@ -1134,6 +1425,7 @@ painter_release_wall(
     int entity)
 {
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    painter->static_generation++;
     if( tile->wall_a >= 0 && (int)painter->elements[tile->wall_a]._wall.entity == entity )
         tile->wall_a = -1;
     if( tile->wall_b >= 0 && (int)painter->elements[tile->wall_b]._wall.entity == entity )
@@ -1151,6 +1443,8 @@ painter_release_scenery(
     struct PaintersTile* anchor = painter_tile_at(painter, sx, sz, slevel);
     int matches[8];
     int match_count = 0;
+
+    painter->static_generation++;
 
     /* Collect first, unlink after: tile_remove_scenery_element rewrites the
      * chain this walk stands in. The anchor tile is enough to find the element —
@@ -1186,6 +1480,35 @@ painter_release_scenery(
 
 int
 painter_add_wall(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity,
+    int wall_ab,
+    int side)
+{
+    assert(painter);
+    if( painter->dyn_recording )
+    {
+        struct PainterDynRecord record;
+        memset(&record, 0, sizeof(record));
+        record.op = PAINTER_DYN_OP_WALL;
+        record.level = (uint8_t)slevel;
+        record.wall_ab = (int8_t)wall_ab;
+        record.side = (int8_t)side;
+        record.sx = (int16_t)sx;
+        record.sz = (int16_t)sz;
+        record.entity = entity;
+        painter_dyn_record(painter, &record);
+        return -1;
+    }
+    painter->static_generation++;
+    return painter_add_wall_apply(painter, sx, sz, slevel, entity, wall_ab, side);
+}
+
+static int
+painter_add_wall_apply(
     struct Painter* painter,
     int sx,
     int sz,
@@ -1253,6 +1576,8 @@ painter_add_wall_decor(
     if( painter->suppress_slot_registration )
         return -1;
 
+    painter->static_generation++;
+
     if( model_height < 0 )
         model_height = 0;
     if( model_height > UINT16_MAX )
@@ -1304,6 +1629,7 @@ painter_add_ground_decor(
     if( painter->suppress_slot_registration )
         return -1;
 
+    painter->static_generation++;
     tile = painter_tile_at(painter, sx, sz, slevel);
     element = painter_push_element(painter);
 
@@ -1322,6 +1648,31 @@ painter_add_ground_decor(
 
 int
 painter_add_ground_decor_dynamic(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity)
+{
+    assert(painter);
+    if( painter->dyn_recording )
+    {
+        struct PainterDynRecord record;
+        memset(&record, 0, sizeof(record));
+        record.op = PAINTER_DYN_OP_GROUND_DECOR;
+        record.level = (uint8_t)slevel;
+        record.sx = (int16_t)sx;
+        record.sz = (int16_t)sz;
+        record.entity = entity;
+        painter_dyn_record(painter, &record);
+        return -1;
+    }
+    painter->static_generation++;
+    return painter_add_ground_decor_dynamic_apply(painter, sx, sz, slevel, entity);
+}
+
+static int
+painter_add_ground_decor_dynamic_apply(
     struct Painter* painter,
     int sx,
     int sz,
@@ -1362,7 +1713,10 @@ painter_add_ground_object(
     int bottom_middle_top)
 {
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
-    int element = painter_push_element(painter);
+    int element;
+
+    painter->static_generation++;
+    element = painter_push_element(painter);
 
     switch( bottom_middle_top )
     {
@@ -1428,11 +1782,13 @@ push_command_entity(
             ._bf_entity = (uint32_t)ElementId_Index(ElementId_FromRaw(entity)),
             ._bf_entity_kind = (uint32_t)ElementId_Kind(ElementId_FromRaw(entity)),
         },
+        ._element_id = entity,
     };
 }
 
 static inline void
 push_command_terrain(
+    struct Painter* painter,
     struct PaintersBuffer* buffer,
     int sx,
     int sz,
@@ -1448,11 +1804,13 @@ push_command_terrain(
             ._bf_terrain_z = sz,
             ._bf_terrain_y = slevel,
         },
+        ._element_id = painter->terrain_element[painter_coord_idx(painter, sx, sz, slevel)],
     };
 }
 
 static inline void
 push_command_terrain_pick_only(
+    struct Painter* painter,
     struct PaintersBuffer* buffer,
     int sx,
     int sz,
@@ -1466,6 +1824,7 @@ push_command_terrain_pick_only(
             ._bf_terrain_z = sz,
             ._bf_terrain_y = slevel,
         },
+        ._element_id = painter->terrain_element[painter_coord_idx(painter, sx, sz, slevel)],
     };
 }
 

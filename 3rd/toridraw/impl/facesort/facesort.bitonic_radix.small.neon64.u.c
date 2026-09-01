@@ -5,6 +5,7 @@
 
 #include <arm_neon.h>
 
+#include <assert.h>
 #include <limits.h>
 
 /*
@@ -386,6 +387,41 @@ toridraw_face_sort_bitonic_radix_lane_sort(
         keys[i] = 0xFFFFFFFFu;
     toridraw_bitonic_sort_u32_neon(keys, N);
     return true;
+}
+
+/*
+ * The emit as vector stores: keys & 0xFFFF, four per vst1q, two vectors a
+ * trip. tmp_face_order has no slack, so the last 1..7 go out one at a time.
+ * TORIDRAW_SORT_EMIT_VEC=0 is the scalar control arm.
+ */
+static inline void
+toridraw_face_sort_bitonic_radix_lane_emit(
+    const uint32_t* RESTRICT keys,
+    int n,
+    int* RESTRICT out)
+{
+    int i = 0;
+
+    assert(keys);
+    assert(out);
+
+    if( toridraw_face_sort_emit_vec_armed() )
+    {
+        uint32x4_t const mask = vdupq_n_u32(0xFFFFu);
+        for( ; i + 8 <= n; i += 8 )
+        {
+            vst1q_s32(out + i, vreinterpretq_s32_u32(vandq_u32(vld1q_u32(keys + i), mask)));
+            vst1q_s32(
+                out + i + 4, vreinterpretq_s32_u32(vandq_u32(vld1q_u32(keys + i + 4), mask)));
+        }
+        if( i + 4 <= n )
+        {
+            vst1q_s32(out + i, vreinterpretq_s32_u32(vandq_u32(vld1q_u32(keys + i), mask)));
+            i += 4;
+        }
+    }
+    for( ; i < n; i++ )
+        out[i] = (int)(keys[i] & 0xFFFFu);
 }
 
 #endif /* TORIDRAW_FACE_SORT_BITONIC_RADIX_NEON64_U_C */

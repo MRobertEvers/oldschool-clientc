@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "toridraw_types.h"
 
@@ -680,12 +681,85 @@ door_pass(enum door door, int chunks, int* texels)
     return ok ? 0 : 1;
 }
 
+/*
+ * TIMING, not scoring. TORIDRAW_PRESORTED_BENCH=N in the environment runs the
+ * asm door alone over the same staged chunks the parity pass stages -- the
+ * same generators, the same seeds, the same run lengths -- N times per chunk
+ * under CLOCK_MONOTONIC, and prints ns per triangle and per drawn pixel. The
+ * reference is not drawn and nothing is compared: this is for putting a
+ * kernel rewrite on a scale, before and after, on the part it is for. The
+ * framebuffer is NOT reset between the N repeats (a blend re-blends its own
+ * output), which changes no instruction the kernel executes.
+ */
+static long long
+now_ns(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long long)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
+
+static void
+door_bench(enum door door, int chunks, int reps, int* texels)
+{
+    static _Alignas(16) int rows[BATCH_MAX * TORIDRAW_RASTER_TEXBATCH_ROW_INTS];
+    int* fb = malloc(sizeof(*fb) * ALLOC);
+    struct tri t[BATCH_MAX];
+    int tex = door >= DOOR_TEX_OPAQUE;
+    long long ns = 0;
+    long triangles = 0;
+    long drawn = 0;
+    int fb_hint;
+    int chunk;
+
+    assert(fb);
+    assert(reps > 0);
+    memset(&fb_hint, 0x5A, sizeof(fb_hint));
+
+    for( chunk = 0; chunk < chunks; chunk++ )
+    {
+        int const count = 1 + (chunk % BATCH_MAX);
+        long long t0;
+        int i;
+        int rep;
+
+        memset(fb, 0x5A, sizeof(*fb) * ALLOC);
+        memset(rows, 0x7E, sizeof(rows));
+        for( i = 0; i < count; i++ )
+        {
+            generate_screen(&t[i], chunk * BATCH_MAX + i);
+            if( tex )
+            {
+                generate_texture(&t[i]);
+                stage_tex(rows, i, &t[i], door, texels);
+            }
+            else
+                stage_solid(rows, i, &t[i], door);
+        }
+
+        t0 = now_ns();
+        for( rep = 0; rep < reps; rep++ )
+            run_door(fb, rows, count, door);
+        ns += now_ns() - t0;
+
+        triangles += (long)count * reps;
+        drawn += count_drawn(fb, fb_hint) * reps;
+    }
+
+    free(fb);
+    printf("BENCH: %-19s reps %d  %ld triangles  %ld px  %.1f ns/tri  %.3f ns/px  %.2f ms\n",
+           g_door_name[door], reps, triangles, drawn,
+           triangles ? (double)ns / (double)triangles : 0.0,
+           drawn ? (double)ns / (double)drawn : 0.0, (double)ns / 1e6);
+}
+
 int
 main(int argc, char** argv)
 {
     int const iters = (argc > 1) ? atoi(argv[1]) : 100000;
     int const chunks = (iters / BATCH_MAX) > 0 ? (iters / BATCH_MAX) : 1;
     int* texels = malloc(sizeof(*texels) * 128 * 128);
+    const char* bench = getenv("TORIDRAW_PRESORTED_BENCH");
     int failed = 0;
     int i;
 
@@ -707,7 +781,10 @@ main(int argc, char** argv)
         if( (flat && !TEST_FLAT) || (gouraud && !TEST_GOURAUD) || (tex && !TEST_TEX) )
             continue;
         g_seed = 20260828u + (unsigned)i;
-        failed |= door_pass((enum door)i, chunks, texels);
+        if( bench && atoi(bench) > 0 )
+            door_bench((enum door)i, chunks, atoi(bench), texels);
+        else
+            failed |= door_pass((enum door)i, chunks, texels);
     }
 
     free(texels);

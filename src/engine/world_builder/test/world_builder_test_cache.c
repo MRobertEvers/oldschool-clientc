@@ -9,6 +9,7 @@
 #include "engine/world_builder/world_builder.h"
 #include "painters/painters.h"
 #include "platform/platform_x_io.h"
+#include "task_runner.h"
 #include "varp/varp_manager.h"
 #include "world/world.h"
 
@@ -124,10 +125,28 @@ run_task(
     struct PlatformX_IO* px,
     struct ToriRS_Task* task)
 {
+    /* The runner, not the bare queue: ToriRS_TaskQueue_Run steps only the
+     * head, so a task that fans out children behind itself and waits on their
+     * residency (Task_WorldLoad) would spin its wait budget without a child
+     * ever running. TaskRunner_Step walks the whole queue and hands the reads
+     * to the platform, which is what the client does per frame. BLOCKED is
+     * the residency wait itself; stepping again is the next frame. */
+    struct TaskRunner runner = {
+        .queue = queue,
+        .io = io,
+        .px = px,
+        /* The client's asset runner is parallel; serial steps the head only,
+         * which is the same starvation one level up. */
+        .parallel = 1,
+    };
+    enum TaskRunnerStat stat;
+
     assert(task);
     ToriRS_TaskQueue_Add(queue, task);
-    while( ToriRS_TaskQueue_Run(queue, io) == TORIRS_ASYNCIO_STAT_YIELD )
-        PlatformX_IO_Process(px, io);
+    do
+    {
+        stat = TaskRunner_Step(&runner);
+    } while( stat != TASK_RUNNER_IDLE );
 }
 
 /* -------- rendering -------- */
@@ -648,6 +667,24 @@ cleanup:
 
 #include <time.h>
 
+#if defined(__APPLE__)
+#include <malloc/malloc.h>
+static size_t
+heap_in_use(void)
+{
+    struct mstats ms = mstats();
+    return ms.bytes_used;
+}
+#else
+#include <malloc.h>
+static size_t
+heap_in_use(void)
+{
+    struct mallinfo mi = mallinfo();
+    return (size_t)mi.uordblks;
+}
+#endif
+
 static double
 bench_now_ms(void)
 {
@@ -753,6 +790,54 @@ test_world_builder_bench(void)
         WorldBuilder_RebuildCenterzone(builder, zone_x, zone_z, 104);
         double w1 = bench_now_ms();
         printf("bench: warm rebuild %d = %.1f ms\n", iter, w1 - w0);
+    }
+
+    /*
+     * Walk mode (WB_WALK=laps): the leak probe. Each lap runs the full
+     * REBUILD_NORMAL path (Task_WorldLoad: trim, IO, rebuild) around a ring
+     * of eight map-square centres and ends back on Lumbridge, so lap-over-lap
+     * heap growth with every asset already resident is memory a rebuild
+     * failed to give back. The first lap pays for the squares and models it
+     * visits; from the second lap on the growth must be ~0.
+     */
+    int walk_laps = getenv("WB_WALK") ? atoi(getenv("WB_WALK")) : 0;
+    if( walk_laps > 0 )
+    {
+        static const int ring[8][2] = {
+            { 51, 50 }, { 52, 50 }, { 52, 51 }, { 52, 52 },
+            { 51, 52 }, { 50, 52 }, { 50, 51 }, { 50, 50 },
+        };
+        size_t lap_start = heap_in_use();
+        printf("walk: heap in use before = %zu KB\n", lap_start / 1024);
+        for( int lap = 0; lap < walk_laps; lap++ )
+        {
+            for( int s = 0; s < 8; s++ )
+            {
+                int cx = ring[s][0];
+                int cz = ring[s][1];
+                int wchunks[18];
+                int wc = 0;
+                for( int mx = cx - 1; mx <= cx + 1; mx++ )
+                    for( int mz = cz - 1; mz <= cz + 1; mz++ )
+                    {
+                        wchunks[wc * 2] = mx;
+                        wchunks[wc * 2 + 1] = mz;
+                        wc++;
+                    }
+                int zx = (cx * 64 + 32) / 8;
+                int zz = (cz * 64 + 32) / 8;
+                run_task(
+                    queue, io, px,
+                    CreateTask_WorldLoad(
+                        provider, builder, queue, wchunks, wc, zx, zz, 104, NULL, NULL, NULL));
+                printf(
+                    "walk: lap %d step %d centre %d,%d heap in use = %zu KB\n",
+                    lap, s, cx, cz, heap_in_use() / 1024);
+            }
+            size_t now = heap_in_use();
+            printf("walk: lap %d growth = %ld KB\n", lap, (long)(now - lap_start) / 1024);
+            lap_start = now;
+        }
     }
 
     printf(

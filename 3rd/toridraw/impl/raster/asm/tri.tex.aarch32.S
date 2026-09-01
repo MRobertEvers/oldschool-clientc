@@ -211,9 +211,6 @@
 #define A_ROWS   (FRAMESZ + 40)
 #define A_COUNT  (FRAMESZ + 44)
 
-/* 2097152.0f: TEX_SPAN_RECIPROCAL_EXACT_LIMIT. */
-#define LIM_F     0x4A000000
-
 #include "graphics/raster/edge_slopes_aarch32.inc"
 
 	.syntax unified
@@ -235,7 +232,7 @@
  *   r12 destination          lr shade, ish8
  *
  *   s0  1/w        s1, s2, s3  scratch
- *   s4  0.0f       s5  2097152.0f      s6  (float)(tw - 1)      s7 scratch
+ *   s4  0.0f       s5  free            s6  (float)(tw - 1)      s7 scratch
  *   q2  {0,1,2,3}  q3  {4,5,6,7}
  *   q8  (tw-1) x4  q9  vmask x4        q10 -shift x4
  *   q0, q11, q12, q13, q14, q15 scratch
@@ -330,17 +327,37 @@
  * tex_span_wrapped_quotient: trust the float reciprocal only while it still
  * carries the low bits that select the texel row, else the C's own `n / w`.
  */
+/*
+ * THE RANGE TEST IS ASKED OF THE INTEGER, ON THE ARM SIDE. The C asks
+ * -2^21 < q < 2^21 of the float; the AArch64 file transcribes that as
+ * fabs/fcmp. Here that would be vabs, vcmp and a `vmrs APSR_nzcv, fpscr` --
+ * and on this part the vmrs is a NEON->ARM transfer that drains the queue,
+ * once per block end. Instead the quotient is converted unconditionally
+ * (the fast path needed the conversion anyway, and the slow path throws it
+ * away) and the ARM asks the same question of the int32: q is finite (n is
+ * an int32 and 1/w <= 1), so -2^21 < q < 2^21 holds exactly when trunc(q)
+ * lies in [-(2^21 - 1), 2^21 - 1] -- a q at or past either limit truncates
+ * to a value at or past it, and a saturated conversion is further past it
+ * still. 0x1FFFFF is not an ARM immediate, so the two bounds are two
+ * compares; both branches fall through on the common path.
+ *
+ * \out is written BEFORE the slow path re-reads \n, so the two must not be
+ * the same register; the assembler refuses the aliasing rather than letting
+ * the exact quotient be taken of the truncated estimate.
+ */
 .macro WRAPQ n, w, out
+.ifc \n,\out
+	.error "WRAPQ: out must not alias n -- the slow path re-reads n"
+.endif
 	vmov	s2, \n
 	vcvt.f32.s32	s2, s2
 	vmul.f32	s2, s2, s0
-	vabs.f32	s3, s2
-	vcmp.f32	s3, s5
-	vmrs	APSR_nzcv, fpscr
-	bge	88f
-	vcvt.s32.f32	s2, s2
+	vcvt.s32.f32	s2, s2			/* truncates toward zero, as C does  */
 	vmov	\out, s2
-	b	89f
+	cmp	\out, #0x200000
+	bge	88f
+	cmn	\out, #0x200000
+	bgt	89f
 88:
 	DIVEXACT \n, \w, \out
 89:
@@ -477,6 +494,17 @@
 	vadd.i32	q15, q15, q0		/* texel indices 0..3                */
 	vadd.i32	q11, q11, q13		/* 4..7                              */
 
+	/* THE GATHER TAKES ITS INDICES OUT OF THE LANES, AND THAT WAS MEASURED.
+	 * Eight `vmov.32 r1, dN[i]` are eight NEON->ARM transfers per block,
+	 * and the note in tri.gouraudhsllightness.aarch32.S's SPANFILL says
+	 * what those cost on this part -- so the obvious repair is two vector
+	 * stores of the index vectors to the frame and eight ARM `ldr`s back.
+	 * On the XT1060 that is SLOWER: 1-7% on every textured door, five
+	 * interleaved rounds, medians (toridraw_presorted_neon_test.c's
+	 * TORIDRAW_PRESORTED_BENCH). An ARM load that hits a NEON store still
+	 * in flight waits for the NEON queue to drain, which is the same
+	 * serialisation the lane move pays, plus the store and the load. The
+	 * lane moves stay. */
 	ldr	r0, [sp, #F_TEXELS]
 	vmov.32	r1, d30[0]
 	add	r1, r0, r1, lsl #2
@@ -1025,8 +1053,6 @@ Ltex_sides:
 	vcvt.f32.s32	s6, s6			/* (float)(tw - 1)                   */
 	mov	r2, #0
 	vmov	s4, r2				/* 0.0f                              */
-	mov	r2, #LIM_F
-	vmov	s5, r2
 	ldr	r2, .Ltex_lanes_off
 .Ltex_lanes_pc:
 	add	r2, pc, r2
@@ -1236,17 +1262,17 @@ Ltex_affine_row:
 	beq	3f
 	RECIP	r1
 	UQUOT	r10, r10
-	WRAPQ	r11, r1, r11
+	WRAPQ	r11, r1, r7			/* v1 in r7: WRAPQ's out is not its n */
 	b	4f
 3:
 	mov	r10, #0
-	mov	r11, #0
+	mov	r7, #0
 4:
 	ldr	r0, [sp, #F_SHIFT]
 	sub	r10, r10, r8
 	lsl	r10, r10, r0			/* (u1 - u0) << shift                */
 	DIVEXACT64 r10, r2, r10			/* / width: s_u                      */
-	sub	r11, r11, r9
+	sub	r11, r7, r9
 	lsl	r11, r11, r0
 	DIVEXACT64 r11, r2, r11			/* s_v                               */
 	lsl	r8, r8, r0			/* u_scan = u0 << shift              */

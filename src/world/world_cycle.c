@@ -1611,7 +1611,10 @@ World_CycleRegisterPainterDynamics(struct World* world)
     struct World_EntityPool* pool;
     int local_level = world_local_level(world);
 
-    painter_reset_to_static(world->painter);
+    /* The registrations below are journaled: painter_dynamics_commit at the
+     * end tears down and rebuilds only when this cycle's list differs from the
+     * last one (TORIRS_PAINTER_DYN_SKIP), else the tiles keep what they hold. */
+    painter_dynamics_begin(world->painter);
     world->scene_cycle++;
 
     /* Runtime-spawned locs (zone LOC_ADD_CHANGE, e.g. an open door). The painter
@@ -1815,6 +1818,8 @@ World_CycleRegisterPainterDynamics(struct World* world)
             (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, obj->element_id)
                           : 0));
     }
+
+    painter_dynamics_commit(world->painter);
 }
 
 /*

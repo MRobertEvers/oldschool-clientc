@@ -1918,9 +1918,11 @@ ToriDraw_ScenePrepareProjectionCamera(
     values[1] = ToriDraw_ReadSinTable(camera->yaw);
     values[2] = ToriDraw_ReadCosTable(camera->pitch);
     values[3] = ToriDraw_ReadSinTable(camera->pitch);
-    values[4] = toridraw_projection_cot16(
-                    camera->projection_mode, camera->projection_scale, camera->fov_rpi2048) >>
-                1;
+    /* The full cot16 for the near-clip rule, and cot15 (the same value,
+     * halved) for the kernels' 16.15 multiply -- one ladder walk for both. */
+    scene->projection_prepared_cot16 = toridraw_projection_cot16(
+        camera->projection_mode, camera->projection_scale, camera->fov_rpi2048);
+    values[4] = scene->projection_prepared_cot16 >> 1;
 
     for( int lane = 0; lane < 4; lane++ )
     {

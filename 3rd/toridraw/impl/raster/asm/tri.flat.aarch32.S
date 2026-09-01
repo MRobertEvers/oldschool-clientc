@@ -128,7 +128,7 @@
  *   r4 rows in segment    r5 framebuffer row    r6 stride bytes
  *   r7 screen_width       r8 colour (opaque) / free (alpha)
  *   r9, r10, r11, r12, lr scratch
- *   q0 rgb x4 (opaque);  q1 K x4, q2 (255-a) x8 u16, q3 0x00FFFFFF x4 (alpha)
+ *   q0 rgb x4 (opaque);  q1 K x4, d4 (255-a) x8 u8, q3 0x00FFFFFF x4 (alpha)
  *   q8-q11, q14, q15 scratch;  q12, q13 the edge-ladder constants
  */
 
@@ -195,7 +195,7 @@
 
 /*
  * The alpha span. r12 destination, r11 pixel count (>= 1).
- * q1 = K x4, q2 = (255 - a) in eight u16 lanes, q3 = 0x00FFFFFF x4.
+ * q1 = K x4, d4 = (255 - a) in eight u8 lanes, q3 = 0x00FFFFFF x4.
  *
  *   out = K + per-channel((dst_channel * a_inv) >> 8)
  *
@@ -204,45 +204,72 @@
  * `+`, carries and all, and reproducing that carry is not optional -- which is
  * why the add at the end is a full 32-bit add after the alpha byte is cleared.
  *
+ * THE PRODUCT IS A WIDENING MULTIPLY AND THE SHIFT A NARROWING ONE. The
+ * AArch64 file widens (uxtl), multiplies, shifts and narrows (xtn): four
+ * instructions per four pixels. VMULL.U8 does the widen and the multiply in
+ * one and VSHRN.U16 #8 the shift and the narrow in one, with the identical
+ * result: every product is at most 255 * 255 and fits its u16 lane, and the
+ * high byte VSHRN keeps is the byte the shift-then-narrow kept. Same bits,
+ * half the instructions, and the exact arm of the test says so.
+ *
+ * Spans of eight or more go two blocks at a time -- one four-register load,
+ * eight products in flight, one store -- which is what feeds an in-order
+ * NEON pipe: the loop overhead halves and a load has two blocks of work to
+ * hide behind.
+ *
  * The 1..3 tail runs the identical lane sequence one pixel at a time: a blend
  * is not idempotent, so the opaque span's overlapping close is not available,
  * and a second scalar transcription of the arithmetic would be a second thing
  * that can drift.
- * Clobbers r11, r12, lr, q8-q10.
+ * Clobbers r11, r12, lr, q8-q11, q14, q15.
  */
 .macro FILLALPHA
+	cmp	r11, #8
+	blt	73f
+	lsr	lr, r11, #3
+	and	r11, r11, #7
+72:
+	vld1.32	{d16-d19}, [r12]
+	vmull.u8	q10, d16, d4
+	vmull.u8	q11, d17, d4
+	vmull.u8	q14, d18, d4
+	vmull.u8	q15, d19, d4
+	vshrn.u16	d16, q10, #8
+	vshrn.u16	d17, q11, #8
+	vshrn.u16	d18, q14, #8
+	vshrn.u16	d19, q15, #8
+	vand	q8, q8, q3
+	vand	q9, q9, q3
+	vadd.i32	q8, q8, q1
+	vadd.i32	q9, q9, q1
+	vst1.32	{d16-d19}, [r12]!
+	subs	lr, lr, #1
+	bne	72b
+73:
 	cmp	r11, #4
 	blt	75f
-	lsr	lr, r11, #2
-	and	r11, r11, #3
-74:
 	vld1.32	{d16, d17}, [r12]
-	vmovl.u8	q9, d16
-	vmovl.u8	q10, d17
-	vmul.i16	q9, q9, q2
-	vmul.i16	q10, q10, q2
-	vshr.u16	q9, q9, #8
-	vshr.u16	q10, q10, #8
-	vmovn.i16	d16, q9
-	vmovn.i16	d17, q10
+	vmull.u8	q9, d16, d4
+	vmull.u8	q10, d17, d4
+	vshrn.u16	d16, q9, #8
+	vshrn.u16	d17, q10, #8
 	vand	q8, q8, q3
 	vadd.i32	q8, q8, q1
 	vst1.32	{d16, d17}, [r12]!
-	subs	lr, lr, #1
-	bne	74b
-	cmp	r11, #0
+	subs	r11, r11, #4
 	beq	76f
 75:
+	cmp	r11, #0
+	beq	76f
+74:
 	vld1.32	{d16[0]}, [r12]
-	vmovl.u8	q9, d16
-	vmul.i16	d18, d18, d4
-	vshr.u16	d18, d18, #8
-	vmovn.i16	d16, q9
+	vmull.u8	q9, d16, d4
+	vshrn.u16	d16, q9, #8
 	vand	d16, d16, d6
 	vadd.i32	d16, d16, d2
 	vst1.32	{d16[0]}, [r12]!
 	subs	r11, r11, #1
-	bne	75b
+	bne	74b
 76:
 .endm
 
@@ -341,7 +368,8 @@
  *       + (((o & 0xFF00)   * a) >> 8) & 0xFF00
  *
  * computed per channel in u16 lanes (the widest product, 255*255, fits), then
- * (255 - a) broadcast for the destination term, and the alpha-byte mask.
+ * (255 - a) broadcast as BYTES for the destination term -- the span's VMULL
+ * widens on the way in -- and the alpha-byte mask.
  *
  * Unlike the AArch64 file this never widens or narrows in place: A32's VMOVL
  * and VMOVN do not guarantee an overlapping source and destination register,
@@ -362,7 +390,7 @@
 	vand	d22, d22, d6
 	vdup.32	q1, d22[0]			/* K x4                              */
 	rsb	r1, r1, #255
-	vdup.16	q2, r1				/* a_inv x8                          */
+	vdup.8	d4, r1				/* a_inv x8, u8: VMULL widens it     */
 .endm
 
 /*

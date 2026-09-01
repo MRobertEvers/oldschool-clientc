@@ -6462,6 +6462,15 @@ app_host_request(
 #define APP_UI_INPUT_HASH_OFFSET 1469598103934665603ull
 #define APP_UI_INPUT_HASH_PRIME 1099511628211ull
 
+/*
+ * Eight bytes per multiply, not one. This runs every frame over sizeof(slots),
+ * chat_view, the IF_SETEVENTS table and the minimenu, and a 64-bit multiply is
+ * three 32-bit ones on armv7 -- per BYTE, that was ~0.08 ms a frame on the
+ * Moto X. The semantics the callers rely on are unchanged: the signature is
+ * compared against last frame's and any byte that changed changes it (each
+ * xor-multiply step is a bijection in the word, so a single-word difference
+ * can never cancel). The values themselves are not persisted anywhere.
+ */
 static uint64_t
 app_ui_input_hash_bytes(
     uint64_t hash,
@@ -6469,10 +6478,21 @@ app_ui_input_hash_bytes(
     size_t size)
 {
     unsigned char const* bytes = (unsigned char const*)data;
+    size_t i = 0;
 
-    for( size_t i = 0; i < size; i++ )
+    while( i + sizeof(uint64_t) <= size )
     {
-        hash ^= bytes[i];
+        uint64_t word;
+        memcpy(&word, bytes + i, sizeof(word));
+        hash ^= word;
+        hash *= APP_UI_INPUT_HASH_PRIME;
+        i += sizeof(word);
+    }
+    if( i < size )
+    {
+        uint64_t word = 0;
+        memcpy(&word, bytes + i, size - i);
+        hash ^= word;
         hash *= APP_UI_INPUT_HASH_PRIME;
     }
     return hash;
@@ -9262,6 +9282,15 @@ App_SetWorldRenderMode(
 {
     if( app )
         app->world_render_mode = mode;
+}
+
+void
+App_SetRendererAnimatesTextures(
+    struct App* app,
+    bool animates)
+{
+    assert(app);
+    app->renderer_animates_textures = animates;
 }
 
 /* Defined with the other map-editor helpers below; App_Init registers it as
@@ -12396,6 +12425,16 @@ app_rebuild_world_map(
     app->world_map_w = pixel_w;
     app->world_map_h = pixel_h;
     app->world_map_level = level;
+#if defined(TORIRS_HAVE_GLES2)
+    {
+        /* The GLES2 renderer keeps a GPU copy of the pixels behind the
+         * rotated-masked minimap and has no event that says they changed --
+         * this is the one place they do. Declared here rather than through
+         * its header because this is the one call site in this file. */
+        void ToriRS_GLES2_RotmaskSourceChanged(void);
+        ToriRS_GLES2_RotmaskSourceChanged();
+    }
+#endif
 }
 
 /* The level the minimap lives at: aboard, the rider's own level is a DECK
@@ -26141,6 +26180,34 @@ App_WorldDrainEntityRemoved(struct App* app)
     App_WorldDrainEntityRemovedFor(app, app->world);
 }
 
+/*
+ * Whether the water and lava texels are scrolled on the CPU this cycle.
+ *
+ * The GPU renderers (GLES2, GL3, D3D9) animate a texture in the shader from a
+ * per-vertex scroll rate and a frame clock; they upload the texels once and
+ * never read them again, so ToriDraw_TextureMapAnimate's per-cycle rotate of
+ * every animated texture (128 KB of traffic per 128x128 texture) was dead
+ * work on those lanes. The software rasteriser samples the texels directly
+ * and still needs it. TORIRS_TEXANIM_CPU=1 forces the scroll on every lane
+ * (the control arm on a GPU lane). Read once.
+ */
+static int
+app_texture_anim_on_cpu(const struct App* app)
+{
+    static int forced = -1;
+
+    assert(app);
+    if( forced < 0 )
+    {
+        char const* v = getenv("TORIRS_TEXANIM_CPU");
+
+        forced = (v && v[0] == '1') ? 1 : 0;
+    }
+    if( forced )
+        return 1;
+    return !app->renderer_animates_textures;
+}
+
 static void
 app_world_frame(
     struct App* app,
@@ -26284,7 +26351,7 @@ app_world_frame(
 
     /* Texture scroll (water/lava): dat2 texture defs carry direction/speed;
      * the map advances them per elapsed cycle (v1 runescape.c:3893). */
-    if( cycles > 0 )
+    if( cycles > 0 && app_texture_anim_on_cpu(app) )
     {
         struct ToriDraw_TextureState* tex_state = ToriDraw_SceneTexState(app->scene);
         /* The rotate buffer is the caller's now -- see the header. This client
@@ -32738,8 +32805,11 @@ app_world_sync_one_entity_spotanim(
         if( entry->body )
             ToriDraw_ModelFree(entry->body);
         /* The renderer poses the element model in place each draw; reset to
-         * the rest pose so the snapshot is the true base. */
+         * the rest pose so the snapshot is the true base. The element's model
+         * no longer holds the pose the renderer last applied, and it must not
+         * skip re-applying it. */
         ToriDraw_ModelAnimateReset(el->model.u.model.model);
+        ToriDraw_SceneElementPoseInvalidate(app->scene, element_id);
         entry->body = ToriDraw_ModelCopy(el->model.u.model.model);
         entry->combined = NULL;
         entry->applied_frame = -1;

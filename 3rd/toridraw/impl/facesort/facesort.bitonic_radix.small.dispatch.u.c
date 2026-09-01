@@ -226,6 +226,98 @@ toridraw_face_sort_k16_armed(void)
  * or fewer than eight faces). */
 int g_toridraw_sort_k16_models = 0;
 int g_toridraw_sort_k16_declined = 0;
+/* ... and of those, models whose last 1..7 faces went through the masked
+ * K16 tail block rather than the scalar per-face loop. */
+int g_toridraw_sort_k16_tail_models = 0;
+/* Terrain tiles the leaf fast path answered without entering the general
+ * dispatcher at all (see toridraw_face_sort_bitonic_radix_tile2_fast). */
+int g_toridraw_sort_tile_fast_models = 0;
+
+/*
+ * THE 2026-09 A/B TOGGLES, one per step of the neon32 lane's second pass.
+ * Each is read from the environment once and cached; the default is the NEW
+ * behaviour, and NAME=0 selects the control arm -- the code path that stood
+ * before the step -- so one binary measures both, interleaved, which is the
+ * only A/B that has held up on the phone (see ARMVX_KERNEL_STATE.md).
+ */
+static inline int
+toridraw_face_sort_env_on_unless_zero(const char* name)
+{
+    const char* v = getenv(name);
+    return (v && v[0] == '0') ? 0 : 1;
+}
+
+/* TORIDRAW_K16_UZP=0: the K16 block's eight-quad gather goes back to the
+ * D-register vtrn.16 + vtrn.32 transposes (which clang lowers as 36 vext.32
+ * per block); on, the transposes are four vuzp.16 on Q pairs per corner. */
+static inline int
+toridraw_face_sort_k16_uzp_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = toridraw_face_sort_env_on_unless_zero("TORIDRAW_K16_UZP");
+    return armed;
+}
+
+/* TORIDRAW_K16_TAIL=0: the 1..7 faces after a K16 model's last full block
+ * take the scalar per-face loop; on, the K16 block runs once more over the
+ * overlapping window num_faces - 8 with the already-emitted lanes masked
+ * to sentinels. */
+static inline int
+toridraw_face_sort_k16_tail_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = toridraw_face_sort_env_on_unless_zero("TORIDRAW_K16_TAIL");
+    return armed;
+}
+
+/* TORIDRAW_SORT_EMIT_VEC=0: the sorted keys are truncated into
+ * tmp_face_order one at a time; on, four (eight) per vector store. */
+static inline int
+toridraw_face_sort_emit_vec_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = toridraw_face_sort_env_on_unless_zero("TORIDRAW_SORT_EMIT_VEC");
+    return armed;
+}
+
+/* TORIDRAW_SORT_PLD=0: no prefetch of the three face-index streams; on, each
+ * block prefetches the line 32 faces (64 bytes of int16) ahead on all three. */
+static inline int
+toridraw_face_sort_pld_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = toridraw_face_sort_env_on_unless_zero("TORIDRAW_SORT_PLD");
+    return armed;
+}
+
+/* TORIDRAW_SORT_BITONIC2=0: the bitonic network's original control loop (a
+ * skip test per vector, masks reloaded per vector, a memset pad); on, the
+ * nested-loop network with hoisted masks and a vector-store pad. */
+static inline int
+toridraw_face_sort_bitonic2_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = toridraw_face_sort_env_on_unless_zero("TORIDRAW_SORT_BITONIC2");
+    return armed;
+}
+
+/* TORIDRAW_TILE_FAST=0: a two-face terrain tile goes through the general
+ * dispatcher (its prologue, sort_model_inputs, the tile2 kernel's two
+ * outlined per-face calls, the sort and the emit); on, a leaf answers it
+ * before any of that is entered. See toridraw_face_sort_bitonic_radix_tile2_fast. */
+static inline int
+toridraw_face_sort_tile_fast_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = toridraw_face_sort_env_on_unless_zero("TORIDRAW_TILE_FAST");
+    return armed;
+}
 
 static inline int
 toridraw_face_sort_tile2_armed(void)
@@ -413,6 +505,135 @@ toridraw_face_sort_bitonic_radix_tile2_scalar(
             scene, 1, r0, r1, r3, near_clipped, model_min_depth, stash_xy, vx, vy, vz, keys + n);
     }
     return n;
+}
+
+/*
+ * THE TILE FAST PATH: the two-triangle terrain tile answered as a LEAF, before
+ * the general dispatcher's prologue is paid.
+ *
+ * WHAT A TILE PAID. On the Moto X the general path costs a two-face model
+ * about 320 instructions of which the faces are a small part: the
+ * dispatcher's prologue (a 760-byte frame and a vpush of d8-d15, since the
+ * whole lane is inlined into one function), sort_model_inputs, two OUTLINED
+ * calls to one_abc with twelve arguments each (eight on the stack), the
+ * two-key sort, and the emit loop. A Lumbridge frame hands the sort ~760 of
+ * these tiles, ~60% of its models.
+ *
+ * WHAT THIS DOES INSTEAD. The same arithmetic as one_abc (the same winding,
+ * the same clip exemption, the same depth) for both faces inline -- they
+ * share vertices 1 and 3, so eight corner loads and not twelve -- the two
+ * keys compared, and the face indices written straight into tmp_face_order.
+ * No key buffer, no stash (a presorting call takes the general path), no
+ * priorities (a tile has none; the caller checks). Called from
+ * toridraw_compute_projected_face_order_small's front, which is kept small
+ * enough that the general body is a separate, noinline function: the
+ * prologue this saves is the general body's, and it is saved only if this
+ * function is reached before it.
+ *
+ * TORIDRAW_TILE_FAST=0 is the control arm. Note it does NOT consult
+ * TORIDRAW_TILE_SORT: that switch chooses between the general path's tile
+ * kernels, and the leaf is the step before it.
+ */
+static inline __attribute__((always_inline)) void
+toridraw_face_sort_bitonic_radix_tile2_fast_corners(
+    struct ToriDraw_Scene* scene,
+    int const c0,
+    int const c1,
+    int const c2,
+    int const c3,
+    bool near_clipped,
+    int model_min_depth)
+{
+    const int* RESTRICT const vx = scene->screen_vertices_x;
+    const int* RESTRICT const vy = scene->screen_vertices_y;
+    const int* RESTRICT const vz = scene->screen_vertices_z;
+    int const x1 = vx[c1], y1 = vy[c1], z1 = vz[c1];
+    int const x3 = vx[c3], y3 = vy[c3], z3 = vz[c3];
+    unsigned int const levels = (unsigned int)scene->depth_levels;
+    int* const order = scene->tmp_face_order;
+    uint32_t key0 = 0;
+    uint32_t key1 = 0;
+    int accept0;
+    int accept1;
+    int n = 0;
+
+    /* Face 0 is (1, 2, 3), face 1 is (0, 1, 3): the tile triples, turned by
+     * the caller. Each is one_abc's decision sequence exactly: a face with a
+     * near-clipped corner is kept for the near-plane rebuild, otherwise the
+     * winding decides, then the depth-range gate. */
+    {
+        int const x2 = vx[c2], y2 = vy[c2], z2 = vz[c2];
+        int const depth = div3_fast_fixedpoint(z1 + z2 + z3) + model_min_depth;
+        bool const clip = near_clipped &&
+                          (x1 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                           x2 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                           x3 == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
+        accept0 = (clip || toridraw_winding_2d_front_facing(x1, y1, x2, y2, x3, y3)) &&
+                  (unsigned int)depth < levels;
+        key0 = ((uint32_t)(0xFFFF - depth) << 16) | 0u;
+    }
+    {
+        int const x0 = vx[c0], y0 = vy[c0], z0 = vz[c0];
+        int const depth = div3_fast_fixedpoint(z0 + z1 + z3) + model_min_depth;
+        bool const clip = near_clipped &&
+                          (x0 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                           x1 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                           x3 == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
+        accept1 = (clip || toridraw_winding_2d_front_facing(x0, y0, x1, y1, x3, y3)) &&
+                  (unsigned int)depth < levels;
+        key1 = ((uint32_t)(0xFFFF - depth) << 16) | 1u;
+    }
+
+    /* Ascending key order is back to front, face order within a depth: the
+     * two-key compare-swap the general path ends with. */
+    if( accept0 && accept1 )
+    {
+        int const first = key0 > key1;
+        order[0] = first;
+        order[1] = 1 - first;
+        n = 2;
+    }
+    else if( accept0 )
+    {
+        order[0] = 0;
+        n = 1;
+    }
+    else if( accept1 )
+    {
+        order[0] = 1;
+        n = 1;
+    }
+    scene->tmp_face_order_count = n;
+    /* Nothing was stashed; the general path says the same for a
+     * non-presorting call. */
+    scene->sm_face_xy_valid = 0;
+}
+
+static void
+toridraw_face_sort_bitonic_radix_tile2_fast(
+    struct ToriDraw_Scene* scene,
+    int rot,
+    bool near_clipped,
+    int model_min_depth)
+{
+    assert(scene);
+    assert(rot >= 0);
+    assert(rot <= 3);
+    g_toridraw_sort_tile_fast_models++;
+    /* Rotation 0 is 94% of tiles and gets the corners as literals; the
+     * other three turn them as world_decode_tile turned the triples. */
+    if( rot == 0 )
+        toridraw_face_sort_bitonic_radix_tile2_fast_corners(
+            scene, 0, 1, 2, 3, near_clipped, model_min_depth);
+    else
+        toridraw_face_sort_bitonic_radix_tile2_fast_corners(
+            scene,
+            (0 - rot) & 3,
+            (1 - rot) & 3,
+            (2 - rot) & 3,
+            (3 - rot) & 3,
+            near_clipped,
+            model_min_depth);
 }
 
 /*

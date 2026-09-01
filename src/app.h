@@ -886,6 +886,9 @@ struct App
     struct PaintersBuffer* painter_buffer;
     /** Selected only after the platform renderer has initialized successfully. */
     enum ToriRS_WorldRenderMode world_render_mode;
+    /** The active renderer scrolls animated textures itself (GPU lanes), so the
+     *  per-cycle CPU texel rotate is skipped. @see App_SetRendererAnimatesTextures */
+    bool renderer_animates_textures;
     /** Viewport size remembered for TORIRS_PAINTER_CULL=baked debounce (0 = none). */
     int painter_cullmap_bake_w;
     int painter_cullmap_bake_h;
@@ -2819,6 +2822,16 @@ void
 App_SetWorldRenderMode(
     struct App* app,
     enum ToriRS_WorldRenderMode mode);
+
+/**
+ * Tell the app the renderer animates water/lava textures in its own shader
+ * (GLES2, GL3, D3D9), so ToriDraw_TextureMapAnimate need not scroll the
+ * texels on the CPU each cycle. Default false: the software lane needs it.
+ */
+void
+App_SetRendererAnimatesTextures(
+    struct App* app,
+    bool animates);
 
 /** Resolved interface-logic VM (enum AppUiLogic, never DEFAULT): the manifest's
  * explicit choice, or derived from cache_kind (dat1 -> CS1, dat2 -> CS2). The

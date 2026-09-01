@@ -800,6 +800,26 @@ struct ToriDraw_SceneElement
      *  ObjType.getWorldModel / ClientPlayer / NpcType); locs keep the exact
      *  per-face test. */
     bool pick_aabb;
+
+    /*
+     * The pose the model is currently holding, so ToriDraw_SceneElementApplyAnimation
+     * can skip a request for the pose it already computed (TORIDRAW_ANIM_SKIP_SAME):
+     * a sequence advances its frame every two to four cycles, and the
+     * renderer asks for the pose every frame, so most requests are repeats.
+     * posed_primary < 0 = the model holds no known pose. Every mutation that
+     * can change what a (track, frame) pair produces -- a model mounted or
+     * un-shared, a sequence bound or dropped, an in-place edit through
+     * ToriDraw_SceneElementModelForWrite -- bumps model_revision and
+     * clears posed_primary. The track pointers are in the tuple as well so
+     * a direct write of `animation` / `skeletal_animation` is caught by
+     * identity even without the bump.
+     */
+    int8_t posed_primary;
+    int16_t posed_frame;
+    int16_t posed_frame2;
+    uint32_t model_revision;
+    const void* posed_track;
+    const void* posed_track2;
 };
 
 struct ToriDraw_SceneBatchElementHandle
@@ -912,6 +932,15 @@ struct ToriDraw_Scene
      * pointer so the offset of projection_prepared_camera, which a static
      * assert pins relative to screen_vertices_x, does not move. */
     struct ToriDraw_ProjectionPreparedCameraFloat projection_prepared_camera_f;
+    /*
+     * The same camera's full cot16 -- the value the near-clip rule's safe
+     * plane scales by -- so the per-model near-clip reads it here instead of
+     * re-running the fov table and clamp ladder for every model in the frame
+     * (toridraw_projection_near_clip_perspective). Guarded by the same
+     * projection_prepared_camera_source, written by the same function. Here
+     * and not in the int block above: that block's size is pinned for
+     * projection16.aarch64.S. */
+    int projection_prepared_cot16;
 
     faceint_t* tmp_depth_face_count;
     faceint_t* tmp_depth_faces;

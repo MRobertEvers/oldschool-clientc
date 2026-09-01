@@ -332,11 +332,23 @@ toridraw_face_sort_bitonic_radix_block4_neon32(
  * bit for bit. The keys are therefore identical, which is what the parity
  * test holds this lane to.
  *
- * WHAT IT SAVES. Twice the faces per gather and per store, D-register
- * transposes (VTRN.16 / VTRN.32) in place of Q ones, and 16-bit products in
- * place of the 64-bit VMULL.S32 chain whose latency the four-face block was
- * measured waiting on. The near-clip sentinel and the presort stash are not
- * handled here: a clipped or stashing model takes the int32 block.
+ * WHAT IT SAVES. Twice the faces per gather and per store, 16-bit products
+ * in place of the 64-bit VMULL.S32 chain whose latency the four-face block
+ * was measured waiting on, and a gather that is four VUZP.16 per corner.
+ * The near-clip sentinel and the presort stash are not handled here: a
+ * clipped or stashing model takes the int32 block.
+ *
+ * THE TWO GATHERS. The first shape was D-register transposes: vtrn.16 on
+ * quad pairs, then vtrn.32 across pairs of pairs. What clang made of the
+ * vtrn.32 half was not vtrn.32 at all -- it had to keep only half of each
+ * result, and lowered those halves as 36 vext.32 per block, nearly a fifth
+ * of the block's 184 instructions. The unzip shape has no half-used result:
+ * two quads in one Q register, VUZP.16 of two such Q's separates the even
+ * lanes {x,z} from the odd {y,0}, and a second VUZP.16 across the two
+ * four-quad results separates x from z (and y from the padding). Four
+ * instructions per corner, each one used whole, in place of eight vtrn plus
+ * the extracts. `spec_uzp` is a literal at every call: TORIDRAW_K16_UZP=0
+ * keeps the vtrn shape as the control arm.
  */
 static inline __attribute__((always_inline)) int
 toridraw_face_sort_bitonic_radix_block8_k16_neon32(
@@ -345,6 +357,7 @@ toridraw_face_sort_bitonic_radix_block8_k16_neon32(
     uint32x4_t depth_levels,
     uint32x4_t key_base_lo, /* 0xFFFF0000 | (f + lane), lanes 0..3 */
     uint32x4_t key_base_hi, /* lanes 4..7 */
+    int const spec_uzp,     /* literal at every call: which gather shape */
     const int16_t* RESTRICT xyz16,
     const faceint_t* RESTRICT face_a,
     const faceint_t* RESTRICT face_b,
@@ -353,9 +366,37 @@ toridraw_face_sort_bitonic_radix_block8_k16_neon32(
 {
     int16x8_t ax, ay, az, bx, by, bz, cx, cy, cz;
 
-/* Eight {x,y,z,0} quads -> one vector per axis. vtrn_s16 on two quads gives
- * {x0,x1,z0,z1} and {y0,y1,w0,w1}; vtrn_s32 across two such pairs gives
- * {x0..x3} and {z0..z3} from the first, {y0..y3} from the second. */
+/* Eight {x,y,z,0} quads -> one vector per axis, the unzip way: see above.
+ * vuzpq_s16(a, b).val[0] is the even lanes of a then b, .val[1] the odd. */
+#define TORIDRAW_K16_GATHER_UZP(fa_, ox_, oy_, oz_)                                              \
+    do                                                                                             \
+    {                                                                                              \
+        int16x8_t const q01 = vcombine_s16(                                                        \
+            vld1_s16(xyz16 + (size_t)(fa_)[f + 0] * 4),                                            \
+            vld1_s16(xyz16 + (size_t)(fa_)[f + 1] * 4));                                           \
+        int16x8_t const q23 = vcombine_s16(                                                        \
+            vld1_s16(xyz16 + (size_t)(fa_)[f + 2] * 4),                                            \
+            vld1_s16(xyz16 + (size_t)(fa_)[f + 3] * 4));                                           \
+        int16x8_t const q45 = vcombine_s16(                                                        \
+            vld1_s16(xyz16 + (size_t)(fa_)[f + 4] * 4),                                            \
+            vld1_s16(xyz16 + (size_t)(fa_)[f + 5] * 4));                                           \
+        int16x8_t const q67 = vcombine_s16(                                                        \
+            vld1_s16(xyz16 + (size_t)(fa_)[f + 6] * 4),                                            \
+            vld1_s16(xyz16 + (size_t)(fa_)[f + 7] * 4));                                           \
+        /* {x0,z0,x1,z1,x2,z2,x3,z3} and {y0,0,y1,0,y2,0,y3,0}; same for 4..7 */                   \
+        int16x8x2_t const u03 = vuzpq_s16(q01, q23);                                               \
+        int16x8x2_t const u47 = vuzpq_s16(q45, q67);                                               \
+        /* {x0..x7} and {z0..z7}; {y0..y7} and the padding */                                      \
+        int16x8x2_t const xz = vuzpq_s16(u03.val[0], u47.val[0]);                                  \
+        int16x8x2_t const yw = vuzpq_s16(u03.val[1], u47.val[1]);                                  \
+        (ox_) = xz.val[0];                                                                         \
+        (oz_) = xz.val[1];                                                                         \
+        (oy_) = yw.val[0];                                                                         \
+    } while( 0 )
+
+/* The control arm: vtrn_s16 on two quads gives {x0,x1,z0,z1} and
+ * {y0,y1,w0,w1}; vtrn_s32 across two such pairs gives {x0..x3} and {z0..z3}
+ * from the first, {y0..y3} from the second. */
 #define TORIDRAW_K16_GATHER(fa_, ox_, oy_, oz_)                                                  \
     do                                                                                             \
     {                                                                                              \
@@ -387,10 +428,20 @@ toridraw_face_sort_bitonic_radix_block8_k16_neon32(
             vreinterpret_s16_s32(yw03.val[0]), vreinterpret_s16_s32(yw47.val[0]));              \
     } while( 0 )
 
-    TORIDRAW_K16_GATHER(face_a, ax, ay, az);
-    TORIDRAW_K16_GATHER(face_b, bx, by, bz);
-    TORIDRAW_K16_GATHER(face_c, cx, cy, cz);
+    if( spec_uzp )
+    {
+        TORIDRAW_K16_GATHER_UZP(face_a, ax, ay, az);
+        TORIDRAW_K16_GATHER_UZP(face_b, bx, by, bz);
+        TORIDRAW_K16_GATHER_UZP(face_c, cx, cy, cz);
+    }
+    else
+    {
+        TORIDRAW_K16_GATHER(face_a, ax, ay, az);
+        TORIDRAW_K16_GATHER(face_b, bx, by, bz);
+        TORIDRAW_K16_GATHER(face_c, cx, cy, cz);
+    }
 #undef TORIDRAW_K16_GATHER
+#undef TORIDRAW_K16_GATHER_UZP
 
     {
         /* nw = dy1*dx2 - dx1*dy2, the negated winding, as the int32 block:
@@ -535,6 +586,118 @@ toridraw_bitonic_sort_u32_neon32(
     }
 }
 
+/*
+ * THE SAME NETWORK, WITH THE CONTROL FLOW TAKEN OUT OF THE VECTOR LOOP.
+ * TORIDRAW_SORT_BITONIC2=0 selects the loop above as the control arm.
+ *
+ * Three things the loop above pays per vector that are not the network:
+ *
+ *   - `if( i & j ) continue` visits every fourth-lane index and skips half
+ *     of them, six instructions a skip. Here the merge is walked as blocks
+ *     of 2j: the low half of a block pairs with its high half, so every
+ *     trip is a real compare-swap, and the direction ((base & k) == 0) is
+ *     one test per block rather than one per vector, since 2j <= k makes it
+ *     constant across the block.
+ *   - the in-register stages' three select masks were literal constants
+ *     inside the inlined helper, which clang materialised from the
+ *     constant pool at every use. They are built once here and handed in.
+ *   - the pad to a power of two was a scalar loop (an __aeabi_memset8
+ *     call): lane_sort now stores it four sentinels a vector.
+ *
+ * The k == 2 stage is its own loop: its mask encodes both directions, so
+ * it has no asc/desc split. For k >= 4 the in-register stage runs
+ * ascending over the first k of every 2k keys and descending over the
+ * second k -- (i & k) == 0 in the loop above, without asking per vector.
+ */
+static inline __attribute__((always_inline)) uint32x4_t
+toridraw_bitonic_inner2_asc_neon32(
+    uint32x4_t v,
+    uint32x4_t m2a,
+    uint32x4_t m1a)
+{
+    uint32x4_t p = vextq_u32(v, v, 2);
+    v = vbslq_u32(m2a, vmaxq_u32(v, p), vminq_u32(v, p));
+    p = vrev64q_u32(v);
+    return vbslq_u32(m1a, vmaxq_u32(v, p), vminq_u32(v, p));
+}
+
+static inline __attribute__((always_inline)) uint32x4_t
+toridraw_bitonic_inner2_desc_neon32(
+    uint32x4_t v,
+    uint32x4_t m2a,
+    uint32x4_t m1a)
+{
+    uint32x4_t p = vextq_u32(v, v, 2);
+    v = vbslq_u32(m2a, vminq_u32(v, p), vmaxq_u32(v, p));
+    p = vrev64q_u32(v);
+    return vbslq_u32(m1a, vminq_u32(v, p), vmaxq_u32(v, p));
+}
+
+static void
+toridraw_bitonic_sort_u32_neon32_v2(
+    uint32_t* a,
+    int N)
+{
+    uint32x4_t const m2a = { 0, 0, 0xFFFFFFFFu, 0xFFFFFFFFu };  /* stride 2: lanes 2,3 take max */
+    uint32x4_t const m1a = { 0, 0xFFFFFFFFu, 0, 0xFFFFFFFFu };  /* stride 1: lanes 1,3 take max */
+    uint32x4_t const m1k2 = { 0, 0xFFFFFFFFu, 0xFFFFFFFFu, 0 }; /* k == 2: asc pair, desc pair */
+    int k;
+    int j;
+    int base;
+    int i;
+
+    assert(a);
+    assert(N >= 4);
+    assert((N & (N - 1)) == 0);
+
+    /* k == 2: one in-register stage, one mask for both directions. */
+    for( i = 0; i < N; i += 4 )
+    {
+        uint32x4_t const v = vld1q_u32(a + i);
+        uint32x4_t const p = vrev64q_u32(v);
+        vst1q_u32(a + i, vbslq_u32(m1k2, vmaxq_u32(v, p), vminq_u32(v, p)));
+    }
+
+    for( k = 4; k <= N; k <<= 1 )
+    {
+        for( j = k >> 1; j >= 4; j >>= 1 )
+        {
+            for( base = 0; base < N; base += 2 * j )
+            {
+                uint32_t* const lo = a + base;
+                uint32_t* const hi = lo + j;
+                if( (base & k) == 0 )
+                {
+                    for( i = 0; i < j; i += 4 )
+                    {
+                        uint32x4_t const va = vld1q_u32(lo + i);
+                        uint32x4_t const vb = vld1q_u32(hi + i);
+                        vst1q_u32(lo + i, vminq_u32(va, vb));
+                        vst1q_u32(hi + i, vmaxq_u32(va, vb));
+                    }
+                }
+                else
+                {
+                    for( i = 0; i < j; i += 4 )
+                    {
+                        uint32x4_t const va = vld1q_u32(lo + i);
+                        uint32x4_t const vb = vld1q_u32(hi + i);
+                        vst1q_u32(lo + i, vmaxq_u32(va, vb));
+                        vst1q_u32(hi + i, vminq_u32(va, vb));
+                    }
+                }
+            }
+        }
+        for( base = 0; base < N; base += 2 * k )
+        {
+            for( i = base; i < base + k; i += 4 )
+                vst1q_u32(a + i, toridraw_bitonic_inner2_asc_neon32(vld1q_u32(a + i), m2a, m1a));
+            for( i = base + k; i < base + 2 * k && i < N; i += 4 )
+                vst1q_u32(a + i, toridraw_bitonic_inner2_desc_neon32(vld1q_u32(a + i), m2a, m1a));
+        }
+    }
+}
+
 /* ---- the lane hooks --------------------------------------------------- */
 
 static inline int
@@ -564,6 +727,10 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
     uint32x4_t levels;
     uint32x4_t key_base;
     uint32x4_t const four = vdupq_n_u32(4);
+    /* TORIDRAW_SORT_PLD: prefetch the three index streams a line ahead of
+     * every block. A cached read; the test in each loop is one predictable
+     * branch per block, which is under a quarter of an instruction per face. */
+    int const pld = toridraw_face_sort_pld_armed();
     int* xyz;
     int f;
     int v;
@@ -642,9 +809,12 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
                 xyz16[(size_t)v * 4 + 1] = (int16_t)(vy[v] - scene->projected_box[2]);
                 xyz16[(size_t)v * 4 + 2] = (int16_t)z;
                 xyz16[(size_t)v * 4 + 3] = 0;
+                /* Not `else if`: when the vector loop did not run (a model
+                 * under four vertices) z_lo is still INT_MAX and z_hi still
+                 * INT_MIN, and the first z must lower BOTH. */
                 if( z < z_lo )
                     z_lo = z;
-                else if( z > z_hi )
+                if( z > z_hi )
                     z_hi = z;
             }
             if( z_lo >= -32767 && z_hi <= 32767 )
@@ -665,13 +835,75 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
                 scene->sm_sort_depth_lo = div3_fast_fixedpoint(3 * z_lo) + model_min_depth;
                 scene->sm_sort_depth_hi = div3_fast_fixedpoint(3 * z_hi) + model_min_depth;
                 g_toridraw_sort_k16_models++;
-                for( ; f + 8 <= num_faces; f += 8 )
+/* The gather shape is asked once per model (TORIDRAW_K16_UZP), and each
+ * answer is a loop whose block was compiled with it as a literal. */
+#define TORIDRAW_NEON32_K16_LOOP(spec_uzp_)                                                      \
+    do                                                                                             \
+    {                                                                                              \
+        for( ; f + 8 <= num_faces; f += 8 )                                                        \
+        {                                                                                          \
+            if( pld )                                                                              \
+            {                                                                                      \
+                __builtin_prefetch(face_a + f + 32);                                               \
+                __builtin_prefetch(face_b + f + 32);                                               \
+                __builtin_prefetch(face_c + f + 32);                                               \
+            }                                                                                      \
+            n += toridraw_face_sort_bitonic_radix_block8_k16_neon32(                               \
+                f, min_depth, levels, key_base_lo, key_base_hi, (spec_uzp_), xyz16, face_a,        \
+                face_b, face_c, keys + n);                                                         \
+            key_base_lo = vaddq_u32(key_base_lo, eight);                                           \
+            key_base_hi = vaddq_u32(key_base_hi, eight);                                           \
+        }                                                                                          \
+    } while( 0 )
+                if( toridraw_face_sort_k16_uzp_armed() )
+                    TORIDRAW_NEON32_K16_LOOP(1);
+                else
+                    TORIDRAW_NEON32_K16_LOOP(0);
+#undef TORIDRAW_NEON32_K16_LOOP
+
+                /*
+                 * THE K16 TAIL. The 1..7 faces after the last full block
+                 * went to the dispatcher's scalar per-face loop, at about a
+                 * hundred instructions a face against the block's twenty-
+                 * odd. Instead the block runs once more over the window
+                 * ending at num_faces -- it starts at num_faces - 8, which
+                 * overlaps the last full block by the faces that block has
+                 * already emitted -- and those already-emitted lanes are
+                 * turned into sentinels afterwards, which the compaction
+                 * below removes like any rejected face. The keys the block
+                 * writes for the new faces are the ones the scalar loop
+                 * would have (the K16 arithmetic is exact; the parity test
+                 * holds it there), so the order is unchanged. num_faces is
+                 * at least eight here, so the window is in range.
+                 * TORIDRAW_K16_TAIL=0 leaves the tail to the scalar loop.
+                 */
+                if( f < num_faces && toridraw_face_sort_k16_tail_armed() )
                 {
-                    n += toridraw_face_sort_bitonic_radix_block8_k16_neon32(
-                        f, min_depth, levels, key_base_lo, key_base_hi, xyz16, face_a, face_b,
-                        face_c, keys + n);
-                    key_base_lo = vaddq_u32(key_base_lo, eight);
-                    key_base_hi = vaddq_u32(key_base_hi, eight);
+                    int const f_tail = num_faces - 8;
+                    int const already = f - f_tail; /* 1..7 lanes the last block wrote */
+                    int i;
+                    assert(f_tail >= 0);
+                    assert(already >= 1);
+                    assert(already <= 7);
+                    {
+                        uint32x4_t const lane_lo = { 0, 1, 2, 3 };
+                        uint32x4_t const lane_hi = { 4, 5, 6, 7 };
+                        uint32x4_t const base = vdupq_n_u32(0xFFFF0000u | (uint32_t)f_tail);
+                        key_base_lo = vaddq_u32(base, lane_lo);
+                        key_base_hi = vaddq_u32(base, lane_hi);
+                    }
+                    if( toridraw_face_sort_k16_uzp_armed() )
+                        n += toridraw_face_sort_bitonic_radix_block8_k16_neon32(
+                            f_tail, min_depth, levels, key_base_lo, key_base_hi, 1, xyz16, face_a,
+                            face_b, face_c, keys + n);
+                    else
+                        n += toridraw_face_sort_bitonic_radix_block8_k16_neon32(
+                            f_tail, min_depth, levels, key_base_lo, key_base_hi, 0, xyz16, face_a,
+                            face_b, face_c, keys + n);
+                    for( i = 0; i < already; i++ )
+                        keys[n - 8 + i] = 0xFFFFFFFFu;
+                    f = num_faces;
+                    g_toridraw_sort_k16_tail_models++;
                 }
                 goto compact;
             }
@@ -725,9 +957,10 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
             xyz[(size_t)v * 4 + 1] = vy[v];
             xyz[(size_t)v * 4 + 2] = z;
             xyz[(size_t)v * 4 + 3] = 0;
+            /* Not `else if`; see the K16 pass above. */
             if( z < z_lo )
                 z_lo = z;
-            else if( z > z_hi )
+            if( z > z_hi )
                 z_hi = z;
         }
         /*
@@ -767,6 +1000,12 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
     {                                                                                              \
         for( ; f + 4 <= num_faces; f += 4 )                                                        \
         {                                                                                          \
+            if( pld )                                                                              \
+            {                                                                                      \
+                __builtin_prefetch(face_a + f + 32);                                               \
+                __builtin_prefetch(face_b + f + 32);                                               \
+                __builtin_prefetch(face_c + f + 32);                                               \
+            }                                                                                      \
             n += toridraw_face_sort_bitonic_radix_block4_neon32(                                   \
                 scene, f, sentinel, min_depth, levels, (spec_clipped_), (spec_stash_), key_base,  \
                 xyz, face_a, face_b, face_c, keys + n);                                            \
@@ -862,10 +1101,57 @@ toridraw_face_sort_bitonic_radix_lane_sort(
 
     while( N < n )
         N <<= 1;
+    if( toridraw_face_sort_bitonic2_armed() )
+    {
+        /* The pad, a vector at a time. The stores may run up to three past
+         * N; N is at most the power of two the key buffer was sized to, and
+         * the buffer has eight lanes of slack past that. */
+        uint32x4_t const sentinel = vdupq_n_u32(0xFFFFFFFFu);
+        for( i = n; i < N; i += 4 )
+            vst1q_u32(keys + i, sentinel);
+        toridraw_bitonic_sort_u32_neon32_v2(keys, N);
+        return true;
+    }
     for( i = n; i < N; i++ )
         keys[i] = 0xFFFFFFFFu;
     toridraw_bitonic_sort_u32_neon32(keys, N);
     return true;
+}
+
+
+/*
+ * The emit as vector stores: keys & 0xFFFF, four per vst1q, two vectors a
+ * trip. tmp_face_order has no slack, so the last 1..7 go out one at a time.
+ * TORIDRAW_SORT_EMIT_VEC=0 is the scalar control arm.
+ */
+static inline void
+toridraw_face_sort_bitonic_radix_lane_emit(
+    const uint32_t* RESTRICT keys,
+    int n,
+    int* RESTRICT out)
+{
+    int i = 0;
+
+    assert(keys);
+    assert(out);
+
+    if( toridraw_face_sort_emit_vec_armed() )
+    {
+        uint32x4_t const mask = vdupq_n_u32(0xFFFFu);
+        for( ; i + 8 <= n; i += 8 )
+        {
+            vst1q_s32(out + i, vreinterpretq_s32_u32(vandq_u32(vld1q_u32(keys + i), mask)));
+            vst1q_s32(
+                out + i + 4, vreinterpretq_s32_u32(vandq_u32(vld1q_u32(keys + i + 4), mask)));
+        }
+        if( i + 4 <= n )
+        {
+            vst1q_s32(out + i, vreinterpretq_s32_u32(vandq_u32(vld1q_u32(keys + i), mask)));
+            i += 4;
+        }
+    }
+    for( ; i < n; i++ )
+        out[i] = (int)(keys[i] & 0xFFFFu);
 }
 
 #endif /* TORIDRAW_FACE_SORT_BITONIC_RADIX_NEON32_U_C */

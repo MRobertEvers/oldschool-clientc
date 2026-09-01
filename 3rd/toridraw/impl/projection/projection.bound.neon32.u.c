@@ -33,13 +33,38 @@ toridraw_bound_horizontal_max_s32(int32x4_t v)
     return vget_lane_s32(pair, 0);
 }
 
+/*
+ * The fold, closed with ONE store rather than four lane extracts.
+ *
+ * The first form of this reduced each of the four vectors to a lane and
+ * moved each lane to a GPR (vmov r, d[0]) to store it -- four NEON-to-ARM
+ * transfers per model, which serialise the two pipelines. The pairwise ops
+ * reduce two vectors at once if they are fed as a pair: after the first
+ * vpmin/vpmax each 64-bit half holds {x0, x1}; pairing the x half with the y
+ * half gives {min_x, min_y} and {max_x, max_y} in one more op each, and a
+ * vzip interleaves them into {min_x, max_x, min_y, max_y} -- which is the
+ * struct's own layout, so it is stored whole. Nothing crosses to the ARM
+ * side; the caller reads the fields back from L1.
+ */
+_Static_assert(
+    sizeof(struct ToriDraw_ScreenBound) == 4 * sizeof(int),
+    "ToriDraw_ScreenBound is stored as one int32x4");
+
 static inline void
 toridraw_bound_fold_prepared(const int* b, struct ToriDraw_ScreenBound* box)
 {
-    box->min_x = toridraw_bound_horizontal_min_s32(vld1q_s32(b + 0));
-    box->max_x = toridraw_bound_horizontal_max_s32(vld1q_s32(b + 4));
-    box->min_y = toridraw_bound_horizontal_min_s32(vld1q_s32(b + 8));
-    box->max_y = toridraw_bound_horizontal_max_s32(vld1q_s32(b + 12));
+    int32x4_t const bmin_x = vld1q_s32(b + 0);
+    int32x4_t const bmax_x = vld1q_s32(b + 4);
+    int32x4_t const bmin_y = vld1q_s32(b + 8);
+    int32x4_t const bmax_y = vld1q_s32(b + 12);
+    int32x2_t const min_x2 = vpmin_s32(vget_low_s32(bmin_x), vget_high_s32(bmin_x));
+    int32x2_t const max_x2 = vpmax_s32(vget_low_s32(bmax_x), vget_high_s32(bmax_x));
+    int32x2_t const min_y2 = vpmin_s32(vget_low_s32(bmin_y), vget_high_s32(bmin_y));
+    int32x2_t const max_y2 = vpmax_s32(vget_low_s32(bmax_y), vget_high_s32(bmax_y));
+    int32x2_t const mins = vpmin_s32(min_x2, min_y2); /* {min_x, min_y} */
+    int32x2_t const maxs = vpmax_s32(max_x2, max_y2); /* {max_x, max_y} */
+    int32x2x2_t const zipped = vzip_s32(mins, maxs);  /* {min_x,max_x} {min_y,max_y} */
+    vst1q_s32(&box->min_x, vcombine_s32(zipped.val[0], zipped.val[1]));
 }
 
 static inline int

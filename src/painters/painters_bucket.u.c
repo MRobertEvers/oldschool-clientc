@@ -361,6 +361,7 @@ bucket_emit_entity(
             ._bf_entity = (uint32_t)ElementId_Index(ElementId_FromRaw(entity)),
             ._bf_entity_kind = (uint32_t)ElementId_Kind(ElementId_FromRaw(entity)),
         },
+        ._element_id = entity,
     };
     (*cur)++;
     g_torirs_paint_census.entity_commands++;
@@ -372,7 +373,8 @@ bucket_emit_terrain(
     struct PaintersElementCommand* end,
     int sx,
     int sz,
-    int slevel)
+    int slevel,
+    int element_id)
 {
     (void)end;
     assert(*cur < end);
@@ -383,6 +385,7 @@ bucket_emit_terrain(
             ._bf_terrain_z = (uint32_t)sz,
             ._bf_terrain_y = (uint32_t)slevel,
         },
+        ._element_id = element_id,
     };
     (*cur)++;
 }
@@ -393,7 +396,8 @@ bucket_emit_terrain_pick_only(
     struct PaintersElementCommand* end,
     int sx,
     int sz,
-    int slevel)
+    int slevel,
+    int element_id)
 {
     (void)end;
     assert(*cur < end);
@@ -404,6 +408,7 @@ bucket_emit_terrain_pick_only(
             ._bf_terrain_z = (uint32_t)sz,
             ._bf_terrain_y = (uint32_t)slevel,
         },
+        ._element_id = element_id,
     };
     (*cur)++;
 }
@@ -1212,8 +1217,17 @@ bucket_paint_world(
                     for( int ml = 0; ml < 4; ml++ )
                         if( uset & (1u << ml) )
                         {
-                            bucket_emit_terrain(&cmd_cur, cmd_end, bridge_underpass_tile->sx,
-                                                bridge_underpass_tile->sz, ml);
+                            bucket_emit_terrain(
+                                &cmd_cur,
+                                cmd_end,
+                                bridge_underpass_tile->sx,
+                                bridge_underpass_tile->sz,
+                                ml,
+                                painter->terrain_element[painter_coord_idx(
+                                    painter,
+                                    bridge_underpass_tile->sx,
+                                    bridge_underpass_tile->sz,
+                                    ml)]);
                             PAINTER_DBG_WEDGE_PAINT(
                                 tile->bridge_tile, "floor:bridge", ml, -1, -1);
                         }
@@ -1231,13 +1245,26 @@ bucket_paint_world(
                     {
                         if( !ground_hidden )
                         {
-                            bucket_emit_terrain(&cmd_cur, cmd_end, tile_sx, tile_sz, ml);
+                            bucket_emit_terrain(
+                                &cmd_cur,
+                                cmd_end,
+                                tile_sx,
+                                tile_sz,
+                                ml,
+                                painter->terrain_element[painter_coord_idx(
+                                    painter, tile_sx, tile_sz, ml)]);
                             PAINTER_DBG_WEDGE_PAINT(e_tile, "floor", ml, -1, -1);
                         }
                         else if( camera_slevel >= 0 && ml <= camera_slevel )
                         {
                             bucket_emit_terrain_pick_only(
-                                &cmd_cur, cmd_end, tile_sx, tile_sz, ml);
+                                &cmd_cur,
+                                cmd_end,
+                                tile_sx,
+                                tile_sz,
+                                ml,
+                                painter->terrain_element[painter_coord_idx(
+                                    painter, tile_sx, tile_sz, ml)]);
                         }
                     }
             }
@@ -1965,7 +1992,9 @@ painter_collect_visible_depth(
                                     cmd_end,
                                     underpass->sx,
                                     underpass->sz,
-                                    ml);
+                                    ml,
+                                    painter->terrain_element[painter_coord_idx(
+                                        painter, underpass->sx, underpass->sz, ml)]);
                     }
                     if( underpass->wall_a >= 0 )
                     {
@@ -1991,10 +2020,23 @@ painter_collect_visible_depth(
                         if( terrain & (1u << ml) )
                         {
                             if( !ground_hidden )
-                                bucket_emit_terrain(&cmd_cur, cmd_end, sx, sz, ml);
+                                bucket_emit_terrain(
+                                    &cmd_cur,
+                                    cmd_end,
+                                    sx,
+                                    sz,
+                                    ml,
+                                    painter->terrain_element[painter_coord_idx(
+                                        painter, sx, sz, ml)]);
                             else if( camera_slevel >= 0 && ml <= camera_slevel )
                                 bucket_emit_terrain_pick_only(
-                                    &cmd_cur, cmd_end, sx, sz, ml);
+                                    &cmd_cur,
+                                    cmd_end,
+                                    sx,
+                                    sz,
+                                    ml,
+                                    painter->terrain_element[painter_coord_idx(
+                                        painter, sx, sz, ml)]);
                         }
                 }
 

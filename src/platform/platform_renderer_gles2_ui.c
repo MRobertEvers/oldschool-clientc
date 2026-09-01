@@ -8,7 +8,11 @@
  * only resubmits a compact vertex stream. What is GL here:
  *
  *   - the vertex stream is one ring buffer (gles2_ring_upload), appended at
- *     the head so no flush ever waits on the draw before it;
+ *     the head so no flush ever waits on the draw before it. With
+ *     TORIRS_GLES2_UI_DEFER (the default) a 2D pass is ONE append: every
+ *     batch is recorded as a range of one CPU array and the whole pass is
+ *     uploaded, bound and drawn by gles2_ui_submit at the end -- see
+ *     struct GLES2UIDrawRecord and the submit for the GL argument;
  *   - fonts are GL_LUMINANCE_ALPHA textures, two bytes a texel, so glyph
  *     quads go through the same texture * colour program as everything else
  *     with no text mode to switch;
@@ -177,27 +181,255 @@ gles2_ui_batch_reset(struct ToriRS_GLES2* renderer)
 {
     assert(renderer);
     renderer->ui_batch.vertex_count = 0u;
+    renderer->ui_batch.first = renderer->ui_pass_vertex_count;
     renderer->ui_batch.texture1 = 0u;
     renderer->ui_batch.uses_sprite_atlas = false;
     renderer->ui_batch.scissor_enabled = false;
     memset(&renderer->ui_batch.scissor, 0, sizeof(renderer->ui_batch.scissor));
 }
 
+/* ---- the deferred pass (TORIRS_GLES2_UI_DEFER) ---------------------------------- */
+
+/* Room for `additional` UI vertices at the end of the pass array. */
+static void
+gles2_ui_pass_reserve_vertices(struct ToriRS_GLES2* renderer, uint32_t additional)
+{
+    uint32_t needed = renderer->ui_pass_vertex_count + additional;
+    uint32_t capacity;
+    struct GLES2VertexUI* grown;
+    if( needed <= renderer->ui_pass_vertex_capacity )
+        return;
+    capacity = renderer->ui_pass_vertex_capacity ? renderer->ui_pass_vertex_capacity
+                                                 : GLES2_UI_PASS_INIT_VERTICES;
+    while( capacity < needed )
+        capacity *= 2u;
+    grown = (struct GLES2VertexUI*)realloc(
+        renderer->ui_pass_vertices, (size_t)capacity * sizeof(*grown));
+    assert(grown);
+    renderer->ui_pass_vertices = grown;
+    renderer->ui_pass_vertex_capacity = capacity;
+}
+
+static void
+gles2_ui_pass_reserve_rotmask_vertices(struct ToriRS_GLES2* renderer, uint32_t additional)
+{
+    uint32_t needed = renderer->ui_pass_rotmask_count + additional;
+    uint32_t capacity;
+    struct GLES2VertexRotmask* grown;
+    if( needed <= renderer->ui_pass_rotmask_capacity )
+        return;
+    capacity = renderer->ui_pass_rotmask_capacity ? renderer->ui_pass_rotmask_capacity : 24u;
+    while( capacity < needed )
+        capacity *= 2u;
+    grown = (struct GLES2VertexRotmask*)realloc(
+        renderer->ui_pass_rotmask_vertices, (size_t)capacity * sizeof(*grown));
+    assert(grown);
+    renderer->ui_pass_rotmask_vertices = grown;
+    renderer->ui_pass_rotmask_capacity = capacity;
+}
+
+static struct GLES2UIDrawRecord*
+gles2_ui_pass_record_append(struct ToriRS_GLES2* renderer)
+{
+    struct GLES2UIDrawRecord* record;
+    if( renderer->ui_pass_record_count >= renderer->ui_pass_record_capacity )
+    {
+        uint32_t capacity = renderer->ui_pass_record_capacity
+            ? renderer->ui_pass_record_capacity * 2u
+            : GLES2_UI_PASS_INIT_RECORDS;
+        struct GLES2UIDrawRecord* grown = (struct GLES2UIDrawRecord*)realloc(
+            renderer->ui_pass_records, (size_t)capacity * sizeof(*grown));
+        assert(grown);
+        renderer->ui_pass_records = grown;
+        renderer->ui_pass_record_capacity = capacity;
+    }
+    record = &renderer->ui_pass_records[renderer->ui_pass_record_count++];
+    memset(record, 0, sizeof(*record));
+    return record;
+}
+
 /* The UI program with this frame's projection and the UI blend/depth state.
- * Idempotent through the core's state cache except for the uniform, which is
- * pushed each time because another program may have run in between. */
+ * Idempotent through the core's state cache. The projection uniform is
+ * program-object state in GL (ES 2.0 §2.10.4: glUniform writes into the
+ * program, and the value survives glUseProgram away and back), so on the
+ * deferred arm it is pushed only when projection_2d changed; the control arm
+ * pushes it every time, as it always did. */
 static void
 gles2_ui_apply_states(struct ToriRS_GLES2* renderer)
 {
     gles2_use_program(renderer, &renderer->program_ui);
-    glUniformMatrix4fv(renderer->program_ui.u_matrix, 1, GL_FALSE, renderer->projection_2d);
+    if( !renderer->lever_ui_defer || !renderer->ui_projection_pushed )
+    {
+        glUniformMatrix4fv(renderer->program_ui.u_matrix, 1, GL_FALSE, renderer->projection_2d);
+        renderer->ui_projection_pushed = true;
+    }
     gles2_set_blend(renderer, true);
     gles2_set_depth(renderer, false, false);
     gles2_set_cull(renderer, false);
 }
 
-void
-gles2_ui_flush(struct ToriRS_GLES2* renderer)
+/*
+ * Upload and draw everything the pass recorded. The GL facts this rests on:
+ *
+ *   one upload      the pass array (UI vertices, then the few rotmask-layout
+ *                   vertices packed after them, 4-byte aligned because 28 is)
+ *                   goes up as ONE glBufferSubData into this frame's buffer of
+ *                   the rotating 2D set; that buffer was last read four frames
+ *                   ago, so the write meets no outstanding read and the driver
+ *                   has no reason to ghost it.
+ *   one bind        glVertexAttribPointer captures (buffer, offset, stride)
+ *                   into context state that persists across draws and across
+ *                   glUseProgram (ES 2.0 has no VAO; §2.8), so the UI layout
+ *                   is pointed at the array's base ONCE and each record is
+ *                   glDrawArrays(first, count): vertex i is read at base +
+ *                   i * stride, with no 65536 ceiling (that is the U16 index
+ *                   limit, and nothing here is indexed). A rotmask record
+ *                   re-points the attributes at its own stride and the next
+ *                   UI record points them back; that is two rebinds a frame.
+ *   per-draw state  scissor, the two texture units and the program are
+ *                   applied when a draw is ISSUED, not when it was recorded,
+ *                   so each record carries them and the loop re-applies them
+ *                   through the state cache (a no-op when unchanged).
+ *   textures        the sprite atlas is uploaded once, before the first draw,
+ *                   because every record that samples it is issued after that
+ *                   point and the atlas only GROWS within a pass -- a sprite
+ *                   replaced in place arrives as a SPRITE_UNLOAD command, and
+ *                   that path submits (gles2_ui_flush) before touching the
+ *                   tile. The same argument covers the rotmask textures and
+ *                   the world atlas, whose writers all flush first.
+ *   deletion        glDeleteTextures on a name a RECORDED draw still wants
+ *                   would make that draw sample texture 0. Every deleter
+ *                   (sprite invalidate, font release, unload) calls
+ *                   gles2_ui_flush, which issues the records first; an
+ *                   issued draw keeps its texture by GL's own rules.
+ */
+static void
+gles2_ui_submit(struct ToriRS_GLES2* renderer)
+{
+    uint32_t ui_bytes;
+    uint32_t rotmask_bytes;
+    uint32_t total_bytes;
+    uint32_t base_offset;
+    uint32_t rotmask_offset;
+    uint32_t record_index;
+    bool needs_sprite_atlas = false;
+    bool sprite_atlas_ok = true;
+
+    assert(renderer);
+    assert(renderer->lever_ui_defer);
+    if( renderer->ui_pass_record_count == 0u )
+    {
+        renderer->ui_pass_vertex_count = 0u;
+        renderer->ui_pass_rotmask_count = 0u;
+        renderer->ui_batch.first = 0u;
+        return;
+    }
+    for( record_index = 0u; record_index < renderer->ui_pass_record_count; record_index++ )
+        if( renderer->ui_pass_records[record_index].uses_sprite_atlas )
+            needs_sprite_atlas = true;
+    if( needs_sprite_atlas &&
+        (trspk_atlas_is_dirty(&renderer->ui_sprite_atlas) || !renderer->ui_sprite_atlas_allocated) )
+    {
+        int64_t bytes = 0;
+        if( !renderer->ui_sprite_atlas_texture )
+            renderer->ui_sprite_atlas_texture = gles2_ui_new_texture(renderer);
+        sprite_atlas_ok = gles2_upload_ui_atlas_texture(renderer, &bytes);
+    }
+
+    /* The rotmask vertices ride in the tail of the same array so the pass is
+     * one append (see gles2_stream_set_append on why one matters). */
+    ui_bytes = renderer->ui_pass_vertex_count * (uint32_t)sizeof(struct GLES2VertexUI);
+    rotmask_bytes = renderer->ui_pass_rotmask_count * (uint32_t)sizeof(struct GLES2VertexRotmask);
+    total_bytes = ui_bytes + rotmask_bytes;
+    if( rotmask_bytes )
+    {
+        gles2_ui_pass_reserve_vertices(
+            renderer, rotmask_bytes / (uint32_t)sizeof(struct GLES2VertexUI) + 1u);
+        memcpy(
+            (uint8_t*)renderer->ui_pass_vertices + ui_bytes,
+            renderer->ui_pass_rotmask_vertices,
+            rotmask_bytes);
+    }
+    _Static_assert(sizeof(struct GLES2VertexUI) % 4u == 0u, "rotmask tail stays 4-byte aligned");
+    /* Every earlier append into the 2D stream this frame came from an earlier
+     * submit (or the immediate boot-bar path), each of which drew before
+     * returning: the growth contract holds. */
+    base_offset = gles2_ring_upload(renderer, renderer->ui_pass_vertices, total_bytes, true);
+    rotmask_offset = base_offset + ui_bytes;
+    renderer->ui_stat_upload_bytes += total_bytes;
+
+    gles2_ui_apply_states(renderer);
+    for( record_index = 0u; record_index < renderer->ui_pass_record_count; record_index++ )
+    {
+        const struct GLES2UIDrawRecord* record = &renderer->ui_pass_records[record_index];
+        if( record->layout == GLES2_UI_RECORD_LAYOUT_ROTMASK )
+        {
+            gles2_use_program(renderer, &renderer->program_rotmask);
+            if( !renderer->rotmask_projection_pushed )
+            {
+                glUniformMatrix4fv(
+                    renderer->program_rotmask.u_matrix, 1, GL_FALSE, renderer->projection_2d);
+                renderer->rotmask_projection_pushed = true;
+            }
+            glUniform1f(renderer->program_rotmask.u_mask_invert, record->mask_invert);
+            gles2_set_blend(renderer, true);
+            gles2_set_depth(renderer, false, false);
+            gles2_set_scissor(renderer, record->scissor_enabled ? &record->scissor : NULL);
+            /* Bound outright, not through the cache, as the immediate path
+             * does: the two draws a frame do not earn a cache miss's risk. */
+            renderer->bound_texture1 = 0u;
+            gles2_bind_texture1(renderer, record->texture1);
+            renderer->bound_texture0 = 0u;
+            gles2_bind_texture0(renderer, record->texture0);
+            gles2_bind_rotmask_stream(renderer, rotmask_offset);
+            glDrawArrays(GL_TRIANGLES, (GLint)record->first, (GLsizei)record->count);
+            renderer->ui_stat_draws_rotmask++;
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
+            /* Debug only: glGetError is a pipeline drain (on a browser a
+             * synchronous round trip to the GPU process). The Adreno 320 was
+             * seen to DROP this draw silently when an attribute array its
+             * program lacks was left enabled, which is what this catches. */
+            if( renderer->debug )
+                (void)gles2_check_error("rotmask draw");
+            continue;
+        }
+        if( record->uses_sprite_atlas && !sprite_atlas_ok )
+            continue;
+        gles2_use_program(renderer, &renderer->program_ui);
+        gles2_set_scissor(renderer, record->scissor_enabled ? &record->scissor : NULL);
+        gles2_bind_texture0(
+            renderer,
+            record->uses_sprite_atlas ? renderer->ui_sprite_atlas_texture
+                                      : (record->texture0 ? record->texture0 : renderer->white_texture));
+        gles2_bind_texture1(renderer, record->texture1 ? record->texture1 : renderer->white_texture);
+        gles2_bind_ui_stream(renderer, base_offset);
+        glDrawArrays(GL_TRIANGLES, (GLint)record->first, (GLsizei)record->count);
+        if( record->layout == GLES2_UI_RECORD_LAYOUT_WIDGET )
+            renderer->ui_stat_draws_widget++;
+        else
+        {
+            renderer->ui_stat_draws_batch++;
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_UI_BATCH_DRAWS, 1);
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_2D_BATCH_FLUSHES, 1);
+        }
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
+    }
+    /* Leave nothing on unit 1 that an unload can delete before the next draw. */
+    gles2_bind_texture1(renderer, 0u);
+
+    renderer->ui_pass_record_count = 0u;
+    renderer->ui_pass_vertex_count = 0u;
+    renderer->ui_pass_rotmask_count = 0u;
+    renderer->ui_batch.first = 0u;
+}
+
+/*
+ * End the open batch. Control arm: upload it and draw it now (the flush this
+ * was). Deferred arm: record it as a range of the pass array; nothing
+ * reaches GL until gles2_ui_submit.
+ */
+static void
+gles2_ui_batch_close(struct ToriRS_GLES2* renderer)
 {
     struct GLES2UIBatch* batch;
     GLuint texture0;
@@ -207,6 +439,21 @@ gles2_ui_flush(struct ToriRS_GLES2* renderer)
     batch = &renderer->ui_batch;
     if( batch->vertex_count == 0u )
         return;
+    if( renderer->lever_ui_defer )
+    {
+        struct GLES2UIDrawRecord* record = gles2_ui_pass_record_append(renderer);
+        assert(batch->first + batch->vertex_count == renderer->ui_pass_vertex_count);
+        record->layout = GLES2_UI_RECORD_LAYOUT_UI;
+        record->first = batch->first;
+        record->count = batch->vertex_count;
+        record->texture1 = batch->texture1;
+        record->uses_sprite_atlas = batch->uses_sprite_atlas ? 1u : 0u;
+        record->scissor_enabled = batch->scissor_enabled ? 1u : 0u;
+        record->scissor = batch->scissor;
+        batch->vertex_count = 0u;
+        batch->first = renderer->ui_pass_vertex_count;
+        return;
+    }
     /* Unit 0 is the sprite atlas whenever a quad in the batch samples it
      * (uploaded first if it changed); unit 1 the batch's own texture. A unit
      * a batch does not sample still has to hold a complete texture -- the
@@ -233,8 +480,10 @@ gles2_ui_flush(struct ToriRS_GLES2* renderer)
     gles2_set_scissor(renderer, batch->scissor_enabled ? &batch->scissor : NULL);
     gles2_bind_texture0(renderer, texture0);
     gles2_bind_texture1(renderer, batch->texture1 ? batch->texture1 : renderer->white_texture);
+    /* Immediate path: the previous batch was drawn before this append. */
     offset = gles2_ring_upload(
-        renderer, batch->vertices, batch->vertex_count * (uint32_t)sizeof(struct GLES2VertexUI));
+        renderer, batch->vertices, batch->vertex_count * (uint32_t)sizeof(struct GLES2VertexUI),
+        true);
     gles2_bind_ui_stream(renderer, offset);
     glDrawArrays(GL_TRIANGLES, 0, (GLsizei)batch->vertex_count);
     renderer->ui_stat_draws_batch++;
@@ -243,6 +492,15 @@ gles2_ui_flush(struct ToriRS_GLES2* renderer)
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_2D_BATCH_FLUSHES, 1);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
     batch->vertex_count = 0u;
+}
+
+void
+gles2_ui_flush(struct ToriRS_GLES2* renderer)
+{
+    assert(renderer);
+    gles2_ui_batch_close(renderer);
+    if( renderer->lever_ui_defer )
+        gles2_ui_submit(renderer);
 }
 
 /*
@@ -277,7 +535,7 @@ gles2_ui_prepare_batch(
             else
                 renderer->ui_stat_break_overflow++;
         }
-        gles2_ui_flush(renderer);
+        gles2_ui_batch_close(renderer);
     }
     if( additional_vertices > GLES2_UI_BATCH_MAX_VERTS || !batch->vertices )
         return false;
@@ -320,7 +578,15 @@ gles2_ui_append_quad_vertices(
     }
     if( !gles2_ui_prepare_batch(renderer, texture1, uses_sprite_atlas, scissor, 6u) )
         return;
-    dst = &renderer->ui_batch.vertices[renderer->ui_batch.vertex_count];
+    if( renderer->lever_ui_defer )
+    {
+        /* Straight into the pass array; the open batch is its tail. */
+        gles2_ui_pass_reserve_vertices(renderer, 6u);
+        dst = &renderer->ui_pass_vertices[renderer->ui_pass_vertex_count];
+        renderer->ui_pass_vertex_count += 6u;
+    }
+    else
+        dst = &renderer->ui_batch.vertices[renderer->ui_batch.vertex_count];
     for( corner_index = 0u; corner_index < 6u; corner_index++ )
     {
         uint8_t corner = order[corner_index];
@@ -1050,6 +1316,61 @@ gles2_ui_rotmask_hash_due(
     return (((uint32_t)renderer->frame_clock + slot_index) % GLES2_ROTMASK_HASH_PERIOD) == 0u;
 }
 
+/*
+ * Is a rotmask texture up to date? TORIRS_GLES2_ROTMASK_GEN (the default):
+ * the producer says when it rewrote the pixels (ToriRS_GLES2_RotmaskSourceChanged
+ * from app_rebuild_world_map), so a texture uploaded at the current generation
+ * is current, and a frame costs one integer compare instead of a walk over
+ * the 512x512 bake. Under TORIRS_GLES2_DEBUG the hash still runs on its old
+ * schedule as a CROSS-CHECK: a hash that changes while the generation did not
+ * names an in-place writer nobody told the renderer about, and is logged.
+ * The control arm (=0) is the hash alone, as before.
+ *
+ * Returns true when the texture needs (re)uploading; `*out_hash` carries the
+ * hash when one was computed (UINT32_MAX otherwise) so the upload can record
+ * it.
+ */
+static bool
+gles2_ui_rotmask_needs_upload(
+    struct ToriRS_GLES2* renderer,
+    struct GLES2UIRotmaskSlot* slot,
+    const struct ToriDraw_Sprite* sprite,
+    GLuint texture,
+    uint32_t generation_uploaded,
+    uint32_t hash_uploaded,
+    bool hash_valid,
+    const char* what,
+    uint32_t* out_hash)
+{
+    *out_hash = UINT32_MAX;
+    if( renderer->lever_rotmask_gen )
+    {
+        uint32_t generation = gles2_rotmask_source_generation();
+        if( texture && generation_uploaded == generation )
+        {
+            if( renderer->debug && gles2_ui_rotmask_hash_due(renderer, slot, true) )
+            {
+                uint32_t hash = gles2_ui_rotmask_content_hash(sprite);
+                if( hash_valid && hash != hash_uploaded )
+                    TORIRS_ERR(
+                        "GLES2: rotmask %s pixels changed with no generation bump "
+                        "(scene %d): a writer is missing ToriRS_GLES2_RotmaskSourceChanged\n",
+                        what,
+                        slot->scene_id);
+                *out_hash = hash;
+            }
+            return false;
+        }
+        if( renderer->debug )
+            *out_hash = gles2_ui_rotmask_content_hash(sprite);
+        return true;
+    }
+    if( !gles2_ui_rotmask_hash_due(renderer, slot, texture && hash_valid) )
+        return false;
+    *out_hash = gles2_ui_rotmask_content_hash(sprite);
+    return !(texture && hash_valid && hash_uploaded == *out_hash);
+}
+
 static bool
 gles2_ui_rotmask_upload_source(
     struct ToriRS_GLES2* renderer,
@@ -1066,13 +1387,31 @@ gles2_ui_rotmask_upload_source(
     assert(sprite);
     if( !sprite->pixels_argb )
         return false;
-    if( !gles2_ui_rotmask_hash_due(renderer, slot, slot->source_texture && slot->source_hash_valid) )
+    if( !gles2_ui_rotmask_needs_upload(
+            renderer,
+            slot,
+            sprite,
+            slot->source_texture,
+            slot->source_generation,
+            slot->source_hash,
+            slot->source_hash_valid,
+            "source",
+            &content_hash) )
+    {
+        if( content_hash != UINT32_MAX )
+        {
+            slot->source_hash = content_hash;
+            slot->source_hash_valid = true;
+        }
         return true;
-    content_hash = gles2_ui_rotmask_content_hash(sprite);
-    if( slot->source_texture && slot->source_hash_valid && slot->source_hash == content_hash )
-        return true;
-    staged = (uint32_t*)calloc((size_t)slot->source_width * (size_t)slot->source_height, sizeof(*staged));
-    assert(staged);
+    }
+    /* Staged through the renderer's packed-row buffer, not a calloc per
+     * upload; the rows are cleared because the crop can leave a border the
+     * loop never writes. */
+    gles2_reserve_upload_stage(
+        renderer, (size_t)slot->source_width * (size_t)slot->source_height * sizeof(*staged));
+    staged = (uint32_t*)renderer->upload_stage;
+    memset(staged, 0, (size_t)slot->source_width * (size_t)slot->source_height * sizeof(*staged));
     for( source_y = 0; source_y < slot->source_height; source_y++ )
     {
         int sprite_y = sprite->crop_y + source_y;
@@ -1102,9 +1441,12 @@ gles2_ui_rotmask_upload_source(
         glTexSubImage2D(
             GL_TEXTURE_2D, 0, 0, 0, slot->source_width, slot->source_height, GL_RGBA,
             GL_UNSIGNED_BYTE, staged);
-    free(staged);
-    slot->source_hash = content_hash;
-    slot->source_hash_valid = true;
+    slot->source_generation = gles2_rotmask_source_generation();
+    if( content_hash != UINT32_MAX )
+    {
+        slot->source_hash = content_hash;
+        slot->source_hash_valid = true;
+    }
     return true;
 }
 
@@ -1125,13 +1467,27 @@ gles2_ui_rotmask_upload_mask(
     assert(mask);
     if( !mask->pixels_argb )
         return false;
-    if( !gles2_ui_rotmask_hash_due(renderer, slot, slot->mask_texture && slot->mask_hash_valid) )
+    if( !gles2_ui_rotmask_needs_upload(
+            renderer,
+            slot,
+            mask,
+            slot->mask_texture,
+            slot->mask_generation,
+            slot->mask_hash,
+            slot->mask_hash_valid,
+            "mask",
+            &content_hash) )
+    {
+        if( content_hash != UINT32_MAX )
+        {
+            slot->mask_hash = content_hash;
+            slot->mask_hash_valid = true;
+        }
         return true;
-    content_hash = gles2_ui_rotmask_content_hash(mask);
-    if( slot->mask_texture && slot->mask_hash_valid && slot->mask_hash == content_hash )
-        return true;
-    staged = (uint8_t*)calloc((size_t)slot->width * (size_t)slot->height, 1u);
-    assert(staged);
+    }
+    gles2_reserve_upload_stage(renderer, (size_t)slot->width * (size_t)slot->height);
+    staged = renderer->upload_stage;
+    memset(staged, 0, (size_t)slot->width * (size_t)slot->height);
     for( y = 0; y < mask->height; y++ )
     {
         int dst_y = mask->crop_y + y;
@@ -1158,9 +1514,12 @@ gles2_ui_rotmask_upload_mask(
         glTexSubImage2D(
             GL_TEXTURE_2D, 0, 0, 0, slot->width, slot->height, GL_ALPHA, GL_UNSIGNED_BYTE, staged);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    free(staged);
-    slot->mask_hash = content_hash;
-    slot->mask_hash_valid = true;
+    slot->mask_generation = gles2_rotmask_source_generation();
+    if( content_hash != UINT32_MAX )
+    {
+        slot->mask_hash = content_hash;
+        slot->mask_hash_valid = true;
+    }
     return true;
 }
 
@@ -1267,6 +1626,33 @@ gles2_ui_draw_rotmask_native(
     for( corner = 0; corner < 6; corner++ )
         vertices[corner] = corners[order[corner]];
 
+    if( renderer->lever_ui_defer )
+    {
+        /* Recorded in sequence with the batches around it and issued by
+         * gles2_ui_submit. The source and mask textures were uploaded above
+         * (at most once per frame per slot: the generation is constant for
+         * the frame and the hash schedule visits a slot once a frame), so
+         * the deferred draw samples what this record meant. */
+        struct GLES2UIDrawRecord* record;
+        gles2_ui_batch_close(renderer);
+        gles2_ui_pass_reserve_rotmask_vertices(renderer, 6u);
+        record = gles2_ui_pass_record_append(renderer);
+        record->layout = GLES2_UI_RECORD_LAYOUT_ROTMASK;
+        record->first = renderer->ui_pass_rotmask_count;
+        record->count = 6u;
+        record->texture0 = slot->source_texture;
+        record->texture1 = slot->mask_texture;
+        record->scissor_enabled = 1u;
+        record->scissor = *scissor;
+        record->mask_invert = command->mask_keep_opaque ? 0.0f : 1.0f;
+        memcpy(
+            renderer->ui_pass_rotmask_vertices + renderer->ui_pass_rotmask_count,
+            vertices,
+            sizeof(vertices));
+        renderer->ui_pass_rotmask_count += 6u;
+        return;
+    }
+
     gles2_ui_flush(renderer);
     gles2_use_program(renderer, &renderer->program_rotmask);
     glUniformMatrix4fv(renderer->program_rotmask.u_matrix, 1, GL_FALSE, renderer->projection_2d);
@@ -1281,14 +1667,19 @@ gles2_ui_draw_rotmask_native(
     gles2_bind_texture1(renderer, slot->mask_texture);
     renderer->bound_texture0 = 0u;
     gles2_bind_texture0(renderer, slot->source_texture);
-    offset = gles2_ring_upload(renderer, vertices, (uint32_t)sizeof(vertices));
+    offset = gles2_ring_upload(renderer, vertices, (uint32_t)sizeof(vertices), true);
     gles2_bind_rotmask_stream(renderer, offset);
     glDrawArrays(GL_TRIANGLES, 0, 6);
-    /* No glGetError here. It ran after every rotmask draw once, and on a
-     * browser glGetError is a synchronous round trip to the GPU process that
-     * drains the command queue -- twice a frame, for the minimap and the
-     * compass. The init-time check covers the programs and buffers this draw
-     * uses; a draw that fails afterwards is visible on screen. */
+    /* No glGetError in the shipping path. It ran after every rotmask draw
+     * once, and on a browser glGetError is a synchronous round trip to the
+     * GPU process that drains the command queue -- twice a frame, for the
+     * minimap and the compass. The init-time check covers the programs and
+     * buffers this draw uses; a draw that fails afterwards is visible on
+     * screen. Under TORIRS_GLES2_DEBUG it is worth the drain: the Adreno 320
+     * drops this draw silently when an attribute array the program lacks is
+     * left enabled. */
+    if( renderer->debug )
+        (void)gles2_check_error("rotmask draw");
     renderer->ui_stat_draws_rotmask++;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
     /* Leave nothing on unit 1 that an unload can delete before the next draw. */
@@ -2754,6 +3145,28 @@ gles2_widget_flush_vertices(
     uint32_t first = 0u;
     if( vertex_count == 0u )
         return;
+    if( renderer->lever_ui_defer )
+    {
+        /* One record over the world atlas, appended to the pass array in
+         * sequence; no size cap, since nothing indexes it. The open batch
+         * was closed by the caller before the model was built. */
+        struct GLES2UIDrawRecord* record;
+        assert(renderer->ui_batch.vertex_count == 0u);
+        gles2_ui_pass_reserve_vertices(renderer, vertex_count);
+        memcpy(
+            renderer->ui_pass_vertices + renderer->ui_pass_vertex_count,
+            renderer->widget_vertices,
+            (size_t)vertex_count * sizeof(struct GLES2VertexUI));
+        record = gles2_ui_pass_record_append(renderer);
+        record->layout = GLES2_UI_RECORD_LAYOUT_WIDGET;
+        record->first = renderer->ui_pass_vertex_count;
+        record->count = vertex_count;
+        record->texture0 = renderer->atlas_texture;
+        record->scissor_enabled = 1u;
+        record->scissor = *scissor;
+        renderer->ui_pass_vertex_count += vertex_count;
+        return;
+    }
     gles2_ui_apply_states(renderer);
     gles2_set_scissor(renderer, scissor);
     gles2_bind_texture0(renderer, renderer->atlas_texture);
@@ -2765,8 +3178,10 @@ gles2_widget_flush_vertices(
         uint32_t offset;
         if( count > GLES2_UI_BATCH_MAX_VERTS )
             count = GLES2_UI_BATCH_MAX_VERTS - (GLES2_UI_BATCH_MAX_VERTS % 3u);
+        /* Immediate path: each piece is drawn before the next append. */
         offset = gles2_ring_upload(
-            renderer, renderer->widget_vertices + first, count * (uint32_t)sizeof(struct GLES2VertexUI));
+            renderer, renderer->widget_vertices + first, count * (uint32_t)sizeof(struct GLES2VertexUI),
+            true);
         gles2_bind_ui_stream(renderer, offset);
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)count);
         renderer->ui_stat_draws_widget++;
@@ -2831,7 +3246,9 @@ gles2_ui_draw_model_widget(
     if( sorted_face_count <= 0 )
         return;
     face_order = ToriDraw_FaceOrder(renderer->scene);
-    gles2_ui_flush(renderer);
+    /* The open batch ends here so the model keeps its place in the
+     * sequence; on the deferred arm that is a record, not a draw. */
+    gles2_ui_batch_close(renderer);
     /* Every face's texture is reserved (and uploaded when present) before the
      * loop, so the atlas is pushed once rather than mid-model. */
     if( model->face_textures )
@@ -2991,8 +3408,14 @@ gles2_ui_free(struct ToriRS_GLES2* renderer)
     free(renderer->ui_rotmasks);
     free(renderer->ui_batch.vertices);
     free(renderer->widget_vertices);
+    free(renderer->ui_pass_vertices);
+    free(renderer->ui_pass_rotmask_vertices);
+    free(renderer->ui_pass_records);
     renderer->ui_batch.vertices = NULL;
     renderer->widget_vertices = NULL;
+    renderer->ui_pass_vertices = NULL;
+    renderer->ui_pass_rotmask_vertices = NULL;
+    renderer->ui_pass_records = NULL;
 }
 
 void

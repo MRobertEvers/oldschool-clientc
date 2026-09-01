@@ -53,6 +53,10 @@
 #define VIEW_W 256
 #define VIEW_H 200
 
+/* The 2026-09 census pair beside the two toridraw.h declares. */
+extern int g_toridraw_sort_k16_tail_models;
+extern int g_toridraw_sort_tile_fast_models;
+
 static int g_failures;
 static int g_fixtures;
 static long g_faces_compared;
@@ -443,7 +447,10 @@ bench_sorts(struct ToriDraw_Scene* scene)
      * would with a single model looped hot -- which is the trap a single
      * repeated model falls into, and no real frame repeats a model. */
     enum { MODELS = 64 };
-    static const int sizes[] = { 64, 200, 256, 1000, 2000 };
+    /* 71, 207 and 1007 are the sizes above plus a seven-face tail: every
+     * other size is a multiple of eight, so without them the K16 tail block
+     * (TORIDRAW_K16_TAIL) never runs in this bench. */
+    static const int sizes[] = { 64, 200, 256, 1000, 2000, 71, 207, 1007 };
     const struct ToriDraw_FaceCullSortKernel* k[2] = {
         ToriDraw_FaceCullSortKernelGetBucket(), ToriDraw_FaceCullSortKernelGetBitonicRadix()
     };
@@ -608,7 +615,7 @@ main(void)
         int face_count = face_counts[fi];
         int vertex_count = face_count < 8 ? 8 : (face_count > 2000 ? 2000 : face_count);
 
-        for( int variant = 0; variant < 32; variant++ )
+        for( int variant = 0; variant < 64; variant++ )
         {
             /* Bit 4 turns the priority fixtures uniform: 0 none, 1 varied,
              * 2 one value (the fast path). Unpriced models are run once. */
@@ -621,9 +628,18 @@ main(void)
              * never once compared on a model carrying a clipped face. */
             int presort = (variant & 4) != 0;
             /* Near enough that some vertices cross the near plane on the
-             * odd variants, far enough that none do on the even ones. */
+             * odd variants, far enough that none do on the even ones.
+             *
+             * Bit 5 adds a MIDDLE distance. At this camera pitch a model 900
+             * away projects below the viewport and is culled before the
+             * sort on all but a handful of fixtures, so nearly every
+             * fixture that reached the sort was a near-clipped one -- and a
+             * near-clipped or presorting model never takes the A32 lane's
+             * K16 block. 450 keeps the model on screen and unclipped, which
+             * is what puts the K16 block, its masked tail, and the plain
+             * int32 block under the parity test at all. */
             int extent = 120;
-            int distance = (variant & 8) ? 120 : 900;
+            int distance = (variant & 32) ? 450 : ((variant & 8) ? 120 : 900);
             struct ToriDraw_Model* model =
                 make_model(vertex_count, face_count, extent, with_priorities, with_alpha);
 
@@ -646,10 +662,15 @@ main(void)
      * over near enough that a corner crosses the near plane. */
     for( int rotation = 0; rotation < 4 && g_failures <= 20; rotation++ )
     {
-        for( int variant = 0; variant < 8; variant++ )
+        for( int variant = 0; variant < 16; variant++ )
         {
             int presort = (variant & 1) != 0;
-            int distance = (variant & 2) ? 120 : 900;
+            /* At this camera pitch a tile 900 away mostly projects below the
+             * viewport and is culled before the sort; 450 keeps more of them
+             * on screen, so the tile kernels (and the leaf fast path, which
+             * only a non-presorting fixture reaches) are compared on more
+             * than a few dozen fixtures. */
+            int distance = (variant & 2) ? 120 : ((variant & 8) ? 450 : 900);
             int height_extent = (variant & 4) ? 0 : 120; /* 0 = a flat tile */
             struct ToriDraw_Model* model = make_tile_model(rotation, height_extent);
 
@@ -670,8 +691,10 @@ done:
     if( !g_failures && getenv("TORIDRAW_FACE_SORT_BENCH") )
         bench_sorts(scene);
     ToriDraw_SceneFree(scene);
-    printf("k16 census: %d models took the K16 block, %d declined (A32 lane only)\n",
-           g_toridraw_sort_k16_models, g_toridraw_sort_k16_declined);
+    printf("k16 census: %d models took the K16 block, %d declined, %d took the masked tail "
+           "(A32 lane only); tile fast path: %d models\n",
+           g_toridraw_sort_k16_models, g_toridraw_sort_k16_declined,
+           g_toridraw_sort_k16_tail_models, g_toridraw_sort_tile_fast_models);
     printf("face sort bitonic+radix vs bucket: %d fixtures, %ld faces compared, "
            "%ld drawn -- %s\n",
            g_fixtures, g_faces_compared, g_faces_drawn, g_failures ? "FAIL" : "PASS");

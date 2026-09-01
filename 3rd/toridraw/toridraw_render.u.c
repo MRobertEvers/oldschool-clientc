@@ -242,11 +242,22 @@ struct ToriDraw_CullPointTest
     bool contains;
 };
 
-static inline int
+/*
+ * always_inline: this is called once per model from ToriDraw_ProjectWithVTable
+ * and once from ToriDraw_RenderModel1CullPoint, and out of line it was a
+ * 1.2 KB function with a nine-register push paid by every one of the ~1,640
+ * models a frame reaching the gate. Inlined, its two callers' frames absorb
+ * it and the early-reject paths return without ever having pushed.
+ *
+ * `model` is the resolved read view (ToriDraw_ModelRead), resolved once by
+ * the caller rather than switched on the handle kind here and again in every
+ * accessor below.
+ */
+static inline int __attribute__((always_inline))
 ToriDraw_FastCull(
     const struct ToriDraw_Scene* scene,
     struct ToriDraw_ViewPort* view_port,
-    struct ToriDraw_ModelHandle hnd,
+    const struct ToriDraw_Model* model,
     struct ToriDraw_Position* position,
     struct ToriDraw_Camera* camera,
     struct ProjectedVertex* projected_vertex,
@@ -254,8 +265,7 @@ ToriDraw_FastCull(
 {
     if( point )
         point->contains = false;
-    assert(hnd.kind != TORIDRAWMK_NONE);
-    assert(ToriDraw_ModelKindIsFull(hnd.kind));
+    assert(model);
     int scene_x = position->x;
     int scene_y = position->y;
     int scene_z = position->z;
@@ -311,9 +321,11 @@ ToriDraw_FastCull(
     projected_vertex->y = (scene_y * cos_camera_pitch - z_scene * sin_camera_pitch) >> 16;
     projected_vertex->z = (scene_y * sin_camera_pitch + z_scene * cos_camera_pitch) >> 16;
 
-    const struct ToriDraw_BoundsCylinder* bc = model_bounds_cylinder(hnd);
-    if( !bc )
+    /* A model that never had ToriDraw_ModelSetBoundsCylinder run is a
+     * legitimate (if useless) runtime state, answered as it always was. */
+    if( !model->has_bounds_cylinder )
         return TORIDRAW_CULL_ERROR;
+    const struct ToriDraw_BoundsCylinder* const bc = &model->bounds_cylinder;
 
     int model_edge_radius = bc->radius;
 
@@ -569,10 +581,12 @@ toridraw_projected_bound(
     }
 
     /* The raw box, for the face sort's extent classification. */
-    scene->projected_box[0] = box.min_x;
-    scene->projected_box[1] = box.max_x;
-    scene->projected_box[2] = box.min_y;
-    scene->projected_box[3] = box.max_y;
+    /* The raw box, for the face sort's extent classification -- the struct's
+     * own layout, copied whole so the lane's folded vector store above lands
+     * here as one load and one store rather than four lane extracts. */
+    _Static_assert(
+        sizeof(scene->projected_box) == sizeof(box), "projected_box is a ToriDraw_ScreenBound");
+    memcpy(scene->projected_box, &box, sizeof(box));
 
     /* The sentinel is the smallest x any clipped model can hold, so if one
      * is present it IS the minimum -- one compare after the sweep, not one
@@ -1270,25 +1284,50 @@ toridraw_project_vertices_parallel_noclip(
  * the parallel family has no divisor to protect and would be paying for the
  * more expensive kernel for nothing.
  */
+/*
+ * TORIDRAW_PROJ_PREP_COT: take the camera's cot16 off the scene's prepared
+ * block when that block was published for this camera, instead of walking
+ * the fov table and clamp ladder for every model. Default on;
+ * TORIDRAW_PROJ_PREP_COT=0 re-derives it per model for an A/B. The two arms
+ * are the same function's output on the same camera, so they agree bit for
+ * bit. Read once and cached, the same shape as every other knob in the tree.
+ */
+static inline int
+toridraw_projection_prep_cot_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+    {
+        const char* v = getenv("TORIDRAW_PROJ_PREP_COT");
+        armed = (v && v[0] == '0') ? 0 : 1;
+    }
+    return armed;
+}
+
 static void
 toridraw_projection_near_clip_perspective(
+    const struct ToriDraw_Scene* scene,
     const struct ToriDraw_Camera* camera,
     const struct ToriDraw_BoundsCylinder* bounds,
     const struct ProjectedVertex* center,
     int* out_near_plane_z,
     bool* out_may_clip)
 {
+    assert(scene);
     assert(camera);
     assert(center);
     assert(out_near_plane_z);
     assert(out_may_clip);
 
-    int const near_plane_z = toridraw_safe_near_plane_z(
-        bounds,
-        center,
-        toridraw_projection_cot16(
-            camera->projection_mode, camera->projection_scale, camera->fov_rpi2048),
-        camera->near_plane_z);
+    int cot16;
+    if( scene->projection_prepared_camera_source == camera && toridraw_projection_prep_cot_armed() )
+        cot16 = scene->projection_prepared_cot16;
+    else
+        cot16 = toridraw_projection_cot16(
+            camera->projection_mode, camera->projection_scale, camera->fov_rpi2048);
+
+    int const near_plane_z =
+        toridraw_safe_near_plane_z(bounds, center, cot16, camera->near_plane_z);
 
     *out_near_plane_z = near_plane_z;
     *out_may_clip =
@@ -1311,12 +1350,14 @@ toridraw_projection_near_clip_perspective(
  */
 static void
 toridraw_projection_near_clip_parallel(
+    const struct ToriDraw_Scene* scene,
     const struct ToriDraw_Camera* camera,
     const struct ToriDraw_BoundsCylinder* bounds,
     const struct ProjectedVertex* center,
     int* out_near_plane_z,
     bool* out_may_clip)
 {
+    (void)scene;
     assert(camera);
     assert(center);
     assert(out_near_plane_z);
@@ -1367,6 +1408,17 @@ ToriDraw_ProjectWithVTable(
     assert(vtable);
     struct ProjectedVertex center_projection;
 
+    /*
+     * The handle, resolved ONCE. Every model kind puts its ToriDraw_Model at
+     * offset zero, so this is one pointer whichever kind it is; the accessor
+     * switches (model_vertex_count, model_has_textures, model_vertices_x ...)
+     * each re-asked the kind, and this shell plus its kernel asked eleven
+     * times per model. `hnd` itself is kept only for the debug macros, which
+     * name the model by it.
+     */
+    const struct ToriDraw_Model* const model = ToriDraw_ModelRead(hnd);
+    assert(model);
+
     /* Refined below once the model's camera-space centre is known. Set here so
      * an early cull cannot leave a stale plane behind for the next caller. */
     scene->projection_near_plane_z = camera->near_plane_z;
@@ -1375,8 +1427,13 @@ ToriDraw_ProjectWithVTable(
      * 2012 QBD is 6,223 vertices / 9,012 faces after its two model parts are
      * merged, so the old 4,096 assumptions wrote beyond six separate buffers.
      * Refuse an unsupported model before touching any array; full scenes now
-     * carry a large enough declared capacity for the imported encounter. */
-    if( model_vertex_count(hnd) > scene->max_vertices || model_face_count(hnd) > scene->max_faces )
+     * carry a large enough declared capacity for the imported encounter.
+     *
+     * Still per model rather than at scene-element bind: this shell also
+     * projects models that were never bound to an element (icons, the
+     * sprite baker, the tests), and with the handle resolved above it is two
+     * compares on fields already in the line the cull reads next. */
+    if( model->vertex_count > scene->max_vertices || model->face_count > scene->max_faces )
     {
         TORIDRAW_DBG_CAPACITY_REJECT(scene, hnd);
         return TORIDRAW_CULL_ERROR;
@@ -1392,7 +1449,7 @@ ToriDraw_ProjectWithVTable(
 
     g_toridraw_project_census.calls++;
     cull = ToriDraw_FastCull(
-        scene, view_port, hnd, position, camera, &center_projection, NULL);
+        scene, view_port, model, position, camera, &center_projection, NULL);
     if( cull != TORIDRAW_CULL_VISIBLE )
     {
         if( cull == TORIDRAW_CULL_ERROR )
@@ -1416,7 +1473,7 @@ ToriDraw_ProjectWithVTable(
      * below), which is where the eight-corner cylinder box used to be and
      * why it is gone.
      */
-    int const bound_vertex_count = model_vertex_count(hnd);
+    int const bound_vertex_count = model->vertex_count;
 
     int const model_pitch = ToriDraw_NormalizeAngle(position->pitch);
     int const model_yaw = ToriDraw_NormalizeAngle(position->yaw);
@@ -1437,7 +1494,11 @@ ToriDraw_ProjectWithVTable(
      * toridraw_projection_near_clip_perspective / _parallel above and the
      * bound they share, toridraw_model_reaches_near_plane.
      */
-    struct ToriDraw_BoundsCylinder const* const proj_bc = model_bounds_cylinder(hnd);
+    /* The cull above already refused a model with no cylinder, so this is
+     * never NULL here; the family rule still takes a nullable pointer because
+     * that is its contract. */
+    struct ToriDraw_BoundsCylinder const* const proj_bc =
+        model->has_bounds_cylinder ? &model->bounds_cylinder : NULL;
 
     /*
      * Which family, and then everything the family knows. The camera read
@@ -1455,7 +1516,7 @@ ToriDraw_ProjectWithVTable(
 
     bool may_clip;
     family->near_clip(
-        camera, proj_bc, &center_projection, &scene->projection_near_plane_z, &may_clip);
+        scene, camera, proj_bc, &center_projection, &scene->projection_near_plane_z, &may_clip);
 
 #ifdef TORIDRAW_NEAR_CLIP_FORCE_ALL
     /* Build with -DTORIDRAW_NEAR_CLIP_FORCE_ALL=1 to send every model down the
@@ -1924,7 +1985,7 @@ ToriDraw_RenderModel1CullPoint(
     test.rel_y = point_y - view_port->y_center;
     test.contains = false;
     cull = ToriDraw_FastCull(
-        scene, view_port, hnd, position, camera, &center_projection,
+        scene, view_port, ToriDraw_ModelRead(hnd), position, camera, &center_projection,
         out_point_inside ? &test : NULL);
     if( out_point_inside )
         *out_point_inside = test.contains;

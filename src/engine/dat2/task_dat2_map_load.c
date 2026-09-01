@@ -243,10 +243,14 @@ Task_Dat2MapSceneryLoad_Run(
 
     rscache_locs->chunk_mapx = task->map_x;
     rscache_locs->chunk_mapz = task->map_z;
-    dat2_buildcache_map_scenery_add(task->bc, map_id, rscache_locs);
 
     torirs_locs = ToriRS_MapLocsFromRSCache(rscache_locs);
     CacheProvider_MapSceneryAdd(&task->bc->base, map_id, torirs_locs);
+
+    /* Same as the terrain task above: the ToriRS copy is what every reader
+     * uses, and the buildcache's raw scenery store had no reader at all. */
+    RSCache_MapLocsFree(rscache_locs);
+    rscache_locs = NULL;
 
     PT_END(&task->pt);
 }

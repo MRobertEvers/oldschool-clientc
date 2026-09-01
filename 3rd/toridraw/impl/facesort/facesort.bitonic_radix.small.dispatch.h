@@ -99,6 +99,15 @@
  *       false means the caller runs qsort instead. Called only for counts at
  *       or under toridraw_face_sort_bitonic_max().
  *
+ *   void toridraw_face_sort_bitonic_radix_lane_emit(const uint32_t* keys,
+ *                                                   int n, int* out)
+ *       The emit: out[i] = keys[i] & 0xFFFF for i in [0, n). `out` is
+ *       scene->tmp_face_order and has NO slack past max_faces, so a lane that
+ *       stores whole vectors finishes with a scalar tail; `keys` has eight
+ *       lanes of slack and may be over-read. The vector lanes vand + vst1q
+ *       (TORIDRAW_SORT_EMIT_VEC=0 is the scalar control arm); the SSE2 and
+ *       scalar lanes loop.
+ *
  * The lane a build gets is decided by the one `#elif` ladder below, which also
  * sets TORIDRAW_FACE_SORT_SIMD when the lane has a vector cull -- and so, one
  * layer up, whether the kernel is the one the family is named for. That is

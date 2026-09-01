@@ -35,8 +35,10 @@
  *     overlapping source and destination, so the colour travels through
  *     separate registers on the way out.
  *
- *   - alpha x8 IS IN q15, NOT q7. q7 is d14-d15, which are callee-saved under
- *     AAPCS; the AArch64 file's v7 is not.
+ *   - alpha x8 IS IN d30, NOT q7. q7 is d14-d15, which are callee-saved under
+ *     AAPCS; the AArch64 file's v7 is not. And it is eight BYTES, not eight
+ *     halfwords: the blend multiplies with VMULL.U8, which widens as it goes
+ *     -- see BLEND4.
  *
  * THE COLOUR STEPS ARE STILL DOUBLE. Both gradients divide by sarea, and the C
  * (gouraudhsllightness_barycentric_steps.h) does it in double. VFP's scalar
@@ -111,8 +113,8 @@
  *   r5 framebuffer row   r6 stride bytes   r7 g_hsl16_to_pixel_table
  *   r8 hsl_ish8 (row colour accumulator)   lr step_x_hsl_ish8
  *   r9, r10, r11, r12 scratch
- *   q0 splat;  q1 K x4, q2 (255-a) x8, q3 0x00FFFFFF x4, q15 a x8 (alpha door)
- *   q8-q11, q14 scratch;  q12, q13 the edge-ladder constants
+ *   q0 splat;  q1 K x4, d4 (255-a) x8 u8, q3 0x00FFFFFF x4, d30 a x8 u8
+ *   (alpha door);  q8-q11, q14 scratch;  q12, q13 the edge-ladder constants
  */
 
 /*
@@ -242,28 +244,54 @@
 	/* Straight from the palette into a NEON lane -- see the note in SPANFILL
 	 * for why this must not travel through an ARM register on this part. */
 	vld1.32	{d16[0]}, [\addr]
-	vmovl.u8	q9, d16
-	vmul.i16	q9, q9, q15
-	vshr.u16	q9, q9, #8
-	vmovn.i16	d20, q9
+	vmull.u8	q9, d16, d30
+	vshrn.u16	d20, q9, #8
 	vand	d20, d20, d6
 	vdup.32	q1, d20[0]
 .endm
 
-/* Four destination pixels at r12 blended under q1 and stored. */
+/*
+ * Four destination pixels at r12 blended under q1 and stored.
+ *
+ * VMULL.U8 widens and multiplies in one instruction and VSHRN.U16 #8 shifts
+ * and narrows in one, and the result is the AArch64 file's uxtl / mul / ushr
+ * / xtn bit for bit: no product exceeds 255 * 255, so nothing is lost in the
+ * u16 lane and the byte VSHRN keeps is the byte the narrow kept. Six vector
+ * instructions where there were ten, held to the exact arm of the test.
+ */
 .macro BLEND4
 	vld1.32	{d16, d17}, [r12]
-	vmovl.u8	q9, d16
-	vmovl.u8	q10, d17
-	vmul.i16	q9, q9, q2
-	vmul.i16	q10, q10, q2
-	vshr.u16	q9, q9, #8
-	vshr.u16	q10, q10, #8
-	vmovn.i16	d16, q9
-	vmovn.i16	d17, q10
+	vmull.u8	q9, d16, d4
+	vmull.u8	q10, d17, d4
+	vshrn.u16	d16, q9, #8
+	vshrn.u16	d17, q10, #8
 	vand	q8, q8, q3
 	vadd.i32	q8, q8, q1
 	vst1.32	{d16, d17}, [r12]!
+.endm
+
+/*
+ * BLENDK and BLEND4 as one block, the two chains interleaved: the palette
+ * entry and the four destination pixels are loaded back to back, and the
+ * destination's products -- which do not depend on K -- run while K is
+ * being narrowed and splatted. On an in-order NEON pipe that is the
+ * difference between two dependent chains and one. Same instructions, same
+ * bits; only the order.
+ */
+.macro BLENDK4 addr
+	vld1.32	{d16[0]}, [\addr]
+	vld1.32	{d22, d23}, [r12]
+	vmull.u8	q9, d16, d30		/* K's products                      */
+	vmull.u8	q14, d22, d4		/* the destination's                 */
+	vmull.u8	q10, d23, d4
+	vshrn.u16	d17, q9, #8		/* d17, not d20: q10 is still live   */
+	vshrn.u16	d22, q14, #8
+	vshrn.u16	d23, q10, #8
+	vand	d17, d17, d6
+	vand	q11, q11, q3
+	vdup.32	q1, d17[0]
+	vadd.i32	q11, q11, q1
+	vst1.32	{d22, d23}, [r12]!
 .endm
 
 /*
@@ -280,8 +308,7 @@
 	lsr	r11, r11, #2
 75:
 	LOOKUP_ADDR r9, r10, r7
-	BLENDK	r10
-	BLEND4
+	BLENDK4	r10
 	add	r9, r9, lr, lsl #2
 	subs	r11, r11, #1
 	bne	75b
@@ -293,10 +320,8 @@
 	BLENDK	r10
 77:
 	vld1.32	{d16[0]}, [r12]
-	vmovl.u8	q9, d16
-	vmul.i16	d18, d18, d4
-	vshr.u16	d18, d18, #8
-	vmovn.i16	d16, q9
+	vmull.u8	q9, d16, d4
+	vshrn.u16	d16, q9, #8
 	vand	d16, d16, d6
 	vadd.i32	d16, d16, d2
 	vst1.32	{d16[0]}, [r12]!
@@ -395,9 +420,9 @@
 /* The alpha lane's constants, live across both trapezoid walks. */
 .macro SETUP_ALPHA
 	ldr	r2, [r11, #R_A]
-	vdup.16	q15, r2				/* alpha x8                          */
+	vdup.8	d30, r2				/* alpha x8, u8: VMULL widens it     */
 	rsb	r2, r2, #255
-	vdup.16	q2, r2				/* 255 - alpha, x8                   */
+	vdup.8	d4, r2				/* 255 - alpha, x8, u8               */
 	vmvn.i32	q3, #0xff000000		/* 0x00FFFFFF x4                     */
 .endm
 

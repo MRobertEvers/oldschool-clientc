@@ -113,6 +113,17 @@ void
 ToriRS_GLES2_RenderFrame(struct ToriRS_GLES2* renderer, struct ToriRS_Frame* frame);
 
 /**
+ * The pixels behind a rotated-masked sprite (the minimap bake) were rewritten
+ * IN PLACE. The renderer keeps a GPU copy of that sprite and, since an
+ * in-place rewrite raises no scene event, it cannot tell a changed frame
+ * from an untouched one -- it used to hash the whole bake every eighth
+ * frame to find out. The producer knows; it calls this. Process-wide (the
+ * caller holds no renderer) and safe to call with no renderer alive.
+ */
+void
+ToriRS_GLES2_RotmaskSourceChanged(void);
+
+/**
  * Read the frame back off the device into `pixels`, top-down ARGB, sampled
  * onto the CANVAS grid (width/height are the canvas size, not the surface's).
  *

@@ -620,4 +620,16 @@ toridraw_face_sort_bitonic_radix_lane_sort(
     return true;
 }
 
+/* The emit, one face at a time: see the header. */
+static inline void
+toridraw_face_sort_bitonic_radix_lane_emit(
+    const uint32_t* RESTRICT keys,
+    int n,
+    int* RESTRICT out)
+{
+    int i;
+    for( i = 0; i < n; i++ )
+        out[i] = (int)(keys[i] & 0xFFFFu);
+}
+
 #endif /* TORIDRAW_FACE_SORT_BITONIC_RADIX_SSE2_U_C */

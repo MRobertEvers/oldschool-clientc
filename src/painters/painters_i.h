@@ -72,6 +72,35 @@ struct ElementPaint
     uint8_t drawn;
 };
 
+/**
+ * One dynamic registration, as painter_add_* received it. The per-cycle
+ * dynamic pass records these instead of touching the tiles; painter_dynamics_commit
+ * compares the cycle's list with the previous one and replays it only when
+ * something changed. Zero-filled before use so memcmp can compare them.
+ */
+struct PainterDynRecord
+{
+    uint8_t op; /* enum PainterDynOp */
+    uint8_t flags;
+    uint8_t level;
+    int8_t wall_ab;
+    int8_t side;
+    int16_t sx;
+    int16_t sz;
+    int16_t size_x;
+    int16_t size_z;
+    int32_t entity;
+    int32_t model_height;
+};
+
+enum PainterDynOp
+{
+    PAINTER_DYN_OP_NONE = 0,
+    PAINTER_DYN_OP_SCENERY,
+    PAINTER_DYN_OP_WALL,
+    PAINTER_DYN_OP_GROUND_DECOR,
+};
+
 struct Painter
 {
     int width;
@@ -124,6 +153,39 @@ struct Painter
     struct SceneryNode* scenery_pool;
     int scenery_pool_count;
     int scenery_pool_capacity;
+    /** scenery_pool_count as of painter_mark_static_count. Every node the
+     *  static build made sits below it and every dynamic node above, so
+     *  painter_reset_to_static hands the dynamic nodes back wholesale by
+     *  truncating to it (before that the pool only ever grew: ~180 nodes a
+     *  frame in Lumbridge). */
+    int static_scenery_pool_count;
+
+    /** The scene element each terrain mesh draws with, indexed like tiles
+     *  (painter_coord_idx over sx, sz, mesh level); -1 where no mesh was set.
+     *  Written from World_TerrainSet, read by the paint walk so a terrain
+     *  command carries its element id and the frame need not resolve it
+     *  through the world's entity pool. */
+    int32_t* terrain_element;
+
+    /* The dynamic registration journal (TORIRS_PAINTER_DYN_SKIP). Between
+     * painter_dynamics_begin and painter_dynamics_commit the add calls are
+     * recorded here rather than applied; commit compares against the previous
+     * cycle's list and only rebuilds when it differs. `static_generation`
+     * counts every change to the static set (marks, releases, build-path
+     * adds) so a skip is refused when the base the dynamics sit on moved. */
+    int dyn_recording;
+    int dyn_skip_override; /* -1 = follow the env knob */
+    struct PainterDynRecord* dyn_journal;
+    int dyn_journal_count;
+    int dyn_journal_capacity;
+    struct PainterDynRecord* dyn_previous;
+    int dyn_previous_count;
+    int dyn_previous_capacity;
+    int dyn_previous_valid;
+    uint32_t static_generation;
+    uint32_t dyn_previous_generation;
+    /** Cycles painter_dynamics_commit found nothing changed and skipped. */
+    uint32_t dyn_skipped_count;
 
     struct PaintersElement* elements;
     struct ElementPaint* element_paints;

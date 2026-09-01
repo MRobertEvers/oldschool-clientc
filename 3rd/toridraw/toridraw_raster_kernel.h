@@ -455,8 +455,14 @@ typedef void (*ToriDraw_ProjectionVerticesFn)(
  *
  * `bounds` is NULL when the model carries no bound; a family that cannot rule
  * out a near vertex without one must answer true.
+ *
+ * `scene` is read-only here and is passed so a rule can take the camera's
+ * derived constants (the projection cot16) off the scene's prepared block
+ * when that block was published for `camera`, instead of re-deriving them per
+ * model.
  */
 typedef void (*ToriDraw_ProjectionNearClipFn)(
+    const struct ToriDraw_Scene* scene,
     const struct ToriDraw_Camera* camera,
     const struct ToriDraw_BoundsCylinder* bounds,
     const struct ProjectedVertex* center,

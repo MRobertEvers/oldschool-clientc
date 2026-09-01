@@ -414,6 +414,9 @@ gles2_delete_program(struct GLES2Program* program)
 static bool
 gles2_create_programs(struct ToriRS_GLES2* renderer)
 {
+    /* Fresh program objects hold no uniform values yet. */
+    renderer->ui_projection_pushed = false;
+    renderer->rotmask_projection_pushed = false;
     return gles2_link_program(
                &renderer->program_world_plain,
                gles2_world_vertex_shader,
@@ -471,6 +474,9 @@ gles2_update_letterbox(struct ToriRS_GLES2* renderer)
     renderer->letterbox_height = box.h;
     trspk_mat4_ortho2d_top_left(
         renderer->projection_2d, 0.0f, (float)renderer->width, (float)renderer->height, 0.0f);
+    /* The 2D programs hold the previous matrix until it is pushed again. */
+    renderer->ui_projection_pushed = false;
+    renderer->rotmask_projection_pushed = false;
 }
 
 /* Logical (canvas, y down) -> framebuffer (y up), rounding OUTWARD the way
@@ -562,11 +568,12 @@ gles2_decode_texture_rgba(
     }
 }
 
-static void
+void
 gles2_reserve_upload_stage(struct ToriRS_GLES2* renderer, size_t needed)
 {
     size_t capacity;
     uint8_t* grown;
+    assert(renderer);
     if( needed <= renderer->upload_stage_capacity )
         return;
     capacity = renderer->upload_stage_capacity ? renderer->upload_stage_capacity : 65536u;
@@ -946,6 +953,12 @@ gles2_unload_texture(struct ToriRS_GLES2* renderer, int tex_id)
     if( slot >= 0 && (uint32_t)slot < GLES2_ATLAS_SLOTS && renderer->atlas.pixels )
     {
         struct TRSPK_AtlasTile tile;
+        /* A deferred widget-model draw samples the world atlas when it is
+         * ISSUED, not when it was recorded; clearing this tile now would
+         * reach the GPU on the next atlas upload, ahead of that draw. Issue
+         * what is recorded first. */
+        if( renderer->in2d )
+            gles2_ui_flush(renderer);
         if( trspk_atlas_grid_tile_for_slot(&renderer->atlas, (uint32_t)slot, &tile) )
         {
             (void)trspk_atlas_clear_rect(&renderer->atlas, tile.x, tile.y, tile.w, tile.h);
@@ -1011,10 +1024,26 @@ gles2_stream_sets_begin_frame(struct ToriRS_GLES2* renderer)
 /*
  * Append `bytes` to this frame's buffer of `set`, bound as `target`. The
  * buffer was last read GLES2_FRAMES_IN_FLIGHT frames ago, so the write
- * never lands on an outstanding draw. Growth reallocates the store with
- * glBufferData(NULL): draws already issued against the old store keep it
- * alive by GL's own rules, so growing mid-frame is safe, merely rare.
- * Returns the byte offset the payload landed at.
+ * never lands on an outstanding draw. Returns the byte offset the payload
+ * landed at.
+ *
+ * Growth reallocates the store with glBufferData(NULL) and the bytes already
+ * in [0, offset) are GONE from the new store: ES 2.0 has no copy between
+ * buffers and no read-back, so nothing here can carry them over. What GL
+ * does guarantee is that draws already ISSUED against the old store keep
+ * reading the old store (orphaning: a BufferData on a buffer with pending
+ * reads leaves those reads their data). So growth is safe in exactly one of
+ * two cases, and the caller says which:
+ *
+ *   offset == 0                 nothing appended this frame is lost;
+ *   earlier_appends_drawn       every earlier append of this frame has had
+ *                               its draw issued (the immediate 2D path draws
+ *                               right after each append), so losing the
+ *                               bytes loses nothing a draw still wants.
+ *
+ * Anything else -- an earlier append still waiting to be drawn when the
+ * store is replaced -- would draw from a buffer whose prefix is undefined,
+ * and is a contract violation here, not a case to handle.
  */
 static uint32_t
 gles2_stream_set_append(
@@ -1023,7 +1052,8 @@ gles2_stream_set_append(
     GLenum target,
     uint32_t initial_bytes,
     const void* data,
-    uint32_t bytes)
+    uint32_t bytes,
+    bool earlier_appends_drawn)
 {
     uint32_t offset = set->head;
     assert(set->buffers[slot]);
@@ -1031,6 +1061,8 @@ gles2_stream_set_append(
     if( offset + bytes > set->capacities[slot] )
     {
         uint32_t capacity = set->capacities[slot] ? set->capacities[slot] : initial_bytes;
+        assert(offset == 0u || earlier_appends_drawn);
+        (void)earlier_appends_drawn; /* only the assert reads it; NDEBUG builds */
         while( capacity < offset + bytes )
             capacity *= 2u;
         glBufferData(target, (GLsizeiptr)capacity, NULL, GL_DYNAMIC_DRAW);
@@ -1092,7 +1124,8 @@ gles2_upload_group(struct ToriRS_GLES2* renderer, struct GLES2ModelGroup* group)
             GL_ARRAY_BUFFER,
             GLES2_DYNAMIC_STREAM_INIT_BYTES,
             group->vbo_cpu->vertices.as_gles2,
-            (uint32_t)byte_count);
+            (uint32_t)byte_count,
+            false);
         renderer->bound_array_buffer = group->vbo_gpu;
         group->gpu_base_vertex = offset / (uint32_t)sizeof(struct TRSPK_VertexGLES2);
         group->gpu_capacity = renderer->dynamic_stream.capacities[renderer->frame_slot] /
@@ -1351,7 +1384,9 @@ gles2_static_batch_assign_page(
     page = &renderer->static_pages[page_id];
     page->batch_slot = batch_slot;
     page->chunk_index = chunk_index;
-    page->valid = true;
+    /* The painter's placement reads the bake through this (see the field). */
+    page->cpu_vbo = chunk ? chunk->vbo : NULL;
+    page->valid = page->cpu_vbo != NULL;
     /* A range it outgrew is abandoned, not extended: the bump allocator only
      * ever hands out the tail, and the commit compacts when the tail runs
      * out (gles2_compact_static_pages). */
@@ -1401,7 +1436,10 @@ gles2_invalidate_batch_pages(struct ToriRS_GLES2* renderer, const struct GLES2St
     {
         uint32_t page_id = batch->page_ids[chunk];
         if( page_id != UINT32_MAX && page_id < renderer->static_page_count )
+        {
             renderer->static_pages[page_id].valid = false;
+            renderer->static_pages[page_id].cpu_vbo = NULL;
+        }
     }
 }
 
@@ -2190,6 +2228,12 @@ gles2_bind_rotmask_stream(struct ToriRS_GLES2* renderer, uint32_t byte_offset)
 {
     const GLsizei stride = (GLsizei)sizeof(struct GLES2VertexRotmask);
     assert(renderer);
+    /* Attribute pointers are context state that outlives the draw (ES 2.0
+     * has no VAO; §2.8 vertex array state persists until re-pointed), so a
+     * second rotmask draw from the same offset needs no re-issue. */
+    if( renderer->stream_layout == GLES2_STREAM_ROTMASK && renderer->stream_buffer == renderer->ui_vbo &&
+        renderer->stream_byte_offset == byte_offset )
+        return;
     gles2_bind_array_buffer(renderer, renderer->ui_vbo);
     glVertexAttribPointer(
         GLES2_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, stride,
@@ -2223,9 +2267,14 @@ gles2_bind_rotmask_stream(struct ToriRS_GLES2* renderer, uint32_t byte_offset)
  * 0, so the driver never has to synchronise a write against the draw that is
  * still reading. Wrapping orphans the whole buffer with glBufferData(NULL),
  * which is the ES2 idiom for "give me fresh storage, keep the old for the GPU".
+ * `earlier_appends_drawn`: see gles2_stream_set_append.
  */
 uint32_t
-gles2_ring_upload(struct ToriRS_GLES2* renderer, const void* data, uint32_t bytes)
+gles2_ring_upload(
+    struct ToriRS_GLES2* renderer,
+    const void* data,
+    uint32_t bytes,
+    bool earlier_appends_drawn)
 {
     uint32_t offset;
     assert(renderer);
@@ -2236,7 +2285,8 @@ gles2_ring_upload(struct ToriRS_GLES2* renderer, const void* data, uint32_t byte
         GL_ARRAY_BUFFER,
         GLES2_UI_STREAM_INIT_BYTES,
         data,
-        bytes);
+        bytes,
+        earlier_appends_drawn);
     renderer->bound_array_buffer = renderer->ui_vbo;
     return offset;
 }
@@ -2278,7 +2328,7 @@ gles2_sequence_reset(struct ToriRS_GLES2* renderer)
     renderer->draw_item_count = 0u;
     renderer->ibo_staging_count = 0u;
     renderer->frame_stream_count = 0u;
-    renderer->hot_frame_oldest_serial = UINT32_MAX;
+    renderer->hot_frame_oldest_serial = UINT64_MAX;
 }
 
 static struct GLES2DrawItem*
@@ -2435,7 +2485,8 @@ gles2_frame_stream_upload(struct ToriRS_GLES2* renderer)
         GL_ARRAY_BUFFER,
         GLES2_FRAME_STREAM_INIT_BYTES,
         renderer->frame_stream_cpu->vertices.as_gles2,
-        bytes);
+        bytes,
+        false);
     renderer->bound_array_buffer = renderer->frame_stream_vbo;
     renderer->frame_stream_gpu_base = offset / (uint32_t)sizeof(struct TRSPK_VertexGLES2);
     /* The stream just moved; the attribute pointers must follow it. */
@@ -2466,7 +2517,8 @@ gles2_sequence_draw(struct ToriRS_GLES2* renderer)
             GL_ELEMENT_ARRAY_BUFFER,
             GLES2_INDEX_STREAM_INIT_BYTES,
             renderer->ibo_staging,
-            bytes);
+            bytes,
+            false);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES, (int64_t)bytes);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOADS, 1);
     }
@@ -2671,7 +2723,10 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
     face_count = renderer->zbuffer
         ? trspk_toridraw_face_count(command->model)
         : gles2_painter_sort_faces(renderer, command, &sorted_face_count);
-    if( !renderer->zbuffer )
+    /* The sort census is a debug readout (TORIRS_GLES2_DEBUG); it costs a
+     * second trspk_toridraw_face_count per model, so it is gated where it
+     * is gathered, not only where it is printed. */
+    if( !renderer->zbuffer && renderer->debug )
     {
         int model_faces = trspk_toridraw_face_count(command->model);
         int bucket = model_faces <= 2 ? 0 : model_faces <= 16 ? 1 : model_faces <= 64 ? 2
@@ -2800,7 +2855,10 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
     }
     else
         local_base = vertex_base;
-    if( !gles2_reserve_model_indices(renderer, (uint32_t)face_count * 3u) )
+    /* model_indices is the depth path's per-model index scratch; the painter
+     * writes its indices straight into the sequence staging and never reads
+     * it. */
+    if( renderer->zbuffer && !gles2_reserve_model_indices(renderer, (uint32_t)face_count * 3u) )
         return;
 
     placement.binding = binding;
@@ -2860,25 +2918,27 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
     gles2_sequence_draw(renderer);
     if( !renderer->zbuffer )
     {
-        static int debug = -1;
-        if( debug < 0 )
-            debug = getenv("TORIRS_GLES2_DEBUG") != NULL;
+        bool debug = renderer->debug;
         renderer->painter_stat_frames++;
         renderer->painter_stat_draws += renderer->draw_item_count;
         if( debug && renderer->painter_stat_frames == 300u )
         {
             gles2_report_line(
                 "gles2 painter/frame: faces indexed %.0f gathered %.0f actor %.0f; residents "
-                "placed %.1f models %.0f vertices; draws %.1f; compactions %u; ring head %u; "
+                "placed %.1f models %.0f vertices, serial hits %.0f; draws %.1f; compactions %u "
+                "(held back %u frames, %u since last); ring head %llu; "
                 "static pages %u %u vertices",
                 renderer->painter_stat_faces_indexed / 300.0,
                 renderer->painter_stat_faces_gathered / 300.0,
                 renderer->painter_stat_faces_actor / 300.0,
                 renderer->painter_stat_placed_models / 300.0,
                 renderer->painter_stat_placed_vertices / 300.0,
+                renderer->painter_stat_resident_hits / 300.0,
                 renderer->painter_stat_draws / 300.0,
                 renderer->painter_stat_compactions,
-                renderer->hot_head,
+                renderer->painter_stat_compactions_deferred,
+                renderer->hot_frames_since_compaction,
+                (unsigned long long)renderer->hot_head,
                 renderer->static_page_count,
                 renderer->static_batch_gpu_vertex_used);
             gles2_report_line(
@@ -2948,6 +3008,7 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
             renderer->painter_stat_faces_actor = 0u;
             renderer->painter_stat_placed_models = 0u;
             renderer->painter_stat_placed_vertices = 0u;
+            renderer->painter_stat_resident_hits = 0u;
             renderer->painter_stat_draws = 0u;
             memset(
                 renderer->painter_stat_sort_models, 0, sizeof(renderer->painter_stat_sort_models));
@@ -3227,6 +3288,41 @@ gles2_dispatch(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand*
 
 /* ---- lifetime ----------------------------------------------------------------------- */
 
+/* A lever's environment switch: unset or anything but "0" is on. */
+static bool
+gles2_lever_enabled(const char* name)
+{
+    const char* value;
+    assert(name);
+    value = getenv(name);
+    return !(value && value[0] == '0' && value[1] == '\0');
+}
+
+/*
+ * The rotmask source generation. The sprites a rotmask slot draws from (the
+ * minimap bake, UITREE_SCENE_WORLD_MAP_SPRITE_ID) are rewritten IN PLACE by
+ * app_rebuild_world_map with no event the renderer sees; the renderer used to
+ * discover a rewrite by hashing the whole 512x512 bake every eighth frame.
+ * The producer knows when it rewrote, so it says so: a bump here, and every
+ * rotmask slot re-uploads on its next draw. Process-wide rather than per
+ * renderer because the caller (app.c) holds no renderer.
+ */
+static uint32_t g_gles2_rotmask_source_generation = 1u;
+
+void
+ToriRS_GLES2_RotmaskSourceChanged(void)
+{
+    g_gles2_rotmask_source_generation++;
+    if( g_gles2_rotmask_source_generation == 0u )
+        g_gles2_rotmask_source_generation = 1u; /* 0 is "never uploaded" in a slot */
+}
+
+uint32_t
+gles2_rotmask_source_generation(void)
+{
+    return g_gles2_rotmask_source_generation;
+}
+
 struct ToriRS_GLES2*
 ToriRS_GLES2_New(int width, int height)
 {
@@ -3244,6 +3340,15 @@ ToriRS_GLES2_New(int width, int height)
     renderer->interface_scale_mode = 2;
     renderer->tex_slot_next = 1u;
     renderer->current_batch_slot = -1;
+    /* TORIRS_GLES2_DEBUG=1: the 300-frame counters and the debug-only GL
+     * error checks. Read once here; it used to be a getenv in gles2_end_3d. */
+    renderer->debug = getenv("TORIRS_GLES2_DEBUG") != NULL;
+    /* The levers (see the struct): each defaults ON; NAME=0 is the control
+     * arm. Read once, here, so no frame ever scans the environment. */
+    renderer->lever_ui_defer = gles2_lever_enabled("TORIRS_GLES2_UI_DEFER");
+    renderer->lever_resident_fast = gles2_lever_enabled("TORIRS_GLES2_RESIDENT_FAST");
+    renderer->lever_triplet_neon = gles2_lever_enabled("TORIRS_GLES2_TRIPLET_NEON");
+    renderer->lever_rotmask_gen = gles2_lever_enabled("TORIRS_GLES2_ROTMASK_GEN");
     for( texture = 0; texture < TORIDRAW_TEXTURE_ID_CAPACITY; texture++ )
         renderer->tex_slot_of_id[texture] = -1;
     trspk_pose_table_init(&renderer->poses);

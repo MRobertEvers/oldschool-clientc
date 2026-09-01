@@ -1128,7 +1128,7 @@ endif
 .PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
 .PHONY: check-design-colours
 .PHONY: torirsserver-scripts-lanes torirsserver-lanes torirsserver-scripts-rs2012
-.PHONY: test-wev test-wev-rebuild test-painters-world-entity
+.PHONY: test-wev test-wev-rebuild test-painters-world-entity test-painters-dynamic-pool
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -2696,6 +2696,19 @@ test-painters-ground-decor: $(OBJ_DIR)
 # between that boat's markers and one left ashore does not, plus the deck <->
 # parent transform and the half-open footprint that decide which of the two an
 # actor is (world/wev_deck.c -- pure arithmetic, still no cache and no world).
+# The painter's per-cycle dynamic pass: the scenery pool must not grow across
+# frames (the static high-water hands dynamic nodes back), and the registration
+# journal (TORIRS_PAINTER_DYN_SKIP) must paint byte-identical streams whether a
+# cycle was skipped or rebuilt. Bare painter, no cache, no world.
+test-painters-dynamic-pool: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
+		-o $(OBJ_DIR)/painters_dynamic_pool_test \
+		engine/test/painters_dynamic_pool_test.c \
+		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
+		perf/torirs_perf.c \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
+	./$(OBJ_DIR)/painters_dynamic_pool_test
+
 test-painters-world-entity: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
 		-o $(OBJ_DIR)/painters_test_world_entity \
@@ -4960,6 +4973,15 @@ test-light-model: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/light_model_test \
 		$(TORIDRAW_DIR)/toridraw_light_model_test.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/light_model_test
+
+# ToriDraw_SceneElementApplyAnimation skips a pose the model already holds
+# (TORIDRAW_ANIM_SKIP_SAME); every mutator that can change a pose must force a
+# re-pose. Run on both arms: the control arm re-poses every call.
+test-scene-anim-skip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/scene_anim_skip_test \
+		$(TORIDRAW_DIR)/toridraw_scene_anim_skip_test.c $(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/scene_anim_skip_test
+	TORIDRAW_ANIM_SKIP_SAME=0 ./$(OBJ_DIR)/scene_anim_skip_test
 
 # DynamicObject sequence termination: frameStep governs the final location pose.
 test-animation-object-step: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)

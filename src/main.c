@@ -5053,6 +5053,7 @@ main(
              * the opaque face-distance sort. */
             App_SetWorldRenderMode(
                 &app, gles2_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
+            App_SetRendererAnimatesTextures(&app, true);
         }
         else
 #endif
@@ -5083,6 +5084,7 @@ main(
              * that is what TORIRS_WORLD_DEPTH selects. Same contract as D3D9. */
             App_SetWorldRenderMode(
                 &app, gl3_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
+            App_SetRendererAnimatesTextures(&app, true);
         }
         else
 #endif
@@ -5210,9 +5212,12 @@ main(
                 d3d9 = NULL;
             }
             else
+            {
                 App_SetWorldRenderMode(
                     &app,
                     d3d9_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
+                App_SetRendererAnimatesTextures(&app, true);
+            }
         }
 #else
         (void)use_d3d9;

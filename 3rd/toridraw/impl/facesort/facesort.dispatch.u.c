@@ -161,8 +161,7 @@ face_order_small_bitonic_radix(
     {
         if( in->face_priorities )
             g_toridraw_prio_uniform_models++;
-        for( int i = 0; i < n; i++ )
-            scene->tmp_face_order[i] = (int)(keys[i] & 0xFFFF);
+        toridraw_face_sort_bitonic_radix_lane_emit(keys, n, scene->tmp_face_order);
         scene->tmp_face_order_count = n;
         return;
     }
@@ -263,9 +262,16 @@ face_order_small_bucket(
  * only in the bucket lane, so a run that asks for them goes there whatever
  * `bitonic_radix` says. That override is the reason the arming happens up here
  * and not inside the lane that uses it.
+ *
+ * NOINLINE, ON PURPOSE. Every lane is inlined into this body, so its prologue
+ * is the union of theirs -- on armv7 a 760-byte frame and a vpush of
+ * d8-d15 -- and it is paid before the first instruction that looks at the
+ * model. The front below keeps the terrain tile out of it (see
+ * toridraw_face_sort_bitonic_radix_tile2_fast), which only works if this body
+ * is a real call with its own prologue rather than inlined into the front.
  */
-static inline void
-toridraw_compute_projected_face_order_small(
+static void __attribute__((noinline))
+toridraw_compute_projected_face_order_small_general(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     bool presort,
@@ -282,6 +288,44 @@ toridraw_compute_projected_face_order_small(
         face_order_small_bitonic_radix(scene, &in, presort);
     else
         face_order_small_bucket(scene, hnd, &in, TORIDRAW_DBG_SORT_ARG presort);
+}
+
+/*
+ * The front: a two-face terrain tile that wants no stash, no priorities and
+ * no debug counters is answered by the leaf; everything else, and every tile
+ * when TORIDRAW_TILE_FAST=0, goes to the general body. The questions asked
+ * here are the ones sort_model_inputs would ask of the same model, in the
+ * same words, so the leaf and the tile2 kernel agree on which models are
+ * tiles; what the leaf does not read is TORIDRAW_TILE_SORT (see the leaf).
+ */
+static inline void
+toridraw_compute_projected_face_order_small(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    bool presort,
+    int bitonic_radix)
+{
+    TORIDRAW_DBG_SORT_LOCALS
+    if( bitonic_radix && !presort && hnd.kind == TORIDRAWMK_MODEL &&
+        toridraw_face_sort_tile_fast_armed() )
+    {
+        const struct ToriDraw_Model* const m = model_as_full(hnd);
+        /* An instrumented run wants the bucket lane's counters: the general
+         * body arms them again and routes there. In a default build the
+         * arming is a constant and folds away. */
+        TORIDRAW_DBG_SORT_ARM();
+        if( m->tile_sort_kernel && !m->face_priorities && !TORIDRAW_DBG_SORT_ARMED() )
+        {
+            int const model_min_depth =
+                m->has_bounds_cylinder ? m->bounds_cylinder.min_z_depth_any_rotation : 0;
+            assert(m->vertex_count == 4);
+            assert(m->face_count == 2);
+            toridraw_face_sort_bitonic_radix_tile2_fast(
+                scene, m->tile_sort_kernel - 1, scene->near_clipped, model_min_depth);
+            return;
+        }
+    }
+    toridraw_compute_projected_face_order_small_general(scene, hnd, presort, bitonic_radix);
 }
 
 /* The plain entry: the sort the environment / ToriDraw_FaceSortSetBitonicRadix
