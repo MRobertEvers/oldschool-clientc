@@ -1223,10 +1223,9 @@ orbs_draw(
      * -- the login screen, a cutscene that took it away -- is a state, not a
      * fault, and the orbs simply are not there for it.
      *
-     * Asked for by ROLE rather than through minimap_rect, which is the same
-     * rectangle reached through the single-purpose verb that predates the
-     * vocabulary. One name for the map means a plugin that reads it and a
-     * layout that PLACES it cannot come to disagree about where it is.
+     * Asked for by ROLE, which is the only way left to ask and was always the
+     * right one: a plugin that reads where the map is and a layout that PLACES
+     * it are then naming one thing rather than two that happen to agree.
      */
     if( !orbs_anchor(ctx, &anchor) )
         return TORIRS_PLUGIN_PASS;

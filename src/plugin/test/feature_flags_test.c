@@ -469,21 +469,6 @@ fake_mouse_pos(
     (void)y;
     return 0;
 }
-static int
-fake_minimap_rect(
-    void* u,
-    int* x,
-    int* y,
-    int* w,
-    int* h)
-{
-    (void)u;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-    return 0;
-}
 /* Regions, by role. `w` of 0 means "this gameframe has no such region", which
  * is how the fallback chain in slot_rect's contract gets exercised. */
 static int g_slot_x[TORIRS_PLUGIN_SLOT_COUNT];
@@ -1226,7 +1211,6 @@ fake_engine(void)
     e.draw_rect = fake_draw_rect;
     e.draw_select_canvas = fake_draw_select_canvas;
     e.mouse_pos = fake_mouse_pos;
-    e.minimap_rect = fake_minimap_rect;
     e.layout_set = fake_layout_set;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;

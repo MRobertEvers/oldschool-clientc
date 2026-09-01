@@ -3283,6 +3283,20 @@ app_plugin_mouse_pos(void* user, int* out_x, int* out_y)
     return 1;
 }
 
+/*
+ * The minimap's box, as this frame DREW it.
+ *
+ * Reached only through app_plugin_slot_rect, which is the whole vocabulary a
+ * plugin has for asking. It used to be a verb of its own -- `minimap_rect`,
+ * from before roles and slots existed -- and by the end nothing called it: the
+ * readouts that want this box ask for the region or the role, and both arrive
+ * here anyway.
+ *
+ * What is not redundant is the SOURCE. The emit descriptor is the rectangle
+ * the map was actually drawn with, which is what a plugin anchoring to the map
+ * or hit-testing it has to agree with; the node's laid-out box is what the
+ * layout asked for. They are the same number almost always and not always.
+ */
 static int
 app_plugin_minimap_rect(void* user, int* out_x, int* out_y, int* out_w, int* out_h)
 {
@@ -4509,7 +4523,6 @@ app_plugin_engine(struct App* app)
     engine.if_click = app_plugin_if_click;
     engine.text_input = app_plugin_text_input;
     engine.mouse_pos = app_plugin_mouse_pos;
-    engine.minimap_rect = app_plugin_minimap_rect;
     engine.slot_rect = app_plugin_slot_rect;
     engine.slot_member_rect = app_plugin_slot_member_rect;
     engine.component_rect = app_plugin_component_rect;

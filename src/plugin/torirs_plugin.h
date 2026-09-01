@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 19
+#define TORIRS_PLUGIN_ABI 20
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Semantic role spelling, terminator included. Kept in the public contract
@@ -1251,7 +1251,8 @@ enum ToriRS_PluginLayoutSlot
     /** The 3D scene. Every gameframe has one. */
     TORIRS_PLUGIN_SLOT_VIEWPORT = 0,
     /** The map square itself, not the stone ring around it -- the box a click
-     *  hit-tests against, exactly as api->minimap_rect reports it. */
+     *  hit-tests against, and the box the map was drawn with rather than the
+     *  one the layout asked for. The two agree almost always. */
     TORIRS_PLUGIN_SLOT_MINIMAP,
     TORIRS_PLUGIN_SLOT_COMPASS,
     /** The chat log and its input line. */
@@ -1744,27 +1745,16 @@ struct ToriRS_PluginApi
      */
 
     /**
-     * The minimap's box on the canvas. Returns 0, leaving the outputs
-     * untouched, when this gameframe has no minimap or has not laid one out
-     * yet -- which a caller answers by drawing nothing, not by guessing.
-     *
-     * The box is the map's own square, not the frame art around it: it is what
-     * a click on the minimap hit-tests against, and it is where the player dot
-     * is centred.
-     */
-    int (*minimap_rect)(
-        struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y, int* out_w, int* out_h);
-
-    /**
      * Any region's box, in canvas coordinates. Any out may be NULL.
      *
      * The read half of the layout vocabulary, and deliberately the SAME
      * vocabulary the write half uses: a plugin that moves
      * TORIRS_PLUGIN_SLOT_VIEWPORT and a plugin that reads it are then talking
-     * about one thing rather than two that happen to agree. Before this there
-     * were three names for these boxes -- the role list, minimap_rect, and an
-     * anchor enum of its own -- and nothing connected them but the
-     * implementation happening to route them to the same place.
+     * about one thing rather than two that happen to agree. There were once
+     * three names for these boxes -- the role list, a single-purpose
+     * `minimap_rect`, and an anchor enum of its own -- and nothing connected
+     * them but the implementation happening to route them to the same place.
+     * This is the one that survived; the other two are gone.
      *
      * @return 1 when this gameframe has that region and it has a size, 0
      * otherwise, and 0 leaves the outs untouched. A role a frame does not have

@@ -257,16 +257,21 @@ static struct MobileRock const MOBILE_ROCK[MOBILE_RAIL_ROWS] = {
 /** Inked rows below the surface's last: the art's row 126 against its 112. */
 #define MOBILE_CHAT_FRINGE_B 14
 /**
- * Clear air between the torn edge and the button row, on top of that.
+ * Extra clear air between the torn edge and the button row, on top of that.
  *
- * The fringe above is a measurement and this is not: clearing the buttons only
- * takes MOBILE_CHAT_FRINGE_B, and at exactly that the paper's last inked row
- * and the first button sit a row apart, which reads as the two touching. This
- * is the gap that makes them read as separate things. Adjust it freely -- it is
- * the one number in this block that is a matter of taste rather than of what
- * the file measures.
+ * Zero, and that is the wanted value rather than a disabled feature: the paper
+ * belongs directly above the buttons, and MOBILE_CHAT_FRINGE_B alone already
+ * puts it there. Pinning the art's last inked row to the row above the strip
+ * leaves the two rows the button lift adds, which is the whole clearance the
+ * frame wants -- the sheet reads as sitting ON the row rather than floating
+ * over it.
+ *
+ * It stays a named number because it is the one knob here that is taste rather
+ * than measurement, and because a positive value is the only way to say "hold
+ * them further apart" without disturbing the fringe, which is not free to
+ * move. @see MOBILE_CHAT_FRINGE_B.
  */
-#define MOBILE_CHAT_STRIP_GAP 8
+#define MOBILE_CHAT_STRIP_GAP 0
 
 /**
  * The chat surface's top row, and with it the whole block's.

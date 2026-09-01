@@ -457,7 +457,6 @@ static int fake_draw_text(void* u, int x, int y, char const* t, uint32_t r) { (v
 static int fake_draw_rect(void* u, int x, int y, int w, int h, uint32_t c, int a) { (void)u; (void)x; (void)y; (void)w; (void)h; (void)c; (void)a; return 0; }
 static void fake_draw_select_canvas(void* u, int c) { (void)u; (void)c; }
 static int fake_mouse_pos(void* u, int* x, int* y) { (void)u; (void)x; (void)y; return 0; }
-static int fake_minimap_rect(void* u, int* x, int* y, int* w, int* h) { (void)u; (void)x; (void)y; (void)w; (void)h; return 0; }
 /*
  * Answered from what the last declaration PLACED, as the real engine answers
  * from the placed node. The host's chrome pass reads these back to paint the
@@ -643,7 +642,6 @@ main(void)
     e.draw_rect = fake_draw_rect;
     e.draw_select_canvas = fake_draw_select_canvas;
     e.mouse_pos = fake_mouse_pos;
-    e.minimap_rect = fake_minimap_rect;
     e.slot_rect = fake_slot_rect;
     e.slot_member_rect = fake_slot_member_rect;
     e.component_rect = fake_component_rect;

@@ -133,8 +133,6 @@ struct ToriRS_PluginEngine
 
     /** The pointer, in canvas coords. @see ToriRS_PluginApi::mouse_pos. */
     int (*mouse_pos)(void* user, int* out_x, int* out_y);
-    /** The minimap's box this frame. @see ToriRS_PluginApi::minimap_rect. */
-    int (*minimap_rect)(void* user, int* out_x, int* out_y, int* out_w, int* out_h);
     /**
      * One PLACEABLE region's box, plus CANVAS. @see
      * ToriRS_PluginApi::slot_rect.

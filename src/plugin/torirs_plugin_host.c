@@ -870,15 +870,6 @@ api_mouse_pos(struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y)
     return ctx->host->engine.mouse_pos(ctx->host->engine.user, out_x, out_y);
 }
 
-static int
-api_minimap_rect(
-    struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y, int* out_w, int* out_h)
-{
-    assert(ctx);
-    return ctx->host->engine.minimap_rect(
-        ctx->host->engine.user, out_x, out_y, out_w, out_h);
-}
-
 /* ------------------------------------------------------------ the gameframe */
 
 /* Both layout entry points deliver to ONE plugin -- the frame's owner -- and
@@ -5221,7 +5212,6 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->hsl_from_rgb);
     assert(engine->hsl_to_rgb);
     assert(engine->mouse_pos);
-    assert(engine->minimap_rect);
     assert(engine->slot_rect);
     assert(engine->slot_member_rect);
     assert(engine->component_rect);
@@ -5298,7 +5288,6 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .hover_entity = api_hover_entity,
         .element_height = api_element_height,
         .mouse_pos = api_mouse_pos,
-        .minimap_rect = api_minimap_rect,
         .slot_rect = api_slot_rect,
         .slot_member_rect = api_slot_member_rect,
         .component_rect = api_component_rect,

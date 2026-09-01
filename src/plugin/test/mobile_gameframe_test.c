@@ -428,7 +428,6 @@ static int fake_draw_text(void* u, int x, int y, char const* t, uint32_t r) { (v
 static int fake_draw_rect(void* u, int x, int y, int w, int h, uint32_t c, int a) { (void)u; (void)x; (void)y; (void)w; (void)h; (void)c; (void)a; return 0; }
 static void fake_draw_select_canvas(void* u, int c) { (void)u; (void)c; }
 static int fake_mouse_pos(void* u, int* x, int* y) { (void)u; (void)x; (void)y; return 0; }
-static int fake_minimap_rect(void* u, int* x, int* y, int* w, int* h) { (void)u; (void)x; (void)y; (void)w; (void)h; return 0; }
 static int fake_slot_rect(void* u, int a, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)x; (void)y; (void)w; (void)h; return 0; }
 static int fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)m; (void)x; (void)y; (void)w; (void)h; return 0; }
 static int fake_component_rect(void* u, int c, int* x, int* y, int* w, int* h) { (void)u; (void)c; (void)x; (void)y; (void)w; (void)h; return 0; }
@@ -551,7 +550,7 @@ slot_is(int slot, int x, int y, int w, int h)
 #define M_CHAT_FRINGE_B 14
 /** Plus the clear air held between the torn edge and the button row.
  *  @see MOBILE_CHAT_STRIP_GAP. */
-#define M_CHAT_GAP 8
+#define M_CHAT_GAP 0
 /** The block's top row, spelled the way the plugin derives it.
  *  @see MOBILE_CHAT_Y. */
 #define M_CHAT_Y(h) ((h) -M_STRIP_H - M_CHAT_H - M_CHAT_FRINGE_B - M_CHAT_GAP)
@@ -614,7 +613,6 @@ main(void)
     e.draw_rect = fake_draw_rect;
     e.draw_select_canvas = fake_draw_select_canvas;
     e.mouse_pos = fake_mouse_pos;
-    e.minimap_rect = fake_minimap_rect;
     e.slot_rect = fake_slot_rect;
     e.slot_member_rect = fake_slot_member_rect;
     e.component_rect = fake_component_rect;
