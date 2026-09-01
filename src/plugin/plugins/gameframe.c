@@ -1804,9 +1804,22 @@ frame_on_draw(
     for( int i = 0; i < g_frame.tab_count; i++ )
     {
         struct FrameTab const* t = &g_frame.tab[i];
+        /*
+         * A tab the SERVER has not handed over wears neither its icon nor its
+         * highlight -- only the bare stone the frame's own art puts there.
+         *
+         * Asked every frame rather than at declaration time, because this is
+         * the one thing about a tab that changes without a resize, a rebuild
+         * or a claim: the tutorial gives the fourteen out one at a time, and a
+         * frame that recorded the answer at its first EV_LAYOUT would still be
+         * drawing a new character's empty rail an hour later. The client's own
+         * chrome gates the same two pictures on the same fact.
+         * @see ToriRS_PluginApi::tab_enabled.
+         */
+        int const given = g_api->tab_enabled(ctx, t->tabno);
         /* Against the tab NUMBER, not the box index: on 548 they differ, and
          * comparing the index lights the stone next to the open panel. */
-        int const stone = (t->tabno == active) ? t->stone_pressed : t->stone;
+        int const stone = (given && t->tabno == active) ? t->stone_pressed : t->stone;
         int iw = 0;
         int ih = 0;
 
@@ -1816,7 +1829,7 @@ frame_on_draw(
          * each a different size (20x19 up to 30x29) and the box is a uniform
          * 33x36, so a corner blit puts every one of them in a different place
          * within its own stone. */
-        if( t->icon >= 0 && g_api->image_size(ctx, t->icon, &iw, &ih) )
+        if( given && t->icon >= 0 && g_api->image_size(ctx, t->icon, &iw, &ih) )
         {
             g_api->draw_image(
                 ctx,

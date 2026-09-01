@@ -1876,6 +1876,20 @@ mobile_on_draw(
     for( int i = 0; i < g_frame.tab_count; i++ )
     {
         struct MobileTab const* t = &g_frame.tab[i];
+        /*
+         * A tab the SERVER has not handed over is a bare rock: no icon, and no
+         * lit stone even when it is the selected one.
+         *
+         * The twin of g_tab_present and NOT the same question. That one is
+         * about the CACHE -- rs289lc has no clan chat and never will -- and is
+         * answered once, at declaration. This one is about the PLAYER and
+         * changes on a packet: the tutorial hands the fourteen tabs out one at
+         * a time and a new character starts with almost none of them, so an
+         * answer recorded at declaration would draw the whole rail for someone
+         * who has been given one panel. Hence the ask here, in the draw pass.
+         * @see ToriRS_PluginApi::tab_enabled.
+         */
+        int const given = g_api->tab_enabled(ctx, t->tabno);
         int iw = 0;
         int ih = 0;
 
@@ -1890,7 +1904,7 @@ mobile_on_draw(
          * selected tab when the panel is shut, so a lit stone over a drawer
          * that is not there would say the panel is open when it is not.
          */
-        if( g_drawer_open && t->tabno == active )
+        if( given && g_drawer_open && t->tabno == active )
         {
             int sw = 0;
             int sh = 0;
@@ -1916,7 +1930,7 @@ mobile_on_draw(
          * are each a different size (20x19 up to 30x29) and the cell is a
          * uniform 36x34, so a corner blit puts every one of them somewhere
          * different within its own stone. */
-        if( t->icon >= 0 && g_api->image_size(ctx, t->icon, &iw, &ih) )
+        if( given && t->icon >= 0 && g_api->image_size(ctx, t->icon, &iw, &ih) )
             g_api->draw_image(
                 ctx,
                 ev->surface,
@@ -2051,6 +2065,20 @@ mobile_on_click(
 
     {
         int const tabno = (int)(ev->tag & 0xffffu);
+
+        /*
+         * A rock the server has not put a panel behind swallows the tap and
+         * does nothing, which is what the client's own chrome does with a
+         * click on a tab it has no interface for.
+         *
+         * The gate is needed HERE and not only in the draw pass because this
+         * stone does something of its own: tab_select refuses a tab the server
+         * has taken away, but the line below opens the drawer before it asks,
+         * so a tap on a blank rock during the tutorial would pull the panel out
+         * on whatever tab was last selected.
+         */
+        if( !g_api->tab_enabled(ctx, tabno) )
+            return TORIRS_PLUGIN_PASS;
 
         /*
          * The tab you are already looking at shuts the drawer; any other opens

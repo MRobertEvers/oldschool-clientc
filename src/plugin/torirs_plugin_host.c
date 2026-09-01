@@ -1108,6 +1108,16 @@ api_tab_select(struct ToriRS_PluginCtx* ctx, int tabno)
     return ctx->host->engine.tab_select(ctx->host->engine.user, tabno) ? true : false;
 }
 
+static int
+api_tab_enabled(struct ToriRS_PluginCtx* ctx, int tabno)
+{
+    assert(ctx);
+    /* A tab number a plugin read off its own stone table, like tab_select's. */
+    if( tabno < 0 )
+        return 0;
+    return ctx->host->engine.tab_enabled(ctx->host->engine.user, tabno);
+}
+
 
 /* -- layout regions ------------------------------------------------------- */
 
@@ -5212,6 +5222,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->layout_scrollbar);
     assert(engine->tab_active);
     assert(engine->tab_select);
+    assert(engine->tab_enabled);
     assert(engine->local_player);
     assert(engine->npc_next);
     assert(engine->npc_by_slot);
@@ -5377,6 +5388,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .layout_scrollbar = api_layout_scrollbar,
         .tab_active = api_tab_active,
         .tab_select = api_tab_select,
+        .tab_enabled = api_tab_enabled,
         .stat = api_stat,
         .stat_xp = api_stat_xp,
         .skill_name = api_skill_name,

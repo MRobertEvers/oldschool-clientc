@@ -1089,6 +1089,15 @@ fake_tab_select(
     return 0;
 }
 static int
+fake_tab_enabled(
+    void* u,
+    int t)
+{
+    (void)u;
+    (void)t;
+    return 1;
+}
+static int
 fake_asset_read(
     void* u,
     char const* p,
@@ -1246,6 +1255,7 @@ fake_engine(void)
     e.layout_scrollbar = fake_layout_scrollbar;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.tab_enabled = fake_tab_enabled;
     e.slot_rect = fake_slot_rect;
     e.slot_member_rect = fake_slot_member_rect;
     e.component_rect = fake_component_rect;

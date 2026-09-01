@@ -15362,11 +15362,16 @@ app_packet_may_mutate_ui(enum GameProtoPktName packet_type)
 
 /* --- connection loss and re-establishment -------------------------------
  *
- * The reference shape, from Client-TS `lostCon`/`logout` (Client.ts:2699,
- * 2734) and the deob's gameState 40: forget the world, say so over the
- * viewport, and ask for the session back. Nothing here returns to a login
- * screen — this client has none — so an exhausted retry budget leaves the
- * message up instead.
+ * The reference shape, from Client-TS `lostCon` (Client.ts:2734) and the deob's
+ * gameState 40: forget the world, say so over the viewport, and ask for the
+ * session back. An exhausted retry budget leaves that message up rather than
+ * dropping the player on the title screen, which is the one place this path
+ * departs from the reference -- the message names something the player can act
+ * on, and the title screen would replace it with a form that says nothing.
+ *
+ * A logout is the other half of the same reference pair and is NOT this: it is
+ * deliberate, it does return to the login screen, and it disarms everything
+ * below rather than arming it. @see App_Logout.
  */
 
 void
@@ -15381,6 +15386,68 @@ App_NetSessionReset(struct App* app)
      * session's choice until its own VARP arrived. */
     app_attack_options_reset(app);
     app->need_redraw = 1;
+}
+
+void
+App_Logout(struct App* app)
+{
+    assert(app);
+
+    app->logout_requested = 0;
+    /*
+     * The DISCONNECT is QUEUED, not performed: it goes into the same outbound
+     * ring the logout button's IF_BUTTON is already sitting in, and the
+     * transport drains that ring in order -- bytes appended and flushed, then
+     * the socket closed. Closing here instead would take the request with it.
+     */
+    if( app->net )
+        ToriRS_Network_Logout(app->net);
+    App_NetSessionReset(app);
+    /* Reference `stopMidi(false)` plus the effect queue: nothing the world was
+     * playing belongs to the screen we are going back to. */
+    RS_Audio_StopAll(&app->audio, &app->audio_out);
+
+    /*
+     * Disarm the reconnect watch.
+     *
+     * Every detector in app_net_link_watch is armed off net_last_recv_ms -- a
+     * session that was heard from and then went quiet. Leaving it set would
+     * make the socket this function just closed read as a connection that was
+     * lost, and the client would spend its way back to the title screen
+     * redialling the world the player just left.
+     */
+    app->net_last_recv_ms = 0;
+    app->net_first_recv_ms = 0;
+    app->net_lost = 0;
+    app->net_reconnect_attempts = 0;
+    app->net_reconnect_failed = 0;
+
+    if( !App_HasTitleScreen(app) )
+    {
+        /* Undeclared means absent (App_HasTitleScreen): this profile boots
+         * straight into the gameframe and has nowhere to send the player. The
+         * session has still ended -- the socket is gone and the world is
+         * cleared -- so say so rather than pretending the click did nothing. */
+        TORIRS_LOG("logout: no [layout:title] in this profile; staying on the gameframe\n");
+        app->need_redraw = 1;
+        return;
+    }
+
+    /* Credentials cleared with the screen, the reference's own behaviour
+     * (Client-TS logout clears loginUser/loginPass): a password left in a
+     * buffer after the player has left is a password nobody asked us to keep.
+     * Same reset RS_TITLE_ACTION_CANCEL performs. */
+    RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_USERNAME, NULL);
+    RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_PASSWORD, NULL);
+    RS_Title_SetMessages(&app->title, NULL, NULL, NULL);
+    RS_Title_SetScreen(&app->title, RS_TITLE_MAIN_MENU);
+    /* The one automatic submit has already been spent on the session that just
+     * ended; re-arming it here would dial straight back into the world the
+     * player asked to leave. @see App::autologin_done. */
+    app->autologin_done = 1;
+    app->title_connect_pending = 0;
+    TORIRS_LOG("logout: session ended; back to the title screen\n");
+    App_OpenTitleScreen(app);
 }
 
 /*
@@ -16075,6 +16142,23 @@ app_logic_tick(struct App* app)
 
     app->logic_cycle++;
 
+    /*
+     * The logout the player asked for, drained here rather than at the click.
+     *
+     * Order on the wire is the whole reason. The click's own notification --
+     * the logout button's IF_BUTTON -- is sent by the CALLER of the clientCode
+     * handler, after it returns, and the CS2 lane's is sent before the script
+     * that asks for the logout even runs. A logout performed inside either
+     * would put its DISCONNECT into the outbound ring ahead of the request the
+     * server is meant to act on, and the transport, which drains that ring in
+     * order, would close the socket without ever writing those bytes.
+     */
+    if( app->logout_requested )
+    {
+        App_Logout(app);
+        redraw = 1;
+    }
+
     if( app_title_tick(app) )
         redraw = 1;
     if( app->flames )
@@ -16735,6 +16819,21 @@ app_logic_tick(struct App* app)
             app->closing_modals = 0;
             app->need_redraw = 1;
         }
+    }
+
+    /*
+     * A CS2 script ran LOGOUT (5630) -- the modern lane's "Click here to
+     * logout", whose button is script-driven and carries no cache op.
+     *
+     * Parked by the host and turned into a session teardown here, the same
+     * split if_close above takes: the CS2 host knows nothing about the socket.
+     * Handed to the tick's own drain rather than performed here so it lands
+     * behind whatever this tick has already queued. @see App_Logout.
+     */
+    if( app->host.logout_requested )
+    {
+        app->host.logout_requested = false;
+        app->logout_requested = 1;
     }
 
     if( app->host.resume_pausebutton_component_id != -1 )

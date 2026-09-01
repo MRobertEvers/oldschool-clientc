@@ -1634,13 +1634,13 @@ RS_GameProto_Exec(
         if( ctx->app )
         {
             struct App* app = ctx->app;
-            /* Shared with the connection-lost path in app.c: a session that
-             * ends is a session that ends, however it was told to. */
-            App_NetSessionReset(app);
+            /* The server ending the session and the player asking to are the
+             * same ending: socket closed, world forgotten, login screen back
+             * up. The chat line goes in first because App_Logout is what takes
+             * the chatbox away -- it is the only feedback a profile with no
+             * title screen to return to ever gets. */
             exec_chat_add(ctx, RS_CHAT_TYPE_GAME, NULL, NULL, "You have been logged out.");
-            if( app->net )
-                ToriRS_Network_Logout(app->net);
-            app->need_redraw = 1;
+            App_Logout(app);
         }
         break;
     case PKT_NAME_SET_PLAYER_OP:

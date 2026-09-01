@@ -778,8 +778,9 @@ struct RS_CS2Host
      *  render path consuming it yet. */
     int minimap_zoom;
 
-    /** Set by LOGOUT (5630); nothing consumes it yet — the client has no logout
-     *  flow wired up, so this just records that a script asked for one. */
+    /** Set by LOGOUT (5630) — the modern logout button's script. Drained by the
+     *  App's tick, which defers it one more step onto App::logout_requested so
+     *  the teardown lands behind the packets this tick has already queued. */
     bool logout_requested;
 
     /** Set by IF_CLOSE (3103) — an interface's close button. Drained by the

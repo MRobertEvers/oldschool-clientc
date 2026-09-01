@@ -1668,6 +1668,16 @@ struct App
      * because that rebuild is the server's whole world state arriving again
      * and its acknowledgement is what releases the rest of the burst. */
     int net_force_rebuild;
+    /**
+     * The player asked to leave, and the request has not been acted on yet.
+     *
+     * Deferred rather than done at the click, so the button's own IF_BUTTON is
+     * already in the outbound ring when the DISCONNECT is queued behind it --
+     * the server hears the request instead of a bare FIN. Raised by the CS1
+     * logout clientCode and by the CS2 host's LOGOUT opcode, drained by the
+     * logic tick. @see App_Logout.
+     */
+    int logout_requested;
     /** Client-behaviour era table (src/features/features.h). Never NULL after
      *  App_Init — unlike `net`, it is resolved on every boot because an
      *  offline click still has to pick an approach model. Points at
@@ -2774,6 +2784,25 @@ App_Shutdown(struct App* app);
  * only in what happens next. */
 void
 App_NetSessionReset(struct App* app);
+
+/**
+ * End the session on purpose and go back to the login screen.
+ *
+ * The reference's `logout` (Client-TS Client.ts:2699): close the socket, forget
+ * the world, and put the title screen back up with the credential fields
+ * cleared. Distinct from the connection-lost path in every way that matters --
+ * nothing is being re-established, so the reconnect watch is disarmed rather
+ * than armed.
+ *
+ * Reached three ways, all of which mean the same thing: the logout button (via
+ * App::logout_requested, so the button's IF_BUTTON goes out first), the CS2
+ * LOGOUT opcode, and the server's own LOGOUT packet.
+ *
+ * A profile that declares no [layout:title] has no login screen to return to;
+ * the session still ends, and the client stays on the gameframe it booted into.
+ */
+void
+App_Logout(struct App* app);
 
 /** Select world submission after renderer initialization. A software fallback
  * must always restore TORIRS_WORLD_PAINTER. */

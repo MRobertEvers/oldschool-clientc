@@ -806,6 +806,13 @@ fake_tab_select(void* u, int tabno)
     return 0;
 }
 static int
+fake_tab_enabled(void* u, int tabno)
+{
+    (void)u;
+    (void)tabno;
+    return 1;
+}
+static int
 fake_obj_info(void* u, int obj_id, struct ToriRS_PluginObjInfo* out)
 {
     (void)u;
@@ -1251,6 +1258,7 @@ fake_engine(void)
     e.display_setting_set = fake_display_setting_set;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.tab_enabled = fake_tab_enabled;
     e.obj_info = fake_obj_info;
     e.inv_slot = fake_inv_slot;
     e.inv_size = fake_inv_size;

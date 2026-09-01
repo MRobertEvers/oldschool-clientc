@@ -4224,6 +4224,23 @@ app_plugin_tab_select(void* user, int tabno)
     return 1;
 }
 
+/*
+ * Has the server given this player that tab?
+ *
+ * The same field the client's own chrome reads before it draws a tab icon or
+ * its pressed highlight (`sideOverlayId[n] !== -1`, uitree_emit's
+ * UIELEM_BUILTIN_TAB_ICONS gate), asked here on behalf of a plugin gameframe
+ * that has replaced that chrome and inherited the duty with it.
+ */
+static int
+app_plugin_tab_enabled(void* user, int tabno)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    return RS_UISlots_TabEnabled(&app->slots, tabno);
+}
+
 static int
 app_plugin_stat(void* user, int skill, int* out_current, int* out_base)
 {
@@ -4605,6 +4622,7 @@ app_plugin_engine(struct App* app)
     engine.layout_scrollbar = app_plugin_layout_scrollbar;
     engine.tab_active = app_plugin_tab_active;
     engine.tab_select = app_plugin_tab_select;
+    engine.tab_enabled = app_plugin_tab_enabled;
     engine.stat = app_plugin_stat;
     engine.stat_xp = app_plugin_stat_xp;
     engine.skill_name = app_plugin_skill_name;

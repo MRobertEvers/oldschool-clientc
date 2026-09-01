@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 19
+#define TORIRS_PLUGIN_ABI 20
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Semantic role spelling, terminator included. Kept in the public contract
@@ -2133,6 +2133,10 @@ struct ToriRS_PluginApi
      * about the gameframe -- so a layout draws the stones and the icons and
      * asks this which one to draw pressed, rather than keeping a selection of
      * its own that the server could contradict.
+     *
+     * Which of those tabs the PLAYER has been given is a third question again.
+     * @see tab_enabled, which a layout has to ask before it draws either the
+     * icon or the pressed stone.
      */
     int (*tab_active)(struct ToriRS_PluginCtx* ctx);
     /**
@@ -3607,6 +3611,46 @@ struct ToriRS_PluginApi
         char const* const* ops,
         int op_count,
         uint32_t tag);
+
+    /* -- ABI 20 append: the tabs the server took away --------------------- */
+
+    /**
+     * Whether tab `tabno` has a panel behind it RIGHT NOW.
+     *
+     * The SERVER's answer, and the other half of the question layout_slot_at
+     * answers. Those two are not the same question and a frame needs both:
+     *
+     *   layout_slot_at  does this cache have a Clan chat tab at all
+     *   tab_enabled     has the server given this player that tab yet
+     *
+     * The first is a fact about the gameframe and cannot change while a world
+     * is loaded; the second changes on a packet -- the tutorial hands the tabs
+     * out one at a time and starts with none of them, so every tab but one is
+     * "not yet" for the first minutes of a new character's life.
+     *
+     * A layout that draws an icon for a tab the server has taken away is
+     * showing a panel that cannot open, which is the same wrong as a stone for
+     * a tab this cache lacks and worse for being temporary: the player is
+     * being invited to tap the very thing the tutorial has just hidden. The
+     * client's own chrome gates its icon and its pressed highlight on this
+     * (reference drawSidebarIcons, `sideOverlayId[n] !== -1`), and a plugin
+     * frame that replaces that chrome takes on the same duty.
+     *
+     * Answered from live state on every call and never cached by the host, so
+     * a frame asks it in its DRAW pass and not in its layout: a tab handed
+     * over mid-tutorial is not a resize, a rebuild or a claim, and a layout
+     * that recorded the answer once would keep drawing the tutorial's first
+     * minute for the rest of the session.
+     *
+     * `tab_select` already refuses a tab this answers 0 for, so a frame that
+     * only draws needs no second gate on the click -- but a frame whose stone
+     * does something of its OWN (the mobile drawer opens on any tap) has to
+     * ask before doing it.
+     *
+     * @return 1 when the tab has an interface mounted, 0 when it does not or
+     * `tabno` is not a tab.
+     */
+    int (*tab_enabled)(struct ToriRS_PluginCtx* ctx, int tabno);
 };
 
 /* ------------------------------------------------------------------------ */

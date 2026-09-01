@@ -137,6 +137,9 @@ static struct
     int scrollbar_pieces;
     /** A sidebar tab this fake gameframe does NOT have, or -1. */
     int missing_tab;
+    /** A tab the frame HAS and the server has not handed over, or -1. The
+     *  tutorial's state, and a different question from missing_tab. */
+    int ungiven_tab;
 } g_frame;
 
 /** Which roles this fake gameframe has. Everything but the compass, so that
@@ -242,6 +245,13 @@ fake_layout_scrollbar(void* u, int const* images, int count)
     (void)images;
     g_frame.scrollbar_pieces = count;
     return count > 0;
+}
+
+static int
+fake_tab_enabled(void* u, int tabno)
+{
+    (void)u;
+    return tabno != g_frame.ungiven_tab;
 }
 
 static int
@@ -634,6 +644,7 @@ main(void)
     e.layout_scrollbar = fake_layout_scrollbar;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.tab_enabled = fake_tab_enabled;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;
@@ -676,6 +687,7 @@ main(void)
     /* asset_read answers into the host it is reading for, and the engine user
      * pointer is the only channel it has -- so the host is built twice. */
     g_frame.missing_tab = -1;
+    g_frame.ungiven_tab = -1;
     g_host = PluginHost_New(&e);
     e.user = g_host;
     PluginHost_Free(g_host);
@@ -987,6 +999,35 @@ main(void)
             "a tab the frame has no panel for draws a blank stone");
         g_frame.missing_tab = -1;
         declare(1440, 900);
+
+        /*
+         * A tab the SERVER has not handed over draws neither.
+         *
+         * The tutorial's state, and a different question from the one above:
+         * the frame has the tab and the cache has the panel, but the player
+         * has not been given it yet. The client's own chrome gates its icon
+         * and its pressed highlight on exactly this (reference
+         * drawSidebarIcons, `sideOverlayId[n] !== -1`), and a plugin frame
+         * that replaced that chrome inherited the duty.
+         *
+         * Redrawn and NOT re-declared, unlike the missing tab above: which
+         * tabs the CACHE has is settled at declaration, but which of them the
+         * player has been given changes on a packet -- no resize, no rebuild
+         * and no claim -- so a layout that recorded it would draw a new
+         * character's first minute for the rest of the session.
+         */
+        g_frame.ungiven_tab = 7;
+        g_frame.active_tab = 7;
+        draw(1440, 900);
+        CHECK(
+            g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 13,
+            "a tab the server has not given draws neither its icon nor its lit stone");
+        g_frame.ungiven_tab = -1;
+        draw(1440, 900);
+        CHECK(
+            g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 15,
+            "and handing it over puts both back, with nothing re-declared");
+        g_frame.active_tab = -1;
 
         /* The map housing is no longer a global canvas draw. Legacy canvas
          * drawing remains global by contract; moving this one there covered

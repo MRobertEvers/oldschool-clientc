@@ -240,6 +240,9 @@ struct ToriRS_PluginEngine
     int (*tab_active)(void* user);
     /** Flip to that tab. @see ToriRS_PluginApi::tab_select. */
     int (*tab_select)(void* user, int tabno);
+    /** Nonzero when that tab has an interface mounted behind it.
+     *  @see ToriRS_PluginApi::tab_enabled. */
+    int (*tab_enabled)(void* user, int tabno);
     /** One skill's boosted and base level. @see ToriRS_PluginApi::stat. */
     int (*stat)(void* user, int skill, int* out_current, int* out_base);
     /** One skill's xp and the thresholds either side of it.

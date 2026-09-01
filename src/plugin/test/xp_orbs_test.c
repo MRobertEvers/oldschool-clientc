@@ -936,6 +936,13 @@ fake_tab_select(void* u, int tabno)
     return 0;
 }
 static int
+fake_tab_enabled(void* u, int tabno)
+{
+    (void)u;
+    (void)tabno;
+    return 1;
+}
+static int
 fake_model_publish(void* u, int m, void const* d, int size)
 {
     (void)u;
@@ -1349,6 +1356,7 @@ main(void)
     e.display_setting_set = fake_display_setting_set;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.tab_enabled = fake_tab_enabled;
     e.model_publish = fake_model_publish;
     e.model_release = fake_model_release;
     e.mesh_create = fake_mesh_create;
