@@ -11,7 +11,7 @@
  */
 #if defined(__aarch64__) && ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && \
     !defined(NEON_DISABLED)
-#include "impl/projection/projection.bound.neon.u.c"
+#include "impl/projection/projection.bound.neon64.u.c"
 #elif defined(__SSE4_1__) && !defined(SSE2_DISABLED) && !defined(SSE41_DISABLED)
 #include "impl/projection/projection.bound.sse41.u.c"
 #else

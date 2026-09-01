@@ -584,6 +584,7 @@ endif
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
 SRCS = main.c executor_config.c app.c pacer.c \
 	$(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) \
+	platform/platform_app_icon.c \
 	platform/platform_memory.c \
 	platform/platform_sdl2_renderer_soft3d.c \
 	$(ASAN_COMPAT_SRC) \
@@ -1143,6 +1144,14 @@ WEB_ASSETS = $(SRC_DIR)/web/index.html $(SRC_DIR)/web/torirs_host.js \
 	$(SRC_DIR)/web/torirs_js5.js $(SRC_DIR)/web/torirs_ondemand.js \
 	$(SRC_DIR)/web/torirs_chrome.js \
 	$(SRC_DIR)/web/torirs_channel.js $(SRC_DIR)/web/panel.html
+# The page's icons, generated from res/torirs_icon.jpg by
+# tools/make_app_icons.py. index.html links the first four by name and
+# site.webmanifest names the last three, so every one of them has to land
+# in build-web/ or the page 404s its own favicon.
+WEB_ASSETS += $(SRC_DIR)/web/favicon.ico $(SRC_DIR)/web/icon-16.png \
+	$(SRC_DIR)/web/icon-32.png $(SRC_DIR)/web/apple-touch-icon.png \
+	$(SRC_DIR)/web/site.webmanifest $(SRC_DIR)/web/icon-192.png \
+	$(SRC_DIR)/web/icon-512.png $(SRC_DIR)/web/icon-maskable-512.png
 ifeq ($(MEMTRACE),1)
 WEB_ASSETS += $(REPO_ROOT)/tools/memtrace/viewer.html
 endif
@@ -1346,8 +1355,14 @@ $(OBJ_DIR)/gameproto_rev_osrs239.o: net/rev/osrs239/gameproto_rev_osrs239.c | $(
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/osrs239 -c $< -o $@
 
 # tommath amalgam for RSA (login block exptmod).
+# PLATFORM_BASE_CFLAGS is on this line for the reason that variable exists:
+# it is the subset every TU needs, vendored units included. This rule spells its
+# own flags rather than using $(CFLAGS), and so had to name it explicitly --
+# without it the Android lane's -fPIC never reached the amalgam, and the whole
+# shared library failed to link with "relocation R_ARM_REL32 cannot be used
+# against symbol 's_mp_prime_tab'".
 $(OBJ_DIR)/tommath.o: $(REPO_ROOT)/3rd/tommath/mpi.c | $(OBJ_DIR)
-	$(CC) -std=c11 -O2 -w -I$(REPO_ROOT)/3rd/tommath -c $< -o $@
+	$(CC) -std=c11 -O2 -w $(PLATFORM_BASE_CFLAGS) -I$(REPO_ROOT)/3rd/tommath -c $< -o $@
 
 # --- World builder pipeline object rules ---------------------------------
 $(OBJ_DIR)/world_builder.o: $(WB_DIR)/world_builder.c | $(OBJ_DIR)
@@ -5321,7 +5336,13 @@ clean:
 		$(REPO_ROOT)/build-web/torirs_hostio.js $(REPO_ROOT)/build-web/torirs_idb.js \
 		$(REPO_ROOT)/build-web/torirs_js5.js $(REPO_ROOT)/build-web/torirs_ondemand.js \
 		$(REPO_ROOT)/build-web/torirs_channel.js $(REPO_ROOT)/build-web/panel.html \
-		$(REPO_ROOT)/build-web/viewer.html
+		$(REPO_ROOT)/build-web/viewer.html \
+		$(REPO_ROOT)/build-web/favicon.ico $(REPO_ROOT)/build-web/icon-16.png \
+		$(REPO_ROOT)/build-web/icon-32.png \
+		$(REPO_ROOT)/build-web/apple-touch-icon.png \
+		$(REPO_ROOT)/build-web/site.webmanifest \
+		$(REPO_ROOT)/build-web/icon-192.png $(REPO_ROOT)/build-web/icon-512.png \
+		$(REPO_ROOT)/build-web/icon-maskable-512.png
 
 # Every flavor suffix OBJ_DIR can grow, in the order the top of this file
 # appends them. Enumerated rather than globbed on purpose: PLATFORM_OBJ_BASE

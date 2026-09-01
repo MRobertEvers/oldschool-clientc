@@ -379,7 +379,7 @@ toridraw_face_sort_bitonic_radix_tile2_scalar(
  * as though a build could have both and would try each in turn.
  */
 #if defined(TORIDRAW_FACE_SORT_LANE_NEON)
-#include "impl/facesort/facesort.bitonic_radix.small.neon.u.c"
+#include "impl/facesort/facesort.bitonic_radix.small.neon64.u.c"
 #elif defined(TORIDRAW_FACE_SORT_LANE_SSE2)
 #include "impl/facesort/facesort.bitonic_radix.small.sse2.u.c"
 #else

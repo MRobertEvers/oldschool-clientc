@@ -7,6 +7,10 @@
 struct PlatformSDL2;
 struct ToriRS_CmdBus;
 
+/* The GL window handle, opaque and windowing-library-free.
+ * @see platform/platform_gl_context.h. */
+#include "platform/platform_gl_context.h"
+
 struct PlatformSDL2*
 PlatformSDL2_New(void);
 
@@ -26,7 +30,15 @@ PlatformSDL2_InitForOpenGL3(
     int height,
     char const* title);
 
-struct SDL_Window*
+/**
+ * The window a GL context is made on, as the neutral handle the renderers take.
+ *
+ * On the SDL lanes this IS the SDL_Window; on Android it is a token the EGL
+ * backend resolves for itself. Either way nothing above platform/ dereferences
+ * it -- it is passed straight to ToriRS_GL3_Init and from there only back into
+ * platform_gl_context.h.
+ */
+ToriRS_GLWindow*
 PlatformSDL2_Window(struct PlatformSDL2* platform);
 
 /** Return the platform's native window handle without exposing OS headers.

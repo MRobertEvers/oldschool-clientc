@@ -15,7 +15,7 @@
  * common stem.
  */
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-#include "impl/projection/zdiv/projection.zdiv.neon.u.c"
+#include "impl/projection/zdiv/projection.zdiv.neon32.u.c"
 #define TORIDRAW_ZDIV_PASS_TEX_CLIP(oz, sx, sy, sz, n, mid, near) \
     projection_zdiv_tex_neon_clip((oz), (sx), (sy), (sz), (n), (mid), (near))
 #define TORIDRAW_ZDIV_PASS_NOTEX_CLIP(sx, sy, sz, n, mid, near) \

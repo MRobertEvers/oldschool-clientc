@@ -47,7 +47,7 @@
 #include "toridraw_sprite.h"
 #include "toridraw_types.h"
 
-#include <SDL.h>
+#include "platform/platform_gl_context.h"
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
@@ -351,8 +351,8 @@ struct ToriRS_GL3
     /* Projection + face sort; a NULL raster slot is how the table says it
      * has no software raster stage (ToriDraw_KernelGetGpu). */
     const struct ToriDraw_Kernel* kernel;
-    SDL_Window* window;
-    SDL_GLContext gl_context;
+    ToriRS_GLWindow* window;
+    ToriRS_GLContext gl_context;
     int width;
     int height;
     int lb_x;

@@ -1,0 +1,363 @@
+# The Android lane
+
+The client on Android, with **no SDL**: a raw `ANativeWindow`, the tree's own
+software rasterizer, and GLES2 as the opt-in GPU path.
+
+This is the counterpart of `docs/web_build.md` and of the `win32` block in
+`src/platform/platform.mk`. Read that file first if you have not: it is the only
+place in the tree that knows a platform exists, and the Android lane is one
+block in it.
+
+---
+
+## 1. Where the seam is
+
+The client above `platform/` is **unchanged**. Not "mostly unchanged" — the same
+`main.c`, the same frame loop, the same rasterizer, the same gesture policy.
+Android is a new implementation of an interface that already had three.
+
+```
+                      ┌──────────────────────────────────────────┐
+                      │  main.c   while( frame_loop_step() )      │
+                      │  app.c    world, UI tree, CS2 VM, net     │
+                      │  3rd/toridraw   the software rasterizer   │
+                      └───────────────────┬──────────────────────┘
+                                          │  programs against
+                                          ▼
+                      ┌──────────────────────────────────────────┐
+                      │      platform/platform_sdl2.h            │
+                      │  "PlatformSDL2" is the name of the       │
+                      │  INTERFACE, not of a library.            │
+                      └───────────────────┬──────────────────────┘
+                    ┌─────────────┬───────┴───────┬───────────────┐
+                    ▼             ▼               ▼               ▼
+            platform_sdl2.c  platform_      platform_      (your next host)
+            macos / linux    win32gdi.c     android.c
+            / web            win32 / win64  android
+                 │                │               │
+                SDL           Win32+GDI     ANativeWindow
+                                            + EGL/GLES2
+```
+
+`platform_win32gdi.c` has implemented this interface without SDL since the XP
+lane existed. Android is the second such backend, and the reason the names still
+say `PlatformSDL2_` is that renaming an interface is not the same as changing
+what implements it.
+
+---
+
+## 2. The three Android files, and why it is three
+
+```
+src/platform/
+  platform_android.h        the seam between the two halves below
+  platform_android_jni.c    knows Java. Owns the thread, the Surface handoff,
+                            the input queue, stdout->logcat. DRAWS NOTHING.
+  platform_android.c        knows drawing. Implements platform_sdl2.h over
+                            ANativeWindow: the ARGB canvas, the letterbox,
+                            the blit, key/touch translation. KNOWS NO JAVA.
+  platform_android_gl.c     the EGL context, as platform_gl_context.h.
+```
+
+The split is not decoration. `platform_android.c` is ordinary C that can be read
+without knowing what a `jobject` is, and `platform_android_jni.c` has no opinion
+about how a frame is composed. Everything they share is the handful of functions
+in `platform_android.h`, and every one of those crosses a thread boundary.
+
+---
+
+## 3. Two threads, one mutex
+
+Android's UI thread cannot host the frame loop: `while( frame_loop_step() )`
+blocks, and a blocked UI thread is an ANR in five seconds. So the JNI half
+starts a thread and calls `main()` on it — the same loop shape every native lane
+uses. (The web lane had to invert its loop into `requestAnimationFrame`; doing
+that a second time would put two loop shapes in one file.)
+
+```
+   Android UI thread                        frame thread (started by nativeStart)
+   ─────────────────                        ──────────────────────────────────────
+   surfaceChanged(surface,w,h)
+     └─ ANativeWindow_fromSurface
+        PlatformAndroid_SetWindow ─────┐
+                                       │        main(argc, argv)
+   onTouchEvent(MotionEvent)           │          └─ PlatformSDL2_Init
+     └─ nativeTouch ──────────┐        │               └─ PlatformAndroid_AwaitWindow
+                              │        │                    ...blocks until ────┘
+   onKeyDown(KeyEvent)        │        │
+     └─ nativeKey ────────────┤        │        while( frame_loop_step() ):
+                              ▼        ▼          PollCommands  ← drains the queue
+                    ╔═══════════════════════╗     App_Render    → the ARGB canvas
+                    ║  g_lock (pthread mutex)║     Present       → ANativeWindow_lock
+                    ║   window + size        ║                     blit + unlockAndPost
+                    ║   density, quit flag   ║
+                    ║   event ring (256)     ║
+                    ╚═══════════════════════╝
+   onDestroy
+     └─ nativeStop
+          ├─ PlatformAndroid_RequestQuit
+          └─ pthread_join ─────────────────────►  loop ends, App_Shutdown, exit
+```
+
+Three consequences worth stating:
+
+- **The lock is held only long enough to move a value.** Never across a blit,
+  never across a frame.
+- **Input is queued, not translated on arrival.** The gesture policy
+  (`src/input/torirs_touch.c`) mutates state the frame thread owns, and it is
+  shared with every other backend. The UI thread only appends.
+- **`nativeStop` joins.** The loop finishes its frame and `App_Shutdown` runs.
+  Letting the process die instead is how a preference file or an incremental
+  cache gets corrupted mid-write.
+
+### The surface comes and goes
+
+Android destroys the Surface whenever the activity stops and hands back a
+*different* one on resume. The frame loop keeps running across that: the world
+ticks and the network drains, and `Present` simply has nowhere to put a picture
+until a surface returns. `surfaceDestroyed` publishes the NULL **before** it
+returns, because Android destroys the surface the moment it does.
+
+---
+
+## 4. The frame: two paths
+
+```
+                      App_Render(app, pixels, W, H)
+                                  │
+              ┌───────────────────┴────────────────────┐
+              ▼                                        ▼
+   SOFTWARE (default)                        GLES2 (--webgl1, opt-in)
+   toridraw rasterises into                  platform_sdl2_renderer_webgl1.c
+   the ARGB8888 canvas                       draws into the EGL surface
+              │                                        │
+   PlatformSDL2_Present                      PlatformSDL2_PresentGL
+              │                                        │
+   ANativeWindow_lock                          eglSwapBuffers
+   letterbox + swizzle + scale
+   ANativeWindow_unlockAndPost
+```
+
+### Why the GPU path is the *WebGL1* renderer
+
+Because WebGL1 **is** GLES2. `platform_sdl2_renderer_webgl1.c` was written to
+that ceiling and already respects every part of it: no uniform blocks, no 32-bit
+element indices (`webgl1_index16.c` splits an index range into 16-bit windows),
+no GLES3/desktop pixel-store parameters. Those are not browser quirks — they are
+the limits a 2013 armv7 phone's driver still enforces. The desktop GL3 renderer
+would have to have each of them put back.
+
+So Android compiles that file **unchanged**. The only thing it ever needed SDL
+for was making a context, and that seam is now
+`platform/platform_gl_context.h` — nine functions, implemented twice:
+
+| lane | implementation | backing |
+|---|---|---|
+| macos, linux, web | `platform_gl_context_sdl.c` | `SDL_GL_*` |
+| android | `platform_android_gl.c` | EGL |
+
+Neither GL renderer contains an SDL symbol any more. `nm -D libtorirs.so | grep
+SDL_` on the shipped library returns nothing.
+
+### The one pixel-format subtlety
+
+`App_Render` writes ARGB8888 — on a little-endian machine, bytes `B,G,R,A`.
+Every 32-bit `ANativeWindow` format is byte-order `R,G,B,A`. So the present pass
+swaps R and B (`swizzle_argb_to_rgba`, with a `vld4`/`vst4` NEON twin that gets
+the swap for free by storing the de-interleaved planes in a different order).
+
+Building the whole client at `TORIDRAW_PF_ABGR8888` would avoid the swap, but it
+would change the format every sprite, font and texture is composed in — on the
+lane least able to absorb a subtle divergence. The swizzle rides inside a copy
+that is already memory-bound.
+
+### Damage rectangles are deliberately ignored
+
+`ANativeWindow_lock` returns one of a *rotating* set of buffers, so the pixels
+outside a damage box are not last frame's — they are some older frame's, or
+uninitialised. A partial copy would leave those visible. The interface still
+accepts the damage state (so nothing above needs a per-platform arm); this
+backend just presents the whole canvas.
+
+---
+
+## 5. NEON: `neon32` and `neon64` are different instruction sets
+
+Bringing this lane up on armv7 found a real defect, and it is worth knowing
+about because the naming now encodes it.
+
+ARM NEON in the **A32** (armv7) encoding and NEON in the **A64** (aarch64)
+encoding are not the same instruction set. Several kernels here use intrinsics
+that exist only in A64:
+
+- `vmull_high_s32` / `vmlsl_high_s32` — widening high-half multiply
+- `vcgtq_s64` — A32 has no 64-bit vector compare at all
+- `vaddvq_*`, `vminvq_*`, `vmaxvq_*` — horizontal reductions
+- `vqtbl1q_u8` — the full 16-byte table lookup (A32 has only the 8-byte `vtbl`)
+
+`facesort.bitonic_radix.small` was guarded with `#if defined(__ARM_NEON)`, which
+armv7 satisfies. It did not run slower there — **it did not compile**. So the
+width is in the filename now, and `tools/kernel_names.py` (the naming authority)
+enforces it:
+
+| suffix | meaning |
+|---|---|
+| `neon32` | the A32 NEON baseline. Runs on armv7 **and** aarch64. |
+| `neon64` | requires aarch64 — A64-only intrinsics, or wraps aarch64 assembly. |
+
+| kernel | lane |
+|---|---|
+| `projection.parallel.plain` | `neon32` |
+| `projection.perspective.plain` | `neon32` |
+| `projection.zdiv` | `neon32` |
+| `span.gouraudhsllightness.alpha` | `neon32` |
+| `span.tex` | `neon32` |
+| `facesort.bitonic_radix.small` | `neon64` |
+| `projection.bound` | `neon64` |
+| `projection.perspective.prepared` | `neon64` (wraps `projection16.aarch64.S`) |
+
+On armv7 the `neon64` lanes fall through their dispatch ladder to the scalar
+kernel, which is correct and is what every non-SIMD host already uses.
+
+---
+
+## 6. Data on the device
+
+The client reads its cache with ordinary stdio (`platform_x_io.c`). **An APK
+asset is not a file** — it is a compressed range inside the `.apk` that only
+`AssetManager` can open — so the data cannot be bundled, quite apart from a
+rev-239 cache being 218 MB. It is pushed to the device instead.
+
+The device layout **mirrors the repo**, because a manifest states its cache and
+RevConfig as paths relative to *itself*:
+
+```
+repo                                  device
+────                                  ──────
+manifests/manifest_osrs239_bench.ini  /sdcard/Android/data/com.torirs.client/files/
+  dir=../cache.osrs239                  manifests/manifest_osrs239_bench.ini
+  revconfig_ui=../revconfig/...         revconfig/osrs239/...
+cache.osrs239/                          cache.osrs239/
+revconfig/osrs239/
+```
+
+So every manifest resolves on the phone exactly as it does on the desktop,
+**unedited**. Rewriting paths during the push would mean the manifest on the
+device is not the manifest in the tree, and a path bug would be visible only on
+the device.
+
+`Android/data/<pkg>/files` needs no storage permission on any API level, is
+reachable by `adb push`, and is removed on uninstall — the right lifetime for a
+cache. `tools/android_push_data.sh` does the push.
+
+### Working directory and `$HOME`
+
+Neither is a client flag; both are ambient process state the client reads on
+every host, so the JNI layer sets them before calling `main()`
+(`place_process()`):
+
+- **cwd** — `game/rs_prefs.c` opens `"preferences.ini"` by that relative name.
+  An Android process starts at `/`, which is read-only.
+- **`$HOME`** — `bootmanifest.c` derives the default streamed-cache location
+  from it. Android sets none at all.
+
+---
+
+## 7. The boot menu
+
+A phone has no command line, and `--manifest <path>` is how this client is told
+which world to boot. Without a menu, changing profile would mean rebuilding the
+APK.
+
+```
+   BootActivity                                  ClientActivity
+   ────────────                                  ──────────────
+   BootProfile.discover()
+     scan  <files>/manifests/*.ini
+     for each: read ONE key, [cache:boot] dir=
+       resolve it relative to the manifest
+       does that directory exist and is it non-empty?
+                 │
+         ┌───────┴────────┐
+         ▼                ▼
+    bootable         greyed out, with the reason
+    (white)          ("cache missing: cache.osrs239.sparse")
+         │
+   default = last profile booted (SharedPreferences)
+   4s countdown ──── any touch cancels it ────► user taps a row
+         │                                              │
+         └──────────────► startActivity(EXTRA_MANIFEST) ◄┘
+                                    │
+                          nativeStart(argv, dataRoot)
+                          argv = ["torirs", "--manifest", <path>, ...extra_args.txt]
+```
+
+The two activities take **different orientations**, which is the one place they
+disagree: `BootActivity` is `fullSensor` (a vertical list shows about twice as
+many rows in portrait, and a phone picked up to choose something is usually held
+upright), while `ClientActivity` is locked landscape because its canvas is a
+765x503 landscape frame. The menu also carries `configChanges` for orientation,
+so a rotation re-lays-out the view tree instead of recreating the activity and
+restarting the countdown from the top.
+
+Three decisions worth naming:
+
+- **It lists unbootable profiles rather than hiding them.** A missing cache is
+  the single most likely thing to be wrong on a fresh device; a menu that
+  silently omitted the profile would leave you wondering where it went.
+- **The manifest read is one key deep.** The *client* parses manifests. A second
+  full parser in Java would be a second set of opinions about the format,
+  drifting the moment the real one gains a key.
+
+`<files>/extra_args.txt` (one argument per line) is appended to argv, so a
+profile can be tried with `--webgl1` or `--offline` without rebuilding the APK.
+
+---
+
+## 8. What is deliberately not here
+
+| | why |
+|---|---|
+| **SDL** | The point of the lane. No header, no library, no SDL symbol in the `.so`. |
+| **A CMakeLists.txt** | `src/platform/platform.mk` is the only thing that knows what a platform is. A second build description would restate every source and every `-D`, and drift silently — a stale duplicate still compiles. Gradle consumes the `.so`; it does not build C. |
+| **The embedded server** | `EMBED_SERVER` stays 0. Android is a *client*: it dials a real server over TCP or WebSocket. Linking ToriRSServer in would put a second world simulation on the phone — needing the compiled script pack and the server's own copy of the cache on the device — to serve one player already in the process. `net_transport_embed.c` compiles to a **silent stub** without it, so a `transport=embed` manifest would come up and connect to nothing; the boot menu refuses those by name instead. |
+| **Audio** | `platform_audio_null.c`, exactly as both Windows lanes do today. |
+| **AndroidX** | Two Activities and a directory listing, against framework classes that have existed since API 1. |
+| **A `GLSurfaceView`** | It would bring a second render thread and a second GL context with its own opinion about when a frame starts. |
+| **Runtime storage permission** | Everything lives under the app's own external files directory. |
+
+---
+
+## 9. What the lane check enforces
+
+`make -C src lane-check PLATFORM=android` is not decoration — three of its
+requirements have failed quietly before:
+
+| flag | what its absence does |
+|---|---|
+| `-mfpu=neon` | armv7 does not enable NEON by default, and the kernels select their SIMD lane with `#if defined(__ARM_NEON)` at **compile** time. Without it every one silently takes the scalar fallback — no symptom but a slower frame. |
+| `-fPIC` | fails, but deep in the linker naming a *tommath* symbol rather than the cause. |
+| `TORIRS_GL_ES2` | with `TORIRS_HAVE_GL3` but not this, `main.c` would accept `--opengl3` and hand this lane the desktop GL 3.3 renderer. |
+
+`-lSDL2` and `-sUSE_SDL=2` are **forbidden**, not merely absent — the way "no
+SDL" would be lost is someone adding SDL to a *shared* variable to fix another
+host. And because a flag list cannot prove what is in a binary, the lane has a
+post-link probe on the artifact itself:
+
+```
+lane-check: PLATFORM=android ok
+lane-check: android artifact carries no SDL symbol
+```
+
+---
+
+## 10. Build and run
+
+See **`android/README.md`** for the commands. In short:
+
+```sh
+make -C src PLATFORM=android ANDROID_ABI=armeabi-v7a OPT=1 all   # the .so
+cd android && ./gradlew installDebug                              # the APK
+tools/android_push_data.sh cache.osrs239                          # the data
+adb logcat -s torirs                                              # stdout/stderr
+```

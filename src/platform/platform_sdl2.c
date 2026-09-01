@@ -3,6 +3,7 @@
 #include "cmd/cmdbus.h"
 #include "input/torirs_input.h"
 #include "input/torirs_touch.h"
+#include "platform/platform_app_icon.h"
 
 #include <SDL.h>
 
@@ -552,6 +553,45 @@ PlatformSDL2_New(void)
     return platform;
 }
 
+/* The window icon, from the RGBA that tools/make_app_icons.py embedded.
+ *
+ * Embedded rather than loaded from res/icons: a desktop run started from any
+ * working directory still gets an icon, with no path to resolve and no file to
+ * ship beside the binary.
+ *
+ * SDL copies the pixels into the window, so the surface is freed immediately.
+ * The const cast is safe for the same reason -- SDL only reads it. */
+static void
+sdl_set_window_icon(SDL_Window* window)
+{
+    assert(window);
+
+    /* The generated array is R,G,B,A in memory order. The masks below are
+     * over the native-endian 32-bit word, so they swap with the byte order. */
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+    Uint32 const rmask = 0xFF000000u, gmask = 0x00FF0000u;
+    Uint32 const bmask = 0x0000FF00u, amask = 0x000000FFu;
+#else
+    Uint32 const rmask = 0x000000FFu, gmask = 0x0000FF00u;
+    Uint32 const bmask = 0x00FF0000u, amask = 0xFF000000u;
+#endif
+
+    SDL_Surface* icon = SDL_CreateRGBSurfaceFrom(
+        (void*)platform_app_icon_rgba,
+        platform_app_icon_width,
+        platform_app_icon_height,
+        32,
+        platform_app_icon_width * 4,
+        rmask,
+        gmask,
+        bmask,
+        amask);
+    assert(icon);
+
+    SDL_SetWindowIcon(window, icon);
+    SDL_FreeSurface(icon);
+}
+
 bool
 PlatformSDL2_Init(
     struct PlatformSDL2* platform,
@@ -598,6 +638,8 @@ PlatformSDL2_Init(
         SDL_Quit();
         return false;
     }
+
+    sdl_set_window_icon(platform->window);
 
     platform->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_ACCELERATED);
     /* Headless backends (SDL_VIDEODRIVER=dummy) have no accelerated driver;
@@ -725,6 +767,8 @@ PlatformSDL2_InitForOpenGL3(
         return false;
     }
 
+    sdl_set_window_icon(platform->window);
+
     /* No SDL_Renderer / streaming texture / CPU pixel buffer — GL draws directly. */
     platform->renderer = NULL;
     platform->texture = NULL;
@@ -745,11 +789,13 @@ PlatformSDL2_InitForOpenGL3(
     return true;
 }
 
-struct SDL_Window*
+ToriRS_GLWindow*
 PlatformSDL2_Window(struct PlatformSDL2* platform)
 {
     assert(platform);
-    return platform->window;
+    /* SDL_Window and ToriRS_GLWindow are the same object under two names; this
+     * and platform_gl_context_sdl.c are the only places that say so. */
+    return (ToriRS_GLWindow*)platform->window;
 }
 
 void

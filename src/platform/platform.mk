@@ -36,7 +36,7 @@
 #
 # and may override PLATFORM_WINDOW_SRC (defaulted at the bottom).
 
-PLATFORM_LIST := macos linux win32 win64 web
+PLATFORM_LIST := macos linux win32 win64 web android
 
 PLATFORM ?= native
 
@@ -77,6 +77,7 @@ ifneq ($(filter $(PLATFORM),macos linux),)
                        platform/platform_x_io_ondemand.c \
                        platform/platform_x_http.c \
                        platform/platform_audio_sdl2.c \
+                       platform/platform_gl_context_sdl.c \
                        platform/platform_sdl2_renderer_gl3.c \
                        platform/platform_sdl2_renderer_gl3zb.c
   # The desktop-GL binding. The web lane builds the same renderer against
@@ -375,6 +376,7 @@ else ifeq ($(PLATFORM),web)
   PLATFORM_OBJ_BASE := build_web
   PLATFORM_SRCS     := platform/platform_web_api.c \
                        platform/platform_audio_wasm.c \
+                       platform/platform_gl_context_sdl.c \
                        platform/platform_sdl2_renderer_webgl1.c \
                        platform/platform_sdl2_renderer_webgl1zb.c
   # The queue's ABI reporter. Not in PLATFORM_SRCS because it belongs to the
@@ -497,6 +499,193 @@ else ifeq ($(PLATFORM),web)
     # the debug lane is for.
     PLATFORM_LDFLAGS += -Og -sASSERTIONS=1
   endif
+
+else ifeq ($(PLATFORM),android)
+  # --- Android, NDK, no SDL ---------------------------------------------------
+  #
+  # The same shape as the win32 lane: a raw platform window backend implementing
+  # platform_sdl2.h, a CPU-presented software frame, and no SDL, GL, or audio
+  # dependency at all. What differs is that the link output is a SHARED LIBRARY
+  # rather than an executable -- an Android app's process is started by the
+  # runtime, and this lane's `main` is called on a thread the Java side spawns
+  # (platform/platform_android_jni.c), not by the kernel.
+  #
+  # Two backends, both new, and the split is the same one every lane makes:
+  #
+  #   platform_android.c       the PlatformSDL2 interface over ANativeWindow.
+  #                            Owns the ARGB canvas, the letterbox, and the
+  #                            blit. Knows nothing about Java.
+  #   platform_android_jni.c   the JNI surface. Owns the render thread, the
+  #                            Surface handoff, and the input queue. Knows
+  #                            nothing about how a frame is drawn.
+  #
+  # Nothing above platform/ changes: main.c's frame loop, the software renderer
+  # and the touch gesture policy (input/torirs_touch.c) are the desktop ones.
+  #
+  # ABI/API. ANDROID_ABI picks the architecture and ANDROID_API the platform
+  # floor; both are variables because the device decides them, not the tree.
+  # The default pair is the OLDEST thing this lane is expected to run on -- a
+  # 32-bit armv7 phone at API 21 -- because that is the target that fails, and a
+  # default that silently only works on a modern device is a default that hides
+  # the lane's actual constraint until someone plugs in the old one.
+  ANDROID_ABI ?= armeabi-v7a
+  ANDROID_API ?= 21
+
+  # Where the NDK is. ANDROID_NDK_HOME wins; otherwise the newest one under the
+  # SDK that ANDROID_HOME/ANDROID_SDK_ROOT names, and failing that the
+  # per-platform default install location. Probed rather than declared because
+  # this is the one fact about the lane that lives on the machine and not in the
+  # tree -- everything else in this block is a declaration.
+  ANDROID_SDK_HOME ?= $(if $(ANDROID_HOME),$(ANDROID_HOME),$(if $(ANDROID_SDK_ROOT),$(ANDROID_SDK_ROOT),$(HOME)/Library/Android/sdk))
+  #
+  # The NDK version is PINNED, not "whatever is newest".
+  #
+  # A toolchain change moves the codegen, the libc stubs and the default linker
+  # behaviour all at once, and on a lane whose target device is a 2013 phone
+  # that is not something to inherit from whatever happened to be installed
+  # last. This is the same version android/build.gradle names, so the .so and
+  # the APK are built by one toolchain. ANDROID_NDK_VERSION overrides it; if the
+  # pinned one is absent the newest is used with a warning, rather than the
+  # compiler driver failing with a path nobody recognises.
+  ANDROID_NDK_VERSION ?= 27.0.12077973
+  ifeq ($(strip $(ANDROID_NDK_HOME)),)
+    ifneq ($(wildcard $(ANDROID_SDK_HOME)/ndk/$(ANDROID_NDK_VERSION)),)
+      ANDROID_NDK_HOME := $(ANDROID_SDK_HOME)/ndk/$(ANDROID_NDK_VERSION)
+    else
+      ANDROID_NDK_HOME := $(lastword $(sort $(wildcard $(ANDROID_SDK_HOME)/ndk/*)))
+      $(warning NDK $(ANDROID_NDK_VERSION) is not installed - falling back to $(notdir $(ANDROID_NDK_HOME)); sdkmanager "ndk;$(ANDROID_NDK_VERSION)" installs the pinned one)
+    endif
+  endif
+
+  # The prebuilt toolchain's host tag. The NDK ships one per build host, and on
+  # Apple Silicon the tag is still darwin-x86_64 (it runs under Rosetta) -- so
+  # this is keyed off the OS, never off the machine's architecture.
+  ifeq ($(shell uname -s),Darwin)
+    ANDROID_HOST_TAG := darwin-x86_64
+  else
+    ANDROID_HOST_TAG := linux-x86_64
+  endif
+  ANDROID_TOOLCHAIN := $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/$(ANDROID_HOST_TAG)
+
+  # The clang driver name encodes the triple AND the API level, which is how the
+  # NDK selects the right libc stubs. armeabi-v7a's triple carries the `eabi`
+  # suffix and its own -mfpu; every other ABI is plain.
+  ifeq ($(ANDROID_ABI),armeabi-v7a)
+    ANDROID_TRIPLE     := armv7a-linux-androideabi
+    # NEON is not optional here. The toridraw span/projection/facesort kernels
+    # dispatch on __ARM_NEON at compile time, and without -mfpu=neon every one
+    # of them silently takes the scalar fallback -- on the exact device class
+    # that can least afford it. Every armv7 Android device since 2012 has NEON.
+    ANDROID_ARCH_CFLAGS := -march=armv7-a -mfpu=neon -mfloat-abi=softfp
+  else ifeq ($(ANDROID_ABI),arm64-v8a)
+    ANDROID_TRIPLE     := aarch64-linux-android
+    ANDROID_ARCH_CFLAGS := -march=armv8-a
+  else ifeq ($(ANDROID_ABI),x86_64)
+    ANDROID_TRIPLE     := x86_64-linux-android
+    ANDROID_ARCH_CFLAGS := -msse4.1
+  else
+    $(error unsupported ANDROID_ABI '$(ANDROID_ABI)' — expected armeabi-v7a, arm64-v8a or x86_64)
+  endif
+
+  PLATFORM_CC       := $(ANDROID_TOOLCHAIN)/bin/$(ANDROID_TRIPLE)$(ANDROID_API)-clang
+  # Per-ABI objects. Two ABIs are two different compilers and two different
+  # word sizes; sharing an OBJ_DIR between them is the mixed-flavor failure the
+  # top of this file exists to prevent.
+  PLATFORM_OBJ_BASE := build_android_$(ANDROID_ABI)
+  # Straight into the APK's jniLibs source set, so a native build is immediately
+  # what the next `gradle assemble` packages. The Gradle project does not build
+  # C -- it consumes what this makefile produced (android/README.md).
+  PLATFORM_TARGET   := $(REPO_ROOT)/android/src/main/jniLibs/$(ANDROID_ABI)/libtorirs.so
+
+  # Portable stdio IO and the null audio backend. Android has a filesystem and
+  # ordinary BSD sockets, so platform_x_io.c and the JS5/on-demand cache
+  # producers work here unchanged; audio is silent for now, exactly as the two
+  # Windows lanes are.
+  PLATFORM_SRCS     := platform/platform_x_io.c \
+                       platform/platform_x_io_js5_cache.c \
+                       platform/platform_x_io_ondemand.c \
+                       platform/platform_x_http.c \
+                       platform/platform_audio_null.c \
+                       platform/platform_android_jni.c \
+                       platform/platform_android_gl.c \
+                       platform/platform_sdl2_renderer_webgl1.c \
+                       platform/platform_sdl2_renderer_webgl1zb.c
+  PLATFORM_WINDOW_SRC := platform/platform_android.c
+  JS5_SRCS          := $(wildcard js5/*.c)
+
+  # --- NO EMBEDDED SERVER on this lane ---------------------------------------
+  #
+  # EMBED_SERVER stays 0 here. Android is a CLIENT: it dials a real server over
+  # TCP or WebSocket, exactly as the desktop client does when it is not hosting
+  # its own world. Linking ToriRSServer into the APK would put a second world
+  # simulation on a phone, needing the compiled script pack and the server's own
+  # copy of the cache on the device, to serve exactly one player who is already
+  # in the process.
+  #
+  # This is worth STATING rather than leaving as a default, because the failure
+  # mode is silent. net_transport_embed.c compiles to a stub without
+  # -DTORIRS_EMBED_SERVER=1, so a manifest carrying `[net:boot] transport=embed`
+  # does not fail to load here -- it comes up and connects to nothing. The boot
+  # menu is what catches that before it happens: BootProfile refuses an `embed`
+  # manifest by name and says why, the same way it refuses one whose cache was
+  # never pushed.
+  #
+  # A lane that genuinely wanted the in-process world could still ask for it
+  # (`make -C src PLATFORM=android EMBED_SERVER=1 ...`) and would get its own
+  # OBJ_DIR, as on every other host. Nothing here forbids it; it is simply not
+  # what this lane is for.
+
+  # --- The GPU variant is GLES2, and it is the one this tree already has ------
+  #
+  # Android's GPU renderer is the WEB lane's renderer, unchanged. That is not a
+  # shortcut -- WebGL1 *is* GLES2, and the file was written to that ceiling: no
+  # uniform blocks, no 32-bit element indices (hence webgl1_index16.o, which
+  # splits an index range into 16-bit windows), no GLES3/desktop pixel-store
+  # parameters. Every constraint it already respects is a constraint a 2013
+  # armv7 phone's driver actually has, so pointing this lane at the GL3
+  # renderer instead would mean relaxing a ceiling the device still enforces.
+  #
+  # trspk_webgl1.h includes <GLES2/gl2.h> on any non-emscripten host already,
+  # and the NDK sysroot ships it -- so the renderer needs nothing added for the
+  # GL calls themselves. What it needed was a CONTEXT, and that was the only
+  # thing it ever used SDL for. That seam is now platform/platform_gl_context.h,
+  # which BOTH GL renderers program to and which each lane implements once:
+  # platform_gl_context_sdl.c on the SDL hosts, platform_android_gl.c over EGL
+  # here. There is no SDL on this lane -- no header, no library, no SDL symbol
+  # in any object it links -- and the 11k-line GLES2 renderer is still the same
+  # file the browser builds.
+  PLATFORM_GPU_OBJ_NAMES := webgl1_index16.o
+  PLATFORM_EXE_SUFFIX :=
+
+  # -fPIC because the output is a shared library and every object lands in it.
+  # _GNU_SOURCE for the same reason the web lane needs it: bionic hides strdup/
+  # strtok_r/strcasecmp behind feature macros under -std=c11, and an undeclared
+  # strdup compiles to a call returning int -- a truncated pointer on a 64-bit
+  # ABI, and a crash nowhere near the call.
+  PLATFORM_BASE_CFLAGS := -DTORIRS_PLATFORM_ANDROID=1 -D_GNU_SOURCE -fPIC \
+                          $(ANDROID_ARCH_CFLAGS)
+  # TORIRS_HAVE_GL3 says a GPU renderer exists at all; TORIRS_GL_ES2 says it is
+  # built against the GLES2 ceiling. Both are the web lane's spelling, because
+  # it is the web lane's renderer. Like every other host with a GPU path, it is
+  # OPT-IN at run time (`--opengl3`); the software rasterizer stays the default,
+  # so a device whose driver refuses the context still boots.
+  #
+  PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) \
+                      -DTORIRS_HAVE_GL3=1 -DTORIRS_GL_ES2=1
+  # -llog is __android_log_print (this lane's stderr -- see platform_android.c),
+  # -landroid is ANativeWindow. -shared, and -Wl,--no-undefined so a symbol this
+  # library forgot to define fails at link here rather than as an
+  # UnsatisfiedLinkError on the device.
+  PLATFORM_LDFLAGS := -shared -Wl,--no-undefined -lm -llog -landroid -lGLESv2 -lEGL
+  # --gc-sections does real work only with -ffunction-sections/-fdata-sections,
+  # which this tree does not compile with. Same reasoning as the linux lane.
+  PLATFORM_STRIP_LDFLAGS :=
+  PLATFORM_MEMTRACE_WRAP_LDFLAGS := \
+      -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free \
+      -Wl,--wrap=reallocf -Wl,--wrap=posix_memalign -Wl,--wrap=strdup
+  # The .so name is what System.loadLibrary("torirs") resolves; a suffix would
+  # make a traced build unloadable rather than distinguishable.
+  PLATFORM_TARGET_MEMTRACE_SUFFIX :=
 
 else
   $(error unknown PLATFORM '$(PLATFORM)' — expected one of: native $(PLATFORM_LIST))

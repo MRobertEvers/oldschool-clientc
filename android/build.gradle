@@ -1,22 +1,78 @@
+/*
+ * The ToriRS Android client.
+ *
+ * THIS FILE DOES NOT BUILD C.
+ *
+ * There is deliberately no externalNativeBuild block. The native client is
+ * built by the tree's own makefile -- `make -C src PLATFORM=android` -- which
+ * is the single place that knows what a platform is (src/platform/platform.mk)
+ * and the only place that gets to decide this lane's flags. A CMakeLists here
+ * would be a SECOND description of the same program: it would have to restate
+ * every source file, every -D and every include path, and the two would drift
+ * silently, because a stale duplicate still compiles.
+ *
+ * So Gradle's job is exactly the APK: take the .so the makefile produced, add
+ * the Java shell around it, sign it and install it. See android/README.md.
+ */
 plugins {
     id 'com.android.application' version '8.7.0'
 }
 
 android {
-    namespace 'com.scenetile.test'
+    namespace 'com.torirs.client'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.scenetile.test"
+        applicationId "com.torirs.client"
+
+        /*
+         * minSdk 21 is a real target, not a formality: the device this lane was
+         * brought up on is a Motorola XT1060 running Android 5.1 (API 22),
+         * armeabi-v7a, and it is the reason the software rasterizer stays the
+         * default and the GLES2 path is the opt-in.
+         */
         minSdk 21
         targetSdk 34
         versionCode 1
         versionName "1.0"
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        
         ndk {
-            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+            /*
+             * Only what src/makefile actually produces. An abiFilter naming an
+             * ABI with no .so does not fail the build -- it produces an APK
+             * that installs and then dies with UnsatisfiedLinkError on a device
+             * of that architecture, which is a much worse way to find out.
+             *
+             * Build them with:
+             *   make -C src PLATFORM=android ANDROID_ABI=armeabi-v7a OPT=1 all
+             *   make -C src PLATFORM=android ANDROID_ABI=arm64-v8a  OPT=1 all
+             */
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
+        }
+    }
+
+    /*
+     * The makefile writes straight into this tree, so a native rebuild is
+     * immediately what the next assemble packages.
+     */
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+            /*
+             * NO ASSETS.
+             *
+             * The client reads its cache, manifests and revconfig with ordinary
+             * stdio (src/platform/platform_x_io.c), and an APK asset is not a
+             * file -- it is a compressed range inside the .apk that only
+             * AssetManager can open. Bundling the cache would therefore not
+             * even work, quite apart from a rev-239 cache being 218 MB.
+             *
+             * Those trees are pushed to the device instead, in the repo's own
+             * layout so that each manifest's relative paths resolve unchanged.
+             * `tools/android_push_data.sh` does it; android/README.md explains
+             * why the layout has to mirror the repo.
+             */
+            assets.srcDirs = []
         }
     }
 
@@ -24,49 +80,14 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            
-            externalNativeBuild {
-                cmake {
-                    cppFlags "-std=c++17 -O3 -DNDEBUG"
-                    
-                    arguments "-DANDROID_STL=c++_shared"
-                    arguments "-DANDROID=1"
-                    arguments "-DCMAKE_SYSTEM_NAME=Android"
-                    arguments "-DSDL_VIDEO_DRIVER_ANDROID=1"
-                    arguments "-DSDL_AUDIO_DRIVER_ANDROID=1"
-                    arguments "-DSDL_JOYSTICK_ANDROID=1"
-                    arguments "-DSDL_HAPTIC_ANDROID=1"
-                    arguments "-DCMAKE_BUILD_TYPE=Release"
-                }
-            }
             signingConfig signingConfigs.debug
         }
         debug {
-            minifyEnabled false
             debuggable true
             jniDebuggable true
-            
-            ndk {
-                debugSymbolLevel 'FULL'
-            }
-            
-            externalNativeBuild {
-                cmake {
-                    cppFlags "-std=c++17 -g -O0 -DDEBUG"
-                    
-                    arguments "-DANDROID_STL=c++_shared"
-                    arguments "-DANDROID=1"
-                    arguments "-DCMAKE_SYSTEM_NAME=Android"
-                    arguments "-DSDL_VIDEO_DRIVER_ANDROID=1"
-                    arguments "-DSDL_AUDIO_DRIVER_ANDROID=1"
-                    arguments "-DSDL_JOYSTICK_ANDROID=1"
-                    arguments "-DSDL_HAPTIC_ANDROID=1"
-                    arguments "-DCMAKE_BUILD_TYPE=Debug"
-                }
-            }
         }
     }
-    
+
     signingConfigs {
         debug {
             storeFile file("debug.keystore")
@@ -75,37 +96,47 @@ android {
             keyPassword "android"
         }
     }
-    
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
-    }
-    
-    externalNativeBuild {
-        cmake {
-            path file('CMakeLists.txt')
-        }
-    }
-    
-    sourceSets {
-        main {
-            assets.srcDirs = ['src/main/assets', '../cache']
-        }
-    }
-    
+
+    /*
+     * The .so is already stripped-or-not by the makefile's own link line, and
+     * it carries the DWARF the NDK's stack symbolizer needs. Letting Gradle
+     * strip it again would leave `ndk-stack` unable to name a frame.
+     */
     packagingOptions {
-        pickFirst '**/libc++_shared.so'
-        pickFirst '**/libjsc.so'
+        jniLibs {
+            keepDebugSymbols += ['**/libtorirs.so']
+            /*
+             * Store the .so uncompressed and page-aligned. On API 23+ the
+             * loader then maps it straight out of the APK instead of extracting
+             * a private copy at install time -- which for a 27 MB library is the
+             * difference between a slow first launch and an instant one.
+             */
+            useLegacyPackaging false
+        }
     }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
     ndkVersion '27.0.12077973'
+
+    lint {
+        // Nothing here ships to a store; a lint failure must not stand between
+        // a native change and seeing it on the phone.
+        abortOnError false
+    }
 }
 
+/*
+ * No dependencies at all -- not even AndroidX.
+ *
+ * The whole Java side is two Activities and a directory listing, written
+ * against the framework classes that have existed since API 1. AndroidX would
+ * add ~1.5 MB and a resolution step to an app whose entire UI is a list and a
+ * countdown, and every one of its compatibility shims is for a problem this app
+ * does not have.
+ */
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.10.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    
-    testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }
