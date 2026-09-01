@@ -670,6 +670,8 @@ done:
     if( !g_failures && getenv("TORIDRAW_FACE_SORT_BENCH") )
         bench_sorts(scene);
     ToriDraw_SceneFree(scene);
+    printf("k16 census: %d models took the K16 block, %d declined (A32 lane only)\n",
+           g_toridraw_sort_k16_models, g_toridraw_sort_k16_declined);
     printf("face sort bitonic+radix vs bucket: %d fixtures, %ld faces compared, "
            "%ld drawn -- %s\n",
            g_fixtures, g_faces_compared, g_faces_drawn, g_failures ? "FAIL" : "PASS");

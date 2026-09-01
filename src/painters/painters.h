@@ -1017,6 +1017,23 @@ painter_add_world_entity(
     int size_x,
     int size_z);
 
+/*
+ * The paint walk's census, always on: walks this frame, walks whose inputs
+ * (camera tile and level, cull span, draw distance, level mask) were the
+ * previous walk's -- what a cached walk would hit -- tiles popped, commands
+ * emitted and how many of those were entities rather than static scenery.
+ * A renderer that prints frame statistics reads and clears it.
+ */
+struct TorirsPaintCensus
+{
+    int walks;
+    int same_inputs;
+    int pops;
+    int commands;
+    int entity_commands;
+};
+extern struct TorirsPaintCensus g_torirs_paint_census;
+
 int
 painter_paint_bucket(
     struct Painter* painter, //

@@ -314,6 +314,140 @@ toridraw_face_sort_bitonic_radix_block4_neon32(
     }
 }
 
+
+/*
+ * THE K16 BLOCK: eight faces at f..f+7 in int16 lanes.
+ *
+ * WHY IT IS EXACT. lane_blocks admits a model here only when its screen box
+ * (scene->projected_box, the raw sweep toridraw_projected_bound made) is
+ * under 32767 wide and tall, and it rebuilt the vertices as
+ * {x - box_min_x, y - box_min_y, z, 0} int16 quads. Every rebased coordinate
+ * is then in [0, 32766], every winding delta in (-32767, 32767) -- an exact
+ * int16 -- and each product under 2^30, so the two-product winding fits an
+ * int32 with 131 thousand to spare: VMULL.S16 / VMLSL.S16 give the same sign
+ * the 64-bit reference does, and the reference's sign is translation
+ * invariant, so rebasing changes nothing. z is NOT rebased -- the depth is
+ * div3(za + zb + zc) + min_depth on the absolute values -- and is widened
+ * to int32 before the sum (VADDL / VADDW), so the depth is the int32 block's
+ * bit for bit. The keys are therefore identical, which is what the parity
+ * test holds this lane to.
+ *
+ * WHAT IT SAVES. Twice the faces per gather and per store, D-register
+ * transposes (VTRN.16 / VTRN.32) in place of Q ones, and 16-bit products in
+ * place of the 64-bit VMULL.S32 chain whose latency the four-face block was
+ * measured waiting on. The near-clip sentinel and the presort stash are not
+ * handled here: a clipped or stashing model takes the int32 block.
+ */
+static inline __attribute__((always_inline)) int
+toridraw_face_sort_bitonic_radix_block8_k16_neon32(
+    int f,
+    int32x4_t min_depth,
+    uint32x4_t depth_levels,
+    uint32x4_t key_base_lo, /* 0xFFFF0000 | (f + lane), lanes 0..3 */
+    uint32x4_t key_base_hi, /* lanes 4..7 */
+    const int16_t* RESTRICT xyz16,
+    const faceint_t* RESTRICT face_a,
+    const faceint_t* RESTRICT face_b,
+    const faceint_t* RESTRICT face_c,
+    uint32_t* keys)
+{
+    int16x8_t ax, ay, az, bx, by, bz, cx, cy, cz;
+
+/* Eight {x,y,z,0} quads -> one vector per axis. vtrn_s16 on two quads gives
+ * {x0,x1,z0,z1} and {y0,y1,w0,w1}; vtrn_s32 across two such pairs gives
+ * {x0..x3} and {z0..z3} from the first, {y0..y3} from the second. */
+#define TORIDRAW_K16_GATHER(fa_, ox_, oy_, oz_)                                                  \
+    do                                                                                             \
+    {                                                                                              \
+        int16x4_t const r0 = vld1_s16(xyz16 + (size_t)(fa_)[f + 0] * 4);                        \
+        int16x4_t const r1 = vld1_s16(xyz16 + (size_t)(fa_)[f + 1] * 4);                        \
+        int16x4_t const r2 = vld1_s16(xyz16 + (size_t)(fa_)[f + 2] * 4);                        \
+        int16x4_t const r3 = vld1_s16(xyz16 + (size_t)(fa_)[f + 3] * 4);                        \
+        int16x4_t const r4 = vld1_s16(xyz16 + (size_t)(fa_)[f + 4] * 4);                        \
+        int16x4_t const r5 = vld1_s16(xyz16 + (size_t)(fa_)[f + 5] * 4);                        \
+        int16x4_t const r6 = vld1_s16(xyz16 + (size_t)(fa_)[f + 6] * 4);                        \
+        int16x4_t const r7 = vld1_s16(xyz16 + (size_t)(fa_)[f + 7] * 4);                        \
+        int16x4x2_t const t01 = vtrn_s16(r0, r1);                                                 \
+        int16x4x2_t const t23 = vtrn_s16(r2, r3);                                                 \
+        int16x4x2_t const t45 = vtrn_s16(r4, r5);                                                 \
+        int16x4x2_t const t67 = vtrn_s16(r6, r7);                                                 \
+        int32x2x2_t const xz03 = vtrn_s32(                                                        \
+            vreinterpret_s32_s16(t01.val[0]), vreinterpret_s32_s16(t23.val[0]));                \
+        int32x2x2_t const yw03 = vtrn_s32(                                                        \
+            vreinterpret_s32_s16(t01.val[1]), vreinterpret_s32_s16(t23.val[1]));                \
+        int32x2x2_t const xz47 = vtrn_s32(                                                        \
+            vreinterpret_s32_s16(t45.val[0]), vreinterpret_s32_s16(t67.val[0]));                \
+        int32x2x2_t const yw47 = vtrn_s32(                                                        \
+            vreinterpret_s32_s16(t45.val[1]), vreinterpret_s32_s16(t67.val[1]));                \
+        (ox_) = vcombine_s16(                                                                     \
+            vreinterpret_s16_s32(xz03.val[0]), vreinterpret_s16_s32(xz47.val[0]));              \
+        (oz_) = vcombine_s16(                                                                     \
+            vreinterpret_s16_s32(xz03.val[1]), vreinterpret_s16_s32(xz47.val[1]));              \
+        (oy_) = vcombine_s16(                                                                     \
+            vreinterpret_s16_s32(yw03.val[0]), vreinterpret_s16_s32(yw47.val[0]));              \
+    } while( 0 )
+
+    TORIDRAW_K16_GATHER(face_a, ax, ay, az);
+    TORIDRAW_K16_GATHER(face_b, bx, by, bz);
+    TORIDRAW_K16_GATHER(face_c, cx, cy, cz);
+#undef TORIDRAW_K16_GATHER
+
+    {
+        /* nw = dy1*dx2 - dx1*dy2, the negated winding, as the int32 block:
+         * front is nw < 0, one arithmetic shift. */
+        int16x8_t const dx1 = vsubq_s16(ax, bx);
+        int16x8_t const dy1 = vsubq_s16(ay, by);
+        int16x8_t const dx2 = vsubq_s16(cx, bx);
+        int16x8_t const dy2 = vsubq_s16(cy, by);
+        int32x4_t nw_lo = vmull_s16(vget_low_s16(dy1), vget_low_s16(dx2));
+        int32x4_t nw_hi = vmull_s16(vget_high_s16(dy1), vget_high_s16(dx2));
+        uint32x4_t front_lo;
+        uint32x4_t front_hi;
+        nw_lo = vmlsl_s16(nw_lo, vget_low_s16(dx1), vget_low_s16(dy2));
+        nw_hi = vmlsl_s16(nw_hi, vget_high_s16(dx1), vget_high_s16(dy2));
+#if TORIDRAW_FLIP_WINDING
+        front_lo = vcgtq_s32(nw_lo, vdupq_n_s32(0));
+        front_hi = vcgtq_s32(nw_hi, vdupq_n_s32(0));
+#else
+        front_lo = vreinterpretq_u32_s32(vshrq_n_s32(nw_lo, 31));
+        front_hi = vreinterpretq_u32_s32(vshrq_n_s32(nw_hi, 31));
+#endif
+
+        {
+            /* depth = (za + zb + zc) * 21845 >> 16 + min_depth, the z's
+             * widened first: the int32 block's arithmetic exactly. */
+            int32x4_t zs_lo = vaddl_s16(vget_low_s16(az), vget_low_s16(bz));
+            int32x4_t zs_hi = vaddl_s16(vget_high_s16(az), vget_high_s16(bz));
+            int32x4_t depth_lo;
+            int32x4_t depth_hi;
+            uint32x4_t accept_lo;
+            uint32x4_t accept_hi;
+            uint32x4_t const sentinel = vdupq_n_u32(0xFFFFFFFFu);
+            zs_lo = vaddw_s16(zs_lo, vget_low_s16(cz));
+            zs_hi = vaddw_s16(zs_hi, vget_high_s16(cz));
+            depth_lo = vaddq_s32(vshrq_n_s32(vmulq_n_s32(zs_lo, 21845), 16), min_depth);
+            depth_hi = vaddq_s32(vshrq_n_s32(vmulq_n_s32(zs_hi, 21845), 16), min_depth);
+            accept_lo = vandq_u32(
+                front_lo, vcltq_u32(vreinterpretq_u32_s32(depth_lo), depth_levels));
+            accept_hi = vandq_u32(
+                front_hi, vcltq_u32(vreinterpretq_u32_s32(depth_hi), depth_levels));
+            vst1q_u32(
+                keys,
+                vbslq_u32(
+                    accept_lo,
+                    vsubq_u32(key_base_lo, vreinterpretq_u32_s32(vshlq_n_s32(depth_lo, 16))),
+                    sentinel));
+            vst1q_u32(
+                keys + 4,
+                vbslq_u32(
+                    accept_hi,
+                    vsubq_u32(key_base_hi, vreinterpretq_u32_s32(vshlq_n_s32(depth_hi, 16))),
+                    sentinel));
+        }
+    }
+    return 8;
+}
+
 /*
  * The bitonic network over N = 2^k keys, ascending, unsigned.
  *
@@ -456,6 +590,98 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
     }
 
     /*
+     * THE K16 QUESTION, asked once per model off the screen box the
+     * projection already swept (scene->projected_box): a model under 32767
+     * wide and tall, not near-clipped, not stashing, with at least eight
+     * faces from here, takes the eight-face int16 block. The vertices are
+     * rebuilt as int16 {x - min_x, y - min_y, z, 0} quads in one pass; the
+     * pass also checks that z fits, and a model whose z range does not
+     * (a radius past 32K units, which nothing in the caches has) falls back
+     * to the int32 block below. TORIDRAW_FACE_SORT_K16=0 is the control arm.
+     */
+    if( !near_clipped && !stash_xy && f + 8 <= num_faces && toridraw_face_sort_k16_armed() )
+    {
+        int const ext_x = scene->projected_box[1] - scene->projected_box[0];
+        int const ext_y = scene->projected_box[3] - scene->projected_box[2];
+        if( ext_x >= 0 && ext_x < 32767 && ext_y >= 0 && ext_y < 32767 )
+        {
+            int16_t* const xyz16 = scene->sm_vertex_xyz16;
+            int32x4_t const origin_x = vdupq_n_s32(scene->projected_box[0]);
+            int32x4_t const origin_y = vdupq_n_s32(scene->projected_box[2]);
+            int32x4_t zmin = vdupq_n_s32(INT_MAX);
+            int32x4_t zmax = vdupq_n_s32(INT_MIN);
+            int16x4x4_t quad16;
+            int z_lo;
+            int z_hi;
+            assert(xyz16);
+            quad16.val[3] = vdup_n_s16(0);
+            for( v = 0; v + 4 <= num_vertices; v += 4 )
+            {
+                int32x4_t const qx = vsubq_s32(vld1q_s32(vx + v), origin_x);
+                int32x4_t const qy = vsubq_s32(vld1q_s32(vy + v), origin_y);
+                int32x4_t const qz = vld1q_s32(vz + v);
+                zmin = vminq_s32(zmin, qz);
+                zmax = vmaxq_s32(zmax, qz);
+                quad16.val[0] = vmovn_s32(qx);
+                quad16.val[1] = vmovn_s32(qy);
+                quad16.val[2] = vmovn_s32(qz);
+                vst4_s16(xyz16 + (size_t)v * 4, quad16);
+            }
+            {
+                int32x2_t lo2 = vpmin_s32(vget_low_s32(zmin), vget_high_s32(zmin));
+                int32x2_t hi2 = vpmax_s32(vget_low_s32(zmax), vget_high_s32(zmax));
+                lo2 = vpmin_s32(lo2, lo2);
+                hi2 = vpmax_s32(hi2, hi2);
+                z_lo = vget_lane_s32(lo2, 0);
+                z_hi = vget_lane_s32(hi2, 0);
+            }
+            for( ; v < num_vertices; v++ )
+            {
+                int const z = vz[v];
+                xyz16[(size_t)v * 4 + 0] = (int16_t)(vx[v] - scene->projected_box[0]);
+                xyz16[(size_t)v * 4 + 1] = (int16_t)(vy[v] - scene->projected_box[2]);
+                xyz16[(size_t)v * 4 + 2] = (int16_t)z;
+                xyz16[(size_t)v * 4 + 3] = 0;
+                if( z < z_lo )
+                    z_lo = z;
+                else if( z > z_hi )
+                    z_hi = z;
+            }
+            if( z_lo >= -32767 && z_hi <= 32767 )
+            {
+                uint32x4_t const eight = vdupq_n_u32(8);
+                uint32x4_t key_base_lo;
+                uint32x4_t key_base_hi;
+                {
+                    uint32x4_t const lane_lo = { 0, 1, 2, 3 };
+                    uint32x4_t const lane_hi = { 4, 5, 6, 7 };
+                    uint32x4_t const base = vdupq_n_u32(0xFFFF0000u | (uint32_t)f);
+                    key_base_lo = vaddq_u32(base, lane_lo);
+                    key_base_hi = vaddq_u32(base, lane_hi);
+                }
+                min_depth = vdupq_n_s32(model_min_depth);
+                levels = vdupq_n_u32((uint32_t)scene->depth_levels);
+                /* The same depth bound the int32 path publishes (see below). */
+                scene->sm_sort_depth_lo = div3_fast_fixedpoint(3 * z_lo) + model_min_depth;
+                scene->sm_sort_depth_hi = div3_fast_fixedpoint(3 * z_hi) + model_min_depth;
+                g_toridraw_sort_k16_models++;
+                for( ; f + 8 <= num_faces; f += 8 )
+                {
+                    n += toridraw_face_sort_bitonic_radix_block8_k16_neon32(
+                        f, min_depth, levels, key_base_lo, key_base_hi, xyz16, face_a, face_b,
+                        face_c, keys + n);
+                    key_base_lo = vaddq_u32(key_base_lo, eight);
+                    key_base_hi = vaddq_u32(key_base_hi, eight);
+                }
+                goto compact;
+            }
+        }
+        g_toridraw_sort_k16_declined++;
+    }
+    else
+        g_toridraw_sort_k16_declined++;
+
+    /*
      * Interleave the projected vertices once per model: three streaming
      * loads and one VST4 per four vertices, under an instruction per face
      * against the twelve lane gathers a face's corners cost before (see
@@ -563,11 +789,12 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
     }
 #undef TORIDRAW_NEON32_BLOCK_LOOP
 
+compact:
     *f_io = f;
 
     /*
-     * Compact the run: the blocks wrote four slots each with rejected faces
-     * as sentinels (see block4). One pass, ARM only, branch-free -- the
+     * Compact the run: the blocks wrote four (K16: eight) slots each with
+     * rejected faces as sentinels (see block4). One pass, ARM only, branch-free -- the
      * store is unconditional and the cursor advances by the comparison --
      * and the keys handed on are exactly the accepted ones in face order,
      * as a packing lane would have written them.

@@ -938,6 +938,21 @@ struct ToriDraw_Scene
      * its block4). NULL until the bitonic+radix scratch is allocated. */
     int* sm_vertex_xyz;
     /*
+     * The same vertices as {x - box_min_x, y - box_min_y, z, 0} int16 quads,
+     * for the A32 lane's eight-face K16 block: a model whose screen box is
+     * under 32K wide and tall has every rebased coordinate and every winding
+     * delta an exact int16, and the products exact int32 (see the lane).
+     * (max_vertices + 8) quads.
+     */
+    int16_t* sm_vertex_xyz16;
+    /*
+     * The screen box toridraw_projected_bound swept for the model last
+     * projected, RAW: min x, max x, min y, max y in the projection's own
+     * space, before the viewport offset and the pick dilation that go into
+     * `aabb`. What a sort lane reads to classify a model's extent.
+     */
+    int projected_box[4];
+    /*
      * The depth range a lane could prove for the model it just culled, from
      * the z range of its vertices: every accepted face's depth is in
      * [sm_sort_depth_lo, sm_sort_depth_hi]. The dispatcher resets both to

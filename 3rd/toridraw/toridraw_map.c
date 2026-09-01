@@ -5,6 +5,14 @@
 #include <stdint.h>
 #include <string.h>
 
+#if !defined(TORIDRAW_MAP_HASH_FAST32)
+#if defined(__LP64__) || defined(_WIN64) || (defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 8)
+#define TORIDRAW_MAP_HASH_FAST32 0
+#else
+#define TORIDRAW_MAP_HASH_FAST32 1
+#endif
+#endif
+
 enum
 {
     TORIDRAW_MAP_SLOT_EMPTY = 0,
@@ -98,7 +106,64 @@ ToriDraw_MapHashBytes(
     size_t len,
     void* arg)
 {
+    /*
+     * The same platform choice as 3rd/hmap/hmap.h (HMAP_HASH_DEFAULT), made
+     * here because toridraw does not include hmap: FNV-1a over 64 bits a
+     * byte at a time on 64-bit hosts, so their slot placement does not
+     * move; MurmurHash3 x86_32 a word at a time on 32-bit targets, where
+     * the 64-bit multiply per byte and the 64-bit modulo below were a
+     * measured frame cost (Moto X: __aeabi_uldivmod alone 0.5% of a frame).
+     * -DTORIDRAW_MAP_HASH_FAST32=0/1 overrides.
+     */
     (void)arg;
+#if TORIDRAW_MAP_HASH_FAST32
+    const unsigned char* p = (const unsigned char*)key;
+    uint32_t const c1 = 0xcc9e2d51u;
+    uint32_t const c2 = 0x1b873593u;
+    uint32_t h = 0;
+    size_t i;
+    for( i = 0; i + 4 <= len; i += 4 )
+    {
+        uint32_t k;
+        memcpy(&k, p + i, 4);
+        k *= c1;
+        k = (k << 15) | (k >> 17);
+        k *= c2;
+        h ^= k;
+        h = (h << 13) | (h >> 19);
+        h = h * 5u + 0xe6546b64u;
+    }
+    {
+        uint32_t k = 0;
+        switch( len & 3 )
+        {
+        case 3:
+            k ^= (uint32_t)p[i + 2] << 16;
+            /* fallthrough */
+        case 2:
+            k ^= (uint32_t)p[i + 1] << 8;
+            /* fallthrough */
+        case 1:
+            k ^= (uint32_t)p[i];
+            k *= c1;
+            k = (k << 15) | (k >> 17);
+            k *= c2;
+            h ^= k;
+            break;
+        default:
+            break;
+        }
+    }
+    h ^= (uint32_t)len;
+    h ^= h >> 16;
+    h *= 0x85ebca6bu;
+    h ^= h >> 13;
+    h *= 0xc2b2ae35u;
+    h ^= h >> 16;
+    if( h == 0 )
+        h = 1;
+    return (uint64_t)h;
+#else
     const unsigned char* p = (const unsigned char*)key;
     uint64_t h = 1469598103934665603ULL;
     for( size_t i = 0; i < len; i++ )
@@ -109,6 +174,23 @@ ToriDraw_MapHashBytes(
     if( h == 0 )
         h = 1;
     return h;
+#endif
+}
+
+/* The slot a hash starts probing at: `%` with the 64-bit hash, Fibonacci
+ * hashing (no divide) with the 32-bit one. See ToriDraw_MapHashBytes. */
+static inline size_t
+toridraw_map_slot_index(
+    uint64_t hash,
+    size_t capacity)
+{
+#if TORIDRAW_MAP_HASH_FAST32
+    uint32_t x = (uint32_t)hash ^ (uint32_t)(hash >> 32);
+    x *= 0x9E3779B1u;
+    return (size_t)(((uint64_t)x * (uint64_t)capacity) >> 32);
+#else
+    return (size_t)(hash % capacity);
+#endif
 }
 
 static int
@@ -264,7 +346,7 @@ ToriDraw_MapSearch(
     if( hash == 0 )
         hash = 1;
 
-    size_t idx = hash % m->capacity;
+    size_t idx = toridraw_map_slot_index(hash, m->capacity);
     size_t start = idx;
     int64_t tomb_i = -1;
 

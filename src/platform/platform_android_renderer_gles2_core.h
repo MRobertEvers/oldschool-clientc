@@ -221,6 +221,17 @@ struct GLES2Rect
     int height;
 };
 
+/* A clip in LOGICAL pixels, half-open. Axis-aligned UI quads are clipped
+ * against it on the CPU (gles2_ui_append_quad_clipped), so no glScissor call
+ * -- and no batch break -- stands between two quads with different clips. */
+struct GLES2Clip
+{
+    int x0;
+    int y0;
+    int x1;
+    int y1;
+};
+
 /** One per-frame GPU stream: GLES2_FRAMES_IN_FLIGHT buffers used in rotation,
  *  each appended from offset zero during its frame. */
 struct GLES2StreamSet
@@ -232,6 +243,12 @@ struct GLES2StreamSet
 };
 
 /** The 2D stream vertex. 24 bytes: (x, y, w), (u, v), RGBA bytes. */
+/*
+ * The UI vertex. `sel` picks what the fragment multiplies the colour by --
+ * 0 the sprite atlas on unit 0, 1 the batch's own texture on unit 1 (a font,
+ * a widget's texture), 2 nothing (a flat fill) -- so sprites, text and fills
+ * share one draw instead of breaking the batch at every texture change.
+ */
 struct GLES2VertexUI
 {
     float x;
@@ -240,6 +257,7 @@ struct GLES2VertexUI
     float u;
     float v;
     uint32_t rgba;
+    float sel;
 };
 
 /** The rotmask vertex: the UI vertex plus the axis-aligned mask coordinate. */
@@ -346,7 +364,10 @@ struct GLES2UIBatch
 {
     struct GLES2VertexUI* vertices;
     uint32_t vertex_count;
-    GLuint texture;
+    /* Unit 1's texture for the whole batch (0 until a quad names one); unit
+     * 0 is always the sprite atlas. A quad naming a different unit-1 texture
+     * is the one texture change that still ends a batch. */
+    GLuint texture1;
     bool uses_sprite_atlas;
     bool scissor_enabled;
     struct GLES2Rect scissor;
@@ -439,6 +460,7 @@ struct ToriRS_GLES2
     struct GLES2Program program_rotmask;
     const struct GLES2Program* current_program;
     GLuint bound_texture0;
+    GLuint bound_texture1;
     GLuint bound_array_buffer;
     /* The vertex stream the attributes currently point into: which buffer,
      * which page, and whether it is the world layout or the UI one. */
@@ -536,6 +558,19 @@ struct ToriRS_GLES2
     uint32_t painter_stat_sort_models[5];
     uint32_t painter_stat_sort_faces_in;
     uint32_t painter_stat_sort_faces_out;
+    /* The UI's draw calls and why each batch ended: a state change the
+     * batch could not absorb (texture, atlas, scissor), the vertex cap, or a
+     * flush a draw path asked for outright (the difference between draws
+     * and the reasons counted). The driver's per-draw cost is the number
+     * these decide. */
+    uint32_t ui_stat_draws_batch;
+    uint32_t ui_stat_draws_rotmask;
+    uint32_t ui_stat_draws_widget;
+    uint32_t ui_stat_break_texture;
+    uint32_t ui_stat_break_atlas;
+    uint32_t ui_stat_break_scissor;
+    uint32_t ui_stat_break_overflow;
+    uint32_t ui_stat_upload_bytes;
     struct TRSPK_PoseTable poses;
     struct TRSPK_PoseTable batch_poses;
 
@@ -765,6 +800,23 @@ gles2_sequence_push_indexed(
     bool blended,
     const uint16_t* indices,
     uint32_t index_count);
+/* The two halves of gles2_sequence_push_indexed for a caller that writes its
+ * indices in place: reserve returns room for `index_count` indices at the
+ * staging tail (the pointer is valid until the next reserve); commit records
+ * the draw over exactly that many, merging with the open item as the push
+ * does. Saves the copy: the painter writes ~1,000 index runs a frame. */
+uint16_t*
+gles2_sequence_reserve_indexed(
+    struct ToriRS_GLES2* renderer,
+    uint32_t index_count);
+void
+gles2_sequence_commit_indexed(
+    struct ToriRS_GLES2* renderer,
+    uint32_t binding,
+    uint32_t page_base,
+    bool cutout,
+    bool blended,
+    uint32_t index_count);
 void
 gles2_sequence_push_array(
     struct ToriRS_GLES2* renderer,
@@ -827,6 +879,8 @@ void
 gles2_set_scissor(struct ToriRS_GLES2* renderer, const struct GLES2Rect* rect);
 void
 gles2_bind_texture0(struct ToriRS_GLES2* renderer, GLuint texture);
+void
+gles2_bind_texture1(struct ToriRS_GLES2* renderer, GLuint texture);
 void
 gles2_use_program(struct ToriRS_GLES2* renderer, const struct GLES2Program* program);
 

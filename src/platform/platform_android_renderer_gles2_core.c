@@ -32,6 +32,7 @@
 #include "toridraw.h"
 #include "toridraw_element_id.h"
 #include "toridraw_math.h"
+#include "painters/painters.h"
 
 #include <android/log.h>
 #include <assert.h>
@@ -51,7 +52,7 @@ _Static_assert(
     sizeof(struct TRSPK_VertexGLES2) == 28u,
     "the world vertex layout is what the attribute pointers describe");
 _Static_assert(
-    sizeof(struct GLES2VertexUI) == 24u,
+    sizeof(struct GLES2VertexUI) == 28u,
     "the UI vertex layout is what the attribute pointers describe");
 _Static_assert(
     sizeof(struct GLES2VertexRotmask) == 32u,
@@ -152,6 +153,90 @@ gles2_bind_texture0(struct ToriRS_GLES2* renderer, GLuint texture)
     renderer->bound_texture0 = texture;
 }
 
+/*
+ * Warm the per-element lines the painter dispatch reads for the commands
+ * behind this one, one line class per step so each step reads only what
+ * the step before it fetched: the pose table's element row at +3, its
+ * track's vertex-base array at +2, and the static batch's entry (the
+ * chunk, offset and vertex count) at +1. The frame's emit loop resolves
+ * the element ids three commands ahead for its own prefetches; this is the
+ * renderer's half of the same pipeline. Measured before it existed: the
+ * batch entry read alone was 39% of gles2_dispatch.
+ */
+static void
+gles2_prefetch_ahead(
+    struct ToriRS_GLES2* renderer,
+    const struct ToriRS_Frame* frame)
+{
+    const struct TRSPK_PoseTable* table = &renderer->batch_poses;
+    int id;
+
+    assert(renderer);
+    assert(frame);
+    if( !table->elements || !renderer->has_3d )
+        return;
+
+    id = ToriRS_FrameLookaheadElementId(frame, 3);
+    if( id >= 0 )
+    {
+        uint32_t const index = (uint32_t)ToriDraw_ElementIndexOfRaw(id);
+        if( index < table->element_count )
+            __builtin_prefetch(&table->elements[index], 0, 1);
+    }
+    id = ToriRS_FrameLookaheadElementId(frame, 2);
+    if( id >= 0 )
+    {
+        uint32_t const index = (uint32_t)ToriDraw_ElementIndexOfRaw(id);
+        if( index < table->element_count )
+        {
+            const struct TRSPK_PoseTrack* track = &table->elements[index].tracks[0];
+            if( track->vertex_base )
+                __builtin_prefetch(track->vertex_base, 0, 1);
+        }
+    }
+    id = ToriRS_FrameLookaheadElementId(frame, 1);
+    if( id >= 0 )
+    {
+        uint32_t const index = (uint32_t)ToriDraw_ElementIndexOfRaw(id);
+        if( index < table->element_count )
+        {
+            const struct TRSPK_PoseTrack* track = &table->elements[index].tracks[0];
+            if( track->vertex_base && track->pose_count > 0u )
+            {
+                uint32_t const base = track->vertex_base[0];
+                if( base != TRSPK_POSE_VERTEX_BASE_INVALID && (base & GLES2_BATCH_POSE_FLAG) )
+                {
+                    uint32_t const slot =
+                        (base >> GLES2_BATCH_POSE_SLOT_SHIFT) & GLES2_BATCH_POSE_SLOT_MASK;
+                    if( slot < renderer->static_batch_count )
+                    {
+                        const struct GLES2StaticBatch* batch = &renderer->static_batches[slot];
+                        if( batch->active && batch->cpu )
+                        {
+                            const struct TRSPK_Batch16Entry* entry = trspk_batch16_get_entry(
+                                batch->cpu, base & GLES2_BATCH_POSE_ENTRY_MASK);
+                            if( entry )
+                                __builtin_prefetch(entry, 0, 1);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void
+gles2_bind_texture1(struct ToriRS_GLES2* renderer, GLuint texture)
+{
+    assert(renderer);
+    if( renderer->bound_texture1 == texture )
+        return;
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glActiveTexture(GL_TEXTURE0);
+    renderer->bound_texture1 = texture;
+}
+
 void
 gles2_use_program(struct ToriRS_GLES2* renderer, const struct GLES2Program* program)
 {
@@ -186,6 +271,8 @@ gles2_state_reset(struct ToriRS_GLES2* renderer)
     glDisable(GL_CULL_FACE);
     glDisable(GL_SCISSOR_TEST);
     glDisable(GL_DITHER);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, 0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -197,6 +284,7 @@ gles2_state_reset(struct ToriRS_GLES2* renderer)
     renderer->scissor_on = false;
     memset(&renderer->scissor_rect, 0, sizeof(renderer->scissor_rect));
     renderer->bound_texture0 = 0u;
+    renderer->bound_texture1 = 0u;
     renderer->bound_array_buffer = 0u;
     renderer->current_program = NULL;
     renderer->stream_buffer = 0u;
@@ -339,8 +427,8 @@ gles2_create_programs(struct ToriRS_GLES2* renderer)
                &renderer->program_ui,
                gles2_ui_vertex_shader,
                gles2_ui_fragment_shader,
-               false,
-               false,
+               true,
+               true,
                "ui") &&
         gles2_link_program(
                &renderer->program_rotmask,
@@ -2054,8 +2142,7 @@ gles2_bind_stream(struct ToriRS_GLES2* renderer, uint32_t binding, uint32_t page
     glVertexAttribPointer(
         GLES2_ATTRIB_TEXINFO, 4, GL_UNSIGNED_BYTE, GL_FALSE, GLES2_VERTEX_STRIDE,
         (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2, tile_col)));
-    if( renderer->stream_layout != GLES2_STREAM_WORLD &&
-        renderer->stream_layout != GLES2_STREAM_ROTMASK )
+    if( renderer->stream_layout == GLES2_STREAM_ROTMASK )
         glEnableVertexAttribArray(GLES2_ATTRIB_TEXINFO);
     renderer->stream_buffer = buffer;
     renderer->stream_byte_offset = (uint32_t)byte_offset;
@@ -2082,9 +2169,11 @@ gles2_bind_ui_stream(struct ToriRS_GLES2* renderer, uint32_t byte_offset)
     glVertexAttribPointer(
         GLES2_ATTRIB_COLOR, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride,
         (const void*)(uintptr_t)(byte_offset + offsetof(struct GLES2VertexUI, rgba)));
-    if( renderer->stream_layout == GLES2_STREAM_WORLD ||
-        renderer->stream_layout == GLES2_STREAM_ROTMASK )
-        glDisableVertexAttribArray(GLES2_ATTRIB_TEXINFO);
+    glVertexAttribPointer(
+        GLES2_ATTRIB_TEXINFO, 1, GL_FLOAT, GL_FALSE, stride,
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct GLES2VertexUI, sel)));
+    if( renderer->stream_layout == GLES2_STREAM_ROTMASK )
+        glEnableVertexAttribArray(GLES2_ATTRIB_TEXINFO);
     renderer->stream_buffer = renderer->ui_vbo;
     renderer->stream_byte_offset = byte_offset;
     renderer->stream_layout = GLES2_STREAM_UI;
@@ -2109,6 +2198,12 @@ gles2_bind_rotmask_stream(struct ToriRS_GLES2* renderer, uint32_t byte_offset)
     glVertexAttribPointer(
         GLES2_ATTRIB_MASK_TEXCOORD, 2, GL_FLOAT, GL_FALSE, stride,
         (const void*)(uintptr_t)(byte_offset + offsetof(struct GLES2VertexRotmask, mask_u)));
+    /* This program has no texinfo attribute: the array is switched off for
+     * the draw rather than pointed somewhere valid -- the driver was seen
+     * to drop the draw with it enabled. The UI and world streams switch it
+     * back on. */
+    if( renderer->stream_layout != GLES2_STREAM_ROTMASK )
+        glDisableVertexAttribArray(GLES2_ATTRIB_TEXINFO);
     if( renderer->stream_layout != GLES2_STREAM_WORLD &&
         renderer->stream_layout != GLES2_STREAM_ROTMASK )
         glEnableVertexAttribArray(GLES2_ATTRIB_MASK_TEXCOORD);
@@ -2207,12 +2302,23 @@ gles2_sequence_push_indexed(
     const uint16_t* indices,
     uint32_t index_count)
 {
-    struct GLES2DrawItem* item;
-    uint32_t needed;
+    uint16_t* destination;
     assert(renderer);
     assert(indices);
     if( index_count == 0u )
         return;
+    destination = gles2_sequence_reserve_indexed(renderer, index_count);
+    memcpy(destination, indices, (size_t)index_count * sizeof(*indices));
+    gles2_sequence_commit_indexed(renderer, binding, page_base, cutout, blended, index_count);
+}
+
+uint16_t*
+gles2_sequence_reserve_indexed(
+    struct ToriRS_GLES2* renderer,
+    uint32_t index_count)
+{
+    uint32_t needed;
+    assert(renderer);
     needed = renderer->ibo_staging_count + index_count;
     if( needed > renderer->ibo_staging_capacity )
     {
@@ -2226,10 +2332,25 @@ gles2_sequence_push_indexed(
         renderer->ibo_staging = grown;
         renderer->ibo_staging_capacity = capacity;
     }
-    memcpy(
-        renderer->ibo_staging + renderer->ibo_staging_count,
-        indices,
-        (size_t)index_count * sizeof(*indices));
+    return renderer->ibo_staging + renderer->ibo_staging_count;
+}
+
+void
+gles2_sequence_commit_indexed(
+    struct ToriRS_GLES2* renderer,
+    uint32_t binding,
+    uint32_t page_base,
+    bool cutout,
+    bool blended,
+    uint32_t index_count)
+{
+    struct GLES2DrawItem* item;
+    uint32_t needed;
+    assert(renderer);
+    if( index_count == 0u )
+        return;
+    needed = renderer->ibo_staging_count + index_count;
+    assert(needed <= renderer->ibo_staging_capacity);
     /* Merge with the item before it when nothing about the draw changed. */
     item = renderer->draw_item_count ? &renderer->draw_items[renderer->draw_item_count - 1u]
                                      : NULL;
@@ -2762,7 +2883,7 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
                 "torirs",
                 "gles2 sort/frame: models by bake size tile2 %.0f <=16 %.0f <=64 %.0f <=256 %.0f "
                 "larger %.0f; faces in %.0f out %.0f; radix shallow %.1f two-pass %.1f; "
-                "prio uniform %.1f varied %.1f",
+                "prio uniform %.1f varied %.1f; k16 %.1f declined %.1f",
                 renderer->painter_stat_sort_models[0] / 300.0,
                 renderer->painter_stat_sort_models[1] / 300.0,
                 renderer->painter_stat_sort_models[2] / 300.0,
@@ -2773,7 +2894,56 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
                 g_toridraw_radix_shallow_models / 300.0,
                 g_toridraw_radix_two_pass_models / 300.0,
                 g_toridraw_prio_uniform_models / 300.0,
-                g_toridraw_prio_varied_models / 300.0);
+                g_toridraw_prio_varied_models / 300.0,
+                g_toridraw_sort_k16_models / 300.0,
+                g_toridraw_sort_k16_declined / 300.0);
+            __android_log_print(
+                ANDROID_LOG_INFO,
+                "torirs",
+                "gles2 draws/frame: world %.1f; ui batches %.1f (ended by texture %.1f atlas "
+                "%.1f scissor %.1f overflow %.1f asked %.1f) rotmask %.1f widget %.1f; ui "
+                "upload %.0f B",
+                renderer->painter_stat_draws / 300.0,
+                renderer->ui_stat_draws_batch / 300.0,
+                renderer->ui_stat_break_texture / 300.0,
+                renderer->ui_stat_break_atlas / 300.0,
+                renderer->ui_stat_break_scissor / 300.0,
+                renderer->ui_stat_break_overflow / 300.0,
+                ((double)renderer->ui_stat_draws_batch - renderer->ui_stat_break_texture -
+                 renderer->ui_stat_break_atlas - renderer->ui_stat_break_scissor -
+                 renderer->ui_stat_break_overflow) /
+                    300.0,
+                renderer->ui_stat_draws_rotmask / 300.0,
+                renderer->ui_stat_draws_widget / 300.0,
+                renderer->ui_stat_upload_bytes / 300.0);
+            __android_log_print(
+                ANDROID_LOG_INFO,
+                "torirs",
+                "project/frame: models %.1f cull_fast %.1f cull_aabb %.1f error %.1f projected "
+                "%.1f vertices %.0f tail_models %.1f",
+                g_toridraw_project_census.calls / 300.0,
+                g_toridraw_project_census.cull_fast / 300.0,
+                g_toridraw_project_census.cull_aabb / 300.0,
+                g_toridraw_project_census.cull_error / 300.0,
+                g_toridraw_project_census.projected / 300.0,
+                g_toridraw_project_census.projected_vertices / 300.0,
+                g_toridraw_project_census.tail_models / 300.0);
+            __android_log_print(
+                ANDROID_LOG_INFO,
+                "torirs",
+                "paint/frame: walks %.2f same_inputs %.2f pops %.0f commands %.0f entities %.1f",
+                g_torirs_paint_census.walks / 300.0,
+                g_torirs_paint_census.same_inputs / 300.0,
+                g_torirs_paint_census.pops / 300.0,
+                g_torirs_paint_census.commands / 300.0,
+                g_torirs_paint_census.entity_commands / 300.0);
+            /* A call-site counting shim, when one was built in with -include
+             * (scratch tooling; the symbol is absent in every normal build). */
+            {
+                extern void torirs_shim_dump(void) __attribute__((weak));
+                if( torirs_shim_dump )
+                    torirs_shim_dump();
+            }
         }
         if( renderer->painter_stat_frames >= 300u )
         {
@@ -2792,6 +2962,18 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
             g_toridraw_radix_two_pass_models = 0;
             g_toridraw_prio_uniform_models = 0;
             g_toridraw_prio_varied_models = 0;
+            g_toridraw_sort_k16_models = 0;
+            g_toridraw_sort_k16_declined = 0;
+            renderer->ui_stat_draws_batch = 0u;
+            renderer->ui_stat_draws_rotmask = 0u;
+            renderer->ui_stat_draws_widget = 0u;
+            renderer->ui_stat_break_texture = 0u;
+            renderer->ui_stat_break_atlas = 0u;
+            renderer->ui_stat_break_scissor = 0u;
+            renderer->ui_stat_break_overflow = 0u;
+            renderer->ui_stat_upload_bytes = 0u;
+            memset(&g_toridraw_project_census, 0, sizeof(g_toridraw_project_census));
+            memset(&g_torirs_paint_census, 0, sizeof(g_torirs_paint_census));
         }
     }
 
@@ -3366,11 +3548,14 @@ ToriRS_GLES2_Init(
     if( !gles2_ui_create_gl(renderer) )
         goto fail;
 
-    /* The first three attributes are live for the life of the context; the
-     * fourth follows the stream layout (world texinfo / rotmask mask uv). */
+    /* The first four attributes are live for the life of the context (the
+     * fourth is the world's texinfo and the UI's sampler select; the rotmask
+     * layout keeps it pointed at something valid); the mask uv follows the
+     * rotmask layout. */
     glEnableVertexAttribArray(GLES2_ATTRIB_POSITION);
     glEnableVertexAttribArray(GLES2_ATTRIB_TEXCOORD);
     glEnableVertexAttribArray(GLES2_ATTRIB_COLOR);
+    glEnableVertexAttribArray(GLES2_ATTRIB_TEXINFO);
     gles2_state_reset(renderer);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     if( !gles2_check_error("init") )
@@ -3568,7 +3753,10 @@ ToriRS_GLES2_RenderFrame(struct ToriRS_GLES2* renderer, struct ToriRS_Frame* fra
     renderer->frame_clock += 1.0;
     ToriRS_FrameBegin(frame);
     while( ToriRS_FrameNextCommand(frame, &command) )
+    {
+        gles2_prefetch_ahead(renderer, frame);
         gles2_dispatch(renderer, &command);
+    }
     ToriRS_FrameEnd(frame);
     if( renderer->in3d )
         gles2_end_3d(renderer);

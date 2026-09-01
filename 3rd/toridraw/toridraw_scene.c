@@ -1433,6 +1433,63 @@ ToriDraw_SceneElementPrefetchData(
         __builtin_prefetch(data, 0, 1);
 }
 
+static const struct ToriDraw_Model*
+td_scene_element_prefetch_model_of(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    int index;
+    const struct ToriDraw_SceneElement* element;
+    index = ToriDraw_ElementIndexOfRaw(element_id);
+    if( index < 0 || index >= scene->elements.count )
+        return NULL;
+    element = scene->elements.nodes[index].data;
+    if( !element || !ToriDraw_ModelKindIsFull(element->model.kind) )
+        return NULL;
+    return element->model.u.model.model;
+}
+
+void
+ToriDraw_SceneElementPrefetchModel(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    const struct ToriDraw_Model* model;
+    assert(scene);
+    model = td_scene_element_prefetch_model_of(scene, element_id);
+    if( !model )
+        return;
+    /* flags, counts and the array pointers sit in the first two lines; the
+     * bounds cylinder some 270 bytes in. */
+    __builtin_prefetch(model, 0, 1);
+    __builtin_prefetch((const char*)model + 64, 0, 1);
+    __builtin_prefetch(&model->bounds_cylinder, 0, 1);
+}
+
+void
+ToriDraw_SceneElementPrefetchArrays(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    const struct ToriDraw_Model* model;
+    assert(scene);
+    model = td_scene_element_prefetch_model_of(scene, element_id);
+    if( !model )
+        return;
+    if( model->vertices_x )
+        __builtin_prefetch(model->vertices_x, 0, 1);
+    if( model->vertices_y )
+        __builtin_prefetch(model->vertices_y, 0, 1);
+    if( model->vertices_z )
+        __builtin_prefetch(model->vertices_z, 0, 1);
+    if( model->face_indices_a )
+        __builtin_prefetch(model->face_indices_a, 0, 1);
+    if( model->face_indices_b )
+        __builtin_prefetch(model->face_indices_b, 0, 1);
+    if( model->face_indices_c )
+        __builtin_prefetch(model->face_indices_c, 0, 1);
+}
+
 bool
 ToriDraw_SceneElementIsLive(
     struct ToriDraw_Scene* scene,

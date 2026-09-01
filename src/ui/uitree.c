@@ -1616,7 +1616,7 @@ UITree_MarkNodeDirty(
      * will not enter it either unless an ancestor moved, and that ancestor
      * bumps. See UITree::emit_visited for why this is a bitmap rather than a
      * hidden-ancestor query, and why a node past the bitmap counts as reached. */
-    if( (uint32_t)idx >= tree->emit_visited_cap || tree->emit_visited[idx] )
+    if( (uint32_t)idx >= tree->emit_visited_cap || tree->emit_visited[idx] == tree->emit_epoch )
     {
         tree->dirty_gen++;
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_DIRTY_MARK, 1);

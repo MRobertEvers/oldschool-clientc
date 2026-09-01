@@ -2573,7 +2573,7 @@ emit_walk_node(
      * to a `hide` bit bumps dirty_gen unconditionally rather than through the
      * filtered MarkNodeDirty path — see UITree_SetHide. */
     if( (uint32_t)idx < tree->emit_visited_cap )
-        tree->emit_visited[idx] = 1;
+        tree->emit_visited[idx] = tree->emit_epoch;
 
     /* Inactive sidebar tabs prune their whole mounted subtree (same gate as
      * UITree_ComponentVisibleHost; ShouldEmit only skips the container's own
@@ -3437,12 +3437,25 @@ UITree_EmitWalk(
                                : tree->component_count;
             uint8_t* grown = realloc(mut->emit_visited, cap);
             assert(grown);
+            /* The new tail must not read as this walk's stamp by chance. */
+            memset(grown + mut->emit_visited_cap, 0, cap - mut->emit_visited_cap);
             mut->emit_visited = grown;
             mut->emit_visited_cap = cap;
         }
-        if( mut->emit_visited_cap > 0 )
-            memset(mut->emit_visited, 0, mut->emit_visited_cap);
+        /* A new stamp is the clear; the array itself is cleared only when the
+         * stamp wraps, once in 255 walks. See UITree::emit_epoch. */
+        mut->emit_epoch = (uint8_t)(mut->emit_epoch + 1u);
+        if( mut->emit_epoch == 0u )
+        {
+            mut->emit_epoch = 1u;
+            if( mut->emit_visited_cap > 0 )
+                memset(mut->emit_visited, 0, mut->emit_visited_cap);
+        }
     }
+    /* Perf readout only. The free-list walk is a pointer chase over every
+     * reclaimed slot, and it was 83% of this function on a phone while the
+     * counters it fed were off. */
+    if( g_torirs_perf_enabled )
     {
         int free_len = 0;
         for( int32_t i = tree->free_head; i >= 0; i = tree->components[i].free_next )

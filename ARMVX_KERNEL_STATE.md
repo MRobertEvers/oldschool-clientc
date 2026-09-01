@@ -1,5 +1,8 @@
 # ARMv7 / ARMv8 face-sort kernel state
 
+The whole-frame budget plan (15 ms -> under 10) is `FRAME_BUDGET_PLAN.md`;
+this file logs the face-sort steps of it.
+
 Working notes for the bitonic+radix face sort lanes under
 `3rd/toridraw/impl/facesort/`. Kept current while the work is in flight;
 numbers are the sort bench (`toridraw_face_sort_bitonic_radix_test.c`,
@@ -83,6 +86,14 @@ Client sort share (simpleperf, % of all samples, 10 s Lumbridge): 12.3
 noise floor is ~±0.5%, so the per-line breakdown (`scratchpad/sort_lines.sh
 <tag>`) is the measure for changes under that.
 
+CLIENT A/B METHOD (the one that works): one binary, an env toggle, alternate
+arms, metric = sort samples / frames-in-window = sort ms per frame, where
+frames come from the 300-frame cadence of the "swap:" logcat line
+(`scratchpad/client_ab.sh <tag> <on|off>`). Under the profiler the frame is
+~20.4 ms. Uniform-priority fast path (`TORIDRAW_PRIO_UNIFORM=0` = off):
+on 1.819 / 1.807 ms, off 2.000 ms -> -0.19 ms/frame (-9.5% of the sort).
+A run whose frame cadence is off (e2: 25-31 ms) is disturbed: discard it.
+
 Still to do (plan A/B):
 - [ ] A4: classify the model's screen extent off `scene->aabb` (already
       computed before the sort by `toridraw_projected_bound`; x/y only, no z).
@@ -126,3 +137,74 @@ AArch64 Android device — the M4 is the only aarch64 host measured.
   sort keys.
 - sse2 / scalar lanes: signature only (`(void)num_vertices`,
   `*out_accepted`).
+
+## Where the frame goes (Moto X, Lumbridge, painter, 2026-09-01, ab3 profile)
+
+The loop is paced to 20 ms (50 fps, `frame_period_ms` in main.c); the main
+thread is on-CPU 74% of the time = ~15.1 ms of work per frame, ~1.1 ms in
+swap, the rest pacer sleep. Shares of on-CPU samples (ms of the 15.1):
+
+| bucket | % | ms |
+|---|---|---|
+| GL driver + kernel (libGLESv2_adreno, libgsl, EGL, KGSL ioctls, faults) | 16.2 | 2.4 |
+| face sort (compute_projected_face_order_small + one_abc + merge) | 14.0 | 2.1 |
+| projection + cull (noclip/clip prepared, ProjectWithVTable, FastCull) | 13.6 | 2.05 |
+| gles2 renderer CPU (dispatch, push_resident, reserve_model_indices, ...) | 9.8 | 1.5 |
+| UI tree + fonts + ui draws | 9.1 | 1.35 |
+| world paint walk (bucket_paint_world, occluders, painter dynamics) | 8.9 | 1.35 |
+| frame command bus (ToriRS_FrameNextCommand, view apply, App_RunOnce) | 8.5 | 1.3 |
+| libc (memcpy 1.5, strcmp 0.9, memset 0.6, mutexes 0.6, memmove/memcmp, getenv 0.3) | 5.1 | 0.8 |
+| animation / texture animate / bake | 2.5 | 0.4 |
+| scripting (Lua, CS1, revconfig) | 2.4 | 0.35 |
+| PLT stubs | 1.3 | 0.2 |
+| software 64/32-bit division (__udivmoddi4, __aeabi_uidiv) | 0.9 | 0.15 |
+| long tail | ~7.8 | 1.2 |
+
+Inside the sort (per-line, prio build): gather+transposes 17.6, arithmetic+
+store 12.3, block loops+compaction 8.9, bitonic 7.2, radix 6.8, AoS build+
+setup 5.2, partition+merge 6.0, caller/emit 10.8, dispatcher misc 13,
+unattributed 9.
+
+## 2026-09-01 evening: frame-level work moved to FRAME_BUDGET_PLAN.md
+
+The sort stands at ~2.0 ms of a 13.8 ms frame (client), its internals
+unchanged since step 9. Frame-level levers done today: model-line prefetch
+in the emit loop, 32-bit hash maps, UI batching (64 → 30 draws), walk row
+pre-fill, renderer peek-ahead prefetch, UI tree fixes. Rule recorded: no
+lever may depend on a still camera. Next sort work if resumed: tile fast
+path (bypass the dispatcher for two-face models), then K16.
+
+## 2026-09-01 afternoon: K16 (eight-face int16 block) — IN
+
+`facesort.bitonic_radix.small.neon32.u.c`: `block8_k16`. Per model, off the
+raw screen box `toridraw_projected_bound` now publishes in
+`scene->projected_box`: not near-clipped, no stash, >= 8 faces, box under
+32767 wide and tall -> the vertices are rebuilt once as int16
+`{x - min_x, y - min_y, z, 0}` quads (`scene->sm_vertex_xyz16`, the pass
+also bounds z and falls back if it does not fit) and eight faces go per
+block: D-register `vtrn` transposes, `vmull_s16`/`vmlsl_s16` winding (exact:
+every delta an int16, every product < 2^30, the sum fits int32 with room),
+z widened before the sum so the depth is the int32 block's bit for bit.
+Keys identical -> the parity test is the gate: PASS, 1,265 fixtures, 522K
+models through K16. `TORIDRAW_FACE_SORT_K16=0` = control arm. Census on the
+"gles2 sort/frame" line.
+
+Phone bench (fresh binary, keys ns/face at 64/200/256/1000/2000):
+  K16 off  40.0 / 30.4 / 29.0 / 31.0 / 41.3
+  K16 on   39.5 / 29.9 / 29.1 / 28.7 / 33.9    (-7.5% at 1000, -18% at 2000)
+
+CAUTION on the morning's numbers: `phone_bench.sh` had been linking
+against a stale binary (09:17) without saying so — every phone bench run
+between e34 and this one measured the e34 build. So E1 (two blocks per
+trip, "lost") and E2's bench verdict were never really measured; the
+script now deletes the old binary and fails loudly. The client A/Bs were
+unaffected (they build and install the client).
+
+Client A/B (`TORIDRAW_FACE_SORT_K16`, interleaved pairs, sort ms/frame):
+  on  2.066 / 2.134      off  2.165 / 2.308     -> about -0.13 ms (-6%)
+468 models a frame take K16, 31 decline (the 763 terrain tiles never reach
+lane_blocks: they have the tile kernel). Kept, default on.
+
+Still open in the sort: the K16 tail (up to 7 faces a model go scalar; a
+masked final block would take them), the tile fast path, and the K16 block
+in the neon64 lane when that arch resumes.

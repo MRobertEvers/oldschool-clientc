@@ -370,8 +370,8 @@ gles2_painter_push_resident(
             window = open->page_base;
     }
     renderer->painter_stat_faces_indexed += count;
-    (void)gles2_reserve_model_indices(renderer, count * 3u);
-    indices = renderer->model_indices;
+    /* Written straight into the draw sequence's staging: no scratch, no copy. */
+    indices = gles2_sequence_reserve_indexed(renderer, count * 3u);
     assert(indices);
     assert(address - window + span <= GLES2_HOT_WINDOW_VERTICES);
     address -= window;
@@ -385,8 +385,7 @@ gles2_painter_push_resident(
         triplet[1] = (uint16_t)(vertex + step);
         triplet[2] = (uint16_t)(vertex + step + step);
     }
-    gles2_sequence_push_indexed(
-        renderer, GLES2_HOT_BINDING, window, true, false, indices, count * 3u);
+    gles2_sequence_commit_indexed(renderer, GLES2_HOT_BINDING, window, true, false, count * 3u);
 }
 
 /* ---- emission ---------------------------------------------------------------------- */

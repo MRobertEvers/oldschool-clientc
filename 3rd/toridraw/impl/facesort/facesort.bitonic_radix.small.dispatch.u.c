@@ -205,6 +205,28 @@ toridraw_face_sort_bitonic_radix_armed(void)
 #define TORIDRAW_TILE_SORT_SCALAR 1
 #define TORIDRAW_TILE_SORT_SIMD 2
 
+/*
+ * TORIDRAW_FACE_SORT_K16=0 turns the A32 lane's eight-face int16 block off
+ * (every model then takes the four-face int32 block). The A/B control arm.
+ */
+static inline int
+toridraw_face_sort_k16_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+    {
+        const char* v = getenv("TORIDRAW_FACE_SORT_K16");
+        armed = (v && v[0] == '0') ? 0 : 1;
+    }
+    return armed;
+}
+
+/* Census for the frame stat lines: models the K16 block took, and models a
+ * K16-capable lane sent down the int32 block instead (extent, clip, stash,
+ * or fewer than eight faces). */
+int g_toridraw_sort_k16_models = 0;
+int g_toridraw_sort_k16_declined = 0;
+
 static inline int
 toridraw_face_sort_tile2_armed(void)
 {

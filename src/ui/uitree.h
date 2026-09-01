@@ -1275,6 +1275,11 @@ struct UITree
      *  walked, so it must not be skipped). */
     uint8_t* emit_visited;
     uint32_t emit_visited_cap;
+    /** The stamp a walk writes into emit_visited: "visited this walk" is
+     *  `emit_visited[i] == emit_epoch`. Bumped at the start of every walk
+     *  instead of clearing the whole array (which was 92% of the walk on a
+     *  phone); the array is cleared for real only when the stamp wraps. */
+    uint8_t emit_epoch;
     /** Head of the reclaimed-slot free-list (chained via component free_next). */
     int32_t free_head;
     /** Lazy id->index acceleration for UITree_FindByComponentId. Open-addressed,

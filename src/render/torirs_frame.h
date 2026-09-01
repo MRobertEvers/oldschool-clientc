@@ -100,6 +100,11 @@ struct ToriRS_Frame
     enum ToriRS_FramePassKind pass;
     int emit_index;
     int painters_index;
+    /* The element ids of the next few painter commands, resolved once when
+     * they are prefetched (a terrain command's id is a pool lookup) and
+     * reused when the command comes round. Slot i & 3 holds command i. */
+    int lookahead_index[4];
+    int lookahead_id[4];
     /* TORIRS_FRAME_DEBUG counters — painted commands that did / did not become
      * draws. Diagnostic only; nothing reads them outside the debug print. */
     int dbg_emit_element;
@@ -216,6 +221,18 @@ ToriRS_FrameSetViewXform(
 
 void
 ToriRS_FrameBegin(struct ToriRS_Frame* frame);
+
+/*
+ * The element id of the painter command `distance` (1..3) after the one the
+ * last ToriRS_FrameNextCommand emitted, when the emit loop's lookahead has
+ * already resolved it; -1 outside the world pass, past the end, at a view
+ * marker, or when it is not resolved. A renderer uses it to warm its own
+ * per-element tables a step ahead of the dispatch that reads them.
+ */
+int
+ToriRS_FrameLookaheadElementId(
+    const struct ToriRS_Frame* frame,
+    int distance);
 
 bool
 ToriRS_FrameNextCommand(

@@ -301,6 +301,27 @@ ToriDraw_ProjectedTileMouseHitTest(
  * radix finish in one pass, and models that took two. A renderer that prints
  * frame statistics reads and clears them; nothing else touches them.
  */
+/*
+ * The projection gate's census, always on (seven increments per model):
+ * models handed to ToriDraw_ProjectWithVTable, where each left, and for the
+ * ones projected their vertex total and how many had a vertex count that is
+ * not a multiple of four (the kernels' scalar tail). A renderer that prints
+ * frame statistics reads and clears it.
+ */
+struct ToriDraw_ProjectCensus
+{
+    int calls;
+    int cull_fast;
+    int cull_error;
+    int cull_aabb;
+    int projected;
+    int projected_vertices;
+    int tail_models;
+};
+extern struct ToriDraw_ProjectCensus g_toridraw_project_census;
+
+extern int g_toridraw_sort_k16_models;
+extern int g_toridraw_sort_k16_declined;
 extern int g_toridraw_radix_shallow_models;
 extern int g_toridraw_radix_two_pass_models;
 /* Same census for the priority emit: models whose priorities were all one

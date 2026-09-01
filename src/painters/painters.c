@@ -8,6 +8,8 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdbool.h>
+
+struct TorirsPaintCensus g_torirs_paint_census;
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

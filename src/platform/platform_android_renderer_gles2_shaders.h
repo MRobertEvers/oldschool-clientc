@@ -109,26 +109,42 @@ static const char* const gles2_world_cutout_fragment_shader =
     "    gl_FragColor = c;\n"
     "}\n";
 
+/*
+ * a_texinfo is the per-vertex sampler select (struct GLES2VertexUI.sel): 0 the
+ * sprite atlas (s_texture, unit 0), 1 the batch's texture (s_mask, unit 1 --
+ * the name is the linker's convention for "the unit-1 sampler", see
+ * gles2_link_program), 2 flat colour. Both textures are sampled and mixed
+ * rather than branched on: the select is constant across a quad, and two
+ * fetches are cheaper on this class of GPU than a divergent branch would be
+ * where it is not. It is what lets text, sprites and fills share one draw.
+ */
 static const char* const gles2_ui_vertex_shader =
     "attribute vec3 a_position;\n"
     "attribute vec2 a_texcoord;\n"
     "attribute vec4 a_color;\n"
+    "attribute float a_texinfo;\n"
     "uniform mat4 u_matrix;\n"
     "varying vec4 v_color;\n"
     "varying vec2 v_texcoord;\n"
+    "varying float v_sel;\n"
     "void main() {\n"
     "    gl_Position = u_matrix * vec4(a_position.xy * a_position.z, 0.0, a_position.z);\n"
     "    v_color = a_color;\n"
     "    v_texcoord = a_texcoord;\n"
+    "    v_sel = a_texinfo;\n"
     "}\n";
 
 static const char* const gles2_ui_fragment_shader =
     GLES2_FRAGMENT_PRECISION_PREAMBLE
     "uniform sampler2D s_texture;\n"
+    "uniform sampler2D s_mask;\n"
     "varying vec4 v_color;\n"
     "varying vec2 v_texcoord;\n"
+    "varying float v_sel;\n"
     "void main() {\n"
-    "    vec4 c = v_color * texture2D(s_texture, v_texcoord);\n"
+    "    vec4 t = mix(texture2D(s_texture, v_texcoord), texture2D(s_mask, v_texcoord),\n"
+    "                 clamp(v_sel, 0.0, 1.0));\n"
+    "    vec4 c = v_color * mix(t, vec4(1.0), step(1.5, v_sel));\n"
     "    if (c.a < 0.002) discard;\n"
     "    gl_FragColor = c;\n"
     "}\n";

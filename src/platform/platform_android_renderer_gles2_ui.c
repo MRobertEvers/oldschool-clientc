@@ -57,6 +57,55 @@ gles2_ui_rect_equal(const struct GLES2Rect* a, const struct GLES2Rect* b)
     return a->x == b->x && a->y == b->y && a->width == b->width && a->height == b->height;
 }
 
+/*
+ * The logical clip a command's scissor names, clamped to the canvas. False
+ * when nothing can show. Twin of gles2_scissor_rect for the CPU-clipped
+ * quad path; the GL-space rect is still built where a scissor state is
+ * genuinely needed (rotated sprites, polygons, widget models).
+ */
+static bool
+gles2_ui_clip_from(
+    const struct ToriRS_GLES2* renderer,
+    int scissor_x,
+    int scissor_y,
+    int scissor_w,
+    int scissor_h,
+    struct GLES2Clip* out)
+{
+    assert(renderer);
+    assert(out);
+    if( scissor_w <= 0 || scissor_h <= 0 || renderer->width <= 0 || renderer->height <= 0 )
+        return false;
+    out->x0 = gles2_clampi(scissor_x, 0, renderer->width);
+    out->y0 = gles2_clampi(scissor_y, 0, renderer->height);
+    out->x1 = gles2_clampi(scissor_x + scissor_w, 0, renderer->width);
+    out->y1 = gles2_clampi(scissor_y + scissor_h, 0, renderer->height);
+    return out->x1 > out->x0 && out->y1 > out->y0;
+}
+
+/* The command's scissor cut down to a destination box, as a logical clip. */
+static bool
+gles2_ui_clip_intersect(
+    const struct ToriRS_GLES2* renderer,
+    int scissor_x,
+    int scissor_y,
+    int scissor_w,
+    int scissor_h,
+    int box_x,
+    int box_y,
+    int box_w,
+    int box_h,
+    struct GLES2Clip* out)
+{
+    int x;
+    int y;
+    int w;
+    int h;
+    trspk_rect_intersect(
+        scissor_x, scissor_y, scissor_w, scissor_h, box_x, box_y, box_w, box_h, &x, &y, &w, &h);
+    return gles2_ui_clip_from(renderer, x, y, w, h, out);
+}
+
 static bool
 gles2_ui_intersect_scissor_rect(
     const struct ToriRS_GLES2* renderer,
@@ -112,6 +161,11 @@ gles2_ui_delete_texture(struct ToriRS_GLES2* renderer, GLuint* texture)
         return;
     if( renderer->bound_texture0 == *texture )
         gles2_bind_texture0(renderer, 0u);
+    /* Unit 1 too: a deleted name comes back from glGenTextures, and a cache
+     * still holding it would skip the bind and sample an incomplete texture
+     * (which reads as alpha 0 -- the minimap vanished this way once). */
+    if( renderer->bound_texture1 == *texture )
+        gles2_bind_texture1(renderer, 0u);
     glDeleteTextures(1, texture);
     *texture = 0u;
 }
@@ -123,7 +177,7 @@ gles2_ui_batch_reset(struct ToriRS_GLES2* renderer)
 {
     assert(renderer);
     renderer->ui_batch.vertex_count = 0u;
-    renderer->ui_batch.texture = 0u;
+    renderer->ui_batch.texture1 = 0u;
     renderer->ui_batch.uses_sprite_atlas = false;
     renderer->ui_batch.scissor_enabled = false;
     memset(&renderer->ui_batch.scissor, 0, sizeof(renderer->ui_batch.scissor));
@@ -146,13 +200,18 @@ void
 gles2_ui_flush(struct ToriRS_GLES2* renderer)
 {
     struct GLES2UIBatch* batch;
-    GLuint texture;
+    GLuint texture0;
     uint32_t offset;
 
     assert(renderer);
     batch = &renderer->ui_batch;
     if( batch->vertex_count == 0u )
         return;
+    /* Unit 0 is the sprite atlas whenever a quad in the batch samples it
+     * (uploaded first if it changed); unit 1 the batch's own texture. A unit
+     * a batch does not sample still has to hold a complete texture -- the
+     * shader fetches both -- so white stands in. */
+    texture0 = renderer->white_texture;
     if( batch->uses_sprite_atlas )
     {
         int64_t bytes = 0;
@@ -167,43 +226,65 @@ gles2_ui_flush(struct ToriRS_GLES2* renderer)
                 return;
             }
         }
-        texture = renderer->ui_sprite_atlas_texture;
+        texture0 = renderer->ui_sprite_atlas_texture;
     }
-    else
-        texture = batch->texture ? batch->texture : renderer->white_texture;
 
     gles2_ui_apply_states(renderer);
     gles2_set_scissor(renderer, batch->scissor_enabled ? &batch->scissor : NULL);
-    gles2_bind_texture0(renderer, texture);
+    gles2_bind_texture0(renderer, texture0);
+    gles2_bind_texture1(renderer, batch->texture1 ? batch->texture1 : renderer->white_texture);
     offset = gles2_ring_upload(
         renderer, batch->vertices, batch->vertex_count * (uint32_t)sizeof(struct GLES2VertexUI));
     gles2_bind_ui_stream(renderer, offset);
     glDrawArrays(GL_TRIANGLES, 0, (GLsizei)batch->vertex_count);
+    renderer->ui_stat_draws_batch++;
+    renderer->ui_stat_upload_bytes += batch->vertex_count * (uint32_t)sizeof(struct GLES2VertexUI);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_UI_BATCH_DRAWS, 1);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_2D_BATCH_FLUSHES, 1);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
     batch->vertex_count = 0u;
 }
 
+/*
+ * Make room for a quad in the batch, ending the batch first when the quad
+ * cannot join it: it names a unit-1 texture the batch already holds a
+ * different one of, its scissor state differs, or the vertex cap is hit.
+ * `texture1` is 0 for a quad that samples the atlas or nothing.
+ */
 static bool
 gles2_ui_prepare_batch(
     struct ToriRS_GLES2* renderer,
-    GLuint texture,
+    GLuint texture1,
     bool uses_sprite_atlas,
     const struct GLES2Rect* scissor,
     uint32_t additional_vertices)
 {
     struct GLES2UIBatch* batch = &renderer->ui_batch;
-    bool state_changed = batch->vertex_count > 0u &&
-        (batch->texture != texture || batch->uses_sprite_atlas != uses_sprite_atlas ||
-            batch->scissor_enabled != (scissor != NULL) ||
-            (scissor && !gles2_ui_rect_equal(&batch->scissor, scissor)));
-    if( state_changed || batch->vertex_count + additional_vertices > GLES2_UI_BATCH_MAX_VERTS )
+    bool texture_changed =
+        batch->vertex_count > 0u && texture1 && batch->texture1 && batch->texture1 != texture1;
+    bool scissor_changed = batch->vertex_count > 0u &&
+        (batch->scissor_enabled != (scissor != NULL) ||
+         (scissor && !gles2_ui_rect_equal(&batch->scissor, scissor)));
+    if( texture_changed || scissor_changed ||
+        batch->vertex_count + additional_vertices > GLES2_UI_BATCH_MAX_VERTS )
+    {
+        if( batch->vertex_count > 0u )
+        {
+            if( texture_changed )
+                renderer->ui_stat_break_texture++;
+            else if( scissor_changed )
+                renderer->ui_stat_break_scissor++;
+            else
+                renderer->ui_stat_break_overflow++;
+        }
         gles2_ui_flush(renderer);
+    }
     if( additional_vertices > GLES2_UI_BATCH_MAX_VERTS || !batch->vertices )
         return false;
-    batch->texture = texture;
-    batch->uses_sprite_atlas = uses_sprite_atlas;
+    if( texture1 )
+        batch->texture1 = texture1;
+    if( uses_sprite_atlas )
+        batch->uses_sprite_atlas = true;
     batch->scissor_enabled = scissor != NULL;
     if( scissor )
         batch->scissor = *scissor;
@@ -223,7 +304,21 @@ gles2_ui_append_quad_vertices(
     static const uint8_t order[6] = { 0u, 1u, 2u, 0u, 2u, 3u };
     struct GLES2VertexUI* dst;
     uint32_t corner_index;
-    if( !gles2_ui_prepare_batch(renderer, texture, uses_sprite_atlas, scissor, 6u) )
+    float sel;
+    GLuint texture1 = 0u;
+    /* Which sampler the fragment multiplies by (see GLES2VertexUI.sel). A
+     * quad with no uv, or the white texture, is a flat fill and joins any
+     * batch; only a real unit-1 texture can end one. */
+    if( uses_sprite_atlas )
+        sel = 0.0f;
+    else if( !uv || texture == renderer->white_texture || texture == 0u )
+        sel = 2.0f;
+    else
+    {
+        sel = 1.0f;
+        texture1 = texture;
+    }
+    if( !gles2_ui_prepare_batch(renderer, texture1, uses_sprite_atlas, scissor, 6u) )
         return;
     dst = &renderer->ui_batch.vertices[renderer->ui_batch.vertex_count];
     for( corner_index = 0u; corner_index < 6u; corner_index++ )
@@ -235,6 +330,7 @@ gles2_ui_append_quad_vertices(
         dst[corner_index].u = uv ? uv[corner][0] : 0.0f;
         dst[corner_index].v = uv ? uv[corner][1] : 0.0f;
         dst[corner_index].rgba = rgba;
+        dst[corner_index].sel = sel;
     }
     renderer->ui_batch.vertex_count += 6u;
 }
@@ -258,6 +354,61 @@ gles2_ui_append_quad(
     const float positions[4][2] = { { x0, y0 }, { x1, y0 }, { x1, y1 }, { x0, y1 } };
     const float uv[4][2] = { { u0, v0 }, { u1, v0 }, { u1, v1 }, { u0, v1 } };
     gles2_ui_append_quad_vertices(renderer, texture, uses_sprite_atlas, scissor, positions, uv, rgba);
+}
+
+/*
+ * An axis-aligned quad clipped on the CPU to a logical rectangle -- the quad
+ * is cut and its uv follows linearly -- so it carries no scissor state into
+ * the batch. This is what most of the UI is: sprites, glyphs, fills, lines.
+ * A quad wholly outside the clip appends nothing.
+ */
+static void
+gles2_ui_append_quad_clipped(
+    struct ToriRS_GLES2* renderer,
+    GLuint texture,
+    bool uses_sprite_atlas,
+    const struct GLES2Clip* clip,
+    float x0,
+    float y0,
+    float x1,
+    float y1,
+    float u0,
+    float v0,
+    float u1,
+    float v1,
+    uint32_t rgba)
+{
+    float cx0;
+    float cy0;
+    float cx1;
+    float cy1;
+    assert(clip);
+    if( x1 <= x0 || y1 <= y0 )
+        return;
+    cx0 = x0 < (float)clip->x0 ? (float)clip->x0 : x0;
+    cy0 = y0 < (float)clip->y0 ? (float)clip->y0 : y0;
+    cx1 = x1 > (float)clip->x1 ? (float)clip->x1 : x1;
+    cy1 = y1 > (float)clip->y1 ? (float)clip->y1 : y1;
+    if( cx1 <= cx0 || cy1 <= cy0 )
+        return;
+    if( cx0 != x0 || cx1 != x1 )
+    {
+        float const du = (u1 - u0) / (x1 - x0);
+        float const nu0 = u0 + (cx0 - x0) * du;
+        float const nu1 = u0 + (cx1 - x0) * du;
+        u0 = nu0;
+        u1 = nu1;
+    }
+    if( cy0 != y0 || cy1 != y1 )
+    {
+        float const dv = (v1 - v0) / (y1 - y0);
+        float const nv0 = v0 + (cy0 - y0) * dv;
+        float const nv1 = v0 + (cy1 - y0) * dv;
+        v0 = nv0;
+        v1 = nv1;
+    }
+    gles2_ui_append_quad(
+        renderer, texture, uses_sprite_atlas, NULL, cx0, cy0, cx1, cy1, u0, v0, u1, v1, rgba);
 }
 
 /* ---- passes ------------------------------------------------------------------------ */
@@ -1123,18 +1274,21 @@ gles2_ui_draw_rotmask_native(
     gles2_set_blend(renderer, true);
     gles2_set_depth(renderer, false, false);
     gles2_set_scissor(renderer, scissor);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, slot->mask_texture);
-    glActiveTexture(GL_TEXTURE0);
+    /* Bound outright, not through the cache: the mask and source textures
+     * are re-uploaded on the active unit above this, and two draws a frame
+     * do not earn a cache miss's worth of risk. */
+    renderer->bound_texture1 = 0u;
+    gles2_bind_texture1(renderer, slot->mask_texture);
+    renderer->bound_texture0 = 0u;
     gles2_bind_texture0(renderer, slot->source_texture);
     offset = gles2_ring_upload(renderer, vertices, (uint32_t)sizeof(vertices));
     gles2_bind_rotmask_stream(renderer, offset);
     glDrawArrays(GL_TRIANGLES, 0, 6);
+    gles2_check_error("rotmask draw");
+    renderer->ui_stat_draws_rotmask++;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
     /* Leave nothing on unit 1 that an unload can delete before the next draw. */
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    glActiveTexture(GL_TEXTURE0);
+    gles2_bind_texture1(renderer, 0u);
     gles2_ui_apply_states(renderer);
 }
 
@@ -1144,7 +1298,7 @@ gles2_ui_draw_sprite(
     const struct ToriRS_RenderCommand_Sprite* command)
 {
     struct ToriDraw_Sprite* sprite = NULL;
-    struct GLES2Rect scissor;
+    struct GLES2Clip clip;
     float uv[4];
     int width;
     int height;
@@ -1157,13 +1311,13 @@ gles2_ui_draw_sprite(
     assert(command);
     if( !renderer->in2d || !renderer->scene || command->scene_id <= 0 )
         return;
-    if( !gles2_scissor_rect(
+    if( !gles2_ui_clip_from(
             renderer,
             command->scissor_x,
             command->scissor_y,
             command->scissor_w,
             command->scissor_h,
-            &scissor) )
+            &clip) )
         return;
     alpha = gles2_clampi(255 - command->trans, 0, 255);
     rgba = 0x00ffffffu | ((uint32_t)alpha << 24);
@@ -1266,7 +1420,7 @@ gles2_ui_draw_sprite(
     }
     if( command->tiled )
     {
-        struct GLES2Rect tile_scissor;
+        struct GLES2Clip tile_clip;
         int tile_width = width > 0 ? width : 1;
         int tile_height = height > 0 ? height : 1;
         int dst_width = command->w > 0 ? command->w : tile_width;
@@ -1275,7 +1429,7 @@ gles2_ui_draw_sprite(
         int start_y;
         int x;
         int y;
-        if( !gles2_ui_intersect_scissor_rect(
+        if( !gles2_ui_clip_intersect(
                 renderer,
                 command->scissor_x,
                 command->scissor_y,
@@ -1285,7 +1439,7 @@ gles2_ui_draw_sprite(
                 command->y,
                 dst_width,
                 dst_height,
-                &tile_scissor) )
+                &tile_clip) )
             return;
         trspk_sprite_tile_phase_origin(
             command->x,
@@ -1298,11 +1452,11 @@ gles2_ui_draw_sprite(
             &start_y);
         for( y = start_y; y < command->y + dst_height; y += tile_height )
             for( x = start_x; x < command->x + dst_width; x += tile_width )
-                gles2_ui_append_quad(
+                gles2_ui_append_quad_clipped(
                     renderer,
                     renderer->ui_sprite_atlas_texture,
                     true,
-                    &tile_scissor,
+                    &tile_clip,
                     (float)x,
                     (float)y,
                     (float)(x + tile_width),
@@ -1316,7 +1470,7 @@ gles2_ui_draw_sprite(
     }
     if( command->if3 )
     {
-        struct GLES2Rect box_scissor;
+        struct GLES2Clip box_clip;
         int nominal_width = sprite->width > 0 ? sprite->width : (width > 0 ? width : 1);
         int nominal_height = sprite->height > 0 ? sprite->height : (height > 0 ? height : 1);
         int box_width = command->w > 0 ? command->w : nominal_width;
@@ -1325,7 +1479,7 @@ gles2_ui_draw_sprite(
         float scale_y = (float)box_height / (float)nominal_height;
         float x0 = (float)command->x + offset_x * scale_x;
         float y0 = (float)command->y + offset_y * scale_y;
-        if( !gles2_ui_intersect_scissor_rect(
+        if( !gles2_ui_clip_intersect(
                 renderer,
                 command->scissor_x,
                 command->scissor_y,
@@ -1335,13 +1489,13 @@ gles2_ui_draw_sprite(
                 command->y,
                 box_width,
                 box_height,
-                &box_scissor) )
+                &box_clip) )
             return;
-        gles2_ui_append_quad(
+        gles2_ui_append_quad_clipped(
             renderer,
             renderer->ui_sprite_atlas_texture,
             true,
-            &box_scissor,
+            &box_clip,
             x0,
             y0,
             x0 + width * scale_x,
@@ -1353,11 +1507,11 @@ gles2_ui_draw_sprite(
             rgba);
         return;
     }
-    gles2_ui_append_quad(
+    gles2_ui_append_quad_clipped(
         renderer,
         renderer->ui_sprite_atlas_texture,
         true,
-        &scissor,
+        &clip,
         (float)(command->x + offset_x),
         (float)(command->y + offset_y),
         (float)(command->x + offset_x + width),
@@ -1376,17 +1530,17 @@ gles2_ui_draw_clear_rect(
     struct ToriRS_GLES2* renderer,
     const struct ToriRS_RenderCommand_ClearRect* command)
 {
-    struct GLES2Rect scissor;
+    struct GLES2Clip clip;
     assert(renderer);
     assert(command);
     if( !renderer->in2d || command->w <= 0 || command->h <= 0 ||
-        !gles2_scissor_rect(renderer, 0, 0, renderer->width, renderer->height, &scissor) )
+        !gles2_ui_clip_from(renderer, 0, 0, renderer->width, renderer->height, &clip) )
         return;
-    gles2_ui_append_quad(
+    gles2_ui_append_quad_clipped(
         renderer,
         renderer->white_texture,
         false,
-        &scissor,
+        &clip,
         (float)command->x,
         (float)command->y,
         (float)(command->x + command->w),
@@ -1414,45 +1568,45 @@ gles2_ui_draw_fill_rect(
     struct ToriRS_GLES2* renderer,
     const struct ToriRS_RenderCommand_FillRect* command)
 {
-    struct GLES2Rect scissor;
+    struct GLES2Clip clip;
     uint32_t rgba;
     GLuint white;
     assert(renderer);
     assert(command);
     if( !renderer->in2d || command->w <= 0 || command->h <= 0 ||
-        !gles2_scissor_rect(
+        !gles2_ui_clip_from(
             renderer,
             command->scissor_x,
             command->scissor_y,
             command->scissor_w,
             command->scissor_h,
-            &scissor) )
+            &clip) )
         return;
     rgba = gles2_ui_solid_rgba(command->argb);
     white = renderer->white_texture;
     if( command->filled )
     {
-        gles2_ui_append_quad(
-            renderer, white, false, &scissor, (float)command->x, (float)command->y,
+        gles2_ui_append_quad_clipped(
+            renderer, white, false, &clip, (float)command->x, (float)command->y,
             (float)(command->x + command->w), (float)(command->y + command->h), 0, 0, 1, 1, rgba);
         return;
     }
-    gles2_ui_append_quad(
-        renderer, white, false, &scissor, (float)command->x, (float)command->y,
+    gles2_ui_append_quad_clipped(
+        renderer, white, false, &clip, (float)command->x, (float)command->y,
         (float)(command->x + command->w), (float)(command->y + 1), 0, 0, 1, 1, rgba);
     if( command->h > 1 )
-        gles2_ui_append_quad(
-            renderer, white, false, &scissor, (float)command->x,
+        gles2_ui_append_quad_clipped(
+            renderer, white, false, &clip, (float)command->x,
             (float)(command->y + command->h - 1), (float)(command->x + command->w),
             (float)(command->y + command->h), 0, 0, 1, 1, rgba);
     if( command->h > 2 )
     {
-        gles2_ui_append_quad(
-            renderer, white, false, &scissor, (float)command->x, (float)(command->y + 1),
+        gles2_ui_append_quad_clipped(
+            renderer, white, false, &clip, (float)command->x, (float)(command->y + 1),
             (float)(command->x + 1), (float)(command->y + command->h - 1), 0, 0, 1, 1, rgba);
         if( command->w > 1 )
-            gles2_ui_append_quad(
-                renderer, white, false, &scissor, (float)(command->x + command->w - 1),
+            gles2_ui_append_quad_clipped(
+                renderer, white, false, &clip, (float)(command->x + command->w - 1),
                 (float)(command->y + 1), (float)(command->x + command->w),
                 (float)(command->y + command->h - 1), 0, 0, 1, 1, rgba);
     }
@@ -1781,7 +1935,7 @@ struct GLES2UIFontGlyphContext
 {
     struct ToriRS_GLES2* renderer;
     struct GLES2UIFontSlot* slot;
-    struct GLES2Rect scissor;
+    struct GLES2Clip clip;
     bool shadow;
 };
 
@@ -1807,11 +1961,11 @@ gles2_ui_font_glyph(
         return;
     if( context->shadow )
         color_rgb = 0;
-    gles2_ui_append_quad(
+    gles2_ui_append_quad_clipped(
         context->renderer,
         slot->texture,
         false,
-        &context->scissor,
+        &context->clip,
         (float)x,
         (float)y,
         (float)(x + width),
@@ -1827,7 +1981,7 @@ static void
 gles2_ui_draw_font_rules(
     struct ToriRS_GLES2* renderer,
     struct ToriDraw_Font* font,
-    const struct GLES2Rect* scissor,
+    const struct GLES2Clip* clip,
     const char* text,
     int x,
     int y,
@@ -1837,7 +1991,7 @@ static void
 gles2_ui_draw_font_text(
     struct ToriRS_GLES2* renderer,
     struct GLES2UIFontSlot* slot,
-    const struct GLES2Rect* scissor,
+    const struct GLES2Clip* clip,
     const char* text,
     int x,
     int y,
@@ -1850,12 +2004,12 @@ gles2_ui_draw_font_text(
         return;
     context.renderer = renderer;
     context.slot = slot;
-    context.scissor = *scissor;
+    context.clip = *clip;
     context.shadow = shadow;
     ToriDraw_FontVisitGlyphsStyled(
         slot->font, text, x, y, color, center, gles2_ui_font_glyph, &context);
     if( !shadow )
-        gles2_ui_draw_font_rules(renderer, slot->font, scissor, text, x, y, center);
+        gles2_ui_draw_font_rules(renderer, slot->font, clip, text, x, y, center);
 }
 
 static bool
@@ -1963,14 +2117,14 @@ gles2_ui_font_char_advance(const struct ToriDraw_Font* font, unsigned char chara
 static void
 gles2_ui_append_rule_quad(
     struct ToriRS_GLES2* renderer,
-    const struct GLES2Rect* scissor,
+    const struct GLES2Clip* clip,
     int x,
     int y,
     int advance,
     int rgb)
 {
-    gles2_ui_append_quad(
-        renderer, renderer->white_texture, false, scissor, (float)x, (float)y, (float)(x + advance),
+    gles2_ui_append_quad_clipped(
+        renderer, renderer->white_texture, false, clip, (float)x, (float)y, (float)(x + advance),
         (float)(y + 1), 0, 0, 1, 1, gles2_ui_solid_rgba(rgb & 0x00ffffff));
 }
 
@@ -1980,7 +2134,7 @@ static void
 gles2_ui_draw_font_rule_range(
     struct ToriRS_GLES2* renderer,
     struct ToriDraw_Font* font,
-    const struct GLES2Rect* scissor,
+    const struct GLES2Clip* clip,
     const char* text,
     int length,
     int x,
@@ -2029,9 +2183,9 @@ gles2_ui_draw_font_rule_range(
         if( advance > 0 )
         {
             if( strike_rgb >= 0 )
-                gles2_ui_append_rule_quad(renderer, scissor, x, strike_y, advance, strike_rgb);
+                gles2_ui_append_rule_quad(renderer, clip, x, strike_y, advance, strike_rgb);
             if( underline_rgb >= 0 )
-                gles2_ui_append_rule_quad(renderer, scissor, x, underline_y, advance, underline_rgb);
+                gles2_ui_append_rule_quad(renderer, clip, x, underline_y, advance, underline_rgb);
         }
         x += advance;
     }
@@ -2041,7 +2195,7 @@ static void
 gles2_ui_draw_font_rules(
     struct ToriRS_GLES2* renderer,
     struct ToriDraw_Font* font,
-    const struct GLES2Rect* scissor,
+    const struct GLES2Clip* clip,
     const char* text,
     int x,
     int y,
@@ -2058,7 +2212,7 @@ gles2_ui_draw_font_rules(
         if( center && length > 0 )
             line_x -= gles2_ui_font_measure_range(font, rest, length) / 2;
         if( length > 0 )
-            gles2_ui_draw_font_rule_range(renderer, font, scissor, rest, length, line_x, y);
+            gles2_ui_draw_font_rule_range(renderer, font, clip, rest, length, line_x, y);
         if( advance == 0 )
             break;
         y += line_step;
@@ -2247,7 +2401,7 @@ static void
 gles2_ui_draw_font_range(
     struct ToriRS_GLES2* renderer,
     struct GLES2UIFontSlot* slot,
-    const struct GLES2Rect* scissor,
+    const struct GLES2Clip* clip,
     const char* text,
     int length,
     int x,
@@ -2262,7 +2416,7 @@ gles2_ui_draw_font_range(
         length = (int)sizeof(buffer) - 1;
     memcpy(buffer, text, (size_t)length);
     buffer[length] = '\0';
-    gles2_ui_draw_font_text(renderer, slot, scissor, buffer, x, y, color, shadow, false);
+    gles2_ui_draw_font_text(renderer, slot, clip, buffer, x, y, color, shadow, false);
 }
 
 void
@@ -2270,18 +2424,18 @@ gles2_ui_draw_font(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComm
 {
     struct GLES2UIFontSlot* slot;
     struct ToriDraw_Font* font;
-    struct GLES2Rect scissor;
+    struct GLES2Clip clip;
 
     assert(renderer);
     assert(command);
     if( !renderer->in2d || command->font_id < 0 || !command->text || !command->text[0] ||
-        !gles2_scissor_rect(
+        !gles2_ui_clip_from(
             renderer,
             command->scissor_x,
             command->scissor_y,
             command->scissor_w,
             command->scissor_h,
-            &scissor) )
+            &clip) )
         return;
     slot = gles2_ui_ensure_font(renderer, command->font_id);
     font = slot ? slot->font : NULL;
@@ -2293,10 +2447,10 @@ gles2_ui_draw_font(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComm
         bool center = command->center != 0;
         if( command->shadowed )
             gles2_ui_draw_font_text(
-                renderer, slot, &scissor, command->text, command->x + 1, y + 1, command->color,
+                renderer, slot, &clip, command->text, command->x + 1, y + 1, command->color,
                 true, center);
         gles2_ui_draw_font_text(
-            renderer, slot, &scissor, command->text, command->x, y, command->color, false, center);
+            renderer, slot, &clip, command->text, command->x, y, command->color, false, center);
         return;
     }
     {
@@ -2339,10 +2493,10 @@ gles2_ui_draw_font(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComm
             y = command->y + first_baseline + line * line_height - font_ascent;
             if( command->shadowed )
                 gles2_ui_draw_font_range(
-                    renderer, slot, &scissor, lines[line], lengths[line], x + 1, y + 1,
+                    renderer, slot, &clip, lines[line], lengths[line], x + 1, y + 1,
                     command->color, true);
             gles2_ui_draw_font_range(
-                renderer, slot, &scissor, lines[line], lengths[line], x, y, command->color, false);
+                renderer, slot, &clip, lines[line], lengths[line], x, y, command->color, false);
         }
     }
 }
@@ -2611,6 +2765,7 @@ gles2_widget_flush_vertices(
             renderer, renderer->widget_vertices + first, count * (uint32_t)sizeof(struct GLES2VertexUI));
         gles2_bind_ui_stream(renderer, offset);
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)count);
+        renderer->ui_stat_draws_widget++;
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
         first += count;
     }

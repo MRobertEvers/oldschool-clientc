@@ -466,6 +466,25 @@ void
 ToriDraw_SceneElementPrefetchData(
     const struct ToriDraw_Scene* scene,
     int element_id);
+/*
+ * Warm the lines the cull and the projection read off the element's MODEL:
+ * the leading struct (counts, vertex and face array pointers) and the bounds
+ * cylinder. Reads the element data, so the element's own line must already
+ * be warm -- issue this a step later in the pipeline than PrefetchData.
+ */
+void
+ToriDraw_SceneElementPrefetchModel(
+    const struct ToriDraw_Scene* scene,
+    int element_id);
+/*
+ * One step later again: the first line of each vertex axis and face index
+ * array, which the projection and the face sort read next. Reads the model
+ * struct, so PrefetchModel must have gone out a step earlier.
+ */
+void
+ToriDraw_SceneElementPrefetchArrays(
+    const struct ToriDraw_Scene* scene,
+    int element_id);
 
 bool
 ToriDraw_SceneElementIsLive(

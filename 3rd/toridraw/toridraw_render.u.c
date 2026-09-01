@@ -11,6 +11,8 @@
 #include "toridraw_raster_kernel.h"
 #include "toridraw_types.h"
 
+struct ToriDraw_ProjectCensus g_toridraw_project_census;
+
 #include <assert.h>
 #include <limits.h>
 #include <stdint.h>
@@ -520,6 +522,10 @@ toridraw_projected_bound(
         aabb->max_screen_x = INT_MAX / 2;
         aabb->min_screen_y = INT_MIN / 2;
         aabb->max_screen_y = INT_MAX / 2;
+        scene->projected_box[0] = INT_MIN / 2;
+        scene->projected_box[1] = INT_MAX / 2;
+        scene->projected_box[2] = INT_MIN / 2;
+        scene->projected_box[3] = INT_MAX / 2;
         return;
     }
 
@@ -561,6 +567,12 @@ toridraw_projected_bound(
         else if( sy > box.max_y )
             box.max_y = sy;
     }
+
+    /* The raw box, for the face sort's extent classification. */
+    scene->projected_box[0] = box.min_x;
+    scene->projected_box[1] = box.max_x;
+    scene->projected_box[2] = box.min_y;
+    scene->projected_box[3] = box.max_y;
 
     /* The sentinel is the smallest x any clipped model can hold, so if one
      * is present it IS the minimum -- one compare after the sweep, not one
@@ -1378,14 +1390,21 @@ ToriDraw_ProjectWithVTable(
 
     int cull = TORIDRAW_CULL_VISIBLE;
 
+    g_toridraw_project_census.calls++;
     cull = ToriDraw_FastCull(
         scene, view_port, hnd, position, camera, &center_projection, NULL);
     if( cull != TORIDRAW_CULL_VISIBLE )
     {
         if( cull == TORIDRAW_CULL_ERROR )
+        {
             TORIDRAW_PROJECTION_CENSUS_COUNT(cull_error);
+            g_toridraw_project_census.cull_error++;
+        }
         else
+        {
             TORIDRAW_PROJECTION_CENSUS_COUNT(cull_fast);
+            g_toridraw_project_census.cull_fast++;
+        }
         return cull;
     }
 
@@ -1482,10 +1501,14 @@ ToriDraw_ProjectWithVTable(
     if( cull != TORIDRAW_CULL_VISIBLE )
     {
         TORIDRAW_PROJECTION_CENSUS_COUNT(cull_aabb);
+        g_toridraw_project_census.cull_aabb++;
         return cull;
     }
 
     TORIDRAW_PROJECTION_CENSUS_COUNT(projected);
+    g_toridraw_project_census.projected++;
+    g_toridraw_project_census.projected_vertices += bound_vertex_count;
+    g_toridraw_project_census.tail_models += (bound_vertex_count & 3) != 0;
 
     TORIDRAW_DBG_PROJECTION_PRINT(
         scene, hnd, position, view_port, camera, center_projection.z, may_clip);
