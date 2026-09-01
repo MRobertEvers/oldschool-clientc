@@ -202,11 +202,57 @@ static struct MobileRock const MOBILE_ROCK[MOBILE_RAIL_ROWS] = {
  * pieces are 479 wide and stacked flush, which makes the whole block one clean
  * rectangle -- the shape a floating panel has to be, because it has no frame
  * around it to explain any other one.
+ *
+ * That last sentence is the one this frame went back on. A clean rectangle is
+ * what a floating panel needs while its EDGE is a cut; the sheet now brings its
+ * own torn one, which explains itself and needs no frame to do it. The two
+ * numbers below are still the surface's, and the picture is bigger than them.
+ * @see MOBILE_CHAT_FRINGE_X.
  */
 #define MOBILE_CHAT_W 479
 #define MOBILE_CHAT_H 96
 #define MOBILE_STRIP_W MOBILE_CHAT_W
 #define MOBILE_STRIP_H 36
+
+/*
+ * The sheet's TORN edge, and why the block sits seventeen columns in.
+ *
+ * `chat_sheet_rs289.png` is not `chatback.dat`. The cache's sheet is a flat
+ * 479x96 rectangle with four hard corners -- which is the one shape a docked
+ * frame can wear, because a surround explains it, and the one shape a FLOATING
+ * sheet cannot: on the scene those corners read as a beige box someone dropped
+ * on the grass. The parchment is the same 479x96 surface inside a torn fringe,
+ * 517x130 all told, and the fringe is the whole point of it.
+ *
+ * That makes the picture bigger than the surface it backs, and the surface is
+ * the one thing that cannot absorb the difference: the chat builtin's geometry
+ * is the 2004 client's and every number in it is fixed -- a 463-wide message
+ * column, the scrollbar at x+463, the input line at y+77 -- so it draws 479x96
+ * whatever box it is handed. @see the sheet's own comment above.
+ *
+ * So the SURFACE moves instead of the art. The block is still pinned flush to
+ * the bottom-left, but it is the parchment that is flush now; the chat, the
+ * filter buttons and the tap-blocker are all inset by the fringe so the core
+ * lands where they meet it. Vertically only the top moves: the sheet's bottom
+ * stays on the strip, so nothing below it shifts.
+ *
+ * MEASURED off the file, not chosen: (17,17)-(495,112) is the maximal
+ * fully-opaque rectangle in it and is exactly 479x96. A recut sheet has to
+ * have these two remeasured with it, and there is nothing that would say so --
+ * a wrong fringe is a chatbox drawn slightly off its backing.
+ */
+#define MOBILE_CHAT_ART_W 517
+#define MOBILE_CHAT_ART_H 130
+#define MOBILE_CHAT_FRINGE_X 17
+#define MOBILE_CHAT_FRINGE_Y 17
+
+/* The fringe is not symmetric -- 17 columns left against 21 right -- so the art
+ * width is its own number rather than the surface plus twice the inset, and
+ * "does the sheet fit" has to ask the picture. */
+_Static_assert(
+    MOBILE_CHAT_FRINGE_X + MOBILE_CHAT_W <= MOBILE_CHAT_ART_W &&
+        MOBILE_CHAT_FRINGE_Y + MOBILE_CHAT_H <= MOBILE_CHAT_ART_H,
+    "the chat surface must sit inside the sheet art that backs it");
 /*
  * The four filter buttons, spread evenly across the bar.
  *
@@ -219,8 +265,11 @@ static struct MobileRock const MOBILE_ROCK[MOBILE_RAIL_ROWS] = {
 #define MOBILE_CHAT_BUTTON_W 100
 #define MOBILE_CHAT_BUTTON_H 32
 #define MOBILE_CHAT_BUTTON_CELL (MOBILE_STRIP_W / MOBILE_CHAT_BUTTON_COUNT)
-#define MOBILE_CHAT_BUTTON_X(i) \
-    ((i) * MOBILE_CHAT_BUTTON_CELL + ((MOBILE_CHAT_BUTTON_CELL - MOBILE_CHAT_BUTTON_W) / 2))
+/** Spread across the sheet's own width and then moved with it: the fringe is
+ *  in here so the two call sites cannot drift apart over it. */
+#define MOBILE_CHAT_BUTTON_X(i)                                                       \
+    ((i) * MOBILE_CHAT_BUTTON_CELL + ((MOBILE_CHAT_BUTTON_CELL - MOBILE_CHAT_BUTTON_W) / 2) + \
+     MOBILE_CHAT_FRINGE_X)
 /** Centred in the bar's own height rather than dropped fourteen rows down a
  *  50-tall plate that no longer exists. */
 #define MOBILE_CHAT_BUTTON_LIFT ((MOBILE_STRIP_H - MOBILE_CHAT_BUTTON_H) / 2)
@@ -397,7 +446,9 @@ static char const* const MOBILE_IMAGE_FILE[MOBILE_IMG_COUNT] = {
     [IMG_MAPBACK] = "map_housing.png",
     [IMG_MAPBACK_RING] = "map_housing_ring.png",
     [IMG_INVBACK] = "drawer.png",
-    [IMG_CHATBACK] = "chat_sheet.png",
+    /* Not `chat_sheet.png`, the cache's flat rectangle.
+     * @see MOBILE_CHAT_FRINGE_X. */
+    [IMG_CHATBACK] = "chat_sheet_rs289.png",
     [IMG_STONE] = "stone.png",
     [IMG_PLATE] = "rail_back_top_cleaned.png",
     [IMG_SWITCH] = "switch.png",
@@ -1366,7 +1417,10 @@ mobile_chat_visible(int canvas_w)
         return 0;
     if( !g_drawer_open )
         return 1;
-    return canvas_w - MOBILE_MARGIN - MOBILE_RAIL_W - MOBILE_PANEL_W >= MOBILE_STRIP_W;
+    /* The ART's width and not the surface's: the sheet's torn fringe overhangs
+     * it on the right too, so a canvas that fits 479 but not 517 would slide
+     * the parchment under the drawer. @see MOBILE_CHAT_ART_W. */
+    return canvas_w - MOBILE_MARGIN - MOBILE_RAIL_W - MOBILE_PANEL_W >= MOBILE_CHAT_ART_W;
 }
 
 /* ----------------------------------------------------------- the layout */
@@ -1453,13 +1507,14 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
      * of stone lying on the grass under four labels.
      */
     if( chat_visible )
-        mobile_blit(g_image[IMG_CHATBACK], 0, chat_y);
+        mobile_blit(g_image[IMG_CHATBACK], 0, chat_y - MOBILE_CHAT_FRINGE_Y);
 
     /* The switch sits directly above whatever is in that corner: the sheet when
      * it is up, the bottom margin when it is not. Pinned to the thing it
      * operates rather than to a coordinate, so it never floats away from it. */
     g_frame.toggle_x = MOBILE_MARGIN;
-    g_frame.toggle_y = (chat_visible ? chat_y : canvas_h) - MOBILE_MARGIN - MOBILE_TOGGLE_H;
+    g_frame.toggle_y = (chat_visible ? chat_y - MOBILE_CHAT_FRINGE_Y : canvas_h) -
+                       MOBILE_MARGIN - MOBILE_TOGGLE_H;
     mobile_blit(g_image[IMG_SWITCH], g_frame.toggle_x, g_frame.toggle_y);
     /*
      * And the keyboard beside it.
@@ -1578,7 +1633,8 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
     if( !chat_visible )
         return;
 
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_CHAT, 0, chat_y, MOBILE_CHAT_W, MOBILE_CHAT_H);
+    g_api->layout_slot(
+        ctx, TORIRS_PLUGIN_SLOT_CHAT, MOBILE_CHAT_FRINGE_X, chat_y, MOBILE_CHAT_W, MOBILE_CHAT_H);
     /*
      * A button UNDER each label, and nothing behind the row.
      *
@@ -1805,10 +1861,14 @@ mobile_on_draw(
      * own clicks first.
      */
     if( g_frame.chat_placed )
+        /* The SURFACE's rectangle and not the parchment's: the fringe around it
+         * is torn, so its corners are grass with a few beige pixels over them,
+         * and a blocker cut to the picture would swallow taps on world the
+         * player can see. */
         g_api->hit_region(
             ctx,
             ev->surface,
-            0,
+            MOBILE_CHAT_FRINGE_X,
             ev->height - MOBILE_STRIP_H - MOBILE_CHAT_H,
             MOBILE_CHAT_W,
             MOBILE_CHAT_H + MOBILE_STRIP_H,

@@ -28,12 +28,11 @@
 #                  the rail used to be tiled out of this and seamed every 37
 #                  columns, because it is a piece cut for a different job.
 #   drawer       = invback, the side panel, which the drawer IS.
-#   chat_sheet   = chatback. The bar under it is NOT a cut of backbase1: that is
-#                  a shaped corner plate, 496 wide against the sheet's 479 and
-#                  cut to mate with a surround this frame does not have, so
-#                  floated on the scene it reads as a notch and a ragged seam.
-#                  Tiled `stone` at the sheet's own width keeps the block one
-#                  clean rectangle.
+#   chat_sheet   = NOT cut here any more, and not cut at all -- see below. The
+#                  bar that used to go under it was never a cut of backbase1
+#                  either: that is a shaped corner plate, 496 wide against the
+#                  sheet's 479 and cut to mate with a surround this frame does
+#                  not have.
 #   map_housing  = mapback. The minimap and compass holes are at the offsets the
 #                  classic [layout:fixed] gives them (25,5 and 0,0), which is
 #                  what mobile_gameframe.c's MOBILE_MAP_HOLE_* repeat.
@@ -50,6 +49,24 @@
 # stones with the client's own font over them, because no 2004 cache has a chat
 # glyph anywhere in it and a bubble drawn here would be art this plugin invented
 # for a frame whose whole claim is that it did not.
+#
+# One file beside this script is hand-authored rather than cut:
+# chat_sheet_rs289.png, the torn parchment the chat sheet is drawn on.
+# `chatback.dat` is a flat 479x96 rectangle in every dat1 cache in this tree --
+# cache254.lostcity and cache.rs289lc dump a byte-identical file -- and four
+# hard corners are the one shape this frame cannot use. The desktop surround
+# explains a rectangle; a sheet floating on the scene has nothing to explain
+# one, and it read as a beige box lying on the grass. So the sheet is 517x130:
+# that same 479x96 surface at offset (17,17), inside a torn fringe.
+#
+# Recutting it means remeasuring MOBILE_CHAT_FRINGE_X/Y in
+# src/plugin/plugins/mobile_gameframe.c off the new file's opaque core -- the
+# whole block is placed from those two, and a wrong pair draws the chatbox
+# slightly off its own backing with nothing to say so.
+#
+# It is named apart from chat_sheet rather than replacing it precisely because
+# this script rewrites the whole set: a hand-authored file under a name the
+# dump owns is one that vanishes the next time anyone runs this.
 set -e
 cd "$(dirname "$0")/../../../.."
 OUT=script/plugins/assets/mobile-gameframe
@@ -59,6 +76,5 @@ DUMP=tools/dump_sprites/dump_sprites
   stone=backvmid2.dat \
   highlight=redstone1.dat \
   drawer=invback.dat \
-  chat_sheet=chatback.dat \
   map_housing=mapback.dat \
   sideicon=sideicons.dat:0-12
