@@ -3169,13 +3169,14 @@ struct ToriRS_PluginApi
      *
      * The anchor lasts only until the current canvas subscriber returns. Its
      * primitives paint immediately after the target's complete subtree with
-     * the target's parent clip. If this plugin owns a replacement claim for
-     * the role, they paint at the pruned subtree's tombstone instead. A missing,
-     * hidden or rebuilt target drops the declarations; they never fall back to
-     * the global canvas overlay.
+     * the target's parent clip. If the role is REPLACED -- by this plugin or
+     * by any other -- they paint at the pruned subtree's tombstone instead,
+     * over the replacement's own declaration: the name is the object, and
+     * the object is wherever its provider paints it. A missing, hidden or
+     * rebuilt target drops the declarations; they never fall back to the
+     * global canvas overlay.
      *
-     * @return 1 when the role resolves for this draw pass, 0 when it does not
-     * or another plugin owns its replacement.
+     * @return 1 when the role resolves for this draw pass, 0 when it does not.
      */
     int (*role_anchor)(struct ToriRS_PluginCtx* ctx, char const* role);
 

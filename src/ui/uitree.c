@@ -5305,9 +5305,15 @@ uitree_node_or_ancestor_hidden(
         do
         {
             group_root = idx;
+            /* On the node whose own replacement the caller stands for, the
+             * gameframe's suppression is excused along with the replacement
+             * itself: the replacement IS what the arranger provides in place
+             * of the decoration it hid. @see emit_walk_node, which paints the
+             * tombstone of such a node for the same reason. */
             if( tree->components[idx].behavior.hide ||
                 (include_plugin_hidden &&
-                 (tree->components[idx].frame_hidden ||
+                 ((tree->components[idx].frame_hidden &&
+                   idx != ignore_own_replacement) ||
                   tree->components[idx].screen_hidden ||
                   tree->components[idx].projection_hidden ||
                   (tree->components[idx].replacement_hidden &&

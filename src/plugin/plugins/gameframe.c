@@ -788,6 +788,40 @@ frame_chat_buttons_across(
     }
 }
 
+/**
+ * Centre `icon` in `box`, for a frame whose stones are a uniform grid.
+ *
+ * Centred and not blitted at the corner: the icons are each a different size
+ * (19x24 up to 30x29) and the stone is one rectangle, so a corner blit puts
+ * every one of them somewhere different within its own plate.
+ *
+ * `out_*` are left alone when the art has not landed yet, which is not a
+ * failure to handle: an icon with no size is an icon with no handle, and
+ * frame_tab_icon has already answered -1 for it -- the position it would have
+ * had is never read. The 2004 frame does not come through here at all; its
+ * positions are stated. @see FrameTab::icon_x.
+ */
+static void
+frame_tab_centre(
+    struct ToriRS_PluginCtx* ctx,
+    struct FrameBox box,
+    int icon,
+    int* out_x,
+    int* out_y)
+{
+    int iw = 0;
+    int ih = 0;
+
+    assert(ctx);
+    assert(out_x);
+    assert(out_y);
+
+    if( icon < 0 || !g_api->image_size(ctx, icon, &iw, &ih) )
+        return;
+    *out_x = box.x + (box.w - iw) / 2;
+    *out_y = box.y + (box.h - ih) / 2;
+}
+
 /*
  * This tab's icon, or -1 when the frame has no panel behind it.
  *
@@ -881,43 +915,41 @@ static void
 frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
 {
     /*
-     * The redstone plate, then the ICON's own box -- both straight out of
-     * `[layout:fixed]`, and the second column is not the first one nudged.
+     * The redstone plate, then where the icon's top-left pixel goes.
      *
-     * The interface positions each `sideicon_*` against the art it is drawn
-     * on, not against the plate under it, so the two disagree by a different
-     * amount per tab and in both directions: combat's icon starts 7 columns
-     * right of its plate, magic's 1 column LEFT of its, and every one of the
-     * fourteen sits 2-4 rows lower than the plate's own top. Reading the icon
-     * out of the plate box -- which is what this table used to do, having
-     * only one -- is what put them all high and off centre. @see FrameTab.
+     * The second pair is the revconfig's `[layout:fixed]` `sideicon_*` box
+     * plus that frame's own offset inside `sideicons.dat` -- see
+     * FrameTab::icon_x for why the offset has to be carried here rather than
+     * read off the art. Every one of the thirteen was checked against a stock
+     * revconfig frame at the same revision and lands on it exactly.
      *
-     * Tab 7 is the unused slot: this revision has no clan chat, the profile
-     * declares no `sideicon_slot7`, and frame_tab_icon answers -1 for it, so
-     * its icon box is its plate's rather than a number invented for a stone
-     * that never wears one.
+     * Tab 7 is the unused slot -- this revision has no clan chat, so
+     * FRAME_IMAGE_FILE has no art at its index and frame_tab_icon answers -1
+     * for it either way. Its icon position is its plate's rather than a number
+     * invented for a stone that never wears one.
      */
     static struct
     {
         struct FrameBox box;
-        struct FrameBox icon;
+        int icon_x;
+        int icon_y;
         int stone;
         int flip;
     } const TAB[FRAME_TAB_COUNT] = {
-        { { 538, 170, 38, 36 }, { 545, 173, 33, 36 }, 0, -1              },
-        { { 570, 168, 33, 36 }, { 569, 171, 33, 36 }, 1, -1              },
-        { { 598, 168, 38, 36 }, { 598, 171, 33, 36 }, 1, -1              },
-        { { 626, 168, 33, 36 }, { 631, 172, 33, 36 }, 2, -1              },
-        { { 669, 168, 33, 36 }, { 669, 173, 33, 36 }, 1, REDSTONE_FLIP_H },
-        { { 697, 168, 33, 36 }, { 696, 171, 33, 36 }, 1, REDSTONE_FLIP_H },
-        { { 725, 169, 38, 36 }, { 724, 173, 33, 36 }, 0, REDSTONE_FLIP_H },
-        { { 538, 466, 34, 36 }, { 538, 466, 34, 36 }, 0, REDSTONE_FLIP_V },
-        { { 570, 466, 30, 37 }, { 570, 468, 33, 36 }, 1, REDSTONE_FLIP_V },
-        { { 598, 466, 30, 37 }, { 598, 469, 33, 36 }, 1, REDSTONE_FLIP_V },
-        { { 626, 467, 44, 35 }, { 633, 470, 33, 36 }, 2, REDSTONE_FLIP_V },
-        { { 669, 466, 30, 37 }, { 670, 468, 33, 36 }, 1, REDSTONE_FLIP_HV},
-        { { 697, 466, 30, 37 }, { 697, 468, 33, 36 }, 1, REDSTONE_FLIP_HV},
-        { { 725, 466, 34, 36 }, { 722, 468, 33, 36 }, 0, REDSTONE_FLIP_HV},
+        { { 538, 170, 38, 36 }, 549, 178, 0, -1              },
+        { { 570, 168, 33, 36 }, 572, 174, 1, -1              },
+        { { 598, 168, 38, 36 }, 602, 175, 1, -1              },
+        { { 626, 168, 33, 36 }, 631, 172, 2, -1              },
+        { { 669, 168, 33, 36 }, 672, 174, 1, REDSTONE_FLIP_H },
+        { { 697, 168, 33, 36 }, 699, 173, 1, REDSTONE_FLIP_H },
+        { { 725, 169, 38, 36 }, 727, 176, 0, REDSTONE_FLIP_H },
+        { { 538, 466, 34, 36 }, 538, 466, 0, REDSTONE_FLIP_V },
+        { { 570, 466, 30, 37 }, 573, 471, 1, REDSTONE_FLIP_V },
+        { { 598, 466, 30, 37 }, 601, 472, 1, REDSTONE_FLIP_V },
+        { { 626, 467, 44, 35 }, 635, 473, 2, REDSTONE_FLIP_V },
+        { { 669, 466, 30, 37 }, 672, 470, 1, REDSTONE_FLIP_HV},
+        { { 697, 466, 30, 37 }, 704, 471, 1, REDSTONE_FLIP_HV},
+        { { 725, 466, 34, 36 }, 728, 471, 0, REDSTONE_FLIP_HV},
     };
     static int const REDSTONE_BASE[3] = { IMG_C_REDSTONE1, IMG_C_REDSTONE2, IMG_C_REDSTONE3 };
 
@@ -928,7 +960,29 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
     frame_blit(g_image[IMG_C_BACKTOP1], 0, 0);
     frame_blit(g_image[IMG_C_BACKLEFT1], 0, 4);
     frame_blit(g_image[IMG_C_BACKVMID1], 516, 4);
-    frame_slot_overlay(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, g_image[IMG_C_MAPBACK], 550, 4);
+    /*
+     * The housing, hung off the COMPASS and not off the map.
+     *
+     * `mapback` is one plate with TWO holes in it -- the round map window and
+     * the compass rose's -- so it has to paint after both of the live surfaces
+     * it frames, which is exactly the order the revconfig states it in
+     * (`[layout:fixed]` places compass_widget, then mapback, twelve entries
+     * later). An overlay is emitted after its anchor's whole subtree, so the
+     * anchor has to be the LATER of the two, and on this frame that is the
+     * compass: the map is placed first and the compass second.
+     *
+     * Anchored to the map, which is what it named before, the plate went down
+     * between the two -- over the map and under the rose -- and the compass
+     * came out drawn on top of the frame as a bare square, with the hole it
+     * belongs in painted behind it.
+     *
+     * It does mean the housing follows the compass: an overlay whose anchor a
+     * gameframe does not have is omitted. That is not a case this layout can
+     * reach -- it places the compass itself, six lines down -- and it is the
+     * honest coupling anyway, because a plate with a compass hole in it is
+     * only the right picture for a frame that has a compass.
+     */
+    frame_slot_overlay(ctx, TORIRS_PLUGIN_SLOT_COMPASS, g_image[IMG_C_MAPBACK], 550, 4);
     frame_blit(g_image[IMG_C_BACKRIGHT1], 722, 4);
     frame_blit(g_image[IMG_C_BACKHMID1], 516, 160);
     frame_blit(g_image[IMG_C_BACKVMID2], 516, 205);
@@ -946,6 +1000,10 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
         int const base = REDSTONE_BASE[TAB[i].stone];
         int const pressed =
             TAB[i].flip < 0 ? g_image[base] : g_redstone_flip[TAB[i].stone][TAB[i].flip];
+        /* By the TAB, which is what FRAME_IMAGE_FILE is keyed on: it already
+         * spends the thirteen frames of `sideicons.dat` over the fourteen tab
+         * slots, giving the unused seventh no art at all. */
+        int const art = g_image[IMG_C_SIDEICON_0 + i];
         /* The 2004 frame's boxes ARE in tab order, so the box index is the
          * tab; it is passed anyway rather than left implied, because the frame
          * below is the one where they differ and one loop that reads the index
@@ -953,10 +1011,11 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
         frame_tab(
             i,
             TAB[i].box,
-            TAB[i].icon,
+            TAB[i].icon_x,
+            TAB[i].icon_y,
             /*stone=*/-1,
             pressed,
-            frame_tab_icon(ctx, i, g_image[IMG_C_SIDEICON_0 + i], 553, 205, 190, 261));
+            frame_tab_icon(ctx, i, art, 553, 205, 190, 261));
     }
 
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, 4, 4, 512, 334);
@@ -1048,18 +1107,23 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
     {
         int const tab = FRAME_TAB_SCREEN_ORDER[i];
+        int const art = g_image[IMG_O_SIDEICON_0 + tab];
         /* The icon centres on the stone it sits on, which is what a uniform
-         * grid of stones means -- so the box is said twice rather than the
-         * record deciding for a layout. @see FrameTab::icon_box. */
+         * grid of stones means -- and this frame's icons carry no offset to
+         * honour, so the centre IS the answer. @see FrameTab::icon_x. */
         struct FrameBox const box = { TAB[i].x, TAB[i].y, TAB[i].w, 36 };
+        int icon_x = box.x;
+        int icon_y = box.y;
 
+        frame_tab_centre(ctx, box, art, &icon_x, &icon_y);
         frame_tab(
             tab,
             box,
-            box,
+            icon_x,
+            icon_y,
             /*stone=*/-1,
             g_image[TAB[i].stone],
-            frame_tab_icon(ctx, tab, g_image[IMG_O_SIDEICON_0 + tab], 547, 205, 190, 261));
+            frame_tab_icon(ctx, tab, art, 547, 205, 190, 261));
     }
 
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, 4, 4, 512, 334);
@@ -1278,23 +1342,28 @@ frame_layout_modern_resizable(
          * where friends belongs. @see FRAME_TAB_SCREEN_ORDER.
          */
         int const tab = FRAME_TAB_SCREEN_ORDER[i];
+        int const art = g_image[IMG_O_SIDEICON_0 + tab];
         /* Centred on the stone, as on the fixed OldSchool frame and for the
-         * same reason. @see FrameTab::icon_box. */
+         * same reason. @see FrameTab::icon_x. */
         struct FrameBox const box = { row_x + TAB[i].x,
                                       i < 7 ? top_row_y : bottom_row_y,
                                       TAB[i].w,
                                       FRAME_R_STONE_H };
+        int icon_x = box.x;
+        int icon_y = box.y;
 
+        frame_tab_centre(ctx, box, art, &icon_x, &icon_y);
         frame_tab(
             tab,
             box,
-            box,
+            icon_x,
+            icon_y,
             /*stone=*/-1,
             g_image[TAB[i].stone],
             frame_tab_icon(
                 ctx,
                 tab,
-                g_image[IMG_O_SIDEICON_0 + tab],
+                art,
                 panel_x,
                 panel_y,
                 FRAME_R_PANEL_W,
@@ -1839,31 +1908,16 @@ frame_on_draw(
         /* Against the tab NUMBER, not the box index: on 548 they differ, and
          * comparing the index lights the stone next to the open panel. */
         int const stone = (t->tabno == active) ? t->stone_pressed : t->stone;
-        int iw = 0;
-        int ih = 0;
 
         if( stone >= 0 )
             g_api->draw_image(ctx, ev->surface, stone, t->box.x, t->box.y, 0, 0, 0, 0, 0);
-        /* Centred in the ICON's box, not blitted at its corner: the 2004 icons
-         * are each a different size (19x24 up to 30x29) and the box is a
-         * uniform 33x36, so a corner blit puts every one of them in a
-         * different place within its own stone.
-         *
-         * And in the icon's box rather than the stone's, which on the 2004
-         * frame is a different rectangle. @see FrameTab::icon_box. */
-        if( t->icon >= 0 && g_api->image_size(ctx, t->icon, &iw, &ih) )
+        /* At the position the LAYOUT worked out, not one derived here: the two
+         * frames arrive at it by different routes and only one of them is a
+         * centring. @see FrameTab::icon_x. */
+        if( t->icon >= 0 )
         {
             g_api->draw_image(
-                ctx,
-                ev->surface,
-                t->icon,
-                t->icon_box.x + (t->icon_box.w - iw) / 2,
-                t->icon_box.y + (t->icon_box.h - ih) / 2,
-                0,
-                0,
-                0,
-                0,
-                0);
+                ctx, ev->surface, t->icon, t->icon_x, t->icon_y, 0, 0, 0, 0, 0);
         }
         /* Declared with the drawing, so the box a click answers is the box the
          * stone was just painted at -- a region registered at start would be a

@@ -112,6 +112,10 @@ static struct
     int end_calls;
 
     int blits;
+    int blit_image[128];
+    int blit_x[128];
+    int blit_y[128];
+
     int regions;
     uint32_t region_tag[64];
     int region_x[64];
@@ -265,10 +269,26 @@ fake_draw_image(
     void* u, int slot, int x, int y, int w, int h,
     int cx, int cy, int cw, int ch, int trans)
 {
-    (void)u; (void)slot; (void)x; (void)y; (void)w; (void)h;
+    (void)u; (void)w; (void)h;
     (void)cx; (void)cy; (void)cw; (void)ch; (void)trans;
+    if( g_frame.blits < 128 )
+    {
+        g_frame.blit_image[g_frame.blits] = slot;
+        g_frame.blit_x[g_frame.blits] = x;
+        g_frame.blit_y[g_frame.blits] = y;
+    }
     g_frame.blits++;
     return 1;
+}
+
+/** Did anything land at exactly this spot in the last draw pass? */
+static int
+blitted_at(int x, int y)
+{
+    for( int i = 0; i < g_frame.blits && i < 128; i++ )
+        if( g_frame.blit_x[i] == x && g_frame.blit_y[i] == y )
+            return 1;
+    return 0;
 }
 
 static int
@@ -711,12 +731,25 @@ main(void)
     CHECK(
         slot_is(TORIRS_PLUGIN_SLOT_SIDEBAR, 553, 205, 190, 261),
         "classic sidebar is the dat1 frame's");
+    /*
+     * The COMPASS slot, not the minimap's.
+     *
+     * `mapback` is one plate with two holes in it, and an overlay paints after
+     * its anchor's whole subtree -- so the anchor has to be the later of the
+     * two live surfaces it frames, and on this frame the map is placed first
+     * and the compass second. Anchored to the map the plate went down between
+     * them, and the compass came out as a bare square drawn over the frame
+     * with its own hole painted behind it.
+     */
     CHECK(
-        g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
-            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == 550 &&
-            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].y == 4 &&
-            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].trans == 0,
-        "classic map housing is attached to the minimap slot");
+        !g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed,
+        "classic map housing does not hang off the map, which it has to paint after");
+    CHECK(
+        g_frame.overlay[TORIRS_PLUGIN_SLOT_COMPASS].placed &&
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_COMPASS].x == 550 &&
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_COMPASS].y == 4 &&
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_COMPASS].trans == 0,
+        "classic map housing is attached to the compass slot, the last of the two");
     CHECK(
         g_frame.slot[TORIRS_PLUGIN_SLOT_MAIN_MODAL].placed,
         "the modal region is placed, not left to the lane");
@@ -773,6 +806,38 @@ main(void)
     CHECK(
         g_frame.region_x[3] == 626 && g_frame.region_y[3] == 168,
         "tab 3's region is where the dat1 frame's inventory stone is");
+
+    {
+        /*
+         * Every sidebar icon on the exact pixel the stock revconfig frame puts
+         * it, which is NOT its stone's box and not the centre of it either.
+         *
+         * The `[layout:fixed]` sideicon boxes plus each frame's own offset
+         * inside sideicons.dat -- see the TAB table in gameframe.c. Pinned
+         * because the failure is invisible to every other assertion in this
+         * file: the icons still draw, still hit-test, still select the right
+         * panel, and sit three or four rows high on their stones.
+         *
+         * Thirteen and not fourteen: tab 7 is the unused slot, it has no art,
+         * and nothing is blitted for it.
+         */
+        static struct { int x; int y; char const* what; } const ICON[] = {
+            { 549, 178, "combat" },    { 572, 174, "stats" },
+            { 602, 175, "quests" },    { 631, 172, "inventory" },
+            { 672, 174, "equipment" }, { 699, 173, "prayer" },
+            { 727, 176, "magic" },     { 573, 471, "friends" },
+            { 601, 472, "ignore" },    { 635, 473, "logout" },
+            { 672, 470, "options" },   { 704, 471, "emotes" },
+            { 728, 471, "music" },
+        };
+        int landed = 0;
+
+        for( int i = 0; i < (int)(sizeof(ICON) / sizeof(ICON[0])); i++ )
+            landed += blitted_at(ICON[i].x, ICON[i].y);
+        CHECK(
+            landed == (int)(sizeof(ICON) / sizeof(ICON[0])),
+            "every classic sidebar icon lands on the stock frame's own pixel");
+    }
 
     {
         /* A click on the fifth region selects tab 4 -- the screen-order table

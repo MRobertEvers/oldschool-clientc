@@ -2504,10 +2504,24 @@ emit_walk_node(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_EMIT, 1);
 
     c = &tree->components[idx];
-    /* Native/script hiding outranks replacement art too: an anchor is local to
-     * a target that is actually present in this frame, not a way to resurrect
-     * a collapsed tab or a gameframe lane that suppressed the whole surface. */
-    if( c->frame_hidden || c->screen_hidden || c->projection_hidden )
+    /*
+     * Native/script hiding outranks replacement art: an anchor is local to a
+     * target that is actually present in this frame, not a way to resurrect a
+     * collapsed tab or a surface the screen has no room for.
+     *
+     * A gameframe layout's suppression is the one exception, and only for a
+     * node something REPLACED. `frame_hidden` means "an arranger is drawing
+     * this decoration itself"; `replacement_hidden` means "a plugin provides
+     * this named object". When both hold, the object is provided -- by the
+     * arranger, which claimed the name rather than merely painting over the
+     * lane's art -- and everything hung off that name has to land at its
+     * tombstone. Skipping it here is what left an orb column anchored to
+     * `minimap_edge` with nowhere to paint the moment a layout owned the
+     * frame. Screen and projection hiding still win: those say the surface
+     * itself is gone, not who draws it.
+     */
+    if( c->screen_hidden || c->projection_hidden ||
+        (c->frame_hidden && !c->replacement_hidden) )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return;

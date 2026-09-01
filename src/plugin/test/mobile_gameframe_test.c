@@ -551,7 +551,7 @@ slot_is(int slot, int x, int y, int w, int h)
 #define M_CHAT_FRINGE_B 14
 /** Plus the clear air held between the torn edge and the button row.
  *  @see MOBILE_CHAT_STRIP_GAP. */
-#define M_CHAT_GAP 18
+#define M_CHAT_GAP 8
 /** The block's top row, spelled the way the plugin derives it.
  *  @see MOBILE_CHAT_Y. */
 #define M_CHAT_Y(h) ((h) -M_STRIP_H - M_CHAT_H - M_CHAT_FRINGE_B - M_CHAT_GAP)

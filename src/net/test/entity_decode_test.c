@@ -14,6 +14,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The 289 reader has no public header -- gameproto_rev_lc289.c forward
+ * declares it the same way. */
+int
+lc289_player_info_read(
+    uint8_t const* data,
+    int length,
+    struct PktPlayerInfoOp* ops,
+    int ops_capacity);
+
 #define TEST_CHECK(cond)                                                                           \
     do                                                                                             \
     {                                                                                              \
@@ -685,6 +694,117 @@ test_bitbuffer_refuses_reads_past_the_end(void)
     printf("ok - bit reads past the packet end are refused\n");
 }
 
+/*
+ * A dropped tracked player (old-vis op 3 -- what the server sends when a player
+ * dies out of view, logs out, or walks off the edge of the scene) must NOT be
+ * announced as an entry of the list this packet is rebuilding.
+ *
+ * Extended-info blocks address players by POSITION in that rebuilt list, and
+ * the same list becomes the next packet's `old_list`, which every old_idx is
+ * resolved through. Emitting ADD_PLAYER_OLD for a dropped entry makes the
+ * consumer append a player the decoder's own position counter never counted,
+ * so from the drop onward:
+ *   - every appearance/chat/hit/anim block lands one player early, and
+ *   - the next packet reads every old_idx after the drop off by one, walking
+ *     players to each other's tiles and count-shrinking a live one off the end.
+ *
+ * Tracked list is [0, 1, 2]; index 1 is dropped; index 2 carries extended info.
+ * The block must therefore address list position 1, not 2, and no ADD may be
+ * emitted for index 1.
+ */
+static void
+check_dropped_player_leaves_no_list_entry(
+    struct PktPlayerInfoOp const* ops,
+    int n,
+    char const* who)
+{
+    int adds[8];
+    int add_count = 0;
+    int clears = 0;
+    int set_idx = -1;
+
+    for( int i = 0; i < n; i++ )
+    {
+        if( ops[i].kind == PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX &&
+            add_count < (int)(sizeof(adds) / sizeof(adds[0])) )
+            adds[add_count++] = (int)ops[i]._bitvalue;
+        else if( ops[i].kind == PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX )
+        {
+            clears++;
+            TEST_CHECK(ops[i]._bitvalue == 1);
+        }
+        else if( ops[i].kind == PKT_PLAYER_INFO_OP_SET_PLAYER_OPBITS_IDX )
+            set_idx = (int)ops[i]._bitvalue;
+    }
+
+    TEST_CHECK(clears == 1);
+    /* Kept entries only: old indices 0 and 2, never the dropped 1. */
+    TEST_CHECK(add_count == 2);
+    TEST_CHECK(adds[0] == 0);
+    TEST_CHECK(adds[1] == 2);
+    /* Old index 2 is list position 1 once the drop is not counted. */
+    TEST_CHECK(set_idx == 1);
+    printf("ok - %s: dropped player takes no list position\n", who);
+}
+
+static void
+write_dropped_player_packet(struct BitWriter* w)
+{
+    bw_bits(w, 0, 1); /* local player: no update */
+    bw_bits(w, 3, 8); /* tracked count 3 */
+
+    bw_bits(w, 0, 1); /* old 0: info clear, kept unchanged */
+
+    bw_bits(w, 1, 1); /* old 1: info set... */
+    bw_bits(w, 3, 2); /* ...op 3 = REMOVED */
+
+    bw_bits(w, 1, 1); /* old 2: info set... */
+    bw_bits(w, 0, 2); /* ...op 0 = stood still, extended info follows */
+
+    bw_bits(w, 2047, 11); /* new-vis terminator */
+    bw_byte(w, 0x02);     /* extended: SEQUENCE mask */
+    bw_byte(w, 0x00);
+    bw_byte(w, 7); /* seq 7 */
+    bw_byte(w, 1); /* delay 1 */
+}
+
+static void
+test_player_drop_does_not_shift_list_positions(void)
+{
+    struct BitWriter w = { 0 };
+    struct PktPlayerInfoReader reader;
+    struct PktPlayerInfoOp ops[64];
+    int n;
+
+    write_dropped_player_packet(&w);
+    n = pkt_player_info_reader_read(&reader, w.buf, bw_len(&w), ops, 64);
+    check_dropped_player_leaves_no_list_entry(ops, n, "classic");
+    {
+        struct PktPlayerInfoOp const* seq =
+            find_player_op(ops, n, PKT_PLAYER_INFO_OP_SEQUENCE);
+        TEST_CHECK(seq && seq->_sequence.sequence_id == 7);
+    }
+    pkt_player_info_ops_free(ops, n);
+}
+
+static void
+test_lc289_player_drop_does_not_shift_list_positions(void)
+{
+    struct BitWriter w = { 0 };
+    struct PktPlayerInfoOp ops[64];
+    int n;
+
+    write_dropped_player_packet(&w);
+    n = lc289_player_info_read(w.buf, bw_len(&w), ops, 64);
+    check_dropped_player_leaves_no_list_entry(ops, n, "lc289");
+    {
+        struct PktPlayerInfoOp const* seq =
+            find_player_op(ops, n, PKT_PLAYER_INFO_OP_SEQUENCE);
+        TEST_CHECK(seq && seq->_sequence.sequence_id == 7);
+    }
+    pkt_player_info_ops_free(ops, n);
+}
+
 int
 main(void)
 {
@@ -693,6 +813,8 @@ main(void)
     test_player_local_teleport();
     test_player_new_walk_with_seq();
     test_player_exact_move_and_chat_skip();
+    test_player_drop_does_not_shift_list_positions();
+    test_lc289_player_drop_does_not_shift_list_positions();
     test_npc_add_change_type_spotanim();
     test_npc_type_width();
     test_appearance_decode();

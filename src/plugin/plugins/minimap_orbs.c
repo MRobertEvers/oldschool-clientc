@@ -836,8 +836,16 @@ orbs_anchor(struct ToriRS_PluginCtx* ctx, struct OrbAnchor* out)
      * has no such thing, because a gameframe plugin declared its housing with
      * layout_slot_overlay and so paints it inside the map's own boundary,
      * answers 0 here, and there the map itself is already the right answer.
+     *
+     * Asked whether it is ON SCREEN and not only where it is. The lane's own
+     * plate keeps its box after a gameframe layout suppresses it, so a box
+     * alone would hang the column off a node that paints nothing and the
+     * column would paint nothing with it. role_visible says whether the
+     * object is provided -- by the lane, or by a plugin that replaced it and
+     * paints it at the tombstone -- which is the question this is asking.
      */
-    if( g_api->role_rect(ctx, "minimap_edge", &ex, &ey, NULL, NULL) )
+    if( g_api->role_visible(ctx, "minimap_edge") &&
+        g_api->role_rect(ctx, "minimap_edge", &ex, &ey, NULL, NULL) )
     {
         out->role = "minimap_edge";
         out->dx = mx - ex;

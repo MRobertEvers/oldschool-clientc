@@ -784,7 +784,8 @@ role_boundary_mark_node(
     struct role_boundary_order* order,
     int32_t node,
     struct UITreeComponent const* component,
-    bool point_in_self)
+    bool point_in_self,
+    bool inv_slot_hit)
 {
     order->sequence++;
     if( node == order->candidate )
@@ -792,10 +793,32 @@ role_boundary_mark_node(
         order->candidate_sequence = order->sequence;
         order->candidate_seen = true;
     }
-    if( order->point_query && point_in_self &&
-        (component->no_click_through ||
-         (!UITree_ComponentIsPassThrough(component, order->host) &&
-          UITree_ComponentHitTestVisibleHost(component, -1, order->host))) )
+    /*
+     * An inventory slot is cover, and it is the one target that reaches neither
+     * half of the test beside it.
+     *
+     * A TYPE_INV node carries cols/rows in its layout width/height -- 4x7 for
+     * the backpack -- so its own bounds are a few pixels and `point_in_self` is
+     * false over nearly every slot the player can see; and `IsPassThrough` says
+     * true for the type besides, because the click path resolves a slot rather
+     * than the container. Collection has always compensated with its own grid
+     * test (@see collect_inv_grid_slot_hit); this predicate did not, so it
+     * answered "nothing native here" over an open inventory.
+     *
+     * What that broke is the FRAME-surface plugin region, which is skipped
+     * exactly when a native widget covers the point. A frame plugin that
+     * claimed its own panel rectangle -- mobile-gameframe's drawer does, to
+     * stop a tap falling through to the world behind a floating panel -- then
+     * won the point over every item in it, and app_plugin_region_at's caller
+     * drops the game's rows wholesale, so the inventory answered with a
+     * Cancel-only menu and no left click at all.
+     */
+    if( order->point_query &&
+        ((point_in_self &&
+          (component->no_click_through ||
+           (!UITree_ComponentIsPassThrough(component, order->host) &&
+            UITree_ComponentHitTestVisibleHost(component, -1, order->host)))) ||
+         (inv_slot_hit && UITree_ComponentHitTestVisibleHost(component, -1, order->host))) )
     {
         order->cover_sequence = order->sequence;
         order->cover_seen = true;
@@ -840,6 +863,7 @@ role_boundary_walk_node(
     int child_scroll_x;
     int child_scroll_y;
     bool point_in_self = false;
+    bool inv_slot_hit = false;
 
     assert(order);
     tree = order->tree;
@@ -885,6 +909,7 @@ role_boundary_walk_node(
     if( order->point_query &&
         (!clip || clip->clip_w <= 0 || clip->clip_h <= 0 ||
          UITree_PointInClip(order->point_x, order->point_y, clip)) )
+    {
         point_in_self = UITree_PointInScrolledBounds(
             order->point_x,
             order->point_y,
@@ -894,6 +919,11 @@ role_boundary_walk_node(
             h,
             scroll_off_x,
             scroll_off_y);
+        /* Under the same clip as the bounds test above, because a slot scrolled
+         * out of its viewport is not on screen to cover anything. */
+        inv_slot_hit = collect_inv_grid_slot_hit(
+            component, x, y, order->point_x, order->point_y, scroll_off_x, scroll_off_y);
+    }
 
     if( component->drag_active && component->drag_behavior != 1 )
         in_deferred = true;
@@ -937,7 +967,7 @@ role_boundary_walk_node(
      * visually empty interactive container as occupying that structural paint
      * position; that is the conservative input answer when it covers a plugin
      * region. */
-    role_boundary_mark_node(order, node, component, point_in_self);
+    role_boundary_mark_node(order, node, component, point_in_self, inv_slot_hit);
 
     child_scroll_x = scroll_off_x;
     child_scroll_y = scroll_off_y;

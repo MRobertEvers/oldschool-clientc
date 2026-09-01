@@ -376,15 +376,39 @@ lc289_player_info_read(
 
     for( int old_idx = 0; old_idx < count; old_idx++ )
     {
+        /*
+         * The info bit and the 2-bit op have to be read BEFORE the ADD is
+         * emitted, because op 3 is "this player left" -- the reference does not
+         * carry a dropped entry into the list it is rebuilding
+         * (Client.ts getPlayerOldVis: every branch but op 3 does
+         * `playerIds[playerCount++] = index`). Emitting ADD first and CLEAR
+         * afterwards makes the consumer append an entry the decoder's own
+         * `new_idx` never counted, so from the drop onward
+         *   - every extended block resolves `active_players[new_idx]` one entry
+         *     early, landing appearance/chat/hits on the player before it, and
+         *   - the list handed to the NEXT packet as `old_list` keeps the dead
+         *     player's slot, shifting every old_idx after it by one and
+         *     count-shrinking a live player off the tail.
+         * The npc reader below already reads-then-emits for this reason.
+         */
+        int info = Net_BitBufferGbits(&buf, 1);
+        int move_op = -1;
+        if( info != 0 )
+            move_op = (int)Net_BitBufferGbits(&buf, 2);
+
+        if( move_op == 3 )
+        {
+            struct PktPlayerInfoOp* op = lc289_next_player_op(&dec, ops, ops_capacity);
+            op->kind = PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX;
+            op->_bitvalue = (uint64_t)old_idx;
+            continue;
+        }
+
         {
             struct PktPlayerInfoOp* op = lc289_next_player_op(&dec, ops, ops_capacity);
             op->kind = PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX;
             op->_bitvalue = (uint64_t)old_idx;
-        }
-
-        int info = Net_BitBufferGbits(&buf, 1);
-        {
-            struct PktPlayerInfoOp* op = lc289_next_player_op(&dec, ops, ops_capacity);
+            op = lc289_next_player_op(&dec, ops, ops_capacity);
             op->kind = PKT_PLAYER_INFO_OPBITS_INFO;
             op->_bitvalue = (uint64_t)info;
         }
@@ -394,7 +418,7 @@ lc289_player_info_read(
             continue;
         }
 
-        switch( Net_BitBufferGbits(&buf, 2) )
+        switch( move_op )
         {
         case 0:
             lc289_queue_extended(&dec, new_idx);
@@ -423,13 +447,6 @@ lc289_player_info_read(
             if( Net_BitBufferGbits(&buf, 1) )
                 lc289_queue_extended(&dec, new_idx);
             new_idx++;
-            break;
-        }
-        case 3:
-        {
-            struct PktPlayerInfoOp* op = lc289_next_player_op(&dec, ops, ops_capacity);
-            op->kind = PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX;
-            op->_bitvalue = (uint64_t)old_idx;
             break;
         }
         }

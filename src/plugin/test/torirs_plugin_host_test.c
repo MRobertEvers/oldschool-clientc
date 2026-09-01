@@ -2187,12 +2187,20 @@ main(void)
         g_beta_draw_saw_invalid = 0;
         PluginHost_DrawCanvas(host, 765, 503);
         g_beta_anchor_attempt = 0;
-        CHECK(g_role_anchor_invalids == 1 && g_beta_anchor_retarget_invalid,
-              "a competing replacement anchor enters active-invalid state");
-        CHECK(g_beta_draw_saw_invalid,
-              "draws after the failed retarget cannot inherit a prior/global anchor");
-        CHECK(g_role_anchor_calls == 1 && g_role_anchor_last_replace == 1,
-              "the replacement owner can anchor its canvas declarations at the tombstone");
+        /*
+         * The name is the object. A second plugin anchoring to a role the
+         * first one replaced is anchoring to the replacement, and paints at
+         * its tombstone with replace=1 -- it is not refused into an
+         * active-invalid anchor, which is what this used to pin and what
+         * made every replacement an island for the plugins that referenced
+         * it by name.
+         */
+        CHECK(g_role_anchor_invalids == 0 && !g_beta_anchor_retarget_invalid,
+              "a competing anchor on a replaced role is not refused");
+        CHECK(!g_beta_draw_saw_invalid,
+              "and the competitor's draws are attributed, not dropped");
+        CHECK(g_role_anchor_calls == 2 && g_role_anchor_last_replace == 1,
+              "both the owner and the competitor anchor at the tombstone");
         CHECK(g_alpha_anchor_second_saw_reset,
               "a later canvas subscriber cannot inherit the prior subscriber's anchor");
         CHECK(g_role_anchor_resets >= 4 && g_role_anchor_current_plugin < 0,

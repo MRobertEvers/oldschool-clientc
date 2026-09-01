@@ -266,7 +266,7 @@ static struct MobileRock const MOBILE_ROCK[MOBILE_RAIL_ROWS] = {
  * the one number in this block that is a matter of taste rather than of what
  * the file measures.
  */
-#define MOBILE_CHAT_STRIP_GAP 18
+#define MOBILE_CHAT_STRIP_GAP 8
 
 /**
  * The chat surface's top row, and with it the whole block's.

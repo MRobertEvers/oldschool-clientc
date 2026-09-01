@@ -46,18 +46,17 @@ queue_extended(
         reader->extended_queue[reader->extended_count++] = (uint16_t)idx;
 }
 
-/* Movement block shared by the local player and tracked players.
- * `remove_on_op3`: tracked players use op 3 as "remove"; the local player
- * uses it as a teleport. Returns the op read (or -1 when info bit clear). */
+/* The LOCAL player's movement block. Not shared with the tracked loop below:
+ * op 3 there is "this player left", which has to be known before the entry is
+ * announced to the consumer, whereas here it is a teleport.
+ * Returns the op read (or -1 when the info bit is clear). */
 static int
 read_movement(
     struct PktPlayerInfoReader* reader,
     struct Net_BitBuffer* buf,
     struct PktPlayerInfoOp* ops,
     int ops_capacity,
-    int extended_idx,
-    int remove_on_op3,
-    int old_idx)
+    int extended_idx)
 {
     int info = Net_BitBufferGbits(buf, 1);
     if( info == 0 )
@@ -98,28 +97,21 @@ read_movement(
         break;
     }
     case 3:
-        if( remove_on_op3 )
-        {
-            struct PktPlayerInfoOp* op = next_op(reader, ops, ops_capacity);
-            op->kind = PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX;
-            op->_bitvalue = (uint64_t)old_idx;
-        }
-        else
-        {
-            int level = Net_BitBufferGbits(buf, 2);
-            int sx = Net_BitBufferGbits(buf, 7);
-            int sz = Net_BitBufferGbits(buf, 7);
-            int jump = Net_BitBufferGbits(buf, 1);
-            struct PktPlayerInfoOp* op = next_op(reader, ops, ops_capacity);
-            op->kind = PKT_PLAYER_INFO_OP_LOCAL_XZLEVEL;
-            op->_local_xz_level.x = (int16_t)sx;
-            op->_local_xz_level.z = (int16_t)sz;
-            op->_local_xz_level.level = (uint8_t)level;
-            op->_local_xz_level.jump = jump != 0;
-            if( Net_BitBufferGbits(buf, 1) )
-                queue_extended(reader, extended_idx);
-        }
+    {
+        int level = Net_BitBufferGbits(buf, 2);
+        int sx = Net_BitBufferGbits(buf, 7);
+        int sz = Net_BitBufferGbits(buf, 7);
+        int jump = Net_BitBufferGbits(buf, 1);
+        struct PktPlayerInfoOp* op = next_op(reader, ops, ops_capacity);
+        op->kind = PKT_PLAYER_INFO_OP_LOCAL_XZLEVEL;
+        op->_local_xz_level.x = (int16_t)sx;
+        op->_local_xz_level.z = (int16_t)sz;
+        op->_local_xz_level.level = (uint8_t)level;
+        op->_local_xz_level.jump = jump != 0;
+        if( Net_BitBufferGbits(buf, 1) )
+            queue_extended(reader, extended_idx);
         break;
+    }
     }
     return move_op;
 }
@@ -145,7 +137,7 @@ pkt_player_info_reader_read(
         struct PktPlayerInfoOp* op = next_op(reader, ops, ops_capacity);
         op->kind = PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER;
     }
-    read_movement(reader, &buf, ops, ops_capacity, 2047, 0, -1);
+    read_movement(reader, &buf, ops, ops_capacity, 2047);
 
 /*
  * The list index below is a CONTRACT with the consumer, not a local counter.
@@ -168,15 +160,34 @@ pkt_player_info_reader_read(
     }
     for( int old_idx = 0; old_idx < count; old_idx++ )
     {
+        /*
+         * Read the info bit and the 2-bit op BEFORE emitting the ADD: op 3 is
+         * "this player left", and a dropped entry is not part of the list being
+         * rebuilt (Client.ts getPlayerOldVis appends `playerIds[playerCount++]`
+         * in every branch except op 3). Emitting ADD unconditionally and CLEAR
+         * after it makes the consumer append an entry `new_idx` never counted,
+         * so from the drop onward every extended block resolves one entry early
+         * and the list carried into the next packet as `old_list` keeps the
+         * departed player's slot -- shifting every later old_idx by one.
+         */
+        int info = Net_BitBufferGbits(&buf, 1);
+        int move_op = -1;
+        if( info != 0 )
+            move_op = (int)Net_BitBufferGbits(&buf, 2);
+
+        if( move_op == 3 )
+        {
+            struct PktPlayerInfoOp* op = next_op(reader, ops, ops_capacity);
+            op->kind = PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX;
+            op->_bitvalue = (uint64_t)old_idx;
+            continue;
+        }
+
         {
             struct PktPlayerInfoOp* op = next_op(reader, ops, ops_capacity);
             op->kind = PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX;
             op->_bitvalue = (uint64_t)old_idx;
-        }
-
-        int info = Net_BitBufferGbits(&buf, 1);
-        {
-            struct PktPlayerInfoOp* op = next_op(reader, ops, ops_capacity);
+            op = next_op(reader, ops, ops_capacity);
             op->kind = PKT_PLAYER_INFO_OPBITS_INFO;
             op->_bitvalue = (uint64_t)info;
         }
@@ -186,7 +197,6 @@ pkt_player_info_reader_read(
             continue;
         }
 
-        int move_op = Net_BitBufferGbits(&buf, 2);
         switch( move_op )
         {
         case 0:
@@ -218,13 +228,7 @@ pkt_player_info_reader_read(
             new_idx++;
             break;
         }
-        case 3:
-        {
-            struct PktPlayerInfoOp* op = next_op(reader, ops, ops_capacity);
-            op->kind = PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX;
-            op->_bitvalue = (uint64_t)old_idx;
-            break;
-        }
+        /* case 3 -- the drop -- was handled above the ADD; see the note there. */
         }
     }
 

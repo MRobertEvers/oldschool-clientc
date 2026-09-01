@@ -608,6 +608,44 @@ test_role_boundary_input_covers(void)
         "native covers outside the queried plugin pixel do not occlude it");
     UITree_Free(tree);
 
+    /*
+     * An open inventory is native cover, so a FRAME plugin region laid over the
+     * panel does not take the pointer from the items in it.
+     *
+     * The grid is the one target that reaches neither half of the ordinary
+     * predicate: a TYPE_INV node carries cols/rows in its layout box -- 4x7 --
+     * so the point below is inside slot 0's 32x32 rect and far outside the node,
+     * and the type is pass-through besides. The fence answered "nothing native
+     * here" over every open inventory, and mobile-gameframe's drawer blocker
+     * (a FRAME region over its own panel, there to stop taps reaching the world
+     * behind a floating frame) won the point over every item: the menu build
+     * drops the game's rows wholesale under a region, so an inventory item
+     * offered Cancel and nothing else.
+     */
+    {
+        struct UITree* inv = UITree_New(6);
+        int32_t grid;
+
+        TEST_ASSERT(inv != NULL, "role inv-cover tree");
+        grid = UITree_TestPushXy(inv, -1, UIELEM_RS_INV, (504 << 16), 70, 50, 4, 7);
+        TEST_ASSERT(grid >= 0, "role inv-cover fixture builds");
+        inv->components[grid].u.rs_inv.cols = 4;
+        inv->components[grid].u.rs_inv.rows = 7;
+        inv->components[grid].u.rs_inv.margin_x = 0;
+        inv->components[grid].u.rs_inv.margin_y = 0;
+        UITree_TestResolve(inv);
+
+        /* (85,65) is inside slot 0's rect (70..102, 50..82) and past the node
+         * box (70..74, 50..57). */
+        TEST_ASSERT(
+            UITree_PointHasNativeInputCover(inv, &host, 85, 65),
+            "FRAME input fence sees an inventory slot as native cover");
+        TEST_ASSERT(
+            !UITree_PointHasNativeInputCover(inv, &host, 300, 300),
+            "and sees none past the grid's last slot");
+        UITree_Free(inv);
+    }
+
     /* Type-0 InterfaceParent barriers sit after ordinary host children and
      * before mounted roots even when that modal root has no interactive node. */
     {

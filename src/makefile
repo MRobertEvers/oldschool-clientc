@@ -2839,7 +2839,7 @@ test-entity-decode: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/entity_decode_test \
 		net/test/entity_decode_test.c net/bitbuffer.c \
 		net/rev/packets/pkt_player_info.c net/rev/packets/pkt_npc_info.c \
-		net/rev/packets/pkt_player_appearance.c \
+		net/rev/packets/pkt_player_appearance.c net/rev/lc289/lc289_entity_info.c \
 		net/jbase37.c $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o \
 		$(OBJ_DIR)/xteas.o -lm
 	./$(OBJ_DIR)/entity_decode_test

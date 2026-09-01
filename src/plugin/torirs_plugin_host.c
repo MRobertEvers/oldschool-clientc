@@ -1317,6 +1317,19 @@ api_role_visible(struct ToriRS_PluginCtx* ctx, char const* role)
      * hidden, and a derived region is on screen whenever the client is. */
     if( strcmp(role, "safe") == 0 || strcmp(role, "canvas") == 0 )
         return api_role_rect(ctx, role, NULL, NULL, NULL, NULL);
+    /*
+     * A REPLACED role is on screen: its provider paints it at the tombstone
+     * every frame the provider runs. The engine would answer "hidden", which
+     * is true of the lane's own node and false of the object -- and the
+     * object is what a caller means. A plugin deciding whether to hang
+     * something off `minimap_edge` needs "is there a minimap_edge", not
+     * "is the cache's plate visible".
+     */
+    {
+        int const at = role_replacement_find(ctx->host, role);
+        if( at >= 0 && ctx->host->plugins[ctx->host->role_replacements[at].plugin].running )
+            return 1;
+    }
     return ctx->host->engine.role_visible(ctx->host->engine.user, role);
 }
 
@@ -1458,16 +1471,27 @@ api_role_anchor(struct ToriRS_PluginCtx* ctx, char const* role)
         return 0;
     }
 
+    /*
+     * A REPLACED role is anchored at its tombstone by everyone, not only by
+     * the plugin that replaced it.
+     *
+     * The name is the object. When one plugin provides `minimap_edge` in
+     * place of the lane's own plate, a second plugin hanging its orb column
+     * off `minimap_edge` is hanging it off that object -- and the object now
+     * paints at the tombstone, so that is where the column has to paint too.
+     * Refusing the second plugin (which this used to do, as an "active
+     * invalid" anchor) made every replacement an island: a semantic name
+     * whose meaning changed for exactly the plugins that had done the right
+     * thing and asked for it by name.
+     *
+     * Order inside the tombstone is arrival order, and the host paints the
+     * replacement's own declaration first (plugin_chrome_paint_all runs
+     * before EV_DRAW_CANVAS), so what is hung off the object lands on top
+     * of it.
+     */
     at = role_replacement_find(host, role);
     if( at >= 0 )
-    {
-        if( host->role_replacements[at].plugin != ctx->index )
-        {
-            (void)host->engine.role_anchor(host->engine.user, ctx->index, "", 0);
-            return 0;
-        }
         replace = 1;
-    }
     return host->engine.role_anchor(
         host->engine.user, ctx->index, role, replace);
 }
@@ -6370,9 +6394,17 @@ plugin_chrome_paint_all(struct ToriRS_PluginHost* host, int canvas_pass)
              * attributed to. */
             struct PluginChromeClaim const* added = plugin_chrome_added_row(host, row->part);
             int const who = ops ? ops->plugin : row->plugin;
-            int anchored = added
-                               ? host->engine.role_anchor(host->engine.user, who, added->anchor, 0)
-                               : host->engine.role_anchor(host->engine.user, who, row->part, 1);
+            /* An added part hung off a role somebody REPLACED paints at that
+             * replacement's tombstone, exactly as api_role_anchor routes a
+             * plugin's own drawing: the anchor is the object, and the object
+             * is wherever its provider paints it. */
+            int anchored =
+                added ? host->engine.role_anchor(
+                            host->engine.user,
+                            who,
+                            added->anchor,
+                            role_replacement_find(host, added->anchor) >= 0)
+                      : host->engine.role_anchor(host->engine.user, who, row->part, 1);
             if( anchored )
                 plugin_chrome_paint_one(host, &resolved, state, have_mouse, mx, my, ops);
             (void)host->engine.role_anchor(host->engine.user, who, NULL, 0);
