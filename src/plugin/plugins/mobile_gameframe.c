@@ -233,26 +233,61 @@ static struct MobileRock const MOBILE_ROCK[MOBILE_RAIL_ROWS] = {
  * So the SURFACE moves instead of the art. The block is still pinned flush to
  * the bottom-left, but it is the parchment that is flush now; the chat, the
  * filter buttons and the tap-blocker are all inset by the fringe so the core
- * lands where they meet it. Vertically only the top moves: the sheet's bottom
- * stays on the strip, so nothing below it shifts.
+ * lands where they meet it.
  *
  * MEASURED off the file, not chosen: (17,17)-(495,112) is the maximal
  * fully-opaque rectangle in it and is exactly 479x96. A recut sheet has to
- * have these two remeasured with it, and there is nothing that would say so --
- * a wrong fringe is a chatbox drawn slightly off its backing.
+ * have these remeasured with it, and there is nothing that would say so -- a
+ * wrong fringe is a chatbox drawn slightly off its backing.
+ *
+ * The BOTTOM one is a separate number and is the reason the block sits higher
+ * than the surface alone would. The sheet used to be pinned by its surface --
+ * chat_y = strip_y - MOBILE_CHAT_H -- which put the surface's last row on the
+ * strip and left fourteen rows of torn edge hanging BELOW it, under the filter
+ * buttons, which then drew over the paper. So the block is pinned by the ART's
+ * last inked row instead. @see MOBILE_CHAT_Y.
+ *
+ * Ink and not the file: the picture has empty rows past its bottom edge, and
+ * pinning the file would leave a visible gap where the art has nothing.
  */
 #define MOBILE_CHAT_ART_W 517
 #define MOBILE_CHAT_ART_H 130
 #define MOBILE_CHAT_FRINGE_X 17
 #define MOBILE_CHAT_FRINGE_Y 17
+/** Inked rows below the surface's last: the art's row 126 against its 112. */
+#define MOBILE_CHAT_FRINGE_B 14
+/**
+ * Clear air between the torn edge and the button row, on top of that.
+ *
+ * The fringe above is a measurement and this is not: clearing the buttons only
+ * takes MOBILE_CHAT_FRINGE_B, and at exactly that the paper's last inked row
+ * and the first button sit a row apart, which reads as the two touching. This
+ * is the gap that makes them read as separate things. Adjust it freely -- it is
+ * the one number in this block that is a matter of taste rather than of what
+ * the file measures.
+ */
+#define MOBILE_CHAT_STRIP_GAP 18
 
-/* The fringe is not symmetric -- 17 columns left against 21 right -- so the art
- * width is its own number rather than the surface plus twice the inset, and
- * "does the sheet fit" has to ask the picture. */
+/**
+ * The chat surface's top row, and with it the whole block's.
+ *
+ * A macro because the layout pass and the tap-blocker both need it and used to
+ * spell it out separately; that is exactly the pair that drifts when the sheet
+ * art changes shape, and the blocker landing fourteen rows off the sheet is a
+ * frame that swallows taps on the world and passes taps on the chat.
+ */
+#define MOBILE_CHAT_Y(canvas_h)                                                \
+    ((canvas_h) -MOBILE_STRIP_H - MOBILE_CHAT_H - MOBILE_CHAT_FRINGE_B -        \
+     MOBILE_CHAT_STRIP_GAP)
+
+/* The fringe is not symmetric -- seventeen columns of file to the surface's
+ * left against twenty-one to its right -- so the art size is its own pair of
+ * numbers rather than the surface plus twice an inset, and "does the sheet
+ * fit" has to ask the picture. */
 _Static_assert(
     MOBILE_CHAT_FRINGE_X + MOBILE_CHAT_W <= MOBILE_CHAT_ART_W &&
-        MOBILE_CHAT_FRINGE_Y + MOBILE_CHAT_H <= MOBILE_CHAT_ART_H,
-    "the chat surface must sit inside the sheet art that backs it");
+        MOBILE_CHAT_FRINGE_Y + MOBILE_CHAT_H + MOBILE_CHAT_FRINGE_B <= MOBILE_CHAT_ART_H,
+    "the chat surface and its fringe must sit inside the sheet art that backs it");
 /*
  * The four filter buttons, spread evenly across the bar.
  *
@@ -1439,7 +1474,7 @@ mobile_layout(struct ToriRS_PluginCtx* ctx, int canvas_w, int canvas_h)
     int const map_x = canvas_w - MOBILE_MARGIN - g_map_w;
     int const map_y = MOBILE_MARGIN;
     int const strip_y = canvas_h - MOBILE_STRIP_H;
-    int const chat_y = strip_y - MOBILE_CHAT_H;
+    int const chat_y = MOBILE_CHAT_Y(canvas_h);
     int const chat_visible = mobile_chat_visible(canvas_w);
 
     assert(ctx);
@@ -1861,17 +1896,26 @@ mobile_on_draw(
      * own clicks first.
      */
     if( g_frame.chat_placed )
-        /* The SURFACE's rectangle and not the parchment's: the fringe around it
-         * is torn, so its corners are grass with a few beige pixels over them,
-         * and a blocker cut to the picture would swallow taps on world the
-         * player can see. */
+        /*
+         * The SURFACE's columns and not the parchment's: the fringe to either
+         * side is torn, so its corners are grass with a few beige pixels over
+         * them, and a blocker cut to the picture would swallow taps on world
+         * the player can see.
+         *
+         * Its rows run from the block's top to the canvas floor -- stated that
+         * way rather than summed out of the pieces, because the sheet, its
+         * fringe, the gap and the button strip are four numbers that have all
+         * moved once and the sum is only ever "everything below the sheet's
+         * top". The gap is in it: a slot that narrow between two pieces of
+         * chrome is a mis-tap, not a walk.
+         */
         g_api->hit_region(
             ctx,
             ev->surface,
             MOBILE_CHAT_FRINGE_X,
-            ev->height - MOBILE_STRIP_H - MOBILE_CHAT_H,
+            MOBILE_CHAT_Y(ev->height),
             MOBILE_CHAT_W,
-            MOBILE_CHAT_H + MOBILE_STRIP_H,
+            ev->height - MOBILE_CHAT_Y(ev->height),
             TYPE_OP,
             1,
             MOBILE_TAG_CHATLOG);

@@ -546,6 +546,15 @@ slot_is(int slot, int x, int y, int w, int h)
  *  sits at (17,17) inside it, so the whole block is inset by this.
  *  @see MOBILE_CHAT_FRINGE_X. */
 #define M_CHAT_FRINGE 17
+/** And the inked rows BELOW the surface, which is what lifts the block clear of
+ *  the filter buttons. @see MOBILE_CHAT_FRINGE_B. */
+#define M_CHAT_FRINGE_B 14
+/** Plus the clear air held between the torn edge and the button row.
+ *  @see MOBILE_CHAT_STRIP_GAP. */
+#define M_CHAT_GAP 18
+/** The block's top row, spelled the way the plugin derives it.
+ *  @see MOBILE_CHAT_Y. */
+#define M_CHAT_Y(h) ((h) -M_STRIP_H - M_CHAT_H - M_CHAT_FRINGE_B - M_CHAT_GAP)
 #define M_STRIP_W 479
 #define M_STRIP_H 36
 #define M_TOGGLE_H 25
@@ -767,7 +776,7 @@ main(void)
         slot_is(
             TORIRS_PLUGIN_SLOT_CHAT,
             M_CHAT_FRINGE,
-            M_H - M_STRIP_H - M_CHAT_H,
+            M_CHAT_Y(M_H),
             M_CHAT_W,
             M_CHAT_H),
         "the chat sheet is pinned to the bottom-left corner, inset by its fringe");
@@ -854,8 +863,7 @@ main(void)
             if( tag == M_TAG_CHAT )
                 CHECK(
                     x == M_MARGIN &&
-                        y == M_H - M_STRIP_H - M_CHAT_H - M_CHAT_FRINGE - M_MARGIN -
-                                 M_TOGGLE_H,
+                        y == M_CHAT_Y(M_H) - M_CHAT_FRINGE - M_MARGIN - M_TOGGLE_H,
                     "the chat switch clears the sheet art it operates, fringe and all");
         }
     }
@@ -932,7 +940,7 @@ main(void)
             slot_is(
                 TORIRS_PLUGIN_SLOT_CHAT,
                 M_CHAT_FRINGE,
-                h - M_STRIP_H - M_CHAT_H,
+                M_CHAT_Y(h),
                 M_CHAT_W,
                 M_CHAT_H),
             "the sheet stays in the bottom-left corner");

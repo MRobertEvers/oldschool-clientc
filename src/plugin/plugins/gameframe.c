@@ -480,12 +480,41 @@ struct FrameBlit
  * a tab is selected and then draws its redstone. A -1 in either is "draw
  * nothing", which is what makes one loop serve both.
  */
-struct FrameTab
+/** A rectangle, because a tab carries two of them. @see FrameTab. */
+struct FrameBox
 {
     int x;
     int y;
     int w;
     int h;
+};
+
+struct FrameTab
+{
+    /** The STONE: where the plate is blitted and what a click hit-tests. */
+    struct FrameBox box;
+    /**
+     * Where the icon's top-left pixel goes -- an ORIGIN, not a box to centre
+     * in, because the two frames arrive at it by different routes and only
+     * one of them can be computed from the stone.
+     *
+     * The OldSchool frames CAN: their stones are a uniform grid and the icon
+     * sits in the middle of the one it belongs to, so those layouts centre it
+     * themselves and hand the answer over.
+     *
+     * The 2004 frame cannot. Its fourteen redstone plates are not a grid
+     * (combat, quests and magic are 38 wide, logout 44, the bottom row 30x37),
+     * each icon has a box of its own in `[layout:fixed]`, and the sprite is
+     * then drawn at that box plus the FRAME's own offset inside its canvas --
+     * +4,+5 for combat, +0,+0 for inventory, +7,+3 for emotes. That offset is
+     * a property of `sideicons.dat` and it did not survive the cut: the PNGs
+     * beside this file are the tight bitmap, dump_sprites writes
+     * `frame->width x frame->height` and nothing else. So the layout states
+     * the sum, and the numbers are not guesses -- every one of the thirteen
+     * reproduces the stock revconfig frame pixel for pixel.
+     */
+    int icon_x;
+    int icon_y;
     /**
      * The tab this box stands for -- NOT its position in this table.
      *
@@ -632,17 +661,23 @@ frame_slot_overlay(
 }
 
 static void
-frame_tab(int tabno, int x, int y, int w, int h, int stone, int stone_pressed, int icon)
+frame_tab(
+    int tabno,
+    struct FrameBox box,
+    int icon_x,
+    int icon_y,
+    int stone,
+    int stone_pressed,
+    int icon)
 {
     struct FrameTab* t;
 
     if( g_frame.tab_count >= FRAME_TAB_COUNT )
         return;
     t = &g_frame.tab[g_frame.tab_count++];
-    t->x = x;
-    t->y = y;
-    t->w = w;
-    t->h = h;
+    t->box = box;
+    t->icon_x = icon_x;
+    t->icon_y = icon_y;
     t->tabno = tabno;
     t->stone = stone;
     t->stone_pressed = stone_pressed;
@@ -845,29 +880,44 @@ frame_skin_scrollbar(struct ToriRS_PluginCtx* ctx)
 static void
 frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
 {
+    /*
+     * The redstone plate, then the ICON's own box -- both straight out of
+     * `[layout:fixed]`, and the second column is not the first one nudged.
+     *
+     * The interface positions each `sideicon_*` against the art it is drawn
+     * on, not against the plate under it, so the two disagree by a different
+     * amount per tab and in both directions: combat's icon starts 7 columns
+     * right of its plate, magic's 1 column LEFT of its, and every one of the
+     * fourteen sits 2-4 rows lower than the plate's own top. Reading the icon
+     * out of the plate box -- which is what this table used to do, having
+     * only one -- is what put them all high and off centre. @see FrameTab.
+     *
+     * Tab 7 is the unused slot: this revision has no clan chat, the profile
+     * declares no `sideicon_slot7`, and frame_tab_icon answers -1 for it, so
+     * its icon box is its plate's rather than a number invented for a stone
+     * that never wears one.
+     */
     static struct
     {
-        int x;
-        int y;
-        int w;
-        int h;
+        struct FrameBox box;
+        struct FrameBox icon;
         int stone;
         int flip;
     } const TAB[FRAME_TAB_COUNT] = {
-        { 538, 170, 38, 36, 0, -1              },
-        { 570, 168, 33, 36, 1, -1              },
-        { 598, 168, 38, 36, 1, -1              },
-        { 626, 168, 33, 36, 2, -1              },
-        { 669, 168, 33, 36, 1, REDSTONE_FLIP_H },
-        { 697, 168, 33, 36, 1, REDSTONE_FLIP_H },
-        { 725, 169, 38, 36, 0, REDSTONE_FLIP_H },
-        { 538, 466, 34, 36, 0, REDSTONE_FLIP_V },
-        { 570, 466, 30, 37, 1, REDSTONE_FLIP_V },
-        { 598, 466, 30, 37, 1, REDSTONE_FLIP_V },
-        { 626, 467, 44, 35, 2, REDSTONE_FLIP_V },
-        { 669, 466, 30, 37, 1, REDSTONE_FLIP_HV},
-        { 697, 466, 30, 37, 1, REDSTONE_FLIP_HV},
-        { 725, 466, 34, 36, 0, REDSTONE_FLIP_HV},
+        { { 538, 170, 38, 36 }, { 545, 173, 33, 36 }, 0, -1              },
+        { { 570, 168, 33, 36 }, { 569, 171, 33, 36 }, 1, -1              },
+        { { 598, 168, 38, 36 }, { 598, 171, 33, 36 }, 1, -1              },
+        { { 626, 168, 33, 36 }, { 631, 172, 33, 36 }, 2, -1              },
+        { { 669, 168, 33, 36 }, { 669, 173, 33, 36 }, 1, REDSTONE_FLIP_H },
+        { { 697, 168, 33, 36 }, { 696, 171, 33, 36 }, 1, REDSTONE_FLIP_H },
+        { { 725, 169, 38, 36 }, { 724, 173, 33, 36 }, 0, REDSTONE_FLIP_H },
+        { { 538, 466, 34, 36 }, { 538, 466, 34, 36 }, 0, REDSTONE_FLIP_V },
+        { { 570, 466, 30, 37 }, { 570, 468, 33, 36 }, 1, REDSTONE_FLIP_V },
+        { { 598, 466, 30, 37 }, { 598, 469, 33, 36 }, 1, REDSTONE_FLIP_V },
+        { { 626, 467, 44, 35 }, { 633, 470, 33, 36 }, 2, REDSTONE_FLIP_V },
+        { { 669, 466, 30, 37 }, { 670, 468, 33, 36 }, 1, REDSTONE_FLIP_HV},
+        { { 697, 466, 30, 37 }, { 697, 468, 33, 36 }, 1, REDSTONE_FLIP_HV},
+        { { 725, 466, 34, 36 }, { 722, 468, 33, 36 }, 0, REDSTONE_FLIP_HV},
     };
     static int const REDSTONE_BASE[3] = { IMG_C_REDSTONE1, IMG_C_REDSTONE2, IMG_C_REDSTONE3 };
 
@@ -902,10 +952,8 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
          * and one that reads a field is how that divergence hides. */
         frame_tab(
             i,
-            TAB[i].x,
-            TAB[i].y,
-            TAB[i].w,
-            TAB[i].h,
+            TAB[i].box,
+            TAB[i].icon,
             /*stone=*/-1,
             pressed,
             frame_tab_icon(ctx, i, g_image[IMG_C_SIDEICON_0 + i], 553, 205, 190, 261));
@@ -1000,12 +1048,15 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
     {
         int const tab = FRAME_TAB_SCREEN_ORDER[i];
+        /* The icon centres on the stone it sits on, which is what a uniform
+         * grid of stones means -- so the box is said twice rather than the
+         * record deciding for a layout. @see FrameTab::icon_box. */
+        struct FrameBox const box = { TAB[i].x, TAB[i].y, TAB[i].w, 36 };
+
         frame_tab(
             tab,
-            TAB[i].x,
-            TAB[i].y,
-            TAB[i].w,
-            36,
+            box,
+            box,
             /*stone=*/-1,
             g_image[TAB[i].stone],
             frame_tab_icon(ctx, tab, g_image[IMG_O_SIDEICON_0 + tab], 547, 205, 190, 261));
@@ -1227,13 +1278,17 @@ frame_layout_modern_resizable(
          * where friends belongs. @see FRAME_TAB_SCREEN_ORDER.
          */
         int const tab = FRAME_TAB_SCREEN_ORDER[i];
+        /* Centred on the stone, as on the fixed OldSchool frame and for the
+         * same reason. @see FrameTab::icon_box. */
+        struct FrameBox const box = { row_x + TAB[i].x,
+                                      i < 7 ? top_row_y : bottom_row_y,
+                                      TAB[i].w,
+                                      FRAME_R_STONE_H };
 
         frame_tab(
             tab,
-            row_x + TAB[i].x,
-            i < 7 ? top_row_y : bottom_row_y,
-            TAB[i].w,
-            FRAME_R_STONE_H,
+            box,
+            box,
             /*stone=*/-1,
             g_image[TAB[i].stone],
             frame_tab_icon(
@@ -1788,19 +1843,22 @@ frame_on_draw(
         int ih = 0;
 
         if( stone >= 0 )
-            g_api->draw_image(ctx, ev->surface, stone, t->x, t->y, 0, 0, 0, 0, 0);
-        /* Centred in the box, not blitted at its corner: the 2004 icons are
-         * each a different size (20x19 up to 30x29) and the box is a uniform
-         * 33x36, so a corner blit puts every one of them in a different place
-         * within its own stone. */
+            g_api->draw_image(ctx, ev->surface, stone, t->box.x, t->box.y, 0, 0, 0, 0, 0);
+        /* Centred in the ICON's box, not blitted at its corner: the 2004 icons
+         * are each a different size (19x24 up to 30x29) and the box is a
+         * uniform 33x36, so a corner blit puts every one of them in a
+         * different place within its own stone.
+         *
+         * And in the icon's box rather than the stone's, which on the 2004
+         * frame is a different rectangle. @see FrameTab::icon_box. */
         if( t->icon >= 0 && g_api->image_size(ctx, t->icon, &iw, &ih) )
         {
             g_api->draw_image(
                 ctx,
                 ev->surface,
                 t->icon,
-                t->x + (t->w - iw) / 2,
-                t->y + (t->h - ih) / 2,
+                t->icon_box.x + (t->icon_box.w - iw) / 2,
+                t->icon_box.y + (t->icon_box.h - ih) / 2,
                 0,
                 0,
                 0,
@@ -1809,14 +1867,17 @@ frame_on_draw(
         }
         /* Declared with the drawing, so the box a click answers is the box the
          * stone was just painted at -- a region registered at start would be a
-         * rectangle over wherever the tabs used to be after a resize. */
+         * rectangle over wherever the tabs used to be after a resize.
+         *
+         * The STONE's box: the plate is what the player aims at, and on the
+         * 2004 frame it is the larger of the two. */
         g_api->hit_region(
             ctx,
             ev->surface,
-            t->x,
-            t->y,
-            t->w,
-            t->h,
+            t->box.x,
+            t->box.y,
+            t->box.w,
+            t->box.h,
             TAB_OP,
             1,
             FRAME_TAG_TAB | (uint32_t)t->tabno);
