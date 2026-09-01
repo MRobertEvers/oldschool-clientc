@@ -557,6 +557,10 @@ slot_is(int slot, int x, int y, int w, int h)
 #define M_MAP_HOLE_Y 8
 #define M_CHAT_W 479
 #define M_CHAT_H 96
+/** The sheet art's torn fringe. The picture is 517x130 and the 479x96 surface
+ *  sits at (17,17) inside it, so the whole block is inset by this.
+ *  @see MOBILE_CHAT_FRINGE_X. */
+#define M_CHAT_FRINGE 17
 #define M_STRIP_W 479
 #define M_STRIP_H 36
 #define M_TOGGLE_H 25
@@ -778,8 +782,13 @@ main(void)
     /* The sheet is up by default: on a phone the chat is the one thing that
      * cannot be reached by tapping the world. */
     CHECK(
-        slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, M_H - M_STRIP_H - M_CHAT_H, M_CHAT_W, M_CHAT_H),
-        "the chat sheet is pinned to the bottom-left corner");
+        slot_is(
+            TORIRS_PLUGIN_SLOT_CHAT,
+            M_CHAT_FRINGE,
+            M_H - M_STRIP_H - M_CHAT_H,
+            M_CHAT_W,
+            M_CHAT_H),
+        "the chat sheet is pinned to the bottom-left corner, inset by its fringe");
     for( int i = 0; i < FRAME_CHAT_BUTTON_COUNT; i++ )
         CHECK(
             g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][i].placed,
@@ -863,8 +872,9 @@ main(void)
             if( tag == M_TAG_CHAT )
                 CHECK(
                     x == M_MARGIN &&
-                        y == M_H - M_STRIP_H - M_CHAT_H - M_MARGIN - M_TOGGLE_H,
-                    "the chat switch sits directly above the sheet it operates");
+                        y == M_H - M_STRIP_H - M_CHAT_H - M_CHAT_FRINGE - M_MARGIN -
+                                 M_TOGGLE_H,
+                    "the chat switch clears the sheet art it operates, fringe and all");
         }
     }
 
@@ -937,7 +947,12 @@ main(void)
                 151),
             "the map stays in the top-right corner");
         CHECK(
-            slot_is(TORIRS_PLUGIN_SLOT_CHAT, 0, h - M_STRIP_H - M_CHAT_H, M_CHAT_W, M_CHAT_H),
+            slot_is(
+                TORIRS_PLUGIN_SLOT_CHAT,
+                M_CHAT_FRINGE,
+                h - M_STRIP_H - M_CHAT_H,
+                M_CHAT_W,
+                M_CHAT_H),
             "the sheet stays in the bottom-left corner");
         CHECK(
             slot_is(

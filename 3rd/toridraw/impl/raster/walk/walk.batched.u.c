@@ -69,7 +69,6 @@
  * staging buffer sized to max_faces would not be.
  */
 #define TORIDRAW_RASTER_BATCH_ROWS 64
-#define TORIDRAW_RASTER_BATCH_ROW_INTS TORIDRAW_GOURAUD_RUN_ROW_INTS
 
 enum ToriDraw_RasterBatchClass
 {
@@ -138,8 +137,9 @@ toridraw_raster_batch_flush(
     {
         switch( batch->kind )
         {
+#ifdef TORIDRAW_GOURAUD_PRESORTED_RUN
         case TORIDRAW_RASTER_BATCH_GOURAUD:
-            toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm(
+            TORIDRAW_GOURAUD_PRESORTED_RUN_OPAQUE(
                 ctx->pixel_buffer,
                 ctx->stride,
                 ctx->screen_width,
@@ -148,7 +148,7 @@ toridraw_raster_batch_flush(
                 batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_GOURAUD_ALPHA:
-            toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm(
+            TORIDRAW_GOURAUD_PRESORTED_RUN_ALPHA(
                 ctx->pixel_buffer,
                 ctx->stride,
                 ctx->screen_width,
@@ -156,8 +156,10 @@ toridraw_raster_batch_flush(
                 g_toridraw_raster_batch,
                 batch->count);
             break;
+#endif /* TORIDRAW_GOURAUD_PRESORTED_RUN */
+#ifdef TORIDRAW_FLAT_PRESORTED_RUN
         case TORIDRAW_RASTER_BATCH_FLAT_OPAQUE:
-            toridraw_flat_opaque_s4_presorted_run_xrgb8888_asm(
+            TORIDRAW_FLAT_PRESORTED_RUN_OPAQUE(
                 ctx->pixel_buffer,
                 ctx->stride,
                 ctx->screen_width,
@@ -166,7 +168,7 @@ toridraw_raster_batch_flush(
                 batch->count);
             break;
         case TORIDRAW_RASTER_BATCH_FLAT_ALPHA:
-            toridraw_flat_alpha_s4_presorted_run_xrgb8888_asm(
+            TORIDRAW_FLAT_PRESORTED_RUN_ALPHA(
                 ctx->pixel_buffer,
                 ctx->stride,
                 ctx->screen_width,
@@ -174,6 +176,7 @@ toridraw_raster_batch_flush(
                 g_toridraw_raster_batch,
                 batch->count);
             break;
+#endif /* TORIDRAW_FLAT_PRESORTED_RUN */
 #ifdef TORIDRAW_TEXTRI_PRESORTED_RUN
         case TORIDRAW_RASTER_BATCH_TEX_OPAQUE:
             toridraw_textri_opaque_lerp8_v3_presorted_run_xrgb8888_asm(
@@ -300,8 +303,15 @@ toridraw_raster_batch_classify_textured(
     }
     else
     {
+        /* ctx->texture_map is NULL on a scene with no texture state at all -- a
+         * lazy-textures scene whose first textured model arrived before its first
+         * texture, or an arena scene sized without a map. That is the same state as
+         * a texture id the map does not hold YET, and it takes the same road: the
+         * face is skipped and the miss is tallied. ToriDraw_TextureMapGet asserts on
+         * the map, so the test belongs here rather than inside it. */
         struct ToriDraw_Texture* texture =
-            (texture_id >= 0 && texture_id < TORIDRAW_TEXTURE_ID_CAPACITY)
+            (ctx->texture_map && texture_id >= 0 &&
+             texture_id < TORIDRAW_TEXTURE_ID_CAPACITY)
                 ? ToriDraw_TextureMapGet(ctx->texture_map, texture_id)
                 : NULL;
         /* A miss is the per-face path's to report -- it owns the tally and the
@@ -424,8 +434,21 @@ toridraw_raster_batch_classify(
 
     out->alpha = alpha;
     if( color_c == TORIDRAWHSL16_FLAT )
-        return alpha == 0xFF ? TORIDRAW_RASTER_BATCH_FLAT_OPAQUE : TORIDRAW_RASTER_BATCH_FLAT_ALPHA;
+    {
+#ifdef TORIDRAW_FLAT_PRESORTED_RUN
+        return alpha == 0xFF ? TORIDRAW_RASTER_BATCH_FLAT_OPAQUE
+                             : TORIDRAW_RASTER_BATCH_FLAT_ALPHA;
+#else
+        /* No flat door on this lane; the per-face path draws it, exactly as
+         * it does a textured face on a lane with no textured door. */
+        return TORIDRAW_RASTER_BATCH_NONE;
+#endif
+    }
+#ifdef TORIDRAW_GOURAUD_PRESORTED_RUN
     return alpha == 0xFF ? TORIDRAW_RASTER_BATCH_GOURAUD : TORIDRAW_RASTER_BATCH_GOURAUD_ALPHA;
+#else
+    return TORIDRAW_RASTER_BATCH_NONE;
+#endif
 }
 
 /*

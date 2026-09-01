@@ -88,7 +88,7 @@ raster_gouraudhsllightness_screen_alpha_bary_branching_s1_ordered(
     int d_hsl_AB = color1_hsl16 - color0_hsl16;
     int d_hsl_AC = color2_hsl16 - color0_hsl16;
 
-    double recip_sarea = gouraudhsllightness_barycentric_recip(sarea);
+    gouraudhsllightness_recip_t recip_sarea = gouraudhsllightness_barycentric_recip(sarea);
     int step_x_hsl_ish8 =
         gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, recip_sarea);
     int step_y_hsl_ish8 =

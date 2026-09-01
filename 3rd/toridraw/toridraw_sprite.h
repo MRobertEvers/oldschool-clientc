@@ -266,10 +266,14 @@ ToriDraw_SpriteTransformPixels(
 void
 ToriDraw_SpriteFree(struct ToriDraw_Sprite* sprite);
 
-/** Write sprite ARGB pixels to a 32-bit BMP. Exports the embedded crop rect when set. */
+/** Write sprite ARGB pixels to a 32-bit BMP. Exports the embedded crop rect
+ *  when set. Only present with -DTORIDRAW_SPRITE_BMP_EXPORT, which also
+ *  requires 3rd/bmp on the include path -- see toridraw_sprite.c. */
+#ifdef TORIDRAW_SPRITE_BMP_EXPORT
 int
 ToriDraw_SpriteWriteBmpFile(
     struct ToriDraw_Sprite const* sprite,
     char const* path);
+#endif
 
 #endif

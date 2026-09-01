@@ -85,11 +85,17 @@ library knows not to ask the sort for a stash nothing would read.
 ## The pixel format
 
 Everything that knows how a colour is laid out in a framebuffer word lives in
-`graphics/pixel_format.h` and nowhere else. Seven formats ship — XRGB8888
-(the default), ARGB8888, RGBA8888, ABGR8888, BGRA8888, RGB565, ARGB1555 —
-selected at compile time with `-DTORIDRAW_PIXEL_FORMAT=TORIDRAW_PF_RGB565`,
-the same way `VERTEXINT_BITS` and the ISA lanes are selected. Every raster
-family draws on every one of them.
+`graphics/pixel_format.h` and nowhere else. Eight formats ship — XRGB8888
+(the default), ARGB8888, RGBA8888, ABGR8888, BGRA8888, RGB565, ARGB1555 and
+RGB565_BE — selected at compile time with
+`-DTORIDRAW_PIXEL_FORMAT=TORIDRAW_PF_RGB565`, the same way `VERTEXINT_BITS`
+and the ISA lanes are selected. Every raster family draws on every one of them.
+
+RGB565_BE is the odd one and worth knowing about: it is a BYTE ORDER, not a
+channel layout — RGB565 with the high byte at the low address, which is what
+an SPI display controller clocks out and what `esp_lcd` can swap for you on
+its i80 bus and not on SPI. It is here so a client driving one writes the
+panel's own words rather than byte-swapping every frame on the way out.
 
 This is affordable because **no hot loop interpolates in pixel space**. The
 solid families walk a packed HSL16 word and index a palette that was packed
@@ -117,24 +123,40 @@ tri/span assembly, `TORIPIXEL_LANES_8BIT` for the vector alpha spans,
 `TORIPIXEL_TEXEL_SPACE_IS_NATIVE` for the vector texture spans. A door with no
 kernel for the selected format *declines*, and the caller falls through to the
 C twin, exactly as a projection lane declines for a family it has no kernel
-for. Writing a door for another format means a new file naming it
-(`tri.flat.rgb565.aarch64.S`) and a claim of its own.
+for. Writing a door for another format means a new file naming it and a claim
+of its own.
+
+`impl/raster/asm/tri.flat.rgb565.xtensa.S` is the first of those: the flat
+presorted-run doors in Xtensa LX7 for the ESP32-S3, indexing a 2-byte palette,
+storing 2-byte pixels and blending with the RGB565 spread arithmetic. It is
+gated on the FORMAT as well as the lane, because a kernel that stores halfwords
+into a 32-bit buffer is not a slower answer, it is a wrong one. When a family
+acquires a second format its header also acquires a neutral spelling for the
+door -- `TORIDRAW_FLAT_PRESORTED_RUN_OPAQUE` -- and the batched walk writes
+that instead of a name with a format in it. The gouraud and texture families
+have not acquired one, so they have not grown the spelling.
 
 ```
-make -C src test-scanline-formats      # every raster family x all seven formats
+make -C src test-scanline-formats      # every raster family x all eight formats
 make -C src test-raster-kernel-altformat   # the routing contract, built RGB565
 ```
 
 The first is the one that matters: it compiles with
 `-Werror=incompatible-pointer-types`, so a kernel that has not been converted
 cannot silently accept a native buffer, and it holds every family to the same
-branching references on all seven formats.
+branching references on all eight formats.
 
 ## Adding a variant
 
 - **A new axis value** (another texture gate, another traversal): add it to the
   vocabulary in `tools/kernel_names.py`, then name the file for its full
   coordinate. `make -C src check-kernel-names` fails on an off-grammar name.
+- **A lane with only SOME of a stage's doors**: supported, and the gate is per
+  family. `TORIDRAW_RASTER_BATCH` asks whether there is ANY untextured run
+  door to flush to, and each face class carries its own `#ifdef`; a class with
+  no door is classified `NONE` and the per-face walk draws it, which is what
+  the textured four have always done. The Xtensa lane has the flat doors and
+  not the gouraud ones, and gets the batched walk for the half it can use.
 - **A new ISA lane**: fill that stage's hook contract — three functions for the
   bitonic+radix sort (`impl/facesort/facesort.bitonic_radix.small.dispatch.h`),
   two for the prepared projection
@@ -152,8 +174,14 @@ branching references on all seven formats.
 ```
 make -C src test-toridraw-kernels     # every proof, plus the name check
 make -C src test-kernel-matrix        # the cross-stage agreement test
-make -C src test-scanline-formats     # every raster family x all seven formats
+make -C src test-scanline-formats     # every raster family x all eight formats
+make -C src check-xtensa-asm          # the ESP32-S3 kernel still assembles
 ```
+
+`check-xtensa-asm` is a build, not a test, and it is the most a host can say
+about that lane. The proof itself runs on the part: `3rd/toridraw/test/xtensa`
+is an ESP-IDF app that scores the kernel against the same C references over
+the same generators, and its README carries what it measured.
 
 The matrix is the one that sees what no single-stage test can: a projection, a
 sort and a raster can each be correct alone while the pair of them disagrees

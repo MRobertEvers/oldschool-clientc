@@ -1063,12 +1063,17 @@ ToriDraw_TextureAnimate(
 void
 ToriDraw_TextureMapAnimate(
     struct ToriDraw_TextureMap* map,
-    int cycles)
+    int cycles,
+    int* scratch,
+    int scratch_ints)
 {
-    if( !map || cycles <= 0 )
+    assert(map);
+    assert(scratch);
+    assert(scratch_ints >= 0);
+    /* Zero cycles is what an idle frame passes; it is a real state, not a
+     * caller error. */
+    if( cycles <= 0 )
         return;
-
-    static int scratch[128 * 128];
 
     for( int i = 0; i < map->count; i++ )
     {
@@ -1080,7 +1085,7 @@ ToriDraw_TextureMapAnimate(
             continue;
 
         int const pixel_count = tex->width * tex->height;
-        if( pixel_count <= 0 || pixel_count > (int)(sizeof(scratch) / sizeof(scratch[0])) )
+        if( pixel_count <= 0 || pixel_count > scratch_ints )
             continue;
 
         ToriDraw_TextureAnimate(tex, cycles, scratch);

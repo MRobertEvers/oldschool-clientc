@@ -93,6 +93,24 @@ struct ToriDraw_RasterKernelSD;
 struct ToriDraw_TextureState*
 ToriDraw_SceneTexState(struct ToriDraw_Scene* scene);
 
+/**
+ * The texture map, or NULL when this scene has no texture state.
+ *
+ * Unlike ToriDraw_SceneTexState this never BUILDS one, which is what the
+ * raster context needs: it takes the map for every model, textured or not, so
+ * building on demand there puts a 16 KB calloc behind an untextured icon and
+ * makes an arena scene -- which has no allocator -- unable to draw one at all.
+ *
+ * Handing NULL onward is safe: the two raster sites that resolve a texture
+ * test the map alongside the id, and a NULL map takes the same road as an id
+ * the map does not hold -- the face is skipped and the miss is tallied. That
+ * is a state this engine already supports and reports, not a caller error: a
+ * lazy-textures scene meets its first textured model before its first texture
+ * whenever the cache load is asynchronous, which is always.
+ */
+struct ToriDraw_TextureMap*
+ToriDraw_SceneTextureMapOrNull(struct ToriDraw_Scene* scene);
+
 /* ---- Kernel scratch ------------------------------------------------- */
 
 /**

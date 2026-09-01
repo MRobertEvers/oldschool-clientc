@@ -63,6 +63,7 @@
 #define TORIDRAW_PF_BGRA8888 5 /* BGRA -- alpha in the LOW byte, R/B swapped  */
 #define TORIDRAW_PF_RGB565 6   /* 16bpp, no alpha lane                        */
 #define TORIDRAW_PF_ARGB1555 7 /* 16bpp, one alpha BIT                        */
+#define TORIDRAW_PF_RGB565_BE 8 /* RGB565 with the HIGH byte at the LOW addr  */
 
 /*
  * TORIDRAW_PIXEL16 was the historical 16-bit switch. It selected a uint16_t
@@ -436,6 +437,78 @@ toripixel_argb1555_to_argb8888(uint16_t p)
            ((b5 << 3) | (b5 >> 2));
 }
 
+/* =========================================== RGB565, most significant byte ==
+ *
+ * The same 5/6/5 channels, stored so the HIGH byte sits at the LOW address.
+ *
+ * This is the only format here that is a BYTE ORDER rather than a channel
+ * layout, and it exists because a whole class of display controllers -- SPI
+ * ST7789, ILI9341, GC9A01 and their relatives -- clock a 16bpp pixel most
+ * significant byte first and read the framebuffer as raw bytes. On a
+ * little-endian host that is the reverse of TORIDRAW_PF_RGB565, so a client
+ * driving one had to byte-swap the whole frame on the way to the panel, every
+ * frame, forever. Espressif's esp_lcd offers `swap_color_bytes` on the i80
+ * bus and nothing at all on SPI, so there is no hardware to hand it to.
+ *
+ * A format costs it once, at table-generation time: the palette is emitted
+ * already swapped, and the opaque path -- a palette lookup and a store, which
+ * is most of what a solid raster does -- is bit for bit the work it already
+ * was.
+ *
+ * IT IS NOT EXPRESSIBLE AS A SPREAD MASK, which is why the blend is written
+ * the way it is. Swapping the bytes puts green in two pieces, three bits at
+ * the top of the word and three at the bottom, so the one-multiply-per-pixel
+ * trick RGB565 uses has nothing contiguous to multiply -- and blending the two
+ * halves independently is NOT the same arithmetic: it drops the carry between
+ * them and bands the greens. So the blend unswaps, calls the RGB565
+ * arithmetic, and swaps back. That is a handful of operations per BLENDED
+ * pixel and none at all per opaque one, and it leaves exactly one
+ * implementation of the blend rather than a second copy to drift.
+ */
+
+#define TORIPIXEL_RGB565_BE_SWAP(v)                                                                \
+    ((uint16_t)((((uint16_t)(v)) >> 8) | (((uint16_t)(v)) << 8)))
+
+static inline uint16_t
+toripixel_rgb565_be_pack_argb8888(uint32_t argb)
+{
+    return TORIPIXEL_RGB565_BE_SWAP(toripixel_rgb565_pack_argb8888(argb));
+}
+
+static inline uint16_t
+toripixel_rgb565_be_alpha_blend(int alpha, uint16_t base, uint16_t other)
+{
+    return TORIPIXEL_RGB565_BE_SWAP(toripixel_rgb565_alpha_blend(
+        alpha, TORIPIXEL_RGB565_BE_SWAP(base), TORIPIXEL_RGB565_BE_SWAP(other)));
+}
+
+static inline uint16_t
+toripixel_rgb565_be_shade_blend(uint16_t base, int shade)
+{
+    return TORIPIXEL_RGB565_BE_SWAP(
+        toripixel_rgb565_shade_blend(TORIPIXEL_RGB565_BE_SWAP(base), shade));
+}
+
+/* Zero is zero in either byte order, so the colour key needs no unswap. */
+static inline bool
+toripixel_rgb565_be_is_key(uint16_t p)
+{
+    return p == 0u;
+}
+
+static inline int
+toripixel_rgb565_be_texel_alpha(uint16_t p)
+{
+    (void)p;
+    return 0xFF;
+}
+
+static inline uint32_t
+toripixel_rgb565_be_to_argb8888(uint16_t p)
+{
+    return toripixel_rgb565_to_argb8888(TORIPIXEL_RGB565_BE_SWAP(p));
+}
+
 /* ================================================ the texel shading space ==
  *
  * A TEXEL is not a pixel, and does not become one until it is stored.
@@ -603,6 +676,23 @@ typedef uint16_t toripixel_t;
 #define toripixel_is_key toripixel_argb1555_is_key
 #define toripixel_texel_alpha toripixel_argb1555_texel_alpha
 #define toripixel_to_argb8888 toripixel_argb1555_to_argb8888
+#define toritexel_to_pixel(t) toripixel_pack_argb8888(t)
+
+#elif TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_RGB565_BE
+
+typedef uint16_t toripixel_t;
+#define TORIPIXEL_FORMAT_NAME "rgb565_be"
+#define TORIPIXEL_IS_XRGB8888 0
+#define TORIPIXEL_LANES_8BIT 0
+#define TORIPIXEL_HAS_ALPHA_LANE 0
+#define TORIPIXEL_COLOR_MASK 0xFFFFu
+#define TORIPIXEL_ALPHA_MASK 0x0000u
+#define toripixel_pack_argb8888 toripixel_rgb565_be_pack_argb8888
+#define alpha_blend toripixel_rgb565_be_alpha_blend
+#define shade_blend toripixel_rgb565_be_shade_blend
+#define toripixel_is_key toripixel_rgb565_be_is_key
+#define toripixel_texel_alpha toripixel_rgb565_be_texel_alpha
+#define toripixel_to_argb8888 toripixel_rgb565_be_to_argb8888
 #define toritexel_to_pixel(t) toripixel_pack_argb8888(t)
 
 #else

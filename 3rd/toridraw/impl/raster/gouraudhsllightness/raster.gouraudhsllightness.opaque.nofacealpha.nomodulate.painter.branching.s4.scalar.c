@@ -144,7 +144,7 @@ raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
     /**
      * This is derived from a barycentric coordinate.
      */
-    double recip_sarea = gouraudhsllightness_barycentric_recip(sarea);
+    gouraudhsllightness_recip_t recip_sarea = gouraudhsllightness_barycentric_recip(sarea);
     int step_x_hsl_ish8 =
         gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, recip_sarea);
     int step_y_hsl_ish8 =

@@ -443,10 +443,26 @@ ToriDraw_TextureAnimate(
     int cycles,
     int* scratch);
 
+/** Ints ToriDraw_TextureMapAnimate's scratch must hold: the largest texture
+ *  it will rotate, and 128x128 is the largest the cache carries. */
+#define TORIDRAW_TEXTURE_ANIM_SCRATCH_INTS (128 * 128)
+
+/**
+ * Advance every scrolling texture in the map by `cycles`.
+ *
+ * `scratch` is the caller's, and must hold TORIDRAW_TEXTURE_ANIM_SCRATCH_INTS
+ * ints -- 64 KB. It used to be a function-local static, which meant every
+ * client that linked ToriDraw reserved that 64 KB whether or not it had a
+ * single scrolling texture, and an embedded client that never animates one
+ * paid a quarter of a 250 KB budget for a buffer it could not reach. A texture
+ * larger than the scratch is skipped rather than truncated.
+ */
 void
 ToriDraw_TextureMapAnimate(
     struct ToriDraw_TextureMap* map,
-    int cycles);
+    int cycles,
+    int* scratch,
+    int scratch_ints);
 
 static inline bool
 ToriDraw_ModelHasTextures(struct ToriDraw_ModelHandle hnd)

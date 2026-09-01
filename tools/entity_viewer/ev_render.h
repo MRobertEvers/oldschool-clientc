@@ -14,6 +14,35 @@
 void
 ev_init(void);
 
+/**
+ * Set the colour ev_render clears to, as 0xAARRGGBB. Defaults to the page's
+ * panel colour.
+ *
+ * ev_render fabricates alpha -- it paints this behind the model and then
+ * stamps every pixel opaque -- so an offline caller cannot separate background
+ * from a model pixel of the same colour. Rendering one frame against two
+ * different backgrounds answers it exactly: covered pixels match in both,
+ * uncovered ones differ by the whole change, and a translucent face satisfies
+ * c1 - c2 == (1 - alpha) * (bg1 - bg2), which yields its coverage rather than
+ * merely flagging it. ev_sheet.c uses this to emit real per-pixel alpha.
+ */
+void
+ev_set_bg(uint32_t argb);
+
+/**
+ * Model pitch and roll, in the client's 2048-per-turn units. Both default to
+ * 0, which is what the viewer has always drawn.
+ *
+ * ev_render's own `yaw` argument already turns the model (it sets
+ * ToriDraw_Position.yaw); its `pitch` argument elevates the CAMERA instead.
+ * Position carries pitch and roll too and nothing was setting them, so a
+ * caller wanting the model itself tilted or rolled had no way to ask.
+ */
+void
+ev_set_orientation(
+    int pitch,
+    int roll);
+
 void*
 ev_alloc(int size);
 

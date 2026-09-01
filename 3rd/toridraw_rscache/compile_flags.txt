@@ -1,0 +1,6 @@
+-std=c11
+-I.
+-Iinclude
+-I../toridraw
+-I../rscache/include
+-I../rscache/src

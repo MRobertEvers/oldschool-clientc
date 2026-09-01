@@ -1320,6 +1320,45 @@ main(int argc, char** argv)
         int want_seq = all || strcmp(type_filter, "seq") == 0;
         int want_spotanim = all || strcmp(type_filter, "spotanim") == 0;
         int want_obj = all || strcmp(type_filter, "obj") == 0;
+        int want_loc = all || strcmp(type_filter, "loc") == 0;
+
+        /*
+         * The usage line has promised `loc` since this tool was written and
+         * the search never had an arm for it, so `--type loc` printed nothing
+         * and exited 0 -- indistinguishable from "no match", which is the
+         * worst way for a search to fail. A loc is the type most worth
+         * searching by name: scenery is what you have a wiki name for and no
+         * id.
+         *
+         * A loc names a LIST of models per shape, not one, so the line prints
+         * all of them. Which is the right one depends on the shape it is
+         * placed with, and that is the caller's to decide.
+         */
+        if( want_loc )
+        {
+            int* ids = NULL;
+            int count = 0;
+            if( enumerate_ids(
+                    &cache, RSCACHE_TYPE_LOC, RSCACHE_DAT2_CONFIG_KIND_LOCS, &ids, &count) )
+            {
+                for( int i = 0; i < count; i++ )
+                {
+                    struct RSCache_Dat2ConfigLoc* loc = load_loc(&cache, ids[i]);
+                    if( !loc )
+                        continue;
+                    if( loc->name && strcasestr_ascii(loc->name, name) )
+                    {
+                        printf("loc %6d  \"%s\"  models", ids[i], loc->name);
+                        for( int s = 0; s < loc->shapes_and_model_count; s++ )
+                            for( int j = 0; j < (loc->lengths ? loc->lengths[s] : 0); j++ )
+                                printf(" %d", loc->models[s][j]);
+                        printf("\n");
+                    }
+                    RSCache_Dat2ConfigLocFree(loc);
+                }
+                free(ids);
+            }
+        }
 
         if( want_obj )
         {

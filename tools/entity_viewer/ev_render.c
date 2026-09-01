@@ -424,6 +424,54 @@ static int g_zbuffer_kernels = 0;
  *  does not read as a hole when the model is small. */
 #define EV_BG 0xFF141821u
 
+/*
+ * The colour ev_render clears to, so a caller can change it.
+ *
+ * ev_render fabricates alpha: it paints this behind the model and then stamps
+ * 0xFF on every pixel, so nothing downstream can separate background from a
+ * model pixel that happens to share its colour. Guessing after the fact --
+ * keying on a colour match -- deletes model pixels that resemble the
+ * background, and for a dark model against a dark panel that is most of the
+ * silhouette.
+ *
+ * Rendering one frame against two different backgrounds settles it exactly
+ * instead. A pixel the model covers is identical in both; a pixel it does not
+ * differs by the whole change. Translucent faces fall out of the same
+ * arithmetic: c1 - c2 == (1 - alpha) * (bg1 - bg2), so coverage is recoverable
+ * rather than merely detectable. ev_sheet.c does this.
+ */
+static toripixel_t g_bg = (toripixel_t)EV_BG;
+
+void
+ev_set_bg(uint32_t argb)
+{
+    g_bg = (toripixel_t)argb;
+}
+
+/*
+ * Model orientation beyond the yaw ev_render already takes.
+ *
+ * ToriDraw_Position carries pitch, yaw and roll, but ev_render only ever set
+ * yaw -- the orbit viewer had no use for the other two, so a caller wanting a
+ * model tilted or rolled had no way to ask. These fill the gap; both are in
+ * the client's 2048-per-turn units and default to 0, which is what the viewer
+ * always drew.
+ *
+ * Distinct from ev_render's `pitch` argument, which elevates the CAMERA. That
+ * one moves the eye around a level model; these turn the model itself.
+ */
+static int g_model_pitch = 0;
+static int g_model_roll = 0;
+
+void
+ev_set_orientation(
+    int pitch,
+    int roll)
+{
+    g_model_pitch = pitch & 2047;
+    g_model_roll = roll & 2047;
+}
+
 void
 ev_init(void)
 {
@@ -988,7 +1036,7 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     ev_pose(frame);
 
     for( int i = 0; i < width * height; i++ )
-        g_pixels[i] = (toripixel_t)EV_BG;
+        g_pixels[i] = g_bg;
 
     struct ToriDraw_ModelHandle hnd;
     memset(&hnd, 0, sizeof(hnd));
@@ -1046,6 +1094,8 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     position.y = sin_pitch + (model_height / 2);
     position.z = cos_pitch;
     position.yaw = yaw & 2047;
+    position.pitch = g_model_pitch;
+    position.roll = g_model_roll;
 
     /*
      * Pan, as a camera-space translation of the model.

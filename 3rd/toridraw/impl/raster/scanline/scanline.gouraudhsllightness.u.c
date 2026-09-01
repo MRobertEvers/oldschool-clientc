@@ -66,7 +66,7 @@ scanline_gouraud_plane(
     int d_hsl_ab = color1_hsl16 - color0_hsl16;
     int d_hsl_ac = color2_hsl16 - color0_hsl16;
 
-    double recip_sarea = gouraudhsllightness_barycentric_recip(sarea);
+    gouraudhsllightness_recip_t recip_sarea = gouraudhsllightness_barycentric_recip(sarea);
 
     out->step_x_ish8 = scanline_bary_step_ish8(d_hsl_ab * dy_ac - d_hsl_ac * dy_ab, recip_sarea);
     out->step_y_ish8 = scanline_bary_step_ish8(d_hsl_ac * dx_ab - d_hsl_ab * dx_ac, recip_sarea);

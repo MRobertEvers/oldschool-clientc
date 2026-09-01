@@ -125,6 +125,9 @@ void toridraw_gouraud_alpha_s4_sorting_xrgb8888_asm(
     int color2_hsl16,
     int alpha);
 
+#define TORIDRAW_GOURAUD_PRESORTED_RUN_OPAQUE toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm
+#define TORIDRAW_GOURAUD_PRESORTED_RUN_ALPHA  toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm
+
 /* Sixteen bytes per group, three groups. Must match ROWBYTES in the .S. */
 #define TORIDRAW_GOURAUD_RUN_ROW_INTS 12
 #define TORIDRAW_GOURAUD_PRESORTED_RUN 1
@@ -148,6 +151,62 @@ void toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm(
     int count);
 
 void toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm(
+    toripixel_t* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    const int* rows,
+    int count);
+
+#define TORIDRAW_GOURAUD_TRI_OPAQUE_S4 \
+    raster_gouraudhsllightness_screen_opaque_bary_branching_s4
+
+#define TORIDRAW_GOURAUD_PRESORTED_RUN_OPAQUE toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm
+#define TORIDRAW_GOURAUD_PRESORTED_RUN_ALPHA  toridraw_gouraud_alpha_s4_presorted_run_xrgb8888_asm
+
+#define TORIDRAW_GOURAUD_RUN_ROW_INTS 12
+#define TORIDRAW_GOURAUD_PRESORTED_RUN 1
+
+#elif defined(TORIDRAW_GOURAUD_TRI_XTENSA_ASM) &&                                                  \
+    (TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_RGB565 ||                                                \
+     TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_RGB565_BE)
+
+/*
+ * The Xtensa LX7 / ESP32-S3 lane: tri.gouraudhsllightness.rgb565.xtensa.S.
+ * Only the RUN doors exist, as on AArch64.
+ *
+ * THIS LANE'S COLOUR STEPS ARE AN EXACT INTEGER DIVIDE, which is a real
+ * difference from every other lane and not a detail to discover later. LX7
+ * has no double, and the two gradients are the one place this family wants
+ * one; see the kernel's header and the IDIV arm of
+ * gouraudhsllightness_barycentric_steps.h for why the trade inverts on this
+ * core. A build scoring this kernel against the C must build the C with
+ * -DTORIDRAW_GOURAUD_STEP_IDIV, or the two disagree by one shade step
+ * wherever sarea divides the numerator exactly -- which is the approximation
+ * in the reference, not an error in the kernel.
+ *
+ * Both 16-bit orders are served, by separate symbols; see flat_tri_asm.h.
+ */
+
+#include "graphics/shared_tables.h"
+
+#if TORIDRAW_PIXEL_FORMAT == TORIDRAW_PF_RGB565_BE
+#define TORIDRAW_GOURAUD_PRESORTED_RUN_OPAQUE toridraw_gouraud_opaque_s4_presorted_run_rgb565_be_asm
+#define TORIDRAW_GOURAUD_PRESORTED_RUN_ALPHA  toridraw_gouraud_alpha_s4_presorted_run_rgb565_be_asm
+#else
+#define TORIDRAW_GOURAUD_PRESORTED_RUN_OPAQUE toridraw_gouraud_opaque_s4_presorted_run_rgb565_asm
+#define TORIDRAW_GOURAUD_PRESORTED_RUN_ALPHA  toridraw_gouraud_alpha_s4_presorted_run_rgb565_asm
+#endif
+
+void TORIDRAW_GOURAUD_PRESORTED_RUN_OPAQUE(
+    toripixel_t* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    const int* rows,
+    int count);
+
+void TORIDRAW_GOURAUD_PRESORTED_RUN_ALPHA(
     toripixel_t* pixel_buffer,
     int stride,
     int screen_width,

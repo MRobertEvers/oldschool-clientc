@@ -507,8 +507,15 @@ ToriDraw_RasterModelFaceKernel(
             }
             else
             {
+                /* ctx->texture_map is NULL on a scene with no texture state at all -- a
+                 * lazy-textures scene whose first textured model arrived before its first
+                 * texture, or an arena scene sized without a map. That is the same state as
+                 * a texture id the map does not hold YET, and it takes the same road: the
+                 * face is skipped and the miss is tallied. ToriDraw_TextureMapGet asserts on
+                 * the map, so the test belongs here rather than inside it. */
                 struct ToriDraw_Texture* texture =
-                    (texture_id >= 0 && texture_id < TORIDRAW_TEXTURE_ID_CAPACITY)
+                    (ctx->texture_map && texture_id >= 0 &&
+                     texture_id < TORIDRAW_TEXTURE_ID_CAPACITY)
                         ? ToriDraw_TextureMapGet(ctx->texture_map, texture_id)
                         : NULL;
                 if( !texture )
@@ -744,7 +751,7 @@ context_from_handle(
         ctx->stride = view_port->stride ? view_port->stride : view_port->width;
         ctx->camera_cot16 = toridraw_projection_cot16(
             camera->projection_mode, camera->projection_scale, camera->fov_rpi2048);
-        ctx->texture_map = &ToriDraw_SceneTexState(scene)->texture_map;
+        ctx->texture_map = ToriDraw_SceneTextureMapOrNull(scene);
         ctx->cache_texture_id = -1;
         ctx->cache_texels = NULL;
         ctx->cache_texture_size = 0;

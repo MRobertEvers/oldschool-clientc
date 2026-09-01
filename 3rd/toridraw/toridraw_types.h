@@ -607,7 +607,17 @@ struct ToriDraw_Texture
  * 255, so a 256-slot map silently never draws them (the raster skips faces whose texture
  * is absent). 2048 covers the era with headroom; the map is pointers, so the cost is 16KB.
  */
+/* Overridable, because the map is a flat array and 2048 pointers is 16 KB --
+ * affordable in a world client, most of an embedded client's whole budget. A
+ * client whose texture ids are all small builds with
+ * -DTORIDRAW_TEXTURE_ID_CAPACITY=64. Registering an id past the capacity is
+ * dropped by ToriDraw_TextureMapSet; LOOKING one up aborts in
+ * ToriDraw_TextureMapGet, which is the right way round -- a model naming a
+ * texture this build cannot hold is a configuration error, and the
+ * alternative is a face that silently does not draw. */
+#ifndef TORIDRAW_TEXTURE_ID_CAPACITY
 #define TORIDRAW_TEXTURE_ID_CAPACITY 2048
+#endif
 
 
 struct ToriDraw_TextureMap
@@ -984,10 +994,6 @@ struct ToriDraw_Scene
 
     int* tmp_face_order;
     int tmp_face_order_count;
-
-    faceint_t sparse_a[4096];
-    faceint_t sparse_b[4096];
-    faceint_t sparse_c[4096];
 
     struct ToriDraw_EventQueue event_queue;
     struct ToriDraw_Map* models_hmap;
