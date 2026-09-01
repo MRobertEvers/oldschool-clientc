@@ -8653,9 +8653,22 @@ app_chrome_route_input(
 
     if( ToriRSChrome_MouseMove(ui, input->curr.mouse_x, input->curr.mouse_y) )
         app->input_frame_consumed = 1;
+    /*
+     * The press lands where the button actually went DOWN, not where the
+     * pointer finished the frame.
+     *
+     * curr.mouse_x is the last position any event in this frame's batch
+     * carried, and a press is one event in that batch. A finger crossing the
+     * drag slop pushes move(landed), down(landed), move(now) in a single batch
+     * (input/torirs_touch.c), so reading curr here grabbed a scrollbar a slop's
+     * width from where the finger was put -- which pages the list instead of
+     * taking the grip when the grip's edge is inside that gap. press_origin is
+     * the position the down carried, and for a mouse it is the same number.
+     */
     if( !app->plugin_pointer_capture.active &&
         input->curr.mouse_button_down[TORIRSM_LEFT] &&
-        ToriRSChrome_MouseDown(ui, input->curr.mouse_x, input->curr.mouse_y) )
+        ToriRSChrome_MouseDown(
+            ui, input->press_origin_x[TORIRSM_LEFT], input->press_origin_y[TORIRSM_LEFT]) )
         app->input_frame_consumed = 1;
     if( !app->plugin_pointer_capture.active &&
         input->curr.mouse_button_up[TORIRSM_LEFT] &&
@@ -27717,10 +27730,11 @@ app_minimenu_ui_pick_live(
         if( pick->kind == UI_MINIMENU_PICK_UI && pick->id >= 0 &&
             app->tree->components[pick->node_index].component_id != pick->id )
             return 0;
-        if( pick->allow_own_replacement_hidden
-                ? UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
-                      app->tree, pick->node_index)
-                : UITree_NodeOrAncestorDisplayHidden(app->tree, pick->node_index) )
+        if( UITree_NodeOrAncestorDisplayHiddenEx(
+                app->tree,
+                pick->node_index,
+                pick->allow_own_replacement_hidden,
+                pick->allow_frame_hidden) )
             return 0;
         idx = pick->node_index;
     }
@@ -31883,6 +31897,16 @@ App_InputFrameConsumed(struct App const* app)
 {
     assert(app);
     return app->input_frame_consumed;
+}
+
+int
+App_ChromePointerOwned(struct App const* app, int x, int y)
+{
+    assert(app);
+    /* Asked LIVE rather than answered from app->chrome_pointer_owned: that
+     * field is this frame's pointer, latched once, and the caller here is the
+     * touch layer asking about a point of its own. */
+    return app_chrome_wants_pointer(app, x, y);
 }
 
 void

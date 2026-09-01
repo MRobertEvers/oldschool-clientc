@@ -3174,6 +3174,22 @@ app_plugin_click_node(struct App* app, int32_t node, int op)
      * Ignore only this node's own display:none tombstone; hidden ancestors and
      * any rebuild during menu interception remain hard lifetime fences. */
     pick.allow_own_replacement_hidden = 1;
+    /*
+     * And the frame plugin's own suppression is not a fence either.
+     *
+     * A gameframe plugin hides what it is not showing -- the mobile drawer
+     * puts every sidebar panel away when it is shut -- and that flag is a
+     * statement about PIXELS. This press is not a click on pixels: it names a
+     * component and asks for its action, which is exactly what the orb, the
+     * plugin's own tab stone and every other synthesised press mean. Leaving
+     * the flag as a fence is what made the minimap orbs do nothing until the
+     * player opened a sidetab by hand: the run toggle lives in the controls
+     * panel, which the shut drawer had hidden, so the press resolved the node,
+     * built the row and was dropped without a word. A hide the CACHE or a
+     * script authored (behavior.hide) still refuses, which is the difference
+     * that matters -- that one means the game says this button is not there.
+     */
+    pick.allow_frame_hidden = 1;
 
     /*
      * The action a real click on THIS button would carry, derived from its own

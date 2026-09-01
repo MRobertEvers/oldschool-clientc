@@ -92,24 +92,37 @@ toridraw_sel3_neon32(
  */
 static inline uint32x4_t
 toridraw_winding_front_neon32(
-    int64x2_t w_lo,
-    int64x2_t w_hi)
+    int64x2_t nw_lo,
+    int64x2_t nw_hi)
 {
-    /* vshrn_n_s64(w, 32) is an arithmetic shift, so the high word arrives
-     * signed; vmovn_u64(w) is the low 32 bits, which are unsigned. */
-    int32x4_t const high = vcombine_s32(vshrn_n_s64(w_lo, 32), vshrn_n_s64(w_hi, 32));
-    int32x4_t const zero = vdupq_n_s32(0);
+    /*
+     * THE CALLER HANDS IN -w, NOT w. A 64-bit value is negative iff its high
+     * word is, whatever the low word holds -- so `w < 0` is one compare on
+     * the narrowed high words, while `w > 0` needs the high word AND a
+     * low-word tie-break for high == 0 (five more vector ops: two vmovn, a
+     * vtst, a vceq, an and/or). Multiplying the cross product the other way
+     * round costs nothing (the same vmull / vmlsl with the operands swapped)
+     * and turns the front test into the cheap direction: front means w > 0,
+     * that is -w < 0. |w| < 2^63 always, so negating cannot overflow and the
+     * two tests agree bit for bit with graphics/winding.h.
+     *
+     * vshrn_n_s64(nw, 32) is an arithmetic narrowing shift: the high word
+     * arrives signed.
+     */
+    int32x4_t const high = vcombine_s32(vshrn_n_s64(nw_lo, 32), vshrn_n_s64(nw_hi, 32));
 #if TORIDRAW_FLIP_WINDING
-    /* w < 0 iff its high word is negative, whatever the low word holds. */
-    return vcltq_s32(high, zero);
-#else
+    /* front is w < 0, i.e. -w > 0: high word positive, or zero with a
+     * non-zero low word. The flipped build takes the five-op form. */
     {
+        int32x4_t const zero = vdupq_n_s32(0);
         uint32x4_t const low = vcombine_u32(
-            vmovn_u64(vreinterpretq_u64_s64(w_lo)), vmovn_u64(vreinterpretq_u64_s64(w_hi)));
-        /* vtstq_u32(low, low) is `low != 0`. */
+            vmovn_u64(vreinterpretq_u64_s64(nw_lo)), vmovn_u64(vreinterpretq_u64_s64(nw_hi)));
         uint32x4_t const low_nonzero = vtstq_u32(low, low);
         return vorrq_u32(vcgtq_s32(high, zero), vandq_u32(vceqq_s32(high, zero), low_nonzero));
     }
+#else
+    /* front is w > 0, i.e. -w < 0: the sign of the high word, spread. */
+    return vreinterpretq_u32_s32(vshrq_n_s32(high, 31));
 #endif
 }
 
@@ -134,6 +147,12 @@ toridraw_winding_front_neon32(
  *   + sentinel store, sort over ALL keys (no pack)       53.2 46.9 45.0 47.6 62.8
  *   interleaved gather + transposes, ARM left-pack       51.5 46.7 45.2 48.0 56.7
  *   interleaved gather, sentinel store, COMPACTION PASS  46.6 40.7 40.7 42.1 49.6
+ *   + near_clipped / stash folded per model (4 loops)    44.3 39.4 36.1 39.4 46.1
+ *   + winding built negated (one-op sign), running
+ *     key base (two-op key)                              41.5 37.1 34.8 38.3 44.7
+ *   + two blocks per loop trip (independent chains)      44.4 38.9 36.9 40.9 49.0
+ *     LOST: two blocks' gathered vectors are 36 q-registers against the
+ *     16 A32 has, and the spills cost more than the overlap bought.
  *
  * So neither the gather nor the pack was the cost on its own. What the block
  * could not do was overlap: the pack needed the keys on the ARM side at the
@@ -145,14 +164,16 @@ toridraw_winding_front_neon32(
  * under one, spent on the winding's 64-bit products, the near-clip and
  * depth compares and the key build.
  */
-static inline int
+static inline __attribute__((always_inline)) int
 toridraw_face_sort_bitonic_radix_block4_neon32(
     struct ToriDraw_Scene* scene,
     int f,
-    int32x4_t near_clip_sentinel, /* -5000 x4 when near_clipped, else INT_MIN x4 */
+    int32x4_t near_clip_sentinel, /* -5000 x4; read only when spec_clipped */
     int32x4_t min_depth,
     uint32x4_t depth_levels,
-    int stash_xy,
+    int const spec_clipped, /* literal at every call: folds the clip test away */
+    int const spec_stash,   /* literal at every call: folds the stash body away */
+    uint32x4_t key_base,    /* 0xFFFF0000 | (f + lane), advanced by the loop */
     const int* RESTRICT xyz,
     const faceint_t* RESTRICT face_a,
     const faceint_t* RESTRICT face_b,
@@ -192,18 +213,25 @@ toridraw_face_sort_bitonic_radix_block4_neon32(
     int32x4_t const dy1 = vsubq_s32(ay, by);
     int32x4_t const dx2 = vsubq_s32(cx, bx);
     int32x4_t const dy2 = vsubq_s32(cy, by);
-    int64x2_t w_lo = vmull_s32(vget_low_s32(dx1), vget_low_s32(dy2));
-    int64x2_t w_hi = vmull_s32(vget_high_s32(dx1), vget_high_s32(dy2));
-    w_lo = vmlsl_s32(w_lo, vget_low_s32(dy1), vget_low_s32(dx2));
-    w_hi = vmlsl_s32(w_hi, vget_high_s32(dy1), vget_high_s32(dx2));
-    uint32x4_t const front = toridraw_winding_front_neon32(w_lo, w_hi);
+    /* Built NEGATED -- nw = dy1*dx2 - dx1*dy2 = -(dx1*dy2 - dy1*dx2) -- so
+     * the sign test is one instruction; see toridraw_winding_front_neon32. */
+    int64x2_t nw_lo = vmull_s32(vget_low_s32(dy1), vget_low_s32(dx2));
+    int64x2_t nw_hi = vmull_s32(vget_high_s32(dy1), vget_high_s32(dx2));
+    nw_lo = vmlsl_s32(nw_lo, vget_low_s32(dx1), vget_low_s32(dy2));
+    nw_hi = vmlsl_s32(nw_hi, vget_high_s32(dx1), vget_high_s32(dy2));
+    uint32x4_t const front = toridraw_winding_front_neon32(nw_lo, nw_hi);
 
     /* A clipped vertex has sentinel x and no screen-space winding yet: the
-     * face is kept and the near-plane rebuild decides. With near_clipped
-     * false the sentinel vector is INT_MIN and this never matches. */
-    uint32x4_t const clip = vorrq_u32(
-        vorrq_u32(vceqq_s32(ax, near_clip_sentinel), vceqq_s32(bx, near_clip_sentinel)),
-        vceqq_s32(cx, near_clip_sentinel));
+     * face is kept and the near-plane rebuild decides. Only the clipped
+     * variant asks -- `near_clipped` is a per-MODEL fact the projection
+     * decided, so the plain variant, which is nearly every model, carries
+     * neither the three compares nor the flag. Same split the bucket sort
+     * and the projection families make. */
+    uint32x4_t const clip = spec_clipped
+        ? vorrq_u32(
+              vorrq_u32(vceqq_s32(ax, near_clip_sentinel), vceqq_s32(bx, near_clip_sentinel)),
+              vceqq_s32(cx, near_clip_sentinel))
+        : vdupq_n_u32(0);
 
     /* depth = (z_sum * 21845) >> 16 + min_depth, as div3_fast_fixedpoint. */
     int32x4_t depth = vaddq_s32(vaddq_s32(az, bz), cz);
@@ -211,15 +239,17 @@ toridraw_face_sort_bitonic_radix_block4_neon32(
     depth = vaddq_s32(depth, min_depth);
     uint32x4_t const in_range = vcltq_u32(vreinterpretq_u32_s32(depth), depth_levels);
 
-    uint32x4_t const accept = vandq_u32(vorrq_u32(front, clip), in_range);
+    uint32x4_t const accept = spec_clipped ? vandq_u32(vorrq_u32(front, clip), in_range)
+                                           : vandq_u32(front, in_range);
 
-    /* key = (0xFFFF - depth) << 16 | face */
-    uint32x4_t key = vreinterpretq_u32_s32(vsubq_s32(vdupq_n_s32(0xFFFF), depth));
-    key = vshlq_n_u32(key, 16);
-    {
-        uint32x4_t const lane_id = { 0, 1, 2, 3 };
-        key = vorrq_u32(key, vaddq_u32(vdupq_n_u32((uint32_t)f), lane_id));
-    }
+    /* key = (0xFFFF - depth) << 16 | face, as
+     *   key_base - (depth << 16)   with   key_base = 0xFFFF0000 | (f + lane).
+     * depth < 0x10000 whenever the face is accepted, so the shifted depth
+     * never borrows into the face half; a rejected lane's key is garbage
+     * and is replaced by the sentinel below. Two ops, and key_base is a
+     * vector the loop advances by four instead of a vdup of f per block. */
+    uint32x4_t const key =
+        vsubq_u32(key_base, vreinterpretq_u32_s32(vshlq_n_s32(depth, 16)));
 
     {
         /*
@@ -242,7 +272,7 @@ toridraw_face_sort_bitonic_radix_block4_neon32(
          */
         vst1q_u32(keys, vbslq_u32(accept, key, vdupq_n_u32(0xFFFFFFFFu)));
 
-        if( stash_xy )
+        if( spec_stash )
         {
             /* The y-sort permutation, all four at once, with the C's `<=` ties:
              *   p = (ya<=yb && ya<=yc) ? (yb<=yc ? 0 : 1)
@@ -398,6 +428,8 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
     int32x4_t sentinel;
     int32x4_t min_depth;
     uint32x4_t levels;
+    uint32x4_t key_base;
+    uint32x4_t const four = vdupq_n_u32(4);
     int* xyz;
     int f;
     int v;
@@ -435,40 +467,101 @@ toridraw_face_sort_bitonic_radix_lane_blocks(
     assert(xyz);
     {
         int32x4x4_t quad;
+        /* The z range rides along for two ops a quad: it bounds every
+         * face's depth, which is what lets a shallow model's radix finish
+         * in one pass (see toridraw_radix_sort_depth). */
+        int32x4_t zmin = vdupq_n_s32(INT_MAX);
+        int32x4_t zmax = vdupq_n_s32(INT_MIN);
+        int z_lo;
+        int z_hi;
         quad.val[3] = vdupq_n_s32(0);
         for( v = 0; v + 4 <= num_vertices; v += 4 )
         {
             quad.val[0] = vld1q_s32(vx + v);
             quad.val[1] = vld1q_s32(vy + v);
             quad.val[2] = vld1q_s32(vz + v);
+            zmin = vminq_s32(zmin, quad.val[2]);
+            zmax = vmaxq_s32(zmax, quad.val[2]);
             vst4q_s32(xyz + (size_t)v * 4, quad);
+        }
+        {
+            int32x2_t lo2 = vpmin_s32(vget_low_s32(zmin), vget_high_s32(zmin));
+            int32x2_t hi2 = vpmax_s32(vget_low_s32(zmax), vget_high_s32(zmax));
+            lo2 = vpmin_s32(lo2, lo2);
+            hi2 = vpmax_s32(hi2, hi2);
+            z_lo = vget_lane_s32(lo2, 0);
+            z_hi = vget_lane_s32(hi2, 0);
         }
         for( ; v < num_vertices; v++ )
         {
+            int const z = vz[v];
             xyz[(size_t)v * 4 + 0] = vx[v];
             xyz[(size_t)v * 4 + 1] = vy[v];
-            xyz[(size_t)v * 4 + 2] = vz[v];
+            xyz[(size_t)v * 4 + 2] = z;
             xyz[(size_t)v * 4 + 3] = 0;
+            if( z < z_lo )
+                z_lo = z;
+            else if( z > z_hi )
+                z_hi = z;
+        }
+        /*
+         * depth = div3_fast_fixedpoint(za + zb + zc) + model_min_depth, and
+         * div3_fast_fixedpoint is monotone while its product does not wrap
+         * (|z_sum| <= 98,304, i.e. |z| <= 32,767): the extreme depths are
+         * then those of three z_lo's and three z_hi's. Outside that range
+         * the bound is left unknown rather than trusted.
+         */
+        if( z_lo >= -32767 && z_hi <= 32767 )
+        {
+            scene->sm_sort_depth_lo = div3_fast_fixedpoint(3 * z_lo) + model_min_depth;
+            scene->sm_sort_depth_hi = div3_fast_fixedpoint(3 * z_hi) + model_min_depth;
         }
     }
 
     sentinel = vdupq_n_s32(near_clipped ? TORIDRAW_SCREEN_X_NEAR_CLIPPED : INT_MIN);
     min_depth = vdupq_n_s32(model_min_depth);
     levels = vdupq_n_u32((uint32_t)scene->depth_levels);
+    {
+        uint32x4_t const lane_id = { 0, 1, 2, 3 };
+        key_base = vaddq_u32(vdupq_n_u32(0xFFFF0000u | (uint32_t)f), lane_id);
+    }
 
-    for( ; f + 4 <= num_faces; f += 4 )
-        n += toridraw_face_sort_bitonic_radix_block4_neon32(
-            scene,
-            f,
-            sentinel,
-            min_depth,
-            levels,
-            stash_xy,
-            xyz,
-            face_a,
-            face_b,
-            face_c,
-            keys + n);
+    /*
+     * The two questions are asked ONCE, here, and each answer picks a loop
+     * whose block was compiled with the answers as literals -- plain,
+     * clipped, stash, stash+clipped -- exactly as
+     * bucket_sort_by_average_depth_small dispatches to its four loops. The
+     * block is always_inline with `int const` flags, so each call below is
+     * its own copy with the flag tests folded: the plain loop has no clip
+     * compares and no stash body in it at all. On the GPU lanes every model
+     * is plain.
+     */
+#define TORIDRAW_NEON32_BLOCK_LOOP(spec_clipped_, spec_stash_)                                   \
+    do                                                                                             \
+    {                                                                                              \
+        for( ; f + 4 <= num_faces; f += 4 )                                                        \
+        {                                                                                          \
+            n += toridraw_face_sort_bitonic_radix_block4_neon32(                                   \
+                scene, f, sentinel, min_depth, levels, (spec_clipped_), (spec_stash_), key_base,  \
+                xyz, face_a, face_b, face_c, keys + n);                                            \
+            key_base = vaddq_u32(key_base, four);                                                  \
+        }                                                                                          \
+    } while( 0 )
+    if( near_clipped )
+    {
+        if( stash_xy )
+            TORIDRAW_NEON32_BLOCK_LOOP(1, 1);
+        else
+            TORIDRAW_NEON32_BLOCK_LOOP(1, 0);
+    }
+    else
+    {
+        if( stash_xy )
+            TORIDRAW_NEON32_BLOCK_LOOP(0, 1);
+        else
+            TORIDRAW_NEON32_BLOCK_LOOP(0, 0);
+    }
+#undef TORIDRAW_NEON32_BLOCK_LOOP
 
     *f_io = f;
 

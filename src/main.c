@@ -466,6 +466,20 @@ capture_from_software(void* user, int* pixels, int width, int height)
     return 1;
 }
 
+/**
+ * The touch layer's "is this point a window rather than the world?".
+ *
+ * The plugin panel and the developer chrome are drawn INSIDE the world's
+ * rectangle, so the viewport test alone calls a finger landing on one a camera
+ * drag -- which the camera then refuses, because its own gate asks this same
+ * question. A drag on the panel's scrollbar drove nothing at all.
+ */
+static int
+touch_overlay_owns_point(void* user, int x, int y)
+{
+    return App_ChromePointerOwned((struct App const*)user, x, y);
+}
+
 /** Interactive present: Soft3D writes pixels then blits; GPU backends drain the
  * same retained frame and present it. Headless/BMP paths keep using App_Render. */
 static void
@@ -1577,13 +1591,19 @@ frame_loop_step(void)
                  * measured against the viewport the LAST frame actually drew.
                  * Publishing it after would test a touch against a box that
                  * does not exist on screen yet.
+                 *
+                 * And only while a world desc actually survived that walk:
+                 * world_emit_desc is not cleared when the world goes away, so a
+                 * login screen or a full-screen world map would otherwise hand
+                 * the camera gesture a box that is no longer on the canvas --
+                 * every other reader of the desc guards it the same way.
                  */
                 PlatformWindow_SetTouchViewport(
                     platform,
-                    app.world_emit_desc.x,
-                    app.world_emit_desc.y,
-                    app.world_emit_desc.w,
-                    app.world_emit_desc.h);
+                    app.world_view_valid ? app.world_emit_desc.x : 0,
+                    app.world_view_valid ? app.world_emit_desc.y : 0,
+                    app.world_view_valid ? app.world_emit_desc.w : 0,
+                    app.world_view_valid ? app.world_emit_desc.h : 0);
                 PlatformWindow_PollCommands(platform, &bus);
                 if( sock )
                     NetTransport_Poll(sock, app.net, &bus);
@@ -5074,6 +5094,15 @@ main(
             App_Shutdown(&app);
             return 1;
         }
+
+        /*
+         * The other half of the touch viewport published every frame below:
+         * which points inside it are covered by a window.
+         *
+         * Registered once -- the App outlives the platform here, and the
+         * predicate reads live state, so there is nothing to keep current.
+         */
+        PlatformWindow_SetTouchOverlayTest(platform, touch_overlay_owns_point, &app);
 
         /*
          * Choose the plugin window's presentation.

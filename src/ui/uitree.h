@@ -2579,6 +2579,25 @@ UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
     struct UITree const* tree,
     int32_t node_index);
 
+/**
+ * The same query with each exemption stated separately.
+ *
+ * `ignore_own_replacement` is the ExceptReplacement form above.
+ * `ignore_frame_hidden` drops the gameframe PLUGIN's own suppression from the
+ * fence, and exists for the one caller that is not a click on pixels: a
+ * synthesised button press names a component, not a place on the screen, so a
+ * panel the arranger is simply not showing right now is not a reason to
+ * refuse it -- while a hide the cache or a script authored still is. Every
+ * other flag (behavior.hide, screen, projection, an ancestor's replacement,
+ * an orphaned root) fences as before.
+ */
+int
+UITree_NodeOrAncestorDisplayHiddenEx(
+    struct UITree const* tree,
+    int32_t node_index,
+    int ignore_own_replacement,
+    int ignore_frame_hidden);
+
 /** Set a replacement suppression only when `node_index` still holds the exact
  * incarnation the caller resolved. Returns 1 when the identity was live (also
  * for an idempotent write), 0 for a missing or recycled slot. */

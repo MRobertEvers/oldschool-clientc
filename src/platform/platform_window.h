@@ -10,6 +10,9 @@ struct ToriRS_CmdBus;
 /* The GL window handle, opaque and windowing-library-free.
  * @see platform/platform_gl_context.h. */
 #include "platform/platform_gl_context.h"
+/* ToriRS_TouchOverlayFn, for the gesture seam below. The touch header is
+ * policy and two integers deep -- it pulls in nothing. */
+#include "input/torirs_touch.h"
 
 struct PlatformWindow*
 PlatformWindow_New(void);
@@ -359,6 +362,21 @@ PlatformWindow_SetTextInput(struct PlatformWindow* platform, int on);
 void
 PlatformWindow_SetTouchViewport(
     struct PlatformWindow* platform, int x, int y, int w, int h);
+
+/**
+ * What is drawn OVER that viewport, so a drag beginning on it is not the camera.
+ *
+ * The client draws windows inside the world's rectangle -- the plugin panel, the
+ * developer chrome -- and a drag that starts on one belongs to it. The platform
+ * cannot know that, so the client hands down a predicate it can ask about the
+ * point a finger landed on. @see input/torirs_touch.h.
+ *
+ * Set once; NULL is "nothing covers the world". A no-op on a backend with no
+ * touch state, like the viewport above.
+ */
+void
+PlatformWindow_SetTouchOverlayTest(
+    struct PlatformWindow* platform, ToriRS_TouchOverlayFn fn, void* user);
 
 void
 PlatformWindow_SetCanvasFollowsWindow(

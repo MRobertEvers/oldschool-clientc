@@ -1310,6 +1310,8 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "compass";
     case UIELEM_BUILTIN_CROSS:
         return "cross";
+    case UIELEM_BUILTIN_INKWELL:
+        return "inkwell";
     case UIELEM_BUILTIN_LOGIN_INPUT:
         return "login_input";
     case UIELEM_BUILTIN_LOGIN_BUTTON:
@@ -5298,7 +5300,8 @@ uitree_node_or_ancestor_hidden(
     struct UITree const* tree,
     int32_t idx,
     int include_plugin_hidden,
-    int32_t ignore_own_replacement)
+    int32_t ignore_own_replacement,
+    int ignore_frame_hidden)
 {
     int group;
     int mount_hops = 0;
@@ -5321,7 +5324,7 @@ uitree_node_or_ancestor_hidden(
             group_root = idx;
             if( tree->components[idx].behavior.hide ||
                 (include_plugin_hidden &&
-                 (tree->components[idx].frame_hidden ||
+                 ((tree->components[idx].frame_hidden && !ignore_frame_hidden) ||
                   tree->components[idx].screen_hidden ||
                   tree->components[idx].projection_hidden ||
                   (tree->components[idx].replacement_hidden &&
@@ -5359,7 +5362,7 @@ UITree_ComponentOrAncestorHidden(
     /* Cache/script activity remains live beneath a plugin frame so native CS2
      * state is current the instant the effective frame layer is released. */
     return uitree_node_or_ancestor_hidden(
-        tree, UITree_FindByComponentId(tree, component_id), 0, -1);
+        tree, UITree_FindByComponentId(tree, component_id), 0, -1, 0);
 }
 
 int
@@ -5368,7 +5371,7 @@ UITree_ComponentOrAncestorDisplayHidden(
     int component_id)
 {
     return uitree_node_or_ancestor_hidden(
-        tree, UITree_FindByComponentId(tree, component_id), 1, -1);
+        tree, UITree_FindByComponentId(tree, component_id), 1, -1, 0);
 }
 
 int
@@ -5379,7 +5382,7 @@ UITree_NodeOrAncestorDisplayHidden(
     assert(tree);
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return 1;
-    return uitree_node_or_ancestor_hidden(tree, node_index, 1, -1);
+    return uitree_node_or_ancestor_hidden(tree, node_index, 1, -1, 0);
 }
 
 int
@@ -5391,7 +5394,25 @@ UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return 1;
     return uitree_node_or_ancestor_hidden(
-        tree, node_index, 1, node_index);
+        tree, node_index, 1, node_index, 0);
+}
+
+int
+UITree_NodeOrAncestorDisplayHiddenEx(
+    struct UITree const* tree,
+    int32_t node_index,
+    int ignore_own_replacement,
+    int ignore_frame_hidden)
+{
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return 1;
+    return uitree_node_or_ancestor_hidden(
+        tree,
+        node_index,
+        1,
+        ignore_own_replacement ? node_index : -1,
+        ignore_frame_hidden);
 }
 
 static int

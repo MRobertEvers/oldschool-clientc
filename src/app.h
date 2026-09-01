@@ -3636,6 +3636,18 @@ int
 App_InputFrameConsumed(struct App const* app);
 
 /**
+ * Does chrome DRAWN IN THIS CANVAS own this canvas point?
+ *
+ * The same question the game's own hover, wheel and click-to-walk gates ask
+ * (app_chrome_wants_pointer), exported because the TOUCH layer has to ask it
+ * too: a finger landing on the plugin window is landing on a window, not on the
+ * world it happens to be drawn over, and only this can tell the two apart.
+ * Const and side-effect free -- it may be asked at any point in a frame.
+ */
+int
+App_ChromePointerOwned(struct App const* app, int x, int y);
+
+/**
  * Relayout + CS1 re-evaluate + mark for redraw after an out-of-band tree
  * mutation (slot mounts, packet-driven component changes).
  */

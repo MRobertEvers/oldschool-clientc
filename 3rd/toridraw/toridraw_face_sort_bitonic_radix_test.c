@@ -90,7 +90,12 @@ rnd_range(int lo, int hi)
 /* A random closed-ish blob: vertices in a box, faces random triples of
  * distinct vertices, a random winding, so roughly half face away. */
 static struct ToriDraw_Model*
-make_model(int vertex_count, int face_count, int extent, int with_priorities, int with_alpha)
+make_model(
+    int vertex_count,
+    int face_count,
+    int extent,
+    int with_priorities, /* 0 none, 1 all twelve classes, 2 one value throughout */
+    int with_alpha)
 {
     struct ToriDraw_Model* m = ToriDraw_ModelNew(vertex_count, face_count, 0);
     assert(m);
@@ -147,12 +152,19 @@ make_model(int vertex_count, int face_count, int extent, int with_priorities, in
         size_t nbytes = (size_t)((face_count + 1) / 2);
         m->face_priorities = calloc(nbytes, 1);
         assert(m->face_priorities);
+        /* with_priorities == 2: one value on every face, so the uniform
+         * fast path (toridraw_face_priorities_uniform) is what gets compared
+         * against the bucket lane's full partition; the value cycles through
+         * the fixed bands and both flexible ones across models. */
+        int const uniform = rnd_range(0, 11);
         for( int f = 0; f < face_count; f++ )
         {
             /* All twelve priority classes, the flexible 10 and 11 included,
              * with a bias toward the common few so runs are long enough for
              * the partition's within-run order to matter. */
             int prio = (rnd() & 3) ? rnd_range(0, 3) : rnd_range(0, 11);
+            if( with_priorities == 2 )
+                prio = uniform;
             m->face_priorities[f >> 1] |= (uint8_t)(prio << ((f & 1) * 4));
         }
     }
@@ -396,6 +408,20 @@ now_us(void)
     return (double)ts.tv_sec * 1e6 + (double)ts.tv_nsec * 1e-3;
 }
 
+/* A skipped arm (TORIDRAW_FACE_SORT_BENCH_ARM) keeps its 1e30 placeholder; print
+ * it as a blank rather than a 31-digit number. */
+static double
+bench_shown(double best)
+{
+    return best < 1e29 ? best : 0.0;
+}
+
+static double
+bench_ratio(double bucket, double keys)
+{
+    return (bucket < 1e29 && keys < 1e29 && bucket > 0.0) ? keys / bucket : 0.0;
+}
+
 static void
 bench_sorts(struct ToriDraw_Scene* scene)
 {
@@ -486,8 +512,9 @@ bench_sorts(struct ToriDraw_Scene* scene)
                     best[a] = t0;
             }
         }
-        printf("%-8d %-8ld %12.3f %12.3f %12.2f %12.2f   %.2fx\n", fc, drawn / reps, best[0],
-               best[1], best[0] * 1000.0 / fc, best[1] * 1000.0 / fc, best[1] / best[0]);
+        printf("%-8d %-8ld %12.3f %12.3f %12.2f %12.2f   %.2fx\n", fc, drawn / reps,
+               bench_shown(best[0]), bench_shown(best[1]), bench_shown(best[0]) * 1000.0 / fc,
+               bench_shown(best[1]) * 1000.0 / fc, bench_ratio(best[0], best[1]));
         for( m = 0; m < MODELS; m++ )
             ToriDraw_ModelFree(models[m]);
     }
@@ -544,8 +571,9 @@ bench_sorts(struct ToriDraw_Scene* scene)
                 }
             }
             printf("%-8s %-8ld %12.3f %12.3f %12.2f %12.2f   %.2fx   (tile kernel %s)\n", "tile2",
-                   drawn / reps, best[0], best[1], best[0] * 1000.0 / 2, best[1] * 1000.0 / 2,
-                   best[1] / best[0],
+                   drawn / reps, bench_shown(best[0]), bench_shown(best[1]),
+                   bench_shown(best[0]) * 1000.0 / 2, bench_shown(best[1]) * 1000.0 / 2,
+                   bench_ratio(best[0], best[1]),
                    getenv("TORIDRAW_TILE_SORT") ? getenv("TORIDRAW_TILE_SORT")
                                                 : "1 (scalar, default)");
         }
@@ -569,7 +597,10 @@ main(void)
     /* The small tier is the world painter's; it is the one with the
      * bitonic+radix sort's buffers. LOW_2K holds 2048 faces, so every count
      * above fits. */
-    scene = ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    /* DEPTH_16K: what the Android client runs (src/app.c), and what sizes
+     * the radix's digits -- the bench has to sort the same key range. */
+    scene = ToriDraw_SceneNew(
+        TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_DEPTH_16K, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     assert(scene);
 
     for( size_t fi = 0; fi < sizeof(face_counts) / sizeof(face_counts[0]); fi++ )
@@ -577,9 +608,13 @@ main(void)
         int face_count = face_counts[fi];
         int vertex_count = face_count < 8 ? 8 : (face_count > 2000 ? 2000 : face_count);
 
-        for( int variant = 0; variant < 16; variant++ )
+        for( int variant = 0; variant < 32; variant++ )
         {
-            int with_priorities = (variant & 1);
+            /* Bit 4 turns the priority fixtures uniform: 0 none, 1 varied,
+             * 2 one value (the fast path). Unpriced models are run once. */
+            int with_priorities = (variant & 1) ? ((variant & 16) ? 2 : 1) : 0;
+            if( !(variant & 1) && (variant & 16) )
+                continue;
             int with_alpha = (variant & 2) != 0;
             /* 16 variants and not 12, so `presort` and the near distance
              * overlap: at 12 the two bits were disjoint and the stash was

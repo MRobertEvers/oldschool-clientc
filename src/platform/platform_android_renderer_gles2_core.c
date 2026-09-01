@@ -2761,14 +2761,19 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
                 ANDROID_LOG_INFO,
                 "torirs",
                 "gles2 sort/frame: models by bake size tile2 %.0f <=16 %.0f <=64 %.0f <=256 %.0f "
-                "larger %.0f; faces in %.0f out %.0f",
+                "larger %.0f; faces in %.0f out %.0f; radix shallow %.1f two-pass %.1f; "
+                "prio uniform %.1f varied %.1f",
                 renderer->painter_stat_sort_models[0] / 300.0,
                 renderer->painter_stat_sort_models[1] / 300.0,
                 renderer->painter_stat_sort_models[2] / 300.0,
                 renderer->painter_stat_sort_models[3] / 300.0,
                 renderer->painter_stat_sort_models[4] / 300.0,
                 renderer->painter_stat_sort_faces_in / 300.0,
-                renderer->painter_stat_sort_faces_out / 300.0);
+                renderer->painter_stat_sort_faces_out / 300.0,
+                g_toridraw_radix_shallow_models / 300.0,
+                g_toridraw_radix_two_pass_models / 300.0,
+                g_toridraw_prio_uniform_models / 300.0,
+                g_toridraw_prio_varied_models / 300.0);
         }
         if( renderer->painter_stat_frames >= 300u )
         {
@@ -2783,6 +2788,10 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
                 renderer->painter_stat_sort_models, 0, sizeof(renderer->painter_stat_sort_models));
             renderer->painter_stat_sort_faces_in = 0u;
             renderer->painter_stat_sort_faces_out = 0u;
+            g_toridraw_radix_shallow_models = 0;
+            g_toridraw_radix_two_pass_models = 0;
+            g_toridraw_prio_uniform_models = 0;
+            g_toridraw_prio_varied_models = 0;
         }
     }
 

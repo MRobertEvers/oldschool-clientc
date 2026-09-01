@@ -2712,6 +2712,7 @@ test-uitree: $(OBJ_DIR)
 		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
+		ui/torirs_chrome_inkwell.c \
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \

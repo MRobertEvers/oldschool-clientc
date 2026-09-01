@@ -115,12 +115,27 @@ sort_model_inputs(
  * bands its faces, the same priority fold the bucket lane ends with, reading
  * (face, depth) pairs off the key array instead of off the depth table.
  */
+/* TORIDRAW_PRIO_UNIFORM=0: every priced model takes the partition, uniform
+ * or not. The A/B control arm for the uniform fast path, in one binary. */
+static inline int
+toridraw_prio_uniform_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+    {
+        const char* v = getenv("TORIDRAW_PRIO_UNIFORM");
+        armed = (v && v[0] == '0') ? 0 : 1;
+    }
+    return armed;
+}
+
 static inline void
 face_order_small_bitonic_radix(
     struct ToriDraw_Scene* scene,
     const struct sort_model_inputs* in,
     bool presort)
 {
+    const uint32_t* keys;
     int const n = toridraw_face_sort_bitonic_radix(
         scene,
         presort,
@@ -134,11 +149,18 @@ face_order_small_bitonic_radix(
         scene->screen_vertices_z,
         in->fia,
         in->fib,
-        in->fic);
-    const uint32_t* keys = scene->sm_sort_keys;
+        in->fic,
+        &keys);
 
-    if( !in->face_priorities )
+    /* No priorities, or priorities that are all one value: the key order is
+     * the draw order (see toridraw_face_priorities_uniform). The uniform
+     * test reads face_count, so an empty model is answered first. */
+    if( !in->face_priorities ||
+        (in->face_count > 0 && toridraw_prio_uniform_armed() &&
+         toridraw_face_priorities_uniform(in->face_priorities, in->face_count)) )
     {
+        if( in->face_priorities )
+            g_toridraw_prio_uniform_models++;
         for( int i = 0; i < n; i++ )
             scene->tmp_face_order[i] = (int)(keys[i] & 0xFFFF);
         scene->tmp_face_order_count = n;
@@ -149,6 +171,7 @@ face_order_small_bitonic_radix(
         int priority_depths[12] = { 0 };
         int counts[12] = { 0 };
 
+        g_toridraw_prio_varied_models++;
         partition_and_accumulate_faces_by_priority_keys(
             scene, keys, n, priority_depths, counts, in->face_priorities);
         scene->tmp_face_order_count =

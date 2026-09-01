@@ -1690,6 +1690,13 @@ PlatformWindow_SetTouchViewport(struct PlatformWindow* p, int x, int y, int w, i
 }
 
 void
+PlatformWindow_SetTouchOverlayTest(struct PlatformWindow* p, ToriRS_TouchOverlayFn fn, void* user)
+{
+    assert(p);
+    ToriRS_TouchSetOverlayTest(&p->touch, fn, user);
+}
+
+void
 PlatformWindow_SetCanvasFollowsWindow(
     struct PlatformWindow* platform,
     struct ToriRS_CmdBus* bus,

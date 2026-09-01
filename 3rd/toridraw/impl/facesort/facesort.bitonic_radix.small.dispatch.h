@@ -24,11 +24,14 @@
  *   facesort.bitonic_radix.small.dispatch.u.c  the shared scalar work, the
  *                                              lane selection, the radix, and
  *                                              the one dispatcher
- *   facesort.bitonic_radix.small.neon64.u.c    AArch64: vqtbl1q left-pack,
- *                                              64-bit winding in vmlsl_s32,
- *                                              vst4q stash, bitonic network.
- *                                              NO tile kernel -- nothing here
- *                                              was measured on NEON.
+ *   facesort.bitonic_radix.small.neon64.u.c    AArch64: 64-bit winding in
+ *                                              vmlsl_s32, vst4q stash, bitonic
+ *                                              network, sentinel store and a
+ *                                              scalar compaction (measured on
+ *                                              an M4 Max: beats the vqtbl1q
+ *                                              left-pack). Routes the tile to
+ *                                              the scalar tile kernel. Folds
+ *                                              near_clipped / stash per model.
  *   facesort.bitonic_radix.small.neon32.u.c    the armv7 twin of it, and the
  *                                              Android armeabi-v7a lane. Same
  *                                              arithmetic; the five A64-only
@@ -37,7 +40,9 @@
  *                                              tile to the scalar tile kernel
  *                                              (measured on the Krait), and
  *                                              gathers from an interleaved
- *                                              copy of the vertices.
+ *                                              copy of the vertices (an
+ *                                              in-order core cannot overlap
+ *                                              twelve lane loads on its own).
  *   facesort.bitonic_radix.small.sse2.u.c      the Win32 XP lane, written to
  *                                              the Pentium 4 floor: no pshufb,
  *                                              no pcmpgtq, no pminud, no
@@ -67,9 +72,13 @@
  *       place, which the sort carries to the end -- the sort runs over the
  *       written count, the caller reports the accepted one, and the sorted
  *       prefix [0, accepted) is the same either way because the key is a
- *       total order. (Measured on the Krait, that variant LOST: sorting the
- *       rejected keys cost more than the pack; every lane packs today, and
- *       the contract only keeps the door open.) A lane with no vector cull leaves *f_io
+ *       total order. Both NEON lanes store the sentinel and then COMPACT the
+ *       block's keys in a scalar pass before returning, so they report the
+ *       written count equal to the accepted count; what they gain is the
+ *       unconditional vector store in place of a table left-pack. (Sorting
+ *       the sentinels instead of compacting was measured on the Krait and
+ *       LOST -- the radix over the rejected keys cost more than the pack.)
+ *       The SSE2 lane packs. A lane with no vector cull leaves *f_io
  *       alone, returns 0 with *out_accepted = 0; the caller's scalar loop then
  *       covers every face. The caller finishes [*f_io, num_faces) either way,
  *       so a lane may consume any whole number of faces it likes.
@@ -104,9 +113,9 @@
  * deliberate rather than an omission: the A/B that chose between them
  * (toridraw_face_sort_tile2_armed) was run on an x86 host against the general
  * path. The A32 lane has since been measured on the Krait (the scalar kernel
- * wins there too, 117 -> 110 ns/face) and routes the tile; the A64 lane is
- * still unmeasured and declines, so a terrain tile there is an ordinary
- * two-face model.
+ * wins there too, 117 -> 110 ns/face) and the A64 lane on an M4 Max (5.84 ->
+ * 5.09 ns/face); both route the tile. The saving is the same shape on every
+ * core: the per-model setup of a two-face model, not vector width.
  */
 
 #include "graphics/dash_restrict.h"

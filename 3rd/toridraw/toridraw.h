@@ -294,4 +294,18 @@ ToriDraw_ProjectedTileMouseHitTest(
     int screen_x,
     int screen_y);
 
+
+/*
+ * Debug census of the bitonic+radix face sort's radix shapes (see
+ * toridraw_radix_sort_depth): models this frame whose depth range let the
+ * radix finish in one pass, and models that took two. A renderer that prints
+ * frame statistics reads and clears them; nothing else touches them.
+ */
+extern int g_toridraw_radix_shallow_models;
+extern int g_toridraw_radix_two_pass_models;
+/* Same census for the priority emit: models whose priorities were all one
+ * value (emitted in key order) against models that took the partition. */
+extern int g_toridraw_prio_uniform_models;
+extern int g_toridraw_prio_varied_models;
+
 #endif

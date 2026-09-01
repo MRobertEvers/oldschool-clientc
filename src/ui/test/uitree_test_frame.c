@@ -1390,6 +1390,60 @@ test_frame_slot_overlay_follows_target_subtree(void)
     UITree_Free(tree);
 }
 
+/*
+ * A synthesised press reaches a button the FRAME PLUGIN is merely not showing.
+ *
+ * The mobile gameframe puts every sidebar panel away when its drawer is shut,
+ * and it says so with `frame_hidden`. That flag is a statement about pixels: a
+ * click on the screen must not land in a panel nobody can see, and it does not.
+ * But a plugin pressing a button by NAME -- the minimap orbs' run toggle, which
+ * lives in the controls panel -- is not a click on pixels, and fencing it there
+ * is what made those orbs do nothing until the player opened a sidetab by hand.
+ *
+ * A hide the CACHE or a script authored stays a fence, in both forms, because
+ * that one means the game says the button is not there.
+ */
+static void
+test_synthetic_press_sees_through_frame_hidden(void)
+{
+    struct UITree* tree = UITree_New(4);
+    int32_t panel;
+    int32_t button;
+
+    printf("TEST: a synthesised press sees through the frame plugin's own hiding\n");
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    panel = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 900, 0, 0, 200, 200);
+    button = UITree_TestPushXy(tree, panel, UIELEM_RS_GRAPHIC, 904, 10, 10, 40, 20);
+    UITree_TestResolve(tree);
+
+    TEST_ASSERT(
+        !UITree_NodeOrAncestorDisplayHidden(tree, button) &&
+            !UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 0, 1),
+        "a shown button is hidden by neither query");
+
+    tree->components[panel].frame_hidden = 1;
+    TEST_ASSERT(
+        UITree_NodeOrAncestorDisplayHidden(tree, button),
+        "a click on pixels still refuses a frame-hidden subtree");
+    TEST_ASSERT(
+        !UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 0, 1),
+        "a synthesised press reaches into a frame-hidden subtree");
+
+    tree->components[panel].screen_hidden = 1;
+    TEST_ASSERT(
+        UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 0, 1),
+        "screen suppression is not the frame plugin's and still fences");
+    tree->components[panel].screen_hidden = 0;
+
+    tree->components[panel].behavior.hide = 1;
+    TEST_ASSERT(
+        UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 0, 1),
+        "a hide the cache or a script authored still fences the press");
+
+    UITree_Free(tree);
+}
+
 void
 test_frame_replacement(void)
 {
@@ -1405,4 +1459,5 @@ test_frame_replacement(void)
     test_large_ancestor_remains_effectively_stretched_after_shrink();
     test_release_ignores_same_id_recycled_incarnations();
     test_frame_slot_overlay_follows_target_subtree();
+    test_synthetic_press_sees_through_frame_hidden();
 }

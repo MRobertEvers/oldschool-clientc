@@ -34,6 +34,7 @@ main(void)
     test_child_subid();
     test_menu_submenus();
     test_component_params();
+    test_inkwell_spec_copy();
     test_open_close_steady();
     test_mounted_component_inherits_container_hidden();
     test_clear_hooks_preserves_sibling_on_op();

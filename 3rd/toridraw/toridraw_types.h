@@ -938,6 +938,16 @@ struct ToriDraw_Scene
      * its block4). NULL until the bitonic+radix scratch is allocated. */
     int* sm_vertex_xyz;
     /*
+     * The depth range a lane could prove for the model it just culled, from
+     * the z range of its vertices: every accepted face's depth is in
+     * [sm_sort_depth_lo, sm_sort_depth_hi]. The dispatcher resets both to
+     * "unknown" (0, INT_MAX) before the lane runs; a lane that sweeps the
+     * vertices anyway (the A32 lane's interleave pass) narrows them for
+     * free, and a range under 256 levels lets the radix finish in ONE pass.
+     */
+    int sm_sort_depth_lo;
+    int sm_sort_depth_hi;
+    /*
      * Whether the LAST sort actually filled sm_face_x4/y4, which is not the same
      * question as whether the build can. Three things have to hold -- the
      * kernel wanted it (its raster has a whole-model door and its sort can

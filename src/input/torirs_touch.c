@@ -120,6 +120,16 @@ ToriRS_TouchSetViewport(struct ToriRS_Touch* touch, int x, int y, int w, int h)
     touch->view_h = h;
 }
 
+void
+ToriRS_TouchSetOverlayTest(struct ToriRS_Touch* touch, ToriRS_TouchOverlayFn fn, void* user)
+{
+    assert(touch);
+    /* fn NULL is "nothing covers the world", the state this started in, so it
+     * is a value rather than a contract violation. */
+    touch->overlay = fn;
+    touch->overlay_user = user;
+}
+
 /** Did this finger come down on the 3D world? Tested against the finger's
  *  START, not its current position: a camera drag that wanders onto the
  *  interface is still the same drag. */
@@ -128,10 +138,15 @@ touch_started_in_view(struct ToriRS_Touch const* touch, struct ToriRS_TouchFinge
 {
     if( touch->view_w <= 0 || touch->view_h <= 0 )
         return 0;
-    return finger->start_x >= touch->view_x &&
-           finger->start_x < touch->view_x + touch->view_w &&
-           finger->start_y >= touch->view_y &&
-           finger->start_y < touch->view_y + touch->view_h;
+    if( finger->start_x < touch->view_x || finger->start_x >= touch->view_x + touch->view_w ||
+        finger->start_y < touch->view_y || finger->start_y >= touch->view_y + touch->view_h )
+        return 0;
+    /* Inside the box is not yet "on the world": a window drawn over the
+     * viewport owns what lands on it, and a drag there is that window's rather
+     * than the camera's. @see ToriRS_TouchSetOverlayTest. */
+    if( touch->overlay && touch->overlay(touch->overlay_user, finger->start_x, finger->start_y) )
+        return 0;
+    return 1;
 }
 
 /** Let go of whichever button a one-finger drag is holding, if any. */

@@ -91,7 +91,9 @@
 #include "toridraw_model_internal.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -413,48 +415,156 @@ toridraw_face_sort_bitonic_radix_tile2_scalar(
 #endif
 
 /*
- * Two-pass LSD counting sort on the depth half of the key. Stable, so the
- * face order the pack wrote survives within a depth. `tmp` is the bounce
- * buffer, as long as `keys`.
+ * The radix over the depth half of the key. Stable, so the face order the
+ * cull wrote survives within a depth. `tmp` is the bounce buffer, as long as
+ * `keys`; the return value says which of the two holds the sorted run.
+ *
+ * TWO SPECIALISATIONS, BOTH ON FACTS THE CALLER ALREADY HOLDS:
+ *
+ *   The digits are sized to depth_levels, not to the byte. An accepted
+ *   depth is < depth_levels <= 2^bits, so the field 0xFFFF - depth has its
+ *   top 16 - bits bits all ones on every key, and its low `bits` bits carry
+ *   the whole order. Two digits of bits/2 each: at 16K levels (14 bits) the
+ *   passes count into 128 buckets, not 256, and the prefix sums and the
+ *   histogram clears -- a FIXED cost per model, paid by every model above
+ *   the bitonic crossover, most of which have 60..150 keys -- halve.
+ *
+ *   A SHALLOW model takes ONE pass. When the lane could bound the model's
+ *   depths (scene->sm_sort_depth_lo/hi, off the z range of its vertices)
+ *   inside 256 levels, the field differs across the model only in its low
+ *   eight bits after a rebase to depth_hi, and one counting pass over 256
+ *   buckets is the whole sort: half the scatters and no second histogram.
+ *   A model a tile or two deep is shallow at any distance.
  */
-static void
-toridraw_radix_sort_depth16(
+static inline int
+toridraw_ceil_log2(int v)
+{
+    int bits = 0;
+    assert(v > 0);
+    while( (1 << bits) < v )
+        bits++;
+    return bits;
+}
+
+/*
+ * TORIDRAW_SORT_RADIX_LEGACY=1: the two 8-bit digits and no shallow pass,
+ * whatever depth_levels and the lane say. The A/B control arm for the two
+ * specialisations above, so one binary measures both.
+ */
+static inline int
+toridraw_face_sort_radix_legacy(void)
+{
+    static int legacy = -1;
+    if( legacy < 0 )
+    {
+        const char* v = getenv("TORIDRAW_SORT_RADIX_LEGACY");
+        legacy = (v && v[0] == '1') ? 1 : 0;
+    }
+    return legacy;
+}
+
+/* Debug census for the frame stat lines: how many models took each radix
+ * shape this frame. Read and cleared by the renderer that prints them. */
+int g_toridraw_radix_shallow_models = 0;
+int g_toridraw_radix_two_pass_models = 0;
+
+static const uint32_t*
+toridraw_radix_sort_depth(
     uint32_t* RESTRICT keys,
     uint32_t* RESTRICT tmp,
-    int n)
+    int n,
+    int depth_levels,
+    int depth_lo,
+    int depth_hi)
 {
     static int count0[256];
     static int count1[256];
     int i;
-    int sum0 = 0;
-    int sum1 = 0;
 
-    memset(count0, 0, sizeof(count0));
-    memset(count1, 0, sizeof(count1));
-    for( i = 0; i < n; i++ )
+    assert(keys);
+    assert(tmp);
+    assert(depth_levels > 0);
+    assert(depth_levels <= 0x10000);
+
+    if( toridraw_face_sort_radix_legacy() )
     {
-        uint32_t const k = keys[i];
-        count0[(k >> 16) & 0xFF]++;
-        count1[k >> 24]++;
+        depth_levels = 0x10000;
+        depth_hi = INT_MAX;
     }
-    for( i = 0; i < 256; i++ )
+
+    if( depth_hi != INT_MAX && depth_hi - depth_lo < 256 )
     {
-        int const c0 = count0[i];
-        int const c1 = count1[i];
-        count0[i] = sum0;
-        count1[i] = sum1;
-        sum0 += c0;
-        sum1 += c1;
+        /* Shallow: rebase to depth_hi and one pass over the low byte. */
+        int const base = 0xFFFF - depth_hi;
+        int sum = 0;
+        g_toridraw_radix_shallow_models++;
+        memset(count0, 0, sizeof(count0));
+        for( i = 0; i < n; i++ )
+        {
+            int const d = (int)(keys[i] >> 16) - base;
+            assert(d >= 0);
+            assert(d < 256);
+            count0[d]++;
+        }
+        for( i = 0; i < 256; i++ )
+        {
+            int const c = count0[i];
+            count0[i] = sum;
+            sum += c;
+        }
+        for( i = 0; i < n; i++ )
+        {
+            uint32_t const k = keys[i];
+            tmp[count0[(int)(k >> 16) - base]++] = k;
+        }
+        return tmp;
     }
-    for( i = 0; i < n; i++ )
+
     {
-        uint32_t const k = keys[i];
-        tmp[count0[(k >> 16) & 0xFF]++] = k;
-    }
-    for( i = 0; i < n; i++ )
-    {
-        uint32_t const k = tmp[i];
-        keys[count1[k >> 24]++] = k;
+        int const bits = toridraw_ceil_log2(depth_levels);
+        int const b0 = (bits + 1) >> 1;
+        int const b1 = bits - b0;
+        int const n0 = 1 << b0;
+        int const n1 = 1 << b1;
+        uint32_t const m0 = (uint32_t)n0 - 1u;
+        uint32_t const m1 = (uint32_t)n1 - 1u;
+        int sum0 = 0;
+        int sum1 = 0;
+
+        assert(bits >= 2);
+        assert(bits <= 16);
+        g_toridraw_radix_two_pass_models++;
+        memset(count0, 0, (size_t)n0 * sizeof(count0[0]));
+        memset(count1, 0, (size_t)n1 * sizeof(count1[0]));
+        for( i = 0; i < n; i++ )
+        {
+            uint32_t const d = keys[i] >> 16;
+            count0[d & m0]++;
+            count1[(d >> b0) & m1]++;
+        }
+        for( i = 0; i < n0; i++ )
+        {
+            int const c0 = count0[i];
+            count0[i] = sum0;
+            sum0 += c0;
+        }
+        for( i = 0; i < n1; i++ )
+        {
+            int const c1 = count1[i];
+            count1[i] = sum1;
+            sum1 += c1;
+        }
+        for( i = 0; i < n; i++ )
+        {
+            uint32_t const k = keys[i];
+            tmp[count0[(k >> 16) & m0]++] = k;
+        }
+        for( i = 0; i < n; i++ )
+        {
+            uint32_t const k = tmp[i];
+            keys[count1[(k >> (16 + b0)) & m1]++] = k;
+        }
+        return keys;
     }
 }
 
@@ -515,7 +625,8 @@ toridraw_face_sort_bitonic_radix(
     const int* RESTRICT vz,
     const faceint_t* RESTRICT face_a,
     const faceint_t* RESTRICT face_b,
-    const faceint_t* RESTRICT face_c)
+    const faceint_t* RESTRICT face_c,
+    const uint32_t** out_keys)
 {
     uint32_t* const keys = scene->sm_sort_keys;
     int const stash_xy = presort;
@@ -526,6 +637,13 @@ toridraw_face_sort_bitonic_radix(
 
     assert(scene);
     assert(keys);
+    assert(out_keys);
+
+    /* The sorted run is in `keys` unless the radix says otherwise below. */
+    *out_keys = keys;
+    /* Unknown until a lane narrows it; see the fields' comment. */
+    scene->sm_sort_depth_lo = 0;
+    scene->sm_sort_depth_hi = INT_MAX;
 
     scene->sm_face_xy_valid = stash_xy;
     if( stash_xy )
@@ -603,15 +721,77 @@ toridraw_face_sort_bitonic_radix(
             qsort(keys, (size_t)n, sizeof(*keys), toridraw_key_compare);
     }
     else
-        toridraw_radix_sort_depth16(keys, scene->sm_sort_tmp, n);
+        *out_keys = toridraw_radix_sort_depth(
+            keys,
+            scene->sm_sort_tmp,
+            n,
+            scene->depth_levels,
+            scene->sm_sort_depth_lo,
+            scene->sm_sort_depth_hi);
 
     return accepted;
+}
+
+/*
+ * Debug census for the frame stat lines, beside the radix pair above: models
+ * this frame whose face priorities were all one value (and so emitted in key
+ * order, skipping the partition) and models that took the partition.
+ */
+int g_toridraw_prio_uniform_models = 0;
+int g_toridraw_prio_varied_models = 0;
+
+/*
+ * True when every one of the model's `face_count` priorities is the same
+ * value. THE DEGENERATE CASE OF THE PRIORITY PARTITION: with one band
+ * occupied, sort_face_draw_order_small emits that band alone -- the ten
+ * fixed bands in band order, or the flexible list in list order -- and
+ * either way that is the depth order the keys already hold. So a uniform
+ * model's draw order IS its key order, and the partition and the merge
+ * (two more passes over every key, the first with a scatter per key) are
+ * skipped. Measured on the phone before this existed: those two passes
+ * were a fifth of the sort.
+ *
+ * Answered per sort rather than cached on the model because the model
+ * tools rewrite face_priorities in place; a word compare over face_count/2
+ * nibble-packed bytes is under a tenth of an instruction per face.
+ */
+static inline bool
+toridraw_face_priorities_uniform(
+    const uint8_t* packed,
+    int face_count)
+{
+    uint8_t const first = packed[0] & 0x0Fu;
+    uint8_t const both = (uint8_t)(first | (first << 4));
+    int const whole = face_count >> 1; /* bytes holding two real faces */
+    int i;
+
+    assert(packed);
+    assert(face_count > 0);
+
+    for( i = 0; i + 4 <= whole; i += 4 )
+    {
+        uint32_t word;
+        memcpy(&word, packed + i, sizeof(word));
+        if( word != (uint32_t)both * 0x01010101u )
+            return false;
+    }
+    for( ; i < whole; i++ )
+        if( packed[i] != both )
+            return false;
+    if( face_count & 1 )
+        return (packed[whole] & 0x0Fu) == first;
+    return true;
 }
 
 /*
  * The priority partition off the sorted keys: the same fold of the old
  * partition and accumulation as the small-mode CSR twin, reading (face,
  * depth) pairs from the key array in the order the buckets emitted them.
+ *
+ * Trimmed against that twin on the phone's profile: the twelve band bases
+ * are computed once, not `prio * max_faces` per key; the nibble comes out
+ * with a shift by (index & 1) * 4 rather than a branch; and
+ * scene->sm_prio_count, which nothing reads back, is not stored per key.
  */
 static inline void
 partition_and_accumulate_faces_by_priority_keys(
@@ -623,16 +803,29 @@ partition_and_accumulate_faces_by_priority_keys(
     const uint8_t* face_priorities)
 {
     const int max_faces = scene->max_faces;
+    faceint_t* const prio_faces = scene->sm_prio_faces;
+    int* const flex11 = scene->sm_flex_prio11_face_to_depth;
+    int* const flex12 = scene->sm_flex_prio12_face_to_depth;
+    int base[12];
     int i;
 
+    assert(scene);
+    assert(keys);
+    assert(priority_depths);
+    assert(counts);
+    assert(face_priorities);
+
+    for( i = 0; i < 12; i++ )
+        base[i] = i * max_faces;
     memset(scene->sm_prio_count, 0, sizeof(scene->sm_prio_count));
 
     for( i = 0; i < n; i++ )
     {
         uint32_t const k = keys[i];
-        faceint_t const face_idx = (faceint_t)(k & 0xFFFF);
+        int const face_idx = (int)(k & 0xFFFF);
         int const depth = 0xFFFF - (int)(k >> 16);
-        int const prio = faceprio_unpack(face_priorities, face_idx);
+        int const prio =
+            (face_priorities[face_idx >> 1] >> ((face_idx & 1) << 2)) & 0x0F;
         int nn;
 
         assert(face_idx >= 0 && face_idx < max_faces);
@@ -641,7 +834,7 @@ partition_and_accumulate_faces_by_priority_keys(
         nn = counts[prio];
         assert(nn >= 0 && nn < max_faces);
 
-        scene->sm_prio_faces[prio * max_faces + nn] = face_idx;
+        prio_faces[base[prio] + nn] = (faceint_t)face_idx;
 
         if( prio < 10 )
             priority_depths[prio] += depth;
@@ -650,13 +843,12 @@ partition_and_accumulate_faces_by_priority_keys(
             assert(depth >= 0 && depth <= 0xFFFF);
             assert(nn < scene->flex_prio_capacity);
             if( prio == 10 )
-                scene->sm_flex_prio11_face_to_depth[nn] = depth | (face_idx << 16);
+                flex11[nn] = depth | (face_idx << 16);
             else
-                scene->sm_flex_prio12_face_to_depth[nn] = depth | (face_idx << 16);
+                flex12[nn] = depth | (face_idx << 16);
         }
 
         counts[prio] = nn + 1;
-        scene->sm_prio_count[prio] = nn + 1;
     }
 }
 

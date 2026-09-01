@@ -38,7 +38,9 @@ struct ToriRS_CmdBus;
  *                finger LANDED, and never a click. Which button is the policy
  *                -- middle on the 3D world (the camera), left everywhere else
  *                (windows, scrollbars, inventory slots) -- @see
- *                ToriRS_Touch::drag_button. The one thing it must not do is
+ *                ToriRS_Touch::drag_button, and @see
+ *                ToriRS_TouchSetOverlayTest for what "on the world" means when
+ *                a window is drawn over it. The one thing it must not do is
  *                walk the player somewhere, which is why the click is withheld
  *                rather than merely delayed.
  *   pinch        two fingers, distance changing: the wheel, which is the zoom.
@@ -73,6 +75,14 @@ struct ToriRS_CmdBus;
 
 /** A two-finger pan must travel this far before it turns the camera. */
 #define TORIRS_TOUCH_PAN_STEP 40
+
+/**
+ * "Is this canvas point covered by something drawn OVER the world?"
+ *
+ * @return non-zero when a window owns the point, so a drag beginning there is
+ * that window's and not the camera's.
+ */
+typedef int (*ToriRS_TouchOverlayFn)(void* user, int x, int y);
 
 enum ToriRS_TouchPhase
 {
@@ -130,6 +140,10 @@ struct ToriRS_Touch
     /** A gesture that is no longer a candidate for anything: set when a second
      *  finger joins, so lifting them does not emit two stray taps. */
     int multi;
+    /** The overlay test and its user pointer, or NULL. @see
+     *  ToriRS_TouchSetOverlayTest. */
+    ToriRS_TouchOverlayFn overlay;
+    void* overlay_user;
 };
 
 void
@@ -153,6 +167,30 @@ ToriRS_TouchReset(struct ToriRS_Touch* touch);
  */
 void
 ToriRS_TouchSetViewport(struct ToriRS_Touch* touch, int x, int y, int w, int h);
+
+/**
+ * What is drawn OVER the world, so a drag that begins there is not the camera's.
+ *
+ * The viewport above is a RECTANGLE, and the client draws windows inside it: the
+ * plugin panel, the developer chrome, a dropdown hanging out of one. A drag that
+ * begins on one of those is somebody throwing its scrollbar or carrying it by
+ * its title bar -- exactly the gesture the LEFT button exists for here -- but the
+ * rectangle alone says "the world", so the drag was synthesised as a
+ * middle-button camera turn instead. The camera then refuses it as well, because
+ * every game-side gate already asks whether the chrome owns the pointer, and the
+ * finger ends up driving nothing at all: the panel's scrollbar could be tapped
+ * but never dragged.
+ *
+ * So the client hands the same question down. `fn` is asked about the point the
+ * finger LANDED on, for the same reason the viewport test uses the start: a drag
+ * that wanders off the window it grabbed is still that window's drag.
+ *
+ * NULL (the default) is "nothing is drawn over the world", which is what a host
+ * with no such chrome wants and what the gesture did before this existed.
+ */
+void
+ToriRS_TouchSetOverlayTest(
+    struct ToriRS_Touch* touch, ToriRS_TouchOverlayFn fn, void* user);
 
 /**
  * One finger event, in CANVAS pixels.

@@ -71,6 +71,12 @@ struct UIMinimenuPick
     /** Synthetic engine click: the exact target's replacement tombstone is
      * addressable, but native hiding and hidden ancestors still invalidate it. */
     int allow_own_replacement_hidden;
+    /** Synthetic engine click into a subtree a gameframe PLUGIN is not
+     * showing -- a sidebar panel behind a shut drawer, a stone the plugin
+     * replaced. The press names a component rather than a screen position, so
+     * the arranger's presentation is not a reason to drop it; a hide the cache
+     * or a script authored still is. @see UITree_NodeOrAncestorDisplayHiddenEx. */
+    int allow_frame_hidden;
 };
 
 struct UIMinimenuLayout
