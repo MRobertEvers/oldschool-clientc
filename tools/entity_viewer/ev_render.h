@@ -14,6 +14,21 @@
 void
 ev_init(void);
 
+/**
+ * Set the colour ev_render clears to, as 0xAARRGGBB. Defaults to the page's
+ * panel colour.
+ *
+ * ev_render fabricates alpha -- it paints this behind the model and then
+ * stamps every pixel opaque -- so an offline caller cannot separate background
+ * from a model pixel of the same colour. Rendering one frame against two
+ * different backgrounds answers it exactly: covered pixels match in both,
+ * uncovered ones differ by the whole change, and a translucent face satisfies
+ * c1 - c2 == (1 - alpha) * (bg1 - bg2), which yields its coverage rather than
+ * merely flagging it. ev_sheet.c uses this to emit real per-pixel alpha.
+ */
+void
+ev_set_bg(uint32_t argb);
+
 void*
 ev_alloc(int size);
 

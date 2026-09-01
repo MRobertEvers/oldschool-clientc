@@ -88,7 +88,7 @@ DEP_OBJS := \
 	$(BUILD)/ini.o
 
 .PHONY: all clean wasm all-web
-all: ev_catalog ev_server ev_swing
+all: ev_catalog ev_server ev_swing ev_sheet
 all-web: all wasm
 
 $(BUILD):
@@ -227,6 +227,20 @@ $(BUILD)/ev_swing.o: ev_swing.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 ev_swing: $(BUILD)/ev_swing.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+# ---- ev_sheet: an entity's animation as PNG frames, headless -------------
+#
+# The viewer is a browser page over ev_server, and ev_swing renders only as a
+# side effect of measuring a weapon arc. This is the plain
+# "npc/player + sequence -> frames" path: real per-pixel alpha (each frame is
+# rendered against two backgrounds, and the pair resolves coverage exactly)
+# plus the sequence's own frame durations, written alongside as frames.txt.
+$(BUILD)/ev_sheet.o: ev_sheet.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+ev_sheet: $(BUILD)/ev_sheet.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
