@@ -103,10 +103,16 @@
  * y, the nine orthographic coordinates of the texture frame (uv origin, u
  * end, v end -- three ROLES, never permuted with the corners), three shades,
  * then the texel pointer, the texture width and the colour-key gate. The
- * pointer takes ONE lane on a 32-bit host and two on LP64, so tw and the gate
- * sit at lanes 19 and 20 here where tri.tex.aarch64.S has them at 20 and 21
- * -- see tex_tri_asm.h, which switches the layout on pointer width. The x, y
- * and shade triples arrive ALREADY in y order.
+ * pointer takes ONE lane on a 32-bit host and two on LP64, so tw, the gate
+ * and the affine lane sit at lanes 19, 20 and 21 here where tri.tex.aarch64.S
+ * has them at 20, 21 and 22 -- see tex_tri_asm.h, which switches the layout
+ * on pointer width. The x, y and shade triples arrive ALREADY in y order.
+ *
+ * THE AFFINE LANE selects, per face, the span walk of the C AFFINE family
+ * (raster.texshadeblend.affine.*): u and v derived at the span's two ends
+ * with the same reciprocal, clamp and wrapped quotient a block end gets, then
+ * a linear step per pixel -- no reciprocal per block, no fit test, no exact
+ * fallback. Ltex_affine_row below; the block and tail bodies are shared.
  *
  * AAPCS. r4-r11 and lr are saved; d8-d15 are untouched. The frame is sized so
  * that sp is 8-byte aligned at the one call.
@@ -126,6 +132,7 @@
 #define R_TEXELS  72
 #define R_TW      76
 #define R_GATE    80
+#define R_AFFINE  84	/* nonzero: span-linear u/v, the affine family      */
 #define ROWBYTES  96
 
 /*
@@ -191,6 +198,7 @@
 #define F_SAC     220	/* the three 16.16 edge steps                        */
 #define F_SAB     224
 #define F_SBC     228
+#define F_AFFINE  232	/* the row's affine lane, per face                  */
 /*
  * 236, not 232: `push {r4-r11, lr}` is nine words, so an 8-aligned FRAMESZ
  * would leave sp 4 off at the call. AAPCS wants it 8-aligned there and the C
@@ -263,6 +271,24 @@
  * rounds the product before subtracting where A64's frecps fuses, so the two
  * disagree in the last place and are equally accurate.
  */
+/*
+ * The affine span's per-pixel step: ((u1 - u0) << shift) / width, the C's
+ * own int32 divide, truncating toward zero. Both operands convert to double
+ * exactly and a correctly rounded double divide cannot cross an integer
+ * boundary for |n| < 2^53 (the argument in the AArch64 file's WRAPQ), so
+ * this IS the C's quotient, bit for bit -- which DIVEXACT above, in single,
+ * is not past 2^24. Clobbers d0 and d1; 1/w has been spent by every caller.
+ */
+.macro DIVEXACT64 n, w, out
+	vmov	s2, \n
+	vcvt.f64.s32	d0, s2
+	vmov	s2, \w
+	vcvt.f64.s32	d1, s2
+	vdiv.f64	d0, d0, d1
+	vcvt.s32.f64	s2, d0			/* truncates toward zero, as C does  */
+	vmov	\out, s2
+.endm
+
 .macro RECIP w
 	vmov	s0, \w
 	vcvt.f32.s32	s0, s0
@@ -430,22 +456,12 @@
  * in r0 so that r12 still points at the block for the advance below.
  * Clobbers r0, r1, r2, q0, q11-q15.
  */
-.macro LERP8
-	ldr	r0, [sp, #F_SHIFT]
-	sub	r2, r0, #3
-	sub	r1, r10, r8
-	lsl	r1, r1, r2			/* s_u = (nxt_u - cur_u) << (shift-3)*/
-	vdup.32	q12, r1
-	sub	r1, r11, r9
-	lsl	r1, r1, r2			/* s_v                               */
-	vdup.32	q14, r1
-	lsl	r1, r8, r0			/* u_scan = cur_u << shift           */
-	vdup.32	q11, r1
-	ldr	r2, [sp, #F_TWM1]
-	and	r1, r9, r2
-	lsl	r1, r1, r0			/* v_scan = (cur_v & (tw-1)) << shift*/
-	vdup.32	q13, r1
-
+/*
+ * The block from four splatted scan values: q11 u_scan, q12 s_u, q13 v_scan,
+ * q14 s_v, all in the << shift fixed point. Both walks arrive here; only how
+ * they built the four differs.
+ */
+.macro LERP8_BODY
 	vmov	q15, q11
 	vmla.i32	q15, q12, q2		/* u_scan + s_u * {0,1,2,3}          */
 	vmla.i32	q11, q12, q3		/* u_scan + s_u * {4,5,6,7}          */
@@ -533,6 +549,38 @@
 97:
 .endm
 
+/* The perspective block: the fit between cur (r8, r9) and nxt (r10, r11). */
+.macro LERP8
+	ldr	r0, [sp, #F_SHIFT]
+	sub	r2, r0, #3
+	sub	r1, r10, r8
+	lsl	r1, r1, r2			/* s_u = (nxt_u - cur_u) << (shift-3)*/
+	vdup.32	q12, r1
+	sub	r1, r11, r9
+	lsl	r1, r1, r2			/* s_v                               */
+	vdup.32	q14, r1
+	lsl	r1, r8, r0			/* u_scan = cur_u << shift           */
+	vdup.32	q11, r1
+	ldr	r2, [sp, #F_TWM1]
+	and	r1, r9, r2
+	lsl	r1, r1, r0			/* v_scan = (cur_v & (tw-1)) << shift*/
+	vdup.32	q13, r1
+
+	LERP8_BODY
+.endm
+
+/*
+ * The affine block: the span carries u_scan/v_scan in r8/r9 and the per-pixel
+ * steps in r10/r11, already in the << shift fixed point -- splat and go.
+ */
+.macro LERP8_SCAN
+	vdup.32	q12, r10
+	vdup.32	q14, r11
+	vdup.32	q11, r8
+	vdup.32	q13, r9
+	LERP8_BODY
+.endm
+
 /*
  * The ragged tail, 1..7 pixels, along the linear fit: a scalar walk of the
  * same scan, the same colour key. \count pixels, in a register.
@@ -545,17 +593,9 @@
  * register would have to survive that and there is nowhere left to put it.
  * Clobbers r0-r9.
  */
-.macro TAILLERP
-	ldr	r0, [sp, #F_SHIFT]
-	sub	r2, r0, #3
-	sub	r3, r10, r8
-	lsl	r3, r3, r2			/* s_u                               */
-	sub	r4, r11, r9
-	lsl	r4, r4, r2			/* s_v                               */
-	lsl	r5, r8, r0			/* u_scan                            */
-	ldr	r2, [sp, #F_TWM1]
-	and	r6, r9, r2
-	lsl	r6, r6, r0			/* v_scan                            */
+/* The tail walk from r3 s_u, r4 s_v, r5 u_scan, r6 v_scan; the count from
+ * F_REMAIN, the shade from lr. Clobbers r0-r2, r7-r9. */
+.macro TAILLERP_BODY
 	mov	r7, r12				/* cursor                            */
 	ldr	r8, [sp, #F_REMAIN]
 	asr	r9, lr, #8
@@ -583,6 +623,30 @@
 	add	r6, r6, r4
 	subs	r8, r8, #1
 	bne	85b
+.endm
+
+/* The perspective tail: along the fit between cur and nxt. */
+.macro TAILLERP
+	ldr	r0, [sp, #F_SHIFT]
+	sub	r2, r0, #3
+	sub	r3, r10, r8
+	lsl	r3, r3, r2			/* s_u                               */
+	sub	r4, r11, r9
+	lsl	r4, r4, r2			/* s_v                               */
+	lsl	r5, r8, r0			/* u_scan                            */
+	ldr	r2, [sp, #F_TWM1]
+	and	r6, r9, r2
+	lsl	r6, r6, r0			/* v_scan                            */
+	TAILLERP_BODY
+.endm
+
+/* The affine tail: the span's own scan values and steps carry straight on. */
+.macro TAILLERP_SCAN
+	mov	r5, r8
+	mov	r6, r9
+	mov	r3, r10
+	mov	r4, r11
+	TAILLERP_BODY
 .endm
 
 /* ---- entries ---------------------------------------------------------- */
@@ -942,6 +1006,8 @@ Ltex_sides:
 	str	r1, [sp, #F_TEXELS]
 	ldr	r1, [r0, #R_GATE]
 	str	r1, [sp, #F_GATE]
+	ldr	r1, [r0, #R_AFFINE]
+	str	r1, [sp, #F_AFFINE]
 	ldr	r1, [r0, #R_TW]
 	mov	r2, #6
 	cmp	r1, #128
@@ -1022,6 +1088,9 @@ Ltex_row:
 	mla	lr, r2, r0, lr			/* shade at x0, modular              */
 
 	sub	r2, r1, r0			/* steps                             */
+	ldr	r1, [sp, #F_AFFINE]
+	cmp	r1, #0
+	bne	Ltex_affine_row
 	and	r1, r2, #7
 	str	r1, [sp, #F_REMAIN]
 	lsr	r3, r2, #3			/* whole blocks                      */
@@ -1124,6 +1193,80 @@ Ltex_tail:
 Ltex_texact:
 	ldr	r0, [sp, #F_REMAIN]
 	EXACTBLK r0
+	b	Ltex_rowadv
+
+/*
+ * The affine span -- the C's draw_texture_scanline_*_affine_branching_lerp8_
+ * ish16_ordered; see the AArch64 file for the walk it mirrors. On entry r0 is
+ * x0, r2 the width, r4-r6 the plane at x0, r12 the destination, lr the shade.
+ * r8/r9 carry u_scan/v_scan and r10/r11 the per-pixel steps, where the
+ * perspective walk carried cur and nxt; r3 counts blocks. A span whose two
+ * edges coincide in 16.16 draws nothing, and an end whose w is zero is
+ * u = v = 0 -- both the C affine walk's own.
+ */
+Ltex_affine_row:
+	and	r1, r2, #7
+	str	r1, [sp, #F_REMAIN]
+	lsr	r3, r2, #3			/* whole blocks                      */
+	ldr	r0, [sp, #F_LX]
+	ldr	r1, [sp, #F_RX]
+	cmp	r0, r1
+	beq	Ltex_rowadv
+	ldr	r0, [sp, #F_SHIFT]
+	asr	r1, r6, r0			/* w at the left end                 */
+	cmp	r1, #0
+	beq	1f
+	RECIP	r1
+	UQUOT	r4, r8
+	WRAPQ	r5, r1, r9
+	b	2f
+1:
+	mov	r8, #0
+	mov	r9, #0
+2:
+	ldr	r0, [sp, #F_STAU]
+	mla	r10, r0, r2, r4			/* the plane at the right end        */
+	ldr	r0, [sp, #F_STBV]
+	mla	r11, r0, r2, r5
+	ldr	r0, [sp, #F_STCW]
+	mla	r1, r0, r2, r6
+	ldr	r0, [sp, #F_SHIFT]
+	asr	r1, r1, r0			/* w at the right end                */
+	cmp	r1, #0
+	beq	3f
+	RECIP	r1
+	UQUOT	r10, r10
+	WRAPQ	r11, r1, r11
+	b	4f
+3:
+	mov	r10, #0
+	mov	r11, #0
+4:
+	ldr	r0, [sp, #F_SHIFT]
+	sub	r10, r10, r8
+	lsl	r10, r10, r0			/* (u1 - u0) << shift                */
+	DIVEXACT64 r10, r2, r10			/* / width: s_u                      */
+	sub	r11, r11, r9
+	lsl	r11, r11, r0
+	DIVEXACT64 r11, r2, r11			/* s_v                               */
+	lsl	r8, r8, r0			/* u_scan = u0 << shift              */
+	lsl	r9, r9, r0			/* v_scan = v0 << shift              */
+	cmp	r3, #0
+	beq	Ltex_affine_tail
+Ltex_affine_blk:
+	LERP8_SCAN
+	add	r8, r8, r10, lsl #3
+	add	r9, r9, r11, lsl #3
+	add	r12, r12, #32
+	ldr	r0, [sp, #F_SHX8]
+	add	lr, lr, r0
+	subs	r3, r3, #1
+	bne	Ltex_affine_blk
+Ltex_affine_tail:
+	ldr	r0, [sp, #F_REMAIN]
+	cmp	r0, #0
+	beq	Ltex_rowadv
+	TAILLERP_SCAN
 
 Ltex_rowadv:
 	ldr	r0, [sp, #F_LX]

@@ -363,3 +363,108 @@ What is left on the moving-frame ledger, and what each is worth:
 models whose screen box is under 32K (details in ARMVX_KERNEL_STATE.md).
 Bench −7.5% at 1000 faces, −18% at 2000; client sort 2.17/2.31 → 2.07/2.13
 ms. Parity PASS with the block engaged on 522K fixture models.
+
+## 2026-09-01 late: review of the aarch32 + GLES2 work, and the build-flag A/B
+
+Five reviewers over the neon32 sort, the neon32 projection, the aarch32
+raster asm, the GLES2 renderer and the frame bus/walk, checked against the
+armv7 `.so`'s disassembly. Full notes were in the session scratchpad; what
+survives is here.
+
+**Build flags: measured flat.** The static facts were real -- 6,215 exported
+functions and 1,930 internal symbols bound through the PLT, 1,548
+`bl __divsi3` sites (`-march=armv7-a` has no hwdiv), frame pointers kept in
+the release build, ARM-mode code with an 18 KB `ToriRS_FrameNextCommand` on
+a 16 KB L1I -- but none of the four variants moved the frame. Interleaved
+whole-client runs, CPU ms/frame:
+
+| arm | runs |
+|---|---|
+| baseline | 13.64, 12.75, 12.22 |
+| `-fvisibility=hidden` (exports 6215 → 16, .so 27.4 → 19.6 MB) | 13.57, 13.68 |
+| `-mcpu=krait` (hwdiv + scheduling) | 13.73, 13.52 |
+| `-fomit-frame-pointer` | 13.77, 13.13 |
+| `-mthumb` | 13.54 |
+
+The baseline's own spread (thermal, the population near the spawn) is wider
+than any flag. Do not re-run these; anything under ~0.5 ms needs three
+interleaved pairs and medians.
+
+**Software pipelining of the neon32 sort is closed.** E1 (two block chains
+per trip) is dead by register count -- the K16 gather is 24 D + 5 Q of
+invariants = 34 D against 32 -- whichever binary the bench linked. The lever
+that IS open is instruction count inside the chain: clang lowers the K16
+block's `vtrn_s32` half-uses as **36 `vext.32`** per eight faces (and zero
+`vtrn.32`); `vuzpq_s16` on Q pairs is -36 instructions a block (~-4.5/face,
+~0.07-0.10 ms). The rest of the sort's remaining ~0.3 ms: the tile fast path
+(~320 instructions per two-face tile incl. a 728 B frame + `vpush d8-d15`
+paid by every model, `tile2_armed()` read twice, two outlined `one_abc`
+calls), the K16 tail through scalar `one_abc` (~100 instr/face; run the
+block on the overlapping window `num_faces - 8` with the already-emitted
+lanes masked), a vectorised emit copy, `pld` on the three index streams,
+the bitonic control loop (`if (i & j) continue` skips half the trips at 6
+instructions each; masks reloaded from a pc-pool per vector).
+
+**Projection.** The prepared kernel's per-model cost is the union frame: all
+four specialisations inlined into one body (440 B frame, 251 `[sp]`
+references), five constant vectors `vdup`'d from GPRs, stored to the stack
+and reloaded 4-7 times per block, the eligibility test AFTER the prologue,
+and -- contrary to the Phase 0 note -- 8 `bl __divsi3` in the scalar tails.
+Levers: an exact-four tile kernel dispatched from the shell slot with its
+own frame (~75 instructions vs ~210; -0.1..0.2 ms), resolving the model
+handle once instead of ~11 kind switches per model, near_clip reading cot16
+off the prepared block, `FastCull` inlined (it is out of line, 1.2 KB, a
+9-register push per model), the bound fold stored with one `vst1` instead
+of four NEON→ARM `vmov`s. Plan 1b's "run the last block at n-4, identical
+results" is wrong: the tail is an exact divide, the block a reciprocal.
+
+**Frame bus and walk.** Terrain element ids from the walk instead of
+`World_TerrainElementAt` per command (2-3 dependent loads into a 43K-entry
+pool, ×763; -0.15..0.25); every animated element re-posed every frame with
+no (anim, frame, frame2) equality check (-0.2..0.3, camera-independent);
+`ToriDraw_TextureMapAnimate` is dead work on the GLES2 lane (the shader
+animates; ≥0.1); `app_ui_host_publish_inputs` byte-hashes its inputs each
+frame; `luaV_execute` is the `on_frame` plugins. **Bugs:** the painter
+scenery pool leaks ~1.4 KB/frame (`scenery_pool_count` is reset only in
+`painter_new`); `TORIRS_FRAME_PREFETCH_MODEL=2` prefetches `cur+4` into
+`cur`'s ring slot, so the 1a "+arrays loses" verdict was measured on a
+broken arm.
+
+**GLES2 renderer.** UI still uploads and rebinds per batch (~30
+`glBufferSubData` + 4 `glVertexAttribPointer` each; one stream and range
+draws is plan 2d's undone half, -0.25..0.35); the resident fast path walks
+page → batch → chunk → vbo per model for a face limit the entry carries
+(-0.1..0.2); `push_resident`'s triplet stores want `vst3q_u16` (-0.15..0.2);
+the rotmask hashes the whole 512² minimap bake every 8th frame (0.76%;
+a generation counter); `eglMakeCurrent` + two `eglQuerySurface` per frame.
+**Unmeasured on a moving camera:** `hot_vbo` is written while prior frames'
+draws read it (the ghosting pattern the stream sets avoid), and the
+compaction (`draw_item_count > 48`) has no hysteresis -- both are invisible
+camera-still. **Bugs:** `hot_head` serial compares are not wrap-safe;
+`gles2_stream_set_append` growth discards `[0, offset)`; two `glGetError`
+per frame in the rotmask path.
+
+**aarch32 raster asm** (the soft3d lane). `tri.tex.aarch32.S` LERP8 does
+eight `vmov.32 r1, dN[i]` NEON→ARM lane moves per block plus `vmrs` in
+WRAPQ -- the same serialisation the sort found; stage the index vectors
+through the frame instead. The alpha blends can fuse `vmovl+vmul+vshr+vmovn`
+into `vmull.u8 + vshrn` bit-identically. The edge-slope ladder moves nine
+words through `vmov` where a `vst1` to the contiguous F_SAC/F_SAB/F_SBC
+slots would do. No door gap against AArch64; the makefile comment saying
+aarch32 lacks the textured kernel is stale.
+
+**Textured terrain is affine now.** `TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES`
+(bit 2), set by `world_decode_tile` on every textured tile, read once per
+model next to the camera's `texture_affine`. The per-face path already had
+the affine family on every span lane; the presorted-run kernels gained a
+row lane (`TORIDRAW_TEXBATCH_LANE_AFFINE`) and an affine row walk
+(`Ltex_affine_row`: u/v at the span's two ends, a double-precision exact
+step divide, the shared block/tail bodies) on aarch64 and aarch32, scored by
+four new doors in `toridraw_presorted_neon_test.c` on the M4 and on the
+phone (3.2-5.0K ppm triangles, 290-550 ppm pixels, inside the tex budget).
+`tri.tex.i686.S` does not read the lane yet, so that lane's batcher hands
+affine faces to the per-face C family (`TORIDRAW_TEXTRI_PRESORTED_RUN_AFFINE`
+gates it). `test-affine-flag` proves the flag draws what the camera's
+affine route draws and not what the perspective walk draws, on both
+batcher arms; `test-terrain-affine-flag` pins the decoder. GPU lanes
+interpolate in hardware and are untouched.

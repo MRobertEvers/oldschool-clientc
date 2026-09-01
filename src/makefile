@@ -5265,6 +5265,25 @@ test-model-render-flags: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/model_render_flags_test
 
+# TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES reaches the raster: a model carrying it
+# draws exactly what the camera's texture_affine draws, and not what the
+# perspective walk draws. Run on both arms of the batcher where the lane has
+# run kernels (the second run forces the per-face C path); a lane without
+# them takes the per-face path both times.
+test-affine-flag: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/affine_flag_test \
+		$(TORIDRAW_DIR)/toridraw_affine_flag_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/affine_flag_test
+	TORIDRAW_RASTER_BATCH=0 ./$(OBJ_DIR)/affine_flag_test
+
+# The tile decoder sets that flag on exactly the textured tiles.
+test-terrain-affine-flag: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/terrain_affine_flag_test \
+		engine/test/terrain_affine_flag_test.c engine/world_builder/world_decode_tile.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/terrain_affine_flag_test
+
 # Client-TS near-plane parity: sentinel faces bypass the meaningless pre-clip
 # winding, then the clipped polygon receives the real front-face test.
 # bmp.o: ToriDraw_SpriteWriteBmpFile is in the unity, so every target that links
