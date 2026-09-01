@@ -3628,6 +3628,18 @@ struct ToriRS_PluginApi
      * out one at a time and starts with none of them, so every tab but one is
      * "not yet" for the first minutes of a new character's life.
      *
+     * ONE question, however the lane happens to spell it. A 2004 frame carries
+     * its own sidebar mounts and the tab is IF_SETTAB's; a frame that is the
+     * cache's own IF3 tree has neither, and there the tab is a node the
+     * revision's own scripts hide (IF_SETHIDE) or a sub-interface the server
+     * closed. Which of those is in play is the profile's business -- it names
+     * the tab, `[role:sidetab_<n>]` -- and the engine's; a plugin asks the
+     * question and is not told the mechanism. @see RS_UISlots_TabGiven.
+     *
+     * A lane whose profile says nothing about a tab answers 1: nothing there
+     * claims it is hidden, and a frame that drew no icons at all would be a
+     * worse wrong than one that drew every icon.
+     *
      * A layout that draws an icon for a tab the server has taken away is
      * showing a panel that cannot open, which is the same wrong as a stone for
      * a tab this cache lacks and worse for being temporary: the player is

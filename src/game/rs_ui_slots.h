@@ -77,6 +77,37 @@ RS_UISlots_TabEnabled(
     int tabno);
 
 /**
+ * Nonzero when the SERVER has given this player tab `tabno` -- the question a
+ * gameframe asks before it draws that tab's icon and its pressed stone.
+ *
+ * The lane-aware form of the line above, because "the server took that tab
+ * away" is spelled differently by different frames and none of the spellings
+ * is a gameframe's business:
+ *
+ *   rung 1  The frame carries its own sidebar mounts (every dat1 lane, and any
+ *           profile that builds its gameframe out of the INI). There the tab is
+ *           IF_SETTAB's and RS_UISlots_TabEnabled is the whole answer.
+ *
+ *   rung 2  The profile NAMES the tab: `[role:sidetab_<n>]`, bound to whatever
+ *           carries that tab's fate on this lane -- on a cache gameframe the
+ *           toplevel's own icon, which the cache's scripts hide with
+ *           IF_SETHIDE. Not resolving is a tab that is not there; resolving
+ *           hidden is one that has been taken away.
+ *
+ * BOTH when both are stated, and any authority that says hidden wins: a lane
+ * that states both is describing one fact twice, and disagreement means one of
+ * the two has gone stale.
+ *
+ * A lane that states neither answers 1 -- nothing on it claims the tab is
+ * hidden, and a frame that drew no icons at all is a worse wrong than one that
+ * drew every icon.
+ *
+ * @see ToriRS_PluginApi::tab_enabled, which is this verb reaching a plugin.
+ */
+int
+RS_UISlots_TabGiven(struct App* app, int tabno);
+
+/**
  * Advance a privacy-bar filter to its next mode (reference gameLoop click
  * handlers: public cycles 4 modes, private/trade 3, report does not cycle).
  * Returns the new mode.

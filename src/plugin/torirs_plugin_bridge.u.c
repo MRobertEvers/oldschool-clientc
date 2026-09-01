@@ -4227,10 +4227,10 @@ app_plugin_tab_select(void* user, int tabno)
 /*
  * Has the server given this player that tab?
  *
- * The same field the client's own chrome reads before it draws a tab icon or
- * its pressed highlight (`sideOverlayId[n] !== -1`, uitree_emit's
- * UIELEM_BUILTIN_TAB_ICONS gate), asked here on behalf of a plugin gameframe
- * that has replaced that chrome and inherited the duty with it.
+ * Asked on behalf of a plugin gameframe that has replaced the client's own
+ * chrome and inherited its duty: neither the icon nor the pressed stone is
+ * drawn for a tab the player has not got. Every lane rule is
+ * RS_UISlots_TabGiven's -- this is the seam, not the knowledge.
  */
 static int
 app_plugin_tab_enabled(void* user, int tabno)
@@ -4238,7 +4238,7 @@ app_plugin_tab_enabled(void* user, int tabno)
     struct App* app = (struct App*)user;
 
     assert(app);
-    return RS_UISlots_TabEnabled(&app->slots, tabno);
+    return RS_UISlots_TabGiven(app, tabno);
 }
 
 static int

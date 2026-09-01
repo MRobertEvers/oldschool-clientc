@@ -437,6 +437,33 @@ that file has carried in its header comment since long before roles existed
 resolve with `component_id` = −1, so the role API is the only thing that can
 reach them.
 
+### `sidetab_<n>` — the one role reached by arithmetic
+
+`tab_<name>` and `panel_<name>` are both spelled by NAME, which is right for
+every caller that has one. A gameframe does not: it holds a tab NUMBER and
+needs the node, and no amount of naming gets you from 3 to `panel_inventory`.
+
+So `[role:sidetab_<n>]` is numbered, in the cache's own `side0..side13`
+ordering, and it names the node whose state answers *"has the server given this
+player tab n"* — the question the client's own chrome asks before it draws a
+tab icon, and the one a plugin gameframe that replaced that chrome inherits
+(`ToriRS_PluginApi::tab_enabled` → `RS_UISlots_TabGiven`).
+
+`osrs239_dat2_cache.ini` declares fourteen of them, each a three-rung chain —
+`iconN` on Classic (161), Fixed (548) and Modern (164), since `if_opentop`
+swaps the whole root and only the live one is in the tree. The ICON and not the
+`sideN` mount: `sideN` is `hidden=yes` in the cache and unhidden for the
+SELECTED tab, so reading its hide would call thirteen tabs out of fourteen
+taken away at every moment.
+
+The dat1 profiles declare none and do not need to. Their gameframe carries its
+own sidebar mounts, so IF_SETTAB answers there and the engine reads
+`sideOverlayId` directly — which is also why this role could not simply be the
+existing `tab_<name>`: those name the client's own tab-icon builtins, and a
+gameframe plugin suppresses every one of them (`frame_is_lane_chrome`) the
+moment it claims the frame. A verb reading their visibility would answer
+"hidden" to the only caller that has any use for the answer.
+
 The osrs239 panel ids were each read off that cache before being written down:
 218 carries "Spell Filters", 541 "Prayer Filters", 239 "Playing:", 216 is the
 62-graphic emote grid, 593 the combat tab's styles, 387 the 42-graphic
