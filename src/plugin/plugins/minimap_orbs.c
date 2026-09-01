@@ -902,9 +902,32 @@ orbs_claim_all(struct ToriRS_PluginCtx* ctx)
 
     assert(ctx);
 
+    /*
+     * Introduced WITH its picture, not with a placeholder to be filled in
+     * later.
+     *
+     * The plate used to be stated only from EV_CHROME, and an introduced part
+     * carries whatever `initial` said until that event actually arrives. It
+     * need not: the host dispatches EV_CHROME to a claimant whose declaration
+     * has gone stale, and a part introduced and never disturbed again is not
+     * stale -- so on a lane where nothing rebuilds the frame, the orbs kept
+     * the -1 they were added with for the whole session. The host then found
+     * a part with no art and no verbs, read that as "hidden by its holders",
+     * and painted nothing. What the player sees is the fill, the icon and the
+     * number drawn straight onto the frame art with no stone plate under
+     * them: the halves this plugin draws itself land every frame, and only
+     * the half the HOST paints from the declaration is missing.
+     *
+     * `initial` is the declaration, so it states the whole part. orbs_chrome
+     * restates it whenever the host does ask, and the two now agree on the
+     * first frame instead of the first rebuild.
+     */
+    orbs_load_images(ctx);
     memset(&initial, 0, sizeof(initial));
     for( int i = 0; i < TORIRS_PLUGIN_CHROME_STATE_COUNT; i++ )
         initial.art[i] = -1;
+    initial.art[TORIRS_PLUGIN_CHROME_IDLE] = g_image[ORB_IMG_FRAME];
+    initial.art[TORIRS_PLUGIN_CHROME_HOVER] = g_image[ORB_IMG_FRAME_OVER];
     initial.w = ORB_W;
     initial.h = ORB_H;
 

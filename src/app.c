@@ -29285,6 +29285,23 @@ App_PluginLayoutTick(struct App* app)
              * survive this release transaction. */
             PluginHost_LayoutChanged(app->plugins);
         }
+        /*
+         * The CHROME tier still runs, and it has to: it is not the frame.
+         *
+         * A dresser claims a NAMED part -- the report button, an orb -- and
+         * the chrome tick is what asks it for that part's picture and its
+         * verbs. None of that is about who arranges the frame, and most of
+         * the lanes it matters on have no arranger at all: on a stock 2004
+         * gameframe the minimap orbs are introduced parts, and returning here
+         * meant EV_CHROME was never dispatched to anything. The parts kept
+         * the placeholder art chrome_add was given, so the host painted no
+         * plate; and chrome_ops was never reached, so the orbs carried no hit
+         * region -- no mouseover verb, no menu row, no click. The fills, the
+         * icons and the numbers still drew, because those are the plugin's
+         * own per-frame drawing, which is why this read as "the orbs are
+         * there but dead" rather than as a missing feature.
+         */
+        PluginHost_ChromeTick(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         /* app_plugin_layout_set already restored the lane's default on the
          * ownership transition. Do not restate it on every ownerless tick:
          * ordinary CS2/user window-mode changes own this state again now. */
