@@ -6,8 +6,8 @@
  *
  * ## Why this exists
  *
- * platform/platform_sdl2_renderer_webgl1.c is ~11k lines of plain GLES2, and
- * platform_sdl2_renderer_gl3.c the same for desktop GL 3.3. Neither has any
+ * platform/platform_renderer_gles2_*.c is ~8k lines of plain GLES2, and
+ * platform_sdl2_renderer_gl3.c the same for desktop GL 3.2. Neither has any
  * real dependency on a windowing library: every GL call comes from the GL
  * header, and the ONLY thing either needed SDL for was the handful of calls
  * that make and swap a context. That was fine while every host with a GPU path
@@ -22,7 +22,8 @@
  *   platform_android_gl.c       android           -- EGL.
  *
  * The renderers then contain no SDL at all, on any lane, which is what makes
- * the GLES2 renderer shareable between the browser and a phone WITHOUT a fork.
+ * the GLES2 renderer shareable between the browser and a phone WITHOUT a fork
+ * -- and it is shared: the web lane links the same four files against WebGL1.
  * A second GLES2 renderer would be the real cost here; this header is what
  * avoids it.
  *

@@ -7,12 +7,12 @@
  * There are two implementations of that, they share nothing with each other,
  * and each lives in its own translation unit:
  *
- *   platform_android_renderer_gles2_painter.c   painter's algorithm
- *   platform_android_renderer_gles2_zbuffer.c   hardware depth test
+ *   platform_renderer_gles2_painter.c   painter's algorithm
+ *   platform_renderer_gles2_zbuffer.c   hardware depth test
  *
  * ToriRS_GLES2_Init picks one by creating (or not creating) the depth
  * implementation's state. ::zbuffer is that state and doubles as the selector.
- * See platform_android_renderer_gles2_core.h for the contract and for what the
+ * See platform_renderer_gles2_core.h for the contract and for what the
  * GLES2 ceiling turned into here.
  *
  * The retained model is the D3D9 renderer's, kept on purpose (see
@@ -21,12 +21,12 @@
  * the scene build, whose pages are the pages the U16 index stream addresses.
  */
 
-#include "platform/platform_android_renderer_gles2_core.h"
+#include "platform/platform_renderer_gles2_core.h"
 
 #include "engine/boot_bar.h"
 #include "log/torirs_log.h"
 #include "perf/torirs_perf.h"
-#include "platform/platform_android_renderer_gles2_shaders.h"
+#include "platform/platform_renderer_gles2_shaders.h"
 
 #include "core/trspk_math.h"
 #include "toridraw.h"
@@ -34,13 +34,18 @@
 #include "toridraw_math.h"
 #include "painters/painters.h"
 
-#include <android/log.h>
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* One line of the TORIRS_GLES2_DEBUG census. TORIRS_REPORT rather than
+ * TORIRS_LOG: the reader asked for it by setting the variable, so it must
+ * survive an optimized build. The lane decides where stderr goes -- the
+ * console on the desktop and in the browser, logcat on Android. */
+#define gles2_report_line(fmt, ...) TORIRS_REPORT(fmt "\n", __VA_ARGS__)
 
 _Static_assert(
     GLES2_ATLAS_COLS * TRSPK_ATLAS_TILE == GLES2_ATLAS_DIM,
@@ -2862,9 +2867,7 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
         renderer->painter_stat_draws += renderer->draw_item_count;
         if( debug && renderer->painter_stat_frames == 300u )
         {
-            __android_log_print(
-                ANDROID_LOG_INFO,
-                "torirs",
+            gles2_report_line(
                 "gles2 painter/frame: faces indexed %.0f gathered %.0f actor %.0f; residents "
                 "placed %.1f models %.0f vertices; draws %.1f; compactions %u; ring head %u; "
                 "static pages %u %u vertices",
@@ -2878,9 +2881,7 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
                 renderer->hot_head,
                 renderer->static_page_count,
                 renderer->static_batch_gpu_vertex_used);
-            __android_log_print(
-                ANDROID_LOG_INFO,
-                "torirs",
+            gles2_report_line(
                 "gles2 sort/frame: models by bake size tile2 %.0f <=16 %.0f <=64 %.0f <=256 %.0f "
                 "larger %.0f; faces in %.0f out %.0f; radix shallow %.1f two-pass %.1f; "
                 "prio uniform %.1f varied %.1f; k16 %.1f declined %.1f",
@@ -2897,9 +2898,7 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
                 g_toridraw_prio_varied_models / 300.0,
                 g_toridraw_sort_k16_models / 300.0,
                 g_toridraw_sort_k16_declined / 300.0);
-            __android_log_print(
-                ANDROID_LOG_INFO,
-                "torirs",
+            gles2_report_line(
                 "gles2 draws/frame: world %.1f; ui batches %.1f (ended by texture %.1f atlas "
                 "%.1f scissor %.1f overflow %.1f asked %.1f) rotmask %.1f widget %.1f; ui "
                 "upload %.0f B",
@@ -2916,9 +2915,7 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
                 renderer->ui_stat_draws_rotmask / 300.0,
                 renderer->ui_stat_draws_widget / 300.0,
                 renderer->ui_stat_upload_bytes / 300.0);
-            __android_log_print(
-                ANDROID_LOG_INFO,
-                "torirs",
+            gles2_report_line(
                 "project/frame: models %.1f cull_fast %.1f cull_aabb %.1f error %.1f projected "
                 "%.1f vertices %.0f tail_models %.1f",
                 g_toridraw_project_census.calls / 300.0,
@@ -2928,9 +2925,7 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
                 g_toridraw_project_census.projected / 300.0,
                 g_toridraw_project_census.projected_vertices / 300.0,
                 g_toridraw_project_census.tail_models / 300.0);
-            __android_log_print(
-                ANDROID_LOG_INFO,
-                "torirs",
+            gles2_report_line(
                 "paint/frame: walks %.2f same_inputs %.2f pops %.0f commands %.0f entities %.1f",
                 g_torirs_paint_census.walks / 300.0,
                 g_torirs_paint_census.same_inputs / 300.0,
@@ -3768,11 +3763,21 @@ ToriRS_GLES2_RenderFrame(struct ToriRS_GLES2* renderer, struct ToriRS_Frame* fra
      * app's screenshots use, so a bug in the letterbox arithmetic cannot show
      * in a debug dump and not in a screenshot. */
     {
-        char const* path = getenv("TORIRS_GLES2_READBACK");
+        /* Read once: getenv is a linear scan of the environment, and this
+         * ran twice per frame on a path that is dormant in every ordinary
+         * session. */
+        static char const* path = NULL;
+        static long want = 90;
+        static int probed = 0;
         static int done = 0;
-        long const want = getenv("TORIRS_GLES2_READBACK_FRAME")
-            ? atol(getenv("TORIRS_GLES2_READBACK_FRAME"))
-            : 90;
+        if( !probed )
+        {
+            char const* frame = getenv("TORIRS_GLES2_READBACK_FRAME");
+            path = getenv("TORIRS_GLES2_READBACK");
+            if( frame )
+                want = atol(frame);
+            probed = 1;
+        }
         if( path && path[0] && !done && renderer->frame_clock >= (double)want )
         {
             int* top = (int*)malloc((size_t)renderer->width * (size_t)renderer->height * sizeof(int));

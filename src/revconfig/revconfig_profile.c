@@ -28,16 +28,22 @@ RevConfigProfile_Init(struct RevConfigProfile* profile)
     profile->chrome.plugin_button_align = REVCONFIG_CHROME_ALIGN_NONE;
     profile->chrome.plugin_button_margin = -1;
 
-    profile->camera.zoom_mode = REVCONFIG_CAMERA_ZOOM_CLAMPED;
-    profile->camera.zoom_min = REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN;
-    profile->camera.zoom_max = REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX;
-    profile->camera.zoom_height = REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT;
-    /* Matches the CLAMPED default above: a tree with no `[camera]` at all
-     * keeps the viewport zoom it has always had. */
-    profile->camera.viewport_zoom = 1;
+    /* One default per key, spelled the same way the INI spells it. The has_
+     * flags stay 0: nothing has been STATED yet, which is what lets the band
+     * ends stay derived from a rest a later source may still move. */
+    profile->camera.rest = REVCONFIG_CAMERA_REST_DEFAULT;
+    profile->camera.zoom_closest = REVCONFIG_CAMERA_ZOOM_CLOSEST_DEFAULT;
+    profile->camera.zoom_furthest = REVCONFIG_CAMERA_ZOOM_FURTHEST_DEFAULT;
+    profile->camera.wheel_step = REVCONFIG_CAMERA_WHEEL_STEP_DEFAULT;
+    profile->camera.distance_scale = REVCONFIG_CAMERA_DISTANCE_SCALE_DEFAULT;
+    profile->camera.viewport_zoom = REVCONFIG_CAMERA_VIEWPORT_ZOOM_DEFAULT;
+    profile->camera.pitch_distance = REVCONFIG_CAMERA_PITCH_DISTANCE_DEFAULT;
+    profile->camera.pitch_flattest = REVCONFIG_CAMERA_PITCH_FLATTEST_DEFAULT;
+    profile->camera.pitch_steepest = REVCONFIG_CAMERA_PITCH_STEEPEST_DEFAULT;
     profile->camera.controls =
         REVCONFIG_CAMERA_CONTROL_MMB | REVCONFIG_CAMERA_CONTROL_ARROW_KEYS;
-    profile->camera.wheel_step = REVCONFIG_CAMERA_WHEEL_STEP_DEFAULT;
+    /* Not an INI key -- the player's switch. @see enum RevConfigCameraWheel. */
+    profile->camera.wheel = REVCONFIG_CAMERA_WHEEL_LIVE;
 }
 
 static void
@@ -65,6 +71,91 @@ profile_merge_features(
         dst->painter_draw_distance = src->painter_draw_distance;
 }
 
+/*
+ * The band ends nobody stated, from the rest that survived the merge.
+ *
+ * Run after every merge rather than at parse time, because the rest a
+ * derivation should follow is the FINAL one: a lane whose ui.ini says
+ * `rest=600` and whose boot manifest says `rest=900` wants the default band
+ * around 900, and deriving at parse time would have handed it the band around
+ * 600 and then let the rest walk out from under it.
+ *
+ * An end that a section did state is left exactly as stated, which is the
+ * whole point of the has_ flags: `zoom_closest=60` on a phone must not lose
+ * its floor because some later source restated the rest.
+ */
+static void
+profile_camera_resolve_band(struct RevConfigCameraItem* camera)
+{
+    int closest;
+    int furthest;
+
+    assert(camera);
+    assert(camera->rest > 0);
+
+    revconfig_camera_default_band(camera->rest, &closest, &furthest);
+    if( !camera->has_zoom_closest )
+        camera->zoom_closest = closest;
+    if( !camera->has_zoom_furthest )
+        camera->zoom_furthest = furthest;
+
+    /* An inverted band is not a camera anybody meant: app_world_camera_zooms
+     * reads `closest < furthest` as "this revision zooms at all", so the two
+     * keys crossing would take the wheel away rather than narrow it. Report
+     * and keep the wider of the two, since a stated end is a deliberate one
+     * and the derived partner is not. */
+    if( camera->zoom_closest >= camera->zoom_furthest )
+    {
+        TORIRS_ERR("revconfig: [camera] zoom_closest=%d is not nearer than "
+            "zoom_furthest=%d; widening to keep the band\n",
+            camera->zoom_closest,
+            camera->zoom_furthest);
+        if( camera->has_zoom_closest )
+            camera->zoom_furthest = camera->zoom_closest + 1;
+        else
+            camera->zoom_closest = camera->zoom_furthest - 1;
+    }
+}
+
+/*
+ * The pitch range, same rule as the band: crossed ends are a camera nobody
+ * meant. Every consumer clamps `flattest <= pitch <= steepest`, so a crossed
+ * pair would pin the camera at one angle with no way out of it -- and the
+ * terrain clamp, which drives pitch UP toward steepest, would fight the drag
+ * driving it down.
+ */
+static void
+profile_camera_resolve_pitch(struct RevConfigCameraItem* camera)
+{
+    assert(camera);
+
+    if( camera->pitch_flattest <= camera->pitch_steepest )
+        return;
+    TORIRS_ERR("revconfig: [camera] pitch_flattest=%d is not flatter than "
+        "pitch_steepest=%d; widening to keep the range\n",
+        camera->pitch_flattest,
+        camera->pitch_steepest);
+    /* A stated end is deliberate and its partner may only be a default, so the
+     * default is the one that moves. */
+    if( camera->has_pitch_flattest )
+        camera->pitch_steepest = camera->pitch_flattest;
+    else
+        camera->pitch_flattest = camera->pitch_steepest;
+}
+
+/*
+ * One `if` per key, and every one of them the same shape.
+ *
+ * There is no compound case left: while `zoom=` stated the rest, both band
+ * ends and the camera model together, this function had to special-case the
+ * order they were applied in and `zoom_closest=` had to reach past it to a
+ * single end. Each key now merges on its own has_ flag, so a later source
+ * restating one of them cannot disturb the other five.
+ *
+ * `wheel` is absent on purpose: no INI states it, so no merge carries it.
+ * A profile carrying it would put the player's switch back under revision
+ * control by the back door. @see enum RevConfigCameraWheel.
+ */
 static void
 profile_merge_camera(
     struct RevConfigCameraItem* dst,
@@ -73,36 +164,58 @@ profile_merge_camera(
     assert(dst);
     assert(src);
 
-    if( src->has_zoom )
+    if( src->has_rest )
     {
-        /* zoom_mode is absent on purpose: `zoom=` states the revision's
-         * camera, and whether a wheel is live is the player's. A profile
-         * carrying it would put the wheel back under revision control by the
-         * back door. @see enum RevConfigCameraZoomMode. */
-        dst->zoom_height = src->zoom_height;
-        dst->zoom_min = src->zoom_min;
-        dst->zoom_max = src->zoom_max;
-        /* Carried with the band it was derived from, not on a `has_` of its
-         * own: `zoom=` is the only key that states it. */
-        dst->viewport_zoom = src->viewport_zoom;
+        dst->rest = src->rest;
+        dst->has_rest = 1;
     }
-    if( src->has_controls )
-        dst->controls = src->controls;
-    if( src->has_wheel_step )
-        dst->wheel_step = src->wheel_step;
     if( src->has_zoom_closest )
     {
-        /* Applied after `zoom=`, whichever section carried it: the floor is
-         * an override of the band, not part of deriving it. A floor above
-         * the far end would invert the band, so it is refused, not clamped. */
-        if( src->zoom_closest <= dst->zoom_max )
-            dst->zoom_min = src->zoom_closest;
-        else
-            TORIRS_ERR("revconfig: [camera] zoom_closest=%d is past the band's far end %d; "
-                "ignored\n",
-                src->zoom_closest,
-                dst->zoom_max);
+        dst->zoom_closest = src->zoom_closest;
+        dst->has_zoom_closest = 1;
     }
+    if( src->has_zoom_furthest )
+    {
+        dst->zoom_furthest = src->zoom_furthest;
+        dst->has_zoom_furthest = 1;
+    }
+    if( src->has_wheel_step )
+    {
+        dst->wheel_step = src->wheel_step;
+        dst->has_wheel_step = 1;
+    }
+    if( src->has_distance_scale )
+    {
+        dst->distance_scale = src->distance_scale;
+        dst->has_distance_scale = 1;
+    }
+    if( src->has_viewport_zoom )
+    {
+        dst->viewport_zoom = src->viewport_zoom;
+        dst->has_viewport_zoom = 1;
+    }
+    if( src->has_pitch_distance )
+    {
+        dst->pitch_distance = src->pitch_distance;
+        dst->has_pitch_distance = 1;
+    }
+    if( src->has_pitch_flattest )
+    {
+        dst->pitch_flattest = src->pitch_flattest;
+        dst->has_pitch_flattest = 1;
+    }
+    if( src->has_pitch_steepest )
+    {
+        dst->pitch_steepest = src->pitch_steepest;
+        dst->has_pitch_steepest = 1;
+    }
+    if( src->has_controls )
+    {
+        dst->controls = src->controls;
+        dst->has_controls = 1;
+    }
+    profile_camera_resolve_band(dst);
+    profile_camera_resolve_pitch(dst);
 }
 
 static void
@@ -205,14 +318,14 @@ RevConfigProfile_LoadSources(
 }
 
 int
-RevConfigProfile_CameraClampHeight(
+RevConfigProfile_CameraClampZoom(
     struct RevConfigProfile const* profile,
-    int height)
+    int zoom)
 {
     assert(profile);
-    if( height < profile->camera.zoom_min )
-        height = profile->camera.zoom_min;
-    if( height > profile->camera.zoom_max )
-        height = profile->camera.zoom_max;
-    return height;
+    if( zoom < profile->camera.zoom_closest )
+        zoom = profile->camera.zoom_closest;
+    if( zoom > profile->camera.zoom_furthest )
+        zoom = profile->camera.zoom_furthest;
+    return zoom;
 }

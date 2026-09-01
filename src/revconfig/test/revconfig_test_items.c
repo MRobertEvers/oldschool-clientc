@@ -119,7 +119,8 @@ test_items_build(void)
 
     /* [camera]: an item carries only the keys its section stated. */
     push(fields, RCFIELD_ITEMTYPE, "camera");
-    push(fields, RCFIELD_CAMERA_ZOOM, "fixed:600");
+    push(fields, RCFIELD_CAMERA_REST, "600");
+    push(fields, RCFIELD_CAMERA_VIEWPORT_ZOOM, "no");
     push(fields, RCFIELD_CAMERA_CONTROLS, "arrow_keys");
     push(fields, RCFIELD_ITEMDONE, "");
 
@@ -237,11 +238,14 @@ test_items_build(void)
 
     struct RevConfigItem const* camera = &items->items[10];
     TEST_ASSERT(camera->kind == RCITEM_CAMERA, "camera item kind");
-    TEST_ASSERT(camera->u.camera.has_zoom == 1, "camera zoom stated");
-    /* `zoom=` states the CAMERA, not the wheel. What `fixed:` carries is the
-     * 2004 model -- no viewport term -- and zoom_mode is left to the player. */
-    TEST_ASSERT(camera->u.camera.viewport_zoom == 0, "camera has no viewport zoom");
-    TEST_ASSERT(camera->u.camera.zoom_height == 600, "camera zoom height");
+    TEST_ASSERT(camera->u.camera.has_rest == 1, "camera rest stated");
+    TEST_ASSERT(camera->u.camera.rest == 600, "camera rest");
+    /* An item carries a key's has_ flag ONLY for what its section spelled --
+     * `viewport_zoom=` here, and nothing about the band, which this section
+     * never mentioned. The profile owns those defaults, once. */
+    TEST_ASSERT(camera->u.camera.has_viewport_zoom == 1, "camera viewport_zoom stated");
+    TEST_ASSERT(camera->u.camera.viewport_zoom == 0, "camera takes no viewport term");
+    TEST_ASSERT(camera->u.camera.has_zoom_closest == 0, "band end not stated here");
     TEST_ASSERT(camera->u.camera.has_controls == 1, "camera controls stated");
     TEST_ASSERT(
         camera->u.camera.controls == REVCONFIG_CAMERA_CONTROL_ARROW_KEYS,

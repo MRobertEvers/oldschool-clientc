@@ -30,11 +30,11 @@
  *
  * All of it lives in struct GLES2ZBufferWorld, private to this file -- the
  * core only ever sees the pointer, and its being non-NULL is what selects this
- * implementation. platform_android_renderer_gles2_painter.c is the
+ * implementation. platform_renderer_gles2_painter.c is the
  * order-dependent alternative. The two are peers and neither calls the other.
  */
 
-#include "platform/platform_android_renderer_gles2_core.h"
+#include "platform/platform_renderer_gles2_core.h"
 
 #include "log/torirs_log.h"
 #include "perf/torirs_perf.h"

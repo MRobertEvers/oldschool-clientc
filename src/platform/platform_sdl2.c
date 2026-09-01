@@ -731,7 +731,7 @@ PlatformWindow_InitForOpenGL3(
 
     platform->esc_quits = getenv("TORIRS_ESC_QUIT") != NULL;
 
-#if defined(TORIRS_GL_ES2)
+#if defined(TORIRS_PLATFORM_WEB)
     /* WebGL1 is GLES 2.0. Asking for exactly that (and nothing above it) is
      * what keeps the renderer honest about the extension-free feature set it
      * was written against — a WebGL2 context would quietly accept more. */
@@ -750,7 +750,21 @@ PlatformWindow_InitForOpenGL3(
 #endif
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+#if defined(TORIRS_PLATFORM_WEB)
+    /* In the browser these are decided HERE, not at context creation: SDL's
+     * emscripten video chooses its EGL config when the window is made, and
+     * emscripten's EGL turns each nonzero size into a WebGL context attribute
+     * (depth, stencil, antialias). No renderer in this tree touches a stencil
+     * buffer, so asking for one would only allocate a full-screen attachment
+     * the browser then has to clear and carry every frame. Depth stays at 24:
+     * the depth-buffered world pass needs it, and the request in
+     * ToriRS_GLContext_Create arrives too late to add it on this host. */
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
+#else
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+#endif
 
     platform->window = SDL_CreateWindow(
         title ? title : "torirs",

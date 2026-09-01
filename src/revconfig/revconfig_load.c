@@ -233,16 +233,36 @@ push_field_from_ini_kv(
     }
     if( strcmp(s_ini_item_type, "camera") == 0 )
     {
-        if( strcmp(key, "zoom") == 0 )
-            kind = RCFIELD_CAMERA_ZOOM;
-        else if( strcmp(key, "controls") == 0 )
-            kind = RCFIELD_CAMERA_CONTROLS;
-        else if( strcmp(key, "wheel_step") == 0 )
-            kind = RCFIELD_CAMERA_WHEEL_STEP;
+        if( strcmp(key, "rest") == 0 )
+            kind = RCFIELD_CAMERA_REST;
         else if( strcmp(key, "zoom_closest") == 0 )
             kind = RCFIELD_CAMERA_ZOOM_CLOSEST;
+        else if( strcmp(key, "zoom_furthest") == 0 )
+            kind = RCFIELD_CAMERA_ZOOM_FURTHEST;
+        else if( strcmp(key, "wheel_step") == 0 )
+            kind = RCFIELD_CAMERA_WHEEL_STEP;
+        else if( strcmp(key, "distance_scale") == 0 )
+            kind = RCFIELD_CAMERA_DISTANCE_SCALE;
+        else if( strcmp(key, "viewport_zoom") == 0 )
+            kind = RCFIELD_CAMERA_VIEWPORT_ZOOM;
+        else if( strcmp(key, "pitch_distance") == 0 )
+            kind = RCFIELD_CAMERA_PITCH_DISTANCE;
+        else if( strcmp(key, "pitch_flattest") == 0 )
+            kind = RCFIELD_CAMERA_PITCH_FLATTEST;
+        else if( strcmp(key, "pitch_steepest") == 0 )
+            kind = RCFIELD_CAMERA_PITCH_STEEPEST;
+        else if( strcmp(key, "controls") == 0 )
+            kind = RCFIELD_CAMERA_CONTROLS;
+        /* `zoom=fixed:600` / `zoom=clamped:[a,b]` stated the rest, both band
+         * ends and the camera model in one string. Named here so a profile
+         * carrying the old spelling says what to write instead of falling
+         * through to "has no key" and silently booting a default camera. */
+        else if( strcmp(key, "zoom") == 0 )
+            TORIRS_ERR("revconfig: [camera] zoom= no longer exists; state the parts: "
+                "rest=, zoom_closest=, zoom_furthest=, viewport_zoom= "
+                "(`fixed:<h>` was rest=<h> + viewport_zoom=no)\n");
         else
-            TORIRS_LOG("revconfig: [camera] has no key '%s'\n", key);
+            TORIRS_ERR("revconfig: [camera] has no key '%s'\n", key);
         if( kind != RCFIELD_NONE )
             push_field(vec, kind, value);
         return;

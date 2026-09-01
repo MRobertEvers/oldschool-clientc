@@ -80,7 +80,8 @@ test_load(void)
         "mover=cycle\n"
         "\n"
         "[camera]\n"
-        "zoom=clamped:[240, 2160]\n"
+        "zoom_closest=240\n"
+        "zoom_furthest=2160\n"
         "controls=mmb,arrow_keys\n"
         "wheel_step=60\n";
 
@@ -92,10 +93,10 @@ test_load(void)
     {
         static const char mobile_ini[] =
             "[camera]\n"
-            "zoom=fixed:600\n"
+            "rest=600\n"
             "\n"
             "[camera@mobile]\n"
-            "zoom_closest=150\n";
+            "zoom_closest=60\n";
         struct RevConfigBuffer* mobile = revconfig_buffer_new(128);
         struct RevConfigBuffer* desktop = revconfig_buffer_new(128);
         setenv("TORIRS_REVCONFIG_PLATFORM", "mobile", 1);
@@ -105,10 +106,10 @@ test_load(void)
         revconfig_load_fields_from_ini_bytes(
             (const uint8_t*)mobile_ini, (uint32_t)strlen(mobile_ini), desktop);
         unsetenv("TORIRS_REVCONFIG_PLATFORM");
-        TEST_ASSERT(count_kind(mobile, RCFIELD_CAMERA_ZOOM) == 1, "mobile: base zoom kept");
+        TEST_ASSERT(count_kind(mobile, RCFIELD_CAMERA_REST) == 1, "mobile: base rest kept");
         TEST_ASSERT(
             count_kind(mobile, RCFIELD_CAMERA_ZOOM_CLOSEST) == 1, "mobile: [camera@mobile] applied");
-        TEST_ASSERT(count_kind(desktop, RCFIELD_CAMERA_ZOOM) == 1, "desktop: base zoom kept");
+        TEST_ASSERT(count_kind(desktop, RCFIELD_CAMERA_REST) == 1, "desktop: base rest kept");
         TEST_ASSERT(
             count_kind(desktop, RCFIELD_CAMERA_ZOOM_CLOSEST) == 0,
             "desktop: [camera@mobile] skipped whole");
@@ -205,9 +206,9 @@ test_load(void)
         TEST_ASSERT(strcmp(features->u.features.mover, "cycle") == 0, "features mover");
         TEST_ASSERT(camera != NULL, "[camera] section parsed");
         TEST_ASSERT(
-            camera->u.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_CLAMPED, "camera clamped");
-        TEST_ASSERT(camera->u.camera.zoom_min == 240, "camera zoom min");
-        TEST_ASSERT(camera->u.camera.zoom_max == 2160, "camera zoom max");
+            camera->u.camera.wheel == REVCONFIG_CAMERA_WHEEL_LIVE, "camera clamped");
+        TEST_ASSERT(camera->u.camera.zoom_closest == 240, "camera band near end");
+        TEST_ASSERT(camera->u.camera.zoom_furthest == 2160, "camera band far end");
         TEST_ASSERT(
             camera->u.camera.controls ==
                 (REVCONFIG_CAMERA_CONTROL_MMB | REVCONFIG_CAMERA_CONTROL_ARROW_KEYS),

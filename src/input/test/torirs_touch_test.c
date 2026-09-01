@@ -62,6 +62,7 @@ struct Seen
     int ups;
     int moves;
     int wheels;
+    int leaves;
     int key_downs;
     int key_ups;
     int last_button;
@@ -116,6 +117,9 @@ drain(struct ToriRS_CmdBus* bus, struct Seen* seen)
             seen->last_wheel = wheel.wheel_y;
             break;
         }
+        case TORIRS_CMD_INPUT_MOUSE_LEAVE:
+            seen->leaves++;
+            break;
         case TORIRS_CMD_INPUT_KEY_DOWN:
         case TORIRS_CMD_INPUT_KEY_UP:
         {
@@ -315,6 +319,59 @@ main(void)
         }
         CHECK(press_x == 40 && press_y == 50, "the press is at the point the finger landed on");
     }
+
+    /*
+     * ---- the pointer leaves with the finger, but not in the tap's own frame
+     *
+     * A mouse leaves a cursor behind and everything hover means keeps
+     * describing that spot; a finger leaves nothing, so the client is told the
+     * position went stale. The DELAY is the load-bearing half: the tap is
+     * dispatched against the previous frame's world pick, so a leave arriving
+     * in the same batch as the click would take the "Walk here" row and the
+     * target out from under the click it belongs to.
+     */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 100, 80, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 100, 80, 90);
+    drain(&bus, &seen);
+    CHECK(seen.downs == 1 && seen.leaves == 0, "the tap's own frame carries no leave");
+    ToriRS_TouchTick(&touch, &bus, 100);
+    drain(&bus, &seen);
+    CHECK(seen.leaves == 0, "nor the frame the click is still being dispatched in");
+    ToriRS_TouchTick(&touch, &bus, 116);
+    drain(&bus, &seen);
+    CHECK(seen.leaves == 1, "then the pointer is gone");
+    ToriRS_TouchTick(&touch, &bus, 132);
+    ToriRS_TouchTick(&touch, &bus, 148);
+    drain(&bus, &seen);
+    CHECK(seen.leaves == 0, "and it is said once, not every idle frame");
+
+    /* a finger back down before the leave was ever sent cancels it: the
+     * pointer is there again, and saying it left would blank the hover the
+     * new touch just established */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 100, 80, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 100, 80, 90);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 2, 120, 90, 100);
+    ToriRS_TouchTick(&touch, &bus, 116);
+    ToriRS_TouchTick(&touch, &bus, 132);
+    drain(&bus, &seen);
+    CHECK(seen.leaves == 0, "a finger back down cancels the pending leave");
+
+    /* a drag ends the same way -- the finger that was holding the camera is
+     * gone too, and its last position is no more a hover than a tap's */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchSetViewport(&touch, 0, 0, 500, 300);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 300, 200, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 300, 200 + TORIRS_TOUCH_SLOP + 4, 40);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 300, 200 + TORIRS_TOUCH_SLOP + 4, 80);
+    ToriRS_TouchTick(&touch, &bus, 96);
+    ToriRS_TouchTick(&touch, &bus, 112);
+    drain(&bus, &seen);
+    CHECK(seen.leaves == 1, "a drag's finger leaves too");
 
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

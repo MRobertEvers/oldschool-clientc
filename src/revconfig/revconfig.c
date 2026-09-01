@@ -965,14 +965,26 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_FEATURES_MOVER";
     case RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE:
         return "RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE";
-    case RCFIELD_CAMERA_ZOOM:
-        return "RCFIELD_CAMERA_ZOOM";
+    case RCFIELD_CAMERA_REST:
+        return "RCFIELD_CAMERA_REST";
     case RCFIELD_CAMERA_CONTROLS:
         return "RCFIELD_CAMERA_CONTROLS";
     case RCFIELD_CAMERA_WHEEL_STEP:
         return "RCFIELD_CAMERA_WHEEL_STEP";
     case RCFIELD_CAMERA_ZOOM_CLOSEST:
         return "RCFIELD_CAMERA_ZOOM_CLOSEST";
+    case RCFIELD_CAMERA_ZOOM_FURTHEST:
+        return "RCFIELD_CAMERA_ZOOM_FURTHEST";
+    case RCFIELD_CAMERA_VIEWPORT_ZOOM:
+        return "RCFIELD_CAMERA_VIEWPORT_ZOOM";
+    case RCFIELD_CAMERA_PITCH_DISTANCE:
+        return "RCFIELD_CAMERA_PITCH_DISTANCE";
+    case RCFIELD_CAMERA_PITCH_FLATTEST:
+        return "RCFIELD_CAMERA_PITCH_FLATTEST";
+    case RCFIELD_CAMERA_PITCH_STEEPEST:
+        return "RCFIELD_CAMERA_PITCH_STEEPEST";
+    case RCFIELD_CAMERA_DISTANCE_SCALE:
+        return "RCFIELD_CAMERA_DISTANCE_SCALE";
     case RCFIELD_CHROME_PLUGIN_IFACE:
         return "RCFIELD_CHROME_PLUGIN_IFACE";
     case RCFIELD_CHROME_PLUGIN_BUTTON_PARENT:
@@ -1946,6 +1958,40 @@ revconfig_item_apply_features_field(
     }
 }
 
+/*
+ * Every number in `[camera]` is one integer expression and nothing else.
+ *
+ * Shared rather than repeated per key so that `rest=600`, `zoom_closest=60`
+ * and `wheel_step=(600 / 10)` cannot end up accepting three different
+ * grammars. The trailing check is what makes `240,2160` an error instead of a
+ * silent 240 -- the band is two keys now, and a leftover comma is somebody
+ * still writing the old combined one.
+ */
+static int
+camera_parse_number(char const* value, int* out_number)
+{
+    char const* end;
+
+    assert(value);
+    assert(out_number);
+    if( !revconfig_parse_int_expr(value, &end, out_number) )
+        return 0;
+    return *revconfig_skip_space(end) == '\0';
+}
+
+/** `yes|no` for the one camera key that states a fact rather than a number.
+ *  Returns -1 for anything else, which the caller reports. */
+static int
+camera_parse_bool(char const* value)
+{
+    assert(value);
+    if( strcmp(value, "yes") == 0 || strcmp(value, "true") == 0 || strcmp(value, "1") == 0 )
+        return 1;
+    if( strcmp(value, "no") == 0 || strcmp(value, "false") == 0 || strcmp(value, "0") == 0 )
+        return 0;
+    return -1;
+}
+
 static void
 revconfig_item_apply_camera_field(
     struct RevConfigCameraItem* camera,
@@ -1957,14 +2003,135 @@ revconfig_item_apply_camera_field(
 
     switch( kind )
     {
-    case RCFIELD_CAMERA_ZOOM:
-        if( revconfig_parse_camera_zoom(value, camera) )
-            camera->has_zoom = 1;
+    case RCFIELD_CAMERA_REST:
+    {
+        int rest;
+        if( camera_parse_number(value, &rest) && rest > 0 )
+        {
+            camera->rest = rest;
+            camera->has_rest = 1;
+        }
         else
-            TORIRS_ERR("revconfig: [camera] zoom must be fixed:<height> or "
-                "clamped:[<min>,<max>], got '%s'\n",
+            TORIRS_ERR("revconfig: [camera] rest must be a distance > 0, got '%s'\n", value);
+        break;
+    }
+    case RCFIELD_CAMERA_ZOOM_CLOSEST:
+    {
+        int closest;
+        if( camera_parse_number(value, &closest) && closest > 0 )
+        {
+            camera->zoom_closest = closest;
+            camera->has_zoom_closest = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] zoom_closest must be a distance > 0, got '%s'\n",
                 value);
         break;
+    }
+    case RCFIELD_CAMERA_ZOOM_FURTHEST:
+    {
+        int furthest;
+        if( camera_parse_number(value, &furthest) && furthest > 0 )
+        {
+            camera->zoom_furthest = furthest;
+            camera->has_zoom_furthest = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] zoom_furthest must be a distance > 0, got '%s'\n",
+                value);
+        break;
+    }
+    case RCFIELD_CAMERA_WHEEL_STEP:
+    {
+        int step;
+        if( camera_parse_number(value, &step) && step > 0 )
+        {
+            camera->wheel_step = step;
+            camera->has_wheel_step = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] wheel_step must be a distance > 0, got '%s'\n",
+                value);
+        break;
+    }
+    case RCFIELD_CAMERA_DISTANCE_SCALE:
+    {
+        int percent;
+        /* Bounded rather than merely positive: 1% puts the eye inside the
+         * player's head and 10000% outside the scene, and both arrive as a
+         * black frame nobody would trace back to this line. The band is wide
+         * enough for any view a device could want. */
+        if( camera_parse_number(value, &percent) && percent >= 10 && percent <= 400 )
+        {
+            camera->distance_scale = percent;
+            camera->has_distance_scale = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] distance_scale must be a percentage in "
+                "10..400, got '%s'\n",
+                value);
+        break;
+    }
+    case RCFIELD_CAMERA_VIEWPORT_ZOOM:
+    {
+        int on = camera_parse_bool(value);
+        if( on >= 0 )
+        {
+            camera->viewport_zoom = on;
+            camera->has_viewport_zoom = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] viewport_zoom must be yes|no, got '%s'\n", value);
+        break;
+    }
+    case RCFIELD_CAMERA_PITCH_DISTANCE:
+    {
+        int per_angle;
+        /* 0 is allowed and means a camera that does not pull back at all as it
+         * tips -- a real answer, and the one a top-down lane would want. The
+         * ceiling is where the steepest angle alone is already past any band
+         * a profile could state. */
+        if( camera_parse_number(value, &per_angle) && per_angle >= 0 && per_angle <= 16 )
+        {
+            camera->pitch_distance = per_angle;
+            camera->has_pitch_distance = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] pitch_distance must be fine units per angle "
+                "unit in 0..16, got '%s'\n",
+                value);
+        break;
+    }
+    case RCFIELD_CAMERA_PITCH_FLATTEST:
+    {
+        int angle;
+        if( camera_parse_number(value, &angle) && angle >= 0 && angle < 512 )
+        {
+            camera->pitch_flattest = angle;
+            camera->has_pitch_flattest = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] pitch_flattest must be an angle in 0..511 "
+                "(2048 to a turn), got '%s'\n",
+                value);
+        break;
+    }
+    case RCFIELD_CAMERA_PITCH_STEEPEST:
+    {
+        int angle;
+        /* Both ends stop at 512 -- a quarter turn -- because past it the eye
+         * is placed below the anchor and the follow camera is upside down. */
+        if( camera_parse_number(value, &angle) && angle >= 0 && angle < 512 )
+        {
+            camera->pitch_steepest = angle;
+            camera->has_pitch_steepest = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] pitch_steepest must be an angle in 0..511 "
+                "(2048 to a turn), got '%s'\n",
+                value);
+        break;
+    }
     case RCFIELD_CAMERA_CONTROLS:
     {
         int controls = revconfig_parse_camera_controls(value);
@@ -1974,37 +2141,8 @@ revconfig_item_apply_camera_field(
             camera->has_controls = 1;
         }
         else
-            TORIRS_LOG("revconfig: [camera] controls must be a comma list of "
+            TORIRS_ERR("revconfig: [camera] controls must be a comma list of "
                 "mmb|arrow_keys, got '%s'\n",
-                value);
-        break;
-    }
-    case RCFIELD_CAMERA_WHEEL_STEP:
-    {
-        int step = revconfig_parse_int(value);
-        if( step > 0 )
-        {
-            camera->wheel_step = step;
-            camera->has_wheel_step = 1;
-        }
-        else
-            TORIRS_LOG("revconfig: [camera] wheel_step must be a positive eye-height "
-                "step, got '%s'\n",
-                value);
-        break;
-    }
-    case RCFIELD_CAMERA_ZOOM_CLOSEST:
-    {
-        char const* end;
-        int height;
-        if( revconfig_parse_int_expr(value, &end, &height) && *revconfig_skip_space(end) == '\0' &&
-            height > 0 )
-        {
-            camera->zoom_closest = height;
-            camera->has_zoom_closest = 1;
-        }
-        else
-            TORIRS_ERR("revconfig: [camera] zoom_closest must be an eye height > 0, got '%s'\n",
                 value);
         break;
     }
@@ -2312,94 +2450,20 @@ revconfig_items_build(
 }
 
 void
-revconfig_camera_default_band(int height, int* out_min, int* out_max)
+revconfig_camera_default_band(int rest, int* out_closest, int* out_furthest)
 {
-    assert(height > 0);
-    assert(out_min);
-    assert(out_max);
+    assert(rest > 0);
+    assert(out_closest);
+    assert(out_furthest);
 
-    *out_min = height * REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN_PCT / 100;
-    *out_max = height * REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX_PCT / 100;
-    /* A rest height small enough to round the band flat still has to leave the
-     * wheel somewhere to go, or `min < max` reads as "does not zoom". */
-    if( *out_min < 1 )
-        *out_min = 1;
-    if( *out_max <= *out_min )
-        *out_max = *out_min + 1;
-}
-
-int
-revconfig_parse_camera_zoom(
-    char const* str,
-    struct RevConfigCameraItem* out)
-{
-    char const* p;
-
-    assert(str);
-    assert(out);
-
-    p = revconfig_skip_space(str);
-    if( strncmp(p, "fixed:", 6) == 0 )
-    {
-        int height;
-
-        if( !revconfig_parse_int_expr(p + 6, &p, &height) )
-            return 0;
-        if( *revconfig_skip_space(p) != '\0' )
-            return 0;
-        if( height <= 0 )
-            return 0;
-        /* zoom_mode is NOT set here. `zoom=` states the revision's camera --
-         * where it rests and whether it takes the viewport term -- and whether
-         * a WHEEL is live is this client's own question, answered the same way
-         * on every revision. @see enum RevConfigCameraZoomMode. */
-        out->zoom_height = height;
-        /* The 2004 camera: no wheel, and no viewport term on either the
-         * distance or the projection. @see RevConfigCameraItem::viewport_zoom. */
-        out->viewport_zoom = 0;
-        /* A REAL band, not a band of one, even though the wheel is off by
-         * default here. zoom_mode is what the player flips; the band is the
-         * room that flip needs, and it has to exist before the flip.
-         * @see REVCONFIG_CAMERA_ZOOM_FIXED. */
-        revconfig_camera_default_band(height, &out->zoom_min, &out->zoom_max);
-        return 1;
-    }
-    if( strncmp(p, "clamped:", 8) == 0 )
-    {
-        int lo;
-        int hi;
-
-        p = revconfig_skip_space(p + 8);
-        if( *p != '[' )
-            return 0;
-        /* The bounds are expressions, so the separator is where the first one
-         * stopped -- not the first comma in the line, which may well be inside
-         * one of them. */
-        if( !revconfig_parse_int_expr(p + 1, &p, &lo) )
-            return 0;
-        p = revconfig_skip_space(p);
-        if( *p != ',' )
-            return 0;
-        if( !revconfig_parse_int_expr(p + 1, &p, &hi) )
-            return 0;
-        p = revconfig_skip_space(p);
-        if( *p != ']' )
-            return 0;
-        if( lo <= 0 || hi < lo )
-            return 0;
-        out->zoom_min = lo;
-        out->zoom_max = hi;
-        out->viewport_zoom = 1;
-        /* Rest position: the reference height when the band contains it, and
-         * the nearest end when it does not. */
-        out->zoom_height = REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT;
-        if( out->zoom_height < lo )
-            out->zoom_height = lo;
-        if( out->zoom_height > hi )
-            out->zoom_height = hi;
-        return 1;
-    }
-    return 0;
+    *out_closest = rest * REVCONFIG_CAMERA_ZOOM_CLOSEST_PCT / 100;
+    *out_furthest = rest * REVCONFIG_CAMERA_ZOOM_FURTHEST_PCT / 100;
+    /* A rest small enough to round the band flat still has to leave the wheel
+     * somewhere to go, or `closest < furthest` reads as "does not zoom". */
+    if( *out_closest < 1 )
+        *out_closest = 1;
+    if( *out_furthest <= *out_closest )
+        *out_furthest = *out_closest + 1;
 }
 
 int

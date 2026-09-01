@@ -98,6 +98,7 @@ argv_push(char const* value)
 static JavaVM* g_vm;
 static jobject g_activity;      /* global ref, held for the app's life */
 static jmethodID g_show_keyboard;
+static jmethodID g_boot_failed;
 /**
  * The frame thread has been attached to the JVM.
  *
@@ -253,6 +254,69 @@ PlatformAndroidJni_SetSoftKeyboard(int on)
         (*env)->ExceptionClear(env);
 }
 
+/* ---- a boot that cannot proceed ------------------------------------------
+ *
+ * @see PlatformAndroid_BootFailed for why this is not exit().
+ */
+
+void
+PlatformAndroid_BootFailed(char const* message)
+{
+    JNIEnv* env = NULL;
+    int attached = 0;
+
+    assert(message);
+    LOGE("%s", message);
+
+    if( g_vm && g_activity && g_boot_failed )
+    {
+        if( (*g_vm)->GetEnv(g_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK )
+        {
+            if( (*g_vm)->AttachCurrentThread(g_vm, &env, NULL) == JNI_OK )
+                attached = 1;
+            else
+                env = NULL;
+        }
+        if( attached )
+            g_frame_thread_attached = 1;
+        if( env )
+        {
+            jstring text = (*env)->NewStringUTF(env, message);
+
+            /* The call POSTS to the UI thread and returns; it does not wait for
+             * the activity to go away. It must not -- the activity's teardown
+             * joins this thread, and waiting for it here would be each thread
+             * waiting on the other. */
+            (*env)->CallVoidMethod(env, g_activity, g_boot_failed, text);
+            if( (*env)->ExceptionCheck(env) )
+                (*env)->ExceptionClear(env);
+            if( text )
+                (*env)->DeleteLocalRef(env, text);
+        }
+    }
+
+    /*
+     * Detach before this thread stops existing. ART treats a thread that exits
+     * while still attached as fatal, and the abort it raises would be exactly
+     * the crash this function exists to prevent -- with a message naming a
+     * thread id and nothing else. frame_thread settles the same debt at its own
+     * end; this path never reaches it.
+     */
+    if( g_frame_thread_attached && g_vm )
+    {
+        (*g_vm)->DetachCurrentThread(g_vm);
+        g_frame_thread_attached = 0;
+    }
+
+    /*
+     * The client ends; the PROCESS does not. nativeStop's join returns at once
+     * for a thread that has already exited, so the activity's teardown is
+     * unchanged, and the next nativeStart begins a run in a process that is
+     * still alive.
+     */
+    pthread_exit(NULL);
+}
+
 /* ---- JNI entry points ----------------------------------------------------
  *
  * Names are the fully-qualified Java ones; they must match
@@ -383,6 +447,9 @@ Java_com_torirs_client_ClientActivity_nativeStart(
     {
         jclass cls = (*env)->GetObjectClass(env, thiz);
         g_show_keyboard = (*env)->GetMethodID(env, cls, "showSoftKeyboard", "(Z)V");
+        if( (*env)->ExceptionCheck(env) )
+            (*env)->ExceptionClear(env);
+        g_boot_failed = (*env)->GetMethodID(env, cls, "bootFailed", "(Ljava/lang/String;)V");
         if( (*env)->ExceptionCheck(env) )
             (*env)->ExceptionClear(env);
     }

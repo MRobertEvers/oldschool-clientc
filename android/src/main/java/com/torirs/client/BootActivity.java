@@ -53,6 +53,17 @@ public final class BootActivity extends Activity
     private static final int COUNTDOWN_MS = 4000;
     private static final int TICK_MS = 100;
 
+    /**
+     * Why the client just came back, when it did.
+     *
+     * A profile that cannot boot -- no cache on the device, or the server it
+     * streams one from is not up -- used to take the process with it, and an app
+     * that vanishes to the launcher is a crash as far as anyone holding the
+     * phone is concerned. The client hands the reason back through
+     * ClientActivity.bootFailed instead, and it arrives here as this extra.
+     */
+    public static final String EXTRA_BOOT_ERROR = "com.torirs.client.BOOT_ERROR";
+
     private static final String PREFS = "torirs_boot";
     private static final String KEY_DEFAULT = "default_manifest";
 
@@ -76,7 +87,24 @@ public final class BootActivity extends Activity
         profiles = BootProfile.discover(this);
         setContentView(buildUi());
 
-        if( selected != null )
+        String bootError =
+                getIntent() != null ? getIntent().getStringExtra(EXTRA_BOOT_ERROR) : null;
+        if( bootError != null )
+        {
+            /*
+             * Back from a profile that refused to boot: say why, and do not
+             * start the countdown.
+             *
+             * The countdown would pick that same profile -- it is the remembered
+             * default, which is how it came to be booted -- and the person would
+             * watch the identical failure every four seconds with no time to
+             * reach the gear that fixes it. A refusal is a decision point, so it
+             * waits for a decision.
+             */
+            status.setTextColor(Color.rgb(255, 140, 120));
+            status.setText(bootError);
+        }
+        else if( selected != null )
             startCountdown();
     }
 

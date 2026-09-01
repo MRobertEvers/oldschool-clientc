@@ -22,8 +22,7 @@
 #include "platform/platform_x_io_js5_cache.h"
 #endif
 #if defined(TORIRS_HAVE_GL3)
-/* The GPU renderer. Desktop GL 3.2 natively, WebGL1 in the browser — one file,
- * see TORIRS_GL_ES2 in platform_sdl2_renderer_gl3.c. */
+/* The desktop GPU renderer, GL 3.2 core. Selected by --opengl3. */
 #include "platform/platform_sdl2_renderer_gl3.h"
 #else
 /* Software-only builds (e.g. the Win32/GDI backend) never include the GL header,
@@ -38,9 +37,10 @@ struct ToriRS_GL3;
 struct ToriRS_D3D9;
 #endif
 #if defined(TORIRS_HAVE_GLES2)
-/* The native Android GPU renderer: OpenGL ES 2.0, no extensions, its own
- * files. Selected by --gles2 / --gles2-zbuffer. */
-#include "platform/platform_android_renderer_gles2.h"
+/* The GLES2 GPU renderer: OpenGL ES 2.0, no extensions, shared by the Android
+ * lane (--gles2 / --gles2-zbuffer) and the browser, where the same API is
+ * WebGL1 (--webgl1 / --webgl1-zbuffer). */
+#include "platform/platform_renderer_gles2.h"
 #else
 struct ToriRS_GLES2;
 #endif
@@ -3539,97 +3539,96 @@ main_parse_argument_layer(
             cfg.window_h = (int)h;
             continue;
         }
-        if( strcmp(argv[argi], "--opengl3") == 0 )
+        /*
+         * The GPU renderer flags. One spelling per lane, and each build accepts
+         * only the spelling it can honour and names the right one otherwise, so
+         * a flag is never silently ignored:
+         *
+         *   --opengl3[-zbuffer]   desktop GL 3.2 (TORIRS_HAVE_GL3)
+         *   --webgl1[-zbuffer]    the browser: the GLES2 renderer on a WebGL1
+         *                         context (TORIRS_HAVE_GLES2 + TORIRS_PLATFORM_WEB)
+         *   --gles2[-zbuffer]     Android: the same GLES2 renderer on EGL
+         *                         (TORIRS_HAVE_GLES2, not web)
+         *
+         * --webgl1 and --gles2 select the same renderer; they are kept as two
+         * names because a manifest carrying the browser's flag must not be
+         * aliased onto a phone unnoticed, or the reverse.
+         */
+        if( strcmp(argv[argi], "--opengl3") == 0 || strcmp(argv[argi], "--opengl3-zbuffer") == 0 )
         {
-#if defined(TORIRS_HAVE_GL3) && !defined(TORIRS_GL_ES2)
+            int const zbuffer = strcmp(argv[argi], "--opengl3-zbuffer") == 0;
+            /* Read in every branch below but the "not built here" one. */
+            (void)zbuffer;
+#if defined(TORIRS_HAVE_GL3)
             state->use_opengl3 = 1;
             state->use_d3d9 = 0;
             state->d3d9_zbuffer = 0;
-            state->gl3_zbuffer = 0;
+            state->gl3_zbuffer = zbuffer;
             state->use_gles2 = 0;
             continue;
-#elif defined(TORIRS_GL_ES2)
-            TORIRS_LOG("torirs: this build renders through WebGL1 — use --webgl1\n");
+#elif defined(TORIRS_HAVE_GLES2) && defined(TORIRS_PLATFORM_WEB)
+            TORIRS_ERR("torirs: this build renders through WebGL1 — use --webgl1%s\n",
+                zbuffer ? "-zbuffer" : "");
             return 0;
 #elif defined(TORIRS_HAVE_GLES2)
-            TORIRS_ERR("torirs: this build renders through GLES2 — use --gles2\n");
+            TORIRS_ERR("torirs: this build renders through GLES2 — use --gles2%s\n",
+                zbuffer ? "-zbuffer" : "");
             return 0;
 #else
-            TORIRS_LOG("torirs: --opengl3 is not available in this build\n");
+            TORIRS_LOG("torirs: %s is not available in this build\n", argv[argi]);
             return 0;
 #endif
         }
-        if( strcmp(argv[argi], "--webgl1") == 0 )
+        if( strcmp(argv[argi], "--webgl1") == 0 || strcmp(argv[argi], "--webgl1-zbuffer") == 0 )
         {
-#if defined(TORIRS_GL_ES2)
-            state->use_opengl3 = 1;
-            state->use_d3d9 = 0;
-            state->d3d9_zbuffer = 0;
-            state->gl3_zbuffer = 0;
-            continue;
-#elif defined(TORIRS_HAVE_GLES2)
-            /* WebGL1 is a browser API; there is no WebGL1 renderer on native
-             * Android and the flag is refused, not aliased. */
-            TORIRS_ERR("torirs: --webgl1 is the browser build's flag — use --gles2\n");
-            return 0;
-#else
-            TORIRS_LOG("torirs: --webgl1 is the browser build's flag — use --opengl3\n");
-            return 0;
-#endif
-        }
-        /* The depth-buffered spelling of the two above. Each build accepts only
-         * the name it can honour, and names the other, so a flag is never
-         * silently ignored. */
-        if( strcmp(argv[argi], "--opengl3-zbuffer") == 0 )
-        {
-#if defined(TORIRS_HAVE_GL3) && !defined(TORIRS_GL_ES2)
-            state->use_opengl3 = 1;
-            state->use_d3d9 = 0;
-            state->d3d9_zbuffer = 0;
-            state->gl3_zbuffer = 1;
-            state->use_gles2 = 0;
-            continue;
-#elif defined(TORIRS_GL_ES2)
-            TORIRS_LOG("torirs: this build renders through WebGL1 — use --webgl1-zbuffer\n");
-            return 0;
-#elif defined(TORIRS_HAVE_GLES2)
-            TORIRS_ERR("torirs: this build renders through GLES2 — use --gles2-zbuffer\n");
-            return 0;
-#else
-            TORIRS_LOG("torirs: --opengl3-zbuffer is not available in this build\n");
-            return 0;
-#endif
-        }
-        if( strcmp(argv[argi], "--webgl1-zbuffer") == 0 )
-        {
-#if defined(TORIRS_GL_ES2)
-            state->use_opengl3 = 1;
-            state->use_d3d9 = 0;
-            state->d3d9_zbuffer = 0;
-            state->gl3_zbuffer = 1;
-            continue;
-#elif defined(TORIRS_HAVE_GLES2)
-            TORIRS_ERR("torirs: --webgl1-zbuffer is the browser build's flag — use "
-                       "--gles2-zbuffer\n");
-            return 0;
-#else
-            TORIRS_LOG("torirs: --webgl1-zbuffer is the browser build's flag — "
-                "use --opengl3-zbuffer\n");
-            return 0;
-#endif
-        }
-        /* The Android lane's own renderer. Each build accepts only the names
-         * it can honour, so the flag is never silently ignored elsewhere. */
-        if( strcmp(argv[argi], "--gles2") == 0 || strcmp(argv[argi], "--gles2-zbuffer") == 0 )
-        {
-#if defined(TORIRS_HAVE_GLES2)
+            int const zbuffer = strcmp(argv[argi], "--webgl1-zbuffer") == 0;
+            /* Read in every branch below but the "not built here" one. */
+            (void)zbuffer;
+#if defined(TORIRS_HAVE_GLES2) && defined(TORIRS_PLATFORM_WEB)
             state->use_gles2 = 1;
-            state->gles2_zbuffer = strcmp(argv[argi], "--gles2-zbuffer") == 0;
+            state->gles2_zbuffer = zbuffer;
             state->use_opengl3 = 0;
             state->gl3_zbuffer = 0;
             state->use_d3d9 = 0;
             state->d3d9_zbuffer = 0;
             continue;
+#elif defined(TORIRS_HAVE_GLES2)
+            /* WebGL1 is a browser API. The renderer is the same one, but the
+             * flag is refused rather than aliased, so a manifest written for
+             * the browser does not run on a phone unnoticed. */
+            TORIRS_ERR("torirs: %s is the browser build's flag — use --gles2%s\n",
+                argv[argi],
+                zbuffer ? "-zbuffer" : "");
+            return 0;
+#elif defined(TORIRS_HAVE_GL3)
+            TORIRS_LOG("torirs: %s is the browser build's flag — use --opengl3%s\n",
+                argv[argi],
+                zbuffer ? "-zbuffer" : "");
+            return 0;
+#else
+            TORIRS_LOG("torirs: %s is the browser build's flag and is not available here\n",
+                argv[argi]);
+            return 0;
+#endif
+        }
+        if( strcmp(argv[argi], "--gles2") == 0 || strcmp(argv[argi], "--gles2-zbuffer") == 0 )
+        {
+            int const zbuffer = strcmp(argv[argi], "--gles2-zbuffer") == 0;
+            /* Read in every branch below but the "not built here" one. */
+            (void)zbuffer;
+#if defined(TORIRS_HAVE_GLES2) && !defined(TORIRS_PLATFORM_WEB)
+            state->use_gles2 = 1;
+            state->gles2_zbuffer = zbuffer;
+            state->use_opengl3 = 0;
+            state->gl3_zbuffer = 0;
+            state->use_d3d9 = 0;
+            state->d3d9_zbuffer = 0;
+            continue;
+#elif defined(TORIRS_HAVE_GLES2)
+            TORIRS_ERR("torirs: %s is the Android build's flag — use --webgl1%s\n",
+                argv[argi],
+                zbuffer ? "-zbuffer" : "");
+            return 0;
 #else
             TORIRS_ERR("torirs: %s is the Android build's flag and is not available here\n",
                 argv[argi]);

@@ -30,6 +30,12 @@
 #define APP_OUTLINE_COLOR_EDITOR_SELECT 0xFF00FF00u
 /* 0 opaque .. 255 invisible. High enough that the model reads through it. */
 #define APP_OUTLINE_FILL_TRANS 205
+#if defined(TORIRS_PLATFORM_ANDROID)
+/* For the boot refusal below: on a phone there is no terminal to print to and
+ * no shell to have typed the command, so a refusal has to reach the screen. */
+#include "platform/platform_android.h"
+#endif
+
 #if defined(TORIRS_PLATFORM_WEB)
 #include <emscripten.h>
 
@@ -279,8 +285,8 @@ enum
     APP_WORLD_MMB_PITCH_PER_PX = 2,
     /* Free camera (offline / scripted): no orbit distance to scale, so a notch
      * dollies along the view axis instead. The follow camera's notch is not
-     * here — it is `[camera] wheel_step=` in the revconfig, beside the band
-     * `[camera] zoom=` gives it to move in. */
+     * here — it is `[camera] wheel_step=` in the revconfig, beside the
+     * `zoom_closest=`..`zoom_furthest=` band it moves in. */
     APP_WORLD_ZOOM_FREECAM_STEP = 140,
 };
 
@@ -294,6 +300,26 @@ app_chat_filters(struct App const* app)
         .social = &app->social,
     };
     return filters;
+}
+
+/*
+ * The follow camera's pitch, held inside the range the profile states.
+ *
+ * One place, because this used to be four: the boot value, the middle-button
+ * drag, TORIRS_ORBIT_CAM and the arrow-key ease each spelled `128` and `383`
+ * themselves, and the terrain clamp spelled them a fifth time in 256ths. A
+ * profile that moved the range would have moved one of the five.
+ * @see RevConfigCameraItem::pitch_flattest.
+ */
+static int
+app_world_clamp_pitch(struct App const* app, int pitch)
+{
+    assert(app);
+    if( pitch < app->revconfig_profile.camera.pitch_flattest )
+        return app->revconfig_profile.camera.pitch_flattest;
+    if( pitch > app->revconfig_profile.camera.pitch_steepest )
+        return app->revconfig_profile.camera.pitch_steepest;
+    return pitch;
 }
 
 /* Resolve a component id at the point an app-owned action is about to use it.
@@ -9248,6 +9274,37 @@ app_editor_on_state(
     int count);
 
 /*
+ * The boot cannot proceed, for a reason the person running this can fix.
+ *
+ * A missing cache and a cache server that is not up are DEPLOYMENT states, not
+ * contract violations: an assert would name the wrong culprit, and carrying on
+ * is worse than either -- that is what this client used to do, limping past a
+ * failed on-demand enable with no cache provider at all and taking SIGSEGV in
+ * the first buildcache lookup, a mile from the cause.
+ *
+ * So it refuses, loudly, in one sentence addressed to whoever has to act on it.
+ * WHERE that sentence has to land is the platform's business and not this
+ * function's: a desktop run prints it to the terminal the command was typed in
+ * and exits, and on Android there is no such terminal -- exit() there kills the
+ * process, the activity vanishes to the launcher, and the diagnosis sits in
+ * logcat where nobody holding a phone will read it. Which is to say it reads
+ * exactly like a crash. @see PlatformAndroid_BootFailed.
+ */
+static void
+app_boot_refuse(char const* message)
+{
+    assert(message);
+    TORIRS_ERR("app: %s\n", message);
+#if defined(TORIRS_PLATFORM_ANDROID)
+    /* Hands the message to the boot menu and ends the frame thread; the process
+     * survives, so the gear can fix the profile and the next run is a new run
+     * rather than a new launch. Does not return. */
+    PlatformAndroid_BootFailed(message);
+#endif
+    exit(1);
+}
+
+/*
  * Boot / session-reset value for the two Attack options.
  *
  * Era-dependent, and the two answers are opposites. A settings-era client boots
@@ -9419,11 +9476,21 @@ App_Init(
              * cache provider at all, and SIGSEGV'd in the first buildcache
              * hmap lookup -- which, on a device whose profile armed --webgl1,
              * read as a GLES2 renderer crash. */
-            TORIRS_ERR("app: [cache:boot] source=ondemand, but %s is not serving a cache "
-                "(game port %d, web port %d); cannot boot without one\n",
+            char message[512];
+            int used;
+
+            /* Composed rather than printed in pieces: on Android this same
+             * string is what the boot menu shows, and a diagnosis split across
+             * two calls arrives there as half of one. */
+            used = snprintf(message, sizeof(message),
+                "[cache:boot] source=ondemand, but %s is not serving a cache "
+                "(game port %d, web port %d); this profile streams its cache from "
+                "there and cannot boot without it.",
                 host,
                 cfg->connect_port > 0 ? cfg->connect_port : 43594,
                 cfg->web_port > 0 ? cfg->web_port : 80);
+            if( used < 0 || used >= (int)sizeof(message) )
+                used = (int)sizeof(message) - 1;
 #if defined(TORIRS_PLATFORM_ANDROID)
             /* The trap this message exists for: a manifest authored on the
              * desktop says host=localhost, and on the phone localhost IS the
@@ -9431,10 +9498,11 @@ App_Init(
              * server machine's bare hostname resolves through the router's
              * DNS (`.local` does not on old Android). */
             if( strcmp(host, "localhost") == 0 || strcmp(host, "127.0.0.1") == 0 )
-                TORIRS_ERR("app: on this device 'localhost' is the phone itself -- edit the "
-                    "profile's host (boot menu gear) to the server machine's LAN name\n");
+                snprintf(message + used, sizeof(message) - (size_t)used,
+                    "\n\nOn this device 'localhost' is the phone itself. Tap the gear and set "
+                    "this profile's host to the server machine's LAN name.");
 #endif
-            exit(1);
+            app_boot_refuse(message);
         }
         app->cache_on_demand = 1;
     }
@@ -9445,10 +9513,12 @@ App_Init(
         {
             /* Same rule as the ondemand refusal above: a missing cache is a
              * deployment state, and the message is the whole diagnosis. */
-            TORIRS_ERR("app: no dat1 cache at %s (expected main_file_cache.dat; pass --dat2 for a "
-                "js5 cache)\n",
+            char message[512];
+
+            snprintf(message, sizeof(message),
+                "no dat1 cache at %s (expected main_file_cache.dat; pass --dat2 for a js5 cache)",
                 cfg->cache_dir);
-            exit(1);
+            app_boot_refuse(message);
         }
         Platform_IO_InitDat1Disk(app->runner.px, app->dat1_disk);
         /* No xtea step: dat1 archives are not encrypted. */
@@ -9460,10 +9530,13 @@ App_Init(
         app->dat2_disk = RSCache_Dat2DiskNewFromDirectoryLazyTables(cfg->cache_dir);
         if( !app->dat2_disk )
         {
-            TORIRS_ERR("app: no dat2 cache at %s (expected main_file_cache.dat2; pass --dat1 for a "
-                "317-era cache)\n",
+            char message[512];
+
+            snprintf(message, sizeof(message),
+                "no dat2 cache at %s (expected main_file_cache.dat2; pass --dat1 for a "
+                "317-era cache)",
                 cfg->cache_dir);
-            exit(1);
+            app_boot_refuse(message);
         }
         /* Map archives may be xtea-encrypted (OldSchool below 237; RS2 dat2
          * from 414). Keys load into the rscache global table the disk layer
@@ -9606,11 +9679,15 @@ App_Init(
         (getenv("TORIRS_NEAR_PLANE") ? atoi(getenv("TORIRS_NEAR_PLANE")) : 50);
     app->world_camera.pitch = 148;
     app->world_camera_pos.z = -800;
-    app->orbit_pitch = 128; /* reference orbitCameraPitch default */
+    /* The flattest the profile allows: the reference's orbitCameraPitch
+     * default IS its own lower bound, so a lane that states a different range
+     * boots at the bottom of the range it stated rather than at a 128 that no
+     * longer means anything there. */
+    app->orbit_pitch = app->revconfig_profile.camera.pitch_flattest;
     app->orbit_yaw = 0;
-    /* The rest position the profile chose: the reference height when the band
-     * contains it, the pinned height under `zoom=fixed:`. */
-    app->world_cam_height = app->revconfig_profile.camera.zoom_height;
+    /* Where the profile says this camera sits before anyone touches it.
+     * `[camera] rest=`, and the band is around it, not the other way up. */
+    app->world_cam_zoom = app->revconfig_profile.camera.rest;
     app->world_hover_tile_x = -1;
     app->world_hover_tile_z = -1;
     app->world_hover_tile_level = 0;
@@ -13764,13 +13841,14 @@ app_apply_wedge_scale(struct App* app)
     if( mode < 0 )
         return;
     /*
-     * A revision whose camera is `zoom=fixed:` has no viewport-derived
-     * projection either, and for the same reason the follow distance skips the
-     * interpolation (app_world_camera_follow): class159.method5357 IS the later
-     * client's zoom, and the 2004 client does not have it.
+     * A revision that states `[camera] viewport_zoom=no` has no
+     * viewport-derived projection either, and for the same reason the follow
+     * distance skips the interpolation (app_world_camera_follow):
+     * class159.method5357 IS the later client's zoom, and the 2004 client does
+     * not have it. One key, both halves -- they are one client era.
      *
-     * Asked of `viewport_zoom` and not of the live zoom_mode, because the
-     * settings page can flip that one: reading zoom_mode here meant switching
+     * Asked of `viewport_zoom` and not of the live wheel, because the
+     * settings page can flip that one: reading wheel here meant switching
      * the wheel ON halved the scale under the player, and no wheel band could
      * put it back. @see RevConfigCameraItem::viewport_zoom. Its projection is the
      * bare `<< 9` in Model.project / Model.draw (Client-TS dash3d/Model.ts) --
@@ -18855,11 +18933,8 @@ app_world_paint(struct App* app)
             app->world_camera.yaw = (app->world_camera.yaw + jitter) & 0x7ff;
             break;
         case 4:
-            app->world_camera.pitch += jitter;
-            if( app->world_camera.pitch < 128 )
-                app->world_camera.pitch = 128;
-            if( app->world_camera.pitch > 383 )
-                app->world_camera.pitch = 383;
+            app->world_camera.pitch =
+                app_world_clamp_pitch(app, app->world_camera.pitch + jitter);
             break;
         default:
             break;
@@ -20228,11 +20303,11 @@ app_ui_hotkeys(
 /*
  * Does the follow camera zoom right now? Both halves have to say yes.
  *
- * `zoom_mode` is the SWITCH -- the settings page's "Zoom" row, and what
- * `zoom=fixed:` states for the 2004 client, whose eye is `pitch * 3 + 600`
- * behind the player with nothing the player does moving it. `zoom_min <
- * zoom_max` is the ROOM: `fixed:` resolves to a band of one, and a band of one
- * has nowhere to go even when the switch is on.
+ * `wheel` is the SWITCH -- the settings page's "Zoom" row. Pinned, the eye
+ * stays at `[camera] rest=` with nothing the player does moving it, which is
+ * the 2004 camera. `zoom_closest < zoom_furthest` is the ROOM: a profile may
+ * state both ends the same and leave the wheel nowhere to go even when the
+ * switch is on.
  *
  * Reading only the band was what made the "Zoom" row a no-op on the two
  * behaviours it appeared to name -- it moved no wheel and only changed the
@@ -20242,9 +20317,9 @@ static int
 app_world_camera_zooms(struct App const* app)
 {
     assert(app);
-    if( app->revconfig_profile.camera.zoom_mode != REVCONFIG_CAMERA_ZOOM_CLAMPED )
+    if( app->revconfig_profile.camera.wheel != REVCONFIG_CAMERA_WHEEL_LIVE )
         return 0;
-    return app->revconfig_profile.camera.zoom_min < app->revconfig_profile.camera.zoom_max;
+    return app->revconfig_profile.camera.zoom_closest < app->revconfig_profile.camera.zoom_furthest;
 }
 
 /* TORIRS_CAM_DEBUG=1: one line whenever a mouse gesture moves the camera.
@@ -20263,15 +20338,15 @@ app_debug_log_camera(
         follow_cam ? "orbit" : "free",
         follow_cam ? app->orbit_yaw : app->world_camera.yaw,
         follow_cam ? app->orbit_pitch : app->world_camera.pitch,
-        app->world_cam_height,
+        app->world_cam_zoom,
         app->world_camera_pos.x,
         app->world_camera_pos.y,
         app->world_camera_pos.z);
 }
 
 /* Middle-button rotate and wheel zoom over the world viewport. Both gestures
- * are properties of the REVISION (revconfig `[camera] controls=` and `zoom=`),
- * not of the viewport widget: a camera that cannot zoom cannot zoom over any
+ * are properties of the REVISION (revconfig `[camera] controls=` and the
+ * band), not of the viewport widget: a camera that cannot zoom cannot zoom over any
  * viewport. The emit desc is still what app_world_mouse_gate reads to decide
  * the pointer is on the scene rather than on the interface.
  *
@@ -20335,11 +20410,8 @@ app_world_camera_mouse(
                      * a position delta, so it writes the angle and zeroes the
                      * velocity rather than fighting the decay next frame. */
                     app->orbit_yaw = (app->orbit_yaw - dx * APP_WORLD_MMB_YAW_PER_PX) & 0x7ff;
-                    app->orbit_pitch += dy * APP_WORLD_MMB_PITCH_PER_PX;
-                    if( app->orbit_pitch < 128 )
-                        app->orbit_pitch = 128;
-                    if( app->orbit_pitch > 383 )
-                        app->orbit_pitch = 383;
+                    app->orbit_pitch =
+                        app_world_clamp_pitch(app, app->orbit_pitch + dy * APP_WORLD_MMB_PITCH_PER_PX);
                     app->orbit_yaw_vel = 0;
                     app->orbit_pitch_vel = 0;
                 }
@@ -20389,9 +20461,9 @@ app_world_camera_mouse(
         }
         else if( app_world_camera_zooms(app) )
         {
-            app->world_cam_height = RevConfigProfile_CameraClampHeight(
+            app->world_cam_zoom = RevConfigProfile_CameraClampZoom(
                 &app->revconfig_profile,
-                app->world_cam_height -
+                app->world_cam_zoom -
                     input->curr.mouse_wheel_y *
                         app->revconfig_profile.camera.wheel_step);
         }
@@ -25499,10 +25571,9 @@ app_cinema_angles(
     distance = (int)sqrt((double)dx * dx + (double)dz * dz);
 
     pitch = (int)(atan2((double)dy, (double)distance) * 325.949) & 0x7ff;
-    if( pitch < 128 )
-        pitch = 128;
-    else if( pitch > 383 )
-        pitch = 383;
+    /* The scripted camera tips no further than the player's own may: the
+     * profile's range, not a second copy of the reference's numbers. */
+    pitch = app_world_clamp_pitch(app, pitch);
 
     *out_pitch = pitch;
     *out_yaw = (int)(atan2((double)dx, (double)dz) * -325.949) & 0x7ff;
@@ -25708,12 +25779,13 @@ app_world_camera_follow(struct App* app)
      * before the step, every frame, with the easing velocities zeroed so the
      * angles cannot drift back.
      *
-     * yaw is 0..2047, pitch 128..383 (the same range the middle-button drag
-     * allows), zoom is the follow height as a percentage of the reference 600 —
-     * still a percentage here rather than a raw height, because that is the
+     * yaw is 0..2047, pitch is clamped into the profile's own
+     * `[camera] pitch_flattest=`..`pitch_steepest=` (the same range the
+     * middle-button drag allows), zoom is a percentage of `[camera] rest=` —
+     * still a percentage here rather than a raw distance, because that is the
      * spelling every recorded TORIRS_ORBIT_CAM string in the tree uses. It is
-     * clamped into whatever band `[camera] zoom=` allows, so a `fixed:` profile
-     * ignores it exactly as the wheel does.
+     * clamped into the `zoom_closest=`..`zoom_furthest=` band, so a profile
+     * that states a band of one ignores it exactly as the wheel does.
      */
     {
         static int resolved = 0;
@@ -25741,7 +25813,7 @@ app_world_camera_follow(struct App* app)
             app->orbit_yaw_vel = 0;
             if( cam_pitch >= 0 )
             {
-                app->orbit_pitch = cam_pitch < 128 ? 128 : (cam_pitch > 383 ? 383 : cam_pitch);
+                app->orbit_pitch = app_world_clamp_pitch(app, cam_pitch);
                 app->orbit_pitch_vel = 0;
             }
             if( cam_zoom > 0 )
@@ -25750,9 +25822,9 @@ app_world_camera_follow(struct App* app)
                  * and normal is wherever this camera rests -- reading it
                  * against a constant makes the same packet mean two different
                  * views on two lanes. */
-                app->world_cam_height = RevConfigProfile_CameraClampHeight(
+                app->world_cam_zoom = RevConfigProfile_CameraClampZoom(
                     &app->revconfig_profile,
-                    app->revconfig_profile.camera.zoom_height * cam_zoom / 100);
+                    app->revconfig_profile.camera.rest * cam_zoom / 100);
         }
     }
     if( !RS_EntitySync_FindPlayer(
@@ -25841,11 +25913,7 @@ app_world_camera_follow(struct App* app)
         app->orbit_pitch_vel = app->orbit_pitch_vel / 2;
 
     app->orbit_yaw = (app->orbit_yaw + app->orbit_yaw_vel / 2) & 0x7ff;
-    app->orbit_pitch += app->orbit_pitch_vel / 2;
-    if( app->orbit_pitch < 128 )
-        app->orbit_pitch = 128;
-    if( app->orbit_pitch > 383 )
-        app->orbit_pitch = 383;
+    app->orbit_pitch = app_world_clamp_pitch(app, app->orbit_pitch + app->orbit_pitch_vel / 2);
 
     /* Terrain pitch clamp: scan the 9x9 tile block around the anchor for
      * ground higher than the anchor's; raise the minimum pitch so the eye
@@ -25876,10 +25944,17 @@ app_world_camera_follow(struct App* app)
                 }
         }
         clamp = max_y * 192;
-        if( clamp > 98048 )
-            clamp = 98048;
-        if( clamp < 32768 )
-            clamp = 32768;
+        /* The same range the drag and the keys respect, in the 256ths this
+         * clamp eases in -- `98048` and `32768` were exactly these two
+         * products, written out. */
+        if( clamp > app->revconfig_profile.camera.pitch_steepest *
+                REVCONFIG_CAMERA_PITCH_CLAMP_SCALE )
+            clamp = app->revconfig_profile.camera.pitch_steepest *
+                REVCONFIG_CAMERA_PITCH_CLAMP_SCALE;
+        if( clamp < app->revconfig_profile.camera.pitch_flattest *
+                REVCONFIG_CAMERA_PITCH_CLAMP_SCALE )
+            clamp = app->revconfig_profile.camera.pitch_flattest *
+                REVCONFIG_CAMERA_PITCH_CLAMP_SCALE;
         if( clamp > app->camera_pitch_clamp )
             app->camera_pitch_clamp += (clamp - app->camera_pitch_clamp) / 24;
         else if( clamp < app->camera_pitch_clamp )
@@ -25887,27 +25962,45 @@ app_world_camera_follow(struct App* app)
     }
 
     pitch = app->orbit_pitch;
-    if( app->camera_pitch_clamp / 256 > pitch )
-        pitch = app->camera_pitch_clamp / 256;
+    if( app->camera_pitch_clamp / REVCONFIG_CAMERA_PITCH_CLAMP_SCALE > pitch )
+        pitch = app->camera_pitch_clamp / REVCONFIG_CAMERA_PITCH_CLAMP_SCALE;
     yaw = app->orbit_yaw & 0x7ff;
     /*
-     * Reference distance is `pitch * 3 + 600` (Client-TS camFollow), later
+     * Reference distance is `pitch * 3 + 600` (Client-TS camFollow) -- here
+     * `pitch * pitch_distance + rest`, both stated by the profile -- later
      * scaled by a viewport-height zoom (`* viewportZoom / 256`,
-     * client.method2068). `world_cam_height` is that 600, moved by the wheel
-     * inside whatever band `[camera] zoom=` allows.
+     * client.method2068). `world_cam_zoom` is that 600 -- `[camera] rest=` --
+     * moved by the wheel inside the `zoom_closest=`..`zoom_furthest=` band.
      *
-     * Under `zoom=fixed:` the viewport interpolation is skipped as well as the
-     * wheel, and for the same reason: it is a later client's way of zooming,
-     * and a revision that states a fixed height has said its camera has none.
-     * `fixed:600` is then Client-TS's expression exactly.
+     * `[camera] viewport_zoom=no` skips the interpolation: it is a later
+     * client's way of zooming, and a revision that says it is the 2004 client
+     * has said its camera has none. `rest=600` + `viewport_zoom=no` is then
+     * Client-TS's expression exactly.
      *
-     * That is `viewport_zoom`, which the revision states and the player does
-     * not: a wheel switched on in the settings moves world_cam_height inside
-     * its band and leaves this term exactly as the revision left it.
+     * The revision states that key and the player does not: a wheel switched
+     * on in the settings moves world_cam_zoom inside its band and leaves this
+     * term exactly as the revision left it.
      */
-    distance = pitch * 3 + app->world_cam_height;
+    distance = pitch * app->revconfig_profile.camera.pitch_distance + app->world_cam_zoom;
     if( app->revconfig_profile.camera.viewport_zoom )
         distance = distance * app_world_cam_dist_zoom(app) / 256;
+    /*
+     * The device's own dolly, last, over the whole distance -- pitch term
+     * included, which is the point of it. The band under `world_cam_zoom`
+     * moves the additive term only, so it buys less and less as the camera
+     * tips over: overhead, `pitch * 3` is 1149 of the distance and no floor
+     * the band can state is worth more than a few percent of it.
+     * @see RevConfigCameraItem::distance_scale.
+     */
+    if( app->revconfig_profile.camera.distance_scale !=
+        REVCONFIG_CAMERA_DISTANCE_SCALE_DEFAULT )
+        distance = distance * app->revconfig_profile.camera.distance_scale / 100;
+    /* Not past the near plane. Anything closer than it is not a closer view,
+     * it is a dropped one -- the anchor itself fails the `dz < near_plane_z`
+     * test in ToriRS_WorldProject. The camera's own field, so TORIRS_NEAR_PLANE
+     * moves both together. */
+    if( distance < app->world_camera.near_plane_z )
+        distance = app->world_camera.near_plane_z;
     /* Look-at height: the reference samples the ground under the ACTOR (not
      * under the eased anchor), takes the minimum over its footprint, then
      * drops 8, then the camera's own 50 — client.method1605:
@@ -26328,10 +26421,13 @@ app_hover_text_update(
 
     /* 4726's first gate: no hover line while the Choose Option popup is up.
      * Nor under a chrome window: the line would name whatever the window is
-     * drawn over, and the right click that row promises is refused. */
-    if( app->interact.minimenu.visible || app_chrome_wants_pointer(app, mouse_x, mouse_y) ||
-        mouse_x < 0 || mouse_y < 0 || mouse_x >= UITREE_LAYOUT_ROOT_W ||
-        mouse_y >= UITREE_LAYOUT_ROOT_H )
+     * drawn over, and the right click that row promises is refused. Nor with
+     * no pointer on the canvas at all -- after a touch tap the position is
+     * still there but nothing is hovering it, and a line naming what a finger
+     * touched a minute ago is the same ghost as an unmoving cursor. */
+    if( app->interact.minimenu.visible || app->pointer_absent ||
+        app_chrome_wants_pointer(app, mouse_x, mouse_y) || mouse_x < 0 || mouse_y < 0 ||
+        mouse_x >= UITREE_LAYOUT_ROOT_W || mouse_y >= UITREE_LAYOUT_ROOT_H )
     {
         app->hover_text.visible = false;
         app->hover_text.text[0] = '\0';
@@ -29586,6 +29682,37 @@ App_PluginLayoutTick(struct App* app)
         return;
     }
 
+    /*
+     * And nothing is declared against a tree that is not a gameframe at all.
+     *
+     * The other end of api_layout_claim's rule, which refuses to hand the frame
+     * over anywhere but the game screen and says there that it is "the one
+     * door". It was, for getting IN. This is the way OUT, and it did not exist
+     * until a logout could put a live session back on the title screen: a claim
+     * belongs to the PLUGIN, not to the session, so it is still held when the
+     * title tree bakes, and the tick would ask the owner to arrange a gameframe
+     * that is not there.
+     *
+     * What the owner declares into it is NOTHING -- every arranger gates its
+     * own declaration on being in game, which is correct and is not enough.
+     *
+     * An empty declaration is not "leave it alone". It is a complete one that
+     * happens to place no slots, and UITree_FrameApply answers it exactly as
+     * asked -- every role unplaced and therefore hidden, then the lane's own
+     * chrome collected and hidden too. Against the login screen that reads as
+     * the login screen falling apart: the plate and most of the background
+     * gone, two strips of brazier left standing.
+     *
+     * Marked dirty rather than merely skipped, so the frame is re-declared on
+     * the first READY frame of the next session instead of inheriting whatever
+     * the last one left behind.
+     */
+    if( app->screen != APP_SCREEN_GAME )
+    {
+        app->plugin_layout_dirty = 1;
+        return;
+    }
+
     /* The canvas the claim asked for, restated. @see the body: it has other
      * writers, and the last one to speak wins. */
     App_SyncPluginLayoutCanvas(app);
@@ -30609,7 +30736,18 @@ App_RunOnce(
      * REBUILD_NORMAL instead (a default region load would race/clobber it). */
     if( app->world_view_valid && !app->world_load_attempted && !app->net_enabled )
         app_world_load_begin(app, NULL, 0);
+    /*
+     * `mouse_pointer_absent` is the touch host saying the finger that WAS the
+     * pointer has lifted (LibToriRS_Input_PushMouseLeave). The position it left
+     * behind is still needed -- the popup it opened is anchored there -- but
+     * nothing is hovering it any more, so the hover markers and the pick that
+     * feeds them go quiet. Without this the tile indicator keeps outlining the
+     * tile of the last tap for as long as the client runs, and the world pick
+     * keeps re-answering it every frame.
+     */
+    app->pointer_absent = input->mouse_pointer_absent;
     app->world_mouse_in_viewport =
+        !app->pointer_absent &&
         app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y);
     app->world_mouse_x = input->curr.mouse_x;
     app->world_mouse_y = input->curr.mouse_y;

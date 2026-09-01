@@ -2084,9 +2084,6 @@ $(EIP_SAMPLE_OBJ): $(TORIDRAW_DIR)/toridraw_eip_sample.c $(TORIDRAW_DIR)/toridra
 $(OBJ_DIR)/trspk_unity.o: $(TRSPK_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -w -c $(TRSPK_UNITY_SRC) -o $@
 
-$(OBJ_DIR)/webgl1_index16.o: $(TRSPK_DIR)/webgl1/webgl1_index16.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
 $(OBJ_DIR)/opengl3_sdlgl.o: $(TRSPK_DIR)/opengl3/opengl3_sdlgl.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -w -c $(TRSPK_DIR)/opengl3/opengl3_sdlgl.c -o $@
 

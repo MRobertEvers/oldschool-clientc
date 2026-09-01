@@ -129,7 +129,7 @@ returns, because Android destroys the surface the moment it does.
               ┌───────────────────┴────────────────────┐
               ▼                                        ▼
    SOFTWARE (default)                        GLES2 (--gles2[-zbuffer], opt-in)
-   toridraw rasterises into                  platform_android_renderer_gles2_*.c
+   toridraw rasterises into                  platform_renderer_gles2_*.c
    the ARGB8888 canvas                       draws into the EGL surface
               │                                        │
    PlatformWindow_Present                      PlatformWindow_PresentGL
@@ -139,11 +139,14 @@ returns, because Android destroys the surface the moment it does.
    ANativeWindow_unlockAndPost
 ```
 
-### The GPU path is the lane's own renderer
+### The GPU path is the GLES2 renderer, shared with the browser
 
-`platform_android_renderer_gles2_{core,ui,painter,zbuffer}.c` is OpenGL ES 2.0
+`platform_renderer_gles2_{core,ui,painter,zbuffer}.c` is OpenGL ES 2.0
 core with **no extensions**, and it is shaped after the Windows D3D9 renderer's
-retained model rather than after either desktop GL renderer:
+retained model rather than after either desktop GL renderer. The web lane
+links the same four files against WebGL1 (`--webgl1` / `--webgl1-zbuffer`),
+which is why nothing in them may say "Android" any more than it may say the
+name of a windowing library:
 
 - geometry is baked once into Batch16 chunks for the scene (packed densely
   into one static buffer) and a paged arena for everything else, and addressed
@@ -396,7 +399,12 @@ type=cross
 
 [component:cross@mobile]    ; touch only, and it OVERRIDES the above
 [camera@mobile]             ; the nameless sections take the tag on the type;
-zoom_closest=150            ; this one lets the phone zoom in past the desktop floor
+zoom_closest=60             ; the phone's own band floor, past the desktop's
+distance_scale=70           ; the whole distance, every angle
+pitch_distance=2            ; and the pitch term alone, which is nearly the
+                            ; whole of the overhead view. Every [camera] key
+                            ; states exactly one number --
+                            ; docs/CAMERA_CONFIG.md is the breakdown.
 type=inkwell
 style=splash
 walk_color=yellow
@@ -421,7 +429,7 @@ requirements have failed quietly before:
 |---|---|
 | `-mfpu=neon` | armv7 does not enable NEON by default, and the kernels select their SIMD lane with `#if defined(__ARM_NEON)` at **compile** time. Without it every one silently takes the scalar fallback — no symptom but a slower frame. |
 | `-fPIC` | fails, but deep in the linker naming a *tommath* symbol rather than the cause. |
-| `TORIRS_HAVE_GLES2` | the lane's own renderer; `TORIRS_HAVE_GL3` and `TORIRS_GL_ES2` are forbidden, so `main.c` cannot hand this lane a desktop GL renderer. |
+| `TORIRS_HAVE_GLES2` | the GLES2 renderer (shared with the web lane); `TORIRS_HAVE_GL3` and `TORIRS_GL_ES2` are forbidden, so `main.c` cannot hand this lane a desktop GL renderer or the retired WebGL1 fork's switch. |
 
 The desktop window library's link flags are **forbidden** by name in
 `platform_check.mk` (`LANE_FORBID_android`), not merely absent — the way the

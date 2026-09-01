@@ -1,13 +1,20 @@
-#ifndef SRC_PLATFORM_PLATFORM_ANDROID_RENDERER_GLES2_H
-#define SRC_PLATFORM_PLATFORM_ANDROID_RENDERER_GLES2_H
+#ifndef SRC_PLATFORM_PLATFORM_RENDERER_GLES2_H
+#define SRC_PLATFORM_PLATFORM_RENDERER_GLES2_H
 
 /*
- * The native Android GPU renderer: OpenGL ES 2.0, core profile, NO extensions.
+ * The GLES2 GPU renderer: OpenGL ES 2.0, core profile, NO extensions.
  *
- * Its own renderer rather than a build of one of the desktop ones, and shaped
- * after the Windows D3D9 renderer rather than after either GL one -- because
- * D3D9's retained model is the one that already answers the questions a 2013
- * phone asks:
+ * One renderer for two lanes. Android links it against the NDK's GLES2 over an
+ * EGL context (--gles2 / --gles2-zbuffer); the browser links the same four
+ * translation units against WebGL1, which is the same API to the letter, over
+ * an SDL-made context (--webgl1 / --webgl1-zbuffer). Nothing in these files
+ * knows which: every GL call comes from <GLES2/gl2.h>, and the context comes
+ * from the neutral seam in platform_gl_context.h.
+ *
+ * Its own renderer rather than a build of the desktop GL one, and shaped after
+ * the Windows D3D9 renderer rather than after it -- because D3D9's retained
+ * model is the one that already answers the questions a 2013 phone (or a
+ * browser paying a JavaScript call per GL entry point) asks:
  *
  *   - geometry is BAKED ONCE into 16-bit-indexable pages and never rebuilt per
  *     frame (Batch16 for the scene, a paged arena for everything else);
@@ -23,9 +30,9 @@
  *
  * The public surface is the same shape as the D3D9 renderer's
  * (platform_win32_renderer_d3d9.h), so main.c drives every GPU renderer the
- * same way. The context comes from the neutral seam in
- * platform_gl_context.h, whose Android implementation is platform_android_gl.c
- * (EGL).
+ * same way. The seam's two implementations are platform_android_gl.c (EGL)
+ * and platform_gl_context_sdl.c (SDL, which in the browser is emscripten's EGL
+ * emulation over a WebGL1 canvas context).
  */
 
 #include "render/torirs_pick.h"

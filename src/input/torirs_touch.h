@@ -140,6 +140,20 @@ struct ToriRS_Touch
     /** A gesture that is no longer a candidate for anything: set when a second
      *  finger joins, so lifting them does not emit two stray taps. */
     int multi;
+    /**
+     * Frames still to wait before telling the client the pointer is gone.
+     *
+     * A finger that lifts takes the pointer with it -- there is no cursor left
+     * hovering where it was -- but the client cannot be told so in the same
+     * frame as the tap. The click is dispatched against the PREVIOUS frame's
+     * world pick (the pickset and hover tile app_world_pick_finish latched),
+     * and clearing hover on the frame that carries the click would take the
+     * "Walk here" row and the target out from under it. So the leave is
+     * counted down and sent from ToriRS_TouchTick a frame later, which also
+     * makes it independent of whether a host ticks before or after it pumps
+     * its events.
+     */
+    int leave_countdown;
     /** The overlay test and its user pointer, or NULL. @see
      *  ToriRS_TouchSetOverlayTest. */
     ToriRS_TouchOverlayFn overlay;

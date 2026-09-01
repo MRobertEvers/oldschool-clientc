@@ -21,7 +21,7 @@
  * Every draw here alpha-tests at 1/255 and blends, as the D3D9 UI states do.
  */
 
-#include "platform/platform_android_renderer_gles2_core.h"
+#include "platform/platform_renderer_gles2_core.h"
 
 #include "log/torirs_log.h"
 #include "perf/torirs_perf.h"
@@ -1284,7 +1284,11 @@ gles2_ui_draw_rotmask_native(
     offset = gles2_ring_upload(renderer, vertices, (uint32_t)sizeof(vertices));
     gles2_bind_rotmask_stream(renderer, offset);
     glDrawArrays(GL_TRIANGLES, 0, 6);
-    gles2_check_error("rotmask draw");
+    /* No glGetError here. It ran after every rotmask draw once, and on a
+     * browser glGetError is a synchronous round trip to the GPU process that
+     * drains the command queue -- twice a frame, for the minimap and the
+     * compass. The init-time check covers the programs and buffers this draw
+     * uses; a draw that fails afterwards is visible on screen. */
     renderer->ui_stat_draws_rotmask++;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
     /* Leave nothing on unit 1 that an unload can delete before the next draw. */

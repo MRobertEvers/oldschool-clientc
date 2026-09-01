@@ -6,7 +6,7 @@
  * program to it and never see EGL.
  *
  * The renderer on the other side of this seam here is the lane's own
- * platform_android_renderer_gles2_*.c: OpenGL ES 2.0 core with no extensions,
+ * platform_renderer_gles2_*.c: OpenGL ES 2.0 core with no extensions,
  * shaped after the Windows D3D9 renderer's retained model. This file's only
  * job is the context it draws into.
  *

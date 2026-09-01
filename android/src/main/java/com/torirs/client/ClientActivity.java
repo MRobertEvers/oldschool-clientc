@@ -2,6 +2,7 @@ package com.torirs.client;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
@@ -494,6 +495,34 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
 
         nativeKey(keyCode, 0, 0);
         return true;
+    }
+
+    /**
+     * Called from the native frame thread when the client refuses to boot.
+     * @see PlatformAndroid_BootFailed, which is where the reason comes from.
+     *
+     * The native side has already ended its own thread; all that is left is to
+     * put the person back where they can act on the message. That is the boot
+     * menu, which shows it and does NOT run its countdown -- booting the same
+     * profile again four seconds later would replay the same failure forever.
+     *
+     * Posted to the UI thread: the caller is the frame thread, and finishing an
+     * activity is not its to do.
+     */
+    @SuppressWarnings("unused") /* invoked by JNI, by name */
+    public void bootFailed(final String message)
+    {
+        runOnUiThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                Intent intent = new Intent(ClientActivity.this, BootActivity.class);
+                intent.putExtra(BootActivity.EXTRA_BOOT_ERROR, message);
+                startActivity(intent);
+                finish();
+            }
+        });
     }
 
     /**

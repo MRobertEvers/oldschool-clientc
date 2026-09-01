@@ -34,12 +34,13 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits)
         /*
          * Asked for BEFORE the context, which is the only time SDL reads it.
          *
-         * A WebGL1 context is created with depth by default, but SDL asks the
-         * browser for a canvas depth size and gets a context without one if it
-         * does not; on desktop GL the request is what selects a visual that has
-         * a depth buffer at all. Either way, a depth request that arrives after
-         * the context is silently ignored -- which is why depth_bits is a
-         * parameter of Create rather than a call of its own.
+         * On desktop GL the request is what selects a visual that has a depth
+         * buffer at all. A depth request that arrives after the context is
+         * silently ignored -- which is why depth_bits is a parameter of Create
+         * rather than a call of its own. (In the browser it is earlier still:
+         * SDL's emscripten backend fixes depth and stencil when the WINDOW is
+         * created, so platform_sdl2.c asks for the depth buffer there and this
+         * request is redundant but harmless.)
          */
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, depth_bits);
     }
@@ -79,7 +80,20 @@ ToriRS_GLContext_DrawableSize(ToriRS_GLWindow* window, int* out_width, int* out_
 void
 ToriRS_GLContext_SetSwapInterval(int interval)
 {
+#if defined(__EMSCRIPTEN__)
+    /*
+     * Deliberately nothing in the browser. SDL's emscripten backend routes this
+     * to eglSwapInterval, and emscripten's EGL implements THAT by switching the
+     * main loop's timing mode: interval 0 becomes setTimeout(0), which would
+     * take the frame loop off requestAnimationFrame. main.c owns that decision
+     * (it moves between RAF and setTimeout as the tab hides and shows), so a
+     * renderer asking for "no vsync wait" here would fight it -- and there is
+     * no vsync wait to remove: a browser presents at RAF and nowhere else.
+     */
+    (void)interval;
+#else
     SDL_GL_SetSwapInterval(interval);
+#endif
 }
 
 char const*

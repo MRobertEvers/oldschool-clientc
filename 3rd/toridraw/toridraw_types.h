@@ -142,6 +142,26 @@ struct ToriDraw_Bones
 #define TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY ((uint8_t)(1u << 1))
 
 /**
+ * Rasterise this model's textured faces with the AFFINE texture kernels.
+ *
+ * The stock textured kernels are perspective-correct: every eight pixels they
+ * re-derive u and v from the plane equation, which is a reciprocal and two
+ * multiplies per block. The affine family derives u and v only at the two ends
+ * of each span and steps linearly between them. On a face that is nearly
+ * parallel to the screen -- a terrain tile seen from the game camera -- the two
+ * agree to the texel, and the affine walk is the cheaper one.
+ *
+ * This is a per-MODEL policy, set by whoever builds the model and knows what
+ * it is (world_decode_tile sets it on every textured terrain tile); the
+ * raster reads it once per model, next to the camera's own texture_affine.
+ * Every lane honours it: the per-face C kernels through the affine family
+ * (tri.texture_affine.u.c), the presorted-run assembly kernels through the
+ * affine lane of the staged row (tex_tri_asm.h, TORIDRAW_TEXBATCH_LANE_AFFINE).
+ * It is not implied by, and does not imply, either flag above.
+ */
+#define TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES ((uint8_t)(1u << 2))
+
+/**
  * A model that owns every array reachable from it.
  *
  * That is not a description, it is the invariant. Geometry a placement does NOT

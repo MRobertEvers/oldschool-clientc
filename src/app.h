@@ -942,16 +942,19 @@ struct App
      * bindings, so they check this and stand down rather than firing both. */
     uint8_t hotkey_consumed[TORIRS_OSRSKEY_COUNT];
     /*
-     * The follow camera's eye HEIGHT: the eye sits `pitch * 3 + height` behind
-     * the player, so this is the whole of "zoom". 600 is the reference's
-     * constant (Client-TS camFollow) and smaller is closer.
+     * The follow camera's live ZOOM: the eye sits `pitch * 3 + this` behind
+     * the player, in fine units, so this is the additive half of zoom. It
+     * starts at `[camera] rest=` (the reference's 600, Client-TS camFollow)
+     * and smaller is closer.
      *
-     * The wheel moves it inside the band `[camera] zoom=clamped:[min,max]`
-     * states; under `zoom=fixed:<height>` there is no band and nothing moves
-     * it, which is how a 2004 revision says it does not zoom. The free camera
-     * dollies along the view axis instead and ignores this entirely.
+     * The wheel and the pinch move it inside `[camera] zoom_closest=` ..
+     * `zoom_furthest=`, in `wheel_step=` notches; the settings page's
+     * REVCONFIG_CAMERA_WHEEL_PINNED stops them, which is how a player asks for
+     * the 2004 camera that does not zoom. The MULTIPLICATIVE half is
+     * `[camera] distance_scale=`, which this field knows nothing about. The
+     * free camera dollies along the view axis instead and ignores all of it.
      */
-    int world_cam_height;
+    int world_cam_zoom;
     int world_active; /* 1 once Task_WorldLoad completed */
     /** U toggles: 1 = the follow camera stands down and W/A/S/D + R/F fly
      *  world_camera_pos freely; relocking eases back onto the player (the
@@ -1491,6 +1494,12 @@ struct App
     int world_mouse_in_viewport;
     int world_mouse_x; /* last input mouse, canvas coords */
     int world_mouse_y;
+    /** No pointer is resting at world_mouse_x/y: the finger that was the
+     *  pointer lifted (LibToriRS_Input_PushMouseLeave). The position is kept,
+     *  because a popup the tap opened is anchored to it, but everything hover
+     *  means -- the tile under the pointer, the world pick, the mouseover line
+     *  -- goes quiet until something points at the canvas again. */
+    int pointer_absent;
     int world_hover_tile_x; /* scene tile, -1 = none */
     int world_hover_tile_z;
     int world_hover_tile_level;

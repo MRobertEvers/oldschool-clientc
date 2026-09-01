@@ -222,18 +222,19 @@ the app is uninstalled.
 
 The **software rasterizer is the default** and needs nothing from the device.
 
-The GPU path is the lane's **own GLES2 renderer**
-(`src/platform/platform_android_renderer_gles2_*.c`), opted into with `--gles2`
+The GPU path is the **GLES2 renderer**
+(`src/platform/platform_renderer_gles2_*.c`), opted into with `--gles2`
 (painter order) or `--gles2-zbuffer` (hardware depth) via `extra_args.txt` or
 the profile editor. OpenGL ES 2.0 core, no extensions; shaped after the Windows
-D3D9 renderer's retained model rather than either desktop GL renderer. See
+D3D9 renderer's retained model rather than either desktop GL renderer. The web
+lane links the same four files against WebGL1. See
 [`docs/android_architecture.md`](../docs/android_architecture.md) §4.
 
-`--opengl3` and `--webgl1` name other lanes' renderers (desktop GL 3.3 and the
-browser's WebGL1, which does not exist on native Android). Both are refused
-here and say so; a device manifest still carrying `arg=--webgl1-zbuffer` from
-before this renderer existed must be edited to `arg=--gles2` (or
-`--gles2-zbuffer`).
+`--opengl3` names the desktop GL 3.2 renderer and `--webgl1` is the browser's
+spelling for this same renderer on a WebGL1 context. Both are refused here and
+say so -- the WebGL1 flag is not aliased, so a manifest written for the browser
+cannot run on a phone unnoticed; a device manifest carrying
+`arg=--webgl1-zbuffer` must say `arg=--gles2-zbuffer`.
 
 ---
 

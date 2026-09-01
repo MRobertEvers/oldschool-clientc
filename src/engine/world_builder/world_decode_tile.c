@@ -640,13 +640,22 @@ decode_tile(
         td->textured_p_coordinate[0] = 0;
         td->textured_m_coordinate[0] = 1;
         td->textured_n_coordinate[0] = 3;
+
+        /* A textured tile is drawn with the AFFINE texture kernels: the tile
+         * lies nearly flat to the game camera, so the perspective divide the
+         * stock kernels pay every eight pixels buys nothing a span-linear
+         * walk does not already give. This is the one place that knows the
+         * model is terrain, so this is where the policy is set; the raster
+         * reads it per model (see TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES). */
+        td->flags |= TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES;
     }
 
-    /* td->flags stays 0. This builds a ToriDraw_Model directly, so `flags` is the
-     * RENDERER's word (TORIDRAW_MODEL_FLAG_*), not the ToriRS decode bookkeeping
-     * this used to mirror: bit 0 there is TORIDRAW_MODEL_FLAG_ZBUFFER, which
-     * routes the tile through the depth-tested kernels, and bit 1 means nothing
-     * at all. Terrain is painter-sorted like the rest of the scene. */
+    /* Otherwise td->flags stays 0. This builds a ToriDraw_Model directly, so
+     * `flags` is the RENDERER's word (TORIDRAW_MODEL_FLAG_*), not the ToriRS
+     * decode bookkeeping this used to mirror: bit 0 there is
+     * TORIDRAW_MODEL_FLAG_ZBUFFER, which routes the tile through the
+     * depth-tested kernels, and bit 1 means nothing at all. Terrain is
+     * painter-sorted like the rest of the scene. */
 
     /*
      * Shapes 0, 1 and 2 are the three that read { 1, 3, 5, 7 } vertices and

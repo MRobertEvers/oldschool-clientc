@@ -136,6 +136,17 @@ struct LibToriRS_Input
     int mouse_dx;
     int mouse_dy;
 
+    /**
+     * No pointer is resting at mouse_x/y any more -- @see
+     * LibToriRS_Input_PushMouseLeave.
+     *
+     * Zero is "a pointer is there", which is what a mouse host never has to
+     * say and what memset-to-zero already means. mouse_x/y are deliberately
+     * left where they were: this says the position is STALE, not that the
+     * pointer moved somewhere else.
+     */
+    int mouse_pointer_absent;
+
     int key_held[TORIRSK_COUNT];
 
     int press_origin_x[TORIRSM_COUNT];
@@ -283,6 +294,22 @@ void
 LibToriRS_Input_PushMouseWheel(
     struct LibToriRS_Input* input,
     int wheel_y);
+
+/**
+ * The pointer stopped resting on the surface: the finger lifted, or the cursor
+ * left the window.
+ *
+ * Raises mouse_pointer_absent and touches nothing else. Any later move, press
+ * or release lowers it again, so a host that never calls this is unaffected.
+ *
+ * mouse_x/y keep their values on purpose. A touch tap's popup is anchored at
+ * the tap, the minimenu dismisses itself when the pointer wanders off it
+ * (interact_minimenu's close-on-leave), and hit tests re-read the position
+ * while the popup is up -- moving the pointer to a nowhere coordinate to say
+ * "no pointer" would close the menu the tap just opened.
+ */
+void
+LibToriRS_Input_PushMouseLeave(struct LibToriRS_Input* input);
 
 static inline bool
 LibToriRS_Input_IsKeyDown(

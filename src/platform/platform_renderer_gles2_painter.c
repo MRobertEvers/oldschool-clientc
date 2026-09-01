@@ -32,11 +32,11 @@
  * a static model that cannot be resident (bigger than the ring, or not a
  * batch entry) is gathered into the stream as before. Every item asks for the
  * cutout program, and order is the sequence order, whichever buffer an item
- * draws from. platform_android_renderer_gles2_zbuffer.c is the depth-tested
+ * draws from. platform_renderer_gles2_zbuffer.c is the depth-tested
  * alternative; the two are peers and neither calls the other.
  */
 
-#include "platform/platform_android_renderer_gles2_core.h"
+#include "platform/platform_renderer_gles2_core.h"
 
 #include "toridraw.h"
 

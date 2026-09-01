@@ -311,9 +311,9 @@ else ifeq ($(PLATFORM),win64)
 else ifeq ($(PLATFORM),web)
   PLATFORM_CC       := emcc
   PLATFORM_TARGET   := $(REPO_ROOT)/build-web/torirs.js
-  # WebGL1 cannot index past 16 bits, so this lane needs the index-splitting
-  # object the desktop GL binding does not (see webgl1_index16.h).
-  PLATFORM_GPU_OBJ_NAMES := webgl1_index16.o
+  # No out-of-tree GPU binding object: the GLES2 renderer's GL calls are all
+  # in its own translation units, and <GLES2/gl2.h> is emscripten's.
+  PLATFORM_GPU_OBJ_NAMES :=
   # emcc names its own outputs (PLATFORM_TARGET is explicit); host tools built
   # alongside a web build are native and take the host's suffix, which on the
   # machines this lane runs on is none.
@@ -377,8 +377,10 @@ else ifeq ($(PLATFORM),web)
   PLATFORM_SRCS     := platform/platform_web_api.c \
                        platform/platform_audio_wasm.c \
                        platform/platform_gl_context_sdl.c \
-                       platform/platform_sdl2_renderer_webgl1.c \
-                       platform/platform_sdl2_renderer_webgl1zb.c
+                       platform/platform_renderer_gles2_core.c \
+                       platform/platform_renderer_gles2_ui.c \
+                       platform/platform_renderer_gles2_painter.c \
+                       platform/platform_renderer_gles2_zbuffer.c
   # The queue's ABI reporter. Not in PLATFORM_SRCS because it belongs to the
   # QUEUE, not to any platform: a second non-C executor would need the same
   # numbers, and putting it beside the platform that reads it today would make
@@ -413,11 +415,26 @@ else ifeq ($(PLATFORM),web)
   # so a definition only the client saw would give the two halves different
   # ideas of the same struct.
   PLATFORM_BASE_CFLAGS := -DTORIRS_PLATFORM_WEB=1 -D_GNU_SOURCE $(WEB_CACHE_CFLAGS)
-  # TORIRS_GL_ES2 builds the GPU renderer against WebGL1 (GLES2, no
-  # extensions); TORIRS_HAVE_GL3 says a GPU renderer exists at all. It is
-  # opt-in, like the desktop one: pass --webgl1 (in the page's query string).
+  # --- The GPU variant is the GLES2 renderer, shared with Android ------------
+  #
+  # WebGL1 IS OpenGL ES 2.0 with no extensions, which is exactly the ceiling
+  # platform_renderer_gles2_*.c was written to (see platform_renderer_gles2_core.h
+  # for what each GLES2 limit turned into). So the browser links the same four
+  # translation units the phone does, unchanged: the context comes from
+  # platform_gl_context_sdl.c through the neutral seam in platform_gl_context.h,
+  # and <GLES2/gl2.h> is emscripten's. There is no WebGL1-specific renderer any
+  # more -- there used to be a fork of the desktop GL renderer switched at 21
+  # places by TORIRS_GL_ES2, and it was slower than this one in every measured
+  # way (per-frame 32-bit index re-expression, a draw per model, no retained
+  # scene pages) while costing every fix twice.
+  #
+  # TORIRS_HAVE_GLES2 says the renderer exists; main.c spells the opt-in
+  # --webgl1 / --webgl1-zbuffer on this lane (pass it in the page's query
+  # string). Neither TORIRS_HAVE_GL3 nor TORIRS_GL_ES2 is defined here, and
+  # lane-check forbids both: the first would offer a GL 3.2 renderer no browser
+  # can create, the second was the retired fork's switch.
   PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -sUSE_SDL=2 \
-                      -DTORIRS_GL_ES2=1 -DTORIRS_HAVE_GL3=1 \
+                      -DTORIRS_HAVE_GLES2=1 \
                       -Wno-unknown-warning-option
 
   # Nothing is baked into the module. The files the client opens by name — the
@@ -608,10 +625,10 @@ else ifeq ($(PLATFORM),android)
                        platform/platform_audio_null.c \
                        platform/platform_android_jni.c \
                        platform/platform_android_gl.c \
-                       platform/platform_android_renderer_gles2_core.c \
-                       platform/platform_android_renderer_gles2_ui.c \
-                       platform/platform_android_renderer_gles2_painter.c \
-                       platform/platform_android_renderer_gles2_zbuffer.c
+                       platform/platform_renderer_gles2_core.c \
+                       platform/platform_renderer_gles2_ui.c \
+                       platform/platform_renderer_gles2_painter.c \
+                       platform/platform_renderer_gles2_zbuffer.c
   PLATFORM_WINDOW_SRC := platform/platform_android.c
   JS5_SRCS          := $(wildcard js5/*.c)
 
@@ -637,15 +654,16 @@ else ifeq ($(PLATFORM),android)
   # OBJ_DIR, as on every other host. Nothing here forbids it; it is simply not
   # what this lane is for.
 
-  # --- The GPU variant is this lane's OWN GLES2 renderer -----------------------
+  # --- The GPU variant is the GLES2 renderer, shared with the web lane ---------
   #
-  # platform_android_renderer_gles2_*.c: OpenGL ES 2.0 core, no extension of
+  # platform_renderer_gles2_*.c: OpenGL ES 2.0 core, no extension of
   # any kind, written to the shape of the Windows D3D9 renderer (retained
   # Batch16 pages addressed by 16-bit page-local indices, a material pre-pass
   # on the depth path, native 2D composition) rather than as a build of either
-  # desktop GL renderer. See platform_android_renderer_gles2_core.h for what
+  # desktop GL renderer. See platform_renderer_gles2_core.h for what
   # each GLES2 limit turned into. The four units are peers of the D3D9 lane's
-  # core/painter/zbuffer split, plus the 2D stack in its own unit.
+  # core/painter/zbuffer split, plus the 2D stack in its own unit. The web
+  # lane links the same four files against WebGL1, which is the same API.
   #
   # <GLES2/gl2.h> comes from the NDK sysroot; the context comes from
   # platform_android_gl.c through the neutral seam in platform_gl_context.h.
@@ -662,9 +680,9 @@ else ifeq ($(PLATFORM),android)
   # ABI, and a crash nowhere near the call.
   PLATFORM_BASE_CFLAGS := -DTORIRS_PLATFORM_ANDROID=1 -D_GNU_SOURCE -fPIC \
                           $(ANDROID_ARCH_CFLAGS)
-  # TORIRS_HAVE_GLES2 says this lane's GPU renderer exists; main.c's `--gles2`
+  # TORIRS_HAVE_GLES2 says the GLES2 renderer exists; main.c's `--gles2`
   # and `--gles2-zbuffer` are accepted only under it. Deliberately NOT
-  # TORIRS_HAVE_GL3: that names the desktop/web renderer, and defining it here
+  # TORIRS_HAVE_GL3: that names the desktop renderer, and defining it here
   # would let main.c hand this lane a GL 3.3 renderer no phone driver can run.
   # Like every other host with a GPU path, it is OPT-IN at run time; the
   # software rasterizer stays the default, so a device whose driver refuses the

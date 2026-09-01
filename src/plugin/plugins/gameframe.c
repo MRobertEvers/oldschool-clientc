@@ -1955,8 +1955,16 @@ frame_claim(struct ToriRS_PluginCtx* ctx)
  * EV_LAYOUT with nothing and was never asked again, which read as "needs a
  * restart after login". The re-claim is idempotent for the holder and marks
  * the frame as needing a fresh EV_LAYOUT -- the same call the layout config
- * key makes. Leaving the game needs nothing: the layout and draw gates already
- * answer for every frame drawn on the title.
+ * key makes.
+ *
+ * Leaving it FORGETS the one it declared. The layout and draw gates already
+ * keep that declaration off the title screen, so this is not about what is
+ * drawn there -- it is about what is drawn on the way BACK. The boxes in
+ * `g_frame` were measured against a gameframe that no longer exists, and the
+ * draw gate opens again the moment the next session reaches the game screen,
+ * which is several frames before the new tree has finished baking and a fresh
+ * declaration can replace them. Without this the first frames of every session
+ * after the first are painted with the previous session's frame.
  */
 static enum ToriRS_PluginVerdict
 frame_on_screen(
@@ -1972,6 +1980,8 @@ frame_on_screen(
 
     if( ev->screen == TORIRS_PLUGIN_SCREEN_GAME )
         frame_claim(ctx);
+    else
+        memset(&g_frame, 0, sizeof(g_frame));
     return TORIRS_PLUGIN_PASS;
 }
 

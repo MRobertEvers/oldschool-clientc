@@ -127,6 +127,28 @@ PlatformAndroid_QuitRequested(void);
 void
 PlatformAndroid_ResetForStart(void);
 
+/**
+ * The client cannot boot, for a reason the person holding the phone can fix.
+ *
+ * DOES NOT RETURN: it ends the frame thread, and only the frame thread.
+ *
+ * This exists because `exit()` is the wrong verb on this platform. A desktop
+ * client that refuses to boot prints why and exits, and the person who typed
+ * the command reads the line. Here exit() takes the whole PROCESS down -- the
+ * activity vanishes to the launcher, which is indistinguishable from a crash,
+ * and the one sentence explaining it is in logcat where nobody holding the
+ * phone will ever see it.
+ *
+ * So the message goes to the boot menu instead (`ClientActivity.bootFailed`,
+ * which shows it and cancels the countdown so the same profile is not booted
+ * again on a loop), and the process is left alive for the next run.
+ *
+ * @param message one sentence, already logged by the caller, addressed to a
+ *                user and not to a developer -- it is shown on screen.
+ */
+void
+PlatformAndroid_BootFailed(char const* message);
+
 /* ---- input ---------------------------------------------------------------
  *
  * Queued rather than translated on the spot: a MotionEvent arrives on the UI

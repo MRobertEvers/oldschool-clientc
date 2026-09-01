@@ -281,10 +281,16 @@ enum RevConfigFieldKind
     RCFIELD_FEATURES_GROUND_CLICK_OFFMAP,
     RCFIELD_FEATURES_MOVER,
     RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE,
-    RCFIELD_CAMERA_ZOOM,
-    RCFIELD_CAMERA_CONTROLS,
-    RCFIELD_CAMERA_WHEEL_STEP,
+    RCFIELD_CAMERA_REST,
     RCFIELD_CAMERA_ZOOM_CLOSEST,
+    RCFIELD_CAMERA_ZOOM_FURTHEST,
+    RCFIELD_CAMERA_WHEEL_STEP,
+    RCFIELD_CAMERA_DISTANCE_SCALE,
+    RCFIELD_CAMERA_VIEWPORT_ZOOM,
+    RCFIELD_CAMERA_PITCH_DISTANCE,
+    RCFIELD_CAMERA_PITCH_FLATTEST,
+    RCFIELD_CAMERA_PITCH_STEEPEST,
+    RCFIELD_CAMERA_CONTROLS,
     RCFIELD_CHROME_PLUGIN_IFACE,
     RCFIELD_CHROME_PLUGIN_BUTTON_PARENT,
     RCFIELD_CHROME_PLUGIN_BUTTON_X,
@@ -1283,41 +1289,35 @@ struct RevConfigFeaturesItem
 };
 
 /*
- * enum for RevConfigCameraItem.zoom_mode -- is the WHEEL live?
+ * enum for RevConfigCameraItem.wheel -- is the wheel live?
  *
- * The player's switch, not the revision's. No `zoom=` sets it: a revision
- * states where its camera rests and whether it takes the later client's
- * viewport term (`viewport_zoom`), and both of those are facts about that
- * client. Whether a wheel moves the eye is a fact about THIS one, it is the
- * same answer everywhere, and the settings page owns it.
+ * The PLAYER's switch, and the only camera value no INI may state. A profile
+ * says where the camera rests, how far it may travel and which client's terms
+ * it takes; whether a wheel moves it is a fact about THIS client, the same
+ * answer on every revision, and the settings page owns it.
  *
- * Splitting them is what makes the feature behave the same on every lane.
- * While `zoom=fixed:` set this too, the one revision that states it -- the
- * shared 2004 profile, which wanted the projection fidelity -- silently lost
- * the wheel as well, and the settings row that appeared to give it back
+ * Keeping it out of the INI is what makes the feature behave the same on every
+ * lane. While the old combined `zoom=fixed:` set this too, the one profile
+ * that used it -- the 2004 lane, which wanted the projection fidelity -- also
+ * silently lost the wheel, and the settings row that appeared to give it back
  * instead turned on the later client's viewport zoom and halved the picture.
+ * That key no longer exists; `rest=`, `viewport_zoom=` and the band ends are
+ * now separate keys, which is the same fix stated in the file format.
  */
-enum RevConfigCameraZoomMode
+enum RevConfigCameraWheel
 {
-    /**
-     * The eye height is a live value the wheel moves, bounded by min..max.
-     * This is the client's own gesture and no revision's behaviour; it is the
-     * default on every revision, because it is what this tree already did
-     * everywhere it was not switched off by accident.
-     */
-    REVCONFIG_CAMERA_ZOOM_CLAMPED = 0,
-    /**
-     * The eye is pinned at `zoom_height` and nothing moves it. What a player
-     * picks when they want the revision's resting camera and no wheel at all
-     * -- and, on a `zoom=fixed:` revision, what reproduces Client-TS exactly
-     * (`camFollow(..., pitch * 3 + 600)`).
+    /** The live zoom is a value the wheel moves, bounded by the band. This
+     *  client's own gesture and no revision's behaviour, so it is the default
+     *  everywhere. */
+    REVCONFIG_CAMERA_WHEEL_LIVE = 0,
+    /** The camera is pinned at `rest` and nothing moves it. What a player
+     *  picks when they want the revision's resting camera and no wheel at all
+     *  -- and on a `viewport_zoom=no` profile, what reproduces Client-TS
+     *  exactly (`camFollow(..., pitch * 3 + 600)`).
      *
-     * Reached only from the settings page. A revision asking for the 2004
-     * camera says so with `zoom=fixed:`, which states the rest height and
-     * clears `viewport_zoom`; losing the wheel as well was a side-effect of
-     * those two questions sharing one key, not anything a profile meant.
-     */
-    REVCONFIG_CAMERA_ZOOM_FIXED = 1,
+     *  Reached only from the settings page. Persisted by value, so these two
+     *  numbers may not be renumbered. */
+    REVCONFIG_CAMERA_WHEEL_PINNED = 1,
 };
 
 /** Bits for RevConfigCameraItem.controls, from the `controls=` name list. */
@@ -1331,44 +1331,115 @@ enum
     REVCONFIG_CAMERA_CONTROL_MMB = 1 << 1,
 };
 
-/** The reference eye height, and this client's zoom rest position. */
-#define REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT 600
+/** `rest=` when no `[camera]` section states one: the reference's own
+ *  `pitch * 3 + 600` (Client-TS camFollow). */
+#define REVCONFIG_CAMERA_REST_DEFAULT 600
 
 /*
- * The wheel band, as PERCENTAGES of whatever rest height a revision states.
+ * The band ends when a section states `rest=` but not the ends themselves, as
+ * PERCENTAGES of that rest.
  *
- * A ratio and not a pair of eye heights, because absolute is what made this
+ * A ratio and not a pair of distances, because absolute is what made this
  * feature behave differently on every lane it ran on. [240,2160] is 40%..360%
  * of the 2004 client's 600 and something else entirely of a revision that
  * rests anywhere else, so one setting bought a different amount of travel
  * depending on which world you booted -- and on a revision that rests far from
  * 600 it could put the whole band on one side of the resting view. The ratio
- * is the part that is actually the same, so the ratio is what is stated.
+ * is the part that is actually the same, so the ratio is what a DEFAULT uses.
  *
- * 40..360 of 600 IS [240,2160], the band this tree already shipped, so no lane
- * that was already right moves.
+ * A profile that wants exact ends states them; these are only what an unstated
+ * end falls back to. 40..360 of 600 IS [240,2160], the band this tree already
+ * shipped, so no lane that was already right moves.
  */
-#define REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN_PCT 40
-#define REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX_PCT 360
+#define REVCONFIG_CAMERA_ZOOM_CLOSEST_PCT 40
+#define REVCONFIG_CAMERA_ZOOM_FURTHEST_PCT 360
 
-/** `zoom=` when no `[camera]` section states one. Derived, so the two
- *  spellings of this tree's default band cannot drift apart. */
-#define REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN             (REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT *               REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN_PCT / 100)
-#define REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX             (REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT *               REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX_PCT / 100)
+/** `zoom_closest=` / `zoom_furthest=` when nothing states them or a rest to
+ *  derive them from. Spelled through the percentages so the two spellings of
+ *  this tree's default band cannot drift apart. */
+#define REVCONFIG_CAMERA_ZOOM_CLOSEST_DEFAULT \
+    (REVCONFIG_CAMERA_REST_DEFAULT * REVCONFIG_CAMERA_ZOOM_CLOSEST_PCT / 100)
+#define REVCONFIG_CAMERA_ZOOM_FURTHEST_DEFAULT \
+    (REVCONFIG_CAMERA_REST_DEFAULT * REVCONFIG_CAMERA_ZOOM_FURTHEST_PCT / 100)
 
-/** `wheel_step=` when no `[camera]` section states one: one notch moves the
- *  eye height by a tenth of the rest position. */
-#define REVCONFIG_CAMERA_WHEEL_STEP_PCT 10
-#define REVCONFIG_CAMERA_WHEEL_STEP_DEFAULT           (REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT *               REVCONFIG_CAMERA_WHEEL_STEP_PCT / 100)
+/** `distance_scale=` when no `[camera]` section states one: the follow
+ *  distance is whatever the reference computed, unscaled. */
+#define REVCONFIG_CAMERA_DISTANCE_SCALE_DEFAULT 100
+
+/** `viewport_zoom=` when no `[camera]` section states one: this tree's lanes
+ *  are later clients and take the term. Only the 2004 profile turns it off. */
+#define REVCONFIG_CAMERA_VIEWPORT_ZOOM_DEFAULT 1
 
 /*
- * `[camera]` — what the world camera lets the player do.
+ * `pitch_distance=` when no `[camera]` section states one.
  *
- * The follow camera places the eye `pitch * 3 + height` behind the player
- * (Client-TS camFollow), and `height` is the whole of "zoom": the 2004 client
- * has no way to change it, so its camera is `fixed:600` and the wheel does
- * nothing. Later clients interpolate it over the viewport and this one adds a
- * wheel, which is what `clamped:[min,max]` describes.
+ * The reference's own coefficient: the eye is pulled back 3 fine units for
+ * every angle unit of pitch (Client-TS camFollow, `pitch * 3 + 600`). It is a
+ * length per angle, which is not a physical relation -- it is a linear "the
+ * further over the camera tips, the further back it sits" and nothing more.
+ */
+#define REVCONFIG_CAMERA_PITCH_DISTANCE_DEFAULT 3
+
+/*
+ * `pitch_flattest=` / `pitch_steepest=` when no `[camera]` section states them:
+ * the reference's 128..383, in the same 2048-per-turn units as the yaw --
+ * 22.5 deg and 67.3 deg above the horizontal.
+ *
+ * Named for the VIEW like the zoom band is: `flattest` is the most level the
+ * camera may sit and `steepest` the most overhead. min/max would have been
+ * ambiguous in the one place it matters -- the terrain clamp raises pitch, so
+ * "the maximum" is the value it drives toward, not the one it respects.
+ */
+#define REVCONFIG_CAMERA_PITCH_FLATTEST_DEFAULT 128
+#define REVCONFIG_CAMERA_PITCH_STEEPEST_DEFAULT 383
+
+/** The terrain clamp keeps its pitch in 256ths so it can ease smoothly (a
+ *  whole angle unit per frame is a visible step). The band it eases inside is
+ *  the same one above, so it is derived rather than restated -- 32768 and
+ *  98048 were those two numbers in disguise. */
+#define REVCONFIG_CAMERA_PITCH_CLAMP_SCALE 256
+
+/** `wheel_step=` when no `[camera]` section states one: one notch moves the
+ *  live zoom by a tenth of the rest position. */
+#define REVCONFIG_CAMERA_WHEEL_STEP_PCT 10
+#define REVCONFIG_CAMERA_WHEEL_STEP_DEFAULT \
+    (REVCONFIG_CAMERA_REST_DEFAULT * REVCONFIG_CAMERA_WHEEL_STEP_PCT / 100)
+
+/*
+ * `[camera]` — the world camera, one key per number.
+ *
+ * The follow camera is one expression (app_world_camera_follow), and every key
+ * in this section is one term of it:
+ *
+ *     pitch * pitch_distance           <- pitch_distance=, over the range
+ *                                         pitch_flattest=..pitch_steepest=
+ *   + live zoom                        <- rest=, moved inside the band by the
+ *                                         wheel/pinch in wheel_step= notches
+ *   x viewport term / 256              <- viewport_zoom=
+ *   x distance_scale / 100             <- distance_scale=
+ *   = distance from the player to the eye, in fine units (128 per tile)
+ *
+ * Three of those move the camera closer, and they are not interchangeable --
+ * which one is worth anything depends on where the camera is POINTED, because
+ * the pitch term is 384 at the flattest angle and 1149 at the steepest:
+ *
+ *   rest= / the band   an additive constant. Full value level, nearly none
+ *                      overhead, where the pitch term is nine tenths of the
+ *                      distance.
+ *   distance_scale=    scales the total. The same value at every angle.
+ *   pitch_distance=    scales the pitch term only. Almost all of its value
+ *                      overhead, little of it level -- the lever for "the
+ *                      top-down view is too far out".
+ *
+ * @see docs/CAMERA_CONFIG.md.
+ *
+ * NOTHING HERE IS A COMBINATION. Each key states exactly one number, and a key
+ * a section does not spell is left to the profile's default -- never inferred
+ * from a neighbour. This replaced `zoom=fixed:<h>` / `zoom=clamped:[a,b]`,
+ * which stated the rest, both band ends AND the camera model in one string:
+ * a profile could not restate any one of the four without restating the other
+ * three, and `zoom_closest=` existed purely to reach past it to a band end.
+ * Every one of those four is a key of its own now.
  *
  * Every key replaces what it states outright rather than merging, so a profile
  * that says `controls=arrow_keys` has turned the middle button OFF — it has
@@ -1376,57 +1447,130 @@ enum
  */
 struct RevConfigCameraItem
 {
-    /* INI: zoom= — enum RevConfigCameraZoomMode. */
-    int zoom_mode;
-    /* INI: zoom=fixed:<height> — the pinned eye height. */
-    int zoom_height;
-    /* INI: zoom=clamped:[min,max] — the band the wheel may reach. */
-    int zoom_min;
-    int zoom_max;
     /*
-     * Does this revision's follow camera have the LATER client's
-     * viewport-derived zoom — the `* viewportZoom / 256` on the follow
-     * distance (client.method2068) and the viewport-recomputed projection
-     * scale (class159.method5357)?
+     * INI: rest= — the additive term when nobody has touched the camera, in
+     * fine units. The reference's 600 (Client-TS `pitch * 3 + 600`).
      *
-     * Derived from `zoom=` and never stated on its own: `fixed:` IS the 2004
-     * camera, whose projection is the bare `<< 9` of Model.project and whose
-     * distance is a flat `pitch * 3 + height`; `clamped:` is a later one.
-     *
-     * Separate from zoom_mode because the two answer different questions and
-     * only one of them is the player's to change. zoom_mode is a live setting
-     * — the settings page's "Zoom" row writes it — and reading it for THIS is
-     * what made turning the wheel on halve the picture: the projection scale
-     * dropped 512 -> 256 and the eye took the viewport term, so a 2004 lane
-     * jumped to a view no band could bring back. At rest the frame is
-     * 512/(pitch*3+600); at the OSRS band's closest notch it became
-     * 256/(pitch*3+360), a third smaller than the zoom it was supposed to
-     * start from. Enabling the wheel is not a claim about which client this
-     * is.
+     * Where the camera SITS. Not a bound: the live zoom starts here and the
+     * band says how far from here the wheel may take it.
      */
-    int viewport_zoom;
-    /* INI: controls= — REVCONFIG_CAMERA_CONTROL_* bits. */
-    int controls;
-    /* INI: wheel_step= — eye-height units one wheel notch moves. Only the
-     * `clamped:` camera reads it; a `fixed:` band has nowhere to move. */
-    int wheel_step;
+    int rest;
     /*
-     * INI: zoom_closest= — the near end of the band on its own, an eye
-     * height, overriding whatever `zoom=` derived. The one band value that
-     * differs by device: a phone's viewport is a few inches across and the
-     * desktop's 40%-of-rest floor leaves the player small on it, so the
-     * profiles state a closer floor under `[camera@mobile]`. Stated apart
-     * from `zoom=` because restating `zoom=` as `clamped:` on a `fixed:`
-     * profile would also flip the camera's viewport term (see viewport_zoom).
+     * INI: zoom_closest= / zoom_furthest= — the two ends of the band the wheel
+     * and the pinch may reach, in the same fine units as `rest`.
+     *
+     * `closest`/`furthest` and not min/max because the number is a DISTANCE:
+     * the smaller end is the closer view, and "min zoom" reads as the opposite
+     * of what it does.
+     *
+     * Unstated, each falls back to its percentage of `rest`
+     * (REVCONFIG_CAMERA_ZOOM_CLOSEST_PCT), resolved after the merge so it
+     * follows a rest a later source moved. One end may be stated without the
+     * other; that is the ordinary case, since only the near end differs by
+     * device.
      */
     int zoom_closest;
+    int zoom_furthest;
+    /*
+     * INI: wheel_step= — fine units one wheel notch, or one pinch step, moves
+     * the live zoom inside the band.
+     */
+    int wheel_step;
+    /*
+     * INI: distance_scale= — a PERCENTAGE of the whole follow distance, the
+     * multiplicative half of zoom. 100 leaves the camera exactly where the
+     * reference put it; 70 dollies it 30% in at every angle.
+     *
+     * The band cannot do this job. It moves the additive term only, so its
+     * authority shrinks as the camera tips over: level, `pitch * 3` is 384 of
+     * the distance and the band owns the rest; overhead it is 1149 and the
+     * band is worth a few percent. "Zoom in further" answered with a closer
+     * band end is answered only for the angles that were already closest --
+     * which is exactly how a phone ends up with an overhead view it cannot
+     * pull in.
+     *
+     * Multiplicative is also what the LATER client means by zoom: the
+     * `* viewportZoom / 256` of client.method2068 scales the same total, pitch
+     * term included. @see viewport_zoom, which is that term and which the
+     * revision owns; this one is the device's, applied after it.
+     *
+     * Not folded into the band because they answer different questions. The
+     * band is the room a gesture has to move in and the player owns it; this
+     * is how much camera a screen an arm's length away needs, and it stays put
+     * while the pinch runs.
+     */
+    int distance_scale;
+    /*
+     * INI: viewport_zoom= — does this revision's follow camera have the LATER
+     * client's viewport-derived zoom? Both halves of it move together, because
+     * in the reference they are one client era: the `* viewportZoom / 256` on
+     * the follow distance (client.method2068) and the viewport-recomputed
+     * projection scale (class159.method5357).
+     *
+     * `no` IS the 2004 camera: the projection is the bare `<< 9` of
+     * Model.project and the distance is a flat `pitch * 3 + rest`.
+     *
+     * Its own key, and never inferred from the band, because the two are read
+     * by different people. This is what the revision IS; the band is a live
+     * setting the player may change. Reading the player's `wheel` for it is
+     * what made turning the wheel on halve the picture: the projection scale
+     * dropped 512 -> 256 and the eye took the viewport term, so a 2004 lane
+     * jumped to a view no band could bring back.
+     */
+    int viewport_zoom;
+    /*
+     * INI: pitch_distance= — fine units of eye distance per angle unit of
+     * pitch. The reference's 3.
+     *
+     * The THIRD zoom lever, and the only one that is angle-selective. The band
+     * moves a constant and distance_scale scales everything, but this one is
+     * multiplied by the pitch, so lowering it takes the overhead view in hard
+     * and leaves the level view nearly where it was: at pitch 383 the term is
+     * 1149 and at 128 it is 384, so a 3 -> 2 costs the steepest angle 383 fine
+     * units and the flattest only 128.
+     *
+     * Configurable because it is the term that decides how a camera BEHAVES as
+     * it tips, and because a phone and a monitor disagree about it: a hand-held
+     * screen wants the overhead view close enough to read, where a desk monitor
+     * has the room for the reference's sweep.
+     */
+    int pitch_distance;
+    /*
+     * INI: pitch_flattest= / pitch_steepest= — how far the camera may tip, in
+     * 2048-per-turn angle units. The reference's 128..383.
+     *
+     * One statement of the range, read by all four things that used to spell
+     * it themselves: the boot value, the middle-button drag, TORIRS_ORBIT_CAM
+     * and the arrow-key ease -- plus the terrain clamp, which had it a fifth
+     * time as `32768`/`98048` (the same two numbers times
+     * REVCONFIG_CAMERA_PITCH_CLAMP_SCALE) and now derives them.
+     */
+    int pitch_flattest;
+    int pitch_steepest;
+    /* INI: controls= — REVCONFIG_CAMERA_CONTROL_* bits. */
+    int controls;
+
+    /*
+     * NOT an INI key: the player's wheel switch, enum RevConfigCameraWheel.
+     * It lives here because everything that reads the camera reads it from one
+     * struct, but no `[camera]` section may state it and the merge below never
+     * touches it. @see enum RevConfigCameraWheel.
+     */
+    int wheel;
 
     /* Which keys this section actually carried, so a later source can override
-     * one of them without silently restoring the default for the other. */
-    uint8_t has_zoom;
-    uint8_t has_controls;
-    uint8_t has_wheel_step;
+     * one of them without silently restoring the default for the other -- and
+     * so the derived band ends know whether they are still derived. */
+    uint8_t has_rest;
     uint8_t has_zoom_closest;
+    uint8_t has_zoom_furthest;
+    uint8_t has_wheel_step;
+    uint8_t has_distance_scale;
+    uint8_t has_viewport_zoom;
+    uint8_t has_pitch_distance;
+    uint8_t has_pitch_flattest;
+    uint8_t has_pitch_steepest;
+    uint8_t has_controls;
 };
 
 /** Longest `[chrome]` name or op text. One field value is 64 bytes, so nothing
@@ -1633,25 +1777,15 @@ int
 revconfig_parse_button_type(char const* str);
 
 /**
- * Parse a `[camera] zoom=` value into `out`: `fixed:<height>` or
- * `clamped:[<min>,<max>]`. Whitespace inside the brackets is allowed.
+ * The band this client offers around a rest of `rest`, in fine units.
  *
- * Returns 1 on success. Returns 0 and leaves `out` untouched otherwise, so a
- * misspelling keeps the default camera rather than pinning the eye at 0 —
- * the caller reports it.
- */
-int
-revconfig_parse_camera_zoom(char const* str, struct RevConfigCameraItem* out);
-
-/**
- * The wheel band this client offers around `height`, in eye heights.
- *
- * One place, so a revision's band and the settings page's presets are the same
- * arithmetic rather than two tables that agree until one is edited.
- * @see REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN_PCT for why it is a ratio.
+ * One place, so the fallback a profile gets for an unstated band end and the
+ * settings page's presets are the same arithmetic rather than two tables that
+ * agree until one is edited.
+ * @see REVCONFIG_CAMERA_ZOOM_CLOSEST_PCT for why it is a ratio.
  */
 void
-revconfig_camera_default_band(int height, int* out_min, int* out_max);
+revconfig_camera_default_band(int rest, int* out_closest, int* out_furthest);
 
 /**
  * Parse one `[role:…] match=` line into `out`.

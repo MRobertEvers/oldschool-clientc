@@ -248,25 +248,30 @@ does not fit the cache it named now fails that one item.
 
 ## The WebGL1 renderer
 
-The GPU renderer is one file — [`platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c)
-— built against desktop GL 3.2 natively and WebGL1 in the browser. Not two
-renderers: the draw order, the texture atlas, the sprite variants, the picking
-and the 2D batcher are the same code on both, so a fix to any of them lands on
-both. `TORIRS_GL_ES2` selects what genuinely differs, and the WebGL1 pieces
-live in [`3rd/trspk/webgl1/`](../3rd/trspk/webgl1/).
+The browser's GPU renderer is the GLES2 renderer, shared with the Android lane:
+[`platform_renderer_gles2_{core,ui,painter,zbuffer}.c`](../src/platform/).
+WebGL1 is OpenGL ES 2.0 with no extensions, which is exactly the ceiling that
+renderer was written to, so the web lane compiles the same four files unchanged
+against emscripten's `<GLES2/gl2.h>` and reaches its context through the
+`platform_gl_context.h` seam (`platform_gl_context_sdl.c` here, EGL on the
+phone). There is no browser-specific renderer and no preprocessor switch inside
+this one; a fix lands on both hosts at once.
+[`platform_renderer_gles2_core.h`](../src/platform/platform_renderer_gles2_core.h)
+is the contract, and `ANDROID-GLES2-001` / `WEB-GL1-000` in
+[`platform_quirks.md`](platform_quirks.md) register it.
 
-It is opt-in on both hosts — `--opengl3` natively, `--webgl1` in the browser
-(so `…&arg=--webgl1` in the page's query string). Each build accepts only the
-spelling it can honour, and names the other rather than silently ignoring the
-flag. A plain run is Soft3D on both, so a rendering difference is always
-attributable to a flag someone passed. On startup the client says which context
-it got, because a renderer
-running on something other than what it was written for is worth seeing on line
-one rather than deducing from a black screen:
+It is opt-in, like every GPU path in this tree: `--webgl1` (painter order) or
+`--webgl1-zbuffer` (hardware depth), so `…&arg=--webgl1` in the page's query
+string. Each build accepts only the spelling it can honour and names the right
+one otherwise: the desktop says `--opengl3`, Android says `--gles2`, and the
+browser refuses both by name rather than aliasing them, so a manifest written
+for one host cannot run on another unnoticed. A plain run is Soft3D everywhere,
+so a rendering difference is always attributable to a flag someone passed. On
+startup the client says which context it got:
 
 ```
-WebGL1: OpenGL ES 2.0 (WebGL 1.0 (OpenGL ES 2.0 Chromium)) | GLSL OpenGL ES GLSL ES 1.00 | max texture 8192
-OpenGL3: 4.1 Metal - 90.5 | GLSL 4.10 | Apple M4 Max | max texture 16384
+GLES2: WebGL 1.0 (OpenGL ES 2.0 Chromium) | GLSL OpenGL ES GLSL ES 1.00 (WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)) | WebKit WebGL | max texture 16384
+GLES2: renderer up (painter world pass)
 ```
 
 ### No extensions
@@ -281,34 +286,61 @@ What that rules out, and what the renderer does instead:
 
 | unavailable | instead |
 |---|---|
-| `OES_vertex_array_object` | no VAOs; attribute state is re-established per draw (`gl3_bind_group_attribs`) |
-| `OES_element_index_uint` | 16-bit indices, split into base-vertex chunks — see below |
-| uniform blocks (GL3 core) | the world matrices, clock and atlas dims are plain uniforms |
-| `GL_RGBA8` / `GL_R8` sized formats | internalformat equals format; the font atlas is `GL_LUMINANCE` and the shader still reads `.r` |
-| `GL_BGRA` | `glReadPixels` takes `GL_RGBA` on the pick path |
-| `layout(location=)` | attribute locations bound before linking |
-| `ANGLE_instanced_arrays`, `EXT_frag_depth`, `OES_standard_derivatives`, `EXT_shader_texture_lod`, `WEBGL_depth_texture`, `OES_texture_float` | never used by either backend |
+| `OES_vertex_array_object` | no VAOs; the attribute pointers are re-issued when the (buffer, page) pair changes and not otherwise (`gles2_bind_stream` tracks the last one) |
+| `OES_element_index_uint` | every index is a `uint16` local to a 65,536-vertex **page**; a model never crosses one, and the page is selected by re-pointing the attributes at its byte offset — see below |
+| `glDrawElementsBaseVertex` | the same: the base IS the attribute pointer |
+| buffer mapping | per-frame streams are appended with `glBufferSubData` into buffers that rotate per frame in flight, so no write lands on a buffer with a draw outstanding; growth orphans with `glBufferData(NULL)` |
+| `GL_UNPACK_ROW_LENGTH` | a sub-rectangle of a CPU atlas is packed into a tight staging buffer before `glTexSubImage2D` |
+| sized internal formats | `GL_RGBA` / `GL_LUMINANCE_ALPHA` / `GL_ALPHA` with `GL_UNSIGNED_BYTE`, internalformat == format |
+| `GL_BGRA` | ToriDraw ARGB is swizzled to RGBA bytes at upload; the vertex colour is stored in RGBA byte order at bake |
+| uniform blocks | a handful of plain uniforms per program |
+| NPOT with repeat or mipmaps | every NPOT texture (fonts, the rotmask sources) is `CLAMP_TO_EDGE` with no mipmaps, which core ES2 permits |
+| `ANGLE_instanced_arrays`, `EXT_frag_depth`, `OES_standard_derivatives`, `EXT_shader_texture_lod`, `WEBGL_depth_texture`, `OES_texture_float` | never used |
 
-The shaders are GLSL ES 1.00 ports of the GL3 ones, same maths and same names
-([`webgl1_shaders.h`](../3rd/trspk/webgl1/webgl1_shaders.h)). A fragment shader
-has no default float precision in ES, and `mediump` only carries integers
-exactly to 2^10 while a texture id runs to twice the atlas slot count — so they
-ask for `highp` where `GL_FRAGMENT_PRECISION_HIGH` says it exists.
+### What the browser adds on top of GLES2
+
+Every GL entry point is a crossing out of wasm into JavaScript, and in Chrome
+each command is then serialised to the GPU process. That does not change what
+the renderer does — it was written for a 2013 phone, where the driver call was
+already the cost — but it is why these decisions matter here:
+
+- **Draw count.** The world pass issues a new draw only at a page change or
+  the plain/cutout program boundary. On the painter path the static models
+  being drawn live in a resident 65,536-vertex window and are indexed from it
+  every frame; actors are baked into one per-frame stream in sorted order. On
+  the depth path a pose whose faces are all opaque is a contiguous run of
+  triangles and goes out as a `glDrawArrays` range with no indices at all.
+- **Upload count.** One index stream, one actor stream and one static-page
+  upload per frame at most; the UI ring is appended once per batch. Retained
+  pages and the atlas upload only when dirty (`GPU-UPLOAD-001`).
+- **No `glGetError` per frame.** In a browser it is a synchronous round trip
+  to the GPU process that drains the command queue. The renderer checks errors
+  when it creates programs and buffers, and nowhere on the frame path.
+- **No `glReadPixels` except for a capture** (`TORIRS_GLES2_READBACK=<path>`,
+  optionally `TORIRS_GLES2_READBACK_FRAME=<n>`), and the app only asks when a
+  screenshot is pending.
+- **Canvas attributes are fixed when the WINDOW is created.** SDL's emscripten
+  backend chooses its EGL config there, and emscripten's EGL turns each nonzero
+  size into a WebGL context attribute. `platform_sdl2.c` asks for depth 24 (the
+  depth pass needs it), stencil 0 and no multisampling on this lane; nothing in
+  the tree touches a stencil buffer, and MSAA would multiply fill cost for a
+  renderer that composites 2004 sprites.
+- **The swap interval is left alone.** `ToriRS_GLContext_SetSwapInterval` is a
+  no-op under emscripten: SDL routes it to `eglSwapInterval`, which emscripten
+  implements by re-timing the main loop, and `main.c` owns that (it moves
+  between `requestAnimationFrame` and `setTimeout` as the tab hides and shows).
 
 ### 16-bit indices
 
-This is the one thing the constraint really costs. A scene's vertex arena runs
-to hundreds of thousands of vertices and WebGL1 indexes with 16 bits.
-
-An index is only read relative to wherever the attribute pointers were left, so
-a draw whose vertices all lie inside one 65536-vertex window can be expressed
-as (window base, 16-bit offsets) — `glDrawElementsBaseVertex`, which WebGL1 also
-lacks, with the base folded into the `glVertexAttribPointer` offsets instead.
-[`trspk_webgl1_split16`](../3rd/trspk/webgl1/webgl1_index16.c) rewrites the
-32-bit draw ranges into those chunks; the renderer re-points the attributes per
-chunk and draws. The split is a scan, not a sort: a range's indices come from
-faces walked in painter order over one baked model, so they are already
-clustered and a chunk usually swallows a whole range.
+WebGL1 indexes with 16 bits and a scene's vertex arena runs to hundreds of
+thousands of vertices. The renderer never pays for that per frame: geometry is
+baked ONCE into 65,536-vertex pages (Batch16 for the scene, a paged arena for
+everything else) and a slot never crosses a page boundary, so a draw's page is
+a property of where the model was placed and the index stream is page-local
+`uint16` from the start. Nothing re-expresses 32-bit indices, nothing searches
+for a window, and painter order hopping among pages costs an attribute re-point
+per hop rather than a draw per model — which is what retired the previous
+WebGL1 renderer (`WEB-GL1-002`).
 
 ### Sprite pixels are ARGB; GL wants RGBA
 
@@ -323,37 +355,21 @@ either is invisible in a software rasterizer:
   wins; a pixel with none is opaque unless it is fully black, which is the
   transparent key.
 
-`gl3_argb_to_rgba` does both, and every upload goes through it. The rotated +
-masked path (the minimap and the compass) used to upload its blit scratch raw,
-which gave a texture that was entirely transparent and channel-swapped: the
-minimap's ground vanished under the 2D shader's alpha discard while its overlay
-dots, which come through the path that did convert, kept drawing.
-
-That bug was in the shared GPU renderer, so it showed on native `--opengl3` too
-— it just had never been looked at, because **`TORIRS_EXIT_BMP` writes what
-`App_Render` draws, which is the software rasterizer**. It reports a correct
-frame no matter what the GPU path put on screen. To measure a GPU backend use
-`TORIRS_GL3_READBACK=<path>` (with `TORIRS_GL3_READBACK_FRAME=<n>`), which reads
-the real framebuffer. Over the osrs230 minimap disc:
-
-| | distinct colours | dominant three |
-|---|---|---|
-| Soft3D (reference) | 175 | `53 4B 4B`, `68 7D AA`, `79 80 14` |
-| GPU backends, before | ~460 | `54 43 14`, `45 37 11`, white |
-| native `--opengl3`, after | 209 | matches Soft3D |
-| web `--webgl1`, after | 207 | matches Soft3D |
-
-`TORIRS_GL_SPRITE_DEBUG=1` logs every sprite the frame draws with the flags that
-pick its path, which is what identified the one that was not converting.
+`trspk_sprite_argb_to_rgba_for` does both, and every upload goes through it.
+The rotated + masked path (the minimap and the compass) once uploaded its blit
+scratch raw, which gave a texture that was entirely transparent and
+channel-swapped: the minimap's ground vanished under the 2D shader's alpha
+discard while its overlay dots, which come through the path that did convert,
+kept drawing.
 
 ### Atlas size
 
-The web path pins the texture atlas to 2048² (256 slots) rather than the
-desktop 4096² (1024), whatever `GL_MAX_TEXTURE_SIZE` reports. 4096² RGBA is a
-single 64MB allocation; a WebGL1 implementation may refuse it, and Chrome's
-software rasterizer drops the whole context instead of failing the upload —
-which surfaces as every later call reporting "object does not belong to this
-context", with nothing saying why.
+The world atlas is 2048² (256 slots of 128²), whatever `GL_MAX_TEXTURE_SIZE`
+reports, and `ToriRS_GLES2_Init` refuses a device that cannot take 2048. 4096²
+RGBA is a single 64MB allocation; a WebGL1 implementation may refuse it, and
+Chrome's software rasterizer drops the whole context instead of failing the
+upload — which surfaces as every later call reporting "object does not belong
+to this context", with nothing saying why.
 
 ## How cache reads work
 

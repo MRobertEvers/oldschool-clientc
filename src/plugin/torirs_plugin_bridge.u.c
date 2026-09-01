@@ -1595,7 +1595,7 @@ enum AppPluginFeatureSlot
     APP_PLUGIN_FEATURE_SLOT_CAMERA,
     /** One bit of RevConfigCameraItem::controls; `offset` is the mask. */
     APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT,
-    /** The whole zoom band -- zoom_min, zoom_max and zoom_height at once, by
+    /** The whole zoom band -- zoom_closest, zoom_furthest and rest at once, by
      *  preset id rather than by offset. @see APP_PLUGIN_ZOOM_BANDS. */
     APP_PLUGIN_FEATURE_SLOT_CAMERA_ZOOM_BAND
 };
@@ -1610,7 +1610,7 @@ enum AppPluginFeatureSlot
  * for keeping a triple consistent, and every inconsistent triple was reachable
  * in one click. A band is the thing somebody actually means to choose.
  *
- * `zoom_mode` is deliberately NOT part of a preset. Whether the wheel is live
+ * `wheel` is deliberately NOT part of a preset. Whether the wheel is live
  * is the player's, with the revision supplying the default; it has its own row
  * directly above this one, and a preset that silently flipped it would make
  * that row disagree with the click that changed it. Range and on/off are two
@@ -1651,8 +1651,8 @@ static struct AppPluginZoomBand const APP_PLUGIN_ZOOM_BANDS[] = {
      * revconfig_camera_default_band hands a profile, so picking "Standard"
      * lands exactly where a default boot already was. */
     { APP_PLUGIN_ZOOM_BAND_STANDARD,
-      REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN_PCT,
-      REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX_PCT },
+      REVCONFIG_CAMERA_ZOOM_CLOSEST_PCT,
+      REVCONFIG_CAMERA_ZOOM_FURTHEST_PCT },
     /*
      * OSRS's own wheel spans zoom scale 200..1004 about a 512 rest, and this
      * tree's unit is the inverse of that scale -- an eye HEIGHT. 512/1004 and
@@ -1679,28 +1679,28 @@ static struct AppPluginZoomBand const APP_PLUGIN_ZOOM_BANDS[] = {
 static void
 app_plugin_zoom_band_absolute(
     struct AppPluginZoomBand const* band,
-    int height,
-    int* out_min,
-    int* out_max)
+    int rest,
+    int* out_closest,
+    int* out_furthest)
 {
     assert(band);
-    assert(out_min);
-    assert(out_max);
+    assert(out_closest);
+    assert(out_furthest);
 
     if( band->min_pct <= 0 || band->max_pct <= 0 )
     {
-        *out_min = APP_PLUGIN_FEATURE_ZOOM_MIN;
-        *out_max = APP_PLUGIN_FEATURE_ZOOM_MAX;
+        *out_closest = APP_PLUGIN_FEATURE_ZOOM_MIN;
+        *out_furthest = APP_PLUGIN_FEATURE_ZOOM_MAX;
         return;
     }
-    *out_min = height * band->min_pct / 100;
-    *out_max = height * band->max_pct / 100;
-    if( *out_min < APP_PLUGIN_FEATURE_ZOOM_MIN )
-        *out_min = APP_PLUGIN_FEATURE_ZOOM_MIN;
-    if( *out_max > APP_PLUGIN_FEATURE_ZOOM_MAX )
-        *out_max = APP_PLUGIN_FEATURE_ZOOM_MAX;
-    if( *out_max <= *out_min )
-        *out_max = *out_min + 1;
+    *out_closest = rest * band->min_pct / 100;
+    *out_furthest = rest * band->max_pct / 100;
+    if( *out_closest < APP_PLUGIN_FEATURE_ZOOM_MIN )
+        *out_closest = APP_PLUGIN_FEATURE_ZOOM_MIN;
+    if( *out_furthest > APP_PLUGIN_FEATURE_ZOOM_MAX )
+        *out_furthest = APP_PLUGIN_FEATURE_ZOOM_MAX;
+    if( *out_furthest <= *out_closest )
+        *out_furthest = *out_closest + 1;
 }
 
 /** Which preset a camera item is sitting on, or REVISION when none names it. */
@@ -1715,8 +1715,8 @@ app_plugin_zoom_band_of(struct RevConfigCameraItem const* camera)
         int min = 0;
         int max = 0;
 
-        app_plugin_zoom_band_absolute(band, camera->zoom_height, &min, &max);
-        if( camera->zoom_min == min && camera->zoom_max == max )
+        app_plugin_zoom_band_absolute(band, camera->rest, &min, &max);
+        if( camera->zoom_closest == min && camera->zoom_furthest == max )
             return band->id;
     }
     return APP_PLUGIN_ZOOM_BAND_REVISION;
@@ -1762,12 +1762,12 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Zoom",
         "Camera",
         APP_PLUGIN_FEATURE_SLOT_CAMERA,
-        APP_PLUGIN_FEATURE_CAMERA_OFF(zoom_mode),
+        APP_PLUGIN_FEATURE_CAMERA_OFF(wheel),
         TORIRS_PLUGIN_FEATURE_ENUM,
         0,
         0,
         "Mouse wheel|Fixed",
-        { REVCONFIG_CAMERA_ZOOM_CLAMPED, REVCONFIG_CAMERA_ZOOM_FIXED },
+        { REVCONFIG_CAMERA_WHEEL_LIVE, REVCONFIG_CAMERA_WHEEL_PINNED },
         2,
     },
     {
@@ -1801,6 +1801,42 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Fine (20)|Small (40)|Normal (60)|Large (120)|Fastest (240)",
         { 20, 40, 60, 120, 240 },
         5,
+    },
+    {
+        "camera_distance_scale",
+        "Camera distance",
+        "",
+        APP_PLUGIN_FEATURE_SLOT_CAMERA,
+        APP_PLUGIN_FEATURE_CAMERA_OFF(distance_scale),
+        TORIRS_PLUGIN_FEATURE_INT,
+        10,
+        400,
+        /* A percentage of the whole follow distance, which is the only zoom
+         * that still bites when the camera is looking straight down -- the
+         * band above moves the additive term and overhead the pitch term is
+         * nine tenths of the distance. Named for what the view does, since
+         * "70%" is not a thing anybody can picture. */
+        "Reference (100)|Closer (85)|Close (70)|Closest (55)|Further (130)",
+        { 100, 85, 70, 55, 130 },
+        5,
+    },
+    {
+        "camera_pitch_distance",
+        "Overhead distance",
+        "",
+        APP_PLUGIN_FEATURE_SLOT_CAMERA,
+        APP_PLUGIN_FEATURE_CAMERA_OFF(pitch_distance),
+        TORIRS_PLUGIN_FEATURE_INT,
+        0,
+        16,
+        /* Fine units of eye distance per angle unit of pitch. Named for the
+         * angle it actually moves: the term is `pitch * this`, so at the
+         * steepest angle it is worth 383 units a step and at the flattest 128.
+         * The row above scales every angle; this one buys the top-down view
+         * almost alone. */
+        "Reference (3)|Closer overhead (2)|Closest overhead (1)|Flat (0)",
+        { 3, 2, 1, 0 },
+        4,
     },
     {
         "camera_arrow_keys",
@@ -2186,13 +2222,13 @@ app_plugin_feature_set(void* user, char const* key, int value)
              * it, and a preset that moved both changed the view as a
              * side-effect of widening the range. */
             app_plugin_zoom_band_absolute(
-                band, camera->zoom_height, &camera->zoom_min, &camera->zoom_max);
+                band, camera->rest, &camera->zoom_closest, &camera->zoom_furthest);
         }
         else
         {
-            camera->zoom_min = boot_camera->zoom_min;
-            camera->zoom_max = boot_camera->zoom_max;
-            camera->zoom_height = boot_camera->zoom_height;
+            camera->zoom_closest = boot_camera->zoom_closest;
+            camera->zoom_furthest = boot_camera->zoom_furthest;
+            camera->rest = boot_camera->rest;
         }
     }
     else
@@ -2219,9 +2255,9 @@ app_plugin_feature_set(void* user, char const* key, int value)
          * wheel needs is already there. @see revconfig_camera_default_band.
          */
         if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA &&
-            desc->offset == APP_PLUGIN_FEATURE_CAMERA_OFF(zoom_mode) &&
-            value == REVCONFIG_CAMERA_ZOOM_FIXED )
-            app->world_cam_height = app->revconfig_profile.camera.zoom_height;
+            desc->offset == APP_PLUGIN_FEATURE_CAMERA_OFF(wheel) &&
+            value == REVCONFIG_CAMERA_WHEEL_PINNED )
+            app->world_cam_zoom = app->revconfig_profile.camera.rest;
     }
 
     /*
@@ -2235,13 +2271,13 @@ app_plugin_feature_set(void* user, char const* key, int value)
         desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA_ZOOM_BAND )
     {
         assert(
-            app->revconfig_profile.camera.zoom_min <=
-            app->revconfig_profile.camera.zoom_max);
+            app->revconfig_profile.camera.zoom_closest <=
+            app->revconfig_profile.camera.zoom_furthest);
         /* The live eye height is a position inside the band, so a band that
          * moved under it has to pull it back in or the next wheel notch
          * starts from outside it. */
-        app->world_cam_height = RevConfigProfile_CameraClampHeight(
-            &app->revconfig_profile, app->world_cam_height);
+        app->world_cam_zoom = RevConfigProfile_CameraClampZoom(
+            &app->revconfig_profile, app->world_cam_zoom);
     }
 
     app_plugin_feature_repush(app);

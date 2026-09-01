@@ -1,21 +1,21 @@
-#ifndef SRC_PLATFORM_PLATFORM_ANDROID_RENDERER_GLES2_CORE_H
-#define SRC_PLATFORM_PLATFORM_ANDROID_RENDERER_GLES2_CORE_H
+#ifndef SRC_PLATFORM_PLATFORM_RENDERER_GLES2_CORE_H
+#define SRC_PLATFORM_PLATFORM_RENDERER_GLES2_CORE_H
 
 /**
  * Shared surface between the GLES2 renderer's translation units.
  *
- *   platform_android_renderer_gles2_core.c     the context, the programs, the
+ *   platform_renderer_gles2_core.c     the context, the programs, the
  *                                              world texture atlas, every
  *                                              retained CPU/GPU vertex buffer,
  *                                              the per-frame index stream and
  *                                              the command dispatch
- *   platform_android_renderer_gles2_ui.c       the 2D stack: sprite atlas,
+ *   platform_renderer_gles2_ui.c       the 2D stack: sprite atlas,
  *                                              fonts, rects, lines, polygons,
  *                                              rotated-masked chrome, widget
  *                                              models, the boot bar
- *   platform_android_renderer_gles2_painter.c  the painter's-algorithm world
+ *   platform_renderer_gles2_painter.c  the painter's-algorithm world
  *                                              ordering; no depth buffer
- *   platform_android_renderer_gles2_zbuffer.c  the hardware depth ordering:
+ *   platform_renderer_gles2_zbuffer.c  the hardware depth ordering:
  *                                              a material pre-pass, array
  *                                              ranges for uniform poses, and
  *                                              a sorted blended pass
@@ -69,7 +69,7 @@
  * plain/cutout program boundary.
  */
 
-#include "platform/platform_android_renderer_gles2.h"
+#include "platform/platform_renderer_gles2.h"
 
 #include "core/trspk_atlas.h"
 #include "core/trspk_batch16.h"
@@ -141,7 +141,7 @@
  * the painter path's per-frame ordered stream. */
 #define GLES2_STATIC_PAGE_BINDING TRSPK_VBO_GROUP_COUNT
 #define GLES2_FRAME_STREAM_BINDING (TRSPK_VBO_GROUP_COUNT + 1u)
-/* The painter path's resident window (see platform_android_renderer_gles2_painter.c). */
+/* The painter path's resident window (see platform_renderer_gles2_painter.c). */
 #define GLES2_HOT_BINDING (TRSPK_VBO_GROUP_COUNT + 2u)
 #define GLES2_BINDING_COUNT (TRSPK_VBO_GROUP_COUNT + 3u)
 /* The painter path's frame stream: a ~40k-vertex world at 28 bytes. */
@@ -523,7 +523,7 @@ struct ToriRS_GLES2
     /*
      * The painter path's resident window: a ring of GLES2_HOT_RING_VERTICES
      * on the GPU holding the static models being drawn. See
-     * platform_android_renderer_gles2_painter.c. `hot_head` is the ring's
+     * platform_renderer_gles2_painter.c. `hot_head` is the ring's
      * write serial (starts at one ring length, so serial 0 means "never
      * placed"); a model placed at serial s is resident while
      * hot_head - s <= ring. New residents are staged contiguously and go up

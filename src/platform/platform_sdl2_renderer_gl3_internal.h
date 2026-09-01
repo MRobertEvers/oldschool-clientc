@@ -10,9 +10,10 @@
  * links exactly one (see platform/platform.mk).
  *
  * This file and its two .c files may use anything GL 3.2 core offers: VAOs,
- * 32-bit element indices, sized internal formats, BGRA readback. The WebGL1
- * backend is a separate set of files with none of that available, so there is
- * no TORIRS_GL_ES2 here and no fallback to keep in step.
+ * 32-bit element indices, sized internal formats, BGRA readback. The browser
+ * does not build this renderer at all -- it links the GLES2 one
+ * (platform_renderer_gles2_*.c) against WebGL1 -- so there is no ES2 switch
+ * here and no fallback to keep in step.
  */
 
 #include "render/torirs_polygon.h"
@@ -58,12 +59,10 @@
 /*
  * Two GPU backends, one renderer.
  *
- * Natively this is desktop GL 3.2 core; on the web it is WebGL1 (GLES2) with no
- * extensions — see 3rd/trspk/webgl1/trspk_webgl1.h for what that rules out.
- * Everything above the handful of definitions below is written once: the draw
- * order, the atlas, the sprite variants, the picking and the 2D batcher do not
- * know which context they are running on, and a fix to any of them lands on
- * both. What genuinely differs is named here.
+ * This is desktop GL 3.2 core. The browser no longer builds a variant of it:
+ * the web lane links the GLES2 renderer (platform_renderer_gles2_*.c) against
+ * WebGL1, so the definitions below have exactly one value each and are kept as
+ * names only because the code reads better through them.
  */
 #define TORIRS_GL_TEX_RGBA GL_RGBA8
 #define TORIRS_GL_TEX_R GL_R8

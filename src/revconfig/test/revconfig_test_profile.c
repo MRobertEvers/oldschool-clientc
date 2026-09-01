@@ -35,11 +35,11 @@ test_profile(void)
         TEST_ASSERT(profile.features.ground_click_unbounded == -1, "unbounded unstated");
         TEST_ASSERT(profile.features.ground_click_offmap == -1, "offmap unstated");
         TEST_ASSERT(
-            profile.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_CLAMPED, "default zoom clamped");
+            profile.camera.wheel == REVCONFIG_CAMERA_WHEEL_LIVE, "default zoom clamped");
         TEST_ASSERT(
-            profile.camera.zoom_min == REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN, "default zoom min");
+            profile.camera.zoom_closest == REVCONFIG_CAMERA_ZOOM_CLOSEST_DEFAULT, "default zoom min");
         TEST_ASSERT(
-            profile.camera.zoom_max == REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX, "default zoom max");
+            profile.camera.zoom_furthest == REVCONFIG_CAMERA_ZOOM_FURTHEST_DEFAULT, "default zoom max");
         TEST_ASSERT(
             profile.camera.controls ==
                 (REVCONFIG_CAMERA_CONTROL_MMB | REVCONFIG_CAMERA_CONTROL_ARROW_KEYS),
@@ -47,6 +47,141 @@ test_profile(void)
         TEST_ASSERT(
             profile.camera.wheel_step == REVCONFIG_CAMERA_WHEEL_STEP_DEFAULT,
             "default wheel step");
+        TEST_ASSERT(
+            profile.camera.distance_scale == REVCONFIG_CAMERA_DISTANCE_SCALE_DEFAULT,
+            "default distance scale");
+        TEST_ASSERT(
+            profile.camera.pitch_distance == REVCONFIG_CAMERA_PITCH_DISTANCE_DEFAULT,
+            "default pitch distance");
+        TEST_ASSERT(
+            profile.camera.pitch_flattest == REVCONFIG_CAMERA_PITCH_FLATTEST_DEFAULT,
+            "default pitch flattest");
+        TEST_ASSERT(
+            profile.camera.pitch_steepest == REVCONFIG_CAMERA_PITCH_STEEPEST_DEFAULT,
+            "default pitch steepest");
+    }
+
+    /*
+     * The pitch keys: the third zoom lever and the range it acts over.
+     *
+     * `pitch_distance=` is what the follow distance multiplies the pitch by,
+     * and the reference's 3 is now a default rather than a literal in app.c --
+     * where it sat beside four copies of the 128..383 range and a fifth in
+     * 256ths. All of it is one statement here.
+     */
+    {
+        struct RevConfigProfile profile;
+        RevConfigProfile_Init(&profile);
+        merge_ini(
+            &profile,
+            "[camera]\n"
+            "pitch_distance=2\n"
+            "pitch_flattest=160\n"
+            "pitch_steepest=400\n");
+        TEST_ASSERT(profile.camera.pitch_distance == 2, "pitch distance stated");
+        TEST_ASSERT(profile.camera.pitch_flattest == 160, "pitch flattest stated");
+        TEST_ASSERT(profile.camera.pitch_steepest == 400, "pitch steepest stated");
+
+        /* 0 is a real answer -- a camera that does not pull back as it tips. */
+        merge_ini(&profile, "[camera]\npitch_distance=0\n");
+        TEST_ASSERT(profile.camera.pitch_distance == 0, "a flat pitch term is allowed");
+
+        /* Past a quarter turn the eye is placed under the anchor. */
+        merge_ini(&profile, "[camera]\npitch_steepest=900\n");
+        TEST_ASSERT(profile.camera.pitch_steepest == 400, "past a quarter turn is refused");
+        merge_ini(&profile, "[camera]\npitch_distance=40\n");
+        TEST_ASSERT(profile.camera.pitch_distance == 0, "an absurd coefficient is refused");
+
+        /* Crossed ends would pin the camera at one angle, with the terrain
+         * clamp driving it up and the drag driving it down. */
+        merge_ini(&profile, "[camera]\npitch_flattest=300\npitch_steepest=200\n");
+        TEST_ASSERT(
+            profile.camera.pitch_flattest <= profile.camera.pitch_steepest,
+            "a crossed pitch range is widened");
+
+        /* And it is independent of the zoom keys, like every other key here. */
+        RevConfigProfile_Init(&profile);
+        merge_ini(&profile, "[camera]\npitch_distance=2\n");
+        TEST_ASSERT(profile.camera.rest == REVCONFIG_CAMERA_REST_DEFAULT, "rest untouched");
+        TEST_ASSERT(
+            profile.camera.pitch_flattest == REVCONFIG_CAMERA_PITCH_FLATTEST_DEFAULT,
+            "the range is not implied by the coefficient");
+    }
+
+    /*
+     * Every key states ONE number, and each is an expression.
+     *
+     * This is the whole point of the section's shape: `zoom=fixed:<h>` /
+     * `zoom=clamped:[a,b]` stated the rest, both band ends and the camera
+     * model together, so no profile could restate one without restating the
+     * other three. Six keys, six statements.
+     */
+    {
+        struct RevConfigProfile profile;
+        RevConfigProfile_Init(&profile);
+        merge_ini(
+            &profile,
+            "[camera]\n"
+            "rest=0x200\n"
+            "zoom_closest=0x100\n"
+            "zoom_furthest=8 * 100\n"
+            "wheel_step=25\n"
+            "distance_scale=70\n"
+            "viewport_zoom=no\n");
+        TEST_ASSERT(profile.camera.rest == 0x200, "rest expression");
+        TEST_ASSERT(profile.camera.zoom_closest == 0x100, "closest expression");
+        TEST_ASSERT(profile.camera.zoom_furthest == 800, "furthest expression");
+        TEST_ASSERT(profile.camera.wheel_step == 25, "wheel step");
+        TEST_ASSERT(profile.camera.distance_scale == 70, "distance scale");
+        TEST_ASSERT(profile.camera.viewport_zoom == 0, "viewport zoom off");
+        /* The player's switch is not a key and no section may reach it. */
+        TEST_ASSERT(profile.camera.wheel == REVCONFIG_CAMERA_WHEEL_LIVE, "wheel is not an INI key");
+
+        /* A leftover comma is somebody writing the old `clamped:[a,b]` into a
+         * key that takes one number. Refused, not read as its prefix. */
+        merge_ini(&profile, "[camera]\nzoom_closest=240,2160\n");
+        TEST_ASSERT(profile.camera.zoom_closest == 0x100, "a band in one key is refused");
+    }
+
+    /* A band end left unstated is derived from the rest that SURVIVED the
+     * merge, not from the one in scope when it was parsed -- and a stated end
+     * keeps its number when a later source moves the rest under it. */
+    {
+        struct RevConfigProfile profile;
+        RevConfigProfile_Init(&profile);
+        merge_ini(&profile, "[camera]\nrest=600\n");
+        TEST_ASSERT(profile.camera.zoom_closest == 240, "derived closest at 600");
+        TEST_ASSERT(profile.camera.zoom_furthest == 2160, "derived furthest at 600");
+        merge_ini(&profile, "[camera]\nrest=1000\n");
+        TEST_ASSERT(profile.camera.zoom_closest == 400, "derived band follows the new rest");
+        TEST_ASSERT(profile.camera.zoom_furthest == 3600, "and its far end too");
+        merge_ini(&profile, "[camera]\nzoom_closest=60\n");
+        merge_ini(&profile, "[camera]\nrest=600\n");
+        TEST_ASSERT(profile.camera.zoom_closest == 60, "a STATED end is not re-derived");
+        TEST_ASSERT(profile.camera.zoom_furthest == 2160, "its unstated partner still is");
+    }
+
+    /* distance_scale= is the device's dolly and is independent of the band:
+     * stating it must not disturb where the camera rests or how far the wheel
+     * may travel. Out-of-range is refused rather than clamped -- a percentage
+     * nobody meant would arrive as a black frame or a camera inside the
+     * player's head. */
+    {
+        struct RevConfigProfile profile;
+        RevConfigProfile_Init(&profile);
+        merge_ini(&profile,
+            "[camera]\nzoom_closest=300\nzoom_furthest=1200\ndistance_scale=70\n");
+        TEST_ASSERT(profile.camera.distance_scale == 70, "distance scale stated");
+        TEST_ASSERT(profile.camera.zoom_closest == 300, "band untouched by the scale");
+        TEST_ASSERT(profile.camera.rest == 600, "rest untouched by the scale");
+        merge_ini(&profile, "[camera]\nwheel_step=25\n");
+        TEST_ASSERT(profile.camera.distance_scale == 70, "scale survives another key");
+        merge_ini(&profile, "[camera]\ndistance_scale=5\n");
+        TEST_ASSERT(profile.camera.distance_scale == 70, "below the range is refused");
+        merge_ini(&profile, "[camera]\ndistance_scale=1000\n");
+        TEST_ASSERT(profile.camera.distance_scale == 70, "above the range is refused");
+        merge_ini(&profile, "[camera]\ndistance_scale=130\n");
+        TEST_ASSERT(profile.camera.distance_scale == 130, "scale overridden");
     }
 
     /* wheel_step= is its own key: a section that states only it keeps the
@@ -54,44 +189,47 @@ test_profile(void)
     {
         struct RevConfigProfile profile;
         RevConfigProfile_Init(&profile);
-        merge_ini(&profile, "[camera]\nzoom=clamped:[300,1200]\nwheel_step=25\n");
+        merge_ini(&profile,
+            "[camera]\nzoom_closest=300\nzoom_furthest=1200\nwheel_step=25\n");
         TEST_ASSERT(profile.camera.wheel_step == 25, "wheel step stated");
-        TEST_ASSERT(profile.camera.zoom_min == 300, "band stated beside it");
+        TEST_ASSERT(profile.camera.zoom_closest == 300, "band stated beside it");
         merge_ini(&profile, "[camera]\nwheel_step=100\n");
         TEST_ASSERT(profile.camera.wheel_step == 100, "wheel step overridden");
-        TEST_ASSERT(profile.camera.zoom_min == 300, "band survives wheel step override");
-        TEST_ASSERT(profile.camera.zoom_max == 1200, "band max survives");
-        merge_ini(&profile, "[camera]\nzoom=clamped:[240,2160]\n");
-        TEST_ASSERT(profile.camera.wheel_step == 100, "wheel step survives zoom override");
+        TEST_ASSERT(profile.camera.zoom_closest == 300, "band survives wheel step override");
+        TEST_ASSERT(profile.camera.zoom_furthest == 1200, "band far end survives");
+        merge_ini(&profile, "[camera]\nzoom_closest=240\nzoom_furthest=2160\n");
+        TEST_ASSERT(profile.camera.wheel_step == 100, "wheel step survives a band override");
     }
 
-    /* The 2004 camera: pinned eye height, arrow keys only. */
+    /* The 2004 camera, which is now three ordinary keys instead of one
+     * spelling: it rests at 600, takes neither viewport term, and orbits on
+     * the arrow keys. */
     {
         struct RevConfigProfile profile;
         RevConfigProfile_Init(&profile);
         merge_ini(
             &profile,
             "[camera]\n"
-            "zoom=fixed:600\n"
+            "rest=600\n"
+            "viewport_zoom=no\n"
             "controls=arrow_keys\n");
         /* The wheel stays live -- it is this client's gesture, not the
-         * revision's -- and what `fixed:` actually buys is the 2004
-         * projection and follow distance. */
+         * revision's. Losing it was the old combined key's doing, and there is
+         * no longer a spelling that could take it away. */
         TEST_ASSERT(
-            profile.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_CLAMPED, "wheel still live");
-        TEST_ASSERT(profile.camera.viewport_zoom == 0, "fixed: takes no viewport term");
-        TEST_ASSERT(profile.camera.zoom_height == 600, "fixed height");
+            profile.camera.wheel == REVCONFIG_CAMERA_WHEEL_LIVE, "wheel still live");
+        TEST_ASSERT(profile.camera.viewport_zoom == 0, "no viewport term");
+        TEST_ASSERT(profile.camera.rest == 600, "rest stated");
         TEST_ASSERT(
             profile.camera.controls == REVCONFIG_CAMERA_CONTROL_ARROW_KEYS, "arrow keys only");
-        /* `fixed:` states the camera you BOOT into, and carries a band anyway,
-         * so switching the wheel on in the settings has somewhere to go.
-         * 40%..360% of the stated 600. */
-        TEST_ASSERT(profile.camera.zoom_min == 240, "fixed still carries a band");
-        TEST_ASSERT(profile.camera.zoom_max == 2160, "fixed band top");
+        /* A band comes with it, so switching the wheel on in the settings has
+         * somewhere to go. 40%..360% of the stated 600. */
+        TEST_ASSERT(profile.camera.zoom_closest == 240, "derived band floor");
+        TEST_ASSERT(profile.camera.zoom_furthest == 2160, "derived band top");
         TEST_ASSERT(
-            RevConfigProfile_CameraClampHeight(&profile, 2000) == 2000, "inside the band");
+            RevConfigProfile_CameraClampZoom(&profile, 2000) == 2000, "inside the band");
         TEST_ASSERT(
-            RevConfigProfile_CameraClampHeight(&profile, 100) == 240, "clamped to the floor");
+            RevConfigProfile_CameraClampZoom(&profile, 100) == 240, "clamped to the floor");
     }
 
     /* Later source wins PER KEY: overriding controls must not put the zoom back
@@ -99,14 +237,15 @@ test_profile(void)
     {
         struct RevConfigProfile profile;
         RevConfigProfile_Init(&profile);
-        merge_ini(&profile, "[camera]\nzoom=fixed:600\ncontrols=arrow_keys\n");
+        merge_ini(&profile,
+            "[camera]\nrest=600\nviewport_zoom=no\ncontrols=arrow_keys\n");
         merge_ini(&profile, "[camera]\ncontrols=mmb,arrow_keys\n");
-        /* What `zoom=` states -- the rest, the band and the camera model --
-         * survives a later source restating only `controls=`. zoom_mode is
-         * not among them: it is the player's, and no source states it. */
+        /* Every other key survives a later source restating only `controls=`.
+         * `wheel` is not among them: it is the player's, and no source states
+         * it at all. */
         TEST_ASSERT(profile.camera.viewport_zoom == 0, "camera model survives");
-        TEST_ASSERT(profile.camera.zoom_height == 600, "zoom height survives");
-        TEST_ASSERT(profile.camera.zoom_min == 240, "zoom band survives");
+        TEST_ASSERT(profile.camera.rest == 600, "rest survives");
+        TEST_ASSERT(profile.camera.zoom_closest == 240, "band survives");
         TEST_ASSERT(
             profile.camera.controls ==
                 (REVCONFIG_CAMERA_CONTROL_MMB | REVCONFIG_CAMERA_CONTROL_ARROW_KEYS),
@@ -234,21 +373,41 @@ test_profile(void)
         TEST_ASSERT(profile.chrome.plugin_button_parent == -1, "negative parent ignored");
     }
 
-    /* A malformed zoom is reported and ignored, not applied as zero: pinning
-     * the eye at the player's feet is not a better answer than the default. */
+    /* A malformed value is reported and ignored, not applied as zero: resting
+     * the eye at the player's feet is not a better answer than the default.
+     * The old `zoom=` spelling is refused the same way -- named in the loader
+     * so it says what to write instead, rather than booting a silent default. */
     {
         struct RevConfigProfile profile;
         RevConfigProfile_Init(&profile);
+        merge_ini(&profile, "[camera]\nrest=\n");
+        merge_ini(&profile, "[camera]\nzoom_closest=none\n");
+        merge_ini(&profile, "[camera]\nviewport_zoom=sometimes\n");
         merge_ini(&profile, "[camera]\nzoom=clamped:[2160,240]\n");
-        merge_ini(&profile, "[camera]\nzoom=fixed:\n");
         merge_ini(&profile, "[camera]\ncontrols=mmb,trackball\n");
+        TEST_ASSERT(profile.camera.rest == REVCONFIG_CAMERA_REST_DEFAULT, "bad rest ignored");
         TEST_ASSERT(
-            profile.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_CLAMPED, "bad zoom ignored");
+            profile.camera.zoom_closest == REVCONFIG_CAMERA_ZOOM_CLOSEST_DEFAULT,
+            "bad band end kept");
+        TEST_ASSERT(profile.camera.viewport_zoom == 1, "bad viewport_zoom ignored");
         TEST_ASSERT(
-            profile.camera.zoom_min == REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN, "bad zoom min kept");
+            profile.camera.wheel == REVCONFIG_CAMERA_WHEEL_LIVE, "the wheel is untouched");
         TEST_ASSERT(
             profile.camera.controls ==
                 (REVCONFIG_CAMERA_CONTROL_MMB | REVCONFIG_CAMERA_CONTROL_ARROW_KEYS),
             "bad controls ignored whole");
+    }
+
+    /* Crossed band ends are widened rather than left inverted:
+     * app_world_camera_zooms reads `closest < furthest` as "this camera
+     * zooms", so a crossed pair would take the wheel away entirely. */
+    {
+        struct RevConfigProfile profile;
+        RevConfigProfile_Init(&profile);
+        merge_ini(&profile, "[camera]\nzoom_closest=900\nzoom_furthest=400\n");
+        TEST_ASSERT(
+            profile.camera.zoom_closest < profile.camera.zoom_furthest,
+            "a crossed band still zooms");
+        TEST_ASSERT(profile.camera.zoom_closest == 900, "the stated near end is kept");
     }
 }

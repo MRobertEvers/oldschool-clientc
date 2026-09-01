@@ -197,6 +197,12 @@ CmdBus_PushMouseMove(
 }
 
 int
+CmdBus_PushMouseLeave(struct ToriRS_CmdBus* bus)
+{
+    return CmdBus_Push(bus, TORIRS_CMD_INPUT_MOUSE_LEAVE, NULL, 0);
+}
+
+int
 CmdBus_PushMouseWheel(
     struct ToriRS_CmdBus* bus,
     int16_t wheel_y)

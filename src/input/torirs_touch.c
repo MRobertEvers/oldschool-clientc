@@ -257,6 +257,8 @@ ToriRS_TouchEvent(
 
     if( phase == TORIRS_TOUCH_BEGAN )
     {
+        /* The pointer is back before the last one's departure was ever sent. */
+        touch->leave_countdown = 0;
         /*
          * A backend that begins an id it never ended is describing a driver,
          * not making a mistake -- a finger lost to a focus change never sends
@@ -390,7 +392,23 @@ ToriRS_TouchEvent(
         touch->pinch_distance = -1;
     }
     if( touch->count == 0 )
+    {
         touch->multi = 0;
+        /*
+         * The pointer went up with the finger.
+         *
+         * A mouse leaves its cursor wherever it stopped, and everything the
+         * client hangs off the hover position -- the tile under the pointer,
+         * the mouseover text, the world pick -- is right to keep describing
+         * that spot. A finger leaves nothing behind, so without this the last
+         * tap becomes a cursor that never moves again: the tile indicator
+         * highlights the tile that was tapped minutes ago, and the pick runs
+         * every frame to re-answer a question nobody is asking.
+         *
+         * Counted down rather than sent here -- @see leave_countdown.
+         */
+        touch->leave_countdown = 2;
+    }
 }
 
 void
@@ -401,6 +419,15 @@ ToriRS_TouchTick(
 {
     assert(touch);
     assert(bus);
+
+    /* The deferred "the finger left" from the last release, once no finger has
+     * come back down in the meantime. */
+    if( touch->leave_countdown > 0 && touch->count == 0 )
+    {
+        touch->leave_countdown--;
+        if( touch->leave_countdown == 0 )
+            CmdBus_PushMouseLeave(bus);
+    }
 
     if( touch->count != 1 || touch->multi )
         return;
